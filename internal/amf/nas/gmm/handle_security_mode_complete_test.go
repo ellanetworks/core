@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
@@ -71,7 +72,7 @@ func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -116,7 +117,7 @@ func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -166,7 +167,7 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -217,7 +218,7 @@ func TestHandleSecurityMode_ValidSecurityContextWithBadAMFKey_UpdatesSecurityCon
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -271,7 +272,7 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -339,7 +340,7 @@ func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},

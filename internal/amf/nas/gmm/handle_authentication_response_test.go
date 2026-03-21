@@ -9,8 +9,8 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
@@ -20,7 +20,7 @@ import (
 func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *testing.T) {
 	ue := &amfContext.AmfUe{
 		State:             amfContext.Authentication,
-		AuthenticationCtx: &models.Av5gAka{Rand: "DEADBEEF"},
+		AuthenticationCtx: &ausf.AuthResult{Rand: "DEADBEEF"},
 	}
 
 	msg := &nasMessage.AuthenticationResponse{
@@ -53,7 +53,7 @@ func TestHandleAuthenticationResponse_PreconditionErrors(t *testing.T) {
 		},
 		{
 			"invalid rand in UE context",
-			&amfContext.AmfUe{State: amfContext.Authentication, AuthenticationCtx: &models.Av5gAka{Rand: "Not hex"}},
+			&amfContext.AmfUe{State: amfContext.Authentication, AuthenticationCtx: &ausf.AuthResult{Rand: "Not hex"}},
 			fmt.Errorf("failed to decode RAND: encoding/hex: invalid byte: U+004E 'N'"),
 		},
 	}
@@ -75,7 +75,7 @@ func TestHandleAuthenticationResponse_TimerT3560Stopped(t *testing.T) {
 	}
 
 	ue.State = amfContext.Authentication
-	ue.AuthenticationCtx = &models.Av5gAka{
+	ue.AuthenticationCtx = &ausf.AuthResult{
 		Rand:      "DEADBEEF",
 		HxresStar: "not a match",
 	}
@@ -117,7 +117,7 @@ func TestHandleAuthenticationResponse_hResStartMismatch(t *testing.T) {
 			}
 
 			ue.State = amfContext.Authentication
-			ue.AuthenticationCtx = &models.Av5gAka{
+			ue.AuthenticationCtx = &ausf.AuthResult{
 				Rand:      "DEADBEEF",
 				HxresStar: "not a match",
 			}
@@ -187,7 +187,7 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 					},
 				},
 				Ausf: &FakeAusf{
-					AvKgAka: &models.Av5gAka{
+					AvKgAka: &ausf.AuthResult{
 						Rand: hex.EncodeToString(make([]byte, 16)),
 						Autn: hex.EncodeToString(make([]byte, 16)),
 					},
@@ -204,7 +204,7 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 			}
 
 			ue.State = amfContext.Authentication
-			ue.AuthenticationCtx = &models.Av5gAka{
+			ue.AuthenticationCtx = &ausf.AuthResult{
 				Rand:      "DEADBEEF",
 				HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
 			}
@@ -250,7 +250,7 @@ func TestHandleAuthenticationResponse_DeriveKamf_Failure(t *testing.T) {
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -266,7 +266,7 @@ func TestHandleAuthenticationResponse_DeriveKamf_Failure(t *testing.T) {
 	}
 
 	ue.State = amfContext.Authentication
-	ue.AuthenticationCtx = &models.Av5gAka{
+	ue.AuthenticationCtx = &ausf.AuthResult{
 		Rand:      "DEADBEEF",
 		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
 	}
@@ -294,7 +294,7 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -310,7 +310,7 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 	}
 
 	ue.State = amfContext.Authentication
-	ue.AuthenticationCtx = &models.Av5gAka{
+	ue.AuthenticationCtx = &ausf.AuthResult{
 		Rand:      "DEADBEEF",
 		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
@@ -69,7 +70,7 @@ func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T)
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -127,7 +128,7 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -190,7 +191,7 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -261,7 +262,7 @@ func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -326,7 +327,7 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -395,7 +396,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -477,7 +478,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -559,7 +560,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -654,7 +655,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -713,7 +714,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -846,7 +847,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -984,7 +985,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -1130,7 +1131,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -1265,7 +1266,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -1447,7 +1448,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -1512,7 +1513,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},

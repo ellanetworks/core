@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
@@ -256,7 +257,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -316,7 +317,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -366,7 +367,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -460,7 +461,7 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 					},
 				},
 				Ausf: &FakeAusf{
-					AvKgAka: &models.Av5gAka{
+					AvKgAka: &ausf.AuthResult{
 						Rand: hex.EncodeToString(make([]byte, 16)),
 						Autn: hex.EncodeToString(make([]byte, 16)),
 					},
@@ -554,7 +555,7 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 			amf := &amfContext.AMF{
 				DBInstance: &FakeDBInstance{},
 				Ausf: &FakeAusf{
-					AvKgAka: &models.Av5gAka{
+					AvKgAka: &ausf.AuthResult{
 						Rand: hex.EncodeToString(make([]byte, 16)),
 						Autn: hex.EncodeToString(make([]byte, 16)),
 					},
@@ -623,7 +624,7 @@ func TestHandleIdentityResponse_IdentityError(t *testing.T) {
 			amf := &amfContext.AMF{
 				DBInstance: &FakeDBInstance{},
 				Ausf: &FakeAusf{
-					AvKgAka: &models.Av5gAka{
+					AvKgAka: &ausf.AuthResult{
 						Rand: hex.EncodeToString(make([]byte, 16)),
 						Autn: hex.EncodeToString(make([]byte, 16)),
 					},

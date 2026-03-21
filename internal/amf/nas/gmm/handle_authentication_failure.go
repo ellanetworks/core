@@ -7,7 +7,7 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
-	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/free5gc/nas/nasMessage"
 )
 
@@ -80,7 +80,7 @@ func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *a
 		}
 
 		auts := msg.GetAuthenticationFailureParameter()
-		resynchronizationInfo := &models.ResynchronizationInfo{
+		resynchronizationInfo := &ausf.ResyncInfo{
 			Auts: hex.EncodeToString(auts[:]),
 		}
 

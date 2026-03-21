@@ -8,6 +8,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
+	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/aper"
@@ -256,10 +257,10 @@ type FakeAusf struct {
 	Supi    etsi.SUPI
 	Kseaf   string
 	Error   error
-	AvKgAka *models.Av5gAka
+	AvKgAka *ausf.AuthResult
 }
 
-func (a *FakeAusf) UeAuthPostRequestProcedure(ctx context.Context, suci string, snName string, resyncInfo *models.ResynchronizationInfo) (*models.Av5gAka, error) {
+func (a *FakeAusf) Authenticate(ctx context.Context, suci string, servingNetwork string, resync *ausf.ResyncInfo) (*ausf.AuthResult, error) {
 	if a.Error != nil {
 		return nil, a.Error
 	}
@@ -267,7 +268,7 @@ func (a *FakeAusf) UeAuthPostRequestProcedure(ctx context.Context, suci string, 
 	return a.AvKgAka, nil
 }
 
-func (a *FakeAusf) Auth5gAkaComfirmRequestProcedure(resStar string, suci string) (etsi.SUPI, string, error) {
+func (a *FakeAusf) Confirm(ctx context.Context, resStar string, suci string) (etsi.SUPI, string, error) {
 	if a.Error != nil {
 		return etsi.InvalidSUPI, "", a.Error
 	}

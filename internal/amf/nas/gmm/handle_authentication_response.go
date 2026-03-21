@@ -70,7 +70,7 @@ func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *
 		return nil
 	}
 
-	supi, kseaf, err := amf.Ausf.Auth5gAkaComfirmRequestProcedure(hex.EncodeToString(resStar[:]), ue.Suci)
+	supi, kseaf, err := amf.Ausf.Confirm(ctx, hex.EncodeToString(resStar[:]), ue.Suci)
 	if err != nil {
 		logger.WithTrace(ctx, logger.AmfLog).Error("5G AKA Confirmation Request Procedure failed", zap.Error(err))
 

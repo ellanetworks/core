@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -375,7 +376,7 @@ func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -439,7 +440,7 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -591,7 +592,7 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},
@@ -668,7 +669,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(rand),
 				Autn: hex.EncodeToString(autn),
 			},
@@ -753,7 +754,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(rand),
 				Autn: hex.EncodeToString(autn),
 			},
@@ -833,7 +834,7 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 			},
 		},
 		Ausf: &FakeAusf{
-			AvKgAka: &models.Av5gAka{
+			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
 			},

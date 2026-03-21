@@ -26,6 +26,13 @@ import (
 	"go.uber.org/zap"
 )
 
+// Authenticator is the interface the AMF requires from the AUSF.
+// *ausf.AUSF satisfies this interface directly.
+type Authenticator interface {
+	Authenticate(ctx context.Context, suci, servingNetwork string, resync *ausf.ResyncInfo) (*ausf.AuthResult, error)
+	Confirm(ctx context.Context, resStar, suci string) (etsi.SUPI, string, error)
+}
+
 const (
 	MaxValueOfAmfUeNgapID int64 = 1099511627775
 	PreallocateTmsi       uint  = 20
@@ -49,27 +56,11 @@ type SmfSbi interface {
 
 func init() {
 	amfContext = AMF{
-		Ausf:   &RealAusf{},
 		UEs:    make(map[etsi.SUPI]*AmfUe),
 		Radios: make(map[*sctp.SCTPConn]*Radio),
 	}
 	tmsiGenerator = etsi.NewTMSIAllocator()
 	amfUeNGAPIDGenerator = idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID)
-}
-
-type Ausf interface {
-	UeAuthPostRequestProcedure(ctx context.Context, suci string, snName string, resyncInfo *models.ResynchronizationInfo) (*models.Av5gAka, error)
-	Auth5gAkaComfirmRequestProcedure(resStar string, suci string) (etsi.SUPI, string, error)
-}
-
-type RealAusf struct{}
-
-func (a *RealAusf) UeAuthPostRequestProcedure(ctx context.Context, suci string, snName string, resyncInfo *models.ResynchronizationInfo) (*models.Av5gAka, error) {
-	return ausf.UeAuthPostRequestProcedure(ctx, suci, snName, resyncInfo)
-}
-
-func (a *RealAusf) Auth5gAkaComfirmRequestProcedure(resStar string, suci string) (etsi.SUPI, string, error) {
-	return ausf.Auth5gAkaComfirmRequestProcedure(resStar, suci)
 }
 
 type NetworkFeatureSupport5GS struct {
@@ -100,7 +91,7 @@ type AMF struct {
 	Mutex sync.Mutex
 
 	DBInstance               DBer
-	Ausf                     Ausf
+	Ausf                     Authenticator
 	UEs                      map[etsi.SUPI]*AmfUe
 	Radios                   map[*sctp.SCTPConn]*Radio
 	RelativeCapacity         int64

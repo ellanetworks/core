@@ -1,94 +1,98 @@
-// Copyright 2024 Ella Networks
-// Copyright 2019 free5GC.org
-// SPDX-FileCopyrightText: 2024 Canonical Ltd.
+// Copyright 2026 Ella Networks
 // SPDX-License-Identifier: Apache-2.0
 
 package ausf
 
 import (
 	"context"
-	"crypto/hmac"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
-	"math/big"
 	"regexp"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/util/ueauth"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
-const (
-	SqnMAx         int64         = 0x7FFFFFFFFFF
-	ind            int64         = 32
-	authContextTTL time.Duration = 60 * time.Second
-)
+var tracer = otel.Tracer("ella-core/ausf")
 
+// SubscriberStore is the minimal DB surface the AUSF needs.
+type SubscriberStore interface {
+	GetSubscriber(ctx context.Context, imsi string) (*Subscriber, error)
+	UpdateSequenceNumber(ctx context.Context, imsi string, sqn string) error
+}
+
+// Subscriber contains the authentication material the AUSF needs.
+type Subscriber struct {
+	PermanentKey   string
+	Opc            string
+	SequenceNumber string
+}
+
+// AuthResult is returned by Authenticate to the AMF.
+type AuthResult struct {
+	Rand      string // hex
+	Autn      string // hex
+	HxresStar string // hex
+}
+
+// ResyncInfo carries the UE's re-synchronization data.
+type ResyncInfo struct {
+	Auts string // hex — AUTS from the UE
+}
+
+type authContext struct {
+	supi      etsi.SUPI
+	kseaf     string
+	xresStar  string
+	rand      string
+	createdAt time.Time
+}
+
+// AUSF implements the 5G-AKA authentication server function.
 type AUSF struct {
-	mu sync.RWMutex
-
-	uePool              map[string]*UEAuthenticationContext // Key: suci
-	dbInstance          *db.Database
+	mu                  sync.RWMutex
+	pool                map[string]*authContext // key: SUCI
+	store               SubscriberStore
+	keys                KeyResolver
+	clock               func() time.Time
+	ttl                 time.Duration
 	servingNetworkRegex *regexp.Regexp
 }
 
-type UEAuthenticationContext struct {
-	Supi      etsi.SUPI
-	Kseaf     string
-	XresStar  string
-	Rand      string
-	CreatedAt time.Time
-}
+// Option configures an AUSF instance.
+type Option func(*AUSF)
 
-var ausf *AUSF
+// WithClock overrides the time source (useful for testing).
+func WithClock(fn func() time.Time) Option { return func(a *AUSF) { a.clock = fn } }
 
-func Start(ctx context.Context, dbInstance *db.Database) {
-	ausf = NewAUSF(dbInstance)
-	go ausf.cleanupExpiredContexts(ctx)
-}
+// WithTTL overrides the auth context time-to-live (useful for testing).
+func WithTTL(d time.Duration) Option { return func(a *AUSF) { a.ttl = d } }
 
-func NewAUSF(dbInstance *db.Database) *AUSF {
-	return &AUSF{
-		uePool:              make(map[string]*UEAuthenticationContext),
-		dbInstance:          dbInstance,
+// New creates a new AUSF. The caller must run a.Run(ctx) in a goroutine.
+func New(store SubscriberStore, keys KeyResolver, opts ...Option) *AUSF {
+	a := &AUSF{
+		pool:                make(map[string]*authContext),
+		store:               store,
+		keys:                keys,
+		clock:               time.Now,
+		ttl:                 60 * time.Second,
 		servingNetworkRegex: regexp.MustCompile(`^5G:mnc[0-9]{3}\.mcc[0-9]{3}\.3gppnetwork\.org$`),
 	}
-}
-
-func (a *AUSF) addUeAuthenticationContextToPool(suci string, ueAuthContext *UEAuthenticationContext) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	a.uePool[suci] = ueAuthContext
-}
-
-func (a *AUSF) getUeAuthenticationContext(suci string) *UEAuthenticationContext {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-
-	ausfUeContext, ok := a.uePool[suci]
-	if !ok {
-		return nil
+	for _, o := range opts {
+		o(a)
 	}
 
-	return ausfUeContext
+	return a
 }
 
-func (a *AUSF) deleteUeAuthenticationContext(suci string) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	delete(a.uePool, suci)
-}
-
-func (a *AUSF) cleanupExpiredContexts(ctx context.Context) {
+// Run starts the background context cleanup loop. It blocks until ctx is cancelled.
+func (a *AUSF) Run(ctx context.Context) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
@@ -97,19 +101,19 @@ func (a *AUSF) cleanupExpiredContexts(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			a.evictExpiredContexts()
+			a.evictExpired()
 		}
 	}
 }
 
-func (a *AUSF) evictExpiredContexts() {
+func (a *AUSF) evictExpired() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	now := time.Now()
-	for suci, ueCtx := range a.uePool {
-		if now.Sub(ueCtx.CreatedAt) > authContextTTL {
-			delete(a.uePool, suci)
+	now := a.clock()
+	for suci, ac := range a.pool {
+		if now.Sub(ac.createdAt) > a.ttl {
+			delete(a.pool, suci)
 		}
 	}
 }
@@ -118,228 +122,218 @@ func (a *AUSF) isServingNetworkAuthorized(lookup string) bool {
 	return a.servingNetworkRegex.MatchString(lookup)
 }
 
-func aucSQN(opc, k, auts, rand []byte) ([]byte, []byte, error) {
-	AK, SQNms := make([]byte, 6), make([]byte, 6)
-	macS := make([]byte, 8)
-	ConcSQNms := auts[:6]
-
-	AMF, err := hex.DecodeString("0000")
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to decode AMF: %w", err)
-	}
-
-	err = F2345(opc, k, rand, nil, nil, nil, nil, AK)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate AK: %w", err)
-	}
-
-	for i := range 6 {
-		SQNms[i] = AK[i] ^ ConcSQNms[i]
-	}
-
-	err = F1(opc, k, rand, SQNms, AMF, nil, macS)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to generate macS: %w", err)
-	}
-
-	return SQNms, macS, nil
-}
-
-func strictHex(s string, n int) string {
-	l := len(s)
-
-	if l < n {
-		return strings.Repeat("0", n-l) + s
-	}
-
-	return s[l-n : l]
-}
-
-func (ausf *AUSF) CreateAuthData(ctx context.Context, snName string, resyncInfo *models.ResynchronizationInfo, suci string) (*models.AuthenticationInfoResult, error) {
-	ctx, span := tracer.Start(
-		ctx,
-		"AUSF CreateAuthData",
+// Authenticate performs the 5G-AKA authentication procedure for a UE.
+// It returns the authentication vector to send to the UE and caches
+// the pending context for later confirmation via Confirm.
+func (a *AUSF) Authenticate(ctx context.Context, suci, servingNetwork string, resync *ResyncInfo) (*AuthResult, error) {
+	ctx, span := tracer.Start(ctx, "AUSF Authenticate",
+		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
-			attribute.String("suci", suci),
+			attribute.String("ue.suci", suci),
+			attribute.String("ausf.serving_network", servingNetwork),
 		),
 	)
 	defer span.End()
 
-	supi, err := ToSupi(suci, func(scheme string, keyID int) (string, error) {
-		key, err := ausf.dbInstance.GetHomeNetworkKeyBySchemeAndIdentifier(ctx, scheme, keyID)
-		if err != nil {
-			return "", err
+	if !a.isServingNetworkAuthorized(servingNetwork) {
+		return nil, fmt.Errorf("serving network not authorized: %s", servingNetwork)
+	}
+
+	// If resync, recover the original RAND from the cached context.
+	var resyncAuts, resyncRand string
+
+	if resync != nil {
+		a.mu.RLock()
+		cached := a.pool[suci]
+		a.mu.RUnlock()
+
+		if cached == nil {
+			return nil, fmt.Errorf("ue context not found for suci: %s", suci)
 		}
 
-		return key.PrivateKey, nil
-	})
+		resyncAuts = resync.Auts
+		resyncRand = cached.rand
+	}
+
+	// Convert SUCI → SUPI
+	supi, err := ToSupi(suci, a.keys)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't convert suci to supi: %w", err)
 	}
 
-	subscriber, err := ausf.dbInstance.GetSubscriber(ctx, supi.IMSI())
+	// Fetch subscriber auth material
+	sub, err := a.store.GetSubscriber(ctx, supi.IMSI())
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get subscriber %s: %v", supi, err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %w", supi, err)
 	}
 
-	/*
-		K, RAND, CK, IK: 128 bits (16 bytes) (hex len = 32)
-		SQN, AK: 48 bits (6 bytes) (hex len = 12) TS33.102 - 6.3.2
-		AMF: 16 bits (2 bytes) (hex len = 4) TS33.102 - Annex H
-	*/
-
-	if subscriber.PermanentKey == "" {
-		return nil, fmt.Errorf("permanent key is nil")
+	if sub.PermanentKey == "" {
+		return nil, fmt.Errorf("permanent key is empty")
 	}
 
-	if subscriber.Opc == "" {
-		return nil, fmt.Errorf("opc is nil")
+	if sub.Opc == "" {
+		return nil, fmt.Errorf("opc is empty")
 	}
 
-	k, err := hex.DecodeString(subscriber.PermanentKey)
+	k, err := hex.DecodeString(sub.PermanentKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode k: %w", err)
 	}
 
-	opc, err := hex.DecodeString(subscriber.Opc)
+	opc, err := hex.DecodeString(sub.Opc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode opc: %w", err)
 	}
 
-	sqnStr := strictHex(subscriber.SequenceNumber, 12)
+	sqnStr := strictHex(sub.SequenceNumber, 12)
 
-	RAND := make([]byte, 16)
+	// Handle SQN re-synchronization
+	var nextSQN string
 
-	_, err = rand.Read(RAND)
-	if err != nil {
-		return nil, fmt.Errorf("rand read error: %w", err)
-	}
-
-	// re-synchroniztion
-	if resyncInfo != nil {
-		auts, err := hex.DecodeString(resyncInfo.Auts)
+	if resync != nil {
+		auts, err := hex.DecodeString(resyncAuts)
 		if err != nil {
 			return nil, fmt.Errorf("could not decode auts: %w", err)
 		}
 
-		randHex, err := hex.DecodeString(resyncInfo.Rand)
+		randBytes, err := hex.DecodeString(resyncRand)
 		if err != nil {
 			return nil, fmt.Errorf("could not decode rand: %w", err)
 		}
 
-		SQNms, macS, err := aucSQN(opc, k, auts, randHex)
+		sqnMsHex, err := resyncSQN(opc, k, auts, randBytes)
 		if err != nil {
-			return nil, fmt.Errorf("failed to re-sync SQN with supi %s: %w", supi, err)
+			return nil, fmt.Errorf("SQN resync failed for %s: %w", supi, err)
 		}
 
-		if !hmac.Equal(macS, auts[6:]) {
-			return nil, fmt.Errorf("failed to re-sync MAC with supi %s", supi)
-		}
-
-		_, err = rand.Read(RAND)
+		// TS 33.102 §C.3.4: after resync, advance by IND+1 (=33) to
+		// move to the next IND slot.
+		nextSQN, err = advanceSQN(sqnMsHex, indStep+1)
 		if err != nil {
-			return nil, fmt.Errorf("rand read error: %w", err)
+			return nil, fmt.Errorf("SQN advance failed: %w", err)
 		}
+	} else {
+		var err error
 
-		// increment sqn authSubs.SequenceNumber
-		bigSQN := big.NewInt(0)
-		sqnStr = hex.EncodeToString(SQNms)
-		bigSQN.SetString(sqnStr, 16)
-
-		bigInc := big.NewInt(ind + 1)
-
-		bigP := big.NewInt(SqnMAx)
-		bigSQN = bigInc.Add(bigSQN, bigInc)
-		bigSQN = bigSQN.Mod(bigSQN, bigP)
-		sqnStr = fmt.Sprintf("%x", bigSQN)
-		sqnStr = strictHex(sqnStr, 12)
+		nextSQN, err = advanceSQN(sqnStr, indStep)
+		if err != nil {
+			return nil, fmt.Errorf("SQN increment failed: %w", err)
+		}
 	}
 
-	// increment sqn
-	bigSQN := big.NewInt(0)
-
-	sqn, err := hex.DecodeString(sqnStr)
+	// Use the incremented SQN for the authentication vector.
+	sqn, err := hex.DecodeString(nextSQN)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding sqn: %w", err)
 	}
 
-	bigSQN.SetString(sqnStr, 16)
-
-	bigInc := big.NewInt(1)
-	bigSQN = bigInc.Add(bigSQN, bigInc)
-
-	SQNheStr := fmt.Sprintf("%x", bigSQN)
-	SQNheStr = strictHex(SQNheStr, 12)
-
-	err = ausf.dbInstance.EditSubscriberSequenceNumber(ctx, supi.IMSI(), SQNheStr)
+	err = a.store.UpdateSequenceNumber(ctx, supi.IMSI(), nextSQN)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't update subscriber %s: %v", supi, err)
+		return nil, fmt.Errorf("couldn't update subscriber %s: %w", supi, err)
 	}
 
-	// Run milenage
+	// Generate RAND
+	RAND := make([]byte, 16)
+	if _, err = rand.Read(RAND); err != nil {
+		return nil, fmt.Errorf("rand read error: %w", err)
+	}
+
+	// Run Milenage
 	macA, macS := make([]byte, 8), make([]byte, 8)
 	CK, IK := make([]byte, 16), make([]byte, 16)
 	RES := make([]byte, 8)
-	AK, AKstar := make([]byte, 6), make([]byte, 6)
+	AK := make([]byte, 6)
 
 	amf, err := hex.DecodeString("8000")
 	if err != nil {
 		return nil, fmt.Errorf("amf decode error: %w", err)
 	}
 
-	// Generate macA, macS
-	err = F1(opc, k, RAND, sqn, amf, macA, macS)
-	if err != nil {
+	if err = F1(opc, k, RAND, sqn, amf, macA, macS); err != nil {
 		return nil, fmt.Errorf("milenage F1 err: %w", err)
 	}
 
-	// Generate RES, CK, IK, AK, AKstar
-	// RES == XRES (expected RES) for server
-	err = F2345(opc, k, RAND, RES, CK, IK, AK, AKstar)
-	if err != nil {
+	if err = F2345(opc, k, RAND, RES, CK, IK, AK, nil); err != nil {
 		return nil, fmt.Errorf("milenage F2345 err: %w", err)
 	}
 
-	// Generate AUTN
-	SQNxorAK := make([]byte, 6)
-
+	// Build AUTN = (SQN ⊕ AK) || AMF || MAC-A
+	sqnXorAK := make([]byte, 6)
 	for i := range sqn {
-		SQNxorAK[i] = sqn[i] ^ AK[i]
+		sqnXorAK[i] = sqn[i] ^ AK[i]
 	}
 
-	AUTN := append(append(SQNxorAK, amf...), macA...)
+	AUTN := append(append(sqnXorAK, amf...), macA...)
 
-	// derive XRES*
-	key := append(CK, IK...)
-	FC := ueauth.FCForResStarXresStarDerivation
-	P0 := []byte(snName)
-	P1 := RAND
-	P2 := RES
-
-	kdfValForXresStar, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1), P2, ueauth.KDFLen(P2))
+	// Derive XRES*
+	xresStar, err := deriveXresStar(CK, IK, servingNetwork, RAND, RES)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get KDF value: %w", err)
+		return nil, fmt.Errorf("XRES* derivation failed: %w", err)
 	}
 
-	xresStar := kdfValForXresStar[len(kdfValForXresStar)/2:]
-
-	// derive Kausf
-	FC = ueauth.FCForKausfDerivation
-	P0 = []byte(snName)
-	P1 = SQNxorAK
-
-	kdfValForKausf, err := ueauth.GetKDFValue(key, FC, P0, ueauth.KDFLen(P0), P1, ueauth.KDFLen(P1))
+	// Derive Kausf
+	kausf, err := deriveKausf(CK, IK, servingNetwork, sqnXorAK)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get KDF value: %w", err)
+		return nil, fmt.Errorf("kausf derivation failed: %w", err)
 	}
 
-	return &models.AuthenticationInfoResult{
-		AuthenticationVector: &models.AuthenticationVector{
-			Rand:     hex.EncodeToString(RAND),
-			XresStar: hex.EncodeToString(xresStar),
-			Autn:     hex.EncodeToString(AUTN),
-			Kausf:    hex.EncodeToString(kdfValForKausf),
-		},
-		Supi: supi,
+	randHex := hex.EncodeToString(RAND)
+	xresStarHex := hex.EncodeToString(xresStar)
+
+	// Derive HXRES*
+	hxresStar, err := deriveHxresStar(randHex, xresStarHex)
+	if err != nil {
+		return nil, fmt.Errorf("HXRES* derivation failed: %w", err)
+	}
+
+	// Derive Kseaf
+	kseaf, err := deriveKseaf(kausf, servingNetwork)
+	if err != nil {
+		return nil, fmt.Errorf("kseaf derivation failed: %w", err)
+	}
+
+	// Cache context for Confirm
+	a.mu.Lock()
+	a.pool[suci] = &authContext{
+		supi:      supi,
+		kseaf:     hex.EncodeToString(kseaf),
+		xresStar:  xresStarHex,
+		rand:      randHex,
+		createdAt: a.clock(),
+	}
+	a.mu.Unlock()
+
+	return &AuthResult{
+		Rand:      randHex,
+		Autn:      hex.EncodeToString(AUTN),
+		HxresStar: hxresStar,
 	}, nil
+}
+
+// Confirm verifies the UE's RES* against the cached XRES*.
+// On success it returns the SUPI and Kseaf. The cached context is
+// deleted regardless of outcome.
+func (a *AUSF) Confirm(ctx context.Context, resStar, suci string) (etsi.SUPI, string, error) {
+	_, span := tracer.Start(ctx, "AUSF Confirm",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(
+			attribute.String("ue.suci", suci),
+		),
+	)
+	defer span.End()
+
+	a.mu.Lock()
+	cached, ok := a.pool[suci]
+	delete(a.pool, suci)
+	a.mu.Unlock()
+
+	if !ok {
+		return etsi.InvalidSUPI, "", fmt.Errorf("ausf ue context not found for suci: %s", suci)
+	}
+
+	if subtle.ConstantTimeCompare([]byte(resStar), []byte(cached.xresStar)) != 1 {
+		return etsi.InvalidSUPI, "", fmt.Errorf("RES* mismatch for suci: %s", suci)
+	}
+
+	return cached.supi, cached.kseaf, nil
 }
