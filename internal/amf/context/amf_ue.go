@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/util/ueauth"
@@ -81,7 +82,7 @@ type AmfUe struct {
 	LastSeenRadio string
 	/* context about udm */
 	Ambr                              *models.Ambr
-	AuthenticationCtx                 *models.Av5gAka
+	AuthenticationCtx                 *ausf.AuthResult
 	AuthFailureCauseSynchFailureTimes int
 	ABBA                              []uint8
 	Kseaf                             string

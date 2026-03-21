@@ -177,7 +177,22 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	smf.Start(dbInstance)
-	ausf.Start(ctx, dbInstance)
+
+	ausfStore := &ausfDBAdapter{db: dbInstance}
+	keyResolver := func(scheme string, keyID int) (string, error) {
+		key, err := dbInstance.GetHomeNetworkKeyBySchemeAndIdentifier(ctx, scheme, keyID)
+		if err != nil {
+			return "", err
+		}
+
+		return key.PrivateKey, nil
+	}
+
+	ausfInstance := ausf.New(ausfStore, keyResolver)
+	go ausfInstance.Run(ctx)
+
+	amfSelf := amfcontext.AMFSelf()
+	amfSelf.Ausf = ausfInstance
 
 	sctpServer, err := amf.Start(ctx, dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port, &pdusession.EllaSmfSbi{})
 	if err != nil {
@@ -230,4 +245,26 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	logger.EllaLog.Info("Shutdown signal received, exiting.")
 
 	return nil
+}
+
+// ausfDBAdapter adapts *db.Database to the ausf.SubscriberStore interface.
+type ausfDBAdapter struct {
+	db *db.Database
+}
+
+func (a *ausfDBAdapter) GetSubscriber(ctx context.Context, imsi string) (*ausf.Subscriber, error) {
+	sub, err := a.db.GetSubscriber(ctx, imsi)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ausf.Subscriber{
+		PermanentKey:   sub.PermanentKey,
+		Opc:            sub.Opc,
+		SequenceNumber: sub.SequenceNumber,
+	}, nil
+}
+
+func (a *ausfDBAdapter) UpdateSequenceNumber(ctx context.Context, imsi string, sqn string) error {
+	return a.db.EditSubscriberSequenceNumber(ctx, imsi, sqn)
 }

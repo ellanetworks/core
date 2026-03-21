@@ -9,6 +9,7 @@ import (
 	"time"
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
@@ -176,7 +177,7 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiIncremented_SendsAuthR
 	ue.State = amfContext.Authentication
 	ue.NgKsi = models.NgKsi{Ksi: 3}
 	ue.AuthFailureCauseSynchFailureTimes = 2
-	ue.AuthenticationCtx = &models.Av5gAka{
+	ue.AuthenticationCtx = &ausf.AuthResult{
 		Rand: hex.EncodeToString(make([]byte, 16)),
 		Autn: hex.EncodeToString(make([]byte, 16)),
 	}
@@ -232,7 +233,7 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiWrapsToZero(t *testing
 
 	ue.State = amfContext.Authentication
 	ue.NgKsi = models.NgKsi{Ksi: 6}
-	ue.AuthenticationCtx = &models.Av5gAka{
+	ue.AuthenticationCtx = &ausf.AuthResult{
 		Rand: hex.EncodeToString(make([]byte, 16)),
 		Autn: hex.EncodeToString(make([]byte, 16)),
 	}
@@ -270,7 +271,7 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_Success(t *testing.T
 	ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
 	ue.Tai = ue.RanUe.Tai
 
-	expectedAv := &models.Av5gAka{
+	expectedAv := &ausf.AuthResult{
 		Rand: hex.EncodeToString(make([]byte, 16)),
 		Autn: hex.EncodeToString(make([]byte, 16)),
 	}
