@@ -176,33 +176,47 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string
 	return upf, nil
 }
 
-func (u *UPF) Close() {
+func (u *UPF) Close(ctx context.Context) {
 	u.stopGC()
 	u.stopFlowCollection()
 
-	if u.n6Link != nil {
-		if err := (*u.n6Link).Close(); err != nil {
-			logger.UpfLog.Warn("Failed to detach eBPF from n6", zap.Error(err))
+	// Resource cleanup: BPF detach, object close, perf reader close.
+	// These are kernel-level operations that are normally fast, but run
+	// them in a goroutine so the shutdown context can bound total time.
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		if u.n6Link != nil {
+			if err := (*u.n6Link).Close(); err != nil {
+				logger.UpfLog.Warn("Failed to detach eBPF from n6", zap.Error(err))
+			}
 		}
-	}
 
-	if err := u.n3Link.Close(); err != nil {
-		logger.UpfLog.Warn("Failed to detach eBPF from n3", zap.Error(err))
-	}
+		if err := u.n3Link.Close(); err != nil {
+			logger.UpfLog.Warn("Failed to detach eBPF from n3", zap.Error(err))
+		}
 
-	if err := u.pfcpConn.BpfObjects.Close(); err != nil {
-		logger.UpfLog.Warn("Failed to close BPF objects", zap.Error(err))
-	}
+		if err := u.pfcpConn.BpfObjects.Close(); err != nil {
+			logger.UpfLog.Warn("Failed to close BPF objects", zap.Error(err))
+		}
 
-	if err := u.notificationReader.Close(); err != nil {
-		logger.UpfLog.Warn("Failed to close notification reader", zap.Error(err))
-	}
+		if err := u.notificationReader.Close(); err != nil {
+			logger.UpfLog.Warn("Failed to close notification reader", zap.Error(err))
+		}
 
-	if err := u.noNeighReader.Close(); err != nil {
-		logger.UpfLog.Warn("Failed to close missing neighbour reader", zap.Error(err))
-	}
+		if err := u.noNeighReader.Close(); err != nil {
+			logger.UpfLog.Warn("Failed to close missing neighbour reader", zap.Error(err))
+		}
+	}()
 
-	logger.UpfLog.Info("UPF resources released")
+	select {
+	case <-done:
+		logger.UpfLog.Info("UPF resources released")
+	case <-ctx.Done():
+		logger.UpfLog.Warn("UPF shutdown timed out, some resources may not have been released")
+	}
 }
 
 func (u *UPF) UpdateAdvertisedN3Address(newN3Addr net.IP) {
@@ -441,7 +455,7 @@ func (u *UPF) listenForTrafficNotifications() {
 		if !u.pfcpConn.BpfObjects.IsAlreadyNotified(event) {
 			logger.UpfLog.Debug("Notifying SMF of downlink data", logger.SEID(event.LocalSEID), logger.PDRID(uint32(event.PdrID)), logger.QFI(event.QFI))
 
-			err = core.SendPfcpSessionReportRequestForDownlinkData(context.TODO(), event.LocalSEID, event.PdrID, event.QFI)
+			err = core.SendPfcpSessionReportRequestForDownlinkData(u.ctx, event.LocalSEID, event.PdrID, event.QFI)
 			if err != nil {
 				logger.UpfLog.Warn("Failed to send downlink data notification", zap.Error(err))
 			} else {
@@ -527,7 +541,7 @@ func (u *UPF) pollUsageAndResetCounters() error {
 				}
 			}
 
-			err = core.SendPfcpSessionReportRequestForUsage(context.TODO(), localSeid, urrID, uvol, dvol)
+			err = core.SendPfcpSessionReportRequestForUsage(u.ctx, localSeid, urrID, uvol, dvol)
 			if err != nil {
 				logger.UpfLog.Warn("could not send PFCP session report request for usage", zap.Error(err), logger.SEID(localSeid), logger.URRID(urrID))
 				continue
@@ -560,7 +574,7 @@ func (u *UPF) listenForMissingNeighbours() {
 			continue
 		}
 
-		if err := kernel.AddNeighbour(context.TODO(), ip.AsSlice()); err != nil {
+		if err := kernel.AddNeighbour(u.ctx, ip.AsSlice()); err != nil {
 			logger.UpfLog.Warn("could not add neighbour", zap.String("destination", ip.String()), zap.Error(err))
 			continue
 		}

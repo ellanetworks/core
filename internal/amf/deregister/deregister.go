@@ -15,7 +15,7 @@ func DeregisterSubscriber(ctx context.Context, amf *amfContext.AMF, supi etsi.SU
 		return nil
 	}
 
-	amf.DeregisterAndRemoveAMFUE(ue)
+	amf.DeregisterAndRemoveAMFUE(ctx, ue)
 
 	logger.AmfLog.Info("removed ue context", logger.SUPI(supi.String()))
 

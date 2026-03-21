@@ -45,7 +45,7 @@ func (dummyFS) Open(name string) (fs.File, error) {
 func TestStartServerStandup(t *testing.T) {
 	// Override routeReconciler to a no-op to avoid actual route reconciliation.
 	origReconciler := routeReconciler
-	routeReconciler = func(dbInstance *db.Database, kernelInt kernel.Kernel) error {
+	routeReconciler = func(_ context.Context, dbInstance *db.Database, kernelInt kernel.Kernel) error {
 		return nil
 	}
 

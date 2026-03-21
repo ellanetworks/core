@@ -82,7 +82,7 @@ func HandleInitialContextSetupFailure(ctx context.Context, ran *amfContext.Radio
 	if amfUe.T3550 != nil {
 		amfUe.T3550.Stop()
 		amfUe.T3550 = nil
-		amfUe.Deregister()
+		amfUe.Deregister(ctx)
 		amfUe.ClearRegistrationRequestData()
 	}
 

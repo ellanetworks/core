@@ -12,7 +12,7 @@ import (
 )
 
 func HandleInitialRegistration(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe) error {
-	ue.ClearRegistrationData()
+	ue.ClearRegistrationData(ctx)
 
 	// update Kgnb/Kn3iwf
 	err := ue.UpdateSecurityContext()
@@ -61,7 +61,7 @@ func HandleInitialRegistration(ctx context.Context, amf *amfContext.AMF, ue *amf
 	ue.T3502Value = amf.T3502Value
 	ue.T3512Value = amf.T3512Value
 
-	err = ue.ReAllocateGuti(operatorInfo.Guami)
+	err = ue.ReAllocateGuti(ctx, operatorInfo.Guami)
 	if err != nil {
 		return fmt.Errorf("error reallocating GUTI to UE: %v", err)
 	}

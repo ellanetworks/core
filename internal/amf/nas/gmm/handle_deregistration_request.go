@@ -17,7 +17,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 		return fmt.Errorf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", ue.State)
 	}
 
-	defer ue.Deregister()
+	defer ue.Deregister(ctx)
 
 	if ue.RanUe == nil {
 		logger.WithTrace(ctx, logger.AmfLog).Warn("RanUe is nil, cannot send UE Context Release Command", logger.SUPI(ue.Supi.String()))

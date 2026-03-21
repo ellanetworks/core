@@ -248,7 +248,7 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 			Metric:      createRouteParams.Metric,
 		}
 
-		tx, err := dbInstance.BeginTransaction()
+		tx, err := dbInstance.BeginTransaction(r.Context())
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Internal error starting transaction", err, logger.APILog)
 			return
@@ -332,7 +332,7 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 
 		gateway = gateway.To4()
 
-		tx, err := dbInstance.BeginTransaction()
+		tx, err := dbInstance.BeginTransaction(r.Context())
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Internal error starting transaction", err, logger.APILog)
 			return

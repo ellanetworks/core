@@ -1,9 +1,10 @@
 package gmm
 
 import (
+	"context"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 )
@@ -14,7 +15,7 @@ func TestHandleStatus5GMM_UEDeregistered_Error(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.Deregister()
+	ue.Deregister(context.TODO())
 
 	m := buildTestStatus5gmm()
 
@@ -32,7 +33,7 @@ func TestHandleStatus5GMM_MacFailed_Error(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = context.Registered
+	ue.State = amfContext.Registered
 	ue.MacFailed = true
 
 	m := buildTestStatus5gmm()
@@ -51,7 +52,7 @@ func TestHandleStatus5GMM_NoErrror(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = context.Registered
+	ue.State = amfContext.Registered
 
 	m := buildTestStatus5gmm()
 

@@ -60,10 +60,23 @@ func (b *BufferedDBWriter) InsertFlowReport(ctx context.Context, flowReport *Flo
 }
 
 // Stop closes the event channel and blocks until all queued events have
-// been written. Call this during graceful shutdown before closing the DB.
-func (b *BufferedDBWriter) Stop() {
+// been written or the context expires. Call this during graceful shutdown
+// before closing the DB.
+func (b *BufferedDBWriter) Stop(ctx context.Context) {
 	close(b.eventCh)
-	b.wg.Wait()
+
+	done := make(chan struct{})
+
+	go func() {
+		b.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		b.logger.Warn("buffered writer drain timed out, some events may be lost")
+	}
 }
 
 // drainLoop reads events from the channel and writes them to the database.

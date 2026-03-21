@@ -100,7 +100,7 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 	// Reconcile routes on startup and every 5 minutes.
 	go func() {
 		for {
-			err := routeReconciler(dbInstance, kernelInt)
+			err := routeReconciler(ctx, dbInstance, kernelInt)
 			if err != nil {
 				logger.APILog.Error("couldn't reconcile routes", zap.Error(err))
 			}
@@ -117,8 +117,8 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 	return srv, nil
 }
 
-func ReconcileKernelRouting(dbInstance *db.Database, kernelInt kernel.Kernel) error {
-	expectedRoutes, _, err := dbInstance.ListRoutesPage(context.Background(), 1, 100)
+func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernelInt kernel.Kernel) error {
+	expectedRoutes, _, err := dbInstance.ListRoutesPage(ctx, 1, 100)
 	if err != nil {
 		return fmt.Errorf("couldn't list routes: %v", err)
 	}

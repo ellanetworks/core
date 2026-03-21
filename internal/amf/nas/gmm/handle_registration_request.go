@@ -217,7 +217,7 @@ func handleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 		if err != nil {
 			ue.Log.Warn("Authentication procedure failed, rejecting registration", zap.Error(err))
 
-			defer ue.Deregister()
+			defer ue.Deregister(ctx)
 
 			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationReject).Inc()
 
@@ -240,11 +240,11 @@ func handleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 			ue.T3560 = nil
 		}
 
-		ue.Deregister()
+		ue.Deregister(ctx)
 
 		return HandleGmmMessage(ctx, amf, ue, msg)
 	case amfContext.ContextSetup:
-		defer ue.Deregister()
+		defer ue.Deregister(ctx)
 
 		ue.Log.Info("state reset to Deregistered")
 
