@@ -111,8 +111,8 @@ func (a *AUSF) evictExpired() {
 	defer a.mu.Unlock()
 
 	now := a.clock()
-	for suci, ctx := range a.pool {
-		if now.Sub(ctx.createdAt) > a.ttl {
+	for suci, ac := range a.pool {
+		if now.Sub(ac.createdAt) > a.ttl {
 			delete(a.pool, suci)
 		}
 	}
