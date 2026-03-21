@@ -554,7 +554,7 @@ func (db *Database) Initialize(ctx context.Context) error {
 			return fmt.Errorf("failed to initialize flow reports retention policy: %v", err)
 		}
 
-		logger.DBLog.Info("Initialized flow reports retention policy", zap.Int("days", DefaultFlowReportsRetentionDays))
+		logger.WithTrace(ctx, logger.DBLog).Info("Initialized flow reports retention policy", zap.Int("days", DefaultFlowReportsRetentionDays))
 	}
 
 	numDataNetworks, err := db.CountDataNetworks(ctx)
