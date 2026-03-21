@@ -180,3 +180,73 @@ func TestConfirmSuccess_ReturnsCorrectKseaf(t *testing.T) {
 		t.Fatalf("Kseaf mismatch:\n  got  %s\n  want %s", gotKseaf, hex.EncodeToString(expectedKseaf))
 	}
 }
+
+// TestResyncSuccess_SQNAdvancesBy33 does a full resync round-trip:
+//  1. Authenticate normally (caches RAND in the pool).
+//  2. Build a valid AUTS from that RAND and a known SQN_MS (simulating
+//     what the UE sends when it detects a SQN mismatch).
+//  3. Call Authenticate again with the ResyncInfo.
+//  4. Assert the stored SQN equals advanceSQN(sqnMs, 33).
+func TestResyncSuccess_SQNAdvancesBy33(t *testing.T) {
+	// UE's true SQN — the value the USIM holds.
+	const sqnMsHex = "000000000100"
+
+	store := newInternalStore()
+	store.add(intTestIMSI, &Subscriber{
+		PermanentKey:   intTestK,
+		Opc:            intTestOPc,
+		SequenceNumber: "000000000000",
+	})
+
+	a := New(store, noopKeys)
+	ctx := context.Background()
+
+	// Step 1: Normal authenticate — this caches a RAND in the pool.
+	result, err := a.Authenticate(ctx, intTestSUCI, intTestSN, nil)
+	if err != nil {
+		t.Fatalf("first Authenticate failed: %v", err)
+	}
+
+	randBytes, _ := hex.DecodeString(result.Rand)
+	k, _ := hex.DecodeString(intTestK)
+	opc, _ := hex.DecodeString(intTestOPc)
+	sqnMs, _ := hex.DecodeString(sqnMsHex)
+
+	// Step 2: Build a valid AUTS = (SQN_MS ⊕ AK) || MAC-S.
+	AK := make([]byte, 6)
+	if err := F2345(opc, k, randBytes, nil, nil, nil, nil, AK); err != nil {
+		t.Fatalf("F2345 for AK failed: %v", err)
+	}
+
+	concSQN := make([]byte, 6)
+	for i := range 6 {
+		concSQN[i] = sqnMs[i] ^ AK[i]
+	}
+
+	amfZero, _ := hex.DecodeString("0000")
+	macS := make([]byte, 8)
+
+	if err := F1(opc, k, randBytes, sqnMs, amfZero, nil, macS); err != nil {
+		t.Fatalf("F1 for MAC-S failed: %v", err)
+	}
+
+	auts := append(concSQN, macS...)
+
+	// Step 3: Authenticate with resync.
+	_, err = a.Authenticate(ctx, intTestSUCI, intTestSN, &ResyncInfo{
+		Auts: hex.EncodeToString(auts),
+	})
+	if err != nil {
+		t.Fatalf("resync Authenticate failed: %v", err)
+	}
+
+	// Step 4: Verify stored SQN = sqnMs + 33 (indStep + 1).
+	store.mu.Lock()
+	gotSQN := store.subs[intTestIMSI].SequenceNumber
+	store.mu.Unlock()
+
+	wantSQN, _ := advanceSQN(sqnMsHex, indStep+1) // 0x100 + 33 = 0x121
+	if gotSQN != wantSQN {
+		t.Fatalf("after resync: want SQN %s, got %s", wantSQN, gotSQN)
+	}
+}
