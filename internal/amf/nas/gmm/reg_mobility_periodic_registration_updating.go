@@ -152,7 +152,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 		}
 	}
 
-	err = ue.ReAllocateGuti(operatorInfo.Guami)
+	err = ue.ReAllocateGuti(ctx, operatorInfo.Guami)
 	if err != nil {
 		return fmt.Errorf("error reallocating GUTI to UE: %v", err)
 	}

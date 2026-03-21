@@ -197,7 +197,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 		// Valid Security is not exist for this UE then only delete AMfUe Context
 		if !amfUe.SecurityContextAvailable {
 			logger.WithTrace(ctx, ran.Log).Info("Valid Security is not exist for the UE, so deleting AmfUe Context", logger.SUPI(amfUe.Supi.String()))
-			amf.DeregisterAndRemoveAMFUE(amfUe)
+			amf.DeregisterAndRemoveAMFUE(ctx, amfUe)
 		}
 	case amfContext.UeContextReleaseDueToNwInitiatedDeregistraion:
 		logger.WithTrace(ctx, ran.Log).Info("Release UE Context Due to Nw Initiated: Release Ue Context", logger.SUPI(amfUe.Supi.String()))
@@ -207,7 +207,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 			logger.WithTrace(ctx, ran.Log).Error(err.Error())
 		}
 
-		amf.DeregisterAndRemoveAMFUE(amfUe)
+		amf.DeregisterAndRemoveAMFUE(ctx, amfUe)
 	case amfContext.UeContextReleaseHandover:
 		logger.WithTrace(ctx, ran.Log).Info("Release UE Context : Release for Handover", logger.SUPI(amfUe.Supi.String()))
 

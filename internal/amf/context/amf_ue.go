@@ -190,10 +190,10 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	ue.Log = logger.AmfLog.With(logger.AmfUeNgapID(ranUe.AmfUeNgapID))
 }
 
-func (ue *AmfUe) ReAllocateGuti(supportedGuami *models.Guami) error {
+func (ue *AmfUe) ReAllocateGuti(ctx context.Context, supportedGuami *models.Guami) error {
 	ue.OldTmsi = ue.Tmsi
 
-	tmsi, err := allocateTMSI()
+	tmsi, err := allocateTMSI(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to allocate TMSI: %v", err)
 	}
@@ -514,8 +514,8 @@ func (ue *AmfUe) ClearRegistrationRequestData() {
 	ue.OnGoing = OnGoingProcedureNothing
 }
 
-func (ue *AmfUe) ClearRegistrationData() {
-	ue.releaseSmContexts()
+func (ue *AmfUe) ClearRegistrationData(ctx context.Context) {
+	ue.releaseSmContexts(ctx)
 
 	ue.SmContextList = make(map[uint8]*SmContext)
 }
@@ -828,10 +828,10 @@ func (ue *AmfUe) startImplicitDeregistrationTimer() {
 
 	ue.Log.Debug("starting implicit deregistration timer")
 
-	ue.implicitDeregistrationTimer = NewTimer(2*time.Minute, 1, func(expireTimes int32) { ue.Deregister() }, func() {})
+	ue.implicitDeregistrationTimer = NewTimer(2*time.Minute, 1, func(expireTimes int32) { ue.Deregister(context.Background()) }, func() {})
 }
 
-func (ue *AmfUe) Deregister() {
+func (ue *AmfUe) Deregister(ctx context.Context) {
 	ue.Mutex.Lock()
 	defer ue.Mutex.Unlock()
 
@@ -847,14 +847,14 @@ func (ue *AmfUe) Deregister() {
 
 	ue.State = Deregistered // direct write: ue.Mutex is already held
 
-	ue.releaseSmContexts()
+	ue.releaseSmContexts(ctx)
 
 	ue.Log.Debug("ue deregistered", logger.SUPI(ue.Supi.String()))
 }
 
-func (ue *AmfUe) releaseSmContexts() {
+func (ue *AmfUe) releaseSmContexts(ctx context.Context) {
 	for _, smContext := range ue.SmContextList {
-		err := AMFSelf().Smf.ReleaseSmContext(context.TODO(), smContext.Ref)
+		err := AMFSelf().Smf.ReleaseSmContext(ctx, smContext.Ref)
 		if err != nil {
 			ue.Log.Error("Release SmContext Error", zap.Error(err))
 		}

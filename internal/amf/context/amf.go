@@ -118,8 +118,8 @@ type AMF struct {
 	Smf                      SmfSbi
 }
 
-func allocateTMSI() (etsi.TMSI, error) {
-	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
+func allocateTMSI(ctx context.Context) (etsi.TMSI, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	val, err := tmsiGenerator.Allocate(ctx)
@@ -152,8 +152,8 @@ func (amf *AMF) AddAmfUeToUePool(ue *AmfUe) error {
 	return nil
 }
 
-func (amf *AMF) DeregisterAndRemoveAMFUE(ue *AmfUe) {
-	ue.Deregister()
+func (amf *AMF) DeregisterAndRemoveAMFUE(ctx context.Context, ue *AmfUe) {
+	ue.Deregister(ctx)
 
 	if ue.RanUe != nil {
 		err := ue.RanUe.Remove()

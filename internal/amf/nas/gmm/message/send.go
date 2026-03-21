@@ -118,7 +118,7 @@ func SendAuthenticationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 			}
 		}, func() {
 			amfUe.Log.Warn("T3560 Expires, abort authentication procedure & ongoing 5GMM procedure", zap.Any("expireTimes", cfg.MaxRetryTimes))
-			amf.DeregisterAndRemoveAMFUE(amfUe)
+			amf.DeregisterAndRemoveAMFUE(context.Background(), amfUe)
 		})
 	}
 
@@ -279,7 +279,7 @@ func SendSecurityModeCommand(ctx context.Context, amf *amfContext.AMF, ue *amfCo
 		}, func() {
 			amfUe.Log.Warn("T3560 Expires, abort security mode control procedure", zap.Any("expireTimes", cfg.MaxRetryTimes))
 			// amfUe.Remove()
-			amf.DeregisterAndRemoveAMFUE(amfUe)
+			amf.DeregisterAndRemoveAMFUE(context.Background(), amfUe)
 		})
 	}
 
