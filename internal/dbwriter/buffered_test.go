@@ -76,7 +76,7 @@ func TestBufferedDBWriter_EventsAreWrittenAsynchronously(t *testing.T) {
 		}
 	}
 
-	buf.Stop()
+	buf.Stop(context.Background())
 
 	if got := fake.radioEventCount(); got != 10 {
 		t.Fatalf("expected 10 events written, got %d", got)
@@ -93,7 +93,7 @@ func TestBufferedDBWriter_StopDrainsRemainingEvents(t *testing.T) {
 		})
 	}
 
-	buf.Stop()
+	buf.Stop(context.Background())
 
 	if got := fake.radioEventCount(); got != 50 {
 		t.Fatalf("expected all 50 events flushed on Stop, got %d", got)
@@ -110,7 +110,7 @@ func TestBufferedDBWriter_DropsWhenBufferFull(t *testing.T) {
 		})
 	}
 
-	buf.Stop()
+	buf.Stop(context.Background())
 
 	got := fake.radioEventCount()
 	if got >= 20 {
@@ -130,7 +130,7 @@ func TestBufferedDBWriter_InsertErrorDoesNotBlock(t *testing.T) {
 		MessageType: "NGSetupRequest",
 	})
 
-	buf.Stop()
+	buf.Stop(context.Background())
 }
 
 func TestBufferedDBWriter_AuditLogIsSynchronous(t *testing.T) {
@@ -149,14 +149,14 @@ func TestBufferedDBWriter_AuditLogIsSynchronous(t *testing.T) {
 		t.Fatalf("expected 1 audit log written synchronously, got %d", len(fake.auditLogs))
 	}
 
-	buf.Stop()
+	buf.Stop(context.Background())
 }
 
 func TestBufferedDBWriter_ReturnsNilErrorOnInsert(t *testing.T) {
 	fake := &fakeDBWriter{}
 
 	buf := dbwriter.NewBufferedDBWriter(fake, 10, zap.NewNop())
-	defer buf.Stop()
+	defer buf.Stop(context.Background())
 
 	err := buf.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
 		MessageType: "InitialUEMessage",

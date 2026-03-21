@@ -202,10 +202,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		amf.Close(shutdownCtx, sctpServer)
 
 		logger.EllaLog.Info("Shutting down UPF")
-		upfInstance.Close()
+		upfInstance.Close(shutdownCtx)
 
 		logger.EllaLog.Info("Flushing buffered writer")
-		bufferedWriter.Stop()
+		bufferedWriter.Stop(shutdownCtx)
 
 		logger.EllaLog.Info("Closing database")
 
