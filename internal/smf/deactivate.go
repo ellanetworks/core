@@ -1,17 +1,20 @@
-package pdusession
+// Copyright 2024 Ella Networks
+// SPDX-License-Identifier: Apache-2.0
+
+package smf
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
-	smfContext "github.com/ellanetworks/core/internal/smf/context"
-	"github.com/ellanetworks/core/internal/smf/pfcp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
-func DeactivateSmContext(ctx context.Context, smContextRef string) error {
+// DeactivateSmContext puts a PDU session into buffering mode (e.g. UE went idle).
+// It modifies the DL FAR to buffer instead of forward and sends a PFCP modification.
+func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) error {
 	ctx, span := tracer.Start(ctx, "SMF deactivate session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -24,9 +27,7 @@ func DeactivateSmContext(ctx context.Context, smContextRef string) error {
 		return fmt.Errorf("SM Context reference is missing")
 	}
 
-	smf := smfContext.SMFSelf()
-
-	smContext := smf.GetSMContext(smContextRef)
+	smContext := s.GetSession(smContextRef)
 	if smContext == nil {
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
@@ -43,7 +44,11 @@ func DeactivateSmContext(ctx context.Context, smContextRef string) error {
 		return fmt.Errorf("pfcp session context not found for upf")
 	}
 
-	err = pfcp.SendPfcpSessionModificationRequest(ctx, smf.CPNodeID, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID, nil, farList, nil)
+	err = s.upf.ModifySession(ctx, &PFCPModificationRequest{
+		LocalSEID:  smContext.PFCPContext.LocalSEID,
+		RemoteSEID: smContext.PFCPContext.RemoteSEID,
+		FARs:       farList,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
@@ -53,7 +58,7 @@ func DeactivateSmContext(ctx context.Context, smContextRef string) error {
 	return nil
 }
 
-func handleUpCnxStateDeactivate(smContext *smfContext.SMContext) ([]*smfContext.FAR, error) {
+func handleUpCnxStateDeactivate(smContext *SMContext) ([]*FAR, error) {
 	if smContext.Tunnel == nil {
 		return nil, nil
 	}
@@ -62,7 +67,7 @@ func handleUpCnxStateDeactivate(smContext *smfContext.SMContext) ([]*smfContext.
 		return nil, fmt.Errorf("AN Release Error, PDR is nil")
 	}
 
-	smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = smfContext.RuleUpdate
+	smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
 	smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ApplyAction.Forw = false
 	smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ApplyAction.Buff = true
 	smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ApplyAction.Nocp = true
@@ -71,7 +76,7 @@ func handleUpCnxStateDeactivate(smContext *smfContext.SMContext) ([]*smfContext.
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = nil
 	}
 
-	farList := []*smfContext.FAR{smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR}
+	farList := []*FAR{smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR}
 
 	return farList, nil
 }

@@ -473,15 +473,15 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -493,7 +493,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 			RoleID:   RoleAdmin,
 		}
 
-		statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
+		statusCode, response, err := createUser(env.Server.URL, client, token, createUserParams)
 		if err != nil {
 			t.Fatalf("couldn't create user: %s", err)
 		}
@@ -512,7 +512,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 	})
 
 	t.Run("2. Get user", func(t *testing.T) {
-		statusCode, response, err := getUser(ts.URL, client, token, Email)
+		statusCode, response, err := getUser(env.Server.URL, client, token, Email)
 		if err != nil {
 			t.Fatalf("couldn't get user: %s", err)
 		}
@@ -531,7 +531,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. Get user - email not found", func(t *testing.T) {
-		statusCode, response, err := getUser(ts.URL, client, token, "gruyaume2@ellanetworks.com")
+		statusCode, response, err := getUser(env.Server.URL, client, token, "gruyaume2@ellanetworks.com")
 		if err != nil {
 			t.Fatalf("couldn't get user: %s", err)
 		}
@@ -551,7 +551,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 			RoleID:   RoleAdmin,
 		}
 
-		statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
+		statusCode, response, err := createUser(env.Server.URL, client, token, createUserParams)
 		if err != nil {
 			t.Fatalf("couldn't create user: %s", err)
 		}
@@ -570,7 +570,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 			Password: "password1234",
 		}
 
-		statusCode, response, err := editUserPassword(ts.URL, client, token, Email, updateUserPasswordParams)
+		statusCode, response, err := editUserPassword(env.Server.URL, client, token, Email, updateUserPasswordParams)
 		if err != nil {
 			t.Fatalf("couldn't edit user: %s", err)
 		}
@@ -593,7 +593,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 			RoleID: RoleReadOnly,
 		}
 
-		statusCode, response, err := editUser(ts.URL, client, token, Email, updateUserParams)
+		statusCode, response, err := editUser(env.Server.URL, client, token, Email, updateUserParams)
 		if err != nil {
 			t.Fatalf("couldn't edit user: %s", err)
 		}
@@ -612,7 +612,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 	})
 
 	t.Run("7. Get user", func(t *testing.T) {
-		statusCode, response, err := getUser(ts.URL, client, token, Email)
+		statusCode, response, err := getUser(env.Server.URL, client, token, Email)
 		if err != nil {
 			t.Fatalf("couldn't get user: %s", err)
 		}
@@ -635,7 +635,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 	})
 
 	t.Run("8. Delete user - success", func(t *testing.T) {
-		statusCode, response, err := deleteUser(ts.URL, client, token, Email)
+		statusCode, response, err := deleteUser(env.Server.URL, client, token, Email)
 		if err != nil {
 			t.Fatalf("couldn't delete user: %s", err)
 		}
@@ -653,7 +653,7 @@ func TestAPIUsersEndToEnd(t *testing.T) {
 		}
 	})
 	t.Run("9. Delete user - no user", func(t *testing.T) {
-		statusCode, response, err := deleteUser(ts.URL, client, token, Email)
+		statusCode, response, err := deleteUser(env.Server.URL, client, token, Email)
 		if err != nil {
 			t.Fatalf("couldn't delete user: %s", err)
 		}
@@ -672,15 +672,15 @@ func TestUpdateUserPasswordSuccess(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	adminToken, err := initializeAndRefresh(ts.URL, client)
+	adminToken, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -691,7 +691,7 @@ func TestUpdateUserPasswordSuccess(t *testing.T) {
 		RoleID:   RoleReadOnly,
 	}
 
-	statusCode, response, err := createUser(ts.URL, client, adminToken, createUserParams)
+	statusCode, response, err := createUser(env.Server.URL, client, adminToken, createUserParams)
 	if err != nil {
 		t.Fatalf("couldn't create user: %s", err)
 	}
@@ -708,7 +708,7 @@ func TestUpdateUserPasswordSuccess(t *testing.T) {
 		Password: "newpassword123",
 	}
 
-	statusCode, updateResponse, err := editUserPassword(ts.URL, client, adminToken, "testuser@ellanetworks.com", params)
+	statusCode, updateResponse, err := editUserPassword(env.Server.URL, client, adminToken, "testuser@ellanetworks.com", params)
 	if err != nil {
 		t.Fatalf("couldn't edit user password: %s", err)
 	}
@@ -730,15 +730,15 @@ func TestUpdateUserPasswordValidation(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	adminToken, err := initializeAndRefresh(ts.URL, client)
+	adminToken, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -763,7 +763,7 @@ func TestUpdateUserPasswordValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			statusCode, updateResponse, err := editUserPassword(ts.URL, client, adminToken, tt.email, tt.params)
+			statusCode, updateResponse, err := editUserPassword(env.Server.URL, client, adminToken, tt.email, tt.params)
 			if err != nil {
 				t.Fatalf("couldn't make request: %s", err)
 			}
@@ -783,20 +783,20 @@ func TestUpdateUserPasswordInvalidJSON(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	adminToken, err := initializeAndRefresh(ts.URL, client)
+	adminToken, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", ts.URL+"/api/v1/users/test@ellanetworks.com/password", strings.NewReader(`{"invalid json`))
+	req, err := http.NewRequestWithContext(context.Background(), "PUT", env.Server.URL+"/api/v1/users/test@ellanetworks.com/password", strings.NewReader(`{"invalid json`))
 	if err != nil {
 		t.Fatalf("couldn't create request: %s", err)
 	}
@@ -832,15 +832,15 @@ func TestUpdateUserPasswordNotFound(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	adminToken, err := initializeAndRefresh(ts.URL, client)
+	adminToken, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -849,7 +849,7 @@ func TestUpdateUserPasswordNotFound(t *testing.T) {
 		Password: "newpassword123",
 	}
 
-	statusCode, updateResponse, err := editUserPassword(ts.URL, client, adminToken, "nonexistent@ellanetworks.com", params)
+	statusCode, updateResponse, err := editUserPassword(env.Server.URL, client, adminToken, "nonexistent@ellanetworks.com", params)
 	if err != nil {
 		t.Fatalf("couldn't make request: %s", err)
 	}
@@ -867,15 +867,15 @@ func TestNonAdminUpdateUserPassword(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	adminToken, err := initializeAndRefresh(ts.URL, client)
+	adminToken, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -886,7 +886,7 @@ func TestNonAdminUpdateUserPassword(t *testing.T) {
 		RoleID:   RoleReadOnly,
 	}
 
-	statusCode, response, err := createUser(ts.URL, client, adminToken, createUserParams)
+	statusCode, response, err := createUser(env.Server.URL, client, adminToken, createUserParams)
 	if err != nil {
 		t.Fatalf("couldn't create user: %s", err)
 	}
@@ -904,7 +904,7 @@ func TestNonAdminUpdateUserPassword(t *testing.T) {
 		Password: Password,
 	}
 
-	statusCode, loginResp, err := login(ts.URL, client, loginParams)
+	statusCode, loginResp, err := login(env.Server.URL, client, loginParams)
 	if err != nil {
 		t.Fatalf("couldn't login as read-only user: %s", err)
 	}
@@ -917,7 +917,7 @@ func TestNonAdminUpdateUserPassword(t *testing.T) {
 		t.Fatalf("unexpected error during login: %q", loginResp.Error)
 	}
 
-	statusCode, refreshResp, err := refresh(ts.URL, client)
+	statusCode, refreshResp, err := refresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't refresh as read-only user: %s", err)
 	}
@@ -933,7 +933,7 @@ func TestNonAdminUpdateUserPassword(t *testing.T) {
 		Password:        "newpassword123",
 	}
 
-	statusCode, updateResponse, err := editMyUserPassword(ts.URL, client, roToken, updateUserPasswordParams)
+	statusCode, updateResponse, err := editMyUserPassword(env.Server.URL, client, roToken, updateUserPasswordParams)
 	if err != nil {
 		t.Fatalf("couldn't edit user password: %s", err)
 	}
@@ -955,15 +955,15 @@ func TestUpdateMyPasswordWrongCurrentPassword(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -973,7 +973,7 @@ func TestUpdateMyPasswordWrongCurrentPassword(t *testing.T) {
 		Password:        "newpassword123",
 	}
 
-	statusCode, updateResponse, err := editMyUserPassword(ts.URL, client, token, updateParams)
+	statusCode, updateResponse, err := editMyUserPassword(env.Server.URL, client, token, updateParams)
 	if err != nil {
 		t.Fatalf("couldn't make request: %s", err)
 	}
@@ -991,15 +991,15 @@ func TestUpdateMyPasswordMissingCurrentPassword(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -1008,7 +1008,7 @@ func TestUpdateMyPasswordMissingCurrentPassword(t *testing.T) {
 		Password: "newpassword123",
 	}
 
-	statusCode, updateResponse, err := editMyUserPassword(ts.URL, client, token, updateParams)
+	statusCode, updateResponse, err := editMyUserPassword(env.Server.URL, client, token, updateParams)
 	if err != nil {
 		t.Fatalf("couldn't make request: %s", err)
 	}
@@ -1026,15 +1026,15 @@ func TestCreateUserInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -1089,7 +1089,7 @@ func TestCreateUserInvalidInput(t *testing.T) {
 				RoleID:   roleID,
 			}
 
-			statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
+			statusCode, response, err := createUser(env.Server.URL, client, token, createUserParams)
 			if err != nil {
 				t.Fatalf("couldn't create user: %s", err)
 			}
@@ -1109,15 +1109,15 @@ func TestEditUnexistentUser(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -1126,7 +1126,7 @@ func TestEditUnexistentUser(t *testing.T) {
 		RoleID: RoleReadOnly,
 	}
 
-	statusCode, response, err := editUser(ts.URL, client, token, "nonexistent@ellanetworks.com", updateUserParams)
+	statusCode, response, err := editUser(env.Server.URL, client, token, "nonexistent@ellanetworks.com", updateUserParams)
 	if err != nil {
 		t.Fatalf("couldn't edit user: %s", err)
 	}
@@ -1144,15 +1144,15 @@ func TestUpdateUserInvalidRoleID(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	adminToken, err := initializeAndRefresh(ts.URL, client)
+	adminToken, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -1164,7 +1164,7 @@ func TestUpdateUserInvalidRoleID(t *testing.T) {
 		RoleID:   RoleReadOnly,
 	}
 
-	statusCode, _, err := createUser(ts.URL, client, adminToken, createUserParams)
+	statusCode, _, err := createUser(env.Server.URL, client, adminToken, createUserParams)
 	if err != nil {
 		t.Fatalf("couldn't create user: %s", err)
 	}
@@ -1178,7 +1178,7 @@ func TestUpdateUserInvalidRoleID(t *testing.T) {
 		RoleID: RoleID(999),
 	}
 
-	statusCode, updateResponse, err := editUser(ts.URL, client, adminToken, "testuser@ellanetworks.com", updateUserParams)
+	statusCode, updateResponse, err := editUser(env.Server.URL, client, adminToken, "testuser@ellanetworks.com", updateUserParams)
 	if err != nil {
 		t.Fatalf("couldn't edit user: %s", err)
 	}
@@ -1196,22 +1196,22 @@ func TestCreateTooManyUsers(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, dbInstance, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
 	// Insert users directly into DB to fill up to the limit (bypasses HTTP + bcrypt overhead)
 	for i := 0; i < 49; i++ { // 50 - 1 because init already created one user
-		_, err := dbInstance.CreateUser(context.Background(), &db.User{
+		_, err := env.DB.CreateUser(context.Background(), &db.User{
 			Email:          "user" + strconv.Itoa(i) + "@ellanetworks.com",
 			HashedPassword: "placeholder-hash",
 			RoleID:         db.RoleID(RoleReadOnly),
@@ -1227,7 +1227,7 @@ func TestCreateTooManyUsers(t *testing.T) {
 		RoleID:   RoleReadOnly,
 	}
 
-	statusCode, response, err := createUser(ts.URL, client, token, createUserParams)
+	statusCode, response, err := createUser(env.Server.URL, client, token, createUserParams)
 	if err != nil {
 		t.Fatalf("couldn't create user: %s", err)
 	}
@@ -1246,16 +1246,16 @@ func TestCreateAPIToken(t *testing.T) {
 
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -1267,7 +1267,7 @@ func TestCreateAPIToken(t *testing.T) {
 		ExpiresAt: expiresAt.Format(time.RFC3339),
 	}
 
-	statusCode, response, err := createAPIToken(ts.URL, client, token, createAPITokenParams)
+	statusCode, response, err := createAPIToken(env.Server.URL, client, token, createAPITokenParams)
 	if err != nil {
 		t.Fatalf("couldn't create API token: %s", err)
 	}
@@ -1284,7 +1284,7 @@ func TestCreateAPIToken(t *testing.T) {
 		t.Fatal("expected a token, got empty string")
 	}
 
-	statusCode, listResponse, err := listAPITokens(ts.URL, client, token, 1, 10)
+	statusCode, listResponse, err := listAPITokens(env.Server.URL, client, token, 1, 10)
 	if err != nil {
 		t.Fatalf("couldn't list API tokens: %s", err)
 	}
@@ -1307,7 +1307,7 @@ func TestCreateAPIToken(t *testing.T) {
 
 	tokenID := listResponse.Result.Items[0].ID
 
-	statusCode, err = deleteAPIToken(ts.URL, client, token, tokenID)
+	statusCode, err = deleteAPIToken(env.Server.URL, client, token, tokenID)
 	if err != nil {
 		t.Fatalf("couldn't delete API token: %s", err)
 	}
@@ -1321,15 +1321,15 @@ func TestCreateAPITokenInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -1363,7 +1363,7 @@ func TestCreateAPITokenInvalidInput(t *testing.T) {
 				ExpiresAt: tt.expiresAt,
 			}
 
-			statusCode, response, err := createAPIToken(ts.URL, client, token, createAPITokenParams)
+			statusCode, response, err := createAPIToken(env.Server.URL, client, token, createAPITokenParams)
 			if err != nil {
 				t.Fatalf("couldn't create API token: %s", err)
 			}
@@ -1383,15 +1383,15 @@ func TestListUsersPagination(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -1403,7 +1403,7 @@ func TestListUsersPagination(t *testing.T) {
 			RoleID:   RoleReadOnly,
 		}
 
-		statusCode, _, err := createUser(ts.URL, client, token, createUserParams)
+		statusCode, _, err := createUser(env.Server.URL, client, token, createUserParams)
 		if err != nil {
 			t.Fatalf("couldn't create user %q: %s", createUserParams.Email, err)
 		}
@@ -1414,7 +1414,7 @@ func TestListUsersPagination(t *testing.T) {
 	}
 
 	t.Run("Page 1, 5 per page", func(t *testing.T) {
-		statusCode, response, err := listUsers(ts.URL, client, token, 1, 5)
+		statusCode, response, err := listUsers(env.Server.URL, client, token, 1, 5)
 		if err != nil {
 			t.Fatalf("couldn't list users: %s", err)
 		}
@@ -1445,7 +1445,7 @@ func TestListUsersPagination(t *testing.T) {
 	})
 
 	t.Run("Page 3, 4 per page", func(t *testing.T) {
-		statusCode, response, err := listUsers(ts.URL, client, token, 3, 4)
+		statusCode, response, err := listUsers(env.Server.URL, client, token, 3, 4)
 		if err != nil {
 			t.Fatalf("couldn't list users: %s", err)
 		}
@@ -1476,7 +1476,7 @@ func TestListUsersPagination(t *testing.T) {
 	})
 
 	t.Run("Page 5, 2 per page - only 1 user on this page", func(t *testing.T) {
-		statusCode, response, err := listUsers(ts.URL, client, token, 6, 2)
+		statusCode, response, err := listUsers(env.Server.URL, client, token, 6, 2)
 		if err != nil {
 			t.Fatalf("couldn't list users: %s", err)
 		}
@@ -1507,7 +1507,7 @@ func TestListUsersPagination(t *testing.T) {
 	})
 
 	t.Run("Page 7, 2 per page - no users on this page", func(t *testing.T) {
-		statusCode, response, err := listUsers(ts.URL, client, token, 7, 2)
+		statusCode, response, err := listUsers(env.Server.URL, client, token, 7, 2)
 		if err != nil {
 			t.Fatalf("couldn't list users: %s", err)
 		}
@@ -1542,21 +1542,21 @@ func TestGetLoggedInUser(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't initialize and login: %s", err)
 	}
 
 	t.Run("Success - get logged in user", func(t *testing.T) {
-		statusCode, response, err := getLoggedInUser(ts.URL, client, token)
+		statusCode, response, err := getLoggedInUser(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get logged in user: %s", err)
 		}
@@ -1579,7 +1579,7 @@ func TestGetLoggedInUser(t *testing.T) {
 	})
 
 	t.Run("Unauthorized - no token", func(t *testing.T) {
-		req, err := http.NewRequestWithContext(context.Background(), "GET", ts.URL+"/api/v1/users/me", nil)
+		req, err := http.NewRequestWithContext(context.Background(), "GET", env.Server.URL+"/api/v1/users/me", nil)
 		if err != nil {
 			t.Fatalf("couldn't create request: %s", err)
 		}
@@ -1599,7 +1599,7 @@ func TestGetLoggedInUser(t *testing.T) {
 	})
 
 	t.Run("Unauthorized - invalid token", func(t *testing.T) {
-		statusCode, response, err := getLoggedInUser(ts.URL, client, "invalid-token")
+		statusCode, response, err := getLoggedInUser(env.Server.URL, client, "invalid-token")
 		if err != nil {
 			t.Fatalf("couldn't get logged in user: %s", err)
 		}

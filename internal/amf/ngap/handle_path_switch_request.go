@@ -189,7 +189,7 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 				continue
 			}
 
-			err := amf.Smf.UpdateSmContextHandoverFailed(smContext.Ref, transfer)
+			err := amf.Smf.UpdateSmContextHandoverFailed(ctx, smContext.Ref, transfer)
 			if err != nil {
 				logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextXnHandoverFailed[PathSwitchRequestSetupFailedTransfer] Error", zap.Error(err))
 			}

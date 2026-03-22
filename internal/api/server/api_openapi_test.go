@@ -13,16 +13,16 @@ func TestOpenAPISpecEndpoint(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
 	t.Run("Returns valid YAML with correct content type", func(t *testing.T) {
-		req, err := http.NewRequestWithContext(context.Background(), "GET", ts.URL+"/api/v1/openapi.yaml", nil)
+		req, err := http.NewRequestWithContext(context.Background(), "GET", env.Server.URL+"/api/v1/openapi.yaml", nil)
 		if err != nil {
 			t.Fatalf("couldn't create request: %s", err)
 		}
@@ -67,7 +67,7 @@ func TestOpenAPISpecEndpoint(t *testing.T) {
 	})
 
 	t.Run("Does not require authentication", func(t *testing.T) {
-		req, err := http.NewRequestWithContext(context.Background(), "GET", ts.URL+"/api/v1/openapi.yaml", nil)
+		req, err := http.NewRequestWithContext(context.Background(), "GET", env.Server.URL+"/api/v1/openapi.yaml", nil)
 		if err != nil {
 			t.Fatalf("couldn't create request: %s", err)
 		}

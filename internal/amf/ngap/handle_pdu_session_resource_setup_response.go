@@ -5,7 +5,6 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -81,7 +80,7 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amf *amfContext.
 					continue
 				}
 
-				err := pdusession.UpdateSmContextN2InfoPduResSetupRsp(ctx, smContext.Ref, transfer)
+				err := amf.Smf.UpdateSmContextN2InfoPduResSetupRsp(ctx, smContext.Ref, transfer)
 				if err != nil {
 					logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupResponseTransfer] Error", zap.Error(err))
 				}
@@ -106,7 +105,7 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amf *amfContext.
 					continue
 				}
 
-				err := pdusession.UpdateSmContextN2InfoPduResSetupFail(smContext.Ref, transfer)
+				err := amf.Smf.UpdateSmContextN2InfoPduResSetupFail(ctx, smContext.Ref, transfer)
 				if err != nil {
 					logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err))
 				}

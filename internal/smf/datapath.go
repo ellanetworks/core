@@ -4,14 +4,13 @@
 // Copyright 2019 free5GC.org
 // SPDX-License-Identifier: Apache-2.0
 
-package context
+package smf
 
 import (
 	"fmt"
 	"net"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 )
 
 type GTPTunnel struct {
@@ -136,7 +135,7 @@ func (dp *DataPath) ActivateDlLinkPdr(dnn string, anIP net.IP, teid uint32, pduA
 	}
 }
 
-func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, smPolicyDecision *models.SmPolicyData, pduAddress net.IP) error {
+func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, policy *Policy, pduAddress net.IP) error {
 	seid := smf.AllocateLocalSEID()
 
 	smContext.SetPFCPSession(seid)
@@ -155,7 +154,7 @@ func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, smPolic
 
 	dp.DownLinkTunnel.PDR = dlPdr
 
-	defQER, err := smf.NewQER(smPolicyDecision)
+	defQER, err := smf.NewQER(policy)
 	if err != nil {
 		return fmt.Errorf("could not create QER: %v", err)
 	}

@@ -22,6 +22,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"go.uber.org/zap"
 )
@@ -45,13 +46,20 @@ var (
 )
 
 type SmfSbi interface {
-	ActivateSmContext(smContextRef string) ([]byte, error)
-	ReleaseSmContext(ctx context.Context, smContextRef string) error
-	UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
-	UpdateSmContextHandoverFailed(smContextRef string, n2Data []byte) error
-	UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*models.UpdateSmContextResponse, error)
+	smf.SessionQuerier
 	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, n1Msg []byte) (string, []byte, error)
+	ActivateSmContext(ctx context.Context, smContextRef string) ([]byte, error)
+	DeactivateSmContext(ctx context.Context, smContextRef string) error
+	ReleaseSmContext(ctx context.Context, smContextRef string) error
+	UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*smf.UpdateResult, error)
+	UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContextRef string, n2Data []byte) error
+	UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContextRef string, n2Data []byte) error
+	UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRef string) error
 	UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error)
+	UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
+	UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
+	UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
+	UpdateSmContextHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error
 }
 
 func init() {

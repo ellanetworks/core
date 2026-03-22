@@ -5,7 +5,6 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -104,7 +103,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amf *amfContext.AMF, 
 
 			pduSessionIDUint8 := uint8(pduSessionID)
 			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
-				n2Rsp, err := pdusession.UpdateSmContextN2HandoverPrepared(smContext.Ref, transfer)
+				n2Rsp, err := amf.Smf.UpdateSmContextN2HandoverPrepared(ctx, smContext.Ref, transfer)
 				if err != nil {
 					logger.WithTrace(ctx, targetUe.Log).Error("Send HandoverRequestAcknowledgeTransfer error", zap.Error(err))
 					continue
@@ -130,7 +129,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amf *amfContext.AMF, 
 
 			pduSessionIDUint8 := uint8(pduSessionID)
 			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
-				_, err := pdusession.UpdateSmContextN2HandoverPrepared(smContext.Ref, transfer)
+				_, err := amf.Smf.UpdateSmContextN2HandoverPrepared(ctx, smContext.Ref, transfer)
 				if err != nil {
 					logger.WithTrace(ctx, targetUe.Log).Error("Send HandoverResourceAllocationUnsuccessfulTransfer error", zap.Error(err))
 				}

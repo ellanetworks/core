@@ -195,20 +195,20 @@ func TestAPIRadioEvents(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	statusCode, response, err := listRadioEvents(ts.URL, client, token, 1, 10, nil)
+	statusCode, response, err := listRadioEvents(env.Server.URL, client, token, 1, 10, nil)
 	if err != nil {
 		t.Fatalf("couldn't list radio events: %s", err)
 	}
@@ -243,20 +243,20 @@ func TestListRadioEventsWithFilter(t *testing.T) {
 
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, testdb, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	err = testdb.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
+	err = env.DB.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
 		Timestamp:   "2024-10-01T10:00:00Z",
 		Protocol:    "NGAP",
 		MessageType: "test_event",
@@ -268,7 +268,7 @@ func TestListRadioEventsWithFilter(t *testing.T) {
 		t.Fatalf("couldn't insert radio event: %s", err)
 	}
 
-	err = testdb.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
+	err = env.DB.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
 		Timestamp:   "2024-10-01T11:00:00Z",
 		Protocol:    "NGAP",
 		MessageType: "another_event",
@@ -280,7 +280,7 @@ func TestListRadioEventsWithFilter(t *testing.T) {
 		t.Fatalf("couldn't insert radio event: %s", err)
 	}
 
-	err = testdb.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
+	err = env.DB.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
 		Timestamp:   "2024-10-01T12:00:00Z",
 		Protocol:    "NAS",
 		MessageType: "test_event",
@@ -296,7 +296,7 @@ func TestListRadioEventsWithFilter(t *testing.T) {
 		"protocol": "NAS",
 	}
 
-	statusCode, response, err := listRadioEvents(ts.URL, client, token, 1, 10, filters)
+	statusCode, response, err := listRadioEvents(env.Server.URL, client, token, 1, 10, filters)
 	if err != nil {
 		t.Fatalf("couldn't list radio events: %s", err)
 	}
@@ -314,21 +314,21 @@ func TestAPIRadioEventRetentionPolicyEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
 	t.Run("1. Get networks log retention policy", func(t *testing.T) {
-		statusCode, response, err := getRadioEventRetentionPolicy(ts.URL, client, token)
+		statusCode, response, err := getRadioEventRetentionPolicy(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get networks log retention policy: %s", err)
 		}
@@ -351,7 +351,7 @@ func TestAPIRadioEventRetentionPolicyEndToEnd(t *testing.T) {
 			Days: 15,
 		}
 
-		statusCode, response, err := editRadioEventRetentionPolicy(ts.URL, client, token, updateRadioEventRetentionPolicyParams)
+		statusCode, response, err := editRadioEventRetentionPolicy(env.Server.URL, client, token, updateRadioEventRetentionPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't get networks log retention policy: %s", err)
 		}
@@ -370,7 +370,7 @@ func TestAPIRadioEventRetentionPolicyEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. Verify updated networks log retention policy", func(t *testing.T) {
-		statusCode, response, err := getRadioEventRetentionPolicy(ts.URL, client, token)
+		statusCode, response, err := getRadioEventRetentionPolicy(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get networks log retention policy: %s", err)
 		}
@@ -393,15 +393,15 @@ func TestUpdateRadioEventRetentionPolicyInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -428,7 +428,7 @@ func TestUpdateRadioEventRetentionPolicyInvalidInput(t *testing.T) {
 				Days: tt.days,
 			}
 
-			statusCode, response, err := editRadioEventRetentionPolicy(ts.URL, client, token, updateParams)
+			statusCode, response, err := editRadioEventRetentionPolicy(env.Server.URL, client, token, updateParams)
 			if err != nil {
 				t.Fatalf("couldn't edit networks log retention policy: %s", err)
 			}
@@ -448,21 +448,21 @@ func TestGetRadioEvent(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, testdb, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
 	// Insert a test event
-	err = testdb.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
+	err = env.DB.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
 		Timestamp:   "2024-10-01T10:00:00Z",
 		Protocol:    "NGAP",
 		MessageType: "test_event",
@@ -475,7 +475,7 @@ func TestGetRadioEvent(t *testing.T) {
 	}
 
 	t.Run("Success - get radio event by ID", func(t *testing.T) {
-		statusCode, res, err := getRadioEvent(ts.URL, client, token, 1)
+		statusCode, res, err := getRadioEvent(env.Server.URL, client, token, 1)
 		if err != nil {
 			t.Fatalf("couldn't get radio event: %s", err)
 		}
@@ -504,7 +504,7 @@ func TestGetRadioEvent(t *testing.T) {
 	})
 
 	t.Run("Invalid ID - non-numeric", func(t *testing.T) {
-		req, _ := http.NewRequestWithContext(context.Background(), "GET", ts.URL+"/api/v1/ran/events/invalid", nil)
+		req, _ := http.NewRequestWithContext(context.Background(), "GET", env.Server.URL+"/api/v1/ran/events/invalid", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 
 		res, err := client.Do(req)
@@ -522,7 +522,7 @@ func TestGetRadioEvent(t *testing.T) {
 	})
 
 	t.Run("Invalid ID - zero", func(t *testing.T) {
-		statusCode, res, err := getRadioEvent(ts.URL, client, token, 0)
+		statusCode, res, err := getRadioEvent(env.Server.URL, client, token, 0)
 		if err != nil {
 			t.Fatalf("couldn't get radio event: %s", err)
 		}
@@ -537,7 +537,7 @@ func TestGetRadioEvent(t *testing.T) {
 	})
 
 	t.Run("Invalid ID - negative", func(t *testing.T) {
-		statusCode, res, err := getRadioEvent(ts.URL, client, token, -1)
+		statusCode, res, err := getRadioEvent(env.Server.URL, client, token, -1)
 		if err != nil {
 			t.Fatalf("couldn't get radio event: %s", err)
 		}
@@ -556,22 +556,22 @@ func TestClearRadioEvents(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, testdb, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
 	// Insert test events
 	for i := 0; i < 5; i++ {
-		err = testdb.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
+		err = env.DB.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
 			Timestamp:   fmt.Sprintf("2024-10-01T%02d:00:00Z", 10+i),
 			Protocol:    "NGAP",
 			MessageType: "test_event",
@@ -585,7 +585,7 @@ func TestClearRadioEvents(t *testing.T) {
 	}
 
 	// Verify events exist
-	statusCode, response, err := listRadioEvents(ts.URL, client, token, 1, 10, nil)
+	statusCode, response, err := listRadioEvents(env.Server.URL, client, token, 1, 10, nil)
 	if err != nil {
 		t.Fatalf("couldn't list radio events: %s", err)
 	}
@@ -599,7 +599,7 @@ func TestClearRadioEvents(t *testing.T) {
 	}
 
 	t.Run("Success - clear all radio events", func(t *testing.T) {
-		statusCode, err := clearRadioEvents(ts.URL, client, token)
+		statusCode, err := clearRadioEvents(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't clear radio events: %s", err)
 		}
@@ -609,7 +609,7 @@ func TestClearRadioEvents(t *testing.T) {
 		}
 
 		// Verify events are cleared
-		statusCode, response, err := listRadioEvents(ts.URL, client, token, 1, 10, nil)
+		statusCode, response, err := listRadioEvents(env.Server.URL, client, token, 1, 10, nil)
 		if err != nil {
 			t.Fatalf("couldn't list radio events: %s", err)
 		}
@@ -632,15 +632,15 @@ func TestListRadioEventsFilters(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, testdb, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -694,7 +694,7 @@ func TestListRadioEventsFilters(t *testing.T) {
 	}
 
 	for _, event := range events {
-		err = testdb.InsertRadioEvent(context.Background(), &event)
+		err = env.DB.InsertRadioEvent(context.Background(), &event)
 		if err != nil {
 			t.Fatalf("couldn't insert radio event: %s", err)
 		}
@@ -783,7 +783,7 @@ func TestListRadioEventsFilters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			statusCode, response, err := listRadioEvents(ts.URL, client, token, 1, 10, tt.filters)
+			statusCode, response, err := listRadioEvents(env.Server.URL, client, token, 1, 10, tt.filters)
 			if err != nil {
 				t.Fatalf("couldn't list radio events: %s", err)
 			}
@@ -809,22 +809,22 @@ func TestListRadioEventsPagination(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, testdb, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
 	// Insert 15 test events
 	for i := 0; i < 15; i++ {
-		err = testdb.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
+		err = env.DB.InsertRadioEvent(context.Background(), &dbwriter.RadioEvent{
 			Timestamp:   fmt.Sprintf("2024-10-01T%02d:00:00Z", 10+i),
 			Protocol:    "NGAP",
 			MessageType: fmt.Sprintf("event_%d", i+1),
@@ -838,7 +838,7 @@ func TestListRadioEventsPagination(t *testing.T) {
 	}
 
 	t.Run("Invalid page - less than 1", func(t *testing.T) {
-		statusCode, response, err := listRadioEvents(ts.URL, client, token, 0, 10, nil)
+		statusCode, response, err := listRadioEvents(env.Server.URL, client, token, 0, 10, nil)
 		if err != nil {
 			t.Fatalf("couldn't list radio events: %s", err)
 		}
@@ -853,7 +853,7 @@ func TestListRadioEventsPagination(t *testing.T) {
 	})
 
 	t.Run("Invalid per_page - less than 1", func(t *testing.T) {
-		statusCode, response, err := listRadioEvents(ts.URL, client, token, 1, 0, nil)
+		statusCode, response, err := listRadioEvents(env.Server.URL, client, token, 1, 0, nil)
 		if err != nil {
 			t.Fatalf("couldn't list radio events: %s", err)
 		}
@@ -868,7 +868,7 @@ func TestListRadioEventsPagination(t *testing.T) {
 	})
 
 	t.Run("Invalid per_page - greater than 100", func(t *testing.T) {
-		statusCode, response, err := listRadioEvents(ts.URL, client, token, 1, 101, nil)
+		statusCode, response, err := listRadioEvents(env.Server.URL, client, token, 1, 101, nil)
 		if err != nil {
 			t.Fatalf("couldn't list radio events: %s", err)
 		}
@@ -883,7 +883,7 @@ func TestListRadioEventsPagination(t *testing.T) {
 	})
 
 	t.Run("Page 1 with 10 per page", func(t *testing.T) {
-		statusCode, response, err := listRadioEvents(ts.URL, client, token, 1, 10, nil)
+		statusCode, response, err := listRadioEvents(env.Server.URL, client, token, 1, 10, nil)
 		if err != nil {
 			t.Fatalf("couldn't list radio events: %s", err)
 		}
@@ -902,7 +902,7 @@ func TestListRadioEventsPagination(t *testing.T) {
 	})
 
 	t.Run("Page 2 with 10 per page", func(t *testing.T) {
-		statusCode, response, err := listRadioEvents(ts.URL, client, token, 2, 10, nil)
+		statusCode, response, err := listRadioEvents(env.Server.URL, client, token, 2, 10, nil)
 		if err != nil {
 			t.Fatalf("couldn't list radio events: %s", err)
 		}

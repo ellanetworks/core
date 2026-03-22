@@ -5,7 +5,6 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -125,7 +124,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 						continue
 					}
 
-					err := pdusession.DeactivateSmContext(ctx, smContext.Ref)
+					err := amf.Smf.DeactivateSmContext(ctx, smContext.Ref)
 					if err != nil {
 						logger.WithTrace(ctx, ranUe.Log).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
 					}
@@ -141,7 +140,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 						break
 					}
 
-					err := pdusession.DeactivateSmContext(ctx, smContext.Ref)
+					err := amf.Smf.DeactivateSmContext(ctx, smContext.Ref)
 					if err != nil {
 						logger.WithTrace(ctx, ranUe.Log).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
 					}
@@ -169,7 +168,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 			amfUe.Mutex.Unlock()
 
 			for _, smContextRef := range smContextRefs {
-				err := pdusession.ReleaseSmContext(ctx, smContextRef)
+				err := amf.Smf.ReleaseSmContext(ctx, smContextRef)
 				if err != nil {
 					logger.WithTrace(ctx, ranUe.Log).Error("error sending release sm context request", zap.Error(err))
 				}

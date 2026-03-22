@@ -39,15 +39,15 @@ func TestGetPprof_Authorized(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -103,7 +103,7 @@ func TestGetPprof_Authorized(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
-			statusCode, bodyBytes, err := getPprof(ts.URL, client, token, tt.endpoint)
+			statusCode, bodyBytes, err := getPprof(env.Server.URL, client, token, tt.endpoint)
 			if err != nil {
 				t.Fatalf("couldn't do request: %s", err)
 			}
@@ -123,14 +123,14 @@ func TestGetPprof_Unauthorized(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
 	tests := []struct {
 		testName string
@@ -183,7 +183,7 @@ func TestGetPprof_Unauthorized(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
-			statusCode, _, err := getPprof(ts.URL, client, "invalid-token", tt.endpoint)
+			statusCode, _, err := getPprof(env.Server.URL, client, "invalid-token", tt.endpoint)
 			if err != nil {
 				t.Fatalf("couldn't do request: %s", err)
 			}

@@ -11,9 +11,9 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func BuildPDUSessionResourceSetupRequestTransfer(smPolicyData *models.SmPolicyData, teid uint32, n3IP net.IP) ([]byte, error) {
-	if smPolicyData == nil {
-		return nil, fmt.Errorf("smPolicyData is nil")
+func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IP net.IP) ([]byte, error) {
+	if ambr == nil {
+		return nil, fmt.Errorf("ambr is nil")
 	}
 
 	teidOct := make([]byte, 4)
@@ -31,10 +31,10 @@ func BuildPDUSessionResourceSetupRequestTransfer(smPolicyData *models.SmPolicyDa
 		Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentPDUSessionAggregateMaximumBitRate,
 		PDUSessionAggregateMaximumBitRate: &ngapType.PDUSessionAggregateMaximumBitRate{
 			PDUSessionAggregateMaximumBitRateDL: ngapType.BitRate{
-				Value: ngapConvert.UEAmbrToInt64(smPolicyData.Ambr.Downlink),
+				Value: ngapConvert.UEAmbrToInt64(ambr.Downlink),
 			},
 			PDUSessionAggregateMaximumBitRateUL: ngapType.BitRate{
-				Value: ngapConvert.UEAmbrToInt64(smPolicyData.Ambr.Uplink),
+				Value: ngapConvert.UEAmbrToInt64(ambr.Uplink),
 			},
 		},
 	}
@@ -76,7 +76,7 @@ func BuildPDUSessionResourceSetupRequestTransfer(smPolicyData *models.SmPolicyDa
 	resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)
 
 	// QoS Flow Setup Request List
-	if smPolicyData.QosData != nil {
+	if qosData != nil {
 		ie = ngapType.PDUSessionResourceSetupRequestTransferIEs{}
 		ie.Id.Value = ngapType.ProtocolIEIDQosFlowSetupRequestList
 		ie.Criticality.Value = ngapType.CriticalityPresentReject
@@ -84,29 +84,29 @@ func BuildPDUSessionResourceSetupRequestTransfer(smPolicyData *models.SmPolicyDa
 		var qosFlowsList []ngapType.QosFlowSetupRequestItem
 
 		arpPreemptCap := ngapType.PreEmptionCapabilityPresentMayTriggerPreEmption
-		if smPolicyData.QosData.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
+		if qosData.Arp.PreemptCap == models.PreemptionCapabilityNotPreempt {
 			arpPreemptCap = ngapType.PreEmptionCapabilityPresentShallNotTriggerPreEmption
 		}
 
 		arpPreemptVul := ngapType.PreEmptionVulnerabilityPresentNotPreEmptable
-		if smPolicyData.QosData.Arp.PreemptVuln == models.PreemptionVulnerabilityPreemptable {
+		if qosData.Arp.PreemptVuln == models.PreemptionVulnerabilityPreemptable {
 			arpPreemptVul = ngapType.PreEmptionVulnerabilityPresentPreEmptable
 		}
 
 		qosFlowItem := ngapType.QosFlowSetupRequestItem{
-			QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: int64(smPolicyData.QosData.QFI)},
+			QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: int64(qosData.QFI)},
 			QosFlowLevelQosParameters: ngapType.QosFlowLevelQosParameters{
 				QosCharacteristics: ngapType.QosCharacteristics{
 					Present: ngapType.QosCharacteristicsPresentNonDynamic5QI,
 					NonDynamic5QI: &ngapType.NonDynamic5QIDescriptor{
 						FiveQI: ngapType.FiveQI{
-							Value: int64(smPolicyData.QosData.Var5qi),
+							Value: int64(qosData.Var5qi),
 						},
 					},
 				},
 				AllocationAndRetentionPriority: ngapType.AllocationAndRetentionPriority{
 					PriorityLevelARP: ngapType.PriorityLevelARP{
-						Value: int64(smPolicyData.QosData.Arp.PriorityLevel),
+						Value: int64(qosData.Arp.PriorityLevel),
 					},
 					PreEmptionCapability: ngapType.PreEmptionCapability{
 						Value: arpPreemptCap,

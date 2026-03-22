@@ -15,7 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	smfContext "github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
@@ -194,22 +194,21 @@ func TestHandoverRequired(t *testing.T) {
 	}
 
 	// Initialize SMF context with a matching SM context
-	smfContext.InitializeSMF(nil)
+	smfInstance := smf.New(nil, nil, nil)
 
-	smf := smfContext.SMFSelf()
-	smCtx := smf.NewSMContext(supi, pduSessionID, dnn, &models.Snssai{Sst: 1})
-	smCtx.PolicyData = &models.SmPolicyData{
-		Ambr: &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"},
-		QosData: &models.QosData{
+	smCtx := smfInstance.NewSession(supi, pduSessionID, dnn, &models.Snssai{Sst: 1})
+	smCtx.PolicyData = &smf.Policy{
+		Ambr: models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"},
+		QosData: models.QosData{
 			QFI:    1,
 			Var5qi: 9, Arp: &models.Arp{
 				PriorityLevel: 8,
 			},
 		},
 	}
-	smCtx.Tunnel = &smfContext.UPTunnel{
-		DataPath: &smfContext.DataPath{
-			UpLinkTunnel: &smfContext.GTPTunnel{
+	smCtx.Tunnel = &smf.UPTunnel{
+		DataPath: &smf.DataPath{
+			UpLinkTunnel: &smf.GTPTunnel{
 				TEID: 1234,
 				N3IP: net.ParseIP("10.0.0.1").To4(),
 			},
@@ -227,7 +226,7 @@ func TestHandoverRequired(t *testing.T) {
 	amfUe.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
 	amfUe.Log = logger.AmfLog
 	amfUe.SmContextList[pduSessionID] = &amfContext.SmContext{
-		Ref:    smfContext.CanonicalName(supi, pduSessionID),
+		Ref:    smf.CanonicalName(supi, pduSessionID),
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
@@ -278,6 +277,7 @@ func TestHandoverRequired(t *testing.T) {
 		Radios: map[*sctp.SCTPConn]*amfContext.Radio{
 			new(sctp.SCTPConn): targetRan,
 		},
+		Smf: &FakeSmfSbi{SMF: smfInstance},
 	}
 
 	ngap.HandleHandoverRequired(context.Background(), amf, sourceRan, msg.InitiatingMessage.Value.HandoverRequired)

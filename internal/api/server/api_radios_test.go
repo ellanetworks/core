@@ -93,15 +93,15 @@ func TestListRadios(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -161,7 +161,7 @@ func TestListRadios(t *testing.T) {
 	amf.Radios[new(sctp.SCTPConn)] = &ran2
 
 	// Set up the Gin router
-	statusCode, response, err := listRadios(ts.URL, client, token, 1, 10)
+	statusCode, response, err := listRadios(env.Server.URL, client, token, 1, 10)
 	if err != nil {
 		t.Fatalf("couldn't list radios: %s", err)
 	}

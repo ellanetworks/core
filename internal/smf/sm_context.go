@@ -4,7 +4,7 @@
 // Copyright 2019 free5GC.org
 // SPDX-License-Identifier: Apache-2.0
 
-package context
+package smf
 
 import (
 	"fmt"
@@ -35,7 +35,7 @@ type SMContext struct {
 	Dnn                            string
 	Snssai                         *models.Snssai
 	Tunnel                         *UPTunnel
-	PolicyData                     *models.SmPolicyData
+	PolicyData                     *Policy
 	PFCPContext                    *PFCPSessionContext
 	PDUSessionID                   uint8
 	PDUSessionReleaseDueToDupPduID bool
@@ -45,11 +45,11 @@ func CanonicalName(identifier etsi.SUPI, pduSessID uint8) string {
 	return fmt.Sprintf("%s-%d", identifier.String(), pduSessID)
 }
 
-func (smContext *SMContext) SetSMPolicyData(smPolicyData *models.SmPolicyData) {
+func (smContext *SMContext) SetPolicyData(policy *Policy) {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	smContext.PolicyData = smPolicyData
+	smContext.PolicyData = policy
 }
 
 func (smContext *SMContext) SetPFCPSession(seid uint64) {

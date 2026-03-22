@@ -157,13 +157,13 @@ func TestLoginEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, jwtSecret, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
 	t.Run("1. Initialize", func(t *testing.T) {
 		initParams := &InitializeParams{
@@ -171,7 +171,7 @@ func TestLoginEndToEnd(t *testing.T) {
 			Password: "password123",
 		}
 
-		statusCode, _, err := initialize(ts.URL, client, initParams)
+		statusCode, _, err := initialize(env.Server.URL, client, initParams)
 		if err != nil {
 			t.Fatalf("couldn't create admin user: %s", err)
 		}
@@ -187,7 +187,7 @@ func TestLoginEndToEnd(t *testing.T) {
 			Password: "password123",
 		}
 
-		statusCode, loginResponse, err := login(ts.URL, client, user)
+		statusCode, loginResponse, err := login(env.Server.URL, client, user)
 		if err != nil {
 			t.Fatalf("couldn't login admin user: %s", err)
 		}
@@ -205,7 +205,7 @@ func TestLoginEndToEnd(t *testing.T) {
 				return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 			}
 
-			return jwtSecret, nil
+			return env.JWTSecret, nil
 		})
 		if err != nil {
 			t.Fatalf("couldn't parse token: %s", err)
@@ -220,7 +220,7 @@ func TestLoginEndToEnd(t *testing.T) {
 		}
 
 		// Verify refresh also still works via session cookie
-		statusCode, refreshResponse, err := refresh(ts.URL, client)
+		statusCode, refreshResponse, err := refresh(env.Server.URL, client)
 		if err != nil {
 			t.Fatalf("couldn't refresh: %s", err)
 		}
@@ -240,7 +240,7 @@ func TestLoginEndToEnd(t *testing.T) {
 			Password: "Admin123",
 		}
 
-		statusCode, loginResponse, err := login(ts.URL, client, invalidUser)
+		statusCode, loginResponse, err := login(env.Server.URL, client, invalidUser)
 		if err != nil {
 			t.Fatalf("couldn't login admin user: %s", err)
 		}
@@ -260,7 +260,7 @@ func TestLoginEndToEnd(t *testing.T) {
 			Password: "",
 		}
 
-		statusCode, loginResponse, err := login(ts.URL, client, invalidUser)
+		statusCode, loginResponse, err := login(env.Server.URL, client, invalidUser)
 		if err != nil {
 			t.Fatalf("couldn't login admin user: %s", err)
 		}
@@ -280,7 +280,7 @@ func TestLoginEndToEnd(t *testing.T) {
 			Password: "a-wrong-password",
 		}
 
-		statusCode, loginResponse, err := login(ts.URL, client, invalidUser)
+		statusCode, loginResponse, err := login(env.Server.URL, client, invalidUser)
 		if err != nil {
 			t.Fatalf("couldn't login admin user: %s", err)
 		}
@@ -300,7 +300,7 @@ func TestLoginEndToEnd(t *testing.T) {
 			Password: "Admin123",
 		}
 
-		statusCode, loginResponse, err := login(ts.URL, client, invalidUser)
+		statusCode, loginResponse, err := login(env.Server.URL, client, invalidUser)
 		if err != nil {
 			t.Fatalf("couldn't login admin user: %s", err)
 		}
@@ -319,13 +319,13 @@ func TestLoginRateLimiting(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
 	// Initialize the system first
 	initParams := &InitializeParams{
@@ -333,7 +333,7 @@ func TestLoginRateLimiting(t *testing.T) {
 		Password: "password123",
 	}
 
-	statusCode, _, err := initialize(ts.URL, client, initParams)
+	statusCode, _, err := initialize(env.Server.URL, client, initParams)
 	if err != nil {
 		t.Fatalf("couldn't initialize: %s", err)
 	}
@@ -350,7 +350,7 @@ func TestLoginRateLimiting(t *testing.T) {
 
 		// Send LoginRateLimit (10) requests — all should get 401 (not 429)
 		for i := 0; i < server.LoginRateLimit; i++ {
-			statusCode, _, err := login(ts.URL, client, wrongPassword)
+			statusCode, _, err := login(env.Server.URL, client, wrongPassword)
 			if err != nil {
 				t.Fatalf("request %d: unexpected error: %s", i+1, err)
 			}
@@ -367,7 +367,7 @@ func TestLoginRateLimiting(t *testing.T) {
 			Password: "wrong-password",
 		}
 
-		statusCode, loginResponse, err := login(ts.URL, client, wrongPassword)
+		statusCode, loginResponse, err := login(env.Server.URL, client, wrongPassword)
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -387,7 +387,7 @@ func TestLoginRateLimiting(t *testing.T) {
 			Password: "password123",
 		}
 
-		statusCode, _, err := login(ts.URL, client, correctPassword)
+		statusCode, _, err := login(env.Server.URL, client, correctPassword)
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
@@ -402,15 +402,15 @@ func TestAuthAPITokenEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	adminToken, err := initializeAndRefresh(ts.URL, client)
+	adminToken, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -426,7 +426,7 @@ func TestAuthAPITokenEndToEnd(t *testing.T) {
 			ExpiresAt: "",
 		}
 
-		statusCode, response, err := createAPIToken(ts.URL, client, adminToken, createAPITokenParams)
+		statusCode, response, err := createAPIToken(env.Server.URL, client, adminToken, createAPITokenParams)
 		if err != nil {
 			t.Fatalf("couldn't create API token: %s", err)
 		}
@@ -457,7 +457,7 @@ func TestAuthAPITokenEndToEnd(t *testing.T) {
 	})
 
 	t.Run("2. Perform API request with token", func(t *testing.T) {
-		statusCode, response, err := listUsers(ts.URL, client, APIToken, 1, 10)
+		statusCode, response, err := listUsers(env.Server.URL, client, APIToken, 1, 10)
 		if err != nil {
 			t.Fatalf("couldn't list users: %s", err)
 		}
@@ -474,7 +474,7 @@ func TestAuthAPITokenEndToEnd(t *testing.T) {
 	t.Run("3. Try to perform API request with invalid token - should fail", func(t *testing.T) {
 		invalidToken := APIToken[:len(APIToken)-3] + "xyz"
 
-		statusCode, response, err := listUsers(ts.URL, client, invalidToken, 1, 10)
+		statusCode, response, err := listUsers(env.Server.URL, client, invalidToken, 1, 10)
 		if err != nil {
 			t.Fatalf("couldn't list users with invalid token: %s", err)
 		}
@@ -489,7 +489,7 @@ func TestAuthAPITokenEndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. Delete API token", func(t *testing.T) {
-		statusCode, err := deleteAPIToken(ts.URL, client, adminToken, APITokenID)
+		statusCode, err := deleteAPIToken(env.Server.URL, client, adminToken, APITokenID)
 		if err != nil {
 			t.Fatalf("couldn't delete API token: %s", err)
 		}
@@ -500,7 +500,7 @@ func TestAuthAPITokenEndToEnd(t *testing.T) {
 	})
 
 	t.Run("5. Try to perform API request with deleted token - should fail", func(t *testing.T) {
-		statusCode, response, err := listUsers(ts.URL, client, APIToken, 1, 10)
+		statusCode, response, err := listUsers(env.Server.URL, client, APIToken, 1, 10)
 		if err != nil {
 			t.Fatalf("couldn't list users with deleted token: %s", err)
 		}
@@ -519,30 +519,30 @@ func TestRefreshAfterUserDeletion(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
 	// Use the first client for the admin whose session we want to test refresh on
-	firstClient := newTestClient(ts)
+	firstClient := newTestClient(env.Server)
 
-	adminToken, err := initializeAndRefresh(ts.URL, firstClient)
+	adminToken, err := initializeAndRefresh(env.Server.URL, firstClient)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
 	// Use a separate client so the second admin's session cookie doesn't overwrite the first's
-	secondClient := newTestClient(ts)
+	secondClient := newTestClient(env.Server)
 
-	secondAdminToken, err := createUserAndLogin(ts.URL, adminToken, "second.admin@ellanetworks.com", 1, secondClient)
+	secondAdminToken, err := createUserAndLogin(env.Server.URL, adminToken, "second.admin@ellanetworks.com", 1, secondClient)
 	if err != nil {
 		t.Fatalf("couldn't create second admin: %s", err)
 	}
 
 	t.Run("1. Delete user via second admin", func(t *testing.T) {
-		statusCode, _, err := deleteUser(ts.URL, secondClient, secondAdminToken, FirstUserEmail)
+		statusCode, _, err := deleteUser(env.Server.URL, secondClient, secondAdminToken, FirstUserEmail)
 		if err != nil {
 			t.Fatalf("couldn't delete user: %s", err)
 		}
@@ -553,7 +553,7 @@ func TestRefreshAfterUserDeletion(t *testing.T) {
 	})
 
 	t.Run("2. Refresh", func(t *testing.T) {
-		statusCode, resp, err := refresh(ts.URL, firstClient)
+		statusCode, resp, err := refresh(env.Server.URL, firstClient)
 		if err != nil {
 			t.Fatalf("couldn't refresh token: %s", err)
 		}
@@ -572,25 +572,25 @@ func TestRolesEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	adminToken, err := initializeAndRefresh(ts.URL, client)
+	adminToken, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	readOnlyToken, err := createUserAndLogin(ts.URL, adminToken, "readonly@ellanetworks.com", RoleReadOnly, client)
+	readOnlyToken, err := createUserAndLogin(env.Server.URL, adminToken, "readonly@ellanetworks.com", RoleReadOnly, client)
 	if err != nil {
 		t.Fatalf("couldn't create readonly user and login: %s", err)
 	}
 
-	networkManagerToken, err := createUserAndLogin(ts.URL, adminToken, "networkmanager@ellanetworks.com", RoleNetworkManager, client)
+	networkManagerToken, err := createUserAndLogin(env.Server.URL, adminToken, "networkmanager@ellanetworks.com", RoleNetworkManager, client)
 	if err != nil {
 		t.Fatalf("couldn't create network manager user and login: %s", err)
 	}
@@ -602,7 +602,7 @@ func TestRolesEndToEnd(t *testing.T) {
 			RoleID:   RoleReadOnly,
 		}
 
-		statusCode, response, _ := createUser(ts.URL, client, readOnlyToken, newUser)
+		statusCode, response, _ := createUser(env.Server.URL, client, readOnlyToken, newUser)
 		if statusCode != http.StatusForbidden {
 			t.Fatalf("expected status %d, got %d", http.StatusForbidden, statusCode)
 		}
@@ -618,7 +618,7 @@ func TestRolesEndToEnd(t *testing.T) {
 			Password: "password123",
 			RoleID:   RoleReadOnly,
 		}
-		statusCode, response, _ := createUser(ts.URL, client, networkManagerToken, user)
+		statusCode, response, _ := createUser(env.Server.URL, client, networkManagerToken, user)
 
 		if err != nil {
 			t.Fatalf("couldn't create user: %s", err)
@@ -640,7 +640,7 @@ func TestRolesEndToEnd(t *testing.T) {
 			RoleID:   RoleReadOnly,
 		}
 
-		statusCode, response, err := createUser(ts.URL, client, adminToken, user)
+		statusCode, response, err := createUser(env.Server.URL, client, adminToken, user)
 		if err != nil {
 			t.Fatalf("couldn't create user: %s", err)
 		}
@@ -655,7 +655,7 @@ func TestRolesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. Use ReadOnly user to list subscribers - should succeed", func(t *testing.T) {
-		statusCode, response, err := listSubscribers(ts.URL, client, readOnlyToken, 1, 10)
+		statusCode, response, err := listSubscribers(env.Server.URL, client, readOnlyToken, 1, 10)
 		if err != nil {
 			t.Fatalf("couldn't list subscribers: %s", err)
 		}
@@ -670,7 +670,7 @@ func TestRolesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("5. Use Network Manager user to list subscribers - should succeed", func(t *testing.T) {
-		statusCode, response, err := listSubscribers(ts.URL, client, networkManagerToken, 1, 10)
+		statusCode, response, err := listSubscribers(env.Server.URL, client, networkManagerToken, 1, 10)
 		if err != nil {
 			t.Fatalf("couldn't list subscribers: %s", err)
 		}
@@ -685,7 +685,7 @@ func TestRolesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("5b. Use ReadOnly user to get subscriber credentials - should fail", func(t *testing.T) {
-		statusCode, response, err := getSubscriberCredentials(ts.URL, client, readOnlyToken, "001010100007487")
+		statusCode, response, err := getSubscriberCredentials(env.Server.URL, client, readOnlyToken, "001010100007487")
 		if err != nil {
 			t.Fatalf("couldn't get subscriber credentials: %s", err)
 		}
@@ -700,7 +700,7 @@ func TestRolesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("5c. Use Network Manager user to get subscriber credentials - should succeed (404 = no subscriber)", func(t *testing.T) {
-		statusCode, _, err := getSubscriberCredentials(ts.URL, client, networkManagerToken, "001010100007487")
+		statusCode, _, err := getSubscriberCredentials(env.Server.URL, client, networkManagerToken, "001010100007487")
 		if err != nil {
 			t.Fatalf("couldn't get subscriber credentials: %s", err)
 		}
@@ -712,7 +712,7 @@ func TestRolesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("5d. Use Admin user to get subscriber credentials - should succeed (404 = no subscriber)", func(t *testing.T) {
-		statusCode, _, err := getSubscriberCredentials(ts.URL, client, adminToken, "001010100007487")
+		statusCode, _, err := getSubscriberCredentials(env.Server.URL, client, adminToken, "001010100007487")
 		if err != nil {
 			t.Fatalf("couldn't get subscriber credentials: %s", err)
 		}
@@ -723,7 +723,7 @@ func TestRolesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("6. Use ReadOnly user to list users - should fail", func(t *testing.T) {
-		statusCode, response, err := listUsers(ts.URL, client, readOnlyToken, 1, 10)
+		statusCode, response, err := listUsers(env.Server.URL, client, readOnlyToken, 1, 10)
 		if err != nil {
 			t.Fatalf("couldn't list users: %s", err)
 		}
@@ -738,7 +738,7 @@ func TestRolesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("7. Use Network Manager user to list users - should fail", func(t *testing.T) {
-		statusCode, response, err := listUsers(ts.URL, client, networkManagerToken, 1, 10)
+		statusCode, response, err := listUsers(env.Server.URL, client, networkManagerToken, 1, 10)
 		if err != nil {
 			t.Fatalf("couldn't list users: %s", err)
 		}
@@ -760,7 +760,7 @@ func TestRolesEndToEnd(t *testing.T) {
 			DNS:    "3.2.2.1",
 		}
 
-		statusCode, response, err := createDataNetwork(ts.URL, client, networkManagerToken, createDataNetworkParams)
+		statusCode, response, err := createDataNetwork(env.Server.URL, client, networkManagerToken, createDataNetworkParams)
 		if err != nil {
 			t.Fatalf("couldn't create data network: %s", err)
 		}
@@ -784,7 +784,7 @@ func TestRolesEndToEnd(t *testing.T) {
 			DataNetworkName: DataNetworkName,
 		}
 
-		statusCode, response, err := createPolicy(ts.URL, client, networkManagerToken, createPolicyParams)
+		statusCode, response, err := createPolicy(env.Server.URL, client, networkManagerToken, createPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't create policy: %s", err)
 		}
@@ -803,13 +803,13 @@ func TestLookupToken(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
 	t.Run("Lookup valid token", func(t *testing.T) {
 		initializeParams := &InitializeParams{
@@ -817,7 +817,7 @@ func TestLookupToken(t *testing.T) {
 			Password: "password123",
 		}
 
-		statusCode, _, err := initialize(ts.URL, client, initializeParams)
+		statusCode, _, err := initialize(env.Server.URL, client, initializeParams)
 		if err != nil {
 			t.Fatalf("couldn't create admin user: %s", err)
 		}
@@ -831,7 +831,7 @@ func TestLookupToken(t *testing.T) {
 			Password: "password123",
 		}
 
-		statusCode, _, err = login(ts.URL, client, loginParams)
+		statusCode, _, err = login(env.Server.URL, client, loginParams)
 		if err != nil {
 			t.Fatalf("couldn't login user: %s", err)
 		}
@@ -840,7 +840,7 @@ func TestLookupToken(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
 
-		statusCode, refreshResponse, err := refresh(ts.URL, client)
+		statusCode, refreshResponse, err := refresh(env.Server.URL, client)
 		if err != nil {
 			t.Fatalf("couldn't refresh: %s", err)
 		}
@@ -853,7 +853,7 @@ func TestLookupToken(t *testing.T) {
 			t.Fatalf("expected non-empty token from refresh")
 		}
 
-		statusCode, response, err := lookupToken(ts.URL, client, refreshResponse.Result.Token)
+		statusCode, response, err := lookupToken(env.Server.URL, client, refreshResponse.Result.Token)
 		if err != nil {
 			t.Fatalf("couldn't lookup token: %s", err)
 		}
@@ -870,7 +870,7 @@ func TestLookupToken(t *testing.T) {
 	t.Run("Invalid token - Bad format", func(t *testing.T) {
 		invalidToken := "invalid token format"
 
-		statusCode, response, err := lookupToken(ts.URL, client, invalidToken)
+		statusCode, response, err := lookupToken(env.Server.URL, client, invalidToken)
 		if err != nil {
 			t.Fatalf("couldn't lookup token: %s", err)
 		}
@@ -888,7 +888,7 @@ func TestLookupToken(t *testing.T) {
 		// Create a correctly formatted but invalid token
 		invalidToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
 
-		statusCode, response, err := lookupToken(ts.URL, client, invalidToken)
+		statusCode, response, err := lookupToken(env.Server.URL, client, invalidToken)
 		if err != nil {
 			t.Fatalf("couldn't lookup token: %s", err)
 		}
@@ -903,7 +903,7 @@ func TestLookupToken(t *testing.T) {
 	})
 
 	t.Run("Invalid token - No token", func(t *testing.T) {
-		statusCode, response, err := lookupToken(ts.URL, client, "")
+		statusCode, response, err := lookupToken(env.Server.URL, client, "")
 		if err != nil {
 			t.Fatalf("couldn't lookup token: %s", err)
 		}
@@ -922,21 +922,21 @@ func TestLogout(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't initialize and login: %s", err)
 	}
 
 	t.Run("Success - logout with valid session", func(t *testing.T) {
-		statusCode, err := logout(ts.URL, client)
+		statusCode, err := logout(env.Server.URL, client)
 		if err != nil {
 			t.Fatalf("couldn't logout: %s", err)
 		}
@@ -946,7 +946,7 @@ func TestLogout(t *testing.T) {
 		}
 
 		// Verify session cookie is cleared
-		cookies := client.Jar.Cookies(mustParseURL(ts.URL + "/api/v1/auth/logout"))
+		cookies := client.Jar.Cookies(mustParseURL(env.Server.URL + "/api/v1/auth/logout"))
 
 		var sessionCookie *http.Cookie
 
@@ -961,7 +961,7 @@ func TestLogout(t *testing.T) {
 			t.Fatalf("expected session cookie to be cleared")
 		}
 
-		statusCode, refreshResponse, err := refresh(ts.URL, client)
+		statusCode, refreshResponse, err := refresh(env.Server.URL, client)
 		if err != nil {
 			t.Fatalf("couldn't call refresh: %s", err)
 		}
@@ -977,9 +977,9 @@ func TestLogout(t *testing.T) {
 
 	t.Run("Success - logout without session (no error)", func(t *testing.T) {
 		// Create new client without session
-		newClient := newTestClient(ts)
+		newClient := newTestClient(env.Server)
 
-		statusCode, err := logout(ts.URL, newClient)
+		statusCode, err := logout(env.Server.URL, newClient)
 		if err != nil {
 			t.Fatalf("couldn't logout: %s", err)
 		}
@@ -991,9 +991,9 @@ func TestLogout(t *testing.T) {
 
 	t.Run("Success - logout with invalid session token (no error)", func(t *testing.T) {
 		// Create new client and set invalid session cookie
-		newClient := newTestClient(ts)
+		newClient := newTestClient(env.Server)
 
-		req, err := http.NewRequestWithContext(context.Background(), "GET", ts.URL, nil)
+		req, err := http.NewRequestWithContext(context.Background(), "GET", env.Server.URL, nil)
 		if err != nil {
 			t.Fatalf("couldn't create request: %s", err)
 		}
@@ -1002,14 +1002,14 @@ func TestLogout(t *testing.T) {
 			Name:  "session_token",
 			Value: "invalid-token-value",
 		})
-		newClient.Jar.SetCookies(mustParseURL(ts.URL), []*http.Cookie{
+		newClient.Jar.SetCookies(mustParseURL(env.Server.URL), []*http.Cookie{
 			{
 				Name:  "session_token",
 				Value: "invalid-token-value",
 			},
 		})
 
-		statusCode, err := logout(ts.URL, newClient)
+		statusCode, err := logout(env.Server.URL, newClient)
 		if err != nil {
 			t.Fatalf("couldn't logout: %s", err)
 		}
@@ -1020,7 +1020,7 @@ func TestLogout(t *testing.T) {
 	})
 
 	// Need to login again since we logged out
-	_, _, err = login(ts.URL, client, &LoginParams{
+	_, _, err = login(env.Server.URL, client, &LoginParams{
 		Email:    FirstUserEmail,
 		Password: "password123",
 	})
@@ -1030,7 +1030,7 @@ func TestLogout(t *testing.T) {
 
 	// Test that old token still works (it shouldn't be invalidated by logout)
 	t.Run("Old JWT token still works after logout", func(t *testing.T) {
-		statusCode, response, err := lookupToken(ts.URL, client, token)
+		statusCode, response, err := lookupToken(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't lookup token: %s", err)
 		}
@@ -1050,17 +1050,17 @@ func TestRefreshEdgeCases(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
 	t.Run("No session token", func(t *testing.T) {
 		// Create new client without session
-		newClient := newTestClient(ts)
+		newClient := newTestClient(env.Server)
 
-		statusCode, response, err := refresh(ts.URL, newClient)
+		statusCode, response, err := refresh(env.Server.URL, newClient)
 		if err != nil {
 			t.Fatalf("couldn't call refresh: %s", err)
 		}
@@ -1076,15 +1076,15 @@ func TestRefreshEdgeCases(t *testing.T) {
 
 	t.Run("Invalid token encoding", func(t *testing.T) {
 		// Create client with invalid base64 token
-		newClient := newTestClient(ts)
-		newClient.Jar.SetCookies(mustParseURL(ts.URL), []*http.Cookie{
+		newClient := newTestClient(env.Server)
+		newClient.Jar.SetCookies(mustParseURL(env.Server.URL), []*http.Cookie{
 			{
 				Name:  "session_token",
 				Value: "not-valid-base64!@#$",
 			},
 		})
 
-		statusCode, response, err := refresh(ts.URL, newClient)
+		statusCode, response, err := refresh(env.Server.URL, newClient)
 		if err != nil {
 			t.Fatalf("couldn't call refresh: %s", err)
 		}
@@ -1100,16 +1100,16 @@ func TestRefreshEdgeCases(t *testing.T) {
 
 	t.Run("Invalid token length", func(t *testing.T) {
 		// Create client with valid base64 but wrong length (16 bytes instead of 32)
-		newClient := newTestClient(ts)
+		newClient := newTestClient(env.Server)
 		shortToken := make([]byte, 16)
-		newClient.Jar.SetCookies(mustParseURL(ts.URL), []*http.Cookie{
+		newClient.Jar.SetCookies(mustParseURL(env.Server.URL), []*http.Cookie{
 			{
 				Name:  "session_token",
 				Value: base64.URLEncoding.EncodeToString(shortToken),
 			},
 		})
 
-		statusCode, response, err := refresh(ts.URL, newClient)
+		statusCode, response, err := refresh(env.Server.URL, newClient)
 		if err != nil {
 			t.Fatalf("couldn't call refresh: %s", err)
 		}
@@ -1125,21 +1125,21 @@ func TestRefreshEdgeCases(t *testing.T) {
 
 	t.Run("Invalid session token (not in database)", func(t *testing.T) {
 		// Create client with valid base64 (32 bytes) but non-existent session
-		newClient := newTestClient(ts)
+		newClient := newTestClient(env.Server)
 
 		fakeToken := make([]byte, 32)
 		for i := range fakeToken {
 			fakeToken[i] = byte(i)
 		}
 
-		newClient.Jar.SetCookies(mustParseURL(ts.URL), []*http.Cookie{
+		newClient.Jar.SetCookies(mustParseURL(env.Server.URL), []*http.Cookie{
 			{
 				Name:  "session_token",
 				Value: base64.URLEncoding.EncodeToString(fakeToken),
 			},
 		})
 
-		statusCode, response, err := refresh(ts.URL, newClient)
+		statusCode, response, err := refresh(env.Server.URL, newClient)
 		if err != nil {
 			t.Fatalf("couldn't call refresh: %s", err)
 		}
@@ -1158,23 +1158,23 @@ func TestSessionLimitPerUser(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, database, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	_, err = initializeAndRefresh(ts.URL, client)
+	_, err = initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
 	// Create MaxSessionsPerUser sessions by logging in multiple times
 	for i := range server.MaxSessionsPerUser {
-		statusCode, _, err := login(ts.URL, client, &LoginParams{
+		statusCode, _, err := login(env.Server.URL, client, &LoginParams{
 			Email:    FirstUserEmail,
 			Password: "password123",
 		})
@@ -1188,7 +1188,7 @@ func TestSessionLimitPerUser(t *testing.T) {
 	}
 
 	// Count sessions - should be MaxSessionsPerUser
-	sessionCount, err := database.CountSessionsByUser(context.Background(), 1) // User ID 1 is the first user
+	sessionCount, err := env.DB.CountSessionsByUser(context.Background(), 1) // User ID 1 is the first user
 	if err != nil {
 		t.Fatalf("couldn't count sessions: %s", err)
 	}
@@ -1198,7 +1198,7 @@ func TestSessionLimitPerUser(t *testing.T) {
 	}
 
 	// Login one more time - should still have MaxSessionsPerUser sessions (oldest deleted)
-	statusCode, _, err := login(ts.URL, client, &LoginParams{
+	statusCode, _, err := login(env.Server.URL, client, &LoginParams{
 		Email:    FirstUserEmail,
 		Password: "password123",
 	})
@@ -1211,7 +1211,7 @@ func TestSessionLimitPerUser(t *testing.T) {
 	}
 
 	// Count sessions again - should still be MaxSessionsPerUser
-	sessionCount, err = database.CountSessionsByUser(context.Background(), 1)
+	sessionCount, err = env.DB.CountSessionsByUser(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("couldn't count sessions after final login: %s", err)
 	}

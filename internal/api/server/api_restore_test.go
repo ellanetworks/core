@@ -83,15 +83,15 @@ func TestRestoreEndpoint(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, testdb, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -105,7 +105,7 @@ func TestRestoreEndpoint(t *testing.T) {
 		t.Fatalf("failed to create backup file: %s", err)
 	}
 
-	if err := testdb.Backup(context.Background(), backupFile); err != nil {
+	if err := env.DB.Backup(context.Background(), backupFile); err != nil {
 		_ = backupFile.Close()
 
 		t.Fatalf("failed to create backup: %s", err)
@@ -114,7 +114,7 @@ func TestRestoreEndpoint(t *testing.T) {
 	_ = backupFile.Close()
 
 	t.Run("1. Trigger restore successfully", func(t *testing.T) {
-		statusCode, restoreResponse, err := restore(ts.URL, client, token, restoreFilePath)
+		statusCode, restoreResponse, err := restore(env.Server.URL, client, token, restoreFilePath)
 		if err != nil {
 			t.Fatalf("couldn't trigger restore: %s", err)
 		}
@@ -129,7 +129,7 @@ func TestRestoreEndpoint(t *testing.T) {
 	})
 
 	t.Run("2. Trigger restore without authorization", func(t *testing.T) {
-		statusCode, _, err := restore(ts.URL, client, "", restoreFilePath)
+		statusCode, _, err := restore(env.Server.URL, client, "", restoreFilePath)
 		if err != nil {
 			t.Fatalf("couldn't trigger restore: %s", err)
 		}
@@ -145,7 +145,7 @@ func TestRestoreEndpoint(t *testing.T) {
 			t.Fatalf("failed to write invalid file: %s", err)
 		}
 
-		statusCode, restoreResponse, err := restore(ts.URL, client, token, invalidFilePath)
+		statusCode, restoreResponse, err := restore(env.Server.URL, client, token, invalidFilePath)
 		if err != nil {
 			t.Fatalf("couldn't trigger restore: %s", err)
 		}
@@ -158,7 +158,7 @@ func TestRestoreEndpoint(t *testing.T) {
 	t.Run("4. Database still works after rejected restore", func(t *testing.T) {
 		// After the invalid restore in test 3, the original DB should still work.
 		// Verify by triggering a successful restore.
-		statusCode, restoreResponse, err := restore(ts.URL, client, token, restoreFilePath)
+		statusCode, restoreResponse, err := restore(env.Server.URL, client, token, restoreFilePath)
 		if err != nil {
 			t.Fatalf("couldn't trigger restore: %s", err)
 		}

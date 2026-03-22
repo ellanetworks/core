@@ -11,7 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	smfContext "github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf"
 )
 
 const (
@@ -307,14 +307,13 @@ func updateSubscriber(url string, client *http.Client, token string, imsi string
 }
 
 // mockSessionForSubscriber creates a mock PDU session for a subscriber in the AMF context.
-func mockSessionForSubscriber(imsi string, dnn string) error {
+func mockSessionForSubscriber(testSmfInstance *smf.SMF, imsi string, dnn string) error {
 	supi, err := etsi.NewSUPIFromIMSI(imsi)
 	if err != nil {
 		return fmt.Errorf("failed to create SUPI from IMSI: %w", err)
 	}
 
 	amf := amfContext.AMFSelf()
-	smf := smfContext.SMFSelf()
 
 	ue, found := amf.FindAMFUEBySupi(supi)
 	if !found {
@@ -327,9 +326,9 @@ func mockSessionForSubscriber(imsi string, dnn string) error {
 	}
 
 	pduSessionID := uint8(1)
-	smf.NewSMContext(supi, pduSessionID, dnn, nil)
+	testSmfInstance.NewSession(supi, pduSessionID, dnn, nil)
 
-	sessionRef := smfContext.CanonicalName(supi, pduSessionID)
+	sessionRef := smf.CanonicalName(supi, pduSessionID)
 
 	err = ue.CreateSmContext(pduSessionID, sessionRef, nil)
 	if err != nil {
@@ -346,15 +345,15 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -367,7 +366,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			DNS:    DNS,
 		}
 
-		statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
+		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, createDataNetworkParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
@@ -391,7 +390,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			DataNetworkName: "whatever",
 		}
 
-		statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
+		statusCode, response, err := createPolicy(env.Server.URL, client, token, createPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
@@ -414,7 +413,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			PolicyName:     PolicyName,
 		}
 
-		statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
+		statusCode, response, err := createSubscriber(env.Server.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
@@ -433,7 +432,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. Get subscriber", func(t *testing.T) {
-		statusCode, response, err := getSubscriber(ts.URL, client, token, Imsi)
+		statusCode, response, err := getSubscriber(env.Server.URL, client, token, Imsi)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber: %s", err)
 		}
@@ -480,7 +479,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3b. Get subscriber credentials", func(t *testing.T) {
-		statusCode, response, err := getSubscriberCredentials(ts.URL, client, token, Imsi)
+		statusCode, response, err := getSubscriberCredentials(env.Server.URL, client, token, Imsi)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber credentials: %s", err)
 		}
@@ -507,7 +506,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3c. Get subscriber credentials - not found", func(t *testing.T) {
-		statusCode, response, err := getSubscriberCredentials(ts.URL, client, token, "001010100007488")
+		statusCode, response, err := getSubscriberCredentials(env.Server.URL, client, token, "001010100007488")
 		if err != nil {
 			t.Fatalf("couldn't get subscriber credentials: %s", err)
 		}
@@ -522,7 +521,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. Get subscriber - id not found", func(t *testing.T) {
-		statusCode, response, err := getSubscriber(ts.URL, client, token, "001010100007488")
+		statusCode, response, err := getSubscriber(env.Server.URL, client, token, "001010100007488")
 		if err != nil {
 			t.Fatalf("couldn't get subscriber: %s", err)
 		}
@@ -539,7 +538,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	t.Run("5. Create subscriber - no Imsi", func(t *testing.T) {
 		createSubscriberParams := &CreateSubscriberParams{}
 
-		statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
+		statusCode, response, err := createSubscriber(env.Server.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
@@ -563,7 +562,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			DataNetworkName: "whatever",
 		}
 
-		statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
+		statusCode, response, err := createPolicy(env.Server.URL, client, token, createPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't create policy: %s", err)
 		}
@@ -583,7 +582,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			PolicyName: "policy2",
 		}
 
-		statusCode, response, err := updateSubscriber(ts.URL, client, token, Imsi, updateParams)
+		statusCode, response, err := updateSubscriber(env.Server.URL, client, token, Imsi, updateParams)
 		if err != nil {
 			t.Fatalf("couldn't update subscriber: %s", err)
 		}
@@ -601,7 +600,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		}
 
 		// Verify the policy was actually updated
-		statusCode, getResponse, err := getSubscriber(ts.URL, client, token, Imsi)
+		statusCode, getResponse, err := getSubscriber(env.Server.URL, client, token, Imsi)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber: %s", err)
 		}
@@ -626,7 +625,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("couldn't marshal params: %s", err)
 		}
 
-		req, err := http.NewRequestWithContext(context.Background(), "PUT", ts.URL+"/api/v1/subscribers/", strings.NewReader(string(body)))
+		req, err := http.NewRequestWithContext(context.Background(), "PUT", env.Server.URL+"/api/v1/subscribers/", strings.NewReader(string(body)))
 		if err != nil {
 			t.Fatalf("couldn't create request: %s", err)
 		}
@@ -650,7 +649,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	t.Run("9. Update subscriber - invalid request body", func(t *testing.T) {
 		body := strings.NewReader(`{"invalid": json}`)
 
-		req, err := http.NewRequestWithContext(context.Background(), "PUT", ts.URL+"/api/v1/subscribers/"+Imsi, body)
+		req, err := http.NewRequestWithContext(context.Background(), "PUT", env.Server.URL+"/api/v1/subscribers/"+Imsi, body)
 		if err != nil {
 			t.Fatalf("couldn't create request: %s", err)
 		}
@@ -677,7 +676,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			PolicyName: PolicyName,
 		}
 
-		statusCode, response, err := updateSubscriber(ts.URL, client, token, Imsi, updateParams)
+		statusCode, response, err := updateSubscriber(env.Server.URL, client, token, Imsi, updateParams)
 		if err != nil {
 			t.Fatalf("couldn't update subscriber: %s", err)
 		}
@@ -697,7 +696,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			PolicyName: "",
 		}
 
-		statusCode, response, err := updateSubscriber(ts.URL, client, token, Imsi, updateParams)
+		statusCode, response, err := updateSubscriber(env.Server.URL, client, token, Imsi, updateParams)
 		if err != nil {
 			t.Fatalf("couldn't update subscriber: %s", err)
 		}
@@ -717,7 +716,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			PolicyName: PolicyName,
 		}
 
-		statusCode, response, err := updateSubscriber(ts.URL, client, token, "invalid-imsi", updateParams)
+		statusCode, response, err := updateSubscriber(env.Server.URL, client, token, "invalid-imsi", updateParams)
 		if err != nil {
 			t.Fatalf("couldn't update subscriber: %s", err)
 		}
@@ -737,7 +736,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			PolicyName: "nonexistent-policy",
 		}
 
-		statusCode, response, err := updateSubscriber(ts.URL, client, token, Imsi, updateParams)
+		statusCode, response, err := updateSubscriber(env.Server.URL, client, token, Imsi, updateParams)
 		if err != nil {
 			t.Fatalf("couldn't update subscriber: %s", err)
 		}
@@ -757,7 +756,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			PolicyName: PolicyName,
 		}
 
-		statusCode, response, err := updateSubscriber(ts.URL, client, token, "001010100007488", updateParams)
+		statusCode, response, err := updateSubscriber(env.Server.URL, client, token, "001010100007488", updateParams)
 		if err != nil {
 			t.Fatalf("couldn't update subscriber: %s", err)
 		}
@@ -772,7 +771,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	})
 
 	t.Run("14. Delete subscriber - success", func(t *testing.T) {
-		statusCode, response, err := deleteSubscriber(ts.URL, client, token, Imsi)
+		statusCode, response, err := deleteSubscriber(env.Server.URL, client, token, Imsi)
 		if err != nil {
 			t.Fatalf("couldn't delete subscriber: %s", err)
 		}
@@ -791,7 +790,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	})
 
 	t.Run("15. Delete subscriber - no user", func(t *testing.T) {
-		statusCode, response, err := deleteSubscriber(ts.URL, client, token, "001010100007488")
+		statusCode, response, err := deleteSubscriber(env.Server.URL, client, token, "001010100007488")
 		if err != nil {
 			t.Fatalf("couldn't delete subscriber: %s", err)
 		}
@@ -814,7 +813,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			PolicyName:     PolicyName,
 		}
 
-		statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
+		statusCode, response, err := createSubscriber(env.Server.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
@@ -833,7 +832,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	})
 
 	t.Run("17. Get subscriber - with opc", func(t *testing.T) {
-		statusCode, response, err := getSubscriber(ts.URL, client, token, Imsi)
+		statusCode, response, err := getSubscriber(env.Server.URL, client, token, Imsi)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber: %s", err)
 		}
@@ -876,11 +875,11 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	})
 
 	t.Run("18. Get subscriber - with session", func(t *testing.T) {
-		if err := mockSessionForSubscriber(Imsi, "internet"); err != nil {
+		if err := mockSessionForSubscriber(env.SMF, Imsi, "internet"); err != nil {
 			t.Fatalf("couldn't mock session: %s", err)
 		}
 
-		statusCode, response, err := getSubscriber(ts.URL, client, token, Imsi)
+		statusCode, response, err := getSubscriber(env.Server.URL, client, token, Imsi)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber: %s", err)
 		}
@@ -913,15 +912,15 @@ func TestCreateSubscriberInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -990,7 +989,7 @@ func TestCreateSubscriberInvalidInput(t *testing.T) {
 				PolicyName:     PolicyName,
 			}
 
-			statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
+			statusCode, response, err := createSubscriber(env.Server.URL, client, token, createSubscriberParams)
 			if err != nil {
 				t.Fatalf("couldn't create subscriber: %s", err)
 			}
@@ -1010,15 +1009,15 @@ func TestCreateSubscriberValidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -1046,7 +1045,7 @@ func TestCreateSubscriberValidInput(t *testing.T) {
 				Mnc: tt.mnc,
 			}
 
-			statusCode, _, err := updateOperatorID(ts.URL, client, token, updateOperatorIDParams)
+			statusCode, _, err := updateOperatorID(env.Server.URL, client, token, updateOperatorIDParams)
 			if err != nil {
 				t.Fatalf("couldn't update operator ID: %s", err)
 			}
@@ -1062,7 +1061,7 @@ func TestCreateSubscriberValidInput(t *testing.T) {
 				PolicyName:     "default",
 			}
 
-			statusCode, _, err = createSubscriber(ts.URL, client, token, createSubscriberParams)
+			statusCode, _, err = createSubscriber(env.Server.URL, client, token, createSubscriberParams)
 			if err != nil {
 				t.Fatalf("couldn't create subscriber: %s", err)
 			}
@@ -1071,7 +1070,7 @@ func TestCreateSubscriberValidInput(t *testing.T) {
 				t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 			}
 
-			statusCode, _, err = deleteSubscriber(ts.URL, client, token, tt.imsi)
+			statusCode, _, err = deleteSubscriber(env.Server.URL, client, token, tt.imsi)
 			if err != nil {
 				t.Fatalf("couldn't delete subscriber: %s", err)
 			}
@@ -1087,15 +1086,15 @@ func TestCreateTooManySubscribers(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -1107,7 +1106,7 @@ func TestCreateTooManySubscribers(t *testing.T) {
 		DNS:    DNS,
 	}
 
-	statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
+	statusCode, response, err := createDataNetwork(env.Server.URL, client, token, createDataNetworkParams)
 	if err != nil {
 		t.Fatalf("couldn't create data network: %s", err)
 	}
@@ -1129,7 +1128,7 @@ func TestCreateTooManySubscribers(t *testing.T) {
 		DataNetworkName: "whatever",
 	}
 
-	statusCode, createPolicyResponse, err := createPolicy(ts.URL, client, token, createPolicyParams)
+	statusCode, createPolicyResponse, err := createPolicy(env.Server.URL, client, token, createPolicyParams)
 	if err != nil {
 		t.Fatalf("couldn't create policy: %s", err)
 	}
@@ -1154,7 +1153,7 @@ func TestCreateTooManySubscribers(t *testing.T) {
 		}
 		t.Log("Creating subscriber:", createSubscriberParams.Imsi)
 
-		statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
+		statusCode, response, err := createSubscriber(env.Server.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
@@ -1176,7 +1175,7 @@ func TestCreateTooManySubscribers(t *testing.T) {
 		PolicyName:     PolicyName,
 	}
 
-	statusCode, createSubscriberResponse, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
+	statusCode, createSubscriberResponse, err := createSubscriber(env.Server.URL, client, token, createSubscriberParams)
 	if err != nil {
 		t.Fatalf("couldn't create subscriber: %s", err)
 	}

@@ -10,7 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
-	smfcontext "github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf"
 )
 
 // AmfUeExport is the JSON-serializable export of a single UE's AMF state.
@@ -70,14 +70,20 @@ type UESubscriptionExport struct {
 
 // PDUSessionExport contains the export of a single PDU session.
 type PDUSessionExport struct {
-	Ref                            string               `json:"ref"`
-	Snssai                         *models.Snssai       `json:"snssai,omitempty"`
-	Inactive                       bool                 `json:"inactive"`
-	DNN                            string               `json:"dnn,omitempty"`
-	PDUSessionReleaseDueToDupPduID bool                 `json:"release_due_to_dup_id,omitempty"`
-	PolicyData                     *models.SmPolicyData `json:"policy_data,omitempty"`
-	Tunnel                         *TunnelExport        `json:"tunnel,omitempty"`
-	PFCPLocalSEID                  *uint64              `json:"pfcp_local_seid,omitempty"`
+	Ref                            string            `json:"ref"`
+	Snssai                         *models.Snssai    `json:"snssai,omitempty"`
+	Inactive                       bool              `json:"inactive"`
+	DNN                            string            `json:"dnn,omitempty"`
+	PDUSessionReleaseDueToDupPduID bool              `json:"release_due_to_dup_id,omitempty"`
+	PolicyData                     *PolicyDataExport `json:"policy_data,omitempty"`
+	Tunnel                         *TunnelExport     `json:"tunnel,omitempty"`
+	PFCPLocalSEID                  *uint64           `json:"pfcp_local_seid,omitempty"`
+}
+
+// PolicyDataExport is the JSON-serializable QoS policy snapshot for a PDU session.
+type PolicyDataExport struct {
+	Ambr    *models.Ambr    `json:"Ambr,omitempty"`
+	QosData *models.QosData `json:"QosData,omitempty"`
 }
 
 // TunnelExport contains the AN tunnel endpoint information for a PDU session.
@@ -186,21 +192,23 @@ func copyUserLocation(loc models.UserLocation) models.UserLocation {
 	return out
 }
 
-// copySmPolicyData returns a copy of a SmPolicyData pointer, or nil if src is nil.
-func copySmPolicyData(src *models.SmPolicyData) *models.SmPolicyData {
+// policyDataFromSMF converts an SMF Policy to the export struct.
+func policyDataFromSMF(src *smf.Policy) *PolicyDataExport {
 	if src == nil {
 		return nil
 	}
 
-	cp := *src
-	cp.Ambr = copyPtr(src.Ambr)
+	ambr := src.Ambr
+	qosData := src.QosData
 
-	cp.QosData = copyPtr(src.QosData)
-	if cp.QosData != nil {
-		cp.QosData.Arp = copyPtr(src.QosData.Arp)
+	return &PolicyDataExport{
+		Ambr: &ambr,
+		QosData: &models.QosData{
+			QFI:    qosData.QFI,
+			Var5qi: qosData.Var5qi,
+			Arp:    copyPtr(qosData.Arp),
+		},
 	}
-
-	return &cp
 }
 
 // timerStatus returns a TimerStatusExport for the given timer. Safe to call with nil.
@@ -377,7 +385,7 @@ func exportAmfUe(ue *AmfUe) AmfUeExport {
 // buildPDUSessions enriches AMF SmContext copies with SMF context data.
 func buildPDUSessions(copies []smContextCopy) map[string]PDUSessionExport {
 	result := make(map[string]PDUSessionExport, len(copies))
-	smf := smfcontext.SMFSelf()
+	smfSessions := AMFSelf().Smf
 
 	for _, sc := range copies {
 		pdu := PDUSessionExport{
@@ -386,13 +394,18 @@ func buildPDUSessions(copies []smContextCopy) map[string]PDUSessionExport {
 			Inactive: sc.inactive,
 		}
 
-		smCtx := smf.GetSMContext(sc.ref)
+		if smfSessions == nil {
+			result[sc.ref] = pdu
+			continue
+		}
+
+		smCtx := smfSessions.GetSession(sc.ref)
 		if smCtx != nil {
 			smCtx.Mutex.Lock()
 			pdu.DNN = smCtx.Dnn
 			pdu.PDUSessionReleaseDueToDupPduID = smCtx.PDUSessionReleaseDueToDupPduID
 
-			pdu.PolicyData = copySmPolicyData(smCtx.PolicyData)
+			pdu.PolicyData = policyDataFromSMF(smCtx.PolicyData)
 			if smCtx.Tunnel != nil {
 				ipStr := ""
 				if smCtx.Tunnel.ANInformation.IPAddress != nil {
