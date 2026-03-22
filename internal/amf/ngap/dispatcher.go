@@ -17,6 +17,7 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -60,27 +61,31 @@ func Dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 
 	ran.TouchLastSeen()
 
+	ctx, span := tracer.Start(ctx, "ngap/receive",
+		trace.WithSpanKind(trace.SpanKindServer),
+	)
+	defer span.End()
+
 	pdu, err := ngap.Decoder(msg)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to decode NGAP message")
 		ran.Log.Error("NGAP decode error", zap.Error(err))
+
 		return
 	}
 
 	messageType := getMessageType(pdu)
 
-	ctx, span := tracer.Start(ctx, "NGAP receive",
-		trace.WithSpanKind(trace.SpanKindServer),
-		trace.WithAttributes(
-			attribute.String("ngap.message_type", messageType),
-			attribute.Int("ngap.pdu_category", pdu.Present),
-			attribute.Int("ngap.message_size", len(msg)),
-			attribute.String("network.protocol.name", "ngap"),
-			attribute.String("network.transport", "sctp"),
-			attribute.String("network.peer.address", remoteAddress.String()),
-			attribute.String("network.local.address", localAddress.String()),
-		),
+	span.SetAttributes(
+		attribute.String("ngap.message_type", messageType),
+		attribute.Int("ngap.pdu_category", pdu.Present),
+		attribute.Int("ngap.message_size", len(msg)),
+		attribute.String("network.protocol.name", "ngap"),
+		attribute.String("network.transport", "sctp"),
+		attribute.String("network.peer.address", remoteAddress.String()),
+		attribute.String("network.local.address", localAddress.String()),
 	)
-	defer span.End()
 
 	// For NGSetupRequest the radio name is embedded in the message IEs and
 	// hasn't been applied to ran.Name yet (that happens inside

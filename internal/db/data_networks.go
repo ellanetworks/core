@@ -12,7 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -42,8 +42,8 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 		fmt.Sprintf("%s %s (paged)", "SELECT", DataNetworksTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", DataNetworksTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
@@ -100,8 +100,8 @@ func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwo
 		fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", DataNetworksTableName),
 		),
 	)
@@ -140,8 +140,8 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id int) (*DataNetwor
 		fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", DataNetworksTableName),
 		),
 	)
@@ -180,8 +180,8 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 		fmt.Sprintf("%s %s", "INSERT", DataNetworksTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("INSERT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", DataNetworksTableName),
 		),
 	)
@@ -218,8 +218,8 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 		fmt.Sprintf("%s %s", "UPDATE", DataNetworksTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("UPDATE"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPDATE"),
 			attribute.String("db.collection", DataNetworksTableName),
 		),
 	)
@@ -266,8 +266,8 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 		fmt.Sprintf("%s %s", "DELETE", DataNetworksTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", DataNetworksTableName),
 		),
 	)
@@ -314,8 +314,8 @@ func (db *Database) CountDataNetworks(ctx context.Context) (int, error) {
 		fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", DataNetworksTableName),
 		),
 	)

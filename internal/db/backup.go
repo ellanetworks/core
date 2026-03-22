@@ -11,7 +11,7 @@ import (
 )
 
 func (db *Database) Backup(ctx context.Context, destinationFile *os.File) error {
-	ctx, span := tracer.Start(ctx, "VACUUM", trace.WithSpanKind(trace.SpanKindClient))
+	ctx, span := tracer.Start(ctx, "db/vacuum", trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
 	_, err := db.conn.PlainDB().ExecContext(ctx, "VACUUM INTO ?", destinationFile.Name())

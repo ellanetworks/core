@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -16,7 +17,7 @@ import (
 // ReleaseSmContext tears down a PDU session entirely: releases the IP address,
 // deletes the PFCP session on the UPF, and removes the context from the pool.
 func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
-	ctx, span := tracer.Start(ctx, "SMF release session",
+	ctx, span := tracer.Start(ctx, "smf/release_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
 			attribute.String("smf.context_ref", smContextRef),
@@ -26,6 +27,9 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 
 	smContext := s.GetSession(smContextRef)
 	if smContext == nil {
+		span.RecordError(fmt.Errorf("sm context not found"))
+		span.SetStatus(codes.Error, "sm context not found")
+
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
@@ -38,7 +42,10 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 
 	err := s.releaseTunnel(ctx, smContext)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to release tunnel")
 		s.removeSessionUnlocked(ctx, smContextRef)
+
 		return fmt.Errorf("release tunnel failed: %v", err)
 	}
 

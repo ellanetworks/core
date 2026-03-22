@@ -7,7 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -38,8 +38,8 @@ func (db *Database) InitializeNATSettings(ctx context.Context) error {
 		fmt.Sprintf("%s %s", "INSERT", NATSettingsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("INSERT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", NATSettingsTableName),
 		),
 	)
@@ -71,8 +71,8 @@ func (db *Database) IsNATEnabled(ctx context.Context) (bool, error) {
 		fmt.Sprintf("%s %s", "SELECT", NATSettingsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", NATSettingsTableName),
 		),
 	)
@@ -104,8 +104,8 @@ func (db *Database) UpdateNATSettings(ctx context.Context, enabled bool) error {
 		fmt.Sprintf("%s %s", "UPSERT", NATSettingsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("UPSERT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPSERT"),
 			attribute.String("db.collection", NATSettingsTableName),
 		),
 	)

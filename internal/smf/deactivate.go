@@ -15,7 +15,7 @@ import (
 // DeactivateSmContext puts a PDU session into buffering mode (e.g. UE went idle).
 // It modifies the DL FAR to buffer instead of forward and sends a PFCP modification.
 func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) error {
-	ctx, span := tracer.Start(ctx, "SMF deactivate session",
+	ctx, span := tracer.Start(ctx, "smf/deactivate_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
 			attribute.String("smf.context_ref", smContextRef),

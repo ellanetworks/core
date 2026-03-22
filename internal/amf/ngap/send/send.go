@@ -25,7 +25,7 @@ type RealNGAPSender struct {
 }
 
 func (s *RealNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType NGAPProcedure) error {
-	ctx, span := tracer.Start(ctx, "NGAP send",
+	ctx, span := tracer.Start(ctx, "ngap/send",
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			attribute.String("ngap.message_type", string(msgType)),

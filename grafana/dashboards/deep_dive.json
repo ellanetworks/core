@@ -1761,7 +1761,7 @@
             "uid": "${DS_TEMPO}"
           },
           "limit": 50,
-          "query": "{resource.service.name = \"${trace_service}\" && name = \"NGAP receive\" && duration > 1ms}",
+          "query": "{resource.service.name = \"${trace_service}\" && name = \"ngap/receive\" && duration > 1ms}",
           "queryType": "traceql",
           "refId": "A",
           "spss": 1

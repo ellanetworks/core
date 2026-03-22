@@ -15,7 +15,7 @@ import (
 // ActivateSmContext re-activates an existing PDU session (e.g. after idle-mode paging).
 // It returns the N2 PDUSessionResourceSetupRequest transfer.
 func (s *SMF) ActivateSmContext(ctx context.Context, smContextRef string) ([]byte, error) {
-	_, span := tracer.Start(ctx, "SMF activate session",
+	_, span := tracer.Start(ctx, "smf/activate_session",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
 	)
 	defer span.End()

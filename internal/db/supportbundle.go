@@ -17,7 +17,7 @@ import (
 // - Operator.OperatorCode
 // - HomeNetworkKey.PrivateKey
 func (db *Database) ExportSupportData(ctx context.Context) (map[string]any, error) {
-	ctx, span := tracer.Start(ctx, "ExportSupportData")
+	ctx, span := tracer.Start(ctx, "db/export_support_data")
 	defer span.End()
 
 	start := time.Now()

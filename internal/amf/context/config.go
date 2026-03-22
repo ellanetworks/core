@@ -53,7 +53,7 @@ type OperatorInfo struct {
 }
 
 func (amf *AMF) GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
-	ctx, span := tracer.Start(ctx, "AMF GetOperatorInfo")
+	ctx, span := tracer.Start(ctx, "amf/get_operator_info")
 	defer span.End()
 
 	operator, err := amf.DBInstance.GetOperator(ctx)
@@ -113,7 +113,7 @@ func getSupportedTAIs(operator *db.Operator) ([]models.Tai, error) {
 }
 
 func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI) (string, error) {
-	ctx, span := tracer.Start(ctx, "AMF GetSubscriberDnn",
+	ctx, span := tracer.Start(ctx, "amf/get_subscriber_dnn",
 		trace.WithAttributes(
 			attribute.String("supi", supi.String()),
 		),
@@ -141,7 +141,7 @@ func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI) (string, e
 }
 
 func (amf *AMF) GetSubscriberBitrate(ctx context.Context, supi etsi.SUPI) (*models.Ambr, error) {
-	ctx, span := tracer.Start(ctx, "AMF GetSubscriberBitrate",
+	ctx, span := tracer.Start(ctx, "amf/get_subscriber_bitrate",
 		trace.WithAttributes(
 			attribute.String("supi", supi.String()),
 		),
@@ -182,7 +182,7 @@ var integrityNameToAlg = map[string]uint8{
 // order from the database and returns them as uint8 slices ready for
 // SelectSecurityAlg.
 func (amf *AMF) GetSecurityAlgorithms(ctx context.Context) ([]uint8, []uint8, error) {
-	ctx, span := tracer.Start(ctx, "AMF GetSecurityAlgorithms")
+	ctx, span := tracer.Start(ctx, "amf/get_security_algorithms")
 	defer span.End()
 
 	operator, err := amf.DBInstance.GetOperator(ctx)

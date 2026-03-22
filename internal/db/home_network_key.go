@@ -13,7 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -88,8 +88,8 @@ func (db *Database) ListHomeNetworkKeys(ctx context.Context) ([]HomeNetworkKey, 
 		fmt.Sprintf("%s %s", "SELECT", HomeNetworkKeysTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", HomeNetworkKeysTableName),
 		),
 	)
@@ -127,8 +127,8 @@ func (db *Database) GetHomeNetworkKey(ctx context.Context, id int) (*HomeNetwork
 		fmt.Sprintf("%s %s", "SELECT", HomeNetworkKeysTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", HomeNetworkKeysTableName),
 		),
 	)
@@ -166,8 +166,8 @@ func (db *Database) GetHomeNetworkKeyBySchemeAndIdentifier(ctx context.Context, 
 		fmt.Sprintf("%s %s", "SELECT", HomeNetworkKeysTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", HomeNetworkKeysTableName),
 		),
 	)
@@ -205,8 +205,8 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 		fmt.Sprintf("%s %s", "INSERT", HomeNetworkKeysTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("INSERT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", HomeNetworkKeysTableName),
 		),
 	)
@@ -244,8 +244,8 @@ func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id int) error {
 		fmt.Sprintf("%s %s", "DELETE", HomeNetworkKeysTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", HomeNetworkKeysTableName),
 		),
 	)
@@ -276,8 +276,8 @@ func (db *Database) CountHomeNetworkKeys(ctx context.Context) (int, error) {
 		fmt.Sprintf("%s %s", "SELECT", HomeNetworkKeysTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", HomeNetworkKeysTableName),
 		),
 	)

@@ -9,7 +9,7 @@ import (
 )
 
 func contextSetup(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.RegistrationRequest) error {
-	ctx, span := tracer.Start(ctx, "contextSetup")
+	ctx, span := tracer.Start(ctx, "nas/context_setup")
 	defer span.End()
 
 	ue.State = amfContext.ContextSetup
