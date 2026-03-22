@@ -14,6 +14,7 @@ import (
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -43,6 +44,9 @@ func (u UpfPfcpHandler) HandlePfcpSessionModificationRequest(ctx context.Context
 func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.SessionEstablishmentRequest) (*message.SessionEstablishmentResponse, error) {
 	ctx, span := tracer.Start(ctx, "upf/establish_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(
+			attribute.String("pfcp.operation", "establish"),
+		),
 	)
 	defer span.End()
 
@@ -65,6 +69,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 	}
 
 	seid := remoteSEID.SEID
+	span.SetAttributes(attribute.Int64("pfcp.seid", int64(seid)))
 
 	session := NewSession(seid)
 
@@ -78,6 +83,8 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 	} else {
 		imsiStr = strconv.FormatUint(imsiUint64, 10)
 	}
+
+	span.SetAttributes(attribute.String("ue.imsi", imsiStr))
 
 	printSessionEstablishmentRequest(msg)
 
@@ -214,6 +221,10 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionDeletionRequest) (*message.SessionDeletionResponse, error) {
 	ctx, span := tracer.Start(ctx, "upf/delete_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(
+			attribute.String("pfcp.operation", "delete"),
+			attribute.Int64("pfcp.seid", int64(msg.SEID())),
+		),
 	)
 	defer span.End()
 
@@ -258,6 +269,10 @@ func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionD
 func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.SessionModificationRequest) (*message.SessionModificationResponse, error) {
 	ctx, span := tracer.Start(ctx, "upf/modify_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(
+			attribute.String("pfcp.operation", "modify"),
+			attribute.Int64("pfcp.seid", int64(msg.SEID())),
+		),
 	)
 	defer span.End()
 
