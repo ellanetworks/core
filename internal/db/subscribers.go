@@ -439,7 +439,7 @@ func (db *Database) AllocateIP(ctx context.Context, imsi string) (net.IP, error)
 		return nil, fmt.Errorf("invalid IP pool in policy %s: %v", policy.Name, err)
 	}
 
-	ctx, ipAllocSpan := tracer.Start(ctx, "IP Allocation Loop")
+	ctx, ipAllocSpan := tracer.Start(ctx, "db/ip_allocation_loop")
 	defer ipAllocSpan.End()
 
 	baseIP := ipNet.IP
