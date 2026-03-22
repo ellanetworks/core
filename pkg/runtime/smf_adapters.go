@@ -53,6 +53,7 @@ func (a *smfDBAdapter) GetSubscriberPolicy(ctx context.Context, imsi string) (*s
 			Downlink: pol.BitrateDownlink,
 		},
 		QosData: models.QosData{
+			QFI:    1,
 			Var5qi: pol.Var5qi,
 			Arp: &models.Arp{
 				PriorityLevel: pol.Arp,
