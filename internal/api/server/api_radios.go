@@ -84,7 +84,7 @@ func convertRadioTaiToReturnTai(tais []context.SupportedTAI) []SupportedTAI {
 	return returnedTais
 }
 
-func ListRadios() http.HandlerFunc {
+func ListRadios(amfInstance *context.AMF) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		page := atoiDefault(q.Get("page"), 1)
@@ -100,7 +100,7 @@ func ListRadios() http.HandlerFunc {
 			return
 		}
 
-		amf := context.AMFSelf()
+		amf := amfInstance
 
 		total, ranList := amf.ListAmfRan(page, perPage)
 
@@ -141,7 +141,7 @@ func ListRadios() http.HandlerFunc {
 	}
 }
 
-func GetRadio() http.HandlerFunc {
+func GetRadio(amfInstance *context.AMF) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		radioName := r.PathValue("name")
 		if radioName == "" {
@@ -149,7 +149,7 @@ func GetRadio() http.HandlerFunc {
 			return
 		}
 
-		amf := context.AMFSelf()
+		amf := amfInstance
 
 		_, ranList := amf.ListAmfRan(1, 1000)
 

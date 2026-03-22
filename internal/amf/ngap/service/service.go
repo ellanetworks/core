@@ -34,14 +34,15 @@ var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
 // with NewServer, call ListenAndServe to start accepting, and Shutdown to
 // stop cleanly.
 type Server struct {
+	amf        *amfContext.AMF
 	listener   *sctp.SCTPListener
 	conns      sync.Map
 	wg         sync.WaitGroup
 	acceptDone chan struct{}
 }
 
-func NewServer() *Server {
-	return &Server{}
+func NewServer(amf *amfContext.AMF) *Server {
+	return &Server{amf: amf}
 }
 
 func (s *Server) ListenAndServe(ctx context.Context, address string, port int) error {
@@ -101,9 +102,8 @@ func (s *Server) serveConn(ctx context.Context, conn *sctp.SCTPConn) {
 	defer s.wg.Done()
 	defer s.conns.Delete(conn)
 	defer func() {
-		amf := amfContext.AMFSelf()
-		if ran, ok := amf.FindRadioByConn(conn); ok {
-			amf.RemoveRadio(ran)
+		if ran, ok := s.amf.FindRadioByConn(conn); ok {
+			s.amf.RemoveRadio(ran)
 			logger.AmfLog.Info("removed radio on connection close", zap.Int("fd", conn.Fd()))
 		}
 	}()
@@ -145,7 +145,7 @@ func (s *Server) serveConn(ctx context.Context, conn *sctp.SCTPConn) {
 		}
 
 		if notification != nil {
-			ngap.HandleSCTPNotification(conn, notification)
+			ngap.HandleSCTPNotification(s.amf, conn, notification)
 			continue
 		}
 
@@ -157,7 +157,7 @@ func (s *Server) serveConn(ctx context.Context, conn *sctp.SCTPConn) {
 		msg := make([]byte, n)
 		copy(msg, buf[:n])
 
-		ngap.Dispatch(ctx, conn, msg)
+		ngap.Dispatch(ctx, s.amf, conn, msg)
 	}
 }
 

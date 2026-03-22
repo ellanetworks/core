@@ -307,13 +307,11 @@ func updateSubscriber(url string, client *http.Client, token string, imsi string
 }
 
 // mockSessionForSubscriber creates a mock PDU session for a subscriber in the AMF context.
-func mockSessionForSubscriber(testSmfInstance *smf.SMF, imsi string, dnn string) error {
+func mockSessionForSubscriber(amf *amfContext.AMF, testSmfInstance *smf.SMF, imsi string, dnn string) error {
 	supi, err := etsi.NewSUPIFromIMSI(imsi)
 	if err != nil {
 		return fmt.Errorf("failed to create SUPI from IMSI: %w", err)
 	}
-
-	amf := amfContext.AMFSelf()
 
 	ue, found := amf.FindAMFUEBySupi(supi)
 	if !found {
@@ -875,7 +873,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 	})
 
 	t.Run("18. Get subscriber - with session", func(t *testing.T) {
-		if err := mockSessionForSubscriber(env.SMF, Imsi, "internet"); err != nil {
+		if err := mockSessionForSubscriber(env.AMF, env.SMF, Imsi, "internet"); err != nil {
 			t.Fatalf("couldn't mock session: %s", err)
 		}
 

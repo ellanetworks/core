@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/producer"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
@@ -245,22 +246,19 @@ func findFTEID(createdPDRIEs []*ie.IE) (*ie.FTEIDFields, error) {
 }
 
 // ---------------------------------------------------------------------------
-// smfAMFAdapter adapts AMF producer functions to smf.AMFCallback.
-//
-// It is a zero-field struct because the AMF producer functions it delegates to
-// reach the AMF singleton through the package-level amfContext.AMFSelf().
-// When the AMF singleton is removed, this adapter will gain an *amf field so
-// the dependency becomes explicit.
+// smfAMFAdapter adapts AMF methods to smf.AMFCallback.
 // ---------------------------------------------------------------------------
 
-type smfAMFAdapter struct{}
+type smfAMFAdapter struct {
+	amf *amfContext.AMF
+}
 
 func (a *smfAMFAdapter) TransferN1(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error {
-	return producer.TransferN1Msg(ctx, supi, n1Msg, pduSessionID)
+	return producer.TransferN1Msg(ctx, a.amf, supi, n1Msg, pduSessionID)
 }
 
 func (a *smfAMFAdapter) TransferN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n1Msg, n2Msg []byte) error {
-	return producer.TransferN1N2Message(ctx, supi, models.N1N2MessageTransferRequest{
+	return producer.TransferN1N2Message(ctx, a.amf, supi, models.N1N2MessageTransferRequest{
 		PduSessionID:            pduSessionID,
 		SNssai:                  snssai,
 		BinaryDataN1Message:     n1Msg,
@@ -269,7 +267,7 @@ func (a *smfAMFAdapter) TransferN1N2(ctx context.Context, supi etsi.SUPI, pduSes
 }
 
 func (a *smfAMFAdapter) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte) error {
-	return producer.N2MessageTransferOrPage(ctx, supi, models.N1N2MessageTransferRequest{
+	return producer.N2MessageTransferOrPage(ctx, a.amf, supi, models.N1N2MessageTransferRequest{
 		PduSessionID:            pduSessionID,
 		SNssai:                  snssai,
 		BinaryDataN2Information: n2Msg,

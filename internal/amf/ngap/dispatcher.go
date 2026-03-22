@@ -24,7 +24,7 @@ import (
 
 var tracer = otel.Tracer("ella-core/amf/ngap")
 
-func Dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
+func Dispatch(ctx context.Context, amf *amfContext.AMF, conn *sctp.SCTPConn, msg []byte) {
 	remoteAddress := conn.RemoteAddr()
 	if remoteAddress == nil {
 		logger.AmfLog.Debug("Remote address is nil")
@@ -36,8 +36,6 @@ func Dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 		logger.AmfLog.Debug("Local address is nil")
 		return
 	}
-
-	amf := amfContext.AMFSelf()
 
 	ran, ok := amf.FindRadioByConn(conn)
 	if !ok {
@@ -227,9 +225,7 @@ func dispatchNgapMsg(ctx context.Context, amf *amfContext.AMF, ran *amfContext.R
 	}
 }
 
-func HandleSCTPNotification(conn *sctp.SCTPConn, notification sctp.Notification) {
-	amf := amfContext.AMFSelf()
-
+func HandleSCTPNotification(amf *amfContext.AMF, conn *sctp.SCTPConn, notification sctp.Notification) {
 	ran, ok := amf.FindRadioByConn(conn)
 	if !ok {
 		logger.AmfLog.Debug("couldn't find RAN context", zap.Any("address", conn.RemoteAddr()))

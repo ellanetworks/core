@@ -6,7 +6,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/context"
 )
 
-func handleConfigurationUpdateComplete(ue *context.AmfUe) error {
+func handleConfigurationUpdateComplete(amf *context.AMF, ue *context.AmfUe) error {
 	if ue.State != context.Registered {
 		return fmt.Errorf("state mismatch: receive Configuration Update Complete message in state %s", ue.State)
 	}
@@ -20,7 +20,7 @@ func handleConfigurationUpdateComplete(ue *context.AmfUe) error {
 		ue.T3555 = nil // clear the timer
 	}
 
-	ue.FreeOldGuti()
+	amf.FreeOldGuti(ue)
 
 	return nil
 }

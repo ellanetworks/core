@@ -129,7 +129,7 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 	if ranUe == nil {
 		var err error
 
-		ranUe, err = ran.NewUe(rANUENGAPID.Value)
+		ranUe, err = amf.NewRanUe(ran, rANUENGAPID.Value)
 		if err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("Failed to add Ran UE to the pool", zap.Error(err))
 		}

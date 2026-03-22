@@ -136,6 +136,8 @@ type AmfUe struct {
 	mobileReachableTimer        *Timer
 	implicitDeregistrationTimer *Timer
 
+	smf SmfSbi // set by AMF.AddAmfUeToUePool; used by releaseSmContexts
+
 	Log *zap.Logger
 }
 
@@ -189,32 +191,6 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	}
 
 	ue.Log = logger.AmfLog.With(logger.AmfUeNgapID(ranUe.AmfUeNgapID))
-}
-
-func (ue *AmfUe) ReAllocateGuti(ctx context.Context, supportedGuami *models.Guami) error {
-	ue.OldTmsi = ue.Tmsi
-
-	tmsi, err := allocateTMSI(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to allocate TMSI: %v", err)
-	}
-
-	ue.Tmsi = tmsi
-	ue.OldGuti = ue.Guti
-	ue.Guti, err = etsi.NewGUTI(
-		supportedGuami.PlmnID.Mcc,
-		supportedGuami.PlmnID.Mnc,
-		supportedGuami.AmfID,
-		tmsi,
-	)
-
-	return err
-}
-
-func (ue *AmfUe) FreeOldGuti() {
-	tmsiGenerator.Free(ue.OldTmsi)
-	ue.OldGuti = etsi.InvalidGUTI
-	ue.OldTmsi = etsi.InvalidTMSI
 }
 
 func (ue *AmfUe) AllocateRegistrationArea(supportedTais []models.Tai) {
@@ -854,8 +830,12 @@ func (ue *AmfUe) Deregister(ctx context.Context) {
 }
 
 func (ue *AmfUe) releaseSmContexts(ctx context.Context) {
+	if ue.smf == nil {
+		return
+	}
+
 	for _, smContext := range ue.SmContextList {
-		err := AMFSelf().Smf.ReleaseSmContext(ctx, smContext.Ref)
+		err := ue.smf.ReleaseSmContext(ctx, smContext.Ref)
 		if err != nil {
 			ue.Log.Error("Release SmContext Error", zap.Error(err))
 		}

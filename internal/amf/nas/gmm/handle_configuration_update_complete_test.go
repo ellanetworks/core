@@ -19,7 +19,9 @@ func TestHandleConfigurationUpdateComplete_NotRegisteredError(t *testing.T) {
 
 			expected := fmt.Sprintf("state mismatch: receive Configuration Update Complete message in state %s", tc)
 
-			err := handleConfigurationUpdateComplete(ue)
+			amf := context.New(nil, nil, nil)
+
+			err := handleConfigurationUpdateComplete(amf, ue)
 			if err == nil || err.Error() != expected {
 				t.Fatalf("expected error: %s, got %v", expected, err)
 			}
@@ -34,7 +36,9 @@ func TestHandleConfigurationUpdateComplete_MacFailed(t *testing.T) {
 
 	expected := "NAS message integrity check failed"
 
-	err := handleConfigurationUpdateComplete(ue)
+	amf := context.New(nil, nil, nil)
+
+	err := handleConfigurationUpdateComplete(amf, ue)
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected error: %s, got %v", expected, err)
 	}
@@ -47,7 +51,9 @@ func TestHandleConfigurationUpdateComplete_T3555Stopped_OldGutiFreed(t *testing.
 	ue.OldGuti = mustTestGuti("001", "01", "cafe42", 0x12345678)
 	ue.OldTmsi = mustValidTestTmsi(0x12345678)
 
-	err := handleConfigurationUpdateComplete(ue)
+	amf := context.New(nil, nil, nil)
+
+	err := handleConfigurationUpdateComplete(amf, ue)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

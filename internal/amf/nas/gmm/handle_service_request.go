@@ -338,7 +338,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 			}
 		}
 
-		err := ue.ReAllocateGuti(ctx, operatorInfo.Guami)
+		err := amf.ReAllocateGuti(ctx, ue, operatorInfo.Guami)
 		if err != nil {
 			return fmt.Errorf("error reallocating GUTI to UE: %v", err)
 		}

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
@@ -47,7 +48,7 @@ func GenerateJWTSecret() ([]byte, error) {
 	return bytes, nil
 }
 
-func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf server.UPFUpdater, sessions smf.SessionQuerier, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) (*http.Server, error) {
+func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf server.UPFUpdater, sessions smf.SessionQuerier, amfInstance *amfContext.AMF, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) (*http.Server, error) {
 	jwtSecret, err := GenerateJWTSecret()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate jwt secret: %v", err)
@@ -62,7 +63,7 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 
 	secureCookie := scheme == HTTPS
 
-	router := server.NewHandler(dbInstance, cfg, upf, kernelInt, jwtSecret, secureCookie, embedFS, sessions, registerExtraRoutes)
+	router := server.NewHandler(dbInstance, cfg, upf, kernelInt, jwtSecret, secureCookie, embedFS, sessions, amfInstance, registerExtraRoutes)
 
 	httpAddr := fmt.Sprintf("%s:%d", cfg.Interfaces.API.Address, cfg.Interfaces.API.Port)
 

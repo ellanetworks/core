@@ -24,6 +24,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
+	"github.com/free5gc/nas/nasConvert"
 	"go.uber.org/zap"
 )
 
@@ -37,12 +38,6 @@ type Authenticator interface {
 const (
 	MaxValueOfAmfUeNgapID int64 = 1099511627775
 	PreallocateTmsi       uint  = 20
-)
-
-var (
-	amfContext                                    = AMF{}
-	tmsiGenerator        *etsi.TmsiAllocator      = nil
-	amfUeNGAPIDGenerator *idgenerator.IDGenerator = nil
 )
 
 type SmfSbi interface {
@@ -60,15 +55,6 @@ type SmfSbi interface {
 	UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error
-}
-
-func init() {
-	amfContext = AMF{
-		UEs:    make(map[etsi.SUPI]*AmfUe),
-		Radios: make(map[*sctp.SCTPConn]*Radio),
-	}
-	tmsiGenerator = etsi.NewTMSIAllocator()
-	amfUeNGAPIDGenerator = idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID)
 }
 
 type NetworkFeatureSupport5GS struct {
@@ -98,6 +84,10 @@ type DBer interface {
 type AMF struct {
 	Mutex sync.Mutex
 
+	// Allocators (owned, not exported)
+	tmsi    *etsi.TmsiAllocator
+	ngapIDs *idgenerator.IDGenerator
+
 	DBInstance               DBer
 	Ausf                     Authenticator
 	UEs                      map[etsi.SUPI]*AmfUe
@@ -117,11 +107,15 @@ type AMF struct {
 	Smf                      SmfSbi
 }
 
-func allocateTMSI(ctx context.Context) (etsi.TMSI, error) {
+func (a *AMF) allocateTMSI(ctx context.Context) (etsi.TMSI, error) {
+	if a.tmsi == nil {
+		a.tmsi = etsi.NewTMSIAllocator()
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	val, err := tmsiGenerator.Allocate(ctx)
+	val, err := a.tmsi.Allocate(ctx)
 	if err != nil {
 		return val, fmt.Errorf("could not allocate TMSI: %v", err)
 	}
@@ -129,8 +123,12 @@ func allocateTMSI(ctx context.Context) (etsi.TMSI, error) {
 	return val, nil
 }
 
-func allocateAmfUeNgapID() (int64, error) {
-	val, err := amfUeNGAPIDGenerator.Allocate()
+func (a *AMF) allocateAmfUeNgapID() (int64, error) {
+	if a.ngapIDs == nil {
+		a.ngapIDs = idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID)
+	}
+
+	val, err := a.ngapIDs.Allocate()
 	if err != nil {
 		return -1, fmt.Errorf("could not allocate AmfUeNgapID: %v", err)
 	}
@@ -147,6 +145,7 @@ func (amf *AMF) AddAmfUeToUePool(ue *AmfUe) error {
 	defer amf.Mutex.Unlock()
 
 	amf.UEs[ue.Supi] = ue
+	ue.smf = amf.Smf
 
 	return nil
 }
@@ -161,7 +160,7 @@ func (amf *AMF) DeregisterAndRemoveAMFUE(ctx context.Context, ue *AmfUe) {
 		}
 	}
 
-	tmsiGenerator.Free(ue.Tmsi)
+	amf.tmsi.Free(ue.Tmsi)
 
 	if ue.implicitDeregistrationTimer != nil {
 		ue.implicitDeregistrationTimer.Stop()
@@ -428,8 +427,87 @@ func (amf *AMF) Get5gsNwFeatSuppMcsi() uint8 {
 	return 0
 }
 
-func AMFSelf() *AMF {
-	return &amfContext
+// New creates a fully initialized AMF. All dependencies are explicit
+// parameters; allocators are owned and zeroed. Call Start to open the
+// N2 listener.
+func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
+	a := &AMF{
+		UEs:                      make(map[etsi.SUPI]*AmfUe),
+		Radios:                   make(map[*sctp.SCTPConn]*Radio),
+		DBInstance:               db,
+		Ausf:                     ausf,
+		Smf:                      smf,
+		tmsi:                     etsi.NewTMSIAllocator(),
+		ngapIDs:                  idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID),
+		Name:                     "amf",
+		RelativeCapacity:         0xff,
+		TimeZone:                 nasConvert.GetTimeZone(time.Now()),
+		T3502Value:               720 * time.Second,
+		T3512Value:               3600 * time.Second,
+		T3513Cfg:                 defaultTimerCfg,
+		T3522Cfg:                 defaultTimerCfg,
+		T3550Cfg:                 defaultTimerCfg,
+		T3555Cfg:                 defaultTimerCfg,
+		T3560Cfg:                 defaultTimerCfg,
+		T3565Cfg:                 defaultTimerCfg,
+		NetworkFeatureSupport5GS: &NetworkFeatureSupport5GS{Enable: true},
+	}
+
+	return a
+}
+
+var defaultTimerCfg = TimerValue{
+	Enable:        true,
+	ExpireTime:    6 * time.Second,
+	MaxRetryTimes: 4,
+}
+
+// NewRanUe allocates a new RAN UE context on the given radio.
+func (a *AMF) NewRanUe(radio *Radio, ranUeNgapID int64) (*RanUe, error) {
+	amfUeNgapID, err := a.allocateAmfUeNgapID()
+	if err != nil {
+		return nil, fmt.Errorf("error allocating amf ue ngap id: %+v", err)
+	}
+
+	ranUe := &RanUe{
+		AmfUeNgapID: amfUeNgapID,
+		RanUeNgapID: ranUeNgapID,
+		Radio:       radio,
+		Log:         radio.Log.With(logger.AmfUeNgapID(amfUeNgapID)),
+		freeNgapID:  a.ngapIDs.FreeID,
+	}
+
+	radio.RanUEs[ranUeNgapID] = ranUe
+
+	return ranUe, nil
+}
+
+// ReAllocateGuti allocates a new 5G-GUTI for the UE and preserves the old one.
+func (a *AMF) ReAllocateGuti(ctx context.Context, ue *AmfUe, supportedGuami *models.Guami) error {
+	ue.OldTmsi = ue.Tmsi
+
+	tmsi, err := a.allocateTMSI(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to allocate TMSI: %v", err)
+	}
+
+	ue.Tmsi = tmsi
+	ue.OldGuti = ue.Guti
+	ue.Guti, err = etsi.NewGUTI(
+		supportedGuami.PlmnID.Mcc,
+		supportedGuami.PlmnID.Mnc,
+		supportedGuami.AmfID,
+		tmsi,
+	)
+
+	return err
+}
+
+// FreeOldGuti releases the previous TMSI/GUTI for the UE.
+func (a *AMF) FreeOldGuti(ue *AmfUe) {
+	a.tmsi.Free(ue.OldTmsi)
+	ue.OldGuti = etsi.InvalidGUTI
+	ue.OldTmsi = etsi.InvalidTMSI
 }
 
 func (amf *AMF) StmsiToGuti(ctx context.Context, buf [7]byte) (etsi.GUTI, error) {

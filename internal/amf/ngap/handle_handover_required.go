@@ -259,7 +259,7 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		return
 	}
 
-	targetUe, err := targetRan.NewUe(models.RanUeNgapIDUnspecified)
+	targetUe, err := amf.NewRanUe(targetRan, models.RanUeNgapIDUnspecified)
 	if err != nil {
 		logger.WithTrace(ctx, logger.AmfLog).Error("error creating target ue", zap.Error(err))
 		return

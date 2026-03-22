@@ -41,20 +41,23 @@ func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
 	smf := FakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	amf := context.AMFSelf()
-	amf.DBInstance = &FakeDBInstance{
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build test ue: %v", err)
+	}
+
+	amf := context.New(&FakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
 			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
-	}
-	amf.Smf = &smf
+	}, nil, &smf)
 
-	ue, _, err := buildUeAndRadio()
-	if err != nil {
-		t.Fatalf("could not build test ue: %v", err)
+	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
+	if err := amf.AddAmfUeToUePool(ue); err != nil {
+		t.Fatalf("could not add UE to AMF pool: %v", err)
 	}
 
 	ue.State = context.Registered
@@ -82,18 +85,6 @@ func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
 }
 
 func TestHandleDeregistrationRequest_NilRanUE(t *testing.T) {
-	smf := FakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
-	amf := context.AMFSelf()
-	amf.DBInstance = &FakeDBInstance{
-		Operator: &db.Operator{
-			Mcc:           "001",
-			Mnc:           "01",
-			Sst:           1,
-			SupportedTACs: "[\"000001\"]",
-		},
-	}
-	amf.Smf = &smf
-
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build test ue: %v", err)
@@ -119,18 +110,6 @@ func TestHandleDeregistrationRequest_NilRanUE(t *testing.T) {
 }
 
 func TestHandleDeregistrationRequest_NotSwitchOff_DeregistrationAccept(t *testing.T) {
-	smf := FakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
-	amf := context.AMFSelf()
-	amf.DBInstance = &FakeDBInstance{
-		Operator: &db.Operator{
-			Mcc:           "001",
-			Mnc:           "01",
-			Sst:           1,
-			SupportedTACs: "[\"000001\"]",
-		},
-	}
-	amf.Smf = &smf
-
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build test ue: %v", err)
@@ -172,18 +151,6 @@ func TestHandleDeregistrationRequest_NotSwitchOff_DeregistrationAccept(t *testin
 }
 
 func TestHandleDeregistrationRequest_SwitchOff_NoDeregistrationAccept(t *testing.T) {
-	smf := FakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
-	amf := context.AMFSelf()
-	amf.DBInstance = &FakeDBInstance{
-		Operator: &db.Operator{
-			Mcc:           "001",
-			Mnc:           "01",
-			Sst:           1,
-			SupportedTACs: "[\"000001\"]",
-		},
-	}
-	amf.Smf = &smf
-
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build test ue: %v", err)
@@ -209,18 +176,6 @@ func TestHandleDeregistrationRequest_SwitchOff_NoDeregistrationAccept(t *testing
 }
 
 func TestHandleDeregistrationRequest_Non3GPP_DeregistrationAccept(t *testing.T) {
-	smf := FakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
-	amf := context.AMFSelf()
-	amf.DBInstance = &FakeDBInstance{
-		Operator: &db.Operator{
-			Mcc:           "001",
-			Mnc:           "01",
-			Sst:           1,
-			SupportedTACs: "[\"000001\"]",
-		},
-	}
-	amf.Smf = &smf
-
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build test ue: %v", err)

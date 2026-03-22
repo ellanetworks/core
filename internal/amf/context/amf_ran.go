@@ -9,7 +9,6 @@ package context
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
@@ -70,24 +69,6 @@ type Radio struct {
 type SupportedTAI struct {
 	Tai        models.Tai
 	SNssaiList []models.Snssai
-}
-
-func (r *Radio) NewUe(ranUeNgapID int64) (*RanUe, error) {
-	amfUeNgapID, err := allocateAmfUeNgapID()
-	if err != nil {
-		return nil, fmt.Errorf("error allocating amf ue ngap id: %+v", err)
-	}
-
-	ranUE := &RanUe{
-		AmfUeNgapID: amfUeNgapID,
-		RanUeNgapID: ranUeNgapID,
-		Radio:       r,
-		Log:         r.Log.With(logger.AmfUeNgapID(amfUeNgapID)),
-	}
-
-	r.RanUEs[ranUeNgapID] = ranUE
-
-	return ranUE, nil
 }
 
 func (r *Radio) RemoveAllUeInRan() {

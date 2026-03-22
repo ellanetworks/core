@@ -228,8 +228,7 @@ func timerStatus(t *Timer) TimerStatusExport {
 // It acquires the AMF lock to get the list of UEs, then acquires
 // locks per-UE and calls into the SMF singleton for PDU session
 // details. Safe to call concurrently with normal AMF operation.
-func ExportUEs(_ context.Context) ([]AmfUeExport, error) {
-	amf := AMFSelf()
+func (amf *AMF) ExportUEs(_ context.Context) ([]AmfUeExport, error) {
 	amf.Mutex.Lock()
 
 	ues := make([]*AmfUe, 0, len(amf.UEs))
@@ -241,7 +240,7 @@ func ExportUEs(_ context.Context) ([]AmfUeExport, error) {
 
 	exports := make([]AmfUeExport, 0, len(ues))
 	for _, ue := range ues {
-		exports = append(exports, exportAmfUe(ue))
+		exports = append(exports, amf.exportAmfUe(ue))
 	}
 
 	return exports, nil
@@ -250,9 +249,7 @@ func ExportUEs(_ context.Context) ([]AmfUeExport, error) {
 // GetUEPDUSessions returns the PDU sessions for a single UE identified by SUPI.
 // Returns the PDU session exports and true if the UE exists, false otherwise.
 // Safe to call concurrently with normal AMF operation.
-func GetUEPDUSessions(supi etsi.SUPI) ([]PDUSessionExport, bool) {
-	amf := AMFSelf()
-
+func (amf *AMF) GetUEPDUSessions(supi etsi.SUPI) ([]PDUSessionExport, bool) {
 	ue, ok := amf.FindAMFUEBySupi(supi)
 	if !ok {
 		return nil, false
@@ -271,7 +268,7 @@ func GetUEPDUSessions(supi etsi.SUPI) ([]PDUSessionExport, bool) {
 
 	ue.Mutex.Unlock()
 
-	sessions := buildPDUSessions(smCopies)
+	sessions := amf.buildPDUSessions(smCopies)
 
 	result := make([]PDUSessionExport, 0, len(sessions))
 	for _, s := range sessions {
@@ -290,7 +287,7 @@ type smContextCopy struct {
 
 // exportAmfUe builds an AmfUeExport for a single UE.
 // It acquires ue.Mutex to copy scalar fields, then queries SMF outside the lock.
-func exportAmfUe(ue *AmfUe) AmfUeExport {
+func (amf *AMF) exportAmfUe(ue *AmfUe) AmfUeExport {
 	ue.Mutex.Lock()
 
 	// Copy all scalar fields while holding the lock.
@@ -377,15 +374,15 @@ func exportAmfUe(ue *AmfUe) AmfUeExport {
 	ue.Mutex.Unlock()
 
 	// Build PDU sessions OUTSIDE the UE lock to avoid holding two locks simultaneously.
-	export.PDUSessions = buildPDUSessions(smCopies)
+	export.PDUSessions = amf.buildPDUSessions(smCopies)
 
 	return export
 }
 
 // buildPDUSessions enriches AMF SmContext copies with SMF context data.
-func buildPDUSessions(copies []smContextCopy) map[string]PDUSessionExport {
+func (amf *AMF) buildPDUSessions(copies []smContextCopy) map[string]PDUSessionExport {
 	result := make(map[string]PDUSessionExport, len(copies))
-	smfSessions := AMFSelf().Smf
+	smfSessions := amf.Smf
 
 	for _, sc := range copies {
 		pdu := PDUSessionExport{

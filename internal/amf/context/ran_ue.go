@@ -47,6 +47,7 @@ type RanUe struct {
 	SentInitialContextSetupRequest   bool
 	RecvdInitialContextSetupResponse bool /*Received Initial context setup response or not */
 	Log                              *zap.Logger
+	freeNgapID                       func(int64) // set by AMF.NewRanUe to release the NGAP ID
 }
 
 // TouchLastSeen propagates a last-seen timestamp to the associated AmfUe.
@@ -86,7 +87,10 @@ func (ranUe *RanUe) Remove() error {
 		}
 	}
 
-	amfUeNGAPIDGenerator.FreeID(ranUe.AmfUeNgapID)
+	if ranUe.freeNgapID != nil {
+		ranUe.freeNgapID(ranUe.AmfUeNgapID)
+	}
+
 	logger.AmfLog.Info("ran ue removed", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
 	return nil

@@ -17,7 +17,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func addTestUE(t *testing.T, imsi string, setup func(*amfcontext.AmfUe)) *amfcontext.AmfUe {
+func addTestUE(t *testing.T, amf *amfcontext.AMF, imsi string, setup func(*amfcontext.AmfUe)) *amfcontext.AmfUe {
 	t.Helper()
 
 	supi, err := etsi.NewSUPIFromIMSI(imsi)
@@ -31,12 +31,11 @@ func addTestUE(t *testing.T, imsi string, setup func(*amfcontext.AmfUe)) *amfcon
 
 	setup(ue)
 
-	if err := amfcontext.AMFSelf().AddAmfUeToUePool(ue); err != nil {
+	if err := amf.AddAmfUeToUePool(ue); err != nil {
 		t.Fatalf("AddAmfUeToUePool: %v", err)
 	}
 
 	t.Cleanup(func() {
-		amf := amfcontext.AMFSelf()
 		amf.Mutex.Lock()
 		delete(amf.UEs, supi)
 		amf.Mutex.Unlock()
@@ -45,10 +44,10 @@ func addTestUE(t *testing.T, imsi string, setup func(*amfcontext.AmfUe)) *amfcon
 	return ue
 }
 
-func exportAndMarshal(t *testing.T) []map[string]any {
+func exportAndMarshal(t *testing.T, amf *amfcontext.AMF) []map[string]any {
 	t.Helper()
 
-	exports, err := amfcontext.ExportUEs(context.Background())
+	exports, err := amf.ExportUEs(context.Background())
 	if err != nil {
 		t.Fatalf("ExportUEs: %v", err)
 	}
@@ -83,7 +82,9 @@ func jsonMap(t *testing.T, m map[string]any, key string) map[string]any {
 }
 
 func TestExportUEsEmpty(t *testing.T) {
-	exports, err := amfcontext.ExportUEs(context.Background())
+	amf := amfcontext.New(nil, nil, nil)
+
+	exports, err := amf.ExportUEs(context.Background())
 	if err != nil {
 		t.Fatalf("ExportUEs returned unexpected error: %v", err)
 	}
@@ -94,9 +95,10 @@ func TestExportUEsEmpty(t *testing.T) {
 }
 
 func TestExportJSON_MinimalUE(t *testing.T) {
-	addTestUE(t, "001010000000001", func(ue *amfcontext.AmfUe) {})
+	amf := amfcontext.New(nil, nil, nil)
+	addTestUE(t, amf, "001010000000001", func(ue *amfcontext.AmfUe) {})
 
-	result := exportAndMarshal(t)
+	result := exportAndMarshal(t, amf)
 
 	if len(result) != 1 {
 		t.Fatalf("expected 1 UE in result, got %d", len(result))
@@ -190,8 +192,9 @@ func TestExportJSON_MinimalUE(t *testing.T) {
 }
 
 func TestExportJSON_FullyPopulatedUE(t *testing.T) {
+	amf := amfcontext.New(nil, nil, nil)
 	now := time.Now()
-	ue := addTestUE(t, "001010000000002", func(ue *amfcontext.AmfUe) {
+	ue := addTestUE(t, amf, "001010000000002", func(ue *amfcontext.AmfUe) {
 		ue.Pei = "imei-123456789012345"
 		ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 		ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
@@ -244,7 +247,7 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 		ue.T3513.Stop()
 	})
 
-	result := exportAndMarshal(t)
+	result := exportAndMarshal(t, amf)
 
 	if len(result) != 1 {
 		t.Fatalf("expected 1 UE in result, got %d", len(result))
@@ -421,9 +424,10 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 }
 
 func TestExportJSON_NilTimers(t *testing.T) {
-	addTestUE(t, "001010000000003", func(ue *amfcontext.AmfUe) {})
+	amf := amfcontext.New(nil, nil, nil)
+	addTestUE(t, amf, "001010000000003", func(ue *amfcontext.AmfUe) {})
 
-	result := exportAndMarshal(t)
+	result := exportAndMarshal(t, amf)
 
 	if len(result) != 1 {
 		t.Fatalf("expected 1 UE in result, got %d", len(result))
@@ -451,11 +455,12 @@ func TestExportJSON_NilTimers(t *testing.T) {
 }
 
 func TestExportJSON_NilRanUe(t *testing.T) {
-	addTestUE(t, "001010000000004", func(ue *amfcontext.AmfUe) {
+	amf := amfcontext.New(nil, nil, nil)
+	addTestUE(t, amf, "001010000000004", func(ue *amfcontext.AmfUe) {
 		ue.RanUe = nil
 	})
 
-	result := exportAndMarshal(t)
+	result := exportAndMarshal(t, amf)
 
 	if len(result) != 1 {
 		t.Fatalf("expected 1 UE in result, got %d", len(result))
@@ -469,9 +474,10 @@ func TestExportJSON_NilRanUe(t *testing.T) {
 }
 
 func TestExportJSON_EmptySmContextList(t *testing.T) {
-	addTestUE(t, "001010000000005", func(ue *amfcontext.AmfUe) {})
+	amf := amfcontext.New(nil, nil, nil)
+	addTestUE(t, amf, "001010000000005", func(ue *amfcontext.AmfUe) {})
 
-	result := exportAndMarshal(t)
+	result := exportAndMarshal(t, amf)
 
 	if len(result) != 1 {
 		t.Fatalf("expected 1 UE in result, got %d", len(result))
@@ -490,9 +496,10 @@ func TestExportJSON_EmptySmContextList(t *testing.T) {
 }
 
 func TestExportJSON_NilLocationPointers(t *testing.T) {
-	addTestUE(t, "001010000000006", func(ue *amfcontext.AmfUe) {})
+	amf := amfcontext.New(nil, nil, nil)
+	addTestUE(t, amf, "001010000000006", func(ue *amfcontext.AmfUe) {})
 
-	result := exportAndMarshal(t)
+	result := exportAndMarshal(t, amf)
 
 	if len(result) != 1 {
 		t.Fatalf("expected 1 UE in result, got %d", len(result))
@@ -517,7 +524,8 @@ func TestExportJSON_NilLocationPointers(t *testing.T) {
 }
 
 func TestExportJSON_PDUSessionNilSMFContext(t *testing.T) {
-	addTestUE(t, "001010000000007", func(ue *amfcontext.AmfUe) {
+	amf := amfcontext.New(nil, nil, nil)
+	addTestUE(t, amf, "001010000000007", func(ue *amfcontext.AmfUe) {
 		ue.SmContextList[1] = &amfcontext.SmContext{
 			Ref:                "nonexistent-ref",
 			Snssai:             &models.Snssai{Sst: 1, Sd: "000001"},
@@ -525,7 +533,7 @@ func TestExportJSON_PDUSessionNilSMFContext(t *testing.T) {
 		}
 	})
 
-	result := exportAndMarshal(t)
+	result := exportAndMarshal(t, amf)
 
 	if len(result) != 1 {
 		t.Fatalf("expected 1 UE in result, got %d", len(result))

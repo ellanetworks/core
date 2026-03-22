@@ -27,7 +27,7 @@ import (
 
 var tracer = otel.Tracer("ella-core/amf/producer")
 
-func TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
+func TransferN1N2Message(ctx context.Context, amf *amfContext.AMF, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"AMF N1N2 MessageTransfer",
@@ -36,8 +36,6 @@ func TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2Mes
 		),
 	)
 	defer span.End()
-
-	amf := amfContext.AMFSelf()
 
 	ue, ok := amf.FindAMFUEBySupi(supi)
 	if !ok {
@@ -105,7 +103,7 @@ func TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2Mes
 	return nil
 }
 
-func N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
+func N2MessageTransferOrPage(ctx context.Context, amf *amfContext.AMF, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"AMF N1N2 MessageTransfer",
@@ -114,8 +112,6 @@ func N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N
 		),
 	)
 	defer span.End()
-
-	amf := amfContext.AMFSelf()
 
 	ue, ok := amf.FindAMFUEBySupi(supi)
 	if !ok {
@@ -190,9 +186,6 @@ func N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N
 
 	var pagingPriority *ngapType.PagingPriority
 
-	// Case A (UE is CM-IDLE in 3GPP access and the associated access type is 3GPP access)
-	// in subclause 5.2.2.3.1.2 of TS29518
-
 	ue.N1N2Message = &req
 	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
 
@@ -215,7 +208,7 @@ func N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N
 	return nil
 }
 
-func TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error {
+func TransferN1Msg(ctx context.Context, amf *amfContext.AMF, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"AMF N1N2 MessageTransfer",
@@ -224,8 +217,6 @@ func TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSession
 		),
 	)
 	defer span.End()
-
-	amf := amfContext.AMFSelf()
 
 	ue, ok := amf.FindAMFUEBySupi(supi)
 	if !ok {

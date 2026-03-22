@@ -15,7 +15,7 @@ import (
 // returns an error for an unrecognized message type.
 func TestHandleGmmMessage_UnknownMessageType_Error(t *testing.T) {
 	ue := amfContext.NewAmfUe()
-	amf := amfContext.AMFSelf()
+	amf := amfContext.New(nil, nil, nil)
 
 	m := nas.NewGmmMessage()
 	m.SetMessageType(0xFF) // unassigned message type
@@ -42,7 +42,7 @@ func TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete(t *testing.T) 
 	}
 
 	ue.State = amfContext.Registered
-	amf := amfContext.AMFSelf()
+	amf := amfContext.New(nil, nil, nil)
 
 	m := nas.NewGmmMessage()
 	cuc := nasMessage.NewConfigurationUpdateComplete(0)
@@ -69,7 +69,7 @@ func TestHandleGmmMessage_DispatchesToStatus5GMM(t *testing.T) {
 	}
 
 	ue.State = amfContext.Registered
-	amf := amfContext.AMFSelf()
+	amf := amfContext.New(nil, nil, nil)
 
 	m := buildTestStatus5gmm()
 

@@ -57,9 +57,6 @@ func TestHandleAuthenticationFailure_WrongState_Error(t *testing.T) {
 }
 
 func TestHandleAuthenticationFailure_T3560Stopped(t *testing.T) {
-	amfSelf := amfContext.AMFSelf()
-	amfSelf.Smf = &FakeSmf{}
-
 	ue, _, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build UE and radio: %v", err)
@@ -78,9 +75,6 @@ func TestHandleAuthenticationFailure_T3560Stopped(t *testing.T) {
 }
 
 func TestHandleAuthenticationFailure_MACFailure_DeregistersAndSendsReject(t *testing.T) {
-	amfSelf := amfContext.AMFSelf()
-	amfSelf.Smf = &FakeSmf{}
-
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build UE and radio: %v", err)
@@ -122,9 +116,6 @@ func TestHandleAuthenticationFailure_MACFailure_DeregistersAndSendsReject(t *tes
 }
 
 func TestHandleAuthenticationFailure_Non5GAuthUnacceptable_DeregistersAndSendsReject(t *testing.T) {
-	amfSelf := amfContext.AMFSelf()
-	amfSelf.Smf = &FakeSmf{}
-
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build UE and radio: %v", err)
@@ -166,9 +157,6 @@ func TestHandleAuthenticationFailure_Non5GAuthUnacceptable_DeregistersAndSendsRe
 }
 
 func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiIncremented_SendsAuthRequest(t *testing.T) {
-	amfSelf := amfContext.AMFSelf()
-	amfSelf.Smf = &FakeSmf{}
-
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build UE and radio: %v", err)
@@ -223,9 +211,6 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiIncremented_SendsAuthR
 }
 
 func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiWrapsToZero(t *testing.T) {
-	amfSelf := amfContext.AMFSelf()
-	amfSelf.Smf = &FakeSmf{}
-
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build UE and radio: %v", err)
@@ -258,9 +243,6 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiWrapsToZero(t *testing
 }
 
 func TestHandleAuthenticationFailure_SynchFailure_FirstTime_Success(t *testing.T) {
-	amfSelf := amfContext.AMFSelf()
-	amfSelf.Smf = &FakeSmf{}
-
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build UE and radio: %v", err)
@@ -355,9 +337,6 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_AusfError(t *testing
 }
 
 func TestHandleAuthenticationFailure_SynchFailure_SecondTime_DeregistersAndSendsReject(t *testing.T) {
-	amfSelf := amfContext.AMFSelf()
-	amfSelf.Smf = &FakeSmf{}
-
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build UE and radio: %v", err)
@@ -400,9 +379,6 @@ func TestHandleAuthenticationFailure_SynchFailure_SecondTime_DeregistersAndSends
 }
 
 func TestHandleAuthenticationFailure_SynchFailure_NilAuthenticationFailureParameter(t *testing.T) {
-	amfSelf := amfContext.AMFSelf()
-	amfSelf.Smf = &FakeSmf{}
-
 	ue, _, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build UE and radio: %v", err)

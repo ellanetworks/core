@@ -175,22 +175,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	server.RegisterMetrics()
-	amf.RegisterMetrics()
 	smf.RegisterMetrics(smfInstance)
 	upf.RegisterMetrics()
-
-	apiServer, err := api.Start(
-		ctx,
-		dbInstance,
-		cfg,
-		upfInstance,
-		smfInstance,
-		rc.EmbedFS,
-		rc.RegisterExtraRoutes,
-	)
-	if err != nil {
-		return fmt.Errorf("couldn't start API: %w", err)
-	}
 
 	ausfStore := &ausfDBAdapter{db: dbInstance}
 	keyResolver := func(scheme string, keyID int) (string, error) {
@@ -205,16 +191,32 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	ausfInstance := ausf.New(ausfStore, keyResolver)
 	go ausfInstance.Run(ctx)
 
-	amfSelf := amfcontext.AMFSelf()
-	amfSelf.Ausf = ausfInstance
+	amfInstance := amfcontext.New(dbInstance, ausfInstance, smfInstance)
+	smfAMF.amf = amfInstance
 
-	sctpServer, err := amf.Start(ctx, dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port, smfInstance)
+	amf.RegisterMetrics(amfInstance)
+
+	apiServer, err := api.Start(
+		ctx,
+		dbInstance,
+		cfg,
+		upfInstance,
+		smfInstance,
+		amfInstance,
+		rc.EmbedFS,
+		rc.RegisterExtraRoutes,
+	)
+	if err != nil {
+		return fmt.Errorf("couldn't start API: %w", err)
+	}
+
+	sctpServer, err := amf.Start(ctx, amfInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port)
 	if err != nil {
 		return fmt.Errorf("couldn't start AMF: %w", err)
 	}
 
 	supportbundle.AMFDumper = func(ctx context.Context) (any, error) {
-		return amfcontext.ExportUEs(ctx)
+		return amfInstance.ExportUEs(ctx)
 	}
 
 	defer func() {
@@ -228,7 +230,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}
 
 		logger.EllaLog.Info("Shutting down AMF")
-		amf.Close(shutdownCtx, sctpServer)
+		amf.Close(shutdownCtx, amfInstance, sctpServer)
 
 		logger.EllaLog.Info("Shutting down UPF")
 		upfInstance.Close(shutdownCtx)

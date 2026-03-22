@@ -138,7 +138,7 @@ func isSequenceNumberValid(sequenceNumber string) bool {
 	return len(bytes) == 6
 }
 
-func ListSubscribers(dbInstance *db.Database) http.Handler {
+func ListSubscribers(dbInstance *db.Database, amfInstance *amfContext.AMF) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		page := atoiDefault(q.Get("page"), 1)
@@ -162,7 +162,7 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 		var radioIMSIs map[string]struct{}
 
 		if radioFilter != "" {
-			amf := amfContext.AMFSelf()
+			amf := amfInstance
 
 			// Verify the radio exists.
 			_, ranList := amf.ListAmfRan(1, 1000)
@@ -244,7 +244,7 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 				ipAddress = *dbSubscriber.IPAddress
 			}
 
-			amf := amfContext.AMFSelf()
+			amf := amfInstance
 
 			supi, err := etsi.NewSUPIFromIMSI(dbSubscriber.Imsi)
 			if err != nil {
@@ -297,7 +297,7 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func GetSubscriber(dbInstance *db.Database) http.Handler {
+func GetSubscriber(dbInstance *db.Database, amfInstance *amfContext.AMF) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		imsi := r.PathValue("imsi")
 		if imsi == "" {
@@ -334,7 +334,7 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			ipAddress = *dbSubscriber.IPAddress
 		}
 
-		amf := amfContext.AMFSelf()
+		amf := amfInstance
 
 		snap, found := amf.GetUESnapshot(supi)
 
@@ -362,7 +362,7 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			}
 		}
 
-		pduSessions, _ := amfContext.GetUEPDUSessions(supi)
+		pduSessions, _ := amfInstance.GetUEPDUSessions(supi)
 
 		sessions := make([]SessionInfo, 0, len(pduSessions))
 		for _, pdu := range pduSessions {
@@ -591,7 +591,7 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func DeleteSubscriber(dbInstance *db.Database) http.Handler {
+func DeleteSubscriber(dbInstance *db.Database, amfInstance *amfContext.AMF) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := getEmailFromContext(r)
 
@@ -612,7 +612,7 @@ func DeleteSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		amf := amfContext.AMFSelf()
+		amf := amfInstance
 
 		supi, err := etsi.NewSUPIFromIMSI(imsi)
 		if err != nil {
