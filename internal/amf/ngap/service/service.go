@@ -15,8 +15,6 @@ import (
 	"net"
 	"sync"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
@@ -30,19 +28,30 @@ var sctpConfig sctp.SocketConfig = sctp.SocketConfig{
 	AssocInfo: &sctp.AssocInfo{AsocMaxRxt: 4},
 }
 
+// Callbacks groups the functions the SCTP server calls into the upper layer.
+// None of the callbacks should block for extended periods.
+type Callbacks struct {
+	// Dispatch is invoked for every complete NGAP message read from a connection.
+	Dispatch func(ctx context.Context, conn *sctp.SCTPConn, msg []byte)
+	// Notify is invoked for SCTP association/shutdown events.
+	Notify func(conn *sctp.SCTPConn, notification sctp.Notification)
+	// OnDisconnect is invoked when a connection is closing, before the socket is closed.
+	OnDisconnect func(conn *sctp.SCTPConn)
+}
+
 // Server accepts SCTP connections and dispatches NGAP messages. Create one
 // with NewServer, call ListenAndServe to start accepting, and Shutdown to
 // stop cleanly.
 type Server struct {
-	amf        *amfContext.AMF
+	cb         Callbacks
 	listener   *sctp.SCTPListener
 	conns      sync.Map
 	wg         sync.WaitGroup
 	acceptDone chan struct{}
 }
 
-func NewServer(amf *amfContext.AMF) *Server {
-	return &Server{amf: amf}
+func NewServer(cb Callbacks) *Server {
+	return &Server{cb: cb}
 }
 
 func (s *Server) ListenAndServe(ctx context.Context, address string, port int) error {
@@ -102,9 +111,8 @@ func (s *Server) serveConn(ctx context.Context, conn *sctp.SCTPConn) {
 	defer s.wg.Done()
 	defer s.conns.Delete(conn)
 	defer func() {
-		if ran, ok := s.amf.FindRadioByConn(conn); ok {
-			s.amf.RemoveRadio(ran)
-			logger.AmfLog.Info("removed radio on connection close", zap.Int("fd", conn.Fd()))
+		if s.cb.OnDisconnect != nil {
+			s.cb.OnDisconnect(conn)
 		}
 	}()
 	defer func() {
@@ -145,7 +153,10 @@ func (s *Server) serveConn(ctx context.Context, conn *sctp.SCTPConn) {
 		}
 
 		if notification != nil {
-			ngap.HandleSCTPNotification(s.amf, conn, notification)
+			if s.cb.Notify != nil {
+				s.cb.Notify(conn, notification)
+			}
+
 			continue
 		}
 
@@ -157,7 +168,7 @@ func (s *Server) serveConn(ctx context.Context, conn *sctp.SCTPConn) {
 		msg := make([]byte, n)
 		copy(msg, buf[:n])
 
-		ngap.Dispatch(ctx, s.amf, conn, msg)
+		s.cb.Dispatch(ctx, conn, msg)
 	}
 }
 

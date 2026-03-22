@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
@@ -46,12 +46,12 @@ func TestServiceTypeToString(t *testing.T) {
 }
 
 func TestHandleServiceRequest_WrongStateError(t *testing.T) {
-	testcases := []context.StateType{context.SecurityMode, context.Authentication, context.ContextSetup}
+	testcases := []amfContext.StateType{amfContext.SecurityMode, amfContext.Authentication, amfContext.ContextSetup}
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
 			expected := fmt.Sprintf("state mismatch: receive Service Request message in state %s", tc)
 
-			err := handleServiceRequest(t.Context(), &context.AMF{}, &context.AmfUe{State: tc}, nil)
+			err := handleServiceRequest(t.Context(), &amfContext.AMF{}, &amfContext.AmfUe{State: tc}, nil)
 			if err == nil || err.Error() != expected {
 				t.Fatalf("expected error: %s, got: %v", expected, err)
 			}
@@ -60,7 +60,7 @@ func TestHandleServiceRequest_WrongStateError(t *testing.T) {
 }
 
 func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T) {
-	amf := &context.AMF{
+	amf := &amfContext.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
@@ -77,7 +77,7 @@ func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T)
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[etsi.SUPI]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -85,7 +85,7 @@ func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T)
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = context.Registered
+	ue.State = amfContext.Registered
 	ue.SecurityContextAvailable = false
 
 	m := buildTestServiceRequest()
@@ -118,7 +118,7 @@ func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T)
 }
 
 func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
-	amf := &context.AMF{
+	amf := &amfContext.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
@@ -135,7 +135,7 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[etsi.SUPI]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -143,7 +143,7 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = context.Registered
+	ue.State = amfContext.Registered
 	ue.SecurityContextAvailable = true
 	ue.MacFailed = true
 
@@ -181,7 +181,7 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 }
 
 func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testing.T) {
-	amf := &context.AMF{
+	amf := &amfContext.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
@@ -198,7 +198,7 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[etsi.SUPI]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -206,7 +206,7 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = context.Registered
+	ue.State = amfContext.Registered
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
@@ -252,7 +252,7 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 }
 
 func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
-	amf := &context.AMF{
+	amf := &amfContext.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
@@ -269,7 +269,7 @@ func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[etsi.SUPI]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -278,7 +278,7 @@ func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
 	}
 
 	ranUe := ue.RanUe
-	ue = context.NewAmfUe()
+	ue = amfContext.NewAmfUe()
 	ue.AttachRanUe(ranUe)
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -317,7 +317,7 @@ func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
 }
 
 func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
-	amf := &context.AMF{
+	amf := &amfContext.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
@@ -334,7 +334,7 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[etsi.SUPI]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -342,11 +342,11 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = context.Registered
+	ue.State = amfContext.Registered
 	ue.SecurityContextAvailable = true
 	ue.MacFailed = false
-	ue.T3513 = context.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.SetOnGoing(context.OnGoingProcedurePaging)
+	ue.T3513 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
 
 	m := buildTestServiceRequest()
 
@@ -380,13 +380,13 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if ue.GetOnGoing() != context.OnGoingProcedureNothing {
+	if ue.GetOnGoing() != amfContext.OnGoingProcedureNothing {
 		t.Fatalf("expected paging procedure to be completed")
 	}
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *testing.T) {
-	amf := &context.AMF{
+	amf := &amfContext.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
@@ -403,7 +403,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[etsi.SUPI]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -411,8 +411,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.T3565 = context.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.State = context.Registered
+	ue.T3565 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.State = amfContext.Registered
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
@@ -468,7 +468,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testing.T) {
-	amf := &context.AMF{
+	amf := &amfContext.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
@@ -485,7 +485,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[etsi.SUPI]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -493,8 +493,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.T3565 = context.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.State = context.Registered
+	ue.T3565 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.State = amfContext.Registered
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
@@ -550,7 +550,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing.T) {
-	amf := &context.AMF{
+	amf := &amfContext.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
@@ -567,7 +567,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[etsi.SUPI]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -577,10 +577,10 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 
-	ue.T3513 = context.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.SetOnGoing(context.OnGoingProcedurePaging)
+	ue.T3513 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.State = context.Registered
+	ue.State = amfContext.Registered
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
@@ -645,7 +645,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession_Error(t *testing.T) {
-	amf := &context.AMF{
+	amf := &amfContext.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
@@ -662,7 +662,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[etsi.SUPI]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -670,10 +670,10 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.T3513 = context.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.SetOnGoing(context.OnGoingProcedurePaging)
+	ue.T3513 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.State = context.Registered
+	ue.State = amfContext.Registered
 	ue.Guti = mustTestGuti("001", "01", "cafe42", 0x00000001)
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
@@ -704,7 +704,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUSession_ServiceAccept(t *testing.T) {
-	amf := &context.AMF{
+	amf := &amfContext.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
@@ -721,8 +721,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs:      make(map[etsi.SUPI]*context.AmfUe),
-		T3555Cfg: context.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
+		UEs:      make(map[etsi.SUPI]*amfContext.AmfUe),
+		T3555Cfg: amfContext.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
 	}
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -733,10 +733,10 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
-	ue.T3513 = context.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.SetOnGoing(context.OnGoingProcedurePaging)
+	ue.T3513 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.State = context.Registered
+	ue.State = amfContext.Registered
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
@@ -837,7 +837,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPDUSession_ServiceAccept_UplinkPDUError(t *testing.T) {
-	amf := &context.AMF{
+	amf := &amfContext.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
@@ -854,8 +854,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs:      make(map[etsi.SUPI]*context.AmfUe),
-		T3555Cfg: context.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
+		UEs:      make(map[etsi.SUPI]*amfContext.AmfUe),
+		T3555Cfg: amfContext.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
 		Smf:      &FakeSmf{Error: fmt.Errorf("error activating PDU session")},
 	}
 
@@ -866,10 +866,10 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
-	ue.T3513 = context.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.SetOnGoing(context.OnGoingProcedurePaging)
+	ue.T3513 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.State = context.Registered
+	ue.State = amfContext.Registered
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
@@ -975,7 +975,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPDUSession_ServiceAccept_UplinkPDUSuccess(t *testing.T) {
-	amf := &context.AMF{
+	amf := &amfContext.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
@@ -992,8 +992,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs:      make(map[etsi.SUPI]*context.AmfUe),
-		T3555Cfg: context.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
+		UEs:      make(map[etsi.SUPI]*amfContext.AmfUe),
+		T3555Cfg: amfContext.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
 		Smf:      &FakeSmf{Error: nil},
 	}
 
@@ -1004,10 +1004,10 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
-	ue.T3513 = context.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.SetOnGoing(context.OnGoingProcedurePaging)
+	ue.T3513 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.State = context.Registered
+	ue.State = amfContext.Registered
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
@@ -1121,7 +1121,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_ExistingPDUSession_ServiceAccept_UplinkPDUSuccess(t *testing.T) {
-	amf := &context.AMF{
+	amf := &amfContext.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
@@ -1138,8 +1138,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs:      make(map[etsi.SUPI]*context.AmfUe),
-		T3555Cfg: context.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
+		UEs:      make(map[etsi.SUPI]*amfContext.AmfUe),
+		T3555Cfg: amfContext.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
 		Smf:      &FakeSmf{Error: nil},
 	}
 
@@ -1150,10 +1150,10 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
-	ue.T3513 = context.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.SetOnGoing(context.OnGoingProcedurePaging)
+	ue.T3513 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.State = context.Registered
+	ue.State = amfContext.Registered
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
@@ -1256,7 +1256,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_ServiceAccept(t *testing.T) {
-	amf := &context.AMF{
+	amf := &amfContext.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
@@ -1273,8 +1273,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs:      make(map[etsi.SUPI]*context.AmfUe),
-		T3555Cfg: context.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
+		UEs:      make(map[etsi.SUPI]*amfContext.AmfUe),
+		T3555Cfg: amfContext.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
 		Smf:      &FakeSmf{Error: nil},
 	}
 
@@ -1285,10 +1285,10 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
-	ue.T3513 = context.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.SetOnGoing(context.OnGoingProcedurePaging)
+	ue.T3513 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.State = context.Registered
+	ue.State = amfContext.Registered
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
@@ -1438,7 +1438,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 // a PDU session ID >= 16 (outside the [16]bool PSI array bounds).
 // This is a regression test for an index-out-of-range crash (DoS vulnerability).
 func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing.T) {
-	amf := &context.AMF{
+	amf := &amfContext.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
@@ -1455,7 +1455,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[etsi.SUPI]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 		Smf: &FakeSmf{},
 	}
 
@@ -1465,7 +1465,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 	}
 
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
-	ue.State = context.Registered
+	ue.State = amfContext.Registered
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
@@ -1480,7 +1480,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 	// bypassing CreateSmContext validation. This simulates a malicious UE that
 	// somehow stored an invalid session ID (e.g., via a hypothetical future bug).
 	// The read-side bounds checks in handleServiceRequest must still prevent a panic.
-	ue.SmContextList[255] = &context.SmContext{Ref: "malicious-ref", Snssai: &snssai}
+	ue.SmContextList[255] = &amfContext.SmContext{Ref: "malicious-ref", Snssai: &snssai}
 
 	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeData)
 	if err != nil {
@@ -1503,7 +1503,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 // ServiceRequest with PDUSessionStatus does NOT panic when SmContextList contains
 // a PDU session ID >= 16 (outside the [16]bool PSI array bounds).
 func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing.T) {
-	amf := &context.AMF{
+	amf := &amfContext.AMF{
 		DBInstance: &FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
@@ -1520,7 +1520,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[etsi.SUPI]*context.AmfUe),
+		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
 		Smf: &FakeSmf{},
 	}
 
@@ -1530,7 +1530,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 	}
 
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
-	ue.State = context.Registered
+	ue.State = amfContext.Registered
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
@@ -1543,7 +1543,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 
 	// Inject an out-of-range PDU session ID (200) directly into SmContextList,
 	// bypassing CreateSmContext validation to test the read-side safety net.
-	ue.SmContextList[200] = &context.SmContext{Ref: "malicious-ref", Snssai: &snssai}
+	ue.SmContextList[200] = &amfContext.SmContext{Ref: "malicious-ref", Snssai: &snssai}
 
 	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeData)
 	if err != nil {

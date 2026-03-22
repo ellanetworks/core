@@ -8,7 +8,7 @@ import (
 	"context"
 	"testing"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 )
 
 func TestHandleNAS_ShortIntegrityProtectedPayload(t *testing.T) {

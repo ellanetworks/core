@@ -1,18 +1,18 @@
 // Copyright 2025 Ella Networks
 
-package context_test
+package amf_test
 
 import (
 	"reflect"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas/security"
 )
 
 func TestDecodePayloadTooShort(t *testing.T) {
-	ue := &context.AmfUe{}
+	ue := &amf.AmfUe{}
 	payload := []byte{0x00, 0x01, 0x02}
 
 	_, err := ue.DecodeNASMessage(payload)
@@ -63,7 +63,7 @@ func TestAllocateRegistrationArea(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			ue := &context.AmfUe{}
+			ue := &amf.AmfUe{}
 			ue.Tai = tc.ueTai
 			ue.AllocateRegistrationArea(tc.supportedTais)
 
@@ -89,7 +89,7 @@ func TestSnapshotCipheringAlgorithm(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ue := &context.AmfUe{CipheringAlg: tc.alg}
+			ue := &amf.AmfUe{CipheringAlg: tc.alg}
 
 			snap := ue.Snapshot()
 			if snap.CipheringAlgorithm != tc.expected {
@@ -114,7 +114,7 @@ func TestSnapshotIntegrityAlgorithm(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ue := &context.AmfUe{IntegrityAlg: tc.alg}
+			ue := &amf.AmfUe{IntegrityAlg: tc.alg}
 
 			snap := ue.Snapshot()
 			if snap.IntegrityAlgorithm != tc.expected {

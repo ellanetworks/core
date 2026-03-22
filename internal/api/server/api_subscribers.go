@@ -11,8 +11,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/deregister"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
@@ -612,19 +611,13 @@ func DeleteSubscriber(dbInstance *db.Database, amfInstance *amfContext.AMF) http
 			return
 		}
 
-		amf := amfInstance
-
 		supi, err := etsi.NewSUPIFromIMSI(imsi)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Invalid subscriber IMSI", err, logger.APILog)
 			return
 		}
 
-		err = deregister.DeregisterSubscriber(r.Context(), amf, supi)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to deregister subscriber", err, logger.APILog)
-			return
-		}
+		amfInstance.DeregisterSubscriber(r.Context(), supi)
 
 		if err := dbInstance.DeleteSubscriber(r.Context(), imsi); err != nil {
 			if errors.Is(err, db.ErrNotFound) {

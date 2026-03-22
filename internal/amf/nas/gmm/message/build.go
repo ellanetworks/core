@@ -11,7 +11,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
@@ -368,16 +368,17 @@ func BuildRegistrationAccept(
 	}
 
 	// 5gs network feature support
-	if amf.Get5gsNwFeatSuppEnable() {
+	nfs := amf.GetNetworkFeatureSupport()
+	if nfs.Enable {
 		registrationAccept.NetworkFeatureSupport5GS = nasType.NewNetworkFeatureSupport5GS(nasMessage.RegistrationAcceptNetworkFeatureSupport5GSType)
 		registrationAccept.NetworkFeatureSupport5GS.SetLen(2)
-		registrationAccept.SetIMSVoPS3GPP(amf.Get5gsNwFeatSuppImsVoPS())
-		registrationAccept.SetEMC(amf.Get5gsNwFeatSuppEmc())
-		registrationAccept.SetEMF(amf.Get5gsNwFeatSuppEmf())
-		registrationAccept.SetIWKN26(amf.Get5gsNwFeatSuppIwkN26())
-		registrationAccept.SetMPSI(amf.Get5gsNwFeatSuppMpsi())
-		registrationAccept.SetEMCN(amf.Get5gsNwFeatSuppEmcN3())
-		registrationAccept.SetMCSI(amf.Get5gsNwFeatSuppMcsi())
+		registrationAccept.SetIMSVoPS3GPP(nfs.ImsVoPS)
+		registrationAccept.SetEMC(nfs.Emc)
+		registrationAccept.SetEMF(nfs.Emf)
+		registrationAccept.SetIWKN26(nfs.IwkN26)
+		registrationAccept.SetMPSI(nfs.Mpsi)
+		registrationAccept.SetEMCN(nfs.EmcN3)
+		registrationAccept.SetMCSI(nfs.Mcsi)
 	}
 
 	if pDUSessionStatus != nil {
