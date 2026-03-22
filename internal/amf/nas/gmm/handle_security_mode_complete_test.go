@@ -262,8 +262,8 @@ func TestHandleSecurityMode_ValidSecurityContextWithBadAMFKey_UpdatesSecurityCon
 }
 
 func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
+	amf := amfContext.New(
+		&FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
@@ -271,7 +271,7 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 				SupportedTACs: "[\"1\"]",
 			},
 		},
-		Ausf: &FakeAusf{
+		&FakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -279,8 +279,8 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		&FakeSmf{},
+	)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {

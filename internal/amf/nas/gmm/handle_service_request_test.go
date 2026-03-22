@@ -550,8 +550,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
+	amf := amfContext.New(
+		&FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
@@ -559,7 +559,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		Ausf: &FakeAusf{
+		&FakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -567,8 +567,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		&FakeSmf{},
+	)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -704,8 +704,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUSession_ServiceAccept(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
+	amf := amfContext.New(
+		&FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
@@ -713,7 +713,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		Ausf: &FakeAusf{
+		&FakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -721,9 +721,9 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs:      make(map[etsi.SUPI]*amfContext.AmfUe),
-		T3555Cfg: amfContext.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
-	}
+		&FakeSmf{},
+	)
+	amf.T3555Cfg = amfContext.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -837,8 +837,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPDUSession_ServiceAccept_UplinkPDUError(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
+	amf := amfContext.New(
+		&FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
@@ -846,7 +846,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		Ausf: &FakeAusf{
+		&FakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -854,10 +854,9 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs:      make(map[etsi.SUPI]*amfContext.AmfUe),
-		T3555Cfg: amfContext.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
-		Smf:      &FakeSmf{Error: fmt.Errorf("error activating PDU session")},
-	}
+		&FakeSmf{Error: fmt.Errorf("error activating PDU session")},
+	)
+	amf.T3555Cfg = amfContext.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -975,8 +974,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPDUSession_ServiceAccept_UplinkPDUSuccess(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
+	amf := amfContext.New(
+		&FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
@@ -984,7 +983,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		Ausf: &FakeAusf{
+		&FakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -992,10 +991,9 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs:      make(map[etsi.SUPI]*amfContext.AmfUe),
-		T3555Cfg: amfContext.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
-		Smf:      &FakeSmf{Error: nil},
-	}
+		&FakeSmf{Error: nil},
+	)
+	amf.T3555Cfg = amfContext.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -1121,8 +1119,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_ExistingPDUSession_ServiceAccept_UplinkPDUSuccess(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
+	amf := amfContext.New(
+		&FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
@@ -1130,7 +1128,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		Ausf: &FakeAusf{
+		&FakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -1138,10 +1136,9 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs:      make(map[etsi.SUPI]*amfContext.AmfUe),
-		T3555Cfg: amfContext.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
-		Smf:      &FakeSmf{Error: nil},
-	}
+		&FakeSmf{Error: nil},
+	)
+	amf.T3555Cfg = amfContext.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -1256,8 +1253,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 }
 
 func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_ServiceAccept(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
+	amf := amfContext.New(
+		&FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
@@ -1265,7 +1262,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		Ausf: &FakeAusf{
+		&FakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -1273,10 +1270,9 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs:      make(map[etsi.SUPI]*amfContext.AmfUe),
-		T3555Cfg: amfContext.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5},
-		Smf:      &FakeSmf{Error: nil},
-	}
+		&FakeSmf{Error: nil},
+	)
+	amf.T3555Cfg = amfContext.TimerValue{Enable: true, ExpireTime: 5 * time.Minute, MaxRetryTimes: 5}
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
