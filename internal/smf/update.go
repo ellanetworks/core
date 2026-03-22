@@ -4,7 +4,6 @@
 package smf
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -404,17 +403,13 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 
 	DLNGUUPTNLInformation := handoverRequestAcknowledgeTransfer.DLNGUUPTNLInformation
 	GTPTunnel := DLNGUUPTNLInformation.GTPTunnel
-	TEIDReader := bytes.NewBuffer(GTPTunnel.GTPTEID.Value)
 
-	teid, err := binary.ReadUvarint(TEIDReader)
-	if err != nil {
-		return fmt.Errorf("parse TEID error %s", err.Error())
-	}
+	teid := binary.BigEndian.Uint32(GTPTunnel.GTPTEID.Value)
 
 	if smContext.Tunnel.DataPath.Activated {
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &OuterHeaderCreation{
 			OuterHeaderCreationDescription: OuterHeaderCreationGtpUUdpIpv4,
-			TeID:                           uint32(teid),
+			TeID:                           teid,
 			IPv4Address:                    GTPTunnel.TransportLayerAddress.Value.Bytes,
 		}
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate

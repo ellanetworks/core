@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"sync/atomic"
-	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
@@ -155,8 +154,7 @@ func (s *SMF) SendFlowReport(ctx context.Context, req *pfcp_dispatcher.FlowRepor
 	return nil
 }
 
-// IncrementDailyUsageFromReport is a convenience method used by the PFCP handler
-// to convert volume measurement into the daily usage increment.
-func (s *SMF) IncrementDailyUsage(ctx context.Context, imsi string, day time.Time, uplinkBytes, downlinkBytes uint64) error {
+// IncrementDailyUsage delegates daily usage accounting to the store.
+func (s *SMF) IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error {
 	return s.store.IncrementDailyUsage(ctx, imsi, uplinkBytes, downlinkBytes)
 }

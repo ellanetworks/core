@@ -1117,7 +1117,7 @@ func TestIncrementDailyUsage_DelegatesToStore(t *testing.T) {
 	s := newTestSMF(store, upf, amfCb)
 	ctx := context.Background()
 
-	err := s.IncrementDailyUsage(ctx, testIMSI, time.Now(), 1000, 2000)
+	err := s.IncrementDailyUsage(ctx, testIMSI, 1000, 2000)
 	if err != nil {
 		t.Fatalf("IncrementDailyUsage failed: %v", err)
 	}

@@ -159,6 +159,10 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 	if err != nil {
 		logger.WithTrace(ctx, logger.SmfLog).Error("failed to handle PDU Session Establishment Request", zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
+		if releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI()); releaseErr != nil {
+			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IP after session create error", zap.Error(releaseErr))
+		}
+
 		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
 
 		response, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
@@ -180,6 +184,10 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 
 	err = defaultPath.ActivateTunnelAndPDR(s, smContext, policy, pduAddress)
 	if err != nil {
+		if releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI()); releaseErr != nil {
+			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IP after session create error", zap.Error(releaseErr))
+		}
+
 		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
 
 		response, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
@@ -303,6 +311,7 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 		PDRs:       pdrList,
 		FARs:       farList,
 		QERs:       qerList,
+		URRs:       urrList,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
