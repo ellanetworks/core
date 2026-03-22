@@ -16,6 +16,7 @@ import (
 	"github.com/free5gc/nas"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -48,11 +49,17 @@ func (s *SMF) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1M
 
 	rsp, sendPfcpDelete, err := s.handleUpdateN1Msg(ctx, n1Msg, smContext)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to handle N1 message")
+
 		return nil, fmt.Errorf("error handling N1 message: %v", err)
 	}
 
 	if sendPfcpDelete {
 		if err := s.releaseTunnel(ctx, smContext); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "failed to release tunnel")
+
 			return nil, fmt.Errorf("failed to release tunnel: %v", err)
 		}
 	}
@@ -117,11 +124,17 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 	defer span.End()
 
 	if smContextRef == "" {
+		span.RecordError(fmt.Errorf("SM Context reference is missing"))
+		span.SetStatus(codes.Error, "SM Context reference is missing")
+
 		return fmt.Errorf("SM Context reference is missing")
 	}
 
 	smContext := s.GetSession(smContextRef)
 	if smContext == nil {
+		span.RecordError(fmt.Errorf("sm context not found"))
+		span.SetStatus(codes.Error, "sm context not found")
+
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
@@ -130,10 +143,16 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 
 	pdrList, farList, err := handleUpdateN2MsgPDUResourceSetupResp(n2Data, smContext)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to handle N2 message")
+
 		return fmt.Errorf("error handling N2 message: %v", err)
 	}
 
 	if smContext.PFCPContext == nil {
+		span.RecordError(fmt.Errorf("pfcp session context not found"))
+		span.SetStatus(codes.Error, "pfcp session context not found")
+
 		return fmt.Errorf("pfcp session context not found")
 	}
 
@@ -143,6 +162,9 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 		PDRs:       pdrList,
 		FARs:       farList,
 	}); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to modify PFCP session")
+
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
 
@@ -220,11 +242,17 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContex
 	defer span.End()
 
 	if smContextRef == "" {
+		span.RecordError(fmt.Errorf("SM Context reference is missing"))
+		span.SetStatus(codes.Error, "SM Context reference is missing")
+
 		return fmt.Errorf("SM Context reference is missing")
 	}
 
 	smContext := s.GetSession(smContextRef)
 	if smContext == nil {
+		span.RecordError(fmt.Errorf("sm context not found"))
+		span.SetStatus(codes.Error, "sm context not found")
+
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
@@ -264,11 +292,17 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 	defer span.End()
 
 	if smContextRef == "" {
+		span.RecordError(fmt.Errorf("SM Context reference is missing"))
+		span.SetStatus(codes.Error, "SM Context reference is missing")
+
 		return fmt.Errorf("SM Context reference is missing")
 	}
 
 	smContext := s.GetSession(smContextRef)
 	if smContext == nil {
+		span.RecordError(fmt.Errorf("sm context not found"))
+		span.SetStatus(codes.Error, "sm context not found")
+
 		return fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
@@ -295,11 +329,17 @@ func (s *SMF) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smC
 	defer span.End()
 
 	if smContextRef == "" {
+		span.RecordError(fmt.Errorf("SM Context reference is missing"))
+		span.SetStatus(codes.Error, "SM Context reference is missing")
+
 		return nil, fmt.Errorf("SM Context reference is missing")
 	}
 
 	smContext := s.GetSession(smContextRef)
 	if smContext == nil {
+		span.RecordError(fmt.Errorf("sm context not found"))
+		span.SetStatus(codes.Error, "sm context not found")
+
 		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
@@ -310,10 +350,16 @@ func (s *SMF) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smC
 
 	n2Rsp, err := ngap.BuildPDUSessionResourceReleaseCommandTransfer()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to build PDU session resource release command transfer")
+
 		return nil, fmt.Errorf("build PDUSession Resource Release Command Transfer Error: %v", err)
 	}
 
 	if err := s.releaseTunnel(ctx, smContext); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to release tunnel")
+
 		return nil, fmt.Errorf("failed to release tunnel: %v", err)
 	}
 
@@ -329,11 +375,17 @@ func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextR
 	defer span.End()
 
 	if smContextRef == "" {
+		span.RecordError(fmt.Errorf("SM Context reference is missing"))
+		span.SetStatus(codes.Error, "SM Context reference is missing")
+
 		return nil, fmt.Errorf("SM Context reference is missing")
 	}
 
 	smContext := s.GetSession(smContextRef)
 	if smContext == nil {
+		span.RecordError(fmt.Errorf("sm context not found"))
+		span.SetStatus(codes.Error, "sm context not found")
+
 		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
@@ -341,11 +393,17 @@ func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextR
 	defer smContext.Mutex.Unlock()
 
 	if err := handleHandoverRequiredTransfer(n2Data); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to handle handover required transfer")
+
 		return nil, fmt.Errorf("handle HandoverRequiredTransfer failed: %v", err)
 	}
 
 	n2Rsp, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IP)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to build PDU session resource setup request transfer")
+
 		return nil, fmt.Errorf("build PDUSession Resource Setup Request Transfer Error: %v", err)
 	}
 
@@ -371,11 +429,17 @@ func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRe
 	defer span.End()
 
 	if smContextRef == "" {
+		span.RecordError(fmt.Errorf("SM Context reference is missing"))
+		span.SetStatus(codes.Error, "SM Context reference is missing")
+
 		return nil, fmt.Errorf("SM Context reference is missing")
 	}
 
 	smContext := s.GetSession(smContextRef)
 	if smContext == nil {
+		span.RecordError(fmt.Errorf("sm context not found"))
+		span.SetStatus(codes.Error, "sm context not found")
+
 		return nil, fmt.Errorf("sm context not found: %s", smContextRef)
 	}
 
@@ -383,11 +447,17 @@ func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRe
 	defer smContext.Mutex.Unlock()
 
 	if err := handleHandoverRequestAcknowledgeTransfer(n2Data, smContext); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to handle handover request acknowledge transfer")
+
 		return nil, fmt.Errorf("handle HandoverRequestAcknowledgeTransfer failed: %v", err)
 	}
 
 	n2Rsp, err := ngap.BuildHandoverCommandTransfer(smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IP)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to build handover command transfer")
+
 		return nil, fmt.Errorf("build Handover Command Transfer Error: %v", err)
 	}
 

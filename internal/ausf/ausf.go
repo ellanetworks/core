@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -136,7 +137,11 @@ func (a *AUSF) Authenticate(ctx context.Context, suci, servingNetwork string, re
 	defer span.End()
 
 	if !a.isServingNetworkAuthorized(servingNetwork) {
-		return nil, fmt.Errorf("serving network not authorized: %s", servingNetwork)
+		err := fmt.Errorf("serving network not authorized: %s", servingNetwork)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "serving network not authorized")
+
+		return nil, err
 	}
 
 	// If resync, recover the original RAND from the cached context.
@@ -148,7 +153,11 @@ func (a *AUSF) Authenticate(ctx context.Context, suci, servingNetwork string, re
 		a.mu.RUnlock()
 
 		if cached == nil {
-			return nil, fmt.Errorf("ue context not found for suci: %s", suci)
+			err := fmt.Errorf("ue context not found for suci: %s", suci)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "ue context not found")
+
+			return nil, err
 		}
 
 		resyncAuts = resync.Auts
@@ -158,25 +167,42 @@ func (a *AUSF) Authenticate(ctx context.Context, suci, servingNetwork string, re
 	// Convert SUCI → SUPI
 	supi, err := ToSupi(suci, a.keys)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to convert suci to supi")
+
 		return nil, fmt.Errorf("couldn't convert suci to supi: %w", err)
 	}
 
 	// Fetch subscriber auth material
 	sub, err := a.store.GetSubscriber(ctx, supi.IMSI())
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to get subscriber")
+
 		return nil, fmt.Errorf("couldn't get subscriber %s: %w", supi, err)
 	}
 
 	if sub.PermanentKey == "" {
-		return nil, fmt.Errorf("permanent key is empty")
+		err := fmt.Errorf("permanent key is empty")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "permanent key is empty")
+
+		return nil, err
 	}
 
 	if sub.Opc == "" {
-		return nil, fmt.Errorf("opc is empty")
+		err := fmt.Errorf("opc is empty")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "opc is empty")
+
+		return nil, err
 	}
 
 	k, err := hex.DecodeString(sub.PermanentKey)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to decode permanent key")
+
 		return nil, fmt.Errorf("failed to decode k: %w", err)
 	}
 

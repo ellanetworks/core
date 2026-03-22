@@ -18,6 +18,7 @@ import (
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -45,6 +46,9 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	pco, dnnInfo, pduAddress, pti, policy, errRsp, err := s.handlePDUSessionSMContextCreate(ctx, n1Msg, smContext)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to create SM context")
+
 		return "", errRsp, fmt.Errorf("failed to create SM Context: %v", err)
 	}
 
@@ -54,6 +58,9 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	err = s.sendPFCPRules(ctx, smContext)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to send PFCP rules")
+
 		sendErr := s.sendPduSessionEstablishmentReject(ctx, smContext, pti)
 		if sendErr != nil {
 			return "", nil, fmt.Errorf("failed to send pdu session establishment reject n1 message: %v", sendErr)
@@ -64,6 +71,9 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	err = s.sendPduSessionEstablishmentAccept(ctx, smContext, policy, pco, dnnInfo, pduAddress, pti)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to send PDU session establishment accept")
+
 		return "", nil, fmt.Errorf("failed to send pdu session establishment accept n1 message: %v", err)
 	}
 
@@ -240,6 +250,11 @@ func parsePDUSessionRequest(req *nasMessage.PDUSessionEstablishmentRequest) (*sm
 }
 
 func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
+	ctx, span := tracer.Start(ctx, "smf/send_pfcp_rules",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	defer span.End()
+
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
@@ -281,6 +296,9 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 	}
 
 	if smContext.PFCPContext == nil {
+		span.RecordError(fmt.Errorf("PFCP context not initialized"))
+		span.SetStatus(codes.Error, "PFCP context not initialized")
+
 		return fmt.Errorf("PFCP context not initialized")
 	}
 
@@ -295,6 +313,9 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 			SUPI:      smContext.Supi.IMSI(),
 		})
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "failed to establish PFCP session")
+
 			return fmt.Errorf("failed to send PFCP session establishment request: %v", err)
 		}
 
@@ -314,6 +335,9 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 		URRs:       urrList,
 	})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to modify PFCP session")
+
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
 
@@ -323,15 +347,26 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 }
 
 func (s *SMF) sendPduSessionEstablishmentReject(ctx context.Context, smContext *SMContext, pti uint8) error {
+	ctx, span := tracer.Start(ctx, "smf/send_pdu_session_establishment_reject",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	defer span.End()
+
 	PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
 
 	smNasBuf, err := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to build PDU session establishment reject")
+
 		return fmt.Errorf("build GSM PDUSessionEstablishmentReject failed: %v", err)
 	}
 
 	err = s.amf.TransferN1(ctx, smContext.Supi, smNasBuf, smContext.PDUSessionID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to transfer N1 message")
+
 		return fmt.Errorf("failed to send n1 message: %v", err)
 	}
 
@@ -349,20 +384,34 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 	pduAddress net.IP,
 	pti uint8,
 ) error {
+	ctx, span := tracer.Start(ctx, "smf/send_pdu_session_establishment_accept",
+		trace.WithSpanKind(trace.SpanKindInternal),
+	)
+	defer span.End()
+
 	PDUSessionEstablishmentAttempts.WithLabelValues("accept").Inc()
 
 	n1Msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(&policy.Ambr, &policy.QosData, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, dnnInfo.DNS, dnnInfo.MTU, pduAddress)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to build PDU session establishment accept")
+
 		return fmt.Errorf("build GSM PDUSessionEstablishmentAccept failed: %v", err)
 	}
 
 	n2Msg, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&policy.Ambr, &policy.QosData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IP)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to build PDU session resource setup request transfer")
+
 		return fmt.Errorf("build PDUSessionResourceSetupRequestTransfer failed: %v", err)
 	}
 
 	err = s.amf.TransferN1N2(ctx, smContext.Supi, smContext.PDUSessionID, smContext.Snssai, n1Msg, n2Msg)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to transfer N1N2 message")
+
 		return fmt.Errorf("failed to send n1 n2 transfer request: %v", err)
 	}
 
