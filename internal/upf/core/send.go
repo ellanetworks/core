@@ -18,8 +18,6 @@ var (
 	urseq uint32
 )
 
-var dispatcher *pfcp_dispatcher.PfcpDispatcher = &pfcp_dispatcher.Dispatcher
-
 func getSeqNumber() uint32 {
 	return atomic.AddUint32(&seq, 1)
 }
@@ -28,7 +26,7 @@ func getUsageReportSeqNumber() uint32 {
 	return atomic.AddUint32(&urseq, 1)
 }
 
-func SendPfcpSessionReportRequestForDownlinkData(ctx context.Context, localSeid uint64, pdrid uint16, qfi uint8) error {
+func SendPfcpSessionReportRequestForDownlinkData(ctx context.Context, dispatcher *pfcp_dispatcher.PfcpDispatcher, localSeid uint64, pdrid uint16, qfi uint8) error {
 	conn := GetConnection()
 
 	session := conn.GetSession(localSeid)
@@ -54,7 +52,7 @@ func SendPfcpSessionReportRequestForDownlinkData(ctx context.Context, localSeid 
 	return nil
 }
 
-func SendPfcpSessionReportRequestForUsage(ctx context.Context, localSeid uint64, urrid uint32, uvol uint64, dvol uint64) error {
+func SendPfcpSessionReportRequestForUsage(ctx context.Context, dispatcher *pfcp_dispatcher.PfcpDispatcher, localSeid uint64, urrid uint32, uvol uint64, dvol uint64) error {
 	conn := GetConnection()
 
 	session := conn.GetSession(localSeid)

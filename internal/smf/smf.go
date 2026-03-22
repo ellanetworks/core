@@ -179,6 +179,15 @@ func New(store SessionStore, upf UPFClient, amf AMFCallback, opts ...Option) *SM
 	return s
 }
 
+// SetUPF sets the UPF client adapter. This allows late binding of the UPF adapter
+// after the SMF instance and dispatcher have been initialized.
+func (s *SMF) SetUPF(upf UPFClient) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.upf = upf
+}
+
 // Run starts the background session cleanup loop. It blocks until ctx is cancelled.
 func (s *SMF) Run(ctx context.Context) {
 	ticker := time.NewTicker(30 * time.Second)
