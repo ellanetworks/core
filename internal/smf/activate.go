@@ -4,14 +4,22 @@
 package smf
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/smf/ngap"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // ActivateSmContext re-activates an existing PDU session (e.g. after idle-mode paging).
 // It returns the N2 PDUSessionResourceSetupRequest transfer.
-func (s *SMF) ActivateSmContext(smContextRef string) ([]byte, error) {
+func (s *SMF) ActivateSmContext(ctx context.Context, smContextRef string) ([]byte, error) {
+	_, span := tracer.Start(ctx, "SMF activate session",
+		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
+	)
+	defer span.End()
+
 	if smContextRef == "" {
 		return nil, fmt.Errorf("SM Context reference is missing")
 	}

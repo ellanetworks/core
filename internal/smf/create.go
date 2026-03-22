@@ -54,7 +54,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	err = s.sendPFCPRules(ctx, smContext)
 	if err != nil {
-		sendErr := s.sendPduSessionEstablishmentReject(ctx, smContext, policy, pti)
+		sendErr := s.sendPduSessionEstablishmentReject(ctx, smContext, pti)
 		if sendErr != nil {
 			return "", nil, fmt.Errorf("failed to send pdu session establishment reject n1 message: %v", sendErr)
 		}
@@ -139,7 +139,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 		return nil, nil, nil, 0, nil, rsp, fmt.Errorf("failed to retrieve DNN information: %v", err)
 	}
 
-	pduAddress, err := s.store.AllocateIP(ctx, smContext.Supi.IMSI(), smContext.Dnn)
+	pduAddress, err := s.store.AllocateIP(ctx, smContext.Supi.IMSI())
 	if err != nil {
 		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
 
@@ -272,7 +272,11 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 		}
 	}
 
-	if smContext.PFCPContext == nil || smContext.PFCPContext.RemoteSEID == 0 {
+	if smContext.PFCPContext == nil {
+		return fmt.Errorf("PFCP context not initialized")
+	}
+
+	if smContext.PFCPContext.RemoteSEID == 0 {
 		result, err := s.upf.EstablishSession(ctx, &PFCPEstablishmentRequest{
 			NodeID:    s.nodeID,
 			LocalSEID: smContext.PFCPContext.LocalSEID,
@@ -309,7 +313,7 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 	return nil
 }
 
-func (s *SMF) sendPduSessionEstablishmentReject(ctx context.Context, smContext *SMContext, policy *Policy, pti uint8) error {
+func (s *SMF) sendPduSessionEstablishmentReject(ctx context.Context, smContext *SMContext, pti uint8) error {
 	PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
 
 	smNasBuf, err := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
@@ -323,8 +327,6 @@ func (s *SMF) sendPduSessionEstablishmentReject(ctx context.Context, smContext *
 	}
 
 	logger.WithTrace(ctx, logger.SmfLog).Debug("Sent n1 message", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-
-	smContext.SetPolicyData(policy)
 
 	return nil
 }

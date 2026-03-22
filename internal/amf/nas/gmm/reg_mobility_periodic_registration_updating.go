@@ -108,7 +108,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 				if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 					// uplink data are pending for the corresponding PDU session identity
 					if hasUplinkData {
-						binaryDataN2SmInformation, err := amf.Smf.ActivateSmContext(smContext.Ref)
+						binaryDataN2SmInformation, err := amf.Smf.ActivateSmContext(ctx, smContext.Ref)
 						if err != nil {
 							ue.Log.Error("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 							reactivationResult[pduSessionID] = true

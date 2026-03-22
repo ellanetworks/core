@@ -208,7 +208,7 @@ type fakeSessionStore struct {
 	db *db.Database
 }
 
-func (f *fakeSessionStore) AllocateIP(ctx context.Context, supi, dnn string) (net.IP, error) {
+func (f *fakeSessionStore) AllocateIP(ctx context.Context, supi string) (net.IP, error) {
 	return f.db.AllocateIP(ctx, supi)
 }
 

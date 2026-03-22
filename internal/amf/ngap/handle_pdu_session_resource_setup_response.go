@@ -105,7 +105,7 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amf *amfContext.
 					continue
 				}
 
-				err := amf.Smf.UpdateSmContextN2InfoPduResSetupFail(smContext.Ref, transfer)
+				err := amf.Smf.UpdateSmContextN2InfoPduResSetupFail(ctx, smContext.Ref, transfer)
 				if err != nil {
 					logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err))
 				}

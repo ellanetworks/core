@@ -28,7 +28,7 @@ type smfDBAdapter struct {
 	db *db.Database
 }
 
-func (a *smfDBAdapter) AllocateIP(ctx context.Context, supi, _ string) (net.IP, error) {
+func (a *smfDBAdapter) AllocateIP(ctx context.Context, supi string) (net.IP, error) {
 	return a.db.AllocateIP(ctx, supi)
 }
 
@@ -107,7 +107,7 @@ func (a *smfDBAdapter) InsertFlowReport(ctx context.Context, report *smf.FlowRep
 // smfUPFAdapter adapts the in-process PFCP dispatcher to smf.UPFClient.
 // ---------------------------------------------------------------------------
 
-var pfcpSeq uint32
+var sessionSeq uint32
 
 type smfUPFAdapter struct {
 	dispatcher *pfcp_dispatcher.PfcpDispatcher
@@ -115,7 +115,7 @@ type smfUPFAdapter struct {
 }
 
 func (a *smfUPFAdapter) EstablishSession(ctx context.Context, req *smf.PFCPEstablishmentRequest) (*smf.PFCPEstablishmentResponse, error) {
-	seq := atomic.AddUint32(&pfcpSeq, 1)
+	seq := atomic.AddUint32(&sessionSeq, 1)
 
 	pfcpMsg, err := smf.BuildPfcpSessionEstablishmentRequest(
 		seq,
@@ -172,7 +172,7 @@ func (a *smfUPFAdapter) EstablishSession(ctx context.Context, req *smf.PFCPEstab
 }
 
 func (a *smfUPFAdapter) ModifySession(ctx context.Context, req *smf.PFCPModificationRequest) error {
-	seq := atomic.AddUint32(&pfcpSeq, 1)
+	seq := atomic.AddUint32(&sessionSeq, 1)
 
 	pfcpMsg, err := smf.BuildPfcpSessionModificationRequest(
 		seq,
@@ -209,7 +209,7 @@ func (a *smfUPFAdapter) ModifySession(ctx context.Context, req *smf.PFCPModifica
 }
 
 func (a *smfUPFAdapter) DeleteSession(ctx context.Context, localSEID, remoteSEID uint64) error {
-	seq := atomic.AddUint32(&pfcpSeq, 1)
+	seq := atomic.AddUint32(&sessionSeq, 1)
 	pfcpMsg := smf.BuildPfcpSessionDeletionRequest(seq, localSEID, remoteSEID, a.nodeID)
 
 	rsp, err := a.dispatcher.UPF.HandlePfcpSessionDeletionRequest(ctx, pfcpMsg)

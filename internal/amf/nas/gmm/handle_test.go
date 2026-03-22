@@ -341,7 +341,7 @@ type SmfDuplicatePDUCall struct {
 	SmContextRef string
 }
 
-func (s *FakeSmf) ActivateSmContext(smContextRef string) ([]byte, error) {
+func (s *FakeSmf) ActivateSmContext(_ context.Context, smContextRef string) ([]byte, error) {
 	s.ActivateSmContextCalls = append(s.ActivateSmContextCalls, SmfActivateSmContextCall{
 		SmContextRef: smContextRef,
 	})
@@ -384,7 +384,7 @@ func (s *FakeSmf) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, sm
 	return nil, s.Error
 }
 
-func (s *FakeSmf) UpdateSmContextHandoverFailed(smContextRef string, n2Data []byte) error {
+func (s *FakeSmf) UpdateSmContextHandoverFailed(_ context.Context, smContextRef string, n2Data []byte) error {
 	return s.Error
 }
 
@@ -425,7 +425,7 @@ func (s *FakeSmf) UpdateSmContextN2InfoPduResSetupRsp(_ context.Context, _ strin
 	return s.Error
 }
 
-func (s *FakeSmf) UpdateSmContextN2InfoPduResSetupFail(_ string, _ []byte) error {
+func (s *FakeSmf) UpdateSmContextN2InfoPduResSetupFail(_ context.Context, _ string, _ []byte) error {
 	return s.Error
 }
 
@@ -433,11 +433,11 @@ func (s *FakeSmf) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, _ string)
 	return s.Error
 }
 
-func (s *FakeSmf) UpdateSmContextN2HandoverPreparing(_ string, _ []byte) ([]byte, error) {
+func (s *FakeSmf) UpdateSmContextN2HandoverPreparing(_ context.Context, _ string, _ []byte) ([]byte, error) {
 	return nil, s.Error
 }
 
-func (s *FakeSmf) UpdateSmContextN2HandoverPrepared(_ string, _ []byte) ([]byte, error) {
+func (s *FakeSmf) UpdateSmContextN2HandoverPrepared(_ context.Context, _ string, _ []byte) ([]byte, error) {
 	return nil, s.Error
 }
 

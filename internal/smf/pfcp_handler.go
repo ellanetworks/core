@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025-present Ella Networks
+// SPDX-FileCopyrightText: 2026-present Ella Networks
 // SPDX-License-Identifier: Apache-2.0
 
 package smf
@@ -17,29 +17,32 @@ import (
 	"go.uber.org/zap"
 )
 
-var pfcpSeq uint32
+var reportSeq uint32
 
-func getPfcpSeqNumber() uint32 {
-	return atomic.AddUint32(&pfcpSeq, 1)
+func getReportSeqNumber() uint32 {
+	return atomic.AddUint32(&reportSeq, 1)
 }
 
 // HandlePfcpSessionReportRequest processes a PFCP Session Report from the UPF.
 // It handles downlink data reports (triggering paging) and usage reports (persisting usage).
 func (s *SMF) HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionReportRequest) (*message.SessionReportResponse, error) {
+	ctx, span := tracer.Start(ctx, "SMF HandlePfcpSessionReportRequest")
+	defer span.End()
+
 	seid := msg.SEID()
 
 	smContext := s.GetSessionBySEID(seid)
 
 	if smContext == nil || !smContext.Supi.IsValid() {
 		return message.NewSessionReportResponse(
-			1, 0, seid, getPfcpSeqNumber(), 0,
+			1, 0, seid, getReportSeqNumber(), 0,
 			ie.NewCause(ie.CauseRequestRejected),
 		), fmt.Errorf("failed to find SMContext for seid %d", seid)
 	}
 
 	if msg.ReportType == nil {
 		return message.NewSessionReportResponse(
-			1, 0, seid, getPfcpSeqNumber(), 0,
+			1, 0, seid, getReportSeqNumber(), 0,
 			ie.NewCause(ie.CauseRequestRejected),
 		), fmt.Errorf("report type IE is missing in PFCP Session Report Request")
 	}
@@ -53,7 +56,7 @@ func (s *SMF) HandlePfcpSessionReportRequest(ctx context.Context, msg *message.S
 
 		if err := s.amf.N2TransferOrPage(ctx, smContext.Supi, smContext.PDUSessionID, smContext.Snssai, n2Pdu); err != nil {
 			return message.NewSessionReportResponse(
-				1, 0, seid, getPfcpSeqNumber(), 0,
+				1, 0, seid, getReportSeqNumber(), 0,
 				ie.NewCause(ie.CauseRequestRejected),
 			), fmt.Errorf("failed to send N1N2MessageTransfer to AMF: %v", err)
 		}
@@ -65,7 +68,7 @@ func (s *SMF) HandlePfcpSessionReportRequest(ctx context.Context, msg *message.S
 			urrID, err := urrReport.URRID()
 			if err != nil {
 				return message.NewSessionReportResponse(
-					1, 0, seid, getPfcpSeqNumber(), 0,
+					1, 0, seid, getReportSeqNumber(), 0,
 					ie.NewCause(ie.CauseRequestRejected),
 				), fmt.Errorf("failed to get URR ID from Usage Report IE: %v", err)
 			}
@@ -73,14 +76,14 @@ func (s *SMF) HandlePfcpSessionReportRequest(ctx context.Context, msg *message.S
 			volumeMeasurement, err := urrReport.VolumeMeasurement()
 			if err != nil {
 				return message.NewSessionReportResponse(
-					1, 0, seid, getPfcpSeqNumber(), 0,
+					1, 0, seid, getReportSeqNumber(), 0,
 					ie.NewCause(ie.CauseRequestRejected),
 				), fmt.Errorf("failed to get Volume Measurement from Usage Report IE: %v", err)
 			}
 
 			if err := s.store.IncrementDailyUsage(ctx, smContext.Supi.IMSI(), volumeMeasurement.UplinkVolume, volumeMeasurement.DownlinkVolume); err != nil {
 				return message.NewSessionReportResponse(
-					1, 0, seid, getPfcpSeqNumber(), 0,
+					1, 0, seid, getReportSeqNumber(), 0,
 					ie.NewCause(ie.CauseRequestRejected),
 				), fmt.Errorf("failed to update data volume for imsi %s: %v", smContext.Supi.String(), err)
 			}
@@ -96,13 +99,16 @@ func (s *SMF) HandlePfcpSessionReportRequest(ctx context.Context, msg *message.S
 	}
 
 	return message.NewSessionReportResponse(
-		1, 0, seid, getPfcpSeqNumber(), 0,
+		1, 0, seid, getReportSeqNumber(), 0,
 		ie.NewCause(ie.CauseRequestAccepted),
 	), nil
 }
 
 // SendFlowReport persists a flow measurement record from the UPF.
 func (s *SMF) SendFlowReport(ctx context.Context, req *pfcp_dispatcher.FlowReportRequest) error {
+	ctx, span := tracer.Start(ctx, "SMF SendFlowReport")
+	defer span.End()
+
 	if req == nil {
 		return fmt.Errorf("flow report request is nil")
 	}

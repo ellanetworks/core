@@ -238,7 +238,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 
 			if pduSessionID != targetPduSessionID {
 				if uplinkDataPsi[pduSessionID] {
-					binaryDataN2SmInformation, err := amf.Smf.ActivateSmContext(smContext.Ref)
+					binaryDataN2SmInformation, err := amf.Smf.ActivateSmContext(ctx, smContext.Ref)
 					if err != nil {
 						ue.Log.Error("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 						reactivationResult[pduSessionID] = true

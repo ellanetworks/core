@@ -90,7 +90,7 @@ type FakeSmfSbi struct {
 	HandoverFailedCalls []*SmfHandoverFailedCall
 }
 
-func (f *FakeSmfSbi) ActivateSmContext(smContextRef string) ([]byte, error) {
+func (f *FakeSmfSbi) ActivateSmContext(_ context.Context, smContextRef string) ([]byte, error) {
 	return nil, nil
 }
 
@@ -107,7 +107,7 @@ func (f *FakeSmfSbi) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context,
 	return f.PathSwitchResponse, f.PathSwitchErr
 }
 
-func (f *FakeSmfSbi) UpdateSmContextHandoverFailed(smContextRef string, n2Data []byte) error {
+func (f *FakeSmfSbi) UpdateSmContextHandoverFailed(_ context.Context, smContextRef string, n2Data []byte) error {
 	f.HandoverFailedCalls = append(f.HandoverFailedCalls, &SmfHandoverFailedCall{
 		SmContextRef: smContextRef,
 		N2Data:       n2Data,
@@ -136,7 +136,7 @@ func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResSetupRsp(_ context.Context, _ st
 	return nil
 }
 
-func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResSetupFail(_ string, _ []byte) error {
+func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResSetupFail(_ context.Context, _ string, _ []byte) error {
 	return nil
 }
 
@@ -144,11 +144,11 @@ func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, _ stri
 	return nil
 }
 
-func (f *FakeSmfSbi) UpdateSmContextN2HandoverPreparing(_ string, _ []byte) ([]byte, error) {
+func (f *FakeSmfSbi) UpdateSmContextN2HandoverPreparing(_ context.Context, _ string, _ []byte) ([]byte, error) {
 	return nil, nil
 }
 
-func (f *FakeSmfSbi) UpdateSmContextN2HandoverPrepared(_ string, _ []byte) ([]byte, error) {
+func (f *FakeSmfSbi) UpdateSmContextN2HandoverPrepared(_ context.Context, _ string, _ []byte) ([]byte, error) {
 	return nil, nil
 }
 

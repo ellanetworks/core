@@ -214,7 +214,7 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 
 		pduSessionIDUint8 := uint8(pDUSessionResourceHoItem.PDUSessionID.Value)
 		if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
-			n2Rsp, err := amf.Smf.UpdateSmContextN2HandoverPreparing(smContext.Ref, pDUSessionResourceHoItem.HandoverRequiredTransfer)
+			n2Rsp, err := amf.Smf.UpdateSmContextN2HandoverPreparing(ctx, smContext.Ref, pDUSessionResourceHoItem.HandoverRequiredTransfer)
 			if err != nil {
 				logger.WithTrace(ctx, sourceUe.Log).Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionIDUint8))
 				continue

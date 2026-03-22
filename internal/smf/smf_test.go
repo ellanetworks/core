@@ -34,7 +34,7 @@ type usageEntry struct {
 	downlinkBytes uint64
 }
 
-func (f *fakeStore) AllocateIP(_ context.Context, _, _ string) (net.IP, error) {
+func (f *fakeStore) AllocateIP(_ context.Context, _ string) (net.IP, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

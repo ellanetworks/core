@@ -214,7 +214,12 @@ func handlePDUSessionResourceSetupResponseTransfer(b []byte, smContext *SMContex
 }
 
 // UpdateSmContextN2InfoPduResSetupFail handles a PDUSession Resource Setup failure.
-func (s *SMF) UpdateSmContextN2InfoPduResSetupFail(smContextRef string, n2Data []byte) error {
+func (s *SMF) UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContextRef string, n2Data []byte) error {
+	_, span := tracer.Start(ctx, "SMF Update SmContext PDU Resource Setup Fail",
+		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
+	)
+	defer span.End()
+
 	if smContextRef == "" {
 		return fmt.Errorf("SM Context reference is missing")
 	}
@@ -271,13 +276,13 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	if !smContext.PDUSessionReleaseDueToDupPduID {
-		return nil
+	if smContext.PDUSessionReleaseDueToDupPduID {
+		smContext.PDUSessionReleaseDueToDupPduID = false
+		s.RemoveSession(ctx, smContext.CanonicalName())
+	} else {
+		// N1 release path already called ReleaseIP; just remove from pool.
+		s.removeSessionUnlocked(ctx, smContext.CanonicalName())
 	}
-
-	smContext.PDUSessionReleaseDueToDupPduID = false
-
-	s.RemoveSession(ctx, smContext.CanonicalName())
 
 	return nil
 }
@@ -318,7 +323,12 @@ func (s *SMF) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smC
 
 // UpdateSmContextN2HandoverPreparing handles the handover-required N2 message
 // and returns a PDUSession Resource Setup Request Transfer for the target radio.
-func (s *SMF) UpdateSmContextN2HandoverPreparing(smContextRef string, n2Data []byte) ([]byte, error) {
+func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
+	_, span := tracer.Start(ctx, "SMF Update SmContext N2 Handover Preparing",
+		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
+	)
+	defer span.End()
+
 	if smContextRef == "" {
 		return nil, fmt.Errorf("SM Context reference is missing")
 	}
@@ -355,7 +365,12 @@ func handleHandoverRequiredTransfer(b []byte) error {
 
 // UpdateSmContextN2HandoverPrepared handles the handover request acknowledge
 // from the target radio and returns a Handover Command Transfer.
-func (s *SMF) UpdateSmContextN2HandoverPrepared(smContextRef string, n2Data []byte) ([]byte, error) {
+func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
+	_, span := tracer.Start(ctx, "SMF Update SmContext N2 Handover Prepared",
+		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
+	)
+	defer span.End()
+
 	if smContextRef == "" {
 		return nil, fmt.Errorf("SM Context reference is missing")
 	}
@@ -506,7 +521,12 @@ func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
 }
 
 // UpdateSmContextHandoverFailed handles a path switch failure.
-func (s *SMF) UpdateSmContextHandoverFailed(smContextRef string, n2Data []byte) error {
+func (s *SMF) UpdateSmContextHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error {
+	_, span := tracer.Start(ctx, "SMF Update SmContext Handover Failed",
+		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
+	)
+	defer span.End()
+
 	if smContextRef == "" {
 		return fmt.Errorf("SM Context reference is missing")
 	}

@@ -35,8 +35,8 @@ type SessionQuerier interface {
 
 // SessionStore is the minimal DB surface the SMF needs.
 type SessionStore interface {
-	// AllocateIP assigns an IP address to a subscriber on a given DNN.
-	AllocateIP(ctx context.Context, supi, dnn string) (net.IP, error)
+	// AllocateIP assigns an IP address to a subscriber.
+	AllocateIP(ctx context.Context, supi string) (net.IP, error)
 
 	// ReleaseIP frees the IP address associated with a subscriber.
 	ReleaseIP(ctx context.Context, supi string) error

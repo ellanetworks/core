@@ -209,7 +209,7 @@ func TestActivateSmContext_HappyPath(t *testing.T) {
 
 	_, ref := setupSessionWithTunnel(t, s)
 
-	n2Buf, err := s.ActivateSmContext(ref)
+	n2Buf, err := s.ActivateSmContext(context.Background(), ref)
 	if err != nil {
 		t.Fatalf("ActivateSmContext failed: %v", err)
 	}
@@ -223,7 +223,7 @@ func TestActivateSmContext_EmptyRef(t *testing.T) {
 	store, upf, amfCb := defaultFakes()
 	s := newTestSMF(store, upf, amfCb)
 
-	_, err := s.ActivateSmContext("")
+	_, err := s.ActivateSmContext(context.Background(), "")
 	if err == nil {
 		t.Fatal("expected error for empty ref")
 	}
@@ -233,7 +233,7 @@ func TestActivateSmContext_NotFound(t *testing.T) {
 	store, upf, amfCb := defaultFakes()
 	s := newTestSMF(store, upf, amfCb)
 
-	_, err := s.ActivateSmContext("nonexistent-ref")
+	_, err := s.ActivateSmContext(context.Background(), "nonexistent-ref")
 	if err == nil {
 		t.Fatal("expected error for non-existent session")
 	}
@@ -655,7 +655,7 @@ func TestUpdateSmContextN2InfoPduResSetupFail_EmptyRef(t *testing.T) {
 	store, upf, amfCb := defaultFakes()
 	s := newTestSMF(store, upf, amfCb)
 
-	err := s.UpdateSmContextN2InfoPduResSetupFail("", nil)
+	err := s.UpdateSmContextN2InfoPduResSetupFail(context.Background(), "", nil)
 	if err == nil {
 		t.Fatal("expected error for empty ref")
 	}
@@ -665,7 +665,7 @@ func TestUpdateSmContextN2InfoPduResSetupFail_NotFound(t *testing.T) {
 	store, upf, amfCb := defaultFakes()
 	s := newTestSMF(store, upf, amfCb)
 
-	err := s.UpdateSmContextN2InfoPduResSetupFail("nonexistent", nil)
+	err := s.UpdateSmContextN2InfoPduResSetupFail(context.Background(), "nonexistent", nil)
 	if err == nil {
 		t.Fatal("expected error for non-existent session")
 	}
@@ -687,8 +687,8 @@ func TestUpdateSmContextN2InfoPduResRelRsp_NotDuplicate(t *testing.T) {
 		t.Fatalf("UpdateSmContextN2InfoPduResRelRsp failed: %v", err)
 	}
 
-	if s.GetSession(ref) == nil {
-		t.Fatal("session should still exist (not a duplicate release)")
+	if s.GetSession(ref) != nil {
+		t.Fatal("session should be removed from pool after N2 release response")
 	}
 }
 
@@ -790,7 +790,7 @@ func TestUpdateSmContextN2HandoverPreparing_EmptyRef(t *testing.T) {
 	store, upf, amfCb := defaultFakes()
 	s := newTestSMF(store, upf, amfCb)
 
-	_, err := s.UpdateSmContextN2HandoverPreparing("", nil)
+	_, err := s.UpdateSmContextN2HandoverPreparing(context.Background(), "", nil)
 	if err == nil {
 		t.Fatal("expected error for empty ref")
 	}
@@ -800,7 +800,7 @@ func TestUpdateSmContextN2HandoverPreparing_NotFound(t *testing.T) {
 	store, upf, amfCb := defaultFakes()
 	s := newTestSMF(store, upf, amfCb)
 
-	_, err := s.UpdateSmContextN2HandoverPreparing("nonexistent", nil)
+	_, err := s.UpdateSmContextN2HandoverPreparing(context.Background(), "nonexistent", nil)
 	if err == nil {
 		t.Fatal("expected error for non-existent session")
 	}
@@ -814,7 +814,7 @@ func TestUpdateSmContextN2HandoverPrepared_EmptyRef(t *testing.T) {
 	store, upf, amfCb := defaultFakes()
 	s := newTestSMF(store, upf, amfCb)
 
-	_, err := s.UpdateSmContextN2HandoverPrepared("", nil)
+	_, err := s.UpdateSmContextN2HandoverPrepared(context.Background(), "", nil)
 	if err == nil {
 		t.Fatal("expected error for empty ref")
 	}
@@ -824,7 +824,7 @@ func TestUpdateSmContextN2HandoverPrepared_NotFound(t *testing.T) {
 	store, upf, amfCb := defaultFakes()
 	s := newTestSMF(store, upf, amfCb)
 
-	_, err := s.UpdateSmContextN2HandoverPrepared("nonexistent", nil)
+	_, err := s.UpdateSmContextN2HandoverPrepared(context.Background(), "nonexistent", nil)
 	if err == nil {
 		t.Fatal("expected error for non-existent session")
 	}
@@ -862,7 +862,7 @@ func TestUpdateSmContextHandoverFailed_EmptyRef(t *testing.T) {
 	store, upf, amfCb := defaultFakes()
 	s := newTestSMF(store, upf, amfCb)
 
-	err := s.UpdateSmContextHandoverFailed("", nil)
+	err := s.UpdateSmContextHandoverFailed(context.Background(), "", nil)
 	if err == nil {
 		t.Fatal("expected error for empty ref")
 	}
@@ -872,7 +872,7 @@ func TestUpdateSmContextHandoverFailed_NotFound(t *testing.T) {
 	store, upf, amfCb := defaultFakes()
 	s := newTestSMF(store, upf, amfCb)
 
-	err := s.UpdateSmContextHandoverFailed("nonexistent", nil)
+	err := s.UpdateSmContextHandoverFailed(context.Background(), "nonexistent", nil)
 	if err == nil {
 		t.Fatal("expected error for non-existent session")
 	}
