@@ -296,7 +296,7 @@ func closeAMF(ctx context.Context, amfInstance *amf.AMF, srv *service.Server) {
 
 	unavailableGuamiList := send.BuildUnavailableGUAMIList(operatorInfo.Guami)
 
-	for _, ran := range amfInstance.Radios {
+	for _, ran := range amfInstance.ListRadios() {
 		err := ran.NGAPSender.SendAMFStatusIndication(ctx, unavailableGuamiList)
 		if err != nil {
 			logger.AmfLog.Error("failed to send AMF Status Indication to RAN", zap.Error(err))

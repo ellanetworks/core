@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var tracer = otel.Tracer("ella-core/amf/context")
+var tracer = otel.Tracer("ella-core/amf")
 
 // This file contains calls to db to get configuration data
 

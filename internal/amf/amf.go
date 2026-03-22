@@ -108,10 +108,6 @@ type AMF struct {
 }
 
 func (a *AMF) allocateTMSI(ctx context.Context) (etsi.TMSI, error) {
-	if a.tmsi == nil {
-		a.tmsi = etsi.NewTMSIAllocator()
-	}
-
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -124,10 +120,6 @@ func (a *AMF) allocateTMSI(ctx context.Context) (etsi.TMSI, error) {
 }
 
 func (a *AMF) allocateAmfUeNgapID() (int64, error) {
-	if a.ngapIDs == nil {
-		a.ngapIDs = idgenerator.NewGenerator(1, MaxValueOfAmfUeNgapID)
-	}
-
 	val, err := a.ngapIDs.Allocate()
 	if err != nil {
 		return -1, fmt.Errorf("could not allocate AmfUeNgapID: %v", err)
