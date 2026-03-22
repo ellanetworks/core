@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/security"

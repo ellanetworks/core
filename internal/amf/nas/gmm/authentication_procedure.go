@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/free5gc/nas/nasMessage"

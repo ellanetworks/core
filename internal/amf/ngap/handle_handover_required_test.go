@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/db"
@@ -266,18 +266,15 @@ func TestHandoverRequired(t *testing.T) {
 	}
 
 	// Set up AMF with target RAN in Radios map
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc: "001",
-				Mnc: "01",
-				Sst: 1,
-			},
+	amf := amfContext.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc: "001",
+			Mnc: "01",
+			Sst: 1,
 		},
-		Radios: map[*sctp.SCTPConn]*amfContext.Radio{
-			new(sctp.SCTPConn): targetRan,
-		},
-		Smf: &FakeSmfSbi{SMF: smfInstance},
+	}, nil, &FakeSmfSbi{SMF: smfInstance})
+	amf.Radios = map[*sctp.SCTPConn]*amfContext.Radio{
+		new(sctp.SCTPConn): targetRan,
 	}
 
 	ngap.HandleHandoverRequired(context.Background(), amf, sourceRan, msg.InitiatingMessage.Value.HandoverRequired)
@@ -309,7 +306,7 @@ func TestHandoverRequired_MissingMandatoryIEs(t *testing.T) {
 		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
 	}
 
-	amf := &amfContext.AMF{}
+	amf := amfContext.New(nil, nil, nil)
 
 	ngap.HandleHandoverRequired(context.Background(), amf, ran, msg.InitiatingMessage.Value.HandoverRequired)
 
@@ -393,7 +390,7 @@ func TestHandoverRequired_UnknownRanUeNgapID(t *testing.T) {
 		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
 	}
 
-	amf := &amfContext.AMF{}
+	amf := amfContext.New(nil, nil, nil)
 
 	ngap.HandleHandoverRequired(context.Background(), amf, ran, msg.InitiatingMessage.Value.HandoverRequired)
 
@@ -489,7 +486,7 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 	amfUe.RanUe = sourceUe
 	sourceRan.RanUEs[1] = sourceUe
 
-	amf := &amfContext.AMF{}
+	amf := amfContext.New(nil, nil, nil)
 
 	ngap.HandleHandoverRequired(context.Background(), amf, sourceRan, msg.InitiatingMessage.Value.HandoverRequired)
 

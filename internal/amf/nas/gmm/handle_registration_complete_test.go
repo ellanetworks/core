@@ -5,8 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
@@ -15,19 +14,18 @@ import (
 	"github.com/free5gc/nas/security"
 )
 
-func newTestAMF() *context.AMF {
-	return &context.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				SpnFullName:  "Ella Networks",
-				SpnShortName: "Ella",
-			},
+func newTestAMF() *amfContext.AMF {
+	amf := amfContext.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			SpnFullName:  "Ella Networks",
+			SpnShortName: "Ella",
 		},
-		UEs: make(map[etsi.SUPI]*context.AmfUe),
-	}
+	}, nil, nil)
+
+	return amf
 }
 
-func setupRegistrationCompleteUE(t *testing.T) (*context.AmfUe, *FakeNGAPSender) {
+func setupRegistrationCompleteUE(t *testing.T) (*amfContext.AmfUe, *FakeNGAPSender) {
 	t.Helper()
 
 	ue, ngapSender, err := buildUeAndRadio()
@@ -54,8 +52,8 @@ func setupRegistrationCompleteUE(t *testing.T) (*context.AmfUe, *FakeNGAPSender)
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	ue.State = context.ContextSetup
-	ue.T3550 = context.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.State = amfContext.ContextSetup
+	ue.T3550 = amfContext.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.RegistrationRequest = m.RegistrationRequest
 	ue.RegistrationType5GS = 42
 	ue.IdentityTypeUsedForRegistration = 42
@@ -63,17 +61,17 @@ func setupRegistrationCompleteUE(t *testing.T) (*context.AmfUe, *FakeNGAPSender)
 	ue.RanUe.UeContextRequest = true
 	ue.RanUe.RecvdInitialContextSetupResponse = true
 	ue.RetransmissionOfInitialNASMsg = true
-	ue.SetOnGoing(context.OnGoingProcedurePaging)
+	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
 
 	return ue, ngapSender
 }
 
 func TestHandleRegistrationComplete_WrongState_Error(t *testing.T) {
-	testcases := []context.StateType{context.Deregistered, context.Authentication, context.Registered, context.SecurityMode}
+	testcases := []amfContext.StateType{amfContext.Deregistered, amfContext.Authentication, amfContext.Registered, amfContext.SecurityMode}
 
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
-			ue := context.NewAmfUe()
+			ue := amfContext.NewAmfUe()
 			ue.State = tc
 
 			expected := fmt.Sprintf("state mismatch: receive Registration Complete message in state %s", tc)
@@ -169,7 +167,7 @@ func TestHandleRegistrationComplete_ReleasedWhenNoFORPending_NoUDSPending_and_No
 	ue, ngapSender := setupRegistrationCompleteUE(t)
 	ue.RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
 	ue.RegistrationRequest.UplinkDataStatus = nil
-	ue.SmContextList = make(map[uint8]*context.SmContext)
+	ue.SmContextList = make(map[uint8]*amfContext.SmContext)
 
 	amf := newTestAMF()
 
@@ -196,7 +194,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenFORPending(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
 	ue.RegistrationRequest.SetFOR(nasMessage.FollowOnRequestPending)
 	ue.RegistrationRequest.UplinkDataStatus = nil
-	ue.SmContextList = make(map[uint8]*context.SmContext)
+	ue.SmContextList = make(map[uint8]*amfContext.SmContext)
 
 	amf := newTestAMF()
 
@@ -223,7 +221,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenUDSPending(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
 	ue.RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
 	ue.RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{}
-	ue.SmContextList = make(map[uint8]*context.SmContext)
+	ue.SmContextList = make(map[uint8]*amfContext.SmContext)
 
 	amf := newTestAMF()
 
@@ -273,7 +271,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenActiveSession(t *testing.T) {
 	}
 }
 
-func checkUERegistrationDataIsCleared(ue *context.AmfUe) error {
+func checkUERegistrationDataIsCleared(ue *amfContext.AmfUe) error {
 	if ue.RegistrationRequest != nil {
 		return fmt.Errorf("registration request is not nil")
 	}
@@ -302,7 +300,7 @@ func checkUERegistrationDataIsCleared(ue *context.AmfUe) error {
 		return fmt.Errorf("retransmission of initial NAS msg should be false")
 	}
 
-	if ue.GetOnGoing() != context.OnGoingProcedureNothing {
+	if ue.GetOnGoing() != amfContext.OnGoingProcedureNothing {
 		return fmt.Errorf("ongoing should be nothing")
 	}
 

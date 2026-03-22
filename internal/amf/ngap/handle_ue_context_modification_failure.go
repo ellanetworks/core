@@ -3,13 +3,13 @@ package ngap
 import (
 	gocontext "context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleUEContextModificationFailure(ctx gocontext.Context, amf *context.AMF, ran *context.Radio, msg *ngapType.UEContextModificationFailure) {
+func HandleUEContextModificationFailure(ctx gocontext.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.UEContextModificationFailure) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -41,7 +41,7 @@ func HandleUEContextModificationFailure(ctx gocontext.Context, amf *context.AMF,
 		}
 	}
 
-	var ranUe *context.RanUe
+	var ranUe *amfContext.RanUe
 
 	if rANUENGAPID != nil {
 		if aMFUENGAPID != nil {

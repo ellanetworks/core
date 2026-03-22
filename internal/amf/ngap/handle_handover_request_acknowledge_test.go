@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
@@ -162,13 +162,9 @@ func setupHandoverAckTestContext(t *testing.T) (*amfContext.Radio, *FakeNGAPSend
 	sourceUe.TargetUe = targetUe
 	targetRan.RanUEs[2] = targetUe
 
-	amf := &amfContext.AMF{
-		Radios: map[*sctp.SCTPConn]*amfContext.Radio{
-			new(sctp.SCTPConn): sourceRan,
-			new(sctp.SCTPConn): targetRan,
-		},
-		Smf: &FakeSmfSbi{SMF: smfInstance},
-	}
+	amf := amfContext.New(nil, nil, &FakeSmfSbi{SMF: smfInstance})
+	amf.Radios[new(sctp.SCTPConn)] = sourceRan
+	amf.Radios[new(sctp.SCTPConn)] = targetRan
 
 	return targetRan, sourceNGAPSender, amf
 }
@@ -179,7 +175,7 @@ func TestHandoverRequestAcknowledge_NilMessage(t *testing.T) {
 		Log:        logger.AmfLog,
 		NGAPSender: fakeNGAPSender,
 	}
-	amf := &amfContext.AMF{}
+	amf := newTestAMF()
 
 	ngap.HandleHandoverRequestAcknowledge(context.Background(), amf, ran, nil)
 
@@ -198,7 +194,7 @@ func TestHandoverRequestAcknowledge_MissingTargetToSourceContainer(t *testing.T)
 		Log:        logger.AmfLog,
 		NGAPSender: fakeNGAPSender,
 	}
-	amf := &amfContext.AMF{}
+	amf := newTestAMF()
 
 	msg := buildHandoverRequestAcknowledge(&HandoverRequestAcknowledgeOpts{
 		AMFUENGAPID: &ngapType.AMFUENGAPID{Value: 1},
@@ -245,11 +241,8 @@ func TestHandoverRequestAcknowledge_UeNotFound(t *testing.T) {
 		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
 	}
 
-	amf := &amfContext.AMF{
-		Radios: map[*sctp.SCTPConn]*amfContext.Radio{
-			new(sctp.SCTPConn): ran,
-		},
-	}
+	amf := newTestAMF()
+	amf.Radios[new(sctp.SCTPConn)] = ran
 
 	msg := buildHandoverRequestAcknowledge(&HandoverRequestAcknowledgeOpts{
 		AMFUENGAPID: &ngapType.AMFUENGAPID{Value: 999},
@@ -292,11 +285,8 @@ func TestHandoverRequestAcknowledge_NoSourceUe(t *testing.T) {
 	}
 	ran.RanUEs[2] = targetUe
 
-	amf := &amfContext.AMF{
-		Radios: map[*sctp.SCTPConn]*amfContext.Radio{
-			new(sctp.SCTPConn): ran,
-		},
-	}
+	amf := newTestAMF()
+	amf.Radios[new(sctp.SCTPConn)] = ran
 
 	msg := buildHandoverRequestAcknowledge(&HandoverRequestAcknowledgeOpts{
 		AMFUENGAPID: &ngapType.AMFUENGAPID{Value: 1},

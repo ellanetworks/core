@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -173,15 +173,13 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 		t.Fatalf("failed to build NGSetupRequest: %v", err)
 	}
 
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc: "001",
-				Mnc: "01",
-				Sst: 1,
-			},
+	amf := amfContext.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc: "001",
+			Mnc: "01",
+			Sst: 1,
 		},
-	}
+	}, nil, nil)
 
 	ngap.HandleNGSetupRequest(context.Background(), amf, ran, msg.InitiatingMessage.Value.NGSetupRequest)
 
@@ -233,11 +231,9 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testi
 		t.Fatalf("failed to set supported TACS: %v", err)
 	}
 
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: op,
-		},
-	}
+	amf := amfContext.New(&FakeDBInstance{
+		Operator: op,
+	}, nil, nil)
 
 	ngap.HandleNGSetupRequest(context.Background(), amf, ran, msg.InitiatingMessage.Value.NGSetupRequest)
 
@@ -289,13 +285,10 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 		t.Fatalf("failed to set supported TACS: %v", err)
 	}
 
-	amf := &amfContext.AMF{
-		Name:             "ella-core",
-		RelativeCapacity: 0xff,
-		DBInstance: &FakeDBInstance{
-			Operator: op,
-		},
-	}
+	amf := amfContext.New(&FakeDBInstance{
+		Operator: op,
+	}, nil, nil)
+	amf.Name = "ella-core"
 
 	ngap.HandleNGSetupRequest(context.Background(), amf, ran, msg.InitiatingMessage.Value.NGSetupRequest)
 

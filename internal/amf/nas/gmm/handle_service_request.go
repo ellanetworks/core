@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
@@ -338,7 +338,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 			}
 		}
 
-		err := ue.ReAllocateGuti(ctx, operatorInfo.Guami)
+		err := amf.ReAllocateGuti(ctx, ue, operatorInfo.Guami)
 		if err != nil {
 			return fmt.Errorf("error reallocating GUTI to UE: %v", err)
 		}

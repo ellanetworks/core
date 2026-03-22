@@ -7,8 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
@@ -81,8 +80,8 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amfContext.AmfUe, *FakeNGAPSender,
 
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")
 	fakeSmf := &FakeSmf{}
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
+	amf := amfContext.New(
+		&FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
@@ -90,9 +89,9 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amfContext.AmfUe, *FakeNGAPSender,
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-		Smf: fakeSmf,
-	}
+		nil,
+		fakeSmf,
+	)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {

@@ -2,17 +2,17 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package context_test
+package amf_test
 
 import (
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 )
 
 func TestTimerIsActiveNewTimer(t *testing.T) {
-	timer := context.NewTimer(1*time.Hour, 1, func(_ int32) {}, func() {})
+	timer := amf.NewTimer(1*time.Hour, 1, func(_ int32) {}, func() {})
 	defer timer.Stop()
 
 	if !timer.IsActive() {
@@ -21,7 +21,7 @@ func TestTimerIsActiveNewTimer(t *testing.T) {
 }
 
 func TestTimerIsActiveAfterStop(t *testing.T) {
-	timer := context.NewTimer(1*time.Hour, 1, func(_ int32) {}, func() {})
+	timer := amf.NewTimer(1*time.Hour, 1, func(_ int32) {}, func() {})
 	timer.Stop()
 
 	if timer.IsActive() {
@@ -31,7 +31,7 @@ func TestTimerIsActiveAfterStop(t *testing.T) {
 
 func TestTimerIsActiveAutoStop(t *testing.T) {
 	done := make(chan struct{})
-	timer := context.NewTimer(10*time.Millisecond, 1, func(_ int32) {}, func() {
+	timer := amf.NewTimer(10*time.Millisecond, 1, func(_ int32) {}, func() {
 		close(done)
 	})
 

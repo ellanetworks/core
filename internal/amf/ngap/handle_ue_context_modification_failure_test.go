@@ -6,14 +6,13 @@ import (
 	"context"
 	"testing"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/free5gc/ngap/ngapType"
 )
 
 func TestHandleUEContextModificationFailure_MissingAMFUENGAPID(t *testing.T) {
 	ran := newTestRadio()
-	amf := &amfContext.AMF{}
+	amf := newTestAMF()
 	msg := &ngapType.UEContextModificationFailure{}
 	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.UEContextModificationFailureIEs{
 		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDRANUENGAPID},
