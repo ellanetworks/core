@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -159,7 +159,7 @@ func (db *Database) IsOperatorInitialized(ctx context.Context) bool {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", OperatorTableName),
 		),
 	)
@@ -198,7 +198,7 @@ func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Ope
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("INSERT"),
+			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", OperatorTableName),
 		),
 	)
@@ -230,7 +230,7 @@ func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", OperatorTableName),
 		),
 	)
@@ -264,7 +264,7 @@ func (db *Database) UpdateOperatorSlice(ctx context.Context, sst int32, sd []byt
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("UPDATE"),
+			semconv.DBOperationName("UPDATE"),
 			attribute.String("db.collection", OperatorTableName),
 		),
 	)
@@ -298,7 +298,7 @@ func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("UPDATE"),
+			semconv.DBOperationName("UPDATE"),
 			attribute.String("db.collection", OperatorTableName),
 		),
 	)
@@ -340,7 +340,7 @@ func (db *Database) UpdateOperatorID(ctx context.Context, mcc, mnc string) error
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("UPDATE"),
+			semconv.DBOperationName("UPDATE"),
 			attribute.String("db.collection", OperatorTableName),
 		),
 	)
@@ -374,7 +374,7 @@ func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", OperatorTableName),
 		),
 	)
@@ -408,7 +408,7 @@ func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string)
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("UPDATE"),
+			semconv.DBOperationName("UPDATE"),
 			attribute.String("db.collection", OperatorTableName),
 		),
 	)
@@ -442,7 +442,7 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("UPDATE"),
+			semconv.DBOperationName("UPDATE"),
 			attribute.String("db.collection", OperatorTableName),
 		),
 	)
@@ -492,7 +492,7 @@ func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFullName, spnShort
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("UPDATE"),
+			semconv.DBOperationName("UPDATE"),
 			attribute.String("db.collection", OperatorTableName),
 		),
 	)

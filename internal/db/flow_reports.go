@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -156,7 +156,7 @@ func (db *Database) InsertFlowReport(ctx context.Context, flowReport *dbwriter.F
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("INSERT"),
+			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", FlowReportsTableName),
 		),
 	)
@@ -187,7 +187,7 @@ func (db *Database) ListFlowReports(ctx context.Context, page int, perPage int, 
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", FlowReportsTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
@@ -252,7 +252,7 @@ func (db *Database) DeleteOldFlowReports(ctx context.Context, days int) error {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", FlowReportsTableName),
 			attribute.Int("retention.days", days),
 		),
@@ -289,7 +289,7 @@ func (db *Database) ClearFlowReports(ctx context.Context) error {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", FlowReportsTableName),
 		),
 	)
@@ -320,7 +320,7 @@ func (db *Database) ListFlowReportsByDay(ctx context.Context, filters *FlowRepor
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", FlowReportsTableName),
 		),
 	)
@@ -362,7 +362,7 @@ func (db *Database) ListFlowReportsBySubscriber(ctx context.Context, filters *Fl
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", FlowReportsTableName),
 		),
 	)
@@ -405,7 +405,7 @@ func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportF
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", FlowReportsTableName),
 		),
 	)

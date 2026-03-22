@@ -11,7 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -67,7 +67,7 @@ func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.R
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("INSERT"),
+			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", RadioEventsTableName),
 		),
 	)
@@ -98,7 +98,7 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", RadioEventsTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
@@ -163,7 +163,7 @@ func (db *Database) DeleteOldRadioEvents(ctx context.Context, days int) error {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", RadioEventsTableName),
 			attribute.Int("retention.days", days),
 		),
@@ -200,7 +200,7 @@ func (db *Database) ClearRadioEvents(ctx context.Context) error {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", RadioEventsTableName),
 		),
 	)
@@ -231,7 +231,7 @@ func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*dbwriter.Ra
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", RadioEventsTableName),
 			attribute.Int("id", id),
 		),

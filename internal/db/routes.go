@@ -12,7 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -61,7 +61,7 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", RoutesTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
@@ -119,7 +119,7 @@ func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", RoutesTableName),
 		),
 	)
@@ -157,7 +157,7 @@ func (t *Transaction) CreateRoute(ctx context.Context, route *Route) (int64, err
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("INSERT"),
+			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", RoutesTableName),
 		),
 	)
@@ -198,7 +198,7 @@ func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", RoutesTableName),
 		),
 	)
@@ -230,7 +230,7 @@ func (db *Database) CountRoutes(ctx context.Context) (int, error) {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", RoutesTableName),
 		),
 	)

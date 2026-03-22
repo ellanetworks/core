@@ -12,7 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -105,7 +105,7 @@ func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) e
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("INSERT"),
+			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", DailyUsageTableName),
 		),
 	)
@@ -136,7 +136,7 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate t
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", DailyUsageTableName),
 		),
 	)
@@ -183,7 +183,7 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, star
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", DailyUsageTableName),
 		),
 	)
@@ -230,7 +230,7 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", DailyUsageTableName),
 		),
 	)
@@ -261,7 +261,7 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", DailyUsageTableName),
 			attribute.Int("retention.days", days),
 		),

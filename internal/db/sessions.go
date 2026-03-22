@@ -10,7 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -50,7 +50,7 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) (int64,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("INSERT"),
+			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", SessionsTableName),
 		),
 	)
@@ -91,7 +91,7 @@ func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte)
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", SessionsTableName),
 		),
 	)
@@ -129,7 +129,7 @@ func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []by
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", SessionsTableName),
 		),
 	)
@@ -162,7 +162,7 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", SessionsTableName),
 		),
 	)
@@ -203,7 +203,7 @@ func (db *Database) CountSessionsByUser(ctx context.Context, userID int64) (int,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("COUNT"),
+			semconv.DBOperationName("COUNT"),
 			attribute.String("db.collection", SessionsTableName),
 		),
 	)
@@ -238,7 +238,7 @@ func (db *Database) DeleteOldestSessions(ctx context.Context, userID int64, limi
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", SessionsTableName),
 		),
 	)
@@ -271,7 +271,7 @@ func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID int64) 
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", SessionsTableName),
 		),
 	)

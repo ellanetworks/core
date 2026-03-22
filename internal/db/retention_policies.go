@@ -9,7 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -46,7 +46,7 @@ func (db *Database) GetRetentionPolicy(ctx context.Context, category RetentionCa
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", RetentionPolicyTableName),
 			attribute.String("policy.category", string(category)),
 		),
@@ -83,7 +83,7 @@ func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category R
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", RetentionPolicyTableName),
 			attribute.String("policy.category", string(category)),
 		),
@@ -123,7 +123,7 @@ func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPol
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("UPSERT"),
+			semconv.DBOperationName("UPSERT"),
 			attribute.String("db.collection", RetentionPolicyTableName),
 			attribute.String("policy.category", string(policy.Category)),
 			attribute.Int("policy.days", policy.Days),

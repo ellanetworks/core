@@ -12,7 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -45,7 +45,7 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", PoliciesTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
@@ -103,7 +103,7 @@ func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error)
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", PoliciesTableName),
 		),
 	)
@@ -141,7 +141,7 @@ func (db *Database) GetPolicyByID(ctx context.Context, id int) (*Policy, error) 
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", PoliciesTableName),
 		),
 	)
@@ -181,7 +181,7 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("INSERT"),
+			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", PoliciesTableName),
 		),
 	)
@@ -219,7 +219,7 @@ func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("UPDATE"),
+			semconv.DBOperationName("UPDATE"),
 			attribute.String("db.collection", PoliciesTableName),
 		),
 	)
@@ -267,7 +267,7 @@ func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", PoliciesTableName),
 		),
 	)
@@ -316,7 +316,7 @@ func (db *Database) CountPolicies(ctx context.Context) (int, error) {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", PoliciesTableName),
 		),
 	)

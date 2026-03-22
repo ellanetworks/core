@@ -10,7 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -41,7 +41,7 @@ func (db *Database) ListAPITokensPage(ctx context.Context, userID int64, page in
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", APITokensTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
@@ -102,7 +102,7 @@ func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) erro
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("INSERT"),
+			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", APITokensTableName),
 		),
 	)
@@ -140,7 +140,7 @@ func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (*
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", APITokensTableName),
 		),
 	)
@@ -178,7 +178,7 @@ func (db *Database) GetAPITokenByName(ctx context.Context, userID int64, name st
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", APITokensTableName),
 		),
 	)
@@ -216,7 +216,7 @@ func (db *Database) DeleteAPIToken(ctx context.Context, id int) error {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", APITokensTableName),
 		),
 	)
@@ -249,7 +249,7 @@ func (db *Database) CountAPITokens(ctx context.Context, userID int64) (int, erro
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", APITokensTableName),
 		),
 	)

@@ -13,7 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -89,7 +89,7 @@ func (db *Database) ListHomeNetworkKeys(ctx context.Context) ([]HomeNetworkKey, 
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", HomeNetworkKeysTableName),
 		),
 	)
@@ -128,7 +128,7 @@ func (db *Database) GetHomeNetworkKey(ctx context.Context, id int) (*HomeNetwork
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", HomeNetworkKeysTableName),
 		),
 	)
@@ -167,7 +167,7 @@ func (db *Database) GetHomeNetworkKeyBySchemeAndIdentifier(ctx context.Context, 
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", HomeNetworkKeysTableName),
 		),
 	)
@@ -206,7 +206,7 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("INSERT"),
+			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", HomeNetworkKeysTableName),
 		),
 	)
@@ -245,7 +245,7 @@ func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id int) error {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", HomeNetworkKeysTableName),
 		),
 	)
@@ -277,7 +277,7 @@ func (db *Database) CountHomeNetworkKeys(ctx context.Context) (int, error) {
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", HomeNetworkKeysTableName),
 		),
 	)
