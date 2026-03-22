@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/free5gc/ngap/ngapType"
 )

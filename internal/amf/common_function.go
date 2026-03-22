@@ -3,11 +3,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package context
+package amf
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -15,12 +14,24 @@ import (
 
 func InTaiList(servedTai models.Tai, taiList []models.Tai) bool {
 	for _, tai := range taiList {
-		if reflect.DeepEqual(tai, servedTai) {
+		if tai.Tac == servedTai.Tac && plmnIDEqual(tai.PlmnID, servedTai.PlmnID) {
 			return true
 		}
 	}
 
 	return false
+}
+
+func plmnIDEqual(a, b *models.PlmnID) bool {
+	if a == b {
+		return true
+	}
+
+	if a == nil || b == nil {
+		return false
+	}
+
+	return a.Mcc == b.Mcc && a.Mnc == b.Mnc
 }
 
 func AttachSourceUeTargetUe(sourceUe, targetUe *RanUe) error {

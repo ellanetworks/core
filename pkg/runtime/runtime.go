@@ -11,7 +11,11 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
-	amfcontext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf/nas/gmm"
+	"github.com/ellanetworks/core/internal/amf/ngap"
+	"github.com/ellanetworks/core/internal/amf/ngap/send"
+	"github.com/ellanetworks/core/internal/amf/ngap/service"
+	amfsctp "github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/api"
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/ausf"
@@ -29,6 +33,7 @@ import (
 	"github.com/ellanetworks/core/internal/upf/bpfdump"
 	upf_pfcp "github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/version"
+	nasLogger "github.com/free5gc/nas/logger"
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.uber.org/zap"
 )
@@ -175,22 +180,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	server.RegisterMetrics()
-	amf.RegisterMetrics()
 	smf.RegisterMetrics(smfInstance)
 	upf.RegisterMetrics()
-
-	apiServer, err := api.Start(
-		ctx,
-		dbInstance,
-		cfg,
-		upfInstance,
-		smfInstance,
-		rc.EmbedFS,
-		rc.RegisterExtraRoutes,
-	)
-	if err != nil {
-		return fmt.Errorf("couldn't start API: %w", err)
-	}
 
 	ausfStore := &ausfDBAdapter{db: dbInstance}
 	keyResolver := func(scheme string, keyID int) (string, error) {
@@ -205,16 +196,51 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	ausfInstance := ausf.New(ausfStore, keyResolver)
 	go ausfInstance.Run(ctx)
 
-	amfSelf := amfcontext.AMFSelf()
-	amfSelf.Ausf = ausfInstance
+	amfInstance := amf.New(dbInstance, ausfInstance, smfInstance)
+	smfAMF.amf = amfInstance
 
-	sctpServer, err := amf.Start(ctx, dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port, smfInstance)
+	amf.RegisterMetrics(amfInstance)
+	gmm.RegisterMetrics()
+	ngap.RegisterMetrics()
+
+	apiServer, err := api.Start(
+		ctx,
+		dbInstance,
+		cfg,
+		upfInstance,
+		smfInstance,
+		amfInstance,
+		rc.EmbedFS,
+		rc.RegisterExtraRoutes,
+	)
+	if err != nil {
+		return fmt.Errorf("couldn't start API: %w", err)
+	}
+
+	nasLogger.SetLogLevel(0) // Suppress free5gc NAS log output
+
+	sctpServer := service.NewServer(service.Callbacks{
+		Dispatch: func(ctx context.Context, conn *amfsctp.SCTPConn, msg []byte) {
+			ngap.Dispatch(ctx, amfInstance, conn, msg)
+		},
+		Notify: func(conn *amfsctp.SCTPConn, notification amfsctp.Notification) {
+			ngap.HandleSCTPNotification(amfInstance, conn, notification)
+		},
+		OnDisconnect: func(conn *amfsctp.SCTPConn) {
+			if ran, ok := amfInstance.FindRadioByConn(conn); ok {
+				amfInstance.RemoveRadio(ran)
+				logger.AmfLog.Info("removed radio on connection close", zap.Int("fd", conn.Fd()))
+			}
+		},
+	})
+
+	err = sctpServer.ListenAndServe(ctx, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port)
 	if err != nil {
 		return fmt.Errorf("couldn't start AMF: %w", err)
 	}
 
 	supportbundle.AMFDumper = func(ctx context.Context) (any, error) {
-		return amfcontext.ExportUEs(ctx)
+		return amfInstance.ExportUEs(ctx)
 	}
 
 	defer func() {
@@ -228,7 +254,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}
 
 		logger.EllaLog.Info("Shutting down AMF")
-		amf.Close(shutdownCtx, sctpServer)
+		closeAMF(shutdownCtx, amfInstance, sctpServer)
 
 		logger.EllaLog.Info("Shutting down UPF")
 		upfInstance.Close(shutdownCtx)
@@ -259,6 +285,27 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	logger.EllaLog.Info("Shutdown signal received, exiting.")
 
 	return nil
+}
+
+func closeAMF(ctx context.Context, amfInstance *amf.AMF, srv *service.Server) {
+	operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
+	if err != nil {
+		logger.AmfLog.Error("Could not get operator info", zap.Error(err))
+		return
+	}
+
+	unavailableGuamiList := send.BuildUnavailableGUAMIList(operatorInfo.Guami)
+
+	for _, ran := range amfInstance.ListRadios() {
+		err := ran.NGAPSender.SendAMFStatusIndication(ctx, unavailableGuamiList)
+		if err != nil {
+			logger.AmfLog.Error("failed to send AMF Status Indication to RAN", zap.Error(err))
+		}
+	}
+
+	srv.Shutdown(ctx)
+
+	logger.AmfLog.Info("AMF terminated")
 }
 
 // ausfDBAdapter adapts *db.Database to the ausf.SubscriberStore interface.

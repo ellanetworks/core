@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/free5gc/nas"
 	"go.opentelemetry.io/otel"
 )
@@ -22,7 +22,7 @@ func HandleGmmMessage(ctx context.Context, amf *amfContext.AMF, ue *amfContext.A
 	case nas.MsgTypeULNASTransport:
 		return handleULNASTransport(ctx, amf, ue, msg.ULNASTransport)
 	case nas.MsgTypeConfigurationUpdateComplete:
-		return handleConfigurationUpdateComplete(ue)
+		return handleConfigurationUpdateComplete(amf, ue)
 	case nas.MsgTypeNotificationResponse:
 		return handleNotificationResponse(ctx, amf, ue, msg.NotificationResponse)
 	case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:

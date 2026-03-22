@@ -12,7 +12,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
@@ -22,12 +22,11 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 var tracer = otel.Tracer("ella-core/amf/producer")
 
-func TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
+func TransferN1N2Message(ctx context.Context, amf *amfContext.AMF, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"AMF N1N2 MessageTransfer",
@@ -36,8 +35,6 @@ func TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2Mes
 		),
 	)
 	defer span.End()
-
-	amf := amfContext.AMFSelf()
 
 	ue, ok := amf.FindAMFUEBySupi(supi)
 	if !ok {
@@ -105,7 +102,7 @@ func TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2Mes
 	return nil
 }
 
-func N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
+func N2MessageTransferOrPage(ctx context.Context, amf *amfContext.AMF, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"AMF N1N2 MessageTransfer",
@@ -114,8 +111,6 @@ func N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N
 		),
 	)
 	defer span.End()
-
-	amf := amfContext.AMFSelf()
 
 	ue, ok := amf.FindAMFUEBySupi(supi)
 	if !ok {
@@ -190,9 +185,6 @@ func N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N
 
 	var pagingPriority *ngapType.PagingPriority
 
-	// Case A (UE is CM-IDLE in 3GPP access and the associated access type is 3GPP access)
-	// in subclause 5.2.2.3.1.2 of TS29518
-
 	ue.N1N2Message = &req
 	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
 
@@ -207,7 +199,7 @@ func N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N
 		return fmt.Errorf("build paging error: %v", err)
 	}
 
-	err = SendPaging(ctx, amf, ue, pkg)
+	err = amf.SendPaging(ctx, ue, pkg)
 	if err != nil {
 		return fmt.Errorf("send paging error: %v", err)
 	}
@@ -215,7 +207,7 @@ func N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N
 	return nil
 }
 
-func TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error {
+func TransferN1Msg(ctx context.Context, amf *amfContext.AMF, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"AMF N1N2 MessageTransfer",
@@ -224,8 +216,6 @@ func TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSession
 		),
 	)
 	defer span.End()
-
-	amf := amfContext.AMFSelf()
 
 	ue, ok := amf.FindAMFUEBySupi(supi)
 	if !ok {
@@ -247,61 +237,6 @@ func TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSession
 	}
 
 	ue.Log.Info("sent downlink nas transport to UE", logger.SUPI(supi.String()))
-
-	return nil
-}
-
-func SendPaging(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, ngapBuf []byte) error {
-	if ue == nil {
-		return fmt.Errorf("amf ue is nil")
-	}
-
-	amf.Mutex.Lock()
-	defer amf.Mutex.Unlock()
-
-	taiList := ue.RegistrationArea
-
-	for _, ran := range amf.Radios {
-		for _, item := range ran.SupportedTAIs {
-			if amfContext.InTaiList(item.Tai, taiList) {
-				err := ran.NGAPSender.SendToRan(ctx, ngapBuf, send.NGAPProcedurePaging)
-				if err != nil {
-					ue.Log.Error("failed to send paging", zap.Error(err))
-					continue
-				}
-
-				ue.Log.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
-
-				break
-			}
-		}
-	}
-
-	if amf.T3513Cfg.Enable {
-		cfg := amf.T3513Cfg
-		ue.T3513 = amfContext.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
-			ue.Log.Warn("t3513 expires, retransmit paging", zap.Int32("retry", expireTimes))
-
-			for _, ran := range amf.Radios {
-				for _, item := range ran.SupportedTAIs {
-					if amfContext.InTaiList(item.Tai, taiList) {
-						err := ran.NGAPSender.SendToRan(ctx, ngapBuf, send.NGAPProcedurePaging)
-						if err != nil {
-							ue.Log.Error("failed to send paging", zap.Error(err))
-							continue
-						}
-
-						ue.Log.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
-
-						break
-					}
-				}
-			}
-		}, func() {
-			ue.Log.Warn("T3513 expires, abort paging procedure", zap.Int32("retry", cfg.MaxRetryTimes))
-			ue.T3513 = nil // clear the timer
-		})
-	}
 
 	return nil
 }

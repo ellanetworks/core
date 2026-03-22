@@ -3,9 +3,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package context
+package amf
 
 import (
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -17,6 +18,7 @@ type Timer struct {
 	maxRetryTimes int32 // accessed atomically
 	done          chan bool
 	active        int32 // 1 = active, 0 = stopped; accessed atomically
+	stopOnce      sync.Once
 }
 
 // NewTimer will return a Timer struct and create a goroutine. Then it calls expiredFunc every time interval d until
@@ -71,12 +73,14 @@ func (t *Timer) IsActive() bool {
 	return atomic.LoadInt32(&t.active) == 1
 }
 
-// Stop turns off the timer, after Stop, no more timeout event will be triggered. User should call Stop() only once
-// otherwise it may hang on writing to done channel
+// Stop turns off the timer, after Stop, no more timeout event will be triggered.
+// Safe to call multiple times.
 func (t *Timer) Stop() {
-	atomic.StoreInt32(&t.active, 0)
+	t.stopOnce.Do(func() {
+		atomic.StoreInt32(&t.active, 0)
 
-	t.done <- true
+		t.done <- true
 
-	close(t.done)
+		close(t.done)
+	})
 }

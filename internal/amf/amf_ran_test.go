@@ -2,13 +2,13 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package context_test
+package amf_test
 
 import (
 	"testing"
 	"time"
 
-	amfcontext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/models"
 )
 
@@ -17,15 +17,15 @@ func TestRadioRanNodeTypeName(t *testing.T) {
 		ranPresent int
 		expected   string
 	}{
-		{amfcontext.RanPresentGNbID, "gNB"},
-		{amfcontext.RanPresentNgeNbID, "ng-eNB"},
-		{amfcontext.RanPresentN3IwfID, "N3IWF"},
+		{amf.RanPresentGNbID, "gNB"},
+		{amf.RanPresentNgeNbID, "ng-eNB"},
+		{amf.RanPresentN3IwfID, "N3IWF"},
 		{0, "Unknown"},
 		{99, "Unknown"},
 	}
 
 	for _, tt := range tests {
-		radio := &amfcontext.Radio{RanPresent: tt.ranPresent}
+		radio := &amf.Radio{RanPresent: tt.ranPresent}
 
 		got := radio.RanNodeTypeName()
 		if got != tt.expected {
@@ -35,7 +35,7 @@ func TestRadioRanNodeTypeName(t *testing.T) {
 }
 
 func TestRadioTouchLastSeen(t *testing.T) {
-	radio := &amfcontext.Radio{
+	radio := &amf.Radio{
 		LastSeenAt: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
 	}
 
@@ -51,7 +51,7 @@ func TestRadioTouchLastSeen(t *testing.T) {
 }
 
 func TestRadioTimestampsSetOnCreation(t *testing.T) {
-	blank := &amfcontext.Radio{}
+	blank := &amf.Radio{}
 
 	if !blank.ConnectedAt.IsZero() {
 		t.Fatal("expected ConnectedAt to be zero on a blank Radio")
@@ -63,7 +63,7 @@ func TestRadioTimestampsSetOnCreation(t *testing.T) {
 
 	now := time.Now()
 
-	radio := &amfcontext.Radio{
+	radio := &amf.Radio{
 		ConnectedAt: now,
 		LastSeenAt:  now,
 	}
@@ -80,18 +80,18 @@ func TestRadioTimestampsSetOnCreation(t *testing.T) {
 func TestRadioNodeID(t *testing.T) {
 	tests := []struct {
 		name       string
-		radio      *amfcontext.Radio
+		radio      *amf.Radio
 		expectedID string
 	}{
 		{
 			name:       "nil RanID",
-			radio:      &amfcontext.Radio{},
+			radio:      &amf.Radio{},
 			expectedID: "",
 		},
 		{
 			name: "gNB",
-			radio: &amfcontext.Radio{
-				RanPresent: amfcontext.RanPresentGNbID,
+			radio: &amf.Radio{
+				RanPresent: amf.RanPresentGNbID,
 				RanID: &models.GlobalRanNodeID{
 					GNbID: &models.GNbID{GNBValue: "00102"},
 				},
@@ -100,16 +100,16 @@ func TestRadioNodeID(t *testing.T) {
 		},
 		{
 			name: "ng-eNB",
-			radio: &amfcontext.Radio{
-				RanPresent: amfcontext.RanPresentNgeNbID,
+			radio: &amf.Radio{
+				RanPresent: amf.RanPresentNgeNbID,
 				RanID:      &models.GlobalRanNodeID{NgeNbID: "MacroNGeNB-abcdef"},
 			},
 			expectedID: "MacroNGeNB-abcdef",
 		},
 		{
 			name: "N3IWF",
-			radio: &amfcontext.Radio{
-				RanPresent: amfcontext.RanPresentN3IwfID,
+			radio: &amf.Radio{
+				RanPresent: amf.RanPresentN3IwfID,
 				RanID:      &models.GlobalRanNodeID{N3IwfID: "deadbeef"},
 			},
 			expectedID: "deadbeef",

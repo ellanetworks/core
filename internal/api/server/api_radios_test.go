@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/models"
 )
@@ -106,7 +106,7 @@ func TestListRadios(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	amf := amfContext.AMFSelf()
+	amf := env.AMF
 	ran1 := amfContext.Radio{}
 	ran1.Name = "gnb-001"
 	ran1.SupportedTAIs = []amfContext.SupportedTAI{

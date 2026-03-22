@@ -4,14 +4,14 @@ import (
 	gocontext "context"
 	"encoding/hex"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleUERadioCapabilityInfoIndication(ctx gocontext.Context, ran *context.Radio, msg *ngapType.UERadioCapabilityInfoIndication) {
+func HandleUERadioCapabilityInfoIndication(ctx gocontext.Context, ran *amfContext.Radio, msg *ngapType.UERadioCapabilityInfoIndication) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return

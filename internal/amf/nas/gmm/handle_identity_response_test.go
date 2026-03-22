@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
@@ -247,25 +247,21 @@ func TestHandleIdentityResponse_InvalidStateError(t *testing.T) {
 }
 
 func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amf := amfContext.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-		Ausf: &FakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
-			},
-			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -307,25 +303,21 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 }
 
 func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amf := amfContext.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-		Ausf: &FakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
-			},
-			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -357,25 +349,21 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 
 func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *testing.T) {
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amf := amfContext.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-		Ausf: &FakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
-			},
-			Supi:  supi,
-			Kseaf: "testkey",
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		Supi:  supi,
+		Kseaf: "testkey",
+	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -451,25 +439,21 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {
 			supi := mustSUPIFromPrefixed("imsi-001019756139935")
-			amf := &amfContext.AMF{
-				DBInstance: &FakeDBInstance{
-					Operator: &db.Operator{
-						Mcc:           "001",
-						Mnc:           "01",
-						Sst:           1,
-						SupportedTACs: "[\"000001\"]",
-					},
+			amf := amfContext.New(&FakeDBInstance{
+				Operator: &db.Operator{
+					Mcc:           "001",
+					Mnc:           "01",
+					Sst:           1,
+					SupportedTACs: "[\"000001\"]",
 				},
-				Ausf: &FakeAusf{
-					AvKgAka: &ausf.AuthResult{
-						Rand: hex.EncodeToString(make([]byte, 16)),
-						Autn: hex.EncodeToString(make([]byte, 16)),
-					},
-					Supi:  supi,
-					Kseaf: "testkey",
+			}, &FakeAusf{
+				AvKgAka: &ausf.AuthResult{
+					Rand: hex.EncodeToString(make([]byte, 16)),
+					Autn: hex.EncodeToString(make([]byte, 16)),
 				},
-				UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-			}
+				Supi:  supi,
+				Kseaf: "testkey",
+			}, nil)
 
 			ue, ngapSender, err := buildUeAndRadio()
 			if err != nil {
@@ -552,18 +536,14 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {
 			supi := mustSUPIFromPrefixed("imsi-001019756139935")
-			amf := &amfContext.AMF{
-				DBInstance: &FakeDBInstance{},
-				Ausf: &FakeAusf{
-					AvKgAka: &ausf.AuthResult{
-						Rand: hex.EncodeToString(make([]byte, 16)),
-						Autn: hex.EncodeToString(make([]byte, 16)),
-					},
-					Supi:  supi,
-					Kseaf: "testkey",
+			amf := amfContext.New(&FakeDBInstance{}, &FakeAusf{
+				AvKgAka: &ausf.AuthResult{
+					Rand: hex.EncodeToString(make([]byte, 16)),
+					Autn: hex.EncodeToString(make([]byte, 16)),
 				},
-				UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-			}
+				Supi:  supi,
+				Kseaf: "testkey",
+			}, nil)
 
 			ue, ngapSender, err := buildUeAndRadio()
 			if err != nil {
@@ -621,18 +601,14 @@ func TestHandleIdentityResponse_IdentityError(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {
 			supi := mustSUPIFromPrefixed("imsi-001019756139935")
-			amf := &amfContext.AMF{
-				DBInstance: &FakeDBInstance{},
-				Ausf: &FakeAusf{
-					AvKgAka: &ausf.AuthResult{
-						Rand: hex.EncodeToString(make([]byte, 16)),
-						Autn: hex.EncodeToString(make([]byte, 16)),
-					},
-					Supi:  supi,
-					Kseaf: "testkey",
+			amf := amfContext.New(&FakeDBInstance{}, &FakeAusf{
+				AvKgAka: &ausf.AuthResult{
+					Rand: hex.EncodeToString(make([]byte, 16)),
+					Autn: hex.EncodeToString(make([]byte, 16)),
 				},
-				UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-			}
+				Supi:  supi,
+				Kseaf: "testkey",
+			}, nil)
 
 			ue, ngapSender, err := buildUeAndRadio()
 			if err != nil {

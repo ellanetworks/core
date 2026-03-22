@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/free5gc/nas/nasConvert"
@@ -152,13 +152,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 		}
 	}
 
-	err = ue.ReAllocateGuti(ctx, operatorInfo.Guami)
+	err = amf.ReAllocateGuti(ctx, ue, operatorInfo.Guami)
 	if err != nil {
 		return fmt.Errorf("error reallocating GUTI to UE: %v", err)
 	}
 
 	// check in specs if we need to wait for confirmation before freeing old GUTI
-	ue.FreeOldGuti()
+	amf.FreeOldGuti(ue)
 
 	if ue.RegistrationRequest.AllowedPDUSessionStatus != nil {
 		if ue.N1N2Message != nil {
