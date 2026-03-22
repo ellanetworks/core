@@ -127,7 +127,7 @@ func (a *AUSF) isServingNetworkAuthorized(lookup string) bool {
 // It returns the authentication vector to send to the UE and caches
 // the pending context for later confirmation via Confirm.
 func (a *AUSF) Authenticate(ctx context.Context, suci, servingNetwork string, resync *ResyncInfo) (*AuthResult, error) {
-	ctx, span := tracer.Start(ctx, "AUSF Authenticate",
+	ctx, span := tracer.Start(ctx, "ausf/authenticate",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
 			attribute.String("ue.suci", suci),
@@ -340,7 +340,7 @@ func (a *AUSF) Authenticate(ctx context.Context, suci, servingNetwork string, re
 // On success it returns the SUPI and Kseaf. The cached context is
 // deleted regardless of outcome.
 func (a *AUSF) Confirm(ctx context.Context, resStar, suci string) (etsi.SUPI, string, error) {
-	_, span := tracer.Start(ctx, "AUSF Confirm",
+	_, span := tracer.Start(ctx, "ausf/confirm",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
 			attribute.String("ue.suci", suci),

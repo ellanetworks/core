@@ -30,7 +30,7 @@ type UpdateResult struct {
 
 // UpdateSmContextN1Msg handles a NAS N1 message update (e.g. PDU session release request).
 func (s *SMF) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*UpdateResult, error) {
-	ctx, span := tracer.Start(ctx, "SMF Update SmContext N1 Msg",
+	ctx, span := tracer.Start(ctx, "smf/update_sm_context_n1_msg",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
 	)
 	defer span.End()
@@ -118,7 +118,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 
 // UpdateSmContextN2InfoPduResSetupRsp handles the N2 PDUSession Resource Setup Response.
 func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContextRef string, n2Data []byte) error {
-	ctx, span := tracer.Start(ctx, "SMF Update SmContext PDU Resource Setup Response",
+	ctx, span := tracer.Start(ctx, "smf/update_sm_context_pdu_resource_setup_response",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
 	)
 	defer span.End()
@@ -236,7 +236,7 @@ func handlePDUSessionResourceSetupResponseTransfer(b []byte, smContext *SMContex
 
 // UpdateSmContextN2InfoPduResSetupFail handles a PDUSession Resource Setup failure.
 func (s *SMF) UpdateSmContextN2InfoPduResSetupFail(ctx context.Context, smContextRef string, n2Data []byte) error {
-	_, span := tracer.Start(ctx, "SMF Update SmContext PDU Resource Setup Fail",
+	_, span := tracer.Start(ctx, "smf/update_sm_context_pdu_resource_setup_fail",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
 	)
 	defer span.End()
@@ -286,7 +286,7 @@ func handlePDUSessionResourceSetupUnsuccessfulTransfer(b []byte) error {
 
 // UpdateSmContextN2InfoPduResRelRsp handles the final N2 PDU Session Resource Release Response.
 func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRef string) error {
-	ctx, span := tracer.Start(ctx, "SMF Update SmContext PDU Resource Release Response",
+	ctx, span := tracer.Start(ctx, "smf/update_sm_context_pdu_resource_release_response",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
 	)
 	defer span.End()
@@ -323,7 +323,7 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 // UpdateSmContextCauseDuplicatePDUSessionID handles duplicate PDU session ID by releasing
 // the existing session and building a release command for the radio.
 func (s *SMF) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error) {
-	ctx, span := tracer.Start(ctx, "SMF Update SmContext Cause Duplicate PDU Session ID",
+	ctx, span := tracer.Start(ctx, "smf/update_sm_context_cause_duplicate_pdu_session_id",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
 	)
 	defer span.End()
@@ -369,7 +369,7 @@ func (s *SMF) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smC
 // UpdateSmContextN2HandoverPreparing handles the handover-required N2 message
 // and returns a PDUSession Resource Setup Request Transfer for the target radio.
 func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
-	_, span := tracer.Start(ctx, "SMF Update SmContext N2 Handover Preparing",
+	_, span := tracer.Start(ctx, "smf/update_sm_context_n2_handover_preparing",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
 	)
 	defer span.End()
@@ -423,7 +423,7 @@ func handleHandoverRequiredTransfer(b []byte) error {
 // UpdateSmContextN2HandoverPrepared handles the handover request acknowledge
 // from the target radio and returns a Handover Command Transfer.
 func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
-	_, span := tracer.Start(ctx, "SMF Update SmContext N2 Handover Prepared",
+	_, span := tracer.Start(ctx, "smf/update_sm_context_n2_handover_prepared",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
 	)
 	defer span.End()
@@ -490,7 +490,7 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 
 // UpdateSmContextXnHandoverPathSwitchReq handles an Xn handover path-switch request.
 func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error) {
-	ctx, span := tracer.Start(ctx, "SMF Update SmContext Handover Path Switch Request",
+	ctx, span := tracer.Start(ctx, "smf/update_sm_context_handover_path_switch_request",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
 	)
 	defer span.End()
@@ -587,7 +587,7 @@ func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
 
 // UpdateSmContextHandoverFailed handles a path switch failure.
 func (s *SMF) UpdateSmContextHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error {
-	_, span := tracer.Start(ctx, "SMF Update SmContext Handover Failed",
+	_, span := tracer.Start(ctx, "smf/update_sm_context_handover_failed",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
 	)
 	defer span.End()

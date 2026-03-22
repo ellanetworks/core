@@ -17,7 +17,7 @@ import (
 // ReleaseSmContext tears down a PDU session entirely: releases the IP address,
 // deletes the PFCP session on the UPF, and removes the context from the pool.
 func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
-	ctx, span := tracer.Start(ctx, "SMF release session",
+	ctx, span := tracer.Start(ctx, "smf/release_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
 			attribute.String("smf.context_ref", smContextRef),

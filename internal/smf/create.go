@@ -27,7 +27,7 @@ import (
 // subscriber policy and DNN info, allocates an IP, creates the data path, sends
 // PFCP rules to the UPF, and delivers the accept/reject to the AMF.
 func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, n1Msg []byte) (string, []byte, error) {
-	ctx, span := tracer.Start(ctx, "SMF create session",
+	ctx, span := tracer.Start(ctx, "smf/create_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
 			attribute.String("ue.supi", supi.String()),

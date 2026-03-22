@@ -36,7 +36,7 @@ func identityVerification(ue *amfContext.AmfUe) bool {
 }
 
 func authenticationProcedure(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe) (bool, error) {
-	ctx, span := tracer.Start(ctx, "AuthenticationProcedure")
+	ctx, span := tracer.Start(ctx, "nas/authentication_procedure")
 	defer span.End()
 
 	if !identityVerification(ue) {

@@ -298,7 +298,7 @@ func (s *SMF) SessionCount() int {
 
 // GetSubscriberPolicy retrieves the QoS policy for a subscriber from the store.
 func (s *SMF) GetSubscriberPolicy(ctx context.Context, supi etsi.SUPI) (*Policy, error) {
-	ctx, span := tracer.Start(ctx, "SMF GetSubscriberPolicy",
+	ctx, span := tracer.Start(ctx, "smf/get_subscriber_policy",
 		trace.WithAttributes(attribute.String("ue.supi", supi.String())),
 	)
 	defer span.End()
@@ -308,7 +308,7 @@ func (s *SMF) GetSubscriberPolicy(ctx context.Context, supi etsi.SUPI) (*Policy,
 
 // GetDataNetwork retrieves the DNN information for a given S-NSSAI and DNN.
 func (s *SMF) GetDataNetwork(ctx context.Context, snssai *models.Snssai, dnn string) (*DataNetworkInfo, error) {
-	ctx, span := tracer.Start(ctx, "SMF GetDataNetwork",
+	ctx, span := tracer.Start(ctx, "smf/get_data_network",
 		trace.WithAttributes(attribute.String("dnn", dnn)),
 	)
 	defer span.End()

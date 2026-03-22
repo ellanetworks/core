@@ -12,7 +12,7 @@ import (
 func securityMode(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe) error {
 	logger.WithTrace(ctx, logger.AmfLog).Debug("Security Mode Procedure", logger.SUPI(ue.Supi.String()))
 
-	ctx, span := tracer.Start(ctx, "securityMode")
+	ctx, span := tracer.Start(ctx, "nas/security_mode")
 	defer span.End()
 
 	ue.SetState(amfContext.SecurityMode)

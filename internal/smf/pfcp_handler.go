@@ -25,7 +25,7 @@ func getReportSeqNumber() uint32 {
 // HandlePfcpSessionReportRequest processes a PFCP Session Report from the UPF.
 // It handles downlink data reports (triggering paging) and usage reports (persisting usage).
 func (s *SMF) HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionReportRequest) (*message.SessionReportResponse, error) {
-	ctx, span := tracer.Start(ctx, "SMF HandlePfcpSessionReportRequest")
+	ctx, span := tracer.Start(ctx, "smf/handle_pfcp_session_report_request")
 	defer span.End()
 
 	seid := msg.SEID()
@@ -105,7 +105,7 @@ func (s *SMF) HandlePfcpSessionReportRequest(ctx context.Context, msg *message.S
 
 // SendFlowReport persists a flow measurement record from the UPF.
 func (s *SMF) SendFlowReport(ctx context.Context, req *pfcp_dispatcher.FlowReportRequest) error {
-	ctx, span := tracer.Start(ctx, "SMF SendFlowReport")
+	ctx, span := tracer.Start(ctx, "smf/send_flow_report")
 	defer span.End()
 
 	if req == nil {

@@ -27,7 +27,7 @@ func SendDLNASTransport(ctx context.Context, ue *amfContext.RanUe, payloadContai
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
-	ctx, span := tracer.Start(ctx, "Send Downlink NAS Transport",
+	ctx, span := tracer.Start(ctx, "nas/send_downlink_nas_transport",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi.String()),
 			attribute.Int("pduSessionID", int(pduSessionID)),
@@ -60,7 +60,7 @@ func SendIdentityRequest(ctx context.Context, ue *amfContext.RanUe, typeOfIdenti
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
-	ctx, span := tracer.Start(ctx, "Send Identity Request",
+	ctx, span := tracer.Start(ctx, "nas/send_identity_request",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi.String()),
 			attribute.Int("typeOfIdentity", int(typeOfIdentity)),
@@ -87,7 +87,7 @@ func SendAuthenticationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
-	ctx, span := tracer.Start(ctx, "Send Authentication Request",
+	ctx, span := tracer.Start(ctx, "nas/send_authentication_request",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi.String()),
 		),
@@ -135,7 +135,7 @@ func SendServiceAccept(ctx context.Context, ue *amfContext.RanUe, pDUSessionStat
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
-	ctx, span := tracer.Start(ctx, "Send Authentication Result",
+	ctx, span := tracer.Start(ctx, "nas/send_service_accept",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi.String()),
 			attribute.Int("pduSessionIDErrorCount", len(errPduSessionID)),
@@ -163,7 +163,7 @@ func SendAuthenticationReject(ctx context.Context, ue *amfContext.RanUe) error {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
-	ctx, span := tracer.Start(ctx, "Send Authentication Reject",
+	ctx, span := tracer.Start(ctx, "nas/send_authentication_reject",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi.String()),
 		),
@@ -189,7 +189,7 @@ func SendServiceReject(ctx context.Context, ue *amfContext.RanUe, cause uint8) e
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
-	ctx, span := tracer.Start(ctx, "Send Registration Reject",
+	ctx, span := tracer.Start(ctx, "nas/send_service_reject",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi.String()),
 			attribute.Int("cause", int(cause)),
@@ -217,7 +217,7 @@ func SendRegistrationReject(ctx context.Context, ue *amfContext.RanUe, cause5GMM
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
-	ctx, span := tracer.Start(ctx, "Send Registration Reject",
+	ctx, span := tracer.Start(ctx, "nas/send_registration_reject",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi.String()),
 			attribute.Int("cause", int(cause5GMM)),
@@ -244,7 +244,7 @@ func SendSecurityModeCommand(ctx context.Context, amf *amfContext.AMF, ue *amfCo
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
-	ctx, span := tracer.Start(ctx, "Send Security Mode Command",
+	ctx, span := tracer.Start(ctx, "nas/send_security_mode_command",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi.String()),
 		),
@@ -291,7 +291,7 @@ func SendDeregistrationAccept(ctx context.Context, ue *amfContext.RanUe) error {
 		return fmt.Errorf("ue or amf ue is nil")
 	}
 
-	ctx, span := tracer.Start(ctx, "Send Deregistration Accept",
+	ctx, span := tracer.Start(ctx, "nas/send_deregistration_accept",
 		trace.WithAttributes(
 			attribute.String("supi", ue.AmfUe.Supi.String()),
 		),
@@ -328,7 +328,7 @@ func SendRegistrationAccept(
 		return fmt.Errorf("ue is nil")
 	}
 
-	ctx, span := tracer.Start(ctx, "Send Registration Accept",
+	ctx, span := tracer.Start(ctx, "nas/send_registration_accept",
 		trace.WithAttributes(
 			attribute.String("supi", ue.Supi.String()),
 		),
@@ -432,7 +432,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, am
 		return
 	}
 
-	ctx, span := tracer.Start(ctx, "Send Configuration Update Command",
+	ctx, span := tracer.Start(ctx, "nas/send_configuration_update_command",
 		trace.WithAttributes(
 			attribute.String("supi", amfUe.Supi.String()),
 		),
@@ -457,7 +457,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amf *amfContext.AMF, am
 		return
 	}
 
-	amfUe.Log.Info("Send Configuration Update Command")
+	amfUe.Log.Info("nas/send_configuration_update_command")
 
 	mobilityRestrictionList, err := send.BuildIEMobilityRestrictionList(amfUe.PlmnID)
 	if err != nil {
