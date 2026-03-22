@@ -155,7 +155,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 
 	smContext.PDUSessionID = m.PDUSessionEstablishmentRequest.GetPDUSessionID()
 
-	pco, err := handlePDUSessionEstablishmentRequest(m.PDUSessionEstablishmentRequest)
+	pco, err := parsePDUSessionRequest(m.PDUSessionEstablishmentRequest)
 	if err != nil {
 		logger.WithTrace(ctx, logger.SmfLog).Error("failed to handle PDU Session Establishment Request", zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
@@ -195,7 +195,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 	return pco, dnnInfo, pduAddress, pti, policy, nil, nil
 }
 
-func handlePDUSessionEstablishmentRequest(req *nasMessage.PDUSessionEstablishmentRequest) (*smfNas.ProtocolConfigurationOptions, error) {
+func parsePDUSessionRequest(req *nasMessage.PDUSessionEstablishmentRequest) (*smfNas.ProtocolConfigurationOptions, error) {
 	if req.PDUSessionType != nil {
 		requestedPDUSessionType := req.GetPDUSessionTypeValue()
 		if requestedPDUSessionType != nasMessage.PDUSessionTypeIPv4 && requestedPDUSessionType != nasMessage.PDUSessionTypeIPv4IPv6 {

@@ -246,6 +246,11 @@ func findFTEID(createdPDRIEs []*ie.IE) (*ie.FTEIDFields, error) {
 
 // ---------------------------------------------------------------------------
 // smfAMFAdapter adapts AMF producer functions to smf.AMFCallback.
+//
+// It is a zero-field struct because the AMF producer functions it delegates to
+// reach the AMF singleton through the package-level amfContext.AMFSelf().
+// When the AMF singleton is removed, this adapter will gain an *amf field so
+// the dependency becomes explicit.
 // ---------------------------------------------------------------------------
 
 type smfAMFAdapter struct{}
