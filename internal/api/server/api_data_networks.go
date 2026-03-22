@@ -50,7 +50,7 @@ const MaxNumDataNetworks = 12
 
 var dnnRegex = regexp.MustCompile(`^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$`)
 
-func ListDataNetworks(dbInstance *db.Database) http.Handler {
+func ListDataNetworks(dbInstance *db.Database, sessions smf.SessionQuerier) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		page := atoiDefault(q.Get("page"), 1)
@@ -77,9 +77,10 @@ func ListDataNetworks(dbInstance *db.Database) http.Handler {
 		items := make([]DataNetwork, 0, len(dbDataNetworks))
 
 		for _, dbDataNetwork := range dbDataNetworks {
-			smfInstance := smf.Instance()
-
-			smfSessions := smfInstance.SessionsByDNN(dbDataNetwork.Name)
+			var sessionCount int
+			if sessions != nil {
+				sessionCount = len(sessions.SessionsByDNN(dbDataNetwork.Name))
+			}
 
 			items = append(items, DataNetwork{
 				Name:   dbDataNetwork.Name,
@@ -87,7 +88,7 @@ func ListDataNetworks(dbInstance *db.Database) http.Handler {
 				DNS:    dbDataNetwork.DNS,
 				MTU:    dbDataNetwork.MTU,
 				Status: DataNetworkStatus{
-					Sessions: len(smfSessions),
+					Sessions: sessionCount,
 				},
 			})
 		}
@@ -103,7 +104,7 @@ func ListDataNetworks(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func GetDataNetwork(dbInstance *db.Database) http.Handler {
+func GetDataNetwork(dbInstance *db.Database, sessions smf.SessionQuerier) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")
 		if name == "" {
@@ -117,9 +118,10 @@ func GetDataNetwork(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		smfInstance := smf.Instance()
-
-		smfSessions := smfInstance.SessionsByDNN(dbDataNetwork.Name)
+		var sessionCount int
+		if sessions != nil {
+			sessionCount = len(sessions.SessionsByDNN(dbDataNetwork.Name))
+		}
 
 		dataNetwork := DataNetwork{
 			Name:   dbDataNetwork.Name,
@@ -127,7 +129,7 @@ func GetDataNetwork(dbInstance *db.Database) http.Handler {
 			DNS:    dbDataNetwork.DNS,
 			MTU:    dbDataNetwork.MTU,
 			Status: DataNetworkStatus{
-				Sessions: len(smfSessions),
+				Sessions: sessionCount,
 			},
 		}
 		writeResponse(r.Context(), w, dataNetwork, http.StatusOK, logger.APILog)

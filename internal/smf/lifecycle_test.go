@@ -21,7 +21,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	smf.RegisterMetrics()
+	smf.RegisterMetrics(nil)
 	os.Exit(m.Run())
 }
 

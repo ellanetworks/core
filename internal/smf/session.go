@@ -24,16 +24,14 @@ import (
 
 var tracer = otel.Tracer("ella-core/smf/session")
 
-// instance holds a package-level reference to the running SMF.
-// Set by SetInstance during runtime init and read by Instance().
-var instance *SMF
-
-// SetInstance stores the running SMF for read-only access by external packages
-// (metrics, API session counts, AMF export).
-func SetInstance(s *SMF) { instance = s }
-
-// Instance returns the running SMF, or nil if not initialised.
-func Instance() *SMF { return instance }
+// SessionQuerier provides read-only access to active sessions.
+// External packages (API, AMF export, metrics) use this interface
+// instead of a package-level SMF singleton.
+type SessionQuerier interface {
+	GetSession(ref string) *SMContext
+	SessionsByDNN(dnn string) []*SMContext
+	SessionCount() int
+}
 
 // SessionStore is the minimal DB surface the SMF needs.
 type SessionStore interface {

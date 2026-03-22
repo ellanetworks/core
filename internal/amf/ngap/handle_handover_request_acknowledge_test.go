@@ -98,7 +98,6 @@ func setupHandoverAckTestContext(t *testing.T) (*amfContext.Radio, *FakeNGAPSend
 	supi, _ := etsi.NewSUPIFromPrefixed(supiStr)
 
 	smfInstance := smf.New(nil, nil, nil)
-	smf.SetInstance(smfInstance)
 
 	smCtx := smfInstance.NewSession(supi, pduSessionID, dnn, &models.Snssai{Sst: 1})
 	smCtx.PolicyData = &models.SmPolicyData{
@@ -168,7 +167,8 @@ func setupHandoverAckTestContext(t *testing.T) (*amfContext.Radio, *FakeNGAPSend
 			new(sctp.SCTPConn): sourceRan,
 			new(sctp.SCTPConn): targetRan,
 		},
-		Smf: &FakeSmfSbi{},
+		Smf:         &FakeSmfSbi{},
+		SmfSessions: smfInstance,
 	}
 
 	return targetRan, sourceNGAPSender, amf

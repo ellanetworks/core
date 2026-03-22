@@ -10,7 +10,6 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf"
 )
 
 // AmfUeExport is the JSON-serializable export of a single UE's AMF state.
@@ -377,7 +376,7 @@ func exportAmfUe(ue *AmfUe) AmfUeExport {
 // buildPDUSessions enriches AMF SmContext copies with SMF context data.
 func buildPDUSessions(copies []smContextCopy) map[string]PDUSessionExport {
 	result := make(map[string]PDUSessionExport, len(copies))
-	smfInstance := smf.Instance()
+	smfSessions := AMFSelf().SmfSessions
 
 	for _, sc := range copies {
 		pdu := PDUSessionExport{
@@ -386,12 +385,12 @@ func buildPDUSessions(copies []smContextCopy) map[string]PDUSessionExport {
 			Inactive: sc.inactive,
 		}
 
-		if smfInstance == nil {
+		if smfSessions == nil {
 			result[sc.ref] = pdu
 			continue
 		}
 
-		smCtx := smfInstance.GetSession(sc.ref)
+		smCtx := smfSessions.GetSession(sc.ref)
 		if smCtx != nil {
 			smCtx.Mutex.Lock()
 			pdu.DNN = smCtx.Dnn

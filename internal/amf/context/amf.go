@@ -22,6 +22,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"go.uber.org/zap"
 )
@@ -113,6 +114,7 @@ type AMF struct {
 	T3560Cfg                 TimerValue
 	T3565Cfg                 TimerValue
 	Smf                      SmfSbi
+	SmfSessions              smf.SessionQuerier
 }
 
 func allocateTMSI(ctx context.Context) (etsi.TMSI, error) {

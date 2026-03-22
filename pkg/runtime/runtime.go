@@ -132,7 +132,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		nodeID:     net.ParseIP(n3Address),
 	}
 	smfInstance := smf.New(smfStore, smfUPF, smfAMF, smf.WithNodeID(net.ParseIP(n3Address)))
-	smf.SetInstance(smfInstance)
 
 	go smfInstance.Run(ctx)
 
@@ -173,7 +172,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	server.RegisterMetrics()
 	amf.RegisterMetrics()
-	smf.RegisterMetrics()
+	smf.RegisterMetrics(smfInstance)
 	upf.RegisterMetrics()
 
 	apiServer, err := api.Start(
@@ -181,6 +180,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		dbInstance,
 		cfg,
 		upfInstance,
+		smfInstance,
 		rc.EmbedFS,
 		rc.RegisterExtraRoutes,
 	)
@@ -203,6 +203,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	amfSelf := amfcontext.AMFSelf()
 	amfSelf.Ausf = ausfInstance
+	amfSelf.SmfSessions = smfInstance
 
 	sctpServer, err := amf.Start(ctx, dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port, smfInstance)
 	if err != nil {

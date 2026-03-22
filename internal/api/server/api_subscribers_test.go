@@ -314,7 +314,6 @@ func mockSessionForSubscriber(imsi string, dnn string) error {
 	}
 
 	amf := amfContext.AMFSelf()
-	smfInstance := smf.Instance()
 
 	ue, found := amf.FindAMFUEBySupi(supi)
 	if !found {
@@ -327,7 +326,7 @@ func mockSessionForSubscriber(imsi string, dnn string) error {
 	}
 
 	pduSessionID := uint8(1)
-	smfInstance.NewSession(supi, pduSessionID, dnn, nil)
+	testSmfInstance.NewSession(supi, pduSessionID, dnn, nil)
 
 	sessionRef := smf.CanonicalName(supi, pduSessionID)
 

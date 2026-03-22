@@ -25,6 +25,11 @@ const (
 	FirstUserEmail = "my.user123@ellanetworks.com"
 )
 
+// testSmfInstance holds the SMF created by setupServer so that test helpers
+// like mockSessionForSubscriber can create sessions in the same instance
+// that the API handlers query.
+var testSmfInstance *smf.SMF
+
 type FakeKernel struct{}
 
 func (fk FakeKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priority int, networkInterface kernel.NetworkInterface) error {
@@ -84,7 +89,7 @@ func setupServer(filepath string) (*httptest.Server, []byte, *db.Database, error
 
 	// Initialize SMF context with test stubs
 	smfInstance := smf.New(&fakeSessionStore{db: testdb}, &fakeUPFClient{}, &fakeAMFCallback{})
-	smf.SetInstance(smfInstance)
+	testSmfInstance = smfInstance
 
 	jwtSecret := []byte("testsecret")
 	fakeKernel := FakeKernel{}
@@ -110,7 +115,7 @@ func setupServer(filepath string) (*httptest.Server, []byte, *db.Database, error
 		},
 	}
 
-	ts := httptest.NewTLSServer(server.NewHandler(testdb, cfg, fakeUPF, fakeKernel, jwtSecret, false, dummyfs, nil))
+	ts := httptest.NewTLSServer(server.NewHandler(testdb, cfg, fakeUPF, fakeKernel, jwtSecret, false, dummyfs, smfInstance, nil))
 
 	supportbundle.ConfigProvider = func(ctx context.Context) ([]byte, error) {
 		return []byte("fake test config"), nil

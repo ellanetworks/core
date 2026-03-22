@@ -195,7 +195,6 @@ func TestHandoverRequired(t *testing.T) {
 
 	// Initialize SMF context with a matching SM context
 	smfInstance := smf.New(nil, nil, nil)
-	smf.SetInstance(smfInstance)
 
 	smCtx := smfInstance.NewSession(supi, pduSessionID, dnn, &models.Snssai{Sst: 1})
 	smCtx.PolicyData = &models.SmPolicyData{
@@ -278,7 +277,8 @@ func TestHandoverRequired(t *testing.T) {
 		Radios: map[*sctp.SCTPConn]*amfContext.Radio{
 			new(sctp.SCTPConn): targetRan,
 		},
-		Smf: &FakeSmfSbi{},
+		Smf:         &FakeSmfSbi{},
+		SmfSessions: smfInstance,
 	}
 
 	ngap.HandleHandoverRequired(context.Background(), amf, sourceRan, msg.InitiatingMessage.Value.HandoverRequired)
