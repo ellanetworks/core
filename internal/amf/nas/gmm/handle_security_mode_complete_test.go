@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
@@ -33,7 +32,7 @@ func TestHandleSecurityMode_WrongUEMode(t *testing.T) {
 
 			err := handleSecurityModeComplete(
 				t.Context(),
-				&amfContext.AMF{},
+				amfContext.New(nil, nil, nil),
 				&amfContext.AmfUe{State: tc},
 				nil,
 			)
@@ -49,7 +48,7 @@ func TestHandleSecurityMode_MacFailed(t *testing.T) {
 
 	err := handleSecurityModeComplete(
 		t.Context(),
-		&amfContext.AMF{},
+		amfContext.New(nil, nil, nil),
 		&amfContext.AmfUe{
 			State:     amfContext.SecurityMode,
 			MacFailed: true,
@@ -62,8 +61,8 @@ func TestHandleSecurityMode_MacFailed(t *testing.T) {
 }
 
 func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
+	amf := amfContext.New(
+		&FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
@@ -71,7 +70,7 @@ func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
 				SupportedTACs: "[\"1\"]",
 			},
 		},
-		Ausf: &FakeAusf{
+		&FakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -79,8 +78,8 @@ func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		nil,
+	)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -107,8 +106,8 @@ func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
 }
 
 func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
+	amf := amfContext.New(
+		&FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
@@ -116,7 +115,7 @@ func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
 				SupportedTACs: "[\"1\"]",
 			},
 		},
-		Ausf: &FakeAusf{
+		&FakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -124,8 +123,8 @@ func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		nil,
+	)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -157,8 +156,8 @@ func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
 }
 
 func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
+	amf := amfContext.New(
+		&FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
@@ -166,7 +165,7 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 				SupportedTACs: "[\"1\"]",
 			},
 		},
-		Ausf: &FakeAusf{
+		&FakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -174,8 +173,8 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		nil,
+	)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -208,8 +207,8 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 }
 
 func TestHandleSecurityMode_ValidSecurityContextWithBadAMFKey_UpdatesSecurityContextError(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
+	amf := amfContext.New(
+		&FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
@@ -217,7 +216,7 @@ func TestHandleSecurityMode_ValidSecurityContextWithBadAMFKey_UpdatesSecurityCon
 				SupportedTACs: "[\"1\"]",
 			},
 		},
-		Ausf: &FakeAusf{
+		&FakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -225,8 +224,8 @@ func TestHandleSecurityMode_ValidSecurityContextWithBadAMFKey_UpdatesSecurityCon
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		nil,
+	)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -330,8 +329,8 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 }
 
 func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
+	amf := amfContext.New(
+		&FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
@@ -339,7 +338,7 @@ func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 				SupportedTACs: "[\"1\"]",
 			},
 		},
-		Ausf: &FakeAusf{
+		&FakeAusf{
 			AvKgAka: &ausf.AuthResult{
 				Rand: hex.EncodeToString(make([]byte, 16)),
 				Autn: hex.EncodeToString(make([]byte, 16)),
@@ -347,8 +346,8 @@ func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
 			Kseaf: "testkey",
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		nil,
+	)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {

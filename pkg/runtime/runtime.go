@@ -135,8 +135,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	smfInstance := smf.New(smfStore, nil, smfAMF, smf.WithNodeID(net.ParseIP(n3Address)))
 
-	go smfInstance.Run(ctx)
-
 	// The SMF instance implements pfcp_dispatcher.SMF (HandlePfcpSessionReportRequest, SendFlowReport).
 	dispatcher := pfcp_dispatcher.NewPfcpDispatcher(smfInstance, upf_pfcp.UpfPfcpHandler{})
 

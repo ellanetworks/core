@@ -238,7 +238,7 @@ func TestHandleIdentityResponse_InvalidStateError(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
-			err := handleIdentityResponse(context.TODO(), &amfContext.AMF{}, &amfContext.AmfUe{State: tc}, &nasMessage.IdentityResponse{})
+			err := handleIdentityResponse(context.TODO(), amfContext.New(nil, nil, nil), &amfContext.AmfUe{State: tc}, &nasMessage.IdentityResponse{})
 			if err == nil {
 				t.Fatalf("expected an state mismatch error, got no error")
 			}

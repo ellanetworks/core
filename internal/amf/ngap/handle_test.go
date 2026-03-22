@@ -444,5 +444,5 @@ func newTestRadio() *amfContext.Radio {
 
 // newTestAMF creates a minimal AMF context for testing.
 func newTestAMF() *amfContext.AMF {
-	return &amfContext.AMF{}
+	return amfContext.New(nil, nil, nil)
 }

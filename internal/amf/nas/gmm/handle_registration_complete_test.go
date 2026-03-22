@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
@@ -16,15 +15,14 @@ import (
 )
 
 func newTestAMF() *amfContext.AMF {
-	return &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				SpnFullName:  "Ella Networks",
-				SpnShortName: "Ella",
-			},
+	amf := amfContext.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			SpnFullName:  "Ella Networks",
+			SpnShortName: "Ella",
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+	}, nil, nil)
+
+	return amf
 }
 
 func setupRegistrationCompleteUE(t *testing.T) (*amfContext.AmfUe, *FakeNGAPSender) {

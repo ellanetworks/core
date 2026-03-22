@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
@@ -48,18 +47,14 @@ func TestHandleNotificationResponse_MacFailed(t *testing.T) {
 
 func TestHandleNotificationResponse_T3565Stopped_NoPDUSessionStatus_NoSmContextReleased(t *testing.T) {
 	smf := FakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amf := amfContext.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-		Smf: &smf,
-	}
+	}, nil, &smf)
 
 	ue, _, err := buildUeAndRadio()
 	if err != nil {
@@ -87,18 +82,14 @@ func TestHandleNotificationResponse_T3565Stopped_NoPDUSessionStatus_NoSmContextR
 
 func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextReleased(t *testing.T) {
 	smf := FakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amf := amfContext.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-		Smf: &smf,
-	}
+	}, nil, &smf)
 
 	ue, _, err := buildUeAndRadio()
 	if err != nil {

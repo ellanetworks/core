@@ -43,7 +43,7 @@ func TestHandoverNotify_NilMessage(t *testing.T) {
 		Log:        logger.AmfLog,
 		NGAPSender: fakeNGAPSender,
 	}
-	amf := &amfContext.AMF{}
+	amf := amfContext.New(nil, nil, nil)
 
 	ngap.HandleHandoverNotify(context.Background(), amf, ran, nil)
 
@@ -64,7 +64,7 @@ func TestHandoverNotify_UnknownRanUeNgapID(t *testing.T) {
 		RanUEs:        make(map[int64]*amfContext.RanUe),
 		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
 	}
-	amf := &amfContext.AMF{}
+	amf := amfContext.New(nil, nil, nil)
 
 	msg := buildHandoverNotify(
 		&ngapType.AMFUENGAPID{Value: 1},
@@ -113,7 +113,7 @@ func TestHandoverNotify_NilAmfUe(t *testing.T) {
 	}
 	ran.RanUEs[2] = targetUe
 
-	amf := &amfContext.AMF{}
+	amf := amfContext.New(nil, nil, nil)
 
 	msg := buildHandoverNotify(
 		&ngapType.AMFUENGAPID{Value: 1},
@@ -149,7 +149,7 @@ func TestHandoverNotify_NoSourceUe(t *testing.T) {
 	}
 	ran.RanUEs[2] = targetUe
 
-	amf := &amfContext.AMF{}
+	amf := amfContext.New(nil, nil, nil)
 
 	msg := buildHandoverNotify(
 		&ngapType.AMFUENGAPID{Value: 1},
@@ -206,7 +206,7 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 	sourceUe.TargetUe = targetUe
 	targetRan.RanUEs[2] = targetUe
 
-	amf := &amfContext.AMF{}
+	amf := amfContext.New(nil, nil, nil)
 
 	msg := buildHandoverNotify(
 		&ngapType.AMFUENGAPID{Value: 1},

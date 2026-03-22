@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
@@ -27,7 +26,7 @@ func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *test
 		AuthenticationResponseParameter: nil,
 	}
 
-	err := handleAuthenticationResponse(context.TODO(), &amfContext.AMF{}, ue, msg)
+	err := handleAuthenticationResponse(context.TODO(), amfContext.New(nil, nil, nil), ue, msg)
 	if err == nil {
 		t.Fatal("expected error when AuthenticationResponseParameter is nil, got nil")
 	}
@@ -60,7 +59,7 @@ func TestHandleAuthenticationResponse_PreconditionErrors(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := handleAuthenticationResponse(context.TODO(), &amfContext.AMF{}, tc.ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+			err := handleAuthenticationResponse(context.TODO(), amfContext.New(nil, nil, nil), tc.ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 			if err == nil || err.Error() != tc.err.Error() {
 				t.Fatalf("expected error: %v, got: %v", tc.err, err)
 			}
@@ -82,7 +81,7 @@ func TestHandleAuthenticationResponse_TimerT3560Stopped(t *testing.T) {
 	ue.IdentityTypeUsedForRegistration = nasMessage.MobileIdentity5GSTypeSuci
 	ue.T3560 = amfContext.NewTimer(10*time.Minute, 5, func(e int32) {}, func() {})
 
-	_ = handleAuthenticationResponse(t.Context(), &amfContext.AMF{}, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+	_ = handleAuthenticationResponse(t.Context(), amfContext.New(nil, nil, nil), ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 
 	if ue.T3560 != nil {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
@@ -123,7 +122,7 @@ func TestHandleAuthenticationResponse_hResStartMismatch(t *testing.T) {
 			}
 			ue.IdentityTypeUsedForRegistration = tc.id_type
 
-			err = handleAuthenticationResponse(t.Context(), &amfContext.AMF{}, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+			err = handleAuthenticationResponse(t.Context(), amfContext.New(nil, nil, nil), ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 			if err != nil {
 				t.Fatalf("expected no error, got: %v", err)
 			}
@@ -177,26 +176,22 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			amf := &amfContext.AMF{
-				DBInstance: &FakeDBInstance{
-					Operator: &db.Operator{
-						Mcc:           "001",
-						Mnc:           "01",
-						Sst:           1,
-						SupportedTACs: "[\"1\"]",
-					},
+			amf := amfContext.New(&FakeDBInstance{
+				Operator: &db.Operator{
+					Mcc:           "001",
+					Mnc:           "01",
+					Sst:           1,
+					SupportedTACs: "[\"1\"]",
 				},
-				Ausf: &FakeAusf{
-					AvKgAka: &ausf.AuthResult{
-						Rand: hex.EncodeToString(make([]byte, 16)),
-						Autn: hex.EncodeToString(make([]byte, 16)),
-					},
-					Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-					Kseaf: "testkey",
-					Error: fmt.Errorf("failure"),
+			}, &FakeAusf{
+				AvKgAka: &ausf.AuthResult{
+					Rand: hex.EncodeToString(make([]byte, 16)),
+					Autn: hex.EncodeToString(make([]byte, 16)),
 				},
-				UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-			}
+				Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+				Kseaf: "testkey",
+				Error: fmt.Errorf("failure"),
+			}, nil)
 
 			ue, ngapSender, err := buildUeAndRadio()
 			if err != nil {
@@ -240,25 +235,21 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 }
 
 func TestHandleAuthenticationResponse_DeriveKamf_Failure(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"1\"]",
-			},
+	amf := amfContext.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"1\"]",
 		},
-		Ausf: &FakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
-			},
-			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -284,25 +275,21 @@ func TestHandleAuthenticationResponse_DeriveKamf_Failure(t *testing.T) {
 }
 
 func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"1\"]",
-			},
+	amf := amfContext.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"1\"]",
 		},
-		Ausf: &FakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
-			},
-			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "C0FFEE",
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "C0FFEE",
+	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {

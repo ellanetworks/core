@@ -19,7 +19,7 @@ func TestHandleNAS_ShortIntegrityProtectedPayload(t *testing.T) {
 	// not panic.
 	shortPayload := []byte{0x7e, 0x01}
 
-	amf := &amfContext.AMF{}
+	amf := amfContext.New(nil, nil, nil)
 	ue := &amfContext.RanUe{} // AmfUe is nil, so HandleNAS enters fetchUeContextWithMobileIdentity
 
 	assertNoPanic(t, "HandleNAS(short integrity-protected payload)", func() {
@@ -31,7 +31,7 @@ func TestHandleNAS_ShortIntegrityProtectedPayload(t *testing.T) {
 }
 
 func TestHandleNAS_NilPayload(t *testing.T) {
-	amf := &amfContext.AMF{}
+	amf := amfContext.New(nil, nil, nil)
 	ue := &amfContext.RanUe{}
 
 	err := HandleNAS(context.Background(), amf, ue, nil)
@@ -41,7 +41,7 @@ func TestHandleNAS_NilPayload(t *testing.T) {
 }
 
 func TestHandleNAS_SingleBytePayload(t *testing.T) {
-	amf := &amfContext.AMF{}
+	amf := amfContext.New(nil, nil, nil)
 	ue := &amfContext.RanUe{}
 
 	assertNoPanic(t, "HandleNAS(single-byte payload)", func() {
@@ -56,7 +56,7 @@ func TestHandleNAS_IntegrityProtectedPayloadExactly6Bytes(t *testing.T) {
 	// 6 bytes: still too short for integrity-protected (needs >= 7)
 	payload := []byte{0x7e, 0x01, 0x00, 0x00, 0x00, 0x00}
 
-	amf := &amfContext.AMF{}
+	amf := amfContext.New(nil, nil, nil)
 	ue := &amfContext.RanUe{}
 
 	assertNoPanic(t, "HandleNAS(6-byte integrity-protected payload)", func() {

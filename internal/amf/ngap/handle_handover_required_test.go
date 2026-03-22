@@ -306,7 +306,7 @@ func TestHandoverRequired_MissingMandatoryIEs(t *testing.T) {
 		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
 	}
 
-	amf := &amfContext.AMF{}
+	amf := amfContext.New(nil, nil, nil)
 
 	ngap.HandleHandoverRequired(context.Background(), amf, ran, msg.InitiatingMessage.Value.HandoverRequired)
 
@@ -390,7 +390,7 @@ func TestHandoverRequired_UnknownRanUeNgapID(t *testing.T) {
 		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
 	}
 
-	amf := &amfContext.AMF{}
+	amf := amfContext.New(nil, nil, nil)
 
 	ngap.HandleHandoverRequired(context.Background(), amf, ran, msg.InitiatingMessage.Value.HandoverRequired)
 
@@ -486,7 +486,7 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 	amfUe.RanUe = sourceUe
 	sourceRan.RanUEs[1] = sourceUe
 
-	amf := &amfContext.AMF{}
+	amf := amfContext.New(nil, nil, nil)
 
 	ngap.HandleHandoverRequired(context.Background(), amf, sourceRan, msg.InitiatingMessage.Value.HandoverRequired)
 

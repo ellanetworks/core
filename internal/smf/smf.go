@@ -157,8 +157,7 @@ func WithClock(fn func() time.Time) Option { return func(s *SMF) { s.clock = fn 
 // WithNodeID overrides the control plane node ID.
 func WithNodeID(ip net.IP) Option { return func(s *SMF) { s.nodeID = ip } }
 
-// New creates a new SMF. The caller must run s.Run(ctx) in a goroutine for
-// background session cleanup.
+// New creates a new SMF.
 func New(store SessionStore, upf UPFClient, amf AMFCallback, opts ...Option) *SMF {
 	s := &SMF{
 		pool:   make(map[string]*SMContext),
@@ -187,25 +186,6 @@ func (s *SMF) SetUPF(upf UPFClient) {
 
 	s.upf = upf
 }
-
-// Run starts the background session cleanup loop. It blocks until ctx is cancelled.
-func (s *SMF) Run(ctx context.Context) {
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			s.evictExpiredSessions(ctx)
-		}
-	}
-}
-
-// evictExpiredSessions is a placeholder for session expiry logic.
-// Currently a no-op — session expiry is handled by the DB-level cleanup job.
-func (s *SMF) evictExpiredSessions(_ context.Context) {}
 
 // AllocateLocalSEID returns the next available local SEID.
 func (s *SMF) AllocateLocalSEID() uint64 {
