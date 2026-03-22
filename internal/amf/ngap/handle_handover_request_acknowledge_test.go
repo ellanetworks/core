@@ -167,8 +167,7 @@ func setupHandoverAckTestContext(t *testing.T) (*amfContext.Radio, *FakeNGAPSend
 			new(sctp.SCTPConn): sourceRan,
 			new(sctp.SCTPConn): targetRan,
 		},
-		Smf:         &FakeSmfSbi{},
-		SmfSessions: smfInstance,
+		Smf: &FakeSmfSbi{SMF: smfInstance},
 	}
 
 	return targetRan, sourceNGAPSender, amf

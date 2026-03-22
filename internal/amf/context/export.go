@@ -385,7 +385,7 @@ func exportAmfUe(ue *AmfUe) AmfUeExport {
 // buildPDUSessions enriches AMF SmContext copies with SMF context data.
 func buildPDUSessions(copies []smContextCopy) map[string]PDUSessionExport {
 	result := make(map[string]PDUSessionExport, len(copies))
-	smfSessions := AMFSelf().SmfSessions
+	smfSessions := AMFSelf().Smf
 
 	for _, sc := range copies {
 		pdu := PDUSessionExport{

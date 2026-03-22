@@ -82,6 +82,7 @@ type SmfHandoverFailedCall struct {
 }
 
 type FakeSmfSbi struct {
+	*smf.SMF
 	PathSwitchResponse  []byte
 	PathSwitchErr       error
 	HandoverFailedErr   error

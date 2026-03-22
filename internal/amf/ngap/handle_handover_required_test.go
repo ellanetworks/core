@@ -277,8 +277,7 @@ func TestHandoverRequired(t *testing.T) {
 		Radios: map[*sctp.SCTPConn]*amfContext.Radio{
 			new(sctp.SCTPConn): targetRan,
 		},
-		Smf:         &FakeSmfSbi{},
-		SmfSessions: smfInstance,
+		Smf: &FakeSmfSbi{SMF: smfInstance},
 	}
 
 	ngap.HandleHandoverRequired(context.Background(), amf, sourceRan, msg.InitiatingMessage.Value.HandoverRequired)

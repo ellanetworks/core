@@ -441,6 +441,12 @@ func (s *FakeSmf) UpdateSmContextN2HandoverPrepared(_ string, _ []byte) ([]byte,
 	return nil, s.Error
 }
 
+func (s *FakeSmf) GetSession(_ string) *smf.SMContext { return nil }
+
+func (s *FakeSmf) SessionsByDNN(_ string) []*smf.SMContext { return nil }
+
+func (s *FakeSmf) SessionCount() int { return 0 }
+
 func mustTestGuti(mcc string, mnc string, amfid string, tmsi uint32) etsi.GUTI {
 	t, err := etsi.NewTMSI(tmsi)
 	if err != nil {

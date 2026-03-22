@@ -46,6 +46,7 @@ var (
 )
 
 type SmfSbi interface {
+	smf.SessionQuerier
 	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, n1Msg []byte) (string, []byte, error)
 	ActivateSmContext(smContextRef string) ([]byte, error)
 	DeactivateSmContext(ctx context.Context, smContextRef string) error
@@ -114,7 +115,6 @@ type AMF struct {
 	T3560Cfg                 TimerValue
 	T3565Cfg                 TimerValue
 	Smf                      SmfSbi
-	SmfSessions              smf.SessionQuerier
 }
 
 func allocateTMSI(ctx context.Context) (etsi.TMSI, error) {

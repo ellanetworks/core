@@ -203,7 +203,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	amfSelf := amfcontext.AMFSelf()
 	amfSelf.Ausf = ausfInstance
-	amfSelf.SmfSessions = smfInstance
 
 	sctpServer, err := amf.Start(ctx, dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port, smfInstance)
 	if err != nil {
