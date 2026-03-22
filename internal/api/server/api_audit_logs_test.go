@@ -144,21 +144,21 @@ func TestAPIAuditLogs(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	statusCode, response, err := listAuditLogs(ts.URL, client, token, 1, 20)
+	statusCode, response, err := listAuditLogs(env.Server.URL, client, token, 1, 20)
 	if err != nil {
 		t.Fatalf("couldn't list audit logs: %s", err)
 	}
@@ -188,15 +188,15 @@ func TestAPIAuditLogsPagination_LargeDataSet(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -210,7 +210,7 @@ func TestAPIAuditLogsPagination_LargeDataSet(t *testing.T) {
 			RoleID:   RoleReadOnly,
 		}
 
-		statusCode, resp, err := createUser(ts.URL, client, token, params)
+		statusCode, resp, err := createUser(env.Server.URL, client, token, params)
 		if err != nil {
 			t.Fatalf("couldn't create user %d: %s", i, err)
 		}
@@ -221,7 +221,7 @@ func TestAPIAuditLogsPagination_LargeDataSet(t *testing.T) {
 	}
 
 	// Test first page
-	statusCode, response, err := listAuditLogs(ts.URL, client, token, 1, 5)
+	statusCode, response, err := listAuditLogs(env.Server.URL, client, token, 1, 5)
 	if err != nil {
 		t.Fatalf("couldn't list audit logs: %s", err)
 	}
@@ -255,7 +255,7 @@ func TestAPIAuditLogsPagination_LargeDataSet(t *testing.T) {
 	}
 
 	// Test second page
-	statusCode, response, err = listAuditLogs(ts.URL, client, token, 2, 5)
+	statusCode, response, err = listAuditLogs(env.Server.URL, client, token, 2, 5)
 	if err != nil {
 		t.Fatalf("couldn't list audit logs: %s", err)
 	}
@@ -289,7 +289,7 @@ func TestAPIAuditLogsPagination_LargeDataSet(t *testing.T) {
 	}
 
 	// Test last page
-	statusCode, response, err = listAuditLogs(ts.URL, client, token, 3, 5)
+	statusCode, response, err = listAuditLogs(env.Server.URL, client, token, 3, 5)
 	if err != nil {
 		t.Fatalf("couldn't list audit logs: %s", err)
 	}
@@ -327,21 +327,21 @@ func TestAPIAuditLogRetentionPolicyEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
 	t.Run("1. Get audit log retention policy", func(t *testing.T) {
-		statusCode, response, err := getAuditLogRetentionPolicy(ts.URL, client, token)
+		statusCode, response, err := getAuditLogRetentionPolicy(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get audit log retention policy: %s", err)
 		}
@@ -364,7 +364,7 @@ func TestAPIAuditLogRetentionPolicyEndToEnd(t *testing.T) {
 			Days: 15,
 		}
 
-		statusCode, response, err := editAuditLogRetentionPolicy(ts.URL, client, token, updateAuditLogRetentionPolicyParams)
+		statusCode, response, err := editAuditLogRetentionPolicy(env.Server.URL, client, token, updateAuditLogRetentionPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't get audit log retention policy: %s", err)
 		}
@@ -383,7 +383,7 @@ func TestAPIAuditLogRetentionPolicyEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. Verify updated audit log retention policy", func(t *testing.T) {
-		statusCode, response, err := getAuditLogRetentionPolicy(ts.URL, client, token)
+		statusCode, response, err := getAuditLogRetentionPolicy(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get audit log retention policy: %s", err)
 		}
@@ -406,15 +406,15 @@ func TestUpdateAuditLogRetentionPolicyInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -441,7 +441,7 @@ func TestUpdateAuditLogRetentionPolicyInvalidInput(t *testing.T) {
 				Days: tt.days,
 			}
 
-			statusCode, response, err := editAuditLogRetentionPolicy(ts.URL, client, token, updateParams)
+			statusCode, response, err := editAuditLogRetentionPolicy(env.Server.URL, client, token, updateParams)
 			if err != nil {
 				t.Fatalf("couldn't edit audit log retention policy: %s", err)
 			}

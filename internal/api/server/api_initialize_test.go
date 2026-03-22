@@ -59,13 +59,13 @@ func TestInitializeInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
 	tests := []struct {
 		email    string
@@ -106,7 +106,7 @@ func TestInitializeInvalidInput(t *testing.T) {
 				Password: tt.password,
 			}
 
-			statusCode, response, err := initialize(ts.URL, client, initializeParams)
+			statusCode, response, err := initialize(env.Server.URL, client, initializeParams)
 			if err != nil {
 				t.Fatalf("couldn't create user: %s", err)
 			}

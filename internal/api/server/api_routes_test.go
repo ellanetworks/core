@@ -188,21 +188,21 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
 	t.Run("1. List routes - 0", func(t *testing.T) {
-		statusCode, response, err := listRoutes(ts.URL, client, token, 1, 10)
+		statusCode, response, err := listRoutes(env.Server.URL, client, token, 1, 10)
 		if err != nil {
 			t.Fatalf("couldn't list route: %s", err)
 		}
@@ -228,7 +228,7 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 			Metric:      Metric,
 		}
 
-		statusCode, response, err := createRoute(ts.URL, client, token, createRouteParams)
+		statusCode, response, err := createRoute(env.Server.URL, client, token, createRouteParams)
 		if err != nil {
 			t.Fatalf("couldn't create route: %s", err)
 		}
@@ -247,7 +247,7 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. List routes - 1", func(t *testing.T) {
-		statusCode, response, err := listRoutes(ts.URL, client, token, 1, 10)
+		statusCode, response, err := listRoutes(env.Server.URL, client, token, 1, 10)
 		if err != nil {
 			t.Fatalf("couldn't list route: %s", err)
 		}
@@ -266,7 +266,7 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. Get route", func(t *testing.T) {
-		statusCode, response, err := getRoute(ts.URL, client, token, 1)
+		statusCode, response, err := getRoute(env.Server.URL, client, token, 1)
 		if err != nil {
 			t.Fatalf("couldn't get route: %s", err)
 		}
@@ -297,7 +297,7 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("5. Get route - id not found", func(t *testing.T) {
-		statusCode, response, err := getRoute(ts.URL, client, token, 2)
+		statusCode, response, err := getRoute(env.Server.URL, client, token, 2)
 		if err != nil {
 			t.Fatalf("couldn't get route: %s", err)
 		}
@@ -314,7 +314,7 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 	t.Run("5. Create route - no destination", func(t *testing.T) {
 		createRouteParams := &CreateRouteParams{}
 
-		statusCode, response, err := createRoute(ts.URL, client, token, createRouteParams)
+		statusCode, response, err := createRoute(env.Server.URL, client, token, createRouteParams)
 		if err != nil {
 			t.Fatalf("couldn't create route: %s", err)
 		}
@@ -329,7 +329,7 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("8. Delete route - success", func(t *testing.T) {
-		statusCode, response, err := deleteRoute(ts.URL, client, token, 1)
+		statusCode, response, err := deleteRoute(env.Server.URL, client, token, 1)
 		if err != nil {
 			t.Fatalf("couldn't delete route: %s", err)
 		}
@@ -344,7 +344,7 @@ func TestAPIRoutesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("9. Delete route - no route", func(t *testing.T) {
-		statusCode, response, err := deleteRoute(ts.URL, client, token, 1)
+		statusCode, response, err := deleteRoute(env.Server.URL, client, token, 1)
 		if err != nil {
 			t.Fatalf("couldn't delete route: %s", err)
 		}
@@ -363,15 +363,15 @@ func TestCreateRouteInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -436,7 +436,7 @@ func TestCreateRouteInvalidInput(t *testing.T) {
 				Metric:      tt.metric,
 			}
 
-			statusCode, response, err := createRoute(ts.URL, client, token, createRouteParams)
+			statusCode, response, err := createRoute(env.Server.URL, client, token, createRouteParams)
 			if err != nil {
 				t.Fatalf("couldn't create route: %s", err)
 			}
@@ -456,15 +456,15 @@ func TestCreateTooManyRoutes(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -477,7 +477,7 @@ func TestCreateTooManyRoutes(t *testing.T) {
 			Metric:      Metric,
 		}
 
-		statusCode, response, err := createRoute(ts.URL, client, token, createRouteParams)
+		statusCode, response, err := createRoute(env.Server.URL, client, token, createRouteParams)
 		if err != nil {
 			t.Fatalf("couldn't create route: %s", err)
 		}
@@ -498,7 +498,7 @@ func TestCreateTooManyRoutes(t *testing.T) {
 		Metric:      Metric,
 	}
 
-	statusCode, response, err := createRoute(ts.URL, client, token, createRouteParams)
+	statusCode, response, err := createRoute(env.Server.URL, client, token, createRouteParams)
 	if err != nil {
 		t.Fatalf("couldn't create route: %s", err)
 	}

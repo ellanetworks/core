@@ -360,15 +360,15 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -379,7 +379,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 			Sd:  Sd,
 		}
 
-		statusCode, response, err := updateOperatorSlice(ts.URL, client, token, updateOperatorParams)
+		statusCode, response, err := updateOperatorSlice(env.Server.URL, client, token, updateOperatorParams)
 		if err != nil {
 			t.Fatalf("couldn't create operator: %s", err)
 		}
@@ -398,7 +398,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 	})
 
 	t.Run("2. Get operator Slice Information", func(t *testing.T) {
-		statusCode, response, err := getOperatorSlice(ts.URL, client, token)
+		statusCode, response, err := getOperatorSlice(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get operator: %s", err)
 		}
@@ -425,7 +425,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 			Sd: "303132",
 		}
 
-		statusCode, response, err := updateOperatorSlice(ts.URL, client, token, updateOperatorParams)
+		statusCode, response, err := updateOperatorSlice(env.Server.URL, client, token, updateOperatorParams)
 		if err != nil {
 			t.Fatalf("couldn't create operator: %s", err)
 		}
@@ -444,7 +444,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 			Sst: 1,
 		}
 
-		statusCode, response, err := updateOperatorSlice(ts.URL, client, token, updateOperatorParams)
+		statusCode, response, err := updateOperatorSlice(env.Server.URL, client, token, updateOperatorParams)
 		if err != nil {
 			t.Fatalf("couldn't create operator: %s", err)
 		}
@@ -459,7 +459,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 	})
 
 	t.Run("6. Get operator Slice Information", func(t *testing.T) {
-		statusCode, response, err := getOperatorSlice(ts.URL, client, token)
+		statusCode, response, err := getOperatorSlice(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get operator: %s", err)
 		}
@@ -489,7 +489,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 			},
 		}
 
-		statusCode, response, err := updateOperatorTracking(ts.URL, client, token, updateOperatorTrackingParams)
+		statusCode, response, err := updateOperatorTracking(env.Server.URL, client, token, updateOperatorTrackingParams)
 		if err != nil {
 			t.Fatalf("couldn't create operator: %s", err)
 		}
@@ -508,7 +508,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 	})
 
 	t.Run("8. Get operator tracking", func(t *testing.T) {
-		statusCode, response, err := getOperatorTracking(ts.URL, client, token)
+		statusCode, response, err := getOperatorTracking(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get operator: %s", err)
 		}
@@ -537,7 +537,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 	t.Run("9. Update operator tracking - no supportedTacs", func(t *testing.T) {
 		updateOperatorTrackingParams := &UpdateOperatorTrackingParams{}
 
-		statusCode, response, err := updateOperatorTracking(ts.URL, client, token, updateOperatorTrackingParams)
+		statusCode, response, err := updateOperatorTracking(env.Server.URL, client, token, updateOperatorTrackingParams)
 		if err != nil {
 			t.Fatalf("couldn't create operator: %s", err)
 		}
@@ -557,7 +557,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 			Mnc: Mnc,
 		}
 
-		statusCode, response, err := updateOperatorID(ts.URL, client, token, updateOperatorIDParams)
+		statusCode, response, err := updateOperatorID(env.Server.URL, client, token, updateOperatorIDParams)
 		if err != nil {
 			t.Fatalf("couldn't update operator: %s", err)
 		}
@@ -576,7 +576,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 	})
 
 	t.Run("11. Get operator Id", func(t *testing.T) {
-		statusCode, response, err := getOperatorID(ts.URL, client, token)
+		statusCode, response, err := getOperatorID(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get operator Id: %s", err)
 		}
@@ -603,7 +603,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 			OperatorCode: "0123456789ABCDEF0123456789ABCDEF",
 		}
 
-		statusCode, response, err := updateOperatorCode(ts.URL, client, token, updateOperatorCodeParams)
+		statusCode, response, err := updateOperatorCode(env.Server.URL, client, token, updateOperatorCodeParams)
 		if err != nil {
 			t.Fatalf("couldn't update operator code: %s", err)
 		}
@@ -622,7 +622,7 @@ func TestApiOperatorEndToEnd(t *testing.T) {
 	})
 
 	t.Run("13. Get Operator", func(t *testing.T) {
-		statusCode, response, err := getOperator(ts.URL, client, token)
+		statusCode, response, err := getOperator(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get operator: %s", err)
 		}
@@ -669,15 +669,15 @@ func TestUpdateOperatorSliceInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -726,7 +726,7 @@ func TestUpdateOperatorSliceInvalidInput(t *testing.T) {
 				Sd:  tt.sd,
 			}
 
-			statusCode, response, err := updateOperatorSlice(ts.URL, client, token, updateOperatorParams)
+			statusCode, response, err := updateOperatorSlice(env.Server.URL, client, token, updateOperatorParams)
 			if err != nil {
 				t.Fatalf("couldn't update operator: %s", err)
 			}
@@ -746,15 +746,15 @@ func TestUpdateOperatorTrackingInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -789,7 +789,7 @@ func TestUpdateOperatorTrackingInvalidInput(t *testing.T) {
 				SupportedTacs: tt.supportedTacs,
 			}
 
-			statusCode, response, err := updateOperatorTracking(ts.URL, client, token, updateOperatorParams)
+			statusCode, response, err := updateOperatorTracking(env.Server.URL, client, token, updateOperatorParams)
 			if err != nil {
 				t.Fatalf("couldn't update operator: %s", err)
 			}
@@ -809,15 +809,15 @@ func TestUpdateOperatorIDInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -873,7 +873,7 @@ func TestUpdateOperatorIDInvalidInput(t *testing.T) {
 				Mnc: tt.mnc,
 			}
 
-			statusCode, response, err := updateOperatorID(ts.URL, client, token, updateOperatorParams)
+			statusCode, response, err := updateOperatorID(env.Server.URL, client, token, updateOperatorParams)
 			if err != nil {
 				t.Fatalf("couldn't update operator ID: %s", err)
 			}
@@ -893,15 +893,15 @@ func TestUpdateOperatorCodeInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -933,7 +933,7 @@ func TestUpdateOperatorCodeInvalidInput(t *testing.T) {
 				OperatorCode: tt.operatorCode,
 			}
 
-			statusCode, response, err := updateOperatorCode(ts.URL, client, token, updateOperatorCodeParams)
+			statusCode, response, err := updateOperatorCode(env.Server.URL, client, token, updateOperatorCodeParams)
 			if err != nil {
 				t.Fatalf("couldn't update operator: %s", err)
 			}
@@ -999,21 +999,21 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
 	t.Run("Default security algorithms returned via GET", func(t *testing.T) {
-		statusCode, response, err := getOperator(ts.URL, client, token)
+		statusCode, response, err := getOperator(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get operator: %s", err)
 		}
@@ -1051,7 +1051,7 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 			Integrity: []string{"NIA2", "NIA1"},
 		}
 
-		statusCode, response, err := updateOperatorNASSecurity(ts.URL, client, token, params)
+		statusCode, response, err := updateOperatorNASSecurity(env.Server.URL, client, token, params)
 		if err != nil {
 			t.Fatalf("couldn't update operator NAS security: %s", err)
 		}
@@ -1066,7 +1066,7 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 	})
 
 	t.Run("Updated NAS security algorithms visible via GET", func(t *testing.T) {
-		statusCode, response, err := getOperator(ts.URL, client, token)
+		statusCode, response, err := getOperator(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get operator: %s", err)
 		}
@@ -1104,7 +1104,7 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 			Integrity: []string{"NIA2"},
 		}
 
-		statusCode, _, err := updateOperatorNASSecurity(ts.URL, client, token, params)
+		statusCode, _, err := updateOperatorNASSecurity(env.Server.URL, client, token, params)
 		if err != nil {
 			t.Fatalf("couldn't update operator NAS security: %s", err)
 		}
@@ -1120,7 +1120,7 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 			Integrity: []string{},
 		}
 
-		statusCode, _, err := updateOperatorNASSecurity(ts.URL, client, token, params)
+		statusCode, _, err := updateOperatorNASSecurity(env.Server.URL, client, token, params)
 		if err != nil {
 			t.Fatalf("couldn't update operator NAS security: %s", err)
 		}
@@ -1136,7 +1136,7 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 			Integrity: []string{"NIA2"},
 		}
 
-		statusCode, response, err := updateOperatorNASSecurity(ts.URL, client, token, params)
+		statusCode, response, err := updateOperatorNASSecurity(env.Server.URL, client, token, params)
 		if err != nil {
 			t.Fatalf("couldn't update operator NAS security: %s", err)
 		}
@@ -1156,7 +1156,7 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 			Integrity: []string{"NIA3"},
 		}
 
-		statusCode, response, err := updateOperatorNASSecurity(ts.URL, client, token, params)
+		statusCode, response, err := updateOperatorNASSecurity(env.Server.URL, client, token, params)
 		if err != nil {
 			t.Fatalf("couldn't update operator NAS security: %s", err)
 		}
@@ -1176,7 +1176,7 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 			Integrity: []string{"NIA2"},
 		}
 
-		statusCode, response, err := updateOperatorNASSecurity(ts.URL, client, token, params)
+		statusCode, response, err := updateOperatorNASSecurity(env.Server.URL, client, token, params)
 		if err != nil {
 			t.Fatalf("couldn't update operator NAS security: %s", err)
 		}
@@ -1193,7 +1193,7 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 	t.Run("Invalid request body", func(t *testing.T) {
 		body := strings.NewReader(`{"invalid": json}`)
 
-		req, err := http.NewRequestWithContext(context.Background(), "PUT", ts.URL+"/api/v1/operator/nas-security", body)
+		req, err := http.NewRequestWithContext(context.Background(), "PUT", env.Server.URL+"/api/v1/operator/nas-security", body)
 		if err != nil {
 			t.Fatalf("couldn't create request: %s", err)
 		}

@@ -104,22 +104,22 @@ func TestApiFlowAccountingInfoEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
 	t.Run("1. Get flow accounting info (default)", func(t *testing.T) {
-		statusCode, response, err := getFlowAccountingInfo(ts.URL, client, token)
+		statusCode, response, err := getFlowAccountingInfo(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get flow accounting info: %s", err)
 		}
@@ -138,7 +138,7 @@ func TestApiFlowAccountingInfoEndToEnd(t *testing.T) {
 	})
 
 	t.Run("2. Update flow accounting info to disable", func(t *testing.T) {
-		statusCode, response, err := updateFlowAccountingInfo(ts.URL, client, token, false)
+		statusCode, response, err := updateFlowAccountingInfo(env.Server.URL, client, token, false)
 		if err != nil {
 			t.Fatalf("couldn't update flow accounting info: %s", err)
 		}
@@ -157,7 +157,7 @@ func TestApiFlowAccountingInfoEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. Get flow accounting info (disabled)", func(t *testing.T) {
-		statusCode, response, err := getFlowAccountingInfo(ts.URL, client, token)
+		statusCode, response, err := getFlowAccountingInfo(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get flow accounting info: %s", err)
 		}

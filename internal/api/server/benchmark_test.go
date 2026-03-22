@@ -10,13 +10,13 @@ func BenchmarkLoginHandler(b *testing.B) {
 	tempDir := b.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		b.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
 	user := &CreateUserParams{
 		Email:    FirstUserEmail,
@@ -24,7 +24,7 @@ func BenchmarkLoginHandler(b *testing.B) {
 		RoleID:   RoleAdmin,
 	}
 
-	statusCode, _, err := createUser(ts.URL, client, "", user)
+	statusCode, _, err := createUser(env.Server.URL, client, "", user)
 	if err != nil {
 		b.Fatalf("couldn't create user: %s", err)
 	}
@@ -39,7 +39,7 @@ func BenchmarkLoginHandler(b *testing.B) {
 	}
 
 	for b.Loop() {
-		code, _, err := login(ts.URL, client, loginData)
+		code, _, err := login(env.Server.URL, client, loginData)
 		if err != nil {
 			b.Fatalf("login failed: %s", err)
 		}

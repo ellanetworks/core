@@ -223,21 +223,21 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
 	t.Run("1. List policies - 1", func(t *testing.T) {
-		statusCode, response, err := listPolicies(ts.URL, client, token)
+		statusCode, response, err := listPolicies(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't list policy: %s", err)
 		}
@@ -263,7 +263,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 			DNS:    DNS,
 		}
 
-		statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
+		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, createDataNetworkParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
@@ -287,7 +287,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 			DataNetworkName: DataNetworkName,
 		}
 
-		statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
+		statusCode, response, err := createPolicy(env.Server.URL, client, token, createPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't create policy: %s", err)
 		}
@@ -306,7 +306,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. List policies - 2", func(t *testing.T) {
-		statusCode, response, err := listPolicies(ts.URL, client, token)
+		statusCode, response, err := listPolicies(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't list policy: %s", err)
 		}
@@ -325,7 +325,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("5. Get policy", func(t *testing.T) {
-		statusCode, response, err := getPolicy(ts.URL, client, token, PolicyName)
+		statusCode, response, err := getPolicy(env.Server.URL, client, token, PolicyName)
 		if err != nil {
 			t.Fatalf("couldn't get policy: %s", err)
 		}
@@ -364,7 +364,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("6. Get policy - id not found", func(t *testing.T) {
-		statusCode, response, err := getPolicy(ts.URL, client, token, "policy-002")
+		statusCode, response, err := getPolicy(env.Server.URL, client, token, "policy-002")
 		if err != nil {
 			t.Fatalf("couldn't get policy: %s", err)
 		}
@@ -381,7 +381,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 	t.Run("7. Create policy - no name", func(t *testing.T) {
 		createPolicyParams := &CreatePolicyParams{}
 
-		statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
+		statusCode, response, err := createPolicy(env.Server.URL, client, token, createPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't create policy: %s", err)
 		}
@@ -405,7 +405,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 			DataNetworkName: DataNetworkName,
 		}
 
-		statusCode, response, err := editPolicy(ts.URL, client, PolicyName, token, createPolicyParams)
+		statusCode, response, err := editPolicy(env.Server.URL, client, PolicyName, token, createPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't edit policy: %s", err)
 		}
@@ -427,7 +427,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 			PolicyName:     PolicyName,
 		}
 
-		statusCode, response, err := createSubscriber(ts.URL, client, token, createSubscriberParams)
+		statusCode, response, err := createSubscriber(env.Server.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't edit policy: %s", err)
 		}
@@ -442,7 +442,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("10. Delete policy - failure", func(t *testing.T) {
-		statusCode, response, err := deletePolicy(ts.URL, client, token, PolicyName)
+		statusCode, response, err := deletePolicy(env.Server.URL, client, token, PolicyName)
 		if err != nil {
 			t.Fatalf("couldn't delete policy: %s", err)
 		}
@@ -457,7 +457,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("11. Delete subscriber", func(t *testing.T) {
-		statusCode, response, err := deleteSubscriber(ts.URL, client, token, Imsi)
+		statusCode, response, err := deleteSubscriber(env.Server.URL, client, token, Imsi)
 		if err != nil {
 			t.Fatalf("couldn't edit policy: %s", err)
 		}
@@ -472,7 +472,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("12. Delete policy - success", func(t *testing.T) {
-		statusCode, response, err := deletePolicy(ts.URL, client, token, PolicyName)
+		statusCode, response, err := deletePolicy(env.Server.URL, client, token, PolicyName)
 		if err != nil {
 			t.Fatalf("couldn't delete policy: %s", err)
 		}
@@ -487,7 +487,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("13. Delete policy - no policy", func(t *testing.T) {
-		statusCode, response, err := deletePolicy(ts.URL, client, token, PolicyName)
+		statusCode, response, err := deletePolicy(env.Server.URL, client, token, PolicyName)
 		if err != nil {
 			t.Fatalf("couldn't delete policy: %s", err)
 		}
@@ -506,15 +506,15 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -682,7 +682,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 				DataNetworkName: tt.DataNetworkName,
 			}
 
-			statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
+			statusCode, response, err := createPolicy(env.Server.URL, client, token, createPolicyParams)
 			if err != nil {
 				t.Fatalf("couldn't create policy: %s", err)
 			}
@@ -702,15 +702,15 @@ func TestCreateTooManyPolicies(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -725,7 +725,7 @@ func TestCreateTooManyPolicies(t *testing.T) {
 			DataNetworkName: "internet",
 		}
 
-		statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
+		statusCode, response, err := createPolicy(env.Server.URL, client, token, createPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't create policy: %s", err)
 		}
@@ -748,7 +748,7 @@ func TestCreateTooManyPolicies(t *testing.T) {
 		DataNetworkName: "internet",
 	}
 
-	statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
+	statusCode, response, err := createPolicy(env.Server.URL, client, token, createPolicyParams)
 	if err != nil {
 		t.Fatalf("couldn't create policy: %s", err)
 	}

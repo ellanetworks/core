@@ -219,21 +219,21 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
 	t.Run("1. List data networks - 1", func(t *testing.T) {
-		statusCode, response, err := listDataNetworks(ts.URL, client, token)
+		statusCode, response, err := listDataNetworks(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't list data networks: %s", err)
 		}
@@ -259,7 +259,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 			DNS:    DNS,
 		}
 
-		statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
+		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, createDataNetworkParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
@@ -274,7 +274,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. List data networks - 2", func(t *testing.T) {
-		statusCode, response, err := listDataNetworks(ts.URL, client, token)
+		statusCode, response, err := listDataNetworks(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't list data network: %s", err)
 		}
@@ -293,7 +293,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. Get data network", func(t *testing.T) {
-		statusCode, response, err := getDataNetwork(ts.URL, client, token, DataNetworkName)
+		statusCode, response, err := getDataNetwork(env.Server.URL, client, token, DataNetworkName)
 		if err != nil {
 			t.Fatalf("couldn't get data network: %s", err)
 		}
@@ -324,7 +324,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 	})
 
 	t.Run("6. Get data network - id not found", func(t *testing.T) {
-		statusCode, response, err := getDataNetwork(ts.URL, client, token, "data network-002")
+		statusCode, response, err := getDataNetwork(env.Server.URL, client, token, "data network-002")
 		if err != nil {
 			t.Fatalf("couldn't get data network: %s", err)
 		}
@@ -341,7 +341,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 	t.Run("7. Create data network - no name", func(t *testing.T) {
 		createDataNetworkParams := &CreateDataNetworkParams{}
 
-		statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
+		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, createDataNetworkParams)
 		if err != nil {
 			t.Fatalf("couldn't create data network: %s", err)
 		}
@@ -363,7 +363,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 			MTU:    1400,
 		}
 
-		statusCode, response, err := editDataNetwork(ts.URL, client, DataNetworkName, token, createDataNetworkParams)
+		statusCode, response, err := editDataNetwork(env.Server.URL, client, DataNetworkName, token, createDataNetworkParams)
 		if err != nil {
 			t.Fatalf("couldn't edit data network: %s", err)
 		}
@@ -387,7 +387,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 			DataNetworkName: DataNetworkName,
 		}
 
-		statusCode, response, err := createPolicy(ts.URL, client, token, createPolicyParams)
+		statusCode, response, err := createPolicy(env.Server.URL, client, token, createPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't edit data network: %s", err)
 		}
@@ -402,7 +402,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 	})
 
 	t.Run("10. Delete data network - failure because data network has policies", func(t *testing.T) {
-		statusCode, response, err := deleteDataNetwork(ts.URL, client, token, DataNetworkName)
+		statusCode, response, err := deleteDataNetwork(env.Server.URL, client, token, DataNetworkName)
 		if err != nil {
 			t.Fatalf("couldn't delete data network: %s", err)
 		}
@@ -417,7 +417,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 	})
 
 	t.Run("11. Delete policy", func(t *testing.T) {
-		statusCode, response, err := deletePolicy(ts.URL, client, token, "whatever")
+		statusCode, response, err := deletePolicy(env.Server.URL, client, token, "whatever")
 		if err != nil {
 			t.Fatalf("couldn't delete policy: %s", err)
 		}
@@ -432,7 +432,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 	})
 
 	t.Run("12. Delete data network - success", func(t *testing.T) {
-		statusCode, response, err := deleteDataNetwork(ts.URL, client, token, DataNetworkName)
+		statusCode, response, err := deleteDataNetwork(env.Server.URL, client, token, DataNetworkName)
 		if err != nil {
 			t.Fatalf("couldn't delete data network: %s", err)
 		}
@@ -447,7 +447,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 	})
 
 	t.Run("13. Delete data network - no data network", func(t *testing.T) {
-		statusCode, response, err := deleteDataNetwork(ts.URL, client, token, DataNetworkName)
+		statusCode, response, err := deleteDataNetwork(env.Server.URL, client, token, DataNetworkName)
 		if err != nil {
 			t.Fatalf("couldn't delete data network: %s", err)
 		}
@@ -466,15 +466,15 @@ func TestEditInexistentDataNetwork(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -486,7 +486,7 @@ func TestEditInexistentDataNetwork(t *testing.T) {
 		MTU:    MTU,
 	}
 
-	statusCode, response, err := editDataNetwork(ts.URL, client, "inexistent-dn", token, editDataNetworkParams)
+	statusCode, response, err := editDataNetwork(env.Server.URL, client, "inexistent-dn", token, editDataNetworkParams)
 	if err != nil {
 		t.Fatalf("couldn't edit data network: %s", err)
 	}
@@ -504,15 +504,15 @@ func TestCreateDataNetworkInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -615,7 +615,7 @@ func TestCreateDataNetworkInvalidInput(t *testing.T) {
 				MTU:    tt.mtu,
 			}
 
-			statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
+			statusCode, response, err := createDataNetwork(env.Server.URL, client, token, createDataNetworkParams)
 			if err != nil {
 				t.Fatalf("couldn't create data network: %s", err)
 			}
@@ -635,15 +635,15 @@ func TestCreateTooManyDataNetworks(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -656,7 +656,7 @@ func TestCreateTooManyDataNetworks(t *testing.T) {
 			MTU:    MTU,
 		}
 
-		statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
+		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, createDataNetworkParams)
 		if err != nil {
 			t.Fatalf("couldn't create data network: %s", err)
 		}
@@ -677,7 +677,7 @@ func TestCreateTooManyDataNetworks(t *testing.T) {
 		MTU:    MTU,
 	}
 
-	statusCode, response, err := createDataNetwork(ts.URL, client, token, createDataNetworkParams)
+	statusCode, response, err := createDataNetwork(env.Server.URL, client, token, createDataNetworkParams)
 	if err != nil {
 		t.Fatalf("couldn't create data network: %s", err)
 	}

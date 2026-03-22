@@ -5,6 +5,7 @@ package smf_test
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"net"
 	"os"
@@ -15,9 +16,11 @@ import (
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/upf/core"
+	"github.com/free5gc/aper"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
+	"github.com/free5gc/ngap/ngapType"
 )
 
 func TestMain(m *testing.M) {
@@ -1132,5 +1135,184 @@ func TestIncrementDailyUsage_DelegatesToStore(t *testing.T) {
 
 	if store.usageLog[0].downlinkBytes != 2000 {
 		t.Fatalf("expected 2000 downlink bytes, got %d", store.usageLog[0].downlinkBytes)
+	}
+}
+
+// ===========================
+// NGAP N2 payload builders for happy-path tests
+// ===========================
+
+// buildPDUSessionResourceSetupResponseTransfer builds an APER-encoded
+// PDUSessionResourceSetupResponseTransfer with the given gNB DL GTP tunnel info.
+func buildPDUSessionResourceSetupResponseTransfer(teid uint32, ip net.IP) ([]byte, error) {
+	transfer := ngapType.PDUSessionResourceSetupResponseTransfer{}
+
+	transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
+	transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel = &ngapType.GTPTunnel{}
+
+	teidBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(teidBytes, teid)
+	transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel.GTPTEID.Value = teidBytes
+	transfer.DLQosFlowPerTNLInformation.UPTransportLayerInformation.GTPTunnel.TransportLayerAddress.Value = aper.BitString{
+		Bytes:     ip.To4(),
+		BitLength: 32,
+	}
+
+	transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList.List = append(
+		transfer.DLQosFlowPerTNLInformation.AssociatedQosFlowList.List,
+		ngapType.AssociatedQosFlowItem{
+			QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: 1},
+		},
+	)
+
+	return aper.MarshalWithParams(transfer, "valueExt")
+}
+
+// buildPathSwitchRequestTransfer builds an APER-encoded PathSwitchRequestTransfer
+// with the given target gNB DL GTP tunnel info.
+func buildPathSwitchRequestTransfer(teid uint32, ip net.IP) ([]byte, error) {
+	transfer := ngapType.PathSwitchRequestTransfer{}
+
+	transfer.DLNGUUPTNLInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
+	transfer.DLNGUUPTNLInformation.GTPTunnel = new(ngapType.GTPTunnel)
+
+	teidBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(teidBytes, teid)
+	transfer.DLNGUUPTNLInformation.GTPTunnel.GTPTEID.Value = teidBytes
+	transfer.DLNGUUPTNLInformation.GTPTunnel.TransportLayerAddress.Value = aper.BitString{
+		Bytes:     ip.To4(),
+		BitLength: 32,
+	}
+
+	transfer.QosFlowAcceptedList.List = append(transfer.QosFlowAcceptedList.List,
+		ngapType.QosFlowAcceptedItem{
+			QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: 1},
+		},
+	)
+
+	return aper.MarshalWithParams(transfer, "valueExt")
+}
+
+// ===========================
+// UpdateSmContextN2InfoPduResSetupRsp happy-path
+// ===========================
+
+func TestUpdateSmContextN2InfoPduResSetupRsp_HappyPath(t *testing.T) {
+	store, upf, amfCb := defaultFakes()
+	s := newTestSMF(store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	// Build N2 payload: gNB reports its DL tunnel endpoint.
+	gnbIP := net.ParseIP("10.0.0.200").To4()
+	gnbTEID := uint32(7000)
+
+	n2Data, err := buildPDUSessionResourceSetupResponseTransfer(gnbTEID, gnbIP)
+	if err != nil {
+		t.Fatalf("build N2 payload: %v", err)
+	}
+
+	err = s.UpdateSmContextN2InfoPduResSetupRsp(ctx, ref, n2Data)
+	if err != nil {
+		t.Fatalf("UpdateSmContextN2InfoPduResSetupRsp: %v", err)
+	}
+
+	// Verify the session's ANInformation was updated.
+	if !smCtx.Tunnel.ANInformation.IPAddress.Equal(gnbIP) {
+		t.Fatalf("expected AN IP %s, got %s", gnbIP, smCtx.Tunnel.ANInformation.IPAddress)
+	}
+
+	if smCtx.Tunnel.ANInformation.TEID != gnbTEID {
+		t.Fatalf("expected AN TEID %d, got %d", gnbTEID, smCtx.Tunnel.ANInformation.TEID)
+	}
+
+	// Verify DL FAR was updated with the gNB's outer header creation.
+	dlFAR := smCtx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR
+	if dlFAR.ForwardingParameters == nil || dlFAR.ForwardingParameters.OuterHeaderCreation == nil {
+		t.Fatal("expected DL FAR outer header creation to be set")
+	}
+
+	if dlFAR.ForwardingParameters.OuterHeaderCreation.TeID != gnbTEID {
+		t.Fatalf("expected DL FAR TEID %d, got %d", gnbTEID, dlFAR.ForwardingParameters.OuterHeaderCreation.TeID)
+	}
+
+	if !dlFAR.ForwardingParameters.OuterHeaderCreation.IPv4Address.Equal(gnbIP) {
+		t.Fatalf("expected DL FAR IP %s, got %s", gnbIP, dlFAR.ForwardingParameters.OuterHeaderCreation.IPv4Address)
+	}
+
+	// Verify a PFCP modification was sent.
+	upf.mu.Lock()
+	defer upf.mu.Unlock()
+
+	if len(upf.modifyCalls) != 1 {
+		t.Fatalf("expected 1 PFCP modify call, got %d", len(upf.modifyCalls))
+	}
+}
+
+// ===========================
+// UpdateSmContextXnHandoverPathSwitchReq happy-path
+// ===========================
+
+func TestUpdateSmContextXnHandoverPathSwitchReq_HappyPath(t *testing.T) {
+	store, upf, amfCb := defaultFakes()
+	s := newTestSMF(store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	// Build N2 payload: target gNB reports its DL tunnel endpoint.
+	targetGnbIP := net.ParseIP("10.0.0.201").To4()
+	targetTEID := uint32(8000)
+
+	n2Data, err := buildPathSwitchRequestTransfer(targetTEID, targetGnbIP)
+	if err != nil {
+		t.Fatalf("build N2 payload: %v", err)
+	}
+
+	n2Rsp, err := s.UpdateSmContextXnHandoverPathSwitchReq(ctx, ref, n2Data)
+	if err != nil {
+		t.Fatalf("UpdateSmContextXnHandoverPathSwitchReq: %v", err)
+	}
+
+	// Verify the N2 response (PathSwitchRequestAcknowledgeTransfer) is non-nil.
+	if n2Rsp == nil {
+		t.Fatal("expected non-nil N2 response")
+	}
+
+	// Verify the session's ANInformation was updated to the target gNB.
+	if !smCtx.Tunnel.ANInformation.IPAddress.Equal(targetGnbIP) {
+		t.Fatalf("expected AN IP %s, got %s", targetGnbIP, smCtx.Tunnel.ANInformation.IPAddress)
+	}
+
+	if smCtx.Tunnel.ANInformation.TEID != targetTEID {
+		t.Fatalf("expected AN TEID %d, got %d", targetTEID, smCtx.Tunnel.ANInformation.TEID)
+	}
+
+	// Verify DL FAR was updated to forward to the target gNB.
+	dlFAR := smCtx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR
+	if dlFAR.ForwardingParameters == nil || dlFAR.ForwardingParameters.OuterHeaderCreation == nil {
+		t.Fatal("expected DL FAR outer header creation to be set")
+	}
+
+	if dlFAR.ForwardingParameters.OuterHeaderCreation.TeID != targetTEID {
+		t.Fatalf("expected DL FAR TEID %d, got %d", targetTEID, dlFAR.ForwardingParameters.OuterHeaderCreation.TeID)
+	}
+
+	if !dlFAR.ForwardingParameters.OuterHeaderCreation.IPv4Address.Equal(targetGnbIP) {
+		t.Fatalf("expected DL FAR IP %s, got %s", targetGnbIP, dlFAR.ForwardingParameters.OuterHeaderCreation.IPv4Address)
+	}
+
+	// Verify SNDEM flag was set for path switch.
+	if dlFAR.ForwardingParameters.PFCPSMReqFlags == nil || !dlFAR.ForwardingParameters.PFCPSMReqFlags.Sndem {
+		t.Fatal("expected PFCPSMReqFlags.Sndem to be set after path switch")
+	}
+
+	// Verify a PFCP modification was sent.
+	upf.mu.Lock()
+	defer upf.mu.Unlock()
+
+	if len(upf.modifyCalls) != 1 {
+		t.Fatalf("expected 1 PFCP modify call, got %d", len(upf.modifyCalls))
 	}
 }

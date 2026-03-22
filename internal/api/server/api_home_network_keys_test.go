@@ -94,15 +94,15 @@ func TestCreateHomeNetworkKey_ProfileA(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't initialize: %s", err)
 	}
@@ -113,7 +113,7 @@ func TestCreateHomeNetworkKey_ProfileA(t *testing.T) {
 		PrivateKey:    "5122250214c33e723a5dd523fc145fc05122250214c33e723a5dd523fc145fc0",
 	}
 
-	statusCode, resp, err := createHomeNetworkKey(ts.URL, client, token, params)
+	statusCode, resp, err := createHomeNetworkKey(env.Server.URL, client, token, params)
 	if err != nil {
 		t.Fatalf("create failed: %s", err)
 	}
@@ -123,7 +123,7 @@ func TestCreateHomeNetworkKey_ProfileA(t *testing.T) {
 	}
 
 	// Verify it's listed.
-	statusCode, opResp, err := getOperator(ts.URL, client, token)
+	statusCode, opResp, err := getOperator(env.Server.URL, client, token)
 	if err != nil {
 		t.Fatalf("get operator failed: %s", err)
 	}
@@ -141,15 +141,15 @@ func TestCreateHomeNetworkKey_ProfileB(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't initialize: %s", err)
 	}
@@ -161,7 +161,7 @@ func TestCreateHomeNetworkKey_ProfileB(t *testing.T) {
 		PrivateKey:    "f1ab1074477ebcce59b97460c83b4071db578ffab54ee4fbc76aeca38e4b7b01",
 	}
 
-	statusCode, resp, err := createHomeNetworkKey(ts.URL, client, token, params)
+	statusCode, resp, err := createHomeNetworkKey(env.Server.URL, client, token, params)
 	if err != nil {
 		t.Fatalf("create failed: %s", err)
 	}
@@ -171,7 +171,7 @@ func TestCreateHomeNetworkKey_ProfileB(t *testing.T) {
 	}
 
 	// Verify the public key is compressed (66 hex chars = 33 bytes).
-	statusCode, opResp, err := getOperator(ts.URL, client, token)
+	statusCode, opResp, err := getOperator(env.Server.URL, client, token)
 	if err != nil {
 		t.Fatalf("get operator failed: %s", err)
 	}
@@ -193,15 +193,15 @@ func TestCreateHomeNetworkKey_InvalidScheme(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't initialize: %s", err)
 	}
@@ -212,7 +212,7 @@ func TestCreateHomeNetworkKey_InvalidScheme(t *testing.T) {
 		PrivateKey:    "5122250214c33e723a5dd523fc145fc05122250214c33e723a5dd523fc145fc0",
 	}
 
-	statusCode, _, err := createHomeNetworkKey(ts.URL, client, token, params)
+	statusCode, _, err := createHomeNetworkKey(env.Server.URL, client, token, params)
 	if err != nil {
 		t.Fatalf("request failed: %s", err)
 	}
@@ -226,15 +226,15 @@ func TestCreateHomeNetworkKey_InvalidPrivateKey(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't initialize: %s", err)
 	}
@@ -245,7 +245,7 @@ func TestCreateHomeNetworkKey_InvalidPrivateKey(t *testing.T) {
 		PrivateKey:    "invalidhex",
 	}
 
-	statusCode, _, err := createHomeNetworkKey(ts.URL, client, token, params)
+	statusCode, _, err := createHomeNetworkKey(env.Server.URL, client, token, params)
 	if err != nil {
 		t.Fatalf("request failed: %s", err)
 	}
@@ -259,15 +259,15 @@ func TestCreateHomeNetworkKey_Duplicate(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't initialize: %s", err)
 	}
@@ -279,7 +279,7 @@ func TestCreateHomeNetworkKey_Duplicate(t *testing.T) {
 		PrivateKey:    "5122250214c33e723a5dd523fc145fc05122250214c33e723a5dd523fc145fc0",
 	}
 
-	statusCode, _, err := createHomeNetworkKey(ts.URL, client, token, params)
+	statusCode, _, err := createHomeNetworkKey(env.Server.URL, client, token, params)
 	if err != nil {
 		t.Fatalf("request failed: %s", err)
 	}
@@ -293,15 +293,15 @@ func TestDeleteHomeNetworkKey(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't initialize: %s", err)
 	}
@@ -313,7 +313,7 @@ func TestDeleteHomeNetworkKey(t *testing.T) {
 		PrivateKey:    "5122250214c33e723a5dd523fc145fc05122250214c33e723a5dd523fc145fc0",
 	}
 
-	statusCode, _, err := createHomeNetworkKey(ts.URL, client, token, params)
+	statusCode, _, err := createHomeNetworkKey(env.Server.URL, client, token, params)
 	if err != nil {
 		t.Fatalf("create failed: %s", err)
 	}
@@ -323,7 +323,7 @@ func TestDeleteHomeNetworkKey(t *testing.T) {
 	}
 
 	// List to find the ID.
-	statusCode, opResp, err := getOperator(ts.URL, client, token)
+	statusCode, opResp, err := getOperator(env.Server.URL, client, token)
 	if err != nil {
 		t.Fatalf("get operator failed: %s", err)
 	}
@@ -346,7 +346,7 @@ func TestDeleteHomeNetworkKey(t *testing.T) {
 		t.Fatal("couldn't find key with identifier 1")
 	}
 
-	statusCode, _, err = deleteHomeNetworkKey(ts.URL, client, token, keyID)
+	statusCode, _, err = deleteHomeNetworkKey(env.Server.URL, client, token, keyID)
 	if err != nil {
 		t.Fatalf("delete failed: %s", err)
 	}
@@ -356,7 +356,7 @@ func TestDeleteHomeNetworkKey(t *testing.T) {
 	}
 
 	// Verify deleted.
-	statusCode, opResp2, err := getOperator(ts.URL, client, token)
+	statusCode, opResp2, err := getOperator(env.Server.URL, client, token)
 	if err != nil {
 		t.Fatalf("get operator failed: %s", err)
 	}
@@ -372,20 +372,20 @@ func TestDeleteHomeNetworkKey_NotFound(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't initialize: %s", err)
 	}
 
-	statusCode, _, err := deleteHomeNetworkKey(ts.URL, client, token, 9999)
+	statusCode, _, err := deleteHomeNetworkKey(env.Server.URL, client, token, 9999)
 	if err != nil {
 		t.Fatalf("request failed: %s", err)
 	}
