@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -53,7 +53,7 @@ func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage i
 		fmt.Sprintf("%s %s (paged)", "SELECT", SubscribersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", SubscribersTableName),
 			attribute.Int("page", page),
@@ -111,7 +111,7 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 		fmt.Sprintf("%s %s", "SELECT", SubscribersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", SubscribersTableName),
 		),
@@ -149,7 +149,7 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 		fmt.Sprintf("%s %s", "INSERT", SubscribersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", SubscribersTableName),
 		),
@@ -187,7 +187,7 @@ func (db *Database) UpdateSubscriberPolicy(ctx context.Context, subscriber *Subs
 		fmt.Sprintf("%s %s", "UPDATE", SubscribersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
 			attribute.String("db.collection", SubscribersTableName),
 		),
@@ -235,7 +235,7 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 		fmt.Sprintf("%s %s (sequence number)", "UPDATE", SubscribersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
 			attribute.String("db.collection", SubscribersTableName),
 		),
@@ -288,7 +288,7 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 		fmt.Sprintf("%s %s", "DELETE", SubscribersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", SubscribersTableName),
 		),
@@ -336,7 +336,7 @@ func (db *Database) SubscribersInPolicy(ctx context.Context, name string) (bool,
 		"SubscribersInPolicy",
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 		),
 	)
 	defer span.End()
@@ -375,7 +375,7 @@ func (db *Database) PoliciesInDataNetwork(ctx context.Context, name string) (boo
 		"PoliciesInDataNetwork",
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 		),
 	)
 	defer span.End()
@@ -414,7 +414,7 @@ func (db *Database) AllocateIP(ctx context.Context, imsi string) (net.IP, error)
 		"AllocateIP",
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 		),
 	)
 	defer span.End()
@@ -490,7 +490,7 @@ func (db *Database) ReleaseIP(ctx context.Context, imsi string) error {
 		"ReleaseIP",
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 		),
 	)
 	defer span.End()
@@ -534,7 +534,7 @@ func (db *Database) ReleaseAllIPs(ctx context.Context) error {
 		"ReleaseAllIPs",
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 		),
 	)
 	defer span.End()
@@ -576,7 +576,7 @@ func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
 		fmt.Sprintf("%s %s", "SELECT", SubscribersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", SubscribersTableName),
 		),
@@ -609,7 +609,7 @@ func (db *Database) CountSubscribersInPolicy(ctx context.Context, policyID int) 
 		fmt.Sprintf("%s %s (by policy)", "SELECT", SubscribersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", SubscribersTableName),
 			attribute.Int("policy_id", policyID),
@@ -645,7 +645,7 @@ func (db *Database) CountSubscribersWithIP(ctx context.Context) (int, error) {
 		fmt.Sprintf("%s %s (with IP)", "SELECT", SubscribersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", SubscribersTableName),
 		),

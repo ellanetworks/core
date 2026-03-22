@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -155,7 +155,7 @@ func (db *Database) InsertFlowReport(ctx context.Context, flowReport *dbwriter.F
 		fmt.Sprintf("%s %s", "INSERT", FlowReportsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", FlowReportsTableName),
 		),
@@ -186,7 +186,7 @@ func (db *Database) ListFlowReports(ctx context.Context, page int, perPage int, 
 		fmt.Sprintf("%s %s (paged+filtered)", "SELECT", FlowReportsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", FlowReportsTableName),
 			attribute.Int("page", page),
@@ -251,7 +251,7 @@ func (db *Database) DeleteOldFlowReports(ctx context.Context, days int) error {
 		fmt.Sprintf("%s %s (retention)", "DELETE", FlowReportsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", FlowReportsTableName),
 			attribute.Int("retention.days", days),
@@ -288,7 +288,7 @@ func (db *Database) ClearFlowReports(ctx context.Context) error {
 		fmt.Sprintf("%s %s (all)", "DELETE", FlowReportsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", FlowReportsTableName),
 		),
@@ -319,7 +319,7 @@ func (db *Database) ListFlowReportsByDay(ctx context.Context, filters *FlowRepor
 		fmt.Sprintf("%s %s (by day)", "SELECT", FlowReportsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", FlowReportsTableName),
 		),
@@ -361,7 +361,7 @@ func (db *Database) ListFlowReportsBySubscriber(ctx context.Context, filters *Fl
 		fmt.Sprintf("%s %s (by subscriber)", "SELECT", FlowReportsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", FlowReportsTableName),
 		),
@@ -404,7 +404,7 @@ func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportF
 		fmt.Sprintf("%s %s (stats)", "SELECT", FlowReportsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", FlowReportsTableName),
 		),

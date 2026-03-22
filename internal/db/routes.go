@@ -12,7 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -60,7 +60,7 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 		fmt.Sprintf("%s %s (paged)", "SELECT", RoutesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", RoutesTableName),
 			attribute.Int("page", page),
@@ -118,7 +118,7 @@ func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
 		fmt.Sprintf("%s %s", "SELECT", RoutesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", RoutesTableName),
 		),
@@ -156,7 +156,7 @@ func (t *Transaction) CreateRoute(ctx context.Context, route *Route) (int64, err
 		fmt.Sprintf("%s %s", "INSERT", RoutesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", RoutesTableName),
 		),
@@ -197,7 +197,7 @@ func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
 		fmt.Sprintf("%s %s", "DELETE", RoutesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", RoutesTableName),
 		),
@@ -229,7 +229,7 @@ func (db *Database) CountRoutes(ctx context.Context) (int, error) {
 		fmt.Sprintf("%s %s", "SELECT", RoutesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", RoutesTableName),
 		),

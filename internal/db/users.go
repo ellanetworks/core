@@ -12,7 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -50,7 +50,7 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 		fmt.Sprintf("%s %s (paged)", "SELECT", UsersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", UsersTableName),
 			attribute.Int("page", page),
@@ -109,7 +109,7 @@ func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
 		fmt.Sprintf("%s %s", "SELECT", UsersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", UsersTableName),
 		),
@@ -148,7 +148,7 @@ func (db *Database) GetUserByID(ctx context.Context, id int64) (*User, error) {
 		fmt.Sprintf("%s %s", "SELECT", UsersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", UsersTableName),
 		),
@@ -186,7 +186,7 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (int64, error) {
 		fmt.Sprintf("%s %s", "INSERT", UsersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", UsersTableName),
 		),
@@ -235,7 +235,7 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 		fmt.Sprintf("%s %s", "UPDATE", UsersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
 			attribute.String("db.collection", UsersTableName),
 		),
@@ -289,7 +289,7 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 		fmt.Sprintf("%s %s", "UPDATE", UsersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPDATE"),
 			attribute.String("db.collection", UsersTableName),
 		),
@@ -343,7 +343,7 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 		fmt.Sprintf("%s %s", "DELETE", UsersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", UsersTableName),
 		),
@@ -392,7 +392,7 @@ func (db *Database) CountUsers(ctx context.Context) (int, error) {
 		fmt.Sprintf("%s %s", "SELECT", UsersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", UsersTableName),
 		),

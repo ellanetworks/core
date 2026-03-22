@@ -7,7 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -39,7 +39,7 @@ func (db *Database) InitializeN3Settings(ctx context.Context) error {
 		fmt.Sprintf("%s %s", "INSERT", N3SettingsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", N3SettingsTableName),
 		),
@@ -71,7 +71,7 @@ func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string
 		fmt.Sprintf("%s %s", "UPSERT", N3SettingsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("UPSERT"),
 			attribute.String("db.collection", N3SettingsTableName),
 		),
@@ -104,7 +104,7 @@ func (db *Database) GetN3Settings(ctx context.Context) (*N3Settings, error) {
 		fmt.Sprintf("%s %s", "SELECT", N3SettingsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
+			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", N3SettingsTableName),
 		),
