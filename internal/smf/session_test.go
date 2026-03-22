@@ -94,6 +94,7 @@ type fakeUPF struct {
 	mu              sync.Mutex
 	establishResult *smf.PFCPEstablishmentResponse
 	lastEstablish   *smf.PFCPEstablishmentRequest
+	modifyCalls     []*smf.PFCPModificationRequest
 	deleteCalls     []deletionCall
 	err             error
 }
@@ -112,7 +113,12 @@ func (f *fakeUPF) EstablishSession(_ context.Context, req *smf.PFCPEstablishment
 	return f.establishResult, f.err
 }
 
-func (f *fakeUPF) ModifySession(_ context.Context, _ *smf.PFCPModificationRequest) error {
+func (f *fakeUPF) ModifySession(_ context.Context, req *smf.PFCPModificationRequest) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.modifyCalls = append(f.modifyCalls, req)
+
 	return f.err
 }
 
