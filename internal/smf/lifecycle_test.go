@@ -121,9 +121,9 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 	smCtx.Tunnel.ANInformation.IPAddress = net.ParseIP("10.0.0.100").To4()
 	smCtx.Tunnel.ANInformation.TEID = 6000
 
-	smCtx.PolicyData = &models.SmPolicyData{
-		Ambr:    &models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
-		QosData: &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
+	smCtx.PolicyData = &smf.Policy{
+		Ambr:    models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
+		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
 	}
 
 	return smCtx, smf.CanonicalName(supi, 1)

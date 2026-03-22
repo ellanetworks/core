@@ -35,7 +35,8 @@ type ProtocolConfigurationOptions struct {
 }
 
 func BuildGSMPDUSessionEstablishmentAccept(
-	smPolicyData *models.SmPolicyData,
+	ambr *models.Ambr,
+	qosData *models.QosData,
 	pduSessionID uint8,
 	pti uint8,
 	snssai *models.Snssai,
@@ -57,16 +58,16 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	m.SetPDUSessionType(AllowedPDUSessionType)
 	m.PDUSessionEstablishmentAccept.SetSSCMode(1)
 
-	ambr, err := modelsToSessionAMBR(smPolicyData.Ambr)
+	sessAmbr, err := modelsToSessionAMBR(ambr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert models to SessionAMBR: %v", err)
 	}
 
-	m.PDUSessionEstablishmentAccept.SessionAMBR = ambr
+	m.PDUSessionEstablishmentAccept.SessionAMBR = sessAmbr
 	m.PDUSessionEstablishmentAccept.SessionAMBR.SetLen(uint8(len(m.PDUSessionEstablishmentAccept.SessionAMBR.Octet)))
 
 	qosRules := QoSRules{
-		BuildDefaultQosRule(DefaultQosRuleID, smPolicyData.QosData.QFI),
+		BuildDefaultQosRule(DefaultQosRuleID, qosData.QFI),
 	}
 
 	qosRulesBytes, err := qosRules.MarshalBinary()
@@ -86,7 +87,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	}
 
 	// Get Authorized QoS Flow Descriptions
-	authQfd, err := BuildAuthorizedQosFlowDescription(smPolicyData.QosData)
+	authQfd, err := BuildAuthorizedQosFlowDescription(qosData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build Authorized QoS Flow Descriptions: %v", err)
 	}
