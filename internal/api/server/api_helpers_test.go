@@ -10,11 +10,13 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/supportbundle"
 )
@@ -80,8 +82,9 @@ func setupServer(filepath string) (*httptest.Server, []byte, *db.Database, error
 
 	logger.SetDb(testdb)
 
-	// Initialize SMF context
-	smf.Start(testdb)
+	// Initialize SMF context with test stubs
+	smfInstance := smf.New(&fakeSessionStore{db: testdb}, &fakeUPFClient{}, &fakeAMFCallback{})
+	smf.SetInstance(smfInstance)
 
 	jwtSecret := []byte("testsecret")
 	fakeKernel := FakeKernel{}
@@ -185,4 +188,62 @@ func createUserAndLogin(url string, token string, email string, roleID RoleID, c
 	}
 
 	return loginResp.Result.Token, nil
+}
+
+// Stub adapters for SMF initialization in tests.
+
+type fakeSessionStore struct {
+	db *db.Database
+}
+
+func (f *fakeSessionStore) AllocateIP(ctx context.Context, supi, dnn string) (net.IP, error) {
+	return f.db.AllocateIP(ctx, supi)
+}
+
+func (f *fakeSessionStore) ReleaseIP(ctx context.Context, supi string) error {
+	return f.db.ReleaseIP(ctx, supi)
+}
+
+func (f *fakeSessionStore) GetSubscriberPolicy(ctx context.Context, imsi string) (*smf.Policy, error) {
+	return nil, fmt.Errorf("not implemented in test")
+}
+
+func (f *fakeSessionStore) GetDataNetwork(ctx context.Context, snssai *models.Snssai, dnn string) (*smf.DataNetworkInfo, error) {
+	return nil, fmt.Errorf("not implemented in test")
+}
+
+func (f *fakeSessionStore) IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error {
+	return nil
+}
+
+func (f *fakeSessionStore) InsertFlowReport(ctx context.Context, report *smf.FlowReport) error {
+	return nil
+}
+
+type fakeUPFClient struct{}
+
+func (f *fakeUPFClient) EstablishSession(ctx context.Context, req *smf.PFCPEstablishmentRequest) (*smf.PFCPEstablishmentResponse, error) {
+	return nil, fmt.Errorf("not implemented in test")
+}
+
+func (f *fakeUPFClient) ModifySession(ctx context.Context, req *smf.PFCPModificationRequest) error {
+	return nil
+}
+
+func (f *fakeUPFClient) DeleteSession(ctx context.Context, localSEID, remoteSEID uint64) error {
+	return nil
+}
+
+type fakeAMFCallback struct{}
+
+func (f *fakeAMFCallback) TransferN1(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error {
+	return nil
+}
+
+func (f *fakeAMFCallback) TransferN1N2(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
+	return nil
+}
+
+func (f *fakeAMFCallback) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
+	return nil
 }

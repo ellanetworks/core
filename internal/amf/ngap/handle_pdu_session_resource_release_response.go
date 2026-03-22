@@ -5,7 +5,6 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -93,7 +92,7 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amf *amfContex
 				continue
 			}
 
-			err := pdusession.UpdateSmContextN2InfoPduResRelRsp(ctx, smContext.Ref)
+			err := amf.Smf.UpdateSmContextN2InfoPduResRelRsp(ctx, smContext.Ref)
 			if err != nil {
 				logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2InfoPduResRelRsp failed", zap.Error(err))
 				continue

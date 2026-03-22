@@ -11,7 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	smfContext "github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf"
 )
 
 const (
@@ -314,7 +314,7 @@ func mockSessionForSubscriber(imsi string, dnn string) error {
 	}
 
 	amf := amfContext.AMFSelf()
-	smf := smfContext.SMFSelf()
+	smfInstance := smf.Instance()
 
 	ue, found := amf.FindAMFUEBySupi(supi)
 	if !found {
@@ -327,9 +327,9 @@ func mockSessionForSubscriber(imsi string, dnn string) error {
 	}
 
 	pduSessionID := uint8(1)
-	smf.NewSMContext(supi, pduSessionID, dnn, nil)
+	smfInstance.NewSession(supi, pduSessionID, dnn, nil)
 
-	sessionRef := smfContext.CanonicalName(supi, pduSessionID)
+	sessionRef := smf.CanonicalName(supi, pduSessionID)
 
 	err = ue.CreateSmContext(pduSessionID, sessionRef, nil)
 	if err != nil {

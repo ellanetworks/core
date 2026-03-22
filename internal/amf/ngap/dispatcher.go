@@ -190,7 +190,7 @@ func dispatchNgapMsg(ctx context.Context, amf *amfContext.AMF, ran *amfContext.R
 		case ngapType.ProcedureCodePDUSessionResourceRelease:
 			HandlePDUSessionResourceReleaseResponse(ctx, amf, ran, pdu.SuccessfulOutcome.Value.PDUSessionResourceReleaseResponse)
 		case ngapType.ProcedureCodeInitialContextSetup:
-			HandleInitialContextSetupResponse(ctx, ran, pdu.SuccessfulOutcome.Value.InitialContextSetupResponse)
+			HandleInitialContextSetupResponse(ctx, amf, ran, pdu.SuccessfulOutcome.Value.InitialContextSetupResponse)
 		case ngapType.ProcedureCodeUEContextModification:
 			HandleUEContextModificationResponse(ctx, amf, ran, pdu.SuccessfulOutcome.Value.UEContextModificationResponse)
 		case ngapType.ProcedureCodePDUSessionResourceSetup:
@@ -211,7 +211,7 @@ func dispatchNgapMsg(ctx context.Context, amf *amfContext.AMF, ran *amfContext.R
 
 		switch unsuccessfulOutcome.ProcedureCode.Value {
 		case ngapType.ProcedureCodeInitialContextSetup:
-			HandleInitialContextSetupFailure(ctx, ran, pdu.UnsuccessfulOutcome.Value.InitialContextSetupFailure)
+			HandleInitialContextSetupFailure(ctx, amf, ran, pdu.UnsuccessfulOutcome.Value.InitialContextSetupFailure)
 		case ngapType.ProcedureCodeUEContextModification:
 			HandleUEContextModificationFailure(ctx, amf, ran, pdu.UnsuccessfulOutcome.Value.UEContextModificationFailure)
 		case ngapType.ProcedureCodeHandoverResourceAllocation:

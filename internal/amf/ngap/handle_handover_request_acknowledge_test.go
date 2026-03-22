@@ -13,7 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	smfContext "github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 )
@@ -97,10 +97,10 @@ func setupHandoverAckTestContext(t *testing.T) (*amfContext.Radio, *FakeNGAPSend
 
 	supi, _ := etsi.NewSUPIFromPrefixed(supiStr)
 
-	smfContext.InitializeSMF(nil)
+	smfInstance := smf.New(nil, nil, nil)
+	smf.SetInstance(smfInstance)
 
-	smf := smfContext.SMFSelf()
-	smCtx := smf.NewSMContext(supi, pduSessionID, dnn, &models.Snssai{Sst: 1})
+	smCtx := smfInstance.NewSession(supi, pduSessionID, dnn, &models.Snssai{Sst: 1})
 	smCtx.PolicyData = &models.SmPolicyData{
 		Ambr: &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"},
 		QosData: &models.QosData{
@@ -109,9 +109,9 @@ func setupHandoverAckTestContext(t *testing.T) (*amfContext.Radio, *FakeNGAPSend
 			Arp:    &models.Arp{PriorityLevel: 8},
 		},
 	}
-	smCtx.Tunnel = &smfContext.UPTunnel{
-		DataPath: &smfContext.DataPath{
-			UpLinkTunnel: &smfContext.GTPTunnel{
+	smCtx.Tunnel = &smf.UPTunnel{
+		DataPath: &smf.DataPath{
+			UpLinkTunnel: &smf.GTPTunnel{
 				TEID: 1234,
 				N3IP: net.ParseIP("10.0.0.1").To4(),
 			},
@@ -122,7 +122,7 @@ func setupHandoverAckTestContext(t *testing.T) (*amfContext.Radio, *FakeNGAPSend
 	amfUe.Supi = supi
 	amfUe.Log = logger.AmfLog
 	amfUe.SmContextList[pduSessionID] = &amfContext.SmContext{
-		Ref:    smfContext.CanonicalName(supi, pduSessionID),
+		Ref:    smf.CanonicalName(supi, pduSessionID),
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
@@ -168,6 +168,7 @@ func setupHandoverAckTestContext(t *testing.T) (*amfContext.Radio, *FakeNGAPSend
 			new(sctp.SCTPConn): sourceRan,
 			new(sctp.SCTPConn): targetRan,
 		},
+		Smf: &FakeSmfSbi{},
 	}
 
 	return targetRan, sourceNGAPSender, amf

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -22,8 +23,6 @@ import (
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/sessions"
 	"github.com/ellanetworks/core/internal/smf"
-	"github.com/ellanetworks/core/internal/smf/pdusession"
-	smf_pfcp "github.com/ellanetworks/core/internal/smf/pfcp"
 	"github.com/ellanetworks/core/internal/supportbundle"
 	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/internal/upf"
@@ -125,7 +124,20 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		logger.EllaLog.Debug("Using N3 external address from N3 settings", zap.String("n3_external_address", advertisedN3Address))
 	}
 
-	pfcp_dispatcher.Dispatcher = pfcp_dispatcher.NewPfcpDispatcher(smf_pfcp.SmfPfcpHandler{}, upf_pfcp.UpfPfcpHandler{})
+	// Create SMF with dependency-injected adapters.
+	smfStore := &smfDBAdapter{db: dbInstance}
+	smfAMF := &smfAMFAdapter{}
+	smfUPF := &smfUPFAdapter{
+		dispatcher: &pfcp_dispatcher.Dispatcher,
+		nodeID:     net.ParseIP(n3Address),
+	}
+	smfInstance := smf.New(smfStore, smfUPF, smfAMF, smf.WithNodeID(net.ParseIP(n3Address)))
+	smf.SetInstance(smfInstance)
+
+	go smfInstance.Run(ctx)
+
+	// The SMF instance implements pfcp_dispatcher.SMF (HandlePfcpSessionReportRequest, SendFlowReport).
+	pfcp_dispatcher.Dispatcher = pfcp_dispatcher.NewPfcpDispatcher(smfInstance, upf_pfcp.UpfPfcpHandler{})
 
 	upfInstance, err := upf.Start(ctx, cfg.Interfaces.N3, n3Address, advertisedN3Address, cfg.Interfaces.N6, cfg.XDP.AttachMode, isNATEnabled, isFlowAccountingEnabled)
 	if err != nil {
@@ -176,8 +188,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't start API: %w", err)
 	}
 
-	smf.Start(dbInstance)
-
 	ausfStore := &ausfDBAdapter{db: dbInstance}
 	keyResolver := func(scheme string, keyID int) (string, error) {
 		key, err := dbInstance.GetHomeNetworkKeyBySchemeAndIdentifier(ctx, scheme, keyID)
@@ -194,7 +204,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	amfSelf := amfcontext.AMFSelf()
 	amfSelf.Ausf = ausfInstance
 
-	sctpServer, err := amf.Start(ctx, dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port, &pdusession.EllaSmfSbi{})
+	sctpServer, err := amf.Start(ctx, dbInstance, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port, smfInstance)
 	if err != nil {
 		return fmt.Errorf("couldn't start AMF: %w", err)
 	}

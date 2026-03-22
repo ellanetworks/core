@@ -2,14 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2024 Canonical Ltd.
 
-package pfcp_test
+package smf_test
 
 import (
 	"net"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/smf/context"
-	"github.com/ellanetworks/core/internal/smf/pfcp"
+	"github.com/ellanetworks/core/internal/smf"
 	"github.com/wmnsk/go-pfcp/ie"
 	pfcp_message "github.com/wmnsk/go-pfcp/message"
 )
@@ -60,32 +59,32 @@ func outerHeaderCreationSet(farIEs []*ie.IE, expectedIPv4Address string) bool {
 }
 
 func TestBuildPfcpSessionEstablishmentRequest(t *testing.T) {
-	pdrList := []*context.PDR{
+	pdrList := []*smf.PDR{
 		{
-			OuterHeaderRemoval: &context.OuterHeaderRemoval{},
+			OuterHeaderRemoval: &smf.OuterHeaderRemoval{},
 			PDRID:              1,
-			FAR:                &context.FAR{},
-			PDI: context.PDI{
-				LocalFTeID:      &context.FTEID{},
-				UEIPAddress:     &context.UEIPAddress{},
+			FAR:                &smf.FAR{},
+			PDI: smf.PDI{
+				LocalFTeID:      &smf.FTEID{},
+				UEIPAddress:     &smf.UEIPAddress{},
 				NetworkInstance: "internet",
-				SourceInterface: context.SourceInterface{
+				SourceInterface: smf.SourceInterface{
 					InterfaceValue: 0x11,
 				},
 			},
 		},
 	}
-	farList := []*context.FAR{}
-	qerList := []*context.QER{}
-	urrList := []*context.URR{}
+	farList := []*smf.FAR{}
+	qerList := []*smf.QER{}
+	urrList := []*smf.URR{}
 
-	msg, err := pfcp.BuildPfcpSessionEstablishmentRequest(43, cpNodeID, net.ParseIP(cpNodeID), 1, pdrList, farList, qerList, urrList, "")
+	msg, err := smf.BuildPfcpSessionEstablishmentRequest(43, cpNodeID, net.ParseIP(cpNodeID), 1, pdrList, farList, qerList, urrList, "")
 	if err != nil {
 		t.Fatalf("error building PFCP session establishment request: %v", err)
 	}
 
 	if msg.MessageTypeName() != "Session Establishment Request" {
-		t.Errorf("expected message type to be 'ban', got %v", msg.MessageTypeName())
+		t.Errorf("expected message type to be 'Session Establishment Request', got %v", msg.MessageTypeName())
 	}
 
 	buf := make([]byte, msg.MarshalLen())
@@ -125,25 +124,25 @@ func TestBuildPfcpSessionEstablishmentRequest(t *testing.T) {
 }
 
 func TestBuildPfcpSessionModificationRequest(t *testing.T) {
-	pdrList := []*context.PDR{
+	pdrList := []*smf.PDR{
 		{
-			OuterHeaderRemoval: &context.OuterHeaderRemoval{},
+			OuterHeaderRemoval: &smf.OuterHeaderRemoval{},
 			PDRID:              1,
-			FAR:                &context.FAR{},
-			PDI: context.PDI{
-				LocalFTeID:      &context.FTEID{},
-				UEIPAddress:     &context.UEIPAddress{},
+			FAR:                &smf.FAR{},
+			PDI: smf.PDI{
+				LocalFTeID:      &smf.FTEID{},
+				UEIPAddress:     &smf.UEIPAddress{},
 				NetworkInstance: "internet",
-				SourceInterface: context.SourceInterface{
+				SourceInterface: smf.SourceInterface{
 					InterfaceValue: 0x11,
 				},
 			},
 		},
 	}
-	farList := []*context.FAR{
+	farList := []*smf.FAR{
 		{
-			ForwardingParameters: &context.ForwardingParameters{
-				OuterHeaderCreation: &context.OuterHeaderCreation{
+			ForwardingParameters: &smf.ForwardingParameters{
+				OuterHeaderCreation: &smf.OuterHeaderCreation{
 					IPv4Address:                    net.ParseIP("1.2.3.4"),
 					IPv6Address:                    net.ParseIP(""),
 					TeID:                           1,
@@ -151,20 +150,20 @@ func TestBuildPfcpSessionModificationRequest(t *testing.T) {
 					OuterHeaderCreationDescription: 256,
 				},
 			},
-			State:       context.RuleUpdate,
+			State:       smf.RuleUpdate,
 			FARID:       1,
-			ApplyAction: context.ApplyAction{},
+			ApplyAction: smf.ApplyAction{},
 		},
 	}
-	qerList := []*context.QER{}
+	qerList := []*smf.QER{}
 
-	msg, err := pfcp.BuildPfcpSessionModificationRequest(64, 1, 2, net.ParseIP("2.3.4.5"), pdrList, farList, qerList)
+	msg, err := smf.BuildPfcpSessionModificationRequest(64, 1, 2, net.ParseIP("2.3.4.5"), pdrList, farList, qerList)
 	if err != nil {
 		t.Fatalf("error building PFCP session modification request: %v", err)
 	}
 
 	if msg.MessageTypeName() != "Session Modification Request" {
-		t.Errorf("expected message type to be 'ban', got %v", msg.MessageTypeName())
+		t.Errorf("expected message type to be 'Session Modification Request', got %v", msg.MessageTypeName())
 	}
 
 	buf := make([]byte, msg.MarshalLen())
@@ -195,38 +194,38 @@ func TestBuildPfcpSessionModificationRequest(t *testing.T) {
 }
 
 func TestBuildPfcpSessionModificationRequestNoOuterHeader(t *testing.T) {
-	pdrList := []*context.PDR{
+	pdrList := []*smf.PDR{
 		{
-			OuterHeaderRemoval: &context.OuterHeaderRemoval{},
+			OuterHeaderRemoval: &smf.OuterHeaderRemoval{},
 			PDRID:              1,
-			FAR:                &context.FAR{},
-			PDI: context.PDI{
-				LocalFTeID:      &context.FTEID{},
-				UEIPAddress:     &context.UEIPAddress{},
+			FAR:                &smf.FAR{},
+			PDI: smf.PDI{
+				LocalFTeID:      &smf.FTEID{},
+				UEIPAddress:     &smf.UEIPAddress{},
 				NetworkInstance: "internet",
-				SourceInterface: context.SourceInterface{
+				SourceInterface: smf.SourceInterface{
 					InterfaceValue: 0x11,
 				},
 			},
 		},
 	}
-	farList := []*context.FAR{
+	farList := []*smf.FAR{
 		{
-			ForwardingParameters: &context.ForwardingParameters{},
-			State:                context.RuleUpdate,
+			ForwardingParameters: &smf.ForwardingParameters{},
+			State:                smf.RuleUpdate,
 			FARID:                1,
-			ApplyAction:          context.ApplyAction{},
+			ApplyAction:          smf.ApplyAction{},
 		},
 	}
-	qerList := []*context.QER{}
+	qerList := []*smf.QER{}
 
-	msg, err := pfcp.BuildPfcpSessionModificationRequest(64, 1, 2, net.ParseIP("2.3.4.5"), pdrList, farList, qerList)
+	msg, err := smf.BuildPfcpSessionModificationRequest(64, 1, 2, net.ParseIP("2.3.4.5"), pdrList, farList, qerList)
 	if err != nil {
 		t.Fatalf("error building PFCP session modification request: %v", err)
 	}
 
 	if msg.MessageTypeName() != "Session Modification Request" {
-		t.Errorf("expected message type to be 'ban', got %v", msg.MessageTypeName())
+		t.Errorf("expected message type to be 'Session Modification Request', got %v", msg.MessageTypeName())
 	}
 
 	buf := make([]byte, msg.MarshalLen())
@@ -257,7 +256,7 @@ func TestBuildPfcpSessionModificationRequestNoOuterHeader(t *testing.T) {
 }
 
 func TestBuildPfcpSessionDeletionRequest(t *testing.T) {
-	msg := pfcp.BuildPfcpSessionDeletionRequest(12, 2, 3, net.ParseIP("2.2.2.2"))
+	msg := smf.BuildPfcpSessionDeletionRequest(12, 2, 3, net.ParseIP("2.2.2.2"))
 
 	if msg.MessageTypeName() != "Session Deletion Request" {
 		t.Errorf("expected message type to be 'Session Deletion Request', got %v", msg.MessageTypeName())

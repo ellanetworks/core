@@ -126,6 +126,30 @@ func (f *FakeSmfSbi) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Conte
 	return nil, nil
 }
 
+func (f *FakeSmfSbi) DeactivateSmContext(_ context.Context, _ string) error {
+	return nil
+}
+
+func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResSetupRsp(_ context.Context, _ string, _ []byte) error {
+	return nil
+}
+
+func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResSetupFail(_ string, _ []byte) error {
+	return nil
+}
+
+func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, _ string) error {
+	return nil
+}
+
+func (f *FakeSmfSbi) UpdateSmContextN2HandoverPreparing(_ string, _ []byte) ([]byte, error) {
+	return nil, nil
+}
+
+func (f *FakeSmfSbi) UpdateSmContextN2HandoverPrepared(_ string, _ []byte) ([]byte, error) {
+	return nil, nil
+}
+
 func (fdb *FakeDBInstance) GetOperator(ctx context.Context) (*db.Operator, error) {
 	return fdb.Operator, nil
 }

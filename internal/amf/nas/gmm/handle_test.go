@@ -416,6 +416,30 @@ func (s *FakeSmf) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context,
 	return s.DuplicatePDUResponse, s.DuplicatePDUError
 }
 
+func (s *FakeSmf) DeactivateSmContext(_ context.Context, _ string) error {
+	return s.Error
+}
+
+func (s *FakeSmf) UpdateSmContextN2InfoPduResSetupRsp(_ context.Context, _ string, _ []byte) error {
+	return s.Error
+}
+
+func (s *FakeSmf) UpdateSmContextN2InfoPduResSetupFail(_ string, _ []byte) error {
+	return s.Error
+}
+
+func (s *FakeSmf) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, _ string) error {
+	return s.Error
+}
+
+func (s *FakeSmf) UpdateSmContextN2HandoverPreparing(_ string, _ []byte) ([]byte, error) {
+	return nil, s.Error
+}
+
+func (s *FakeSmf) UpdateSmContextN2HandoverPrepared(_ string, _ []byte) ([]byte, error) {
+	return nil, s.Error
+}
+
 func mustTestGuti(mcc string, mnc string, amfid string, tmsi uint32) etsi.GUTI {
 	t, err := etsi.NewTMSI(tmsi)
 	if err != nil {

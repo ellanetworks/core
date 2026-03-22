@@ -35,7 +35,7 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
 
 	pco := &smfNas.ProtocolConfigurationOptions{}
 
-	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(smPolicyData, pduSessionID, pti, snssai, dnn, pco, nil, nil)
+	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(smPolicyData, pduSessionID, pti, snssai, dnn, pco, nil, 0, nil)
 	if err != nil {
 		t.Fatalf("failed to build GSM PDU Session Establishment Accept: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithoutSD(t *testing.T) {
 
 	pco := &smfNas.ProtocolConfigurationOptions{}
 
-	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(smPolicyData, pduSessionID, pti, snssai, dnn, pco, nil, nil)
+	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(smPolicyData, pduSessionID, pti, snssai, dnn, pco, nil, 0, nil)
 	if err != nil {
 		t.Fatalf("failed to build GSM PDU Session Establishment Accept: %v", err)
 	}

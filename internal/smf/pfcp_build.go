@@ -4,22 +4,21 @@
 // Copyright 2019 free5GC.org
 // SPDX-License-Identifier: Apache-2.0
 
-package pfcp
+package smf
 
 import (
 	"encoding/binary"
 	"net"
 
-	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
 )
 
-type Flag uint8
+type pfcpFlag uint8
 
 // setBit sets the bit at the given position to the specified value (true or false)
 // Positions go from 1 to 8
-func (f *Flag) setBit(position uint8, value bool) {
+func (f *pfcpFlag) setBit(position uint8, value bool) {
 	if position < 1 || position > 8 {
 		return
 	}
@@ -31,14 +30,14 @@ func (f *Flag) setBit(position uint8, value bool) {
 	}
 }
 
-func createPDIIE(pdi *context.PDI) *ie.IE {
+func createPDIIE(pdi *PDI) *ie.IE {
 	createPDIIes := make([]*ie.IE, 0)
 	createPDIIes = append(createPDIIes,
 		ie.NewSourceInterface(pdi.SourceInterface.InterfaceValue),
 	)
 
 	if pdi.LocalFTeID != nil {
-		fteidFlags := new(Flag)
+		fteidFlags := new(pfcpFlag)
 		fteidFlags.setBit(1, pdi.LocalFTeID.V4)
 		fteidFlags.setBit(2, pdi.LocalFTeID.V6)
 		fteidFlags.setBit(3, pdi.LocalFTeID.Ch)
@@ -58,7 +57,7 @@ func createPDIIE(pdi *context.PDI) *ie.IE {
 		ie.NewNetworkInstance(pdi.NetworkInstance),
 	)
 	if pdi.UEIPAddress != nil {
-		ueIPAddressflags := new(Flag)
+		ueIPAddressflags := new(pfcpFlag)
 		ueIPAddressflags.setBit(1, pdi.UEIPAddress.V6)
 		ueIPAddressflags.setBit(2, pdi.UEIPAddress.V4)
 		ueIPAddressflags.setBit(3, pdi.UEIPAddress.Sd)
@@ -79,7 +78,7 @@ func createPDIIE(pdi *context.PDI) *ie.IE {
 	return ie.NewPDI(createPDIIes...)
 }
 
-func pdrToCreatePDR(pdr *context.PDR) *ie.IE {
+func pdrToCreatePDR(pdr *PDR) *ie.IE {
 	ies := make([]*ie.IE, 0)
 	ies = append(ies, ie.NewPDRID(pdr.PDRID))
 	ies = append(ies, createPDIIE(&pdr.PDI))
@@ -103,10 +102,10 @@ func pdrToCreatePDR(pdr *context.PDR) *ie.IE {
 	return ie.NewCreatePDR(ies...)
 }
 
-func farToCreateFAR(far *context.FAR) *ie.IE {
+func farToCreateFAR(far *FAR) *ie.IE {
 	createFARies := make([]*ie.IE, 0)
 	createFARies = append(createFARies, ie.NewFARID(far.FARID))
-	applyActionflag := new(Flag)
+	applyActionflag := new(pfcpFlag)
 	applyActionflag.setBit(1, far.ApplyAction.Drop)
 	applyActionflag.setBit(2, far.ApplyAction.Forw)
 	applyActionflag.setBit(3, far.ApplyAction.Buff)
@@ -141,7 +140,7 @@ func farToCreateFAR(far *context.FAR) *ie.IE {
 	return ie.NewCreateFAR(createFARies...)
 }
 
-func qerToCreateQER(qer *context.QER) *ie.IE {
+func qerToCreateQER(qer *QER) *ie.IE {
 	createQERies := make([]*ie.IE, 0)
 
 	createQERies = append(createQERies, ie.NewQERID(qer.QERID))
@@ -157,7 +156,7 @@ func qerToCreateQER(qer *context.QER) *ie.IE {
 	return ie.NewCreateQER(createQERies...)
 }
 
-func buildReportingTriggerIE(rt *context.ReportingTriggers) *ie.IE {
+func buildReportingTriggerIE(rt *ReportingTriggers) *ie.IE {
 	b := make([]byte, 4)
 
 	var rtFlags uint32
@@ -234,7 +233,7 @@ func buildReportingTriggerIE(rt *context.ReportingTriggers) *ie.IE {
 	return ie.NewReportingTriggers(b[:3]...)
 }
 
-func urrToCreateURR(urr *context.URR) *ie.IE {
+func urrToCreateURR(urr *URR) *ie.IE {
 	return ie.NewCreateURR(
 		ie.NewURRID(urr.URRID),
 		ie.NewMeasurementMethod(boolToInt(urr.MeasurementMethods.Event), boolToInt(urr.MeasurementMethods.Volume), boolToInt(urr.MeasurementMethods.Duration)),
@@ -251,7 +250,7 @@ func boolToInt(b bool) int {
 	return 0
 }
 
-func pdrToUpdatePDR(pdr *context.PDR) *ie.IE {
+func pdrToUpdatePDR(pdr *PDR) *ie.IE {
 	updatePDRies := make([]*ie.IE, 0)
 	updatePDRies = append(updatePDRies, ie.NewPDRID(pdr.PDRID))
 	updatePDRies = append(updatePDRies, createPDIIE(&pdr.PDI))
@@ -271,11 +270,11 @@ func pdrToUpdatePDR(pdr *context.PDR) *ie.IE {
 	return ie.NewUpdatePDR(updatePDRies...)
 }
 
-func farToUpdateFAR(far *context.FAR) *ie.IE {
+func farToUpdateFAR(far *FAR) *ie.IE {
 	updateFARies := make([]*ie.IE, 0)
 	updateFARies = append(updateFARies, ie.NewFARID(far.FARID))
 
-	applyActionflag := new(Flag)
+	applyActionflag := new(pfcpFlag)
 	applyActionflag.setBit(1, far.ApplyAction.Drop)
 	applyActionflag.setBit(2, far.ApplyAction.Forw)
 	applyActionflag.setBit(3, far.ApplyAction.Buff)
@@ -301,7 +300,7 @@ func farToUpdateFAR(far *context.FAR) *ie.IE {
 		}
 
 		if far.ForwardingParameters.PFCPSMReqFlags != nil {
-			pfcpSMReqFlag := new(Flag)
+			pfcpSMReqFlag := new(pfcpFlag)
 			pfcpSMReqFlag.setBit(1, far.ForwardingParameters.PFCPSMReqFlags.Drobu)
 			pfcpSMReqFlag.setBit(2, far.ForwardingParameters.PFCPSMReqFlags.Sndem)
 			pfcpSMReqFlag.setBit(3, far.ForwardingParameters.PFCPSMReqFlags.Qaurr)
@@ -325,10 +324,10 @@ func BuildPfcpSessionEstablishmentRequest(
 	nodeID string,
 	fseidIPv4Address net.IP,
 	localSeid uint64,
-	pdrList []*context.PDR,
-	farList []*context.FAR,
-	qerList []*context.QER,
-	urrList []*context.URR,
+	pdrList []*PDR,
+	farList []*FAR,
+	qerList []*QER,
+	urrList []*URR,
 	imsi string,
 ) (*message.SessionEstablishmentRequest, error) {
 	ies := make([]*ie.IE, 0)
@@ -340,30 +339,30 @@ func BuildPfcpSessionEstablishmentRequest(
 	}
 
 	for _, pdr := range pdrList {
-		if pdr.State == context.RuleInitial {
+		if pdr.State == RuleInitial {
 			ies = append(ies, pdrToCreatePDR(pdr))
 		}
 	}
 
 	for _, far := range farList {
-		if far.State == context.RuleInitial {
+		if far.State == RuleInitial {
 			ies = append(ies, farToCreateFAR(far))
 		}
 
-		far.State = context.RuleCreate
+		far.State = RuleCreate
 	}
 
-	qerMap := make(map[uint32]*context.QER)
+	qerMap := make(map[uint32]*QER)
 	for _, qer := range qerList {
 		qerMap[qer.QERID] = qer
 	}
 
 	for _, filteredQER := range qerMap {
-		if filteredQER.State == context.RuleInitial {
+		if filteredQER.State == RuleInitial {
 			ies = append(ies, qerToCreateQER(filteredQER))
 		}
 
-		filteredQER.State = context.RuleCreate
+		filteredQER.State = RuleCreate
 	}
 
 	for _, urr := range urrList {
@@ -387,46 +386,46 @@ func BuildPfcpSessionModificationRequest(
 	localSEID uint64,
 	remoteSEID uint64,
 	fseidIPv4Address net.IP,
-	pdrList []*context.PDR,
-	farList []*context.FAR,
-	qerList []*context.QER,
+	pdrList []*PDR,
+	farList []*FAR,
+	qerList []*QER,
 ) (*message.SessionModificationRequest, error) {
 	ies := make([]*ie.IE, 0)
 	ies = append(ies, ie.NewFSEID(localSEID, fseidIPv4Address, nil))
 
 	for _, pdr := range pdrList {
 		switch pdr.State {
-		case context.RuleInitial:
+		case RuleInitial:
 			ies = append(ies, pdrToCreatePDR(pdr))
-		case context.RuleUpdate:
+		case RuleUpdate:
 			ies = append(ies, pdrToUpdatePDR(pdr))
-		case context.RuleRemove:
+		case RuleRemove:
 			ies = append(ies, ie.NewRemovePDR(ie.NewPDRID(pdr.PDRID)))
 		}
 
-		pdr.State = context.RuleCreate
+		pdr.State = RuleCreate
 	}
 
 	for _, far := range farList {
 		switch far.State {
-		case context.RuleInitial:
+		case RuleInitial:
 			ies = append(ies, farToCreateFAR(far))
-		case context.RuleUpdate:
+		case RuleUpdate:
 			ies = append(ies, farToUpdateFAR(far))
-		case context.RuleRemove:
+		case RuleRemove:
 			ies = append(ies, ie.NewRemoveFAR(ie.NewFARID(far.FARID)))
 		}
 
-		far.State = context.RuleCreate
+		far.State = RuleCreate
 	}
 
 	for _, qer := range qerList {
 		switch qer.State {
-		case context.RuleInitial:
+		case RuleInitial:
 			ies = append(ies, qerToCreateQER(qer))
 		}
 
-		qer.State = context.RuleCreate
+		qer.State = RuleCreate
 	}
 
 	return message.NewSessionModificationRequest(

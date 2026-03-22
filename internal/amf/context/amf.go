@@ -45,13 +45,19 @@ var (
 )
 
 type SmfSbi interface {
+	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, n1Msg []byte) (string, []byte, error)
 	ActivateSmContext(smContextRef string) ([]byte, error)
+	DeactivateSmContext(ctx context.Context, smContextRef string) error
 	ReleaseSmContext(ctx context.Context, smContextRef string) error
+	UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*models.UpdateSmContextResponse, error)
+	UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContextRef string, n2Data []byte) error
+	UpdateSmContextN2InfoPduResSetupFail(smContextRef string, n2Data []byte) error
+	UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRef string) error
+	UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error)
+	UpdateSmContextN2HandoverPreparing(smContextRef string, n2Data []byte) ([]byte, error)
+	UpdateSmContextN2HandoverPrepared(smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextHandoverFailed(smContextRef string, n2Data []byte) error
-	UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*models.UpdateSmContextResponse, error)
-	CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, dnn string, snssai *models.Snssai, n1Msg []byte) (string, []byte, error)
-	UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error)
 }
 
 func init() {

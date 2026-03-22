@@ -16,7 +16,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf/context"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
@@ -42,7 +41,8 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	snssai *models.Snssai,
 	dnn string,
 	pco *ProtocolConfigurationOptions,
-	dNNInfo *context.SnssaiSmfDnnInfo,
+	dns net.IP,
+	mtu uint16,
 	pduAddress net.IP,
 ) ([]byte, error) {
 	m := nas.NewMessage()
@@ -129,7 +129,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 
 		// IPv4 DNS
 		if pco.DNSIPv4Request {
-			err := protocolConfigurationOptions.AddDNSServerIPv4Address(dNNInfo.DNS)
+			err := protocolConfigurationOptions.AddDNSServerIPv4Address(dns)
 			if err != nil {
 				logger.SmfLog.Warn("Error while adding DNS IPv4 Addr", zap.Error(err), logger.PDUSessionID(pduSessionID))
 			}
@@ -142,7 +142,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 
 		// MTU
 		if pco.IPv4LinkMTURequest {
-			err := protocolConfigurationOptions.AddIPv4LinkMTU(dNNInfo.MTU)
+			err := protocolConfigurationOptions.AddIPv4LinkMTU(mtu)
 			if err != nil {
 				logger.SmfLog.Warn("Error while adding MTU", zap.Error(err), logger.PDUSessionID(pduSessionID))
 			}

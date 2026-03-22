@@ -7,7 +7,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -154,7 +153,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 					continue
 				}
 
-				err := pdusession.DeactivateSmContext(ctx, smContext.Ref)
+				err := amf.Smf.DeactivateSmContext(ctx, smContext.Ref)
 				if err != nil {
 					logger.WithTrace(ctx, ran.Log).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
 				}
@@ -164,7 +163,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amf *amfContext.AMF, ra
 			amfUe.Mutex.Lock()
 
 			for _, smContext := range amfUe.SmContextList {
-				err := pdusession.DeactivateSmContext(ctx, smContext.Ref)
+				err := amf.Smf.DeactivateSmContext(ctx, smContext.Ref)
 				if err != nil {
 					logger.WithTrace(ctx, ran.Log).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
 				}

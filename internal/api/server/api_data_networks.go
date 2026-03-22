@@ -11,7 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	smfContext "github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf"
 )
 
 type CreateDataNetworkParams struct {
@@ -77,9 +77,9 @@ func ListDataNetworks(dbInstance *db.Database) http.Handler {
 		items := make([]DataNetwork, 0, len(dbDataNetworks))
 
 		for _, dbDataNetwork := range dbDataNetworks {
-			smf := smfContext.SMFSelf()
+			smfInstance := smf.Instance()
 
-			smfSessions := smf.PDUSessionsByDNN(dbDataNetwork.Name)
+			smfSessions := smfInstance.SessionsByDNN(dbDataNetwork.Name)
 
 			items = append(items, DataNetwork{
 				Name:   dbDataNetwork.Name,
@@ -117,9 +117,9 @@ func GetDataNetwork(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		smf := smfContext.SMFSelf()
+		smfInstance := smf.Instance()
 
-		smfSessions := smf.PDUSessionsByDNN(dbDataNetwork.Name)
+		smfSessions := smfInstance.SessionsByDNN(dbDataNetwork.Name)
 
 		dataNetwork := DataNetwork{
 			Name:   dbDataNetwork.Name,
