@@ -21,6 +21,7 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"go.uber.org/zap"
@@ -49,6 +50,7 @@ type UPF struct {
 	n3Link             link.Link
 	n6Link             *link.Link
 	pfcpConn           *core.PfcpConnection
+	dispatcher         *pfcp_dispatcher.PfcpDispatcher
 	notificationReader *ringbuf.Reader
 	noNeighReader      *ringbuf.Reader
 
@@ -63,7 +65,7 @@ type UPF struct {
 	fcDone     chan struct{} // closed when reportFlows exits (all flows reported)
 }
 
-func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string, advertisedN3Address string, n6Interface config.N6Interface, xdpAttachMode string, masquerade bool, flowact bool) (*UPF, error) {
+func Start(ctx context.Context, dispatcher *pfcp_dispatcher.PfcpDispatcher, n3Interface config.N3Interface, n3Address string, advertisedN3Address string, n6Interface config.N6Interface, xdpAttachMode string, masquerade bool, flowact bool) (*UPF, error) {
 	var (
 		n3Vlan uint32
 		n6Vlan uint32
@@ -154,6 +156,7 @@ func Start(ctx context.Context, n3Interface config.N3Interface, n3Address string
 		n3Link:             n3Link,
 		n6Link:             n6Link,
 		pfcpConn:           pfcpConn,
+		dispatcher:         dispatcher,
 		notificationReader: notificationReader,
 		noNeighReader:      noNeighReader,
 		ctx:                ctx,
@@ -455,7 +458,7 @@ func (u *UPF) listenForTrafficNotifications() {
 		if !u.pfcpConn.BpfObjects.IsAlreadyNotified(event) {
 			logger.UpfLog.Debug("Notifying SMF of downlink data", logger.SEID(event.LocalSEID), logger.PDRID(uint32(event.PdrID)), logger.QFI(event.QFI))
 
-			err = core.SendPfcpSessionReportRequestForDownlinkData(u.ctx, event.LocalSEID, event.PdrID, event.QFI)
+			err = core.SendPfcpSessionReportRequestForDownlinkData(u.ctx, u.dispatcher, event.LocalSEID, event.PdrID, event.QFI)
 			if err != nil {
 				logger.UpfLog.Warn("Failed to send downlink data notification", zap.Error(err))
 			} else {
@@ -541,7 +544,7 @@ func (u *UPF) pollUsageAndResetCounters() error {
 				}
 			}
 
-			err = core.SendPfcpSessionReportRequestForUsage(u.ctx, localSeid, urrID, uvol, dvol)
+			err = core.SendPfcpSessionReportRequestForUsage(u.ctx, u.dispatcher, localSeid, urrID, uvol, dvol)
 			if err != nil {
 				logger.UpfLog.Warn("could not send PFCP session report request for usage", zap.Error(err), logger.SEID(localSeid), logger.URRID(urrID))
 				continue
@@ -691,7 +694,7 @@ func (u *UPF) collectExpiredFlows(ctx context.Context, flowch chan flowReport) {
 func (u *UPF) reportFlows(flowch chan flowReport) {
 	for f := range flowch {
 		rctx, cancel := context.WithTimeout(context.Background(), flowReportTimeout)
-		core.SendFlowReport(rctx, f.flow, f.stats)
+		core.SendFlowReport(rctx, u.dispatcher, f.flow, f.stats)
 		cancel()
 	}
 }

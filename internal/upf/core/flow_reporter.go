@@ -58,7 +58,7 @@ func u16NtoHS(n uint16) uint16 {
 // SendFlowReport converts an eBPF flow record to a FlowReportRequest and sends it to the SMF dispatcher.
 // The function is synchronous; callers should invoke it asynchronously if non-blocking behavior is desired.
 // Errors are logged but do not propagate to the caller.
-func SendFlowReport(ctx context.Context, flow ebpf.N3N6EntrypointFlow, stats ebpf.N3N6EntrypointFlowStats) {
+func SendFlowReport(ctx context.Context, dispatcher *pfcp_dispatcher.PfcpDispatcher, flow ebpf.N3N6EntrypointFlow, stats ebpf.N3N6EntrypointFlowStats) {
 	saddr := int2ip(flow.Saddr)
 	daddr := int2ip(flow.Daddr)
 	sport := u16NtoHS(flow.Sport)
@@ -90,7 +90,7 @@ func SendFlowReport(ctx context.Context, flow ebpf.N3N6EntrypointFlow, stats ebp
 	}
 
 	// Send to SMF via dispatcher
-	err := pfcp_dispatcher.Dispatcher.SMF.SendFlowReport(ctx, flowReportReq)
+	err := dispatcher.SMF.SendFlowReport(ctx, flowReportReq)
 	if err != nil {
 		logger.UpfLog.Error(
 			"failed to send flow report to SMF",

@@ -127,18 +127,22 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// Create SMF with dependency-injected adapters.
 	smfStore := &smfDBAdapter{db: dbInstance}
 	smfAMF := &smfAMFAdapter{}
-	smfUPF := &smfUPFAdapter{
-		dispatcher: &pfcp_dispatcher.Dispatcher,
-		nodeID:     net.ParseIP(n3Address),
-	}
-	smfInstance := smf.New(smfStore, smfUPF, smfAMF, smf.WithNodeID(net.ParseIP(n3Address)))
+
+	smfInstance := smf.New(smfStore, nil, smfAMF, smf.WithNodeID(net.ParseIP(n3Address)))
 
 	go smfInstance.Run(ctx)
 
 	// The SMF instance implements pfcp_dispatcher.SMF (HandlePfcpSessionReportRequest, SendFlowReport).
-	pfcp_dispatcher.Dispatcher = pfcp_dispatcher.NewPfcpDispatcher(smfInstance, upf_pfcp.UpfPfcpHandler{})
+	dispatcher := pfcp_dispatcher.NewPfcpDispatcher(smfInstance, upf_pfcp.UpfPfcpHandler{})
 
-	upfInstance, err := upf.Start(ctx, cfg.Interfaces.N3, n3Address, advertisedN3Address, cfg.Interfaces.N6, cfg.XDP.AttachMode, isNATEnabled, isFlowAccountingEnabled)
+	// Now that dispatcher is initialized, create the SMF UPF adapter with it
+	smfUPF := &smfUPFAdapter{
+		dispatcher: &dispatcher,
+		nodeID:     net.ParseIP(n3Address),
+	}
+	smfInstance.SetUPF(smfUPF)
+
+	upfInstance, err := upf.Start(ctx, &dispatcher, cfg.Interfaces.N3, n3Address, advertisedN3Address, cfg.Interfaces.N6, cfg.XDP.AttachMode, isNATEnabled, isFlowAccountingEnabled)
 	if err != nil {
 		return fmt.Errorf("couldn't start UPF: %w", err)
 	}

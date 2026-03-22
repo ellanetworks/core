@@ -60,12 +60,7 @@ func makePortUint16(port uint16) uint16 {
 func TestSendFlowReportBasic(t *testing.T) {
 	// Set up mock SMF
 	mockSMF := &MockSMF{}
-	originalDispatcher := pfcp_dispatcher.Dispatcher
-	pfcp_dispatcher.Dispatcher = pfcp_dispatcher.PfcpDispatcher{SMF: mockSMF}
-
-	defer func() {
-		pfcp_dispatcher.Dispatcher = originalDispatcher
-	}()
+	dispatcher := pfcp_dispatcher.PfcpDispatcher{SMF: mockSMF}
 
 	// Create test flow (192.168.1.100 and 8.8.8.8)
 	flow := ebpf.N3N6EntrypointFlow{
@@ -84,7 +79,7 @@ func TestSendFlowReportBasic(t *testing.T) {
 		Bytes:   500000,
 	}
 
-	core.SendFlowReport(t.Context(), flow, stats)
+	core.SendFlowReport(t.Context(), &dispatcher, flow, stats)
 
 	// Verify the report was sent
 	if mockSMF.CallCount != 1 {
@@ -131,12 +126,7 @@ func TestSendFlowReportBasic(t *testing.T) {
 
 func TestSendFlowReportMultipleCalls(t *testing.T) {
 	mockSMF := &MockSMF{}
-	originalDispatcher := pfcp_dispatcher.Dispatcher
-	pfcp_dispatcher.Dispatcher = pfcp_dispatcher.PfcpDispatcher{SMF: mockSMF}
-
-	defer func() {
-		pfcp_dispatcher.Dispatcher = originalDispatcher
-	}()
+	dispatcher := pfcp_dispatcher.PfcpDispatcher{SMF: mockSMF}
 
 	// Send multiple flow reports
 	for i := range 5 {
@@ -156,7 +146,7 @@ func TestSendFlowReportMultipleCalls(t *testing.T) {
 			Bytes:   uint64(50000 * (i + 1)),
 		}
 
-		core.SendFlowReport(t.Context(), flow, stats)
+		core.SendFlowReport(t.Context(), &dispatcher, flow, stats)
 	}
 
 	if mockSMF.CallCount != 5 {
@@ -178,12 +168,7 @@ func TestSendFlowReportDifferentProtocols(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			mockSMF := &MockSMF{}
-			originalDispatcher := pfcp_dispatcher.Dispatcher
-			pfcp_dispatcher.Dispatcher = pfcp_dispatcher.PfcpDispatcher{SMF: mockSMF}
-
-			defer func() {
-				pfcp_dispatcher.Dispatcher = originalDispatcher
-			}()
+			dispatcher := pfcp_dispatcher.PfcpDispatcher{SMF: mockSMF}
 
 			flow := ebpf.N3N6EntrypointFlow{
 				Imsi:  1019756139935,
@@ -201,7 +186,7 @@ func TestSendFlowReportDifferentProtocols(t *testing.T) {
 				Bytes:   50000,
 			}
 
-			core.SendFlowReport(t.Context(), flow, stats)
+			core.SendFlowReport(t.Context(), &dispatcher, flow, stats)
 
 			if mockSMF.LastFlowReport.Protocol != tc.protocol {
 				t.Fatalf("Expected protocol %d, got %d", tc.protocol, mockSMF.LastFlowReport.Protocol)
@@ -216,12 +201,7 @@ func TestSendFlowReportDifferentProtocols(t *testing.T) {
 
 func TestSendFlowReportTimestampFormatting(t *testing.T) {
 	mockSMF := &MockSMF{}
-	originalDispatcher := pfcp_dispatcher.Dispatcher
-	pfcp_dispatcher.Dispatcher = pfcp_dispatcher.PfcpDispatcher{SMF: mockSMF}
-
-	defer func() {
-		pfcp_dispatcher.Dispatcher = originalDispatcher
-	}()
+	dispatcher := pfcp_dispatcher.PfcpDispatcher{SMF: mockSMF}
 
 	flow := ebpf.N3N6EntrypointFlow{
 		Imsi:  1019756139935,
@@ -239,7 +219,7 @@ func TestSendFlowReportTimestampFormatting(t *testing.T) {
 		Bytes:   50000,
 	}
 
-	core.SendFlowReport(t.Context(), flow, stats)
+	core.SendFlowReport(t.Context(), &dispatcher, flow, stats)
 
 	// Verify timestamps are in RFC3339 format
 	report := mockSMF.LastFlowReport
@@ -289,12 +269,7 @@ func TestSendFlowReportIPAddressConversion(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			mockSMF := &MockSMF{}
-			originalDispatcher := pfcp_dispatcher.Dispatcher
-			pfcp_dispatcher.Dispatcher = pfcp_dispatcher.PfcpDispatcher{SMF: mockSMF}
-
-			defer func() {
-				pfcp_dispatcher.Dispatcher = originalDispatcher
-			}()
+			dispatcher := pfcp_dispatcher.PfcpDispatcher{SMF: mockSMF}
 
 			flow := ebpf.N3N6EntrypointFlow{
 				Imsi:  1019756139935,
@@ -312,7 +287,7 @@ func TestSendFlowReportIPAddressConversion(t *testing.T) {
 				Bytes:   50000,
 			}
 
-			core.SendFlowReport(t.Context(), flow, stats)
+			core.SendFlowReport(t.Context(), &dispatcher, flow, stats)
 
 			if mockSMF.LastFlowReport.SourceIP != tc.expectedSrc {
 				t.Fatalf("Expected source IP %s, got %s", tc.expectedSrc, mockSMF.LastFlowReport.SourceIP)
@@ -327,12 +302,7 @@ func TestSendFlowReportIPAddressConversion(t *testing.T) {
 
 func TestSendFlowReportImsiFormatting(t *testing.T) {
 	mockSMF := &MockSMF{}
-	originalDispatcher := pfcp_dispatcher.Dispatcher
-	pfcp_dispatcher.Dispatcher = pfcp_dispatcher.PfcpDispatcher{SMF: mockSMF}
-
-	defer func() {
-		pfcp_dispatcher.Dispatcher = originalDispatcher
-	}()
+	dispatcher := pfcp_dispatcher.PfcpDispatcher{SMF: mockSMF}
 
 	flow := ebpf.N3N6EntrypointFlow{
 		Imsi:  1019756139935,
@@ -350,7 +320,7 @@ func TestSendFlowReportImsiFormatting(t *testing.T) {
 		Bytes:   50000,
 	}
 
-	core.SendFlowReport(t.Context(), flow, stats)
+	core.SendFlowReport(t.Context(), &dispatcher, flow, stats)
 
 	// Verify IMSI is formatted as 15-digit string
 	if mockSMF.LastFlowReport.IMSI != "001019756139935" {
