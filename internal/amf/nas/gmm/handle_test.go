@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapType"
@@ -307,7 +308,7 @@ type FakeSmf struct {
 	ReleaseSmContextCalls []SmfReleaseSmContextCall
 
 	// UpdateSmContextN1Msg fields
-	UpdateN1MsgResponse *models.UpdateSmContextResponse
+	UpdateN1MsgResponse *smf.UpdateResult
 	UpdateN1MsgError    error
 	UpdateN1MsgCalls    []SmfUpdateN1MsgCall
 
@@ -387,7 +388,7 @@ func (s *FakeSmf) UpdateSmContextHandoverFailed(smContextRef string, n2Data []by
 	return s.Error
 }
 
-func (s *FakeSmf) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*models.UpdateSmContextResponse, error) {
+func (s *FakeSmf) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*smf.UpdateResult, error) {
 	s.UpdateN1MsgCalls = append(s.UpdateN1MsgCalls, SmfUpdateN1MsgCall{
 		SmContextRef: smContextRef,
 		N1Msg:        n1Msg,

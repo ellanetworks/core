@@ -40,25 +40,25 @@ func forward5GSMMessageToSMF(
 
 	var n1Msg []byte
 
-	if response.BinaryDataN1SmMessage != nil {
+	if response.N1Msg != nil {
 		ue.Log.Debug("Receive N1 SM Message from SMF")
 
-		n1Msg, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, response.BinaryDataN1SmMessage, pduSessionID, nil)
+		n1Msg, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, response.N1Msg, pduSessionID, nil)
 		if err != nil {
 			return fmt.Errorf("error building DL NAS Transport: %s", err)
 		}
 	}
 
-	if response.BinaryDataN2SmInformation != nil {
+	if response.N2Msg != nil {
 		ue.Log.Debug("Receive N2 SM Information from SMF")
 
-		if !response.N2SmInfoTypePduResRel {
+		if !response.ReleaseN2 {
 			ue.Log.Debug("AMF forward N2 SM Information to UE")
 			return nil
 		}
 
 		list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
-		send.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, response.BinaryDataN2SmInformation)
+		send.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, response.N2Msg)
 
 		err := ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, n1Msg, list)
 		if err != nil {

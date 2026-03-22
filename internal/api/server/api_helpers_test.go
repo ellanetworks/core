@@ -245,10 +245,10 @@ func (f *fakeAMFCallback) TransferN1(ctx context.Context, supi etsi.SUPI, n1Msg 
 	return nil
 }
 
-func (f *fakeAMFCallback) TransferN1N2(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
+func (f *fakeAMFCallback) TransferN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n1Msg, n2Msg []byte) error {
 	return nil
 }
 
-func (f *fakeAMFCallback) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
+func (f *fakeAMFCallback) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte) error {
 	return nil
 }

@@ -254,10 +254,19 @@ func (a *smfAMFAdapter) TransferN1(ctx context.Context, supi etsi.SUPI, n1Msg []
 	return producer.TransferN1Msg(ctx, supi, n1Msg, pduSessionID)
 }
 
-func (a *smfAMFAdapter) TransferN1N2(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
-	return producer.TransferN1N2Message(ctx, supi, req)
+func (a *smfAMFAdapter) TransferN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n1Msg, n2Msg []byte) error {
+	return producer.TransferN1N2Message(ctx, supi, models.N1N2MessageTransferRequest{
+		PduSessionID:            pduSessionID,
+		SNssai:                  snssai,
+		BinaryDataN1Message:     n1Msg,
+		BinaryDataN2Information: n2Msg,
+	})
 }
 
-func (a *smfAMFAdapter) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
-	return producer.N2MessageTransferOrPage(ctx, supi, req)
+func (a *smfAMFAdapter) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte) error {
+	return producer.N2MessageTransferOrPage(ctx, supi, models.N1N2MessageTransferRequest{
+		PduSessionID:            pduSessionID,
+		SNssai:                  snssai,
+		BinaryDataN2Information: n2Msg,
+	})
 }

@@ -68,10 +68,10 @@ type AMFCallback interface {
 	TransferN1(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error
 
 	// TransferN1N2 delivers a combined N1+N2 message.
-	TransferN1N2(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error
+	TransferN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n1Msg, n2Msg []byte) error
 
 	// N2TransferOrPage sends an N2 message to the radio, paging the UE if needed.
-	N2TransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error
+	N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte) error
 }
 
 // Policy contains the QoS parameters the SMF needs for a session.

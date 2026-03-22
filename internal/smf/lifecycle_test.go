@@ -601,12 +601,12 @@ func TestUpdateSmContextN1Msg_ReleaseRequest(t *testing.T) {
 		t.Fatal("expected non-nil response")
 	}
 
-	if rsp.BinaryDataN1SmMessage == nil {
+	if rsp.N1Msg == nil {
 		t.Fatal("expected N1 release command in response")
 	}
 
-	if !rsp.N2SmInfoTypePduResRel {
-		t.Fatal("expected N2SmInfoTypePduResRel to be true")
+	if !rsp.ReleaseN2 {
+		t.Fatal("expected ReleaseN2 to be true")
 	}
 
 	upf.mu.Lock()

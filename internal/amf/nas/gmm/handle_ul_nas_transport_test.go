@@ -8,6 +8,7 @@ import (
 
 	amfContext "github.com/ellanetworks/core/internal/amf/context"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
@@ -538,8 +539,8 @@ func TestForward5GSMMessageToSMF_N1Only_SendsDLNASTransport(t *testing.T) {
 	}
 
 	fakeSmf := &FakeSmf{
-		UpdateN1MsgResponse: &models.UpdateSmContextResponse{
-			BinaryDataN1SmMessage: []byte{0x2E, 0x01, 0x00, 0xD6, 0x24},
+		UpdateN1MsgResponse: &smf.UpdateResult{
+			N1Msg: []byte{0x2E, 0x01, 0x00, 0xD6, 0x24},
 		},
 	}
 
@@ -579,9 +580,9 @@ func TestForward5GSMMessageToSMF_N2NotPduResRel_ReturnsNil(t *testing.T) {
 	}
 
 	fakeSmf := &FakeSmf{
-		UpdateN1MsgResponse: &models.UpdateSmContextResponse{
-			BinaryDataN2SmInformation: []byte{0x01, 0x02},
-			N2SmInfoTypePduResRel:     false,
+		UpdateN1MsgResponse: &smf.UpdateResult{
+			N2Msg:     []byte{0x01, 0x02},
+			ReleaseN2: false,
 		},
 	}
 
@@ -611,9 +612,9 @@ func TestForward5GSMMessageToSMF_N2PduResRel_SendsReleaseCommand(t *testing.T) {
 	n2Data := []byte{0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00}
 
 	fakeSmf := &FakeSmf{
-		UpdateN1MsgResponse: &models.UpdateSmContextResponse{
-			BinaryDataN2SmInformation: n2Data,
-			N2SmInfoTypePduResRel:     true,
+		UpdateN1MsgResponse: &smf.UpdateResult{
+			N2Msg:     n2Data,
+			ReleaseN2: true,
 		},
 	}
 
@@ -638,10 +639,10 @@ func TestForward5GSMMessageToSMF_N1AndN2PduResRel_SendsReleaseCommandWithN1(t *t
 	n2Data := []byte{0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00}
 
 	fakeSmf := &FakeSmf{
-		UpdateN1MsgResponse: &models.UpdateSmContextResponse{
-			BinaryDataN1SmMessage:     []byte{0x2E, 0x01, 0x00, 0xD6, 0x24},
-			BinaryDataN2SmInformation: n2Data,
-			N2SmInfoTypePduResRel:     true,
+		UpdateN1MsgResponse: &smf.UpdateResult{
+			N1Msg:     []byte{0x2E, 0x01, 0x00, 0xD6, 0x24},
+			N2Msg:     n2Data,
+			ReleaseN2: true,
 		},
 	}
 

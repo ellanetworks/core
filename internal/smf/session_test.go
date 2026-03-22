@@ -146,13 +146,18 @@ type n1Call struct {
 }
 
 type n1n2Call struct {
-	supi etsi.SUPI
-	req  models.N1N2MessageTransferRequest
+	supi         etsi.SUPI
+	pduSessionID uint8
+	snssai       *models.Snssai
+	n1Msg        []byte
+	n2Msg        []byte
 }
 
 type pageCall struct {
-	supi etsi.SUPI
-	req  models.N1N2MessageTransferRequest
+	supi         etsi.SUPI
+	pduSessionID uint8
+	snssai       *models.Snssai
+	n2Msg        []byte
 }
 
 func (f *fakeAMF) TransferN1(_ context.Context, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error {
@@ -164,20 +169,20 @@ func (f *fakeAMF) TransferN1(_ context.Context, supi etsi.SUPI, n1Msg []byte, pd
 	return f.err
 }
 
-func (f *fakeAMF) TransferN1N2(_ context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
+func (f *fakeAMF) TransferN1N2(_ context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n1Msg, n2Msg []byte) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.n1n2Calls = append(f.n1n2Calls, n1n2Call{supi, req})
+	f.n1n2Calls = append(f.n1n2Calls, n1n2Call{supi, pduSessionID, snssai, n1Msg, n2Msg})
 
 	return f.err
 }
 
-func (f *fakeAMF) N2TransferOrPage(_ context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
+func (f *fakeAMF) N2TransferOrPage(_ context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.pageCalls = append(f.pageCalls, pageCall{supi, req})
+	f.pageCalls = append(f.pageCalls, pageCall{supi, pduSessionID, snssai, n2Msg})
 
 	return f.err
 }

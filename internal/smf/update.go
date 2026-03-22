@@ -11,7 +11,6 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	"github.com/free5gc/aper"
@@ -22,8 +21,15 @@ import (
 	"go.uber.org/zap"
 )
 
+// UpdateResult carries the N1/N2 messages produced by an SM context update.
+type UpdateResult struct {
+	ReleaseN2 bool   // true when N2 info signals PDU session resource release
+	N1Msg     []byte // NAS message for the UE (may be nil)
+	N2Msg     []byte // NGAP transfer for the RAN (may be nil)
+}
+
 // UpdateSmContextN1Msg handles a NAS N1 message update (e.g. PDU session release request).
-func (s *SMF) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*models.UpdateSmContextResponse, error) {
+func (s *SMF) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*UpdateResult, error) {
 	ctx, span := tracer.Start(ctx, "SMF Update SmContext N1 Msg",
 		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
 	)
@@ -55,7 +61,7 @@ func (s *SMF) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1M
 	return rsp, nil
 }
 
-func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SMContext) (*models.UpdateSmContextResponse, bool, error) {
+func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SMContext) (*UpdateResult, bool, error) {
 	if n1Msg == nil {
 		return nil, false, nil
 	}
@@ -90,10 +96,10 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 
 		sendPfcpDelete := smContext.Tunnel != nil
 
-		response := &models.UpdateSmContextResponse{
-			BinaryDataN1SmMessage:     n1SmMsg,
-			N2SmInfoTypePduResRel:     true,
-			BinaryDataN2SmInformation: n2SmMsg,
+		response := &UpdateResult{
+			N1Msg:     n1SmMsg,
+			ReleaseN2: true,
+			N2Msg:     n2SmMsg,
 		}
 
 		return response, sendPfcpDelete, nil

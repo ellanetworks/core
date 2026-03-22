@@ -350,14 +350,7 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 		return fmt.Errorf("build PDUSessionResourceSetupRequestTransfer failed: %v", err)
 	}
 
-	n1n2Request := models.N1N2MessageTransferRequest{
-		PduSessionID:            smContext.PDUSessionID,
-		SNssai:                  smContext.Snssai,
-		BinaryDataN1Message:     n1Msg,
-		BinaryDataN2Information: n2Msg,
-	}
-
-	err = s.amf.TransferN1N2(ctx, smContext.Supi, n1n2Request)
+	err = s.amf.TransferN1N2(ctx, smContext.Supi, smContext.PDUSessionID, smContext.Snssai, n1Msg, n2Msg)
 	if err != nil {
 		return fmt.Errorf("failed to send n1 n2 transfer request: %v", err)
 	}

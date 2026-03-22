@@ -50,7 +50,7 @@ type SmfSbi interface {
 	ActivateSmContext(smContextRef string) ([]byte, error)
 	DeactivateSmContext(ctx context.Context, smContextRef string) error
 	ReleaseSmContext(ctx context.Context, smContextRef string) error
-	UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*models.UpdateSmContextResponse, error)
+	UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*smf.UpdateResult, error)
 	UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContextRef string, n2Data []byte) error
 	UpdateSmContextN2InfoPduResSetupFail(smContextRef string, n2Data []byte) error
 	UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRef string) error

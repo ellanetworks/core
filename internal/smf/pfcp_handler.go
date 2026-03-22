@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	"github.com/wmnsk/go-pfcp/ie"
@@ -52,13 +51,7 @@ func (s *SMF) HandlePfcpSessionReportRequest(ctx context.Context, msg *message.S
 			return nil, fmt.Errorf("failed to build PDUSessionResourceSetupRequestTransfer: %v", err)
 		}
 
-		n1n2Request := models.N1N2MessageTransferRequest{
-			PduSessionID:            smContext.PDUSessionID,
-			SNssai:                  smContext.Snssai,
-			BinaryDataN2Information: n2Pdu,
-		}
-
-		if err := s.amf.N2TransferOrPage(ctx, smContext.Supi, n1n2Request); err != nil {
+		if err := s.amf.N2TransferOrPage(ctx, smContext.Supi, smContext.PDUSessionID, smContext.Snssai, n2Pdu); err != nil {
 			return message.NewSessionReportResponse(
 				1, 0, seid, getPfcpSeqNumber(), 0,
 				ie.NewCause(ie.CauseRequestRejected),
