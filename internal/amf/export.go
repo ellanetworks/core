@@ -229,14 +229,14 @@ func timerStatus(t *Timer) TimerStatusExport {
 // locks per-UE and calls into the SMF singleton for PDU session
 // details. Safe to call concurrently with normal AMF operation.
 func (amf *AMF) ExportUEs(_ context.Context) ([]AmfUeExport, error) {
-	amf.Mutex.Lock()
+	amf.mu.Lock()
 
 	ues := make([]*AmfUe, 0, len(amf.UEs))
 	for _, ue := range amf.UEs {
 		ues = append(ues, ue)
 	}
 
-	amf.Mutex.Unlock()
+	amf.mu.Unlock()
 
 	exports := make([]AmfUeExport, 0, len(ues))
 	for _, ue := range ues {

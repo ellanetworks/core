@@ -22,7 +22,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 var tracer = otel.Tracer("ella-core/amf/producer")
@@ -200,7 +199,7 @@ func N2MessageTransferOrPage(ctx context.Context, amf *amfContext.AMF, supi etsi
 		return fmt.Errorf("build paging error: %v", err)
 	}
 
-	err = SendPaging(ctx, amf, ue, pkg)
+	err = amf.SendPaging(ctx, ue, pkg)
 	if err != nil {
 		return fmt.Errorf("send paging error: %v", err)
 	}
@@ -238,61 +237,6 @@ func TransferN1Msg(ctx context.Context, amf *amfContext.AMF, supi etsi.SUPI, n1M
 	}
 
 	ue.Log.Info("sent downlink nas transport to UE", logger.SUPI(supi.String()))
-
-	return nil
-}
-
-func SendPaging(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, ngapBuf []byte) error {
-	if ue == nil {
-		return fmt.Errorf("amf ue is nil")
-	}
-
-	amf.Mutex.Lock()
-	defer amf.Mutex.Unlock()
-
-	taiList := ue.RegistrationArea
-
-	for _, ran := range amf.Radios {
-		for _, item := range ran.SupportedTAIs {
-			if amfContext.InTaiList(item.Tai, taiList) {
-				err := ran.NGAPSender.SendToRan(ctx, ngapBuf, send.NGAPProcedurePaging)
-				if err != nil {
-					ue.Log.Error("failed to send paging", zap.Error(err))
-					continue
-				}
-
-				ue.Log.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
-
-				break
-			}
-		}
-	}
-
-	if amf.T3513Cfg.Enable {
-		cfg := amf.T3513Cfg
-		ue.T3513 = amfContext.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
-			ue.Log.Warn("t3513 expires, retransmit paging", zap.Int32("retry", expireTimes))
-
-			for _, ran := range amf.Radios {
-				for _, item := range ran.SupportedTAIs {
-					if amfContext.InTaiList(item.Tai, taiList) {
-						err := ran.NGAPSender.SendToRan(ctx, ngapBuf, send.NGAPProcedurePaging)
-						if err != nil {
-							ue.Log.Error("failed to send paging", zap.Error(err))
-							continue
-						}
-
-						ue.Log.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
-
-						break
-					}
-				}
-			}
-		}, func() {
-			ue.Log.Warn("T3513 expires, abort paging procedure", zap.Int32("retry", cfg.MaxRetryTimes))
-			ue.T3513 = nil // clear the timer
-		})
-	}
 
 	return nil
 }

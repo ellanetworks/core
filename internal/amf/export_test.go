@@ -36,9 +36,7 @@ func addTestUE(t *testing.T, amf *amfContext.AMF, imsi string, setup func(*amfCo
 	}
 
 	t.Cleanup(func() {
-		amf.Mutex.Lock()
-		delete(amf.UEs, supi)
-		amf.Mutex.Unlock()
+		amf.RemoveUEBySupi(supi)
 	})
 
 	return ue

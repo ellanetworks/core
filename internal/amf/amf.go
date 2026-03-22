@@ -82,7 +82,7 @@ type DBer interface {
 }
 
 type AMF struct {
-	Mutex sync.Mutex
+	mu sync.Mutex
 
 	// Allocators (owned, not exported)
 	tmsi    *etsi.TmsiAllocator
@@ -133,8 +133,8 @@ func (amf *AMF) AddAmfUeToUePool(ue *AmfUe) error {
 		return fmt.Errorf("supi is empty")
 	}
 
-	amf.Mutex.Lock()
-	defer amf.Mutex.Unlock()
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
 
 	amf.UEs[ue.Supi] = ue
 	ue.smf = amf.Smf
@@ -168,9 +168,9 @@ func (amf *AMF) DeregisterAndRemoveAMFUE(ctx context.Context, ue *AmfUe) {
 		return
 	}
 
-	amf.Mutex.Lock()
+	amf.mu.Lock()
 	delete(amf.UEs, ue.Supi)
-	amf.Mutex.Unlock()
+	amf.mu.Unlock()
 }
 
 func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
@@ -185,8 +185,8 @@ func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
 }
 
 func (amf *AMF) FindAMFUEBySupi(supi etsi.SUPI) (*AmfUe, bool) {
-	amf.Mutex.Lock()
-	defer amf.Mutex.Unlock()
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
 
 	value, ok := amf.UEs[supi]
 	if !ok {
@@ -209,8 +209,8 @@ func (amf *AMF) GetUESnapshot(supi etsi.SUPI) (UESnapshot, bool) {
 }
 
 func (amf *AMF) FindAMFUEBySuci(suci string) (*AmfUe, bool) {
-	amf.Mutex.Lock()
-	defer amf.Mutex.Unlock()
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
 
 	for _, ue := range amf.UEs {
 		if ue.Suci == suci {
@@ -245,8 +245,8 @@ func (amf *AMF) NewRadio(conn *sctp.SCTPConn) (*Radio, error) {
 		Log:           logger.AmfLog.With(logger.RanAddr(remoteAddr.String())),
 	}
 
-	amf.Mutex.Lock()
-	defer amf.Mutex.Unlock()
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
 
 	amf.Radios[conn] = &radio
 
@@ -254,8 +254,8 @@ func (amf *AMF) NewRadio(conn *sctp.SCTPConn) (*Radio, error) {
 }
 
 func (amf *AMF) FindRadioByConn(conn *sctp.SCTPConn) (*Radio, bool) {
-	amf.Mutex.Lock()
-	defer amf.Mutex.Unlock()
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
 
 	ran, ok := amf.Radios[conn]
 	if !ok {
@@ -267,8 +267,8 @@ func (amf *AMF) FindRadioByConn(conn *sctp.SCTPConn) (*Radio, bool) {
 
 // use ranNodeID to find RAN context, return *AmfRan and ok bit
 func (amf *AMF) FindRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool) {
-	amf.Mutex.Lock()
-	defer amf.Mutex.Unlock()
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
 
 	for _, amfRan := range amf.Radios {
 		switch amfRan.RanPresent {
@@ -293,8 +293,8 @@ func (amf *AMF) FindRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool
 func (amf *AMF) ListRadios() []Radio {
 	ranList := make([]Radio, 0)
 
-	amf.Mutex.Lock()
-	defer amf.Mutex.Unlock()
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
 
 	for _, ran := range amf.Radios {
 		ranList = append(ranList, *ran)
@@ -304,15 +304,15 @@ func (amf *AMF) ListRadios() []Radio {
 }
 
 func (amf *AMF) CountRadios() int {
-	amf.Mutex.Lock()
-	defer amf.Mutex.Unlock()
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
 
 	return len(amf.Radios)
 }
 
 func (amf *AMF) CountRegisteredSubscribers() int {
-	amf.Mutex.Lock()
-	defer amf.Mutex.Unlock()
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
 
 	count := 0
 
@@ -328,8 +328,8 @@ func (amf *AMF) CountRegisteredSubscribers() int {
 func (amf *AMF) RemoveRadio(ran *Radio) {
 	ran.RemoveAllUeInRan()
 
-	amf.Mutex.Lock()
-	defer amf.Mutex.Unlock()
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
 
 	delete(amf.Radios, ran.Conn)
 }
@@ -339,8 +339,8 @@ func (amf *AMF) FindAmfUeByGuti(guti etsi.GUTI) (*AmfUe, bool) {
 		return nil, false
 	}
 
-	amf.Mutex.Lock()
-	defer amf.Mutex.Unlock()
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
 
 	for _, ue := range amf.UEs {
 		if ue.Guti == guti || ue.OldGuti == guti {
@@ -352,8 +352,8 @@ func (amf *AMF) FindAmfUeByGuti(guti etsi.GUTI) (*AmfUe, bool) {
 }
 
 func (amf *AMF) FindRanUeByAmfUeNgapID(amfUeNgapID int64) *RanUe {
-	amf.Mutex.Lock()
-	defer amf.Mutex.Unlock()
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
 
 	for _, ran := range amf.Radios {
 		for _, ranUe := range ran.RanUEs {
@@ -479,4 +479,69 @@ func (amf *AMF) StmsiToGuti(ctx context.Context, buf [7]byte) (etsi.GUTI, error)
 	}
 
 	return guti, nil
+}
+
+// SendPaging sends a paging message to all radios whose TAIs match the UE's
+// registration area. If T3513 is enabled, a retransmission timer is started.
+func (amf *AMF) SendPaging(ctx context.Context, ue *AmfUe, ngapBuf []byte) error {
+	if ue == nil {
+		return fmt.Errorf("amf ue is nil")
+	}
+
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
+
+	taiList := ue.RegistrationArea
+
+	for _, ran := range amf.Radios {
+		for _, item := range ran.SupportedTAIs {
+			if InTaiList(item.Tai, taiList) {
+				err := ran.NGAPSender.SendToRan(ctx, ngapBuf, send.NGAPProcedurePaging)
+				if err != nil {
+					ue.Log.Error("failed to send paging", zap.Error(err))
+					continue
+				}
+
+				ue.Log.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
+
+				break
+			}
+		}
+	}
+
+	if amf.T3513Cfg.Enable {
+		cfg := amf.T3513Cfg
+		ue.T3513 = NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+			ue.Log.Warn("t3513 expires, retransmit paging", zap.Int32("retry", expireTimes))
+
+			for _, ran := range amf.ListRadios() {
+				for _, item := range ran.SupportedTAIs {
+					if InTaiList(item.Tai, taiList) {
+						err := ran.NGAPSender.SendToRan(ctx, ngapBuf, send.NGAPProcedurePaging)
+						if err != nil {
+							ue.Log.Error("failed to send paging", zap.Error(err))
+							continue
+						}
+
+						ue.Log.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
+
+						break
+					}
+				}
+			}
+		}, func() {
+			ue.Log.Warn("T3513 expires, abort paging procedure", zap.Int32("retry", cfg.MaxRetryTimes))
+			ue.T3513 = nil // clear the timer
+		})
+	}
+
+	return nil
+}
+
+// RemoveUEBySupi removes the UE with the given SUPI from the UE pool.
+func (amf *AMF) RemoveUEBySupi(supi etsi.SUPI) {
+	amf.mu.Lock()
+	defer amf.mu.Unlock()
+
+	delete(amf.UEs, supi)
 }
