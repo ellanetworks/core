@@ -182,6 +182,8 @@ func (a *AUSF) Authenticate(ctx context.Context, suci, servingNetwork string, re
 		return nil, fmt.Errorf("couldn't get subscriber %s: %w", supi, err)
 	}
 
+	span.AddEvent("subscriber_retrieved")
+
 	if sub.PermanentKey == "" {
 		err := fmt.Errorf("permanent key is empty")
 		span.RecordError(err)
@@ -318,6 +320,8 @@ func (a *AUSF) Authenticate(ctx context.Context, suci, servingNetwork string, re
 		return nil, fmt.Errorf("kseaf derivation failed: %w", err)
 	}
 
+	span.AddEvent("auth_vector_generated")
+
 	// Cache context for Confirm
 	a.mu.Lock()
 	a.pool[suci] = &authContext{
@@ -328,6 +332,7 @@ func (a *AUSF) Authenticate(ctx context.Context, suci, servingNetwork string, re
 		createdAt: a.clock(),
 	}
 	a.mu.Unlock()
+	span.AddEvent("context_pooled")
 
 	return &AuthResult{
 		Rand:      randHex,

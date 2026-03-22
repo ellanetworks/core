@@ -72,6 +72,7 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 	span.SetAttributes(attribute.Int64("pfcp.seid", int64(seid)))
 
 	session := NewSession(seid)
+	span.AddEvent("session_created", trace.WithAttributes(attribute.Int64("pfcp.seid", int64(seid))))
 
 	logger.WithTrace(ctx, logger.UpfLog).Debug("Tracking new session", logger.SEID(seid))
 
@@ -199,6 +200,9 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 
 		return message.NewSessionEstablishmentResponse(0, 0, remoteSEID.SEID, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), nil
 	}
+
+	span.AddEvent("pdrs_processed", trace.WithAttributes(attribute.Int("count", len(createdPDRs))))
+	span.AddEvent("ebpf_maps_updated")
 
 	conn.AddSession(seid, session)
 

@@ -56,6 +56,10 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return "", errRsp, nil
 	}
 
+	span.AddEvent("nas_decoded")
+	span.AddEvent("policy_retrieved")
+	span.AddEvent("ip_allocated", trace.WithAttributes(attribute.String("ip", pduAddress.String())))
+
 	err = s.sendPFCPRules(ctx, smContext)
 	if err != nil {
 		span.RecordError(err)
@@ -69,6 +73,8 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return "", nil, fmt.Errorf("failed to create SM Context: %v", err)
 	}
 
+	span.AddEvent("pfcp_rules_sent")
+
 	err = s.sendPduSessionEstablishmentAccept(ctx, smContext, policy, pco, dnnInfo, pduAddress, pti)
 	if err != nil {
 		span.RecordError(err)
@@ -76,6 +82,8 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 		return "", nil, fmt.Errorf("failed to send pdu session establishment accept n1 message: %v", err)
 	}
+
+	span.AddEvent("session_accepted")
 
 	return smContext.CanonicalName(), nil, nil
 }
