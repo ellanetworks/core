@@ -66,11 +66,6 @@ func (ranUe *RanUe) AmfUe() *AmfUe {
 	return ranUe.amfUe
 }
 
-// HasAmfUe returns true if an AmfUe is currently attached.
-func (ranUe *RanUe) HasAmfUe() bool {
-	return ranUe != nil && ranUe.amfUe != nil
-}
-
 // TouchLastSeen propagates a last-seen timestamp to the associated AmfUe.
 // Safe to call on nil receivers or when AmfUe/Radio is nil.
 func (ranUe *RanUe) TouchLastSeen() {
@@ -254,8 +249,7 @@ func (ranUe *RanUe) Remove() error {
 	}
 
 	if ranUe.amfUe != nil {
-		ranUe.amfUe.ranUe = nil
-		ranUe.amfUe = nil
+		ranUe.amfUe.DetachRanUe()
 	}
 
 	ran := ranUe.Radio

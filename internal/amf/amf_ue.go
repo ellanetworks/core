@@ -168,11 +168,6 @@ func (ue *AmfUe) RanUe() *RanUe {
 	return ue.ranUe
 }
 
-// HasRanUe returns true if a RanUe is currently attached.
-func (ue *AmfUe) HasRanUe() bool {
-	return ue != nil && ue.ranUe != nil
-}
-
 func (ue *AmfUe) GetState() StateType {
 	ue.Mutex.Lock()
 	defer ue.Mutex.Unlock()
