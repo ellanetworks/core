@@ -3,13 +3,13 @@ package ngap
 import (
 	"context"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleInitialContextSetupFailure(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.InitialContextSetupFailure) {
+func HandleInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.InitialContextSetupFailure) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -103,7 +103,7 @@ func HandleInitialContextSetupFailure(ctx context.Context, amf *amfContext.AMF, 
 				continue
 			}
 
-			err := amf.Smf.UpdateSmContextN2InfoPduResSetupFail(ctx, smContext.Ref, transfer)
+			err := amfInstance.Smf.UpdateSmContextN2InfoPduResSetupFail(ctx, smContext.Ref, transfer)
 			if err != nil {
 				logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err))
 			}

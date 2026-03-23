@@ -3,13 +3,13 @@ package ngap
 import (
 	"context"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceModifyResponse(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.PDUSessionResourceModifyResponse) {
+func HandlePDUSessionResourceModifyResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.PDUSessionResourceModifyResponse) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -34,7 +34,7 @@ func HandlePDUSessionResourceModifyResponse(ctx context.Context, amf *amfContext
 		}
 	}
 
-	var ranUe *amfContext.RanUe
+	var ranUe *amf.RanUe
 
 	if rANUENGAPID != nil {
 		ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
@@ -44,7 +44,7 @@ func HandlePDUSessionResourceModifyResponse(ctx context.Context, amf *amfContext
 	}
 
 	if aMFUENGAPID != nil {
-		ranUe = amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
+		ranUe = amfInstance.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 		if ranUe == nil {
 			logger.WithTrace(ctx, ran.Log).Warn("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 			return
@@ -57,7 +57,7 @@ func HandlePDUSessionResourceModifyResponse(ctx context.Context, amf *amfContext
 		logger.WithTrace(ctx, ranUe.Log).Debug("Handle PDUSessionResourceModifyResponse", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
 
 		if userLocationInformation != nil {
-			ranUe.UpdateLocation(ctx, amf, userLocationInformation)
+			ranUe.UpdateLocation(ctx, amfInstance, userLocationInformation)
 		}
 	}
 }

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/free5gc/nas"
@@ -52,7 +52,7 @@ func pduSessionIDPtr(id uint8) *uint8 {
 }
 
 func TestHandleULNASTransport_WrongState_Error(t *testing.T) {
-	testcases := []amfContext.StateType{amfContext.Deregistered, amfContext.Authentication, amfContext.SecurityMode, amfContext.ContextSetup}
+	testcases := []amf.StateType{amf.Deregistered, amf.Authentication, amf.SecurityMode, amf.ContextSetup}
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
 			ue, _, err := buildUeAndRadio()
@@ -64,7 +64,7 @@ func TestHandleULNASTransport_WrongState_Error(t *testing.T) {
 
 			msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, []byte{0x01}, pduSessionIDPtr(1))
 
-			err = handleULNASTransport(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+			err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
 			if err == nil {
 				t.Fatal("expected an error, got nil")
 			}
@@ -78,14 +78,14 @@ func TestHandleULNASTransport_MacFailed_Error(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amfContext.Registered)
+	ue.ForceState(amf.Registered)
 	ue.MacFailed = true
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, []byte{0x01}, pduSessionIDPtr(1))
 
 	expected := "NAS message integrity check failed"
 
-	err = handleULNASTransport(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected error: %s, got: %v", expected, err)
 	}
@@ -97,11 +97,11 @@ func TestHandleULNASTransport_PayloadContainerTypeSMS_Error(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amfContext.Registered)
+	ue.ForceState(amf.Registered)
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeSMS, []byte{0x01}, nil)
 
-	err = handleULNASTransport(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}
@@ -113,11 +113,11 @@ func TestHandleULNASTransport_PayloadContainerTypeLPP_Error(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amfContext.Registered)
+	ue.ForceState(amf.Registered)
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeLPP, []byte{0x01}, nil)
 
-	err = handleULNASTransport(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}
@@ -129,11 +129,11 @@ func TestHandleULNASTransport_PayloadContainerTypeSOR_Error(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amfContext.Registered)
+	ue.ForceState(amf.Registered)
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeSOR, []byte{0x01}, nil)
 
-	err = handleULNASTransport(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}
@@ -145,11 +145,11 @@ func TestHandleULNASTransport_PayloadContainerTypeMultiplePayload_Error(t *testi
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amfContext.Registered)
+	ue.ForceState(amf.Registered)
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeMultiplePayload, []byte{0x01}, nil)
 
-	err = handleULNASTransport(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}
@@ -161,11 +161,11 @@ func TestHandleULNASTransport_PayloadContainerTypeUEPolicy_NoError(t *testing.T)
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amfContext.Registered)
+	ue.ForceState(amf.Registered)
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeUEPolicy, []byte{0x01}, nil)
 
-	err = handleULNASTransport(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -177,7 +177,7 @@ func TestHandleULNASTransport_PayloadContainerTypeUEParameterUpdate_NoError(t *t
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amfContext.Registered)
+	ue.ForceState(amf.Registered)
 
 	// UPU ACK: first byte 0x01, then 16 bytes of MAC = 17 bytes total
 	upuAck := make([]byte, 17)
@@ -185,7 +185,7 @@ func TestHandleULNASTransport_PayloadContainerTypeUEParameterUpdate_NoError(t *t
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeUEParameterUpdate, upuAck, nil)
 
-	err = handleULNASTransport(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -202,7 +202,7 @@ func TestTransport5GSMMessage_NilPduSessionID_Error(t *testing.T) {
 
 	expected := "pdu session id is nil"
 
-	err = transport5GSMMessage(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	err = transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected error: %s, got: %v", expected, err)
 	}
@@ -219,7 +219,7 @@ func TestTransport5GSMMessage_OldPDUSessionID_Error(t *testing.T) {
 
 	expected := "old pdu session id is not supported"
 
-	err = transport5GSMMessage(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	err = transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected error: %s, got: %v", expected, err)
 	}
@@ -237,7 +237,7 @@ func TestTransport5GSMMessage_SmContextNotExists_Status5GSM_NoError(t *testing.T
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, status5gsmPayload, pduSessionIDPtr(1))
 
-	err = transport5GSMMessage(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	err = transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestTransport5GSMMessage_EmergencyRequest_SendsDLNASTransport(t *testing.T)
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(1))
 	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest)
 
-	err = transport5GSMMessage(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	err = transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -292,7 +292,7 @@ func TestTransport5GSMMessage_ExistingEmergencyPduSession_SendsDLNASTransport(t 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(1))
 	setRequestType(msg, nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession)
 
-	err = transport5GSMMessage(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	err = transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -338,7 +338,7 @@ func TestTransport5GSMMessage_ExistingPduSession_NotAllowedNssai_SendsDLNASTrans
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
 	setRequestType(msg, nasMessage.ULNASTransportRequestTypeExistingPduSession)
 
-	err = transport5GSMMessage(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	err = transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -377,7 +377,7 @@ func TestTransport5GSMMessage_NoSmContext_ModificationRequest_SendsDLNASTranspor
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(1))
 	setRequestType(msg, nasMessage.ULNASTransportRequestTypeModificationRequest)
 
-	err = transport5GSMMessage(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	err = transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -416,7 +416,7 @@ func TestTransport5GSMMessage_NoSmContext_ExistingPduSession_SendsDLNASTransport
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(1))
 	setRequestType(msg, nasMessage.ULNASTransportRequestTypeExistingPduSession)
 
-	err = transport5GSMMessage(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	err = transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -465,11 +465,11 @@ func TestTransport5GSMMessage_SmContextExists_InitialRequest_DeletesContextAndCr
 		CreateSmContextRef: "new-ref-123",
 	}
 
-	amf := amfContext.New(&FakeDBInstance{}, nil, fakeSmf)
+	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
 
 	ue.AllowedNssai = snssai
 
-	err = transport5GSMMessage(t.Context(), amf, ue, msg)
+	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -499,9 +499,9 @@ func TestForward5GSMMessageToSMF_UpdateError_ReturnsError(t *testing.T) {
 		UpdateN1MsgError: fmt.Errorf("smf unavailable"),
 	}
 
-	amf := amfContext.New(nil, nil, fakeSmf)
+	amfInstance := amf.New(nil, nil, fakeSmf)
 
-	err = forward5GSMMessageToSMF(t.Context(), amf, ue, 1, "ref-1", []byte{0x01})
+	err = forward5GSMMessageToSMF(t.Context(), amfInstance, ue, 1, "ref-1", []byte{0x01})
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}
@@ -521,9 +521,9 @@ func TestForward5GSMMessageToSMF_NilResponse_NoError(t *testing.T) {
 		UpdateN1MsgResponse: nil,
 	}
 
-	amf := amfContext.New(nil, nil, fakeSmf)
+	amfInstance := amf.New(nil, nil, fakeSmf)
 
-	err = forward5GSMMessageToSMF(t.Context(), amf, ue, 1, "ref-1", []byte{0x01})
+	err = forward5GSMMessageToSMF(t.Context(), amfInstance, ue, 1, "ref-1", []byte{0x01})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -541,9 +541,9 @@ func TestForward5GSMMessageToSMF_N1Only_SendsDLNASTransport(t *testing.T) {
 		},
 	}
 
-	amf := amfContext.New(nil, nil, fakeSmf)
+	amfInstance := amf.New(nil, nil, fakeSmf)
 
-	err = forward5GSMMessageToSMF(t.Context(), amf, ue, 1, "ref-1", []byte{0x01})
+	err = forward5GSMMessageToSMF(t.Context(), amfInstance, ue, 1, "ref-1", []byte{0x01})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -583,9 +583,9 @@ func TestForward5GSMMessageToSMF_N2NotPduResRel_ReturnsNil(t *testing.T) {
 		},
 	}
 
-	amf := amfContext.New(nil, nil, fakeSmf)
+	amfInstance := amf.New(nil, nil, fakeSmf)
 
-	err = forward5GSMMessageToSMF(t.Context(), amf, ue, 1, "ref-1", []byte{0x01})
+	err = forward5GSMMessageToSMF(t.Context(), amfInstance, ue, 1, "ref-1", []byte{0x01})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -615,9 +615,9 @@ func TestForward5GSMMessageToSMF_N2PduResRel_SendsReleaseCommand(t *testing.T) {
 		},
 	}
 
-	amf := amfContext.New(nil, nil, fakeSmf)
+	amfInstance := amf.New(nil, nil, fakeSmf)
 
-	err = forward5GSMMessageToSMF(t.Context(), amf, ue, 1, "ref-1", []byte{0x01})
+	err = forward5GSMMessageToSMF(t.Context(), amfInstance, ue, 1, "ref-1", []byte{0x01})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -643,9 +643,9 @@ func TestForward5GSMMessageToSMF_N1AndN2PduResRel_SendsReleaseCommandWithN1(t *t
 		},
 	}
 
-	amf := amfContext.New(nil, nil, fakeSmf)
+	amfInstance := amf.New(nil, nil, fakeSmf)
 
-	err = forward5GSMMessageToSMF(t.Context(), amf, ue, 1, "ref-1", []byte{0x01})
+	err = forward5GSMMessageToSMF(t.Context(), amfInstance, ue, 1, "ref-1", []byte{0x01})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -684,9 +684,9 @@ func TestTransport5GSMMessage_SmContextExists_NoRequestType_ForwardsToSMF(t *tes
 		UpdateN1MsgResponse: nil, // nil response
 	}
 
-	amf := amfContext.New(nil, nil, fakeSmf)
+	amfInstance := amf.New(nil, nil, fakeSmf)
 
-	err = transport5GSMMessage(t.Context(), amf, ue, msg)
+	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -729,12 +729,12 @@ func TestTransport5GSMMessage_SmContextExists_DuplicatePDU_Success(t *testing.T)
 		CreateSmContextRef: "new-ref-after-dup",
 	}
 
-	amf := amfContext.New(&FakeDBInstance{}, nil, fakeSmf)
+	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
 
 	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
 	ue.AllowedNssai = snssai
 
-	err = transport5GSMMessage(t.Context(), amf, ue, msg)
+	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -793,9 +793,9 @@ func TestTransport5GSMMessage_SmContextExists_ExistingPduSession_AllowedNssai_Fo
 		UpdateN1MsgResponse: nil,
 	}
 
-	amf := amfContext.New(nil, nil, fakeSmf)
+	amfInstance := amf.New(nil, nil, fakeSmf)
 
-	err = transport5GSMMessage(t.Context(), amf, ue, msg)
+	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -829,9 +829,9 @@ func TestTransport5GSMMessage_SmContextExists_DefaultRequestType_ForwardsToSMF(t
 		UpdateN1MsgResponse: nil,
 	}
 
-	amf := amfContext.New(nil, nil, fakeSmf)
+	amfInstance := amf.New(nil, nil, fakeSmf)
 
-	err = transport5GSMMessage(t.Context(), amf, ue, msg)
+	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -872,9 +872,9 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_WithSNSSAIAndDNN_Create
 		CreateSmContextRef: "new-ctx-ref",
 	}
 
-	amf := amfContext.New(&FakeDBInstance{}, nil, fakeSmf)
+	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
 
-	err = transport5GSMMessage(t.Context(), amf, ue, msg)
+	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -925,9 +925,9 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_DefaultSNSSAIAndDNN(t *
 		CreateSmContextRef: "default-ctx-ref",
 	}
 
-	amf := amfContext.New(&FakeDBInstance{}, nil, fakeSmf)
+	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
 
-	err = transport5GSMMessage(t.Context(), amf, ue, msg)
+	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -978,9 +978,9 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_NilAllowedNssai_Error(t
 
 	fakeSmf := &FakeSmf{}
 
-	amf := amfContext.New(&FakeDBInstance{}, nil, fakeSmf)
+	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
 
-	err = transport5GSMMessage(t.Context(), amf, ue, msg)
+	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}
@@ -1013,9 +1013,9 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorRe
 		CreateSmContextError:   fmt.Errorf("policy not found"),
 	}
 
-	amf := amfContext.New(&FakeDBInstance{}, nil, fakeSmf)
+	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
 
-	err = transport5GSMMessage(t.Context(), amf, ue, msg)
+	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}
@@ -1069,10 +1069,10 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorOn
 		CreateSmContextError: fmt.Errorf("internal error"),
 	}
 
-	amf := amfContext.New(&FakeDBInstance{}, nil, fakeSmf)
+	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
 
 	// The code logs the error but does not return it (creates context with empty ref)
-	err = transport5GSMMessage(t.Context(), amf, ue, msg)
+	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -1098,7 +1098,7 @@ func TestTransport5GSMMessage_NoSmContext_NilRequestType_Panic(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amfContext.Registered)
+	ue.ForceState(amf.Registered)
 
 	// Ensure no SM context exists for PDU session 5
 	_, exists := ue.SmContextFindByPDUSessionID(5)
@@ -1112,7 +1112,7 @@ func TestTransport5GSMMessage_NoSmContext_NilRequestType_Panic(t *testing.T) {
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, &pduSessionID)
 	// msg.RequestType is intentionally left nil
 
-	amf := amfContext.New(&FakeDBInstance{}, nil, &FakeSmf{})
+	amfInstance := amf.New(&FakeDBInstance{}, nil, &FakeSmf{})
 
 	// This should NOT panic — it should return an error gracefully
 	defer func() {
@@ -1121,5 +1121,5 @@ func TestTransport5GSMMessage_NoSmContext_NilRequestType_Panic(t *testing.T) {
 		}
 	}()
 
-	_ = transport5GSMMessage(t.Context(), amf, ue, msg)
+	_ = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 }

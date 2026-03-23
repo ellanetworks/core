@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -430,19 +430,19 @@ func assertNoPanic(t *testing.T, name string, fn func()) {
 }
 
 // newTestRadio creates a minimal Radio with a FakeNGAPSender for testing.
-func newTestRadio() *amfContext.Radio {
+func newTestRadio() *amf.Radio {
 	sender := &FakeNGAPSender{}
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    sender,
-		RanUEs:        make(map[int64]*amfContext.RanUe),
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		RanUEs:        make(map[int64]*amf.RanUe),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
 	return ran
 }
 
 // newTestAMF creates a minimal AMF context for testing.
-func newTestAMF() *amfContext.AMF {
-	return amfContext.New(nil, nil, nil)
+func newTestAMF() *amf.AMF {
+	return amf.New(nil, nil, nil)
 }

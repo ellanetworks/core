@@ -161,7 +161,6 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler
 		var radioIMSIs map[string]struct{}
 
 		if radioFilter != "" {
-
 			// Verify the radio exists.
 			_, ranList := amfInstance.ListAmfRan(1, 1000)
 

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
@@ -116,11 +116,11 @@ func buildNGReset(opts *NGResetOpts) (*ngapType.NGAPPDU, error) {
 func TestHandleNGReset_MissingResetType(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    fakeNGAPSender,
-		RanUEs:        map[int64]*amfContext.RanUe{},
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		RanUEs:        map[int64]*amf.RanUe{},
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
 	ngReset := &ngapType.NGReset{}
@@ -152,14 +152,14 @@ func TestHandleNGReset_MissingResetType(t *testing.T) {
 func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: fakeNGAPSender,
-		RanUEs: map[int64]*amfContext.RanUe{
-			0: {RanUeNgapID: 0, AmfUeNgapID: 0, Radio: &amfContext.Radio{}},
-			1: {RanUeNgapID: 1, AmfUeNgapID: 1, Radio: &amfContext.Radio{}},
+		RanUEs: map[int64]*amf.RanUe{
+			0: {RanUeNgapID: 0, AmfUeNgapID: 0, Radio: &amf.Radio{}},
+			1: {RanUeNgapID: 1, AmfUeNgapID: 1, Radio: &amf.Radio{}},
 		},
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
 	ran.RanUEs[0].Radio = ran
@@ -190,14 +190,14 @@ func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 func TestHandleNGReset_PartOfNGInterface(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: fakeNGAPSender,
-		RanUEs: map[int64]*amfContext.RanUe{
-			0: {RanUeNgapID: 0, AmfUeNgapID: 0, Radio: &amfContext.Radio{}},
-			1: {RanUeNgapID: 1, AmfUeNgapID: 1, Radio: &amfContext.Radio{}},
+		RanUEs: map[int64]*amf.RanUe{
+			0: {RanUeNgapID: 0, AmfUeNgapID: 0, Radio: &amf.Radio{}},
+			1: {RanUeNgapID: 1, AmfUeNgapID: 1, Radio: &amf.Radio{}},
 		},
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
 	ran.RanUEs[0].Radio = ran
@@ -252,11 +252,11 @@ func TestHandleNGReset_EmptyIEs(t *testing.T) {
 func TestHandleNGReset_PartOfNGInterface_UnknownUE(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    fakeNGAPSender,
-		RanUEs:        map[int64]*amfContext.RanUe{},
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		RanUEs:        map[int64]*amf.RanUe{},
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
 	// Build an NGReset referencing a RANUENGAPID that doesn't exist.

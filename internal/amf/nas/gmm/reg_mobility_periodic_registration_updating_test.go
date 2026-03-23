@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"testing"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
@@ -46,7 +46,7 @@ func (fdb *failingSubscriberDB) GetSubscriber(ctx context.Context, imsi string) 
 // IntegrityProtectedAndCiphered. The dlCountOffset parameter specifies the offset
 // from ue.ULCount.Get() to use as the DL count (0 for the first message, 1 for
 // the second, etc.).
-func decryptAndDecodeNasPdu(t *testing.T, ue *amfContext.AmfUe, nasPdu []byte, dlCountOffset uint32) *nas.Message {
+func decryptAndDecodeNasPdu(t *testing.T, ue *amf.AmfUe, nasPdu []byte, dlCountOffset uint32) *nas.Message {
 	t.Helper()
 
 	nm := new(nas.Message)
@@ -75,12 +75,12 @@ func decryptAndDecodeNasPdu(t *testing.T, ue *amfContext.AmfUe, nasPdu []byte, d
 // registration updating tests. The UE has security context, a valid registration
 // request, Pei, Supi, and matching Tai. The AMF has a valid Operator, FakeSmf, and
 // UEs map. Returns the UE, ngapSender, fakeSmf, and AMF.
-func buildMobilityRegUeAndAMF(t *testing.T) (*amfContext.AmfUe, *FakeNGAPSender, *FakeSmf, *amfContext.AMF) {
+func buildMobilityRegUeAndAMF(t *testing.T) (*amf.AmfUe, *FakeNGAPSender, *FakeSmf, *amf.AMF) {
 	t.Helper()
 
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")
 	fakeSmf := &FakeSmf{}
-	amf := amfContext.New(
+	amfInstance := amf.New(
 		&FakeDBInstance{
 			Operator: &db.Operator{
 				Mcc:           "001",
@@ -119,15 +119,15 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amfContext.AmfUe, *FakeNGAPSender,
 	ue.RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
 	ue.RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
 
-	return ue, ngapSender, fakeSmf, amf
+	return ue, ngapSender, fakeSmf, amfInstance
 }
 
 func TestMobilityReg_DerivateAnKeyError(t *testing.T) {
-	ue, _, _, amf := buildMobilityRegUeAndAMF(t)
+	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	ue.Kamf = "not-valid-hex"
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err == nil {
 		t.Fatal("expected error for invalid Kamf, got nil")
 	}
@@ -141,11 +141,11 @@ func TestMobilityReg_DerivateAnKeyError(t *testing.T) {
 }
 
 func TestMobilityReg_GetOperatorInfoError(t *testing.T) {
-	ue, _, _, amf := buildMobilityRegUeAndAMF(t)
+	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	amf.DBInstance = &FakeDBInstance{Operator: nil}
+	amfInstance.DBInstance = &FakeDBInstance{Operator: nil}
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err == nil {
 		t.Fatal("expected error for nil Operator, got nil")
 	}
@@ -157,12 +157,12 @@ func TestMobilityReg_GetOperatorInfoError(t *testing.T) {
 }
 
 func TestMobilityReg_NilCapability5GMM_Mobility_SendsReject(t *testing.T) {
-	ue, ngapSender, _, amf := buildMobilityRegUeAndAMF(t)
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	ue.RegistrationRequest.Capability5GMM = nil
 	ue.RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err == nil {
 		t.Fatal("expected error for nil Capability5GMM, got nil")
 	}
@@ -194,12 +194,12 @@ func TestMobilityReg_NilCapability5GMM_Mobility_SendsReject(t *testing.T) {
 }
 
 func TestMobilityReg_NilCapability5GMM_Periodic_Continues(t *testing.T) {
-	ue, ngapSender, _, amf := buildMobilityRegUeAndAMF(t)
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	ue.RegistrationRequest.Capability5GMM = nil
 	ue.RegistrationType5GS = nasMessage.RegistrationType5GSPeriodicRegistrationUpdating
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
 		t.Fatalf("expected no error for periodic reg with nil Capability5GMM, got: %v", err)
 	}
@@ -216,7 +216,7 @@ func TestMobilityReg_NilCapability5GMM_Periodic_Continues(t *testing.T) {
 }
 
 func TestMobilityReg_UpdateType5GS_ClearsRadioCapability(t *testing.T) {
-	ue, ngapSender, _, amf := buildMobilityRegUeAndAMF(t)
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	ue.UeRadioCapability = "some-capability"
 	ue.UeRadioCapabilityForPaging = &models.UERadioCapabilityForPaging{}
@@ -225,7 +225,7 @@ func TestMobilityReg_UpdateType5GS_ClearsRadioCapability(t *testing.T) {
 	updateType.SetNGRanRcu(nasMessage.NGRanRadioCapabilityUpdateNeeded)
 	ue.RegistrationRequest.UpdateType5GS = updateType
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -250,11 +250,11 @@ func TestMobilityReg_UpdateType5GS_ClearsRadioCapability(t *testing.T) {
 }
 
 func TestMobilityReg_MICOIndication(t *testing.T) {
-	ue, ngapSender, _, amf := buildMobilityRegUeAndAMF(t)
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	ue.RegistrationRequest.MICOIndication = nasType.NewMICOIndication(nasMessage.RegistrationRequestMICOIndicationType)
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -271,13 +271,13 @@ func TestMobilityReg_MICOIndication(t *testing.T) {
 }
 
 func TestMobilityReg_RequestedDRXParameters(t *testing.T) {
-	ue, ngapSender, _, amf := buildMobilityRegUeAndAMF(t)
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	drxParams := nasType.NewRequestedDRXParameters(nasMessage.RegistrationRequestRequestedDRXParametersType)
 	drxParams.SetDRXValue(0x03) // some DRX value
 	ue.RegistrationRequest.RequestedDRXParameters = drxParams
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -298,11 +298,11 @@ func TestMobilityReg_RequestedDRXParameters(t *testing.T) {
 }
 
 func TestMobilityReg_EmptyPei_SendsIdentityRequest(t *testing.T) {
-	ue, ngapSender, _, amf := buildMobilityRegUeAndAMF(t)
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	ue.Pei = ""
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -330,10 +330,10 @@ func TestMobilityReg_EmptyPei_SendsIdentityRequest(t *testing.T) {
 }
 
 func TestMobilityReg_GetSubscriberBitrateError(t *testing.T) {
-	ue, _, _, amf := buildMobilityRegUeAndAMF(t)
+	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	// Override DBInstance with one that returns an error for GetSubscriber
-	amf.DBInstance = &failingSubscriberDB{
+	amfInstance.DBInstance = &failingSubscriberDB{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -342,7 +342,7 @@ func TestMobilityReg_GetSubscriberBitrateError(t *testing.T) {
 		},
 	}
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err == nil {
 		t.Fatal("expected error for GetSubscriberBitrate failure, got nil")
 	}
@@ -353,7 +353,7 @@ func TestMobilityReg_GetSubscriberBitrateError(t *testing.T) {
 }
 
 func TestMobilityReg_UplinkDataStatus_ActivateSuccess_UeContextRequest(t *testing.T) {
-	ue, ngapSender, fakeSmf, amf := buildMobilityRegUeAndAMF(t)
+	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	// Set up PDU session 2
 	snssai := &models.Snssai{Sst: 1}
@@ -368,7 +368,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_UeContextRequest(t *testin
 
 	ue.RanUe.UeContextRequest = true
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -393,7 +393,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_UeContextRequest(t *testin
 }
 
 func TestMobilityReg_UplinkDataStatus_ActivateSuccess_NoUeContextRequest(t *testing.T) {
-	ue, ngapSender, fakeSmf, amf := buildMobilityRegUeAndAMF(t)
+	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
@@ -405,7 +405,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_NoUeContextRequest(t *test
 
 	ue.RanUe.UeContextRequest = false
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -426,7 +426,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_NoUeContextRequest(t *test
 }
 
 func TestMobilityReg_UplinkDataStatus_ActivateError(t *testing.T) {
-	ue, ngapSender, fakeSmf, amf := buildMobilityRegUeAndAMF(t)
+	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
@@ -438,7 +438,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateError(t *testing.T) {
 
 	fakeSmf.ActivateSmContextError = fmt.Errorf("activate error")
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -459,7 +459,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateError(t *testing.T) {
 }
 
 func TestMobilityReg_PDUSessionStatus_InactiveSession_ReleaseSmContext(t *testing.T) {
-	ue, ngapSender, fakeSmf, amf := buildMobilityRegUeAndAMF(t)
+	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
@@ -470,7 +470,7 @@ func TestMobilityReg_PDUSessionStatus_InactiveSession_ReleaseSmContext(t *testin
 		Buffer: []uint8{0x00, 0x00},
 	}
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -499,7 +499,7 @@ func TestMobilityReg_PDUSessionStatus_InactiveSession_ReleaseSmContext(t *testin
 }
 
 func TestMobilityReg_PDUSessionStatus_ActiveSession_NoRelease(t *testing.T) {
-	ue, ngapSender, fakeSmf, amf := buildMobilityRegUeAndAMF(t)
+	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
@@ -510,7 +510,7 @@ func TestMobilityReg_PDUSessionStatus_ActiveSession_NoRelease(t *testing.T) {
 		Buffer: []uint8{0x04, 0x00},
 	}
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -531,7 +531,7 @@ func TestMobilityReg_PDUSessionStatus_ActiveSession_NoRelease(t *testing.T) {
 }
 
 func TestMobilityReg_PDUSessionStatus_ReleaseError(t *testing.T) {
-	ue, _, fakeSmf, amf := buildMobilityRegUeAndAMF(t)
+	ue, _, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
@@ -543,7 +543,7 @@ func TestMobilityReg_PDUSessionStatus_ReleaseError(t *testing.T) {
 
 	fakeSmf.ReleaseSmContextError = fmt.Errorf("release error")
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err == nil {
 		t.Fatal("expected error for ReleaseSmContext failure, got nil")
 	}
@@ -555,7 +555,7 @@ func TestMobilityReg_PDUSessionStatus_ReleaseError(t *testing.T) {
 }
 
 func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *testing.T) {
-	ue, ngapSender, fakeSmf, amf := buildMobilityRegUeAndAMF(t)
+	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
@@ -578,7 +578,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 		BinaryDataN2Information: nil,
 	}
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -615,7 +615,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 }
 
 func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testing.T) {
-	ue, ngapSender, _, amf := buildMobilityRegUeAndAMF(t)
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	// No UplinkDataStatus → suList remains empty
 
@@ -632,7 +632,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 	// UeContextRequest=false so SendRegistrationAccept sends DownlinkNasTransport
 	ue.RanUe.UeContextRequest = false
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -661,7 +661,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 }
 
 func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_MissingSmContext(t *testing.T) {
-	ue, _, _, amf := buildMobilityRegUeAndAMF(t)
+	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	ue.RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
 		Len:    2,
@@ -675,7 +675,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_MissingSmContext(t 
 		BinaryDataN2Information: []byte{0x03, 0x04},
 	}
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err == nil {
 		t.Fatal("expected error for missing SmContext, got nil")
 	}
@@ -692,7 +692,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_MissingSmContext(t 
 }
 
 func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *testing.T) {
-	ue, ngapSender, _, amf := buildMobilityRegUeAndAMF(t)
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(3, "ref-3", snssai)
@@ -711,7 +711,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 
 	ue.RanUe.UeContextRequest = false
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -729,11 +729,11 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 }
 
 func TestMobilityReg_UeContextRequest_True_InitialContextSetup(t *testing.T) {
-	ue, ngapSender, _, amf := buildMobilityRegUeAndAMF(t)
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	ue.RanUe.UeContextRequest = true
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -753,7 +753,7 @@ func TestMobilityReg_UeContextRequest_True_InitialContextSetup(t *testing.T) {
 }
 
 func TestMobilityReg_NoUeContextRequest_NonEmptySuList(t *testing.T) {
-	ue, ngapSender, fakeSmf, amf := buildMobilityRegUeAndAMF(t)
+	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	snssai := &models.Snssai{Sst: 1}
 	_ = ue.CreateSmContext(2, "ref-2", snssai)
@@ -766,7 +766,7 @@ func TestMobilityReg_NoUeContextRequest_NonEmptySuList(t *testing.T) {
 
 	ue.RanUe.UeContextRequest = false
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -790,11 +790,11 @@ func TestMobilityReg_NoUeContextRequest_NonEmptySuList(t *testing.T) {
 }
 
 func TestMobilityReg_NoUeContextRequest_EmptySuList_DownlinkNasTransport(t *testing.T) {
-	ue, ngapSender, _, amf := buildMobilityRegUeAndAMF(t)
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	ue.RanUe.UeContextRequest = false
 
-	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amf, ue)
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

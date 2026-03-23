@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 )
 
 // TS 23.502 4.2.2.3
-func handleDeregistrationAccept(ctx context.Context, ue *amfContext.AmfUe) error {
+func handleDeregistrationAccept(ctx context.Context, ue *amf.AmfUe) error {
 	if ue.T3522 != nil {
 		ue.T3522.Stop()
 		ue.T3522 = nil // clear the timer
@@ -23,7 +23,7 @@ func handleDeregistrationAccept(ctx context.Context, ue *amfContext.AmfUe) error
 		return nil
 	}
 
-	ue.RanUe.ReleaseAction = amfContext.UeContextReleaseDueToNwInitiatedDeregistraion
+	ue.RanUe.ReleaseAction = amf.UeContextReleaseDueToNwInitiatedDeregistraion
 
 	err := ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 	if err != nil {

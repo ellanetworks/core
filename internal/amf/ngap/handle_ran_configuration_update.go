@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleRanConfigurationUpdate(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.RANConfigurationUpdate) {
+func HandleRanConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.RANConfigurationUpdate) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -60,7 +60,7 @@ func HandleRanConfigurationUpdate(ctx context.Context, amf *amfContext.AMF, ran 
 			capOfSupportTai := cap(ran.SupportedTAIs)
 
 			for j := 0; j < len(supportedTAItem.BroadcastPLMNList.List); j++ {
-				supportedTAI := amfContext.SupportedTAI{}
+				supportedTAI := amf.SupportedTAI{}
 				supportedTAI.SNssaiList = make([]models.Snssai, 0)
 				supportedTAI.Tai.Tac = tac
 				broadcastPLMNItem := supportedTAItem.BroadcastPLMNList.List[j]
@@ -96,7 +96,7 @@ func HandleRanConfigurationUpdate(ctx context.Context, amf *amfContext.AMF, ran 
 			Value: ngapType.CauseMiscPresentUnspecified,
 		}
 	} else {
-		operatorInfo, err := amf.GetOperatorInfo(ctx)
+		operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
 		if err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("Could not get operator info", zap.Error(err))
 
@@ -111,7 +111,7 @@ func HandleRanConfigurationUpdate(ctx context.Context, amf *amfContext.AMF, ran 
 		var found bool
 
 		for i, tai := range ran.SupportedTAIs {
-			if amfContext.InTaiList(tai.Tai, operatorInfo.Tais) {
+			if amf.InTaiList(tai.Tai, operatorInfo.Tais) {
 				logger.WithTrace(ctx, ran.Log).Debug("handle ran configuration update", zap.Any("SERVED_TAI_INDEX", i))
 
 				found = true

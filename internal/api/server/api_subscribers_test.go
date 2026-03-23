@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/smf"
 )
 
@@ -307,18 +307,18 @@ func updateSubscriber(url string, client *http.Client, token string, imsi string
 }
 
 // mockSessionForSubscriber creates a mock PDU session for a subscriber in the AMF context.
-func mockSessionForSubscriber(amf *amfContext.AMF, testSmfInstance *smf.SMF, imsi string, dnn string) error {
+func mockSessionForSubscriber(amfInstance *amf.AMF, testSmfInstance *smf.SMF, imsi string, dnn string) error {
 	supi, err := etsi.NewSUPIFromIMSI(imsi)
 	if err != nil {
 		return fmt.Errorf("failed to create SUPI from IMSI: %w", err)
 	}
 
-	ue, found := amf.FindAMFUEBySupi(supi)
+	ue, found := amfInstance.FindAMFUEBySupi(supi)
 	if !found {
-		ue = amfContext.NewAmfUe()
+		ue = amf.NewAmfUe()
 		ue.Supi = supi
 
-		if err := amf.AddAmfUeToUePool(ue); err != nil {
+		if err := amfInstance.AddAmfUeToUePool(ue); err != nil {
 			return fmt.Errorf("failed to add UE to AMF pool: %w", err)
 		}
 	}

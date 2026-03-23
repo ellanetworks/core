@@ -11,7 +11,7 @@ import (
 	"net/http/httptest"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
@@ -81,7 +81,7 @@ type testEnv struct {
 	JWTSecret []byte
 	DB        *db.Database
 	SMF       *smf.SMF
-	AMF       *amfContext.AMF
+	AMF       *amf.AMF
 }
 
 func setupServer(filepath string) (testEnv, error) {
@@ -119,7 +119,7 @@ func setupServer(filepath string) (testEnv, error) {
 		},
 	}
 
-	amfInstance := amfContext.New(testdb, nil, nil)
+	amfInstance := amf.New(testdb, nil, nil)
 	ts := httptest.NewTLSServer(server.NewHandler(testdb, cfg, fakeUPF, fakeKernel, jwtSecret, false, dummyfs, smfInstance, amfInstance, nil))
 
 	supportbundle.ConfigProvider = func(ctx context.Context) ([]byte, error) {

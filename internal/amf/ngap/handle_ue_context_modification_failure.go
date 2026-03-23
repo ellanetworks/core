@@ -3,13 +3,13 @@ package ngap
 import (
 	gocontext "context"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleUEContextModificationFailure(ctx gocontext.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.UEContextModificationFailure) {
+func HandleUEContextModificationFailure(ctx gocontext.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.UEContextModificationFailure) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -41,7 +41,7 @@ func HandleUEContextModificationFailure(ctx gocontext.Context, amf *amfContext.A
 		}
 	}
 
-	var ranUe *amfContext.RanUe
+	var ranUe *amf.RanUe
 
 	if rANUENGAPID != nil {
 		if aMFUENGAPID != nil {
@@ -58,7 +58,7 @@ func HandleUEContextModificationFailure(ctx gocontext.Context, amf *amfContext.A
 	}
 
 	if aMFUENGAPID != nil {
-		ranUe = amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
+		ranUe = amfInstance.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 		if ranUe == nil {
 			logger.WithTrace(ctx, ran.Log).Warn("UE Context not found", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 		}

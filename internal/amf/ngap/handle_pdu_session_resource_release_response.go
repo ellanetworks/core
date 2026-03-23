@@ -3,13 +3,13 @@ package ngap
 import (
 	"context"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.PDUSessionResourceReleaseResponse) {
+func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.PDUSessionResourceReleaseResponse) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -64,7 +64,7 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amf *amfContex
 	}
 
 	if userLocationInformation != nil {
-		ranUe.UpdateLocation(ctx, amf, userLocationInformation)
+		ranUe.UpdateLocation(ctx, amfInstance, userLocationInformation)
 	}
 
 	ranUe.TouchLastSeen()
@@ -92,7 +92,7 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amf *amfContex
 				continue
 			}
 
-			err := amf.Smf.UpdateSmContextN2InfoPduResRelRsp(ctx, smContext.Ref)
+			err := amfInstance.Smf.UpdateSmContextN2InfoPduResRelRsp(ctx, smContext.Ref)
 			if err != nil {
 				logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2InfoPduResRelRsp failed", zap.Error(err))
 				continue

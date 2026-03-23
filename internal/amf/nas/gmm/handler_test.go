@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 )
@@ -14,13 +14,13 @@ import (
 // TestHandleGmmMessage_UnknownMessageType_Error verifies the default branch
 // returns an error for an unrecognized message type.
 func TestHandleGmmMessage_UnknownMessageType_Error(t *testing.T) {
-	ue := amfContext.NewAmfUe()
-	amf := amfContext.New(nil, nil, nil)
+	ue := amf.NewAmfUe()
+	amfInstance := amf.New(nil, nil, nil)
 
 	m := nas.NewGmmMessage()
 	m.SetMessageType(0xFF) // unassigned message type
 
-	err := HandleGmmMessage(context.Background(), amf, ue, m)
+	err := HandleGmmMessage(context.Background(), amfInstance, ue, m)
 	if err == nil {
 		t.Fatal("expected error for unknown message type, got nil")
 	}
@@ -41,9 +41,9 @@ func TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete(t *testing.T) 
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amfContext.Registered)
+	ue.ForceState(amf.Registered)
 
-	amf := amfContext.New(nil, nil, nil)
+	amfInstance := amf.New(nil, nil, nil)
 
 	m := nas.NewGmmMessage()
 	cuc := nasMessage.NewConfigurationUpdateComplete(0)
@@ -54,7 +54,7 @@ func TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete(t *testing.T) 
 	m.ConfigurationUpdateComplete = cuc
 	m.SetMessageType(nas.MsgTypeConfigurationUpdateComplete)
 
-	err = HandleGmmMessage(context.Background(), amf, ue, m)
+	err = HandleGmmMessage(context.Background(), amfInstance, ue, m)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -69,13 +69,13 @@ func TestHandleGmmMessage_DispatchesToStatus5GMM(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.ForceState(amfContext.Registered)
+	ue.ForceState(amf.Registered)
 
-	amf := amfContext.New(nil, nil, nil)
+	amfInstance := amf.New(nil, nil, nil)
 
 	m := buildTestStatus5gmm()
 
-	err = HandleGmmMessage(context.Background(), amf, ue, m)
+	err = HandleGmmMessage(context.Background(), amfInstance, ue, m)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}

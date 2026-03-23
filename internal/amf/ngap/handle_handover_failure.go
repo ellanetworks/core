@@ -3,13 +3,13 @@ package ngap
 import (
 	"context"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.HandoverFailure) {
+func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.HandoverFailure) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -18,7 +18,7 @@ func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfCon
 	var (
 		aMFUENGAPID            *ngapType.AMFUENGAPID
 		cause                  *ngapType.Cause
-		targetUe               *amfContext.RanUe
+		targetUe               *amf.RanUe
 		criticalityDiagnostics *ngapType.CriticalityDiagnostics
 	)
 
@@ -53,7 +53,7 @@ func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfCon
 		}
 	}
 
-	targetUe = amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
+	targetUe = amfInstance.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 
 	if targetUe == nil {
 		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
@@ -82,7 +82,7 @@ func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfCon
 	if sourceUe == nil {
 		logger.WithTrace(ctx, ran.Log).Error("N2 Handover between AMF has not been implemented yet")
 	} else {
-		sourceUe.AmfUe.SetOnGoing(amfContext.OnGoingProcedureNothing)
+		sourceUe.AmfUe.SetOnGoing(amf.OnGoingProcedureNothing)
 
 		failureCause := ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
@@ -103,7 +103,7 @@ func HandleHandoverFailure(ctx context.Context, amf *amfContext.AMF, ran *amfCon
 		logger.WithTrace(ctx, ran.Log).Info("sent handover preparation failure to source UE")
 	}
 
-	targetUe.ReleaseAction = amfContext.UeContextReleaseHandover
+	targetUe.ReleaseAction = amf.UeContextReleaseHandover
 
 	err = targetUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, targetUe.AmfUeNgapID, targetUe.RanUeNgapID, causePresent, causeValue)
 	if err != nil {

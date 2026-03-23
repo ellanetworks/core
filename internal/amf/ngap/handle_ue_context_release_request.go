@@ -3,13 +3,13 @@ package ngap
 import (
 	"context"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.UEContextReleaseRequest) {
+func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.UEContextReleaseRequest) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -56,7 +56,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 		return
 	}
 
-	ranUe := amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
+	ranUe := amfInstance.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 	if ranUe == nil {
 		ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	}
@@ -106,7 +106,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 
 	amfUe := ranUe.AmfUe
 	if amfUe != nil {
-		if amfUe.GetState() == amfContext.Registered {
+		if amfUe.GetState() == amf.Registered {
 			logger.WithTrace(ctx, ranUe.Log).Info("Ue Context in GMM-Registered")
 
 			if pDUSessionResourceList != nil {
@@ -124,7 +124,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 						continue
 					}
 
-					err := amf.Smf.DeactivateSmContext(ctx, smContext.Ref)
+					err := amfInstance.Smf.DeactivateSmContext(ctx, smContext.Ref)
 					if err != nil {
 						logger.WithTrace(ctx, ranUe.Log).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
 					}
@@ -140,7 +140,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 						break
 					}
 
-					err := amf.Smf.DeactivateSmContext(ctx, smContext.Ref)
+					err := amfInstance.Smf.DeactivateSmContext(ctx, smContext.Ref)
 					if err != nil {
 						logger.WithTrace(ctx, ranUe.Log).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
 					}
@@ -150,7 +150,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 			}
 		} else {
 			logger.WithTrace(ctx, ranUe.Log).Info("Ue Context in Non GMM-Registered")
-			ranUe.ReleaseAction = amfContext.UeContextReleaseUeContext
+			ranUe.ReleaseAction = amf.UeContextReleaseUeContext
 
 			err := ran.NGAPSender.SendUEContextReleaseCommand(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, causeGroup, causeValue)
 			if err != nil {
@@ -168,7 +168,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 			amfUe.Mutex.Unlock()
 
 			for _, smContextRef := range smContextRefs {
-				err := amf.Smf.ReleaseSmContext(ctx, smContextRef)
+				err := amfInstance.Smf.ReleaseSmContext(ctx, smContextRef)
 				if err != nil {
 					logger.WithTrace(ctx, ranUe.Log).Error("error sending release sm context request", zap.Error(err))
 				}
@@ -178,7 +178,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amf *amfContext.AMF, ran
 		}
 	}
 
-	ranUe.ReleaseAction = amfContext.UeContextN2NormalRelease
+	ranUe.ReleaseAction = amf.UeContextN2NormalRelease
 
 	err = ran.NGAPSender.SendUEContextReleaseCommand(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, causeGroup, causeValue)
 	if err != nil {

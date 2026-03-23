@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/producer"
 	"github.com/ellanetworks/core/internal/db"
@@ -187,10 +187,10 @@ func mustSUPI(t *testing.T, imsi string) etsi.SUPI {
 	return s
 }
 
-func addUE(t *testing.T, amf *amfContext.AMF, imsi string, setup func(*amfContext.AmfUe)) *amfContext.AmfUe {
+func addUE(t *testing.T, amfInstance *amf.AMF, imsi string, setup func(*amf.AmfUe)) *amf.AmfUe {
 	t.Helper()
 	supi := mustSUPI(t, imsi)
-	ue := amfContext.NewAmfUe()
+	ue := amf.NewAmfUe()
 	ue.Supi = supi
 
 	ue.Log = zap.NewNop()
@@ -198,7 +198,7 @@ func addUE(t *testing.T, amf *amfContext.AMF, imsi string, setup func(*amfContex
 		setup(ue)
 	}
 
-	if err := amf.AddAmfUeToUePool(ue); err != nil {
+	if err := amfInstance.AddAmfUeToUePool(ue); err != nil {
 		t.Fatalf("AddAmfUeToUePool: %v", err)
 	}
 
@@ -217,21 +217,21 @@ func newReq() models.N1N2MessageTransferRequest {
 // --- TransferN1N2Message tests ---
 
 func TestTransferN1N2Message_UENotFound(t *testing.T) {
-	amf := amfContext.New(nil, nil, nil)
+	amfInstance := amf.New(nil, nil, nil)
 	supi := mustSUPI(t, "001010000000001")
 
-	err := producer.TransferN1N2Message(context.Background(), amf, supi, newReq())
+	err := producer.TransferN1N2Message(context.Background(), amfInstance, supi, newReq())
 	if err == nil {
 		t.Fatal("expected error for missing UE")
 	}
 }
 
 func TestTransferN1N2Message_UENotConnected(t *testing.T) {
-	amf := amfContext.New(nil, nil, &fakeSmf{})
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
-	ue := addUE(t, amf, "001010000000002", nil)
+	ue := addUE(t, amfInstance, "001010000000002", nil)
 
-	err := producer.TransferN1N2Message(context.Background(), amf, ue.Supi, newReq())
+	err := producer.TransferN1N2Message(context.Background(), amfInstance, ue.Supi, newReq())
 	if err == nil {
 		t.Fatal("expected error for UE not connected to RAN")
 	}
@@ -239,22 +239,22 @@ func TestTransferN1N2Message_UENotConnected(t *testing.T) {
 
 func TestTransferN1N2Message_InitialContextAlreadySent(t *testing.T) {
 	sender := &fakeNGAPSender{}
-	amf := amfContext.New(nil, nil, &fakeSmf{})
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
-	ue := addUE(t, amf, "001010000000003", func(u *amfContext.AmfUe) {
+	ue := addUE(t, amfInstance, "001010000000003", func(u *amf.AmfUe) {
 		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
 	})
 
-	ranUe := &amfContext.RanUe{
+	ranUe := &amf.RanUe{
 		AmfUeNgapID:                    1,
 		RanUeNgapID:                    1,
 		SentInitialContextSetupRequest: true,
-		Radio:                          &amfContext.Radio{NGAPSender: sender},
+		Radio:                          &amf.Radio{NGAPSender: sender},
 		Log:                            zap.NewNop(),
 	}
 	ue.AttachRanUe(ranUe)
 
-	err := producer.TransferN1N2Message(context.Background(), amf, ue.Supi, newReq())
+	err := producer.TransferN1N2Message(context.Background(), amfInstance, ue.Supi, newReq())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -272,22 +272,22 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 			Mnc: "01",
 		},
 	}
-	amf := amfContext.New(fakeDB, nil, &fakeSmf{})
+	amfInstance := amf.New(fakeDB, nil, &fakeSmf{})
 
-	ue := addUE(t, amf, "001010000000004", func(u *amfContext.AmfUe) {
+	ue := addUE(t, amfInstance, "001010000000004", func(u *amf.AmfUe) {
 		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
 	})
 
-	ranUe := &amfContext.RanUe{
+	ranUe := &amf.RanUe{
 		AmfUeNgapID:                    1,
 		RanUeNgapID:                    1,
 		SentInitialContextSetupRequest: false,
-		Radio:                          &amfContext.Radio{NGAPSender: sender},
+		Radio:                          &amf.Radio{NGAPSender: sender},
 		Log:                            zap.NewNop(),
 	}
 	ue.AttachRanUe(ranUe)
 
-	err := producer.TransferN1N2Message(context.Background(), amf, ue.Supi, newReq())
+	err := producer.TransferN1N2Message(context.Background(), amfInstance, ue.Supi, newReq())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -304,46 +304,46 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 // --- N2MessageTransferOrPage tests ---
 
 func TestN2MessageTransferOrPage_UENotFound(t *testing.T) {
-	amf := amfContext.New(nil, nil, nil)
+	amfInstance := amf.New(nil, nil, nil)
 	supi := mustSUPI(t, "001010000000005")
 
-	err := producer.N2MessageTransferOrPage(context.Background(), amf, supi, newReq())
+	err := producer.N2MessageTransferOrPage(context.Background(), amfInstance, supi, newReq())
 	if err == nil {
 		t.Fatal("expected error for missing UE")
 	}
 }
 
 func TestN2MessageTransferOrPage_OnGoingPaging(t *testing.T) {
-	amf := amfContext.New(nil, nil, &fakeSmf{})
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
-	ue := addUE(t, amf, "001010000000006", nil)
-	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
+	ue := addUE(t, amfInstance, "001010000000006", nil)
+	ue.SetOnGoing(amf.OnGoingProcedurePaging)
 
-	err := producer.N2MessageTransferOrPage(context.Background(), amf, ue.Supi, newReq())
+	err := producer.N2MessageTransferOrPage(context.Background(), amfInstance, ue.Supi, newReq())
 	if err == nil {
 		t.Fatal("expected error for ongoing paging")
 	}
 }
 
 func TestN2MessageTransferOrPage_OnGoingRegistration(t *testing.T) {
-	amf := amfContext.New(nil, nil, &fakeSmf{})
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
-	ue := addUE(t, amf, "001010000000007", nil)
-	ue.SetOnGoing(amfContext.OnGoingProcedureRegistration)
+	ue := addUE(t, amfInstance, "001010000000007", nil)
+	ue.SetOnGoing(amf.OnGoingProcedureRegistration)
 
-	err := producer.N2MessageTransferOrPage(context.Background(), amf, ue.Supi, newReq())
+	err := producer.N2MessageTransferOrPage(context.Background(), amfInstance, ue.Supi, newReq())
 	if err == nil {
 		t.Fatal("expected error for ongoing registration")
 	}
 }
 
 func TestN2MessageTransferOrPage_OnGoingN2Handover(t *testing.T) {
-	amf := amfContext.New(nil, nil, &fakeSmf{})
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
-	ue := addUE(t, amf, "001010000000008", nil)
-	ue.SetOnGoing(amfContext.OnGoingProcedureN2Handover)
+	ue := addUE(t, amfInstance, "001010000000008", nil)
+	ue.SetOnGoing(amf.OnGoingProcedureN2Handover)
 
-	err := producer.N2MessageTransferOrPage(context.Background(), amf, ue.Supi, newReq())
+	err := producer.N2MessageTransferOrPage(context.Background(), amfInstance, ue.Supi, newReq())
 	if err == nil {
 		t.Fatal("expected error for ongoing N2 handover")
 	}
@@ -351,22 +351,22 @@ func TestN2MessageTransferOrPage_OnGoingN2Handover(t *testing.T) {
 
 func TestN2MessageTransferOrPage_ConnectedUE_InitialCtxSent(t *testing.T) {
 	sender := &fakeNGAPSender{}
-	amf := amfContext.New(nil, nil, &fakeSmf{})
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
-	ue := addUE(t, amf, "001010000000009", func(u *amfContext.AmfUe) {
+	ue := addUE(t, amfInstance, "001010000000009", func(u *amf.AmfUe) {
 		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
 	})
 
-	ranUe := &amfContext.RanUe{
+	ranUe := &amf.RanUe{
 		AmfUeNgapID:                    1,
 		RanUeNgapID:                    1,
 		SentInitialContextSetupRequest: true,
-		Radio:                          &amfContext.Radio{NGAPSender: sender},
+		Radio:                          &amf.Radio{NGAPSender: sender},
 		Log:                            zap.NewNop(),
 	}
 	ue.AttachRanUe(ranUe)
 
-	err := producer.N2MessageTransferOrPage(context.Background(), amf, ue.Supi, newReq())
+	err := producer.N2MessageTransferOrPage(context.Background(), amfInstance, ue.Supi, newReq())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -377,11 +377,11 @@ func TestN2MessageTransferOrPage_ConnectedUE_InitialCtxSent(t *testing.T) {
 }
 
 func TestN2MessageTransferOrPage_NotRegistered_NoPaging(t *testing.T) {
-	amf := amfContext.New(nil, nil, &fakeSmf{})
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
-	ue := addUE(t, amf, "001010000000010", nil)
+	ue := addUE(t, amfInstance, "001010000000010", nil)
 
-	err := producer.N2MessageTransferOrPage(context.Background(), amf, ue.Supi, newReq())
+	err := producer.N2MessageTransferOrPage(context.Background(), amfInstance, ue.Supi, newReq())
 	if err == nil {
 		t.Fatal("expected error for UE not in registered state")
 	}
@@ -390,21 +390,21 @@ func TestN2MessageTransferOrPage_NotRegistered_NoPaging(t *testing.T) {
 // --- TransferN1Msg tests ---
 
 func TestTransferN1Msg_UENotFound(t *testing.T) {
-	amf := amfContext.New(nil, nil, nil)
+	amfInstance := amf.New(nil, nil, nil)
 	supi := mustSUPI(t, "001010000000011")
 
-	err := producer.TransferN1Msg(context.Background(), amf, supi, []byte{0x01}, 1)
+	err := producer.TransferN1Msg(context.Background(), amfInstance, supi, []byte{0x01}, 1)
 	if err == nil {
 		t.Fatal("expected error for missing UE")
 	}
 }
 
 func TestTransferN1Msg_UENotConnected(t *testing.T) {
-	amf := amfContext.New(nil, nil, &fakeSmf{})
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
-	ue := addUE(t, amf, "001010000000012", nil)
+	ue := addUE(t, amfInstance, "001010000000012", nil)
 
-	err := producer.TransferN1Msg(context.Background(), amf, ue.Supi, []byte{0x01}, 1)
+	err := producer.TransferN1Msg(context.Background(), amfInstance, ue.Supi, []byte{0x01}, 1)
 	if err == nil {
 		t.Fatal("expected error for UE not connected to RAN")
 	}
@@ -412,19 +412,19 @@ func TestTransferN1Msg_UENotConnected(t *testing.T) {
 
 func TestTransferN1Msg_Success(t *testing.T) {
 	sender := &fakeNGAPSender{}
-	amf := amfContext.New(nil, nil, &fakeSmf{})
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
-	ue := addUE(t, amf, "001010000000013", nil)
+	ue := addUE(t, amfInstance, "001010000000013", nil)
 
-	ranUe := &amfContext.RanUe{
+	ranUe := &amf.RanUe{
 		AmfUeNgapID: 1,
 		RanUeNgapID: 1,
-		Radio:       &amfContext.Radio{NGAPSender: sender},
+		Radio:       &amf.Radio{NGAPSender: sender},
 		Log:         zap.NewNop(),
 	}
 	ue.AttachRanUe(ranUe)
 
-	err := producer.TransferN1Msg(context.Background(), amf, ue.Supi, []byte{0x01}, 1)
+	err := producer.TransferN1Msg(context.Background(), amfInstance, ue.Supi, []byte{0x01}, 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

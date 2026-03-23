@@ -5,14 +5,14 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/free5gc/nas/nasMessage"
 )
 
-func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.AuthenticationFailure) error {
-	if state := ue.GetState(); state != amfContext.Authentication {
+func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.AuthenticationFailure) error {
+	if state := ue.GetState(); state != amf.Authentication {
 		return fmt.Errorf("state mismatch: receive Authentication Failure message in state %s", state)
 	}
 
@@ -53,7 +53,7 @@ func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *a
 			ue.NgKsi.Ksi = 0
 		}
 
-		err := message.SendAuthenticationRequest(ctx, amf, ue.RanUe)
+		err := message.SendAuthenticationRequest(ctx, amfInstance, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("send authentication request error: %s", err)
 		}
@@ -84,7 +84,7 @@ func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *a
 			Auts: hex.EncodeToString(auts[:]),
 		}
 
-		response, err := sendUEAuthenticationAuthenticateRequest(ctx, amf, ue, resynchronizationInfo)
+		response, err := sendUEAuthenticationAuthenticateRequest(ctx, amfInstance, ue, resynchronizationInfo)
 		if err != nil {
 			return fmt.Errorf("send UE Authentication Authenticate Request Error: %s", err.Error())
 		}
@@ -92,7 +92,7 @@ func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *a
 		ue.AuthenticationCtx = response
 		ue.ABBA = []uint8{0x00, 0x00}
 
-		err = message.SendAuthenticationRequest(ctx, amf, ue.RanUe)
+		err = message.SendAuthenticationRequest(ctx, amfInstance, ue.RanUe)
 		if err != nil {
 			return fmt.Errorf("send authentication request error: %s", err)
 		}

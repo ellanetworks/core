@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasMessage"
@@ -12,8 +12,8 @@ import (
 )
 
 // TS 23.502 4.2.2.3
-func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, ue *amfContext.AmfUe, msg *nasMessage.DeregistrationRequestUEOriginatingDeregistration) error {
-	if state := ue.GetState(); state != amfContext.Registered {
+func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, ue *amf.AmfUe, msg *nasMessage.DeregistrationRequestUEOriginatingDeregistration) error {
+	if state := ue.GetState(); state != amf.Registered {
 		return fmt.Errorf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", state)
 	}
 
@@ -40,7 +40,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 		return nil
 	}
 
-	ue.RanUe.ReleaseAction = amfContext.UeContextReleaseUeContext
+	ue.RanUe.ReleaseAction = amf.UeContextReleaseUeContext
 
 	err := ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 	if err != nil {

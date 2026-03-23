@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/free5gc/nas/nasConvert"
@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe) error {
+func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe) error {
 	ue.Log.Debug("Handle MobilityAndPeriodicRegistrationUpdating")
 
 	err := ue.DerivateAnKey()
@@ -28,7 +28,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 		}
 	}
 
-	operatorInfo, err := amf.GetOperatorInfo(ctx)
+	operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
@@ -75,7 +75,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 		return nil
 	}
 
-	bitRate, err := amf.GetSubscriberBitrate(ctx, ue.Supi)
+	bitRate, err := amfInstance.GetSubscriberBitrate(ctx, ue.Supi)
 	if err != nil {
 		return fmt.Errorf("failed to get subscriber data: %v", err)
 	}
@@ -108,7 +108,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 				if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 					// uplink data are pending for the corresponding PDU session identity
 					if hasUplinkData {
-						binaryDataN2SmInformation, err := amf.Smf.ActivateSmContext(ctx, smContext.Ref)
+						binaryDataN2SmInformation, err := amfInstance.Smf.ActivateSmContext(ctx, smContext.Ref)
 						if err != nil {
 							ue.Log.Error("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 							reactivationResult[pduSessionID] = true
@@ -139,7 +139,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 			pduSessionID := uint8(psi)
 			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
 				if !psiArray[psi] {
-					err := amf.Smf.ReleaseSmContext(ctx, smContext.Ref)
+					err := amfInstance.Smf.ReleaseSmContext(ctx, smContext.Ref)
 					if err != nil {
 						return fmt.Errorf("failed to release sm context: %s", err)
 					} else {
@@ -152,13 +152,13 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 		}
 	}
 
-	err = amf.ReAllocateGuti(ctx, ue, operatorInfo.Guami)
+	err = amfInstance.ReAllocateGuti(ctx, ue, operatorInfo.Guami)
 	if err != nil {
 		return fmt.Errorf("error reallocating GUTI to UE: %v", err)
 	}
 
 	// check in specs if we need to wait for confirmation before freeing old GUTI
-	amf.FreeOldGuti(ue)
+	amfInstance.FreeOldGuti(ue)
 
 	if ue.RegistrationRequest.AllowedPDUSessionStatus != nil {
 		if ue.N1N2Message != nil {
@@ -169,7 +169,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 			// downlink signalling
 			if n2Info == nil {
 				if len(suList.List) != 0 {
-					nasPdu, err := message.BuildRegistrationAccept(amf, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
+					nasPdu, err := message.BuildRegistrationAccept(amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
 					if err != nil {
 						return err
 					}
@@ -193,7 +193,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 				} else {
 					UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
 
-					err := message.SendRegistrationAccept(ctx, amf, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
+					err := message.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
 					if err != nil {
 						return fmt.Errorf("error sending GMM registration accept: %v", err)
 					}
@@ -238,7 +238,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 	if ue.RanUe.UeContextRequest {
 		UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
 
-		err := message.SendRegistrationAccept(ctx, amf, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
+		err := message.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
 		if err != nil {
 			return fmt.Errorf("error sending GMM registration accept: %v", err)
 		}
@@ -247,7 +247,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amf *amf
 
 		return nil
 	} else {
-		nasPdu, err := message.BuildRegistrationAccept(amf, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
+		nasPdu, err := message.BuildRegistrationAccept(amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
 		if err != nil {
 			return fmt.Errorf("error building registration accept: %v", err)
 		}

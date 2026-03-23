@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
@@ -15,11 +15,11 @@ import (
 )
 
 func TestHandleNotificationResponse_NotRegisteredError(t *testing.T) {
-	testcases := []amfContext.StateType{amfContext.Authentication, amfContext.Deregistered, amfContext.ContextSetup, amfContext.SecurityMode}
+	testcases := []amf.StateType{amf.Authentication, amf.Deregistered, amf.ContextSetup, amf.SecurityMode}
 
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
-			ue := amfContext.NewAmfUe()
+			ue := amf.NewAmfUe()
 			ue.ForceState(tc)
 
 			expected := fmt.Sprintf("state mismatch: receive Notification Response message in state %s", tc)
@@ -33,8 +33,8 @@ func TestHandleNotificationResponse_NotRegisteredError(t *testing.T) {
 }
 
 func TestHandleNotificationResponse_MacFailed(t *testing.T) {
-	ue := amfContext.NewAmfUe()
-	ue.ForceState(amfContext.Registered)
+	ue := amf.NewAmfUe()
+	ue.ForceState(amf.Registered)
 	ue.MacFailed = true
 
 	expected := "NAS message integrity check failed"
@@ -47,7 +47,7 @@ func TestHandleNotificationResponse_MacFailed(t *testing.T) {
 
 func TestHandleNotificationResponse_T3565Stopped_NoPDUSessionStatus_NoSmContextReleased(t *testing.T) {
 	smf := FakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
-	amf := amfContext.New(&FakeDBInstance{
+	amfInstance := amf.New(&FakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -61,12 +61,12 @@ func TestHandleNotificationResponse_T3565Stopped_NoPDUSessionStatus_NoSmContextR
 		t.Fatalf("could not build test UE and radio: %v", err)
 	}
 
-	ue.ForceState(amfContext.Registered)
-	ue.T3565 = amfContext.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.ForceState(amf.Registered)
+	ue.T3565 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 
 	m := buildTestNotifationResponse()
 
-	err = handleNotificationResponse(t.Context(), amf, ue, m.NotificationResponse)
+	err = handleNotificationResponse(t.Context(), amfInstance, ue, m.NotificationResponse)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -82,7 +82,7 @@ func TestHandleNotificationResponse_T3565Stopped_NoPDUSessionStatus_NoSmContextR
 
 func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextReleased(t *testing.T) {
 	smf := FakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
-	amf := amfContext.New(&FakeDBInstance{
+	amfInstance := amf.New(&FakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -96,8 +96,8 @@ func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextRelea
 		t.Fatalf("could not build test UE and radio: %v", err)
 	}
 
-	ue.ForceState(amfContext.Registered)
-	ue.T3565 = amfContext.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.ForceState(amf.Registered)
+	ue.T3565 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	_ = ue.CreateSmContext(1, "1", &models.Snssai{})
 	_ = ue.CreateSmContext(5, "5", &models.Snssai{})
 	_ = ue.CreateSmContext(8, "8", &models.Snssai{})
@@ -115,7 +115,7 @@ func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextRelea
 	m.NotificationResponse.SetPSI11(1)
 	m.NotificationResponse.SetPSI15(0)
 
-	err = handleNotificationResponse(t.Context(), amf, ue, m.NotificationResponse)
+	err = handleNotificationResponse(t.Context(), amfInstance, ue, m.NotificationResponse)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

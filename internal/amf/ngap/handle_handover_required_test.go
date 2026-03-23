@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/db"
@@ -216,7 +216,7 @@ func TestHandoverRequired(t *testing.T) {
 	}
 
 	// Set up the AmfUe with valid security context
-	amfUe := amfContext.NewAmfUe()
+	amfUe := amf.NewAmfUe()
 	amfUe.Supi = supi
 	amfUe.SecurityContextAvailable = true
 	amfUe.NgKsi.Ksi = 1
@@ -225,21 +225,21 @@ func TestHandoverRequired(t *testing.T) {
 	amfUe.NH = make([]byte, 32)
 	amfUe.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
 	amfUe.Log = logger.AmfLog
-	amfUe.SmContextList[pduSessionID] = &amfContext.SmContext{
+	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    smf.CanonicalName(supi, pduSessionID),
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
 	// Set up source RAN and source UE
 	sourceNGAPSender := &FakeNGAPSender{}
-	sourceRan := &amfContext.Radio{
+	sourceRan := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    sourceNGAPSender,
-		RanUEs:        make(map[int64]*amfContext.RanUe),
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		RanUEs:        make(map[int64]*amf.RanUe),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	sourceUe := &amfContext.RanUe{
+	sourceUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 1,
 		AmfUe:       amfUe,
@@ -251,33 +251,33 @@ func TestHandoverRequired(t *testing.T) {
 
 	// Set up target RAN with matching GNB ID
 	targetNGAPSender := &FakeNGAPSender{}
-	targetRan := &amfContext.Radio{
+	targetRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: targetNGAPSender,
-		RanPresent: amfContext.RanPresentGNbID,
+		RanPresent: amf.RanPresentGNbID,
 		RanID: &models.GlobalRanNodeID{
 			GNbID: &models.GNbID{
 				GNBValue:  targetGnbID,
 				BitLength: 24,
 			},
 		},
-		RanUEs:        make(map[int64]*amfContext.RanUe),
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		RanUEs:        make(map[int64]*amf.RanUe),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
 	// Set up AMF with target RAN in Radios map
-	amf := amfContext.New(&FakeDBInstance{
+	amfInstance := amf.New(&FakeDBInstance{
 		Operator: &db.Operator{
 			Mcc: "001",
 			Mnc: "01",
 			Sst: 1,
 		},
 	}, nil, &FakeSmfSbi{SMF: smfInstance})
-	amf.Radios = map[*sctp.SCTPConn]*amfContext.Radio{
+	amfInstance.Radios = map[*sctp.SCTPConn]*amf.Radio{
 		new(sctp.SCTPConn): targetRan,
 	}
 
-	ngap.HandleHandoverRequired(context.Background(), amf, sourceRan, msg.InitiatingMessage.Value.HandoverRequired)
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg.InitiatingMessage.Value.HandoverRequired)
 
 	// Verify a HandoverRequest was sent to the target gNB
 	if len(targetNGAPSender.SentHandoverRequests) != 1 {
@@ -299,16 +299,16 @@ func TestHandoverRequired_MissingMandatoryIEs(t *testing.T) {
 	}
 
 	fakeNGAPSender := &FakeNGAPSender{}
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    fakeNGAPSender,
-		RanUEs:        make(map[int64]*amfContext.RanUe),
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		RanUEs:        make(map[int64]*amf.RanUe),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	amf := amfContext.New(nil, nil, nil)
+	amfInstance := amf.New(nil, nil, nil)
 
-	ngap.HandleHandoverRequired(context.Background(), amf, ran, msg.InitiatingMessage.Value.HandoverRequired)
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, ran, msg.InitiatingMessage.Value.HandoverRequired)
 
 	if len(fakeNGAPSender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(fakeNGAPSender.SentErrorIndications))
@@ -383,16 +383,16 @@ func TestHandoverRequired_UnknownRanUeNgapID(t *testing.T) {
 	}
 
 	fakeNGAPSender := &FakeNGAPSender{}
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    fakeNGAPSender,
-		RanUEs:        make(map[int64]*amfContext.RanUe), // Empty — no UE with ID 99
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		RanUEs:        make(map[int64]*amf.RanUe), // Empty — no UE with ID 99
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	amf := amfContext.New(nil, nil, nil)
+	amfInstance := amf.New(nil, nil, nil)
 
-	ngap.HandleHandoverRequired(context.Background(), amf, ran, msg.InitiatingMessage.Value.HandoverRequired)
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, ran, msg.InitiatingMessage.Value.HandoverRequired)
 
 	if len(fakeNGAPSender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(fakeNGAPSender.SentErrorIndications))
@@ -464,19 +464,19 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 	}
 
 	// Create AmfUe with invalid security context
-	amfUe := amfContext.NewAmfUe()
+	amfUe := amf.NewAmfUe()
 	amfUe.SecurityContextAvailable = false
 	amfUe.Log = logger.AmfLog
 
 	sourceNGAPSender := &FakeNGAPSender{}
-	sourceRan := &amfContext.Radio{
+	sourceRan := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    sourceNGAPSender,
-		RanUEs:        make(map[int64]*amfContext.RanUe),
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		RanUEs:        make(map[int64]*amf.RanUe),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	sourceUe := &amfContext.RanUe{
+	sourceUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 1,
 		AmfUe:       amfUe,
@@ -486,9 +486,9 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 	amfUe.RanUe = sourceUe
 	sourceRan.RanUEs[1] = sourceUe
 
-	amf := amfContext.New(nil, nil, nil)
+	amfInstance := amf.New(nil, nil, nil)
 
-	ngap.HandleHandoverRequired(context.Background(), amf, sourceRan, msg.InitiatingMessage.Value.HandoverRequired)
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg.InitiatingMessage.Value.HandoverRequired)
 
 	if len(sourceNGAPSender.SentHandoverPreparationFailures) != 1 {
 		t.Fatalf("expected 1 HandoverPreparationFailure, got %d", len(sourceNGAPSender.SentHandoverPreparationFailures))

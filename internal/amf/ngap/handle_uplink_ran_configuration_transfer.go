@@ -3,14 +3,14 @@ package ngap
 import (
 	"context"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleUplinkRanConfigurationTransfer(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.UplinkRANConfigurationTransfer) {
+func HandleUplinkRanConfigurationTransfer(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.UplinkRANConfigurationTransfer) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -39,7 +39,7 @@ func HandleUplinkRanConfigurationTransfer(ctx context.Context, amf *amfContext.A
 		logger.WithTrace(ctx, ran.Log).Debug("targetRanID", zap.String("targetRanID", targetRanNodeID.GNbID.GNBValue))
 	}
 
-	targetRan, ok := amf.FindRadioByRanID(targetRanNodeID)
+	targetRan, ok := amfInstance.FindRadioByRanID(targetRanNodeID)
 	if !ok {
 		logger.WithTrace(ctx, ran.Log).Warn("targetRan is nil")
 		return

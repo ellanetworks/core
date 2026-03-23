@@ -3,13 +3,13 @@ package ngap
 import (
 	"context"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleLocationReport(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.LocationReport) {
+func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.LocationReport) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -69,7 +69,7 @@ func HandleLocationReport(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 		return
 	}
 
-	ranUe.UpdateLocation(ctx, amf, userLocationInformation)
+	ranUe.UpdateLocation(ctx, amfInstance, userLocationInformation)
 	ranUe.TouchLastSeen()
 
 	// logger.WithTrace(ctx, ranUe.Log).Debugf("Report Area[%d]", locationReportingRequestType.ReportArea.Value)

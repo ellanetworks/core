@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/models"
 )
@@ -106,10 +106,10 @@ func TestListRadios(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	amf := env.AMF
-	ran1 := amfContext.Radio{}
+	amfInstance := env.AMF
+	ran1 := amf.Radio{}
 	ran1.Name = "gnb-001"
-	ran1.SupportedTAIs = []amfContext.SupportedTAI{
+	ran1.SupportedTAIs = []amf.SupportedTAI{
 		{
 			Tai: models.Tai{
 				PlmnID: &models.PlmnID{
@@ -131,11 +131,11 @@ func TestListRadios(t *testing.T) {
 			GNBValue: "mcc:001:mnc:01:gnb-001",
 		},
 	}
-	ran1.RanPresent = amfContext.RanPresentGNbID
-	amf.Radios[new(sctp.SCTPConn)] = &ran1
-	ran2 := amfContext.Radio{}
+	ran1.RanPresent = amf.RanPresentGNbID
+	amfInstance.Radios[new(sctp.SCTPConn)] = &ran1
+	ran2 := amf.Radio{}
 	ran2.Name = "gnb-002"
-	ran2.SupportedTAIs = []amfContext.SupportedTAI{
+	ran2.SupportedTAIs = []amf.SupportedTAI{
 		{
 			Tai: models.Tai{
 				PlmnID: &models.PlmnID{
@@ -157,8 +157,8 @@ func TestListRadios(t *testing.T) {
 			GNBValue: "mcc:001:mnc:01:gnb-002",
 		},
 	}
-	ran2.RanPresent = amfContext.RanPresentGNbID
-	amf.Radios[new(sctp.SCTPConn)] = &ran2
+	ran2.RanPresent = amf.RanPresentGNbID
+	amfInstance.Radios[new(sctp.SCTPConn)] = &ran2
 
 	// Set up the Gin router
 	statusCode, response, err := listRadios(env.Server.URL, client, token, 1, 10)
