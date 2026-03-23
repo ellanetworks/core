@@ -176,10 +176,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 					UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
 
-					err = ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceSetupRequest(
+					err = ue.RanUe.SendPDUSessionResourceSetupRequest(
 						ctx,
-						ue.RanUe.AmfUeNgapID,
-						ue.RanUe.RanUeNgapID,
 						ue.Ambr.Uplink,
 						ue.Ambr.Downlink,
 						nasPdu,
@@ -255,10 +253,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		if len(suList.List) != 0 {
 			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
 
-			err := ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceSetupRequest(
+			err := ue.RanUe.SendPDUSessionResourceSetupRequest(
 				ctx,
-				ue.RanUe.AmfUeNgapID,
-				ue.RanUe.RanUeNgapID,
 				ue.Ambr.Uplink,
 				ue.Ambr.Downlink,
 				nasPdu,
@@ -272,7 +268,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		} else {
 			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
 
-			err := ue.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nasPdu, nil)
+			err := ue.RanUe.SendDownlinkNasTransport(ctx, nasPdu, nil)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %v", err)
 			}

@@ -61,10 +61,8 @@ func sendServiceAccept(
 
 		ue.RanUe.SentInitialContextSetupRequest = true
 
-		err = ue.RanUe.Radio.NGAPSender.SendInitialContextSetupRequest(
+		err = ue.RanUe.SendInitialContextSetupRequest(
 			ctx,
-			ue.RanUe.AmfUeNgapID,
-			ue.RanUe.RanUeNgapID,
 			ue.Ambr.Uplink,
 			ue.Ambr.Downlink,
 			ue.AllowedNssai,
@@ -88,10 +86,8 @@ func sendServiceAccept(
 			return fmt.Errorf("error building service accept message: %v", err)
 		}
 
-		err = ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceSetupRequest(
+		err = ue.RanUe.SendPDUSessionResourceSetupRequest(
 			ctx,
-			ue.RanUe.AmfUeNgapID,
-			ue.RanUe.RanUeNgapID,
 			ue.Ambr.Uplink,
 			ue.Ambr.Downlink,
 			nasPdu,
@@ -182,7 +178,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 		ue.Log.Info("sent service reject")
 		ue.RanUe.ReleaseAction = amf.UeContextN2NormalRelease
 
-		err = ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		err = ue.RanUe.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}

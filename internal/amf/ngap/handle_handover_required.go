@@ -180,7 +180,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 		sourceUe.AmfUe.SetOnGoing(amf.OnGoingProcedureNothing)
 
-		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
+		err := sourceUe.SendHandoverPreparationFailure(ctx, *cause, nil)
 		if err != nil {
 			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
 			return
@@ -236,7 +236,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 		sourceUe.AmfUe.SetOnGoing(amf.OnGoingProcedureNothing)
 
-		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
+		err := sourceUe.SendHandoverPreparationFailure(ctx, *cause, nil)
 		if err != nil {
 			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
 			return
@@ -271,9 +271,8 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	err = targetUe.Radio.NGAPSender.SendHandoverRequest(
+	err = targetUe.SendHandoverRequest(
 		ctx,
-		targetUe.AmfUeNgapID,
 		sourceUe.HandOverType,
 		targetUe.AmfUe.Ambr.Uplink,
 		targetUe.AmfUe.Ambr.Downlink,

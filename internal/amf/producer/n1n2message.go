@@ -57,7 +57,7 @@ func TransferN1N2Message(ctx context.Context, amfInstance *amf.AMF, supi etsi.SU
 
 		send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
 
-		err := ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
+		err := ue.RanUe.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
 		if err != nil {
 			return fmt.Errorf("send pdu session resource setup request error: %v", err)
 		}
@@ -76,10 +76,8 @@ func TransferN1N2Message(ctx context.Context, amfInstance *amf.AMF, supi etsi.SU
 
 	send.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
 
-	err = ue.RanUe.Radio.NGAPSender.SendInitialContextSetupRequest(
+	err = ue.RanUe.SendInitialContextSetupRequest(
 		ctx,
-		ue.RanUe.AmfUeNgapID,
-		ue.RanUe.RanUeNgapID,
 		ue.Ambr.Uplink,
 		ue.Ambr.Downlink,
 		ue.AllowedNssai,
@@ -134,7 +132,7 @@ func N2MessageTransferOrPage(ctx context.Context, amfInstance *amf.AMF, supi ets
 			list := ngapType.PDUSessionResourceSetupListSUReq{}
 			send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 
-			err := ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
+			err := ue.RanUe.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
 			if err != nil {
 				return fmt.Errorf("send pdu session resource setup request error: %v", err)
 			}
@@ -152,10 +150,8 @@ func N2MessageTransferOrPage(ctx context.Context, amfInstance *amf.AMF, supi ets
 		list := ngapType.PDUSessionResourceSetupListCxtReq{}
 		send.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 
-		err = ue.RanUe.Radio.NGAPSender.SendInitialContextSetupRequest(
+		err = ue.RanUe.SendInitialContextSetupRequest(
 			ctx,
-			ue.RanUe.AmfUeNgapID,
-			ue.RanUe.RanUeNgapID,
 			ue.Ambr.Uplink,
 			ue.Ambr.Downlink,
 			ue.AllowedNssai,
@@ -231,7 +227,7 @@ func TransferN1Msg(ctx context.Context, amfInstance *amf.AMF, supi etsi.SUPI, n1
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
 
-	err = ue.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nasPdu, nil)
+	err = ue.RanUe.SendDownlinkNasTransport(ctx, nasPdu, nil)
 	if err != nil {
 		return fmt.Errorf("send downlink nas transport error: %v", err)
 	}

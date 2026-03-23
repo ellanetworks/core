@@ -47,7 +47,7 @@ func SendDLNASTransport(ctx context.Context, ue *amf.RanUe, payloadContainerType
 		return fmt.Errorf("error building downlink NAS transport message: %s", err.Error())
 	}
 
-	err = ue.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.AmfUeNgapID, ue.RanUeNgapID, nasMsg, nil)
+	err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
@@ -74,7 +74,7 @@ func SendIdentityRequest(ctx context.Context, ue *amf.RanUe, typeOfIdentity uint
 		return fmt.Errorf("error building identity request: %s", err.Error())
 	}
 
-	err = ue.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.AmfUeNgapID, ue.RanUeNgapID, nasMsg, nil)
+	err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
@@ -111,7 +111,7 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 		amfUe.T3560 = amf.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.Log.Warn("T3560 expires, retransmit Authentication Request", zap.Any("expireTimes", expireTimes))
 
-			err := ue.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.AmfUeNgapID, ue.RanUeNgapID, nasMsg, nil)
+			err := ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
 			if err != nil {
 				amfUe.Log.Error("could not send downlink NAS transport message", zap.Error(err))
 				return
@@ -122,7 +122,7 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 		})
 	}
 
-	err = ue.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.AmfUeNgapID, ue.RanUeNgapID, nasMsg, nil)
+	err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
@@ -150,7 +150,7 @@ func SendServiceAccept(ctx context.Context, ue *amf.RanUe, pDUSessionStatus *[16
 		return fmt.Errorf("error building service accept: %s", err.Error())
 	}
 
-	err = ue.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.AmfUeNgapID, ue.RanUeNgapID, nasMsg, nil)
+	err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
@@ -176,7 +176,7 @@ func SendAuthenticationReject(ctx context.Context, ue *amf.RanUe) error {
 		return fmt.Errorf("error building authentication reject: %s", err.Error())
 	}
 
-	err = ue.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.AmfUeNgapID, ue.RanUeNgapID, nasMsg, nil)
+	err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
@@ -203,7 +203,7 @@ func SendServiceReject(ctx context.Context, ue *amf.RanUe, cause uint8) error {
 		return fmt.Errorf("error building service reject: %s", err.Error())
 	}
 
-	err = ue.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.AmfUeNgapID, ue.RanUeNgapID, nasMsg, nil)
+	err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
@@ -231,7 +231,7 @@ func SendRegistrationReject(ctx context.Context, ue *amf.RanUe, cause5GMM uint8)
 		return fmt.Errorf("error building registration reject: %s", err.Error())
 	}
 
-	err = ue.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.AmfUeNgapID, ue.RanUeNgapID, nasMsg, nil)
+	err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
@@ -257,7 +257,7 @@ func SendSecurityModeCommand(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 		return fmt.Errorf("error building security mode command: %s", err.Error())
 	}
 
-	err = ue.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.AmfUeNgapID, ue.RanUeNgapID, nasMsg, nil)
+	err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
 	if err != nil {
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 	}
@@ -269,7 +269,7 @@ func SendSecurityModeCommand(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 		amfUe.T3560 = amf.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.Log.Warn("T3560 expires, retransmit Security Mode Command", zap.Any("expireTimes", expireTimes))
 
-			err = ue.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.AmfUeNgapID, ue.RanUeNgapID, nasMsg, nil)
+			err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
 			if err != nil {
 				amfUe.Log.Error("could not send downlink NAS transport message", zap.Error(err))
 				return
@@ -304,7 +304,7 @@ func SendDeregistrationAccept(ctx context.Context, ue *amf.RanUe) error {
 		return fmt.Errorf("error building deregistration accept: %s", err.Error())
 	}
 
-	err = ue.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.AmfUeNgapID, ue.RanUeNgapID, nasMsg, nil)
+	err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
 	if err != nil {
 		ue.AmfUe.Log.Error("could not send downlink NAS transport message", zap.Error(err))
 		return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
@@ -344,10 +344,8 @@ func SendRegistrationAccept(
 	if ue.RanUe.UeContextRequest {
 		ue.RanUe.SentInitialContextSetupRequest = true
 
-		err = ue.RanUe.Radio.NGAPSender.SendInitialContextSetupRequest(
+		err = ue.RanUe.SendInitialContextSetupRequest(
 			ctx,
-			ue.RanUe.AmfUeNgapID,
-			ue.RanUe.RanUeNgapID,
 			ue.Ambr.Uplink,
 			ue.Ambr.Downlink,
 			ue.AllowedNssai,
@@ -366,7 +364,7 @@ func SendRegistrationAccept(
 
 		ue.Log.Info("Sent NGAP initial context setup request")
 	} else {
-		err = ue.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nasMsg, nil)
+		err = ue.RanUe.SendDownlinkNasTransport(ctx, nasMsg, nil)
 		if err != nil {
 			return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 		}
@@ -382,10 +380,8 @@ func SendRegistrationAccept(
 				ue.T3550 = nil
 			} else {
 				if ue.RanUe.UeContextRequest && !ue.RanUe.RecvdInitialContextSetupResponse {
-					err = ue.RanUe.Radio.NGAPSender.SendInitialContextSetupRequest(
+					err = ue.RanUe.SendInitialContextSetupRequest(
 						ctx,
-						ue.RanUe.AmfUeNgapID,
-						ue.RanUe.RanUeNgapID,
 						ue.Ambr.Uplink,
 						ue.Ambr.Downlink,
 						ue.AllowedNssai,
@@ -407,7 +403,7 @@ func SendRegistrationAccept(
 				} else {
 					ue.Log.Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
 
-					err = ue.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nasMsg, nil)
+					err = ue.RanUe.SendDownlinkNasTransport(ctx, nasMsg, nil)
 					if err != nil {
 						ue.Log.Error("could not send downlink NAS transport message", zap.Error(err))
 					}
@@ -465,7 +461,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *amf.AMF, a
 		return
 	}
 
-	err = amfUe.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, amfUe.RanUe.AmfUeNgapID, amfUe.RanUe.RanUeNgapID, nasMsg, mobilityRestrictionList)
+	err = amfUe.RanUe.SendDownlinkNasTransport(ctx, nasMsg, mobilityRestrictionList)
 	if err != nil {
 		amfUe.Log.Error("could not send configuration update command", zap.Error(err))
 		return
@@ -490,7 +486,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *amf.AMF, a
 				return
 			}
 
-			err = amfUe.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, amfUe.RanUe.AmfUeNgapID, amfUe.RanUe.RanUeNgapID, nasMsg, mobilityRestrictionList)
+			err = amfUe.RanUe.SendDownlinkNasTransport(ctx, nasMsg, mobilityRestrictionList)
 			if err != nil {
 				amfUe.Log.Error("could not send configuration update command", zap.Error(err))
 			}

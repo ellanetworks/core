@@ -60,7 +60,7 @@ func forward5GSMMessageToSMF(
 		list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 		send.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, response.N2Msg)
 
-		err := ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, n1Msg, list)
+		err := ue.RanUe.SendPDUSessionResourceReleaseCommand(ctx, n1Msg, list)
 		if err != nil {
 			return fmt.Errorf("error sending pdu session resource release command: %s", err)
 		}
@@ -71,7 +71,7 @@ func forward5GSMMessageToSMF(
 	}
 
 	if n1Msg != nil {
-		err := ue.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, n1Msg, nil)
+		err := ue.RanUe.SendDownlinkNasTransport(ctx, n1Msg, nil)
 		if err != nil {
 			return fmt.Errorf("error sending downlink nas transport: %s", err)
 		}
@@ -165,7 +165,7 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 			list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 			send.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, n2Rsp)
 
-			err = ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nil, list)
+			err = ue.RanUe.SendPDUSessionResourceReleaseCommand(ctx, nil, list)
 			if err != nil {
 				return fmt.Errorf("error sending pdu session resource release command: %s", err)
 			}

@@ -106,13 +106,13 @@ func HandleHandoverCancel(ctx context.Context, ran *amf.Radio, msg *ngapType.Han
 
 	targetUe.ReleaseAction = amf.UeContextReleaseHandover
 
-	err = targetUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, targetUe.AmfUeNgapID, targetUe.RanUeNgapID, causePresent, causeValue)
+	err = targetUe.SendUEContextReleaseCommand(ctx, causePresent, causeValue)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error sending UE Context Release Command to target UE", zap.Error(err))
 		return
 	}
 
-	err = sourceUe.Radio.NGAPSender.SendHandoverCancelAcknowledge(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID)
+	err = sourceUe.SendHandoverCancelAcknowledge(ctx)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error sending handover cancel acknowledge to source UE", zap.Error(err))
 		return

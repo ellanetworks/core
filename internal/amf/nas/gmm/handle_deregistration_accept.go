@@ -25,7 +25,7 @@ func handleDeregistrationAccept(ctx context.Context, ue *amf.AmfUe) error {
 
 	ue.RanUe.ReleaseAction = amf.UeContextReleaseDueToNwInitiatedDeregistraion
 
-	err := ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
+	err := ue.RanUe.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 	if err != nil {
 		return fmt.Errorf("error sending ue context release command: %v", err)
 	}
