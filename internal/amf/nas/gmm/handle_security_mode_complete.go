@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
 )
 
 // TS 33.501 6.7.2
-func handleSecurityModeComplete(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.SecurityModeComplete) error {
-	if ue.State != amfContext.SecurityMode {
-		return fmt.Errorf("state mismatch: receive Security Mode Complete message in state %s", ue.State)
+func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.SecurityModeComplete) error {
+	if state := ue.GetState(); state != amf.SecurityMode {
+		return fmt.Errorf("state mismatch: receive Security Mode Complete message in state %s", state)
 	}
 
 	if ue.MacFailed {
@@ -49,8 +49,8 @@ func handleSecurityModeComplete(ctx context.Context, amf *amfContext.AMF, ue *am
 			return fmt.Errorf("nas message container Iei type error")
 		}
 
-		return contextSetup(ctx, amf, ue, m.RegistrationRequest)
+		return contextSetup(ctx, amfInstance, ue, m.RegistrationRequest)
 	}
 
-	return contextSetup(ctx, amf, ue, ue.RegistrationRequest)
+	return contextSetup(ctx, amfInstance, ue, ue.RegistrationRequest)
 }

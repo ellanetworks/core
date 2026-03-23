@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
@@ -39,13 +39,13 @@ func buildHandoverNotify(amfUeNgapID *ngapType.AMFUENGAPID, ranUeNgapID *ngapTyp
 
 func TestHandoverNotify_NilMessage(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: fakeNGAPSender,
 	}
-	amf := amfContext.New(nil, nil, nil)
+	amfInstance := amf.New(nil, nil, nil)
 
-	ngap.HandleHandoverNotify(context.Background(), amf, ran, nil)
+	ngap.HandleHandoverNotify(context.Background(), amfInstance, ran, nil)
 
 	if len(fakeNGAPSender.SentErrorIndications) != 0 {
 		t.Fatalf("expected no ErrorIndication, got %d", len(fakeNGAPSender.SentErrorIndications))
@@ -58,20 +58,20 @@ func TestHandoverNotify_NilMessage(t *testing.T) {
 
 func TestHandoverNotify_UnknownRanUeNgapID(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    fakeNGAPSender,
-		RanUEs:        make(map[int64]*amfContext.RanUe),
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		RanUEs:        make(map[int64]*amf.RanUe),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
-	amf := amfContext.New(nil, nil, nil)
+	amfInstance := amf.New(nil, nil, nil)
 
 	msg := buildHandoverNotify(
 		&ngapType.AMFUENGAPID{Value: 1},
 		&ngapType.RANUENGAPID{Value: 99},
 	)
 
-	ngap.HandleHandoverNotify(context.Background(), amf, ran, msg)
+	ngap.HandleHandoverNotify(context.Background(), amfInstance, ran, msg)
 
 	if len(fakeNGAPSender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(fakeNGAPSender.SentErrorIndications))
@@ -97,14 +97,14 @@ func TestHandoverNotify_UnknownRanUeNgapID(t *testing.T) {
 
 func TestHandoverNotify_NilAmfUe(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    fakeNGAPSender,
-		RanUEs:        make(map[int64]*amfContext.RanUe),
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		RanUEs:        make(map[int64]*amf.RanUe),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	targetUe := &amfContext.RanUe{
+	targetUe := &amf.RanUe{
 		RanUeNgapID: 2,
 		AmfUeNgapID: 1,
 		AmfUe:       nil,
@@ -113,14 +113,14 @@ func TestHandoverNotify_NilAmfUe(t *testing.T) {
 	}
 	ran.RanUEs[2] = targetUe
 
-	amf := amfContext.New(nil, nil, nil)
+	amfInstance := amf.New(nil, nil, nil)
 
 	msg := buildHandoverNotify(
 		&ngapType.AMFUENGAPID{Value: 1},
 		&ngapType.RANUENGAPID{Value: 2},
 	)
 
-	ngap.HandleHandoverNotify(context.Background(), amf, ran, msg)
+	ngap.HandleHandoverNotify(context.Background(), amfInstance, ran, msg)
 
 	if len(fakeNGAPSender.SentUEContextReleaseCommands) != 0 {
 		t.Fatalf("expected no UEContextReleaseCommand, got %d", len(fakeNGAPSender.SentUEContextReleaseCommands))
@@ -129,17 +129,17 @@ func TestHandoverNotify_NilAmfUe(t *testing.T) {
 
 func TestHandoverNotify_NoSourceUe(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    fakeNGAPSender,
-		RanUEs:        make(map[int64]*amfContext.RanUe),
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		RanUEs:        make(map[int64]*amf.RanUe),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	amfUe := amfContext.NewAmfUe()
+	amfUe := amf.NewAmfUe()
 	amfUe.Log = logger.AmfLog
 
-	targetUe := &amfContext.RanUe{
+	targetUe := &amf.RanUe{
 		RanUeNgapID: 2,
 		AmfUeNgapID: 1,
 		AmfUe:       amfUe,
@@ -149,14 +149,14 @@ func TestHandoverNotify_NoSourceUe(t *testing.T) {
 	}
 	ran.RanUEs[2] = targetUe
 
-	amf := amfContext.New(nil, nil, nil)
+	amfInstance := amf.New(nil, nil, nil)
 
 	msg := buildHandoverNotify(
 		&ngapType.AMFUENGAPID{Value: 1},
 		&ngapType.RANUENGAPID{Value: 2},
 	)
 
-	ngap.HandleHandoverNotify(context.Background(), amf, ran, msg)
+	ngap.HandleHandoverNotify(context.Background(), amfInstance, ran, msg)
 
 	if len(fakeNGAPSender.SentUEContextReleaseCommands) != 0 {
 		t.Fatalf("expected no UEContextReleaseCommand, got %d", len(fakeNGAPSender.SentUEContextReleaseCommands))
@@ -166,17 +166,17 @@ func TestHandoverNotify_NoSourceUe(t *testing.T) {
 func TestHandoverNotify_HappyPath(t *testing.T) {
 	// Source RAN and source UE
 	sourceNGAPSender := &FakeNGAPSender{}
-	sourceRan := &amfContext.Radio{
+	sourceRan := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    sourceNGAPSender,
-		RanUEs:        make(map[int64]*amfContext.RanUe),
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		RanUEs:        make(map[int64]*amf.RanUe),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	amfUe := amfContext.NewAmfUe()
+	amfUe := amf.NewAmfUe()
 	amfUe.Log = logger.AmfLog
 
-	sourceUe := &amfContext.RanUe{
+	sourceUe := &amf.RanUe{
 		RanUeNgapID: 10,
 		AmfUeNgapID: 100,
 		AmfUe:       amfUe,
@@ -188,14 +188,14 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 
 	// Target RAN and target UE
 	targetNGAPSender := &FakeNGAPSender{}
-	targetRan := &amfContext.Radio{
+	targetRan := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    targetNGAPSender,
-		RanUEs:        make(map[int64]*amfContext.RanUe),
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		RanUEs:        make(map[int64]*amf.RanUe),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	targetUe := &amfContext.RanUe{
+	targetUe := &amf.RanUe{
 		RanUeNgapID: 2,
 		AmfUeNgapID: 1,
 		AmfUe:       amfUe,
@@ -206,14 +206,14 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 	sourceUe.TargetUe = targetUe
 	targetRan.RanUEs[2] = targetUe
 
-	amf := amfContext.New(nil, nil, nil)
+	amfInstance := amf.New(nil, nil, nil)
 
 	msg := buildHandoverNotify(
 		&ngapType.AMFUENGAPID{Value: 1},
 		&ngapType.RANUENGAPID{Value: 2},
 	)
 
-	ngap.HandleHandoverNotify(context.Background(), amf, targetRan, msg)
+	ngap.HandleHandoverNotify(context.Background(), amfInstance, targetRan, msg)
 
 	// Verify UEContextReleaseCommand was sent to the source RAN
 	if len(sourceNGAPSender.SentUEContextReleaseCommands) != 1 {
@@ -239,7 +239,7 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 	}
 
 	// Verify source UE release action was set
-	if sourceUe.ReleaseAction != amfContext.UeContextReleaseHandover {
+	if sourceUe.ReleaseAction != amf.UeContextReleaseHandover {
 		t.Errorf("expected source UE ReleaseAction=UeContextReleaseHandover, got %d", sourceUe.ReleaseAction)
 	}
 
@@ -256,10 +256,10 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 
 func TestHandleHandoverNotify_EmptyIEs(t *testing.T) {
 	ran := newTestRadio()
-	amf := newTestAMF()
+	amfInstance := newTestAMF()
 	msg := &ngapType.HandoverNotify{}
 
 	assertNoPanic(t, "HandleHandoverNotify(empty IEs)", func() {
-		ngap.HandleHandoverNotify(context.Background(), amf, ran, msg)
+		ngap.HandleHandoverNotify(context.Background(), amfInstance, ran, msg)
 	})
 }

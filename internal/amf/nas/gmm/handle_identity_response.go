@@ -7,12 +7,12 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
 )
 
-func updateUEIdentity(ue *amfContext.AmfUe, mobileIdentityContents []uint8) error {
+func updateUEIdentity(ue *amf.AmfUe, mobileIdentityContents []uint8) error {
 	if ue == nil {
 		return fmt.Errorf("AmfUe is nil")
 	}
@@ -83,28 +83,28 @@ func updateUEIdentity(ue *amfContext.AmfUe, mobileIdentityContents []uint8) erro
 	return nil
 }
 
-func handleIdentityResponse(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.IdentityResponse) error {
+func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.IdentityResponse) error {
 	switch ue.GetState() {
-	case amfContext.Authentication:
+	case amf.Authentication:
 		mobileIdentityContents := msg.GetMobileIdentityContents()
 
 		if err := updateUEIdentity(ue, mobileIdentityContents); err != nil {
 			return fmt.Errorf("error handling identity response: %v", err)
 		}
 
-		pass, err := authenticationProcedure(ctx, amf, ue)
+		pass, err := authenticationProcedure(ctx, amfInstance, ue)
 		if err != nil {
 			ue.Deregister(ctx)
 			return fmt.Errorf("error in authentication procedure: %v", err)
 		}
 
 		if pass {
-			return securityMode(ctx, amf, ue)
+			return securityMode(ctx, amfInstance, ue)
 		}
 
 		return nil
 
-	case amfContext.ContextSetup:
+	case amf.ContextSetup:
 		mobileIdentityContents := msg.GetMobileIdentityContents()
 
 		if err := updateUEIdentity(ue, mobileIdentityContents); err != nil {
@@ -113,14 +113,14 @@ func handleIdentityResponse(ctx context.Context, amf *amfContext.AMF, ue *amfCon
 
 		switch ue.RegistrationType5GS {
 		case nasMessage.RegistrationType5GSInitialRegistration:
-			if err := HandleInitialRegistration(ctx, amf, ue); err != nil {
+			if err := HandleInitialRegistration(ctx, amfInstance, ue); err != nil {
 				ue.Deregister(ctx)
 				return fmt.Errorf("error handling initial registration: %v", err)
 			}
 		case nasMessage.RegistrationType5GSMobilityRegistrationUpdating:
 			fallthrough
 		case nasMessage.RegistrationType5GSPeriodicRegistrationUpdating:
-			if err := HandleMobilityAndPeriodicRegistrationUpdating(ctx, amf, ue); err != nil {
+			if err := HandleMobilityAndPeriodicRegistrationUpdating(ctx, amfInstance, ue); err != nil {
 				ue.Deregister(ctx)
 				return fmt.Errorf("error handling mobility and periodic registration updating: %v", err)
 			}

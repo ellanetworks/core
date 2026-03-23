@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/db"
@@ -109,8 +109,8 @@ func buildPathSwitchRequest(
 	return msg
 }
 
-func newTestAMFWithSmf(smf amfContext.SmfSbi) *amfContext.AMF {
-	return amfContext.New(&FakeDBInstance{
+func newTestAMFWithSmf(smf amf.SmfSbi) *amf.AMF {
+	return amf.New(&FakeDBInstance{
 		Operator: &db.Operator{
 			Mcc: "001",
 			Mnc: "01",
@@ -119,8 +119,8 @@ func newTestAMFWithSmf(smf amfContext.SmfSbi) *amfContext.AMF {
 	}, nil, smf)
 }
 
-func newValidAmfUe() *amfContext.AmfUe {
-	amfUe := amfContext.NewAmfUe()
+func newValidAmfUe() *amf.AmfUe {
+	amfUe := amf.NewAmfUe()
 	amfUe.Supi, _ = etsi.NewSUPIFromPrefixed("imsi-001010000000001")
 	amfUe.SecurityContextAvailable = true
 	amfUe.NgKsi.Ksi = 1
@@ -134,13 +134,13 @@ func newValidAmfUe() *amfContext.AmfUe {
 
 func TestPathSwitchRequest_NilMessage(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: fakeNGAPSender,
 	}
-	amf := newTestAMFWithSmf(&FakeSmfSbi{})
+	amfInstance := newTestAMFWithSmf(&FakeSmfSbi{})
 
-	ngap.HandlePathSwitchRequest(context.Background(), amf, ran, nil)
+	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, ran, nil)
 
 	if len(fakeNGAPSender.SentPathSwitchRequestFailures) != 0 {
 		t.Fatalf("expected no PathSwitchRequestFailure for nil message, got %d",
@@ -150,12 +150,12 @@ func TestPathSwitchRequest_NilMessage(t *testing.T) {
 
 func TestPathSwitchRequest_MissingSourceAMFUENGAPID(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: fakeNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
-	amf := newTestAMFWithSmf(&FakeSmfSbi{})
+	amfInstance := newTestAMFWithSmf(&FakeSmfSbi{})
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -176,7 +176,7 @@ func TestPathSwitchRequest_MissingSourceAMFUENGAPID(t *testing.T) {
 		nil, nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amf, ran, msg)
+	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, ran, msg)
 
 	// Handler should return early without sending anything (silent drop per spec)
 	if len(fakeNGAPSender.SentPathSwitchRequestFailures) != 0 {
@@ -192,13 +192,13 @@ func TestPathSwitchRequest_MissingSourceAMFUENGAPID(t *testing.T) {
 
 func TestPathSwitchRequest_UnknownUE(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: fakeNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amf := newTestAMFWithSmf(&FakeSmfSbi{})
+	amfInstance := newTestAMFWithSmf(&FakeSmfSbi{})
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -219,7 +219,7 @@ func TestPathSwitchRequest_UnknownUE(t *testing.T) {
 		nil, nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amf, ran, msg)
+	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(fakeNGAPSender.SentPathSwitchRequestFailures) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestFailure, got %d",
@@ -238,14 +238,14 @@ func TestPathSwitchRequest_UnknownUE(t *testing.T) {
 
 func TestPathSwitchRequest_NilAmfUe(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
-	sourceRan := &amfContext.Radio{
+	sourceRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: fakeNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
 	// RanUe exists but AmfUe is nil
-	ranUe := &amfContext.RanUe{
+	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 10,
 		AmfUe:       nil,
@@ -255,14 +255,14 @@ func TestPathSwitchRequest_NilAmfUe(t *testing.T) {
 	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
-	targetRan := &amfContext.Radio{
+	targetRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amf := newTestAMFWithSmf(&FakeSmfSbi{})
-	amf.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance := newTestAMFWithSmf(&FakeSmfSbi{})
+	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -283,7 +283,7 @@ func TestPathSwitchRequest_NilAmfUe(t *testing.T) {
 		nil, nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amf, targetRan, msg)
+	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	// Should send failure because AmfUe is nil
 	if len(targetNGAPSender.SentPathSwitchRequestFailures) != 1 {
@@ -294,18 +294,18 @@ func TestPathSwitchRequest_NilAmfUe(t *testing.T) {
 
 func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
-	sourceRan := &amfContext.Radio{
+	sourceRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: fakeNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amfUe := amfContext.NewAmfUe()
+	amfUe := amf.NewAmfUe()
 	amfUe.SecurityContextAvailable = false
 	amfUe.NgKsi.Ksi = nasMessage.NasKeySetIdentifierNoKeyIsAvailable
 	amfUe.Log = logger.AmfLog
 
-	ranUe := &amfContext.RanUe{
+	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 10,
 		AmfUe:       amfUe,
@@ -316,14 +316,14 @@ func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
-	targetRan := &amfContext.Radio{
+	targetRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	amf := newTestAMFWithSmf(&FakeSmfSbi{})
-	amf.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance := newTestAMFWithSmf(&FakeSmfSbi{})
+	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -344,7 +344,7 @@ func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 		nil, nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amf, targetRan, msg)
+	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	// Should send failure because security context is not valid
 	if len(targetNGAPSender.SentPathSwitchRequestFailures) != 1 {
@@ -355,16 +355,16 @@ func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 
 func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 	sourceNGAPSender := &FakeNGAPSender{}
-	sourceRan := &amfContext.Radio{
+	sourceRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: sourceNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
 	amfUe := newValidAmfUe()
 	// SmContextList is empty — no PDU session ID 1
 
-	ranUe := &amfContext.RanUe{
+	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 10,
 		AmfUe:       amfUe,
@@ -375,15 +375,15 @@ func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
-	targetRan := &amfContext.Radio{
+	targetRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
 	fakeSmf := &FakeSmfSbi{PathSwitchResponse: []byte{0x01}}
-	amf := newTestAMFWithSmf(fakeSmf)
-	amf.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance := newTestAMFWithSmf(fakeSmf)
+	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -404,7 +404,7 @@ func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 		nil, nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amf, targetRan, msg)
+	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	// No PDU sessions could be switched; should send failure
 	if len(fakeSmf.PathSwitchCalls) != 0 {
@@ -419,19 +419,19 @@ func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 
 func TestPathSwitchRequest_SmfReturnsError(t *testing.T) {
 	sourceNGAPSender := &FakeNGAPSender{}
-	sourceRan := &amfContext.Radio{
+	sourceRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: sourceNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
 	amfUe := newValidAmfUe()
-	amfUe.SmContextList[1] = &amfContext.SmContext{
+	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := &amfContext.RanUe{
+	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 10,
 		AmfUe:       amfUe,
@@ -442,17 +442,17 @@ func TestPathSwitchRequest_SmfReturnsError(t *testing.T) {
 	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
-	targetRan := &amfContext.Radio{
+	targetRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
 	fakeSmf := &FakeSmfSbi{
 		PathSwitchErr: fmt.Errorf("PFCP modification failed"),
 	}
-	amf := newTestAMFWithSmf(fakeSmf)
-	amf.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance := newTestAMFWithSmf(fakeSmf)
+	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -473,7 +473,7 @@ func TestPathSwitchRequest_SmfReturnsError(t *testing.T) {
 		nil, nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amf, targetRan, msg)
+	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	// SMF call should have been made
 	if len(fakeSmf.PathSwitchCalls) != 1 {
@@ -505,20 +505,20 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 	)
 
 	sourceNGAPSender := &FakeNGAPSender{}
-	sourceRan := &amfContext.Radio{
+	sourceRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: sourceNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
 	amfUe := newValidAmfUe()
 	amfUe.Kamf = kamfHex
-	amfUe.SmContextList[pduSessionID] = &amfContext.SmContext{
+	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	sourceUe := &amfContext.RanUe{
+	sourceUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: sourceAmfUeNgapID,
 		AmfUe:       amfUe,
@@ -529,10 +529,10 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 	sourceRan.RanUEs[1] = sourceUe
 
 	targetNGAPSender := &FakeNGAPSender{}
-	targetRan := &amfContext.Radio{
+	targetRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
 	n2Response := []byte{0xAA, 0xBB, 0xCC}
@@ -540,8 +540,8 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 		PathSwitchResponse: n2Response,
 	}
 
-	amf := newTestAMFWithSmf(fakeSmf)
-	amf.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance := newTestAMFWithSmf(fakeSmf)
+	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -562,7 +562,7 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 		nil, nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amf, targetRan, msg)
+	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	// Verify SMF was called
 	if len(fakeSmf.PathSwitchCalls) != 1 {
@@ -620,20 +620,20 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 
 func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 	sourceNGAPSender := &FakeNGAPSender{}
-	sourceRan := &amfContext.Radio{
+	sourceRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: sourceNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
 	amfUe := newValidAmfUe()
 	// Session 1 has a context, session 2 does not
-	amfUe.SmContextList[1] = &amfContext.SmContext{
+	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := &amfContext.RanUe{
+	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 10,
 		AmfUe:       amfUe,
@@ -644,17 +644,17 @@ func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
-	targetRan := &amfContext.Radio{
+	targetRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
 	fakeSmf := &FakeSmfSbi{
 		PathSwitchResponse: []byte{0xAA},
 	}
-	amf := newTestAMFWithSmf(fakeSmf)
-	amf.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance := newTestAMFWithSmf(fakeSmf)
+	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
 
 	transfer1, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -684,7 +684,7 @@ func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 		nil, nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amf, targetRan, msg)
+	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	// Only session 1 should succeed
 	if len(fakeSmf.PathSwitchCalls) != 1 {
@@ -711,23 +711,23 @@ func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 
 func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 	sourceNGAPSender := &FakeNGAPSender{}
-	sourceRan := &amfContext.Radio{
+	sourceRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: sourceNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
 	amfUe := newValidAmfUe()
-	amfUe.SmContextList[1] = &amfContext.SmContext{
+	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
-	amfUe.SmContextList[2] = &amfContext.SmContext{
+	amfUe.SmContextList[2] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-2",
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := &amfContext.RanUe{
+	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 10,
 		AmfUe:       amfUe,
@@ -738,17 +738,17 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
-	targetRan := &amfContext.Radio{
+	targetRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
 	fakeSmf := &FakeSmfSbi{
 		PathSwitchResponse: []byte{0xAA},
 	}
-	amf := newTestAMFWithSmf(fakeSmf)
-	amf.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance := newTestAMFWithSmf(fakeSmf)
+	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -792,7 +792,7 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 		nil,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amf, targetRan, msg)
+	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	// Path switch succeeded for session 1
 	if len(fakeSmf.PathSwitchCalls) != 1 {
@@ -817,21 +817,21 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 
 func TestPathSwitchRequest_UESecurityCapabilitiesUpdated(t *testing.T) {
 	sourceNGAPSender := &FakeNGAPSender{}
-	sourceRan := &amfContext.Radio{
+	sourceRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: sourceNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
 	amfUe := newValidAmfUe()
 	amfUe.UESecurityCapability = &nasType.UESecurityCapability{}
 	amfUe.UESecurityCapability.SetLen(4) // allocate Buffer for 5G + E-UTRA algorithms
-	amfUe.SmContextList[1] = &amfContext.SmContext{
+	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := &amfContext.RanUe{
+	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 10,
 		AmfUe:       amfUe,
@@ -842,17 +842,17 @@ func TestPathSwitchRequest_UESecurityCapabilitiesUpdated(t *testing.T) {
 	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
-	targetRan := &amfContext.Radio{
+	targetRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
 	fakeSmf := &FakeSmfSbi{
 		PathSwitchResponse: []byte{0xAA},
 	}
-	amf := newTestAMFWithSmf(fakeSmf)
-	amf.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance := newTestAMFWithSmf(fakeSmf)
+	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
 
 	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
 	if err != nil {
@@ -893,7 +893,7 @@ func TestPathSwitchRequest_UESecurityCapabilitiesUpdated(t *testing.T) {
 		secCap,
 	)
 
-	ngap.HandlePathSwitchRequest(context.Background(), amf, targetRan, msg)
+	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
 	if len(targetNGAPSender.SentPathSwitchRequestAcknowledges) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestAcknowledge, got %d",
@@ -903,17 +903,17 @@ func TestPathSwitchRequest_UESecurityCapabilitiesUpdated(t *testing.T) {
 
 func TestHandlePathSwitchRequest_EmptyIEs(t *testing.T) {
 	ran := newTestRadio()
-	amf := newTestAMF()
+	amfInstance := newTestAMF()
 	msg := &ngapType.PathSwitchRequest{}
 
 	assertNoPanic(t, "HandlePathSwitchRequest(empty IEs)", func() {
-		ngap.HandlePathSwitchRequest(context.Background(), amf, ran, msg)
+		ngap.HandlePathSwitchRequest(context.Background(), amfInstance, ran, msg)
 	})
 }
 
 func TestHandlePathSwitchRequest_MissingRANUENGAPID(t *testing.T) {
 	ran := newTestRadio()
-	amf := newTestAMF()
+	amfInstance := newTestAMF()
 	msg := &ngapType.PathSwitchRequest{}
 	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.PathSwitchRequestIEs{
 		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDSourceAMFUENGAPID},
@@ -925,21 +925,21 @@ func TestHandlePathSwitchRequest_MissingRANUENGAPID(t *testing.T) {
 	})
 
 	assertNoPanic(t, "HandlePathSwitchRequest(missing RANUENGAPID)", func() {
-		ngap.HandlePathSwitchRequest(context.Background(), amf, ran, msg)
+		ngap.HandlePathSwitchRequest(context.Background(), amfInstance, ran, msg)
 	})
 }
 
 func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
 	sourceNGAPSender := &FakeNGAPSender{}
-	sourceRan := &amfContext.Radio{
+	sourceRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: sourceNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
 	amfUe := newValidAmfUe()
 
-	ranUe := &amfContext.RanUe{
+	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 10,
 		AmfUe:       amfUe,
@@ -950,15 +950,15 @@ func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
 	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
-	targetRan := &amfContext.Radio{
+	targetRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: targetNGAPSender,
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
 	fakeSmf := &FakeSmfSbi{}
-	amf := newTestAMFWithSmf(fakeSmf)
-	amf.Radios[new(sctp.SCTPConn)] = sourceRan
+	amfInstance := newTestAMFWithSmf(fakeSmf)
+	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
 
 	// UESecurityCapabilities with empty Bytes slices — must not panic
 	emptyCaps := &ngapType.UESecurityCapabilities{
@@ -985,6 +985,6 @@ func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
 	)
 
 	assertNoPanic(t, "HandlePathSwitchRequest(empty security capability bytes)", func() {
-		ngap.HandlePathSwitchRequest(context.Background(), amf, targetRan, msg)
+		ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 	})
 }

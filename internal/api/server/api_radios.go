@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 )
 
@@ -55,7 +55,7 @@ type RadioDetail struct {
 	SupportedTAIs []SupportedTAI `json:"supported_tais"`
 }
 
-func convertRadioTaiToReturnTai(tais []amfContext.SupportedTAI) []SupportedTAI {
+func convertRadioTaiToReturnTai(tais []amf.SupportedTAI) []SupportedTAI {
 	returnedTais := make([]SupportedTAI, 0)
 	for _, tai := range tais {
 		snssais := make([]Snssai, 0)
@@ -84,7 +84,7 @@ func convertRadioTaiToReturnTai(tais []amfContext.SupportedTAI) []SupportedTAI {
 	return returnedTais
 }
 
-func ListRadios(amfInstance *amfContext.AMF) http.HandlerFunc {
+func ListRadios(amfInstance *amf.AMF) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		page := atoiDefault(q.Get("page"), 1)
@@ -100,9 +100,7 @@ func ListRadios(amfInstance *amfContext.AMF) http.HandlerFunc {
 			return
 		}
 
-		amf := amfInstance
-
-		total, ranList := amf.ListAmfRan(page, perPage)
+		total, ranList := amfInstance.ListAmfRan(page, perPage)
 
 		items := make([]Radio, 0, len(ranList))
 
@@ -141,7 +139,7 @@ func ListRadios(amfInstance *amfContext.AMF) http.HandlerFunc {
 	}
 }
 
-func GetRadio(amfInstance *amfContext.AMF) http.HandlerFunc {
+func GetRadio(amfInstance *amf.AMF) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		radioName := r.PathValue("name")
 		if radioName == "" {
@@ -149,9 +147,7 @@ func GetRadio(amfInstance *amfContext.AMF) http.HandlerFunc {
 			return
 		}
 
-		amf := amfInstance
-
-		_, ranList := amf.ListAmfRan(1, 1000)
+		_, ranList := amfInstance.ListAmfRan(1, 1000)
 
 		for _, radio := range ranList {
 			if radio.Name != radioName {

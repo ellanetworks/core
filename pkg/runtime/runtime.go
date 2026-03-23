@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
@@ -102,9 +103,15 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return os.ReadFile(rc.ConfigPath)
 	}
 
-	jobs.StartDataRetentionWorker(ctx, dbInstance)
+	var wg sync.WaitGroup
 
-	go sessions.CleanUp(ctx, dbInstance)
+	wg.Go(func() {
+		jobs.RunDataRetentionWorker(ctx, dbInstance)
+	})
+
+	wg.Go(func() {
+		sessions.CleanUp(ctx, dbInstance)
+	})
 
 	isNATEnabled, err := dbInstance.IsNATEnabled(ctx)
 	if err != nil {
@@ -192,7 +199,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	ausfInstance := ausf.New(ausfStore, keyResolver)
-	go ausfInstance.Run(ctx)
+
+	wg.Go(func() {
+		ausfInstance.Run(ctx)
+	})
 
 	amfInstance := amf.New(dbInstance, ausfInstance, smfInstance)
 	smfAMF.amf = amfInstance
@@ -259,6 +269,9 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 		logger.EllaLog.Info("Flushing buffered writer")
 		bufferedWriter.Stop(shutdownCtx)
+
+		logger.EllaLog.Info("Waiting for background goroutines")
+		wg.Wait()
 
 		logger.EllaLog.Info("Closing database")
 

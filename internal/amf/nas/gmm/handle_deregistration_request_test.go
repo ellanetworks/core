@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
@@ -13,7 +13,7 @@ import (
 )
 
 func TestHandleRegeristrationRequest(t *testing.T) {
-	testcases := []amfContext.StateType{amfContext.Deregistered, amfContext.Authentication, amfContext.SecurityMode, amfContext.ContextSetup}
+	testcases := []amf.StateType{amf.Deregistered, amf.Authentication, amf.SecurityMode, amf.ContextSetup}
 	for _, tc := range testcases {
 		t.Run(fmt.Sprintf("State-%s", tc), func(t *testing.T) {
 			ue, ngapSender, err := buildUeAndRadio()
@@ -21,7 +21,7 @@ func TestHandleRegeristrationRequest(t *testing.T) {
 				t.Fatalf("could not build test ue: %v", err)
 			}
 
-			ue.State = tc
+			ue.ForceState(tc)
 
 			expected := fmt.Sprintf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", tc)
 
@@ -46,7 +46,7 @@ func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
 		t.Fatalf("could not build test ue: %v", err)
 	}
 
-	amf := amfContext.New(&FakeDBInstance{
+	amfInstance := amf.New(&FakeDBInstance{
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
@@ -56,11 +56,11 @@ func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
 	}, nil, &smf)
 
 	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
-	if err := amf.AddAmfUeToUePool(ue); err != nil {
+	if err := amfInstance.AddAmfUeToUePool(ue); err != nil {
 		t.Fatalf("could not add UE to AMF pool: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amf.Registered)
 	_ = ue.CreateSmContext(1, "testref1", &snssai)
 	_ = ue.CreateSmContext(2, "testref2", &snssai)
 	_ = ue.CreateSmContext(3, "testref3", &snssai)
@@ -90,7 +90,7 @@ func TestHandleDeregistrationRequest_NilRanUE(t *testing.T) {
 		t.Fatalf("could not build test ue: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amf.Registered)
 	ue.RanUe = nil
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
@@ -115,7 +115,7 @@ func TestHandleDeregistrationRequest_NotSwitchOff_DeregistrationAccept(t *testin
 		t.Fatalf("could not build test ue: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amf.Registered)
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
@@ -156,7 +156,7 @@ func TestHandleDeregistrationRequest_SwitchOff_NoDeregistrationAccept(t *testing
 		t.Fatalf("could not build test ue: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amf.Registered)
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 	m.DeregistrationRequestUEOriginatingDeregistration.SetSwitchOff(1)
@@ -181,7 +181,7 @@ func TestHandleDeregistrationRequest_Non3GPP_DeregistrationAccept(t *testing.T) 
 		t.Fatalf("could not build test ue: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amf.Registered)
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 	m.DeregistrationRequestUEOriginatingDeregistration.SetAccessType(nasMessage.AccessTypeNon3GPP)

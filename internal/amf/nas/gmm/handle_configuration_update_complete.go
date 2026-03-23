@@ -3,12 +3,12 @@ package gmm
 import (
 	"fmt"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 )
 
-func handleConfigurationUpdateComplete(amf *amfContext.AMF, ue *amfContext.AmfUe) error {
-	if ue.State != amfContext.Registered {
-		return fmt.Errorf("state mismatch: receive Configuration Update Complete message in state %s", ue.State)
+func handleConfigurationUpdateComplete(amfInstance *amf.AMF, ue *amf.AmfUe) error {
+	if state := ue.GetState(); state != amf.Registered {
+		return fmt.Errorf("state mismatch: receive Configuration Update Complete message in state %s", state)
 	}
 
 	if ue.MacFailed {
@@ -20,7 +20,7 @@ func handleConfigurationUpdateComplete(amf *amfContext.AMF, ue *amfContext.AmfUe
 		ue.T3555 = nil // clear the timer
 	}
 
-	amf.FreeOldGuti(ue)
+	amfInstance.FreeOldGuti(ue)
 
 	return nil
 }

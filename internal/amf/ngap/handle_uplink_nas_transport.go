@@ -3,14 +3,14 @@ package ngap
 import (
 	"context"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleUplinkNasTransport(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.UplinkNASTransport) {
+func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.UplinkNASTransport) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -90,10 +90,10 @@ func HandleUplinkNasTransport(ctx context.Context, amf *amfContext.AMF, ran *amf
 	}
 
 	if userLocationInformation != nil {
-		ranUe.UpdateLocation(ctx, amf, userLocationInformation)
+		ranUe.UpdateLocation(ctx, amfInstance, userLocationInformation)
 	}
 
-	err := nas.HandleNAS(ctx, amf, ranUe, nASPDU.Value)
+	err := nas.HandleNAS(ctx, amfInstance, ranUe, nASPDU.Value)
 	if err != nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("error handling NAS message", zap.Error(err))
 	}

@@ -4,18 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func handleRegistrationComplete(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe) error {
-	if ue.GetState() != amfContext.ContextSetup {
+func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe) error {
+	if ue.GetState() != amf.ContextSetup {
 		return fmt.Errorf("state mismatch: receive Registration Complete message in state %s", ue.GetState())
 	}
 
-	ue.SetState(amfContext.Registered)
+	ue.TransitionTo(amf.Registered)
 
 	if ue.T3550 != nil {
 		ue.T3550.Stop()
@@ -23,7 +23,7 @@ func handleRegistrationComplete(ctx context.Context, amf *amfContext.AMF, ue *am
 	}
 
 	// Send NITZ (network name + timezone) to UE per TS 24.501
-	message.SendConfigurationUpdateCommand(ctx, amf, ue, false)
+	message.SendConfigurationUpdateCommand(ctx, amfInstance, ue, false)
 
 	forPending := ue.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestPending
 
@@ -34,7 +34,7 @@ func handleRegistrationComplete(ctx context.Context, amf *amfContext.AMF, ue *am
 	shouldRelease := !forPending && !udsHasPending && !hasActiveSessions
 
 	if shouldRelease {
-		ue.RanUe.ReleaseAction = amfContext.UeContextN2NormalRelease
+		ue.RanUe.ReleaseAction = amf.UeContextN2NormalRelease
 
 		err := ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {

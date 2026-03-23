@@ -7,7 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasMessage"
@@ -15,9 +15,9 @@ import (
 )
 
 // TS 24.501 5.4.1
-func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.AuthenticationResponse) error {
-	if ue.State != amfContext.Authentication {
-		return fmt.Errorf("state mismatch: receive Authentication Response message in state %s", ue.State)
+func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.AuthenticationResponse) error {
+	if state := ue.GetState(); state != amf.Authentication {
+		return fmt.Errorf("state mismatch: receive Authentication Response message in state %s", state)
 	}
 
 	if ue.T3560 != nil {
@@ -70,7 +70,7 @@ func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *
 		return nil
 	}
 
-	supi, kseaf, err := amf.Ausf.Confirm(ctx, hex.EncodeToString(resStar[:]), ue.Suci)
+	supi, kseaf, err := amfInstance.Ausf.Confirm(ctx, hex.EncodeToString(resStar[:]), ue.Suci)
 	if err != nil {
 		logger.WithTrace(ctx, logger.AmfLog).Error("5G AKA Confirmation Request Procedure failed", zap.Error(err))
 
@@ -103,5 +103,5 @@ func handleAuthenticationResponse(ctx context.Context, amf *amfContext.AMF, ue *
 		return fmt.Errorf("couldn't derive Kamf: %v", err)
 	}
 
-	return securityMode(ctx, amf, ue)
+	return securityMode(ctx, amfInstance, ue)
 }

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
@@ -34,7 +34,7 @@ func buildTestAuthenticationFailureMessage(cause uint8, auts *[14]uint8) *nasMes
 }
 
 func TestHandleAuthenticationFailure_WrongState_Error(t *testing.T) {
-	testcases := []amfContext.StateType{amfContext.Deregistered, amfContext.SecurityMode, amfContext.ContextSetup, amfContext.Registered}
+	testcases := []amf.StateType{amf.Deregistered, amf.SecurityMode, amf.ContextSetup, amf.Registered}
 	for _, tc := range testcases {
 		t.Run(fmt.Sprintf("State-%s", tc), func(t *testing.T) {
 			ue, _, err := buildUeAndRadio()
@@ -42,13 +42,13 @@ func TestHandleAuthenticationFailure_WrongState_Error(t *testing.T) {
 				t.Fatalf("could not build UE and radio: %v", err)
 			}
 
-			ue.State = tc
+			ue.ForceState(tc)
 
 			msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMMACFailure, nil)
 
 			expected := fmt.Sprintf("state mismatch: receive Authentication Failure message in state %s", tc)
 
-			err = handleAuthenticationFailure(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+			err = handleAuthenticationFailure(t.Context(), amf.New(nil, nil, nil), ue, msg)
 			if err == nil || err.Error() != expected {
 				t.Fatalf("expected error: %s, got: %v", expected, err)
 			}
@@ -62,12 +62,12 @@ func TestHandleAuthenticationFailure_T3560Stopped(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Authentication
-	ue.T3560 = amfContext.NewTimer(10*time.Minute, 5, func(e int32) {}, func() {})
+	ue.ForceState(amf.Authentication)
+	ue.T3560 = amf.NewTimer(10*time.Minute, 5, func(e int32) {}, func() {})
 
 	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMMACFailure, nil)
 
-	_ = handleAuthenticationFailure(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	_ = handleAuthenticationFailure(t.Context(), amf.New(nil, nil, nil), ue, msg)
 
 	if ue.T3560 != nil {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
@@ -80,16 +80,16 @@ func TestHandleAuthenticationFailure_MACFailure_DeregistersAndSendsReject(t *tes
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Authentication
+	ue.ForceState(amf.Authentication)
 
 	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMMACFailure, nil)
 
-	err = handleAuthenticationFailure(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	err = handleAuthenticationFailure(t.Context(), amf.New(nil, nil, nil), ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if ue.GetState() != amfContext.Deregistered {
+	if ue.GetState() != amf.Deregistered {
 		t.Fatalf("expected UE state to be Deregistered, got: %s", ue.GetState())
 	}
 
@@ -121,16 +121,16 @@ func TestHandleAuthenticationFailure_Non5GAuthUnacceptable_DeregistersAndSendsRe
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Authentication
+	ue.ForceState(amf.Authentication)
 
 	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMNon5GAuthenticationUnacceptable, nil)
 
-	err = handleAuthenticationFailure(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	err = handleAuthenticationFailure(t.Context(), amf.New(nil, nil, nil), ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if ue.GetState() != amfContext.Deregistered {
+	if ue.GetState() != amf.Deregistered {
 		t.Fatalf("expected UE state to be Deregistered, got: %s", ue.GetState())
 	}
 
@@ -162,7 +162,7 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiIncremented_SendsAuthR
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Authentication
+	ue.ForceState(amf.Authentication)
 	ue.NgKsi = models.NgKsi{Ksi: 3}
 	ue.AuthFailureCauseSynchFailureTimes = 2
 	ue.AuthenticationCtx = &ausf.AuthResult{
@@ -171,11 +171,11 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiIncremented_SendsAuthR
 	}
 	ue.ABBA = []uint8{0x00, 0x00}
 
-	amf := amfContext.New(nil, nil, nil)
+	amfInstance := amf.New(nil, nil, nil)
 
 	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMngKSIAlreadyInUse, nil)
 
-	err = handleAuthenticationFailure(t.Context(), amf, ue, msg)
+	err = handleAuthenticationFailure(t.Context(), amfInstance, ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -216,7 +216,7 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiWrapsToZero(t *testing
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Authentication
+	ue.ForceState(amf.Authentication)
 	ue.NgKsi = models.NgKsi{Ksi: 6}
 	ue.AuthenticationCtx = &ausf.AuthResult{
 		Rand: hex.EncodeToString(make([]byte, 16)),
@@ -224,11 +224,11 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiWrapsToZero(t *testing
 	}
 	ue.ABBA = []uint8{0x00, 0x00}
 
-	amf := amfContext.New(nil, nil, nil)
+	amfInstance := amf.New(nil, nil, nil)
 
 	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMngKSIAlreadyInUse, nil)
 
-	err = handleAuthenticationFailure(t.Context(), amf, ue, msg)
+	err = handleAuthenticationFailure(t.Context(), amfInstance, ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_Success(t *testing.T
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Authentication
+	ue.ForceState(amf.Authentication)
 	ue.AuthFailureCauseSynchFailureTimes = 0
 	ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
 	ue.Tai = ue.RanUe.Tai
@@ -258,14 +258,14 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_Success(t *testing.T
 		Autn: hex.EncodeToString(make([]byte, 16)),
 	}
 
-	amf := amfContext.New(nil, &FakeAusf{
+	amfInstance := amf.New(nil, &FakeAusf{
 		AvKgAka: expectedAv,
 	}, nil)
 
 	auts := [14]uint8{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e}
 	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMSynchFailure, &auts)
 
-	err = handleAuthenticationFailure(t.Context(), amf, ue, msg)
+	err = handleAuthenticationFailure(t.Context(), amfInstance, ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -310,19 +310,19 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_AusfError(t *testing
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Authentication
+	ue.ForceState(amf.Authentication)
 	ue.AuthFailureCauseSynchFailureTimes = 0
 	ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
 	ue.Tai = ue.RanUe.Tai
 
-	amf := amfContext.New(nil, &FakeAusf{
+	amfInstance := amf.New(nil, &FakeAusf{
 		Error: fmt.Errorf("ausf unavailable"),
 	}, nil)
 
 	auts := [14]uint8{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e}
 	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMSynchFailure, &auts)
 
-	err = handleAuthenticationFailure(t.Context(), amf, ue, msg)
+	err = handleAuthenticationFailure(t.Context(), amfInstance, ue, msg)
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}
@@ -338,17 +338,17 @@ func TestHandleAuthenticationFailure_SynchFailure_SecondTime_DeregistersAndSends
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Authentication
+	ue.ForceState(amf.Authentication)
 	ue.AuthFailureCauseSynchFailureTimes = 1
 
 	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMSynchFailure, nil)
 
-	err = handleAuthenticationFailure(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	err = handleAuthenticationFailure(t.Context(), amf.New(nil, nil, nil), ue, msg)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if ue.GetState() != amfContext.Deregistered {
+	if ue.GetState() != amf.Deregistered {
 		t.Fatalf("expected UE state to be Deregistered, got: %s", ue.GetState())
 	}
 
@@ -380,14 +380,14 @@ func TestHandleAuthenticationFailure_SynchFailure_NilAuthenticationFailureParame
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Authentication
+	ue.ForceState(amf.Authentication)
 	ue.AuthFailureCauseSynchFailureTimes = 0
 
 	// Build message with SynchFailure cause but nil AuthenticationFailureParameter
 	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMSynchFailure, nil)
 
 	// This must not panic — before the fix it caused a nil pointer dereference
-	err = handleAuthenticationFailure(t.Context(), amfContext.New(nil, nil, nil), ue, msg)
+	err = handleAuthenticationFailure(t.Context(), amf.New(nil, nil, nil), ue, msg)
 	if err == nil {
 		t.Fatal("expected error when AuthenticationFailureParameter is nil, got nil")
 	}

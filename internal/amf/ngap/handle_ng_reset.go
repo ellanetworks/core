@@ -3,13 +3,13 @@ package ngap
 import (
 	"context"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleNGReset(ctx context.Context, ran *amfContext.Radio, msg *ngapType.NGReset) {
+func HandleNGReset(ctx context.Context, ran *amf.Radio, msg *ngapType.NGReset) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -69,7 +69,7 @@ func HandleNGReset(ctx context.Context, ran *amfContext.Radio, msg *ngapType.NGR
 			return
 		}
 
-		var ranUe *amfContext.RanUe
+		var ranUe *amf.RanUe
 
 		for _, ueAssociatedLogicalNGConnectionItem := range partOfNGInterface.List {
 			if ueAssociatedLogicalNGConnectionItem.AMFUENGAPID != nil {

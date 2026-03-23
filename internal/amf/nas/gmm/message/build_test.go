@@ -4,16 +4,16 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/security"
 )
 
-func buildTestUE(t *testing.T) *amfContext.AmfUe {
+func buildTestUE(t *testing.T) *amf.AmfUe {
 	t.Helper()
 
-	ue := amfContext.NewAmfUe()
+	ue := amf.NewAmfUe()
 	ue.SecurityContextAvailable = true
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	ue.KnasEnc = key
@@ -25,7 +25,7 @@ func buildTestUE(t *testing.T) *amfContext.AmfUe {
 }
 
 // decryptNAS strips the security header and decrypts the ciphered payload.
-func decryptNAS(t *testing.T, ue *amfContext.AmfUe, raw []byte) *nas.Message {
+func decryptNAS(t *testing.T, ue *amf.AmfUe, raw []byte) *nas.Message {
 	t.Helper()
 
 	if len(raw) < 7 {

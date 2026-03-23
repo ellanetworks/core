@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.NGSetupRequest) {
+func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.NGSetupRequest) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NG Setup Request Message is nil")
 		return
@@ -69,7 +69,7 @@ func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 
 	// Clearing any existing contents of ran.SupportedTAList
 	if len(ran.SupportedTAIs) != 0 {
-		ran.SupportedTAIs = make([]amfContext.SupportedTAI, 0)
+		ran.SupportedTAIs = make([]amf.SupportedTAI, 0)
 	}
 
 	if supportedTAList == nil || len(supportedTAList.List) == 0 {
@@ -94,7 +94,7 @@ func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 
 		tac := hex.EncodeToString(supportedTAItem.TAC.Value)
 		for j := 0; j < len(supportedTAItem.BroadcastPLMNList.List); j++ {
-			supportedTAI := amfContext.SupportedTAI{}
+			supportedTAI := amf.SupportedTAI{}
 			supportedTAI.Tai.Tac = tac
 			broadcastPLMNItem := supportedTAItem.BroadcastPLMNList.List[j]
 			plmnID := util.PlmnIDToModels(broadcastPLMNItem.PLMNIdentity)
@@ -109,7 +109,7 @@ func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 		}
 	}
 
-	operatorInfo, err := amf.GetOperatorInfo(ctx)
+	operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("Could not get operator info", zap.Error(err))
 		return
@@ -118,7 +118,7 @@ func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 	var found bool
 
 	for i, tai := range ran.SupportedTAIs {
-		if amfContext.InTaiList(tai.Tai, operatorInfo.Tais) {
+		if amf.InTaiList(tai.Tai, operatorInfo.Tais) {
 			logger.WithTrace(ctx, ran.Log).Debug("Found served TAI in Core", zap.Any("served_tai", tai.Tai), zap.Int("index", i))
 
 			found = true
@@ -144,7 +144,7 @@ func HandleNGSetupRequest(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 		return
 	}
 
-	err = ran.NGAPSender.SendNGSetupResponse(ctx, operatorInfo.Guami, operatorInfo.SupportedPLMN, amf.Name, amf.RelativeCapacity)
+	err = ran.NGAPSender.SendNGSetupResponse(ctx, operatorInfo.Guami, operatorInfo.SupportedPLMN, amfInstance.Name, amfInstance.RelativeCapacity)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error sending NG Setup Response", zap.Error(err))
 		return

@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func handleSecurityModeReject(ctx context.Context, ue *amfContext.AmfUe, msg *nasMessage.SecurityModeReject) error {
-	if ue.State != amfContext.SecurityMode {
-		return fmt.Errorf("state mismatch: receive Security Mode Reject message in state %s", ue.State)
+func handleSecurityModeReject(ctx context.Context, ue *amf.AmfUe, msg *nasMessage.SecurityModeReject) error {
+	if state := ue.GetState(); state != amf.SecurityMode {
+		return fmt.Errorf("state mismatch: receive Security Mode Reject message in state %s", state)
 	}
 
 	defer ue.Deregister(ctx)
@@ -25,7 +25,7 @@ func handleSecurityModeReject(ctx context.Context, ue *amfContext.AmfUe, msg *na
 	ue.Log.Error("UE rejected the security mode command, abort the ongoing procedure", logger.Cause(nasMessage.Cause5GMMToString(msg.GetCauseValue())), logger.SUPI(ue.Supi.String()))
 
 	ue.SecurityContextAvailable = false
-	ue.RanUe.ReleaseAction = amfContext.UeContextReleaseUeContext
+	ue.RanUe.ReleaseAction = amf.UeContextReleaseUeContext
 
 	err := ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 	if err != nil {

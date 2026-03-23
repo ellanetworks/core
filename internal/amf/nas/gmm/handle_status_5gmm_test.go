@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 )
@@ -33,7 +33,7 @@ func TestHandleStatus5GMM_MacFailed_Error(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amf.Registered)
 	ue.MacFailed = true
 
 	m := buildTestStatus5gmm()
@@ -52,7 +52,7 @@ func TestHandleStatus5GMM_NoErrror(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amf.Registered)
 
 	m := buildTestStatus5gmm()
 

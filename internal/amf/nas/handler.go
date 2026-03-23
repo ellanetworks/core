@@ -12,7 +12,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas"
@@ -27,7 +27,7 @@ import (
 var tracer = otel.Tracer("ella-core/amf/nas")
 
 // HandleNAS processes an uplink NAS PDU and emits a span around the entire operation.
-func HandleNAS(ctx context.Context, amf *amfContext.AMF, ue *amfContext.RanUe, nasPdu []byte) error {
+func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu []byte) error {
 	if ue == nil {
 		return fmt.Errorf("ue is nil")
 	}
@@ -38,14 +38,14 @@ func HandleNAS(ctx context.Context, amf *amfContext.AMF, ue *amfContext.RanUe, n
 
 	// First-time UE attach: fetch or create AMF context
 	if ue.AmfUe == nil {
-		amfUe, err := fetchUeContextWithMobileIdentity(ctx, amf, nasPdu)
+		amfUe, err := fetchUeContextWithMobileIdentity(ctx, amfInstance, nasPdu)
 		if err != nil {
 			return fmt.Errorf("error fetching UE context with mobile identity: %v", err)
 		}
 
 		ue.AmfUe = amfUe
 		if ue.AmfUe == nil {
-			ue.AmfUe = amfContext.NewAmfUe()
+			ue.AmfUe = amf.NewAmfUe()
 		}
 
 		ue.AmfUe.AttachRanUe(ue)
@@ -81,7 +81,7 @@ func HandleNAS(ctx context.Context, amf *amfContext.AMF, ue *amfContext.RanUe, n
 		logger.SUPI(ue.AmfUe.Supi.String()),
 	)
 
-	err = gmm.HandleGmmMessage(ctx, amf, ue.AmfUe, msg.GmmMessage)
+	err = gmm.HandleGmmMessage(ctx, amfInstance, ue.AmfUe, msg.GmmMessage)
 	if err != nil {
 		return fmt.Errorf("error handling NAS message for supi %s: %v", ue.AmfUe.Supi.String(), err)
 	}
@@ -92,7 +92,7 @@ func HandleNAS(ctx context.Context, amf *amfContext.AMF, ue *amfContext.RanUe, n
 /*
 fetch Guti if present incase of integrity protected Nas Message
 */
-func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, payload []byte) (*amfContext.AmfUe, error) {
+func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF, payload []byte) (*amf.AmfUe, error) {
 	if payload == nil {
 		return nil, fmt.Errorf("nas payload is empty")
 	}
@@ -140,7 +140,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, 
 			/* UeContext found based on SUCI which means context is exist in Network(AMF) but not
 			   present in UE. Hence, AMF clear the existing context
 			*/
-			ue, _ := amf.FindAMFUEBySuci(suci)
+			ue, _ := amfInstance.FindAMFUEBySuci(suci)
 			if ue != nil {
 				ue.Log.Info("UE Context derived from Suci", zap.String("suci", suci))
 				ue.SecurityContextAvailable = false
@@ -155,7 +155,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, 
 		}
 
 		if nasMessage.MobileIdentity5GSType5gSTmsi == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
-			guti, err := amf.StmsiToGuti(ctx, mobileIdentity5GSContents)
+			guti, err := amfInstance.StmsiToGuti(ctx, mobileIdentity5GSContents)
 			if err != nil {
 				return nil, fmt.Errorf("error converting 5G-S-TMSI to GUTI: %+v", err)
 			}
@@ -182,7 +182,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amf *amfContext.AMF, 
 		return nil, nil
 	}
 
-	ue, _ := amf.FindAmfUeByGuti(guti)
+	ue, _ := amfInstance.FindAmfUeByGuti(guti)
 	if ue == nil {
 		logger.WithTrace(ctx, logger.AmfLog).Warn("UE Context not found", logger.GUTI(guti.String()))
 		return nil, nil

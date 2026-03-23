@@ -12,7 +12,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
@@ -26,7 +26,7 @@ import (
 
 var tracer = otel.Tracer("ella-core/amf/producer")
 
-func TransferN1N2Message(ctx context.Context, amf *amfContext.AMF, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
+func TransferN1N2Message(ctx context.Context, amfInstance *amf.AMF, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"AMF N1N2 MessageTransfer",
@@ -36,7 +36,7 @@ func TransferN1N2Message(ctx context.Context, amf *amfContext.AMF, supi etsi.SUP
 	)
 	defer span.End()
 
-	ue, ok := amf.FindAMFUEBySupi(supi)
+	ue, ok := amfInstance.FindAMFUEBySupi(supi)
 	if !ok {
 		return fmt.Errorf("ue context not found")
 	}
@@ -67,7 +67,7 @@ func TransferN1N2Message(ctx context.Context, amf *amfContext.AMF, supi etsi.SUP
 		return nil
 	}
 
-	operatorInfo, err := amf.GetOperatorInfo(ctx)
+	operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
@@ -102,7 +102,7 @@ func TransferN1N2Message(ctx context.Context, amf *amfContext.AMF, supi etsi.SUP
 	return nil
 }
 
-func N2MessageTransferOrPage(ctx context.Context, amf *amfContext.AMF, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
+func N2MessageTransferOrPage(ctx context.Context, amfInstance *amf.AMF, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"AMF N1N2 MessageTransfer",
@@ -112,18 +112,18 @@ func N2MessageTransferOrPage(ctx context.Context, amf *amfContext.AMF, supi etsi
 	)
 	defer span.End()
 
-	ue, ok := amf.FindAMFUEBySupi(supi)
+	ue, ok := amfInstance.FindAMFUEBySupi(supi)
 	if !ok {
 		return fmt.Errorf("ue context not found")
 	}
 
 	onGoing := ue.GetOnGoing()
 	switch onGoing {
-	case amfContext.OnGoingProcedurePaging:
+	case amf.OnGoingProcedurePaging:
 		return fmt.Errorf("higher priority request ongoing")
-	case amfContext.OnGoingProcedureRegistration:
+	case amf.OnGoingProcedureRegistration:
 		return fmt.Errorf("temporary reject registration ongoing")
-	case amfContext.OnGoingProcedureN2Handover:
+	case amf.OnGoingProcedureN2Handover:
 		return fmt.Errorf("temporary reject handover ongoing")
 	}
 
@@ -144,7 +144,7 @@ func N2MessageTransferOrPage(ctx context.Context, amf *amfContext.AMF, supi etsi
 			return nil
 		}
 
-		operatorInfo, err := amf.GetOperatorInfo(ctx)
+		operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
 		if err != nil {
 			return fmt.Errorf("error getting operator info: %v", err)
 		}
@@ -179,14 +179,14 @@ func N2MessageTransferOrPage(ctx context.Context, amf *amfContext.AMF, supi etsi
 	}
 
 	// 504: the UE in MICO mode or the UE is only registered over Non-3GPP access and its state is CM-IDLE
-	if ue.GetState() != amfContext.Registered {
+	if ue.GetState() != amf.Registered {
 		return fmt.Errorf("ue is not in registered state")
 	}
 
 	var pagingPriority *ngapType.PagingPriority
 
 	ue.N1N2Message = &req
-	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
+	ue.SetOnGoing(amf.OnGoingProcedurePaging)
 
 	pkg, err := send.BuildPaging(
 		ue.Guti,
@@ -199,7 +199,7 @@ func N2MessageTransferOrPage(ctx context.Context, amf *amfContext.AMF, supi etsi
 		return fmt.Errorf("build paging error: %v", err)
 	}
 
-	err = amf.SendPaging(ctx, ue, pkg)
+	err = amfInstance.SendPaging(ctx, ue, pkg)
 	if err != nil {
 		return fmt.Errorf("send paging error: %v", err)
 	}
@@ -207,7 +207,7 @@ func N2MessageTransferOrPage(ctx context.Context, amf *amfContext.AMF, supi etsi
 	return nil
 }
 
-func TransferN1Msg(ctx context.Context, amf *amfContext.AMF, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error {
+func TransferN1Msg(ctx context.Context, amfInstance *amf.AMF, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"AMF N1N2 MessageTransfer",
@@ -217,7 +217,7 @@ func TransferN1Msg(ctx context.Context, amf *amfContext.AMF, supi etsi.SUPI, n1M
 	)
 	defer span.End()
 
-	ue, ok := amf.FindAMFUEBySupi(supi)
+	ue, ok := amfInstance.FindAMFUEBySupi(supi)
 	if !ok {
 		return fmt.Errorf("ue context not found")
 	}
