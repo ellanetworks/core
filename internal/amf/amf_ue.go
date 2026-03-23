@@ -810,7 +810,6 @@ func (ue *AmfUe) startImplicitDeregistrationTimer() {
 
 func (ue *AmfUe) Deregister(ctx context.Context) {
 	ue.Mutex.Lock()
-	defer ue.Mutex.Unlock()
 
 	if ue.implicitDeregistrationTimer != nil {
 		ue.implicitDeregistrationTimer.Stop()
@@ -824,7 +823,24 @@ func (ue *AmfUe) Deregister(ctx context.Context) {
 
 	ue.State = Deregistered // direct write: ue.Mutex is already held
 
-	ue.releaseSmContexts(ctx)
+	// Copy refs and clear map while protected by UE lock.
+	smContextRefs := make([]string, 0, len(ue.SmContextList))
+	for _, smContext := range ue.SmContextList {
+		smContextRefs = append(smContextRefs, smContext.Ref)
+	}
+
+	ue.SmContextList = make(map[uint8]*SmContext)
+	ue.Mutex.Unlock()
+
+	// External SMF calls must happen without holding UE lock.
+	if ue.smf != nil {
+		for _, smContextRef := range smContextRefs {
+			err := ue.smf.ReleaseSmContext(ctx, smContextRef)
+			if err != nil {
+				ue.Log.Error("Release SmContext Error", zap.Error(err))
+			}
+		}
+	}
 
 	ue.Log.Debug("ue deregistered", logger.SUPI(ue.Supi.String()))
 }
