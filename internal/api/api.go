@@ -68,7 +68,7 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 	httpAddr := fmt.Sprintf("%s:%d", cfg.Interfaces.API.Address, cfg.Interfaces.API.Port)
 
 	h2Server := &http2.Server{
-		IdleTimeout: 1 * time.Millisecond,
+		IdleTimeout: 120 * time.Second,
 	}
 
 	srv := &http.Server{
