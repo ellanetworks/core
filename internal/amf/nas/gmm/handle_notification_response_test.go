@@ -6,8 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
@@ -16,12 +15,12 @@ import (
 )
 
 func TestHandleNotificationResponse_NotRegisteredError(t *testing.T) {
-	testcases := []context.StateType{context.Authentication, context.Deregistered, context.ContextSetup, context.SecurityMode}
+	testcases := []amf.StateType{amf.Authentication, amf.Deregistered, amf.ContextSetup, amf.SecurityMode}
 
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
-			ue := context.NewAmfUe()
-			ue.State = tc
+			ue := amf.NewAmfUe()
+			ue.ForceState(tc)
 
 			expected := fmt.Sprintf("state mismatch: receive Notification Response message in state %s", tc)
 
@@ -34,8 +33,8 @@ func TestHandleNotificationResponse_NotRegisteredError(t *testing.T) {
 }
 
 func TestHandleNotificationResponse_MacFailed(t *testing.T) {
-	ue := context.NewAmfUe()
-	ue.State = context.Registered
+	ue := amf.NewAmfUe()
+	ue.ForceState(amf.Registered)
 	ue.MacFailed = true
 
 	expected := "NAS message integrity check failed"
@@ -48,30 +47,26 @@ func TestHandleNotificationResponse_MacFailed(t *testing.T) {
 
 func TestHandleNotificationResponse_T3565Stopped_NoPDUSessionStatus_NoSmContextReleased(t *testing.T) {
 	smf := FakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
-	amf := &context.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-		UEs: make(map[etsi.SUPI]*context.AmfUe),
-		Smf: &smf,
-	}
+	}, nil, &smf)
 
 	ue, _, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build test UE and radio: %v", err)
 	}
 
-	ue.State = context.Registered
-	ue.T3565 = context.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.ForceState(amf.Registered)
+	ue.T3565 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 
 	m := buildTestNotifationResponse()
 
-	err = handleNotificationResponse(t.Context(), amf, ue, m.NotificationResponse)
+	err = handleNotificationResponse(t.Context(), amfInstance, ue, m.NotificationResponse)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -87,26 +82,22 @@ func TestHandleNotificationResponse_T3565Stopped_NoPDUSessionStatus_NoSmContextR
 
 func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextReleased(t *testing.T) {
 	smf := FakeSmf{Error: nil, ReleasedSmContext: make([]string, 0)}
-	amf := &context.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-		UEs: make(map[etsi.SUPI]*context.AmfUe),
-		Smf: &smf,
-	}
+	}, nil, &smf)
 
 	ue, _, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build test UE and radio: %v", err)
 	}
 
-	ue.State = context.Registered
-	ue.T3565 = context.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.ForceState(amf.Registered)
+	ue.T3565 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	_ = ue.CreateSmContext(1, "1", &models.Snssai{})
 	_ = ue.CreateSmContext(5, "5", &models.Snssai{})
 	_ = ue.CreateSmContext(8, "8", &models.Snssai{})
@@ -124,7 +115,7 @@ func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextRelea
 	m.NotificationResponse.SetPSI11(1)
 	m.NotificationResponse.SetPSI15(0)
 
-	err = handleNotificationResponse(t.Context(), amf, ue, m.NotificationResponse)
+	err = handleNotificationResponse(t.Context(), amfInstance, ue, m.NotificationResponse)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

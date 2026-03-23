@@ -12,7 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -104,8 +104,8 @@ func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) e
 		fmt.Sprintf("%s %s", "INSERT", DailyUsageTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("INSERT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", DailyUsageTableName),
 		),
 	)
@@ -135,8 +135,8 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate t
 		fmt.Sprintf("%s %s", "SELECT", DailyUsageTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", DailyUsageTableName),
 		),
 	)
@@ -182,8 +182,8 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, star
 		fmt.Sprintf("%s %s", "SELECT", DailyUsageTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", DailyUsageTableName),
 		),
 	)
@@ -229,8 +229,8 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 		fmt.Sprintf("%s %s", "DELETE", DailyUsageTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", DailyUsageTableName),
 		),
 	)
@@ -260,8 +260,8 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 		fmt.Sprintf("%s %s (older than %d days)", "DELETE", DailyUsageTableName, days),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", DailyUsageTableName),
 			attribute.Int("retention.days", days),
 		),

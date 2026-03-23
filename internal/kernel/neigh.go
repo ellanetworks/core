@@ -20,7 +20,7 @@ var tracer = otel.Tracer("ella-core/kernel")
 func AddNeighbour(ctx context.Context, neigh net.IP) error {
 	_, span := tracer.Start(
 		ctx,
-		"Kernel Add Neighbour",
+		"kernel/add_neighbour",
 		trace.WithAttributes(
 			attribute.String("IP", neigh.String()),
 		))

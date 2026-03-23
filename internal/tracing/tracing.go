@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 )
 
 type TelemetryConfig struct {
@@ -37,8 +37,8 @@ func InitTracer(ctx context.Context, cfg TelemetryConfig) (*sdktrace.TracerProvi
 		sdkresource.WithHost(),
 		sdkresource.WithProcess(),
 		sdkresource.WithAttributes(
-			semconv.ServiceNameKey.String(cfg.ServiceName),
-			attribute.String("service.version", cfg.ServiceVersion),
+			semconv.ServiceName(cfg.ServiceName),
+			semconv.ServiceVersion(cfg.ServiceVersion),
 			attribute.String("service.revision", cfg.ServiceRevision),
 		),
 	)
@@ -53,7 +53,12 @@ func InitTracer(ctx context.Context, cfg TelemetryConfig) (*sdktrace.TracerProvi
 	)
 
 	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(propagation.TraceContext{})
+	otel.SetTextMapPropagator(
+		propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		),
+	)
 
 	return tp, nil
 }

@@ -12,15 +12,17 @@ import (
 
 func TestHandleInitialContextSetupFailure_EmptyIEs(t *testing.T) {
 	ran := newTestRadio()
+	amf := newTestAMF()
 	msg := &ngapType.InitialContextSetupFailure{}
 
 	assertNoPanic(t, "HandleInitialContextSetupFailure(empty IEs)", func() {
-		ngap.HandleInitialContextSetupFailure(context.Background(), ran, msg)
+		ngap.HandleInitialContextSetupFailure(context.Background(), amf, ran, msg)
 	})
 }
 
 func TestHandleInitialContextSetupFailure_MissingCause(t *testing.T) {
 	ran := newTestRadio()
+	amf := newTestAMF()
 	msg := &ngapType.InitialContextSetupFailure{}
 	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.InitialContextSetupFailureIEs{
 		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDRANUENGAPID},
@@ -32,6 +34,6 @@ func TestHandleInitialContextSetupFailure_MissingCause(t *testing.T) {
 	})
 
 	assertNoPanic(t, "HandleInitialContextSetupFailure(missing cause)", func() {
-		ngap.HandleInitialContextSetupFailure(context.Background(), ran, msg)
+		ngap.HandleInitialContextSetupFailure(context.Background(), amf, ran, msg)
 	})
 }

@@ -221,15 +221,15 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, database, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -238,7 +238,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 	imsi2 := "001010100007488"
 
 	t.Run("1. Get subscriber usage per day - no usage", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, "", "", "", GroupByDay)
+		statusCode, response, err := getSubscriberUsage(env.Server.URL, client, token, "", "", "", GroupByDay)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
 		}
@@ -257,7 +257,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 	})
 
 	t.Run("2. Create Data Network, Policy, and Subscribers", func(t *testing.T) {
-		err := createDataNetworkAndPolicy(ts.URL, client, token)
+		err := createDataNetworkAndPolicy(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't create data network and policy: %s", err)
 		}
@@ -270,7 +270,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 			PolicyName:     PolicyName,
 		}
 
-		_, _, err = createSubscriber(ts.URL, client, token, createSubscriberParams)
+		_, _, err = createSubscriber(env.Server.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
@@ -283,7 +283,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 			PolicyName:     PolicyName,
 		}
 
-		_, _, err = createSubscriber(ts.URL, client, token, createSubscriberParams)
+		_, _, err = createSubscriber(env.Server.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
@@ -303,7 +303,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 			t.Fatalf("couldn't parse date %s: %s", date2, err)
 		}
 
-		err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
+		err = env.DB.IncrementDailyUsage(context.Background(), db.DailyUsage{
 			EpochDay:      db.DaysSinceEpoch(date1Parsed),
 			IMSI:          imsi1,
 			BytesUplink:   1500,
@@ -313,7 +313,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 			t.Fatalf("couldn't increment daily usage: %s", err)
 		}
 
-		err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
+		err = env.DB.IncrementDailyUsage(context.Background(), db.DailyUsage{
 			EpochDay:      db.DaysSinceEpoch(date2Parsed),
 			IMSI:          imsi2,
 			BytesUplink:   1222,
@@ -325,7 +325,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. Get subscriber usage per day", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, "2025-11-14", "2025-11-19", "", GroupByDay)
+		statusCode, response, err := getSubscriberUsage(env.Server.URL, client, token, "2025-11-14", "2025-11-19", "", GroupByDay)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
 		}
@@ -362,7 +362,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. Get subscriber usage per day - subscriber filter", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, "2025-11-14", "2025-11-19", imsi2, GroupByDay)
+		statusCode, response, err := getSubscriberUsage(env.Server.URL, client, token, "2025-11-14", "2025-11-19", imsi2, GroupByDay)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
 		}
@@ -390,7 +390,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 	})
 
 	t.Run("5. Clear subscriber usage data", func(t *testing.T) {
-		statusCode, response, err := clearSubscriberUsage(ts.URL, client, token)
+		statusCode, response, err := clearSubscriberUsage(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't clear subscriber usage data: %s", err)
 		}
@@ -409,7 +409,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 	})
 
 	t.Run("6. Verify cleared subscriber usage data", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, "", "", "", GroupByDay)
+		statusCode, response, err := getSubscriberUsage(env.Server.URL, client, token, "", "", "", GroupByDay)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
 		}
@@ -432,24 +432,24 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, database, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
 	imsi1 := "001010100007487"
 	imsi2 := "001010100007488"
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
 	t.Run("1. Get subscriber usage per day - no usage", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, "", "", "", GroupBySubscriber)
+		statusCode, response, err := getSubscriberUsage(env.Server.URL, client, token, "", "", "", GroupBySubscriber)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per subscriber: %s", err)
 		}
@@ -468,7 +468,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 	})
 
 	t.Run("2. Create Data Network, Policy, and Subscribers", func(t *testing.T) {
-		err := createDataNetworkAndPolicy(ts.URL, client, token)
+		err := createDataNetworkAndPolicy(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't create data network and policy: %s", err)
 		}
@@ -481,7 +481,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 			PolicyName:     PolicyName,
 		}
 
-		_, _, err = createSubscriber(ts.URL, client, token, createSubscriberParams)
+		_, _, err = createSubscriber(env.Server.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
@@ -494,7 +494,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 			PolicyName:     PolicyName,
 		}
 
-		_, _, err = createSubscriber(ts.URL, client, token, createSubscriberParams)
+		_, _, err = createSubscriber(env.Server.URL, client, token, createSubscriberParams)
 		if err != nil {
 			t.Fatalf("couldn't create subscriber: %s", err)
 		}
@@ -514,7 +514,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 			t.Fatalf("couldn't parse date %s: %s", date2, err)
 		}
 
-		err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
+		err = env.DB.IncrementDailyUsage(context.Background(), db.DailyUsage{
 			EpochDay:      db.DaysSinceEpoch(date1Parsed),
 			IMSI:          imsi1,
 			BytesUplink:   1500,
@@ -524,7 +524,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 			t.Fatalf("couldn't increment daily usage: %s", err)
 		}
 
-		err = database.IncrementDailyUsage(context.Background(), db.DailyUsage{
+		err = env.DB.IncrementDailyUsage(context.Background(), db.DailyUsage{
 			EpochDay:      db.DaysSinceEpoch(date2Parsed),
 			IMSI:          imsi2,
 			BytesUplink:   1222,
@@ -536,7 +536,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. Get subscriber usage per day", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, "2025-11-14", "2025-11-19", "", GroupBySubscriber)
+		statusCode, response, err := getSubscriberUsage(env.Server.URL, client, token, "2025-11-14", "2025-11-19", "", GroupBySubscriber)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per day: %s", err)
 		}
@@ -573,7 +573,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. Get subscriber usage per subscriber - subscriber filter", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, "2025-11-14", "2025-11-19", imsi2, GroupBySubscriber)
+		statusCode, response, err := getSubscriberUsage(env.Server.URL, client, token, "2025-11-14", "2025-11-19", imsi2, GroupBySubscriber)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per subscriber: %s", err)
 		}
@@ -601,7 +601,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 	})
 
 	t.Run("5. Clear subscriber usage data", func(t *testing.T) {
-		statusCode, response, err := clearSubscriberUsage(ts.URL, client, token)
+		statusCode, response, err := clearSubscriberUsage(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't clear subscriber usage data: %s", err)
 		}
@@ -620,7 +620,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 	})
 
 	t.Run("6. Verify cleared subscriber usage data", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsage(ts.URL, client, token, "", "", "", GroupBySubscriber)
+		statusCode, response, err := getSubscriberUsage(env.Server.URL, client, token, "", "", "", GroupBySubscriber)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage per subscriber: %s", err)
 		}
@@ -643,21 +643,21 @@ func TestAPISubscriberUsageRetentionPolicyEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
 	t.Run("1. Get subscriber usage retention policy", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsageRetentionPolicy(ts.URL, client, token)
+		statusCode, response, err := getSubscriberUsageRetentionPolicy(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage retention policy: %s", err)
 		}
@@ -680,7 +680,7 @@ func TestAPISubscriberUsageRetentionPolicyEndToEnd(t *testing.T) {
 			Days: 15,
 		}
 
-		statusCode, response, err := editSubscriberUsageRetentionPolicy(ts.URL, client, token, updateSubscriberUsageRetentionPolicyParams)
+		statusCode, response, err := editSubscriberUsageRetentionPolicy(env.Server.URL, client, token, updateSubscriberUsageRetentionPolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage retention policy: %s", err)
 		}
@@ -699,7 +699,7 @@ func TestAPISubscriberUsageRetentionPolicyEndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. Verify updated subscriber usage retention policy", func(t *testing.T) {
-		statusCode, response, err := getSubscriberUsageRetentionPolicy(ts.URL, client, token)
+		statusCode, response, err := getSubscriberUsageRetentionPolicy(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get subscriber usage retention policy: %s", err)
 		}
@@ -722,15 +722,15 @@ func TestUpdateSubscriberUsageRetentionPolicyInvalidInput(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
@@ -757,7 +757,7 @@ func TestUpdateSubscriberUsageRetentionPolicyInvalidInput(t *testing.T) {
 				Days: tt.days,
 			}
 
-			statusCode, response, err := editSubscriberUsageRetentionPolicy(ts.URL, client, token, updateParams)
+			statusCode, response, err := editSubscriberUsageRetentionPolicy(env.Server.URL, client, token, updateParams)
 			if err != nil {
 				t.Fatalf("couldn't edit subscriber usage retention policy: %s", err)
 			}

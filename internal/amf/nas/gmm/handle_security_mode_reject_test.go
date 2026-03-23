@@ -5,18 +5,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 )
 
 func TestHandleSecurityModeReject_NotSecurityMode(t *testing.T) {
-	testcases := []context.StateType{context.Authentication, context.Deregistered, context.ContextSetup, context.Registered}
+	testcases := []amf.StateType{amf.Authentication, amf.Deregistered, amf.ContextSetup, amf.Registered}
 
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
-			ue := context.NewAmfUe()
-			ue.State = tc
+			ue := amf.NewAmfUe()
+			ue.ForceState(tc)
 
 			expected := fmt.Sprintf("state mismatch: receive Security Mode Reject message in state %s", tc)
 
@@ -35,9 +35,9 @@ func TestHandleSecurityModeReject_T3560Stopped_UEContextReleased(t *testing.T) {
 	}
 
 	ue.SecurityContextAvailable = true
-	ue.RanUe.ReleaseAction = context.UeContextN2NormalRelease
-	ue.State = context.SecurityMode
-	ue.T3560 = context.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.RanUe().ReleaseAction = amf.UeContextN2NormalRelease
+	ue.ForceState(amf.SecurityMode)
+	ue.T3560 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 
 	m := buildTestSecurityModeReject()
 
@@ -50,8 +50,8 @@ func TestHandleSecurityModeReject_T3560Stopped_UEContextReleased(t *testing.T) {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
 	}
 
-	if ue.State != context.Deregistered {
-		t.Fatalf("expected UE to be deregistered but was: %v", ue.State)
+	if ue.GetState() != amf.Deregistered {
+		t.Fatalf("expected UE to be deregistered but was: %v", ue.GetState())
 	}
 
 	if ue.SecurityContextAvailable {

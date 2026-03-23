@@ -124,22 +124,22 @@ func TestNetworkInteraces_EndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
 
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
 	t.Run("1. List network interfaces", func(t *testing.T) {
-		statusCode, resp, err := listNetworkInterfaces(ts.URL, client, token)
+		statusCode, resp, err := listNetworkInterfaces(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't list network interfaces: %s", err)
 		}
@@ -186,7 +186,7 @@ func TestNetworkInteraces_EndToEnd(t *testing.T) {
 	})
 
 	t.Run("2. Update N3 external address to IP", func(t *testing.T) {
-		statusCode, updateResponse, err := updateN3Info(ts.URL, client, token, "192.168.1.1")
+		statusCode, updateResponse, err := updateN3Info(env.Server.URL, client, token, "192.168.1.1")
 		if err != nil {
 			t.Fatalf("couldn't update N3 info: %s", err)
 		}
@@ -205,7 +205,7 @@ func TestNetworkInteraces_EndToEnd(t *testing.T) {
 	})
 
 	t.Run("3. Validate that N3 external address is updated", func(t *testing.T) {
-		statusCode, resp, err := listNetworkInterfaces(ts.URL, client, token)
+		statusCode, resp, err := listNetworkInterfaces(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't list network interfaces: %s", err)
 		}
@@ -224,7 +224,7 @@ func TestNetworkInteraces_EndToEnd(t *testing.T) {
 	})
 
 	t.Run("4. Update N3 external address to FQDN", func(t *testing.T) {
-		statusCode, updateResponse, err := updateN3Info(ts.URL, client, token, "example.com")
+		statusCode, updateResponse, err := updateN3Info(env.Server.URL, client, token, "example.com")
 		if err != nil {
 			t.Fatalf("couldn't update N3 info: %s", err)
 		}
@@ -239,7 +239,7 @@ func TestNetworkInteraces_EndToEnd(t *testing.T) {
 	})
 
 	t.Run("5. Update N3 external address to empty", func(t *testing.T) {
-		statusCode, updateResponse, err := updateN3Info(ts.URL, client, token, "")
+		statusCode, updateResponse, err := updateN3Info(env.Server.URL, client, token, "")
 		if err != nil {
 			t.Fatalf("couldn't update N3 info: %s", err)
 		}
@@ -258,7 +258,7 @@ func TestNetworkInteraces_EndToEnd(t *testing.T) {
 	})
 
 	t.Run("6. Validate that N3 external address is updated", func(t *testing.T) {
-		statusCode, resp, err := listNetworkInterfaces(ts.URL, client, token)
+		statusCode, resp, err := listNetworkInterfaces(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't list network interfaces: %s", err)
 		}

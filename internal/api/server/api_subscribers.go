@@ -11,8 +11,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
-	"github.com/ellanetworks/core/internal/amf/deregister"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
@@ -138,7 +137,7 @@ func isSequenceNumberValid(sequenceNumber string) bool {
 	return len(bytes) == 6
 }
 
-func ListSubscribers(dbInstance *db.Database) http.Handler {
+func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		page := atoiDefault(q.Get("page"), 1)
@@ -162,10 +161,8 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 		var radioIMSIs map[string]struct{}
 
 		if radioFilter != "" {
-			amf := amfContext.AMFSelf()
-
 			// Verify the radio exists.
-			_, ranList := amf.ListAmfRan(1, 1000)
+			_, ranList := amfInstance.ListAmfRan(1, 1000)
 
 			found := false
 
@@ -184,7 +181,7 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 
 			// Use the authoritative registration state to find subscribers
 			// connected through this radio.
-			imsis := amf.RegisteredSubscribersForRadio(radioFilter)
+			imsis := amfInstance.RegisteredSubscribersForRadio(radioFilter)
 			radioIMSIs = make(map[string]struct{}, len(imsis))
 
 			for _, imsi := range imsis {
@@ -244,8 +241,6 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 				ipAddress = *dbSubscriber.IPAddress
 			}
 
-			amf := amfContext.AMFSelf()
-
 			supi, err := etsi.NewSUPIFromIMSI(dbSubscriber.Imsi)
 			if err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Invalid subscriber IMSI", err, logger.APILog)
@@ -253,18 +248,18 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 			}
 
 			subscriberStatus := SubscriberStatus{
-				Registered: amf.IsSubscriberRegistered(supi),
+				Registered: amfInstance.IsSubscriberRegistered(supi),
 				IPAddress:  ipAddress,
 			}
 
-			if lastSeen := amf.LastSeenAtForSubscriber(supi); !lastSeen.IsZero() {
+			if lastSeen := amfInstance.LastSeenAtForSubscriber(supi); !lastSeen.IsZero() {
 				subscriberStatus.LastSeenAt = lastSeen.UTC().Format(time.RFC3339)
 			}
 
 			items = append(items, Subscriber{
 				Imsi:       dbSubscriber.Imsi,
 				PolicyName: policy.Name,
-				Radio:      amf.RadioNameForSubscriber(supi),
+				Radio:      amfInstance.RadioNameForSubscriber(supi),
 				Status:     subscriberStatus,
 			})
 		}
@@ -297,7 +292,7 @@ func ListSubscribers(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func GetSubscriber(dbInstance *db.Database) http.Handler {
+func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		imsi := r.PathValue("imsi")
 		if imsi == "" {
@@ -334,9 +329,7 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			ipAddress = *dbSubscriber.IPAddress
 		}
 
-		amf := amfContext.AMFSelf()
-
-		snap, found := amf.GetUESnapshot(supi)
+		snap, found := amfInstance.GetUESnapshot(supi)
 
 		subscriberStatus := SubscriberDetailStatus{
 			Registered: false,
@@ -344,7 +337,7 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 		}
 
 		if found {
-			subscriberStatus.Registered = snap.State == amfContext.Registered
+			subscriberStatus.Registered = snap.State == amf.Registered
 			subscriberStatus.CipheringAlgorithm = snap.CipheringAlgorithm
 			subscriberStatus.IntegrityAlgorithm = snap.IntegrityAlgorithm
 			subscriberStatus.LastSeenRadio = snap.LastSeenRadio
@@ -362,7 +355,7 @@ func GetSubscriber(dbInstance *db.Database) http.Handler {
 			}
 		}
 
-		pduSessions, _ := amfContext.GetUEPDUSessions(supi)
+		pduSessions, _ := amfInstance.GetUEPDUSessions(supi)
 
 		sessions := make([]SessionInfo, 0, len(pduSessions))
 		for _, pdu := range pduSessions {
@@ -591,7 +584,7 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func DeleteSubscriber(dbInstance *db.Database) http.Handler {
+func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := getEmailFromContext(r)
 
@@ -612,19 +605,13 @@ func DeleteSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		amf := amfContext.AMFSelf()
-
 		supi, err := etsi.NewSUPIFromIMSI(imsi)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Invalid subscriber IMSI", err, logger.APILog)
 			return
 		}
 
-		err = deregister.DeregisterSubscriber(r.Context(), amf, supi)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to deregister subscriber", err, logger.APILog)
-			return
-		}
+		amfInstance.DeregisterSubscriber(r.Context(), supi)
 
 		if err := dbInstance.DeleteSubscriber(r.Context(), imsi); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
@@ -643,7 +630,7 @@ func DeleteSubscriber(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func toSessionInfo(pdu amfContext.PDUSessionExport) SessionInfo {
+func toSessionInfo(pdu amf.PDUSessionExport) SessionInfo {
 	status := "active"
 	if pdu.Inactive {
 		status = "inactive"

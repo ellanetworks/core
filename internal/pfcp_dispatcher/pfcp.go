@@ -41,8 +41,6 @@ type PfcpDispatcher struct {
 	UPF UPF
 }
 
-var Dispatcher PfcpDispatcher
-
 func NewPfcpDispatcher(smf SMF, upf UPF) PfcpDispatcher {
 	return PfcpDispatcher{SMF: smf, UPF: upf}
 }

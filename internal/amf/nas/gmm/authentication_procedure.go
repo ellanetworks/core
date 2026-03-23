@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strconv"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/free5gc/nas/nasMessage"
 )
 
-func sendUEAuthenticationAuthenticateRequest(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, resyncInfo *ausf.ResyncInfo) (*ausf.AuthResult, error) {
+func sendUEAuthenticationAuthenticateRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, resyncInfo *ausf.ResyncInfo) (*ausf.AuthResult, error) {
 	if ue.Tai.PlmnID == nil {
 		return nil, fmt.Errorf("tai is not available in UE context")
 	}
@@ -23,7 +23,7 @@ func sendUEAuthenticationAuthenticateRequest(ctx context.Context, amf *amfContex
 
 	snName := fmt.Sprintf("5G:mnc%03d.mcc%s.3gppnetwork.org", mnc, ue.Tai.PlmnID.Mcc)
 
-	ueAuthenticationCtx, err := amf.Ausf.Authenticate(ctx, ue.Suci, snName, resyncInfo)
+	ueAuthenticationCtx, err := amfInstance.Ausf.Authenticate(ctx, ue.Suci, snName, resyncInfo)
 	if err != nil {
 		return nil, fmt.Errorf("ausf UE Authentication Authenticate Request failed: %s", err.Error())
 	}
@@ -31,19 +31,19 @@ func sendUEAuthenticationAuthenticateRequest(ctx context.Context, amf *amfContex
 	return ueAuthenticationCtx, nil
 }
 
-func identityVerification(ue *amfContext.AmfUe) bool {
+func identityVerification(ue *amf.AmfUe) bool {
 	return ue.Supi.IsValid() || len(ue.Suci) != 0
 }
 
-func authenticationProcedure(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe) (bool, error) {
-	ctx, span := tracer.Start(ctx, "AuthenticationProcedure")
+func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe) (bool, error) {
+	ctx, span := tracer.Start(ctx, "nas/authentication_procedure")
 	defer span.End()
 
 	if !identityVerification(ue) {
 		// Request UE's SUCI by sending identity request
 		ue.Log.Debug("UE has no SUCI / SUPI - send identity request to UE")
 
-		err := message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeSuci)
+		err := message.SendIdentityRequest(ctx, ue.RanUe(), nasMessage.MobileIdentity5GSTypeSuci)
 		if err != nil {
 			return false, fmt.Errorf("error sending identity request: %v", err)
 		}
@@ -63,7 +63,7 @@ func authenticationProcedure(ctx context.Context, amf *amfContext.AMF, ue *amfCo
 
 	ue.Log.Debug("UE has no valid security context - continue with the authentication procedure")
 
-	response, err := sendUEAuthenticationAuthenticateRequest(ctx, amf, ue, nil)
+	response, err := sendUEAuthenticationAuthenticateRequest(ctx, amfInstance, ue, nil)
 	if err != nil {
 		return false, fmt.Errorf("failed to send ue authentication request: %s", err)
 	}
@@ -72,7 +72,7 @@ func authenticationProcedure(ctx context.Context, amf *amfContext.AMF, ue *amfCo
 
 	ue.ABBA = []uint8{0x00, 0x00} // set ABBA value as described at TS 33.501 Annex A.7.1
 
-	err = message.SendAuthenticationRequest(ctx, amf, ue.RanUe)
+	err = message.SendAuthenticationRequest(ctx, amfInstance, ue.RanUe())
 	if err != nil {
 		return false, fmt.Errorf("error sending authentication request: %v", err)
 	}

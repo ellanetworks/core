@@ -3,13 +3,13 @@ package ngap
 import (
 	"context"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfContext.Radio, msg *ngapType.PDUSessionResourceModifyIndication) {
+func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amf.Radio, msg *ngapType.PDUSessionResourceModifyIndication) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -104,7 +104,7 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amfConte
 	pduSessionResourceModifyListModCfm := ngapType.PDUSessionResourceModifyListModCfm{}
 	pduSessionResourceFailedToModifyListModCfm := ngapType.PDUSessionResourceFailedToModifyListModCfm{}
 
-	err := ranUe.Radio.NGAPSender.SendPDUSessionResourceModifyConfirm(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, pduSessionResourceModifyListModCfm, pduSessionResourceFailedToModifyListModCfm)
+	err := ranUe.SendPDUSessionResourceModifyConfirm(ctx, pduSessionResourceModifyListModCfm, pduSessionResourceFailedToModifyListModCfm)
 	if err != nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("error sending pdu session resource modify confirm", zap.Error(err))
 		return

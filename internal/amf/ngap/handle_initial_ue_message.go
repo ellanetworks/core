@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapConvert"
@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.InitialUEMessage) {
+func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.InitialUEMessage) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -117,7 +117,7 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 	}
 
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
-	if ranUe != nil && ranUe.AmfUe == nil {
+	if ranUe != nil && ranUe.AmfUe() == nil {
 		err := ranUe.Remove()
 		if err != nil {
 			logger.WithTrace(ctx, ran.Log).Error(err.Error())
@@ -129,9 +129,10 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 	if ranUe == nil {
 		var err error
 
-		ranUe, err = ran.NewUe(rANUENGAPID.Value)
+		ranUe, err = amfInstance.NewRanUe(ran, rANUENGAPID.Value)
 		if err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("Failed to add Ran UE to the pool", zap.Error(err))
+			return
 		}
 
 		logger.WithTrace(ctx, ran.Log).Debug("Added Ran UE to the pool", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
@@ -139,7 +140,7 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		if fiveGSTMSI != nil {
 			logger.WithTrace(ctx, ranUe.Log).Debug("Receive 5G-S-TMSI")
 
-			operatorInfo, err := amf.GetOperatorInfo(ctx)
+			operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
 			if err != nil {
 				logger.WithTrace(ctx, ranUe.Log).Error("Could not get operator info", zap.Error(err))
 				return
@@ -161,16 +162,14 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 				logger.WithTrace(ctx, ranUe.Log).Warn("invalid guti", zap.Error(err))
 			}
 
-			if amfUe, ok := amf.FindAmfUeByGuti(guti); !ok {
+			if amfUe, ok := amfInstance.FindAmfUeByGuti(guti); !ok {
 				logger.WithTrace(ctx, ranUe.Log).Warn("Unknown UE", logger.GUTI(guti.String()))
 			} else {
 				logger.WithTrace(ctx, ranUe.Log).Debug("find AmfUe", logger.GUTI(guti.String()))
 				/* checking the guti-ue belongs to this amf instance */
 
-				if amfUe.RanUe != nil {
+				if amfUe.RanUe() != nil {
 					logger.WithTrace(ctx, ranUe.Log).Debug("Implicit Deregistration", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
-
-					amfUe.RanUe = nil
 				}
 
 				logger.WithTrace(ctx, ranUe.Log).Debug("AmfUe Attach RanUe", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
@@ -179,11 +178,11 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		}
 	} else {
 		ranUe.Radio = ran
-		ranUe.AmfUe.AttachRanUe(ranUe)
+		ranUe.AmfUe().AttachRanUe(ranUe)
 	}
 
 	if userLocationInformation != nil {
-		ranUe.UpdateLocation(ctx, amf, userLocationInformation)
+		ranUe.UpdateLocation(ctx, amfInstance, userLocationInformation)
 	}
 
 	if rRCEstablishmentCause != nil {
@@ -199,12 +198,12 @@ func HandleInitialUEMessage(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		ranUe.UeContextRequest = false
 	}
 
-	if ranUe.AmfUe != nil {
-		ranUe.AmfUe.StopImplicitDeregistrationTimer()
-		ranUe.AmfUe.StopMobileReachableTimer()
+	if ranUe.AmfUe() != nil {
+		ranUe.AmfUe().StopImplicitDeregistrationTimer()
+		ranUe.AmfUe().StopMobileReachableTimer()
 	}
 
-	err := nas.HandleNAS(ctx, amf, ranUe, nASPDU.Value)
+	err := nas.HandleNAS(ctx, amfInstance, ranUe, nASPDU.Value)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error handling NAS Message", zap.Error(err))
 		return

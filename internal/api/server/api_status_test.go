@@ -49,16 +49,16 @@ func TestStatusEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
 	t.Run("1. Get status", func(t *testing.T) {
-		statusCode, response, err := getStatus(ts.URL, client)
+		statusCode, response, err := getStatus(env.Server.URL, client)
 		if err != nil {
 			t.Fatalf("couldn't get status: %s", err)
 		}

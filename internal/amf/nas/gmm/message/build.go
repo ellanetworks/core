@@ -11,7 +11,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
@@ -20,7 +20,7 @@ import (
 	"github.com/free5gc/nas/nasType"
 )
 
-func BuildDLNASTransport(ue *amfContext.AmfUe, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause *uint8) ([]byte, error) {
+func BuildDLNASTransport(ue *amf.AmfUe, payloadContainerType uint8, nasPdu []byte, pduSessionID uint8, cause *uint8) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeDLNASTransport)
@@ -72,7 +72,7 @@ func BuildIdentityRequest(typeOfIdentity uint8) ([]byte, error) {
 	return m.PlainNasEncode()
 }
 
-func BuildAuthenticationRequest(ue *amfContext.AmfUe) ([]byte, error) {
+func BuildAuthenticationRequest(ue *amf.AmfUe) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeAuthenticationRequest)
@@ -113,7 +113,7 @@ func BuildAuthenticationRequest(ue *amfContext.AmfUe) ([]byte, error) {
 	return m.PlainNasEncode()
 }
 
-func BuildServiceAccept(ue *amfContext.AmfUe, pDUSessionStatus *[16]bool, reactivationResult *[16]bool, errPduSessionID, errCause []uint8) ([]byte, error) {
+func BuildServiceAccept(ue *amf.AmfUe, pDUSessionStatus *[16]bool, reactivationResult *[16]bool, errPduSessionID, errCause []uint8) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeServiceAccept)
@@ -217,7 +217,7 @@ func BuildRegistrationReject(t3502Value int, cause5GMM uint8) ([]byte, error) {
 }
 
 // TS 24.501 8.2.25
-func BuildSecurityModeCommand(ue *amfContext.AmfUe) ([]byte, error) {
+func BuildSecurityModeCommand(ue *amf.AmfUe) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeSecurityModeCommand)
@@ -293,8 +293,8 @@ func BuildDeregistrationAccept() ([]byte, error) {
 }
 
 func BuildRegistrationAccept(
-	amf *amfContext.AMF,
-	ue *amfContext.AmfUe,
+	amfInstance *amf.AMF,
+	ue *amf.AmfUe,
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
 	errPduSessionID, errCause []uint8,
@@ -368,16 +368,17 @@ func BuildRegistrationAccept(
 	}
 
 	// 5gs network feature support
-	if amf.Get5gsNwFeatSuppEnable() {
+	nfs := amfInstance.GetNetworkFeatureSupport()
+	if nfs.Enable {
 		registrationAccept.NetworkFeatureSupport5GS = nasType.NewNetworkFeatureSupport5GS(nasMessage.RegistrationAcceptNetworkFeatureSupport5GSType)
 		registrationAccept.NetworkFeatureSupport5GS.SetLen(2)
-		registrationAccept.SetIMSVoPS3GPP(amf.Get5gsNwFeatSuppImsVoPS())
-		registrationAccept.SetEMC(amf.Get5gsNwFeatSuppEmc())
-		registrationAccept.SetEMF(amf.Get5gsNwFeatSuppEmf())
-		registrationAccept.SetIWKN26(amf.Get5gsNwFeatSuppIwkN26())
-		registrationAccept.SetMPSI(amf.Get5gsNwFeatSuppMpsi())
-		registrationAccept.SetEMCN(amf.Get5gsNwFeatSuppEmcN3())
-		registrationAccept.SetMCSI(amf.Get5gsNwFeatSuppMcsi())
+		registrationAccept.SetIMSVoPS3GPP(nfs.ImsVoPS)
+		registrationAccept.SetEMC(nfs.Emc)
+		registrationAccept.SetEMF(nfs.Emf)
+		registrationAccept.SetIWKN26(nfs.IwkN26)
+		registrationAccept.SetMPSI(nfs.Mpsi)
+		registrationAccept.SetEMCN(nfs.EmcN3)
+		registrationAccept.SetMCSI(nfs.Mcsi)
 	}
 
 	if pDUSessionStatus != nil {
@@ -426,7 +427,7 @@ func BuildRegistrationAccept(
 
 // TS 24.501 - 5.4.4 Generic UE configuration update procedure - 5.4.4.1 General
 // includeGUTI controls whether a new 5G-GUTI is included (e.g. during service request GUTI re-allocation).
-func BuildConfigurationUpdateCommand(ue *amfContext.AmfUe, spnFullName, spnShortName string, includeGUTI bool) ([]byte, error) {
+func BuildConfigurationUpdateCommand(ue *amf.AmfUe, spnFullName, spnShortName string, includeGUTI bool) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeConfigurationUpdateCommand)

@@ -10,11 +10,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/smf"
 	"go.uber.org/zap"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -46,7 +48,7 @@ func GenerateJWTSecret() ([]byte, error) {
 	return bytes, nil
 }
 
-func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf server.UPFUpdater, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) (*http.Server, error) {
+func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf server.UPFUpdater, sessions smf.SessionQuerier, amfInstance *amf.AMF, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) (*http.Server, error) {
 	jwtSecret, err := GenerateJWTSecret()
 	if err != nil {
 		return nil, fmt.Errorf("couldn't generate jwt secret: %v", err)
@@ -61,12 +63,12 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 
 	secureCookie := scheme == HTTPS
 
-	router := server.NewHandler(dbInstance, cfg, upf, kernelInt, jwtSecret, secureCookie, embedFS, registerExtraRoutes)
+	router := server.NewHandler(dbInstance, cfg, upf, kernelInt, jwtSecret, secureCookie, embedFS, sessions, amfInstance, registerExtraRoutes)
 
 	httpAddr := fmt.Sprintf("%s:%d", cfg.Interfaces.API.Address, cfg.Interfaces.API.Port)
 
 	h2Server := &http2.Server{
-		IdleTimeout: 1 * time.Millisecond,
+		IdleTimeout: 120 * time.Second,
 	}
 
 	srv := &http.Server{
@@ -83,6 +85,19 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 			srv.Handler = router
 			srv.TLSConfig = &tls.Config{
 				MinVersion: tls.VersionTLS12,
+				CipherSuites: []uint16{
+					tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+					tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+					tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+					tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+					tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+					tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+				},
+				CurvePreferences: []tls.CurveID{
+					tls.X25519,
+					tls.CurveP256,
+					tls.CurveP384,
+				},
 			}
 			serveErr = srv.ListenAndServeTLS(cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key)
 		} else {

@@ -9,11 +9,12 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapType"
@@ -81,6 +82,7 @@ type SmfHandoverFailedCall struct {
 }
 
 type FakeSmfSbi struct {
+	*smf.SMF
 	PathSwitchResponse  []byte
 	PathSwitchErr       error
 	HandoverFailedErr   error
@@ -88,7 +90,7 @@ type FakeSmfSbi struct {
 	HandoverFailedCalls []*SmfHandoverFailedCall
 }
 
-func (f *FakeSmfSbi) ActivateSmContext(smContextRef string) ([]byte, error) {
+func (f *FakeSmfSbi) ActivateSmContext(_ context.Context, smContextRef string) ([]byte, error) {
 	return nil, nil
 }
 
@@ -105,7 +107,7 @@ func (f *FakeSmfSbi) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context,
 	return f.PathSwitchResponse, f.PathSwitchErr
 }
 
-func (f *FakeSmfSbi) UpdateSmContextHandoverFailed(smContextRef string, n2Data []byte) error {
+func (f *FakeSmfSbi) UpdateSmContextHandoverFailed(_ context.Context, smContextRef string, n2Data []byte) error {
 	f.HandoverFailedCalls = append(f.HandoverFailedCalls, &SmfHandoverFailedCall{
 		SmContextRef: smContextRef,
 		N2Data:       n2Data,
@@ -114,7 +116,7 @@ func (f *FakeSmfSbi) UpdateSmContextHandoverFailed(smContextRef string, n2Data [
 	return f.HandoverFailedErr
 }
 
-func (f *FakeSmfSbi) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*models.UpdateSmContextResponse, error) {
+func (f *FakeSmfSbi) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*smf.UpdateResult, error) {
 	return nil, nil
 }
 
@@ -123,6 +125,30 @@ func (f *FakeSmfSbi) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSes
 }
 
 func (f *FakeSmfSbi) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context, smContextRef string) ([]byte, error) {
+	return nil, nil
+}
+
+func (f *FakeSmfSbi) DeactivateSmContext(_ context.Context, _ string) error {
+	return nil
+}
+
+func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResSetupRsp(_ context.Context, _ string, _ []byte) error {
+	return nil
+}
+
+func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResSetupFail(_ context.Context, _ string, _ []byte) error {
+	return nil
+}
+
+func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, _ string) error {
+	return nil
+}
+
+func (f *FakeSmfSbi) UpdateSmContextN2HandoverPreparing(_ context.Context, _ string, _ []byte) ([]byte, error) {
+	return nil, nil
+}
+
+func (f *FakeSmfSbi) UpdateSmContextN2HandoverPrepared(_ context.Context, _ string, _ []byte) ([]byte, error) {
 	return nil, nil
 }
 
@@ -404,19 +430,19 @@ func assertNoPanic(t *testing.T, name string, fn func()) {
 }
 
 // newTestRadio creates a minimal Radio with a FakeNGAPSender for testing.
-func newTestRadio() *amfContext.Radio {
+func newTestRadio() *amf.Radio {
 	sender := &FakeNGAPSender{}
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    sender,
-		RanUEs:        make(map[int64]*amfContext.RanUe),
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		RanUEs:        make(map[int64]*amf.RanUe),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
 	return ran
 }
 
 // newTestAMF creates a minimal AMF context for testing.
-func newTestAMF() *amfContext.AMF {
-	return &amfContext.AMF{}
+func newTestAMF() *amf.AMF {
+	return amf.New(nil, nil, nil)
 }

@@ -3,12 +3,12 @@ package ngap
 import (
 	gocontext "context"
 
-	"github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func HandleErrorIndication(ctx gocontext.Context, ran *context.Radio, msg *ngapType.ErrorIndication) {
+func HandleErrorIndication(ctx gocontext.Context, ran *amf.Radio, msg *ngapType.ErrorIndication) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("ErrorIndication is nil")
 		return

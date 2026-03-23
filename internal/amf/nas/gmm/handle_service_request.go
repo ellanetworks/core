@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
@@ -38,7 +38,7 @@ func serviceTypeToString(serviceType uint8) string {
 
 func sendServiceAccept(
 	ctx context.Context,
-	ue *amfContext.AmfUe,
+	ue *amf.AmfUe,
 	ctxList ngapType.PDUSessionResourceSetupListCxtReq,
 	suList ngapType.PDUSessionResourceSetupListSUReq,
 	pDUSessionStatus *[16]bool,
@@ -47,7 +47,7 @@ func sendServiceAccept(
 	errCause []uint8,
 	supportedGUAMI *models.Guami,
 ) error {
-	if ue.RanUe.UeContextRequest {
+	if ue.RanUe().UeContextRequest {
 		// update Kgnb/Kn3iwf
 		err := ue.UpdateSecurityContext()
 		if err != nil {
@@ -59,12 +59,10 @@ func sendServiceAccept(
 			return fmt.Errorf("error building service accept message: %v", err)
 		}
 
-		ue.RanUe.SentInitialContextSetupRequest = true
+		ue.RanUe().SentInitialContextSetupRequest = true
 
-		err = ue.RanUe.Radio.NGAPSender.SendInitialContextSetupRequest(
+		err = ue.RanUe().SendInitialContextSetupRequest(
 			ctx,
-			ue.RanUe.AmfUeNgapID,
-			ue.RanUe.RanUeNgapID,
 			ue.Ambr.Uplink,
 			ue.Ambr.Downlink,
 			ue.AllowedNssai,
@@ -88,10 +86,8 @@ func sendServiceAccept(
 			return fmt.Errorf("error building service accept message: %v", err)
 		}
 
-		err = ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceSetupRequest(
+		err = ue.RanUe().SendPDUSessionResourceSetupRequest(
 			ctx,
-			ue.RanUe.AmfUeNgapID,
-			ue.RanUe.RanUeNgapID,
 			ue.Ambr.Uplink,
 			ue.Ambr.Downlink,
 			nasPdu,
@@ -103,7 +99,7 @@ func sendServiceAccept(
 
 		ue.Log.Info("sent service accept")
 	} else {
-		err := message.SendServiceAccept(ctx, ue.RanUe, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
+		err := message.SendServiceAccept(ctx, ue.RanUe(), pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 		if err != nil {
 			return fmt.Errorf("error sending service accept: %v", err)
 		}
@@ -115,8 +111,8 @@ func sendServiceAccept(
 }
 
 // TS 24501 5.6.1
-func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.ServiceRequest) error {
-	if ue.GetState() != amfContext.Deregistered && ue.GetState() != amfContext.Registered {
+func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.ServiceRequest) error {
+	if ue.GetState() != amf.Deregistered && ue.GetState() != amf.Registered {
 		return fmt.Errorf("state mismatch: receive Service Request message in state %s", ue.GetState())
 	}
 
@@ -131,9 +127,9 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	}
 
 	// Set No ongoing
-	if procedure := ue.GetOnGoing(); procedure == amfContext.OnGoingProcedurePaging {
-		ue.SetOnGoing(amfContext.OnGoingProcedureNothing)
-	} else if procedure != amfContext.OnGoingProcedureNothing {
+	if procedure := ue.GetOnGoing(); procedure == amf.OnGoingProcedurePaging {
+		ue.SetOnGoing(amf.OnGoingProcedureNothing)
+	} else if procedure != amf.OnGoingProcedureNothing {
 		ue.Log.Warn("UE should not in OnGoing", zap.Any("procedure", procedure))
 	}
 
@@ -170,19 +166,19 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	}
 
 	// Service Reject if the SecurityContext is invalid or the UE is Deregistered
-	if !ue.SecurityContextIsValid() || ue.GetState() == amfContext.Deregistered {
+	if !ue.SecurityContextIsValid() || ue.GetState() == amf.Deregistered {
 		ue.Log.Warn("No security context", logger.SUPI(ue.Supi.String()))
 		ue.SecurityContextAvailable = false
 
-		err := message.SendServiceReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+		err := message.SendServiceReject(ctx, ue.RanUe(), nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		if err != nil {
 			return fmt.Errorf("error sending service reject: %v", err)
 		}
 
 		ue.Log.Info("sent service reject")
-		ue.RanUe.ReleaseAction = amfContext.UeContextN2NormalRelease
+		ue.RanUe().ReleaseAction = amf.UeContextN2NormalRelease
 
-		err = ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		err = ue.RanUe().SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}
@@ -208,7 +204,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		ue.Log.Warn("emergency service is not supported")
 	}
 
-	operatorInfo, err := amf.GetOperatorInfo(ctx)
+	operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
@@ -238,14 +234,14 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 
 			if pduSessionID != targetPduSessionID {
 				if uplinkDataPsi[pduSessionID] {
-					binaryDataN2SmInformation, err := amf.Smf.ActivateSmContext(smContext.Ref)
+					binaryDataN2SmInformation, err := amfInstance.Smf.ActivateSmContext(ctx, smContext.Ref)
 					if err != nil {
 						ue.Log.Error("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 						reactivationResult[pduSessionID] = true
 						errPduSessionID = append(errPduSessionID, pduSessionID)
 						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 						errCause = append(errCause, cause)
-					} else if ue.RanUe.UeContextRequest {
+					} else if ue.RanUe().UeContextRequest {
 						send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
 					} else {
 						send.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
@@ -266,7 +262,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 			}
 
 			if !psiArray[pduSessionID] { // #nosec: G602 -- bounds checked above
-				err := amf.Smf.ReleaseSmContext(ctx, smContext.Ref)
+				err := amfInstance.Smf.ReleaseSmContext(ctx, smContext.Ref)
 				if err != nil {
 					ue.Log.Error("Release SmContext Error", zap.Error(err))
 				}
@@ -292,7 +288,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 					return fmt.Errorf("error sending service accept: %v", err)
 				}
 
-				err = message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
+				err = message.SendDLNASTransport(ctx, ue.RanUe(), nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
 				if err != nil {
 					return fmt.Errorf("error sending downlink nas transport message: %v", err)
 				}
@@ -318,7 +314,7 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 					}
 				}
 
-				if ue.RanUe.UeContextRequest {
+				if ue.RanUe().UeContextRequest {
 					send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
 				} else {
 					send.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
@@ -338,12 +334,12 @@ func handleServiceRequest(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 			}
 		}
 
-		err := ue.ReAllocateGuti(ctx, operatorInfo.Guami)
+		err := amfInstance.ReAllocateGuti(ctx, ue, operatorInfo.Guami)
 		if err != nil {
 			return fmt.Errorf("error reallocating GUTI to UE: %v", err)
 		}
 
-		message.SendConfigurationUpdateCommand(ctx, amf, ue, true)
+		message.SendConfigurationUpdateCommand(ctx, amfInstance, ue, true)
 
 	case nasMessage.ServiceTypeData:
 		err := sendServiceAccept(ctx, ue, ctxList, suList, acceptPduSessionPsi, reactivationResult, errPduSessionID, errCause, operatorInfo.Guami)

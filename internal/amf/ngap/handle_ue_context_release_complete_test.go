@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
@@ -15,11 +15,11 @@ import (
 
 func TestHandleUEContextReleaseComplete_EmptyIEs(t *testing.T) {
 	ran := newTestRadio()
-	amf := newTestAMF()
+	amfInstance := newTestAMF()
 	msg := &ngapType.UEContextReleaseComplete{}
 
 	assertNoPanic(t, "HandleUEContextReleaseComplete(empty IEs)", func() {
-		ngap.HandleUEContextReleaseComplete(context.Background(), amf, ran, msg)
+		ngap.HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, msg)
 	})
 }
 
@@ -30,25 +30,24 @@ func TestHandleUEContextReleaseComplete_EmptyIEs(t *testing.T) {
 // a continue statement.
 func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
 	ran := newTestRadio()
-	amf := newTestAMF()
+	amfInstance := newTestAMF()
 
 	// Create a UE in Registered state with an empty SmContextList.
-	amfUe := amfContext.NewAmfUe()
-	amfUe.SetState(amfContext.Registered)
+	amfUe := amf.NewAmfUe()
+	amfUe.ForceState(amf.Registered)
 	amfUe.Log = logger.AmfLog
 
-	ranUe := &amfContext.RanUe{
+	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 100,
 		Radio:       ran,
 		Log:         logger.AmfLog,
-		AmfUe:       amfUe,
 	}
-	amfUe.RanUe = ranUe
+	amfUe.AttachRanUe(ranUe)
 	ran.RanUEs[1] = ranUe
 
 	// Register the radio with the AMF so FindRanUeByAmfUeNgapID can find it.
-	amf.Radios = map[*sctp.SCTPConn]*amfContext.Radio{new(sctp.SCTPConn): ran}
+	amfInstance.Radios = map[*sctp.SCTPConn]*amf.Radio{new(sctp.SCTPConn): ran}
 
 	msg := &ngapType.UEContextReleaseComplete{}
 
@@ -91,6 +90,6 @@ func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
 	})
 
 	assertNoPanic(t, "HandleUEContextReleaseComplete(SmContext not found)", func() {
-		ngap.HandleUEContextReleaseComplete(context.Background(), amf, ran, msg)
+		ngap.HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, msg)
 	})
 }

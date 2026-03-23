@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
@@ -14,18 +14,18 @@ import (
 
 func TestHandleNasNonDeliveryIndication_EmptyIEs(t *testing.T) {
 	ran := newTestRadio()
-	amf := newTestAMF()
+	amfInstance := newTestAMF()
 	msg := &ngapType.NASNonDeliveryIndication{}
 
 	assertNoPanic(t, "HandleNasNonDeliveryIndication(empty IEs)", func() {
-		ngap.HandleNasNonDeliveryIndication(context.Background(), amf, ran, msg)
+		ngap.HandleNasNonDeliveryIndication(context.Background(), amfInstance, ran, msg)
 	})
 }
 
 func TestHandleNasNonDeliveryIndication_MissingCauseAndNASPDU(t *testing.T) {
 	ran := newTestRadio()
-	amf := newTestAMF()
-	ranUe := &amfContext.RanUe{
+	amfInstance := newTestAMF()
+	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 1,
 		Radio:       ran,
@@ -43,6 +43,6 @@ func TestHandleNasNonDeliveryIndication_MissingCauseAndNASPDU(t *testing.T) {
 	})
 
 	assertNoPanic(t, "HandleNasNonDeliveryIndication(missing cause+NASPDU)", func() {
-		ngap.HandleNasNonDeliveryIndication(context.Background(), amf, ran, msg)
+		ngap.HandleNasNonDeliveryIndication(context.Background(), amfInstance, ran, msg)
 	})
 }

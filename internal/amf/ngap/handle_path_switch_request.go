@@ -3,14 +3,14 @@ package ngap
 import (
 	"context"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
 // TS 23.502 4.9.1
-func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.PathSwitchRequest) {
+func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.PathSwitchRequest) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -64,7 +64,7 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 		return
 	}
 
-	ranUe := amf.FindRanUeByAmfUeNgapID(sourceAMFUENGAPID.Value)
+	ranUe := amfInstance.FindRanUeByAmfUeNgapID(sourceAMFUENGAPID.Value)
 	if ranUe == nil {
 		logger.WithTrace(ctx, ran.Log).Error("Cannot find UE from sourceAMfUeNgapID", zap.Int64("sourceAMFUENGAPID", sourceAMFUENGAPID.Value))
 
@@ -83,7 +83,7 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 	ranUe.TouchLastSeen()
 	logger.WithTrace(ctx, ranUe.Log).Debug("Handle Path Switch Request", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
-	amfUe := ranUe.AmfUe
+	amfUe := ranUe.AmfUe()
 	if amfUe == nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("AmfUe is nil")
 
@@ -136,7 +136,7 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 
 	ranUe.RanUeNgapID = rANUENGAPID.Value
 
-	ranUe.UpdateLocation(ctx, amf, userLocationInformation)
+	ranUe.UpdateLocation(ctx, amfInstance, userLocationInformation)
 
 	var (
 		pduSessionResourceSwitchedList       ngapType.PDUSessionResourceSwitchedList
@@ -160,7 +160,7 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 				continue
 			}
 
-			n2Rsp, err := amf.Smf.UpdateSmContextXnHandoverPathSwitchReq(ctx, smContext.Ref, transfer)
+			n2Rsp, err := amfInstance.Smf.UpdateSmContextXnHandoverPathSwitchReq(ctx, smContext.Ref, transfer)
 			if err != nil {
 				logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextXnHandover[PathSwitchRequestTransfer] Error", zap.Error(err))
 				continue
@@ -189,7 +189,7 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 				continue
 			}
 
-			err := amf.Smf.UpdateSmContextHandoverFailed(smContext.Ref, transfer)
+			err := amfInstance.Smf.UpdateSmContextHandoverFailed(ctx, smContext.Ref, transfer)
 			if err != nil {
 				logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextXnHandoverFailed[PathSwitchRequestSetupFailedTransfer] Error", zap.Error(err))
 			}
@@ -205,7 +205,7 @@ func HandlePathSwitchRequest(ctx context.Context, amf *amfContext.AMF, ran *amfC
 			return
 		}
 
-		operatorInfo, err := amf.GetOperatorInfo(ctx)
+		operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error("Get Operator Info Error", zap.Error(err))
 			return

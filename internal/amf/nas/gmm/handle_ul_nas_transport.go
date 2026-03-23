@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
@@ -18,17 +18,17 @@ import (
 
 func forward5GSMMessageToSMF(
 	ctx context.Context,
-	amf *amfContext.AMF,
-	ue *amfContext.AmfUe,
+	amfInstance *amf.AMF,
+	ue *amf.AmfUe,
 	pduSessionID uint8,
 	smContextRef string,
 	smMessage []byte,
 ) error {
-	if ue.RanUe == nil {
+	if ue.RanUe() == nil {
 		return fmt.Errorf("RAN UE context is nil, cannot forward 5GSM message to SMF")
 	}
 
-	response, err := amf.Smf.UpdateSmContextN1Msg(ctx, smContextRef, smMessage)
+	response, err := amfInstance.Smf.UpdateSmContextN1Msg(ctx, smContextRef, smMessage)
 	if err != nil {
 		return fmt.Errorf("couldn't send update sm context request: %s", err)
 	}
@@ -40,27 +40,27 @@ func forward5GSMMessageToSMF(
 
 	var n1Msg []byte
 
-	if response.BinaryDataN1SmMessage != nil {
+	if response.N1Msg != nil {
 		ue.Log.Debug("Receive N1 SM Message from SMF")
 
-		n1Msg, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, response.BinaryDataN1SmMessage, pduSessionID, nil)
+		n1Msg, err = message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeN1SMInfo, response.N1Msg, pduSessionID, nil)
 		if err != nil {
 			return fmt.Errorf("error building DL NAS Transport: %s", err)
 		}
 	}
 
-	if response.BinaryDataN2SmInformation != nil {
+	if response.N2Msg != nil {
 		ue.Log.Debug("Receive N2 SM Information from SMF")
 
-		if !response.N2SmInfoTypePduResRel {
+		if !response.ReleaseN2 {
 			ue.Log.Debug("AMF forward N2 SM Information to UE")
 			return nil
 		}
 
 		list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
-		send.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, response.BinaryDataN2SmInformation)
+		send.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, response.N2Msg)
 
-		err := ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, n1Msg, list)
+		err := ue.RanUe().SendPDUSessionResourceReleaseCommand(ctx, n1Msg, list)
 		if err != nil {
 			return fmt.Errorf("error sending pdu session resource release command: %s", err)
 		}
@@ -71,7 +71,7 @@ func forward5GSMMessageToSMF(
 	}
 
 	if n1Msg != nil {
-		err := ue.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, n1Msg, nil)
+		err := ue.RanUe().SendDownlinkNasTransport(ctx, n1Msg, nil)
 		if err != nil {
 			return fmt.Errorf("error sending downlink nas transport: %s", err)
 		}
@@ -82,7 +82,7 @@ func forward5GSMMessageToSMF(
 	return nil
 }
 
-func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, ulNasTransport *nasMessage.ULNASTransport) error {
+func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, ulNasTransport *nasMessage.ULNASTransport) error {
 	smMessage := ulNasTransport.GetPayloadContainerContents()
 
 	id := ulNasTransport.PduSessionID2Value
@@ -111,7 +111,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		case nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession:
 			ue.Log.Warn("Emergency PDU Session is not supported")
 
-			err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
+			err := message.SendDLNASTransport(ctx, ue.RanUe(), nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %s", err)
 			}
@@ -146,7 +146,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	if smContextExist {
 		// case i) Request type IE is either not included
 		if requestType == nil {
-			return forward5GSMMessageToSMF(ctx, amf, ue, pduSessionID, smContext.Ref, smMessage)
+			return forward5GSMMessageToSMF(ctx, amfInstance, ue, pduSessionID, smContext.Ref, smMessage)
 		}
 
 		switch requestType.GetRequestTypeValue() {
@@ -155,7 +155,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 			// the SMF to perform a local release of the PDU session
 			ue.Log.Warn("Duplicated PDU session ID", zap.Uint8("pduSessionID", pduSessionID))
 
-			n2Rsp, err := amf.Smf.UpdateSmContextCauseDuplicatePDUSessionID(ctx, smContext.Ref)
+			n2Rsp, err := amfInstance.Smf.UpdateSmContextCauseDuplicatePDUSessionID(ctx, smContext.Ref)
 			if err != nil {
 				return fmt.Errorf("couldn't send update sm context request for duplicate pdu session id: %s", err)
 			}
@@ -165,7 +165,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 			list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 			send.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, n2Rsp)
 
-			err = ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nil, list)
+			err = ue.RanUe().SendPDUSessionResourceReleaseCommand(ctx, nil, list)
 			if err != nil {
 				return fmt.Errorf("error sending pdu session resource release command: %s", err)
 			}
@@ -175,12 +175,12 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		// case ii) AMF has a PDU session routing context, and Request type is "existing PDU session"
 		case nasMessage.ULNASTransportRequestTypeExistingPduSession:
 			if ue.IsAllowedNssai(smContext.Snssai) {
-				return forward5GSMMessageToSMF(ctx, amf, ue, pduSessionID, smContext.Ref, smMessage)
+				return forward5GSMMessageToSMF(ctx, amfInstance, ue, pduSessionID, smContext.Ref, smMessage)
 			}
 
 			ue.Log.Error("S-NSSAI is not allowed for access type", zap.Any("snssai", smContext.Snssai), zap.Uint8("pduSessionID", pduSessionID))
 
-			err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
+			err := message.SendDLNASTransport(ctx, ue.RanUe(), nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %s", err)
 			}
@@ -189,7 +189,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		// other requestType: AMF forward the 5GSM message, and the PDU session ID IE towards the SMF identified
 		// by the SMF ID of the PDU session routing context
 		default:
-			return forward5GSMMessageToSMF(ctx, amf, ue, pduSessionID, smContext.Ref, smMessage)
+			return forward5GSMMessageToSMF(ctx, amfInstance, ue, pduSessionID, smContext.Ref, smMessage)
 		}
 	} else { // AMF does not have a PDU session routing context for the PDU session ID and the UE
 		if requestType == nil {
@@ -223,7 +223,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 			} else {
 				// if user's subscription context obtained from UDM does not contain the default DNN for the,
 				// S-NSSAI, the AMF shall use a locally configured DNN as the DNN
-				dnnResp, err := amf.GetSubscriberDnn(ctx, ue.Supi)
+				dnnResp, err := amfInstance.GetSubscriberDnn(ctx, ue.Supi)
 				if err != nil {
 					return fmt.Errorf("failed to get subscriber data: %v", err)
 				}
@@ -231,13 +231,13 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 				dnn = dnnResp
 			}
 
-			smContextRef, errResponse, err := amf.Smf.CreateSmContext(ctx, ue.Supi, pduSessionID, dnn, snssai, smMessage)
+			smContextRef, errResponse, err := amfInstance.Smf.CreateSmContext(ctx, ue.Supi, pduSessionID, dnn, snssai, smMessage)
 			if err != nil {
 				ue.Log.Error("couldn't send create sm context request", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 			}
 
 			if errResponse != nil {
-				err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, errResponse, pduSessionID, 0)
+				err := message.SendDLNASTransport(ctx, ue.RanUe(), nasMessage.PayloadContainerTypeN1SMInfo, errResponse, pduSessionID, 0)
 				if err != nil {
 					return fmt.Errorf("error sending downlink nas transport: %s", err)
 				}
@@ -254,7 +254,7 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 		case nasMessage.ULNASTransportRequestTypeModificationRequest:
 			fallthrough
 		case nasMessage.ULNASTransportRequestTypeExistingPduSession:
-			err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
+			err := message.SendDLNASTransport(ctx, ue.RanUe(), nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %s", err)
 			}
@@ -267,9 +267,9 @@ func transport5GSMMessage(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	return nil
 }
 
-func handleULNASTransport(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.ULNASTransport) error {
-	if ue.GetState() != amfContext.Registered {
-		return fmt.Errorf("expected UE to be in state %s during UL NAS Transport, instead it was %s", amfContext.Registered, ue.GetState())
+func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.ULNASTransport) error {
+	if ue.GetState() != amf.Registered {
+		return fmt.Errorf("expected UE to be in state %s during UL NAS Transport, instead it was %s", amf.Registered, ue.GetState())
 	}
 
 	if ue.MacFailed {
@@ -279,7 +279,7 @@ func handleULNASTransport(ctx context.Context, amf *amfContext.AMF, ue *amfConte
 	switch msg.GetPayloadContainerType() {
 	// TS 24.501 5.4.5.2.3 case a)
 	case nasMessage.PayloadContainerTypeN1SMInfo:
-		return transport5GSMMessage(ctx, amf, ue, msg)
+		return transport5GSMMessage(ctx, amfInstance, ue, msg)
 	case nasMessage.PayloadContainerTypeSMS:
 		return fmt.Errorf("PayloadContainerTypeSMS has not been implemented yet in UL NAS TRANSPORT")
 	case nasMessage.PayloadContainerTypeLPP:

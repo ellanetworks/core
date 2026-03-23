@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/smf"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapType"
@@ -307,7 +308,7 @@ type FakeSmf struct {
 	ReleaseSmContextCalls []SmfReleaseSmContextCall
 
 	// UpdateSmContextN1Msg fields
-	UpdateN1MsgResponse *models.UpdateSmContextResponse
+	UpdateN1MsgResponse *smf.UpdateResult
 	UpdateN1MsgError    error
 	UpdateN1MsgCalls    []SmfUpdateN1MsgCall
 
@@ -340,7 +341,7 @@ type SmfDuplicatePDUCall struct {
 	SmContextRef string
 }
 
-func (s *FakeSmf) ActivateSmContext(smContextRef string) ([]byte, error) {
+func (s *FakeSmf) ActivateSmContext(_ context.Context, smContextRef string) ([]byte, error) {
 	s.ActivateSmContextCalls = append(s.ActivateSmContextCalls, SmfActivateSmContextCall{
 		SmContextRef: smContextRef,
 	})
@@ -383,11 +384,11 @@ func (s *FakeSmf) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, sm
 	return nil, s.Error
 }
 
-func (s *FakeSmf) UpdateSmContextHandoverFailed(smContextRef string, n2Data []byte) error {
+func (s *FakeSmf) UpdateSmContextHandoverFailed(_ context.Context, smContextRef string, n2Data []byte) error {
 	return s.Error
 }
 
-func (s *FakeSmf) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*models.UpdateSmContextResponse, error) {
+func (s *FakeSmf) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1Msg []byte) (*smf.UpdateResult, error) {
 	s.UpdateN1MsgCalls = append(s.UpdateN1MsgCalls, SmfUpdateN1MsgCall{
 		SmContextRef: smContextRef,
 		N1Msg:        n1Msg,
@@ -415,6 +416,36 @@ func (s *FakeSmf) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Context,
 
 	return s.DuplicatePDUResponse, s.DuplicatePDUError
 }
+
+func (s *FakeSmf) DeactivateSmContext(_ context.Context, _ string) error {
+	return s.Error
+}
+
+func (s *FakeSmf) UpdateSmContextN2InfoPduResSetupRsp(_ context.Context, _ string, _ []byte) error {
+	return s.Error
+}
+
+func (s *FakeSmf) UpdateSmContextN2InfoPduResSetupFail(_ context.Context, _ string, _ []byte) error {
+	return s.Error
+}
+
+func (s *FakeSmf) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, _ string) error {
+	return s.Error
+}
+
+func (s *FakeSmf) UpdateSmContextN2HandoverPreparing(_ context.Context, _ string, _ []byte) ([]byte, error) {
+	return nil, s.Error
+}
+
+func (s *FakeSmf) UpdateSmContextN2HandoverPrepared(_ context.Context, _ string, _ []byte) ([]byte, error) {
+	return nil, s.Error
+}
+
+func (s *FakeSmf) GetSession(_ string) *smf.SMContext { return nil }
+
+func (s *FakeSmf) SessionsByDNN(_ string) []*smf.SMContext { return nil }
+
+func (s *FakeSmf) SessionCount() int { return 0 }
 
 func mustTestGuti(mcc string, mnc string, amfid string, tmsi uint32) etsi.GUTI {
 	t, err := etsi.NewTMSI(tmsi)

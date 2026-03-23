@@ -7,8 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/free5gc/nas"
@@ -18,16 +17,15 @@ import (
 )
 
 func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *testing.T) {
-	ue := &amfContext.AmfUe{
-		State:             amfContext.Authentication,
-		AuthenticationCtx: &ausf.AuthResult{Rand: "DEADBEEF"},
-	}
+	ue := amf.NewAmfUe()
+	ue.ForceState(amf.Authentication)
+	ue.AuthenticationCtx = &ausf.AuthResult{Rand: "DEADBEEF"}
 
 	msg := &nasMessage.AuthenticationResponse{
 		AuthenticationResponseParameter: nil,
 	}
 
-	err := handleAuthenticationResponse(context.TODO(), &amfContext.AMF{}, ue, msg)
+	err := handleAuthenticationResponse(context.TODO(), amf.New(nil, nil, nil), ue, msg)
 	if err == nil {
 		t.Fatal("expected error when AuthenticationResponseParameter is nil, got nil")
 	}
@@ -36,31 +34,46 @@ func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *test
 func TestHandleAuthenticationResponse_PreconditionErrors(t *testing.T) {
 	type TestCase struct {
 		name string
-		ue   *amfContext.AmfUe
+		ue   *amf.AmfUe
 		err  error
 	}
 
 	testcases := []TestCase{
 		{
 			"wrong UE state",
-			&amfContext.AmfUe{State: amfContext.Deregistered},
-			fmt.Errorf("state mismatch: receive Authentication Response message in state %s", amfContext.Deregistered),
+			func() *amf.AmfUe {
+				ue := amf.NewAmfUe()
+
+				return ue
+			}(),
+			fmt.Errorf("state mismatch: receive Authentication Response message in state %s", amf.Deregistered),
 		},
 		{
 			"nil authentication context",
-			&amfContext.AmfUe{State: amfContext.Authentication, AuthenticationCtx: nil},
+			func() *amf.AmfUe {
+				ue := amf.NewAmfUe()
+				ue.ForceState(amf.Authentication)
+
+				return ue
+			}(),
 			fmt.Errorf("ue Authentication Context is nil"),
 		},
 		{
 			"invalid rand in UE context",
-			&amfContext.AmfUe{State: amfContext.Authentication, AuthenticationCtx: &ausf.AuthResult{Rand: "Not hex"}},
+			func() *amf.AmfUe {
+				ue := amf.NewAmfUe()
+				ue.ForceState(amf.Authentication)
+				ue.AuthenticationCtx = &ausf.AuthResult{Rand: "Not hex"}
+
+				return ue
+			}(),
 			fmt.Errorf("failed to decode RAND: encoding/hex: invalid byte: U+004E 'N'"),
 		},
 	}
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := handleAuthenticationResponse(context.TODO(), &amfContext.AMF{}, tc.ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+			err := handleAuthenticationResponse(context.TODO(), amf.New(nil, nil, nil), tc.ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 			if err == nil || err.Error() != tc.err.Error() {
 				t.Fatalf("expected error: %v, got: %v", tc.err, err)
 			}
@@ -74,15 +87,15 @@ func TestHandleAuthenticationResponse_TimerT3560Stopped(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Authentication
+	ue.ForceState(amf.Authentication)
 	ue.AuthenticationCtx = &ausf.AuthResult{
 		Rand:      "DEADBEEF",
 		HxresStar: "not a match",
 	}
 	ue.IdentityTypeUsedForRegistration = nasMessage.MobileIdentity5GSTypeSuci
-	ue.T3560 = amfContext.NewTimer(10*time.Minute, 5, func(e int32) {}, func() {})
+	ue.T3560 = amf.NewTimer(10*time.Minute, 5, func(e int32) {}, func() {})
 
-	_ = handleAuthenticationResponse(t.Context(), &amfContext.AMF{}, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+	_ = handleAuthenticationResponse(t.Context(), amf.New(nil, nil, nil), ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 
 	if ue.T3560 != nil {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
@@ -116,14 +129,14 @@ func TestHandleAuthenticationResponse_hResStartMismatch(t *testing.T) {
 				t.Fatalf("could not create UE and radio: %v", err)
 			}
 
-			ue.State = amfContext.Authentication
+			ue.ForceState(amf.Authentication)
 			ue.AuthenticationCtx = &ausf.AuthResult{
 				Rand:      "DEADBEEF",
 				HxresStar: "not a match",
 			}
 			ue.IdentityTypeUsedForRegistration = tc.id_type
 
-			err = handleAuthenticationResponse(t.Context(), &amfContext.AMF{}, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+			err = handleAuthenticationResponse(t.Context(), amf.New(nil, nil, nil), ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 			if err != nil {
 				t.Fatalf("expected no error, got: %v", err)
 			}
@@ -157,7 +170,7 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 		name     string
 		id_type  uint8
 		msg_type uint8
-		state    amfContext.StateType
+		state    amf.StateType
 	}
 
 	testcases := []TestCase{
@@ -165,52 +178,48 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 			"used GUTI",
 			nasMessage.MobileIdentity5GSType5gGuti,
 			nas.MsgTypeIdentityRequest,
-			amfContext.Authentication,
+			amf.Authentication,
 		},
 		{
 			"used SUCI",
 			nasMessage.MobileIdentity5GSTypeSuci,
 			nas.MsgTypeAuthenticationReject,
-			amfContext.Deregistered,
+			amf.Deregistered,
 		},
 	}
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			amf := &amfContext.AMF{
-				DBInstance: &FakeDBInstance{
-					Operator: &db.Operator{
-						Mcc:           "001",
-						Mnc:           "01",
-						Sst:           1,
-						SupportedTACs: "[\"1\"]",
-					},
+			amfInstance := amf.New(&FakeDBInstance{
+				Operator: &db.Operator{
+					Mcc:           "001",
+					Mnc:           "01",
+					Sst:           1,
+					SupportedTACs: "[\"1\"]",
 				},
-				Ausf: &FakeAusf{
-					AvKgAka: &ausf.AuthResult{
-						Rand: hex.EncodeToString(make([]byte, 16)),
-						Autn: hex.EncodeToString(make([]byte, 16)),
-					},
-					Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-					Kseaf: "testkey",
-					Error: fmt.Errorf("failure"),
+			}, &FakeAusf{
+				AvKgAka: &ausf.AuthResult{
+					Rand: hex.EncodeToString(make([]byte, 16)),
+					Autn: hex.EncodeToString(make([]byte, 16)),
 				},
-				UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-			}
+				Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+				Kseaf: "testkey",
+				Error: fmt.Errorf("failure"),
+			}, nil)
 
 			ue, ngapSender, err := buildUeAndRadio()
 			if err != nil {
 				t.Fatalf("could not create UE and radio: %v", err)
 			}
 
-			ue.State = amfContext.Authentication
+			ue.ForceState(amf.Authentication)
 			ue.AuthenticationCtx = &ausf.AuthResult{
 				Rand:      "DEADBEEF",
 				HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
 			}
 			ue.IdentityTypeUsedForRegistration = tc.id_type
 
-			err = handleAuthenticationResponse(t.Context(), amf, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+			err = handleAuthenticationResponse(t.Context(), amfInstance, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 			if err != nil {
 				t.Fatalf("expected no error, got: %v", err)
 			}
@@ -240,39 +249,35 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 }
 
 func TestHandleAuthenticationResponse_DeriveKamf_Failure(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"1\"]",
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"1\"]",
 		},
-		Ausf: &FakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
-			},
-			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Authentication
+	ue.ForceState(amf.Authentication)
 	ue.AuthenticationCtx = &ausf.AuthResult{
 		Rand:      "DEADBEEF",
 		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
 	}
 
 	expected := "couldn't derive Kamf: could not decode kseaf: encoding/hex: invalid byte: U+0074 't'"
-	err = handleAuthenticationResponse(t.Context(), amf, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+	err = handleAuthenticationResponse(t.Context(), amfInstance, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected error: %v, got: %v", expected, err)
@@ -284,32 +289,28 @@ func TestHandleAuthenticationResponse_DeriveKamf_Failure(t *testing.T) {
 }
 
 func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"1\"]",
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"1\"]",
 		},
-		Ausf: &FakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
-			},
-			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "C0FFEE",
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "C0FFEE",
+	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Authentication
+	ue.ForceState(amf.Authentication)
 	ue.AuthenticationCtx = &ausf.AuthResult{
 		Rand:      "DEADBEEF",
 		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
@@ -328,7 +329,7 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 	ue.UESecurityCapability.SetIA2_128_5G(1)
 	ue.UESecurityCapability.SetIA2_128_5G(0)
 
-	err = handleAuthenticationResponse(t.Context(), amf, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
+	err = handleAuthenticationResponse(t.Context(), amfInstance, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}

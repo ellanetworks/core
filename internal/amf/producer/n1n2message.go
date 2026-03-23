@@ -12,7 +12,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/logger"
@@ -22,12 +22,11 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 var tracer = otel.Tracer("ella-core/amf/producer")
 
-func TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
+func TransferN1N2Message(ctx context.Context, amfInstance *amf.AMF, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"AMF N1N2 MessageTransfer",
@@ -37,14 +36,12 @@ func TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2Mes
 	)
 	defer span.End()
 
-	amf := amfContext.AMFSelf()
-
-	ue, ok := amf.FindAMFUEBySupi(supi)
+	ue, ok := amfInstance.FindAMFUEBySupi(supi)
 	if !ok {
 		return fmt.Errorf("ue context not found")
 	}
 
-	if ue.RanUe == nil {
+	if ue.RanUe() == nil {
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
@@ -55,12 +52,12 @@ func TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2Mes
 
 	ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
 
-	if ue.RanUe.SentInitialContextSetupRequest {
+	if ue.RanUe().SentInitialContextSetupRequest {
 		list := ngapType.PDUSessionResourceSetupListSUReq{}
 
 		send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
 
-		err := ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
+		err := ue.RanUe().SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
 		if err != nil {
 			return fmt.Errorf("send pdu session resource setup request error: %v", err)
 		}
@@ -70,7 +67,7 @@ func TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2Mes
 		return nil
 	}
 
-	operatorInfo, err := amf.GetOperatorInfo(ctx)
+	operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
@@ -79,10 +76,8 @@ func TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2Mes
 
 	send.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
 
-	err = ue.RanUe.Radio.NGAPSender.SendInitialContextSetupRequest(
+	err = ue.RanUe().SendInitialContextSetupRequest(
 		ctx,
-		ue.RanUe.AmfUeNgapID,
-		ue.RanUe.RanUeNgapID,
 		ue.Ambr.Uplink,
 		ue.Ambr.Downlink,
 		ue.AllowedNssai,
@@ -100,12 +95,12 @@ func TransferN1N2Message(ctx context.Context, supi etsi.SUPI, req models.N1N2Mes
 	}
 
 	ue.Log.Info("Sent NGAP initial context setup request to UE")
-	ue.RanUe.SentInitialContextSetupRequest = true
+	ue.RanUe().SentInitialContextSetupRequest = true
 
 	return nil
 }
 
-func N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
+func N2MessageTransferOrPage(ctx context.Context, amfInstance *amf.AMF, supi etsi.SUPI, req models.N1N2MessageTransferRequest) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"AMF N1N2 MessageTransfer",
@@ -115,31 +110,29 @@ func N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N
 	)
 	defer span.End()
 
-	amf := amfContext.AMFSelf()
-
-	ue, ok := amf.FindAMFUEBySupi(supi)
+	ue, ok := amfInstance.FindAMFUEBySupi(supi)
 	if !ok {
 		return fmt.Errorf("ue context not found")
 	}
 
 	onGoing := ue.GetOnGoing()
 	switch onGoing {
-	case amfContext.OnGoingProcedurePaging:
+	case amf.OnGoingProcedurePaging:
 		return fmt.Errorf("higher priority request ongoing")
-	case amfContext.OnGoingProcedureRegistration:
+	case amf.OnGoingProcedureRegistration:
 		return fmt.Errorf("temporary reject registration ongoing")
-	case amfContext.OnGoingProcedureN2Handover:
+	case amf.OnGoingProcedureN2Handover:
 		return fmt.Errorf("temporary reject handover ongoing")
 	}
 
-	if ue.RanUe != nil {
+	if ue.RanUe() != nil {
 		ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
 
-		if ue.RanUe.SentInitialContextSetupRequest {
+		if ue.RanUe().SentInitialContextSetupRequest {
 			list := ngapType.PDUSessionResourceSetupListSUReq{}
 			send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 
-			err := ue.RanUe.Radio.NGAPSender.SendPDUSessionResourceSetupRequest(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
+			err := ue.RanUe().SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
 			if err != nil {
 				return fmt.Errorf("send pdu session resource setup request error: %v", err)
 			}
@@ -149,7 +142,7 @@ func N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N
 			return nil
 		}
 
-		operatorInfo, err := amf.GetOperatorInfo(ctx)
+		operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
 		if err != nil {
 			return fmt.Errorf("error getting operator info: %v", err)
 		}
@@ -157,10 +150,8 @@ func N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N
 		list := ngapType.PDUSessionResourceSetupListCxtReq{}
 		send.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 
-		err = ue.RanUe.Radio.NGAPSender.SendInitialContextSetupRequest(
+		err = ue.RanUe().SendInitialContextSetupRequest(
 			ctx,
-			ue.RanUe.AmfUeNgapID,
-			ue.RanUe.RanUeNgapID,
 			ue.Ambr.Uplink,
 			ue.Ambr.Downlink,
 			ue.AllowedNssai,
@@ -178,23 +169,20 @@ func N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N
 		}
 
 		ue.Log.Info("Sent NGAP initial context setup request to UE")
-		ue.RanUe.SentInitialContextSetupRequest = true
+		ue.RanUe().SentInitialContextSetupRequest = true
 
 		return nil
 	}
 
 	// 504: the UE in MICO mode or the UE is only registered over Non-3GPP access and its state is CM-IDLE
-	if ue.GetState() != amfContext.Registered {
+	if ue.GetState() != amf.Registered {
 		return fmt.Errorf("ue is not in registered state")
 	}
 
 	var pagingPriority *ngapType.PagingPriority
 
-	// Case A (UE is CM-IDLE in 3GPP access and the associated access type is 3GPP access)
-	// in subclause 5.2.2.3.1.2 of TS29518
-
 	ue.N1N2Message = &req
-	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
+	ue.SetOnGoing(amf.OnGoingProcedurePaging)
 
 	pkg, err := send.BuildPaging(
 		ue.Guti,
@@ -207,7 +195,7 @@ func N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N
 		return fmt.Errorf("build paging error: %v", err)
 	}
 
-	err = SendPaging(ctx, amf, ue, pkg)
+	err = amfInstance.SendPaging(ctx, ue, pkg)
 	if err != nil {
 		return fmt.Errorf("send paging error: %v", err)
 	}
@@ -215,7 +203,7 @@ func N2MessageTransferOrPage(ctx context.Context, supi etsi.SUPI, req models.N1N
 	return nil
 }
 
-func TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error {
+func TransferN1Msg(ctx context.Context, amfInstance *amf.AMF, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"AMF N1N2 MessageTransfer",
@@ -225,14 +213,12 @@ func TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSession
 	)
 	defer span.End()
 
-	amf := amfContext.AMFSelf()
-
-	ue, ok := amf.FindAMFUEBySupi(supi)
+	ue, ok := amfInstance.FindAMFUEBySupi(supi)
 	if !ok {
 		return fmt.Errorf("ue context not found")
 	}
 
-	if ue.RanUe == nil {
+	if ue.RanUe() == nil {
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
@@ -241,67 +227,12 @@ func TransferN1Msg(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSession
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
 
-	err = ue.RanUe.Radio.NGAPSender.SendDownlinkNasTransport(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, nasPdu, nil)
+	err = ue.RanUe().SendDownlinkNasTransport(ctx, nasPdu, nil)
 	if err != nil {
 		return fmt.Errorf("send downlink nas transport error: %v", err)
 	}
 
 	ue.Log.Info("sent downlink nas transport to UE", logger.SUPI(supi.String()))
-
-	return nil
-}
-
-func SendPaging(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, ngapBuf []byte) error {
-	if ue == nil {
-		return fmt.Errorf("amf ue is nil")
-	}
-
-	amf.Mutex.Lock()
-	defer amf.Mutex.Unlock()
-
-	taiList := ue.RegistrationArea
-
-	for _, ran := range amf.Radios {
-		for _, item := range ran.SupportedTAIs {
-			if amfContext.InTaiList(item.Tai, taiList) {
-				err := ran.NGAPSender.SendToRan(ctx, ngapBuf, send.NGAPProcedurePaging)
-				if err != nil {
-					ue.Log.Error("failed to send paging", zap.Error(err))
-					continue
-				}
-
-				ue.Log.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
-
-				break
-			}
-		}
-	}
-
-	if amf.T3513Cfg.Enable {
-		cfg := amf.T3513Cfg
-		ue.T3513 = amfContext.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
-			ue.Log.Warn("t3513 expires, retransmit paging", zap.Int32("retry", expireTimes))
-
-			for _, ran := range amf.Radios {
-				for _, item := range ran.SupportedTAIs {
-					if amfContext.InTaiList(item.Tai, taiList) {
-						err := ran.NGAPSender.SendToRan(ctx, ngapBuf, send.NGAPProcedurePaging)
-						if err != nil {
-							ue.Log.Error("failed to send paging", zap.Error(err))
-							continue
-						}
-
-						ue.Log.Info("sent paging to TAI", zap.Any("tai", item.Tai), zap.Any("tac", item.Tai.Tac))
-
-						break
-					}
-				}
-			}
-		}, func() {
-			ue.Log.Warn("T3513 expires, abort paging procedure", zap.Int32("retry", cfg.MaxRetryTimes))
-			ue.T3513 = nil // clear the timer
-		})
-	}
 
 	return nil
 }

@@ -14,6 +14,8 @@ import (
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -40,25 +42,37 @@ func (u UpfPfcpHandler) HandlePfcpSessionModificationRequest(ctx context.Context
 }
 
 func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.SessionEstablishmentRequest) (*message.SessionEstablishmentResponse, error) {
-	ctx, span := tracer.Start(ctx, "UPF establish session",
+	ctx, span := tracer.Start(ctx, "upf/establish_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(
+			attribute.String("pfcp.operation", "establish"),
+		),
 	)
 	defer span.End()
 
 	conn := GetConnection()
 	if conn == nil {
-		return nil, fmt.Errorf("no connection")
+		err := fmt.Errorf("no connection")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "no connection to UPF core")
+
+		return nil, err
 	}
 
 	remoteSEID, err := validateRequest(msg.NodeID, msg.CPFSEID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "request validation failed")
 		logger.WithTrace(ctx, logger.UpfLog).Info("Rejecting Session Establishment Request", zap.Error(err))
+
 		return message.NewSessionEstablishmentResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), convertErrorToIeCause(err)), nil
 	}
 
 	seid := remoteSEID.SEID
+	span.SetAttributes(attribute.Int64("pfcp.seid", int64(seid)))
 
 	session := NewSession(seid)
+	span.AddEvent("session_created", trace.WithAttributes(attribute.Int64("pfcp.seid", int64(seid))))
 
 	logger.WithTrace(ctx, logger.UpfLog).Debug("Tracking new session", logger.SEID(seid))
 
@@ -70,6 +84,8 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 	} else {
 		imsiStr = strconv.FormatUint(imsiUint64, 10)
 	}
+
+	span.SetAttributes(attribute.String("ue.imsi", imsiStr))
 
 	printSessionEstablishmentRequest(msg)
 
@@ -178,9 +194,15 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 		return nil
 	}()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to process PFCP IEs")
 		logger.WithTrace(ctx, logger.UpfLog).Info("Rejecting Session Establishment Request (error in applying IEs)", zap.Error(err))
+
 		return message.NewSessionEstablishmentResponse(0, 0, remoteSEID.SEID, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), nil
 	}
+
+	span.AddEvent("pdrs_processed", trace.WithAttributes(attribute.Int("count", len(createdPDRs))))
+	span.AddEvent("ebpf_maps_updated")
 
 	conn.AddSession(seid, session)
 
@@ -201,14 +223,22 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 }
 
 func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionDeletionRequest) (*message.SessionDeletionResponse, error) {
-	ctx, span := tracer.Start(ctx, "UPF delete session",
+	ctx, span := tracer.Start(ctx, "upf/delete_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(
+			attribute.String("pfcp.operation", "delete"),
+			attribute.Int64("pfcp.seid", int64(msg.SEID())),
+		),
 	)
 	defer span.End()
 
 	conn := GetConnection()
 	if conn == nil {
-		return nil, fmt.Errorf("no connection")
+		err := fmt.Errorf("no connection")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "no connection to UPF core")
+
+		return nil, err
 	}
 
 	printSessionDeleteRequest(msg)
@@ -224,6 +254,9 @@ func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionD
 	pdrContext := NewPDRCreationContext(session, conn.FteIDResourceManager)
 	for _, pdrInfo := range session.ListPDRs() {
 		if err := pdrContext.deletePDR(pdrInfo, bpfObjects); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "failed to delete PDR")
+
 			return message.NewSessionDeletionResponse(0, 0, 0, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRuleCreationModificationFailure)), err
 		}
 	}
@@ -238,14 +271,22 @@ func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionD
 }
 
 func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.SessionModificationRequest) (*message.SessionModificationResponse, error) {
-	ctx, span := tracer.Start(ctx, "UPF modify session",
+	ctx, span := tracer.Start(ctx, "upf/modify_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(
+			attribute.String("pfcp.operation", "modify"),
+			attribute.Int64("pfcp.seid", int64(msg.SEID())),
+		),
 	)
 	defer span.End()
 
 	conn := GetConnection()
 	if conn == nil {
-		return nil, fmt.Errorf("no connection")
+		err := fmt.Errorf("no connection")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "no connection to UPF core")
+
+		return nil, err
 	}
 
 	session := conn.GetSession(msg.SEID())

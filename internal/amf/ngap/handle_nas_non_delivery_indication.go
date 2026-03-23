@@ -3,14 +3,14 @@ package ngap
 import (
 	"context"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleNasNonDeliveryIndication(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.NASNonDeliveryIndication) {
+func HandleNasNonDeliveryIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.NASNonDeliveryIndication) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -81,7 +81,7 @@ func HandleNasNonDeliveryIndication(ctx context.Context, amf *amfContext.AMF, ra
 	logger.WithTrace(ctx, ran.Log).Debug("Handle NAS Non Delivery Indication", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), logger.Cause(causeToString(*cause)))
 	ranUe.TouchLastSeen()
 
-	err := nas.HandleNAS(ctx, amf, ranUe, nASPDU.Value)
+	err := nas.HandleNAS(ctx, amfInstance, ranUe, nASPDU.Value)
 	if err != nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("error handling NAS", zap.Error(err))
 	}

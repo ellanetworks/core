@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/golang-jwt/jwt/v5"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -65,7 +66,7 @@ func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) 
 		}
 	}()
 
-	ctx, span := tracer.Start(r.Context(), "API authenticate",
+	ctx, span := tracer.Start(r.Context(), "api/authenticate",
 		trace.WithSpanKind(trace.SpanKindServer),
 	)
 	defer span.End()
@@ -73,17 +74,29 @@ func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) 
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
 		authType = "unknown"
-		return 0, "", 0, errors.New("missing Authorization header")
+		err := errors.New("missing Authorization header")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "missing Authorization header")
+
+		return 0, "", 0, err
 	}
 
 	parts := strings.SplitN(authHeader, " ", 2)
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-		return 0, "", 0, errors.New("invalid Authorization scheme")
+		err := errors.New("invalid Authorization scheme")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "invalid Authorization scheme")
+
+		return 0, "", 0, err
 	}
 
 	token := strings.TrimSpace(parts[1])
 	if token == "" {
-		return 0, "", 0, errors.New("empty token")
+		err := errors.New("empty token")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "empty token")
+
+		return 0, "", 0, err
 	}
 
 	// API token path
@@ -92,26 +105,46 @@ func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) 
 
 		tokenID, token, ok := parseAPIToken(token)
 		if !ok {
-			return 0, "", 0, errors.New("invalid API token format")
+			err := errors.New("invalid API token format")
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "invalid API token format")
+
+			return 0, "", 0, err
 		}
 
 		tok, err := store.GetAPITokenByTokenID(ctx, tokenID)
 		if err != nil || tok == nil {
-			return 0, "", 0, errors.New("invalid API token")
+			err := errors.New("invalid API token")
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "invalid API token")
+
+			return 0, "", 0, err
 		}
 
 		if tok.ExpiresAt != nil && time.Now().After(*tok.ExpiresAt) {
-			return 0, "", 0, errors.New("API token expired")
+			err := errors.New("API token expired")
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "API token expired")
+
+			return 0, "", 0, err
 		}
 
 		// CompareHashAndPassword uses constant time comparison, making it safer but slower
 		if err := bcrypt.CompareHashAndPassword([]byte(tok.TokenHash), []byte(token)); err != nil {
-			return 0, "", 0, errors.New("invalid API token")
+			err := errors.New("invalid API token")
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "invalid API token")
+
+			return 0, "", 0, err
 		}
 
 		u, err := store.GetUserByID(ctx, tok.UserID)
 		if err != nil || u == nil {
-			return 0, "", 0, errors.New("user not found")
+			err := errors.New("user not found")
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "user not found")
+
+			return 0, "", 0, err
 		}
 
 		success = true

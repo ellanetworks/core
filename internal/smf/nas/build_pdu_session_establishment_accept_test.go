@@ -11,15 +11,13 @@ import (
 )
 
 func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
-	smPolicyData := &models.SmPolicyData{
-		Ambr: &models.Ambr{
-			Uplink:   "1 Gbps",
-			Downlink: "1 Gbps",
-		},
-		QosData: &models.QosData{
-			QFI:    1,
-			Var5qi: 9,
-		},
+	ambr := &models.Ambr{
+		Uplink:   "1 Gbps",
+		Downlink: "1 Gbps",
+	}
+	qosData := &models.QosData{
+		QFI:    1,
+		Var5qi: 9,
 	}
 
 	pduSessionID := uint8(10)
@@ -35,7 +33,7 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
 
 	pco := &smfNas.ProtocolConfigurationOptions{}
 
-	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(smPolicyData, pduSessionID, pti, snssai, dnn, pco, nil, nil)
+	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(ambr, qosData, pduSessionID, pti, snssai, dnn, pco, nil, 0, nil)
 	if err != nil {
 		t.Fatalf("failed to build GSM PDU Session Establishment Accept: %v", err)
 	}
@@ -66,15 +64,13 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithSD(t *testing.T) {
 }
 
 func TestBuildGSMPDUSessionEstablishmentAccept_WithoutSD(t *testing.T) {
-	smPolicyData := &models.SmPolicyData{
-		Ambr: &models.Ambr{
-			Uplink:   "1 Gbps",
-			Downlink: "1 Gbps",
-		},
-		QosData: &models.QosData{
-			QFI:    1,
-			Var5qi: 9,
-		},
+	ambr := &models.Ambr{
+		Uplink:   "1 Gbps",
+		Downlink: "1 Gbps",
+	}
+	qosData := &models.QosData{
+		QFI:    1,
+		Var5qi: 9,
 	}
 
 	pduSessionID := uint8(10)
@@ -90,7 +86,7 @@ func TestBuildGSMPDUSessionEstablishmentAccept_WithoutSD(t *testing.T) {
 
 	pco := &smfNas.ProtocolConfigurationOptions{}
 
-	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(smPolicyData, pduSessionID, pti, snssai, dnn, pco, nil, nil)
+	msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(ambr, qosData, pduSessionID, pti, snssai, dnn, pco, nil, 0, nil)
 	if err != nil {
 		t.Fatalf("failed to build GSM PDU Session Establishment Accept: %v", err)
 	}

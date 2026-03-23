@@ -9,13 +9,13 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	smfContext "github.com/ellanetworks/core/internal/smf/context"
+	"github.com/ellanetworks/core/internal/smf"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
@@ -194,22 +194,21 @@ func TestHandoverRequired(t *testing.T) {
 	}
 
 	// Initialize SMF context with a matching SM context
-	smfContext.InitializeSMF(nil)
+	smfInstance := smf.New(nil, nil, nil)
 
-	smf := smfContext.SMFSelf()
-	smCtx := smf.NewSMContext(supi, pduSessionID, dnn, &models.Snssai{Sst: 1})
-	smCtx.PolicyData = &models.SmPolicyData{
-		Ambr: &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"},
-		QosData: &models.QosData{
+	smCtx := smfInstance.NewSession(supi, pduSessionID, dnn, &models.Snssai{Sst: 1})
+	smCtx.PolicyData = &smf.Policy{
+		Ambr: models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"},
+		QosData: models.QosData{
 			QFI:    1,
 			Var5qi: 9, Arp: &models.Arp{
 				PriorityLevel: 8,
 			},
 		},
 	}
-	smCtx.Tunnel = &smfContext.UPTunnel{
-		DataPath: &smfContext.DataPath{
-			UpLinkTunnel: &smfContext.GTPTunnel{
+	smCtx.Tunnel = &smf.UPTunnel{
+		DataPath: &smf.DataPath{
+			UpLinkTunnel: &smf.GTPTunnel{
 				TEID: 1234,
 				N3IP: net.ParseIP("10.0.0.1").To4(),
 			},
@@ -217,7 +216,7 @@ func TestHandoverRequired(t *testing.T) {
 	}
 
 	// Set up the AmfUe with valid security context
-	amfUe := amfContext.NewAmfUe()
+	amfUe := amf.NewAmfUe()
 	amfUe.Supi = supi
 	amfUe.SecurityContextAvailable = true
 	amfUe.NgKsi.Ksi = 1
@@ -226,61 +225,58 @@ func TestHandoverRequired(t *testing.T) {
 	amfUe.NH = make([]byte, 32)
 	amfUe.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
 	amfUe.Log = logger.AmfLog
-	amfUe.SmContextList[pduSessionID] = &amfContext.SmContext{
-		Ref:    smfContext.CanonicalName(supi, pduSessionID),
+	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
+		Ref:    smf.CanonicalName(supi, pduSessionID),
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
 	// Set up source RAN and source UE
 	sourceNGAPSender := &FakeNGAPSender{}
-	sourceRan := &amfContext.Radio{
+	sourceRan := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    sourceNGAPSender,
-		RanUEs:        make(map[int64]*amfContext.RanUe),
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		RanUEs:        make(map[int64]*amf.RanUe),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	sourceUe := &amfContext.RanUe{
+	sourceUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 1,
-		AmfUe:       amfUe,
 		Radio:       sourceRan,
 		Log:         logger.AmfLog,
 	}
-	amfUe.RanUe = sourceUe
+	amfUe.AttachRanUe(sourceUe)
 	sourceRan.RanUEs[1] = sourceUe
 
 	// Set up target RAN with matching GNB ID
 	targetNGAPSender := &FakeNGAPSender{}
-	targetRan := &amfContext.Radio{
+	targetRan := &amf.Radio{
 		Log:        logger.AmfLog,
 		NGAPSender: targetNGAPSender,
-		RanPresent: amfContext.RanPresentGNbID,
+		RanPresent: amf.RanPresentGNbID,
 		RanID: &models.GlobalRanNodeID{
 			GNbID: &models.GNbID{
 				GNBValue:  targetGnbID,
 				BitLength: 24,
 			},
 		},
-		RanUEs:        make(map[int64]*amfContext.RanUe),
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		RanUEs:        make(map[int64]*amf.RanUe),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
 	// Set up AMF with target RAN in Radios map
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc: "001",
-				Mnc: "01",
-				Sst: 1,
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc: "001",
+			Mnc: "01",
+			Sst: 1,
 		},
-		Radios: map[*sctp.SCTPConn]*amfContext.Radio{
-			new(sctp.SCTPConn): targetRan,
-		},
+	}, nil, &FakeSmfSbi{SMF: smfInstance})
+	amfInstance.Radios = map[*sctp.SCTPConn]*amf.Radio{
+		new(sctp.SCTPConn): targetRan,
 	}
 
-	ngap.HandleHandoverRequired(context.Background(), amf, sourceRan, msg.InitiatingMessage.Value.HandoverRequired)
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg.InitiatingMessage.Value.HandoverRequired)
 
 	// Verify a HandoverRequest was sent to the target gNB
 	if len(targetNGAPSender.SentHandoverRequests) != 1 {
@@ -302,16 +298,16 @@ func TestHandoverRequired_MissingMandatoryIEs(t *testing.T) {
 	}
 
 	fakeNGAPSender := &FakeNGAPSender{}
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    fakeNGAPSender,
-		RanUEs:        make(map[int64]*amfContext.RanUe),
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		RanUEs:        make(map[int64]*amf.RanUe),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	amf := &amfContext.AMF{}
+	amfInstance := amf.New(nil, nil, nil)
 
-	ngap.HandleHandoverRequired(context.Background(), amf, ran, msg.InitiatingMessage.Value.HandoverRequired)
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, ran, msg.InitiatingMessage.Value.HandoverRequired)
 
 	if len(fakeNGAPSender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(fakeNGAPSender.SentErrorIndications))
@@ -386,16 +382,16 @@ func TestHandoverRequired_UnknownRanUeNgapID(t *testing.T) {
 	}
 
 	fakeNGAPSender := &FakeNGAPSender{}
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    fakeNGAPSender,
-		RanUEs:        make(map[int64]*amfContext.RanUe), // Empty — no UE with ID 99
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		RanUEs:        make(map[int64]*amf.RanUe), // Empty — no UE with ID 99
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	amf := &amfContext.AMF{}
+	amfInstance := amf.New(nil, nil, nil)
 
-	ngap.HandleHandoverRequired(context.Background(), amf, ran, msg.InitiatingMessage.Value.HandoverRequired)
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, ran, msg.InitiatingMessage.Value.HandoverRequired)
 
 	if len(fakeNGAPSender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(fakeNGAPSender.SentErrorIndications))
@@ -467,31 +463,30 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 	}
 
 	// Create AmfUe with invalid security context
-	amfUe := amfContext.NewAmfUe()
+	amfUe := amf.NewAmfUe()
 	amfUe.SecurityContextAvailable = false
 	amfUe.Log = logger.AmfLog
 
 	sourceNGAPSender := &FakeNGAPSender{}
-	sourceRan := &amfContext.Radio{
+	sourceRan := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    sourceNGAPSender,
-		RanUEs:        make(map[int64]*amfContext.RanUe),
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		RanUEs:        make(map[int64]*amf.RanUe),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	sourceUe := &amfContext.RanUe{
+	sourceUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 1,
-		AmfUe:       amfUe,
 		Radio:       sourceRan,
 		Log:         logger.AmfLog,
 	}
-	amfUe.RanUe = sourceUe
+	amfUe.AttachRanUe(sourceUe)
 	sourceRan.RanUEs[1] = sourceUe
 
-	amf := &amfContext.AMF{}
+	amfInstance := amf.New(nil, nil, nil)
 
-	ngap.HandleHandoverRequired(context.Background(), amf, sourceRan, msg.InitiatingMessage.Value.HandoverRequired)
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg.InitiatingMessage.Value.HandoverRequired)
 
 	if len(sourceNGAPSender.SentHandoverPreparationFailures) != 1 {
 		t.Fatalf("expected 1 HandoverPreparationFailure, got %d", len(sourceNGAPSender.SentHandoverPreparationFailures))

@@ -9,8 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -53,17 +52,16 @@ func TestGetRegistrationType5GSName(t *testing.T) {
 // handling of the degenerate case where RanUE is nil
 func TestHandleRegistrationRequest_NilRanUE(t *testing.T) {
 	ctx := context.TODO()
-	amf := amfContext.AMF{}
+	amfInstance := amf.AMF{}
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	ue := amfContext.NewAmfUe()
-	ue.RanUe = nil
+	ue := amf.NewAmfUe()
 
-	err = handleRegistrationRequest(ctx, &amf, ue, m)
+	err = handleRegistrationRequest(ctx, &amfInstance, ue, m)
 	if err == nil {
 		t.Fatalf("nil RanUe should error out")
 	}
@@ -74,7 +72,7 @@ func TestHandleRegistrationRequest_NilRanUE(t *testing.T) {
 // Mobile Identity 5GS field
 func TestHandleRegistrationRequest_ErrorMissingIdentity(t *testing.T) {
 	ctx := context.TODO()
-	amf := amfContext.AMF{}
+	amfInstance := amf.AMF{}
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -90,7 +88,7 @@ func TestHandleRegistrationRequest_ErrorMissingIdentity(t *testing.T) {
 
 	expected := "mobile identity 5GS is empty"
 
-	err = handleRegistrationRequest(ctx, &amf, ue, m)
+	err = handleRegistrationRequest(ctx, &amfInstance, ue, m)
 	if err == nil {
 		t.Fatalf("registration request should be rejected")
 	}
@@ -108,11 +106,9 @@ func TestHandleRegistrationRequest_ErrorMissingIdentity(t *testing.T) {
 // handling of the case where an operator is not configured.
 func TestHandleRegistrationRequest_ErrorMissingOperatorInfo(t *testing.T) {
 	ctx := context.TODO()
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: nil,
-		},
-	}
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: nil,
+	}, nil, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -126,7 +122,7 @@ func TestHandleRegistrationRequest_ErrorMissingOperatorInfo(t *testing.T) {
 
 	expected := "error getting operator info"
 
-	err = handleRegistrationRequest(ctx, amf, ue, m)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m)
 	if err == nil {
 		t.Fatalf("registration request should be rejected")
 	}
@@ -144,23 +140,21 @@ func TestHandleRegistrationRequest_ErrorMissingOperatorInfo(t *testing.T) {
 // registration request for a non-allowed tracking area is rejected.
 func TestHandleRegistrationRequest_RejectTrackingAreaNotAllowed(t *testing.T) {
 	ctx := context.TODO()
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-	}
+	}, nil, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.RanUe.Tai = models.Tai{
+	ue.RanUe().Tai = models.Tai{
 		PlmnID: &models.PlmnID{
 			Mcc: "999",
 			Mnc: "99",
@@ -175,7 +169,7 @@ func TestHandleRegistrationRequest_RejectTrackingAreaNotAllowed(t *testing.T) {
 
 	expected := "registration Reject [Tracking area not allowed]"
 
-	err = handleRegistrationRequest(ctx, amf, ue, m)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m)
 	if err == nil {
 		t.Fatalf("registration request should be rejected")
 	}
@@ -210,16 +204,14 @@ func TestHandleRegistrationRequest_RejectTrackingAreaNotAllowed(t *testing.T) {
 // registration request with missing UE Security Capability is rejected.
 func TestHandleRegistrationRequest_RejectMissingSecurityCapability(t *testing.T) {
 	ctx := context.TODO()
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-	}
+	}, nil, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -235,7 +227,7 @@ func TestHandleRegistrationRequest_RejectMissingSecurityCapability(t *testing.T)
 
 	expected := "registration request does not contain UE security capability for initial registration"
 
-	err = handleRegistrationRequest(ctx, amf, ue, m)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m)
 	if err == nil {
 		t.Fatalf("registration request should be rejected")
 	}
@@ -270,31 +262,29 @@ func TestHandleRegistrationRequest_RejectMissingSecurityCapability(t *testing.T)
 // T3513 and T3565 are stopped when receiving a registration request.
 func TestHandleRegistrationRequest_Timers_Stopped(t *testing.T) {
 	ctx := context.TODO()
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-	}
+	}, nil, nil)
 
 	ue, _, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.T3513 = amfContext.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
-	ue.T3565 = amfContext.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
+	ue.T3513 = amf.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
+	ue.T3565 = amf.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amf, ue, m)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m)
 	if err != nil {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
@@ -313,16 +303,14 @@ func TestHandleRegistrationRequest_Timers_Stopped(t *testing.T) {
 // Identity Request message.
 func TestHandleRegistrationRequest_IdentityRequest_MissingSUCI_SUPI(t *testing.T) {
 	ctx := context.TODO()
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-	}
+	}, nil, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -334,7 +322,7 @@ func TestHandleRegistrationRequest_IdentityRequest_MissingSUCI_SUPI(t *testing.T
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amf, ue, m)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m)
 	if err != nil {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
@@ -366,24 +354,21 @@ func TestHandleRegistrationRequest_IdentityRequest_MissingSUCI_SUPI(t *testing.T
 // security context triggers an Authentication Request message.
 func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 	ctx := context.TODO()
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-		Ausf: &FakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
-			},
-			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
-	}
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -398,7 +383,7 @@ func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amf, ue, m)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m)
 	if err != nil {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
@@ -430,25 +415,21 @@ func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 // with a properly ciphered message.
 func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 	ctx := context.TODO()
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"CAFE64\"]",
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"CAFE64\"]",
 		},
-		Ausf: &FakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
-			},
-			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -456,7 +437,7 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 	}
 
 	ue.Tai.Tac = "CAFE64"
-	ue.RanUe.Tai.Tac = "CAFE64"
+	ue.RanUe().Tai.Tac = "CAFE64"
 
 	ue.Suci = "testsuci"
 	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
@@ -469,7 +450,7 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amf, ue, m)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m)
 	if err != nil {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
@@ -501,30 +482,28 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 // UE's state to deregister, ignoring the request.
 func TestHandleRegistrationRequest_UEStateContextSetup_ResetToDeregistered(t *testing.T) {
 	ctx := context.TODO()
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-	}
+	}, nil, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.ContextSetup
+	ue.ForceState(amf.ContextSetup)
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amf, ue, m)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m)
 	if err != nil {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
@@ -533,8 +512,8 @@ func TestHandleRegistrationRequest_UEStateContextSetup_ResetToDeregistered(t *te
 		t.Fatalf("should not have sent a Downlink NAS Transport message")
 	}
 
-	if ue.State != amfContext.Deregistered {
-		t.Fatalf("state should be deregistered, got: %v", ue.State)
+	if ue.GetState() != amf.Deregistered {
+		t.Fatalf("state should be deregistered, got: %v", ue.GetState())
 	}
 }
 
@@ -543,30 +522,28 @@ func TestHandleRegistrationRequest_UEStateContextSetup_ResetToDeregistered(t *te
 // triggers an error.
 func TestHandleRegistrationRequest_UEStateAuthentication_Error(t *testing.T) {
 	ctx := context.TODO()
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-	}
+	}, nil, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Authentication
+	ue.ForceState(amf.Authentication)
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amf, ue, m)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m)
 	if err == nil {
 		t.Fatalf("registration request in state Authentication should return an error")
 	}
@@ -582,25 +559,22 @@ func TestHandleRegistrationRequest_UEStateAuthentication_Error(t *testing.T) {
 // AuthenticationRequest.
 func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing.T) {
 	ctx := context.TODO()
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-		Ausf: &FakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
-			},
-			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
+	amfInstance.T3560Cfg.Enable = false // Prevent timer from being re-started during re-entry.
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -612,15 +586,15 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	ue.MacFailed = false
-	ue.State = amfContext.SecurityMode
-	ue.T3560 = amfContext.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
+	ue.ForceState(amf.SecurityMode)
+	ue.T3560 = amf.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amf, ue, m)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m)
 	if err != nil {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
@@ -659,25 +633,21 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 	rand := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	autn := []byte{17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-		Ausf: &FakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(rand),
-				Autn: hex.EncodeToString(autn),
-			},
-			Supi:  supi,
-			Kseaf: "testkey",
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(rand),
+			Autn: hex.EncodeToString(autn),
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		Supi:  supi,
+		Kseaf: "testkey",
+	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -702,7 +672,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amf, ue, m)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m)
 	if err != nil {
 		t.Fatalf("registration request should be accepted, got: %v", err)
 	}
@@ -744,25 +714,21 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 	rand := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 	autn := []byte{17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32}
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-		Ausf: &FakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(rand),
-				Autn: hex.EncodeToString(autn),
-			},
-			Supi:  supi,
-			Kseaf: "testkey",
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(rand),
+			Autn: hex.EncodeToString(autn),
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		Supi:  supi,
+		Kseaf: "testkey",
+	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -790,7 +756,7 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 	key = [16]uint8{0x00, 0x00, 0x00, 0x00, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	ue.KnasEnc = key
 
-	err = handleRegistrationRequest(ctx, amf, ue, m)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m)
 	if err == nil {
 		t.Fatalf("registration request should be rejected, got: %v", err)
 	}
@@ -824,25 +790,21 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testing.T) {
 	ctx := context.TODO()
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-		Ausf: &FakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
-			},
-			Supi:  supi,
-			Kseaf: "testkey",
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		Supi:  supi,
+		Kseaf: "testkey",
+	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -864,7 +826,7 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	err = handleRegistrationRequest(ctx, amf, ue, m)
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m)
 	if err != nil {
 		t.Fatalf("registration request with MAC failure should proceed with cleartext IEs, got: %v", err)
 	}
@@ -959,28 +921,30 @@ func buildTestRegistrationRequestMessage(cipherAlg uint8, key *[16]uint8, ulcoun
 	return m, nil
 }
 
-func buildUeAndRadio() (*amfContext.AmfUe, *FakeNGAPSender, error) {
-	ue := amfContext.NewAmfUe()
+func buildUeAndRadio() (*amf.AmfUe, *FakeNGAPSender, error) {
+	ue := amf.NewAmfUe()
 
 	ngapSender := FakeNGAPSender{}
-	radio := amfContext.Radio{
-		RanUEs:     make(map[int64]*amfContext.RanUe),
+	radio := amf.Radio{
+		RanUEs:     make(map[int64]*amf.RanUe),
 		Conn:       nil,
 		Log:        logger.AmfLog.With(logger.RanAddr("test_localhost")),
 		NGAPSender: &ngapSender,
 	}
 
-	ranUe, err := radio.NewUe(0)
+	amfInstance := amf.New(nil, nil, nil)
+
+	ranUe, err := amfInstance.NewRanUe(&radio, 0)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not create a new ranUe: %v", err)
+	}
+
 	ranUe.Tai = models.Tai{
 		PlmnID: &models.PlmnID{
 			Mcc: "001",
 			Mnc: "01",
 		},
 		Tac: "000001",
-	}
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not create a new ranUe: %v", err)
 	}
 
 	ue.AttachRanUe(ranUe)

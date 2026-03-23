@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
@@ -14,18 +14,18 @@ import (
 
 func TestHandleLocationReport_EmptyIEs(t *testing.T) {
 	ran := newTestRadio()
-	amf := newTestAMF()
+	amfInstance := newTestAMF()
 	msg := &ngapType.LocationReport{}
 
 	assertNoPanic(t, "HandleLocationReport(empty IEs)", func() {
-		ngap.HandleLocationReport(context.Background(), amf, ran, msg)
+		ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
 	})
 }
 
 func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) {
 	ran := newTestRadio()
-	amf := newTestAMF()
-	ranUe := &amfContext.RanUe{
+	amfInstance := newTestAMF()
+	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 1,
 		Radio:       ran,
@@ -43,7 +43,7 @@ func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) 
 	})
 
 	assertNoPanic(t, "HandleLocationReport(missing LocationReportingRequestType)", func() {
-		ngap.HandleLocationReport(context.Background(), amf, ran, msg)
+		ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
 	})
 }
 
@@ -53,8 +53,8 @@ func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) 
 // This is a regression test for a nil pointer dereference (CVE-like DoS).
 func TestHandleLocationReport_UePresenceInAreaOfInterest_NilList(t *testing.T) {
 	ran := newTestRadio()
-	amf := newTestAMF()
-	ranUe := &amfContext.RanUe{
+	amfInstance := newTestAMF()
+	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 1,
 		Radio:       ran,
@@ -95,7 +95,7 @@ func TestHandleLocationReport_UePresenceInAreaOfInterest_NilList(t *testing.T) {
 	// No UEPresenceInAreaOfInterestList IE is added — it is optional.
 	// The handler must not panic when it is absent.
 	assertNoPanic(t, "HandleLocationReport(UePresenceInAreaOfInterest with nil list)", func() {
-		ngap.HandleLocationReport(context.Background(), amf, ran, msg)
+		ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
 	})
 }
 
@@ -105,8 +105,8 @@ func TestHandleLocationReport_UePresenceInAreaOfInterest_NilList(t *testing.T) {
 // Reproduces GHSA-f2f3-9cx3-wcmf Bug 1.
 func TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled(t *testing.T) {
 	ran := newTestRadio()
-	amf := newTestAMF()
-	ranUe := &amfContext.RanUe{
+	amfInstance := newTestAMF()
+	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 1,
 		Radio:       ran,
@@ -145,7 +145,7 @@ func TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled(t *test
 	})
 
 	assertNoPanic(t, "HandleLocationReport(StopUePresence with nil ReferenceIDToBeCancelled)", func() {
-		ngap.HandleLocationReport(context.Background(), amf, ran, msg)
+		ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
 	})
 }
 
@@ -155,8 +155,8 @@ func TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled(t *test
 // Reproduces GHSA-f2f3-9cx3-wcmf Bug 2.
 func TestHandleLocationReport_UePresence_NilAreaOfInterestList(t *testing.T) {
 	ran := newTestRadio()
-	amf := newTestAMF()
-	ranUe := &amfContext.RanUe{
+	amfInstance := newTestAMF()
+	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 1,
 		Radio:       ran,
@@ -212,6 +212,6 @@ func TestHandleLocationReport_UePresence_NilAreaOfInterestList(t *testing.T) {
 	})
 
 	assertNoPanic(t, "HandleLocationReport(UePresence with nil AreaOfInterestList)", func() {
-		ngap.HandleLocationReport(context.Background(), amf, ran, msg)
+		ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
 	})
 }

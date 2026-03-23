@@ -164,7 +164,13 @@ const (
 
 func Authorize(permission string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		allowedPerms := PermissionsByRole[r.Context().Value(contextKeyRoleID).(RoleID)]
+		roleID, ok := r.Context().Value(contextKeyRoleID).(RoleID)
+		if !ok {
+			writeError(r.Context(), w, http.StatusForbidden, "Forbidden", errors.New("missing role"), logger.APILog)
+			return
+		}
+
+		allowedPerms := PermissionsByRole[roleID]
 		for _, p := range allowedPerms {
 			if p == permission || p == "*" {
 				next.ServeHTTP(w, r)

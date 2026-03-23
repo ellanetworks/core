@@ -3,13 +3,13 @@ package ngap
 import (
 	"context"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverCancel(ctx context.Context, ran *amfContext.Radio, msg *ngapType.HandoverCancel) {
+func HandleHandoverCancel(ctx context.Context, ran *amf.Radio, msg *ngapType.HandoverCancel) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -104,15 +104,15 @@ func HandleHandoverCancel(ctx context.Context, ran *amfContext.Radio, msg *ngapT
 		return
 	}
 
-	targetUe.ReleaseAction = amfContext.UeContextReleaseHandover
+	targetUe.ReleaseAction = amf.UeContextReleaseHandover
 
-	err = targetUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, targetUe.AmfUeNgapID, targetUe.RanUeNgapID, causePresent, causeValue)
+	err = targetUe.SendUEContextReleaseCommand(ctx, causePresent, causeValue)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error sending UE Context Release Command to target UE", zap.Error(err))
 		return
 	}
 
-	err = sourceUe.Radio.NGAPSender.SendHandoverCancelAcknowledge(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID)
+	err = sourceUe.SendHandoverCancelAcknowledge(ctx)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error sending handover cancel acknowledge to source UE", zap.Error(err))
 		return

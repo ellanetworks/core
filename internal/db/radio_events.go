@@ -11,7 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -66,8 +66,8 @@ func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.R
 		fmt.Sprintf("%s %s", "INSERT", RadioEventsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("INSERT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", RadioEventsTableName),
 		),
 	)
@@ -97,8 +97,8 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 		fmt.Sprintf("%s %s (paged+filtered)", "SELECT", RadioEventsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", RadioEventsTableName),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
@@ -162,8 +162,8 @@ func (db *Database) DeleteOldRadioEvents(ctx context.Context, days int) error {
 		fmt.Sprintf("%s %s (retention)", "DELETE", RadioEventsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", RadioEventsTableName),
 			attribute.Int("retention.days", days),
 		),
@@ -199,8 +199,8 @@ func (db *Database) ClearRadioEvents(ctx context.Context) error {
 		fmt.Sprintf("%s %s (all)", "DELETE", RadioEventsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("DELETE"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("DELETE"),
 			attribute.String("db.collection", RadioEventsTableName),
 		),
 	)
@@ -230,8 +230,8 @@ func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*dbwriter.Ra
 		fmt.Sprintf("%s %s (by ID)", "SELECT", RadioEventsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", RadioEventsTableName),
 			attribute.Int("id", id),
 		),

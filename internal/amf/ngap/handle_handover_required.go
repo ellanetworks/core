@@ -3,17 +3,16 @@ package ngap
 import (
 	"context"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.HandoverRequired) {
+func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.HandoverRequired) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -154,7 +153,7 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		return
 	}
 
-	amfUe := sourceUe.AmfUe
+	amfUe := sourceUe.AmfUe()
 	if amfUe == nil {
 		logger.WithTrace(ctx, ran.Log).Error("Cannot find amfUE from sourceUE")
 		return
@@ -167,7 +166,7 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		return
 	}
 
-	amfUe.SetOnGoing(amfContext.OnGoingProcedureN2Handover)
+	amfUe.SetOnGoing(amf.OnGoingProcedureN2Handover)
 
 	if !amfUe.SecurityContextIsValid() {
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Authentication Failure]")
@@ -179,9 +178,9 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 			},
 		}
 
-		sourceUe.AmfUe.SetOnGoing(amfContext.OnGoingProcedureNothing)
+		sourceUe.AmfUe().SetOnGoing(amf.OnGoingProcedureNothing)
 
-		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
+		err := sourceUe.SendHandoverPreparationFailure(ctx, *cause, nil)
 		if err != nil {
 			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
 			return
@@ -194,7 +193,7 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 
 	targetRanNodeID := util.RanIDToModels(targetID.TargetRANNodeID.GlobalRANNodeID)
 
-	targetRan, ok := amf.FindRadioByRanID(targetRanNodeID)
+	targetRan, ok := amfInstance.FindRadioByRanID(targetRanNodeID)
 	if !ok {
 		// handover between different AMF
 		logger.WithTrace(ctx, sourceUe.Log).Warn("Handover required : cannot find target Ran Node Id in this AMF. Handover between different AMF has not been implemented yet", zap.Any("targetRanNodeID", targetRanNodeID))
@@ -215,7 +214,7 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 
 		pduSessionIDUint8 := uint8(pDUSessionResourceHoItem.PDUSessionID.Value)
 		if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
-			n2Rsp, err := pdusession.UpdateSmContextN2HandoverPreparing(smContext.Ref, pDUSessionResourceHoItem.HandoverRequiredTransfer)
+			n2Rsp, err := amfInstance.Smf.UpdateSmContextN2HandoverPreparing(ctx, smContext.Ref, pDUSessionResourceHoItem.HandoverRequiredTransfer)
 			if err != nil {
 				logger.WithTrace(ctx, sourceUe.Log).Error("SendUpdateSmContextN2HandoverPreparing Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionIDUint8))
 				continue
@@ -235,9 +234,9 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 			},
 		}
 
-		sourceUe.AmfUe.SetOnGoing(amfContext.OnGoingProcedureNothing)
+		sourceUe.AmfUe().SetOnGoing(amf.OnGoingProcedureNothing)
 
-		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
+		err := sourceUe.SendHandoverPreparationFailure(ctx, *cause, nil)
 		if err != nil {
 			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
 			return
@@ -254,33 +253,32 @@ func HandleHandoverRequired(ctx context.Context, amf *amfContext.AMF, ran *amfCo
 		return
 	}
 
-	operatorInfo, err := amf.GetOperatorInfo(ctx)
+	operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
 	if err != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Error("Could not get operator info", zap.Error(err))
 		return
 	}
 
-	targetUe, err := targetRan.NewUe(models.RanUeNgapIDUnspecified)
+	targetUe, err := amfInstance.NewRanUe(targetRan, models.RanUeNgapIDUnspecified)
 	if err != nil {
 		logger.WithTrace(ctx, logger.AmfLog).Error("error creating target ue", zap.Error(err))
 		return
 	}
 
-	err = amfContext.AttachSourceUeTargetUe(sourceUe, targetUe)
+	err = amf.AttachSourceUeTargetUe(sourceUe, targetUe)
 	if err != nil {
 		logger.WithTrace(ctx, logger.AmfLog).Error("attach source ue target ue error", zap.Error(err))
 		return
 	}
 
-	err = targetUe.Radio.NGAPSender.SendHandoverRequest(
+	err = targetUe.SendHandoverRequest(
 		ctx,
-		targetUe.AmfUeNgapID,
 		sourceUe.HandOverType,
-		targetUe.AmfUe.Ambr.Uplink,
-		targetUe.AmfUe.Ambr.Downlink,
-		targetUe.AmfUe.UESecurityCapability,
-		targetUe.AmfUe.NCC,
-		targetUe.AmfUe.NH,
+		amfUe.Ambr.Uplink,
+		amfUe.Ambr.Downlink,
+		amfUe.UESecurityCapability,
+		amfUe.NCC,
+		amfUe.NH,
 		*cause,
 		pduSessionReqList,
 		*sourceToTargetTransparentContainer,

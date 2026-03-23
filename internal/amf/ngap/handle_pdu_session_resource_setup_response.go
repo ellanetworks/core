@@ -3,14 +3,13 @@ package ngap
 import (
 	"context"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/smf/pdusession"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceSetupResponse(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.PDUSessionResourceSetupResponse) {
+func HandlePDUSessionResourceSetupResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.PDUSessionResourceSetupResponse) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -36,7 +35,7 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amf *amfContext.
 		}
 	}
 
-	var ranUe *amfContext.RanUe
+	var ranUe *amf.RanUe
 
 	if rANUENGAPID != nil {
 		ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
@@ -46,7 +45,7 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amf *amfContext.
 	}
 
 	if aMFUENGAPID != nil {
-		ranUe = amf.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
+		ranUe = amfInstance.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
 		if ranUe == nil {
 			logger.WithTrace(ctx, ran.Log).Warn("UE Context not found", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 			return
@@ -57,7 +56,7 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amf *amfContext.
 		ranUe.Radio = ran
 		ranUe.TouchLastSeen()
 
-		amfUe := ranUe.AmfUe
+		amfUe := ranUe.AmfUe()
 		if amfUe == nil {
 			logger.WithTrace(ctx, ranUe.Log).Error("amfUe is nil")
 			return
@@ -81,7 +80,7 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amf *amfContext.
 					continue
 				}
 
-				err := pdusession.UpdateSmContextN2InfoPduResSetupRsp(ctx, smContext.Ref, transfer)
+				err := amfInstance.Smf.UpdateSmContextN2InfoPduResSetupRsp(ctx, smContext.Ref, transfer)
 				if err != nil {
 					logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupResponseTransfer] Error", zap.Error(err))
 				}
@@ -106,7 +105,7 @@ func HandlePDUSessionResourceSetupResponse(ctx context.Context, amf *amfContext.
 					continue
 				}
 
-				err := pdusession.UpdateSmContextN2InfoPduResSetupFail(smContext.Ref, transfer)
+				err := amfInstance.Smf.UpdateSmContextN2InfoPduResSetupFail(ctx, smContext.Ref, transfer)
 				if err != nil {
 					logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err))
 				}

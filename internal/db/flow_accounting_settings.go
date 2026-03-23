@@ -7,7 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -36,8 +36,8 @@ func (db *Database) InitializeFlowAccountingSettings(ctx context.Context) error 
 		fmt.Sprintf("%s %s", "INSERT", FlowAccountingSettingsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("INSERT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", FlowAccountingSettingsTableName),
 		),
 	)
@@ -69,8 +69,8 @@ func (db *Database) IsFlowAccountingEnabled(ctx context.Context) (bool, error) {
 		fmt.Sprintf("%s %s", "SELECT", FlowAccountingSettingsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("SELECT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", FlowAccountingSettingsTableName),
 		),
 	)
@@ -102,8 +102,8 @@ func (db *Database) UpdateFlowAccountingSettings(ctx context.Context, enabled bo
 		fmt.Sprintf("%s %s", "UPSERT", FlowAccountingSettingsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
-			semconv.DBSystemSqlite,
-			semconv.DBOperationKey.String("UPSERT"),
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPSERT"),
 			attribute.String("db.collection", FlowAccountingSettingsTableName),
 		),
 	)

@@ -53,21 +53,21 @@ func TestSupportBundleEndpoint(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := tempDir + "/db.sqlite3"
 
-	ts, _, _, err := setupServer(dbPath)
+	env, err := setupServer(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
-	defer ts.Close()
+	defer env.Server.Close()
 
-	client := newTestClient(ts)
+	client := newTestClient(env.Server)
 
-	token, err := initializeAndRefresh(ts.URL, client)
+	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
 	t.Run("1. Trigger support bundle successfully", func(t *testing.T) {
-		statusCode, body, err := supportBundle(ts.URL, client, token)
+		statusCode, body, err := supportBundle(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't trigger support bundle: %s", err)
 		}
@@ -157,7 +157,7 @@ func TestSupportBundleEndpoint(t *testing.T) {
 	})
 
 	t.Run("2. Trigger support bundle without authorization", func(t *testing.T) {
-		statusCode, _, err := supportBundle(ts.URL, client, "")
+		statusCode, _, err := supportBundle(env.Server.URL, client, "")
 		if err != nil {
 			t.Fatalf("couldn't trigger support bundle: %s", err)
 		}

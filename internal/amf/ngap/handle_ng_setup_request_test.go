@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -154,10 +154,10 @@ func buildNGSetupRequest(opts *NGSetupRequestOpts) (*ngapType.NGAPPDU, error) {
 func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    fakeNGAPSender,
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
 	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
@@ -173,17 +173,15 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 		t.Fatalf("failed to build NGSetupRequest: %v", err)
 	}
 
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc: "001",
-				Mnc: "01",
-				Sst: 1,
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc: "001",
+			Mnc: "01",
+			Sst: 1,
 		},
-	}
+	}, nil, nil)
 
-	ngap.HandleNGSetupRequest(context.Background(), amf, ran, msg.InitiatingMessage.Value.NGSetupRequest)
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg.InitiatingMessage.Value.NGSetupRequest)
 
 	if len(fakeNGAPSender.SentNGSetupFailures) != 1 {
 		t.Fatalf("expected 1 NGSetupFailure to be sent, but got %d", len(fakeNGAPSender.SentNGSetupFailures))
@@ -202,10 +200,10 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    fakeNGAPSender,
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
 	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
@@ -233,13 +231,11 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testi
 		t.Fatalf("failed to set supported TACS: %v", err)
 	}
 
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: op,
-		},
-	}
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: op,
+	}, nil, nil)
 
-	ngap.HandleNGSetupRequest(context.Background(), amf, ran, msg.InitiatingMessage.Value.NGSetupRequest)
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg.InitiatingMessage.Value.NGSetupRequest)
 
 	if len(fakeNGAPSender.SentNGSetupFailures) != 1 {
 		t.Fatalf("expected 1 NGSetupFailure to be sent, but got %d", len(fakeNGAPSender.SentNGSetupFailures))
@@ -258,10 +254,10 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testi
 func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
-	ran := &amfContext.Radio{
+	ran := &amf.Radio{
 		Log:           logger.AmfLog,
 		NGAPSender:    fakeNGAPSender,
-		SupportedTAIs: make([]amfContext.SupportedTAI, 0),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
 	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
@@ -289,15 +285,12 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 		t.Fatalf("failed to set supported TACS: %v", err)
 	}
 
-	amf := &amfContext.AMF{
-		Name:             "ella-core",
-		RelativeCapacity: 0xff,
-		DBInstance: &FakeDBInstance{
-			Operator: op,
-		},
-	}
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: op,
+	}, nil, nil)
+	amfInstance.Name = "ella-core"
 
-	ngap.HandleNGSetupRequest(context.Background(), amf, ran, msg.InitiatingMessage.Value.NGSetupRequest)
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg.InitiatingMessage.Value.NGSetupRequest)
 
 	if len(fakeNGAPSender.SentNGSetupResponses) != 1 {
 		t.Fatalf("expected 1 NGSetupResponse to be sent, but got %d", len(fakeNGAPSender.SentNGSetupResponses))
@@ -340,10 +333,10 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 
 func TestHandleNGSetupRequest_EmptyIEs(t *testing.T) {
 	ran := newTestRadio()
-	amf := newTestAMF()
+	amfInstance := newTestAMF()
 	msg := &ngapType.NGSetupRequest{}
 
 	assertNoPanic(t, "HandleNGSetupRequest(empty IEs)", func() {
-		ngap.HandleNGSetupRequest(context.Background(), amf, ran, msg)
+		ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 	})
 }

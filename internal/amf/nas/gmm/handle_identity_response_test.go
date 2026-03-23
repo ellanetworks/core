@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
@@ -19,13 +19,13 @@ import (
 
 type UpdateInputs struct {
 	name         string
-	ue           *amfContext.AmfUe
+	ue           *amf.AmfUe
 	mi           []uint8
 	expected_err error
-	validate_ue  func(ue *amfContext.AmfUe) error
+	validate_ue  func(ue *amf.AmfUe) error
 }
 
-func emptyValidation(ue *amfContext.AmfUe) error {
+func emptyValidation(ue *amf.AmfUe) error {
 	return nil
 }
 
@@ -49,24 +49,24 @@ func TestUpdateUeIdentity(t *testing.T) {
 		},
 		{
 			"Empty mobileIdentityContents",
-			&amfContext.AmfUe{},
+			&amf.AmfUe{},
 			[]uint8{},
 			fmt.Errorf("mobile identity is empty"),
 			emptyValidation,
 		},
 		{
 			"Unknown type is ignored",
-			&amfContext.AmfUe{},
+			&amf.AmfUe{},
 			[]uint8{0xFF},
 			nil,
 			emptyValidation,
 		},
 		{
 			"Invalid SUCI sets empty SUCI and PLMN",
-			&amfContext.AmfUe{},
+			&amf.AmfUe{},
 			[]uint8{nasMessage.MobileIdentity5GSTypeSuci},
 			nil,
-			func(ue *amfContext.AmfUe) error {
+			func(ue *amf.AmfUe) error {
 				if ue.Suci != "" || ue.PlmnID.Mcc != "" || ue.PlmnID.Mnc != "" {
 					return fmt.Errorf("SUCI and PLMN should be empty, got %s, %s%s", ue.Suci, ue.PlmnID.Mcc, ue.PlmnID.Mnc)
 				}
@@ -76,10 +76,10 @@ func TestUpdateUeIdentity(t *testing.T) {
 		},
 		{
 			"Valid SUCI sets SUCI and PLMN",
-			&amfContext.AmfUe{},
+			&amf.AmfUe{},
 			[]uint8{nasMessage.MobileIdentity5GSTypeSuci, 0x00, 0xf1, 0x10, 0x10, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
 			nil,
-			func(ue *amfContext.AmfUe) error {
+			func(ue *amf.AmfUe) error {
 				if ue.Suci != "suci-0-001-01-0110-0-1-00000000000000000010" || ue.PlmnID.Mcc != "001" || ue.PlmnID.Mnc != "01" {
 					return fmt.Errorf("SUCI and PLMN should not be empty, got %s, %s%s", ue.Suci, ue.PlmnID.Mcc, ue.PlmnID.Mnc)
 				}
@@ -89,101 +89,101 @@ func TestUpdateUeIdentity(t *testing.T) {
 		},
 		{
 			"Invalid GUTI sets empty GUTI",
-			&amfContext.AmfUe{Guti: mustTestGuti("999", "99", "cafe42", 0x00000001), MacFailed: false},
+			&amf.AmfUe{Guti: mustTestGuti("999", "99", "cafe42", 0x00000001), MacFailed: false},
 			[]uint8{nasMessage.MobileIdentity5GSType5gGuti, 0},
 			fmt.Errorf("UE sent invalid GUTI: invalid GUTI length"),
 			emptyValidation,
 		},
 		{
 			"GUTI with MacFailed returns error",
-			&amfContext.AmfUe{MacFailed: true},
+			&amf.AmfUe{MacFailed: true},
 			[]uint8{nasMessage.MobileIdentity5GSType5gGuti, 0, 0x10, 0x1f, 0, 0, 1, 0, 0, 0, 1},
 			fmt.Errorf("NAS message integrity check failed"),
 			emptyValidation,
 		},
 		{
 			"Valid GUTI matches UE GUTI",
-			&amfContext.AmfUe{MacFailed: false, Guti: mustTestGuti("001", "01", "cafe01", 0xdeadbeef)},
+			&amf.AmfUe{MacFailed: false, Guti: mustTestGuti("001", "01", "cafe01", 0xdeadbeef)},
 			[]uint8{nasMessage.MobileIdentity5GSType5gGuti, 0, 0xf1, 0x10, 0xCA, 0xFE, 1, 0xDE, 0xAD, 0xBE, 0xEF},
 			nil,
 			emptyValidation,
 		},
 		{
 			"Valid GUTI matches UE old GUTI",
-			&amfContext.AmfUe{MacFailed: false, Guti: mustTestGuti("001", "01", "cafe02", 0xf00df00d), OldGuti: mustTestGuti("001", "01", "cafe01", 0xdeadbeef)},
+			&amf.AmfUe{MacFailed: false, Guti: mustTestGuti("001", "01", "cafe02", 0xf00df00d), OldGuti: mustTestGuti("001", "01", "cafe01", 0xdeadbeef)},
 			[]uint8{nasMessage.MobileIdentity5GSType5gGuti, 0, 0xf1, 0x10, 0xCA, 0xFE, 1, 0xDE, 0xAD, 0xBE, 0xEF},
 			nil,
 			emptyValidation,
 		},
 		{
 			"Valid GUTI does not match AMF state",
-			&amfContext.AmfUe{MacFailed: false, Guti: mustTestGuti("001", "01", "cafe02", 0xf00df00d), OldGuti: mustTestGuti("001", "01", "cafe01", 0x12345678)},
+			&amf.AmfUe{MacFailed: false, Guti: mustTestGuti("001", "01", "cafe02", 0xf00df00d), OldGuti: mustTestGuti("001", "01", "cafe01", 0x12345678)},
 			[]uint8{nasMessage.MobileIdentity5GSType5gGuti, 0, 0xf1, 0x10, 0xCA, 0xFE, 1, 0xDE, 0xAD, 0xBE, 0xEF},
 			fmt.Errorf("UE sent unknown GUTI"),
 			emptyValidation,
 		},
 		{
 			"5G-S-TMSI with MacFailed returns error",
-			&amfContext.AmfUe{MacFailed: true},
+			&amf.AmfUe{MacFailed: true},
 			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0x00, 0x12, 0x34, 0x56, 0x78, 0x90},
 			fmt.Errorf("NAS message integrity check failed"),
 			emptyValidation,
 		},
 		{
 			"5G-S-TMSI maximum value matches",
-			&amfContext.AmfUe{MacFailed: false, Tmsi: mustValidTestTmsi(0xFFFFFFFE)},
+			&amf.AmfUe{MacFailed: false, Tmsi: mustValidTestTmsi(0xFFFFFFFE)},
 			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE},
 			nil,
 			emptyValidation,
 		},
 		{
 			"5G-S-TMSI too long returns error",
-			&amfContext.AmfUe{MacFailed: false},
+			&amf.AmfUe{MacFailed: false},
 			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
 			fmt.Errorf("wrong length for TMSI"),
 			emptyValidation,
 		},
 		{
 			"5G-S-TMSI too short returns error",
-			&amfContext.AmfUe{MacFailed: false},
+			&amf.AmfUe{MacFailed: false},
 			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFF, 0xFF, 0x01},
 			fmt.Errorf("wrong length for TMSI"),
 			emptyValidation,
 		},
 		{
 			"Valid 5G-S-TMSI matches UE TMSI",
-			&amfContext.AmfUe{MacFailed: false, Tmsi: mustValidTestTmsi(0x1A345678)},
+			&amf.AmfUe{MacFailed: false, Tmsi: mustValidTestTmsi(0x1A345678)},
 			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFE, 0x01, 0x1A, 0x34, 0x56, 0x78},
 			nil,
 			emptyValidation,
 		},
 		{
 			"Valid 5G-S-TMSI matches UE old TMSI",
-			&amfContext.AmfUe{MacFailed: false, Tmsi: mustValidTestTmsi(0x22234567), OldTmsi: mustValidTestTmsi(0x1A345678)},
+			&amf.AmfUe{MacFailed: false, Tmsi: mustValidTestTmsi(0x22234567), OldTmsi: mustValidTestTmsi(0x1A345678)},
 			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFE, 0x01, 0x1A, 0x34, 0x56, 0x78},
 			nil,
 			emptyValidation,
 		},
 		{
 			"Valid 5G-S-TMSI does not match AMF state",
-			&amfContext.AmfUe{MacFailed: false, Tmsi: mustValidTestTmsi(0x22234567), OldTmsi: mustValidTestTmsi(0x5FFF5555)},
+			&amf.AmfUe{MacFailed: false, Tmsi: mustValidTestTmsi(0x22234567), OldTmsi: mustValidTestTmsi(0x5FFF5555)},
 			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFE, 0x01, 0x1A, 0x34, 0x56, 0x78},
 			fmt.Errorf("UE sent unknown TMSI"),
 			emptyValidation,
 		},
 		{
 			"IMEI with MacFailed returns error",
-			&amfContext.AmfUe{MacFailed: true},
+			&amf.AmfUe{MacFailed: true},
 			[]uint8{nasMessage.MobileIdentity5GSTypeImei + 0x08 + 0x40, 0x09, 0x51, 0x24, 0x30, 0x32, 0x57, 0x81},
 			fmt.Errorf("NAS message integrity check failed"),
 			emptyValidation,
 		},
 		{
 			"Valid IMEI sets PEI",
-			&amfContext.AmfUe{MacFailed: false},
+			&amf.AmfUe{MacFailed: false},
 			[]uint8{nasMessage.MobileIdentity5GSTypeImei + 0x08 + 0x40, 0x09, 0x51, 0x24, 0x30, 0x32, 0x57, 0x81},
 			nil,
-			func(ue *amfContext.AmfUe) error {
+			func(ue *amf.AmfUe) error {
 				expected := "imei-490154203237518"
 				if ue.Pei != expected {
 					return fmt.Errorf("PEI should be %s, got %s", expected, ue.Pei)
@@ -194,17 +194,17 @@ func TestUpdateUeIdentity(t *testing.T) {
 		},
 		{
 			"IMEISV with MacFailed returns error",
-			&amfContext.AmfUe{MacFailed: true},
+			&amf.AmfUe{MacFailed: true},
 			[]uint8{nasMessage.MobileIdentity5GSTypeImeisv + 0x30, 0x25, 0x90, 0x09, 0x10, 0x67, 0x41, 0x28, 0xF3},
 			fmt.Errorf("NAS message integrity check failed"),
 			emptyValidation,
 		},
 		{
 			"Valid IMEISV sets PEI",
-			&amfContext.AmfUe{MacFailed: false},
+			&amf.AmfUe{MacFailed: false},
 			[]uint8{nasMessage.MobileIdentity5GSTypeImeisv + 0x30, 0x25, 0x90, 0x09, 0x10, 0x67, 0x41, 0x28, 0xF3},
 			nil,
-			func(ue *amfContext.AmfUe) error {
+			func(ue *amf.AmfUe) error {
 				expected := "imeisv-3520990017614823"
 				if ue.Pei != expected {
 					return fmt.Errorf("PEI should be %s, got %s", expected, ue.Pei)
@@ -234,11 +234,14 @@ func TestUpdateUeIdentity(t *testing.T) {
 }
 
 func TestHandleIdentityResponse_InvalidStateError(t *testing.T) {
-	testcases := []amfContext.StateType{amfContext.Deregistered, amfContext.Registered, amfContext.SecurityMode}
+	testcases := []amf.StateType{amf.Deregistered, amf.Registered, amf.SecurityMode}
 
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
-			err := handleIdentityResponse(context.TODO(), &amfContext.AMF{}, &amfContext.AmfUe{State: tc}, &nasMessage.IdentityResponse{})
+			ue := amf.NewAmfUe()
+			ue.ForceState(tc)
+
+			err := handleIdentityResponse(context.TODO(), amf.New(nil, nil, nil), ue, &nasMessage.IdentityResponse{})
 			if err == nil {
 				t.Fatalf("expected an state mismatch error, got no error")
 			}
@@ -247,25 +250,21 @@ func TestHandleIdentityResponse_InvalidStateError(t *testing.T) {
 }
 
 func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-		Ausf: &FakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
-			},
-			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -273,13 +272,13 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 	}
 
 	ue.Suci = ""
-	ue.State = amfContext.Authentication
+	ue.ForceState(amf.Authentication)
 	ue.MacFailed = false
-	ue.Tai = ue.RanUe.Tai
+	ue.Tai = ue.RanUe().Tai
 
 	m := buildTestIdentityResponseMessage()
 
-	err = handleIdentityResponse(context.TODO(), amf, ue, m.IdentityResponse)
+	err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse)
 	if err != nil {
 		t.Fatalf("expected no errors but got: %v", err)
 	}
@@ -307,25 +306,21 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 }
 
 func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *testing.T) {
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-		Ausf: &FakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
-			},
-			Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
-			Kseaf: "testkey",
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -333,7 +328,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 	}
 
 	ue.Suci = ""
-	ue.State = amfContext.Authentication
+	ue.ForceState(amf.Authentication)
 	ue.MacFailed = false
 	ue.Tai = models.Tai{}
 
@@ -341,7 +336,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 
 	expected := "error in authentication procedure: failed to send ue authentication request: tai is not available in UE context"
 
-	err = handleIdentityResponse(context.TODO(), amf, ue, m.IdentityResponse)
+	err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse)
 	if err == nil {
 		t.Fatalf("expected error but got none")
 	}
@@ -357,25 +352,21 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 
 func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *testing.T) {
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")
-	amf := &amfContext.AMF{
-		DBInstance: &FakeDBInstance{
-			Operator: &db.Operator{
-				Mcc:           "001",
-				Mnc:           "01",
-				Sst:           1,
-				SupportedTACs: "[\"000001\"]",
-			},
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
 		},
-		Ausf: &FakeAusf{
-			AvKgAka: &ausf.AuthResult{
-				Rand: hex.EncodeToString(make([]byte, 16)),
-				Autn: hex.EncodeToString(make([]byte, 16)),
-			},
-			Supi:  supi,
-			Kseaf: "testkey",
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
 		},
-		UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-	}
+		Supi:  supi,
+		Kseaf: "testkey",
+	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -384,9 +375,9 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 
 	ue.Suci = "testsuci"
 	ue.Supi = supi
-	ue.State = amfContext.Authentication
+	ue.ForceState(amf.Authentication)
 	ue.MacFailed = false
-	ue.Tai = ue.RanUe.Tai
+	ue.Tai = ue.RanUe().Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -406,7 +397,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 
 	m := buildTestIdentityResponseMessage()
 
-	err = handleIdentityResponse(context.TODO(), amf, ue, m.IdentityResponse)
+	err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse)
 	if err != nil {
 		t.Fatalf("expected no errors but got: %v", err)
 	}
@@ -451,25 +442,21 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {
 			supi := mustSUPIFromPrefixed("imsi-001019756139935")
-			amf := &amfContext.AMF{
-				DBInstance: &FakeDBInstance{
-					Operator: &db.Operator{
-						Mcc:           "001",
-						Mnc:           "01",
-						Sst:           1,
-						SupportedTACs: "[\"000001\"]",
-					},
+			amfInstance := amf.New(&FakeDBInstance{
+				Operator: &db.Operator{
+					Mcc:           "001",
+					Mnc:           "01",
+					Sst:           1,
+					SupportedTACs: "[\"000001\"]",
 				},
-				Ausf: &FakeAusf{
-					AvKgAka: &ausf.AuthResult{
-						Rand: hex.EncodeToString(make([]byte, 16)),
-						Autn: hex.EncodeToString(make([]byte, 16)),
-					},
-					Supi:  supi,
-					Kseaf: "testkey",
+			}, &FakeAusf{
+				AvKgAka: &ausf.AuthResult{
+					Rand: hex.EncodeToString(make([]byte, 16)),
+					Autn: hex.EncodeToString(make([]byte, 16)),
 				},
-				UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-			}
+				Supi:  supi,
+				Kseaf: "testkey",
+			}, nil)
 
 			ue, ngapSender, err := buildUeAndRadio()
 			if err != nil {
@@ -479,9 +466,9 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 			ue.Suci = "testsuci"
 			ue.Supi = supi
 			ue.Pei = "testpei"
-			ue.State = amfContext.ContextSetup
+			ue.ForceState(amf.ContextSetup)
 			ue.MacFailed = false
-			ue.Tai = ue.RanUe.Tai
+			ue.Tai = ue.RanUe().Tai
 			ue.SecurityContextAvailable = true
 			ue.NgKsi.Ksi = 1
 			key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -505,7 +492,7 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 
 			m := buildTestIdentityResponseMessage()
 
-			err = handleIdentityResponse(context.TODO(), amf, ue, m.IdentityResponse)
+			err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse)
 			if err != nil {
 				t.Fatalf("expected no errors but got: %v", err)
 			}
@@ -552,18 +539,14 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {
 			supi := mustSUPIFromPrefixed("imsi-001019756139935")
-			amf := &amfContext.AMF{
-				DBInstance: &FakeDBInstance{},
-				Ausf: &FakeAusf{
-					AvKgAka: &ausf.AuthResult{
-						Rand: hex.EncodeToString(make([]byte, 16)),
-						Autn: hex.EncodeToString(make([]byte, 16)),
-					},
-					Supi:  supi,
-					Kseaf: "testkey",
+			amfInstance := amf.New(&FakeDBInstance{}, &FakeAusf{
+				AvKgAka: &ausf.AuthResult{
+					Rand: hex.EncodeToString(make([]byte, 16)),
+					Autn: hex.EncodeToString(make([]byte, 16)),
 				},
-				UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-			}
+				Supi:  supi,
+				Kseaf: "testkey",
+			}, nil)
 
 			ue, ngapSender, err := buildUeAndRadio()
 			if err != nil {
@@ -573,9 +556,9 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 			ue.Suci = "testsuci"
 			ue.Supi = supi
 			ue.Pei = "testpei"
-			ue.State = amfContext.ContextSetup
+			ue.ForceState(amf.ContextSetup)
 			ue.MacFailed = false
-			ue.Tai = ue.RanUe.Tai
+			ue.Tai = ue.RanUe().Tai
 			ue.SecurityContextAvailable = true
 			ue.NgKsi.Ksi = 1
 			key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -599,7 +582,7 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 
 			m := buildTestIdentityResponseMessage()
 
-			err = handleIdentityResponse(context.TODO(), amf, ue, m.IdentityResponse)
+			err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse)
 			if err == nil {
 				t.Fatalf("expected error but got none")
 			}
@@ -608,38 +591,34 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 				t.Fatalf("should not have sent a Downlink NAS Transport message")
 			}
 
-			if ue.State != amfContext.Deregistered {
-				t.Fatalf("ue should have transitioned to Deregistered state, but got: %v", ue.State)
+			if ue.GetState() != amf.Deregistered {
+				t.Fatalf("ue should have transitioned to Deregistered state, but got: %v", ue.GetState())
 			}
 		})
 	}
 }
 
 func TestHandleIdentityResponse_IdentityError(t *testing.T) {
-	testcases := []amfContext.StateType{amfContext.Authentication, amfContext.ContextSetup}
+	testcases := []amf.StateType{amf.Authentication, amf.ContextSetup}
 
 	for _, tc := range testcases {
 		t.Run(fmt.Sprintf("%v", tc), func(t *testing.T) {
 			supi := mustSUPIFromPrefixed("imsi-001019756139935")
-			amf := &amfContext.AMF{
-				DBInstance: &FakeDBInstance{},
-				Ausf: &FakeAusf{
-					AvKgAka: &ausf.AuthResult{
-						Rand: hex.EncodeToString(make([]byte, 16)),
-						Autn: hex.EncodeToString(make([]byte, 16)),
-					},
-					Supi:  supi,
-					Kseaf: "testkey",
+			amfInstance := amf.New(&FakeDBInstance{}, &FakeAusf{
+				AvKgAka: &ausf.AuthResult{
+					Rand: hex.EncodeToString(make([]byte, 16)),
+					Autn: hex.EncodeToString(make([]byte, 16)),
 				},
-				UEs: make(map[etsi.SUPI]*amfContext.AmfUe),
-			}
+				Supi:  supi,
+				Kseaf: "testkey",
+			}, nil)
 
 			ue, ngapSender, err := buildUeAndRadio()
 			if err != nil {
 				t.Fatalf("could not create UE and radio: %v", err)
 			}
 
-			ue.State = tc
+			ue.ForceState(tc)
 
 			m := buildTestIdentityResponseMessage()
 			m.SetMobileIdentityContents([]uint8{})
@@ -647,7 +626,7 @@ func TestHandleIdentityResponse_IdentityError(t *testing.T) {
 
 			expected := "error handling identity response: mobile identity is empty"
 
-			err = handleIdentityResponse(context.TODO(), amf, ue, m.IdentityResponse)
+			err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse)
 			if err == nil {
 				t.Fatalf("expected error but got none")
 			}

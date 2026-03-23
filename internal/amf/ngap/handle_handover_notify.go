@@ -3,13 +3,13 @@ package ngap
 import (
 	"context"
 
-	amfContext "github.com/ellanetworks/core/internal/amf/context"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverNotify(ctx context.Context, amf *amfContext.AMF, ran *amfContext.Radio, msg *ngapType.HandoverNotify) {
+func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.HandoverNotify) {
 	if msg == nil {
 		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
 		return
@@ -78,10 +78,10 @@ func HandleHandoverNotify(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 	}
 
 	if userLocationInformation != nil {
-		targetUe.UpdateLocation(ctx, amf, userLocationInformation)
+		targetUe.UpdateLocation(ctx, amfInstance, userLocationInformation)
 	}
 
-	amfUe := targetUe.AmfUe
+	amfUe := targetUe.AmfUe()
 	if amfUe == nil {
 		logger.WithTrace(ctx, ran.Log).Error("AmfUe is nil")
 		return
@@ -97,7 +97,7 @@ func HandleHandoverNotify(ctx context.Context, amf *amfContext.AMF, ran *amfCont
 
 	amfUe.AttachRanUe(targetUe)
 
-	sourceUe.ReleaseAction = amfContext.UeContextReleaseHandover
+	sourceUe.ReleaseAction = amf.UeContextReleaseHandover
 
 	err := sourceUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 	if err != nil {
