@@ -85,12 +85,9 @@ func (ranUe *RanUe) Remove() error {
 		return fmt.Errorf("ran not found in ranUe")
 	}
 
-	for _, ranUe1 := range ran.RanUEs {
-		if ranUe1 == ranUe {
-			delete(ran.RanUEs, ranUe.RanUeNgapID)
-			break
-		}
-	}
+	ran.mu.Lock()
+	delete(ran.RanUEs, ranUe.RanUeNgapID)
+	ran.mu.Unlock()
 
 	if ranUe.freeNgapID != nil {
 		ranUe.freeNgapID(ranUe.AmfUeNgapID)
@@ -113,15 +110,14 @@ func (ranUe *RanUe) SwitchToRan(newRan *Radio, ranUeNgapID int64) error {
 	oldRan := ranUe.Radio
 
 	// remove ranUe from oldRan
-	for _, ranUe1 := range oldRan.RanUEs {
-		if ranUe1 == ranUe {
-			delete(oldRan.RanUEs, ranUe.RanUeNgapID)
-			break
-		}
-	}
+	oldRan.mu.Lock()
+	delete(oldRan.RanUEs, ranUe.RanUeNgapID)
+	oldRan.mu.Unlock()
 
 	// add ranUe to newRan
+	newRan.mu.Lock()
 	newRan.RanUEs[ranUeNgapID] = ranUe
+	newRan.mu.Unlock()
 
 	// switch to newRan
 	ranUe.Radio = newRan

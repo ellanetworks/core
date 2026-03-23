@@ -34,7 +34,7 @@ func getPaginateIndexes(page int, perPage int, total int) (int, int) {
 	return startIndex, endIndex
 }
 
-func (amf *AMF) ListAmfRan(page int, perPage int) (int, []Radio) {
+func (amf *AMF) ListAmfRan(page int, perPage int) (int, []*Radio) {
 	radios := amf.ListRadios()
 
 	total := len(radios)

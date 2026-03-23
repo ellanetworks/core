@@ -61,14 +61,23 @@ func (pc *PfcpConnection) AddSession(seid uint64, session *Session) {
 }
 
 func (pc *PfcpConnection) SetBPFObjects(bpfObjects *ebpf.BpfObjects) {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+
 	pc.BpfObjects = bpfObjects
 }
 
 func (pc *PfcpConnection) GetAdvertisedN3Address() net.IP {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+
 	return pc.advertisedN3Address
 }
 
 func (pc *PfcpConnection) SetAdvertisedN3Address(newN3Addr net.IP) {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+
 	pc.advertisedN3Address = newN3Addr
 }
 
