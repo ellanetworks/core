@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 
-	amfContext "github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
@@ -21,7 +21,7 @@ type UPFUpdater interface {
 	UpdateAdvertisedN3Address(net.IP)
 }
 
-func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kernel kernel.Kernel, jwtSecret []byte, secureCookie bool, embedFS fs.FS, sessions smf.SessionQuerier, amfInstance *amfContext.AMF, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
+func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kernel kernel.Kernel, jwtSecret []byte, secureCookie bool, embedFS fs.FS, sessions smf.SessionQuerier, amfInstance *amf.AMF, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
 	mux := http.NewServeMux()
 
 	// Status (Unauthenticated)

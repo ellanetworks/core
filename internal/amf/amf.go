@@ -81,8 +81,14 @@ type DBer interface {
 	GetDataNetworkByID(ctx context.Context, id int) (*db.DataNetwork, error)
 }
 
+// Lock ordering (acquire in this order, never reverse):
+//
+//	AMF.mu  →  AmfUe.Mutex
+//
+// Never hold AmfUe.Mutex while acquiring AMF.mu.
+// Never hold any lock while making external calls (SMF, DB, NGAP send).
 type AMF struct {
-	mu sync.Mutex
+	mu sync.RWMutex
 
 	// Allocators (owned, not exported)
 	tmsi    *etsi.TmsiAllocator
@@ -185,8 +191,8 @@ func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
 }
 
 func (amf *AMF) FindAMFUEBySupi(supi etsi.SUPI) (*AmfUe, bool) {
-	amf.mu.Lock()
-	defer amf.mu.Unlock()
+	amf.mu.RLock()
+	defer amf.mu.RUnlock()
 
 	value, ok := amf.UEs[supi]
 	if !ok {
@@ -209,8 +215,8 @@ func (amf *AMF) GetUESnapshot(supi etsi.SUPI) (UESnapshot, bool) {
 }
 
 func (amf *AMF) FindAMFUEBySuci(suci string) (*AmfUe, bool) {
-	amf.mu.Lock()
-	defer amf.mu.Unlock()
+	amf.mu.RLock()
+	defer amf.mu.RUnlock()
 
 	for _, ue := range amf.UEs {
 		if ue.Suci == suci {
@@ -254,8 +260,8 @@ func (amf *AMF) NewRadio(conn *sctp.SCTPConn) (*Radio, error) {
 }
 
 func (amf *AMF) FindRadioByConn(conn *sctp.SCTPConn) (*Radio, bool) {
-	amf.mu.Lock()
-	defer amf.mu.Unlock()
+	amf.mu.RLock()
+	defer amf.mu.RUnlock()
 
 	ran, ok := amf.Radios[conn]
 	if !ok {
@@ -267,8 +273,8 @@ func (amf *AMF) FindRadioByConn(conn *sctp.SCTPConn) (*Radio, bool) {
 
 // use ranNodeID to find RAN context, return *AmfRan and ok bit
 func (amf *AMF) FindRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool) {
-	amf.mu.Lock()
-	defer amf.mu.Unlock()
+	amf.mu.RLock()
+	defer amf.mu.RUnlock()
 
 	for _, amfRan := range amf.Radios {
 		switch amfRan.RanPresent {
@@ -293,8 +299,8 @@ func (amf *AMF) FindRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool
 func (amf *AMF) ListRadios() []Radio {
 	ranList := make([]Radio, 0)
 
-	amf.mu.Lock()
-	defer amf.mu.Unlock()
+	amf.mu.RLock()
+	defer amf.mu.RUnlock()
 
 	for _, ran := range amf.Radios {
 		ranList = append(ranList, *ran)
@@ -304,15 +310,15 @@ func (amf *AMF) ListRadios() []Radio {
 }
 
 func (amf *AMF) CountRadios() int {
-	amf.mu.Lock()
-	defer amf.mu.Unlock()
+	amf.mu.RLock()
+	defer amf.mu.RUnlock()
 
 	return len(amf.Radios)
 }
 
 func (amf *AMF) CountRegisteredSubscribers() int {
-	amf.mu.Lock()
-	defer amf.mu.Unlock()
+	amf.mu.RLock()
+	defer amf.mu.RUnlock()
 
 	count := 0
 
@@ -339,8 +345,8 @@ func (amf *AMF) FindAmfUeByGuti(guti etsi.GUTI) (*AmfUe, bool) {
 		return nil, false
 	}
 
-	amf.mu.Lock()
-	defer amf.mu.Unlock()
+	amf.mu.RLock()
+	defer amf.mu.RUnlock()
 
 	for _, ue := range amf.UEs {
 		if ue.Guti == guti || ue.OldGuti == guti {
@@ -352,8 +358,8 @@ func (amf *AMF) FindAmfUeByGuti(guti etsi.GUTI) (*AmfUe, bool) {
 }
 
 func (amf *AMF) FindRanUeByAmfUeNgapID(amfUeNgapID int64) *RanUe {
-	amf.mu.Lock()
-	defer amf.mu.Unlock()
+	amf.mu.RLock()
+	defer amf.mu.RUnlock()
 
 	for _, ran := range amf.Radios {
 		for _, ranUe := range ran.RanUEs {
@@ -488,8 +494,8 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *AmfUe, ngapBuf []byte) error
 		return fmt.Errorf("amf ue is nil")
 	}
 
-	amf.mu.Lock()
-	defer amf.mu.Unlock()
+	amf.mu.RLock()
+	defer amf.mu.RUnlock()
 
 	taiList := ue.RegistrationArea
 

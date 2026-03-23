@@ -53,6 +53,9 @@ type NGAPSender interface {
 	SendHandoverRequest(ctx context.Context, amfUeNgapID int64, handOverType ngapType.HandoverType, uplinkAmbr string, downlinkAmbr string, ueSecurityCapability *nasType.UESecurityCapability, ncc uint8, nh []byte, cause ngapType.Cause, pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq, sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer, supportedPLMN *models.PlmnSupportItem, supportedGUAMI *models.Guami) error
 }
 
+// Radio represents one SCTP association to a gNB.
+// All mutations happen on the single goroutine serving this connection.
+// Do not access Radio fields from other goroutines without synchronization.
 type Radio struct {
 	RanPresent    int
 	RanID         *models.GlobalRanNodeID

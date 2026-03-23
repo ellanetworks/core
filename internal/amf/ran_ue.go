@@ -31,6 +31,11 @@ const (
 	UeContextReleaseDueToNwInitiatedDeregistraion
 )
 
+// RanUe represents one UE's radio-level state on a single Radio.
+// It has no mutex of its own. It is protected either by the owning Radio's
+// single SCTP goroutine, or by AmfUe.Mutex when accessed via AmfUe.RanUe.
+// After obtaining a RanUe from a Radio lookup, acquire RanUe.AmfUe.Mutex
+// before reading or writing any AmfUe fields.
 type RanUe struct {
 	RanUeNgapID                      int64
 	AmfUeNgapID                      int64
