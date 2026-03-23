@@ -1192,23 +1192,23 @@ func buildInitialContextSetupRequest(
 
 	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 
-	// UE Aggregate Maximum Bit Rate (conditional: if pdu session resource setup)
+	// UE Aggregate Maximum Bit Rate
 	// The subscribed UE-AMBR is a subscription parameter which is
-	// retrieved from UDM and provided to the (R)AN by the AMF
-	if pduSessionResourceSetupRequestList != nil {
-		ie = ngapType.InitialContextSetupRequestIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDUEAggregateMaximumBitRate
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentUEAggregateMaximumBitRate
-		ie.Value.UEAggregateMaximumBitRate = new(ngapType.UEAggregateMaximumBitRate)
+	// retrieved from UDM and provided to the (R)AN by the AMF.
+	// Always included so the gNB can configure the UE's MAC scheduler
+	// correctly from the start, even before PDU sessions are established.
+	ie = ngapType.InitialContextSetupRequestIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDUEAggregateMaximumBitRate
+	ie.Criticality.Value = ngapType.CriticalityPresentReject
+	ie.Value.Present = ngapType.InitialContextSetupRequestIEsPresentUEAggregateMaximumBitRate
+	ie.Value.UEAggregateMaximumBitRate = new(ngapType.UEAggregateMaximumBitRate)
 
-		ueAmbrUL := ngapConvert.UEAmbrToInt64(bitrateUplink)
-		ueAmbrDL := ngapConvert.UEAmbrToInt64(bitrateDownlink)
-		ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value = ueAmbrUL
-		ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value = ueAmbrDL
+	ueAmbrUL := ngapConvert.UEAmbrToInt64(bitrateUplink)
+	ueAmbrDL := ngapConvert.UEAmbrToInt64(bitrateDownlink)
+	ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value = ueAmbrUL
+	ie.Value.UEAggregateMaximumBitRate.UEAggregateMaximumBitRateDL.Value = ueAmbrDL
 
-		initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
-	}
+	initialContextSetupRequestIEs.List = append(initialContextSetupRequestIEs.List, ie)
 
 	// GUAMI
 	ie = ngapType.InitialContextSetupRequestIEs{}
