@@ -44,6 +44,22 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	smContext = s.NewSession(supi, pduSessionID, dnn, snssai)
 
+	// Clean up the session on any failure path to avoid leaking IPs and IDs.
+	success := false
+
+	defer func() {
+		if !success {
+			smContext.Mutex.Lock()
+			if smContext.Tunnel != nil {
+				if err := s.releaseTunnel(ctx, smContext); err != nil {
+					logger.WithTrace(ctx, logger.SmfLog).Error("release tunnel failed during cleanup", zap.Error(err))
+				}
+			}
+			smContext.Mutex.Unlock()
+			s.RemoveSession(ctx, smContext.CanonicalName())
+		}
+	}()
+
 	pco, dnnInfo, pduAddress, pti, policy, errRsp, err := s.handlePDUSessionSMContextCreate(ctx, n1Msg, smContext)
 	if err != nil {
 		span.RecordError(err)
@@ -84,6 +100,8 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	}
 
 	span.AddEvent("session_accepted")
+
+	success = true
 
 	return smContext.CanonicalName(), nil, nil
 }
