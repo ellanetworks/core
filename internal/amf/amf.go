@@ -296,14 +296,14 @@ func (amf *AMF) FindRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool
 	return nil, false
 }
 
-func (amf *AMF) ListRadios() []Radio {
-	ranList := make([]Radio, 0)
+func (amf *AMF) ListRadios() []*Radio {
+	ranList := make([]*Radio, 0)
 
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
 	for _, ran := range amf.Radios {
-		ranList = append(ranList, *ran)
+		ranList = append(ranList, ran)
 	}
 
 	return ranList
@@ -362,11 +362,16 @@ func (amf *AMF) FindRanUeByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 	defer amf.mu.RUnlock()
 
 	for _, ran := range amf.Radios {
+		ran.mu.RLock()
+
 		for _, ranUe := range ran.RanUEs {
 			if ranUe.AmfUeNgapID == amfUeNgapID {
+				ran.mu.RUnlock()
 				return ranUe
 			}
 		}
+
+		ran.mu.RUnlock()
 	}
 
 	return nil
@@ -432,7 +437,9 @@ func (a *AMF) NewRanUe(radio *Radio, ranUeNgapID int64) (*RanUe, error) {
 		freeNgapID:  a.ngapIDs.FreeID,
 	}
 
+	radio.mu.Lock()
 	radio.RanUEs[ranUeNgapID] = ranUe
+	radio.mu.Unlock()
 
 	return ranUe, nil
 }

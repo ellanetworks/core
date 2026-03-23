@@ -9,6 +9,7 @@ package amf
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
@@ -65,6 +66,7 @@ type Radio struct {
 	ConnectedAt   time.Time
 	LastSeenAt    time.Time
 	SupportedTAIs []SupportedTAI
+	mu            sync.RWMutex     // protects RanUEs
 	RanUEs        map[int64]*RanUe // Key: RanUeNgapID
 	Log           *zap.Logger
 }
@@ -75,7 +77,16 @@ type SupportedTAI struct {
 }
 
 func (r *Radio) RemoveAllUeInRan() {
+	r.mu.RLock()
+
+	ues := make([]*RanUe, 0, len(r.RanUEs))
 	for _, ranUe := range r.RanUEs {
+		ues = append(ues, ranUe)
+	}
+
+	r.mu.RUnlock()
+
+	for _, ranUe := range ues {
 		err := ranUe.Remove()
 		if err != nil {
 			logger.AmfLog.Error("error removing ran ue", zap.Error(err))
@@ -84,9 +95,26 @@ func (r *Radio) RemoveAllUeInRan() {
 }
 
 func (r *Radio) FindUEByRanUeNgapID(ranUeNgapID int64) *RanUe {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	ranUe, ok := r.RanUEs[ranUeNgapID]
 	if ok {
 		return ranUe
+	}
+
+	return nil
+}
+
+// FindUEByAmfUeNgapID returns the RAN UE with the given AMF UE NGAP ID, or nil.
+func (r *Radio) FindUEByAmfUeNgapID(amfUeNgapID int64) *RanUe {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, ranUe := range r.RanUEs {
+		if ranUe.AmfUeNgapID == amfUeNgapID {
+			return ranUe
+		}
 	}
 
 	return nil
@@ -136,6 +164,9 @@ func (r *Radio) RanNodeTypeName() string {
 }
 
 func (r *Radio) ConnectedSubscribers() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	supis := make([]string, 0, len(r.RanUEs))
 	for _, ranUe := range r.RanUEs {
 		if ranUe.AmfUe != nil && ranUe.AmfUe.Supi.IsValid() && ranUe.AmfUe.Supi.IsIMSI() {
