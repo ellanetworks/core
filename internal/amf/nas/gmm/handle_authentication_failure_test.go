@@ -251,7 +251,7 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_Success(t *testing.T
 	ue.ForceState(amf.Authentication)
 	ue.AuthFailureCauseSynchFailureTimes = 0
 	ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
-	ue.Tai = ue.RanUe.Tai
+	ue.Tai = ue.RanUe().Tai
 
 	expectedAv := &ausf.AuthResult{
 		Rand: hex.EncodeToString(make([]byte, 16)),
@@ -313,7 +313,7 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_AusfError(t *testing
 	ue.ForceState(amf.Authentication)
 	ue.AuthFailureCauseSynchFailureTimes = 0
 	ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
-	ue.Tai = ue.RanUe.Tai
+	ue.Tai = ue.RanUe().Tai
 
 	amfInstance := amf.New(nil, &FakeAusf{
 		Error: fmt.Errorf("ausf unavailable"),

@@ -35,8 +35,8 @@ const (
 
 // RanUe represents one UE's radio-level state on a single Radio.
 // It has no mutex of its own. It is protected either by the owning Radio's
-// single SCTP goroutine, or by AmfUe.Mutex when accessed via AmfUe.RanUe.
-// After obtaining a RanUe from a Radio lookup, acquire RanUe.AmfUe.Mutex
+// single SCTP goroutine, or by AmfUe.Mutex when accessed via AmfUe.RanUe().
+// After obtaining a RanUe from a Radio lookup, acquire the AmfUe's Mutex
 // before reading or writing any AmfUe fields.
 type RanUe struct {
 	RanUeNgapID                      int64
@@ -46,7 +46,7 @@ type RanUe struct {
 	TargetUe                         *RanUe
 	Tai                              models.Tai
 	Location                         models.UserLocation
-	AmfUe                            *AmfUe
+	amfUe                            *AmfUe
 	Radio                            *Radio
 	ReleaseAction                    RelAction
 	RRCEstablishmentCause            string // Received from initial ue message; pattern: ^[0-9a-fA-F]+$
@@ -57,10 +57,24 @@ type RanUe struct {
 	freeNgapID                       func(int64) // set by AMF.NewRanUe to release the NGAP ID
 }
 
+// AmfUe returns the currently attached AmfUe, or nil.
+func (ranUe *RanUe) AmfUe() *AmfUe {
+	if ranUe == nil {
+		return nil
+	}
+
+	return ranUe.amfUe
+}
+
+// HasAmfUe returns true if an AmfUe is currently attached.
+func (ranUe *RanUe) HasAmfUe() bool {
+	return ranUe != nil && ranUe.amfUe != nil
+}
+
 // TouchLastSeen propagates a last-seen timestamp to the associated AmfUe.
 // Safe to call on nil receivers or when AmfUe/Radio is nil.
 func (ranUe *RanUe) TouchLastSeen() {
-	if ranUe == nil || ranUe.AmfUe == nil {
+	if ranUe == nil || ranUe.amfUe == nil {
 		return
 	}
 
@@ -69,7 +83,7 @@ func (ranUe *RanUe) TouchLastSeen() {
 		radioName = ranUe.Radio.Name
 	}
 
-	ranUe.AmfUe.TouchLastSeen(radioName)
+	ranUe.amfUe.TouchLastSeen(radioName)
 }
 
 func (ranUe *RanUe) ngapSender() (NGAPSender, error) {
@@ -239,9 +253,9 @@ func (ranUe *RanUe) Remove() error {
 		return fmt.Errorf("ran ue is nil")
 	}
 
-	if ranUe.AmfUe != nil {
-		ranUe.AmfUe.RanUe = nil
-		ranUe.AmfUe = nil
+	if ranUe.amfUe != nil {
+		ranUe.amfUe.ranUe = nil
+		ranUe.amfUe = nil
 	}
 
 	ran := ranUe.Radio
@@ -336,9 +350,9 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, amf *AMF, userLocationIn
 				locationInfoEUTRA.TimeStamp.Value)
 		}
 
-		if ranUe.AmfUe != nil {
-			ranUe.AmfUe.Location = ranUe.Location
-			ranUe.AmfUe.Tai = *ranUe.AmfUe.Location.NrLocation.Tai
+		if ranUe.amfUe != nil {
+			ranUe.amfUe.Location = ranUe.Location
+			ranUe.amfUe.Tai = *ranUe.amfUe.Location.NrLocation.Tai
 		}
 	case ngapType.UserLocationInformationPresentUserLocationInformationNR:
 		locationInfoNR := userLocationInformation.UserLocationInformationNR
@@ -375,9 +389,9 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, amf *AMF, userLocationIn
 			ranUe.Location.NrLocation.AgeOfLocationInformation = ngapConvert.TimeStampToInt32(locationInfoNR.TimeStamp.Value)
 		}
 
-		if ranUe.AmfUe != nil {
-			ranUe.AmfUe.Location = ranUe.Location
-			ranUe.AmfUe.Tai = *ranUe.AmfUe.Location.NrLocation.Tai
+		if ranUe.amfUe != nil {
+			ranUe.amfUe.Location = ranUe.Location
+			ranUe.amfUe.Tai = *ranUe.amfUe.Location.NrLocation.Tai
 		}
 	case ngapType.UserLocationInformationPresentUserLocationInformationN3IWF:
 		locationInfoN3IWF := userLocationInformation.UserLocationInformationN3IWF
@@ -413,9 +427,9 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, amf *AMF, userLocationIn
 
 		ranUe.Tai = *ranUe.Location.N3gaLocation.N3gppTai
 
-		if ranUe.AmfUe != nil {
-			ranUe.AmfUe.Location = ranUe.Location
-			ranUe.AmfUe.Tai = *ranUe.Location.N3gaLocation.N3gppTai
+		if ranUe.amfUe != nil {
+			ranUe.amfUe.Location = ranUe.Location
+			ranUe.amfUe.Tai = *ranUe.Location.N3gaLocation.N3gppTai
 		}
 	case ngapType.UserLocationInformationPresentNothing:
 	}

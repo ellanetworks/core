@@ -58,8 +58,8 @@ func setupRegistrationCompleteUE(t *testing.T) (*amf.AmfUe, *FakeNGAPSender) {
 	ue.RegistrationType5GS = 42
 	ue.IdentityTypeUsedForRegistration = 42
 	ue.AuthFailureCauseSynchFailureTimes = 42
-	ue.RanUe.UeContextRequest = true
-	ue.RanUe.RecvdInitialContextSetupResponse = true
+	ue.RanUe().UeContextRequest = true
+	ue.RanUe().RecvdInitialContextSetupResponse = true
 	ue.RetransmissionOfInitialNASMsg = true
 	ue.SetOnGoing(amf.OnGoingProcedurePaging)
 
@@ -288,11 +288,11 @@ func checkUERegistrationDataIsCleared(ue *amf.AmfUe) error {
 		return fmt.Errorf("auth failure caush synch failure times was not 0: %d", ue.AuthFailureCauseSynchFailureTimes)
 	}
 
-	if ue.RanUe.UeContextRequest {
+	if ue.RanUe().UeContextRequest {
 		return fmt.Errorf("ranue context request should be false")
 	}
 
-	if ue.RanUe.RecvdInitialContextSetupResponse {
+	if ue.RanUe().RecvdInitialContextSetupResponse {
 		return fmt.Errorf("ranue recvd initial context setup response should be false")
 	}
 

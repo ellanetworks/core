@@ -71,7 +71,7 @@ func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF
 
 	ranUe.TouchLastSeen()
 
-	amfUe := ranUe.AmfUe
+	amfUe := ranUe.AmfUe()
 	if amfUe == nil {
 		logger.WithTrace(ctx, ran.Log).Error("amfUe is nil")
 		return

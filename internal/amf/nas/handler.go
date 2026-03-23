@@ -37,21 +37,20 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu 
 	}
 
 	// First-time UE attach: fetch or create AMF context
-	if ue.AmfUe == nil {
+	if ue.AmfUe() == nil {
 		amfUe, err := fetchUeContextWithMobileIdentity(ctx, amfInstance, nasPdu)
 		if err != nil {
 			return fmt.Errorf("error fetching UE context with mobile identity: %v", err)
 		}
 
-		ue.AmfUe = amfUe
-		if ue.AmfUe == nil {
-			ue.AmfUe = amf.NewAmfUe()
+		if amfUe == nil {
+			amfUe = amf.NewAmfUe()
 		}
 
-		ue.AmfUe.AttachRanUe(ue)
+		amfUe.AttachRanUe(ue)
 	}
 
-	msg, err := ue.AmfUe.DecodeNASMessage(nasPdu)
+	msg, err := ue.AmfUe().DecodeNASMessage(nasPdu)
 	if err != nil {
 		return fmt.Errorf("error decoding NAS message: %v", err)
 	}
@@ -70,7 +69,7 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu 
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
 			attribute.String("nas.message_type", msgTypeName),
-			attribute.String("ue.supi", ue.AmfUe.Supi.String()),
+			attribute.String("ue.supi", ue.AmfUe().Supi.String()),
 		),
 	)
 	defer span.End()
@@ -78,12 +77,12 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu 
 	logger.WithTrace(ctx, logger.AmfLog).Info(
 		"Received NAS message",
 		logger.MessageType(msgTypeName),
-		logger.SUPI(ue.AmfUe.Supi.String()),
+		logger.SUPI(ue.AmfUe().Supi.String()),
 	)
 
-	err = gmm.HandleGmmMessage(ctx, amfInstance, ue.AmfUe, msg.GmmMessage)
+	err = gmm.HandleGmmMessage(ctx, amfInstance, ue.AmfUe(), msg.GmmMessage)
 	if err != nil {
-		return fmt.Errorf("error handling NAS message for supi %s: %v", ue.AmfUe.Supi.String(), err)
+		return fmt.Errorf("error handling NAS message for supi %s: %v", ue.AmfUe().Supi.String(), err)
 	}
 
 	return nil

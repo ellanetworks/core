@@ -41,7 +41,7 @@ func TransferN1N2Message(ctx context.Context, amfInstance *amf.AMF, supi etsi.SU
 		return fmt.Errorf("ue context not found")
 	}
 
-	if ue.RanUe == nil {
+	if ue.RanUe() == nil {
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
@@ -52,12 +52,12 @@ func TransferN1N2Message(ctx context.Context, amfInstance *amf.AMF, supi etsi.SU
 
 	ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
 
-	if ue.RanUe.SentInitialContextSetupRequest {
+	if ue.RanUe().SentInitialContextSetupRequest {
 		list := ngapType.PDUSessionResourceSetupListSUReq{}
 
 		send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
 
-		err := ue.RanUe.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
+		err := ue.RanUe().SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
 		if err != nil {
 			return fmt.Errorf("send pdu session resource setup request error: %v", err)
 		}
@@ -76,7 +76,7 @@ func TransferN1N2Message(ctx context.Context, amfInstance *amf.AMF, supi etsi.SU
 
 	send.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
 
-	err = ue.RanUe.SendInitialContextSetupRequest(
+	err = ue.RanUe().SendInitialContextSetupRequest(
 		ctx,
 		ue.Ambr.Uplink,
 		ue.Ambr.Downlink,
@@ -95,7 +95,7 @@ func TransferN1N2Message(ctx context.Context, amfInstance *amf.AMF, supi etsi.SU
 	}
 
 	ue.Log.Info("Sent NGAP initial context setup request to UE")
-	ue.RanUe.SentInitialContextSetupRequest = true
+	ue.RanUe().SentInitialContextSetupRequest = true
 
 	return nil
 }
@@ -125,14 +125,14 @@ func N2MessageTransferOrPage(ctx context.Context, amfInstance *amf.AMF, supi ets
 		return fmt.Errorf("temporary reject handover ongoing")
 	}
 
-	if ue.RanUe != nil {
+	if ue.RanUe() != nil {
 		ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
 
-		if ue.RanUe.SentInitialContextSetupRequest {
+		if ue.RanUe().SentInitialContextSetupRequest {
 			list := ngapType.PDUSessionResourceSetupListSUReq{}
 			send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 
-			err := ue.RanUe.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
+			err := ue.RanUe().SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
 			if err != nil {
 				return fmt.Errorf("send pdu session resource setup request error: %v", err)
 			}
@@ -150,7 +150,7 @@ func N2MessageTransferOrPage(ctx context.Context, amfInstance *amf.AMF, supi ets
 		list := ngapType.PDUSessionResourceSetupListCxtReq{}
 		send.AppendPDUSessionResourceSetupListCxtReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 
-		err = ue.RanUe.SendInitialContextSetupRequest(
+		err = ue.RanUe().SendInitialContextSetupRequest(
 			ctx,
 			ue.Ambr.Uplink,
 			ue.Ambr.Downlink,
@@ -169,7 +169,7 @@ func N2MessageTransferOrPage(ctx context.Context, amfInstance *amf.AMF, supi ets
 		}
 
 		ue.Log.Info("Sent NGAP initial context setup request to UE")
-		ue.RanUe.SentInitialContextSetupRequest = true
+		ue.RanUe().SentInitialContextSetupRequest = true
 
 		return nil
 	}
@@ -218,7 +218,7 @@ func TransferN1Msg(ctx context.Context, amfInstance *amf.AMF, supi etsi.SUPI, n1
 		return fmt.Errorf("ue context not found")
 	}
 
-	if ue.RanUe == nil {
+	if ue.RanUe() == nil {
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
@@ -227,7 +227,7 @@ func TransferN1Msg(ctx context.Context, amfInstance *amf.AMF, supi etsi.SUPI, n1
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
 
-	err = ue.RanUe.SendDownlinkNasTransport(ctx, nasPdu, nil)
+	err = ue.RanUe().SendDownlinkNasTransport(ctx, nasPdu, nil)
 	if err != nil {
 		return fmt.Errorf("send downlink nas transport error: %v", err)
 	}

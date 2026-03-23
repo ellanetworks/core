@@ -274,7 +274,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 	ue.Suci = ""
 	ue.ForceState(amf.Authentication)
 	ue.MacFailed = false
-	ue.Tai = ue.RanUe.Tai
+	ue.Tai = ue.RanUe().Tai
 
 	m := buildTestIdentityResponseMessage()
 
@@ -377,7 +377,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 	ue.Supi = supi
 	ue.ForceState(amf.Authentication)
 	ue.MacFailed = false
-	ue.Tai = ue.RanUe.Tai
+	ue.Tai = ue.RanUe().Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -468,7 +468,7 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 			ue.Pei = "testpei"
 			ue.ForceState(amf.ContextSetup)
 			ue.MacFailed = false
-			ue.Tai = ue.RanUe.Tai
+			ue.Tai = ue.RanUe().Tai
 			ue.SecurityContextAvailable = true
 			ue.NgKsi.Ksi = 1
 			key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -558,7 +558,7 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 			ue.Pei = "testpei"
 			ue.ForceState(amf.ContextSetup)
 			ue.MacFailed = false
-			ue.Tai = ue.RanUe.Tai
+			ue.Tai = ue.RanUe().Tai
 			ue.SecurityContextAvailable = true
 			ue.NgKsi.Ksi = 1
 			key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}

@@ -248,7 +248,6 @@ func TestPathSwitchRequest_NilAmfUe(t *testing.T) {
 	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 10,
-		AmfUe:       nil,
 		Radio:       sourceRan,
 		Log:         logger.AmfLog,
 	}
@@ -308,11 +307,10 @@ func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 10,
-		AmfUe:       amfUe,
 		Radio:       sourceRan,
 		Log:         logger.AmfLog,
 	}
-	amfUe.RanUe = ranUe
+	amfUe.AttachRanUe(ranUe)
 	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
@@ -367,11 +365,10 @@ func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 10,
-		AmfUe:       amfUe,
 		Radio:       sourceRan,
 		Log:         logger.AmfLog,
 	}
-	amfUe.RanUe = ranUe
+	amfUe.AttachRanUe(ranUe)
 	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
@@ -434,11 +431,10 @@ func TestPathSwitchRequest_SmfReturnsError(t *testing.T) {
 	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 10,
-		AmfUe:       amfUe,
 		Radio:       sourceRan,
 		Log:         logger.AmfLog,
 	}
-	amfUe.RanUe = ranUe
+	amfUe.AttachRanUe(ranUe)
 	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
@@ -521,11 +517,10 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 	sourceUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: sourceAmfUeNgapID,
-		AmfUe:       amfUe,
 		Radio:       sourceRan,
 		Log:         logger.AmfLog,
 	}
-	amfUe.RanUe = sourceUe
+	amfUe.AttachRanUe(sourceUe)
 	sourceRan.RanUEs[1] = sourceUe
 
 	targetNGAPSender := &FakeNGAPSender{}
@@ -636,11 +631,10 @@ func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 10,
-		AmfUe:       amfUe,
 		Radio:       sourceRan,
 		Log:         logger.AmfLog,
 	}
-	amfUe.RanUe = ranUe
+	amfUe.AttachRanUe(ranUe)
 	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
@@ -730,11 +724,10 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 10,
-		AmfUe:       amfUe,
 		Radio:       sourceRan,
 		Log:         logger.AmfLog,
 	}
-	amfUe.RanUe = ranUe
+	amfUe.AttachRanUe(ranUe)
 	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
@@ -834,11 +827,10 @@ func TestPathSwitchRequest_UESecurityCapabilitiesUpdated(t *testing.T) {
 	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 10,
-		AmfUe:       amfUe,
 		Radio:       sourceRan,
 		Log:         logger.AmfLog,
 	}
-	amfUe.RanUe = ranUe
+	amfUe.AttachRanUe(ranUe)
 	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
@@ -942,11 +934,10 @@ func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
 	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 10,
-		AmfUe:       amfUe,
 		Radio:       sourceRan,
 		Log:         logger.AmfLog,
 	}
-	amfUe.RanUe = ranUe
+	amfUe.AttachRanUe(ranUe)
 	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}

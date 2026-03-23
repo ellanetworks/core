@@ -18,14 +18,14 @@ func handleDeregistrationAccept(ctx context.Context, ue *amf.AmfUe) error {
 
 	defer ue.Deregister(ctx)
 
-	if ue.RanUe == nil {
+	if ue.RanUe() == nil {
 		logger.WithTrace(ctx, logger.AmfLog).Warn("RanUe is nil, cannot send UE Context Release Command", logger.SUPI(ue.Supi.String()))
 		return nil
 	}
 
-	ue.RanUe.ReleaseAction = amf.UeContextReleaseDueToNwInitiatedDeregistraion
+	ue.RanUe().ReleaseAction = amf.UeContextReleaseDueToNwInitiatedDeregistraion
 
-	err := ue.RanUe.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
+	err := ue.RanUe().SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentDeregister)
 	if err != nil {
 		return fmt.Errorf("error sending ue context release command: %v", err)
 	}

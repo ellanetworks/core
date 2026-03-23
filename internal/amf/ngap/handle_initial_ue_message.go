@@ -117,7 +117,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	}
 
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
-	if ranUe != nil && ranUe.AmfUe == nil {
+	if ranUe != nil && ranUe.AmfUe() == nil {
 		err := ranUe.Remove()
 		if err != nil {
 			logger.WithTrace(ctx, ran.Log).Error(err.Error())
@@ -168,10 +168,8 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 				logger.WithTrace(ctx, ranUe.Log).Debug("find AmfUe", logger.GUTI(guti.String()))
 				/* checking the guti-ue belongs to this amf instance */
 
-				if amfUe.RanUe != nil {
+				if amfUe.RanUe() != nil {
 					logger.WithTrace(ctx, ranUe.Log).Debug("Implicit Deregistration", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
-
-					amfUe.RanUe = nil
 				}
 
 				logger.WithTrace(ctx, ranUe.Log).Debug("AmfUe Attach RanUe", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
@@ -180,7 +178,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		}
 	} else {
 		ranUe.Radio = ran
-		ranUe.AmfUe.AttachRanUe(ranUe)
+		ranUe.AmfUe().AttachRanUe(ranUe)
 	}
 
 	if userLocationInformation != nil {
@@ -200,9 +198,9 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		ranUe.UeContextRequest = false
 	}
 
-	if ranUe.AmfUe != nil {
-		ranUe.AmfUe.StopImplicitDeregistrationTimer()
-		ranUe.AmfUe.StopMobileReachableTimer()
+	if ranUe.AmfUe() != nil {
+		ranUe.AmfUe().StopImplicitDeregistrationTimer()
+		ranUe.AmfUe().StopMobileReachableTimer()
 	}
 
 	err := nas.HandleNAS(ctx, amfInstance, ranUe, nASPDU.Value)

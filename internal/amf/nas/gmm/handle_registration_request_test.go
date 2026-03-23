@@ -60,7 +60,6 @@ func TestHandleRegistrationRequest_NilRanUE(t *testing.T) {
 	}
 
 	ue := amf.NewAmfUe()
-	ue.RanUe = nil
 
 	err = handleRegistrationRequest(ctx, &amfInstance, ue, m)
 	if err == nil {
@@ -155,7 +154,7 @@ func TestHandleRegistrationRequest_RejectTrackingAreaNotAllowed(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.RanUe.Tai = models.Tai{
+	ue.RanUe().Tai = models.Tai{
 		PlmnID: &models.PlmnID{
 			Mcc: "999",
 			Mnc: "99",
@@ -438,7 +437,7 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 	}
 
 	ue.Tai.Tac = "CAFE64"
-	ue.RanUe.Tai.Tac = "CAFE64"
+	ue.RanUe().Tai.Tac = "CAFE64"
 
 	ue.Suci = "testsuci"
 	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")

@@ -242,11 +242,10 @@ func TestHandoverRequired(t *testing.T) {
 	sourceUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 1,
-		AmfUe:       amfUe,
 		Radio:       sourceRan,
 		Log:         logger.AmfLog,
 	}
-	amfUe.RanUe = sourceUe
+	amfUe.AttachRanUe(sourceUe)
 	sourceRan.RanUEs[1] = sourceUe
 
 	// Set up target RAN with matching GNB ID
@@ -479,11 +478,10 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 	sourceUe := &amf.RanUe{
 		RanUeNgapID: 1,
 		AmfUeNgapID: 1,
-		AmfUe:       amfUe,
 		Radio:       sourceRan,
 		Log:         logger.AmfLog,
 	}
-	amfUe.RanUe = sourceUe
+	amfUe.AttachRanUe(sourceUe)
 	sourceRan.RanUEs[1] = sourceUe
 
 	amfInstance := amf.New(nil, nil, nil)

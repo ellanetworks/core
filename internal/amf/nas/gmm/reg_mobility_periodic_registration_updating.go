@@ -39,7 +39,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		if ue.RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
 			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationReject).Inc()
 
-			err := message.SendRegistrationReject(ctx, ue.RanUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
+			err := message.SendRegistrationReject(ctx, ue.RanUe(), nasMessage.Cause5GMMProtocolErrorUnspecified)
 			if err != nil {
 				return fmt.Errorf("error sending registration reject: %v", err)
 			}
@@ -65,7 +65,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	if len(ue.Pei) == 0 {
 		ue.Log.Debug("The UE did not provide PEI")
 
-		err := message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeImei)
+		err := message.SendIdentityRequest(ctx, ue.RanUe(), nasMessage.MobileIdentity5GSTypeImei)
 		if err != nil {
 			return fmt.Errorf("error sending identity request: %v", err)
 		}
@@ -116,7 +116,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 							cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 							errCause = append(errCause, cause)
 						} else {
-							if ue.RanUe.UeContextRequest {
+							if ue.RanUe().UeContextRequest {
 								send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID,
 									smContext.Snssai, nil, binaryDataN2SmInformation)
 							} else {
@@ -176,7 +176,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 					UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
 
-					err = ue.RanUe.SendPDUSessionResourceSetupRequest(
+					err = ue.RanUe().SendPDUSessionResourceSetupRequest(
 						ctx,
 						ue.Ambr.Uplink,
 						ue.Ambr.Downlink,
@@ -199,7 +199,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 					ue.Log.Info("Sent GMM registration accept")
 				}
 
-				err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
+				err := message.SendDLNASTransport(ctx, ue.RanUe(), nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
 				if err != nil {
 					return fmt.Errorf("error sending downlink nas transport message: %v", err)
 				}
@@ -233,7 +233,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 	ue.AllocateRegistrationArea(operatorInfo.Tais)
 
-	if ue.RanUe.UeContextRequest {
+	if ue.RanUe().UeContextRequest {
 		UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
 
 		err := message.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
@@ -253,7 +253,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		if len(suList.List) != 0 {
 			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
 
-			err := ue.RanUe.SendPDUSessionResourceSetupRequest(
+			err := ue.RanUe().SendPDUSessionResourceSetupRequest(
 				ctx,
 				ue.Ambr.Uplink,
 				ue.Ambr.Downlink,
@@ -268,7 +268,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		} else {
 			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
 
-			err := ue.RanUe.SendDownlinkNasTransport(ctx, nasPdu, nil)
+			err := ue.RanUe().SendDownlinkNasTransport(ctx, nasPdu, nil)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %v", err)
 			}

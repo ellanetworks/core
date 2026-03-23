@@ -24,7 +24,7 @@ func forward5GSMMessageToSMF(
 	smContextRef string,
 	smMessage []byte,
 ) error {
-	if ue.RanUe == nil {
+	if ue.RanUe() == nil {
 		return fmt.Errorf("RAN UE context is nil, cannot forward 5GSM message to SMF")
 	}
 
@@ -60,7 +60,7 @@ func forward5GSMMessageToSMF(
 		list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 		send.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, response.N2Msg)
 
-		err := ue.RanUe.SendPDUSessionResourceReleaseCommand(ctx, n1Msg, list)
+		err := ue.RanUe().SendPDUSessionResourceReleaseCommand(ctx, n1Msg, list)
 		if err != nil {
 			return fmt.Errorf("error sending pdu session resource release command: %s", err)
 		}
@@ -71,7 +71,7 @@ func forward5GSMMessageToSMF(
 	}
 
 	if n1Msg != nil {
-		err := ue.RanUe.SendDownlinkNasTransport(ctx, n1Msg, nil)
+		err := ue.RanUe().SendDownlinkNasTransport(ctx, n1Msg, nil)
 		if err != nil {
 			return fmt.Errorf("error sending downlink nas transport: %s", err)
 		}
@@ -111,7 +111,7 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 		case nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession:
 			ue.Log.Warn("Emergency PDU Session is not supported")
 
-			err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
+			err := message.SendDLNASTransport(ctx, ue.RanUe(), nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %s", err)
 			}
@@ -165,7 +165,7 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 			list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
 			send.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, n2Rsp)
 
-			err = ue.RanUe.SendPDUSessionResourceReleaseCommand(ctx, nil, list)
+			err = ue.RanUe().SendPDUSessionResourceReleaseCommand(ctx, nil, list)
 			if err != nil {
 				return fmt.Errorf("error sending pdu session resource release command: %s", err)
 			}
@@ -180,7 +180,7 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 
 			ue.Log.Error("S-NSSAI is not allowed for access type", zap.Any("snssai", smContext.Snssai), zap.Uint8("pduSessionID", pduSessionID))
 
-			err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
+			err := message.SendDLNASTransport(ctx, ue.RanUe(), nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %s", err)
 			}
@@ -237,7 +237,7 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 			}
 
 			if errResponse != nil {
-				err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, errResponse, pduSessionID, 0)
+				err := message.SendDLNASTransport(ctx, ue.RanUe(), nasMessage.PayloadContainerTypeN1SMInfo, errResponse, pduSessionID, 0)
 				if err != nil {
 					return fmt.Errorf("error sending downlink nas transport: %s", err)
 				}
@@ -254,7 +254,7 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 		case nasMessage.ULNASTransportRequestTypeModificationRequest:
 			fallthrough
 		case nasMessage.ULNASTransportRequestTypeExistingPduSession:
-			err := message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
+			err := message.SendDLNASTransport(ctx, ue.RanUe(), nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
 			if err != nil {
 				return fmt.Errorf("error sending downlink nas transport: %s", err)
 			}

@@ -47,7 +47,7 @@ func sendServiceAccept(
 	errCause []uint8,
 	supportedGUAMI *models.Guami,
 ) error {
-	if ue.RanUe.UeContextRequest {
+	if ue.RanUe().UeContextRequest {
 		// update Kgnb/Kn3iwf
 		err := ue.UpdateSecurityContext()
 		if err != nil {
@@ -59,9 +59,9 @@ func sendServiceAccept(
 			return fmt.Errorf("error building service accept message: %v", err)
 		}
 
-		ue.RanUe.SentInitialContextSetupRequest = true
+		ue.RanUe().SentInitialContextSetupRequest = true
 
-		err = ue.RanUe.SendInitialContextSetupRequest(
+		err = ue.RanUe().SendInitialContextSetupRequest(
 			ctx,
 			ue.Ambr.Uplink,
 			ue.Ambr.Downlink,
@@ -86,7 +86,7 @@ func sendServiceAccept(
 			return fmt.Errorf("error building service accept message: %v", err)
 		}
 
-		err = ue.RanUe.SendPDUSessionResourceSetupRequest(
+		err = ue.RanUe().SendPDUSessionResourceSetupRequest(
 			ctx,
 			ue.Ambr.Uplink,
 			ue.Ambr.Downlink,
@@ -99,7 +99,7 @@ func sendServiceAccept(
 
 		ue.Log.Info("sent service accept")
 	} else {
-		err := message.SendServiceAccept(ctx, ue.RanUe, pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
+		err := message.SendServiceAccept(ctx, ue.RanUe(), pDUSessionStatus, reactivationResult, errPduSessionID, errCause)
 		if err != nil {
 			return fmt.Errorf("error sending service accept: %v", err)
 		}
@@ -170,15 +170,15 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 		ue.Log.Warn("No security context", logger.SUPI(ue.Supi.String()))
 		ue.SecurityContextAvailable = false
 
-		err := message.SendServiceReject(ctx, ue.RanUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+		err := message.SendServiceReject(ctx, ue.RanUe(), nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		if err != nil {
 			return fmt.Errorf("error sending service reject: %v", err)
 		}
 
 		ue.Log.Info("sent service reject")
-		ue.RanUe.ReleaseAction = amf.UeContextN2NormalRelease
+		ue.RanUe().ReleaseAction = amf.UeContextN2NormalRelease
 
-		err = ue.RanUe.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		err = ue.RanUe().SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}
@@ -241,7 +241,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 						errPduSessionID = append(errPduSessionID, pduSessionID)
 						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
 						errCause = append(errCause, cause)
-					} else if ue.RanUe.UeContextRequest {
+					} else if ue.RanUe().UeContextRequest {
 						send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
 					} else {
 						send.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID, smContext.Snssai, nil, binaryDataN2SmInformation)
@@ -288,7 +288,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 					return fmt.Errorf("error sending service accept: %v", err)
 				}
 
-				err = message.SendDLNASTransport(ctx, ue.RanUe, nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
+				err = message.SendDLNASTransport(ctx, ue.RanUe(), nasMessage.PayloadContainerTypeN1SMInfo, n1Msg, requestData.PduSessionID, 0)
 				if err != nil {
 					return fmt.Errorf("error sending downlink nas transport message: %v", err)
 				}
@@ -314,7 +314,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 					}
 				}
 
-				if ue.RanUe.UeContextRequest {
+				if ue.RanUe().UeContextRequest {
 					send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)
 				} else {
 					send.AppendPDUSessionResourceSetupListSUReq(&suList, requestData.PduSessionID, requestData.SNssai, nasPdu, n2Info)

@@ -35,7 +35,7 @@ func TestHandleSecurityModeReject_T3560Stopped_UEContextReleased(t *testing.T) {
 	}
 
 	ue.SecurityContextAvailable = true
-	ue.RanUe.ReleaseAction = amf.UeContextN2NormalRelease
+	ue.RanUe().ReleaseAction = amf.UeContextN2NormalRelease
 	ue.ForceState(amf.SecurityMode)
 	ue.T3560 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 

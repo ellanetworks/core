@@ -153,7 +153,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	amfUe := sourceUe.AmfUe
+	amfUe := sourceUe.AmfUe()
 	if amfUe == nil {
 		logger.WithTrace(ctx, ran.Log).Error("Cannot find amfUE from sourceUE")
 		return
@@ -178,7 +178,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		sourceUe.AmfUe.SetOnGoing(amf.OnGoingProcedureNothing)
+		sourceUe.AmfUe().SetOnGoing(amf.OnGoingProcedureNothing)
 
 		err := sourceUe.SendHandoverPreparationFailure(ctx, *cause, nil)
 		if err != nil {
@@ -234,7 +234,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		sourceUe.AmfUe.SetOnGoing(amf.OnGoingProcedureNothing)
+		sourceUe.AmfUe().SetOnGoing(amf.OnGoingProcedureNothing)
 
 		err := sourceUe.SendHandoverPreparationFailure(ctx, *cause, nil)
 		if err != nil {
@@ -274,11 +274,11 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	err = targetUe.SendHandoverRequest(
 		ctx,
 		sourceUe.HandOverType,
-		targetUe.AmfUe.Ambr.Uplink,
-		targetUe.AmfUe.Ambr.Downlink,
-		targetUe.AmfUe.UESecurityCapability,
-		targetUe.AmfUe.NCC,
-		targetUe.AmfUe.NH,
+		targetUe.AmfUe().Ambr.Uplink,
+		targetUe.AmfUe().Ambr.Downlink,
+		targetUe.AmfUe().UESecurityCapability,
+		targetUe.AmfUe().NCC,
+		targetUe.AmfUe().NH,
 		*cause,
 		pduSessionReqList,
 		*sourceToTargetTransparentContainer,
