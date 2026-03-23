@@ -60,7 +60,7 @@ func TestHandleULNASTransport_WrongState_Error(t *testing.T) {
 				t.Fatalf("could not build UE and radio: %v", err)
 			}
 
-			ue.SetState(tc)
+			ue.ForceState(tc)
 
 			msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, []byte{0x01}, pduSessionIDPtr(1))
 
@@ -78,7 +78,7 @@ func TestHandleULNASTransport_MacFailed_Error(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.SetState(amfContext.Registered)
+	ue.ForceState(amfContext.Registered)
 	ue.MacFailed = true
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, []byte{0x01}, pduSessionIDPtr(1))
@@ -97,7 +97,7 @@ func TestHandleULNASTransport_PayloadContainerTypeSMS_Error(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.SetState(amfContext.Registered)
+	ue.ForceState(amfContext.Registered)
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeSMS, []byte{0x01}, nil)
 
@@ -113,7 +113,7 @@ func TestHandleULNASTransport_PayloadContainerTypeLPP_Error(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.SetState(amfContext.Registered)
+	ue.ForceState(amfContext.Registered)
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeLPP, []byte{0x01}, nil)
 
@@ -129,7 +129,7 @@ func TestHandleULNASTransport_PayloadContainerTypeSOR_Error(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.SetState(amfContext.Registered)
+	ue.ForceState(amfContext.Registered)
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeSOR, []byte{0x01}, nil)
 
@@ -145,7 +145,7 @@ func TestHandleULNASTransport_PayloadContainerTypeMultiplePayload_Error(t *testi
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.SetState(amfContext.Registered)
+	ue.ForceState(amfContext.Registered)
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeMultiplePayload, []byte{0x01}, nil)
 
@@ -161,7 +161,7 @@ func TestHandleULNASTransport_PayloadContainerTypeUEPolicy_NoError(t *testing.T)
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.SetState(amfContext.Registered)
+	ue.ForceState(amfContext.Registered)
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeUEPolicy, []byte{0x01}, nil)
 
@@ -177,7 +177,7 @@ func TestHandleULNASTransport_PayloadContainerTypeUEParameterUpdate_NoError(t *t
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.SetState(amfContext.Registered)
+	ue.ForceState(amfContext.Registered)
 
 	// UPU ACK: first byte 0x01, then 16 bytes of MAC = 17 bytes total
 	upuAck := make([]byte, 17)
@@ -1098,7 +1098,7 @@ func TestTransport5GSMMessage_NoSmContext_NilRequestType_Panic(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.SetState(amfContext.Registered)
+	ue.ForceState(amfContext.Registered)
 
 	// Ensure no SM context exists for PDU session 5
 	_, exists := ue.SmContextFindByPDUSessionID(5)

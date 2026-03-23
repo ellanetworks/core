@@ -21,7 +21,7 @@ func TestHandleRegeristrationRequest(t *testing.T) {
 				t.Fatalf("could not build test ue: %v", err)
 			}
 
-			ue.State = tc
+			ue.ForceState(tc)
 
 			expected := fmt.Sprintf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", tc)
 
@@ -60,7 +60,7 @@ func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
 		t.Fatalf("could not add UE to AMF pool: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	_ = ue.CreateSmContext(1, "testref1", &snssai)
 	_ = ue.CreateSmContext(2, "testref2", &snssai)
 	_ = ue.CreateSmContext(3, "testref3", &snssai)
@@ -90,7 +90,7 @@ func TestHandleDeregistrationRequest_NilRanUE(t *testing.T) {
 		t.Fatalf("could not build test ue: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.RanUe = nil
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
@@ -115,7 +115,7 @@ func TestHandleDeregistrationRequest_NotSwitchOff_DeregistrationAccept(t *testin
 		t.Fatalf("could not build test ue: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
@@ -156,7 +156,7 @@ func TestHandleDeregistrationRequest_SwitchOff_NoDeregistrationAccept(t *testing
 		t.Fatalf("could not build test ue: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 	m.DeregistrationRequestUEOriginatingDeregistration.SetSwitchOff(1)
@@ -181,7 +181,7 @@ func TestHandleDeregistrationRequest_Non3GPP_DeregistrationAccept(t *testing.T) 
 		t.Fatalf("could not build test ue: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 	m.DeregistrationRequestUEOriginatingDeregistration.SetAccessType(nasMessage.AccessTypeNon3GPP)

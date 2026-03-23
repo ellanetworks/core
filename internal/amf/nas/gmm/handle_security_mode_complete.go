@@ -12,8 +12,8 @@ import (
 
 // TS 33.501 6.7.2
 func handleSecurityModeComplete(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.SecurityModeComplete) error {
-	if ue.State != amfContext.SecurityMode {
-		return fmt.Errorf("state mismatch: receive Security Mode Complete message in state %s", ue.State)
+	if state := ue.GetState(); state != amfContext.SecurityMode {
+		return fmt.Errorf("state mismatch: receive Security Mode Complete message in state %s", state)
 	}
 
 	if ue.MacFailed {

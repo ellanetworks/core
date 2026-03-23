@@ -7,8 +7,8 @@ import (
 )
 
 func handleConfigurationUpdateComplete(amf *amfContext.AMF, ue *amfContext.AmfUe) error {
-	if ue.State != amfContext.Registered {
-		return fmt.Errorf("state mismatch: receive Configuration Update Complete message in state %s", ue.State)
+	if state := ue.GetState(); state != amfContext.Registered {
+		return fmt.Errorf("state mismatch: receive Configuration Update Complete message in state %s", state)
 	}
 
 	if ue.MacFailed {

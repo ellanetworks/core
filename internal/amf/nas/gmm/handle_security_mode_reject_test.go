@@ -16,7 +16,7 @@ func TestHandleSecurityModeReject_NotSecurityMode(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
 			ue := amfContext.NewAmfUe()
-			ue.State = tc
+			ue.ForceState(tc)
 
 			expected := fmt.Sprintf("state mismatch: receive Security Mode Reject message in state %s", tc)
 
@@ -36,7 +36,7 @@ func TestHandleSecurityModeReject_T3560Stopped_UEContextReleased(t *testing.T) {
 
 	ue.SecurityContextAvailable = true
 	ue.RanUe.ReleaseAction = amfContext.UeContextN2NormalRelease
-	ue.State = amfContext.SecurityMode
+	ue.ForceState(amfContext.SecurityMode)
 	ue.T3560 = amfContext.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 
 	m := buildTestSecurityModeReject()
@@ -50,8 +50,8 @@ func TestHandleSecurityModeReject_T3560Stopped_UEContextReleased(t *testing.T) {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
 	}
 
-	if ue.State != amfContext.Deregistered {
-		t.Fatalf("expected UE to be deregistered but was: %v", ue.State)
+	if ue.GetState() != amfContext.Deregistered {
+		t.Fatalf("expected UE to be deregistered but was: %v", ue.GetState())
 	}
 
 	if ue.SecurityContextAvailable {

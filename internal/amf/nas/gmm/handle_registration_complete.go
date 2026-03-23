@@ -15,7 +15,7 @@ func handleRegistrationComplete(ctx context.Context, amf *amfContext.AMF, ue *am
 		return fmt.Errorf("state mismatch: receive Registration Complete message in state %s", ue.GetState())
 	}
 
-	ue.SetState(amfContext.Registered)
+	ue.TransitionTo(amfContext.Registered)
 
 	if ue.T3550 != nil {
 		ue.T3550.Stop()

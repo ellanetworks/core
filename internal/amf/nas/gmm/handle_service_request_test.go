@@ -50,7 +50,10 @@ func TestHandleServiceRequest_WrongStateError(t *testing.T) {
 		t.Run(string(tc), func(t *testing.T) {
 			expected := fmt.Sprintf("state mismatch: receive Service Request message in state %s", tc)
 
-			err := handleServiceRequest(t.Context(), amfContext.New(nil, nil, nil), &amfContext.AmfUe{State: tc}, nil)
+			ue := amfContext.NewAmfUe()
+			ue.ForceState(tc)
+
+			err := handleServiceRequest(t.Context(), amfContext.New(nil, nil, nil), ue, nil)
 			if err == nil || err.Error() != expected {
 				t.Fatalf("expected error: %s, got: %v", expected, err)
 			}
@@ -84,7 +87,7 @@ func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T)
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.SecurityContextAvailable = false
 
 	m := buildTestServiceRequest()
@@ -142,7 +145,7 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.SecurityContextAvailable = true
 	ue.MacFailed = true
 
@@ -205,7 +208,7 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
@@ -341,7 +344,7 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.SecurityContextAvailable = true
 	ue.MacFailed = false
 	ue.T3513 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
@@ -411,7 +414,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 	}
 
 	ue.T3565 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
@@ -493,7 +496,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 	}
 
 	ue.T3565 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
@@ -579,7 +582,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 	ue.T3513 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
@@ -672,7 +675,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 	ue.T3513 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.Guti = mustTestGuti("001", "01", "cafe42", 0x00000001)
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
@@ -735,7 +738,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 	ue.T3513 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
@@ -867,7 +870,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.T3513 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
@@ -1004,7 +1007,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.T3513 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
@@ -1149,7 +1152,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	ue.T3513 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
@@ -1283,7 +1286,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 	ue.T3513 = amfContext.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.SetOnGoing(amfContext.OnGoingProcedurePaging)
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
@@ -1459,7 +1462,8 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 	}
 
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
-	ue.State = amfContext.Registered
+
+	ue.ForceState(amfContext.Registered)
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
@@ -1523,7 +1527,8 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 	}
 
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
-	ue.State = amfContext.Registered
+
+	ue.ForceState(amfContext.Registered)
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1

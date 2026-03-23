@@ -9,7 +9,7 @@ import (
 )
 
 func handleStatus5GMM(ue *amfContext.AmfUe, msg *nasMessage.Status5GMM) error {
-	if ue.State == amfContext.Deregistered {
+	if ue.GetState() == amfContext.Deregistered {
 		return fmt.Errorf("UE is in Deregistered state, ignore Status 5GMM message")
 	}
 

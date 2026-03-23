@@ -136,7 +136,7 @@ func TestCountRegisteredSubscribers(t *testing.T) {
 	}
 
 	addTestUE(t, amf, "001010000000007", func(ue *amfContext.AmfUe) {
-		ue.SetState(amfContext.Registered)
+		ue.ForceState(amfContext.Registered)
 	})
 
 	addTestUE(t, amf, "001010000000008", func(ue *amfContext.AmfUe) {
@@ -199,7 +199,7 @@ func TestGetUESnapshot(t *testing.T) {
 	now := time.Now()
 
 	addTestUE(t, amf, "001010000000011", func(ue *amfContext.AmfUe) {
-		ue.SetState(amfContext.Registered)
+		ue.ForceState(amfContext.Registered)
 		ue.LastSeenAt = now
 	})
 

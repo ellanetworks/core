@@ -238,7 +238,10 @@ func TestHandleIdentityResponse_InvalidStateError(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
-			err := handleIdentityResponse(context.TODO(), amfContext.New(nil, nil, nil), &amfContext.AmfUe{State: tc}, &nasMessage.IdentityResponse{})
+			ue := amfContext.NewAmfUe()
+			ue.ForceState(tc)
+
+			err := handleIdentityResponse(context.TODO(), amfContext.New(nil, nil, nil), ue, &nasMessage.IdentityResponse{})
 			if err == nil {
 				t.Fatalf("expected an state mismatch error, got no error")
 			}
@@ -269,7 +272,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 	}
 
 	ue.Suci = ""
-	ue.State = amfContext.Authentication
+	ue.ForceState(amfContext.Authentication)
 	ue.MacFailed = false
 	ue.Tai = ue.RanUe.Tai
 
@@ -325,7 +328,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 	}
 
 	ue.Suci = ""
-	ue.State = amfContext.Authentication
+	ue.ForceState(amfContext.Authentication)
 	ue.MacFailed = false
 	ue.Tai = models.Tai{}
 
@@ -372,7 +375,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 
 	ue.Suci = "testsuci"
 	ue.Supi = supi
-	ue.State = amfContext.Authentication
+	ue.ForceState(amfContext.Authentication)
 	ue.MacFailed = false
 	ue.Tai = ue.RanUe.Tai
 	ue.SecurityContextAvailable = true
@@ -463,7 +466,7 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 			ue.Suci = "testsuci"
 			ue.Supi = supi
 			ue.Pei = "testpei"
-			ue.State = amfContext.ContextSetup
+			ue.ForceState(amfContext.ContextSetup)
 			ue.MacFailed = false
 			ue.Tai = ue.RanUe.Tai
 			ue.SecurityContextAvailable = true
@@ -553,7 +556,7 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 			ue.Suci = "testsuci"
 			ue.Supi = supi
 			ue.Pei = "testpei"
-			ue.State = amfContext.ContextSetup
+			ue.ForceState(amfContext.ContextSetup)
 			ue.MacFailed = false
 			ue.Tai = ue.RanUe.Tai
 			ue.SecurityContextAvailable = true
@@ -588,8 +591,8 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 				t.Fatalf("should not have sent a Downlink NAS Transport message")
 			}
 
-			if ue.State != amfContext.Deregistered {
-				t.Fatalf("ue should have transitioned to Deregistered state, but got: %v", ue.State)
+			if ue.GetState() != amfContext.Deregistered {
+				t.Fatalf("ue should have transitioned to Deregistered state, but got: %v", ue.GetState())
 			}
 		})
 	}
@@ -615,7 +618,7 @@ func TestHandleIdentityResponse_IdentityError(t *testing.T) {
 				t.Fatalf("could not create UE and radio: %v", err)
 			}
 
-			ue.State = tc
+			ue.ForceState(tc)
 
 			m := buildTestIdentityResponseMessage()
 			m.SetMobileIdentityContents([]uint8{})

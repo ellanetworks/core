@@ -303,7 +303,7 @@ func (amf *AMF) exportAmfUe(ue *AmfUe) AmfUeExport {
 			Suci:    ue.Suci,
 		},
 		State: UEStateExport{
-			GMMState:                 string(ue.State),
+			GMMState:                 string(ue.state),
 			OngoingProcedure:         string(ue.OnGoing),
 			SecurityContextAvailable: ue.SecurityContextAvailable,
 			MacFailed:                ue.MacFailed,

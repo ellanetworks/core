@@ -15,7 +15,7 @@ func TestHandleConfigurationUpdateComplete_NotRegisteredError(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
 			ue := amfContext.NewAmfUe()
-			ue.State = tc
+			ue.ForceState(tc)
 
 			expected := fmt.Sprintf("state mismatch: receive Configuration Update Complete message in state %s", tc)
 
@@ -31,7 +31,7 @@ func TestHandleConfigurationUpdateComplete_NotRegisteredError(t *testing.T) {
 
 func TestHandleConfigurationUpdateComplete_MacFailed(t *testing.T) {
 	ue := amfContext.NewAmfUe()
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.MacFailed = true
 
 	expected := "NAS message integrity check failed"
@@ -46,7 +46,7 @@ func TestHandleConfigurationUpdateComplete_MacFailed(t *testing.T) {
 
 func TestHandleConfigurationUpdateComplete_T3555Stopped_OldGutiFreed(t *testing.T) {
 	ue := amfContext.NewAmfUe()
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.T3555 = amfContext.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.OldGuti = mustTestGuti("001", "01", "cafe42", 0x12345678)
 	ue.OldTmsi = mustValidTestTmsi(0x12345678)

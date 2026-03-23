@@ -41,7 +41,8 @@ func TestHandleGmmMessage_DispatchesToConfigurationUpdateComplete(t *testing.T) 
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
+
 	amf := amfContext.New(nil, nil, nil)
 
 	m := nas.NewGmmMessage()
@@ -68,7 +69,8 @@ func TestHandleGmmMessage_DispatchesToStatus5GMM(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
+
 	amf := amfContext.New(nil, nil, nil)
 
 	m := buildTestStatus5gmm()

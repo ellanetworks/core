@@ -13,7 +13,7 @@ func TestHandleDeregistrationAccept_T3522Stopped_UEContextReleaseCommand(t *test
 		t.Fatalf("could not build test UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.T3522 = amfContext.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 
 	err = handleDeregistrationAccept(t.Context(), ue)
@@ -21,8 +21,8 @@ func TestHandleDeregistrationAccept_T3522Stopped_UEContextReleaseCommand(t *test
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if ue.State != amfContext.Deregistered {
-		t.Fatalf("expected UE to be deregistered, but was: %s", ue.State)
+	if ue.GetState() != amfContext.Deregistered {
+		t.Fatalf("expected UE to be deregistered, but was: %s", ue.GetState())
 	}
 
 	if ue.T3522 != nil {

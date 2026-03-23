@@ -34,7 +34,7 @@ func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
 
 	// Create a UE in Registered state with an empty SmContextList.
 	amfUe := amfContext.NewAmfUe()
-	amfUe.SetState(amfContext.Registered)
+	amfUe.ForceState(amfContext.Registered)
 	amfUe.Log = logger.AmfLog
 
 	ranUe := &amfContext.RanUe{

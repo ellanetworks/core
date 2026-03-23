@@ -91,7 +91,7 @@ func TestDeregister_DoesNotHoldLockDuringSmfRelease(t *testing.T) {
 	relockCount := 0
 	fakeSmf.onRelease = func(_ context.Context, _ string) error {
 		ue.Mutex.Lock()
-		_ = ue.State
+		_ = ue.state
 		ue.Mutex.Unlock()
 
 		relockCount++
@@ -113,8 +113,8 @@ func TestDeregister_DoesNotHoldLockDuringSmfRelease(t *testing.T) {
 		t.Fatal("Deregister appears blocked; likely held ue.Mutex while calling SMF")
 	}
 
-	if ue.State != Deregistered {
-		t.Fatalf("expected state %q, got %q", Deregistered, ue.State)
+	if ue.state != Deregistered {
+		t.Fatalf("expected state %q, got %q", Deregistered, ue.state)
 	}
 
 	if len(ue.SmContextList) != 0 {

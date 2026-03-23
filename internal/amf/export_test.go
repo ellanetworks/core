@@ -196,7 +196,7 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 		ue.Pei = "imei-123456789012345"
 		ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 		ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
-		ue.State = amfContext.Registered
+		ue.ForceState(amfContext.Registered)
 		ue.OnGoing = amfContext.OnGoingProcedureNothing
 		ue.SecurityContextAvailable = true
 		ue.CipheringAlg = security.AlgCiphering128NEA2

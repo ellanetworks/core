@@ -205,13 +205,15 @@ func handleRegistrationRequestMessage(ctx context.Context, amf *amfContext.AMF, 
 }
 
 func handleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nas.GmmMessage) error {
-	switch ue.State {
+	state := ue.GetState()
+
+	switch state {
 	case amfContext.Deregistered, amfContext.Registered:
 		if err := handleRegistrationRequestMessage(ctx, amf, ue, msg.RegistrationRequest); err != nil {
 			return fmt.Errorf("failed handling registration request: %v", err)
 		}
 
-		ue.State = amfContext.Authentication
+		ue.TransitionTo(amfContext.Authentication)
 
 		pass, err := authenticationProcedure(ctx, amf, ue)
 		if err != nil {
@@ -250,7 +252,7 @@ func handleRegistrationRequest(ctx context.Context, amf *amfContext.AMF, ue *amf
 
 		return nil
 	default:
-		return fmt.Errorf("state mismatch: receive Registration Request message in state %s", ue.State)
+		return fmt.Errorf("state mismatch: receive Registration Request message in state %s", state)
 	}
 
 	return nil

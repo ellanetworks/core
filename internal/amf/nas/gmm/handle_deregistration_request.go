@@ -13,8 +13,8 @@ import (
 
 // TS 23.502 4.2.2.3
 func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, ue *amfContext.AmfUe, msg *nasMessage.DeregistrationRequestUEOriginatingDeregistration) error {
-	if ue.State != amfContext.Registered {
-		return fmt.Errorf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", ue.State)
+	if state := ue.GetState(); state != amfContext.Registered {
+		return fmt.Errorf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", state)
 	}
 
 	defer ue.Deregister(ctx)

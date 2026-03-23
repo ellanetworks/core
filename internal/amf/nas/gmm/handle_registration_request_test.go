@@ -497,7 +497,7 @@ func TestHandleRegistrationRequest_UEStateContextSetup_ResetToDeregistered(t *te
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.ContextSetup
+	ue.ForceState(amfContext.ContextSetup)
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
@@ -513,8 +513,8 @@ func TestHandleRegistrationRequest_UEStateContextSetup_ResetToDeregistered(t *te
 		t.Fatalf("should not have sent a Downlink NAS Transport message")
 	}
 
-	if ue.State != amfContext.Deregistered {
-		t.Fatalf("state should be deregistered, got: %v", ue.State)
+	if ue.GetState() != amfContext.Deregistered {
+		t.Fatalf("state should be deregistered, got: %v", ue.GetState())
 	}
 }
 
@@ -537,7 +537,7 @@ func TestHandleRegistrationRequest_UEStateAuthentication_Error(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Authentication
+	ue.ForceState(amfContext.Authentication)
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
 	if err != nil {
@@ -587,7 +587,7 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	ue.MacFailed = false
-	ue.State = amfContext.SecurityMode
+	ue.ForceState(amfContext.SecurityMode)
 	ue.T3560 = amfContext.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)

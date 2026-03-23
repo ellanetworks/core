@@ -12,7 +12,7 @@ func contextSetup(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe
 	ctx, span := tracer.Start(ctx, "nas/context_setup")
 	defer span.End()
 
-	ue.State = amfContext.ContextSetup
+	ue.TransitionTo(amfContext.ContextSetup)
 	ue.RegistrationRequest = msg
 
 	switch ue.RegistrationType5GS {

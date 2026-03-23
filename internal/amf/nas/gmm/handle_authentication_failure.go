@@ -12,8 +12,8 @@ import (
 )
 
 func handleAuthenticationFailure(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.AuthenticationFailure) error {
-	if ue.State != amfContext.Authentication {
-		return fmt.Errorf("state mismatch: receive Authentication Failure message in state %s", ue.State)
+	if state := ue.GetState(); state != amfContext.Authentication {
+		return fmt.Errorf("state mismatch: receive Authentication Failure message in state %s", state)
 	}
 
 	if ue.T3560 != nil {

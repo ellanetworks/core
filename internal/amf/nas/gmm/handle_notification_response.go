@@ -12,8 +12,8 @@ import (
 
 // TS 24501 5.6.3.2
 func handleNotificationResponse(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe, msg *nasMessage.NotificationResponse) error {
-	if ue.State != amfContext.Registered {
-		return fmt.Errorf("state mismatch: receive Notification Response message in state %s", ue.State)
+	if state := ue.GetState(); state != amfContext.Registered {
+		return fmt.Errorf("state mismatch: receive Notification Response message in state %s", state)
 	}
 
 	if ue.MacFailed {

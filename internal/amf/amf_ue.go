@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"reflect"
+	"slices"
 	"sync"
 	"time"
 
@@ -48,6 +49,14 @@ const (
 	Registered     StateType = "Registered"
 )
 
+var validTransitions = map[StateType][]StateType{
+	Deregistered:   {Authentication},
+	Authentication: {SecurityMode, Deregistered},
+	SecurityMode:   {ContextSetup, Deregistered},
+	ContextSetup:   {Registered, Deregistered},
+	Registered:     {Authentication, Deregistered},
+}
+
 type SmContext struct {
 	Ref                string
 	Snssai             *models.Snssai
@@ -58,7 +67,7 @@ type AmfUe struct {
 	Mutex sync.Mutex
 
 	/* Gmm State */
-	State StateType
+	state StateType
 	/* Registration procedure related context */
 	RegistrationType5GS             uint8
 	IdentityTypeUsedForRegistration uint8
@@ -143,7 +152,7 @@ type AmfUe struct {
 
 func NewAmfUe() *AmfUe {
 	return &AmfUe{
-		State:            Deregistered,
+		state:            Deregistered,
 		RegistrationArea: make([]models.Tai, 0),
 		OnGoing:          OnGoingProcedureNothing,
 		SmContextList:    make(map[uint8]*SmContext),
@@ -154,14 +163,51 @@ func (ue *AmfUe) GetState() StateType {
 	ue.Mutex.Lock()
 	defer ue.Mutex.Unlock()
 
-	return ue.State
+	return ue.state
 }
 
-func (ue *AmfUe) SetState(s StateType) {
+// ForceState sets the UE state unconditionally, bypassing transition validation.
+// It exists for test precondition setup in external packages. Production code
+// must use TransitionTo.
+func (ue *AmfUe) ForceState(s StateType) {
 	ue.Mutex.Lock()
 	defer ue.Mutex.Unlock()
 
-	ue.State = s
+	ue.state = s
+}
+
+func (ue *AmfUe) TransitionTo(target StateType) {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	ue.transitionToLocked(target)
+}
+
+// transitionToLocked enforces allowed state transitions and must only be called while ue.Mutex is held.
+func (ue *AmfUe) transitionToLocked(target StateType) {
+	if ue.state == target {
+		return
+	}
+
+	if slices.Contains(validTransitions[ue.state], target) {
+		if ue.Log != nil {
+			ue.Log.Debug("state transition",
+				zap.String("from", string(ue.state)),
+				zap.String("to", string(target)))
+		}
+
+		ue.state = target
+
+		return
+	}
+
+	if ue.Log != nil {
+		ue.Log.Error("invalid state transition",
+			zap.String("from", string(ue.state)),
+			zap.String("to", string(target)))
+	}
+
+	ue.state = Deregistered
 }
 
 func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
@@ -282,7 +328,7 @@ func (ue *AmfUe) Snapshot() UESnapshot {
 	defer ue.Mutex.Unlock()
 
 	snap := UESnapshot{
-		State:              ue.State,
+		State:              ue.state,
 		Pei:                ue.Pei,
 		CipheringAlgorithm: ue.cipheringAlgName(),
 		IntegrityAlgorithm: ue.integrityAlgName(),
@@ -821,7 +867,7 @@ func (ue *AmfUe) Deregister(ctx context.Context) {
 		ue.mobileReachableTimer = nil
 	}
 
-	ue.State = Deregistered // direct write: ue.Mutex is already held
+	ue.transitionToLocked(Deregistered)
 
 	// Copy refs and clear map while protected by UE lock.
 	smContextRefs := make([]string, 0, len(ue.SmContextList))

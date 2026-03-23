@@ -17,10 +17,9 @@ import (
 )
 
 func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *testing.T) {
-	ue := &amfContext.AmfUe{
-		State:             amfContext.Authentication,
-		AuthenticationCtx: &ausf.AuthResult{Rand: "DEADBEEF"},
-	}
+	ue := amfContext.NewAmfUe()
+	ue.ForceState(amfContext.Authentication)
+	ue.AuthenticationCtx = &ausf.AuthResult{Rand: "DEADBEEF"}
 
 	msg := &nasMessage.AuthenticationResponse{
 		AuthenticationResponseParameter: nil,
@@ -42,17 +41,32 @@ func TestHandleAuthenticationResponse_PreconditionErrors(t *testing.T) {
 	testcases := []TestCase{
 		{
 			"wrong UE state",
-			&amfContext.AmfUe{State: amfContext.Deregistered},
+			func() *amfContext.AmfUe {
+				ue := amfContext.NewAmfUe()
+
+				return ue
+			}(),
 			fmt.Errorf("state mismatch: receive Authentication Response message in state %s", amfContext.Deregistered),
 		},
 		{
 			"nil authentication context",
-			&amfContext.AmfUe{State: amfContext.Authentication, AuthenticationCtx: nil},
+			func() *amfContext.AmfUe {
+				ue := amfContext.NewAmfUe()
+				ue.ForceState(amfContext.Authentication)
+
+				return ue
+			}(),
 			fmt.Errorf("ue Authentication Context is nil"),
 		},
 		{
 			"invalid rand in UE context",
-			&amfContext.AmfUe{State: amfContext.Authentication, AuthenticationCtx: &ausf.AuthResult{Rand: "Not hex"}},
+			func() *amfContext.AmfUe {
+				ue := amfContext.NewAmfUe()
+				ue.ForceState(amfContext.Authentication)
+				ue.AuthenticationCtx = &ausf.AuthResult{Rand: "Not hex"}
+
+				return ue
+			}(),
 			fmt.Errorf("failed to decode RAND: encoding/hex: invalid byte: U+004E 'N'"),
 		},
 	}
@@ -73,7 +87,7 @@ func TestHandleAuthenticationResponse_TimerT3560Stopped(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Authentication
+	ue.ForceState(amfContext.Authentication)
 	ue.AuthenticationCtx = &ausf.AuthResult{
 		Rand:      "DEADBEEF",
 		HxresStar: "not a match",
@@ -115,7 +129,7 @@ func TestHandleAuthenticationResponse_hResStartMismatch(t *testing.T) {
 				t.Fatalf("could not create UE and radio: %v", err)
 			}
 
-			ue.State = amfContext.Authentication
+			ue.ForceState(amfContext.Authentication)
 			ue.AuthenticationCtx = &ausf.AuthResult{
 				Rand:      "DEADBEEF",
 				HxresStar: "not a match",
@@ -198,7 +212,7 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 				t.Fatalf("could not create UE and radio: %v", err)
 			}
 
-			ue.State = amfContext.Authentication
+			ue.ForceState(amfContext.Authentication)
 			ue.AuthenticationCtx = &ausf.AuthResult{
 				Rand:      "DEADBEEF",
 				HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
@@ -256,7 +270,7 @@ func TestHandleAuthenticationResponse_DeriveKamf_Failure(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Authentication
+	ue.ForceState(amfContext.Authentication)
 	ue.AuthenticationCtx = &ausf.AuthResult{
 		Rand:      "DEADBEEF",
 		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
@@ -296,7 +310,7 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Authentication
+	ue.ForceState(amfContext.Authentication)
 	ue.AuthenticationCtx = &ausf.AuthResult{
 		Rand:      "DEADBEEF",
 		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",

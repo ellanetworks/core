@@ -20,7 +20,7 @@ func TestHandleNotificationResponse_NotRegisteredError(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
 			ue := amfContext.NewAmfUe()
-			ue.State = tc
+			ue.ForceState(tc)
 
 			expected := fmt.Sprintf("state mismatch: receive Notification Response message in state %s", tc)
 
@@ -34,7 +34,7 @@ func TestHandleNotificationResponse_NotRegisteredError(t *testing.T) {
 
 func TestHandleNotificationResponse_MacFailed(t *testing.T) {
 	ue := amfContext.NewAmfUe()
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.MacFailed = true
 
 	expected := "NAS message integrity check failed"
@@ -61,7 +61,7 @@ func TestHandleNotificationResponse_T3565Stopped_NoPDUSessionStatus_NoSmContextR
 		t.Fatalf("could not build test UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.T3565 = amfContext.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 
 	m := buildTestNotifationResponse()
@@ -96,7 +96,7 @@ func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextRelea
 		t.Fatalf("could not build test UE and radio: %v", err)
 	}
 
-	ue.State = amfContext.Registered
+	ue.ForceState(amfContext.Registered)
 	ue.T3565 = amfContext.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	_ = ue.CreateSmContext(1, "1", &models.Snssai{})
 	_ = ue.CreateSmContext(5, "5", &models.Snssai{})

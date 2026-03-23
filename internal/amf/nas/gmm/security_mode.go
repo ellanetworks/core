@@ -15,7 +15,7 @@ func securityMode(ctx context.Context, amf *amfContext.AMF, ue *amfContext.AmfUe
 	ctx, span := tracer.Start(ctx, "nas/security_mode")
 	defer span.End()
 
-	ue.SetState(amfContext.SecurityMode)
+	ue.TransitionTo(amfContext.SecurityMode)
 
 	ue.Log = ue.Log.With(logger.SUPI(ue.Supi.String()))
 

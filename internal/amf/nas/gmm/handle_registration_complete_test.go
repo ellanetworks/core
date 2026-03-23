@@ -52,7 +52,7 @@ func setupRegistrationCompleteUE(t *testing.T) (*amfContext.AmfUe, *FakeNGAPSend
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	ue.State = amfContext.ContextSetup
+	ue.ForceState(amfContext.ContextSetup)
 	ue.T3550 = amfContext.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.RegistrationRequest = m.RegistrationRequest
 	ue.RegistrationType5GS = 42
@@ -72,7 +72,7 @@ func TestHandleRegistrationComplete_WrongState_Error(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(string(tc), func(t *testing.T) {
 			ue := amfContext.NewAmfUe()
-			ue.State = tc
+			ue.ForceState(tc)
 
 			expected := fmt.Sprintf("state mismatch: receive Registration Complete message in state %s", tc)
 
