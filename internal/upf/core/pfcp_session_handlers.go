@@ -30,7 +30,7 @@ var tracer = otel.Tracer("ella-core/upf")
 type UpfPfcpHandler struct{}
 
 func (u UpfPfcpHandler) HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.SessionEstablishmentRequest) (*message.SessionEstablishmentResponse, error) {
-	return HandlePfcpSessionEstablishmentRequest(ctx, msg)
+	return HandlePfcpSessionEstablishmentRequest(ctx, msg, nil)
 }
 
 func (u UpfPfcpHandler) HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionDeletionRequest) (*message.SessionDeletionResponse, error) {
@@ -38,10 +38,10 @@ func (u UpfPfcpHandler) HandlePfcpSessionDeletionRequest(ctx context.Context, ms
 }
 
 func (u UpfPfcpHandler) HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.SessionModificationRequest) (*message.SessionModificationResponse, error) {
-	return HandlePfcpSessionModificationRequest(ctx, msg)
+	return HandlePfcpSessionModificationRequest(ctx, msg, nil)
 }
 
-func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.SessionEstablishmentRequest) (*message.SessionEstablishmentResponse, error) {
+func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.SessionEstablishmentRequest, filterIndexByPDRID map[uint16]uint32) (*message.SessionEstablishmentResponse, error) {
 	ctx, span := tracer.Start(ctx, "upf/establish_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -175,6 +175,10 @@ func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.Ses
 				return fmt.Errorf("couldn't extract PDR info: %s", err.Error())
 			}
 
+			if filterIndexByPDRID != nil {
+				spdrInfo.PdrInfo.FilterMapIndex = filterIndexByPDRID[pdrID]
+			}
+
 			session.PutPDR(spdrInfo.PdrID, spdrInfo)
 
 			err = applyPDR(spdrInfo, bpfObjects)
@@ -270,7 +274,7 @@ func HandlePfcpSessionDeletionRequest(ctx context.Context, msg *message.SessionD
 	return message.NewSessionDeletionResponse(0, 0, session.SEID, msg.Sequence(), 0, newIeNodeID(conn.nodeID), ie.NewCause(ie.CauseRequestAccepted)), nil
 }
 
-func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.SessionModificationRequest) (*message.SessionModificationResponse, error) {
+func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.SessionModificationRequest, filterIndexByPDRID map[uint16]uint32) (*message.SessionModificationResponse, error) {
 	ctx, span := tracer.Start(ctx, "upf/modify_session",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -513,6 +517,10 @@ func HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.Sess
 			err = pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, qerMap)
 			if err != nil {
 				return fmt.Errorf("couldn't extract PDR info: %s", err.Error())
+			}
+
+			if filterIndexByPDRID != nil {
+				spdrInfo.PdrInfo.FilterMapIndex = filterIndexByPDRID[pdrID]
 			}
 
 			session.PutPDR(spdrInfo.PdrID, spdrInfo)

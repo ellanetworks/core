@@ -5,9 +5,11 @@ package server
 import "github.com/prometheus/client_golang/prometheus"
 
 var (
-	APIRequestsTotal   *prometheus.CounterVec
-	APIRequestDuration *prometheus.HistogramVec
-	APIAuthAttempts    *prometheus.CounterVec
+	APIRequestsTotal       *prometheus.CounterVec
+	APIRequestDuration     *prometheus.HistogramVec
+	APIAuthAttempts        *prometheus.CounterVec
+	APINetworkRulesCreated prometheus.Counter
+	APINetworkRulesDeleted prometheus.Counter
 )
 
 func RegisterMetrics() {
@@ -36,7 +38,23 @@ func RegisterMetrics() {
 		[]string{"type", "result"},
 	)
 
+	APINetworkRulesCreated = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "api_network_rules_created_total",
+			Help: "Total number of network rules created via API",
+		},
+	)
+
+	APINetworkRulesDeleted = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "api_network_rules_deleted_total",
+			Help: "Total number of network rules deleted via API",
+		},
+	)
+
 	prometheus.MustRegister(APIRequestsTotal)
 	prometheus.MustRegister(APIRequestDuration)
 	prometheus.MustRegister(APIAuthAttempts)
+	prometheus.MustRegister(APINetworkRulesCreated)
+	prometheus.MustRegister(APINetworkRulesDeleted)
 }

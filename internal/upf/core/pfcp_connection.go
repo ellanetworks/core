@@ -12,6 +12,11 @@ import (
 
 var connection *PfcpConnection
 
+type filterEntry struct {
+	index    uint32
+	refcount int
+}
+
 type PfcpConnection struct {
 	mu sync.Mutex
 
@@ -22,6 +27,9 @@ type PfcpConnection struct {
 	advertisedN3Address  net.IP
 	BpfObjects           *ebpf.BpfObjects
 	FteIDResourceManager *FteIDResourceManager
+	SdfIndexAllocator    *SdfIndexAllocator
+	filterMu             sync.Mutex
+	filtersByKey         map[string]*filterEntry
 }
 
 func (pc *PfcpConnection) ListSessions() map[uint64]*Session {
@@ -105,6 +113,8 @@ func CreatePfcpConnection(addr string, nodeID string, n3Ip string, advertisedN3I
 		advertisedN3Address:  advertisedN3Addr,
 		BpfObjects:           bpfObjects,
 		FteIDResourceManager: resourceManager,
+		SdfIndexAllocator:    NewSdfIndexAllocator(ebpf.MaxSdfFilters),
+		filtersByKey:         make(map[string]*filterEntry),
 	}
 
 	return connection, nil

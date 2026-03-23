@@ -44,9 +44,10 @@ type PDR struct {
 	URR *URR
 	QER *QER
 
-	PDI   PDI
-	State RuleState
-	PDRID uint16
+	PDI            PDI
+	State          RuleState
+	PDRID          uint16
+	FilterMapIndex uint32 // BPF sdf_filters map index; 0 = no filter
 }
 
 type FTEID struct {
@@ -99,6 +100,7 @@ type PDI struct {
 	UEIPAddress     *UEIPAddress
 	NetworkInstance string
 	SourceInterface SourceInterface
+	SdfFilters      []*ResolvedNetworkRule
 }
 
 type ApplyAction struct {

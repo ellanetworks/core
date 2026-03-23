@@ -11,6 +11,7 @@ import {
 } from "@mui/x-data-grid";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
+import RuleIcon from "@mui/icons-material/Rule";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -22,6 +23,7 @@ import {
 import CreatePolicyModal from "@/components/CreatePolicyModal";
 import EditPolicyModal from "@/components/EditPolicyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
+import PolicyRulesModal from "@/components/PolicyRulesModal";
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
 import { MAX_WIDTH } from "@/utils/layout";
@@ -62,6 +64,9 @@ const PolicyPage = () => {
   const [isConfirmationOpen, setConfirmationOpen] = useState(false);
   const [editData, setEditData] = useState<APIPolicy | null>(null);
   const [selectedPolicy, setSelectedPolicy] = useState<string | null>(null);
+  const [rulesModalPolicy, setRulesModalPolicy] = useState<{
+    name: string;
+  } | null>(null);
 
   const { showSnackbar } = useSnackbar();
 
@@ -72,6 +77,9 @@ const PolicyPage = () => {
   const handleEditClick = (policy: APIPolicy) => {
     setEditData(policy);
     setEditModalOpen(true);
+  };
+  const handleRulesClick = (policy: APIPolicy) => {
+    setRulesModalPolicy({ name: policy.name });
   };
   const handleDeleteClick = (policyName: string) => {
     setSelectedPolicy(policyName);
@@ -159,10 +167,16 @@ const PolicyPage = () => {
               field: "actions",
               headerName: "Actions",
               type: "actions",
-              width: 120,
+              width: 160,
               sortable: false,
               disableColumnMenu: true,
               getActions: (params) => [
+                <GridActionsCellItem
+                  key="rules"
+                  icon={<RuleIcon color="primary" />}
+                  label="Rules"
+                  onClick={() => handleRulesClick(params.row)}
+                />,
                 <GridActionsCellItem
                   key="edit"
                   icon={<EditIcon color="primary" />}
@@ -316,6 +330,13 @@ const PolicyPage = () => {
           onConfirm={handleDeleteConfirm}
           title="Confirm Deletion"
           description={`Are you sure you want to delete the policy "${selectedPolicy}"? This action cannot be undone.`}
+        />
+      )}
+      {rulesModalPolicy && (
+        <PolicyRulesModal
+          open={!!rulesModalPolicy}
+          onClose={() => setRulesModalPolicy(null)}
+          policyName={rulesModalPolicy?.name ?? ""}
         />
       )}
     </Box>

@@ -67,6 +67,14 @@ func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
 
 	smContext.Tunnel.DataPath.DeactivateTunnelAndPDR(s)
 
+	if smContext.UplinkFilterIndex != 0 {
+		_ = s.upf.ReleaseFilter(ctx, smContext.UplinkFilterIndex)
+	}
+
+	if smContext.DownlinkFilterIndex != 0 {
+		_ = s.upf.ReleaseFilter(ctx, smContext.DownlinkFilterIndex)
+	}
+
 	if smContext.PFCPContext == nil {
 		smContext.Tunnel = nil
 		return nil

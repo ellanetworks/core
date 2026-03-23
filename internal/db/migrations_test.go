@@ -152,6 +152,7 @@ func TestRunMigrations_FreshDatabase(t *testing.T) {
 		HomeNetworkKeysTableName,
 		N3SettingsTableName,
 		NATSettingsTableName,
+		NetworkRulesTableName,
 		OperatorTableName,
 		PoliciesTableName,
 		RadioEventsTableName,
@@ -478,6 +479,27 @@ func applyV2(t *testing.T, db *sql.DB) {
 
 	if err := tx.Commit(); err != nil {
 		t.Fatalf("failed to commit migrateV2: %v", err)
+	}
+}
+
+func applyV3(t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("failed to begin transaction: %v", err)
+	}
+
+	if err := migrateV3(ctx, tx); err != nil {
+		_ = tx.Rollback()
+
+		t.Fatalf("migrateV3 failed: %v", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("failed to commit migrateV3: %v", err)
 	}
 }
 

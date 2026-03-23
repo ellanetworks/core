@@ -26,6 +26,12 @@
 #define PDR_MAP_DOWNLINK_IPV4_SIZE MAX_PDU_SESSIONS
 #define PDR_MAP_DOWNLINK_IPV6_SIZE MAX_PDU_SESSIONS
 
+#define MAX_RULES_PER_FILTER    12  /* max rules per policy-direction entry */
+#define MAX_POLICIES            12  /* max number of policies supported */
+#define MAX_SDF_FILTERS         (2 * MAX_POLICIES)  /* one slot per policy-direction pair */
+#define SDF_PROTO_ANY          255  /* wildcard protocol */
+#define SDF_PORT_ANY             0  /* wildcard port (low == high == 0 means any) */
+
 enum outer_header_removal_values {
 	OHR_GTP_U_UDP_IPv4 = 0,
 	OHR_GTP_U_UDP_IPv6 = 1,
@@ -54,6 +60,22 @@ enum outer_header_creation_values {
 	OHC_GTP_U_UDP_IPv6 = 0x02,
 	OHC_UDP_IPv4 = 0x04,
 	OHC_UDP_IPv6 = 0x08,
+};
+
+struct sdf_rule {
+	__u32 remote_ip;    /* network-order IPv4 prefix base; 0 = wildcard */
+	__u32 remote_mask;  /* prefix mask; 0 = wildcard */
+	__u16 port_low;     /* dest port range low bound; 0 = wildcard */
+	__u16 port_high;    /* dest port range high bound; 0 = wildcard */
+	__u8  protocol;     /* IP protocol; SDF_PROTO_ANY (255) = wildcard */
+	__u8  action;       /* 0 = permit, 1 = deny */
+	__u8  pad[2];       /* explicit padding for 4-byte alignment */
+};
+
+struct sdf_filter_list {
+	__u8             num_rules;              /* number of valid entries in rules[] */
+	__u8             pad[3];
+	struct sdf_rule  rules[MAX_RULES_PER_FILTER];
 };
 
 struct far_info {
@@ -89,6 +111,8 @@ struct pdr_info {
 	__u32 pdr_id;
 	__u32 urr_id;
 	__u8 outer_header_removal;
+	__u8 pad[3];           /* explicit padding */
 	struct far_info far;
 	struct qer_info qer;
+	__u32 filter_map_index; /* 0 = no SDF filtering for this PDR */
 };
