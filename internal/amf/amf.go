@@ -160,16 +160,6 @@ func (amf *AMF) DeregisterAndRemoveAMFUE(ctx context.Context, ue *AmfUe) {
 
 	amf.tmsi.Free(ue.Tmsi)
 
-	if ue.implicitDeregistrationTimer != nil {
-		ue.implicitDeregistrationTimer.Stop()
-		ue.implicitDeregistrationTimer = nil
-	}
-
-	if ue.mobileReachableTimer != nil {
-		ue.mobileReachableTimer.Stop()
-		ue.mobileReachableTimer = nil
-	}
-
 	if !ue.Supi.IsValid() {
 		return
 	}

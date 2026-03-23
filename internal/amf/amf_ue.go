@@ -885,8 +885,13 @@ func (ue *AmfUe) startImplicitDeregistrationTimer() {
 	ue.implicitDeregistrationTimer = NewTimer(2*time.Minute, 1, func(expireTimes int32) { ue.Deregister(context.Background()) }, func() {})
 }
 
-func (ue *AmfUe) Deregister(ctx context.Context) {
-	ue.Mutex.Lock()
+// stopAllTimersLocked stops every timer on the UE. Caller must hold ue.Mutex.
+func (ue *AmfUe) stopAllTimersLocked() {
+	for _, t := range []*Timer{ue.T3513, ue.T3565, ue.T3560, ue.T3550, ue.T3555, ue.T3522} {
+		if t != nil {
+			t.Stop()
+		}
+	}
 
 	if ue.implicitDeregistrationTimer != nil {
 		ue.implicitDeregistrationTimer.Stop()
@@ -897,6 +902,12 @@ func (ue *AmfUe) Deregister(ctx context.Context) {
 		ue.mobileReachableTimer.Stop()
 		ue.mobileReachableTimer = nil
 	}
+}
+
+func (ue *AmfUe) Deregister(ctx context.Context) {
+	ue.Mutex.Lock()
+
+	ue.stopAllTimersLocked()
 
 	ue.transitionToLocked(Deregistered)
 
