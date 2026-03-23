@@ -10,38 +10,36 @@ import (
 	"go.uber.org/zap"
 )
 
-func StartDataRetentionWorker(ctx context.Context, database *db.Database) {
-	go func() { // #nosec: G118 -- Background context is intentional — retention operations must not be cancelled by shutdown
-		ticker := time.NewTicker(24 * time.Hour)
-		defer ticker.Stop()
+// RunDataRetentionWorker runs the data retention loop. It blocks until ctx
+// is cancelled, so callers should invoke it in a goroutine.
+func RunDataRetentionWorker(ctx context.Context, database *db.Database) {
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
 
-		for {
-			bgCtx := context.Background()
-
-			if err := enforceAuditDataRetention(bgCtx, database); err != nil {
-				logger.EllaLog.Error("error enforcing audit log retention", zap.Error(err))
-			}
-
-			if err := enforceRadioDataRetention(bgCtx, database); err != nil {
-				logger.EllaLog.Error("error enforcing radio log retention", zap.Error(err))
-			}
-
-			if err := enforceSubscriberUsageDataRetention(bgCtx, database); err != nil {
-				logger.EllaLog.Error("error enforcing subscriber usage data retention", zap.Error(err))
-			}
-
-			if err := enforceFlowReportsDataRetention(bgCtx, database); err != nil {
-				logger.EllaLog.Error("error enforcing flow reports retention", zap.Error(err))
-			}
-
-			select {
-			case <-ctx.Done():
-				logger.EllaLog.Info("Data retention worker stopped")
-				return
-			case <-ticker.C:
-			}
+	for {
+		if err := enforceAuditDataRetention(ctx, database); err != nil {
+			logger.EllaLog.Error("error enforcing audit log retention", zap.Error(err))
 		}
-	}()
+
+		if err := enforceRadioDataRetention(ctx, database); err != nil {
+			logger.EllaLog.Error("error enforcing radio log retention", zap.Error(err))
+		}
+
+		if err := enforceSubscriberUsageDataRetention(ctx, database); err != nil {
+			logger.EllaLog.Error("error enforcing subscriber usage data retention", zap.Error(err))
+		}
+
+		if err := enforceFlowReportsDataRetention(ctx, database); err != nil {
+			logger.EllaLog.Error("error enforcing flow reports retention", zap.Error(err))
+		}
+
+		select {
+		case <-ctx.Done():
+			logger.EllaLog.Info("Data retention worker stopped")
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 func enforceAuditDataRetention(ctx context.Context, database *db.Database) error {
