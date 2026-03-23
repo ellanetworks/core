@@ -49,6 +49,8 @@ tags:
     description: System health and version information (unauthenticated).
   - name: Metrics
     description: Prometheus metrics endpoint (unauthenticated).
+  - name: Profiling
+    description: Runtime profiling endpoints (pprof) for diagnostics. Requires admin privileges.
   - name: Initialization
     description: First-time setup to create the initial admin user (unauthenticated).
   - name: Authentication
@@ -118,6 +120,315 @@ paths:
             text/plain:
               schema:
                 type: string
+
+  # ── Profiling (Pprof) ───────────────────────────────────────────────────
+  /api/v1/pprof/:
+    get:
+      operationId: getPprofIndex
+      tags: [Profiling]
+      summary: Get pprof index
+      description: Returns an HTML index page listing available runtime profiling endpoints.
+      responses:
+        "200":
+          description: Pprof index page.
+          content:
+            text/html:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/pprof/cmdline:
+    get:
+      operationId: getPprofCmdline
+      tags: [Profiling]
+      summary: Get process command line
+      description: Returns the command-line invocation of the running process.
+      responses:
+        "200":
+          description: Process command line.
+          content:
+            text/plain:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/pprof/profile:
+    get:
+      operationId: getPprofCPUProfile
+      tags: [Profiling]
+      summary: Capture CPU profile
+      description: Captures a CPU profile for the given duration.
+      parameters:
+        - name: seconds
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+          description: Duration of profile capture in seconds. Defaults to Go's pprof default.
+      responses:
+        "200":
+          description: CPU profile data.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/pprof/symbol:
+    get:
+      operationId: getPprofSymbol
+      tags: [Profiling]
+      summary: Resolve program counters
+      description: Resolves program counters to function names.
+      responses:
+        "200":
+          description: Symbol resolution output.
+          content:
+            text/plain:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      operationId: postPprofSymbol
+      tags: [Profiling]
+      summary: Resolve posted program counters
+      description: Accepts posted program counters and resolves them to function names.
+      requestBody:
+        required: false
+        content:
+          text/plain:
+            schema:
+              type: string
+      responses:
+        "200":
+          description: Symbol resolution output.
+          content:
+            text/plain:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/pprof/trace:
+    get:
+      operationId: getPprofTrace
+      tags: [Profiling]
+      summary: Capture execution trace
+      description: Captures an execution trace for the given duration.
+      parameters:
+        - name: seconds
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+          description: Duration of trace capture in seconds. Defaults to Go's pprof default.
+      responses:
+        "200":
+          description: Trace data.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/pprof/allocs:
+    get:
+      operationId: getPprofAllocs
+      tags: [Profiling]
+      summary: Get allocation profile
+      description: Returns the allocation profile.
+      parameters:
+        - name: debug
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+          description: Set to 1 for human-readable output.
+      responses:
+        "200":
+          description: Allocation profile data.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            text/plain:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/pprof/block:
+    get:
+      operationId: getPprofBlock
+      tags: [Profiling]
+      summary: Get blocking profile
+      description: Returns the goroutine blocking profile.
+      parameters:
+        - name: debug
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+          description: Set to 1 for human-readable output.
+      responses:
+        "200":
+          description: Blocking profile data.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            text/plain:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/pprof/goroutine:
+    get:
+      operationId: getPprofGoroutine
+      tags: [Profiling]
+      summary: Get goroutine profile
+      description: Returns the goroutine stack profile.
+      parameters:
+        - name: debug
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+          description: Set to 1 for human-readable output.
+      responses:
+        "200":
+          description: Goroutine profile data.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            text/plain:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/pprof/heap:
+    get:
+      operationId: getPprofHeap
+      tags: [Profiling]
+      summary: Get heap profile
+      description: Returns the heap allocation profile.
+      parameters:
+        - name: debug
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+          description: Set to 1 for human-readable output.
+        - name: gc
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+          description: Set to 1 to run garbage collection before taking the heap profile.
+      responses:
+        "200":
+          description: Heap profile data.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            text/plain:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/pprof/mutex:
+    get:
+      operationId: getPprofMutex
+      tags: [Profiling]
+      summary: Get mutex profile
+      description: Returns the mutex contention profile.
+      parameters:
+        - name: debug
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+          description: Set to 1 for human-readable output.
+      responses:
+        "200":
+          description: Mutex profile data.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            text/plain:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/pprof/threadcreate:
+    get:
+      operationId: getPprofThreadcreate
+      tags: [Profiling]
+      summary: Get thread creation profile
+      description: Returns the thread creation profile.
+      parameters:
+        - name: debug
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+          description: Set to 1 for human-readable output.
+      responses:
+        "200":
+          description: Thread creation profile data.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            text/plain:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
   # ── Initialization ──────────────────────────────────────────────────────
   /api/v1/init:
