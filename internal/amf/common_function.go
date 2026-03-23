@@ -43,12 +43,12 @@ func AttachSourceUeTargetUe(sourceUe, targetUe *RanUe) error {
 		return fmt.Errorf("target ue is nil")
 	}
 
-	amfUe := sourceUe.AmfUe
+	amfUe := sourceUe.amfUe
 	if amfUe == nil {
 		return fmt.Errorf("amf ue is nil")
 	}
 
-	targetUe.AmfUe = amfUe
+	targetUe.amfUe = amfUe
 	targetUe.SourceUe = sourceUe
 	sourceUe.TargetUe = targetUe
 

@@ -50,7 +50,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 		ue.Log.Error("HRES* Validation Failure")
 
 		if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
-			err := message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeSuci)
+			err := message.SendIdentityRequest(ctx, ue.RanUe(), nasMessage.MobileIdentity5GSTypeSuci)
 			if err != nil {
 				return fmt.Errorf("send identity request error: %s", err)
 			}
@@ -62,7 +62,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 
 		defer ue.Deregister(ctx)
 
-		err := message.SendAuthenticationReject(ctx, ue.RanUe)
+		err := message.SendAuthenticationReject(ctx, ue.RanUe())
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
 		}
@@ -75,7 +75,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 		logger.WithTrace(ctx, logger.AmfLog).Error("5G AKA Confirmation Request Procedure failed", zap.Error(err))
 
 		if ue.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
-			err := message.SendIdentityRequest(ctx, ue.RanUe, nasMessage.MobileIdentity5GSTypeSuci)
+			err := message.SendIdentityRequest(ctx, ue.RanUe(), nasMessage.MobileIdentity5GSTypeSuci)
 			if err != nil {
 				return fmt.Errorf("send identity request error: %s", err)
 			}
@@ -87,7 +87,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 
 		defer ue.Deregister(ctx)
 
-		err := message.SendAuthenticationReject(ctx, ue.RanUe)
+		err := message.SendAuthenticationReject(ctx, ue.RanUe())
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
 		}

@@ -151,24 +151,14 @@ func (amf *AMF) AddAmfUeToUePool(ue *AmfUe) error {
 func (amf *AMF) DeregisterAndRemoveAMFUE(ctx context.Context, ue *AmfUe) {
 	ue.Deregister(ctx)
 
-	if ue.RanUe != nil {
-		err := ue.RanUe.Remove()
+	if ue.ranUe != nil {
+		err := ue.ranUe.Remove()
 		if err != nil {
 			logger.AmfLog.Error("failed to remove RAN UE", zap.Error(err))
 		}
 	}
 
 	amf.tmsi.Free(ue.Tmsi)
-
-	if ue.implicitDeregistrationTimer != nil {
-		ue.implicitDeregistrationTimer.Stop()
-		ue.implicitDeregistrationTimer = nil
-	}
-
-	if ue.mobileReachableTimer != nil {
-		ue.mobileReachableTimer.Stop()
-		ue.mobileReachableTimer = nil
-	}
 
 	if !ue.Supi.IsValid() {
 		return

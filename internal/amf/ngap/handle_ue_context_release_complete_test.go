@@ -42,9 +42,8 @@ func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
 		AmfUeNgapID: 100,
 		Radio:       ran,
 		Log:         logger.AmfLog,
-		AmfUe:       amfUe,
 	}
-	amfUe.RanUe = ranUe
+	amfUe.AttachRanUe(ranUe)
 	ran.RanUEs[1] = ranUe
 
 	// Register the radio with the AMF so FindRanUeByAmfUeNgapID can find it.

@@ -100,7 +100,7 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amf.AmfUe, *FakeNGAPSender, *FakeS
 
 	ue.Supi = supi
 	ue.Pei = "imei-490154203237518"
-	ue.Tai = ue.RanUe.Tai
+	ue.Tai = ue.RanUe().Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -366,7 +366,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_UeContextRequest(t *testin
 		Buffer: []uint8{0x04, 0x00},
 	}
 
-	ue.RanUe.UeContextRequest = true
+	ue.RanUe().UeContextRequest = true
 
 	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
@@ -403,7 +403,7 @@ func TestMobilityReg_UplinkDataStatus_ActivateSuccess_NoUeContextRequest(t *test
 		Buffer: []uint8{0x04, 0x00},
 	}
 
-	ue.RanUe.UeContextRequest = false
+	ue.RanUe().UeContextRequest = false
 
 	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
@@ -565,7 +565,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_NonEmptySuList(t *te
 		Len:    2,
 		Buffer: []uint8{0x04, 0x00},
 	}
-	ue.RanUe.UeContextRequest = false
+	ue.RanUe().UeContextRequest = false
 
 	// AllowedPDUSessionStatus + N1N2Message with nil N2Info
 	ue.RegistrationRequest.AllowedPDUSessionStatus = &nasType.AllowedPDUSessionStatus{
@@ -630,7 +630,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_NilN2Info_EmptySuList(t *testi
 	}
 
 	// UeContextRequest=false so SendRegistrationAccept sends DownlinkNasTransport
-	ue.RanUe.UeContextRequest = false
+	ue.RanUe().UeContextRequest = false
 
 	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
@@ -709,7 +709,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 		BinaryDataN2Information: []byte{0x03, 0x04},
 	}
 
-	ue.RanUe.UeContextRequest = false
+	ue.RanUe().UeContextRequest = false
 
 	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
@@ -731,7 +731,7 @@ func TestMobilityReg_AllowedPDUSessionStatus_N1N2_WithN2Info_SmContextExists(t *
 func TestMobilityReg_UeContextRequest_True_InitialContextSetup(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.RanUe.UeContextRequest = true
+	ue.RanUe().UeContextRequest = true
 
 	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
@@ -764,7 +764,7 @@ func TestMobilityReg_NoUeContextRequest_NonEmptySuList(t *testing.T) {
 		Buffer: []uint8{0x04, 0x00},
 	}
 
-	ue.RanUe.UeContextRequest = false
+	ue.RanUe().UeContextRequest = false
 
 	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {
@@ -792,7 +792,7 @@ func TestMobilityReg_NoUeContextRequest_NonEmptySuList(t *testing.T) {
 func TestMobilityReg_NoUeContextRequest_EmptySuList_DownlinkNasTransport(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
-	ue.RanUe.UeContextRequest = false
+	ue.RanUe().UeContextRequest = false
 
 	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err != nil {

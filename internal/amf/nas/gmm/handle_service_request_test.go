@@ -209,7 +209,7 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.Tai = ue.RanUe.Tai
+	ue.Tai = ue.RanUe().Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -279,7 +279,7 @@ func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ranUe := ue.RanUe
+	ranUe := ue.RanUe()
 	ue = amf.NewAmfUe()
 	ue.AttachRanUe(ranUe)
 
@@ -415,7 +415,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 
 	ue.T3565 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.ForceState(amf.Registered)
-	ue.Tai = ue.RanUe.Tai
+	ue.Tai = ue.RanUe().Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -497,7 +497,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 
 	ue.T3565 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.ForceState(amf.Registered)
-	ue.Tai = ue.RanUe.Tai
+	ue.Tai = ue.RanUe().Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -584,7 +584,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
-	ue.Tai = ue.RanUe.Tai
+	ue.Tai = ue.RanUe().Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -677,7 +677,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceState(amf.Registered)
 	ue.Guti = mustTestGuti("001", "01", "cafe42", 0x00000001)
-	ue.Tai = ue.RanUe.Tai
+	ue.Tai = ue.RanUe().Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -740,7 +740,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
-	ue.Tai = ue.RanUe.Tai
+	ue.Tai = ue.RanUe().Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -872,7 +872,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
-	ue.Tai = ue.RanUe.Tai
+	ue.Tai = ue.RanUe().Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -1009,7 +1009,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
-	ue.Tai = ue.RanUe.Tai
+	ue.Tai = ue.RanUe().Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -1154,7 +1154,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
-	ue.Tai = ue.RanUe.Tai
+	ue.Tai = ue.RanUe().Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -1167,7 +1167,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
 	ue.N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}}
-	ue.RanUe.UeContextRequest = true
+	ue.RanUe().UeContextRequest = true
 
 	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
@@ -1288,7 +1288,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
-	ue.Tai = ue.RanUe.Tai
+	ue.Tai = ue.RanUe().Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -1464,7 +1464,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
 	ue.ForceState(amf.Registered)
-	ue.Tai = ue.RanUe.Tai
+	ue.Tai = ue.RanUe().Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
@@ -1529,7 +1529,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
 	ue.ForceState(amf.Registered)
-	ue.Tai = ue.RanUe.Tai
+	ue.Tai = ue.RanUe().Tai
 	ue.SecurityContextAvailable = true
 	ue.NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}

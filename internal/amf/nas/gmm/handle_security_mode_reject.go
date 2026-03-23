@@ -25,9 +25,9 @@ func handleSecurityModeReject(ctx context.Context, ue *amf.AmfUe, msg *nasMessag
 	ue.Log.Error("UE rejected the security mode command, abort the ongoing procedure", logger.Cause(nasMessage.Cause5GMMToString(msg.GetCauseValue())), logger.SUPI(ue.Supi.String()))
 
 	ue.SecurityContextAvailable = false
-	ue.RanUe.ReleaseAction = amf.UeContextReleaseUeContext
+	ue.RanUe().ReleaseAction = amf.UeContextReleaseUeContext
 
-	err := ue.RanUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, ue.RanUe.AmfUeNgapID, ue.RanUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+	err := ue.RanUe().SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 	if err != nil {
 		return fmt.Errorf("error sending ue context release command: %v", err)
 	}

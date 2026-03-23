@@ -77,7 +77,7 @@ func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 	ranUe.Radio = ran
 	ranUe.TouchLastSeen()
 
-	amfUe := ranUe.AmfUe
+	amfUe := ranUe.AmfUe()
 	if amfUe == nil {
 		err := ranUe.Remove()
 		if err != nil {

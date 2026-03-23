@@ -107,7 +107,6 @@ func TestHandoverNotify_NilAmfUe(t *testing.T) {
 	targetUe := &amf.RanUe{
 		RanUeNgapID: 2,
 		AmfUeNgapID: 1,
-		AmfUe:       nil,
 		Radio:       ran,
 		Log:         logger.AmfLog,
 	}
@@ -142,11 +141,11 @@ func TestHandoverNotify_NoSourceUe(t *testing.T) {
 	targetUe := &amf.RanUe{
 		RanUeNgapID: 2,
 		AmfUeNgapID: 1,
-		AmfUe:       amfUe,
 		SourceUe:    nil,
 		Radio:       ran,
 		Log:         logger.AmfLog,
 	}
+	amfUe.AttachRanUe(targetUe)
 	ran.RanUEs[2] = targetUe
 
 	amfInstance := amf.New(nil, nil, nil)
@@ -179,11 +178,10 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 	sourceUe := &amf.RanUe{
 		RanUeNgapID: 10,
 		AmfUeNgapID: 100,
-		AmfUe:       amfUe,
 		Radio:       sourceRan,
 		Log:         logger.AmfLog,
 	}
-	amfUe.RanUe = sourceUe
+	amfUe.AttachRanUe(sourceUe)
 	sourceRan.RanUEs[10] = sourceUe
 
 	// Target RAN and target UE
@@ -198,12 +196,15 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 	targetUe := &amf.RanUe{
 		RanUeNgapID: 2,
 		AmfUeNgapID: 1,
-		AmfUe:       amfUe,
-		SourceUe:    sourceUe,
 		Radio:       targetRan,
 		Log:         logger.AmfLog,
 	}
-	sourceUe.TargetUe = targetUe
+
+	err := amf.AttachSourceUeTargetUe(sourceUe, targetUe)
+	if err != nil {
+		t.Fatalf("failed to attach source/target: %v", err)
+	}
+
 	targetRan.RanUEs[2] = targetUe
 
 	amfInstance := amf.New(nil, nil, nil)
@@ -244,7 +245,7 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 	}
 
 	// Verify AmfUe is now attached to target UE
-	if amfUe.RanUe != targetUe {
+	if amfUe.RanUe() != targetUe {
 		t.Error("expected AmfUe.RanUe to be attached to targetUe")
 	}
 

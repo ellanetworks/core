@@ -169,8 +169,8 @@ func (r *Radio) ConnectedSubscribers() []string {
 
 	supis := make([]string, 0, len(r.RanUEs))
 	for _, ranUe := range r.RanUEs {
-		if ranUe.AmfUe != nil && ranUe.AmfUe.Supi.IsValid() && ranUe.AmfUe.Supi.IsIMSI() {
-			supis = append(supis, ranUe.AmfUe.Supi.IMSI())
+		if ranUe.amfUe != nil && ranUe.amfUe.Supi.IsValid() && ranUe.amfUe.Supi.IsIMSI() {
+			supis = append(supis, ranUe.amfUe.Supi.IMSI())
 		}
 	}
 

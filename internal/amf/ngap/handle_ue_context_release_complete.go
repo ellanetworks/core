@@ -90,7 +90,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 	ranUe.Radio = ran
 	ranUe.TouchLastSeen()
 
-	amfUe := ranUe.AmfUe
+	amfUe := ranUe.AmfUe()
 	if amfUe == nil {
 		logger.WithTrace(ctx, ran.Log).Info("Release UE Context", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
 
