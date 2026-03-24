@@ -69,6 +69,7 @@ nav:
     - Use VLANs: how_to/vlan.md
     - Tune Network Performance: how_to/performance_tuning.md
     - Co-host with OCUDU: how_to/co_host_with_ocudu.md
+    - Use native XDP with veth: how_to/native_xdp_veth.md
     - Exchange routes through BGP: how_to/bgp.md
     - Manage Your Network with AI Agents: how_to/ai_agents.md
   - Reference:

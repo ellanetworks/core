@@ -78,7 +78,7 @@ telemetry:
 ```
 
 !!! note
-    We use `generic` mode here because the Raspberry Pi 5's built-in NIC does not support native XDP. If your host's NIC supports native XDP, set `attach-mode` to `native`.
+    We use `generic` mode here because the Raspberry Pi 5's built-in NIC does not support native XDP. If your host's NIC supports native XDP, set `attach-mode` to `native` and follow the [Use native XDP with veth interfaces](native_xdp_veth.md) guide to attach an XDP program to the peer veth.
 
 Start Ella Core:
 

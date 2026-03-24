@@ -48,3 +48,11 @@ Ella Core supports the following XDP attach modes:
 - **Generic**: A fallback option that works on most drivers but with lower performance.
 
 For more information on configuring XDP attach modes, refer to the [Configuration File](../reference/config_file.md) documentation.
+
+### XDP redirect on veth pairs
+
+When Ella Core's N3 interface is a veth pair (e.g. in [co-hosted deployments](../how_to/co_host_with_ocudu.md)), the XDP data plane uses `bpf_redirect()` to forward downlink packets from N6 to N3. In **native XDP mode**, this requires an XDP program on **both sides** of the veth pair.
+
+Without an XDP program on the receiving peer, the veth driver will not deliver redirected frames through the native path and the frames will be dropped.
+
+The solution is to attach a minimal XDP program that returns `XDP_PASS` to the peer veth. This satisfies the kernel's requirement and keeps packets on the fast native XDP path. See [Use native XDP with veth interfaces](../how_to/native_xdp_veth.md) for setup instructions.
