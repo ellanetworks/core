@@ -52,8 +52,7 @@ to 2 interfaces.
   <figcaption>Combined All</figcaption>
 </figure>
 
-One or both of these interfaces can be virtual interfaces, with `veth`. Refer to your
-distribution's documentation on how to set this up.
+One or both of these interfaces can be virtual interfaces, with `veth`. When using veth with native XDP mode, an additional XDP program must be attached to the peer interface — see the [explanation](../explanation/user_plane_packet_processing_with_ebpf.md#xdp-redirect-on-veth-pairs) and the [setup guide](../how_to/native_xdp_veth.md) for details.
 
 ## Combined on one interface
 

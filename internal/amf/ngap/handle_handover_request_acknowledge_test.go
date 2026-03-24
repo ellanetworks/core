@@ -136,11 +136,10 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *FakeNGAPSender, *am
 	sourceUe := &amf.RanUe{
 		RanUeNgapID: 10,
 		AmfUeNgapID: 100,
-		AmfUe:       amfUe,
 		Radio:       sourceRan,
 		Log:         logger.AmfLog,
 	}
-	amfUe.RanUe = sourceUe
+	amfUe.AttachRanUe(sourceUe)
 	sourceRan.RanUEs[10] = sourceUe
 
 	targetNGAPSender := &FakeNGAPSender{}
@@ -154,12 +153,15 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *FakeNGAPSender, *am
 	targetUe := &amf.RanUe{
 		RanUeNgapID: 2,
 		AmfUeNgapID: 1,
-		AmfUe:       amfUe,
-		SourceUe:    sourceUe,
 		Radio:       targetRan,
 		Log:         logger.AmfLog,
 	}
-	sourceUe.TargetUe = targetUe
+
+	err := amf.AttachSourceUeTargetUe(sourceUe, targetUe)
+	if err != nil {
+		t.Fatalf("failed to attach source/target: %v", err)
+	}
+
 	targetRan.RanUEs[2] = targetUe
 
 	amfInstance := amf.New(nil, nil, &FakeSmfSbi{SMF: smfInstance})
@@ -278,11 +280,11 @@ func TestHandoverRequestAcknowledge_NoSourceUe(t *testing.T) {
 	targetUe := &amf.RanUe{
 		RanUeNgapID: 2,
 		AmfUeNgapID: 1,
-		AmfUe:       amfUe,
 		SourceUe:    nil,
 		Radio:       ran,
 		Log:         logger.AmfLog,
 	}
+	amfUe.AttachRanUe(targetUe)
 	ran.RanUEs[2] = targetUe
 
 	amfInstance := newTestAMF()

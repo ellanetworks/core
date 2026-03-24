@@ -81,7 +81,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		targetUe.UpdateLocation(ctx, amfInstance, userLocationInformation)
 	}
 
-	amfUe := targetUe.AmfUe
+	amfUe := targetUe.AmfUe()
 	if amfUe == nil {
 		logger.WithTrace(ctx, ran.Log).Error("AmfUe is nil")
 		return

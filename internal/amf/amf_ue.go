@@ -98,7 +98,7 @@ type AmfUe struct {
 	Kamf                              string
 	N1N2Message                       *models.N1N2MessageTransferRequest
 	SmContextList                     map[uint8]*SmContext // Key: pdu session id
-	RanUe                             *RanUe
+	ranUe                             *RanUe
 	OnGoing                           OnGoingProcedure
 	UeRadioCapability                 string // OCTET string
 
@@ -157,6 +157,15 @@ func NewAmfUe() *AmfUe {
 		OnGoing:          OnGoingProcedureNothing,
 		SmContextList:    make(map[uint8]*SmContext),
 	}
+}
+
+// RanUe returns the currently attached RanUe, or nil.
+func (ue *AmfUe) RanUe() *RanUe {
+	if ue == nil {
+		return nil
+	}
+
+	return ue.ranUe
 }
 
 func (ue *AmfUe) GetState() StateType {
@@ -218,16 +227,16 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	ue.Mutex.Lock()
 	defer ue.Mutex.Unlock()
 
-	oldRanUe := ue.RanUe
+	oldRanUe := ue.ranUe
 
-	ue.RanUe = ranUe
+	ue.ranUe = ranUe
 
-	ranUe.AmfUe = ue
+	ranUe.amfUe = ue
 
 	if oldRanUe != nil && oldRanUe != ranUe {
-		if oldRanUe.AmfUe == ue {
+		if oldRanUe.amfUe == ue {
 			oldRanUe.Log.Info("Detached UeContext from previous RanUe")
-			oldRanUe.AmfUe = nil
+			oldRanUe.amfUe = nil
 		}
 	}
 
@@ -237,6 +246,23 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	}
 
 	ue.Log = logger.AmfLog.With(logger.AmfUeNgapID(ranUe.AmfUeNgapID))
+}
+
+func (ue *AmfUe) DetachRanUe() {
+	if ue == nil {
+		return
+	}
+
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	if ue.ranUe != nil {
+		if ue.ranUe.amfUe == ue {
+			ue.ranUe.amfUe = nil
+		}
+
+		ue.ranUe = nil
+	}
 }
 
 func (ue *AmfUe) AllocateRegistrationArea(supportedTais []models.Tai) {
@@ -528,9 +554,9 @@ func (ue *AmfUe) ClearRegistrationRequestData() {
 	ue.IdentityTypeUsedForRegistration = 0
 
 	ue.AuthFailureCauseSynchFailureTimes = 0
-	if ue.RanUe != nil {
-		ue.RanUe.UeContextRequest = false
-		ue.RanUe.RecvdInitialContextSetupResponse = false
+	if ue.ranUe != nil {
+		ue.ranUe.UeContextRequest = false
+		ue.ranUe.RecvdInitialContextSetupResponse = false
 	}
 
 	ue.RetransmissionOfInitialNASMsg = false
@@ -667,7 +693,7 @@ func (ue *AmfUe) DecodeNASMessage(payload []byte) (*nas.Message, error) {
 	msg.SecurityHeaderType = nas.GetSecurityHeaderType(payload) & 0x0f
 	if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
 		// RRCEstablishmentCause 0 is for emergency service
-		if ue.SecurityContextAvailable && ue.RanUe.RRCEstablishmentCause != "0" {
+		if ue.SecurityContextAvailable && ue.ranUe.RRCEstablishmentCause != "0" {
 			ue.Log.Warn("Received Plain NAS message")
 			ue.MacFailed = false
 			ue.SecurityContextAvailable = false
@@ -854,8 +880,13 @@ func (ue *AmfUe) startImplicitDeregistrationTimer() {
 	ue.implicitDeregistrationTimer = NewTimer(2*time.Minute, 1, func(expireTimes int32) { ue.Deregister(context.Background()) }, func() {})
 }
 
-func (ue *AmfUe) Deregister(ctx context.Context) {
-	ue.Mutex.Lock()
+// stopAllTimersLocked stops every timer on the UE. Caller must hold ue.Mutex.
+func (ue *AmfUe) stopAllTimersLocked() {
+	for _, t := range []*Timer{ue.T3513, ue.T3565, ue.T3560, ue.T3550, ue.T3555, ue.T3522} {
+		if t != nil {
+			t.Stop()
+		}
+	}
 
 	if ue.implicitDeregistrationTimer != nil {
 		ue.implicitDeregistrationTimer.Stop()
@@ -866,6 +897,12 @@ func (ue *AmfUe) Deregister(ctx context.Context) {
 		ue.mobileReachableTimer.Stop()
 		ue.mobileReachableTimer = nil
 	}
+}
+
+func (ue *AmfUe) Deregister(ctx context.Context) {
+	ue.Mutex.Lock()
+
+	ue.stopAllTimersLocked()
 
 	ue.transitionToLocked(Deregistered)
 

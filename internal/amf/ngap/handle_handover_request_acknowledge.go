@@ -78,7 +78,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 	targetUe.TouchLastSeen()
 	logger.WithTrace(ctx, ran.Log).Debug("Handle Handover Request Acknowledge", zap.Any("RanUeNgapID", targetUe.RanUeNgapID), zap.Any("AmfUeNgapID", targetUe.AmfUeNgapID))
 
-	amfUe := targetUe.AmfUe
+	amfUe := targetUe.AmfUe()
 	if amfUe == nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("amfUe is nil")
 		return
@@ -156,7 +156,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 			},
 		}
 
-		sourceUe.AmfUe.SetOnGoing(amf.OnGoingProcedureNothing)
+		sourceUe.AmfUe().SetOnGoing(amf.OnGoingProcedureNothing)
 
 		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
 		if err != nil {

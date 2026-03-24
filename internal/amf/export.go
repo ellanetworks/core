@@ -358,14 +358,14 @@ func (amf *AMF) exportAmfUe(ue *AmfUe) AmfUeExport {
 	}
 
 	// Capture RAN UE info while holding the UE lock.
-	if ue.RanUe != nil {
+	if ue.ranUe != nil {
 		rc := &RANConnectionExport{
-			RanUeNgapID: ue.RanUe.RanUeNgapID,
-			AmfUeNgapID: ue.RanUe.AmfUeNgapID,
-			RanTai:      ue.RanUe.Tai,
+			RanUeNgapID: ue.ranUe.RanUeNgapID,
+			AmfUeNgapID: ue.ranUe.AmfUeNgapID,
+			RanTai:      ue.ranUe.Tai,
 		}
-		if ue.RanUe.Radio != nil {
-			rc.RadioName = ue.RanUe.Radio.Name
+		if ue.ranUe.Radio != nil {
+			rc.RadioName = ue.ranUe.Radio.Name
 		}
 
 		export.RANConnection = rc

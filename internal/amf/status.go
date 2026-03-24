@@ -25,11 +25,11 @@ func (amf *AMF) RadioNameForSubscriber(supi etsi.SUPI) string {
 	defer amf.mu.RUnlock()
 
 	ue, ok := amf.UEs[supi]
-	if !ok || ue.GetState() != Registered || ue.RanUe == nil || ue.RanUe.Radio == nil {
+	if !ok || ue.GetState() != Registered || ue.ranUe == nil || ue.ranUe.Radio == nil {
 		return ""
 	}
 
-	return ue.RanUe.Radio.Name
+	return ue.ranUe.Radio.Name
 }
 
 // LastSeenAtForSubscriber returns the last-seen timestamp for a registered
@@ -69,11 +69,11 @@ func (amf *AMF) RegisteredSubscribersForRadio(radioName string) []string {
 			continue
 		}
 
-		if ue.RanUe == nil || ue.RanUe.Radio == nil {
+		if ue.ranUe == nil || ue.ranUe.Radio == nil {
 			continue
 		}
 
-		if ue.RanUe.Radio.Name != radioName {
+		if ue.ranUe.Radio.Name != radioName {
 			continue
 		}
 

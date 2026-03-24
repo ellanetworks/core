@@ -153,7 +153,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	amfUe := sourceUe.AmfUe
+	amfUe := sourceUe.AmfUe()
 	if amfUe == nil {
 		logger.WithTrace(ctx, ran.Log).Error("Cannot find amfUE from sourceUE")
 		return
@@ -178,9 +178,9 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		sourceUe.AmfUe.SetOnGoing(amf.OnGoingProcedureNothing)
+		sourceUe.AmfUe().SetOnGoing(amf.OnGoingProcedureNothing)
 
-		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
+		err := sourceUe.SendHandoverPreparationFailure(ctx, *cause, nil)
 		if err != nil {
 			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
 			return
@@ -234,9 +234,9 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		sourceUe.AmfUe.SetOnGoing(amf.OnGoingProcedureNothing)
+		sourceUe.AmfUe().SetOnGoing(amf.OnGoingProcedureNothing)
 
-		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
+		err := sourceUe.SendHandoverPreparationFailure(ctx, *cause, nil)
 		if err != nil {
 			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
 			return
@@ -271,15 +271,14 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	err = targetUe.Radio.NGAPSender.SendHandoverRequest(
+	err = targetUe.SendHandoverRequest(
 		ctx,
-		targetUe.AmfUeNgapID,
 		sourceUe.HandOverType,
-		targetUe.AmfUe.Ambr.Uplink,
-		targetUe.AmfUe.Ambr.Downlink,
-		targetUe.AmfUe.UESecurityCapability,
-		targetUe.AmfUe.NCC,
-		targetUe.AmfUe.NH,
+		amfUe.Ambr.Uplink,
+		amfUe.Ambr.Downlink,
+		amfUe.UESecurityCapability,
+		amfUe.NCC,
+		amfUe.NH,
 		*cause,
 		pduSessionReqList,
 		*sourceToTargetTransparentContainer,
