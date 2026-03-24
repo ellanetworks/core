@@ -400,7 +400,7 @@ func New(db DBer, ausf Authenticator, smf SmfSbi) *AMF {
 		T3555Cfg:                 defaultTimerCfg,
 		T3560Cfg:                 defaultTimerCfg,
 		T3565Cfg:                 defaultTimerCfg,
-		NetworkFeatureSupport5GS: &NetworkFeatureSupport5GS{Enable: true},
+		NetworkFeatureSupport5GS: &NetworkFeatureSupport5GS{Enable: true, ImsVoPS: 1},
 	}
 
 	return a
