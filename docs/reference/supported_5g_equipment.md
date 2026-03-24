@@ -35,11 +35,12 @@ Ella Core's N2 and N3 interfaces follow 3GPP standards. This means that any radi
 
 ### Android Devices
 
-- **Crosscall CORE-Z5**
+- **Samsung Galaxy A56 5G**
 - **Motorola G73 5G**
 - **Motorola Moto G 5G (2024)**
-- **OnePlus Nord 2 CE 5G**
 - **Huawei P40 5G**
+- **OnePlus Nord 2 CE 5G**
+- **Crosscall CORE-Z5**
 
 ### 5G Modules
 
