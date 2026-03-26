@@ -36,8 +36,10 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	if err := s.store.ReleaseIP(ctx, smContext.Supi.IMSI()); err != nil {
-		logger.SmfLog.Error("release UE IP address failed", zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+	if smContext.PDUAddress != nil {
+		if err := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.PDUAddress); err != nil {
+			logger.SmfLog.Error("release UE IP address failed", zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		}
 	}
 
 	err := s.releaseTunnel(ctx, smContext)

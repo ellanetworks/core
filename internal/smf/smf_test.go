@@ -41,7 +41,7 @@ func (f *fakeStore) AllocateIP(_ context.Context, _ string) (net.IP, error) {
 	return f.allocatedIP, f.err
 }
 
-func (f *fakeStore) ReleaseIP(_ context.Context, supi string) error {
+func (f *fakeStore) ReleaseIP(_ context.Context, supi string, _ net.IP) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -298,7 +298,8 @@ func TestRemoveSession_ReleasesIP(t *testing.T) {
 	supi := testSUPI()
 	bgCtx := context.Background()
 
-	s.NewSession(supi, 1, testDNN, testSnssai)
+	smCtx := s.NewSession(supi, 1, testDNN, testSnssai)
+	smCtx.PDUAddress = net.ParseIP("10.0.0.1").To4()
 	ref := smf.CanonicalName(supi, 1)
 
 	s.RemoveSession(bgCtx, ref)

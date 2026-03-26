@@ -84,8 +84,10 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 	case nas.MsgTypePDUSessionReleaseRequest:
 		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Request received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
-		if err := s.store.ReleaseIP(ctx, smContext.Supi.IMSI()); err != nil {
-			return nil, false, fmt.Errorf("failed to release UE IP Addr: %v", err)
+		if smContext.PDUAddress != nil {
+			if err := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.PDUAddress); err != nil {
+				return nil, false, fmt.Errorf("failed to release UE IP Addr: %v", err)
+			}
 		}
 
 		pti := m.PDUSessionReleaseRequest.GetPTI()

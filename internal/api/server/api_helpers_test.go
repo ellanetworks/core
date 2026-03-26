@@ -216,8 +216,8 @@ func (f *fakeSessionStore) AllocateIP(ctx context.Context, supi string) (net.IP,
 	return f.db.AllocateIP(ctx, supi)
 }
 
-func (f *fakeSessionStore) ReleaseIP(ctx context.Context, supi string) error {
-	return f.db.ReleaseIP(ctx, supi)
+func (f *fakeSessionStore) ReleaseIP(ctx context.Context, supi string, ip net.IP) error {
+	return f.db.ReleaseIP(ctx, supi, ip)
 }
 
 func (f *fakeSessionStore) GetSubscriberPolicy(ctx context.Context, imsi string) (*smf.Policy, error) {

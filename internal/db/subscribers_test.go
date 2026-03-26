@@ -256,7 +256,7 @@ func TestIPAllocationAndRelease(t *testing.T) {
 	}
 
 	// Step 5: Release the IP
-	err = database.ReleaseIP(context.Background(), subscriber.Imsi)
+	err = database.ReleaseIP(context.Background(), subscriber.Imsi, allocatedIP)
 	if err != nil {
 		t.Fatalf("Couldn't release IP for subscriber: %s", err)
 	}
