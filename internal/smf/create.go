@@ -37,6 +37,21 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	)
 	defer span.End()
 
+	// Decode the NAS message before making any state changes so we can
+	// validate prerequisites and build a proper reject if needed.
+	m := nas.NewMessage()
+
+	if err := m.GsmMessageDecode(&n1Msg); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to decode NAS message")
+
+		return "", nil, fmt.Errorf("error decoding NAS message: %v", err)
+	}
+
+	if m.GsmHeader.GetMessageType() != nas.MsgTypePDUSessionEstablishmentRequest {
+		return "", nil, fmt.Errorf("unexpected NAS message type: %d", m.GsmHeader.GetMessageType())
+	}
+
 	smContext := s.GetSession(CanonicalName(supi, pduSessionID))
 	if smContext != nil {
 		s.handlePduSessionContextReplacement(ctx, smContext)
@@ -60,7 +75,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		}
 	}()
 
-	pco, dnnInfo, pduAddress, pti, policy, errRsp, err := s.handlePDUSessionSMContextCreate(ctx, n1Msg, smContext)
+	pco, dnnInfo, pduAddress, pti, policy, errRsp, err := s.handlePDUSessionSMContextCreate(ctx, m, smContext)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to create SM context")
@@ -101,6 +116,8 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	span.AddEvent("session_accepted")
 
+	s.announceRoute(pduAddress, smContext.Supi.IMSI())
+
 	success = true
 
 	return smContext.CanonicalName(), nil, nil
@@ -122,7 +139,7 @@ func (s *SMF) handlePduSessionContextReplacement(ctx context.Context, smCtxt *SM
 
 func (s *SMF) handlePDUSessionSMContextCreate(
 	ctx context.Context,
-	n1Msg []byte,
+	m *nas.Message,
 	smContext *SMContext,
 ) (
 	*smfNas.ProtocolConfigurationOptions,
@@ -133,17 +150,6 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 	[]byte,
 	error,
 ) {
-	m := nas.NewMessage()
-
-	err := m.GsmMessageDecode(&n1Msg)
-	if err != nil {
-		return nil, nil, nil, 0, nil, nil, fmt.Errorf("error decoding NAS message: %v", err)
-	}
-
-	if m.GsmHeader.GetMessageType() != nas.MsgTypePDUSessionEstablishmentRequest {
-		return nil, nil, nil, 0, nil, nil, fmt.Errorf("unexpected NAS message type: %d", m.GsmHeader.GetMessageType())
-	}
-
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
@@ -189,13 +195,14 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 
 	logger.WithTrace(ctx, logger.SmfLog).Info("Successfully allocated IP address", logger.IPAddress(pduAddress.String()), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
+	smContext.PDUAddress = pduAddress
 	smContext.PDUSessionID = m.PDUSessionEstablishmentRequest.GetPDUSessionID()
 
 	pco, err := parsePDUSessionRequest(m.PDUSessionEstablishmentRequest)
 	if err != nil {
 		logger.WithTrace(ctx, logger.SmfLog).Error("failed to handle PDU Session Establishment Request", zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
-		if releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI()); releaseErr != nil {
+		if releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), pduAddress); releaseErr != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IP after session create error", zap.Error(releaseErr))
 		}
 
@@ -220,7 +227,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 
 	err = defaultPath.ActivateTunnelAndPDR(s, smContext, policy, pduAddress)
 	if err != nil {
-		if releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI()); releaseErr != nil {
+		if releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), pduAddress); releaseErr != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IP after session create error", zap.Error(releaseErr))
 		}
 

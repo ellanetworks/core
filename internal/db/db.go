@@ -40,6 +40,7 @@ type Database struct {
 	releaseAllIPStmt             *sqlair.Statement
 	countSubscribersByPolicyStmt *sqlair.Statement
 	countSubscribersWithIPStmt   *sqlair.Statement
+	listAllocatedIPsStmt         *sqlair.Statement
 
 	// API Token statements
 	listAPITokensStmt     *sqlair.Statement
@@ -82,6 +83,19 @@ type Database struct {
 	insertDefaultNATSettingsStmt *sqlair.Statement
 	getNATSettingsStmt           *sqlair.Statement
 	upsertNATSettingsStmt        *sqlair.Statement
+
+	// BGP Settings statements
+	insertDefaultBGPSettingsStmt *sqlair.Statement
+	getBGPSettingsStmt           *sqlair.Statement
+	upsertBGPSettingsStmt        *sqlair.Statement
+
+	// BGP Peers statements
+	listBGPPeersStmt    *sqlair.Statement
+	listAllBGPPeersStmt *sqlair.Statement
+	getBGPPeerStmt      *sqlair.Statement
+	createBGPPeerStmt   *sqlair.Statement
+	deleteBGPPeerStmt   *sqlair.Statement
+	countBGPPeersStmt   *sqlair.Statement
 
 	// Flow Accounting Settings statements
 	insertDefaultFlowAccountingSettingsStmt *sqlair.Statement
@@ -306,6 +320,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.releaseAllIPStmt, fmt.Sprintf(releaseAllIPStmt, SubscribersTableName), nil},
 		{&db.countSubscribersByPolicyStmt, fmt.Sprintf(countSubscribersInPolicyStmt, SubscribersTableName), []any{NumItems{}, Subscriber{}}},
 		{&db.countSubscribersWithIPStmt, fmt.Sprintf(countSubscribersWithIPStmt, SubscribersTableName), []any{NumItems{}}},
+		{&db.listAllocatedIPsStmt, fmt.Sprintf(listAllocatedIPsStmt, SubscribersTableName), []any{Subscriber{}}},
 
 		// API Tokens
 		{&db.listAPITokensStmt, fmt.Sprintf(listAPITokensPagedStmt, APITokensTableName), []any{ListArgs{}, APIToken{}, NumItems{}}},
@@ -348,6 +363,19 @@ func (db *Database) PrepareStatements() error {
 		{&db.insertDefaultNATSettingsStmt, fmt.Sprintf(insertDefaultNATSettingsStmt, NATSettingsTableName), []any{NATSettings{}}},
 		{&db.getNATSettingsStmt, fmt.Sprintf(getNATSettingsStmt, NATSettingsTableName), []any{NATSettings{}}},
 		{&db.upsertNATSettingsStmt, fmt.Sprintf(upsertNATSettingsStmt, NATSettingsTableName), []any{NATSettings{}}},
+
+		// BGP Settings
+		{&db.insertDefaultBGPSettingsStmt, fmt.Sprintf(insertDefaultBGPSettingsStmt, BGPSettingsTableName), []any{BGPSettings{}}},
+		{&db.getBGPSettingsStmt, fmt.Sprintf(getBGPSettingsStmt, BGPSettingsTableName), []any{BGPSettings{}}},
+		{&db.upsertBGPSettingsStmt, fmt.Sprintf(upsertBGPSettingsStmt, BGPSettingsTableName), []any{BGPSettings{}}},
+
+		// BGP Peers
+		{&db.listBGPPeersStmt, fmt.Sprintf(listBGPPeersPagedStmt, BGPPeersTableName), []any{ListArgs{}, BGPPeer{}, NumItems{}}},
+		{&db.listAllBGPPeersStmt, fmt.Sprintf(listAllBGPPeersStmt, BGPPeersTableName), []any{BGPPeer{}}},
+		{&db.getBGPPeerStmt, fmt.Sprintf(getBGPPeerStmt, BGPPeersTableName), []any{BGPPeer{}}},
+		{&db.createBGPPeerStmt, fmt.Sprintf(createBGPPeerStmt, BGPPeersTableName), []any{BGPPeer{}}},
+		{&db.deleteBGPPeerStmt, fmt.Sprintf(deleteBGPPeerStmt, BGPPeersTableName), []any{BGPPeer{}}},
+		{&db.countBGPPeersStmt, fmt.Sprintf(countBGPPeersStmt, BGPPeersTableName), []any{NumItems{}}},
 
 		// Flow Accounting Settings
 		{&db.insertDefaultFlowAccountingSettingsStmt, fmt.Sprintf(insertDefaultFlowAccountingSettingsStmt, FlowAccountingSettingsTableName), []any{FlowAccountingSettings{}}},
@@ -451,6 +479,11 @@ func (db *Database) Initialize(ctx context.Context) error {
 	err = db.InitializeFlowAccountingSettings(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to initialize flow accounting settings: %w", err)
+	}
+
+	err = db.InitializeBGPSettings(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to initialize BGP settings: %w", err)
 	}
 
 	err = db.InitializeN3Settings(ctx)

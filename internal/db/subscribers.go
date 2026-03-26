@@ -31,9 +31,10 @@ const (
 	countSubscribersStmt         = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 	countSubscribersInPolicyStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE policyID=$Subscriber.policyID"
 	countSubscribersWithIPStmt   = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE ipAddress IS NOT NULL AND TRIM(ipAddress) <> ''"
+	listAllocatedIPsStmt         = "SELECT &Subscriber.ipAddress FROM %s WHERE ipAddress IS NOT NULL AND TRIM(ipAddress) <> ''"
 	checkIPStmt                  = "SELECT &Subscriber.* FROM %s WHERE ipAddress=$Subscriber.ipAddress"
 	allocateIPStmt               = "UPDATE %s SET ipAddress=$Subscriber.ipAddress WHERE imsi=$Subscriber.imsi"
-	releaseIPStmt                = "UPDATE %s SET ipAddress=NULL WHERE imsi=$Subscriber.imsi"
+	releaseIPStmt                = "UPDATE %s SET ipAddress=NULL WHERE imsi=$Subscriber.imsi AND ipAddress=$Subscriber.ipAddress"
 	releaseAllIPStmt             = "UPDATE %s SET ipAddress=NULL"
 )
 
@@ -483,8 +484,10 @@ func (db *Database) AllocateIP(ctx context.Context, imsi string) (net.IP, error)
 	return nil, fmt.Errorf("no available IP addresses")
 }
 
-// ReleaseIP removes any assigned IP for a subscriber.
-func (db *Database) ReleaseIP(ctx context.Context, imsi string) error {
+// ReleaseIP removes the given IP assignment for a subscriber.
+// It only clears the IP if the subscriber's current ipAddress matches ip,
+// so a stale release cannot clobber a newer active session's address.
+func (db *Database) ReleaseIP(ctx context.Context, imsi string, ip net.IP) error {
 	ctx, span := tracer.Start(
 		ctx,
 		"ReleaseIP",
@@ -495,17 +498,10 @@ func (db *Database) ReleaseIP(ctx context.Context, imsi string) error {
 	)
 	defer span.End()
 
-	subscriber, err := db.GetSubscriber(ctx, imsi)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to get subscriber")
-
-		return fmt.Errorf("failed to get subscriber: %v", err)
-	}
-
-	if subscriber.IPAddress == nil {
-		span.SetStatus(codes.Ok, "no IP to release")
-		return nil
+	ipStr := ip.String()
+	subscriber := Subscriber{
+		Imsi:      imsi,
+		IPAddress: &ipStr,
 	}
 
 	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "update"))
@@ -513,7 +509,7 @@ func (db *Database) ReleaseIP(ctx context.Context, imsi string) error {
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "update").Inc()
 
-	err = db.conn.Query(ctx, db.releaseSubscriberIPStmt, subscriber).Run()
+	err := db.conn.Query(ctx, db.releaseSubscriberIPStmt, subscriber).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "release failed")
@@ -670,4 +666,55 @@ func (db *Database) CountSubscribersWithIP(ctx context.Context) (int, error) {
 	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
+}
+
+// ListAllocatedIPs returns all IP addresses currently allocated to subscribers.
+func (db *Database) ListAllocatedIPs(ctx context.Context) ([]net.IP, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (allocated IPs)", "SELECT", SubscribersTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			attribute.String("db.collection", SubscribersTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
+
+	var subs []Subscriber
+
+	err := db.conn.Query(ctx, db.listAllocatedIPsStmt).GetAll(&subs)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetStatus(codes.Ok, "no rows")
+
+			return nil, nil
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	var ips []net.IP
+
+	for _, sub := range subs {
+		if sub.IPAddress != nil {
+			ip := net.ParseIP(*sub.IPAddress)
+			if ip != nil {
+				ips = append(ips, ip)
+			}
+		}
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return ips, nil
 }

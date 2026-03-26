@@ -123,6 +123,7 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 	}
 	smCtx.Tunnel.ANInformation.IPAddress = net.ParseIP("10.0.0.100").To4()
 	smCtx.Tunnel.ANInformation.TEID = 6000
+	smCtx.PDUAddress = net.ParseIP("10.0.0.1").To4()
 
 	smCtx.PolicyData = &smf.Policy{
 		Ambr:    models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
@@ -580,6 +581,104 @@ func TestCreateSmContext_ReplacesExistingSession(t *testing.T) {
 
 	if s.SessionCount() != 1 {
 		t.Fatalf("expected 1 session, got %d", s.SessionCount())
+	}
+}
+
+func TestCreateSmContext_AnnouncesBGPRoute(t *testing.T) {
+	store, upf, amfCb := defaultFakes()
+	bgpFake := &fakeBGP{running: true}
+	s := smf.New(store, upf, amfCb, smf.WithBGP(bgpFake))
+	ctx := context.Background()
+	supi := testSUPI()
+	n1Msg := buildPDUSessionEstRequest()
+
+	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	if err != nil {
+		t.Fatalf("CreateSmContext failed: %v", err)
+	}
+
+	if rejectN1 != nil {
+		t.Fatalf("expected no reject, got %d bytes", len(rejectN1))
+	}
+
+	bgpFake.mu.Lock()
+	defer bgpFake.mu.Unlock()
+
+	if len(bgpFake.announced) != 1 {
+		t.Fatalf("expected 1 BGP announce, got %d", len(bgpFake.announced))
+	}
+
+	if bgpFake.announced[0] != "10.0.0.1" {
+		t.Fatalf("expected announce for 10.0.0.1, got %s", bgpFake.announced[0])
+	}
+
+	if bgpFake.owners[0] != testIMSI {
+		t.Fatalf("expected owner %s, got %s", testIMSI, bgpFake.owners[0])
+	}
+}
+
+func TestCreateSmContext_BGPNotRunning_NoAnnounce(t *testing.T) {
+	store, upf, amfCb := defaultFakes()
+	bgpFake := &fakeBGP{running: false}
+	s := smf.New(store, upf, amfCb, smf.WithBGP(bgpFake))
+	ctx := context.Background()
+	supi := testSUPI()
+	n1Msg := buildPDUSessionEstRequest()
+
+	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	if err != nil {
+		t.Fatalf("CreateSmContext failed: %v", err)
+	}
+
+	if rejectN1 != nil {
+		t.Fatalf("expected no reject, got %d bytes", len(rejectN1))
+	}
+
+	bgpFake.mu.Lock()
+	defer bgpFake.mu.Unlock()
+
+	if len(bgpFake.announced) != 0 {
+		t.Fatalf("expected 0 BGP announces when not running, got %d", len(bgpFake.announced))
+	}
+}
+
+func TestReleaseSmContext_NilPDUAddress_SkipsIPRelease(t *testing.T) {
+	store, upf, amfCb := defaultFakes()
+	s := newTestSMF(store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+	smCtx.PDUAddress = nil // simulate a session that never had an IP allocated
+
+	err := s.ReleaseSmContext(ctx, ref)
+	if err != nil {
+		t.Fatalf("ReleaseSmContext failed: %v", err)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	if len(store.releasedIPs) != 0 {
+		t.Fatal("should not call ReleaseIP when PDUAddress is nil")
+	}
+}
+
+func TestRemoveSession_NilPDUAddress_SkipsIPRelease(t *testing.T) {
+	store, upf, amfCb := defaultFakes()
+	s := newTestSMF(store, upf, amfCb)
+	supi := testSUPI()
+	bgCtx := context.Background()
+
+	s.NewSession(supi, 1, testDNN, testSnssai) // PDUAddress is nil by default
+	ref := smf.CanonicalName(supi, 1)
+
+	s.RemoveSession(bgCtx, ref)
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	if len(store.releasedIPs) != 0 {
+		t.Fatal("should not call ReleaseIP when PDUAddress is nil")
 	}
 }
 

@@ -83,7 +83,7 @@ func TestStartServerStandup(t *testing.T) {
 
 	cctx, cancel := context.WithCancel(t.Context())
 
-	srv, err := Start(cctx, testdb, cfg, nil, nil, nil, dummyFS, nil)
+	srv, err := Start(cctx, testdb, cfg, nil, nil, nil, nil, dummyFS, nil)
 	if err != nil {
 		t.Fatalf("Start returned error: %v", err)
 	}

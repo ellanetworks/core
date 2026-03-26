@@ -41,7 +41,7 @@ func (f *fakeStore) AllocateIP(_ context.Context, _ string) (net.IP, error) {
 	return f.allocatedIP, f.err
 }
 
-func (f *fakeStore) ReleaseIP(_ context.Context, supi string) error {
+func (f *fakeStore) ReleaseIP(_ context.Context, supi string, _ net.IP) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -298,7 +298,8 @@ func TestRemoveSession_ReleasesIP(t *testing.T) {
 	supi := testSUPI()
 	bgCtx := context.Background()
 
-	s.NewSession(supi, 1, testDNN, testSnssai)
+	smCtx := s.NewSession(supi, 1, testDNN, testSnssai)
+	smCtx.PDUAddress = net.ParseIP("10.0.0.1").To4()
 	ref := smf.CanonicalName(supi, 1)
 
 	s.RemoveSession(bgCtx, ref)
@@ -601,5 +602,127 @@ func TestNewSession_ReplacesExisting(t *testing.T) {
 
 	if s.SessionCount() != 1 {
 		t.Fatalf("expected 1 session, got %d", s.SessionCount())
+	}
+}
+
+// --- fakeBGP ---
+
+type fakeBGP struct {
+	mu          sync.Mutex
+	announced   []string
+	withdrawn   []string
+	owners      []string
+	running     bool
+	announceErr error
+	withdrawErr error
+}
+
+func (f *fakeBGP) Announce(ip net.IP, owner string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.announced = append(f.announced, ip.String())
+	f.owners = append(f.owners, owner)
+
+	return f.announceErr
+}
+
+func (f *fakeBGP) Withdraw(ip net.IP) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.withdrawn = append(f.withdrawn, ip.String())
+
+	return f.withdrawErr
+}
+
+func (f *fakeBGP) IsRunning() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.running
+}
+
+// --- BGP Integration Tests ---
+
+func TestRemoveSession_WithdrawsBGPRoute(t *testing.T) {
+	store, upf, amfCb := defaultFakes()
+	bgpFake := &fakeBGP{running: true}
+	s := smf.New(store, upf, amfCb, smf.WithBGP(bgpFake))
+	supi := testSUPI()
+	bgCtx := context.Background()
+
+	smCtx := s.NewSession(supi, 1, testDNN, testSnssai)
+	smCtx.PDUAddress = net.ParseIP("10.0.0.1")
+	ref := smf.CanonicalName(supi, 1)
+
+	s.RemoveSession(bgCtx, ref)
+
+	bgpFake.mu.Lock()
+	defer bgpFake.mu.Unlock()
+
+	if len(bgpFake.withdrawn) != 1 {
+		t.Fatalf("expected 1 BGP withdraw, got %d", len(bgpFake.withdrawn))
+	}
+
+	if bgpFake.withdrawn[0] != "10.0.0.1" {
+		t.Fatalf("expected withdraw for 10.0.0.1, got %s", bgpFake.withdrawn[0])
+	}
+}
+
+func TestRemoveSession_NoBGP_NoWithdraw(t *testing.T) {
+	store, upf, amfCb := defaultFakes()
+	// No BGP configured
+	s := smf.New(store, upf, amfCb)
+	supi := testSUPI()
+	bgCtx := context.Background()
+
+	smCtx := s.NewSession(supi, 1, testDNN, testSnssai)
+	smCtx.PDUAddress = net.ParseIP("10.0.0.1")
+	ref := smf.CanonicalName(supi, 1)
+
+	// Should not panic
+	s.RemoveSession(bgCtx, ref)
+}
+
+func TestRemoveSession_BGPNotRunning_NoWithdraw(t *testing.T) {
+	store, upf, amfCb := defaultFakes()
+	bgpFake := &fakeBGP{running: false}
+	s := smf.New(store, upf, amfCb, smf.WithBGP(bgpFake))
+	supi := testSUPI()
+	bgCtx := context.Background()
+
+	smCtx := s.NewSession(supi, 1, testDNN, testSnssai)
+	smCtx.PDUAddress = net.ParseIP("10.0.0.1")
+	ref := smf.CanonicalName(supi, 1)
+
+	s.RemoveSession(bgCtx, ref)
+
+	bgpFake.mu.Lock()
+	defer bgpFake.mu.Unlock()
+
+	if len(bgpFake.withdrawn) != 0 {
+		t.Fatalf("expected 0 BGP withdraws when not running, got %d", len(bgpFake.withdrawn))
+	}
+}
+
+func TestRemoveSession_NilPDUAddress_NoWithdraw(t *testing.T) {
+	store, upf, amfCb := defaultFakes()
+	bgpFake := &fakeBGP{running: true}
+	s := smf.New(store, upf, amfCb, smf.WithBGP(bgpFake))
+	supi := testSUPI()
+	bgCtx := context.Background()
+
+	// Session without PDUAddress (e.g., allocation failed before setting it)
+	s.NewSession(supi, 1, testDNN, testSnssai)
+	ref := smf.CanonicalName(supi, 1)
+
+	s.RemoveSession(bgCtx, ref)
+
+	bgpFake.mu.Lock()
+	defer bgpFake.mu.Unlock()
+
+	if len(bgpFake.withdrawn) != 0 {
+		t.Fatalf("expected 0 BGP withdraws for nil PDUAddress, got %d", len(bgpFake.withdrawn))
 	}
 }

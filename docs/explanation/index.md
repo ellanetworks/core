@@ -8,3 +8,4 @@ The following explanations provide context and clarification on key-topics relat
 - [User Plane Packet Processing with eBPF](user_plane_packet_processing_with_ebpf.md)
 - [Obtaining a PLMN ID for a Private Network](obtaining_plmn_id.md)
 - [Managing SIM Cards](managing_sim_cards.md)
+- [BGP Route Advertisement](bgp.md)

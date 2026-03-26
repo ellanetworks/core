@@ -120,7 +120,7 @@ func setupServer(filepath string) (testEnv, error) {
 	}
 
 	amfInstance := amf.New(testdb, nil, nil)
-	ts := httptest.NewTLSServer(server.NewHandler(testdb, cfg, fakeUPF, fakeKernel, jwtSecret, false, dummyfs, smfInstance, amfInstance, nil))
+	ts := httptest.NewTLSServer(server.NewHandler(testdb, cfg, fakeUPF, fakeKernel, jwtSecret, false, dummyfs, smfInstance, amfInstance, nil, nil))
 
 	supportbundle.ConfigProvider = func(ctx context.Context) ([]byte, error) {
 		return []byte("fake test config"), nil
@@ -216,8 +216,8 @@ func (f *fakeSessionStore) AllocateIP(ctx context.Context, supi string) (net.IP,
 	return f.db.AllocateIP(ctx, supi)
 }
 
-func (f *fakeSessionStore) ReleaseIP(ctx context.Context, supi string) error {
-	return f.db.ReleaseIP(ctx, supi)
+func (f *fakeSessionStore) ReleaseIP(ctx context.Context, supi string, ip net.IP) error {
+	return f.db.ReleaseIP(ctx, supi, ip)
 }
 
 func (f *fakeSessionStore) GetSubscriberPolicy(ctx context.Context, imsi string) (*smf.Policy, error) {

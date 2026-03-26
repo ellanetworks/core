@@ -38,6 +38,7 @@ type SMContext struct {
 	PolicyData                     *Policy
 	PFCPContext                    *PFCPSessionContext
 	PDUSessionID                   uint8
+	PDUAddress                     net.IP
 	PDUSessionReleaseDueToDupPduID bool
 }
 

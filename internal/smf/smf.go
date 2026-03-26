@@ -38,8 +38,10 @@ type SessionStore interface {
 	// AllocateIP assigns an IP address to a subscriber.
 	AllocateIP(ctx context.Context, supi string) (net.IP, error)
 
-	// ReleaseIP frees the IP address associated with a subscriber.
-	ReleaseIP(ctx context.Context, supi string) error
+	// ReleaseIP frees the specific IP address associated with a subscriber.
+	// It only clears the address if it still matches ip, preventing a stale
+	// release from clobbering a newer session's address.
+	ReleaseIP(ctx context.Context, supi string, ip net.IP) error
 
 	// GetSubscriberPolicy returns the QoS policy for a subscriber.
 	GetSubscriberPolicy(ctx context.Context, imsi string) (*Policy, error)
@@ -59,6 +61,13 @@ type UPFClient interface {
 	EstablishSession(ctx context.Context, req *PFCPEstablishmentRequest) (*PFCPEstablishmentResponse, error)
 	ModifySession(ctx context.Context, req *PFCPModificationRequest) error
 	DeleteSession(ctx context.Context, localSEID, remoteSEID uint64) error
+}
+
+// BGPAnnouncer is the interface used by the SMF to announce/withdraw subscriber routes.
+type BGPAnnouncer interface {
+	Announce(ip net.IP, owner string) error
+	Withdraw(ip net.IP) error
+	IsRunning() bool
 }
 
 // AMFCallback abstracts the SMF → AMF communication.
@@ -137,6 +146,7 @@ type SMF struct {
 	store  SessionStore
 	upf    UPFClient
 	amf    AMFCallback
+	bgp    BGPAnnouncer
 	clock  func() time.Time
 	nodeID net.IP
 
@@ -156,6 +166,9 @@ func WithClock(fn func() time.Time) Option { return func(s *SMF) { s.clock = fn 
 
 // WithNodeID overrides the control plane node ID.
 func WithNodeID(ip net.IP) Option { return func(s *SMF) { s.nodeID = ip } }
+
+// WithBGP sets the BGP announcer for advertising subscriber routes.
+func WithBGP(bgp BGPAnnouncer) Option { return func(s *SMF) { s.bgp = bgp } }
 
 // New creates a new SMF.
 func New(store SessionStore, upf UPFClient, amf AMFCallback, opts ...Option) *SMF {
@@ -245,8 +258,14 @@ func (s *SMF) RemoveSession(ctx context.Context, ref string) {
 	delete(s.pool, ref)
 	s.mu.Unlock()
 
-	if err := s.store.ReleaseIP(ctx, smCtx.Supi.IMSI()); err != nil {
-		logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
+	if smCtx.PDUAddress != nil {
+		if err := s.store.ReleaseIP(ctx, smCtx.Supi.IMSI(), smCtx.PDUAddress); err != nil {
+			logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
+		}
+	}
+
+	if smCtx.PDUAddress != nil {
+		s.withdrawRoute(smCtx.PDUAddress)
 	}
 
 	logger.SmfLog.Info("SM Context removed", zap.String("smContextRef", ref))
@@ -363,6 +382,31 @@ func (s *SMF) NewURR() (*URR, error) {
 		ReportingTriggers:  ReportingTriggers{PeriodicReporting: true},
 		MeasurementPeriod:  60 * time.Second,
 	}, nil
+}
+
+// announceRoute advertises a /32 route for the given UE IP via BGP,
+// tagged with the subscriber IMSI as owner.
+// It is a no-op if no BGP announcer is configured or it is not running.
+func (s *SMF) announceRoute(ip net.IP, owner string) {
+	if s.bgp == nil || !s.bgp.IsRunning() {
+		return
+	}
+
+	if err := s.bgp.Announce(ip, owner); err != nil {
+		logger.SmfLog.Warn("failed to announce BGP route", zap.String("ip", ip.String()), zap.Error(err))
+	}
+}
+
+// withdrawRoute removes a /32 route for the given UE IP from BGP.
+// It is a no-op if no BGP announcer is configured or it is not running.
+func (s *SMF) withdrawRoute(ip net.IP) {
+	if s.bgp == nil || !s.bgp.IsRunning() {
+		return
+	}
+
+	if err := s.bgp.Withdraw(ip); err != nil {
+		logger.SmfLog.Warn("failed to withdraw BGP route", zap.String("ip", ip.String()), zap.Error(err))
+	}
 }
 
 // RemovePDR frees a PDR ID.

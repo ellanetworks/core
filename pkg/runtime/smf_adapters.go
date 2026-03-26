@@ -33,8 +33,8 @@ func (a *smfDBAdapter) AllocateIP(ctx context.Context, supi string) (net.IP, err
 	return a.db.AllocateIP(ctx, supi)
 }
 
-func (a *smfDBAdapter) ReleaseIP(ctx context.Context, supi string) error {
-	return a.db.ReleaseIP(ctx, supi)
+func (a *smfDBAdapter) ReleaseIP(ctx context.Context, supi string, ip net.IP) error {
+	return a.db.ReleaseIP(ctx, supi, ip)
 }
 
 func (a *smfDBAdapter) GetSubscriberPolicy(ctx context.Context, imsi string) (*smf.Policy, error) {
