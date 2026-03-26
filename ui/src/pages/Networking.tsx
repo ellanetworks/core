@@ -20,7 +20,11 @@ import {
   TableRow,
 } from "@mui/material";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
-import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
+import {
+  Delete as DeleteIcon,
+  Edit as EditIcon,
+  Visibility as ViewIcon,
+} from "@mui/icons-material";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -67,6 +71,7 @@ import {
 } from "@/queries/bgp";
 import CreateBGPPeerModal from "@/components/CreateBGPPeerModal";
 import EditBGPPeerModal from "@/components/EditBGPPeerModal";
+import ViewBGPPeerModal from "@/components/ViewBGPPeerModal";
 import EditBGPSettingsModal from "@/components/EditBGPSettingsModal";
 
 // Flow Accounting
@@ -548,20 +553,12 @@ export default function NetworkingPage() {
     setEditBGPPeerOpen(true);
   };
 
-  const [expandedPeerIds, setExpandedPeerIds] = useState<Set<number>>(
-    new Set(),
-  );
+  const [isViewBGPPeerOpen, setViewBGPPeerOpen] = useState(false);
+  const [viewBGPPeer, setViewBGPPeer] = useState<APIBGPPeer | null>(null);
 
-  const togglePeerExpanded = (id: number) => {
-    setExpandedPeerIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
+  const handleViewBGPPeer = (peer: APIBGPPeer) => {
+    setViewBGPPeer(peer);
+    setViewBGPPeerOpen(true);
   };
 
   const getImportPolicyLabel = (prefixes: BGPImportPrefix[] | undefined) => {
@@ -609,16 +606,22 @@ export default function NetworkingPage() {
           return <Chip label={text} color={color} size="small" />;
         },
       },
-      ...(canEdit
-        ? [
-            {
-              field: "actions",
-              headerName: "Actions",
-              type: "actions",
-              width: 100,
-              sortable: false,
-              disableColumnMenu: true,
-              getActions: (p: { row: APIBGPPeer }) => [
+      {
+        field: "actions",
+        headerName: "Actions",
+        type: "actions",
+        width: canEdit ? 140 : 60,
+        sortable: false,
+        disableColumnMenu: true,
+        getActions: (p: { row: APIBGPPeer }) => [
+          <GridActionsCellItem
+            key="view"
+            icon={<ViewIcon color="primary" />}
+            label="View"
+            onClick={() => handleViewBGPPeer(p.row)}
+          />,
+          ...(canEdit
+            ? [
                 <GridActionsCellItem
                   key="edit"
                   icon={<EditIcon color="primary" />}
@@ -631,10 +634,10 @@ export default function NetworkingPage() {
                   label="Delete"
                   onClick={() => handleRequestDeleteBGPPeer(p.row.id)}
                 />,
-              ],
-            } as GridColDef<APIBGPPeer>,
-          ]
-        : []),
+              ]
+            : []),
+        ],
+      } as GridColDef<APIBGPPeer>,
     ];
   }, [canEdit]);
 
@@ -1355,9 +1358,6 @@ export default function NetworkingPage() {
                         pageSizeOptions={[10, 25, 50]}
                         disableColumnMenu
                         disableRowSelectionOnClick
-                        onRowClick={(params) =>
-                          togglePeerExpanded(params.row.id)
-                        }
                         sx={{
                           width: "100%",
                           border: 1,
@@ -1374,69 +1374,9 @@ export default function NetworkingPage() {
                             borderTop: "1px solid",
                             borderColor: "divider",
                           },
-                          "& .MuiDataGrid-row": {
-                            cursor: "pointer",
-                          },
                         }}
                       />
                     </ThemeProvider>
-                    {bgpPeerRows
-                      .filter((row) => expandedPeerIds.has(row.id))
-                      .map((row) => (
-                        <Box
-                          key={row.id}
-                          sx={{
-                            p: 2,
-                            mt: 1,
-                            mb: 1,
-                            border: 1,
-                            borderColor: "divider",
-                            borderRadius: 1,
-                          }}
-                        >
-                          <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                            {row.address} — Import Prefix List
-                          </Typography>
-                          {!row.importPrefixes ||
-                          row.importPrefixes.length === 0 ? (
-                            <Typography variant="body2" color="text.secondary">
-                              No import prefixes configured (reject all).
-                            </Typography>
-                          ) : (
-                            <TableContainer>
-                              <Table size="small">
-                                <TableBody>
-                                  {row.importPrefixes.map(
-                                    (p: BGPImportPrefix, i: number) => (
-                                      <TableRow key={i}>
-                                        <TableCell
-                                          sx={{ fontFamily: "monospace" }}
-                                        >
-                                          {p.prefix}
-                                        </TableCell>
-                                        <TableCell>
-                                          max /{p.maxLength}
-                                        </TableCell>
-                                      </TableRow>
-                                    ),
-                                  )}
-                                </TableBody>
-                              </Table>
-                            </TableContainer>
-                          )}
-                          <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
-                            <Typography variant="body2" color="text.secondary">
-                              Prefixes received: {row.prefixesReceived ?? 0}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              Prefixes accepted: {row.prefixesAccepted ?? 0}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              Prefixes sent: {row.prefixesSent ?? 0}
-                            </Typography>
-                          </Stack>
-                        </Box>
-                      ))}
                   </>
                 )}
               </Box>
@@ -1698,6 +1638,13 @@ export default function NetworkingPage() {
             showSnackbar("BGP peer updated successfully.", "success");
           }}
           peer={editBGPPeer}
+        />
+      )}
+      {isViewBGPPeerOpen && viewBGPPeer && (
+        <ViewBGPPeerModal
+          open
+          onClose={() => setViewBGPPeerOpen(false)}
+          peer={viewBGPPeer}
         />
       )}
       {isDeleteBGPPeerOpen && (

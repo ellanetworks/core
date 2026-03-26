@@ -360,61 +360,85 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
           <ToggleButton value="custom">Custom</ToggleButton>
         </ToggleButtonGroup>
 
-        {importPrefixes.map((entry, index) => (
-          <Stack
-            key={index}
-            direction="row"
-            spacing={1}
-            sx={{ mb: 1 }}
-            alignItems="center"
-          >
-            <TextField
-              label="Prefix"
-              value={entry.prefix}
-              onChange={(e) =>
-                handlePrefixChange(index, "prefix", e.target.value)
-              }
-              size="small"
-              error={!!entry.prefix && !cidrRegex.test(entry.prefix)}
-              helperText={
-                entry.prefix && !cidrRegex.test(entry.prefix)
-                  ? "Must be valid CIDR"
-                  : ""
-              }
-              sx={{ flex: 2 }}
-            />
-            <TextField
-              label="Max Length"
-              type="number"
-              value={entry.maxLength}
-              onChange={(e) =>
-                handlePrefixChange(index, "maxLength", Number(e.target.value))
-              }
-              size="small"
-              error={entry.maxLength < 0 || entry.maxLength > 32}
-              helperText={
-                entry.maxLength < 0 || entry.maxLength > 32 ? "0–32" : ""
-              }
-              sx={{ flex: 1 }}
-            />
-            <IconButton
-              size="small"
-              onClick={() => handleRemovePrefix(index)}
-              color="error"
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Stack>
-        ))}
+        {importPreset === "none" && (
+          <Typography variant="body2" color="text.secondary">
+            No routes will be accepted from this peer.
+          </Typography>
+        )}
+        {importPreset === "default-route" && (
+          <Typography variant="body2" color="text.secondary">
+            Only the default route (0.0.0.0/0) will be accepted.
+          </Typography>
+        )}
+        {importPreset === "all" && (
+          <Typography variant="body2" color="text.secondary">
+            All routes will be accepted from this peer.
+          </Typography>
+        )}
 
-        <Button
-          size="small"
-          startIcon={<AddIcon />}
-          onClick={handleAddPrefix}
-          sx={{ mt: 1 }}
-        >
-          Add Prefix
-        </Button>
+        {importPreset === "custom" && (
+          <>
+            {importPrefixes.map((entry, index) => (
+              <Stack
+                key={index}
+                direction="row"
+                spacing={1}
+                sx={{ mb: 1 }}
+                alignItems="center"
+              >
+                <TextField
+                  label="Prefix"
+                  value={entry.prefix}
+                  onChange={(e) =>
+                    handlePrefixChange(index, "prefix", e.target.value)
+                  }
+                  size="small"
+                  error={!!entry.prefix && !cidrRegex.test(entry.prefix)}
+                  helperText={
+                    entry.prefix && !cidrRegex.test(entry.prefix)
+                      ? "Must be valid CIDR"
+                      : ""
+                  }
+                  sx={{ flex: 2 }}
+                />
+                <TextField
+                  label="Max Length"
+                  type="number"
+                  value={entry.maxLength}
+                  onChange={(e) =>
+                    handlePrefixChange(
+                      index,
+                      "maxLength",
+                      Number(e.target.value),
+                    )
+                  }
+                  size="small"
+                  error={entry.maxLength < 0 || entry.maxLength > 32}
+                  helperText={
+                    entry.maxLength < 0 || entry.maxLength > 32 ? "0–32" : ""
+                  }
+                  sx={{ flex: 1 }}
+                />
+                <IconButton
+                  size="small"
+                  onClick={() => handleRemovePrefix(index)}
+                  color="error"
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </Stack>
+            ))}
+
+            <Button
+              size="small"
+              startIcon={<AddIcon />}
+              onClick={handleAddPrefix}
+              sx={{ mt: 1 }}
+            >
+              Add Prefix
+            </Button>
+          </>
+        )}
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
