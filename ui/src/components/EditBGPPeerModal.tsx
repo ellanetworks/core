@@ -17,7 +17,11 @@ import {
 import { Delete as DeleteIcon, Add as AddIcon } from "@mui/icons-material";
 import * as yup from "yup";
 import { ValidationError } from "yup";
-import { updateBGPPeer, type BGPPeer, type BGPImportPrefix } from "@/queries/bgp";
+import {
+  updateBGPPeer,
+  type BGPPeer,
+  type BGPImportPrefix,
+} from "@/queries/bgp";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -357,15 +361,25 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
         </ToggleButtonGroup>
 
         {importPrefixes.map((entry, index) => (
-          <Stack key={index} direction="row" spacing={1} sx={{ mb: 1 }} alignItems="center">
+          <Stack
+            key={index}
+            direction="row"
+            spacing={1}
+            sx={{ mb: 1 }}
+            alignItems="center"
+          >
             <TextField
               label="Prefix"
               value={entry.prefix}
-              onChange={(e) => handlePrefixChange(index, "prefix", e.target.value)}
+              onChange={(e) =>
+                handlePrefixChange(index, "prefix", e.target.value)
+              }
               size="small"
               error={!!entry.prefix && !cidrRegex.test(entry.prefix)}
               helperText={
-                entry.prefix && !cidrRegex.test(entry.prefix) ? "Must be valid CIDR" : ""
+                entry.prefix && !cidrRegex.test(entry.prefix)
+                  ? "Must be valid CIDR"
+                  : ""
               }
               sx={{ flex: 2 }}
             />

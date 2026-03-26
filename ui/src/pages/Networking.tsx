@@ -658,7 +658,9 @@ export default function NetworkingPage() {
     [bgpAdvertisedData],
   );
 
-  const bgpAdvertisedColumns: GridColDef<BGPAdvertisedRoute & { id: string }>[] = [
+  const bgpAdvertisedColumns: GridColDef<
+    BGPAdvertisedRoute & { id: string }
+  >[] = [
     {
       field: "subscriber",
       headerName: "Subscriber",
@@ -1199,11 +1201,7 @@ export default function NetworkingPage() {
                     <Switch
                       checked={!!natInfo?.enabled}
                       onChange={(_, checked) => setNATEnabled(checked)}
-                      disabled={
-                        !canEdit ||
-                        natMutating ||
-                        natLoading
-                      }
+                      disabled={!canEdit || natMutating || natLoading}
                     />
                   }
                   label={natInfo?.enabled ? "NAT is ON" : "NAT is OFF"}
@@ -1256,10 +1254,7 @@ export default function NetworkingPage() {
                         <Switch
                           checked={!!bgpSettings?.enabled}
                           onChange={(_, checked) => setBGPEnabled(checked)}
-                          disabled={
-                            !canEdit ||
-                            bgpToggling
-                          }
+                          disabled={!canEdit || bgpToggling}
                         />
                       }
                       label={bgpSettings?.enabled ? "BGP is ON" : "BGP is OFF"}
@@ -1402,12 +1397,9 @@ export default function NetworkingPage() {
                           <Typography variant="subtitle2" sx={{ mb: 1 }}>
                             {row.address} — Import Prefix List
                           </Typography>
-                          {(!row.importPrefixes ||
-                            row.importPrefixes.length === 0) ? (
-                            <Typography
-                              variant="body2"
-                              color="text.secondary"
-                            >
+                          {!row.importPrefixes ||
+                          row.importPrefixes.length === 0 ? (
+                            <Typography variant="body2" color="text.secondary">
                               No import prefixes configured (reject all).
                             </Typography>
                           ) : (
@@ -1432,29 +1424,14 @@ export default function NetworkingPage() {
                               </Table>
                             </TableContainer>
                           )}
-                          <Stack
-                            direction="row"
-                            spacing={2}
-                            sx={{ mt: 1 }}
-                          >
-                            <Typography
-                              variant="body2"
-                              color="text.secondary"
-                            >
-                              Prefixes received:{" "}
-                              {row.prefixesReceived ?? 0}
+                          <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
+                            <Typography variant="body2" color="text.secondary">
+                              Prefixes received: {row.prefixesReceived ?? 0}
                             </Typography>
-                            <Typography
-                              variant="body2"
-                              color="text.secondary"
-                            >
-                              Prefixes accepted:{" "}
-                              {row.prefixesAccepted ?? 0}
+                            <Typography variant="body2" color="text.secondary">
+                              Prefixes accepted: {row.prefixesAccepted ?? 0}
                             </Typography>
-                            <Typography
-                              variant="body2"
-                              color="text.secondary"
-                            >
+                            <Typography variant="body2" color="text.secondary">
                               Prefixes sent: {row.prefixesSent ?? 0}
                             </Typography>
                           </Stack>
