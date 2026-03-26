@@ -153,7 +153,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			return fmt.Errorf("couldn't list BGP peers: %w", err)
 		}
 
-		allocatedIPs, err := dbInstance.ListAllocatedIPs(ctx)
+		allocatedIPs, err := dbInstance.ListAllocatedIPMappings(ctx)
 		if err != nil {
 			return fmt.Errorf("couldn't list allocated IPs: %w", err)
 		}

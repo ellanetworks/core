@@ -32,6 +32,7 @@ const (
 	countSubscribersInPolicyStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE policyID=$Subscriber.policyID"
 	countSubscribersWithIPStmt   = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE ipAddress IS NOT NULL AND TRIM(ipAddress) <> ''"
 	listAllocatedIPsStmt         = "SELECT &Subscriber.ipAddress FROM %s WHERE ipAddress IS NOT NULL AND TRIM(ipAddress) <> ''"
+	listAllocatedIPMappingsStmt  = "SELECT &Subscriber.ipAddress, &Subscriber.imsi FROM %s WHERE ipAddress IS NOT NULL AND TRIM(ipAddress) <> ''"
 	checkIPStmt                  = "SELECT &Subscriber.* FROM %s WHERE ipAddress=$Subscriber.ipAddress"
 	allocateIPStmt               = "UPDATE %s SET ipAddress=$Subscriber.ipAddress WHERE imsi=$Subscriber.imsi"
 	releaseIPStmt                = "UPDATE %s SET ipAddress=NULL WHERE imsi=$Subscriber.imsi AND ipAddress=$Subscriber.ipAddress"
@@ -717,4 +718,54 @@ func (db *Database) ListAllocatedIPs(ctx context.Context) ([]net.IP, error) {
 	span.SetStatus(codes.Ok, "")
 
 	return ips, nil
+}
+
+// ListAllocatedIPMappings returns a map from allocated IP address strings to
+// subscriber IMSIs. This is used by the BGP service to associate advertised
+// routes with their owning subscribers.
+func (db *Database) ListAllocatedIPMappings(ctx context.Context) (map[string]string, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (allocated IP mappings)", "SELECT", SubscribersTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			attribute.String("db.collection", SubscribersTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
+
+	var subs []Subscriber
+
+	err := db.conn.Query(ctx, db.listAllocatedIPMappingsStmt).GetAll(&subs)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetStatus(codes.Ok, "no rows")
+
+			return nil, nil
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	result := make(map[string]string, len(subs))
+
+	for _, sub := range subs {
+		if sub.IPAddress != nil {
+			result[*sub.IPAddress] = sub.Imsi
+		}
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return result, nil
 }

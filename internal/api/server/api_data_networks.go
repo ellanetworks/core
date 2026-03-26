@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net"
@@ -9,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ellanetworks/core/internal/bgp"
+	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf"
@@ -136,7 +139,7 @@ func GetDataNetwork(dbInstance *db.Database, sessions smf.SessionQuerier) http.H
 	})
 }
 
-func DeleteDataNetwork(dbInstance *db.Database) http.Handler {
+func DeleteDataNetwork(dbInstance *db.Database, cfg config.Config, bgpService *bgp.BGPService) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
@@ -180,11 +183,13 @@ func DeleteDataNetwork(dbInstance *db.Database) http.Handler {
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "DataNetwork deleted successfully"}, http.StatusOK, logger.APILog)
 
+		rebuildBGPFilter(r.Context(), dbInstance, cfg, bgpService)
+
 		logger.LogAuditEvent(r.Context(), DeleteDataNetworkAction, email, getClientIP(r), "User deleted data network: "+name)
 	})
 }
 
-func CreateDataNetwork(dbInstance *db.Database) http.Handler {
+func CreateDataNetwork(dbInstance *db.Database, cfg config.Config, bgpService *bgp.BGPService) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
@@ -233,11 +238,14 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Data Network created successfully"}, http.StatusCreated, logger.APILog)
+
+		rebuildBGPFilter(r.Context(), dbInstance, cfg, bgpService)
+
 		logger.LogAuditEvent(r.Context(), CreateDataNetworkAction, email, getClientIP(r), "User created data network: "+createDataNetworkParams.Name)
 	})
 }
 
-func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
+func UpdateDataNetwork(dbInstance *db.Database, cfg config.Config, bgpService *bgp.BGPService) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
@@ -283,6 +291,8 @@ func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Data Network updated successfully"}, http.StatusOK, logger.APILog)
 
+		rebuildBGPFilter(r.Context(), dbInstance, cfg, bgpService)
+
 		logger.LogAuditEvent(r.Context(), UpdateDataNetworkAction, email, getClientIP(r), "User updated data network: "+updateDataNetworkParams.Name)
 	})
 }
@@ -326,4 +336,78 @@ func validateDataNetworkParams(p CreateDataNetworkParams) error {
 	}
 
 	return nil
+}
+
+// rebuildBGPFilter rebuilds the BGP safety rejection filter from the current
+// data networks and interface configuration and applies it to the BGP service.
+// It is called after data network create/update/delete operations.
+func rebuildBGPFilter(ctx context.Context, dbInstance *db.Database, cfg config.Config, bgpService *bgp.BGPService) {
+	if bgpService == nil {
+		return
+	}
+
+	dataNetworks, _, err := dbInstance.ListDataNetworksPage(ctx, 1, 100)
+	if err != nil {
+		logger.APILog.Warn("failed to list data networks for BGP filter rebuild")
+
+		return
+	}
+
+	var uePool *net.IPNet
+
+	var extraSubnets []*net.IPNet
+
+	for _, dn := range dataNetworks {
+		_, network, err := net.ParseCIDR(dn.IPPool)
+		if err != nil {
+			continue
+		}
+
+		if uePool == nil {
+			uePool = network
+		} else {
+			extraSubnets = append(extraSubnets, network)
+		}
+	}
+
+	if n3IP := net.ParseIP(cfg.Interfaces.N3.Address); n3IP != nil {
+		extraSubnets = append(extraSubnets, &net.IPNet{
+			IP:   n3IP.To4(),
+			Mask: net.CIDRMask(32, 32),
+		})
+	}
+
+	n6Subnets := interfaceSubnets(cfg.Interfaces.N6.Name)
+	extraSubnets = append(extraSubnets, n6Subnets...)
+
+	rejectPrefixes := bgp.BuildRejectPrefixes(uePool, extraSubnets)
+	bgpService.UpdateFilter(&bgp.RouteFilter{RejectPrefixes: rejectPrefixes})
+}
+
+// interfaceSubnets returns the IPv4 subnets configured on the named interface.
+func interfaceSubnets(ifName string) []*net.IPNet {
+	iface, err := net.InterfaceByName(ifName)
+	if err != nil {
+		return nil
+	}
+
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return nil
+	}
+
+	var subnets []*net.IPNet
+
+	for _, a := range addrs {
+		_, network, err := net.ParseCIDR(a.String())
+		if err != nil {
+			continue
+		}
+
+		if network.IP.To4() != nil {
+			subnets = append(subnets, network)
+		}
+	}
+
+	return subnets
 }

@@ -104,10 +104,10 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 
 	// Data Networks (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/data-networks", Authenticate(jwtSecret, dbInstance, Authorize(PermListDataNetworks, ListDataNetworks(dbInstance, sessions))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/networking/data-networks", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateDataNetwork, CreateDataNetwork(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/networking/data-networks/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateDataNetwork, UpdateDataNetwork(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/networking/data-networks", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateDataNetwork, CreateDataNetwork(dbInstance, cfg, bgpService))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/networking/data-networks/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateDataNetwork, UpdateDataNetwork(dbInstance, cfg, bgpService))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/networking/data-networks/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadDataNetwork, GetDataNetwork(dbInstance, sessions))).ServeHTTP)
-	mux.HandleFunc("DELETE /api/v1/networking/data-networks/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteDataNetwork, DeleteDataNetwork(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/networking/data-networks/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteDataNetwork, DeleteDataNetwork(dbInstance, cfg, bgpService))).ServeHTTP)
 
 	// Routes (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/routes", Authenticate(jwtSecret, dbInstance, Authorize(PermListRoutes, ListRoutes(dbInstance, bgpService))).ServeHTTP)
@@ -117,7 +117,7 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 
 	// NAT (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, Authorize(PermGetNATInfo, GetNATInfo(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateNATInfo, UpdateNATInfo(dbInstance, upf))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateNATInfo, UpdateNATInfo(dbInstance, upf, bgpService))).ServeHTTP)
 
 	// BGP (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/bgp", Authenticate(jwtSecret, dbInstance, Authorize(PermReadBGP, GetBGPSettings(dbInstance, bgpService))).ServeHTTP)

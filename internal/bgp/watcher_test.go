@@ -205,3 +205,230 @@ func newTestServiceWithLearning(t *testing.T, k kernel.Kernel, store bgp.ImportP
 
 	return svc
 }
+
+func TestReconfigurePeerRemovalCleansLearnedRoutes(t *testing.T) {
+	fk := &fakeKernel{}
+
+	store := &fakeImportStore{
+		entries: map[int][]bgp.ImportPrefixEntry{
+			1: {{Prefix: "0.0.0.0/0", MaxLength: 32}},
+		},
+	}
+
+	svc := newTestServiceWithLearning(t, fk, store)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+	peers := []bgp.BGPPeer{
+		{ID: 1, Address: "192.168.1.1", RemoteAS: 65001, HoldTime: 90},
+		{ID: 2, Address: "192.168.1.2", RemoteAS: 65002, HoldTime: 90},
+	}
+
+	err := svc.Start(ctx, settings, peers, nil, true)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	// Inject learned routes from both peers.
+	_, net1, _ := net.ParseCIDR("10.100.0.0/16")
+	_, net2, _ := net.ParseCIDR("10.200.0.0/16")
+
+	svc.InjectLearnedRouteForTest(*net1, net.ParseIP("192.168.1.1"), "192.168.1.1")
+	svc.InjectLearnedRouteForTest(*net2, net.ParseIP("192.168.1.2"), "192.168.1.2")
+
+	if len(svc.GetLearnedRoutes()) != 2 {
+		t.Fatalf("expected 2 learned routes, got %d", len(svc.GetLearnedRoutes()))
+	}
+
+	// Remove peer 192.168.1.2 via reconfigure.
+	remainingPeers := []bgp.BGPPeer{
+		{ID: 1, Address: "192.168.1.1", RemoteAS: 65001, HoldTime: 90},
+	}
+
+	err = svc.Reconfigure(ctx, settings, remainingPeers)
+	if err != nil {
+		t.Fatalf("Reconfigure failed: %v", err)
+	}
+
+	// Routes from the removed peer should be gone.
+	routes := svc.GetLearnedRoutes()
+	if len(routes) != 1 {
+		t.Fatalf("expected 1 learned route after removing peer, got %d", len(routes))
+	}
+
+	if routes[0].Peer != "192.168.1.1" {
+		t.Fatalf("expected remaining route from 192.168.1.1, got %s", routes[0].Peer)
+	}
+
+	// Verify kernel DeleteRoute was called for the removed route.
+	fk.mu.Lock()
+	deletedCount := len(fk.deleted)
+	fk.mu.Unlock()
+
+	if deletedCount < 1 {
+		t.Fatalf("expected at least 1 kernel route deletion, got %d", deletedCount)
+	}
+}
+
+func TestReconfigureImportPolicyChangeRemovesRoutes(t *testing.T) {
+	fk := &fakeKernel{}
+
+	// Start with "accept all" for peer 1.
+	store := &fakeImportStore{
+		entries: map[int][]bgp.ImportPrefixEntry{
+			1: {{Prefix: "0.0.0.0/0", MaxLength: 32}},
+		},
+	}
+
+	svc := newTestServiceWithLearning(t, fk, store)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+	peers := []bgp.BGPPeer{
+		{ID: 1, Address: "192.168.1.1", RemoteAS: 65001, HoldTime: 90},
+	}
+
+	err := svc.Start(ctx, settings, peers, nil, true)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	// Inject a learned route.
+	_, net1, _ := net.ParseCIDR("10.100.0.0/16")
+	svc.InjectLearnedRouteForTest(*net1, net.ParseIP("192.168.1.1"), "192.168.1.1")
+
+	if len(svc.GetLearnedRoutes()) != 1 {
+		t.Fatalf("expected 1 learned route, got %d", len(svc.GetLearnedRoutes()))
+	}
+
+	// Change import policy to "accept nothing" (empty entries).
+	store.entries = map[int][]bgp.ImportPrefixEntry{}
+
+	err = svc.Reconfigure(ctx, settings, peers)
+	if err != nil {
+		t.Fatalf("Reconfigure failed: %v", err)
+	}
+
+	// The route should be removed because the import policy now rejects it.
+	routes := svc.GetLearnedRoutes()
+	if len(routes) != 0 {
+		t.Fatalf("expected 0 learned routes after policy change, got %d", len(routes))
+	}
+}
+
+func TestSetAdvertisingToggle(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+
+	ips := map[string]string{"10.1.1.1": "imsi-001010000000001", "10.1.1.2": "imsi-001010000000002"}
+
+	err := svc.Start(ctx, settings, nil, ips, true)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	if !svc.IsAdvertising() {
+		t.Fatal("expected advertising=true after start")
+	}
+
+	routes, _ := svc.GetRoutes()
+	if len(routes) != 2 {
+		t.Fatalf("expected 2 routes, got %d", len(routes))
+	}
+
+	// Disable advertising (simulate NAT enabled).
+	svc.SetAdvertising(false)
+
+	if svc.IsAdvertising() {
+		t.Fatal("expected advertising=false after SetAdvertising(false)")
+	}
+
+	routes, _ = svc.GetRoutes()
+	if len(routes) != 0 {
+		t.Fatalf("expected 0 advertised routes after disabling, got %d", len(routes))
+	}
+
+	// Re-enable advertising.
+	svc.SetAdvertising(true)
+
+	if !svc.IsAdvertising() {
+		t.Fatal("expected advertising=true after SetAdvertising(true)")
+	}
+
+	routes, _ = svc.GetRoutes()
+	if len(routes) != 2 {
+		t.Fatalf("expected 2 routes after re-enabling, got %d", len(routes))
+	}
+}
+
+func TestSetAdvertisingNoOpWhenNotRunning(t *testing.T) {
+	svc := newTestService(t)
+
+	// Should not panic or error.
+	svc.SetAdvertising(true)
+	svc.SetAdvertising(false)
+}
+
+func TestUpdateFilterRemovesNewlyRejectedRoutes(t *testing.T) {
+	fk := &fakeKernel{}
+
+	store := &fakeImportStore{
+		entries: map[int][]bgp.ImportPrefixEntry{
+			1: {{Prefix: "0.0.0.0/0", MaxLength: 32}},
+		},
+	}
+
+	svc := newTestServiceWithLearning(t, fk, store)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+	peers := []bgp.BGPPeer{
+		{ID: 1, Address: "192.168.1.1", RemoteAS: 65001, HoldTime: 90},
+	}
+
+	err := svc.Start(ctx, settings, peers, nil, true)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	// Inject a learned route in 10.45.0.0/16 (not yet rejected).
+	_, net1, _ := net.ParseCIDR("10.45.0.5/32")
+	svc.InjectLearnedRouteForTest(*net1, net.ParseIP("192.168.1.1"), "192.168.1.1")
+
+	if len(svc.GetLearnedRoutes()) != 1 {
+		t.Fatalf("expected 1 learned route, got %d", len(svc.GetLearnedRoutes()))
+	}
+
+	// Update the filter to reject 10.45.0.0/16 (new data network added).
+	_, uePool, _ := net.ParseCIDR("10.45.0.0/16")
+	newFilter := &bgp.RouteFilter{
+		RejectPrefixes: bgp.BuildRejectPrefixes(uePool, nil),
+	}
+
+	svc.UpdateFilter(newFilter)
+
+	// The route in 10.45.0.0/16 should now be rejected and removed.
+	routes := svc.GetLearnedRoutes()
+	if len(routes) != 0 {
+		t.Fatalf("expected 0 learned routes after filter update, got %d", len(routes))
+	}
+
+	// Verify kernel route was deleted.
+	fk.mu.Lock()
+	deletedCount := len(fk.deleted)
+	fk.mu.Unlock()
+
+	if deletedCount < 1 {
+		t.Fatalf("expected at least 1 kernel route deletion, got %d", deletedCount)
+	}
+}

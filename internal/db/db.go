@@ -41,6 +41,7 @@ type Database struct {
 	countSubscribersByPolicyStmt *sqlair.Statement
 	countSubscribersWithIPStmt   *sqlair.Statement
 	listAllocatedIPsStmt         *sqlair.Statement
+	listAllocatedIPMappingsStmt  *sqlair.Statement
 
 	// API Token statements
 	listAPITokensStmt     *sqlair.Statement
@@ -327,6 +328,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.countSubscribersByPolicyStmt, fmt.Sprintf(countSubscribersInPolicyStmt, SubscribersTableName), []any{NumItems{}, Subscriber{}}},
 		{&db.countSubscribersWithIPStmt, fmt.Sprintf(countSubscribersWithIPStmt, SubscribersTableName), []any{NumItems{}}},
 		{&db.listAllocatedIPsStmt, fmt.Sprintf(listAllocatedIPsStmt, SubscribersTableName), []any{Subscriber{}}},
+		{&db.listAllocatedIPMappingsStmt, fmt.Sprintf(listAllocatedIPMappingsStmt, SubscribersTableName), []any{Subscriber{}}},
 
 		// API Tokens
 		{&db.listAPITokensStmt, fmt.Sprintf(listAPITokensPagedStmt, APITokensTableName), []any{ListArgs{}, APIToken{}, NumItems{}}},

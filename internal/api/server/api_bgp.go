@@ -235,7 +235,7 @@ func applyBGPSettingsChange(ctx context.Context, dbInstance *db.Database, bgpSer
 			return fmt.Errorf("failed to list BGP peers: %w", err)
 		}
 
-		allocatedIPs, err := dbInstance.ListAllocatedIPs(ctx)
+		allocatedIPs, err := dbInstance.ListAllocatedIPMappings(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to list allocated IPs: %w", err)
 		}

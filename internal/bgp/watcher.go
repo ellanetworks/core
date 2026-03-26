@@ -219,6 +219,97 @@ func (b *BGPService) removeAllLearnedRoutes() {
 	b.learnedRoutes = make(map[string]learnedRoute)
 }
 
+// removeLearnedRoutesForPeer removes all learned routes from the kernel
+// that were advertised by the given peer address and removes them from
+// the in-memory map. Called when a peer is removed during reconciliation.
+func (b *BGPService) removeLearnedRoutesForPeer(peerAddr string) {
+	b.learnedMu.Lock()
+	defer b.learnedMu.Unlock()
+
+	removed := 0
+
+	for prefixStr, lr := range b.learnedRoutes {
+		if lr.peer != peerAddr {
+			continue
+		}
+
+		dst := lr.prefix
+
+		err := b.kernel.DeleteRoute(&dst, lr.gateway, bgpRouteMetric, kernel.N6)
+		if err != nil {
+			b.logger.Warn("failed to remove learned BGP route for deleted peer",
+				zap.String("prefix", prefixStr), zap.String("peer", peerAddr), zap.Error(err))
+		}
+
+		delete(b.learnedRoutes, prefixStr)
+
+		removed++
+	}
+
+	if removed > 0 {
+		b.logger.Info("removed BGP-learned routes for deleted peer",
+			zap.String("peer", peerAddr), zap.Int("count", removed))
+	}
+}
+
+// reEvaluateLearnedRoutes checks all currently learned routes against the
+// current import prefix lists and safety filter, removing any that no longer
+// match. Called after hot reconfiguration to enforce import policy changes.
+// Must be called with mu held (for peers access).
+func (b *BGPService) reEvaluateLearnedRoutes(ctx context.Context, peers []BGPPeer) {
+	b.learnedMu.Lock()
+	defer b.learnedMu.Unlock()
+
+	removed := 0
+
+	for prefixStr, lr := range b.learnedRoutes {
+		// Check safety filter first.
+		dst := lr.prefix
+
+		if b.filter.overlapsAny(&dst) {
+			err := b.kernel.DeleteRoute(&dst, lr.gateway, bgpRouteMetric, kernel.N6)
+			if err != nil {
+				b.logger.Warn("failed to remove route rejected by updated filter",
+					zap.String("prefix", prefixStr), zap.Error(err))
+			}
+
+			delete(b.learnedRoutes, prefixStr)
+
+			removed++
+
+			continue
+		}
+
+		// Check per-peer import prefix list.
+		peerID := findPeerID(peers, lr.peer)
+
+		entries, err := b.loadImportPrefixes(ctx, peerID)
+		if err != nil {
+			b.logger.Warn("failed to load import prefixes during re-evaluation",
+				zap.String("peer", lr.peer), zap.Error(err))
+
+			continue
+		}
+
+		if len(entries) == 0 || !matchesPrefixList(&dst, entries) {
+			err := b.kernel.DeleteRoute(&dst, lr.gateway, bgpRouteMetric, kernel.N6)
+			if err != nil {
+				b.logger.Warn("failed to remove route no longer matching import policy",
+					zap.String("prefix", prefixStr), zap.Error(err))
+			}
+
+			delete(b.learnedRoutes, prefixStr)
+
+			removed++
+		}
+	}
+
+	if removed > 0 {
+		b.logger.Info("re-evaluated learned routes after reconfigure",
+			zap.Int("removed", removed), zap.Int("remaining", len(b.learnedRoutes)))
+	}
+}
+
 // loadImportPrefixes fetches and parses the import prefix list for a peer.
 func (b *BGPService) loadImportPrefixes(ctx context.Context, peerID int) ([]ImportPrefix, error) {
 	rawEntries, err := b.importStore.ListImportPrefixes(ctx, peerID)

@@ -170,10 +170,10 @@ func TestStartWithInitialRoutes(t *testing.T) {
 		LocalAS: 65000,
 	}
 
-	allocatedIPs := []net.IP{
-		net.ParseIP("10.1.1.1"),
-		net.ParseIP("10.1.1.2"),
-		net.ParseIP("10.1.1.3"),
+	allocatedIPs := map[string]string{
+		"10.1.1.1": "imsi-001010000000001",
+		"10.1.1.2": "imsi-001010000000002",
+		"10.1.1.3": "imsi-001010000000003",
 	}
 
 	err := svc.Start(ctx, settings, nil, allocatedIPs, true)
@@ -354,8 +354,8 @@ func TestReconfigureWithRestart(t *testing.T) {
 		LocalAS: 65000,
 	}
 
-	allocatedIPs := []net.IP{
-		net.ParseIP("10.1.1.1"),
+	allocatedIPs := map[string]string{
+		"10.1.1.1": "imsi-001010000000001",
 	}
 
 	err := svc.Start(ctx, settings, nil, allocatedIPs, true)
@@ -620,9 +620,9 @@ func TestStartWithNATSkipsInitialAnnouncements(t *testing.T) {
 		LocalAS: 65000,
 	}
 
-	allocatedIPs := []net.IP{
-		net.ParseIP("10.1.1.1"),
-		net.ParseIP("10.1.1.2"),
+	allocatedIPs := map[string]string{
+		"10.1.1.1": "imsi-001010000000001",
+		"10.1.1.2": "imsi-001010000000002",
 	}
 
 	// Start with advertising disabled — should not announce IPs

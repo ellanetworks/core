@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 )
@@ -37,7 +38,7 @@ func GetNATInfo(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func UpdateNATInfo(dbInstance *db.Database, upf UPFUpdater) http.Handler {
+func UpdateNATInfo(dbInstance *db.Database, upf UPFUpdater, bgpService *bgp.BGPService) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -62,6 +63,11 @@ func UpdateNATInfo(dbInstance *db.Database, upf UPFUpdater) http.Handler {
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to reload UPF with new NAT settings", err, logger.APILog)
 			return
+		}
+
+		// NAT enabled → suppress BGP route advertising; NAT disabled → resume advertising.
+		if bgpService != nil {
+			bgpService.SetAdvertising(!params.Enabled)
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "NAT settings updated successfully"}, http.StatusOK, logger.APILog)
