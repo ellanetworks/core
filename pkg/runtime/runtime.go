@@ -152,8 +152,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 		err = bgpService.Start(ctx, server.DBSettingsToBGPSettings(bgpSettings), servicePeers, allocatedIPs)
 		if err != nil {
-			logger.EllaLog.Error("BGP failed to start: port 179 may be in use. Stop any external BGP daemon (FRR, BIRD) before enabling integrated BGP.",
-				zap.Error(err))
+			listenAddr := bgpSettings.ListenAddress
+			if listenAddr == "" {
+				listenAddr = ":179"
+			}
+
+			logger.EllaLog.Error("BGP failed to start: address may be in use. Stop any external BGP daemon (FRR, BIRD) before enabling integrated BGP.", zap.String("address", listenAddr), zap.Error(err))
 		}
 	}
 
