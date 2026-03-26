@@ -52,28 +52,6 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return "", nil, fmt.Errorf("unexpected NAS message type: %d", m.GsmHeader.GetMessageType())
 	}
 
-	pti := m.PDUSessionEstablishmentRequest.GetPTI()
-
-	// Validate that the requested DNN exists before replacing any existing
-	// session. Without this guard a request for a non-existent DNN (e.g.
-	// "ims") destroys the active session sharing this PDU session ID,
-	// releasing its IP for re-allocation to another subscriber.
-	if _, err := s.GetDataNetwork(ctx, snssai, dnn); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "DNN not available")
-		logger.WithTrace(ctx, logger.SmfLog).Warn("PDU session rejected: DNN not available",
-			logger.DNN(dnn), logger.SUPI(supi.String()), zap.Error(err))
-
-		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
-
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, pti, nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
-		if buildErr != nil {
-			logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject", zap.Error(buildErr))
-		}
-
-		return "", rsp, fmt.Errorf("DNN %q not available: %v", dnn, err)
-	}
-
 	smContext := s.GetSession(CanonicalName(supi, pduSessionID))
 	if smContext != nil {
 		s.handlePduSessionContextReplacement(ctx, smContext)
@@ -97,7 +75,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		}
 	}()
 
-	pco, dnnInfo, pduAddress, _, policy, errRsp, err := s.handlePDUSessionSMContextCreate(ctx, m, smContext)
+	pco, dnnInfo, pduAddress, pti, policy, errRsp, err := s.handlePDUSessionSMContextCreate(ctx, m, smContext)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to create SM context")
