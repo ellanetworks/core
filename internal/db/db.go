@@ -94,6 +94,7 @@ type Database struct {
 	listAllBGPPeersStmt *sqlair.Statement
 	getBGPPeerStmt      *sqlair.Statement
 	createBGPPeerStmt   *sqlair.Statement
+	updateBGPPeerStmt   *sqlair.Statement
 	deleteBGPPeerStmt   *sqlair.Statement
 	countBGPPeersStmt   *sqlair.Statement
 
@@ -379,6 +380,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.listAllBGPPeersStmt, fmt.Sprintf(listAllBGPPeersStmt, BGPPeersTableName), []any{BGPPeer{}}},
 		{&db.getBGPPeerStmt, fmt.Sprintf(getBGPPeerStmt, BGPPeersTableName), []any{BGPPeer{}}},
 		{&db.createBGPPeerStmt, fmt.Sprintf(createBGPPeerStmt, BGPPeersTableName), []any{BGPPeer{}}},
+		{&db.updateBGPPeerStmt, fmt.Sprintf(updateBGPPeerStmt, BGPPeersTableName), []any{BGPPeer{}}},
 		{&db.deleteBGPPeerStmt, fmt.Sprintf(deleteBGPPeerStmt, BGPPeersTableName), []any{BGPPeer{}}},
 		{&db.countBGPPeersStmt, fmt.Sprintf(countBGPPeersStmt, BGPPeersTableName), []any{NumItems{}}},
 

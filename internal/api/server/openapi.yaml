@@ -1681,8 +1681,9 @@ paths:
       description: >-
         Updates the BGP configuration. Enabling BGP starts the embedded BGP
         speaker; disabling it stops the speaker and withdraws all routes.
-        Changing the local AS or router ID triggers a full restart. BGP cannot
-        be enabled while NAT is active.
+        Changing the local AS or router ID triggers a full restart. BGP and NAT
+        can coexist — when NAT is enabled, the speaker runs but does not
+        advertise subscriber routes.
       requestBody:
         required: true
         content:
@@ -1750,6 +1751,58 @@ paths:
           $ref: "#/components/responses/Conflict"
 
   /api/v1/networking/bgp/peers/{id}:
+    get:
+      operationId: getBGPPeer
+      tags: [BGP]
+      summary: Get a BGP peer
+      description: Returns a single BGP peer by ID with live session status and import prefix configuration.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: BGP peer details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BGPPeerResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateBGPPeer
+      tags: [BGP]
+      summary: Update a BGP peer
+      description: >-
+        Updates a BGP peer by ID. If the BGP speaker is running, the peer is
+        reconfigured in the live session immediately.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBGPPeerParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
     delete:
       operationId: deleteBGPPeer
       tags: [BGP]
@@ -1771,9 +1824,9 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/v1/networking/bgp/routes:
+  /api/v1/networking/bgp/advertised-routes:
     get:
-      operationId: getBGPRoutes
+      operationId: getBGPAdvertisedRoutes
       tags: [BGP]
       summary: Get advertised BGP routes
       description: Returns the list of routes currently advertised to BGP peers. These are /32 host routes derived from active PDU sessions.
@@ -1783,7 +1836,23 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BGPRoutesResponseEnvelope"
+                $ref: "#/components/schemas/BGPAdvertisedRoutesResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/networking/bgp/learned-routes:
+    get:
+      operationId: getBGPLearnedRoutes
+      tags: [BGP]
+      summary: Get learned BGP routes
+      description: Returns the list of routes learned from BGP peers and installed in the kernel routing table.
+      responses:
+        "200":
+          description: Learned routes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BGPLearnedRoutesResponseEnvelope"
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -3305,6 +3374,7 @@ components:
         id:
           type: integer
           format: int64
+          description: Route ID. Zero for BGP-learned routes.
         destination:
           type: string
           description: "Destination in CIDR notation."
@@ -3317,7 +3387,11 @@ components:
           enum: [n3, n6]
         metric:
           type: integer
-      required: [id, destination, gateway, interface, metric]
+        source:
+          type: string
+          description: "Route source: `static` for user-configured routes, `bgp` for BGP-learned routes."
+          enum: [static, bgp]
+      required: [id, destination, gateway, interface, metric, source]
 
     RouteResponseEnvelope:
       type: object
@@ -3423,6 +3497,17 @@ components:
         listenAddress:
           type: string
 
+    BGPImportPrefix:
+      type: object
+      properties:
+        prefix:
+          type: string
+          description: CIDR prefix (e.g. "0.0.0.0/0", "10.100.0.0/16").
+        maxLength:
+          type: integer
+          description: Maximum prefix length to accept. Must be between the prefix length and 32.
+      required: [prefix, maxLength]
+
     BGPPeer:
       type: object
       properties:
@@ -3439,6 +3524,11 @@ components:
           description: Masked as "********" in responses when set.
         description:
           type: string
+        importPrefixes:
+          type: array
+          items:
+            $ref: "#/components/schemas/BGPImportPrefix"
+          description: Import prefix list. Routes from this peer are only accepted if they match an entry. Empty means accept nothing (RFC 8212).
         state:
           type: string
           description: Live session state (e.g. "established", "active", "idle"). Empty when BGP is off.
@@ -3448,7 +3538,19 @@ components:
         prefixesSent:
           type: integer
           description: Number of prefixes advertised to this peer.
-      required: [id, address, remoteAS, holdTime, password, description]
+        prefixesReceived:
+          type: integer
+          description: Number of prefixes received from this peer (from GoBGP counters).
+        prefixesAccepted:
+          type: integer
+          description: Number of prefixes accepted and installed in the kernel from this peer.
+      required: [id, address, remoteAS, holdTime, password, description, importPrefixes]
+
+    BGPPeerResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/BGPPeer"
 
     ListBGPPeersResponse:
       type: object
@@ -3492,6 +3594,38 @@ components:
           description: MD5 authentication password. Omit for no authentication.
         description:
           type: string
+        importPrefixes:
+          type: array
+          items:
+            $ref: "#/components/schemas/BGPImportPrefix"
+          description: Import prefix list for routes received from this peer.
+
+    UpdateBGPPeerParams:
+      type: object
+      required: [address, remoteAS]
+      properties:
+        address:
+          type: string
+          description: IPv4 address of the peer.
+        remoteAS:
+          type: integer
+          description: Remote autonomous system number.
+        holdTime:
+          type: integer
+          default: 90
+          minimum: 3
+          maximum: 65535
+          description: BGP hold timer in seconds. Keepalive is derived as holdTime / 3.
+        password:
+          type: string
+          description: MD5 authentication password. Omit for no authentication.
+        description:
+          type: string
+        importPrefixes:
+          type: array
+          items:
+            $ref: "#/components/schemas/BGPImportPrefix"
+          description: Import prefix list for routes received from this peer.
 
     BGPRoute:
       type: object
@@ -3504,7 +3638,7 @@ components:
           type: string
       required: [subscriber, prefix, nextHop]
 
-    BGPRoutesResponse:
+    BGPAdvertisedRoutesResponse:
       type: object
       properties:
         routes:
@@ -3513,11 +3647,38 @@ components:
             $ref: "#/components/schemas/BGPRoute"
       required: [routes]
 
-    BGPRoutesResponseEnvelope:
+    BGPAdvertisedRoutesResponseEnvelope:
       type: object
       properties:
         result:
-          $ref: "#/components/schemas/BGPRoutesResponse"
+          $ref: "#/components/schemas/BGPAdvertisedRoutesResponse"
+
+    BGPLearnedRoute:
+      type: object
+      properties:
+        prefix:
+          type: string
+        nextHop:
+          type: string
+        peer:
+          type: string
+          description: Address of the peer that advertised this route.
+      required: [prefix, nextHop, peer]
+
+    BGPLearnedRoutesResponse:
+      type: object
+      properties:
+        routes:
+          type: array
+          items:
+            $ref: "#/components/schemas/BGPLearnedRoute"
+      required: [routes]
+
+    BGPLearnedRoutesResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/BGPLearnedRoutesResponse"
 
     # ── Flow Accounting ─────────────────────────────────────────────────
     FlowAccountingInfo:

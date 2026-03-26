@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -368,7 +369,7 @@ func (b *BGPService) GetStatus(ctx context.Context) (*BGPStatus, error) {
 	}, nil
 }
 
-// GetRoutes returns the currently advertised routes.
+// GetRoutes returns the currently advertised routes, sorted by prefix.
 func (b *BGPService) GetRoutes() ([]BGPRoute, error) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
@@ -377,10 +378,19 @@ func (b *BGPService) GetRoutes() ([]BGPRoute, error) {
 		return nil, nil
 	}
 
-	return b.listRoutesLocked()
+	routes, err := b.listRoutesLocked()
+	if err != nil {
+		return nil, err
+	}
+
+	sort.Slice(routes, func(i, j int) bool {
+		return routes[i].Prefix < routes[j].Prefix
+	})
+
+	return routes, nil
 }
 
-// GetLearnedRoutes returns the currently installed BGP-learned routes.
+// GetLearnedRoutes returns the currently installed BGP-learned routes, sorted by prefix.
 func (b *BGPService) GetLearnedRoutes() []LearnedRoute {
 	b.learnedMu.Lock()
 	defer b.learnedMu.Unlock()
@@ -395,7 +405,27 @@ func (b *BGPService) GetLearnedRoutes() []LearnedRoute {
 		})
 	}
 
+	sort.Slice(routes, func(i, j int) bool {
+		return routes[i].Prefix < routes[j].Prefix
+	})
+
 	return routes
+}
+
+// CountLearnedRoutesByPeer returns the number of learned routes from a specific peer address.
+func (b *BGPService) CountLearnedRoutesByPeer(peerAddr string) int {
+	b.learnedMu.Lock()
+	defer b.learnedMu.Unlock()
+
+	count := 0
+
+	for _, lr := range b.learnedRoutes {
+		if lr.peer == peerAddr {
+			count++
+		}
+	}
+
+	return count
 }
 
 // GetEffectiveRouterID resolves an empty router ID to the N6 address default.
@@ -555,11 +585,12 @@ func (b *BGPService) listPeerStatusesLocked(ctx context.Context) ([]BGPPeerStatu
 			}
 		}
 
-		// Count prefixes sent from AfiSafi state
+		// Count prefixes sent/received from AfiSafi state
 		for _, afiSafi := range peer.GetAfiSafis() {
 			afiState := afiSafi.GetState()
 			if afiState != nil {
 				ps.PrefixesSent += int(afiState.GetAdvertised())
+				ps.PrefixesReceived += int(afiState.GetReceived())
 			}
 		}
 

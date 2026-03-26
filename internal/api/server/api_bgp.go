@@ -32,24 +32,42 @@ type UpdateBGPSettingsParams struct {
 
 // BGP Peers types
 
+type BGPImportPrefix struct {
+	Prefix    string `json:"prefix"`
+	MaxLength int    `json:"maxLength"`
+}
+
 type BGPPeer struct {
-	ID           int    `json:"id"`
-	Address      string `json:"address"`
-	RemoteAS     int    `json:"remoteAS"`
-	HoldTime     int    `json:"holdTime"`
-	Password     string `json:"password"`
-	Description  string `json:"description"`
-	State        string `json:"state,omitempty"`
-	Uptime       string `json:"uptime,omitempty"`
-	PrefixesSent int    `json:"prefixesSent,omitempty"`
+	ID               int               `json:"id"`
+	Address          string            `json:"address"`
+	RemoteAS         int               `json:"remoteAS"`
+	HoldTime         int               `json:"holdTime"`
+	Password         string            `json:"password"`
+	Description      string            `json:"description"`
+	ImportPrefixes   []BGPImportPrefix `json:"importPrefixes"`
+	State            string            `json:"state,omitempty"`
+	Uptime           string            `json:"uptime,omitempty"`
+	PrefixesSent     int               `json:"prefixesSent,omitempty"`
+	PrefixesReceived int               `json:"prefixesReceived,omitempty"`
+	PrefixesAccepted int               `json:"prefixesAccepted,omitempty"`
 }
 
 type CreateBGPPeerParams struct {
-	Address     string `json:"address"`
-	RemoteAS    int    `json:"remoteAS"`
-	HoldTime    int    `json:"holdTime"`
-	Password    string `json:"password"`
-	Description string `json:"description"`
+	Address        string            `json:"address"`
+	RemoteAS       int               `json:"remoteAS"`
+	HoldTime       int               `json:"holdTime"`
+	Password       string            `json:"password"`
+	Description    string            `json:"description"`
+	ImportPrefixes []BGPImportPrefix `json:"importPrefixes"`
+}
+
+type UpdateBGPPeerParams struct {
+	Address        string            `json:"address"`
+	RemoteAS       int               `json:"remoteAS"`
+	HoldTime       int               `json:"holdTime"`
+	Password       string            `json:"password"`
+	Description    string            `json:"description"`
+	ImportPrefixes []BGPImportPrefix `json:"importPrefixes"`
 }
 
 type ListBGPPeersResponse struct {
@@ -59,8 +77,12 @@ type ListBGPPeersResponse struct {
 	TotalCount int       `json:"total_count"`
 }
 
-type BGPRoutesResponse struct {
+type BGPAdvertisedRoutesResponse struct {
 	Routes []bgp.BGPRoute `json:"routes"`
+}
+
+type BGPLearnedRoutesResponse struct {
+	Routes []bgp.LearnedRoute `json:"routes"`
 }
 
 // Audit log action constants
@@ -68,6 +90,7 @@ type BGPRoutesResponse struct {
 const (
 	UpdateBGPSettingsAction = "update_bgp_settings"
 	CreateBGPPeerAction     = "create_bgp_peer"
+	UpdateBGPPeerAction     = "update_bgp_peer"
 	DeleteBGPPeerAction     = "delete_bgp_peer"
 )
 
@@ -287,6 +310,104 @@ func reconfigureBGPPeers(ctx context.Context, dbInstance *db.Database, bgpServic
 	return bgpService.Reconfigure(ctx, DBSettingsToBGPSettings(settings), bgpPeers)
 }
 
+// loadImportPrefixesForPeer loads import prefix entries from the DB for a single peer.
+func loadImportPrefixesForPeer(ctx context.Context, dbInstance *db.Database, peerID int) []BGPImportPrefix {
+	dbPrefixes, err := dbInstance.ListImportPrefixesByPeer(ctx, peerID)
+	if err != nil || len(dbPrefixes) == 0 {
+		return []BGPImportPrefix{}
+	}
+
+	result := make([]BGPImportPrefix, len(dbPrefixes))
+
+	for i, p := range dbPrefixes {
+		result[i] = BGPImportPrefix{
+			Prefix:    p.Prefix,
+			MaxLength: p.MaxLength,
+		}
+	}
+
+	return result
+}
+
+// saveImportPrefixesForPeer persists import prefix entries for a peer.
+func saveImportPrefixesForPeer(ctx context.Context, dbInstance *db.Database, peerID int, prefixes []BGPImportPrefix) error {
+	dbPrefixes := make([]db.BGPImportPrefix, len(prefixes))
+
+	for i, p := range prefixes {
+		dbPrefixes[i] = db.BGPImportPrefix{
+			Prefix:    p.Prefix,
+			MaxLength: p.MaxLength,
+		}
+	}
+
+	return dbInstance.SetImportPrefixesForPeer(ctx, peerID, dbPrefixes)
+}
+
+// dbPeerToAPIPeer converts a DB peer to an API peer, enriched with live status and import prefixes.
+func dbPeerToAPIPeer(ctx context.Context, dbInstance *db.Database, dbPeer db.BGPPeer, statusMap map[string]bgp.BGPPeerStatus, bgpService *bgp.BGPService) BGPPeer {
+	pw := ""
+	if dbPeer.Password != "" {
+		pw = maskedPassword
+	}
+
+	peer := BGPPeer{
+		ID:             dbPeer.ID,
+		Address:        dbPeer.Address,
+		RemoteAS:       dbPeer.RemoteAS,
+		HoldTime:       dbPeer.HoldTime,
+		Password:       pw,
+		Description:    dbPeer.Description,
+		ImportPrefixes: loadImportPrefixesForPeer(ctx, dbInstance, dbPeer.ID),
+	}
+
+	if ps, ok := statusMap[dbPeer.Address]; ok {
+		peer.State = ps.State
+		peer.Uptime = ps.Uptime
+		peer.PrefixesSent = ps.PrefixesSent
+		peer.PrefixesReceived = ps.PrefixesReceived
+	}
+
+	if bgpService != nil {
+		peer.PrefixesAccepted = bgpService.CountLearnedRoutesByPeer(dbPeer.Address)
+	}
+
+	return peer
+}
+
+// getPeerStatusMap builds a map of live peer statuses by address.
+func getPeerStatusMap(ctx context.Context, bgpService *bgp.BGPService) map[string]bgp.BGPPeerStatus {
+	statusMap := make(map[string]bgp.BGPPeerStatus)
+
+	if bgpService != nil && bgpService.IsRunning() {
+		status, err := bgpService.GetStatus(ctx)
+		if err == nil {
+			for _, ps := range status.Peers {
+				statusMap[ps.Address] = ps
+			}
+		}
+	}
+
+	return statusMap
+}
+
+// validateImportPrefixes checks that all import prefix entries are valid.
+func validateImportPrefixes(prefixes []BGPImportPrefix) error {
+	for _, p := range prefixes {
+		_, ipNet, err := net.ParseCIDR(p.Prefix)
+		if err != nil {
+			return fmt.Errorf("invalid prefix %q: must be valid CIDR notation", p.Prefix)
+		}
+
+		prefixLen, _ := ipNet.Mask.Size()
+
+		if p.MaxLength < prefixLen || p.MaxLength > 32 {
+			return fmt.Errorf("invalid maxLength %d for prefix %q: must be between %d and 32", p.MaxLength, p.Prefix, prefixLen)
+		}
+	}
+
+	return nil
+}
+
 // BGP Peers handlers
 
 func ListBGPPeers(dbInstance *db.Database, bgpService *bgp.BGPService) http.Handler {
@@ -311,42 +432,12 @@ func ListBGPPeers(dbInstance *db.Database, bgpService *bgp.BGPService) http.Hand
 			return
 		}
 
-		// Build a map of live peer statuses by address
-		peerStatusMap := make(map[string]bgp.BGPPeerStatus)
+		statusMap := getPeerStatusMap(r.Context(), bgpService)
 
-		if bgpService != nil && bgpService.IsRunning() {
-			status, err := bgpService.GetStatus(r.Context())
-			if err == nil {
-				for _, ps := range status.Peers {
-					peerStatusMap[ps.Address] = ps
-				}
-			}
-		}
-
-		items := make([]BGPPeer, 0)
+		items := make([]BGPPeer, 0, len(dbPeers))
 
 		for _, dbPeer := range dbPeers {
-			pw := ""
-			if dbPeer.Password != "" {
-				pw = maskedPassword
-			}
-
-			peer := BGPPeer{
-				ID:          dbPeer.ID,
-				Address:     dbPeer.Address,
-				RemoteAS:    dbPeer.RemoteAS,
-				HoldTime:    dbPeer.HoldTime,
-				Password:    pw,
-				Description: dbPeer.Description,
-			}
-
-			if ps, ok := peerStatusMap[dbPeer.Address]; ok {
-				peer.State = ps.State
-				peer.Uptime = ps.Uptime
-				peer.PrefixesSent = ps.PrefixesSent
-			}
-
-			items = append(items, peer)
+			items = append(items, dbPeerToAPIPeer(r.Context(), dbInstance, dbPeer, statusMap, bgpService))
 		}
 
 		resp := ListBGPPeersResponse{
@@ -357,6 +448,36 @@ func ListBGPPeers(dbInstance *db.Database, bgpService *bgp.BGPService) http.Hand
 		}
 
 		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
+	})
+}
+
+func GetBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		idStr := r.PathValue("id")
+
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid id format", err, logger.APILog)
+			return
+		}
+
+		dbPeer, err := dbInstance.GetBGPPeer(r.Context(), id)
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "BGP peer not found", nil, logger.APILog)
+
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get BGP peer", err, logger.APILog)
+
+			return
+		}
+
+		statusMap := getPeerStatusMap(r.Context(), bgpService)
+		peer := dbPeerToAPIPeer(r.Context(), dbInstance, *dbPeer, statusMap, bgpService)
+
+		writeResponse(r.Context(), w, peer, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -398,6 +519,11 @@ func CreateBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Han
 			return
 		}
 
+		if err := validateImportPrefixes(params.ImportPrefixes); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			return
+		}
+
 		numPeers, err := dbInstance.CountBGPPeers(r.Context())
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count BGP peers", err, logger.APILog)
@@ -429,6 +555,16 @@ func CreateBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Han
 			return
 		}
 
+		if len(params.ImportPrefixes) > 0 {
+			if err := saveImportPrefixesForPeer(r.Context(), dbInstance, dbPeer.ID, params.ImportPrefixes); err != nil {
+				_ = dbInstance.DeleteBGPPeer(r.Context(), dbPeer.ID)
+
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to save import prefixes", err, logger.APILog)
+
+				return
+			}
+		}
+
 		if err := reconfigureBGPPeers(r.Context(), dbInstance, bgpService); err != nil {
 			_ = dbInstance.DeleteBGPPeer(r.Context(), dbPeer.ID)
 
@@ -445,6 +581,121 @@ func CreateBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Han
 			email,
 			getClientIP(r),
 			fmt.Sprintf("BGP peer created: address=%s, remoteAS=%d", params.Address, params.RemoteAS),
+		)
+	})
+}
+
+func UpdateBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		email, ok := r.Context().Value(contextKeyEmail).(string)
+		if !ok {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
+			return
+		}
+
+		idStr := r.PathValue("id")
+
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid id format", err, logger.APILog)
+			return
+		}
+
+		prevPeer, err := dbInstance.GetBGPPeer(r.Context(), id)
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "BGP peer not found", nil, logger.APILog)
+
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get BGP peer", err, logger.APILog)
+
+			return
+		}
+
+		var params UpdateBGPPeerParams
+		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			return
+		}
+
+		if params.Address == "" {
+			writeError(r.Context(), w, http.StatusBadRequest, "address is required", nil, logger.APILog)
+			return
+		}
+
+		if ip := net.ParseIP(params.Address); ip == nil || ip.To4() == nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "address must be a valid IPv4 address", nil, logger.APILog)
+			return
+		}
+
+		if params.RemoteAS < 1 || params.RemoteAS > 4294967295 {
+			writeError(r.Context(), w, http.StatusBadRequest, "remoteAS must be between 1 and 4294967295", nil, logger.APILog)
+			return
+		}
+
+		if params.HoldTime == 0 {
+			params.HoldTime = 90
+		}
+
+		if params.HoldTime < 3 || params.HoldTime > 65535 {
+			writeError(r.Context(), w, http.StatusBadRequest, "holdTime must be between 3 and 65535", nil, logger.APILog)
+			return
+		}
+
+		if err := validateImportPrefixes(params.ImportPrefixes); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			return
+		}
+
+		dbPeer := &db.BGPPeer{
+			ID:          id,
+			Address:     params.Address,
+			RemoteAS:    params.RemoteAS,
+			HoldTime:    params.HoldTime,
+			Password:    params.Password,
+			Description: params.Description,
+		}
+
+		if err := dbInstance.UpdateBGPPeer(r.Context(), dbPeer); err != nil {
+			if errors.Is(err, db.ErrAlreadyExists) {
+				writeError(r.Context(), w, http.StatusConflict, "A BGP peer with this address already exists", nil, logger.APILog)
+
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update BGP peer", err, logger.APILog)
+
+			return
+		}
+
+		if err := saveImportPrefixesForPeer(r.Context(), dbInstance, id, params.ImportPrefixes); err != nil {
+			// Rollback peer update
+			_ = dbInstance.UpdateBGPPeer(r.Context(), prevPeer)
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to save import prefixes", err, logger.APILog)
+
+			return
+		}
+
+		if err := reconfigureBGPPeers(r.Context(), dbInstance, bgpService); err != nil {
+			// Rollback peer update
+			_ = dbInstance.UpdateBGPPeer(r.Context(), prevPeer)
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to apply BGP peer update: "+err.Error(), err, logger.APILog)
+
+			return
+		}
+
+		writeResponse(r.Context(), w, SuccessResponse{Message: "BGP peer updated successfully"}, http.StatusOK, logger.APILog)
+
+		logger.LogAuditEvent(
+			r.Context(),
+			UpdateBGPPeerAction,
+			email,
+			getClientIP(r),
+			fmt.Sprintf("BGP peer updated: id=%d, address=%s, remoteAS=%d", id, params.Address, params.RemoteAS),
 		)
 	})
 }
@@ -504,12 +755,12 @@ func DeleteBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Han
 	})
 }
 
-// BGP Routes handler
+// BGP Routes handlers
 
-func GetBGPRoutes(bgpService *bgp.BGPService) http.Handler {
+func GetBGPAdvertisedRoutes(bgpService *bgp.BGPService) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if bgpService == nil || !bgpService.IsRunning() {
-			writeResponse(r.Context(), w, BGPRoutesResponse{Routes: []bgp.BGPRoute{}}, http.StatusOK, logger.APILog)
+			writeResponse(r.Context(), w, BGPAdvertisedRoutesResponse{Routes: []bgp.BGPRoute{}}, http.StatusOK, logger.APILog)
 			return
 		}
 
@@ -523,6 +774,22 @@ func GetBGPRoutes(bgpService *bgp.BGPService) http.Handler {
 			routes = []bgp.BGPRoute{}
 		}
 
-		writeResponse(r.Context(), w, BGPRoutesResponse{Routes: routes}, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, BGPAdvertisedRoutesResponse{Routes: routes}, http.StatusOK, logger.APILog)
+	})
+}
+
+func GetBGPLearnedRoutes(bgpService *bgp.BGPService) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if bgpService == nil || !bgpService.IsRunning() {
+			writeResponse(r.Context(), w, BGPLearnedRoutesResponse{Routes: []bgp.LearnedRoute{}}, http.StatusOK, logger.APILog)
+			return
+		}
+
+		routes := bgpService.GetLearnedRoutes()
+		if routes == nil {
+			routes = []bgp.LearnedRoute{}
+		}
+
+		writeResponse(r.Context(), w, BGPLearnedRoutesResponse{Routes: routes}, http.StatusOK, logger.APILog)
 	})
 }

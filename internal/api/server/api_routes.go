@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
@@ -26,6 +27,7 @@ type Route struct {
 	Gateway     string `json:"gateway"`
 	Interface   string `json:"interface"`
 	Metric      int    `json:"metric"`
+	Source      string `json:"source"`
 }
 
 type ListRoutesResponse struct {
@@ -68,7 +70,7 @@ var interfaceKernelMap = map[string]kernel.NetworkInterface{
 	"n6": kernel.N6,
 }
 
-func ListRoutes(dbInstance *db.Database) http.Handler {
+func ListRoutes(dbInstance *db.Database, bgpService *bgp.BGPService) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		page := atoiDefault(q.Get("page"), 1)
@@ -99,7 +101,22 @@ func ListRoutes(dbInstance *db.Database) http.Handler {
 				Gateway:     dbRoute.Gateway,
 				Interface:   dbRoute.Interface.String(),
 				Metric:      dbRoute.Metric,
+				Source:      "static",
 			})
+		}
+
+		// Merge BGP-learned routes
+		if bgpService != nil && bgpService.IsRunning() {
+			for _, lr := range bgpService.GetLearnedRoutes() {
+				items = append(items, Route{
+					Destination: lr.Prefix,
+					Gateway:     lr.NextHop,
+					Interface:   "n6",
+					Metric:      200,
+					Source:      "bgp",
+				})
+				total++
+			}
 		}
 
 		resp := ListRoutesResponse{
@@ -141,6 +158,7 @@ func GetRoute(dbInstance *db.Database) http.Handler {
 			Gateway:     dbRoute.Gateway,
 			Interface:   dbRoute.Interface.String(),
 			Metric:      dbRoute.Metric,
+			Source:      "static",
 		}
 
 		writeResponse(r.Context(), w, routeResponse, http.StatusOK, logger.APILog)

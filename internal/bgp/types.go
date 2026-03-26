@@ -30,11 +30,12 @@ type BGPStatus struct {
 
 // BGPPeerStatus represents the live state of a BGP peer session.
 type BGPPeerStatus struct {
-	Address      string `json:"address"`
-	RemoteAS     int    `json:"remoteAS"`
-	State        string `json:"state"` // "established", "active", "connect", "idle", etc.
-	Uptime       string `json:"uptime,omitempty"`
-	PrefixesSent int    `json:"prefixesSent"`
+	Address          string `json:"address"`
+	RemoteAS         int    `json:"remoteAS"`
+	State            string `json:"state"` // "established", "active", "connect", "idle", etc.
+	Uptime           string `json:"uptime,omitempty"`
+	PrefixesSent     int    `json:"prefixesSent"`
+	PrefixesReceived int    `json:"prefixesReceived"`
 }
 
 // BGPRoute represents a single advertised route.
