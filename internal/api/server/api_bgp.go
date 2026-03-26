@@ -139,19 +139,6 @@ func UpdateBGPSettings(dbInstance *db.Database, bgpService *bgp.BGPService) http
 			return
 		}
 
-		if params.Enabled {
-			natEnabled, err := dbInstance.IsNATEnabled(r.Context())
-			if err != nil {
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check NAT settings", err, logger.APILog)
-				return
-			}
-
-			if natEnabled {
-				writeError(r.Context(), w, http.StatusConflict, "BGP and NAT cannot be enabled simultaneously. Disable NAT first.", nil, logger.APILog)
-				return
-			}
-		}
-
 		// Get previous settings to determine what changed
 		prevSettings, err := dbInstance.GetBGPSettings(r.Context())
 		if err != nil {
@@ -230,9 +217,14 @@ func applyBGPSettingsChange(ctx context.Context, dbInstance *db.Database, bgpSer
 			return fmt.Errorf("failed to list allocated IPs: %w", err)
 		}
 
+		natEnabled, err := dbInstance.IsNATEnabled(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to check NAT settings: %w", err)
+		}
+
 		bgpPeers := DBPeersToBGPPeers(dbPeers)
 
-		return bgpService.Start(ctx, DBSettingsToBGPSettings(settings), bgpPeers, allocatedIPs)
+		return bgpService.Start(ctx, DBSettingsToBGPSettings(settings), bgpPeers, allocatedIPs, !natEnabled)
 
 	case wasEnabled && !nowEnabled:
 		// Stop the BGP speaker

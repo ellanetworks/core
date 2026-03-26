@@ -150,7 +150,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 		servicePeers := server.DBPeersToBGPPeers(bgpPeers)
 
-		err = bgpService.Start(ctx, server.DBSettingsToBGPSettings(bgpSettings), servicePeers, allocatedIPs)
+		err = bgpService.Start(ctx, server.DBSettingsToBGPSettings(bgpSettings), servicePeers, allocatedIPs, !isNATEnabled)
 		if err != nil {
 			listenAddr := bgpSettings.ListenAddress
 			if listenAddr == "" {

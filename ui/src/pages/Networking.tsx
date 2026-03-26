@@ -1104,18 +1104,12 @@ export default function NetworkingPage() {
                       disabled={
                         !canEdit ||
                         natMutating ||
-                        natLoading ||
-                        (!!bgpSettings?.enabled && !natInfo?.enabled)
+                        natLoading
                       }
                     />
                   }
                   label={natInfo?.enabled ? "NAT is ON" : "NAT is OFF"}
                 />
-                {!!bgpSettings?.enabled && !natInfo?.enabled && (
-                  <Typography variant="body2" color="text.secondary">
-                    Disable BGP to enable NAT.
-                  </Typography>
-                )}
               </Stack>
             </>
           )}
@@ -1166,18 +1160,12 @@ export default function NetworkingPage() {
                           onChange={(_, checked) => setBGPEnabled(checked)}
                           disabled={
                             !canEdit ||
-                            bgpToggling ||
-                            (!!natInfo?.enabled && !bgpSettings?.enabled)
+                            bgpToggling
                           }
                         />
                       }
                       label={bgpSettings?.enabled ? "BGP is ON" : "BGP is OFF"}
                     />
-                    {!!natInfo?.enabled && !bgpSettings?.enabled && (
-                      <Typography variant="body2" color="text.secondary">
-                        Disable NAT to enable BGP.
-                      </Typography>
-                    )}
                   </Stack>
                   {canEdit && (
                     <Button

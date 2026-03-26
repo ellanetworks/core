@@ -97,6 +97,11 @@ type Database struct {
 	deleteBGPPeerStmt   *sqlair.Statement
 	countBGPPeersStmt   *sqlair.Statement
 
+	// BGP Import Prefixes statements
+	listImportPrefixesByPeerStmt   *sqlair.Statement
+	createImportPrefixStmt         *sqlair.Statement
+	deleteImportPrefixesByPeerStmt *sqlair.Statement
+
 	// Flow Accounting Settings statements
 	insertDefaultFlowAccountingSettingsStmt *sqlair.Statement
 	getFlowAccountingSettingsStmt           *sqlair.Statement
@@ -376,6 +381,11 @@ func (db *Database) PrepareStatements() error {
 		{&db.createBGPPeerStmt, fmt.Sprintf(createBGPPeerStmt, BGPPeersTableName), []any{BGPPeer{}}},
 		{&db.deleteBGPPeerStmt, fmt.Sprintf(deleteBGPPeerStmt, BGPPeersTableName), []any{BGPPeer{}}},
 		{&db.countBGPPeersStmt, fmt.Sprintf(countBGPPeersStmt, BGPPeersTableName), []any{NumItems{}}},
+
+		// BGP Import Prefixes
+		{&db.listImportPrefixesByPeerStmt, fmt.Sprintf(listImportPrefixesByPeerStmt, BGPImportPrefixesTableName), []any{BGPImportPrefix{}}},
+		{&db.createImportPrefixStmt, fmt.Sprintf(createImportPrefixStmt, BGPImportPrefixesTableName), []any{BGPImportPrefix{}}},
+		{&db.deleteImportPrefixesByPeerStmt, fmt.Sprintf(deleteImportPrefixesByPeerStr, BGPImportPrefixesTableName), []any{BGPImportPrefix{}}},
 
 		// Flow Accounting Settings
 		{&db.insertDefaultFlowAccountingSettingsStmt, fmt.Sprintf(insertDefaultFlowAccountingSettingsStmt, FlowAccountingSettingsTableName), []any{FlowAccountingSettings{}}},

@@ -26,15 +26,16 @@ type ownedPath struct {
 
 // BGPService manages the embedded BGP speaker.
 type BGPService struct {
-	server     *gobgp.BgpServer
-	mu         sync.RWMutex
-	running    bool
-	settings   BGPSettings
-	peers      []BGPPeer
-	paths      map[string]ownedPath // keyed by IP string e.g. "10.45.0.3"
-	n6Addr     net.IP
-	logger     *zap.Logger
-	listenPort int32
+	server      *gobgp.BgpServer
+	mu          sync.RWMutex
+	running     bool
+	advertising bool // false when NAT is enabled — suppresses route announcements
+	settings    BGPSettings
+	peers       []BGPPeer
+	paths       map[string]ownedPath // keyed by IP string e.g. "10.45.0.3"
+	n6Addr      net.IP
+	logger      *zap.Logger
+	listenPort  int32
 }
 
 // New creates a BGPService. Does not start the speaker.
@@ -54,13 +55,17 @@ func (b *BGPService) SetListenPort(port int32) {
 
 // Start initializes the GoBGP server with the given settings and peers,
 // and announces /32 routes for all currently allocated IPs.
-func (b *BGPService) Start(ctx context.Context, settings BGPSettings, peers []BGPPeer, allocatedIPs []net.IP) error {
+// When advertising is false (NAT enabled), the BGP speaker starts but does not
+// announce subscriber /32 routes.
+func (b *BGPService) Start(ctx context.Context, settings BGPSettings, peers []BGPPeer, allocatedIPs []net.IP, advertising bool) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	if b.running {
 		return fmt.Errorf("BGP service is already running")
 	}
+
+	b.advertising = advertising
 
 	return b.startLocked(ctx, settings, peers, allocatedIPs)
 }
@@ -119,26 +124,30 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 		}
 	}
 
-	if allocatedIPs != nil {
-		// Fresh start: announce from DB and populate the paths map.
-		b.paths = make(map[string]ownedPath, len(allocatedIPs))
+	if b.advertising {
+		if allocatedIPs != nil {
+			// Fresh start: announce from DB and populate the paths map.
+			b.paths = make(map[string]ownedPath, len(allocatedIPs))
 
-		for _, ip := range allocatedIPs {
-			if err := b.announcePath(s, ip); err != nil {
-				b.logger.Warn("failed to announce initial BGP route",
-					zap.String("ip", ip.String()), zap.Error(err))
+			for _, ip := range allocatedIPs {
+				if err := b.announcePath(s, ip); err != nil {
+					b.logger.Warn("failed to announce initial BGP route",
+						zap.String("ip", ip.String()), zap.Error(err))
+				}
+
+				b.paths[ip.String()] = ownedPath{ip: ip, owner: ""}
 			}
-
-			b.paths[ip.String()] = ownedPath{ip: ip, owner: ""}
+		} else {
+			// Replay from in-memory paths map (after reconfiguration restart).
+			for _, op := range b.paths {
+				if err := b.announcePath(s, op.ip); err != nil {
+					b.logger.Warn("failed to re-announce route after restart",
+						zap.String("ip", op.ip.String()), zap.Error(err))
+				}
+			}
 		}
 	} else {
-		// Replay from in-memory paths map (after reconfiguration restart).
-		for _, op := range b.paths {
-			if err := b.announcePath(s, op.ip); err != nil {
-				b.logger.Warn("failed to re-announce route after restart",
-					zap.String("ip", op.ip.String()), zap.Error(err))
-			}
-		}
+		b.logger.Info("Route advertisement suppressed (NAT is enabled)")
 	}
 
 	b.server = s
@@ -185,11 +194,12 @@ func (b *BGPService) Stop() error {
 }
 
 // Announce adds a /32 route for the given IP to the BGP RIB, tagged with the given owner.
+// It is a no-op if the service is not running or not advertising (NAT enabled).
 func (b *BGPService) Announce(ip net.IP, owner string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if !b.running {
+	if !b.running || !b.advertising {
 		return nil
 	}
 
@@ -203,11 +213,12 @@ func (b *BGPService) Announce(ip net.IP, owner string) error {
 }
 
 // Withdraw removes a /32 route for the given IP from the BGP RIB.
+// It is a no-op if the service is not running or not advertising (NAT enabled).
 func (b *BGPService) Withdraw(ip net.IP) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if !b.running {
+	if !b.running || !b.advertising {
 		return nil
 	}
 
@@ -310,6 +321,15 @@ func (b *BGPService) IsRunning() bool {
 	defer b.mu.RUnlock()
 
 	return b.running
+}
+
+// IsAdvertising returns true if the BGP speaker is running and advertising
+// subscriber routes. Returns false when NAT is enabled.
+func (b *BGPService) IsAdvertising() bool {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	return b.running && b.advertising
 }
 
 // addPeer adds a single peer to the GoBGP server.

@@ -46,4 +46,5 @@ type BGPAnnouncer interface {
 	Announce(ip net.IP, owner string) error
 	Withdraw(ip net.IP) error
 	IsRunning() bool
+	IsAdvertising() bool
 }

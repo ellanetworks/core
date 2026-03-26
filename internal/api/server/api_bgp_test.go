@@ -336,18 +336,7 @@ func TestApiBGPSettingsEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("2. Disable NAT first (required for enabling BGP)", func(t *testing.T) {
-		statusCode, _, err := updateNATInfo(env.Server.URL, client, token, false)
-		if err != nil {
-			t.Fatalf("couldn't disable NAT: %s", err)
-		}
-
-		if statusCode != http.StatusOK {
-			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
-		}
-	})
-
-	t.Run("3. Update BGP settings to enable", func(t *testing.T) {
+	t.Run("2. Update BGP settings to enable", func(t *testing.T) {
 		params := &UpdateBGPSettingsParams{
 			Enabled:  true,
 			LocalAS:  64513,
@@ -372,7 +361,7 @@ func TestApiBGPSettingsEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("4. Get BGP settings (enabled)", func(t *testing.T) {
+	t.Run("3. Get BGP settings (enabled)", func(t *testing.T) {
 		statusCode, resp, err := getBGPSettings(env.Server.URL, client, token)
 		if err != nil {
 			t.Fatalf("couldn't get BGP settings: %s", err)
@@ -395,18 +384,18 @@ func TestApiBGPSettingsEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("5. Enable NAT while BGP is enabled should fail (409)", func(t *testing.T) {
+	t.Run("5. Enable NAT while BGP is enabled should succeed (coexistence)", func(t *testing.T) {
 		statusCode, _, err := updateNATInfo(env.Server.URL, client, token, true)
 		if err != nil {
-			t.Fatalf("couldn't attempt to enable NAT: %s", err)
+			t.Fatalf("couldn't enable NAT: %s", err)
 		}
 
-		if statusCode != http.StatusConflict {
-			t.Fatalf("expected status %d, got %d", http.StatusConflict, statusCode)
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
 	})
 
-	t.Run("6. Disable BGP", func(t *testing.T) {
+	t.Run("6. Disable BGP while NAT is enabled", func(t *testing.T) {
 		params := &UpdateBGPSettingsParams{
 			Enabled:  false,
 			LocalAS:  64513,
@@ -427,31 +416,24 @@ func TestApiBGPSettingsEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("7. Enable NAT after BGP disabled should succeed", func(t *testing.T) {
-		statusCode, _, err := updateNATInfo(env.Server.URL, client, token, true)
-		if err != nil {
-			t.Fatalf("couldn't enable NAT: %s", err)
-		}
-
-		if statusCode != http.StatusOK {
-			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
-		}
-	})
-
-	t.Run("8. Enable BGP while NAT is enabled should fail (409)", func(t *testing.T) {
+	t.Run("7. Re-enable BGP while NAT is still enabled should succeed (coexistence)", func(t *testing.T) {
 		params := &UpdateBGPSettingsParams{
 			Enabled:  true,
 			LocalAS:  64513,
 			RouterID: "192.168.5.10",
 		}
 
-		statusCode, _, err := updateBGPSettings(env.Server.URL, client, token, params)
+		statusCode, resp, err := updateBGPSettings(env.Server.URL, client, token, params)
 		if err != nil {
-			t.Fatalf("couldn't attempt to enable BGP: %s", err)
+			t.Fatalf("couldn't enable BGP: %s", err)
 		}
 
-		if statusCode != http.StatusConflict {
-			t.Fatalf("expected status %d, got %d", http.StatusConflict, statusCode)
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if resp.Error != "" {
+			t.Fatalf("expected no error, got %s", resp.Error)
 		}
 	})
 }
@@ -472,16 +454,6 @@ func TestApiBGPSettingsToggleCycling(t *testing.T) {
 	token, err := initializeAndRefresh(env.Server.URL, client)
 	if err != nil {
 		t.Fatalf("couldn't create first user and login: %s", err)
-	}
-
-	// Disable NAT first so we can enable BGP
-	statusCode, _, err := updateNATInfo(env.Server.URL, client, token, false)
-	if err != nil {
-		t.Fatalf("couldn't disable NAT: %s", err)
-	}
-
-	if statusCode != http.StatusOK {
-		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 	}
 
 	// Cycle BGP on/off/on/off/on rapidly

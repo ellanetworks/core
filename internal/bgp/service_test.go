@@ -37,7 +37,7 @@ func TestStartStop(t *testing.T) {
 		LocalAS: 65000,
 	}
 
-	err := svc.Start(ctx, settings, nil, nil)
+	err := svc.Start(ctx, settings, nil, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -65,14 +65,14 @@ func TestStartAlreadyRunning(t *testing.T) {
 		LocalAS: 65000,
 	}
 
-	err := svc.Start(ctx, settings, nil, nil)
+	err := svc.Start(ctx, settings, nil, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
 	defer func() { _ = svc.Stop() }()
 
-	err = svc.Start(ctx, settings, nil, nil)
+	err = svc.Start(ctx, settings, nil, nil, true)
 	if err == nil {
 		t.Fatal("expected error when starting already running service")
 	}
@@ -96,7 +96,7 @@ func TestAnnounceWithdraw(t *testing.T) {
 		LocalAS: 65000,
 	}
 
-	err := svc.Start(ctx, settings, nil, nil)
+	err := svc.Start(ctx, settings, nil, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestStartWithInitialRoutes(t *testing.T) {
 		net.ParseIP("10.1.1.3"),
 	}
 
-	err := svc.Start(ctx, settings, nil, allocatedIPs)
+	err := svc.Start(ctx, settings, nil, allocatedIPs, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestStartWithPeers(t *testing.T) {
 		},
 	}
 
-	err := svc.Start(ctx, settings, peers, nil)
+	err := svc.Start(ctx, settings, peers, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -276,7 +276,7 @@ func TestReconfigureHotPeerAdd(t *testing.T) {
 		{Address: "192.168.1.1", RemoteAS: 65001, HoldTime: 90},
 	}
 
-	err := svc.Start(ctx, settings, peers, nil)
+	err := svc.Start(ctx, settings, peers, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -318,7 +318,7 @@ func TestReconfigureHotPeerRemove(t *testing.T) {
 		{Address: "192.168.1.2", RemoteAS: 65002, HoldTime: 90},
 	}
 
-	err := svc.Start(ctx, settings, peers, nil)
+	err := svc.Start(ctx, settings, peers, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -358,7 +358,7 @@ func TestReconfigureWithRestart(t *testing.T) {
 		net.ParseIP("10.1.1.1"),
 	}
 
-	err := svc.Start(ctx, settings, nil, allocatedIPs)
+	err := svc.Start(ctx, settings, nil, allocatedIPs, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -416,7 +416,7 @@ func TestAnnounceIPv6Rejected(t *testing.T) {
 		LocalAS: 65000,
 	}
 
-	err := svc.Start(ctx, settings, nil, nil)
+	err := svc.Start(ctx, settings, nil, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -443,7 +443,7 @@ func TestReconfigureHotPeerPropertyChange(t *testing.T) {
 		{Address: "192.168.1.1", RemoteAS: 65001, HoldTime: 90},
 	}
 
-	err := svc.Start(ctx, settings, peers, nil)
+	err := svc.Start(ctx, settings, peers, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -483,7 +483,7 @@ func TestMultipleAnnounceWithdraw(t *testing.T) {
 		LocalAS: 65000,
 	}
 
-	err := svc.Start(ctx, settings, nil, nil)
+	err := svc.Start(ctx, settings, nil, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -523,5 +523,130 @@ func TestMultipleAnnounceWithdraw(t *testing.T) {
 
 	if len(routes) != 2 {
 		t.Fatalf("expected 2 routes after withdraw, got %d", len(routes))
+	}
+}
+
+func TestIsAdvertising(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{
+		Enabled: true,
+		LocalAS: 65000,
+	}
+
+	// Start with advertising enabled
+	err := svc.Start(ctx, settings, nil, nil, true)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	if !svc.IsAdvertising() {
+		t.Fatal("expected IsAdvertising() to be true when started with advertising=true")
+	}
+
+	if !svc.IsRunning() {
+		t.Fatal("expected IsRunning() to be true")
+	}
+}
+
+func TestIsAdvertisingFalseWhenNATEnabled(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{
+		Enabled: true,
+		LocalAS: 65000,
+	}
+
+	// Start with advertising disabled (NAT enabled)
+	err := svc.Start(ctx, settings, nil, nil, false)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	if svc.IsAdvertising() {
+		t.Fatal("expected IsAdvertising() to be false when started with advertising=false")
+	}
+
+	if !svc.IsRunning() {
+		t.Fatal("expected IsRunning() to be true even when not advertising")
+	}
+}
+
+func TestAnnounceNoOpWhenNotAdvertising(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{
+		Enabled: true,
+		LocalAS: 65000,
+	}
+
+	// Start with advertising disabled (NAT enabled)
+	err := svc.Start(ctx, settings, nil, nil, false)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	// Announce should be a no-op
+	err = svc.Announce(net.ParseIP("10.1.1.1"), "test")
+	if err != nil {
+		t.Fatalf("Announce should succeed as no-op, got: %v", err)
+	}
+
+	routes, err := svc.GetRoutes()
+	if err != nil {
+		t.Fatalf("GetRoutes failed: %v", err)
+	}
+
+	if len(routes) != 0 {
+		t.Fatalf("expected 0 routes when not advertising, got %d", len(routes))
+	}
+}
+
+func TestStartWithNATSkipsInitialAnnouncements(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{
+		Enabled: true,
+		LocalAS: 65000,
+	}
+
+	allocatedIPs := []net.IP{
+		net.ParseIP("10.1.1.1"),
+		net.ParseIP("10.1.1.2"),
+	}
+
+	// Start with advertising disabled — should not announce IPs
+	err := svc.Start(ctx, settings, nil, allocatedIPs, false)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	routes, err := svc.GetRoutes()
+	if err != nil {
+		t.Fatalf("GetRoutes failed: %v", err)
+	}
+
+	if len(routes) != 0 {
+		t.Fatalf("expected 0 routes when NAT suppresses advertising, got %d", len(routes))
+	}
+}
+
+func TestIsAdvertisingFalseWhenNotRunning(t *testing.T) {
+	svc := newTestService(t)
+
+	if svc.IsAdvertising() {
+		t.Fatal("expected IsAdvertising() to be false when not running")
 	}
 }

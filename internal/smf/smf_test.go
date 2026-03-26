@@ -613,6 +613,7 @@ type fakeBGP struct {
 	withdrawn   []string
 	owners      []string
 	running     bool
+	advertising bool
 	announceErr error
 	withdrawErr error
 }
@@ -643,11 +644,18 @@ func (f *fakeBGP) IsRunning() bool {
 	return f.running
 }
 
+func (f *fakeBGP) IsAdvertising() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.running && f.advertising
+}
+
 // --- BGP Integration Tests ---
 
 func TestRemoveSession_WithdrawsBGPRoute(t *testing.T) {
 	store, upf, amfCb := defaultFakes()
-	bgpFake := &fakeBGP{running: true}
+	bgpFake := &fakeBGP{running: true, advertising: true}
 	s := smf.New(store, upf, amfCb, smf.WithBGP(bgpFake))
 	supi := testSUPI()
 	bgCtx := context.Background()
@@ -708,7 +716,7 @@ func TestRemoveSession_BGPNotRunning_NoWithdraw(t *testing.T) {
 
 func TestRemoveSession_NilPDUAddress_NoWithdraw(t *testing.T) {
 	store, upf, amfCb := defaultFakes()
-	bgpFake := &fakeBGP{running: true}
+	bgpFake := &fakeBGP{running: true, advertising: true}
 	s := smf.New(store, upf, amfCb, smf.WithBGP(bgpFake))
 	supi := testSUPI()
 	bgCtx := context.Background()
