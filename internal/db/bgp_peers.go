@@ -189,7 +189,9 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "insert").Inc()
 
-	err := db.conn.Query(ctx, db.createBGPPeerStmt, peer).Run()
+	var outcome sqlair.Outcome
+
+	err := db.conn.Query(ctx, db.createBGPPeerStmt, peer).Get(&outcome)
 	if err != nil {
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
@@ -203,6 +205,16 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 		return fmt.Errorf("query failed: %w", err)
 	}
+
+	id, err := outcome.Result().LastInsertId()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "retrieving insert ID failed")
+
+		return fmt.Errorf("retrieving insert ID failed: %w", err)
+	}
+
+	peer.ID = int(id)
 
 	span.SetStatus(codes.Ok, "")
 

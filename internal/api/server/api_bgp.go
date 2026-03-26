@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"go.uber.org/zap"
 )
 
 // BGP Settings types
@@ -276,28 +275,24 @@ func DBPeersToBGPPeers(dbPeers []db.BGPPeer) []bgp.BGPPeer {
 	return peers
 }
 
-func reconfigureBGPPeers(ctx context.Context, dbInstance *db.Database, bgpService *bgp.BGPService) {
+func reconfigureBGPPeers(ctx context.Context, dbInstance *db.Database, bgpService *bgp.BGPService) error {
 	if bgpService == nil || !bgpService.IsRunning() {
-		return
+		return nil
 	}
 
 	settings, err := dbInstance.GetBGPSettings(ctx)
 	if err != nil {
-		logger.APILog.Warn("failed to read BGP settings for peer reconfigure", zap.Error(err))
-		return
+		return fmt.Errorf("failed to read BGP settings: %w", err)
 	}
 
 	dbPeers, err := dbInstance.ListAllBGPPeers(ctx)
 	if err != nil {
-		logger.APILog.Warn("failed to list BGP peers for reconfigure", zap.Error(err))
-		return
+		return fmt.Errorf("failed to list BGP peers: %w", err)
 	}
 
 	bgpPeers := DBPeersToBGPPeers(dbPeers)
 
-	if err := bgpService.Reconfigure(ctx, DBSettingsToBGPSettings(settings), bgpPeers); err != nil {
-		logger.APILog.Warn("failed to reconfigure BGP after peer change", zap.Error(err))
-	}
+	return bgpService.Reconfigure(ctx, DBSettingsToBGPSettings(settings), bgpPeers)
 }
 
 // BGP Peers handlers
@@ -442,7 +437,13 @@ func CreateBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Han
 			return
 		}
 
-		reconfigureBGPPeers(r.Context(), dbInstance, bgpService)
+		if err := reconfigureBGPPeers(r.Context(), dbInstance, bgpService); err != nil {
+			_ = dbInstance.DeleteBGPPeer(r.Context(), dbPeer.ID)
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to apply BGP peer: "+err.Error(), err, logger.APILog)
+
+			return
+		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "BGP peer created successfully"}, http.StatusCreated, logger.APILog)
 
@@ -472,19 +473,32 @@ func DeleteBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Han
 			return
 		}
 
-		if err := dbInstance.DeleteBGPPeer(r.Context(), id); err != nil {
+		prevPeer, err := dbInstance.GetBGPPeer(r.Context(), id)
+		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "BGP peer not found", nil, logger.APILog)
 
 				return
 			}
 
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get BGP peer", err, logger.APILog)
+
+			return
+		}
+
+		if err := dbInstance.DeleteBGPPeer(r.Context(), id); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete BGP peer", err, logger.APILog)
 
 			return
 		}
 
-		reconfigureBGPPeers(r.Context(), dbInstance, bgpService)
+		if err := reconfigureBGPPeers(r.Context(), dbInstance, bgpService); err != nil {
+			_ = dbInstance.CreateBGPPeer(r.Context(), prevPeer)
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to apply BGP peer removal: "+err.Error(), err, logger.APILog)
+
+			return
+		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "BGP peer deleted successfully"}, http.StatusOK, logger.APILog)
 
