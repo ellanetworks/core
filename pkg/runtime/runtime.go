@@ -20,6 +20,7 @@ import (
 	"github.com/ellanetworks/core/internal/api"
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/ausf"
+	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
@@ -123,6 +124,43 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't determine if flow accounting is enabled: %w", err)
 	}
 
+	// Initialize BGP service
+	n6IP, err := config.GetInterfaceIPFunc(cfg.Interfaces.N6.Name)
+	if err != nil {
+		return fmt.Errorf("couldn't get N6 interface IP: %w", err)
+	}
+
+	bgpService := bgp.New(net.ParseIP(n6IP), logger.EllaLog)
+
+	bgpSettings, err := dbInstance.GetBGPSettings(ctx)
+	if err != nil {
+		return fmt.Errorf("couldn't get BGP settings: %w", err)
+	}
+
+	if bgpSettings.Enabled {
+		bgpPeers, err := dbInstance.ListAllBGPPeers(ctx)
+		if err != nil {
+			return fmt.Errorf("couldn't list BGP peers: %w", err)
+		}
+
+		allocatedIPs, err := dbInstance.ListAllocatedIPs(ctx)
+		if err != nil {
+			return fmt.Errorf("couldn't list allocated IPs: %w", err)
+		}
+
+		servicePeers := server.DBPeersToBGPPeers(bgpPeers)
+
+		err = bgpService.Start(ctx, server.DBSettingsToBGPSettings(bgpSettings), servicePeers, allocatedIPs)
+		if err != nil {
+			listenAddr := bgpSettings.ListenAddress
+			if listenAddr == "" {
+				listenAddr = ":179"
+			}
+
+			logger.EllaLog.Error("BGP failed to start: address may be in use. Stop any external BGP daemon (FRR, BIRD) before enabling integrated BGP.", zap.String("address", listenAddr), zap.Error(err))
+		}
+	}
+
 	n3Address := cfg.Interfaces.N3.Address
 
 	n3Settings, err := dbInstance.GetN3Settings(ctx)
@@ -140,7 +178,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	smfStore := &smfDBAdapter{db: dbInstance}
 	smfAMF := &smfAMFAdapter{}
 
-	smfInstance := smf.New(smfStore, nil, smfAMF, smf.WithNodeID(net.ParseIP(n3Address)))
+	smfInstance := smf.New(smfStore, nil, smfAMF, smf.WithNodeID(net.ParseIP(n3Address)), smf.WithBGP(bgpService))
 
 	// The SMF instance implements pfcp_dispatcher.SMF (HandlePfcpSessionReportRequest, SendFlowReport).
 	dispatcher := pfcp_dispatcher.NewPfcpDispatcher(smfInstance, upf_pfcp.UpfPfcpHandler{})
@@ -218,6 +256,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		upfInstance,
 		smfInstance,
 		amfInstance,
+		bgpService,
 		rc.EmbedFS,
 		rc.RegisterExtraRoutes,
 	)
@@ -263,6 +302,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 		logger.EllaLog.Info("Shutting down AMF")
 		closeAMF(shutdownCtx, amfInstance, sctpServer)
+
+		logger.EllaLog.Info("Shutting down BGP")
+
+		if err := bgpService.Stop(); err != nil {
+			logger.EllaLog.Error("BGP service shutdown error", zap.Error(err))
+		}
 
 		logger.EllaLog.Info("Shutting down UPF")
 		upfInstance.Close(shutdownCtx)

@@ -1658,6 +1658,135 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  # ── BGP ─────────────────────────────────────────────────────────────────
+  /api/v1/networking/bgp:
+    get:
+      operationId: getBGPSettings
+      tags: [BGP]
+      summary: Get BGP settings
+      description: Returns the current BGP configuration.
+      responses:
+        "200":
+          description: BGP settings and status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BGPSettingsResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    put:
+      operationId: updateBGPSettings
+      tags: [BGP]
+      summary: Update BGP settings
+      description: >-
+        Updates the BGP configuration. Enabling BGP starts the embedded BGP
+        speaker; disabling it stops the speaker and withdraws all routes.
+        Changing the local AS or router ID triggers a full restart. BGP cannot
+        be enabled while NAT is active.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBGPSettingsParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/networking/bgp/peers:
+    get:
+      operationId: listBGPPeers
+      tags: [BGP]
+      summary: List BGP peers
+      description: Returns the paginated list of configured BGP peers with live session status.
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        "200":
+          description: Paginated list of BGP peers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListBGPPeersResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createBGPPeer
+      tags: [BGP]
+      summary: Create a BGP peer
+      description: >-
+        Adds a new BGP peer. If the BGP speaker is running, the peer is added
+        to the live session immediately. A maximum of 5 peers are allowed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBGPPeerParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/networking/bgp/peers/{id}:
+    delete:
+      operationId: deleteBGPPeer
+      tags: [BGP]
+      summary: Delete a BGP peer
+      description: >-
+        Removes a BGP peer by ID. If the BGP speaker is running, the peer is
+        removed from the live session immediately.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/networking/bgp/routes:
+    get:
+      operationId: getBGPRoutes
+      tags: [BGP]
+      summary: Get advertised BGP routes
+      description: Returns the list of routes currently advertised to BGP peers. These are /32 host routes derived from active PDU sessions.
+      responses:
+        "200":
+          description: Advertised routes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BGPRoutesResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   # ── Flow Accounting ─────────────────────────────────────────────────────
   /api/v1/networking/flow-accounting:
     get:
@@ -3260,6 +3389,135 @@ components:
       properties:
         enabled:
           type: boolean
+
+    # ── BGP ──────────────────────────────────────────────────────────────
+    BGPSettings:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        localAS:
+          type: integer
+        routerID:
+          type: string
+        listenAddress:
+          type: string
+      required: [enabled, localAS, routerID, listenAddress]
+
+    BGPSettingsResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/BGPSettings"
+
+    UpdateBGPSettingsParams:
+      type: object
+      required: [enabled, localAS, routerID, listenAddress]
+      properties:
+        enabled:
+          type: boolean
+        localAS:
+          type: integer
+        routerID:
+          type: string
+        listenAddress:
+          type: string
+
+    BGPPeer:
+      type: object
+      properties:
+        id:
+          type: integer
+        address:
+          type: string
+        remoteAS:
+          type: integer
+        holdTime:
+          type: integer
+        password:
+          type: string
+          description: Masked as "********" in responses when set.
+        description:
+          type: string
+        state:
+          type: string
+          description: Live session state (e.g. "established", "active", "idle"). Empty when BGP is off.
+        uptime:
+          type: string
+          description: Session uptime (e.g. "5m30s"). Only present when state is "established".
+        prefixesSent:
+          type: integer
+          description: Number of prefixes advertised to this peer.
+      required: [id, address, remoteAS, holdTime, password, description]
+
+    ListBGPPeersResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BGPPeer"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+      required: [items, page, per_page, total_count]
+
+    ListBGPPeersResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListBGPPeersResponse"
+
+    CreateBGPPeerParams:
+      type: object
+      required: [address, remoteAS]
+      properties:
+        address:
+          type: string
+          description: IPv4 address of the peer.
+        remoteAS:
+          type: integer
+          description: Remote autonomous system number.
+        holdTime:
+          type: integer
+          default: 90
+          minimum: 3
+          maximum: 65535
+          description: BGP hold timer in seconds. Keepalive is derived as holdTime / 3.
+        password:
+          type: string
+          description: MD5 authentication password. Omit for no authentication.
+        description:
+          type: string
+
+    BGPRoute:
+      type: object
+      properties:
+        subscriber:
+          type: string
+        prefix:
+          type: string
+        nextHop:
+          type: string
+      required: [subscriber, prefix, nextHop]
+
+    BGPRoutesResponse:
+      type: object
+      properties:
+        routes:
+          type: array
+          items:
+            $ref: "#/components/schemas/BGPRoute"
+      required: [routes]
+
+    BGPRoutesResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/BGPRoutesResponse"
 
     # ── Flow Accounting ─────────────────────────────────────────────────
     FlowAccountingInfo:

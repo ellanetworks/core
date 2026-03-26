@@ -584,6 +584,64 @@ func TestCreateSmContext_ReplacesExistingSession(t *testing.T) {
 	}
 }
 
+func TestCreateSmContext_AnnouncesBGPRoute(t *testing.T) {
+	store, upf, amfCb := defaultFakes()
+	bgpFake := &fakeBGP{running: true}
+	s := smf.New(store, upf, amfCb, smf.WithBGP(bgpFake))
+	ctx := context.Background()
+	supi := testSUPI()
+	n1Msg := buildPDUSessionEstRequest()
+
+	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	if err != nil {
+		t.Fatalf("CreateSmContext failed: %v", err)
+	}
+
+	if rejectN1 != nil {
+		t.Fatalf("expected no reject, got %d bytes", len(rejectN1))
+	}
+
+	bgpFake.mu.Lock()
+	defer bgpFake.mu.Unlock()
+
+	if len(bgpFake.announced) != 1 {
+		t.Fatalf("expected 1 BGP announce, got %d", len(bgpFake.announced))
+	}
+
+	if bgpFake.announced[0] != "10.0.0.1" {
+		t.Fatalf("expected announce for 10.0.0.1, got %s", bgpFake.announced[0])
+	}
+
+	if bgpFake.owners[0] != testIMSI {
+		t.Fatalf("expected owner %s, got %s", testIMSI, bgpFake.owners[0])
+	}
+}
+
+func TestCreateSmContext_BGPNotRunning_NoAnnounce(t *testing.T) {
+	store, upf, amfCb := defaultFakes()
+	bgpFake := &fakeBGP{running: false}
+	s := smf.New(store, upf, amfCb, smf.WithBGP(bgpFake))
+	ctx := context.Background()
+	supi := testSUPI()
+	n1Msg := buildPDUSessionEstRequest()
+
+	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	if err != nil {
+		t.Fatalf("CreateSmContext failed: %v", err)
+	}
+
+	if rejectN1 != nil {
+		t.Fatalf("expected no reject, got %d bytes", len(rejectN1))
+	}
+
+	bgpFake.mu.Lock()
+	defer bgpFake.mu.Unlock()
+
+	if len(bgpFake.announced) != 0 {
+		t.Fatalf("expected 0 BGP announces when not running, got %d", len(bgpFake.announced))
+	}
+}
+
 func TestReleaseSmContext_NilPDUAddress_SkipsIPRelease(t *testing.T) {
 	store, upf, amfCb := defaultFakes()
 	s := newTestSMF(store, upf, amfCb)

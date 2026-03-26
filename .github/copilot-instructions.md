@@ -14,7 +14,7 @@ go build -ldflags "-X github.com/ellanetworks/core/version.GitCommit=${REVISION}
 
 go test ./...                                   # Unit tests
 INTEGRATION=1 go test ./integration/... -v      # Integration tests (requires Docker)
-golangci-lint run ./...                         # Lint (must pass after any Go changes)
+golangci-lint run ./...                         # Lint (must pass after any Go changes, use --fix to auto-fix)
 ```
 
 **Gotchas**: eBPF C changes require `go generate ./...` before building. Frontend changes require `npm run build --prefix ui` before the Go binary includes them. **Always run `golangci-lint run ./...` after making Go code changes** and fix any issues before considering the task complete.

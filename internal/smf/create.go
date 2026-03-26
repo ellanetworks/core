@@ -116,6 +116,8 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	span.AddEvent("session_accepted")
 
+	s.announceRoute(pduAddress, smContext.Supi.IMSI())
+
 	success = true
 
 	return smContext.CanonicalName(), nil, nil

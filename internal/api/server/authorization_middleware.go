@@ -28,6 +28,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListRoutes, PermReadRoute,
 		PermListRadios, PermReadRadio,
 		PermGetNATInfo,
+		PermReadBGP,
 		PermGetFlowAccountingInfo,
 		PermGetSubscriberUsageRetentionPolicy, PermGetSubscriberUsage,
 		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermGetRadioEvent,
@@ -44,6 +45,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListRoutes, PermCreateRoute, PermReadRoute, PermDeleteRoute,
 		PermListRadios, PermReadRadio,
 		PermGetNATInfo, PermUpdateNATInfo,
+		PermReadBGP, PermUpdateBGP,
 		PermGetFlowAccountingInfo, PermUpdateFlowAccountingInfo,
 		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermSetRadioEventRetentionPolicy, PermClearRadioEvents, PermGetRadioEvent,
 		PermGetFlowReportsRetentionPolicy, PermSetFlowReportsRetentionPolicy, PermListFlowReports, PermClearFlowReports,
@@ -125,6 +127,10 @@ const (
 	// NAT permissions
 	PermGetNATInfo    = "nat:get"
 	PermUpdateNATInfo = "nat:update"
+
+	// BGP permissions
+	PermReadBGP   = "bgp:read"
+	PermUpdateBGP = "bgp:update"
 
 	// Flow Accounting permissions
 	PermGetFlowAccountingInfo    = "flow_accounting:get"

@@ -120,7 +120,7 @@ func setupServer(filepath string) (testEnv, error) {
 	}
 
 	amfInstance := amf.New(testdb, nil, nil)
-	ts := httptest.NewTLSServer(server.NewHandler(testdb, cfg, fakeUPF, fakeKernel, jwtSecret, false, dummyfs, smfInstance, amfInstance, nil))
+	ts := httptest.NewTLSServer(server.NewHandler(testdb, cfg, fakeUPF, fakeKernel, jwtSecret, false, dummyfs, smfInstance, amfInstance, nil, nil))
 
 	supportbundle.ConfigProvider = func(ctx context.Context) ([]byte, error) {
 		return []byte("fake test config"), nil

@@ -406,3 +406,175 @@ This path updates the flow accounting configuration.
     }
 }
 ```
+
+# BGP
+
+## Get BGP Settings
+
+Returns the current BGP configuration.
+
+| Method | Path                    |
+| ------ | ----------------------- |
+| GET    | `/api/v1/networking/bgp` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "enabled": true,
+        "localAS": 64512,
+        "routerID": "192.168.5.10",
+        "listenAddress": ":179"
+    }
+}
+```
+
+## Update BGP Settings
+
+Updates the BGP configuration. Enabling BGP starts the embedded BGP speaker. Changing the local AS or router ID triggers a restart of the speaker. BGP cannot be enabled while NAT is active.
+
+| Method | Path                    |
+| ------ | ----------------------- |
+| PUT    | `/api/v1/networking/bgp` |
+
+### Parameters
+
+- `enabled` (boolean): Enable or disable BGP.
+- `localAS` (integer): The local autonomous system number.
+- `routerID` (string): The BGP router ID (IPv4 address format).
+- `listenAddress` (string): The address and port to listen on (e.g. `:179`).
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "BGP settings updated successfully"
+    }
+}
+```
+
+## List BGP Peers
+
+Returns the list of configured BGP peers with live session status.
+
+| Method | Path                          |
+| ------ | ----------------------------- |
+| GET    | `/api/v1/networking/bgp/peers` |
+
+### Query Parameters
+
+| Name       | In    | Type | Default | Allowed | Description               |
+| ---------- | ----- | ---- | ------- | ------- | ------------------------- |
+| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.       |
+| `per_page` | query | int  | `25`    | `1…100` | Number of items per page.  |
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "items": [
+            {
+                "id": 1,
+                "address": "192.168.5.1",
+                "remoteAS": 64513,
+                "holdTime": 90,
+                "password": "********",
+                "description": "upstream router",
+                "state": "established",
+                "uptime": "1h23m45s",
+                "prefixesSent": 3
+            }
+        ],
+        "page": 1,
+        "per_page": 25,
+        "total_count": 1
+    }
+}
+```
+
+The `password` field is masked in responses. It returns `"********"` if a password is set, or `""` if no password is configured.
+
+The `state`, `uptime`, and `prefixesSent` fields reflect the live BGP session status. They are empty/omitted when BGP is not running. The `uptime` field is only present when the session state is `established`.
+
+## Create a BGP Peer
+
+Adds a new BGP peer. If BGP is running, the peer is added to the live speaker immediately.
+
+| Method | Path                          |
+| ------ | ----------------------------- |
+| POST   | `/api/v1/networking/bgp/peers` |
+
+### Parameters
+
+- `address` (string, required): The IPv4 address of the peer.
+- `remoteAS` (integer, required): The remote autonomous system number.
+- `holdTime` (integer): The BGP hold timer in seconds (default `90`, minimum `3`). Keepalive is derived as holdTime / 3.
+- `password` (string): MD5 authentication password. Omit or set to empty string for no authentication.
+- `description` (string): An optional description for the peer.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "BGP peer created successfully"
+    }
+}
+```
+
+## Delete a BGP Peer
+
+Removes a BGP peer by ID. If BGP is running, the peer is removed from the live speaker immediately.
+
+| Method | Path                              |
+| ------ | --------------------------------- |
+| DELETE | `/api/v1/networking/bgp/peers/{id}` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "BGP peer deleted successfully"
+    }
+}
+```
+
+## Get BGP Routes
+
+Returns the routes currently advertised to BGP peers.
+
+| Method | Path                           |
+| ------ | ------------------------------ |
+| GET    | `/api/v1/networking/bgp/routes` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "routes": [
+            {
+                "prefix": "10.45.0.3/32",
+                "nextHop": "192.168.5.10",
+                "age": "00:05:12"
+            }
+        ]
+    }
+}
+```

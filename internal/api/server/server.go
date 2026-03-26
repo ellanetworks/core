@@ -7,6 +7,7 @@ import (
 	"net/http/pprof"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
@@ -21,7 +22,7 @@ type UPFUpdater interface {
 	UpdateAdvertisedN3Address(net.IP)
 }
 
-func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kernel kernel.Kernel, jwtSecret []byte, secureCookie bool, embedFS fs.FS, sessions smf.SessionQuerier, amfInstance *amf.AMF, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
+func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kernel kernel.Kernel, jwtSecret []byte, secureCookie bool, embedFS fs.FS, sessions smf.SessionQuerier, amfInstance *amf.AMF, bgpService *bgp.BGPService, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
 	mux := http.NewServeMux()
 
 	// Status (Unauthenticated)
@@ -117,6 +118,14 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	// NAT (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, Authorize(PermGetNATInfo, GetNATInfo(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateNATInfo, UpdateNATInfo(dbInstance, upf))).ServeHTTP)
+
+	// BGP (Authenticated)
+	mux.HandleFunc("GET /api/v1/networking/bgp", Authenticate(jwtSecret, dbInstance, Authorize(PermReadBGP, GetBGPSettings(dbInstance, bgpService))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/networking/bgp", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateBGP, UpdateBGPSettings(dbInstance, bgpService))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/networking/bgp/peers", Authenticate(jwtSecret, dbInstance, Authorize(PermReadBGP, ListBGPPeers(dbInstance, bgpService))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/networking/bgp/peers", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateBGP, CreateBGPPeer(dbInstance, bgpService))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/networking/bgp/peers/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateBGP, DeleteBGPPeer(dbInstance, bgpService))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/networking/bgp/routes", Authenticate(jwtSecret, dbInstance, Authorize(PermReadBGP, GetBGPRoutes(bgpService))).ServeHTTP)
 
 	// Flow Accounting (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/flow-accounting", Authenticate(jwtSecret, dbInstance, Authorize(PermGetFlowAccountingInfo, GetFlowAccountingInfo(dbInstance))).ServeHTTP)

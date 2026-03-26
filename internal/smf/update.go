@@ -88,6 +88,8 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 			if err := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.PDUAddress); err != nil {
 				return nil, false, fmt.Errorf("failed to release UE IP Addr: %v", err)
 			}
+
+			s.withdrawRoute(smContext.PDUAddress)
 		}
 
 		pti := m.PDUSessionReleaseRequest.GetPTI()

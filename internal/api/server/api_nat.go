@@ -53,6 +53,19 @@ func UpdateNATInfo(dbInstance *db.Database, upf UPFUpdater) http.Handler {
 			return
 		}
 
+		if params.Enabled {
+			bgpEnabled, err := dbInstance.IsBGPEnabled(r.Context())
+			if err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check BGP settings", err, logger.APILog)
+				return
+			}
+
+			if bgpEnabled {
+				writeError(r.Context(), w, http.StatusConflict, "NAT and BGP cannot be enabled simultaneously. Disable BGP first.", nil, logger.APILog)
+				return
+			}
+		}
+
 		if err := dbInstance.UpdateNATSettings(r.Context(), params.Enabled); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update NAT settings", err, logger.APILog)
 			return
