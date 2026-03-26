@@ -282,6 +282,92 @@ func TestIPAllocationAndRelease(t *testing.T) {
 	}
 }
 
+func TestReleaseIP_MismatchedAddress_NoOp(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	dnn := &db.DataNetwork{
+		Name:   "test-dnn",
+		IPPool: "192.168.1.0/24",
+	}
+
+	err = database.CreateDataNetwork(context.Background(), dnn)
+	if err != nil {
+		t.Fatalf("Couldn't complete CreateDataNetwork: %s", err)
+	}
+
+	createdDNN, err := database.GetDataNetwork(context.Background(), dnn.Name)
+	if err != nil {
+		t.Fatalf("Couldn't retrieve data network: %s", err)
+	}
+
+	policy := &db.Policy{
+		Name:          "test-policy",
+		DataNetworkID: createdDNN.ID,
+	}
+
+	err = database.CreatePolicy(context.Background(), policy)
+	if err != nil {
+		t.Fatalf("Couldn't complete CreatePolicy: %s", err)
+	}
+
+	createdPolicy, err := database.GetPolicy(context.Background(), policy.Name)
+	if err != nil {
+		t.Fatalf("Couldn't retrieve policy: %s", err)
+	}
+
+	subscriber := &db.Subscriber{
+		Imsi:           "001010000000099",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "00112233445566778899AABBCCDDEEFF",
+		Opc:            "00112233445566778899AABBCCDDEEFF",
+		PolicyID:       createdPolicy.ID,
+	}
+
+	err = database.CreateSubscriber(context.Background(), subscriber)
+	if err != nil {
+		t.Fatalf("Couldn't complete CreateSubscriber: %s", err)
+	}
+
+	// Allocate a real IP.
+	allocatedIP, err := database.AllocateIP(context.Background(), subscriber.Imsi)
+	if err != nil {
+		t.Fatalf("Couldn't allocate IP: %s", err)
+	}
+
+	// Attempt to release a DIFFERENT IP (simulating a stale session cleanup).
+	staleIP := net.ParseIP("192.168.1.99").To4()
+
+	err = database.ReleaseIP(context.Background(), subscriber.Imsi, staleIP)
+	if err != nil {
+		t.Fatalf("ReleaseIP with mismatched IP should not error: %s", err)
+	}
+
+	// The subscriber's actual IP must still be intact.
+	sub, err := database.GetSubscriber(context.Background(), subscriber.Imsi)
+	if err != nil {
+		t.Fatalf("Couldn't retrieve subscriber: %s", err)
+	}
+
+	if sub.IPAddress == nil {
+		t.Fatal("stale ReleaseIP with wrong address cleared the subscriber's active IP — regression")
+	}
+
+	if *sub.IPAddress != allocatedIP.String() {
+		t.Fatalf("expected IP %s, got %s", allocatedIP.String(), *sub.IPAddress)
+	}
+}
+
 func TestAllocateAllIPsInPool(t *testing.T) {
 	tempDir := t.TempDir()
 
