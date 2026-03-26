@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import {
+  Alert,
   Box,
   Typography,
   Button,
@@ -53,14 +54,19 @@ import {
   updateBGPSettings,
   listBGPPeers,
   deleteBGPPeer,
-  getBGPRoutes,
+  getBGPAdvertisedRoutes,
+  getBGPLearnedRoutes,
   type BGPSettings,
   type ListBGPPeersResponse,
-  type BGPRoutesResponse,
+  type BGPAdvertisedRoutesResponse,
+  type BGPLearnedRoutesResponse,
   type BGPPeer as APIBGPPeer,
-  type BGPRoute,
+  type BGPAdvertisedRoute,
+  type BGPLearnedRoute,
+  type BGPImportPrefix,
 } from "@/queries/bgp";
 import CreateBGPPeerModal from "@/components/CreateBGPPeerModal";
+import EditBGPPeerModal from "@/components/EditBGPPeerModal";
 import EditBGPSettingsModal from "@/components/EditBGPSettingsModal";
 
 // Flow Accounting
@@ -336,6 +342,22 @@ export default function NetworkingPage() {
       { field: "gateway", headerName: "Gateway", flex: 1, minWidth: 160 },
       { field: "interface", headerName: "Interface", flex: 1, minWidth: 140 },
       { field: "metric", headerName: "Metric", width: 110 },
+      {
+        field: "source",
+        headerName: "Source",
+        width: 110,
+        renderCell: (params: GridRenderCellParams<APIRoute>) => {
+          const source = params.row.source;
+          return (
+            <Chip
+              size="small"
+              label={source === "bgp" ? "BGP" : "Static"}
+              color={source === "bgp" ? "info" : "default"}
+              variant="outlined"
+            />
+          );
+        },
+      },
       ...(canEdit
         ? [
             {
@@ -345,14 +367,17 @@ export default function NetworkingPage() {
               width: 100,
               sortable: false,
               disableColumnMenu: true,
-              getActions: (p: { row: APIRoute }) => [
-                <GridActionsCellItem
-                  key="delete"
-                  icon={<DeleteIcon color="primary" />}
-                  label="Delete"
-                  onClick={() => handleRequestDeleteRoute(p.row.id)}
-                />,
-              ],
+              getActions: (p: { row: APIRoute }) =>
+                p.row.source === "bgp"
+                  ? []
+                  : [
+                      <GridActionsCellItem
+                        key="delete"
+                        icon={<DeleteIcon color="primary" />}
+                        label="Delete"
+                        onClick={() => handleRequestDeleteRoute(p.row.id)}
+                      />,
+                    ],
             } as GridColDef<APIRoute>,
           ]
         : []),
@@ -515,23 +540,58 @@ export default function NetworkingPage() {
     }
   };
 
+  const [isEditBGPPeerOpen, setEditBGPPeerOpen] = useState(false);
+  const [editBGPPeer, setEditBGPPeer] = useState<APIBGPPeer | null>(null);
+
+  const handleEditBGPPeer = (peer: APIBGPPeer) => {
+    setEditBGPPeer(peer);
+    setEditBGPPeerOpen(true);
+  };
+
+  const [expandedPeerIds, setExpandedPeerIds] = useState<Set<number>>(
+    new Set(),
+  );
+
+  const togglePeerExpanded = (id: number) => {
+    setExpandedPeerIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const getImportPolicyLabel = (prefixes: BGPImportPrefix[] | undefined) => {
+    if (!prefixes || prefixes.length === 0) return "None";
+    if (
+      prefixes.length === 1 &&
+      prefixes[0].prefix === "0.0.0.0/0" &&
+      prefixes[0].maxLength === 0
+    )
+      return "Default Route Only";
+    if (
+      prefixes.length === 1 &&
+      prefixes[0].prefix === "0.0.0.0/0" &&
+      prefixes[0].maxLength === 32
+    )
+      return "All";
+    return `${prefixes.length} ${prefixes.length === 1 ? "prefix" : "prefixes"}`;
+  };
+
   const bgpPeerColumns: GridColDef<APIBGPPeer>[] = useMemo(() => {
     return [
       { field: "address", headerName: "Address", flex: 1, minWidth: 140 },
       { field: "remoteAS", headerName: "Remote AS", width: 120 },
-      { field: "holdTime", headerName: "Hold Time", width: 110 },
       {
-        field: "password",
-        headerName: "Password",
-        width: 110,
+        field: "importPrefixes",
+        headerName: "Import Policy",
+        width: 160,
+        sortable: false,
         renderCell: (params: GridRenderCellParams<APIBGPPeer>) =>
-          params.row.password ? "********" : "",
-      },
-      {
-        field: "description",
-        headerName: "Description",
-        flex: 1,
-        minWidth: 140,
+          getImportPolicyLabel(params.row.importPrefixes),
       },
       {
         field: "state",
@@ -560,6 +620,12 @@ export default function NetworkingPage() {
               disableColumnMenu: true,
               getActions: (p: { row: APIBGPPeer }) => [
                 <GridActionsCellItem
+                  key="edit"
+                  icon={<EditIcon color="primary" />}
+                  label="Edit"
+                  onClick={() => handleEditBGPPeer(p.row)}
+                />,
+                <GridActionsCellItem
                   key="delete"
                   icon={<DeleteIcon color="primary" />}
                   label="Delete"
@@ -572,27 +638,27 @@ export default function NetworkingPage() {
     ];
   }, [canEdit]);
 
-  // BGP Routes
-  const { data: bgpRoutesData, isLoading: bgpRoutesLoading } =
-    useQuery<BGPRoutesResponse>({
-      queryKey: ["bgp-routes"],
-      queryFn: () => getBGPRoutes(accessToken || ""),
+  // BGP Advertised Routes
+  const { data: bgpAdvertisedData, isLoading: bgpAdvertisedLoading } =
+    useQuery<BGPAdvertisedRoutesResponse>({
+      queryKey: ["bgp-advertised-routes"],
+      queryFn: () => getBGPAdvertisedRoutes(accessToken || ""),
       enabled: !!accessToken,
       refetchInterval: 5000,
       refetchIntervalInBackground: true,
       refetchOnWindowFocus: true,
     });
 
-  const bgpRouteRows: (BGPRoute & { id: string })[] = useMemo(
+  const bgpAdvertisedRows: (BGPAdvertisedRoute & { id: string })[] = useMemo(
     () =>
-      (bgpRoutesData?.routes ?? []).map((r, i) => ({
+      (bgpAdvertisedData?.routes ?? []).map((r, i) => ({
         ...r,
         id: `${r.prefix}-${i}`,
       })),
-    [bgpRoutesData],
+    [bgpAdvertisedData],
   );
 
-  const bgpRouteColumns: GridColDef<BGPRoute & { id: string }>[] = [
+  const bgpAdvertisedColumns: GridColDef<BGPAdvertisedRoute & { id: string }>[] = [
     {
       field: "subscriber",
       headerName: "Subscriber",
@@ -634,6 +700,34 @@ export default function NetworkingPage() {
     { field: "prefix", headerName: "Prefix", flex: 1, minWidth: 160 },
     { field: "nextHop", headerName: "Next Hop", flex: 1, minWidth: 140 },
   ];
+
+  // BGP Learned Routes
+  const { data: bgpLearnedData, isLoading: bgpLearnedLoading } =
+    useQuery<BGPLearnedRoutesResponse>({
+      queryKey: ["bgp-learned-routes"],
+      queryFn: () => getBGPLearnedRoutes(accessToken || ""),
+      enabled: !!accessToken,
+      refetchInterval: 5000,
+      refetchIntervalInBackground: true,
+      refetchOnWindowFocus: true,
+    });
+
+  const bgpLearnedRows: (BGPLearnedRoute & { id: string })[] = useMemo(
+    () =>
+      (bgpLearnedData?.routes ?? []).map((r, i) => ({
+        ...r,
+        id: `${r.prefix}-${i}`,
+      })),
+    [bgpLearnedData],
+  );
+
+  const bgpLearnedColumns: GridColDef<BGPLearnedRoute & { id: string }>[] = [
+    { field: "prefix", headerName: "Prefix", flex: 1, minWidth: 160 },
+    { field: "nextHop", headerName: "Next Hop", flex: 1, minWidth: 140 },
+    { field: "peer", headerName: "Peer", flex: 1, minWidth: 140 },
+  ];
+
+  const isNATEnabled = !!natInfo?.enabled;
 
   const bgpDescription =
     "Border Gateway Protocol (BGP) allows Ella Core to advertise subscriber IP routes to upstream routers so that return traffic can reach connected UEs.";
@@ -1034,7 +1128,11 @@ export default function NetworkingPage() {
                 <DataGrid<APIRoute>
                   rows={rtRows}
                   columns={rtColumns}
-                  getRowId={(row) => row.id}
+                  getRowId={(row) =>
+                    row.source === "bgp"
+                      ? `bgp-${row.destination}-${row.gateway}`
+                      : row.id
+                  }
                   paginationMode="server"
                   rowCount={rtRowCount}
                   paginationModel={rtPagination}
@@ -1249,18 +1347,159 @@ export default function NetworkingPage() {
                     <CircularProgress />
                   </Box>
                 ) : (
+                  <>
+                    <ThemeProvider theme={gridTheme}>
+                      <DataGrid<APIBGPPeer>
+                        rows={bgpPeerRows}
+                        columns={bgpPeerColumns}
+                        getRowId={(row) => row.id}
+                        paginationMode="server"
+                        rowCount={bgpPeerRowCount}
+                        paginationModel={bgpPeersPagination}
+                        onPaginationModelChange={setBgpPeersPagination}
+                        pageSizeOptions={[10, 25, 50]}
+                        disableColumnMenu
+                        disableRowSelectionOnClick
+                        onRowClick={(params) =>
+                          togglePeerExpanded(params.row.id)
+                        }
+                        sx={{
+                          width: "100%",
+                          border: 1,
+                          borderColor: "divider",
+                          "& .MuiDataGrid-cell": {
+                            borderBottom: "1px solid",
+                            borderColor: "divider",
+                          },
+                          "& .MuiDataGrid-columnHeaders": {
+                            borderBottom: "1px solid",
+                            borderColor: "divider",
+                          },
+                          "& .MuiDataGrid-footerContainer": {
+                            borderTop: "1px solid",
+                            borderColor: "divider",
+                          },
+                          "& .MuiDataGrid-row": {
+                            cursor: "pointer",
+                          },
+                        }}
+                      />
+                    </ThemeProvider>
+                    {bgpPeerRows
+                      .filter((row) => expandedPeerIds.has(row.id))
+                      .map((row) => (
+                        <Box
+                          key={row.id}
+                          sx={{
+                            p: 2,
+                            mt: 1,
+                            mb: 1,
+                            border: 1,
+                            borderColor: "divider",
+                            borderRadius: 1,
+                          }}
+                        >
+                          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                            {row.address} — Import Prefix List
+                          </Typography>
+                          {(!row.importPrefixes ||
+                            row.importPrefixes.length === 0) ? (
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                            >
+                              No import prefixes configured (reject all).
+                            </Typography>
+                          ) : (
+                            <TableContainer>
+                              <Table size="small">
+                                <TableBody>
+                                  {row.importPrefixes.map(
+                                    (p: BGPImportPrefix, i: number) => (
+                                      <TableRow key={i}>
+                                        <TableCell
+                                          sx={{ fontFamily: "monospace" }}
+                                        >
+                                          {p.prefix}
+                                        </TableCell>
+                                        <TableCell>
+                                          max /{p.maxLength}
+                                        </TableCell>
+                                      </TableRow>
+                                    ),
+                                  )}
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
+                          )}
+                          <Stack
+                            direction="row"
+                            spacing={2}
+                            sx={{ mt: 1 }}
+                          >
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                            >
+                              Prefixes received:{" "}
+                              {row.prefixesReceived ?? 0}
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                            >
+                              Prefixes accepted:{" "}
+                              {row.prefixesAccepted ?? 0}
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                            >
+                              Prefixes sent: {row.prefixesSent ?? 0}
+                            </Typography>
+                          </Stack>
+                        </Box>
+                      ))}
+                  </>
+                )}
+              </Box>
+
+              {/* --- Advertised Routes Table --- */}
+              <Box sx={{ mb: 4 }}>
+                <Typography variant="h5" sx={{ mb: 0.5 }}>
+                  Advertised Routes
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mb: 2 }}
+                >
+                  Routes currently announced to BGP peers. These are derived
+                  from active PDU sessions and cannot be edited directly.
+                </Typography>
+
+                {isNATEnabled && (
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    Route advertisement is disabled while NAT is active.
+                    Subscriber IPs are NATed and not directly reachable from
+                    outside.
+                  </Alert>
+                )}
+
+                {bgpAdvertisedLoading ? (
+                  <Box
+                    sx={{ display: "flex", justifyContent: "center", mt: 4 }}
+                  >
+                    <CircularProgress />
+                  </Box>
+                ) : (
                   <ThemeProvider theme={gridTheme}>
-                    <DataGrid<APIBGPPeer>
-                      rows={bgpPeerRows}
-                      columns={bgpPeerColumns}
-                      getRowId={(row) => row.id}
-                      paginationMode="server"
-                      rowCount={bgpPeerRowCount}
-                      paginationModel={bgpPeersPagination}
-                      onPaginationModelChange={setBgpPeersPagination}
-                      pageSizeOptions={[10, 25, 50]}
+                    <DataGrid
+                      rows={bgpAdvertisedRows}
+                      columns={bgpAdvertisedColumns}
                       disableColumnMenu
                       disableRowSelectionOnClick
+                      pageSizeOptions={[10, 25, 50]}
                       sx={{
                         width: "100%",
                         border: 1,
@@ -1283,21 +1522,22 @@ export default function NetworkingPage() {
                 )}
               </Box>
 
-              {/* --- Advertised Routes Table --- */}
+              {/* --- Learned Routes Table --- */}
               <Box>
                 <Typography variant="h5" sx={{ mb: 0.5 }}>
-                  Advertised Routes
+                  Learned Routes
                 </Typography>
                 <Typography
                   variant="body2"
                   color="text.secondary"
                   sx={{ mb: 2 }}
                 >
-                  Routes currently announced to BGP peers. These are derived
-                  from active PDU sessions and cannot be edited directly.
+                  Routes received from BGP peers and installed in the kernel
+                  routing table. These are controlled by each peer's import
+                  policy.
                 </Typography>
 
-                {bgpRoutesLoading ? (
+                {bgpLearnedLoading ? (
                   <Box
                     sx={{ display: "flex", justifyContent: "center", mt: 4 }}
                   >
@@ -1306,8 +1546,8 @@ export default function NetworkingPage() {
                 ) : (
                   <ThemeProvider theme={gridTheme}>
                     <DataGrid
-                      rows={bgpRouteRows}
-                      columns={bgpRouteColumns}
+                      rows={bgpLearnedRows}
+                      columns={bgpLearnedColumns}
                       disableColumnMenu
                       disableRowSelectionOnClick
                       pageSizeOptions={[10, 25, 50]}
@@ -1470,6 +1710,17 @@ export default function NetworkingPage() {
             refetchBGPPeers();
             showSnackbar("BGP peer created successfully.", "success");
           }}
+        />
+      )}
+      {isEditBGPPeerOpen && editBGPPeer && (
+        <EditBGPPeerModal
+          open
+          onClose={() => setEditBGPPeerOpen(false)}
+          onSuccess={() => {
+            refetchBGPPeers();
+            showSnackbar("BGP peer updated successfully.", "success");
+          }}
+          peer={editBGPPeer}
         />
       )}
       {isDeleteBGPPeerOpen && (
