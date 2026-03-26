@@ -209,6 +209,9 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
         setImportPrefixes([{ prefix: "0.0.0.0/0", maxLength: 32 }]);
         break;
       case "custom":
+        if (importPrefixes.length === 0) {
+          setImportPrefixes([{ prefix: "", maxLength: 32 }]);
+        }
         break;
     }
   };
@@ -422,7 +425,7 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
                 <IconButton
                   size="small"
                   onClick={() => handleRemovePrefix(index)}
-                  color="error"
+                  color="primary"
                 >
                   <DeleteIcon fontSize="small" />
                 </IconButton>
