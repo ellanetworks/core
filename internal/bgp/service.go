@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/internal/kernel"
 	api "github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	bgppacket "github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -18,10 +19,20 @@ import (
 
 const defaultListenPort int32 = 179
 
+// bgpRouteMetric is the fixed kernel route metric for all BGP-learned routes.
+const bgpRouteMetric = 200
+
 // ownedPath tracks an advertised prefix and its owner.
 type ownedPath struct {
 	ip    net.IP
 	owner string
+}
+
+// learnedRoute tracks a BGP-learned route installed in the kernel.
+type learnedRoute struct {
+	prefix  net.IPNet
+	gateway net.IP
+	peer    string // peer address that advertised this route
 }
 
 // BGPService manages the embedded BGP speaker.
@@ -36,16 +47,51 @@ type BGPService struct {
 	n6Addr      net.IP
 	logger      *zap.Logger
 	listenPort  int32
+
+	// Route learning dependencies (optional — nil means route learning is disabled)
+	kernel      kernel.Kernel
+	importStore ImportPrefixStore
+	filter      *RouteFilter
+
+	// learnedMu protects learnedRoutes. Acquired after mu when both are needed.
+	learnedMu     sync.Mutex
+	learnedRoutes map[string]learnedRoute // keyed by prefix string e.g. "0.0.0.0/0"
+	cancelWatch   context.CancelFunc
+}
+
+// Option configures the BGP service.
+type Option func(*BGPService)
+
+// WithKernel sets the kernel interface for installing learned routes.
+func WithKernel(k kernel.Kernel) Option {
+	return func(b *BGPService) { b.kernel = k }
+}
+
+// WithImportPrefixStore sets the store for loading per-peer import prefix lists.
+func WithImportPrefixStore(s ImportPrefixStore) Option {
+	return func(b *BGPService) { b.importStore = s }
+}
+
+// WithRouteFilter sets the safety rejection filter for learned routes.
+func WithRouteFilter(f *RouteFilter) Option {
+	return func(b *BGPService) { b.filter = f }
 }
 
 // New creates a BGPService. Does not start the speaker.
-func New(n6Addr net.IP, logger *zap.Logger) *BGPService {
-	return &BGPService{
-		n6Addr:     n6Addr,
-		logger:     logger,
-		listenPort: defaultListenPort,
-		paths:      make(map[string]ownedPath),
+func New(n6Addr net.IP, logger *zap.Logger, opts ...Option) *BGPService {
+	b := &BGPService{
+		n6Addr:        n6Addr,
+		logger:        logger,
+		listenPort:    defaultListenPort,
+		paths:         make(map[string]ownedPath),
+		learnedRoutes: make(map[string]learnedRoute),
 	}
+
+	for _, opt := range opts {
+		opt(b)
+	}
+
+	return b
 }
 
 // SetListenPort overrides the BGP listen port. Use -1 in tests to disable TCP listening.
@@ -91,6 +137,12 @@ func (b *BGPService) resolveListenPort(settings BGPSettings) int32 {
 	return defaultListenPort
 }
 
+// routeLearningEnabled returns true if the service has all dependencies
+// needed to learn routes from peers and install them in the kernel.
+func (b *BGPService) routeLearningEnabled() bool {
+	return b.kernel != nil && b.importStore != nil && b.filter != nil
+}
+
 // startLocked starts the GoBGP server. Must be called with mu held.
 // If allocatedIPs is nil, existing paths from the in-memory map are replayed.
 func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peers []BGPPeer, allocatedIPs []net.IP) error {
@@ -100,6 +152,11 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 	}
 
 	listenPort := b.resolveListenPort(settings)
+
+	// Clean stale BGP routes from a prior crash before starting the speaker.
+	if b.routeLearningEnabled() {
+		b.cleanStaleRoutes()
+	}
 
 	s := gobgp.NewBgpServer(gobgp.GrpcListenAddress(""))
 	go s.Serve()
@@ -155,6 +212,14 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 	b.settings = settings
 	b.peers = peers
 
+	// Start watching best paths for route learning.
+	if b.routeLearningEnabled() {
+		watchCtx, cancel := context.WithCancel(context.Background())
+		b.cancelWatch = cancel
+
+		b.startWatchBestPaths(watchCtx, s)
+	}
+
 	b.logger.Info("BGP service started",
 		zap.Int("localAS", settings.LocalAS),
 		zap.String("routerID", routerID),
@@ -170,6 +235,15 @@ func (b *BGPService) stopLocked() error {
 	if !b.running {
 		return nil
 	}
+
+	// Stop the best-path watcher before shutting down GoBGP.
+	if b.cancelWatch != nil {
+		b.cancelWatch()
+		b.cancelWatch = nil
+	}
+
+	// Remove all learned routes from the kernel.
+	b.removeAllLearnedRoutes()
 
 	ctx := context.Background()
 
@@ -304,6 +378,24 @@ func (b *BGPService) GetRoutes() ([]BGPRoute, error) {
 	}
 
 	return b.listRoutesLocked()
+}
+
+// GetLearnedRoutes returns the currently installed BGP-learned routes.
+func (b *BGPService) GetLearnedRoutes() []LearnedRoute {
+	b.learnedMu.Lock()
+	defer b.learnedMu.Unlock()
+
+	routes := make([]LearnedRoute, 0, len(b.learnedRoutes))
+
+	for _, lr := range b.learnedRoutes {
+		routes = append(routes, LearnedRoute{
+			Prefix:  lr.prefix.String(),
+			NextHop: lr.gateway.String(),
+			Peer:    lr.peer,
+		})
+	}
+
+	return routes
 }
 
 // GetEffectiveRouterID resolves an empty router ID to the N6 address default.

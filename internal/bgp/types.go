@@ -1,6 +1,9 @@
 package bgp
 
-import "net"
+import (
+	"context"
+	"net"
+)
 
 // BGPSettings holds the configuration for the BGP speaker.
 type BGPSettings struct {
@@ -39,6 +42,24 @@ type BGPRoute struct {
 	Subscriber string `json:"subscriber"`
 	Prefix     string `json:"prefix"`
 	NextHop    string `json:"nextHop"`
+}
+
+// LearnedRoute represents a BGP-learned route installed in the kernel.
+type LearnedRoute struct {
+	Prefix  string `json:"prefix"`
+	NextHop string `json:"nextHop"`
+	Peer    string `json:"peer"`
+}
+
+// ImportPrefixEntry is a raw import prefix list entry (string-based, as stored in the DB).
+type ImportPrefixEntry struct {
+	Prefix    string
+	MaxLength int
+}
+
+// ImportPrefixStore provides access to per-peer import prefix lists.
+type ImportPrefixStore interface {
+	ListImportPrefixes(ctx context.Context, peerID int) ([]ImportPrefixEntry, error)
 }
 
 // BGPAnnouncer is the interface used by SMF to announce/withdraw routes.
