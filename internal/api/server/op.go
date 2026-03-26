@@ -20,8 +20,12 @@ func deriveOPc(K []byte, OP []byte) ([]byte, error) {
 	// Output buffer for OPc
 	OPc := make([]byte, 16)
 
-	// Encrypt OP with K to get OPc
+	// OPc = AES-128-ENC(K, OP) XOR OP
 	block.Encrypt(OPc, OP)
+
+	for i := range 16 {
+		OPc[i] ^= OP[i]
+	}
 
 	return OPc, nil
 }
