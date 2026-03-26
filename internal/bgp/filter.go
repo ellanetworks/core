@@ -15,11 +15,21 @@ type ImportPrefix struct {
 	MaxLength int
 }
 
-// overlapsAny returns true if route overlaps with any entry in the reject list.
-// Two prefixes overlap if either contains the other's network address.
+// overlapsAny returns true if route is the same as, or more specific than,
+// any entry in the reject list. A broad route (e.g. 0.0.0.0/0) is NOT
+// rejected just because it contains a reject prefix — the kernel's
+// longest-prefix-match ensures traffic for reject prefixes still uses
+// more-specific local routes.
 func (f *RouteFilter) overlapsAny(route *net.IPNet) bool {
+	routeOnes, _ := route.Mask.Size()
+
 	for _, reject := range f.RejectPrefixes {
-		if reject.Contains(route.IP) || route.Contains(reject.IP) {
+		rejectOnes, _ := reject.Mask.Size()
+
+		// Route falls within (or equals) a reject prefix:
+		// the reject prefix contains the route's network address
+		// and the route is at least as specific.
+		if reject.Contains(route.IP) && routeOnes >= rejectOnes {
 			return true
 		}
 	}

@@ -129,10 +129,10 @@ func TestOverlapsAny_UEPool(t *testing.T) {
 		{"10.45.0.0/16", true},    // exact match
 		{"10.45.1.0/24", true},    // within UE pool
 		{"10.45.0.1/32", true},    // host within UE pool
-		{"10.0.0.0/8", true},      // wider prefix that contains UE pool
+		{"10.0.0.0/8", false},     // wider prefix — not rejected (kernel LPM handles it)
 		{"10.44.0.0/16", false},   // adjacent but not overlapping
 		{"192.168.0.0/16", false}, // completely different
-		{"0.0.0.0/0", true},       // default route overlaps everything
+		{"0.0.0.0/0", false},      // default route — not rejected (kernel LPM handles it)
 	}
 
 	for _, tc := range testCases {
@@ -159,7 +159,7 @@ func TestOverlapsAny_HardcodedRejections(t *testing.T) {
 		{"127.0.0.0/8", true},    // loopback
 		{"127.0.0.1/32", true},   // within loopback
 		{"10.0.0.0/8", false},    // normal prefix
-		{"0.0.0.0/0", true},      // default route overlaps hard-coded ranges
+		{"0.0.0.0/0", false},     // default route — not rejected (kernel LPM handles it)
 	}
 
 	for _, tc := range testCases {
