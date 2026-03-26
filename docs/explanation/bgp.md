@@ -1,4 +1,4 @@
-# BGP Route Advertisement
+# Advertising and receiving routes via BGP
 
 ## What is BGP?
 
@@ -10,6 +10,8 @@ Subscriber devices receive IPs from the data network pool. When NAT is not used,
 
 ## How does BGP work in Ella Core?
 
+### Advertise subscriber routes
+
 Ella Core embeds a BGP speaker that automatically advertises a `/32` host route for each active subscriber IP:
 
 1. A subscriber establishes a PDU session and receives an IP (e.g. `10.45.0.3`).
@@ -19,6 +21,6 @@ Ella Core embeds a BGP speaker that automatically advertises a `/32` host route 
 
 This means routing state always reflects the set of currently connected subscribers with no manual intervention.
 
-## Advertise-only
+### Receive routes from BGP peers
 
-Ella Core's BGP speaker is advertise-only. It does **not** receive or install routes from BGP peers into the kernel routing table. If operators need return routes (e.g. a default route via an upstream router), they should configure them as static routes in Ella Core's Routes tab or directly on the host.
+Ella Core receives routes from BGP peers and installs them into the kernel routing table. This allows operators to manage routes (e.g., a default route via an upstream router) through BGP instead of static routes.

@@ -106,7 +106,7 @@ nav:
     - Platform Security: explanation/platform_security.md
     - Subscriber Security: explanation/subscriber_security.md
     - User Plane Packet processing with eBPF: explanation/user_plane_packet_processing_with_ebpf.md
-    - BGP Route Advertisement: explanation/bgp.md
+    - Advertising and receiving routes via BGP: explanation/bgp.md
     - Obtaining a PLMN ID for a Private Network: explanation/obtaining_plmn_id.md
     - Managing SIM Cards: explanation/managing_sim_cards.md
 plugins:
