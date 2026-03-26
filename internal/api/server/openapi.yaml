@@ -1856,6 +1856,27 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /api/v1/networking/bgp/system-filters:
+    get:
+      operationId: getBGPSystemFilters
+      tags: [BGP]
+      summary: Get BGP system filters
+      description: |
+        Returns the read-only system protection filters that are automatically enforced
+        on all learned BGP routes. These filters prevent BGP peers from advertising routes
+        that would conflict with internal infrastructure (UE IP pools, interface addresses,
+        link-local, multicast, loopback). They are derived from the current data networks
+        and interface configuration and cannot be edited directly.
+      responses:
+        "200":
+          description: System filters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BGPSystemFiltersResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   # ── Flow Accounting ─────────────────────────────────────────────────────
   /api/v1/networking/flow-accounting:
     get:
@@ -3679,6 +3700,36 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/BGPLearnedRoutesResponse"
+
+    BGPSystemFilter:
+      type: object
+      properties:
+        prefix:
+          type: string
+          description: The CIDR prefix that is rejected.
+        source:
+          type: string
+          enum: [builtin, data_network, interface]
+          description: Origin of the filter rule.
+        description:
+          type: string
+          description: Human-readable explanation of the filter.
+      required: [prefix, source, description]
+
+    BGPSystemFiltersResponse:
+      type: object
+      properties:
+        filters:
+          type: array
+          items:
+            $ref: "#/components/schemas/BGPSystemFilter"
+      required: [filters]
+
+    BGPSystemFiltersResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/BGPSystemFiltersResponse"
 
     # ── Flow Accounting ─────────────────────────────────────────────────
     FlowAccountingInfo:

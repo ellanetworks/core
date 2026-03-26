@@ -112,6 +112,9 @@ func (b *BGPService) handleSinglePath(ctx context.Context, path *apiutil.Path) {
 	}
 
 	if len(entries) == 0 || !matchesPrefixList(prefix, entries) {
+		b.logger.Warn("rejecting BGP route (import policy)",
+			zap.String("prefix", prefixStr), zap.String("peer", peerAddr))
+
 		return
 	}
 

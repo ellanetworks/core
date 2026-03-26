@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/bgp"
+	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 )
@@ -83,6 +84,18 @@ type BGPAdvertisedRoutesResponse struct {
 
 type BGPLearnedRoutesResponse struct {
 	Routes []bgp.LearnedRoute `json:"routes"`
+}
+
+// System (safety) filter types
+
+type BGPSystemFilter struct {
+	Prefix      string `json:"prefix"`
+	Source      string `json:"source"`
+	Description string `json:"description"`
+}
+
+type BGPSystemFiltersResponse struct {
+	Filters []BGPSystemFilter `json:"filters"`
 }
 
 // Audit log action constants
@@ -791,5 +804,63 @@ func GetBGPLearnedRoutes(bgpService *bgp.BGPService) http.Handler {
 		}
 
 		writeResponse(r.Context(), w, BGPLearnedRoutesResponse{Routes: routes}, http.StatusOK, logger.APILog)
+	})
+}
+
+func GetBGPSystemFilters(dbInstance *db.Database, cfg config.Config) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var filters []BGPSystemFilter
+
+		// Hard-coded safety prefixes (RFC 5765 / RFC 7454).
+		builtins := []struct {
+			cidr string
+			desc string
+		}{
+			{"169.254.0.0/16", "Link-local"},
+			{"224.0.0.0/4", "Multicast"},
+			{"127.0.0.0/8", "Loopback"},
+		}
+		for _, b := range builtins {
+			filters = append(filters, BGPSystemFilter{
+				Prefix:      b.cidr,
+				Source:      "builtin",
+				Description: b.desc,
+			})
+		}
+
+		// Data network UE IP pools.
+		dataNetworks, _, err := dbInstance.ListDataNetworksPage(r.Context(), 1, 100)
+		if err == nil {
+			for _, dn := range dataNetworks {
+				if _, _, parseErr := net.ParseCIDR(dn.IPPool); parseErr == nil {
+					filters = append(filters, BGPSystemFilter{
+						Prefix:      dn.IPPool,
+						Source:      "data_network",
+						Description: "UE IP pool (" + dn.Name + ")",
+					})
+				}
+			}
+		}
+
+		// N3 interface address.
+		if n3IP := net.ParseIP(cfg.Interfaces.N3.Address); n3IP != nil {
+			filters = append(filters, BGPSystemFilter{
+				Prefix:      n3IP.String() + "/32",
+				Source:      "interface",
+				Description: "N3 interface address",
+			})
+		}
+
+		// N6 interface subnets.
+		n6Subnets := interfaceSubnets(cfg.Interfaces.N6.Name)
+		for _, s := range n6Subnets {
+			filters = append(filters, BGPSystemFilter{
+				Prefix:      s.String(),
+				Source:      "interface",
+				Description: "N6 interface subnet",
+			})
+		}
+
+		writeResponse(r.Context(), w, BGPSystemFiltersResponse{Filters: filters}, http.StatusOK, logger.APILog)
 	})
 }

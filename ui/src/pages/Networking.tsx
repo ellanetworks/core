@@ -60,10 +60,13 @@ import {
   deleteBGPPeer,
   getBGPAdvertisedRoutes,
   getBGPLearnedRoutes,
+  getBGPSystemFilters,
   type BGPSettings,
   type ListBGPPeersResponse,
   type BGPAdvertisedRoutesResponse,
   type BGPLearnedRoutesResponse,
+  type BGPSystemFiltersResponse,
+  type BGPSystemFilter,
   type BGPPeer as APIBGPPeer,
   type BGPAdvertisedRoute,
   type BGPLearnedRoute,
@@ -730,6 +733,72 @@ export default function NetworkingPage() {
     { field: "prefix", headerName: "Prefix", flex: 1, minWidth: 160 },
     { field: "nextHop", headerName: "Next Hop", flex: 1, minWidth: 140 },
     { field: "peer", headerName: "Peer", flex: 1, minWidth: 140 },
+  ];
+
+  // BGP System Filters
+  const { data: bgpSystemFiltersData, isLoading: bgpSystemFiltersLoading } =
+    useQuery<BGPSystemFiltersResponse>({
+      queryKey: ["bgp-system-filters"],
+      queryFn: () => getBGPSystemFilters(accessToken || ""),
+      enabled: !!accessToken,
+      refetchInterval: 5000,
+      refetchIntervalInBackground: true,
+      refetchOnWindowFocus: true,
+    });
+
+  const bgpSystemFiltersRows: (BGPSystemFilter & { id: string })[] = useMemo(
+    () =>
+      (bgpSystemFiltersData?.filters ?? []).map((f, i) => ({
+        ...f,
+        id: `${f.prefix}-${i}`,
+      })),
+    [bgpSystemFiltersData],
+  );
+
+  const sourceLabel = (source: string) => {
+    switch (source) {
+      case "builtin":
+        return "Built-in";
+      case "data_network":
+        return "Data Network";
+      case "interface":
+        return "Interface";
+      default:
+        return source;
+    }
+  };
+
+  const bgpSystemFiltersColumns: GridColDef<
+    BGPSystemFilter & { id: string }
+  >[] = [
+    { field: "prefix", headerName: "Prefix", flex: 1, minWidth: 160 },
+    {
+      field: "source",
+      headerName: "Source",
+      width: 150,
+      renderCell: (
+        params: GridRenderCellParams<BGPSystemFilter & { id: string }>,
+      ) => (
+        <Chip
+          size="small"
+          label={sourceLabel(params.row.source)}
+          color={
+            params.row.source === "builtin"
+              ? "default"
+              : params.row.source === "data_network"
+                ? "warning"
+                : "info"
+          }
+          variant="filled"
+        />
+      ),
+    },
+    {
+      field: "description",
+      headerName: "Description",
+      flex: 1,
+      minWidth: 200,
+    },
   ];
 
   const isNATEnabled = !!natInfo?.enabled;
@@ -1440,7 +1509,7 @@ export default function NetworkingPage() {
               </Box>
 
               {/* --- Learned Routes Table --- */}
-              <Box>
+              <Box sx={{ mb: 4 }}>
                 <Typography variant="h5" sx={{ mb: 0.5 }}>
                   Learned Routes
                 </Typography>
@@ -1465,6 +1534,58 @@ export default function NetworkingPage() {
                     <DataGrid
                       rows={bgpLearnedRows}
                       columns={bgpLearnedColumns}
+                      disableColumnMenu
+                      disableRowSelectionOnClick
+                      pageSizeOptions={[10, 25, 50]}
+                      sx={{
+                        width: "100%",
+                        border: 1,
+                        borderColor: "divider",
+                        "& .MuiDataGrid-cell": {
+                          borderBottom: "1px solid",
+                          borderColor: "divider",
+                        },
+                        "& .MuiDataGrid-columnHeaders": {
+                          borderBottom: "1px solid",
+                          borderColor: "divider",
+                        },
+                        "& .MuiDataGrid-footerContainer": {
+                          borderTop: "1px solid",
+                          borderColor: "divider",
+                        },
+                      }}
+                    />
+                  </ThemeProvider>
+                )}
+              </Box>
+
+              {/* --- System Filters Table --- */}
+              <Box>
+                <Typography variant="h5" sx={{ mb: 0.5 }}>
+                  System Filters
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mb: 2 }}
+                >
+                  Read-only safety filters automatically derived from your
+                  infrastructure configuration. Any learned BGP route that
+                  overlaps these prefixes is rejected to protect internal
+                  traffic.
+                </Typography>
+
+                {bgpSystemFiltersLoading ? (
+                  <Box
+                    sx={{ display: "flex", justifyContent: "center", mt: 4 }}
+                  >
+                    <CircularProgress />
+                  </Box>
+                ) : (
+                  <ThemeProvider theme={gridTheme}>
+                    <DataGrid
+                      rows={bgpSystemFiltersRows}
+                      columns={bgpSystemFiltersColumns}
                       disableColumnMenu
                       disableRowSelectionOnClick
                       pageSizeOptions={[10, 25, 50]}

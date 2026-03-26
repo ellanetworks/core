@@ -129,6 +129,7 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	mux.HandleFunc("DELETE /api/v1/networking/bgp/peers/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateBGP, DeleteBGPPeer(dbInstance, bgpService))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/networking/bgp/advertised-routes", Authenticate(jwtSecret, dbInstance, Authorize(PermReadBGP, GetBGPAdvertisedRoutes(bgpService))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/networking/bgp/learned-routes", Authenticate(jwtSecret, dbInstance, Authorize(PermReadBGP, GetBGPLearnedRoutes(bgpService))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/networking/bgp/system-filters", Authenticate(jwtSecret, dbInstance, Authorize(PermReadBGP, GetBGPSystemFilters(dbInstance, cfg))).ServeHTTP)
 
 	// Flow Accounting (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/flow-accounting", Authenticate(jwtSecret, dbInstance, Authorize(PermGetFlowAccountingInfo, GetFlowAccountingInfo(dbInstance))).ServeHTTP)
