@@ -40,9 +40,7 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 		if err := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.PDUAddress); err != nil {
 			logger.SmfLog.Error("release UE IP address failed", zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		}
-	}
 
-	if smContext.PDUAddress != nil {
 		s.withdrawRoute(smContext.PDUAddress)
 	}
 

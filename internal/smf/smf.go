@@ -262,9 +262,7 @@ func (s *SMF) RemoveSession(ctx context.Context, ref string) {
 		if err := s.store.ReleaseIP(ctx, smCtx.Supi.IMSI(), smCtx.PDUAddress); err != nil {
 			logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
 		}
-	}
 
-	if smCtx.PDUAddress != nil {
 		s.withdrawRoute(smCtx.PDUAddress)
 	}
 
