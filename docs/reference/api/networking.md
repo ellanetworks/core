@@ -436,7 +436,7 @@ None
 
 ## Update BGP Settings
 
-Updates the BGP configuration. Enabling BGP starts the embedded BGP speaker. Changing the local AS or router ID triggers a restart of the speaker. BGP cannot be enabled while NAT is active.
+Updates the BGP configuration. Enabling BGP starts the embedded BGP speaker. Changing the local AS or router ID triggers a restart of the speaker.
 
 | Method | Path                    |
 | ------ | ----------------------- |
@@ -487,9 +487,17 @@ Returns the list of configured BGP peers with live session status.
                 "holdTime": 90,
                 "password": "********",
                 "description": "upstream router",
+                "importPrefixes": [
+                    {
+                        "prefix": "0.0.0.0/0",
+                        "maxLength": 32
+                    }
+                ],
                 "state": "established",
                 "uptime": "1h23m45s",
-                "prefixesSent": 3
+                "prefixesSent": 3,
+                "prefixesReceived": 2,
+                "prefixesAccepted": 1
             }
         ],
         "page": 1,
@@ -501,7 +509,47 @@ Returns the list of configured BGP peers with live session status.
 
 The `password` field is masked in responses. It returns `"********"` if a password is set, or `""` if no password is configured.
 
-The `state`, `uptime`, and `prefixesSent` fields reflect the live BGP session status. They are empty/omitted when BGP is not running. The `uptime` field is only present when the session state is `established`.
+The `state`, `uptime`, `prefixesSent`, `prefixesReceived`, and `prefixesAccepted` fields reflect the live BGP session status. They are empty/omitted when BGP is not running. The `uptime` field is only present when the session state is `established`.
+
+The `importPrefixes` field contains the per-peer import prefix list. When set to `[{"prefix": "0.0.0.0/0", "maxLength": 32}]`, all routes are accepted. An empty array means no routes are accepted from this peer.
+
+## Get a BGP Peer
+
+Returns the details of a specific BGP peer.
+
+| Method | Path                              |
+| ------ | --------------------------------- |
+| GET    | `/api/v1/networking/bgp/peers/{id}` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "id": 1,
+        "address": "192.168.5.1",
+        "remoteAS": 64513,
+        "holdTime": 90,
+        "password": "********",
+        "description": "upstream router",
+        "importPrefixes": [
+            {
+                "prefix": "0.0.0.0/0",
+                "maxLength": 32
+            }
+        ],
+        "state": "established",
+        "uptime": "1h23m45s",
+        "prefixesSent": 3,
+        "prefixesReceived": 2,
+        "prefixesAccepted": 1
+    }
+}
+```
 
 ## Create a BGP Peer
 
@@ -518,6 +566,7 @@ Adds a new BGP peer. If BGP is running, the peer is added to the live speaker im
 - `holdTime` (integer): The BGP hold timer in seconds (default `90`, minimum `3`). Keepalive is derived as holdTime / 3.
 - `password` (string): MD5 authentication password. Omit or set to empty string for no authentication.
 - `description` (string): An optional description for the peer.
+- `importPrefixes` (array): List of prefix entries to accept from this peer. Each entry has `prefix` (CIDR string) and `maxLength` (integer). Use `[{"prefix": "0.0.0.0/0", "maxLength": 32}]` to accept all routes. Omit or set to `[]` to accept no routes.
 
 ### Sample Response
 
@@ -529,9 +578,36 @@ Adds a new BGP peer. If BGP is running, the peer is added to the live speaker im
 }
 ```
 
+## Update a BGP Peer
+
+Updates an existing BGP peer. If BGP is running, the peer is reconfigured in the live speaker.
+
+| Method | Path                              |
+| ------ | --------------------------------- |
+| PUT    | `/api/v1/networking/bgp/peers/{id}` |
+
+### Parameters
+
+- `address` (string, required): The IPv4 address of the peer.
+- `remoteAS` (integer, required): The remote autonomous system number.
+- `holdTime` (integer): The BGP hold timer in seconds (default `90`, minimum `3`).
+- `password` (string): MD5 authentication password.
+- `description` (string): An optional description for the peer.
+- `importPrefixes` (array): List of prefix entries to accept from this peer.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "BGP peer updated successfully"
+    }
+}
+```
+
 ## Delete a BGP Peer
 
-Removes a BGP peer by ID. If BGP is running, the peer is removed from the live speaker immediately.
+Removes a BGP peer by ID. If BGP is running, the peer is removed from the live speaker immediately and any routes learned from that peer are withdrawn from the kernel.
 
 | Method | Path                              |
 | ------ | --------------------------------- |
@@ -551,13 +627,13 @@ None
 }
 ```
 
-## Get BGP Routes
+## Get BGP Advertised Routes
 
-Returns the routes currently advertised to BGP peers.
+Returns the routes currently advertised to BGP peers (subscriber /32 routes).
 
-| Method | Path                           |
-| ------ | ------------------------------ |
-| GET    | `/api/v1/networking/bgp/routes` |
+| Method | Path                                      |
+| ------ | ----------------------------------------- |
+| GET    | `/api/v1/networking/bgp/advertised-routes` |
 
 ### Parameters
 
@@ -572,7 +648,75 @@ None
             {
                 "prefix": "10.45.0.3/32",
                 "nextHop": "192.168.5.10",
-                "age": "00:05:12"
+                "subscriber": "001010100000001"
+            }
+        ]
+    }
+}
+```
+
+Each route includes the `subscriber` IMSI that owns the IP address being advertised.
+
+## Get BGP Learned Routes
+
+Returns the routes learned from BGP peers that passed the safety filter and import prefix list, and are currently installed in the kernel.
+
+| Method | Path                                    |
+| ------ | --------------------------------------- |
+| GET    | `/api/v1/networking/bgp/learned-routes` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "routes": [
+            {
+                "prefix": "10.0.0.0/24",
+                "nextHop": "192.168.5.1",
+                "peer": "192.168.5.1"
+            }
+        ]
+    }
+}
+```
+
+## Get BGP System Filters
+
+Returns the list of system (safety) filters that automatically reject incoming BGP routes overlapping with protected prefixes. These filters are read-only and derived from the N3/N6 interface subnets, data network IP pools, and built-in prefixes (link-local, loopback, etc.).
+
+| Method | Path                                     |
+| ------ | ---------------------------------------- |
+| GET    | `/api/v1/networking/bgp/system-filters` |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "filters": [
+            {
+                "prefix": "127.0.0.0/8",
+                "source": "builtin",
+                "description": "loopback"
+            },
+            {
+                "prefix": "172.250.0.0/24",
+                "source": "data_network",
+                "description": "data network: internet"
+            },
+            {
+                "prefix": "192.168.40.0/24",
+                "source": "interface",
+                "description": "N3 interface subnet"
             }
         ]
     }

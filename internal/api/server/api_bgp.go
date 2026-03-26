@@ -17,11 +17,18 @@ import (
 
 // BGP Settings types
 
+type RejectedPrefix struct {
+	Prefix      string `json:"prefix"`
+	Source      string `json:"source"`
+	Description string `json:"description"`
+}
+
 type GetBGPSettingsResponse struct {
-	Enabled       bool   `json:"enabled"`
-	LocalAS       int    `json:"localAS"`
-	RouterID      string `json:"routerID"`
-	ListenAddress string `json:"listenAddress"`
+	Enabled          bool             `json:"enabled"`
+	LocalAS          int              `json:"localAS"`
+	RouterID         string           `json:"routerID"`
+	ListenAddress    string           `json:"listenAddress"`
+	RejectedPrefixes []RejectedPrefix `json:"rejectedPrefixes"`
 }
 
 type UpdateBGPSettingsParams struct {
@@ -86,18 +93,6 @@ type BGPLearnedRoutesResponse struct {
 	Routes []bgp.LearnedRoute `json:"routes"`
 }
 
-// System (safety) filter types
-
-type BGPSystemFilter struct {
-	Prefix      string `json:"prefix"`
-	Source      string `json:"source"`
-	Description string `json:"description"`
-}
-
-type BGPSystemFiltersResponse struct {
-	Filters []BGPSystemFilter `json:"filters"`
-}
-
 // Audit log action constants
 
 const (
@@ -114,7 +109,7 @@ const maskedPassword = "********"
 
 // BGP Settings handlers
 
-func GetBGPSettings(dbInstance *db.Database, bgpService *bgp.BGPService) http.Handler {
+func GetBGPSettings(dbInstance *db.Database, bgpService *bgp.BGPService, cfg config.Config) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		settings, err := dbInstance.GetBGPSettings(r.Context())
 		if err != nil {
@@ -128,10 +123,11 @@ func GetBGPSettings(dbInstance *db.Database, bgpService *bgp.BGPService) http.Ha
 		}
 
 		resp := GetBGPSettingsResponse{
-			Enabled:       settings.Enabled,
-			LocalAS:       settings.LocalAS,
-			RouterID:      routerID,
-			ListenAddress: settings.ListenAddress,
+			Enabled:          settings.Enabled,
+			LocalAS:          settings.LocalAS,
+			RouterID:         routerID,
+			ListenAddress:    settings.ListenAddress,
+			RejectedPrefixes: buildRejectedPrefixes(r.Context(), dbInstance, cfg),
 		}
 
 		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
@@ -807,60 +803,56 @@ func GetBGPLearnedRoutes(bgpService *bgp.BGPService) http.Handler {
 	})
 }
 
-func GetBGPSystemFilters(dbInstance *db.Database, cfg config.Config) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var filters []BGPSystemFilter
+// buildRejectedPrefixes constructs the list of safety rejection prefixes
+// from builtins, data networks, and interface configuration.
+func buildRejectedPrefixes(ctx context.Context, dbInstance *db.Database, cfg config.Config) []RejectedPrefix {
+	var filters []RejectedPrefix
 
-		// Hard-coded safety prefixes (RFC 5765 / RFC 7454).
-		builtins := []struct {
-			cidr string
-			desc string
-		}{
-			{"169.254.0.0/16", "Link-local"},
-			{"224.0.0.0/4", "Multicast"},
-			{"127.0.0.0/8", "Loopback"},
-		}
-		for _, b := range builtins {
-			filters = append(filters, BGPSystemFilter{
-				Prefix:      b.cidr,
-				Source:      "builtin",
-				Description: b.desc,
-			})
-		}
+	builtins := []struct {
+		cidr string
+		desc string
+	}{
+		{"169.254.0.0/16", "Link-local"},
+		{"224.0.0.0/4", "Multicast"},
+		{"127.0.0.0/8", "Loopback"},
+	}
+	for _, b := range builtins {
+		filters = append(filters, RejectedPrefix{
+			Prefix:      b.cidr,
+			Source:      "builtin",
+			Description: b.desc,
+		})
+	}
 
-		// Data network UE IP pools.
-		dataNetworks, _, err := dbInstance.ListDataNetworksPage(r.Context(), 1, 100)
-		if err == nil {
-			for _, dn := range dataNetworks {
-				if _, _, parseErr := net.ParseCIDR(dn.IPPool); parseErr == nil {
-					filters = append(filters, BGPSystemFilter{
-						Prefix:      dn.IPPool,
-						Source:      "data_network",
-						Description: "UE IP pool (" + dn.Name + ")",
-					})
-				}
+	dataNetworks, _, err := dbInstance.ListDataNetworksPage(ctx, 1, 100)
+	if err == nil {
+		for _, dn := range dataNetworks {
+			if _, _, parseErr := net.ParseCIDR(dn.IPPool); parseErr == nil {
+				filters = append(filters, RejectedPrefix{
+					Prefix:      dn.IPPool,
+					Source:      "data_network",
+					Description: "UE IP pool (" + dn.Name + ")",
+				})
 			}
 		}
+	}
 
-		// N3 interface address.
-		if n3IP := net.ParseIP(cfg.Interfaces.N3.Address); n3IP != nil {
-			filters = append(filters, BGPSystemFilter{
-				Prefix:      n3IP.String() + "/32",
-				Source:      "interface",
-				Description: "N3 interface address",
-			})
-		}
+	if n3IP := net.ParseIP(cfg.Interfaces.N3.Address); n3IP != nil {
+		filters = append(filters, RejectedPrefix{
+			Prefix:      n3IP.String() + "/32",
+			Source:      "interface",
+			Description: "N3 interface address",
+		})
+	}
 
-		// N6 interface subnets.
-		n6Subnets := interfaceSubnets(cfg.Interfaces.N6.Name)
-		for _, s := range n6Subnets {
-			filters = append(filters, BGPSystemFilter{
-				Prefix:      s.String(),
-				Source:      "interface",
-				Description: "N6 interface subnet",
-			})
-		}
+	n6Subnets := interfaceSubnets(cfg.Interfaces.N6.Name)
+	for _, s := range n6Subnets {
+		filters = append(filters, RejectedPrefix{
+			Prefix:      s.String(),
+			Source:      "interface",
+			Description: "N6 interface subnet",
+		})
+	}
 
-		writeResponse(r.Context(), w, BGPSystemFiltersResponse{Filters: filters}, http.StatusOK, logger.APILog)
-	})
+	return filters
 }

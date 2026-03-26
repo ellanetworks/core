@@ -2,11 +2,18 @@ import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 // BGP Settings
 
+export type RejectedPrefix = {
+  prefix: string;
+  source: "builtin" | "data_network" | "interface";
+  description: string;
+};
+
 export type BGPSettings = {
   enabled: boolean;
   localAS: number;
   routerID: string;
   listenAddress: string;
+  rejectedPrefixes: RejectedPrefix[];
 };
 
 export type UpdateBGPSettingsParams = {
@@ -169,27 +176,6 @@ export async function getBGPLearnedRoutes(
 ): Promise<BGPLearnedRoutesResponse> {
   return apiFetch<BGPLearnedRoutesResponse>(
     "/api/v1/networking/bgp/learned-routes",
-    { authToken },
-  );
-}
-
-// BGP System Filters
-
-export type BGPSystemFilter = {
-  prefix: string;
-  source: "builtin" | "data_network" | "interface";
-  description: string;
-};
-
-export type BGPSystemFiltersResponse = {
-  filters: BGPSystemFilter[];
-};
-
-export async function getBGPSystemFilters(
-  authToken: string,
-): Promise<BGPSystemFiltersResponse> {
-  return apiFetch<BGPSystemFiltersResponse>(
-    "/api/v1/networking/bgp/system-filters",
     { authToken },
   );
 }

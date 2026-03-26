@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Dialog,
   DialogTitle,
@@ -8,13 +8,19 @@ import {
   Typography,
   Stack,
   Chip,
+  Collapse,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableRow,
 } from "@mui/material";
-import type { BGPPeer, BGPImportPrefix } from "@/queries/bgp";
+import {
+  Lock as LockIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+} from "@mui/icons-material";
+import type { BGPPeer, BGPImportPrefix, RejectedPrefix } from "@/queries/bgp";
 
 function getImportPolicyLabel(prefixes: BGPImportPrefix[] | undefined): string {
   if (!prefixes || prefixes.length === 0) return "None (reject all)";
@@ -37,13 +43,16 @@ interface ViewBGPPeerModalProps {
   open: boolean;
   onClose: () => void;
   peer: BGPPeer;
+  rejectedPrefixes?: RejectedPrefix[];
 }
 
 const ViewBGPPeerModal: React.FC<ViewBGPPeerModalProps> = ({
   open,
   onClose,
   peer,
+  rejectedPrefixes = [],
 }) => {
+  const [showRejected, setShowRejected] = useState(false);
   const policyLabel = getImportPolicyLabel(peer.importPrefixes);
   const state = peer.state;
   const statusLabel = state
@@ -158,6 +167,51 @@ const ViewBGPPeerModal: React.FC<ViewBGPPeerModalProps> = ({
                 </TableBody>
               </Table>
             </TableContainer>
+          )}
+
+          {rejectedPrefixes.length > 0 && (
+            <>
+              <Button
+                size="small"
+                onClick={() => setShowRejected(!showRejected)}
+                startIcon={<LockIcon fontSize="small" />}
+                endIcon={
+                  showRejected ? (
+                    <ExpandLessIcon fontSize="small" />
+                  ) : (
+                    <ExpandMoreIcon fontSize="small" />
+                  )
+                }
+                sx={{ justifyContent: "flex-start", textTransform: "none" }}
+              >
+                {rejectedPrefixes.length} rejected{" "}
+                {rejectedPrefixes.length === 1 ? "prefix" : "prefixes"} (system)
+              </Button>
+              <Collapse in={showRejected}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mb: 1 }}
+                >
+                  These prefixes are always rejected regardless of import
+                  policy.
+                </Typography>
+                <TableContainer>
+                  <Table size="small">
+                    <TableBody>
+                      {rejectedPrefixes.map((f, i) => (
+                        <TableRow key={i} sx={{ opacity: 0.7 }}>
+                          <TableCell sx={{ fontFamily: "monospace" }}>
+                            {f.prefix}
+                          </TableCell>
+                          <TableCell>{f.description}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Collapse>
+            </>
           )}
         </Stack>
       </DialogContent>

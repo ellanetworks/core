@@ -1856,27 +1856,6 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /api/v1/networking/bgp/system-filters:
-    get:
-      operationId: getBGPSystemFilters
-      tags: [BGP]
-      summary: Get BGP system filters
-      description: |
-        Returns the read-only system protection filters that are automatically enforced
-        on all learned BGP routes. These filters prevent BGP peers from advertising routes
-        that would conflict with internal infrastructure (UE IP pools, interface addresses,
-        link-local, multicast, loopback). They are derived from the current data networks
-        and interface configuration and cannot be edited directly.
-      responses:
-        "200":
-          description: System filters.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/BGPSystemFiltersResponseEnvelope"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-
   # ── Flow Accounting ─────────────────────────────────────────────────────
   /api/v1/networking/flow-accounting:
     get:
@@ -3497,7 +3476,14 @@ components:
           type: string
         listenAddress:
           type: string
-      required: [enabled, localAS, routerID, listenAddress]
+        rejectedPrefixes:
+          type: array
+          description: |
+            Read-only safety filters automatically derived from the infrastructure configuration.
+            Any learned BGP route that overlaps these prefixes is rejected to protect internal traffic.
+          items:
+            $ref: "#/components/schemas/RejectedPrefix"
+      required: [enabled, localAS, routerID, listenAddress, rejectedPrefixes]
 
     BGPSettingsResponseEnvelope:
       type: object
@@ -3701,7 +3687,7 @@ components:
         result:
           $ref: "#/components/schemas/BGPLearnedRoutesResponse"
 
-    BGPSystemFilter:
+    RejectedPrefix:
       type: object
       properties:
         prefix:
@@ -3715,21 +3701,6 @@ components:
           type: string
           description: Human-readable explanation of the filter.
       required: [prefix, source, description]
-
-    BGPSystemFiltersResponse:
-      type: object
-      properties:
-        filters:
-          type: array
-          items:
-            $ref: "#/components/schemas/BGPSystemFilter"
-      required: [filters]
-
-    BGPSystemFiltersResponseEnvelope:
-      type: object
-      properties:
-        result:
-          $ref: "#/components/schemas/BGPSystemFiltersResponse"
 
     # ── Flow Accounting ─────────────────────────────────────────────────
     FlowAccountingInfo:

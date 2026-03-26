@@ -13,11 +13,26 @@ import {
   IconButton,
   ToggleButton,
   ToggleButtonGroup,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableRow,
 } from "@mui/material";
-import { Delete as DeleteIcon, Add as AddIcon } from "@mui/icons-material";
+import {
+  Delete as DeleteIcon,
+  Add as AddIcon,
+  Lock as LockIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+} from "@mui/icons-material";
 import * as yup from "yup";
 import { ValidationError } from "yup";
-import { createBGPPeer, type BGPImportPrefix } from "@/queries/bgp";
+import {
+  createBGPPeer,
+  type BGPImportPrefix,
+  type RejectedPrefix,
+} from "@/queries/bgp";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -69,6 +84,7 @@ interface CreateBGPPeerModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  rejectedPrefixes?: RejectedPrefix[];
 }
 
 type FormValues = {
@@ -83,9 +99,11 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
   open,
   onClose,
   onSuccess,
+  rejectedPrefixes = [],
 }) => {
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
+  const [showRejected, setShowRejected] = useState(false);
 
   useEffect(() => {
     if (!authReady || !accessToken) {
@@ -413,6 +431,50 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
             >
               Add Prefix
             </Button>
+          </>
+        )}
+
+        {rejectedPrefixes.length > 0 && (
+          <>
+            <Button
+              size="small"
+              onClick={() => setShowRejected(!showRejected)}
+              startIcon={<LockIcon fontSize="small" />}
+              endIcon={
+                showRejected ? (
+                  <ExpandLessIcon fontSize="small" />
+                ) : (
+                  <ExpandMoreIcon fontSize="small" />
+                )
+              }
+              sx={{
+                justifyContent: "flex-start",
+                textTransform: "none",
+                mt: 1,
+              }}
+            >
+              {rejectedPrefixes.length} rejected{" "}
+              {rejectedPrefixes.length === 1 ? "prefix" : "prefixes"} (system)
+            </Button>
+            <Collapse in={showRejected}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                These prefixes are always rejected regardless of import policy.
+              </Typography>
+              <TableContainer>
+                <Table size="small">
+                  <TableBody>
+                    {rejectedPrefixes.map((f, i) => (
+                      <TableRow key={i} sx={{ opacity: 0.7 }}>
+                        <TableCell sx={{ fontFamily: "monospace" }}>
+                          {f.prefix}
+                        </TableCell>
+                        <TableCell>{f.description}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Collapse>
           </>
         )}
       </DialogContent>

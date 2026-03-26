@@ -13,14 +13,26 @@ import {
   IconButton,
   ToggleButton,
   ToggleButtonGroup,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableRow,
 } from "@mui/material";
-import { Delete as DeleteIcon, Add as AddIcon } from "@mui/icons-material";
+import {
+  Delete as DeleteIcon,
+  Add as AddIcon,
+  Lock as LockIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+} from "@mui/icons-material";
 import * as yup from "yup";
 import { ValidationError } from "yup";
 import {
   updateBGPPeer,
   type BGPPeer,
   type BGPImportPrefix,
+  type RejectedPrefix,
 } from "@/queries/bgp";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -74,6 +86,7 @@ interface EditBGPPeerModalProps {
   onClose: () => void;
   onSuccess: () => void;
   peer: BGPPeer;
+  rejectedPrefixes?: RejectedPrefix[];
 }
 
 type FormValues = {
@@ -89,6 +102,7 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
   onClose,
   onSuccess,
   peer,
+  rejectedPrefixes = [],
 }) => {
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
@@ -119,6 +133,7 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
   const [isValid, setIsValid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
+  const [showRejected, setShowRejected] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -440,6 +455,50 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
             >
               Add Prefix
             </Button>
+          </>
+        )}
+
+        {rejectedPrefixes.length > 0 && (
+          <>
+            <Button
+              size="small"
+              startIcon={<LockIcon fontSize="small" />}
+              endIcon={
+                showRejected ? (
+                  <ExpandLessIcon fontSize="small" />
+                ) : (
+                  <ExpandMoreIcon fontSize="small" />
+                )
+              }
+              onClick={() => setShowRejected((v) => !v)}
+              sx={{ mt: 3, textTransform: "none", color: "text.secondary" }}
+            >
+              {rejectedPrefixes.length} rejected prefix
+              {rejectedPrefixes.length !== 1 && "es"} (system)
+            </Button>
+            <Collapse in={showRejected}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 1, mb: 1 }}
+              >
+                These prefixes are always rejected and cannot be edited.
+              </Typography>
+              <TableContainer>
+                <Table size="small" sx={{ opacity: 0.7 }}>
+                  <TableBody>
+                    {rejectedPrefixes.map((rp) => (
+                      <TableRow key={rp.prefix}>
+                        <TableCell sx={{ fontFamily: "monospace" }}>
+                          {rp.prefix}
+                        </TableCell>
+                        <TableCell>{rp.description}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Collapse>
           </>
         )}
       </DialogContent>
