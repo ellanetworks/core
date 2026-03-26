@@ -23,7 +23,7 @@ import {
 import type { BGPPeer, BGPImportPrefix, RejectedPrefix } from "@/queries/bgp";
 
 function getImportPolicyLabel(prefixes: BGPImportPrefix[] | undefined): string {
-  if (!prefixes || prefixes.length === 0) return "None (reject all)";
+  if (!prefixes || prefixes.length === 0) return "Deny All";
   if (
     prefixes.length === 1 &&
     prefixes[0].prefix === "0.0.0.0/0" &&
@@ -78,7 +78,7 @@ const ViewBGPPeerModal: React.FC<ViewBGPPeerModalProps> = ({
         <Stack spacing={2}>
           <Stack direction="row" justifyContent="space-between">
             <Typography variant="body2" color="text.secondary">
-              Address
+              Neighbor Address
             </Typography>
             <Typography variant="body2" fontFamily="monospace">
               {peer.address}
@@ -149,7 +149,7 @@ const ViewBGPPeerModal: React.FC<ViewBGPPeerModalProps> = ({
           </Stack>
 
           <Typography variant="subtitle2" sx={{ mt: 1 }}>
-            Import Policy: {policyLabel}
+            Import Prefix List: {policyLabel}
           </Typography>
 
           {peer.importPrefixes && peer.importPrefixes.length > 0 && (

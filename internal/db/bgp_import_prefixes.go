@@ -16,9 +16,9 @@ import (
 const BGPImportPrefixesTableName = "bgp_import_prefixes"
 
 const (
-	listImportPrefixesByPeerStmt  = "SELECT &BGPImportPrefix.* FROM %s WHERE peerID==$BGPImportPrefix.peerID ORDER BY id ASC"
-	createImportPrefixStmt        = "INSERT INTO %s (peerID, prefix, maxLength) VALUES ($BGPImportPrefix.peerID, $BGPImportPrefix.prefix, $BGPImportPrefix.maxLength)"
-	deleteImportPrefixesByPeerStr = "DELETE FROM %s WHERE peerID==$BGPImportPrefix.peerID"
+	listImportPrefixesByPeerStmt   = "SELECT &BGPImportPrefix.* FROM %s WHERE peerID==$BGPImportPrefix.peerID ORDER BY id ASC"
+	createImportPrefixStmt         = "INSERT INTO %s (peerID, prefix, maxLength) VALUES ($BGPImportPrefix.peerID, $BGPImportPrefix.prefix, $BGPImportPrefix.maxLength)"
+	deleteImportPrefixesByPeerStmt = "DELETE FROM %s WHERE peerID==$BGPImportPrefix.peerID"
 )
 
 type BGPImportPrefix struct {

@@ -37,6 +37,15 @@ type learnedRoute struct {
 }
 
 // BGPService manages the embedded BGP speaker.
+//
+// Lock hierarchy (acquire in this order to avoid deadlocks):
+//
+//	mu          — protects server, running, advertising, settings, peers, paths
+//	learnedMu   — protects learnedRoutes
+//
+// Never acquire mu while holding learnedMu. Code that needs both must acquire
+// mu first, then learnedMu. handleSinglePath releases mu.RLock before acquiring
+// learnedMu, which is the correct ordering.
 type BGPService struct {
 	server      *gobgp.BgpServer
 	mu          sync.RWMutex
@@ -409,6 +418,7 @@ func (b *BGPService) Reconfigure(ctx context.Context, settings BGPSettings, peer
 		// Re-evaluate learned routes against the (possibly changed) import prefix lists.
 		if b.routeLearningEnabled() {
 			b.reEvaluateLearnedRoutes(ctx, peers)
+			b.replayGlobalRIB(ctx, peers)
 		}
 	}
 
@@ -491,6 +501,21 @@ func (b *BGPService) CountLearnedRoutesByPeer(peerAddr string) int {
 	}
 
 	return count
+}
+
+// LearnedRouteCountsByPeer returns a map from peer address to learned route count.
+// More efficient than calling CountLearnedRoutesByPeer per peer.
+func (b *BGPService) LearnedRouteCountsByPeer() map[string]int {
+	b.learnedMu.Lock()
+	defer b.learnedMu.Unlock()
+
+	counts := make(map[string]int, len(b.learnedRoutes))
+
+	for _, lr := range b.learnedRoutes {
+		counts[lr.peer]++
+	}
+
+	return counts
 }
 
 // GetEffectiveRouterID resolves an empty router ID to the N6 address default.
@@ -755,6 +780,9 @@ func (b *BGPService) listRoutesLocked() ([]BGPRoute, error) {
 
 // peerPropertiesMatch returns true if two peers have the same configuration
 // (ignoring the ID field which is a DB artifact).
+// Note: Address is intentionally not compared here because reconcilePeers uses
+// the address as the map key. An address change appears as a remove + add,
+// which correctly triggers learned route cleanup for the old address.
 func peerPropertiesMatch(a, b BGPPeer) bool {
 	return a.RemoteAS == b.RemoteAS &&
 		a.HoldTime == b.HoldTime &&

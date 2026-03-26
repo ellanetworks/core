@@ -429,10 +429,29 @@ None
         "enabled": true,
         "localAS": 64512,
         "routerID": "192.168.5.10",
-        "listenAddress": ":179"
+        "listenAddress": ":179",
+        "rejectedPrefixes": [
+            {
+                "prefix": "127.0.0.0/8",
+                "source": "builtin",
+                "description": "loopback"
+            },
+            {
+                "prefix": "172.250.0.0/24",
+                "source": "data_network",
+                "description": "data network: internet"
+            },
+            {
+                "prefix": "192.168.40.0/24",
+                "source": "interface",
+                "description": "N3 interface subnet"
+            }
+        ]
     }
 }
 ```
+
+The `rejectedPrefixes` array lists prefixes that are always rejected by the safety filter. These are derived from N3/N6 interface subnets, data network IP pools, and built-in prefixes (link-local, loopback, multicast). They are read-only and cannot be configured.
 
 ## Update BGP Settings
 
@@ -685,40 +704,4 @@ None
 }
 ```
 
-## Get BGP System Filters
 
-Returns the list of system (safety) filters that automatically reject incoming BGP routes overlapping with protected prefixes. These filters are read-only and derived from the N3/N6 interface subnets, data network IP pools, and built-in prefixes (link-local, loopback, etc.).
-
-| Method | Path                                     |
-| ------ | ---------------------------------------- |
-| GET    | `/api/v1/networking/bgp/system-filters` |
-
-### Parameters
-
-None
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "filters": [
-            {
-                "prefix": "127.0.0.0/8",
-                "source": "builtin",
-                "description": "loopback"
-            },
-            {
-                "prefix": "172.250.0.0/24",
-                "source": "data_network",
-                "description": "data network: internet"
-            },
-            {
-                "prefix": "192.168.40.0/24",
-                "source": "interface",
-                "description": "N3 interface subnet"
-            }
-        ]
-    }
-}
-```

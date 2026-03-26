@@ -102,7 +102,10 @@ const (
 	DeleteBGPPeerAction     = "delete_bgp_peer"
 )
 
-const MaxNumBGPPeers = 5
+const (
+	MaxNumBGPPeers           = 5
+	MaxImportPrefixesPerPeer = 50
+)
 
 // maskedPassword returns a masked representation if the password is set.
 const maskedPassword = "********"
@@ -353,7 +356,8 @@ func saveImportPrefixesForPeer(ctx context.Context, dbInstance *db.Database, pee
 }
 
 // dbPeerToAPIPeer converts a DB peer to an API peer, enriched with live status and import prefixes.
-func dbPeerToAPIPeer(ctx context.Context, dbInstance *db.Database, dbPeer db.BGPPeer, statusMap map[string]bgp.BGPPeerStatus, bgpService *bgp.BGPService) BGPPeer {
+// Callers are responsible for setting PrefixesAccepted (learned route count).
+func dbPeerToAPIPeer(ctx context.Context, dbInstance *db.Database, dbPeer db.BGPPeer, statusMap map[string]bgp.BGPPeerStatus) BGPPeer {
 	pw := ""
 	if dbPeer.Password != "" {
 		pw = maskedPassword
@@ -376,10 +380,6 @@ func dbPeerToAPIPeer(ctx context.Context, dbInstance *db.Database, dbPeer db.BGP
 		peer.PrefixesReceived = ps.PrefixesReceived
 	}
 
-	if bgpService != nil {
-		peer.PrefixesAccepted = bgpService.CountLearnedRoutesByPeer(dbPeer.Address)
-	}
-
 	return peer
 }
 
@@ -400,7 +400,13 @@ func getPeerStatusMap(ctx context.Context, bgpService *bgp.BGPService) map[strin
 }
 
 // validateImportPrefixes checks that all import prefix entries are valid.
+// Note: maxLength == 0 is valid for a /0 prefix and means "default route only"
+// (exact match on 0.0.0.0/0).
 func validateImportPrefixes(prefixes []BGPImportPrefix) error {
+	if len(prefixes) > MaxImportPrefixesPerPeer {
+		return fmt.Errorf("too many import prefixes: maximum is %d", MaxImportPrefixesPerPeer)
+	}
+
 	for _, p := range prefixes {
 		_, ipNet, err := net.ParseCIDR(p.Prefix)
 		if err != nil {
@@ -443,10 +449,20 @@ func ListBGPPeers(dbInstance *db.Database, bgpService *bgp.BGPService) http.Hand
 
 		statusMap := getPeerStatusMap(r.Context(), bgpService)
 
+		var learnedCounts map[string]int
+		if bgpService != nil {
+			learnedCounts = bgpService.LearnedRouteCountsByPeer()
+		}
+
 		items := make([]BGPPeer, 0, len(dbPeers))
 
 		for _, dbPeer := range dbPeers {
-			items = append(items, dbPeerToAPIPeer(r.Context(), dbInstance, dbPeer, statusMap, bgpService))
+			peer := dbPeerToAPIPeer(r.Context(), dbInstance, dbPeer, statusMap)
+			if learnedCounts != nil {
+				peer.PrefixesAccepted = learnedCounts[dbPeer.Address]
+			}
+
+			items = append(items, peer)
 		}
 
 		resp := ListBGPPeersResponse{
@@ -484,7 +500,11 @@ func GetBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Handle
 		}
 
 		statusMap := getPeerStatusMap(r.Context(), bgpService)
-		peer := dbPeerToAPIPeer(r.Context(), dbInstance, *dbPeer, statusMap, bgpService)
+		peer := dbPeerToAPIPeer(r.Context(), dbInstance, *dbPeer, statusMap)
+
+		if bgpService != nil {
+			peer.PrefixesAccepted = bgpService.CountLearnedRoutesByPeer(dbPeer.Address)
+		}
 
 		writeResponse(r.Context(), w, peer, http.StatusOK, logger.APILog)
 	})
@@ -658,6 +678,9 @@ func UpdateBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Han
 			return
 		}
 
+		// Snapshot previous import prefixes for rollback.
+		prevImportPrefixes := loadImportPrefixesForPeer(r.Context(), dbInstance, id)
+
 		dbPeer := &db.BGPPeer{
 			ID:          id,
 			Address:     params.Address,
@@ -689,8 +712,9 @@ func UpdateBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Han
 		}
 
 		if err := reconfigureBGPPeers(r.Context(), dbInstance, bgpService); err != nil {
-			// Rollback peer update
+			// Rollback peer update and import prefix changes
 			_ = dbInstance.UpdateBGPPeer(r.Context(), prevPeer)
+			_ = saveImportPrefixesForPeer(r.Context(), dbInstance, id, prevImportPrefixes)
 
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to apply BGP peer update: "+err.Error(), err, logger.APILog)
 

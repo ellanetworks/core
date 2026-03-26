@@ -341,6 +341,10 @@ func validateDataNetworkParams(p CreateDataNetworkParams) error {
 // rebuildBGPFilter rebuilds the BGP safety rejection filter from the current
 // data networks and interface configuration and applies it to the BGP service.
 // It is called after data network create/update/delete operations.
+//
+// NOTE: this logic is duplicated in pkg/runtime/runtime.go buildRouteFilter.
+// They cannot share code because pkg/runtime imports internal/api/server (circular).
+// Keep both in sync when modifying filter construction.
 func rebuildBGPFilter(ctx context.Context, dbInstance *db.Database, cfg config.Config, bgpService *bgp.BGPService) {
 	if bgpService == nil {
 		return

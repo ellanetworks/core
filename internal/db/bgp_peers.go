@@ -31,7 +31,7 @@ type BGPPeer struct {
 	Address     string `db:"address"`
 	RemoteAS    int    `db:"remoteAS"`
 	HoldTime    int    `db:"holdTime"`
-	Password    string `db:"password"`
+	Password    string `db:"password"` // stored in plaintext — required by GoBGP TCP MD5 API
 	Description string `db:"description"`
 }
 

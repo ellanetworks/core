@@ -420,6 +420,10 @@ func (a *bgpImportPrefixAdapter) ListImportPrefixes(ctx context.Context, peerID 
 
 // buildRouteFilter constructs the BGP safety rejection filter from the
 // UE IP pools (data networks) and interface addresses.
+//
+// NOTE: this logic is duplicated in internal/api/server/api_data_networks.go rebuildBGPFilter.
+// They cannot share code because pkg/runtime imports internal/api/server (circular).
+// Keep both in sync when modifying filter construction.
 func buildRouteFilter(ctx context.Context, dbInstance *db.Database, cfg config.Config) *bgp.RouteFilter {
 	var extraSubnets []*net.IPNet
 

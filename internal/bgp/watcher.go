@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/kernel"
+	api "github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	bgppacket "github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	gobgp "github.com/osrg/gobgp/v4/pkg/server"
@@ -69,6 +70,7 @@ func (b *BGPService) handleSinglePath(ctx context.Context, path *apiutil.Path) {
 	_, isOwnedPath := b.paths[prefix.IP.String()]
 	running := b.running
 	peers := b.peers
+	filter := b.filter // snapshot under lock so we can use it after RUnlock
 	b.mu.RUnlock()
 
 	if !running {
@@ -88,7 +90,7 @@ func (b *BGPService) handleSinglePath(ctx context.Context, path *apiutil.Path) {
 	}
 
 	// Safety rejection: check against hard-coded reject prefixes.
-	if b.filter.overlapsAny(prefix) {
+	if filter.overlapsAny(prefix) {
 		b.logger.Warn("rejecting BGP route (safety filter)",
 			zap.String("prefix", prefixStr), zap.String("peer", peerAddr))
 
@@ -263,6 +265,9 @@ func (b *BGPService) reEvaluateLearnedRoutes(ctx context.Context, peers []BGPPee
 	b.learnedMu.Lock()
 	defer b.learnedMu.Unlock()
 
+	// Pre-load import prefixes for all peers to avoid per-route DB queries.
+	prefixCache := make(map[int][]ImportPrefix)
+
 	removed := 0
 
 	for prefixStr, lr := range b.learnedRoutes {
@@ -286,12 +291,19 @@ func (b *BGPService) reEvaluateLearnedRoutes(ctx context.Context, peers []BGPPee
 		// Check per-peer import prefix list.
 		peerID := findPeerID(peers, lr.peer)
 
-		entries, err := b.loadImportPrefixes(ctx, peerID)
-		if err != nil {
-			b.logger.Warn("failed to load import prefixes during re-evaluation",
-				zap.String("peer", lr.peer), zap.Error(err))
+		entries, ok := prefixCache[peerID]
+		if !ok {
+			var err error
 
-			continue
+			entries, err = b.loadImportPrefixes(ctx, peerID)
+			if err != nil {
+				b.logger.Warn("failed to load import prefixes during re-evaluation",
+					zap.String("peer", lr.peer), zap.Error(err))
+
+				continue
+			}
+
+			prefixCache[peerID] = entries
 		}
 
 		if len(entries) == 0 || !matchesPrefixList(&dst, entries) {
@@ -310,6 +322,118 @@ func (b *BGPService) reEvaluateLearnedRoutes(ctx context.Context, peers []BGPPee
 	if removed > 0 {
 		b.logger.Info("re-evaluated learned routes after reconfigure",
 			zap.Int("removed", removed), zap.Int("remaining", len(b.learnedRoutes)))
+	}
+}
+
+// replayGlobalRIB iterates the GoBGP global RIB and installs any routes that
+// now pass the import policy but were not previously learned. This handles the
+// case where an import policy is widened (e.g. from "default route only" to
+// "permit all"), which reEvaluateLearnedRoutes alone cannot handle because it
+// only removes routes.
+// Must be called with mu held (for server, peers, filter, paths access).
+func (b *BGPService) replayGlobalRIB(ctx context.Context, peers []BGPPeer) {
+	b.learnedMu.Lock()
+	defer b.learnedMu.Unlock()
+
+	prefixCache := make(map[int][]ImportPrefix)
+	installed := 0
+
+	err := b.server.ListPath(apiutil.ListPathRequest{
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
+		Family:    bgppacket.RF_IPv4_UC,
+	}, func(nlri bgppacket.NLRI, paths []*apiutil.Path) {
+		for _, path := range paths {
+			if path.Withdrawal {
+				continue
+			}
+
+			prefix := extractPrefix(path)
+			if prefix == nil {
+				continue
+			}
+
+			prefixStr := prefix.String()
+
+			// Skip if already learned.
+			if _, exists := b.learnedRoutes[prefixStr]; exists {
+				continue
+			}
+
+			// Skip locally-originated routes.
+			if _, owned := b.paths[prefix.IP.String()]; owned {
+				continue
+			}
+
+			nextHop := extractNextHop(path)
+			if !nextHop.IsValid() {
+				continue
+			}
+
+			nextHopIP := nextHop.As4()
+			gwIP := net.IP(nextHopIP[:])
+
+			// Skip routes with our own next-hop.
+			if gwIP.Equal(b.n6Addr) {
+				continue
+			}
+
+			// Safety filter.
+			if b.filter.overlapsAny(prefix) {
+				continue
+			}
+
+			peerAddr := path.PeerAddress.String()
+			peerID := findPeerID(peers, peerAddr)
+
+			if peerID == 0 {
+				continue
+			}
+
+			entries, ok := prefixCache[peerID]
+			if !ok {
+				var err error
+
+				entries, err = b.loadImportPrefixes(ctx, peerID)
+				if err != nil {
+					b.logger.Warn("failed to load import prefixes during RIB replay",
+						zap.String("peer", peerAddr), zap.Error(err))
+
+					continue
+				}
+
+				prefixCache[peerID] = entries
+			}
+
+			if len(entries) == 0 || !matchesPrefixList(prefix, entries) {
+				continue
+			}
+
+			err := b.kernel.ReplaceRoute(prefix, gwIP, bgpRouteMetric, kernel.N6)
+			if err != nil {
+				b.logger.Warn("failed to install route during RIB replay",
+					zap.String("prefix", prefixStr), zap.Error(err))
+
+				continue
+			}
+
+			b.learnedRoutes[prefixStr] = learnedRoute{
+				prefix:  *prefix,
+				gateway: gwIP,
+				peer:    peerAddr,
+			}
+
+			installed++
+		}
+	})
+	if err != nil {
+		b.logger.Warn("failed to list global RIB for replay", zap.Error(err))
+
+		return
+	}
+
+	if installed > 0 {
+		b.logger.Info("installed routes from RIB replay after policy change",
+			zap.Int("installed", installed), zap.Int("total", len(b.learnedRoutes)))
 	}
 }
 

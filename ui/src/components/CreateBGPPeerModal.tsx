@@ -45,7 +45,7 @@ const cidrRegex =
 const schema = yup.object().shape({
   address: yup
     .string()
-    .required("Address is required")
+    .required("Neighbor address is required")
     .matches(ipv4Regex, "Must be a valid IPv4 address"),
   remoteAS: yup
     .number()
@@ -285,7 +285,7 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
         </Collapse>
         <TextField
           fullWidth
-          label="Address"
+          label="Neighbor Address"
           value={formValues.address}
           onChange={(e) => handleChange("address", e.target.value)}
           onBlur={() => handleBlur("address")}
@@ -335,7 +335,7 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
         />
 
         <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>
-          Import Prefixes
+          Import Prefix List
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
           Control which routes this peer is allowed to advertise to Ella Core.
@@ -348,7 +348,7 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
           size="small"
           sx={{ mb: 2 }}
         >
-          <ToggleButton value="none">None</ToggleButton>
+          <ToggleButton value="none">Deny All</ToggleButton>
           <ToggleButton value="default-route">Default Route Only</ToggleButton>
           <ToggleButton value="all">All</ToggleButton>
           <ToggleButton value="custom">Custom</ToggleButton>
@@ -356,7 +356,7 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
 
         {importPreset === "none" && (
           <Typography variant="body2" color="text.secondary">
-            No routes will be accepted from this peer.
+            All routes from this peer will be rejected.
           </Typography>
         )}
         {importPreset === "default-route" && (

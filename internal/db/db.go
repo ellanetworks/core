@@ -389,7 +389,7 @@ func (db *Database) PrepareStatements() error {
 		// BGP Import Prefixes
 		{&db.listImportPrefixesByPeerStmt, fmt.Sprintf(listImportPrefixesByPeerStmt, BGPImportPrefixesTableName), []any{BGPImportPrefix{}}},
 		{&db.createImportPrefixStmt, fmt.Sprintf(createImportPrefixStmt, BGPImportPrefixesTableName), []any{BGPImportPrefix{}}},
-		{&db.deleteImportPrefixesByPeerStmt, fmt.Sprintf(deleteImportPrefixesByPeerStr, BGPImportPrefixesTableName), []any{BGPImportPrefix{}}},
+		{&db.deleteImportPrefixesByPeerStmt, fmt.Sprintf(deleteImportPrefixesByPeerStmt, BGPImportPrefixesTableName), []any{BGPImportPrefix{}}},
 
 		// Flow Accounting Settings
 		{&db.insertDefaultFlowAccountingSettingsStmt, fmt.Sprintf(insertDefaultFlowAccountingSettingsStmt, FlowAccountingSettingsTableName), []any{FlowAccountingSettings{}}},
