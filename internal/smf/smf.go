@@ -38,8 +38,10 @@ type SessionStore interface {
 	// AllocateIP assigns an IP address to a subscriber.
 	AllocateIP(ctx context.Context, supi string) (net.IP, error)
 
-	// ReleaseIP frees the IP address associated with a subscriber.
-	ReleaseIP(ctx context.Context, supi string) error
+	// ReleaseIP frees the specific IP address associated with a subscriber.
+	// It only clears the address if it still matches ip, preventing a stale
+	// release from clobbering a newer session's address.
+	ReleaseIP(ctx context.Context, supi string, ip net.IP) error
 
 	// GetSubscriberPolicy returns the QoS policy for a subscriber.
 	GetSubscriberPolicy(ctx context.Context, imsi string) (*Policy, error)
@@ -245,8 +247,10 @@ func (s *SMF) RemoveSession(ctx context.Context, ref string) {
 	delete(s.pool, ref)
 	s.mu.Unlock()
 
-	if err := s.store.ReleaseIP(ctx, smCtx.Supi.IMSI()); err != nil {
-		logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
+	if smCtx.PDUAddress != nil {
+		if err := s.store.ReleaseIP(ctx, smCtx.Supi.IMSI(), smCtx.PDUAddress); err != nil {
+			logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
+		}
 	}
 
 	logger.SmfLog.Info("SM Context removed", zap.String("smContextRef", ref))
