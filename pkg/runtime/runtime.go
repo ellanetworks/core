@@ -133,7 +133,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	realKernel := kernel.NewRealKernel(cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name)
 
-	routeFilter := buildRouteFilter(ctx, dbInstance, cfg)
+	uePools := collectUEPools(ctx, dbInstance)
+	routeFilter := bgp.BuildRouteFilter(uePools, net.ParseIP(cfg.Interfaces.N3.Address), cfg.Interfaces.N6.Name)
 	importStore := &bgpImportPrefixAdapter{db: dbInstance}
 
 	bgpService := bgp.New(net.ParseIP(n6IP), logger.EllaLog,
@@ -418,22 +419,16 @@ func (a *bgpImportPrefixAdapter) ListImportPrefixes(ctx context.Context, peerID 
 	return entries, nil
 }
 
-// buildRouteFilter constructs the BGP safety rejection filter from the
-// UE IP pools (data networks) and interface addresses.
-//
-// NOTE: this logic is duplicated in internal/api/server/api_data_networks.go rebuildBGPFilter.
-// They cannot share code because pkg/runtime imports internal/api/server (circular).
-// Keep both in sync when modifying filter construction.
-func buildRouteFilter(ctx context.Context, dbInstance *db.Database, cfg config.Config) *bgp.RouteFilter {
-	var extraSubnets []*net.IPNet
-
-	// Collect UE IP pools from all data networks.
-	dataNetworks, _, err := dbInstance.ListDataNetworksPage(ctx, 1, 100)
+// collectUEPools returns the UE IP pool CIDRs from all data networks.
+func collectUEPools(ctx context.Context, dbInstance *db.Database) []*net.IPNet {
+	dataNetworks, err := dbInstance.ListAllDataNetworks(ctx)
 	if err != nil {
 		logger.EllaLog.Warn("failed to list data networks for BGP filter", zap.Error(err))
+
+		return nil
 	}
 
-	var uePool *net.IPNet
+	var pools []*net.IPNet
 
 	for _, dn := range dataNetworks {
 		_, network, err := net.ParseCIDR(dn.IPPool)
@@ -441,54 +436,8 @@ func buildRouteFilter(ctx context.Context, dbInstance *db.Database, cfg config.C
 			continue
 		}
 
-		if uePool == nil {
-			uePool = network
-		} else {
-			extraSubnets = append(extraSubnets, network)
-		}
+		pools = append(pools, network)
 	}
 
-	// Add N3 address as /32.
-	if n3IP := net.ParseIP(cfg.Interfaces.N3.Address); n3IP != nil {
-		extraSubnets = append(extraSubnets, &net.IPNet{
-			IP:   n3IP.To4(),
-			Mask: net.CIDRMask(32, 32),
-		})
-	}
-
-	// Add N6 interface subnet.
-	n6Addrs := interfaceSubnets(cfg.Interfaces.N6.Name)
-	extraSubnets = append(extraSubnets, n6Addrs...)
-
-	rejectPrefixes := bgp.BuildRejectPrefixes(uePool, extraSubnets)
-
-	return &bgp.RouteFilter{RejectPrefixes: rejectPrefixes}
-}
-
-// interfaceSubnets returns the IPv4 subnets configured on the named interface.
-func interfaceSubnets(ifName string) []*net.IPNet {
-	iface, err := net.InterfaceByName(ifName)
-	if err != nil {
-		return nil
-	}
-
-	addrs, err := iface.Addrs()
-	if err != nil {
-		return nil
-	}
-
-	var subnets []*net.IPNet
-
-	for _, addr := range addrs {
-		_, network, err := net.ParseCIDR(addr.String())
-		if err != nil {
-			continue
-		}
-
-		if network.IP.To4() != nil {
-			subnets = append(subnets, network)
-		}
-	}
-
-	return subnets
+	return pools
 }

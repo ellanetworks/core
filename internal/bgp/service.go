@@ -23,6 +23,12 @@ const defaultListenPort int32 = 179
 // bgpRouteMetric is the fixed kernel route metric for all BGP-learned routes.
 const bgpRouteMetric = 200
 
+// MaxLearnedRoutesPerPeer is the maximum number of routes that can be learned
+// from a single BGP peer. Routes beyond this limit are silently dropped.
+// This prevents a misconfigured or malicious peer from flooding the kernel
+// routing table.
+const MaxLearnedRoutesPerPeer = 1000
+
 // ownedPath tracks an advertised prefix and its owner.
 type ownedPath struct {
 	ip    net.IP
@@ -64,7 +70,7 @@ type BGPService struct {
 	filter      *RouteFilter
 
 	// learnedMu protects learnedRoutes. Acquired after mu when both are needed.
-	learnedMu     sync.Mutex
+	learnedMu     sync.RWMutex
 	learnedRoutes map[string]learnedRoute // keyed by prefix string e.g. "0.0.0.0/0"
 	cancelWatch   context.CancelFunc
 }
@@ -285,9 +291,16 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 	// Start watching best paths for route learning.
 	if b.routeLearningEnabled() {
 		watchCtx, cancel := context.WithCancel(context.Background())
-		b.cancelWatch = cancel
 
-		b.startWatchBestPaths(watchCtx, s)
+		if err := b.startWatchBestPaths(watchCtx, s); err != nil {
+			cancel()
+
+			_ = s.StopBgp(ctx, &api.StopBgpRequest{})
+
+			return fmt.Errorf("failed to start best-path watcher: %w", err)
+		}
+
+		b.cancelWatch = cancel
 	}
 
 	b.logger.Info("BGP service started",
@@ -467,8 +480,8 @@ func (b *BGPService) GetRoutes() ([]BGPRoute, error) {
 
 // GetLearnedRoutes returns the currently installed BGP-learned routes, sorted by prefix.
 func (b *BGPService) GetLearnedRoutes() []LearnedRoute {
-	b.learnedMu.Lock()
-	defer b.learnedMu.Unlock()
+	b.learnedMu.RLock()
+	defer b.learnedMu.RUnlock()
 
 	routes := make([]LearnedRoute, 0, len(b.learnedRoutes))
 
@@ -489,8 +502,8 @@ func (b *BGPService) GetLearnedRoutes() []LearnedRoute {
 
 // CountLearnedRoutesByPeer returns the number of learned routes from a specific peer address.
 func (b *BGPService) CountLearnedRoutesByPeer(peerAddr string) int {
-	b.learnedMu.Lock()
-	defer b.learnedMu.Unlock()
+	b.learnedMu.RLock()
+	defer b.learnedMu.RUnlock()
 
 	count := 0
 
@@ -506,8 +519,8 @@ func (b *BGPService) CountLearnedRoutesByPeer(peerAddr string) int {
 // LearnedRouteCountsByPeer returns a map from peer address to learned route count.
 // More efficient than calling CountLearnedRoutesByPeer per peer.
 func (b *BGPService) LearnedRouteCountsByPeer() map[string]int {
-	b.learnedMu.Lock()
-	defer b.learnedMu.Unlock()
+	b.learnedMu.RLock()
+	defer b.learnedMu.RUnlock()
 
 	counts := make(map[string]int, len(b.learnedRoutes))
 

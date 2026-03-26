@@ -193,7 +193,7 @@ func newTestServiceWithLearning(t *testing.T, k kernel.Kernel, store bgp.ImportP
 	logger := zap.NewNop()
 
 	filter := &bgp.RouteFilter{
-		RejectPrefixes: bgp.BuildRejectPrefixes(nil, nil),
+		RejectPrefixes: bgp.BuildRejectPrefixes(nil),
 	}
 
 	svc := bgp.New(n6Addr, logger,
@@ -412,7 +412,7 @@ func TestUpdateFilterRemovesNewlyRejectedRoutes(t *testing.T) {
 	// Update the filter to reject 10.45.0.0/16 (new data network added).
 	_, uePool, _ := net.ParseCIDR("10.45.0.0/16")
 	newFilter := &bgp.RouteFilter{
-		RejectPrefixes: bgp.BuildRejectPrefixes(uePool, nil),
+		RejectPrefixes: bgp.BuildRejectPrefixes([]*net.IPNet{uePool}),
 	}
 
 	svc.UpdateFilter(newFilter)

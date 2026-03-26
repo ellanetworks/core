@@ -58,11 +58,11 @@ func matchesPrefixList(route *net.IPNet, entries []ImportPrefix) bool {
 	return false
 }
 
-// BuildRejectPrefixes constructs the hard-coded safety rejection list from
-// the UE IP pool and interface subnets. These are always enforced regardless
-// of per-peer prefix list configuration.
-func BuildRejectPrefixes(uePool *net.IPNet, extraSubnets []*net.IPNet) []*net.IPNet {
-	// Hard-coded rejections: link-local, multicast, loopback
+// BuildRejectPrefixes constructs the safety rejection list by prepending
+// hard-coded prefixes (link-local, multicast, loopback) to the caller-supplied
+// subnets (UE IP pools, interface addresses). These are always enforced
+// regardless of per-peer prefix list configuration.
+func BuildRejectPrefixes(subnets []*net.IPNet) []*net.IPNet {
 	hardCoded := []string{
 		"169.254.0.0/16", // link-local
 		"224.0.0.0/4",    // multicast
@@ -80,11 +80,61 @@ func BuildRejectPrefixes(uePool *net.IPNet, extraSubnets []*net.IPNet) []*net.IP
 		prefixes = append(prefixes, network)
 	}
 
-	if uePool != nil {
-		prefixes = append(prefixes, uePool)
-	}
-
-	prefixes = append(prefixes, extraSubnets...)
+	prefixes = append(prefixes, subnets...)
 
 	return prefixes
+}
+
+// BuildRouteFilter constructs a RouteFilter from UE IP pool subnets and
+// network interface configuration. This is the single source of truth for
+// filter construction — used at startup and when data networks change.
+//
+// Parameters:
+//   - uePools: UE IP pool CIDRs from all data networks
+//   - n3Addr: N3 interface IP address (added as /32), may be nil
+//   - n6IfName: N6 interface name (its IPv4 subnets are added)
+func BuildRouteFilter(uePools []*net.IPNet, n3Addr net.IP, n6IfName string) *RouteFilter {
+	var subnets []*net.IPNet
+
+	subnets = append(subnets, uePools...)
+
+	if n3Addr != nil {
+		subnets = append(subnets, &net.IPNet{
+			IP:   n3Addr.To4(),
+			Mask: net.CIDRMask(32, 32),
+		})
+	}
+
+	subnets = append(subnets, InterfaceIPv4Subnets(n6IfName)...)
+
+	return &RouteFilter{RejectPrefixes: BuildRejectPrefixes(subnets)}
+}
+
+// InterfaceIPv4Subnets returns the IPv4 subnets configured on the named
+// network interface.
+func InterfaceIPv4Subnets(ifName string) []*net.IPNet {
+	iface, err := net.InterfaceByName(ifName)
+	if err != nil {
+		return nil
+	}
+
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return nil
+	}
+
+	var subnets []*net.IPNet
+
+	for _, addr := range addrs {
+		_, network, err := net.ParseCIDR(addr.String())
+		if err != nil {
+			continue
+		}
+
+		if network.IP.To4() != nil {
+			subnets = append(subnets, network)
+		}
+	}
+
+	return subnets
 }

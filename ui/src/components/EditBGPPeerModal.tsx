@@ -347,7 +347,7 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
           onChange={(e) => handleChange("password", e.target.value)}
           onBlur={() => handleBlur("password")}
           margin="normal"
-          placeholder="Leave empty to keep current password"
+          placeholder={peer.hasPassword ? "Leave empty to keep current password" : "Optional"}
         />
         <TextField
           fullWidth

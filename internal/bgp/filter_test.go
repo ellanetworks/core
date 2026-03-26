@@ -145,7 +145,7 @@ func TestOverlapsAny_UEPool(t *testing.T) {
 
 func TestOverlapsAny_HardcodedRejections(t *testing.T) {
 	filter := &RouteFilter{
-		RejectPrefixes: BuildRejectPrefixes(nil, nil),
+		RejectPrefixes: BuildRejectPrefixes(nil),
 	}
 
 	testCases := []struct {
@@ -171,10 +171,12 @@ func TestOverlapsAny_HardcodedRejections(t *testing.T) {
 }
 
 func TestBuildRejectPrefixes_IncludesAllSources(t *testing.T) {
-	uePool := mustParseCIDR("10.45.0.0/16")
-	extra := []*net.IPNet{mustParseCIDR("192.168.1.0/24")}
+	subnets := []*net.IPNet{
+		mustParseCIDR("10.45.0.0/16"),
+		mustParseCIDR("192.168.1.0/24"),
+	}
 
-	prefixes := BuildRejectPrefixes(uePool, extra)
+	prefixes := BuildRejectPrefixes(subnets)
 
 	// Should contain: link-local, multicast, loopback, UE pool, extra
 	if len(prefixes) != 5 {
@@ -193,8 +195,8 @@ func TestBuildRejectPrefixes_IncludesAllSources(t *testing.T) {
 	}
 }
 
-func TestBuildRejectPrefixes_NilUEPool(t *testing.T) {
-	prefixes := BuildRejectPrefixes(nil, nil)
+func TestBuildRejectPrefixes_Empty(t *testing.T) {
+	prefixes := BuildRejectPrefixes(nil)
 
 	// Should still have the 3 hard-coded rejections
 	if len(prefixes) != 3 {

@@ -181,9 +181,9 @@ func DeleteDataNetwork(dbInstance *db.Database, cfg config.Config, bgpService *b
 			return
 		}
 
-		writeResponse(r.Context(), w, SuccessResponse{Message: "DataNetwork deleted successfully"}, http.StatusOK, logger.APILog)
-
 		rebuildBGPFilter(r.Context(), dbInstance, cfg, bgpService)
+
+		writeResponse(r.Context(), w, SuccessResponse{Message: "DataNetwork deleted successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), DeleteDataNetworkAction, email, getClientIP(r), "User deleted data network: "+name)
 	})
@@ -237,9 +237,9 @@ func CreateDataNetwork(dbInstance *db.Database, cfg config.Config, bgpService *b
 			return
 		}
 
-		writeResponse(r.Context(), w, SuccessResponse{Message: "Data Network created successfully"}, http.StatusCreated, logger.APILog)
-
 		rebuildBGPFilter(r.Context(), dbInstance, cfg, bgpService)
+
+		writeResponse(r.Context(), w, SuccessResponse{Message: "Data Network created successfully"}, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), CreateDataNetworkAction, email, getClientIP(r), "User created data network: "+createDataNetworkParams.Name)
 	})
@@ -289,9 +289,9 @@ func UpdateDataNetwork(dbInstance *db.Database, cfg config.Config, bgpService *b
 			return
 		}
 
-		writeResponse(r.Context(), w, SuccessResponse{Message: "Data Network updated successfully"}, http.StatusOK, logger.APILog)
-
 		rebuildBGPFilter(r.Context(), dbInstance, cfg, bgpService)
+
+		writeResponse(r.Context(), w, SuccessResponse{Message: "Data Network updated successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), UpdateDataNetworkAction, email, getClientIP(r), "User updated data network: "+updateDataNetworkParams.Name)
 	})
@@ -341,25 +341,26 @@ func validateDataNetworkParams(p CreateDataNetworkParams) error {
 // rebuildBGPFilter rebuilds the BGP safety rejection filter from the current
 // data networks and interface configuration and applies it to the BGP service.
 // It is called after data network create/update/delete operations.
-//
-// NOTE: this logic is duplicated in pkg/runtime/runtime.go buildRouteFilter.
-// They cannot share code because pkg/runtime imports internal/api/server (circular).
-// Keep both in sync when modifying filter construction.
 func rebuildBGPFilter(ctx context.Context, dbInstance *db.Database, cfg config.Config, bgpService *bgp.BGPService) {
 	if bgpService == nil {
 		return
 	}
 
-	dataNetworks, _, err := dbInstance.ListDataNetworksPage(ctx, 1, 100)
+	uePools := collectUEPools(ctx, dbInstance)
+	filter := bgp.BuildRouteFilter(uePools, net.ParseIP(cfg.Interfaces.N3.Address), cfg.Interfaces.N6.Name)
+	bgpService.UpdateFilter(filter)
+}
+
+// collectUEPools returns the UE IP pool CIDRs from all data networks.
+func collectUEPools(ctx context.Context, dbInstance *db.Database) []*net.IPNet {
+	dataNetworks, err := dbInstance.ListAllDataNetworks(ctx)
 	if err != nil {
 		logger.APILog.Warn("failed to list data networks for BGP filter rebuild")
 
-		return
+		return nil
 	}
 
-	var uePool *net.IPNet
-
-	var extraSubnets []*net.IPNet
+	var pools []*net.IPNet
 
 	for _, dn := range dataNetworks {
 		_, network, err := net.ParseCIDR(dn.IPPool)
@@ -367,51 +368,8 @@ func rebuildBGPFilter(ctx context.Context, dbInstance *db.Database, cfg config.C
 			continue
 		}
 
-		if uePool == nil {
-			uePool = network
-		} else {
-			extraSubnets = append(extraSubnets, network)
-		}
+		pools = append(pools, network)
 	}
 
-	if n3IP := net.ParseIP(cfg.Interfaces.N3.Address); n3IP != nil {
-		extraSubnets = append(extraSubnets, &net.IPNet{
-			IP:   n3IP.To4(),
-			Mask: net.CIDRMask(32, 32),
-		})
-	}
-
-	n6Subnets := interfaceSubnets(cfg.Interfaces.N6.Name)
-	extraSubnets = append(extraSubnets, n6Subnets...)
-
-	rejectPrefixes := bgp.BuildRejectPrefixes(uePool, extraSubnets)
-	bgpService.UpdateFilter(&bgp.RouteFilter{RejectPrefixes: rejectPrefixes})
-}
-
-// interfaceSubnets returns the IPv4 subnets configured on the named interface.
-func interfaceSubnets(ifName string) []*net.IPNet {
-	iface, err := net.InterfaceByName(ifName)
-	if err != nil {
-		return nil
-	}
-
-	addrs, err := iface.Addrs()
-	if err != nil {
-		return nil
-	}
-
-	var subnets []*net.IPNet
-
-	for _, a := range addrs {
-		_, network, err := net.ParseCIDR(a.String())
-		if err != nil {
-			continue
-		}
-
-		if network.IP.To4() != nil {
-			subnets = append(subnets, network)
-		}
-	}
-
-	return subnets
+	return pools
 }

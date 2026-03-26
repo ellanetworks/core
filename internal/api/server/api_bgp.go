@@ -50,7 +50,7 @@ type BGPPeer struct {
 	Address          string            `json:"address"`
 	RemoteAS         int               `json:"remoteAS"`
 	HoldTime         int               `json:"holdTime"`
-	Password         string            `json:"password"`
+	HasPassword      bool              `json:"hasPassword"`
 	Description      string            `json:"description"`
 	ImportPrefixes   []BGPImportPrefix `json:"importPrefixes"`
 	State            string            `json:"state,omitempty"`
@@ -106,9 +106,6 @@ const (
 	MaxNumBGPPeers           = 5
 	MaxImportPrefixesPerPeer = 50
 )
-
-// maskedPassword returns a masked representation if the password is set.
-const maskedPassword = "********"
 
 // BGP Settings handlers
 
@@ -358,17 +355,12 @@ func saveImportPrefixesForPeer(ctx context.Context, dbInstance *db.Database, pee
 // dbPeerToAPIPeer converts a DB peer to an API peer, enriched with live status and import prefixes.
 // Callers are responsible for setting PrefixesAccepted (learned route count).
 func dbPeerToAPIPeer(ctx context.Context, dbInstance *db.Database, dbPeer db.BGPPeer, statusMap map[string]bgp.BGPPeerStatus) BGPPeer {
-	pw := ""
-	if dbPeer.Password != "" {
-		pw = maskedPassword
-	}
-
 	peer := BGPPeer{
 		ID:             dbPeer.ID,
 		Address:        dbPeer.Address,
 		RemoteAS:       dbPeer.RemoteAS,
 		HoldTime:       dbPeer.HoldTime,
-		Password:       pw,
+		HasPassword:    dbPeer.Password != "",
 		Description:    dbPeer.Description,
 		ImportPrefixes: loadImportPrefixesForPeer(ctx, dbInstance, dbPeer.ID),
 	}
@@ -848,7 +840,7 @@ func buildRejectedPrefixes(ctx context.Context, dbInstance *db.Database, cfg con
 		})
 	}
 
-	dataNetworks, _, err := dbInstance.ListDataNetworksPage(ctx, 1, 100)
+	dataNetworks, err := dbInstance.ListAllDataNetworks(ctx)
 	if err == nil {
 		for _, dn := range dataNetworks {
 			if _, _, parseErr := net.ParseCIDR(dn.IPPool); parseErr == nil {
@@ -869,7 +861,7 @@ func buildRejectedPrefixes(ctx context.Context, dbInstance *db.Database, cfg con
 		})
 	}
 
-	n6Subnets := interfaceSubnets(cfg.Interfaces.N6.Name)
+	n6Subnets := bgp.InterfaceIPv4Subnets(cfg.Interfaces.N6.Name)
 	for _, s := range n6Subnets {
 		filters = append(filters, RejectedPrefix{
 			Prefix:      s.String(),

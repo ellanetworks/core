@@ -16,15 +16,12 @@ import (
 
 // startWatchBestPaths registers a WatchEvent callback that installs and removes
 // kernel routes as GoBGP's best-path set changes. Must be called with mu held.
-func (b *BGPService) startWatchBestPaths(ctx context.Context, s *gobgp.BgpServer) {
-	err := s.WatchEvent(ctx, gobgp.WatchEventMessageCallbacks{
+func (b *BGPService) startWatchBestPaths(ctx context.Context, s *gobgp.BgpServer) error {
+	return s.WatchEvent(ctx, gobgp.WatchEventMessageCallbacks{
 		OnBestPath: func(paths []*apiutil.Path, _ time.Time) {
 			b.handleBestPaths(ctx, paths)
 		},
 	}, gobgp.WatchBestPath(true))
-	if err != nil {
-		b.logger.Warn("failed to start best-path watcher", zap.Error(err))
-	}
 }
 
 // handleBestPaths processes a batch of best-path updates from GoBGP.
@@ -119,6 +116,30 @@ func (b *BGPService) handleSinglePath(ctx context.Context, path *apiutil.Path) {
 
 		return
 	}
+
+	// Check max-prefix limit for this peer before installing.
+	b.learnedMu.Lock()
+
+	if _, isUpdate := b.learnedRoutes[prefixStr]; !isUpdate {
+		peerCount := 0
+
+		for _, lr := range b.learnedRoutes {
+			if lr.peer == peerAddr {
+				peerCount++
+			}
+		}
+
+		if peerCount >= MaxLearnedRoutesPerPeer {
+			b.learnedMu.Unlock()
+
+			b.logger.Warn("max learned routes exceeded for peer",
+				zap.String("peer", peerAddr), zap.Int("limit", MaxLearnedRoutesPerPeer))
+
+			return
+		}
+	}
+
+	b.learnedMu.Unlock()
 
 	// Install or update the route in the kernel.
 	err = b.kernel.ReplaceRoute(prefix, gwIP, bgpRouteMetric, kernel.N6)
@@ -262,11 +283,12 @@ func (b *BGPService) removeLearnedRoutesForPeer(peerAddr string) {
 // match. Called after hot reconfiguration to enforce import policy changes.
 // Must be called with mu held (for peers access).
 func (b *BGPService) reEvaluateLearnedRoutes(ctx context.Context, peers []BGPPeer) {
+	// Pre-load import prefixes for all peers outside learnedMu to avoid
+	// holding the lock during DB queries.
+	prefixCache := b.preloadImportPrefixes(ctx, peers)
+
 	b.learnedMu.Lock()
 	defer b.learnedMu.Unlock()
-
-	// Pre-load import prefixes for all peers to avoid per-route DB queries.
-	prefixCache := make(map[int][]ImportPrefix)
 
 	removed := 0
 
@@ -290,21 +312,7 @@ func (b *BGPService) reEvaluateLearnedRoutes(ctx context.Context, peers []BGPPee
 
 		// Check per-peer import prefix list.
 		peerID := findPeerID(peers, lr.peer)
-
-		entries, ok := prefixCache[peerID]
-		if !ok {
-			var err error
-
-			entries, err = b.loadImportPrefixes(ctx, peerID)
-			if err != nil {
-				b.logger.Warn("failed to load import prefixes during re-evaluation",
-					zap.String("peer", lr.peer), zap.Error(err))
-
-				continue
-			}
-
-			prefixCache[peerID] = entries
-		}
+		entries := prefixCache[peerID]
 
 		if len(entries) == 0 || !matchesPrefixList(&dst, entries) {
 			err := b.kernel.DeleteRoute(&dst, lr.gateway, bgpRouteMetric, kernel.N6)
@@ -332,10 +340,18 @@ func (b *BGPService) reEvaluateLearnedRoutes(ctx context.Context, peers []BGPPee
 // only removes routes.
 // Must be called with mu held (for server, peers, filter, paths access).
 func (b *BGPService) replayGlobalRIB(ctx context.Context, peers []BGPPeer) {
+	prefixCache := b.preloadImportPrefixes(ctx, peers)
+
 	b.learnedMu.Lock()
 	defer b.learnedMu.Unlock()
 
-	prefixCache := make(map[int][]ImportPrefix)
+	// Build per-peer counts from existing learned routes for limit enforcement.
+	peerCounts := make(map[string]int)
+
+	for _, lr := range b.learnedRoutes {
+		peerCounts[lr.peer]++
+	}
+
 	installed := 0
 
 	err := b.server.ListPath(apiutil.ListPathRequest{
@@ -389,22 +405,13 @@ func (b *BGPService) replayGlobalRIB(ctx context.Context, peers []BGPPeer) {
 				continue
 			}
 
-			entries, ok := prefixCache[peerID]
-			if !ok {
-				var err error
-
-				entries, err = b.loadImportPrefixes(ctx, peerID)
-				if err != nil {
-					b.logger.Warn("failed to load import prefixes during RIB replay",
-						zap.String("peer", peerAddr), zap.Error(err))
-
-					continue
-				}
-
-				prefixCache[peerID] = entries
-			}
+			entries := prefixCache[peerID]
 
 			if len(entries) == 0 || !matchesPrefixList(prefix, entries) {
+				continue
+			}
+
+			if peerCounts[peerAddr] >= MaxLearnedRoutesPerPeer {
 				continue
 			}
 
@@ -422,6 +429,7 @@ func (b *BGPService) replayGlobalRIB(ctx context.Context, peers []BGPPeer) {
 				peer:    peerAddr,
 			}
 
+			peerCounts[peerAddr]++
 			installed++
 		}
 	})
@@ -435,6 +443,26 @@ func (b *BGPService) replayGlobalRIB(ctx context.Context, peers []BGPPeer) {
 		b.logger.Info("installed routes from RIB replay after policy change",
 			zap.Int("installed", installed), zap.Int("total", len(b.learnedRoutes)))
 	}
+}
+
+// preloadImportPrefixes loads and parses import prefix lists for all peers
+// before acquiring learnedMu, so DB queries don't block route processing.
+func (b *BGPService) preloadImportPrefixes(ctx context.Context, peers []BGPPeer) map[int][]ImportPrefix {
+	cache := make(map[int][]ImportPrefix, len(peers))
+
+	for _, p := range peers {
+		entries, err := b.loadImportPrefixes(ctx, p.ID)
+		if err != nil {
+			b.logger.Warn("failed to preload import prefixes",
+				zap.String("peer", p.Address), zap.Error(err))
+
+			continue
+		}
+
+		cache[p.ID] = entries
+	}
+
+	return cache
 }
 
 // loadImportPrefixes fetches and parses the import prefix list for a peer.

@@ -50,7 +50,7 @@ export type BGPPeer = {
   address: string;
   remoteAS: number;
   holdTime: number;
-  password: string;
+  hasPassword: boolean;
   description: string;
   importPrefixes: BGPImportPrefix[];
   state?: string;

@@ -67,13 +67,14 @@ type Database struct {
 	deleteOldDailyUsageStmt   *sqlair.Statement
 
 	// Data Network statements
-	listDataNetworksStmt   *sqlair.Statement
-	getDataNetworkStmt     *sqlair.Statement
-	getDataNetworkByIDStmt *sqlair.Statement
-	createDataNetworkStmt  *sqlair.Statement
-	editDataNetworkStmt    *sqlair.Statement
-	deleteDataNetworkStmt  *sqlair.Statement
-	countDataNetworksStmt  *sqlair.Statement
+	listDataNetworksStmt    *sqlair.Statement
+	listAllDataNetworksStmt *sqlair.Statement
+	getDataNetworkStmt      *sqlair.Statement
+	getDataNetworkByIDStmt  *sqlair.Statement
+	createDataNetworkStmt   *sqlair.Statement
+	editDataNetworkStmt     *sqlair.Statement
+	deleteDataNetworkStmt   *sqlair.Statement
+	countDataNetworksStmt   *sqlair.Statement
 
 	// N3 Settings statements
 	insertDefaultN3SettingsStmt *sqlair.Statement
@@ -355,6 +356,7 @@ func (db *Database) PrepareStatements() error {
 
 		// Data Networks
 		{&db.listDataNetworksStmt, fmt.Sprintf(listDataNetworksPagedStmt, DataNetworksTableName), []any{ListArgs{}, DataNetwork{}, NumItems{}}},
+		{&db.listAllDataNetworksStmt, fmt.Sprintf(listAllDataNetworksStmt, DataNetworksTableName), []any{DataNetwork{}}},
 		{&db.getDataNetworkStmt, fmt.Sprintf(getDataNetworkStmt, DataNetworksTableName), []any{DataNetwork{}}},
 		{&db.getDataNetworkByIDStmt, fmt.Sprintf(getDataNetworkByIDStmt, DataNetworksTableName), []any{DataNetwork{}}},
 		{&db.createDataNetworkStmt, fmt.Sprintf(createDataNetworkStmt, DataNetworksTableName), []any{DataNetwork{}}},
