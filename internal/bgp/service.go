@@ -252,9 +252,9 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 		}
 	}
 
-	if b.advertising {
-		if allocatedIPs != nil {
-			// Fresh start: announce from DB and populate the paths map.
+	if allocatedIPs != nil {
+		if b.advertising {
+			// Fresh start with advertising: populate paths and announce.
 			b.paths = make(map[string]ownedPath, len(allocatedIPs))
 
 			for ipStr, subscriber := range allocatedIPs {
@@ -271,16 +271,18 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 				b.paths[ipStr] = ownedPath{ip: ip, owner: subscriber}
 			}
 		} else {
-			// Replay from in-memory paths map (after reconfiguration restart).
-			for _, op := range b.paths {
-				if err := b.announcePath(s, op.ip); err != nil {
-					b.logger.Warn("failed to re-announce route after restart",
-						zap.String("ip", op.ip.String()), zap.Error(err))
-				}
+			// Fresh start without advertising: paths map stays empty.
+			b.paths = make(map[string]ownedPath)
+			b.logger.Info("Route advertisement suppressed (NAT is enabled)")
+		}
+	} else if b.advertising {
+		// Replay from in-memory paths map (after reconfiguration restart).
+		for _, op := range b.paths {
+			if err := b.announcePath(s, op.ip); err != nil {
+				b.logger.Warn("failed to re-announce route after restart",
+					zap.String("ip", op.ip.String()), zap.Error(err))
 			}
 		}
-	} else {
-		b.logger.Info("Route advertisement suppressed (NAT is enabled)")
 	}
 
 	b.server = s
@@ -351,6 +353,7 @@ func (b *BGPService) Stop() error {
 }
 
 // Announce adds a /32 route for the given IP to the BGP RIB, tagged with the given owner.
+// Announce adds a /32 route for the given IP to the BGP RIB.
 // It is a no-op if the service is not running or not advertising (NAT enabled).
 func (b *BGPService) Announce(ip net.IP, owner string) error {
 	b.mu.Lock()
@@ -558,10 +561,11 @@ func (b *BGPService) IsAdvertising() bool {
 }
 
 // SetAdvertising updates whether the BGP speaker advertises subscriber
-// routes. When switching from advertising→suppressed, all paths are withdrawn.
-// When switching from suppressed→advertising, all paths are re-announced.
-// It is a no-op if the service is not running.
-func (b *BGPService) SetAdvertising(advertising bool) {
+// SetAdvertising toggles whether the BGP speaker advertises subscriber /32
+// routes. When enabling, allocatedIPs (from the database) is used to rebuild
+// the paths map and announce all routes. When disabling, all paths are
+// withdrawn and the map is cleared. It is a no-op if the service is not running.
+func (b *BGPService) SetAdvertising(advertising bool, allocatedIPs map[string]string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -572,11 +576,20 @@ func (b *BGPService) SetAdvertising(advertising bool) {
 	b.advertising = advertising
 
 	if advertising {
-		for _, op := range b.paths {
-			if err := b.announcePath(b.server, op.ip); err != nil {
-				b.logger.Warn("failed to re-announce route after enabling advertising",
-					zap.String("ip", op.ip.String()), zap.Error(err))
+		b.paths = make(map[string]ownedPath, len(allocatedIPs))
+
+		for ipStr, subscriber := range allocatedIPs {
+			ip := net.ParseIP(ipStr)
+			if ip == nil {
+				continue
 			}
+
+			if err := b.announcePath(b.server, ip); err != nil {
+				b.logger.Warn("failed to announce route after enabling advertising",
+					zap.String("ip", ipStr), zap.Error(err))
+			}
+
+			b.paths[ipStr] = ownedPath{ip: ip, owner: subscriber}
 		}
 
 		b.logger.Info("BGP route advertising enabled", zap.Int("routes", len(b.paths)))
@@ -587,6 +600,8 @@ func (b *BGPService) SetAdvertising(advertising bool) {
 					zap.String("ip", op.ip.String()), zap.Error(err))
 			}
 		}
+
+		b.paths = make(map[string]ownedPath)
 
 		b.logger.Info("BGP route advertising suppressed (NAT enabled)")
 	}

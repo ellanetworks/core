@@ -385,6 +385,7 @@ func (s *SMF) NewURR() (*URR, error) {
 
 // announceRoute advertises a /32 route for the given UE IP via BGP,
 // tagged with the subscriber IMSI as owner.
+// announceRoute announces a /32 route for the given UE IP via BGP.
 // It is a no-op if no BGP announcer is configured or it is not advertising
 // (BGP not running, or NAT enabled).
 func (s *SMF) announceRoute(ip net.IP, owner string) {

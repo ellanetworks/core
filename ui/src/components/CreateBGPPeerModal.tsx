@@ -1,5 +1,6 @@
 import React, { useCallback, useState, useEffect } from "react";
 import {
+  Box,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -428,7 +429,7 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
         )}
 
         {rejectedPrefixes.length > 0 && (
-          <>
+          <Box sx={{ mt: 1 }}>
             <Button
               size="small"
               onClick={() => setShowRejected(!showRejected)}
@@ -444,7 +445,6 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
                 justifyContent: "flex-start",
                 textTransform: "none",
                 color: "text.secondary",
-                mt: 1,
               }}
             >
               {rejectedPrefixes.length} rejected{" "}
@@ -469,7 +469,7 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
                 </Table>
               </TableContainer>
             </Collapse>
-          </>
+          </Box>
         )}
       </DialogContent>
       <DialogActions>

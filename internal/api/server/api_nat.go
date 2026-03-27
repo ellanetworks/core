@@ -67,7 +67,17 @@ func UpdateNATInfo(dbInstance *db.Database, upf UPFUpdater, bgpService *bgp.BGPS
 
 		// NAT enabled → suppress BGP route advertising; NAT disabled → resume advertising.
 		if bgpService != nil {
-			bgpService.SetAdvertising(!params.Enabled)
+			if !params.Enabled {
+				allocatedIPs, err := dbInstance.ListAllocatedIPMappings(r.Context())
+				if err != nil {
+					writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list allocated IPs for BGP", err, logger.APILog)
+					return
+				}
+
+				bgpService.SetAdvertising(true, allocatedIPs)
+			} else {
+				bgpService.SetAdvertising(false, nil)
+			}
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "NAT settings updated successfully"}, http.StatusOK, logger.APILog)

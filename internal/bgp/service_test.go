@@ -650,3 +650,118 @@ func TestIsAdvertisingFalseWhenNotRunning(t *testing.T) {
 		t.Fatal("expected IsAdvertising() to be false when not running")
 	}
 }
+
+func TestSetAdvertisingAnnouncesNewIPsFromDB(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+
+	// Start with NAT on (no advertising, no IPs tracked).
+	err := svc.Start(ctx, settings, nil, nil, false)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	// Sessions were created while NAT was on — they only exist in the DB.
+	// The BGP service knows nothing about them.
+	dbIPs := map[string]string{
+		"10.1.1.1": "imsi-001010000000001",
+		"10.1.1.2": "imsi-001010000000002",
+		"10.1.1.3": "imsi-001010000000003",
+	}
+
+	// NAT toggled off: pass the current DB snapshot.
+	svc.SetAdvertising(true, dbIPs)
+
+	routes, err := svc.GetRoutes()
+	if err != nil {
+		t.Fatalf("GetRoutes failed: %v", err)
+	}
+
+	if len(routes) != 3 {
+		t.Fatalf("expected 3 routes after enabling advertising with DB IPs, got %d", len(routes))
+	}
+
+	// Verify ownership is preserved.
+	found := map[string]string{}
+	for _, r := range routes {
+		found[r.Prefix] = r.Subscriber
+	}
+
+	for _, imsi := range dbIPs {
+		foundIMSI := false
+
+		for _, sub := range found {
+			if sub == imsi {
+				foundIMSI = true
+
+				break
+			}
+		}
+
+		if !foundIMSI {
+			t.Errorf("subscriber %s not found in advertised routes", imsi)
+		}
+	}
+}
+
+func TestSetAdvertisingReplacesStalePathsWithDBTruth(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+
+	// Start advertising with 2 IPs.
+	initialIPs := map[string]string{
+		"10.1.1.1": "imsi-001010000000001",
+		"10.1.1.2": "imsi-001010000000002",
+	}
+
+	err := svc.Start(ctx, settings, nil, initialIPs, true)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	routes, _ := svc.GetRoutes()
+	if len(routes) != 2 {
+		t.Fatalf("expected 2 routes, got %d", len(routes))
+	}
+
+	// NAT enabled: all routes withdrawn.
+	svc.SetAdvertising(false, nil)
+
+	// While NAT was on, one session was released and a new one was created.
+	// DB now has a different set of IPs.
+	newIPs := map[string]string{
+		"10.1.1.2": "imsi-001010000000002",
+		"10.1.1.3": "imsi-001010000000003",
+	}
+
+	// NAT disabled: only the current DB snapshot should be advertised.
+	svc.SetAdvertising(true, newIPs)
+
+	routes, _ = svc.GetRoutes()
+	if len(routes) != 2 {
+		t.Fatalf("expected 2 routes (from new DB snapshot), got %d", len(routes))
+	}
+
+	prefixes := map[string]bool{}
+	for _, r := range routes {
+		prefixes[r.Prefix] = true
+	}
+
+	// 10.1.1.1 was released while NAT was on — should NOT be advertised.
+	if prefixes["10.1.1.1/32"] {
+		t.Fatal("stale IP 10.1.1.1 should not be advertised after DB refresh")
+	}
+
+	// 10.1.1.3 was created while NAT was on — should be advertised.
+	if !prefixes["10.1.1.3/32"] {
+		t.Fatal("new IP 10.1.1.3 should be advertised after DB refresh")
+	}
+}

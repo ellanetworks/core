@@ -345,7 +345,7 @@ func TestSetAdvertisingToggle(t *testing.T) {
 	}
 
 	// Disable advertising (simulate NAT enabled).
-	svc.SetAdvertising(false)
+	svc.SetAdvertising(false, nil)
 
 	if svc.IsAdvertising() {
 		t.Fatal("expected advertising=false after SetAdvertising(false)")
@@ -356,8 +356,8 @@ func TestSetAdvertisingToggle(t *testing.T) {
 		t.Fatalf("expected 0 advertised routes after disabling, got %d", len(routes))
 	}
 
-	// Re-enable advertising.
-	svc.SetAdvertising(true)
+	// Re-enable advertising (simulate NAT disabled — pass allocated IPs from DB).
+	svc.SetAdvertising(true, ips)
 
 	if !svc.IsAdvertising() {
 		t.Fatal("expected advertising=true after SetAdvertising(true)")
@@ -373,8 +373,8 @@ func TestSetAdvertisingNoOpWhenNotRunning(t *testing.T) {
 	svc := newTestService(t)
 
 	// Should not panic or error.
-	svc.SetAdvertising(true)
-	svc.SetAdvertising(false)
+	svc.SetAdvertising(true, nil)
+	svc.SetAdvertising(false, nil)
 }
 
 func TestUpdateFilterRemovesNewlyRejectedRoutes(t *testing.T) {

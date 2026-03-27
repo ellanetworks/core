@@ -1,5 +1,6 @@
 import React, { useCallback, useState, useEffect } from "react";
 import {
+  Box,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -340,42 +341,44 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
           }
           margin="normal"
         />
-        <TextField
-          fullWidth
-          label="Password"
-          type="password"
-          value={formValues.password}
-          onChange={(e) => handleChange("password", e.target.value)}
-          onBlur={() => handleBlur("password")}
-          margin="normal"
-          disabled={clearPassword}
-          placeholder={
-            peer.hasPassword
-              ? "Leave empty to keep current password"
-              : "Optional"
-          }
-          helperText={
-            clearPassword
-              ? "Password will be removed on save"
-              : "TCP MD5 authentication password"
-          }
-        />
-        {peer.hasPassword && (
-          <Button
-            size="small"
-            color="error"
-            onClick={() => {
-              setClearPassword((v) => !v);
-              if (!clearPassword) {
-                setFormValues((prev) => ({ ...prev, password: "" }));
-              }
-            }}
-            sx={{ mt: -0.5, mb: 1 }}
-            disabled={clearPassword && !!formValues.password}
-          >
-            {clearPassword ? "Cancel clear" : "Clear password"}
-          </Button>
-        )}
+        <Stack direction="row" spacing={1} alignItems="flex-start">
+          <TextField
+            fullWidth
+            label="Password"
+            type="password"
+            value={formValues.password}
+            onChange={(e) => handleChange("password", e.target.value)}
+            onBlur={() => handleBlur("password")}
+            margin="normal"
+            disabled={clearPassword}
+            placeholder={
+              peer.hasPassword
+                ? "Leave empty to keep current password"
+                : "Optional"
+            }
+            helperText={
+              clearPassword
+                ? "Password will be removed on save"
+                : "TCP MD5 authentication password"
+            }
+          />
+          {peer.hasPassword && (
+            <Button
+              size="small"
+              variant="outlined"
+              color={clearPassword ? "primary" : "error"}
+              onClick={() => {
+                setClearPassword((v) => !v);
+                if (!clearPassword) {
+                  setFormValues((prev) => ({ ...prev, password: "" }));
+                }
+              }}
+              sx={{ mt: "16px", minWidth: 70, height: 56 }}
+            >
+              {clearPassword ? "Undo" : "Clear"}
+            </Button>
+          )}
+        </Stack>
         <TextField
           fullWidth
           label="Description"
@@ -486,7 +489,7 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
         )}
 
         {rejectedPrefixes.length > 0 && (
-          <>
+          <Box sx={{ mt: 1 }}>
             <Button
               size="small"
               startIcon={<LockIcon fontSize="small" />}
@@ -502,7 +505,6 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
                 justifyContent: "flex-start",
                 textTransform: "none",
                 color: "text.secondary",
-                mt: 1,
               }}
             >
               {rejectedPrefixes.length} rejected{" "}
@@ -527,7 +529,7 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
                 </Table>
               </TableContainer>
             </Collapse>
-          </>
+          </Box>
         )}
       </DialogContent>
       <DialogActions>
