@@ -765,3 +765,91 @@ func TestSetAdvertisingReplacesStalePathsWithDBTruth(t *testing.T) {
 		t.Fatal("new IP 10.1.1.3 should be advertised after DB refresh")
 	}
 }
+
+func TestSetAdvertisingDisableEnableCycleNoLeak(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+
+	// Start advertising with set A.
+	setA := map[string]string{
+		"10.1.1.1": "imsi-001010000000001",
+		"10.1.1.2": "imsi-001010000000002",
+	}
+
+	err := svc.Start(ctx, settings, nil, setA, true)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	routes, _ := svc.GetRoutes()
+	if len(routes) != 2 {
+		t.Fatalf("expected 2 routes from set A, got %d", len(routes))
+	}
+
+	// --- Cycle 1: disable → enable with set B ---
+	svc.SetAdvertising(false, nil)
+
+	routes, _ = svc.GetRoutes()
+	if len(routes) != 0 {
+		t.Fatalf("expected 0 routes after first disable, got %d", len(routes))
+	}
+
+	setB := map[string]string{
+		"10.2.2.1": "imsi-001010000000010",
+	}
+
+	svc.SetAdvertising(true, setB)
+
+	routes, _ = svc.GetRoutes()
+	if len(routes) != 1 {
+		t.Fatalf("expected 1 route from set B, got %d", len(routes))
+	}
+
+	if routes[0].Prefix != "10.2.2.1/32" {
+		t.Fatalf("expected 10.2.2.1/32, got %s", routes[0].Prefix)
+	}
+
+	// --- Cycle 2: disable → enable with set C (disjoint from A and B) ---
+	svc.SetAdvertising(false, nil)
+
+	routes, _ = svc.GetRoutes()
+	if len(routes) != 0 {
+		t.Fatalf("expected 0 routes after second disable, got %d", len(routes))
+	}
+
+	setC := map[string]string{
+		"10.3.3.1": "imsi-001010000000020",
+		"10.3.3.2": "imsi-001010000000021",
+		"10.3.3.3": "imsi-001010000000022",
+	}
+
+	svc.SetAdvertising(true, setC)
+
+	routes, _ = svc.GetRoutes()
+	if len(routes) != 3 {
+		t.Fatalf("expected 3 routes from set C, got %d", len(routes))
+	}
+
+	prefixes := map[string]bool{}
+	for _, r := range routes {
+		prefixes[r.Prefix] = true
+	}
+
+	// No IPs from set A or set B should leak through.
+	for _, stale := range []string{"10.1.1.1/32", "10.1.1.2/32", "10.2.2.1/32"} {
+		if prefixes[stale] {
+			t.Fatalf("stale IP %s leaked from a previous cycle", stale)
+		}
+	}
+
+	// All set C IPs must be present.
+	for _, expected := range []string{"10.3.3.1/32", "10.3.3.2/32", "10.3.3.3/32"} {
+		if !prefixes[expected] {
+			t.Fatalf("expected IP %s from set C not found", expected)
+		}
+	}
+}
