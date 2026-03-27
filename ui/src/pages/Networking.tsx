@@ -1195,6 +1195,12 @@ export default function NetworkingPage() {
                 </Typography>
               </Box>
 
+              {bgpSettings?.enabled && !natInfo?.enabled && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Enabling NAT will stop advertising subscriber routes via BGP.
+                </Alert>
+              )}
+
               <Stack
                 direction={{ xs: "column", sm: "row" }}
                 spacing={2}
@@ -1211,12 +1217,6 @@ export default function NetworkingPage() {
                   label={natInfo?.enabled ? "NAT is ON" : "NAT is OFF"}
                 />
               </Stack>
-
-              {bgpSettings?.enabled && !natInfo?.enabled && (
-                <Alert severity="info" sx={{ mt: 2 }}>
-                  Enabling NAT will stop advertising subscriber routes via BGP.
-                </Alert>
-              )}
             </>
           )}
         </Box>
