@@ -109,6 +109,7 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
     detectPreset(peer.importPrefixes ?? []),
   );
 
+  const [clearPassword, setClearPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [isValid, setIsValid] = useState(false);
@@ -128,6 +129,7 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
       const prefixes = peer.importPrefixes ?? [];
       setImportPrefixes(prefixes);
       setImportPreset(detectPreset(prefixes));
+      setClearPassword(false);
       setErrors({});
       setTouched({});
       setAlert({ message: "" });
@@ -249,11 +251,18 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
     setLoading(true);
     setAlert({ message: "" });
     try {
+      let password: string | undefined;
+      if (clearPassword) {
+        password = "";
+      } else if (formValues.password) {
+        password = formValues.password;
+      }
+
       await updateBGPPeer(accessToken, peer.id, {
         address: formValues.address,
         remoteAS: formValues.remoteAS,
         holdTime: formValues.holdTime,
-        password: formValues.password || undefined,
+        password,
         description: formValues.description || undefined,
         importPrefixes: importPrefixes,
       });
@@ -297,6 +306,7 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
           onBlur={() => handleBlur("address")}
           error={!!errors.address && touched.address}
           helperText={touched.address ? errors.address : ""}
+          placeholder="e.g. 10.0.0.1"
           margin="normal"
           autoFocus
         />
@@ -308,7 +318,11 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
           onChange={(e) => handleChange("remoteAS", Number(e.target.value))}
           onBlur={() => handleBlur("remoteAS")}
           error={!!errors.remoteAS && touched.remoteAS}
-          helperText={touched.remoteAS ? errors.remoteAS : ""}
+          helperText={
+            touched.remoteAS && errors.remoteAS
+              ? errors.remoteAS
+              : "Autonomous System number of the remote peer"
+          }
           margin="normal"
         />
         <TextField
@@ -319,7 +333,11 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
           onChange={(e) => handleChange("holdTime", Number(e.target.value))}
           onBlur={() => handleBlur("holdTime")}
           error={!!errors.holdTime && touched.holdTime}
-          helperText={touched.holdTime ? errors.holdTime : ""}
+          helperText={
+            touched.holdTime && errors.holdTime
+              ? errors.holdTime
+              : "Seconds before the session is considered down (3\u201365535)"
+          }
           margin="normal"
         />
         <TextField
@@ -330,12 +348,34 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
           onChange={(e) => handleChange("password", e.target.value)}
           onBlur={() => handleBlur("password")}
           margin="normal"
+          disabled={clearPassword}
           placeholder={
             peer.hasPassword
               ? "Leave empty to keep current password"
               : "Optional"
           }
+          helperText={
+            clearPassword
+              ? "Password will be removed on save"
+              : "TCP MD5 authentication password"
+          }
         />
+        {peer.hasPassword && (
+          <Button
+            size="small"
+            color="error"
+            onClick={() => {
+              setClearPassword((v) => !v);
+              if (!clearPassword) {
+                setFormValues((prev) => ({ ...prev, password: "" }));
+              }
+            }}
+            sx={{ mt: -0.5, mb: 1 }}
+            disabled={clearPassword && !!formValues.password}
+          >
+            {clearPassword ? "Cancel clear" : "Clear password"}
+          </Button>
+        )}
         <TextField
           fullWidth
           label="Description"
@@ -361,7 +401,7 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
         >
           <ToggleButton value="none">Deny All</ToggleButton>
           <ToggleButton value="default-route">Default Route Only</ToggleButton>
-          <ToggleButton value="all">All</ToggleButton>
+          <ToggleButton value="all">Accept All</ToggleButton>
           <ToggleButton value="custom">Custom</ToggleButton>
         </ToggleButtonGroup>
 

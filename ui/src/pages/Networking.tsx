@@ -563,7 +563,7 @@ export default function NetworkingPage() {
   };
 
   const getImportPolicyLabel = (prefixes: BGPImportPrefix[] | undefined) => {
-    if (!prefixes || prefixes.length === 0) return "None";
+    if (!prefixes || prefixes.length === 0) return "Deny All";
     if (
       prefixes.length === 1 &&
       prefixes[0].prefix === "0.0.0.0/0" &&
@@ -575,7 +575,7 @@ export default function NetworkingPage() {
       prefixes[0].prefix === "0.0.0.0/0" &&
       prefixes[0].maxLength === 32
     )
-      return "All";
+      return "Accept All";
     return `${prefixes.length} ${prefixes.length === 1 ? "prefix" : "prefixes"}`;
   };
 
@@ -1402,6 +1402,13 @@ export default function NetworkingPage() {
                   from active PDU sessions and cannot be edited directly.
                 </Typography>
 
+                {isNATEnabled && (
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    Route advertisement is disabled while NAT is active. Disable
+                    NAT to advertise subscriber routes to BGP peers.
+                  </Alert>
+                )}
+
                 {bgpAdvertisedLoading ? (
                   <Box
                     sx={{ display: "flex", justifyContent: "center", mt: 4 }}
@@ -1417,35 +1424,17 @@ export default function NetworkingPage() {
                       disableRowSelectionOnClick
                       pageSizeOptions={[10, 25, 50]}
                       slots={{
-                        noRowsOverlay: () =>
-                          isNATEnabled ? (
-                            <Stack
-                              alignItems="center"
-                              justifyContent="center"
-                              sx={{ height: "100%", p: 2 }}
-                            >
-                              <Typography
-                                variant="body2"
-                                color="text.secondary"
-                              >
-                                Route advertisement is disabled while NAT is
-                                active.
-                              </Typography>
-                            </Stack>
-                          ) : (
-                            <Stack
-                              alignItems="center"
-                              justifyContent="center"
-                              sx={{ height: "100%", p: 2 }}
-                            >
-                              <Typography
-                                variant="body2"
-                                color="text.secondary"
-                              >
-                                No rows
-                              </Typography>
-                            </Stack>
-                          ),
+                        noRowsOverlay: () => (
+                          <Stack
+                            alignItems="center"
+                            justifyContent="center"
+                            sx={{ height: "100%", p: 2 }}
+                          >
+                            <Typography variant="body2" color="text.secondary">
+                              No advertised routes
+                            </Typography>
+                          </Stack>
+                        ),
                       }}
                       sx={{
                         width: "100%",

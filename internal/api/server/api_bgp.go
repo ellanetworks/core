@@ -73,7 +73,7 @@ type UpdateBGPPeerParams struct {
 	Address        string            `json:"address"`
 	RemoteAS       int               `json:"remoteAS"`
 	HoldTime       int               `json:"holdTime"`
-	Password       string            `json:"password"`
+	Password       *string           `json:"password,omitempty"`
 	Description    string            `json:"description"`
 	ImportPrefixes []BGPImportPrefix `json:"importPrefixes"`
 }
@@ -673,12 +673,17 @@ func UpdateBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Han
 		// Snapshot previous import prefixes for rollback.
 		prevImportPrefixes := loadImportPrefixesForPeer(r.Context(), dbInstance, id)
 
+		password := prevPeer.Password
+		if params.Password != nil {
+			password = *params.Password
+		}
+
 		dbPeer := &db.BGPPeer{
 			ID:          id,
 			Address:     params.Address,
 			RemoteAS:    params.RemoteAS,
 			HoldTime:    params.HoldTime,
-			Password:    params.Password,
+			Password:    password,
 			Description: params.Description,
 		}
 

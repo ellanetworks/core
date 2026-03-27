@@ -40,6 +40,6 @@ export function getImportPolicyLabel(
     prefixes[0].prefix === "0.0.0.0/0" &&
     prefixes[0].maxLength === 32
   )
-    return "All";
+    return "Accept All";
   return "Custom";
 }

@@ -274,6 +274,7 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
           onBlur={() => handleBlur("address")}
           error={!!errors.address && touched.address}
           helperText={touched.address ? errors.address : ""}
+          placeholder="e.g. 10.0.0.1"
           margin="normal"
           autoFocus
         />
@@ -285,7 +286,11 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
           onChange={(e) => handleChange("remoteAS", Number(e.target.value))}
           onBlur={() => handleBlur("remoteAS")}
           error={!!errors.remoteAS && touched.remoteAS}
-          helperText={touched.remoteAS ? errors.remoteAS : ""}
+          helperText={
+            touched.remoteAS && errors.remoteAS
+              ? errors.remoteAS
+              : "Autonomous System number of the remote peer"
+          }
           margin="normal"
         />
         <TextField
@@ -296,7 +301,11 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
           onChange={(e) => handleChange("holdTime", Number(e.target.value))}
           onBlur={() => handleBlur("holdTime")}
           error={!!errors.holdTime && touched.holdTime}
-          helperText={touched.holdTime ? errors.holdTime : ""}
+          helperText={
+            touched.holdTime && errors.holdTime
+              ? errors.holdTime
+              : "Seconds before the session is considered down (3\u201365535)"
+          }
           margin="normal"
         />
         <TextField
@@ -306,6 +315,7 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
           value={formValues.password}
           onChange={(e) => handleChange("password", e.target.value)}
           onBlur={() => handleBlur("password")}
+          helperText="TCP MD5 authentication password (optional)"
           margin="normal"
         />
         <TextField
@@ -333,7 +343,7 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
         >
           <ToggleButton value="none">Deny All</ToggleButton>
           <ToggleButton value="default-route">Default Route Only</ToggleButton>
-          <ToggleButton value="all">All</ToggleButton>
+          <ToggleButton value="all">Accept All</ToggleButton>
           <ToggleButton value="custom">Custom</ToggleButton>
         </ToggleButtonGroup>
 
