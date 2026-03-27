@@ -117,7 +117,8 @@ func (b *BGPService) handleSinglePath(ctx context.Context, path *apiutil.Path) {
 		return
 	}
 
-	// Check max-prefix limit for this peer before installing.
+	// Hold learnedMu across check → install → record to prevent TOCTOU race
+	// where concurrent goroutines could both pass the max-prefix check.
 	b.learnedMu.Lock()
 
 	if _, isUpdate := b.learnedRoutes[prefixStr]; !isUpdate {
@@ -139,18 +140,17 @@ func (b *BGPService) handleSinglePath(ctx context.Context, path *apiutil.Path) {
 		}
 	}
 
-	b.learnedMu.Unlock()
-
-	// Install or update the route in the kernel.
+	// Install or update the route in the kernel (still holding learnedMu).
 	err = b.kernel.ReplaceRoute(prefix, gwIP, bgpRouteMetric, kernel.N6)
 	if err != nil {
+		b.learnedMu.Unlock()
+
 		b.logger.Warn("failed to install BGP route",
 			zap.String("prefix", prefixStr), zap.Error(err))
 
 		return
 	}
 
-	b.learnedMu.Lock()
 	b.learnedRoutes[prefixStr] = learnedRoute{
 		prefix:  *prefix,
 		gateway: gwIP,

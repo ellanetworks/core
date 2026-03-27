@@ -391,6 +391,32 @@ func getPeerStatusMap(ctx context.Context, bgpService *bgp.BGPService) map[strin
 	return statusMap
 }
 
+// validatePeerParams validates common BGP peer parameters shared between
+// create and update handlers. It applies the default holdTime if zero.
+func validatePeerParams(address string, remoteAS int, holdTime *int, importPrefixes []BGPImportPrefix) error {
+	if address == "" {
+		return fmt.Errorf("address is required")
+	}
+
+	if ip := net.ParseIP(address); ip == nil || ip.To4() == nil {
+		return fmt.Errorf("address must be a valid IPv4 address")
+	}
+
+	if remoteAS < 1 || remoteAS > 4294967295 {
+		return fmt.Errorf("remoteAS must be between 1 and 4294967295")
+	}
+
+	if *holdTime == 0 {
+		*holdTime = 90
+	}
+
+	if *holdTime < 3 || *holdTime > 65535 {
+		return fmt.Errorf("holdTime must be between 3 and 65535")
+	}
+
+	return validateImportPrefixes(importPrefixes)
+}
+
 // validateImportPrefixes checks that all import prefix entries are valid.
 // Note: maxLength == 0 is valid for a /0 prefix and means "default route only"
 // (exact match on 0.0.0.0/0).
@@ -516,31 +542,7 @@ func CreateBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Han
 			return
 		}
 
-		if params.Address == "" {
-			writeError(r.Context(), w, http.StatusBadRequest, "address is required", nil, logger.APILog)
-			return
-		}
-
-		if ip := net.ParseIP(params.Address); ip == nil || ip.To4() == nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "address must be a valid IPv4 address", nil, logger.APILog)
-			return
-		}
-
-		if params.RemoteAS < 1 || params.RemoteAS > 4294967295 {
-			writeError(r.Context(), w, http.StatusBadRequest, "remoteAS must be between 1 and 4294967295", nil, logger.APILog)
-			return
-		}
-
-		if params.HoldTime == 0 {
-			params.HoldTime = 90
-		}
-
-		if params.HoldTime < 3 || params.HoldTime > 65535 {
-			writeError(r.Context(), w, http.StatusBadRequest, "holdTime must be between 3 and 65535", nil, logger.APILog)
-			return
-		}
-
-		if err := validateImportPrefixes(params.ImportPrefixes); err != nil {
+		if err := validatePeerParams(params.Address, params.RemoteAS, &params.HoldTime, params.ImportPrefixes); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 			return
 		}
@@ -641,31 +643,7 @@ func UpdateBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Han
 			return
 		}
 
-		if params.Address == "" {
-			writeError(r.Context(), w, http.StatusBadRequest, "address is required", nil, logger.APILog)
-			return
-		}
-
-		if ip := net.ParseIP(params.Address); ip == nil || ip.To4() == nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "address must be a valid IPv4 address", nil, logger.APILog)
-			return
-		}
-
-		if params.RemoteAS < 1 || params.RemoteAS > 4294967295 {
-			writeError(r.Context(), w, http.StatusBadRequest, "remoteAS must be between 1 and 4294967295", nil, logger.APILog)
-			return
-		}
-
-		if params.HoldTime == 0 {
-			params.HoldTime = 90
-		}
-
-		if params.HoldTime < 3 || params.HoldTime > 65535 {
-			writeError(r.Context(), w, http.StatusBadRequest, "holdTime must be between 3 and 65535", nil, logger.APILog)
-			return
-		}
-
-		if err := validateImportPrefixes(params.ImportPrefixes); err != nil {
+		if err := validatePeerParams(params.Address, params.RemoteAS, &params.HoldTime, params.ImportPrefixes); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 			return
 		}
@@ -759,6 +737,9 @@ func DeleteBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Han
 			return
 		}
 
+		// Snapshot import prefixes before deletion (cascade-deleted by FK).
+		prevImportPrefixes := loadImportPrefixesForPeer(r.Context(), dbInstance, id)
+
 		if err := dbInstance.DeleteBGPPeer(r.Context(), id); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete BGP peer", err, logger.APILog)
 
@@ -767,6 +748,7 @@ func DeleteBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Han
 
 		if err := reconfigureBGPPeers(r.Context(), dbInstance, bgpService); err != nil {
 			_ = dbInstance.CreateBGPPeer(r.Context(), prevPeer)
+			_ = saveImportPrefixesForPeer(r.Context(), dbInstance, prevPeer.ID, prevImportPrefixes)
 
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to apply BGP peer removal: "+err.Error(), err, logger.APILog)
 

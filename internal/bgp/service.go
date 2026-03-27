@@ -50,8 +50,8 @@ type learnedRoute struct {
 //	learnedMu   — protects learnedRoutes
 //
 // Never acquire mu while holding learnedMu. Code that needs both must acquire
-// mu first, then learnedMu. handleSinglePath releases mu.RLock before acquiring
-// learnedMu, which is the correct ordering.
+// mu first, then learnedMu. handleSinglePath snapshots mu-protected fields
+// under mu.RLock, releases it, then acquires learnedMu alone.
 type BGPService struct {
 	server      *gobgp.BgpServer
 	mu          sync.RWMutex
@@ -352,7 +352,6 @@ func (b *BGPService) Stop() error {
 	return b.stopLocked()
 }
 
-// Announce adds a /32 route for the given IP to the BGP RIB, tagged with the given owner.
 // Announce adds a /32 route for the given IP to the BGP RIB.
 // It is a no-op if the service is not running or not advertising (NAT enabled).
 func (b *BGPService) Announce(ip net.IP, owner string) error {
@@ -560,7 +559,6 @@ func (b *BGPService) IsAdvertising() bool {
 	return b.running && b.advertising
 }
 
-// SetAdvertising updates whether the BGP speaker advertises subscriber
 // SetAdvertising toggles whether the BGP speaker advertises subscriber /32
 // routes. When enabling, allocatedIPs (from the database) is used to rebuild
 // the paths map and announce all routes. When disabling, all paths are
