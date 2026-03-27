@@ -1211,6 +1211,14 @@ export default function NetworkingPage() {
                   label={natInfo?.enabled ? "NAT is ON" : "NAT is OFF"}
                 />
               </Stack>
+
+              {bgpSettings?.enabled && !natInfo?.enabled && (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  Enabling NAT will stop advertising subscriber routes via BGP.
+                  External routers will no longer learn individual subscriber IP
+                  routes.
+                </Alert>
+              )}
             </>
           )}
         </Box>

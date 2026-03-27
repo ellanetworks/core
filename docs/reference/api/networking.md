@@ -206,7 +206,7 @@ This path updates the N3 interface settings.
 
 ## List Routes
 
-This path returns the list of routes.
+This path returns the list of routes, including both user-configured static routes and BGP-learned routes. Each route includes a `source` field indicating its origin (`static` or `bgp`).
 
 
 | Method | Path             |
@@ -227,16 +227,25 @@ This path returns the list of routes.
     "result": {
         "items": [
             {
-                "id": 1,
+                "id": 0,
                 "destination": "0.0.0.0/0",
+                "gateway": "10.0.0.2",
+                "interface": "n6",
+                "metric": 200,
+                "source": "bgp"
+            },
+            {
+                "id": 1,
+                "destination": "10.0.0.0/24",
                 "gateway": "203.0.113.1",
                 "interface": "n6",
-                "metric": 0
+                "metric": 0,
+                "source": "static"
             }
         ],
         "page": 1,
-        "per_page": 10,
-        "total_count": 1
+        "per_page": 25,
+        "total_count": 2
     }
 }
 ```
@@ -504,7 +513,7 @@ Returns the list of configured BGP peers with live session status.
                 "address": "192.168.5.1",
                 "remoteAS": 64513,
                 "holdTime": 90,
-                "password": "********",
+                "hasPassword": true,
                 "description": "upstream router",
                 "importPrefixes": [
                     {
@@ -526,7 +535,7 @@ Returns the list of configured BGP peers with live session status.
 }
 ```
 
-The `password` field is masked in responses. It returns `"********"` if a password is set, or `""` if no password is configured.
+The `hasPassword` field indicates whether MD5 authentication is configured for the peer. The actual password is never returned by the API.
 
 The `state`, `uptime`, `prefixesSent`, `prefixesReceived`, and `prefixesAccepted` fields reflect the live BGP session status. They are empty/omitted when BGP is not running. The `uptime` field is only present when the session state is `established`.
 
@@ -553,7 +562,7 @@ None
         "address": "192.168.5.1",
         "remoteAS": 64513,
         "holdTime": 90,
-        "password": "********",
+        "hasPassword": true,
         "description": "upstream router",
         "importPrefixes": [
             {

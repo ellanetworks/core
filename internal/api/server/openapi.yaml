@@ -1551,7 +1551,7 @@ paths:
       operationId: listRoutes
       tags: [Routes]
       summary: List routes
-      description: Returns a paginated list of static IP routes configured on the network interfaces.
+      description: Returns a paginated list of routes including both user-configured static routes and BGP-learned routes. Each route has a `source` field (`static` or `bgp`) indicating its origin.
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
@@ -3526,9 +3526,9 @@ components:
           type: integer
         holdTime:
           type: integer
-        password:
-          type: string
-          description: Masked as "********" in responses when set.
+        hasPassword:
+          type: boolean
+          description: Whether the peer has an MD5 authentication password configured.
         description:
           type: string
         importPrefixes:
@@ -3551,7 +3551,7 @@ components:
         prefixesAccepted:
           type: integer
           description: Number of prefixes accepted and installed in the kernel from this peer.
-      required: [id, address, remoteAS, holdTime, password, description, importPrefixes]
+      required: [id, address, remoteAS, holdTime, hasPassword, description, importPrefixes]
 
     BGPPeerResponseEnvelope:
       type: object

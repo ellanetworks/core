@@ -36,12 +36,12 @@ import {
 } from "@/queries/bgp";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-
-const ipv4Regex =
-  /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
-
-const cidrRegex =
-  /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}\/\d{1,2}$/;
+import {
+  ipv4Regex,
+  cidrRegex,
+  detectPreset,
+  type ImportPreset,
+} from "@/utils/bgp";
 
 const schema = yup.object().shape({
   address: yup
@@ -61,25 +61,6 @@ const schema = yup.object().shape({
   password: yup.string(),
   description: yup.string(),
 });
-
-type ImportPreset = "none" | "default-route" | "all" | "custom";
-
-function detectPreset(prefixes: BGPImportPrefix[]): ImportPreset {
-  if (prefixes.length === 0) return "none";
-  if (
-    prefixes.length === 1 &&
-    prefixes[0].prefix === "0.0.0.0/0" &&
-    prefixes[0].maxLength === 0
-  )
-    return "default-route";
-  if (
-    prefixes.length === 1 &&
-    prefixes[0].prefix === "0.0.0.0/0" &&
-    prefixes[0].maxLength === 32
-  )
-    return "all";
-  return "custom";
-}
 
 interface EditBGPPeerModalProps {
   open: boolean;
@@ -455,7 +436,7 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
               size="small"
               startIcon={<AddIcon />}
               onClick={handleAddPrefix}
-              sx={{ mt: 1 }}
+              sx={{ mt: 1, mb: 2, display: "block" }}
             >
               Add Prefix
             </Button>
@@ -475,24 +456,25 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
                 )
               }
               onClick={() => setShowRejected((v) => !v)}
-              sx={{ mt: 3, textTransform: "none", color: "text.secondary" }}
+              sx={{
+                justifyContent: "flex-start",
+                textTransform: "none",
+                color: "text.secondary",
+                mt: 1,
+              }}
             >
-              {rejectedPrefixes.length} rejected prefix
-              {rejectedPrefixes.length !== 1 && "es"} (system)
+              {rejectedPrefixes.length} rejected{" "}
+              {rejectedPrefixes.length === 1 ? "prefix" : "prefixes"} (system)
             </Button>
             <Collapse in={showRejected}>
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{ mt: 1, mb: 1 }}
-              >
-                These prefixes are always rejected and cannot be edited.
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                These prefixes are always rejected regardless of import policy.
               </Typography>
               <TableContainer>
-                <Table size="small" sx={{ opacity: 0.7 }}>
+                <Table size="small">
                   <TableBody>
                     {rejectedPrefixes.map((rp) => (
-                      <TableRow key={rp.prefix}>
+                      <TableRow key={rp.prefix} sx={{ opacity: 0.7 }}>
                         <TableCell sx={{ fontFamily: "monospace" }}>
                           {rp.prefix}
                         </TableCell>

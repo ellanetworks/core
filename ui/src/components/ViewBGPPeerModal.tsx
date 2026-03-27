@@ -21,23 +21,7 @@ import {
   ExpandLess as ExpandLessIcon,
 } from "@mui/icons-material";
 import type { BGPPeer, BGPImportPrefix, RejectedPrefix } from "@/queries/bgp";
-
-function getImportPolicyLabel(prefixes: BGPImportPrefix[] | undefined): string {
-  if (!prefixes || prefixes.length === 0) return "Deny All";
-  if (
-    prefixes.length === 1 &&
-    prefixes[0].prefix === "0.0.0.0/0" &&
-    prefixes[0].maxLength === 0
-  )
-    return "Default Route Only";
-  if (
-    prefixes.length === 1 &&
-    prefixes[0].prefix === "0.0.0.0/0" &&
-    prefixes[0].maxLength === 32
-  )
-    return "All";
-  return "Custom";
-}
+import { getImportPolicyLabel } from "@/utils/bgp";
 
 interface ViewBGPPeerModalProps {
   open: boolean;
@@ -107,6 +91,15 @@ const ViewBGPPeerModal: React.FC<ViewBGPPeerModalProps> = ({
               <Typography variant="body2">{peer.description}</Typography>
             </Stack>
           )}
+
+          <Stack direction="row" justifyContent="space-between">
+            <Typography variant="body2" color="text.secondary">
+              Password
+            </Typography>
+            <Typography variant="body2">
+              {peer.hasPassword ? "Configured" : "Not set"}
+            </Typography>
+          </Stack>
 
           <Stack
             direction="row"
@@ -182,7 +175,11 @@ const ViewBGPPeerModal: React.FC<ViewBGPPeerModalProps> = ({
                     <ExpandMoreIcon fontSize="small" />
                   )
                 }
-                sx={{ justifyContent: "flex-start", textTransform: "none" }}
+                sx={{
+                  justifyContent: "flex-start",
+                  textTransform: "none",
+                  color: "text.secondary",
+                }}
               >
                 {rejectedPrefixes.length} rejected{" "}
                 {rejectedPrefixes.length === 1 ? "prefix" : "prefixes"} (system)

@@ -703,7 +703,7 @@ func (b *BGPService) withdrawPath(s *gobgp.BgpServer, ip net.IP) error {
 func (b *BGPService) listPeerStatusesLocked(ctx context.Context) ([]BGPPeerStatus, error) {
 	var statuses []BGPPeerStatus
 
-	err := b.server.ListPeer(ctx, &api.ListPeerRequest{}, func(peer *api.Peer) {
+	err := b.server.ListPeer(ctx, &api.ListPeerRequest{EnableAdvertised: true}, func(peer *api.Peer) {
 		ps := BGPPeerStatus{
 			Address:  peer.GetConf().GetNeighborAddress(),
 			RemoteAS: int(peer.GetConf().GetPeerAsn()),
