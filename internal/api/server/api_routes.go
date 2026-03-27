@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
@@ -26,6 +27,7 @@ type Route struct {
 	Gateway     string `json:"gateway"`
 	Interface   string `json:"interface"`
 	Metric      int    `json:"metric"`
+	Source      string `json:"source"`
 }
 
 type ListRoutesResponse struct {
@@ -68,7 +70,7 @@ var interfaceKernelMap = map[string]kernel.NetworkInterface{
 	"n6": kernel.N6,
 }
 
-func ListRoutes(dbInstance *db.Database) http.Handler {
+func ListRoutes(dbInstance *db.Database, bgpService *bgp.BGPService) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		page := atoiDefault(q.Get("page"), 1)
@@ -90,7 +92,22 @@ func ListRoutes(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		items := make([]Route, 0)
+		var learned []bgp.LearnedRoute
+		if bgpService != nil && bgpService.IsRunning() {
+			learned = bgpService.GetLearnedRoutes()
+		}
+
+		items := make([]Route, 0, len(dbRoutes)+len(learned))
+
+		for _, lr := range learned {
+			items = append(items, Route{
+				Destination: lr.Prefix,
+				Gateway:     lr.NextHop,
+				Interface:   "n6",
+				Metric:      200,
+				Source:      "bgp",
+			})
+		}
 
 		for _, dbRoute := range dbRoutes {
 			items = append(items, Route{
@@ -99,6 +116,7 @@ func ListRoutes(dbInstance *db.Database) http.Handler {
 				Gateway:     dbRoute.Gateway,
 				Interface:   dbRoute.Interface.String(),
 				Metric:      dbRoute.Metric,
+				Source:      "static",
 			})
 		}
 
@@ -106,7 +124,7 @@ func ListRoutes(dbInstance *db.Database) http.Handler {
 			Items:      items,
 			Page:       page,
 			PerPage:    perPage,
-			TotalCount: total,
+			TotalCount: total + len(learned),
 		}
 
 		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
@@ -141,6 +159,7 @@ func GetRoute(dbInstance *db.Database) http.Handler {
 			Gateway:     dbRoute.Gateway,
 			Interface:   dbRoute.Interface.String(),
 			Metric:      dbRoute.Metric,
+			Source:      "static",
 		}
 
 		writeResponse(r.Context(), w, routeResponse, http.StatusOK, logger.APILog)

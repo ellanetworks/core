@@ -20,6 +20,7 @@ const DataNetworksTableName = "data_networks"
 
 const (
 	listDataNetworksPagedStmt = "SELECT &DataNetwork.*, COUNT(*) OVER() AS &NumItems.count from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	listAllDataNetworksStmt   = "SELECT &DataNetwork.* FROM %s ORDER BY id ASC"
 	getDataNetworkStmt        = "SELECT &DataNetwork.* from %s WHERE name==$DataNetwork.name"
 	getDataNetworkByIDStmt    = "SELECT &DataNetwork.* FROM %s WHERE id==$DataNetwork.id"
 	createDataNetworkStmt     = "INSERT INTO %s (name, ipPool, dns, mtu) VALUES ($DataNetwork.name, $DataNetwork.ipPool, $DataNetwork.dns, $DataNetwork.mtu)"
@@ -92,6 +93,45 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 	span.SetStatus(codes.Ok, "")
 
 	return dataNetworks, count, nil
+}
+
+func (db *Database) ListAllDataNetworks(ctx context.Context) ([]DataNetwork, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			attribute.String("db.collection", DataNetworksTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DataNetworksTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "select").Inc()
+
+	var dataNetworks []DataNetwork
+
+	err := db.conn.Query(ctx, db.listAllDataNetworksStmt).GetAll(&dataNetworks)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetStatus(codes.Ok, "no rows")
+
+			return nil, nil
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return dataNetworks, nil
 }
 
 func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwork, error) {

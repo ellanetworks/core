@@ -37,7 +37,7 @@ func TestStartStop(t *testing.T) {
 		LocalAS: 65000,
 	}
 
-	err := svc.Start(ctx, settings, nil, nil)
+	err := svc.Start(ctx, settings, nil, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -65,14 +65,14 @@ func TestStartAlreadyRunning(t *testing.T) {
 		LocalAS: 65000,
 	}
 
-	err := svc.Start(ctx, settings, nil, nil)
+	err := svc.Start(ctx, settings, nil, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
 	defer func() { _ = svc.Stop() }()
 
-	err = svc.Start(ctx, settings, nil, nil)
+	err = svc.Start(ctx, settings, nil, nil, true)
 	if err == nil {
 		t.Fatal("expected error when starting already running service")
 	}
@@ -96,7 +96,7 @@ func TestAnnounceWithdraw(t *testing.T) {
 		LocalAS: 65000,
 	}
 
-	err := svc.Start(ctx, settings, nil, nil)
+	err := svc.Start(ctx, settings, nil, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -170,13 +170,13 @@ func TestStartWithInitialRoutes(t *testing.T) {
 		LocalAS: 65000,
 	}
 
-	allocatedIPs := []net.IP{
-		net.ParseIP("10.1.1.1"),
-		net.ParseIP("10.1.1.2"),
-		net.ParseIP("10.1.1.3"),
+	allocatedIPs := map[string]string{
+		"10.1.1.1": "imsi-001010000000001",
+		"10.1.1.2": "imsi-001010000000002",
+		"10.1.1.3": "imsi-001010000000003",
 	}
 
-	err := svc.Start(ctx, settings, nil, allocatedIPs)
+	err := svc.Start(ctx, settings, nil, allocatedIPs, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestStartWithPeers(t *testing.T) {
 		},
 	}
 
-	err := svc.Start(ctx, settings, peers, nil)
+	err := svc.Start(ctx, settings, peers, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -276,7 +276,7 @@ func TestReconfigureHotPeerAdd(t *testing.T) {
 		{Address: "192.168.1.1", RemoteAS: 65001, HoldTime: 90},
 	}
 
-	err := svc.Start(ctx, settings, peers, nil)
+	err := svc.Start(ctx, settings, peers, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -318,7 +318,7 @@ func TestReconfigureHotPeerRemove(t *testing.T) {
 		{Address: "192.168.1.2", RemoteAS: 65002, HoldTime: 90},
 	}
 
-	err := svc.Start(ctx, settings, peers, nil)
+	err := svc.Start(ctx, settings, peers, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -354,11 +354,11 @@ func TestReconfigureWithRestart(t *testing.T) {
 		LocalAS: 65000,
 	}
 
-	allocatedIPs := []net.IP{
-		net.ParseIP("10.1.1.1"),
+	allocatedIPs := map[string]string{
+		"10.1.1.1": "imsi-001010000000001",
 	}
 
-	err := svc.Start(ctx, settings, nil, allocatedIPs)
+	err := svc.Start(ctx, settings, nil, allocatedIPs, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -416,7 +416,7 @@ func TestAnnounceIPv6Rejected(t *testing.T) {
 		LocalAS: 65000,
 	}
 
-	err := svc.Start(ctx, settings, nil, nil)
+	err := svc.Start(ctx, settings, nil, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -443,7 +443,7 @@ func TestReconfigureHotPeerPropertyChange(t *testing.T) {
 		{Address: "192.168.1.1", RemoteAS: 65001, HoldTime: 90},
 	}
 
-	err := svc.Start(ctx, settings, peers, nil)
+	err := svc.Start(ctx, settings, peers, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -483,7 +483,7 @@ func TestMultipleAnnounceWithdraw(t *testing.T) {
 		LocalAS: 65000,
 	}
 
-	err := svc.Start(ctx, settings, nil, nil)
+	err := svc.Start(ctx, settings, nil, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -523,5 +523,333 @@ func TestMultipleAnnounceWithdraw(t *testing.T) {
 
 	if len(routes) != 2 {
 		t.Fatalf("expected 2 routes after withdraw, got %d", len(routes))
+	}
+}
+
+func TestIsAdvertising(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{
+		Enabled: true,
+		LocalAS: 65000,
+	}
+
+	// Start with advertising enabled
+	err := svc.Start(ctx, settings, nil, nil, true)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	if !svc.IsAdvertising() {
+		t.Fatal("expected IsAdvertising() to be true when started with advertising=true")
+	}
+
+	if !svc.IsRunning() {
+		t.Fatal("expected IsRunning() to be true")
+	}
+}
+
+func TestIsAdvertisingFalseWhenNATEnabled(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{
+		Enabled: true,
+		LocalAS: 65000,
+	}
+
+	// Start with advertising disabled (NAT enabled)
+	err := svc.Start(ctx, settings, nil, nil, false)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	if svc.IsAdvertising() {
+		t.Fatal("expected IsAdvertising() to be false when started with advertising=false")
+	}
+
+	if !svc.IsRunning() {
+		t.Fatal("expected IsRunning() to be true even when not advertising")
+	}
+}
+
+func TestAnnounceNoOpWhenNotAdvertising(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{
+		Enabled: true,
+		LocalAS: 65000,
+	}
+
+	// Start with advertising disabled (NAT enabled)
+	err := svc.Start(ctx, settings, nil, nil, false)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	// Announce should be a no-op
+	err = svc.Announce(net.ParseIP("10.1.1.1"), "test")
+	if err != nil {
+		t.Fatalf("Announce should succeed as no-op, got: %v", err)
+	}
+
+	routes, err := svc.GetRoutes()
+	if err != nil {
+		t.Fatalf("GetRoutes failed: %v", err)
+	}
+
+	if len(routes) != 0 {
+		t.Fatalf("expected 0 routes when not advertising, got %d", len(routes))
+	}
+}
+
+func TestStartWithNATSkipsInitialAnnouncements(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{
+		Enabled: true,
+		LocalAS: 65000,
+	}
+
+	allocatedIPs := map[string]string{
+		"10.1.1.1": "imsi-001010000000001",
+		"10.1.1.2": "imsi-001010000000002",
+	}
+
+	// Start with advertising disabled — should not announce IPs
+	err := svc.Start(ctx, settings, nil, allocatedIPs, false)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	routes, err := svc.GetRoutes()
+	if err != nil {
+		t.Fatalf("GetRoutes failed: %v", err)
+	}
+
+	if len(routes) != 0 {
+		t.Fatalf("expected 0 routes when NAT suppresses advertising, got %d", len(routes))
+	}
+}
+
+func TestIsAdvertisingFalseWhenNotRunning(t *testing.T) {
+	svc := newTestService(t)
+
+	if svc.IsAdvertising() {
+		t.Fatal("expected IsAdvertising() to be false when not running")
+	}
+}
+
+func TestSetAdvertisingAnnouncesNewIPsFromDB(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+
+	// Start with NAT on (no advertising, no IPs tracked).
+	err := svc.Start(ctx, settings, nil, nil, false)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	// Sessions were created while NAT was on — they only exist in the DB.
+	// The BGP service knows nothing about them.
+	dbIPs := map[string]string{
+		"10.1.1.1": "imsi-001010000000001",
+		"10.1.1.2": "imsi-001010000000002",
+		"10.1.1.3": "imsi-001010000000003",
+	}
+
+	// NAT toggled off: pass the current DB snapshot.
+	svc.SetAdvertising(true, dbIPs)
+
+	routes, err := svc.GetRoutes()
+	if err != nil {
+		t.Fatalf("GetRoutes failed: %v", err)
+	}
+
+	if len(routes) != 3 {
+		t.Fatalf("expected 3 routes after enabling advertising with DB IPs, got %d", len(routes))
+	}
+
+	// Verify ownership is preserved.
+	found := map[string]string{}
+	for _, r := range routes {
+		found[r.Prefix] = r.Subscriber
+	}
+
+	for _, imsi := range dbIPs {
+		foundIMSI := false
+
+		for _, sub := range found {
+			if sub == imsi {
+				foundIMSI = true
+
+				break
+			}
+		}
+
+		if !foundIMSI {
+			t.Errorf("subscriber %s not found in advertised routes", imsi)
+		}
+	}
+}
+
+func TestSetAdvertisingReplacesStalePathsWithDBTruth(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+
+	// Start advertising with 2 IPs.
+	initialIPs := map[string]string{
+		"10.1.1.1": "imsi-001010000000001",
+		"10.1.1.2": "imsi-001010000000002",
+	}
+
+	err := svc.Start(ctx, settings, nil, initialIPs, true)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	routes, _ := svc.GetRoutes()
+	if len(routes) != 2 {
+		t.Fatalf("expected 2 routes, got %d", len(routes))
+	}
+
+	// NAT enabled: all routes withdrawn.
+	svc.SetAdvertising(false, nil)
+
+	// While NAT was on, one session was released and a new one was created.
+	// DB now has a different set of IPs.
+	newIPs := map[string]string{
+		"10.1.1.2": "imsi-001010000000002",
+		"10.1.1.3": "imsi-001010000000003",
+	}
+
+	// NAT disabled: only the current DB snapshot should be advertised.
+	svc.SetAdvertising(true, newIPs)
+
+	routes, _ = svc.GetRoutes()
+	if len(routes) != 2 {
+		t.Fatalf("expected 2 routes (from new DB snapshot), got %d", len(routes))
+	}
+
+	prefixes := map[string]bool{}
+	for _, r := range routes {
+		prefixes[r.Prefix] = true
+	}
+
+	// 10.1.1.1 was released while NAT was on — should NOT be advertised.
+	if prefixes["10.1.1.1/32"] {
+		t.Fatal("stale IP 10.1.1.1 should not be advertised after DB refresh")
+	}
+
+	// 10.1.1.3 was created while NAT was on — should be advertised.
+	if !prefixes["10.1.1.3/32"] {
+		t.Fatal("new IP 10.1.1.3 should be advertised after DB refresh")
+	}
+}
+
+func TestSetAdvertisingDisableEnableCycleNoLeak(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+
+	// Start advertising with set A.
+	setA := map[string]string{
+		"10.1.1.1": "imsi-001010000000001",
+		"10.1.1.2": "imsi-001010000000002",
+	}
+
+	err := svc.Start(ctx, settings, nil, setA, true)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	routes, _ := svc.GetRoutes()
+	if len(routes) != 2 {
+		t.Fatalf("expected 2 routes from set A, got %d", len(routes))
+	}
+
+	// --- Cycle 1: disable → enable with set B ---
+	svc.SetAdvertising(false, nil)
+
+	routes, _ = svc.GetRoutes()
+	if len(routes) != 0 {
+		t.Fatalf("expected 0 routes after first disable, got %d", len(routes))
+	}
+
+	setB := map[string]string{
+		"10.2.2.1": "imsi-001010000000010",
+	}
+
+	svc.SetAdvertising(true, setB)
+
+	routes, _ = svc.GetRoutes()
+	if len(routes) != 1 {
+		t.Fatalf("expected 1 route from set B, got %d", len(routes))
+	}
+
+	if routes[0].Prefix != "10.2.2.1/32" {
+		t.Fatalf("expected 10.2.2.1/32, got %s", routes[0].Prefix)
+	}
+
+	// --- Cycle 2: disable → enable with set C (disjoint from A and B) ---
+	svc.SetAdvertising(false, nil)
+
+	routes, _ = svc.GetRoutes()
+	if len(routes) != 0 {
+		t.Fatalf("expected 0 routes after second disable, got %d", len(routes))
+	}
+
+	setC := map[string]string{
+		"10.3.3.1": "imsi-001010000000020",
+		"10.3.3.2": "imsi-001010000000021",
+		"10.3.3.3": "imsi-001010000000022",
+	}
+
+	svc.SetAdvertising(true, setC)
+
+	routes, _ = svc.GetRoutes()
+	if len(routes) != 3 {
+		t.Fatalf("expected 3 routes from set C, got %d", len(routes))
+	}
+
+	prefixes := map[string]bool{}
+	for _, r := range routes {
+		prefixes[r.Prefix] = true
+	}
+
+	// No IPs from set A or set B should leak through.
+	for _, stale := range []string{"10.1.1.1/32", "10.1.1.2/32", "10.2.2.1/32"} {
+		if prefixes[stale] {
+			t.Fatalf("stale IP %s leaked from a previous cycle", stale)
+		}
+	}
+
+	// All set C IPs must be present.
+	for _, expected := range []string{"10.3.3.1/32", "10.3.3.2/32", "10.3.3.3/32"} {
+		if !prefixes[expected] {
+			t.Fatalf("expected IP %s from set C not found", expected)
+		}
 	}
 }

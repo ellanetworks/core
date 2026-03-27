@@ -21,6 +21,7 @@ const (
 	listAllBGPPeersStmt   = "SELECT &BGPPeer.* FROM %s ORDER BY id ASC"
 	getBGPPeerStmt        = "SELECT &BGPPeer.* FROM %s WHERE id==$BGPPeer.id"
 	createBGPPeerStmt     = "INSERT INTO %s (address, remoteAS, holdTime, password, description) VALUES ($BGPPeer.address, $BGPPeer.remoteAS, $BGPPeer.holdTime, $BGPPeer.password, $BGPPeer.description)"
+	updateBGPPeerStmt     = "UPDATE %s SET address=$BGPPeer.address, remoteAS=$BGPPeer.remoteAS, holdTime=$BGPPeer.holdTime, password=$BGPPeer.password, description=$BGPPeer.description WHERE id==$BGPPeer.id"
 	deleteBGPPeerStmt     = "DELETE FROM %s WHERE id==$BGPPeer.id"
 	countBGPPeersStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
@@ -30,7 +31,7 @@ type BGPPeer struct {
 	Address     string `db:"address"`
 	RemoteAS    int    `db:"remoteAS"`
 	HoldTime    int    `db:"holdTime"`
-	Password    string `db:"password"`
+	Password    string `db:"password"` // stored in plaintext — required by GoBGP TCP MD5 API
 	Description string `db:"description"`
 }
 
@@ -215,6 +216,61 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 	}
 
 	peer.ID = int(id)
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "UPDATE", BGPPeersTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPDATE"),
+			attribute.String("db.collection", BGPPeersTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(BGPPeersTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "update").Inc()
+
+	var outcome sqlair.Outcome
+
+	err := db.conn.Query(ctx, db.updateBGPPeerStmt, peer).Get(&outcome)
+	if err != nil {
+		if isUniqueNameError(err) {
+			span.RecordError(ErrAlreadyExists)
+			span.SetStatus(codes.Error, "unique constraint failed")
+
+			return ErrAlreadyExists
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return fmt.Errorf("query failed: %w", err)
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "retrieving rows affected failed")
+
+		return fmt.Errorf("retrieving rows affected failed: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		span.RecordError(ErrNotFound)
+		span.SetStatus(codes.Error, "not found")
+
+		return ErrNotFound
+	}
 
 	span.SetStatus(codes.Ok, "")
 

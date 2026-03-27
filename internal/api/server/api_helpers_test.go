@@ -52,6 +52,14 @@ func (fk FakeKernel) IsIPForwardingEnabled() (bool, error) {
 	return true, nil
 }
 
+func (fk FakeKernel) ReplaceRoute(destination *net.IPNet, gateway net.IP, priority int, networkInterface kernel.NetworkInterface) error {
+	return nil
+}
+
+func (fk FakeKernel) ListRoutesByPriority(priority int, networkInterface kernel.NetworkInterface) ([]net.IPNet, error) {
+	return nil, nil
+}
+
 func (fk FakeKernel) EnsureGatewaysOnInterfaceInNeighTable(ifKey kernel.NetworkInterface) error {
 	return nil
 }

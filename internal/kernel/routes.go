@@ -26,6 +26,8 @@ type Kernel interface {
 	IsIPForwardingEnabled() (bool, error)
 	CreateRoute(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) error
 	DeleteRoute(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) error
+	ReplaceRoute(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) error
+	ListRoutesByPriority(priority int, ifKey NetworkInterface) ([]net.IPNet, error)
 	InterfaceExists(ifKey NetworkInterface) (bool, error)
 	RouteExists(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) (bool, error)
 	EnsureGatewaysOnInterfaceInNeighTable(ifKey NetworkInterface) error
@@ -102,6 +104,71 @@ func (rk *RealKernel) DeleteRoute(destination *net.IPNet, gateway net.IP, priori
 	}
 
 	return nil
+}
+
+// ReplaceRoute creates or updates a route in the kernel for the interface defined by ifKey.
+// Unlike CreateRoute, this is idempotent — it will update an existing route with the same
+// destination and priority rather than returning an error.
+func (rk *RealKernel) ReplaceRoute(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) error {
+	interfaceName, ok := rk.ifMapping[ifKey]
+	if !ok {
+		return fmt.Errorf("invalid interface key: %v", ifKey)
+	}
+
+	link, err := netlink.LinkByName(interfaceName)
+	if err != nil {
+		return fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
+	}
+
+	nlRoute := netlink.Route{
+		Dst:       destination,
+		Gw:        gateway,
+		LinkIndex: link.Attrs().Index,
+		Priority:  priority,
+		Table:     unix.RT_TABLE_MAIN,
+	}
+
+	if err := netlink.RouteReplace(&nlRoute); err != nil {
+		return fmt.Errorf("failed to replace route: %v", err)
+	}
+
+	logger.EllaLog.Debug("Replaced route", zap.String("destination", destination.String()), zap.String("gateway", gateway.String()), zap.Int("priority", priority), zap.String("interface", interfaceName))
+
+	return addNeighbourForLink(gateway, link)
+}
+
+// ListRoutesByPriority returns all route destinations with the given priority (metric)
+// on the interface defined by ifKey.
+func (rk *RealKernel) ListRoutesByPriority(priority int, ifKey NetworkInterface) ([]net.IPNet, error) {
+	interfaceName, ok := rk.ifMapping[ifKey]
+	if !ok {
+		return nil, fmt.Errorf("invalid interface key: %v", ifKey)
+	}
+
+	link, err := netlink.LinkByName(interfaceName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
+	}
+
+	nlRoute := netlink.Route{
+		LinkIndex: link.Attrs().Index,
+		Table:     unix.RT_TABLE_MAIN,
+	}
+
+	routes, err := netlink.RouteListFiltered(unix.AF_INET, &nlRoute, netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list routes: %v", err)
+	}
+
+	var result []net.IPNet
+
+	for _, r := range routes {
+		if r.Priority == priority && r.Dst != nil {
+			result = append(result, *r.Dst)
+		}
+	}
+
+	return result, nil
 }
 
 // InterfaceExists checks if the interface corresponding to ifKey exists.

@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/internal/kernel"
 	api "github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	bgppacket "github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -18,33 +20,134 @@ import (
 
 const defaultListenPort int32 = 179
 
+// bgpRouteMetric is the fixed kernel route metric for all BGP-learned routes.
+const bgpRouteMetric = 200
+
+// MaxLearnedRoutesPerPeer is the maximum number of routes that can be learned
+// from a single BGP peer. Routes beyond this limit are silently dropped.
+// This prevents a misconfigured or malicious peer from flooding the kernel
+// routing table.
+const MaxLearnedRoutesPerPeer = 1000
+
 // ownedPath tracks an advertised prefix and its owner.
 type ownedPath struct {
 	ip    net.IP
 	owner string
 }
 
+// learnedRoute tracks a BGP-learned route installed in the kernel.
+type learnedRoute struct {
+	prefix  net.IPNet
+	gateway net.IP
+	peer    string // peer address that advertised this route
+}
+
 // BGPService manages the embedded BGP speaker.
+//
+// Lock hierarchy (acquire in this order to avoid deadlocks):
+//
+//	mu          — protects server, running, advertising, settings, peers, paths
+//	learnedMu   — protects learnedRoutes
+//
+// Never acquire mu while holding learnedMu. Code that needs both must acquire
+// mu first, then learnedMu. handleSinglePath snapshots mu-protected fields
+// under mu.RLock, releases it, then acquires learnedMu alone.
 type BGPService struct {
-	server     *gobgp.BgpServer
-	mu         sync.RWMutex
-	running    bool
-	settings   BGPSettings
-	peers      []BGPPeer
-	paths      map[string]ownedPath // keyed by IP string e.g. "10.45.0.3"
-	n6Addr     net.IP
-	logger     *zap.Logger
-	listenPort int32
+	server      *gobgp.BgpServer
+	mu          sync.RWMutex
+	running     bool
+	advertising bool // false when NAT is enabled — suppresses route announcements
+	settings    BGPSettings
+	peers       []BGPPeer
+	paths       map[string]ownedPath // keyed by IP string e.g. "10.45.0.3"
+	n6Addr      net.IP
+	logger      *zap.Logger
+	listenPort  int32
+
+	// Route learning dependencies (optional — nil means route learning is disabled)
+	kernel      kernel.Kernel
+	importStore ImportPrefixStore
+	filter      *RouteFilter
+
+	// learnedMu protects learnedRoutes. Acquired after mu when both are needed.
+	learnedMu     sync.RWMutex
+	learnedRoutes map[string]learnedRoute // keyed by prefix string e.g. "0.0.0.0/0"
+	cancelWatch   context.CancelFunc
+}
+
+// Option configures the BGP service.
+type Option func(*BGPService)
+
+// WithKernel sets the kernel interface for installing learned routes.
+func WithKernel(k kernel.Kernel) Option {
+	return func(b *BGPService) { b.kernel = k }
+}
+
+// WithImportPrefixStore sets the store for loading per-peer import prefix lists.
+func WithImportPrefixStore(s ImportPrefixStore) Option {
+	return func(b *BGPService) { b.importStore = s }
+}
+
+// WithRouteFilter sets the safety rejection filter for learned routes.
+func WithRouteFilter(f *RouteFilter) Option {
+	return func(b *BGPService) { b.filter = f }
+}
+
+// UpdateFilter replaces the safety rejection filter and re-evaluates all
+// learned routes against the new filter. Routes that now match a reject
+// prefix are immediately removed from the kernel.
+func (b *BGPService) UpdateFilter(f *RouteFilter) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b.filter = f
+
+	if !b.running || !b.routeLearningEnabled() {
+		return
+	}
+
+	b.learnedMu.Lock()
+	defer b.learnedMu.Unlock()
+
+	removed := 0
+
+	for prefixStr, lr := range b.learnedRoutes {
+		dst := lr.prefix
+
+		if f.overlapsAny(&dst) {
+			err := b.kernel.DeleteRoute(&dst, lr.gateway, bgpRouteMetric, kernel.N6)
+			if err != nil {
+				b.logger.Warn("failed to remove route rejected by updated filter",
+					zap.String("prefix", prefixStr), zap.Error(err))
+			}
+
+			delete(b.learnedRoutes, prefixStr)
+
+			removed++
+		}
+	}
+
+	if removed > 0 {
+		b.logger.Info("removed learned routes after filter update",
+			zap.Int("removed", removed), zap.Int("remaining", len(b.learnedRoutes)))
+	}
 }
 
 // New creates a BGPService. Does not start the speaker.
-func New(n6Addr net.IP, logger *zap.Logger) *BGPService {
-	return &BGPService{
-		n6Addr:     n6Addr,
-		logger:     logger,
-		listenPort: defaultListenPort,
-		paths:      make(map[string]ownedPath),
+func New(n6Addr net.IP, logger *zap.Logger, opts ...Option) *BGPService {
+	b := &BGPService{
+		n6Addr:        n6Addr,
+		logger:        logger,
+		listenPort:    defaultListenPort,
+		paths:         make(map[string]ownedPath),
+		learnedRoutes: make(map[string]learnedRoute),
 	}
+
+	for _, opt := range opts {
+		opt(b)
+	}
+
+	return b
 }
 
 // SetListenPort overrides the BGP listen port. Use -1 in tests to disable TCP listening.
@@ -52,15 +155,34 @@ func (b *BGPService) SetListenPort(port int32) {
 	b.listenPort = port
 }
 
+// InjectLearnedRouteForTest adds a learned route to the in-memory map without
+// actually installing it in the kernel. Used by tests to set up state before
+// testing reconfiguration and cleanup methods.
+func (b *BGPService) InjectLearnedRouteForTest(prefix net.IPNet, gateway net.IP, peer string) {
+	b.learnedMu.Lock()
+	defer b.learnedMu.Unlock()
+
+	b.learnedRoutes[prefix.String()] = learnedRoute{
+		prefix:  prefix,
+		gateway: gateway,
+		peer:    peer,
+	}
+}
+
 // Start initializes the GoBGP server with the given settings and peers,
 // and announces /32 routes for all currently allocated IPs.
-func (b *BGPService) Start(ctx context.Context, settings BGPSettings, peers []BGPPeer, allocatedIPs []net.IP) error {
+// allocatedIPs maps IP strings (e.g. "10.45.0.1") to subscriber IMSIs.
+// When advertising is false (NAT enabled), the BGP speaker starts but does not
+// announce subscriber /32 routes.
+func (b *BGPService) Start(ctx context.Context, settings BGPSettings, peers []BGPPeer, allocatedIPs map[string]string, advertising bool) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	if b.running {
 		return fmt.Errorf("BGP service is already running")
 	}
+
+	b.advertising = advertising
 
 	return b.startLocked(ctx, settings, peers, allocatedIPs)
 }
@@ -86,15 +208,26 @@ func (b *BGPService) resolveListenPort(settings BGPSettings) int32 {
 	return defaultListenPort
 }
 
+// routeLearningEnabled returns true if the service has all dependencies
+// needed to learn routes from peers and install them in the kernel.
+func (b *BGPService) routeLearningEnabled() bool {
+	return b.kernel != nil && b.importStore != nil && b.filter != nil
+}
+
 // startLocked starts the GoBGP server. Must be called with mu held.
 // If allocatedIPs is nil, existing paths from the in-memory map are replayed.
-func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peers []BGPPeer, allocatedIPs []net.IP) error {
+func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peers []BGPPeer, allocatedIPs map[string]string) error {
 	routerID := settings.RouterID
 	if routerID == "" {
 		routerID = b.n6Addr.String()
 	}
 
 	listenPort := b.resolveListenPort(settings)
+
+	// Clean stale BGP routes from a prior crash before starting the speaker.
+	if b.routeLearningEnabled() {
+		b.cleanStaleRoutes()
+	}
 
 	s := gobgp.NewBgpServer(gobgp.GrpcListenAddress(""))
 	go s.Serve()
@@ -120,18 +253,29 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 	}
 
 	if allocatedIPs != nil {
-		// Fresh start: announce from DB and populate the paths map.
-		b.paths = make(map[string]ownedPath, len(allocatedIPs))
+		if b.advertising {
+			// Fresh start with advertising: populate paths and announce.
+			b.paths = make(map[string]ownedPath, len(allocatedIPs))
 
-		for _, ip := range allocatedIPs {
-			if err := b.announcePath(s, ip); err != nil {
-				b.logger.Warn("failed to announce initial BGP route",
-					zap.String("ip", ip.String()), zap.Error(err))
+			for ipStr, subscriber := range allocatedIPs {
+				ip := net.ParseIP(ipStr)
+				if ip == nil {
+					continue
+				}
+
+				if err := b.announcePath(s, ip); err != nil {
+					b.logger.Warn("failed to announce initial BGP route",
+						zap.String("ip", ipStr), zap.Error(err))
+				}
+
+				b.paths[ipStr] = ownedPath{ip: ip, owner: subscriber}
 			}
-
-			b.paths[ip.String()] = ownedPath{ip: ip, owner: ""}
+		} else {
+			// Fresh start without advertising: paths map stays empty.
+			b.paths = make(map[string]ownedPath)
+			b.logger.Info("Route advertisement suppressed (NAT is enabled)")
 		}
-	} else {
+	} else if b.advertising {
 		// Replay from in-memory paths map (after reconfiguration restart).
 		for _, op := range b.paths {
 			if err := b.announcePath(s, op.ip); err != nil {
@@ -145,6 +289,21 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 	b.running = true
 	b.settings = settings
 	b.peers = peers
+
+	// Start watching best paths for route learning.
+	if b.routeLearningEnabled() {
+		watchCtx, cancel := context.WithCancel(context.Background())
+
+		if err := b.startWatchBestPaths(watchCtx, s); err != nil {
+			cancel()
+
+			_ = s.StopBgp(ctx, &api.StopBgpRequest{})
+
+			return fmt.Errorf("failed to start best-path watcher: %w", err)
+		}
+
+		b.cancelWatch = cancel
+	}
 
 	b.logger.Info("BGP service started",
 		zap.Int("localAS", settings.LocalAS),
@@ -161,6 +320,15 @@ func (b *BGPService) stopLocked() error {
 	if !b.running {
 		return nil
 	}
+
+	// Stop the best-path watcher before shutting down GoBGP.
+	if b.cancelWatch != nil {
+		b.cancelWatch()
+		b.cancelWatch = nil
+	}
+
+	// Remove all learned routes from the kernel.
+	b.removeAllLearnedRoutes()
 
 	ctx := context.Background()
 
@@ -184,12 +352,13 @@ func (b *BGPService) Stop() error {
 	return b.stopLocked()
 }
 
-// Announce adds a /32 route for the given IP to the BGP RIB, tagged with the given owner.
+// Announce adds a /32 route for the given IP to the BGP RIB.
+// It is a no-op if the service is not running or not advertising (NAT enabled).
 func (b *BGPService) Announce(ip net.IP, owner string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if !b.running {
+	if !b.running || !b.advertising {
 		return nil
 	}
 
@@ -203,11 +372,12 @@ func (b *BGPService) Announce(ip net.IP, owner string) error {
 }
 
 // Withdraw removes a /32 route for the given IP from the BGP RIB.
+// It is a no-op if the service is not running or not advertising (NAT enabled).
 func (b *BGPService) Withdraw(ip net.IP) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if !b.running {
+	if !b.running || !b.advertising {
 		return nil
 	}
 
@@ -259,6 +429,12 @@ func (b *BGPService) Reconfigure(ctx context.Context, settings BGPSettings, peer
 		b.reconcilePeers(ctx, peers)
 		b.settings = settings
 		b.peers = peers
+
+		// Re-evaluate learned routes against the (possibly changed) import prefix lists.
+		if b.routeLearningEnabled() {
+			b.reEvaluateLearnedRoutes(ctx, peers)
+			b.replayGlobalRIB(ctx, peers)
+		}
 	}
 
 	return nil
@@ -283,7 +459,7 @@ func (b *BGPService) GetStatus(ctx context.Context) (*BGPStatus, error) {
 	}, nil
 }
 
-// GetRoutes returns the currently advertised routes.
+// GetRoutes returns the currently advertised routes, sorted by prefix.
 func (b *BGPService) GetRoutes() ([]BGPRoute, error) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
@@ -292,7 +468,69 @@ func (b *BGPService) GetRoutes() ([]BGPRoute, error) {
 		return nil, nil
 	}
 
-	return b.listRoutesLocked()
+	routes, err := b.listRoutesLocked()
+	if err != nil {
+		return nil, err
+	}
+
+	sort.Slice(routes, func(i, j int) bool {
+		return routes[i].Prefix < routes[j].Prefix
+	})
+
+	return routes, nil
+}
+
+// GetLearnedRoutes returns the currently installed BGP-learned routes, sorted by prefix.
+func (b *BGPService) GetLearnedRoutes() []LearnedRoute {
+	b.learnedMu.RLock()
+	defer b.learnedMu.RUnlock()
+
+	routes := make([]LearnedRoute, 0, len(b.learnedRoutes))
+
+	for _, lr := range b.learnedRoutes {
+		routes = append(routes, LearnedRoute{
+			Prefix:  lr.prefix.String(),
+			NextHop: lr.gateway.String(),
+			Peer:    lr.peer,
+		})
+	}
+
+	sort.Slice(routes, func(i, j int) bool {
+		return routes[i].Prefix < routes[j].Prefix
+	})
+
+	return routes
+}
+
+// CountLearnedRoutesByPeer returns the number of learned routes from a specific peer address.
+func (b *BGPService) CountLearnedRoutesByPeer(peerAddr string) int {
+	b.learnedMu.RLock()
+	defer b.learnedMu.RUnlock()
+
+	count := 0
+
+	for _, lr := range b.learnedRoutes {
+		if lr.peer == peerAddr {
+			count++
+		}
+	}
+
+	return count
+}
+
+// LearnedRouteCountsByPeer returns a map from peer address to learned route count.
+// More efficient than calling CountLearnedRoutesByPeer per peer.
+func (b *BGPService) LearnedRouteCountsByPeer() map[string]int {
+	b.learnedMu.RLock()
+	defer b.learnedMu.RUnlock()
+
+	counts := make(map[string]int, len(b.learnedRoutes))
+
+	for _, lr := range b.learnedRoutes {
+		counts[lr.peer]++
+	}
+
+	return counts
 }
 
 // GetEffectiveRouterID resolves an empty router ID to the N6 address default.
@@ -310,6 +548,61 @@ func (b *BGPService) IsRunning() bool {
 	defer b.mu.RUnlock()
 
 	return b.running
+}
+
+// IsAdvertising returns true if the BGP speaker is running and advertising
+// subscriber routes. Returns false when NAT is enabled.
+func (b *BGPService) IsAdvertising() bool {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	return b.running && b.advertising
+}
+
+// SetAdvertising toggles whether the BGP speaker advertises subscriber /32
+// routes. When enabling, allocatedIPs (from the database) is used to rebuild
+// the paths map and announce all routes. When disabling, all paths are
+// withdrawn and the map is cleared. It is a no-op if the service is not running.
+func (b *BGPService) SetAdvertising(advertising bool, allocatedIPs map[string]string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if !b.running || b.advertising == advertising {
+		return
+	}
+
+	b.advertising = advertising
+
+	if advertising {
+		b.paths = make(map[string]ownedPath, len(allocatedIPs))
+
+		for ipStr, subscriber := range allocatedIPs {
+			ip := net.ParseIP(ipStr)
+			if ip == nil {
+				continue
+			}
+
+			if err := b.announcePath(b.server, ip); err != nil {
+				b.logger.Warn("failed to announce route after enabling advertising",
+					zap.String("ip", ipStr), zap.Error(err))
+			}
+
+			b.paths[ipStr] = ownedPath{ip: ip, owner: subscriber}
+		}
+
+		b.logger.Info("BGP route advertising enabled", zap.Int("routes", len(b.paths)))
+	} else {
+		for _, op := range b.paths {
+			if err := b.withdrawPath(b.server, op.ip); err != nil {
+				b.logger.Warn("failed to withdraw route after disabling advertising",
+					zap.String("ip", op.ip.String()), zap.Error(err))
+			}
+		}
+
+		b.paths = make(map[string]ownedPath)
+
+		b.logger.Info("BGP route advertising suppressed (NAT enabled)")
+	}
 }
 
 // addPeer adds a single peer to the GoBGP server.
@@ -423,7 +716,7 @@ func (b *BGPService) withdrawPath(s *gobgp.BgpServer, ip net.IP) error {
 func (b *BGPService) listPeerStatusesLocked(ctx context.Context) ([]BGPPeerStatus, error) {
 	var statuses []BGPPeerStatus
 
-	err := b.server.ListPeer(ctx, &api.ListPeerRequest{}, func(peer *api.Peer) {
+	err := b.server.ListPeer(ctx, &api.ListPeerRequest{EnableAdvertised: true}, func(peer *api.Peer) {
 		ps := BGPPeerStatus{
 			Address:  peer.GetConf().GetNeighborAddress(),
 			RemoteAS: int(peer.GetConf().GetPeerAsn()),
@@ -443,11 +736,12 @@ func (b *BGPService) listPeerStatusesLocked(ctx context.Context) ([]BGPPeerStatu
 			}
 		}
 
-		// Count prefixes sent from AfiSafi state
+		// Count prefixes sent/received from AfiSafi state
 		for _, afiSafi := range peer.GetAfiSafis() {
 			afiState := afiSafi.GetState()
 			if afiState != nil {
 				ps.PrefixesSent += int(afiState.GetAdvertised())
+				ps.PrefixesReceived += int(afiState.GetReceived())
 			}
 		}
 
@@ -512,6 +806,9 @@ func (b *BGPService) listRoutesLocked() ([]BGPRoute, error) {
 
 // peerPropertiesMatch returns true if two peers have the same configuration
 // (ignoring the ID field which is a DB artifact).
+// Note: Address is intentionally not compared here because reconcilePeers uses
+// the address as the map key. An address change appears as a remove + add,
+// which correctly triggers learned route cleanup for the old address.
 func peerPropertiesMatch(a, b BGPPeer) bool {
 	return a.RemoteAS == b.RemoteAS &&
 		a.HoldTime == b.HoldTime &&
@@ -540,6 +837,8 @@ func (b *BGPService) reconcilePeers(ctx context.Context, desired []BGPPeer) {
 			if err != nil {
 				b.logger.Warn("failed to delete BGP peer", zap.String("address", addr), zap.Error(err))
 			}
+
+			b.removeLearnedRoutesForPeer(addr)
 		}
 	}
 

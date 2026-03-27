@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import {
+  Alert,
   Box,
   Typography,
   Button,
@@ -19,7 +20,11 @@ import {
   TableRow,
 } from "@mui/material";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
-import { Delete as DeleteIcon, Edit as EditIcon } from "@mui/icons-material";
+import {
+  Delete as DeleteIcon,
+  Edit as EditIcon,
+  Visibility as ViewIcon,
+} from "@mui/icons-material";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -53,14 +58,21 @@ import {
   updateBGPSettings,
   listBGPPeers,
   deleteBGPPeer,
-  getBGPRoutes,
+  getBGPAdvertisedRoutes,
+  getBGPLearnedRoutes,
   type BGPSettings,
   type ListBGPPeersResponse,
-  type BGPRoutesResponse,
+  type BGPAdvertisedRoutesResponse,
+  type BGPLearnedRoutesResponse,
   type BGPPeer as APIBGPPeer,
-  type BGPRoute,
+  type BGPAdvertisedRoute,
+  type BGPLearnedRoute,
+  type BGPImportPrefix,
+  type RejectedPrefix,
 } from "@/queries/bgp";
 import CreateBGPPeerModal from "@/components/CreateBGPPeerModal";
+import EditBGPPeerModal from "@/components/EditBGPPeerModal";
+import ViewBGPPeerModal from "@/components/ViewBGPPeerModal";
 import EditBGPSettingsModal from "@/components/EditBGPSettingsModal";
 
 // Flow Accounting
@@ -336,6 +348,22 @@ export default function NetworkingPage() {
       { field: "gateway", headerName: "Gateway", flex: 1, minWidth: 160 },
       { field: "interface", headerName: "Interface", flex: 1, minWidth: 140 },
       { field: "metric", headerName: "Metric", width: 110 },
+      {
+        field: "source",
+        headerName: "Source",
+        width: 110,
+        renderCell: (params: GridRenderCellParams<APIRoute>) => {
+          const source = params.row.source;
+          return (
+            <Chip
+              size="small"
+              label={source === "bgp" ? "BGP" : "Static"}
+              color={source === "bgp" ? "info" : "default"}
+              variant="outlined"
+            />
+          );
+        },
+      },
       ...(canEdit
         ? [
             {
@@ -345,14 +373,17 @@ export default function NetworkingPage() {
               width: 100,
               sortable: false,
               disableColumnMenu: true,
-              getActions: (p: { row: APIRoute }) => [
-                <GridActionsCellItem
-                  key="delete"
-                  icon={<DeleteIcon color="primary" />}
-                  label="Delete"
-                  onClick={() => handleRequestDeleteRoute(p.row.id)}
-                />,
-              ],
+              getActions: (p: { row: APIRoute }) =>
+                p.row.source === "bgp"
+                  ? []
+                  : [
+                      <GridActionsCellItem
+                        key="delete"
+                        icon={<DeleteIcon color="primary" />}
+                        label="Delete"
+                        onClick={() => handleRequestDeleteRoute(p.row.id)}
+                      />,
+                    ],
             } as GridColDef<APIRoute>,
           ]
         : []),
@@ -515,23 +546,50 @@ export default function NetworkingPage() {
     }
   };
 
+  const [isEditBGPPeerOpen, setEditBGPPeerOpen] = useState(false);
+  const [editBGPPeer, setEditBGPPeer] = useState<APIBGPPeer | null>(null);
+
+  const handleEditBGPPeer = (peer: APIBGPPeer) => {
+    setEditBGPPeer(peer);
+    setEditBGPPeerOpen(true);
+  };
+
+  const [isViewBGPPeerOpen, setViewBGPPeerOpen] = useState(false);
+  const [viewBGPPeer, setViewBGPPeer] = useState<APIBGPPeer | null>(null);
+
+  const handleViewBGPPeer = (peer: APIBGPPeer) => {
+    setViewBGPPeer(peer);
+    setViewBGPPeerOpen(true);
+  };
+
+  const getImportPolicyLabel = (prefixes: BGPImportPrefix[] | undefined) => {
+    if (!prefixes || prefixes.length === 0) return "Deny All";
+    if (
+      prefixes.length === 1 &&
+      prefixes[0].prefix === "0.0.0.0/0" &&
+      prefixes[0].maxLength === 0
+    )
+      return "Default Route Only";
+    if (
+      prefixes.length === 1 &&
+      prefixes[0].prefix === "0.0.0.0/0" &&
+      prefixes[0].maxLength === 32
+    )
+      return "Accept All";
+    return `${prefixes.length} ${prefixes.length === 1 ? "prefix" : "prefixes"}`;
+  };
+
   const bgpPeerColumns: GridColDef<APIBGPPeer>[] = useMemo(() => {
     return [
       { field: "address", headerName: "Address", flex: 1, minWidth: 140 },
       { field: "remoteAS", headerName: "Remote AS", width: 120 },
-      { field: "holdTime", headerName: "Hold Time", width: 110 },
       {
-        field: "password",
-        headerName: "Password",
-        width: 110,
+        field: "importPrefixes",
+        headerName: "Import Policy",
+        width: 160,
+        sortable: false,
         renderCell: (params: GridRenderCellParams<APIBGPPeer>) =>
-          params.row.password ? "********" : "",
-      },
-      {
-        field: "description",
-        headerName: "Description",
-        flex: 1,
-        minWidth: 140,
+          getImportPolicyLabel(params.row.importPrefixes),
       },
       {
         field: "state",
@@ -549,50 +607,64 @@ export default function NetworkingPage() {
           return <Chip label={text} color={color} size="small" />;
         },
       },
-      ...(canEdit
-        ? [
-            {
-              field: "actions",
-              headerName: "Actions",
-              type: "actions",
-              width: 100,
-              sortable: false,
-              disableColumnMenu: true,
-              getActions: (p: { row: APIBGPPeer }) => [
+      {
+        field: "actions",
+        headerName: "Actions",
+        type: "actions",
+        width: canEdit ? 140 : 60,
+        sortable: false,
+        disableColumnMenu: true,
+        getActions: (p: { row: APIBGPPeer }) => [
+          <GridActionsCellItem
+            key="view"
+            icon={<ViewIcon color="primary" />}
+            label="View"
+            onClick={() => handleViewBGPPeer(p.row)}
+          />,
+          ...(canEdit
+            ? [
+                <GridActionsCellItem
+                  key="edit"
+                  icon={<EditIcon color="primary" />}
+                  label="Edit"
+                  onClick={() => handleEditBGPPeer(p.row)}
+                />,
                 <GridActionsCellItem
                   key="delete"
                   icon={<DeleteIcon color="primary" />}
                   label="Delete"
                   onClick={() => handleRequestDeleteBGPPeer(p.row.id)}
                 />,
-              ],
-            } as GridColDef<APIBGPPeer>,
-          ]
-        : []),
+              ]
+            : []),
+        ],
+      } as GridColDef<APIBGPPeer>,
     ];
   }, [canEdit]);
 
-  // BGP Routes
-  const { data: bgpRoutesData, isLoading: bgpRoutesLoading } =
-    useQuery<BGPRoutesResponse>({
-      queryKey: ["bgp-routes"],
-      queryFn: () => getBGPRoutes(accessToken || ""),
+  // BGP Advertised Routes
+  const { data: bgpAdvertisedData, isLoading: bgpAdvertisedLoading } =
+    useQuery<BGPAdvertisedRoutesResponse>({
+      queryKey: ["bgp-advertised-routes"],
+      queryFn: () => getBGPAdvertisedRoutes(accessToken || ""),
       enabled: !!accessToken,
       refetchInterval: 5000,
       refetchIntervalInBackground: true,
       refetchOnWindowFocus: true,
     });
 
-  const bgpRouteRows: (BGPRoute & { id: string })[] = useMemo(
+  const bgpAdvertisedRows: (BGPAdvertisedRoute & { id: string })[] = useMemo(
     () =>
-      (bgpRoutesData?.routes ?? []).map((r, i) => ({
+      (bgpAdvertisedData?.routes ?? []).map((r, i) => ({
         ...r,
         id: `${r.prefix}-${i}`,
       })),
-    [bgpRoutesData],
+    [bgpAdvertisedData],
   );
 
-  const bgpRouteColumns: GridColDef<BGPRoute & { id: string }>[] = [
+  const bgpAdvertisedColumns: GridColDef<
+    BGPAdvertisedRoute & { id: string }
+  >[] = [
     {
       field: "subscriber",
       headerName: "Subscriber",
@@ -634,6 +706,34 @@ export default function NetworkingPage() {
     { field: "prefix", headerName: "Prefix", flex: 1, minWidth: 160 },
     { field: "nextHop", headerName: "Next Hop", flex: 1, minWidth: 140 },
   ];
+
+  // BGP Learned Routes
+  const { data: bgpLearnedData, isLoading: bgpLearnedLoading } =
+    useQuery<BGPLearnedRoutesResponse>({
+      queryKey: ["bgp-learned-routes"],
+      queryFn: () => getBGPLearnedRoutes(accessToken || ""),
+      enabled: !!accessToken,
+      refetchInterval: 5000,
+      refetchIntervalInBackground: true,
+      refetchOnWindowFocus: true,
+    });
+
+  const bgpLearnedRows: (BGPLearnedRoute & { id: string })[] = useMemo(
+    () =>
+      (bgpLearnedData?.routes ?? []).map((r, i) => ({
+        ...r,
+        id: `${r.prefix}-${i}`,
+      })),
+    [bgpLearnedData],
+  );
+
+  const bgpLearnedColumns: GridColDef<BGPLearnedRoute & { id: string }>[] = [
+    { field: "prefix", headerName: "Prefix", flex: 1, minWidth: 160 },
+    { field: "nextHop", headerName: "Next Hop", flex: 1, minWidth: 140 },
+    { field: "peer", headerName: "Peer", flex: 1, minWidth: 140 },
+  ];
+
+  const isNATEnabled = !!natInfo?.enabled;
 
   const bgpDescription =
     "Border Gateway Protocol (BGP) allows Ella Core to advertise subscriber IP routes to upstream routers so that return traffic can reach connected UEs.";
@@ -1034,7 +1134,11 @@ export default function NetworkingPage() {
                 <DataGrid<APIRoute>
                   rows={rtRows}
                   columns={rtColumns}
-                  getRowId={(row) => row.id}
+                  getRowId={(row) =>
+                    row.source === "bgp"
+                      ? `bgp-${row.destination}-${row.gateway}`
+                      : row.id
+                  }
                   paginationMode="server"
                   rowCount={rtRowCount}
                   paginationModel={rtPagination}
@@ -1091,6 +1195,12 @@ export default function NetworkingPage() {
                 </Typography>
               </Box>
 
+              {bgpSettings?.enabled && !natInfo?.enabled && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Enabling NAT will stop advertising subscriber routes via BGP.
+                </Alert>
+              )}
+
               <Stack
                 direction={{ xs: "column", sm: "row" }}
                 spacing={2}
@@ -1101,21 +1211,11 @@ export default function NetworkingPage() {
                     <Switch
                       checked={!!natInfo?.enabled}
                       onChange={(_, checked) => setNATEnabled(checked)}
-                      disabled={
-                        !canEdit ||
-                        natMutating ||
-                        natLoading ||
-                        (!!bgpSettings?.enabled && !natInfo?.enabled)
-                      }
+                      disabled={!canEdit || natMutating || natLoading}
                     />
                   }
                   label={natInfo?.enabled ? "NAT is ON" : "NAT is OFF"}
                 />
-                {!!bgpSettings?.enabled && !natInfo?.enabled && (
-                  <Typography variant="body2" color="text.secondary">
-                    Disable BGP to enable NAT.
-                  </Typography>
-                )}
               </Stack>
             </>
           )}
@@ -1164,20 +1264,11 @@ export default function NetworkingPage() {
                         <Switch
                           checked={!!bgpSettings?.enabled}
                           onChange={(_, checked) => setBGPEnabled(checked)}
-                          disabled={
-                            !canEdit ||
-                            bgpToggling ||
-                            (!!natInfo?.enabled && !bgpSettings?.enabled)
-                          }
+                          disabled={!canEdit || bgpToggling}
                         />
                       }
                       label={bgpSettings?.enabled ? "BGP is ON" : "BGP is OFF"}
                     />
-                    {!!natInfo?.enabled && !bgpSettings?.enabled && (
-                      <Typography variant="body2" color="text.secondary">
-                        Disable NAT to enable BGP.
-                      </Typography>
-                    )}
                   </Stack>
                   {canEdit && (
                     <Button
@@ -1261,18 +1352,90 @@ export default function NetworkingPage() {
                     <CircularProgress />
                   </Box>
                 ) : (
+                  <>
+                    <ThemeProvider theme={gridTheme}>
+                      <DataGrid<APIBGPPeer>
+                        rows={bgpPeerRows}
+                        columns={bgpPeerColumns}
+                        getRowId={(row) => row.id}
+                        paginationMode="server"
+                        rowCount={bgpPeerRowCount}
+                        paginationModel={bgpPeersPagination}
+                        onPaginationModelChange={setBgpPeersPagination}
+                        pageSizeOptions={[10, 25, 50]}
+                        disableColumnMenu
+                        disableRowSelectionOnClick
+                        sx={{
+                          width: "100%",
+                          border: 1,
+                          borderColor: "divider",
+                          "& .MuiDataGrid-cell": {
+                            borderBottom: "1px solid",
+                            borderColor: "divider",
+                          },
+                          "& .MuiDataGrid-columnHeaders": {
+                            borderBottom: "1px solid",
+                            borderColor: "divider",
+                          },
+                          "& .MuiDataGrid-footerContainer": {
+                            borderTop: "1px solid",
+                            borderColor: "divider",
+                          },
+                        }}
+                      />
+                    </ThemeProvider>
+                  </>
+                )}
+              </Box>
+
+              {/* --- Advertised Routes Table --- */}
+              <Box sx={{ mb: 4 }}>
+                <Typography variant="h5" sx={{ mb: 0.5 }}>
+                  Advertised Routes
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ mb: 2 }}
+                >
+                  Routes currently announced to BGP peers. These are derived
+                  from active PDU sessions and cannot be edited directly.
+                </Typography>
+
+                {isNATEnabled && (
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    Route advertisement is disabled while NAT is active. Disable
+                    NAT to advertise subscriber routes to BGP peers.
+                  </Alert>
+                )}
+
+                {bgpAdvertisedLoading ? (
+                  <Box
+                    sx={{ display: "flex", justifyContent: "center", mt: 4 }}
+                  >
+                    <CircularProgress />
+                  </Box>
+                ) : (
                   <ThemeProvider theme={gridTheme}>
-                    <DataGrid<APIBGPPeer>
-                      rows={bgpPeerRows}
-                      columns={bgpPeerColumns}
-                      getRowId={(row) => row.id}
-                      paginationMode="server"
-                      rowCount={bgpPeerRowCount}
-                      paginationModel={bgpPeersPagination}
-                      onPaginationModelChange={setBgpPeersPagination}
-                      pageSizeOptions={[10, 25, 50]}
+                    <DataGrid
+                      rows={bgpAdvertisedRows}
+                      columns={bgpAdvertisedColumns}
                       disableColumnMenu
                       disableRowSelectionOnClick
+                      pageSizeOptions={[10, 25, 50]}
+                      slots={{
+                        noRowsOverlay: () => (
+                          <Stack
+                            alignItems="center"
+                            justifyContent="center"
+                            sx={{ height: "100%", p: 2 }}
+                          >
+                            <Typography variant="body2" color="text.secondary">
+                              No advertised routes
+                            </Typography>
+                          </Stack>
+                        ),
+                      }}
                       sx={{
                         width: "100%",
                         border: 1,
@@ -1295,21 +1458,22 @@ export default function NetworkingPage() {
                 )}
               </Box>
 
-              {/* --- Advertised Routes Table --- */}
-              <Box>
+              {/* --- Learned Routes Table --- */}
+              <Box sx={{ mb: 4 }}>
                 <Typography variant="h5" sx={{ mb: 0.5 }}>
-                  Advertised Routes
+                  Learned Routes
                 </Typography>
                 <Typography
                   variant="body2"
                   color="text.secondary"
                   sx={{ mb: 2 }}
                 >
-                  Routes currently announced to BGP peers. These are derived
-                  from active PDU sessions and cannot be edited directly.
+                  Routes received from BGP peers and installed in the kernel
+                  routing table. These are controlled by each peer's import
+                  policy.
                 </Typography>
 
-                {bgpRoutesLoading ? (
+                {bgpLearnedLoading ? (
                   <Box
                     sx={{ display: "flex", justifyContent: "center", mt: 4 }}
                   >
@@ -1318,8 +1482,8 @@ export default function NetworkingPage() {
                 ) : (
                   <ThemeProvider theme={gridTheme}>
                     <DataGrid
-                      rows={bgpRouteRows}
-                      columns={bgpRouteColumns}
+                      rows={bgpLearnedRows}
+                      columns={bgpLearnedColumns}
                       disableColumnMenu
                       disableRowSelectionOnClick
                       pageSizeOptions={[10, 25, 50]}
@@ -1482,6 +1646,27 @@ export default function NetworkingPage() {
             refetchBGPPeers();
             showSnackbar("BGP peer created successfully.", "success");
           }}
+          rejectedPrefixes={bgpSettings?.rejectedPrefixes ?? []}
+        />
+      )}
+      {isEditBGPPeerOpen && editBGPPeer && (
+        <EditBGPPeerModal
+          open
+          onClose={() => setEditBGPPeerOpen(false)}
+          onSuccess={() => {
+            refetchBGPPeers();
+            showSnackbar("BGP peer updated successfully.", "success");
+          }}
+          peer={editBGPPeer}
+          rejectedPrefixes={bgpSettings?.rejectedPrefixes ?? []}
+        />
+      )}
+      {isViewBGPPeerOpen && viewBGPPeer && (
+        <ViewBGPPeerModal
+          open
+          onClose={() => setViewBGPPeerOpen(false)}
+          peer={viewBGPPeer}
+          rejectedPrefixes={bgpSettings?.rejectedPrefixes ?? []}
         />
       )}
       {isDeleteBGPPeerOpen && (

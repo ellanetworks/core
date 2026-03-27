@@ -68,6 +68,7 @@ type BGPAnnouncer interface {
 	Announce(ip net.IP, owner string) error
 	Withdraw(ip net.IP) error
 	IsRunning() bool
+	IsAdvertising() bool
 }
 
 // AMFCallback abstracts the SMF → AMF communication.
@@ -384,9 +385,11 @@ func (s *SMF) NewURR() (*URR, error) {
 
 // announceRoute advertises a /32 route for the given UE IP via BGP,
 // tagged with the subscriber IMSI as owner.
-// It is a no-op if no BGP announcer is configured or it is not running.
+// announceRoute announces a /32 route for the given UE IP via BGP.
+// It is a no-op if no BGP announcer is configured or it is not advertising
+// (BGP not running, or NAT enabled).
 func (s *SMF) announceRoute(ip net.IP, owner string) {
-	if s.bgp == nil || !s.bgp.IsRunning() {
+	if s.bgp == nil || !s.bgp.IsAdvertising() {
 		return
 	}
 
@@ -396,9 +399,10 @@ func (s *SMF) announceRoute(ip net.IP, owner string) {
 }
 
 // withdrawRoute removes a /32 route for the given UE IP from BGP.
-// It is a no-op if no BGP announcer is configured or it is not running.
+// It is a no-op if no BGP announcer is configured or it is not advertising
+// (BGP not running, or NAT enabled).
 func (s *SMF) withdrawRoute(ip net.IP) {
-	if s.bgp == nil || !s.bgp.IsRunning() {
+	if s.bgp == nil || !s.bgp.IsAdvertising() {
 		return
 	}
 

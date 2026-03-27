@@ -38,5 +38,16 @@ func migrateV4(ctx context.Context, tx *sql.Tx) error {
 		return fmt.Errorf("failed to create bgp_peers table: %w", err)
 	}
 
+	_, err = tx.ExecContext(ctx, fmt.Sprintf(`
+		CREATE TABLE IF NOT EXISTS %s (
+			id        INTEGER PRIMARY KEY AUTOINCREMENT,
+			peerID    INTEGER NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
+			prefix    TEXT    NOT NULL,
+			maxLength INTEGER NOT NULL
+		)`, BGPImportPrefixesTableName, BGPPeersTableName))
+	if err != nil {
+		return fmt.Errorf("failed to create bgp_import_prefixes table: %w", err)
+	}
+
 	return nil
 }

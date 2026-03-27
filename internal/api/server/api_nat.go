@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 )
@@ -37,7 +38,7 @@ func GetNATInfo(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func UpdateNATInfo(dbInstance *db.Database, upf UPFUpdater) http.Handler {
+func UpdateNATInfo(dbInstance *db.Database, upf UPFUpdater, bgpService *bgp.BGPService) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -53,19 +54,6 @@ func UpdateNATInfo(dbInstance *db.Database, upf UPFUpdater) http.Handler {
 			return
 		}
 
-		if params.Enabled {
-			bgpEnabled, err := dbInstance.IsBGPEnabled(r.Context())
-			if err != nil {
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check BGP settings", err, logger.APILog)
-				return
-			}
-
-			if bgpEnabled {
-				writeError(r.Context(), w, http.StatusConflict, "NAT and BGP cannot be enabled simultaneously. Disable BGP first.", nil, logger.APILog)
-				return
-			}
-		}
-
 		if err := dbInstance.UpdateNATSettings(r.Context(), params.Enabled); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update NAT settings", err, logger.APILog)
 			return
@@ -75,6 +63,21 @@ func UpdateNATInfo(dbInstance *db.Database, upf UPFUpdater) http.Handler {
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to reload UPF with new NAT settings", err, logger.APILog)
 			return
+		}
+
+		// NAT enabled → suppress BGP route advertising; NAT disabled → resume advertising.
+		if bgpService != nil {
+			if !params.Enabled {
+				allocatedIPs, err := dbInstance.ListAllocatedIPMappings(r.Context())
+				if err != nil {
+					writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list allocated IPs for BGP", err, logger.APILog)
+					return
+				}
+
+				bgpService.SetAdvertising(true, allocatedIPs)
+			} else {
+				bgpService.SetAdvertising(false, nil)
+			}
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "NAT settings updated successfully"}, http.StatusOK, logger.APILog)

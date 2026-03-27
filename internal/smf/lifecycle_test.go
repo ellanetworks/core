@@ -586,7 +586,7 @@ func TestCreateSmContext_ReplacesExistingSession(t *testing.T) {
 
 func TestCreateSmContext_AnnouncesBGPRoute(t *testing.T) {
 	store, upf, amfCb := defaultFakes()
-	bgpFake := &fakeBGP{running: true}
+	bgpFake := &fakeBGP{running: true, advertising: true}
 	s := smf.New(store, upf, amfCb, smf.WithBGP(bgpFake))
 	ctx := context.Background()
 	supi := testSUPI()
@@ -619,7 +619,7 @@ func TestCreateSmContext_AnnouncesBGPRoute(t *testing.T) {
 
 func TestCreateSmContext_BGPNotRunning_NoAnnounce(t *testing.T) {
 	store, upf, amfCb := defaultFakes()
-	bgpFake := &fakeBGP{running: false}
+	bgpFake := &fakeBGP{running: false, advertising: false}
 	s := smf.New(store, upf, amfCb, smf.WithBGP(bgpFake))
 	ctx := context.Background()
 	supi := testSUPI()

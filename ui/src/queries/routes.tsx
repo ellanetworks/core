@@ -6,6 +6,7 @@ export type APIRoute = {
   gateway: string;
   interface: string;
   metric: number;
+  source: string;
 };
 
 export type ListRoutesResponse = {

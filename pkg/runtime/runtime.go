@@ -25,6 +25,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/jobs"
+	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/sessions"
@@ -130,7 +131,17 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't get N6 interface IP: %w", err)
 	}
 
-	bgpService := bgp.New(net.ParseIP(n6IP), logger.EllaLog)
+	realKernel := kernel.NewRealKernel(cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name)
+
+	uePools := collectUEPools(ctx, dbInstance)
+	routeFilter := bgp.BuildRouteFilter(uePools, net.ParseIP(cfg.Interfaces.N3.Address), cfg.Interfaces.N6.Name)
+	importStore := &bgpImportPrefixAdapter{db: dbInstance}
+
+	bgpService := bgp.New(net.ParseIP(n6IP), logger.EllaLog,
+		bgp.WithKernel(realKernel),
+		bgp.WithImportPrefixStore(importStore),
+		bgp.WithRouteFilter(routeFilter),
+	)
 
 	bgpSettings, err := dbInstance.GetBGPSettings(ctx)
 	if err != nil {
@@ -143,14 +154,14 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			return fmt.Errorf("couldn't list BGP peers: %w", err)
 		}
 
-		allocatedIPs, err := dbInstance.ListAllocatedIPs(ctx)
+		allocatedIPs, err := dbInstance.ListAllocatedIPMappings(ctx)
 		if err != nil {
 			return fmt.Errorf("couldn't list allocated IPs: %w", err)
 		}
 
 		servicePeers := server.DBPeersToBGPPeers(bgpPeers)
 
-		err = bgpService.Start(ctx, server.DBSettingsToBGPSettings(bgpSettings), servicePeers, allocatedIPs)
+		err = bgpService.Start(ctx, server.DBSettingsToBGPSettings(bgpSettings), servicePeers, allocatedIPs, !isNATEnabled)
 		if err != nil {
 			listenAddr := bgpSettings.ListenAddress
 			if listenAddr == "" {
@@ -384,4 +395,49 @@ func (a *ausfDBAdapter) GetSubscriber(ctx context.Context, imsi string) (*ausf.S
 
 func (a *ausfDBAdapter) UpdateSequenceNumber(ctx context.Context, imsi string, sqn string) error {
 	return a.db.EditSubscriberSequenceNumber(ctx, imsi, sqn)
+}
+
+// bgpImportPrefixAdapter adapts *db.Database to the bgp.ImportPrefixStore interface.
+type bgpImportPrefixAdapter struct {
+	db *db.Database
+}
+
+func (a *bgpImportPrefixAdapter) ListImportPrefixes(ctx context.Context, peerID int) ([]bgp.ImportPrefixEntry, error) {
+	dbPrefixes, err := a.db.ListImportPrefixesByPeer(ctx, peerID)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]bgp.ImportPrefixEntry, len(dbPrefixes))
+	for i, p := range dbPrefixes {
+		entries[i] = bgp.ImportPrefixEntry{
+			Prefix:    p.Prefix,
+			MaxLength: p.MaxLength,
+		}
+	}
+
+	return entries, nil
+}
+
+// collectUEPools returns the UE IP pool CIDRs from all data networks.
+func collectUEPools(ctx context.Context, dbInstance *db.Database) []*net.IPNet {
+	dataNetworks, err := dbInstance.ListAllDataNetworks(ctx)
+	if err != nil {
+		logger.EllaLog.Warn("failed to list data networks for BGP filter", zap.Error(err))
+
+		return nil
+	}
+
+	var pools []*net.IPNet
+
+	for _, dn := range dataNetworks {
+		_, network, err := net.ParseCIDR(dn.IPPool)
+		if err != nil {
+			continue
+		}
+
+		pools = append(pools, network)
+	}
+
+	return pools
 }

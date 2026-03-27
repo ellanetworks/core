@@ -30,7 +30,8 @@ import {
 import * as yup from "yup";
 import { ValidationError } from "yup";
 import {
-  createBGPPeer,
+  updateBGPPeer,
+  type BGPPeer,
   type BGPImportPrefix,
   type RejectedPrefix,
 } from "@/queries/bgp";
@@ -62,10 +63,11 @@ const schema = yup.object().shape({
   description: yup.string(),
 });
 
-interface CreateBGPPeerModalProps {
+interface EditBGPPeerModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  peer: BGPPeer;
   rejectedPrefixes?: RejectedPrefix[];
 }
 
@@ -77,15 +79,15 @@ type FormValues = {
   description: string;
 };
 
-const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
+const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
   open,
   onClose,
   onSuccess,
+  peer,
   rejectedPrefixes = [],
 }) => {
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
-  const [showRejected, setShowRejected] = useState(false);
 
   useEffect(() => {
     if (!authReady || !accessToken) {
@@ -94,21 +96,46 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
   }, [authReady, accessToken, navigate]);
 
   const [formValues, setFormValues] = useState<FormValues>({
-    address: "",
-    remoteAS: 64512,
-    holdTime: 90,
+    address: peer.address,
+    remoteAS: peer.remoteAS,
+    holdTime: peer.holdTime,
     password: "",
-    description: "",
+    description: peer.description,
   });
 
-  const [importPrefixes, setImportPrefixes] = useState<BGPImportPrefix[]>([]);
-  const [importPreset, setImportPreset] = useState<ImportPreset>("none");
+  const [importPrefixes, setImportPrefixes] = useState<BGPImportPrefix[]>(
+    peer.importPrefixes ?? [],
+  );
+  const [importPreset, setImportPreset] = useState<ImportPreset>(
+    detectPreset(peer.importPrefixes ?? []),
+  );
 
+  const [clearPassword, setClearPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [isValid, setIsValid] = useState(false);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
+  const [showRejected, setShowRejected] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setFormValues({
+        address: peer.address,
+        remoteAS: peer.remoteAS,
+        holdTime: peer.holdTime,
+        password: "",
+        description: peer.description,
+      });
+      const prefixes = peer.importPrefixes ?? [];
+      setImportPrefixes(prefixes);
+      setImportPreset(detectPreset(prefixes));
+      setClearPassword(false);
+      setErrors({});
+      setTouched({});
+      setAlert({ message: "" });
+    }
+  }, [open, peer]);
 
   const handleChange = (field: string, value: string | number) => {
     setFormValues((prev) => ({
@@ -225,11 +252,18 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
     setLoading(true);
     setAlert({ message: "" });
     try {
-      await createBGPPeer(accessToken, {
+      let password: string | undefined;
+      if (clearPassword) {
+        password = "";
+      } else if (formValues.password) {
+        password = formValues.password;
+      }
+
+      await updateBGPPeer(accessToken, peer.id, {
         address: formValues.address,
         remoteAS: formValues.remoteAS,
         holdTime: formValues.holdTime,
-        password: formValues.password || undefined,
+        password,
         description: formValues.description || undefined,
         importPrefixes: importPrefixes,
       });
@@ -239,7 +273,7 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error occurred.";
       setAlert({
-        message: `Failed to create BGP peer: ${errorMessage}`,
+        message: `Failed to update BGP peer: ${errorMessage}`,
       });
     } finally {
       setLoading(false);
@@ -250,13 +284,11 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
     <Dialog
       open={open}
       onClose={onClose}
-      aria-labelledby="create-bgp-peer-modal-title"
+      aria-labelledby="edit-bgp-peer-modal-title"
       maxWidth="sm"
       fullWidth
     >
-      <DialogTitle id="create-bgp-peer-modal-title">
-        Create BGP Peer
-      </DialogTitle>
+      <DialogTitle id="edit-bgp-peer-modal-title">Edit BGP Peer</DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert.message}>
           <Alert
@@ -309,16 +341,44 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
           }
           margin="normal"
         />
-        <TextField
-          fullWidth
-          label="Password"
-          type="password"
-          value={formValues.password}
-          onChange={(e) => handleChange("password", e.target.value)}
-          onBlur={() => handleBlur("password")}
-          helperText="TCP MD5 authentication password (optional)"
-          margin="normal"
-        />
+        <Stack direction="row" spacing={1} alignItems="flex-start">
+          <TextField
+            fullWidth
+            label="Password"
+            type="password"
+            value={formValues.password}
+            onChange={(e) => handleChange("password", e.target.value)}
+            onBlur={() => handleBlur("password")}
+            margin="normal"
+            disabled={clearPassword}
+            placeholder={
+              peer.hasPassword
+                ? "Leave empty to keep current password"
+                : "Optional"
+            }
+            helperText={
+              clearPassword
+                ? "Password will be removed on save"
+                : "TCP MD5 authentication password"
+            }
+          />
+          {peer.hasPassword && (
+            <Button
+              size="small"
+              variant="outlined"
+              color={clearPassword ? "primary" : "error"}
+              onClick={() => {
+                setClearPassword((v) => !v);
+                if (!clearPassword) {
+                  setFormValues((prev) => ({ ...prev, password: "" }));
+                }
+              }}
+              sx={{ mt: "16px", minWidth: 70, height: 56 }}
+            >
+              {clearPassword ? "Undo" : "Clear"}
+            </Button>
+          )}
+        </Stack>
         <TextField
           fullWidth
           label="Description"
@@ -432,7 +492,6 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
           <Box sx={{ mt: 1 }}>
             <Button
               size="small"
-              onClick={() => setShowRejected(!showRejected)}
               startIcon={<LockIcon fontSize="small" />}
               endIcon={
                 showRejected ? (
@@ -441,6 +500,7 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
                   <ExpandMoreIcon fontSize="small" />
                 )
               }
+              onClick={() => setShowRejected((v) => !v)}
               sx={{
                 justifyContent: "flex-start",
                 textTransform: "none",
@@ -457,12 +517,12 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
               <TableContainer>
                 <Table size="small">
                   <TableBody>
-                    {rejectedPrefixes.map((f, i) => (
-                      <TableRow key={i} sx={{ opacity: 0.7 }}>
+                    {rejectedPrefixes.map((rp) => (
+                      <TableRow key={rp.prefix} sx={{ opacity: 0.7 }}>
                         <TableCell sx={{ fontFamily: "monospace" }}>
-                          {f.prefix}
+                          {rp.prefix}
                         </TableCell>
-                        <TableCell>{f.description}</TableCell>
+                        <TableCell>{rp.description}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -480,11 +540,11 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
           onClick={handleSubmit}
           disabled={!isValid || loading || hasInvalidPrefixes}
         >
-          {loading ? "Creating..." : "Create"}
+          {loading ? "Updating..." : "Update"}
         </Button>
       </DialogActions>
     </Dialog>
   );
 };
 
-export default CreateBGPPeerModal;
+export default EditBGPPeerModal;

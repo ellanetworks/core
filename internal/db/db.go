@@ -41,6 +41,7 @@ type Database struct {
 	countSubscribersByPolicyStmt *sqlair.Statement
 	countSubscribersWithIPStmt   *sqlair.Statement
 	listAllocatedIPsStmt         *sqlair.Statement
+	listAllocatedIPMappingsStmt  *sqlair.Statement
 
 	// API Token statements
 	listAPITokensStmt     *sqlair.Statement
@@ -66,13 +67,14 @@ type Database struct {
 	deleteOldDailyUsageStmt   *sqlair.Statement
 
 	// Data Network statements
-	listDataNetworksStmt   *sqlair.Statement
-	getDataNetworkStmt     *sqlair.Statement
-	getDataNetworkByIDStmt *sqlair.Statement
-	createDataNetworkStmt  *sqlair.Statement
-	editDataNetworkStmt    *sqlair.Statement
-	deleteDataNetworkStmt  *sqlair.Statement
-	countDataNetworksStmt  *sqlair.Statement
+	listDataNetworksStmt    *sqlair.Statement
+	listAllDataNetworksStmt *sqlair.Statement
+	getDataNetworkStmt      *sqlair.Statement
+	getDataNetworkByIDStmt  *sqlair.Statement
+	createDataNetworkStmt   *sqlair.Statement
+	editDataNetworkStmt     *sqlair.Statement
+	deleteDataNetworkStmt   *sqlair.Statement
+	countDataNetworksStmt   *sqlair.Statement
 
 	// N3 Settings statements
 	insertDefaultN3SettingsStmt *sqlair.Statement
@@ -94,8 +96,14 @@ type Database struct {
 	listAllBGPPeersStmt *sqlair.Statement
 	getBGPPeerStmt      *sqlair.Statement
 	createBGPPeerStmt   *sqlair.Statement
+	updateBGPPeerStmt   *sqlair.Statement
 	deleteBGPPeerStmt   *sqlair.Statement
 	countBGPPeersStmt   *sqlair.Statement
+
+	// BGP Import Prefixes statements
+	listImportPrefixesByPeerStmt   *sqlair.Statement
+	createImportPrefixStmt         *sqlair.Statement
+	deleteImportPrefixesByPeerStmt *sqlair.Statement
 
 	// Flow Accounting Settings statements
 	insertDefaultFlowAccountingSettingsStmt *sqlair.Statement
@@ -321,6 +329,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.countSubscribersByPolicyStmt, fmt.Sprintf(countSubscribersInPolicyStmt, SubscribersTableName), []any{NumItems{}, Subscriber{}}},
 		{&db.countSubscribersWithIPStmt, fmt.Sprintf(countSubscribersWithIPStmt, SubscribersTableName), []any{NumItems{}}},
 		{&db.listAllocatedIPsStmt, fmt.Sprintf(listAllocatedIPsStmt, SubscribersTableName), []any{Subscriber{}}},
+		{&db.listAllocatedIPMappingsStmt, fmt.Sprintf(listAllocatedIPMappingsStmt, SubscribersTableName), []any{Subscriber{}}},
 
 		// API Tokens
 		{&db.listAPITokensStmt, fmt.Sprintf(listAPITokensPagedStmt, APITokensTableName), []any{ListArgs{}, APIToken{}, NumItems{}}},
@@ -347,6 +356,7 @@ func (db *Database) PrepareStatements() error {
 
 		// Data Networks
 		{&db.listDataNetworksStmt, fmt.Sprintf(listDataNetworksPagedStmt, DataNetworksTableName), []any{ListArgs{}, DataNetwork{}, NumItems{}}},
+		{&db.listAllDataNetworksStmt, fmt.Sprintf(listAllDataNetworksStmt, DataNetworksTableName), []any{DataNetwork{}}},
 		{&db.getDataNetworkStmt, fmt.Sprintf(getDataNetworkStmt, DataNetworksTableName), []any{DataNetwork{}}},
 		{&db.getDataNetworkByIDStmt, fmt.Sprintf(getDataNetworkByIDStmt, DataNetworksTableName), []any{DataNetwork{}}},
 		{&db.createDataNetworkStmt, fmt.Sprintf(createDataNetworkStmt, DataNetworksTableName), []any{DataNetwork{}}},
@@ -374,8 +384,14 @@ func (db *Database) PrepareStatements() error {
 		{&db.listAllBGPPeersStmt, fmt.Sprintf(listAllBGPPeersStmt, BGPPeersTableName), []any{BGPPeer{}}},
 		{&db.getBGPPeerStmt, fmt.Sprintf(getBGPPeerStmt, BGPPeersTableName), []any{BGPPeer{}}},
 		{&db.createBGPPeerStmt, fmt.Sprintf(createBGPPeerStmt, BGPPeersTableName), []any{BGPPeer{}}},
+		{&db.updateBGPPeerStmt, fmt.Sprintf(updateBGPPeerStmt, BGPPeersTableName), []any{BGPPeer{}}},
 		{&db.deleteBGPPeerStmt, fmt.Sprintf(deleteBGPPeerStmt, BGPPeersTableName), []any{BGPPeer{}}},
 		{&db.countBGPPeersStmt, fmt.Sprintf(countBGPPeersStmt, BGPPeersTableName), []any{NumItems{}}},
+
+		// BGP Import Prefixes
+		{&db.listImportPrefixesByPeerStmt, fmt.Sprintf(listImportPrefixesByPeerStmt, BGPImportPrefixesTableName), []any{BGPImportPrefix{}}},
+		{&db.createImportPrefixStmt, fmt.Sprintf(createImportPrefixStmt, BGPImportPrefixesTableName), []any{BGPImportPrefix{}}},
+		{&db.deleteImportPrefixesByPeerStmt, fmt.Sprintf(deleteImportPrefixesByPeerStmt, BGPImportPrefixesTableName), []any{BGPImportPrefix{}}},
 
 		// Flow Accounting Settings
 		{&db.insertDefaultFlowAccountingSettingsStmt, fmt.Sprintf(insertDefaultFlowAccountingSettingsStmt, FlowAccountingSettingsTableName), []any{FlowAccountingSettings{}}},

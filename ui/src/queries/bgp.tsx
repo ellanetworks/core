@@ -2,11 +2,18 @@ import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 // BGP Settings
 
+export type RejectedPrefix = {
+  prefix: string;
+  source: "builtin" | "data_network" | "interface";
+  description: string;
+};
+
 export type BGPSettings = {
   enabled: boolean;
   localAS: number;
   routerID: string;
   listenAddress: string;
+  rejectedPrefixes: RejectedPrefix[];
 };
 
 export type UpdateBGPSettingsParams = {
@@ -33,16 +40,24 @@ export async function updateBGPSettings(
 
 // BGP Peers
 
+export type BGPImportPrefix = {
+  prefix: string;
+  maxLength: number;
+};
+
 export type BGPPeer = {
   id: number;
   address: string;
   remoteAS: number;
   holdTime: number;
-  password: string;
+  hasPassword: boolean;
   description: string;
+  importPrefixes: BGPImportPrefix[];
   state?: string;
   uptime?: string;
   prefixesSent?: number;
+  prefixesReceived?: number;
+  prefixesAccepted?: number;
 };
 
 export type ListBGPPeersResponse = {
@@ -69,6 +84,7 @@ export type CreateBGPPeerParams = {
   holdTime: number;
   password?: string;
   description?: string;
+  importPrefixes?: BGPImportPrefix[];
 };
 
 export async function createBGPPeer(
@@ -82,6 +98,36 @@ export async function createBGPPeer(
   });
 }
 
+export type UpdateBGPPeerParams = {
+  address: string;
+  remoteAS: number;
+  holdTime: number;
+  password?: string;
+  description?: string;
+  importPrefixes?: BGPImportPrefix[];
+};
+
+export async function updateBGPPeer(
+  authToken: string,
+  id: number,
+  params: UpdateBGPPeerParams,
+): Promise<BGPPeer> {
+  return apiFetch<BGPPeer>(`/api/v1/networking/bgp/peers/${id}`, {
+    method: "PUT",
+    authToken,
+    body: params,
+  });
+}
+
+export async function getBGPPeer(
+  authToken: string,
+  id: number,
+): Promise<BGPPeer> {
+  return apiFetch<BGPPeer>(`/api/v1/networking/bgp/peers/${id}`, {
+    authToken,
+  });
+}
+
 export async function deleteBGPPeer(
   authToken: string,
   id: number,
@@ -92,22 +138,44 @@ export async function deleteBGPPeer(
   });
 }
 
-// BGP Routes
+// BGP Advertised Routes
 
-export type BGPRoute = {
+export type BGPAdvertisedRoute = {
   subscriber: string;
   prefix: string;
   nextHop: string;
 };
 
-export type BGPRoutesResponse = {
-  routes: BGPRoute[];
+export type BGPAdvertisedRoutesResponse = {
+  routes: BGPAdvertisedRoute[];
 };
 
-export async function getBGPRoutes(
+export async function getBGPAdvertisedRoutes(
   authToken: string,
-): Promise<BGPRoutesResponse> {
-  return apiFetch<BGPRoutesResponse>("/api/v1/networking/bgp/routes", {
-    authToken,
-  });
+): Promise<BGPAdvertisedRoutesResponse> {
+  return apiFetch<BGPAdvertisedRoutesResponse>(
+    "/api/v1/networking/bgp/advertised-routes",
+    { authToken },
+  );
+}
+
+// BGP Learned Routes
+
+export type BGPLearnedRoute = {
+  prefix: string;
+  nextHop: string;
+  peer: string;
+};
+
+export type BGPLearnedRoutesResponse = {
+  routes: BGPLearnedRoute[];
+};
+
+export async function getBGPLearnedRoutes(
+  authToken: string,
+): Promise<BGPLearnedRoutesResponse> {
+  return apiFetch<BGPLearnedRoutesResponse>(
+    "/api/v1/networking/bgp/learned-routes",
+    { authToken },
+  );
 }
