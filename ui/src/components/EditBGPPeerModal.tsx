@@ -220,7 +220,9 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
   const handleRemovePrefix = (index: number) => {
     setImportPrefixes((prev) => {
       const next = prev.filter((_, i) => i !== index);
-      setImportPreset(detectPreset(next));
+      if (next.length === 0) {
+        setImportPreset("none");
+      }
       return next;
     });
   };
@@ -436,7 +438,7 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
               size="small"
               startIcon={<AddIcon />}
               onClick={handleAddPrefix}
-              sx={{ mt: 1, mb: 2, display: "block" }}
+              sx={{ mt: 1, mb: 2 }}
             >
               Add Prefix
             </Button>

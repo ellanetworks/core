@@ -1215,8 +1215,6 @@ export default function NetworkingPage() {
               {bgpSettings?.enabled && !natInfo?.enabled && (
                 <Alert severity="info" sx={{ mt: 2 }}>
                   Enabling NAT will stop advertising subscriber routes via BGP.
-                  External routers will no longer learn individual subscriber IP
-                  routes.
                 </Alert>
               )}
             </>
@@ -1404,14 +1402,6 @@ export default function NetworkingPage() {
                   from active PDU sessions and cannot be edited directly.
                 </Typography>
 
-                {isNATEnabled && (
-                  <Alert severity="info" sx={{ mb: 2 }}>
-                    Route advertisement is disabled while NAT is active.
-                    Subscriber IPs are NATed and not directly reachable from
-                    outside.
-                  </Alert>
-                )}
-
                 {bgpAdvertisedLoading ? (
                   <Box
                     sx={{ display: "flex", justifyContent: "center", mt: 4 }}
@@ -1426,6 +1416,37 @@ export default function NetworkingPage() {
                       disableColumnMenu
                       disableRowSelectionOnClick
                       pageSizeOptions={[10, 25, 50]}
+                      slots={{
+                        noRowsOverlay: () =>
+                          isNATEnabled ? (
+                            <Stack
+                              alignItems="center"
+                              justifyContent="center"
+                              sx={{ height: "100%", p: 2 }}
+                            >
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                Route advertisement is disabled while NAT is
+                                active.
+                              </Typography>
+                            </Stack>
+                          ) : (
+                            <Stack
+                              alignItems="center"
+                              justifyContent="center"
+                              sx={{ height: "100%", p: 2 }}
+                            >
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                No rows
+                              </Typography>
+                            </Stack>
+                          ),
+                      }}
                       sx={{
                         width: "100%",
                         border: 1,
