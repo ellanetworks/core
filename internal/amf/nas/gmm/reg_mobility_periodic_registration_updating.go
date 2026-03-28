@@ -93,36 +93,26 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	if ue.RegistrationRequest.UplinkDataStatus != nil {
 		uplinkDataPsi := nasConvert.PSIToBooleanArray(ue.RegistrationRequest.UplinkDataStatus.Buffer)
 		reactivationResult = new([16]bool)
-		allowReEstablishPduSession := true
 
-		if !allowReEstablishPduSession {
-			for pduSessionID, hasUplinkData := range uplinkDataPsi {
+		for idx, hasUplinkData := range uplinkDataPsi {
+			pduSessionID := uint8(idx)
+			if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
+				// uplink data are pending for the corresponding PDU session identity
 				if hasUplinkData {
-					errPduSessionID = append(errPduSessionID, uint8(pduSessionID))
-					errCause = append(errCause, nasMessage.Cause5GMMRestrictedServiceArea)
-				}
-			}
-		} else {
-			for idx, hasUplinkData := range uplinkDataPsi {
-				pduSessionID := uint8(idx)
-				if smContext, ok := ue.SmContextFindByPDUSessionID(pduSessionID); ok {
-					// uplink data are pending for the corresponding PDU session identity
-					if hasUplinkData {
-						binaryDataN2SmInformation, err := amfInstance.Smf.ActivateSmContext(ctx, smContext.Ref)
-						if err != nil {
-							ue.Log.Error("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
-							reactivationResult[pduSessionID] = true
-							errPduSessionID = append(errPduSessionID, pduSessionID)
-							cause := nasMessage.Cause5GMMProtocolErrorUnspecified
-							errCause = append(errCause, cause)
+					binaryDataN2SmInformation, err := amfInstance.Smf.ActivateSmContext(ctx, smContext.Ref)
+					if err != nil {
+						ue.Log.Error("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
+						reactivationResult[pduSessionID] = true
+						errPduSessionID = append(errPduSessionID, pduSessionID)
+						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
+						errCause = append(errCause, cause)
+					} else {
+						if ue.RanUe().UeContextRequest {
+							send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID,
+								smContext.Snssai, nil, binaryDataN2SmInformation)
 						} else {
-							if ue.RanUe().UeContextRequest {
-								send.AppendPDUSessionResourceSetupListCxtReq(&ctxList, pduSessionID,
-									smContext.Snssai, nil, binaryDataN2SmInformation)
-							} else {
-								send.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID,
-									smContext.Snssai, nil, binaryDataN2SmInformation)
-							}
+							send.AppendPDUSessionResourceSetupListSUReq(&suList, pduSessionID,
+								smContext.Snssai, nil, binaryDataN2SmInformation)
 						}
 					}
 				}
