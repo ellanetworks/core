@@ -32,6 +32,14 @@ func (s *SMF) ActivateSmContext(ctx context.Context, smContextRef string) ([]byt
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
+	if smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil || smContext.Tunnel.DataPath.UpLinkTunnel == nil {
+		return nil, fmt.Errorf("session %s has no active tunnel", smContextRef)
+	}
+
+	if smContext.PolicyData == nil {
+		return nil, fmt.Errorf("session %s has no policy data", smContextRef)
+	}
+
 	n2Buf, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IP)
 	if err != nil {
 		return nil, fmt.Errorf("build PDUSession Resource Setup Request Transfer Error: %v", err)

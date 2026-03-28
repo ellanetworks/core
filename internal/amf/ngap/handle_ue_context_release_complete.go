@@ -210,9 +210,24 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 	case amf.UeContextReleaseHandover:
 		logger.WithTrace(ctx, ran.Log).Info("Release UE Context : Release for Handover", logger.SUPI(amfUe.Supi.String()))
 
-		targetRanUe := amfInstance.FindRanUeByAmfUeNgapID(ranUe.TargetUe.AmfUeNgapID)
-
-		targetRanUe.Radio = ran
+		if ranUe.TargetUe != nil {
+			// Success path: ranUe is the SOURCE being released after a
+			// completed handover (HandoverNotify). Transfer the AMF UE
+			// association to the target.
+			targetRanUe := amfInstance.FindRanUeByAmfUeNgapID(ranUe.TargetUe.AmfUeNgapID)
+			if targetRanUe == nil {
+				logger.WithTrace(ctx, ran.Log).Error("target RAN UE not found during handover release",
+					zap.Int64("targetAmfUeNgapID", ranUe.TargetUe.AmfUeNgapID))
+			} else {
+				targetRanUe.Radio = ran
+				amfUe.AttachRanUe(targetRanUe)
+			}
+		} else {
+			// Failure/cancel path: ranUe is the TARGET being released
+			// after a failed or cancelled handover. The source UE
+			// remains the active RAN UE — just clean up the target.
+			logger.WithTrace(ctx, ran.Log).Info("Release target UE context after handover failure/cancel", logger.SUPI(amfUe.Supi.String()))
+		}
 
 		amf.DetachSourceUeTargetUe(ranUe)
 
@@ -220,8 +235,6 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 		if err != nil {
 			logger.WithTrace(ctx, ran.Log).Error(err.Error())
 		}
-
-		amfUe.AttachRanUe(targetRanUe)
 	default:
 		logger.WithTrace(ctx, ran.Log).Error("Invalid Release Action", zap.Any("ReleaseAction", ranUe.ReleaseAction))
 	}

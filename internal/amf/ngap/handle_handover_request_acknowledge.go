@@ -156,7 +156,14 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 			},
 		}
 
-		sourceUe.AmfUe().SetOnGoing(amf.OnGoingProcedureNothing)
+		if sourceAmfUe := sourceUe.AmfUe(); sourceAmfUe != nil {
+			sourceAmfUe.SetOnGoing(amf.OnGoingProcedureNothing)
+		}
+
+		if sourceUe.Radio == nil {
+			logger.WithTrace(ctx, ran.Log).Error("source UE radio is nil, cannot send handover preparation failure")
+			return
+		}
 
 		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
 		if err != nil {

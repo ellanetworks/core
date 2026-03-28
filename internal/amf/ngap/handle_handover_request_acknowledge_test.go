@@ -341,6 +341,40 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SendsPreparationFailur
 	}
 }
 
+// TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceAmfUeDetached
+// verifies that when no PDU sessions are admitted and the source UE's AMF UE
+// context has been detached (e.g. due to a concurrent deregistration), the
+// handler does not panic.
+func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceAmfUeDetached(t *testing.T) {
+	targetRan, _, amfInstance := setupHandoverAckTestContext(t)
+
+	// Simulate the source UE's AMF UE being detached (e.g. deregistration
+	// race). Find the target UE, then detach the AMF UE from the source.
+	targetUe := amfInstance.FindRanUeByAmfUeNgapID(1)
+	if targetUe == nil {
+		t.Fatal("target UE not found")
+	}
+
+	sourceAmfUe := targetUe.SourceUe.AmfUe()
+	if sourceAmfUe == nil {
+		t.Fatal("source AMF UE not found")
+	}
+
+	sourceAmfUe.DetachRanUe()
+
+	msg := buildHandoverRequestAcknowledge(&HandoverRequestAcknowledgeOpts{
+		AMFUENGAPID: &ngapType.AMFUENGAPID{Value: 1},
+		RANUENGAPID: &ngapType.RANUENGAPID{Value: 2},
+		TargetToSourceTransparentContainer: &ngapType.TargetToSourceTransparentContainer{
+			Value: []byte{0x01, 0x02, 0x03},
+		},
+	})
+
+	assertNoPanic(t, "HandleHandoverRequestAcknowledge(source AmfUe detached, 0 PDU sessions)", func() {
+		ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, targetRan, msg)
+	})
+}
+
 func TestHandoverRequestAcknowledge_HappyPath(t *testing.T) {
 	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t)
 
