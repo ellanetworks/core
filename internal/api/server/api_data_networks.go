@@ -24,6 +24,12 @@ type CreateDataNetworkParams struct {
 	MTU    int32  `json:"mtu,omitempty"`
 }
 
+type UpdateDataNetworkParams struct {
+	IPPool string `json:"ip_pool,omitempty"`
+	DNS    string `json:"dns,omitempty"`
+	MTU    int32  `json:"mtu,omitempty"`
+}
+
 type DataNetworkStatus struct {
 	Sessions int `json:"sessions"`
 }
@@ -259,20 +265,20 @@ func UpdateDataNetwork(dbInstance *db.Database, cfg config.Config, bgpService *b
 			return
 		}
 
-		var updateDataNetworkParams CreateDataNetworkParams
+		var updateDataNetworkParams UpdateDataNetworkParams
 
 		if err := json.NewDecoder(r.Body).Decode(&updateDataNetworkParams); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
-		if err := validateDataNetworkParams(updateDataNetworkParams); err != nil {
+		if err := validateUpdateDataNetworkParams(updateDataNetworkParams); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 			return
 		}
 
 		dn := &db.DataNetwork{
-			Name:   updateDataNetworkParams.Name,
+			Name:   name,
 			IPPool: updateDataNetworkParams.IPPool,
 			DNS:    updateDataNetworkParams.DNS,
 			MTU:    updateDataNetworkParams.MTU,
@@ -293,7 +299,7 @@ func UpdateDataNetwork(dbInstance *db.Database, cfg config.Config, bgpService *b
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Data Network updated successfully"}, http.StatusOK, logger.APILog)
 
-		logger.LogAuditEvent(r.Context(), UpdateDataNetworkAction, email, getClientIP(r), "User updated data network: "+updateDataNetworkParams.Name)
+		logger.LogAuditEvent(r.Context(), UpdateDataNetworkAction, email, getClientIP(r), "User updated data network: "+name)
 	})
 }
 
@@ -327,6 +333,25 @@ func validateDataNetworkParams(p CreateDataNetworkParams) error {
 
 	case !isDataNetworkNameValid(p.Name):
 		return errors.New("invalid name format, must be a valid DNN format")
+	case !isUeIPPoolValid(p.IPPool):
+		return errors.New("invalid ip_pool format, must be in CIDR format")
+	case !isValidDNS(p.DNS):
+		return errors.New("invalid dns format, must be a valid IP address")
+	case !isValidMTU(p.MTU):
+		return errors.New("invalid mtu format, must be an integer between 0 and 65535")
+	}
+
+	return nil
+}
+
+func validateUpdateDataNetworkParams(p UpdateDataNetworkParams) error {
+	switch {
+	case p.IPPool == "":
+		return errors.New("ip_pool is missing")
+	case p.DNS == "":
+		return errors.New("dns is missing")
+	case p.MTU == 0:
+		return errors.New("mtu is missing")
 	case !isUeIPPoolValid(p.IPPool):
 		return errors.New("invalid ip_pool format, must be in CIDR format")
 	case !isValidDNS(p.DNS):
