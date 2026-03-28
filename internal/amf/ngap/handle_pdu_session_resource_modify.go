@@ -57,16 +57,9 @@ func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, r
 		return
 	}
 
-	var ranUe *amf.RanUe
-
-	ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
+	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
 	if ranUe == nil {
-		logger.WithTrace(ctx, ran.Log).Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
-	}
-
-	ranUe = amfInstance.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
-	if ranUe == nil {
-		logger.WithTrace(ctx, ran.Log).Warn("UE Context not found", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value), zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
 		return
 	}
 

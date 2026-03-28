@@ -151,8 +151,12 @@ func (amf *AMF) AddAmfUeToUePool(ue *AmfUe) error {
 func (amf *AMF) DeregisterAndRemoveAMFUE(ctx context.Context, ue *AmfUe) {
 	ue.Deregister(ctx)
 
-	if ue.ranUe != nil {
-		err := ue.ranUe.Remove()
+	ue.Mutex.Lock()
+	ranUe := ue.ranUe
+	ue.Mutex.Unlock()
+
+	if ranUe != nil {
+		err := ranUe.Remove()
 		if err != nil {
 			logger.AmfLog.Error("failed to remove RAN UE", zap.Error(err))
 		}
