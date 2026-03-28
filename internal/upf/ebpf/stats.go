@@ -101,41 +101,101 @@ func getN3RouteStats(bpfObjects *BpfObjects) []N3N6EntrypointRouteStat {
 	return stats
 }
 
-func GetN3FibOk(bpfObjects *BpfObjects) uint64 {
+func GetN3FibSuccess(bpfObjects *BpfObjects) uint64 {
 	var total uint64
 
 	for _, s := range getN3RouteStats(bpfObjects) {
-		total += s.FibLookupIp4Ok + s.FibLookupIp6Ok
+		total += s.FibLookupIp4Success + s.FibLookupIp6Success
 	}
 
 	return total
 }
 
-func GetN3FibDrop(bpfObjects *BpfObjects) uint64 {
-	var total uint64
-
-	for _, s := range getN3RouteStats(bpfObjects) {
-		total += s.FibLookupIp4ErrorDrop + s.FibLookupIp6ErrorDrop
-	}
-
-	return total
-}
-
-func GetN3FibPass(bpfObjects *BpfObjects) uint64 {
-	var total uint64
-
-	for _, s := range getN3RouteStats(bpfObjects) {
-		total += s.FibLookupIp4ErrorPass + s.FibLookupIp6ErrorPass
-	}
-
-	return total
-}
-
-func GetN3NoNeigh(bpfObjects *BpfObjects) uint64 {
+func GetN3FibNoNeigh(bpfObjects *BpfObjects) uint64 {
 	var total uint64
 
 	for _, s := range getN3RouteStats(bpfObjects) {
 		total += s.FibLookupIp4NoNeigh + s.FibLookupIp6NoNeigh
+	}
+
+	return total
+}
+
+func GetN3FibBlackhole(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN3RouteStats(bpfObjects) {
+		total += s.FibLookupIp4Blackhole + s.FibLookupIp6Blackhole
+	}
+
+	return total
+}
+
+func GetN3FibUnreachable(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN3RouteStats(bpfObjects) {
+		total += s.FibLookupIp4Unreachable + s.FibLookupIp6Unreachable
+	}
+
+	return total
+}
+
+func GetN3FibProhibit(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN3RouteStats(bpfObjects) {
+		total += s.FibLookupIp4Prohibit + s.FibLookupIp6Prohibit
+	}
+
+	return total
+}
+
+func GetN3FibNoSrcAddr(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN3RouteStats(bpfObjects) {
+		total += s.FibLookupIp4NoSrcAddr + s.FibLookupIp6NoSrcAddr
+	}
+
+	return total
+}
+
+func GetN3FibFragNeeded(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN3RouteStats(bpfObjects) {
+		total += s.FibLookupIp4FragNeeded + s.FibLookupIp6FragNeeded
+	}
+
+	return total
+}
+
+func GetN3FibNotFwded(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN3RouteStats(bpfObjects) {
+		total += s.FibLookupIp4NotFwded + s.FibLookupIp6NotFwded
+	}
+
+	return total
+}
+
+func GetN3FibFwdDisabled(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN3RouteStats(bpfObjects) {
+		total += s.FibLookupIp4FwdDisabled + s.FibLookupIp6FwdDisabled
+	}
+
+	return total
+}
+
+func GetN3FibUnsuppLwt(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN3RouteStats(bpfObjects) {
+		total += s.FibLookupIp4UnsuppLwt + s.FibLookupIp6UnsuppLwt
 	}
 
 	return total
@@ -155,41 +215,101 @@ func getN6RouteStats(bpfObjects *BpfObjects) []N3N6EntrypointRouteStat {
 	return stats
 }
 
-func GetN6FibOk(bpfObjects *BpfObjects) uint64 {
+func GetN6FibSuccess(bpfObjects *BpfObjects) uint64 {
 	var total uint64
 
 	for _, s := range getN6RouteStats(bpfObjects) {
-		total += s.FibLookupIp4Ok + s.FibLookupIp6Ok
+		total += s.FibLookupIp4Success + s.FibLookupIp6Success
 	}
 
 	return total
 }
 
-func GetN6FibDrop(bpfObjects *BpfObjects) uint64 {
-	var total uint64
-
-	for _, s := range getN6RouteStats(bpfObjects) {
-		total += s.FibLookupIp4ErrorDrop + s.FibLookupIp6ErrorDrop
-	}
-
-	return total
-}
-
-func GetN6FibPass(bpfObjects *BpfObjects) uint64 {
-	var total uint64
-
-	for _, s := range getN6RouteStats(bpfObjects) {
-		total += s.FibLookupIp4ErrorPass + s.FibLookupIp6ErrorPass
-	}
-
-	return total
-}
-
-func GetN6NoNeigh(bpfObjects *BpfObjects) uint64 {
+func GetN6FibNoNeigh(bpfObjects *BpfObjects) uint64 {
 	var total uint64
 
 	for _, s := range getN6RouteStats(bpfObjects) {
 		total += s.FibLookupIp4NoNeigh + s.FibLookupIp6NoNeigh
+	}
+
+	return total
+}
+
+func GetN6FibBlackhole(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN6RouteStats(bpfObjects) {
+		total += s.FibLookupIp4Blackhole + s.FibLookupIp6Blackhole
+	}
+
+	return total
+}
+
+func GetN6FibUnreachable(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN6RouteStats(bpfObjects) {
+		total += s.FibLookupIp4Unreachable + s.FibLookupIp6Unreachable
+	}
+
+	return total
+}
+
+func GetN6FibProhibit(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN6RouteStats(bpfObjects) {
+		total += s.FibLookupIp4Prohibit + s.FibLookupIp6Prohibit
+	}
+
+	return total
+}
+
+func GetN6FibNoSrcAddr(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN6RouteStats(bpfObjects) {
+		total += s.FibLookupIp4NoSrcAddr + s.FibLookupIp6NoSrcAddr
+	}
+
+	return total
+}
+
+func GetN6FibFragNeeded(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN6RouteStats(bpfObjects) {
+		total += s.FibLookupIp4FragNeeded + s.FibLookupIp6FragNeeded
+	}
+
+	return total
+}
+
+func GetN6FibNotFwded(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN6RouteStats(bpfObjects) {
+		total += s.FibLookupIp4NotFwded + s.FibLookupIp6NotFwded
+	}
+
+	return total
+}
+
+func GetN6FibFwdDisabled(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN6RouteStats(bpfObjects) {
+		total += s.FibLookupIp4FwdDisabled + s.FibLookupIp6FwdDisabled
+	}
+
+	return total
+}
+
+func GetN6FibUnsuppLwt(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN6RouteStats(bpfObjects) {
+		total += s.FibLookupIp4UnsuppLwt + s.FibLookupIp6UnsuppLwt
 	}
 
 	return total

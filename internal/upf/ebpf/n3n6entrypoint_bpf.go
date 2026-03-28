@@ -91,17 +91,29 @@ type N3N6EntrypointPdrInfo struct {
 }
 
 type N3N6EntrypointRouteStat struct {
-	_                     structs.HostLayout
-	FibLookupIp4Cache     uint64
-	FibLookupIp4Ok        uint64
-	FibLookupIp4ErrorDrop uint64
-	FibLookupIp4ErrorPass uint64
-	FibLookupIp4NoNeigh   uint64
-	FibLookupIp6Cache     uint64
-	FibLookupIp6Ok        uint64
-	FibLookupIp6ErrorDrop uint64
-	FibLookupIp6ErrorPass uint64
-	FibLookupIp6NoNeigh   uint64
+	_                       structs.HostLayout
+	FibLookupIp4Cache       uint64
+	FibLookupIp4Success     uint64
+	FibLookupIp4NoNeigh     uint64
+	FibLookupIp4Blackhole   uint64
+	FibLookupIp4Unreachable uint64
+	FibLookupIp4Prohibit    uint64
+	FibLookupIp4NoSrcAddr   uint64
+	FibLookupIp4FragNeeded  uint64
+	FibLookupIp4NotFwded    uint64
+	FibLookupIp4FwdDisabled uint64
+	FibLookupIp4UnsuppLwt   uint64
+	FibLookupIp6Cache       uint64
+	FibLookupIp6Success     uint64
+	FibLookupIp6NoNeigh     uint64
+	FibLookupIp6Blackhole   uint64
+	FibLookupIp6Unreachable uint64
+	FibLookupIp6Prohibit    uint64
+	FibLookupIp6NoSrcAddr   uint64
+	FibLookupIp6FragNeeded  uint64
+	FibLookupIp6NotFwded    uint64
+	FibLookupIp6FwdDisabled uint64
+	FibLookupIp6UnsuppLwt   uint64
 }
 
 type N3N6EntrypointUpfStatistic struct {

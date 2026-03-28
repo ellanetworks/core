@@ -65,20 +65,44 @@ func RegisterMetrics() {
 
 	// Register FIB lookup result collector
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibOk(bpfObjects)), "n3", "ok")
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibSuccess(bpfObjects)), "n3", "success")
 
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibDrop(bpfObjects)), "n3", "drop")
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibNoNeigh(bpfObjects)), "n3", "no_neigh")
 
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibPass(bpfObjects)), "n3", "pass")
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibBlackhole(bpfObjects)), "n3", "blackhole")
 
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3NoNeigh(bpfObjects)), "n3", "no_neigh")
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibUnreachable(bpfObjects)), "n3", "unreachable")
 
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibOk(bpfObjects)), "n6", "ok")
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibProhibit(bpfObjects)), "n3", "prohibit")
 
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibDrop(bpfObjects)), "n6", "drop")
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibNoSrcAddr(bpfObjects)), "n3", "no_src_addr")
 
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibPass(bpfObjects)), "n6", "pass")
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibFragNeeded(bpfObjects)), "n3", "frag_needed")
 
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6NoNeigh(bpfObjects)), "n6", "no_neigh")
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibNotFwded(bpfObjects)), "n3", "not_fwded")
+
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibFwdDisabled(bpfObjects)), "n3", "fwd_disabled")
+
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibUnsuppLwt(bpfObjects)), "n3", "unsupp_lwt")
+
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibSuccess(bpfObjects)), "n6", "success")
+
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibNoNeigh(bpfObjects)), "n6", "no_neigh")
+
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibBlackhole(bpfObjects)), "n6", "blackhole")
+
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibUnreachable(bpfObjects)), "n6", "unreachable")
+
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibProhibit(bpfObjects)), "n6", "prohibit")
+
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibNoSrcAddr(bpfObjects)), "n6", "no_src_addr")
+
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibFragNeeded(bpfObjects)), "n6", "frag_needed")
+
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibNotFwded(bpfObjects)), "n6", "not_fwded")
+
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibFwdDisabled(bpfObjects)), "n6", "fwd_disabled")
+
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibUnsuppLwt(bpfObjects)), "n6", "unsupp_lwt")
 	}))
 }

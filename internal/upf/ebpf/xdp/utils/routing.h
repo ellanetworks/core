@@ -46,15 +46,27 @@ struct {
 
 struct route_stat {
 	__u64 fib_lookup_ip4_cache;
-	__u64 fib_lookup_ip4_ok;
-	__u64 fib_lookup_ip4_error_drop;
-	__u64 fib_lookup_ip4_error_pass;
+	__u64 fib_lookup_ip4_success;
 	__u64 fib_lookup_ip4_no_neigh;
+	__u64 fib_lookup_ip4_blackhole;
+	__u64 fib_lookup_ip4_unreachable;
+	__u64 fib_lookup_ip4_prohibit;
+	__u64 fib_lookup_ip4_no_src_addr;
+	__u64 fib_lookup_ip4_frag_needed;
+	__u64 fib_lookup_ip4_not_fwded;
+	__u64 fib_lookup_ip4_fwd_disabled;
+	__u64 fib_lookup_ip4_unsupp_lwt;
 	__u64 fib_lookup_ip6_cache;
-	__u64 fib_lookup_ip6_ok;
-	__u64 fib_lookup_ip6_error_drop;
-	__u64 fib_lookup_ip6_error_pass;
+	__u64 fib_lookup_ip6_success;
 	__u64 fib_lookup_ip6_no_neigh;
+	__u64 fib_lookup_ip6_blackhole;
+	__u64 fib_lookup_ip6_unreachable;
+	__u64 fib_lookup_ip6_prohibit;
+	__u64 fib_lookup_ip6_no_src_addr;
+	__u64 fib_lookup_ip6_frag_needed;
+	__u64 fib_lookup_ip6_not_fwded;
+	__u64 fib_lookup_ip6_fwd_disabled;
+	__u64 fib_lookup_ip6_unsupp_lwt;
 };
 
 static __always_inline enum xdp_action
@@ -112,31 +124,55 @@ static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: nexthop: %pI4",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr,
 			   &fib_params.ipv4_dst);
-		statistic->fib_lookup_ip4_ok += 1;
+		if (rc == BPF_FIB_LKUP_RET_SUCCESS)
+			statistic->fib_lookup_ip4_success += 1;
 
 		return do_route_ipv4(ctx, &fib_params);
 
 	case BPF_FIB_LKUP_RET_BLACKHOLE:
+		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
+			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
+		statistic->fib_lookup_ip4_blackhole += 1;
+		return XDP_DROP;
 	case BPF_FIB_LKUP_RET_UNREACHABLE:
+		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
+			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
+		statistic->fib_lookup_ip4_unreachable += 1;
+		return XDP_DROP;
 	case BPF_FIB_LKUP_RET_PROHIBIT:
+		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
+			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
+		statistic->fib_lookup_ip4_prohibit += 1;
+		return XDP_DROP;
 	case BPF_FIB_LKUP_RET_NO_SRC_ADDR:
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
-		statistic->fib_lookup_ip4_error_drop += 1;
+		statistic->fib_lookup_ip4_no_src_addr += 1;
 		return XDP_DROP;
 	case BPF_FIB_LKUP_RET_FRAG_NEEDED:
 		upf_printk("upf: fragmentation needed for %pI4 -> %pI4",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr);
-		statistic->fib_lookup_ip4_error_drop += 1;
+		statistic->fib_lookup_ip4_frag_needed += 1;
 		return XDP_DROP;
 	case BPF_FIB_LKUP_RET_NOT_FWDED:
+		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
+			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
+		statistic->fib_lookup_ip4_not_fwded += 1;
+		return XDP_PASS;
 	case BPF_FIB_LKUP_RET_FWD_DISABLED:
+		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
+			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
+		statistic->fib_lookup_ip4_fwd_disabled += 1;
+		return XDP_PASS;
 	case BPF_FIB_LKUP_RET_UNSUPP_LWT:
+		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
+			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
+		statistic->fib_lookup_ip4_unsupp_lwt += 1;
+		return XDP_PASS;
 	default:
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
 			   &ctx->ip4->saddr, &ctx->ip4->daddr, rc);
-		statistic->fib_lookup_ip4_error_pass += 1;
-		return XDP_PASS; /* Let's kernel takes care */
+		return XDP_PASS;
 	}
 }
 
@@ -170,7 +206,8 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: nexthop: %pI4",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr,
 			   fib_params.ipv4_dst);
-		statistic->fib_lookup_ip6_ok += 1;
+		if (rc == BPF_FIB_LKUP_RET_SUCCESS)
+			statistic->fib_lookup_ip6_success += 1;
 		//_decr_ttl(ether_proto, l3hdr);
 		__builtin_memcpy(ctx->eth->h_dest, fib_params.dmac, ETH_ALEN);
 		__builtin_memcpy(ctx->eth->h_source, fib_params.smac, ETH_ALEN);
@@ -192,24 +229,48 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 
 		return bpf_redirect(fib_params.ifindex, 0);
 	case BPF_FIB_LKUP_RET_BLACKHOLE:
+		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
+			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
+		statistic->fib_lookup_ip6_blackhole += 1;
+		return XDP_DROP;
 	case BPF_FIB_LKUP_RET_UNREACHABLE:
+		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
+			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
+		statistic->fib_lookup_ip6_unreachable += 1;
+		return XDP_DROP;
 	case BPF_FIB_LKUP_RET_PROHIBIT:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
-		statistic->fib_lookup_ip6_error_drop += 1;
+		statistic->fib_lookup_ip6_prohibit += 1;
+		return XDP_DROP;
+	case BPF_FIB_LKUP_RET_NO_SRC_ADDR:
+		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
+			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
+		statistic->fib_lookup_ip6_no_src_addr += 1;
 		return XDP_DROP;
 	case BPF_FIB_LKUP_RET_FRAG_NEEDED:
 		upf_printk("upf: fragmentation needed %pI6c -> %pI6c",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr);
-		statistic->fib_lookup_ip6_error_drop += 1;
+		statistic->fib_lookup_ip6_frag_needed += 1;
 		return XDP_DROP;
 	case BPF_FIB_LKUP_RET_NOT_FWDED:
+		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
+			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
+		statistic->fib_lookup_ip6_not_fwded += 1;
+		return XDP_PASS;
 	case BPF_FIB_LKUP_RET_FWD_DISABLED:
+		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
+			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
+		statistic->fib_lookup_ip6_fwd_disabled += 1;
+		return XDP_PASS;
 	case BPF_FIB_LKUP_RET_UNSUPP_LWT:
+		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
+			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
+		statistic->fib_lookup_ip6_unsupp_lwt += 1;
+		return XDP_PASS;
 	default:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);
-		statistic->fib_lookup_ip6_error_pass += 1;
-		return XDP_PASS; /* Let's kernel takes care */
+		return XDP_PASS;
 	}
 }
