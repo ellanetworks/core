@@ -125,7 +125,7 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 	if smContextExist && requestType != nil {
 		/* AMF releases context locally as this is duplicate pdu session */
 		if requestType.GetRequestTypeValue() == nasMessage.ULNASTransportRequestTypeInitialRequest {
-			delete(ue.SmContextList, pduSessionID)
+			ue.DeleteSmContext(pduSessionID)
 
 			smContextExist = false
 		}

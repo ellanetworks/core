@@ -238,12 +238,21 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 		}
 	}
 
+	// Copy SmContextList under lock for safe concurrent iteration.
+	ue.Mutex.Lock()
+
+	smContextSnapshot := make(map[uint8]*amf.SmContext, len(ue.SmContextList))
+	for id, sc := range ue.SmContextList {
+		smContextSnapshot[id] = sc
+	}
+	ue.Mutex.Unlock()
+
 	// If the UE has uplink data pending for some PDU sessions, we need to activate them
 	if msg.UplinkDataStatus != nil {
 		uplinkDataPsi := nasConvert.PSIToBooleanArray(msg.UplinkDataStatus.Buffer)
 		reactivationResult = new([16]bool)
 
-		for pduSessionID, smContext := range ue.SmContextList {
+		for pduSessionID, smContext := range smContextSnapshot {
 			if int(pduSessionID) >= len(uplinkDataPsi) {
 				ue.Log.Warn("Ignoring out-of-range PDU session ID in UplinkDataStatus processing", zap.Uint8("pduSessionID", pduSessionID))
 				continue
@@ -272,7 +281,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 		acceptPduSessionPsi = new([16]bool)
 
 		psiArray := nasConvert.PSIToBooleanArray(msg.PDUSessionStatus.Buffer)
-		for pduSessionID, smContext := range ue.SmContextList {
+		for pduSessionID, smContext := range smContextSnapshot {
 			if int(pduSessionID) >= len(psiArray) {
 				ue.Log.Warn("Ignoring out-of-range PDU session ID in PDUSessionStatus processing", zap.Uint8("pduSessionID", pduSessionID))
 				continue

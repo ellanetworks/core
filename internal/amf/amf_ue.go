@@ -584,6 +584,9 @@ func (ue *AmfUe) CreateSmContext(pduSessionID uint8, ref string, snssai *models.
 		return fmt.Errorf("invalid PDU session ID %d: must be in range 1-15 per TS 24.501", pduSessionID)
 	}
 
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
 	ue.SmContextList[pduSessionID] = &SmContext{
 		Ref:    ref,
 		Snssai: snssai,
@@ -592,12 +595,26 @@ func (ue *AmfUe) CreateSmContext(pduSessionID uint8, ref string, snssai *models.
 	return nil
 }
 
+func (ue *AmfUe) DeleteSmContext(pduSessionID uint8) {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	delete(ue.SmContextList, pduSessionID)
+}
+
 func (ue *AmfUe) SmContextFindByPDUSessionID(pduSessionID uint8) (*SmContext, bool) {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
 	smContext, ok := ue.SmContextList[pduSessionID]
+
 	return smContext, ok
 }
 
 func (ue *AmfUe) HasActivePduSessions() bool {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
 	for _, smContext := range ue.SmContextList {
 		if !smContext.PduSessionInactive {
 			return true
@@ -933,8 +950,19 @@ func (ue *AmfUe) releaseSmContexts(ctx context.Context) {
 		return
 	}
 
+	// Copy refs under lock, then release lock before external SMF calls.
+	ue.Mutex.Lock()
+
+	smContextRefs := make([]string, 0, len(ue.SmContextList))
 	for _, smContext := range ue.SmContextList {
-		err := ue.smf.ReleaseSmContext(ctx, smContext.Ref)
+		smContextRefs = append(smContextRefs, smContext.Ref)
+	}
+
+	ue.SmContextList = make(map[uint8]*SmContext)
+	ue.Mutex.Unlock()
+
+	for _, smContextRef := range smContextRefs {
+		err := ue.smf.ReleaseSmContext(ctx, smContextRef)
 		if err != nil {
 			ue.Log.Error("Release SmContext Error", zap.Error(err))
 		}
