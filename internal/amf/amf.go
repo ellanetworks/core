@@ -31,7 +31,7 @@ import (
 // Authenticator is the interface the AMF requires from the AUSF.
 // *ausf.AUSF satisfies this interface directly.
 type Authenticator interface {
-	Authenticate(ctx context.Context, suci, servingNetwork string, resync *ausf.ResyncInfo) (*ausf.AuthResult, error)
+	Authenticate(ctx context.Context, suci string, plmn models.PlmnID, resync *ausf.ResyncInfo) (*ausf.AuthResult, error)
 	Confirm(ctx context.Context, resStar, suci string) (etsi.SUPI, string, error)
 }
 

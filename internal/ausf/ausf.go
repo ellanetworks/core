@@ -9,11 +9,11 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
-	"regexp"
 	"sync"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/models"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -57,13 +57,12 @@ type authContext struct {
 
 // AUSF implements the 5G-AKA authentication server function.
 type AUSF struct {
-	mu                  sync.RWMutex
-	pool                map[string]*authContext // key: SUCI
-	store               SubscriberStore
-	keys                KeyResolver
-	clock               func() time.Time
-	ttl                 time.Duration
-	servingNetworkRegex *regexp.Regexp
+	mu    sync.RWMutex
+	pool  map[string]*authContext // key: SUCI
+	store SubscriberStore
+	keys  KeyResolver
+	clock func() time.Time
+	ttl   time.Duration
 }
 
 // Option configures an AUSF instance.
@@ -78,12 +77,11 @@ func WithTTL(d time.Duration) Option { return func(a *AUSF) { a.ttl = d } }
 // New creates a new AUSF. The caller must run a.Run(ctx) in a goroutine.
 func New(store SubscriberStore, keys KeyResolver, opts ...Option) *AUSF {
 	a := &AUSF{
-		pool:                make(map[string]*authContext),
-		store:               store,
-		keys:                keys,
-		clock:               time.Now,
-		ttl:                 60 * time.Second,
-		servingNetworkRegex: regexp.MustCompile(`^5G:mnc[0-9]{3}\.mcc[0-9]{3}\.3gppnetwork\.org$`),
+		pool:  make(map[string]*authContext),
+		store: store,
+		keys:  keys,
+		clock: time.Now,
+		ttl:   60 * time.Second,
 	}
 	for _, o := range opts {
 		o(a)
@@ -119,14 +117,15 @@ func (a *AUSF) evictExpired() {
 	}
 }
 
-func (a *AUSF) isServingNetworkAuthorized(lookup string) bool {
-	return a.servingNetworkRegex.MatchString(lookup)
-}
-
 // Authenticate performs the 5G-AKA authentication procedure for a UE.
 // It returns the authentication vector to send to the UE and caches
 // the pending context for later confirmation via Confirm.
-func (a *AUSF) Authenticate(ctx context.Context, suci, servingNetwork string, resync *ResyncInfo) (*AuthResult, error) {
+func (a *AUSF) Authenticate(ctx context.Context, suci string, plmn models.PlmnID, resync *ResyncInfo) (*AuthResult, error) {
+	servingNetwork, err := plmn.ServingNetworkName()
+	if err != nil {
+		return nil, fmt.Errorf("invalid PLMN for serving network name: %w", err)
+	}
+
 	ctx, span := tracer.Start(ctx, "ausf/authenticate",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
@@ -135,14 +134,6 @@ func (a *AUSF) Authenticate(ctx context.Context, suci, servingNetwork string, re
 		),
 	)
 	defer span.End()
-
-	if !a.isServingNetworkAuthorized(servingNetwork) {
-		err := fmt.Errorf("serving network not authorized: %s", servingNetwork)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "serving network not authorized")
-
-		return nil, err
-	}
 
 	// If resync, recover the original RAND from the cached context.
 	var resyncAuts, resyncRand string

@@ -3,7 +3,6 @@ package gmm
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
@@ -16,14 +15,7 @@ func sendUEAuthenticationAuthenticateRequest(ctx context.Context, amfInstance *a
 		return nil, fmt.Errorf("tai is not available in UE context")
 	}
 
-	mnc, err := strconv.Atoi(ue.Tai.PlmnID.Mnc)
-	if err != nil {
-		return nil, fmt.Errorf("could not convert mnc to int: %v", err)
-	}
-
-	snName := fmt.Sprintf("5G:mnc%03d.mcc%s.3gppnetwork.org", mnc, ue.Tai.PlmnID.Mcc)
-
-	ueAuthenticationCtx, err := amfInstance.Ausf.Authenticate(ctx, ue.Suci, snName, resyncInfo)
+	ueAuthenticationCtx, err := amfInstance.Ausf.Authenticate(ctx, ue.Suci, *ue.Tai.PlmnID, resyncInfo)
 	if err != nil {
 		return nil, fmt.Errorf("ausf UE Authentication Authenticate Request failed: %s", err.Error())
 	}
