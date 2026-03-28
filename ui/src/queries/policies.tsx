@@ -70,7 +70,6 @@ export const updatePolicy = async (
     method: "PUT",
     authToken,
     body: {
-      name,
       bitrate_uplink: bitrateUplink,
       bitrate_downlink: bitrateDownlink,
       var5qi,

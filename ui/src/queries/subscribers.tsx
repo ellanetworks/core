@@ -111,7 +111,7 @@ export const updateSubscriber = async (
   await apiFetchVoid(`/api/v1/subscribers/${imsi}`, {
     method: "PUT",
     authToken,
-    body: { imsi, policyName },
+    body: { policyName },
   });
 };
 

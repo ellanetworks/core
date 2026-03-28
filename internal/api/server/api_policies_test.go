@@ -50,6 +50,14 @@ type CreatePolicyResponse struct {
 	Error  string                     `json:"error,omitempty"`
 }
 
+type UpdatePolicyParams struct {
+	BitrateUplink   string `json:"bitrate_uplink,omitempty"`
+	BitrateDownlink string `json:"bitrate_downlink,omitempty"`
+	Var5qi          int32  `json:"var5qi,omitempty"`
+	Arp             int32  `json:"arp,omitempty"`
+	DataNetworkName string `json:"data_network_name,omitempty"`
+}
+
 type DeletePolicyResponseResult struct {
 	Message string `json:"message"`
 }
@@ -157,7 +165,7 @@ func createPolicy(url string, client *http.Client, token string, data *CreatePol
 	return res.StatusCode, &createResponse, nil
 }
 
-func editPolicy(url string, client *http.Client, name string, token string, data *CreatePolicyParams) (int, *CreatePolicyResponse, error) {
+func editPolicy(url string, client *http.Client, name string, token string, data *UpdatePolicyParams) (int, *CreatePolicyResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return 0, nil, err
@@ -396,8 +404,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("8. Edit policy - success", func(t *testing.T) {
-		createPolicyParams := &CreatePolicyParams{
-			Name:            PolicyName,
+		updatePolicyParams := &UpdatePolicyParams{
 			BitrateUplink:   "100 Mbps",
 			BitrateDownlink: "200 Mbps",
 			Var5qi:          6,
@@ -405,7 +412,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 			DataNetworkName: DataNetworkName,
 		}
 
-		statusCode, response, err := editPolicy(env.Server.URL, client, PolicyName, token, createPolicyParams)
+		statusCode, response, err := editPolicy(env.Server.URL, client, PolicyName, token, updatePolicyParams)
 		if err != nil {
 			t.Fatalf("couldn't edit policy: %s", err)
 		}
@@ -500,6 +507,101 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 			t.Fatalf("expected error %q, got %q", "Policy not found", response.Error)
 		}
 	})
+}
+
+// TestUpdatePolicyPathBodyMismatch verifies that the path name is used
+// for the DB update instead of any name sent in the request body.
+func TestUpdatePolicyPathBodyMismatch(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	// Create data network and policy.
+	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+		Name: DataNetworkName, MTU: MTU, IPPool: IPPool, DNS: DNS,
+	})
+	if err != nil {
+		t.Fatalf("couldn't create data network: %s", err)
+	}
+
+	_, _, err = createPolicy(env.Server.URL, client, token, &CreatePolicyParams{
+		Name: "real-policy", BitrateUplink: "100 Mbps", BitrateDownlink: "100 Mbps",
+		Var5qi: 9, Arp: 1, DataNetworkName: DataNetworkName,
+	})
+	if err != nil {
+		t.Fatalf("couldn't create policy: %s", err)
+	}
+
+	// Update with a different name in the body than the path.
+	updateParams := &UpdatePolicyParams{
+		BitrateUplink:   "50 Mbps",
+		BitrateDownlink: "50 Mbps",
+		Var5qi:          6,
+		Arp:             2,
+		DataNetworkName: DataNetworkName,
+	}
+
+	statusCode, response, err := editPolicy(env.Server.URL, client, "real-policy", token, updateParams)
+	if err != nil {
+		t.Fatalf("couldn't edit policy: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d (error: %s)", http.StatusOK, statusCode, response.Error)
+	}
+
+	// Verify the real policy was updated (looked up by path name).
+	getStatus, getResp, err := getPolicy(env.Server.URL, client, token, "real-policy")
+	if err != nil {
+		t.Fatalf("couldn't get policy: %s", err)
+	}
+
+	if getStatus != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, getStatus)
+	}
+
+	if getResp.Result.Arp != 2 {
+		t.Fatalf("expected arp 2, got %d", getResp.Result.Arp)
+	}
+
+	// Verify the audit log references the path name, not the body name.
+	_, auditResp, err := listAuditLogs(env.Server.URL, client, token, 1, 100)
+	if err != nil {
+		t.Fatalf("couldn't list audit logs: %s", err)
+	}
+
+	var found bool
+
+	for _, entry := range auditResp.Result.Items {
+		if entry.Action != "update_policy" {
+			continue
+		}
+
+		found = true
+
+		expected := "User updated policy: real-policy"
+		if entry.Details != expected {
+			t.Errorf("audit log records wrong name: got %q, want %q", entry.Details, expected)
+		}
+
+		break
+	}
+
+	if !found {
+		t.Fatal("no update_policy audit entry found")
+	}
 }
 
 func TestCreatePolicyInvalidInput(t *testing.T) {
