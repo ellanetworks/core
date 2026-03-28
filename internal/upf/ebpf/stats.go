@@ -87,6 +87,114 @@ func GetN6Redirect(bpfObjects *BpfObjects) uint64 {
 	return getUpfN6XdpStatisticField(bpfObjects, XDP_REDIRECT)
 }
 
+// FIB lookup result getters — N3 (uplink)
+
+func getN3RouteStats(bpfObjects *BpfObjects) []N3N6EntrypointRouteStat {
+	var stats []N3N6EntrypointRouteStat
+
+	err := bpfObjects.UplinkRouteStats.Lookup(uint32(0), &stats)
+	if err != nil {
+		logger.UpfLog.Warn("failed to fetch UPF N3 route stats", zap.Error(err))
+		return nil
+	}
+
+	return stats
+}
+
+func GetN3FibOk(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN3RouteStats(bpfObjects) {
+		total += s.FibLookupIp4Ok + s.FibLookupIp6Ok
+	}
+
+	return total
+}
+
+func GetN3FibDrop(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN3RouteStats(bpfObjects) {
+		total += s.FibLookupIp4ErrorDrop + s.FibLookupIp6ErrorDrop
+	}
+
+	return total
+}
+
+func GetN3FibPass(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN3RouteStats(bpfObjects) {
+		total += s.FibLookupIp4ErrorPass + s.FibLookupIp6ErrorPass
+	}
+
+	return total
+}
+
+func GetN3NoNeigh(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN3RouteStats(bpfObjects) {
+		total += s.FibLookupIp4NoNeigh + s.FibLookupIp6NoNeigh
+	}
+
+	return total
+}
+
+// FIB lookup result getters — N6 (downlink)
+
+func getN6RouteStats(bpfObjects *BpfObjects) []N3N6EntrypointRouteStat {
+	var stats []N3N6EntrypointRouteStat
+
+	err := bpfObjects.DownlinkRouteStats.Lookup(uint32(0), &stats)
+	if err != nil {
+		logger.UpfLog.Warn("failed to fetch UPF N6 route stats", zap.Error(err))
+		return nil
+	}
+
+	return stats
+}
+
+func GetN6FibOk(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN6RouteStats(bpfObjects) {
+		total += s.FibLookupIp4Ok + s.FibLookupIp6Ok
+	}
+
+	return total
+}
+
+func GetN6FibDrop(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN6RouteStats(bpfObjects) {
+		total += s.FibLookupIp4ErrorDrop + s.FibLookupIp6ErrorDrop
+	}
+
+	return total
+}
+
+func GetN6FibPass(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN6RouteStats(bpfObjects) {
+		total += s.FibLookupIp4ErrorPass + s.FibLookupIp6ErrorPass
+	}
+
+	return total
+}
+
+func GetN6NoNeigh(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN6RouteStats(bpfObjects) {
+		total += s.FibLookupIp4NoNeigh + s.FibLookupIp6NoNeigh
+	}
+
+	return total
+}
+
 func GetN3UplinkThroughputStats(bpfObjects *BpfObjects) uint64 {
 	var n3Statistics []N3N6EntrypointUpfStatistic
 

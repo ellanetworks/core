@@ -30,6 +30,14 @@ func RegisterMetrics() {
 		nil,
 	)
 
+	// FIB lookup result metrics with labels for interface and result
+	xdpFibLookupDesc := prometheus.NewDesc(
+		"app_xdp_fib_lookup_total",
+		"FIB lookup outcomes in the XDP data plane.",
+		[]string{"interface", "result"},
+		nil,
+	)
+
 	prometheus.MustRegister(upfUplinkBytes, upfDownlinkBytes)
 
 	// Register XDP action collector that produces metrics with labels
@@ -53,5 +61,24 @@ func RegisterMetrics() {
 		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN6Aborted(bpfObjects)), "n6", "XDP_ABORTED")
 
 		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN6Redirect(bpfObjects)), "n6", "XDP_REDIRECT")
+	}))
+
+	// Register FIB lookup result collector
+	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibOk(bpfObjects)), "n3", "ok")
+
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibDrop(bpfObjects)), "n3", "drop")
+
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibPass(bpfObjects)), "n3", "pass")
+
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3NoNeigh(bpfObjects)), "n3", "no_neigh")
+
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibOk(bpfObjects)), "n6", "ok")
+
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibDrop(bpfObjects)), "n6", "drop")
+
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibPass(bpfObjects)), "n6", "pass")
+
+		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6NoNeigh(bpfObjects)), "n6", "no_neigh")
 	}))
 }

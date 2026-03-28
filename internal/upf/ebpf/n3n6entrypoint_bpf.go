@@ -96,10 +96,12 @@ type N3N6EntrypointRouteStat struct {
 	FibLookupIp4Ok        uint64
 	FibLookupIp4ErrorDrop uint64
 	FibLookupIp4ErrorPass uint64
+	FibLookupIp4NoNeigh   uint64
 	FibLookupIp6Cache     uint64
 	FibLookupIp6Ok        uint64
 	FibLookupIp6ErrorDrop uint64
 	FibLookupIp6ErrorPass uint64
+	FibLookupIp6NoNeigh   uint64
 }
 
 type N3N6EntrypointUpfStatistic struct {

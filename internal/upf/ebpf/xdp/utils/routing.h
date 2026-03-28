@@ -49,10 +49,12 @@ struct route_stat {
 	__u64 fib_lookup_ip4_ok;
 	__u64 fib_lookup_ip4_error_drop;
 	__u64 fib_lookup_ip4_error_pass;
+	__u64 fib_lookup_ip4_no_neigh;
 	__u64 fib_lookup_ip6_cache;
 	__u64 fib_lookup_ip6_ok;
 	__u64 fib_lookup_ip6_error_drop;
 	__u64 fib_lookup_ip6_error_pass;
+	__u64 fib_lookup_ip6_no_neigh;
 };
 
 static __always_inline enum xdp_action
@@ -104,6 +106,7 @@ static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 		__builtin_memset(fib_params.dmac, 0xFF, 6);
 		__be32 daddr = fib_params.ipv4_dst;
 		bpf_ringbuf_output(&no_neigh_map, &daddr, sizeof(daddr), 0);
+		statistic->fib_lookup_ip4_no_neigh += 1;
 		// The fall-through is voluntary here
 	case BPF_FIB_LKUP_RET_SUCCESS:
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: nexthop: %pI4",
@@ -161,6 +164,7 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 		struct in6_addr daddr = {};
 		__builtin_memcpy(&daddr, &fib_params.ipv6_dst, sizeof(daddr));
 		bpf_ringbuf_output(&no_neigh_map, &daddr, sizeof(daddr), 0);
+		statistic->fib_lookup_ip6_no_neigh += 1;
 		// The fall-through is voluntary here
 	case BPF_FIB_LKUP_RET_SUCCESS:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: nexthop: %pI4",

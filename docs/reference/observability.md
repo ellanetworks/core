@@ -31,6 +31,7 @@ These metrics are used to monitor the health of the system and the performance o
 | app_ip_addresses_allocated_total | The total number of IP addresses currently allocated to subscribers. | Gauge |
 | app_ip_addresses_total | The total number of IP addresses available for subscribers. | Gauge |
 | app_xdp_action_total | The total number of packets, with labels for the interface (n3, n6), and action taken. | Counter |
+| app_xdp_fib_lookup_total | FIB lookup outcomes in the XDP data plane, with labels for interface (n3, n6) and result (ok, drop, pass, no_neigh). | Counter |
 | app_uplink_bytes | The total number of bytes transmitted in the uplink direction (N3 -> N6). This value includes the Ethernet header. | Counter |
 | app_downlink_bytes | The total number of bytes transmitted in the downlink direction (N6 -> N3). This value includes the Ethernet header. | Counter |
 | app_api_requests_total                | Total number of HTTP requests by method, endpoint, and status code | Counter |
