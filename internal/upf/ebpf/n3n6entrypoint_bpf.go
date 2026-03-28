@@ -103,6 +103,7 @@ type N3N6EntrypointRouteStat struct {
 	FibLookupIp4NotFwded    uint64
 	FibLookupIp4FwdDisabled uint64
 	FibLookupIp4UnsuppLwt   uint64
+	Ip4IfindexMismatch      uint64
 	FibLookupIp6Cache       uint64
 	FibLookupIp6Success     uint64
 	FibLookupIp6NoNeigh     uint64
@@ -114,6 +115,7 @@ type N3N6EntrypointRouteStat struct {
 	FibLookupIp6NotFwded    uint64
 	FibLookupIp6FwdDisabled uint64
 	FibLookupIp6UnsuppLwt   uint64
+	Ip6IfindexMismatch      uint64
 }
 
 type N3N6EntrypointUpfStatistic struct {

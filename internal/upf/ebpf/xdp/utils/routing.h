@@ -56,6 +56,7 @@ struct route_stat {
 	__u64 fib_lookup_ip4_not_fwded;
 	__u64 fib_lookup_ip4_fwd_disabled;
 	__u64 fib_lookup_ip4_unsupp_lwt;
+	__u64 ip4_ifindex_mismatch;
 	__u64 fib_lookup_ip6_cache;
 	__u64 fib_lookup_ip6_success;
 	__u64 fib_lookup_ip6_no_neigh;
@@ -67,15 +68,30 @@ struct route_stat {
 	__u64 fib_lookup_ip6_not_fwded;
 	__u64 fib_lookup_ip6_fwd_disabled;
 	__u64 fib_lookup_ip6_unsupp_lwt;
+	__u64 ip6_ifindex_mismatch;
 };
 
 static __always_inline enum xdp_action
-do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params)
+do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
+	      struct route_stat *statistic)
 {
+	__u32 expected_ifindex;
+
+	if (ctx->interface == INTERFACE_N3) {
+		expected_ifindex = n6_ifindex;
+	} else {
+		expected_ifindex = n3_ifindex;
+	}
+
+	if (fib_params->ifindex != expected_ifindex) {
+		upf_printk("upf: ifindex mismatch: fib=%d expected=%d",
+			   fib_params->ifindex, expected_ifindex);
+		statistic->ip4_ifindex_mismatch += 1;
+		return XDP_DROP;
+	}
+
 	__builtin_memcpy(ctx->eth->h_source, fib_params->smac, ETH_ALEN);
 	__builtin_memcpy(ctx->eth->h_dest, fib_params->dmac, ETH_ALEN);
-
-	__u32 ifindex = fib_params->ifindex; // NOLINT(clang-analyzer-deadcode.DeadStores)
 
 	if (ctx->interface == INTERFACE_N3) {
 		if (masquerade) {
@@ -83,14 +99,42 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params)
 				return XDP_DROP;
 			}
 		}
-		ifindex = n6_ifindex;
-	} else {
-		ifindex = n3_ifindex;
 	}
 
-	if (ifindex == ctx->xdp_ctx->ingress_ifindex)
+	if (expected_ifindex == ctx->xdp_ctx->ingress_ifindex)
 		return XDP_TX;
-	return bpf_redirect(ifindex, 0);
+	return bpf_redirect(expected_ifindex, 0);
+}
+
+static __always_inline enum xdp_action
+do_route_ipv6(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
+	      struct route_stat *statistic)
+{
+	__u32 expected_ifindex;
+
+	if (ctx->interface == INTERFACE_N3) {
+		expected_ifindex = n6_ifindex;
+	} else {
+		expected_ifindex = n3_ifindex;
+	}
+
+	if (fib_params->ifindex != expected_ifindex) {
+		upf_printk("upf: ifindex mismatch: fib=%d expected=%d",
+			   fib_params->ifindex, expected_ifindex);
+		statistic->ip6_ifindex_mismatch += 1;
+		return XDP_DROP;
+	}
+
+	__builtin_memcpy(ctx->eth->h_dest, fib_params->dmac, ETH_ALEN);
+	__builtin_memcpy(ctx->eth->h_source, fib_params->smac, ETH_ALEN);
+
+	upf_printk("upf: bpf_redirect: if=%d %lu -> %lu",
+		   fib_params->ifindex, fib_params->smac,
+		   fib_params->dmac);
+
+	if (expected_ifindex == ctx->xdp_ctx->ingress_ifindex)
+		return XDP_TX;
+	return bpf_redirect(expected_ifindex, 0);
 }
 
 static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
@@ -127,7 +171,7 @@ static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 		if (rc == BPF_FIB_LKUP_RET_SUCCESS)
 			statistic->fib_lookup_ip4_success += 1;
 
-		return do_route_ipv4(ctx, &fib_params);
+		return do_route_ipv4(ctx, &fib_params, statistic);
 
 	case BPF_FIB_LKUP_RET_BLACKHOLE:
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
@@ -209,25 +253,8 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 		if (rc == BPF_FIB_LKUP_RET_SUCCESS)
 			statistic->fib_lookup_ip6_success += 1;
 		//_decr_ttl(ether_proto, l3hdr);
-		__builtin_memcpy(ctx->eth->h_dest, fib_params.dmac, ETH_ALEN);
-		__builtin_memcpy(ctx->eth->h_source, fib_params.smac, ETH_ALEN);
 
-		__u32 ifindex = fib_params.ifindex; // NOLINT(clang-analyzer-deadcode.DeadStores)
-
-		if (ctx->interface == INTERFACE_N3) {
-			ifindex = n6_ifindex;
-		} else {
-			ifindex = n3_ifindex;
-		}
-
-		upf_printk("upf: bpf_redirect: if=%d %lu -> %lu",
-			   fib_params.ifindex, fib_params.smac,
-			   fib_params.dmac);
-
-		if (ifindex == ctx->xdp_ctx->ingress_ifindex)
-			return XDP_TX;
-
-		return bpf_redirect(fib_params.ifindex, 0);
+		return do_route_ipv6(ctx, &fib_params, statistic);
 	case BPF_FIB_LKUP_RET_BLACKHOLE:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);

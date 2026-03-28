@@ -201,6 +201,16 @@ func GetN3FibUnsuppLwt(bpfObjects *BpfObjects) uint64 {
 	return total
 }
 
+func GetN3IfindexMismatch(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN3RouteStats(bpfObjects) {
+		total += s.Ip4IfindexMismatch + s.Ip6IfindexMismatch
+	}
+
+	return total
+}
+
 // FIB lookup result getters — N6 (downlink)
 
 func getN6RouteStats(bpfObjects *BpfObjects) []N3N6EntrypointRouteStat {
@@ -310,6 +320,16 @@ func GetN6FibUnsuppLwt(bpfObjects *BpfObjects) uint64 {
 
 	for _, s := range getN6RouteStats(bpfObjects) {
 		total += s.FibLookupIp4UnsuppLwt + s.FibLookupIp6UnsuppLwt
+	}
+
+	return total
+}
+
+func GetN6IfindexMismatch(bpfObjects *BpfObjects) uint64 {
+	var total uint64
+
+	for _, s := range getN6RouteStats(bpfObjects) {
+		total += s.Ip4IfindexMismatch + s.Ip6IfindexMismatch
 	}
 
 	return total

@@ -38,6 +38,14 @@ func RegisterMetrics() {
 		nil,
 	)
 
+	// Ifindex mismatch metrics with label for interface
+	xdpIfindexMismatchDesc := prometheus.NewDesc(
+		"app_xdp_ifindex_mismatch_total",
+		"Packets dropped because the FIB-resolved interface did not match the expected N3/N6 interface.",
+		[]string{"interface"},
+		nil,
+	)
+
 	prometheus.MustRegister(upfUplinkBytes, upfDownlinkBytes)
 
 	// Register XDP action collector that produces metrics with labels
@@ -104,5 +112,12 @@ func RegisterMetrics() {
 		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibFwdDisabled(bpfObjects)), "n6", "fwd_disabled")
 
 		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibUnsuppLwt(bpfObjects)), "n6", "unsupp_lwt")
+	}))
+
+	// Register ifindex mismatch collector
+	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+		ch <- prometheus.MustNewConstMetric(xdpIfindexMismatchDesc, prometheus.CounterValue, float64(ebpf.GetN3IfindexMismatch(bpfObjects)), "n3")
+
+		ch <- prometheus.MustNewConstMetric(xdpIfindexMismatchDesc, prometheus.CounterValue, float64(ebpf.GetN6IfindexMismatch(bpfObjects)), "n6")
 	}))
 }
