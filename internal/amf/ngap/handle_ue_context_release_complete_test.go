@@ -13,6 +13,77 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
+// TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe verifies that
+// after a handover failure, the target UE (which only has SourceUe set, not
+// TargetUe) can be cleanly released without panicking.
+func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) {
+	ran := newTestRadio()
+	amfInstance := newTestAMF()
+
+	amfUe := amf.NewAmfUe()
+	amfUe.ForceState(amf.Registered)
+	amfUe.Log = logger.AmfLog
+
+	// Source RanUe — the UE on the original (source) gNB.
+	sourceRanUe := &amf.RanUe{
+		RanUeNgapID: 1,
+		AmfUeNgapID: 100,
+		Radio:       ran,
+		Log:         logger.AmfLog,
+	}
+	amfUe.AttachRanUe(sourceRanUe)
+	ran.RanUEs[sourceRanUe.RanUeNgapID] = sourceRanUe
+
+	// Target RanUe — created on the target gNB during handover preparation.
+	targetRanUe := &amf.RanUe{
+		RanUeNgapID: 2,
+		AmfUeNgapID: 200,
+		Radio:       ran,
+		Log:         logger.AmfLog,
+	}
+	ran.RanUEs[targetRanUe.RanUeNgapID] = targetRanUe
+
+	// AttachSourceUeTargetUe links the two: sourceRanUe.TargetUe = targetRanUe,
+	// targetRanUe.SourceUe = sourceRanUe. Crucially, targetRanUe.TargetUe
+	// remains nil.
+	err := amf.AttachSourceUeTargetUe(sourceRanUe, targetRanUe)
+	if err != nil {
+		t.Fatalf("AttachSourceUeTargetUe: %v", err)
+	}
+
+	// After a handover failure, the AMF sets the release action on the TARGET
+	// UE and sends UEContextReleaseCommand to the target gNB.
+	targetRanUe.ReleaseAction = amf.UeContextReleaseHandover
+
+	// Register the radio so FindRanUeByAmfUeNgapID can locate UEs.
+	amfInstance.Radios = map[*sctp.SCTPConn]*amf.Radio{new(sctp.SCTPConn): ran}
+
+	// Build UEContextReleaseComplete from the target gNB, using the target
+	// UE's NGAP IDs.
+	msg := &ngapType.UEContextReleaseComplete{}
+	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.UEContextReleaseCompleteIEs{
+		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDAMFUENGAPID},
+		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentIgnore},
+		Value: ngapType.UEContextReleaseCompleteIEsValue{
+			Present:     ngapType.UEContextReleaseCompleteIEsPresentAMFUENGAPID,
+			AMFUENGAPID: &ngapType.AMFUENGAPID{Value: 200}, // target UE's AMF ID
+		},
+	})
+	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.UEContextReleaseCompleteIEs{
+		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDRANUENGAPID},
+		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentIgnore},
+		Value: ngapType.UEContextReleaseCompleteIEsValue{
+			Present:     ngapType.UEContextReleaseCompleteIEsPresentRANUENGAPID,
+			RANUENGAPID: &ngapType.RANUENGAPID{Value: 2}, // target UE's RAN ID
+		},
+	})
+
+	// This panics on unpatched code: ranUe.TargetUe is nil at line 213.
+	assertNoPanic(t, "HandleUEContextReleaseComplete(handover target with nil TargetUe)", func() {
+		ngap.HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, msg)
+	})
+}
+
 func TestHandleUEContextReleaseComplete_EmptyIEs(t *testing.T) {
 	ran := newTestRadio()
 	amfInstance := newTestAMF()
