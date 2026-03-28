@@ -112,7 +112,24 @@ func sendServiceAccept(
 
 // TS 24501 5.6.1
 func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.ServiceRequest) error {
-	if ue.GetState() != amf.Deregistered && ue.GetState() != amf.Registered {
+	// TS 24.501 5.6.1.1: reject service request from deregistered UE
+	if ue.GetState() == amf.Deregistered {
+		err := message.SendServiceReject(ctx, ue.RanUe(), nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+		if err != nil {
+			return fmt.Errorf("error sending service reject: %v", err)
+		}
+
+		ue.RanUe().ReleaseAction = amf.UeContextN2NormalRelease
+
+		err = ue.RanUe().SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		if err != nil {
+			return fmt.Errorf("error sending ue context release command: %v", err)
+		}
+
+		return nil
+	}
+
+	if ue.GetState() != amf.Registered {
 		return fmt.Errorf("state mismatch: receive Service Request message in state %s", ue.GetState())
 	}
 
@@ -165,8 +182,8 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 		ue.RetransmissionOfInitialNASMsg = ue.MacFailed
 	}
 
-	// Service Reject if the SecurityContext is invalid or the UE is Deregistered
-	if !ue.SecurityContextIsValid() || ue.GetState() == amf.Deregistered {
+	// Service Reject if the SecurityContext is invalid
+	if !ue.SecurityContextIsValid() {
 		ue.Log.Warn("No security context", logger.SUPI(ue.Supi.String()))
 		ue.SecurityContextAvailable = false
 
