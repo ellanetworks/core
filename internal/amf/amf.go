@@ -524,7 +524,7 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *AmfUe, ngapBuf []byte) error
 			for _, ran := range amf.ListRadios() {
 				for _, item := range ran.SupportedTAIs {
 					if InTaiList(item.Tai, taiList) {
-						err := ran.NGAPSender.SendToRan(ctx, ngapBuf, send.NGAPProcedurePaging)
+						err := ran.NGAPSender.SendToRan(context.Background(), ngapBuf, send.NGAPProcedurePaging)
 						if err != nil {
 							ue.Log.Error("failed to send paging", zap.Error(err))
 							continue
