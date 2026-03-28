@@ -10,6 +10,10 @@ type PlmnID struct {
 	Mnc string
 }
 
+func (p PlmnID) Equal(other PlmnID) bool {
+	return p.Mcc == other.Mcc && p.Mnc == other.Mnc
+}
+
 // ServingNetworkName returns the serving network name per TS 24.501 9.12.1.
 // Both MCC and MNC are zero-padded to 3 digits as required by the spec.
 func (p PlmnID) ServingNetworkName() (string, error) {

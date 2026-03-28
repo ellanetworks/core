@@ -13,7 +13,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"reflect"
 	"slices"
 	"sync"
 	"time"
@@ -275,7 +274,7 @@ func (ue *AmfUe) AllocateRegistrationArea(supportedTais []models.Tai) {
 	copy(taiList, supportedTais)
 
 	for _, supportTai := range taiList {
-		if reflect.DeepEqual(supportTai, ue.Tai) {
+		if supportTai.Equal(ue.Tai) {
 			ue.RegistrationArea = append(ue.RegistrationArea, supportTai)
 			break
 		}
@@ -283,7 +282,7 @@ func (ue *AmfUe) AllocateRegistrationArea(supportedTais []models.Tai) {
 }
 
 func (ue *AmfUe) IsAllowedNssai(targetSNssai *models.Snssai) bool {
-	return reflect.DeepEqual(*ue.AllowedNssai, *targetSNssai)
+	return ue.AllowedNssai.Equal(*targetSNssai)
 }
 
 func (ue *AmfUe) SecurityContextIsValid() bool {
