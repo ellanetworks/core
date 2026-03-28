@@ -3,7 +3,6 @@ package util
 import (
 	"encoding/hex"
 	"fmt"
-	"reflect"
 
 	"github.com/ellanetworks/core/internal/models"
 )
@@ -16,7 +15,7 @@ func TaiListToNas(taiList []models.Tai) ([]uint8, error) {
 
 	plmnID := taiList[0].PlmnID
 	for _, tai := range taiList {
-		if !reflect.DeepEqual(plmnID, tai.PlmnID) {
+		if tai.PlmnID == nil || !plmnID.Equal(*tai.PlmnID) {
 			typeOfList = 0x02
 		}
 	}

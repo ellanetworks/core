@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/ausf"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 // fakeStore implements ausf.SubscriberStore for testing.
@@ -64,12 +65,13 @@ func noopKeyResolver(_ string, _ int) (string, error) {
 // testSUCI is a null-scheme SUCI (no encryption) for the test subscriber.
 var testSUCI = fmt.Sprintf("suci-0-%s-%s-0000-0-0-%s", testMCC, testMNC, testMSIN)
 
+var testPLMN = models.PlmnID{Mcc: testMCC, Mnc: testMNC}
+
 const (
 	testMCC  = "001"
 	testMNC  = "01"
 	testIMSI = "001010000000001"
 	testMSIN = "0000000001"
-	testSN   = "5G:mnc001.mcc001.3gppnetwork.org"
 	testK    = "465b5ce8b199b49faa5f0a2ee238a6bc" // TS 33.102 test set 1
 	testOPc  = "cd63cb71954a9f4e48a5994e37a02baf" // precomputed OPc for test set 1
 )
@@ -90,7 +92,7 @@ func TestAuthenticate_Success(t *testing.T) {
 	ctx := context.Background()
 	suci := testSUCI
 
-	result, err := a.Authenticate(ctx, suci, testSN, nil)
+	result, err := a.Authenticate(ctx, suci, testPLMN, nil)
 	if err != nil {
 		t.Fatalf("Authenticate failed: %v", err)
 	}
@@ -132,7 +134,7 @@ func TestAuthenticate_Success(t *testing.T) {
 	}
 }
 
-func TestAuthenticate_InvalidServingNetwork(t *testing.T) {
+func TestAuthenticate_InvalidPLMN(t *testing.T) {
 	store := newFakeStore()
 	store.Add(testIMSI, &ausf.Subscriber{
 		PermanentKey:   testK,
@@ -144,9 +146,9 @@ func TestAuthenticate_InvalidServingNetwork(t *testing.T) {
 	ctx := context.Background()
 	suci := testSUCI
 
-	_, err := a.Authenticate(ctx, suci, "invalid-network", nil)
+	_, err := a.Authenticate(ctx, suci, models.PlmnID{Mcc: "001", Mnc: "abc"}, nil)
 	if err == nil {
-		t.Fatal("expected error for invalid serving network")
+		t.Fatal("expected error for invalid PLMN")
 	}
 }
 
@@ -156,7 +158,7 @@ func TestAuthenticate_SubscriberNotFound(t *testing.T) {
 	ctx := context.Background()
 	suci := testSUCI
 
-	_, err := a.Authenticate(ctx, suci, testSN, nil)
+	_, err := a.Authenticate(ctx, suci, testPLMN, nil)
 	if err == nil {
 		t.Fatal("expected error for missing subscriber")
 	}
@@ -174,7 +176,7 @@ func TestAuthenticate_EmptyKey(t *testing.T) {
 	ctx := context.Background()
 	suci := testSUCI
 
-	_, err := a.Authenticate(ctx, suci, testSN, nil)
+	_, err := a.Authenticate(ctx, suci, testPLMN, nil)
 	if err == nil {
 		t.Fatal("expected error for empty permanent key")
 	}
@@ -192,7 +194,7 @@ func TestAuthenticate_EmptyOpc(t *testing.T) {
 	ctx := context.Background()
 	suci := testSUCI
 
-	_, err := a.Authenticate(ctx, suci, testSN, nil)
+	_, err := a.Authenticate(ctx, suci, testPLMN, nil)
 	if err == nil {
 		t.Fatal("expected error for empty OPc")
 	}
@@ -211,7 +213,7 @@ func TestConfirm_Success(t *testing.T) {
 	suci := testSUCI
 
 	// First authenticate to populate the pool.
-	result, err := a.Authenticate(ctx, suci, testSN, nil)
+	result, err := a.Authenticate(ctx, suci, testPLMN, nil)
 	if err != nil {
 		t.Fatalf("Authenticate failed: %v", err)
 	}
@@ -257,7 +259,7 @@ func TestConfirm_DeletesContextOnMismatch(t *testing.T) {
 	ctx := context.Background()
 	suci := testSUCI
 
-	_, err := a.Authenticate(ctx, suci, testSN, nil)
+	_, err := a.Authenticate(ctx, suci, testPLMN, nil)
 	if err != nil {
 		t.Fatalf("Authenticate failed: %v", err)
 	}
@@ -288,7 +290,7 @@ func TestAuthenticate_SQNIncrementsOnEachCall(t *testing.T) {
 	suci := testSUCI
 
 	// First authenticate — SQN should advance from 0 to 0+32 = 0x20.
-	_, err := a.Authenticate(ctx, suci, testSN, nil)
+	_, err := a.Authenticate(ctx, suci, testPLMN, nil)
 	if err != nil {
 		t.Fatalf("first Authenticate failed: %v", err)
 	}
@@ -302,7 +304,7 @@ func TestAuthenticate_SQNIncrementsOnEachCall(t *testing.T) {
 	}
 
 	// Second authenticate — SQN should advance from 0x20 to 0x40.
-	_, err = a.Authenticate(ctx, suci, testSN, nil)
+	_, err = a.Authenticate(ctx, suci, testPLMN, nil)
 	if err != nil {
 		t.Fatalf("second Authenticate failed: %v", err)
 	}
@@ -328,12 +330,12 @@ func TestAuthenticate_DifferentRANDEachCall(t *testing.T) {
 	ctx := context.Background()
 	suci := testSUCI
 
-	r1, err := a.Authenticate(ctx, suci, testSN, nil)
+	r1, err := a.Authenticate(ctx, suci, testPLMN, nil)
 	if err != nil {
 		t.Fatalf("first Authenticate failed: %v", err)
 	}
 
-	r2, err := a.Authenticate(ctx, suci, testSN, nil)
+	r2, err := a.Authenticate(ctx, suci, testPLMN, nil)
 	if err != nil {
 		t.Fatalf("second Authenticate failed: %v", err)
 	}
@@ -368,7 +370,7 @@ func TestWithClockAndTTL_NoPanic(t *testing.T) {
 
 	suci := testSUCI
 
-	_, err := a.Authenticate(ctx, suci, testSN, nil)
+	_, err := a.Authenticate(ctx, suci, testPLMN, nil)
 	if err != nil {
 		t.Fatalf("Authenticate failed: %v", err)
 	}
@@ -413,13 +415,13 @@ func TestResync_AuthenticateWithResyncInfo(t *testing.T) {
 	suci := testSUCI
 
 	// First authenticate to populate the pool with RAND.
-	_, err := a.Authenticate(ctx, suci, testSN, nil)
+	_, err := a.Authenticate(ctx, suci, testPLMN, nil)
 	if err != nil {
 		t.Fatalf("first Authenticate failed: %v", err)
 	}
 
 	// Now try resync with invalid AUTS — should fail in Milenage verification.
-	_, err = a.Authenticate(ctx, suci, testSN, &ausf.ResyncInfo{
+	_, err = a.Authenticate(ctx, suci, testPLMN, &ausf.ResyncInfo{
 		Auts: "aabbccddeeff0000000000000000",
 	})
 	if err == nil {
@@ -440,7 +442,7 @@ func TestResync_NoCachedContext(t *testing.T) {
 	suci := testSUCI
 
 	// Resync without prior Authenticate should fail.
-	_, err := a.Authenticate(ctx, suci, testSN, &ausf.ResyncInfo{
+	_, err := a.Authenticate(ctx, suci, testPLMN, &ausf.ResyncInfo{
 		Auts: "aabbccddeeff0000000000000000",
 	})
 	if err == nil {
@@ -453,25 +455,24 @@ func TestAuthenticate_InvalidSUCI(t *testing.T) {
 	a := newTestAUSF(store)
 	ctx := context.Background()
 
-	_, err := a.Authenticate(ctx, "garbage-suci", testSN, nil)
+	_, err := a.Authenticate(ctx, "garbage-suci", testPLMN, nil)
 	if err == nil {
 		t.Fatal("expected error for invalid SUCI")
 	}
 }
 
-func TestServingNetworkValidation(t *testing.T) {
+func TestAuthenticate_InvalidPLMNVariants(t *testing.T) {
 	tests := []struct {
 		name    string
-		sn      string
+		plmn    models.PlmnID
 		wantErr bool
 	}{
-		{"valid", "5G:mnc001.mcc001.3gppnetwork.org", false},
-		{"valid other plmn", "5G:mnc999.mcc999.3gppnetwork.org", false},
-		{"missing prefix", "mnc001.mcc001.3gppnetwork.org", true},
-		{"wrong domain", "5G:mnc001.mcc001.example.com", true},
-		{"empty", "", true},
-		{"too short mnc", "5G:mnc01.mcc001.3gppnetwork.org", true},
-		{"too long mnc", "5G:mnc0011.mcc001.3gppnetwork.org", true},
+		{"valid 3-digit mnc", models.PlmnID{Mcc: "001", Mnc: "001"}, false},
+		{"valid 2-digit mnc", models.PlmnID{Mcc: "001", Mnc: "01"}, false},
+		{"valid large plmn", models.PlmnID{Mcc: "999", Mnc: "999"}, false},
+		{"non-numeric mnc", models.PlmnID{Mcc: "001", Mnc: "abc"}, true},
+		{"non-numeric mcc", models.PlmnID{Mcc: "abc", Mnc: "01"}, true},
+		{"empty mnc", models.PlmnID{Mcc: "001", Mnc: ""}, true},
 	}
 
 	store := newFakeStore()
@@ -488,9 +489,9 @@ func TestServingNetworkValidation(t *testing.T) {
 			a := newTestAUSF(store)
 			ctx := context.Background()
 
-			_, err := a.Authenticate(ctx, suci, tt.sn, nil)
+			_, err := a.Authenticate(ctx, suci, tt.plmn, nil)
 			if (err != nil) != tt.wantErr {
-				t.Fatalf("sn=%q: wantErr=%v, got err=%v", tt.sn, tt.wantErr, err)
+				t.Fatalf("plmn=%+v: wantErr=%v, got err=%v", tt.plmn, tt.wantErr, err)
 			}
 		})
 	}
@@ -527,7 +528,7 @@ func TestAuthenticate_SQNWrapsAt43BitBoundary(t *testing.T) {
 	a := newTestAUSF(store)
 	ctx := context.Background()
 
-	_, err := a.Authenticate(ctx, testSUCI, testSN, nil)
+	_, err := a.Authenticate(ctx, testSUCI, testPLMN, nil)
 	if err != nil {
 		t.Fatalf("Authenticate failed: %v", err)
 	}

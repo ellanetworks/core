@@ -112,7 +112,24 @@ func sendServiceAccept(
 
 // TS 24501 5.6.1
 func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.ServiceRequest) error {
-	if ue.GetState() != amf.Deregistered && ue.GetState() != amf.Registered {
+	// TS 24.501 5.6.1.1: reject service request from deregistered UE
+	if ue.GetState() == amf.Deregistered {
+		err := message.SendServiceReject(ctx, ue.RanUe(), nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+		if err != nil {
+			return fmt.Errorf("error sending service reject: %v", err)
+		}
+
+		ue.RanUe().ReleaseAction = amf.UeContextN2NormalRelease
+
+		err = ue.RanUe().SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		if err != nil {
+			return fmt.Errorf("error sending ue context release command: %v", err)
+		}
+
+		return nil
+	}
+
+	if ue.GetState() != amf.Registered {
 		return fmt.Errorf("state mismatch: receive Service Request message in state %s", ue.GetState())
 	}
 
@@ -165,8 +182,8 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 		ue.RetransmissionOfInitialNASMsg = ue.MacFailed
 	}
 
-	// Service Reject if the SecurityContext is invalid or the UE is Deregistered
-	if !ue.SecurityContextIsValid() || ue.GetState() == amf.Deregistered {
+	// Service Reject if the SecurityContext is invalid
+	if !ue.SecurityContextIsValid() {
 		ue.Log.Warn("No security context", logger.SUPI(ue.Supi.String()))
 		ue.SecurityContextAvailable = false
 
@@ -221,12 +238,21 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 		}
 	}
 
+	// Copy SmContextList under lock for safe concurrent iteration.
+	ue.Mutex.Lock()
+
+	smContextSnapshot := make(map[uint8]*amf.SmContext, len(ue.SmContextList))
+	for id, sc := range ue.SmContextList {
+		smContextSnapshot[id] = sc
+	}
+	ue.Mutex.Unlock()
+
 	// If the UE has uplink data pending for some PDU sessions, we need to activate them
 	if msg.UplinkDataStatus != nil {
 		uplinkDataPsi := nasConvert.PSIToBooleanArray(msg.UplinkDataStatus.Buffer)
 		reactivationResult = new([16]bool)
 
-		for pduSessionID, smContext := range ue.SmContextList {
+		for pduSessionID, smContext := range smContextSnapshot {
 			if int(pduSessionID) >= len(uplinkDataPsi) {
 				ue.Log.Warn("Ignoring out-of-range PDU session ID in UplinkDataStatus processing", zap.Uint8("pduSessionID", pduSessionID))
 				continue
@@ -255,7 +281,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 		acceptPduSessionPsi = new([16]bool)
 
 		psiArray := nasConvert.PSIToBooleanArray(msg.PDUSessionStatus.Buffer)
-		for pduSessionID, smContext := range ue.SmContextList {
+		for pduSessionID, smContext := range smContextSnapshot {
 			if int(pduSessionID) >= len(psiArray) {
 				ue.Log.Warn("Ignoring out-of-range PDU session ID in PDUSessionStatus processing", zap.Uint8("pduSessionID", pduSessionID))
 				continue

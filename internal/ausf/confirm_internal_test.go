@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+
+	"github.com/ellanetworks/core/internal/models"
 )
 
 // internalStore is a minimal in-memory SubscriberStore for same-package tests.
@@ -54,11 +56,15 @@ func (s *internalStore) UpdateSequenceNumber(_ context.Context, imsi string, sqn
 	return nil
 }
 
+var (
+	intTestPLMN  = models.PlmnID{Mcc: "001", Mnc: "01"}
+	intTestSN, _ = intTestPLMN.ServingNetworkName()
+)
+
 const (
 	intTestK    = "465b5ce8b199b49faa5f0a2ee238a6bc"
 	intTestOPc  = "cd63cb71954a9f4e48a5994e37a02baf"
 	intTestIMSI = "001010000000001"
-	intTestSN   = "5G:mnc001.mcc001.3gppnetwork.org"
 )
 
 var intTestSUCI = "suci-0-001-01-0000-0-0-0000000001"
@@ -82,7 +88,7 @@ func TestConfirmSuccess(t *testing.T) {
 	a := New(store, noopKeys)
 	ctx := context.Background()
 
-	result, err := a.Authenticate(ctx, intTestSUCI, intTestSN, nil)
+	result, err := a.Authenticate(ctx, intTestSUCI, intTestPLMN, nil)
 	if err != nil {
 		t.Fatalf("Authenticate failed: %v", err)
 	}
@@ -134,7 +140,7 @@ func TestConfirmSuccess_ReturnsCorrectKseaf(t *testing.T) {
 	a := New(store, noopKeys)
 	ctx := context.Background()
 
-	result, err := a.Authenticate(ctx, intTestSUCI, intTestSN, nil)
+	result, err := a.Authenticate(ctx, intTestSUCI, intTestPLMN, nil)
 	if err != nil {
 		t.Fatalf("Authenticate failed: %v", err)
 	}
@@ -202,7 +208,7 @@ func TestResyncSuccess_SQNAdvancesBy33(t *testing.T) {
 	ctx := context.Background()
 
 	// Step 1: Normal authenticate — this caches a RAND in the pool.
-	result, err := a.Authenticate(ctx, intTestSUCI, intTestSN, nil)
+	result, err := a.Authenticate(ctx, intTestSUCI, intTestPLMN, nil)
 	if err != nil {
 		t.Fatalf("first Authenticate failed: %v", err)
 	}
@@ -233,7 +239,7 @@ func TestResyncSuccess_SQNAdvancesBy33(t *testing.T) {
 	auts := append(concSQN, macS...)
 
 	// Step 3: Authenticate with resync.
-	_, err = a.Authenticate(ctx, intTestSUCI, intTestSN, &ResyncInfo{
+	_, err = a.Authenticate(ctx, intTestSUCI, intTestPLMN, &ResyncInfo{
 		Auts: hex.EncodeToString(auts),
 	})
 	if err != nil {

@@ -294,8 +294,9 @@ func (ranUe *RanUe) SwitchToRan(newRan *Radio, ranUeNgapID int64) error {
 	// switch to newRan
 	ranUe.Radio = newRan
 	ranUe.RanUeNgapID = ranUeNgapID
+	ranUe.Log = newRan.Log.With(logger.AmfUeNgapID(ranUe.AmfUeNgapID))
 
-	logger.AmfLog.Info("ran ue switch to new Ran", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+	ranUe.Log.Info("ran ue switched to new Ran", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
 	return nil
 }
@@ -346,7 +347,7 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, amf *AMF, userLocationIn
 
 		if ranUe.amfUe != nil {
 			ranUe.amfUe.Location = ranUe.Location
-			ranUe.amfUe.Tai = *ranUe.amfUe.Location.NrLocation.Tai
+			ranUe.amfUe.Tai = *ranUe.amfUe.Location.EutraLocation.Tai
 		}
 	case ngapType.UserLocationInformationPresentUserLocationInformationNR:
 		locationInfoNR := userLocationInformation.UserLocationInformationNR

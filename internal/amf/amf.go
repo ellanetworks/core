@@ -31,7 +31,7 @@ import (
 // Authenticator is the interface the AMF requires from the AUSF.
 // *ausf.AUSF satisfies this interface directly.
 type Authenticator interface {
-	Authenticate(ctx context.Context, suci, servingNetwork string, resync *ausf.ResyncInfo) (*ausf.AuthResult, error)
+	Authenticate(ctx context.Context, suci string, plmn models.PlmnID, resync *ausf.ResyncInfo) (*ausf.AuthResult, error)
 	Confirm(ctx context.Context, resStar, suci string) (etsi.SUPI, string, error)
 }
 
@@ -151,8 +151,12 @@ func (amf *AMF) AddAmfUeToUePool(ue *AmfUe) error {
 func (amf *AMF) DeregisterAndRemoveAMFUE(ctx context.Context, ue *AmfUe) {
 	ue.Deregister(ctx)
 
-	if ue.ranUe != nil {
-		err := ue.ranUe.Remove()
+	ue.Mutex.Lock()
+	ranUe := ue.ranUe
+	ue.Mutex.Unlock()
+
+	if ranUe != nil {
+		err := ranUe.Remove()
 		if err != nil {
 			logger.AmfLog.Error("failed to remove RAN UE", zap.Error(err))
 		}
@@ -237,9 +241,10 @@ func (amf *AMF) NewRadio(conn *sctp.SCTPConn) (*Radio, error) {
 		SupportedTAIs: make([]SupportedTAI, 0),
 		Conn:          conn,
 		ConnectedAt:   now,
-		LastSeenAt:    now,
 		Log:           logger.AmfLog.With(logger.RanAddr(remoteAddr.String())),
 	}
+
+	radio.SetLastSeenAt(now)
 
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
@@ -520,7 +525,7 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *AmfUe, ngapBuf []byte) error
 			for _, ran := range amf.ListRadios() {
 				for _, item := range ran.SupportedTAIs {
 					if InTaiList(item.Tai, taiList) {
-						err := ran.NGAPSender.SendToRan(ctx, ngapBuf, send.NGAPProcedurePaging)
+						err := ran.NGAPSender.SendToRan(context.Background(), ngapBuf, send.NGAPProcedurePaging)
 						if err != nil {
 							ue.Log.Error("failed to send paging", zap.Error(err))
 							continue

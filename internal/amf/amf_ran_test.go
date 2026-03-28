@@ -35,9 +35,8 @@ func TestRadioRanNodeTypeName(t *testing.T) {
 }
 
 func TestRadioTouchLastSeen(t *testing.T) {
-	radio := &amf.Radio{
-		LastSeenAt: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
-	}
+	radio := &amf.Radio{}
+	radio.SetLastSeenAt(time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC))
 
 	before := time.Now()
 
@@ -45,8 +44,9 @@ func TestRadioTouchLastSeen(t *testing.T) {
 
 	after := time.Now()
 
-	if radio.LastSeenAt.Before(before) || radio.LastSeenAt.After(after) {
-		t.Fatalf("expected LastSeenAt between %v and %v, got %v", before, after, radio.LastSeenAt)
+	lastSeen := radio.GetLastSeenAt()
+	if lastSeen.Before(before) || lastSeen.After(after) {
+		t.Fatalf("expected LastSeenAt between %v and %v, got %v", before, after, lastSeen)
 	}
 }
 
@@ -57,7 +57,7 @@ func TestRadioTimestampsSetOnCreation(t *testing.T) {
 		t.Fatal("expected ConnectedAt to be zero on a blank Radio")
 	}
 
-	if !blank.LastSeenAt.IsZero() {
+	if !blank.GetLastSeenAt().IsZero() {
 		t.Fatal("expected LastSeenAt to be zero on a blank Radio")
 	}
 
@@ -65,15 +65,17 @@ func TestRadioTimestampsSetOnCreation(t *testing.T) {
 
 	radio := &amf.Radio{
 		ConnectedAt: now,
-		LastSeenAt:  now,
 	}
+
+	radio.SetLastSeenAt(now)
 
 	if radio.ConnectedAt.IsZero() || radio.ConnectedAt != now {
 		t.Fatalf("expected ConnectedAt to be %v, got %v", now, radio.ConnectedAt)
 	}
 
-	if radio.LastSeenAt.IsZero() || radio.LastSeenAt != now {
-		t.Fatalf("expected LastSeenAt to be %v, got %v", now, radio.LastSeenAt)
+	lastSeen := radio.GetLastSeenAt()
+	if lastSeen.IsZero() || !lastSeen.Equal(now) {
+		t.Fatalf("expected LastSeenAt to be %v, got %v", now, lastSeen)
 	}
 }
 

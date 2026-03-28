@@ -171,7 +171,7 @@ func GetRadio(amfInstance *amf.AMF) http.HandlerFunc {
 				ID:            radioID,
 				Address:       radioAddress,
 				ConnectedAt:   radio.ConnectedAt.UTC().Format(time.RFC3339),
-				LastSeenAt:    radio.LastSeenAt.UTC().Format(time.RFC3339),
+				LastSeenAt:    radio.GetLastSeenAt().UTC().Format(time.RFC3339),
 				RanNodeType:   radio.RanNodeTypeName(),
 				SupportedTAIs: supportedTais,
 			}

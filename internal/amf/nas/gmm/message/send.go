@@ -110,7 +110,7 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 		amfUe.T3560 = amf.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.Log.Warn("T3560 expires, retransmit Authentication Request", zap.Any("expireTimes", expireTimes))
 
-			err := ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
+			err := ue.SendDownlinkNasTransport(context.Background(), nasMsg, nil)
 			if err != nil {
 				amfUe.Log.Error("could not send downlink NAS transport message", zap.Error(err))
 				return
@@ -268,7 +268,7 @@ func SendSecurityModeCommand(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 		amfUe.T3560 = amf.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.Log.Warn("T3560 expires, retransmit Security Mode Command", zap.Any("expireTimes", expireTimes))
 
-			err = ue.SendDownlinkNasTransport(ctx, nasMsg, nil)
+			err = ue.SendDownlinkNasTransport(context.Background(), nasMsg, nil)
 			if err != nil {
 				amfUe.Log.Error("could not send downlink NAS transport message", zap.Error(err))
 				return
@@ -277,7 +277,6 @@ func SendSecurityModeCommand(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 			amfUe.Log.Info("sent security mode command")
 		}, func() {
 			amfUe.Log.Warn("T3560 Expires, abort security mode control procedure", zap.Any("expireTimes", cfg.MaxRetryTimes))
-			// amfUe.Remove()
 			amfInstance.DeregisterAndRemoveAMFUE(context.Background(), amfUe)
 		})
 	}
@@ -380,7 +379,7 @@ func SendRegistrationAccept(
 			} else {
 				if ue.RanUe().UeContextRequest && !ue.RanUe().RecvdInitialContextSetupResponse {
 					err = ue.RanUe().SendInitialContextSetupRequest(
-						ctx,
+						context.Background(),
 						ue.Ambr.Uplink,
 						ue.Ambr.Downlink,
 						ue.AllowedNssai,
@@ -402,7 +401,7 @@ func SendRegistrationAccept(
 				} else {
 					ue.Log.Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
 
-					err = ue.RanUe().SendDownlinkNasTransport(ctx, nasMsg, nil)
+					err = ue.RanUe().SendDownlinkNasTransport(context.Background(), nasMsg, nil)
 					if err != nil {
 						ue.Log.Error("could not send downlink NAS transport message", zap.Error(err))
 					}
@@ -485,7 +484,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *amf.AMF, a
 				return
 			}
 
-			err = amfUe.RanUe().SendDownlinkNasTransport(ctx, nasMsg, mobilityRestrictionList)
+			err = amfUe.RanUe().SendDownlinkNasTransport(context.Background(), nasMsg, mobilityRestrictionList)
 			if err != nil {
 				amfUe.Log.Error("could not send configuration update command", zap.Error(err))
 			}
