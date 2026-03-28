@@ -98,7 +98,7 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *a
 				continue
 			}
 
-			smContext.PduSessionInactive = true
+			amfUe.SetSmContextInactive(pduSessionID)
 		}
 	}
 }

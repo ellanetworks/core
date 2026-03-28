@@ -261,7 +261,7 @@ type FakeAusf struct {
 	AvKgAka *ausf.AuthResult
 }
 
-func (a *FakeAusf) Authenticate(ctx context.Context, suci string, servingNetwork string, resync *ausf.ResyncInfo) (*ausf.AuthResult, error) {
+func (a *FakeAusf) Authenticate(ctx context.Context, suci string, plmn models.PlmnID, resync *ausf.ResyncInfo) (*ausf.AuthResult, error) {
 	if a.Error != nil {
 		return nil, a.Error
 	}

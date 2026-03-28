@@ -66,9 +66,6 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return fmt.Errorf("error reallocating GUTI to UE: %v", err)
 	}
 
-	// check in specs if we need to wait for confirmation before freeing old GUTI
-	amfInstance.FreeOldGuti(ue)
-
 	UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
 
 	err = message.SendRegistrationAccept(ctx, amfInstance, ue, nil, nil, nil, nil, nil, operatorInfo.SupportedPLMN, operatorInfo.Guami)
