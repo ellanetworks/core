@@ -71,53 +71,39 @@ func RegisterMetrics() {
 		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN6Redirect(bpfObjects)), "n6", "XDP_REDIRECT")
 	}))
 
-	// Register FIB lookup result collector
+	// Register FIB lookup result and ifindex mismatch collector
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibSuccess(bpfObjects)), "n3", "success")
+		n3 := ebpf.GetN3RouteStats(bpfObjects)
+		n6 := ebpf.GetN6RouteStats(bpfObjects)
 
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibNoNeigh(bpfObjects)), "n3", "no_neigh")
+		for _, entry := range []struct {
+			iface string
+			stats ebpf.RouteStats
+		}{
+			{"n3", n3},
+			{"n6", n6},
+		} {
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibSuccess), entry.iface, "success")
 
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibBlackhole(bpfObjects)), "n3", "blackhole")
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNoNeigh), entry.iface, "no_neigh")
 
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibUnreachable(bpfObjects)), "n3", "unreachable")
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibBlackhole), entry.iface, "blackhole")
 
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibProhibit(bpfObjects)), "n3", "prohibit")
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibUnreachable), entry.iface, "unreachable")
 
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibNoSrcAddr(bpfObjects)), "n3", "no_src_addr")
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibProhibit), entry.iface, "prohibit")
 
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibFragNeeded(bpfObjects)), "n3", "frag_needed")
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNoSrcAddr), entry.iface, "no_src_addr")
 
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibNotFwded(bpfObjects)), "n3", "not_fwded")
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibFragNeeded), entry.iface, "frag_needed")
 
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibFwdDisabled(bpfObjects)), "n3", "fwd_disabled")
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNotFwded), entry.iface, "not_fwded")
 
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN3FibUnsuppLwt(bpfObjects)), "n3", "unsupp_lwt")
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibFwdDisabled), entry.iface, "fwd_disabled")
 
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibSuccess(bpfObjects)), "n6", "success")
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibUnsuppLwt), entry.iface, "unsupp_lwt")
 
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibNoNeigh(bpfObjects)), "n6", "no_neigh")
-
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibBlackhole(bpfObjects)), "n6", "blackhole")
-
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibUnreachable(bpfObjects)), "n6", "unreachable")
-
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibProhibit(bpfObjects)), "n6", "prohibit")
-
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibNoSrcAddr(bpfObjects)), "n6", "no_src_addr")
-
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibFragNeeded(bpfObjects)), "n6", "frag_needed")
-
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibNotFwded(bpfObjects)), "n6", "not_fwded")
-
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibFwdDisabled(bpfObjects)), "n6", "fwd_disabled")
-
-		ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(ebpf.GetN6FibUnsuppLwt(bpfObjects)), "n6", "unsupp_lwt")
-	}))
-
-	// Register ifindex mismatch collector
-	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
-		ch <- prometheus.MustNewConstMetric(xdpIfindexMismatchDesc, prometheus.CounterValue, float64(ebpf.GetN3IfindexMismatch(bpfObjects)), "n3")
-
-		ch <- prometheus.MustNewConstMetric(xdpIfindexMismatchDesc, prometheus.CounterValue, float64(ebpf.GetN6IfindexMismatch(bpfObjects)), "n6")
+			ch <- prometheus.MustNewConstMetric(xdpIfindexMismatchDesc, prometheus.CounterValue, float64(entry.stats.IfindexMismatch), entry.iface)
+		}
 	}))
 }
