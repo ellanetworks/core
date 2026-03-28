@@ -440,6 +440,8 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 		return fmt.Errorf("build PDUSessionResourceSetupRequestTransfer failed: %v", err)
 	}
 
+	smContext.SetPolicyData(policy)
+
 	err = s.amf.TransferN1N2(ctx, smContext.Supi, smContext.PDUSessionID, smContext.Snssai, n1Msg, n2Msg)
 	if err != nil {
 		span.RecordError(err)
@@ -449,8 +451,6 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 	}
 
 	logger.WithTrace(ctx, logger.SmfLog).Debug("Sent n1 n2 transfer request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-
-	smContext.SetPolicyData(policy)
 
 	return nil
 }
