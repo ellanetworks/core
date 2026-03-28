@@ -26,7 +26,6 @@ type CreateSubscriberParams struct {
 }
 
 type UpdateSubscriberParams struct {
-	Imsi       string `json:"imsi"`
 	PolicyName string `json:"policyName"`
 }
 
@@ -543,18 +542,8 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if params.Imsi == "" {
-			writeError(r.Context(), w, http.StatusBadRequest, "Missing imsi parameter", errors.New("validation error"), logger.APILog)
-			return
-		}
-
 		if params.PolicyName == "" {
 			writeError(r.Context(), w, http.StatusBadRequest, "Missing policyName parameter", errors.New("validation error"), logger.APILog)
-			return
-		}
-
-		if !isImsiValid(r.Context(), params.Imsi, dbInstance) {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid IMSI", errors.New("validation error"), logger.APILog)
 			return
 		}
 
@@ -565,7 +554,7 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 		}
 
 		updated := &db.Subscriber{
-			Imsi:     params.Imsi,
+			Imsi:     imsi,
 			PolicyID: policy.ID,
 		}
 		if err := dbInstance.UpdateSubscriberPolicy(r.Context(), updated); err != nil {

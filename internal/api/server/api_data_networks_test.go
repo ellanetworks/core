@@ -45,6 +45,12 @@ type CreateDataNetworkResponse struct {
 	Error  string                          `json:"error,omitempty"`
 }
 
+type UpdateDataNetworkParams struct {
+	IPPool string `json:"ip_pool,omitempty"`
+	DNS    string `json:"dns,omitempty"`
+	MTU    int32  `json:"mtu,omitempty"`
+}
+
 type DeleteDataNetworkResponseResult struct {
 	Message string `json:"message"`
 }
@@ -153,7 +159,7 @@ func createDataNetwork(url string, client *http.Client, token string, data *Crea
 	return res.StatusCode, &createResponse, nil
 }
 
-func editDataNetwork(url string, client *http.Client, name string, token string, data *CreateDataNetworkParams) (int, *CreateDataNetworkResponse, error) {
+func editDataNetwork(url string, client *http.Client, name string, token string, data *UpdateDataNetworkParams) (int, *CreateDataNetworkResponse, error) {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return 0, nil, err
@@ -356,14 +362,13 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 	})
 
 	t.Run("8. Edit data network - success", func(t *testing.T) {
-		createDataNetworkParams := &CreateDataNetworkParams{
-			Name:   DataNetworkName,
+		updateDataNetworkParams := &UpdateDataNetworkParams{
 			DNS:    "2.2.2.2",
 			IPPool: "1.1.1.0/29",
 			MTU:    1400,
 		}
 
-		statusCode, response, err := editDataNetwork(env.Server.URL, client, DataNetworkName, token, createDataNetworkParams)
+		statusCode, response, err := editDataNetwork(env.Server.URL, client, DataNetworkName, token, updateDataNetworkParams)
 		if err != nil {
 			t.Fatalf("couldn't edit data network: %s", err)
 		}
@@ -479,8 +484,7 @@ func TestEditInexistentDataNetwork(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	editDataNetworkParams := &CreateDataNetworkParams{
-		Name:   "inexistent-dn",
+	editDataNetworkParams := &UpdateDataNetworkParams{
 		IPPool: IPPool,
 		DNS:    DNS,
 		MTU:    MTU,
@@ -497,6 +501,91 @@ func TestEditInexistentDataNetwork(t *testing.T) {
 
 	if response.Error != "Data Network not found" {
 		t.Fatalf("expected error %q, got %q", "Data Network not found", response.Error)
+	}
+}
+
+// TestUpdateDataNetworkPathBodyMismatch verifies that the path name is used
+// for the DB update instead of any name sent in the request body.
+func TestUpdateDataNetworkPathBodyMismatch(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	// Create a data network.
+	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+		Name: "real-dn", IPPool: IPPool, DNS: DNS, MTU: MTU,
+	})
+	if err != nil {
+		t.Fatalf("couldn't create data network: %s", err)
+	}
+
+	// Update with a different name in the body than the path.
+	updateParams := &UpdateDataNetworkParams{
+		IPPool: "10.0.0.0/24",
+		DNS:    "8.8.8.8",
+		MTU:    1400,
+	}
+
+	statusCode, response, err := editDataNetwork(env.Server.URL, client, "real-dn", token, updateParams)
+	if err != nil {
+		t.Fatalf("couldn't edit data network: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d (error: %s)", http.StatusOK, statusCode, response.Error)
+	}
+
+	// Verify the real data network was updated (looked up by path name).
+	getStatus, getResp, err := getDataNetwork(env.Server.URL, client, token, "real-dn")
+	if err != nil {
+		t.Fatalf("couldn't get data network: %s", err)
+	}
+
+	if getStatus != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, getStatus)
+	}
+
+	if getResp.Result.MTU != 1400 {
+		t.Fatalf("expected MTU 1400, got %d", getResp.Result.MTU)
+	}
+
+	// Verify the audit log references the path name, not the body name.
+	_, auditResp, err := listAuditLogs(env.Server.URL, client, token, 1, 100)
+	if err != nil {
+		t.Fatalf("couldn't list audit logs: %s", err)
+	}
+
+	var found bool
+
+	for _, entry := range auditResp.Result.Items {
+		if entry.Action != "update_data_network" {
+			continue
+		}
+
+		found = true
+
+		expected := "User updated data network: real-dn"
+		if entry.Details != expected {
+			t.Errorf("audit log records wrong name: got %q, want %q", entry.Details, expected)
+		}
+
+		break
+	}
+
+	if !found {
+		t.Fatal("no update_data_network audit entry found")
 	}
 }
 
