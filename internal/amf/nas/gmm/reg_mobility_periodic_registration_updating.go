@@ -157,9 +157,6 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return fmt.Errorf("error reallocating GUTI to UE: %v", err)
 	}
 
-	// check in specs if we need to wait for confirmation before freeing old GUTI
-	amfInstance.FreeOldGuti(ue)
-
 	if ue.RegistrationRequest.AllowedPDUSessionStatus != nil {
 		if ue.N1N2Message != nil {
 			requestData := ue.N1N2Message
