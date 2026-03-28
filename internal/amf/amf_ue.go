@@ -610,6 +610,15 @@ func (ue *AmfUe) SmContextFindByPDUSessionID(pduSessionID uint8) (*SmContext, bo
 	return smContext, ok
 }
 
+func (ue *AmfUe) SetSmContextInactive(pduSessionID uint8) {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	if sc, ok := ue.SmContextList[pduSessionID]; ok {
+		sc.PduSessionInactive = true
+	}
+}
+
 func (ue *AmfUe) HasActivePduSessions() bool {
 	ue.Mutex.Lock()
 	defer ue.Mutex.Unlock()
