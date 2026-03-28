@@ -10,6 +10,7 @@ package amf
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
@@ -64,7 +65,7 @@ type Radio struct {
 	Name          string
 	Conn          *sctp.SCTPConn
 	ConnectedAt   time.Time
-	LastSeenAt    time.Time
+	lastSeenAt    atomic.Int64 // Unix nanoseconds; use GetLastSeenAt()/TouchLastSeen()
 	SupportedTAIs []SupportedTAI
 	mu            sync.RWMutex     // protects RanUEs
 	RanUEs        map[int64]*RanUe // Key: RanUeNgapID
@@ -127,7 +128,22 @@ func (r *Radio) SetRanID(ranNodeID *ngapType.GlobalRANNodeID) {
 }
 
 func (r *Radio) TouchLastSeen() {
-	r.LastSeenAt = time.Now()
+	r.lastSeenAt.Store(time.Now().UnixNano())
+}
+
+// GetLastSeenAt returns the last-seen timestamp. Safe for concurrent use.
+func (r *Radio) GetLastSeenAt() time.Time {
+	ns := r.lastSeenAt.Load()
+	if ns == 0 {
+		return time.Time{}
+	}
+
+	return time.Unix(0, ns)
+}
+
+// SetLastSeenAt sets the last-seen timestamp. Safe for concurrent use.
+func (r *Radio) SetLastSeenAt(t time.Time) {
+	r.lastSeenAt.Store(t.UnixNano())
 }
 
 // NodeID returns the RAN node identifier string regardless of radio type.

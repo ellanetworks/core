@@ -241,9 +241,10 @@ func (amf *AMF) NewRadio(conn *sctp.SCTPConn) (*Radio, error) {
 		SupportedTAIs: make([]SupportedTAI, 0),
 		Conn:          conn,
 		ConnectedAt:   now,
-		LastSeenAt:    now,
 		Log:           logger.AmfLog.With(logger.RanAddr(remoteAddr.String())),
 	}
+
+	radio.SetLastSeenAt(now)
 
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
