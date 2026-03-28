@@ -25,7 +25,14 @@ func (amf *AMF) RadioNameForSubscriber(supi etsi.SUPI) string {
 	defer amf.mu.RUnlock()
 
 	ue, ok := amf.UEs[supi]
-	if !ok || ue.GetState() != Registered || ue.ranUe == nil || ue.ranUe.Radio == nil {
+	if !ok {
+		return ""
+	}
+
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	if ue.state != Registered || ue.ranUe == nil || ue.ranUe.Radio == nil {
 		return ""
 	}
 
@@ -65,19 +72,11 @@ func (amf *AMF) RegisteredSubscribersForRadio(radioName string) []string {
 	var imsis []string
 
 	for _, ue := range amf.UEs {
-		if ue.GetState() != Registered {
-			continue
-		}
+		ue.Mutex.Lock()
+		match := ue.state == Registered && ue.ranUe != nil && ue.ranUe.Radio != nil && ue.ranUe.Radio.Name == radioName
+		ue.Mutex.Unlock()
 
-		if ue.ranUe == nil || ue.ranUe.Radio == nil {
-			continue
-		}
-
-		if ue.ranUe.Radio.Name != radioName {
-			continue
-		}
-
-		if ue.Supi.IsValid() && ue.Supi.IsIMSI() {
+		if match && ue.Supi.IsValid() && ue.Supi.IsIMSI() {
 			imsis = append(imsis, ue.Supi.IMSI())
 		}
 	}

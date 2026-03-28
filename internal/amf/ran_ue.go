@@ -346,7 +346,7 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, amf *AMF, userLocationIn
 
 		if ranUe.amfUe != nil {
 			ranUe.amfUe.Location = ranUe.Location
-			ranUe.amfUe.Tai = *ranUe.amfUe.Location.NrLocation.Tai
+			ranUe.amfUe.Tai = *ranUe.amfUe.Location.EutraLocation.Tai
 		}
 	case ngapType.UserLocationInformationPresentUserLocationInformationNR:
 		locationInfoNR := userLocationInformation.UserLocationInformationNR
