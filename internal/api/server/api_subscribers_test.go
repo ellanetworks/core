@@ -668,26 +668,6 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("10. Update subscriber - missing imsi in body", func(t *testing.T) {
-		updateParams := &UpdateSubscriberParams{
-			Imsi:       "",
-			PolicyName: PolicyName,
-		}
-
-		statusCode, response, err := updateSubscriber(env.Server.URL, client, token, Imsi, updateParams)
-		if err != nil {
-			t.Fatalf("couldn't update subscriber: %s", err)
-		}
-
-		if statusCode != http.StatusBadRequest {
-			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
-		}
-
-		if response.Error != "Missing imsi parameter" {
-			t.Fatalf("expected error 'Missing imsi parameter', got %q", response.Error)
-		}
-	})
-
 	t.Run("5f. Update subscriber - missing policy name", func(t *testing.T) {
 		updateParams := &UpdateSubscriberParams{
 			Imsi:       Imsi,
@@ -708,7 +688,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("11. Update subscriber - invalid imsi", func(t *testing.T) {
+	t.Run("11. Update subscriber - not found", func(t *testing.T) {
 		updateParams := &UpdateSubscriberParams{
 			Imsi:       "invalid-imsi",
 			PolicyName: PolicyName,
@@ -719,12 +699,12 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("couldn't update subscriber: %s", err)
 		}
 
-		if statusCode != http.StatusBadRequest {
-			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		if statusCode != http.StatusNotFound {
+			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
 		}
 
-		if response.Error != "Invalid IMSI" {
-			t.Fatalf("expected error 'Invalid IMSI', got %q", response.Error)
+		if response.Error != "Subscriber not found" {
+			t.Fatalf("expected error 'Subscriber not found', got %q", response.Error)
 		}
 	})
 

@@ -21,6 +21,14 @@ type CreatePolicyParams struct {
 	DataNetworkName string `json:"data_network_name,omitempty"`
 }
 
+type UpdatePolicyParams struct {
+	BitrateUplink   string `json:"bitrate_uplink,omitempty"`
+	BitrateDownlink string `json:"bitrate_downlink,omitempty"`
+	Var5qi          int32  `json:"var5qi,omitempty"`
+	Arp             int32  `json:"arp,omitempty"`
+	DataNetworkName string `json:"data_network_name,omitempty"`
+}
+
 type Policy struct {
 	Name            string `json:"name"`
 	BitrateUplink   string `json:"bitrate_uplink,omitempty"`
@@ -298,14 +306,14 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		var updatePolicyParams CreatePolicyParams
+		var updatePolicyParams UpdatePolicyParams
 
 		if err := json.NewDecoder(r.Body).Decode(&updatePolicyParams); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
 			return
 		}
 
-		if err := validatePolicyParams(updatePolicyParams); err != nil {
+		if err := validateUpdatePolicyParams(updatePolicyParams); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 			return
 		}
@@ -322,7 +330,7 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		policy.Name = updatePolicyParams.Name
+		policy.Name = policyName
 		policy.BitrateDownlink = updatePolicyParams.BitrateDownlink
 		policy.BitrateUplink = updatePolicyParams.BitrateUplink
 		policy.Var5qi = updatePolicyParams.Var5qi
@@ -335,7 +343,7 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Policy updated successfully"}, http.StatusOK, logger.APILog)
-		logger.LogAuditEvent(r.Context(), UpdatePolicyAction, email, getClientIP(r), "User updated policy: "+updatePolicyParams.Name)
+		logger.LogAuditEvent(r.Context(), UpdatePolicyAction, email, getClientIP(r), "User updated policy: "+policyName)
 	})
 }
 
@@ -355,6 +363,31 @@ func validatePolicyParams(p CreatePolicyParams) error {
 		return errors.New("arp is missing")
 	case !isPolicyNameValid(p.Name):
 		return errors.New("invalid name format - must be less than 256 characters")
+	case !isValidBitrate(p.BitrateUplink):
+		return errors.New("invalid bitrate_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps")
+	case !isValidBitrate(p.BitrateDownlink):
+		return errors.New("invalid bitrate_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps")
+	case !isValid5Qi(p.Var5qi):
+		return errors.New("invalid Var5qi format - must be an integer associated with a non-GBR 5QI")
+	case !isValidArp(p.Arp):
+		return errors.New("invalid arp format - must be an integer between 1 and 255")
+	}
+
+	return nil
+}
+
+func validateUpdatePolicyParams(p UpdatePolicyParams) error {
+	switch {
+	case p.DataNetworkName == "":
+		return errors.New("data_network_name is missing")
+	case p.BitrateUplink == "":
+		return errors.New("bitrate_uplink is missing")
+	case p.BitrateDownlink == "":
+		return errors.New("bitrate_downlink is missing")
+	case p.Var5qi == 0:
+		return errors.New("Var5qi is missing")
+	case p.Arp == 0:
+		return errors.New("arp is missing")
 	case !isValidBitrate(p.BitrateUplink):
 		return errors.New("invalid bitrate_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps")
 	case !isValidBitrate(p.BitrateDownlink):

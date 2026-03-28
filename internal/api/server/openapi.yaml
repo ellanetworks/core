@@ -1143,7 +1143,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreatePolicyParams"
+              $ref: "#/components/schemas/UpdatePolicyParams"
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -1518,7 +1518,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateDataNetworkParams"
+              $ref: "#/components/schemas/UpdateDataNetworkParams"
       responses:
         "200":
           $ref: "#/components/responses/Success"
@@ -2957,10 +2957,8 @@ components:
 
     UpdateSubscriberParams:
       type: object
-      required: [imsi, policyName]
+      required: [policyName]
       properties:
-        imsi:
-          type: string
         policyName:
           type: string
           description: Name of an existing QoS policy.
@@ -3051,6 +3049,27 @@ components:
         name:
           type: string
           maxLength: 255
+        bitrate_uplink:
+          type: string
+          description: "e.g. \"100 Mbps\""
+        bitrate_downlink:
+          type: string
+          description: "e.g. \"200 Mbps\""
+        var5qi:
+          type: integer
+          enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
+        arp:
+          type: integer
+          minimum: 1
+          maximum: 15
+        data_network_name:
+          type: string
+          description: Name of an existing data network.
+
+    UpdatePolicyParams:
+      type: object
+      required: [bitrate_uplink, bitrate_downlink, var5qi, arp, data_network_name]
+      properties:
         bitrate_uplink:
           type: string
           description: "e.g. \"100 Mbps\""
@@ -3356,6 +3375,21 @@ components:
         name:
           type: string
           description: "Valid DNN format (lowercase alphanumeric, hyphens, dots)."
+        ip_pool:
+          type: string
+          description: "CIDR notation (e.g. \"10.0.0.0/24\")."
+        dns:
+          type: string
+          description: DNS server IP address.
+        mtu:
+          type: integer
+          minimum: 0
+          maximum: 65535
+
+    UpdateDataNetworkParams:
+      type: object
+      required: [ip_pool, dns, mtu]
+      properties:
         ip_pool:
           type: string
           description: "CIDR notation (e.g. \"10.0.0.0/24\")."
