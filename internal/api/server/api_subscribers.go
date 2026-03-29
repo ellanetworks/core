@@ -34,6 +34,22 @@ func activeLeaseIPMappings(ctx context.Context, dbInstance *db.Database) (map[st
 	return out, nil
 }
 
+// activeLeasesByIMSI returns a map of IMSI → IP address for all active leases.
+// Used to populate the deprecated IPAddress field on subscriber status responses.
+func activeLeasesByIMSI(ctx context.Context, dbInstance *db.Database) map[string]string {
+	leases, err := dbInstance.ListActiveLeases(ctx)
+	if err != nil {
+		return nil
+	}
+
+	out := make(map[string]string, len(leases))
+	for _, l := range leases {
+		out[l.IMSI] = l.Address
+	}
+
+	return out
+}
+
 type CreateSubscriberParams struct {
 	Imsi           string `json:"imsi"`
 	Key            string `json:"key"`
@@ -225,6 +241,9 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler
 
 		items := make([]Subscriber, 0, len(dbSubscribers))
 
+		// Build IMSI→IP lookup from active leases for the deprecated status.ipAddress field.
+		imsiToIP := activeLeasesByIMSI(ctx, dbInstance)
+
 		// Pre-fetch all policies into a lookup map.
 		// These are small reference tables, so loading them all avoids
 		// N+1 queries per subscriber in the loop below.
@@ -260,6 +279,7 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler
 
 			subscriberStatus := SubscriberStatus{
 				Registered: amfInstance.IsSubscriberRegistered(supi),
+				IPAddress:  imsiToIP[dbSubscriber.Imsi],
 			}
 
 			if lastSeen := amfInstance.LastSeenAtForSubscriber(supi); !lastSeen.IsZero() {
@@ -369,6 +389,14 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler {
 
 		if len(sessions) > MaxPDUSessions {
 			sessions = sessions[:MaxPDUSessions]
+		}
+
+		// Deprecated: populate status.ipAddress from the first session with an IP.
+		for _, s := range sessions {
+			if s.IPAddress != "" {
+				subscriberStatus.IPAddress = s.IPAddress
+				break
+			}
 		}
 
 		subscriber := SubscriberDetail{
@@ -624,6 +652,7 @@ func toSessionInfo(pdu amf.PDUSessionExport) SessionInfo {
 	}
 
 	return SessionInfo{
-		Status: status,
+		Status:    status,
+		IPAddress: pdu.PDUAddress,
 	}
 }
