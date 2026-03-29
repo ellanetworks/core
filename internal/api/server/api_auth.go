@@ -53,13 +53,14 @@ const (
 
 // Helper function to generate a JWT
 func generateJWT(id int64, email string, roleID RoleID, jwtSecret []byte) (string, error) {
-	expiresAt := jwt.NewNumericDate(time.Now().Add(AccessTokenDuration))
+	now := time.Now()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
 		ID:     id,
 		Email:  email,
 		RoleID: roleID,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: expiresAt,
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(AccessTokenDuration)),
 		},
 	})
 
