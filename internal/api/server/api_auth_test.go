@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/golang-jwt/jwt/v5"
@@ -1384,6 +1385,198 @@ func TestRotateSecretEndToEnd(t *testing.T) {
 			t.Fatalf("new token should NOT be valid with old secret")
 		}
 	})
+}
+
+func TestRoleChangeInvalidatesSessions(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	adminClient := newTestClient(env.Server)
+
+	adminToken, err := initializeAndRefresh(env.Server.URL, adminClient)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	// Create a second user and log them in with their own client (own cookie jar)
+	targetClient := newTestClient(env.Server)
+
+	_, err = createUserAndLogin(env.Server.URL, adminToken, "target@ellanetworks.com", RoleNetworkManager, targetClient)
+	if err != nil {
+		t.Fatalf("couldn't create target user and login: %s", err)
+	}
+
+	// Verify refresh works before role change
+	statusCode, _, err := refresh(env.Server.URL, targetClient)
+	if err != nil {
+		t.Fatalf("couldn't refresh: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected refresh status %d before role change, got %d", http.StatusOK, statusCode)
+	}
+
+	// Admin changes the target user's role
+	updateUserParams := &UpdateUserParams{
+		RoleID: RoleReadOnly,
+	}
+
+	statusCode, _, err = editUser(env.Server.URL, adminClient, adminToken, "target@ellanetworks.com", updateUserParams)
+	if err != nil {
+		t.Fatalf("couldn't edit user: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected edit status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	// Target user's session should now be invalid
+	statusCode, refreshResp, err := refresh(env.Server.URL, targetClient)
+	if err != nil {
+		t.Fatalf("couldn't refresh after role change: %s", err)
+	}
+
+	if statusCode != http.StatusUnauthorized {
+		t.Fatalf("expected refresh status %d after role change, got %d", http.StatusUnauthorized, statusCode)
+	}
+
+	if refreshResp.Error != "Invalid session token" {
+		t.Fatalf("expected error %q, got %q", "Invalid session token", refreshResp.Error)
+	}
+}
+
+func TestPasswordChangeInvalidatesSessions(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	adminClient := newTestClient(env.Server)
+
+	adminToken, err := initializeAndRefresh(env.Server.URL, adminClient)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	// Create a second user and log them in with their own client
+	targetClient := newTestClient(env.Server)
+
+	_, err = createUserAndLogin(env.Server.URL, adminToken, "target@ellanetworks.com", RoleReadOnly, targetClient)
+	if err != nil {
+		t.Fatalf("couldn't create target user and login: %s", err)
+	}
+
+	// Verify refresh works before password change
+	statusCode, _, err := refresh(env.Server.URL, targetClient)
+	if err != nil {
+		t.Fatalf("couldn't refresh: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected refresh status %d before password change, got %d", http.StatusOK, statusCode)
+	}
+
+	// Admin changes the target user's password
+	params := &UpdateUserPasswordParams{
+		Password: "newpassword456",
+	}
+
+	statusCode, _, err = editUserPassword(env.Server.URL, adminClient, adminToken, "target@ellanetworks.com", params)
+	if err != nil {
+		t.Fatalf("couldn't edit user password: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected edit password status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	// Target user's session should now be invalid
+	statusCode, refreshResp, err := refresh(env.Server.URL, targetClient)
+	if err != nil {
+		t.Fatalf("couldn't refresh after password change: %s", err)
+	}
+
+	if statusCode != http.StatusUnauthorized {
+		t.Fatalf("expected refresh status %d after password change, got %d", http.StatusUnauthorized, statusCode)
+	}
+
+	if refreshResp.Error != "Invalid session token" {
+		t.Fatalf("expected error %q, got %q", "Invalid session token", refreshResp.Error)
+	}
+}
+
+func TestJWTContainsIssuedAtClaim(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	initParams := &InitializeParams{
+		Email:    FirstUserEmail,
+		Password: "password123",
+	}
+
+	statusCode, initResponse, err := initialize(env.Server.URL, client, initParams)
+	if err != nil {
+		t.Fatalf("couldn't initialize: %s", err)
+	}
+
+	if statusCode != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+	}
+
+	token, err := jwt.Parse(initResponse.Result.Token, func(token *jwt.Token) (any, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+
+		return env.JWTSecret.Get(), nil
+	})
+	if err != nil {
+		t.Fatalf("couldn't parse token: %s", err)
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		t.Fatalf("invalid token or claims")
+	}
+
+	iatRaw, exists := claims["iat"]
+	if !exists {
+		t.Fatalf("expected iat claim to be present")
+	}
+
+	iat, ok := iatRaw.(float64)
+	if !ok {
+		t.Fatalf("expected iat to be a number, got %T", iatRaw)
+	}
+
+	iatTime := int64(iat)
+	now := time.Now().Unix()
+
+	if now-iatTime > 10 {
+		t.Fatalf("iat is too far in the past: %d (now: %d)", iatTime, now)
+	}
+
+	if iatTime > now+1 {
+		t.Fatalf("iat is in the future: %d (now: %d)", iatTime, now)
+	}
 }
 
 func mustParseURL(rawURL string) *url.URL {
