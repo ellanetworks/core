@@ -205,7 +205,7 @@ func TestLoginEndToEnd(t *testing.T) {
 				return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 			}
 
-			return env.JWTSecret, nil
+			return env.JWTSecret.Get(), nil
 		})
 		if err != nil {
 			t.Fatalf("couldn't parse token: %s", err)

@@ -535,6 +535,27 @@ paths:
         "400":
           $ref: "#/components/responses/BadRequest"
 
+  /api/v1/auth/rotate-secret:
+    post:
+      operationId: rotateSecret
+      tags: [Authentication]
+      summary: Rotate the JWT secret
+      description: |
+        Generates a new JWT signing secret. All existing user sessions are
+        immediately invalidated — users must re-authenticate. API tokens
+        (prefixed `ellacore_`) are not affected. Requires admin role.
+      responses:
+        "200":
+          description: Secret rotated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RotateSecretResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   # ── Users ───────────────────────────────────────────────────────────────
   /api/v1/users/me:
     get:
@@ -2657,6 +2678,19 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/LookupTokenResponse"
+
+    RotateSecretResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+
+    RotateSecretResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/RotateSecretResponse"
 
     # ── Users ───────────────────────────────────────────────────────────
     User:

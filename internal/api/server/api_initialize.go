@@ -27,7 +27,7 @@ const (
 	InitializeAction = "initialize"
 )
 
-func Initialize(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) http.Handler {
+func Initialize(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var newUser InitializeParams
 
@@ -95,7 +95,7 @@ func Initialize(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) ht
 			return
 		}
 
-		token, err := generateJWT(userID, newUser.Email, RoleID(db.RoleAdmin), jwtSecret)
+		token, err := generateJWT(userID, newUser.Email, RoleID(db.RoleAdmin), jwtSecret.Get())
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return

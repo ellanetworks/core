@@ -85,7 +85,7 @@ func clearSessionCookie(w http.ResponseWriter, secureCookie bool) {
 	})
 }
 
-func Refresh(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) http.Handler {
+func Refresh(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie(SessionTokenCookieName)
 		if err != nil {
@@ -146,7 +146,7 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) http.
 			return
 		}
 
-		token, err := generateJWT(user.ID, user.Email, RoleID(user.RoleID), jwtSecret)
+		token, err := generateJWT(user.ID, user.Email, RoleID(user.RoleID), jwtSecret.Get())
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return
@@ -158,7 +158,7 @@ func Refresh(dbInstance *db.Database, jwtSecret []byte, secureCookie bool) http.
 	})
 }
 
-func Login(dbInstance *db.Database, jwtSecret []byte, secureCookie bool, loginLimiter *ipRateLimiter) http.Handler {
+func Login(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool, loginLimiter *ipRateLimiter) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		clientIP := getClientIP(r)
 
@@ -225,7 +225,7 @@ func Login(dbInstance *db.Database, jwtSecret []byte, secureCookie bool, loginLi
 			return
 		}
 
-		token, err := generateJWT(user.ID, user.Email, RoleID(user.RoleID), jwtSecret)
+		token, err := generateJWT(user.ID, user.Email, RoleID(user.RoleID), jwtSecret.Get())
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Internal Error", err, logger.APILog)
 			return
@@ -300,7 +300,7 @@ func createSessionAndSetCookie(ctx context.Context, dbInstance *db.Database, use
 	return nil
 }
 
-func LookupToken(dbInstance *db.Database, jwtSecret []byte) http.Handler {
+func LookupToken(dbInstance *db.Database, jwtSecret *JWTSecret) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") == "" {
 			writeError(r.Context(), w, http.StatusBadRequest, "Authorization header is required",

@@ -86,7 +86,7 @@ func (f FakeUPF) UpdateAdvertisedN3Address(ip net.IP) {
 // testEnv holds the components created by setupServer.
 type testEnv struct {
 	Server    *httptest.Server
-	JWTSecret []byte
+	JWTSecret *server.JWTSecret
 	DB        *db.Database
 	SMF       *smf.SMF
 	AMF       *amf.AMF
@@ -103,7 +103,7 @@ func setupServer(filepath string) (testEnv, error) {
 	// Initialize SMF context with test stubs
 	smfInstance := smf.New(&fakeSessionStore{db: testdb}, &fakeUPFClient{}, &fakeAMFCallback{})
 
-	jwtSecret := []byte("testsecret")
+	jwtSecret := server.NewJWTSecret([]byte("testsecret"))
 	fakeKernel := FakeKernel{}
 	dummyfs := dummyFS{}
 	fakeUPF := FakeUPF{}

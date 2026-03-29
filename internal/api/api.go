@@ -40,10 +40,12 @@ const (
 var routeReconciler = ReconcileKernelRouting
 
 func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf server.UPFUpdater, sessions smf.SessionQuerier, amfInstance *amf.AMF, bgpService *bgp.BGPService, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) (*http.Server, error) {
-	jwtSecret, err := dbInstance.GetJWTSecret(ctx)
+	jwtSecretBytes, err := dbInstance.GetJWTSecret(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't load jwt secret from database: %v", err)
 	}
+
+	jwtSecret := server.NewJWTSecret(jwtSecretBytes)
 
 	kernelInt := kernel.NewRealKernel(cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name)
 

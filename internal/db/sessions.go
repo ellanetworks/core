@@ -25,6 +25,7 @@ const (
 	countSessionsByUserStmt      = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE user_id==$UserIDArgs.user_id"
 	deleteOldestSessionsStmt     = "DELETE FROM %s WHERE id IN (SELECT id FROM %s WHERE user_id==$DeleteOldestArgs.user_id ORDER BY created_at ASC LIMIT $DeleteOldestArgs.limit)"
 	deleteAllSessionsForUserStmt = "DELETE FROM %s WHERE user_id==$UserIDArgs.user_id"
+	deleteAllSessionsStmt        = "DELETE FROM %s"
 )
 
 type Session struct {
@@ -292,6 +293,37 @@ func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID int64) 
 	args := UserIDArgs{UserID: userID}
 
 	err := db.conn.Query(ctx, db.deleteAllSessionsForUserStmt, args).Run()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return fmt.Errorf("query failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+func (db *Database) DeleteAllSessions(ctx context.Context) error {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "DELETE_ALL", SessionsTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("DELETE"),
+			attribute.String("db.collection", SessionsTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SessionsTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
+
+	err := db.conn.Query(ctx, db.deleteAllSessionsStmt).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

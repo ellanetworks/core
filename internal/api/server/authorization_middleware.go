@@ -156,6 +156,9 @@ const (
 	PermRestore       = "backup:restore"
 	PermSupportBundle = "support_bundle:generate"
 
+	// Auth permissions
+	PermRotateSecret = "auth:rotate_secret" // #nosec: G101
+
 	// Audit Log permissions
 	PermGetAuditLogRetentionPolicy = "audit_logs:get_retention"
 	PermSetAuditLogRetentionPolicy = "audit_logs:set_retention"

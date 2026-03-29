@@ -76,3 +76,25 @@ None
     }
 }
 ```
+
+## Rotate Secret
+
+Generates a new JWT signing secret. All existing user sessions are immediately invalidated — users must re-authenticate. API tokens (prefixed `ellacore_`) are not affected. Requires admin role.
+
+| Method | Path                           |
+| ------ | ------------------------------ |
+| POST   | `/api/v1/auth/rotate-secret`   |
+
+### Parameters
+
+None
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Secret rotated successfully. All user sessions have been invalidated."
+    }
+}
+```

@@ -174,6 +174,7 @@ type Database struct {
 	countSessionsByUserStmt      *sqlair.Statement
 	deleteOldestSessionsStmt     *sqlair.Statement
 	deleteAllSessionsForUserStmt *sqlair.Statement
+	deleteAllSessionsStmt        *sqlair.Statement
 
 	// JWT Secret statements
 	getJWTSecretStmt    *sqlair.Statement
@@ -466,6 +467,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.countSessionsByUserStmt, fmt.Sprintf(countSessionsByUserStmt, SessionsTableName), []any{UserIDArgs{}, NumItems{}}},
 		{&db.deleteOldestSessionsStmt, fmt.Sprintf(deleteOldestSessionsStmt, SessionsTableName, SessionsTableName), []any{DeleteOldestArgs{}}},
 		{&db.deleteAllSessionsForUserStmt, fmt.Sprintf(deleteAllSessionsForUserStmt, SessionsTableName), []any{UserIDArgs{}}},
+		{&db.deleteAllSessionsStmt, fmt.Sprintf(deleteAllSessionsStmt, SessionsTableName), nil},
 
 		// JWT Secret
 		{&db.getJWTSecretStmt, fmt.Sprintf(getJWTSecretStmt, JWTSecretTableName), []any{JWTSecret{}}},

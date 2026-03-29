@@ -55,7 +55,7 @@ func parseAPIToken(presented string) (tokenID, secret string, ok bool) {
 
 // authenticateRequest validates the Authorization header (JWT or API token),
 // and returns (userID, email, roleID) for authorization.
-func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) (int64, string, RoleID, error) {
+func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Database) (int64, string, RoleID, error) {
 	var authType string
 
 	var success bool
@@ -155,7 +155,7 @@ func authenticateRequest(r *http.Request, jwtSecret []byte, store *db.Database) 
 	// JWT path
 	authType = "jwt"
 
-	cl, err := getClaimsFromJWT(token, jwtSecret)
+	cl, err := getClaimsFromJWT(token, jwtSecret.Get())
 	if err != nil {
 		return 0, "", 0, err
 	}
@@ -179,7 +179,7 @@ func putIdentity(ctx context.Context, id int64, email string, role RoleID) conte
 	return ctx
 }
 
-func Authenticate(jwtSecret []byte, store *db.Database, next http.Handler) http.Handler {
+func Authenticate(jwtSecret *JWTSecret, store *db.Database, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		uid, email, role, err := authenticateRequest(r, jwtSecret, store)
 		if err != nil {
