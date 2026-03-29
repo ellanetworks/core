@@ -22,7 +22,7 @@ type UPFUpdater interface {
 	UpdateAdvertisedN3Address(net.IP)
 }
 
-func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kernel kernel.Kernel, jwtSecret []byte, secureCookie bool, embedFS fs.FS, sessions smf.SessionQuerier, amfInstance *amf.AMF, bgpService *bgp.BGPService, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
+func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kernel kernel.Kernel, jwtSecret *JWTSecret, secureCookie bool, embedFS fs.FS, sessions smf.SessionQuerier, amfInstance *amf.AMF, bgpService *bgp.BGPService, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
 	mux := http.NewServeMux()
 
 	// Status (Unauthenticated)
@@ -43,6 +43,7 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	mux.HandleFunc("POST /api/v1/auth/refresh", Refresh(dbInstance, jwtSecret, secureCookie).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/auth/logout", Logout(dbInstance, secureCookie).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/auth/lookup-token", LookupToken(dbInstance, jwtSecret).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/auth/rotate-secret", Authenticate(jwtSecret, dbInstance, Authorize(PermRotateSecret, RotateSecret(dbInstance, jwtSecret))).ServeHTTP)
 
 	// Initialization (Unauthenticated)
 	mux.HandleFunc("POST /api/v1/init", Initialize(dbInstance, jwtSecret, secureCookie).ServeHTTP)
@@ -194,7 +195,7 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	return handler
 }
 
-func registerAuthenticatedPprof(root *http.ServeMux, jwtSecret []byte, dbInstance *db.Database) {
+func registerAuthenticatedPprof(root *http.ServeMux, jwtSecret *JWTSecret, dbInstance *db.Database) {
 	pp := http.NewServeMux()
 
 	pp.HandleFunc("/api/v1/pprof/", pprof.Index)

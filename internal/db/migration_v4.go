@@ -49,5 +49,14 @@ func migrateV4(ctx context.Context, tx *sql.Tx) error {
 		return fmt.Errorf("failed to create bgp_import_prefixes table: %w", err)
 	}
 
+	_, err = tx.ExecContext(ctx, fmt.Sprintf(`
+		CREATE TABLE IF NOT EXISTS %s (
+			singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton = TRUE),
+			secret    BLOB    NOT NULL
+		)`, JWTSecretTableName))
+	if err != nil {
+		return fmt.Errorf("failed to create jwt_secret table: %w", err)
+	}
+
 	return nil
 }
