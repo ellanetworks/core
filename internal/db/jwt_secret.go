@@ -115,3 +115,65 @@ func (db *Database) SetJWTSecret(ctx context.Context, secret []byte) error {
 
 	return nil
 }
+
+// RotateJWTSecret atomically updates the JWT secret and deletes all sessions
+// within a single transaction. If either operation fails, both are rolled back.
+func (db *Database) RotateJWTSecret(ctx context.Context, newSecret []byte) error {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "ROTATE", JWTSecretTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("ROTATE"),
+			attribute.String("db.collection", JWTSecretTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(JWTSecretTableName, "rotate"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(JWTSecretTableName, "rotate").Inc()
+
+	tx, err := db.conn.Begin(ctx, nil)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "begin transaction failed")
+
+		return fmt.Errorf("begin transaction failed: %w", err)
+	}
+
+	row := JWTSecret{Secret: newSecret}
+
+	err = tx.Query(ctx, db.upsertJWTSecretStmt, row).Run()
+	if err != nil {
+		_ = tx.Rollback()
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "upsert secret failed")
+
+		return fmt.Errorf("upsert secret failed: %w", err)
+	}
+
+	err = tx.Query(ctx, db.deleteAllSessionsStmt).Run()
+	if err != nil {
+		_ = tx.Rollback()
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "delete sessions failed")
+
+		return fmt.Errorf("delete sessions failed: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "commit failed")
+
+		return fmt.Errorf("commit failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}

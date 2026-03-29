@@ -1221,6 +1221,171 @@ func TestSessionLimitPerUser(t *testing.T) {
 	}
 }
 
+type RotateSecretResponseResult struct {
+	Message string `json:"message"`
+}
+
+type RotateSecretResponse struct {
+	Result RotateSecretResponseResult `json:"result"`
+	Error  string                     `json:"error,omitempty"`
+}
+
+func rotateSecret(serverURL string, client *http.Client, token string) (int, *RotateSecretResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "POST", serverURL+"/api/v1/auth/rotate-secret", nil)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	var response RotateSecretResponse
+	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
+		return 0, nil, err
+	}
+
+	return res.StatusCode, &response, nil
+}
+
+func TestRotateSecretEndToEnd(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	adminClient := newTestClient(env.Server)
+
+	adminToken, err := initializeAndRefresh(env.Server.URL, adminClient)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	originalSecret := make([]byte, len(env.JWTSecret.Get()))
+	copy(originalSecret, env.JWTSecret.Get())
+
+	readOnlyClient := newTestClient(env.Server)
+
+	readOnlyToken, err := createUserAndLogin(env.Server.URL, adminToken, "readonly@ellanetworks.com", RoleReadOnly, readOnlyClient)
+	if err != nil {
+		t.Fatalf("couldn't create readonly user and login: %s", err)
+	}
+
+	t.Run("1. Non-admin cannot rotate secret", func(t *testing.T) {
+		statusCode, response, err := rotateSecret(env.Server.URL, readOnlyClient, readOnlyToken)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+
+		if statusCode != http.StatusForbidden {
+			t.Fatalf("expected status %d, got %d", http.StatusForbidden, statusCode)
+		}
+
+		if response.Error != "Forbidden" {
+			t.Fatalf("expected error %q, got %q", "Forbidden", response.Error)
+		}
+	})
+
+	t.Run("2. Admin rotates secret successfully", func(t *testing.T) {
+		statusCode, response, err := rotateSecret(env.Server.URL, adminClient, adminToken)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d: %s", http.StatusOK, statusCode, response.Error)
+		}
+
+		if response.Result.Message == "" {
+			t.Fatalf("expected non-empty message")
+		}
+	})
+
+	t.Run("3. Secret has changed", func(t *testing.T) {
+		newSecret := env.JWTSecret.Get()
+		if string(newSecret) == string(originalSecret) {
+			t.Fatalf("expected secret to change after rotation")
+		}
+	})
+
+	t.Run("4. Old JWT is invalid after rotation", func(t *testing.T) {
+		statusCode, response, err := lookupToken(env.Server.URL, adminClient, adminToken)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if response.Result.Valid {
+			t.Fatalf("expected old JWT to be invalid after rotation")
+		}
+	})
+
+	t.Run("5. Session cookie is invalidated (refresh fails)", func(t *testing.T) {
+		statusCode, _, err := refresh(env.Server.URL, adminClient)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+
+		if statusCode != http.StatusUnauthorized {
+			t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, statusCode)
+		}
+	})
+
+	t.Run("6. Can login again after rotation", func(t *testing.T) {
+		loginParams := &LoginParams{
+			Email:    FirstUserEmail,
+			Password: "password123",
+		}
+
+		statusCode, loginResponse, err := login(env.Server.URL, adminClient, loginParams)
+		if err != nil {
+			t.Fatalf("unexpected error: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if loginResponse.Result.Token == "" {
+			t.Fatalf("expected token after login")
+		}
+
+		// Verify the new token is signed with the new secret
+		_, err = jwt.Parse(loginResponse.Result.Token, func(token *jwt.Token) (any, error) {
+			return env.JWTSecret.Get(), nil
+		})
+		if err != nil {
+			t.Fatalf("new token should be valid with new secret: %s", err)
+		}
+
+		// Verify the new token does NOT validate with the old secret
+		_, err = jwt.Parse(loginResponse.Result.Token, func(token *jwt.Token) (any, error) {
+			return originalSecret, nil
+		})
+		if err == nil {
+			t.Fatalf("new token should NOT be valid with old secret")
+		}
+	})
+}
+
 func mustParseURL(rawURL string) *url.URL {
 	u, err := url.Parse(rawURL)
 	if err != nil {

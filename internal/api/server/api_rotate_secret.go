@@ -23,17 +23,12 @@ func RotateSecret(dbInstance *db.Database, jwtSecret *JWTSecret) http.Handler { 
 			return
 		}
 
-		if err := dbInstance.SetJWTSecret(r.Context(), newSecret); err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to store new secret", err, logger.APILog)
+		if err := dbInstance.RotateJWTSecret(r.Context(), newSecret); err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to rotate secret", err, logger.APILog)
 			return
 		}
 
 		jwtSecret.Set(newSecret)
-
-		if err := dbInstance.DeleteAllSessions(r.Context()); err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Secret rotated but failed to delete sessions", err, logger.APILog)
-			return
-		}
 
 		email, _ := r.Context().Value(contextKeyEmail).(string)
 

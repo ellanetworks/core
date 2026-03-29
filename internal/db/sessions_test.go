@@ -387,3 +387,67 @@ func TestDeleteAllSessionsForUser(t *testing.T) {
 		t.Fatalf("Expected user2 session to still exist")
 	}
 }
+
+func TestDeleteAllSessions(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	user1 := &db.User{
+		Email:          "user1@example.com",
+		HashedPassword: "hash1",
+	}
+
+	userID1, err := database.CreateUser(context.Background(), user1)
+	if err != nil {
+		t.Fatalf("Couldn't complete CreateUser: %s", err)
+	}
+
+	user2 := &db.User{
+		Email:          "user2@example.com",
+		HashedPassword: "hash2",
+	}
+
+	userID2, err := database.CreateUser(context.Background(), user2)
+	if err != nil {
+		t.Fatalf("Couldn't complete CreateUser: %s", err)
+	}
+
+	now := time.Now()
+	expiresAt := now.Add(1 * time.Hour).Unix()
+
+	sessions := []*db.Session{
+		{UserID: userID1, TokenHash: []byte{1}, CreatedAt: now.Unix(), ExpiresAt: expiresAt},
+		{UserID: userID1, TokenHash: []byte{2}, CreatedAt: now.Unix(), ExpiresAt: expiresAt},
+		{UserID: userID2, TokenHash: []byte{3}, CreatedAt: now.Unix(), ExpiresAt: expiresAt},
+	}
+
+	for _, s := range sessions {
+		_, err = database.CreateSession(context.Background(), s)
+		if err != nil {
+			t.Fatalf("Couldn't complete CreateSession: %s", err)
+		}
+	}
+
+	err = database.DeleteAllSessions(context.Background())
+	if err != nil {
+		t.Fatalf("Couldn't complete DeleteAllSessions: %s", err)
+	}
+
+	// All sessions across all users should be gone
+	for _, s := range sessions {
+		_, err := database.GetSessionByTokenHash(context.Background(), s.TokenHash)
+		if err == nil {
+			t.Fatalf("Expected error when retrieving deleted session with hash %v", s.TokenHash)
+		}
+	}
+}
