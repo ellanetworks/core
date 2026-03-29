@@ -17,8 +17,8 @@ import (
 const JWTSecretTableName = "jwt_secret"
 
 const (
-	getJWTSecretStmt    = `SELECT &JWTSecret.* FROM %s WHERE singleton=TRUE`
-	upsertJWTSecretStmt = `INSERT INTO %s (singleton, secret) VALUES (TRUE, $JWTSecret.secret) ON CONFLICT(singleton) DO UPDATE SET secret=$JWTSecret.secret`
+	getJWTSecretStmt    = `SELECT &JWTSecret.* FROM %s WHERE singleton=TRUE`                                                                                    // #nosec: G101
+	upsertJWTSecretStmt = `INSERT INTO %s (singleton, secret) VALUES (TRUE, $JWTSecret.secret) ON CONFLICT(singleton) DO UPDATE SET secret=$JWTSecret.secret` // #nosec: G101
 )
 
 type JWTSecret struct {
