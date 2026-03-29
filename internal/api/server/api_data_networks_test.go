@@ -3,6 +3,7 @@ package server_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -740,7 +741,7 @@ func TestCreateTooManyDataNetworks(t *testing.T) {
 	for i := range 11 { // We use 11 instead of 12 because the first data network is created by default
 		createDataNetworkParams := &CreateDataNetworkParams{
 			Name:   "data-network-" + strconv.Itoa(i),
-			IPPool: IPPool,
+			IPPool: fmt.Sprintf("10.%d.0.0/24", i),
 			DNS:    DNS,
 			MTU:    MTU,
 		}
@@ -761,7 +762,7 @@ func TestCreateTooManyDataNetworks(t *testing.T) {
 
 	createDataNetworkParams := &CreateDataNetworkParams{
 		Name:   "data-network-too-many",
-		IPPool: IPPool,
+		IPPool: "10.100.0.0/24",
 		DNS:    DNS,
 		MTU:    MTU,
 	}
@@ -778,4 +779,157 @@ func TestCreateTooManyDataNetworks(t *testing.T) {
 	if response.Error != "Maximum number of data networks reached (12)" {
 		t.Fatalf("expected error %q, got %q", "Maximum number of data networks reached (12)", response.Error)
 	}
+}
+
+func TestCreateDataNetworkOverlappingPool(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	// Create the first data network with a /24 pool.
+	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+		Name: "dn-a", IPPool: "10.45.0.0/24", DNS: DNS, MTU: MTU,
+	})
+	if err != nil {
+		t.Fatalf("couldn't create first data network: %s", err)
+	}
+
+	t.Run("exact overlap", func(t *testing.T) {
+		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+			Name: "dn-b", IPPool: "10.45.0.0/24", DNS: DNS, MTU: MTU,
+		})
+		if err != nil {
+			t.Fatalf("couldn't create data network: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if !strings.Contains(response.Error, "overlaps") {
+			t.Fatalf("expected overlap error, got %q", response.Error)
+		}
+	})
+
+	t.Run("superset overlap", func(t *testing.T) {
+		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+			Name: "dn-c", IPPool: "10.45.0.0/16", DNS: DNS, MTU: MTU,
+		})
+		if err != nil {
+			t.Fatalf("couldn't create data network: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if !strings.Contains(response.Error, "overlaps") {
+			t.Fatalf("expected overlap error, got %q", response.Error)
+		}
+	})
+
+	t.Run("subset overlap", func(t *testing.T) {
+		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+			Name: "dn-d", IPPool: "10.45.0.128/25", DNS: DNS, MTU: MTU,
+		})
+		if err != nil {
+			t.Fatalf("couldn't create data network: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if !strings.Contains(response.Error, "overlaps") {
+			t.Fatalf("expected overlap error, got %q", response.Error)
+		}
+	})
+
+	t.Run("non-overlapping succeeds", func(t *testing.T) {
+		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+			Name: "dn-e", IPPool: "10.46.0.0/24", DNS: DNS, MTU: MTU,
+		})
+		if err != nil {
+			t.Fatalf("couldn't create data network: %s", err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d (error: %s)", http.StatusCreated, statusCode, response.Error)
+		}
+	})
+}
+
+func TestUpdateDataNetworkOverlappingPool(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	// Create two data networks with non-overlapping pools.
+	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+		Name: "dn-x", IPPool: "10.50.0.0/24", DNS: DNS, MTU: MTU,
+	})
+	if err != nil {
+		t.Fatalf("couldn't create first data network: %s", err)
+	}
+
+	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+		Name: "dn-y", IPPool: "10.51.0.0/24", DNS: DNS, MTU: MTU,
+	})
+	if err != nil {
+		t.Fatalf("couldn't create second data network: %s", err)
+	}
+
+	t.Run("update to overlapping pool rejected", func(t *testing.T) {
+		statusCode, response, err := editDataNetwork(env.Server.URL, client, "dn-y", token, &UpdateDataNetworkParams{
+			IPPool: "10.50.0.0/24", DNS: DNS, MTU: MTU,
+		})
+		if err != nil {
+			t.Fatalf("couldn't edit data network: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if !strings.Contains(response.Error, "overlaps") {
+			t.Fatalf("expected overlap error, got %q", response.Error)
+		}
+	})
+
+	t.Run("update own pool succeeds", func(t *testing.T) {
+		statusCode, response, err := editDataNetwork(env.Server.URL, client, "dn-y", token, &UpdateDataNetworkParams{
+			IPPool: "10.51.0.0/22", DNS: DNS, MTU: MTU,
+		})
+		if err != nil {
+			t.Fatalf("couldn't edit data network: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d (error: %s)", http.StatusOK, statusCode, response.Error)
+		}
+	})
 }
