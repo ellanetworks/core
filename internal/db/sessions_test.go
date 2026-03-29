@@ -38,9 +38,12 @@ func TestSessionsEndToEnd(t *testing.T) {
 
 	expiresAt := time.Now().Add(1 * time.Hour)
 
+	now := time.Now()
+
 	session := &db.Session{
 		UserID:    userID,
 		TokenHash: make([]byte, 32),
+		CreatedAt: now.Unix(),
 		ExpiresAt: expiresAt.Unix(),
 	}
 
@@ -68,14 +71,8 @@ func TestSessionsEndToEnd(t *testing.T) {
 		t.Fatalf("The token hash length from the database doesn't match the expected value")
 	}
 
-	if retrievedSession.CreatedAt == 0 {
-		t.Fatalf("The createdAt time from the database is empty")
-	}
-
-	createdAt := time.Unix(retrievedSession.CreatedAt, 0)
-
-	if time.Since(createdAt) > 5*time.Minute {
-		t.Fatalf("The createdAt time from the database is not recent")
+	if retrievedSession.CreatedAt != now.Unix() {
+		t.Fatalf("The createdAt time from the database doesn't match the expected value")
 	}
 }
 
@@ -108,6 +105,7 @@ func TestDeleteSessionByTokenHash(t *testing.T) {
 	session := &db.Session{
 		UserID:    userID,
 		TokenHash: make([]byte, 32),
+		CreatedAt: time.Now().Unix(),
 		ExpiresAt: expiresAt.Unix(),
 	}
 
@@ -165,16 +163,20 @@ func TestDeleteExpiredSessions(t *testing.T) {
 		t.Fatalf("Couldn't complete CreateUser: %s", err)
 	}
 
+	now := time.Now()
+
 	expiredSession := &db.Session{
 		UserID:    userID1,
 		TokenHash: []byte{1, 2, 3, 4, 5},
-		ExpiresAt: time.Now().Add(-1 * time.Hour).Unix(), // already expired
+		CreatedAt: now.Unix(),
+		ExpiresAt: now.Add(-1 * time.Hour).Unix(), // already expired
 	}
 
 	validSession := &db.Session{
 		UserID:    userID2,
 		TokenHash: []byte{6, 7, 8, 9, 10},
-		ExpiresAt: time.Now().Add(1 * time.Hour).Unix(),
+		CreatedAt: now.Unix(),
+		ExpiresAt: now.Add(1 * time.Hour).Unix(),
 	}
 
 	_, err = database.CreateSession(context.Background(), expiredSession)
@@ -245,15 +247,17 @@ func TestDeleteManyExpiredSessions(t *testing.T) {
 			t.Fatalf("Couldn't complete CreateUser: %s", err)
 		}
 
+		now := time.Now()
 		session := &db.Session{
 			UserID:    userID,
 			TokenHash: []byte{byte(i)},
+			CreatedAt: now.Unix(),
 		}
 
 		if i < expiredSessions {
-			session.ExpiresAt = time.Now().Add(-5 * time.Minute).Unix() // already expired
+			session.ExpiresAt = now.Add(-5 * time.Minute).Unix() // already expired
 		} else {
-			session.ExpiresAt = time.Now().Add(5 * time.Minute).Unix() // valid
+			session.ExpiresAt = now.Add(5 * time.Minute).Unix() // valid
 		}
 
 		_, err = database.CreateSession(context.Background(), session)
@@ -330,13 +334,15 @@ func TestDeleteAllSessionsForUser(t *testing.T) {
 		t.Fatalf("Couldn't complete CreateUser: %s", err)
 	}
 
-	expiresAt := time.Now().Add(1 * time.Hour).Unix()
+	now := time.Now()
+	expiresAt := now.Add(1 * time.Hour).Unix()
 
 	// Create 3 sessions for user1 and 1 for user2
 	for i := range 3 {
 		session := &db.Session{
 			UserID:    userID1,
 			TokenHash: []byte{byte(i + 1)},
+			CreatedAt: now.Unix(),
 			ExpiresAt: expiresAt,
 		}
 
@@ -349,6 +355,7 @@ func TestDeleteAllSessionsForUser(t *testing.T) {
 	user2Session := &db.Session{
 		UserID:    userID2,
 		TokenHash: []byte{10},
+		CreatedAt: now.Unix(),
 		ExpiresAt: expiresAt,
 	}
 

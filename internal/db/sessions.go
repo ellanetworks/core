@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/canonical/sqlair"
 	"github.com/prometheus/client_golang/prometheus"
@@ -17,10 +18,10 @@ import (
 const SessionsTableName = "sessions"
 
 const (
-	createSessionStmt            = "INSERT INTO %s (user_id, token_hash, expires_at) VALUES ($Session.user_id, $Session.token_hash, $Session.expires_at)"
+	createSessionStmt            = "INSERT INTO %s (user_id, token_hash, created_at, expires_at) VALUES ($Session.user_id, $Session.token_hash, $Session.created_at, $Session.expires_at)"
 	getSessionByTokenHashStmt    = "SELECT &Session.* FROM %s WHERE token_hash==$Session.token_hash"
 	deleteSessionByTokenHashStmt = "DELETE FROM %s WHERE token_hash==$Session.token_hash"       // #nosec: G101
-	deleteExpiredSessionsStmt    = "DELETE FROM %s WHERE expires_at <= (strftime('%%s','now'))" // #nosec: G101
+	deleteExpiredSessionsStmt    = "DELETE FROM %s WHERE expires_at <= $SessionCutoff.now_unix" // #nosec: G101
 	countSessionsByUserStmt      = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE user_id==$UserIDArgs.user_id"
 	deleteOldestSessionsStmt     = "DELETE FROM %s WHERE id IN (SELECT id FROM %s WHERE user_id==$DeleteOldestArgs.user_id ORDER BY created_at ASC LIMIT $DeleteOldestArgs.limit)"
 	deleteAllSessionsForUserStmt = "DELETE FROM %s WHERE user_id==$UserIDArgs.user_id"
@@ -32,6 +33,10 @@ type Session struct {
 	TokenHash []byte `db:"token_hash"`
 	CreatedAt int64  `db:"created_at"` // store as Unix timestamp (seconds since epoch)
 	ExpiresAt int64  `db:"expires_at"` // store as Unix timestamp (seconds since epoch)
+}
+
+type SessionCutoff struct {
+	NowUnix int64 `db:"now_unix"`
 }
 
 type UserIDArgs struct {
@@ -175,7 +180,9 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 
 	var outcome sqlair.Outcome
 
-	err := db.conn.Query(ctx, db.deleteExpiredSessionsStmt).Get(&outcome)
+	cutoff := SessionCutoff{NowUnix: time.Now().Unix()}
+
+	err := db.conn.Query(ctx, db.deleteExpiredSessionsStmt, cutoff).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

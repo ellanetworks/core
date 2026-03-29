@@ -458,7 +458,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.createSessionStmt, fmt.Sprintf(createSessionStmt, SessionsTableName), []any{Session{}}},
 		{&db.getSessionByTokenHashStmt, fmt.Sprintf(getSessionByTokenHashStmt, SessionsTableName), []any{Session{}}},
 		{&db.deleteSessionByTokenHashStmt, fmt.Sprintf(deleteSessionByTokenHashStmt, SessionsTableName), []any{Session{}}},
-		{&db.deleteExpiredSessionsStmt, fmt.Sprintf(deleteExpiredSessionsStmt, SessionsTableName), nil},
+		{&db.deleteExpiredSessionsStmt, fmt.Sprintf(deleteExpiredSessionsStmt, SessionsTableName), []any{SessionCutoff{}}},
 		{&db.countSessionsByUserStmt, fmt.Sprintf(countSessionsByUserStmt, SessionsTableName), []any{UserIDArgs{}, NumItems{}}},
 		{&db.deleteOldestSessionsStmt, fmt.Sprintf(deleteOldestSessionsStmt, SessionsTableName, SessionsTableName), []any{DeleteOldestArgs{}}},
 		{&db.deleteAllSessionsForUserStmt, fmt.Sprintf(deleteAllSessionsForUserStmt, SessionsTableName), []any{UserIDArgs{}}},
