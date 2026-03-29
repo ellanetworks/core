@@ -63,9 +63,9 @@ func migrateV4(ctx context.Context, tx *sql.Tx) error {
 	_, err = tx.ExecContext(ctx, fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s (
 			id          INTEGER PRIMARY KEY AUTOINCREMENT,
-			poolID      INTEGER NOT NULL REFERENCES %s(id) ON DELETE RESTRICT,
+			poolID      INTEGER NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
 			address     TEXT    NOT NULL,
-			imsi        TEXT    NOT NULL REFERENCES %s(imsi) ON DELETE RESTRICT,
+			imsi        TEXT    NOT NULL REFERENCES %s(imsi) ON DELETE CASCADE,
 			sessionID   INTEGER,
 			type        TEXT    NOT NULL DEFAULT 'dynamic',
 			createdAt   INTEGER NOT NULL,

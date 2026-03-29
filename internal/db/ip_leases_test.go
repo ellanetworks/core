@@ -627,7 +627,7 @@ func TestCountLeasesByPool(t *testing.T) {
 	}
 }
 
-func TestOnDeleteRestrict_Subscriber(t *testing.T) {
+func TestOnDeleteCascade_Subscriber(t *testing.T) {
 	database, poolID, imsi := setupLeaseTestDB(t)
 	ctx := context.Background()
 
@@ -639,14 +639,23 @@ func TestOnDeleteRestrict_Subscriber(t *testing.T) {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
-	// Deleting the subscriber should fail because of ON DELETE RESTRICT.
+	// Deleting the subscriber should cascade-delete associated leases.
 	err := database.DeleteSubscriber(ctx, imsi)
-	if err == nil {
-		t.Fatal("expected error deleting subscriber with active lease, got nil")
+	if err != nil {
+		t.Fatalf("DeleteSubscriber: %s", err)
+	}
+
+	count, err := database.CountLeasesByIMSI(ctx, imsi)
+	if err != nil {
+		t.Fatalf("CountLeasesByIMSI: %s", err)
+	}
+
+	if count != 0 {
+		t.Fatalf("expected 0 leases after subscriber delete, got %d", count)
 	}
 }
 
-func TestOnDeleteRestrict_DataNetwork(t *testing.T) {
+func TestOnDeleteCascade_DataNetwork(t *testing.T) {
 	database, poolID, imsi := setupLeaseTestDB(t)
 	ctx := context.Background()
 
@@ -658,11 +667,19 @@ func TestOnDeleteRestrict_DataNetwork(t *testing.T) {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
-	// Deleting the data network should fail because of ON DELETE RESTRICT
-	// on ip_leases.poolID → data_networks(id).
+	// Deleting the data network should cascade-delete associated leases.
 	err := database.DeleteDataNetwork(ctx, "test-dnn")
-	if err == nil {
-		t.Fatal("expected error deleting data network with active lease, got nil")
+	if err != nil {
+		t.Fatalf("DeleteDataNetwork: %s", err)
+	}
+
+	leases, err := database.ListLeasesByPool(ctx, poolID)
+	if err != nil {
+		t.Fatalf("ListLeasesByPool: %s", err)
+	}
+
+	if len(leases) != 0 {
+		t.Fatalf("expected 0 leases after data network delete, got %d", len(leases))
 	}
 }
 

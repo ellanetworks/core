@@ -598,17 +598,6 @@ func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF) http.Handle
 			return
 		}
 
-		leaseCount, err := dbInstance.CountLeasesByIMSI(r.Context(), imsi)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check active leases", err, logger.APILog)
-			return
-		}
-
-		if leaseCount > 0 {
-			writeError(r.Context(), w, http.StatusConflict, fmt.Sprintf("Subscriber has %d active lease(s). Release all sessions before deleting.", leaseCount), nil, logger.APILog)
-			return
-		}
-
 		amfInstance.DeregisterSubscriber(r.Context(), supi)
 
 		if err := dbInstance.DeleteSubscriber(r.Context(), imsi); err != nil {
