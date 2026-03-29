@@ -97,7 +97,7 @@ func (p Pool) OffsetOf(addr netip.Addr) int {
 
 	offset := 0
 	for i := 0; i < 16; i++ {
-		offset = (offset << 8) | int(target[i]) - int(base[i])
+		offset = (offset << 8) | (int(target[i]) - int(base[i]))
 	}
 
 	return offset

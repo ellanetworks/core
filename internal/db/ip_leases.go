@@ -20,7 +20,6 @@ const IPLeasesTableName = "ip_leases"
 
 const (
 	createLeaseStmt              = "INSERT INTO %s (poolID, address, imsi, sessionID, type, createdAt) VALUES ($IPLease.poolID, $IPLease.address, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt)"
-	getLeaseByPoolAndIMSIStmt    = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND imsi==$IPLease.imsi"
 	getStaticLeaseStmt           = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND imsi==$IPLease.imsi AND type='static'"
 	getDynamicLeaseStmt          = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND imsi==$IPLease.imsi AND type='dynamic'"
 	getLeaseBySessionStmt        = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND sessionID==$IPLease.sessionID AND imsi==$IPLease.imsi"
@@ -34,6 +33,7 @@ const (
 	countLeasesByPoolStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID"
 	countActiveLeasesStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE sessionID IS NOT NULL"
 	countLeasesByIMSIStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE imsi==$IPLease.imsi"
+	listAllLeasesStmt            = "SELECT &IPLease.* FROM %s"
 )
 
 // IPLease represents a row in the ip_leases table.
@@ -389,6 +389,22 @@ func (db *Database) ListActiveLeases(ctx context.Context) ([]IPLease, error) {
 	}
 
 	span.SetStatus(codes.Ok, "")
+
+	return leases, nil
+}
+
+// listAllLeases returns every lease row. Used only by the support bundle export.
+func (db *Database) listAllLeases(ctx context.Context) ([]IPLease, error) {
+	var leases []IPLease
+
+	err := db.conn.Query(ctx, db.listAllLeasesStmt).GetAll(&leases)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
 
 	return leases, nil
 }

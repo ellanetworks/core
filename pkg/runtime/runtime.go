@@ -243,15 +243,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	smf.RegisterMetrics(smfInstance)
 	upf.RegisterMetrics()
 
-	db.RegisterPoolMetrics(dbInstance, func(ipPool string, id int) int {
-		pool, err := ipam.NewPool(id, ipPool)
-		if err != nil {
-			return 0
-		}
-
-		return pool.Size()
-	})
-
 	ausfStore := &ausfDBAdapter{db: dbInstance}
 	keyResolver := func(scheme string, keyID int) (string, error) {
 		key, err := dbInstance.GetHomeNetworkKeyBySchemeAndIdentifier(ctx, scheme, keyID)

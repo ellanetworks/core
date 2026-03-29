@@ -18,66 +18,6 @@ var (
 	DBQueryDuration *prometheus.HistogramVec
 )
 
-// ipPoolCollector implements prometheus.Collector to provide per-pool utilization
-// gauges that are computed on each scrape.
-type ipPoolCollector struct {
-	db           *Database
-	usedDesc     *prometheus.Desc
-	totalDesc    *prometheus.Desc
-	poolSizeFunc func(ipPool string, id int) int
-}
-
-func newIPPoolCollector(db *Database, poolSizeFunc func(string, int) int) *ipPoolCollector {
-	return &ipPoolCollector{
-		db:           db,
-		poolSizeFunc: poolSizeFunc,
-		usedDesc: prometheus.NewDesc(
-			"app_ip_pool_addresses_used",
-			"Current number of allocated IP addresses in the pool",
-			[]string{"pool", "address_family"}, nil,
-		),
-		totalDesc: prometheus.NewDesc(
-			"app_ip_pool_addresses_total",
-			"Total capacity of the IP address pool",
-			[]string{"pool", "address_family"}, nil,
-		),
-	}
-}
-
-func (c *ipPoolCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- c.usedDesc
-
-	ch <- c.totalDesc
-}
-
-func (c *ipPoolCollector) Collect(ch chan<- prometheus.Metric) {
-	ctx := context.Background()
-
-	dataNetworks, err := c.db.ListAllDataNetworks(ctx)
-	if err != nil {
-		logger.MetricsLog.Warn("Failed to list data networks for pool metrics", zap.Error(err))
-		return
-	}
-
-	for _, dn := range dataNetworks {
-		if dn.IPPool == "" {
-			continue
-		}
-
-		total := c.poolSizeFunc(dn.IPPool, dn.ID)
-
-		used, err := c.db.CountLeasesByPool(ctx, dn.ID)
-		if err != nil {
-			logger.MetricsLog.Warn("Failed to count leases for pool", zap.String("pool", dn.Name), zap.Error(err))
-			continue
-		}
-
-		ch <- prometheus.MustNewConstMetric(c.usedDesc, prometheus.GaugeValue, float64(used), dn.Name, "ipv4")
-
-		ch <- prometheus.MustNewConstMetric(c.totalDesc, prometheus.GaugeValue, float64(total), dn.Name, "ipv4")
-	}
-}
-
 func RegisterMetrics(db *Database) {
 	if DBQueryDuration != nil {
 		// Already registered, skip
@@ -145,13 +85,6 @@ func RegisterMetrics(db *Database) {
 	prometheus.MustRegister(ipAddressesAllocated)
 	prometheus.MustRegister(DBQueryDuration)
 	prometheus.MustRegister(DBQueriesTotal)
-}
-
-// RegisterPoolMetrics registers per-pool Prometheus gauges. poolSizeFunc
-// computes the total usable addresses for a given CIDR and data-network ID.
-// Must be called after RegisterMetrics.
-func RegisterPoolMetrics(db *Database, poolSizeFunc func(string, int) int) {
-	prometheus.MustRegister(newIPPoolCollector(db, poolSizeFunc))
 }
 
 func (db *Database) GetSize() (int64, error) {

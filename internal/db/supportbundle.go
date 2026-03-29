@@ -119,20 +119,25 @@ func (db *Database) ExportSupportData(ctx context.Context) (map[string]any, erro
 
 	out["subscribers"] = subscribersList
 
-	// Include active IP leases so support bundles show which subscribers
-	// have allocated addresses. This replaces the old per-subscriber ipAddress field.
-	activeLeases, err := db.ListActiveLeases(ctx)
+	// Include all IP leases (active and static reservations) so support
+	// bundles show the full picture of address allocation.
+	allLeases, err := db.listAllLeases(ctx)
 	if err != nil {
-		logger.DBLog.Warn("failed to list active leases for support export", zap.Error(err))
+		logger.DBLog.Warn("failed to list leases for support export", zap.Error(err))
 	} else {
-		leaseEntries := make([]any, 0, len(activeLeases))
-		for _, l := range activeLeases {
-			leaseEntries = append(leaseEntries, map[string]any{
+		leaseEntries := make([]any, 0, len(allLeases))
+		for _, l := range allLeases {
+			entry := map[string]any{
 				"poolID":  l.PoolID,
 				"address": l.Address,
 				"imsi":    l.IMSI,
 				"type":    l.Type,
-			})
+			}
+			if l.SessionID != nil {
+				entry["sessionID"] = *l.SessionID
+			}
+
+			leaseEntries = append(leaseEntries, entry)
 		}
 
 		out["ip_leases"] = leaseEntries

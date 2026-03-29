@@ -51,6 +51,7 @@ type Database struct {
 	countLeasesByPoolStmt        *sqlair.Statement
 	countActiveLeasesStmt        *sqlair.Statement
 	countLeasesByIMSIStmt        *sqlair.Statement
+	listAllLeasesStmt            *sqlair.Statement
 
 	// API Token statements
 	listAPITokensStmt     *sqlair.Statement
@@ -353,6 +354,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.countLeasesByPoolStmt, fmt.Sprintf(countLeasesByPoolStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
 		{&db.countActiveLeasesStmt, fmt.Sprintf(countActiveLeasesStmt, IPLeasesTableName), []any{NumItems{}}},
 		{&db.countLeasesByIMSIStmt, fmt.Sprintf(countLeasesByIMSIStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
+		{&db.listAllLeasesStmt, fmt.Sprintf(listAllLeasesStmt, IPLeasesTableName), []any{IPLease{}}},
 
 		// API Tokens
 		{&db.listAPITokensStmt, fmt.Sprintf(listAPITokensPagedStmt, APITokensTableName), []any{ListArgs{}, APIToken{}, NumItems{}}},
