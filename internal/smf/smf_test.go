@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"sync"
 	"testing"
 
@@ -19,7 +20,8 @@ import (
 
 type fakeStore struct {
 	mu          sync.Mutex
-	allocatedIP net.IP
+	allocatedIP netip.Addr
+	releasedIP  netip.Addr
 	policy      *smf.Policy
 	dnnInfo     *smf.DataNetworkInfo
 	usageLog    []usageEntry
@@ -34,20 +36,20 @@ type usageEntry struct {
 	downlinkBytes uint64
 }
 
-func (f *fakeStore) AllocateIP(_ context.Context, _ string) (net.IP, error) {
+func (f *fakeStore) AllocateIP(_ context.Context, _ string, _ uint8) (netip.Addr, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	return f.allocatedIP, f.err
 }
 
-func (f *fakeStore) ReleaseIP(_ context.Context, supi string, _ net.IP) error {
+func (f *fakeStore) ReleaseIP(_ context.Context, imsi string, _ uint8) (netip.Addr, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.releasedIPs = append(f.releasedIPs, supi)
+	f.releasedIPs = append(f.releasedIPs, imsi)
 
-	return f.err
+	return f.releasedIP, f.err
 }
 
 func (f *fakeStore) GetSubscriberPolicy(_ context.Context, _ string) (*smf.Policy, error) {
@@ -211,7 +213,8 @@ func newTestSMF(store smf.SessionStore, upf smf.UPFClient, amfCb smf.AMFCallback
 
 func defaultFakes() (*fakeStore, *fakeUPF, *fakeAMF) {
 	store := &fakeStore{
-		allocatedIP: net.ParseIP("10.0.0.1").To4(),
+		allocatedIP: netip.MustParseAddr("10.0.0.1"),
+		releasedIP:  netip.MustParseAddr("10.0.0.1"),
 		policy: &smf.Policy{
 			Ambr: models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
 			QosData: models.QosData{

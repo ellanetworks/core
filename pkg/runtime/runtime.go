@@ -24,6 +24,7 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
+	"github.com/ellanetworks/core/internal/ipam"
 	"github.com/ellanetworks/core/internal/jobs"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
@@ -89,9 +90,9 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't initialize database: %w", err)
 	}
 
-	err = dbInstance.ReleaseAllIPs(ctx)
+	err = dbInstance.DeleteAllDynamicLeases(ctx)
 	if err != nil {
-		return fmt.Errorf("couldn't release all IPs: %w", err)
+		return fmt.Errorf("couldn't release all dynamic leases: %w", err)
 	}
 
 	bufferedWriter := dbwriter.NewBufferedDBWriter(dbInstance, 1000, logger.NetworkLog)
@@ -154,9 +155,14 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			return fmt.Errorf("couldn't list BGP peers: %w", err)
 		}
 
-		allocatedIPs, err := dbInstance.ListAllocatedIPMappings(ctx)
+		activeLeases, err := dbInstance.ListActiveLeases(ctx)
 		if err != nil {
-			return fmt.Errorf("couldn't list allocated IPs: %w", err)
+			return fmt.Errorf("couldn't list active leases: %w", err)
+		}
+
+		allocatedIPs := make(map[string]string, len(activeLeases))
+		for _, l := range activeLeases {
+			allocatedIPs[l.Address] = l.IMSI
 		}
 
 		servicePeers := server.DBPeersToBGPPeers(bgpPeers)
@@ -186,7 +192,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	// Create SMF with dependency-injected adapters.
-	smfStore := &smfDBAdapter{db: dbInstance}
+	smfStore := &smfDBAdapter{db: dbInstance, allocator: ipam.NewSequentialAllocator(&leaseStoreAdapter{db: dbInstance})}
 	smfAMF := &smfAMFAdapter{}
 
 	smfInstance := smf.New(smfStore, nil, smfAMF, smf.WithNodeID(net.ParseIP(n3Address)), smf.WithBGP(bgpService))
@@ -236,6 +242,15 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	server.RegisterMetrics()
 	smf.RegisterMetrics(smfInstance)
 	upf.RegisterMetrics()
+
+	db.RegisterPoolMetrics(dbInstance, func(ipPool string, id int) int {
+		pool, err := ipam.NewPool(id, ipPool)
+		if err != nil {
+			return 0
+		}
+
+		return pool.Size()
+	})
 
 	ausfStore := &ausfDBAdapter{db: dbInstance}
 	keyResolver := func(scheme string, keyID int) (string, error) {

@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
@@ -22,6 +23,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
+
+// netipToIP converts a netip.Addr to a net.IP for use with existing NAS/NGAP code.
+func netipToIP(addr netip.Addr) net.IP {
+	b := addr.As4()
+	return net.IP(b[:])
+}
 
 // CreateSmContext creates a new PDU session. It decodes the NAS message, retrieves the
 // subscriber policy and DNN info, allocates an IP, creates the data path, sends
@@ -181,7 +188,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 		return nil, nil, nil, 0, nil, rsp, fmt.Errorf("failed to retrieve DNN information: %v", err)
 	}
 
-	pduAddress, err := s.store.AllocateIP(ctx, smContext.Supi.IMSI())
+	ipv4Addr, err := s.store.AllocateIP(ctx, smContext.Supi.IMSI(), smContext.PDUSessionID)
 	if err != nil {
 		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
 
@@ -193,6 +200,8 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 		return nil, nil, nil, 0, nil, rsp, fmt.Errorf("failed to allocate IP address: %v", err)
 	}
 
+	pduAddress := netipToIP(ipv4Addr)
+
 	logger.WithTrace(ctx, logger.SmfLog).Info("Successfully allocated IP address", logger.IPAddress(pduAddress.String()), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	smContext.PDUAddress = pduAddress
@@ -202,7 +211,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 	if err != nil {
 		logger.WithTrace(ctx, logger.SmfLog).Error("failed to handle PDU Session Establishment Request", zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
-		if releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), pduAddress); releaseErr != nil {
+		if _, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.PDUSessionID); releaseErr != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IP after session create error", zap.Error(releaseErr))
 		}
 
@@ -227,7 +236,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 
 	err = defaultPath.ActivateTunnelAndPDR(s, smContext, policy, pduAddress)
 	if err != nil {
-		if releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), pduAddress); releaseErr != nil {
+		if _, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.PDUSessionID); releaseErr != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IP after session create error", zap.Error(releaseErr))
 		}
 

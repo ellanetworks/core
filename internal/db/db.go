@@ -34,14 +34,23 @@ type Database struct {
 	updateSubscriberPolicyStmt   *sqlair.Statement
 	updateSubscriberSqnNumStmt   *sqlair.Statement
 	deleteSubscriberStmt         *sqlair.Statement
-	checkSubscriberIPStmt        *sqlair.Statement
-	allocateSubscriberIPStmt     *sqlair.Statement
-	releaseSubscriberIPStmt      *sqlair.Statement
-	releaseAllIPStmt             *sqlair.Statement
 	countSubscribersByPolicyStmt *sqlair.Statement
-	countSubscribersWithIPStmt   *sqlair.Statement
-	listAllocatedIPsStmt         *sqlair.Statement
-	listAllocatedIPMappingsStmt  *sqlair.Statement
+
+	// IP Lease statements
+	createLeaseStmt              *sqlair.Statement
+	getStaticLeaseStmt           *sqlair.Statement
+	getDynamicLeaseStmt          *sqlair.Statement
+	getLeaseBySessionStmt        *sqlair.Statement
+	updateLeaseSessionStmt       *sqlair.Statement
+	clearLeaseSessionStmt        *sqlair.Statement
+	deleteLeaseStmt              *sqlair.Statement
+	deleteAllDynamicLeasesStmt   *sqlair.Statement
+	listActiveLeasesStmt         *sqlair.Statement
+	listLeasesByPoolStmt         *sqlair.Statement
+	listLeaseAddressesByPoolStmt *sqlair.Statement
+	countLeasesByPoolStmt        *sqlair.Statement
+	countActiveLeasesStmt        *sqlair.Statement
+	countLeasesByIMSIStmt        *sqlair.Statement
 
 	// API Token statements
 	listAPITokensStmt     *sqlair.Statement
@@ -327,14 +336,23 @@ func (db *Database) PrepareStatements() error {
 		{&db.updateSubscriberPolicyStmt, fmt.Sprintf(editSubscriberPolicyStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.updateSubscriberSqnNumStmt, fmt.Sprintf(editSubscriberSeqNumStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.deleteSubscriberStmt, fmt.Sprintf(deleteSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
-		{&db.checkSubscriberIPStmt, fmt.Sprintf(checkIPStmt, SubscribersTableName), []any{Subscriber{}}},
-		{&db.allocateSubscriberIPStmt, fmt.Sprintf(allocateIPStmt, SubscribersTableName), []any{Subscriber{}}},
-		{&db.releaseSubscriberIPStmt, fmt.Sprintf(releaseIPStmt, SubscribersTableName), []any{Subscriber{}}},
-		{&db.releaseAllIPStmt, fmt.Sprintf(releaseAllIPStmt, SubscribersTableName), nil},
 		{&db.countSubscribersByPolicyStmt, fmt.Sprintf(countSubscribersInPolicyStmt, SubscribersTableName), []any{NumItems{}, Subscriber{}}},
-		{&db.countSubscribersWithIPStmt, fmt.Sprintf(countSubscribersWithIPStmt, SubscribersTableName), []any{NumItems{}}},
-		{&db.listAllocatedIPsStmt, fmt.Sprintf(listAllocatedIPsStmt, SubscribersTableName), []any{Subscriber{}}},
-		{&db.listAllocatedIPMappingsStmt, fmt.Sprintf(listAllocatedIPMappingsStmt, SubscribersTableName), []any{Subscriber{}}},
+
+		// IP Leases
+		{&db.createLeaseStmt, fmt.Sprintf(createLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.getStaticLeaseStmt, fmt.Sprintf(getStaticLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.getDynamicLeaseStmt, fmt.Sprintf(getDynamicLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.getLeaseBySessionStmt, fmt.Sprintf(getLeaseBySessionStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.updateLeaseSessionStmt, fmt.Sprintf(updateLeaseSessionStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.clearLeaseSessionStmt, fmt.Sprintf(clearLeaseSessionStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.deleteLeaseStmt, fmt.Sprintf(deleteLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.deleteAllDynamicLeasesStmt, fmt.Sprintf(deleteAllDynamicLeasesStmt, IPLeasesTableName), nil},
+		{&db.listActiveLeasesStmt, fmt.Sprintf(listActiveLeasesStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.listLeasesByPoolStmt, fmt.Sprintf(listLeasesByPoolStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.listLeaseAddressesByPoolStmt, fmt.Sprintf(listLeaseAddressesByPoolStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.countLeasesByPoolStmt, fmt.Sprintf(countLeasesByPoolStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
+		{&db.countActiveLeasesStmt, fmt.Sprintf(countActiveLeasesStmt, IPLeasesTableName), []any{NumItems{}}},
+		{&db.countLeasesByIMSIStmt, fmt.Sprintf(countLeasesByIMSIStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
 
 		// API Tokens
 		{&db.listAPITokensStmt, fmt.Sprintf(listAPITokensPagedStmt, APITokensTableName), []any{ListArgs{}, APIToken{}, NumItems{}}},

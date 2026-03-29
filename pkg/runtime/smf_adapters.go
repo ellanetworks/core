@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/netip"
 	"sync/atomic"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/producer"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
+	"github.com/ellanetworks/core/internal/ipam"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/smf"
@@ -25,16 +27,132 @@ import (
 // smfDBAdapter adapts *db.Database to the smf.SessionStore interface.
 // ---------------------------------------------------------------------------
 
-type smfDBAdapter struct {
+// ---------------------------------------------------------------------------
+// leaseStoreAdapter bridges db.Database (which uses *db.IPLease) to
+// ipam.LeaseStore (which uses *ipam.Lease), avoiding an import cycle.
+// ---------------------------------------------------------------------------
+
+type leaseStoreAdapter struct {
 	db *db.Database
 }
 
-func (a *smfDBAdapter) AllocateIP(ctx context.Context, supi string) (net.IP, error) {
-	return a.db.AllocateIP(ctx, supi)
+func dbLeaseToIPAM(l *db.IPLease) *ipam.Lease {
+	return &ipam.Lease{
+		ID:        l.ID,
+		PoolID:    l.PoolID,
+		Address:   l.Address,
+		IMSI:      l.IMSI,
+		SessionID: l.SessionID,
+		Type:      l.Type,
+		CreatedAt: l.CreatedAt,
+	}
 }
 
-func (a *smfDBAdapter) ReleaseIP(ctx context.Context, supi string, ip net.IP) error {
-	return a.db.ReleaseIP(ctx, supi, ip)
+func ipamLeaseToDB(l *ipam.Lease) *db.IPLease {
+	return &db.IPLease{
+		ID:        l.ID,
+		PoolID:    l.PoolID,
+		Address:   l.Address,
+		IMSI:      l.IMSI,
+		SessionID: l.SessionID,
+		Type:      l.Type,
+		CreatedAt: l.CreatedAt,
+	}
+}
+
+func (a *leaseStoreAdapter) GetStaticLease(ctx context.Context, poolID int, imsi string) (*ipam.Lease, error) {
+	l, err := a.db.GetStaticLease(ctx, poolID, imsi)
+	if err != nil {
+		return nil, err
+	}
+
+	return dbLeaseToIPAM(l), nil
+}
+
+func (a *leaseStoreAdapter) GetDynamicLease(ctx context.Context, poolID int, imsi string) (*ipam.Lease, error) {
+	l, err := a.db.GetDynamicLease(ctx, poolID, imsi)
+	if err != nil {
+		return nil, err
+	}
+
+	return dbLeaseToIPAM(l), nil
+}
+
+func (a *leaseStoreAdapter) GetLeaseBySession(ctx context.Context, poolID int, sessionID int, imsi string) (*ipam.Lease, error) {
+	l, err := a.db.GetLeaseBySession(ctx, poolID, sessionID, imsi)
+	if err != nil {
+		return nil, err
+	}
+
+	return dbLeaseToIPAM(l), nil
+}
+
+func (a *leaseStoreAdapter) ListLeaseAddressesByPool(ctx context.Context, poolID int) ([]string, error) {
+	return a.db.ListLeaseAddressesByPool(ctx, poolID)
+}
+
+func (a *leaseStoreAdapter) CreateLease(ctx context.Context, lease *ipam.Lease) error {
+	return a.db.CreateLease(ctx, ipamLeaseToDB(lease))
+}
+
+func (a *leaseStoreAdapter) UpdateLeaseSession(ctx context.Context, leaseID int, sessionID int) error {
+	return a.db.UpdateLeaseSession(ctx, leaseID, sessionID)
+}
+
+func (a *leaseStoreAdapter) DeleteDynamicLease(ctx context.Context, leaseID int) error {
+	return a.db.DeleteDynamicLease(ctx, leaseID)
+}
+
+func (a *leaseStoreAdapter) ClearLeaseSession(ctx context.Context, leaseID int) error {
+	return a.db.ClearLeaseSession(ctx, leaseID)
+}
+
+// ---------------------------------------------------------------------------
+// smfDBAdapter adapts *db.Database to the smf.SessionStore interface.
+// ---------------------------------------------------------------------------
+
+type smfDBAdapter struct {
+	db        *db.Database
+	allocator ipam.Allocator
+}
+
+// resolvePool looks up the IP pool for a subscriber via the chain:
+// subscriber → policy → data network → CIDR.
+func (a *smfDBAdapter) resolvePool(ctx context.Context, imsi string) (ipam.Pool, error) {
+	sub, err := a.db.GetSubscriber(ctx, imsi)
+	if err != nil {
+		return ipam.Pool{}, fmt.Errorf("get subscriber: %w", err)
+	}
+
+	pol, err := a.db.GetPolicyByID(ctx, sub.PolicyID)
+	if err != nil {
+		return ipam.Pool{}, fmt.Errorf("get policy: %w", err)
+	}
+
+	dn, err := a.db.GetDataNetworkByID(ctx, pol.DataNetworkID)
+	if err != nil {
+		return ipam.Pool{}, fmt.Errorf("get data network: %w", err)
+	}
+
+	return ipam.NewPool(dn.ID, dn.IPPool)
+}
+
+func (a *smfDBAdapter) AllocateIP(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error) {
+	pool, err := a.resolvePool(ctx, imsi)
+	if err != nil {
+		return netip.Addr{}, fmt.Errorf("resolve pool: %w", err)
+	}
+
+	return a.allocator.Allocate(ctx, pool, imsi, int(pduSessionID))
+}
+
+func (a *smfDBAdapter) ReleaseIP(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error) {
+	pool, err := a.resolvePool(ctx, imsi)
+	if err != nil {
+		return netip.Addr{}, fmt.Errorf("resolve pool: %w", err)
+	}
+
+	return a.allocator.Release(ctx, pool, int(pduSessionID), imsi)
 }
 
 func (a *smfDBAdapter) GetSubscriberPolicy(ctx context.Context, imsi string) (*smf.Policy, error) {

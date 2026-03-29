@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"regexp"
 	"strconv"
 	"strings"
@@ -13,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/ipam"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf"
 )
@@ -31,7 +34,9 @@ type UpdateDataNetworkParams struct {
 }
 
 type DataNetworkStatus struct {
-	Sessions int `json:"sessions"`
+	Sessions       int `json:"sessions"`
+	UsedAddresses  int `json:"used_addresses"`
+	TotalAddresses int `json:"total_addresses"`
 }
 
 type DataNetwork struct {
@@ -58,6 +63,23 @@ const (
 const MaxNumDataNetworks = 12
 
 var dnnRegex = regexp.MustCompile(`^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$`)
+
+// poolUtilization returns the number of used and total addresses for a data network pool.
+func poolUtilization(ctx context.Context, dbInstance *db.Database, dn db.DataNetwork) (used, total int) {
+	pool, err := ipam.NewPool(dn.ID, dn.IPPool)
+	if err != nil {
+		return 0, 0
+	}
+
+	total = pool.Size()
+
+	used, err = dbInstance.CountLeasesByPool(ctx, dn.ID)
+	if err != nil {
+		return 0, total
+	}
+
+	return used, total
+}
 
 func ListDataNetworks(dbInstance *db.Database, sessions smf.SessionQuerier) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -91,13 +113,17 @@ func ListDataNetworks(dbInstance *db.Database, sessions smf.SessionQuerier) http
 				sessionCount = len(sessions.SessionsByDNN(dbDataNetwork.Name))
 			}
 
+			used, total := poolUtilization(ctx, dbInstance, dbDataNetwork)
+
 			items = append(items, DataNetwork{
 				Name:   dbDataNetwork.Name,
 				IPPool: dbDataNetwork.IPPool,
 				DNS:    dbDataNetwork.DNS,
 				MTU:    dbDataNetwork.MTU,
 				Status: DataNetworkStatus{
-					Sessions: sessionCount,
+					Sessions:       sessionCount,
+					UsedAddresses:  used,
+					TotalAddresses: total,
 				},
 			})
 		}
@@ -132,13 +158,17 @@ func GetDataNetwork(dbInstance *db.Database, sessions smf.SessionQuerier) http.H
 			sessionCount = len(sessions.SessionsByDNN(dbDataNetwork.Name))
 		}
 
+		used, total := poolUtilization(r.Context(), dbInstance, *dbDataNetwork)
+
 		dataNetwork := DataNetwork{
 			Name:   dbDataNetwork.Name,
 			IPPool: dbDataNetwork.IPPool,
 			DNS:    dbDataNetwork.DNS,
 			MTU:    dbDataNetwork.MTU,
 			Status: DataNetworkStatus{
-				Sessions: sessionCount,
+				Sessions:       sessionCount,
+				UsedAddresses:  used,
+				TotalAddresses: total,
 			},
 		}
 		writeResponse(r.Context(), w, dataNetwork, http.StatusOK, logger.APILog)
@@ -214,6 +244,11 @@ func CreateDataNetwork(dbInstance *db.Database, cfg config.Config, bgpService *b
 			return
 		}
 
+		if err := validateNoOverlap(r.Context(), dbInstance, createDataNetworkParams.IPPool, ""); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			return
+		}
+
 		numDataNetworks, err := dbInstance.CountDataNetworks(r.Context())
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count data networks", err, logger.APILog)
@@ -273,6 +308,11 @@ func UpdateDataNetwork(dbInstance *db.Database, cfg config.Config, bgpService *b
 		}
 
 		if err := validateUpdateDataNetworkParams(updateDataNetworkParams); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+			return
+		}
+
+		if err := validateNoOverlap(r.Context(), dbInstance, updateDataNetworkParams.IPPool, name); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 			return
 		}
@@ -358,6 +398,46 @@ func validateUpdateDataNetworkParams(p UpdateDataNetworkParams) error {
 		return errors.New("invalid dns format, must be a valid IP address")
 	case !isValidMTU(p.MTU):
 		return errors.New("invalid mtu format, must be an integer between 0 and 65535")
+	}
+
+	return nil
+}
+
+// validateNoOverlap checks that cidr does not overlap with any existing data
+// network pool. excludeName is the name of the data network being updated
+// (empty for create) — its own pool is excluded from the comparison.
+func validateNoOverlap(ctx context.Context, dbInstance *db.Database, cidr string, excludeName string) error {
+	newPrefix, err := netip.ParsePrefix(cidr)
+	if err != nil {
+		return fmt.Errorf("invalid CIDR %q: %w", cidr, err)
+	}
+
+	newPrefix = netip.PrefixFrom(newPrefix.Masked().Addr(), newPrefix.Bits())
+
+	existing, err := dbInstance.ListAllDataNetworks(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list data networks: %w", err)
+	}
+
+	for _, dn := range existing {
+		if dn.Name == excludeName {
+			continue
+		}
+
+		if dn.IPPool == "" {
+			continue
+		}
+
+		existingPrefix, parseErr := netip.ParsePrefix(dn.IPPool)
+		if parseErr != nil {
+			continue
+		}
+
+		existingPrefix = netip.PrefixFrom(existingPrefix.Masked().Addr(), existingPrefix.Bits())
+
+		if newPrefix.Overlaps(existingPrefix) {
+			return fmt.Errorf("pool %s overlaps with data network %q (%s)", newPrefix, dn.Name, existingPrefix)
+		}
 	}
 
 	return nil

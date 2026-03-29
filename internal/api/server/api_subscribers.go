@@ -17,6 +17,23 @@ import (
 	"go.uber.org/zap"
 )
 
+// activeLeaseIPMappings returns a map of IP → IMSI for all active leases
+// (leases with a sessionID set). This replaces the old ListAllocatedIPMappings
+// that read from the subscriber table's ipAddress column.
+func activeLeaseIPMappings(ctx context.Context, dbInstance *db.Database) (map[string]string, error) {
+	leases, err := dbInstance.ListActiveLeases(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(map[string]string, len(leases))
+	for _, l := range leases {
+		out[l.Address] = l.IMSI
+	}
+
+	return out, nil
+}
+
 type CreateSubscriberParams struct {
 	Imsi           string `json:"imsi"`
 	Key            string `json:"key"`
@@ -235,11 +252,6 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler
 				return
 			}
 
-			ipAddress := ""
-			if dbSubscriber.IPAddress != nil {
-				ipAddress = *dbSubscriber.IPAddress
-			}
-
 			supi, err := etsi.NewSUPIFromIMSI(dbSubscriber.Imsi)
 			if err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Invalid subscriber IMSI", err, logger.APILog)
@@ -248,7 +260,6 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler
 
 			subscriberStatus := SubscriberStatus{
 				Registered: amfInstance.IsSubscriberRegistered(supi),
-				IPAddress:  ipAddress,
 			}
 
 			if lastSeen := amfInstance.LastSeenAtForSubscriber(supi); !lastSeen.IsZero() {
@@ -323,16 +334,10 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler {
 			return
 		}
 
-		ipAddress := ""
-		if dbSubscriber.IPAddress != nil {
-			ipAddress = *dbSubscriber.IPAddress
-		}
-
 		snap, found := amfInstance.GetUESnapshot(supi)
 
 		subscriberStatus := SubscriberDetailStatus{
 			Registered: false,
-			IPAddress:  ipAddress,
 		}
 
 		if found {
@@ -364,13 +369,6 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler {
 
 		if len(sessions) > MaxPDUSessions {
 			sessions = sessions[:MaxPDUSessions]
-		}
-
-		// Temporary: copy subscriber IP into the first session's IPAddress field so
-		// the UI can show it alongside session information. IP ownership should be
-		// moved to sessions in a future refactor.
-		if ipAddress != "" && len(sessions) > 0 {
-			sessions[0].IPAddress = ipAddress
 		}
 
 		subscriber := SubscriberDetail{
@@ -597,6 +595,17 @@ func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF) http.Handle
 		supi, err := etsi.NewSUPIFromIMSI(imsi)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Invalid subscriber IMSI", err, logger.APILog)
+			return
+		}
+
+		leaseCount, err := dbInstance.CountLeasesByIMSI(r.Context(), imsi)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check active leases", err, logger.APILog)
+			return
+		}
+
+		if leaseCount > 0 {
+			writeError(r.Context(), w, http.StatusConflict, fmt.Sprintf("Subscriber has %d active lease(s). Release all sessions before deleting.", leaseCount), nil, logger.APILog)
 			return
 		}
 

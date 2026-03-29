@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"net/netip"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -35,13 +36,13 @@ type SessionQuerier interface {
 
 // SessionStore is the minimal DB surface the SMF needs.
 type SessionStore interface {
-	// AllocateIP assigns an IP address to a subscriber.
-	AllocateIP(ctx context.Context, supi string) (net.IP, error)
+	// AllocateIP assigns an IPv4 address from the subscriber's pool.
+	AllocateIP(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error)
 
-	// ReleaseIP frees the specific IP address associated with a subscriber.
-	// It only clears the address if it still matches ip, preventing a stale
-	// release from clobbering a newer session's address.
-	ReleaseIP(ctx context.Context, supi string, ip net.IP) error
+	// ReleaseIP frees the lease associated with a session.
+	// Returns the released IPv4 address so the caller can withdraw the BGP route.
+	// The lease table resolves session ID → address internally.
+	ReleaseIP(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error)
 
 	// GetSubscriberPolicy returns the QoS policy for a subscriber.
 	GetSubscriberPolicy(ctx context.Context, imsi string) (*Policy, error)
@@ -260,11 +261,12 @@ func (s *SMF) RemoveSession(ctx context.Context, ref string) {
 	s.mu.Unlock()
 
 	if smCtx.PDUAddress != nil {
-		if err := s.store.ReleaseIP(ctx, smCtx.Supi.IMSI(), smCtx.PDUAddress); err != nil {
+		released, err := s.store.ReleaseIP(ctx, smCtx.Supi.IMSI(), smCtx.PDUSessionID)
+		if err != nil {
 			logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
+		} else if released.IsValid() {
+			s.withdrawRoute(released.AsSlice())
 		}
-
-		s.withdrawRoute(smCtx.PDUAddress)
 	}
 
 	logger.SmfLog.Info("SM Context removed", zap.String("smContextRef", ref))

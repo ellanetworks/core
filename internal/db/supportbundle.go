@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -107,10 +106,6 @@ func (db *Database) ExportSupportData(ctx context.Context) (map[string]any, erro
 
 		for _, s := range subs {
 			entry := map[string]any{"imsi": s.Imsi}
-			if s.IPAddress != nil && strings.TrimSpace(*s.IPAddress) != "" {
-				entry["ip_address"] = *s.IPAddress
-			}
-
 			subscribersList = append(subscribersList, entry)
 		}
 
@@ -123,6 +118,25 @@ func (db *Database) ExportSupportData(ctx context.Context) (map[string]any, erro
 	}
 
 	out["subscribers"] = subscribersList
+
+	// Include active IP leases so support bundles show which subscribers
+	// have allocated addresses. This replaces the old per-subscriber ipAddress field.
+	activeLeases, err := db.ListActiveLeases(ctx)
+	if err != nil {
+		logger.DBLog.Warn("failed to list active leases for support export", zap.Error(err))
+	} else {
+		leaseEntries := make([]any, 0, len(activeLeases))
+		for _, l := range activeLeases {
+			leaseEntries = append(leaseEntries, map[string]any{
+				"poolID":  l.PoolID,
+				"address": l.Address,
+				"imsi":    l.IMSI,
+				"type":    l.Type,
+			})
+		}
+
+		out["ip_leases"] = leaseEntries
+	}
 
 	// Include the last 100 radio logs (if any). Use the existing DB helper to
 	// fetch the most recent entries; convert to a JSON-friendly []any using
