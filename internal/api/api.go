@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/tls"
 	"fmt"
 	"io/fs"
@@ -40,20 +39,13 @@ const (
 // In tests we can override it to disable actual reconciliation.
 var routeReconciler = ReconcileKernelRouting
 
-func GenerateJWTSecret() ([]byte, error) {
-	bytes := make([]byte, 32)
-	if _, err := rand.Read(bytes); err != nil {
-		return bytes, fmt.Errorf("failed to generate JWT secret: %w", err)
-	}
-
-	return bytes, nil
-}
-
 func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf server.UPFUpdater, sessions smf.SessionQuerier, amfInstance *amf.AMF, bgpService *bgp.BGPService, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) (*http.Server, error) {
-	jwtSecret, err := GenerateJWTSecret()
+	jwtSecretBytes, err := dbInstance.GetJWTSecret(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't generate jwt secret: %v", err)
+		return nil, fmt.Errorf("couldn't load jwt secret from database: %v", err)
 	}
+
+	jwtSecret := server.NewJWTSecret(jwtSecretBytes)
 
 	kernelInt := kernel.NewRealKernel(cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name)
 
@@ -114,9 +106,11 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 	logger.APILog.Info("API server started", zap.String("scheme", string(scheme)), zap.String("address", fmt.Sprintf("%s://%s:%d", scheme, cfg.Interfaces.API.Address, cfg.Interfaces.API.Port)))
 
 	// Reconcile routes on startup and every 5 minutes.
+	reconcile := routeReconciler // capture to avoid racing with test teardown
+
 	go func() {
 		for {
-			err := routeReconciler(ctx, dbInstance, kernelInt)
+			err := reconcile(ctx, dbInstance, kernelInt)
 			if err != nil {
 				logger.APILog.Error("couldn't reconcile routes", zap.Error(err))
 			}

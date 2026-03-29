@@ -174,6 +174,11 @@ type Database struct {
 	countSessionsByUserStmt      *sqlair.Statement
 	deleteOldestSessionsStmt     *sqlair.Statement
 	deleteAllSessionsForUserStmt *sqlair.Statement
+	deleteAllSessionsStmt        *sqlair.Statement
+
+	// JWT Secret statements
+	getJWTSecretStmt    *sqlair.Statement
+	upsertJWTSecretStmt *sqlair.Statement
 
 	// User statements
 	listUsersStmt        *sqlair.Statement
@@ -458,10 +463,15 @@ func (db *Database) PrepareStatements() error {
 		{&db.createSessionStmt, fmt.Sprintf(createSessionStmt, SessionsTableName), []any{Session{}}},
 		{&db.getSessionByTokenHashStmt, fmt.Sprintf(getSessionByTokenHashStmt, SessionsTableName), []any{Session{}}},
 		{&db.deleteSessionByTokenHashStmt, fmt.Sprintf(deleteSessionByTokenHashStmt, SessionsTableName), []any{Session{}}},
-		{&db.deleteExpiredSessionsStmt, fmt.Sprintf(deleteExpiredSessionsStmt, SessionsTableName), nil},
+		{&db.deleteExpiredSessionsStmt, fmt.Sprintf(deleteExpiredSessionsStmt, SessionsTableName), []any{SessionCutoff{}}},
 		{&db.countSessionsByUserStmt, fmt.Sprintf(countSessionsByUserStmt, SessionsTableName), []any{UserIDArgs{}, NumItems{}}},
 		{&db.deleteOldestSessionsStmt, fmt.Sprintf(deleteOldestSessionsStmt, SessionsTableName, SessionsTableName), []any{DeleteOldestArgs{}}},
 		{&db.deleteAllSessionsForUserStmt, fmt.Sprintf(deleteAllSessionsForUserStmt, SessionsTableName), []any{UserIDArgs{}}},
+		{&db.deleteAllSessionsStmt, fmt.Sprintf(deleteAllSessionsStmt, SessionsTableName), nil},
+
+		// JWT Secret
+		{&db.getJWTSecretStmt, fmt.Sprintf(getJWTSecretStmt, JWTSecretTableName), []any{JWTSecret{}}},
+		{&db.upsertJWTSecretStmt, fmt.Sprintf(upsertJWTSecretStmt, JWTSecretTableName), []any{JWTSecret{}}},
 
 		// Users
 		{&db.listUsersStmt, fmt.Sprintf(listUsersPageStmt, UsersTableName), []any{ListArgs{}, User{}, NumItems{}}},
@@ -500,6 +510,11 @@ func (db *Database) Initialize(ctx context.Context) error {
 	err = db.InitializeBGPSettings(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to initialize BGP settings: %w", err)
+	}
+
+	err = db.InitializeJWTSecret(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to initialize JWT secret: %w", err)
 	}
 
 	err = db.InitializeN3Settings(ctx)

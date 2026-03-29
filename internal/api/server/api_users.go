@@ -341,6 +341,13 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		targetUser, err := dbInstance.GetUser(r.Context(), emailParam)
+		if err == nil {
+			if err := dbInstance.DeleteAllSessionsForUser(r.Context(), targetUser.ID); err != nil {
+				logger.APILog.Warn("Failed to invalidate sessions after role change", zap.Error(err))
+			}
+		}
+
 		writeResponse(r.Context(), w, SuccessResponse{Message: "User updated successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), UpdateUserAction, requester, getClientIP(r), "User updated user: "+emailParam)
@@ -496,7 +503,23 @@ func DeleteUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		err := dbInstance.DeleteUser(r.Context(), emailParam)
+		targetUser, err := dbInstance.GetUser(r.Context(), emailParam)
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "User not found", nil, logger.APILog)
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get user", err, logger.APILog)
+
+			return
+		}
+
+		if err := dbInstance.DeleteAllSessionsForUser(r.Context(), targetUser.ID); err != nil {
+			logger.APILog.Warn("Failed to invalidate sessions before user deletion", zap.Error(err))
+		}
+
+		err = dbInstance.DeleteUser(r.Context(), emailParam)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "User not found", nil, logger.APILog)
