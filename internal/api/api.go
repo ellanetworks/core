@@ -106,9 +106,11 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 	logger.APILog.Info("API server started", zap.String("scheme", string(scheme)), zap.String("address", fmt.Sprintf("%s://%s:%d", scheme, cfg.Interfaces.API.Address, cfg.Interfaces.API.Port)))
 
 	// Reconcile routes on startup and every 5 minutes.
+	reconcile := routeReconciler // capture to avoid racing with test teardown
+
 	go func() {
 		for {
-			err := routeReconciler(ctx, dbInstance, kernelInt)
+			err := reconcile(ctx, dbInstance, kernelInt)
 			if err != nil {
 				logger.APILog.Error("couldn't reconcile routes", zap.Error(err))
 			}
