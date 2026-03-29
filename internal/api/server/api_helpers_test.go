@@ -219,11 +219,11 @@ func createUserAndLogin(url string, token string, email string, roleID RoleID, c
 
 type fakeSessionStore struct{}
 
-func (f *fakeSessionStore) AllocateIP(_ context.Context, _ string, _ uint8) (netip.Addr, error) {
+func (f *fakeSessionStore) AllocateIP(_ context.Context, _ string, _ string, _ uint8) (netip.Addr, error) {
 	return netip.Addr{}, fmt.Errorf("not implemented in test")
 }
 
-func (f *fakeSessionStore) ReleaseIP(_ context.Context, _ string, _ uint8) (netip.Addr, error) {
+func (f *fakeSessionStore) ReleaseIP(_ context.Context, _ string, _ string, _ uint8) (netip.Addr, error) {
 	return netip.Addr{}, fmt.Errorf("not implemented in test")
 }
 

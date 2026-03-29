@@ -4,6 +4,7 @@ package ipam
 
 import (
 	"context"
+	"errors"
 	"net/netip"
 	"sort"
 	"time"
@@ -12,9 +13,6 @@ import (
 // LeaseStore is the database interface required by the allocator.
 // It is satisfied by *db.Database.
 type LeaseStore interface {
-	// GetStaticLease returns the static lease for (poolID, imsi), or ErrNotFound.
-	GetStaticLease(ctx context.Context, poolID int, imsi string) (*Lease, error)
-
 	// GetDynamicLease returns the dynamic lease for (poolID, imsi), or ErrNotFound.
 	GetDynamicLease(ctx context.Context, poolID int, imsi string) (*Lease, error)
 
@@ -30,11 +28,8 @@ type LeaseStore interface {
 	// UpdateLeaseSession sets the sessionID on a lease.
 	UpdateLeaseSession(ctx context.Context, leaseID int, sessionID int) error
 
-	// DeleteDynamicLease deletes a dynamic lease by ID (no-op for static).
+	// DeleteDynamicLease deletes a dynamic lease by ID.
 	DeleteDynamicLease(ctx context.Context, leaseID int) error
-
-	// ClearLeaseSession sets sessionID to NULL on a lease.
-	ClearLeaseSession(ctx context.Context, leaseID int) error
 }
 
 // Lease mirrors db.IPLease but lives in the ipam package to avoid an import
@@ -47,34 +42,6 @@ type Lease struct {
 	SessionID *int
 	Type      string
 	CreatedAt int64
-}
-
-// ErrNotFound is the sentinel returned by LeaseStore when no matching row exists.
-// It is compared by value, so the db package's ErrNotFound must be the same.
-var ErrNotFound = errNotFound{}
-
-type errNotFound struct{}
-
-func (errNotFound) Error() string { return "not found" }
-
-// IsNotFound reports whether err represents a "not found" condition.
-// It matches both ipam.ErrNotFound and any error whose Error() is "not found"
-// (which includes db.ErrNotFound).
-func IsNotFound(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	return err.Error() == "not found"
-}
-
-// IsAlreadyExists reports whether err represents a unique-constraint violation.
-func IsAlreadyExists(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	return err.Error() == "already exists"
 }
 
 // SequentialAllocator implements the merge-scan allocation algorithm for IPv4.
@@ -91,29 +58,11 @@ func NewSequentialAllocator(store LeaseStore) *SequentialAllocator {
 // Allocate assigns an address from pool to imsi for the given sessionID.
 //
 // Algorithm:
-//  0. Check for a static reservation — if found, attach the session and return.
 //  1. Check for an existing dynamic lease (re-registration) — reuse it.
 //  2. Fetch all allocated addresses as offsets (one query, sorted).
 //  3. Merge-scan: walk offsets [FirstUsable, FirstUsable+Size), skipping allocated.
 //  4. INSERT the first free address. On unique violation (race), retry next.
 func (a *SequentialAllocator) Allocate(ctx context.Context, pool Pool, imsi string, sessionID int) (netip.Addr, error) {
-	// Step 0: static reservation.
-	staticLease, err := a.store.GetStaticLease(ctx, pool.ID, imsi)
-	if err == nil {
-		if err := a.store.UpdateLeaseSession(ctx, staticLease.ID, sessionID); err != nil {
-			return netip.Addr{}, err
-		}
-
-		addr, parseErr := netip.ParseAddr(staticLease.Address)
-		if parseErr != nil {
-			return netip.Addr{}, parseErr
-		}
-
-		return addr, nil
-	} else if !IsNotFound(err) {
-		return netip.Addr{}, err
-	}
-
 	// Step 1: existing dynamic lease (re-registration).
 	existing, err := a.store.GetDynamicLease(ctx, pool.ID, imsi)
 	if err == nil {
@@ -127,7 +76,7 @@ func (a *SequentialAllocator) Allocate(ctx context.Context, pool Pool, imsi stri
 		}
 
 		return addr, nil
-	} else if !IsNotFound(err) {
+	} else if !errors.Is(err, ErrNotFound) {
 		return netip.Addr{}, err
 	}
 
@@ -186,7 +135,7 @@ func (a *SequentialAllocator) Allocate(ctx context.Context, pool Pool, imsi stri
 			return addr, nil
 		}
 
-		if IsAlreadyExists(err) {
+		if errors.Is(err, ErrAlreadyExists) {
 			continue // race — another goroutine grabbed it
 		}
 
@@ -196,9 +145,8 @@ func (a *SequentialAllocator) Allocate(ctx context.Context, pool Pool, imsi stri
 	return netip.Addr{}, ErrPoolExhausted
 }
 
-// Release frees the lease for (pool, sessionID, imsi). For dynamic leases
-// the row is deleted; for static leases the session_id is cleared.
-// Returns the released address.
+// Release frees the dynamic lease for (pool, sessionID, imsi).
+// Returns the released address so the caller can withdraw BGP routes.
 func (a *SequentialAllocator) Release(ctx context.Context, pool Pool, sessionID int, imsi string) (netip.Addr, error) {
 	lease, err := a.store.GetLeaseBySession(ctx, pool.ID, sessionID, imsi)
 	if err != nil {
@@ -210,16 +158,8 @@ func (a *SequentialAllocator) Release(ctx context.Context, pool Pool, sessionID 
 		return netip.Addr{}, parseErr
 	}
 
-	if lease.Type == "static" {
-		// Static leases are never deleted — clear the session instead.
-		if err := a.store.ClearLeaseSession(ctx, lease.ID); err != nil {
-			return netip.Addr{}, err
-		}
-	} else {
-		// Dynamic leases are deleted.
-		if err := a.store.DeleteDynamicLease(ctx, lease.ID); err != nil {
-			return netip.Addr{}, err
-		}
+	if err := a.store.DeleteDynamicLease(ctx, lease.ID); err != nil {
+		return netip.Addr{}, err
 	}
 
 	return addr, nil

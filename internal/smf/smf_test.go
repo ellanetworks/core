@@ -36,14 +36,14 @@ type usageEntry struct {
 	downlinkBytes uint64
 }
 
-func (f *fakeStore) AllocateIP(_ context.Context, _ string, _ uint8) (netip.Addr, error) {
+func (f *fakeStore) AllocateIP(_ context.Context, _ string, _ string, _ uint8) (netip.Addr, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	return f.allocatedIP, f.err
 }
 
-func (f *fakeStore) ReleaseIP(_ context.Context, imsi string, _ uint8) (netip.Addr, error) {
+func (f *fakeStore) ReleaseIP(_ context.Context, imsi string, _ string, _ uint8) (netip.Addr, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

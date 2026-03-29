@@ -85,7 +85,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Request received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 		if smContext.PDUAddress != nil {
-			released, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.PDUSessionID)
+			released, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
 			if releaseErr != nil {
 				return nil, false, fmt.Errorf("failed to release UE IP Addr: %v", releaseErr)
 			}

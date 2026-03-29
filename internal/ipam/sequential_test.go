@@ -4,6 +4,7 @@ package ipam
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -22,19 +23,6 @@ type fakeStore struct {
 
 func newFakeStore() *fakeStore {
 	return &fakeStore{nextID: 1}
-}
-
-func (s *fakeStore) GetStaticLease(_ context.Context, poolID int, imsi string) (*Lease, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for i := range s.leases {
-		if s.leases[i].PoolID == poolID && s.leases[i].IMSI == imsi && s.leases[i].Type == "static" {
-			return &s.leases[i], nil
-		}
-	}
-
-	return nil, ErrNotFound
 }
 
 func (s *fakeStore) GetDynamicLease(_ context.Context, poolID int, imsi string) (*Lease, error) {
@@ -81,15 +69,13 @@ func (s *fakeStore) ListLeaseAddressesByPool(_ context.Context, poolID int) ([]s
 	return addrs, nil
 }
 
-var errAlreadyExists = fmt.Errorf("already exists")
-
 func (s *fakeStore) CreateLease(_ context.Context, lease *Lease) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	for _, l := range s.leases {
 		if l.PoolID == lease.PoolID && l.Address == lease.Address {
-			return errAlreadyExists
+			return ErrAlreadyExists
 		}
 	}
 
@@ -126,37 +112,6 @@ func (s *fakeStore) DeleteDynamicLease(_ context.Context, leaseID int) error {
 	}
 
 	return nil
-}
-
-func (s *fakeStore) ClearLeaseSession(_ context.Context, leaseID int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for i := range s.leases {
-		if s.leases[i].ID == leaseID {
-			s.leases[i].SessionID = nil
-			return nil
-		}
-	}
-
-	return ErrNotFound
-}
-
-// addStaticReservation is a test helper to pre-seed a static lease.
-func (s *fakeStore) addStaticReservation(poolID int, address, imsi string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.leases = append(s.leases, Lease{
-		ID:        s.nextID,
-		PoolID:    poolID,
-		Address:   address,
-		IMSI:      imsi,
-		SessionID: nil,
-		Type:      "static",
-		CreatedAt: 1000000,
-	})
-	s.nextID++
 }
 
 // ---------------------------------------------------------------------------
@@ -293,54 +248,6 @@ func TestAllocate_LeaseReuse_ReRegistration(t *testing.T) {
 	}
 }
 
-func TestAllocate_StaticReservation(t *testing.T) {
-	store := newFakeStore()
-	alloc := NewSequentialAllocator(store)
-	pool := mustPool("192.168.1.0/24")
-
-	// Pre-seed a static reservation.
-	store.addStaticReservation(pool.ID, "192.168.1.50", "001010000000001")
-
-	// Allocation should return the reserved address.
-	addr, err := alloc.Allocate(context.Background(), pool, "001010000000001", 1)
-	if err != nil {
-		t.Fatalf("Allocate: %v", err)
-	}
-
-	if addr.String() != "192.168.1.50" {
-		t.Fatalf("expected static address 192.168.1.50, got %s", addr)
-	}
-}
-
-func TestAllocate_StaticThenDynamic(t *testing.T) {
-	store := newFakeStore()
-	alloc := NewSequentialAllocator(store)
-	pool := mustPool("192.168.1.0/24")
-
-	// IMSI-1 has a static reservation.
-	store.addStaticReservation(pool.ID, "192.168.1.50", "001010000000001")
-
-	// IMSI-1 gets the reserved address.
-	addr1, err := alloc.Allocate(context.Background(), pool, "001010000000001", 1)
-	if err != nil {
-		t.Fatalf("Allocate (static): %v", err)
-	}
-
-	if addr1.String() != "192.168.1.50" {
-		t.Fatalf("expected 192.168.1.50, got %s", addr1)
-	}
-
-	// IMSI-2 has no reservation — gets the first dynamic address.
-	addr2, err := alloc.Allocate(context.Background(), pool, "001010000000002", 2)
-	if err != nil {
-		t.Fatalf("Allocate (dynamic): %v", err)
-	}
-
-	if addr2.String() != "192.168.1.1" {
-		t.Fatalf("expected 192.168.1.1, got %s", addr2)
-	}
-}
-
 func TestAllocate_GapFilling(t *testing.T) {
 	store := newFakeStore()
 	alloc := NewSequentialAllocator(store)
@@ -395,40 +302,8 @@ func TestRelease_Dynamic(t *testing.T) {
 
 	// Lease should be gone.
 	_, err = store.GetDynamicLease(context.Background(), pool.ID, "001010000000001")
-	if !IsNotFound(err) {
+	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
-	}
-}
-
-func TestRelease_Static_ClearsSession(t *testing.T) {
-	store := newFakeStore()
-	alloc := NewSequentialAllocator(store)
-	pool := mustPool("192.168.1.0/24")
-
-	// Pre-seed a static reservation.
-	store.addStaticReservation(pool.ID, "192.168.1.50", "001010000000001")
-
-	// Activate it.
-	_, _ = alloc.Allocate(context.Background(), pool, "001010000000001", 1)
-
-	// Release — should clear session, not delete.
-	released, err := alloc.Release(context.Background(), pool, 1, "001010000000001")
-	if err != nil {
-		t.Fatalf("Release: %v", err)
-	}
-
-	if released.String() != "192.168.1.50" {
-		t.Fatalf("expected 192.168.1.50, got %s", released)
-	}
-
-	// Static lease should still exist but with no session.
-	lease, err := store.GetStaticLease(context.Background(), pool.ID, "001010000000001")
-	if err != nil {
-		t.Fatalf("static lease should still exist: %v", err)
-	}
-
-	if lease.SessionID != nil {
-		t.Fatalf("expected nil sessionID after release, got %v", *lease.SessionID)
 	}
 }
 
@@ -438,7 +313,7 @@ func TestRelease_NotFound(t *testing.T) {
 	pool := mustPool("192.168.1.0/24")
 
 	_, err := alloc.Release(context.Background(), pool, 999, "001010000000001")
-	if !IsNotFound(err) {
+	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected not found error, got %v", err)
 	}
 }

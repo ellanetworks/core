@@ -115,12 +115,6 @@ func TestCreateAndGetLease(t *testing.T) {
 	if got.Type != "dynamic" {
 		t.Fatalf("expected type dynamic, got %s", got.Type)
 	}
-
-	// Static lease should not be found.
-	_, err = database.GetStaticLease(ctx, poolID, imsi)
-	if err != db.ErrNotFound {
-		t.Fatalf("expected ErrNotFound for static lease, got %v", err)
-	}
 }
 
 func TestCreateLease_UniqueConstraint(t *testing.T) {
@@ -171,56 +165,18 @@ func TestCreateLease_UniqueConstraint(t *testing.T) {
 	}
 }
 
-func TestStaticLease(t *testing.T) {
-	database, poolID, imsi := setupLeaseTestDB(t)
-	ctx := context.Background()
-
-	// Create a static reservation (no sessionID).
-	lease := &db.IPLease{
-		PoolID:    poolID,
-		Address:   "192.168.1.50",
-		IMSI:      imsi,
-		SessionID: nil,
-		Type:      "static",
-		CreatedAt: time.Now().Unix(),
-	}
-
-	if err := database.CreateLease(ctx, lease); err != nil {
-		t.Fatalf("CreateLease (static): %s", err)
-	}
-
-	// Should be retrievable as a static lease.
-	got, err := database.GetStaticLease(ctx, poolID, imsi)
-	if err != nil {
-		t.Fatalf("GetStaticLease: %s", err)
-	}
-
-	if got.Type != "static" {
-		t.Fatalf("expected type static, got %s", got.Type)
-	}
-
-	if got.SessionID != nil {
-		t.Fatalf("expected nil sessionID for static reservation, got %v", *got.SessionID)
-	}
-
-	// Dynamic lease should not be found.
-	_, err = database.GetDynamicLease(ctx, poolID, imsi)
-	if err != db.ErrNotFound {
-		t.Fatalf("expected ErrNotFound for dynamic lease, got %v", err)
-	}
-}
-
 func TestUpdateLeaseSession(t *testing.T) {
 	database, poolID, imsi := setupLeaseTestDB(t)
 	ctx := context.Background()
 
-	// Create a static lease with no session.
+	// Create a dynamic lease.
+	sessID := 1
 	lease := &db.IPLease{
 		PoolID:    poolID,
 		Address:   "192.168.1.20",
 		IMSI:      imsi,
-		SessionID: nil,
-		Type:      "static",
+		SessionID: &sessID,
+		Type:      "dynamic",
 		CreatedAt: time.Now().Unix(),
 	}
 
@@ -228,37 +184,23 @@ func TestUpdateLeaseSession(t *testing.T) {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
-	got, err := database.GetStaticLease(ctx, poolID, imsi)
+	got, err := database.GetDynamicLease(ctx, poolID, imsi)
 	if err != nil {
-		t.Fatalf("GetStaticLease: %s", err)
+		t.Fatalf("GetDynamicLease: %s", err)
 	}
 
-	// Attach a session.
+	// Update session.
 	if err := database.UpdateLeaseSession(ctx, got.ID, 100); err != nil {
 		t.Fatalf("UpdateLeaseSession: %s", err)
 	}
 
-	got2, err := database.GetStaticLease(ctx, poolID, imsi)
+	got2, err := database.GetDynamicLease(ctx, poolID, imsi)
 	if err != nil {
-		t.Fatalf("GetStaticLease after update: %s", err)
+		t.Fatalf("GetDynamicLease after update: %s", err)
 	}
 
 	if got2.SessionID == nil || *got2.SessionID != 100 {
 		t.Fatalf("expected sessionID 100, got %v", got2.SessionID)
-	}
-
-	// Clear session.
-	if err := database.ClearLeaseSession(ctx, got.ID); err != nil {
-		t.Fatalf("ClearLeaseSession: %s", err)
-	}
-
-	got3, err := database.GetStaticLease(ctx, poolID, imsi)
-	if err != nil {
-		t.Fatalf("GetStaticLease after clear: %s", err)
-	}
-
-	if got3.SessionID != nil {
-		t.Fatalf("expected nil sessionID after clear, got %v", *got3.SessionID)
 	}
 }
 
@@ -329,41 +271,6 @@ func TestDeleteDynamicLease(t *testing.T) {
 	}
 }
 
-func TestDeleteDynamicLease_DoesNotAffectStatic(t *testing.T) {
-	database, poolID, imsi := setupLeaseTestDB(t)
-	ctx := context.Background()
-
-	// Create a static lease.
-	staticLease := &db.IPLease{
-		PoolID:    poolID,
-		Address:   "192.168.1.60",
-		IMSI:      imsi,
-		SessionID: nil,
-		Type:      "static",
-		CreatedAt: time.Now().Unix(),
-	}
-
-	if err := database.CreateLease(ctx, staticLease); err != nil {
-		t.Fatalf("CreateLease (static): %s", err)
-	}
-
-	got, err := database.GetStaticLease(ctx, poolID, imsi)
-	if err != nil {
-		t.Fatalf("GetStaticLease: %s", err)
-	}
-
-	// DeleteDynamicLease should be a no-op for static leases.
-	if err := database.DeleteDynamicLease(ctx, got.ID); err != nil {
-		t.Fatalf("DeleteDynamicLease: %s", err)
-	}
-
-	// Static lease should still exist.
-	_, err = database.GetStaticLease(ctx, poolID, imsi)
-	if err != nil {
-		t.Fatalf("static lease should survive DeleteDynamicLease, got %v", err)
-	}
-}
-
 func TestDeleteAllDynamicLeases(t *testing.T) {
 	database, poolID, imsi := setupLeaseTestDB(t)
 	ctx := context.Background()
@@ -402,21 +309,13 @@ func TestDeleteAllDynamicLeases(t *testing.T) {
 		t.Fatalf("CreateLease 2: %s", err)
 	}
 
-	// Static lease.
-	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, Address: "192.168.1.200", IMSI: imsi,
-		SessionID: nil, Type: "static", CreatedAt: now,
-	}); err != nil {
-		t.Fatalf("CreateLease static: %s", err)
-	}
-
 	count, err := database.CountLeasesByPool(ctx, poolID)
 	if err != nil {
 		t.Fatalf("CountLeasesByPool: %s", err)
 	}
 
-	if count != 3 {
-		t.Fatalf("expected 3 leases, got %d", count)
+	if count != 2 {
+		t.Fatalf("expected 2 leases, got %d", count)
 	}
 
 	// Delete all dynamic leases (startup cleanup).
@@ -424,23 +323,14 @@ func TestDeleteAllDynamicLeases(t *testing.T) {
 		t.Fatalf("DeleteAllDynamicLeases: %s", err)
 	}
 
-	// Only the static lease should remain.
+	// No leases should remain.
 	count, err = database.CountLeasesByPool(ctx, poolID)
 	if err != nil {
 		t.Fatalf("CountLeasesByPool after cleanup: %s", err)
 	}
 
-	if count != 1 {
-		t.Fatalf("expected 1 lease (static) after cleanup, got %d", count)
-	}
-
-	got, err := database.GetStaticLease(ctx, poolID, imsi)
-	if err != nil {
-		t.Fatalf("GetStaticLease after cleanup: %s", err)
-	}
-
-	if got.Address != "192.168.1.200" {
-		t.Fatalf("expected static address 192.168.1.200, got %s", got.Address)
+	if count != 0 {
+		t.Fatalf("expected 0 leases after cleanup, got %d", count)
 	}
 }
 
@@ -457,14 +347,6 @@ func TestListActiveLeases(t *testing.T) {
 		SessionID: &sess, Type: "dynamic", CreatedAt: now,
 	}); err != nil {
 		t.Fatalf("CreateLease: %s", err)
-	}
-
-	// Inactive static reservation (no session).
-	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, Address: "192.168.1.100", IMSI: imsi,
-		SessionID: nil, Type: "static", CreatedAt: now,
-	}); err != nil {
-		t.Fatalf("CreateLease static: %s", err)
 	}
 
 	leases, err := database.ListActiveLeases(ctx)
@@ -495,9 +377,10 @@ func TestListLeasesByPool(t *testing.T) {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
+	sess2 := 31
 	if err := database.CreateLease(ctx, &db.IPLease{
 		PoolID: poolID, Address: "192.168.1.2", IMSI: imsi,
-		SessionID: nil, Type: "static", CreatedAt: now,
+		SessionID: &sess2, Type: "dynamic", CreatedAt: now,
 	}); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
@@ -526,9 +409,10 @@ func TestListLeaseAddressesByPool(t *testing.T) {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
+	sess2 := 41
 	if err := database.CreateLease(ctx, &db.IPLease{
 		PoolID: poolID, Address: "192.168.1.1", IMSI: imsi,
-		SessionID: nil, Type: "static", CreatedAt: now,
+		SessionID: &sess2, Type: "dynamic", CreatedAt: now,
 	}); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
@@ -572,14 +456,6 @@ func TestCountActiveLeases(t *testing.T) {
 	if err := database.CreateLease(ctx, &db.IPLease{
 		PoolID: poolID, Address: "192.168.1.7", IMSI: imsi,
 		SessionID: &sess, Type: "dynamic", CreatedAt: now,
-	}); err != nil {
-		t.Fatalf("CreateLease: %s", err)
-	}
-
-	// One inactive static reservation.
-	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, Address: "192.168.1.8", IMSI: imsi,
-		SessionID: nil, Type: "static", CreatedAt: now,
 	}); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
@@ -707,20 +583,12 @@ func TestCountLeasesByIMSI(t *testing.T) {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
-	// Add a static lease.
-	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, Address: "192.168.1.21", IMSI: imsi,
-		SessionID: nil, Type: "static", CreatedAt: now,
-	}); err != nil {
-		t.Fatalf("CreateLease: %s", err)
-	}
-
 	count, err = database.CountLeasesByIMSI(ctx, imsi)
 	if err != nil {
 		t.Fatalf("CountLeasesByIMSI: %s", err)
 	}
 
-	if count != 2 {
-		t.Fatalf("expected 2, got %d", count)
+	if count != 1 {
+		t.Fatalf("expected 1, got %d", count)
 	}
 }

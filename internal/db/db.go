@@ -38,11 +38,9 @@ type Database struct {
 
 	// IP Lease statements
 	createLeaseStmt              *sqlair.Statement
-	getStaticLeaseStmt           *sqlair.Statement
 	getDynamicLeaseStmt          *sqlair.Statement
 	getLeaseBySessionStmt        *sqlair.Statement
 	updateLeaseSessionStmt       *sqlair.Statement
-	clearLeaseSessionStmt        *sqlair.Statement
 	deleteLeaseStmt              *sqlair.Statement
 	deleteAllDynamicLeasesStmt   *sqlair.Statement
 	listActiveLeasesStmt         *sqlair.Statement
@@ -341,11 +339,9 @@ func (db *Database) PrepareStatements() error {
 
 		// IP Leases
 		{&db.createLeaseStmt, fmt.Sprintf(createLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.getStaticLeaseStmt, fmt.Sprintf(getStaticLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.getDynamicLeaseStmt, fmt.Sprintf(getDynamicLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.getLeaseBySessionStmt, fmt.Sprintf(getLeaseBySessionStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.updateLeaseSessionStmt, fmt.Sprintf(updateLeaseSessionStmt, IPLeasesTableName), []any{IPLease{}}},
-		{&db.clearLeaseSessionStmt, fmt.Sprintf(clearLeaseSessionStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.deleteLeaseStmt, fmt.Sprintf(deleteLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.deleteAllDynamicLeasesStmt, fmt.Sprintf(deleteAllDynamicLeasesStmt, IPLeasesTableName), nil},
 		{&db.listActiveLeasesStmt, fmt.Sprintf(listActiveLeasesStmt, IPLeasesTableName), []any{IPLease{}}},

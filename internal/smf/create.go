@@ -188,7 +188,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 		return nil, nil, nil, 0, nil, rsp, fmt.Errorf("failed to retrieve DNN information: %v", err)
 	}
 
-	ipv4Addr, err := s.store.AllocateIP(ctx, smContext.Supi.IMSI(), smContext.PDUSessionID)
+	ipv4Addr, err := s.store.AllocateIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
 	if err != nil {
 		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
 
@@ -211,7 +211,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 	if err != nil {
 		logger.WithTrace(ctx, logger.SmfLog).Error("failed to handle PDU Session Establishment Request", zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
-		if _, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.PDUSessionID); releaseErr != nil {
+		if _, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID); releaseErr != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IP after session create error", zap.Error(releaseErr))
 		}
 
@@ -236,7 +236,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 
 	err = defaultPath.ActivateTunnelAndPDR(s, smContext, policy, pduAddress)
 	if err != nil {
-		if _, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.PDUSessionID); releaseErr != nil {
+		if _, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID); releaseErr != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IP after session create error", zap.Error(releaseErr))
 		}
 

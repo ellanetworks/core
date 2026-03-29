@@ -20,11 +20,9 @@ const IPLeasesTableName = "ip_leases"
 
 const (
 	createLeaseStmt              = "INSERT INTO %s (poolID, address, imsi, sessionID, type, createdAt) VALUES ($IPLease.poolID, $IPLease.address, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt)"
-	getStaticLeaseStmt           = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND imsi==$IPLease.imsi AND type='static'"
 	getDynamicLeaseStmt          = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND imsi==$IPLease.imsi AND type='dynamic'"
 	getLeaseBySessionStmt        = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND sessionID==$IPLease.sessionID AND imsi==$IPLease.imsi"
 	updateLeaseSessionStmt       = "UPDATE %s SET sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
-	clearLeaseSessionStmt        = "UPDATE %s SET sessionID=NULL WHERE id==$IPLease.id"
 	deleteLeaseStmt              = "DELETE FROM %s WHERE id==$IPLease.id AND type='dynamic'"
 	deleteAllDynamicLeasesStmt   = "DELETE FROM %s WHERE type='dynamic'"
 	listActiveLeasesStmt         = "SELECT &IPLease.* FROM %s WHERE sessionID IS NOT NULL"
@@ -85,45 +83,6 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease) error {
 	span.SetStatus(codes.Ok, "")
 
 	return nil
-}
-
-// GetStaticLease returns the static lease for (poolID, imsi), or ErrNotFound.
-func (db *Database) GetStaticLease(ctx context.Context, poolID int, imsi string) (*IPLease, error) {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s (static)", "SELECT", IPLeasesTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", IPLeasesTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
-
-	row := IPLease{PoolID: poolID, IMSI: imsi}
-
-	err := db.conn.Query(ctx, db.getStaticLeaseStmt, row).Get(&row)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-			return nil, ErrNotFound
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return nil, fmt.Errorf("query failed: %w", err)
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return &row, nil
 }
 
 // GetDynamicLease returns the dynamic lease for (poolID, imsi), or ErrNotFound.
@@ -255,41 +214,7 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID int, session
 	return nil
 }
 
-// ClearLeaseSession sets sessionID to NULL on a lease (used for static leases on release).
-func (db *Database) ClearLeaseSession(ctx context.Context, leaseID int) error {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s (clear session)", "UPDATE", IPLeasesTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", IPLeasesTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "update"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "update").Inc()
-
-	lease := IPLease{ID: leaseID}
-
-	err := db.conn.Query(ctx, db.clearLeaseSessionStmt, lease).Run()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return nil
-}
-
-// DeleteDynamicLease deletes a dynamic lease by ID. Static leases are not affected.
+// DeleteDynamicLease deletes a dynamic lease by ID.
 func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID int) error {
 	ctx, span := tracer.Start(
 		ctx,

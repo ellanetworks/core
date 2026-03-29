@@ -5,6 +5,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -36,6 +37,21 @@ type leaseStoreAdapter struct {
 	db *db.Database
 }
 
+// mapDBError translates db sentinel errors to ipam sentinel errors so the
+// allocator can use errors.Is() without importing the db package.
+func mapDBError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, db.ErrNotFound):
+		return ipam.ErrNotFound
+	case errors.Is(err, db.ErrAlreadyExists):
+		return ipam.ErrAlreadyExists
+	default:
+		return err
+	}
+}
+
 func dbLeaseToIPAM(l *db.IPLease) *ipam.Lease {
 	return &ipam.Lease{
 		ID:        l.ID,
@@ -60,19 +76,10 @@ func ipamLeaseToDB(l *ipam.Lease) *db.IPLease {
 	}
 }
 
-func (a *leaseStoreAdapter) GetStaticLease(ctx context.Context, poolID int, imsi string) (*ipam.Lease, error) {
-	l, err := a.db.GetStaticLease(ctx, poolID, imsi)
-	if err != nil {
-		return nil, err
-	}
-
-	return dbLeaseToIPAM(l), nil
-}
-
 func (a *leaseStoreAdapter) GetDynamicLease(ctx context.Context, poolID int, imsi string) (*ipam.Lease, error) {
 	l, err := a.db.GetDynamicLease(ctx, poolID, imsi)
 	if err != nil {
-		return nil, err
+		return nil, mapDBError(err)
 	}
 
 	return dbLeaseToIPAM(l), nil
@@ -81,7 +88,7 @@ func (a *leaseStoreAdapter) GetDynamicLease(ctx context.Context, poolID int, ims
 func (a *leaseStoreAdapter) GetLeaseBySession(ctx context.Context, poolID int, sessionID int, imsi string) (*ipam.Lease, error) {
 	l, err := a.db.GetLeaseBySession(ctx, poolID, sessionID, imsi)
 	if err != nil {
-		return nil, err
+		return nil, mapDBError(err)
 	}
 
 	return dbLeaseToIPAM(l), nil
@@ -92,19 +99,15 @@ func (a *leaseStoreAdapter) ListLeaseAddressesByPool(ctx context.Context, poolID
 }
 
 func (a *leaseStoreAdapter) CreateLease(ctx context.Context, lease *ipam.Lease) error {
-	return a.db.CreateLease(ctx, ipamLeaseToDB(lease))
+	return mapDBError(a.db.CreateLease(ctx, ipamLeaseToDB(lease)))
 }
 
 func (a *leaseStoreAdapter) UpdateLeaseSession(ctx context.Context, leaseID int, sessionID int) error {
-	return a.db.UpdateLeaseSession(ctx, leaseID, sessionID)
+	return mapDBError(a.db.UpdateLeaseSession(ctx, leaseID, sessionID))
 }
 
 func (a *leaseStoreAdapter) DeleteDynamicLease(ctx context.Context, leaseID int) error {
-	return a.db.DeleteDynamicLease(ctx, leaseID)
-}
-
-func (a *leaseStoreAdapter) ClearLeaseSession(ctx context.Context, leaseID int) error {
-	return a.db.ClearLeaseSession(ctx, leaseID)
+	return mapDBError(a.db.DeleteDynamicLease(ctx, leaseID))
 }
 
 // ---------------------------------------------------------------------------
@@ -116,20 +119,9 @@ type smfDBAdapter struct {
 	allocator ipam.Allocator
 }
 
-// resolvePool looks up the IP pool for a subscriber via the chain:
-// subscriber → policy → data network → CIDR.
-func (a *smfDBAdapter) resolvePool(ctx context.Context, imsi string) (ipam.Pool, error) {
-	sub, err := a.db.GetSubscriber(ctx, imsi)
-	if err != nil {
-		return ipam.Pool{}, fmt.Errorf("get subscriber: %w", err)
-	}
-
-	pol, err := a.db.GetPolicyByID(ctx, sub.PolicyID)
-	if err != nil {
-		return ipam.Pool{}, fmt.Errorf("get policy: %w", err)
-	}
-
-	dn, err := a.db.GetDataNetworkByID(ctx, pol.DataNetworkID)
+// resolvePoolByDNN looks up the IP pool for a data network by name.
+func (a *smfDBAdapter) resolvePoolByDNN(ctx context.Context, dnn string) (ipam.Pool, error) {
+	dn, err := a.db.GetDataNetwork(ctx, dnn)
 	if err != nil {
 		return ipam.Pool{}, fmt.Errorf("get data network: %w", err)
 	}
@@ -137,8 +129,8 @@ func (a *smfDBAdapter) resolvePool(ctx context.Context, imsi string) (ipam.Pool,
 	return ipam.NewPool(dn.ID, dn.IPPool)
 }
 
-func (a *smfDBAdapter) AllocateIP(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error) {
-	pool, err := a.resolvePool(ctx, imsi)
+func (a *smfDBAdapter) AllocateIP(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error) {
+	pool, err := a.resolvePoolByDNN(ctx, dnn)
 	if err != nil {
 		return netip.Addr{}, fmt.Errorf("resolve pool: %w", err)
 	}
@@ -146,8 +138,8 @@ func (a *smfDBAdapter) AllocateIP(ctx context.Context, imsi string, pduSessionID
 	return a.allocator.Allocate(ctx, pool, imsi, int(pduSessionID))
 }
 
-func (a *smfDBAdapter) ReleaseIP(ctx context.Context, imsi string, pduSessionID uint8) (netip.Addr, error) {
-	pool, err := a.resolvePool(ctx, imsi)
+func (a *smfDBAdapter) ReleaseIP(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error) {
+	pool, err := a.resolvePoolByDNN(ctx, dnn)
 	if err != nil {
 		return netip.Addr{}, fmt.Errorf("resolve pool: %w", err)
 	}
