@@ -1,0 +1,111 @@
+services:
+  ella-mimir:
+    image: grafana/mimir:latest
+    container_name: ella-mimir
+    restart: unless-stopped
+    ports:
+      - "9009:9009"
+    volumes:
+      - ./mimir-config.yml:/etc/mimir/config.yml:ro
+      - mimir-data:/data/mimir
+    command:
+      - "-config.file=/etc/mimir/config.yml"
+    networks:
+      - ella-shared
+
+  ella-loki:
+    image: grafana/loki:latest
+    container_name: ella-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    command:
+      - "-config.file=/etc/loki/local-config.yaml"
+    networks:
+      - ella-loki
+      - ella-shared
+
+  ella-tempo:
+    image: grafana/tempo:2.9.1
+    container_name: ella-tempo
+    restart: unless-stopped
+    ports:
+      - "3200:3200"
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./tempo-config.yml:/etc/tempo/config.yml:ro
+      - tempo-data:/var/tempo
+    command:
+      - "-config.file=/etc/tempo/config.yml"
+    networks:
+      - ella-tempo
+      - ella-shared
+
+  ella-pyroscope:
+    image: grafana/pyroscope:latest
+    container_name: ella-pyroscope
+    restart: unless-stopped
+    ports:
+      - "4040:4040"
+    volumes:
+      - pyroscope-data:/data
+    networks:
+      - ella-shared
+
+  ella-grafana:
+    image: grafana/grafana:latest
+    container_name: ella-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./grafana/alerting:/etc/grafana/provisioning/alerting:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_UNIFIED_ALERTING_ENABLED=true
+    depends_on:
+      - ella-mimir
+      - ella-loki
+      - ella-tempo
+      - ella-pyroscope
+    networks:
+      - ella-shared
+      - ella-loki
+      - ella-tempo
+
+  ella-mcp-grafana:
+    image: grafana/mcp-grafana:latest
+    container_name: ella-mcp-grafana
+    restart: unless-stopped
+    command: ["-t", "streamable-http"]
+    ports:
+      - "8000:8000"
+    environment:
+      - GRAFANA_URL=http://ella-grafana:3000
+      - GRAFANA_USERNAME=admin
+      - GRAFANA_PASSWORD=admin
+    depends_on:
+      - ella-grafana
+    networks:
+      - ella-shared
+
+networks:
+  ella-shared:
+  ella-loki:
+  ella-tempo:
+
+volumes:
+  mimir-data:
+  loki-data:
+  tempo-data:
+  pyroscope-data:
+  grafana-data:
