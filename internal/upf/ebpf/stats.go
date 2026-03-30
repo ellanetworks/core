@@ -87,6 +87,63 @@ func GetN6Redirect(bpfObjects *BpfObjects) uint64 {
 	return getUpfN6XdpStatisticField(bpfObjects, XDP_REDIRECT)
 }
 
+type RouteStats struct {
+	FibSuccess      uint64
+	FibNoNeigh      uint64
+	FibBlackhole    uint64
+	FibUnreachable  uint64
+	FibProhibit     uint64
+	FibNoSrcAddr    uint64
+	FibFragNeeded   uint64
+	FibNotFwded     uint64
+	FibFwdDisabled  uint64
+	FibUnsuppLwt    uint64
+	IfindexMismatch uint64
+}
+
+func aggregateRouteStats(perCPUStats []N3N6EntrypointRouteStat) RouteStats {
+	var rs RouteStats
+	for _, s := range perCPUStats {
+		rs.FibSuccess += s.FibLookupIp4Success + s.FibLookupIp6Success
+		rs.FibNoNeigh += s.FibLookupIp4NoNeigh + s.FibLookupIp6NoNeigh
+		rs.FibBlackhole += s.FibLookupIp4Blackhole + s.FibLookupIp6Blackhole
+		rs.FibUnreachable += s.FibLookupIp4Unreachable + s.FibLookupIp6Unreachable
+		rs.FibProhibit += s.FibLookupIp4Prohibit + s.FibLookupIp6Prohibit
+		rs.FibNoSrcAddr += s.FibLookupIp4NoSrcAddr + s.FibLookupIp6NoSrcAddr
+		rs.FibFragNeeded += s.FibLookupIp4FragNeeded + s.FibLookupIp6FragNeeded
+		rs.FibNotFwded += s.FibLookupIp4NotFwded + s.FibLookupIp6NotFwded
+		rs.FibFwdDisabled += s.FibLookupIp4FwdDisabled + s.FibLookupIp6FwdDisabled
+		rs.FibUnsuppLwt += s.FibLookupIp4UnsuppLwt + s.FibLookupIp6UnsuppLwt
+		rs.IfindexMismatch += s.Ip4IfindexMismatch + s.Ip6IfindexMismatch
+	}
+
+	return rs
+}
+
+func GetN3RouteStats(bpfObjects *BpfObjects) RouteStats {
+	var stats []N3N6EntrypointRouteStat
+
+	err := bpfObjects.UplinkRouteStats.Lookup(uint32(0), &stats)
+	if err != nil {
+		logger.UpfLog.Warn("failed to fetch UPF N3 route stats", zap.Error(err))
+		return RouteStats{}
+	}
+
+	return aggregateRouteStats(stats)
+}
+
+func GetN6RouteStats(bpfObjects *BpfObjects) RouteStats {
+	var stats []N3N6EntrypointRouteStat
+
+	err := bpfObjects.DownlinkRouteStats.Lookup(uint32(0), &stats)
+	if err != nil {
+		logger.UpfLog.Warn("failed to fetch UPF N6 route stats", zap.Error(err))
+		return RouteStats{}
+	}
+
+	return aggregateRouteStats(stats)
+}
+
 func GetN3UplinkThroughputStats(bpfObjects *BpfObjects) uint64 {
 	var n3Statistics []N3N6EntrypointUpfStatistic
 
