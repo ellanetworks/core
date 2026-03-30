@@ -46,12 +46,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		ue.Log.Warn("Authentication Failure Cause: NgKSI Already In Use")
 		ue.AuthFailureCauseSynchFailureTimes = 0
 		ue.Log.Warn("Select new NgKsi")
-		// select new ngksi
-		if ue.NgKsi.Ksi < 6 { // ksi is range from 0 to 6
-			ue.NgKsi.Ksi += 1
-		} else {
-			ue.NgKsi.Ksi = 0
-		}
+		ue.NgKsi.Ksi = nextNgKsi(ue.NgKsi.Ksi)
 
 		err := message.SendAuthenticationRequest(ctx, amfInstance, ue.RanUe())
 		if err != nil {
