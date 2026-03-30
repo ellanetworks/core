@@ -133,6 +133,23 @@ func (dc *DockerClient) Exec(ctx context.Context, containerName string, argv []s
 	return buf.String(), nil
 }
 
+// ComposeLogs returns the logs of a specific service in a docker-compose project.
+func (dc *DockerClient) ComposeLogs(ctx context.Context, composeDir string, service string) (string, error) {
+	cmd := exec.CommandContext(ctx, "docker", "compose", "logs", "--no-color", service)
+	cmd.Dir = composeDir
+
+	var buf bytes.Buffer
+
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
+
+	if err := cmd.Run(); err != nil {
+		return buf.String(), fmt.Errorf("failed to run docker compose logs: %w", err)
+	}
+
+	return buf.String(), nil
+}
+
 func (dc *DockerClient) CopyFileToContainer(ctx context.Context, containerName, srcPath, destPath string) error {
 	f, err := os.Open(srcPath)
 	if err != nil {
