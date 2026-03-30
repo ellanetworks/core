@@ -36,8 +36,10 @@ const (
 // RanUe represents one UE's radio-level state on a single Radio.
 // It has no mutex of its own. It is protected either by the owning Radio's
 // single SCTP goroutine, or by AmfUe.Mutex when accessed via AmfUe.RanUe().
-// After obtaining a RanUe from a Radio lookup, acquire the AmfUe's Mutex
-// before reading or writing any AmfUe fields.
+//
+// AmfUe.RanUe() acquires a read-lock internally and returns a consistent
+// snapshot. Callers must capture the returned pointer in a local variable
+// and reuse it — never call RanUe() twice in the same code path.
 type RanUe struct {
 	RanUeNgapID                      int64
 	AmfUeNgapID                      int64

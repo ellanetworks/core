@@ -17,7 +17,11 @@ import (
 )
 
 func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *testing.T) {
-	ue := amf.NewAmfUe()
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
 	ue.ForceState(amf.Authentication)
 	ue.AuthenticationCtx = &ausf.AuthResult{Rand: "DEADBEEF"}
 
@@ -25,7 +29,7 @@ func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *test
 		AuthenticationResponseParameter: nil,
 	}
 
-	err := handleAuthenticationResponse(context.TODO(), amf.New(nil, nil, nil), ue, msg)
+	err = handleAuthenticationResponse(context.TODO(), amf.New(nil, nil, nil), ue, msg)
 	if err == nil {
 		t.Fatal("expected error when AuthenticationResponseParameter is nil, got nil")
 	}
@@ -51,7 +55,11 @@ func TestHandleAuthenticationResponse_PreconditionErrors(t *testing.T) {
 		{
 			"nil authentication context",
 			func() *amf.AmfUe {
-				ue := amf.NewAmfUe()
+				ue, _, err := buildUeAndRadio()
+				if err != nil {
+					panic(err)
+				}
+
 				ue.ForceState(amf.Authentication)
 
 				return ue
@@ -61,7 +69,11 @@ func TestHandleAuthenticationResponse_PreconditionErrors(t *testing.T) {
 		{
 			"invalid rand in UE context",
 			func() *amf.AmfUe {
-				ue := amf.NewAmfUe()
+				ue, _, err := buildUeAndRadio()
+				if err != nil {
+					panic(err)
+				}
+
 				ue.ForceState(amf.Authentication)
 				ue.AuthenticationCtx = &ausf.AuthResult{Rand: "Not hex"}
 
