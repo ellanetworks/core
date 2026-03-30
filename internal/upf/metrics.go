@@ -30,6 +30,22 @@ func RegisterMetrics() {
 		nil,
 	)
 
+	// FIB lookup result metrics with labels for interface and result
+	xdpFibLookupDesc := prometheus.NewDesc(
+		"app_xdp_fib_lookup_total",
+		"FIB lookup outcomes in the XDP data plane.",
+		[]string{"interface", "result"},
+		nil,
+	)
+
+	// Ifindex mismatch metrics with label for interface
+	xdpIfindexMismatchDesc := prometheus.NewDesc(
+		"app_xdp_ifindex_mismatch_total",
+		"Packets dropped because the FIB-resolved interface did not match the expected N3/N6 interface.",
+		[]string{"interface"},
+		nil,
+	)
+
 	prometheus.MustRegister(upfUplinkBytes, upfDownlinkBytes)
 
 	// Register XDP action collector that produces metrics with labels
@@ -53,5 +69,41 @@ func RegisterMetrics() {
 		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN6Aborted(bpfObjects)), "n6", "XDP_ABORTED")
 
 		ch <- prometheus.MustNewConstMetric(xdpActionDesc, prometheus.CounterValue, float64(ebpf.GetN6Redirect(bpfObjects)), "n6", "XDP_REDIRECT")
+	}))
+
+	// Register FIB lookup result and ifindex mismatch collector
+	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+		n3 := ebpf.GetN3RouteStats(bpfObjects)
+		n6 := ebpf.GetN6RouteStats(bpfObjects)
+
+		for _, entry := range []struct {
+			iface string
+			stats ebpf.RouteStats
+		}{
+			{"n3", n3},
+			{"n6", n6},
+		} {
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibSuccess), entry.iface, "success")
+
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNoNeigh), entry.iface, "no_neigh")
+
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibBlackhole), entry.iface, "blackhole")
+
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibUnreachable), entry.iface, "unreachable")
+
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibProhibit), entry.iface, "prohibit")
+
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNoSrcAddr), entry.iface, "no_src_addr")
+
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibFragNeeded), entry.iface, "frag_needed")
+
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibNotFwded), entry.iface, "not_fwded")
+
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibFwdDisabled), entry.iface, "fwd_disabled")
+
+			ch <- prometheus.MustNewConstMetric(xdpFibLookupDesc, prometheus.CounterValue, float64(entry.stats.FibUnsuppLwt), entry.iface, "unsupp_lwt")
+
+			ch <- prometheus.MustNewConstMetric(xdpIfindexMismatchDesc, prometheus.CounterValue, float64(entry.stats.IfindexMismatch), entry.iface)
+		}
 	}))
 }
