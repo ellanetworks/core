@@ -156,14 +156,13 @@ type Database struct {
 	countProfilesStmt    *sqlair.Statement
 
 	// Profile Network Configs statements
-	listProfileNetworkConfigsByProfileStmt   *sqlair.Statement
-	getProfileNetworkConfigStmt              *sqlair.Statement
-	createProfileNetworkConfigStmt           *sqlair.Statement
-	updateProfileNetworkConfigStmt           *sqlair.Statement
-	deleteProfileNetworkConfigStmt           *sqlair.Statement
-	deleteProfileNetworkConfigsByProfileStmt *sqlair.Statement
-	countConfigsInDataNetworkStmt            *sqlair.Statement
-	countConfigsInSliceStmt                  *sqlair.Statement
+	listProfileNetworkConfigsByProfileStmt *sqlair.Statement
+	getProfileNetworkConfigStmt            *sqlair.Statement
+	createProfileNetworkConfigStmt         *sqlair.Statement
+	updateProfileNetworkConfigStmt         *sqlair.Statement
+	deleteProfileNetworkConfigStmt         *sqlair.Statement
+	countConfigsInDataNetworkStmt          *sqlair.Statement
+	countConfigsInSliceStmt                *sqlair.Statement
 
 	// Retention Policy statements
 	selectRetentionPolicyStmt *sqlair.Statement
@@ -485,7 +484,6 @@ func (db *Database) PrepareStatements() error {
 		{&db.createProfileNetworkConfigStmt, fmt.Sprintf(createProfileNetworkConfigStmt, ProfileNetworkConfigsTableName), []any{ProfileNetworkConfig{}}},
 		{&db.updateProfileNetworkConfigStmt, fmt.Sprintf(updateProfileNetworkConfigStmt, ProfileNetworkConfigsTableName), []any{ProfileNetworkConfig{}}},
 		{&db.deleteProfileNetworkConfigStmt, fmt.Sprintf(deleteProfileNetworkConfigStmt, ProfileNetworkConfigsTableName), []any{ProfileNetworkConfig{}}},
-		{&db.deleteProfileNetworkConfigsByProfileStmt, fmt.Sprintf(deleteProfileNetworkConfigsByProfileStmt, ProfileNetworkConfigsTableName), []any{ProfileNetworkConfig{}}},
 		{&db.countConfigsInDataNetworkStmt, fmt.Sprintf(countConfigsInDataNetworkStmt, ProfileNetworkConfigsTableName), []any{NumItems{}, ProfileNetworkConfig{}}},
 		{&db.countConfigsInSliceStmt, fmt.Sprintf(countConfigsInSliceStmt, ProfileNetworkConfigsTableName), []any{NumItems{}, ProfileNetworkConfig{}}},
 

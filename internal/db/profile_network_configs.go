@@ -19,14 +19,13 @@ import (
 const ProfileNetworkConfigsTableName = "profile_network_configs"
 
 const (
-	listProfileNetworkConfigsByProfileStmt   = "SELECT &ProfileNetworkConfig.* FROM %s WHERE profileID==$ProfileNetworkConfig.profileID"
-	getProfileNetworkConfigStmt              = "SELECT &ProfileNetworkConfig.* FROM %s WHERE profileID==$ProfileNetworkConfig.profileID AND sliceID==$ProfileNetworkConfig.sliceID AND dataNetworkID==$ProfileNetworkConfig.dataNetworkID"
-	createProfileNetworkConfigStmt           = "INSERT INTO %s (profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink) VALUES ($ProfileNetworkConfig.profileID, $ProfileNetworkConfig.sliceID, $ProfileNetworkConfig.dataNetworkID, $ProfileNetworkConfig.var5qi, $ProfileNetworkConfig.arp, $ProfileNetworkConfig.sessionAmbrUplink, $ProfileNetworkConfig.sessionAmbrDownlink)"
-	updateProfileNetworkConfigStmt           = "UPDATE %s SET var5qi=$ProfileNetworkConfig.var5qi, arp=$ProfileNetworkConfig.arp, sessionAmbrUplink=$ProfileNetworkConfig.sessionAmbrUplink, sessionAmbrDownlink=$ProfileNetworkConfig.sessionAmbrDownlink, dataNetworkID=$ProfileNetworkConfig.dataNetworkID WHERE profileID==$ProfileNetworkConfig.profileID AND sliceID==$ProfileNetworkConfig.sliceID"
-	deleteProfileNetworkConfigStmt           = "DELETE FROM %s WHERE profileID==$ProfileNetworkConfig.profileID AND sliceID==$ProfileNetworkConfig.sliceID AND dataNetworkID==$ProfileNetworkConfig.dataNetworkID"
-	deleteProfileNetworkConfigsByProfileStmt = "DELETE FROM %s WHERE profileID==$ProfileNetworkConfig.profileID"
-	countConfigsInDataNetworkStmt            = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE dataNetworkID==$ProfileNetworkConfig.dataNetworkID"
-	countConfigsInSliceStmt                  = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE sliceID==$ProfileNetworkConfig.sliceID"
+	listProfileNetworkConfigsByProfileStmt = "SELECT &ProfileNetworkConfig.* FROM %s WHERE profileID==$ProfileNetworkConfig.profileID"
+	getProfileNetworkConfigStmt            = "SELECT &ProfileNetworkConfig.* FROM %s WHERE profileID==$ProfileNetworkConfig.profileID AND sliceID==$ProfileNetworkConfig.sliceID AND dataNetworkID==$ProfileNetworkConfig.dataNetworkID"
+	createProfileNetworkConfigStmt         = "INSERT INTO %s (profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink) VALUES ($ProfileNetworkConfig.profileID, $ProfileNetworkConfig.sliceID, $ProfileNetworkConfig.dataNetworkID, $ProfileNetworkConfig.var5qi, $ProfileNetworkConfig.arp, $ProfileNetworkConfig.sessionAmbrUplink, $ProfileNetworkConfig.sessionAmbrDownlink)"
+	updateProfileNetworkConfigStmt         = "UPDATE %s SET var5qi=$ProfileNetworkConfig.var5qi, arp=$ProfileNetworkConfig.arp, sessionAmbrUplink=$ProfileNetworkConfig.sessionAmbrUplink, sessionAmbrDownlink=$ProfileNetworkConfig.sessionAmbrDownlink, dataNetworkID=$ProfileNetworkConfig.dataNetworkID WHERE id==$ProfileNetworkConfig.id"
+	deleteProfileNetworkConfigStmt         = "DELETE FROM %s WHERE profileID==$ProfileNetworkConfig.profileID AND sliceID==$ProfileNetworkConfig.sliceID AND dataNetworkID==$ProfileNetworkConfig.dataNetworkID"
+	countConfigsInDataNetworkStmt          = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE dataNetworkID==$ProfileNetworkConfig.dataNetworkID"
+	countConfigsInSliceStmt                = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE sliceID==$ProfileNetworkConfig.sliceID"
 )
 
 type ProfileNetworkConfig struct {

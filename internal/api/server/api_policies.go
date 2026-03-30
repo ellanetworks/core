@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"strconv"
@@ -118,8 +119,13 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 
 		for _, profile := range profiles {
 			configs, err := dbInstance.ListProfileNetworkConfigs(ctx, profile.ID)
-			if err != nil || len(configs) == 0 {
+			if err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
+				return
+			}
+
+			if len(configs) == 0 {
+				writeError(r.Context(), w, http.StatusInternalServerError, "No network config found for profile", fmt.Errorf("profile %q has no network configs", profile.Name), logger.APILog)
 				return
 			}
 
@@ -167,8 +173,13 @@ func GetPolicy(dbInstance *db.Database) http.Handler {
 		}
 
 		configs, err := dbInstance.ListProfileNetworkConfigs(r.Context(), profile.ID)
-		if err != nil || len(configs) == 0 {
+		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
+			return
+		}
+
+		if len(configs) == 0 {
+			writeError(r.Context(), w, http.StatusInternalServerError, "No network config found for profile", fmt.Errorf("profile %q has no network configs", name), logger.APILog)
 			return
 		}
 
@@ -370,9 +381,14 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		networkSlices, err := dbInstance.ListNetworkSlices(r.Context())
-		if err != nil || len(networkSlices) == 0 {
-			writeError(r.Context(), w, http.StatusInternalServerError, "No network slice configured", err, logger.APILog)
+		configs, err := dbInstance.ListProfileNetworkConfigs(r.Context(), profile.ID)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy config", err, logger.APILog)
+			return
+		}
+
+		if len(configs) == 0 {
+			writeError(r.Context(), w, http.StatusInternalServerError, "No network config found for profile", fmt.Errorf("profile %q has no network configs", policyName), logger.APILog)
 			return
 		}
 
@@ -385,8 +401,9 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 		}
 
 		config := &db.ProfileNetworkConfig{
+			ID:                  configs[0].ID,
 			ProfileID:           profile.ID,
-			SliceID:             networkSlices[0].ID,
+			SliceID:             configs[0].SliceID,
 			DataNetworkID:       dataNetwork.ID,
 			Var5qi:              updatePolicyParams.Var5qi,
 			Arp:                 updatePolicyParams.Arp,
