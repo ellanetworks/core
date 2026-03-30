@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
+	"net/netip"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
@@ -101,7 +102,7 @@ func setupServer(filepath string) (testEnv, error) {
 	logger.SetDb(testdb)
 
 	// Initialize SMF context with test stubs
-	smfInstance := smf.New(&fakeSessionStore{db: testdb}, &fakeUPFClient{}, &fakeAMFCallback{})
+	smfInstance := smf.New(&fakeSessionStore{}, &fakeUPFClient{}, &fakeAMFCallback{})
 
 	jwtSecret := server.NewJWTSecret([]byte("testsecret"))
 	fakeKernel := FakeKernel{}
@@ -216,31 +217,29 @@ func createUserAndLogin(url string, token string, email string, roleID RoleID, c
 
 // Stub adapters for SMF initialization in tests.
 
-type fakeSessionStore struct {
-	db *db.Database
+type fakeSessionStore struct{}
+
+func (f *fakeSessionStore) AllocateIP(_ context.Context, _ string, _ string, _ uint8) (netip.Addr, error) {
+	return netip.Addr{}, fmt.Errorf("not implemented in test")
 }
 
-func (f *fakeSessionStore) AllocateIP(ctx context.Context, supi string) (net.IP, error) {
-	return f.db.AllocateIP(ctx, supi)
+func (f *fakeSessionStore) ReleaseIP(_ context.Context, _ string, _ string, _ uint8) (netip.Addr, error) {
+	return netip.Addr{}, fmt.Errorf("not implemented in test")
 }
 
-func (f *fakeSessionStore) ReleaseIP(ctx context.Context, supi string, ip net.IP) error {
-	return f.db.ReleaseIP(ctx, supi, ip)
-}
-
-func (f *fakeSessionStore) GetSubscriberPolicy(ctx context.Context, imsi string) (*smf.Policy, error) {
+func (f *fakeSessionStore) GetSubscriberPolicy(_ context.Context, _ string) (*smf.Policy, error) {
 	return nil, fmt.Errorf("not implemented in test")
 }
 
-func (f *fakeSessionStore) GetDataNetwork(ctx context.Context, snssai *models.Snssai, dnn string) (*smf.DataNetworkInfo, error) {
+func (f *fakeSessionStore) GetDataNetwork(_ context.Context, _ *models.Snssai, _ string) (*smf.DataNetworkInfo, error) {
 	return nil, fmt.Errorf("not implemented in test")
 }
 
-func (f *fakeSessionStore) IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error {
+func (f *fakeSessionStore) IncrementDailyUsage(_ context.Context, _ string, _, _ uint64) error {
 	return nil
 }
 
-func (f *fakeSessionStore) InsertFlowReport(ctx context.Context, report *smf.FlowReport) error {
+func (f *fakeSessionStore) InsertFlowReport(_ context.Context, _ *smf.FlowReport) error {
 	return nil
 }
 

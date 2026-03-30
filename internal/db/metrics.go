@@ -128,10 +128,10 @@ func countIPsInCIDR(ipNet *net.IPNet) int {
 }
 
 func (db *Database) GetIPAddressesAllocated(ctx context.Context) (int, error) {
-	numSubs, err := db.CountSubscribersWithIP(ctx)
+	count, err := db.CountActiveLeases(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("failed to count subscribers: %v", err)
+		return 0, fmt.Errorf("failed to count active leases: %v", err)
 	}
 
-	return numSubs, nil
+	return count, nil
 }
