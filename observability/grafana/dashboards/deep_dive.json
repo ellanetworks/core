@@ -1390,7 +1390,7 @@
           "links": [
             {
               "title": "View Error Traces",
-              "url": "/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22tempo%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22datasource%22:%7B%22type%22:%22tempo%22,%22uid%22:%22tempo%22%7D,%22queryType%22:%22traceql%22,%22query%22:%22%7Bresource.service.name%20%3D%20%5C%22ella-core%5C%22%20%26%26%20status%20%3D%20error%7D%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D%7D&orgId=1"
+              "url": "/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22tempo%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22datasource%22:%7B%22type%22:%22tempo%22,%22uid%22:%22${DS_TEMPO}%22%7D,%22queryType%22:%22traceql%22,%22query%22:%22%7Bresource.service.name%20%3D%20%5C%22ella-core%5C%22%20%26%26%20status%20%3D%20error%7D%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D%7D&orgId=1"
             }
           ],
           "mappings": [],
@@ -1461,7 +1461,7 @@
         "type": "tempo",
         "uid": "${DS_TEMPO}"
       },
-      "description": "Maximum trace duration (slowest request) in the selected time range.",
+      "description": "Maximum NGAP trace duration (slowest NGAP request) in the selected time range.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1477,15 +1477,15 @@
               },
               {
                 "color": "yellow",
-                "value": 500
+                "value": 0.5
               },
               {
                 "color": "red",
-                "value": 1000
+                "value": 1
               }
             ]
           },
-          "unit": "ms"
+          "unit": "s"
         },
         "overrides": []
       },
@@ -1504,7 +1504,7 @@
         "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
-            "max"
+            "lastNotNull"
           ],
           "fields": "",
           "values": false
@@ -1520,13 +1520,12 @@
             "type": "tempo",
             "uid": "${DS_TEMPO}"
           },
-          "limit": 20000,
-          "query": "{resource.service.name = \"${trace_service}\" && rootName !~ \".*pprof.*\" && rootName !~ \".*metrics.*\"}",
+          "query": "{resource.service.name = \"${trace_service}\" && name = \"ngap/receive\"} | max_over_time(span:duration)",
           "queryType": "traceql",
           "refId": "A"
         }
       ],
-      "title": "Max Duration",
+      "title": "Max NGAP Duration",
       "type": "stat"
     },
     {
@@ -1570,7 +1569,7 @@
                 "value": [
                   {
                     "title": "View Trace",
-                    "url": "/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22tempo%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22datasource%22:%7B%22type%22:%22tempo%22,%22uid%22:%22tempo%22%7D,%22query%22:%22${__value.raw}%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D%7D&orgId=1"
+                    "url": "/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22tempo%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22datasource%22:%7B%22type%22:%22tempo%22,%22uid%22:%22${DS_TEMPO}%22%7D,%22query%22:%22${__value.raw}%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D%7D&orgId=1"
                   }
                 ]
               }
@@ -1689,7 +1688,7 @@
                 "value": [
                   {
                     "title": "View Trace",
-                    "url": "/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22tempo%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22datasource%22:%7B%22type%22:%22tempo%22,%22uid%22:%22tempo%22%7D,%22query%22:%22${__value.raw}%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D%7D&orgId=1"
+                    "url": "/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22tempo%22,%22queries%22:%5B%7B%22refId%22:%22A%22,%22datasource%22:%7B%22type%22:%22tempo%22,%22uid%22:%22${DS_TEMPO}%22%7D,%22query%22:%22${__value.raw}%22%7D%5D,%22range%22:%7B%22from%22:%22now-1h%22,%22to%22:%22now%22%7D%7D%7D&orgId=1"
                   }
                 ]
               }
@@ -1940,10 +1939,14 @@
   "templating": {
     "list": [
       {
-        "current": {},
+        "current": {
+          "selected": true,
+          "text": "Mimir",
+          "value": "mimir"
+        },
         "includeAll": false,
-        "label": "Prometheus",
-        "name": "DS_PROMETHEUS",
+        "label": "Mimir",
+        "name": "DS_MIMIR",
         "options": [],
         "query": "prometheus",
         "refresh": 1,
@@ -1951,7 +1954,11 @@
         "type": "datasource"
       },
       {
-        "current": {},
+        "current": {
+          "selected": true,
+          "text": "Loki",
+          "value": "loki"
+        },
         "includeAll": false,
         "label": "Loki",
         "name": "DS_LOKI",
@@ -1962,7 +1969,11 @@
         "type": "datasource"
       },
       {
-        "current": {},
+        "current": {
+          "selected": true,
+          "text": "Pyroscope",
+          "value": "pyroscope"
+        },
         "includeAll": false,
         "label": "Pyroscope",
         "name": "DS_PYROSCOPE",
@@ -1973,7 +1984,11 @@
         "type": "datasource"
       },
       {
-        "current": {},
+        "current": {
+          "selected": true,
+          "text": "Tempo",
+          "value": "tempo"
+        },
         "includeAll": false,
         "label": "Tempo",
         "name": "DS_TEMPO",
