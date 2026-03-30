@@ -1,0 +1,61 @@
+server:
+  http_listen_port: 3200
+
+query_frontend:
+  mcp_server:
+    enabled: true
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+
+ingester:
+  lifecycler:
+    address: "127.0.0.1"
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+  max_block_duration: 30m
+
+compactor:
+  compaction:
+    block_retention: 336h
+
+metrics_generator:
+  ring:
+    kvstore:
+      store: inmemory
+  traces_storage:
+    path: /var/tempo/generator/traces
+  storage:
+    path: /var/tempo/generator/wal
+    remote_write:
+      - url: http://ella-mimir:9009/api/v1/push
+        send_exemplars: true
+  processor:
+    local_blocks:
+      filter_server_spans: false
+    span_metrics: {}
+    service_graphs: {}
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors:
+        - local-blocks
+        - span-metrics
+        - service-graphs
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/traces
+    wal:
+      path: /var/tempo/wal

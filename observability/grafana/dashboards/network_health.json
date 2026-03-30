@@ -1,8 +1,8 @@
 {
   "__inputs": [
     {
-      "name": "DS_PROMETHEUS",
-      "label": "Prometheus",
+      "name": "DS_MIMIR",
+      "label": "Mimir",
       "description": "",
       "type": "datasource",
       "pluginId": "prometheus",
@@ -74,7 +74,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "${DS_MIMIR}"
       },
       "description": "Live number of connected radios in Ella Core.",
       "fieldConfig": {
@@ -125,7 +125,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "builder",
           "expr": "app_connected_radios{job=~\"$job\",instance=~\"$instance\"}",
@@ -140,7 +140,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "${DS_MIMIR}"
       },
       "description": "Percentage of successful registration attempts by UE's in Ella Core over the last 5 minutes. ",
       "fieldConfig": {
@@ -191,7 +191,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "(\n  100 * (\n    sum(rate(app_registration_attempts_total{job=~\"$job\",instance=~\"$instance\",result=\"accept\"}[$__rate_interval]))\n    /\n    sum(rate(app_registration_attempts_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]))\n  )\n  and\n  sum(rate(app_registration_attempts_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])) > 0\n)\nor vector(100)",
@@ -207,7 +207,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "${DS_MIMIR}"
       },
       "description": "Percentage of UE PDU Session Establishment Requests accepted by Ella Core over the last 5 minutes. ",
       "fieldConfig": {
@@ -266,7 +266,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "(\n  100 * (\n    sum(rate(app_pdu_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\",result=\"accept\"}[$__rate_interval]))\n    /\n    sum(rate(app_pdu_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]))\n  )\n  and\n  sum(rate(app_pdu_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])) > 0\n)\nor vector(100)",
@@ -282,7 +282,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "${DS_MIMIR}"
       },
       "description": "Live number of active PDU sessions. ",
       "fieldConfig": {
@@ -333,7 +333,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "builder",
           "expr": "app_pdu_sessions_total{job=~\"$job\",instance=~\"$instance\"}",
@@ -348,7 +348,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "${DS_MIMIR}"
       },
       "description": "Total live throughput (uplink + downlink)",
       "fieldConfig": {
@@ -399,7 +399,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "(rate(app_uplink_bytes{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]) * 8) + (rate(app_downlink_bytes{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]) * 8)",
@@ -415,7 +415,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "${DS_MIMIR}"
       },
       "description": "Percentage of API requests returning 5xx status codes over the last 5 minutes.",
       "fieldConfig": {
@@ -476,7 +476,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "(sum(rate(app_api_requests_total{job=~\"$job\",instance=~\"$instance\",status=~\"5..\"}[$__rate_interval])) or vector(0)) / \n(sum(rate(app_api_requests_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])) > 0 or vector(1)) * 100",
@@ -506,7 +506,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "${DS_MIMIR}"
       },
       "description": "Amount of time since Ella Core started",
       "fieldConfig": {
@@ -557,7 +557,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "time() - process_start_time_seconds{job=~\"$job\",instance=~\"$instance\"}",
@@ -572,7 +572,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "${DS_MIMIR}"
       },
       "description": "CPU Cores used by Ella Core's user space program (this does not include XDP packet processing).",
       "fieldConfig": {
@@ -624,7 +624,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "rate(process_cpu_seconds_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])",
@@ -640,7 +640,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "${DS_MIMIR}"
       },
       "description": "Total physical RAM used by the process",
       "fieldConfig": {
@@ -699,7 +699,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "builder",
           "expr": "process_resident_memory_bytes{job=~\"$job\",instance=~\"$instance\"}",
@@ -714,7 +714,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "${DS_MIMIR}"
       },
       "description": "Total size of the SQLite database.",
       "fieldConfig": {
@@ -779,7 +779,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "builder",
           "expr": "app_database_storage_bytes{job=~\"$job\",instance=~\"$instance\"}",
@@ -794,7 +794,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "${DS_MIMIR}"
       },
       "description": "Cumulative IP pool utilization for all data networks configured in Ella Core.",
       "fieldConfig": {
@@ -854,7 +854,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "100 * app_ip_addresses_allocated_total{job=~\"$job\",instance=~\"$instance\"} / app_ip_addresses_total{job=~\"$job\",instance=~\"$instance\"}",
@@ -882,7 +882,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "${DS_MIMIR}"
       },
       "description": "Received NGAP Messages per type.",
       "fieldConfig": {
@@ -967,7 +967,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "rate(app_ngap_messages_total{job=~\"$job\",instance=~\"$instance\",}[$__rate_interval])",
@@ -983,7 +983,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "${DS_MIMIR}"
       },
       "description": "Number of UEs in registered state.",
       "fieldConfig": {
@@ -1069,7 +1069,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "builder",
           "expr": "app_registered_subscribers{job=~\"$job\",instance=~\"$instance\"}",
@@ -1084,7 +1084,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "${DS_MIMIR}"
       },
       "description": "Rate of accepted vs rejected UE registration attempts per type.",
       "fieldConfig": {
@@ -1196,7 +1196,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "sum(rate(app_registration_attempts_total{job=~\"$job\",instance=~\"$instance\",result=\"accept\"}[$__rate_interval])) by (type)",
@@ -1208,7 +1208,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "sum(rate(app_registration_attempts_total{job=~\"$job\",instance=~\"$instance\",result=\"reject\"}[$__rate_interval])) by (type)",
@@ -1226,7 +1226,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "${DS_MIMIR}"
       },
       "description": "Number of active PDU sessions in Ella Core.",
       "fieldConfig": {
@@ -1312,7 +1312,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "builder",
           "expr": "app_pdu_sessions_total{job=~\"$job\",instance=~\"$instance\"}",
@@ -1327,7 +1327,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "${DS_MIMIR}"
       },
       "description": "Rate of accepted vs rejected PDU Session Establishment requests.",
       "fieldConfig": {
@@ -1442,7 +1442,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "rate(app_pdu_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\",result=\"accept\"}[$__rate_interval])",
@@ -1454,7 +1454,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "rate(app_pdu_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\",result=\"reject\"}[$__rate_interval])",
@@ -1485,7 +1485,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "${DS_MIMIR}"
       },
       "description": "Bitrate for uplink and downlink GTP traffic",
       "fieldConfig": {
@@ -1601,7 +1601,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "rate(app_uplink_bytes{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]) * 8",
@@ -1613,7 +1613,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "rate(app_downlink_bytes{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]) * 8",
@@ -1631,7 +1631,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "${DS_MIMIR}"
       },
       "description": "XDP action rate for packets arriving on the N3 interface (from the radio network).",
       "fieldConfig": {
@@ -1716,7 +1716,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n3\",action=\"XDP_PASS\"}[$__rate_interval])",
@@ -1728,7 +1728,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n3\",action=\"XDP_TX\"}[$__rate_interval])",
@@ -1742,7 +1742,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n3\",action=\"XDP_REDIRECT\"}[$__rate_interval])",
@@ -1756,7 +1756,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n3\",action=\"XDP_DROP\"}[$__rate_interval])",
@@ -1770,7 +1770,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n3\",action=\"XDP_ABORTED\"}[$__rate_interval])",
@@ -1788,7 +1788,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "${DS_MIMIR}"
       },
       "description": "XDP action rate for packets arriving on the N6 interface (from the data network).",
       "fieldConfig": {
@@ -1873,7 +1873,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n6\",action=\"XDP_PASS\"}[$__rate_interval])",
@@ -1885,7 +1885,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n6\",action=\"XDP_TX\"}[$__rate_interval])",
@@ -1899,7 +1899,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n6\",action=\"XDP_REDIRECT\"}[$__rate_interval])",
@@ -1913,7 +1913,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n6\",action=\"XDP_DROP\"}[$__rate_interval])",
@@ -1927,7 +1927,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
           "expr": "rate(app_xdp_action_total{job=~\"$job\",instance=~\"$instance\",interface=\"n6\",action=\"XDP_ABORTED\"}[$__rate_interval])",
@@ -1955,7 +1955,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "description": "Amount of API requests per second.",
           "fieldConfig": {
@@ -2006,7 +2006,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
+                "uid": "${DS_MIMIR}"
               },
               "editorMode": "code",
               "expr": "sum(rate(app_api_requests_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]))",
@@ -2022,7 +2022,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "description": "Rate of API request per endpoint color coded by status code.",
           "fieldConfig": {
@@ -2155,7 +2155,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
+                "uid": "${DS_MIMIR}"
               },
               "editorMode": "code",
               "expr": "rate(app_api_requests_total{job=~\"$job\",instance=~\"$instance\",endpoint!~\"/api/v1/(pprof|metrics)\"}[$__rate_interval])",
@@ -2171,7 +2171,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "description": "API latency percentiles per bucket. For example, a datapoint for p99 at 24.2ms means that 99% of requests take less than 24.2ms.",
           "fieldConfig": {
@@ -2302,7 +2302,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
+                "uid": "${DS_MIMIR}"
               },
               "editorMode": "code",
               "expr": "histogram_quantile(0.50, \n  sum(rate(app_api_request_duration_seconds_bucket{job=~\"$job\",instance=~\"$instance\",endpoint!~\"/api/v1/(pprof|metrics)\"}[$__rate_interval])) by (le)\n)",
@@ -2314,7 +2314,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
+                "uid": "${DS_MIMIR}"
               },
               "editorMode": "code",
               "expr": "histogram_quantile(0.95, \n  sum(rate(app_api_request_duration_seconds_bucket{job=~\"$job\",instance=~\"$instance\",endpoint!~\"/api/v1/(pprof|metrics)\"}[$__rate_interval])) by (le)\n)",
@@ -2328,7 +2328,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
+                "uid": "${DS_MIMIR}"
               },
               "editorMode": "code",
               "expr": "histogram_quantile(0.99, \n  sum(rate(app_api_request_duration_seconds_bucket{job=~\"$job\",instance=~\"$instance\",endpoint!~\"/api/v1/(pprof|metrics)\"}[$__rate_interval])) by (le)\n)",
@@ -2346,7 +2346,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "description": "Percentage of successful API authentication over the last 5 minutes.",
           "fieldConfig": {
@@ -2398,7 +2398,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
+                "uid": "${DS_MIMIR}"
               },
               "editorMode": "code",
               "expr": "100 *\nsum(rate(app_api_authentication_attempts_total{job=~\"$job\",instance=~\"$instance\",result=\"success\"}[$__rate_interval]))\n/\nsum(rate(app_api_authentication_attempts_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]))\nand\nsum(rate(app_api_authentication_attempts_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])) > 0\n",
@@ -2414,7 +2414,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "description": "Rate of successful vs failed API authentication attempts",
           "fieldConfig": {
@@ -2530,7 +2530,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
+                "uid": "${DS_MIMIR}"
               },
               "editorMode": "code",
               "expr": "sum(rate(app_api_authentication_attempts_total{job=~\"$job\",instance=~\"$instance\",result=\"success\"}[$__rate_interval]))",
@@ -2542,7 +2542,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
+                "uid": "${DS_MIMIR}"
               },
               "editorMode": "code",
               "expr": "sum(rate(app_api_authentication_attempts_total{job=~\"$job\",instance=~\"$instance\",result=\"failure\"}[$__rate_interval]))",
@@ -2574,7 +2574,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "description": "Memory In-Use Bytes (Heap)",
           "fieldConfig": {
@@ -2660,7 +2660,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
+                "uid": "${DS_MIMIR}"
               },
               "editorMode": "builder",
               "expr": "go_memstats_heap_inuse_bytes{job=~\"$job\",instance=~\"$instance\"}",
@@ -2675,7 +2675,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "description": "Number of CPU cores used by the Ella Core process",
           "fieldConfig": {
@@ -2761,7 +2761,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
+                "uid": "${DS_MIMIR}"
               },
               "editorMode": "code",
               "expr": "rate(process_cpu_seconds_total{job=~\"$job\",instance=~\"$instance\",}[$__rate_interval])",
@@ -2777,7 +2777,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "description": "Number of goroutines",
           "fieldConfig": {
@@ -2859,7 +2859,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
+                "uid": "${DS_MIMIR}"
               },
               "editorMode": "builder",
               "expr": "go_goroutines{job=~\"$job\",instance=~\"$instance\"}",
@@ -2874,7 +2874,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "description": "Total Database file size",
           "fieldConfig": {
@@ -2956,7 +2956,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
+                "uid": "${DS_MIMIR}"
               },
               "editorMode": "builder",
               "expr": "app_database_storage_bytes{job=~\"$job\",instance=~\"$instance\"}",
@@ -2971,7 +2971,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "description": "Rate of database queries by table and operation type",
           "fieldConfig": {
@@ -3058,7 +3058,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
+                "uid": "${DS_MIMIR}"
               },
               "editorMode": "code",
               "expr": "rate(app_database_queries_total{job=~\"$job\",instance=~\"$instance\",}[$__rate_interval])",
@@ -3074,7 +3074,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "${DS_MIMIR}"
           },
           "description": "DB latency percentiles per bucket. For example, a datapoint for p99 at 3.987ms means that 99% of requests take less than 3.987ms.",
           "fieldConfig": {
@@ -3214,7 +3214,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
+                "uid": "${DS_MIMIR}"
               },
               "editorMode": "code",
               "expr": "histogram_quantile(0.50, sum(rate(app_database_query_duration_seconds_bucket{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])) by (le))",
@@ -3226,7 +3226,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
+                "uid": "${DS_MIMIR}"
               },
               "editorMode": "code",
               "expr": "histogram_quantile(0.95, sum(rate(app_database_query_duration_seconds_bucket{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])) by (le))",
@@ -3238,7 +3238,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
+                "uid": "${DS_MIMIR}"
               },
               "editorMode": "code",
               "expr": "histogram_quantile(0.99, sum(rate(app_database_query_duration_seconds_bucket{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])) by (le))",
@@ -3267,10 +3267,14 @@
   "templating": {
     "list": [
       {
-        "current": {},
+        "current": {
+          "selected": true,
+          "text": "Mimir",
+          "value": "mimir"
+        },
         "includeAll": false,
-        "label": "Data source",
-        "name": "DS_PROMETHEUS",
+        "label": "Mimir",
+        "name": "DS_MIMIR",
         "options": [],
         "query": "prometheus",
         "refresh": 1,
@@ -3282,7 +3286,7 @@
         "current": {},
         "datasource": {
           "type": "prometheus",
-          "uid": "${DS_PROMETHEUS}"
+          "uid": "${DS_MIMIR}"
         },
         "definition": "label_values(up, job)",
         "includeAll": true,
@@ -3303,7 +3307,7 @@
         "current": {},
         "datasource": {
           "type": "prometheus",
-          "uid": "${DS_PROMETHEUS}"
+          "uid": "${DS_MIMIR}"
         },
         "definition": "label_values(up{job=~\"$job\"}, instance)",
         "includeAll": true,
@@ -3328,7 +3332,7 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "Ella Core Network Health",
-  "uid": "adbqjzm",
+  "uid": "ella-network-health",
   "version": 9,
   "weekStart": "",
   "id": null
