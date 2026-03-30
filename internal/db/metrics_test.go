@@ -7,6 +7,7 @@ import (
 	"net"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 )
@@ -40,6 +41,11 @@ func TestDatabaseMetrics(t *testing.T) {
 		}
 	}
 
+	createdDN, err := database.GetDataNetwork(context.Background(), "not-internet")
+	if err != nil {
+		t.Fatalf("Couldn't get data network: %s", err)
+	}
+
 	policies := []db.Policy{
 		{Name: "Policy1", DataNetworkID: 1},
 		{Name: "Policy2", DataNetworkID: 1},
@@ -51,13 +57,9 @@ func TestDatabaseMetrics(t *testing.T) {
 		}
 	}
 
-	ip1 := "10.45.0.2"
-	ip2 := "10.0.0.3"
-
 	subscribers := []db.Subscriber{
 		{
 			Imsi:           "001019379926281",
-			IPAddress:      &ip1,
 			SequenceNumber: "000000000001",
 			PolicyID:       1,
 			Opc:            "1234567890abcdef1234567890abcdef",
@@ -65,7 +67,6 @@ func TestDatabaseMetrics(t *testing.T) {
 		},
 		{
 			Imsi:           "001019379926282",
-			IPAddress:      &ip2,
 			SequenceNumber: "000000000002",
 			PolicyID:       2,
 			Opc:            "1234567890abcdef1234567890abcdef",
@@ -73,7 +74,6 @@ func TestDatabaseMetrics(t *testing.T) {
 		},
 		{
 			Imsi:           "001019379926283",
-			IPAddress:      nil,
 			SequenceNumber: "000000000003",
 			PolicyID:       1,
 			Opc:            "1234567890abcdef1234567890abcdef",
@@ -85,6 +85,25 @@ func TestDatabaseMetrics(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Couldn't create subscriber: %s", err)
 		}
+	}
+
+	// Create two active leases (with session IDs) to simulate allocated IPs.
+	now := time.Now().Unix()
+	sess1 := 1
+	sess2 := 2
+
+	if err := database.CreateLease(context.Background(), &db.IPLease{
+		PoolID: createdDN.ID, Address: "10.0.0.2", IMSI: "001019379926281",
+		SessionID: &sess1, Type: "dynamic", CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("CreateLease 1: %s", err)
+	}
+
+	if err := database.CreateLease(context.Background(), &db.IPLease{
+		PoolID: createdDN.ID, Address: "10.0.0.3", IMSI: "001019379926282",
+		SessionID: &sess2, Type: "dynamic", CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("CreateLease 2: %s", err)
 	}
 
 	t.Run("GetSize", func(t *testing.T) {
@@ -118,7 +137,7 @@ func TestDatabaseMetrics(t *testing.T) {
 			t.Fatalf("Couldn't get allocated IP addresses: %s", err)
 		}
 
-		expectedAllocated := 2 // Two subscribers have allocated IPs
+		expectedAllocated := 2 // Two active leases
 		if allocatedIPs != expectedAllocated {
 			t.Fatalf("Expected allocated IPs %d, got %d", expectedAllocated, allocatedIPs)
 		}

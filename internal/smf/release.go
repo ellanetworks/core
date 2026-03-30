@@ -37,11 +37,12 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	defer smContext.Mutex.Unlock()
 
 	if smContext.PDUAddress != nil {
-		if err := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.PDUAddress); err != nil {
-			logger.SmfLog.Error("release UE IP address failed", zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		released, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
+		if releaseErr != nil {
+			logger.SmfLog.Error("release UE IP address failed", zap.Error(releaseErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		} else if released.IsValid() {
+			s.withdrawRoute(released.AsSlice())
 		}
-
-		s.withdrawRoute(smContext.PDUAddress)
 	}
 
 	err := s.releaseTunnel(ctx, smContext)

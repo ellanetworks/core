@@ -7,16 +7,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"net"
 
 	"github.com/canonical/sqlair"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 const SubscribersTableName = "subscribers"
@@ -24,29 +21,21 @@ const SubscribersTableName = "subscribers"
 const (
 	listSubscribersPagedStmt     = "SELECT &Subscriber.*, COUNT(*) OVER() AS &NumItems.count from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getSubscriberStmt            = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
-	createSubscriberStmt         = "INSERT INTO %s (imsi, ipAddress, sequenceNumber, permanentKey, opc, policyID) VALUES ($Subscriber.imsi, $Subscriber.ipAddress, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.policyID)"
+	createSubscriberStmt         = "INSERT INTO %s (imsi, sequenceNumber, permanentKey, opc, policyID) VALUES ($Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.policyID)"
 	editSubscriberPolicyStmt     = "UPDATE %s SET policyID=$Subscriber.policyID WHERE imsi==$Subscriber.imsi"
 	editSubscriberSeqNumStmt     = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE imsi==$Subscriber.imsi"
 	deleteSubscriberStmt         = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
 	countSubscribersStmt         = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 	countSubscribersInPolicyStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE policyID=$Subscriber.policyID"
-	countSubscribersWithIPStmt   = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE ipAddress IS NOT NULL AND TRIM(ipAddress) <> ''"
-	listAllocatedIPsStmt         = "SELECT &Subscriber.ipAddress FROM %s WHERE ipAddress IS NOT NULL AND TRIM(ipAddress) <> ''"
-	listAllocatedIPMappingsStmt  = "SELECT &Subscriber.ipAddress, &Subscriber.imsi FROM %s WHERE ipAddress IS NOT NULL AND TRIM(ipAddress) <> ''"
-	checkIPStmt                  = "SELECT &Subscriber.* FROM %s WHERE ipAddress=$Subscriber.ipAddress"
-	allocateIPStmt               = "UPDATE %s SET ipAddress=$Subscriber.ipAddress WHERE imsi=$Subscriber.imsi"
-	releaseIPStmt                = "UPDATE %s SET ipAddress=NULL WHERE imsi=$Subscriber.imsi AND ipAddress=$Subscriber.ipAddress"
-	releaseAllIPStmt             = "UPDATE %s SET ipAddress=NULL"
 )
 
 type Subscriber struct {
-	ID             int     `db:"id"`
-	Imsi           string  `db:"imsi"`
-	IPAddress      *string `db:"ipAddress"`
-	SequenceNumber string  `db:"sequenceNumber"`
-	PermanentKey   string  `db:"permanentKey"`
-	Opc            string  `db:"opc"`
-	PolicyID       int     `db:"policyID"`
+	ID             int    `db:"id"`
+	Imsi           string `db:"imsi"`
+	SequenceNumber string `db:"sequenceNumber"`
+	PermanentKey   string `db:"permanentKey"`
+	Opc            string `db:"opc"`
+	PolicyID       int    `db:"policyID"`
 }
 
 func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage int) ([]Subscriber, int, error) {
@@ -410,163 +399,6 @@ func (db *Database) PoliciesInDataNetwork(ctx context.Context, name string) (boo
 	return false, nil
 }
 
-func (db *Database) AllocateIP(ctx context.Context, imsi string) (net.IP, error) {
-	ctx, span := tracer.Start(
-		ctx,
-		"AllocateIP",
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-		),
-	)
-	defer span.End()
-
-	subscriber, err := db.GetSubscriber(ctx, imsi)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get subscriber: %v", err)
-	}
-
-	policy, err := db.GetPolicyByID(ctx, subscriber.PolicyID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get policy for subscriber %s: %v", imsi, err)
-	}
-
-	dataNetwork, err := db.GetDataNetworkByID(ctx, policy.DataNetworkID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get data network for policy %s: %v", policy.Name, err)
-	}
-
-	_, ipNet, err := net.ParseCIDR(dataNetwork.IPPool)
-	if err != nil {
-		return nil, fmt.Errorf("invalid IP pool in policy %s: %v", policy.Name, err)
-	}
-
-	ctx, ipAllocSpan := tracer.Start(ctx, "db/ip_allocation_loop")
-	defer ipAllocSpan.End()
-
-	baseIP := ipNet.IP
-	maskBits, totalBits := ipNet.Mask.Size()
-	totalIPs := 1 << (totalBits - maskBits)
-
-	for i := 1; i < totalIPs-1; i++ { // Skip network and broadcast addresses
-		ip := addOffsetToIP(baseIP, i)
-		ipStr := ip.String()
-
-		var existing Subscriber
-
-		err = db.conn.Query(ctx, db.checkSubscriberIPStmt, Subscriber{IPAddress: &ipStr}).Get(&existing)
-		if errors.Is(err, sql.ErrNoRows) {
-			// IP is not allocated, assign it to the subscriber
-			subscriber.IPAddress = &ipStr
-
-			timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "update"))
-
-			DBQueriesTotal.WithLabelValues(SubscribersTableName, "update").Inc()
-
-			err = db.conn.Query(ctx, db.allocateSubscriberIPStmt, subscriber).Run()
-
-			timer.ObserveDuration()
-
-			if err != nil {
-				if isUniqueNameError(err) {
-					logger.WithTrace(ctx, logger.DBLog).Warn("IP address collision during allocation, retrying", zap.String("ip", ipStr))
-					continue
-				}
-
-				return nil, fmt.Errorf("failed to allocate IP: %v", err)
-			}
-
-			return ip, nil
-		} else if err != nil {
-			return nil, fmt.Errorf("failed to check IP availability: %v", err)
-		}
-	}
-
-	return nil, fmt.Errorf("no available IP addresses")
-}
-
-// ReleaseIP removes the given IP assignment for a subscriber.
-// It only clears the IP if the subscriber's current ipAddress matches ip,
-// so a stale release cannot clobber a newer active session's address.
-func (db *Database) ReleaseIP(ctx context.Context, imsi string, ip net.IP) error {
-	ctx, span := tracer.Start(
-		ctx,
-		"ReleaseIP",
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-		),
-	)
-	defer span.End()
-
-	ipStr := ip.String()
-	subscriber := Subscriber{
-		Imsi:      imsi,
-		IPAddress: &ipStr,
-	}
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "update"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SubscribersTableName, "update").Inc()
-
-	err := db.conn.Query(ctx, db.releaseSubscriberIPStmt, subscriber).Run()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "release failed")
-
-		return fmt.Errorf("failed to release IP: %v", err)
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return nil
-}
-
-// ReleaseAllIPs removes all assigned IPs for all subscribers.
-// This is meant to be called only on startup or shutdown.
-func (db *Database) ReleaseAllIPs(ctx context.Context) error {
-	ctx, span := tracer.Start(
-		ctx,
-		"ReleaseAllIPs",
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "update"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SubscribersTableName, "update").Inc()
-
-	err := db.conn.Query(ctx, db.releaseAllIPStmt).Run()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "release failed")
-
-		return fmt.Errorf("failed to release all IPs: %v", err)
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return nil
-}
-
-func addOffsetToIP(baseIP net.IP, offset int) net.IP {
-	resultIP := make(net.IP, len(baseIP))
-	copy(resultIP, baseIP)
-
-	for i := len(resultIP) - 1; i >= 0; i-- {
-		offset += int(resultIP[i])
-		resultIP[i] = byte(offset)
-		offset >>= 8
-	}
-
-	return resultIP
-}
-
 func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
 	ctx, span := tracer.Start(
 		ctx,
@@ -634,138 +466,4 @@ func (db *Database) CountSubscribersInPolicy(ctx context.Context, policyID int) 
 	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
-}
-
-func (db *Database) CountSubscribersWithIP(ctx context.Context) (int, error) {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s (with IP)", "SELECT", SubscribersTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", SubscribersTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
-
-	var result NumItems
-
-	err := db.conn.Query(ctx, db.countSubscribersWithIPStmt).Get(&result)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return 0, fmt.Errorf("query failed: %w", err)
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return result.Count, nil
-}
-
-// ListAllocatedIPs returns all IP addresses currently allocated to subscribers.
-func (db *Database) ListAllocatedIPs(ctx context.Context) ([]net.IP, error) {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s (allocated IPs)", "SELECT", SubscribersTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", SubscribersTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
-
-	var subs []Subscriber
-
-	err := db.conn.Query(ctx, db.listAllocatedIPsStmt).GetAll(&subs)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
-			return nil, nil
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return nil, fmt.Errorf("query failed: %w", err)
-	}
-
-	var ips []net.IP
-
-	for _, sub := range subs {
-		if sub.IPAddress != nil {
-			ip := net.ParseIP(*sub.IPAddress)
-			if ip != nil {
-				ips = append(ips, ip)
-			}
-		}
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return ips, nil
-}
-
-// ListAllocatedIPMappings returns a map from allocated IP address strings to
-// subscriber IMSIs. This is used by the BGP service to associate advertised
-// routes with their owning subscribers.
-func (db *Database) ListAllocatedIPMappings(ctx context.Context) (map[string]string, error) {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s (allocated IP mappings)", "SELECT", SubscribersTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", SubscribersTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(SubscribersTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(SubscribersTableName, "select").Inc()
-
-	var subs []Subscriber
-
-	err := db.conn.Query(ctx, db.listAllocatedIPMappingsStmt).GetAll(&subs)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-
-			return nil, nil
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return nil, fmt.Errorf("query failed: %w", err)
-	}
-
-	result := make(map[string]string, len(subs))
-
-	for _, sub := range subs {
-		if sub.IPAddress != nil {
-			result[*sub.IPAddress] = sub.Imsi
-		}
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return result, nil
 }

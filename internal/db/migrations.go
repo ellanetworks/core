@@ -27,7 +27,7 @@ var migrations = []migration{
 	{1, "baseline schema", migrateV1},
 	{2, "add NAS security columns, home network keys table, and SPN columns", migrateV2},
 	{3, "add radio_name column to network_logs", migrateV3},
-	{4, "add bgp_settings and bgp_peers tables", migrateV4},
+	{4, "add bgp_settings, bgp_peers, jwt_secret, ip_leases tables; drop ipAddress from subscribers", migrateV4},
 }
 
 // latestVersion returns the highest migration version in the registry.

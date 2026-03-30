@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"testing"
 	"time"
@@ -506,7 +507,7 @@ func TestCreateSmContext_DNNNotFound(t *testing.T) {
 
 func TestCreateSmContext_IPExhaustion(t *testing.T) {
 	store, upf, amfCb := defaultFakes()
-	store.allocatedIP = nil
+	store.allocatedIP = netip.Addr{}
 	store.err = fmt.Errorf("no IP available")
 	s := newTestSMF(store, upf, amfCb)
 	ctx := context.Background()
