@@ -249,7 +249,7 @@ func (ranUe *RanUe) Remove() error {
 	}
 
 	if ranUe.amfUe != nil {
-		ranUe.amfUe.DetachRanUe()
+		ranUe.amfUe.DetachRanUe(ranUe)
 	}
 
 	ran := ranUe.Radio
@@ -265,7 +265,10 @@ func (ranUe *RanUe) Remove() error {
 		ranUe.freeNgapID(ranUe.AmfUeNgapID)
 	}
 
-	logger.AmfLog.Info("ran ue removed", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+	logger.AmfLog.Info("ran ue removed",
+		zap.Int64("amfUeNgapID", ranUe.AmfUeNgapID),
+		zap.Int64("ranUeNgapID", ranUe.RanUeNgapID),
+	)
 
 	return nil
 }

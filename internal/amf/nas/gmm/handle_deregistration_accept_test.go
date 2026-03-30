@@ -40,7 +40,7 @@ func TestHandleDeregistrationAccept_NilRanUE_NoMessage(t *testing.T) {
 		t.Fatalf("could not build test UE and radio: %v", err)
 	}
 
-	ue.DetachRanUe()
+	ue.DetachRanUe(nil)
 
 	err = handleDeregistrationAccept(t.Context(), ue)
 	if err != nil {

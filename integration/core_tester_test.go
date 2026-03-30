@@ -36,6 +36,15 @@ func TestIntegrationEllaCoreTester(t *testing.T) {
 		t.Fatalf("failed to bring up compose: %v", err)
 	}
 
+	t.Cleanup(func() {
+		logs, err := dockerClient.ComposeLogs(ctx, "compose/core-tester/", "ella-core")
+		if err != nil {
+			t.Logf("failed to collect ella-core logs: %v", err)
+		} else {
+			t.Logf("=== ella-core container logs ===\n%s", logs)
+		}
+	})
+
 	t.Log("deployed ella core")
 
 	clientConfig := &client.Config{

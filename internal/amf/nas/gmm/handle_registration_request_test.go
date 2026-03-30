@@ -846,7 +846,147 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 	}
 }
 
+// TestHandleRegistrationRequest_NgKsi_Increment validates that the AMF
+// allocates the next available ngKSI slot (current + 1) to avoid reusing
+// the UE's active key, per 3GPP TS 24.501 section 9.11.3.32.
+func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
+
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.Suci = "testsuci"
+	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
+
+	m, err := buildTestRegistrationRequestMessageWithNgKsi(0, nil, 0, 3)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m)
+	if err != nil {
+		t.Fatalf("registration request should be accepted, got: %v", err)
+	}
+
+	if ue.NgKsi.Ksi != 4 {
+		t.Fatalf("expected ngKSI=4 (next after 3), got %d", ue.NgKsi.Ksi)
+	}
+}
+
+// TestHandleRegistrationRequest_NgKsi_WrapAt6 validates that when the UE sends
+// ngKSI=6 (the maximum valid value), the AMF wraps around to 0 rather than
+// using value 7 (which means "no key available").
+func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
+
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.Suci = "testsuci"
+	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
+
+	m, err := buildTestRegistrationRequestMessageWithNgKsi(0, nil, 0, 6)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m)
+	if err != nil {
+		t.Fatalf("registration request should be accepted, got: %v", err)
+	}
+
+	if ue.NgKsi.Ksi != 0 {
+		t.Fatalf("expected ngKSI=0 (wrapped from 6), got %d", ue.NgKsi.Ksi)
+	}
+}
+
+// TestHandleRegistrationRequest_NgKsi_NoKeyAvailable validates that when the UE
+// sends ngKSI=7 ("no key available"), the AMF handles it gracefully by
+// resetting to 0 with native security context type.
+func TestHandleRegistrationRequest_NgKsi_NoKeyAvailable(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			Sst:           1,
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
+
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.Suci = "testsuci"
+	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
+
+	m, err := buildTestRegistrationRequestMessageWithNgKsi(0, nil, 0, 7)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m)
+	if err != nil {
+		t.Fatalf("registration request should be accepted, got: %v", err)
+	}
+
+	if ue.NgKsi.Ksi != 0 {
+		t.Fatalf("expected ngKSI=0 (reset from no-key-available=7), got %d", ue.NgKsi.Ksi)
+	}
+
+	if ue.NgKsi.Tsc != models.ScTypeNative {
+		t.Fatalf("expected TSC=NATIVE, got %v", ue.NgKsi.Tsc)
+	}
+}
+
 func buildTestRegistrationRequestMessage(cipherAlg uint8, key *[16]uint8, ulcount uint32) (*nas.GmmMessage, error) {
+	return buildTestRegistrationRequestMessageWithNgKsi(cipherAlg, key, ulcount, 0)
+}
+
+func buildTestRegistrationRequestMessageWithNgKsi(cipherAlg uint8, key *[16]uint8, ulcount uint32, ngKsi uint8) (*nas.GmmMessage, error) {
 	m := nas.NewGmmMessage()
 
 	registrationRequest := nasMessage.NewRegistrationRequest(0)
@@ -854,7 +994,7 @@ func buildTestRegistrationRequestMessage(cipherAlg uint8, key *[16]uint8, ulcoun
 	registrationRequest.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
 	registrationRequest.SetSpareHalfOctet(0x00)
 	registrationRequest.SetMessageType(nas.MsgTypeRegistrationRequest)
-	registrationRequest.NgksiAndRegistrationType5GS.SetNasKeySetIdentifiler(uint8(0))
+	registrationRequest.NgksiAndRegistrationType5GS.SetNasKeySetIdentifiler(ngKsi)
 	registrationRequest.SetRegistrationType5GS(nasMessage.RegistrationType5GSInitialRegistration)
 	registrationRequest.SetFOR(1)
 	registrationRequest.MobileIdentity5GS = nasType.MobileIdentity5GS{
