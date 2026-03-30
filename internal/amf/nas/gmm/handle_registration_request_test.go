@@ -855,7 +855,6 @@ func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &FakeAusf{
@@ -899,7 +898,6 @@ func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &FakeAusf{
@@ -943,7 +941,6 @@ func TestHandleRegistrationRequest_NgKsi_NoKeyAvailable(t *testing.T) {
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &FakeAusf{
