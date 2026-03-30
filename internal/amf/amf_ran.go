@@ -87,11 +87,6 @@ func (r *Radio) RemoveAllUeInRan() {
 
 	r.mu.RUnlock()
 
-	logger.AmfLog.Info("RemoveAllUeInRan: removing all UEs from radio",
-		zap.String("radioName", r.Name),
-		zap.Int("ueCount", len(ues)),
-	)
-
 	for _, ranUe := range ues {
 		err := ranUe.Remove()
 		if err != nil {

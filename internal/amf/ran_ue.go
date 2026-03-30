@@ -248,19 +248,8 @@ func (ranUe *RanUe) Remove() error {
 		return fmt.Errorf("ran ue is nil")
 	}
 
-	amfUe := ranUe.amfUe
-	if amfUe != nil {
-		logger.AmfLog.Info("RanUe.Remove: detaching from AmfUe",
-			zap.Int64("amfUeNgapID", ranUe.AmfUeNgapID),
-			zap.Int64("ranUeNgapID", ranUe.RanUeNgapID),
-			logger.SUPI(amfUe.Supi.String()),
-		)
-		amfUe.DetachRanUe(ranUe)
-	} else {
-		logger.AmfLog.Info("RanUe.Remove: no AmfUe associated",
-			zap.Int64("amfUeNgapID", ranUe.AmfUeNgapID),
-			zap.Int64("ranUeNgapID", ranUe.RanUeNgapID),
-		)
+	if ranUe.amfUe != nil {
+		ranUe.amfUe.DetachRanUe(ranUe)
 	}
 
 	ran := ranUe.Radio

@@ -233,21 +233,10 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	ranUe.amfUe = ue
 
 	if oldRanUe != nil && oldRanUe != ranUe {
-		logger.AmfLog.Info("AttachRanUe replacing previous RanUe",
-			logger.SUPI(ue.Supi.String()),
-			zap.Int64("oldAmfUeNgapID", oldRanUe.AmfUeNgapID),
-			zap.Int64("newAmfUeNgapID", ranUe.AmfUeNgapID),
-		)
-
 		if oldRanUe.amfUe == ue {
 			oldRanUe.Log.Info("Detached UeContext from previous RanUe")
 			oldRanUe.amfUe = nil
 		}
-	} else if oldRanUe == nil {
-		logger.AmfLog.Info("AttachRanUe new association",
-			logger.SUPI(ue.Supi.String()),
-			zap.Int64("amfUeNgapID", ranUe.AmfUeNgapID),
-		)
 	}
 
 	ue.LastSeenAt = time.Now()
@@ -270,15 +259,11 @@ func (ue *AmfUe) DetachRanUe(target *RanUe) {
 	defer ue.Mutex.Unlock()
 
 	if ue.ranUe == nil {
-		logger.AmfLog.Info("DetachRanUe: already nil, nothing to detach",
-			logger.SUPI(ue.Supi.String()),
-		)
-
 		return
 	}
 
 	if target != nil && ue.ranUe != target {
-		logger.AmfLog.Warn("DetachRanUe: skipping, current RanUe does not match target (race avoided)",
+		logger.AmfLog.Warn("DetachRanUe: current RanUe does not match target, skipping",
 			logger.SUPI(ue.Supi.String()),
 			zap.Int64("currentAmfUeNgapID", ue.ranUe.AmfUeNgapID),
 			zap.Int64("targetAmfUeNgapID", target.AmfUeNgapID),
@@ -286,11 +271,6 @@ func (ue *AmfUe) DetachRanUe(target *RanUe) {
 
 		return
 	}
-
-	logger.AmfLog.Info("DetachRanUe: detaching",
-		logger.SUPI(ue.Supi.String()),
-		zap.Int64("amfUeNgapID", ue.ranUe.AmfUeNgapID),
-	)
 
 	if ue.ranUe.amfUe == ue {
 		ue.ranUe.amfUe = nil
