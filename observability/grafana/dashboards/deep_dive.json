@@ -1940,10 +1940,14 @@
   "templating": {
     "list": [
       {
-        "current": {},
+        "current": {
+          "selected": true,
+          "text": "Mimir",
+          "value": "mimir"
+        },
         "includeAll": false,
-        "label": "Prometheus",
-        "name": "DS_PROMETHEUS",
+        "label": "Mimir",
+        "name": "DS_MIMIR",
         "options": [],
         "query": "prometheus",
         "refresh": 1,
@@ -1951,7 +1955,11 @@
         "type": "datasource"
       },
       {
-        "current": {},
+        "current": {
+          "selected": true,
+          "text": "Loki",
+          "value": "loki"
+        },
         "includeAll": false,
         "label": "Loki",
         "name": "DS_LOKI",
@@ -1962,7 +1970,11 @@
         "type": "datasource"
       },
       {
-        "current": {},
+        "current": {
+          "selected": true,
+          "text": "Pyroscope",
+          "value": "pyroscope"
+        },
         "includeAll": false,
         "label": "Pyroscope",
         "name": "DS_PYROSCOPE",
@@ -1973,7 +1985,11 @@
         "type": "datasource"
       },
       {
-        "current": {},
+        "current": {
+          "selected": true,
+          "text": "Tempo",
+          "value": "tempo"
+        },
         "includeAll": false,
         "label": "Tempo",
         "name": "DS_TEMPO",
