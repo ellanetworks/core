@@ -15,7 +15,6 @@ import (
 	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/ipam"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf"
 )
@@ -34,9 +33,7 @@ type UpdateDataNetworkParams struct {
 }
 
 type DataNetworkStatus struct {
-	Sessions       int `json:"sessions"`
-	UsedAddresses  int `json:"used_addresses"`
-	TotalAddresses int `json:"total_addresses"`
+	Sessions int `json:"sessions"`
 }
 
 type DataNetwork struct {
@@ -63,23 +60,6 @@ const (
 const MaxNumDataNetworks = 12
 
 var dnnRegex = regexp.MustCompile(`^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$`)
-
-// poolUtilization returns the number of used and total addresses for a data network pool.
-func poolUtilization(ctx context.Context, dbInstance *db.Database, dn db.DataNetwork) (used, total int) {
-	pool, err := ipam.NewPool(dn.ID, dn.IPPool)
-	if err != nil {
-		return 0, 0
-	}
-
-	total = pool.Size()
-
-	used, err = dbInstance.CountLeasesByPool(ctx, dn.ID)
-	if err != nil {
-		return 0, total
-	}
-
-	return used, total
-}
 
 func ListDataNetworks(dbInstance *db.Database, sessions smf.SessionQuerier) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -113,17 +93,13 @@ func ListDataNetworks(dbInstance *db.Database, sessions smf.SessionQuerier) http
 				sessionCount = len(sessions.SessionsByDNN(dbDataNetwork.Name))
 			}
 
-			used, total := poolUtilization(ctx, dbInstance, dbDataNetwork)
-
 			items = append(items, DataNetwork{
 				Name:   dbDataNetwork.Name,
 				IPPool: dbDataNetwork.IPPool,
 				DNS:    dbDataNetwork.DNS,
 				MTU:    dbDataNetwork.MTU,
 				Status: DataNetworkStatus{
-					Sessions:       sessionCount,
-					UsedAddresses:  used,
-					TotalAddresses: total,
+					Sessions: sessionCount,
 				},
 			})
 		}
@@ -158,17 +134,13 @@ func GetDataNetwork(dbInstance *db.Database, sessions smf.SessionQuerier) http.H
 			sessionCount = len(sessions.SessionsByDNN(dbDataNetwork.Name))
 		}
 
-		used, total := poolUtilization(r.Context(), dbInstance, *dbDataNetwork)
-
 		dataNetwork := DataNetwork{
 			Name:   dbDataNetwork.Name,
 			IPPool: dbDataNetwork.IPPool,
 			DNS:    dbDataNetwork.DNS,
 			MTU:    dbDataNetwork.MTU,
 			Status: DataNetworkStatus{
-				Sessions:       sessionCount,
-				UsedAddresses:  used,
-				TotalAddresses: total,
+				Sessions: sessionCount,
 			},
 		}
 		writeResponse(r.Context(), w, dataNetwork, http.StatusOK, logger.APILog)

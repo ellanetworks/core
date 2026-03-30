@@ -18,8 +18,7 @@ import (
 )
 
 // activeLeaseIPMappings returns a map of IP → IMSI for all active leases
-// (leases with a sessionID set). This replaces the old ListAllocatedIPMappings
-// that read from the subscriber table's ipAddress column.
+// (leases with a sessionID set).
 func activeLeaseIPMappings(ctx context.Context, dbInstance *db.Database) (map[string]string, error) {
 	leases, err := dbInstance.ListActiveLeases(ctx)
 	if err != nil {
