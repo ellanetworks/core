@@ -42,9 +42,10 @@ parts:
     source-type: local
     build-packages:
       - git
+      - nodejs
+      - npm
     build-snaps:
       - go/1.26/stable
-      - node/24/stable
     override-build: |
       npm install --prefix ui
       npm run build --prefix ui
