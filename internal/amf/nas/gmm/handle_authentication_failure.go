@@ -16,6 +16,11 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		return fmt.Errorf("state mismatch: receive Authentication Failure message in state %s", state)
 	}
 
+	ranUe := ue.RanUe()
+	if ranUe == nil {
+		return fmt.Errorf("ue is not connected to RAN")
+	}
+
 	if ue.T3560 != nil {
 		ue.T3560.Stop()
 		ue.T3560 = nil // clear the timer
@@ -26,7 +31,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		ue.Log.Warn("Authentication Failure Cause: Mac Failure")
 		ue.Deregister(ctx)
 
-		err := message.SendAuthenticationReject(ctx, ue.RanUe())
+		err := message.SendAuthenticationReject(ctx, ranUe)
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
 		}
@@ -36,7 +41,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		ue.Log.Warn("Authentication Failure Cause: Non-5G Authentication Unacceptable")
 		ue.Deregister(ctx)
 
-		err := message.SendAuthenticationReject(ctx, ue.RanUe())
+		err := message.SendAuthenticationReject(ctx, ranUe)
 		if err != nil {
 			return fmt.Errorf("error sending GMM authentication reject: %v", err)
 		}
@@ -48,7 +53,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		ue.Log.Warn("Select new NgKsi")
 		ue.NgKsi.Ksi = nextNgKsi(ue.NgKsi.Ksi)
 
-		err := message.SendAuthenticationRequest(ctx, amfInstance, ue.RanUe())
+		err := message.SendAuthenticationRequest(ctx, amfInstance, ranUe)
 		if err != nil {
 			return fmt.Errorf("send authentication request error: %s", err)
 		}
@@ -62,7 +67,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 			ue.Log.Warn("2 consecutive Synch Failure, terminate authentication procedure")
 			ue.Deregister(ctx)
 
-			err := message.SendAuthenticationReject(ctx, ue.RanUe())
+			err := message.SendAuthenticationReject(ctx, ranUe)
 			if err != nil {
 				return fmt.Errorf("error sending GMM authentication reject: %v", err)
 			}
@@ -87,7 +92,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		ue.AuthenticationCtx = response
 		ue.ABBA = []uint8{0x00, 0x00}
 
-		err = message.SendAuthenticationRequest(ctx, amfInstance, ue.RanUe())
+		err = message.SendAuthenticationRequest(ctx, amfInstance, ranUe)
 		if err != nil {
 			return fmt.Errorf("send authentication request error: %s", err)
 		}

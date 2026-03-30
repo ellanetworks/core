@@ -36,7 +36,12 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe) erro
 		return fmt.Errorf("error deriving algorithm key: %v", err)
 	}
 
-	err = message.SendSecurityModeCommand(ctx, amfInstance, ue.RanUe())
+	ranUe := ue.RanUe()
+	if ranUe == nil {
+		return fmt.Errorf("ue is not connected to RAN")
+	}
+
+	err = message.SendSecurityModeCommand(ctx, amfInstance, ranUe)
 	if err != nil {
 		return fmt.Errorf("error sending security mode command: %v", err)
 	}

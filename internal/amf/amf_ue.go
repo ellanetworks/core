@@ -63,7 +63,7 @@ type SmContext struct {
 }
 
 type AmfUe struct {
-	Mutex sync.Mutex
+	Mutex sync.RWMutex
 
 	/* Gmm State */
 	state StateType
@@ -159,12 +159,20 @@ func NewAmfUe() *AmfUe {
 }
 
 // RanUe returns the currently attached RanUe, or nil.
+// The read is synchronized via ue.Mutex so the returned pointer is a
+// consistent snapshot.  Callers must capture the result in a local
+// variable and reuse it — never call RanUe() twice in the same
+// code path, as the underlying pointer may change between calls.
 func (ue *AmfUe) RanUe() *RanUe {
 	if ue == nil {
 		return nil
 	}
 
-	return ue.ranUe
+	ue.Mutex.RLock()
+	r := ue.ranUe
+	ue.Mutex.RUnlock()
+
+	return r
 }
 
 func (ue *AmfUe) GetState() StateType {
