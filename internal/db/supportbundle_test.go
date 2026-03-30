@@ -123,7 +123,7 @@ func TestExportSupportData_WithEntries(t *testing.T) {
 		t.Fatalf("CreateDataNetwork failed: %v", err)
 	}
 
-	profile := &db.Profile{Name: "support-profile", UeAmbrUplink: "100 Mbps", UeAmbrDownlink: "100 Mbps"}
+	profile := &db.Profile{Name: "support-profile"}
 	if err := database.CreateProfile(context.Background(), profile); err != nil {
 		t.Fatalf("CreateProfile failed: %v", err)
 	}

@@ -74,9 +74,7 @@ func TestProfileNetworkConfigsEndToEnd(t *testing.T) {
 	}
 
 	newProfile := &db.Profile{
-		Name:           "test-profile",
-		UeAmbrUplink:   "500 Mbps",
-		UeAmbrDownlink: "500 Mbps",
+		Name: "test-profile",
 	}
 
 	err = database.CreateProfile(context.Background(), newProfile)

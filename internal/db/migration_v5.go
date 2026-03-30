@@ -13,7 +13,7 @@ import (
 //
 // Replaces the flat policies table with:
 //   - network_slices: first-class S-NSSAI entities (replaces operator.sst/sd)
-//   - profiles: named service tiers with UE-AMBR
+//   - profiles: named service tiers
 //   - profile_network_configs: per-slice, per-DNN QoS authorization
 //
 // Subscribers move from policyID to profileID. The operator table drops its
@@ -55,9 +55,7 @@ func migrateV5(ctx context.Context, tx *sql.Tx) error {
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE profiles (
 			id             INTEGER PRIMARY KEY AUTOINCREMENT,
-			name           TEXT NOT NULL UNIQUE,
-			ueAmbrUplink   TEXT NOT NULL,
-			ueAmbrDownlink TEXT NOT NULL
+			name           TEXT NOT NULL UNIQUE
 		)`)
 	if err != nil {
 		return fmt.Errorf("failed to create profiles table: %w", err)
@@ -91,8 +89,8 @@ func migrateV5(ctx context.Context, tx *sql.Tx) error {
 	//    slice. The old bitrate is copied to both UE-AMBR and session AMBR.
 	// -----------------------------------------------------------------------
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO profiles (name, ueAmbrUplink, ueAmbrDownlink)
-		SELECT name, bitrateUplink, bitrateDownlink
+		INSERT INTO profiles (name)
+		SELECT name
 		FROM policies`)
 	if err != nil {
 		return fmt.Errorf("failed to migrate policies to profiles: %w", err)

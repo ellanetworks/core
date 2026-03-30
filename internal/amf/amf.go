@@ -77,7 +77,6 @@ type TimerValue struct {
 type DBer interface {
 	GetOperator(ctx context.Context) (*db.Operator, error)
 	GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error)
-	GetSubscriberProfile(ctx context.Context, imsi string) (*db.Profile, error)
 	ListNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error)
 	ListProfileNetworkConfigs(ctx context.Context, profileID int) ([]db.ProfileNetworkConfig, error)
 	GetDataNetworkByID(ctx context.Context, id int) (*db.DataNetwork, error)

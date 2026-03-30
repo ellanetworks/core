@@ -37,10 +37,6 @@ func (fdb *failingSubscriberDB) GetSubscriber(ctx context.Context, imsi string) 
 	return nil, fmt.Errorf("subscriber not found")
 }
 
-func (fdb *failingSubscriberDB) GetSubscriberProfile(ctx context.Context, imsi string) (*db.Profile, error) {
-	return nil, fmt.Errorf("subscriber not found")
-}
-
 func (fdb *failingSubscriberDB) ListNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error) {
 	return []db.NetworkSlice{
 		{ID: 1, Sst: 1, Name: "default"},

@@ -23,9 +23,7 @@ func createDataNetworkProfileAndSubscriber(database *db.Database, imsi string) (
 	}
 
 	profile := &db.Profile{
-		Name:           "my-profile",
-		UeAmbrUplink:   "100 Mbps",
-		UeAmbrDownlink: "200 Mbps",
+		Name: "my-profile",
 	}
 
 	err = database.CreateProfile(context.Background(), profile)

@@ -22,17 +22,14 @@ const (
 	listProfilesPagedStmt = "SELECT &Profile.*, COUNT(*) OVER() AS &NumItems.count FROM %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getProfileByNameStmt  = "SELECT &Profile.* FROM %s WHERE name==$Profile.name"
 	getProfileByIDStmt    = "SELECT &Profile.* FROM %s WHERE id==$Profile.id"
-	createProfileStmt     = "INSERT INTO %s (name, ueAmbrUplink, ueAmbrDownlink) VALUES ($Profile.name, $Profile.ueAmbrUplink, $Profile.ueAmbrDownlink)"
-	updateProfileStmt     = "UPDATE %s SET ueAmbrUplink=$Profile.ueAmbrUplink, ueAmbrDownlink=$Profile.ueAmbrDownlink WHERE name==$Profile.name"
+	createProfileStmt     = "INSERT INTO %s (name) VALUES ($Profile.name)"
 	deleteProfileStmt     = "DELETE FROM %s WHERE name==$Profile.name"
 	countProfilesStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
 type Profile struct {
-	ID             int    `db:"id"`
-	Name           string `db:"name"`
-	UeAmbrUplink   string `db:"ueAmbrUplink"`
-	UeAmbrDownlink string `db:"ueAmbrDownlink"`
+	ID   int    `db:"id"`
+	Name string `db:"name"`
 }
 
 func (db *Database) ListProfilesPage(ctx context.Context, page int, perPage int) ([]Profile, int, error) {
@@ -207,54 +204,6 @@ func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 	return nil
 }
 
-func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s", "UPDATE", ProfilesTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", ProfilesTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ProfilesTableName, "update"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(ProfilesTableName, "update").Inc()
-
-	var outcome sqlair.Outcome
-
-	err := db.conn.Query(ctx, db.updateProfileStmt, profile).Get(&outcome)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
-
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return nil
-}
-
 func (db *Database) DeleteProfile(ctx context.Context, name string) error {
 	ctx, span := tracer.Start(
 		ctx,
@@ -334,38 +283,4 @@ func (db *Database) CountProfiles(ctx context.Context) (int, error) {
 	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
-}
-
-// GetSubscriberProfile joins subscribers -> profiles by IMSI and returns the
-// subscriber's profile with UE-AMBR values. Used by the AMF for Registration Accept.
-func (db *Database) GetSubscriberProfile(ctx context.Context, imsi string) (*Profile, error) {
-	ctx, span := tracer.Start(
-		ctx,
-		"GetSubscriberProfile",
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-		),
-	)
-	defer span.End()
-
-	subscriber, err := db.GetSubscriber(ctx, imsi)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "subscriber not found")
-
-		return nil, fmt.Errorf("subscriber not found: %w", err)
-	}
-
-	profile, err := db.GetProfileByID(ctx, subscriber.ProfileID)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "profile not found")
-
-		return nil, fmt.Errorf("profile not found: %w", err)
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return profile, nil
 }

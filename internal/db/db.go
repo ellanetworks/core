@@ -151,7 +151,6 @@ type Database struct {
 	getProfileByNameStmt *sqlair.Statement
 	getProfileByIDStmt   *sqlair.Statement
 	createProfileStmt    *sqlair.Statement
-	updateProfileStmt    *sqlair.Statement
 	deleteProfileStmt    *sqlair.Statement
 	countProfilesStmt    *sqlair.Statement
 
@@ -474,7 +473,6 @@ func (db *Database) PrepareStatements() error {
 		{&db.getProfileByNameStmt, fmt.Sprintf(getProfileByNameStmt, ProfilesTableName), []any{Profile{}}},
 		{&db.getProfileByIDStmt, fmt.Sprintf(getProfileByIDStmt, ProfilesTableName), []any{Profile{}}},
 		{&db.createProfileStmt, fmt.Sprintf(createProfileStmt, ProfilesTableName), []any{Profile{}}},
-		{&db.updateProfileStmt, fmt.Sprintf(updateProfileStmt, ProfilesTableName), []any{Profile{}}},
 		{&db.deleteProfileStmt, fmt.Sprintf(deleteProfileStmt, ProfilesTableName), []any{Profile{}}},
 		{&db.countProfilesStmt, fmt.Sprintf(countProfilesStmt, ProfilesTableName), []any{NumItems{}}},
 
@@ -718,9 +716,7 @@ func (db *Database) Initialize(ctx context.Context) error {
 		}
 
 		initialProfile := &Profile{
-			Name:           InitialProfileName,
-			UeAmbrUplink:   InitialProfileBitrateUplink,
-			UeAmbrDownlink: InitialProfileBitrateDownlink,
+			Name: InitialProfileName,
 		}
 
 		if err := db.CreateProfile(ctx, initialProfile); err != nil {

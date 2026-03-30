@@ -38,9 +38,7 @@ func TestProfilesEndToEnd(t *testing.T) {
 	}
 
 	profile := &db.Profile{
-		Name:           "my-profile",
-		UeAmbrUplink:   "100 Mbps",
-		UeAmbrDownlink: "200 Mbps",
+		Name: "my-profile",
 	}
 
 	err = database.CreateProfile(context.Background(), profile)
@@ -68,39 +66,6 @@ func TestProfilesEndToEnd(t *testing.T) {
 
 	if retrievedProfile.Name != profile.Name {
 		t.Fatalf("The profile name from the database doesn't match the profile name that was given")
-	}
-
-	if retrievedProfile.UeAmbrUplink != profile.UeAmbrUplink {
-		t.Fatalf("The UeAmbrUplink from the database doesn't match the value that was given")
-	}
-
-	if retrievedProfile.UeAmbrDownlink != profile.UeAmbrDownlink {
-		t.Fatalf("The UeAmbrDownlink from the database doesn't match the value that was given")
-	}
-
-	// Edit the profile
-	profile.UeAmbrUplink = "150 Mbps"
-	profile.UeAmbrDownlink = "300 Mbps"
-
-	if err = database.UpdateProfile(context.Background(), profile); err != nil {
-		t.Fatalf("Couldn't complete Update: %s", err)
-	}
-
-	retrievedProfile, err = database.GetProfile(context.Background(), profile.Name)
-	if err != nil {
-		t.Fatalf("Couldn't complete Retrieve: %s", err)
-	}
-
-	if retrievedProfile.Name != profile.Name {
-		t.Fatalf("The profile name from the database doesn't match the profile name that was given")
-	}
-
-	if retrievedProfile.UeAmbrUplink != profile.UeAmbrUplink {
-		t.Fatalf("The UeAmbrUplink from the database doesn't match the value that was given")
-	}
-
-	if retrievedProfile.UeAmbrDownlink != profile.UeAmbrDownlink {
-		t.Fatalf("The UeAmbrDownlink from the database doesn't match the value that was given")
 	}
 
 	if err = database.DeleteProfile(context.Background(), profile.Name); err != nil {

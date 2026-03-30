@@ -778,20 +778,16 @@ func TestMigrateV5_MigratesPolicies(t *testing.T) {
 	applyV5(t, db)
 
 	// Verify profile was created from policy.
-	var profName, ueUp, ueDown string
+	var profName string
 
-	err = db.QueryRowContext(ctx, "SELECT name, ueAmbrUplink, ueAmbrDownlink FROM profiles WHERE name='gold'").
-		Scan(&profName, &ueUp, &ueDown)
+	err = db.QueryRowContext(ctx, "SELECT name FROM profiles WHERE name='gold'").
+		Scan(&profName)
 	if err != nil {
 		t.Fatalf("failed to query profile: %v", err)
 	}
 
-	if ueUp != "100 Mbps" {
-		t.Errorf("profile.ueAmbrUplink = %q, want %q", ueUp, "100 Mbps")
-	}
-
-	if ueDown != "200 Mbps" {
-		t.Errorf("profile.ueAmbrDownlink = %q, want %q", ueDown, "200 Mbps")
+	if profName != "gold" {
+		t.Errorf("profile.name = %q, want %q", profName, "gold")
 	}
 
 	// Verify profile_network_configs was created.

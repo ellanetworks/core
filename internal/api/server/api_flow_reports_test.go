@@ -394,9 +394,7 @@ func createFlowReportTestSubscriber(t *testing.T, dbInstance *db.Database) int {
 	}
 
 	profile := &db.Profile{
-		Name:           "test-profile-" + imsi,
-		UeAmbrUplink:   "100 Mbps",
-		UeAmbrDownlink: "200 Mbps",
+		Name: "test-profile-" + imsi,
 	}
 	if err := dbInstance.CreateProfile(ctx, profile); err != nil {
 		t.Fatalf("couldn't create profile: %s", err)

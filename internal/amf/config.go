@@ -170,14 +170,23 @@ func (amf *AMF) GetSubscriberBitrate(ctx context.Context, supi etsi.SUPI) (*mode
 
 	imsi := supi.IMSI()
 
-	profile, err := amf.DBInstance.GetSubscriberProfile(ctx, imsi)
+	subscriber, err := amf.DBInstance.GetSubscriber(ctx, imsi)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get profile for subscriber %s: %v", imsi, err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %v", imsi, err)
+	}
+
+	configs, err := amf.DBInstance.ListProfileNetworkConfigs(ctx, subscriber.ProfileID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get profile network configs for subscriber %s: %v", imsi, err)
+	}
+
+	if len(configs) == 0 {
+		return nil, fmt.Errorf("no profile network configs found for subscriber %s", imsi)
 	}
 
 	return &models.Ambr{
-		Downlink: profile.UeAmbrDownlink,
-		Uplink:   profile.UeAmbrUplink,
+		Downlink: configs[0].SessionAmbrDownlink,
+		Uplink:   configs[0].SessionAmbrUplink,
 	}, nil
 }
 

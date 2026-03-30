@@ -126,10 +126,6 @@ func (f *fakeDBInstance) GetSubscriber(context.Context, string) (*db.Subscriber,
 	return nil, nil
 }
 
-func (f *fakeDBInstance) GetSubscriberProfile(context.Context, string) (*db.Profile, error) {
-	return nil, nil
-}
-
 func (f *fakeDBInstance) ListNetworkSlices(context.Context) ([]db.NetworkSlice, error) {
 	return []db.NetworkSlice{
 		{ID: 1, Sst: 1, Name: "default"},

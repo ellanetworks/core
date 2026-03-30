@@ -47,8 +47,8 @@ func TestDatabaseMetrics(t *testing.T) {
 	}
 
 	profiles := []db.Profile{
-		{Name: "Profile1", UeAmbrUplink: "100 Mbps", UeAmbrDownlink: "100 Mbps"},
-		{Name: "Profile2", UeAmbrUplink: "200 Mbps", UeAmbrDownlink: "200 Mbps"},
+		{Name: "Profile1"},
+		{Name: "Profile2"},
 	}
 	for _, profile := range profiles {
 		err := database.CreateProfile(context.Background(), &profile)

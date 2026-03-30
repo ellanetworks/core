@@ -22,9 +22,7 @@ func createDataNetworkAndProfile(database *db.Database) (int, error) {
 	}
 
 	profile := &db.Profile{
-		Name:           "my-profile",
-		UeAmbrUplink:   "100 Mbps",
-		UeAmbrDownlink: "200 Mbps",
+		Name: "my-profile",
 	}
 
 	err = database.CreateProfile(context.Background(), profile)
@@ -120,9 +118,7 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 	}
 
 	newProfile := db.Profile{
-		Name:           "another-profile",
-		UeAmbrUplink:   "50 Mbps",
-		UeAmbrDownlink: "50 Mbps",
+		Name: "another-profile",
 	}
 
 	err = database.CreateProfile(context.Background(), &newProfile)
@@ -206,9 +202,7 @@ func TestCountSubscribersInProfile(t *testing.T) {
 	}
 
 	newProfile := &db.Profile{
-		Name:           "another-profile",
-		UeAmbrUplink:   "50 Mbps",
-		UeAmbrDownlink: "50 Mbps",
+		Name: "another-profile",
 	}
 
 	err = database.CreateProfile(context.Background(), newProfile)

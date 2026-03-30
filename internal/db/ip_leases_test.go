@@ -47,9 +47,7 @@ func setupLeaseTestDB(t *testing.T) (*db.Database, int, string) {
 	}
 
 	profile := &db.Profile{
-		Name:           "test-profile",
-		UeAmbrUplink:   "100 Mbps",
-		UeAmbrDownlink: "100 Mbps",
+		Name: "test-profile",
 	}
 
 	if err := database.CreateProfile(context.Background(), profile); err != nil {

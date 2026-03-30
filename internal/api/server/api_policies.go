@@ -300,9 +300,7 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 		}
 
 		newProfile := &db.Profile{
-			Name:           createPolicyParams.Name,
-			UeAmbrUplink:   createPolicyParams.BitrateUplink,
-			UeAmbrDownlink: createPolicyParams.BitrateDownlink,
+			Name: createPolicyParams.Name,
 		}
 
 		if err := dbInstance.CreateProfile(r.Context(), newProfile); err != nil {
@@ -389,14 +387,6 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 
 		if len(configs) == 0 {
 			writeError(r.Context(), w, http.StatusInternalServerError, "No network config found for profile", fmt.Errorf("profile %q has no network configs", policyName), logger.APILog)
-			return
-		}
-
-		profile.UeAmbrUplink = updatePolicyParams.BitrateUplink
-		profile.UeAmbrDownlink = updatePolicyParams.BitrateDownlink
-
-		if err := dbInstance.UpdateProfile(r.Context(), profile); err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update policy", err, logger.APILog)
 			return
 		}
 
