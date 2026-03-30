@@ -42,7 +42,8 @@ const (
 
 // Handle cleartext IEs of Registration Request, which cleattext IEs defined in TS 24.501 4.4.6
 func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, registrationRequest *nasMessage.RegistrationRequest) error {
-	if ue.RanUe() == nil {
+	ranUe := ue.RanUe()
+	if ranUe == nil {
 		return fmt.Errorf("RanUe is nil")
 	}
 
@@ -76,7 +77,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		if err != nil {
 			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationReject).Inc()
 
-			err1 := message.SendRegistrationReject(ctx, ue.RanUe(), nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+			err1 := message.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 			if err1 != nil {
 				return fmt.Errorf("error sending registration reject after error decrypting: %v", err1)
 			}
@@ -89,7 +90,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		if err := m.GmmMessageDecode(&contents); err != nil {
 			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationReject).Inc()
 
-			err1 := message.SendRegistrationReject(ctx, ue.RanUe(), nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+			err1 := message.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 			if err1 != nil {
 				return fmt.Errorf("error sending registration reject after error decoding: %v", err1)
 			}
@@ -170,14 +171,14 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	}
 
 	// Copy UserLocation from ranUe
-	ue.Location = ue.RanUe().Location
-	ue.Tai = ue.RanUe().Tai
+	ue.Location = ranUe.Location
+	ue.Tai = ranUe.Tai
 
 	// Check TAI
 	if !amf.InTaiList(ue.Tai, operatorInfo.Tais) {
 		UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationReject).Inc()
 
-		err := message.SendRegistrationReject(ctx, ue.RanUe(), nasMessage.Cause5GMMTrackingAreaNotAllowed)
+		err := message.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMMTrackingAreaNotAllowed)
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
@@ -188,7 +189,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	if ue.RegistrationType5GS == nasMessage.RegistrationType5GSInitialRegistration && registrationRequest.UESecurityCapability == nil {
 		UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationReject).Inc()
 
-		err := message.SendRegistrationReject(ctx, ue.RanUe(), nasMessage.Cause5GMMProtocolErrorUnspecified)
+		err := message.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
 		if err != nil {
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
@@ -222,7 +223,12 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationReject).Inc()
 
-			err := message.SendRegistrationReject(ctx, ue.RanUe(), nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+			ranUe := ue.RanUe()
+			if ranUe == nil {
+				return fmt.Errorf("ue is not connected to RAN")
+			}
+
+			err := message.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 			if err != nil {
 				return fmt.Errorf("error sending registration reject: %v", err)
 			}

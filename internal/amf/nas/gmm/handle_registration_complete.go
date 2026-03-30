@@ -37,9 +37,14 @@ func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 	shouldRelease := !forPending && !udsHasPending && !hasActiveSessions
 
 	if shouldRelease {
-		ue.RanUe().ReleaseAction = amf.UeContextN2NormalRelease
+		ranUe := ue.RanUe()
+		if ranUe == nil {
+			return fmt.Errorf("ue is not connected to RAN")
+		}
 
-		err := ue.RanUe().SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
+		ranUe.ReleaseAction = amf.UeContextN2NormalRelease
+
+		err := ranUe.SendUEContextReleaseCommand(ctx, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 		if err != nil {
 			return fmt.Errorf("error sending ue context release command: %v", err)
 		}
