@@ -46,36 +46,46 @@ func TestDatabaseMetrics(t *testing.T) {
 		t.Fatalf("Couldn't get data network: %s", err)
 	}
 
-	policies := []db.Policy{
-		{Name: "Policy1", DataNetworkID: 1},
-		{Name: "Policy2", DataNetworkID: 1},
+	profiles := []db.Profile{
+		{Name: "Profile1", UeAmbrUplink: "100 Mbps", UeAmbrDownlink: "100 Mbps"},
+		{Name: "Profile2", UeAmbrUplink: "200 Mbps", UeAmbrDownlink: "200 Mbps"},
 	}
-	for _, policy := range policies {
-		err := database.CreatePolicy(context.Background(), &policy)
+	for _, profile := range profiles {
+		err := database.CreateProfile(context.Background(), &profile)
 		if err != nil {
-			t.Fatalf("Couldn't create policy: %s", err)
+			t.Fatalf("Couldn't create profile: %s", err)
 		}
+	}
+
+	profile1, err := database.GetProfile(context.Background(), "Profile1")
+	if err != nil {
+		t.Fatalf("Couldn't get profile1: %s", err)
+	}
+
+	profile2, err := database.GetProfile(context.Background(), "Profile2")
+	if err != nil {
+		t.Fatalf("Couldn't get profile2: %s", err)
 	}
 
 	subscribers := []db.Subscriber{
 		{
 			Imsi:           "001019379926281",
 			SequenceNumber: "000000000001",
-			PolicyID:       1,
+			ProfileID:      profile1.ID,
 			Opc:            "1234567890abcdef1234567890abcdef",
 			PermanentKey:   "1234567890abcdef1234567890abcdef",
 		},
 		{
 			Imsi:           "001019379926282",
 			SequenceNumber: "000000000002",
-			PolicyID:       2,
+			ProfileID:      profile2.ID,
 			Opc:            "1234567890abcdef1234567890abcdef",
 			PermanentKey:   "1234567890abcdef1234567890abcdef",
 		},
 		{
 			Imsi:           "001019379926283",
 			SequenceNumber: "000000000003",
-			PolicyID:       1,
+			ProfileID:      profile1.ID,
 			Opc:            "1234567890abcdef1234567890abcdef",
 			PermanentKey:   "1234567890abcdef1234567890abcdef",
 		},

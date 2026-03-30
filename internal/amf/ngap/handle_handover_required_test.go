@@ -269,7 +269,6 @@ func TestHandoverRequired(t *testing.T) {
 		Operator: &db.Operator{
 			Mcc: "001",
 			Mnc: "01",
-			Sst: 1,
 		},
 	}, nil, &FakeSmfSbi{SMF: smfInstance})
 	amfInstance.Radios = map[*sctp.SCTPConn]*amf.Radio{

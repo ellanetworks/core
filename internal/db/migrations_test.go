@@ -153,7 +153,9 @@ func TestRunMigrations_FreshDatabase(t *testing.T) {
 		N3SettingsTableName,
 		NATSettingsTableName,
 		OperatorTableName,
-		PoliciesTableName,
+		"network_slices",
+		"profiles",
+		"profile_network_configs",
 		RadioEventsTableName,
 		RetentionPolicyTableName,
 		RoutesTableName,
@@ -281,7 +283,7 @@ func TestMigrateV1_AllTablesCreated(t *testing.T) {
 		N3SettingsTableName,
 		NATSettingsTableName,
 		OperatorTableName,
-		PoliciesTableName,
+		policiesTableName,
 		RadioEventsTableName,
 		RetentionPolicyTableName,
 		RoutesTableName,
@@ -339,7 +341,7 @@ func TestMigrateV1_ExistingDatabase(t *testing.T) {
 		fmt.Sprintf(v1CreateOperatorTable, OperatorTableName),
 		fmt.Sprintf(v1CreateRoutesTable, RoutesTableName),
 		fmt.Sprintf(v1CreateDataNetworksTable, DataNetworksTableName),
-		fmt.Sprintf(v1CreatePoliciesTable, PoliciesTableName),
+		fmt.Sprintf(v1CreatePoliciesTable, policiesTableName),
 		fmt.Sprintf(v1CreateSubscribersTable, SubscribersTableName),
 		fmt.Sprintf(v1CreateUsersTable, UsersTableName),
 		fmt.Sprintf(v1CreateSessionsTable, SessionsTableName),
@@ -390,7 +392,7 @@ func TestRunMigrations_Incremental(t *testing.T) {
 	}
 
 	_, err := db.ExecContext(ctx, fmt.Sprintf(
-		"INSERT INTO %s (id, mcc, mnc, operatorCode, sst) VALUES (1, '310', '260', 'testop', 1)",
+		"INSERT INTO %s (id, mcc, mnc, operatorCode) VALUES (1, '310', '260', 'testop')",
 		OperatorTableName))
 	if err != nil {
 		t.Fatalf("failed to insert test data: %v", err)
@@ -590,5 +592,295 @@ func TestMigrateV2_NoExistingKey(t *testing.T) {
 
 	if count != 0 {
 		t.Errorf("expected 0 keys after migration with no prior key, got %d", count)
+	}
+}
+
+func applyV3(t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("failed to begin transaction: %v", err)
+	}
+
+	if err := migrateV3(ctx, tx); err != nil {
+		_ = tx.Rollback()
+
+		t.Fatalf("migrateV3 failed: %v", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("failed to commit migrateV3: %v", err)
+	}
+}
+
+func applyV4(t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("failed to begin transaction: %v", err)
+	}
+
+	if err := migrateV4(ctx, tx); err != nil {
+		_ = tx.Rollback()
+
+		t.Fatalf("migrateV4 failed: %v", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("failed to commit migrateV4: %v", err)
+	}
+}
+
+func applyV5(t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("failed to begin transaction: %v", err)
+	}
+
+	if err := migrateV5(ctx, tx); err != nil {
+		_ = tx.Rollback()
+
+		t.Fatalf("migrateV5 failed: %v", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("failed to commit migrateV5: %v", err)
+	}
+}
+
+func applyAllBeforeV5(t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	applyV1(t, db)
+	applyV2(t, db)
+	applyV3(t, db)
+	applyV4(t, db)
+}
+
+func TestMigrateV5_CreatesNewTables(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	applyAllBeforeV5(t, db)
+
+	// Seed operator with sst/sd so V5 can migrate them.
+	_, err := db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, mcc, mnc, operatorCode, sst, sd) VALUES (1, '001', '01', 'abc123', 1, X'102030')",
+		OperatorTableName))
+	if err != nil {
+		t.Fatalf("failed to insert operator: %v", err)
+	}
+
+	applyV5(t, db)
+
+	// Verify new tables exist.
+	tables := allTableNames(t, db)
+
+	tableSet := make(map[string]bool, len(tables))
+	for _, name := range tables {
+		tableSet[name] = true
+	}
+
+	for _, expected := range []string{"network_slices", "profiles", "profile_network_configs"} {
+		if !tableSet[expected] {
+			t.Errorf("expected table %q not found; got tables: %v", expected, tables)
+		}
+	}
+
+	// Verify policies table was dropped.
+	if tableSet[policiesTableName] {
+		t.Error("policies table should have been dropped by V5")
+	}
+}
+
+func TestMigrateV5_MigratesSliceFromOperator(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	applyAllBeforeV5(t, db)
+
+	_, err := db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, mcc, mnc, operatorCode, sst, sd) VALUES (1, '001', '01', 'abc123', 1, X'102030')",
+		OperatorTableName))
+	if err != nil {
+		t.Fatalf("failed to insert operator: %v", err)
+	}
+
+	applyV5(t, db)
+
+	// Verify network_slices got populated from operator.
+	var (
+		sst      int
+		sd, name string
+	)
+
+	err = db.QueryRowContext(ctx, "SELECT sst, sd, name FROM network_slices LIMIT 1").Scan(&sst, &sd, &name)
+	if err != nil {
+		t.Fatalf("failed to query network_slices: %v", err)
+	}
+
+	if sst != 1 {
+		t.Errorf("network_slices.sst = %d, want 1", sst)
+	}
+
+	if sd != "102030" {
+		t.Errorf("network_slices.sd = %q, want %q", sd, "102030")
+	}
+
+	if name != "default" {
+		t.Errorf("network_slices.name = %q, want %q", name, "default")
+	}
+
+	// Verify operator no longer has sst/sd columns.
+	_, err = db.ExecContext(ctx, "SELECT sst FROM operator WHERE id=1")
+	if err == nil {
+		t.Error("expected error querying sst from operator (column should be removed)")
+	}
+}
+
+func TestMigrateV5_MigratesPolicies(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	applyAllBeforeV5(t, db)
+
+	// Seed operator and data network.
+	_, err := db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, mcc, mnc, operatorCode, sst, sd) VALUES (1, '001', '01', 'abc123', 1, X'102030')",
+		OperatorTableName))
+	if err != nil {
+		t.Fatalf("failed to insert operator: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx,
+		"INSERT INTO data_networks (id, name, ipPool, dns, mtu) VALUES (1, 'internet', '10.45.0.0/22', '8.8.8.8', 1400)")
+	if err != nil {
+		t.Fatalf("failed to insert data network: %v", err)
+	}
+
+	// Seed a policy.
+	_, err = db.ExecContext(ctx,
+		"INSERT INTO policies (id, name, bitrateUplink, bitrateDownlink, var5qi, arp, dataNetworkID) VALUES (1, 'gold', '100 Mbps', '200 Mbps', 9, 1, 1)")
+	if err != nil {
+		t.Fatalf("failed to insert policy: %v", err)
+	}
+
+	applyV5(t, db)
+
+	// Verify profile was created from policy.
+	var profName, ueUp, ueDown string
+
+	err = db.QueryRowContext(ctx, "SELECT name, ueAmbrUplink, ueAmbrDownlink FROM profiles WHERE name='gold'").
+		Scan(&profName, &ueUp, &ueDown)
+	if err != nil {
+		t.Fatalf("failed to query profile: %v", err)
+	}
+
+	if ueUp != "100 Mbps" {
+		t.Errorf("profile.ueAmbrUplink = %q, want %q", ueUp, "100 Mbps")
+	}
+
+	if ueDown != "200 Mbps" {
+		t.Errorf("profile.ueAmbrDownlink = %q, want %q", ueDown, "200 Mbps")
+	}
+
+	// Verify profile_network_configs was created.
+	var (
+		var5qi, arp      int
+		sessUp, sessDown string
+	)
+
+	err = db.QueryRowContext(ctx,
+		"SELECT var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink FROM profile_network_configs LIMIT 1").
+		Scan(&var5qi, &arp, &sessUp, &sessDown)
+	if err != nil {
+		t.Fatalf("failed to query profile_network_configs: %v", err)
+	}
+
+	if var5qi != 9 {
+		t.Errorf("config.var5qi = %d, want 9", var5qi)
+	}
+
+	if arp != 1 {
+		t.Errorf("config.arp = %d, want 1", arp)
+	}
+
+	if sessUp != "100 Mbps" {
+		t.Errorf("config.sessionAmbrUplink = %q, want %q", sessUp, "100 Mbps")
+	}
+
+	if sessDown != "200 Mbps" {
+		t.Errorf("config.sessionAmbrDownlink = %q, want %q", sessDown, "200 Mbps")
+	}
+}
+
+func TestMigrateV5_MigratesSubscribers(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	applyAllBeforeV5(t, db)
+
+	// Seed operator, data network, policy, subscriber.
+	_, err := db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, mcc, mnc, operatorCode, sst, sd) VALUES (1, '001', '01', 'abc123', 1, X'102030')",
+		OperatorTableName))
+	if err != nil {
+		t.Fatalf("failed to insert operator: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx,
+		"INSERT INTO data_networks (id, name, ipPool, dns, mtu) VALUES (1, 'internet', '10.45.0.0/22', '8.8.8.8', 1400)")
+	if err != nil {
+		t.Fatalf("failed to insert data network: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx,
+		"INSERT INTO policies (id, name, bitrateUplink, bitrateDownlink, var5qi, arp, dataNetworkID) VALUES (1, 'gold', '100 Mbps', '200 Mbps', 9, 1, 1)")
+	if err != nil {
+		t.Fatalf("failed to insert policy: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx,
+		"INSERT INTO subscribers (id, imsi, sequenceNumber, permanentKey, opc, policyID) VALUES (1, '001010000000001', '000000000001', '00112233445566778899aabbccddeeff', '00112233445566778899aabbccddeeff', 1)")
+	if err != nil {
+		t.Fatalf("failed to insert subscriber: %v", err)
+	}
+
+	applyV5(t, db)
+
+	// Verify subscriber now has profileID (not policyID).
+	var profileID int
+
+	err = db.QueryRowContext(ctx, "SELECT profileID FROM subscribers WHERE imsi='001010000000001'").Scan(&profileID)
+	if err != nil {
+		t.Fatalf("failed to query subscriber profileID: %v", err)
+	}
+
+	// profileID should map to the profile that was created from the policy.
+	var profName string
+
+	err = db.QueryRowContext(ctx, "SELECT name FROM profiles WHERE id=?", profileID).Scan(&profName)
+	if err != nil {
+		t.Fatalf("failed to query profile by id: %v", err)
+	}
+
+	if profName != "gold" {
+		t.Errorf("subscriber's profile name = %q, want %q", profName, "gold")
+	}
+
+	// Verify policyID column no longer exists.
+	_, err = db.ExecContext(ctx, "SELECT policyID FROM subscribers LIMIT 1")
+	if err == nil {
+		t.Error("expected error querying policyID from subscribers (column should be removed)")
 	}
 }

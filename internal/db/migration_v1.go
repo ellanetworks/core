@@ -14,6 +14,10 @@ import (
 // All future schema changes must go in V2+ migrations.
 // ---------------------------------------------------------------------------
 
+// policiesTableName is the historical table name used by V1-V4 migrations.
+// The policies table was dropped in V5 and replaced by profiles + profile_network_configs.
+const policiesTableName = "policies"
+
 const v1CreateOperatorTable = `
 	CREATE TABLE IF NOT EXISTS %s (
  		id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -242,7 +246,7 @@ func migrateV1(ctx context.Context, tx *sql.Tx) error {
 
 		// Data networks → policies → subscribers (FK chain)
 		fmt.Sprintf(v1CreateDataNetworksTable, DataNetworksTableName),
-		fmt.Sprintf(v1CreatePoliciesTable, PoliciesTableName),
+		fmt.Sprintf(v1CreatePoliciesTable, policiesTableName),
 		fmt.Sprintf(v1CreateSubscribersTable, SubscribersTableName),
 
 		// Users → sessions, api_tokens (FK chain)

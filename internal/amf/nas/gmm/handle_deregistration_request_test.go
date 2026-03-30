@@ -50,7 +50,6 @@ func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, nil, &smf)

@@ -10,13 +10,11 @@ import (
 	"fmt"
 
 	"github.com/canonical/sqlair"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 const OperatorTableName = "operator"
@@ -25,11 +23,10 @@ const (
 	getOperatorStmt                           = "SELECT &Operator.* FROM %s WHERE id=1"
 	updateOperatorCodeStmt                    = "UPDATE %s SET operatorCode=$Operator.operatorCode WHERE id=1"
 	updateOperatorIDStmt                      = "UPDATE %s SET mcc=$Operator.mcc, mnc=$Operator.mnc WHERE id=1"
-	updateOperatorSliceStmt                   = "UPDATE %s SET sst=$Operator.sst, sd=$Operator.sd WHERE id=1"
 	updateOperatorTrackingStmt                = "UPDATE %s SET supportedTACs=$Operator.supportedTACs WHERE id=1"
 	updateOperatorSecurityAlgorithmsStmtConst = "UPDATE %s SET ciphering=$Operator.ciphering, integrity=$Operator.integrity WHERE id=1"
 	updateOperatorSPNStmtConst                = "UPDATE %s SET spnFullName=$Operator.spnFullName, spnShortName=$Operator.spnShortName WHERE id=1"
-	initializeOperatorStmt                    = "INSERT INTO %s (mcc, mnc, operatorCode, supportedTACs, sst, sd) VALUES ($Operator.mcc, $Operator.mnc, $Operator.operatorCode, $Operator.supportedTACs, $Operator.sst, $Operator.sd)"
+	initializeOperatorStmt                    = "INSERT INTO %s (mcc, mnc, operatorCode, supportedTACs) VALUES ($Operator.mcc, $Operator.mnc, $Operator.operatorCode, $Operator.supportedTACs)"
 )
 
 type Operator struct {
@@ -38,10 +35,8 @@ type Operator struct {
 	Mnc           string `db:"mnc"`
 	OperatorCode  string `db:"operatorCode"`
 	SupportedTACs string `db:"supportedTACs"` // JSON-encoded list of strings
-	Sst           int32  `db:"sst"`
-	Sd            []byte `db:"sd"`
-	Ciphering     string `db:"ciphering"` // JSON-encoded list of algorithm names, e.g. '["NEA2","NEA1"]'
-	Integrity     string `db:"integrity"` // JSON-encoded list of algorithm names, e.g. '["NIA2","NIA1"]'
+	Ciphering     string `db:"ciphering"`     // JSON-encoded list of algorithm names, e.g. '["NEA2","NEA1"]'
+	Integrity     string `db:"integrity"`     // JSON-encoded list of algorithm names, e.g. '["NIA2","NIA1"]'
 	SpnFullName   string `db:"spnFullName"`
 	SpnShortName  string `db:"spnShortName"`
 }
@@ -128,19 +123,6 @@ func deriveHomeNetworkPublicKey(privateKeyHex string) (string, error) {
 	return hex.EncodeToString(priv.PublicKey().Bytes()), nil
 }
 
-func (operator *Operator) GetHexSd() string {
-	if operator.Sd == nil {
-		return ""
-	}
-
-	if len(operator.Sd) != 3 {
-		logger.DBLog.Warn("SD length is not 3 bytes", zap.Int("length", len(operator.Sd)))
-		return ""
-	}
-
-	return fmt.Sprintf("%02x%02x%02x", operator.Sd[0], operator.Sd[1], operator.Sd[2])
-}
-
 func (operator *Operator) SetSupportedTacs(supportedTACs []string) error {
 	supportedTACsBytes, err := json.Marshal(supportedTACs)
 	if err != nil {
@@ -181,7 +163,6 @@ func (db *Database) IsOperatorInitialized(ctx context.Context) bool {
 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
-		logger.WithTrace(ctx, logger.DBLog).Error("Failed to get operator", zap.Error(err))
 
 		return false
 	}
@@ -254,40 +235,6 @@ func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
 	span.SetStatus(codes.Ok, "")
 
 	return &op, nil
-}
-
-// UpdateOperatorSlice updates SST/SD.
-func (db *Database) UpdateOperatorSlice(ctx context.Context, sst int32, sd []byte) error {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s", "UPDATE", OperatorTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("UPDATE"),
-			attribute.String("db.collection", OperatorTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "update"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
-
-	op := Operator{Sst: sst, Sd: sd}
-
-	err := db.conn.Query(ctx, db.updateOperatorSliceStmt, op).Run()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return nil
 }
 
 // UpdateOperatorTracking updates supported TACs.

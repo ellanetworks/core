@@ -105,7 +105,7 @@ func migrateV4(ctx context.Context, tx *sql.Tx) error {
 			opc TEXT NOT NULL CHECK (length(opc) = 32),
 			policyID INTEGER NOT NULL,
 			FOREIGN KEY (policyID) REFERENCES %s (id) ON DELETE CASCADE
-		)`, SubscribersTableName, PoliciesTableName))
+		)`, SubscribersTableName, policiesTableName))
 	if err != nil {
 		return fmt.Errorf("failed to create subscribers_new table: %w", err)
 	}

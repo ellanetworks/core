@@ -108,7 +108,7 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 
 		ctx := r.Context()
 
-		dbPolicies, total, err := dbInstance.ListPoliciesPage(ctx, page, perPage)
+		profiles, total, err := dbInstance.ListProfilesPage(ctx, page, perPage)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Policies not found", err, logger.APILog)
 			return
@@ -116,19 +116,27 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 
 		policyList := make([]Policy, 0)
 
-		for _, dbPolicy := range dbPolicies {
-			dataNetwork, err := dbInstance.GetDataNetworkByID(ctx, dbPolicy.DataNetworkID)
+		for _, profile := range profiles {
+			configs, err := dbInstance.ListProfileNetworkConfigs(ctx, profile.ID)
+			if err != nil || len(configs) == 0 {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
+				return
+			}
+
+			config := configs[0]
+
+			dataNetwork, err := dbInstance.GetDataNetworkByID(ctx, config.DataNetworkID)
 			if err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
 				return
 			}
 
 			policyList = append(policyList, Policy{
-				Name:            dbPolicy.Name,
-				BitrateDownlink: dbPolicy.BitrateDownlink,
-				BitrateUplink:   dbPolicy.BitrateUplink,
-				Var5qi:          dbPolicy.Var5qi,
-				Arp:             dbPolicy.Arp,
+				Name:            profile.Name,
+				BitrateDownlink: config.SessionAmbrDownlink,
+				BitrateUplink:   config.SessionAmbrUplink,
+				Var5qi:          config.Var5qi,
+				Arp:             config.Arp,
 				DataNetworkName: dataNetwork.Name,
 			})
 		}
@@ -152,24 +160,32 @@ func GetPolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		dbPolicy, err := dbInstance.GetPolicy(r.Context(), name)
+		profile, err := dbInstance.GetProfile(r.Context(), name)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 			return
 		}
 
-		dataNetwork, err := dbInstance.GetDataNetworkByID(r.Context(), dbPolicy.DataNetworkID)
+		configs, err := dbInstance.ListProfileNetworkConfigs(r.Context(), profile.ID)
+		if err != nil || len(configs) == 0 {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
+			return
+		}
+
+		config := configs[0]
+
+		dataNetwork, err := dbInstance.GetDataNetworkByID(r.Context(), config.DataNetworkID)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
 			return
 		}
 
 		policy := Policy{
-			Name:            dbPolicy.Name,
-			BitrateDownlink: dbPolicy.BitrateDownlink,
-			BitrateUplink:   dbPolicy.BitrateUplink,
-			Var5qi:          dbPolicy.Var5qi,
-			Arp:             dbPolicy.Arp,
+			Name:            profile.Name,
+			BitrateDownlink: config.SessionAmbrDownlink,
+			BitrateUplink:   config.SessionAmbrUplink,
+			Var5qi:          config.Var5qi,
+			Arp:             config.Arp,
 			DataNetworkName: dataNetwork.Name,
 		}
 		writeResponse(r.Context(), w, policy, http.StatusOK, logger.APILog)
@@ -190,13 +206,13 @@ func DeletePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		_, err := dbInstance.GetPolicy(r.Context(), name)
+		_, err := dbInstance.GetProfile(r.Context(), name)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 			return
 		}
 
-		subsInPolicy, err := dbInstance.SubscribersInPolicy(r.Context(), name)
+		subsInProfile, err := dbInstance.SubscribersInProfile(r.Context(), name)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
@@ -208,12 +224,12 @@ func DeletePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if subsInPolicy {
+		if subsInProfile {
 			writeError(r.Context(), w, http.StatusConflict, "Policy has subscribers", nil, logger.APILog)
 			return
 		}
 
-		if err := dbInstance.DeletePolicy(r.Context(), name); err != nil {
+		if err := dbInstance.DeleteProfile(r.Context(), name); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 				return
@@ -249,13 +265,13 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		numPolicies, err := dbInstance.CountPolicies(r.Context())
+		numProfiles, err := dbInstance.CountProfiles(r.Context())
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count policies", err, logger.APILog)
 			return
 		}
 
-		if numPolicies >= MaxNumPolicies {
+		if numProfiles >= MaxNumPolicies {
 			writeError(r.Context(), w, http.StatusBadRequest, "Maximum number of policies reached ("+strconv.Itoa(MaxNumPolicies)+")", nil, logger.APILog)
 			return
 		}
@@ -266,16 +282,19 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		dbPolicy := &db.Policy{
-			Name:            createPolicyParams.Name,
-			BitrateDownlink: createPolicyParams.BitrateDownlink,
-			BitrateUplink:   createPolicyParams.BitrateUplink,
-			Var5qi:          createPolicyParams.Var5qi,
-			Arp:             createPolicyParams.Arp,
-			DataNetworkID:   dataNetwork.ID,
+		slices, err := dbInstance.ListNetworkSlices(r.Context())
+		if err != nil || len(slices) == 0 {
+			writeError(r.Context(), w, http.StatusInternalServerError, "No network slice configured", err, logger.APILog)
+			return
 		}
 
-		if err := dbInstance.CreatePolicy(r.Context(), dbPolicy); err != nil {
+		newProfile := &db.Profile{
+			Name:           createPolicyParams.Name,
+			UeAmbrUplink:   createPolicyParams.BitrateUplink,
+			UeAmbrDownlink: createPolicyParams.BitrateDownlink,
+		}
+
+		if err := dbInstance.CreateProfile(r.Context(), newProfile); err != nil {
 			if errors.Is(err, db.ErrAlreadyExists) {
 				writeError(r.Context(), w, http.StatusConflict, "Policy already exists", nil, logger.APILog)
 				return
@@ -283,6 +302,27 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create policy", err, logger.APILog)
 
+			return
+		}
+
+		profile, err := dbInstance.GetProfile(r.Context(), createPolicyParams.Name)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create policy", err, logger.APILog)
+			return
+		}
+
+		config := &db.ProfileNetworkConfig{
+			ProfileID:           profile.ID,
+			SliceID:             slices[0].ID,
+			DataNetworkID:       dataNetwork.ID,
+			Var5qi:              createPolicyParams.Var5qi,
+			Arp:                 createPolicyParams.Arp,
+			SessionAmbrUplink:   createPolicyParams.BitrateUplink,
+			SessionAmbrDownlink: createPolicyParams.BitrateDownlink,
+		}
+
+		if err := dbInstance.CreateProfileNetworkConfig(r.Context(), config); err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create policy", err, logger.APILog)
 			return
 		}
 
@@ -318,7 +358,7 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		policy, err := dbInstance.GetPolicy(r.Context(), policyName)
+		profile, err := dbInstance.GetProfile(r.Context(), policyName)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 			return
@@ -330,14 +370,31 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		policy.Name = policyName
-		policy.BitrateDownlink = updatePolicyParams.BitrateDownlink
-		policy.BitrateUplink = updatePolicyParams.BitrateUplink
-		policy.Var5qi = updatePolicyParams.Var5qi
-		policy.Arp = updatePolicyParams.Arp
-		policy.DataNetworkID = dataNetwork.ID
+		networkSlices, err := dbInstance.ListNetworkSlices(r.Context())
+		if err != nil || len(networkSlices) == 0 {
+			writeError(r.Context(), w, http.StatusInternalServerError, "No network slice configured", err, logger.APILog)
+			return
+		}
 
-		if err := dbInstance.UpdatePolicy(r.Context(), policy); err != nil {
+		profile.UeAmbrUplink = updatePolicyParams.BitrateUplink
+		profile.UeAmbrDownlink = updatePolicyParams.BitrateDownlink
+
+		if err := dbInstance.UpdateProfile(r.Context(), profile); err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update policy", err, logger.APILog)
+			return
+		}
+
+		config := &db.ProfileNetworkConfig{
+			ProfileID:           profile.ID,
+			SliceID:             networkSlices[0].ID,
+			DataNetworkID:       dataNetwork.ID,
+			Var5qi:              updatePolicyParams.Var5qi,
+			Arp:                 updatePolicyParams.Arp,
+			SessionAmbrUplink:   updatePolicyParams.BitrateUplink,
+			SessionAmbrDownlink: updatePolicyParams.BitrateDownlink,
+		}
+
+		if err := dbInstance.UpdateProfileNetworkConfig(r.Context(), config); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update policy", err, logger.APILog)
 			return
 		}

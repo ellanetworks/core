@@ -242,15 +242,22 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		sliceResp := GetOperatorSliceResponse{}
+
+		networkSlices, sliceErr := dbInstance.ListNetworkSlices(r.Context())
+		if sliceErr == nil && len(networkSlices) > 0 {
+			sliceResp.Sst = int(networkSlices[0].Sst)
+			if networkSlices[0].Sd != nil {
+				sliceResp.Sd = *networkSlices[0].Sd
+			}
+		}
+
 		operator := &GetOperatorResponse{
 			ID: GetOperatorIDResponse{
 				Mcc: dbOperator.Mcc,
 				Mnc: dbOperator.Mnc,
 			},
-			Slice: GetOperatorSliceResponse{
-				Sst: int(dbOperator.Sst),
-				Sd:  SDToString(dbOperator.Sd),
-			},
+			Slice: sliceResp,
 			Tracking: GetOperatorTrackingResponse{
 				SupportedTacs: supportedTACs,
 			},
@@ -273,15 +280,18 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 // configuration including slice data. This endpoint will be removed in a future release.
 func GetOperatorSlice(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		dbOperator, err := dbInstance.GetOperator(r.Context())
+		networkSlices, err := dbInstance.ListNetworkSlices(r.Context())
 		if err != nil {
-			writeError(r.Context(), w, http.StatusNotFound, "Operator not found", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve slice", err, logger.APILog)
 			return
 		}
 
-		operatorSlice := &GetOperatorSliceResponse{
-			Sst: int(dbOperator.Sst),
-			Sd:  SDToString(dbOperator.Sd),
+		operatorSlice := &GetOperatorSliceResponse{}
+		if len(networkSlices) > 0 {
+			operatorSlice.Sst = int(networkSlices[0].Sst)
+			if networkSlices[0].Sd != nil {
+				operatorSlice.Sd = *networkSlices[0].Sd
+			}
 		}
 
 		writeResponse(r.Context(), w, operatorSlice, http.StatusOK, logger.APILog)
@@ -365,9 +375,40 @@ func UpdateOperatorSlice(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if err := dbInstance.UpdateOperatorSlice(r.Context(), int32(params.Sst), sd); err != nil {
+		var sdHex *string
+
+		if sd != nil {
+			s := SDToString(sd)
+			sdHex = &s
+		}
+
+		networkSlices, err := dbInstance.ListNetworkSlices(r.Context())
+		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update operator slice information", err, logger.APILog)
 			return
+		}
+
+		if len(networkSlices) > 0 {
+			ns := &db.NetworkSlice{
+				ID:   networkSlices[0].ID,
+				Sst:  int32(params.Sst),
+				Sd:   sdHex,
+				Name: networkSlices[0].Name,
+			}
+			if err := dbInstance.UpdateNetworkSlice(r.Context(), ns); err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update operator slice information", err, logger.APILog)
+				return
+			}
+		} else {
+			ns := &db.NetworkSlice{
+				Sst:  int32(params.Sst),
+				Sd:   sdHex,
+				Name: "default",
+			}
+			if err := dbInstance.CreateNetworkSlice(r.Context(), ns); err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update operator slice information", err, logger.APILog)
+				return
+			}
 		}
 
 		resp := SuccessResponse{Message: "Operator slice information updated successfully"}

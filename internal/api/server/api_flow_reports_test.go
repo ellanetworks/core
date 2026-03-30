@@ -393,21 +393,36 @@ func createFlowReportTestSubscriber(t *testing.T, dbInstance *db.Database) int {
 		t.Fatalf("couldn't get data network: %s", err)
 	}
 
-	policy := &db.Policy{
-		Name:            "test-policy-" + imsi,
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkID:   createdDN.ID,
+	profile := &db.Profile{
+		Name:           "test-profile-" + imsi,
+		UeAmbrUplink:   "100 Mbps",
+		UeAmbrDownlink: "200 Mbps",
 	}
-	if err := dbInstance.CreatePolicy(ctx, policy); err != nil {
-		t.Fatalf("couldn't create policy: %s", err)
+	if err := dbInstance.CreateProfile(ctx, profile); err != nil {
+		t.Fatalf("couldn't create profile: %s", err)
 	}
 
-	createdPolicy, err := dbInstance.GetPolicy(ctx, policy.Name)
+	createdProfile, err := dbInstance.GetProfile(ctx, profile.Name)
 	if err != nil {
-		t.Fatalf("couldn't get policy: %s", err)
+		t.Fatalf("couldn't get profile: %s", err)
+	}
+
+	slices, err := dbInstance.ListNetworkSlices(ctx)
+	if err != nil || len(slices) == 0 {
+		t.Fatalf("couldn't get network slices: %v", err)
+	}
+
+	config := &db.ProfileNetworkConfig{
+		ProfileID:           createdProfile.ID,
+		SliceID:             slices[0].ID,
+		DataNetworkID:       createdDN.ID,
+		Var5qi:              9,
+		Arp:                 1,
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+	}
+	if err := dbInstance.CreateProfileNetworkConfig(ctx, config); err != nil {
+		t.Fatalf("couldn't create profile network config: %s", err)
 	}
 
 	subscriber := &db.Subscriber{
@@ -415,13 +430,13 @@ func createFlowReportTestSubscriber(t *testing.T, dbInstance *db.Database) int {
 		SequenceNumber: "000000000022",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       createdPolicy.ID,
+		ProfileID:      createdProfile.ID,
 	}
 	if err := dbInstance.CreateSubscriber(ctx, subscriber); err != nil {
 		t.Fatalf("couldn't create subscriber: %s", err)
 	}
 
-	return createdPolicy.ID
+	return createdProfile.ID
 }
 
 func TestListFlowReportsPagination(t *testing.T) {
@@ -536,7 +551,7 @@ func TestListFlowReportsFilterBySubscriber(t *testing.T) {
 		SequenceNumber: "000000000022",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       policyID,
+		ProfileID:      policyID,
 	}
 	if err := env.DB.CreateSubscriber(context.Background(), sub2); err != nil {
 		t.Fatalf("couldn't create subscriber: %s", err)
@@ -908,7 +923,7 @@ func TestGetFlowReportStats_FilterBySubscriber(t *testing.T) {
 		SequenceNumber: "000000000022",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       policyID,
+		ProfileID:      policyID,
 	}
 	if err := env.DB.CreateSubscriber(context.Background(), sub2); err != nil {
 		t.Fatalf("couldn't create subscriber: %s", err)

@@ -163,16 +163,30 @@ func (fdb *FakeDBInstance) GetDataNetworkByID(ctx context.Context, id int) (*db.
 	}, nil
 }
 
-func (fdb *FakeDBInstance) GetPolicyByID(ctx context.Context, id int) (*db.Policy, error) {
-	return &db.Policy{
-		ID:   id,
-		Name: "TestPolicy",
-	}, nil
-}
-
 func (fdb *FakeDBInstance) GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error) {
 	return &db.Subscriber{
 		Imsi: imsi,
+	}, nil
+}
+
+func (fdb *FakeDBInstance) GetSubscriberProfile(ctx context.Context, imsi string) (*db.Profile, error) {
+	return &db.Profile{
+		ID:             1,
+		Name:           "TestProfile",
+		UeAmbrUplink:   "1 Gbps",
+		UeAmbrDownlink: "2 Gbps",
+	}, nil
+}
+
+func (fdb *FakeDBInstance) ListNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error) {
+	return []db.NetworkSlice{
+		{ID: 1, Sst: 1, Name: "default"},
+	}, nil
+}
+
+func (fdb *FakeDBInstance) ListProfileNetworkConfigs(ctx context.Context, profileID int) ([]db.ProfileNetworkConfig, error) {
+	return []db.ProfileNetworkConfig{
+		{ProfileID: profileID, DataNetworkID: 1},
 	}, nil
 }
 

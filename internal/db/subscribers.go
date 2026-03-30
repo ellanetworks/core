@@ -19,14 +19,14 @@ import (
 const SubscribersTableName = "subscribers"
 
 const (
-	listSubscribersPagedStmt     = "SELECT &Subscriber.*, COUNT(*) OVER() AS &NumItems.count from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
-	getSubscriberStmt            = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
-	createSubscriberStmt         = "INSERT INTO %s (imsi, sequenceNumber, permanentKey, opc, policyID) VALUES ($Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.policyID)"
-	editSubscriberPolicyStmt     = "UPDATE %s SET policyID=$Subscriber.policyID WHERE imsi==$Subscriber.imsi"
-	editSubscriberSeqNumStmt     = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE imsi==$Subscriber.imsi"
-	deleteSubscriberStmt         = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
-	countSubscribersStmt         = "SELECT COUNT(*) AS &NumItems.count FROM %s"
-	countSubscribersInPolicyStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE policyID=$Subscriber.policyID"
+	listSubscribersPagedStmt      = "SELECT &Subscriber.*, COUNT(*) OVER() AS &NumItems.count from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	getSubscriberStmt             = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
+	createSubscriberStmt          = "INSERT INTO %s (imsi, sequenceNumber, permanentKey, opc, profileID) VALUES ($Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.profileID)"
+	editSubscriberProfileStmt     = "UPDATE %s SET profileID=$Subscriber.profileID WHERE imsi==$Subscriber.imsi"
+	editSubscriberSeqNumStmt      = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE imsi==$Subscriber.imsi"
+	deleteSubscriberStmt          = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
+	countSubscribersStmt          = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	countSubscribersInProfileStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE profileID=$Subscriber.profileID"
 )
 
 type Subscriber struct {
@@ -35,7 +35,7 @@ type Subscriber struct {
 	SequenceNumber string `db:"sequenceNumber"`
 	PermanentKey   string `db:"permanentKey"`
 	Opc            string `db:"opc"`
-	PolicyID       int    `db:"policyID"`
+	ProfileID      int    `db:"profileID"`
 }
 
 func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage int) ([]Subscriber, int, error) {
@@ -172,7 +172,7 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 	return nil
 }
 
-func (db *Database) UpdateSubscriberPolicy(ctx context.Context, subscriber *Subscriber) error {
+func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Subscriber) error {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", SubscribersTableName),
@@ -192,7 +192,7 @@ func (db *Database) UpdateSubscriberPolicy(ctx context.Context, subscriber *Subs
 
 	var outcome sqlair.Outcome
 
-	err := db.conn.Query(ctx, db.updateSubscriberPolicyStmt, subscriber).Get(&outcome)
+	err := db.conn.Query(ctx, db.updateSubscriberProfileStmt, subscriber).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -321,10 +321,11 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 	return nil
 }
 
-func (db *Database) SubscribersInPolicy(ctx context.Context, name string) (bool, error) {
+// SubscribersInProfile checks whether any subscribers reference the given profile name.
+func (db *Database) SubscribersInProfile(ctx context.Context, profileName string) (bool, error) {
 	ctx, span := tracer.Start(
 		ctx,
-		"SubscribersInPolicy",
+		"SubscribersInProfile",
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
@@ -332,22 +333,22 @@ func (db *Database) SubscribersInPolicy(ctx context.Context, name string) (bool,
 	)
 	defer span.End()
 
-	policy, err := db.GetPolicy(ctx, name)
+	profile, err := db.GetProfile(ctx, profileName)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			span.RecordError(ErrNotFound)
-			span.SetStatus(codes.Error, "policy not found")
+			span.SetStatus(codes.Error, "profile not found")
 
 			return false, ErrNotFound
 		}
 
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "policy not found")
+		span.SetStatus(codes.Error, "profile not found")
 
-		return false, fmt.Errorf("policy not found: %w", err)
+		return false, fmt.Errorf("profile not found: %w", err)
 	}
 
-	count, err := db.CountSubscribersInPolicy(ctx, policy.ID)
+	count, err := db.CountSubscribersInProfile(ctx, profile.ID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "counting failed")
@@ -358,45 +359,6 @@ func (db *Database) SubscribersInPolicy(ctx context.Context, name string) (bool,
 	span.SetStatus(codes.Ok, "")
 
 	return count > 0, nil
-}
-
-func (db *Database) PoliciesInDataNetwork(ctx context.Context, name string) (bool, error) {
-	ctx, span := tracer.Start(
-		ctx,
-		"PoliciesInDataNetwork",
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-		),
-	)
-	defer span.End()
-
-	dataNetwork, err := db.GetDataNetwork(ctx, name)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "data network not found")
-
-		return false, fmt.Errorf("data network not found: %w", err)
-	}
-
-	policies, _, err := db.ListPoliciesPage(ctx, 1, 1000)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "listing failed")
-
-		return false, fmt.Errorf("listing failed: %w", err)
-	}
-
-	for _, p := range policies {
-		if p.DataNetworkID == dataNetwork.ID {
-			span.SetStatus(codes.Ok, "")
-			return true, nil
-		}
-	}
-
-	span.SetStatus(codes.Ok, "none found")
-
-	return false, nil
 }
 
 func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
@@ -432,16 +394,16 @@ func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
 	return result.Count, nil
 }
 
-func (db *Database) CountSubscribersInPolicy(ctx context.Context, policyID int) (int, error) {
+func (db *Database) CountSubscribersInProfile(ctx context.Context, profileID int) (int, error) {
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (by policy)", "SELECT", SubscribersTableName),
+		fmt.Sprintf("%s %s (by profile)", "SELECT", SubscribersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", SubscribersTableName),
-			attribute.Int("policy_id", policyID),
+			attribute.Int("profile_id", profileID),
 		),
 	)
 	defer span.End()
@@ -453,9 +415,9 @@ func (db *Database) CountSubscribersInPolicy(ctx context.Context, policyID int) 
 
 	var result NumItems
 
-	subscriber := Subscriber{PolicyID: policyID}
+	subscriber := Subscriber{ProfileID: profileID}
 
-	err := db.conn.Query(ctx, db.countSubscribersByPolicyStmt, subscriber).Get(&result)
+	err := db.conn.Query(ctx, db.countSubscribersByProfileStmt, subscriber).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

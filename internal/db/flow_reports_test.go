@@ -30,7 +30,7 @@ func TestFlowReportsInsertAndRetrieve(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err = createDataNetworkProfileAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -112,7 +112,7 @@ func TestFlowReportsMultipleInsert(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err = createDataNetworkProfileAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -170,7 +170,7 @@ func TestFlowReportsPagination(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err = createDataNetworkProfileAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -243,7 +243,7 @@ func TestFlowReportsFilterBySubscriber(t *testing.T) {
 	ctx := context.Background()
 
 	// Create subscribers
-	policyID, err := createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	profileID, err := createDataNetworkProfileAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -254,7 +254,7 @@ func TestFlowReportsFilterBySubscriber(t *testing.T) {
 			SequenceNumber: "000000000022",
 			PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 			Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-			PolicyID:       policyID,
+			ProfileID:      profileID,
 		}
 
 		err = database.CreateSubscriber(ctx, subscriber)
@@ -331,7 +331,7 @@ func TestFlowReportsFilterByProtocol(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err = createDataNetworkProfileAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -434,7 +434,7 @@ func TestGetFlowReportStats_ProtocolCounts(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err = createDataNetworkProfileAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -525,7 +525,7 @@ func TestGetFlowReportStats_TopDestinationsUplink(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err = createDataNetworkProfileAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -608,7 +608,7 @@ func TestGetFlowReportStats_WithSubscriberFilter(t *testing.T) {
 
 	ctx := context.Background()
 
-	policyID, err := createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	profileID, err := createDataNetworkProfileAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -618,7 +618,7 @@ func TestGetFlowReportStats_WithSubscriberFilter(t *testing.T) {
 		SequenceNumber: "000000000022",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       policyID,
+		ProfileID:      profileID,
 	}
 	if err := database.CreateSubscriber(ctx, sub2); err != nil {
 		t.Fatalf("couldn't create subscriber: %s", err)
@@ -702,7 +702,7 @@ func TestGetFlowReportStats_WithProtocolFilter(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err = createDataNetworkProfileAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -785,7 +785,7 @@ func TestGetFlowReportStats_WithDateFilter(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err = createDataNetworkProfileAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}
@@ -874,7 +874,7 @@ func TestFlowReportsRetention(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	_, err = createDataNetworkProfileAndSubscriber(database, "460123456789012")
 	if err != nil {
 		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
 	}

@@ -32,8 +32,6 @@ func (db *Database) ExportSupportData(ctx context.Context) (map[string]any, erro
 		// Redact sensitive operator fields immediately after fetch
 		op.OperatorCode = "*"
 
-		// Convert operator to JSON-friendly map; Sd is emitted as hex string
-		// (3 bytes -> 6 hex chars) to avoid base64 encoding in JSON
 		supportedTACs, _ := op.GetSupportedTacs()
 		operatorMap := map[string]any{
 			"ID":            op.ID,
@@ -41,10 +39,21 @@ func (db *Database) ExportSupportData(ctx context.Context) (map[string]any, erro
 			"Mnc":           op.Mnc,
 			"OperatorCode":  op.OperatorCode,
 			"SupportedTACs": supportedTACs,
-			"Sst":           op.Sst,
-			"Sd":            op.GetHexSd(),
 		}
 		out["operator"] = operatorMap
+	}
+
+	slices, err := db.ListNetworkSlices(ctx)
+	if err != nil {
+		logger.DBLog.Warn("failed to list network slices for support export", zap.Error(err))
+	} else {
+		if sAny, err := toAnySlice(slices); err != nil {
+			logger.DBLog.Warn("failed to convert network slices for support export", zap.Error(err))
+
+			out["network_slices"] = slices
+		} else {
+			out["network_slices"] = sAny
+		}
 	}
 
 	hnKeys, err := db.ListHomeNetworkKeys(ctx)
@@ -64,16 +73,16 @@ func (db *Database) ExportSupportData(ctx context.Context) (map[string]any, erro
 		out["home_network_keys"] = redacted
 	}
 
-	policies, _, err := db.ListPoliciesPage(ctx, 1, 1000)
+	profiles, _, err := db.ListProfilesPage(ctx, 1, 1000)
 	if err != nil {
-		logger.DBLog.Warn("failed to list policies for support export", zap.Error(err))
+		logger.DBLog.Warn("failed to list profiles for support export", zap.Error(err))
 	} else {
-		if pAny, err := toAnySlice(policies); err != nil {
-			logger.DBLog.Warn("failed to convert policies for support export", zap.Error(err))
+		if pAny, err := toAnySlice(profiles); err != nil {
+			logger.DBLog.Warn("failed to convert profiles for support export", zap.Error(err))
 
-			out["policies"] = policies
+			out["profiles"] = profiles
 		} else {
-			out["policies"] = pAny
+			out["profiles"] = pAny
 		}
 	}
 

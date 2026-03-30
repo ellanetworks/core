@@ -147,27 +147,27 @@ func (a *smfDBAdapter) ReleaseIP(ctx context.Context, imsi string, dnn string, p
 	return a.allocator.Release(ctx, pool, int(pduSessionID), imsi)
 }
 
-func (a *smfDBAdapter) GetSubscriberPolicy(ctx context.Context, imsi string) (*smf.Policy, error) {
-	sub, err := a.db.GetSubscriber(ctx, imsi)
-	if err != nil {
-		return nil, fmt.Errorf("get subscriber: %w", err)
+func (a *smfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai *models.Snssai, dnn string) (*smf.Policy, error) {
+	var sd *string
+	if snssai.Sd != "" {
+		sd = &snssai.Sd
 	}
 
-	pol, err := a.db.GetPolicyByID(ctx, sub.PolicyID)
+	config, err := a.db.GetSessionPolicy(ctx, imsi, snssai.Sst, sd, dnn)
 	if err != nil {
-		return nil, fmt.Errorf("get policy: %w", err)
+		return nil, fmt.Errorf("get session policy: %w", err)
 	}
 
 	return &smf.Policy{
 		Ambr: models.Ambr{
-			Uplink:   pol.BitrateUplink,
-			Downlink: pol.BitrateDownlink,
+			Uplink:   config.SessionAmbrUplink,
+			Downlink: config.SessionAmbrDownlink,
 		},
 		QosData: models.QosData{
 			QFI:    1,
-			Var5qi: pol.Var5qi,
+			Var5qi: config.Var5qi,
 			Arp: &models.Arp{
-				PriorityLevel: pol.Arp,
+				PriorityLevel: config.Arp,
 			},
 		},
 	}, nil

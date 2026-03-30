@@ -46,18 +46,19 @@ func setupLeaseTestDB(t *testing.T) (*db.Database, int, string) {
 		t.Fatalf("GetDataNetwork: %s", err)
 	}
 
-	policy := &db.Policy{
-		Name:          "test-policy",
-		DataNetworkID: createdDNN.ID,
+	profile := &db.Profile{
+		Name:           "test-profile",
+		UeAmbrUplink:   "100 Mbps",
+		UeAmbrDownlink: "100 Mbps",
 	}
 
-	if err := database.CreatePolicy(context.Background(), policy); err != nil {
-		t.Fatalf("CreatePolicy: %s", err)
+	if err := database.CreateProfile(context.Background(), profile); err != nil {
+		t.Fatalf("CreateProfile: %s", err)
 	}
 
-	createdPolicy, err := database.GetPolicy(context.Background(), policy.Name)
+	createdProfile, err := database.GetProfile(context.Background(), profile.Name)
 	if err != nil {
-		t.Fatalf("GetPolicy: %s", err)
+		t.Fatalf("GetProfile: %s", err)
 	}
 
 	imsi := "001010123456789"
@@ -66,7 +67,7 @@ func setupLeaseTestDB(t *testing.T) (*db.Database, int, string) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       createdPolicy.ID,
+		ProfileID:      createdProfile.ID,
 	}
 
 	if err := database.CreateSubscriber(context.Background(), sub); err != nil {
@@ -142,7 +143,7 @@ func TestCreateLease_UniqueConstraint(t *testing.T) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       1,
+		ProfileID:      1,
 	}
 
 	if err := database.CreateSubscriber(ctx, sub2); err != nil {
@@ -282,7 +283,7 @@ func TestDeleteAllDynamicLeases(t *testing.T) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       1,
+		ProfileID:      1,
 	}
 
 	if err := database.CreateSubscriber(ctx, sub2); err != nil {

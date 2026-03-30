@@ -27,14 +27,14 @@ type Database struct {
 	restoreMu sync.Mutex
 
 	// Subscriber statements
-	listSubscribersStmt          *sqlair.Statement
-	countSubscribersStmt         *sqlair.Statement
-	getSubscriberStmt            *sqlair.Statement
-	createSubscriberStmt         *sqlair.Statement
-	updateSubscriberPolicyStmt   *sqlair.Statement
-	updateSubscriberSqnNumStmt   *sqlair.Statement
-	deleteSubscriberStmt         *sqlair.Statement
-	countSubscribersByPolicyStmt *sqlair.Statement
+	listSubscribersStmt           *sqlair.Statement
+	countSubscribersStmt          *sqlair.Statement
+	getSubscriberStmt             *sqlair.Statement
+	createSubscriberStmt          *sqlair.Statement
+	updateSubscriberProfileStmt   *sqlair.Statement
+	updateSubscriberSqnNumStmt    *sqlair.Statement
+	deleteSubscriberStmt          *sqlair.Statement
+	countSubscribersByProfileStmt *sqlair.Statement
 
 	// IP Lease statements
 	createLeaseStmt              *sqlair.Statement
@@ -121,7 +121,6 @@ type Database struct {
 	// Operator statements
 	getOperatorStmt                      *sqlair.Statement
 	initializeOperatorStmt               *sqlair.Statement
-	updateOperatorSliceStmt              *sqlair.Statement
 	updateOperatorTrackingStmt           *sqlair.Statement
 	updateOperatorIDStmt                 *sqlair.Statement
 	updateOperatorCodeStmt               *sqlair.Statement
@@ -136,14 +135,35 @@ type Database struct {
 	deleteHomeNetworkKeyStmt                   *sqlair.Statement
 	countHomeNetworkKeysStmt                   *sqlair.Statement
 
-	// Policies statements
-	listPoliciesStmt  *sqlair.Statement
-	getPolicyStmt     *sqlair.Statement
-	getPolicyByIDStmt *sqlair.Statement
-	createPolicyStmt  *sqlair.Statement
-	editPolicyStmt    *sqlair.Statement
-	deletePolicyStmt  *sqlair.Statement
-	countPoliciesStmt *sqlair.Statement
+	// Network Slices statements
+	listNetworkSlicesStmt        *sqlair.Statement
+	getNetworkSliceByIDStmt      *sqlair.Statement
+	getNetworkSliceBySstSdStmt   *sqlair.Statement
+	getNetworkSliceBySstNullStmt *sqlair.Statement
+	getNetworkSliceByNameStmt    *sqlair.Statement
+	createNetworkSliceStmt       *sqlair.Statement
+	updateNetworkSliceStmt       *sqlair.Statement
+	deleteNetworkSliceStmt       *sqlair.Statement
+	countNetworkSlicesStmt       *sqlair.Statement
+
+	// Profiles statements
+	listProfilesStmt     *sqlair.Statement
+	getProfileByNameStmt *sqlair.Statement
+	getProfileByIDStmt   *sqlair.Statement
+	createProfileStmt    *sqlair.Statement
+	updateProfileStmt    *sqlair.Statement
+	deleteProfileStmt    *sqlair.Statement
+	countProfilesStmt    *sqlair.Statement
+
+	// Profile Network Configs statements
+	listProfileNetworkConfigsByProfileStmt   *sqlair.Statement
+	getProfileNetworkConfigStmt              *sqlair.Statement
+	createProfileNetworkConfigStmt           *sqlair.Statement
+	updateProfileNetworkConfigStmt           *sqlair.Statement
+	deleteProfileNetworkConfigStmt           *sqlair.Statement
+	deleteProfileNetworkConfigsByProfileStmt *sqlair.Statement
+	countConfigsInDataNetworkStmt            *sqlair.Statement
+	countConfigsInSliceStmt                  *sqlair.Statement
 
 	// Retention Policy statements
 	selectRetentionPolicyStmt *sqlair.Statement
@@ -210,14 +230,17 @@ const (
 
 // Initial operator values
 const (
-	InitialMcc         = "001"
-	InitialMnc         = "01"
-	InitialOperatorSst = 1
+	InitialMcc = "001"
+	InitialMnc = "01"
 )
 
-var (
-	InitialOperatorSd    = []byte{0x10, 0x20, 0x30}
-	InitialSupportedTacs = []string{"000001"}
+var InitialSupportedTacs = []string{"000001"}
+
+// Initial network slice values
+const (
+	InitialSliceSst  = 1
+	InitialSliceSd   = "102030"
+	InitialSliceName = "default"
 )
 
 // Initial Data network values
@@ -228,13 +251,13 @@ const (
 	InitialDataNetworkMTU    = 1400
 )
 
-// Initial Policy values
+// Initial Profile values
 const (
-	InitialPolicyName            = "default"
-	InitialPolicyBitrateUplink   = "200 Mbps"
-	InitialPolicyBitrateDownlink = "200 Mbps"
-	InitialPolicyVar5qi          = 9 // Default 5QI for non-GBR
-	InitialPolicyArp             = 1 // Default ARP of 1
+	InitialProfileName            = "default"
+	InitialProfileBitrateUplink   = "200 Mbps"
+	InitialProfileBitrateDownlink = "200 Mbps"
+	InitialProfileVar5qi          = 9 // Default 5QI for non-GBR
+	InitialProfileArp             = 1 // Default ARP of 1
 )
 
 // openSQLiteConnection opens a SQLite database at the given path and configures
@@ -332,10 +355,10 @@ func (db *Database) PrepareStatements() error {
 		{&db.countSubscribersStmt, fmt.Sprintf(countSubscribersStmt, SubscribersTableName), []any{NumItems{}}},
 		{&db.getSubscriberStmt, fmt.Sprintf(getSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.createSubscriberStmt, fmt.Sprintf(createSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
-		{&db.updateSubscriberPolicyStmt, fmt.Sprintf(editSubscriberPolicyStmt, SubscribersTableName), []any{Subscriber{}}},
+		{&db.updateSubscriberProfileStmt, fmt.Sprintf(editSubscriberProfileStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.updateSubscriberSqnNumStmt, fmt.Sprintf(editSubscriberSeqNumStmt, SubscribersTableName), []any{Subscriber{}}},
 		{&db.deleteSubscriberStmt, fmt.Sprintf(deleteSubscriberStmt, SubscribersTableName), []any{Subscriber{}}},
-		{&db.countSubscribersByPolicyStmt, fmt.Sprintf(countSubscribersInPolicyStmt, SubscribersTableName), []any{NumItems{}, Subscriber{}}},
+		{&db.countSubscribersByProfileStmt, fmt.Sprintf(countSubscribersInProfileStmt, SubscribersTableName), []any{NumItems{}, Subscriber{}}},
 
 		// IP Leases
 		{&db.createLeaseStmt, fmt.Sprintf(createLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
@@ -422,7 +445,6 @@ func (db *Database) PrepareStatements() error {
 		// Operator
 		{&db.getOperatorStmt, fmt.Sprintf(getOperatorStmt, OperatorTableName), []any{Operator{}}},
 		{&db.initializeOperatorStmt, fmt.Sprintf(initializeOperatorStmt, OperatorTableName), []any{Operator{}}},
-		{&db.updateOperatorSliceStmt, fmt.Sprintf(updateOperatorSliceStmt, OperatorTableName), []any{Operator{}}},
 		{&db.updateOperatorTrackingStmt, fmt.Sprintf(updateOperatorTrackingStmt, OperatorTableName), []any{Operator{}}},
 		{&db.updateOperatorIDStmt, fmt.Sprintf(updateOperatorIDStmt, OperatorTableName), []any{Operator{}}},
 		{&db.updateOperatorCodeStmt, fmt.Sprintf(updateOperatorCodeStmt, OperatorTableName), []any{Operator{}}},
@@ -437,14 +459,35 @@ func (db *Database) PrepareStatements() error {
 		{&db.deleteHomeNetworkKeyStmt, fmt.Sprintf(deleteHomeNetworkKeyStmtStr, HomeNetworkKeysTableName), []any{HomeNetworkKey{}}},
 		{&db.countHomeNetworkKeysStmt, fmt.Sprintf(countHomeNetworkKeysStmtStr, HomeNetworkKeysTableName), []any{NumItems{}}},
 
-		// Policies
-		{&db.listPoliciesStmt, fmt.Sprintf(listPoliciesPagedStmt, PoliciesTableName), []any{ListArgs{}, Policy{}, NumItems{}}},
-		{&db.getPolicyStmt, fmt.Sprintf(getPolicyStmt, PoliciesTableName), []any{Policy{}}},
-		{&db.getPolicyByIDStmt, fmt.Sprintf(getPolicyByIDStmt, PoliciesTableName), []any{Policy{}}},
-		{&db.createPolicyStmt, fmt.Sprintf(createPolicyStmt, PoliciesTableName), []any{Policy{}}},
-		{&db.editPolicyStmt, fmt.Sprintf(editPolicyStmt, PoliciesTableName), []any{Policy{}}},
-		{&db.deletePolicyStmt, fmt.Sprintf(deletePolicyStmt, PoliciesTableName), []any{Policy{}}},
-		{&db.countPoliciesStmt, fmt.Sprintf(countPoliciesStmt, PoliciesTableName), []any{NumItems{}}},
+		// Network Slices
+		{&db.listNetworkSlicesStmt, fmt.Sprintf(listNetworkSlicesStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
+		{&db.getNetworkSliceByIDStmt, fmt.Sprintf(getNetworkSliceByIDStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
+		{&db.getNetworkSliceBySstSdStmt, fmt.Sprintf(getNetworkSliceBySstSdStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
+		{&db.getNetworkSliceBySstNullStmt, fmt.Sprintf(getNetworkSliceBySstNullStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
+		{&db.getNetworkSliceByNameStmt, fmt.Sprintf(getNetworkSliceByNameStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
+		{&db.createNetworkSliceStmt, fmt.Sprintf(createNetworkSliceStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
+		{&db.updateNetworkSliceStmt, fmt.Sprintf(updateNetworkSliceStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
+		{&db.deleteNetworkSliceStmt, fmt.Sprintf(deleteNetworkSliceStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
+		{&db.countNetworkSlicesStmt, fmt.Sprintf(countNetworkSlicesStmt, NetworkSlicesTableName), []any{NumItems{}}},
+
+		// Profiles
+		{&db.listProfilesStmt, fmt.Sprintf(listProfilesPagedStmt, ProfilesTableName), []any{ListArgs{}, Profile{}, NumItems{}}},
+		{&db.getProfileByNameStmt, fmt.Sprintf(getProfileByNameStmt, ProfilesTableName), []any{Profile{}}},
+		{&db.getProfileByIDStmt, fmt.Sprintf(getProfileByIDStmt, ProfilesTableName), []any{Profile{}}},
+		{&db.createProfileStmt, fmt.Sprintf(createProfileStmt, ProfilesTableName), []any{Profile{}}},
+		{&db.updateProfileStmt, fmt.Sprintf(updateProfileStmt, ProfilesTableName), []any{Profile{}}},
+		{&db.deleteProfileStmt, fmt.Sprintf(deleteProfileStmt, ProfilesTableName), []any{Profile{}}},
+		{&db.countProfilesStmt, fmt.Sprintf(countProfilesStmt, ProfilesTableName), []any{NumItems{}}},
+
+		// Profile Network Configs
+		{&db.listProfileNetworkConfigsByProfileStmt, fmt.Sprintf(listProfileNetworkConfigsByProfileStmt, ProfileNetworkConfigsTableName), []any{ProfileNetworkConfig{}}},
+		{&db.getProfileNetworkConfigStmt, fmt.Sprintf(getProfileNetworkConfigStmt, ProfileNetworkConfigsTableName), []any{ProfileNetworkConfig{}}},
+		{&db.createProfileNetworkConfigStmt, fmt.Sprintf(createProfileNetworkConfigStmt, ProfileNetworkConfigsTableName), []any{ProfileNetworkConfig{}}},
+		{&db.updateProfileNetworkConfigStmt, fmt.Sprintf(updateProfileNetworkConfigStmt, ProfileNetworkConfigsTableName), []any{ProfileNetworkConfig{}}},
+		{&db.deleteProfileNetworkConfigStmt, fmt.Sprintf(deleteProfileNetworkConfigStmt, ProfileNetworkConfigsTableName), []any{ProfileNetworkConfig{}}},
+		{&db.deleteProfileNetworkConfigsByProfileStmt, fmt.Sprintf(deleteProfileNetworkConfigsByProfileStmt, ProfileNetworkConfigsTableName), []any{ProfileNetworkConfig{}}},
+		{&db.countConfigsInDataNetworkStmt, fmt.Sprintf(countConfigsInDataNetworkStmt, ProfileNetworkConfigsTableName), []any{NumItems{}, ProfileNetworkConfig{}}},
+		{&db.countConfigsInSliceStmt, fmt.Sprintf(countConfigsInSliceStmt, ProfileNetworkConfigsTableName), []any{NumItems{}, ProfileNetworkConfig{}}},
 
 		// Retention Policy
 		{&db.selectRetentionPolicyStmt, fmt.Sprintf(selectRetentionPolicyStmt, RetentionPolicyTableName), []any{RetentionPolicy{}}},
@@ -548,8 +591,6 @@ func (db *Database) Initialize(ctx context.Context) error {
 			Mcc:          InitialMcc,
 			Mnc:          InitialMnc,
 			OperatorCode: initialOp,
-			Sst:          InitialOperatorSst,
-			Sd:           InitialOperatorSd,
 		}
 
 		err = initialOperator.SetSupportedTacs(InitialSupportedTacs)
@@ -560,6 +601,25 @@ func (db *Database) Initialize(ctx context.Context) error {
 		err = db.InitializeOperator(ctx, initialOperator)
 		if err != nil {
 			return fmt.Errorf("failed to initialize network configuration: %v", err)
+		}
+	}
+
+	numSlices, err := db.CountNetworkSlices(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to count network slices: %w", err)
+	}
+
+	if numSlices == 0 {
+		sd := InitialSliceSd
+
+		initialSlice := &NetworkSlice{
+			Sst:  InitialSliceSst,
+			Sd:   &sd,
+			Name: InitialSliceName,
+		}
+
+		if err := db.CreateNetworkSlice(ctx, initialSlice); err != nil {
+			return fmt.Errorf("failed to create default network slice: %v", err)
 		}
 	}
 
@@ -649,6 +709,7 @@ func (db *Database) Initialize(ctx context.Context) error {
 			DNS:    InitialDataNetworkDNS,
 			MTU:    InitialDataNetworkMTU,
 		}
+
 		if err := db.CreateDataNetwork(ctx, initialDataNetwork); err != nil {
 			return fmt.Errorf("failed to create default data network: %v", err)
 		}
@@ -658,17 +719,38 @@ func (db *Database) Initialize(ctx context.Context) error {
 			return fmt.Errorf("failed to get default data network: %v", err)
 		}
 
-		initialPolicy := &Policy{
-			Name:            InitialPolicyName,
-			BitrateUplink:   InitialPolicyBitrateUplink,
-			BitrateDownlink: InitialPolicyBitrateDownlink,
-			Var5qi:          InitialPolicyVar5qi,
-			Arp:             InitialPolicyArp,
-			DataNetworkID:   dataNetwork.ID,
+		initialProfile := &Profile{
+			Name:           InitialProfileName,
+			UeAmbrUplink:   InitialProfileBitrateUplink,
+			UeAmbrDownlink: InitialProfileBitrateDownlink,
 		}
 
-		if err := db.CreatePolicy(ctx, initialPolicy); err != nil {
-			return fmt.Errorf("failed to create default policy: %v", err)
+		if err := db.CreateProfile(ctx, initialProfile); err != nil {
+			return fmt.Errorf("failed to create default profile: %v", err)
+		}
+
+		profile, err := db.GetProfile(ctx, InitialProfileName)
+		if err != nil {
+			return fmt.Errorf("failed to get default profile: %v", err)
+		}
+
+		slice, err := db.GetNetworkSliceByName(ctx, InitialSliceName)
+		if err != nil {
+			return fmt.Errorf("failed to get default network slice: %v", err)
+		}
+
+		initialConfig := &ProfileNetworkConfig{
+			ProfileID:           profile.ID,
+			SliceID:             slice.ID,
+			DataNetworkID:       dataNetwork.ID,
+			Var5qi:              InitialProfileVar5qi,
+			Arp:                 InitialProfileArp,
+			SessionAmbrUplink:   InitialProfileBitrateUplink,
+			SessionAmbrDownlink: InitialProfileBitrateDownlink,
+		}
+
+		if err := db.CreateProfileNetworkConfig(ctx, initialConfig); err != nil {
+			return fmt.Errorf("failed to create default profile network config: %v", err)
 		}
 	}
 

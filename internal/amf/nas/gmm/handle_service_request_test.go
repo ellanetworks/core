@@ -67,7 +67,6 @@ func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T)
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
@@ -125,7 +124,6 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
@@ -188,7 +186,6 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
@@ -259,7 +256,6 @@ func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
@@ -324,7 +320,6 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
@@ -393,7 +388,6 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
@@ -475,7 +469,6 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
@@ -557,7 +550,6 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
@@ -652,7 +644,6 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
@@ -711,7 +702,6 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
@@ -844,7 +834,6 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
@@ -981,7 +970,6 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
@@ -1126,7 +1114,6 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
@@ -1260,7 +1247,6 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
@@ -1441,7 +1427,6 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
@@ -1506,7 +1491,6 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"000001\"]",
 			},
 		},

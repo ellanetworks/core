@@ -227,7 +227,7 @@ func (f *fakeSessionStore) ReleaseIP(_ context.Context, _ string, _ string, _ ui
 	return netip.Addr{}, fmt.Errorf("not implemented in test")
 }
 
-func (f *fakeSessionStore) GetSubscriberPolicy(_ context.Context, _ string) (*smf.Policy, error) {
+func (f *fakeSessionStore) GetSessionPolicy(_ context.Context, _ string, _ *models.Snssai, _ string) (*smf.Policy, error) {
 	return nil, fmt.Errorf("not implemented in test")
 }
 

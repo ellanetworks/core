@@ -66,6 +66,22 @@ func (amf *AMF) GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 		return nil, fmt.Errorf("failed to get supported TAIs: %w", err)
 	}
 
+	slices, err := amf.DBInstance.ListNetworkSlices(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list network slices: %w", err)
+	}
+
+	if len(slices) == 0 {
+		return nil, fmt.Errorf("no network slices configured")
+	}
+
+	slice := slices[0]
+
+	var sd string
+	if slice.Sd != nil {
+		sd = *slice.Sd
+	}
+
 	operatorInfo := &OperatorInfo{
 		Tais: supportedTAIs,
 		Guami: &models.Guami{
@@ -81,8 +97,8 @@ func (amf *AMF) GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 				Mnc: operator.Mnc,
 			},
 			SNssai: &models.Snssai{
-				Sst: operator.Sst,
-				Sd:  operator.GetHexSd(),
+				Sst: slice.Sst,
+				Sd:  sd,
 			},
 		},
 	}
@@ -127,14 +143,18 @@ func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI) (string, e
 		return "", fmt.Errorf("couldn't get subscriber %s: %v", imsi, err)
 	}
 
-	policy, err := amf.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
+	configs, err := amf.DBInstance.ListProfileNetworkConfigs(ctx, subscriber.ProfileID)
 	if err != nil {
-		return "", fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
+		return "", fmt.Errorf("couldn't get profile network configs for profile %d: %v", subscriber.ProfileID, err)
 	}
 
-	dataNetwork, err := amf.DBInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
+	if len(configs) == 0 {
+		return "", fmt.Errorf("no network configs found for profile %d", subscriber.ProfileID)
+	}
+
+	dataNetwork, err := amf.DBInstance.GetDataNetworkByID(ctx, configs[0].DataNetworkID)
 	if err != nil {
-		return "", fmt.Errorf("couldn't get data network %d: %v", policy.DataNetworkID, err)
+		return "", fmt.Errorf("couldn't get data network %d: %v", configs[0].DataNetworkID, err)
 	}
 
 	return dataNetwork.Name, nil
@@ -150,19 +170,14 @@ func (amf *AMF) GetSubscriberBitrate(ctx context.Context, supi etsi.SUPI) (*mode
 
 	imsi := supi.IMSI()
 
-	subscriber, err := amf.DBInstance.GetSubscriber(ctx, imsi)
+	profile, err := amf.DBInstance.GetSubscriberProfile(ctx, imsi)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get subscriber %s: %v", imsi, err)
-	}
-
-	policy, err := amf.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
+		return nil, fmt.Errorf("couldn't get profile for subscriber %s: %v", imsi, err)
 	}
 
 	return &models.Ambr{
-		Downlink: policy.BitrateDownlink,
-		Uplink:   policy.BitrateUplink,
+		Downlink: profile.UeAmbrDownlink,
+		Uplink:   profile.UeAmbrUplink,
 	}, nil
 }
 

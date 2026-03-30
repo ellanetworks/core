@@ -161,7 +161,7 @@ func DeleteDataNetwork(dbInstance *db.Database, cfg config.Config, bgpService *b
 			return
 		}
 
-		policiesInDataNetwork, err := dbInstance.PoliciesInDataNetwork(r.Context(), name)
+		configsInDataNetwork, err := dbInstance.NetworkConfigsInDataNetwork(r.Context(), name)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
@@ -173,7 +173,7 @@ func DeleteDataNetwork(dbInstance *db.Database, cfg config.Config, bgpService *b
 			return
 		}
 
-		if policiesInDataNetwork {
+		if configsInDataNetwork {
 			writeError(r.Context(), w, http.StatusConflict, "Data Network has policies", nil, logger.APILog)
 			return
 		}

@@ -162,16 +162,16 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 
 	pti := m.PDUSessionEstablishmentRequest.GetPTI()
 
-	policy, err := s.GetSubscriberPolicy(ctx, smContext.Supi)
+	policy, err := s.GetSessionPolicy(ctx, smContext.Supi, smContext.Snssai, smContext.Dnn)
 	if err != nil {
 		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
 
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice)
 		if buildErr != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject message", zap.Error(buildErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		}
 
-		return nil, nil, nil, 0, nil, rsp, fmt.Errorf("failed to find subscriber policy: %v", err)
+		return nil, nil, nil, 0, nil, rsp, fmt.Errorf("failed to find session policy: %v", err)
 	}
 
 	dnnInfo, err := s.GetDataNetwork(ctx, smContext.Snssai, smContext.Dnn)

@@ -67,11 +67,11 @@ func TestExportSupportData_Default(t *testing.T) {
 		}
 	}
 
-	// policies (JSON-decoded) should be an array
-	if policies, ok := out["policies"].([]any); !ok {
-		t.Fatalf("policies missing or wrong type: %T", out["policies"])
-	} else if len(policies) == 0 {
-		t.Fatalf("expected at least one policy in export")
+	// profiles (JSON-decoded) should be an array
+	if profiles, ok := out["profiles"].([]any); !ok {
+		t.Fatalf("profiles missing or wrong type: %T", out["profiles"])
+	} else if len(profiles) == 0 {
+		t.Fatalf("expected at least one profile in export")
 	}
 
 	// networking
@@ -117,62 +117,43 @@ func TestExportSupportData_WithEntries(t *testing.T) {
 		t.Fatalf("InsertAuditLog failed: %v", err)
 	}
 
-	// create a data network explicitly and a policy referencing it
+	// create a data network explicitly and a profile
 	dn := &db.DataNetwork{Name: "support-net", IPPool: "10.99.0.0/24", DNS: "1.1.1.1", MTU: 1400}
 	if err := database.CreateDataNetwork(context.Background(), dn); err != nil {
 		t.Fatalf("CreateDataNetwork failed: %v", err)
 	}
 
-	// fetch data networks to get ID
-	dns, _, err := database.ListDataNetworksPage(context.Background(), 1, 10)
-	if err != nil || len(dns) == 0 {
-		t.Fatalf("unable to list data networks: %v", err)
+	profile := &db.Profile{Name: "support-profile", UeAmbrUplink: "100 Mbps", UeAmbrDownlink: "100 Mbps"}
+	if err := database.CreateProfile(context.Background(), profile); err != nil {
+		t.Fatalf("CreateProfile failed: %v", err)
 	}
 
-	var dnID int
+	// fetch profile to get ID
+	profiles, _, err := database.ListProfilesPage(context.Background(), 1, 10)
+	if err != nil || len(profiles) == 0 {
+		t.Fatalf("unable to get profile for creating subscriber: %v", err)
+	}
 
-	for _, d := range dns {
-		if d.Name == dn.Name {
-			dnID = d.ID
+	var profileID int
+
+	for _, p := range profiles {
+		if p.Name == profile.Name {
+			profileID = p.ID
 			break
 		}
 	}
 
-	if dnID == 0 {
-		t.Fatalf("couldn't find created data network")
+	if profileID == 0 {
+		t.Fatalf("couldn't find created profile")
 	}
 
-	policy := &db.Policy{Name: "support-policy", BitrateUplink: "100 Mbps", BitrateDownlink: "100 Mbps", Var5qi: 9, Arp: 1, DataNetworkID: dnID}
-	if err := database.CreatePolicy(context.Background(), policy); err != nil {
-		t.Fatalf("CreatePolicy failed: %v", err)
-	}
-
-	// fetch policy to get ID
-	policies, _, err := database.ListPoliciesPage(context.Background(), 1, 10)
-	if err != nil || len(policies) == 0 {
-		t.Fatalf("unable to get policy for creating subscriber: %v", err)
-	}
-
-	var policyID int
-
-	for _, p := range policies {
-		if p.Name == policy.Name {
-			policyID = p.ID
-			break
-		}
-	}
-
-	if policyID == 0 {
-		t.Fatalf("couldn't find created policy")
-	}
-
-	// create a subscriber referencing the created policy
+	// create a subscriber referencing the created profile
 	sub := &db.Subscriber{
 		Imsi:           "001010000000001",
 		SequenceNumber: "000000000001",
 		PermanentKey:   strings.Repeat("p", 32),
 		Opc:            strings.Repeat("o", 32),
-		PolicyID:       policyID,
+		ProfileID:      profileID,
 	}
 	if err := database.CreateSubscriber(context.Background(), sub); err != nil {
 		t.Fatalf("CreateSubscriber failed: %v", err)
@@ -219,15 +200,15 @@ func TestExportSupportData_WithEntries(t *testing.T) {
 		}
 	}
 
-	// validate policies and networking content include our created entries
-	polsAny, ok := out["policies"].([]any)
+	// validate profiles and networking content include our created entries
+	profsAny, ok := out["profiles"].([]any)
 	if !ok {
-		t.Fatalf("policies missing or wrong type: %T", out["policies"])
+		t.Fatalf("profiles missing or wrong type: %T", out["profiles"])
 	}
 
-	foundPolicy := false
+	foundProfile := false
 
-	for _, pi := range polsAny {
+	for _, pi := range profsAny {
 		if pm, ok := pi.(map[string]any); ok {
 			// name may be "name" or "Name" depending on marshaling
 			var name string
@@ -237,35 +218,15 @@ func TestExportSupportData_WithEntries(t *testing.T) {
 				name = v
 			}
 
-			if name != policy.Name {
-				continue
-			}
-
-			// check dataNetworkID numeric equivalence (several possible key casings)
-			var idAny any
-			if v, ok := pm["dataNetworkID"]; ok {
-				idAny = v
-			} else if v, ok := pm["DataNetworkID"]; ok {
-				idAny = v
-			} else if v, ok := pm["dataNetworkId"]; ok {
-				idAny = v
-			}
-
-			switch idv := idAny.(type) {
-			case int:
-				if idv == dnID {
-					foundPolicy = true
-				}
-			case float64:
-				if int(idv) == dnID {
-					foundPolicy = true
-				}
+			if name == profile.Name {
+				foundProfile = true
+				break
 			}
 		}
 	}
 
-	if !foundPolicy {
-		t.Fatalf("created policy not found in export")
+	if !foundProfile {
+		t.Fatalf("created profile not found in export")
 	}
 
 	netsAny, ok := out["networking"].([]any)

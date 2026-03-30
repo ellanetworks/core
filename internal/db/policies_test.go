@@ -10,7 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
-func TestPoliciesEndToEnd(t *testing.T) {
+func TestProfilesEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 
 	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
@@ -24,121 +24,95 @@ func TestPoliciesEndToEnd(t *testing.T) {
 		}
 	}()
 
-	res, total, err := database.ListPoliciesPage(context.Background(), 1, 10)
+	res, total, err := database.ListProfilesPage(context.Background(), 1, 10)
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}
 
 	if total != 1 {
-		t.Fatalf("Default policy wasn't found in DB")
+		t.Fatalf("Default profile wasn't found in DB")
 	}
 
 	if len(res) != 1 {
-		t.Fatalf("More than one policies were found in DB")
+		t.Fatalf("More than one profiles were found in DB")
 	}
 
-	newDataNetwork := &db.DataNetwork{
-		Name:   "not-internet",
-		IPPool: "1.2.3.0/24",
+	profile := &db.Profile{
+		Name:           "my-profile",
+		UeAmbrUplink:   "100 Mbps",
+		UeAmbrDownlink: "200 Mbps",
 	}
 
-	err = database.CreateDataNetwork(context.Background(), newDataNetwork)
-	if err != nil {
-		t.Fatalf("Couldn't complete CreateDataNetwork: %s", err)
-	}
-
-	createdNetwork, err := database.GetDataNetwork(context.Background(), newDataNetwork.Name)
-	if err != nil {
-		t.Fatalf("Couldn't complete GetDataNetwork: %s", err)
-	}
-
-	policy := &db.Policy{
-		Name:            "my-policy",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkID:   createdNetwork.ID,
-	}
-
-	err = database.CreatePolicy(context.Background(), policy)
+	err = database.CreateProfile(context.Background(), profile)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
 
-	res, total, err = database.ListPoliciesPage(context.Background(), 1, 10)
+	res, total, err = database.ListProfilesPage(context.Background(), 1, 10)
 	if err != nil {
 		t.Fatalf("Couldn't complete RetrieveAll: %s", err)
 	}
 
 	if total != 2 {
-		t.Fatalf("Not all policies were found in DB")
+		t.Fatalf("Not all profiles were found in DB")
 	}
 
 	if len(res) != 2 {
-		t.Fatalf("One or more policies weren't found in DB")
+		t.Fatalf("One or more profiles weren't found in DB")
 	}
 
-	retrievedPolicy, err := database.GetPolicy(context.Background(), policy.Name)
+	retrievedProfile, err := database.GetProfile(context.Background(), profile.Name)
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
 
-	if retrievedPolicy.Name != policy.Name {
-		t.Fatalf("The policy name from the database doesn't match the policy name that was given")
+	if retrievedProfile.Name != profile.Name {
+		t.Fatalf("The profile name from the database doesn't match the profile name that was given")
 	}
 
-	if retrievedPolicy.BitrateUplink != policy.BitrateUplink {
-		t.Fatalf("The bitrate uplink from the database doesn't match the bitrate uplink that was given")
+	if retrievedProfile.UeAmbrUplink != profile.UeAmbrUplink {
+		t.Fatalf("The UeAmbrUplink from the database doesn't match the value that was given")
 	}
 
-	if retrievedPolicy.BitrateDownlink != policy.BitrateDownlink {
-		t.Fatalf("The bitrate downlink from the database doesn't match the bitrate downlink that was given")
+	if retrievedProfile.UeAmbrDownlink != profile.UeAmbrDownlink {
+		t.Fatalf("The UeAmbrDownlink from the database doesn't match the value that was given")
 	}
 
-	if retrievedPolicy.Var5qi != policy.Var5qi {
-		t.Fatalf("The Var5qi from the database doesn't match the Var5qi that was given")
-	}
+	// Edit the profile
+	profile.UeAmbrUplink = "150 Mbps"
+	profile.UeAmbrDownlink = "300 Mbps"
 
-	if retrievedPolicy.Arp != policy.Arp {
-		t.Fatalf("The ARP from the database doesn't match the ARP that was given")
-	}
-
-	// Edit the policy
-	policy.Var5qi = 7
-	policy.Arp = 2
-
-	if err = database.UpdatePolicy(context.Background(), policy); err != nil {
+	if err = database.UpdateProfile(context.Background(), profile); err != nil {
 		t.Fatalf("Couldn't complete Update: %s", err)
 	}
 
-	retrievedPolicy, err = database.GetPolicy(context.Background(), policy.Name)
+	retrievedProfile, err = database.GetProfile(context.Background(), profile.Name)
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
 
-	if retrievedPolicy.Name != policy.Name {
-		t.Fatalf("The policy name from the database doesn't match the policy name that was given")
+	if retrievedProfile.Name != profile.Name {
+		t.Fatalf("The profile name from the database doesn't match the profile name that was given")
 	}
 
-	if retrievedPolicy.Var5qi != policy.Var5qi {
-		t.Fatalf("The 5qi from the database doesn't match the 5qi that was given")
+	if retrievedProfile.UeAmbrUplink != profile.UeAmbrUplink {
+		t.Fatalf("The UeAmbrUplink from the database doesn't match the value that was given")
 	}
 
-	if retrievedPolicy.Arp != policy.Arp {
-		t.Fatalf("The ARP from the database doesn't match the ARP that was given")
+	if retrievedProfile.UeAmbrDownlink != profile.UeAmbrDownlink {
+		t.Fatalf("The UeAmbrDownlink from the database doesn't match the value that was given")
 	}
 
-	if err = database.DeletePolicy(context.Background(), policy.Name); err != nil {
+	if err = database.DeleteProfile(context.Background(), profile.Name); err != nil {
 		t.Fatalf("Couldn't complete Delete: %s", err)
 	}
 
-	res, total, _ = database.ListPoliciesPage(context.Background(), 1, 10)
+	res, total, _ = database.ListProfilesPage(context.Background(), 1, 10)
 	if total != 1 {
-		t.Fatalf("Policy wasn't deleted from the DB properly")
+		t.Fatalf("Profile wasn't deleted from the DB properly")
 	}
 
 	if len(res) != 1 {
-		t.Fatalf("Policy wasn't deleted from the DB properly")
+		t.Fatalf("Profile wasn't deleted from the DB properly")
 	}
 }
