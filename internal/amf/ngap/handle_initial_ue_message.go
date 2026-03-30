@@ -117,7 +117,18 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	}
 
 	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
-	if ranUe != nil && ranUe.AmfUe() == nil {
+	if ranUe != nil {
+		// The gNB reused a RAN UE NGAP ID in a new InitialUEMessage, which
+		// means the previous RAN-level context for that ID is abandoned
+		// (e.g. gNB sent a new registration before completing the old
+		// UEContextRelease). Remove the stale ranUe so a fresh one is
+		// created below with a new AMF UE NGAP ID — this prevents a
+		// deferred UEContextReleaseComplete (carrying the old AMF UE NGAP
+		// ID) from accidentally removing the new context.
+		logger.WithTrace(ctx, ran.Log).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale RanUe",
+			zap.Int64("RanUeNgapID", ranUe.RanUeNgapID),
+			zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
+
 		err := ranUe.Remove()
 		if err != nil {
 			logger.WithTrace(ctx, ran.Log).Error(err.Error())
@@ -176,9 +187,6 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 				amfUe.AttachRanUe(ranUe)
 			}
 		}
-	} else {
-		ranUe.Radio = ran
-		ranUe.AmfUe().AttachRanUe(ranUe)
 	}
 
 	if userLocationInformation != nil {

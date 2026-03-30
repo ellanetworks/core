@@ -1504,7 +1504,7 @@
         "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
-            "lastNotNull"
+            "max"
           ],
           "fields": "",
           "values": false
