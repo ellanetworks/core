@@ -327,12 +327,20 @@ func (amf *AMF) CountRegisteredSubscribers() int {
 }
 
 func (amf *AMF) RemoveRadio(ran *Radio) {
+	logger.AmfLog.Info("RemoveRadio: starting radio removal",
+		zap.String("radioName", ran.Name),
+	)
+
 	ran.RemoveAllUeInRan()
 
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
 
 	delete(amf.Radios, ran.Conn)
+
+	logger.AmfLog.Info("RemoveRadio: radio removed from AMF",
+		zap.String("radioName", ran.Name),
+	)
 }
 
 func (amf *AMF) FindAmfUeByGuti(guti etsi.GUTI) (*AmfUe, bool) {

@@ -79,7 +79,7 @@ func TestHandleHandoverFailure_SourceAmfUeDetached(t *testing.T) {
 	amfInstance.Radios[new(sctp.SCTPConn)] = targetRan
 
 	// Simulate the AMF UE being detached from the source (deregistration race).
-	amfUe.DetachRanUe()
+	amfUe.DetachRanUe(nil)
 
 	msg := &ngapType.HandoverFailure{}
 	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.HandoverFailureIEs{

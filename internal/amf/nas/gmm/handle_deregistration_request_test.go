@@ -91,7 +91,7 @@ func TestHandleDeregistrationRequest_NilRanUE(t *testing.T) {
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.DetachRanUe()
+	ue.DetachRanUe(nil)
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 

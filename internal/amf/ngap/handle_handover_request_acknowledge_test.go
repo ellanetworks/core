@@ -360,7 +360,7 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceAmfUeDetached(t 
 		t.Fatal("source AMF UE not found")
 	}
 
-	sourceAmfUe.DetachRanUe()
+	sourceAmfUe.DetachRanUe(nil)
 
 	msg := buildHandoverRequestAcknowledge(&HandoverRequestAcknowledgeOpts{
 		AMFUENGAPID: &ngapType.AMFUENGAPID{Value: 1},
