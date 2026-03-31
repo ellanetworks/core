@@ -23,7 +23,6 @@ var (
 	AmfLog      *zap.Logger
 	APILog      *zap.Logger
 	SmfLog      *zap.Logger
-	UdmLog      *zap.Logger
 	UpfLog      *zap.Logger
 	SessionsLog *zap.Logger
 	NetworkLog  *zap.Logger
@@ -89,7 +88,6 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 	AmfLog = log.With(zap.String("component", "AMF"))
 	APILog = log.With(zap.String("component", "API"))
 	SmfLog = log.With(zap.String("component", "SMF"))
-	UdmLog = log.With(zap.String("component", "UDM"))
 	UpfLog = log.With(zap.String("component", "UPF"))
 	SessionsLog = log.With(zap.String("component", "Sessions"))
 
