@@ -1,10 +1,12 @@
 ---
-description: Running an end-to-end 5G network with Ella Core using Snap
+description: Deploy a complete 5G network with simulated radio and user equipment.
 ---
 
-# Running an End-to-End 5G Network with Ella Core
+# Getting Started (Simulated 5G Network)
 
-In this tutorial, we will deploy, initialize, and configure Ella Core, an open-source 5G mobile core network. First, we will install Ella Core and UERANSIM (a 5G radio and User Equipment simulator). Then we will access Ella Core's UI and configure a network subscriber. Finally, we will start the 5G radio and user equipment simulators, and validate that the subscriber connects to the network and that it can use this connection to access the internet.
+In this tutorial, we will deploy a complete end-to-end 5G network using Ella Core and UERANSIM (a 5G radio and user equipment simulator). By the end, a simulated subscriber will be connected to your network and able to reach the internet.
+
+No 5G radio or specialized hardware is required.
 
 You can expect to spend about 10 minutes completing this tutorial.
 
@@ -76,7 +78,7 @@ You should see the following output:
  ✔ Container ella-ueransim-1   Started
 ```
 
-## 2. Access the Ella Core UI
+## 2. Initialize Ella Core
 
 Open your browser and navigate to `http://127.0.0.1:5002/` to access Ella Core's UI.
 
@@ -87,18 +89,16 @@ You should see the Initialization page.
 !!! note
     Your browser may display a warning about the security of the connection. You can safely ignore this warning.
 
-## 3. Configure your private 5G network
-
-### 3.1 Initialize Ella Core
-
-In the Initialization page, create the first user with the following credentials:
+Create the first user with the following credentials:
 
 - Email: `admin@ellanetworks.com`
 - Password: `admin`
 
-Ella Core is now initialized and ready to be used. You will be redirected to the dashboard.
+Ella Core is now initialized. You will be redirected to the dashboard.
 
-### 3.2 Create a new Subscriber
+![Dashboard](../images/dashboard.png){ align=center }
+
+## 3. Create a Subscriber
 
 Navigate to the `Subscribers` page and click on the `Create` button.
 
@@ -110,13 +110,7 @@ Create a subscriber with the following parameters:
 - OPC: Select "Provide custom OPC" and set the value to `98da19bbc55e2a5b53857d10557b1d26`.
 - Policy: Keep the default value.
 
-### 3.3 Validate that no radio is connected
-
-Navigate to the `Radios` page. You should see that no radio is connected.
-
-## 4. Integrate a 5G Radio and User Equipment Simulator
-
-### 4.1 Start the 5G Radio simulator
+## 4. Connect the 5G Radio Simulator
 
 Go back to your terminal, in the same directory where you created the `docker-compose.yaml` file.
 
@@ -144,7 +138,7 @@ In your browser, navigate to the Ella Core UI and click on the `Radios` tab. You
 
 ![Connected Radio](../images/connected_radio.png){ align=center }
 
-### 4.2 Start the 5G User Equipment (UE) simulator
+## 5. Connect the User Equipment Simulator
 
 Open a new terminal window in the same directory where you created the `docker-compose.yaml` file.
 
@@ -188,46 +182,17 @@ UERANSIM v3.2.7
 [2025-10-24 17:51:26.211] [app] [info] Connection setup for PDU session[1] is successful, TUN interface[uesimtun0, 10.45.0.1] is up.
 ```
 
-This output indicates that the User Equipment has successfully connected to the network and has been assigned an IP address. In this case, the IP address is `10.45.0.1`.
+The User Equipment has successfully connected to the network and has been assigned the IP address `10.45.0.1`.
 
 Leave the UE running, don't close the terminal.
 
-## 5. Validate the connection
+## 6. Validate the Connection
 
-In your browser, navigate to the Ella Core UI and click on the `Subscribers` tab. You should see that the subscriber you created has been assigned an IP address. The IP address should match the IP address assigned to the UE.
+In your browser, navigate to the Ella Core UI and click on the `Subscribers` tab. You should see that the subscriber you created has been assigned an IP address matching the one from the UE output.
 
 ![Connected Subscriber](../images/connected_subscriber.png){ align=center }
 
 Open a new terminal window in the same directory where you created the `docker-compose.yaml` file.
-
-List the network interfaces inside the UERANSIM container:
-
-```shell
-docker compose exec -ti ueransim ip a
-```
-
-You should see a new interface `uesimtun0` with the UE's IP address:
-
-```shell
-1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
-    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
-    inet 127.0.0.1/8 scope host lo
-       valid_lft forever preferred_lft forever
-    inet6 ::1/128 scope host
-       valid_lft forever preferred_lft forever
-2: n3@if2038: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default
-    link/ether a6:cf:98:50:6c:6b brd ff:ff:ff:ff:ff:ff link-netnsid 0
-    inet 10.3.0.3/24 brd 10.3.0.255 scope global n3
-       valid_lft forever preferred_lft forever
-3: uesimtun0: <POINTOPOINT,PROMISC,NOTRAILERS,UP,LOWER_UP> mtu 1400 qdisc fq_codel state UNKNOWN group default qlen 500
-    link/none
-    inet 10.45.0.1/22 scope global uesimtun0
-       valid_lft forever preferred_lft forever
-    inet6 fe80::a331:940b:f57a:da80/64 scope link stable-privacy
-       valid_lft forever preferred_lft forever
-```
-
-This interface allows the UE to communicate with the network.
 
 Ping Google's DNS server from the subscriber's interface:
 
@@ -251,11 +216,11 @@ rtt min/avg/max/mdev = 18.865/33.300/39.038/8.355 ms
 
 !!! success
 
-    Congratulations, you have successfully validated that the subscriber can communicate with the internet.
+    Congratulations! You have deployed a complete end-to-end 5G network. A simulated subscriber is connected and can reach the internet through Ella Core.
 
-## 6. Destroy the Tutorial Environment (Optional)
+## 7. Clean Up (Optional)
 
-When you are done with the tutorial, you can remove the containers and the networks we created.
+When you are done with the tutorial, you can remove the containers and the networks:
 
 ```shell
 docker compose down
