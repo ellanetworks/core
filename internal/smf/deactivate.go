@@ -50,7 +50,7 @@ func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) erro
 		FARs:       farList,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
+		return fmt.Errorf("failed to send PFCP session modification request (localSEID=%d, remoteSEID=%d): %v", smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID, err)
 	}
 
 	logger.WithTrace(ctx, logger.SmfLog).Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
