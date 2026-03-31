@@ -8,6 +8,8 @@ In this tutorial, we will deploy a complete end-to-end 5G network using Ella Cor
 
 You can expect to spend about 30 minutes completing this tutorial.
 
+![Tutorial](../images/getting_started_hardware.svg){ align=center }
+
 ## Pre-requisites
 
 To complete this tutorial, you will need the following:
@@ -33,6 +35,8 @@ To complete this tutorial, you will need the following:
 
 ## 1. Install Ella Core
 
+Connect to the Linux machine where you will install Ella Core.
+
 Install the Ella Core snap and connect the required interfaces:
 
 ```shell
@@ -42,8 +46,6 @@ sudo snap connect ella-core:process-control
 sudo snap connect ella-core:system-observe
 sudo snap connect ella-core:firewall-control
 ```
-
-## 2. Configure Ella Core
 
 Edit the configuration file:
 
@@ -86,7 +88,7 @@ Start Ella Core:
 sudo snap start --enable ella-core.cored
 ```
 
-## 3. Initialize Ella Core
+## 2. Configure a Subscriber in Ella Core
 
 Open your browser and navigate to `https://<server-ip>:5002/` to access Ella Core's UI.
 
@@ -101,8 +103,6 @@ Create the first user with the following credentials:
 
 Ella Core is now initialized. You will be redirected to the dashboard.
 
-## 4. Create a Subscriber
-
 Navigate to the `Subscribers` page and click on the `Create` button.
 
 Create a subscriber with the following parameters:
@@ -114,16 +114,16 @@ Create a subscriber with the following parameters:
 
 Take note of the **IMSI**, **Key**, and **OPC** values. You will need them to burn the SIM card.
 
-## 5. Burn the SIM Card
+## 3. Burn the SIM Card
 
 Insert a blank programmable SIM card into your card reader.
 
 Use pySim to program the SIM card with the subscriber credentials from the previous step. Replace the `IMSI`, `KEY`, and `OPC` values below with the ones you noted:
 
 ```shell
-export IMSI=<your IMSI from step 4>
-export KEY=<your Key from step 4>
-export OPC=<your OPC from step 4>
+export IMSI=<your IMSI from step 2>
+export KEY=<your Key from step 2>
+export OPC=<your OPC from step 2>
 export MCC=001
 export MNC=01
 export ADMIN_CODE=<Your SIM card vendor admin code>
@@ -141,7 +141,7 @@ export ADMIN_CODE=<Your SIM card vendor admin code>
 
 Insert the programmed SIM card into your user equipment.
 
-## 6. Connect the Radio
+## 4. Connect the Radio
 
 Configure your 5G radio to connect to Ella Core. You will need to set:
 
@@ -154,7 +154,7 @@ Power on the radio. For detailed instructions, see [Integrate with a Radio](../h
 
 In the Ella Core UI, navigate to the `Radios` page. You should see your radio appear as connected.
 
-## 7. Connect the User Equipment
+## 5. Connect the User Equipment
 
 Power on the user equipment with the programmed SIM card inserted.
 
@@ -163,8 +163,6 @@ Set the APN to `internet` (matching Ella Core's default Data Network).
 The device should automatically search for and connect to your network.
 
 In the Ella Core UI, navigate to the `Subscribers` page. You should see that your subscriber has been assigned an IP address, confirming a successful PDU session establishment.
-
-## 8. Validate the Connection
 
 From the user equipment, try to access the internet (e.g. open a web browser and navigate to any website, or ping an external address).
 
