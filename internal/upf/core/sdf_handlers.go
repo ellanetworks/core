@@ -9,13 +9,29 @@ import (
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
+type Action int
+
+const (
+	Allow Action = iota
+	Deny
+)
+
+// StringToAction takes an action string and returns an Action value
+func StringToAction(a string) Action {
+	if a == "deny" {
+		return Deny
+	}
+
+	return Allow
+}
+
 // UpdateFilterRule is a DTO carrying the fields needed to build a BPF sdf_rule.
 type UpdateFilterRule struct {
 	RemotePrefix string // CIDR notation; "" = any
 	Protocol     int32  // 0 = any (maps to SdfProtoAny)
 	PortLow      int32
 	PortHigh     int32
-	Action       string // "permit" or "deny"
+	Action       Action
 }
 
 // UpdateFiltersRequest is the input to UpdateFilters.
@@ -112,7 +128,7 @@ func resolveSdfRules(rules []UpdateFilterRule) []ebpf.SdfRule {
 			rule.Protocol = uint8(r.Protocol)
 		}
 
-		if r.Action == "deny" {
+		if r.Action == Deny {
 			rule.Action = ebpf.SdfActionDeny
 		}
 

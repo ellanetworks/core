@@ -393,7 +393,7 @@ func (a *smfUPFAdapter) UpdateFilters(ctx context.Context, req *smf.FilterUpdate
 			Protocol:     r.Protocol,
 			PortLow:      r.PortLow,
 			PortHigh:     r.PortHigh,
-			Action:       r.Action,
+			Action:       upf_pfcp.StringToAction(r.Action),
 		})
 	}
 

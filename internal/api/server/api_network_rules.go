@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -35,6 +36,8 @@ type ListNetworkRulesResponse struct {
 	PerPage    int           `json:"per_page,omitempty"`
 	TotalCount int           `json:"total_count,omitempty"`
 }
+
+const MaxNumNetworkRulesPerDirection = 12
 
 func validateRemotePrefix(prefix *string) error {
 	if prefix == nil || *prefix == "" {
@@ -137,8 +140,8 @@ func dbNetworkRuleToAPI(nr *db.NetworkRule) NetworkRule {
 		PortHigh:     nr.PortHigh,
 		Action:       nr.Action,
 		Precedence:   nr.Precedence,
-		CreatedAt:    nr.CreatedAt.Format("2006-01-02T15:04:05Z"),
-		UpdatedAt:    nr.UpdatedAt.Format("2006-01-02T15:04:05Z"),
+		CreatedAt:    nr.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:    nr.UpdatedAt.Format(time.RFC3339),
 	}
 }
 
@@ -146,9 +149,9 @@ func CreateNetworkRuleForPolicy(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		policyName := r.PathValue("policy_name")
+		policyName := r.PathValue("name")
 		if policyName == "" {
-			writeError(ctx, w, http.StatusBadRequest, "Missing policy_name parameter", nil, logger.APILog)
+			writeError(ctx, w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
 
 			return
 		}
@@ -179,6 +182,28 @@ func CreateNetworkRuleForPolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		// Enforce maximum number of network rules per policy per direction
+		rules, err := dbInstance.ListRulesForPolicy(ctx, int64(policy.ID))
+		if err != nil {
+			writeError(ctx, w, http.StatusInternalServerError, "Failed to list network rules", err, logger.APILog)
+
+			return
+		}
+
+		var count int
+
+		for _, r := range rules {
+			if r.Direction == ruleAPI.Direction {
+				count++
+			}
+		}
+
+		if count >= MaxNumNetworkRulesPerDirection {
+			writeError(ctx, w, http.StatusBadRequest, "Maximum number of network rules reached ("+strconv.Itoa(MaxNumNetworkRulesPerDirection)+")", nil, logger.APILog)
+
+			return
+		}
+
 		rule := &db.NetworkRule{
 			PolicyID:     int64(policy.ID),
 			Description:  ruleAPI.Description,
@@ -204,14 +229,7 @@ func CreateNetworkRuleForPolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		APINetworkRulesCreated.Inc()
-
-		type response struct {
-			Message string `json:"message"`
-			ID      int64  `json:"id"`
-		}
-
-		writeResponse(ctx, w, response{Message: "Network rule created", ID: id}, http.StatusCreated, logger.APILog)
+		writeResponse(ctx, w, CreateSuccessResponse{Message: "Network rule created", ID: id}, http.StatusCreated, logger.APILog)
 	})
 }
 
@@ -219,9 +237,9 @@ func ListNetworkRulesForPolicy(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		policyName := r.PathValue("policy_name")
+		policyName := r.PathValue("name")
 		if policyName == "" {
-			writeError(ctx, w, http.StatusBadRequest, "Missing policy_name parameter", nil, logger.APILog)
+			writeError(ctx, w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
 
 			return
 		}
@@ -369,11 +387,7 @@ func UpdateNetworkRule(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		type response struct {
-			Message string `json:"message"`
-		}
-
-		writeResponse(ctx, w, response{Message: "Network rule updated"}, http.StatusOK, logger.APILog)
+		writeResponse(ctx, w, SuccessResponse{Message: "Network rule updated"}, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -407,13 +421,7 @@ func DeleteNetworkRule(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		APINetworkRulesDeleted.Inc()
-
-		type response struct {
-			Message string `json:"message"`
-		}
-
-		writeResponse(ctx, w, response{Message: "Network rule deleted"}, http.StatusOK, logger.APILog)
+		writeResponse(ctx, w, SuccessResponse{Message: "Network rule deleted"}, http.StatusOK, logger.APILog)
 	})
 }
 
@@ -421,9 +429,9 @@ func ReorderNetworkRule(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		policyName := r.PathValue("policy_name")
+		policyName := r.PathValue("name")
 		if policyName == "" {
-			writeError(ctx, w, http.StatusBadRequest, "Missing policy_name parameter", nil, logger.APILog)
+			writeError(ctx, w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
 
 			return
 		}
@@ -495,10 +503,6 @@ func ReorderNetworkRule(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		type response struct {
-			Message string `json:"message"`
-		}
-
-		writeResponse(ctx, w, response{Message: "Rule reordered successfully"}, http.StatusOK, logger.APILog)
+		writeResponse(ctx, w, SuccessResponse{Message: "Rule reordered successfully"}, http.StatusOK, logger.APILog)
 	})
 }

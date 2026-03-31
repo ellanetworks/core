@@ -20,7 +20,7 @@ func migrateV5(ctx context.Context, tx *sql.Tx) error {
 			description TEXT NOT NULL,
 			direction TEXT NOT NULL,
 			remote_prefix TEXT,
-			protocol INTEGER DEFAULT 0,
+			protocol INTEGER DEFAULT 255,
 			port_low INTEGER DEFAULT 0,
 			port_high INTEGER DEFAULT 0,
 			action TEXT NOT NULL,

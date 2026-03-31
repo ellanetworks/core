@@ -364,6 +364,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
       if (editingRuleId) {
         await updateNetworkRule(
           accessToken,
+          policyName,
           editingRuleId,
           formValues.direction,
           formValues.action,
@@ -407,7 +408,8 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
     if (!accessToken || selectedRuleId === null) return;
 
     try {
-      await deleteNetworkRule(accessToken, selectedRuleId);
+      // deleteNetworkRule expects (authToken, policyName, ruleId)
+      await deleteNetworkRule(accessToken, policyName, selectedRuleId);
       await queryClient.invalidateQueries({
         queryKey: ["networkRules", policyName],
       });
@@ -475,7 +477,8 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
 
         <DialogContent dividers>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Rules are evaluated in order, top to bottom. The first matching rule is applied.
+            Rules are evaluated in order, top to bottom. The first matching rule
+            is applied.
           </Typography>
           <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
             <Tabs

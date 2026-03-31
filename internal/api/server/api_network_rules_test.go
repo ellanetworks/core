@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -136,7 +137,7 @@ func TestNetworkRulesCreateGetUpdateDelete(t *testing.T) {
 
 	ruleID := fmt.Sprintf("%d", createResp.Result.ID)
 
-	statusCode, getResp, err := getNetworkRule(env.Server.URL, client, token, ruleID)
+	statusCode, getResp, err := getNetworkRule(env.Server.URL, client, token, policyID, ruleID)
 	if err != nil {
 		t.Fatalf("Failed to get rule: %s", err)
 	}
@@ -164,7 +165,7 @@ func TestNetworkRulesCreateGetUpdateDelete(t *testing.T) {
 		Precedence:   2,
 	}
 
-	statusCode, updateResp, err := updateNetworkRule(env.Server.URL, client, token, ruleID, &updateRequest)
+	statusCode, updateResp, err := updateNetworkRule(env.Server.URL, client, token, policyID, ruleID, &updateRequest)
 	if err != nil {
 		t.Fatalf("Failed to update rule: %s", err)
 	}
@@ -173,7 +174,7 @@ func TestNetworkRulesCreateGetUpdateDelete(t *testing.T) {
 		t.Fatalf("Expected status 200, got %d. Error: %s", statusCode, updateResp.Error)
 	}
 
-	statusCode, getResp, err = getNetworkRule(env.Server.URL, client, token, ruleID)
+	statusCode, getResp, err = getNetworkRule(env.Server.URL, client, token, policyID, ruleID)
 	if err != nil {
 		t.Fatalf("Failed to get updated rule: %s", err)
 	}
@@ -190,7 +191,7 @@ func TestNetworkRulesCreateGetUpdateDelete(t *testing.T) {
 		t.Fatalf("Expected action deny, got %s", getResp.Result.Action)
 	}
 
-	statusCode, deleteResp, err := deleteNetworkRule(env.Server.URL, client, token, ruleID)
+	statusCode, deleteResp, err := deleteNetworkRule(env.Server.URL, client, token, policyID, ruleID)
 	if err != nil {
 		t.Fatalf("Failed to delete rule: %s", err)
 	}
@@ -199,7 +200,7 @@ func TestNetworkRulesCreateGetUpdateDelete(t *testing.T) {
 		t.Fatalf("Expected status 200, got %d. Error: %s", statusCode, deleteResp.Error)
 	}
 
-	statusCode, _, err = getNetworkRule(env.Server.URL, client, token, ruleID)
+	statusCode, _, err = getNetworkRule(env.Server.URL, client, token, policyID, ruleID)
 	if err != nil {
 		t.Fatalf("Failed to check deleted rule: %s", err)
 	}
@@ -539,13 +540,102 @@ func TestNetworkRulesCannotChangePolicyID(t *testing.T) {
 		PolicyID:     policyID2,
 	}
 
-	statusCode, err = updateNetworkRuleWithPolicy(env.Server.URL, client, token, ruleID, &req)
+	statusCode, err = updateNetworkRuleWithPolicy(env.Server.URL, client, token, policyID1, ruleID, &req)
 	if err != nil {
 		t.Fatalf("Request failed: %s", err)
 	}
 
 	if statusCode != http.StatusBadRequest {
 		t.Fatalf("Expected status 400 when trying to change policy_id, got %d", statusCode)
+	}
+}
+
+func TestNetworkRulesMaxPerDirection(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	createPolicyParams := &CreatePolicyParams{
+		Name:            "limit-policy",
+		BitrateUplink:   "100 Mbps",
+		BitrateDownlink: "200 Mbps",
+		Var5qi:          9,
+		Arp:             1,
+		DataNetworkName: InitialDataNetworkName,
+	}
+
+	statusCode, _, err := createPolicy(env.Server.URL, client, token, createPolicyParams)
+	if err != nil {
+		t.Fatalf("couldn't create policy: %s", err)
+	}
+
+	if statusCode != http.StatusCreated {
+		t.Fatalf("Expected status 201, got %d", statusCode)
+	}
+
+	policyID := createPolicyParams.Name
+
+	prefix := "10.0.0.0/24"
+	// create maximum allowed rules
+	const maxRules = 12
+	for i := 1; i <= maxRules; i++ {
+		ruleRequest := CreateNetworkRuleRequest{
+			Description:  fmt.Sprintf("rule-%d", i),
+			Direction:    "uplink",
+			RemotePrefix: prefix,
+			Protocol:     6,
+			PortLow:      80,
+			PortHigh:     443,
+			Action:       "allow",
+			Precedence:   int32(i),
+		}
+
+		statusCode, _, err := createNetworkRule(env.Server.URL, client, token, policyID, &ruleRequest)
+		if err != nil {
+			t.Fatalf("Failed to create rule %d: %s", i, err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("Failed to create rule %d: expected status 201, got %d", i, statusCode)
+		}
+	}
+
+	// attempt to create one more rule in the same direction
+	extraRule := CreateNetworkRuleRequest{
+		Description:  "rule-extra",
+		Direction:    "uplink",
+		RemotePrefix: prefix,
+		Protocol:     6,
+		PortLow:      80,
+		PortHigh:     443,
+		Action:       "allow",
+		Precedence:   int32(maxRules + 1),
+	}
+
+	statusCode, createResp, err := createNetworkRule(env.Server.URL, client, token, policyID, &extraRule)
+	if err != nil {
+		t.Fatalf("Failed to create extra rule: %s", err)
+	}
+
+	if statusCode != http.StatusBadRequest {
+		t.Fatalf("Expected status 400 when exceeding limit, got %d", statusCode)
+	}
+
+	expectedErr := "Maximum number of network rules reached (" + strconv.Itoa(maxRules) + ")"
+	if createResp.Error != expectedErr {
+		t.Fatalf("expected error %q, got %q", expectedErr, createResp.Error)
 	}
 }
 
@@ -583,8 +673,8 @@ func createNetworkRule(baseURL string, client *http.Client, token string, policy
 	return res.StatusCode, &resp, nil
 }
 
-func getNetworkRule(baseURL string, client *http.Client, token string, ruleID string) (int, *GetNetworkRuleResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "GET", baseURL+"/api/v1/network-rules/"+ruleID, nil)
+func getNetworkRule(baseURL string, client *http.Client, token string, policyID string, ruleID string) (int, *GetNetworkRuleResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "GET", baseURL+"/api/v1/policies/"+policyID+"/rules/"+ruleID, nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -637,13 +727,13 @@ func listNetworkRulesForPolicy(baseURL string, client *http.Client, token string
 	return res.StatusCode, &resp, nil
 }
 
-func updateNetworkRule(baseURL string, client *http.Client, token string, ruleID string, rule *CreateNetworkRuleRequest) (int, *UpdateNetworkRuleResponse, error) {
+func updateNetworkRule(baseURL string, client *http.Client, token string, policyID string, ruleID string, rule *CreateNetworkRuleRequest) (int, *UpdateNetworkRuleResponse, error) {
 	body, err := json.Marshal(rule)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", baseURL+"/api/v1/network-rules/"+ruleID, strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(context.Background(), "PUT", baseURL+"/api/v1/policies/"+policyID+"/rules/"+ruleID, strings.NewReader(string(body)))
 	if err != nil {
 		return 0, nil, err
 	}
@@ -669,13 +759,13 @@ func updateNetworkRule(baseURL string, client *http.Client, token string, ruleID
 	return res.StatusCode, &resp, nil
 }
 
-func updateNetworkRuleWithPolicy(baseURL string, client *http.Client, token string, ruleID string, rule any) (int, error) {
+func updateNetworkRuleWithPolicy(baseURL string, client *http.Client, token string, policyID string, ruleID string, rule any) (int, error) {
 	body, err := json.Marshal(rule)
 	if err != nil {
 		return 0, err
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), "PUT", baseURL+"/api/v1/network-rules/"+ruleID, strings.NewReader(string(body)))
+	req, err := http.NewRequestWithContext(context.Background(), "PUT", baseURL+"/api/v1/policies/"+policyID+"/rules/"+ruleID, strings.NewReader(string(body)))
 	if err != nil {
 		return 0, err
 	}
@@ -694,8 +784,8 @@ func updateNetworkRuleWithPolicy(baseURL string, client *http.Client, token stri
 	return res.StatusCode, nil
 }
 
-func deleteNetworkRule(baseURL string, client *http.Client, token string, ruleID string) (int, *DeleteNetworkRuleResponse, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "DELETE", baseURL+"/api/v1/network-rules/"+ruleID, nil)
+func deleteNetworkRule(baseURL string, client *http.Client, token string, policyID string, ruleID string) (int, *DeleteNetworkRuleResponse, error) {
+	req, err := http.NewRequestWithContext(context.Background(), "DELETE", baseURL+"/api/v1/policies/"+policyID+"/rules/"+ruleID, nil)
 	if err != nil {
 		return 0, nil, err
 	}

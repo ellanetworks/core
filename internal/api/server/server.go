@@ -86,12 +86,12 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	mux.HandleFunc("DELETE /api/v1/policies/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeletePolicy, DeletePolicy(dbInstance))).ServeHTTP)
 
 	// Network Rules (Authenticated)
-	mux.HandleFunc("POST /api/v1/policies/{policy_name}/rules", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateNetworkRule, CreateNetworkRuleForPolicy(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/policies/{policy_name}/rules", Authenticate(jwtSecret, dbInstance, Authorize(PermListNetworkRules, ListNetworkRulesForPolicy(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/network-rules/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadNetworkRule, GetNetworkRule(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/network-rules/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateNetworkRule, UpdateNetworkRule(dbInstance))).ServeHTTP)
-	mux.HandleFunc("DELETE /api/v1/network-rules/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteNetworkRule, DeleteNetworkRule(dbInstance))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/policies/{policy_name}/rules/{id}/reorder", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateNetworkRule, ReorderNetworkRule(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/policies/{name}/rules", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateNetworkRule, CreateNetworkRuleForPolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/policies/{name}/rules", Authenticate(jwtSecret, dbInstance, Authorize(PermListNetworkRules, ListNetworkRulesForPolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/policies/{name}/rules/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadNetworkRule, GetNetworkRule(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/policies/{name}/rules/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateNetworkRule, UpdateNetworkRule(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/policies/{name}/rules/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteNetworkRule, DeleteNetworkRule(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/policies/{name}/rules/{id}/reorder", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateNetworkRule, ReorderNetworkRule(dbInstance))).ServeHTTP)
 
 	// Operator (Authenticated)
 	mux.HandleFunc("GET /api/v1/operator", Authenticate(jwtSecret, dbInstance, Authorize(PermReadOperator, GetOperator(dbInstance))).ServeHTTP)
