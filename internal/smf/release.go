@@ -68,11 +68,17 @@ func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
 	smContext.Tunnel.DataPath.DeactivateTunnelAndPDR(s)
 
 	if smContext.UplinkFilterIndex != 0 {
-		_ = s.upf.ReleaseFilter(ctx, smContext.UplinkFilterIndex)
+		err := s.upf.ReleaseFilter(ctx, smContext.UplinkFilterIndex)
+		if err != nil {
+			logger.SmfLog.Warn("couldn't release uplink filters", zap.Uint32("UplinkFilterIndex", smContext.UplinkFilterIndex), zap.Error(err))
+		}
 	}
 
 	if smContext.DownlinkFilterIndex != 0 {
-		_ = s.upf.ReleaseFilter(ctx, smContext.DownlinkFilterIndex)
+		err := s.upf.ReleaseFilter(ctx, smContext.DownlinkFilterIndex)
+		if err != nil {
+			logger.SmfLog.Warn("couldn't release downlink filters", zap.Uint32("DownlinkFilterIndex", smContext.DownlinkFilterIndex), zap.Error(err))
+		}
 	}
 
 	if smContext.PFCPContext == nil {
