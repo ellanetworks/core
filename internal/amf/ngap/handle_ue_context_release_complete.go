@@ -155,7 +155,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 
 				err := amfInstance.Smf.DeactivateSmContext(ctx, smContext.Ref)
 				if err != nil {
-					logger.WithTrace(ctx, ran.Log).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
+					logger.WithTrace(ctx, ran.Log).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
 				}
 			}
 		} else {
@@ -165,7 +165,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 			for _, smContext := range amfUe.SmContextList {
 				err := amfInstance.Smf.DeactivateSmContext(ctx, smContext.Ref)
 				if err != nil {
-					logger.WithTrace(ctx, ran.Log).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
+					logger.WithTrace(ctx, ran.Log).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
 				}
 			}
 

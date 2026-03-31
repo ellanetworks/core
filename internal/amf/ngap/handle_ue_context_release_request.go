@@ -142,7 +142,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 
 					err := amfInstance.Smf.DeactivateSmContext(ctx, smContext.Ref)
 					if err != nil {
-						logger.WithTrace(ctx, ranUe.Log).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), logger.PDUSessionID(pduSessionID))
+						logger.WithTrace(ctx, ranUe.Log).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), logger.PDUSessionID(pduSessionID))
 					}
 				}
 
