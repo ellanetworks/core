@@ -39,6 +39,7 @@ import {
   deleteNetworkRule,
   reorderNetworkRule,
   type NetworkRule,
+  type ListNetworkRulesResponse,
 } from "@/queries/network_rules";
 import { useAuth } from "@/contexts/AuthContext";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
@@ -148,12 +149,12 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
   const [formAlert, setFormAlert] = useState<string>("");
   const [formLoading, setFormLoading] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<ListNetworkRulesResponse>({
     queryKey: ["networkRules", policyName],
     queryFn: () =>
       accessToken
         ? listNetworkRules(accessToken, policyName)
-        : Promise.resolve({ items: [] }),
+        : Promise.resolve({ items: [], page: 1, per_page: 50, total_count: 0 }),
     enabled: open && !!accessToken,
   });
 
@@ -202,26 +203,33 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
         newRules.splice(targetIndex, 0, moved);
 
         // Optimistically update the UI
-        queryClient.setQueryData(["networkRules", policyName], {
-          ...data,
-          items: rules.map((r) => {
-            const newRule = newRules.find((nr) => nr.id === r.id);
-            return newRule || r;
-          }),
-        });
+        queryClient.setQueryData<ListNetworkRulesResponse>(
+          ["networkRules", policyName],
+          {
+            ...data!,
+            items: rules.map((r: NetworkRule) => {
+              const newRule = newRules.find((nr) => nr.id === r.id);
+              return newRule || r;
+            }),
+          },
+        );
 
-        const ruleId = originalRules[sourceIndex].id;
-        await reorderNetworkRule(accessToken, policyName, ruleId, targetIndex);
+        const ruleId = originalRules[sourceIndex]?.id;
+        if (!ruleId) return;
+        await reorderNetworkRule(accessToken!, policyName, ruleId, targetIndex);
 
         await queryClient.invalidateQueries({
           queryKey: ["networkRules", policyName],
         });
       } catch (err) {
         // Restore original order on error
-        queryClient.setQueryData(["networkRules", policyName], {
-          ...data,
-          items: rules,
-        });
+        queryClient.setQueryData<ListNetworkRulesResponse>(
+          ["networkRules", policyName],
+          {
+            ...data!,
+            items: rules,
+          },
+        );
         const errorMessage =
           err instanceof Error ? err.message : "Failed to reorder rule";
         setReorderError(errorMessage);
@@ -239,7 +247,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
 
   const getEditingRule = (): NetworkRule | undefined => {
     return editingRuleId
-      ? rules.find((r) => r.id === editingRuleId)
+      ? rules.find((r: NetworkRule) => r.id === editingRuleId)
       : undefined;
   };
 
@@ -351,11 +359,11 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
         : undefined;
 
       const directionRules = rules.filter(
-        (rule) => rule.direction === formValues.direction,
+        (rule: NetworkRule) => rule.direction === formValues.direction,
       );
       const maxPrecedence =
         directionRules.length > 0
-          ? Math.max(...directionRules.map((r) => r.precedence))
+          ? Math.max(...directionRules.map((r: NetworkRule) => r.precedence))
           : 0;
       const precedence = maxPrecedence + 100;
 
@@ -511,7 +519,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
             </Typography>
           ) : (
             <List disablePadding>
-              {filteredRules.map((rule, index) => (
+              {filteredRules.map((rule: NetworkRule, index: number) => (
                 <ListItem
                   key={rule.id}
                   draggable
