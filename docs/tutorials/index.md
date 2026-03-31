@@ -1,14 +1,14 @@
 # Tutorials
 
-In these tutorials, we will learn how to deploy and operate Ella Core.
+In these tutorials, we will learn how to deploy and operate an end-to-end 5G network with Ella Core.
 
-These tutorials will introduce you to key concepts, tools, processes and operations, starting from your first installation to an end-to-end deployment with 5G radio simulation.
+Choose the tutorial that best fits your setup:
 
-To run through the tutorials, you don't need any 5G radio or specialized hardware; we will use software simulation for all radio and user equipment components.
+| Tutorial | Hardware Required | Installation Method | Duration |
+|----------|------------------|---------------------|----------|
+| [Simulated 5G Network](getting_started_simulation.md) | Any computer will do | Docker | ~10 min |
+| [5G Network with Radio Hardware](getting_started_hardware.md) | Linux Host, 5G radio, UE, SIM cards | Snap | ~30 min |
 
-If you are new to Ella Core, we recommend starting with the [Getting Started](getting_started.md) tutorial.
+If you are new to Ella Core or don't have 5G hardware, start with the **Simulated 5G Network** tutorial. It uses UERANSIM to simulate a radio and user equipment, so you can experience the full end-to-end flow without any specialized hardware.
 
-You can expect to spend less than an hour working through the complete tutorials. It’s a strongly-recommended investment of time if you’re new to Ella Core - it will save you many more hours later on. Follow the tutorials steps in sequence; they take you on a learning journey through the product.
-
-- [Getting Started](getting_started.md)
-- [Running an End-to-End 5G Network with Ella Core](end_to_end_network.md)
+If you have a 5G radio and user equipment, the **5G Network with Radio Hardware** tutorial walks you through a real-world deployment on bare metal using Snap.

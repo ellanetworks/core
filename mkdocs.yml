@@ -59,8 +59,8 @@ nav:
   - Home: index.md
   - Tutorials:
     - tutorials/index.md
-    - Getting Started: tutorials/getting_started.md
-    - Running an End-to-End 5G Network: tutorials/end_to_end_network.md
+    - "Getting Started: Simulated 5G Network": tutorials/getting_started_simulation.md
+    - "Getting Started: 5G Network with Radio Hardware": tutorials/getting_started_hardware.md
   - How-to Guides:
     - how_to/index.md
     - Install: how_to/install.md
@@ -112,6 +112,10 @@ nav:
 plugins:
   - search
   - glightbox
+  - redirects:
+      redirect_maps:
+        'tutorials/getting_started.md': 'tutorials/getting_started_simulation.md'
+        'tutorials/end_to_end_network.md': 'tutorials/getting_started_simulation.md'
   - social:
       cards_layout_options:
         background_color: "#26374a"

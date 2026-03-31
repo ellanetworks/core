@@ -6,74 +6,93 @@
 #
 babel==2.18.0
     # via mkdocs-material
-backrefs==6.1
+backrefs==6.2
     # via mkdocs-material
 cairocffi==1.7.1
     # via cairosvg
 cairosvg==2.9.0
     # via mkdocs-material
-certifi==2026.1.4
+certifi==2026.2.25
     # via requests
 cffi==2.0.0
     # via cairocffi
-charset-normalizer==3.4.4
+charset-normalizer==3.4.6
     # via requests
 click==8.3.1
-    # via mkdocs
+    # via
+    #   mkdocs
+    #   properdocs
 colorama==0.4.6
     # via mkdocs-material
-cssselect2==0.8.0
+cssselect2==0.9.0
     # via cairosvg
 defusedxml==0.7.1
     # via cairosvg
 ghp-import==2.1.0
-    # via mkdocs
+    # via
+    #   mkdocs
+    #   properdocs
 idna==3.11
     # via requests
 jinja2==3.1.6
     # via
     #   mkdocs
     #   mkdocs-material
+    #   properdocs
 markdown==3.10.2
     # via
     #   mkdocs
     #   mkdocs-material
+    #   properdocs
     #   pymdown-extensions
 markupsafe==3.0.3
     # via
     #   jinja2
     #   mkdocs
+    #   properdocs
 mergedeep==1.3.4
     # via
     #   mkdocs
     #   mkdocs-get-deps
 mkdocs==1.6.1
-    # via mkdocs-material
-mkdocs-get-deps==0.2.0
+    # via
+    #   mkdocs-material
+    #   mkdocs-redirects
+mkdocs-get-deps==0.2.2
     # via mkdocs
 mkdocs-glightbox==0.5.2
     # via -r requirements-docs.in
-mkdocs-material[imaging]==9.7.6
+mkdocs-material[imaging]==9.7.5
     # via -r requirements-docs.in
 mkdocs-material-extensions==1.3.1
     # via mkdocs-material
+mkdocs-redirects==1.2.3
+    # via -r requirements-docs.in
 packaging==26.0
-    # via mkdocs
+    # via
+    #   mkdocs
+    #   properdocs
 paginate==0.5.7
     # via mkdocs-material
 pathspec==1.0.4
-    # via mkdocs
-pillow==11.3.0
+    # via
+    #   mkdocs
+    #   properdocs
+pillow==12.1.1
     # via
     #   cairosvg
     #   mkdocs-material
-platformdirs==4.5.1
-    # via mkdocs-get-deps
+platformdirs==4.9.4
+    # via
+    #   mkdocs-get-deps
+    #   properdocs
+properdocs==1.6.7
+    # via mkdocs-redirects
 pycparser==3.0
     # via cffi
 pygments==2.20.0
     # via mkdocs-material
-pymdown-extensions==10.20.1
+pymdown-extensions==10.21.2
     # via mkdocs-material
 python-dateutil==2.9.0.post0
     # via ghp-import
@@ -81,13 +100,16 @@ pyyaml==6.0.3
     # via
     #   mkdocs
     #   mkdocs-get-deps
+    #   properdocs
     #   pymdown-extensions
     #   pyyaml-env-tag
 pyyaml-env-tag==1.1
-    # via mkdocs
-requests==2.33.0
+    # via
+    #   mkdocs
+    #   properdocs
+requests==2.33.1
     # via mkdocs-material
-selectolax==0.4.6
+selectolax==0.4.7
     # via mkdocs-glightbox
 six==1.17.0
     # via python-dateutil
@@ -98,7 +120,9 @@ tinycss2==1.5.1
 urllib3==2.6.3
     # via requests
 watchdog==6.0.0
-    # via mkdocs
+    # via
+    #   mkdocs
+    #   properdocs
 webencodings==0.5.1
     # via
     #   cssselect2
