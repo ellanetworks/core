@@ -85,8 +85,8 @@ func validateAction(action string) error {
 }
 
 func validateDirection(direction string) error {
-	if direction != "uplink" && direction != "downlink" && direction != "both" {
-		return errors.New("direction must be 'uplink', 'downlink', or 'both'")
+	if direction != "uplink" && direction != "downlink" {
+		return errors.New("direction must be 'uplink' or 'downlink'")
 	}
 
 	return nil

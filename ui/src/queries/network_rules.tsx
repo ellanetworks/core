@@ -4,7 +4,7 @@ export type NetworkRule = {
   id: number;
   policy_id: number;
   description: string;
-  direction: "uplink" | "downlink" | "both";
+  direction: "uplink" | "downlink";
   remote_prefix?: string;
   protocol: number;
   port_low: number;
@@ -54,7 +54,7 @@ export async function createNetworkRule(
   authToken: string,
   policyName: string,
   description: string,
-  direction: "uplink" | "downlink" | "both",
+  direction: "uplink" | "downlink",
   action: "allow" | "deny",
   precedence: number,
   remotePrefix?: string,
@@ -85,7 +85,7 @@ export async function updateNetworkRule(
   authToken: string,
   policyName: string,
   ruleId: number,
-  direction: "uplink" | "downlink" | "both",
+  direction: "uplink" | "downlink",
   action: "allow" | "deny",
   precedence: number,
   remotePrefix?: string,

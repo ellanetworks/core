@@ -92,7 +92,6 @@ type Direction int
 const (
 	DirectionUplink   Direction = iota // "uplink": traffic from UE to network
 	DirectionDownlink                  // "downlink": traffic from network to UE
-	DirectionBoth                      // "both": applies to both directions
 )
 
 // String returns the canonical string representation of a Direction.
@@ -102,8 +101,6 @@ func (d Direction) String() string {
 		return "uplink"
 	case DirectionDownlink:
 		return "downlink"
-	case DirectionBoth:
-		return "both"
 	default:
 		return "unknown"
 	}
@@ -117,10 +114,8 @@ func ParseDirection(s string) (Direction, error) {
 		return DirectionUplink, nil
 	case "downlink":
 		return DirectionDownlink, nil
-	case "both":
-		return DirectionBoth, nil
 	default:
-		return 0, fmt.Errorf("unknown direction %q: must be \"uplink\", \"downlink\", or \"both\"", s)
+		return 0, fmt.Errorf("unknown direction %q: must be \"uplink\" or \"downlink\"", s)
 	}
 }
 
