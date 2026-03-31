@@ -12,9 +12,9 @@ You can expect to spend about 30 minutes completing this tutorial.
 
 To complete this tutorial, you will need the following:
 
-**Server**
+**Computer**
 
-- A Linux machine running Ubuntu 24.04 LTS (or another [supported OS](../reference/system_reqs.md))
+- A Linux machine running Ubuntu 24.04 LTS
 - 2 network interfaces:
     - One for the radio connection (N2/N3 — control and user plane)
     - One for internet connectivity (N6 — data network) and the API/UI
@@ -23,13 +23,13 @@ To complete this tutorial, you will need the following:
 **5G Equipment**
 
 - A [compatible 5G radio](../reference/supported_5g_equipment.md#radios)
-- A [compatible user equipment](../reference/supported_5g_equipment.md#user-equipment) (phone, module, etc.)
+- A [compatible 5G phone](../reference/supported_5g_equipment.md#user-equipment)
 
 **SIM Card Provisioning**
 
 - Programmable SIM cards (e.g. [Sysmocom sysmoISIM-SJA5](https://sysmocom.de/products/sim/sysmoisim-sja5/index.html))
 - A SIM card reader/writer (e.g. [HID OmniKey 3121](https://www.hidglobal.com/products/omnikey-3121))
-- [pySim](https://github.com/osmocom/pysim) installed on your machine
+- A SIM card programming tool (e.g. [pySim](https://github.com/osmocom/pysim)) installed on your machine
 
 ## 1. Install Ella Core
 
@@ -61,7 +61,7 @@ logging:
   audit:
     output: "stdout"
 db:
-  path: "core.db"
+  path: "/var/snap/ella-core/common/data/core.db"
 interfaces:
   n2:
     name: "ens5"
@@ -94,81 +94,77 @@ You should see the Initialization page.
 
 ![Initialize Ella Core](../images/initialize.png){ align=center }
 
-Create the first user with your chosen credentials (e.g. `admin@ellanetworks.com` / `admin`).
+Create the first user with the following credentials:
+
+- Email: `admin@ellanetworks.com`
+- Password: `admin`
 
 Ella Core is now initialized. You will be redirected to the dashboard.
 
-## 4. Configure the Operator
-
-Navigate to the `Operator` page and configure the operator information to match your radio's settings:
-
-- **MCC**: Your Mobile Country Code (e.g. `001` for testing)
-- **MNC**: Your Mobile Network Code (e.g. `01` for testing)
-- **Supported TACs**: The Tracking Area Codes your radio will use
-- **SST**: The Slice/Service Type (e.g. `1` for eMBB)
-- **SD**: The Service Differentiator (e.g. `010203`)
-
-!!! note
-    The MCC, MNC, TAC, SST, and SD values must match between Ella Core and your radio's configuration. Consult your radio's documentation for its expected values, or configure both sides to match.
-
-## 5. Create a Subscriber
+## 4. Create a Subscriber
 
 Navigate to the `Subscribers` page and click on the `Create` button.
 
 Create a subscriber with the following parameters:
 
-- **IMSI**: Choose an IMSI that matches your MCC/MNC (e.g. `001010000000001`)
-- **Key**: Generate a random 128-bit key in hex (e.g. `465B5CE8B199B49FAA5F0A2EE238A6BC`)
+- **IMSI**: Click on the `Generate` button to create a random IMSI
+- **Key**: Click on the `Generate` button to create a random key
 - **Sequence Number**: Keep the default value
-- **OPC**: Generate a random 128-bit OPC in hex (e.g. `E8ED289DEBA952E4283B54E88E6183CA`)
 - **Policy**: Keep the default value
 
 Take note of the **IMSI**, **Key**, and **OPC** values. You will need them to burn the SIM card.
 
-## 6. Burn the SIM Card
+## 5. Burn the SIM Card
 
 Insert a blank programmable SIM card into your card reader.
 
-Use pySim to program the SIM card with the subscriber credentials from the previous step:
+Use pySim to program the SIM card with the subscriber credentials from the previous step. Replace the `IMSI`, `KEY`, and `OPC` values below with the ones you noted:
 
 ```shell
-export IMSI=001010000000001
-export KEY=465B5CE8B199B49FAA5F0A2EE238A6BC
-export OPC=E8ED289DEBA952E4283B54E88E6183CA
+export IMSI=<your IMSI from step 4>
+export KEY=<your Key from step 4>
+export OPC=<your OPC from step 4>
 export MCC=001
 export MNC=01
-export ADMIN_CODE=76543210
+export ADMIN_CODE=<Your SIM card vendor admin code>
 ./pySim-prog.py -p0 -n Ella -t sysmoISIM-SJA5 -i $IMSI -c $MCC -x $MCC -y $MNC -o $OPC -k $KEY -a $ADMIN_CODE -j 1
 ```
 
 !!! note
-    The `ADMIN_CODE` is specific to your SIM card vendor. For Sysmocom cards, the default is `76543210`. Check your vendor's documentation for the correct value.
+    The `MCC` and `MNC` values match Ella Core's Operator configuration.
+
+!!! note
+    The `ADMIN_CODE` is specific to your SIM card vendor.
 
 !!! note
     Some devices (e.g. iPhones) require additional SUCI configuration on the SIM card. See [Managing SIM Cards](../explanation/managing_sim_cards.md) for details.
 
 Insert the programmed SIM card into your user equipment.
 
-## 7. Connect the Radio
+## 6. Connect the Radio
 
 Configure your 5G radio to connect to Ella Core. You will need to set:
 
-- **AMF Address**: The IP address of the N2 interface on your server
-- **PLMN ID**: The MCC and MNC you configured in Ella Core
-- **TAC**: A Tracking Area Code from the supported TACs list
-- **SST/SD**: The slice values you configured in Ella Core
+- **AMF Address**: The IP address of your radio interface. Run `ip addr show ens5` to find it (replace `ens5` with your radio interface name).
+- **PLMN ID**: `001-01` (MCC-MNC matching Ella Core's Operator configuration)
+- **TAC**: `000001` (TAC matching Ella Core's Operator configuration)
+- **SST/SD**: `1/102030` (Slice configuration matching Ella Core's Operator configuration)
 
 Power on the radio. For detailed instructions, see [Integrate with a Radio](../how_to/integrate_with_radio.md).
 
 In the Ella Core UI, navigate to the `Radios` page. You should see your radio appear as connected.
 
-## 8. Connect the User Equipment
+## 7. Connect the User Equipment
 
-Power on the user equipment with the programmed SIM card inserted. The device should automatically search for and connect to your network.
+Power on the user equipment with the programmed SIM card inserted.
+
+Set the APN to `internet` (matching Ella Core's default Data Network).
+
+The device should automatically search for and connect to your network.
 
 In the Ella Core UI, navigate to the `Subscribers` page. You should see that your subscriber has been assigned an IP address, confirming a successful PDU session establishment.
 
-## 9. Validate the Connection
+## 8. Validate the Connection
 
 From the user equipment, try to access the internet (e.g. open a web browser and navigate to any website, or ping an external address).
 
