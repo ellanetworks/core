@@ -10,7 +10,7 @@ No 5G radio or specialized hardware is required.
 
 You can expect to spend about 10 minutes completing this tutorial.
 
-![Tutorial](../images/tutorial.svg){ align=center }
+![Tutorial](../images/getting_started_sim.svg){ align=center }
 
 ## Pre-requisites
 
