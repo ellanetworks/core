@@ -365,7 +365,7 @@ func UpdateNetworkRule(dbInstance *db.Database) http.Handler {
 		rule := &db.NetworkRule{
 			ID:           existing.ID,
 			PolicyID:     existing.PolicyID,
-			Description:  existing.Description,
+			Description:  updateAPI.Description,
 			Direction:    updateAPI.Direction,
 			RemotePrefix: updateAPI.RemotePrefix,
 			Protocol:     updateAPI.Protocol,

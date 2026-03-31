@@ -85,6 +85,7 @@ export async function updateNetworkRule(
   authToken: string,
   policyName: string,
   ruleId: number,
+  description: string,
   direction: "uplink" | "downlink",
   action: "allow" | "deny",
   precedence: number,
@@ -99,6 +100,7 @@ export async function updateNetworkRule(
       method: "PUT",
       authToken,
       body: {
+        description,
         direction,
         action,
         precedence,

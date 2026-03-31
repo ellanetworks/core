@@ -23,7 +23,7 @@ const NetworkRulesTableName = "network_rules"
 const (
 	getNetworkRuleStmt     = "SELECT &NetworkRule.* FROM %s WHERE id==$NetworkRule.id"
 	createNetworkRuleStmt  = "INSERT INTO %s (policy_id, description, direction, remote_prefix, protocol, port_low, port_high, action, precedence, created_at, updated_at) VALUES ($NetworkRule.policy_id, $NetworkRule.description, $NetworkRule.direction, $NetworkRule.remote_prefix, $NetworkRule.protocol, $NetworkRule.port_low, $NetworkRule.port_high, $NetworkRule.action, $NetworkRule.precedence, $NetworkRule.created_at, $NetworkRule.updated_at)"
-	updateNetworkRuleStmt  = "UPDATE %s SET direction=$NetworkRule.direction, remote_prefix=$NetworkRule.remote_prefix, protocol=$NetworkRule.protocol, port_low=$NetworkRule.port_low, port_high=$NetworkRule.port_high, action=$NetworkRule.action, precedence=$NetworkRule.precedence, updated_at=$NetworkRule.updated_at WHERE id==$NetworkRule.id"
+	updateNetworkRuleStmt  = "UPDATE %s SET description=$NetworkRule.description, direction=$NetworkRule.direction, remote_prefix=$NetworkRule.remote_prefix, protocol=$NetworkRule.protocol, port_low=$NetworkRule.port_low, port_high=$NetworkRule.port_high, action=$NetworkRule.action, precedence=$NetworkRule.precedence, updated_at=$NetworkRule.updated_at WHERE id==$NetworkRule.id"
 	deleteNetworkRuleStmt  = "DELETE FROM %s WHERE id==$NetworkRule.id"
 	countNetworkRulesStmt  = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 	listRulesForPolicyStmt = "SELECT &NetworkRule.* FROM %s WHERE policy_id==$NetworkRule.policy_id ORDER BY precedence ASC"

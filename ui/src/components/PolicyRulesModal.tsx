@@ -358,14 +358,25 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
         ? Number(formValues.portHigh)
         : undefined;
 
-      const directionRules = rules.filter(
-        (rule: NetworkRule) => rule.direction === formValues.direction,
-      );
-      const maxPrecedence =
-        directionRules.length > 0
-          ? Math.max(...directionRules.map((r: NetworkRule) => r.precedence))
-          : 0;
-      const precedence = maxPrecedence + 100;
+      let precedence = 0;
+
+      if (editingRuleId) {
+        // When editing, use the existing rule's precedence
+        const editingRule = getEditingRule();
+        if (editingRule) {
+          precedence = editingRule.precedence;
+        }
+      } else {
+        // When creating, calculate new precedence
+        const directionRules = rules.filter(
+          (rule: NetworkRule) => rule.direction === formValues.direction,
+        );
+        const maxPrecedence =
+          directionRules.length > 0
+            ? Math.max(...directionRules.map((r: NetworkRule) => r.precedence))
+            : 0;
+        precedence = maxPrecedence + 100;
+      }
 
       const remotePrefix = formValues.remotePrefix || undefined;
 
@@ -374,6 +385,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
           accessToken,
           policyName,
           editingRuleId,
+          formValues.description,
           formValues.direction,
           formValues.action,
           precedence,
