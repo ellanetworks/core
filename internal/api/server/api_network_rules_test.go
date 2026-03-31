@@ -516,8 +516,8 @@ func TestNetworkRulesCannotChangePolicyID(t *testing.T) {
 
 	ruleID := fmt.Sprintf("%d", createResp.Result.ID)
 
-	type updateReqWithPolicyID struct {
-		Name         string `json:"name"`
+	// Test that extra fields like policy_id in the request are ignored
+	type updateReqWithExtraField struct {
 		Direction    string `json:"direction"`
 		RemotePrefix string `json:"remote_prefix"`
 		Protocol     int32  `json:"protocol"`
@@ -525,11 +525,11 @@ func TestNetworkRulesCannotChangePolicyID(t *testing.T) {
 		PortHigh     int32  `json:"port_high"`
 		Action       string `json:"action"`
 		Precedence   int32  `json:"precedence"`
-		PolicyID     string `json:"policy_id"`
+		Description  string `json:"description"`
+		PolicyID     string `json:"policy_id"` // Extra field that should be ignored
 	}
 
-	req := updateReqWithPolicyID{
-		Name:         ruleRequest.Description,
+	req := updateReqWithExtraField{
 		Direction:    ruleRequest.Direction,
 		RemotePrefix: ruleRequest.RemotePrefix,
 		Protocol:     ruleRequest.Protocol,
@@ -537,7 +537,8 @@ func TestNetworkRulesCannotChangePolicyID(t *testing.T) {
 		PortHigh:     ruleRequest.PortHigh,
 		Action:       ruleRequest.Action,
 		Precedence:   ruleRequest.Precedence,
-		PolicyID:     policyID2,
+		Description:  ruleRequest.Description,
+		PolicyID:     policyID2, // This field is ignored by the API
 	}
 
 	statusCode, err = updateNetworkRuleWithPolicy(env.Server.URL, client, token, policyID1, ruleID, &req)
@@ -545,8 +546,9 @@ func TestNetworkRulesCannotChangePolicyID(t *testing.T) {
 		t.Fatalf("Request failed: %s", err)
 	}
 
-	if statusCode != http.StatusBadRequest {
-		t.Fatalf("Expected status 400 when trying to change policy_id, got %d", statusCode)
+	// The policy_id field in the request should be ignored, so the update should succeed
+	if statusCode != http.StatusOK {
+		t.Fatalf("Expected status 200 (extra fields are ignored), got %d", statusCode)
 	}
 }
 

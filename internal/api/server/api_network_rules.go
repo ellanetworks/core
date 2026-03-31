@@ -30,6 +30,17 @@ type NetworkRule struct {
 	UpdatedAt    string  `json:"updated_at,omitempty"`
 }
 
+type UpdateNetworkRuleRequest struct {
+	Description  string  `json:"description"`
+	Direction    string  `json:"direction"`
+	RemotePrefix *string `json:"remote_prefix"`
+	Protocol     int32   `json:"protocol"`
+	PortLow      int32   `json:"port_low"`
+	PortHigh     int32   `json:"port_high"`
+	Action       string  `json:"action"`
+	Precedence   int32   `json:"precedence"`
+}
+
 type ListNetworkRulesResponse struct {
 	Items      []NetworkRule `json:"items"`
 	Page       int           `json:"page,omitempty"`
@@ -101,6 +112,34 @@ func validatePrecedence(precedence int32) error {
 }
 
 func validateNetworkRule(rule *NetworkRule) error {
+	if err := validateDirection(rule.Direction); err != nil {
+		return err
+	}
+
+	if err := validateRemotePrefix(rule.RemotePrefix); err != nil {
+		return err
+	}
+
+	if err := validateProtocol(rule.Protocol); err != nil {
+		return err
+	}
+
+	if err := validatePorts(rule.PortLow, rule.PortHigh); err != nil {
+		return err
+	}
+
+	if err := validateAction(rule.Action); err != nil {
+		return err
+	}
+
+	if err := validatePrecedence(rule.Precedence); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateUpdateNetworkRuleRequest(rule *UpdateNetworkRuleRequest) error {
 	if err := validateDirection(rule.Direction); err != nil {
 		return err
 	}
@@ -330,14 +369,14 @@ func UpdateNetworkRule(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		var updateAPI NetworkRule
-		if err := json.NewDecoder(r.Body).Decode(&updateAPI); err != nil {
+		var updateReq UpdateNetworkRuleRequest
+		if err := json.NewDecoder(r.Body).Decode(&updateReq); err != nil {
 			writeError(ctx, w, http.StatusBadRequest, "Invalid request body", err, logger.APILog)
 
 			return
 		}
 
-		if err := validateNetworkRule(&updateAPI); err != nil {
+		if err := validateUpdateNetworkRuleRequest(&updateReq); err != nil {
 			writeError(ctx, w, http.StatusBadRequest, fmt.Sprintf("Validation error: %s", err.Error()), nil, logger.APILog)
 
 			return
@@ -356,23 +395,17 @@ func UpdateNetworkRule(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if updateAPI.PolicyID != 0 && updateAPI.PolicyID != existing.PolicyID {
-			writeError(ctx, w, http.StatusBadRequest, "Cannot change policy_id of an existing rule", nil, logger.APILog)
-
-			return
-		}
-
 		rule := &db.NetworkRule{
 			ID:           existing.ID,
 			PolicyID:     existing.PolicyID,
-			Description:  updateAPI.Description,
-			Direction:    updateAPI.Direction,
-			RemotePrefix: updateAPI.RemotePrefix,
-			Protocol:     updateAPI.Protocol,
-			PortLow:      updateAPI.PortLow,
-			PortHigh:     updateAPI.PortHigh,
-			Action:       updateAPI.Action,
-			Precedence:   updateAPI.Precedence,
+			Description:  updateReq.Description,
+			Direction:    updateReq.Direction,
+			RemotePrefix: updateReq.RemotePrefix,
+			Protocol:     updateReq.Protocol,
+			PortLow:      updateReq.PortLow,
+			PortHigh:     updateReq.PortHigh,
+			Action:       updateReq.Action,
+			Precedence:   updateReq.Precedence,
 		}
 
 		if err := dbInstance.UpdateNetworkRule(ctx, rule); err != nil {
