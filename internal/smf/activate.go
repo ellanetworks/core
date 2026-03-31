@@ -33,7 +33,7 @@ func (s *SMF) ActivateSmContext(ctx context.Context, smContextRef string) ([]byt
 	defer smContext.Mutex.Unlock()
 
 	if smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil || smContext.Tunnel.DataPath.UpLinkTunnel == nil {
-		return nil, fmt.Errorf("session %s has no active tunnel", smContextRef)
+		return nil, fmt.Errorf("session %s has no active tunnel (supi=%s, pduSessionID=%d)", smContextRef, smContext.Supi, smContext.PDUSessionID)
 	}
 
 	if smContext.PolicyData == nil {
