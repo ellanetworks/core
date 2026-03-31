@@ -77,6 +77,7 @@ func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
 	}
 
 	smContext.Tunnel = nil
+	smContext.PFCPContext = nil
 
 	return nil
 }

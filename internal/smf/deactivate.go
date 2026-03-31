@@ -36,6 +36,16 @@ func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) erro
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
+	// Session already fully torn down (e.g. PFCP released but SM context
+	// orphaned because radio disconnected before N2 response).  Nothing to
+	// deactivate — treat as a no-op.
+	if smContext.Tunnel == nil && smContext.PFCPContext == nil {
+		logger.WithTrace(ctx, logger.SmfLog).Debug("session already torn down, skipping deactivation",
+			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+
+		return nil
+	}
+
 	farList, err := handleUpCnxStateDeactivate(smContext)
 	if err != nil {
 		return fmt.Errorf("error handling UP connection state: %v", err)
