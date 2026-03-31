@@ -106,7 +106,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 				if hasUplinkData {
 					binaryDataN2SmInformation, err := amfInstance.Smf.ActivateSmContext(ctx, smContext.Ref)
 					if err != nil {
-						ue.Log.Error("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
+						ue.Log.Warn("SendActivateSmContextRequest Error", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
 						reactivationResult[pduSessionID] = true
 						errPduSessionID = append(errPduSessionID, pduSessionID)
 						cause := nasMessage.Cause5GMMProtocolErrorUnspecified
