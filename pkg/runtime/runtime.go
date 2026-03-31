@@ -308,49 +308,76 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+		// Each shutdown step gets its own timeout so that a slow step
+		// does not starve subsequent ones.
+		stepTimeout := 5 * time.Second
 
+		// 1. Stop accepting new HTTP requests.
 		logger.EllaLog.Info("Shutting down API server")
 
-		if err := apiServer.Shutdown(shutdownCtx); err != nil {
-			logger.EllaLog.Error("API server shutdown error", zap.Error(err))
+		apiCtx, apiCancel := context.WithTimeout(context.Background(), stepTimeout)
+		if err := apiServer.Shutdown(apiCtx); err != nil {
+			logger.EllaLog.Warn("API server shutdown error", zap.Error(err))
 		}
 
-		logger.EllaLog.Info("Shutting down AMF")
-		closeAMF(shutdownCtx, amfInstance, sctpServer)
+		apiCancel()
 
+		// 2. Cancel all AMF UE timers immediately so paging and other
+		//    retransmissions stop firing during teardown.
+		logger.EllaLog.Info("Cancelling AMF timers")
+		amfInstance.StopAllTimers()
+
+		// 3. Notify RANs and close SCTP connections.
+		logger.EllaLog.Info("Shutting down AMF")
+
+		amfCtx, amfCancel := context.WithTimeout(context.Background(), stepTimeout)
+		closeAMF(amfCtx, amfInstance, sctpServer)
+		amfCancel()
+
+		// 4. Stop BGP (no context needed, returns synchronously).
 		logger.EllaLog.Info("Shutting down BGP")
 
 		if err := bgpService.Stop(); err != nil {
 			logger.EllaLog.Error("BGP service shutdown error", zap.Error(err))
 		}
 
+		// 5. Stop UPF — this flushes remaining flow reports to SMF.
 		logger.EllaLog.Info("Shutting down UPF")
-		upfInstance.Close(shutdownCtx)
 
+		upfCtx, upfCancel := context.WithTimeout(context.Background(), stepTimeout)
+		upfInstance.Close(upfCtx)
+		upfCancel()
+
+		// 6. Drain the buffered writer so queued events (including the
+		//    flow reports just flushed by the UPF) are persisted to DB.
 		logger.EllaLog.Info("Flushing buffered writer")
-		bufferedWriter.Stop(shutdownCtx)
 
+		bwCtx, bwCancel := context.WithTimeout(context.Background(), stepTimeout)
+		bufferedWriter.Stop(bwCtx)
+		bwCancel()
+
+		// 7. Wait for background goroutines (data retention, session
+		//    cleanup, AUSF) which were already signalled via ctx.Done().
 		logger.EllaLog.Info("Waiting for background goroutines")
 		wg.Wait()
 
+		// 8. Close the database now that all writers have drained.
 		logger.EllaLog.Info("Closing database")
 
-		err := dbInstance.Close()
-		if err != nil {
+		if err := dbInstance.Close(); err != nil {
 			logger.EllaLog.Error("couldn't close database", zap.Error(err))
 		}
 
-		if tp == nil {
-			return
-		}
+		// 9. Flush the OpenTelemetry tracer.
+		if tp != nil {
+			logger.EllaLog.Info("Shutting down tracer")
 
-		logger.EllaLog.Info("Shutting down tracer")
+			tpCtx, tpCancel := context.WithTimeout(context.Background(), stepTimeout)
+			if err := tp.Shutdown(tpCtx); err != nil {
+				logger.EllaLog.Warn("could not shutdown tracer", zap.Error(err))
+			}
 
-		err = tp.Shutdown(shutdownCtx)
-		if err != nil {
-			logger.EllaLog.Error("could not shutdown tracer", zap.Error(err))
+			tpCancel()
 		}
 	}()
 
@@ -361,18 +388,22 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 }
 
 func closeAMF(ctx context.Context, amfInstance *amf.AMF, srv *service.Server) {
-	operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
+	// Use a short dedicated timeout for the DB query so it doesn't
+	// consume the caller's full shutdown budget.
+	queryCtx, queryCancel := context.WithTimeout(ctx, 2*time.Second)
+	operatorInfo, err := amfInstance.GetOperatorInfo(queryCtx)
+
+	queryCancel()
+
 	if err != nil {
 		logger.AmfLog.Error("Could not get operator info", zap.Error(err))
-		return
-	}
+	} else {
+		unavailableGuamiList := send.BuildUnavailableGUAMIList(operatorInfo.Guami)
 
-	unavailableGuamiList := send.BuildUnavailableGUAMIList(operatorInfo.Guami)
-
-	for _, ran := range amfInstance.ListRadios() {
-		err := ran.NGAPSender.SendAMFStatusIndication(ctx, unavailableGuamiList)
-		if err != nil {
-			logger.AmfLog.Error("failed to send AMF Status Indication to RAN", zap.Error(err))
+		for _, ran := range amfInstance.ListRadios() {
+			if err := ran.NGAPSender.SendAMFStatusIndication(ctx, unavailableGuamiList); err != nil {
+				logger.AmfLog.Error("failed to send AMF Status Indication to RAN", zap.Error(err))
+			}
 		}
 	}
 

@@ -546,6 +546,26 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *AmfUe, ngapBuf []byte) error
 	return nil
 }
 
+// StopAllTimers stops every timer on every UE. Call this during shutdown
+// to prevent paging retransmissions and other timer-driven activity from
+// firing while the system is tearing down.
+func (amf *AMF) StopAllTimers() {
+	amf.mu.RLock()
+
+	ues := make([]*AmfUe, 0, len(amf.UEs))
+	for _, ue := range amf.UEs {
+		ues = append(ues, ue)
+	}
+
+	amf.mu.RUnlock()
+
+	for _, ue := range ues {
+		ue.Mutex.Lock()
+		ue.stopAllTimersLocked()
+		ue.Mutex.Unlock()
+	}
+}
+
 // RemoveUEBySupi removes the UE with the given SUPI from the UE pool.
 func (amf *AMF) RemoveUEBySupi(supi etsi.SUPI) {
 	amf.mu.Lock()
