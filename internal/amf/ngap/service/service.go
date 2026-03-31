@@ -117,7 +117,7 @@ func (s *Server) serveConn(ctx context.Context, conn *sctp.SCTPConn) {
 	}()
 	defer func() {
 		if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			logger.AmfLog.Error("close connection error", zap.Error(err))
+			logger.AmfLog.Warn("close connection error", zap.Error(err))
 		}
 	}()
 
@@ -180,7 +180,7 @@ func (s *Server) Shutdown(ctx context.Context) {
 	logger.AmfLog.Info("Signaling SCTP listener to stop")
 
 	if err := s.listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-		logger.AmfLog.Error("could not close sctp listener", zap.Error(err))
+		logger.AmfLog.Warn("could not close sctp listener", zap.Error(err))
 	}
 
 	// Wait for acceptLoop to exit. Close() unparks any goroutine blocked in
@@ -201,7 +201,7 @@ func (s *Server) Shutdown(ctx context.Context) {
 		conn := key.(*sctp.SCTPConn)
 
 		if err := conn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			logger.AmfLog.Error("close connection error", zap.Error(err))
+			logger.AmfLog.Warn("close connection error", zap.Error(err))
 		}
 
 		return true
