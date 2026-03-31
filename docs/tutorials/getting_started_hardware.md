@@ -88,7 +88,7 @@ Start Ella Core:
 sudo snap start --enable ella-core.cored
 ```
 
-## 2. Initialize Ella Core and Configure a subscriber
+## 2. Configure a Subscriber in Ella Core
 
 Open your browser and navigate to `https://<server-ip>:5002/` to access Ella Core's UI.
 
