@@ -339,10 +339,15 @@ func SendRegistrationAccept(
 		return fmt.Errorf("error building registration accept: %s", err.Error())
 	}
 
-	if ue.RanUe().UeContextRequest {
-		ue.RanUe().SentInitialContextSetupRequest = true
+	ranUe := ue.RanUe()
+	if ranUe == nil {
+		return fmt.Errorf("ranUe is nil")
+	}
 
-		err = ue.RanUe().SendInitialContextSetupRequest(
+	if ranUe.UeContextRequest {
+		ranUe.SentInitialContextSetupRequest = true
+
+		err = ranUe.SendInitialContextSetupRequest(
 			ctx,
 			ue.Ambr.Uplink,
 			ue.Ambr.Downlink,
@@ -362,7 +367,7 @@ func SendRegistrationAccept(
 
 		ue.Log.Info("Sent NGAP initial context setup request")
 	} else {
-		err = ue.RanUe().SendDownlinkNasTransport(ctx, nasMsg, nil)
+		err = ranUe.SendDownlinkNasTransport(ctx, nasMsg, nil)
 		if err != nil {
 			return fmt.Errorf("error sending downlink NAS transport message: %s", err.Error())
 		}
@@ -373,12 +378,13 @@ func SendRegistrationAccept(
 	if amfInstance.T3550Cfg.Enable {
 		cfg := amfInstance.T3550Cfg
 		ue.T3550 = amf.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
-			if ue.RanUe() == nil {
+			retryRanUe := ue.RanUe()
+			if retryRanUe == nil {
 				ue.Log.Warn("[NAS] UE Context released, abort retransmission of Registration Accept")
 				ue.T3550 = nil
 			} else {
-				if ue.RanUe().UeContextRequest && !ue.RanUe().RecvdInitialContextSetupResponse {
-					err = ue.RanUe().SendInitialContextSetupRequest(
+				if retryRanUe.UeContextRequest && !retryRanUe.RecvdInitialContextSetupResponse {
+					err = retryRanUe.SendInitialContextSetupRequest(
 						context.Background(),
 						ue.Ambr.Uplink,
 						ue.Ambr.Downlink,
@@ -396,12 +402,13 @@ func SendRegistrationAccept(
 						ue.Log.Error("could not send initial context setup request", zap.Error(err))
 					}
 
-					ue.RanUe().SentInitialContextSetupRequest = true
+					retryRanUe.SentInitialContextSetupRequest = true
+
 					ue.Log.Info("Sent NGAP initial context setup request")
 				} else {
 					ue.Log.Warn("T3550 expires, retransmit Registration Accept", zap.Any("expireTimes", expireTimes))
 
-					err = ue.RanUe().SendDownlinkNasTransport(context.Background(), nasMsg, nil)
+					err = retryRanUe.SendDownlinkNasTransport(context.Background(), nasMsg, nil)
 					if err != nil {
 						ue.Log.Error("could not send downlink NAS transport message", zap.Error(err))
 					}
@@ -434,7 +441,8 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *amf.AMF, a
 	)
 	defer span.End()
 
-	if amfUe.RanUe() == nil {
+	ranUe := amfUe.RanUe()
+	if ranUe == nil {
 		amfUe.Log.Error("cannot SendConfigurationUpdateCommand: RanUe is nil")
 		return
 	}
@@ -459,7 +467,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *amf.AMF, a
 		return
 	}
 
-	err = amfUe.RanUe().SendDownlinkNasTransport(ctx, nasMsg, mobilityRestrictionList)
+	err = ranUe.SendDownlinkNasTransport(ctx, nasMsg, mobilityRestrictionList)
 	if err != nil {
 		amfUe.Log.Error("could not send configuration update command", zap.Error(err))
 		return
@@ -472,19 +480,20 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *amf.AMF, a
 		amfUe.T3555 = amf.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.Log.Warn("timer T3555 expired, retransmit Configuration Update Command", zap.Int32("retry", expireTimes))
 
-			if amfUe.RanUe() == nil {
+			retryRanUe := amfUe.RanUe()
+			if retryRanUe == nil {
 				amfUe.Log.Warn("UE Context released, abort retransmission of Configuration Update Command")
 				amfUe.T3555 = nil
 
 				return
 			}
 
-			if amfUe.RanUe().Radio == nil {
+			if retryRanUe.Radio == nil {
 				amfUe.Log.Warn("Radio is nil, abort retransmission of Configuration Update Command")
 				return
 			}
 
-			err = amfUe.RanUe().SendDownlinkNasTransport(context.Background(), nasMsg, mobilityRestrictionList)
+			err = retryRanUe.SendDownlinkNasTransport(context.Background(), nasMsg, mobilityRestrictionList)
 			if err != nil {
 				amfUe.Log.Error("could not send configuration update command", zap.Error(err))
 			}

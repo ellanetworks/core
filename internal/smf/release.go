@@ -39,7 +39,7 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	if smContext.PDUAddress != nil {
 		released, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
 		if releaseErr != nil {
-			logger.SmfLog.Error("release UE IP address failed", zap.Error(releaseErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+			logger.SmfLog.Error("release UE IP address failed", zap.Error(releaseErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID), logger.DNN(smContext.Dnn), zap.String("smContextRef", smContextRef))
 		} else if released.IsValid() {
 			s.withdrawRoute(released.AsSlice())
 		}
@@ -77,6 +77,7 @@ func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
 	}
 
 	smContext.Tunnel = nil
+	smContext.PFCPContext = nil
 
 	return nil
 }

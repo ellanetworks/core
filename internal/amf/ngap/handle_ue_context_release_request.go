@@ -134,15 +134,15 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 
 				amfUe.Mutex.Lock()
 
-				for _, smContext := range amfUe.SmContextList {
+				for pduSessionID, smContext := range amfUe.SmContextList {
 					if smContext.PduSessionInactive {
-						logger.WithTrace(ctx, ranUe.Log).Info("Pdu Session is inactive so not sending deactivate to SMF")
-						break
+						logger.WithTrace(ctx, ranUe.Log).Info("Pdu Session is inactive so not sending deactivate to SMF", logger.PDUSessionID(pduSessionID))
+						continue
 					}
 
 					err := amfInstance.Smf.DeactivateSmContext(ctx, smContext.Ref)
 					if err != nil {
-						logger.WithTrace(ctx, ranUe.Log).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
+						logger.WithTrace(ctx, ranUe.Log).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), logger.PDUSessionID(pduSessionID))
 					}
 				}
 

@@ -26,7 +26,7 @@ Copy the following file into this directory:
 ```yaml title="docker-compose.yaml"
 services:
   ella-core:
-    image: ghcr.io/ellanetworks/ella-core:v1.7.0
+    image: ghcr.io/ellanetworks/ella-core:v1.8.1
     restart: unless-stopped
     entrypoint: /bin/core --config /core.yaml
     privileged: true

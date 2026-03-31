@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 // DeactivateSmContext puts a PDU session into buffering mode (e.g. UE went idle).
@@ -35,6 +36,16 @@ func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) erro
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
+	// Session already fully torn down (e.g. PFCP released but SM context
+	// orphaned because radio disconnected before N2 response).  Nothing to
+	// deactivate — treat as a no-op.
+	if smContext.Tunnel == nil && smContext.PFCPContext == nil {
+		logger.WithTrace(ctx, logger.SmfLog).Debug("session already torn down, skipping deactivation",
+			logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+
+		return nil
+	}
+
 	farList, err := handleUpCnxStateDeactivate(smContext)
 	if err != nil {
 		return fmt.Errorf("error handling UP connection state: %v", err)
@@ -44,13 +55,25 @@ func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) erro
 		return fmt.Errorf("pfcp session context not found for upf")
 	}
 
+	localSEID := smContext.PFCPContext.LocalSEID
+	remoteSEID := smContext.PFCPContext.RemoteSEID
+
 	err = s.upf.ModifySession(ctx, &PFCPModificationRequest{
-		LocalSEID:  smContext.PFCPContext.LocalSEID,
-		RemoteSEID: smContext.PFCPContext.RemoteSEID,
+		LocalSEID:  localSEID,
+		RemoteSEID: remoteSEID,
 		FARs:       farList,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
+		// The UPF rejected the modification — the PFCP session is gone
+		// (e.g. after a restart). Nil out the tunnel so that subsequent
+		// Activate/Release calls don't attempt to use a stale session.
+		logger.WithTrace(ctx, logger.SmfLog).Warn("PFCP session modification failed, clearing stale tunnel",
+			zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID),
+			logger.SEID(localSEID))
+		smContext.Tunnel = nil
+		smContext.PFCPContext = nil
+
+		return fmt.Errorf("failed to send PFCP session modification request (localSEID=%d, remoteSEID=%d): %v", localSEID, remoteSEID, err)
 	}
 
 	logger.WithTrace(ctx, logger.SmfLog).Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))

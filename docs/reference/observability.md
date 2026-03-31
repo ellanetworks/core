@@ -77,7 +77,7 @@ For more information on accessing the pprof API in Ella Core, refer to the [ppro
 
 ## Alert Rules
 
-Ella Core ships with pre-configured [Grafana alert rules](https://github.com/ellanetworks/core/tree/main/grafana/alerting/alerts.yml) that detect the most important failure scenarios.
+Ella Core ships with pre-configured [Grafana alert rules](https://github.com/ellanetworks/core/tree/main/observability/grafana/alerting/alerts.yml) that detect the most important failure scenarios.
 
 ### Network Health
 
@@ -133,7 +133,7 @@ This dashboard uses Prometheus metrics to provide real-time visibility into all 
 
 ### Deep Dive (for developers)
 
-This dashboard uses metrics, logs, traces, and profiles to provide deep insights into the internal workings of Ella Core. It is intended for developers and advanced users who want to understand the performance and behavior of Ella Core at a granular level. We recommend running Grafana Alloy to collect all signals ([example configuration file](https://github.com/ellanetworks/core/tree/main/grafana)).
+This dashboard uses metrics, logs, traces, and profiles to provide deep insights into the internal workings of Ella Core. It is intended for developers and advanced users who want to understand the performance and behavior of Ella Core at a granular level. We recommend running Grafana Alloy to collect all signals ([example configuration file](https://github.com/ellanetworks/core/tree/main/observability/alloy)). A complete [example observability stack](https://github.com/ellanetworks/core/tree/main/observability) (Grafana, Mimir, Loki, Tempo, Pyroscope) is provided as a Docker Compose setup.
 
 <figure markdown="span">
   ![Deep Dive Dashboard](../images/dashboard_deep_dive.png){ width="800" }
