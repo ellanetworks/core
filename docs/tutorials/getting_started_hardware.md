@@ -164,8 +164,6 @@ The device should automatically search for and connect to your network.
 
 In the Ella Core UI, navigate to the `Subscribers` page. You should see that your subscriber has been assigned an IP address, confirming a successful PDU session establishment.
 
-## 6. Validate the Connection
-
 From the user equipment, try to access the internet (e.g. open a web browser and navigate to any website, or ping an external address).
 
 !!! success
