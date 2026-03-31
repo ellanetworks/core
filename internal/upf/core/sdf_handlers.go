@@ -122,7 +122,7 @@ func resolveSdfRules(rules []UpdateFilterRule) []ebpf.SdfRule {
 	for _, r := range rules {
 		rule := ebpf.SdfRule{
 			Protocol: ebpf.SdfProtoAny,
-			Action:   ebpf.SdfActionPermit,
+			Action:   ebpf.SdfActionAllow,
 		}
 		if r.Protocol != 0 {
 			rule.Protocol = uint8(r.Protocol)

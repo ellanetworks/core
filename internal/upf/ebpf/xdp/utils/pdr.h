@@ -68,7 +68,7 @@ struct sdf_rule {
 	__u16 port_low;     /* dest port range low bound; 0 = wildcard */
 	__u16 port_high;    /* dest port range high bound; 0 = wildcard */
 	__u8  protocol;     /* IP protocol; SDF_PROTO_ANY (255) = wildcard */
-	__u8  action;       /* 0 = permit, 1 = deny */
+	__u8  action;       /* 0 = allow, 1 = deny */
 	__u8  pad[2];       /* explicit padding for 4-byte alignment */
 };
 

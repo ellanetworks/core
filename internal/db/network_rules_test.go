@@ -56,7 +56,7 @@ func TestNetworkRulesCreateGetUpdate(t *testing.T) {
 		Protocol:     6,
 		PortLow:      80,
 		PortHigh:     443,
-		Action:       "permit",
+		Action:       "allow",
 		Precedence:   1,
 	}
 
@@ -158,7 +158,7 @@ func TestNetworkRulesDelete(t *testing.T) {
 		Protocol:     6,
 		PortLow:      80,
 		PortHigh:     443,
-		Action:       "permit",
+		Action:       "allow",
 		Precedence:   1,
 	}
 
@@ -223,7 +223,7 @@ func TestNetworkRulesDuplicatePrecedencePerPolicy(t *testing.T) {
 		Protocol:    6,
 		PortLow:     80,
 		PortHigh:    80,
-		Action:      "permit",
+		Action:      "allow",
 		Precedence:  100,
 	})
 	if err != nil {
@@ -237,7 +237,7 @@ func TestNetworkRulesDuplicatePrecedencePerPolicy(t *testing.T) {
 		Protocol:    6,
 		PortLow:     443,
 		PortHigh:    443,
-		Action:      "permit",
+		Action:      "allow",
 		Precedence:  100,
 	})
 	if err != db.ErrAlreadyExists {
@@ -303,7 +303,7 @@ func TestNetworkRulesDuplicatePrecedenceDifferentPoliciesAllowed(t *testing.T) {
 		Description: "rule-p1",
 		Direction:   "uplink",
 		Protocol:    6,
-		Action:      "permit",
+		Action:      "allow",
 		Precedence:  100,
 	})
 	if err != nil {
@@ -315,7 +315,7 @@ func TestNetworkRulesDuplicatePrecedenceDifferentPoliciesAllowed(t *testing.T) {
 		Description: "rule-p2",
 		Direction:   "uplink",
 		Protocol:    6,
-		Action:      "permit",
+		Action:      "allow",
 		Precedence:  100,
 	})
 	if err != nil {
@@ -369,7 +369,7 @@ func TestNetworkRulesDuplicateNamePerPolicy(t *testing.T) {
 		Protocol:     6,
 		PortLow:      80,
 		PortHigh:     443,
-		Action:       "permit",
+		Action:       "allow",
 		Precedence:   1,
 	}
 
@@ -449,7 +449,7 @@ func TestNetworkRulesDifferentPoliciesSameName(t *testing.T) {
 		Protocol:     6,
 		PortLow:      80,
 		PortHigh:     443,
-		Action:       "permit",
+		Action:       "allow",
 		Precedence:   1,
 	}
 
@@ -466,7 +466,7 @@ func TestNetworkRulesDifferentPoliciesSameName(t *testing.T) {
 		Protocol:     6,
 		PortLow:      80,
 		PortHigh:     443,
-		Action:       "permit",
+		Action:       "allow",
 		Precedence:   1,
 	}
 
@@ -544,7 +544,7 @@ func TestListRulesForPolicy(t *testing.T) {
 			Protocol:     6,
 			PortLow:      80,
 			PortHigh:     443,
-			Action:       "permit",
+			Action:       "allow",
 			Precedence:   int32(i),
 		}
 

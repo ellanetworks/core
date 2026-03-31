@@ -20,14 +20,14 @@ struct {
  * match_sdf_filters – evaluate a packet against the filter list for the PDR.
  *
  * Returns:
- *   XDP_PASS  – packet is permitted (default-permit or explicit permit match)
+ *   XDP_PASS  – packet is allowed (default-allow or explicit allow match)
  *   XDP_DROP  – packet is denied by an explicit deny rule
  *
  * Matching semantics (first-match wins):
- *   1. If filter_map_index == 0, no filtering → permit.
- *   2. Look up the filter list; if not found → permit (fail-open).
+ *   1. If filter_map_index == 0, no filtering → allow.
+ *   2. Look up the filter list; if not found → allow (fail-open).
  *   3. Iterate rules in order; first match wins.
- *   4. No rule matched → default permit.
+ *   4. No rule matched → default allow.
  *
  * Direction is implicit: uplink PDRs carry the uplink filter index, downlink
  * PDRs carry the downlink filter index.
@@ -103,8 +103,8 @@ match_sdf_filters(struct packet_context *ctx, __u32 filter_map_index)
 		return XDP_PASS;
 	}
 
-	upf_printk("upf: default permit");
+	upf_printk("upf: default allow");
 
-	/* default-permit */
+	/* default-allow */
 	return XDP_PASS;
 }

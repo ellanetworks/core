@@ -62,7 +62,7 @@ func TestGetSubscriberPolicy_FetchesNetworkRules(t *testing.T) {
 		Protocol:     6,
 		PortLow:      80,
 		PortHigh:     443,
-		Action:       "permit",
+		Action:       "allow",
 		Precedence:   1,
 	}
 
@@ -156,8 +156,8 @@ func TestGetSubscriberPolicy_FetchesNetworkRules(t *testing.T) {
 				t.Fatalf("rule-1 expected port high 443, got %d", r.PortHigh)
 			}
 
-			if r.Action != "permit" {
-				t.Fatalf("rule-1 expected action permit, got %s", r.Action)
+			if r.Action != "allow" {
+				t.Fatalf("rule-1 expected action allow, got %s", r.Action)
 			}
 
 			if r.Precedence != 1 {
