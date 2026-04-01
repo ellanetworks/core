@@ -22,11 +22,18 @@ type CreateDataNetworkResponseResult struct {
 	Message string `json:"message"`
 }
 
+type DataNetworkIPAllocation struct {
+	PoolSize  int `json:"pool_size"`
+	Allocated int `json:"allocated"`
+	Available int `json:"available"`
+}
+
 type DataNetwork struct {
-	Name   string `json:"name"`
-	IPPool string `json:"ip_pool,omitempty"`
-	DNS    string `json:"dns,omitempty"`
-	MTU    int32  `json:"mtu,omitempty"`
+	Name         string                   `json:"name"`
+	IPPool       string                   `json:"ip_pool,omitempty"`
+	DNS          string                   `json:"dns,omitempty"`
+	MTU          int32                    `json:"mtu,omitempty"`
+	IPAllocation *DataNetworkIPAllocation `json:"ip_allocation,omitempty"`
 }
 
 type GetDataNetworkResponse struct {
@@ -323,6 +330,18 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 
 		if response.Result.MTU != MTU {
 			t.Fatalf("expected MTU %v got %d", MTU, response.Result.MTU)
+		}
+
+		if response.Result.IPAllocation == nil {
+			t.Fatal("expected ip_allocation to be present in detail response")
+		}
+
+		if response.Result.IPAllocation.PoolSize <= 0 {
+			t.Fatalf("expected positive pool_size, got %d", response.Result.IPAllocation.PoolSize)
+		}
+
+		if response.Result.IPAllocation.Available != response.Result.IPAllocation.PoolSize-response.Result.IPAllocation.Allocated {
+			t.Fatal("available should equal pool_size - allocated")
 		}
 
 		if response.Error != "" {
@@ -867,6 +886,136 @@ func TestCreateDataNetworkOverlappingPool(t *testing.T) {
 
 		if statusCode != http.StatusCreated {
 			t.Fatalf("expected status %d, got %d (error: %s)", http.StatusCreated, statusCode, response.Error)
+		}
+	})
+}
+
+type IPAllocationItem struct {
+	Address   string `json:"address"`
+	IMSI      string `json:"imsi"`
+	Type      string `json:"type"`
+	SessionID *int   `json:"session_id"`
+}
+
+type ListIPAllocationsResult struct {
+	Items      []IPAllocationItem `json:"items"`
+	Page       int                `json:"page"`
+	PerPage    int                `json:"per_page"`
+	TotalCount int                `json:"total_count"`
+}
+
+type ListIPAllocationsResponse struct {
+	Result ListIPAllocationsResult `json:"result"`
+	Error  string                  `json:"error,omitempty"`
+}
+
+func listIPAllocations(url string, client *http.Client, token string, name string, page, perPage int) (int, *ListIPAllocationsResponse, error) {
+	reqURL := fmt.Sprintf("%s/api/v1/networking/data-networks/%s/ip-allocations?page=%d&per_page=%d", url, name, page, perPage)
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", reqURL, nil)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	var response ListIPAllocationsResponse
+	if err := json.NewDecoder(res.Body).Decode(&response); err != nil {
+		return 0, nil, err
+	}
+
+	return res.StatusCode, &response, nil
+}
+
+func TestListIPAllocationsEndpoint(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	t.Run("empty allocations for default data network", func(t *testing.T) {
+		statusCode, response, err := listIPAllocations(env.Server.URL, client, token, "internet", 1, 25)
+		if err != nil {
+			t.Fatalf("couldn't list ip allocations: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if response.Result.TotalCount != 0 {
+			t.Fatalf("expected 0 allocations, got %d", response.Result.TotalCount)
+		}
+
+		if len(response.Result.Items) != 0 {
+			t.Fatalf("expected empty items, got %d", len(response.Result.Items))
+		}
+
+		if response.Result.Page != 1 {
+			t.Fatalf("expected page 1, got %d", response.Result.Page)
+		}
+
+		if response.Result.PerPage != 25 {
+			t.Fatalf("expected per_page 25, got %d", response.Result.PerPage)
+		}
+	})
+
+	t.Run("404 for unknown data network", func(t *testing.T) {
+		statusCode, response, err := listIPAllocations(env.Server.URL, client, token, "nonexistent", 1, 25)
+		if err != nil {
+			t.Fatalf("couldn't list ip allocations: %s", err)
+		}
+
+		if statusCode != http.StatusNotFound {
+			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
+		}
+
+		if response.Error != "Data Network not found" {
+			t.Fatalf("expected error %q, got %q", "Data Network not found", response.Error)
+		}
+	})
+
+	t.Run("invalid page parameter", func(t *testing.T) {
+		statusCode, _, err := listIPAllocations(env.Server.URL, client, token, "internet", 0, 25)
+		if err != nil {
+			t.Fatalf("couldn't list ip allocations: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+	})
+
+	t.Run("invalid per_page parameter", func(t *testing.T) {
+		statusCode, _, err := listIPAllocations(env.Server.URL, client, token, "internet", 1, 101)
+		if err != nil {
+			t.Fatalf("couldn't list ip allocations: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 		}
 	})
 }

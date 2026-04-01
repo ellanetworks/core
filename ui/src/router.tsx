@@ -11,6 +11,7 @@ import Radios from "./pages/Radios";
 import RadioDetail from "./pages/RadioDetail";
 import Policies from "./pages/Policies";
 import Networking from "./pages/Networking";
+import DataNetworkDetail from "./pages/DataNetworkDetail";
 import Operator from "./pages/Operator";
 import Users from "./pages/Users";
 import UserDetail from "./pages/UserDetail";
@@ -38,6 +39,10 @@ export default function AppRouter() {
         <Route path="radios/:name" element={<RadioDetail />} />
         <Route path="policies" element={<Policies />} />
         <Route path="networking" element={<Networking />} />
+        <Route
+          path="networking/data-networks/:name"
+          element={<DataNetworkDetail />}
+        />
         <Route path="operator" element={<Operator />} />
         <Route element={<RequireAdmin />}>
           <Route path="users" element={<Users />} />

@@ -33,12 +33,10 @@ import { useSearchParams, Link } from "react-router-dom";
 // Data Networks
 import {
   listDataNetworks,
-  deleteDataNetwork,
   type ListDataNetworksResponse,
   type APIDataNetwork,
 } from "@/queries/data_networks";
 import CreateDataNetworkModal from "@/components/CreateDataNetworkModal";
-import EditDataNetworkModal from "@/components/EditDataNetworkModal";
 
 // Routes
 import {
@@ -155,21 +153,9 @@ export default function NetworkingPage() {
   const dnRowCount = dnPage?.total_count ?? 0;
 
   const [isCreateDNOpen, setCreateDNOpen] = useState(false);
-  const [isEditDNOpen, setEditDNOpen] = useState(false);
-  const [isDeleteDNOpen, setDeleteDNOpen] = useState(false);
-  const [editDN, setEditDN] = useState<APIDataNetwork | null>(null);
-  const [selectedDNName, setSelectedDNName] = useState<string | null>(null);
 
   const handleOpenCreateDN = () => setCreateDNOpen(true);
   const handleCloseCreateDN = () => setCreateDNOpen(false);
-  const handleEditDN = (dn: APIDataNetwork) => {
-    setEditDN(dn);
-    setEditDNOpen(true);
-  };
-  const handleRequestDeleteDN = (name: string) => {
-    setSelectedDNName(name);
-    setDeleteDNOpen(true);
-  };
 
   const outerTheme = useTheme();
   const gridTheme = useMemo(
@@ -182,36 +168,45 @@ export default function NetworkingPage() {
     [outerTheme],
   );
 
-  const handleConfirmDeleteDN = async () => {
-    if (!selectedDNName || !accessToken) return;
-    try {
-      await deleteDataNetwork(accessToken, selectedDNName);
-      setDeleteDNOpen(false);
-      showSnackbar(
-        `Data network "${selectedDNName}" deleted successfully.`,
-        "success",
-      );
-      refetchDataNetworks();
-    } catch (error: unknown) {
-      setDeleteDNOpen(false);
-      showSnackbar(
-        `Failed to delete data network "${selectedDNName}": ${String(error)}`,
-        "error",
-      );
-    } finally {
-      setSelectedDNName(null);
-    }
-  };
-
   const dnDescription =
     "Manage the IP networks used by your subscribers. Data Network Names (DNNs) are used to identify different networks, and must be configured on the subscriber device to connect to the correct network.";
 
   const dnColumns: GridColDef<APIDataNetwork>[] = useMemo(() => {
     return [
-      { field: "name", headerName: "Name (DNN)", flex: 1, minWidth: 200 },
+      {
+        field: "name",
+        headerName: "Name (DNN)",
+        flex: 1,
+        minWidth: 200,
+        renderCell: (params: GridRenderCellParams<APIDataNetwork>) => (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+              height: "100%",
+            }}
+          >
+            <Link
+              to={`/networking/data-networks/${params.row.name}`}
+              style={{ textDecoration: "none" }}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            >
+              <Typography
+                variant="body2"
+                sx={{
+                  color: outerTheme.palette.link,
+                  textDecoration: "underline",
+                  "&:hover": { textDecoration: "underline" },
+                }}
+              >
+                {params.row.name}
+              </Typography>
+            </Link>
+          </Box>
+        ),
+      },
       { field: "ip_pool", headerName: "IP Pool", flex: 1, minWidth: 180 },
-      { field: "dns", headerName: "DNS", flex: 1, minWidth: 180 },
-      { field: "mtu", headerName: "MTU", width: 100 },
       {
         field: "sessions",
         headerName: "Sessions",
@@ -229,34 +224,8 @@ export default function NetworkingPage() {
           );
         },
       },
-      ...(canEdit
-        ? [
-            {
-              field: "actions",
-              headerName: "Actions",
-              type: "actions",
-              width: 120,
-              sortable: false,
-              disableColumnMenu: true,
-              getActions: (p: { row: APIDataNetwork }) => [
-                <GridActionsCellItem
-                  key="edit"
-                  icon={<EditIcon color="primary" />}
-                  label="Edit"
-                  onClick={() => handleEditDN(p.row)}
-                />,
-                <GridActionsCellItem
-                  key="delete"
-                  icon={<DeleteIcon color="primary" />}
-                  label="Delete"
-                  onClick={() => handleRequestDeleteDN(p.row.name)}
-                />,
-              ],
-            } as GridColDef<APIDataNetwork>,
-          ]
-        : []),
     ];
-  }, [canEdit]);
+  }, [outerTheme]);
 
   // ====================== Interfaces ======================
   const {
@@ -1578,26 +1547,6 @@ export default function NetworkingPage() {
             refetchDataNetworks();
             showSnackbar("Data network created successfully.", "success");
           }}
-        />
-      )}
-      {isEditDNOpen && (
-        <EditDataNetworkModal
-          open
-          onClose={() => setEditDNOpen(false)}
-          onSuccess={() => {
-            refetchDataNetworks();
-            showSnackbar("Data network updated successfully.", "success");
-          }}
-          initialData={editDN || { name: "", ip_pool: "", dns: "", mtu: 1500 }}
-        />
-      )}
-      {isDeleteDNOpen && (
-        <DeleteConfirmationModal
-          open
-          onClose={() => setDeleteDNOpen(false)}
-          onConfirm={handleConfirmDeleteDN}
-          title="Confirm Deletion"
-          description={`Are you sure you want to delete the data network "${selectedDNName}"? This action cannot be undone.`}
         />
       )}
 

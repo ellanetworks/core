@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/ipam"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf"
 )
@@ -36,12 +37,33 @@ type DataNetworkStatus struct {
 	Sessions int `json:"sessions"`
 }
 
+type DataNetworkIPAllocation struct {
+	PoolSize  int `json:"pool_size"`
+	Allocated int `json:"allocated"`
+	Available int `json:"available"`
+}
+
 type DataNetwork struct {
-	Name   string            `json:"name"`
-	IPPool string            `json:"ip_pool"`
-	DNS    string            `json:"dns,omitempty"`
-	MTU    int32             `json:"mtu,omitempty"`
-	Status DataNetworkStatus `json:"status"`
+	Name         string                   `json:"name"`
+	IPPool       string                   `json:"ip_pool"`
+	DNS          string                   `json:"dns,omitempty"`
+	MTU          int32                    `json:"mtu,omitempty"`
+	Status       DataNetworkStatus        `json:"status"`
+	IPAllocation *DataNetworkIPAllocation `json:"ip_allocation,omitempty"`
+}
+
+type IPAllocationItem struct {
+	Address   string `json:"address"`
+	IMSI      string `json:"imsi"`
+	Type      string `json:"type"`
+	SessionID *int   `json:"session_id"`
+}
+
+type ListIPAllocationsResponse struct {
+	Items      []IPAllocationItem `json:"items"`
+	Page       int                `json:"page"`
+	PerPage    int                `json:"per_page"`
+	TotalCount int                `json:"total_count"`
 }
 
 type ListDataNetworksResponse struct {
@@ -143,7 +165,80 @@ func GetDataNetwork(dbInstance *db.Database, sessions smf.SessionQuerier) http.H
 				Sessions: sessionCount,
 			},
 		}
+
+		pool, poolErr := ipam.NewPool(dbDataNetwork.ID, dbDataNetwork.IPPool)
+		if poolErr == nil {
+			allocated, countErr := dbInstance.CountLeasesByPool(r.Context(), dbDataNetwork.ID)
+			if countErr == nil {
+				poolSize := pool.Size()
+
+				available := poolSize - allocated
+				if available < 0 {
+					available = 0
+				}
+
+				dataNetwork.IPAllocation = &DataNetworkIPAllocation{
+					PoolSize:  poolSize,
+					Allocated: allocated,
+					Available: available,
+				}
+			}
+		}
+
 		writeResponse(r.Context(), w, dataNetwork, http.StatusOK, logger.APILog)
+	})
+}
+
+func ListIPAllocations(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		if name == "" {
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
+			return
+		}
+
+		q := r.URL.Query()
+		page := atoiDefault(q.Get("page"), 1)
+		perPage := atoiDefault(q.Get("per_page"), 25)
+
+		if page < 1 {
+			writeError(r.Context(), w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
+			return
+		}
+
+		if perPage < 1 || perPage > 100 {
+			writeError(r.Context(), w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
+			return
+		}
+
+		dbDataNetwork, err := dbInstance.GetDataNetwork(r.Context(), name)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
+			return
+		}
+
+		leases, total, err := dbInstance.ListLeasesByPoolPage(r.Context(), dbDataNetwork.ID, page, perPage)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list IP allocations", err, logger.APILog)
+			return
+		}
+
+		items := make([]IPAllocationItem, 0, len(leases))
+		for _, lease := range leases {
+			items = append(items, IPAllocationItem{
+				Address:   lease.Address,
+				IMSI:      lease.IMSI,
+				Type:      lease.Type,
+				SessionID: lease.SessionID,
+			})
+		}
+
+		writeResponse(r.Context(), w, ListIPAllocationsResponse{
+			Items:      items,
+			Page:       page,
+			PerPage:    perPage,
+			TotalCount: total,
+		}, http.StatusOK, logger.APILog)
 	})
 }
 

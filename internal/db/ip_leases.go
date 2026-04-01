@@ -31,6 +31,7 @@ const (
 	countLeasesByPoolStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID"
 	countActiveLeasesStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE sessionID IS NOT NULL"
 	countLeasesByIMSIStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE imsi==$IPLease.imsi"
+	listLeasesByPoolPageStmt     = "SELECT &IPLease.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID ORDER BY address LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	listAllLeasesStmt            = "SELECT &IPLease.* FROM %s"
 )
 
@@ -371,6 +372,66 @@ func (db *Database) ListLeasesByPool(ctx context.Context, poolID int) ([]IPLease
 	span.SetStatus(codes.Ok, "")
 
 	return leases, nil
+}
+
+// ListLeasesByPoolPage returns a page of leases for a pool, ordered by address,
+// along with the total count. The page parameter is 1-based.
+func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID int, page, perPage int) ([]IPLease, int, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (paged by pool)", "SELECT", IPLeasesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			attribute.String("db.collection", IPLeasesTableName),
+			attribute.Int("page", page),
+			attribute.Int("per_page", perPage),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
+
+	var leases []IPLease
+
+	var counts []NumItems
+
+	args := ListArgs{
+		Limit:  perPage,
+		Offset: (page - 1) * perPage,
+	}
+
+	err := db.conn.Query(ctx, db.listLeasesByPoolPageStmt, args, IPLease{PoolID: poolID}).GetAll(&leases, &counts)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetStatus(codes.Ok, "no rows")
+
+			fallbackCount, countErr := db.CountLeasesByPool(ctx, poolID)
+			if countErr != nil {
+				return nil, 0, nil
+			}
+
+			return nil, fallbackCount, nil
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return nil, 0, fmt.Errorf("query failed: %w", err)
+	}
+
+	count := 0
+	if len(counts) > 0 {
+		count = counts[0].Count
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return leases, count, nil
 }
 
 // ListLeaseAddressesByPool returns sorted addresses for all leases in a pool.

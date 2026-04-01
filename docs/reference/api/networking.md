@@ -114,7 +114,47 @@ None
         "mtu": 1460,
         "status": {
             "sessions": 0
+        },
+        "ip_allocation": {
+            "pool_size": 254,
+            "allocated": 0,
+            "available": 254
         }
+    }
+}
+```
+
+## List IP Allocations
+
+This path returns a paginated list of IP address allocations (leases) for a specific data network.
+
+| Method | Path                           |
+| ------ | ------------------------------ |
+| GET    | `/api/v1/networking/data-networks/{name}/ip-allocations` |
+
+### Query Parameters
+
+| Name       | In    | Type | Default | Allowed | Description                   |
+| ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
+| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
+| `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "items": [
+            {
+                "address": "172.250.0.1",
+                "imsi": "001010100000001",
+                "type": "dynamic",
+                "session_id": 1
+            }
+        ],
+        "page": 1,
+        "per_page": 25,
+        "total_count": 1
     }
 }
 ```
