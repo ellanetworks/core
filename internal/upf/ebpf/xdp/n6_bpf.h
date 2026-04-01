@@ -12,6 +12,7 @@
 #include "xdp/utils/gtp.h"
 #include "xdp/utils/pdr.h"
 #include "xdp/utils/qer.h"
+#include "xdp/utils/sdf.h"
 #include "xdp/utils/urr.h"
 #include "xdp/utils/routing.h"
 #include "xdp/utils/statistics.h"
@@ -133,6 +134,19 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start,
 						  qer->dl_maximum_bitrate))
 		return XDP_DROP;
+
+	/* Parse inner L4 so match_sdf_filters can inspect protocol/ports */
+	parse_l4(ip4->protocol, ctx);
+
+	/* SDF filter enforcement (downlink) */
+	{
+		enum xdp_action sdf_verdict = match_sdf_filters(ctx, pdr->filter_map_index);
+		if (sdf_verdict == XDP_DROP) {
+			upf_printk("upf: downlink SDF drop ip:%pI4", &ip4->daddr);
+			ctx->statistics->xdp_actions[XDP_DROP & EUPF_MAX_XDP_ACTION_MASK] += 1;
+			return XDP_DROP;
+		}
+	}
 
 	__u8 tos = far->transport_level_marking >> 8;
 	upf_printk("upf: use mapping %pI4 -> TEID:%d", &ip4->daddr, far->teid);

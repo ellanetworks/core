@@ -98,6 +98,8 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 	span.AddEvent("policy_retrieved")
 	span.AddEvent("ip_allocated", trace.WithAttributes(attribute.String("ip", pduAddress.String())))
 
+	smContext.SetPolicyData(policy)
+
 	err = s.sendPFCPRules(ctx, smContext)
 	if err != nil {
 		span.RecordError(err)
@@ -344,15 +346,62 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 		return fmt.Errorf("PFCP context not initialized")
 	}
 
+	filterIndexByPDRID := make(map[uint16]uint32)
+
+	if smContext.PFCPContext.RemoteSEID == 0 && smContext.PolicyData != nil {
+		uplinkRules := filterByDirection(smContext.PolicyData.NetworkRules, DirectionUplink)
+		if len(uplinkRules) > 0 {
+			uplinkResp, err := s.upf.UpdateFilters(ctx, &FilterUpdateRequest{
+				PolicyID:  smContext.PolicyData.PolicyID,
+				Direction: DirectionUplink,
+				Rules:     uplinkRules,
+			})
+			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, "failed to update uplink filters")
+
+				return fmt.Errorf("failed to update uplink filters: %v", err)
+			}
+
+			smContext.UplinkFilterIndex = uplinkResp.FilterMapIndex
+			if dataPath.UpLinkTunnel != nil && dataPath.UpLinkTunnel.PDR != nil {
+				dataPath.UpLinkTunnel.PDR.FilterMapIndex = uplinkResp.FilterMapIndex
+				filterIndexByPDRID[dataPath.UpLinkTunnel.PDR.PDRID] = uplinkResp.FilterMapIndex
+			}
+		}
+
+		downlinkRules := filterByDirection(smContext.PolicyData.NetworkRules, DirectionDownlink)
+		if len(downlinkRules) > 0 {
+			downlinkResp, err := s.upf.UpdateFilters(ctx, &FilterUpdateRequest{
+				PolicyID:  smContext.PolicyData.PolicyID,
+				Direction: DirectionDownlink,
+				Rules:     downlinkRules,
+			})
+			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, "failed to update downlink filters")
+
+				return fmt.Errorf("failed to update downlink filters: %v", err)
+			}
+
+			smContext.DownlinkFilterIndex = downlinkResp.FilterMapIndex
+			if dataPath.DownLinkTunnel != nil && dataPath.DownLinkTunnel.PDR != nil {
+				dataPath.DownLinkTunnel.PDR.FilterMapIndex = downlinkResp.FilterMapIndex
+				filterIndexByPDRID[dataPath.DownLinkTunnel.PDR.PDRID] = downlinkResp.FilterMapIndex
+			}
+		}
+	}
+
 	if smContext.PFCPContext.RemoteSEID == 0 {
 		result, err := s.upf.EstablishSession(ctx, &PFCPEstablishmentRequest{
-			NodeID:    s.nodeID,
-			LocalSEID: smContext.PFCPContext.LocalSEID,
-			PDRs:      pdrList,
-			FARs:      farList,
-			QERs:      qerList,
-			URRs:      urrList,
-			SUPI:      smContext.Supi.IMSI(),
+			NodeID:             s.nodeID,
+			LocalSEID:          smContext.PFCPContext.LocalSEID,
+			PDRs:               pdrList,
+			FARs:               farList,
+			QERs:               qerList,
+			URRs:               urrList,
+			SUPI:               smContext.Supi.IMSI(),
+			FilterIndexByPDRID: filterIndexByPDRID,
 		})
 		if err != nil {
 			span.RecordError(err)
@@ -369,12 +418,13 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 	}
 
 	err := s.upf.ModifySession(ctx, &PFCPModificationRequest{
-		LocalSEID:  smContext.PFCPContext.LocalSEID,
-		RemoteSEID: smContext.PFCPContext.RemoteSEID,
-		PDRs:       pdrList,
-		FARs:       farList,
-		QERs:       qerList,
-		URRs:       urrList,
+		LocalSEID:          smContext.PFCPContext.LocalSEID,
+		RemoteSEID:         smContext.PFCPContext.RemoteSEID,
+		PDRs:               pdrList,
+		FARs:               farList,
+		QERs:               qerList,
+		URRs:               urrList,
+		FilterIndexByPDRID: filterIndexByPDRID,
 	})
 	if err != nil {
 		span.RecordError(err)

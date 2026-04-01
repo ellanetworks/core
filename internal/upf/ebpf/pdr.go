@@ -11,6 +11,16 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	MaxSdfFilters     = 24 // 2 * MaxPolicies; must match MAX_SDF_FILTERS in C
+	MaxPolicies       = 12 // must match MAX_POLICIES in C
+	MaxRulesPerFilter = 12 // must match MAX_RULES_PER_FILTER in C
+	SdfProtoAny       = 255
+	SdfActionAllow    = 0
+	SdfActionDeny     = 1
+	NoFilterIndex     = 0 // reserved; means "no filtering"
+)
+
 // PdrInfo holds all data needed to program a PDR into the BPF maps.
 // FAR and QER are embedded directly so that only a single BPF map lookup
 // is required per packet.
@@ -26,6 +36,7 @@ type PdrInfo struct {
 	IMSI               string
 	Far                FarInfo
 	Qer                QerInfo
+	FilterMapIndex     uint32 // 0 = no SDF filter
 }
 
 type IPWMask struct {
@@ -99,6 +110,24 @@ type QerInfo struct {
 	StartDL      uint64
 }
 
+// SdfRule mirrors struct sdf_rule in pdr.h.
+type SdfRule struct {
+	RemoteIP   uint32
+	RemoteMask uint32
+	PortLow    uint16
+	PortHigh   uint16
+	Protocol   uint8
+	Action     uint8
+	_          [2]byte
+}
+
+// SdfFilterList mirrors struct sdf_filter_list in pdr.h.
+type SdfFilterList struct {
+	NumRules uint8
+	_        [3]byte
+	Rules    [MaxRulesPerFilter]SdfRule
+}
+
 func (bpfObjects *BpfObjects) NewUrr(id uint32) error {
 	zeroVals := make([]uint64, runtime.NumCPU())
 
@@ -152,5 +181,19 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) N3N6EntrypointPdrInfo {
 	pdrToStore.Qer.UlStart = defaultPdr.Qer.StartUL
 	pdrToStore.Qer.DlStart = defaultPdr.Qer.StartDL
 
+	pdrToStore.FilterMapIndex = defaultPdr.FilterMapIndex
+
 	return pdrToStore
+}
+
+// PutSdfFilterList writes a filter list into the sdf_filters BPF array.
+func (b *BpfObjects) PutSdfFilterList(index uint32, list SdfFilterList) error {
+	return b.SdfFilters.Put(index, unsafe.Pointer(&list))
+}
+
+// DeleteSdfFilterList zeroes the slot at index.
+// BPF_MAP_TYPE_ARRAY cannot truly delete entries; zeroing is correct.
+func (b *BpfObjects) DeleteSdfFilterList(index uint32) error {
+	var empty SdfFilterList
+	return b.SdfFilters.Put(index, unsafe.Pointer(&empty))
 }

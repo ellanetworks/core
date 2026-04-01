@@ -257,6 +257,14 @@ func (f *fakeUPFClient) DeleteSession(ctx context.Context, localSEID, remoteSEID
 	return nil
 }
 
+func (f *fakeUPFClient) UpdateFilters(ctx context.Context, req *smf.FilterUpdateRequest) (*smf.FilterUpdateResponse, error) {
+	return nil, fmt.Errorf("not implemented in test")
+}
+
+func (f *fakeUPFClient) ReleaseFilter(ctx context.Context, index uint32) error {
+	return nil
+}
+
 type fakeAMFCallback struct{}
 
 func (f *fakeAMFCallback) TransferN1(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error {

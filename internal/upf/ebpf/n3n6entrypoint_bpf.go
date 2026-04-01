@@ -65,7 +65,7 @@ type N3N6EntrypointPdrInfo struct {
 	PdrId              uint32
 	UrrId              uint32
 	OuterHeaderRemoval uint8
-	_                  [3]byte
+	Pad                [3]uint8
 	Far                struct {
 		_                     structs.HostLayout
 		Action                uint8
@@ -88,6 +88,8 @@ type N3N6EntrypointPdrInfo struct {
 		UlStart          uint64
 		DlStart          uint64
 	}
+	FilterMapIndex uint32
+	_              [4]byte
 }
 
 type N3N6EntrypointRouteStat struct {
@@ -116,6 +118,22 @@ type N3N6EntrypointRouteStat struct {
 	FibLookupIp6FwdDisabled uint64
 	FibLookupIp6UnsuppLwt   uint64
 	Ip6IfindexMismatch      uint64
+}
+
+type N3N6EntrypointSdfFilterList struct {
+	_        structs.HostLayout
+	NumRules uint8
+	Pad      [3]uint8
+	Rules    [12]struct {
+		_          structs.HostLayout
+		RemoteIp   uint32
+		RemoteMask uint32
+		PortLow    uint16
+		PortHigh   uint16
+		Protocol   uint8
+		Action     uint8
+		Pad        [2]uint8
+	}
 }
 
 type N3N6EntrypointUpfStatistic struct {
@@ -190,6 +208,7 @@ type N3N6EntrypointMapSpecs struct {
 	PdrsDownlinkIp4    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip4"`
 	PdrsDownlinkIp6    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip6"`
 	PdrsUplink         *ebpf.MapSpec `ebpf:"pdrs_uplink"`
+	SdfFilters         *ebpf.MapSpec `ebpf:"sdf_filters"`
 	UplinkRouteStats   *ebpf.MapSpec `ebpf:"uplink_route_stats"`
 	UplinkStatistics   *ebpf.MapSpec `ebpf:"uplink_statistics"`
 	UrrMap             *ebpf.MapSpec `ebpf:"urr_map"`
@@ -236,6 +255,7 @@ type N3N6EntrypointMaps struct {
 	PdrsDownlinkIp4    *ebpf.Map `ebpf:"pdrs_downlink_ip4"`
 	PdrsDownlinkIp6    *ebpf.Map `ebpf:"pdrs_downlink_ip6"`
 	PdrsUplink         *ebpf.Map `ebpf:"pdrs_uplink"`
+	SdfFilters         *ebpf.Map `ebpf:"sdf_filters"`
 	UplinkRouteStats   *ebpf.Map `ebpf:"uplink_route_stats"`
 	UplinkStatistics   *ebpf.Map `ebpf:"uplink_statistics"`
 	UrrMap             *ebpf.Map `ebpf:"urr_map"`
@@ -252,6 +272,7 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.PdrsDownlinkIp4,
 		m.PdrsDownlinkIp6,
 		m.PdrsUplink,
+		m.SdfFilters,
 		m.UplinkRouteStats,
 		m.UplinkStatistics,
 		m.UrrMap,

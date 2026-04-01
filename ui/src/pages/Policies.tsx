@@ -159,7 +159,7 @@ const PolicyPage = () => {
               field: "actions",
               headerName: "Actions",
               type: "actions",
-              width: 120,
+              width: 160,
               sortable: false,
               disableColumnMenu: true,
               getActions: (params) => [
