@@ -129,10 +129,9 @@ const PolicyDetail: React.FC = () => {
         ),
       },
       {
-        field: "description",
-        headerName: "Description",
-        flex: 1,
-        minWidth: 120,
+        field: "action",
+        headerName: "Action",
+        width: 90,
         renderCell: (params: GridRenderCellParams<RuleRow>) => (
           <Box
             sx={{
@@ -142,40 +141,12 @@ const PolicyDetail: React.FC = () => {
               height: "100%",
             }}
           >
-            <Typography
-              variant="body2"
-              sx={params.row.description ? {} : { color: "text.secondary" }}
-            >
-              {params.row.description || "—"}
-            </Typography>
-          </Box>
-        ),
-      },
-      {
-        field: "remote_prefix",
-        headerName: "Remote Prefix",
-        flex: 1,
-        minWidth: 140,
-        renderCell: (params: GridRenderCellParams<RuleRow>) => (
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              width: "100%",
-              height: "100%",
-            }}
-          >
-            <Typography
-              variant="body2"
-              sx={{
-                fontFamily: "monospace",
-                ...(params.row.remote_prefix
-                  ? {}
-                  : { color: "text.secondary" }),
-              }}
-            >
-              {params.row.remote_prefix || "any"}
-            </Typography>
+            <Chip
+              size="small"
+              label={params.row.action.toUpperCase()}
+              color={params.row.action === "allow" ? "success" : "error"}
+              variant="outlined"
+            />
           </Box>
         ),
       },
@@ -211,6 +182,34 @@ const PolicyDetail: React.FC = () => {
         ),
       },
       {
+        field: "remote_prefix",
+        headerName: "Remote Prefix",
+        flex: 1,
+        minWidth: 140,
+        renderCell: (params: GridRenderCellParams<RuleRow>) => (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+              height: "100%",
+            }}
+          >
+            <Typography
+              variant="body2"
+              sx={{
+                fontFamily: "monospace",
+                ...(params.row.remote_prefix
+                  ? {}
+                  : { color: "text.secondary" }),
+              }}
+            >
+              {params.row.remote_prefix || "any"}
+            </Typography>
+          </Box>
+        ),
+      },
+      {
         field: "ports",
         headerName: "Ports",
         width: 110,
@@ -234,9 +233,10 @@ const PolicyDetail: React.FC = () => {
         ),
       },
       {
-        field: "action",
-        headerName: "Action",
-        width: 90,
+        field: "description",
+        headerName: "Description",
+        flex: 1,
+        minWidth: 120,
         renderCell: (params: GridRenderCellParams<RuleRow>) => (
           <Box
             sx={{
@@ -246,12 +246,12 @@ const PolicyDetail: React.FC = () => {
               height: "100%",
             }}
           >
-            <Chip
-              size="small"
-              label={params.row.action.toUpperCase()}
-              color={params.row.action === "allow" ? "success" : "error"}
-              variant="outlined"
-            />
+            <Typography
+              variant="body2"
+              sx={params.row.description ? {} : { color: "text.secondary" }}
+            >
+              {params.row.description || "—"}
+            </Typography>
           </Box>
         ),
       },
