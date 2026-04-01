@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/netip"
 
 	"github.com/canonical/sqlair"
 	"github.com/prometheus/client_golang/prometheus"
@@ -19,7 +20,7 @@ import (
 const IPLeasesTableName = "ip_leases"
 
 const (
-	createLeaseStmt              = "INSERT INTO %s (poolID, address, imsi, sessionID, type, createdAt) VALUES ($IPLease.poolID, $IPLease.address, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt)"
+	createLeaseStmt              = "INSERT INTO %s (poolID, addressBin, imsi, sessionID, type, createdAt) VALUES ($IPLease.poolID, $IPLease.addressBin, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt)"
 	getDynamicLeaseStmt          = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND imsi==$IPLease.imsi AND type='dynamic'"
 	getLeaseBySessionStmt        = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND sessionID==$IPLease.sessionID AND imsi==$IPLease.imsi"
 	updateLeaseSessionStmt       = "UPDATE %s SET sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
@@ -27,28 +28,48 @@ const (
 	deleteAllDynamicLeasesStmt   = "DELETE FROM %s WHERE type='dynamic'"
 	listActiveLeasesStmt         = "SELECT &IPLease.* FROM %s WHERE sessionID IS NOT NULL"
 	listLeasesByPoolStmt         = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID"
-	listLeaseAddressesByPoolStmt = "SELECT &IPLease.address FROM %s WHERE poolID==$IPLease.poolID ORDER BY address"
+	listLeaseAddressesByPoolStmt = "SELECT &IPLease.addressBin FROM %s WHERE poolID==$IPLease.poolID ORDER BY addressBin"
 	countLeasesByPoolStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID"
 	countActiveLeasesStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE sessionID IS NOT NULL"
 	countLeasesByIMSIStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE imsi==$IPLease.imsi"
-	listLeasesByPoolPageStmt     = "SELECT &IPLease.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID ORDER BY address LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	listLeasesByPoolPageStmt     = "SELECT &IPLease.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID ORDER BY addressBin LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	listAllLeasesStmt            = "SELECT &IPLease.* FROM %s"
 )
 
 // IPLease represents a row in the ip_leases table.
 type IPLease struct {
-	ID        int    `db:"id"`
-	PoolID    int    `db:"poolID"`
-	Address   string `db:"address"`
-	IMSI      string `db:"imsi"`
-	SessionID *int   `db:"sessionID"`
-	Type      string `db:"type"`
-	CreatedAt int64  `db:"createdAt"`
+	ID         int    `db:"id"`
+	PoolID     int    `db:"poolID"`
+	AddressBin []byte `db:"addressBin"`
+	IMSI       string `db:"imsi"`
+	SessionID  *int   `db:"sessionID"`
+	Type       string `db:"type"`
+	CreatedAt  int64  `db:"createdAt"`
 }
 
-// CreateLease inserts a new IP lease row. Returns ErrAlreadyExists if the
-// (poolID, address) unique constraint is violated.
-func (db *Database) CreateLease(ctx context.Context, lease *IPLease) error {
+// Address returns the IP address derived from AddressBin.
+// IPv4-mapped IPv6 addresses are unmapped to plain IPv4.
+func (l *IPLease) Address() netip.Addr {
+	if len(l.AddressBin) != 16 {
+		return netip.Addr{}
+	}
+
+	var arr [16]byte
+
+	copy(arr[:], l.AddressBin)
+
+	addr := netip.AddrFrom16(arr)
+	if addr.Is4In6() {
+		addr = addr.Unmap()
+	}
+
+	return addr
+}
+
+// CreateLease inserts a new IP lease row. The address is stored as a 16-byte
+// binary form. Returns ErrAlreadyExists if the (poolID, addressBin) unique
+// constraint is violated.
+func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address netip.Addr) error {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", IPLeasesTableName),
@@ -66,7 +87,12 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease) error {
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "insert").Inc()
 
-	err := db.conn.Query(ctx, db.createLeaseStmt, lease).Run()
+	b := address.As16()
+
+	row := *lease
+	row.AddressBin = b[:]
+
+	err := db.conn.Query(ctx, db.createLeaseStmt, &row).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
@@ -470,8 +496,9 @@ func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID int) ([
 	}
 
 	addresses := make([]string, 0, len(leases))
-	for _, l := range leases {
-		addresses = append(addresses, l.Address)
+
+	for i := range leases {
+		addresses = append(addresses, leases[i].Address().String())
 	}
 
 	span.SetStatus(codes.Ok, "")
