@@ -23,6 +23,7 @@ import {
   Typography,
   IconButton,
   Collapse,
+  Autocomplete,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -59,6 +60,15 @@ const parseProtocol = (value: string): number | undefined => {
     ([, name]) => name.toUpperCase() === trimmed,
   );
   return entry ? parseInt(entry[0], 10) : undefined;
+};
+
+// Create a sorted list of protocol options for the autocomplete
+const getProtocolOptions = (): Array<{ label: string; value: string }> => {
+  const options = Object.entries(PROTOCOL_NAMES).map(([num, name]) => ({
+    label: `${name} (${num})`,
+    value: name,
+  }));
+  return options.sort((a, b) => a.label.localeCompare(b.label));
 };
 
 interface PolicyRulesModalProps {
@@ -313,7 +323,9 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
       direction: rule.direction,
       action: rule.action,
       remotePrefix: rule.remote_prefix || "",
-      protocol: rule.protocol ? String(rule.protocol) : "",
+      protocol: rule.protocol
+        ? (PROTOCOL_NAMES[rule.protocol] ?? String(rule.protocol))
+        : "",
       portLow: rule.port_low ? String(rule.port_low) : "",
       portHigh: rule.port_high ? String(rule.port_high) : "",
     });
@@ -740,21 +752,37 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
             disabled={formLoading}
           />
 
-          <TextField
+          <Autocomplete
             fullWidth
-            label="Protocol"
-            placeholder="tcp, udp, icmp, or 0-255"
-            value={formValues.protocol}
-            onChange={(e) => handleFormChange("protocol", e.target.value)}
-            onBlur={() => handleFormBlur("protocol")}
-            error={!!errors.protocol && touched.protocol}
-            helperText={
-              touched.protocol
-                ? errors.protocol
-                : "Optional (name or number: tcp, udp, 6, 17)"
+            options={getProtocolOptions()}
+            getOptionLabel={(option) => option.label}
+            value={
+              getProtocolOptions().find(
+                (opt) => opt.value === formValues.protocol,
+              ) ?? null
             }
-            margin="normal"
+            onChange={(_, value) => {
+              handleFormChange("protocol", value?.value ?? "");
+            }}
+            onBlur={() => handleFormBlur("protocol")}
+            isOptionEqualToValue={(option, value) =>
+              option.value === value.value
+            }
             disabled={formLoading}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Protocol"
+                placeholder="Search protocols..."
+                error={!!errors.protocol && touched.protocol}
+                helperText={
+                  touched.protocol
+                    ? errors.protocol
+                    : "Optional – search or leave empty for any"
+                }
+                margin="normal"
+              />
+            )}
           />
 
           <Box sx={{ display: "flex", gap: 2 }}>

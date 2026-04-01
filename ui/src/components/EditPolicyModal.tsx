@@ -23,6 +23,7 @@ import {
   Typography,
   IconButton,
   CircularProgress,
+  Autocomplete,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -104,6 +105,14 @@ const parseProtocol = (value: string): number | undefined => {
     ([, name]) => name.toUpperCase() === trimmed,
   );
   return entry ? parseInt(entry[0], 10) : undefined;
+};
+
+const getProtocolOptions = (): Array<{ label: string; value: string }> => {
+  const options = Object.entries(PROTOCOL_NAMES).map(([num, name]) => ({
+    label: `${name} (${num})`,
+    value: name,
+  }));
+  return options.sort((a, b) => a.label.localeCompare(b.label));
 };
 
 const NON_GBR_5QI_OPTIONS: { value: number; label: string }[] = [
@@ -462,7 +471,9 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
       direction: rule.direction,
       action: rule.action,
       remotePrefix: rule.remote_prefix || "",
-      protocol: rule.protocol ? String(rule.protocol) : "",
+      protocol: rule.protocol
+        ? (PROTOCOL_NAMES[rule.protocol] ?? String(rule.protocol))
+        : "",
       portLow: rule.port_low ? String(rule.port_low) : "",
       portHigh: rule.port_high ? String(rule.port_high) : "",
     });
@@ -1115,20 +1126,36 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
             margin="normal"
           />
 
-          <TextField
+          <Autocomplete
             fullWidth
-            label="Protocol"
-            placeholder="tcp, udp, icmp, or 0-255"
-            value={ruleFormValues.protocol}
-            onChange={(e) => handleRuleFormChange("protocol", e.target.value)}
-            onBlur={() => handleRuleFormBlur("protocol")}
-            error={!!ruleErrors.protocol && ruleTouched.protocol}
-            helperText={
-              ruleTouched.protocol
-                ? ruleErrors.protocol
-                : "Optional (name or number: tcp, udp, 6, 17)"
+            options={getProtocolOptions()}
+            getOptionLabel={(option) => option.label}
+            value={
+              getProtocolOptions().find(
+                (opt) => opt.value === ruleFormValues.protocol,
+              ) ?? null
             }
-            margin="normal"
+            onChange={(_, value) => {
+              handleRuleFormChange("protocol", value?.value ?? "");
+            }}
+            onBlur={() => handleRuleFormBlur("protocol")}
+            isOptionEqualToValue={(option, value) =>
+              option.value === value.value
+            }
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Protocol"
+                placeholder="Search protocols..."
+                error={!!ruleErrors.protocol && ruleTouched.protocol}
+                helperText={
+                  ruleTouched.protocol
+                    ? ruleErrors.protocol
+                    : "Optional – search or leave empty for any"
+                }
+                margin="normal"
+              />
+            )}
           />
 
           <Box sx={{ display: "flex", gap: 2 }}>
