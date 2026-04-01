@@ -53,12 +53,13 @@ func TestMigrateV6_BackfillsAddressBin(t *testing.T) {
 
 	// Insert TEXT-only leases (no addressBin column yet).
 	leases := []struct {
+		id      int
 		address string
 		session int
 	}{
-		{"10.0.0.1", 1},
-		{"10.0.0.2", 2},
-		{"10.0.0.10", 3},
+		{1, "10.0.0.1", 1},
+		{2, "10.0.0.2", 2},
+		{3, "10.0.0.10", 3},
 	}
 
 	for _, l := range leases {
@@ -70,29 +71,29 @@ func TestMigrateV6_BackfillsAddressBin(t *testing.T) {
 		}
 	}
 
-	// Apply V6 migration — this should backfill addressBin.
+	// Apply V6 migration — backfills addressBin and drops the address column.
 	applyV6(t, db)
 
-	// Verify each row has the correct addressBin.
+	// Verify each row has the correct addressBin (query by id since address column is gone).
 	for _, l := range leases {
 		var binData []byte
 
 		err := db.QueryRowContext(ctx, fmt.Sprintf(
-			"SELECT addressBin FROM %s WHERE address = ?", IPLeasesTableName), l.address).Scan(&binData)
+			"SELECT addressBin FROM %s WHERE id = ?", IPLeasesTableName), l.id).Scan(&binData)
 		if err != nil {
-			t.Fatalf("failed to query addressBin for %s: %v", l.address, err)
+			t.Fatalf("failed to query addressBin for id %d: %v", l.id, err)
 		}
 
 		expected := netip.MustParseAddr(l.address).As16()
 
 		if len(binData) != 16 {
-			t.Errorf("address %s: expected 16 bytes, got %d", l.address, len(binData))
+			t.Errorf("id %d: expected 16 bytes, got %d", l.id, len(binData))
 			continue
 		}
 
 		for i := 0; i < 16; i++ {
 			if binData[i] != expected[i] {
-				t.Errorf("address %s: byte %d = %02x, want %02x", l.address, i, binData[i], expected[i])
+				t.Errorf("id %d: byte %d = %02x, want %02x", l.id, i, binData[i], expected[i])
 				break
 			}
 		}
@@ -100,7 +101,7 @@ func TestMigrateV6_BackfillsAddressBin(t *testing.T) {
 
 	// Verify ORDER BY addressBin produces correct numeric order.
 	rows, err := db.QueryContext(ctx, fmt.Sprintf(
-		"SELECT address FROM %s WHERE poolID = 1 ORDER BY addressBin", IPLeasesTableName))
+		"SELECT addressBin FROM %s WHERE poolID = 1 ORDER BY addressBin", IPLeasesTableName))
 	if err != nil {
 		t.Fatalf("failed to query sorted addresses: %v", err)
 	}
@@ -110,13 +111,22 @@ func TestMigrateV6_BackfillsAddressBin(t *testing.T) {
 	var sorted []string
 
 	for rows.Next() {
-		var addr string
+		var binData []byte
 
-		if err := rows.Scan(&addr); err != nil {
-			t.Fatalf("failed to scan address: %v", err)
+		if err := rows.Scan(&binData); err != nil {
+			t.Fatalf("failed to scan addressBin: %v", err)
 		}
 
-		sorted = append(sorted, addr)
+		var arr [16]byte
+
+		copy(arr[:], binData)
+
+		addr := netip.AddrFrom16(arr)
+		if addr.Is4In6() {
+			addr = addr.Unmap()
+		}
+
+		sorted = append(sorted, addr.String())
 	}
 
 	expected := []string{"10.0.0.1", "10.0.0.2", "10.0.0.10"}
@@ -128,6 +138,76 @@ func TestMigrateV6_BackfillsAddressBin(t *testing.T) {
 	for i, want := range expected {
 		if sorted[i] != want {
 			t.Fatalf("sorted[%d] = %s, want %s", i, sorted[i], want)
+		}
+	}
+}
+
+func TestMigrateV6_HandlesEmptyAddress(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	applyV1(t, db)
+	applyV2(t, db)
+	applyV3(t, db)
+	applyV4(t, db)
+	applyV5(t, db)
+
+	_, err := db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, mcc, mnc, operatorCode, sst) VALUES (1, '001', '01', 'testop', 1)",
+		OperatorTableName))
+	if err != nil {
+		t.Fatalf("failed to insert operator: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, name, ipPool, dns, mtu) VALUES (1, 'test-dnn', '10.0.0.0/24', '8.8.8.8', 1400)",
+		DataNetworksTableName))
+	if err != nil {
+		t.Fatalf("failed to insert data network: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, name, bitrateUplink, bitrateDownlink, var5qi, arp, dataNetworkID) VALUES (1, 'test-policy', '1 Mbps', '1 Mbps', 9, 1, 1)",
+		PoliciesTableName))
+	if err != nil {
+		t.Fatalf("failed to insert policy: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (imsi, sequenceNumber, permanentKey, opc, policyID) VALUES ('001010100000001', '000000000001', '6f30087629feb0b089783c81d0ae09b5', '21a7e1897dfb481d62439142cdf1b6ee', 1)",
+		SubscribersTableName))
+	if err != nil {
+		t.Fatalf("failed to insert subscriber: %v", err)
+	}
+
+	// Insert a lease with an empty address.
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (poolID, address, imsi, sessionID, type, createdAt) VALUES (1, '', '001010100000001', 1, 'dynamic', 1000)",
+		IPLeasesTableName))
+	if err != nil {
+		t.Fatalf("failed to insert empty-address lease: %v", err)
+	}
+
+	// Migration should succeed without erroring on the empty address.
+	applyV6(t, db)
+
+	// The row should exist with zeroed addressBin.
+	var binData []byte
+
+	err = db.QueryRowContext(ctx, fmt.Sprintf(
+		"SELECT addressBin FROM %s WHERE id = 1", IPLeasesTableName)).Scan(&binData)
+	if err != nil {
+		t.Fatalf("failed to query addressBin: %v", err)
+	}
+
+	if len(binData) != 16 {
+		t.Fatalf("expected 16 bytes, got %d", len(binData))
+	}
+
+	// All bytes should be zero (empty address → zeroed default).
+	for i, b := range binData {
+		if b != 0 {
+			t.Fatalf("byte %d = %02x, want 0x00", i, b)
 		}
 	}
 }
@@ -154,7 +234,7 @@ func TestMigrateV6_CreatesIndex(t *testing.T) {
 	}
 }
 
-func TestMigrateV6_AddsColumn(t *testing.T) {
+func TestMigrateV6_DropsAddressColumn(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 
@@ -172,7 +252,8 @@ func TestMigrateV6_AddsColumn(t *testing.T) {
 
 	defer func() { _ = rows.Close() }()
 
-	found := false
+	foundBin := false
+	foundText := false
 
 	for rows.Next() {
 		var (
@@ -188,7 +269,7 @@ func TestMigrateV6_AddsColumn(t *testing.T) {
 		}
 
 		if name == "addressBin" {
-			found = true
+			foundBin = true
 
 			if typ != "BLOB" {
 				t.Errorf("addressBin type = %s, want BLOB", typ)
@@ -198,9 +279,17 @@ func TestMigrateV6_AddsColumn(t *testing.T) {
 				t.Errorf("addressBin notnull = %d, want 1", notnull)
 			}
 		}
+
+		if name == "address" {
+			foundText = true
+		}
 	}
 
-	if !found {
+	if !foundBin {
 		t.Error("addressBin column not found in ip_leases table after V6 migration")
+	}
+
+	if foundText {
+		t.Error("address TEXT column should have been dropped by V6 migration")
 	}
 }

@@ -20,7 +20,7 @@ import (
 const IPLeasesTableName = "ip_leases"
 
 const (
-	createLeaseStmt              = "INSERT INTO %s (poolID, address, addressBin, imsi, sessionID, type, createdAt) VALUES ($IPLease.poolID, $IPLease.address, $IPLease.addressBin, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt)"
+	createLeaseStmt              = "INSERT INTO %s (poolID, addressBin, imsi, sessionID, type, createdAt) VALUES ($IPLease.poolID, $IPLease.addressBin, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt)"
 	getDynamicLeaseStmt          = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND imsi==$IPLease.imsi AND type='dynamic'"
 	getLeaseBySessionStmt        = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND sessionID==$IPLease.sessionID AND imsi==$IPLease.imsi"
 	updateLeaseSessionStmt       = "UPDATE %s SET sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
@@ -28,7 +28,7 @@ const (
 	deleteAllDynamicLeasesStmt   = "DELETE FROM %s WHERE type='dynamic'"
 	listActiveLeasesStmt         = "SELECT &IPLease.* FROM %s WHERE sessionID IS NOT NULL"
 	listLeasesByPoolStmt         = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID"
-	listLeaseAddressesByPoolStmt = "SELECT &IPLease.address FROM %s WHERE poolID==$IPLease.poolID ORDER BY addressBin"
+	listLeaseAddressesByPoolStmt = "SELECT &IPLease.addressBin FROM %s WHERE poolID==$IPLease.poolID ORDER BY addressBin"
 	countLeasesByPoolStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID"
 	countActiveLeasesStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE sessionID IS NOT NULL"
 	countLeasesByIMSIStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE imsi==$IPLease.imsi"
@@ -40,12 +40,16 @@ const (
 type IPLease struct {
 	ID         int    `db:"id"`
 	PoolID     int    `db:"poolID"`
-	Address    string `db:"address"`
 	AddressBin []byte `db:"addressBin"`
 	IMSI       string `db:"imsi"`
 	SessionID  *int   `db:"sessionID"`
 	Type       string `db:"type"`
 	CreatedAt  int64  `db:"createdAt"`
+
+	// Address is the human-readable IP string derived from AddressBin.
+	// On write, callers set this field and CreateLease converts it to binary.
+	// On read, DB methods populate it from AddressBin.
+	Address string
 }
 
 // ipToSortableBytes converts an IP address string to a 16-byte binary form
@@ -60,6 +64,48 @@ func ipToSortableBytes(address string) ([]byte, error) {
 	b := addr.As16()
 
 	return b[:], nil
+}
+
+// binToIPString converts a 16-byte binary IP back to its human-readable form.
+// IPv4-mapped IPv6 addresses are unmapped to plain IPv4 strings.
+func binToIPString(b []byte) (string, error) {
+	if len(b) != 16 {
+		return "", fmt.Errorf("invalid binary IP length %d, want 16", len(b))
+	}
+
+	var arr [16]byte
+
+	copy(arr[:], b)
+
+	addr := netip.AddrFrom16(arr)
+	if addr.Is4In6() {
+		addr = addr.Unmap()
+	}
+
+	return addr.String(), nil
+}
+
+// populateLeaseAddress derives the Address string from AddressBin.
+func populateLeaseAddress(lease *IPLease) error {
+	addr, err := binToIPString(lease.AddressBin)
+	if err != nil {
+		return err
+	}
+
+	lease.Address = addr
+
+	return nil
+}
+
+// populateLeaseAddresses derives Address strings for a slice of leases.
+func populateLeaseAddresses(leases []IPLease) error {
+	for i := range leases {
+		if err := populateLeaseAddress(&leases[i]); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // CreateLease inserts a new IP lease row. Returns ErrAlreadyExists if the
@@ -90,9 +136,10 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease) error {
 		return fmt.Errorf("invalid IP address %q: %w", lease.Address, err)
 	}
 
-	lease.AddressBin = bin
+	row := *lease
+	row.AddressBin = bin
 
-	err = db.conn.Query(ctx, db.createLeaseStmt, lease).Run()
+	err = db.conn.Query(ctx, db.createLeaseStmt, &row).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
@@ -146,6 +193,13 @@ func (db *Database) GetDynamicLease(ctx context.Context, poolID int, imsi string
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
+	if err := populateLeaseAddress(&row); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "address decode failed")
+
+		return nil, fmt.Errorf("address decode failed: %w", err)
+	}
+
 	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
@@ -183,6 +237,13 @@ func (db *Database) GetLeaseBySession(ctx context.Context, poolID int, sessionID
 		span.SetStatus(codes.Error, "query failed")
 
 		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	if err := populateLeaseAddress(&row); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "address decode failed")
+
+		return nil, fmt.Errorf("address decode failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -340,6 +401,13 @@ func (db *Database) ListActiveLeases(ctx context.Context) ([]IPLease, error) {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
+	if err := populateLeaseAddresses(leases); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "address decode failed")
+
+		return nil, fmt.Errorf("address decode failed: %w", err)
+	}
+
 	span.SetStatus(codes.Ok, "")
 
 	return leases, nil
@@ -356,6 +424,10 @@ func (db *Database) listAllLeases(ctx context.Context) ([]IPLease, error) {
 		}
 
 		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	if err := populateLeaseAddresses(leases); err != nil {
+		return nil, fmt.Errorf("address decode failed: %w", err)
 	}
 
 	return leases, nil
@@ -393,6 +465,13 @@ func (db *Database) ListLeasesByPool(ctx context.Context, poolID int) ([]IPLease
 		span.SetStatus(codes.Error, "query failed")
 
 		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	if err := populateLeaseAddresses(leases); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "address decode failed")
+
+		return nil, fmt.Errorf("address decode failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -450,6 +529,13 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID int, page, 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
+	if err := populateLeaseAddresses(leases); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "address decode failed")
+
+		return nil, 0, fmt.Errorf("address decode failed: %w", err)
+	}
+
 	count := 0
 	if len(counts) > 0 {
 		count = counts[0].Count
@@ -496,8 +582,17 @@ func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID int) ([
 	}
 
 	addresses := make([]string, 0, len(leases))
+
 	for _, l := range leases {
-		addresses = append(addresses, l.Address)
+		addr, convErr := binToIPString(l.AddressBin)
+		if convErr != nil {
+			span.RecordError(convErr)
+			span.SetStatus(codes.Error, "address decode failed")
+
+			return nil, fmt.Errorf("address decode failed: %w", convErr)
+		}
+
+		addresses = append(addresses, addr)
 	}
 
 	span.SetStatus(codes.Ok, "")

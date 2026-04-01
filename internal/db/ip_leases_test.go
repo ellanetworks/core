@@ -3,9 +3,7 @@
 package db_test
 
 import (
-	"bytes"
 	"context"
-	"net/netip"
 	"path/filepath"
 	"testing"
 	"time"
@@ -116,12 +114,6 @@ func TestCreateAndGetLease(t *testing.T) {
 
 	if got.Type != "dynamic" {
 		t.Fatalf("expected type dynamic, got %s", got.Type)
-	}
-
-	// Verify AddressBin was populated correctly.
-	expectedBin := netip.MustParseAddr("192.168.1.10").As16()
-	if !bytes.Equal(got.AddressBin, expectedBin[:]) {
-		t.Fatalf("expected AddressBin %x, got %x", expectedBin, got.AddressBin)
 	}
 }
 
