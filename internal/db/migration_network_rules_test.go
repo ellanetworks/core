@@ -280,6 +280,27 @@ func applyV4(t *testing.T, db *sql.DB) {
 	}
 }
 
+func applyV6(t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	ctx := context.Background()
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("failed to begin transaction: %v", err)
+	}
+
+	if err := migrateV6(ctx, tx); err != nil {
+		_ = tx.Rollback()
+
+		t.Fatalf("migrateV6 failed: %v", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("failed to commit migrateV6: %v", err)
+	}
+}
+
 func applyV5(t *testing.T, db *sql.DB) {
 	t.Helper()
 

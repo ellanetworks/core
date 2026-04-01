@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/netip"
 
 	"github.com/canonical/sqlair"
 	"github.com/prometheus/client_golang/prometheus"
@@ -19,7 +20,7 @@ import (
 const IPLeasesTableName = "ip_leases"
 
 const (
-	createLeaseStmt              = "INSERT INTO %s (poolID, address, imsi, sessionID, type, createdAt) VALUES ($IPLease.poolID, $IPLease.address, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt)"
+	createLeaseStmt              = "INSERT INTO %s (poolID, address, addressBin, imsi, sessionID, type, createdAt) VALUES ($IPLease.poolID, $IPLease.address, $IPLease.addressBin, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt)"
 	getDynamicLeaseStmt          = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND imsi==$IPLease.imsi AND type='dynamic'"
 	getLeaseBySessionStmt        = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND sessionID==$IPLease.sessionID AND imsi==$IPLease.imsi"
 	updateLeaseSessionStmt       = "UPDATE %s SET sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
@@ -27,23 +28,38 @@ const (
 	deleteAllDynamicLeasesStmt   = "DELETE FROM %s WHERE type='dynamic'"
 	listActiveLeasesStmt         = "SELECT &IPLease.* FROM %s WHERE sessionID IS NOT NULL"
 	listLeasesByPoolStmt         = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID"
-	listLeaseAddressesByPoolStmt = "SELECT &IPLease.address FROM %s WHERE poolID==$IPLease.poolID ORDER BY address"
+	listLeaseAddressesByPoolStmt = "SELECT &IPLease.address FROM %s WHERE poolID==$IPLease.poolID ORDER BY addressBin"
 	countLeasesByPoolStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID"
 	countActiveLeasesStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE sessionID IS NOT NULL"
 	countLeasesByIMSIStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE imsi==$IPLease.imsi"
-	listLeasesByPoolPageStmt     = "SELECT &IPLease.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID ORDER BY address LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	listLeasesByPoolPageStmt     = "SELECT &IPLease.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID ORDER BY addressBin LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	listAllLeasesStmt            = "SELECT &IPLease.* FROM %s"
 )
 
 // IPLease represents a row in the ip_leases table.
 type IPLease struct {
-	ID        int    `db:"id"`
-	PoolID    int    `db:"poolID"`
-	Address   string `db:"address"`
-	IMSI      string `db:"imsi"`
-	SessionID *int   `db:"sessionID"`
-	Type      string `db:"type"`
-	CreatedAt int64  `db:"createdAt"`
+	ID         int    `db:"id"`
+	PoolID     int    `db:"poolID"`
+	Address    string `db:"address"`
+	AddressBin []byte `db:"addressBin"`
+	IMSI       string `db:"imsi"`
+	SessionID  *int   `db:"sessionID"`
+	Type       string `db:"type"`
+	CreatedAt  int64  `db:"createdAt"`
+}
+
+// ipToSortableBytes converts an IP address string to a 16-byte binary form
+// suitable for correct ORDER BY sorting via memcmp. Uses netip.Addr.As16()
+// which returns the IPv4-mapped IPv6 form for IPv4 addresses.
+func ipToSortableBytes(address string) ([]byte, error) {
+	addr, err := netip.ParseAddr(address)
+	if err != nil {
+		return nil, err
+	}
+
+	b := addr.As16()
+
+	return b[:], nil
 }
 
 // CreateLease inserts a new IP lease row. Returns ErrAlreadyExists if the
@@ -66,7 +82,17 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease) error {
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "insert").Inc()
 
-	err := db.conn.Query(ctx, db.createLeaseStmt, lease).Run()
+	bin, err := ipToSortableBytes(lease.Address)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "invalid IP address")
+
+		return fmt.Errorf("invalid IP address %q: %w", lease.Address, err)
+	}
+
+	lease.AddressBin = bin
+
+	err = db.conn.Query(ctx, db.createLeaseStmt, lease).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
