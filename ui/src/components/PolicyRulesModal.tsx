@@ -298,7 +298,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
     setDeleteConfirmOpen(true);
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (selectedRuleId === null) return;
     setRules((prev) => prev.filter((r) => r.tempId !== selectedRuleId));
     setDeleteConfirmOpen(false);
