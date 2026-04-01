@@ -92,6 +92,14 @@ Each rule contains:
                 "port_low": 80,
                 "port_high": 443,
                 "action": "allow"
+            },
+            {
+                "description": "Deny all",
+                "protocol": 0,
+                "port_low": 0,
+                "port_high": 0,
+                "remote_prefix": "0.0.0.0/0",
+                "action": "deny"
             }
         ],
         "downlink": [
@@ -101,6 +109,14 @@ Each rule contains:
                 "port_low": 53,
                 "port_high": 53,
                 "action": "allow"
+            },
+            {
+                "description": "Deny all",
+                "protocol": 0,
+                "port_low": 0,
+                "port_high": 0,
+                "remote_prefix": "0.0.0.0/0",
+                "action": "deny"
             }
         ]
     }
@@ -157,6 +173,14 @@ This path updates an existing policy. You can optionally update network rules as
                 "port_low": 22,
                 "port_high": 22,
                 "action": "allow"
+            },
+            {
+                "description": "Deny all",
+                "protocol": 0,
+                "port_low": 0,
+                "port_high": 0,
+                "remote_prefix": "0.0.0.0/0",
+                "action": "deny"
             }
         ],
         "downlink": []
@@ -221,6 +245,14 @@ None
                     "port_low": 80,
                     "port_high": 443,
                     "action": "allow"
+                },
+                {
+                    "description": "Deny all",
+                    "protocol": 0,
+                    "port_low": 0,
+                    "port_high": 0,
+                    "remote_prefix": "0.0.0.0/0",
+                    "action": "deny"
                 }
             ],
             "downlink": [
@@ -230,6 +262,14 @@ None
                     "port_low": 53,
                     "port_high": 53,
                     "action": "allow"
+                },
+                {
+                    "description": "Deny all",
+                    "protocol": 0,
+                    "port_low": 0,
+                    "port_high": 0,
+                    "remote_prefix": "0.0.0.0/0",
+                    "action": "deny"
                 }
             ]
         }
