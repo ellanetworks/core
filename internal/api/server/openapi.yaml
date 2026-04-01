@@ -1114,6 +1114,8 @@ paths:
       description: |
         Creates a new QoS policy. Requires a unique name, uplink/downlink bitrate limits,
         a 5QI value, an ARP priority, and the name of an existing data network.
+        Optionally supports an initial set of network rules organized by direction (uplink/downlink).
+        Rules are created in the order they are provided.
         Maximum 12 policies.
       requestBody:
         required: true
@@ -1156,7 +1158,14 @@ paths:
       operationId: updatePolicy
       tags: [Policies]
       summary: Update a policy
-      description: Updates all fields of a QoS policy.
+      description: |
+        Updates all fields of a QoS policy. Existing network rules are always replaced.
+
+        - **Omit `rules`**: all existing rules are deleted.
+        - **Provide `rules`**: existing rules are deleted and replaced with the new ones in the order given.
+        - **Provide empty arrays**: all existing rules are deleted and no new rules are created.
+
+        To keep existing rules you must explicitly include them in the request body.
       parameters:
         - $ref: "#/components/parameters/PolicyNamePath"
       requestBody:
@@ -3048,6 +3057,43 @@ components:
               $ref: "#/components/schemas/SubscriberUsage"
 
     # ── Policies ────────────────────────────────────────────────────────
+    PolicyRule:
+      type: object
+      properties:
+        description:
+          type: string
+        remote_prefix:
+          type: string
+          nullable: true
+          description: "CIDR notation (e.g. \"10.0.0.0/24\") or null."
+        protocol:
+          type: integer
+          description: "Protocol number (0-255)."
+        port_low:
+          type: integer
+          description: "Low port number (0-65535)."
+        port_high:
+          type: integer
+          description: "High port number (0-65535)."
+        action:
+          type: string
+          enum: [allow, deny]
+      required: [description, protocol, port_low, port_high, action]
+
+    PolicyRules:
+      type: object
+      properties:
+        uplink:
+          type: array
+          items:
+            $ref: "#/components/schemas/PolicyRule"
+          description: "List of uplink rules in order."
+        downlink:
+          type: array
+          items:
+            $ref: "#/components/schemas/PolicyRule"
+          description: "List of downlink rules in order."
+
     Policy:
       type: object
       properties:
@@ -3071,6 +3117,10 @@ components:
         data_network_name:
           type: string
           description: Name of the data network this policy applies to.
+        rules:
+          $ref: "#/components/schemas/PolicyRules"
+          nullable: true
+          description: "Optional network rules organized by direction (uplink/downlink)."
       required: [name, bitrate_uplink, bitrate_downlink, var5qi, arp, data_network_name]
 
     PolicyResponseEnvelope:
@@ -3123,6 +3173,9 @@ components:
         data_network_name:
           type: string
           description: Name of an existing data network.
+        rules:
+          $ref: "#/components/schemas/PolicyRules"
+          description: "Optional network rules to be created with the policy."
 
     UpdatePolicyParams:
       type: object
@@ -3144,6 +3197,12 @@ components:
         data_network_name:
           type: string
           description: Name of an existing data network.
+        rules:
+          $ref: "#/components/schemas/PolicyRules"
+          description: |
+            Network rules to set on the policy. Existing rules are always deleted first.
+            If this field is omitted, all existing rules are deleted.
+            To keep existing rules, you must re-supply them in every update request.
 
     # ── Operator ────────────────────────────────────────────────────────
     OperatorID:

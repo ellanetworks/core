@@ -12,6 +12,7 @@
 #include "xdp/utils/gtp.h"
 #include "xdp/utils/pdr.h"
 #include "xdp/utils/qer.h"
+#include "xdp/utils/sdf.h"
 #include "xdp/utils/urr.h"
 #include "xdp/utils/statistics.h"
 
@@ -99,6 +100,20 @@ handle_gtp_packet(struct packet_context *ctx)
 				"upf: handle_gtp_packet: can't remove gtp header: %d",
 				result);
 			return XDP_ABORTED;
+		}
+
+		/* Parse inner L4 so match_sdf_filters can inspect protocol/ports */
+		if (ctx->ip4)
+			parse_l4(ctx->ip4->protocol, ctx);
+	}
+
+	/* SDF filter enforcement (uplink) – evaluated on the inner packet */
+	{
+		enum xdp_action sdf_verdict = match_sdf_filters(ctx, pdr->filter_map_index);
+		if (sdf_verdict == XDP_DROP) {
+			upf_printk("upf: uplink SDF drop teid:%d", teid);
+			ctx->statistics->xdp_actions[XDP_DROP & EUPF_MAX_XDP_ACTION_MASK] += 1;
+			return XDP_DROP;
 		}
 	}
 

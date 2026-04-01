@@ -39,7 +39,7 @@ func TestHandlePfcpSessionModificationRequestCauseSessionContextNotFound(t *test
 		ies...,
 	)
 
-	response, err := core.HandlePfcpSessionModificationRequest(context.Background(), msg)
+	response, err := core.HandlePfcpSessionModificationRequest(context.Background(), msg, nil)
 	if err != nil {
 		t.Fatalf("Error handling session modification request: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestHandlePfcpSessionDeletionRequestCauseSessionContextNotFound(t *testing.
 		ies...,
 	)
 
-	response, err := core.HandlePfcpSessionModificationRequest(context.Background(), msg)
+	response, err := core.HandlePfcpSessionModificationRequest(context.Background(), msg, nil)
 	if err != nil {
 		t.Fatalf("Error handling session modification request: %v", err)
 	}
@@ -189,7 +189,7 @@ func TestHandlePfcpSessionModificationRequestCauseRequestAccepted(t *testing.T) 
 		ies...,
 	)
 
-	response, err := core.HandlePfcpSessionModificationRequest(context.Background(), msg)
+	response, err := core.HandlePfcpSessionModificationRequest(context.Background(), msg, nil)
 	if err != nil {
 		t.Fatalf("Error handling session modification request: %v", err)
 	}

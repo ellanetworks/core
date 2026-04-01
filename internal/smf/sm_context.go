@@ -40,6 +40,8 @@ type SMContext struct {
 	PDUSessionID                   uint8
 	PDUAddress                     net.IP
 	PDUSessionReleaseDueToDupPduID bool
+	UplinkFilterIndex              uint32
+	DownlinkFilterIndex            uint32
 }
 
 func CanonicalName(identifier etsi.SUPI, pduSessID uint8) string {

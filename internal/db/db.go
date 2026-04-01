@@ -146,6 +146,15 @@ type Database struct {
 	deletePolicyStmt  *sqlair.Statement
 	countPoliciesStmt *sqlair.Statement
 
+	// Network Rules statements
+	getNetworkRuleStmt             *sqlair.Statement
+	createNetworkRuleStmt          *sqlair.Statement
+	updateNetworkRuleStmt          *sqlair.Statement
+	deleteNetworkRuleStmt          *sqlair.Statement
+	deleteNetworkRulesByPolicyStmt *sqlair.Statement
+	countNetworkRulesStmt          *sqlair.Statement
+	listRulesForPolicyStmt         *sqlair.Statement
+
 	// Retention Policy statements
 	selectRetentionPolicyStmt *sqlair.Statement
 	upsertRetentionPolicyStmt *sqlair.Statement
@@ -447,6 +456,15 @@ func (db *Database) PrepareStatements() error {
 		{&db.editPolicyStmt, fmt.Sprintf(editPolicyStmt, PoliciesTableName), []any{Policy{}}},
 		{&db.deletePolicyStmt, fmt.Sprintf(deletePolicyStmt, PoliciesTableName), []any{Policy{}}},
 		{&db.countPoliciesStmt, fmt.Sprintf(countPoliciesStmt, PoliciesTableName), []any{NumItems{}}},
+
+		// Network Rules
+		{&db.getNetworkRuleStmt, fmt.Sprintf(getNetworkRuleStmt, NetworkRulesTableName), []any{NetworkRule{}}},
+		{&db.createNetworkRuleStmt, fmt.Sprintf(createNetworkRuleStmt, NetworkRulesTableName), []any{NetworkRule{}}},
+		{&db.updateNetworkRuleStmt, fmt.Sprintf(updateNetworkRuleStmt, NetworkRulesTableName), []any{NetworkRule{}}},
+		{&db.deleteNetworkRuleStmt, fmt.Sprintf(deleteNetworkRuleStmt, NetworkRulesTableName), []any{NetworkRule{}}},
+		{&db.deleteNetworkRulesByPolicyStmt, fmt.Sprintf(deleteNetworkRulesByPolicyStmt, NetworkRulesTableName), []any{NetworkRule{}}},
+		{&db.countNetworkRulesStmt, fmt.Sprintf(countNetworkRulesStmt, NetworkRulesTableName), []any{NumItems{}}},
+		{&db.listRulesForPolicyStmt, fmt.Sprintf(listRulesForPolicyStmt, NetworkRulesTableName), []any{NetworkRule{}}},
 
 		// Retention Policy
 		{&db.selectRetentionPolicyStmt, fmt.Sprintf(selectRetentionPolicyStmt, RetentionPolicyTableName), []any{RetentionPolicy{}}},

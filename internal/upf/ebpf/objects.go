@@ -134,6 +134,7 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 		"pdrs_downlink_ip4":    bpfObjects.PdrsDownlinkIp4,
 		"pdrs_downlink_ip6":    bpfObjects.PdrsDownlinkIp6,
 		"pdrs_uplink":          bpfObjects.PdrsUplink,
+		"sdf_filters":          bpfObjects.SdfFilters,
 		"uplink_route_stats":   bpfObjects.UplinkRouteStats,
 		"uplink_statistics":    bpfObjects.UplinkStatistics,
 		"urr_map":              bpfObjects.UrrMap,

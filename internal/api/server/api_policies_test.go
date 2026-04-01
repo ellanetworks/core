@@ -22,13 +22,28 @@ type CreatePolicyResponseResult struct {
 	Message string `json:"message"`
 }
 
+type PolicyRule struct {
+	Description  string  `json:"description"`
+	RemotePrefix *string `json:"remote_prefix,omitempty"`
+	Protocol     int32   `json:"protocol"`
+	PortLow      int32   `json:"port_low"`
+	PortHigh     int32   `json:"port_high"`
+	Action       string  `json:"action"`
+}
+
+type PolicyRules struct {
+	Uplink   []PolicyRule `json:"uplink,omitempty"`
+	Downlink []PolicyRule `json:"downlink,omitempty"`
+}
+
 type Policy struct {
-	Name            string `json:"name"`
-	BitrateUplink   string `json:"bitrate_uplink,omitempty"`
-	BitrateDownlink string `json:"bitrate_downlink,omitempty"`
-	Var5qi          int32  `json:"var5qi,omitempty"`
-	Arp             int32  `json:"arp,omitempty"`
-	DataNetworkName string `json:"data_network_name,omitempty"`
+	Name            string       `json:"name"`
+	BitrateUplink   string       `json:"bitrate_uplink,omitempty"`
+	BitrateDownlink string       `json:"bitrate_downlink,omitempty"`
+	Var5qi          int32        `json:"var5qi,omitempty"`
+	Arp             int32        `json:"arp,omitempty"`
+	DataNetworkName string       `json:"data_network_name,omitempty"`
+	Rules           *PolicyRules `json:"rules,omitempty"`
 }
 
 type GetPolicyResponse struct {
@@ -37,12 +52,13 @@ type GetPolicyResponse struct {
 }
 
 type CreatePolicyParams struct {
-	Name            string `json:"name"`
-	BitrateUplink   string `json:"bitrate_uplink,omitempty"`
-	BitrateDownlink string `json:"bitrate_downlink,omitempty"`
-	Var5qi          int32  `json:"var5qi,omitempty"`
-	Arp             int32  `json:"arp,omitempty"`
-	DataNetworkName string `json:"data_network_name,omitempty"`
+	Name            string       `json:"name"`
+	BitrateUplink   string       `json:"bitrate_uplink,omitempty"`
+	BitrateDownlink string       `json:"bitrate_downlink,omitempty"`
+	Var5qi          int32        `json:"var5qi,omitempty"`
+	Arp             int32        `json:"arp,omitempty"`
+	DataNetworkName string       `json:"data_network_name,omitempty"`
+	Rules           *PolicyRules `json:"rules,omitempty"`
 }
 
 type CreatePolicyResponse struct {
@@ -51,11 +67,12 @@ type CreatePolicyResponse struct {
 }
 
 type UpdatePolicyParams struct {
-	BitrateUplink   string `json:"bitrate_uplink,omitempty"`
-	BitrateDownlink string `json:"bitrate_downlink,omitempty"`
-	Var5qi          int32  `json:"var5qi,omitempty"`
-	Arp             int32  `json:"arp,omitempty"`
-	DataNetworkName string `json:"data_network_name,omitempty"`
+	BitrateUplink   string       `json:"bitrate_uplink,omitempty"`
+	BitrateDownlink string       `json:"bitrate_downlink,omitempty"`
+	Var5qi          int32        `json:"var5qi,omitempty"`
+	Arp             int32        `json:"arp,omitempty"`
+	DataNetworkName string       `json:"data_network_name,omitempty"`
+	Rules           *PolicyRules `json:"rules,omitempty"`
 }
 
 type DeletePolicyResponseResult struct {
@@ -861,5 +878,95 @@ func TestCreateTooManyPolicies(t *testing.T) {
 
 	if response.Error != "Maximum number of policies reached (12)" {
 		t.Fatalf("expected error %q, got %q", "Maximum number of policies reached (12)", response.Error)
+	}
+}
+
+// TestUpdatePolicyDeletesRulesWhenNotProvided verifies that omitting the rules
+// field on an update request deletes all existing rules for the policy.
+func TestUpdatePolicyDeletesRulesWhenNotProvided(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't initialize and login: %s", err)
+	}
+
+	// Create the data network first.
+	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+		Name: DataNetworkName, MTU: MTU, IPPool: IPPool, DNS: DNS,
+	})
+	if err != nil {
+		t.Fatalf("couldn't create data network: %s", err)
+	}
+
+	// Create a policy with rules.
+	action := "allow"
+	uplinkRule := PolicyRule{
+		Description: "Allow HTTP",
+		Protocol:    6,
+		PortLow:     80,
+		PortHigh:    80,
+		Action:      action,
+	}
+
+	_, _, err = createPolicy(env.Server.URL, client, token, &CreatePolicyParams{
+		Name:            "policy-with-rules",
+		BitrateUplink:   "100 Mbps",
+		BitrateDownlink: "100 Mbps",
+		Var5qi:          9,
+		Arp:             1,
+		DataNetworkName: DataNetworkName,
+		Rules: &PolicyRules{
+			Uplink: []PolicyRule{uplinkRule},
+		},
+	})
+	if err != nil {
+		t.Fatalf("couldn't create policy: %s", err)
+	}
+
+	// Verify the rules were created.
+	_, getResp, err := getPolicy(env.Server.URL, client, token, "policy-with-rules")
+	if err != nil {
+		t.Fatalf("couldn't get policy: %s", err)
+	}
+
+	if getResp.Result.Rules == nil || len(getResp.Result.Rules.Uplink) == 0 {
+		t.Fatal("expected uplink rules to exist after creation, got none")
+	}
+
+	// Update the policy without providing rules — this should delete them.
+	statusCode, updateResp, err := editPolicy(env.Server.URL, client, "policy-with-rules", token, &UpdatePolicyParams{
+		BitrateUplink:   "200 Mbps",
+		BitrateDownlink: "200 Mbps",
+		Var5qi:          9,
+		Arp:             1,
+		DataNetworkName: DataNetworkName,
+		// Rules intentionally omitted.
+	})
+	if err != nil {
+		t.Fatalf("couldn't update policy: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d (error: %s)", http.StatusOK, statusCode, updateResp.Error)
+	}
+
+	// Verify the rules are now gone.
+	_, getResp, err = getPolicy(env.Server.URL, client, token, "policy-with-rules")
+	if err != nil {
+		t.Fatalf("couldn't get policy after update: %s", err)
+	}
+
+	if getResp.Result.Rules != nil {
+		t.Fatalf("expected rules to be deleted after update without rules, got: %+v", getResp.Result.Rules)
 	}
 }

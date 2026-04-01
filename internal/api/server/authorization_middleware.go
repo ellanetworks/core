@@ -33,6 +33,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermGetSubscriberUsageRetentionPolicy, PermGetSubscriberUsage,
 		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermGetRadioEvent,
 		PermGetFlowReportsRetentionPolicy, PermListFlowReports,
+		PermListNetworkRules, PermReadNetworkRule,
 	},
 
 	RoleNetworkManager: {
@@ -50,6 +51,7 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermSetRadioEventRetentionPolicy, PermClearRadioEvents, PermGetRadioEvent,
 		PermGetFlowReportsRetentionPolicy, PermSetFlowReportsRetentionPolicy, PermListFlowReports, PermClearFlowReports,
 		PermSupportBundle,
+		PermCreateNetworkRule, PermListNetworkRules, PermReadNetworkRule, PermUpdateNetworkRule, PermDeleteNetworkRule,
 	},
 }
 
@@ -169,6 +171,13 @@ const (
 	PermSetFlowReportsRetentionPolicy = "flow_reports:set_retention"
 	PermListFlowReports               = "flow_reports:list"
 	PermClearFlowReports              = "flow_reports:clear"
+
+	// Network Rule permissions
+	PermCreateNetworkRule = "network_rule:create"
+	PermListNetworkRules  = "network_rule:list"
+	PermReadNetworkRule   = "network_rule:read"
+	PermUpdateNetworkRule = "network_rule:update"
+	PermDeleteNetworkRule = "network_rule:delete"
 )
 
 func Authorize(permission string, next http.Handler) http.Handler {

@@ -21,6 +21,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/smf"
+	upf_pfcp "github.com/ellanetworks/core/internal/upf/core"
 	"github.com/wmnsk/go-pfcp/ie"
 )
 
@@ -50,6 +51,11 @@ func mapDBError(err error) error {
 	default:
 		return err
 	}
+}
+
+// NewSMFDBAdapter creates a new SMF database adapter.
+func NewSMFDBAdapter(database *db.Database) smf.SessionStore {
+	return &smfDBAdapter{db: database}
 }
 
 func dbLeaseToIPAM(l *db.IPLease) *ipam.Lease {
@@ -158,7 +164,8 @@ func (a *smfDBAdapter) GetSubscriberPolicy(ctx context.Context, imsi string) (*s
 		return nil, fmt.Errorf("get policy: %w", err)
 	}
 
-	return &smf.Policy{
+	policy := &smf.Policy{
+		PolicyID: int64(pol.ID),
 		Ambr: models.Ambr{
 			Uplink:   pol.BitrateUplink,
 			Downlink: pol.BitrateDownlink,
@@ -170,7 +177,36 @@ func (a *smfDBAdapter) GetSubscriberPolicy(ctx context.Context, imsi string) (*s
 				PriorityLevel: pol.Arp,
 			},
 		},
-	}, nil
+	}
+
+	dbRules, err := a.db.ListRulesForPolicy(ctx, int64(pol.ID))
+	if err != nil {
+		return nil, fmt.Errorf("list rules for policy: %w", err)
+	}
+
+	resolvedRules := make([]*smf.ResolvedNetworkRule, len(dbRules))
+	for i, dbRule := range dbRules {
+		dir, err := smf.ParseDirection(dbRule.Direction)
+		if err != nil {
+			return nil, fmt.Errorf("invalid direction for rule %d: %w", dbRule.ID, err)
+		}
+
+		resolvedRules[i] = &smf.ResolvedNetworkRule{
+			Description:  dbRule.Description,
+			PolicyID:     dbRule.PolicyID,
+			Direction:    dir,
+			RemotePrefix: dbRule.RemotePrefix,
+			Protocol:     dbRule.Protocol,
+			PortLow:      dbRule.PortLow,
+			PortHigh:     dbRule.PortHigh,
+			Action:       dbRule.Action,
+			Precedence:   dbRule.Precedence,
+		}
+	}
+
+	policy.NetworkRules = resolvedRules
+
+	return policy, nil
 }
 
 func (a *smfDBAdapter) GetDataNetwork(ctx context.Context, _ *models.Snssai, dnn string) (*smf.DataNetworkInfo, error) {
@@ -210,7 +246,7 @@ func (a *smfDBAdapter) InsertFlowReport(ctx context.Context, report *smf.FlowRep
 		Bytes:           report.Bytes,
 		StartTime:       report.StartTime,
 		EndTime:         report.EndTime,
-		Direction:       report.Direction,
+		Direction:       report.Direction.String(),
 	})
 }
 
@@ -243,7 +279,7 @@ func (a *smfUPFAdapter) EstablishSession(ctx context.Context, req *smf.PFCPEstab
 		return nil, fmt.Errorf("build PFCP establishment request: %w", err)
 	}
 
-	rsp, err := a.dispatcher.UPF.HandlePfcpSessionEstablishmentRequest(ctx, pfcpMsg)
+	rsp, err := upf_pfcp.HandlePfcpSessionEstablishmentRequest(ctx, pfcpMsg, req.FilterIndexByPDRID)
 	if err != nil {
 		return nil, fmt.Errorf("PFCP establishment: %w", err)
 	}
@@ -298,7 +334,7 @@ func (a *smfUPFAdapter) ModifySession(ctx context.Context, req *smf.PFCPModifica
 		return fmt.Errorf("build PFCP modification request: %w", err)
 	}
 
-	rsp, err := a.dispatcher.UPF.HandlePfcpSessionModificationRequest(ctx, pfcpMsg)
+	rsp, err := upf_pfcp.HandlePfcpSessionModificationRequest(ctx, pfcpMsg, req.FilterIndexByPDRID)
 	if err != nil {
 		return fmt.Errorf("PFCP modification: %w", err)
 	}
@@ -342,6 +378,42 @@ func (a *smfUPFAdapter) DeleteSession(ctx context.Context, localSEID, remoteSEID
 	}
 
 	return nil
+}
+
+func (a *smfUPFAdapter) UpdateFilters(ctx context.Context, req *smf.FilterUpdateRequest) (*smf.FilterUpdateResponse, error) {
+	rules := make([]upf_pfcp.UpdateFilterRule, 0, len(req.Rules))
+	for _, r := range req.Rules {
+		remote := ""
+		if r.RemotePrefix != nil {
+			remote = *r.RemotePrefix
+		}
+
+		rules = append(rules, upf_pfcp.UpdateFilterRule{
+			RemotePrefix: remote,
+			Protocol:     r.Protocol,
+			PortLow:      r.PortLow,
+			PortHigh:     r.PortHigh,
+			Action:       upf_pfcp.StringToAction(r.Action),
+		})
+	}
+
+	conn := upf_pfcp.GetConnection()
+
+	resp, err := upf_pfcp.UpdateFilters(conn, upf_pfcp.UpdateFiltersRequest{
+		PolicyID:  req.PolicyID,
+		Direction: req.Direction,
+		Rules:     rules,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &smf.FilterUpdateResponse{FilterMapIndex: resp.FilterMapIndex}, nil
+}
+
+func (a *smfUPFAdapter) ReleaseFilter(ctx context.Context, index uint32) error {
+	conn := upf_pfcp.GetConnection()
+	return upf_pfcp.ReleaseFilter(conn, index)
 }
 
 func findFTEID(createdPDRIEs []*ie.IE) (*ie.FTEIDFields, error) {
