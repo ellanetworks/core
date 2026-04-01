@@ -346,9 +346,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
             }
             onBlur={() => handleBlur("bitrateDownValue")}
             error={!!errors.bitrateDownValue && touched.bitrateDownValue}
-            helperText={
-              touched.bitrateDownValue ? errors.bitrateDownValue : ""
-            }
+            helperText={touched.bitrateDownValue ? errors.bitrateDownValue : ""}
             margin="normal"
           />
           <TextField

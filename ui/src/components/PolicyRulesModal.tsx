@@ -11,7 +11,6 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  CircularProgress,
   Alert,
   Chip,
   Typography,
@@ -25,13 +24,6 @@ import {
   Delete as DeleteIcon,
   DragIndicator as DragIcon,
 } from "@mui/icons-material";
-import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
-import {
-  DataGrid,
-  type GridColDef,
-  type GridRenderCellParams,
-  GridActionsCellItem,
-} from "@mui/x-data-grid";
 import {
   updatePolicy,
   type APIPolicy,
@@ -41,8 +33,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import * as yup from "yup";
 import { ValidationError } from "yup";
-import { formatProtocol, PROTOCOL_CHIP_COLORS } from "@/utils/formatters";
-import { PROTOCOL_NAMES } from "@/utils/formatters";
+import {
+  formatProtocol,
+  PROTOCOL_CHIP_COLORS,
+  PROTOCOL_NAMES,
+} from "@/utils/formatters";
 
 const parseProtocol = (value: string): number | undefined => {
   if (!value || value.trim() === "") return undefined;
@@ -140,19 +135,10 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
   direction,
 }) => {
   const { accessToken } = useAuth();
-  const theme = useTheme();
 
-  const gridTheme = React.useMemo(
-    () =>
-      createTheme(theme, {
-        palette: { DataGrid: { headerBg: theme.palette.backgroundSubtle } },
-      }),
-    [theme],
-  );
-
-  const directionRules = (
-    direction === "uplink" ? policy.rules?.uplink : policy.rules?.downlink
-  ) ?? [];
+  const directionRules =
+    (direction === "uplink" ? policy.rules?.uplink : policy.rules?.downlink) ??
+    [];
 
   const [rules, setRules] = useState<InMemoryRule[]>(() =>
     directionRules.map((rule, idx) => ({
@@ -337,9 +323,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
     const protocol = formValues.protocol
       ? parseProtocol(formValues.protocol)
       : undefined;
-    const portLow = formValues.portLow
-      ? Number(formValues.portLow)
-      : undefined;
+    const portLow = formValues.portLow ? Number(formValues.portLow) : undefined;
     const portHigh = formValues.portHigh
       ? Number(formValues.portHigh)
       : undefined;
@@ -396,9 +380,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
         }));
 
       const otherDirection =
-        direction === "uplink"
-          ? policy.rules?.downlink
-          : policy.rules?.uplink;
+        direction === "uplink" ? policy.rules?.downlink : policy.rules?.uplink;
 
       const updatedRules = {
         ...(direction === "uplink"
@@ -438,179 +420,11 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
     }
   };
 
-  const columns: GridColDef<InMemoryRule>[] = [
-    {
-      field: "index",
-      headerName: "#",
-      width: 50,
-      renderCell: (params: GridRenderCellParams<InMemoryRule>) => {
-        const idx = rules.findIndex((r) => r.tempId === params.row.tempId);
-        return (
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              width: "100%",
-              height: "100%",
-            }}
-          >
-            <Typography variant="body2">{idx + 1}</Typography>
-          </Box>
-        );
-      },
-    },
-    {
-      field: "description",
-      headerName: "Description",
-      flex: 1,
-      minWidth: 100,
-      renderCell: (params: GridRenderCellParams<InMemoryRule>) => (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            width: "100%",
-            height: "100%",
-          }}
-        >
-          <Typography
-            variant="body2"
-            sx={
-              params.row.description ? {} : { color: "text.secondary" }
-            }
-          >
-            {params.row.description || "—"}
-          </Typography>
-        </Box>
-      ),
-    },
-    {
-      field: "remote_prefix",
-      headerName: "Remote Prefix",
-      flex: 1,
-      minWidth: 120,
-      renderCell: (params: GridRenderCellParams<InMemoryRule>) => (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            width: "100%",
-            height: "100%",
-          }}
-        >
-          <Typography
-            variant="body2"
-            sx={{
-              fontFamily: "monospace",
-              ...(params.row.remote_prefix
-                ? {}
-                : { color: "text.secondary" }),
-            }}
-          >
-            {params.row.remote_prefix || "any"}
-          </Typography>
-        </Box>
-      ),
-    },
-    {
-      field: "protocol",
-      headerName: "Protocol",
-      width: 100,
-      renderCell: (params: GridRenderCellParams<InMemoryRule>) => (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            width: "100%",
-            height: "100%",
-          }}
-        >
-          <Chip
-            size="small"
-            label={
-              params.row.protocol === 0
-                ? "any"
-                : formatProtocol(params.row.protocol)
-            }
-            variant="outlined"
-            sx={{
-              borderColor:
-                PROTOCOL_CHIP_COLORS[params.row.protocol] || "divider",
-              color:
-                PROTOCOL_CHIP_COLORS[params.row.protocol] || "text.primary",
-            }}
-          />
-        </Box>
-      ),
-    },
-    {
-      field: "ports",
-      headerName: "Ports",
-      width: 90,
-      renderCell: (params: GridRenderCellParams<InMemoryRule>) => (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            width: "100%",
-            height: "100%",
-          }}
-        >
-          <Typography variant="body2">
-            {params.row.port_low === 0 && params.row.port_high === 0
-              ? "any"
-              : params.row.port_low === params.row.port_high
-                ? String(params.row.port_low)
-                : `${params.row.port_low}-${params.row.port_high}`}
-          </Typography>
-        </Box>
-      ),
-    },
-    {
-      field: "action",
-      headerName: "Action",
-      width: 90,
-      renderCell: (params: GridRenderCellParams<InMemoryRule>) => (
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            width: "100%",
-            height: "100%",
-          }}
-        >
-          <Chip
-            size="small"
-            label={params.row.action.toUpperCase()}
-            color={params.row.action === "allow" ? "success" : "error"}
-            variant="outlined"
-          />
-        </Box>
-      ),
-    },
-    {
-      field: "actions",
-      headerName: "Actions",
-      type: "actions",
-      width: 100,
-      sortable: false,
-      disableColumnMenu: true,
-      getActions: (params) => [
-        <GridActionsCellItem
-          key="edit"
-          icon={<EditIcon color="primary" />}
-          label="Edit"
-          onClick={() => handleEditRule(params.row)}
-        />,
-        <GridActionsCellItem
-          key="delete"
-          icon={<DeleteIcon color="primary" />}
-          label="Delete"
-          onClick={() => handleDeleteRule(params.row)}
-        />,
-      ],
-    },
-  ];
+  const formatPorts = (rule: InMemoryRule): string => {
+    if (rule.port_low === 0 && rule.port_high === 0) return "any";
+    if (rule.port_low === rule.port_high) return String(rule.port_low);
+    return `${rule.port_low}-${rule.port_high}`;
+  };
 
   const directionLabel = direction === "uplink" ? "Uplink" : "Downlink";
 
@@ -648,97 +462,144 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
               No {direction} rules configured.
             </Typography>
           ) : (
-            <>
-              {/* Drag-reorder list view */}
-              <Box sx={{ mb: 1 }}>
-                {rules.map((rule, index) => (
-                  <Box
-                    key={rule.tempId}
-                    draggable
-                    onDragStart={handleDragStart(index)}
-                    onDragOver={handleDragOver(index)}
-                    onDrop={handleDrop(index)}
-                    onDragEnd={handleDragEnd}
-                    sx={{
-                      display: "none",
-                    }}
-                  />
-                ))}
-              </Box>
-              <ThemeProvider theme={gridTheme}>
-                <DataGrid<InMemoryRule>
-                  rows={rules}
-                  columns={columns}
-                  getRowId={(row) => row.tempId}
-                  disableColumnMenu
-                  disableRowSelectionOnClick
-                  density="compact"
-                  hideFooter
+            <Box
+              sx={{
+                border: 1,
+                borderColor: "divider",
+                borderRadius: 1,
+              }}
+            >
+              {rules.map((rule, index) => (
+                <Box
+                  key={rule.tempId}
+                  draggable
+                  onDragStart={handleDragStart(index)}
+                  onDragOver={handleDragOver(index)}
+                  onDrop={handleDrop(index)}
+                  onDragEnd={handleDragEnd}
                   sx={{
-                    border: 1,
-                    borderColor: "divider",
-                    "& .MuiDataGrid-cell": {
+                    display: "flex",
+                    alignItems: "center",
+                    py: 1,
+                    px: 1.5,
+                    backgroundColor:
+                      hoverIndex === index ? "action.hover" : "transparent",
+                    cursor: "grab",
+                    transition: "background-color 0.2s",
+                    "&:not(:last-child)": {
                       borderBottom: "1px solid",
                       borderColor: "divider",
                     },
-                    "& .MuiDataGrid-row": {
-                      cursor: "grab",
-                    },
                   }}
-                />
-              </ThemeProvider>
-              {/* Drag reorder overlay */}
-              <Box sx={{ mt: 1 }}>
-                {rules.map((rule, index) => (
-                  <Box
-                    key={rule.tempId}
-                    draggable
-                    onDragStart={handleDragStart(index)}
-                    onDragOver={handleDragOver(index)}
-                    onDrop={handleDrop(index)}
-                    onDragEnd={handleDragEnd}
+                >
+                  <DragIcon
+                    fontSize="small"
+                    sx={{ color: "text.secondary", flexShrink: 0, mr: 1 }}
+                  />
+                  <Typography
+                    variant="body2"
                     sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      py: 0.5,
-                      px: 1,
-                      borderRadius: 1,
-                      backgroundColor:
-                        hoverIndex === index ? "action.hover" : "transparent",
-                      cursor: "move",
-                      transition: "background-color 0.2s",
-                      "&:hover": { backgroundColor: "action.hover" },
+                      fontWeight: 600,
+                      width: 24,
+                      flexShrink: 0,
                     }}
                   >
-                    <DragIcon
-                      fontSize="small"
-                      sx={{ mr: 1, color: "text.secondary" }}
+                    {index + 1}
+                  </Typography>
+                  <Box sx={{ width: 72, flexShrink: 0 }}>
+                    <Chip
+                      label={rule.action.toUpperCase()}
+                      size="small"
+                      color={rule.action === "allow" ? "success" : "error"}
+                      variant="outlined"
                     />
-                    <Typography variant="body2" sx={{ flex: 1 }}>
-                      {index + 1}. {rule.description || "(no description)"} —{" "}
-                      {rule.action.toUpperCase()}{" "}
-                      {rule.protocol === 0
-                        ? "any protocol"
-                        : formatProtocol(rule.protocol)}
-                    </Typography>
                   </Box>
-                ))}
-              </Box>
-            </>
+                  <Box sx={{ width: 100, flexShrink: 0 }}>
+                    <Chip
+                      label={
+                        rule.protocol === 0
+                          ? "any"
+                          : formatProtocol(rule.protocol)
+                      }
+                      size="small"
+                      variant="outlined"
+                      sx={{
+                        borderColor:
+                          PROTOCOL_CHIP_COLORS[rule.protocol] || "divider",
+                        color:
+                          PROTOCOL_CHIP_COLORS[rule.protocol] || "text.primary",
+                      }}
+                    />
+                  </Box>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontFamily: "monospace",
+                      width: 140,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {rule.remote_prefix || "any"}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ width: 90, flexShrink: 0 }}
+                  >
+                    {formatPorts(rule)}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{
+                      flex: 1,
+                      minWidth: 0,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {rule.description || "—"}
+                  </Typography>
+                  <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0, ml: 1 }}>
+                    <IconButton
+                      size="small"
+                      color="primary"
+                      onClick={() => handleEditRule(rule)}
+                      title="Edit rule"
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      color="primary"
+                      onClick={() => handleDeleteRule(rule)}
+                      title="Delete rule"
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                </Box>
+              ))}
+            </Box>
           )}
+
+          <Box sx={{ mt: 2 }}>
+            <Button
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={handleOpenCreateForm}
+              disabled={saving}
+              size="small"
+            >
+              Add Rule
+            </Button>
+          </Box>
         </DialogContent>
 
         <DialogActions>
           <Button onClick={onClose} disabled={saving}>
             Cancel
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<AddIcon />}
-            onClick={handleOpenCreateForm}
-            disabled={saving}
-          >
-            Add Rule
           </Button>
           <Button
             variant="contained"

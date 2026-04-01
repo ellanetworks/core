@@ -5,15 +5,16 @@ import {
   Card,
   CardContent,
   Chip,
+  IconButton,
   Skeleton,
   Table,
   TableBody,
   TableCell,
-  TableContainer,
   TableRow,
   Typography,
 } from "@mui/material";
 import {
+  Edit as EditIcon,
   North as NorthIcon,
   South as SouthIcon,
 } from "@mui/icons-material";
@@ -44,14 +45,8 @@ import {
   DOWNLINK_COLOR,
 } from "@/utils/formatters";
 
-const tableContainerSx = {
-  border: 1,
-  borderColor: "divider",
-  borderRadius: 1,
-} as const;
-
 const labelCellSx = { fontWeight: 600, width: "35%" } as const;
-const valueCellSx = { width: "65%" } as const;
+const valueCellSx = { width: "65%", textAlign: "right" } as const;
 
 const GRID_HEIGHT = 421;
 
@@ -149,11 +144,7 @@ const PolicyDetail: React.FC = () => {
           >
             <Typography
               variant="body2"
-              sx={
-                params.row.description
-                  ? {}
-                  : { color: "text.secondary" }
-              }
+              sx={params.row.description ? {} : { color: "text.secondary" }}
             >
               {params.row.description || "—"}
             </Typography>
@@ -310,9 +301,7 @@ const PolicyDetail: React.FC = () => {
         }}
       >
         <Typography color="error">
-          {error instanceof Error
-            ? error.message
-            : "Failed to load policy."}
+          {error instanceof Error ? error.message : "Failed to load policy."}
         </Typography>
         <Button variant="outlined" component={RouterLink} to="/policies">
           Back to Policies
@@ -411,9 +400,14 @@ const PolicyDetail: React.FC = () => {
             >
               <Typography variant="h6">Configuration</Typography>
               {canEdit && (
-                <Button size="small" onClick={() => setEditModalOpen(true)}>
-                  Edit
-                </Button>
+                <IconButton
+                  size="small"
+                  color="primary"
+                  onClick={() => setEditModalOpen(true)}
+                  aria-label="Edit configuration"
+                >
+                  <EditIcon fontSize="small" />
+                </IconButton>
               )}
             </Box>
             <Table
@@ -450,12 +444,11 @@ const PolicyDetail: React.FC = () => {
                       sx={{
                         display: "flex",
                         alignItems: "center",
+                        justifyContent: "flex-end",
                         gap: 0.5,
                       }}
                     >
-                      <NorthIcon
-                        sx={{ fontSize: 16, color: UPLINK_COLOR }}
-                      />
+                      <NorthIcon sx={{ fontSize: 16, color: UPLINK_COLOR }} />
                       <Typography variant="body2">
                         {policy.bitrate_uplink}
                       </Typography>
@@ -469,12 +462,11 @@ const PolicyDetail: React.FC = () => {
                       sx={{
                         display: "flex",
                         alignItems: "center",
+                        justifyContent: "flex-end",
                         gap: 0.5,
                       }}
                     >
-                      <SouthIcon
-                        sx={{ fontSize: 16, color: DOWNLINK_COLOR }}
-                      />
+                      <SouthIcon sx={{ fontSize: 16, color: DOWNLINK_COLOR }} />
                       <Typography variant="body2">
                         {policy.bitrate_downlink}
                       </Typography>
@@ -483,28 +475,32 @@ const PolicyDetail: React.FC = () => {
                 </TableRow>
                 <TableRow>
                   <TableCell sx={labelCellSx}>5QI</TableCell>
-                  <TableCell sx={valueCellSx}>
-                    {policy.var5qi}
-                  </TableCell>
+                  <TableCell sx={valueCellSx}>{policy.var5qi}</TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell sx={labelCellSx}>ARP</TableCell>
-                  <TableCell sx={valueCellSx}>
-                    {policy.arp}
-                  </TableCell>
+                  <TableCell sx={valueCellSx}>{policy.arp}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
           </CardContent>
         </Card>
 
-        {/* Network Rules - Two side-by-side DataGrids */}
+        {/* Network Rules */}
+        <Box sx={{ mt: 3 }}>
+          <Typography variant="h6" sx={{ mb: 0.5 }}>
+            Network Rules
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Control which traffic is allowed or denied for subscribers using
+            this policy. Rules are evaluated in order — the first match wins.
+          </Typography>
+        </Box>
         <Box
           sx={{
             display: "grid",
             gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
             gap: 3,
-            mt: 3,
           }}
         >
           {/* Uplink Rules */}
@@ -517,48 +513,43 @@ const PolicyDetail: React.FC = () => {
                 mb: 1,
               }}
             >
-              <Typography variant="h6">
-                Uplink Rules ({uplinkRules.length})
-              </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  Uplink
+                </Typography>
+                <NorthIcon sx={{ fontSize: 16, color: UPLINK_COLOR }} />
+              </Box>
               {canEdit && (
-                <Button
+                <IconButton
                   size="small"
+                  color="primary"
                   onClick={() => setRulesModalDirection("uplink")}
+                  aria-label="Edit uplink rules"
                 >
-                  Edit Uplink Rules
-                </Button>
+                  <EditIcon fontSize="small" />
+                </IconButton>
               )}
             </Box>
-            {uplinkRules.length === 0 ? (
-              <TableContainer sx={tableContainerSx}>
-                <Box sx={{ p: 3, textAlign: "center" }}>
-                  <Typography variant="body2" color="text.secondary">
-                    No uplink rules configured.
-                  </Typography>
-                </Box>
-              </TableContainer>
-            ) : (
-              <ThemeProvider theme={gridTheme}>
-                <DataGrid<RuleRow>
-                  rows={uplinkRules}
-                  columns={ruleColumns}
-                  getRowId={(row) => row.index}
-                  disableColumnMenu
-                  disableRowSelectionOnClick
-                  density="compact"
-                  hideFooter
-                  sx={{
-                    height: GRID_HEIGHT,
-                    border: 1,
+            <ThemeProvider theme={gridTheme}>
+              <DataGrid<RuleRow>
+                rows={uplinkRules}
+                columns={ruleColumns}
+                getRowId={(row) => row.index}
+                disableColumnMenu
+                disableRowSelectionOnClick
+                density="compact"
+                hideFooter
+                sx={{
+                  height: GRID_HEIGHT,
+                  border: 1,
+                  borderColor: "divider",
+                  "& .MuiDataGrid-cell": {
+                    borderBottom: "1px solid",
                     borderColor: "divider",
-                    "& .MuiDataGrid-cell": {
-                      borderBottom: "1px solid",
-                      borderColor: "divider",
-                    },
-                  }}
-                />
-              </ThemeProvider>
-            )}
+                  },
+                }}
+              />
+            </ThemeProvider>
           </Box>
 
           {/* Downlink Rules */}
@@ -571,48 +562,43 @@ const PolicyDetail: React.FC = () => {
                 mb: 1,
               }}
             >
-              <Typography variant="h6">
-                Downlink Rules ({downlinkRules.length})
-              </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  Downlink
+                </Typography>
+                <SouthIcon sx={{ fontSize: 16, color: DOWNLINK_COLOR }} />
+              </Box>
               {canEdit && (
-                <Button
+                <IconButton
                   size="small"
+                  color="primary"
                   onClick={() => setRulesModalDirection("downlink")}
+                  aria-label="Edit downlink rules"
                 >
-                  Edit Downlink Rules
-                </Button>
+                  <EditIcon fontSize="small" />
+                </IconButton>
               )}
             </Box>
-            {downlinkRules.length === 0 ? (
-              <TableContainer sx={tableContainerSx}>
-                <Box sx={{ p: 3, textAlign: "center" }}>
-                  <Typography variant="body2" color="text.secondary">
-                    No downlink rules configured.
-                  </Typography>
-                </Box>
-              </TableContainer>
-            ) : (
-              <ThemeProvider theme={gridTheme}>
-                <DataGrid<RuleRow>
-                  rows={downlinkRules}
-                  columns={ruleColumns}
-                  getRowId={(row) => row.index}
-                  disableColumnMenu
-                  disableRowSelectionOnClick
-                  density="compact"
-                  hideFooter
-                  sx={{
-                    height: GRID_HEIGHT,
-                    border: 1,
+            <ThemeProvider theme={gridTheme}>
+              <DataGrid<RuleRow>
+                rows={downlinkRules}
+                columns={ruleColumns}
+                getRowId={(row) => row.index}
+                disableColumnMenu
+                disableRowSelectionOnClick
+                density="compact"
+                hideFooter
+                sx={{
+                  height: GRID_HEIGHT,
+                  border: 1,
+                  borderColor: "divider",
+                  "& .MuiDataGrid-cell": {
+                    borderBottom: "1px solid",
                     borderColor: "divider",
-                    "& .MuiDataGrid-cell": {
-                      borderBottom: "1px solid",
-                      borderColor: "divider",
-                    },
-                  }}
-                />
-              </ThemeProvider>
-            )}
+                  },
+                }}
+              />
+            </ThemeProvider>
           </Box>
         </Box>
       </Box>

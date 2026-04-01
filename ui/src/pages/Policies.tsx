@@ -127,7 +127,7 @@ const PolicyPage = () => {
             }}
           >
             <Link
-              to="/networking?tab=data-networks"
+              to={`/networking/data-networks/${params.row.data_network_name}`}
               style={{ textDecoration: "none" }}
               onClick={(e: React.MouseEvent) => e.stopPropagation()}
             >
