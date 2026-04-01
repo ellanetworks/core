@@ -5,6 +5,7 @@ package db_test
 import (
 	"context"
 	"net"
+	"net/netip"
 	"path/filepath"
 	"testing"
 	"time"
@@ -93,16 +94,16 @@ func TestDatabaseMetrics(t *testing.T) {
 	sess2 := 2
 
 	if err := database.CreateLease(context.Background(), &db.IPLease{
-		PoolID: createdDN.ID, Address: "10.0.0.2", IMSI: "001019379926281",
+		PoolID: createdDN.ID, IMSI: "001019379926281",
 		SessionID: &sess1, Type: "dynamic", CreatedAt: now,
-	}); err != nil {
+	}, netip.MustParseAddr("10.0.0.2")); err != nil {
 		t.Fatalf("CreateLease 1: %s", err)
 	}
 
 	if err := database.CreateLease(context.Background(), &db.IPLease{
-		PoolID: createdDN.ID, Address: "10.0.0.3", IMSI: "001019379926282",
+		PoolID: createdDN.ID, IMSI: "001019379926282",
 		SessionID: &sess2, Type: "dynamic", CreatedAt: now,
-	}); err != nil {
+	}, netip.MustParseAddr("10.0.0.3")); err != nil {
 		t.Fatalf("CreateLease 2: %s", err)
 	}
 

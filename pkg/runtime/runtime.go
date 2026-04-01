@@ -162,7 +162,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 		allocatedIPs := make(map[string]string, len(activeLeases))
 		for _, l := range activeLeases {
-			allocatedIPs[l.Address] = l.IMSI
+			allocatedIPs[l.Address().String()] = l.IMSI
 		}
 
 		servicePeers := server.DBPeersToBGPPeers(bgpPeers)

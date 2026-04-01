@@ -27,7 +27,7 @@ func activeLeaseIPMappings(ctx context.Context, dbInstance *db.Database) (map[st
 
 	out := make(map[string]string, len(leases))
 	for _, l := range leases {
-		out[l.Address] = l.IMSI
+		out[l.Address().String()] = l.IMSI
 	}
 
 	return out, nil
@@ -43,7 +43,7 @@ func activeLeasesByIMSI(ctx context.Context, dbInstance *db.Database) map[string
 
 	out := make(map[string]string, len(leases))
 	for _, l := range leases {
-		out[l.IMSI] = l.Address
+		out[l.IMSI] = l.Address().String()
 	}
 
 	return out

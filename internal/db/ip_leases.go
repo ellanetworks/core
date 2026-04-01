@@ -45,72 +45,31 @@ type IPLease struct {
 	SessionID  *int   `db:"sessionID"`
 	Type       string `db:"type"`
 	CreatedAt  int64  `db:"createdAt"`
-
-	// Address is the human-readable IP string derived from AddressBin.
-	// On write, callers set this field and CreateLease converts it to binary.
-	// On read, DB methods populate it from AddressBin.
-	Address string
 }
 
-// ipToSortableBytes converts an IP address string to a 16-byte binary form
-// suitable for correct ORDER BY sorting via memcmp. Uses netip.Addr.As16()
-// which returns the IPv4-mapped IPv6 form for IPv4 addresses.
-func ipToSortableBytes(address string) ([]byte, error) {
-	addr, err := netip.ParseAddr(address)
-	if err != nil {
-		return nil, err
-	}
-
-	b := addr.As16()
-
-	return b[:], nil
-}
-
-// binToIPString converts a 16-byte binary IP back to its human-readable form.
-// IPv4-mapped IPv6 addresses are unmapped to plain IPv4 strings.
-func binToIPString(b []byte) (string, error) {
-	if len(b) != 16 {
-		return "", fmt.Errorf("invalid binary IP length %d, want 16", len(b))
+// Address returns the IP address derived from AddressBin.
+// IPv4-mapped IPv6 addresses are unmapped to plain IPv4.
+func (l *IPLease) Address() netip.Addr {
+	if len(l.AddressBin) != 16 {
+		return netip.Addr{}
 	}
 
 	var arr [16]byte
 
-	copy(arr[:], b)
+	copy(arr[:], l.AddressBin)
 
 	addr := netip.AddrFrom16(arr)
 	if addr.Is4In6() {
 		addr = addr.Unmap()
 	}
 
-	return addr.String(), nil
+	return addr
 }
 
-// populateLeaseAddress derives the Address string from AddressBin.
-func populateLeaseAddress(lease *IPLease) error {
-	addr, err := binToIPString(lease.AddressBin)
-	if err != nil {
-		return err
-	}
-
-	lease.Address = addr
-
-	return nil
-}
-
-// populateLeaseAddresses derives Address strings for a slice of leases.
-func populateLeaseAddresses(leases []IPLease) error {
-	for i := range leases {
-		if err := populateLeaseAddress(&leases[i]); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// CreateLease inserts a new IP lease row. Returns ErrAlreadyExists if the
-// (poolID, address) unique constraint is violated.
-func (db *Database) CreateLease(ctx context.Context, lease *IPLease) error {
+// CreateLease inserts a new IP lease row. The address is stored as a 16-byte
+// binary form. Returns ErrAlreadyExists if the (poolID, addressBin) unique
+// constraint is violated.
+func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address netip.Addr) error {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", IPLeasesTableName),
@@ -128,18 +87,12 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease) error {
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "insert").Inc()
 
-	bin, err := ipToSortableBytes(lease.Address)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "invalid IP address")
-
-		return fmt.Errorf("invalid IP address %q: %w", lease.Address, err)
-	}
+	b := address.As16()
 
 	row := *lease
-	row.AddressBin = bin
+	row.AddressBin = b[:]
 
-	err = db.conn.Query(ctx, db.createLeaseStmt, &row).Run()
+	err := db.conn.Query(ctx, db.createLeaseStmt, &row).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
@@ -193,13 +146,6 @@ func (db *Database) GetDynamicLease(ctx context.Context, poolID int, imsi string
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	if err := populateLeaseAddress(&row); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "address decode failed")
-
-		return nil, fmt.Errorf("address decode failed: %w", err)
-	}
-
 	span.SetStatus(codes.Ok, "")
 
 	return &row, nil
@@ -237,13 +183,6 @@ func (db *Database) GetLeaseBySession(ctx context.Context, poolID int, sessionID
 		span.SetStatus(codes.Error, "query failed")
 
 		return nil, fmt.Errorf("query failed: %w", err)
-	}
-
-	if err := populateLeaseAddress(&row); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "address decode failed")
-
-		return nil, fmt.Errorf("address decode failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -401,13 +340,6 @@ func (db *Database) ListActiveLeases(ctx context.Context) ([]IPLease, error) {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	if err := populateLeaseAddresses(leases); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "address decode failed")
-
-		return nil, fmt.Errorf("address decode failed: %w", err)
-	}
-
 	span.SetStatus(codes.Ok, "")
 
 	return leases, nil
@@ -424,10 +356,6 @@ func (db *Database) listAllLeases(ctx context.Context) ([]IPLease, error) {
 		}
 
 		return nil, fmt.Errorf("query failed: %w", err)
-	}
-
-	if err := populateLeaseAddresses(leases); err != nil {
-		return nil, fmt.Errorf("address decode failed: %w", err)
 	}
 
 	return leases, nil
@@ -465,13 +393,6 @@ func (db *Database) ListLeasesByPool(ctx context.Context, poolID int) ([]IPLease
 		span.SetStatus(codes.Error, "query failed")
 
 		return nil, fmt.Errorf("query failed: %w", err)
-	}
-
-	if err := populateLeaseAddresses(leases); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "address decode failed")
-
-		return nil, fmt.Errorf("address decode failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -529,13 +450,6 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID int, page, 
 		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 
-	if err := populateLeaseAddresses(leases); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "address decode failed")
-
-		return nil, 0, fmt.Errorf("address decode failed: %w", err)
-	}
-
 	count := 0
 	if len(counts) > 0 {
 		count = counts[0].Count
@@ -583,16 +497,8 @@ func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID int) ([
 
 	addresses := make([]string, 0, len(leases))
 
-	for _, l := range leases {
-		addr, convErr := binToIPString(l.AddressBin)
-		if convErr != nil {
-			span.RecordError(convErr)
-			span.SetStatus(codes.Error, "address decode failed")
-
-			return nil, fmt.Errorf("address decode failed: %w", convErr)
-		}
-
-		addresses = append(addresses, addr)
+	for i := range leases {
+		addresses = append(addresses, leases[i].Address().String())
 	}
 
 	span.SetStatus(codes.Ok, "")
