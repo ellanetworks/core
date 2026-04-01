@@ -146,12 +146,13 @@ type Database struct {
 	countPoliciesStmt *sqlair.Statement
 
 	// Network Rules statements
-	getNetworkRuleStmt     *sqlair.Statement
-	createNetworkRuleStmt  *sqlair.Statement
-	updateNetworkRuleStmt  *sqlair.Statement
-	deleteNetworkRuleStmt  *sqlair.Statement
-	countNetworkRulesStmt  *sqlair.Statement
-	listRulesForPolicyStmt *sqlair.Statement
+	getNetworkRuleStmt             *sqlair.Statement
+	createNetworkRuleStmt          *sqlair.Statement
+	updateNetworkRuleStmt          *sqlair.Statement
+	deleteNetworkRuleStmt          *sqlair.Statement
+	deleteNetworkRulesByPolicyStmt *sqlair.Statement
+	countNetworkRulesStmt          *sqlair.Statement
+	listRulesForPolicyStmt         *sqlair.Statement
 
 	// Retention Policy statements
 	selectRetentionPolicyStmt *sqlair.Statement
@@ -459,6 +460,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.createNetworkRuleStmt, fmt.Sprintf(createNetworkRuleStmt, NetworkRulesTableName), []any{NetworkRule{}}},
 		{&db.updateNetworkRuleStmt, fmt.Sprintf(updateNetworkRuleStmt, NetworkRulesTableName), []any{NetworkRule{}}},
 		{&db.deleteNetworkRuleStmt, fmt.Sprintf(deleteNetworkRuleStmt, NetworkRulesTableName), []any{NetworkRule{}}},
+		{&db.deleteNetworkRulesByPolicyStmt, fmt.Sprintf(deleteNetworkRulesByPolicyStmt, NetworkRulesTableName), []any{NetworkRule{}}},
 		{&db.countNetworkRulesStmt, fmt.Sprintf(countNetworkRulesStmt, NetworkRulesTableName), []any{NumItems{}}},
 		{&db.listRulesForPolicyStmt, fmt.Sprintf(listRulesForPolicyStmt, NetworkRulesTableName), []any{NetworkRule{}}},
 

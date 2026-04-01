@@ -55,9 +55,13 @@ export async function apiFetch<T = unknown>(
   try {
     respData = await response.json();
   } catch {
-    throw new Error(
-      `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
-    );
+    if (!response.ok) {
+      throw new Error(
+        `${response.status}: ${HTTPStatus(response.status)}. ${response.statusText}`,
+      );
+    }
+    // If response is ok but JSON parsing fails, treat as success with empty result
+    return undefined as T;
   }
 
   if (!response.ok) {
@@ -109,4 +113,5 @@ export async function apiFetchVoid(
       `${response.status}: ${HTTPStatus(response.status)}. ${respData?.error || "Unknown error"}`,
     );
   }
+  // Success - response.ok is true, so we don't check the body
 }

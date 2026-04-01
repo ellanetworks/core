@@ -1,8 +1,11 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"slices"
 	"strconv"
@@ -12,30 +15,49 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 )
 
+const MaxNumNetworkRulesPerDirection = 12
+
+type PolicyRule struct {
+	Description  string  `json:"description"`
+	RemotePrefix *string `json:"remote_prefix"`
+	Protocol     int32   `json:"protocol"`
+	PortLow      int32   `json:"port_low"`
+	PortHigh     int32   `json:"port_high"`
+	Action       string  `json:"action"`
+}
+
+type PolicyRules struct {
+	Uplink   []PolicyRule `json:"uplink,omitempty"`
+	Downlink []PolicyRule `json:"downlink,omitempty"`
+}
+
 type CreatePolicyParams struct {
-	Name            string `json:"name"`
-	BitrateUplink   string `json:"bitrate_uplink,omitempty"`
-	BitrateDownlink string `json:"bitrate_downlink,omitempty"`
-	Var5qi          int32  `json:"var5qi,omitempty"`
-	Arp             int32  `json:"arp,omitempty"`
-	DataNetworkName string `json:"data_network_name,omitempty"`
+	Name            string       `json:"name"`
+	BitrateUplink   string       `json:"bitrate_uplink,omitempty"`
+	BitrateDownlink string       `json:"bitrate_downlink,omitempty"`
+	Var5qi          int32        `json:"var5qi,omitempty"`
+	Arp             int32        `json:"arp,omitempty"`
+	DataNetworkName string       `json:"data_network_name,omitempty"`
+	Rules           *PolicyRules `json:"rules,omitempty"`
 }
 
 type UpdatePolicyParams struct {
-	BitrateUplink   string `json:"bitrate_uplink,omitempty"`
-	BitrateDownlink string `json:"bitrate_downlink,omitempty"`
-	Var5qi          int32  `json:"var5qi,omitempty"`
-	Arp             int32  `json:"arp,omitempty"`
-	DataNetworkName string `json:"data_network_name,omitempty"`
+	BitrateUplink   string       `json:"bitrate_uplink,omitempty"`
+	BitrateDownlink string       `json:"bitrate_downlink,omitempty"`
+	Var5qi          int32        `json:"var5qi,omitempty"`
+	Arp             int32        `json:"arp,omitempty"`
+	DataNetworkName string       `json:"data_network_name,omitempty"`
+	Rules           *PolicyRules `json:"rules,omitempty"`
 }
 
 type Policy struct {
-	Name            string `json:"name"`
-	BitrateUplink   string `json:"bitrate_uplink,omitempty"`
-	BitrateDownlink string `json:"bitrate_downlink,omitempty"`
-	Var5qi          int32  `json:"var5qi,omitempty"`
-	Arp             int32  `json:"arp,omitempty"`
-	DataNetworkName string `json:"data_network_name,omitempty"`
+	Name            string       `json:"name"`
+	BitrateUplink   string       `json:"bitrate_uplink,omitempty"`
+	BitrateDownlink string       `json:"bitrate_downlink,omitempty"`
+	Var5qi          int32        `json:"var5qi,omitempty"`
+	Arp             int32        `json:"arp,omitempty"`
+	DataNetworkName string       `json:"data_network_name,omitempty"`
+	Rules           *PolicyRules `json:"rules,omitempty"`
 }
 
 type ListPoliciesResponse struct {
@@ -88,6 +110,151 @@ func isValid5Qi(var5qi int32) bool {
 
 func isValidArp(arp int32) bool {
 	return arp >= 1 && arp <= 15
+}
+
+func validateRemotePrefix(prefix *string) error {
+	if prefix == nil || *prefix == "" {
+		return nil
+	}
+
+	_, _, err := net.ParseCIDR(*prefix)
+	if err != nil {
+		return fmt.Errorf("invalid CIDR: %w", err)
+	}
+
+	return nil
+}
+
+func validatePorts(portLow, portHigh int32) error {
+	if portLow < 0 || portHigh < 0 {
+		return errors.New("port values must be >= 0")
+	}
+
+	if portLow > portHigh {
+		return errors.New("port_low must be <= port_high")
+	}
+
+	if portHigh > 65535 {
+		return errors.New("port values must be <= 65535")
+	}
+
+	return nil
+}
+
+func validateProtocol(protocol int32) error {
+	if protocol < 0 || protocol > 255 {
+		return errors.New("protocol must be between 0 and 255")
+	}
+
+	return nil
+}
+
+func validateAction(action string) error {
+	if action != "allow" && action != "deny" {
+		return errors.New("action must be 'allow' or 'deny'")
+	}
+
+	return nil
+}
+
+func validatePolicyRule(rule PolicyRule) error {
+	if rule.Description == "" {
+		return errors.New("rule description is missing")
+	}
+
+	if err := validateAction(rule.Action); err != nil {
+		return errors.New("rule action must be 'allow' or 'deny'")
+	}
+
+	if err := validateRemotePrefix(rule.RemotePrefix); err != nil {
+		return fmt.Errorf("invalid rule remote_prefix: %w", err)
+	}
+
+	if err := validateProtocol(rule.Protocol); err != nil {
+		return fmt.Errorf("invalid rule protocol: %w", err)
+	}
+
+	if err := validatePorts(rule.PortLow, rule.PortHigh); err != nil {
+		return fmt.Errorf("invalid rule ports: %w", err)
+	}
+
+	return nil
+}
+
+func validatePolicyRules(rules *PolicyRules) error {
+	if rules == nil {
+		return nil
+	}
+
+	if len(rules.Uplink) > MaxNumNetworkRulesPerDirection {
+		return fmt.Errorf("uplink rules exceed maximum of %d", MaxNumNetworkRulesPerDirection)
+	}
+
+	if len(rules.Downlink) > MaxNumNetworkRulesPerDirection {
+		return fmt.Errorf("downlink rules exceed maximum of %d", MaxNumNetworkRulesPerDirection)
+	}
+
+	for i, rule := range rules.Uplink {
+		if err := validatePolicyRule(rule); err != nil {
+			return fmt.Errorf("uplink rule %d: %w", i, err)
+		}
+	}
+
+	for i, rule := range rules.Downlink {
+		if err := validatePolicyRule(rule); err != nil {
+			return fmt.Errorf("downlink rule %d: %w", i, err)
+		}
+	}
+
+	return nil
+}
+
+func createNetworkRulesForPolicy(ctx context.Context, dbInstance *db.Database, policy *db.Policy, rules *PolicyRules) error {
+	if rules == nil {
+		return nil
+	}
+
+	// Create uplink rules with precedence
+	for i, rule := range rules.Uplink {
+		dbRule := &db.NetworkRule{
+			PolicyID:     int64(policy.ID),
+			Description:  rule.Description,
+			Direction:    "uplink",
+			RemotePrefix: rule.RemotePrefix,
+			Protocol:     rule.Protocol,
+			PortLow:      rule.PortLow,
+			PortHigh:     rule.PortHigh,
+			Action:       rule.Action,
+			Precedence:   int32(i + 1), // 1-indexed
+		}
+
+		_, err := dbInstance.CreateNetworkRule(ctx, dbRule)
+		if err != nil {
+			return fmt.Errorf("failed to create uplink rule %d: %w", i, err)
+		}
+	}
+
+	// Create downlink rules with precedence
+	for i, rule := range rules.Downlink {
+		dbRule := &db.NetworkRule{
+			PolicyID:     int64(policy.ID),
+			Description:  rule.Description,
+			Direction:    "downlink",
+			RemotePrefix: rule.RemotePrefix,
+			Protocol:     rule.Protocol,
+			PortLow:      rule.PortLow,
+			PortHigh:     rule.PortHigh,
+			Action:       rule.Action,
+			Precedence:   int32(i + 1), // 1-indexed
+		}
+
+		_, err := dbInstance.CreateNetworkRule(ctx, dbRule)
+		if err != nil {
+			return fmt.Errorf("failed to create downlink rule %d: %w", i, err)
+		}
+	}
+
+	return nil
 }
 
 func ListPolicies(dbInstance *db.Database) http.Handler {
@@ -144,6 +311,47 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 	})
 }
 
+func getPolicyRulesForPolicy(ctx context.Context, dbInstance *db.Database, policyID int64) (*PolicyRules, error) {
+	rules, err := dbInstance.ListRulesForPolicy(ctx, policyID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(rules) == 0 {
+		return nil, nil
+	}
+
+	policyRules := &PolicyRules{
+		Uplink:   []PolicyRule{},
+		Downlink: []PolicyRule{},
+	}
+
+	for _, rule := range rules {
+		apiRule := PolicyRule{
+			Description:  rule.Description,
+			RemotePrefix: rule.RemotePrefix,
+			Protocol:     rule.Protocol,
+			PortLow:      rule.PortLow,
+			PortHigh:     rule.PortHigh,
+			Action:       rule.Action,
+		}
+
+		switch rule.Direction {
+		case "uplink":
+			policyRules.Uplink = append(policyRules.Uplink, apiRule)
+		case "downlink":
+			policyRules.Downlink = append(policyRules.Downlink, apiRule)
+		}
+	}
+
+	// Return nil if no rules in either direction
+	if len(policyRules.Uplink) == 0 && len(policyRules.Downlink) == 0 {
+		return nil, nil
+	}
+
+	return policyRules, nil
+}
+
 func GetPolicy(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")
@@ -164,6 +372,12 @@ func GetPolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		rules, err := getPolicyRulesForPolicy(r.Context(), dbInstance, int64(dbPolicy.ID))
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy rules", err, logger.APILog)
+			return
+		}
+
 		policy := Policy{
 			Name:            dbPolicy.Name,
 			BitrateDownlink: dbPolicy.BitrateDownlink,
@@ -171,6 +385,7 @@ func GetPolicy(dbInstance *db.Database) http.Handler {
 			Var5qi:          dbPolicy.Var5qi,
 			Arp:             dbPolicy.Arp,
 			DataNetworkName: dataNetwork.Name,
+			Rules:           rules,
 		}
 		writeResponse(r.Context(), w, policy, http.StatusOK, logger.APILog)
 	})
@@ -286,6 +501,21 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		// Get the created policy to get its ID
+		createdPolicy, err := dbInstance.GetPolicy(r.Context(), createPolicyParams.Name)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve created policy", err, logger.APILog)
+			return
+		}
+
+		// Create network rules if provided
+		if createPolicyParams.Rules != nil {
+			if err := createNetworkRulesForPolicy(r.Context(), dbInstance, createdPolicy, createPolicyParams.Rules); err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create policy rules", err, logger.APILog)
+				return
+			}
+		}
+
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Policy created successfully"}, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), CreatePolicyAction, email, getClientIP(r), "User created policy: "+createPolicyParams.Name)
@@ -342,6 +572,21 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		// Update network rules if provided
+		if updatePolicyParams.Rules != nil {
+			// Delete existing rules for this policy
+			if err := dbInstance.DeleteNetworkRulesByPolicyID(r.Context(), int64(policy.ID)); err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete existing policy rules", err, logger.APILog)
+				return
+			}
+
+			// Create new rules
+			if err := createNetworkRulesForPolicy(r.Context(), dbInstance, policy, updatePolicyParams.Rules); err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create policy rules", err, logger.APILog)
+				return
+			}
+		}
+
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Policy updated successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(r.Context(), UpdatePolicyAction, email, getClientIP(r), "User updated policy: "+policyName)
 	})
@@ -371,6 +616,10 @@ func validatePolicyParams(p CreatePolicyParams) error {
 		return errors.New("invalid Var5qi format - must be an integer associated with a non-GBR 5QI")
 	case !isValidArp(p.Arp):
 		return errors.New("invalid arp format - must be an integer between 1 and 255")
+	}
+
+	if err := validatePolicyRules(p.Rules); err != nil {
+		return err
 	}
 
 	return nil

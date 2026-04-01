@@ -21,12 +21,13 @@ import (
 const NetworkRulesTableName = "network_rules"
 
 const (
-	getNetworkRuleStmt     = "SELECT &NetworkRule.* FROM %s WHERE id==$NetworkRule.id"
-	createNetworkRuleStmt  = "INSERT INTO %s (policy_id, description, direction, remote_prefix, protocol, port_low, port_high, action, precedence, created_at, updated_at) VALUES ($NetworkRule.policy_id, $NetworkRule.description, $NetworkRule.direction, $NetworkRule.remote_prefix, $NetworkRule.protocol, $NetworkRule.port_low, $NetworkRule.port_high, $NetworkRule.action, $NetworkRule.precedence, $NetworkRule.created_at, $NetworkRule.updated_at)"
-	updateNetworkRuleStmt  = "UPDATE %s SET description=$NetworkRule.description, direction=$NetworkRule.direction, remote_prefix=$NetworkRule.remote_prefix, protocol=$NetworkRule.protocol, port_low=$NetworkRule.port_low, port_high=$NetworkRule.port_high, action=$NetworkRule.action, precedence=$NetworkRule.precedence, updated_at=$NetworkRule.updated_at WHERE id==$NetworkRule.id"
-	deleteNetworkRuleStmt  = "DELETE FROM %s WHERE id==$NetworkRule.id"
-	countNetworkRulesStmt  = "SELECT COUNT(*) AS &NumItems.count FROM %s"
-	listRulesForPolicyStmt = "SELECT &NetworkRule.* FROM %s WHERE policy_id==$NetworkRule.policy_id ORDER BY precedence ASC"
+	getNetworkRuleStmt             = "SELECT &NetworkRule.* FROM %s WHERE id==$NetworkRule.id"
+	createNetworkRuleStmt          = "INSERT INTO %s (policy_id, description, direction, remote_prefix, protocol, port_low, port_high, action, precedence, created_at, updated_at) VALUES ($NetworkRule.policy_id, $NetworkRule.description, $NetworkRule.direction, $NetworkRule.remote_prefix, $NetworkRule.protocol, $NetworkRule.port_low, $NetworkRule.port_high, $NetworkRule.action, $NetworkRule.precedence, $NetworkRule.created_at, $NetworkRule.updated_at)"
+	updateNetworkRuleStmt          = "UPDATE %s SET description=$NetworkRule.description, direction=$NetworkRule.direction, remote_prefix=$NetworkRule.remote_prefix, protocol=$NetworkRule.protocol, port_low=$NetworkRule.port_low, port_high=$NetworkRule.port_high, action=$NetworkRule.action, precedence=$NetworkRule.precedence, updated_at=$NetworkRule.updated_at WHERE id==$NetworkRule.id"
+	deleteNetworkRuleStmt          = "DELETE FROM %s WHERE id==$NetworkRule.id"
+	deleteNetworkRulesByPolicyStmt = "DELETE FROM %s WHERE policy_id==$NetworkRule.policy_id"
+	countNetworkRulesStmt          = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	listRulesForPolicyStmt         = "SELECT &NetworkRule.* FROM %s WHERE policy_id==$NetworkRule.policy_id ORDER BY precedence ASC"
 )
 
 const gap = 100
@@ -418,4 +419,38 @@ func (db *Database) ListRulesForPolicy(ctx context.Context, policyID int64) ([]*
 	span.SetStatus(codes.Ok, "")
 
 	return rules, nil
+}
+
+// DeleteNetworkRulesByPolicyID deletes all network rules for a given policy ID.
+func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID int64) error {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("DELETE"),
+			attribute.String("db.collection", NetworkRulesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NetworkRulesTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "delete").Inc()
+
+	var outcome sqlair.Outcome
+
+	err := db.conn.Query(ctx, db.deleteNetworkRulesByPolicyStmt, NetworkRule{PolicyID: policyID}).Get(&outcome)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return fmt.Errorf("query failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
 }

@@ -1,5 +1,19 @@
 import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
+export type PolicyRule = {
+  description: string;
+  remote_prefix?: string;
+  protocol: number;
+  port_low: number;
+  port_high: number;
+  action: "allow" | "deny";
+};
+
+export type PolicyRules = {
+  uplink?: PolicyRule[];
+  downlink?: PolicyRule[];
+};
+
 export type APIPolicy = {
   name: string;
   bitrate_uplink: string;
@@ -7,6 +21,7 @@ export type APIPolicy = {
   var5qi: number;
   arp: number;
   data_network_name: string;
+  rules?: PolicyRules;
 };
 
 export type ListPoliciesResponse = {
@@ -65,6 +80,7 @@ export const updatePolicy = async (
   var5qi: number,
   arp: number,
   dataNetworkName: string,
+  rules?: PolicyRules,
 ): Promise<void> => {
   await apiFetchVoid(`/api/v1/policies/${name}`, {
     method: "PUT",
@@ -75,6 +91,7 @@ export const updatePolicy = async (
       var5qi,
       arp,
       data_network_name: dataNetworkName,
+      ...(rules && { rules }),
     },
   });
 };

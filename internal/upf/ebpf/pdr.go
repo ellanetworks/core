@@ -16,7 +16,7 @@ const (
 	MaxPolicies       = 12 // must match MAX_POLICIES in C
 	MaxRulesPerFilter = 12 // must match MAX_RULES_PER_FILTER in C
 	SdfProtoAny       = 255
-	SdfActionAllow   = 0
+	SdfActionAllow    = 0
 	SdfActionDeny     = 1
 	NoFilterIndex     = 0 // reserved; means "no filtering"
 )
