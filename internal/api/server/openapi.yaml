@@ -1159,21 +1159,13 @@ paths:
       tags: [Policies]
       summary: Update a policy
       description: |
-        Updates all fields of a QoS policy. Optionally supports updating network rules.
-        If rules are provided, existing rules are deleted and replaced with new ones.
-        Rules are created in the order they are provided.
+        Updates all fields of a QoS policy. Existing network rules are always replaced.
 
-        To delete all rules while keeping the policy, provide empty rule arrays:
-        ```json
-        {
-          "rules": {
-            "uplink": [],
-            "downlink": []
-          }
-        }
-        ```
+        - **Omit `rules`**: all existing rules are deleted.
+        - **Provide `rules`**: existing rules are deleted and replaced with the new ones in the order given.
+        - **Provide empty arrays**: all existing rules are deleted and no new rules are created.
 
-        Omit the rules field entirely to keep existing rules unchanged.
+        To keep existing rules you must explicitly include them in the request body.
       parameters:
         - $ref: "#/components/parameters/PolicyNamePath"
       requestBody:
@@ -3184,9 +3176,9 @@ components:
         rules:
           $ref: "#/components/schemas/PolicyRules"
           description: |
-            Optional network rules to replace existing rules.
-            Omit this field to keep existing rules unchanged.
-            To delete all rules, provide empty arrays: {"uplink": [], "downlink": []}
+            Network rules to set on the policy. Existing rules are always deleted first.
+            If this field is omitted, all existing rules are deleted.
+            To keep existing rules, you must re-supply them in every update request.
 
     # ── Operator ────────────────────────────────────────────────────────
     OperatorID:

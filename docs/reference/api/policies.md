@@ -135,7 +135,7 @@ Each rule contains:
 
 ## Update a Policy
 
-This path updates an existing policy. You can optionally update network rules as part of the policy update.
+This path updates an existing policy. Network rules are always replaced on every update call.
 
 | Method | Path                      |
 | ------ | ------------------------- |
@@ -148,13 +148,15 @@ This path updates an existing policy. You can optionally update network rules as
 - `var5qi` (integer): The QoS class identifier of the policy. Must be an integer between 1 and 255.
 - `arp` (integer): The Allocation and Retention Priority (ARP) of the policy. Must be an integer between 1 and 15.
 - `data_network_name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
-- `rules` (object, optional): Network rules to replace existing rules. If provided, all existing rules are deleted and replaced with the new ones. Omit this field to keep existing rules unchanged.
+- `rules` (object, optional): Network rules to set on the policy. Existing rules are always deleted first. If this field is omitted, all existing rules are deleted.
 
 ### Rules Behavior
 
-- **Omit `rules` field**: Existing rules remain unchanged
-- **Provide `rules` with arrays**: Existing rules are deleted and replaced with new ones
-- **Delete all rules**: Provide empty arrays: `{"uplink": [], "downlink": []}`
+- **Omit `rules` field**: all existing rules are deleted.
+- **Provide `rules` with arrays**: existing rules are deleted and replaced with the new ones.
+- **Provide empty arrays**: all existing rules are deleted and no new rules are created.
+
+To keep existing rules, you must re-supply them in every update request.
 
 ### Sample Request to Update Rules
 
@@ -190,17 +192,15 @@ This path updates an existing policy. You can optionally update network rules as
 
 ### Sample Request to Delete All Rules
 
+Omit the `rules` field (or provide empty arrays) to delete all existing rules:
+
 ```json
 {
     "bitrate_uplink": "100 Mbps",
     "bitrate_downlink": "200 Mbps",
     "var5qi": 9,
     "arp": 1,
-    "data_network_name": "internet",
-    "rules": {
-        "uplink": [],
-        "downlink": []
-    }
+    "data_network_name": "internet"
 }
 ```
 

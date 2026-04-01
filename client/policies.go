@@ -131,10 +131,10 @@ func (c *Client) GetPolicy(ctx context.Context, opts *GetPolicyOptions) (*Policy
 }
 
 // UpdatePolicy updates an existing policy by name.
-// Optionally updates network rules by providing a rules object.
-// If rules are provided, existing rules are deleted and replaced with new ones.
-// To delete all rules while keeping the policy, provide empty rule arrays: {"uplink": [], "downlink": []}.
-// Omit the rules field entirely to keep existing rules unchanged.
+// Existing network rules are always replaced on every update.
+// If Rules is nil (omitted), all existing rules are deleted.
+// To keep existing rules, re-supply them in opts.Rules.
+// To set specific rules, provide them in opts.Rules; existing rules are deleted and replaced.
 func (c *Client) UpdatePolicy(ctx context.Context, name string, opts *UpdatePolicyOptions) error {
 	payload := struct {
 		BitrateUplink   string       `json:"bitrate_uplink,omitempty"`

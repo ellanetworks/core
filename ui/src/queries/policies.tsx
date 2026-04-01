@@ -82,6 +82,9 @@ export const updatePolicy = async (
   dataNetworkName: string,
   rules?: PolicyRules,
 ): Promise<void> => {
+  // Existing rules are always replaced on every update.
+  // If `rules` is omitted (undefined), all existing rules are deleted.
+  // To keep existing rules, re-supply them in this argument.
   await apiFetchVoid(`/api/v1/policies/${name}`, {
     method: "PUT",
     authToken,
@@ -91,7 +94,7 @@ export const updatePolicy = async (
       var5qi,
       arp,
       data_network_name: dataNetworkName,
-      ...(rules && { rules }),
+      ...(rules !== undefined && { rules }),
     },
   });
 };

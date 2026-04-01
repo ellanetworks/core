@@ -13,6 +13,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 const MaxNumNetworkRulesPerDirection = 12
@@ -71,6 +72,11 @@ const (
 	CreatePolicyAction = "create_policy"
 	UpdatePolicyAction = "update_policy"
 	DeletePolicyAction = "delete_policy"
+)
+
+const (
+	DirectionUplink   = "uplink"
+	DirectionDownlink = "downlink"
 )
 
 const (
@@ -209,7 +215,7 @@ func validatePolicyRules(rules *PolicyRules) error {
 	return nil
 }
 
-func createNetworkRulesForPolicy(ctx context.Context, dbInstance *db.Database, policy *db.Policy, rules *PolicyRules) error {
+func createNetworkRulesForPolicyTx(ctx context.Context, tx *db.Transaction, policyID int64, rules *PolicyRules) error {
 	if rules == nil {
 		return nil
 	}
@@ -217,9 +223,9 @@ func createNetworkRulesForPolicy(ctx context.Context, dbInstance *db.Database, p
 	// Create uplink rules with precedence
 	for i, rule := range rules.Uplink {
 		dbRule := &db.NetworkRule{
-			PolicyID:     int64(policy.ID),
+			PolicyID:     policyID,
 			Description:  rule.Description,
-			Direction:    "uplink",
+			Direction:    DirectionUplink,
 			RemotePrefix: rule.RemotePrefix,
 			Protocol:     rule.Protocol,
 			PortLow:      rule.PortLow,
@@ -228,7 +234,7 @@ func createNetworkRulesForPolicy(ctx context.Context, dbInstance *db.Database, p
 			Precedence:   int32(i + 1), // 1-indexed
 		}
 
-		_, err := dbInstance.CreateNetworkRule(ctx, dbRule)
+		_, err := tx.CreateNetworkRule(ctx, dbRule)
 		if err != nil {
 			return fmt.Errorf("failed to create uplink rule %d: %w", i, err)
 		}
@@ -237,9 +243,9 @@ func createNetworkRulesForPolicy(ctx context.Context, dbInstance *db.Database, p
 	// Create downlink rules with precedence
 	for i, rule := range rules.Downlink {
 		dbRule := &db.NetworkRule{
-			PolicyID:     int64(policy.ID),
+			PolicyID:     policyID,
 			Description:  rule.Description,
-			Direction:    "downlink",
+			Direction:    DirectionDownlink,
 			RemotePrefix: rule.RemotePrefix,
 			Protocol:     rule.Protocol,
 			PortLow:      rule.PortLow,
@@ -248,7 +254,7 @@ func createNetworkRulesForPolicy(ctx context.Context, dbInstance *db.Database, p
 			Precedence:   int32(i + 1), // 1-indexed
 		}
 
-		_, err := dbInstance.CreateNetworkRule(ctx, dbRule)
+		_, err := tx.CreateNetworkRule(ctx, dbRule)
 		if err != nil {
 			return fmt.Errorf("failed to create downlink rule %d: %w", i, err)
 		}
@@ -337,9 +343,9 @@ func getPolicyRulesForPolicy(ctx context.Context, dbInstance *db.Database, polic
 		}
 
 		switch rule.Direction {
-		case "uplink":
+		case DirectionUplink:
 			policyRules.Uplink = append(policyRules.Uplink, apiRule)
-		case "downlink":
+		case DirectionDownlink:
 			policyRules.Downlink = append(policyRules.Downlink, apiRule)
 		}
 	}
@@ -490,7 +496,24 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			DataNetworkID:   dataNetwork.ID,
 		}
 
-		if err := dbInstance.CreatePolicy(r.Context(), dbPolicy); err != nil {
+		tx, err := dbInstance.BeginTransaction(r.Context())
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Internal error starting transaction", err, logger.APILog)
+			return
+		}
+
+		committed := false
+
+		defer func() {
+			if !committed {
+				if rbErr := tx.Rollback(); rbErr != nil {
+					logger.APILog.Error("Failed to rollback transaction", zap.Error(rbErr))
+				}
+			}
+		}()
+
+		policyID, err := tx.CreatePolicy(r.Context(), dbPolicy)
+		if err != nil {
 			if errors.Is(err, db.ErrAlreadyExists) {
 				writeError(r.Context(), w, http.StatusConflict, "Policy already exists", nil, logger.APILog)
 				return
@@ -501,20 +524,20 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		// Get the created policy to get its ID
-		createdPolicy, err := dbInstance.GetPolicy(r.Context(), createPolicyParams.Name)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve created policy", err, logger.APILog)
-			return
-		}
-
-		// Create network rules if provided
+		// Create network rules inside the same transaction if provided
 		if createPolicyParams.Rules != nil {
-			if err := createNetworkRulesForPolicy(r.Context(), dbInstance, createdPolicy, createPolicyParams.Rules); err != nil {
+			if err := createNetworkRulesForPolicyTx(r.Context(), tx, policyID, createPolicyParams.Rules); err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create policy rules", err, logger.APILog)
 				return
 			}
 		}
+
+		if err := tx.Commit(); err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to commit transaction", err, logger.APILog)
+			return
+		}
+
+		committed = true
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Policy created successfully"}, http.StatusCreated, logger.APILog)
 
@@ -567,25 +590,46 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 		policy.Arp = updatePolicyParams.Arp
 		policy.DataNetworkID = dataNetwork.ID
 
-		if err := dbInstance.UpdatePolicy(r.Context(), policy); err != nil {
+		tx, err := dbInstance.BeginTransaction(r.Context())
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Internal error starting transaction", err, logger.APILog)
+			return
+		}
+
+		committed := false
+
+		defer func() {
+			if !committed {
+				if rbErr := tx.Rollback(); rbErr != nil {
+					logger.APILog.Error("Failed to rollback transaction", zap.Error(rbErr))
+				}
+			}
+		}()
+
+		if err := tx.UpdatePolicy(r.Context(), policy); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update policy", err, logger.APILog)
 			return
 		}
 
-		// Update network rules if provided
-		if updatePolicyParams.Rules != nil {
-			// Delete existing rules for this policy
-			if err := dbInstance.DeleteNetworkRulesByPolicyID(r.Context(), int64(policy.ID)); err != nil {
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete existing policy rules", err, logger.APILog)
-				return
-			}
-
-			// Create new rules
-			if err := createNetworkRulesForPolicy(r.Context(), dbInstance, policy, updatePolicyParams.Rules); err != nil {
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create policy rules", err, logger.APILog)
-				return
-			}
+		// Always delete existing rules; if new rules were provided they will be recreated below.
+		// Omitting the rules field in the request body is treated as an explicit deletion of all rules.
+		if err := tx.DeleteNetworkRulesByPolicyID(r.Context(), int64(policy.ID)); err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete existing policy rules", err, logger.APILog)
+			return
 		}
+
+		// Create new rules inside the same transaction if provided
+		if err := createNetworkRulesForPolicyTx(r.Context(), tx, int64(policy.ID), updatePolicyParams.Rules); err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create policy rules", err, logger.APILog)
+			return
+		}
+
+		if err := tx.Commit(); err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to commit transaction", err, logger.APILog)
+			return
+		}
+
+		committed = true
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Policy updated successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(r.Context(), UpdatePolicyAction, email, getClientIP(r), "User updated policy: "+policyName)
@@ -645,6 +689,10 @@ func validateUpdatePolicyParams(p UpdatePolicyParams) error {
 		return errors.New("invalid Var5qi format - must be an integer associated with a non-GBR 5QI")
 	case !isValidArp(p.Arp):
 		return errors.New("invalid arp format - must be an integer between 1 and 255")
+	}
+
+	if err := validatePolicyRules(p.Rules); err != nil {
+		return err
 	}
 
 	return nil

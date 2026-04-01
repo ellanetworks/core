@@ -260,6 +260,102 @@ func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
 	return nil
 }
 
+func (t *Transaction) CreatePolicy(ctx context.Context, policy *Policy) (int64, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "INSERT", PoliciesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("INSERT"),
+			attribute.String("db.collection", PoliciesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(PoliciesTableName, "insert").Inc()
+
+	var outcome sqlair.Outcome
+
+	err := t.tx.Query(ctx, t.db.createPolicyStmt, policy).Get(&outcome)
+	if err != nil {
+		if isUniqueNameError(err) {
+			span.RecordError(ErrAlreadyExists)
+			span.SetStatus(codes.Error, "unique constraint failed")
+
+			return 0, ErrAlreadyExists
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return 0, fmt.Errorf("query failed: %w", err)
+	}
+
+	id, err := outcome.Result().LastInsertId()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "retrieving insert ID failed")
+
+		return 0, fmt.Errorf("retrieving insert ID failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return id, nil
+}
+
+func (t *Transaction) UpdatePolicy(ctx context.Context, policy *Policy) error {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "UPDATE", PoliciesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPDATE"),
+			attribute.String("db.collection", PoliciesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(PoliciesTableName, "update").Inc()
+
+	var outcome sqlair.Outcome
+
+	err := t.tx.Query(ctx, t.db.editPolicyStmt, policy).Get(&outcome)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return fmt.Errorf("query failed: %w", err)
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "retrieving rows affected failed")
+
+		return fmt.Errorf("retrieving rows affected failed: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		span.RecordError(ErrNotFound)
+		span.SetStatus(codes.Error, "not found")
+
+		return ErrNotFound
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
 func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 	ctx, span := tracer.Start(
 		ctx,

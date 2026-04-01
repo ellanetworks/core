@@ -421,6 +421,93 @@ func (db *Database) ListRulesForPolicy(ctx context.Context, policyID int64) ([]*
 	return rules, nil
 }
 
+// CreateNetworkRule creates a new network rule in the transaction and returns its ID.
+func (t *Transaction) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (int64, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "INSERT", NetworkRulesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("INSERT"),
+			attribute.String("db.collection", NetworkRulesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NetworkRulesTableName, "insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "insert").Inc()
+
+	now := time.Now().UTC()
+	nr.CreatedAt = now
+	nr.UpdatedAt = now
+
+	var outcome sqlair.Outcome
+
+	err := t.tx.Query(ctx, t.db.createNetworkRuleStmt, nr).Get(&outcome)
+	if err != nil {
+		if isUniqueNameError(err) {
+			span.RecordError(ErrAlreadyExists)
+			span.SetStatus(codes.Error, "unique constraint failed")
+
+			return 0, ErrAlreadyExists
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return 0, fmt.Errorf("query failed: %w", err)
+	}
+
+	id, err := outcome.Result().LastInsertId()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "retrieving insert ID failed")
+
+		return 0, fmt.Errorf("retrieving insert ID failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return id, nil
+}
+
+// DeleteNetworkRulesByPolicyID deletes all network rules for a given policy ID within a transaction.
+func (t *Transaction) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID int64) error {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("DELETE"),
+			attribute.String("db.collection", NetworkRulesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NetworkRulesTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "delete").Inc()
+
+	var outcome sqlair.Outcome
+
+	err := t.tx.Query(ctx, t.db.deleteNetworkRulesByPolicyStmt, NetworkRule{PolicyID: policyID}).Get(&outcome)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return fmt.Errorf("query failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
 // DeleteNetworkRulesByPolicyID deletes all network rules for a given policy ID.
 func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID int64) error {
 	ctx, span := tracer.Start(

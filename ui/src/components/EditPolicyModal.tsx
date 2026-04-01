@@ -43,7 +43,6 @@ import {
 } from "@/queries/data_networks";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import * as yup from "yup";
 import { ValidationError } from "yup";
 import { formatProtocol, PROTOCOL_CHIP_COLORS } from "@/utils/formatters";
@@ -163,12 +162,10 @@ const ruleSchema = yup.object().shape({
     .string()
     .oneOf(["allow", "deny"], "Invalid action")
     .required("Action is required"),
-  remotePrefix: yup
-    .string()
-    .matches(
-      /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/,
-      "Must be valid CIDR format (e.g., 192.168.0.0/24)",
-    ),
+  remotePrefix: yup.string().matches(/^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/, {
+    message: "Must be valid CIDR format (e.g., 192.168.0.0/24)",
+    excludeEmptyString: true,
+  }),
   protocol: yup
     .string()
     .test(
@@ -237,10 +234,6 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
   const [editingRuleId, setEditingRuleId] = useState<string | number | null>(
     null,
   );
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [selectedRuleId, setSelectedRuleId] = useState<string | number | null>(
-    null,
-  );
   const [ruleFormValues, setRuleFormValues] = useState<RuleFormValues>({
     description: "",
     direction: "uplink",
@@ -292,6 +285,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
         if (fullPolicy.rules?.uplink) {
           fullPolicy.rules.uplink.forEach((rule, index) => {
             rules.push({
+              tempId: `loaded-uplink-${index}-${Date.now()}`,
               description: rule.description,
               direction: "uplink",
               action: rule.action,
@@ -310,6 +304,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
         if (fullPolicy.rules?.downlink) {
           fullPolicy.rules.downlink.forEach((rule, index) => {
             rules.push({
+              tempId: `loaded-downlink-${index}-${Date.now()}`,
               description: rule.description,
               direction: "downlink",
               action: rule.action,
@@ -485,8 +480,9 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
   };
 
   const handleDeleteRule = (rule: InMemoryRule) => {
-    setSelectedRuleId(rule.id ?? rule.tempId ?? null);
-    setDeleteConfirmOpen(true);
+    setInMemoryRules((prev) =>
+      prev.filter((r) => (r.id ?? r.tempId) !== (rule.id ?? rule.tempId)),
+    );
   };
 
   const handleRuleFormChange = (field: keyof RuleFormValues, value: string) => {
@@ -513,7 +509,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
     const portHigh = ruleFormValues.portHigh
       ? Number(ruleFormValues.portHigh)
       : undefined;
-    const remotePrefix = ruleFormValues.remotePrefix || undefined;
+    const remotePrefix = ruleFormValues.remotePrefix || "0.0.0.0/0";
 
     if (editingRuleId) {
       // Update existing rule in memory
@@ -555,15 +551,6 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
 
     setFormDialogOpen(false);
     resetRuleForm();
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (selectedRuleId === null) return;
-    setInMemoryRules((prev) =>
-      prev.filter((r) => (r.id ?? r.tempId) !== selectedRuleId),
-    );
-    setDeleteConfirmOpen(false);
-    setSelectedRuleId(null);
   };
 
   const getActionColor = (
@@ -1121,7 +1108,9 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
             onBlur={() => handleRuleFormBlur("remotePrefix")}
             error={!!ruleErrors.remotePrefix && ruleTouched.remotePrefix}
             helperText={
-              ruleTouched.remotePrefix ? ruleErrors.remotePrefix : "Optional"
+              ruleTouched.remotePrefix && ruleErrors.remotePrefix
+                ? ruleErrors.remotePrefix
+                : "Optional — leave blank for 0.0.0.0/0"
             }
             margin="normal"
           />
@@ -1199,14 +1188,6 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           </Button>
         </DialogActions>
       </Dialog>
-
-      <DeleteConfirmationModal
-        open={deleteConfirmOpen}
-        onClose={() => setDeleteConfirmOpen(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Delete Network Rule"
-        description="Are you sure you want to delete this network rule? This action cannot be undone."
-      />
     </>
   );
 };
