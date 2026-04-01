@@ -5,6 +5,7 @@ import {
   Card,
   CardContent,
   Chip,
+  IconButton,
   LinearProgress,
   Skeleton,
   Table,
@@ -14,6 +15,7 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
+import { Edit as EditIcon } from "@mui/icons-material";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import {
@@ -370,9 +372,14 @@ const DataNetworkDetail: React.FC = () => {
               >
                 <Typography variant="h6">Configuration</Typography>
                 {canEdit && (
-                  <Button size="small" onClick={() => setEditModalOpen(true)}>
-                    Edit
-                  </Button>
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={() => setEditModalOpen(true)}
+                    aria-label="Edit configuration"
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
                 )}
               </Box>
               <Table

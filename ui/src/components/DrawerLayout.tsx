@@ -263,7 +263,7 @@ export default function DrawerLayout({
               <ListItemButton
                 component={Link}
                 to="/policies"
-                selected={pathname === "/policies"}
+                selected={pathname.startsWith("/policies")}
                 onClick={handleNavClick}
                 sx={drawerSelectedSx}
               >

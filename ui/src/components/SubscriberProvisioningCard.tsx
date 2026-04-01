@@ -241,7 +241,7 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
           <Typography
             variant="body2"
             component={RouterLink}
-            to="/policies"
+            to={`/policies/${subscriber.policyName}`}
             sx={{
               color: theme.palette.link,
               textDecoration: "underline",
