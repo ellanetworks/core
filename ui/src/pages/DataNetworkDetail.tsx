@@ -193,8 +193,8 @@ const DataNetworkDetail: React.FC = () => {
       },
       {
         field: "session_id",
-        headerName: "Session ID",
-        width: 120,
+        headerName: "PDU Session ID",
+        width: 140,
         renderCell: (params: GridRenderCellParams<APIIPAllocation>) => (
           <Box
             sx={{
