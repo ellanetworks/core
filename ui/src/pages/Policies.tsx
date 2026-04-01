@@ -6,22 +6,16 @@ import {
   DataGrid,
   type GridColDef,
   type GridRenderCellParams,
-  GridActionsCellItem,
   type GridPaginationModel,
 } from "@mui/x-data-grid";
-import DeleteIcon from "@mui/icons-material/Delete";
-import EditIcon from "@mui/icons-material/Edit";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   listPolicies,
-  deletePolicy,
   type APIPolicy,
   type ListPoliciesResponse,
 } from "@/queries/policies";
 import CreatePolicyModal from "@/components/CreatePolicyModal";
-import EditPolicyModal from "@/components/EditPolicyModal";
-import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
 import { MAX_WIDTH } from "@/utils/layout";
@@ -58,10 +52,6 @@ const PolicyPage = () => {
   );
 
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
-  const [isEditModalOpen, setEditModalOpen] = useState(false);
-  const [isConfirmationOpen, setConfirmationOpen] = useState(false);
-  const [editData, setEditData] = useState<APIPolicy | null>(null);
-  const [selectedPolicy, setSelectedPolicy] = useState<string | null>(null);
 
   const { showSnackbar } = useSnackbar();
 
@@ -69,43 +59,45 @@ const PolicyPage = () => {
     "Define bitrate and priority levels for your subscribers.";
 
   const handleOpenCreateModal = () => setCreateModalOpen(true);
-  const handleEditClick = (policy: APIPolicy) => {
-    setEditData(policy);
-    setEditModalOpen(true);
-  };
-  const handleDeleteClick = (policyName: string) => {
-    setSelectedPolicy(policyName);
-    setConfirmationOpen(true);
-  };
-  const handleDeleteConfirm = async () => {
-    if (!selectedPolicy || !authReady || !accessToken) return;
-    try {
-      await deletePolicy(accessToken, selectedPolicy);
-      setConfirmationOpen(false);
-      showSnackbar(
-        `Policy "${selectedPolicy}" deleted successfully.`,
-        "success",
-      );
-      queryClient.invalidateQueries({ queryKey: ["policies"] });
-    } catch (error) {
-      setConfirmationOpen(false);
-      showSnackbar(
-        `Failed to delete policy "${selectedPolicy}": ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`,
-        "error",
-      );
-    } finally {
-      setSelectedPolicy(null);
-    }
-  };
 
   const rows: APIPolicy[] = pageData?.items ?? [];
   const rowCount = pageData?.total_count ?? 0;
 
   const columns: GridColDef<APIPolicy>[] = useMemo(() => {
     return [
-      { field: "name", headerName: "Name", flex: 1, minWidth: 180 },
+      {
+        field: "name",
+        headerName: "Name",
+        flex: 1,
+        minWidth: 180,
+        renderCell: (params: GridRenderCellParams<APIPolicy>) => (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+              height: "100%",
+            }}
+          >
+            <Link
+              to={`/policies/${params.row.name}`}
+              style={{ textDecoration: "none" }}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            >
+              <Typography
+                variant="body2"
+                sx={{
+                  color: theme.palette.link,
+                  textDecoration: "underline",
+                  "&:hover": { textDecoration: "underline" },
+                }}
+              >
+                {params.row.name}
+              </Typography>
+            </Link>
+          </Box>
+        ),
+      },
       {
         field: "bitrate_uplink",
         headerName: "Bitrate (Up)",
@@ -153,34 +145,8 @@ const PolicyPage = () => {
           </Box>
         ),
       },
-      ...(canEdit
-        ? [
-            {
-              field: "actions",
-              headerName: "Actions",
-              type: "actions",
-              width: 160,
-              sortable: false,
-              disableColumnMenu: true,
-              getActions: (params) => [
-                <GridActionsCellItem
-                  key="edit"
-                  icon={<EditIcon color="primary" />}
-                  label="Edit"
-                  onClick={() => handleEditClick(params.row)}
-                />,
-                <GridActionsCellItem
-                  key="delete"
-                  icon={<DeleteIcon color="primary" />}
-                  label="Delete"
-                  onClick={() => handleDeleteClick(params.row.name)}
-                />,
-              ],
-            } as GridColDef<APIPolicy>,
-          ]
-        : []),
     ];
-  }, [canEdit]);
+  }, [theme]);
 
   return (
     <Box
@@ -287,35 +253,6 @@ const PolicyPage = () => {
             queryClient.invalidateQueries({ queryKey: ["policies"] });
             showSnackbar("Policy created successfully.", "success");
           }}
-        />
-      )}
-      {isEditModalOpen && (
-        <EditPolicyModal
-          open
-          onClose={() => setEditModalOpen(false)}
-          onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["policies"] });
-            showSnackbar("Policy updated successfully.", "success");
-          }}
-          initialData={
-            editData || {
-              name: "",
-              bitrate_uplink: "100 Mbps",
-              bitrate_downlink: "100 Mbps",
-              var5qi: 1,
-              arp: 1,
-              data_network_name: "",
-            }
-          }
-        />
-      )}
-      {isConfirmationOpen && (
-        <DeleteConfirmationModal
-          open
-          onClose={() => setConfirmationOpen(false)}
-          onConfirm={handleDeleteConfirm}
-          title="Confirm Deletion"
-          description={`Are you sure you want to delete the policy "${selectedPolicy}"? This action cannot be undone.`}
         />
       )}
     </Box>

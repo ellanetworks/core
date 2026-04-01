@@ -10,6 +10,7 @@ import SubscriberDetail from "./pages/SubscriberDetail";
 import Radios from "./pages/Radios";
 import RadioDetail from "./pages/RadioDetail";
 import Policies from "./pages/Policies";
+import PolicyDetail from "./pages/PolicyDetail";
 import Networking from "./pages/Networking";
 import DataNetworkDetail from "./pages/DataNetworkDetail";
 import Operator from "./pages/Operator";
@@ -38,6 +39,7 @@ export default function AppRouter() {
         <Route path="radios" element={<Radios />} />
         <Route path="radios/:name" element={<RadioDetail />} />
         <Route path="policies" element={<Policies />} />
+        <Route path="policies/:name" element={<PolicyDetail />} />
         <Route path="networking" element={<Networking />} />
         <Route
           path="networking/data-networks/:name"
