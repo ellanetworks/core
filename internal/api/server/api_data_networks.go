@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/ipam"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf"
+	"go.uber.org/zap"
 )
 
 type CreateDataNetworkParams struct {
@@ -167,9 +168,13 @@ func GetDataNetwork(dbInstance *db.Database, sessions smf.SessionQuerier) http.H
 		}
 
 		pool, poolErr := ipam.NewPool(dbDataNetwork.ID, dbDataNetwork.IPPool)
-		if poolErr == nil {
+		if poolErr != nil {
+			logger.APILog.Warn("failed to parse IP pool for allocation stats", zap.String("data_network", name), zap.Error(poolErr))
+		} else {
 			allocated, countErr := dbInstance.CountLeasesByPool(r.Context(), dbDataNetwork.ID)
-			if countErr == nil {
+			if countErr != nil {
+				logger.APILog.Warn("failed to count leases for allocation stats", zap.String("data_network", name), zap.Error(countErr))
+			} else {
 				poolSize := pool.Size()
 
 				available := poolSize - allocated

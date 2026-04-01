@@ -412,7 +412,7 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID int, page, 
 
 			fallbackCount, countErr := db.CountLeasesByPool(ctx, poolID)
 			if countErr != nil {
-				return nil, 0, nil
+				return nil, 0, fmt.Errorf("count fallback failed: %w", countErr)
 			}
 
 			return nil, fallbackCount, nil

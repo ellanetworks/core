@@ -109,7 +109,7 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	mux.HandleFunc("PUT /api/v1/networking/data-networks/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateDataNetwork, UpdateDataNetwork(dbInstance, cfg, bgpService))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/networking/data-networks/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadDataNetwork, GetDataNetwork(dbInstance, sessions))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/networking/data-networks/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteDataNetwork, DeleteDataNetwork(dbInstance, cfg, bgpService))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/networking/data-networks/{name}/ip-allocations", Authenticate(jwtSecret, dbInstance, Authorize(PermListDataNetworks, ListIPAllocations(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/networking/data-networks/{name}/ip-allocations", Authenticate(jwtSecret, dbInstance, Authorize(PermReadDataNetwork, ListIPAllocations(dbInstance))).ServeHTTP)
 
 	// Routes (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/routes", Authenticate(jwtSecret, dbInstance, Authorize(PermListRoutes, ListRoutes(dbInstance, bgpService))).ServeHTTP)
