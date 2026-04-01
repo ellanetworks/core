@@ -12,7 +12,7 @@ Typical mobile networks are expensive, complex, and inadequate for private deplo
 
 Use Ella Core where you need 5G connectivity: in a factory, a warehouse, a farm, a stadium, a ship, a military base, or a remote location.
 
-[Get Started Now!](https://docs.ellanetworks.com/tutorials/getting_started/)
+[Get Started Now!](https://docs.ellanetworks.com/tutorials/)
 
 ## Key features
 

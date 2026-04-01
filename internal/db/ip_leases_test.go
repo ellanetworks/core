@@ -592,3 +592,106 @@ func TestCountLeasesByIMSI(t *testing.T) {
 		t.Fatalf("expected 1, got %d", count)
 	}
 }
+
+func TestListLeasesByPoolPage(t *testing.T) {
+	database, poolID, imsi := setupLeaseTestDB(t)
+	ctx := context.Background()
+
+	// Create a second subscriber.
+	imsi2 := "001010123456790"
+	sub2 := &db.Subscriber{
+		Imsi:           imsi2,
+		SequenceNumber: "000000000001",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+		PolicyID:       1,
+	}
+
+	if err := database.CreateSubscriber(ctx, sub2); err != nil {
+		t.Fatalf("CreateSubscriber: %s", err)
+	}
+
+	now := time.Now().Unix()
+	sess1, sess2, sess3 := 1, 2, 3
+
+	// Create 3 leases with addresses that sort as: .1, .10, .2
+	// (string sort vs address sort - validates ORDER BY)
+	if err := database.CreateLease(ctx, &db.IPLease{
+		PoolID: poolID, Address: "192.168.1.10", IMSI: imsi,
+		SessionID: &sess1, Type: "dynamic", CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("CreateLease 1: %s", err)
+	}
+
+	if err := database.CreateLease(ctx, &db.IPLease{
+		PoolID: poolID, Address: "192.168.1.2", IMSI: imsi,
+		SessionID: &sess2, Type: "dynamic", CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("CreateLease 2: %s", err)
+	}
+
+	if err := database.CreateLease(ctx, &db.IPLease{
+		PoolID: poolID, Address: "192.168.1.1", IMSI: imsi2,
+		SessionID: &sess3, Type: "dynamic", CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("CreateLease 3: %s", err)
+	}
+
+	t.Run("first page", func(t *testing.T) {
+		leases, total, err := database.ListLeasesByPoolPage(ctx, poolID, 1, 2)
+		if err != nil {
+			t.Fatalf("ListLeasesByPoolPage: %s", err)
+		}
+
+		if total != 3 {
+			t.Fatalf("expected total 3, got %d", total)
+		}
+
+		if len(leases) != 2 {
+			t.Fatalf("expected 2 leases on page 1, got %d", len(leases))
+		}
+
+		// Verify ordering by address.
+		if leases[0].Address != "192.168.1.1" {
+			t.Fatalf("expected first address 192.168.1.1, got %s", leases[0].Address)
+		}
+
+		if leases[1].Address != "192.168.1.10" {
+			t.Fatalf("expected second address 192.168.1.10, got %s", leases[1].Address)
+		}
+	})
+
+	t.Run("second page", func(t *testing.T) {
+		leases, total, err := database.ListLeasesByPoolPage(ctx, poolID, 2, 2)
+		if err != nil {
+			t.Fatalf("ListLeasesByPoolPage: %s", err)
+		}
+
+		if total != 3 {
+			t.Fatalf("expected total 3, got %d", total)
+		}
+
+		if len(leases) != 1 {
+			t.Fatalf("expected 1 lease on page 2, got %d", len(leases))
+		}
+
+		if leases[0].Address != "192.168.1.2" {
+			t.Fatalf("expected address 192.168.1.2, got %s", leases[0].Address)
+		}
+	})
+
+	t.Run("empty pool", func(t *testing.T) {
+		leases, total, err := database.ListLeasesByPoolPage(ctx, 9999, 1, 25)
+		if err != nil {
+			t.Fatalf("ListLeasesByPoolPage: %s", err)
+		}
+
+		if total != 0 {
+			t.Fatalf("expected total 0, got %d", total)
+		}
+
+		if len(leases) != 0 {
+			t.Fatalf("expected 0 leases, got %d", len(leases))
+		}
+	})
+}

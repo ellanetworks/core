@@ -1575,6 +1575,30 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
+  /api/v1/networking/data-networks/{name}/ip-allocations:
+    get:
+      operationId: listIPAllocations
+      tags: [Data Networks]
+      summary: List IP allocations for a data network
+      description: Returns a paginated list of IP address allocations (leases) for the specified data network.
+      parameters:
+        - $ref: "#/components/parameters/DataNetworkNamePath"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Paginated list of IP allocations.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListIPAllocationsResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   # ── Routes ──────────────────────────────────────────────────────────────
   /api/v1/networking/routes:
     get:
@@ -3416,6 +3440,20 @@ components:
           description: Number of active PDU sessions on this data network.
       required: [sessions]
 
+    DataNetworkIPAllocation:
+      type: object
+      properties:
+        pool_size:
+          type: integer
+          description: Total number of usable IP addresses in the pool.
+        allocated:
+          type: integer
+          description: Number of currently allocated (leased) addresses.
+        available:
+          type: integer
+          description: Number of addresses still available for allocation.
+      required: [pool_size, allocated, available]
+
     DataNetwork:
       type: object
       properties:
@@ -3432,6 +3470,9 @@ components:
           description: "Maximum Transmission Unit (0-65535)."
         status:
           $ref: "#/components/schemas/DataNetworkStatus"
+        ip_allocation:
+          $ref: "#/components/schemas/DataNetworkIPAllocation"
+          description: IP pool utilization statistics. Present only in the detail response.
       required: [name, ip_pool, dns, mtu, status]
 
     DataNetworkResponseEnvelope:
@@ -3493,6 +3534,45 @@ components:
           type: integer
           minimum: 0
           maximum: 65535
+
+    IPAllocationItem:
+      type: object
+      properties:
+        address:
+          type: string
+          description: Allocated IP address.
+        imsi:
+          type: string
+          description: IMSI of the subscriber holding the lease.
+        type:
+          type: string
+          description: "Lease type (e.g. \"dynamic\")."
+        session_id:
+          type: integer
+          nullable: true
+          description: PDU session ID, or null if the lease is not tied to an active session.
+      required: [address, imsi, type, session_id]
+
+    ListIPAllocationsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/IPAllocationItem"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+      required: [items, page, per_page, total_count]
+
+    ListIPAllocationsResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListIPAllocationsResponse"
 
     # ── Routes ──────────────────────────────────────────────────────────
     Route:

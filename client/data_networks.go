@@ -23,11 +23,41 @@ type DeleteDataNetworkOptions struct {
 	Name string `json:"name"`
 }
 
+type ListIPAllocationsOptions struct {
+	DataNetworkName string
+}
+
+type DataNetworkStatus struct {
+	Sessions int `json:"sessions"`
+}
+
+type DataNetworkIPAllocation struct {
+	PoolSize  int `json:"pool_size"`
+	Allocated int `json:"allocated"`
+	Available int `json:"available"`
+}
+
 type DataNetwork struct {
-	Name   string `json:"name"`
-	IPPool string `json:"ip_pool"`
-	DNS    string `json:"dns"`
-	Mtu    int32  `json:"mtu"`
+	Name         string                   `json:"name"`
+	IPPool       string                   `json:"ip_pool"`
+	DNS          string                   `json:"dns"`
+	Mtu          int32                    `json:"mtu"`
+	Status       DataNetworkStatus        `json:"status"`
+	IPAllocation *DataNetworkIPAllocation `json:"ip_allocation,omitempty"`
+}
+
+type IPAllocation struct {
+	Address   string `json:"address"`
+	IMSI      string `json:"imsi"`
+	Type      string `json:"type"`
+	SessionID *int   `json:"session_id"`
+}
+
+type ListIPAllocationsResponse struct {
+	Items      []IPAllocation `json:"items"`
+	Page       int            `json:"page"`
+	PerPage    int            `json:"per_page"`
+	TotalCount int            `json:"total_count"`
 }
 
 type ListDataNetworksResponse struct {
@@ -129,4 +159,29 @@ func (c *Client) ListDataNetworks(ctx context.Context, p *ListParams) (*ListData
 	}
 
 	return &dataNetworks, nil
+}
+
+// ListIPAllocations lists IP allocations for a data network with pagination support.
+func (c *Client) ListIPAllocations(ctx context.Context, opts *ListIPAllocationsOptions, p *ListParams) (*ListIPAllocationsResponse, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   "api/v1/networking/data-networks/" + opts.DataNetworkName + "/ip-allocations",
+		Query: url.Values{
+			"page":     {fmt.Sprintf("%d", p.Page)},
+			"per_page": {fmt.Sprintf("%d", p.PerPage)},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var allocations ListIPAllocationsResponse
+
+	err = resp.DecodeResult(&allocations)
+	if err != nil {
+		return nil, err
+	}
+
+	return &allocations, nil
 }

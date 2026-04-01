@@ -248,7 +248,7 @@ export default function DrawerLayout({
               <ListItemButton
                 component={Link}
                 to="/networking"
-                selected={pathname === "/networking"}
+                selected={pathname.startsWith("/networking")}
                 onClick={handleNavClick}
                 sx={drawerSelectedSx}
               >

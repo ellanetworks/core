@@ -520,7 +520,7 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *AmfUe, ngapBuf []byte) error
 	if amf.T3513Cfg.Enable {
 		cfg := amf.T3513Cfg
 		ue.T3513 = NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
-			ue.Log.Warn("t3513 expires, retransmit paging", zap.Int32("retry", expireTimes))
+			ue.Log.Info("t3513 expires, retransmit paging", zap.Int32("retry", expireTimes))
 
 			for _, ran := range amf.ListRadios() {
 				for _, item := range ran.SupportedTAIs {

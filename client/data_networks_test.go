@@ -69,7 +69,7 @@ func TestGetDataNetwork_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"name": "my-data-network", "ip_pool": "1.2.3.0/22"}`),
+			Result:     []byte(`{"name": "my-data-network", "ip_pool": "1.2.3.0/22", "dns": "8.8.8.8", "mtu": 1400, "status": {"sessions": 3}, "ip_allocation": {"pool_size": 1022, "allocated": 10, "available": 1012}}`),
 		},
 		err: nil,
 	}
@@ -90,11 +90,23 @@ func TestGetDataNetwork_Success(t *testing.T) {
 	}
 
 	if dataNetwork.Name != name {
-		t.Fatalf("expected ID %v, got %v", name, dataNetwork.Name)
+		t.Fatalf("expected name %v, got %v", name, dataNetwork.Name)
 	}
 
 	if dataNetwork.IPPool != "1.2.3.0/22" {
-		t.Fatalf("expected ID %v, got %v", "1.2.3.0/22", dataNetwork.IPPool)
+		t.Fatalf("expected ip_pool %v, got %v", "1.2.3.0/22", dataNetwork.IPPool)
+	}
+
+	if dataNetwork.Status.Sessions != 3 {
+		t.Fatalf("expected 3 sessions, got %d", dataNetwork.Status.Sessions)
+	}
+
+	if dataNetwork.IPAllocation == nil {
+		t.Fatal("expected ip_allocation to be present")
+	}
+
+	if dataNetwork.IPAllocation.PoolSize != 1022 {
+		t.Fatalf("expected pool_size 1022, got %d", dataNetwork.IPAllocation.PoolSize)
 	}
 }
 
@@ -228,6 +240,78 @@ func TestListDataNetworks_Failure(t *testing.T) {
 	}
 
 	_, err := clientObj.ListDataNetworks(ctx, params)
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}
+
+func TestListIPAllocations_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"items": [{"address": "10.45.0.1", "imsi": "001010000000001", "type": "dynamic", "session_id": 1}], "page": 1, "per_page": 25, "total_count": 1}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	opts := &client.ListIPAllocationsOptions{
+		DataNetworkName: "internet",
+	}
+
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 25,
+	}
+
+	resp, err := clientObj.ListIPAllocations(ctx, opts, params)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 allocation, got %d", len(resp.Items))
+	}
+
+	if resp.Items[0].Address != "10.45.0.1" {
+		t.Fatalf("expected address 10.45.0.1, got %s", resp.Items[0].Address)
+	}
+
+	if resp.Items[0].SessionID == nil || *resp.Items[0].SessionID != 1 {
+		t.Fatal("expected session_id 1")
+	}
+}
+
+func TestListIPAllocations_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 404,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "Data Network not found"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	opts := &client.ListIPAllocationsOptions{
+		DataNetworkName: "nonexistent",
+	}
+
+	params := &client.ListParams{
+		Page:    1,
+		PerPage: 25,
+	}
+
+	_, err := clientObj.ListIPAllocations(ctx, opts, params)
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
