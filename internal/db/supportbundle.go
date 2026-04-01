@@ -129,7 +129,7 @@ func (db *Database) ExportSupportData(ctx context.Context) (map[string]any, erro
 		for _, l := range allLeases {
 			entry := map[string]any{
 				"poolID":  l.PoolID,
-				"address": l.Address,
+				"address": l.Address().String(),
 				"imsi":    l.IMSI,
 				"type":    l.Type,
 			}

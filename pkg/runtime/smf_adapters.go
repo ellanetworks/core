@@ -62,7 +62,7 @@ func dbLeaseToIPAM(l *db.IPLease) *ipam.Lease {
 	return &ipam.Lease{
 		ID:        l.ID,
 		PoolID:    l.PoolID,
-		Address:   l.Address,
+		Address:   l.Address().String(),
 		IMSI:      l.IMSI,
 		SessionID: l.SessionID,
 		Type:      l.Type,
@@ -74,7 +74,6 @@ func ipamLeaseToDB(l *ipam.Lease) *db.IPLease {
 	return &db.IPLease{
 		ID:        l.ID,
 		PoolID:    l.PoolID,
-		Address:   l.Address,
 		IMSI:      l.IMSI,
 		SessionID: l.SessionID,
 		Type:      l.Type,
@@ -105,7 +104,12 @@ func (a *leaseStoreAdapter) ListLeaseAddressesByPool(ctx context.Context, poolID
 }
 
 func (a *leaseStoreAdapter) CreateLease(ctx context.Context, lease *ipam.Lease) error {
-	return mapDBError(a.db.CreateLease(ctx, ipamLeaseToDB(lease)))
+	addr, err := netip.ParseAddr(lease.Address)
+	if err != nil {
+		return fmt.Errorf("invalid IP address %q: %w", lease.Address, err)
+	}
+
+	return mapDBError(a.db.CreateLease(ctx, ipamLeaseToDB(lease), addr))
 }
 
 func (a *leaseStoreAdapter) UpdateLeaseSession(ctx context.Context, leaseID int, sessionID int) error {

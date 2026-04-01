@@ -1,0 +1,295 @@
+// Copyright 2026 Ella Networks
+
+package db
+
+import (
+	"context"
+	"fmt"
+	"net/netip"
+	"testing"
+
+	_ "github.com/mattn/go-sqlite3"
+)
+
+func TestMigrateV6_BackfillsAddressBin(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	// Build schema up to V5 (before addressBin exists).
+	applyV1(t, db)
+	applyV2(t, db)
+	applyV3(t, db)
+	applyV4(t, db)
+	applyV5(t, db)
+
+	// Insert prerequisite data: operator, data network, policy, subscriber.
+	_, err := db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, mcc, mnc, operatorCode, sst) VALUES (1, '001', '01', 'testop', 1)",
+		OperatorTableName))
+	if err != nil {
+		t.Fatalf("failed to insert operator: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, name, ipPool, dns, mtu) VALUES (1, 'test-dnn', '10.0.0.0/24', '8.8.8.8', 1400)",
+		DataNetworksTableName))
+	if err != nil {
+		t.Fatalf("failed to insert data network: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, name, bitrateUplink, bitrateDownlink, var5qi, arp, dataNetworkID) VALUES (1, 'test-policy', '1 Mbps', '1 Mbps', 9, 1, 1)",
+		PoliciesTableName))
+	if err != nil {
+		t.Fatalf("failed to insert policy: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (imsi, sequenceNumber, permanentKey, opc, policyID) VALUES ('001010100000001', '000000000001', '6f30087629feb0b089783c81d0ae09b5', '21a7e1897dfb481d62439142cdf1b6ee', 1)",
+		SubscribersTableName))
+	if err != nil {
+		t.Fatalf("failed to insert subscriber: %v", err)
+	}
+
+	// Insert TEXT-only leases (no addressBin column yet).
+	leases := []struct {
+		id      int
+		address string
+		session int
+	}{
+		{1, "10.0.0.1", 1},
+		{2, "10.0.0.2", 2},
+		{3, "10.0.0.10", 3},
+	}
+
+	for _, l := range leases {
+		_, err := db.ExecContext(ctx, fmt.Sprintf(
+			"INSERT INTO %s (poolID, address, imsi, sessionID, type, createdAt) VALUES (1, '%s', '001010100000001', %d, 'dynamic', 1000)",
+			IPLeasesTableName, l.address, l.session))
+		if err != nil {
+			t.Fatalf("failed to insert lease %s: %v", l.address, err)
+		}
+	}
+
+	// Apply V6 migration — backfills addressBin and drops the address column.
+	applyV6(t, db)
+
+	// Verify each row has the correct addressBin (query by id since address column is gone).
+	for _, l := range leases {
+		var binData []byte
+
+		err := db.QueryRowContext(ctx, fmt.Sprintf(
+			"SELECT addressBin FROM %s WHERE id = ?", IPLeasesTableName), l.id).Scan(&binData)
+		if err != nil {
+			t.Fatalf("failed to query addressBin for id %d: %v", l.id, err)
+		}
+
+		expected := netip.MustParseAddr(l.address).As16()
+
+		if len(binData) != 16 {
+			t.Errorf("id %d: expected 16 bytes, got %d", l.id, len(binData))
+			continue
+		}
+
+		for i := 0; i < 16; i++ {
+			if binData[i] != expected[i] {
+				t.Errorf("id %d: byte %d = %02x, want %02x", l.id, i, binData[i], expected[i])
+				break
+			}
+		}
+	}
+
+	// Verify ORDER BY addressBin produces correct numeric order.
+	rows, err := db.QueryContext(ctx, fmt.Sprintf(
+		"SELECT addressBin FROM %s WHERE poolID = 1 ORDER BY addressBin", IPLeasesTableName))
+	if err != nil {
+		t.Fatalf("failed to query sorted addresses: %v", err)
+	}
+
+	defer func() { _ = rows.Close() }()
+
+	var sorted []string
+
+	for rows.Next() {
+		var binData []byte
+
+		if err := rows.Scan(&binData); err != nil {
+			t.Fatalf("failed to scan addressBin: %v", err)
+		}
+
+		var arr [16]byte
+
+		copy(arr[:], binData)
+
+		addr := netip.AddrFrom16(arr)
+		if addr.Is4In6() {
+			addr = addr.Unmap()
+		}
+
+		sorted = append(sorted, addr.String())
+	}
+
+	expected := []string{"10.0.0.1", "10.0.0.2", "10.0.0.10"}
+
+	if len(sorted) != len(expected) {
+		t.Fatalf("expected %d addresses, got %d", len(expected), len(sorted))
+	}
+
+	for i, want := range expected {
+		if sorted[i] != want {
+			t.Fatalf("sorted[%d] = %s, want %s", i, sorted[i], want)
+		}
+	}
+}
+
+func TestMigrateV6_HandlesEmptyAddress(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	applyV1(t, db)
+	applyV2(t, db)
+	applyV3(t, db)
+	applyV4(t, db)
+	applyV5(t, db)
+
+	_, err := db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, mcc, mnc, operatorCode, sst) VALUES (1, '001', '01', 'testop', 1)",
+		OperatorTableName))
+	if err != nil {
+		t.Fatalf("failed to insert operator: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, name, ipPool, dns, mtu) VALUES (1, 'test-dnn', '10.0.0.0/24', '8.8.8.8', 1400)",
+		DataNetworksTableName))
+	if err != nil {
+		t.Fatalf("failed to insert data network: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, name, bitrateUplink, bitrateDownlink, var5qi, arp, dataNetworkID) VALUES (1, 'test-policy', '1 Mbps', '1 Mbps', 9, 1, 1)",
+		PoliciesTableName))
+	if err != nil {
+		t.Fatalf("failed to insert policy: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (imsi, sequenceNumber, permanentKey, opc, policyID) VALUES ('001010100000001', '000000000001', '6f30087629feb0b089783c81d0ae09b5', '21a7e1897dfb481d62439142cdf1b6ee', 1)",
+		SubscribersTableName))
+	if err != nil {
+		t.Fatalf("failed to insert subscriber: %v", err)
+	}
+
+	// Insert a lease with an empty address.
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (poolID, address, imsi, sessionID, type, createdAt) VALUES (1, '', '001010100000001', 1, 'dynamic', 1000)",
+		IPLeasesTableName))
+	if err != nil {
+		t.Fatalf("failed to insert empty-address lease: %v", err)
+	}
+
+	// Migration should succeed without erroring on the empty address.
+	applyV6(t, db)
+
+	// The row should exist with zeroed addressBin.
+	var binData []byte
+
+	err = db.QueryRowContext(ctx, fmt.Sprintf(
+		"SELECT addressBin FROM %s WHERE id = 1", IPLeasesTableName)).Scan(&binData)
+	if err != nil {
+		t.Fatalf("failed to query addressBin: %v", err)
+	}
+
+	if len(binData) != 16 {
+		t.Fatalf("expected 16 bytes, got %d", len(binData))
+	}
+
+	// All bytes should be zero (empty address → zeroed default).
+	for i, b := range binData {
+		if b != 0 {
+			t.Fatalf("byte %d = %02x, want 0x00", i, b)
+		}
+	}
+}
+
+func TestMigrateV6_CreatesIndex(t *testing.T) {
+	db := openTestDB(t)
+
+	applyV1(t, db)
+	applyV2(t, db)
+	applyV3(t, db)
+	applyV4(t, db)
+	applyV5(t, db)
+	applyV6(t, db)
+
+	indexes := allIndexNames(t, db)
+
+	indexSet := make(map[string]bool, len(indexes))
+	for _, name := range indexes {
+		indexSet[name] = true
+	}
+
+	if !indexSet["idx_leases_pool_address_bin"] {
+		t.Errorf("expected index idx_leases_pool_address_bin not found; got indexes: %v", indexes)
+	}
+}
+
+func TestMigrateV6_DropsAddressColumn(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	applyV1(t, db)
+	applyV2(t, db)
+	applyV3(t, db)
+	applyV4(t, db)
+	applyV5(t, db)
+	applyV6(t, db)
+
+	rows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info(%s)", IPLeasesTableName))
+	if err != nil {
+		t.Fatalf("failed to query table info: %v", err)
+	}
+
+	defer func() { _ = rows.Close() }()
+
+	foundBin := false
+	foundText := false
+
+	for rows.Next() {
+		var (
+			cid       int
+			name, typ string
+			notnull   int
+			dflt      interface{}
+			pk        int
+		)
+
+		if err := rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk); err != nil {
+			t.Fatalf("failed to scan column info: %v", err)
+		}
+
+		if name == "addressBin" {
+			foundBin = true
+
+			if typ != "BLOB" {
+				t.Errorf("addressBin type = %s, want BLOB", typ)
+			}
+
+			if notnull != 1 {
+				t.Errorf("addressBin notnull = %d, want 1", notnull)
+			}
+		}
+
+		if name == "address" {
+			foundText = true
+		}
+	}
+
+	if !foundBin {
+		t.Error("addressBin column not found in ip_leases table after V6 migration")
+	}
+
+	if foundText {
+		t.Error("address TEXT column should have been dropped by V6 migration")
+	}
+}

@@ -4,6 +4,7 @@ package db_test
 
 import (
 	"context"
+	"net/netip"
 	"path/filepath"
 	"testing"
 	"time"
@@ -76,6 +77,8 @@ func setupLeaseTestDB(t *testing.T) (*db.Database, int, string) {
 	return database, createdDNN.ID, imsi
 }
 
+func addr(s string) netip.Addr { return netip.MustParseAddr(s) }
+
 func TestCreateAndGetLease(t *testing.T) {
 	database, poolID, imsi := setupLeaseTestDB(t)
 	ctx := context.Background()
@@ -83,14 +86,13 @@ func TestCreateAndGetLease(t *testing.T) {
 	sessionID := 1
 	lease := &db.IPLease{
 		PoolID:    poolID,
-		Address:   "192.168.1.10",
 		IMSI:      imsi,
 		SessionID: &sessionID,
 		Type:      "dynamic",
 		CreatedAt: time.Now().Unix(),
 	}
 
-	if err := database.CreateLease(ctx, lease); err != nil {
+	if err := database.CreateLease(ctx, lease, addr("192.168.1.10")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
@@ -100,8 +102,8 @@ func TestCreateAndGetLease(t *testing.T) {
 		t.Fatalf("GetDynamicLease: %s", err)
 	}
 
-	if got.Address != lease.Address {
-		t.Fatalf("expected address %s, got %s", lease.Address, got.Address)
+	if got.Address() != addr("192.168.1.10") {
+		t.Fatalf("expected address 192.168.1.10, got %s", got.Address())
 	}
 
 	if got.IMSI != imsi {
@@ -124,14 +126,13 @@ func TestCreateLease_UniqueConstraint(t *testing.T) {
 	sessionID := 1
 	lease := &db.IPLease{
 		PoolID:    poolID,
-		Address:   "192.168.1.10",
 		IMSI:      imsi,
 		SessionID: &sessionID,
 		Type:      "dynamic",
 		CreatedAt: time.Now().Unix(),
 	}
 
-	if err := database.CreateLease(ctx, lease); err != nil {
+	if err := database.CreateLease(ctx, lease, addr("192.168.1.10")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
@@ -152,14 +153,13 @@ func TestCreateLease_UniqueConstraint(t *testing.T) {
 	sessionID2 := 2
 	dup := &db.IPLease{
 		PoolID:    poolID,
-		Address:   "192.168.1.10", // same address, same pool
 		IMSI:      imsi2,
 		SessionID: &sessionID2,
 		Type:      "dynamic",
 		CreatedAt: time.Now().Unix(),
 	}
 
-	err := database.CreateLease(ctx, dup)
+	err := database.CreateLease(ctx, dup, addr("192.168.1.10")) // same address, same pool
 	if err != db.ErrAlreadyExists {
 		t.Fatalf("expected ErrAlreadyExists, got %v", err)
 	}
@@ -173,14 +173,13 @@ func TestUpdateLeaseSession(t *testing.T) {
 	sessID := 1
 	lease := &db.IPLease{
 		PoolID:    poolID,
-		Address:   "192.168.1.20",
 		IMSI:      imsi,
 		SessionID: &sessID,
 		Type:      "dynamic",
 		CreatedAt: time.Now().Unix(),
 	}
 
-	if err := database.CreateLease(ctx, lease); err != nil {
+	if err := database.CreateLease(ctx, lease, addr("192.168.1.20")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
@@ -211,14 +210,13 @@ func TestGetLeaseBySession(t *testing.T) {
 	sessionID := 42
 	lease := &db.IPLease{
 		PoolID:    poolID,
-		Address:   "192.168.1.30",
 		IMSI:      imsi,
 		SessionID: &sessionID,
 		Type:      "dynamic",
 		CreatedAt: time.Now().Unix(),
 	}
 
-	if err := database.CreateLease(ctx, lease); err != nil {
+	if err := database.CreateLease(ctx, lease, addr("192.168.1.30")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
@@ -227,8 +225,8 @@ func TestGetLeaseBySession(t *testing.T) {
 		t.Fatalf("GetLeaseBySession: %s", err)
 	}
 
-	if got.Address != "192.168.1.30" {
-		t.Fatalf("expected address 192.168.1.30, got %s", got.Address)
+	if got.Address() != addr("192.168.1.30") {
+		t.Fatalf("expected address 192.168.1.30, got %s", got.Address())
 	}
 
 	// Wrong session should return not found.
@@ -245,14 +243,13 @@ func TestDeleteDynamicLease(t *testing.T) {
 	sessionID := 5
 	lease := &db.IPLease{
 		PoolID:    poolID,
-		Address:   "192.168.1.40",
 		IMSI:      imsi,
 		SessionID: &sessionID,
 		Type:      "dynamic",
 		CreatedAt: time.Now().Unix(),
 	}
 
-	if err := database.CreateLease(ctx, lease); err != nil {
+	if err := database.CreateLease(ctx, lease, addr("192.168.1.40")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
@@ -295,17 +292,17 @@ func TestDeleteAllDynamicLeases(t *testing.T) {
 
 	// Dynamic lease 1.
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, Address: "192.168.1.10", IMSI: imsi,
+		PoolID: poolID, IMSI: imsi,
 		SessionID: &sess1, Type: "dynamic", CreatedAt: now,
-	}); err != nil {
+	}, addr("192.168.1.10")); err != nil {
 		t.Fatalf("CreateLease 1: %s", err)
 	}
 
 	// Dynamic lease 2.
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, Address: "192.168.1.11", IMSI: imsi2,
+		PoolID: poolID, IMSI: imsi2,
 		SessionID: &sess2, Type: "dynamic", CreatedAt: now,
-	}); err != nil {
+	}, addr("192.168.1.11")); err != nil {
 		t.Fatalf("CreateLease 2: %s", err)
 	}
 
@@ -343,9 +340,9 @@ func TestListActiveLeases(t *testing.T) {
 
 	// Active dynamic lease.
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, Address: "192.168.1.5", IMSI: imsi,
+		PoolID: poolID, IMSI: imsi,
 		SessionID: &sess, Type: "dynamic", CreatedAt: now,
-	}); err != nil {
+	}, addr("192.168.1.5")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
@@ -358,8 +355,8 @@ func TestListActiveLeases(t *testing.T) {
 		t.Fatalf("expected 1 active lease, got %d", len(leases))
 	}
 
-	if leases[0].Address != "192.168.1.5" {
-		t.Fatalf("expected active lease address 192.168.1.5, got %s", leases[0].Address)
+	if leases[0].Address() != addr("192.168.1.5") {
+		t.Fatalf("expected active lease address 192.168.1.5, got %s", leases[0].Address())
 	}
 }
 
@@ -371,17 +368,17 @@ func TestListLeasesByPool(t *testing.T) {
 	sess := 30
 
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, Address: "192.168.1.1", IMSI: imsi,
+		PoolID: poolID, IMSI: imsi,
 		SessionID: &sess, Type: "dynamic", CreatedAt: now,
-	}); err != nil {
+	}, addr("192.168.1.1")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
 	sess2 := 31
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, Address: "192.168.1.2", IMSI: imsi,
+		PoolID: poolID, IMSI: imsi,
 		SessionID: &sess2, Type: "dynamic", CreatedAt: now,
-	}); err != nil {
+	}, addr("192.168.1.2")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
@@ -403,17 +400,17 @@ func TestListLeaseAddressesByPool(t *testing.T) {
 	sess := 40
 
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, Address: "192.168.1.3", IMSI: imsi,
+		PoolID: poolID, IMSI: imsi,
 		SessionID: &sess, Type: "dynamic", CreatedAt: now,
-	}); err != nil {
+	}, addr("192.168.1.3")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
 	sess2 := 41
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, Address: "192.168.1.1", IMSI: imsi,
+		PoolID: poolID, IMSI: imsi,
 		SessionID: &sess2, Type: "dynamic", CreatedAt: now,
-	}); err != nil {
+	}, addr("192.168.1.1")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
@@ -454,9 +451,9 @@ func TestCountActiveLeases(t *testing.T) {
 
 	// One active lease.
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, Address: "192.168.1.7", IMSI: imsi,
+		PoolID: poolID, IMSI: imsi,
 		SessionID: &sess, Type: "dynamic", CreatedAt: now,
-	}); err != nil {
+	}, addr("192.168.1.7")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
@@ -487,9 +484,9 @@ func TestCountLeasesByPool(t *testing.T) {
 	sess := 60
 
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, Address: "192.168.1.9", IMSI: imsi,
+		PoolID: poolID, IMSI: imsi,
 		SessionID: &sess, Type: "dynamic", CreatedAt: now,
-	}); err != nil {
+	}, addr("192.168.1.9")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
@@ -509,9 +506,9 @@ func TestOnDeleteCascade_Subscriber(t *testing.T) {
 
 	sess := 70
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, Address: "192.168.1.15", IMSI: imsi,
+		PoolID: poolID, IMSI: imsi,
 		SessionID: &sess, Type: "dynamic", CreatedAt: time.Now().Unix(),
-	}); err != nil {
+	}, addr("192.168.1.15")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
@@ -537,9 +534,9 @@ func TestOnDeleteCascade_DataNetwork(t *testing.T) {
 
 	sess := 80
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, Address: "192.168.1.16", IMSI: imsi,
+		PoolID: poolID, IMSI: imsi,
 		SessionID: &sess, Type: "dynamic", CreatedAt: time.Now().Unix(),
-	}); err != nil {
+	}, addr("192.168.1.16")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
@@ -577,9 +574,9 @@ func TestCountLeasesByIMSI(t *testing.T) {
 
 	// Add a dynamic lease.
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, Address: "192.168.1.20", IMSI: imsi,
+		PoolID: poolID, IMSI: imsi,
 		SessionID: &sess, Type: "dynamic", CreatedAt: now,
-	}); err != nil {
+	}, addr("192.168.1.20")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
@@ -617,23 +614,23 @@ func TestListLeasesByPoolPage(t *testing.T) {
 	// Create 3 leases with addresses that sort as: .1, .10, .2
 	// (string sort vs address sort - validates ORDER BY)
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, Address: "192.168.1.10", IMSI: imsi,
+		PoolID: poolID, IMSI: imsi,
 		SessionID: &sess1, Type: "dynamic", CreatedAt: now,
-	}); err != nil {
+	}, addr("192.168.1.10")); err != nil {
 		t.Fatalf("CreateLease 1: %s", err)
 	}
 
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, Address: "192.168.1.2", IMSI: imsi,
+		PoolID: poolID, IMSI: imsi,
 		SessionID: &sess2, Type: "dynamic", CreatedAt: now,
-	}); err != nil {
+	}, addr("192.168.1.2")); err != nil {
 		t.Fatalf("CreateLease 2: %s", err)
 	}
 
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, Address: "192.168.1.1", IMSI: imsi2,
+		PoolID: poolID, IMSI: imsi2,
 		SessionID: &sess3, Type: "dynamic", CreatedAt: now,
-	}); err != nil {
+	}, addr("192.168.1.1")); err != nil {
 		t.Fatalf("CreateLease 3: %s", err)
 	}
 
@@ -651,13 +648,13 @@ func TestListLeasesByPoolPage(t *testing.T) {
 			t.Fatalf("expected 2 leases on page 1, got %d", len(leases))
 		}
 
-		// Verify ordering by address.
-		if leases[0].Address != "192.168.1.1" {
-			t.Fatalf("expected first address 192.168.1.1, got %s", leases[0].Address)
+		// Verify numeric ordering by address (not lexicographic).
+		if leases[0].Address() != addr("192.168.1.1") {
+			t.Fatalf("expected first address 192.168.1.1, got %s", leases[0].Address())
 		}
 
-		if leases[1].Address != "192.168.1.10" {
-			t.Fatalf("expected second address 192.168.1.10, got %s", leases[1].Address)
+		if leases[1].Address() != addr("192.168.1.2") {
+			t.Fatalf("expected second address 192.168.1.2, got %s", leases[1].Address())
 		}
 	})
 
@@ -675,8 +672,8 @@ func TestListLeasesByPoolPage(t *testing.T) {
 			t.Fatalf("expected 1 lease on page 2, got %d", len(leases))
 		}
 
-		if leases[0].Address != "192.168.1.2" {
-			t.Fatalf("expected address 192.168.1.2, got %s", leases[0].Address)
+		if leases[0].Address() != addr("192.168.1.10") {
+			t.Fatalf("expected address 192.168.1.10, got %s", leases[0].Address())
 		}
 	})
 
@@ -694,4 +691,81 @@ func TestListLeasesByPoolPage(t *testing.T) {
 			t.Fatalf("expected 0 leases, got %d", len(leases))
 		}
 	})
+}
+
+func TestListLeaseAddressesByPool_NumericOrder(t *testing.T) {
+	database, poolID, imsi := setupLeaseTestDB(t)
+	ctx := context.Background()
+
+	// Create additional subscribers for unique (poolID, addressBin, imsi) combos.
+	imsi2 := "001010123456790"
+
+	sub2 := &db.Subscriber{
+		Imsi:           imsi2,
+		SequenceNumber: "000000000001",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+		PolicyID:       1,
+	}
+
+	if err := database.CreateSubscriber(ctx, sub2); err != nil {
+		t.Fatalf("CreateSubscriber: %s", err)
+	}
+
+	imsi3 := "001010123456791"
+
+	sub3 := &db.Subscriber{
+		Imsi:           imsi3,
+		SequenceNumber: "000000000001",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+		PolicyID:       1,
+	}
+
+	if err := database.CreateSubscriber(ctx, sub3); err != nil {
+		t.Fatalf("CreateSubscriber: %s", err)
+	}
+
+	now := time.Now().Unix()
+	sess1, sess2, sess3 := 1, 2, 3
+
+	// Insert in non-numeric order: .10, .2, .1
+	if err := database.CreateLease(ctx, &db.IPLease{
+		PoolID: poolID, IMSI: imsi,
+		SessionID: &sess1, Type: "dynamic", CreatedAt: now,
+	}, addr("192.168.1.10")); err != nil {
+		t.Fatalf("CreateLease: %s", err)
+	}
+
+	if err := database.CreateLease(ctx, &db.IPLease{
+		PoolID: poolID, IMSI: imsi2,
+		SessionID: &sess2, Type: "dynamic", CreatedAt: now,
+	}, addr("192.168.1.2")); err != nil {
+		t.Fatalf("CreateLease: %s", err)
+	}
+
+	if err := database.CreateLease(ctx, &db.IPLease{
+		PoolID: poolID, IMSI: imsi3,
+		SessionID: &sess3, Type: "dynamic", CreatedAt: now,
+	}, addr("192.168.1.1")); err != nil {
+		t.Fatalf("CreateLease: %s", err)
+	}
+
+	addrs, err := database.ListLeaseAddressesByPool(ctx, poolID)
+	if err != nil {
+		t.Fatalf("ListLeaseAddressesByPool: %s", err)
+	}
+
+	// Expect numeric sort: .1, .2, .10 (not lexicographic .1, .10, .2).
+	expected := []string{"192.168.1.1", "192.168.1.2", "192.168.1.10"}
+
+	if len(addrs) != len(expected) {
+		t.Fatalf("expected %d addresses, got %d", len(expected), len(addrs))
+	}
+
+	for i, want := range expected {
+		if addrs[i] != want {
+			t.Fatalf("address[%d]: expected %s, got %s", i, want, addrs[i])
+		}
+	}
 }

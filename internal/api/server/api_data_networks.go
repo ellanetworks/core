@@ -231,7 +231,7 @@ func ListIPAllocations(dbInstance *db.Database) http.Handler {
 		items := make([]IPAllocationItem, 0, len(leases))
 		for _, lease := range leases {
 			items = append(items, IPAllocationItem{
-				Address:   lease.Address,
+				Address:   lease.Address().String(),
 				IMSI:      lease.IMSI,
 				Type:      lease.Type,
 				SessionID: lease.SessionID,
