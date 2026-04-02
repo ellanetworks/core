@@ -43,8 +43,8 @@ type SessionStore interface {
 	// Returns the released IPv4 address so the caller can withdraw the BGP route.
 	ReleaseIP(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error)
 
-	// GetSubscriberPolicy returns the QoS policy for a subscriber.
-	GetSubscriberPolicy(ctx context.Context, imsi string) (*Policy, error)
+	// GetSessionPolicy returns the QoS policy for a subscriber in the given slice and DNN.
+	GetSessionPolicy(ctx context.Context, imsi string, snssai *models.Snssai, dnn string) (*Policy, error)
 
 	// GetDataNetwork returns the DNN configuration matching the given S-NSSAI and DNN name.
 	GetDataNetwork(ctx context.Context, snssai *models.Snssai, dnn string) (*DataNetworkInfo, error)
@@ -146,7 +146,7 @@ type FilterUpdateResponse struct {
 
 // Policy contains the QoS parameters and network rules the SMF needs for a session.
 type Policy struct {
-	PolicyID     int64 // DB primary key; populated by GetSubscriberPolicy
+	PolicyID     int64 // DB primary key; populated by GetSessionPolicy
 	Ambr         models.Ambr
 	QosData      models.QosData
 	NetworkRules []*ResolvedNetworkRule
@@ -359,14 +359,14 @@ func (s *SMF) SessionCount() int {
 	return len(s.pool)
 }
 
-// GetSubscriberPolicy retrieves the QoS policy for a subscriber from the store.
-func (s *SMF) GetSubscriberPolicy(ctx context.Context, supi etsi.SUPI) (*Policy, error) {
-	ctx, span := tracer.Start(ctx, "smf/get_subscriber_policy",
+// GetSessionPolicy retrieves the QoS policy for a subscriber from the store.
+func (s *SMF) GetSessionPolicy(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (*Policy, error) {
+	ctx, span := tracer.Start(ctx, "smf/get_session_policy",
 		trace.WithAttributes(attribute.String("ue.supi", supi.String())),
 	)
 	defer span.End()
 
-	return s.store.GetSubscriberPolicy(ctx, supi.IMSI())
+	return s.store.GetSessionPolicy(ctx, supi.IMSI(), snssai, dnn)
 }
 
 // GetDataNetwork retrieves the DNN information for a given S-NSSAI and DNN.

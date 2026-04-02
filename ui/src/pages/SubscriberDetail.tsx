@@ -292,7 +292,7 @@ const SubscriberDetail: React.FC = () => {
           }}
           initialData={{
             imsi: subscriber.imsi,
-            policyName: subscriber.policyName,
+            policyName: subscriber.profile_name,
           }}
         />
       )}

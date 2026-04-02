@@ -95,7 +95,7 @@ const SubscriberPage: React.FC = () => {
           </Box>
         ),
       },
-      { field: "policyName", headerName: "Policy", flex: 0.8, minWidth: 140 },
+      { field: "profile_name", headerName: "Policy", flex: 0.8, minWidth: 140 },
       {
         field: "radio",
         headerName: "Radio",

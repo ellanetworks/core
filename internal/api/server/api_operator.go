@@ -17,11 +17,6 @@ const (
 	MaxSupportedTACs = 12
 )
 
-type UpdateOperatorSliceParams struct {
-	Sst int    `json:"sst,omitempty"`
-	Sd  string `json:"sd,omitempty"`
-}
-
 type UpdateOperatorTrackingParams struct {
 	SupportedTacs []string `json:"supportedTacs,omitempty"`
 }
@@ -56,16 +51,10 @@ type GetOperatorSPNResponse struct {
 
 type GetOperatorResponse struct {
 	ID              GetOperatorIDResponse          `json:"id,omitempty"`
-	Slice           GetOperatorSliceResponse       `json:"slice,omitempty"`
 	Tracking        GetOperatorTrackingResponse    `json:"tracking,omitempty"`
 	HomeNetworkKeys []HomeNetworkKeyResponse       `json:"homeNetworkKeys"`
 	NASSecurity     GetOperatorNASSecurityResponse `json:"nasSecurity"`
 	SPN             GetOperatorSPNResponse         `json:"spn"`
-}
-
-type GetOperatorSliceResponse struct {
-	Sst int    `json:"sst,omitempty"`
-	Sd  string `json:"sd,omitempty"`
 }
 
 type GetOperatorIDResponse struct {
@@ -79,7 +68,6 @@ type GetOperatorNASSecurityResponse struct {
 }
 
 const (
-	UpdateOperatorSliceAction       = "update_operator_slice"
 	UpdateOperatorTrackingAction    = "update_operator_tracking"
 	UpdateOperatorIDAction          = "update_operator_id"
 	UpdateOperatorCodeAction        = "update_operator_code"
@@ -247,10 +235,6 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 				Mcc: dbOperator.Mcc,
 				Mnc: dbOperator.Mnc,
 			},
-			Slice: GetOperatorSliceResponse{
-				Sst: int(dbOperator.Sst),
-				Sd:  SDToString(dbOperator.Sd),
-			},
 			Tracking: GetOperatorTrackingResponse{
 				SupportedTacs: supportedTACs,
 			},
@@ -266,121 +250,6 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(r.Context(), w, operator, http.StatusOK, logger.APILog)
-	})
-}
-
-// Deprecated: Use GET /api/v1/operator instead, which returns the full operator
-// configuration including slice data. This endpoint will be removed in a future release.
-func GetOperatorSlice(dbInstance *db.Database) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		dbOperator, err := dbInstance.GetOperator(r.Context())
-		if err != nil {
-			writeError(r.Context(), w, http.StatusNotFound, "Operator not found", err, logger.APILog)
-			return
-		}
-
-		operatorSlice := &GetOperatorSliceResponse{
-			Sst: int(dbOperator.Sst),
-			Sd:  SDToString(dbOperator.Sd),
-		}
-
-		writeResponse(r.Context(), w, operatorSlice, http.StatusOK, logger.APILog)
-	})
-}
-
-// Deprecated: Use GET /api/v1/operator instead, which returns the full operator
-// configuration including tracking data. This endpoint will be removed in a future release.
-func GetOperatorTracking(dbInstance *db.Database) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		dbOperator, err := dbInstance.GetOperator(r.Context())
-		if err != nil {
-			writeError(r.Context(), w, http.StatusNotFound, "Operator not found", err, logger.APILog)
-			return
-		}
-
-		supportedTACs, err := dbOperator.GetSupportedTacs()
-		if err != nil {
-			logger.APILog.Warn("Failed to get supported TACs", zap.Error(err))
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get supported TACs", err, logger.APILog)
-
-			return
-		}
-
-		operatorTracking := &GetOperatorTrackingResponse{
-			SupportedTacs: supportedTACs,
-		}
-
-		writeResponse(r.Context(), w, operatorTracking, http.StatusOK, logger.APILog)
-	})
-}
-
-// Deprecated: Use GET /api/v1/operator instead, which returns the full operator
-// configuration including the PLMN ID. This endpoint will be removed in a future release.
-func GetOperatorID(dbInstance *db.Database) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		dbOperator, err := dbInstance.GetOperator(r.Context())
-		if err != nil {
-			writeError(r.Context(), w, http.StatusNotFound, "Operator not found", err, logger.APILog)
-			return
-		}
-
-		operatorID := &GetOperatorIDResponse{
-			Mcc: dbOperator.Mcc,
-			Mnc: dbOperator.Mnc,
-		}
-
-		writeResponse(r.Context(), w, operatorID, http.StatusOK, logger.APILog)
-	})
-}
-
-func UpdateOperatorSlice(dbInstance *db.Database) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		emailAny := r.Context().Value(contextKeyEmail)
-
-		email, ok := emailAny.(string)
-		if !ok {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get email", nil, logger.APILog)
-			return
-		}
-
-		var params UpdateOperatorSliceParams
-		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
-			return
-		}
-
-		if params.Sst == 0 {
-			writeError(r.Context(), w, http.StatusBadRequest, "sst is missing", nil, logger.APILog)
-			return
-		}
-
-		if !isValidSst(params.Sst) {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid SST format. Must be an 8-bit integer", nil, logger.APILog)
-			return
-		}
-
-		sd, err := ParseSDString(params.Sd)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid SD format. Must be a 24-bit hex string", err, logger.APILog)
-			return
-		}
-
-		if err := dbInstance.UpdateOperatorSlice(r.Context(), int32(params.Sst), sd); err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update operator slice information", err, logger.APILog)
-			return
-		}
-
-		resp := SuccessResponse{Message: "Operator slice information updated successfully"}
-
-		writeResponse(r.Context(), w, resp, http.StatusCreated, logger.APILog)
-
-		logger.LogAuditEvent(
-			r.Context(),
-			UpdateOperatorSliceAction,
-			email,
-			getClientIP(r),
-			"User updated operator slice information",
-		)
 	})
 }
 

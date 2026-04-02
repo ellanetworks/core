@@ -776,13 +776,25 @@ func TestRolesEndToEnd(t *testing.T) {
 	})
 
 	t.Run("9. Use Network Manager user to create policy - should succeed", func(t *testing.T) {
+		// Create a profile for the policy first
+		_, _, profErr := createProfile(env.Server.URL, client, networkManagerToken, &CreateProfileParams{
+			Name:           TestProfileName,
+			UeAmbrUplink:   "100 Mbps",
+			UeAmbrDownlink: "200 Mbps",
+		})
+		if profErr != nil {
+			t.Fatalf("couldn't create profile: %s", profErr)
+		}
+
 		createPolicyParams := &CreatePolicyParams{
-			Name:            PolicyName,
-			BitrateUplink:   "100 Mbps",
-			BitrateDownlink: "200 Mbps",
-			Var5qi:          9,
-			Arp:             1,
-			DataNetworkName: DataNetworkName,
+			Name:                PolicyName,
+			ProfileName:         TestProfileName,
+			SliceName:           DefaultSliceName,
+			SessionAmbrUplink:   "100 Mbps",
+			SessionAmbrDownlink: "200 Mbps",
+			Var5qi:              9,
+			Arp:                 1,
+			DataNetworkName:     DataNetworkName,
 		}
 
 		statusCode, response, err := createPolicy(env.Server.URL, client, networkManagerToken, createPolicyParams)

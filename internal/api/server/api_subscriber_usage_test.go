@@ -200,13 +200,26 @@ func createDataNetworkAndPolicy(url string, client *http.Client, token string) e
 		return err
 	}
 
+	createProfileParams := &CreateProfileParams{
+		Name:           TestProfileName,
+		UeAmbrUplink:   "200 Mbps",
+		UeAmbrDownlink: "200 Mbps",
+	}
+
+	_, _, err = createProfile(url, client, token, createProfileParams)
+	if err != nil {
+		return err
+	}
+
 	createPolicyParams := &CreatePolicyParams{
-		Name:            PolicyName,
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "100 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkName: DataNetworkName,
+		Name:                PolicyName,
+		ProfileName:         TestProfileName,
+		SliceName:           DefaultSliceName,
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "100 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkName:     DataNetworkName,
 	}
 
 	_, _, err = createPolicy(url, client, token, createPolicyParams)
@@ -267,7 +280,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 			Key:            Key,
 			Opc:            Opc,
 			SequenceNumber: SequenceNumber,
-			PolicyName:     PolicyName,
+			ProfileName:    TestProfileName,
 		}
 
 		_, _, err = createSubscriber(env.Server.URL, client, token, createSubscriberParams)
@@ -280,7 +293,7 @@ func TestAPISubscriberUsagePerDayEndToEnd(t *testing.T) {
 			Key:            Key,
 			Opc:            Opc,
 			SequenceNumber: SequenceNumber,
-			PolicyName:     PolicyName,
+			ProfileName:    TestProfileName,
 		}
 
 		_, _, err = createSubscriber(env.Server.URL, client, token, createSubscriberParams)
@@ -478,7 +491,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 			Key:            Key,
 			Opc:            Opc,
 			SequenceNumber: SequenceNumber,
-			PolicyName:     PolicyName,
+			ProfileName:    TestProfileName,
 		}
 
 		_, _, err = createSubscriber(env.Server.URL, client, token, createSubscriberParams)
@@ -491,7 +504,7 @@ func TestAPISubscriberUsagePerSubscriberEndToEnd(t *testing.T) {
 			Key:            Key,
 			Opc:            Opc,
 			SequenceNumber: SequenceNumber,
-			PolicyName:     PolicyName,
+			ProfileName:    TestProfileName,
 		}
 
 		_, _, err = createSubscriber(env.Server.URL, client, token, createSubscriberParams)

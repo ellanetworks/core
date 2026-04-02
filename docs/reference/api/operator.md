@@ -1,14 +1,14 @@
 ---
-description: RESTful API reference for managing the Operator Information - ID, Slice, Tracking, Code, Security Algorithms, and Network Name (SPN).
+description: RESTful API reference for managing the Operator Information - ID, Tracking, Code, Security Algorithms, and Network Name (SPN).
 ---
 
 # Operator
 
-The Operator API provides endpoints to manage the Operator Information used to identify the operator - Operator ID (MCC, MNC), Slice Information (SST, SD), Tracking Information, Operator Code (OP), NAS Security Algorithms, and the Service Provider Name (SPN).
+The Operator API provides endpoints to manage the Operator Information used to identify the operator - Operator ID (MCC, MNC), Tracking Information, Operator Code (OP), NAS Security Algorithms, and the Service Provider Name (SPN).
 
 ## Get Operator Information
 
-This path returns the complete operator information. This includes the Operator ID, Slice Information, and Tracking Information. The Operator Code is never returned.
+This path returns the complete operator information. This includes the Operator ID and Tracking Information. The Operator Code is never returned.
 
 | Method | Path               |
 | ------ | ------------------ |
@@ -26,10 +26,6 @@ None
         "id": {
             "mcc": "001",
             "mnc": "01"
-        },
-        "slice": {
-            "sst": 1,
-            "sd": ""
         },
         "tracking": {
             "supportedTACs": [
@@ -77,29 +73,6 @@ This path updates the operator ID. The Mobile Country Code (MCC) and Mobile Netw
 {
     "result": {
         "message": "Operator ID updated successfully"
-    }
-}
-```
-
-## Update the Operator Slice Information
-
-This path updates the operator slice information. Only one slice is supported. The Slice Service Type (SST) and Service Differentiator (SD) are used to identify the slice.
-
-| Method | Path                     |
-| ------ | ------------------------ |
-| PUT    | `/api/v1/operator/slice` |
-
-### Parameters
-
-- `sst` (integer): The Slice Service Type (SST) of the network. Must be an 8-bit integer.
-- `sd` (optional string): The Service Differentiator (SD) of the network. Must be a 3-byte hexadecimal string without the "0x" prefix. Ex. "010203".
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "message": "Operator slice information updated successfully"
     }
 }
 ```

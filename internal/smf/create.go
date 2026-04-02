@@ -164,7 +164,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 
 	pti := m.PDUSessionEstablishmentRequest.GetPTI()
 
-	policy, err := s.GetSubscriberPolicy(ctx, smContext.Supi)
+	policy, err := s.GetSessionPolicy(ctx, smContext.Supi, smContext.Snssai, smContext.Dnn)
 	if err != nil {
 		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
 

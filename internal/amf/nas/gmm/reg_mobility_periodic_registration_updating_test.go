@@ -33,12 +33,20 @@ func (fdb *failingSubscriberDB) GetDataNetworkByID(ctx context.Context, id int) 
 	return &db.DataNetwork{ID: id, Name: "TestDataNetwork"}, nil
 }
 
-func (fdb *failingSubscriberDB) GetPolicyByID(ctx context.Context, id int) (*db.Policy, error) {
-	return &db.Policy{ID: id, Name: "TestPolicy"}, nil
-}
-
 func (fdb *failingSubscriberDB) GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error) {
 	return nil, fmt.Errorf("subscriber not found")
+}
+
+func (fdb *failingSubscriberDB) GetProfileByID(ctx context.Context, id int) (*db.Profile, error) {
+	return &db.Profile{ID: id, Name: "TestProfile"}, nil
+}
+
+func (fdb *failingSubscriberDB) ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error) {
+	return []db.NetworkSlice{{ID: 1, Sst: 1, Name: "default"}}, nil
+}
+
+func (fdb *failingSubscriberDB) GetPolicyByProfileID(ctx context.Context, profileID int) (*db.Policy, error) {
+	return &db.Policy{ID: 1, Name: "TestPolicy", ProfileID: profileID, SliceID: 1, DataNetworkID: 1}, nil
 }
 
 // decryptAndDecodeNasPdu decrypts a ciphered NAS PDU using the UE's security context
@@ -85,7 +93,6 @@ func buildMobilityRegUeAndAMF(t *testing.T) (*amf.AmfUe, *FakeNGAPSender, *FakeS
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"000001\"]",
 			},
 		},
@@ -337,7 +344,6 @@ func TestMobilityReg_GetSubscriberBitrateError(t *testing.T) {
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}

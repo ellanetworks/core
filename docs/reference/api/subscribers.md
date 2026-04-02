@@ -30,7 +30,7 @@ This path returns the list of network subscribers.
         "items": [
             {
                 "imsi": "001010100007487",
-                "policyName": "default",
+                "profile_name": "default",
                 "status": {
                     "registered": true
                 },
@@ -61,7 +61,7 @@ This path creates a new network subscriber.
 - `imsi` (string): The IMSI of the subscriber. Must be a 15-digit string starting with `<mcc><mnc>`.
 - `key` (string): The key of the subscriber. Must be a 32-character hexadecimal string.
 - `sequenceNumber` (string): The sequence number of the subscriber. Must be a 6-byte hexadecimal string.
-- `PolicyName` (string): The policy name of the subscriber. Must be the name of an existing policy.
+- `profile_name` (string): The profile name of the subscriber. Must be the name of an existing profile.
 - `opc` (optional string): The operator code of the subscriber. If not provided, it will be generated automatically using the Operator Code (OP) and the `key` parameter.
 
 ### Sample Response
@@ -84,7 +84,7 @@ This path updates an existing network subscriber.
 
 ### Parameters
 
-- `PolicyName` (string): The policy name of the subscriber.
+- `profile_name` (string): The profile name of the subscriber.
 
 ### Sample Response
 
@@ -116,7 +116,7 @@ Note: `status.ipAddress` is deprecated and will be removed in future versions. P
 {
   "result": {
     "imsi": "001010100007487",
-    "policyName": "default",
+    "profile_name": "default",
     "status": {
       "registered": true,
       "ipAddress": "1.2.3.4",

@@ -139,9 +139,9 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
   };
 
   const { data: policy } = useQuery({
-    queryKey: ["policies", subscriber.policyName],
-    queryFn: () => getPolicy(accessToken!, subscriber.policyName),
-    enabled: authReady && !!accessToken && !!subscriber.policyName,
+    queryKey: ["policies", subscriber.profile_name],
+    queryFn: () => getPolicy(accessToken!, subscriber.profile_name),
+    enabled: authReady && !!accessToken && !!subscriber.profile_name,
   });
 
   const handleCopy = async (value: string, label: string) => {
@@ -241,14 +241,14 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
           <Typography
             variant="body2"
             component={RouterLink}
-            to={`/policies/${subscriber.policyName}`}
+            to={`/policies/${subscriber.profile_name}`}
             sx={{
               color: theme.palette.link,
               textDecoration: "underline",
               "&:hover": { textDecoration: "underline" },
             }}
           >
-            {subscriber.policyName}
+            {subscriber.profile_name}
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, ml: 2 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>

@@ -85,8 +85,10 @@ nav:
       - Operator: reference/api/operator.md
       - Policies: reference/api/policies.md
       - Pprof: reference/api/pprof.md
+      - Profiles: reference/api/profiles.md
       - Radios: reference/api/radios.md
       - Restore: reference/api/restore.md
+      - Slices: reference/api/slices.md
       - Status: reference/api/status.md
       - Subscribers: reference/api/subscribers.md
       - Users: reference/api/users.md

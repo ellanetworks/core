@@ -24,18 +24,25 @@ func TestNetworkRulesCreateGetUpdate(t *testing.T) {
 		}
 	}()
 
-	dataNetwork, err := database.GetDataNetwork(context.Background(), db.InitialDataNetworkName)
+	testDN := &db.DataNetwork{Name: "test-dnn", IPPool: "10.1.0.0/24"}
+	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
+		t.Fatalf("Couldnt create test data network: %s", err)
+	}
+
+	dataNetwork, err := database.GetDataNetwork(context.Background(), "test-dnn")
 	if err != nil {
 		t.Fatalf("Couldn't get initial data network: %s", err)
 	}
 
 	newPolicy := &db.Policy{
-		Name:            "test-policy",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkID:   dataNetwork.ID,
+		Name:                "test-policy",
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkID:       dataNetwork.ID,
+		ProfileID:           1,
+		SliceID:             1,
 	}
 
 	err = database.CreatePolicy(context.Background(), newPolicy)
@@ -126,18 +133,25 @@ func TestNetworkRulesDelete(t *testing.T) {
 		}
 	}()
 
-	dataNetwork, err := database.GetDataNetwork(context.Background(), db.InitialDataNetworkName)
+	testDN := &db.DataNetwork{Name: "test-dnn", IPPool: "10.1.0.0/24"}
+	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
+		t.Fatalf("Couldnt create test data network: %s", err)
+	}
+
+	dataNetwork, err := database.GetDataNetwork(context.Background(), "test-dnn")
 	if err != nil {
 		t.Fatalf("Couldn't get initial data network: %s", err)
 	}
 
 	newPolicy := &db.Policy{
-		Name:            "test-policy-delete",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkID:   dataNetwork.ID,
+		Name:                "test-policy-delete",
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkID:       dataNetwork.ID,
+		ProfileID:           1,
+		SliceID:             1,
 	}
 
 	err = database.CreatePolicy(context.Background(), newPolicy)
@@ -192,18 +206,25 @@ func TestNetworkRulesDuplicatePrecedencePerPolicy(t *testing.T) {
 		}
 	}()
 
-	dataNetwork, err := database.GetDataNetwork(context.Background(), db.InitialDataNetworkName)
+	testDN := &db.DataNetwork{Name: "test-dnn", IPPool: "10.1.0.0/24"}
+	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
+		t.Fatalf("Couldnt create test data network: %s", err)
+	}
+
+	dataNetwork, err := database.GetDataNetwork(context.Background(), "test-dnn")
 	if err != nil {
 		t.Fatalf("Couldn't get initial data network: %s", err)
 	}
 
 	newPolicy := &db.Policy{
-		Name:            "test-policy-precedence-unique",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkID:   dataNetwork.ID,
+		Name:                "test-policy-precedence-unique",
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkID:       dataNetwork.ID,
+		ProfileID:           1,
+		SliceID:             1,
 	}
 
 	err = database.CreatePolicy(context.Background(), newPolicy)
@@ -259,18 +280,25 @@ func TestNetworkRulesDuplicatePrecedenceDifferentPoliciesAllowed(t *testing.T) {
 		}
 	}()
 
-	dataNetwork, err := database.GetDataNetwork(context.Background(), db.InitialDataNetworkName)
+	testDN := &db.DataNetwork{Name: "test-dnn", IPPool: "10.1.0.0/24"}
+	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
+		t.Fatalf("Couldnt create test data network: %s", err)
+	}
+
+	dataNetwork, err := database.GetDataNetwork(context.Background(), "test-dnn")
 	if err != nil {
 		t.Fatalf("Couldn't get initial data network: %s", err)
 	}
 
 	policy1 := &db.Policy{
-		Name:            "test-policy-prec-1",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkID:   dataNetwork.ID,
+		Name:                "test-policy-prec-1",
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkID:       dataNetwork.ID,
+		ProfileID:           1,
+		SliceID:             1,
 	}
 	if err := database.CreatePolicy(context.Background(), policy1); err != nil {
 		t.Fatalf("Couldn't create policy 1: %s", err)
@@ -281,13 +309,25 @@ func TestNetworkRulesDuplicatePrecedenceDifferentPoliciesAllowed(t *testing.T) {
 		t.Fatalf("Couldn't get policy 1: %s", err)
 	}
 
+	testDN2 := &db.DataNetwork{Name: "test-dnn-2", IPPool: "10.2.0.0/24"}
+	if err := database.CreateDataNetwork(context.Background(), testDN2); err != nil {
+		t.Fatalf("Couldnt create second test data network: %s", err)
+	}
+
+	dataNetwork2, err := database.GetDataNetwork(context.Background(), "test-dnn-2")
+	if err != nil {
+		t.Fatalf("Couldn't get second data network: %s", err)
+	}
+
 	policy2 := &db.Policy{
-		Name:            "test-policy-prec-2",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkID:   dataNetwork.ID,
+		Name:                "test-policy-prec-2",
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkID:       dataNetwork2.ID,
+		ProfileID:           1,
+		SliceID:             1,
 	}
 	if err := database.CreatePolicy(context.Background(), policy2); err != nil {
 		t.Fatalf("Couldn't create policy 2: %s", err)
@@ -337,18 +377,25 @@ func TestNetworkRulesDuplicateNamePerPolicy(t *testing.T) {
 		}
 	}()
 
-	dataNetwork, err := database.GetDataNetwork(context.Background(), db.InitialDataNetworkName)
+	testDN := &db.DataNetwork{Name: "test-dnn", IPPool: "10.1.0.0/24"}
+	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
+		t.Fatalf("Couldnt create test data network: %s", err)
+	}
+
+	dataNetwork, err := database.GetDataNetwork(context.Background(), "test-dnn")
 	if err != nil {
 		t.Fatalf("Couldn't get initial data network: %s", err)
 	}
 
 	newPolicy := &db.Policy{
-		Name:            "test-policy-unique",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkID:   dataNetwork.ID,
+		Name:                "test-policy-unique",
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkID:       dataNetwork.ID,
+		ProfileID:           1,
+		SliceID:             1,
 	}
 
 	err = database.CreatePolicy(context.Background(), newPolicy)
@@ -398,18 +445,25 @@ func TestNetworkRulesDifferentPoliciesSameName(t *testing.T) {
 		}
 	}()
 
-	dataNetwork, err := database.GetDataNetwork(context.Background(), db.InitialDataNetworkName)
+	testDN := &db.DataNetwork{Name: "test-dnn", IPPool: "10.1.0.0/24"}
+	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
+		t.Fatalf("Couldnt create test data network: %s", err)
+	}
+
+	dataNetwork, err := database.GetDataNetwork(context.Background(), "test-dnn")
 	if err != nil {
 		t.Fatalf("Couldn't get initial data network: %s", err)
 	}
 
 	policy1 := &db.Policy{
-		Name:            "test-policy-1",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkID:   dataNetwork.ID,
+		Name:                "test-policy-1",
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkID:       dataNetwork.ID,
+		ProfileID:           1,
+		SliceID:             1,
 	}
 
 	err = database.CreatePolicy(context.Background(), policy1)
@@ -422,13 +476,25 @@ func TestNetworkRulesDifferentPoliciesSameName(t *testing.T) {
 		t.Fatalf("Couldn't get policy 1: %s", err)
 	}
 
+	testDN2 := &db.DataNetwork{Name: "test-dnn-2", IPPool: "10.2.0.0/24"}
+	if err := database.CreateDataNetwork(context.Background(), testDN2); err != nil {
+		t.Fatalf("Couldnt create second test data network: %s", err)
+	}
+
+	dataNetwork2, err := database.GetDataNetwork(context.Background(), "test-dnn-2")
+	if err != nil {
+		t.Fatalf("Couldn't get second data network: %s", err)
+	}
+
 	policy2 := &db.Policy{
-		Name:            "test-policy-2",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkID:   dataNetwork.ID,
+		Name:                "test-policy-2",
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkID:       dataNetwork2.ID,
+		ProfileID:           1,
+		SliceID:             1,
 	}
 
 	err = database.CreatePolicy(context.Background(), policy2)
@@ -490,18 +556,25 @@ func TestListRulesForPolicy(t *testing.T) {
 		}
 	}()
 
-	dataNetwork, err := database.GetDataNetwork(context.Background(), db.InitialDataNetworkName)
+	testDN := &db.DataNetwork{Name: "test-dnn", IPPool: "10.1.0.0/24"}
+	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
+		t.Fatalf("Couldnt create test data network: %s", err)
+	}
+
+	dataNetwork, err := database.GetDataNetwork(context.Background(), "test-dnn")
 	if err != nil {
 		t.Fatalf("Couldn't get initial data network: %s", err)
 	}
 
 	policy1 := &db.Policy{
-		Name:            "test-policy-with-rules",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkID:   dataNetwork.ID,
+		Name:                "test-policy-with-rules",
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkID:       dataNetwork.ID,
+		ProfileID:           1,
+		SliceID:             1,
 	}
 
 	err = database.CreatePolicy(context.Background(), policy1)
@@ -514,13 +587,25 @@ func TestListRulesForPolicy(t *testing.T) {
 		t.Fatalf("Couldn't get policy 1: %s", err)
 	}
 
+	testDN2 := &db.DataNetwork{Name: "test-dnn-2", IPPool: "10.2.0.0/24"}
+	if err := database.CreateDataNetwork(context.Background(), testDN2); err != nil {
+		t.Fatalf("Couldnt create second test data network: %s", err)
+	}
+
+	dataNetwork2, err := database.GetDataNetwork(context.Background(), "test-dnn-2")
+	if err != nil {
+		t.Fatalf("Couldn't get second data network: %s", err)
+	}
+
 	policy2 := &db.Policy{
-		Name:            "test-policy-no-rules",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkID:   dataNetwork.ID,
+		Name:                "test-policy-no-rules",
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkID:       dataNetwork2.ID,
+		ProfileID:           1,
+		SliceID:             1,
 	}
 
 	err = database.CreatePolicy(context.Background(), policy2)
@@ -608,18 +693,25 @@ func setupTestDB(t *testing.T) *db.Database {
 }
 
 func createTestPolicy(t *testing.T, dbInstance *db.Database) *db.Policy {
-	dataNetwork, err := dbInstance.GetDataNetwork(context.Background(), db.InitialDataNetworkName)
+	testDN := &db.DataNetwork{Name: "test-dnn-" + t.Name(), IPPool: "10.3.0.0/24"}
+	if err := dbInstance.CreateDataNetwork(context.Background(), testDN); err != nil {
+		t.Fatalf("Couldn't create test data network: %s", err)
+	}
+
+	dataNetwork, err := dbInstance.GetDataNetwork(context.Background(), testDN.Name)
 	if err != nil {
-		t.Fatalf("Couldn't get initial data network: %s", err)
+		t.Fatalf("Couldn't get test data network: %s", err)
 	}
 
 	policy := &db.Policy{
-		Name:            "test-policy-" + t.Name(),
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkID:   dataNetwork.ID,
+		Name:                "test-policy-" + t.Name(),
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkID:       dataNetwork.ID,
+		ProfileID:           1,
+		SliceID:             1,
 	}
 
 	err = dbInstance.CreatePolicy(context.Background(), policy)

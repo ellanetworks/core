@@ -30,6 +30,7 @@ var migrations = []migration{
 	{4, "add bgp_settings, bgp_peers, jwt_secret, ip_leases tables; drop ipAddress from subscribers", migrateV4},
 	{5, "add network_rules and policy_network_rules tables", migrateV5},
 	{6, "replace address TEXT with addressBin BLOB in ip_leases", migrateV6},
+	{7, "data model redesign: profiles, policies, slices", migrateV7},
 }
 
 // latestVersion returns the highest migration version in the registry.

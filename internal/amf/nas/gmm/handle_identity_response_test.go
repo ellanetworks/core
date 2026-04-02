@@ -254,7 +254,6 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &FakeAusf{
@@ -310,7 +309,6 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &FakeAusf{
@@ -356,7 +354,6 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &FakeAusf{
@@ -446,7 +443,6 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 				Operator: &db.Operator{
 					Mcc:           "001",
 					Mnc:           "01",
-					Sst:           1,
 					SupportedTACs: "[\"000001\"]",
 				},
 			}, &FakeAusf{

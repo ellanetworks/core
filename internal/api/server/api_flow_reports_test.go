@@ -394,12 +394,14 @@ func createFlowReportTestSubscriber(t *testing.T, dbInstance *db.Database) int {
 	}
 
 	policy := &db.Policy{
-		Name:            "test-policy-" + imsi,
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkID:   createdDN.ID,
+		Name:                "test-policy-" + imsi,
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkID:       createdDN.ID,
+		ProfileID:           1,
+		SliceID:             1,
 	}
 	if err := dbInstance.CreatePolicy(ctx, policy); err != nil {
 		t.Fatalf("couldn't create policy: %s", err)
@@ -415,13 +417,13 @@ func createFlowReportTestSubscriber(t *testing.T, dbInstance *db.Database) int {
 		SequenceNumber: "000000000022",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       createdPolicy.ID,
+		ProfileID:      createdPolicy.ProfileID,
 	}
 	if err := dbInstance.CreateSubscriber(ctx, subscriber); err != nil {
 		t.Fatalf("couldn't create subscriber: %s", err)
 	}
 
-	return createdPolicy.ID
+	return createdPolicy.ProfileID
 }
 
 func TestListFlowReportsPagination(t *testing.T) {
@@ -529,14 +531,14 @@ func TestListFlowReportsFilterBySubscriber(t *testing.T) {
 	}
 
 	// Create prerequisite subscribers
-	policyID := createFlowReportTestSubscriber(t, env.DB)
+	profileID := createFlowReportTestSubscriber(t, env.DB)
 
 	sub2 := &db.Subscriber{
 		Imsi:           "001010100000002",
 		SequenceNumber: "000000000022",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       policyID,
+		ProfileID:      profileID,
 	}
 	if err := env.DB.CreateSubscriber(context.Background(), sub2); err != nil {
 		t.Fatalf("couldn't create subscriber: %s", err)
@@ -901,14 +903,14 @@ func TestGetFlowReportStats_FilterBySubscriber(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	policyID := createFlowReportTestSubscriber(t, env.DB)
+	profileID := createFlowReportTestSubscriber(t, env.DB)
 
 	sub2 := &db.Subscriber{
 		Imsi:           "001010100000002",
 		SequenceNumber: "000000000022",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       policyID,
+		ProfileID:      profileID,
 	}
 	if err := env.DB.CreateSubscriber(context.Background(), sub2); err != nil {
 		t.Fatalf("couldn't create subscriber: %s", err)

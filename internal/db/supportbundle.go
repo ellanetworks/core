@@ -41,8 +41,6 @@ func (db *Database) ExportSupportData(ctx context.Context) (map[string]any, erro
 			"Mnc":           op.Mnc,
 			"OperatorCode":  op.OperatorCode,
 			"SupportedTACs": supportedTACs,
-			"Sst":           op.Sst,
-			"Sd":            op.GetHexSd(),
 		}
 		out["operator"] = operatorMap
 	}

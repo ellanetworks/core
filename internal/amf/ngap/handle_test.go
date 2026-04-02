@@ -163,17 +163,22 @@ func (fdb *FakeDBInstance) GetDataNetworkByID(ctx context.Context, id int) (*db.
 	}, nil
 }
 
-func (fdb *FakeDBInstance) GetPolicyByID(ctx context.Context, id int) (*db.Policy, error) {
-	return &db.Policy{
-		ID:   id,
-		Name: "TestPolicy",
-	}, nil
-}
-
 func (fdb *FakeDBInstance) GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error) {
 	return &db.Subscriber{
 		Imsi: imsi,
 	}, nil
+}
+
+func (fdb *FakeDBInstance) GetProfileByID(ctx context.Context, id int) (*db.Profile, error) {
+	return &db.Profile{ID: id, Name: "TestProfile"}, nil
+}
+
+func (fdb *FakeDBInstance) ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error) {
+	return []db.NetworkSlice{{ID: 1, Name: "default", Sst: 1}}, nil
+}
+
+func (fdb *FakeDBInstance) GetPolicyByProfileID(ctx context.Context, profileID int) (*db.Policy, error) {
+	return &db.Policy{ID: 1, Name: "TestPolicy", ProfileID: profileID, SliceID: 1, DataNetworkID: 1}, nil
 }
 
 type NGSetupFailure struct {

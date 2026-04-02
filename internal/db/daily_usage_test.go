@@ -27,21 +27,49 @@ func createDataNetworkPolicyAndSubscriber(database *db.Database, imsi string) (i
 		return 0, err
 	}
 
-	policy := &db.Policy{
-		Name:            "my-policy",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkID:   createdNetwork.ID,
+	profile := &db.Profile{
+		Name:           "test-profile",
+		UeAmbrUplink:   "200 Mbps",
+		UeAmbrDownlink: "200 Mbps",
 	}
 
-	err = database.CreatePolicy(context.Background(), policy)
+	err = database.CreateProfile(context.Background(), profile)
 	if err != nil {
 		return 0, err
 	}
 
-	policyCreated, err := database.GetPolicy(context.Background(), policy.Name)
+	createdProfile, err := database.GetProfile(context.Background(), profile.Name)
+	if err != nil {
+		return 0, err
+	}
+
+	slice := &db.NetworkSlice{
+		Name: "test-slice",
+		Sst:  1,
+	}
+
+	err = database.CreateNetworkSlice(context.Background(), slice)
+	if err != nil {
+		return 0, err
+	}
+
+	createdSlice, err := database.GetNetworkSlice(context.Background(), slice.Name)
+	if err != nil {
+		return 0, err
+	}
+
+	policy := &db.Policy{
+		Name:                "my-policy",
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkID:       createdNetwork.ID,
+		ProfileID:           createdProfile.ID,
+		SliceID:             createdSlice.ID,
+	}
+
+	err = database.CreatePolicy(context.Background(), policy)
 	if err != nil {
 		return 0, err
 	}
@@ -51,7 +79,7 @@ func createDataNetworkPolicyAndSubscriber(database *db.Database, imsi string) (i
 		SequenceNumber: "000000000022",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       policyCreated.ID,
+		ProfileID:      createdProfile.ID,
 	}
 
 	err = database.CreateSubscriber(context.Background(), subscriber)
@@ -59,7 +87,7 @@ func createDataNetworkPolicyAndSubscriber(database *db.Database, imsi string) (i
 		return 0, err
 	}
 
-	return policyCreated.ID, nil
+	return createdProfile.ID, nil
 }
 
 func TestGetUsagePerDay_1Sub(t *testing.T) {
@@ -206,7 +234,7 @@ func TestGetUsagePerDay_MultiSubsSameDay(t *testing.T) {
 		SequenceNumber: "000000000022",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       policyID,
+		ProfileID:      policyID,
 	}
 
 	err = database.CreateSubscriber(context.Background(), subscriber)
@@ -374,7 +402,7 @@ func TestGetUsagePerDay_MultiSubsSameDay_FilterByIMSI(t *testing.T) {
 		SequenceNumber: "000000000022",
 		PermanentKey:   "1234567890abcdef1234567890abcdef",
 		Opc:            "1234567890abcdef1234567890abcdef",
-		PolicyID:       policyID,
+		ProfileID:      policyID,
 	}
 
 	err = database.CreateSubscriber(context.Background(), subscriber)
@@ -458,7 +486,7 @@ func TestGetUsagePerDay_MultiSubsMultiDays_FilterByIMSI(t *testing.T) {
 		SequenceNumber: "000000000022",
 		PermanentKey:   "1234567890abcdef1234567890abcdef",
 		Opc:            "1234567890abcdef1234567890abcdef",
-		PolicyID:       policyID,
+		ProfileID:      policyID,
 	}
 
 	err = database.CreateSubscriber(context.Background(), subscriber)
@@ -623,7 +651,7 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 		SequenceNumber: "000000000022",
 		PermanentKey:   "1234567890abcdef1234567890abcdef",
 		Opc:            "1234567890abcdef1234567890abcdef",
-		PolicyID:       policyID,
+		ProfileID:      policyID,
 	}
 
 	err = database.CreateSubscriber(context.Background(), subscriber)
@@ -647,7 +675,7 @@ func TestGetUsagePerSubscriber_MultiSub(t *testing.T) {
 		SequenceNumber: "000000000022",
 		PermanentKey:   "1234567890abcdef1234567890abcdef",
 		Opc:            "1234567890abcdef1234567890abcdef",
-		PolicyID:       policyID,
+		ProfileID:      policyID,
 	}
 
 	err = database.CreateSubscriber(context.Background(), subscriber)

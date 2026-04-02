@@ -11,11 +11,14 @@ import (
 )
 
 const (
-	PolicyName      = "test-policy"
-	BitrateUplink   = "100 Mbps"
-	BitrateDownlink = "200 Mbps"
-	Var5qi          = 9
-	Arp             = 1
+	PolicyName          = "test-policy"
+	SessionAmbrUplink   = "100 Mbps"
+	SessionAmbrDownlink = "200 Mbps"
+	Var5qi              = 9
+	Arp                 = 1
+	TestProfileName     = "test-profile"
+	DefaultSliceName    = "default"
+	DefaultProfileName  = "default"
 )
 
 type CreatePolicyResponseResult struct {
@@ -37,13 +40,15 @@ type PolicyRules struct {
 }
 
 type Policy struct {
-	Name            string       `json:"name"`
-	BitrateUplink   string       `json:"bitrate_uplink,omitempty"`
-	BitrateDownlink string       `json:"bitrate_downlink,omitempty"`
-	Var5qi          int32        `json:"var5qi,omitempty"`
-	Arp             int32        `json:"arp,omitempty"`
-	DataNetworkName string       `json:"data_network_name,omitempty"`
-	Rules           *PolicyRules `json:"rules,omitempty"`
+	Name                string       `json:"name"`
+	ProfileName         string       `json:"profile_name,omitempty"`
+	SliceName           string       `json:"slice_name,omitempty"`
+	SessionAmbrUplink   string       `json:"session_ambr_uplink,omitempty"`
+	SessionAmbrDownlink string       `json:"session_ambr_downlink,omitempty"`
+	Var5qi              int32        `json:"var5qi,omitempty"`
+	Arp                 int32        `json:"arp,omitempty"`
+	DataNetworkName     string       `json:"data_network_name,omitempty"`
+	Rules               *PolicyRules `json:"rules,omitempty"`
 }
 
 type GetPolicyResponse struct {
@@ -52,13 +57,15 @@ type GetPolicyResponse struct {
 }
 
 type CreatePolicyParams struct {
-	Name            string       `json:"name"`
-	BitrateUplink   string       `json:"bitrate_uplink,omitempty"`
-	BitrateDownlink string       `json:"bitrate_downlink,omitempty"`
-	Var5qi          int32        `json:"var5qi,omitempty"`
-	Arp             int32        `json:"arp,omitempty"`
-	DataNetworkName string       `json:"data_network_name,omitempty"`
-	Rules           *PolicyRules `json:"rules,omitempty"`
+	Name                string       `json:"name"`
+	ProfileName         string       `json:"profile_name"`
+	SliceName           string       `json:"slice_name"`
+	SessionAmbrUplink   string       `json:"session_ambr_uplink,omitempty"`
+	SessionAmbrDownlink string       `json:"session_ambr_downlink,omitempty"`
+	Var5qi              int32        `json:"var5qi,omitempty"`
+	Arp                 int32        `json:"arp,omitempty"`
+	DataNetworkName     string       `json:"data_network_name,omitempty"`
+	Rules               *PolicyRules `json:"rules,omitempty"`
 }
 
 type CreatePolicyResponse struct {
@@ -67,12 +74,14 @@ type CreatePolicyResponse struct {
 }
 
 type UpdatePolicyParams struct {
-	BitrateUplink   string       `json:"bitrate_uplink,omitempty"`
-	BitrateDownlink string       `json:"bitrate_downlink,omitempty"`
-	Var5qi          int32        `json:"var5qi,omitempty"`
-	Arp             int32        `json:"arp,omitempty"`
-	DataNetworkName string       `json:"data_network_name,omitempty"`
-	Rules           *PolicyRules `json:"rules,omitempty"`
+	ProfileName         string       `json:"profile_name"`
+	SliceName           string       `json:"slice_name"`
+	SessionAmbrUplink   string       `json:"session_ambr_uplink,omitempty"`
+	SessionAmbrDownlink string       `json:"session_ambr_downlink,omitempty"`
+	Var5qi              int32        `json:"var5qi,omitempty"`
+	Arp                 int32        `json:"arp,omitempty"`
+	DataNetworkName     string       `json:"data_network_name,omitempty"`
+	Rules               *PolicyRules `json:"rules,omitempty"`
 }
 
 type DeletePolicyResponseResult struct {
@@ -302,14 +311,37 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		}
 	})
 
+	t.Run("2b. Create profile for test policy", func(t *testing.T) {
+		params := &CreateProfileParams{
+			Name:           TestProfileName,
+			UeAmbrUplink:   "100 Mbps",
+			UeAmbrDownlink: "200 Mbps",
+		}
+
+		statusCode, response, err := createProfile(env.Server.URL, client, token, params)
+		if err != nil {
+			t.Fatalf("couldn't create profile: %s", err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+	})
+
 	t.Run("3. Create policy", func(t *testing.T) {
 		createPolicyParams := &CreatePolicyParams{
-			Name:            PolicyName,
-			BitrateUplink:   "100 Mbps",
-			BitrateDownlink: "200 Mbps",
-			Var5qi:          9,
-			Arp:             1,
-			DataNetworkName: DataNetworkName,
+			Name:                PolicyName,
+			ProfileName:         TestProfileName,
+			SliceName:           DefaultSliceName,
+			SessionAmbrUplink:   "100 Mbps",
+			SessionAmbrDownlink: "200 Mbps",
+			Var5qi:              9,
+			Arp:                 1,
+			DataNetworkName:     DataNetworkName,
 		}
 
 		statusCode, response, err := createPolicy(env.Server.URL, client, token, createPolicyParams)
@@ -363,12 +395,12 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 			t.Fatalf("expected name %s, got %s", PolicyName, response.Result.Name)
 		}
 
-		if response.Result.BitrateUplink != "100 Mbps" {
-			t.Fatalf("expected bitrate_uplink 100 Mbps got %s", response.Result.BitrateUplink)
+		if response.Result.SessionAmbrUplink != "100 Mbps" {
+			t.Fatalf("expected session_ambr_uplink 100 Mbps got %s", response.Result.SessionAmbrUplink)
 		}
 
-		if response.Result.BitrateDownlink != "200 Mbps" {
-			t.Fatalf("expected bitrate_downlink 200 Mbps got %s", response.Result.BitrateDownlink)
+		if response.Result.SessionAmbrDownlink != "200 Mbps" {
+			t.Fatalf("expected session_ambr_downlink 200 Mbps got %s", response.Result.SessionAmbrDownlink)
 		}
 
 		if response.Result.Var5qi != 9 {
@@ -422,11 +454,13 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 
 	t.Run("8. Edit policy - success", func(t *testing.T) {
 		updatePolicyParams := &UpdatePolicyParams{
-			BitrateUplink:   "100 Mbps",
-			BitrateDownlink: "200 Mbps",
-			Var5qi:          6,
-			Arp:             3,
-			DataNetworkName: DataNetworkName,
+			ProfileName:         TestProfileName,
+			SliceName:           DefaultSliceName,
+			SessionAmbrUplink:   "100 Mbps",
+			SessionAmbrDownlink: "200 Mbps",
+			Var5qi:              6,
+			Arp:                 3,
+			DataNetworkName:     DataNetworkName,
 		}
 
 		statusCode, response, err := editPolicy(env.Server.URL, client, PolicyName, token, updatePolicyParams)
@@ -448,7 +482,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 			Imsi:           Imsi,
 			Key:            Key,
 			SequenceNumber: SequenceNumber,
-			PolicyName:     PolicyName,
+			ProfileName:    TestProfileName,
 		}
 
 		statusCode, response, err := createSubscriber(env.Server.URL, client, token, createSubscriberParams)
@@ -553,8 +587,17 @@ func TestUpdatePolicyPathBodyMismatch(t *testing.T) {
 		t.Fatalf("couldn't create data network: %s", err)
 	}
 
+	// Create a profile for the policy.
+	_, _, err = createProfile(env.Server.URL, client, token, &CreateProfileParams{
+		Name: "real-profile", UeAmbrUplink: "100 Mbps", UeAmbrDownlink: "100 Mbps",
+	})
+	if err != nil {
+		t.Fatalf("couldn't create profile: %s", err)
+	}
+
 	_, _, err = createPolicy(env.Server.URL, client, token, &CreatePolicyParams{
-		Name: "real-policy", BitrateUplink: "100 Mbps", BitrateDownlink: "100 Mbps",
+		Name: "real-policy", ProfileName: "real-profile", SliceName: DefaultSliceName,
+		SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "100 Mbps",
 		Var5qi: 9, Arp: 1, DataNetworkName: DataNetworkName,
 	})
 	if err != nil {
@@ -563,11 +606,13 @@ func TestUpdatePolicyPathBodyMismatch(t *testing.T) {
 
 	// Update with a different name in the body than the path.
 	updateParams := &UpdatePolicyParams{
-		BitrateUplink:   "50 Mbps",
-		BitrateDownlink: "50 Mbps",
-		Var5qi:          6,
-		Arp:             2,
-		DataNetworkName: DataNetworkName,
+		ProfileName:         "real-profile",
+		SliceName:           DefaultSliceName,
+		SessionAmbrUplink:   "50 Mbps",
+		SessionAmbrDownlink: "50 Mbps",
+		Var5qi:              6,
+		Arp:                 2,
+		DataNetworkName:     DataNetworkName,
 	}
 
 	statusCode, response, err := editPolicy(env.Server.URL, client, "real-policy", token, updateParams)
@@ -639,166 +684,198 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 	}
 
 	tests := []struct {
-		testName        string
-		name            string
-		bitrateUplink   string
-		bitrateDownlink string
-		var5qi          int32
-		arp             int32
-		DataNetworkName string
-		error           string
+		testName            string
+		name                string
+		profileName         string
+		sliceName           string
+		sessionAmbrUplink   string
+		sessionAmbrDownlink string
+		var5qi              int32
+		arp                 int32
+		DataNetworkName     string
+		error               string
 	}{
 		{
-			testName:        "Invalid Name",
-			name:            strings.Repeat("a", 257),
-			bitrateUplink:   BitrateUplink,
-			bitrateDownlink: BitrateDownlink,
-			var5qi:          Var5qi,
-			arp:             Arp,
-			DataNetworkName: "internet",
-			error:           "invalid name format - must be less than 256 characters",
+			testName:            "Invalid Name",
+			name:                strings.Repeat("a", 257),
+			profileName:         DefaultProfileName,
+			sliceName:           DefaultSliceName,
+			sessionAmbrUplink:   SessionAmbrUplink,
+			sessionAmbrDownlink: SessionAmbrDownlink,
+			var5qi:              Var5qi,
+			arp:                 Arp,
+			DataNetworkName:     "internet",
+			error:               "invalid name format - must be less than 256 characters",
 		},
 
 		{
-			testName:        "Invalid Uplink Bitrate - Missing unit",
-			name:            PolicyName,
-			bitrateUplink:   "200",
-			bitrateDownlink: BitrateDownlink,
-			var5qi:          Var5qi,
-			arp:             Arp,
-			DataNetworkName: "internet",
-			error:           "invalid bitrate_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
+			testName:            "Invalid Uplink Bitrate - Missing unit",
+			name:                PolicyName,
+			profileName:         DefaultProfileName,
+			sliceName:           DefaultSliceName,
+			sessionAmbrUplink:   "200",
+			sessionAmbrDownlink: SessionAmbrDownlink,
+			var5qi:              Var5qi,
+			arp:                 Arp,
+			DataNetworkName:     "internet",
+			error:               "invalid session_ambr_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
-			testName:        "Invalid Uplink Bitrate - Invalid unit",
-			name:            PolicyName,
-			bitrateUplink:   "200 Tbps",
-			bitrateDownlink: BitrateDownlink,
-			var5qi:          Var5qi,
-			arp:             Arp,
-			DataNetworkName: "internet",
-			error:           "invalid bitrate_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
+			testName:            "Invalid Uplink Bitrate - Invalid unit",
+			name:                PolicyName,
+			profileName:         DefaultProfileName,
+			sliceName:           DefaultSliceName,
+			sessionAmbrUplink:   "200 Tbps",
+			sessionAmbrDownlink: SessionAmbrDownlink,
+			var5qi:              Var5qi,
+			arp:                 Arp,
+			DataNetworkName:     "internet",
+			error:               "invalid session_ambr_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
-			testName:        "Invalid Uplink Bitrate - Zero value",
-			name:            PolicyName,
-			bitrateUplink:   "0 Mbps",
-			bitrateDownlink: BitrateDownlink,
-			var5qi:          Var5qi,
-			arp:             Arp,
-			DataNetworkName: "internet",
-			error:           "invalid bitrate_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
+			testName:            "Invalid Uplink Bitrate - Zero value",
+			name:                PolicyName,
+			profileName:         DefaultProfileName,
+			sliceName:           DefaultSliceName,
+			sessionAmbrUplink:   "0 Mbps",
+			sessionAmbrDownlink: SessionAmbrDownlink,
+			var5qi:              Var5qi,
+			arp:                 Arp,
+			DataNetworkName:     "internet",
+			error:               "invalid session_ambr_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
-			testName:        "Invalid Uplink Bitrate - Negative value",
-			name:            PolicyName,
-			bitrateUplink:   "-1 Mbps",
-			bitrateDownlink: BitrateDownlink,
-			var5qi:          Var5qi,
-			arp:             Arp,
-			DataNetworkName: "internet",
-			error:           "invalid bitrate_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
+			testName:            "Invalid Uplink Bitrate - Negative value",
+			name:                PolicyName,
+			profileName:         DefaultProfileName,
+			sliceName:           DefaultSliceName,
+			sessionAmbrUplink:   "-1 Mbps",
+			sessionAmbrDownlink: SessionAmbrDownlink,
+			var5qi:              Var5qi,
+			arp:                 Arp,
+			DataNetworkName:     "internet",
+			error:               "invalid session_ambr_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
-			testName:        "Invalid Uplink Bitrate - Too large value",
-			name:            PolicyName,
-			bitrateUplink:   "1000001 Mbps",
-			bitrateDownlink: BitrateDownlink,
-			var5qi:          Var5qi,
-			arp:             Arp,
-			DataNetworkName: "internet",
-			error:           "invalid bitrate_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
+			testName:            "Invalid Uplink Bitrate - Too large value",
+			name:                PolicyName,
+			profileName:         DefaultProfileName,
+			sliceName:           DefaultSliceName,
+			sessionAmbrUplink:   "1000001 Mbps",
+			sessionAmbrDownlink: SessionAmbrDownlink,
+			var5qi:              Var5qi,
+			arp:                 Arp,
+			DataNetworkName:     "internet",
+			error:               "invalid session_ambr_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
-			testName:        "Invalid Downlink Bitrate - Missing unit",
-			name:            PolicyName,
-			bitrateUplink:   BitrateUplink,
-			bitrateDownlink: "200",
-			var5qi:          Var5qi,
-			arp:             Arp,
-			DataNetworkName: "internet",
-			error:           "invalid bitrate_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
+			testName:            "Invalid Downlink Bitrate - Missing unit",
+			name:                PolicyName,
+			profileName:         DefaultProfileName,
+			sliceName:           DefaultSliceName,
+			sessionAmbrUplink:   SessionAmbrUplink,
+			sessionAmbrDownlink: "200",
+			var5qi:              Var5qi,
+			arp:                 Arp,
+			DataNetworkName:     "internet",
+			error:               "invalid session_ambr_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
-			testName:        "Invalid Downlink Bitrate - Invalid unit",
-			name:            PolicyName,
-			bitrateUplink:   BitrateUplink,
-			bitrateDownlink: "200 Tbps",
-			var5qi:          Var5qi,
-			arp:             Arp,
-			DataNetworkName: "internet",
-			error:           "invalid bitrate_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
+			testName:            "Invalid Downlink Bitrate - Invalid unit",
+			name:                PolicyName,
+			profileName:         DefaultProfileName,
+			sliceName:           DefaultSliceName,
+			sessionAmbrUplink:   SessionAmbrUplink,
+			sessionAmbrDownlink: "200 Tbps",
+			var5qi:              Var5qi,
+			arp:                 Arp,
+			DataNetworkName:     "internet",
+			error:               "invalid session_ambr_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
-			testName:        "Invalid Downlink Bitrate - Zero value",
-			name:            PolicyName,
-			bitrateUplink:   BitrateUplink,
-			bitrateDownlink: "0 Mbps",
-			var5qi:          Var5qi,
-			arp:             Arp,
-			DataNetworkName: "internet",
-			error:           "invalid bitrate_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
+			testName:            "Invalid Downlink Bitrate - Zero value",
+			name:                PolicyName,
+			profileName:         DefaultProfileName,
+			sliceName:           DefaultSliceName,
+			sessionAmbrUplink:   SessionAmbrUplink,
+			sessionAmbrDownlink: "0 Mbps",
+			var5qi:              Var5qi,
+			arp:                 Arp,
+			DataNetworkName:     "internet",
+			error:               "invalid session_ambr_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
-			testName:        "Invalid Downlink Bitrate - Negative value",
-			name:            PolicyName,
-			bitrateUplink:   BitrateUplink,
-			bitrateDownlink: "-1 Mbps",
-			var5qi:          Var5qi,
-			arp:             Arp,
-			DataNetworkName: "internet",
-			error:           "invalid bitrate_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
+			testName:            "Invalid Downlink Bitrate - Negative value",
+			name:                PolicyName,
+			profileName:         DefaultProfileName,
+			sliceName:           DefaultSliceName,
+			sessionAmbrUplink:   SessionAmbrUplink,
+			sessionAmbrDownlink: "-1 Mbps",
+			var5qi:              Var5qi,
+			arp:                 Arp,
+			DataNetworkName:     "internet",
+			error:               "invalid session_ambr_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
-			testName:        "Invalid Downlink Bitrate - Too large value",
-			name:            PolicyName,
-			bitrateUplink:   BitrateUplink,
-			bitrateDownlink: "1000001 Mbps",
-			var5qi:          Var5qi,
-			arp:             Arp,
-			DataNetworkName: "internet",
-			error:           "invalid bitrate_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
+			testName:            "Invalid Downlink Bitrate - Too large value",
+			name:                PolicyName,
+			profileName:         DefaultProfileName,
+			sliceName:           DefaultSliceName,
+			sessionAmbrUplink:   SessionAmbrUplink,
+			sessionAmbrDownlink: "1000001 Mbps",
+			var5qi:              Var5qi,
+			arp:                 Arp,
+			DataNetworkName:     "internet",
+			error:               "invalid session_ambr_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps",
 		},
 		{
-			testName:        "Invalid 5QI - GBR",
-			name:            PolicyName,
-			bitrateUplink:   BitrateUplink,
-			bitrateDownlink: BitrateDownlink,
-			var5qi:          1,
-			arp:             Arp,
-			DataNetworkName: "internet",
-			error:           "invalid Var5qi format - must be an integer associated with a non-GBR 5QI",
+			testName:            "Invalid 5QI - GBR",
+			name:                PolicyName,
+			profileName:         DefaultProfileName,
+			sliceName:           DefaultSliceName,
+			sessionAmbrUplink:   SessionAmbrUplink,
+			sessionAmbrDownlink: SessionAmbrDownlink,
+			var5qi:              1,
+			arp:                 Arp,
+			DataNetworkName:     "internet",
+			error:               "invalid Var5qi format - must be an integer associated with a non-GBR 5QI",
 		},
 		{
-			testName:        "Invalid 5QI - Delay Critical GBR",
-			name:            PolicyName,
-			bitrateUplink:   BitrateUplink,
-			bitrateDownlink: BitrateDownlink,
-			var5qi:          82,
-			arp:             Arp,
-			DataNetworkName: "internet",
-			error:           "invalid Var5qi format - must be an integer associated with a non-GBR 5QI",
+			testName:            "Invalid 5QI - Delay Critical GBR",
+			name:                PolicyName,
+			profileName:         DefaultProfileName,
+			sliceName:           DefaultSliceName,
+			sessionAmbrUplink:   SessionAmbrUplink,
+			sessionAmbrDownlink: SessionAmbrDownlink,
+			var5qi:              82,
+			arp:                 Arp,
+			DataNetworkName:     "internet",
+			error:               "invalid Var5qi format - must be an integer associated with a non-GBR 5QI",
 		},
 		{
-			testName:        "Invalid Priority Level - Too large value",
-			name:            PolicyName,
-			bitrateUplink:   BitrateUplink,
-			bitrateDownlink: BitrateDownlink,
-			var5qi:          Var5qi,
-			arp:             256,
-			DataNetworkName: "internet",
-			error:           "invalid arp format - must be an integer between 1 and 255",
+			testName:            "Invalid Priority Level - Too large value",
+			name:                PolicyName,
+			profileName:         DefaultProfileName,
+			sliceName:           DefaultSliceName,
+			sessionAmbrUplink:   SessionAmbrUplink,
+			sessionAmbrDownlink: SessionAmbrDownlink,
+			var5qi:              Var5qi,
+			arp:                 256,
+			DataNetworkName:     "internet",
+			error:               "invalid arp format - must be an integer between 1 and 15",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
 			createPolicyParams := &CreatePolicyParams{
-				Name:            tt.name,
-				BitrateUplink:   tt.bitrateUplink,
-				BitrateDownlink: tt.bitrateDownlink,
-				Var5qi:          tt.var5qi,
-				Arp:             tt.arp,
-				DataNetworkName: tt.DataNetworkName,
+				Name:                tt.name,
+				ProfileName:         tt.profileName,
+				SliceName:           tt.sliceName,
+				SessionAmbrUplink:   tt.sessionAmbrUplink,
+				SessionAmbrDownlink: tt.sessionAmbrDownlink,
+				Var5qi:              tt.var5qi,
+				Arp:                 tt.arp,
+				DataNetworkName:     tt.DataNetworkName,
 			}
 
 			statusCode, response, err := createPolicy(env.Server.URL, client, token, createPolicyParams)
@@ -834,14 +911,44 @@ func TestCreateTooManyPolicies(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
+	// Create a single extra data network for all test policies.
+	dnParams := &CreateDataNetworkParams{
+		Name:   "test-dn",
+		MTU:    1500,
+		DNS:    "8.8.8.8",
+		IPPool: "10.50.0.0/16",
+	}
+
+	statusCode, _, dnErr := createDataNetwork(env.Server.URL, client, token, dnParams)
+	if dnErr != nil {
+		t.Fatalf("couldn't create data network: %s", dnErr)
+	}
+
+	if statusCode != http.StatusCreated {
+		t.Fatalf("expected status %d for DN creation, got %d", http.StatusCreated, statusCode)
+	}
+
 	for i := 0; i < 11; i++ { // We use 11 instead of 12 because the first policy is created by default
+		profileName := "profile-" + strconv.Itoa(i)
+
+		_, _, profErr := createProfile(env.Server.URL, client, token, &CreateProfileParams{
+			Name:           profileName,
+			UeAmbrUplink:   SessionAmbrUplink,
+			UeAmbrDownlink: SessionAmbrDownlink,
+		})
+		if profErr != nil {
+			t.Fatalf("couldn't create profile %s: %s", profileName, profErr)
+		}
+
 		createPolicyParams := &CreatePolicyParams{
-			Name:            PolicyName + strconv.Itoa(i),
-			BitrateUplink:   BitrateUplink,
-			BitrateDownlink: BitrateDownlink,
-			Var5qi:          Var5qi,
-			Arp:             Arp,
-			DataNetworkName: "internet",
+			Name:                PolicyName + strconv.Itoa(i),
+			ProfileName:         profileName,
+			SliceName:           DefaultSliceName,
+			SessionAmbrUplink:   SessionAmbrUplink,
+			SessionAmbrDownlink: SessionAmbrDownlink,
+			Var5qi:              Var5qi,
+			Arp:                 Arp,
+			DataNetworkName:     "test-dn",
 		}
 
 		statusCode, response, err := createPolicy(env.Server.URL, client, token, createPolicyParams)
@@ -858,22 +965,33 @@ func TestCreateTooManyPolicies(t *testing.T) {
 		}
 	}
 
+	_, _, profErr := createProfile(env.Server.URL, client, token, &CreateProfileParams{
+		Name:           "excess-profile",
+		UeAmbrUplink:   SessionAmbrUplink,
+		UeAmbrDownlink: SessionAmbrDownlink,
+	})
+	if profErr != nil {
+		t.Fatalf("couldn't create excess profile: %s", profErr)
+	}
+
 	createPolicyParams := &CreatePolicyParams{
-		Name:            "excess-policy",
-		BitrateUplink:   BitrateUplink,
-		BitrateDownlink: BitrateDownlink,
-		Var5qi:          Var5qi,
-		Arp:             Arp,
-		DataNetworkName: "internet",
+		Name:                "excess-policy",
+		ProfileName:         "excess-profile",
+		SliceName:           DefaultSliceName,
+		SessionAmbrUplink:   SessionAmbrUplink,
+		SessionAmbrDownlink: SessionAmbrDownlink,
+		Var5qi:              Var5qi,
+		Arp:                 Arp,
+		DataNetworkName:     "test-dn",
 	}
 
-	statusCode, response, err := createPolicy(env.Server.URL, client, token, createPolicyParams)
-	if err != nil {
-		t.Fatalf("couldn't create policy: %s", err)
+	excessPolicyStatus, response, excessPolicyErr := createPolicy(env.Server.URL, client, token, createPolicyParams)
+	if excessPolicyErr != nil {
+		t.Fatalf("couldn't create policy: %s", excessPolicyErr)
 	}
 
-	if statusCode != http.StatusBadRequest {
-		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+	if excessPolicyStatus != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, excessPolicyStatus)
 	}
 
 	if response.Error != "Maximum number of policies reached (12)" {
@@ -908,6 +1026,14 @@ func TestUpdatePolicyDeletesRulesWhenNotProvided(t *testing.T) {
 		t.Fatalf("couldn't create data network: %s", err)
 	}
 
+	// Create a profile for the policy.
+	_, _, err = createProfile(env.Server.URL, client, token, &CreateProfileParams{
+		Name: "rules-profile", UeAmbrUplink: "100 Mbps", UeAmbrDownlink: "100 Mbps",
+	})
+	if err != nil {
+		t.Fatalf("couldn't create profile: %s", err)
+	}
+
 	// Create a policy with rules.
 	action := "allow"
 	uplinkRule := PolicyRule{
@@ -919,12 +1045,14 @@ func TestUpdatePolicyDeletesRulesWhenNotProvided(t *testing.T) {
 	}
 
 	_, _, err = createPolicy(env.Server.URL, client, token, &CreatePolicyParams{
-		Name:            "policy-with-rules",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "100 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkName: DataNetworkName,
+		Name:                "policy-with-rules",
+		ProfileName:         "rules-profile",
+		SliceName:           DefaultSliceName,
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "100 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkName:     DataNetworkName,
 		Rules: &PolicyRules{
 			Uplink: []PolicyRule{uplinkRule},
 		},
@@ -945,11 +1073,13 @@ func TestUpdatePolicyDeletesRulesWhenNotProvided(t *testing.T) {
 
 	// Update the policy without providing rules — this should delete them.
 	statusCode, updateResp, err := editPolicy(env.Server.URL, client, "policy-with-rules", token, &UpdatePolicyParams{
-		BitrateUplink:   "200 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkName: DataNetworkName,
+		ProfileName:         "rules-profile",
+		SliceName:           DefaultSliceName,
+		SessionAmbrUplink:   "200 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkName:     DataNetworkName,
 		// Rules intentionally omitted.
 	})
 	if err != nil {
@@ -968,5 +1098,62 @@ func TestUpdatePolicyDeletesRulesWhenNotProvided(t *testing.T) {
 
 	if getResp.Result.Rules != nil {
 		t.Fatalf("expected rules to be deleted after update without rules, got: %+v", getResp.Result.Rules)
+	}
+}
+
+func TestCreatePolicyOnePolicyPerProfile(t *testing.T) {
+	tempDir := t.TempDir()
+
+	env, err := setupServer(filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete setupServer: %s", err)
+	}
+
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("Couldn't complete initializeAndRefresh: %s", err)
+	}
+
+	// Create a second data network for the duplicate policy attempt
+	dn := &CreateDataNetworkParams{
+		Name:   "second-dn",
+		IPPool: "10.46.0.0/24",
+		DNS:    "8.8.8.8",
+		MTU:    1500,
+	}
+
+	statusCode, _, err := createDataNetwork(env.Server.URL, client, token, dn)
+	if err != nil {
+		t.Fatalf("Couldn't complete createDataNetwork: %s", err)
+	}
+
+	if statusCode != http.StatusCreated {
+		t.Fatalf("Expected status %d, got %d", http.StatusCreated, statusCode)
+	}
+
+	// The default profile already has the default policy.
+	// Creating another policy for the same profile should fail.
+	secondPolicy := &CreatePolicyParams{
+		Name:                "second-policy-for-default",
+		ProfileName:         DefaultProfileName,
+		SliceName:           DefaultSliceName,
+		SessionAmbrUplink:   "50 Mbps",
+		SessionAmbrDownlink: "100 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkName:     "second-dn",
+	}
+
+	statusCode, _, err = createPolicy(env.Server.URL, client, token, secondPolicy)
+	if err != nil {
+		t.Fatalf("Couldn't complete createPolicy: %s", err)
+	}
+
+	if statusCode != http.StatusConflict {
+		t.Fatalf("Expected status %d for 1-policy-per-profile limit, got %d", http.StatusConflict, statusCode)
 	}
 }

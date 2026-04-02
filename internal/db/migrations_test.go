@@ -153,8 +153,10 @@ func TestRunMigrations_FreshDatabase(t *testing.T) {
 		N3SettingsTableName,
 		NATSettingsTableName,
 		NetworkRulesTableName,
+		NetworkSlicesTableName,
 		OperatorTableName,
 		PoliciesTableName,
+		ProfilesTableName,
 		RadioEventsTableName,
 		RetentionPolicyTableName,
 		RoutesTableName,
@@ -391,7 +393,7 @@ func TestRunMigrations_Incremental(t *testing.T) {
 	}
 
 	_, err := db.ExecContext(ctx, fmt.Sprintf(
-		"INSERT INTO %s (id, mcc, mnc, operatorCode, sst) VALUES (1, '310', '260', 'testop', 1)",
+		"INSERT INTO %s (id, mcc, mnc, operatorCode) VALUES (1, '310', '260', 'testop')",
 		OperatorTableName))
 	if err != nil {
 		t.Fatalf("failed to insert test data: %v", err)
@@ -612,5 +614,261 @@ func TestMigrateV2_NoExistingKey(t *testing.T) {
 
 	if count != 0 {
 		t.Errorf("expected 0 keys after migration with no prior key, got %d", count)
+	}
+}
+
+// runMigrationsUpTo applies all registered migrations up to and including
+// the given version, then stops. It temporarily truncates the global
+// migrations slice so RunMigrations only sees the desired prefix.
+func runMigrationsUpTo(t *testing.T, db *sql.DB, version int) {
+	t.Helper()
+
+	original := migrations
+
+	defer func() { migrations = original }()
+
+	if version > len(original) {
+		t.Fatalf("requested version %d exceeds available migrations (%d)", version, len(original))
+	}
+
+	migrations = original[:version]
+
+	if err := RunMigrations(context.Background(), db); err != nil {
+		t.Fatalf("RunMigrations up to v%d failed: %v", version, err)
+	}
+
+	migrations = original
+}
+
+func TestMigrateV7_DataMigration(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	// Apply V1-V6 to get the pre-v7 schema.
+	runMigrationsUpTo(t, db, 6)
+
+	// Seed an operator with sst/sd (3-byte BLOB).
+	_, err := db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, mcc, mnc, operatorCode, sst, sd, supportedTACs) VALUES (1, '001', '01', 'abc123', 1, X'102030', '[]')",
+		OperatorTableName))
+	if err != nil {
+		t.Fatalf("failed to insert operator: %v", err)
+	}
+
+	// Seed a data network.
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, name, ipPool, dns, mtu) VALUES (1, 'internet', '10.0.0.0/24', '8.8.8.8', 1500)",
+		DataNetworksTableName))
+	if err != nil {
+		t.Fatalf("failed to insert data network: %v", err)
+	}
+
+	// Seed two old-schema policies.
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, name, bitrateUplink, bitrateDownlink, var5qi, arp, dataNetworkID) VALUES (1, 'gold', '200 Mbps', '100 Mbps', 9, 1, 1)",
+		PoliciesTableName))
+	if err != nil {
+		t.Fatalf("failed to insert policy 'gold': %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, name, bitrateUplink, bitrateDownlink, var5qi, arp, dataNetworkID) VALUES (2, 'silver', '50 Mbps', '25 Mbps', 8, 2, 1)",
+		PoliciesTableName))
+	if err != nil {
+		t.Fatalf("failed to insert policy 'silver': %v", err)
+	}
+
+	// Seed a network rule referencing old policy 1 (gold).
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, policy_id, description, direction, protocol, port_low, port_high, action, precedence) VALUES (1, 1, 'allow all', 'outbound', 255, 0, 65535, 'allow', 100)",
+		NetworkRulesTableName))
+	if err != nil {
+		t.Fatalf("failed to insert network rule: %v", err)
+	}
+
+	// Seed a subscriber referencing old policy 2 (silver).
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, imsi, sequenceNumber, permanentKey, opc, policyID) VALUES (1, '001010000000001', '000000000001', '00112233445566778899aabbccddeeff', '00112233445566778899aabbccddeeff', 2)",
+		SubscribersTableName))
+	if err != nil {
+		t.Fatalf("failed to insert subscriber: %v", err)
+	}
+
+	// Apply V7 migration.
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("failed to begin transaction: %v", err)
+	}
+
+	if err := migrateV7(ctx, tx); err != nil {
+		_ = tx.Rollback()
+
+		t.Fatalf("migrateV7 failed: %v", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("failed to commit migrateV7: %v", err)
+	}
+
+	// --- Assertions ---
+
+	// 1. network_slices: one row with sst=1, sd='102030', name='default'
+	var sliceSst int
+
+	var sliceSd, sliceName string
+
+	err = db.QueryRowContext(ctx,
+		fmt.Sprintf("SELECT sst, sd, name FROM %s WHERE id = 1", NetworkSlicesTableName),
+	).Scan(&sliceSst, &sliceSd, &sliceName)
+	if err != nil {
+		t.Fatalf("failed to query network_slices: %v", err)
+	}
+
+	if sliceSst != 1 {
+		t.Errorf("network_slices.sst = %d, want 1", sliceSst)
+	}
+
+	if sliceSd != "102030" {
+		t.Errorf("network_slices.sd = %q, want %q", sliceSd, "102030")
+	}
+
+	if sliceName != "default" {
+		t.Errorf("network_slices.name = %q, want %q", sliceName, "default")
+	}
+
+	// 2. profiles: two rows (gold, silver) with UE-AMBR from old policies.
+	var goldUplinkAmbr, goldDownlinkAmbr string
+
+	err = db.QueryRowContext(ctx,
+		fmt.Sprintf("SELECT ueAmbrUplink, ueAmbrDownlink FROM %s WHERE name = 'gold'", ProfilesTableName),
+	).Scan(&goldUplinkAmbr, &goldDownlinkAmbr)
+	if err != nil {
+		t.Fatalf("failed to query profile 'gold': %v", err)
+	}
+
+	if goldUplinkAmbr != "200 Mbps" {
+		t.Errorf("profiles[gold].ueAmbrUplink = %q, want %q", goldUplinkAmbr, "200 Mbps")
+	}
+
+	if goldDownlinkAmbr != "100 Mbps" {
+		t.Errorf("profiles[gold].ueAmbrDownlink = %q, want %q", goldDownlinkAmbr, "100 Mbps")
+	}
+
+	// 3. policies (new schema): two rows with profileID, sliceID, dataNetworkID.
+	var newPolicyProfileID, newPolicySliceID, newPolicyDnID, newPolicyVar5qi, newPolicyArp int
+
+	var newPolicySessionUp, newPolicySessionDown string
+
+	err = db.QueryRowContext(ctx,
+		fmt.Sprintf("SELECT profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink FROM %s WHERE name = 'gold'", PoliciesTableName),
+	).Scan(&newPolicyProfileID, &newPolicySliceID, &newPolicyDnID, &newPolicyVar5qi, &newPolicyArp, &newPolicySessionUp, &newPolicySessionDown)
+	if err != nil {
+		t.Fatalf("failed to query new policy 'gold': %v", err)
+	}
+
+	if newPolicyVar5qi != 9 {
+		t.Errorf("policies[gold].var5qi = %d, want 9", newPolicyVar5qi)
+	}
+
+	if newPolicyArp != 1 {
+		t.Errorf("policies[gold].arp = %d, want 1", newPolicyArp)
+	}
+
+	if newPolicySessionUp != "200 Mbps" {
+		t.Errorf("policies[gold].sessionAmbrUplink = %q, want %q", newPolicySessionUp, "200 Mbps")
+	}
+
+	// profileID should reference the 'gold' profile.
+	var profileName string
+
+	err = db.QueryRowContext(ctx,
+		fmt.Sprintf("SELECT name FROM %s WHERE id = ?", ProfilesTableName), newPolicyProfileID,
+	).Scan(&profileName)
+	if err != nil {
+		t.Fatalf("failed to look up profile by ID %d: %v", newPolicyProfileID, err)
+	}
+
+	if profileName != "gold" {
+		t.Errorf("policy 'gold' references profile %q, want %q", profileName, "gold")
+	}
+
+	// 4. network_rules: policy_id should reference the new 'gold' policy.
+	var ruleNewPolicyID int
+
+	err = db.QueryRowContext(ctx,
+		fmt.Sprintf("SELECT policy_id FROM %s WHERE id = 1", NetworkRulesTableName),
+	).Scan(&ruleNewPolicyID)
+	if err != nil {
+		t.Fatalf("failed to query network_rule: %v", err)
+	}
+
+	var rulePolicyName string
+
+	err = db.QueryRowContext(ctx,
+		fmt.Sprintf("SELECT name FROM %s WHERE id = ?", PoliciesTableName), ruleNewPolicyID,
+	).Scan(&rulePolicyName)
+	if err != nil {
+		t.Fatalf("failed to look up policy by ID %d: %v", ruleNewPolicyID, err)
+	}
+
+	if rulePolicyName != "gold" {
+		t.Errorf("network_rule references policy %q, want %q", rulePolicyName, "gold")
+	}
+
+	// 5. subscribers: profileID should reference the 'silver' profile.
+	var subProfileID int
+
+	err = db.QueryRowContext(ctx,
+		fmt.Sprintf("SELECT profileID FROM %s WHERE id = 1", SubscribersTableName),
+	).Scan(&subProfileID)
+	if err != nil {
+		t.Fatalf("failed to query subscriber: %v", err)
+	}
+
+	var subProfileName string
+
+	err = db.QueryRowContext(ctx,
+		fmt.Sprintf("SELECT name FROM %s WHERE id = ?", ProfilesTableName), subProfileID,
+	).Scan(&subProfileName)
+	if err != nil {
+		t.Fatalf("failed to look up profile by ID %d: %v", subProfileID, err)
+	}
+
+	if subProfileName != "silver" {
+		t.Errorf("subscriber references profile %q, want %q", subProfileName, "silver")
+	}
+
+	// 6. operator: sst and sd columns should no longer exist.
+	_, err = db.QueryContext(ctx, fmt.Sprintf("SELECT sst FROM %s", OperatorTableName))
+	if err == nil {
+		t.Error("expected error querying operator.sst (column should be removed), but got nil")
+	}
+
+	// Verify core operator data is preserved.
+	var opMcc, opMnc string
+
+	err = db.QueryRowContext(ctx,
+		fmt.Sprintf("SELECT mcc, mnc FROM %s WHERE id = 1", OperatorTableName),
+	).Scan(&opMcc, &opMnc)
+	if err != nil {
+		t.Fatalf("failed to query operator: %v", err)
+	}
+
+	if opMcc != "001" || opMnc != "01" {
+		t.Errorf("operator mcc/mnc = %q/%q, want 001/01", opMcc, opMnc)
+	}
+
+	// 7. policies_old should not exist.
+	var count int
+
+	err = db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='policies_old'",
+	).Scan(&count)
+	if err != nil {
+		t.Fatalf("failed to check for policies_old table: %v", err)
+	}
+
+	if count != 0 {
+		t.Error("policies_old table still exists after migration")
 	}
 }

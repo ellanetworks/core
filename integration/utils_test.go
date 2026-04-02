@@ -17,7 +17,7 @@ type SubscriberConfig struct {
 	Key            string
 	SequenceNumber string
 	OPc            string
-	PolicyName     string
+	ProfileName    string
 }
 
 type RouteConfig struct {
@@ -118,7 +118,7 @@ func createSubs(ctx context.Context, cl *client.Client, subs []SubscriberConfig)
 			Imsi:           sub.Imsi,
 			Key:            sub.Key,
 			SequenceNumber: sub.SequenceNumber,
-			PolicyName:     sub.PolicyName,
+			ProfileName:    sub.ProfileName,
 			OPc:            sub.OPc,
 		})
 		if err != nil {

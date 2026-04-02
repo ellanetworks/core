@@ -21,10 +21,12 @@ var PermissionsByRole = map[RoleID][]string{
 	RoleReadOnly: {
 		PermReadMyUser, PermUpdateMyUserPassword,
 		PermListMyAPITokens, PermCreateMyAPIToken, PermDeleteMyAPIToken,
-		PermReadOperator, PermGetOperatorSlice, PermGetOperatorTracking,
+		PermReadOperator,
 		PermListSubscribers, PermReadSubscriber,
 		PermListDataNetworks, PermReadDataNetwork,
 		PermListPolicies, PermReadPolicy,
+		PermListProfiles, PermReadProfile,
+		PermListSlices, PermReadSlice,
 		PermListRoutes, PermReadRoute,
 		PermListRadios, PermReadRadio,
 		PermGetNATInfo,
@@ -39,10 +41,12 @@ var PermissionsByRole = map[RoleID][]string{
 	RoleNetworkManager: {
 		PermReadUser, PermReadMyUser, PermUpdateMyUserPassword,
 		PermListMyAPITokens, PermCreateMyAPIToken, PermDeleteMyAPIToken,
-		PermReadOperator, PermUpdateOperatorSlice, PermGetOperatorSlice, PermUpdateOperatorTracking, PermGetOperatorTracking, PermUpdateOperatorNASSecurity, PermUpdateOperatorHomeNetwork, PermReadHomeNetworkPrivateKey, PermUpdateOperatorSPN,
+		PermReadOperator, PermUpdateOperatorTracking, PermUpdateOperatorNASSecurity, PermUpdateOperatorHomeNetwork, PermReadHomeNetworkPrivateKey, PermUpdateOperatorSPN,
 		PermListDataNetworks, PermCreateDataNetwork, PermUpdateDataNetwork, PermReadDataNetwork, PermDeleteDataNetwork,
 		PermListSubscribers, PermCreateSubscriber, PermUpdateSubscriber, PermReadSubscriber, PermDeleteSubscriber, PermReadSubscriberCredentials,
 		PermListPolicies, PermCreatePolicy, PermUpdatePolicy, PermReadPolicy, PermDeletePolicy,
+		PermListProfiles, PermCreateProfile, PermUpdateProfile, PermReadProfile, PermDeleteProfile,
+		PermListSlices, PermCreateSlice, PermUpdateSlice, PermReadSlice, PermDeleteSlice,
 		PermListRoutes, PermCreateRoute, PermReadRoute, PermDeleteRoute,
 		PermListRadios, PermReadRadio,
 		PermGetNATInfo, PermUpdateNATInfo,
@@ -84,7 +88,6 @@ const (
 
 	// Operator permissions
 	PermReadOperator              = "operator:read"
-	PermUpdateOperatorSlice       = "operator:update_slice"
 	PermUpdateOperatorTracking    = "operator:update_tracking"
 	PermUpdateOperatorID          = "operator:update_id"
 	PermUpdateOperatorCode        = "operator:update_code"
@@ -92,12 +95,6 @@ const (
 	PermReadHomeNetworkPrivateKey = "operator:read_home_network_private_key"
 	PermUpdateOperatorNASSecurity = "operator:update_nas_security"
 	PermUpdateOperatorSPN         = "operator:update_spn"
-
-	// Deprecated: sub-resource GET permissions. Use operator:read instead.
-	// These will be removed in a future release.
-	PermGetOperatorSlice    = "operator:get_slice"
-	PermGetOperatorTracking = "operator:get_tracking"
-	PermGetOperatorID       = "operator:get_id"
 
 	// Subscriber permissions
 	PermListSubscribers           = "subscriber:list"
@@ -119,6 +116,20 @@ const (
 	PermUpdatePolicy = "policy:update"
 	PermReadPolicy   = "policy:read"
 	PermDeletePolicy = "policy:delete"
+
+	// Profile permissions
+	PermListProfiles  = "profile:list"
+	PermCreateProfile = "profile:create"
+	PermUpdateProfile = "profile:update"
+	PermReadProfile   = "profile:read"
+	PermDeleteProfile = "profile:delete"
+
+	// Slice permissions
+	PermListSlices  = "slice:list"
+	PermCreateSlice = "slice:create"
+	PermUpdateSlice = "slice:update"
+	PermReadSlice   = "slice:read"
+	PermDeleteSlice = "slice:delete"
 
 	// Route permissions
 	PermListRoutes  = "route:list"

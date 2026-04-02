@@ -50,6 +50,8 @@ func setupLeaseTestDB(t *testing.T) (*db.Database, int, string) {
 	policy := &db.Policy{
 		Name:          "test-policy",
 		DataNetworkID: createdDNN.ID,
+		ProfileID:     1,
+		SliceID:       1,
 	}
 
 	if err := database.CreatePolicy(context.Background(), policy); err != nil {
@@ -61,13 +63,15 @@ func setupLeaseTestDB(t *testing.T) (*db.Database, int, string) {
 		t.Fatalf("GetPolicy: %s", err)
 	}
 
+	_ = createdPolicy // used to verify creation; subscriber references default profile
+
 	imsi := "001010123456789"
 	sub := &db.Subscriber{
 		Imsi:           imsi,
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       createdPolicy.ID,
+		ProfileID:      1,
 	}
 
 	if err := database.CreateSubscriber(context.Background(), sub); err != nil {
@@ -143,7 +147,7 @@ func TestCreateLease_UniqueConstraint(t *testing.T) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       1,
+		ProfileID:      1,
 	}
 
 	if err := database.CreateSubscriber(ctx, sub2); err != nil {
@@ -279,7 +283,7 @@ func TestDeleteAllDynamicLeases(t *testing.T) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       1,
+		ProfileID:      1,
 	}
 
 	if err := database.CreateSubscriber(ctx, sub2); err != nil {
@@ -541,7 +545,13 @@ func TestOnDeleteCascade_DataNetwork(t *testing.T) {
 	}
 
 	// Deleting the data network should cascade-delete associated leases.
-	err := database.DeleteDataNetwork(ctx, "test-dnn")
+	// First, remove the policy that references this data network (ON DELETE RESTRICT).
+	err := database.DeletePolicy(ctx, "test-policy")
+	if err != nil {
+		t.Fatalf("DeletePolicy: %s", err)
+	}
+
+	err = database.DeleteDataNetwork(ctx, "test-dnn")
 	if err != nil {
 		t.Fatalf("DeleteDataNetwork: %s", err)
 	}
@@ -601,7 +611,7 @@ func TestListLeasesByPoolPage(t *testing.T) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       1,
+		ProfileID:      1,
 	}
 
 	if err := database.CreateSubscriber(ctx, sub2); err != nil {
@@ -705,7 +715,7 @@ func TestListLeaseAddressesByPool_NumericOrder(t *testing.T) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       1,
+		ProfileID:      1,
 	}
 
 	if err := database.CreateSubscriber(ctx, sub2); err != nil {
@@ -719,7 +729,7 @@ func TestListLeaseAddressesByPool_NumericOrder(t *testing.T) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       1,
+		ProfileID:      1,
 	}
 
 	if err := database.CreateSubscriber(ctx, sub3); err != nil {

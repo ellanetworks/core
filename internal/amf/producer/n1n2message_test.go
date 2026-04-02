@@ -126,11 +126,19 @@ func (f *fakeDBInstance) GetSubscriber(context.Context, string) (*db.Subscriber,
 	return nil, nil
 }
 
-func (f *fakeDBInstance) GetPolicyByID(context.Context, int) (*db.Policy, error) {
+func (f *fakeDBInstance) GetDataNetworkByID(context.Context, int) (*db.DataNetwork, error) {
 	return nil, nil
 }
 
-func (f *fakeDBInstance) GetDataNetworkByID(context.Context, int) (*db.DataNetwork, error) {
+func (f *fakeDBInstance) GetProfileByID(context.Context, int) (*db.Profile, error) {
+	return nil, nil
+}
+
+func (f *fakeDBInstance) ListAllNetworkSlices(context.Context) ([]db.NetworkSlice, error) {
+	return nil, nil
+}
+
+func (f *fakeDBInstance) GetPolicyByProfileID(context.Context, int) (*db.Policy, error) {
 	return nil, nil
 }
 

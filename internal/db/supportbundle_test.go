@@ -142,37 +142,18 @@ func TestExportSupportData_WithEntries(t *testing.T) {
 		t.Fatalf("couldn't find created data network")
 	}
 
-	policy := &db.Policy{Name: "support-policy", BitrateUplink: "100 Mbps", BitrateDownlink: "100 Mbps", Var5qi: 9, Arp: 1, DataNetworkID: dnID}
+	policy := &db.Policy{Name: "support-policy", SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "100 Mbps", Var5qi: 9, Arp: 1, DataNetworkID: dnID, ProfileID: 1, SliceID: 1}
 	if err := database.CreatePolicy(context.Background(), policy); err != nil {
 		t.Fatalf("CreatePolicy failed: %v", err)
 	}
 
-	// fetch policy to get ID
-	policies, _, err := database.ListPoliciesPage(context.Background(), 1, 10)
-	if err != nil || len(policies) == 0 {
-		t.Fatalf("unable to get policy for creating subscriber: %v", err)
-	}
-
-	var policyID int
-
-	for _, p := range policies {
-		if p.Name == policy.Name {
-			policyID = p.ID
-			break
-		}
-	}
-
-	if policyID == 0 {
-		t.Fatalf("couldn't find created policy")
-	}
-
-	// create a subscriber referencing the created policy
+	// create a subscriber referencing the default profile
 	sub := &db.Subscriber{
 		Imsi:           "001010000000001",
 		SequenceNumber: "000000000001",
 		PermanentKey:   strings.Repeat("p", 32),
 		Opc:            strings.Repeat("o", 32),
-		PolicyID:       policyID,
+		ProfileID:      1,
 	}
 	if err := database.CreateSubscriber(context.Background(), sub); err != nil {
 		t.Fatalf("CreateSubscriber failed: %v", err)
