@@ -23,11 +23,14 @@ func TestCreatePolicy_Success(t *testing.T) {
 	}
 
 	createPolicyOpts := &client.CreatePolicyOptions{
-		Name:            "testPolicy",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "100 Mbps",
-		Var5qi:          9,
-		Arp:             1,
+		Name:                "testPolicy",
+		ProfileName:         "testProfile",
+		SliceName:           "default",
+		DataNetworkName:     "internet",
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "100 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
 	}
 
 	ctx := context.Background()
@@ -51,11 +54,14 @@ func TestCreatePolicy_Failure(t *testing.T) {
 		Requester: fake,
 	}
 	createPolicyOpts := &client.CreatePolicyOptions{
-		Name:            "testPolicy",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "100 Mbps",
-		Var5qi:          9,
-		Arp:             1,
+		Name:                "testPolicy",
+		ProfileName:         "testProfile",
+		SliceName:           "default",
+		DataNetworkName:     "internet",
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "100 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
 	}
 
 	ctx := context.Background()
@@ -71,7 +77,7 @@ func TestGetPolicy_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"name": "my-policy", "ip_pool": "1.2.3.0/24"}`),
+			Result:     []byte(`{"name": "my-policy", "profile_name": "my-profile", "slice_name": "default", "data_network_name": "internet", "session_ambr_uplink": "100 Mbps", "session_ambr_downlink": "100 Mbps", "var5qi": 9, "arp": 1}`),
 		},
 		err: nil,
 	}
@@ -269,13 +275,15 @@ func TestCreatePolicy_WithRules_Success(t *testing.T) {
 	}
 
 	createPolicyOpts := &client.CreatePolicyOptions{
-		Name:            "policy-with-rules",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkName: "internet",
-		Rules:           rules,
+		Name:                "policy-with-rules",
+		ProfileName:         "policy-with-rules",
+		SliceName:           "default",
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkName:     "internet",
+		Rules:               rules,
 	}
 
 	ctx := context.Background()
@@ -308,13 +316,15 @@ func TestCreatePolicy_WithoutRules_Success(t *testing.T) {
 	}
 
 	createPolicyOpts := &client.CreatePolicyOptions{
-		Name:            "policy-without-rules",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkName: "internet",
-		Rules:           nil,
+		Name:                "policy-without-rules",
+		ProfileName:         "policy-without-rules",
+		SliceName:           "default",
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkName:     "internet",
+		Rules:               nil,
 	}
 
 	ctx := context.Background()
@@ -339,12 +349,12 @@ func TestUpdatePolicy_Success(t *testing.T) {
 	}
 
 	updatePolicyOpts := &client.UpdatePolicyOptions{
-		BitrateUplink:   "150 Mbps",
-		BitrateDownlink: "250 Mbps",
-		Var5qi:          8,
-		Arp:             2,
-		DataNetworkName: "internet",
-		Rules:           nil,
+		SessionAmbrUplink:   "150 Mbps",
+		SessionAmbrDownlink: "250 Mbps",
+		Var5qi:              8,
+		Arp:                 2,
+		DataNetworkName:     "internet",
+		Rules:               nil,
 	}
 
 	ctx := context.Background()
@@ -392,12 +402,12 @@ func TestUpdatePolicy_WithRules_Success(t *testing.T) {
 	}
 
 	updatePolicyOpts := &client.UpdatePolicyOptions{
-		BitrateUplink:   "200 Mbps",
-		BitrateDownlink: "300 Mbps",
-		Var5qi:          7,
-		Arp:             3,
-		DataNetworkName: "internet",
-		Rules:           rules,
+		SessionAmbrUplink:   "200 Mbps",
+		SessionAmbrDownlink: "300 Mbps",
+		Var5qi:              7,
+		Arp:                 3,
+		DataNetworkName:     "internet",
+		Rules:               rules,
 	}
 
 	ctx := context.Background()
@@ -426,7 +436,7 @@ func TestUpdatePolicy_Failure(t *testing.T) {
 	}
 
 	updatePolicyOpts := &client.UpdatePolicyOptions{
-		BitrateUplink: "150 Mbps",
+		SessionAmbrUplink: "150 Mbps",
 	}
 
 	ctx := context.Background()
@@ -444,11 +454,13 @@ func TestGetPolicy_WithRules_Success(t *testing.T) {
 			Headers:    http.Header{},
 			Result: []byte(`{
 				"name": "policy-with-rules",
-				"bitrate_uplink": "100 Mbps",
-				"bitrate_downlink": "200 Mbps",
+				"profile_name": "policy-with-rules",
+				"slice_name": "default",
+				"data_network_name": "internet",
+				"session_ambr_uplink": "100 Mbps",
+				"session_ambr_downlink": "200 Mbps",
 				"var5qi": 9,
 				"arp": 1,
-				"data_network_name": "internet",
 				"rules": {
 					"uplink": [
 						{
@@ -522,11 +534,13 @@ func TestGetPolicy_WithoutRules_Success(t *testing.T) {
 			Headers:    http.Header{},
 			Result: []byte(`{
 				"name": "simple-policy",
-				"bitrate_uplink": "100 Mbps",
-				"bitrate_downlink": "200 Mbps",
+				"profile_name": "simple-policy",
+				"slice_name": "default",
+				"data_network_name": "internet",
+				"session_ambr_uplink": "100 Mbps",
+				"session_ambr_downlink": "200 Mbps",
 				"var5qi": 9,
-				"arp": 1,
-				"data_network_name": "internet"
+				"arp": 1
 			}`),
 		},
 		err: nil,

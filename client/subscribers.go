@@ -12,7 +12,7 @@ type CreateSubscriberOptions struct {
 	Imsi           string `json:"imsi"`
 	Key            string `json:"key"`
 	SequenceNumber string `json:"sequenceNumber"`
-	PolicyName     string `json:"policyName"`
+	ProfileName    string `json:"profile_name"`
 	OPc            string `json:"opc,omitempty"`
 }
 
@@ -33,10 +33,10 @@ type SubscriberStatus struct {
 
 // Subscriber is the summary representation returned by the list endpoint.
 type Subscriber struct {
-	Imsi       string           `json:"imsi"`
-	PolicyName string           `json:"policyName"`
-	Radio      string           `json:"radio,omitempty"`
-	Status     SubscriberStatus `json:"status"`
+	Imsi        string           `json:"imsi"`
+	ProfileName string           `json:"profile_name"`
+	Radio       string           `json:"radio,omitempty"`
+	Status      SubscriberStatus `json:"status"`
 }
 
 // ListSubscribersParams holds the parameters for ListSubscribers.
@@ -66,9 +66,9 @@ type SubscriberDetailStatus struct {
 
 // SubscriberDetail is the full representation returned by the get-single endpoint.
 type SubscriberDetail struct {
-	Imsi       string                 `json:"imsi"`
-	PolicyName string                 `json:"policyName"`
-	Status     SubscriberDetailStatus `json:"status"`
+	Imsi        string                 `json:"imsi"`
+	ProfileName string                 `json:"profile_name"`
+	Status      SubscriberDetailStatus `json:"status"`
 }
 
 // SubscriberCredentials contains the authentication credentials for a subscriber.
@@ -89,13 +89,13 @@ func (c *Client) CreateSubscriber(ctx context.Context, opts *CreateSubscriberOpt
 		Imsi           string `json:"imsi"`
 		Key            string `json:"key"`
 		SequenceNumber string `json:"sequenceNumber"`
-		PolicyName     string `json:"policyName"`
+		ProfileName    string `json:"profile_name"`
 		OPc            string `json:"opc,omitempty"`
 	}{
 		Imsi:           opts.Imsi,
 		Key:            opts.Key,
 		SequenceNumber: opts.SequenceNumber,
-		PolicyName:     opts.PolicyName,
+		ProfileName:    opts.ProfileName,
 		OPc:            opts.OPc,
 	}
 

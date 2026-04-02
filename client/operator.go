@@ -12,11 +12,6 @@ type GetOperatorIDResponse struct {
 	Mnc string `json:"mnc,omitempty"`
 }
 
-type GetOperatorSliceResponse struct {
-	Sst int    `json:"sst,omitempty"`
-	Sd  string `json:"sd,omitempty"`
-}
-
 type GetOperatorTrackingResponse struct {
 	SupportedTacs []string `json:"supportedTacs,omitempty"`
 }
@@ -50,7 +45,6 @@ type GetOperatorSPNResponse struct {
 
 type Operator struct {
 	ID              GetOperatorIDResponse          `json:"id,omitempty"`
-	Slice           GetOperatorSliceResponse       `json:"slice,omitempty"`
 	Tracking        GetOperatorTrackingResponse    `json:"tracking,omitempty"`
 	HomeNetworkKeys []HomeNetworkKeyResponse       `json:"homeNetworkKeys,omitempty"`
 	NASSecurity     GetOperatorNASSecurityResponse `json:"nasSecurity,omitempty"`
@@ -60,11 +54,6 @@ type Operator struct {
 type UpdateOperatorIDOptions struct {
 	Mcc string
 	Mnc string
-}
-
-type UpdateOperatorSliceOptions struct {
-	Sst int
-	Sd  string
 }
 
 type UpdateOperatorTrackingOptions struct {
@@ -123,36 +112,6 @@ func (c *Client) UpdateOperatorID(ctx context.Context, opts *UpdateOperatorIDOpt
 		Type:   SyncRequest,
 		Method: "PUT",
 		Path:   "api/v1/operator/id",
-		Body:   &body,
-	})
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// UpdateOperatorSlice updates the operator's slice information.
-func (c *Client) UpdateOperatorSlice(ctx context.Context, opts *UpdateOperatorSliceOptions) error {
-	payload := struct {
-		Sst int    `json:"sst"`
-		Sd  string `json:"sd"`
-	}{
-		Sst: opts.Sst,
-		Sd:  opts.Sd,
-	}
-
-	var body bytes.Buffer
-
-	err := json.NewEncoder(&body).Encode(payload)
-	if err != nil {
-		return err
-	}
-
-	_, err = c.Requester.Do(ctx, &RequestOptions{
-		Type:   SyncRequest,
-		Method: "PUT",
-		Path:   "api/v1/operator/slice",
 		Body:   &body,
 	})
 	if err != nil {

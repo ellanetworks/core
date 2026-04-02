@@ -53,12 +53,14 @@ func TestPoliciesEndToEnd(t *testing.T) {
 	}
 
 	policy := &db.Policy{
-		Name:            "my-policy",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkID:   createdNetwork.ID,
+		Name:                "my-policy",
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkID:       createdNetwork.ID,
+		ProfileID:           1,
+		SliceID:             1,
 	}
 
 	err = database.CreatePolicy(context.Background(), policy)
@@ -88,11 +90,11 @@ func TestPoliciesEndToEnd(t *testing.T) {
 		t.Fatalf("The policy name from the database doesn't match the policy name that was given")
 	}
 
-	if retrievedPolicy.BitrateUplink != policy.BitrateUplink {
+	if retrievedPolicy.SessionAmbrUplink != policy.SessionAmbrUplink {
 		t.Fatalf("The bitrate uplink from the database doesn't match the bitrate uplink that was given")
 	}
 
-	if retrievedPolicy.BitrateDownlink != policy.BitrateDownlink {
+	if retrievedPolicy.SessionAmbrDownlink != policy.SessionAmbrDownlink {
 		t.Fatalf("The bitrate downlink from the database doesn't match the bitrate downlink that was given")
 	}
 
@@ -140,5 +142,234 @@ func TestPoliciesEndToEnd(t *testing.T) {
 
 	if len(res) != 1 {
 		t.Fatalf("Policy wasn't deleted from the DB properly")
+	}
+}
+
+func TestGetPolicyByLookup(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	// The default policy links default profile (1), default slice (1), default data network (1)
+	policy, err := database.GetPolicyByLookup(context.Background(), 1, 1, 1)
+	if err != nil {
+		t.Fatalf("Couldn't complete GetPolicyByLookup: %s", err)
+	}
+
+	if policy.Name != "default" {
+		t.Fatalf("Expected default policy, got %q", policy.Name)
+	}
+
+	// Non-existent lookup
+	_, err = database.GetPolicyByLookup(context.Background(), 999, 999, 999)
+	if err != db.ErrNotFound {
+		t.Fatalf("Expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestGetPolicyByProfileID(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	// Default profile ID = 1 has the default policy
+	policy, err := database.GetPolicyByProfileID(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("Couldn't complete GetPolicyByProfileID: %s", err)
+	}
+
+	if policy.Name != "default" {
+		t.Fatalf("Expected default policy, got %q", policy.Name)
+	}
+
+	// Non-existent profile ID
+	_, err = database.GetPolicyByProfileID(context.Background(), 999)
+	if err != db.ErrNotFound {
+		t.Fatalf("Expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestCountPoliciesInRelations(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	// Default policy references profile 1, slice 1, data network 1
+	count, err := database.CountPoliciesInProfile(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("Couldn't complete CountPoliciesInProfile: %s", err)
+	}
+
+	if count != 1 {
+		t.Fatalf("Expected 1 policy in default profile, got %d", count)
+	}
+
+	count, err = database.CountPoliciesInSlice(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("Couldn't complete CountPoliciesInSlice: %s", err)
+	}
+
+	if count != 1 {
+		t.Fatalf("Expected 1 policy in default slice, got %d", count)
+	}
+
+	count, err = database.CountPoliciesInDataNetwork(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("Couldn't complete CountPoliciesInDataNetwork: %s", err)
+	}
+
+	if count != 1 {
+		t.Fatalf("Expected 1 policy in default data network, got %d", count)
+	}
+
+	// Non-existent relations
+	count, err = database.CountPoliciesInProfile(context.Background(), 999)
+	if err != nil {
+		t.Fatalf("Couldn't complete CountPoliciesInProfile: %s", err)
+	}
+
+	if count != 0 {
+		t.Fatalf("Expected 0 policies for non-existent profile, got %d", count)
+	}
+}
+
+func TestPoliciesInDataNetworkAndSlice(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	// Default data network "internet" has the default policy
+	exists, err := database.PoliciesInDataNetwork(context.Background(), "internet")
+	if err != nil {
+		t.Fatalf("Couldn't complete PoliciesInDataNetwork: %s", err)
+	}
+
+	if !exists {
+		t.Fatal("Expected policies to exist for 'internet' data network")
+	}
+
+	// Default slice "default" has the default policy
+	exists, err = database.PoliciesInSlice(context.Background(), "default")
+	if err != nil {
+		t.Fatalf("Couldn't complete PoliciesInSlice: %s", err)
+	}
+
+	if !exists {
+		t.Fatal("Expected policies to exist for 'default' slice")
+	}
+
+	// Create an unused data network
+	err = database.CreateDataNetwork(context.Background(), &db.DataNetwork{
+		Name:   "unused-dn",
+		IPPool: "172.16.0.0/24",
+	})
+	if err != nil {
+		t.Fatalf("Couldn't complete CreateDataNetwork: %s", err)
+	}
+
+	exists, err = database.PoliciesInDataNetwork(context.Background(), "unused-dn")
+	if err != nil {
+		t.Fatalf("Couldn't complete PoliciesInDataNetwork: %s", err)
+	}
+
+	if exists {
+		t.Fatal("Expected no policies for unused data network")
+	}
+}
+
+func TestGetSessionPolicy(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	// Create a subscriber on the default profile
+	subscriber := &db.Subscriber{
+		Imsi:           "001010100007487",
+		SequenceNumber: "000000000001",
+		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+		ProfileID:      1, // default profile
+	}
+
+	err = database.CreateSubscriber(context.Background(), subscriber)
+	if err != nil {
+		t.Fatalf("Couldn't complete CreateSubscriber: %s", err)
+	}
+
+	// Default slice: sst=1, sd="102030"; Default DNN: "internet"
+	policy, rules, err := database.GetSessionPolicy(context.Background(), "001010100007487", 1, "102030", "internet")
+	if err != nil {
+		t.Fatalf("Couldn't complete GetSessionPolicy: %s", err)
+	}
+
+	if policy.Name != "default" {
+		t.Fatalf("Expected default policy, got %q", policy.Name)
+	}
+
+	if rules == nil {
+		t.Fatal("Expected non-nil rules slice")
+	}
+
+	// Non-existent subscriber
+	_, _, err = database.GetSessionPolicy(context.Background(), "999999999999999", 1, "102030", "internet")
+	if err == nil {
+		t.Fatal("Expected error for non-existent subscriber")
+	}
+
+	// Non-matching slice
+	_, _, err = database.GetSessionPolicy(context.Background(), "001010100007487", 99, "ffffff", "internet")
+	if err == nil {
+		t.Fatal("Expected error for non-matching slice")
+	}
+
+	// Non-matching DNN
+	_, _, err = database.GetSessionPolicy(context.Background(), "001010100007487", 1, "102030", "nonexistent-dnn")
+	if err == nil {
+		t.Fatal("Expected error for non-matching DNN")
 	}
 }

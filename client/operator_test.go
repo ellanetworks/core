@@ -110,57 +110,6 @@ func TestUpdateOperatorID_Failure(t *testing.T) {
 	}
 }
 
-func TestUpdateOperatorSlice_Success(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 200,
-			Headers:    http.Header{},
-			Result:     []byte(`{"message": "Operator Slice updated successfully"}`),
-		},
-		err: nil,
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-
-	updateOperatorSliceOpts := &client.UpdateOperatorSliceOptions{
-		Sst: 1,
-		Sd:  "012030",
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateOperatorSlice(ctx, updateOperatorSliceOpts)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
-}
-
-func TestUpdateOperatorSlice_Failure(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 400,
-			Headers:    http.Header{},
-			Result:     []byte(`{"error": "Invalid SSD"}`),
-		},
-		err: errors.New("requester error"),
-	}
-	clientObj := &client.Client{
-		Requester: fake,
-	}
-	updateOperatorSliceOpts := &client.UpdateOperatorSliceOptions{
-		Sst: 1,
-		Sd:  "012030",
-	}
-
-	ctx := context.Background()
-
-	err := clientObj.UpdateOperatorSlice(ctx, updateOperatorSliceOpts)
-	if err == nil {
-		t.Fatalf("expected error, got none")
-	}
-}
-
 func TestUpdateOperatorTracking_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{

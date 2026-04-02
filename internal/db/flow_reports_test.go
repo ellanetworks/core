@@ -254,7 +254,7 @@ func TestFlowReportsFilterBySubscriber(t *testing.T) {
 			SequenceNumber: "000000000022",
 			PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 			Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-			PolicyID:       policyID,
+			ProfileID:      policyID,
 		}
 
 		err = database.CreateSubscriber(ctx, subscriber)
@@ -618,7 +618,7 @@ func TestGetFlowReportStats_WithSubscriberFilter(t *testing.T) {
 		SequenceNumber: "000000000022",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       policyID,
+		ProfileID:      policyID,
 	}
 	if err := database.CreateSubscriber(ctx, sub2); err != nil {
 		t.Fatalf("couldn't create subscriber: %s", err)

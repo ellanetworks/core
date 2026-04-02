@@ -30,6 +30,7 @@ var migrations = []migration{
 	{4, "add bgp_settings, bgp_peers, jwt_secret, ip_leases tables; drop ipAddress from subscribers", migrateV4},
 	{5, "add network_rules and policy_network_rules tables", migrateV5},
 	{6, "replace address TEXT with addressBin BLOB in ip_leases", migrateV6},
+	{7, "data model redesign: profiles, policies, slices", migrateV7},
 }
 
 // latestVersion returns the highest migration version in the registry.
@@ -96,6 +97,14 @@ func RunMigrations(ctx context.Context, sqlConn *sql.DB) error {
 			zap.String("description", m.description),
 		)
 
+		// PRAGMA foreign_keys is a no-op inside a transaction, so disable
+		// FK enforcement on the connection before starting the migration tx.
+		// This prevents DROP TABLE from cascade-deleting child rows during
+		// table rebuilds. Re-enabled after commit.
+		if _, err := sqlConn.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
+			return fmt.Errorf("failed to disable foreign keys for migration %d: %w", m.version, err)
+		}
+
 		// The connection uses _txlock=immediate, so BeginTx acquires a
 		// write lock up front, preventing a second process from entering
 		// the same migration concurrently.
@@ -117,6 +126,10 @@ func RunMigrations(ctx context.Context, sqlConn *sql.DB) error {
 
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("failed to commit migration %d: %w", m.version, err)
+		}
+
+		if _, err := sqlConn.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err != nil {
+			return fmt.Errorf("failed to re-enable foreign keys after migration %d: %w", m.version, err)
 		}
 
 		logger.DBLog.Info("Migration applied successfully",

@@ -402,14 +402,25 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("9. Create policy", func(t *testing.T) {
+	t.Run("9. Create profile and policy", func(t *testing.T) {
+		_, _, profErr := createProfile(env.Server.URL, client, token, &CreateProfileParams{
+			Name:           "dn-test-profile",
+			UeAmbrUplink:   SessionAmbrUplink,
+			UeAmbrDownlink: SessionAmbrDownlink,
+		})
+		if profErr != nil {
+			t.Fatalf("couldn't create profile: %s", profErr)
+		}
+
 		createPolicyParams := &CreatePolicyParams{
-			Name:            "whatever",
-			BitrateUplink:   BitrateUplink,
-			BitrateDownlink: BitrateDownlink,
-			Var5qi:          Var5qi,
-			Arp:             Arp,
-			DataNetworkName: DataNetworkName,
+			Name:                "whatever",
+			ProfileName:         "dn-test-profile",
+			SliceName:           DefaultSliceName,
+			SessionAmbrUplink:   SessionAmbrUplink,
+			SessionAmbrDownlink: SessionAmbrDownlink,
+			Var5qi:              Var5qi,
+			Arp:                 Arp,
+			DataNetworkName:     DataNetworkName,
 		}
 
 		statusCode, response, err := createPolicy(env.Server.URL, client, token, createPolicyParams)

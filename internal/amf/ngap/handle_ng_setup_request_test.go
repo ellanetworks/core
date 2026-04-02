@@ -177,7 +177,6 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 		Operator: &db.Operator{
 			Mcc: "001",
 			Mnc: "01",
-			Sst: 1,
 		},
 	}, nil, nil)
 
@@ -223,7 +222,6 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testi
 	op := &db.Operator{
 		Mcc: "001",
 		Mnc: "01",
-		Sst: 1,
 	}
 
 	err = op.SetSupportedTacs([]string{"000065", "000066"})
@@ -277,7 +275,6 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 	op := &db.Operator{
 		Mcc: "001",
 		Mnc: "01",
-		Sst: 1,
 	}
 
 	err = op.SetSupportedTacs([]string{"000064", "000065"})

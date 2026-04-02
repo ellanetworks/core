@@ -10,7 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
-func createDataNetworkAndPolicy(database *db.Database) (int, int, error) {
+func createDataNetworkAndPolicy(database *db.Database) (int, error) {
 	newDataNetwork := &db.DataNetwork{
 		Name:   "not-internet",
 		IPPool: "1.2.3.0/24",
@@ -18,34 +18,62 @@ func createDataNetworkAndPolicy(database *db.Database) (int, int, error) {
 
 	err := database.CreateDataNetwork(context.Background(), newDataNetwork)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 
 	createdNetwork, err := database.GetDataNetwork(context.Background(), newDataNetwork.Name)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
+	}
+
+	profile := &db.Profile{
+		Name:           "test-profile",
+		UeAmbrUplink:   "200 Mbps",
+		UeAmbrDownlink: "200 Mbps",
+	}
+
+	err = database.CreateProfile(context.Background(), profile)
+	if err != nil {
+		return 0, err
+	}
+
+	createdProfile, err := database.GetProfile(context.Background(), profile.Name)
+	if err != nil {
+		return 0, err
+	}
+
+	slice := &db.NetworkSlice{
+		Name: "test-slice",
+		Sst:  1,
+	}
+
+	err = database.CreateNetworkSlice(context.Background(), slice)
+	if err != nil {
+		return 0, err
+	}
+
+	createdSlice, err := database.GetNetworkSlice(context.Background(), slice.Name)
+	if err != nil {
+		return 0, err
 	}
 
 	policy := &db.Policy{
-		Name:            "my-policy",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkID:   createdNetwork.ID,
+		Name:                "my-policy",
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkID:       createdNetwork.ID,
+		ProfileID:           createdProfile.ID,
+		SliceID:             createdSlice.ID,
 	}
 
 	err = database.CreatePolicy(context.Background(), policy)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
 
-	policyCreated, err := database.GetPolicy(context.Background(), policy.Name)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	return policyCreated.ID, createdNetwork.ID, nil
+	return createdProfile.ID, nil
 }
 
 func TestSubscribersDbEndToEnd(t *testing.T) {
@@ -75,7 +103,7 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		t.Fatalf("One or more subscribers were found in DB")
 	}
 
-	policyID, dataNetworkID, err := createDataNetworkAndPolicy(database)
+	policyID, err := createDataNetworkAndPolicy(database)
 	if err != nil {
 		t.Fatalf("Couldn't create data network and policy: %s", err)
 	}
@@ -85,7 +113,7 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       policyID,
+		ProfileID:      policyID,
 	}
 
 	err = database.CreateSubscriber(context.Background(), subscriber)
@@ -127,23 +155,24 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		t.Fatalf("The OPC value from the database doesn't match the OPC value that was given")
 	}
 
-	newPolicy := db.Policy{
-		Name:          "another-policy",
-		DataNetworkID: dataNetworkID,
+	newProfile := db.Profile{
+		Name:           "another-profile",
+		UeAmbrUplink:   "100 Mbps",
+		UeAmbrDownlink: "100 Mbps",
 	}
 
-	err = database.CreatePolicy(context.Background(), &newPolicy)
+	err = database.CreateProfile(context.Background(), &newProfile)
 	if err != nil {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
 
-	newPolicyCreated, err := database.GetPolicy(context.Background(), newPolicy.Name)
+	newProfileCreated, err := database.GetProfile(context.Background(), newProfile.Name)
 	if err != nil {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
 
-	subscriber.PolicyID = newPolicyCreated.ID
-	if err = database.UpdateSubscriberPolicy(context.Background(), subscriber); err != nil {
+	subscriber.ProfileID = newProfileCreated.ID
+	if err = database.UpdateSubscriberProfile(context.Background(), subscriber); err != nil {
 		t.Fatalf("Couldn't complete Update: %s", err)
 	}
 
@@ -152,8 +181,8 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 		t.Fatalf("Couldn't complete Retrieve: %s", err)
 	}
 
-	if retrievedSubscriber.PolicyID != newPolicyCreated.ID {
-		t.Fatalf("Policy IDs don't match: %d", retrievedSubscriber.PolicyID)
+	if retrievedSubscriber.ProfileID != newProfileCreated.ID {
+		t.Fatalf("Profile IDs don't match: %d", retrievedSubscriber.ProfileID)
 	}
 
 	if err = database.DeleteSubscriber(context.Background(), subscriber.Imsi); err != nil {
@@ -171,7 +200,7 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 	}
 }
 
-func TestCountSubscribersInPolicy(t *testing.T) {
+func TestCountSubscribersInProfile(t *testing.T) {
 	tempDir := t.TempDir()
 
 	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
@@ -185,18 +214,18 @@ func TestCountSubscribersInPolicy(t *testing.T) {
 		}
 	}()
 
-	policyID, dnID, err := createDataNetworkAndPolicy(database)
+	profileID, err := createDataNetworkAndPolicy(database)
 	if err != nil {
 		t.Fatalf("Couldn't create data network and policy: %s", err)
 	}
 
-	count, err := database.CountSubscribersInPolicy(context.Background(), policyID)
+	count, err := database.CountSubscribersInProfile(context.Background(), profileID)
 	if err != nil {
-		t.Fatalf("Couldn't complete CountSubscribersInPolicy: %s", err)
+		t.Fatalf("Couldn't complete CountSubscribersInProfile: %s", err)
 	}
 
 	if count != 0 {
-		t.Fatalf("Expected 0 subscribers in policy, but got %d", count)
+		t.Fatalf("Expected 0 subscribers in profile, but got %d", count)
 	}
 
 	subscriber1 := &db.Subscriber{
@@ -204,7 +233,7 @@ func TestCountSubscribersInPolicy(t *testing.T) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   "e08f6711b5319a21d550787cd263ee0a",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       policyID,
+		ProfileID:      profileID,
 	}
 
 	err = database.CreateSubscriber(context.Background(), subscriber1)
@@ -212,19 +241,20 @@ func TestCountSubscribersInPolicy(t *testing.T) {
 		t.Fatalf("Couldn't complete CreateSubscriber: %s", err)
 	}
 
-	newPolicy := &db.Policy{
-		Name:          "another-policy",
-		DataNetworkID: dnID,
+	newProfile := &db.Profile{
+		Name:           "another-profile",
+		UeAmbrUplink:   "50 Mbps",
+		UeAmbrDownlink: "50 Mbps",
 	}
 
-	err = database.CreatePolicy(context.Background(), newPolicy)
+	err = database.CreateProfile(context.Background(), newProfile)
 	if err != nil {
-		t.Fatalf("Couldn't Create Policy: %s", err)
+		t.Fatalf("Couldn't Create Profile: %s", err)
 	}
 
-	newPolicyCreated, err := database.GetPolicy(context.Background(), newPolicy.Name)
+	newProfileCreated, err := database.GetProfile(context.Background(), newProfile.Name)
 	if err != nil {
-		t.Fatalf("Couldn't Retrieve Policy: %s", err)
+		t.Fatalf("Couldn't Retrieve Profile: %s", err)
 	}
 
 	subscriber2 := &db.Subscriber{
@@ -232,7 +262,7 @@ func TestCountSubscribersInPolicy(t *testing.T) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       newPolicyCreated.ID,
+		ProfileID:      newProfileCreated.ID,
 	}
 
 	err = database.CreateSubscriber(context.Background(), subscriber2)
@@ -240,13 +270,13 @@ func TestCountSubscribersInPolicy(t *testing.T) {
 		t.Fatalf("Couldn't Create Subscriber: %s", err)
 	}
 
-	count, err = database.CountSubscribersInPolicy(context.Background(), policyID)
+	count, err = database.CountSubscribersInProfile(context.Background(), profileID)
 	if err != nil {
-		t.Fatalf("Couldn't complete CountSubscribersInPolicy: %s", err)
+		t.Fatalf("Couldn't complete CountSubscribersInProfile: %s", err)
 	}
 
 	if count != 1 {
-		t.Fatalf("Expected 1 subscriber in policy, but got %d", count)
+		t.Fatalf("Expected 1 subscriber in profile, but got %d", count)
 	}
 
 	subscriber3 := &db.Subscriber{
@@ -254,7 +284,7 @@ func TestCountSubscribersInPolicy(t *testing.T) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       policyID,
+		ProfileID:      profileID,
 	}
 
 	err = database.CreateSubscriber(context.Background(), subscriber3)
@@ -262,12 +292,12 @@ func TestCountSubscribersInPolicy(t *testing.T) {
 		t.Fatalf("Couldn't complete CreateSubscriber: %s", err)
 	}
 
-	count, err = database.CountSubscribersInPolicy(context.Background(), policyID)
+	count, err = database.CountSubscribersInProfile(context.Background(), profileID)
 	if err != nil {
-		t.Fatalf("Couldn't complete CountSubscribersInPolicy: %s", err)
+		t.Fatalf("Couldn't complete CountSubscribersInProfile: %s", err)
 	}
 
 	if count != 2 {
-		t.Fatalf("Expected 2 subscribers in policy, but got %d", count)
+		t.Fatalf("Expected 2 subscribers in profile, but got %d", count)
 	}
 }

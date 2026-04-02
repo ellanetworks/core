@@ -9,11 +9,12 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/pkg/runtime"
 )
 
-func TestGetSubscriberPolicy_FetchesNetworkRules(t *testing.T) {
+func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
 	tempDir := t.TempDir()
 
 	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
@@ -29,18 +30,35 @@ func TestGetSubscriberPolicy_FetchesNetworkRules(t *testing.T) {
 
 	ctx := context.Background()
 
-	dataNetwork, err := database.GetDataNetwork(ctx, db.InitialDataNetworkName)
+	testDN := &db.DataNetwork{Name: "test-dnn", IPPool: "10.1.0.0/24"}
+	if err := database.CreateDataNetwork(ctx, testDN); err != nil {
+		t.Fatalf("couldn't create test data network: %s", err)
+	}
+
+	testDataNetwork, err := database.GetDataNetwork(ctx, "test-dnn")
 	if err != nil {
-		t.Fatalf("couldn't get initial data network: %s", err)
+		t.Fatalf("couldn't get test data network: %s", err)
+	}
+
+	testProfile := &db.Profile{Name: "test-profile", UeAmbrUplink: "500 Mbps", UeAmbrDownlink: "500 Mbps"}
+	if err := database.CreateProfile(ctx, testProfile); err != nil {
+		t.Fatalf("couldn't create test profile: %s", err)
+	}
+
+	createdProfile, err := database.GetProfile(ctx, "test-profile")
+	if err != nil {
+		t.Fatalf("couldn't get test profile: %s", err)
 	}
 
 	policy := &db.Policy{
-		Name:            "test-policy",
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "200 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkID:   dataNetwork.ID,
+		Name:                "test-policy",
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkID:       testDataNetwork.ID,
+		ProfileID:           createdProfile.ID,
+		SliceID:             1,
 	}
 
 	err = database.CreatePolicy(ctx, policy)
@@ -102,7 +120,7 @@ func TestGetSubscriberPolicy_FetchesNetworkRules(t *testing.T) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       createdPolicy.ID,
+		ProfileID:      createdPolicy.ProfileID,
 	}
 
 	err = database.CreateSubscriber(ctx, subscriber)
@@ -112,9 +130,11 @@ func TestGetSubscriberPolicy_FetchesNetworkRules(t *testing.T) {
 
 	adapter := runtime.NewSMFDBAdapter(database)
 
-	retrievedPolicy, err := adapter.GetSubscriberPolicy(ctx, "310410000000001")
+	snssai := &models.Snssai{Sst: db.InitialSliceSst, Sd: db.InitialSliceSd}
+
+	retrievedPolicy, err := adapter.GetSessionPolicy(ctx, "310410000000001", snssai, "test-dnn")
 	if err != nil {
-		t.Fatalf("GetSubscriberPolicy failed: %v", err)
+		t.Fatalf("GetSessionPolicy failed: %v", err)
 	}
 
 	if retrievedPolicy == nil {
@@ -207,7 +227,7 @@ func TestGetSubscriberPolicy_FetchesNetworkRules(t *testing.T) {
 	}
 }
 
-func TestGetSubscriberPolicy_NoNetworkRules(t *testing.T) {
+func TestGetSessionPolicy_NoNetworkRules(t *testing.T) {
 	tempDir := t.TempDir()
 
 	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
@@ -223,18 +243,35 @@ func TestGetSubscriberPolicy_NoNetworkRules(t *testing.T) {
 
 	ctx := context.Background()
 
-	dataNetwork, err := database.GetDataNetwork(ctx, db.InitialDataNetworkName)
+	testDN := &db.DataNetwork{Name: "test-dnn-2", IPPool: "10.2.0.0/24"}
+	if err := database.CreateDataNetwork(ctx, testDN); err != nil {
+		t.Fatalf("couldn't create test data network: %s", err)
+	}
+
+	testDataNetwork, err := database.GetDataNetwork(ctx, "test-dnn-2")
 	if err != nil {
-		t.Fatalf("couldn't get initial data network: %s", err)
+		t.Fatalf("couldn't get test data network: %s", err)
+	}
+
+	testProfile := &db.Profile{Name: "test-profile-2", UeAmbrUplink: "500 Mbps", UeAmbrDownlink: "500 Mbps"}
+	if err := database.CreateProfile(ctx, testProfile); err != nil {
+		t.Fatalf("couldn't create test profile: %s", err)
+	}
+
+	createdProfile, err := database.GetProfile(ctx, "test-profile-2")
+	if err != nil {
+		t.Fatalf("couldn't get test profile: %s", err)
 	}
 
 	policy := &db.Policy{
-		Name:            "test-policy-no-rules",
-		BitrateUplink:   "50 Mbps",
-		BitrateDownlink: "100 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkID:   dataNetwork.ID,
+		Name:                "test-policy-no-rules",
+		SessionAmbrUplink:   "50 Mbps",
+		SessionAmbrDownlink: "100 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkID:       testDataNetwork.ID,
+		ProfileID:           createdProfile.ID,
+		SliceID:             1,
 	}
 
 	err = database.CreatePolicy(ctx, policy)
@@ -252,7 +289,7 @@ func TestGetSubscriberPolicy_NoNetworkRules(t *testing.T) {
 		SequenceNumber: "000000000002",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		PolicyID:       createdPolicy.ID,
+		ProfileID:      createdPolicy.ProfileID,
 	}
 
 	err = database.CreateSubscriber(ctx, subscriber)
@@ -262,9 +299,11 @@ func TestGetSubscriberPolicy_NoNetworkRules(t *testing.T) {
 
 	adapter := runtime.NewSMFDBAdapter(database)
 
-	retrievedPolicy, err := adapter.GetSubscriberPolicy(ctx, "310410000000002")
+	snssai := &models.Snssai{Sst: db.InitialSliceSst, Sd: db.InitialSliceSd}
+
+	retrievedPolicy, err := adapter.GetSessionPolicy(ctx, "310410000000002", snssai, "test-dnn-2")
 	if err != nil {
-		t.Fatalf("GetSubscriberPolicy failed: %v", err)
+		t.Fatalf("GetSessionPolicy failed: %v", err)
 	}
 
 	if retrievedPolicy == nil {

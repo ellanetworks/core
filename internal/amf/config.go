@@ -66,6 +66,25 @@ func (amf *AMF) GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 		return nil, fmt.Errorf("failed to get supported TAIs: %w", err)
 	}
 
+	slices, err := amf.DBInstance.ListAllNetworkSlices(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list network slices: %w", err)
+	}
+
+	var snssai *models.Snssai
+
+	if len(slices) > 0 {
+		sd := ""
+		if slices[0].Sd != nil {
+			sd = *slices[0].Sd
+		}
+
+		snssai = &models.Snssai{
+			Sst: slices[0].Sst,
+			Sd:  sd,
+		}
+	}
+
 	operatorInfo := &OperatorInfo{
 		Tais: supportedTAIs,
 		Guami: &models.Guami{
@@ -80,10 +99,7 @@ func (amf *AMF) GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 				Mcc: operator.Mcc,
 				Mnc: operator.Mnc,
 			},
-			SNssai: &models.Snssai{
-				Sst: operator.Sst,
-				Sd:  operator.GetHexSd(),
-			},
+			SNssai: snssai,
 		},
 	}
 
@@ -127,9 +143,9 @@ func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI) (string, e
 		return "", fmt.Errorf("couldn't get subscriber %s: %v", imsi, err)
 	}
 
-	policy, err := amf.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
+	policy, err := amf.DBInstance.GetPolicyByProfileID(ctx, subscriber.ProfileID)
 	if err != nil {
-		return "", fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
+		return "", fmt.Errorf("couldn't get policy for profile %d: %v", subscriber.ProfileID, err)
 	}
 
 	dataNetwork, err := amf.DBInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
@@ -155,14 +171,14 @@ func (amf *AMF) GetSubscriberBitrate(ctx context.Context, supi etsi.SUPI) (*mode
 		return nil, fmt.Errorf("couldn't get subscriber %s: %v", imsi, err)
 	}
 
-	policy, err := amf.DBInstance.GetPolicyByID(ctx, subscriber.PolicyID)
+	profile, err := amf.DBInstance.GetProfileByID(ctx, subscriber.ProfileID)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get policy %d: %v", subscriber.PolicyID, err)
+		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
 	}
 
 	return &models.Ambr{
-		Downlink: policy.BitrateDownlink,
-		Uplink:   policy.BitrateUplink,
+		Downlink: profile.UeAmbrDownlink,
+		Uplink:   profile.UeAmbrUplink,
 	}, nil
 }
 

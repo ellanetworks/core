@@ -33,32 +33,38 @@ type PolicyRules struct {
 }
 
 type CreatePolicyParams struct {
-	Name            string       `json:"name"`
-	BitrateUplink   string       `json:"bitrate_uplink,omitempty"`
-	BitrateDownlink string       `json:"bitrate_downlink,omitempty"`
-	Var5qi          int32        `json:"var5qi,omitempty"`
-	Arp             int32        `json:"arp,omitempty"`
-	DataNetworkName string       `json:"data_network_name,omitempty"`
-	Rules           *PolicyRules `json:"rules,omitempty"`
+	Name                string       `json:"name"`
+	ProfileName         string       `json:"profile_name"`
+	SliceName           string       `json:"slice_name"`
+	DataNetworkName     string       `json:"data_network_name"`
+	SessionAmbrUplink   string       `json:"session_ambr_uplink"`
+	SessionAmbrDownlink string       `json:"session_ambr_downlink"`
+	Var5qi              int32        `json:"var5qi,omitempty"`
+	Arp                 int32        `json:"arp,omitempty"`
+	Rules               *PolicyRules `json:"rules,omitempty"`
 }
 
 type UpdatePolicyParams struct {
-	BitrateUplink   string       `json:"bitrate_uplink,omitempty"`
-	BitrateDownlink string       `json:"bitrate_downlink,omitempty"`
-	Var5qi          int32        `json:"var5qi,omitempty"`
-	Arp             int32        `json:"arp,omitempty"`
-	DataNetworkName string       `json:"data_network_name,omitempty"`
-	Rules           *PolicyRules `json:"rules,omitempty"`
+	ProfileName         string       `json:"profile_name"`
+	SliceName           string       `json:"slice_name"`
+	DataNetworkName     string       `json:"data_network_name"`
+	SessionAmbrUplink   string       `json:"session_ambr_uplink"`
+	SessionAmbrDownlink string       `json:"session_ambr_downlink"`
+	Var5qi              int32        `json:"var5qi,omitempty"`
+	Arp                 int32        `json:"arp,omitempty"`
+	Rules               *PolicyRules `json:"rules,omitempty"`
 }
 
 type Policy struct {
-	Name            string       `json:"name"`
-	BitrateUplink   string       `json:"bitrate_uplink,omitempty"`
-	BitrateDownlink string       `json:"bitrate_downlink,omitempty"`
-	Var5qi          int32        `json:"var5qi,omitempty"`
-	Arp             int32        `json:"arp,omitempty"`
-	DataNetworkName string       `json:"data_network_name,omitempty"`
-	Rules           *PolicyRules `json:"rules,omitempty"`
+	Name                string       `json:"name"`
+	ProfileName         string       `json:"profile_name"`
+	SliceName           string       `json:"slice_name"`
+	DataNetworkName     string       `json:"data_network_name"`
+	SessionAmbrUplink   string       `json:"session_ambr_uplink"`
+	SessionAmbrDownlink string       `json:"session_ambr_downlink"`
+	Var5qi              int32        `json:"var5qi,omitempty"`
+	Arp                 int32        `json:"arp,omitempty"`
+	Rules               *PolicyRules `json:"rules,omitempty"`
 }
 
 type ListPoliciesResponse struct {
@@ -290,6 +296,18 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 		policyList := make([]Policy, 0)
 
 		for _, dbPolicy := range dbPolicies {
+			profile, err := dbInstance.GetProfileByID(ctx, dbPolicy.ProfileID)
+			if err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
+				return
+			}
+
+			slice, err := dbInstance.GetNetworkSliceByID(ctx, dbPolicy.SliceID)
+			if err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
+				return
+			}
+
 			dataNetwork, err := dbInstance.GetDataNetworkByID(ctx, dbPolicy.DataNetworkID)
 			if err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
@@ -297,12 +315,14 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 			}
 
 			policyList = append(policyList, Policy{
-				Name:            dbPolicy.Name,
-				BitrateDownlink: dbPolicy.BitrateDownlink,
-				BitrateUplink:   dbPolicy.BitrateUplink,
-				Var5qi:          dbPolicy.Var5qi,
-				Arp:             dbPolicy.Arp,
-				DataNetworkName: dataNetwork.Name,
+				Name:                dbPolicy.Name,
+				ProfileName:         profile.Name,
+				SliceName:           slice.Name,
+				DataNetworkName:     dataNetwork.Name,
+				SessionAmbrDownlink: dbPolicy.SessionAmbrDownlink,
+				SessionAmbrUplink:   dbPolicy.SessionAmbrUplink,
+				Var5qi:              dbPolicy.Var5qi,
+				Arp:                 dbPolicy.Arp,
 			})
 		}
 
@@ -368,7 +388,25 @@ func GetPolicy(dbInstance *db.Database) http.Handler {
 
 		dbPolicy, err := dbInstance.GetPolicy(r.Context(), name)
 		if err != nil {
-			writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
+
+			return
+		}
+
+		profile, err := dbInstance.GetProfileByID(r.Context(), dbPolicy.ProfileID)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
+			return
+		}
+
+		slice, err := dbInstance.GetNetworkSliceByID(r.Context(), dbPolicy.SliceID)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
 			return
 		}
 
@@ -385,13 +423,15 @@ func GetPolicy(dbInstance *db.Database) http.Handler {
 		}
 
 		policy := Policy{
-			Name:            dbPolicy.Name,
-			BitrateDownlink: dbPolicy.BitrateDownlink,
-			BitrateUplink:   dbPolicy.BitrateUplink,
-			Var5qi:          dbPolicy.Var5qi,
-			Arp:             dbPolicy.Arp,
-			DataNetworkName: dataNetwork.Name,
-			Rules:           rules,
+			Name:                dbPolicy.Name,
+			ProfileName:         profile.Name,
+			SliceName:           slice.Name,
+			DataNetworkName:     dataNetwork.Name,
+			SessionAmbrDownlink: dbPolicy.SessionAmbrDownlink,
+			SessionAmbrUplink:   dbPolicy.SessionAmbrUplink,
+			Var5qi:              dbPolicy.Var5qi,
+			Arp:                 dbPolicy.Arp,
+			Rules:               rules,
 		}
 		writeResponse(r.Context(), w, policy, http.StatusOK, logger.APILog)
 	})
@@ -411,25 +451,25 @@ func DeletePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		_, err := dbInstance.GetPolicy(r.Context(), name)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
-			return
-		}
-
-		subsInPolicy, err := dbInstance.SubscribersInPolicy(r.Context(), name)
+		policy, err := dbInstance.GetPolicy(r.Context(), name)
 		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
 				return
 			}
 
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check subscribers", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
 
 			return
 		}
 
-		if subsInPolicy {
+		subscriberCount, err := dbInstance.CountSubscribersInProfile(r.Context(), policy.ProfileID)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check subscribers", err, logger.APILog)
+			return
+		}
+
+		if subscriberCount > 0 {
 			writeError(r.Context(), w, http.StatusConflict, "Policy has subscribers", nil, logger.APILog)
 			return
 		}
@@ -481,6 +521,30 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		profile, err := dbInstance.GetProfile(r.Context(), createPolicyParams.ProfileName)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusNotFound, "Profile not found", nil, logger.APILog)
+			return
+		}
+
+		// Release 1: only one policy per profile.
+		policyCount, err := dbInstance.CountPoliciesInProfile(r.Context(), profile.ID)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check policies", err, logger.APILog)
+			return
+		}
+
+		if policyCount >= 1 {
+			writeError(r.Context(), w, http.StatusConflict, "Profile already has a policy", nil, logger.APILog)
+			return
+		}
+
+		slice, err := dbInstance.GetNetworkSlice(r.Context(), createPolicyParams.SliceName)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusNotFound, "Slice not found", nil, logger.APILog)
+			return
+		}
+
 		dataNetwork, err := dbInstance.GetDataNetwork(r.Context(), createPolicyParams.DataNetworkName)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
@@ -488,12 +552,14 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 		}
 
 		dbPolicy := &db.Policy{
-			Name:            createPolicyParams.Name,
-			BitrateDownlink: createPolicyParams.BitrateDownlink,
-			BitrateUplink:   createPolicyParams.BitrateUplink,
-			Var5qi:          createPolicyParams.Var5qi,
-			Arp:             createPolicyParams.Arp,
-			DataNetworkID:   dataNetwork.ID,
+			Name:                createPolicyParams.Name,
+			SessionAmbrDownlink: createPolicyParams.SessionAmbrDownlink,
+			SessionAmbrUplink:   createPolicyParams.SessionAmbrUplink,
+			Var5qi:              createPolicyParams.Var5qi,
+			Arp:                 createPolicyParams.Arp,
+			DataNetworkID:       dataNetwork.ID,
+			ProfileID:           profile.ID,
+			SliceID:             slice.ID,
 		}
 
 		tx, err := dbInstance.BeginTransaction(r.Context())
@@ -577,6 +643,32 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		profile, err := dbInstance.GetProfile(r.Context(), updatePolicyParams.ProfileName)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusNotFound, "Profile not found", nil, logger.APILog)
+			return
+		}
+
+		// Release 1: enforce 1 policy per profile when changing profile.
+		if profile.ID != policy.ProfileID {
+			policyCount, err := dbInstance.CountPoliciesInProfile(r.Context(), profile.ID)
+			if err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check policies", err, logger.APILog)
+				return
+			}
+
+			if policyCount >= 1 {
+				writeError(r.Context(), w, http.StatusConflict, "Target profile already has a policy", nil, logger.APILog)
+				return
+			}
+		}
+
+		slice, err := dbInstance.GetNetworkSlice(r.Context(), updatePolicyParams.SliceName)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusNotFound, "Slice not found", nil, logger.APILog)
+			return
+		}
+
 		dataNetwork, err := dbInstance.GetDataNetwork(r.Context(), updatePolicyParams.DataNetworkName)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
@@ -584,10 +676,12 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 		}
 
 		policy.Name = policyName
-		policy.BitrateDownlink = updatePolicyParams.BitrateDownlink
-		policy.BitrateUplink = updatePolicyParams.BitrateUplink
+		policy.SessionAmbrDownlink = updatePolicyParams.SessionAmbrDownlink
+		policy.SessionAmbrUplink = updatePolicyParams.SessionAmbrUplink
 		policy.Var5qi = updatePolicyParams.Var5qi
 		policy.Arp = updatePolicyParams.Arp
+		policy.ProfileID = profile.ID
+		policy.SliceID = slice.ID
 		policy.DataNetworkID = dataNetwork.ID
 
 		tx, err := dbInstance.BeginTransaction(r.Context())
@@ -640,26 +734,30 @@ func validatePolicyParams(p CreatePolicyParams) error {
 	switch {
 	case p.Name == "":
 		return errors.New("name is missing")
+	case p.ProfileName == "":
+		return errors.New("profile_name is missing")
+	case p.SliceName == "":
+		return errors.New("slice_name is missing")
 	case p.DataNetworkName == "":
 		return errors.New("data_network_name is missing")
-	case p.BitrateUplink == "":
-		return errors.New("bitrate_uplink is missing")
-	case p.BitrateDownlink == "":
-		return errors.New("bitrate_downlink is missing")
+	case p.SessionAmbrUplink == "":
+		return errors.New("session_ambr_uplink is missing")
+	case p.SessionAmbrDownlink == "":
+		return errors.New("session_ambr_downlink is missing")
 	case p.Var5qi == 0:
 		return errors.New("Var5qi is missing")
 	case p.Arp == 0:
 		return errors.New("arp is missing")
 	case !isPolicyNameValid(p.Name):
 		return errors.New("invalid name format - must be less than 256 characters")
-	case !isValidBitrate(p.BitrateUplink):
-		return errors.New("invalid bitrate_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps")
-	case !isValidBitrate(p.BitrateDownlink):
-		return errors.New("invalid bitrate_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps")
+	case !isValidBitrate(p.SessionAmbrUplink):
+		return errors.New("invalid session_ambr_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps")
+	case !isValidBitrate(p.SessionAmbrDownlink):
+		return errors.New("invalid session_ambr_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps")
 	case !isValid5Qi(p.Var5qi):
 		return errors.New("invalid Var5qi format - must be an integer associated with a non-GBR 5QI")
 	case !isValidArp(p.Arp):
-		return errors.New("invalid arp format - must be an integer between 1 and 255")
+		return errors.New("invalid arp format - must be an integer between 1 and 15")
 	}
 
 	if err := validatePolicyRules(p.Rules); err != nil {
@@ -671,24 +769,28 @@ func validatePolicyParams(p CreatePolicyParams) error {
 
 func validateUpdatePolicyParams(p UpdatePolicyParams) error {
 	switch {
+	case p.ProfileName == "":
+		return errors.New("profile_name is missing")
+	case p.SliceName == "":
+		return errors.New("slice_name is missing")
 	case p.DataNetworkName == "":
 		return errors.New("data_network_name is missing")
-	case p.BitrateUplink == "":
-		return errors.New("bitrate_uplink is missing")
-	case p.BitrateDownlink == "":
-		return errors.New("bitrate_downlink is missing")
+	case p.SessionAmbrUplink == "":
+		return errors.New("session_ambr_uplink is missing")
+	case p.SessionAmbrDownlink == "":
+		return errors.New("session_ambr_downlink is missing")
 	case p.Var5qi == 0:
 		return errors.New("Var5qi is missing")
 	case p.Arp == 0:
 		return errors.New("arp is missing")
-	case !isValidBitrate(p.BitrateUplink):
-		return errors.New("invalid bitrate_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps")
-	case !isValidBitrate(p.BitrateDownlink):
-		return errors.New("invalid bitrate_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps")
+	case !isValidBitrate(p.SessionAmbrUplink):
+		return errors.New("invalid session_ambr_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps")
+	case !isValidBitrate(p.SessionAmbrDownlink):
+		return errors.New("invalid session_ambr_downlink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps")
 	case !isValid5Qi(p.Var5qi):
 		return errors.New("invalid Var5qi format - must be an integer associated with a non-GBR 5QI")
 	case !isValidArp(p.Arp):
-		return errors.New("invalid arp format - must be an integer between 1 and 255")
+		return errors.New("invalid arp format - must be an integer between 1 and 15")
 	}
 
 	if err := validatePolicyRules(p.Rules); err != nil {

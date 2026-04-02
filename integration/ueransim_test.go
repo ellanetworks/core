@@ -89,7 +89,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 						Key:            "0eefb0893e6f1c2855a3a244c6db1277",
 						OPc:            "98da19bbc55e2a5b53857d10557b1d26",
 						SequenceNumber: "000000000022",
-						PolicyName:     "default",
+						ProfileName:    "default",
 					},
 				},
 			})

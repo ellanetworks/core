@@ -14,6 +14,20 @@ export type PolicyRules = {
   downlink?: PolicyRule[];
 };
 
+// API response shape from the backend (new data model).
+type APIPolicyRaw = {
+  name: string;
+  profile_name: string;
+  slice_name: string;
+  data_network_name: string;
+  session_ambr_uplink: string;
+  session_ambr_downlink: string;
+  var5qi: number;
+  arp: number;
+  rules?: PolicyRules;
+};
+
+// UI-facing type — keeps old field names so pages don't change visually.
 export type APIPolicy = {
   name: string;
   bitrate_uplink: string;
@@ -22,6 +36,25 @@ export type APIPolicy = {
   arp: number;
   data_network_name: string;
   rules?: PolicyRules;
+};
+
+function rawToUIPolicy(raw: APIPolicyRaw): APIPolicy {
+  return {
+    name: raw.name,
+    bitrate_uplink: raw.session_ambr_uplink,
+    bitrate_downlink: raw.session_ambr_downlink,
+    var5qi: raw.var5qi,
+    arp: raw.arp,
+    data_network_name: raw.data_network_name,
+    rules: raw.rules,
+  };
+}
+
+type APIPolicyListRaw = {
+  items: APIPolicyRaw[];
+  page: number;
+  per_page: number;
+  total_count: number;
 };
 
 export type ListPoliciesResponse = {
@@ -35,7 +68,10 @@ export const getPolicy = async (
   authToken: string,
   name: string,
 ): Promise<APIPolicy> => {
-  return apiFetch<APIPolicy>(`/api/v1/policies/${name}`, { authToken });
+  const raw = await apiFetch<APIPolicyRaw>(`/api/v1/policies/${name}`, {
+    authToken,
+  });
+  return rawToUIPolicy(raw);
 };
 
 export async function listPolicies(
@@ -43,10 +79,24 @@ export async function listPolicies(
   page: number,
   perPage: number,
 ): Promise<ListPoliciesResponse> {
-  return apiFetch<ListPoliciesResponse>(
+  const raw = await apiFetch<APIPolicyListRaw>(
     `/api/v1/policies?page=${page}&per_page=${perPage}`,
     { authToken },
   );
+  return {
+    ...raw,
+    items: (raw.items ?? []).map(rawToUIPolicy),
+  };
+}
+
+async function fetchSliceName(authToken: string): Promise<string> {
+  const res = await apiFetch<{
+    items: { name: string }[];
+  }>(`/api/v1/slices?page=1&per_page=1`, { authToken });
+  if (!res.items?.length) {
+    throw new Error("No network slice configured");
+  }
+  return res.items[0].name;
 }
 
 export const createPolicy = async (
@@ -58,18 +108,48 @@ export const createPolicy = async (
   arp: number,
   dataNetworkName: string,
 ): Promise<void> => {
-  await apiFetchVoid(`/api/v1/policies`, {
+  // 1. Create a profile with the same name.
+  await apiFetchVoid(`/api/v1/profiles`, {
     method: "POST",
     authToken,
     body: {
       name,
-      bitrate_uplink: bitrateUplink,
-      bitrate_downlink: bitrateDownlink,
-      var5qi,
-      arp,
-      data_network_name: dataNetworkName,
+      ue_ambr_uplink: bitrateUplink,
+      ue_ambr_downlink: bitrateDownlink,
     },
   });
+
+  // 2. Get the single slice name.
+  const sliceName = await fetchSliceName(authToken);
+
+  // 3. Create the policy referencing the profile and slice.
+  try {
+    await apiFetchVoid(`/api/v1/policies`, {
+      method: "POST",
+      authToken,
+      body: {
+        name,
+        profile_name: name,
+        slice_name: sliceName,
+        data_network_name: dataNetworkName,
+        session_ambr_uplink: bitrateUplink,
+        session_ambr_downlink: bitrateDownlink,
+        var5qi,
+        arp,
+      },
+    });
+  } catch (policyErr) {
+    // Roll back the profile we just created to avoid orphans.
+    try {
+      await apiFetchVoid(`/api/v1/profiles/${name}`, {
+        method: "DELETE",
+        authToken,
+      });
+    } catch {
+      // Best-effort cleanup; the original error is more important.
+    }
+    throw policyErr;
+  }
 };
 
 export const updatePolicy = async (
@@ -82,18 +162,31 @@ export const updatePolicy = async (
   dataNetworkName: string,
   rules?: PolicyRules,
 ): Promise<void> => {
-  // Existing rules are always replaced on every update.
-  // If `rules` is omitted (undefined), all existing rules are deleted.
-  // To keep existing rules, re-supply them in this argument.
+  // 1. Update the companion profile (same name) with new UE-AMBR.
+  await apiFetchVoid(`/api/v1/profiles/${name}`, {
+    method: "PUT",
+    authToken,
+    body: {
+      ue_ambr_uplink: bitrateUplink,
+      ue_ambr_downlink: bitrateDownlink,
+    },
+  });
+
+  // 2. Get the single slice name.
+  const sliceName = await fetchSliceName(authToken);
+
+  // 3. Update the policy.
   await apiFetchVoid(`/api/v1/policies/${name}`, {
     method: "PUT",
     authToken,
     body: {
-      bitrate_uplink: bitrateUplink,
-      bitrate_downlink: bitrateDownlink,
+      profile_name: name,
+      slice_name: sliceName,
+      data_network_name: dataNetworkName,
+      session_ambr_uplink: bitrateUplink,
+      session_ambr_downlink: bitrateDownlink,
       var5qi,
       arp,
-      data_network_name: dataNetworkName,
       ...(rules !== undefined && { rules }),
     },
   });
@@ -103,8 +196,25 @@ export const deletePolicy = async (
   authToken: string,
   name: string,
 ): Promise<void> => {
+  // 1. Delete the policy first.
   await apiFetchVoid(`/api/v1/policies/${name}`, {
     method: "DELETE",
     authToken,
   });
+
+  // 2. Delete the companion profile — silently ignore 409 (subscribers still reference it).
+  try {
+    await apiFetchVoid(`/api/v1/profiles/${name}`, {
+      method: "DELETE",
+      authToken,
+    });
+  } catch (err: unknown) {
+    // Only swallow 409 Conflict (profile still referenced by subscribers).
+    // Re-throw other errors (network failures, 500s, auth failures, etc.).
+    if (err instanceof Error && err.message?.includes("409")) {
+      // Expected: profile still has subscribers.
+    } else {
+      console.error("Failed to delete companion profile:", err);
+    }
+  }
 };

@@ -54,11 +54,11 @@ type CreateSubscriberParams struct {
 	Key            string `json:"key"`
 	Opc            string `json:"opc,omitempty"`
 	SequenceNumber string `json:"sequenceNumber"`
-	PolicyName     string `json:"policyName"`
+	ProfileName    string `json:"profile_name"`
 }
 
 type UpdateSubscriberParams struct {
-	PolicyName string `json:"policyName"`
+	ProfileName string `json:"profile_name"`
 }
 
 // SubscriberStatus is the lightweight status returned by the list endpoint.
@@ -71,10 +71,10 @@ type SubscriberStatus struct {
 
 // Subscriber is the summary representation returned by the list endpoint.
 type Subscriber struct {
-	Imsi       string           `json:"imsi"`
-	PolicyName string           `json:"policyName"`
-	Radio      string           `json:"radio,omitempty"`
-	Status     SubscriberStatus `json:"status"`
+	Imsi        string           `json:"imsi"`
+	ProfileName string           `json:"profile_name"`
+	Radio       string           `json:"radio,omitempty"`
+	Status      SubscriberStatus `json:"status"`
 }
 
 type ListSubscribersResponse struct {
@@ -98,7 +98,7 @@ type SubscriberDetailStatus struct {
 // SubscriberDetail is the full representation returned by the get-single endpoint.
 type SubscriberDetail struct {
 	Imsi        string                 `json:"imsi"`
-	PolicyName  string                 `json:"policyName"`
+	ProfileName string                 `json:"profile_name"`
 	Status      SubscriberDetailStatus `json:"status"`
 	PDUSessions []SessionInfo          `json:"pdu_sessions"`
 }
@@ -243,18 +243,16 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler
 		// Build IMSI→IP lookup from active leases for the deprecated status.ipAddress field.
 		imsiToIP := activeLeasesByIMSI(ctx, dbInstance)
 
-		// Pre-fetch all policies into a lookup map.
-		// These are small reference tables, so loading them all avoids
-		// N+1 queries per subscriber in the loop below.
-		allPolicies, _, err := dbInstance.ListPoliciesPage(ctx, 1, 1000)
+		// Pre-fetch all profiles into a lookup map keyed by ID.
+		allProfiles, _, err := dbInstance.ListProfilesPage(ctx, 1, 1000)
 		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list policies", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list profiles", err, logger.APILog)
 			return
 		}
 
-		policyByID := make(map[int]*db.Policy, len(allPolicies))
-		for i := range allPolicies {
-			policyByID[allPolicies[i].ID] = &allPolicies[i]
+		profileByID := make(map[int]*db.Profile, len(allProfiles))
+		for i := range allProfiles {
+			profileByID[allProfiles[i].ID] = &allProfiles[i]
 		}
 
 		for _, dbSubscriber := range dbSubscribers {
@@ -264,9 +262,9 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler
 				}
 			}
 
-			policy, ok := policyByID[dbSubscriber.PolicyID]
+			profile, ok := profileByID[dbSubscriber.ProfileID]
 			if !ok {
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", fmt.Errorf("policy ID %d not found", dbSubscriber.PolicyID), logger.APILog)
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve profile", fmt.Errorf("no profile for ID %d", dbSubscriber.ProfileID), logger.APILog)
 				return
 			}
 
@@ -286,10 +284,10 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler
 			}
 
 			items = append(items, Subscriber{
-				Imsi:       dbSubscriber.Imsi,
-				PolicyName: policy.Name,
-				Radio:      amfInstance.RadioNameForSubscriber(supi),
-				Status:     subscriberStatus,
+				Imsi:        dbSubscriber.Imsi,
+				ProfileName: profile.Name,
+				Radio:       amfInstance.RadioNameForSubscriber(supi),
+				Status:      subscriberStatus,
 			})
 		}
 
@@ -347,9 +345,10 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler {
 			return
 		}
 
-		policy, err := dbInstance.GetPolicyByID(r.Context(), dbSubscriber.PolicyID)
+		// Find the profile for this subscriber.
+		profile, err := dbInstance.GetProfileByID(r.Context(), dbSubscriber.ProfileID)
 		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve profile", err, logger.APILog)
 			return
 		}
 
@@ -400,7 +399,7 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler {
 
 		subscriber := SubscriberDetail{
 			Imsi:        dbSubscriber.Imsi,
-			PolicyName:  policy.Name,
+			ProfileName: profile.Name,
 			Status:      subscriberStatus,
 			PDUSessions: sessions,
 		}
@@ -463,8 +462,8 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if params.PolicyName == "" {
-			writeError(r.Context(), w, http.StatusBadRequest, "Missing policyName parameter", errors.New("validation error"), logger.APILog)
+		if params.ProfileName == "" {
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing profile_name parameter", errors.New("validation error"), logger.APILog)
 			return
 		}
 
@@ -508,9 +507,20 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 			opcHex = hex.EncodeToString(derivedOPC)
 		}
 
-		policy, err := dbInstance.GetPolicy(r.Context(), params.PolicyName)
+		profile, err := dbInstance.GetProfile(r.Context(), params.ProfileName)
 		if err != nil {
-			writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusNotFound, "Profile not found", nil, logger.APILog)
+			return
+		}
+
+		policyCount, err := dbInstance.CountPoliciesInProfile(r.Context(), profile.ID)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check policies", err, logger.APILog)
+			return
+		}
+
+		if policyCount < 1 {
+			writeError(r.Context(), w, http.StatusConflict, "Profile has no policy; create a policy for this profile before assigning subscribers", nil, logger.APILog)
 			return
 		}
 
@@ -530,7 +540,7 @@ func CreateSubscriber(dbInstance *db.Database) http.Handler {
 			SequenceNumber: params.SequenceNumber,
 			PermanentKey:   params.Key,
 			Opc:            opcHex,
-			PolicyID:       policy.ID,
+			ProfileID:      profile.ID,
 		}
 
 		if err := dbInstance.CreateSubscriber(r.Context(), newSubscriber); err != nil {
@@ -567,22 +577,33 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if params.PolicyName == "" {
-			writeError(r.Context(), w, http.StatusBadRequest, "Missing policyName parameter", errors.New("validation error"), logger.APILog)
+		if params.ProfileName == "" {
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing profile_name parameter", errors.New("validation error"), logger.APILog)
 			return
 		}
 
-		policy, err := dbInstance.GetPolicy(r.Context(), params.PolicyName)
+		profile, err := dbInstance.GetProfile(r.Context(), params.ProfileName)
 		if err != nil {
-			writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusNotFound, "Profile not found", nil, logger.APILog)
+			return
+		}
+
+		policyCount, err := dbInstance.CountPoliciesInProfile(r.Context(), profile.ID)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check policies", err, logger.APILog)
+			return
+		}
+
+		if policyCount < 1 {
+			writeError(r.Context(), w, http.StatusConflict, "Profile has no policy; create a policy for this profile before assigning subscribers", nil, logger.APILog)
 			return
 		}
 
 		updated := &db.Subscriber{
-			Imsi:     imsi,
-			PolicyID: policy.ID,
+			Imsi:      imsi,
+			ProfileID: profile.ID,
 		}
-		if err := dbInstance.UpdateSubscriberPolicy(r.Context(), updated); err != nil {
+		if err := dbInstance.UpdateSubscriberProfile(r.Context(), updated); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Subscriber not found", nil, logger.APILog)
 				return

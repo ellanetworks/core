@@ -51,7 +51,6 @@ func TestHandleNotificationResponse_T3565Stopped_NoPDUSessionStatus_NoSmContextR
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, nil, &smf)
@@ -86,7 +85,6 @@ func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextRelea
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, nil, &smf)

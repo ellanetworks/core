@@ -4,7 +4,7 @@ description: RESTful API reference for managing Ella Core.
 
 # API
 
-Ella Core exposes a RESTful API for managing subscribers, radios, data networks, policies, users, routes, and operator configuration.
+Ella Core exposes a RESTful API for managing subscribers, radios, data networks, profiles, slices, policies, users, routes, and operator configuration.
 
 ## Authentication
 
@@ -72,7 +72,7 @@ func main() {
 		Imsi:           "001010100000033",
 		Key:            "5122250214c33e723a5dd523fc145fc0",
 		SequenceNumber: "000000000022",
-		PolicyName:     "default",
+		ProfileName:    "default",
 	}
 
 	err = ella.CreateSubscriber(createSubscriberOpts)

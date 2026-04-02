@@ -25,7 +25,7 @@ func TestCreateSubscriber_Success(t *testing.T) {
 		Imsi:           "001010100000022",
 		Key:            "5122250214c33e723a5dd523fc145fc0",
 		SequenceNumber: "000000000022",
-		PolicyName:     "default",
+		ProfileName:    "default",
 	}
 
 	ctx := context.Background()
@@ -52,7 +52,7 @@ func TestCreateSubscriber_Failure(t *testing.T) {
 		Imsi:           "invalid_imsi",
 		Key:            "5122250214c33e723a5dd523fc145fc0",
 		SequenceNumber: "000000000022",
-		PolicyName:     "default",
+		ProfileName:    "default",
 	}
 
 	ctx := context.Background()
@@ -68,7 +68,7 @@ func TestGetSubscriber_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"imsi": "001010100000022", "policyName": "default", "status": {"registered": false, "ipAddress": "", "imei": "", "cipheringAlgorithm": "", "integrityAlgorithm": ""}}`),
+			Result:     []byte(`{"imsi": "001010100000022", "profile_name": "default", "status": {"registered": false, "ipAddress": "", "imei": "", "cipheringAlgorithm": "", "integrityAlgorithm": ""}}`),
 		},
 		err: nil,
 	}
@@ -188,7 +188,7 @@ func TestListSubscribers_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"items": [{"imsi": "001010100000022", "policyName": "default", "radio": "gnb-01", "status": {"registered": true, "lastSeenAt": "2025-01-01T00:00:00Z"}}], "page": 1, "per_page": 10, "total_count": 1}`),
+			Result:     []byte(`{"items": [{"imsi": "001010100000022", "profile_name": "default", "radio": "gnb-01", "status": {"registered": true, "lastSeenAt": "2025-01-01T00:00:00Z"}}], "page": 1, "per_page": 10, "total_count": 1}`),
 		},
 		err: nil,
 	}

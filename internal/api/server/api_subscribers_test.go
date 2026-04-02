@@ -46,10 +46,10 @@ type ListSubscriberStatus struct {
 
 // ListSubscriber matches the summary representation in list responses.
 type ListSubscriber struct {
-	Imsi       string               `json:"imsi"`
-	PolicyName string               `json:"policyName"`
-	Radio      string               `json:"radio,omitempty"`
-	Status     ListSubscriberStatus `json:"status"`
+	Imsi        string               `json:"imsi"`
+	ProfileName string               `json:"profile_name"`
+	Radio       string               `json:"radio,omitempty"`
+	Status      ListSubscriberStatus `json:"status"`
 }
 
 // SubscriberDetailStatus matches the rich status in get-single responses.
@@ -71,7 +71,7 @@ type SessionInfo struct {
 // SubscriberDetail matches the full representation in get-single responses.
 type SubscriberDetail struct {
 	Imsi        string                 `json:"imsi"`
-	PolicyName  string                 `json:"policyName"`
+	ProfileName string                 `json:"profile_name"`
 	Status      SubscriberDetailStatus `json:"status"`
 	PDUSessions []SessionInfo          `json:"pdu_sessions"`
 }
@@ -86,7 +86,7 @@ type CreateSubscriberParams struct {
 	Key            string `json:"key"`
 	Opc            string `json:"opc,omitempty"`
 	SequenceNumber string `json:"sequenceNumber"`
-	PolicyName     string `json:"policyName"`
+	ProfileName    string `json:"profile_name"`
 }
 
 type CreateSubscriberResponseResult struct {
@@ -222,8 +222,8 @@ func deleteSubscriber(url string, client *http.Client, token string, imsi string
 }
 
 type UpdateSubscriberParams struct {
-	Imsi       string `json:"imsi"`
-	PolicyName string `json:"policyName"`
+	Imsi        string `json:"imsi"`
+	ProfileName string `json:"profile_name"`
 }
 
 type UpdateSubscriberResponse struct {
@@ -378,19 +378,40 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("1. Create policy", func(t *testing.T) {
+	t.Run("1. Create profile and policy", func(t *testing.T) {
+		createProfileParams := &CreateProfileParams{
+			Name:           TestProfileName,
+			UeAmbrUplink:   "200 Mbps",
+			UeAmbrDownlink: "200 Mbps",
+		}
+
+		statusCode, createProfileResponse, err := createProfile(env.Server.URL, client, token, createProfileParams)
+		if err != nil {
+			t.Fatalf("couldn't create profile: %s", err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+
+		if createProfileResponse.Error != "" {
+			t.Fatalf("unexpected error :%q", createProfileResponse.Error)
+		}
+
 		createPolicyParams := &CreatePolicyParams{
-			Name:            PolicyName,
-			BitrateUplink:   "100 Mbps",
-			BitrateDownlink: "100 Mbps",
-			Var5qi:          9,
-			Arp:             1,
-			DataNetworkName: "whatever",
+			Name:                PolicyName,
+			ProfileName:         TestProfileName,
+			SliceName:           DefaultSliceName,
+			SessionAmbrUplink:   "100 Mbps",
+			SessionAmbrDownlink: "100 Mbps",
+			Var5qi:              9,
+			Arp:                 1,
+			DataNetworkName:     "whatever",
 		}
 
 		statusCode, response, err := createPolicy(env.Server.URL, client, token, createPolicyParams)
 		if err != nil {
-			t.Fatalf("couldn't create subscriber: %s", err)
+			t.Fatalf("couldn't create policy: %s", err)
 		}
 
 		if statusCode != http.StatusCreated {
@@ -408,7 +429,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			Key:            Key,
 			Opc:            Opc,
 			SequenceNumber: SequenceNumber,
-			PolicyName:     PolicyName,
+			ProfileName:    TestProfileName,
 		}
 
 		statusCode, response, err := createSubscriber(env.Server.URL, client, token, createSubscriberParams)
@@ -443,8 +464,8 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected imsi %s, got %s", Imsi, response.Result.Imsi)
 		}
 
-		if response.Result.PolicyName != PolicyName {
-			t.Fatalf("expected policyName %s, got %s", PolicyName, response.Result.PolicyName)
+		if response.Result.ProfileName != TestProfileName {
+			t.Fatalf("expected profileName %s, got %s", TestProfileName, response.Result.ProfileName)
 		}
 
 		if response.Result.Status.Registered != false {
@@ -550,14 +571,35 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("6. Create second policy for update tests", func(t *testing.T) {
+	t.Run("6. Create second profile and policy for update tests", func(t *testing.T) {
+		createProfileParams := &CreateProfileParams{
+			Name:           "profile2",
+			UeAmbrUplink:   "100 Mbps",
+			UeAmbrDownlink: "100 Mbps",
+		}
+
+		statusCode, createProfileResponse, err := createProfile(env.Server.URL, client, token, createProfileParams)
+		if err != nil {
+			t.Fatalf("couldn't create profile: %s", err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+
+		if createProfileResponse.Error != "" {
+			t.Fatalf("unexpected error :%q", createProfileResponse.Error)
+		}
+
 		createPolicyParams := &CreatePolicyParams{
-			Name:            "policy2",
-			BitrateUplink:   "50 Mbps",
-			BitrateDownlink: "50 Mbps",
-			Var5qi:          8,
-			Arp:             2,
-			DataNetworkName: "whatever",
+			Name:                "policy2",
+			ProfileName:         "profile2",
+			SliceName:           DefaultSliceName,
+			SessionAmbrUplink:   "50 Mbps",
+			SessionAmbrDownlink: "50 Mbps",
+			Var5qi:              8,
+			Arp:                 2,
+			DataNetworkName:     "whatever",
 		}
 
 		statusCode, response, err := createPolicy(env.Server.URL, client, token, createPolicyParams)
@@ -576,8 +618,8 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 	t.Run("7. Update subscriber - success", func(t *testing.T) {
 		updateParams := &UpdateSubscriberParams{
-			Imsi:       Imsi,
-			PolicyName: "policy2",
+			Imsi:        Imsi,
+			ProfileName: "profile2",
 		}
 
 		statusCode, response, err := updateSubscriber(env.Server.URL, client, token, Imsi, updateParams)
@@ -607,15 +649,15 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
 
-		if getResponse.Result.PolicyName != "policy2" {
-			t.Fatalf("expected policyName 'policy2', got %s", getResponse.Result.PolicyName)
+		if getResponse.Result.ProfileName != "profile2" {
+			t.Fatalf("expected profileName 'profile2', got %s", getResponse.Result.ProfileName)
 		}
 	})
 
 	t.Run("8. Update subscriber - missing imsi in path", func(t *testing.T) {
 		updateParams := &UpdateSubscriberParams{
-			Imsi:       Imsi,
-			PolicyName: PolicyName,
+			Imsi:        Imsi,
+			ProfileName: TestProfileName,
 		}
 
 		body, err := json.Marshal(updateParams)
@@ -670,8 +712,8 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 	t.Run("5f. Update subscriber - missing policy name", func(t *testing.T) {
 		updateParams := &UpdateSubscriberParams{
-			Imsi:       Imsi,
-			PolicyName: "",
+			Imsi:        Imsi,
+			ProfileName: "",
 		}
 
 		statusCode, response, err := updateSubscriber(env.Server.URL, client, token, Imsi, updateParams)
@@ -683,15 +725,15 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 		}
 
-		if response.Error != "Missing policyName parameter" {
-			t.Fatalf("expected error 'Missing policyName parameter', got %q", response.Error)
+		if response.Error != "Missing profile_name parameter" {
+			t.Fatalf("expected error 'Missing profile_name parameter', got %q", response.Error)
 		}
 	})
 
 	t.Run("11. Update subscriber - not found", func(t *testing.T) {
 		updateParams := &UpdateSubscriberParams{
-			Imsi:       "invalid-imsi",
-			PolicyName: PolicyName,
+			Imsi:        "invalid-imsi",
+			ProfileName: TestProfileName,
 		}
 
 		statusCode, response, err := updateSubscriber(env.Server.URL, client, token, "invalid-imsi", updateParams)
@@ -710,8 +752,8 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 
 	t.Run("12. Update subscriber - policy not found", func(t *testing.T) {
 		updateParams := &UpdateSubscriberParams{
-			Imsi:       Imsi,
-			PolicyName: "nonexistent-policy",
+			Imsi:        Imsi,
+			ProfileName: "nonexistent-profile",
 		}
 
 		statusCode, response, err := updateSubscriber(env.Server.URL, client, token, Imsi, updateParams)
@@ -723,15 +765,15 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusNotFound, statusCode)
 		}
 
-		if response.Error != "Policy not found" {
-			t.Fatalf("expected error 'Policy not found', got %q", response.Error)
+		if response.Error != "Profile not found" {
+			t.Fatalf("expected error 'Profile not found', got %q", response.Error)
 		}
 	})
 
 	t.Run("13. Update subscriber - subscriber not found", func(t *testing.T) {
 		updateParams := &UpdateSubscriberParams{
-			Imsi:       "001010100007488",
-			PolicyName: PolicyName,
+			Imsi:        "001010100007488",
+			ProfileName: TestProfileName,
 		}
 
 		statusCode, response, err := updateSubscriber(env.Server.URL, client, token, "001010100007488", updateParams)
@@ -788,7 +830,7 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			Key:            Key,
 			Opc:            Opc,
 			SequenceNumber: SequenceNumber,
-			PolicyName:     PolicyName,
+			ProfileName:    TestProfileName,
 		}
 
 		statusCode, response, err := createSubscriber(env.Server.URL, client, token, createSubscriberParams)
@@ -823,8 +865,8 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected imsi %s, got %s", Imsi, response.Result.Imsi)
 		}
 
-		if response.Result.PolicyName != PolicyName {
-			t.Fatalf("expected policyName %s, got %s", PolicyName, response.Result.PolicyName)
+		if response.Result.ProfileName != TestProfileName {
+			t.Fatalf("expected profileName %s, got %s", TestProfileName, response.Result.ProfileName)
 		}
 
 		if response.Result.Status.Registered != false {
@@ -964,7 +1006,7 @@ func TestCreateSubscriberInvalidInput(t *testing.T) {
 				Imsi:           tt.imsi,
 				Key:            tt.key,
 				SequenceNumber: tt.sequenceNumber,
-				PolicyName:     PolicyName,
+				ProfileName:    DefaultProfileName,
 			}
 
 			statusCode, response, err := createSubscriber(env.Server.URL, client, token, createSubscriberParams)
@@ -1036,7 +1078,7 @@ func TestCreateSubscriberValidInput(t *testing.T) {
 				Imsi:           tt.imsi,
 				Key:            Key,
 				SequenceNumber: SequenceNumber,
-				PolicyName:     "default",
+				ProfileName:    "default",
 			}
 
 			statusCode, _, err = createSubscriber(env.Server.URL, client, token, createSubscriberParams)
@@ -1097,13 +1139,34 @@ func TestCreateTooManySubscribers(t *testing.T) {
 		t.Fatalf("unexpected error :%q", response.Error)
 	}
 
+	createProfileParams := &CreateProfileParams{
+		Name:           TestProfileName,
+		UeAmbrUplink:   "200 Mbps",
+		UeAmbrDownlink: "200 Mbps",
+	}
+
+	statusCode, createProfileResponse, err := createProfile(env.Server.URL, client, token, createProfileParams)
+	if err != nil {
+		t.Fatalf("couldn't create profile: %s", err)
+	}
+
+	if statusCode != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+	}
+
+	if createProfileResponse.Error != "" {
+		t.Fatalf("unexpected error :%q", createProfileResponse.Error)
+	}
+
 	createPolicyParams := &CreatePolicyParams{
-		Name:            PolicyName,
-		BitrateUplink:   "100 Mbps",
-		BitrateDownlink: "100 Mbps",
-		Var5qi:          9,
-		Arp:             1,
-		DataNetworkName: "whatever",
+		Name:                PolicyName,
+		ProfileName:         TestProfileName,
+		SliceName:           DefaultSliceName,
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "100 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkName:     "whatever",
 	}
 
 	statusCode, createPolicyResponse, err := createPolicy(env.Server.URL, client, token, createPolicyParams)
@@ -1127,7 +1190,7 @@ func TestCreateTooManySubscribers(t *testing.T) {
 			Key:            Key,
 			Opc:            Opc,
 			SequenceNumber: SequenceNumber,
-			PolicyName:     PolicyName,
+			ProfileName:    TestProfileName,
 		}
 		t.Log("Creating subscriber:", createSubscriberParams.Imsi)
 
@@ -1150,7 +1213,7 @@ func TestCreateTooManySubscribers(t *testing.T) {
 		Key:            Key,
 		Opc:            Opc,
 		SequenceNumber: SequenceNumber,
-		PolicyName:     PolicyName,
+		ProfileName:    TestProfileName,
 	}
 
 	statusCode, createSubscriberResponse, err := createSubscriber(env.Server.URL, client, token, createSubscriberParams)

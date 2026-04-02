@@ -70,7 +70,6 @@ func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"1\"]",
 			},
 		},
@@ -115,7 +114,6 @@ func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"1\"]",
 			},
 		},
@@ -165,7 +163,6 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"1\"]",
 			},
 		},
@@ -216,7 +213,6 @@ func TestHandleSecurityMode_ValidSecurityContextWithBadAMFKey_UpdatesSecurityCon
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"1\"]",
 			},
 		},
@@ -270,7 +266,6 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"1\"]",
 			},
 		},
@@ -338,7 +333,6 @@ func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 			Operator: &db.Operator{
 				Mcc:           "001",
 				Mnc:           "01",
-				Sst:           1,
 				SupportedTACs: "[\"1\"]",
 			},
 		},

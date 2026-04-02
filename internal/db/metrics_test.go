@@ -34,6 +34,7 @@ func TestDatabaseMetrics(t *testing.T) {
 
 	dataNetworks := []db.DataNetwork{
 		{Name: "not-internet", IPPool: "10.0.0.0/16"},
+		{Name: "not-internet-2", IPPool: "10.1.0.0/16"},
 	}
 	for _, dn := range dataNetworks {
 		err := database.CreateDataNetwork(context.Background(), &dn)
@@ -47,9 +48,14 @@ func TestDatabaseMetrics(t *testing.T) {
 		t.Fatalf("Couldn't get data network: %s", err)
 	}
 
+	createdDN2, err := database.GetDataNetwork(context.Background(), "not-internet-2")
+	if err != nil {
+		t.Fatalf("Couldn't get data network 2: %s", err)
+	}
+
 	policies := []db.Policy{
-		{Name: "Policy1", DataNetworkID: 1},
-		{Name: "Policy2", DataNetworkID: 1},
+		{Name: "Policy1", DataNetworkID: createdDN.ID, ProfileID: 1, SliceID: 1},
+		{Name: "Policy2", DataNetworkID: createdDN2.ID, ProfileID: 1, SliceID: 1},
 	}
 	for _, policy := range policies {
 		err := database.CreatePolicy(context.Background(), &policy)
@@ -62,21 +68,21 @@ func TestDatabaseMetrics(t *testing.T) {
 		{
 			Imsi:           "001019379926281",
 			SequenceNumber: "000000000001",
-			PolicyID:       1,
+			ProfileID:      1,
 			Opc:            "1234567890abcdef1234567890abcdef",
 			PermanentKey:   "1234567890abcdef1234567890abcdef",
 		},
 		{
 			Imsi:           "001019379926282",
 			SequenceNumber: "000000000002",
-			PolicyID:       2,
+			ProfileID:      1,
 			Opc:            "1234567890abcdef1234567890abcdef",
 			PermanentKey:   "1234567890abcdef1234567890abcdef",
 		},
 		{
 			Imsi:           "001019379926283",
 			SequenceNumber: "000000000003",
-			PolicyID:       1,
+			ProfileID:      1,
 			Opc:            "1234567890abcdef1234567890abcdef",
 			PermanentKey:   "1234567890abcdef1234567890abcdef",
 		},
@@ -126,7 +132,7 @@ func TestDatabaseMetrics(t *testing.T) {
 			t.Fatalf("Couldn't get total IP addresses: %s", err)
 		}
 
-		expectedTotal := countIPsInCIDR(DefaultDNIPPool) + countIPsInCIDR("10.0.0.0/16")
+		expectedTotal := countIPsInCIDR(DefaultDNIPPool) + countIPsInCIDR("10.0.0.0/16") + countIPsInCIDR("10.1.0.0/16")
 		if totalIPs != expectedTotal {
 			t.Fatalf("Expected total IPs %d, got %d", expectedTotal, totalIPs)
 		}

@@ -23,23 +23,26 @@ type PolicyRules struct {
 }
 
 type CreatePolicyOptions struct {
-	Name            string       `json:"name"`
-	BitrateUplink   string       `json:"bitrate_uplink"`
-	BitrateDownlink string       `json:"bitrate_downlink"`
-	Var5qi          int32        `json:"var5qi"`
-	Arp             int32        `json:"arp"`
-	DataNetworkName string       `json:"data_network_name"`
-	Rules           *PolicyRules `json:"rules,omitempty"`
+	Name                string       `json:"name"`
+	ProfileName         string       `json:"profile_name"`
+	SliceName           string       `json:"slice_name"`
+	DataNetworkName     string       `json:"data_network_name"`
+	SessionAmbrUplink   string       `json:"session_ambr_uplink"`
+	SessionAmbrDownlink string       `json:"session_ambr_downlink"`
+	Var5qi              int32        `json:"var5qi"`
+	Arp                 int32        `json:"arp"`
+	Rules               *PolicyRules `json:"rules,omitempty"`
 }
 
 type UpdatePolicyOptions struct {
-	Name            string       `json:"name,omitempty"`
-	BitrateUplink   string       `json:"bitrate_uplink,omitempty"`
-	BitrateDownlink string       `json:"bitrate_downlink,omitempty"`
-	Var5qi          int32        `json:"var5qi,omitempty"`
-	Arp             int32        `json:"arp,omitempty"`
-	DataNetworkName string       `json:"data_network_name,omitempty"`
-	Rules           *PolicyRules `json:"rules,omitempty"`
+	ProfileName         string       `json:"profile_name,omitempty"`
+	SliceName           string       `json:"slice_name,omitempty"`
+	DataNetworkName     string       `json:"data_network_name,omitempty"`
+	SessionAmbrUplink   string       `json:"session_ambr_uplink,omitempty"`
+	SessionAmbrDownlink string       `json:"session_ambr_downlink,omitempty"`
+	Var5qi              int32        `json:"var5qi,omitempty"`
+	Arp                 int32        `json:"arp,omitempty"`
+	Rules               *PolicyRules `json:"rules,omitempty"`
 }
 
 type GetPolicyOptions struct {
@@ -51,13 +54,15 @@ type DeletePolicyOptions struct {
 }
 
 type Policy struct {
-	Name            string       `json:"name"`
-	BitrateUplink   string       `json:"bitrate_uplink"`
-	BitrateDownlink string       `json:"bitrate_downlink"`
-	Var5qi          int32        `json:"var5qi"`
-	Arp             int32        `json:"arp"`
-	DataNetworkName string       `json:"data_network_name"`
-	Rules           *PolicyRules `json:"rules,omitempty"`
+	Name                string       `json:"name"`
+	ProfileName         string       `json:"profile_name"`
+	SliceName           string       `json:"slice_name"`
+	DataNetworkName     string       `json:"data_network_name"`
+	SessionAmbrUplink   string       `json:"session_ambr_uplink"`
+	SessionAmbrDownlink string       `json:"session_ambr_downlink"`
+	Var5qi              int32        `json:"var5qi"`
+	Arp                 int32        `json:"arp"`
+	Rules               *PolicyRules `json:"rules,omitempty"`
 }
 
 type ListPoliciesResponse struct {
@@ -72,21 +77,25 @@ type ListPoliciesResponse struct {
 // Rules are created in the order they are provided.
 func (c *Client) CreatePolicy(ctx context.Context, opts *CreatePolicyOptions) error {
 	payload := struct {
-		Name            string       `json:"name"`
-		BitrateUplink   string       `json:"bitrate_uplink"`
-		BitrateDownlink string       `json:"bitrate_downlink"`
-		Var5qi          int32        `json:"var5qi"`
-		Arp             int32        `json:"arp"`
-		DataNetworkName string       `json:"data_network_name"`
-		Rules           *PolicyRules `json:"rules,omitempty"`
+		Name                string       `json:"name"`
+		ProfileName         string       `json:"profile_name"`
+		SliceName           string       `json:"slice_name"`
+		DataNetworkName     string       `json:"data_network_name"`
+		SessionAmbrUplink   string       `json:"session_ambr_uplink"`
+		SessionAmbrDownlink string       `json:"session_ambr_downlink"`
+		Var5qi              int32        `json:"var5qi"`
+		Arp                 int32        `json:"arp"`
+		Rules               *PolicyRules `json:"rules,omitempty"`
 	}{
-		Name:            opts.Name,
-		BitrateUplink:   opts.BitrateUplink,
-		BitrateDownlink: opts.BitrateDownlink,
-		Var5qi:          opts.Var5qi,
-		Arp:             opts.Arp,
-		DataNetworkName: opts.DataNetworkName,
-		Rules:           opts.Rules,
+		Name:                opts.Name,
+		ProfileName:         opts.ProfileName,
+		SliceName:           opts.SliceName,
+		DataNetworkName:     opts.DataNetworkName,
+		SessionAmbrUplink:   opts.SessionAmbrUplink,
+		SessionAmbrDownlink: opts.SessionAmbrDownlink,
+		Var5qi:              opts.Var5qi,
+		Arp:                 opts.Arp,
+		Rules:               opts.Rules,
 	}
 
 	var body bytes.Buffer
@@ -137,19 +146,23 @@ func (c *Client) GetPolicy(ctx context.Context, opts *GetPolicyOptions) (*Policy
 // To set specific rules, provide them in opts.Rules; existing rules are deleted and replaced.
 func (c *Client) UpdatePolicy(ctx context.Context, name string, opts *UpdatePolicyOptions) error {
 	payload := struct {
-		BitrateUplink   string       `json:"bitrate_uplink,omitempty"`
-		BitrateDownlink string       `json:"bitrate_downlink,omitempty"`
-		Var5qi          int32        `json:"var5qi,omitempty"`
-		Arp             int32        `json:"arp,omitempty"`
-		DataNetworkName string       `json:"data_network_name,omitempty"`
-		Rules           *PolicyRules `json:"rules,omitempty"`
+		ProfileName         string       `json:"profile_name,omitempty"`
+		SliceName           string       `json:"slice_name,omitempty"`
+		DataNetworkName     string       `json:"data_network_name,omitempty"`
+		SessionAmbrUplink   string       `json:"session_ambr_uplink,omitempty"`
+		SessionAmbrDownlink string       `json:"session_ambr_downlink,omitempty"`
+		Var5qi              int32        `json:"var5qi,omitempty"`
+		Arp                 int32        `json:"arp,omitempty"`
+		Rules               *PolicyRules `json:"rules,omitempty"`
 	}{
-		BitrateUplink:   opts.BitrateUplink,
-		BitrateDownlink: opts.BitrateDownlink,
-		Var5qi:          opts.Var5qi,
-		Arp:             opts.Arp,
-		DataNetworkName: opts.DataNetworkName,
-		Rules:           opts.Rules,
+		ProfileName:         opts.ProfileName,
+		SliceName:           opts.SliceName,
+		DataNetworkName:     opts.DataNetworkName,
+		SessionAmbrUplink:   opts.SessionAmbrUplink,
+		SessionAmbrDownlink: opts.SessionAmbrDownlink,
+		Var5qi:              opts.Var5qi,
+		Arp:                 opts.Arp,
+		Rules:               opts.Rules,
 	}
 
 	var body bytes.Buffer

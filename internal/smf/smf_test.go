@@ -52,7 +52,7 @@ func (f *fakeStore) ReleaseIP(_ context.Context, imsi string, _ string, _ uint8)
 	return f.releasedIP, f.err
 }
 
-func (f *fakeStore) GetSubscriberPolicy(_ context.Context, _ string) (*smf.Policy, error) {
+func (f *fakeStore) GetSessionPolicy(_ context.Context, _ string, _ *models.Snssai, _ string) (*smf.Policy, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -542,15 +542,15 @@ func TestRemovePDR_FreesID(t *testing.T) {
 
 // --- Store Delegation Tests ---
 
-func TestGetSubscriberPolicy_DelegatesToStore(t *testing.T) {
+func TestGetSessionPolicy_DelegatesToStore(t *testing.T) {
 	store, upf, amfCb := defaultFakes()
 	s := newTestSMF(store, upf, amfCb)
 	bgCtx := context.Background()
 	supi := testSUPI()
 
-	policy, err := s.GetSubscriberPolicy(bgCtx, supi)
+	policy, err := s.GetSessionPolicy(bgCtx, supi, testSnssai, testDNN)
 	if err != nil {
-		t.Fatalf("GetSubscriberPolicy failed: %v", err)
+		t.Fatalf("GetSessionPolicy failed: %v", err)
 	}
 
 	if policy.Ambr.Uplink != "100 Mbps" {

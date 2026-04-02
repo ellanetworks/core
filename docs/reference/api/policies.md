@@ -28,8 +28,10 @@ This path returns the list of policies.
         "items": [
             {
                 "name": "default",
-                "bitrate_uplink": "200 Mbps",
-                "bitrate_downlink": "100 Mbps",
+                "profile_name": "enterprise",
+                "slice_name": "default",
+                "session_ambr_uplink": "200 Mbps",
+                "session_ambr_downlink": "100 Mbps",
                 "var5qi": 9,
                 "arp": 1,
                 "data_network_name": "internet"
@@ -53,8 +55,10 @@ This path creates a new policy. Optionally, you can create network rules as part
 ### Parameters
 
 - `name` (string): The Name of the policy.
-- `bitrate_uplink` (string): The uplink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
-- `bitrate_downlink` (string): The downlink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
+- `profile_name` (string): The name of the profile associated with this policy. Must be the name of an existing profile.
+- `slice_name` (string): The name of the slice associated with this policy. Must be the name of an existing slice.
+- `session_ambr_uplink` (string): The uplink session AMBR of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
+- `session_ambr_downlink` (string): The downlink session AMBR of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
 - `var5qi` (integer): The QoS class identifier of the policy. Must be an integer between 1 and 255.
 - `arp` (integer): The Allocation and Retention Priority (ARP) of the policy. Must be an integer between 1 and 15.
 - `data_network_name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
@@ -79,8 +83,10 @@ Each rule contains:
 ```json
 {
     "name": "my-policy",
-    "bitrate_uplink": "100 Mbps",
-    "bitrate_downlink": "200 Mbps",
+    "profile_name": "enterprise",
+    "slice_name": "default",
+    "session_ambr_uplink": "100 Mbps",
+    "session_ambr_downlink": "200 Mbps",
     "var5qi": 9,
     "arp": 1,
     "data_network_name": "internet",
@@ -143,8 +149,10 @@ This path updates an existing policy. Network rules are always replaced on every
 
 ### Parameters
 
-- `bitrate_uplink` (string): The uplink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
-- `bitrate_downlink` (string): The downlink bitrate of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
+- `profile_name` (string): The name of the profile associated with this policy. Must be the name of an existing profile.
+- `slice_name` (string): The name of the slice associated with this policy. Must be the name of an existing slice.
+- `session_ambr_uplink` (string): The uplink session AMBR of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
+- `session_ambr_downlink` (string): The downlink session AMBR of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
 - `var5qi` (integer): The QoS class identifier of the policy. Must be an integer between 1 and 255.
 - `arp` (integer): The Allocation and Retention Priority (ARP) of the policy. Must be an integer between 1 and 15.
 - `data_network_name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
@@ -162,8 +170,8 @@ To keep existing rules, you must re-supply them in every update request.
 
 ```json
 {
-    "bitrate_uplink": "100 Mbps",
-    "bitrate_downlink": "200 Mbps",
+    "session_ambr_uplink": "100 Mbps",
+    "session_ambr_downlink": "200 Mbps",
     "var5qi": 9,
     "arp": 1,
     "data_network_name": "internet",
@@ -196,8 +204,8 @@ Omit the `rules` field (or provide empty arrays) to delete all existing rules:
 
 ```json
 {
-    "bitrate_uplink": "100 Mbps",
-    "bitrate_downlink": "200 Mbps",
+    "session_ambr_uplink": "100 Mbps",
+    "session_ambr_downlink": "200 Mbps",
     "var5qi": 9,
     "arp": 1,
     "data_network_name": "internet"
@@ -232,8 +240,10 @@ None
 {
     "result": {
         "name": "my-policy",
-        "bitrate_uplink": "10 Mbps",
-        "bitrate_downlink": "10 Mbps",
+        "profile_name": "enterprise",
+        "slice_name": "default",
+        "session_ambr_uplink": "10 Mbps",
+        "session_ambr_downlink": "10 Mbps",
         "var5qi": 9,
         "arp": 1,
         "data_network_name": "internet",
@@ -285,8 +295,10 @@ If a policy has no associated rules, the `rules` field will be omitted:
 {
     "result": {
         "name": "simple-policy",
-        "bitrate_uplink": "10 Mbps",
-        "bitrate_downlink": "10 Mbps",
+        "profile_name": "enterprise",
+        "slice_name": "default",
+        "session_ambr_uplink": "10 Mbps",
+        "session_ambr_downlink": "10 Mbps",
         "var5qi": 9,
         "arp": 1,
         "data_network_name": "internet"

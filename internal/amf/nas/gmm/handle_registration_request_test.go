@@ -144,7 +144,6 @@ func TestHandleRegistrationRequest_RejectTrackingAreaNotAllowed(t *testing.T) {
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, nil, nil)
@@ -208,7 +207,6 @@ func TestHandleRegistrationRequest_RejectMissingSecurityCapability(t *testing.T)
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, nil, nil)
@@ -266,7 +264,6 @@ func TestHandleRegistrationRequest_Timers_Stopped(t *testing.T) {
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, nil, nil)
@@ -307,7 +304,6 @@ func TestHandleRegistrationRequest_IdentityRequest_MissingSUCI_SUPI(t *testing.T
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, nil, nil)
@@ -358,7 +354,6 @@ func TestHandleRegistrationRequest_AuthenticationRequest(t *testing.T) {
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &FakeAusf{
@@ -419,7 +414,6 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"CAFE64\"]",
 		},
 	}, &FakeAusf{
@@ -486,7 +480,6 @@ func TestHandleRegistrationRequest_UEStateContextSetup_ResetToDeregistered(t *te
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, nil, nil)
@@ -526,7 +519,6 @@ func TestHandleRegistrationRequest_UEStateAuthentication_Error(t *testing.T) {
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, nil, nil)
@@ -563,7 +555,6 @@ func TestHandleRegistrationRequest_SecurityMode_AuthenticationRequest(t *testing
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &FakeAusf{
@@ -637,7 +628,6 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationAccepted(t *testing.T
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &FakeAusf{
@@ -718,7 +708,6 @@ func TestHandleRegistrationRequest_CipheredNAS_RegistrationRejectedWrongKey(t *t
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &FakeAusf{
@@ -794,7 +783,6 @@ func TestHandleRegistrationRequest_CipheredNAS_MacFailed_SkipContainer(t *testin
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &FakeAusf{
@@ -867,7 +855,6 @@ func TestHandleRegistrationRequest_NgKsi_Increment(t *testing.T) {
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &FakeAusf{
@@ -911,7 +898,6 @@ func TestHandleRegistrationRequest_NgKsi_WrapAt6(t *testing.T) {
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &FakeAusf{
@@ -955,7 +941,6 @@ func TestHandleRegistrationRequest_NgKsi_NoKeyAvailable(t *testing.T) {
 		Operator: &db.Operator{
 			Mcc:           "001",
 			Mnc:           "01",
-			Sst:           1,
 			SupportedTACs: "[\"000001\"]",
 		},
 	}, &FakeAusf{

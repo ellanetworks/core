@@ -77,8 +77,10 @@ type TimerValue struct {
 type DBer interface {
 	GetOperator(ctx context.Context) (*db.Operator, error)
 	GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error)
-	GetPolicyByID(ctx context.Context, id int) (*db.Policy, error)
 	GetDataNetworkByID(ctx context.Context, id int) (*db.DataNetwork, error)
+	GetProfileByID(ctx context.Context, id int) (*db.Profile, error)
+	GetPolicyByProfileID(ctx context.Context, profileID int) (*db.Policy, error)
+	ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error)
 }
 
 // Lock ordering (acquire in this order, never reverse):

@@ -10,7 +10,7 @@ export type SubscriberListStatus = {
 /** Summary representation returned by the list endpoint. */
 export type APISubscriberSummary = {
   imsi: string;
-  policyName: string;
+  profile_name: string;
   radio?: string;
   status: SubscriberListStatus;
 };
@@ -36,7 +36,7 @@ export type SubscriberDetailStatus = {
 /** Full representation returned by the get-single endpoint. */
 export type APISubscriber = {
   imsi: string;
-  policyName: string;
+  profile_name: string;
   status: SubscriberDetailStatus;
   pdu_sessions: SessionInfo[];
 };
@@ -99,7 +99,7 @@ export const createSubscriber = async (
   await apiFetchVoid(`/api/v1/subscribers`, {
     method: "POST",
     authToken,
-    body: { imsi, key, sequenceNumber, policyName, opc },
+    body: { imsi, key, sequenceNumber, profile_name: policyName, opc },
   });
 };
 
@@ -111,7 +111,7 @@ export const updateSubscriber = async (
   await apiFetchVoid(`/api/v1/subscribers/${imsi}`, {
     method: "PUT",
     authToken,
-    body: { policyName },
+    body: { profile_name: policyName },
   });
 };
 
