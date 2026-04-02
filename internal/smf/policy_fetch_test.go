@@ -10,7 +10,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/pkg/runtime"
 )
 
@@ -156,7 +155,7 @@ func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
 		if r.Description == "rule-1" {
 			rule1Found = true
 
-			if r.Direction != smf.DirectionUplink {
+			if r.Direction != models.DirectionUplink {
 				t.Fatalf("rule-1 expected direction uplink, got %s", r.Direction)
 			}
 
@@ -188,7 +187,7 @@ func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
 		if r.Description == "rule-2" {
 			rule2Found = true
 
-			if r.Direction != smf.DirectionDownlink {
+			if r.Direction != models.DirectionDownlink {
 				t.Fatalf("rule-2 expected direction downlink, got %s", r.Direction)
 			}
 

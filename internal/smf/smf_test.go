@@ -133,18 +133,12 @@ func (f *fakeUPF) DeleteSession(_ context.Context, localSEID, remoteSEID uint64)
 	return f.err
 }
 
-func (f *fakeUPF) UpdateFilters(_ context.Context, req *smf.FilterUpdateRequest) (*smf.FilterUpdateResponse, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	return &smf.FilterUpdateResponse{FilterMapIndex: 0}, f.err
+func (f *fakeUPF) UpdateFilters(_ context.Context, _ int64, _ models.Direction, _ []models.FilterRule) error {
+	return nil
 }
 
-func (f *fakeUPF) ReleaseFilter(_ context.Context, index uint32) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	return f.err
+func (f *fakeUPF) GetFilterIndex(_ context.Context, _ int64, _ models.Direction) (uint32, error) {
+	return 0, nil
 }
 
 type fakeAMF struct {

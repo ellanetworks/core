@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/ellanetworks/core/internal/models"
 )
 
 const (
@@ -1155,5 +1157,180 @@ func TestCreatePolicyOnePolicyPerProfile(t *testing.T) {
 
 	if statusCode != http.StatusConflict {
 		t.Fatalf("Expected status %d for 1-policy-per-profile limit, got %d", http.StatusConflict, statusCode)
+	}
+}
+
+// TestUpdatePolicyCallsUpdateFilters verifies that UpdatePolicy handler
+// calls UpdateFilters when policy rules are updated.
+func TestUpdatePolicyCallsUpdateFilters(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	var calledFilters []struct {
+		policyID  int64
+		direction models.Direction
+		rules     []models.FilterRule
+	}
+
+	fakeUPF := &FakeUPF{
+		calledFilters: &calledFilters,
+	}
+
+	env, err := setupServerWithUPF(dbPath, fakeUPF)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't initialize and login: %s", err)
+	}
+
+	// Create the data network first.
+	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+		Name: DataNetworkName, MTU: MTU, IPPool: IPPool, DNS: DNS,
+	})
+	if err != nil {
+		t.Fatalf("couldn't create data network: %s", err)
+	}
+
+	// Create a profile for the policy.
+	_, _, err = createProfile(env.Server.URL, client, token, &CreateProfileParams{
+		Name: "update-rules-profile", UeAmbrUplink: "100 Mbps", UeAmbrDownlink: "100 Mbps",
+	})
+	if err != nil {
+		t.Fatalf("couldn't create profile: %s", err)
+	}
+
+	// Create a policy without rules initially.
+	_, _, err = createPolicy(env.Server.URL, client, token, &CreatePolicyParams{
+		Name:                "filter-test-policy",
+		ProfileName:         "update-rules-profile",
+		SliceName:           DefaultSliceName,
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "100 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkName:     DataNetworkName,
+	})
+	if err != nil {
+		t.Fatalf("couldn't create policy: %s", err)
+	}
+
+	// Update the policy with rules.
+	cidr := "10.0.0.0/8"
+	uplinkRule := PolicyRule{
+		Description:  "Allow traffic to 10.0.0.0/8",
+		RemotePrefix: &cidr,
+		Protocol:     6,
+		PortLow:      443,
+		PortHigh:     443,
+		Action:       "allow",
+	}
+
+	downlinkRule := PolicyRule{
+		Description:  "Allow traffic from 10.0.0.0/8",
+		RemotePrefix: &cidr,
+		Protocol:     6,
+		PortLow:      443,
+		PortHigh:     443,
+		Action:       "deny",
+	}
+
+	statusCode, updateResp, err := editPolicy(env.Server.URL, client, "filter-test-policy", token, &UpdatePolicyParams{
+		ProfileName:         "update-rules-profile",
+		SliceName:           DefaultSliceName,
+		SessionAmbrUplink:   "200 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkName:     DataNetworkName,
+		Rules: &PolicyRules{
+			Uplink:   []PolicyRule{uplinkRule},
+			Downlink: []PolicyRule{downlinkRule},
+		},
+	})
+	if err != nil {
+		t.Fatalf("couldn't update policy: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d (error: %s)", http.StatusOK, statusCode, updateResp.Error)
+	}
+
+	// Verify UpdateFilters was called for both uplink and downlink
+	if len(*fakeUPF.calledFilters) != 2 {
+		t.Fatalf("expected UpdateFilters to be called 2 times (uplink + downlink), got %d calls", len(*fakeUPF.calledFilters))
+	}
+
+	// Verify uplink call
+	foundUplink := false
+
+	for _, call := range *fakeUPF.calledFilters {
+		if call.direction == models.DirectionUplink {
+			foundUplink = true
+
+			if len(call.rules) != 1 {
+				t.Fatalf("expected uplink rules count 1, got %d", len(call.rules))
+			}
+
+			if call.rules[0].Action != models.Allow {
+				t.Fatalf("expected uplink action Allow, got %v", call.rules[0].Action)
+			}
+		}
+	}
+
+	if !foundUplink {
+		t.Fatal("expected UpdateFilters call for uplink direction")
+	}
+
+	// Verify downlink call
+	foundDownlink := false
+
+	for _, call := range *fakeUPF.calledFilters {
+		if call.direction == models.DirectionDownlink {
+			foundDownlink = true
+
+			if len(call.rules) != 1 {
+				t.Fatalf("expected downlink rules count 1, got %d", len(call.rules))
+			}
+
+			if call.rules[0].Action != models.Deny {
+				t.Fatalf("expected downlink action Deny, got %v", call.rules[0].Action)
+			}
+		}
+	}
+
+	if !foundDownlink {
+		t.Fatal("expected UpdateFilters call for downlink direction")
+	}
+
+	// Verify the rules were updated in the database.
+	_, getResp, err := getPolicy(env.Server.URL, client, token, "filter-test-policy")
+	if err != nil {
+		t.Fatalf("couldn't get policy after update: %s", err)
+	}
+
+	if getResp.Result.Rules == nil {
+		t.Fatal("expected rules to exist after update, got none")
+	}
+
+	if len(getResp.Result.Rules.Uplink) != 1 {
+		t.Fatalf("expected 1 uplink rule, got %d", len(getResp.Result.Rules.Uplink))
+	}
+
+	if len(getResp.Result.Rules.Downlink) != 1 {
+		t.Fatalf("expected 1 downlink rule, got %d", len(getResp.Result.Rules.Downlink))
+	}
+
+	if getResp.Result.Rules.Uplink[0].Action != "allow" {
+		t.Fatalf("expected uplink rule action 'allow', got %q", getResp.Result.Rules.Uplink[0].Action)
+	}
+
+	if getResp.Result.Rules.Downlink[0].Action != "deny" {
+		t.Fatalf("expected downlink rule action 'deny', got %q", getResp.Result.Rules.Downlink[0].Action)
 	}
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
@@ -224,6 +225,29 @@ func (u *UPF) Close(ctx context.Context) {
 
 func (u *UPF) UpdateAdvertisedN3Address(newN3Addr net.IP) {
 	u.pfcpConn.SetAdvertisedN3Address(newN3Addr)
+}
+
+func (u *UPF) UpdateFilters(policyID int64, direction models.Direction, rules []models.FilterRule) error {
+	conn := core.GetConnection()
+	if conn == nil {
+		return fmt.Errorf("no PFCP connection available")
+	}
+
+	return core.UpdateFilters(conn, policyID, direction.String(), rules)
+}
+
+func (u *UPF) GetFilterIndex(policyID int64, direction models.Direction) (uint32, error) {
+	conn := core.GetConnection()
+	if conn == nil {
+		return 0, fmt.Errorf("no PFCP connection available")
+	}
+
+	idx, ok := core.GetFilterIndex(policyID, direction.String())
+	if !ok {
+		return 0, fmt.Errorf("filter not found for policy %d, direction %s", policyID, direction.String())
+	}
+
+	return idx, nil
 }
 
 func (u *UPF) ReloadNAT(masquerade bool) error {

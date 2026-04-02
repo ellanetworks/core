@@ -180,7 +180,7 @@ func (a *smfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai
 
 	resolvedRules := make([]*smf.ResolvedNetworkRule, len(dbRules))
 	for i, dbRule := range dbRules {
-		dir, err := smf.ParseDirection(dbRule.Direction)
+		dir, err := models.ParseDirection(dbRule.Direction)
 		if err != nil {
 			return nil, fmt.Errorf("invalid direction for rule %d: %w", dbRule.ID, err)
 		}
@@ -374,40 +374,12 @@ func (a *smfUPFAdapter) DeleteSession(ctx context.Context, localSEID, remoteSEID
 	return nil
 }
 
-func (a *smfUPFAdapter) UpdateFilters(ctx context.Context, req *smf.FilterUpdateRequest) (*smf.FilterUpdateResponse, error) {
-	rules := make([]upf_pfcp.UpdateFilterRule, 0, len(req.Rules))
-	for _, r := range req.Rules {
-		remote := ""
-		if r.RemotePrefix != nil {
-			remote = *r.RemotePrefix
-		}
-
-		rules = append(rules, upf_pfcp.UpdateFilterRule{
-			RemotePrefix: remote,
-			Protocol:     r.Protocol,
-			PortLow:      r.PortLow,
-			PortHigh:     r.PortHigh,
-			Action:       upf_pfcp.StringToAction(r.Action),
-		})
-	}
-
-	conn := upf_pfcp.GetConnection()
-
-	resp, err := upf_pfcp.UpdateFilters(conn, upf_pfcp.UpdateFiltersRequest{
-		PolicyID:  req.PolicyID,
-		Direction: req.Direction,
-		Rules:     rules,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &smf.FilterUpdateResponse{FilterMapIndex: resp.FilterMapIndex}, nil
+func (a *smfUPFAdapter) UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {
+	return a.dispatcher.UPF.UpdateFilters(ctx, policyID, direction, rules)
 }
 
-func (a *smfUPFAdapter) ReleaseFilter(ctx context.Context, index uint32) error {
-	conn := upf_pfcp.GetConnection()
-	return upf_pfcp.ReleaseFilter(conn, index)
+func (a *smfUPFAdapter) GetFilterIndex(ctx context.Context, policyID int64, direction models.Direction) (uint32, error) {
+	return a.dispatcher.UPF.GetFilterIndex(ctx, policyID, direction)
 }
 
 func findFTEID(createdPDRIEs []*ie.IE) (*ie.FTEIDFields, error) {

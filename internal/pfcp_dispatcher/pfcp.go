@@ -6,6 +6,7 @@ package pfcp_dispatcher
 import (
 	"context"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/wmnsk/go-pfcp/message"
 )
 
@@ -29,6 +30,9 @@ type UPF interface {
 	HandlePfcpSessionEstablishmentRequest(context.Context, *message.SessionEstablishmentRequest) (*message.SessionEstablishmentResponse, error)
 	HandlePfcpSessionDeletionRequest(context.Context, *message.SessionDeletionRequest) (*message.SessionDeletionResponse, error)
 	HandlePfcpSessionModificationRequest(context.Context, *message.SessionModificationRequest) (*message.SessionModificationResponse, error)
+
+	UpdateFilters(context.Context, int64, models.Direction, []models.FilterRule) error
+	GetFilterIndex(context.Context, int64, models.Direction) (uint32, error)
 }
 
 type SMF interface {

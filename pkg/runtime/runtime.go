@@ -212,6 +212,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't start UPF: %w", err)
 	}
 
+	// Initialize SDF filters from database
+	conn := upf_pfcp.GetConnection()
+	if conn != nil && dbInstance != nil {
+		conn.SetBPFObjects(conn.BpfObjects, dbInstance)
+	}
+
 	// Wire supportbundle BPF dumper to dump live BPF maps from the UPF process.
 	// The closure captures the live BPF objects via the PFCP connection stored
 	// in the UPF core package. If the UPF hasn't initialized BPF objects, the

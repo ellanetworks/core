@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	"go.uber.org/zap"
 )
@@ -20,6 +21,7 @@ type UPFUpdater interface {
 	ReloadNAT(natEnabled bool) error
 	ReloadFlowAccounting(flowAccountingEnabled bool) error
 	UpdateAdvertisedN3Address(net.IP)
+	UpdateFilters(policyID int64, direction models.Direction, rules []models.FilterRule) error
 }
 
 func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kernel kernel.Kernel, jwtSecret *JWTSecret, secureCookie bool, embedFS fs.FS, sessions smf.SessionQuerier, amfInstance *amf.AMF, bgpService *bgp.BGPService, registerExtraRoutes func(mux *http.ServeMux)) http.Handler {
@@ -81,7 +83,7 @@ func NewHandler(dbInstance *db.Database, cfg config.Config, upf UPFUpdater, kern
 	// Policies (Authenticated)
 	mux.HandleFunc("GET /api/v1/policies", Authenticate(jwtSecret, dbInstance, Authorize(PermListPolicies, ListPolicies(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/policies", Authenticate(jwtSecret, dbInstance, Authorize(PermCreatePolicy, CreatePolicy(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/policies/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdatePolicy, UpdatePolicy(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/policies/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdatePolicy, UpdatePolicy(dbInstance, upf))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/policies/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadPolicy, GetPolicy(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/policies/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeletePolicy, DeletePolicy(dbInstance))).ServeHTTP)
 

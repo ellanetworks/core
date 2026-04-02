@@ -30,6 +30,16 @@ func netipToIP(addr netip.Addr) net.IP {
 	return net.IP(b[:])
 }
 
+func hasRulesForDirection(rules []*ResolvedNetworkRule, dir models.Direction) bool {
+	for _, v := range rules {
+		if v.Direction == dir {
+			return true
+		}
+	}
+
+	return false
+}
+
 // CreateSmContext creates a new PDU session. It decodes the NAS message, retrieves the
 // subscriber policy and DNN info, allocates an IP, creates the data path, sends
 // PFCP rules to the UPF, and delivers the accept/reject to the AMF.
@@ -349,45 +359,31 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 	filterIndexByPDRID := make(map[uint16]uint32)
 
 	if smContext.PFCPContext.RemoteSEID == 0 && smContext.PolicyData != nil {
-		uplinkRules := filterByDirection(smContext.PolicyData.NetworkRules, DirectionUplink)
-		if len(uplinkRules) > 0 {
-			uplinkResp, err := s.upf.UpdateFilters(ctx, &FilterUpdateRequest{
-				PolicyID:  smContext.PolicyData.PolicyID,
-				Direction: DirectionUplink,
-				Rules:     uplinkRules,
-			})
-			if err != nil {
+		if hasRulesForDirection(smContext.PolicyData.NetworkRules, models.DirectionUplink) {
+			idx, err := s.upf.GetFilterIndex(ctx, smContext.PolicyData.PolicyID, models.DirectionUplink)
+			if err == nil {
+				if dataPath.UpLinkTunnel != nil && dataPath.UpLinkTunnel.PDR != nil {
+					dataPath.UpLinkTunnel.PDR.FilterMapIndex = idx
+					filterIndexByPDRID[dataPath.UpLinkTunnel.PDR.PDRID] = idx
+				}
+			} else {
 				span.RecordError(err)
-				span.SetStatus(codes.Error, "failed to update uplink filters")
-
-				return fmt.Errorf("failed to update uplink filters: %v", err)
-			}
-
-			smContext.UplinkFilterIndex = uplinkResp.FilterMapIndex
-			if dataPath.UpLinkTunnel != nil && dataPath.UpLinkTunnel.PDR != nil {
-				dataPath.UpLinkTunnel.PDR.FilterMapIndex = uplinkResp.FilterMapIndex
-				filterIndexByPDRID[dataPath.UpLinkTunnel.PDR.PDRID] = uplinkResp.FilterMapIndex
+				span.SetStatus(codes.Error, "failed to get uplink filter index")
+				logger.WithTrace(ctx, logger.SmfLog).Warn("Failed to get uplink filter index", zap.Error(err))
 			}
 		}
 
-		downlinkRules := filterByDirection(smContext.PolicyData.NetworkRules, DirectionDownlink)
-		if len(downlinkRules) > 0 {
-			downlinkResp, err := s.upf.UpdateFilters(ctx, &FilterUpdateRequest{
-				PolicyID:  smContext.PolicyData.PolicyID,
-				Direction: DirectionDownlink,
-				Rules:     downlinkRules,
-			})
-			if err != nil {
+		if hasRulesForDirection(smContext.PolicyData.NetworkRules, models.DirectionDownlink) {
+			idx, err := s.upf.GetFilterIndex(ctx, smContext.PolicyData.PolicyID, models.DirectionDownlink)
+			if err == nil {
+				if dataPath.DownLinkTunnel != nil && dataPath.DownLinkTunnel.PDR != nil {
+					dataPath.DownLinkTunnel.PDR.FilterMapIndex = idx
+					filterIndexByPDRID[dataPath.DownLinkTunnel.PDR.PDRID] = idx
+				}
+			} else {
 				span.RecordError(err)
-				span.SetStatus(codes.Error, "failed to update downlink filters")
-
-				return fmt.Errorf("failed to update downlink filters: %v", err)
-			}
-
-			smContext.DownlinkFilterIndex = downlinkResp.FilterMapIndex
-			if dataPath.DownLinkTunnel != nil && dataPath.DownLinkTunnel.PDR != nil {
-				dataPath.DownLinkTunnel.PDR.FilterMapIndex = downlinkResp.FilterMapIndex
-				filterIndexByPDRID[dataPath.DownLinkTunnel.PDR.PDRID] = downlinkResp.FilterMapIndex
+				span.SetStatus(codes.Error, "failed to get downlink filter index")
+				logger.WithTrace(ctx, logger.SmfLog).Debug("Failed to get downlink filter index", zap.Error(err))
 			}
 		}
 	}
