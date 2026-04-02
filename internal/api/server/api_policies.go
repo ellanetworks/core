@@ -13,10 +13,15 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"go.uber.org/zap"
 )
 
-const MaxNumNetworkRulesPerDirection = 12
+const (
+	MaxNumNetworkRulesPerDirection = 12
+	DirectionUplink                = "uplink"
+	DirectionDownlink              = "downlink"
+)
 
 type PolicyRule struct {
 	Description  string  `json:"description"`
@@ -78,11 +83,6 @@ const (
 	CreatePolicyAction = "create_policy"
 	UpdatePolicyAction = "update_policy"
 	DeletePolicyAction = "delete_policy"
-)
-
-const (
-	DirectionUplink   = "uplink"
-	DirectionDownlink = "downlink"
 )
 
 const (
@@ -378,6 +378,31 @@ func getPolicyRulesForPolicy(ctx context.Context, dbInstance *db.Database, polic
 	return policyRules, nil
 }
 
+func convertNetworkRulesToFilterRules(rules []*db.NetworkRule, direction string) []models.FilterRule {
+	filterRules := make([]models.FilterRule, 0, len(rules))
+	for _, rule := range rules {
+		if rule.Direction != direction {
+			continue
+		}
+
+		filterRule := models.FilterRule{
+			RemotePrefix: "",
+			Protocol:     rule.Protocol,
+			PortLow:      rule.PortLow,
+			PortHigh:     rule.PortHigh,
+			Action:       models.ActionFromString(rule.Action),
+		}
+
+		if rule.RemotePrefix != nil {
+			filterRule.RemotePrefix = *rule.RemotePrefix
+		}
+
+		filterRules = append(filterRules, filterRule)
+	}
+
+	return filterRules
+}
+
 func GetPolicy(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")
@@ -611,7 +636,7 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func UpdatePolicy(dbInstance *db.Database) http.Handler {
+func UpdatePolicy(dbInstance *db.Database, filterUpdater UPFUpdater) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
 		if !ok {
@@ -724,6 +749,36 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 		}
 
 		committed = true
+
+		if filterUpdater != nil {
+			rules, err := dbInstance.ListRulesForPolicy(r.Context(), int64(policy.ID))
+			if err != nil {
+				logger.APILog.Warn("Failed to fetch updated rules for filter update",
+					zap.String("policyName", policyName),
+					zap.Error(err),
+				)
+			} else {
+				uplinkRules := convertNetworkRulesToFilterRules(rules, DirectionUplink)
+				if len(uplinkRules) > 0 {
+					if err := filterUpdater.UpdateFilters(int64(policy.ID), models.DirectionUplink, uplinkRules); err != nil {
+						logger.APILog.Warn("Failed to update uplink filters",
+							zap.String("policyName", policyName),
+							zap.Error(err),
+						)
+					}
+				}
+
+				downlinkRules := convertNetworkRulesToFilterRules(rules, DirectionDownlink)
+				if len(downlinkRules) > 0 {
+					if err := filterUpdater.UpdateFilters(int64(policy.ID), models.DirectionDownlink, downlinkRules); err != nil {
+						logger.APILog.Warn("Failed to update downlink filters",
+							zap.String("policyName", policyName),
+							zap.Error(err),
+						)
+					}
+				}
+			}
+		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Policy updated successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(r.Context(), UpdatePolicyAction, email, getClientIP(r), "User updated policy: "+policyName)

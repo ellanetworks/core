@@ -2,20 +2,20 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"net"
 	"sync"
 
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
+	"go.uber.org/zap"
 )
 
 var connection *PfcpConnection
-
-type filterEntry struct {
-	index    uint32
-	refcount int
-}
 
 type PfcpConnection struct {
 	mu sync.Mutex
@@ -29,7 +29,7 @@ type PfcpConnection struct {
 	FteIDResourceManager *FteIDResourceManager
 	SdfIndexAllocator    *SdfIndexAllocator
 	filterMu             sync.Mutex
-	filtersByKey         map[string]*filterEntry
+	filtersByKey         map[string]uint32
 }
 
 func (pc *PfcpConnection) ListSessions() map[uint64]*Session {
@@ -68,11 +68,89 @@ func (pc *PfcpConnection) AddSession(seid uint64, session *Session) {
 	pc.sessions[seid] = session
 }
 
-func (pc *PfcpConnection) SetBPFObjects(bpfObjects *ebpf.BpfObjects) {
+func (pc *PfcpConnection) SetBPFObjects(bpfObjects *ebpf.BpfObjects, dbInstance *db.Database) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
 	pc.BpfObjects = bpfObjects
+
+	if dbInstance != nil {
+		if err := pc.InitializeFiltersFromDB(dbInstance); err != nil {
+			logger.WithTrace(context.Background(), logger.DBLog).Warn(
+				"failed to initialize filters from DB",
+				zap.Error(err),
+			)
+		}
+	}
+}
+
+func (pc *PfcpConnection) InitializeFiltersFromDB(dbInstance *db.Database) error {
+	ctx := context.Background()
+
+	policies, _, err := dbInstance.ListPoliciesPage(ctx, 1, 1000)
+	if err != nil {
+		logger.WithTrace(ctx, logger.DBLog).Error("failed to list policies", zap.Error(err))
+		return nil
+	}
+
+	for _, policy := range policies {
+		rules, err := dbInstance.ListRulesForPolicy(ctx, int64(policy.ID))
+		if err != nil {
+			logger.WithTrace(ctx, logger.DBLog).Error(
+				"failed to list rules for policy",
+				zap.Int("policyID", policy.ID),
+				zap.Error(err),
+			)
+
+			continue
+		}
+
+		uplinkRules := make([]models.FilterRule, 0)
+		downlinkRules := make([]models.FilterRule, 0)
+
+		for _, rule := range rules {
+			filterRule := models.FilterRule{
+				RemotePrefix: "",
+				Protocol:     rule.Protocol,
+				PortLow:      rule.PortLow,
+				PortHigh:     rule.PortHigh,
+				Action:       models.ActionFromString(rule.Action),
+			}
+
+			if rule.RemotePrefix != nil {
+				filterRule.RemotePrefix = *rule.RemotePrefix
+			}
+
+			switch rule.Direction {
+			case "uplink":
+				uplinkRules = append(uplinkRules, filterRule)
+			case "downlink":
+				downlinkRules = append(downlinkRules, filterRule)
+			}
+		}
+
+		if len(uplinkRules) > 0 {
+			if err := UpdateFilters(pc, int64(policy.ID), "uplink", uplinkRules); err != nil {
+				logger.WithTrace(ctx, logger.DBLog).Error(
+					"failed to update uplink filters",
+					zap.Int("policyID", policy.ID),
+					zap.Error(err),
+				)
+			}
+		}
+
+		if len(downlinkRules) > 0 {
+			if err := UpdateFilters(pc, int64(policy.ID), "downlink", downlinkRules); err != nil {
+				logger.WithTrace(ctx, logger.DBLog).Error(
+					"failed to update downlink filters",
+					zap.Int("policyID", policy.ID),
+					zap.Error(err),
+				)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (pc *PfcpConnection) GetAdvertisedN3Address() net.IP {
@@ -114,7 +192,7 @@ func CreatePfcpConnection(addr string, nodeID string, n3Ip string, advertisedN3I
 		BpfObjects:           bpfObjects,
 		FteIDResourceManager: resourceManager,
 		SdfIndexAllocator:    NewSdfIndexAllocator(ebpf.MaxSdfFilters),
-		filtersByKey:         make(map[string]*filterEntry),
+		filtersByKey:         make(map[string]uint32),
 	}
 
 	return connection, nil

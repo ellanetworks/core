@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
@@ -39,6 +40,29 @@ func (u UpfPfcpHandler) HandlePfcpSessionDeletionRequest(ctx context.Context, ms
 
 func (u UpfPfcpHandler) HandlePfcpSessionModificationRequest(ctx context.Context, msg *message.SessionModificationRequest) (*message.SessionModificationResponse, error) {
 	return HandlePfcpSessionModificationRequest(ctx, msg, nil)
+}
+
+func (u UpfPfcpHandler) UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {
+	conn := GetConnection()
+	if conn == nil {
+		return fmt.Errorf("no PFCP connection available")
+	}
+
+	return UpdateFilters(conn, policyID, direction.String(), rules)
+}
+
+func (u UpfPfcpHandler) GetFilterIndex(ctx context.Context, policyID int64, direction models.Direction) (uint32, error) {
+	conn := GetConnection()
+	if conn == nil {
+		return 0, fmt.Errorf("no PFCP connection available")
+	}
+
+	idx, ok := GetFilterIndex(policyID, direction.String())
+	if !ok {
+		return 0, fmt.Errorf("filter not found for policy %d, direction %s", policyID, direction.String())
+	}
+
+	return idx, nil
 }
 
 func HandlePfcpSessionEstablishmentRequest(ctx context.Context, msg *message.SessionEstablishmentRequest, filterIndexByPDRID map[uint16]uint32) (*message.SessionEstablishmentResponse, error) {

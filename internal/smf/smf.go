@@ -61,8 +61,9 @@ type UPFClient interface {
 	EstablishSession(ctx context.Context, req *PFCPEstablishmentRequest) (*PFCPEstablishmentResponse, error)
 	ModifySession(ctx context.Context, req *PFCPModificationRequest) error
 	DeleteSession(ctx context.Context, localSEID, remoteSEID uint64) error
-	UpdateFilters(ctx context.Context, req *FilterUpdateRequest) (*FilterUpdateResponse, error)
-	ReleaseFilter(ctx context.Context, index uint32) error
+
+	UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error
+	GetFilterIndex(ctx context.Context, policyID int64, direction models.Direction) (uint32, error)
 }
 
 // BGPAnnouncer is the interface used by the SMF to announce/withdraw subscriber routes.
@@ -86,62 +87,17 @@ type AMFCallback interface {
 	N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte) error
 }
 
-// Direction represents the traffic direction for a network rule or filter.
-type Direction int
-
-const (
-	DirectionUplink   Direction = iota // "uplink": traffic from UE to network
-	DirectionDownlink                  // "downlink": traffic from network to UE
-)
-
-// String returns the canonical string representation of a Direction.
-func (d Direction) String() string {
-	switch d {
-	case DirectionUplink:
-		return "uplink"
-	case DirectionDownlink:
-		return "downlink"
-	default:
-		return "unknown"
-	}
-}
-
-// ParseDirection converts a direction string to a Direction value.
-// Returns an error if the string is not a valid direction.
-func ParseDirection(s string) (Direction, error) {
-	switch s {
-	case "uplink":
-		return DirectionUplink, nil
-	case "downlink":
-		return DirectionDownlink, nil
-	default:
-		return 0, fmt.Errorf("unknown direction %q: must be \"uplink\" or \"downlink\"", s)
-	}
-}
-
 // ResolvedNetworkRule represents a network rule attached to a policy for PDI/SDF filtering.
 type ResolvedNetworkRule struct {
 	Description  string
 	PolicyID     int64
-	Direction    Direction
+	Direction    models.Direction
 	RemotePrefix *string
 	Protocol     int32
 	PortLow      int32
 	PortHigh     int32
 	Action       string
 	Precedence   int32
-}
-
-// FilterUpdateRequest contains the parameters for updating filters on the UPF.
-type FilterUpdateRequest struct {
-	PolicyID  int64
-	Direction Direction
-	Rules     []*ResolvedNetworkRule
-}
-
-// FilterUpdateResponse contains the result of a filter update.
-type FilterUpdateResponse struct {
-	FilterMapIndex uint32
 }
 
 // Policy contains the QoS parameters and network rules the SMF needs for a session.
@@ -170,7 +126,7 @@ type FlowReport struct {
 	Bytes           uint64
 	StartTime       string
 	EndTime         string
-	Direction       Direction
+	Direction       models.Direction
 }
 
 // PFCPEstablishmentRequest contains the parameters for creating a PFCP session.
@@ -494,16 +450,4 @@ func (s *SMF) RemoveQER(qer *QER) {
 // RemoveURR frees a URR ID.
 func (s *SMF) RemoveURR(urr *URR) {
 	s.urrIDs.FreeID(int64(urr.URRID))
-}
-
-func filterByDirection(rules []*ResolvedNetworkRule, direction Direction) []*ResolvedNetworkRule {
-	out := make([]*ResolvedNetworkRule, 0)
-
-	for _, r := range rules {
-		if r.Direction == direction {
-			out = append(out, r)
-		}
-	}
-
-	return out
 }

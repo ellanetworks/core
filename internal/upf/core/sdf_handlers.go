@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/ellanetworks/core/internal/smf"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
@@ -25,34 +25,45 @@ func StringToAction(a string) Action {
 	return Allow
 }
 
-// UpdateFilterRule is a DTO carrying the fields needed to build a BPF sdf_rule.
-type UpdateFilterRule struct {
-	RemotePrefix string // CIDR notation; "" = any
-	Protocol     int32  // 0 = any (maps to SdfProtoAny)
-	PortLow      int32
-	PortHigh     int32
-	Action       Action
-}
+// updateFiltersRule converts a FilterRule to an internal Action for BPF operations
+func updateFiltersRule(rule models.FilterRule) ebpf.SdfRule {
+	sdfRule := ebpf.SdfRule{
+		Protocol: ebpf.SdfProtoAny,
+		Action:   ebpf.SdfActionAllow,
+	}
+	if rule.Protocol != 0 {
+		sdfRule.Protocol = uint8(rule.Protocol)
+	}
 
-// UpdateFiltersRequest is the input to UpdateFilters.
-type UpdateFiltersRequest struct {
-	PolicyID  int64
-	Direction smf.Direction
-	Rules     []UpdateFilterRule
-}
+	if rule.Action == models.Deny {
+		sdfRule.Action = ebpf.SdfActionDeny
+	}
 
-// UpdateFiltersResponse is the output of UpdateFilters.
-type UpdateFiltersResponse struct {
-	FilterMapIndex uint32
+	if rule.RemotePrefix != "" {
+		_, ipnet, err := net.ParseCIDR(rule.RemotePrefix)
+		if err == nil {
+			sdfRule.RemoteIP = binary.BigEndian.Uint32(ipnet.IP.To4())
+			sdfRule.RemoteMask = binary.BigEndian.Uint32(ipnet.Mask)
+		}
+	}
+
+	sdfRule.PortLow = uint16(rule.PortLow)
+	sdfRule.PortHigh = uint16(rule.PortHigh)
+
+	return sdfRule
 }
 
 // UpdateFilters allocates or refreshes a sdf_filters BPF array slot for the
 // given (PolicyID, Direction) pair. It is idempotent: concurrent calls for the
-// same key return the same index and update the BPF slot in place.
-func UpdateFilters(conn *PfcpConnection, req UpdateFiltersRequest) (*UpdateFiltersResponse, error) {
-	key := fmt.Sprintf("%d:%s", req.PolicyID, req.Direction)
+// same key update the BPF slot in place.
+func UpdateFilters(conn *PfcpConnection, policyID int64, direction string, rules []models.FilterRule) error {
+	key := fmt.Sprintf("%d:%s", policyID, direction)
 
-	sdfRules := resolveSdfRules(req.Rules)
+	sdfRules := make([]ebpf.SdfRule, 0, len(rules))
+	for _, r := range rules {
+		sdfRules = append(sdfRules, updateFiltersRule(r))
+	}
+
 	list := ebpf.SdfFilterList{NumRules: uint8(len(sdfRules))}
 	copy(list.Rules[:len(sdfRules)], sdfRules)
 
@@ -60,90 +71,44 @@ func UpdateFilters(conn *PfcpConnection, req UpdateFiltersRequest) (*UpdateFilte
 	defer conn.filterMu.Unlock()
 
 	if entry, ok := conn.filtersByKey[key]; ok {
-		// Update BPF slot in place; increment refcount.
-		if err := conn.BpfObjects.PutSdfFilterList(entry.index, list); err != nil {
-			return nil, fmt.Errorf("update sdf filter list: %w", err)
+		// Update BPF slot in place (skip if BPF objects not available - test mode)
+		if conn.BpfObjects != nil {
+			if err := conn.BpfObjects.PutSdfFilterList(entry, list); err != nil {
+				return fmt.Errorf("update sdf filter list: %w", err)
+			}
 		}
 
-		entry.refcount++
-
-		return &UpdateFiltersResponse{FilterMapIndex: entry.index}, nil
+		return nil
 	}
 
-	// Allocate a new slot.
 	idx, err := conn.SdfIndexAllocator.Allocate()
 	if err != nil {
-		return nil, fmt.Errorf("allocate sdf filter index: %w", err)
+		return fmt.Errorf("allocate sdf filter index: %w", err)
 	}
 
 	if err := conn.BpfObjects.PutSdfFilterList(idx, list); err != nil {
 		conn.SdfIndexAllocator.Release(idx)
-		return nil, fmt.Errorf("write sdf filter list: %w", err)
+		return fmt.Errorf("write sdf filter list: %w", err)
 	}
 
-	conn.filtersByKey[key] = &filterEntry{index: idx, refcount: 1}
+	conn.filtersByKey[key] = idx
 
-	return &UpdateFiltersResponse{FilterMapIndex: idx}, nil
+	return nil
 }
 
-// ReleaseFilter decrements the refcount for the given index and frees the
-// BPF slot when it reaches zero.
-func ReleaseFilter(conn *PfcpConnection, index uint32) error {
-	if index == ebpf.NoFilterIndex {
-		return nil
+// GetFilterIndex retrieves the BPF sdf_filters map index for a given (PolicyID, Direction) pair.
+// Returns the index and true if found, or 0 and false if not allocated.
+func GetFilterIndex(policyID int64, direction string) (uint32, bool) {
+	conn := GetConnection()
+	if conn == nil {
+		return 0, false
 	}
 
 	conn.filterMu.Lock()
 	defer conn.filterMu.Unlock()
 
-	for key, entry := range conn.filtersByKey {
-		if entry.index != index {
-			continue
-		}
+	key := fmt.Sprintf("%d:%s", policyID, direction)
+	idx, ok := conn.filtersByKey[key]
 
-		entry.refcount--
-		if entry.refcount <= 0 {
-			if err := conn.BpfObjects.DeleteSdfFilterList(index); err != nil {
-				return fmt.Errorf("zero sdf filter list: %w", err)
-			}
-
-			conn.SdfIndexAllocator.Release(index)
-			delete(conn.filtersByKey, key)
-		}
-
-		return nil
-	}
-
-	return nil // index not found; no-op
-}
-
-func resolveSdfRules(rules []UpdateFilterRule) []ebpf.SdfRule {
-	out := make([]ebpf.SdfRule, 0, len(rules))
-	for _, r := range rules {
-		rule := ebpf.SdfRule{
-			Protocol: ebpf.SdfProtoAny,
-			Action:   ebpf.SdfActionAllow,
-		}
-		if r.Protocol != 0 {
-			rule.Protocol = uint8(r.Protocol)
-		}
-
-		if r.Action == Deny {
-			rule.Action = ebpf.SdfActionDeny
-		}
-
-		if r.RemotePrefix != "" {
-			_, ipnet, err := net.ParseCIDR(r.RemotePrefix)
-			if err == nil {
-				rule.RemoteIP = binary.BigEndian.Uint32(ipnet.IP.To4())
-				rule.RemoteMask = binary.BigEndian.Uint32(ipnet.Mask)
-			}
-		}
-
-		rule.PortLow = uint16(r.PortLow)
-		rule.PortHigh = uint16(r.PortHigh)
-		out = append(out, rule)
-	}
-
-	return out
+	return idx, ok
 }

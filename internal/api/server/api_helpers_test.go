@@ -73,7 +73,13 @@ func (dummyFS) Open(name string) (fs.File, error) {
 	return nil, fs.ErrNotExist
 }
 
-type FakeUPF struct{}
+type FakeUPF struct {
+	calledFilters *[]struct {
+		policyID  int64
+		direction models.Direction
+		rules     []models.FilterRule
+	}
+}
 
 func (f FakeUPF) ReloadNAT(natEnabled bool) error {
 	return nil
@@ -84,6 +90,16 @@ func (f FakeUPF) ReloadFlowAccounting(flowAccountingEnabled bool) error {
 }
 
 func (f FakeUPF) UpdateAdvertisedN3Address(ip net.IP) {
+}
+
+func (f FakeUPF) UpdateFilters(policyID int64, direction models.Direction, rules []models.FilterRule) error {
+	*f.calledFilters = append(*f.calledFilters, struct {
+		policyID  int64
+		direction models.Direction
+		rules     []models.FilterRule
+	}{policyID: policyID, direction: direction, rules: rules})
+
+	return nil
 }
 
 // testEnv holds the components created by setupServer.
@@ -132,6 +148,56 @@ func setupServer(filepath string) (testEnv, error) {
 
 	amfInstance := amf.New(testdb, nil, nil)
 	ts := httptest.NewTLSServer(server.NewHandler(testdb, cfg, fakeUPF, fakeKernel, jwtSecret, false, dummyfs, smfInstance, amfInstance, nil, nil))
+
+	supportbundle.ConfigProvider = func(ctx context.Context) ([]byte, error) {
+		return []byte("fake test config"), nil
+	}
+
+	return testEnv{
+		Server:    ts,
+		JWTSecret: jwtSecret,
+		DB:        testdb,
+		SMF:       smfInstance,
+		AMF:       amfInstance,
+	}, nil
+}
+
+func setupServerWithUPF(filepath string, upf server.UPFUpdater) (testEnv, error) {
+	testdb, err := db.NewDatabase(context.Background(), filepath)
+	if err != nil {
+		return testEnv{}, err
+	}
+
+	logger.SetDb(testdb)
+
+	// Initialize SMF context with test stubs
+	smfInstance := smf.New(&fakeSessionStore{}, &fakeUPFClient{}, &fakeAMFCallback{})
+
+	jwtSecret := server.NewJWTSecret([]byte("testsecret"))
+	fakeKernel := FakeKernel{}
+	dummyfs := dummyFS{}
+
+	cfg := config.Config{
+		Interfaces: config.Interfaces{
+			N2: config.N2Interface{
+				Address: "12.12.12.12",
+				Port:    2152,
+			},
+			N3: config.N3Interface{
+				Name:    "eth0",
+				Address: "13.13.13.13",
+			},
+			N6: config.N6Interface{
+				Name: "eth1",
+			},
+			API: config.APIInterface{
+				Port: 8443,
+			},
+		},
+	}
+
+	amfInstance := amf.New(testdb, nil, nil)
+	ts := httptest.NewTLSServer(server.NewHandler(testdb, cfg, upf, fakeKernel, jwtSecret, false, dummyfs, smfInstance, amfInstance, nil, nil))
 
 	supportbundle.ConfigProvider = func(ctx context.Context) ([]byte, error) {
 		return []byte("fake test config"), nil
@@ -259,12 +325,12 @@ func (f *fakeUPFClient) DeleteSession(ctx context.Context, localSEID, remoteSEID
 	return nil
 }
 
-func (f *fakeUPFClient) UpdateFilters(ctx context.Context, req *smf.FilterUpdateRequest) (*smf.FilterUpdateResponse, error) {
-	return nil, fmt.Errorf("not implemented in test")
+func (f *fakeUPFClient) UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {
+	return nil
 }
 
-func (f *fakeUPFClient) ReleaseFilter(ctx context.Context, index uint32) error {
-	return nil
+func (f *fakeUPFClient) GetFilterIndex(ctx context.Context, policyID int64, direction models.Direction) (uint32, error) {
+	return 0, nil
 }
 
 type fakeAMFCallback struct{}
