@@ -23,6 +23,9 @@ import (
 //  4. Re-key network_rules.policy_id from old to new policy IDs.
 //  5. Rebuild subscribers table: policyID → profileID.
 //  6. Rebuild operator table: remove sst/sd columns.
+//
+// NOTE: The migration runner disables PRAGMA foreign_keys for all migrations,
+// so DROP TABLE on parent tables will not cascade-delete child rows.
 // ---------------------------------------------------------------------------
 
 func migrateV7(ctx context.Context, tx *sql.Tx) error {
@@ -127,15 +130,28 @@ func migrateV7(ctx context.Context, tx *sql.Tx) error {
 	}
 
 	// -----------------------------------------------------------------------
-	// 4. Rebuild network_rules with FK pointing to the new policies table.
+	// 4. Re-key network_rules.policy_id and rebuild the table.
 	//
-	// After the policies RENAME, SQLite (with PRAGMA foreign_keys = ON)
-	// rewrites the FK in network_rules to reference policies_old. If we
-	// just UPDATE policy_id in-place, the subsequent DROP of policies_old
-	// would cascade-delete every rule. Rebuilding the table avoids this.
-	//
-	// ID mapping: old policy name → new policy ID.
+	// After the policies RENAME, SQLite rewrites the FK in network_rules
+	// to reference policies_old. We must rebuild the table to fix the FK
+	// target back to policies. Foreign keys are disabled during migrations,
+	// so the DROP TABLE won't cascade-delete rows.
 	// -----------------------------------------------------------------------
+	_, err = tx.ExecContext(ctx, fmt.Sprintf(`
+		UPDATE %s SET policy_id = (
+			SELECT new_pol.id
+			FROM %s_old old_pol
+			JOIN %s new_pol ON new_pol.name = old_pol.name
+			WHERE old_pol.id = %s.policy_id
+		)`,
+		NetworkRulesTableName,
+		PoliciesTableName,
+		PoliciesTableName,
+		NetworkRulesTableName))
+	if err != nil {
+		return fmt.Errorf("failed to re-key network_rules policy_id: %w", err)
+	}
+
 	_, err = tx.ExecContext(ctx, fmt.Sprintf(`
 		CREATE TABLE %s_new (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -158,29 +174,10 @@ func migrateV7(ctx context.Context, tx *sql.Tx) error {
 	}
 
 	_, err = tx.ExecContext(ctx, fmt.Sprintf(`
-		INSERT INTO %s_new (id, policy_id, description, direction, remote_prefix, protocol, port_low, port_high, action, precedence, created_at, updated_at)
-		SELECT
-			nr.id,
-			new_pol.id,
-			nr.description,
-			nr.direction,
-			nr.remote_prefix,
-			nr.protocol,
-			nr.port_low,
-			nr.port_high,
-			nr.action,
-			nr.precedence,
-			nr.created_at,
-			nr.updated_at
-		FROM %s nr
-		JOIN %s_old old_pol ON old_pol.id = nr.policy_id
-		JOIN %s new_pol ON new_pol.name = old_pol.name`,
-		NetworkRulesTableName,
-		NetworkRulesTableName,
-		PoliciesTableName,
-		PoliciesTableName))
+		INSERT INTO %s_new SELECT * FROM %s`,
+		NetworkRulesTableName, NetworkRulesTableName))
 	if err != nil {
-		return fmt.Errorf("failed to copy network_rules with re-keyed policy_id: %w", err)
+		return fmt.Errorf("failed to copy network_rules: %w", err)
 	}
 
 	_, err = tx.ExecContext(ctx, fmt.Sprintf(`DROP TABLE %s`, NetworkRulesTableName))

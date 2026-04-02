@@ -694,7 +694,27 @@ func TestMigrateV7_DataMigration(t *testing.T) {
 		t.Fatalf("failed to insert subscriber: %v", err)
 	}
 
-	// Apply V7 migration.
+	// Seed daily_usage and flow_reports (child tables via FK to subscribers).
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (epoch_day, imsi, bytes_uplink, bytes_downlink) VALUES (20545, '001010000000001', 1000, 2000)",
+		DailyUsageTableName))
+	if err != nil {
+		t.Fatalf("failed to insert daily_usage: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction) VALUES ('001010000000001', '10.0.0.1', '8.8.8.8', 12345, 443, 6, 10, 500, '2026-04-02T10:00:00Z', '2026-04-02T10:00:05Z', 'uplink')",
+		FlowReportsTableName))
+	if err != nil {
+		t.Fatalf("failed to insert flow_report: %v", err)
+	}
+
+	// Apply V7 migration. Disable FK like the runner does (PRAGMA is a no-op inside a tx).
+	_, err = db.ExecContext(ctx, "PRAGMA foreign_keys = OFF")
+	if err != nil {
+		t.Fatalf("failed to disable foreign keys: %v", err)
+	}
+
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		t.Fatalf("failed to begin transaction: %v", err)
@@ -708,6 +728,11 @@ func TestMigrateV7_DataMigration(t *testing.T) {
 
 	if err := tx.Commit(); err != nil {
 		t.Fatalf("failed to commit migrateV7: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, "PRAGMA foreign_keys = ON")
+	if err != nil {
+		t.Fatalf("failed to re-enable foreign keys: %v", err)
 	}
 
 	// --- Assertions ---
@@ -870,5 +895,33 @@ func TestMigrateV7_DataMigration(t *testing.T) {
 
 	if count != 0 {
 		t.Error("policies_old table still exists after migration")
+	}
+
+	// 8. daily_usage rows must survive the subscribers table rebuild.
+	var usageCount int
+
+	err = db.QueryRowContext(ctx,
+		fmt.Sprintf("SELECT COUNT(*) FROM %s", DailyUsageTableName),
+	).Scan(&usageCount)
+	if err != nil {
+		t.Fatalf("failed to count daily_usage: %v", err)
+	}
+
+	if usageCount != 1 {
+		t.Errorf("daily_usage row count = %d, want 1", usageCount)
+	}
+
+	// 9. flow_reports rows must survive the subscribers table rebuild.
+	var flowCount int
+
+	err = db.QueryRowContext(ctx,
+		fmt.Sprintf("SELECT COUNT(*) FROM %s", FlowReportsTableName),
+	).Scan(&flowCount)
+	if err != nil {
+		t.Fatalf("failed to count flow_reports: %v", err)
+	}
+
+	if flowCount != 1 {
+		t.Errorf("flow_reports row count = %d, want 1", flowCount)
 	}
 }
