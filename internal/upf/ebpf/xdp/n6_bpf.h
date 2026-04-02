@@ -144,6 +144,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		if (sdf_verdict == XDP_DROP) {
 			upf_printk("upf: downlink SDF drop ip:%pI4", &ip4->daddr);
 			ctx->statistics->xdp_actions[XDP_DROP & EUPF_MAX_XDP_ACTION_MASK] += 1;
+			account_flow(ctx, n3_ifindex, pdr->imsi, DROP);
 			return XDP_DROP;
 		}
 	}
@@ -159,7 +160,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	}
 
 	update_urr_bytes(ctx, urr_id);
-	account_flow(ctx, n3_ifindex, pdr->imsi);
+	account_flow(ctx, n3_ifindex, pdr->imsi, ALLOW);
 
 	return send_to_gtp_tunnel(ctx, far->localip, far->remoteip, tos,
 				  qer->qfi, far->teid);

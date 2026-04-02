@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "xdp/utils/flow.h"
 #include "xdp/utils/routing.h"
 #include "xdp/utils/trace.h"
 #include <linux/bpf.h>
@@ -113,6 +114,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		if (sdf_verdict == XDP_DROP) {
 			upf_printk("upf: uplink SDF drop teid:%d", teid);
 			ctx->statistics->xdp_actions[XDP_DROP & EUPF_MAX_XDP_ACTION_MASK] += 1;
+			account_flow(ctx, n6_ifindex, pdr->imsi, DROP);
 			return XDP_DROP;
 		}
 	}
@@ -132,7 +134,7 @@ handle_gtp_packet(struct packet_context *ctx)
 		return XDP_ABORTED;
 
 	if (ctx->ip4) {
-		account_flow(ctx, n6_ifindex, pdr->imsi);
+		account_flow(ctx, n6_ifindex, pdr->imsi, ALLOW);
 		return route_ipv4(ctx, route_statistic);
 	} else if (ctx->ip6) {
 		return route_ipv6(ctx, route_statistic);

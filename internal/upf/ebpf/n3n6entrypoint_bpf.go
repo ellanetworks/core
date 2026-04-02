@@ -33,7 +33,8 @@ type N3N6EntrypointFlow struct {
 	Dport          uint16
 	Proto          uint8
 	Tos            uint8
-	_              [2]byte
+	Action         uint8
+	_              [1]byte
 }
 
 type N3N6EntrypointFlowStats struct {

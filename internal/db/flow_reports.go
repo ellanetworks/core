@@ -21,7 +21,7 @@ import (
 const FlowReportsTableName = "flow_reports"
 
 const (
-	insertFlowReportStmt     = "INSERT INTO %s (subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction) VALUES ($FlowReport.subscriber_id, $FlowReport.source_ip, $FlowReport.destination_ip, $FlowReport.source_port, $FlowReport.destination_port, $FlowReport.protocol, $FlowReport.packets, $FlowReport.bytes, $FlowReport.start_time, $FlowReport.end_time, $FlowReport.direction)"
+	insertFlowReportStmt     = "INSERT INTO %s (subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action) VALUES ($FlowReport.subscriber_id, $FlowReport.source_ip, $FlowReport.destination_ip, $FlowReport.source_port, $FlowReport.destination_port, $FlowReport.protocol, $FlowReport.packets, $FlowReport.bytes, $FlowReport.start_time, $FlowReport.end_time, $FlowReport.direction, $FlowReport.action)"
 	getFlowReportByIDStmt    = "SELECT &FlowReport.* FROM %s WHERE id = $FlowReport.id"
 	deleteOldFlowReportsStmt = "DELETE FROM %s WHERE end_time < $cutoffArgs.cutoff"
 	deleteAllFlowReportsStmt = "DELETE FROM %s"
@@ -40,6 +40,7 @@ const listFlowReportsPagedFilteredStmt = `
     AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
     AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
+    AND ($FlowReportFilters.action IS NULL AND action = 0)
   ORDER BY id DESC
   LIMIT $ListArgs.limit
   OFFSET $ListArgs.offset
@@ -58,6 +59,7 @@ const countFlowReportsFilteredStmt = `
     AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
     AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
+    AND ($FlowReportFilters.action IS NULL AND action = 0)
 `
 
 const listFlowReportsFilteredByDayStmt = `
@@ -73,6 +75,7 @@ WHERE
     AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
     AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
+    AND ($FlowReportFilters.action IS NULL AND action = 0)
 ORDER BY end_time ASC
 `
 
@@ -89,6 +92,7 @@ WHERE
     AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
     AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
+    AND ($FlowReportFilters.action IS NULL AND action = 0)
 ORDER BY subscriber_id ASC, end_time ASC
 `
 
@@ -105,6 +109,7 @@ WHERE
     AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
     AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
+    AND ($FlowReportFilters.action IS NULL AND action = 0)
 GROUP BY protocol
 ORDER BY COUNT(*) DESC
 `
@@ -122,6 +127,7 @@ WHERE
     AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
     AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
     AND direction = 'uplink'
+    AND ($FlowReportFilters.action IS NULL AND action = 0)
 GROUP BY destination_ip
 ORDER BY COUNT(*) DESC
 LIMIT 10
@@ -147,6 +153,7 @@ type FlowReportFilters struct {
 	EndTimeFrom     *string `db:"end_time_from"`    // RFC3339 (UTC)
 	EndTimeTo       *string `db:"end_time_to"`      // RFC3339 (UTC), exclusive upper bound
 	Direction       *string `db:"direction"`        // "uplink" or "downlink"
+	Action          *uint8  `db:"action"`           // 0 = "allow", 1 = "drop"
 }
 
 func (db *Database) InsertFlowReport(ctx context.Context, flowReport *dbwriter.FlowReport) error {
