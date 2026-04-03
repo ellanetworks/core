@@ -16,7 +16,7 @@ Ella Core embeds a BGP speaker that automatically advertises a `/32` host route 
 
 1. A subscriber establishes a PDU session and receives an IP (e.g. `10.45.0.3`).
 2. Ella Core announces the route `10.45.0.3/32` to all configured BGP peers, with the N6 interface address as the next-hop.
-3. Upstream routers install the route, and return traffic flows through the N6 interface to the UPF, which delivers it to the subscriber over GTP-U.
+3. Upstream routers install the route, and return traffic flows through the N6 interface to Ella Core, which delivers it to the subscriber over GTP-U.
 4. When the PDU session is released, Ella Core withdraws the `/32` route.
 
 This means routing state always reflects the set of currently connected subscribers with no manual intervention.

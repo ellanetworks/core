@@ -493,7 +493,7 @@ const PolicyDetail: React.FC = () => {
                 <TableRow>
                   <TableCell sx={labelCellSx}>
                     <Tooltip
-                      title="Maximum uplink bitrate for this session. Enforced by Ella Core."
+                      title="Maximum uplink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core."
                       arrow
                       placement="top"
                     >
@@ -519,7 +519,7 @@ const PolicyDetail: React.FC = () => {
                 <TableRow>
                   <TableCell sx={labelCellSx}>
                     <Tooltip
-                      title="Maximum downlink bitrate for this session. Enforced by Ella Core."
+                      title="Maximum downlink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core."
                       arrow
                       placement="top"
                     >

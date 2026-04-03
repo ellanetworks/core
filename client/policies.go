@@ -22,12 +22,17 @@ type PolicyRules struct {
 	Downlink []PolicyRule `json:"downlink,omitempty"`
 }
 
+// CreatePolicyOptions contains the parameters for creating a new policy.
 type CreatePolicyOptions struct {
-	Name                string       `json:"name"`
-	ProfileName         string       `json:"profile_name"`
-	SliceName           string       `json:"slice_name"`
-	DataNetworkName     string       `json:"data_network_name"`
-	SessionAmbrUplink   string       `json:"session_ambr_uplink"`
+	Name            string `json:"name"`
+	ProfileName     string `json:"profile_name"`
+	SliceName       string `json:"slice_name"`
+	DataNetworkName string `json:"data_network_name"`
+	// SessionAmbrUplink is the maximum uplink bitrate for a single PDU session.
+	// Enforced by Ella Core. Example: "100 Mbps".
+	SessionAmbrUplink string `json:"session_ambr_uplink"`
+	// SessionAmbrDownlink is the maximum downlink bitrate for a single PDU session.
+	// Enforced by Ella Core. Example: "200 Mbps".
 	SessionAmbrDownlink string       `json:"session_ambr_downlink"`
 	Var5qi              int32        `json:"var5qi"`
 	Arp                 int32        `json:"arp"`
@@ -53,6 +58,8 @@ type DeletePolicyOptions struct {
 	Name string `json:"name"`
 }
 
+// Policy represents a QoS policy for a specific (profile, slice, data network) combination.
+// Session AMBR caps the bitrate of a single PDU session and is enforced by Ella Core.
 type Policy struct {
 	Name                string       `json:"name"`
 	ProfileName         string       `json:"profile_name"`

@@ -312,7 +312,7 @@ const ProfileDetail: React.FC = () => {
                 <TableRow>
                   <TableCell sx={labelCellSx}>
                     <Tooltip
-                      title="Aggregate uplink cap across all sessions (UE-AMBR). Enforced by the radio."
+                      title="Aggregate uplink cap across all of this subscriber's sessions (UE-AMBR). Enforced by the radio."
                       arrow
                       placement="top"
                     >
@@ -338,7 +338,7 @@ const ProfileDetail: React.FC = () => {
                 <TableRow>
                   <TableCell sx={labelCellSx}>
                     <Tooltip
-                      title="Aggregate downlink cap across all sessions (UE-AMBR). Enforced by the radio."
+                      title="Aggregate downlink cap across all of this subscriber's sessions (UE-AMBR). Enforced by the radio."
                       arrow
                       placement="top"
                     >

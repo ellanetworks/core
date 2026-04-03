@@ -8,9 +8,14 @@ import (
 	"net/url"
 )
 
+// CreateProfileOptions contains the parameters for creating a new profile.
 type CreateProfileOptions struct {
-	Name           string `json:"name"`
-	UeAmbrUplink   string `json:"ue_ambr_uplink"`
+	Name string `json:"name"`
+	// UeAmbrUplink is the aggregate uplink bitrate cap across all of the subscriber's
+	// sessions (UE-AMBR). Enforced by the radio. Example: "1 Gbps".
+	UeAmbrUplink string `json:"ue_ambr_uplink"`
+	// UeAmbrDownlink is the aggregate downlink bitrate cap across all of the subscriber's
+	// sessions (UE-AMBR). Enforced by the radio. Example: "1 Gbps".
 	UeAmbrDownlink string `json:"ue_ambr_downlink"`
 }
 
@@ -27,6 +32,9 @@ type DeleteProfileOptions struct {
 	Name string `json:"name"`
 }
 
+// Profile represents a subscriber profile with UE-AMBR settings.
+// UE-AMBR caps aggregate non-GBR throughput across all of a subscriber's PDU sessions
+// and is enforced by the radio.
 type Profile struct {
 	Name           string `json:"name"`
 	UeAmbrUplink   string `json:"ue_ambr_uplink"`

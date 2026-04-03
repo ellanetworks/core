@@ -3285,10 +3285,10 @@ components:
           description: Name of the network slice this policy applies to.
         session_ambr_uplink:
           type: string
-          description: "Session AMBR uplink limit (e.g. \"100 Mbps\")."
+          description: "Maximum uplink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core. Example: \"100 Mbps\"."
         session_ambr_downlink:
           type: string
-          description: "Session AMBR downlink limit (e.g. \"200 Mbps\")."
+          description: "Maximum downlink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core. Example: \"200 Mbps\"."
         var5qi:
           type: integer
           description: "5G QoS Identifier. Valid values: 5, 6, 7, 8, 9, 69, 70, 79, 80."
@@ -3408,10 +3408,10 @@ components:
           type: string
         ue_ambr_uplink:
           type: string
-          description: "UE aggregate maximum bit rate uplink (e.g. \"1 Gbps\")."
+          description: "Aggregate uplink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Example: \"1 Gbps\"."
         ue_ambr_downlink:
           type: string
-          description: "UE aggregate maximum bit rate downlink (e.g. \"1 Gbps\")."
+          description: "Aggregate downlink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Example: \"1 Gbps\"."
       required: [name, ue_ambr_uplink, ue_ambr_downlink]
 
     ProfileResponseEnvelope:
