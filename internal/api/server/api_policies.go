@@ -494,29 +494,6 @@ func DeletePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		policy, err := dbInstance.GetPolicy(r.Context(), name)
-		if err != nil {
-			if errors.Is(err, db.ErrNotFound) {
-				writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
-				return
-			}
-
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
-
-			return
-		}
-
-		subscriberCount, err := dbInstance.CountSubscribersInProfile(r.Context(), policy.ProfileID)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check subscribers", err, logger.APILog)
-			return
-		}
-
-		if subscriberCount > 0 {
-			writeError(r.Context(), w, http.StatusConflict, "Policy has subscribers", nil, logger.APILog)
-			return
-		}
-
 		if err := dbInstance.DeletePolicy(r.Context(), name); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)

@@ -501,37 +501,7 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("10. Delete policy - failure", func(t *testing.T) {
-		statusCode, response, err := deletePolicy(env.Server.URL, client, token, PolicyName)
-		if err != nil {
-			t.Fatalf("couldn't delete policy: %s", err)
-		}
-
-		if statusCode != http.StatusConflict {
-			t.Fatalf("expected status %d, got %d", http.StatusConflict, statusCode)
-		}
-
-		if response.Error != "Policy has subscribers" {
-			t.Fatalf("unexpected error :%q", response.Error)
-		}
-	})
-
-	t.Run("11. Delete subscriber", func(t *testing.T) {
-		statusCode, response, err := deleteSubscriber(env.Server.URL, client, token, Imsi)
-		if err != nil {
-			t.Fatalf("couldn't edit policy: %s", err)
-		}
-
-		if statusCode != http.StatusOK {
-			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
-		}
-
-		if response.Error != "" {
-			t.Fatalf("unexpected error :%q", response.Error)
-		}
-	})
-
-	t.Run("12. Delete policy - success", func(t *testing.T) {
+	t.Run("10. Delete policy - success", func(t *testing.T) {
 		statusCode, response, err := deletePolicy(env.Server.URL, client, token, PolicyName)
 		if err != nil {
 			t.Fatalf("couldn't delete policy: %s", err)
@@ -546,7 +516,22 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("13. Delete policy - no policy", func(t *testing.T) {
+	t.Run("11. Delete subscriber", func(t *testing.T) {
+		statusCode, response, err := deleteSubscriber(env.Server.URL, client, token, Imsi)
+		if err != nil {
+			t.Fatalf("couldn't edit policy: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if response.Error != "" {
+			t.Fatalf("unexpected error :%q", response.Error)
+		}
+	})
+
+	t.Run("12. Delete policy - no policy", func(t *testing.T) {
 		statusCode, response, err := deletePolicy(env.Server.URL, client, token, PolicyName)
 		if err != nil {
 			t.Fatalf("couldn't delete policy: %s", err)
