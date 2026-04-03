@@ -159,10 +159,6 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
         <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
           <CircularProgress size={24} />
         </Box>
-      ) : sessions.length === 0 ? (
-        <Typography variant="body2" sx={{ color: "text.secondary", py: 2 }}>
-          No active sessions
-        </Typography>
       ) : (
         <ThemeProvider theme={gridTheme}>
           <DataGrid<SessionInfo>
