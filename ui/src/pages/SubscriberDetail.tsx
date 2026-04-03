@@ -199,7 +199,7 @@ const SubscriberDetail: React.FC = () => {
             display: "grid",
             gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
             gap: 3,
-            alignItems: "start",
+            alignItems: "stretch",
           }}
         >
           {/* Left column */}
