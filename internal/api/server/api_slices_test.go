@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"testing"
@@ -304,5 +305,61 @@ func TestSliceDeleteNotFound(t *testing.T) {
 
 	if statusCode != http.StatusNotFound {
 		t.Fatalf("Expected status %d, got %d", http.StatusNotFound, statusCode)
+	}
+}
+
+func TestSliceMaxLimitEnforced(t *testing.T) {
+	tempDir := t.TempDir()
+
+	env, err := setupServer(filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete setupServer: %s", err)
+	}
+
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("Couldn't complete initializeAndRefresh: %s", err)
+	}
+
+	// DB initialization creates 1 default slice, so create 7 more to hit the limit of 8
+	for i := 1; i <= 7; i++ {
+		slice := &CreateSliceParams{
+			Name: fmt.Sprintf("slice-%d", i),
+			Sst:  i,
+			Sd:   fmt.Sprintf("%06x", i),
+		}
+
+		statusCode, _, err := createSlice(env.Server.URL, client, token, slice)
+		if err != nil {
+			t.Fatalf("Couldn't create slice %d: %s", i, err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("Expected status %d for slice %d, got %d", http.StatusCreated, i, statusCode)
+		}
+	}
+
+	// The 9th slice (8 + 1 default) should be rejected
+	excessSlice := &CreateSliceParams{
+		Name: "excess-slice",
+		Sst:  9,
+		Sd:   "aaaaaa",
+	}
+
+	statusCode, response, err := createSlice(env.Server.URL, client, token, excessSlice)
+	if err != nil {
+		t.Fatalf("Couldn't attempt excess slice creation: %s", err)
+	}
+
+	if statusCode != http.StatusBadRequest {
+		t.Fatalf("Expected status %d, got %d", http.StatusBadRequest, statusCode)
+	}
+
+	if response.Error != "Maximum number of slices reached (8)" {
+		t.Fatalf("expected error %q, got %q", "Maximum number of slices reached (8)", response.Error)
 	}
 }

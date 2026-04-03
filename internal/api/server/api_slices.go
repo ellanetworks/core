@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -37,6 +38,7 @@ const (
 	CreateSliceAction = "create_slice"
 	UpdateSliceAction = "update_slice"
 	DeleteSliceAction = "delete_slice"
+	MaxNumSlices      = 8
 )
 
 func sliceResponseFromDB(s *db.NetworkSlice) SliceResponse {
@@ -119,6 +121,17 @@ func CreateSlice(dbInstance *db.Database) http.Handler {
 		var params CreateSliceParams
 		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
+			return
+		}
+
+		numSlices, err := dbInstance.CountNetworkSlices(r.Context())
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count slices", err, logger.APILog)
+			return
+		}
+
+		if numSlices >= MaxNumSlices {
+			writeError(r.Context(), w, http.StatusBadRequest, "Maximum number of slices reached ("+strconv.Itoa(MaxNumSlices)+")", nil, logger.APILog)
 			return
 		}
 

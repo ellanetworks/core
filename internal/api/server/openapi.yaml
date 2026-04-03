@@ -1215,6 +1215,7 @@ paths:
       summary: Create a slice
       description: |
         Creates a new network slice with the given SST and optional SD.
+        The maximum number of slices is 8 (3GPP AllowedNSSAI limit).
       requestBody:
         required: true
         content:
