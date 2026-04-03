@@ -4,22 +4,17 @@ import {
   Card,
   CardContent,
   Chip,
-  Divider,
   Typography,
-  CircularProgress,
 } from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Link as RouterLink } from "react-router-dom";
 import type {
   SubscriberDetailStatus,
-  SessionInfo,
 } from "@/queries/subscribers";
 import { formatRelativeTime } from "@/utils/formatters";
 
 interface SubscriberConnectionCardProps {
   status: SubscriberDetailStatus;
-  sessions?: SessionInfo[];
-  loading?: boolean;
 }
 
 const InfoRow: React.FC<{
@@ -136,66 +131,6 @@ const StateChip: React.FC<{ registered?: boolean }> = ({ registered }) => {
   );
 };
 
-const IpChip: React.FC<{ ip?: string }> = ({ ip }) => {
-  if (!ip) return <Typography variant="body2">—</Typography>;
-  return (
-    <Chip
-      size="small"
-      label={ip}
-      color="success"
-      variant="filled"
-      sx={{ fontSize: "0.75rem" }}
-    />
-  );
-};
-
-const StatusChip: React.FC<{ status?: string }> = ({ status }) => {
-  const isActive = status?.toLowerCase() === "active";
-  return (
-    <Chip
-      size="small"
-      label={status || "—"}
-      color={isActive ? "success" : "default"}
-      variant="filled"
-    />
-  );
-};
-
-const SessionRow: React.FC<{
-  label: string;
-  value?: React.ReactNode;
-}> = ({ label, value }) => {
-  const isEmpty = value === undefined || value === "" || value === null;
-  const display = isEmpty ? "—" : value;
-
-  return (
-    <Box
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        py: 0.75,
-        minHeight: 40,
-        "&:not(:last-child)": {
-          borderBottom: "1px solid",
-          borderColor: "divider",
-        },
-      }}
-    >
-      <Typography
-        variant="body2"
-        sx={{ color: "text.secondary", minWidth: 180, flexShrink: 0, mr: 2 }}
-      >
-        {label}
-      </Typography>
-      {typeof display === "string" || typeof display === "number" ? (
-        <Typography variant="body2">{display}</Typography>
-      ) : (
-        display
-      )}
-    </Box>
-  );
-};
-
 const SecurityAlgorithmsValue: React.FC<{
   ciphering?: string;
   integrity?: string;
@@ -226,8 +161,6 @@ const SecurityAlgorithmsValue: React.FC<{
 
 const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
   status,
-  sessions = [],
-  loading = false,
 }) => {
   return (
     <Card
@@ -286,72 +219,6 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
             />
           }
         />
-
-        {(() => {
-          if (loading) {
-            return (
-              <InfoRow
-                label="PDU Sessions"
-                value={
-                  <Box sx={{ display: "flex", alignItems: "center" }}>
-                    <Chip label={<CircularProgress size={16} />} />
-                  </Box>
-                }
-              />
-            );
-          }
-
-          if (sessions.length === 0) {
-            return (
-              <InfoRow
-                label="PDU Sessions"
-                value={
-                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                    No active session
-                  </Typography>
-                }
-              />
-            );
-          }
-
-          return sessions.map((session, idx) => {
-            const ip = session.ipAddress ?? "—";
-            const label =
-              sessions.length === 1
-                ? "PDU Sessions"
-                : `PDU Sessions (${idx + 1})`;
-            return (
-              <InfoRow
-                key={idx}
-                label={label}
-                value={
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <StatusChip status={session.status} />
-                    <Typography
-                      variant="body2"
-                      sx={{ color: "text.secondary" }}
-                    >
-                      /
-                    </Typography>
-                    <Typography variant="body2">{ip}</Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ color: "text.secondary" }}
-                    >
-                      /
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ fontFamily: "monospace", fontSize: "0.8rem" }}
-                    >
-                      ID {session.pdu_session_id}
-                    </Typography>
-                  </Box>
-                }
-              />
-            );
-          });
-        })()}
       </CardContent>
     </Card>
   );

@@ -68,7 +68,7 @@ func TestGetSubscriber_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"imsi": "001010100000022", "profile_name": "default", "status": {"registered": false, "imei": "", "cipheringAlgorithm": "", "integrityAlgorithm": ""}, "pdu_sessions": [{"pdu_session_id": 1, "status": "active", "ipAddress": "10.45.0.2"}]}`),
+			Result:     []byte(`{"imsi": "001010100000022", "profile_name": "default", "status": {"registered": false, "imei": "", "cipheringAlgorithm": "", "integrityAlgorithm": ""}, "pdu_sessions": [{"pdu_session_id": 1, "status": "active", "ipAddress": "10.45.0.2", "dnn": "internet", "sst": 1, "sd": "000001", "session_ambr_uplink": "100 Mbps", "session_ambr_downlink": "200 Mbps"}]}`),
 		},
 		err: nil,
 	}
@@ -118,6 +118,26 @@ func TestGetSubscriber_Success(t *testing.T) {
 
 	if subscriber.PDUSessions[0].IPAddress != "10.45.0.2" {
 		t.Fatalf("expected session IP '10.45.0.2', got %s", subscriber.PDUSessions[0].IPAddress)
+	}
+
+	if subscriber.PDUSessions[0].DNN != "internet" {
+		t.Fatalf("expected session DNN 'internet', got %s", subscriber.PDUSessions[0].DNN)
+	}
+
+	if subscriber.PDUSessions[0].SST != 1 {
+		t.Fatalf("expected session SST 1, got %d", subscriber.PDUSessions[0].SST)
+	}
+
+	if subscriber.PDUSessions[0].SD != "000001" {
+		t.Fatalf("expected session SD '000001', got %s", subscriber.PDUSessions[0].SD)
+	}
+
+	if subscriber.PDUSessions[0].SessionAmbrUp != "100 Mbps" {
+		t.Fatalf("expected session AMBR up '100 Mbps', got %s", subscriber.PDUSessions[0].SessionAmbrUp)
+	}
+
+	if subscriber.PDUSessions[0].SessionAmbrDown != "200 Mbps" {
+		t.Fatalf("expected session AMBR down '200 Mbps', got %s", subscriber.PDUSessions[0].SessionAmbrDown)
 	}
 }
 

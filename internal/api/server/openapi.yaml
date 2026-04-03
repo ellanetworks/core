@@ -3175,6 +3175,21 @@ components:
         ipAddress:
           type: string
           description: "Assigned IP address for this PDU session. May be omitted if unknown."
+        dnn:
+          type: string
+          description: "Data network name for this PDU session."
+        sst:
+          type: integer
+          description: "Slice/Service Type (SST) for this PDU session."
+        sd:
+          type: string
+          description: "Slice Differentiator (SD). Omitted when not set."
+        session_ambr_uplink:
+          type: string
+          description: "Effective uplink session AMBR (e.g. \"100 Mbps\")."
+        session_ambr_downlink:
+          type: string
+          description: "Effective downlink session AMBR (e.g. \"200 Mbps\")."
       required: [pdu_session_id, status]
 
     CreateSubscriberParams:

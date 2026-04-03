@@ -123,7 +123,12 @@ None
       {
         "pdu_session_id": 1,
         "status": "active",
-        "ipAddress": "1.2.3.4"
+        "ipAddress": "10.45.0.2",
+        "dnn": "internet",
+        "sst": 1,
+        "sd": "000001",
+        "session_ambr_uplink": "100 Mbps",
+        "session_ambr_downlink": "200 Mbps"
       }
     ]
   }

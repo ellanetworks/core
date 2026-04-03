@@ -133,4 +133,9 @@ export interface SessionInfo {
   pdu_session_id: number;
   status: string;
   ipAddress?: string;
+  dnn?: string;
+  sst?: number;
+  sd?: string;
+  session_ambr_uplink?: string;
+  session_ambr_downlink?: string;
 }

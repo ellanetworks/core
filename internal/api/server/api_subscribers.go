@@ -92,11 +92,16 @@ type SubscriberCredentials struct {
 	SequenceNumber string `json:"sequenceNumber"`
 }
 
-// SessionInfo is a minimal representation of a PDU session returned by the API.
+// SessionInfo is a representation of a PDU session returned by the API.
 type SessionInfo struct {
-	PDUSessionID uint8  `json:"pdu_session_id"`
-	Status       string `json:"status"`
-	IPAddress    string `json:"ipAddress,omitempty"`
+	PDUSessionID    uint8  `json:"pdu_session_id"`
+	Status          string `json:"status"`
+	IPAddress       string `json:"ipAddress,omitempty"`
+	DNN             string `json:"dnn,omitempty"`
+	SST             int32  `json:"sst,omitempty"`
+	SD              string `json:"sd,omitempty"`
+	SessionAmbrUp   string `json:"session_ambr_uplink,omitempty"`
+	SessionAmbrDown string `json:"session_ambr_downlink,omitempty"`
 }
 
 const (
@@ -643,9 +648,21 @@ func toSessionInfo(pdu amf.PDUSessionExport) SessionInfo {
 		status = "inactive"
 	}
 
-	return SessionInfo{
+	s := SessionInfo{
 		PDUSessionID: pdu.PDUSessionID,
 		Status:       status,
 		IPAddress:    pdu.PDUAddress,
+		DNN:          pdu.DNN,
 	}
+	if pdu.Snssai != nil {
+		s.SST = pdu.Snssai.Sst
+		s.SD = pdu.Snssai.Sd
+	}
+
+	if pdu.PolicyData != nil && pdu.PolicyData.Ambr != nil {
+		s.SessionAmbrUp = pdu.PolicyData.Ambr.Uplink
+		s.SessionAmbrDown = pdu.PolicyData.Ambr.Downlink
+	}
+
+	return s
 }

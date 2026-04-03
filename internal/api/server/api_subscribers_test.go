@@ -63,9 +63,14 @@ type SubscriberDetailStatus struct {
 }
 
 type SessionInfo struct {
-	PDUSessionID uint8  `json:"pdu_session_id"`
-	Status       string `json:"status"`
-	IPAddress    string `json:"ipAddress,omitempty"`
+	PDUSessionID    uint8  `json:"pdu_session_id"`
+	Status          string `json:"status"`
+	IPAddress       string `json:"ipAddress,omitempty"`
+	DNN             string `json:"dnn,omitempty"`
+	SST             int32  `json:"sst,omitempty"`
+	SD              string `json:"sd,omitempty"`
+	SessionAmbrUp   string `json:"session_ambr_uplink,omitempty"`
+	SessionAmbrDown string `json:"session_ambr_downlink,omitempty"`
 }
 
 // SubscriberDetail matches the full representation in get-single responses.
