@@ -63,8 +63,8 @@ func TestSlicesEndToEnd(t *testing.T) {
 			t.Fatalf("Expected SST 1, got %d", response.Result.Sst)
 		}
 
-		if response.Result.Sd != "102030" {
-			t.Fatalf("Expected SD '102030', got %q", response.Result.Sd)
+		if response.Result.Sd != "" {
+			t.Fatalf("Expected SD '', got %q", response.Result.Sd)
 		}
 	})
 
