@@ -19,15 +19,20 @@ import (
 // --- Fakes ---
 
 type fakeStore struct {
-	mu          sync.Mutex
-	allocatedIP netip.Addr
-	releasedIP  netip.Addr
-	policy      *smf.Policy
-	dnnInfo     *smf.DataNetworkInfo
-	usageLog    []usageEntry
-	flowLog     []smf.FlowReport
-	releasedIPs []string
-	err         error
+	mu            sync.Mutex
+	allocatedIP   netip.Addr
+	releasedIP    netip.Addr
+	usageLog      []usageEntry
+	flowLog       []smf.FlowReport
+	releasedIPs   []string
+	err           error
+	allocateIPErr error
+}
+
+type fakePCF struct {
+	mu     sync.Mutex
+	policy *smf.Policy
+	err    error
 }
 
 type usageEntry struct {
@@ -39,6 +44,10 @@ type usageEntry struct {
 func (f *fakeStore) AllocateIP(_ context.Context, _ string, _ string, _ uint8) (netip.Addr, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	if f.allocateIPErr != nil {
+		return f.allocatedIP, f.allocateIPErr
+	}
 
 	return f.allocatedIP, f.err
 }
@@ -52,26 +61,19 @@ func (f *fakeStore) ReleaseIP(_ context.Context, imsi string, _ string, _ uint8)
 	return f.releasedIP, f.err
 }
 
-func (f *fakeStore) GetSessionPolicy(_ context.Context, _ string, _ *models.Snssai, _ string) (*smf.Policy, error) {
+func (f *fakePCF) GetSessionPolicy(_ context.Context, _ string, _ *models.Snssai, _ string) (*smf.Policy, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
+	if f.err != nil {
+		return nil, f.err
+	}
 
 	if f.policy == nil {
 		return nil, fmt.Errorf("policy not found")
 	}
 
-	return f.policy, f.err
-}
-
-func (f *fakeStore) GetDataNetwork(_ context.Context, _ *models.Snssai, _ string) (*smf.DataNetworkInfo, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	if f.dnnInfo == nil {
-		return nil, fmt.Errorf("data network not found")
-	}
-
-	return f.dnnInfo, f.err
+	return f.policy, nil
 }
 
 func (f *fakeStore) IncrementDailyUsage(_ context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error {
@@ -215,14 +217,12 @@ func testSUPI() etsi.SUPI {
 	return supi
 }
 
-func newTestSMF(store smf.SessionStore, upf smf.UPFClient, amfCb smf.AMFCallback) *smf.SMF {
-	return smf.New(store, upf, amfCb)
+func newTestSMF(pcf smf.PCF, store smf.SessionStore, upf smf.UPFClient, amfCb smf.AMFCallback) *smf.SMF {
+	return smf.New(pcf, store, upf, amfCb)
 }
 
-func defaultFakes() (*fakeStore, *fakeUPF, *fakeAMF) {
-	store := &fakeStore{
-		allocatedIP: netip.MustParseAddr("10.0.0.1"),
-		releasedIP:  netip.MustParseAddr("10.0.0.1"),
+func defaultFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
+	pcf := &fakePCF{
 		policy: &smf.Policy{
 			Ambr: models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
 			QosData: models.QosData{
@@ -230,11 +230,13 @@ func defaultFakes() (*fakeStore, *fakeUPF, *fakeAMF) {
 				Arp:    &models.Arp{PriorityLevel: 1},
 				QFI:    1,
 			},
-		},
-		dnnInfo: &smf.DataNetworkInfo{
 			DNS: net.ParseIP("8.8.8.8").To4(),
 			MTU: 1500,
 		},
+	}
+	store := &fakeStore{
+		allocatedIP: netip.MustParseAddr("10.0.0.1"),
+		releasedIP:  netip.MustParseAddr("10.0.0.1"),
 	}
 	upf := &fakeUPF{
 		establishResult: &smf.PFCPEstablishmentResponse{
@@ -245,14 +247,14 @@ func defaultFakes() (*fakeStore, *fakeUPF, *fakeAMF) {
 	}
 	amfCb := &fakeAMF{}
 
-	return store, upf, amfCb
+	return pcf, store, upf, amfCb
 }
 
 // --- Session Pool Tests ---
 
 func TestNewSession_AddsToPool(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	supi := testSUPI()
 
 	smCtx := s.NewSession(supi, 1, testDNN, testSnssai)
@@ -277,8 +279,8 @@ func TestNewSession_AddsToPool(t *testing.T) {
 }
 
 func TestGetSession_NotFound(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	got := s.GetSession("nonexistent-ref")
 	if got != nil {
@@ -287,8 +289,8 @@ func TestGetSession_NotFound(t *testing.T) {
 }
 
 func TestRemoveSession_RemovesFromPool(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	supi := testSUPI()
 	bgCtx := context.Background()
 
@@ -304,8 +306,8 @@ func TestRemoveSession_RemovesFromPool(t *testing.T) {
 }
 
 func TestRemoveSession_ReleasesIP(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	supi := testSUPI()
 	bgCtx := context.Background()
 
@@ -324,8 +326,8 @@ func TestRemoveSession_ReleasesIP(t *testing.T) {
 }
 
 func TestRemoveSession_NonExistent_NoOp(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	bgCtx := context.Background()
 
 	s.RemoveSession(bgCtx, "nonexistent-ref")
@@ -339,8 +341,8 @@ func TestRemoveSession_NonExistent_NoOp(t *testing.T) {
 }
 
 func TestSessionCount(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	supi := testSUPI()
 
 	if s.SessionCount() != 0 {
@@ -361,8 +363,8 @@ func TestSessionCount(t *testing.T) {
 }
 
 func TestSessionsByDNN(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	supi := testSUPI()
 
 	s.NewSession(supi, 1, "internet", testSnssai)
@@ -386,8 +388,8 @@ func TestSessionsByDNN(t *testing.T) {
 }
 
 func TestGetSessionBySEID(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	supi := testSUPI()
 
 	smCtx := s.NewSession(supi, 1, testDNN, testSnssai)
@@ -407,8 +409,8 @@ func TestGetSessionBySEID(t *testing.T) {
 }
 
 func TestAllocateLocalSEID_Increments(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	seid1 := s.AllocateLocalSEID()
 	seid2 := s.AllocateLocalSEID()
@@ -422,8 +424,8 @@ func TestAllocateLocalSEID_Increments(t *testing.T) {
 // --- PDR/FAR/QER/URR Allocation Tests ---
 
 func TestNewPDR_AllocatesIDAndFAR(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	pdr, err := s.NewPDR()
 	if err != nil {
@@ -444,8 +446,8 @@ func TestNewPDR_AllocatesIDAndFAR(t *testing.T) {
 }
 
 func TestNewPDR_UniqueIDs(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	pdr1, err := s.NewPDR()
 	if err != nil {
@@ -463,8 +465,8 @@ func TestNewPDR_UniqueIDs(t *testing.T) {
 }
 
 func TestNewQER_SetsPolicy(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	policy := &smf.Policy{
 		Ambr: models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
@@ -498,8 +500,8 @@ func TestNewQER_SetsPolicy(t *testing.T) {
 }
 
 func TestNewURR_DefaultConfig(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	urr, err := s.NewURR()
 	if err != nil {
@@ -516,8 +518,8 @@ func TestNewURR_DefaultConfig(t *testing.T) {
 }
 
 func TestRemovePDR_FreesID(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	pdr1, _ := s.NewPDR()
 	s.RemovePDR(pdr1)
@@ -537,8 +539,8 @@ func TestRemovePDR_FreesID(t *testing.T) {
 // --- Store Delegation Tests ---
 
 func TestGetSessionPolicy_DelegatesToStore(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	bgCtx := context.Background()
 	supi := testSUPI()
 
@@ -552,26 +554,11 @@ func TestGetSessionPolicy_DelegatesToStore(t *testing.T) {
 	}
 }
 
-func TestGetDataNetwork_DelegatesToStore(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
-	bgCtx := context.Background()
-
-	info, err := s.GetDataNetwork(bgCtx, testSnssai, testDNN)
-	if err != nil {
-		t.Fatalf("GetDataNetwork failed: %v", err)
-	}
-
-	if info.MTU != 1500 {
-		t.Fatalf("expected MTU 1500, got %d", info.MTU)
-	}
-}
-
 // --- Concurrent Access Tests ---
 
 func TestConcurrentSessionCreation(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	var wg sync.WaitGroup
 	for i := 0; i < 100; i++ {
@@ -593,8 +580,8 @@ func TestConcurrentSessionCreation(t *testing.T) {
 }
 
 func TestNewSession_ReplacesExisting(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	supi := testSUPI()
 
 	s.NewSession(supi, 1, testDNN, testSnssai)
@@ -665,9 +652,9 @@ func (f *fakeBGP) IsAdvertising() bool {
 // --- BGP Integration Tests ---
 
 func TestRemoveSession_WithdrawsBGPRoute(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
+	pcf, store, upf, amfCb := defaultFakes()
 	bgpFake := &fakeBGP{running: true, advertising: true}
-	s := smf.New(store, upf, amfCb, smf.WithBGP(bgpFake))
+	s := smf.New(pcf, store, upf, amfCb, smf.WithBGP(bgpFake))
 	supi := testSUPI()
 	bgCtx := context.Background()
 
@@ -690,9 +677,9 @@ func TestRemoveSession_WithdrawsBGPRoute(t *testing.T) {
 }
 
 func TestRemoveSession_NoBGP_NoWithdraw(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
+	pcf, store, upf, amfCb := defaultFakes()
 	// No BGP configured
-	s := smf.New(store, upf, amfCb)
+	s := smf.New(pcf, store, upf, amfCb)
 	supi := testSUPI()
 	bgCtx := context.Background()
 
@@ -705,9 +692,9 @@ func TestRemoveSession_NoBGP_NoWithdraw(t *testing.T) {
 }
 
 func TestRemoveSession_BGPNotRunning_NoWithdraw(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
+	pcf, store, upf, amfCb := defaultFakes()
 	bgpFake := &fakeBGP{running: false}
-	s := smf.New(store, upf, amfCb, smf.WithBGP(bgpFake))
+	s := smf.New(pcf, store, upf, amfCb, smf.WithBGP(bgpFake))
 	supi := testSUPI()
 	bgCtx := context.Background()
 
@@ -726,9 +713,9 @@ func TestRemoveSession_BGPNotRunning_NoWithdraw(t *testing.T) {
 }
 
 func TestRemoveSession_NilPDUAddress_NoWithdraw(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
+	pcf, store, upf, amfCb := defaultFakes()
 	bgpFake := &fakeBGP{running: true, advertising: true}
-	s := smf.New(store, upf, amfCb, smf.WithBGP(bgpFake))
+	s := smf.New(pcf, store, upf, amfCb, smf.WithBGP(bgpFake))
 	supi := testSUPI()
 	bgCtx := context.Background()
 

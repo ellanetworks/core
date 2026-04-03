@@ -8,20 +8,19 @@ import {
   type GridRenderCellParams,
   type GridPaginationModel,
 } from "@mui/x-data-grid";
-
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  listPolicies,
-  type APIPolicy,
-  type ListPoliciesResponse,
-} from "@/queries/policies";
-import CreatePolicyModal from "@/components/CreatePolicyModal";
+  listProfiles,
+  type APIProfile,
+  type ListProfilesResponse,
+} from "@/queries/profiles";
+import CreateProfileModal from "@/components/CreateProfileModal";
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
 import { MAX_WIDTH } from "@/utils/layout";
 import { Link } from "react-router-dom";
 
-const PolicyPage = () => {
+const ProfilesPage: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
   const canEdit = role === "Admin" || role === "Network Manager";
 
@@ -41,36 +40,33 @@ const PolicyPage = () => {
 
   const queryClient = useQueryClient();
   const pageOneBased = pagination.page + 1;
-  const { data: pageData, isLoading: loading } = useQuery<ListPoliciesResponse>(
+  const { data: pageData, isLoading: loading } = useQuery<ListProfilesResponse>(
     {
-      queryKey: ["policies", pageOneBased, pagination.pageSize],
+      queryKey: ["profiles", pageOneBased, pagination.pageSize],
       queryFn: () =>
-        listPolicies(accessToken || "", pageOneBased, pagination.pageSize),
+        listProfiles(accessToken || "", pageOneBased, pagination.pageSize),
       enabled: authReady && !!accessToken,
       placeholderData: (prev) => prev,
     },
   );
 
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
-
   const { showSnackbar } = useSnackbar();
 
   const descriptionText =
-    "Define bitrate and priority levels for your subscribers.";
+    "Profiles define subscriber-level bitrate limits and group the QoS policies applied to their sessions.";
 
-  const handleOpenCreateModal = () => setCreateModalOpen(true);
-
-  const rows: APIPolicy[] = pageData?.items ?? [];
+  const rows: APIProfile[] = pageData?.items ?? [];
   const rowCount = pageData?.total_count ?? 0;
 
-  const columns: GridColDef<APIPolicy>[] = useMemo(() => {
+  const columns: GridColDef<APIProfile>[] = useMemo(() => {
     return [
       {
         field: "name",
         headerName: "Name",
         flex: 1,
         minWidth: 180,
-        renderCell: (params: GridRenderCellParams<APIPolicy>) => (
+        renderCell: (params: GridRenderCellParams<APIProfile>) => (
           <Box
             sx={{
               display: "flex",
@@ -80,7 +76,7 @@ const PolicyPage = () => {
             }}
           >
             <Link
-              to={`/policies/${params.row.name}`}
+              to={`/profiles/${params.row.name}`}
               style={{ textDecoration: "none" }}
               onClick={(e: React.MouseEvent) => e.stopPropagation()}
             >
@@ -99,51 +95,18 @@ const PolicyPage = () => {
         ),
       },
       {
-        field: "bitrate_uplink",
-        headerName: "Bitrate (Up)",
+        field: "ue_ambr_uplink",
+        headerName: "Bitrate Uplink",
+        description: "Aggregate bitrate cap across all sessions",
         flex: 1,
         minWidth: 160,
       },
       {
-        field: "bitrate_downlink",
-        headerName: "Bitrate (Down)",
+        field: "ue_ambr_downlink",
+        headerName: "Bitrate Downlink",
+        description: "Aggregate bitrate cap across all sessions",
         flex: 1,
         minWidth: 160,
-      },
-      { field: "var5qi", headerName: "5QI", width: 90 },
-      { field: "arp", headerName: "ARP", width: 110 },
-      {
-        field: "data_network_name",
-        headerName: "Data Network",
-        flex: 1,
-        minWidth: 160,
-        renderCell: (params: GridRenderCellParams<APIPolicy>) => (
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              width: "100%",
-              height: "100%",
-            }}
-          >
-            <Link
-              to={`/networking/data-networks/${params.row.data_network_name}`}
-              style={{ textDecoration: "none" }}
-              onClick={(e: React.MouseEvent) => e.stopPropagation()}
-            >
-              <Typography
-                variant="body2"
-                sx={{
-                  color: theme.palette.link,
-                  textDecoration: "underline",
-                  "&:hover": { textDecoration: "underline" },
-                }}
-              >
-                {params.row.data_network_name}
-              </Typography>
-            </Link>
-          </Box>
-        ),
       },
     ];
   }, [theme]);
@@ -164,8 +127,8 @@ const PolicyPage = () => {
         </Box>
       ) : rowCount === 0 ? (
         <EmptyState
-          primaryText="No policy found."
-          secondaryText="Create a new policy to control QoS and routing for subscribers."
+          primaryText="No profile found."
+          secondaryText="Create a new profile to define subscriber-level bitrate limits and QoS policies."
           extraContent={
             <Typography variant="body1" color="text.secondary">
               {descriptionText}
@@ -173,8 +136,8 @@ const PolicyPage = () => {
           }
           button={canEdit}
           buttonText="Create"
-          onCreate={handleOpenCreateModal}
-          readOnlyHint="Ask an administrator to create a policy."
+          onCreate={() => setCreateModalOpen(true)}
+          readOnlyHint="Ask an administrator to create a profile."
         />
       ) : (
         <>
@@ -189,7 +152,7 @@ const PolicyPage = () => {
               gap: 2,
             }}
           >
-            <Typography variant="h4">Policies ({rowCount})</Typography>
+            <Typography variant="h4">Profiles ({rowCount})</Typography>
 
             <Typography variant="body1" color="text.secondary">
               {descriptionText}
@@ -199,7 +162,7 @@ const PolicyPage = () => {
               <Button
                 variant="contained"
                 color="success"
-                onClick={handleOpenCreateModal}
+                onClick={() => setCreateModalOpen(true)}
                 sx={{ maxWidth: 200 }}
               >
                 Create
@@ -211,7 +174,7 @@ const PolicyPage = () => {
             sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}
           >
             <ThemeProvider theme={gridTheme}>
-              <DataGrid<APIPolicy>
+              <DataGrid<APIProfile>
                 rows={rows}
                 columns={columns}
                 getRowId={(row) => row.name}
@@ -246,12 +209,12 @@ const PolicyPage = () => {
       )}
 
       {isCreateModalOpen && (
-        <CreatePolicyModal
+        <CreateProfileModal
           open
           onClose={() => setCreateModalOpen(false)}
           onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["policies"] });
-            showSnackbar("Policy created successfully.", "success");
+            queryClient.invalidateQueries({ queryKey: ["profiles"] });
+            showSnackbar("Profile created successfully.", "success");
           }}
         />
       )}
@@ -259,4 +222,4 @@ const PolicyPage = () => {
   );
 };
 
-export default PolicyPage;
+export default ProfilesPage;

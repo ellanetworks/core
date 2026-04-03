@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -56,6 +57,21 @@ func mapDBError(err error) error {
 // NewSMFDBAdapter creates a new SMF database adapter.
 func NewSMFDBAdapter(database *db.Database) smf.SessionStore {
 	return &smfDBAdapter{db: database}
+}
+
+// ---------------------------------------------------------------------------
+// pcfDBAdapter adapts *db.Database to the smf.PCF interface.
+// In 3GPP terms this is the Npcf_SMPolicyControl service backed by the
+// local subscriber / policy database.
+// ---------------------------------------------------------------------------
+
+type pcfDBAdapter struct {
+	db *db.Database
+}
+
+// NewPCFDBAdapter creates a new PCF database adapter.
+func NewPCFDBAdapter(database *db.Database) smf.PCF {
+	return &pcfDBAdapter{db: database}
 }
 
 func dbLeaseToIPAM(l *db.IPLease) *ipam.Lease {
@@ -157,11 +173,17 @@ func (a *smfDBAdapter) ReleaseIP(ctx context.Context, imsi string, dnn string, p
 	return a.allocator.Release(ctx, pool, int(pduSessionID), imsi)
 }
 
-func (a *smfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai *models.Snssai, dnn string) (*smf.Policy, error) {
-	pol, dbRules, err := a.db.GetSessionPolicy(ctx, imsi, snssai.Sst, snssai.Sd, dnn)
+func (a *pcfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai *models.Snssai, dnn string) (*smf.Policy, error) {
+	pol, dbRules, dn, err := a.db.GetSessionPolicy(ctx, imsi, snssai.Sst, snssai.Sd, dnn)
 	if err != nil {
+		if strings.Contains(err.Error(), "data network") {
+			return nil, fmt.Errorf("%w: %v", smf.ErrDNNNotFound, err)
+		}
+
 		return nil, fmt.Errorf("get session policy: %w", err)
 	}
+
+	dns := net.ParseIP(dn.DNS)
 
 	policy := &smf.Policy{
 		PolicyID: int64(pol.ID),
@@ -176,6 +198,8 @@ func (a *smfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai
 				PriorityLevel: pol.Arp,
 			},
 		},
+		DNS: dns,
+		MTU: uint16(dn.MTU),
 	}
 
 	resolvedRules := make([]*smf.ResolvedNetworkRule, len(dbRules))
@@ -201,20 +225,6 @@ func (a *smfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai
 	policy.NetworkRules = resolvedRules
 
 	return policy, nil
-}
-
-func (a *smfDBAdapter) GetDataNetwork(ctx context.Context, _ *models.Snssai, dnn string) (*smf.DataNetworkInfo, error) {
-	dn, err := a.db.GetDataNetwork(ctx, dnn)
-	if err != nil {
-		return nil, err
-	}
-
-	dns := net.ParseIP(dn.DNS)
-
-	return &smf.DataNetworkInfo{
-		DNS: dns,
-		MTU: uint16(dn.MTU),
-	}, nil
 }
 
 func (a *smfDBAdapter) IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error {

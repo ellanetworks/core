@@ -3,7 +3,7 @@ import { apiFetch, apiFetchVoid } from "@/queries/utils";
 /** Lightweight status returned by the list endpoint. */
 export type SubscriberListStatus = {
   registered?: boolean;
-  ipAddress?: string;
+  num_pdu_sessions?: number;
   lastSeenAt?: string;
 };
 
@@ -25,7 +25,6 @@ export type ListSubscribersResponse = {
 /** Rich status returned by the get-single endpoint. */
 export type SubscriberDetailStatus = {
   registered?: boolean;
-  ipAddress?: string;
   imei?: string;
   cipheringAlgorithm?: string;
   integrityAlgorithm?: string;
@@ -93,25 +92,25 @@ export const createSubscriber = async (
   imsi: string,
   key: string,
   sequenceNumber: string,
-  policyName: string,
+  profileName: string,
   opc: string,
 ): Promise<void> => {
   await apiFetchVoid(`/api/v1/subscribers`, {
     method: "POST",
     authToken,
-    body: { imsi, key, sequenceNumber, profile_name: policyName, opc },
+    body: { imsi, key, sequenceNumber, profile_name: profileName, opc },
   });
 };
 
 export const updateSubscriber = async (
   authToken: string,
   imsi: string,
-  policyName: string,
+  profileName: string,
 ): Promise<void> => {
   await apiFetchVoid(`/api/v1/subscribers/${imsi}`, {
     method: "PUT",
     authToken,
-    body: { profile_name: policyName },
+    body: { profile_name: profileName },
   });
 };
 
@@ -131,6 +130,7 @@ export interface SnssaiInfo {
 }
 
 export interface SessionInfo {
+  pdu_session_id: number;
   status: string;
   ipAddress?: string;
 }

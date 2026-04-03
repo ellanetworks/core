@@ -214,7 +214,7 @@ const SubscriberDetail: React.FC = () => {
           >
             <SubscriberProvisioningCard
               subscriber={subscriber}
-              onEditPolicy={canEdit ? () => setEditModalOpen(true) : undefined}
+              onEditProfile={canEdit ? () => setEditModalOpen(true) : undefined}
             />
           </Box>
 
@@ -232,11 +232,6 @@ const SubscriberDetail: React.FC = () => {
               status={subscriber.status}
               sessions={subscriber.pdu_sessions}
               loading={isLoading}
-              ipAddress={
-                subscriber.pdu_sessions && subscriber.pdu_sessions.length > 0
-                  ? subscriber.pdu_sessions[0].ipAddress
-                  : subscriber.status.ipAddress
-              }
             />
           </Box>
         </Box>
@@ -292,7 +287,7 @@ const SubscriberDetail: React.FC = () => {
           }}
           initialData={{
             imsi: subscriber.imsi,
-            policyName: subscriber.profile_name,
+            profileName: subscriber.profile_name,
           }}
         />
       )}

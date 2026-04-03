@@ -57,6 +57,24 @@ func buildPDUSessionEstRequest() []byte {
 	return buf
 }
 
+// rejectCauseCode decodes a PDU Session Establishment Reject NAS message and
+// returns the 5GSM cause value.
+func rejectCauseCode(t *testing.T, raw []byte) uint8 {
+	t.Helper()
+
+	m := new(nas.Message)
+
+	if err := m.PlainNasDecode(&raw); err != nil {
+		t.Fatalf("failed to decode reject NAS: %v", err)
+	}
+
+	if m.PDUSessionEstablishmentReject == nil {
+		t.Fatal("expected PDUSessionEstablishmentReject, got nil")
+	}
+
+	return m.PDUSessionEstablishmentReject.GetCauseValue()
+}
+
 func buildPDUSessionReleaseRequest(pduSessionID, pti uint8) []byte {
 	m := nas.NewMessage()
 	m.GsmMessage = nas.NewGsmMessage()
@@ -139,8 +157,8 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 // ===========================
 
 func TestActivateTunnelAndPDR_HappyPath(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	supi := testSUPI()
 
 	smCtx := s.NewSession(supi, 1, testDNN, testSnssai)
@@ -188,8 +206,8 @@ func TestActivateTunnelAndPDR_HappyPath(t *testing.T) {
 }
 
 func TestDeactivateTunnelAndPDR_CleansUp(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	_, ref := setupSessionWithTunnel(t, s)
 	smCtx := s.GetSession(ref)
@@ -206,8 +224,8 @@ func TestDeactivateTunnelAndPDR_CleansUp(t *testing.T) {
 // ===========================
 
 func TestActivateSmContext_HappyPath(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	_, ref := setupSessionWithTunnel(t, s)
 
@@ -222,8 +240,8 @@ func TestActivateSmContext_HappyPath(t *testing.T) {
 }
 
 func TestActivateSmContext_EmptyRef(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	_, err := s.ActivateSmContext(context.Background(), "")
 	if err == nil {
@@ -232,8 +250,8 @@ func TestActivateSmContext_EmptyRef(t *testing.T) {
 }
 
 func TestActivateSmContext_NotFound(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	_, err := s.ActivateSmContext(context.Background(), "nonexistent-ref")
 	if err == nil {
@@ -246,8 +264,8 @@ func TestActivateSmContext_NotFound(t *testing.T) {
 // ===========================
 
 func TestDeactivateSmContext_HappyPath(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	_, ref := setupSessionWithTunnel(t, s)
@@ -281,8 +299,8 @@ func TestDeactivateSmContext_HappyPath(t *testing.T) {
 }
 
 func TestDeactivateSmContext_EmptyRef(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	err := s.DeactivateSmContext(context.Background(), "")
 	if err == nil {
@@ -291,8 +309,8 @@ func TestDeactivateSmContext_EmptyRef(t *testing.T) {
 }
 
 func TestDeactivateSmContext_NotFound(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	err := s.DeactivateSmContext(context.Background(), "nonexistent-ref")
 	if err == nil {
@@ -301,8 +319,8 @@ func TestDeactivateSmContext_NotFound(t *testing.T) {
 }
 
 func TestDeactivateSmContext_NilPFCPContext(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
@@ -315,9 +333,9 @@ func TestDeactivateSmContext_NilPFCPContext(t *testing.T) {
 }
 
 func TestDeactivateSmContext_ModifyError(t *testing.T) {
-	store, _, amfCb := defaultFakes()
+	pcf, store, _, amfCb := defaultFakes()
 	upf := &fakeUPF{err: fmt.Errorf("PFCP modify failed")}
-	s := newTestSMF(store, upf, amfCb)
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	_, ref := setupSessionWithTunnel(t, s)
@@ -333,8 +351,8 @@ func TestDeactivateSmContext_ModifyError(t *testing.T) {
 // ===========================
 
 func TestReleaseSmContext_HappyPath(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	_, ref := setupSessionWithTunnel(t, s)
@@ -364,8 +382,8 @@ func TestReleaseSmContext_HappyPath(t *testing.T) {
 }
 
 func TestReleaseSmContext_NotFound(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	err := s.ReleaseSmContext(context.Background(), "nonexistent-ref")
 	if err == nil {
@@ -374,8 +392,8 @@ func TestReleaseSmContext_NotFound(t *testing.T) {
 }
 
 func TestReleaseSmContext_NoTunnel(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 	supi := testSUPI()
 
@@ -400,9 +418,9 @@ func TestReleaseSmContext_NoTunnel(t *testing.T) {
 }
 
 func TestReleaseSmContext_DeleteSessionFails(t *testing.T) {
-	store, _, amfCb := defaultFakes()
+	pcf, store, _, amfCb := defaultFakes()
 	upf := &fakeUPF{err: fmt.Errorf("PFCP delete failed")}
-	s := newTestSMF(store, upf, amfCb)
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	_, ref := setupSessionWithTunnel(t, s)
@@ -422,8 +440,8 @@ func TestReleaseSmContext_DeleteSessionFails(t *testing.T) {
 // ===========================
 
 func TestCreateSmContext_HappyPath(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 	supi := testSUPI()
 
@@ -468,9 +486,9 @@ func TestCreateSmContext_HappyPath(t *testing.T) {
 }
 
 func TestCreateSmContext_PolicyNotFound(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	store.policy = nil
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	pcf.policy = nil
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 	supi := testSUPI()
 
@@ -484,12 +502,17 @@ func TestCreateSmContext_PolicyNotFound(t *testing.T) {
 	if rejectN1 == nil {
 		t.Fatal("expected reject N1 message")
 	}
+
+	if got := rejectCauseCode(t, rejectN1); got != nasMessage.Cause5GSMRequestRejectedUnspecified {
+		t.Fatalf("expected cause %d (RequestRejectedUnspecified), got %d", nasMessage.Cause5GSMRequestRejectedUnspecified, got)
+	}
 }
 
 func TestCreateSmContext_DNNNotFound(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	store.dnnInfo = nil
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	pcf.policy = nil
+	pcf.err = fmt.Errorf("get session policy: data network not found: %w", smf.ErrDNNNotFound)
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 	supi := testSUPI()
 
@@ -503,13 +526,17 @@ func TestCreateSmContext_DNNNotFound(t *testing.T) {
 	if rejectN1 == nil {
 		t.Fatal("expected reject N1 message")
 	}
+
+	if got := rejectCauseCode(t, rejectN1); got != nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice {
+		t.Fatalf("expected cause %d (DNNNotSupportedOrNotSubscribedInTheSlice), got %d", nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice, got)
+	}
 }
 
 func TestCreateSmContext_IPExhaustion(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
+	pcf, store, upf, amfCb := defaultFakes()
 	store.allocatedIP = netip.Addr{}
-	store.err = fmt.Errorf("no IP available")
-	s := newTestSMF(store, upf, amfCb)
+	store.allocateIPErr = fmt.Errorf("no IP available")
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 	supi := testSUPI()
 
@@ -523,12 +550,16 @@ func TestCreateSmContext_IPExhaustion(t *testing.T) {
 	if rejectN1 == nil {
 		t.Fatal("expected reject N1 message")
 	}
+
+	if got := rejectCauseCode(t, rejectN1); got != nasMessage.Cause5GSMInsufficientResources {
+		t.Fatalf("expected cause %d (InsufficientResources), got %d", nasMessage.Cause5GSMInsufficientResources, got)
+	}
 }
 
 func TestCreateSmContext_PFCPEstablishmentFailure(t *testing.T) {
-	store, _, amfCb := defaultFakes()
+	pcf, store, _, amfCb := defaultFakes()
 	upf := &fakeUPF{err: fmt.Errorf("PFCP establishment failed")}
-	s := newTestSMF(store, upf, amfCb)
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 	supi := testSUPI()
 
@@ -548,8 +579,8 @@ func TestCreateSmContext_PFCPEstablishmentFailure(t *testing.T) {
 }
 
 func TestCreateSmContext_InvalidNAS(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 	supi := testSUPI()
 
@@ -560,8 +591,8 @@ func TestCreateSmContext_InvalidNAS(t *testing.T) {
 }
 
 func TestCreateSmContext_ReplacesExistingSession(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 	supi := testSUPI()
 	n1Msg := buildPDUSessionEstRequest()
@@ -586,9 +617,9 @@ func TestCreateSmContext_ReplacesExistingSession(t *testing.T) {
 }
 
 func TestCreateSmContext_AnnouncesBGPRoute(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
+	pcf, store, upf, amfCb := defaultFakes()
 	bgpFake := &fakeBGP{running: true, advertising: true}
-	s := smf.New(store, upf, amfCb, smf.WithBGP(bgpFake))
+	s := smf.New(pcf, store, upf, amfCb, smf.WithBGP(bgpFake))
 	ctx := context.Background()
 	supi := testSUPI()
 	n1Msg := buildPDUSessionEstRequest()
@@ -619,9 +650,9 @@ func TestCreateSmContext_AnnouncesBGPRoute(t *testing.T) {
 }
 
 func TestCreateSmContext_BGPNotRunning_NoAnnounce(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
+	pcf, store, upf, amfCb := defaultFakes()
 	bgpFake := &fakeBGP{running: false, advertising: false}
-	s := smf.New(store, upf, amfCb, smf.WithBGP(bgpFake))
+	s := smf.New(pcf, store, upf, amfCb, smf.WithBGP(bgpFake))
 	ctx := context.Background()
 	supi := testSUPI()
 	n1Msg := buildPDUSessionEstRequest()
@@ -644,8 +675,8 @@ func TestCreateSmContext_BGPNotRunning_NoAnnounce(t *testing.T) {
 }
 
 func TestReleaseSmContext_NilPDUAddress_SkipsIPRelease(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
@@ -665,8 +696,8 @@ func TestReleaseSmContext_NilPDUAddress_SkipsIPRelease(t *testing.T) {
 }
 
 func TestRemoveSession_NilPDUAddress_SkipsIPRelease(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	supi := testSUPI()
 	bgCtx := context.Background()
 
@@ -688,8 +719,8 @@ func TestRemoveSession_NilPDUAddress_SkipsIPRelease(t *testing.T) {
 // ===========================
 
 func TestUpdateSmContextN1Msg_ReleaseRequest(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
@@ -728,8 +759,8 @@ func TestUpdateSmContextN1Msg_ReleaseRequest(t *testing.T) {
 }
 
 func TestUpdateSmContextN1Msg_EmptyRef(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	_, err := s.UpdateSmContextN1Msg(context.Background(), "", nil)
 	if err == nil {
@@ -738,8 +769,8 @@ func TestUpdateSmContextN1Msg_EmptyRef(t *testing.T) {
 }
 
 func TestUpdateSmContextN1Msg_NotFound(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	_, err := s.UpdateSmContextN1Msg(context.Background(), "nonexistent", nil)
 	if err == nil {
@@ -752,8 +783,8 @@ func TestUpdateSmContextN1Msg_NotFound(t *testing.T) {
 // ===========================
 
 func TestUpdateSmContextN2InfoPduResSetupFail_EmptyRef(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	err := s.UpdateSmContextN2InfoPduResSetupFail(context.Background(), "", nil)
 	if err == nil {
@@ -762,8 +793,8 @@ func TestUpdateSmContextN2InfoPduResSetupFail_EmptyRef(t *testing.T) {
 }
 
 func TestUpdateSmContextN2InfoPduResSetupFail_NotFound(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	err := s.UpdateSmContextN2InfoPduResSetupFail(context.Background(), "nonexistent", nil)
 	if err == nil {
@@ -776,8 +807,8 @@ func TestUpdateSmContextN2InfoPduResSetupFail_NotFound(t *testing.T) {
 // ===========================
 
 func TestUpdateSmContextN2InfoPduResRelRsp_NotDuplicate(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	_, ref := setupSessionWithTunnel(t, s)
@@ -793,8 +824,8 @@ func TestUpdateSmContextN2InfoPduResRelRsp_NotDuplicate(t *testing.T) {
 }
 
 func TestUpdateSmContextN2InfoPduResRelRsp_DuplicatePDU(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
@@ -811,8 +842,8 @@ func TestUpdateSmContextN2InfoPduResRelRsp_DuplicatePDU(t *testing.T) {
 }
 
 func TestUpdateSmContextN2InfoPduResRelRsp_EmptyRef(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), "")
 	if err == nil {
@@ -821,8 +852,8 @@ func TestUpdateSmContextN2InfoPduResRelRsp_EmptyRef(t *testing.T) {
 }
 
 func TestUpdateSmContextN2InfoPduResRelRsp_NotFound(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), "nonexistent")
 	if err == nil {
@@ -835,8 +866,8 @@ func TestUpdateSmContextN2InfoPduResRelRsp_NotFound(t *testing.T) {
 // ===========================
 
 func TestUpdateSmContextCauseDuplicatePDUSessionID_HappyPath(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
@@ -863,8 +894,8 @@ func TestUpdateSmContextCauseDuplicatePDUSessionID_HappyPath(t *testing.T) {
 }
 
 func TestUpdateSmContextCauseDuplicatePDUSessionID_EmptyRef(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	_, err := s.UpdateSmContextCauseDuplicatePDUSessionID(context.Background(), "")
 	if err == nil {
@@ -873,8 +904,8 @@ func TestUpdateSmContextCauseDuplicatePDUSessionID_EmptyRef(t *testing.T) {
 }
 
 func TestUpdateSmContextCauseDuplicatePDUSessionID_NotFound(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	_, err := s.UpdateSmContextCauseDuplicatePDUSessionID(context.Background(), "nonexistent")
 	if err == nil {
@@ -887,8 +918,8 @@ func TestUpdateSmContextCauseDuplicatePDUSessionID_NotFound(t *testing.T) {
 // ===========================
 
 func TestUpdateSmContextN2HandoverPreparing_EmptyRef(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	_, err := s.UpdateSmContextN2HandoverPreparing(context.Background(), "", nil)
 	if err == nil {
@@ -897,8 +928,8 @@ func TestUpdateSmContextN2HandoverPreparing_EmptyRef(t *testing.T) {
 }
 
 func TestUpdateSmContextN2HandoverPreparing_NotFound(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	_, err := s.UpdateSmContextN2HandoverPreparing(context.Background(), "nonexistent", nil)
 	if err == nil {
@@ -911,8 +942,8 @@ func TestUpdateSmContextN2HandoverPreparing_NotFound(t *testing.T) {
 // ===========================
 
 func TestUpdateSmContextN2HandoverPrepared_EmptyRef(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	_, err := s.UpdateSmContextN2HandoverPrepared(context.Background(), "", nil)
 	if err == nil {
@@ -921,8 +952,8 @@ func TestUpdateSmContextN2HandoverPrepared_EmptyRef(t *testing.T) {
 }
 
 func TestUpdateSmContextN2HandoverPrepared_NotFound(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	_, err := s.UpdateSmContextN2HandoverPrepared(context.Background(), "nonexistent", nil)
 	if err == nil {
@@ -935,8 +966,8 @@ func TestUpdateSmContextN2HandoverPrepared_NotFound(t *testing.T) {
 // ===========================
 
 func TestUpdateSmContextXnHandoverPathSwitchReq_EmptyRef(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	_, err := s.UpdateSmContextXnHandoverPathSwitchReq(context.Background(), "", nil)
 	if err == nil {
@@ -945,8 +976,8 @@ func TestUpdateSmContextXnHandoverPathSwitchReq_EmptyRef(t *testing.T) {
 }
 
 func TestUpdateSmContextXnHandoverPathSwitchReq_NotFound(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	_, err := s.UpdateSmContextXnHandoverPathSwitchReq(context.Background(), "nonexistent", nil)
 	if err == nil {
@@ -959,8 +990,8 @@ func TestUpdateSmContextXnHandoverPathSwitchReq_NotFound(t *testing.T) {
 // ===========================
 
 func TestUpdateSmContextHandoverFailed_EmptyRef(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	err := s.UpdateSmContextHandoverFailed(context.Background(), "", nil)
 	if err == nil {
@@ -969,8 +1000,8 @@ func TestUpdateSmContextHandoverFailed_EmptyRef(t *testing.T) {
 }
 
 func TestUpdateSmContextHandoverFailed_NotFound(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	err := s.UpdateSmContextHandoverFailed(context.Background(), "nonexistent", nil)
 	if err == nil {
@@ -983,8 +1014,8 @@ func TestUpdateSmContextHandoverFailed_NotFound(t *testing.T) {
 // ===========================
 
 func TestUpdateSmContextN2InfoPduResSetupRsp_EmptyRef(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	err := s.UpdateSmContextN2InfoPduResSetupRsp(context.Background(), "", nil)
 	if err == nil {
@@ -993,8 +1024,8 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_EmptyRef(t *testing.T) {
 }
 
 func TestUpdateSmContextN2InfoPduResSetupRsp_NotFound(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	err := s.UpdateSmContextN2InfoPduResSetupRsp(context.Background(), "nonexistent", nil)
 	if err == nil {
@@ -1003,8 +1034,8 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_NotFound(t *testing.T) {
 }
 
 func TestUpdateSmContextN2InfoPduResSetupRsp_NilPFCPContext(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
@@ -1021,8 +1052,8 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_NilPFCPContext(t *testing.T) {
 // ===========================
 
 func TestHandlePfcpSessionReportRequest_DLDR(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, _ := setupSessionWithTunnel(t, s)
@@ -1054,8 +1085,8 @@ func TestHandlePfcpSessionReportRequest_DLDR(t *testing.T) {
 }
 
 func TestHandlePfcpSessionReportRequest_USAR(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, _ := setupSessionWithTunnel(t, s)
@@ -1101,8 +1132,8 @@ func TestHandlePfcpSessionReportRequest_USAR(t *testing.T) {
 }
 
 func TestHandlePfcpSessionReportRequest_UnknownSEID(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	msg, err := core.BuildPfcpSessionReportRequestForDownlinkData(999, 1, 1, 1)
@@ -1125,8 +1156,8 @@ func TestHandlePfcpSessionReportRequest_UnknownSEID(t *testing.T) {
 // ===========================
 
 func TestSendFlowReport_HappyPath(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	req := &pfcp_dispatcher.FlowReportRequest{
@@ -1169,8 +1200,8 @@ func TestSendFlowReport_HappyPath(t *testing.T) {
 }
 
 func TestSendFlowReport_NilRequest(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	err := s.SendFlowReport(context.Background(), nil)
 	if err == nil {
@@ -1179,8 +1210,8 @@ func TestSendFlowReport_NilRequest(t *testing.T) {
 }
 
 func TestSendFlowReport_MissingIMSI(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	req := &pfcp_dispatcher.FlowReportRequest{
 		SourceIP: "10.0.0.1",
@@ -1193,9 +1224,9 @@ func TestSendFlowReport_MissingIMSI(t *testing.T) {
 }
 
 func TestSendFlowReport_StoreError(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
+	pcf, store, upf, amfCb := defaultFakes()
 	store.err = fmt.Errorf("database error")
-	s := newTestSMF(store, upf, amfCb)
+	s := newTestSMF(pcf, store, upf, amfCb)
 
 	req := &pfcp_dispatcher.FlowReportRequest{
 		IMSI:     testIMSI,
@@ -1213,8 +1244,8 @@ func TestSendFlowReport_StoreError(t *testing.T) {
 // ===========================
 
 func TestIncrementDailyUsage_DelegatesToStore(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	err := s.IncrementDailyUsage(ctx, testIMSI, 1000, 2000)
@@ -1298,8 +1329,8 @@ func buildPathSwitchRequestTransfer(teid uint32, ip net.IP) ([]byte, error) {
 // ===========================
 
 func TestUpdateSmContextN2InfoPduResSetupRsp_HappyPath(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, ref := setupSessionWithTunnel(t, s)
@@ -1355,8 +1386,8 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_HappyPath(t *testing.T) {
 // ===========================
 
 func TestUpdateSmContextXnHandoverPathSwitchReq_HappyPath(t *testing.T) {
-	store, upf, amfCb := defaultFakes()
-	s := newTestSMF(store, upf, amfCb)
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, ref := setupSessionWithTunnel(t, s)

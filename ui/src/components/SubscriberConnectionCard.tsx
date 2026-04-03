@@ -20,7 +20,6 @@ interface SubscriberConnectionCardProps {
   status: SubscriberDetailStatus;
   sessions?: SessionInfo[];
   loading?: boolean;
-  ipAddress?: string | null;
 }
 
 const InfoRow: React.FC<{
@@ -229,7 +228,6 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
   status,
   sessions = [],
   loading = false,
-  ipAddress,
 }) => {
   return (
     <Card
@@ -293,7 +291,7 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
           if (loading) {
             return (
               <InfoRow
-                label="PDU Session"
+                label="PDU Sessions"
                 value={
                   <Box sx={{ display: "flex", alignItems: "center" }}>
                     <Chip label={<CircularProgress size={16} />} />
@@ -306,7 +304,7 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
           if (sessions.length === 0) {
             return (
               <InfoRow
-                label="PDU Session"
+                label="PDU Sessions"
                 value={
                   <Typography variant="body2" sx={{ color: "text.secondary" }}>
                     No active session
@@ -316,23 +314,43 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
             );
           }
 
-          const session = sessions[0];
-          const ip = session.ipAddress ?? ipAddress ?? "—";
-
-          return (
-            <InfoRow
-              label="PDU Session"
-              value={
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <StatusChip status={session.status} />
-                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                    /
-                  </Typography>
-                  <Typography variant="body2">{ip}</Typography>
-                </Box>
-              }
-            />
-          );
+          return sessions.map((session, idx) => {
+            const ip = session.ipAddress ?? "—";
+            const label =
+              sessions.length === 1
+                ? "PDU Sessions"
+                : `PDU Sessions (${idx + 1})`;
+            return (
+              <InfoRow
+                key={idx}
+                label={label}
+                value={
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <StatusChip status={session.status} />
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "text.secondary" }}
+                    >
+                      /
+                    </Typography>
+                    <Typography variant="body2">{ip}</Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "text.secondary" }}
+                    >
+                      /
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{ fontFamily: "monospace", fontSize: "0.8rem" }}
+                    >
+                      ID {session.pdu_session_id}
+                    </Typography>
+                  </Box>
+                }
+              />
+            );
+          });
         })()}
       </CardContent>
     </Card>

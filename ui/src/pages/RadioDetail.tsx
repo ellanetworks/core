@@ -148,32 +148,22 @@ const RadioDetail: React.FC = () => {
         ),
       },
       {
-        field: "ipAddress",
-        headerName: "IP Address",
-        width: 150,
+        field: "pduSessions",
+        headerName: "PDU Sessions",
+        width: 130,
+        minWidth: 110,
         valueGetter: (_v, row: APISubscriberSummary) =>
-          row?.status?.ipAddress ?? "",
+          row?.status?.num_pdu_sessions ?? 0,
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
-          const ip = params.row?.status?.ipAddress ?? "";
+          const count = params.row?.status?.num_pdu_sessions ?? 0;
           return (
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                width: "100%",
-                height: "100%",
-              }}
-            >
-              <Typography
-                variant="body2"
-                sx={{
-                  fontFamily: "monospace",
-                  ...(ip ? {} : { color: "text.secondary" }),
-                }}
-              >
-                {ip || "—"}
-              </Typography>
-            </Box>
+            <Chip
+              size="small"
+              label={count}
+              color={count > 0 ? "success" : "default"}
+              variant="filled"
+              sx={{ fontSize: "0.75rem" }}
+            />
           );
         },
       },

@@ -1103,7 +1103,7 @@ func TestUpdatePolicyDeletesRulesWhenNotProvided(t *testing.T) {
 	}
 }
 
-func TestCreatePolicyOnePolicyPerProfile(t *testing.T) {
+func TestCreateMultiplePoliciesPerProfile(t *testing.T) {
 	tempDir := t.TempDir()
 
 	env, err := setupServer(filepath.Join(tempDir, "db.sqlite3"))
@@ -1120,7 +1120,7 @@ func TestCreatePolicyOnePolicyPerProfile(t *testing.T) {
 		t.Fatalf("Couldn't complete initializeAndRefresh: %s", err)
 	}
 
-	// Create a second data network for the duplicate policy attempt
+	// Create a second data network for the second policy
 	dn := &CreateDataNetworkParams{
 		Name:   "second-dn",
 		IPPool: "10.46.0.0/24",
@@ -1138,7 +1138,7 @@ func TestCreatePolicyOnePolicyPerProfile(t *testing.T) {
 	}
 
 	// The default profile already has the default policy.
-	// Creating another policy for the same profile should fail.
+	// Creating another policy for the same profile should now succeed.
 	secondPolicy := &CreatePolicyParams{
 		Name:                "second-policy-for-default",
 		ProfileName:         DefaultProfileName,
@@ -1150,13 +1150,13 @@ func TestCreatePolicyOnePolicyPerProfile(t *testing.T) {
 		DataNetworkName:     "second-dn",
 	}
 
-	statusCode, _, err = createPolicy(env.Server.URL, client, token, secondPolicy)
+	statusCode, resp, err := createPolicy(env.Server.URL, client, token, secondPolicy)
 	if err != nil {
 		t.Fatalf("Couldn't complete createPolicy: %s", err)
 	}
 
-	if statusCode != http.StatusConflict {
-		t.Fatalf("Expected status %d for 1-policy-per-profile limit, got %d", http.StatusConflict, statusCode)
+	if statusCode != http.StatusCreated {
+		t.Fatalf("Expected status %d, got %d: %s", http.StatusCreated, statusCode, resp.Error)
 	}
 }
 

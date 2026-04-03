@@ -136,10 +136,12 @@ type Database struct {
 	countHomeNetworkKeysStmt                   *sqlair.Statement
 
 	// Policies statements
-	listPoliciesStmt               *sqlair.Statement
-	getPolicyStmt                  *sqlair.Statement
-	getPolicyByLookupStmt          *sqlair.Statement
-	getPolicyByProfileIDStmt       *sqlair.Statement
+	listPoliciesStmt      *sqlair.Statement
+	getPolicyStmt         *sqlair.Statement
+	getPolicyByLookupStmt *sqlair.Statement
+
+	getPolicyByProfileAndSliceStmt *sqlair.Statement
+	listPoliciesByProfileStmt      *sqlair.Statement
 	createPolicyStmt               *sqlair.Statement
 	editPolicyStmt                 *sqlair.Statement
 	deletePolicyStmt               *sqlair.Statement
@@ -482,7 +484,8 @@ func (db *Database) PrepareStatements() error {
 		{&db.listPoliciesStmt, fmt.Sprintf(listPoliciesPagedStmt, PoliciesTableName), []any{ListArgs{}, Policy{}, NumItems{}}},
 		{&db.getPolicyStmt, fmt.Sprintf(getPolicyStmt, PoliciesTableName), []any{Policy{}}},
 		{&db.getPolicyByLookupStmt, fmt.Sprintf(getPolicyByLookupStmt, PoliciesTableName), []any{Policy{}}},
-		{&db.getPolicyByProfileIDStmt, fmt.Sprintf(getPolicyByProfileIDStmt, PoliciesTableName), []any{Policy{}}},
+		{&db.getPolicyByProfileAndSliceStmt, fmt.Sprintf(getPolicyByProfileAndSliceStmt, PoliciesTableName), []any{Policy{}}},
+		{&db.listPoliciesByProfileStmt, fmt.Sprintf(listPoliciesByProfilePagedStmt, PoliciesTableName), []any{ListArgs{}, Policy{}, NumItems{}}},
 		{&db.createPolicyStmt, fmt.Sprintf(createPolicyStmt, PoliciesTableName), []any{Policy{}}},
 		{&db.editPolicyStmt, fmt.Sprintf(editPolicyStmt, PoliciesTableName), []any{Policy{}}},
 		{&db.deletePolicyStmt, fmt.Sprintf(deletePolicyStmt, PoliciesTableName), []any{Policy{}}},

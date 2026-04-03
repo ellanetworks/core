@@ -194,7 +194,7 @@ func TestHandoverRequired(t *testing.T) {
 	}
 
 	// Initialize SMF context with a matching SM context
-	smfInstance := smf.New(nil, nil, nil)
+	smfInstance := smf.New(nil, nil, nil, nil)
 
 	smCtx := smfInstance.NewSession(supi, pduSessionID, dnn, &models.Snssai{Sst: 1})
 	smCtx.PolicyData = &smf.Policy{

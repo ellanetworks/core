@@ -274,6 +274,7 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 		q := r.URL.Query()
 		page := atoiDefault(q.Get("page"), 1)
 		perPage := atoiDefault(q.Get("per_page"), 25)
+		profileName := q.Get("profile_name")
 
 		if page < 1 {
 			writeError(r.Context(), w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
@@ -287,7 +288,24 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 
 		ctx := r.Context()
 
-		dbPolicies, total, err := dbInstance.ListPoliciesPage(ctx, page, perPage)
+		var (
+			dbPolicies []db.Policy
+			total      int
+			err        error
+		)
+
+		if profileName != "" {
+			profile, profileErr := dbInstance.GetProfile(ctx, profileName)
+			if profileErr != nil {
+				writeError(r.Context(), w, http.StatusNotFound, "Profile not found", profileErr, logger.APILog)
+				return
+			}
+
+			dbPolicies, total, err = dbInstance.ListPoliciesByProfilePage(ctx, profile.ID, page, perPage)
+		} else {
+			dbPolicies, total, err = dbInstance.ListPoliciesPage(ctx, page, perPage)
+		}
+
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Policies not found", err, logger.APILog)
 			return
@@ -552,18 +570,6 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		// Release 1: only one policy per profile.
-		policyCount, err := dbInstance.CountPoliciesInProfile(r.Context(), profile.ID)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check policies", err, logger.APILog)
-			return
-		}
-
-		if policyCount >= 1 {
-			writeError(r.Context(), w, http.StatusConflict, "Profile already has a policy", nil, logger.APILog)
-			return
-		}
-
 		slice, err := dbInstance.GetNetworkSlice(r.Context(), createPolicyParams.SliceName)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusNotFound, "Slice not found", nil, logger.APILog)
@@ -672,20 +678,6 @@ func UpdatePolicy(dbInstance *db.Database, filterUpdater UPFUpdater) http.Handle
 		if err != nil {
 			writeError(r.Context(), w, http.StatusNotFound, "Profile not found", nil, logger.APILog)
 			return
-		}
-
-		// Release 1: enforce 1 policy per profile when changing profile.
-		if profile.ID != policy.ProfileID {
-			policyCount, err := dbInstance.CountPoliciesInProfile(r.Context(), profile.ID)
-			if err != nil {
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check policies", err, logger.APILog)
-				return
-			}
-
-			if policyCount >= 1 {
-				writeError(r.Context(), w, http.StatusConflict, "Target profile already has a policy", nil, logger.APILog)
-				return
-			}
 		}
 
 		slice, err := dbInstance.GetNetworkSlice(r.Context(), updatePolicyParams.SliceName)

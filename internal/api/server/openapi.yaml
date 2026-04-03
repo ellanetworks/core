@@ -58,11 +58,15 @@ tags:
   - name: Users
     description: Manage user accounts and API tokens.
   - name: Subscribers
-    description: Provision and manage 5G subscribers on the network.
+    description: Provision and manage 5G subscribers on the network. Each subscriber is assigned to a profile.
   - name: Subscriber Usage
     description: Monitor and manage subscriber data usage records.
+  - name: Profiles
+    description: Manage subscriber profiles that define UE-level aggregate maximum bit rates (UE-AMBR).
+  - name: Slices
+    description: Manage network slices (S-NSSAI) consisting of a Slice Service Type (SST) and optional Slice Differentiator (SD).
   - name: Policies
-    description: Define QoS policies (bitrate limits, 5QI, ARP) assigned to subscribers.
+    description: Define QoS policies (session AMBR, 5QI, ARP) that bind a profile to a slice and data network.
   - name: Operator
     description: Configure the mobile network operator identity, slice, tracking areas, cryptographic keys, and network name (SPN).
   - name: Data Networks
@@ -866,7 +870,7 @@ paths:
       summary: List subscribers
       description: |
         Returns a paginated list of all provisioned 5G subscribers.
-        Each entry includes the IMSI, assigned QoS policy, and connection status
+        Each entry includes the IMSI, assigned profile, and connection status
         (whether the device is currently registered on the network and its IP address).
       parameters:
         - $ref: "#/components/parameters/Page"
@@ -891,7 +895,7 @@ paths:
       summary: Provision a subscriber
       description: |
         Registers a new 5G subscriber on the network. Requires the IMSI, permanent key (K),
-        sequence number, and an existing QoS policy name. Optionally provide the OPc
+        sequence number, and an existing profile name. Optionally provide the OPc
         value — if omitted, it is derived from the operator code.
         Maximum 1000 subscribers.
       requestBody:
@@ -921,8 +925,6 @@ paths:
         Returns full details of a subscriber including connection status,
         IMEI of the connected device, negotiated ciphering/integrity algorithms,
         last-seen radio information, and minimal PDU session information.
-        The subscriber `status.ipAddress` is still populated as a temporary
-        compatibility fallback, but is deprecated; prefer `pdu_sessions[0].ipAddress` when present.
       parameters:
         - $ref: "#/components/parameters/ImsiPath"
       responses:
@@ -940,7 +942,7 @@ paths:
       operationId: updateSubscriber
       tags: [Subscribers]
       summary: Update a subscriber
-      description: Updates the QoS policy assigned to a subscriber.
+      description: Updates the profile assigned to a subscriber.
       parameters:
         - $ref: "#/components/parameters/ImsiPath"
       requestBody:
@@ -1088,13 +1090,212 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  # ── Profiles ────────────────────────────────────────────────────────────
+  /api/v1/profiles:
+    get:
+      operationId: listProfiles
+      tags: [Profiles]
+      summary: List profiles
+      description: Returns a paginated list of all profiles. Profiles define UE-level aggregate maximum bit rates (UE-AMBR).
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Paginated list of profiles.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListProfilesResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createProfile
+      tags: [Profiles]
+      summary: Create a profile
+      description: |
+        Creates a new profile with UE-AMBR settings.
+        Maximum 12 profiles.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProfileParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/profiles/{name}:
+    get:
+      operationId: getProfile
+      tags: [Profiles]
+      summary: Get a profile
+      description: Returns the details of a specific profile.
+      parameters:
+        - $ref: "#/components/parameters/ProfileNamePath"
+      responses:
+        "200":
+          description: Profile details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateProfile
+      tags: [Profiles]
+      summary: Update a profile
+      description: Updates the UE-AMBR settings of a profile.
+      parameters:
+        - $ref: "#/components/parameters/ProfileNamePath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteProfile
+      tags: [Profiles]
+      summary: Delete a profile
+      description: Deletes a profile. Fails if any policies reference this profile.
+      parameters:
+        - $ref: "#/components/parameters/ProfileNamePath"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  # ── Slices ──────────────────────────────────────────────────────────────
+  /api/v1/slices:
+    get:
+      operationId: listSlices
+      tags: [Slices]
+      summary: List slices
+      description: Returns a paginated list of all network slices. Each slice defines an S-NSSAI (SST and optional SD).
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Paginated list of slices.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListSlicesResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createSlice
+      tags: [Slices]
+      summary: Create a slice
+      description: |
+        Creates a new network slice with the given SST and optional SD.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSliceParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/slices/{name}:
+    get:
+      operationId: getSlice
+      tags: [Slices]
+      summary: Get a slice
+      description: Returns the details of a specific network slice.
+      parameters:
+        - $ref: "#/components/parameters/SliceNamePath"
+      responses:
+        "200":
+          description: Slice details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SliceResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateSlice
+      tags: [Slices]
+      summary: Update a slice
+      description: Updates the SST and SD of a network slice.
+      parameters:
+        - $ref: "#/components/parameters/SliceNamePath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSliceParams"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteSlice
+      tags: [Slices]
+      summary: Delete a slice
+      description: Deletes a network slice. Fails if any policies reference this slice.
+      parameters:
+        - $ref: "#/components/parameters/SliceNamePath"
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
   # ── Policies ────────────────────────────────────────────────────────────
   /api/v1/policies:
     get:
       operationId: listPolicies
       tags: [Policies]
       summary: List policies
-      description: Returns a paginated list of all QoS policies. Policies define bitrate limits, 5QI class, allocation/retention priority, and which data network they apply to.
+      description: Returns a paginated list of all QoS policies. Policies bind a profile to a slice and data network, defining session AMBR, 5QI class, and allocation/retention priority.
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
@@ -1112,8 +1313,8 @@ paths:
       tags: [Policies]
       summary: Create a policy
       description: |
-        Creates a new QoS policy. Requires a unique name, uplink/downlink bitrate limits,
-        a 5QI value, an ARP priority, and the name of an existing data network.
+        Creates a new QoS policy. Requires a unique name, an existing profile, slice, and data network,
+        session AMBR uplink/downlink limits, a 5QI value, and an ARP priority.
         Optionally supports an initial set of network rules organized by direction (uplink/downlink).
         Rules are created in the order they are provided.
         Maximum 12 policies.
@@ -1187,7 +1388,7 @@ paths:
       operationId: deletePolicy
       tags: [Policies]
       summary: Delete a policy
-      description: Deletes a QoS policy. Fails if any subscribers are currently assigned to this policy.
+      description: Deletes a QoS policy.
       parameters:
         - $ref: "#/components/parameters/PolicyNamePath"
       responses:
@@ -1214,43 +1415,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OperatorResponseEnvelope"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-
-  /api/v1/operator/slice:
-    get:
-      operationId: getOperatorSlice
-      tags: [Operator]
-      summary: Get network slice
-      deprecated: true
-      description: |
-        **Deprecated** — use `GET /api/v1/operator` instead, which returns the full operator configuration including slice data.
-        This endpoint will be removed after 2026-04-01.
-      responses:
-        "200":
-          description: Slice configuration.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OperatorSliceResponseEnvelope"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-    put:
-      operationId: updateOperatorSlice
-      tags: [Operator]
-      summary: Update network slice
-      description: Sets the S-NSSAI (SST and optional SD) for the network slice.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateOperatorSliceParams"
-      responses:
-        "201":
-          $ref: "#/components/responses/Success"
-        "400":
-          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
 
@@ -2500,6 +2664,20 @@ components:
       schema:
         type: string
       description: Policy name.
+    ProfileNamePath:
+      name: name
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Profile name.
+    SliceNamePath:
+      name: name
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Slice name.
     DataNetworkNamePath:
       name: name
       in: path
@@ -2874,15 +3052,14 @@ components:
         registered:
           type: boolean
           description: Whether the device is currently registered on the network.
-        ipAddress:
-          type: string
-          description: Assigned IP address (empty if not connected).
-          deprecated: true
+        num_pdu_sessions:
+          type: integer
+          description: Number of active PDU sessions for this subscriber.
         lastSeenAt:
           type: string
           format: date-time
           description: Timestamp when the subscriber was last seen (RFC 3339). Omitted if never seen.
-      required: [registered, ipAddress]
+      required: [registered, num_pdu_sessions]
 
     Subscriber:
       type: object
@@ -2890,15 +3067,15 @@ components:
         imsi:
           type: string
           description: "15-digit International Mobile Subscriber Identity."
-        policyName:
+        profile_name:
           type: string
-          description: Name of the assigned QoS policy.
+          description: Name of the assigned profile.
         radio:
           type: string
           description: Radio name the subscriber is connected through (empty if not connected).
         status:
           $ref: "#/components/schemas/SubscriberStatus"
-      required: [imsi, policyName, status]
+      required: [imsi, profile_name, status]
 
     ListSubscribersResponse:
       type: object
@@ -2926,8 +3103,6 @@ components:
       properties:
         registered:
           type: boolean
-        ipAddress:
-          type: string
         imei:
           type: string
           description: IMEI of the connected device.
@@ -2943,14 +3118,14 @@ components:
         lastSeenRadio:
           type: string
           description: Name of the radio the device was last seen on.
-      required: [registered, ipAddress, imei, cipheringAlgorithm, integrityAlgorithm]
+      required: [registered, imei, cipheringAlgorithm, integrityAlgorithm]
 
     SubscriberDetail:
       type: object
       properties:
         imsi:
           type: string
-        policyName:
+        profile_name:
           type: string
         status:
           $ref: "#/components/schemas/SubscriberDetailStatus"
@@ -2959,7 +3134,7 @@ components:
           description: "List of active PDU sessions for this subscriber."
           items:
             $ref: "#/components/schemas/SessionInfo"
-      required: [imsi, policyName, status]
+      required: [imsi, profile_name, status]
 
     SubscriberCredentials:
       type: object
@@ -2991,17 +3166,20 @@ components:
       type: object
       description: "PDU session information returned with a subscriber detail."
       properties:
+        pdu_session_id:
+          type: integer
+          description: "PDU session identifier."
         status:
           type: string
           description: "PDU session status (e.g. active, inactive)."
         ipAddress:
           type: string
           description: "Assigned IP address for this PDU session. May be omitted if unknown."
-      required: [status]
+      required: [pdu_session_id, status]
 
     CreateSubscriberParams:
       type: object
-      required: [imsi, key, sequenceNumber, policyName]
+      required: [imsi, key, sequenceNumber, profile_name]
       properties:
         imsi:
           type: string
@@ -3018,17 +3196,17 @@ components:
         sequenceNumber:
           type: string
           description: "6-byte hex sequence number."
-        policyName:
+        profile_name:
           type: string
-          description: Name of an existing QoS policy.
+          description: Name of an existing profile.
 
     UpdateSubscriberParams:
       type: object
-      required: [policyName]
+      required: [profile_name]
       properties:
-        policyName:
+        profile_name:
           type: string
-          description: Name of an existing QoS policy.
+          description: Name of an existing profile.
 
     # ── Subscriber Usage ────────────────────────────────────────────────
     SubscriberUsage:
@@ -3099,12 +3277,18 @@ components:
       properties:
         name:
           type: string
-        bitrate_uplink:
+        profile_name:
           type: string
-          description: "Uplink bitrate limit (e.g. \"100 Mbps\")."
-        bitrate_downlink:
+          description: Name of the profile this policy belongs to.
+        slice_name:
           type: string
-          description: "Downlink bitrate limit (e.g. \"200 Mbps\")."
+          description: Name of the network slice this policy applies to.
+        session_ambr_uplink:
+          type: string
+          description: "Session AMBR uplink limit (e.g. \"100 Mbps\")."
+        session_ambr_downlink:
+          type: string
+          description: "Session AMBR downlink limit (e.g. \"200 Mbps\")."
         var5qi:
           type: integer
           description: "5G QoS Identifier. Valid values: 5, 6, 7, 8, 9, 69, 70, 79, 80."
@@ -3121,7 +3305,7 @@ components:
           $ref: "#/components/schemas/PolicyRules"
           nullable: true
           description: "Optional network rules organized by direction (uplink/downlink)."
-      required: [name, bitrate_uplink, bitrate_downlink, var5qi, arp, data_network_name]
+      required: [name, profile_name, slice_name, session_ambr_uplink, session_ambr_downlink, var5qi, arp, data_network_name]
 
     PolicyResponseEnvelope:
       type: object
@@ -3152,15 +3336,24 @@ components:
 
     CreatePolicyParams:
       type: object
-      required: [name, bitrate_uplink, bitrate_downlink, var5qi, arp, data_network_name]
+      required: [name, profile_name, slice_name, data_network_name, session_ambr_uplink, session_ambr_downlink, var5qi, arp]
       properties:
         name:
           type: string
           maxLength: 255
-        bitrate_uplink:
+        profile_name:
+          type: string
+          description: Name of an existing profile.
+        slice_name:
+          type: string
+          description: Name of an existing network slice.
+        data_network_name:
+          type: string
+          description: Name of an existing data network.
+        session_ambr_uplink:
           type: string
           description: "e.g. \"100 Mbps\""
-        bitrate_downlink:
+        session_ambr_downlink:
           type: string
           description: "e.g. \"200 Mbps\""
         var5qi:
@@ -3170,21 +3363,27 @@ components:
           type: integer
           minimum: 1
           maximum: 15
-        data_network_name:
-          type: string
-          description: Name of an existing data network.
         rules:
           $ref: "#/components/schemas/PolicyRules"
           description: "Optional network rules to be created with the policy."
 
     UpdatePolicyParams:
       type: object
-      required: [bitrate_uplink, bitrate_downlink, var5qi, arp, data_network_name]
+      required: [profile_name, slice_name, data_network_name, session_ambr_uplink, session_ambr_downlink, var5qi, arp]
       properties:
-        bitrate_uplink:
+        profile_name:
+          type: string
+          description: Name of an existing profile.
+        slice_name:
+          type: string
+          description: Name of an existing network slice.
+        data_network_name:
+          type: string
+          description: Name of an existing data network.
+        session_ambr_uplink:
           type: string
           description: "e.g. \"100 Mbps\""
-        bitrate_downlink:
+        session_ambr_downlink:
           type: string
           description: "e.g. \"200 Mbps\""
         var5qi:
@@ -3194,15 +3393,150 @@ components:
           type: integer
           minimum: 1
           maximum: 15
-        data_network_name:
-          type: string
-          description: Name of an existing data network.
         rules:
           $ref: "#/components/schemas/PolicyRules"
           description: |
             Network rules to set on the policy. Existing rules are always deleted first.
             If this field is omitted, all existing rules are deleted.
             To keep existing rules, you must re-supply them in every update request.
+
+    # ── Profiles ────────────────────────────────────────────────────────
+    Profile:
+      type: object
+      properties:
+        name:
+          type: string
+        ue_ambr_uplink:
+          type: string
+          description: "UE aggregate maximum bit rate uplink (e.g. \"1 Gbps\")."
+        ue_ambr_downlink:
+          type: string
+          description: "UE aggregate maximum bit rate downlink (e.g. \"1 Gbps\")."
+      required: [name, ue_ambr_uplink, ue_ambr_downlink]
+
+    ProfileResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/Profile"
+
+    ListProfilesResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Profile"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+      required: [items, page, per_page, total_count]
+
+    ListProfilesResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListProfilesResponse"
+
+    CreateProfileParams:
+      type: object
+      required: [name, ue_ambr_uplink, ue_ambr_downlink]
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        ue_ambr_uplink:
+          type: string
+          description: "e.g. \"1 Gbps\""
+        ue_ambr_downlink:
+          type: string
+          description: "e.g. \"1 Gbps\""
+
+    UpdateProfileParams:
+      type: object
+      required: [ue_ambr_uplink, ue_ambr_downlink]
+      properties:
+        ue_ambr_uplink:
+          type: string
+          description: "e.g. \"1 Gbps\""
+        ue_ambr_downlink:
+          type: string
+          description: "e.g. \"1 Gbps\""
+
+    # ── Slices ──────────────────────────────────────────────────────────
+    Slice:
+      type: object
+      properties:
+        name:
+          type: string
+        sst:
+          type: integer
+          description: "Slice/Service Type (0-255)."
+          minimum: 0
+          maximum: 255
+        sd:
+          type: string
+          description: "Slice Differentiator (up to 6 hex chars). Omitted when empty."
+      required: [name, sst]
+
+    SliceResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/Slice"
+
+    ListSlicesResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Slice"
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_count:
+          type: integer
+      required: [items, page, per_page, total_count]
+
+    ListSlicesResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ListSlicesResponse"
+
+    CreateSliceParams:
+      type: object
+      required: [name, sst]
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        sst:
+          type: integer
+          minimum: 0
+          maximum: 255
+        sd:
+          type: string
+          maxLength: 6
+          description: "Optional Slice Differentiator (hex)."
+
+    UpdateSliceParams:
+      type: object
+      required: [sst]
+      properties:
+        sst:
+          type: integer
+          minimum: 0
+          maximum: 255
+        sd:
+          type: string
+          maxLength: 6
+          description: "Optional Slice Differentiator (hex)."
 
     # ── Operator ────────────────────────────────────────────────────────
     OperatorID:
@@ -3215,17 +3549,6 @@ components:
           type: string
           description: "Mobile Network Code (2-3 digits)."
       required: [mcc, mnc]
-
-    OperatorSlice:
-      type: object
-      properties:
-        sst:
-          type: integer
-          description: "Slice/Service Type (0-255)."
-        sd:
-          type: string
-          description: "Slice Differentiator (up to 6 hex chars)."
-      required: [sst]
 
     OperatorTracking:
       type: object
@@ -3242,8 +3565,6 @@ components:
       properties:
         id:
           $ref: "#/components/schemas/OperatorID"
-        slice:
-          $ref: "#/components/schemas/OperatorSlice"
         tracking:
           $ref: "#/components/schemas/OperatorTracking"
         homeNetworkKeys:
@@ -3261,12 +3582,6 @@ components:
         result:
           $ref: "#/components/schemas/OperatorResponse"
 
-    OperatorSliceResponseEnvelope:
-      type: object
-      properties:
-        result:
-          $ref: "#/components/schemas/OperatorSlice"
-
     OperatorTrackingResponseEnvelope:
       type: object
       properties:
@@ -3278,19 +3593,6 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/OperatorID"
-
-    UpdateOperatorSliceParams:
-      type: object
-      required: [sst]
-      properties:
-        sst:
-          type: integer
-          minimum: 0
-          maximum: 255
-        sd:
-          type: string
-          maxLength: 6
-          description: "Optional Slice Differentiator (hex)."
 
     UpdateOperatorTrackingParams:
       type: object

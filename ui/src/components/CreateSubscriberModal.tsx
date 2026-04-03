@@ -22,10 +22,10 @@ import * as yup from "yup";
 import { ValidationError } from "yup";
 import { createSubscriber } from "@/queries/subscribers";
 import {
-  listPolicies,
-  type APIPolicy,
-  type ListPoliciesResponse,
-} from "@/queries/policies";
+  listProfiles,
+  type APIProfile,
+  type ListProfilesResponse,
+} from "@/queries/profiles";
 import { getOperator } from "@/queries/operator";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -41,7 +41,7 @@ type FormValues = {
   key: string;
   opc: string;
   sequenceNumber: string;
-  policyName: string;
+  profileName: string;
 };
 
 type Operator = {
@@ -83,7 +83,7 @@ const schema = yup.object().shape({
       "Sequence Number must be a 6-byte (12-char) hex string.",
     )
     .required("Sequence Number is required."),
-  policyName: yup.string().required("Policy Name is required."),
+  profileName: yup.string().required("Profile is required."),
   opc: yup
     .string()
     .matches(
@@ -112,12 +112,12 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
     key: "",
     opc: "",
     sequenceNumber: "000000000022",
-    policyName: "",
+    profileName: "",
   });
 
   const [mcc, setMcc] = useState("");
   const [mnc, setMnc] = useState("");
-  const [policies, setPolicies] = useState<string[]>([]);
+  const [profiles, setProfiles] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [isValid, setIsValid] = useState(false);
@@ -127,26 +127,26 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
   const [imsiMismatch, setImsiMismatch] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchOperatorAndPolicies = async () => {
+    const fetchOperatorAndProfiles = async () => {
       if (!accessToken) return;
       try {
         const operator: Operator = await getOperator(accessToken);
         setMcc(operator.id.mcc);
         setMnc(operator.id.mnc);
 
-        const policyPage: ListPoliciesResponse = await listPolicies(
+        const profilePage: ListProfilesResponse = await listProfiles(
           accessToken,
           1,
           100,
         );
-        setPolicies((policyPage.items ?? []).map((p: APIPolicy) => p.name));
+        setProfiles((profilePage.items ?? []).map((p: APIProfile) => p.name));
       } catch (error) {
         console.error("Failed to fetch data:", error);
       }
     };
 
     if (open) {
-      fetchOperatorAndPolicies();
+      fetchOperatorAndProfiles();
     }
   }, [open, accessToken]);
 
@@ -206,15 +206,15 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
   }, [formValues, validateForm]);
 
   useEffect(() => {
-    if (!policies.length) return;
+    if (!profiles.length) return;
 
     setFormValues((prev) => {
-      if (prev.policyName && policies.includes(prev.policyName)) {
+      if (prev.profileName && profiles.includes(prev.profileName)) {
         return prev;
       }
-      return { ...prev, policyName: policies[0] };
+      return { ...prev, profileName: profiles[0] };
     });
-  }, [policies]);
+  }, [profiles]);
 
   const handleSubmit = async () => {
     if (!accessToken) return;
@@ -227,7 +227,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
         imsi,
         formValues.key,
         formValues.sequenceNumber,
-        formValues.policyName,
+        formValues.profileName,
         formValues.opc,
       );
       onClose();
@@ -402,24 +402,24 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
         />
 
         <FormControl fullWidth margin="normal">
-          <InputLabel id="policy-select-label">Policy Name</InputLabel>
+          <InputLabel id="profile-select-label">Profile</InputLabel>
           <Select
-            value={formValues.policyName}
-            onChange={(e) => handleChange("policyName", e.target.value)}
-            onBlur={() => handleBlur("policyName")}
-            error={!!errors.policyName && touched.policyName}
-            labelId="policy-select-label"
-            label="Policy Name"
+            value={formValues.profileName}
+            onChange={(e) => handleChange("profileName", e.target.value)}
+            onBlur={() => handleBlur("profileName")}
+            error={!!errors.profileName && touched.profileName}
+            labelId="profile-select-label"
+            label="Profile"
           >
-            {policies.map((policy) => (
-              <MenuItem key={policy} value={policy}>
-                {policy}
+            {profiles.map((profile) => (
+              <MenuItem key={profile} value={profile}>
+                {profile}
               </MenuItem>
             ))}
           </Select>
-          {touched.policyName && errors.policyName && (
+          {touched.profileName && errors.profileName && (
             <Typography color="error" variant="caption">
-              {errors.policyName}
+              {errors.profileName}
             </Typography>
           )}
         </FormControl>

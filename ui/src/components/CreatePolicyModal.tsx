@@ -23,12 +23,14 @@ import {
   listDataNetworks,
   type ListDataNetworksResponse,
 } from "@/queries/data_networks";
+import { listSlices, type ListSlicesResponse } from "@/queries/slices";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface CreatePolicyModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  profileName: string;
 }
 
 const NON_GBR_5QI_OPTIONS: { value: number; label: string }[] = [
@@ -47,18 +49,19 @@ const NON_GBR_5QI_VALUES = NON_GBR_5QI_OPTIONS.map((o) => o.value);
 
 const schema = yup.object().shape({
   name: yup.string().min(1).max(256).required("Name is required"),
-  bitrateUpValue: yup
+  sliceName: yup.string().required("Slice is required."),
+  ambrUpValue: yup
     .number()
-    .min(1, "Bitrate value must be between 1 and 999")
-    .max(999, "Bitrate value must be between 1 and 999")
-    .required("Bitrate value is required"),
-  bitrateUpUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
-  bitrateDownValue: yup
+    .min(1, "Value must be between 1 and 999")
+    .max(999, "Value must be between 1 and 999")
+    .required("Value is required"),
+  ambrUpUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
+  ambrDownValue: yup
     .number()
-    .min(1, "Bitrate value must be between 1 and 999")
-    .max(999, "Bitrate value must be between 1 and 999")
-    .required("Bitrate value is required"),
-  bitrateDownUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
+    .min(1, "Value must be between 1 and 999")
+    .max(999, "Value must be between 1 and 999")
+    .required("Value is required"),
+  ambrDownUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
   fiveQi: yup
     .number()
     .oneOf(
@@ -70,12 +73,13 @@ const schema = yup.object().shape({
   dataNetworkName: yup.string().required("Data Network Name is required."),
 });
 
-const PER_PAGE = 12; // fetch up to 12 DNs for the dropdown
+const PER_PAGE = 12; // fetch up to 12 items for dropdowns
 
 const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
   open,
   onClose,
   onSuccess,
+  profileName,
 }) => {
   const navigate = useNavigate();
   const { accessToken, authReady } = useAuth();
@@ -88,16 +92,18 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
 
   const [formValues, setFormValues] = useState({
     name: "",
-    bitrateUpValue: 100,
-    bitrateUpUnit: "Mbps",
-    bitrateDownValue: 100,
-    bitrateDownUnit: "Mbps",
+    sliceName: "",
+    ambrUpValue: 100,
+    ambrUpUnit: "Mbps",
+    ambrDownValue: 100,
+    ambrDownUnit: "Mbps",
     fiveQi: 9,
     arp: 1,
     dataNetworkName: "",
   });
 
   const [dataNetworks, setDataNetworks] = useState<string[]>([]);
+  const [slices, setSlices] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [isValid, setIsValid] = useState(false);
@@ -105,20 +111,24 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
   useEffect(() => {
-    const fetchDataNetworks = async () => {
+    const fetchDropdownData = async () => {
       if (!accessToken || !open) return;
       try {
-        const res: ListDataNetworksResponse = await listDataNetworks(
-          accessToken,
-          1,
-          PER_PAGE,
-        );
-        setDataNetworks((res.items ?? []).map((dn) => dn.name));
+        const [dnRes, sliceRes] = await Promise.all([
+          listDataNetworks(
+            accessToken,
+            1,
+            PER_PAGE,
+          ) as Promise<ListDataNetworksResponse>,
+          listSlices(accessToken, 1, PER_PAGE) as Promise<ListSlicesResponse>,
+        ]);
+        setDataNetworks((dnRes.items ?? []).map((dn) => dn.name));
+        setSlices((sliceRes.items ?? []).map((s) => s.name));
       } catch (error) {
-        console.error("Failed to fetch data networks:", error);
+        console.error("Failed to fetch dropdown data:", error);
       }
     };
-    fetchDataNetworks();
+    fetchDropdownData();
   }, [open, accessToken]);
 
   const handleChange = (field: string, value: string | number) => {
@@ -180,22 +190,34 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
     });
   }, [dataNetworks]);
 
+  useEffect(() => {
+    if (!slices.length) return;
+
+    setFormValues((prev) => {
+      if (prev.sliceName && slices.includes(prev.sliceName)) {
+        return prev;
+      }
+      return { ...prev, sliceName: slices[0] };
+    });
+  }, [slices]);
+
   const handleSubmit = async () => {
     if (!accessToken) return;
     setLoading(true);
     setAlert({ message: "" });
     try {
-      const bitrateUplink = `${formValues.bitrateUpValue} ${formValues.bitrateUpUnit}`;
-      const bitrateDownlink = `${formValues.bitrateDownValue} ${formValues.bitrateDownUnit}`;
-      await createPolicy(
-        accessToken,
-        formValues.name,
-        bitrateUplink,
-        bitrateDownlink,
-        formValues.fiveQi,
-        formValues.arp,
-        formValues.dataNetworkName,
-      );
+      const sessionAmbrUplink = `${formValues.ambrUpValue} ${formValues.ambrUpUnit}`;
+      const sessionAmbrDownlink = `${formValues.ambrDownValue} ${formValues.ambrDownUnit}`;
+      await createPolicy(accessToken, {
+        name: formValues.name,
+        profile_name: profileName,
+        slice_name: formValues.sliceName,
+        data_network_name: formValues.dataNetworkName,
+        session_ambr_uplink: sessionAmbrUplink,
+        session_ambr_downlink: sessionAmbrDownlink,
+        var5qi: formValues.fiveQi,
+        arp: formValues.arp,
+      });
       onClose();
       onSuccess();
     } catch (error: unknown) {
@@ -270,25 +292,25 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
 
         <Box display="flex" gap={2}>
           <TextField
-            label="Bitrate Up Value"
+            label="Session Bitrate Uplink"
             type="number"
-            value={formValues.bitrateUpValue}
+            value={formValues.ambrUpValue}
             onChange={(e) =>
-              handleChange("bitrateUpValue", Number(e.target.value))
+              handleChange("ambrUpValue", Number(e.target.value))
             }
-            onBlur={() => handleBlur("bitrateUpValue")}
-            error={!!errors.bitrateUpValue && touched.bitrateUpValue}
-            helperText={touched.bitrateUpValue ? errors.bitrateUpValue : ""}
+            onBlur={() => handleBlur("ambrUpValue")}
+            error={!!errors.ambrUpValue && touched.ambrUpValue}
+            helperText={touched.ambrUpValue ? errors.ambrUpValue : ""}
             margin="normal"
           />
           <TextField
             select
             label="Unit"
-            value={formValues.bitrateUpUnit}
-            onChange={(e) => handleChange("bitrateUpUnit", e.target.value)}
-            onBlur={() => handleBlur("bitrateUpUnit")}
-            error={!!errors.bitrateUpUnit && touched.bitrateUpUnit}
-            helperText={touched.bitrateUpUnit ? errors.bitrateUpUnit : ""}
+            value={formValues.ambrUpUnit}
+            onChange={(e) => handleChange("ambrUpUnit", e.target.value)}
+            onBlur={() => handleBlur("ambrUpUnit")}
+            error={!!errors.ambrUpUnit && touched.ambrUpUnit}
+            helperText={touched.ambrUpUnit ? errors.ambrUpUnit : ""}
             margin="normal"
           >
             <MenuItem value="Mbps">Mbps</MenuItem>
@@ -298,25 +320,25 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
 
         <Box display="flex" gap={2}>
           <TextField
-            label="Bitrate Down Value"
+            label="Session Bitrate Downlink"
             type="number"
-            value={formValues.bitrateDownValue}
+            value={formValues.ambrDownValue}
             onChange={(e) =>
-              handleChange("bitrateDownValue", Number(e.target.value))
+              handleChange("ambrDownValue", Number(e.target.value))
             }
-            onBlur={() => handleBlur("bitrateDownValue")}
-            error={!!errors.bitrateDownValue && touched.bitrateDownValue}
-            helperText={touched.bitrateDownValue ? errors.bitrateDownValue : ""}
+            onBlur={() => handleBlur("ambrDownValue")}
+            error={!!errors.ambrDownValue && touched.ambrDownValue}
+            helperText={touched.ambrDownValue ? errors.ambrDownValue : ""}
             margin="normal"
           />
           <TextField
             select
             label="Unit"
-            value={formValues.bitrateDownUnit}
-            onChange={(e) => handleChange("bitrateDownUnit", e.target.value)}
-            onBlur={() => handleBlur("bitrateDownUnit")}
-            error={!!errors.bitrateDownUnit && touched.bitrateDownUnit}
-            helperText={touched.bitrateDownUnit ? errors.bitrateDownUnit : ""}
+            value={formValues.ambrDownUnit}
+            onChange={(e) => handleChange("ambrDownUnit", e.target.value)}
+            onBlur={() => handleBlur("ambrDownUnit")}
+            error={!!errors.ambrDownUnit && touched.ambrDownUnit}
+            helperText={touched.ambrDownUnit ? errors.ambrDownUnit : ""}
             margin="normal"
           >
             <MenuItem value="Mbps">Mbps</MenuItem>

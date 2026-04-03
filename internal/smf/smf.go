@@ -5,6 +5,7 @@ package smf
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -25,6 +26,9 @@ import (
 
 var tracer = otel.Tracer("ella-core/smf/session")
 
+// ErrDNNNotFound indicates that the requested data network (DNN) does not exist.
+var ErrDNNNotFound = errors.New("data network not found")
+
 // SessionQuerier provides read-only access to active sessions.
 // External packages (API, AMF export, metrics) use this interface
 // instead of a package-level SMF singleton.
@@ -34,7 +38,20 @@ type SessionQuerier interface {
 	SessionCount() int
 }
 
-// SessionStore is the minimal DB surface the SMF needs.
+// PCF abstracts the Policy Control Function (3GPP TS 23.503).
+// In a full 3GPP deployment, this would be the Npcf_SMPolicyControl service.
+// Here it is backed by the local database, but the interface keeps the
+// SMF ↔ PCF boundary explicit.
+type PCF interface {
+	// GetSessionPolicy returns the PCC rules (QoS + traffic filters) and DNN
+	// configuration for a subscriber identified by IMSI, in the given network
+	// slice and DNN. This mirrors the 3GPP Npcf_SMPolicyControl_Create
+	// service operation which returns all session policy data in one call.
+	GetSessionPolicy(ctx context.Context, imsi string, snssai *models.Snssai, dnn string) (*Policy, error)
+}
+
+// SessionStore is the minimal DB surface the SMF needs for session-level
+// data operations (IP management, usage accounting, flow reports).
 type SessionStore interface {
 	// AllocateIP assigns an IPv4 address from the given data network's pool.
 	AllocateIP(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error)
@@ -42,12 +59,6 @@ type SessionStore interface {
 	// ReleaseIP frees the lease associated with a session.
 	// Returns the released IPv4 address so the caller can withdraw the BGP route.
 	ReleaseIP(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error)
-
-	// GetSessionPolicy returns the QoS policy for a subscriber in the given slice and DNN.
-	GetSessionPolicy(ctx context.Context, imsi string, snssai *models.Snssai, dnn string) (*Policy, error)
-
-	// GetDataNetwork returns the DNN configuration matching the given S-NSSAI and DNN name.
-	GetDataNetwork(ctx context.Context, snssai *models.Snssai, dnn string) (*DataNetworkInfo, error)
 
 	// IncrementDailyUsage adds uplink/downlink byte counts to a subscriber's daily usage.
 	IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error
@@ -100,18 +111,15 @@ type ResolvedNetworkRule struct {
 	Precedence   int32
 }
 
-// Policy contains the QoS parameters and network rules the SMF needs for a session.
+// Policy contains the QoS parameters, network rules, and DNN configuration
+// the SMF needs for a session.
 type Policy struct {
 	PolicyID     int64 // DB primary key; populated by GetSessionPolicy
 	Ambr         models.Ambr
 	QosData      models.QosData
 	NetworkRules []*ResolvedNetworkRule
-}
-
-// DataNetworkInfo holds per-DNN configuration.
-type DataNetworkInfo struct {
-	DNS net.IP
-	MTU uint16
+	DNS          net.IP
+	MTU          uint16
 }
 
 // FlowReport is a single flow measurement record from the UPF.
@@ -164,6 +172,7 @@ type SMF struct {
 	mu   sync.RWMutex
 	pool map[string]*SMContext // key: canonicalName(SUPI, PDUSessionID)
 
+	pcf    PCF
 	store  SessionStore
 	upf    UPFClient
 	amf    AMFCallback
@@ -192,9 +201,10 @@ func WithNodeID(ip net.IP) Option { return func(s *SMF) { s.nodeID = ip } }
 func WithBGP(bgp BGPAnnouncer) Option { return func(s *SMF) { s.bgp = bgp } }
 
 // New creates a new SMF.
-func New(store SessionStore, upf UPFClient, amf AMFCallback, opts ...Option) *SMF {
+func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Option) *SMF {
 	s := &SMF{
 		pool:   make(map[string]*SMContext),
+		pcf:    pcf,
 		store:  store,
 		upf:    upf,
 		amf:    amf,
@@ -315,24 +325,14 @@ func (s *SMF) SessionCount() int {
 	return len(s.pool)
 }
 
-// GetSessionPolicy retrieves the QoS policy for a subscriber from the store.
+// GetSessionPolicy retrieves the PCC rules from the PCF for a subscriber.
 func (s *SMF) GetSessionPolicy(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (*Policy, error) {
 	ctx, span := tracer.Start(ctx, "smf/get_session_policy",
 		trace.WithAttributes(attribute.String("ue.supi", supi.String())),
 	)
 	defer span.End()
 
-	return s.store.GetSessionPolicy(ctx, supi.IMSI(), snssai, dnn)
-}
-
-// GetDataNetwork retrieves the DNN information for a given S-NSSAI and DNN.
-func (s *SMF) GetDataNetwork(ctx context.Context, snssai *models.Snssai, dnn string) (*DataNetworkInfo, error) {
-	ctx, span := tracer.Start(ctx, "smf/get_data_network",
-		trace.WithAttributes(attribute.String("dnn", dnn)),
-	)
-	defer span.End()
-
-	return s.store.GetDataNetwork(ctx, snssai, dnn)
+	return s.pcf.GetSessionPolicy(ctx, supi.IMSI(), snssai, dnn)
 }
 
 // --- PDR/FAR/QER/URR allocation (delegated to the ID generators) ---
