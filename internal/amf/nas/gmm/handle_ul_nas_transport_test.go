@@ -1088,6 +1088,130 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorOn
 	}
 }
 
+func TestTransport5GSMMessage_ExistingPduSession_MultiSliceAllowedNssai_MatchesSecondSlice(t *testing.T) {
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	// UE is allowed 3 slices
+	ue.AllowedNssai = []models.Snssai{
+		{Sst: 1, Sd: "010203"},
+		{Sst: 2, Sd: "aabbcc"},
+		{Sst: 3, Sd: "ddeeff"},
+	}
+
+	// SM context uses the second allowed slice
+	var pduSessionID uint8 = 5
+
+	_ = ue.CreateSmContext(pduSessionID, "existing-ref", &models.Snssai{Sst: 2, Sd: "aabbcc"})
+
+	smPayload := []byte{0x2E, 0x05, 0x00, 0xC1, 0x00}
+
+	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
+	setRequestType(msg, nasMessage.ULNASTransportRequestTypeExistingPduSession)
+
+	fakeSmf := &FakeSmf{
+		UpdateN1MsgResponse: nil,
+	}
+
+	amfInstance := amf.New(nil, nil, fakeSmf)
+
+	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	// Should have forwarded to SMF (not rejected)
+	if len(fakeSmf.UpdateN1MsgCalls) != 1 {
+		t.Fatalf("expected 1 UpdateSmContextN1Msg call, got: %d", len(fakeSmf.UpdateN1MsgCalls))
+	}
+
+	if fakeSmf.UpdateN1MsgCalls[0].SmContextRef != "existing-ref" {
+		t.Fatalf("expected SmContextRef 'existing-ref', got: %s", fakeSmf.UpdateN1MsgCalls[0].SmContextRef)
+	}
+}
+
+func TestTransport5GSMMessage_ExistingPduSession_MultiSliceAllowedNssai_NotInList(t *testing.T) {
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	// UE is allowed 3 slices, but the SM context uses a different one
+	ue.AllowedNssai = []models.Snssai{
+		{Sst: 1, Sd: "010203"},
+		{Sst: 2, Sd: "aabbcc"},
+		{Sst: 3, Sd: "ddeeff"},
+	}
+
+	var pduSessionID uint8 = 5
+
+	_ = ue.CreateSmContext(pduSessionID, "existing-ref", &models.Snssai{Sst: 9, Sd: "ffffff"})
+
+	smPayload := []byte{0x2E, 0x05, 0x00, 0xC1, 0x00}
+
+	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
+	setRequestType(msg, nasMessage.ULNASTransportRequestTypeExistingPduSession)
+
+	err = transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	if err != nil {
+		t.Fatalf("expected no error (sends DL NAS), got: %v", err)
+	}
+
+	// Should have been rejected (DL NAS Transport sent)
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected 1 downlink NAS transport, got: %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+}
+
+func TestTransport5GSMMessage_NoSmContext_InitialRequest_MultiSliceDefaultSNSSAI(t *testing.T) {
+	ue, _, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
+
+	// UE has 3 allowed slices — default should be the first
+	ue.AllowedNssai = []models.Snssai{
+		{Sst: 1, Sd: "aabbcc"},
+		{Sst: 2, Sd: "010203"},
+		{Sst: 3, Sd: "ddeeff"},
+	}
+
+	var pduSessionID uint8 = 2
+
+	smPayload := []byte{0x2E, 0x02, 0x00, 0xC1, 0x00}
+
+	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
+	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialRequest)
+
+	// No SNSSAI or DNN set on the NAS message → should use AllowedNssai[0]
+
+	fakeSmf := &FakeSmf{
+		CreateSmContextRef: "multi-slice-ref",
+	}
+
+	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
+
+	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if len(fakeSmf.CreateSmContextCalls) != 1 {
+		t.Fatalf("expected 1 CreateSmContext call, got: %d", len(fakeSmf.CreateSmContextCalls))
+	}
+
+	call := fakeSmf.CreateSmContextCalls[0]
+
+	// Should use first allowed slice (index 0)
+	if call.Snssai.Sst != 1 || call.Snssai.Sd != "aabbcc" {
+		t.Fatalf("expected default SNSSAI SST=1 SD=aabbcc, got: SST=%d SD=%s", call.Snssai.Sst, call.Snssai.Sd)
+	}
+}
+
 // TestTransport5GSMMessage_NoSmContext_NilRequestType_Panic reproduces a nil-pointer
 // dereference when a UE sends a ULNASTransport with N1SM payload for a PDU session
 // that has no AMF-side SM context and omits the RequestType IE.

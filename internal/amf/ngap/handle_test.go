@@ -69,6 +69,7 @@ func getSliceInBytes(sst int32, sd string) ([]byte, []byte, error) {
 
 type FakeDBInstance struct {
 	Operator *db.Operator
+	Slices   []db.NetworkSlice
 }
 
 type SmfPathSwitchCall struct {
@@ -174,6 +175,10 @@ func (fdb *FakeDBInstance) GetProfileByID(ctx context.Context, id int) (*db.Prof
 }
 
 func (fdb *FakeDBInstance) ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error) {
+	if fdb.Slices != nil {
+		return fdb.Slices, nil
+	}
+
 	return []db.NetworkSlice{{ID: 1, Name: "default", Sst: 1}}, nil
 }
 

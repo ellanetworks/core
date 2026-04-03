@@ -2,10 +2,12 @@ package message_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/security"
 )
@@ -127,5 +129,113 @@ func TestBuildConfigurationUpdateCommand_WithGUTI_InvalidGUTI_Error(t *testing.T
 	_, err := message.BuildConfigurationUpdateCommand(ue, "ELLACORE5G", "ELLACORE", true)
 	if err == nil {
 		t.Fatal("expected error when includeGUTI is true but GUTI is invalid")
+	}
+}
+
+func TestBuildRegistrationAccept_MultipleAllowedNSSAI(t *testing.T) {
+	ue := buildTestUE(t)
+	ue.T3512Value = 3600 * time.Second
+	ue.AllowedNssai = []models.Snssai{
+		{Sst: 1, Sd: "010203"},
+		{Sst: 2, Sd: "aabbcc"},
+	}
+
+	supportedPLMN := &models.PlmnSupportItem{
+		PlmnID: models.PlmnID{Mcc: "001", Mnc: "01"},
+		SNssaiList: []models.Snssai{
+			{Sst: 1, Sd: "010203"},
+			{Sst: 2, Sd: "aabbcc"},
+		},
+	}
+
+	amfInstance := amf.New(nil, nil, nil)
+
+	raw, err := message.BuildRegistrationAccept(amfInstance, ue, nil, nil, nil, nil, supportedPLMN)
+	if err != nil {
+		t.Fatalf("BuildRegistrationAccept failed: %v", err)
+	}
+
+	msg := decryptNAS(t, ue, raw)
+
+	ra := msg.RegistrationAccept
+	if ra == nil {
+		t.Fatal("expected RegistrationAccept, got nil")
+	}
+
+	if ra.AllowedNSSAI == nil {
+		t.Fatal("expected AllowedNSSAI to be present")
+	}
+
+	// Each S-NSSAI is encoded as: length(1) + SST(1) + SD(3) = 5 bytes
+	// Two S-NSSAIs = 10 bytes total
+	nssaiLen := ra.AllowedNSSAI.GetLen()
+	if nssaiLen != 10 {
+		t.Fatalf("expected AllowedNSSAI length 10 (2 S-NSSAIs × 5 bytes), got %d", nssaiLen)
+	}
+}
+
+func TestBuildRegistrationAccept_SingleAllowedNSSAI(t *testing.T) {
+	ue := buildTestUE(t)
+	ue.T3512Value = 3600 * time.Second
+	ue.AllowedNssai = []models.Snssai{
+		{Sst: 1, Sd: "010203"},
+	}
+
+	supportedPLMN := &models.PlmnSupportItem{
+		PlmnID:     models.PlmnID{Mcc: "001", Mnc: "01"},
+		SNssaiList: []models.Snssai{{Sst: 1, Sd: "010203"}},
+	}
+
+	amfInstance := amf.New(nil, nil, nil)
+
+	raw, err := message.BuildRegistrationAccept(amfInstance, ue, nil, nil, nil, nil, supportedPLMN)
+	if err != nil {
+		t.Fatalf("BuildRegistrationAccept failed: %v", err)
+	}
+
+	msg := decryptNAS(t, ue, raw)
+
+	ra := msg.RegistrationAccept
+	if ra == nil {
+		t.Fatal("expected RegistrationAccept, got nil")
+	}
+
+	if ra.AllowedNSSAI == nil {
+		t.Fatal("expected AllowedNSSAI to be present")
+	}
+
+	// One S-NSSAI: length(1) + SST(1) + SD(3) = 5 bytes
+	nssaiLen := ra.AllowedNSSAI.GetLen()
+	if nssaiLen != 5 {
+		t.Fatalf("expected AllowedNSSAI length 5 (1 S-NSSAI × 5 bytes), got %d", nssaiLen)
+	}
+}
+
+func TestBuildRegistrationAccept_EmptyAllowedNSSAI(t *testing.T) {
+	ue := buildTestUE(t)
+	ue.T3512Value = 3600 * time.Second
+	ue.AllowedNssai = []models.Snssai{}
+
+	supportedPLMN := &models.PlmnSupportItem{
+		PlmnID:     models.PlmnID{Mcc: "001", Mnc: "01"},
+		SNssaiList: []models.Snssai{{Sst: 1, Sd: "010203"}},
+	}
+
+	amfInstance := amf.New(nil, nil, nil)
+
+	raw, err := message.BuildRegistrationAccept(amfInstance, ue, nil, nil, nil, nil, supportedPLMN)
+	if err != nil {
+		t.Fatalf("BuildRegistrationAccept failed: %v", err)
+	}
+
+	msg := decryptNAS(t, ue, raw)
+
+	ra := msg.RegistrationAccept
+	if ra == nil {
+		t.Fatal("expected RegistrationAccept, got nil")
+	}
+
+	if ra.AllowedNSSAI != nil {
+		t.Fatal("expected AllowedNSSAI to be absent when list is empty")
 	}
 }
