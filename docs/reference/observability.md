@@ -25,7 +25,7 @@ These metrics are used to monitor the health of the system and the performance o
 | app_connected_radios            | Number of radios currently connected to Ella Core                  | Gauge   |
 | app_ngap_messages_total | Total number of received NGAP message per type | Counter |
 | app_registered_subscribers      | Number of subscribers currently registered in Ella Core            | Gauge   |
-| app_registration_attempts_total | Total number of UE registration attempts by type and result | Counter |
+| app_registration_attempts_total | Total number of subscriber registration attempts by type and result | Counter |
 | app_pdu_sessions_total | Number of PDU sessions currently in Ella Core. | Gauge |
 | app_pdu_session_establishment_attempts_total | Total PDU session establishment attempts by result | Counter |
 | app_ip_addresses_allocated_total | The total number of IP addresses currently allocated to subscribers. | Gauge |
@@ -86,7 +86,7 @@ Ella Core ships with pre-configured [Grafana alert rules](https://github.com/ell
 | No Radios Connected | Critical | No radios connected for 2 minutes |
 | High Registration Failure Rate | Critical | More than 10% of subscriber registrations rejected over 5 minutes |
 | High PDU Session Failure Rate | Critical | More than 10% of PDU session establishments rejected over 5 minutes |
-| IP Address Pool Near Exhaustion | Warning | More than 90% of the UE IP pool is allocated |
+| IP Address Pool Near Exhaustion | Warning | More than 90% of the data network IP pool is allocated |
 
 ### Data Plane Health
 

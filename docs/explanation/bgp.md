@@ -6,7 +6,7 @@ BGP is a protocol that allows exchanging routing information between autonomous 
 
 ## When is BGP needed?
 
-Subscriber devices receive IPs from the data network pool. When NAT is not used, the external network needs to know how to route packets back to the UE through Ella Core. BGP might be needed in enterprise deployments where routable subscriber IPs are required.
+Subscriber devices receive IPs from the data network pool. When NAT is not used, the external network needs to know how to route packets back to the subscriber through Ella Core. BGP might be needed in enterprise deployments where routable subscriber IPs are required.
 
 ## How does BGP work in Ella Core?
 

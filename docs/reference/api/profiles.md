@@ -4,9 +4,9 @@ description: RESTful API reference for managing profiles.
 
 # Profiles
 
-Profiles define the UE Aggregate Maximum Bit Rate (UE-AMBR), which caps the total
+Profiles define the subscriber's Aggregate Maximum Bit Rate (UE-AMBR), which caps the total
 non-GBR throughput across **all** of a subscriber's PDU sessions.
-The AMF signals this value to the gNB, which enforces it in its radio scheduler.
+Ella Core signals this value to the radio, which enforces it.
 A profile can be shared across multiple policies.
 
 ## List Profiles
