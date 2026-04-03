@@ -29,7 +29,7 @@ The following table outlines the performance test results of Ella Core's data pl
 | 494                 | 2.17 Mpps | 2.17 Mpps |
 | 1456                | 812  Kpps | 812  Kpps |
 
-The packet size represents only the IP packet for the UE and ignores Ethernet and GTP encapsulation.
+The packet size represents only the IP packet for the subscribers and ignores Ethernet and GTP encapsulation.
 
 Downlink performance is better as the number of packets increases as the flows are able to handled by
 different cores using [Receive Side Scaling (RSS)](https://www.kernel.org/doc/html/latest/networking/scaling.html).
@@ -53,7 +53,7 @@ The following table outlines the performance test results of Ella Core's data pl
 | ------------ | --------- | ---------- | ----------------------- |
 | 1.160        | 0.803     | 1.457      | 0.194                   |
 
-The value represents the round-trip-response times from the UE to the server and back.
+The value represents the round-trip-response times from the subscriber's device to the server and back.
 
 ### PDU Session Support
 

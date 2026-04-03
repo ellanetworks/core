@@ -20,6 +20,7 @@ import EditSubscriberModal from "@/components/EditSubscriberModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import SubscriberProvisioningCard from "@/components/SubscriberProvisioningCard";
 import SubscriberConnectionCard from "@/components/SubscriberConnectionCard";
+import SubscriberSessionsCard from "@/components/SubscriberSessionsCard";
 import SubscriberUsageChart from "@/components/SubscriberUsageChart";
 import SubscriberProtocolChart from "@/components/SubscriberProtocolChart";
 import { MAX_WIDTH } from "@/utils/layout";
@@ -197,7 +198,6 @@ const SubscriberDetail: React.FC = () => {
           sx={{
             display: "grid",
             gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-            gridTemplateRows: { xs: "auto auto auto", md: "auto auto" },
             gap: 3,
             alignItems: "stretch",
           }}
@@ -205,8 +205,6 @@ const SubscriberDetail: React.FC = () => {
           {/* Left column */}
           <Box
             sx={{
-              gridColumn: 1,
-              gridRow: { xs: 1, md: "1 / span 2" },
               display: "flex",
               flexDirection: "column",
               gap: 3,
@@ -214,32 +212,27 @@ const SubscriberDetail: React.FC = () => {
           >
             <SubscriberProvisioningCard
               subscriber={subscriber}
-              onEditPolicy={canEdit ? () => setEditModalOpen(true) : undefined}
+              onEditProfile={canEdit ? () => setEditModalOpen(true) : undefined}
             />
           </Box>
 
           {/* Right column */}
           <Box
             sx={{
-              gridColumn: { xs: 1, md: 2 },
-              gridRow: { xs: 2, md: "1 / span 2" },
               display: "flex",
               flexDirection: "column",
               gap: 3,
             }}
           >
-            <SubscriberConnectionCard
-              status={subscriber.status}
-              sessions={subscriber.pdu_sessions}
-              loading={isLoading}
-              ipAddress={
-                subscriber.pdu_sessions && subscriber.pdu_sessions.length > 0
-                  ? subscriber.pdu_sessions[0].ipAddress
-                  : subscriber.status.ipAddress
-              }
-            />
+            <SubscriberConnectionCard status={subscriber.status} />
           </Box>
         </Box>
+
+        {/* PDU Sessions */}
+        <SubscriberSessionsCard
+          sessions={subscriber.pdu_sessions}
+          loading={isLoading}
+        />
 
         {/* Traffic card */}
         <Card variant="outlined" sx={{ mt: 3 }}>
@@ -292,7 +285,7 @@ const SubscriberDetail: React.FC = () => {
           }}
           initialData={{
             imsi: subscriber.imsi,
-            policyName: subscriber.profile_name,
+            profileName: subscriber.profile_name,
           }}
         />
       )}

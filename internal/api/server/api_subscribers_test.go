@@ -39,9 +39,9 @@ type CreateSubscriberSuccessResponse struct {
 
 // ListSubscriberStatus matches the lightweight status in list responses.
 type ListSubscriberStatus struct {
-	Registered bool   `json:"registered"`
-	IPAddress  string `json:"ipAddress"`
-	LastSeenAt string `json:"lastSeenAt,omitempty"`
+	Registered     bool   `json:"registered"`
+	NumPDUSessions int    `json:"num_pdu_sessions"`
+	LastSeenAt     string `json:"lastSeenAt,omitempty"`
 }
 
 // ListSubscriber matches the summary representation in list responses.
@@ -55,7 +55,6 @@ type ListSubscriber struct {
 // SubscriberDetailStatus matches the rich status in get-single responses.
 type SubscriberDetailStatus struct {
 	Registered         bool   `json:"registered"`
-	IPAddress          string `json:"ipAddress"`
 	Imei               string `json:"imei"`
 	CipheringAlgorithm string `json:"cipheringAlgorithm"`
 	IntegrityAlgorithm string `json:"integrityAlgorithm"`
@@ -64,8 +63,14 @@ type SubscriberDetailStatus struct {
 }
 
 type SessionInfo struct {
-	Status    string `json:"status"`
-	IPAddress string `json:"ipAddress,omitempty"`
+	PDUSessionID    uint8  `json:"pdu_session_id"`
+	Status          string `json:"status"`
+	IPAddress       string `json:"ipAddress,omitempty"`
+	DNN             string `json:"dnn,omitempty"`
+	SST             int32  `json:"sst,omitempty"`
+	SD              string `json:"sd,omitempty"`
+	SessionAmbrUp   string `json:"session_ambr_uplink,omitempty"`
+	SessionAmbrDown string `json:"session_ambr_downlink,omitempty"`
 }
 
 // SubscriberDetail matches the full representation in get-single responses.
@@ -917,6 +922,10 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 		}
 
 		session := response.Result.PDUSessions[0]
+
+		if session.PDUSessionID != 1 {
+			t.Fatalf("expected PDU session ID 1, got %d", session.PDUSessionID)
+		}
 
 		if session.Status != "active" {
 			t.Fatalf("expected session status 'active', got %q", session.Status)

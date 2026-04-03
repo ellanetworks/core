@@ -29,7 +29,9 @@ const (
 	countPoliciesInProfileStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE profileID=$Policy.profileID"
 	countPoliciesInSliceStmt       = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE sliceID=$Policy.sliceID"
 	countPoliciesInDataNetworkStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE dataNetworkID=$Policy.dataNetworkID"
-	getPolicyByProfileIDStmt       = "SELECT &Policy.* FROM %s WHERE profileID==$Policy.profileID LIMIT 1"
+
+	getPolicyByProfileAndSliceStmt = "SELECT &Policy.* FROM %s WHERE profileID==$Policy.profileID AND sliceID==$Policy.sliceID LIMIT 1"
+	listPoliciesByProfilePagedStmt = "SELECT &Policy.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE profileID==$Policy.profileID LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 )
 
 type Policy struct {
@@ -84,6 +86,62 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 			}
 
 			return nil, fallbackCount, nil
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return nil, 0, fmt.Errorf("query failed: %w", err)
+	}
+
+	count := 0
+	if len(counts) > 0 {
+		count = counts[0].Count
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return policies, count, nil
+}
+
+func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID int, page int, perPage int) ([]Policy, int, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (paged by profile)", "SELECT", PoliciesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			attribute.String("db.collection", PoliciesTableName),
+			attribute.Int("profileID", profileID),
+			attribute.Int("page", page),
+			attribute.Int("per_page", perPage),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
+
+	var policies []Policy
+
+	var counts []NumItems
+
+	args := ListArgs{
+		Limit:  perPage,
+		Offset: (page - 1) * perPage,
+	}
+
+	filter := Policy{ProfileID: profileID}
+
+	err := db.conn.Query(ctx, db.listPoliciesByProfileStmt, args, filter).GetAll(&policies, &counts)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetStatus(codes.Ok, "no rows")
+
+			return nil, 0, nil
 		}
 
 		span.RecordError(err)
@@ -183,17 +241,19 @@ func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, d
 	return &row, nil
 }
 
-// GetPolicyByProfileID finds the first policy belonging to the given profile.
-func (db *Database) GetPolicyByProfileID(ctx context.Context, profileID int) (*Policy, error) {
+// GetPolicyByProfileAndSlice finds the first policy for a given profile and slice.
+// Used by the AMF to resolve a default DNN when the UE does not specify one.
+func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID int) (*Policy, error) {
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s (by profile)", "SELECT", PoliciesTableName),
+		fmt.Sprintf("%s %s (by profile+slice)", "SELECT", PoliciesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", PoliciesTableName),
 			attribute.Int("profile_id", profileID),
+			attribute.Int("slice_id", sliceID),
 		),
 	)
 	defer span.End()
@@ -203,9 +263,9 @@ func (db *Database) GetPolicyByProfileID(ctx context.Context, profileID int) (*P
 
 	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
 
-	row := Policy{ProfileID: profileID}
+	row := Policy{ProfileID: profileID, SliceID: sliceID}
 
-	err := db.conn.Query(ctx, db.getPolicyByProfileIDStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getPolicyByProfileAndSliceStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -226,7 +286,7 @@ func (db *Database) GetPolicyByProfileID(ctx context.Context, profileID int) (*P
 
 // GetSessionPolicy resolves a subscriber's policy for a given slice (sst+sd) and DNN.
 // It follows the chain: subscriber → profileID → policy (by profile, slice, DNN) → network rules.
-func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32, sd string, dnn string) (*Policy, []*NetworkRule, error) {
+func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32, sd string, dnn string) (*Policy, []*NetworkRule, *DataNetwork, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		"GetSessionPolicy",
@@ -246,7 +306,7 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "subscriber not found")
 
-		return nil, nil, fmt.Errorf("subscriber not found: %w", err)
+		return nil, nil, nil, fmt.Errorf("subscriber not found: %w", err)
 	}
 
 	slices, err := db.ListAllNetworkSlices(ctx)
@@ -254,7 +314,7 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "list slices failed")
 
-		return nil, nil, fmt.Errorf("list slices: %w", err)
+		return nil, nil, nil, fmt.Errorf("list slices: %w", err)
 	}
 
 	sliceID := -1
@@ -279,7 +339,7 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 	if sliceID < 0 {
 		span.SetStatus(codes.Error, "no matching slice")
 
-		return nil, nil, fmt.Errorf("no slice matching sst=%d sd=%q", sst, sd)
+		return nil, nil, nil, fmt.Errorf("no slice matching sst=%d sd=%q", sst, sd)
 	}
 
 	dn, err := db.GetDataNetwork(ctx, dnn)
@@ -287,7 +347,7 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "data network not found")
 
-		return nil, nil, fmt.Errorf("data network %q not found: %w", dnn, err)
+		return nil, nil, nil, fmt.Errorf("data network %q: %w", dnn, ErrDataNetworkNotFound)
 	}
 
 	policy, err := db.GetPolicyByLookup(ctx, sub.ProfileID, sliceID, dn.ID)
@@ -295,7 +355,7 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "no matching policy")
 
-		return nil, nil, fmt.Errorf("no policy for profile=%d slice=%d dnn=%d: %w", sub.ProfileID, sliceID, dn.ID, err)
+		return nil, nil, nil, fmt.Errorf("no policy for profile=%d slice=%d dnn=%d: %w", sub.ProfileID, sliceID, dn.ID, err)
 	}
 
 	rules, err := db.ListRulesForPolicy(ctx, int64(policy.ID))
@@ -303,12 +363,12 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "list rules failed")
 
-		return nil, nil, fmt.Errorf("list rules for policy %d: %w", policy.ID, err)
+		return nil, nil, nil, fmt.Errorf("list rules for policy %d: %w", policy.ID, err)
 	}
 
 	span.SetStatus(codes.Ok, "")
 
-	return policy, rules, nil
+	return policy, rules, dn, nil
 }
 
 func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {

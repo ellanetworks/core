@@ -13,6 +13,7 @@ import {
   MenuItem,
   Alert,
   Collapse,
+  Typography,
 } from "@mui/material";
 import {
   updatePolicy,
@@ -24,6 +25,7 @@ import {
   listDataNetworks,
   type ListDataNetworksResponse,
 } from "@/queries/data_networks";
+import { listSlices, type ListSlicesResponse } from "@/queries/slices";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import * as yup from "yup";
@@ -38,10 +40,11 @@ interface EditPolicyModalProps {
 
 type FormState = {
   name: string;
-  bitrateUpValue: number;
-  bitrateUpUnit: "Mbps" | "Gbps";
-  bitrateDownValue: number;
-  bitrateDownUnit: "Mbps" | "Gbps";
+  sliceName: string;
+  ambrUpValue: number;
+  ambrUpUnit: "Mbps" | "Gbps";
+  ambrDownValue: number;
+  ambrDownUnit: "Mbps" | "Gbps";
   var5qi: number;
   arp: number;
   data_network_name: string;
@@ -50,11 +53,11 @@ type FormState = {
 const PER_PAGE = 12;
 
 const NON_GBR_5QI_OPTIONS: { value: number; label: string }[] = [
-  { value: 5, label: "5 — IMS Signalling" },
-  { value: 6, label: "6 — TCP (buffered streaming, web)" },
-  { value: 7, label: "7 — Voice, live video, gaming" },
-  { value: 8, label: "8 — TCP (buffered streaming)" },
-  { value: 9, label: "9 — TCP (default)" },
+  { value: 5, label: "5 — IMS signalling" },
+  { value: 6, label: "6 — Buffered streaming, web browsing" },
+  { value: 7, label: "7 — Voice, live video, interactive gaming" },
+  { value: 8, label: "8 — Buffered streaming" },
+  { value: 9, label: "9 — Best effort (default)" },
   { value: 69, label: "69 — Mission critical signalling" },
   { value: 70, label: "70 — Mission critical data" },
   { value: 79, label: "79 — V2X messages" },
@@ -64,18 +67,19 @@ const NON_GBR_5QI_OPTIONS: { value: number; label: string }[] = [
 const NON_GBR_5QI_VALUES = NON_GBR_5QI_OPTIONS.map((o) => o.value);
 
 const policySchema = yup.object().shape({
-  bitrateUpValue: yup
+  sliceName: yup.string().required("Slice is required."),
+  ambrUpValue: yup
     .number()
-    .min(1, "Bitrate value must be between 1 and 999")
-    .max(999, "Bitrate value must be between 1 and 999")
-    .required("Bitrate value is required"),
-  bitrateUpUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
-  bitrateDownValue: yup
+    .min(1, "Value must be between 1 and 999")
+    .max(999, "Value must be between 1 and 999")
+    .required("Value is required"),
+  ambrUpUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
+  ambrDownValue: yup
     .number()
-    .min(1, "Bitrate value must be between 1 and 999")
-    .max(999, "Bitrate value must be between 1 and 999")
-    .required("Bitrate value is required"),
-  bitrateDownUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
+    .min(1, "Value must be between 1 and 999")
+    .max(999, "Value must be between 1 and 999")
+    .required("Value is required"),
+  ambrDownUnit: yup.string().oneOf(["Mbps", "Gbps"], "Invalid unit"),
   var5qi: yup
     .number()
     .oneOf(
@@ -84,7 +88,7 @@ const policySchema = yup.object().shape({
     )
     .required("5QI is required"),
   arp: yup.number().min(1).max(15).required("ARP is required"),
-  data_network_name: yup.string().required("Data Network Name is required."),
+  data_network_name: yup.string().required("Data Network is required."),
 });
 
 const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
@@ -104,16 +108,18 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
 
   const [formValues, setFormValues] = useState<FormState>({
     name: "",
-    bitrateUpValue: 0,
-    bitrateUpUnit: "Mbps",
-    bitrateDownValue: 0,
-    bitrateDownUnit: "Mbps",
+    sliceName: "",
+    ambrUpValue: 0,
+    ambrUpUnit: "Mbps",
+    ambrDownValue: 0,
+    ambrDownUnit: "Mbps",
     var5qi: 0,
     arp: 0,
     data_network_name: "",
   });
 
   const [dataNetworks, setDataNetworks] = useState<string[]>([]);
+  const [slices, setSlices] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [isValid, setIsValid] = useState(false);
@@ -133,17 +139,18 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
       try {
         const fullPolicy = await getPolicy(accessToken, initialData.name);
 
-        const [bitrateUpValueStr, bitrateUpUnit] =
-          fullPolicy.bitrate_uplink.split(" ");
-        const [bitrateDownValueStr, bitrateDownUnit] =
-          fullPolicy.bitrate_downlink.split(" ");
+        const [ambrUpValueStr, ambrUpUnit] =
+          fullPolicy.session_ambr_uplink.split(" ");
+        const [ambrDownValueStr, ambrDownUnit] =
+          fullPolicy.session_ambr_downlink.split(" ");
 
         setFormValues({
           name: fullPolicy.name,
-          bitrateUpValue: parseInt(bitrateUpValueStr, 10),
-          bitrateUpUnit: (bitrateUpUnit as "Mbps" | "Gbps") ?? "Mbps",
-          bitrateDownValue: parseInt(bitrateDownValueStr, 10),
-          bitrateDownUnit: (bitrateDownUnit as "Mbps" | "Gbps") ?? "Mbps",
+          sliceName: fullPolicy.slice_name,
+          ambrUpValue: parseInt(ambrUpValueStr, 10),
+          ambrUpUnit: (ambrUpUnit as "Mbps" | "Gbps") ?? "Mbps",
+          ambrDownValue: parseInt(ambrDownValueStr, 10),
+          ambrDownUnit: (ambrDownUnit as "Mbps" | "Gbps") ?? "Mbps",
           var5qi: fullPolicy.var5qi,
           arp: fullPolicy.arp,
           data_network_name: fullPolicy.data_network_name,
@@ -161,22 +168,26 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
     fetchFullPolicy();
   }, [open, initialData.name, accessToken]);
 
-  // Fetch data networks
+  // Fetch data networks and slices
   useEffect(() => {
-    const fetchDataNetworks = async () => {
+    const fetchDropdownData = async () => {
       if (!open || !accessToken) return;
       try {
-        const res: ListDataNetworksResponse = await listDataNetworks(
-          accessToken,
-          1,
-          PER_PAGE,
-        );
-        setDataNetworks((res.items ?? []).map((dn) => dn.name));
+        const [dnRes, sliceRes] = await Promise.all([
+          listDataNetworks(
+            accessToken,
+            1,
+            PER_PAGE,
+          ) as Promise<ListDataNetworksResponse>,
+          listSlices(accessToken, 1, PER_PAGE) as Promise<ListSlicesResponse>,
+        ]);
+        setDataNetworks((dnRes.items ?? []).map((dn) => dn.name));
+        setSlices((sliceRes.items ?? []).map((s) => s.name));
       } catch (error) {
-        console.error("Failed to fetch data networks:", error);
+        console.error("Failed to fetch dropdown data:", error);
       }
     };
-    fetchDataNetworks();
+    fetchDropdownData();
   }, [open, accessToken]);
 
   const handleChange = (field: keyof FormState, value: string | number) => {
@@ -234,20 +245,20 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
     setLoading(true);
     setAlert({ message: "" });
 
-    const bitrateUp = `${formValues.bitrateUpValue} ${formValues.bitrateUpUnit}`;
-    const bitrateDown = `${formValues.bitrateDownValue} ${formValues.bitrateDownUnit}`;
+    const ambrUp = `${formValues.ambrUpValue} ${formValues.ambrUpUnit}`;
+    const ambrDown = `${formValues.ambrDownValue} ${formValues.ambrDownUnit}`;
 
     try {
-      await updatePolicy(
-        accessToken,
-        formValues.name,
-        bitrateUp,
-        bitrateDown,
-        formValues.var5qi,
-        formValues.arp,
-        formValues.data_network_name,
-        currentRules,
-      );
+      await updatePolicy(accessToken, formValues.name, {
+        profile_name: initialData.profile_name,
+        slice_name: formValues.sliceName,
+        data_network_name: formValues.data_network_name,
+        session_ambr_uplink: ambrUp,
+        session_ambr_downlink: ambrDown,
+        var5qi: formValues.var5qi,
+        arp: formValues.arp,
+        rules: currentRules,
+      });
 
       onClose();
       onSuccess();
@@ -290,13 +301,11 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
         />
 
         <FormControl fullWidth margin="normal">
-          <InputLabel id="data-network-select-label">
-            Data Network Name
-          </InputLabel>
+          <InputLabel id="data-network-select-label">Data Network</InputLabel>
           <Select
             labelId="data-network-select-label"
             autoFocus
-            label="Data Network Name"
+            label="Data Network"
             value={formValues.data_network_name}
             onChange={(e) => handleChange("data_network_name", e.target.value)}
             onBlur={() => handleBlur("data_network_name")}
@@ -312,23 +321,23 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
 
         <Box display="flex" gap={2}>
           <TextField
-            label="Bitrate Up Value"
+            label="Session Bitrate Uplink"
             type="number"
-            value={formValues.bitrateUpValue}
+            value={formValues.ambrUpValue}
             onChange={(e) =>
-              handleChange("bitrateUpValue", Number(e.target.value))
+              handleChange("ambrUpValue", Number(e.target.value))
             }
-            onBlur={() => handleBlur("bitrateUpValue")}
-            error={!!errors.bitrateUpValue && touched.bitrateUpValue}
-            helperText={touched.bitrateUpValue ? errors.bitrateUpValue : ""}
+            onBlur={() => handleBlur("ambrUpValue")}
+            error={!!errors.ambrUpValue && touched.ambrUpValue}
+            helperText={touched.ambrUpValue ? errors.ambrUpValue : ""}
             margin="normal"
           />
           <TextField
             select
             label="Unit"
-            value={formValues.bitrateUpUnit}
-            onChange={(e) => handleChange("bitrateUpUnit", e.target.value)}
-            onBlur={() => handleBlur("bitrateUpUnit")}
+            value={formValues.ambrUpUnit}
+            onChange={(e) => handleChange("ambrUpUnit", e.target.value)}
+            onBlur={() => handleBlur("ambrUpUnit")}
             margin="normal"
           >
             <MenuItem value="Mbps">Mbps</MenuItem>
@@ -338,23 +347,23 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
 
         <Box display="flex" gap={2}>
           <TextField
-            label="Bitrate Down Value"
+            label="Session Bitrate Downlink"
             type="number"
-            value={formValues.bitrateDownValue}
+            value={formValues.ambrDownValue}
             onChange={(e) =>
-              handleChange("bitrateDownValue", Number(e.target.value))
+              handleChange("ambrDownValue", Number(e.target.value))
             }
-            onBlur={() => handleBlur("bitrateDownValue")}
-            error={!!errors.bitrateDownValue && touched.bitrateDownValue}
-            helperText={touched.bitrateDownValue ? errors.bitrateDownValue : ""}
+            onBlur={() => handleBlur("ambrDownValue")}
+            error={!!errors.ambrDownValue && touched.ambrDownValue}
+            helperText={touched.ambrDownValue ? errors.ambrDownValue : ""}
             margin="normal"
           />
           <TextField
             select
             label="Unit"
-            value={formValues.bitrateDownUnit}
-            onChange={(e) => handleChange("bitrateDownUnit", e.target.value)}
-            onBlur={() => handleBlur("bitrateDownUnit")}
+            value={formValues.ambrDownUnit}
+            onChange={(e) => handleChange("ambrDownUnit", e.target.value)}
+            onBlur={() => handleBlur("ambrDownUnit")}
             margin="normal"
           >
             <MenuItem value="Mbps">Mbps</MenuItem>
@@ -363,10 +372,10 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
         </Box>
 
         <FormControl fullWidth margin="normal">
-          <InputLabel id="fiveqi-edit-select-label">5QI (non-GBR)</InputLabel>
+          <InputLabel id="fiveqi-edit-select-label">5QI</InputLabel>
           <Select
             labelId="fiveqi-edit-select-label"
-            label="5QI (non-GBR)"
+            label="5QI"
             value={formValues.var5qi}
             onChange={(e) => handleChange("var5qi", Number(e.target.value))}
             onBlur={() => handleBlur("var5qi")}
@@ -383,6 +392,10 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
               </MenuItem>
             ))}
           </Select>
+          <Typography variant="caption" color="text.secondary">
+            Determines radio scheduling behavior. Only non-GBR classes are
+            supported.
+          </Typography>
         </FormControl>
 
         <TextField
@@ -396,7 +409,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           helperText={
             touched.arp && errors.arp
               ? errors.arp
-              : "1 (highest) to 15 (lowest)"
+              : "Admission control priority at session setup. 1 (highest) to 15 (lowest)."
           }
           margin="normal"
         />

@@ -262,15 +262,15 @@ export default function DrawerLayout({
             <ListItem disablePadding>
               <ListItemButton
                 component={Link}
-                to="/policies"
-                selected={pathname.startsWith("/policies")}
+                to="/profiles"
+                selected={pathname.startsWith("/profiles")}
                 onClick={handleNavClick}
                 sx={drawerSelectedSx}
               >
                 <ListItemIcon>
                   <TuneIcon color="primary" />
                 </ListItemIcon>
-                <ListItemText primary="Policies" />
+                <ListItemText primary="Profiles" />
               </ListItemButton>
             </ListItem>
 

@@ -191,7 +191,7 @@ Removes a home network key. UEs using this key will no longer be able to registe
 
 ## Update the NAS Security Algorithms
 
-This path updates the NAS security algorithm preference order for ciphering and integrity protection. The order determines which algorithms the network prefers during UE security capability negotiation. Changes take effect for the next UE registration.
+This path updates the NAS security algorithm preference order for ciphering and integrity protection. The order determines which algorithms the network prefers during subscriber device security capability negotiation. Changes take effect for the next subscriber registration.
 
 | Method | Path                        |
 | ------ | --------------------------- |
@@ -223,7 +223,7 @@ This path updates the NAS security algorithm preference order for ciphering and 
 
 ## Update the Service Provider Name (SPN)
 
-This path updates the network name (Service Provider Name) displayed on connected devices. Both the full and short names are encoded in the GSM 7-bit alphabet and sent to UEs in the NAS Configuration Update Command. Changes take effect for the next UE registration.
+This path updates the network name (Service Provider Name) displayed on connected devices. Both the full and short names are encoded in the GSM 7-bit alphabet and sent to subscriber devices in the NAS Configuration Update Command. Changes take effect for the next subscriber registration.
 
 | Method | Path                    |
 | ------ | ----------------------- |
@@ -231,7 +231,7 @@ This path updates the network name (Service Provider Name) displayed on connecte
 
 ### Parameters
 
-- `fullName` (string): The full network name shown on UE displays. Must be between 1 and 50 characters.
+- `fullName` (string): The full network name shown on subscriber device displays. Must be between 1 and 50 characters.
 - `shortName` (string): An abbreviated network name. Must be between 1 and 50 characters.
 
 ### Sample Request

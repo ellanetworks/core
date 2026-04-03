@@ -47,11 +47,17 @@ func (fdb *FakeDBInstance) GetProfileByID(ctx context.Context, id int) (*db.Prof
 }
 
 func (fdb *FakeDBInstance) ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error) {
-	return []db.NetworkSlice{{ID: 1, Name: "default", Sst: 1}}, nil
+	sd1 := "010203"
+	sd2 := "aabbcc"
+
+	return []db.NetworkSlice{
+		{ID: 1, Name: "default", Sst: 1, Sd: &sd1},
+		{ID: 2, Name: "secondary", Sst: 1, Sd: &sd2},
+	}, nil
 }
 
-func (fdb *FakeDBInstance) GetPolicyByProfileID(ctx context.Context, profileID int) (*db.Policy, error) {
-	return &db.Policy{ID: 1, Name: "TestPolicy", ProfileID: profileID, SliceID: 1, DataNetworkID: 1}, nil
+func (fdb *FakeDBInstance) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID int) (*db.Policy, error) {
+	return &db.Policy{ID: 1, Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: 1}, nil
 }
 
 type NGDLNasTransport struct {

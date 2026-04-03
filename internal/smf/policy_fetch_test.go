@@ -127,7 +127,7 @@ func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
 		t.Fatalf("couldn't create subscriber: %s", err)
 	}
 
-	adapter := runtime.NewSMFDBAdapter(database)
+	adapter := runtime.NewPCFDBAdapter(database)
 
 	snssai := &models.Snssai{Sst: db.InitialSliceSst, Sd: db.InitialSliceSd}
 
@@ -296,7 +296,7 @@ func TestGetSessionPolicy_NoNetworkRules(t *testing.T) {
 		t.Fatalf("couldn't create subscriber: %s", err)
 	}
 
-	adapter := runtime.NewSMFDBAdapter(database)
+	adapter := runtime.NewPCFDBAdapter(database)
 
 	snssai := &models.Snssai{Sst: db.InitialSliceSst, Sd: db.InitialSliceSd}
 

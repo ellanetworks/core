@@ -9,7 +9,8 @@ import Subscribers from "./pages/Subscribers";
 import SubscriberDetail from "./pages/SubscriberDetail";
 import Radios from "./pages/Radios";
 import RadioDetail from "./pages/RadioDetail";
-import Policies from "./pages/Policies";
+import Profiles from "./pages/Profiles";
+import ProfileDetail from "./pages/ProfileDetail";
 import PolicyDetail from "./pages/PolicyDetail";
 import Networking from "./pages/Networking";
 import DataNetworkDetail from "./pages/DataNetworkDetail";
@@ -38,8 +39,17 @@ export default function AppRouter() {
         <Route path="subscribers/:imsi" element={<SubscriberDetail />} />
         <Route path="radios" element={<Radios />} />
         <Route path="radios/:name" element={<RadioDetail />} />
-        <Route path="policies" element={<Policies />} />
-        <Route path="policies/:name" element={<PolicyDetail />} />
+        <Route path="profiles" element={<Profiles />} />
+        <Route path="profiles/:name" element={<ProfileDetail />} />
+        <Route
+          path="profiles/:profileName/policies/:policyName"
+          element={<PolicyDetail />}
+        />
+        <Route path="policies" element={<Navigate to="/profiles" replace />} />
+        <Route
+          path="policies/:name"
+          element={<Navigate to="/profiles" replace />}
+        />
         <Route path="networking" element={<Networking />} />
         <Route
           path="networking/data-networks/:name"

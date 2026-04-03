@@ -79,7 +79,7 @@ type DBer interface {
 	GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error)
 	GetDataNetworkByID(ctx context.Context, id int) (*db.DataNetwork, error)
 	GetProfileByID(ctx context.Context, id int) (*db.Profile, error)
-	GetPolicyByProfileID(ctx context.Context, profileID int) (*db.Policy, error)
+	GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID int) (*db.Policy, error)
 	ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error)
 }
 

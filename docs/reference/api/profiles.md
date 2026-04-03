@@ -4,7 +4,10 @@ description: RESTful API reference for managing profiles.
 
 # Profiles
 
-Profiles define UE-level aggregate maximum bit rate (UE-AMBR) settings that can be shared across multiple policies.
+Profiles define the subscriber's Aggregate Maximum Bit Rate (UE-AMBR), which caps the total
+non-GBR throughput across **all** of a subscriber's PDU sessions.
+Ella Core signals this value to the radio, which enforces it.
+A profile can be shared across multiple policies.
 
 ## List Profiles
 
@@ -51,8 +54,8 @@ This path creates a new profile.
 ### Parameters
 
 - `name` (string): The name of the profile.
-- `ue_ambr_uplink` (string): The UE aggregate maximum bit rate for the uplink. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
-- `ue_ambr_downlink` (string): The UE aggregate maximum bit rate for the downlink. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
+- `ue_ambr_uplink` (string): Aggregate uplink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Format: `<number> <unit>` (e.g. `"500 Mbps"`). Allowed units: Mbps, Gbps.
+- `ue_ambr_downlink` (string): Aggregate downlink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Format: `<number> <unit>` (e.g. `"1 Gbps"`). Allowed units: Mbps, Gbps.
 
 ### Sample Response
 
@@ -98,8 +101,8 @@ This path updates an existing profile.
 
 ### Parameters
 
-- `ue_ambr_uplink` (string): The UE aggregate maximum bit rate for the uplink. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
-- `ue_ambr_downlink` (string): The UE aggregate maximum bit rate for the downlink. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
+- `ue_ambr_uplink` (string): Aggregate uplink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the gNB radio scheduler. Format: `<number> <unit>` (e.g. `"500 Mbps"`). Allowed units: Mbps, Gbps.
+- `ue_ambr_downlink` (string): Aggregate downlink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the gNB radio scheduler. Format: `<number> <unit>` (e.g. `"1 Gbps"`). Allowed units: Mbps, Gbps.
 
 ### Sample Response
 

@@ -11,6 +11,7 @@ import {
   TableBody,
   TableCell,
   TableRow,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import {
@@ -55,7 +56,10 @@ interface RuleRow extends PolicyRule {
 }
 
 const PolicyDetail: React.FC = () => {
-  const { name } = useParams<{ name: string }>();
+  const { profileName, policyName: name } = useParams<{
+    profileName: string;
+    policyName: string;
+  }>();
   const navigate = useNavigate();
   const { role, accessToken, authReady } = useAuth();
   const { showSnackbar } = useSnackbar();
@@ -99,7 +103,7 @@ const PolicyDetail: React.FC = () => {
       await deletePolicy(accessToken, name);
       setDeleteConfirmOpen(false);
       showSnackbar(`Policy "${name}" deleted successfully.`, "success");
-      navigate("/policies");
+      navigate(`/profiles/${profileName}`);
     } catch (err) {
       setDeleteConfirmOpen(false);
       showSnackbar(
@@ -303,8 +307,12 @@ const PolicyDetail: React.FC = () => {
         <Typography color="error">
           {error instanceof Error ? error.message : "Failed to load policy."}
         </Typography>
-        <Button variant="outlined" component={RouterLink} to="/policies">
-          Back to Policies
+        <Button
+          variant="outlined"
+          component={RouterLink}
+          to={`/profiles/${profileName}`}
+        >
+          Back to Profile
         </Button>
       </Box>
     );
@@ -347,13 +355,46 @@ const PolicyDetail: React.FC = () => {
             >
               <Typography
                 component={RouterLink}
-                to="/policies"
+                to="/profiles"
                 variant="h4"
                 sx={{
                   color: "text.secondary",
                   textDecoration: "none",
                   "&:hover": { textDecoration: "underline" },
                 }}
+              >
+                Profiles
+              </Typography>
+              <Typography
+                component="span"
+                variant="h4"
+                sx={{ color: "text.secondary", mx: 1 }}
+              >
+                /
+              </Typography>
+              <Typography
+                component={RouterLink}
+                to={`/profiles/${profileName}`}
+                variant="h4"
+                sx={{
+                  color: "text.secondary",
+                  textDecoration: "none",
+                  "&:hover": { textDecoration: "underline" },
+                }}
+              >
+                {profileName}
+              </Typography>
+              <Typography
+                component="span"
+                variant="h4"
+                sx={{ color: "text.secondary", mx: 1 }}
+              >
+                /
+              </Typography>
+              <Typography
+                component="span"
+                variant="h4"
+                sx={{ color: "text.secondary" }}
               >
                 Policies
               </Typography>
@@ -367,6 +408,10 @@ const PolicyDetail: React.FC = () => {
               <Typography component="span" variant="h4">
                 {policy.name}
               </Typography>
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              A policy defines the QoS parameters and network rules applied to a
+              subscriber's session on a specific data network.
             </Typography>
           </Box>
           {canEdit && (
@@ -418,7 +463,15 @@ const PolicyDetail: React.FC = () => {
             >
               <TableBody>
                 <TableRow>
-                  <TableCell sx={labelCellSx}>Data Network</TableCell>
+                  <TableCell sx={labelCellSx}>
+                    <Tooltip
+                      title="The data network this policy applies to"
+                      arrow
+                      placement="top"
+                    >
+                      <span>Data Network</span>
+                    </Tooltip>
+                  </TableCell>
                   <TableCell sx={valueCellSx}>
                     <RouterLink
                       to={`/networking/data-networks/${policy.data_network_name}`}
@@ -438,7 +491,15 @@ const PolicyDetail: React.FC = () => {
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell sx={labelCellSx}>Bitrate Uplink</TableCell>
+                  <TableCell sx={labelCellSx}>
+                    <Tooltip
+                      title="Maximum uplink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core."
+                      arrow
+                      placement="top"
+                    >
+                      <span>Session Bitrate Uplink</span>
+                    </Tooltip>
+                  </TableCell>
                   <TableCell sx={valueCellSx}>
                     <Box
                       sx={{
@@ -450,13 +511,21 @@ const PolicyDetail: React.FC = () => {
                     >
                       <NorthIcon sx={{ fontSize: 16, color: UPLINK_COLOR }} />
                       <Typography variant="body2">
-                        {policy.bitrate_uplink}
+                        {policy.session_ambr_uplink}
                       </Typography>
                     </Box>
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell sx={labelCellSx}>Bitrate Downlink</TableCell>
+                  <TableCell sx={labelCellSx}>
+                    <Tooltip
+                      title="Maximum downlink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core."
+                      arrow
+                      placement="top"
+                    >
+                      <span>Session Bitrate Downlink</span>
+                    </Tooltip>
+                  </TableCell>
                   <TableCell sx={valueCellSx}>
                     <Box
                       sx={{
@@ -468,17 +537,33 @@ const PolicyDetail: React.FC = () => {
                     >
                       <SouthIcon sx={{ fontSize: 16, color: DOWNLINK_COLOR }} />
                       <Typography variant="body2">
-                        {policy.bitrate_downlink}
+                        {policy.session_ambr_downlink}
                       </Typography>
                     </Box>
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell sx={labelCellSx}>5QI</TableCell>
+                  <TableCell sx={labelCellSx}>
+                    <Tooltip
+                      title="5G QoS Identifier. The radio uses this to set scheduling behavior (latency budget, error rate, priority). Only non-GBR classes are supported."
+                      arrow
+                      placement="top"
+                    >
+                      <span>5QI</span>
+                    </Tooltip>
+                  </TableCell>
                   <TableCell sx={valueCellSx}>{policy.var5qi}</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell sx={labelCellSx}>ARP</TableCell>
+                  <TableCell sx={labelCellSx}>
+                    <Tooltip
+                      title="Allocation and Retention Priority. Used by the radio at session setup for admission control and pre-emption decisions. 1 = highest, 15 = lowest. Has no effect on traffic once the session is established."
+                      arrow
+                      placement="top"
+                    >
+                      <span>ARP</span>
+                    </Tooltip>
+                  </TableCell>
                   <TableCell sx={valueCellSx}>{policy.arp}</TableCell>
                 </TableRow>
               </TableBody>

@@ -22,27 +22,40 @@ type PolicyRules struct {
 	Downlink []PolicyRule `json:"downlink,omitempty"`
 }
 
+// CreatePolicyOptions contains the parameters for creating a new policy.
 type CreatePolicyOptions struct {
-	Name                string       `json:"name"`
-	ProfileName         string       `json:"profile_name"`
-	SliceName           string       `json:"slice_name"`
-	DataNetworkName     string       `json:"data_network_name"`
-	SessionAmbrUplink   string       `json:"session_ambr_uplink"`
-	SessionAmbrDownlink string       `json:"session_ambr_downlink"`
-	Var5qi              int32        `json:"var5qi"`
-	Arp                 int32        `json:"arp"`
-	Rules               *PolicyRules `json:"rules,omitempty"`
+	Name            string `json:"name"`
+	ProfileName     string `json:"profile_name"`
+	SliceName       string `json:"slice_name"`
+	DataNetworkName string `json:"data_network_name"`
+	// SessionAmbrUplink is the maximum uplink bitrate for a single PDU session.
+	// Enforced by Ella Core. Example: "100 Mbps".
+	SessionAmbrUplink string `json:"session_ambr_uplink"`
+	// SessionAmbrDownlink is the maximum downlink bitrate for a single PDU session.
+	// Enforced by Ella Core. Example: "200 Mbps".
+	SessionAmbrDownlink string `json:"session_ambr_downlink"`
+	// Var5qi is the 5G QoS Identifier, signaled to the radio for scheduling.
+	// Non-GBR values only: 5, 6, 7, 8, 9, 69, 70, 79, 80.
+	Var5qi int32 `json:"var5qi"`
+	// Arp is the Allocation and Retention Priority (1–15). Used at session setup
+	// for admission control and pre-emption; 1 = highest priority.
+	Arp   int32        `json:"arp"`
+	Rules *PolicyRules `json:"rules,omitempty"`
 }
 
 type UpdatePolicyOptions struct {
-	ProfileName         string       `json:"profile_name,omitempty"`
-	SliceName           string       `json:"slice_name,omitempty"`
-	DataNetworkName     string       `json:"data_network_name,omitempty"`
-	SessionAmbrUplink   string       `json:"session_ambr_uplink,omitempty"`
-	SessionAmbrDownlink string       `json:"session_ambr_downlink,omitempty"`
-	Var5qi              int32        `json:"var5qi,omitempty"`
-	Arp                 int32        `json:"arp,omitempty"`
-	Rules               *PolicyRules `json:"rules,omitempty"`
+	ProfileName         string `json:"profile_name,omitempty"`
+	SliceName           string `json:"slice_name,omitempty"`
+	DataNetworkName     string `json:"data_network_name,omitempty"`
+	SessionAmbrUplink   string `json:"session_ambr_uplink,omitempty"`
+	SessionAmbrDownlink string `json:"session_ambr_downlink,omitempty"`
+	// Var5qi is the 5G QoS Identifier, signaled to the radio for scheduling.
+	// Non-GBR values only: 5, 6, 7, 8, 9, 69, 70, 79, 80.
+	Var5qi int32 `json:"var5qi,omitempty"`
+	// Arp is the Allocation and Retention Priority (1–15). Used at session setup
+	// for admission control and pre-emption; 1 = highest priority.
+	Arp   int32        `json:"arp,omitempty"`
+	Rules *PolicyRules `json:"rules,omitempty"`
 }
 
 type GetPolicyOptions struct {
@@ -53,16 +66,22 @@ type DeletePolicyOptions struct {
 	Name string `json:"name"`
 }
 
+// Policy represents a QoS policy for a specific (profile, slice, data network) combination.
+// Session AMBR caps the bitrate of a single PDU session and is enforced by Ella Core.
 type Policy struct {
-	Name                string       `json:"name"`
-	ProfileName         string       `json:"profile_name"`
-	SliceName           string       `json:"slice_name"`
-	DataNetworkName     string       `json:"data_network_name"`
-	SessionAmbrUplink   string       `json:"session_ambr_uplink"`
-	SessionAmbrDownlink string       `json:"session_ambr_downlink"`
-	Var5qi              int32        `json:"var5qi"`
-	Arp                 int32        `json:"arp"`
-	Rules               *PolicyRules `json:"rules,omitempty"`
+	Name                string `json:"name"`
+	ProfileName         string `json:"profile_name"`
+	SliceName           string `json:"slice_name"`
+	DataNetworkName     string `json:"data_network_name"`
+	SessionAmbrUplink   string `json:"session_ambr_uplink"`
+	SessionAmbrDownlink string `json:"session_ambr_downlink"`
+	// Var5qi is the 5G QoS Identifier, signaled to the radio for scheduling.
+	// Non-GBR values only: 5, 6, 7, 8, 9, 69, 70, 79, 80.
+	Var5qi int32 `json:"var5qi"`
+	// Arp is the Allocation and Retention Priority (1–15). Used at session setup
+	// for admission control and pre-emption; 1 = highest priority.
+	Arp   int32        `json:"arp"`
+	Rules *PolicyRules `json:"rules,omitempty"`
 }
 
 type ListPoliciesResponse struct {

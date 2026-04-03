@@ -1,26 +1,12 @@
 import React from "react";
-import {
-  Box,
-  Card,
-  CardContent,
-  Chip,
-  Divider,
-  Typography,
-  CircularProgress,
-} from "@mui/material";
+import { Box, Card, CardContent, Chip, Typography } from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Link as RouterLink } from "react-router-dom";
-import type {
-  SubscriberDetailStatus,
-  SessionInfo,
-} from "@/queries/subscribers";
+import type { SubscriberDetailStatus } from "@/queries/subscribers";
 import { formatRelativeTime } from "@/utils/formatters";
 
 interface SubscriberConnectionCardProps {
   status: SubscriberDetailStatus;
-  sessions?: SessionInfo[];
-  loading?: boolean;
-  ipAddress?: string | null;
 }
 
 const InfoRow: React.FC<{
@@ -137,66 +123,6 @@ const StateChip: React.FC<{ registered?: boolean }> = ({ registered }) => {
   );
 };
 
-const IpChip: React.FC<{ ip?: string }> = ({ ip }) => {
-  if (!ip) return <Typography variant="body2">—</Typography>;
-  return (
-    <Chip
-      size="small"
-      label={ip}
-      color="success"
-      variant="filled"
-      sx={{ fontSize: "0.75rem" }}
-    />
-  );
-};
-
-const StatusChip: React.FC<{ status?: string }> = ({ status }) => {
-  const isActive = status?.toLowerCase() === "active";
-  return (
-    <Chip
-      size="small"
-      label={status || "—"}
-      color={isActive ? "success" : "default"}
-      variant="filled"
-    />
-  );
-};
-
-const SessionRow: React.FC<{
-  label: string;
-  value?: React.ReactNode;
-}> = ({ label, value }) => {
-  const isEmpty = value === undefined || value === "" || value === null;
-  const display = isEmpty ? "—" : value;
-
-  return (
-    <Box
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        py: 0.75,
-        minHeight: 40,
-        "&:not(:last-child)": {
-          borderBottom: "1px solid",
-          borderColor: "divider",
-        },
-      }}
-    >
-      <Typography
-        variant="body2"
-        sx={{ color: "text.secondary", minWidth: 180, flexShrink: 0, mr: 2 }}
-      >
-        {label}
-      </Typography>
-      {typeof display === "string" || typeof display === "number" ? (
-        <Typography variant="body2">{display}</Typography>
-      ) : (
-        display
-      )}
-    </Box>
-  );
-};
-
 const SecurityAlgorithmsValue: React.FC<{
   ciphering?: string;
   integrity?: string;
@@ -227,9 +153,6 @@ const SecurityAlgorithmsValue: React.FC<{
 
 const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
   status,
-  sessions = [],
-  loading = false,
-  ipAddress,
 }) => {
   return (
     <Card
@@ -288,52 +211,6 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
             />
           }
         />
-
-        {(() => {
-          if (loading) {
-            return (
-              <InfoRow
-                label="PDU Session"
-                value={
-                  <Box sx={{ display: "flex", alignItems: "center" }}>
-                    <Chip label={<CircularProgress size={16} />} />
-                  </Box>
-                }
-              />
-            );
-          }
-
-          if (sessions.length === 0) {
-            return (
-              <InfoRow
-                label="PDU Session"
-                value={
-                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                    No active session
-                  </Typography>
-                }
-              />
-            );
-          }
-
-          const session = sessions[0];
-          const ip = session.ipAddress ?? ipAddress ?? "—";
-
-          return (
-            <InfoRow
-              label="PDU Session"
-              value={
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <StatusChip status={session.status} />
-                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                    /
-                  </Typography>
-                  <Typography variant="body2">{ip}</Typography>
-                </Box>
-              }
-            />
-          );
-        })()}
       </CardContent>
     </Card>
   );

@@ -4,6 +4,12 @@ description: RESTful API reference for managing policies.
 
 # Policies
 
+Policies define per-session QoS parameters for a specific (profile, slice, data network)
+combination. The Session AMBR caps the bitrate of a single PDU session and is
+enforced by Ella Core in the data plane. This is distinct from UE-AMBR (set on the
+profile), which caps aggregate throughput across all sessions and is enforced by
+the radio.
+
 ## List Policies
 
 This path returns the list of policies.
@@ -57,10 +63,10 @@ This path creates a new policy. Optionally, you can create network rules as part
 - `name` (string): The Name of the policy.
 - `profile_name` (string): The name of the profile associated with this policy. Must be the name of an existing profile.
 - `slice_name` (string): The name of the slice associated with this policy. Must be the name of an existing slice.
-- `session_ambr_uplink` (string): The uplink session AMBR of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
-- `session_ambr_downlink` (string): The downlink session AMBR of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
-- `var5qi` (integer): The QoS class identifier of the policy. Must be an integer between 1 and 255.
-- `arp` (integer): The Allocation and Retention Priority (ARP) of the policy. Must be an integer between 1 and 15.
+- `session_ambr_uplink` (string): Maximum uplink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core. Format: `<number> <unit>` (e.g. `"100 Mbps"`). Allowed units: Mbps, Gbps.
+- `session_ambr_downlink` (string): Maximum downlink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core. Format: `<number> <unit>` (e.g. `"200 Mbps"`). Allowed units: Mbps, Gbps.
+- `var5qi` (integer): 5G QoS Identifier. Signaled to the radio, which uses it for scheduling (latency budget, error rate, priority). Valid values: 5, 6, 7, 8, 9, 69, 70, 79, 80 (non-GBR only).
+- `arp` (integer): Allocation and Retention Priority (1–15). Used by the radio at session setup for admission control and pre-emption decisions. Has no effect on traffic once the session is established. 1 = highest priority.
 - `data_network_name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
 - `rules` (object, optional): Network rules to create with the policy, organized by direction. Rules are created in the order provided.
 
@@ -151,10 +157,10 @@ This path updates an existing policy. Network rules are always replaced on every
 
 - `profile_name` (string): The name of the profile associated with this policy. Must be the name of an existing profile.
 - `slice_name` (string): The name of the slice associated with this policy. Must be the name of an existing slice.
-- `session_ambr_uplink` (string): The uplink session AMBR of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
-- `session_ambr_downlink` (string): The downlink session AMBR of the policy. Must be in the format `<number> <unit>`. Allowed units are Mbps, Gbps.
-- `var5qi` (integer): The QoS class identifier of the policy. Must be an integer between 1 and 255.
-- `arp` (integer): The Allocation and Retention Priority (ARP) of the policy. Must be an integer between 1 and 15.
+- `session_ambr_uplink` (string): Maximum uplink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core. Format: `<number> <unit>` (e.g. `"100 Mbps"`). Allowed units: Mbps, Gbps.
+- `session_ambr_downlink` (string): Maximum downlink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core. Format: `<number> <unit>` (e.g. `"200 Mbps"`). Allowed units: Mbps, Gbps.
+- `var5qi` (integer): 5G QoS Identifier. Signaled to the radio, which uses it for scheduling (latency budget, error rate, priority). Valid values: 5, 6, 7, 8, 9, 69, 70, 79, 80 (non-GBR only).
+- `arp` (integer): Allocation and Retention Priority (1–15). Used by the radio at session setup for admission control and pre-emption decisions. Has no effect on traffic once the session is established. 1 = highest priority.
 - `data_network_name` (string): The name of the data network associated with the policy. Must be the name of an existing data network.
 - `rules` (object, optional): Network rules to set on the policy. Existing rules are always deleted first. If this field is omitted, all existing rules are deleted.
 

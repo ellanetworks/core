@@ -33,22 +33,6 @@ func activeLeaseIPMappings(ctx context.Context, dbInstance *db.Database) (map[st
 	return out, nil
 }
 
-// activeLeasesByIMSI returns a map of IMSI → IP address for all active leases.
-// Used to populate the deprecated IPAddress field on subscriber status responses.
-func activeLeasesByIMSI(ctx context.Context, dbInstance *db.Database) map[string]string {
-	leases, err := dbInstance.ListActiveLeases(ctx)
-	if err != nil {
-		return nil
-	}
-
-	out := make(map[string]string, len(leases))
-	for _, l := range leases {
-		out[l.IMSI] = l.Address().String()
-	}
-
-	return out
-}
-
 type CreateSubscriberParams struct {
 	Imsi           string `json:"imsi"`
 	Key            string `json:"key"`
@@ -62,11 +46,10 @@ type UpdateSubscriberParams struct {
 }
 
 // SubscriberStatus is the lightweight status returned by the list endpoint.
-// It preserves the same fields as the main branch for backward compatibility.
 type SubscriberStatus struct {
-	Registered bool   `json:"registered"`
-	IPAddress  string `json:"ipAddress"`
-	LastSeenAt string `json:"lastSeenAt,omitempty"`
+	Registered     bool   `json:"registered"`
+	NumPDUSessions int    `json:"num_pdu_sessions"`
+	LastSeenAt     string `json:"lastSeenAt,omitempty"`
 }
 
 // Subscriber is the summary representation returned by the list endpoint.
@@ -87,7 +70,6 @@ type ListSubscribersResponse struct {
 // SubscriberDetailStatus is the rich status returned by the get-single endpoint.
 type SubscriberDetailStatus struct {
 	Registered         bool   `json:"registered"`
-	IPAddress          string `json:"ipAddress"`
 	Imei               string `json:"imei"`
 	CipheringAlgorithm string `json:"cipheringAlgorithm"`
 	IntegrityAlgorithm string `json:"integrityAlgorithm"`
@@ -110,10 +92,16 @@ type SubscriberCredentials struct {
 	SequenceNumber string `json:"sequenceNumber"`
 }
 
-// SessionInfo is a minimal representation of a PDU session returned by the API.
+// SessionInfo is a representation of a PDU session returned by the API.
 type SessionInfo struct {
-	Status    string `json:"status"`
-	IPAddress string `json:"ipAddress,omitempty"`
+	PDUSessionID    uint8  `json:"pdu_session_id"`
+	Status          string `json:"status"`
+	IPAddress       string `json:"ipAddress,omitempty"`
+	DNN             string `json:"dnn,omitempty"`
+	SST             int32  `json:"sst,omitempty"`
+	SD              string `json:"sd,omitempty"`
+	SessionAmbrUp   string `json:"session_ambr_uplink,omitempty"`
+	SessionAmbrDown string `json:"session_ambr_downlink,omitempty"`
 }
 
 const (
@@ -240,9 +228,6 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler
 
 		items := make([]Subscriber, 0, len(dbSubscribers))
 
-		// Build IMSI→IP lookup from active leases for the deprecated status.ipAddress field.
-		imsiToIP := activeLeasesByIMSI(ctx, dbInstance)
-
 		// Pre-fetch all profiles into a lookup map keyed by ID.
 		allProfiles, _, err := dbInstance.ListProfilesPage(ctx, 1, 1000)
 		if err != nil {
@@ -275,8 +260,8 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler
 			}
 
 			subscriberStatus := SubscriberStatus{
-				Registered: amfInstance.IsSubscriberRegistered(supi),
-				IPAddress:  imsiToIP[dbSubscriber.Imsi],
+				Registered:     amfInstance.IsSubscriberRegistered(supi),
+				NumPDUSessions: amfInstance.CountUEPDUSessions(supi),
 			}
 
 			if lastSeen := amfInstance.LastSeenAtForSubscriber(supi); !lastSeen.IsZero() {
@@ -387,14 +372,6 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler {
 
 		if len(sessions) > MaxPDUSessions {
 			sessions = sessions[:MaxPDUSessions]
-		}
-
-		// Deprecated: populate status.ipAddress from the first session with an IP.
-		for _, s := range sessions {
-			if s.IPAddress != "" {
-				subscriberStatus.IPAddress = s.IPAddress
-				break
-			}
 		}
 
 		subscriber := SubscriberDetail{
@@ -671,8 +648,21 @@ func toSessionInfo(pdu amf.PDUSessionExport) SessionInfo {
 		status = "inactive"
 	}
 
-	return SessionInfo{
-		Status:    status,
-		IPAddress: pdu.PDUAddress,
+	s := SessionInfo{
+		PDUSessionID: pdu.PDUSessionID,
+		Status:       status,
+		IPAddress:    pdu.PDUAddress,
+		DNN:          pdu.DNN,
 	}
+	if pdu.Snssai != nil {
+		s.SST = pdu.Snssai.Sst
+		s.SD = pdu.Snssai.Sd
+	}
+
+	if pdu.PolicyData != nil && pdu.PolicyData.Ambr != nil {
+		s.SessionAmbrUp = pdu.PolicyData.Ambr.Uplink
+		s.SessionAmbrDown = pdu.PolicyData.Ambr.Downlink
+	}
+
+	return s
 }

@@ -18,7 +18,7 @@ The subscriber's Universal Subscriber Identity Module (USIM) stores the identity
 
 ## Subscriber Privacy (SUCI)
 
-Ella Core supports **SUCI** (Subscription Concealed Identifier) to protect subscriber identity over the air. The IMSI is encrypted by the UE before transmission using ECIES (Elliptic Curve Integrated Encryption Scheme). The network decrypts the SUCI to recover the SUPI. This prevents IMSI-catching attacks.
+Ella Core supports **SUCI** (Subscription Concealed Identifier) to protect subscriber identity over the air. The IMSI is encrypted by the subscriber's device before transmission using ECIES (Elliptic Curve Integrated Encryption Scheme). The network decrypts the SUCI to recover the SUPI. This prevents IMSI-catching attacks.
 
 Two protection profiles are supported:
 
@@ -31,7 +31,7 @@ Home network keys can be managed through the [Operator API](../reference/api/ope
 
 ## NAS Security
 
-After authentication, the network and the UE negotiate ciphering and integrity algorithms. Once established, these algorithms protect **all NAS signaling** for the lifetime of the connection.
+After authentication, the network and the subscriber's device negotiate ciphering and integrity algorithms. Once established, these algorithms protect **all NAS signaling** for the lifetime of the connection.
 
 Ella Core supports three ciphering algorithms (NEA0, NEA1/SNOW 3G, NEA2/AES) and three integrity algorithms (NIA0, NIA1/SNOW 3G, NIA2/AES). Administrators can configure which algorithms are enabled and their priority order through the [Operator API](../reference/api/operator.md) or the Operator page in the UI.
 

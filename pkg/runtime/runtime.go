@@ -192,10 +192,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	// Create SMF with dependency-injected adapters.
+	smfPCF := &pcfDBAdapter{db: dbInstance}
 	smfStore := &smfDBAdapter{db: dbInstance, allocator: ipam.NewSequentialAllocator(&leaseStoreAdapter{db: dbInstance})}
 	smfAMF := &smfAMFAdapter{}
 
-	smfInstance := smf.New(smfStore, nil, smfAMF, smf.WithNodeID(net.ParseIP(n3Address)), smf.WithBGP(bgpService))
+	smfInstance := smf.New(smfPCF, smfStore, nil, smfAMF, smf.WithNodeID(net.ParseIP(n3Address)), smf.WithBGP(bgpService))
 
 	// The SMF instance implements pfcp_dispatcher.SMF (HandlePfcpSessionReportRequest, SendFlowReport).
 	dispatcher := pfcp_dispatcher.NewPfcpDispatcher(smfInstance, upf_pfcp.UpfPfcpHandler{})

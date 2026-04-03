@@ -138,7 +138,7 @@ func (f *fakeDBInstance) ListAllNetworkSlices(context.Context) ([]db.NetworkSlic
 	return nil, nil
 }
 
-func (f *fakeDBInstance) GetPolicyByProfileID(context.Context, int) (*db.Policy, error) {
+func (f *fakeDBInstance) GetPolicyByProfileAndSlice(context.Context, int, int) (*db.Policy, error) {
 	return nil, nil
 }
 

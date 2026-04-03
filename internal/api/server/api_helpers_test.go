@@ -120,7 +120,7 @@ func setupServer(filepath string) (testEnv, error) {
 	logger.SetDb(testdb)
 
 	// Initialize SMF context with test stubs
-	smfInstance := smf.New(&fakeSessionStore{}, &fakeUPFClient{}, &fakeAMFCallback{})
+	smfInstance := smf.New(&fakePCF{}, &fakeSessionStore{}, &fakeUPFClient{}, &fakeAMFCallback{})
 
 	jwtSecret := server.NewJWTSecret([]byte("testsecret"))
 	fakeKernel := FakeKernel{}
@@ -146,7 +146,7 @@ func setupServer(filepath string) (testEnv, error) {
 		},
 	}
 
-	amfInstance := amf.New(testdb, nil, nil)
+	amfInstance := amf.New(testdb, nil, smfInstance)
 	ts := httptest.NewTLSServer(server.NewHandler(testdb, cfg, fakeUPF, fakeKernel, jwtSecret, false, dummyfs, smfInstance, amfInstance, nil, nil))
 
 	supportbundle.ConfigProvider = func(ctx context.Context) ([]byte, error) {
@@ -171,7 +171,7 @@ func setupServerWithUPF(filepath string, upf server.UPFUpdater) (testEnv, error)
 	logger.SetDb(testdb)
 
 	// Initialize SMF context with test stubs
-	smfInstance := smf.New(&fakeSessionStore{}, &fakeUPFClient{}, &fakeAMFCallback{})
+	smfInstance := smf.New(&fakePCF{}, &fakeSessionStore{}, &fakeUPFClient{}, &fakeAMFCallback{})
 
 	jwtSecret := server.NewJWTSecret([]byte("testsecret"))
 	fakeKernel := FakeKernel{}
@@ -285,6 +285,12 @@ func createUserAndLogin(url string, token string, email string, roleID RoleID, c
 
 // Stub adapters for SMF initialization in tests.
 
+type fakePCF struct{}
+
+func (f *fakePCF) GetSessionPolicy(_ context.Context, _ string, _ *models.Snssai, _ string) (*smf.Policy, error) {
+	return nil, fmt.Errorf("not implemented in test")
+}
+
 type fakeSessionStore struct{}
 
 func (f *fakeSessionStore) AllocateIP(_ context.Context, _ string, _ string, _ uint8) (netip.Addr, error) {
@@ -293,14 +299,6 @@ func (f *fakeSessionStore) AllocateIP(_ context.Context, _ string, _ string, _ u
 
 func (f *fakeSessionStore) ReleaseIP(_ context.Context, _ string, _ string, _ uint8) (netip.Addr, error) {
 	return netip.Addr{}, fmt.Errorf("not implemented in test")
-}
-
-func (f *fakeSessionStore) GetSessionPolicy(_ context.Context, _ string, _ *models.Snssai, _ string) (*smf.Policy, error) {
-	return nil, fmt.Errorf("not implemented in test")
-}
-
-func (f *fakeSessionStore) GetDataNetwork(_ context.Context, _ *models.Snssai, _ string) (*smf.DataNetworkInfo, error) {
-	return nil, fmt.Errorf("not implemented in test")
 }
 
 func (f *fakeSessionStore) IncrementDailyUsage(_ context.Context, _ string, _, _ uint64) error {

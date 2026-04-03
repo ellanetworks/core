@@ -95,7 +95,12 @@ const SubscriberPage: React.FC = () => {
           </Box>
         ),
       },
-      { field: "profile_name", headerName: "Policy", flex: 0.8, minWidth: 140 },
+      {
+        field: "profile_name",
+        headerName: "Profile",
+        flex: 0.8,
+        minWidth: 140,
+      },
       {
         field: "radio",
         headerName: "Radio",
@@ -168,19 +173,19 @@ const SubscriberPage: React.FC = () => {
         },
       },
       {
-        field: "ipAddress",
-        headerName: "IP Address",
-        width: 140,
-        minWidth: 120,
+        field: "pduSessions",
+        headerName: "PDU Sessions",
+        width: 130,
+        minWidth: 110,
         valueGetter: (_v, row: APISubscriberSummary) =>
-          row?.status?.ipAddress ?? "",
+          row?.status?.num_pdu_sessions ?? 0,
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
-          const ip = params.row?.status?.ipAddress ?? "";
+          const count = params.row?.status?.num_pdu_sessions ?? 0;
           return (
             <Chip
               size="small"
-              label={ip || "N/A"}
-              color={ip ? "success" : "default"}
+              label={count}
+              color={count > 0 ? "success" : "default"}
               variant="filled"
               sx={{ fontSize: "0.75rem" }}
             />
@@ -196,11 +201,7 @@ const SubscriberPage: React.FC = () => {
     {
       groupId: "statusGroup",
       headerName: "Status",
-      children: [
-        { field: "registration" },
-        { field: "session" },
-        { field: "ipAddress" },
-      ],
+      children: [{ field: "registration" }, { field: "pduSessions" }],
     },
   ];
 

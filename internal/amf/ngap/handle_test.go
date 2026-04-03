@@ -177,8 +177,8 @@ func (fdb *FakeDBInstance) ListAllNetworkSlices(ctx context.Context) ([]db.Netwo
 	return []db.NetworkSlice{{ID: 1, Name: "default", Sst: 1}}, nil
 }
 
-func (fdb *FakeDBInstance) GetPolicyByProfileID(ctx context.Context, profileID int) (*db.Policy, error) {
-	return &db.Policy{ID: 1, Name: "TestPolicy", ProfileID: profileID, SliceID: 1, DataNetworkID: 1}, nil
+func (fdb *FakeDBInstance) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID int) (*db.Policy, error) {
+	return &db.Policy{ID: 1, Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: 1}, nil
 }
 
 type NGSetupFailure struct {

@@ -26,9 +26,9 @@ type DeleteSubscriberOptions struct {
 
 // SubscriberStatus is the lightweight status returned by the list endpoint.
 type SubscriberStatus struct {
-	Registered bool   `json:"registered"`
-	IPAddress  string `json:"ipAddress"`
-	LastSeenAt string `json:"lastSeenAt,omitempty"`
+	Registered     bool   `json:"registered"`
+	NumPDUSessions int    `json:"num_pdu_sessions"`
+	LastSeenAt     string `json:"lastSeenAt,omitempty"`
 }
 
 // Subscriber is the summary representation returned by the list endpoint.
@@ -56,7 +56,6 @@ type ListSubscribersResponse struct {
 // SubscriberDetailStatus is the rich status returned by the get-single endpoint.
 type SubscriberDetailStatus struct {
 	Registered         bool   `json:"registered"`
-	IPAddress          string `json:"ipAddress"`
 	Imei               string `json:"imei"`
 	CipheringAlgorithm string `json:"cipheringAlgorithm"`
 	IntegrityAlgorithm string `json:"integrityAlgorithm"`
@@ -69,6 +68,19 @@ type SubscriberDetail struct {
 	Imsi        string                 `json:"imsi"`
 	ProfileName string                 `json:"profile_name"`
 	Status      SubscriberDetailStatus `json:"status"`
+	PDUSessions []SessionInfo          `json:"pdu_sessions"`
+}
+
+// SessionInfo is a representation of a PDU session.
+type SessionInfo struct {
+	PDUSessionID    uint8  `json:"pdu_session_id"`
+	Status          string `json:"status"`
+	IPAddress       string `json:"ipAddress,omitempty"`
+	DNN             string `json:"dnn,omitempty"`
+	SST             int32  `json:"sst,omitempty"`
+	SD              string `json:"sd,omitempty"`
+	SessionAmbrUp   string `json:"session_ambr_uplink,omitempty"`
+	SessionAmbrDown string `json:"session_ambr_downlink,omitempty"`
 }
 
 // SubscriberCredentials contains the authentication credentials for a subscriber.

@@ -45,8 +45,8 @@ func (fdb *failingSubscriberDB) ListAllNetworkSlices(ctx context.Context) ([]db.
 	return []db.NetworkSlice{{ID: 1, Sst: 1, Name: "default"}}, nil
 }
 
-func (fdb *failingSubscriberDB) GetPolicyByProfileID(ctx context.Context, profileID int) (*db.Policy, error) {
-	return &db.Policy{ID: 1, Name: "TestPolicy", ProfileID: profileID, SliceID: 1, DataNetworkID: 1}, nil
+func (fdb *failingSubscriberDB) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID int) (*db.Policy, error) {
+	return &db.Policy{ID: 1, Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: 1}, nil
 }
 
 // decryptAndDecodeNasPdu decrypts a ciphered NAS PDU using the UE's security context

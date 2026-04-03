@@ -71,6 +71,7 @@ type UESubscriptionExport struct {
 // PDUSessionExport contains the export of a single PDU session.
 type PDUSessionExport struct {
 	Ref                            string            `json:"ref"`
+	PDUSessionID                   uint8             `json:"pdu_session_id"`
 	Snssai                         *models.Snssai    `json:"snssai,omitempty"`
 	Inactive                       bool              `json:"inactive"`
 	DNN                            string            `json:"dnn,omitempty"`
@@ -247,6 +248,20 @@ func (amf *AMF) ExportUEs(_ context.Context) ([]AmfUeExport, error) {
 	return exports, nil
 }
 
+// CountUEPDUSessions returns the number of PDU sessions for a UE identified by SUPI.
+func (amf *AMF) CountUEPDUSessions(supi etsi.SUPI) int {
+	ue, ok := amf.FindAMFUEBySupi(supi)
+	if !ok {
+		return 0
+	}
+
+	ue.Mutex.Lock()
+	n := len(ue.SmContextList)
+	ue.Mutex.Unlock()
+
+	return n
+}
+
 // GetUEPDUSessions returns the PDU sessions for a single UE identified by SUPI.
 // Returns the PDU session exports and true if the UE exists, false otherwise.
 // Safe to call concurrently with normal AMF operation.
@@ -400,6 +415,7 @@ func (amf *AMF) buildPDUSessions(copies []smContextCopy) map[string]PDUSessionEx
 		smCtx := smfSessions.GetSession(sc.ref)
 		if smCtx != nil {
 			smCtx.Mutex.Lock()
+			pdu.PDUSessionID = smCtx.PDUSessionID
 			pdu.DNN = smCtx.Dnn
 			pdu.PDUSessionReleaseDueToDupPduID = smCtx.PDUSessionReleaseDueToDupPduID
 

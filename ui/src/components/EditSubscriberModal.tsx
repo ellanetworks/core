@@ -15,10 +15,10 @@ import {
 } from "@mui/material";
 import { updateSubscriber } from "@/queries/subscribers";
 import {
-  listPolicies,
-  type APIPolicy,
-  type ListPoliciesResponse,
-} from "@/queries/policies";
+  listProfiles,
+  type APIProfile,
+  type ListProfilesResponse,
+} from "@/queries/profiles";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -28,7 +28,7 @@ interface EditSubscriberModalProps {
   onSuccess: () => void;
   initialData: {
     imsi: string;
-    policyName: string;
+    profileName: string;
   };
 }
 
@@ -48,7 +48,7 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
   }, [authReady, accessToken, navigate]);
 
   const [formValues, setFormValues] = useState(initialData);
-  const [policies, setPolicies] = useState<string[]>([]);
+  const [profiles, setProfiles] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
@@ -56,21 +56,21 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
   useEffect(() => {
     if (!accessToken) return;
 
-    const fetchPoliciesPaginated = async () => {
+    const fetchProfilesPaginated = async () => {
       try {
-        const page: ListPoliciesResponse = await listPolicies(
+        const page: ListProfilesResponse = await listProfiles(
           accessToken,
           1,
           100,
         );
-        setPolicies((page.items ?? []).map((p: APIPolicy) => p.name));
+        setProfiles((page.items ?? []).map((p: APIProfile) => p.name));
       } catch (error) {
-        console.error("Failed to fetch policies:", error);
+        console.error("Failed to fetch profiles:", error);
       }
     };
 
     if (open) {
-      fetchPoliciesPaginated();
+      fetchProfilesPaginated();
       setFormValues(initialData);
       setErrors({});
     }
@@ -92,7 +92,7 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
       await updateSubscriber(
         accessToken,
         formValues.imsi,
-        formValues.policyName,
+        formValues.profileName,
       );
       onClose();
       onSuccess();
@@ -137,18 +137,18 @@ const EditSubscriberModal: React.FC<EditSubscriberModalProps> = ({
         />
 
         <FormControl fullWidth margin="normal">
-          <InputLabel id="policy-select-label">Policy Name</InputLabel>
+          <InputLabel id="profile-select-label">Profile</InputLabel>
           <Select
-            labelId="policy-select-label"
-            label="Policy Name"
-            value={formValues.policyName}
-            onChange={(e) => handleChange("policyName", e.target.value)}
-            error={!!errors.policyName}
+            labelId="profile-select-label"
+            label="Profile"
+            value={formValues.profileName}
+            onChange={(e) => handleChange("profileName", e.target.value)}
+            error={!!errors.profileName}
             autoFocus
           >
-            {policies.map((policy) => (
-              <MenuItem key={policy} value={policy}>
-                {policy}
+            {profiles.map((profile) => (
+              <MenuItem key={profile} value={profile}>
+                {profile}
               </MenuItem>
             ))}
           </Select>

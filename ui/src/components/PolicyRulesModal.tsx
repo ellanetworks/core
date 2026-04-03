@@ -402,16 +402,16 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
             }),
       };
 
-      await updatePolicy(
-        accessToken,
-        policy.name,
-        policy.bitrate_uplink,
-        policy.bitrate_downlink,
-        policy.var5qi,
-        policy.arp,
-        policy.data_network_name,
-        Object.keys(updatedRules).length > 0 ? updatedRules : undefined,
-      );
+      await updatePolicy(accessToken, policy.name, {
+        profile_name: policy.profile_name,
+        slice_name: policy.slice_name,
+        data_network_name: policy.data_network_name,
+        session_ambr_uplink: policy.session_ambr_uplink,
+        session_ambr_downlink: policy.session_ambr_downlink,
+        var5qi: policy.var5qi,
+        arp: policy.arp,
+        rules: Object.keys(updatedRules).length > 0 ? updatedRules : undefined,
+      });
 
       onClose();
       onSuccess();
@@ -674,7 +674,11 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
             onChange={(e) => handleFormChange("remotePrefix", e.target.value)}
             onBlur={() => handleFormBlur("remotePrefix")}
             error={!!errors.remotePrefix && touched.remotePrefix}
-            helperText={touched.remotePrefix ? errors.remotePrefix : "Optional"}
+            helperText={
+              touched.remotePrefix
+                ? errors.remotePrefix
+                : "Optional — IP network range (e.g., 10.0.0.0/8 for all 10.x.x.x addresses)"
+            }
             margin="normal"
           />
 
@@ -719,7 +723,11 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
               onChange={(e) => handleFormChange("portLow", e.target.value)}
               onBlur={() => handleFormBlur("portLow")}
               error={!!errors.portLow && touched.portLow}
-              helperText={touched.portLow ? errors.portLow : "Optional"}
+              helperText={
+                touched.portLow
+                  ? errors.portLow
+                  : "Optional — applies to TCP/UDP only"
+              }
               margin="normal"
               sx={{ flex: 1 }}
             />
@@ -731,7 +739,11 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
               onChange={(e) => handleFormChange("portHigh", e.target.value)}
               onBlur={() => handleFormBlur("portHigh")}
               error={!!errors.portHigh && touched.portHigh}
-              helperText={touched.portHigh ? errors.portHigh : "Optional"}
+              helperText={
+                touched.portHigh
+                  ? errors.portHigh
+                  : "Optional — applies to TCP/UDP only"
+              }
               margin="normal"
               sx={{ flex: 1 }}
             />

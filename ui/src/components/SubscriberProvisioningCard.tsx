@@ -7,12 +7,7 @@ import {
   IconButton,
   Typography,
 } from "@mui/material";
-import {
-  ContentCopy as CopyIcon,
-  Edit as EditIcon,
-  North as NorthIcon,
-  South as SouthIcon,
-} from "@mui/icons-material";
+import { ContentCopy as CopyIcon, Edit as EditIcon } from "@mui/icons-material";
 import { Link as RouterLink } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useSnackbar } from "@/contexts/SnackbarContext";
@@ -20,12 +15,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { APISubscriber } from "@/queries/subscribers";
 import theme from "@/utils/theme";
 import { getSubscriberCredentials } from "@/queries/subscribers";
-import { getPolicy } from "@/queries/policies";
-import { UPLINK_COLOR, DOWNLINK_COLOR } from "@/utils/formatters";
 
 interface SubscriberProvisioningCardProps {
   subscriber: APISubscriber;
-  onEditPolicy?: () => void;
+  onEditProfile?: () => void;
 }
 
 const DOTS = "••••••••••••••••••••••••••••••••";
@@ -114,7 +107,7 @@ const FieldRow: React.FC<{
 
 const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
   subscriber,
-  onEditPolicy,
+  onEditProfile,
 }) => {
   const { showSnackbar } = useSnackbar();
   const { role, accessToken, authReady } = useAuth();
@@ -137,12 +130,6 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
     }
     setCredentialsVisible((v) => !v);
   };
-
-  const { data: policy } = useQuery({
-    queryKey: ["policies", subscriber.profile_name],
-    queryFn: () => getPolicy(accessToken!, subscriber.profile_name),
-    enabled: authReady && !!accessToken && !!subscriber.profile_name,
-  });
 
   const handleCopy = async (value: string, label: string) => {
     if (!navigator.clipboard) {
@@ -216,70 +203,22 @@ const SubscriberProvisioningCard: React.FC<SubscriberProvisioningCardProps> = ({
           }
           obfuscated={!credentialsVisible}
         />
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            py: 0.75,
-            "&:not(:last-child)": {
-              borderBottom: "1px solid",
-              borderColor: "divider",
-            },
-          }}
-        >
-          <Typography
-            variant="body2"
-            sx={{
-              color: "text.secondary",
-              minWidth: 180,
-              flexShrink: 0,
-              mr: 2,
-            }}
-          >
-            Policy
-          </Typography>
-          <Typography
-            variant="body2"
-            component={RouterLink}
-            to={`/policies/${subscriber.profile_name}`}
-            sx={{
-              color: theme.palette.link,
-              textDecoration: "underline",
-              "&:hover": { textDecoration: "underline" },
-            }}
-          >
-            {subscriber.profile_name}
-          </Typography>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, ml: 2 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
-              <SouthIcon sx={{ fontSize: 14, color: DOWNLINK_COLOR }} />
-              <Typography variant="caption" color="text.secondary">
-                {policy?.bitrate_downlink || "—"}
-              </Typography>
-            </Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
-              <NorthIcon sx={{ fontSize: 14, color: UPLINK_COLOR }} />
-              <Typography variant="caption" color="text.secondary">
-                {policy?.bitrate_uplink || "—"}
-              </Typography>
-            </Box>
-          </Box>
-          <Box sx={{ flex: 1 }} />
-          {onEditPolicy && (
-            <IconButton
-              size="small"
-              onClick={onEditPolicy}
-              aria-label="Edit policy"
-              color="primary"
-            >
-              <EditIcon fontSize="small" />
-            </IconButton>
-          )}
-        </Box>
         <FieldRow
-          label="Data Network"
-          value={policy?.data_network_name || "—"}
-          linkTo="/networking?tab=data-networks"
+          label="Profile"
+          value={subscriber.profile_name || "—"}
+          linkTo={`/profiles/${subscriber.profile_name}`}
+          actionIcon={
+            onEditProfile ? (
+              <IconButton
+                size="small"
+                onClick={onEditProfile}
+                aria-label="Edit profile"
+                color="primary"
+              >
+                <EditIcon fontSize="small" />
+              </IconButton>
+            ) : undefined
+          }
         />
       </CardContent>
     </Card>

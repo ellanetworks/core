@@ -32,13 +32,9 @@ This path returns the list of network subscribers.
                 "imsi": "001010100007487",
                 "profile_name": "default",
                 "status": {
-                    "registered": true
-                },
-                "pdu_sessions": [
-                    {
-                        "ipAddress": "1.2.3.4"
-                    }
-                ]
+                    "registered": true,
+                    "num_pdu_sessions": 1
+                }
             }
         ],
         "page": 1,
@@ -108,8 +104,6 @@ This path returns the details of a specific network subscriber.
 
 None
 
-Note: `status.ipAddress` is deprecated and will be removed in future versions. Prefer `pdu_sessions[0].ipAddress`.
-
 ### Sample Response
 
 ```json
@@ -119,7 +113,6 @@ Note: `status.ipAddress` is deprecated and will be removed in future versions. P
     "profile_name": "default",
     "status": {
       "registered": true,
-      "ipAddress": "1.2.3.4",
       "imei": "359881234567890",
       "cipheringAlgorithm": "NEA1",
       "integrityAlgorithm": "NIA1",
@@ -128,8 +121,14 @@ Note: `status.ipAddress` is deprecated and will be removed in future versions. P
     },
     "pdu_sessions": [
       {
+        "pdu_session_id": 1,
         "status": "active",
-        "ipAddress": "1.2.3.4"
+        "ipAddress": "10.45.0.2",
+        "dnn": "internet",
+        "sst": 1,
+        "sd": "000001",
+        "session_ambr_uplink": "100 Mbps",
+        "session_ambr_downlink": "200 Mbps"
       }
     ]
   }
