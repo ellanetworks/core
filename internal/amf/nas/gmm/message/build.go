@@ -352,17 +352,20 @@ func BuildRegistrationAccept(
 		registrationAccept.SetPartialTrackingAreaIdentityList(taiListNas)
 	}
 
-	if ue.AllowedNssai != nil {
+	if len(ue.AllowedNssai) > 0 {
 		registrationAccept.AllowedNSSAI = nasType.NewAllowedNSSAI(nasMessage.RegistrationAcceptAllowedNSSAIType)
-
-		snssai, err := util.SnssaiToNas(*ue.AllowedNssai)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert SNSSAI to NAS: %s", err)
-		}
 
 		var buf []uint8
 
-		buf = append(buf, snssai...)
+		for _, s := range ue.AllowedNssai {
+			snssai, err := util.SnssaiToNas(s)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert SNSSAI to NAS: %s", err)
+			}
+
+			buf = append(buf, snssai...)
+		}
+
 		registrationAccept.AllowedNSSAI.SetLen(uint8(len(buf)))
 		registrationAccept.AllowedNSSAI.SetSNSSAIValue(buf)
 	}

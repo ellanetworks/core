@@ -16,15 +16,6 @@ const (
 	Deny
 )
 
-// StringToAction takes an action string and returns an Action value
-func StringToAction(a string) Action {
-	if a == "deny" {
-		return Deny
-	}
-
-	return Allow
-}
-
 // updateFiltersRule converts a FilterRule to an internal Action for BPF operations
 func updateFiltersRule(rule models.FilterRule) ebpf.SdfRule {
 	sdfRule := ebpf.SdfRule{

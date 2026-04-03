@@ -123,3 +123,72 @@ func TestSnapshotIntegrityAlgorithm(t *testing.T) {
 		})
 	}
 }
+
+func TestIsAllowedNssai(t *testing.T) {
+	tests := []struct {
+		name     string
+		allowed  []models.Snssai
+		target   *models.Snssai
+		expected bool
+	}{
+		{
+			"match single element",
+			[]models.Snssai{{Sst: 1, Sd: "010203"}},
+			&models.Snssai{Sst: 1, Sd: "010203"},
+			true,
+		},
+		{
+			"match second of two elements",
+			[]models.Snssai{{Sst: 1, Sd: "010203"}, {Sst: 2, Sd: "aabbcc"}},
+			&models.Snssai{Sst: 2, Sd: "aabbcc"},
+			true,
+		},
+		{
+			"no match different SST",
+			[]models.Snssai{{Sst: 1, Sd: "010203"}},
+			&models.Snssai{Sst: 2, Sd: "010203"},
+			false,
+		},
+		{
+			"no match different SD",
+			[]models.Snssai{{Sst: 1, Sd: "010203"}},
+			&models.Snssai{Sst: 1, Sd: "aabbcc"},
+			false,
+		},
+		{
+			"empty allowed list",
+			[]models.Snssai{},
+			&models.Snssai{Sst: 1, Sd: "010203"},
+			false,
+		},
+		{
+			"nil allowed list",
+			nil,
+			&models.Snssai{Sst: 1, Sd: "010203"},
+			false,
+		},
+		{
+			"match among three elements",
+			[]models.Snssai{{Sst: 1, Sd: "aaa"}, {Sst: 2, Sd: "bbb"}, {Sst: 3, Sd: "ccc"}},
+			&models.Snssai{Sst: 3, Sd: "ccc"},
+			true,
+		},
+		{
+			"match with empty SD",
+			[]models.Snssai{{Sst: 1, Sd: ""}},
+			&models.Snssai{Sst: 1, Sd: ""},
+			true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ue := &amf.AmfUe{AllowedNssai: tc.allowed}
+
+			got := ue.IsAllowedNssai(tc.target)
+			if got != tc.expected {
+				t.Fatalf("expected %v, got %v", tc.expected, got)
+			}
+		})
+	}
+}

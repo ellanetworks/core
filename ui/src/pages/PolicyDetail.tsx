@@ -493,6 +493,18 @@ const PolicyDetail: React.FC = () => {
                 <TableRow>
                   <TableCell sx={labelCellSx}>
                     <Tooltip
+                      title="The network slice this policy belongs to"
+                      arrow
+                      placement="top"
+                    >
+                      <span>Slice</span>
+                    </Tooltip>
+                  </TableCell>
+                  <TableCell sx={valueCellSx}>{policy.slice_name}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={labelCellSx}>
+                    <Tooltip
                       title="Maximum uplink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core."
                       arrow
                       placement="top"

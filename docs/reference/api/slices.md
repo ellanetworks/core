@@ -4,7 +4,7 @@ description: RESTful API reference for managing network slices.
 
 # Slices
 
-Slices represent S-NSSAI (Single Network Slice Selection Assistance Information) configurations. Each slice defines a Slice Service Type (SST) and an optional Service Differentiator (SD).
+Slices represent S-NSSAI (Single Network Slice Selection Assistance Information) configurations. Each slice defines a Slice Service Type (SST) and an optional Slice Differentiator (SD). Ella Core uses slice information alongside the data network name to determine which policies apply to a subscriber's session.
 
 ## List Slices
 

@@ -71,18 +71,17 @@ func (amf *AMF) GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 		return nil, fmt.Errorf("failed to list network slices: %w", err)
 	}
 
-	var snssai *models.Snssai
-
-	if len(slices) > 0 {
+	snssaiList := make([]models.Snssai, 0, len(slices))
+	for _, s := range slices {
 		sd := ""
-		if slices[0].Sd != nil {
-			sd = *slices[0].Sd
+		if s.Sd != nil {
+			sd = *s.Sd
 		}
 
-		snssai = &models.Snssai{
-			Sst: slices[0].Sst,
+		snssaiList = append(snssaiList, models.Snssai{
+			Sst: s.Sst,
 			Sd:  sd,
-		}
+		})
 	}
 
 	operatorInfo := &OperatorInfo{
@@ -99,7 +98,7 @@ func (amf *AMF) GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 				Mcc: operator.Mcc,
 				Mnc: operator.Mnc,
 			},
-			SNssai: snssai,
+			SNssaiList: snssaiList,
 		},
 	}
 
@@ -126,6 +125,66 @@ func getSupportedTAIs(operator *db.Operator) ([]models.Tai, error) {
 	}
 
 	return tais, nil
+}
+
+func (amf *AMF) GetSubscriberAllowedNssai(ctx context.Context, supi etsi.SUPI) ([]models.Snssai, error) {
+	ctx, span := tracer.Start(ctx, "amf/get_subscriber_allowed_nssai",
+		trace.WithAttributes(
+			attribute.String("supi", supi.String()),
+		),
+	)
+	defer span.End()
+
+	imsi := supi.IMSI()
+
+	subscriber, err := amf.DBInstance.GetSubscriber(ctx, imsi)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get subscriber %s: %w", imsi, err)
+	}
+
+	policies, err := amf.DBInstance.ListPoliciesByProfile(ctx, subscriber.ProfileID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't list policies for profile %d: %w", subscriber.ProfileID, err)
+	}
+
+	allSlices, err := amf.DBInstance.ListAllNetworkSlices(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't list network slices: %w", err)
+	}
+
+	sliceByID := make(map[int]*db.NetworkSlice, len(allSlices))
+	for i := range allSlices {
+		sliceByID[allSlices[i].ID] = &allSlices[i]
+	}
+
+	seen := make(map[int]struct{})
+
+	var result []models.Snssai
+
+	for _, p := range policies {
+		if _, ok := seen[p.SliceID]; ok {
+			continue
+		}
+
+		seen[p.SliceID] = struct{}{}
+
+		slice, ok := sliceByID[p.SliceID]
+		if !ok {
+			return nil, fmt.Errorf("couldn't find slice %d", p.SliceID)
+		}
+
+		sd := ""
+		if slice.Sd != nil {
+			sd = *slice.Sd
+		}
+
+		result = append(result, models.Snssai{
+			Sst: slice.Sst,
+			Sd:  sd,
+		})
+	}
+
+	return result, nil
 }
 
 func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai) (string, error) {

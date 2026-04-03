@@ -49,6 +49,10 @@ func (fdb *failingSubscriberDB) GetPolicyByProfileAndSlice(ctx context.Context, 
 	return &db.Policy{ID: 1, Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: 1}, nil
 }
 
+func (fdb *failingSubscriberDB) ListPoliciesByProfile(_ context.Context, _ int) ([]db.Policy, error) {
+	return []db.Policy{{ID: 1, Name: "TestPolicy", ProfileID: 1, SliceID: 1, DataNetworkID: 1}}, nil
+}
+
 // decryptAndDecodeNasPdu decrypts a ciphered NAS PDU using the UE's security context
 // and decodes it, returning the NAS message. It verifies the security header is
 // IntegrityProtectedAndCiphered. The dlCountOffset parameter specifies the offset
@@ -353,7 +357,8 @@ func TestMobilityReg_GetSubscriberBitrateError(t *testing.T) {
 		t.Fatal("expected error for GetSubscriberBitrate failure, got nil")
 	}
 
-	if got := err.Error(); len(got) < 30 || got[:30] != "failed to get subscriber data:" {
+	const wantPrefix = "error getting subscriber allowed NSSAI:"
+	if got := err.Error(); len(got) < len(wantPrefix) || got[:len(wantPrefix)] != wantPrefix {
 		t.Fatalf("unexpected error prefix: %v", err)
 	}
 }
@@ -823,5 +828,124 @@ func TestMobilityReg_NoUeContextRequest_EmptySuList_DownlinkNasTransport(t *test
 
 	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
 		t.Fatalf("expected RegistrationAccept, got %v", nm.GmmHeader.GetMessageType())
+	}
+}
+
+// multiSliceDB returns multiple policies spanning two different slices,
+// causing GetSubscriberAllowedNssai to return a multi-element result.
+type multiSliceDB struct {
+	Operator *db.Operator
+}
+
+func (m *multiSliceDB) GetOperator(ctx context.Context) (*db.Operator, error) {
+	return m.Operator, nil
+}
+
+func (m *multiSliceDB) GetDataNetworkByID(_ context.Context, id int) (*db.DataNetwork, error) {
+	return &db.DataNetwork{ID: id, Name: "TestDataNetwork"}, nil
+}
+
+func (m *multiSliceDB) GetSubscriber(_ context.Context, imsi string) (*db.Subscriber, error) {
+	return &db.Subscriber{Imsi: imsi, ProfileID: 1}, nil
+}
+
+func (m *multiSliceDB) GetProfileByID(_ context.Context, id int) (*db.Profile, error) {
+	return &db.Profile{ID: id, Name: "TestProfile"}, nil
+}
+
+func (m *multiSliceDB) ListAllNetworkSlices(_ context.Context) ([]db.NetworkSlice, error) {
+	sd1, sd2 := "010203", "aabbcc"
+
+	return []db.NetworkSlice{
+		{ID: 1, Name: "slice-a", Sst: 1, Sd: &sd1},
+		{ID: 2, Name: "slice-b", Sst: 2, Sd: &sd2},
+	}, nil
+}
+
+func (m *multiSliceDB) GetPolicyByProfileAndSlice(_ context.Context, profileID, sliceID int) (*db.Policy, error) {
+	return &db.Policy{ID: sliceID, Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: 1}, nil
+}
+
+func (m *multiSliceDB) ListPoliciesByProfile(_ context.Context, _ int) ([]db.Policy, error) {
+	return []db.Policy{
+		{ID: 1, Name: "Policy-A", ProfileID: 1, SliceID: 1, DataNetworkID: 1},
+		{ID: 2, Name: "Policy-B", ProfileID: 1, SliceID: 2, DataNetworkID: 2},
+	}, nil
+}
+
+func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
+	supi := mustSUPIFromPrefixed("imsi-001019756139935")
+	fakeSmf := &FakeSmf{}
+	dbInstance := &multiSliceDB{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}
+	amfInstance := amf.New(dbInstance, nil, fakeSmf)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	ue.Supi = supi
+	ue.Pei = "imei-490154203237518"
+	ue.Tai = ue.RanUe().Tai
+	ue.SecurityContextAvailable = true
+	ue.NgKsi.Ksi = 1
+	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
+	algo := security.AlgCiphering128NEA2
+	ue.KnasEnc = key
+	ue.KnasInt = key
+	ue.CipheringAlg = algo
+	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+
+	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount.Get())
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	ue.RegistrationRequest = registrationRequest.RegistrationRequest
+	ue.RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
+	ue.RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
+
+	err = HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify AllowedNssai was populated with both slices
+	if len(ue.AllowedNssai) != 2 {
+		t.Fatalf("expected 2 allowed NSSAIs, got %d", len(ue.AllowedNssai))
+	}
+
+	if ue.AllowedNssai[0].Sst != 1 || ue.AllowedNssai[0].Sd != "010203" {
+		t.Fatalf("expected first slice SST=1 SD=010203, got SST=%d SD=%s", ue.AllowedNssai[0].Sst, ue.AllowedNssai[0].Sd)
+	}
+
+	if ue.AllowedNssai[1].Sst != 2 || ue.AllowedNssai[1].Sd != "aabbcc" {
+		t.Fatalf("expected second slice SST=2 SD=aabbcc, got SST=%d SD=%s", ue.AllowedNssai[1].Sst, ue.AllowedNssai[1].Sd)
+	}
+
+	// Verify the RegistrationAccept was sent and contains multi-NSSAI
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
+	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
+		t.Fatalf("expected RegistrationAccept, got %v", nm.GmmHeader.GetMessageType())
+	}
+
+	regAccept := nm.RegistrationAccept
+	if regAccept.AllowedNSSAI == nil {
+		t.Fatal("expected AllowedNSSAI in RegistrationAccept, got nil")
+	}
+
+	// 2 S-NSSAIs with SD: each is 5 bytes (1 len + 1 SST + 3 SD) = 10 bytes total
+	if regAccept.AllowedNSSAI.GetLen() != 10 {
+		t.Fatalf("expected AllowedNSSAI length 10, got %d", regAccept.AllowedNSSAI.GetLen())
 	}
 }

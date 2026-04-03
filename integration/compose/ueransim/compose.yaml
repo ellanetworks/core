@@ -41,7 +41,6 @@ configs:
 
       slices:
         - sst: 0x1
-          sd: 0x102030
 
       ignoreStreamIds: false
   ue_config:
@@ -81,11 +80,9 @@ configs:
           apn: 'internet'
           slice:
             sst: 0x01
-            sd: 0x102030
 
       configured-nssai:
         - sst: 0x01
-          sd: 0x102030
 
       default-nssai:
         - sst: 1

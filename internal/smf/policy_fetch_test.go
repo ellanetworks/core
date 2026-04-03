@@ -129,7 +129,7 @@ func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
 
 	adapter := runtime.NewPCFDBAdapter(database)
 
-	snssai := &models.Snssai{Sst: db.InitialSliceSst, Sd: db.InitialSliceSd}
+	snssai := &models.Snssai{Sst: db.InitialSliceSst, Sd: ""}
 
 	retrievedPolicy, err := adapter.GetSessionPolicy(ctx, "310410000000001", snssai, "test-dnn")
 	if err != nil {
@@ -298,7 +298,7 @@ func TestGetSessionPolicy_NoNetworkRules(t *testing.T) {
 
 	adapter := runtime.NewPCFDBAdapter(database)
 
-	snssai := &models.Snssai{Sst: db.InitialSliceSst, Sd: db.InitialSliceSd}
+	snssai := &models.Snssai{Sst: db.InitialSliceSst, Sd: ""}
 
 	retrievedPolicy, err := adapter.GetSessionPolicy(ctx, "310410000000002", snssai, "test-dnn-2")
 	if err != nil {

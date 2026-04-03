@@ -217,11 +217,13 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 			if ulNasTransport.SNSSAI != nil {
 				snssai = util.SnssaiToModels(ulNasTransport.SNSSAI)
 			} else {
-				if ue.AllowedNssai == nil {
-					return fmt.Errorf("allowed nssai is nil in UE context")
+				if len(ue.AllowedNssai) == 0 {
+					return fmt.Errorf("allowed nssai is empty in UE context")
 				}
 
-				snssai = ue.AllowedNssai
+				// Default to the first allowed slice when the UE omits S-NSSAI.
+				// The ordering follows the policy iteration order for the subscriber's profile.
+				snssai = &ue.AllowedNssai[0]
 			}
 
 			if ulNasTransport.DNN != nil && ulNasTransport.DNN.GetLen() > 0 {

@@ -216,7 +216,7 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 			{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
 			{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000002"},
 		}
-		ue.AllowedNssai = &models.Snssai{Sst: 1, Sd: "000001"}
+		ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "000001"}}
 		ue.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "2000000"}
 		ue.SmContextList[5] = &amf.SmContext{
 			Ref:    "imsi-001010000000002-5",
@@ -328,13 +328,27 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 
 	subscription := jsonMap(t, ueExport, "subscription")
 
-	allowedNssai := jsonMap(t, subscription, "allowed_nssai")
+	allowedNssaiRaw, ok := subscription["allowed_nssai"]
+	if !ok {
+		t.Fatal("expected subscription.allowed_nssai to be present")
+	}
+
+	allowedNssaiArr, ok := allowedNssaiRaw.([]interface{})
+	if !ok || len(allowedNssaiArr) != 1 {
+		t.Fatalf("expected subscription.allowed_nssai to be array of length 1, got %T len %v", allowedNssaiRaw, allowedNssaiRaw)
+	}
+
+	allowedNssai, ok := allowedNssaiArr[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected subscription.allowed_nssai[0] to be a JSON object, got %T", allowedNssaiArr[0])
+	}
+
 	if sst, ok := allowedNssai["Sst"].(float64); !ok || sst != 1 {
-		t.Fatalf("expected subscription.allowed_nssai.Sst to be 1, got %v", allowedNssai["Sst"])
+		t.Fatalf("expected subscription.allowed_nssai[0].Sst to be 1, got %v", allowedNssai["Sst"])
 	}
 
 	if sd, ok := allowedNssai["Sd"].(string); !ok || sd != "000001" {
-		t.Fatalf("expected subscription.allowed_nssai.Sd to be '000001', got %v", allowedNssai["Sd"])
+		t.Fatalf("expected subscription.allowed_nssai[0].Sd to be '000001', got %v", allowedNssai["Sd"])
 	}
 
 	ambr := jsonMap(t, subscription, "ambr")
@@ -580,5 +594,64 @@ func TestExportJSON_PDUSessionNilSMFContext(t *testing.T) {
 
 	if _, ok := pduSession["release_due_to_dup_id"]; ok {
 		t.Fatal("expected release_due_to_dup_id to be absent")
+	}
+}
+
+func TestExportJSON_MultipleAllowedNSSAI(t *testing.T) {
+	amfInstance := amf.New(nil, nil, nil)
+
+	addTestUE(t, amfInstance, "001010000000099", func(ue *amf.AmfUe) {
+		ue.ForceState(amf.Registered)
+		ue.AllowedNssai = []models.Snssai{
+			{Sst: 1, Sd: "010203"},
+			{Sst: 2, Sd: "aabbcc"},
+			{Sst: 3, Sd: ""},
+		}
+	})
+
+	result := exportAndMarshal(t, amfInstance)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 UE, got %d", len(result))
+	}
+
+	subscription := jsonMap(t, result[0], "subscription")
+
+	raw, ok := subscription["allowed_nssai"]
+	if !ok {
+		t.Fatal("expected subscription.allowed_nssai to be present")
+	}
+
+	arr, ok := raw.([]interface{})
+	if !ok {
+		t.Fatalf("expected allowed_nssai to be array, got %T", raw)
+	}
+
+	if len(arr) != 3 {
+		t.Fatalf("expected 3 allowed NSSAIs, got %d", len(arr))
+	}
+
+	// Verify each NSSAI entry
+	for i, expected := range []struct {
+		sst int32
+		sd  string
+	}{
+		{1, "010203"},
+		{2, "aabbcc"},
+		{3, ""},
+	} {
+		entry, ok := arr[i].(map[string]interface{})
+		if !ok {
+			t.Fatalf("expected allowed_nssai[%d] to be a JSON object, got %T", i, arr[i])
+		}
+
+		sst, ok := entry["Sst"].(float64)
+		if !ok || int32(sst) != expected.sst {
+			t.Fatalf("expected allowed_nssai[%d].Sst to be %d, got %v", i, expected.sst, entry["Sst"])
+		}
+
+		sd, _ := entry["Sd"].(string)
+		if sd != expected.sd {
+			t.Fatalf("expected allowed_nssai[%d].Sd to be %q, got %q", i, expected.sd, sd)
+		}
 	}
 }

@@ -60,6 +60,10 @@ func (fdb *FakeDBInstance) GetPolicyByProfileAndSlice(ctx context.Context, profi
 	return &db.Policy{ID: 1, Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: 1}, nil
 }
 
+func (fdb *FakeDBInstance) ListPoliciesByProfile(_ context.Context, _ int) ([]db.Policy, error) {
+	return []db.Policy{{ID: 1, Name: "TestPolicy", ProfileID: 1, SliceID: 1, DataNetworkID: 1}}, nil
+}
+
 type NGDLNasTransport struct {
 	AmfUeNGAPID int64
 	RanUeNGAPID int64
@@ -227,7 +231,7 @@ func (fng *FakeNGAPSender) SendHandoverCommand(ctx context.Context, amfUeNgapID 
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendInitialContextSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, allowedNssai *models.Snssai, kgnb []byte, plmnID models.PlmnID, ueRadioCapability string, ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging, ueSecurityCapability *nasType.UESecurityCapability, nasPdu []byte, pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq, supportedGUAMI *models.Guami) error {
+func (fng *FakeNGAPSender) SendInitialContextSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, allowedNssai []models.Snssai, kgnb []byte, plmnID models.PlmnID, ueRadioCapability string, ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging, ueSecurityCapability *nasType.UESecurityCapability, nasPdu []byte, pduSessionResourceSetupRequestList *ngapType.PDUSessionResourceSetupListCxtReq, supportedGUAMI *models.Guami) error {
 	fng.SentInitialContextSetupRequest = append(
 		fng.SentInitialContextSetupRequest,
 		&NGInitialContextSetupRequest{

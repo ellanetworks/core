@@ -7,15 +7,8 @@ export interface HomeNetworkKey {
   publicKey: string;
 }
 
-export interface SliceData {
-  name: string;
-  sst: number;
-  sd?: string | null;
-}
-
 export interface OperatorData {
   id: { mcc: string; mnc: string };
-  slice: SliceData;
   tracking: { supportedTacs: string[] };
   homeNetworkKeys: HomeNetworkKey[];
   nasSecurity: {
@@ -25,28 +18,8 @@ export interface OperatorData {
   spn: { fullName: string; shortName: string };
 }
 
-type RawOperatorData = Omit<OperatorData, "slice">;
-
-type ListSlicesResponse = {
-  items: SliceData[];
-  page: number;
-  per_page: number;
-  total_count: number;
-};
-
 export const getOperator = async (authToken: string): Promise<OperatorData> => {
-  const [rawOp, slicesRes] = await Promise.all([
-    apiFetch<RawOperatorData>(`/api/v1/operator`, { authToken }),
-    apiFetch<ListSlicesResponse>(`/api/v1/slices?page=1&per_page=1`, {
-      authToken,
-    }),
-  ]);
-
-  const firstSlice = slicesRes.items?.[0];
-  return {
-    ...rawOp,
-    slice: firstSlice ?? { name: "default", sst: 1 },
-  };
+  return apiFetch<OperatorData>(`/api/v1/operator`, { authToken });
 };
 
 export const updateOperatorID = async (
@@ -69,32 +42,6 @@ export const updateOperatorTracking = async (
     method: "PUT",
     authToken,
     body: { supportedTacs },
-  });
-};
-
-export const updateOperatorSlice = async (
-  authToken: string,
-  sst: number,
-  sd?: string | null,
-): Promise<void> => {
-  if (typeof sst !== "number") {
-    throw new Error("SST must be a number.");
-  }
-
-  // Fetch the (single) existing slice to get its name.
-  const slicesRes = await apiFetch<{
-    items: { name: string }[];
-  }>(`/api/v1/slices?page=1&per_page=1`, { authToken });
-
-  const sliceName = slicesRes.items?.[0]?.name;
-  if (!sliceName) {
-    throw new Error("No network slice configured");
-  }
-
-  await apiFetchVoid(`/api/v1/slices/${sliceName}`, {
-    method: "PUT",
-    authToken,
-    body: { sst, ...(sd ? { sd } : {}) },
   });
 };
 

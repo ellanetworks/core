@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"testing"
@@ -62,8 +63,8 @@ func TestSlicesEndToEnd(t *testing.T) {
 			t.Fatalf("Expected SST 1, got %d", response.Result.Sst)
 		}
 
-		if response.Result.Sd != "102030" {
-			t.Fatalf("Expected SD '102030', got %q", response.Result.Sd)
+		if response.Result.Sd != "" {
+			t.Fatalf("Expected SD '', got %q", response.Result.Sd)
 		}
 	})
 
@@ -117,7 +118,7 @@ func TestSlicesEndToEnd(t *testing.T) {
 	})
 }
 
-func TestSliceRelease1Limit(t *testing.T) {
+func TestSliceMultipleSlicesAllowed(t *testing.T) {
 	tempDir := t.TempDir()
 
 	env, err := setupServer(filepath.Join(tempDir, "db.sqlite3"))
@@ -134,7 +135,7 @@ func TestSliceRelease1Limit(t *testing.T) {
 		t.Fatalf("Couldn't complete initializeAndRefresh: %s", err)
 	}
 
-	// Default slice already exists, so creating a second one should fail
+	// Default slice already exists; creating a second one should succeed
 	slice := &CreateSliceParams{
 		Name: "second-slice",
 		Sst:  1,
@@ -146,8 +147,8 @@ func TestSliceRelease1Limit(t *testing.T) {
 		t.Fatalf("Couldn't complete createSlice: %s", err)
 	}
 
-	if statusCode != http.StatusConflict {
-		t.Fatalf("Expected status %d for Release 1 limit, got %d", http.StatusConflict, statusCode)
+	if statusCode != http.StatusCreated {
+		t.Fatalf("Expected status %d for multi-slice creation, got %d", http.StatusCreated, statusCode)
 	}
 }
 
@@ -304,5 +305,61 @@ func TestSliceDeleteNotFound(t *testing.T) {
 
 	if statusCode != http.StatusNotFound {
 		t.Fatalf("Expected status %d, got %d", http.StatusNotFound, statusCode)
+	}
+}
+
+func TestSliceMaxLimitEnforced(t *testing.T) {
+	tempDir := t.TempDir()
+
+	env, err := setupServer(filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete setupServer: %s", err)
+	}
+
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("Couldn't complete initializeAndRefresh: %s", err)
+	}
+
+	// DB initialization creates 1 default slice, so create 7 more to hit the limit of 8
+	for i := 1; i <= 7; i++ {
+		slice := &CreateSliceParams{
+			Name: fmt.Sprintf("slice-%d", i),
+			Sst:  i,
+			Sd:   fmt.Sprintf("%06x", i),
+		}
+
+		statusCode, _, err := createSlice(env.Server.URL, client, token, slice)
+		if err != nil {
+			t.Fatalf("Couldn't create slice %d: %s", i, err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("Expected status %d for slice %d, got %d", http.StatusCreated, i, statusCode)
+		}
+	}
+
+	// The 9th slice (8 + 1 default) should be rejected
+	excessSlice := &CreateSliceParams{
+		Name: "excess-slice",
+		Sst:  9,
+		Sd:   "aaaaaa",
+	}
+
+	statusCode, response, err := createSlice(env.Server.URL, client, token, excessSlice)
+	if err != nil {
+		t.Fatalf("Couldn't attempt excess slice creation: %s", err)
+	}
+
+	if statusCode != http.StatusBadRequest {
+		t.Fatalf("Expected status %d, got %d", http.StatusBadRequest, statusCode)
+	}
+
+	if response.Error != "Maximum number of slices reached (8)" {
+		t.Fatalf("expected error %q, got %q", "Maximum number of slices reached (8)", response.Error)
 	}
 }

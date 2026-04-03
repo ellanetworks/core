@@ -82,11 +82,6 @@ func (s *RealNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType N
 	return nil
 }
 
-type PlmnSupportItem struct {
-	PlmnID models.PlmnID
-	SNssai *models.Snssai
-}
-
 func (s *RealNGAPSender) SendNGSetupResponse(ctx context.Context, guami *models.Guami, plmnSupported *models.PlmnSupportItem, amfName string, amfRelativeCapacity int64) error {
 	pkt, err := buildNGSetupResponse(guami, plmnSupported, amfName, amfRelativeCapacity)
 	if err != nil {
@@ -390,7 +385,7 @@ func (s *RealNGAPSender) SendInitialContextSetupRequest(
 	ranUeNgapID int64,
 	ambrUplink string,
 	ambrDownlink string,
-	allowedNssai *models.Snssai,
+	allowedNssai []models.Snssai,
 	kgnb []byte,
 	plmnID models.PlmnID,
 	ueRadioCapability string,

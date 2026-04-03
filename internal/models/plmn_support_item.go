@@ -1,6 +1,6 @@
 package models
 
 type PlmnSupportItem struct {
-	PlmnID PlmnID
-	SNssai *Snssai
+	PlmnID     PlmnID
+	SNssaiList []Snssai
 }

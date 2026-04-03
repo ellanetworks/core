@@ -89,7 +89,7 @@ const (
 	MaxNumPolicies = 12
 )
 
-func isPolicyNameValid(name string) bool {
+func isResourceNameValid(name string) bool {
 	return len(name) > 0 && len(name) < 256
 }
 
@@ -494,29 +494,6 @@ func DeletePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		policy, err := dbInstance.GetPolicy(r.Context(), name)
-		if err != nil {
-			if errors.Is(err, db.ErrNotFound) {
-				writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
-				return
-			}
-
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy", err, logger.APILog)
-
-			return
-		}
-
-		subscriberCount, err := dbInstance.CountSubscribersInProfile(r.Context(), policy.ProfileID)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check subscribers", err, logger.APILog)
-			return
-		}
-
-		if subscriberCount > 0 {
-			writeError(r.Context(), w, http.StatusConflict, "Policy has subscribers", nil, logger.APILog)
-			return
-		}
-
 		if err := dbInstance.DeletePolicy(r.Context(), name); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Policy not found", nil, logger.APILog)
@@ -795,7 +772,7 @@ func validatePolicyParams(p CreatePolicyParams) error {
 		return errors.New("Var5qi is missing")
 	case p.Arp == 0:
 		return errors.New("arp is missing")
-	case !isPolicyNameValid(p.Name):
+	case !isResourceNameValid(p.Name):
 		return errors.New("invalid name format - must be less than 256 characters")
 	case !isValidBitrate(p.SessionAmbrUplink):
 		return errors.New("invalid session_ambr_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps")

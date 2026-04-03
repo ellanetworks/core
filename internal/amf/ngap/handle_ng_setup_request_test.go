@@ -17,15 +17,21 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
+type SliceOpt struct {
+	Sst int32
+	Sd  string
+}
+
 type NGSetupRequestOpts struct {
-	Name  string
-	GnbID string
-	ID    int64
-	Mcc   string
-	Mnc   string
-	Tac   string
-	Sst   int32
-	Sd    string
+	Name   string
+	GnbID  string
+	ID     int64
+	Mcc    string
+	Mnc    string
+	Tac    string
+	Sst    int32
+	Sd     string
+	Slices []SliceOpt // if set, overrides Sst/Sd
 }
 
 func buildNGSetupRequest(opts *NGSetupRequestOpts) (*ngapType.NGAPPDU, error) {
@@ -42,13 +48,13 @@ func buildNGSetupRequest(opts *NGSetupRequestOpts) (*ngapType.NGAPPDU, error) {
 		return nil, fmt.Errorf("could not get plmnID in octets: %v", err)
 	}
 
-	if opts.Sst == 0 {
-		return nil, fmt.Errorf("SST is required to build NGSetupRequest")
-	}
+	slices := opts.Slices
+	if len(slices) == 0 {
+		if opts.Sst == 0 {
+			return nil, fmt.Errorf("SST is required to build NGSetupRequest")
+		}
 
-	sst, sd, err := getSliceInBytes(opts.Sst, opts.Sd)
-	if err != nil {
-		return nil, fmt.Errorf("could not get slice info in bytes: %v", err)
+		slices = []SliceOpt{{Sst: opts.Sst, Sd: opts.Sd}}
 	}
 
 	pdu := ngapType.NGAPPDU{}
@@ -119,15 +125,23 @@ func buildNGSetupRequest(opts *NGSetupRequestOpts) (*ngapType.NGAPPDU, error) {
 		broadcastPLMNItem := ngapType.BroadcastPLMNItem{}
 		broadcastPLMNItem.PLMNIdentity.Value = plmnID
 		sliceSupportList := &broadcastPLMNItem.TAISliceSupportList
-		sliceSupportItem := ngapType.SliceSupportItem{}
-		sliceSupportItem.SNSSAI.SST.Value = sst
 
-		if sd != nil {
-			sliceSupportItem.SNSSAI.SD = new(ngapType.SD)
-			sliceSupportItem.SNSSAI.SD.Value = sd
+		for _, s := range slices {
+			sst, sd, err := getSliceInBytes(s.Sst, s.Sd)
+			if err != nil {
+				return nil, fmt.Errorf("could not get slice info in bytes: %v", err)
+			}
+
+			sliceSupportItem := ngapType.SliceSupportItem{}
+			sliceSupportItem.SNSSAI.SST.Value = sst
+
+			if sd != nil {
+				sliceSupportItem.SNSSAI.SD = new(ngapType.SD)
+				sliceSupportItem.SNSSAI.SD.Value = sd
+			}
+
+			sliceSupportList.List = append(sliceSupportList.List, sliceSupportItem)
 		}
-
-		sliceSupportList.List = append(sliceSupportList.List, sliceSupportItem)
 
 		broadcastPLMNList.List = append(broadcastPLMNList.List, broadcastPLMNItem)
 
@@ -319,12 +333,41 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected PlmnSupported PlmnID MNC to be '01', but got %s", response.PlmnSupported.PlmnID.Mnc)
 	}
 
+	if len(response.PlmnSupported.SNssaiList) != 1 {
+		t.Fatalf("expected 1 slice in SNssaiList, got %d", len(response.PlmnSupported.SNssaiList))
+	}
+
+	if response.PlmnSupported.SNssaiList[0].Sst != 1 {
+		t.Errorf("expected SNssaiList[0].Sst to be 1, got %d", response.PlmnSupported.SNssaiList[0].Sst)
+	}
+
 	if response.AmfName != "ella-core" {
 		t.Errorf("expected AmfName to be 'ella-core', but got '%s'", response.AmfName)
 	}
 
 	if response.AmfRelativeCapacity != 0xff {
 		t.Errorf("expected AmfRelativeCapacity to be 0xff, but got %d", response.AmfRelativeCapacity)
+	}
+
+	// Verify ran.SupportedTAIs was populated from the request
+	if len(ran.SupportedTAIs) != 1 {
+		t.Fatalf("expected 1 SupportedTAI, got %d", len(ran.SupportedTAIs))
+	}
+
+	if ran.SupportedTAIs[0].Tai.Tac != "000064" {
+		t.Errorf("expected TAC '000064', got %q", ran.SupportedTAIs[0].Tai.Tac)
+	}
+
+	if len(ran.SupportedTAIs[0].SNssaiList) != 1 {
+		t.Fatalf("expected 1 SNssai in SupportedTAI, got %d", len(ran.SupportedTAIs[0].SNssaiList))
+	}
+
+	if ran.SupportedTAIs[0].SNssaiList[0].Sst != 1 {
+		t.Errorf("expected SNssai SST 1, got %d", ran.SupportedTAIs[0].SNssaiList[0].Sst)
+	}
+
+	if ran.SupportedTAIs[0].SNssaiList[0].Sd != "010203" {
+		t.Errorf("expected SNssai SD '010203', got %q", ran.SupportedTAIs[0].SNssaiList[0].Sd)
 	}
 }
 
@@ -336,4 +379,160 @@ func TestHandleNGSetupRequest_EmptyIEs(t *testing.T) {
 	assertNoPanic(t, "HandleNGSetupRequest(empty IEs)", func() {
 		ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
 	})
+}
+
+func TestHandleNGSetupRequest_MultipleSlicesInRequest(t *testing.T) {
+	fakeNGAPSender := &FakeNGAPSender{}
+
+	ran := &amf.Radio{
+		Log:           logger.AmfLog,
+		NGAPSender:    fakeNGAPSender,
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
+	}
+
+	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
+		Name:  "TestRAN",
+		GnbID: "ABCDE1",
+		ID:    12345,
+		Mcc:   "001",
+		Mnc:   "01",
+		Tac:   "000064",
+		Slices: []SliceOpt{
+			{Sst: 1, Sd: "010203"},
+			{Sst: 2, Sd: "aabbcc"},
+			{Sst: 3, Sd: ""},
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to build NGSetupRequest: %v", err)
+	}
+
+	op := &db.Operator{
+		Mcc: "001",
+		Mnc: "01",
+	}
+
+	err = op.SetSupportedTacs([]string{"000064"})
+	if err != nil {
+		t.Fatalf("failed to set supported TACs: %v", err)
+	}
+
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: op,
+	}, nil, nil)
+	amfInstance.Name = "ella-core"
+
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg.InitiatingMessage.Value.NGSetupRequest)
+
+	if len(fakeNGAPSender.SentNGSetupResponses) != 1 {
+		t.Fatalf("expected 1 NGSetupResponse, got %d", len(fakeNGAPSender.SentNGSetupResponses))
+	}
+
+	// Verify ran.SupportedTAIs has all 3 slices from the request
+	if len(ran.SupportedTAIs) != 1 {
+		t.Fatalf("expected 1 SupportedTAI, got %d", len(ran.SupportedTAIs))
+	}
+
+	snssaiList := ran.SupportedTAIs[0].SNssaiList
+	if len(snssaiList) != 3 {
+		t.Fatalf("expected 3 SNssai items in SupportedTAI, got %d", len(snssaiList))
+	}
+
+	expectedSlices := []struct {
+		sst int32
+		sd  string
+	}{
+		{1, "010203"},
+		{2, "aabbcc"},
+		{3, ""},
+	}
+
+	for i, expected := range expectedSlices {
+		if snssaiList[i].Sst != expected.sst {
+			t.Errorf("SNssai[%d]: expected SST %d, got %d", i, expected.sst, snssaiList[i].Sst)
+		}
+
+		if snssaiList[i].Sd != expected.sd {
+			t.Errorf("SNssai[%d]: expected SD %q, got %q", i, expected.sd, snssaiList[i].Sd)
+		}
+	}
+}
+
+func TestHandleNGSetupRequest_ResponseContainsAllConfiguredSlices(t *testing.T) {
+	fakeNGAPSender := &FakeNGAPSender{}
+
+	ran := &amf.Radio{
+		Log:           logger.AmfLog,
+		NGAPSender:    fakeNGAPSender,
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
+	}
+
+	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
+		Name:  "TestRAN",
+		GnbID: "ABCDE1",
+		ID:    12345,
+		Mcc:   "001",
+		Mnc:   "01",
+		Tac:   "000064",
+		Sst:   1,
+		Sd:    "010203",
+	})
+	if err != nil {
+		t.Fatalf("failed to build NGSetupRequest: %v", err)
+	}
+
+	op := &db.Operator{
+		Mcc: "001",
+		Mnc: "01",
+	}
+
+	err = op.SetSupportedTacs([]string{"000064"})
+	if err != nil {
+		t.Fatalf("failed to set supported TACs: %v", err)
+	}
+
+	sd1 := "010203"
+	sd2 := "aabbcc"
+
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: op,
+		Slices: []db.NetworkSlice{
+			{ID: 1, Name: "eMBB", Sst: 1, Sd: &sd1},
+			{ID: 2, Name: "URLLC", Sst: 2, Sd: &sd2},
+			{ID: 3, Name: "mMTC", Sst: 3, Sd: nil},
+		},
+	}, nil, nil)
+	amfInstance.Name = "ella-core"
+
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg.InitiatingMessage.Value.NGSetupRequest)
+
+	if len(fakeNGAPSender.SentNGSetupResponses) != 1 {
+		t.Fatalf("expected 1 NGSetupResponse, got %d", len(fakeNGAPSender.SentNGSetupResponses))
+	}
+
+	response := fakeNGAPSender.SentNGSetupResponses[0]
+
+	// Verify the response carries all 3 configured slices from DB
+	if len(response.PlmnSupported.SNssaiList) != 3 {
+		t.Fatalf("expected 3 slices in response SNssaiList, got %d", len(response.PlmnSupported.SNssaiList))
+	}
+
+	expectedSlices := []struct {
+		sst int32
+		sd  string
+	}{
+		{1, "010203"},
+		{2, "aabbcc"},
+		{3, ""},
+	}
+
+	for i, expected := range expectedSlices {
+		if response.PlmnSupported.SNssaiList[i].Sst != expected.sst {
+			t.Errorf("SNssaiList[%d]: expected SST %d, got %d", i, expected.sst, response.PlmnSupported.SNssaiList[i].Sst)
+		}
+
+		if response.PlmnSupported.SNssaiList[i].Sd != expected.sd {
+			t.Errorf("SNssaiList[%d]: expected SD %q, got %q", i, expected.sd, response.PlmnSupported.SNssaiList[i].Sd)
+		}
+	}
 }
