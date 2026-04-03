@@ -341,8 +341,8 @@ func TestGetSessionPolicy(t *testing.T) {
 		t.Fatalf("Couldn't complete CreateSubscriber: %s", err)
 	}
 
-	// Default slice: sst=1, sd="102030"; Default DNN: "internet"
-	policy, rules, dn, err := database.GetSessionPolicy(context.Background(), "001010100007487", 1, "102030", "internet")
+	// Default slice: sst=1, sd=""; Default DNN: "internet"
+	policy, rules, dn, err := database.GetSessionPolicy(context.Background(), "001010100007487", 1, "", "internet")
 	if err != nil {
 		t.Fatalf("Couldn't complete GetSessionPolicy: %s", err)
 	}
@@ -360,7 +360,7 @@ func TestGetSessionPolicy(t *testing.T) {
 	}
 
 	// Non-existent subscriber
-	_, _, _, err = database.GetSessionPolicy(context.Background(), "999999999999999", 1, "102030", "internet") //nolint:dogsled // error-path test
+	_, _, _, err = database.GetSessionPolicy(context.Background(), "999999999999999", 1, "", "internet") //nolint:dogsled // error-path test
 	if err == nil {
 		t.Fatal("Expected error for non-existent subscriber")
 	}
@@ -372,7 +372,7 @@ func TestGetSessionPolicy(t *testing.T) {
 	}
 
 	// Non-matching DNN
-	_, _, _, err = database.GetSessionPolicy(context.Background(), "001010100007487", 1, "102030", "nonexistent-dnn") //nolint:dogsled // error-path test
+	_, _, _, err = database.GetSessionPolicy(context.Background(), "001010100007487", 1, "", "nonexistent-dnn") //nolint:dogsled // error-path test
 	if err == nil {
 		t.Fatal("Expected error for non-matching DNN")
 	}
