@@ -216,7 +216,7 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 			{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
 			{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000002"},
 		}
-		ue.AllowedNssai = &models.Snssai{Sst: 1, Sd: "000001"}
+		ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "000001"}}
 		ue.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "2000000"}
 		ue.SmContextList[5] = &amf.SmContext{
 			Ref:    "imsi-001010000000002-5",
@@ -328,13 +328,27 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 
 	subscription := jsonMap(t, ueExport, "subscription")
 
-	allowedNssai := jsonMap(t, subscription, "allowed_nssai")
+	allowedNssaiRaw, ok := subscription["allowed_nssai"]
+	if !ok {
+		t.Fatal("expected subscription.allowed_nssai to be present")
+	}
+
+	allowedNssaiArr, ok := allowedNssaiRaw.([]interface{})
+	if !ok || len(allowedNssaiArr) != 1 {
+		t.Fatalf("expected subscription.allowed_nssai to be array of length 1, got %T len %v", allowedNssaiRaw, allowedNssaiRaw)
+	}
+
+	allowedNssai, ok := allowedNssaiArr[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected subscription.allowed_nssai[0] to be a JSON object, got %T", allowedNssaiArr[0])
+	}
+
 	if sst, ok := allowedNssai["Sst"].(float64); !ok || sst != 1 {
-		t.Fatalf("expected subscription.allowed_nssai.Sst to be 1, got %v", allowedNssai["Sst"])
+		t.Fatalf("expected subscription.allowed_nssai[0].Sst to be 1, got %v", allowedNssai["Sst"])
 	}
 
 	if sd, ok := allowedNssai["Sd"].(string); !ok || sd != "000001" {
-		t.Fatalf("expected subscription.allowed_nssai.Sd to be '000001', got %v", allowedNssai["Sd"])
+		t.Fatalf("expected subscription.allowed_nssai[0].Sd to be '000001', got %v", allowedNssai["Sd"])
 	}
 
 	ambr := jsonMap(t, subscription, "ambr")

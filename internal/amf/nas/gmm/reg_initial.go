@@ -25,8 +25,13 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	// Registration with AMF re-allocation (TS 23.502 4.2.2.2.3)
-	ue.AllowedNssai = operatorInfo.SupportedPLMN.SNssai
+	// Derive per-subscriber Allowed NSSAI from the subscriber's profile policies.
+	subscriberSlices, err := amfInstance.GetSubscriberAllowedNssai(ctx, ue.Supi)
+	if err != nil {
+		return fmt.Errorf("error getting subscriber allowed NSSAI: %v", err)
+	}
+
+	ue.AllowedNssai = subscriberSlices
 
 	if ue.RegistrationRequest.MICOIndication != nil {
 		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.RegistrationRequest.GetRAAI()))

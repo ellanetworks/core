@@ -38,7 +38,12 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	ue.AllowedNssai = operatorInfo.SupportedPLMN.SNssai
+	subscriberSlices, err := amfInstance.GetSubscriberAllowedNssai(ctx, ue.Supi)
+	if err != nil {
+		return fmt.Errorf("error getting subscriber allowed NSSAI: %v", err)
+	}
+
+	ue.AllowedNssai = subscriberSlices
 
 	if ue.RegistrationRequest.Capability5GMM == nil {
 		if ue.RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {

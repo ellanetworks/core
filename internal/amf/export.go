@@ -64,8 +64,8 @@ type UELocationExport struct {
 
 // UESubscriptionExport contains subscription data for a UE.
 type UESubscriptionExport struct {
-	AllowedNssai *models.Snssai `json:"allowed_nssai,omitempty"`
-	Ambr         *models.Ambr   `json:"ambr,omitempty"`
+	AllowedNssai []models.Snssai `json:"allowed_nssai,omitempty"`
+	Ambr         *models.Ambr    `json:"ambr,omitempty"`
 }
 
 // PDUSessionExport contains the export of a single PDU session.
@@ -336,7 +336,7 @@ func (amf *AMF) exportAmfUe(ue *AmfUe) AmfUeExport {
 			RegistrationArea: append([]models.Tai(nil), ue.RegistrationArea...),
 		},
 		Subscription: UESubscriptionExport{
-			AllowedNssai: copyPtr(ue.AllowedNssai),
+			AllowedNssai: append([]models.Snssai(nil), ue.AllowedNssai...),
 			Ambr:         copyPtr(ue.Ambr),
 		},
 		Registration: UERegistrationExport{

@@ -326,7 +326,7 @@ func TestTransport5GSMMessage_ExistingPduSession_NotAllowedNssai_SendsDLNASTrans
 	}
 
 	// Set the UE's allowed NSSAI to SST=1, SD="010203"
-	ue.AllowedNssai = &models.Snssai{Sst: 1, Sd: "010203"}
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
 
 	// Create an SM context with a DIFFERENT NSSAI (SST=2)
 	var pduSessionID uint8 = 5
@@ -467,7 +467,7 @@ func TestTransport5GSMMessage_SmContextExists_InitialRequest_DeletesContextAndCr
 
 	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
 
-	ue.AllowedNssai = snssai
+	ue.AllowedNssai = []models.Snssai{*snssai}
 
 	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {
@@ -732,7 +732,7 @@ func TestTransport5GSMMessage_SmContextExists_DuplicatePDU_Success(t *testing.T)
 	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
 
 	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
-	ue.AllowedNssai = snssai
+	ue.AllowedNssai = []models.Snssai{*snssai}
 
 	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {
@@ -778,7 +778,7 @@ func TestTransport5GSMMessage_SmContextExists_ExistingPduSession_AllowedNssai_Fo
 	}
 
 	snssai := &models.Snssai{Sst: 1, Sd: "010203"}
-	ue.AllowedNssai = snssai
+	ue.AllowedNssai = []models.Snssai{*snssai}
 
 	var pduSessionID uint8 = 5
 
@@ -910,7 +910,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_DefaultSNSSAIAndDNN(t *
 	}
 
 	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
-	ue.AllowedNssai = &models.Snssai{Sst: 1, Sd: "aabbcc"}
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "aabbcc"}}
 
 	var pduSessionID uint8 = 2
 
@@ -985,7 +985,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_NilAllowedNssai_Error(t
 		t.Fatal("expected an error, got nil")
 	}
 
-	expected := "allowed nssai is nil in UE context"
+	expected := "allowed nssai is empty in UE context"
 	if err.Error() != expected {
 		t.Fatalf("expected error: %s, got: %s", expected, err.Error())
 	}
@@ -998,7 +998,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorRe
 	}
 
 	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
-	ue.AllowedNssai = &models.Snssai{Sst: 1, Sd: "010203"}
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
 
 	var pduSessionID uint8 = 1
 
@@ -1055,7 +1055,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorOn
 	}
 
 	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
-	ue.AllowedNssai = &models.Snssai{Sst: 1, Sd: "010203"}
+	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
 
 	var pduSessionID uint8 = 1
 

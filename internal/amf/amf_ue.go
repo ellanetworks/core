@@ -123,7 +123,7 @@ type AmfUe struct {
 
 	RegistrationArea []models.Tai
 
-	AllowedNssai *models.Snssai
+	AllowedNssai []models.Snssai
 
 	/* T3513(Paging) */
 	T3513 *Timer // for paging
@@ -305,7 +305,13 @@ func (ue *AmfUe) AllocateRegistrationArea(supportedTais []models.Tai) {
 }
 
 func (ue *AmfUe) IsAllowedNssai(targetSNssai *models.Snssai) bool {
-	return ue.AllowedNssai.Equal(*targetSNssai)
+	for _, s := range ue.AllowedNssai {
+		if s.Equal(*targetSNssai) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (ue *AmfUe) SecurityContextIsValid() bool {

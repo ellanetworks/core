@@ -81,6 +81,8 @@ type DBer interface {
 	GetProfileByID(ctx context.Context, id int) (*db.Profile, error)
 	GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID int) (*db.Policy, error)
 	ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error)
+	ListPoliciesByProfilePage(ctx context.Context, profileID int, page int, perPage int) ([]db.Policy, int, error)
+	GetNetworkSliceByID(ctx context.Context, id int) (*db.NetworkSlice, error)
 }
 
 // Lock ordering (acquire in this order, never reverse):

@@ -49,6 +49,14 @@ func (fdb *failingSubscriberDB) GetPolicyByProfileAndSlice(ctx context.Context, 
 	return &db.Policy{ID: 1, Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: 1}, nil
 }
 
+func (fdb *failingSubscriberDB) ListPoliciesByProfilePage(_ context.Context, _ int, _ int, _ int) ([]db.Policy, int, error) {
+	return []db.Policy{{ID: 1, Name: "TestPolicy", ProfileID: 1, SliceID: 1, DataNetworkID: 1}}, 1, nil
+}
+
+func (fdb *failingSubscriberDB) GetNetworkSliceByID(_ context.Context, id int) (*db.NetworkSlice, error) {
+	return &db.NetworkSlice{ID: id, Name: "default", Sst: 1}, nil
+}
+
 // decryptAndDecodeNasPdu decrypts a ciphered NAS PDU using the UE's security context
 // and decodes it, returning the NAS message. It verifies the security header is
 // IntegrityProtectedAndCiphered. The dlCountOffset parameter specifies the offset
@@ -353,7 +361,8 @@ func TestMobilityReg_GetSubscriberBitrateError(t *testing.T) {
 		t.Fatal("expected error for GetSubscriberBitrate failure, got nil")
 	}
 
-	if got := err.Error(); len(got) < 30 || got[:30] != "failed to get subscriber data:" {
+	const wantPrefix = "error getting subscriber allowed NSSAI:"
+	if got := err.Error(); len(got) < len(wantPrefix) || got[:len(wantPrefix)] != wantPrefix {
 		t.Fatalf("unexpected error prefix: %v", err)
 	}
 }

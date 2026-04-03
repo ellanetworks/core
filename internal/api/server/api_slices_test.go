@@ -117,7 +117,7 @@ func TestSlicesEndToEnd(t *testing.T) {
 	})
 }
 
-func TestSliceRelease1Limit(t *testing.T) {
+func TestSliceMultipleSlicesAllowed(t *testing.T) {
 	tempDir := t.TempDir()
 
 	env, err := setupServer(filepath.Join(tempDir, "db.sqlite3"))
@@ -134,7 +134,7 @@ func TestSliceRelease1Limit(t *testing.T) {
 		t.Fatalf("Couldn't complete initializeAndRefresh: %s", err)
 	}
 
-	// Default slice already exists, so creating a second one should fail
+	// Default slice already exists; creating a second one should succeed
 	slice := &CreateSliceParams{
 		Name: "second-slice",
 		Sst:  1,
@@ -146,8 +146,8 @@ func TestSliceRelease1Limit(t *testing.T) {
 		t.Fatalf("Couldn't complete createSlice: %s", err)
 	}
 
-	if statusCode != http.StatusConflict {
-		t.Fatalf("Expected status %d for Release 1 limit, got %d", http.StatusConflict, statusCode)
+	if statusCode != http.StatusCreated {
+		t.Fatalf("Expected status %d for multi-slice creation, got %d", http.StatusCreated, statusCode)
 	}
 }
 

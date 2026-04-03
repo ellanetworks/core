@@ -139,7 +139,7 @@ func (ranUe *RanUe) SendInitialContextSetupRequest(
 	ctx context.Context,
 	ambrUp string,
 	ambrDown string,
-	allowedNssai *models.Snssai,
+	allowedNssai []models.Snssai,
 	kgnb []byte,
 	plmnID models.PlmnID,
 	ueRadioCapability string,

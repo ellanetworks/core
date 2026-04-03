@@ -116,18 +116,6 @@ func CreateSlice(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := getEmailFromContext(r)
 
-		// Release 1: only one slice allowed.
-		count, err := dbInstance.CountNetworkSlices(r.Context())
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count slices", err, logger.APILog)
-			return
-		}
-
-		if count >= 1 {
-			writeError(r.Context(), w, http.StatusConflict, "Maximum number of slices reached (1)", nil, logger.APILog)
-			return
-		}
-
 		var params CreateSliceParams
 		if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid request data", err, logger.APILog)
