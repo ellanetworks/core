@@ -13,6 +13,7 @@ import {
   MenuItem,
   Alert,
   Collapse,
+  Typography,
 } from "@mui/material";
 import {
   updatePolicy,
@@ -52,11 +53,11 @@ type FormState = {
 const PER_PAGE = 12;
 
 const NON_GBR_5QI_OPTIONS: { value: number; label: string }[] = [
-  { value: 5, label: "5 — IMS Signalling" },
-  { value: 6, label: "6 — TCP (buffered streaming, web)" },
-  { value: 7, label: "7 — Voice, live video, gaming" },
-  { value: 8, label: "8 — TCP (buffered streaming)" },
-  { value: 9, label: "9 — TCP (default)" },
+  { value: 5, label: "5 — IMS signalling" },
+  { value: 6, label: "6 — Buffered streaming, web browsing" },
+  { value: 7, label: "7 — Voice, live video, interactive gaming" },
+  { value: 8, label: "8 — Buffered streaming" },
+  { value: 9, label: "9 — Best effort (default)" },
   { value: 69, label: "69 — Mission critical signalling" },
   { value: 70, label: "70 — Mission critical data" },
   { value: 79, label: "79 — V2X messages" },
@@ -87,7 +88,7 @@ const policySchema = yup.object().shape({
     )
     .required("5QI is required"),
   arp: yup.number().min(1).max(15).required("ARP is required"),
-  data_network_name: yup.string().required("Data Network Name is required."),
+  data_network_name: yup.string().required("Data Network is required."),
 });
 
 const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
@@ -301,12 +302,12 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
 
         <FormControl fullWidth margin="normal">
           <InputLabel id="data-network-select-label">
-            Data Network Name
+            Data Network
           </InputLabel>
           <Select
             labelId="data-network-select-label"
             autoFocus
-            label="Data Network Name"
+            label="Data Network"
             value={formValues.data_network_name}
             onChange={(e) => handleChange("data_network_name", e.target.value)}
             onBlur={() => handleBlur("data_network_name")}
@@ -373,10 +374,10 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
         </Box>
 
         <FormControl fullWidth margin="normal">
-          <InputLabel id="fiveqi-edit-select-label">5QI (non-GBR)</InputLabel>
+          <InputLabel id="fiveqi-edit-select-label">5QI</InputLabel>
           <Select
             labelId="fiveqi-edit-select-label"
-            label="5QI (non-GBR)"
+            label="5QI"
             value={formValues.var5qi}
             onChange={(e) => handleChange("var5qi", Number(e.target.value))}
             onBlur={() => handleBlur("var5qi")}
@@ -393,6 +394,9 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
               </MenuItem>
             ))}
           </Select>
+          <Typography variant="caption" color="text.secondary">
+            Only non-GBR (best-effort) QoS classes are supported.
+          </Typography>
         </FormControl>
 
         <TextField
@@ -406,7 +410,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           helperText={
             touched.arp && errors.arp
               ? errors.arp
-              : "1 (highest) to 15 (lowest)"
+              : "Controls pre-emption priority. 1 (highest) to 15 (lowest)."
           }
           margin="normal"
         />

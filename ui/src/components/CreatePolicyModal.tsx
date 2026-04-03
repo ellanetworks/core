@@ -34,11 +34,11 @@ interface CreatePolicyModalProps {
 }
 
 const NON_GBR_5QI_OPTIONS: { value: number; label: string }[] = [
-  { value: 5, label: "5 — IMS Signalling" },
-  { value: 6, label: "6 — TCP (buffered streaming, web)" },
-  { value: 7, label: "7 — Voice, live video, gaming" },
-  { value: 8, label: "8 — TCP (buffered streaming)" },
-  { value: 9, label: "9 — TCP (default)" },
+  { value: 5, label: "5 — IMS signalling" },
+  { value: 6, label: "6 — Buffered streaming, web browsing" },
+  { value: 7, label: "7 — Voice, live video, interactive gaming" },
+  { value: 8, label: "8 — Buffered streaming" },
+  { value: 9, label: "9 — Best effort (default)" },
   { value: 69, label: "69 — Mission critical signalling" },
   { value: 70, label: "70 — Mission critical data" },
   { value: 79, label: "79 — V2X messages" },
@@ -70,7 +70,7 @@ const schema = yup.object().shape({
     )
     .required("5QI is required"),
   arp: yup.number().min(1).max(15).required("ARP is required"),
-  dataNetworkName: yup.string().required("Data Network Name is required."),
+  dataNetworkName: yup.string().required("Data Network is required."),
 });
 
 const PER_PAGE = 12; // fetch up to 12 items for dropdowns
@@ -267,11 +267,11 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
 
         <FormControl fullWidth margin="normal">
           <InputLabel id="data-network-select-label">
-            Data Network Name
+            Data Network
           </InputLabel>
           <Select
             labelId="data-network-select-label"
-            label="Data Network Name"
+            label="Data Network"
             value={formValues.dataNetworkName}
             onChange={(e) => handleChange("dataNetworkName", e.target.value)}
             onBlur={() => handleBlur("dataNetworkName")}
@@ -347,10 +347,10 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
         </Box>
 
         <FormControl fullWidth margin="normal">
-          <InputLabel id="fiveqi-select-label">5QI (non-GBR)</InputLabel>
+          <InputLabel id="fiveqi-select-label">5QI</InputLabel>
           <Select
             labelId="fiveqi-select-label"
-            label="5QI (non-GBR)"
+            label="5QI"
             value={formValues.fiveQi}
             onChange={(e) => handleChange("fiveQi", Number(e.target.value))}
             onBlur={() => handleBlur("fiveQi")}
@@ -367,6 +367,9 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
               {errors.fiveQi}
             </Typography>
           )}
+          <Typography variant="caption" color="text.secondary">
+            Only non-GBR (best-effort) QoS classes are supported.
+          </Typography>
         </FormControl>
 
         <TextField
@@ -380,7 +383,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
           helperText={
             touched.arp && errors.arp
               ? errors.arp
-              : "1 (highest) to 15 (lowest)"
+              : "Controls pre-emption priority. 1 (highest) to 15 (lowest)."
           }
           margin="normal"
         />

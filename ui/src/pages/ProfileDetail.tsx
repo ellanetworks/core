@@ -160,8 +160,18 @@ const ProfileDetail: React.FC = () => {
         flex: 0.8,
         minWidth: 130,
       },
-      { field: "var5qi", headerName: "5QI", width: 70 },
-      { field: "arp", headerName: "ARP", width: 70 },
+      {
+        field: "var5qi",
+        headerName: "5QI",
+        description: "5G QoS Identifier — determines latency, error rate, and priority",
+        width: 70,
+      },
+      {
+        field: "arp",
+        headerName: "ARP",
+        description: "Allocation and Retention Priority — lower values indicate higher priority",
+        width: 70,
+      },
     ],
     [name, theme],
   );
@@ -379,7 +389,8 @@ const ProfileDetail: React.FC = () => {
             <Box>
               <Typography variant="h6">Policies ({policies.length})</Typography>
               <Typography variant="body2" color="text.secondary">
-                QoS policies applied to subscriber sessions under this profile.
+                QoS policies applied to subscriber sessions on each data
+                network.
               </Typography>
             </Box>
             {canEdit && (
