@@ -42,7 +42,7 @@ This path returns the list of slices.
 
 ## Create a Slice
 
-This path creates a new slice. The maximum number of slices is 8 (3GPP AllowedNSSAI limit).
+This path creates a new slice.
 
 | Method | Path             |
 | ------ | ---------------- |
