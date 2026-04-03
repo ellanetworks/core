@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -176,7 +175,7 @@ func (a *smfDBAdapter) ReleaseIP(ctx context.Context, imsi string, dnn string, p
 func (a *pcfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai *models.Snssai, dnn string) (*smf.Policy, error) {
 	pol, dbRules, dn, err := a.db.GetSessionPolicy(ctx, imsi, snssai.Sst, snssai.Sd, dnn)
 	if err != nil {
-		if strings.Contains(err.Error(), "data network") {
+		if errors.Is(err, db.ErrDataNetworkNotFound) {
 			return nil, fmt.Errorf("%w: %v", smf.ErrDNNNotFound, err)
 		}
 

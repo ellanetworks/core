@@ -149,14 +149,16 @@ const ProfileDetail: React.FC = () => {
       {
         field: "session_ambr_uplink",
         headerName: "Session Bitrate Uplink",
-        description: "Per-session uplink bitrate cap (Session AMBR). Enforced by Ella Core.",
+        description:
+          "Per-session uplink bitrate cap (Session AMBR). Enforced by Ella Core.",
         flex: 0.8,
         minWidth: 130,
       },
       {
         field: "session_ambr_downlink",
         headerName: "Session Bitrate Downlink",
-        description: "Per-session downlink bitrate cap (Session AMBR). Enforced by Ella Core.",
+        description:
+          "Per-session downlink bitrate cap (Session AMBR). Enforced by Ella Core.",
         flex: 0.8,
         minWidth: 130,
       },

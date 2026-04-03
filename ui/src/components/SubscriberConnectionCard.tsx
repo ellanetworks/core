@@ -1,16 +1,8 @@
 import React from "react";
-import {
-  Box,
-  Card,
-  CardContent,
-  Chip,
-  Typography,
-} from "@mui/material";
+import { Box, Card, CardContent, Chip, Typography } from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Link as RouterLink } from "react-router-dom";
-import type {
-  SubscriberDetailStatus,
-} from "@/queries/subscribers";
+import type { SubscriberDetailStatus } from "@/queries/subscribers";
 import { formatRelativeTime } from "@/utils/formatters";
 
 interface SubscriberConnectionCardProps {

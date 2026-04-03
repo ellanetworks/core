@@ -347,7 +347,7 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "data network not found")
 
-		return nil, nil, nil, fmt.Errorf("data network %q not found: %w", dnn, err)
+		return nil, nil, nil, fmt.Errorf("data network %q: %w", dnn, ErrDataNetworkNotFound)
 	}
 
 	policy, err := db.GetPolicyByLookup(ctx, sub.ProfileID, sliceID, dn.ID)

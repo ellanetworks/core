@@ -224,9 +224,7 @@ const SubscriberDetail: React.FC = () => {
               gap: 3,
             }}
           >
-            <SubscriberConnectionCard
-              status={subscriber.status}
-            />
+            <SubscriberConnectionCard status={subscriber.status} />
           </Box>
         </Box>
 
