@@ -26,8 +26,8 @@ In your radio's configuration, you will likely need to specify the following inf
 - **AMF Address**: The address of the N2 interface on Ella Core.
 - **PLMN ID**: The Public Land Mobile Network Identifier. This is a combination of the Mobile Country Code (MCC) and the Mobile Network Code (MNC). You can find this information in Ella Core under **Operator** and **Operator ID**.
 - **TAC**: The Tracking Area Code. You can find this information in Ella Core under **Operator** and **Supported TACs**.
-- **SST**: The Slice/Service Type. This is a unique identifier for a network slice. You can find this information in Ella Core under **Operator** and **SST**.
-- **SD**: The Service Differentiator. This is a unique identifier for a network slice. You can find this information in Ella Core under **Operator** and **SD**.
+- **SST**: The Slice/Service Type. Identifies a network slice. You can find this information in Ella Core under **Networking** and **Slices**.
+- **SD**: The Slice Differentiator. Optionally differentiates slices sharing the same SST. You can find this information in Ella Core under **Networking** and **Slices**.
 
 !!! note
     

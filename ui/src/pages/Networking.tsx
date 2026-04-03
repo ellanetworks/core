@@ -308,7 +308,7 @@ export default function NetworkingPage() {
   };
 
   const sliceDescription =
-    "Network slices let you partition traffic into logical groups with distinct quality-of-service policies. Each slice is identified by a Slice/Service Type (SST) and an optional Slice Differentiator (SD).";
+    "Network slices identify logical network partitions using a Slice/Service Type (SST) and an optional Slice Differentiator (SD). Ella Core uses slice information alongside the data network name to determine which policies apply to a subscriber's session.";
 
   const sliceColumns: GridColDef<APISlice>[] = useMemo(() => {
     return [
@@ -974,7 +974,7 @@ export default function NetworkingPage() {
           ) : sliceRowCount === 0 ? (
             <EmptyState
               primaryText="No network slice found."
-              secondaryText="Create a network slice to partition traffic with distinct quality-of-service policies."
+              secondaryText="Create a network slice to get started. Ella Core uses slice information alongside the data network name to determine which policies apply to a subscriber's session."
               extraContent={
                 <Typography variant="body1" color="text.secondary">
                   {sliceDescription}
