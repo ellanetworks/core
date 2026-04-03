@@ -674,7 +674,11 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
             onChange={(e) => handleFormChange("remotePrefix", e.target.value)}
             onBlur={() => handleFormBlur("remotePrefix")}
             error={!!errors.remotePrefix && touched.remotePrefix}
-            helperText={touched.remotePrefix ? errors.remotePrefix : "Optional — IP network range (e.g., 10.0.0.0/8 for all 10.x.x.x addresses)"}
+            helperText={
+              touched.remotePrefix
+                ? errors.remotePrefix
+                : "Optional — IP network range (e.g., 10.0.0.0/8 for all 10.x.x.x addresses)"
+            }
             margin="normal"
           />
 
@@ -719,7 +723,11 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
               onChange={(e) => handleFormChange("portLow", e.target.value)}
               onBlur={() => handleFormBlur("portLow")}
               error={!!errors.portLow && touched.portLow}
-              helperText={touched.portLow ? errors.portLow : "Optional — applies to TCP/UDP only"}
+              helperText={
+                touched.portLow
+                  ? errors.portLow
+                  : "Optional — applies to TCP/UDP only"
+              }
               margin="normal"
               sx={{ flex: 1 }}
             />
@@ -731,7 +739,11 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
               onChange={(e) => handleFormChange("portHigh", e.target.value)}
               onBlur={() => handleFormBlur("portHigh")}
               error={!!errors.portHigh && touched.portHigh}
-              helperText={touched.portHigh ? errors.portHigh : "Optional — applies to TCP/UDP only"}
+              helperText={
+                touched.portHigh
+                  ? errors.portHigh
+                  : "Optional — applies to TCP/UDP only"
+              }
               margin="normal"
               sx={{ flex: 1 }}
             />

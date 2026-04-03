@@ -97,14 +97,16 @@ const ProfilesPage: React.FC = () => {
       {
         field: "ue_ambr_uplink",
         headerName: "Bitrate Uplink",
-        description: "Aggregate uplink cap across all of a subscriber's sessions (enforced by the radio)",
+        description:
+          "Aggregate uplink cap across all of a subscriber's sessions (enforced by the radio)",
         flex: 1,
         minWidth: 160,
       },
       {
         field: "ue_ambr_downlink",
         headerName: "Bitrate Downlink",
-        description: "Aggregate downlink cap across all of a subscriber's sessions (enforced by the radio)",
+        description:
+          "Aggregate downlink cap across all of a subscriber's sessions (enforced by the radio)",
         flex: 1,
         minWidth: 160,
       },

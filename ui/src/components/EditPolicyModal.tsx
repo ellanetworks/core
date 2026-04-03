@@ -301,9 +301,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
         />
 
         <FormControl fullWidth margin="normal">
-          <InputLabel id="data-network-select-label">
-            Data Network
-          </InputLabel>
+          <InputLabel id="data-network-select-label">Data Network</InputLabel>
           <Select
             labelId="data-network-select-label"
             autoFocus
@@ -395,7 +393,8 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
             ))}
           </Select>
           <Typography variant="caption" color="text.secondary">
-            Only non-GBR (best-effort) QoS classes are supported.
+            Determines radio scheduling behavior. Only non-GBR classes are
+            supported.
           </Typography>
         </FormControl>
 
@@ -410,7 +409,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           helperText={
             touched.arp && errors.arp
               ? errors.arp
-              : "Controls pre-emption priority. 1 (highest) to 15 (lowest)."
+              : "Admission control priority at session setup. 1 (highest) to 15 (lowest)."
           }
           margin="normal"
         />

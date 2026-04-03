@@ -545,7 +545,7 @@ const PolicyDetail: React.FC = () => {
                 <TableRow>
                   <TableCell sx={labelCellSx}>
                     <Tooltip
-                      title="5G QoS Identifier. Determines latency, error rate, and priority characteristics."
+                      title="5G QoS Identifier. The radio uses this to set scheduling behavior (latency budget, error rate, priority). Only non-GBR classes are supported."
                       arrow
                       placement="top"
                     >
@@ -557,7 +557,7 @@ const PolicyDetail: React.FC = () => {
                 <TableRow>
                   <TableCell sx={labelCellSx}>
                     <Tooltip
-                      title="Allocation and Retention Priority. Lower values indicate higher priority."
+                      title="Allocation and Retention Priority. Used by the radio at session setup for admission control and pre-emption decisions. 1 = highest, 15 = lowest. Has no effect on traffic once the session is established."
                       arrow
                       placement="top"
                     >

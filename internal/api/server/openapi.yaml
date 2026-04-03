@@ -3291,11 +3291,11 @@ components:
           description: "Maximum downlink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core. Example: \"200 Mbps\"."
         var5qi:
           type: integer
-          description: "5G QoS Identifier. Valid values: 5, 6, 7, 8, 9, 69, 70, 79, 80."
+          description: "5G QoS Identifier. Signaled to the radio, which uses it for scheduling (latency budget, error rate, priority). Non-GBR values only."
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
-          description: "Allocation and Retention Priority (1-15)."
+          description: "Allocation and Retention Priority (1–15). Used by the radio at session setup for admission control and pre-emption decisions. Has no effect on traffic once admitted."
           minimum: 1
           maximum: 15
         data_network_name:
@@ -3358,9 +3358,11 @@ components:
           description: "e.g. \"200 Mbps\""
         var5qi:
           type: integer
+          description: "5G QoS Identifier. Signaled to the radio for scheduling. Non-GBR values only."
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
+          description: "Allocation and Retention Priority (1–15). Admission control at session setup."
           minimum: 1
           maximum: 15
         rules:
@@ -3388,9 +3390,11 @@ components:
           description: "e.g. \"200 Mbps\""
         var5qi:
           type: integer
+          description: "5G QoS Identifier. Signaled to the radio for scheduling. Non-GBR values only."
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
+          description: "Allocation and Retention Priority (1–15). Admission control at session setup."
           minimum: 1
           maximum: 15
         rules:

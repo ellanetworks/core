@@ -266,9 +266,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
         />
 
         <FormControl fullWidth margin="normal">
-          <InputLabel id="data-network-select-label">
-            Data Network
-          </InputLabel>
+          <InputLabel id="data-network-select-label">Data Network</InputLabel>
           <Select
             labelId="data-network-select-label"
             label="Data Network"
@@ -368,7 +366,8 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
             </Typography>
           )}
           <Typography variant="caption" color="text.secondary">
-            Only non-GBR (best-effort) QoS classes are supported.
+            Determines radio scheduling behavior. Only non-GBR classes are
+            supported.
           </Typography>
         </FormControl>
 
@@ -383,7 +382,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
           helperText={
             touched.arp && errors.arp
               ? errors.arp
-              : "Controls pre-emption priority. 1 (highest) to 15 (lowest)."
+              : "Admission control priority at session setup. 1 (highest) to 15 (lowest)."
           }
           margin="normal"
         />

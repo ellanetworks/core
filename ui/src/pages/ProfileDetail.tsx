@@ -163,13 +163,14 @@ const ProfileDetail: React.FC = () => {
       {
         field: "var5qi",
         headerName: "5QI",
-        description: "5G QoS Identifier — determines latency, error rate, and priority",
+        description: "5G QoS Identifier — radio scheduling class",
         width: 70,
       },
       {
         field: "arp",
         headerName: "ARP",
-        description: "Allocation and Retention Priority — lower values indicate higher priority",
+        description:
+          "Allocation and Retention Priority — admission control at session setup (1 = highest)",
         width: 70,
       },
     ],
