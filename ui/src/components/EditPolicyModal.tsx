@@ -301,6 +301,24 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
         />
 
         <FormControl fullWidth margin="normal">
+          <InputLabel id="slice-select-label">Slice</InputLabel>
+          <Select
+            labelId="slice-select-label"
+            label="Slice"
+            value={formValues.sliceName}
+            onChange={(e) => handleChange("sliceName", e.target.value)}
+            onBlur={() => handleBlur("sliceName")}
+            error={!!errors.sliceName && touched.sliceName}
+          >
+            {slices.map((name) => (
+              <MenuItem key={name} value={name}>
+                {name}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <FormControl fullWidth margin="normal">
           <InputLabel id="data-network-select-label">Data Network</InputLabel>
           <Select
             labelId="data-network-select-label"

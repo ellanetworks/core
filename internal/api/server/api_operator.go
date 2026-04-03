@@ -162,16 +162,6 @@ func ParseSDString(s string) ([]byte, error) {
 	return arr, nil
 }
 
-func SDToString(sd []byte) string {
-	if sd == nil {
-		return ""
-	}
-
-	s := fmt.Sprintf("%02x%02x%02x", sd[0], sd[1], sd[2])
-
-	return s
-}
-
 func GetOperator(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dbOperator, err := dbInstance.GetOperator(r.Context())

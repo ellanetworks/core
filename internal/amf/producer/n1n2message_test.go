@@ -142,11 +142,7 @@ func (f *fakeDBInstance) GetPolicyByProfileAndSlice(context.Context, int, int) (
 	return nil, nil
 }
 
-func (f *fakeDBInstance) ListPoliciesByProfilePage(context.Context, int, int, int) ([]db.Policy, int, error) {
-	return nil, 0, nil
-}
-
-func (f *fakeDBInstance) GetNetworkSliceByID(context.Context, int) (*db.NetworkSlice, error) {
+func (f *fakeDBInstance) ListPoliciesByProfile(context.Context, int) ([]db.Policy, error) {
 	return nil, nil
 }
 

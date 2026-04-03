@@ -34,7 +34,6 @@ import {
 import EditOperatorIdModal from "@/components/EditOperatorIdModal";
 import EditOperatorCodeModal from "@/components/EditOperatorCodeModal";
 import EditOperatorTrackingModal from "@/components/EditOperatorTrackingModal";
-import EditOperatorSliceModal from "@/components/EditOperatorSliceModal";
 import CreateHomeNetworkKeyModal from "@/components/CreateHomeNetworkKeyModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EditOperatorNASSecurityModal from "@/components/EditOperatorNASSecurityModal";
@@ -42,15 +41,6 @@ import EditOperatorSPNModal from "@/components/EditOperatorSPNModal";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
-
-const isSdSet = (sd?: string | null) =>
-  typeof sd === "string" && sd.trim() !== "";
-
-const formatSd = (sd?: string | null) => {
-  if (!isSdSet(sd)) return "Not set";
-  const v = sd!.startsWith("0x") ? sd! : `0x${sd}`;
-  return v.toLowerCase();
-};
 
 const profileDescriptions: Record<string, string> = {
   A: "ECIES with X25519 (Curve25519)",
@@ -84,8 +74,6 @@ const Operator = () => {
     useState(false);
   const [isEditOperatorTrackingModalOpen, setEditOperatorTrackingModalOpen] =
     useState(false);
-  const [isEditOperatorSliceModalOpen, setEditOperatorSliceModalOpen] =
-    useState(false);
   const [isCreateHomeNetworkKeyModalOpen, setCreateHomeNetworkKeyModalOpen] =
     useState(false);
   const [isDeleteKeyConfirmOpen, setDeleteKeyConfirmOpen] = useState(false);
@@ -117,7 +105,6 @@ const Operator = () => {
     isEditOperatorIdModalOpen ||
     isEditOperatorCodeModalOpen ||
     isEditOperatorTrackingModalOpen ||
-    isEditOperatorSliceModalOpen ||
     isCreateHomeNetworkKeyModalOpen ||
     isDeleteKeyConfirmOpen ||
     isEditOperatorNASSecurityModalOpen ||
@@ -141,8 +128,6 @@ const Operator = () => {
   const handleEditOperatorCodeClick = () => setEditOperatorCodeModalOpen(true);
   const handleEditOperatorTrackingClick = () =>
     setEditOperatorTrackingModalOpen(true);
-  const handleEditOperatorSliceClick = () =>
-    setEditOperatorSliceModalOpen(true);
   const handleEditOperatorNASSecurityClick = () =>
     setEditOperatorNASSecurityModalOpen(true);
   const handleEditOperatorSPNClick = () => setEditOperatorSPNModalOpen(true);
@@ -153,8 +138,6 @@ const Operator = () => {
     setEditOperatorCodeModalOpen(false);
   const handleEditOperatorTrackingModalClose = () =>
     setEditOperatorTrackingModalOpen(false);
-  const handleEditOperatorSliceModalClose = () =>
-    setEditOperatorSliceModalOpen(false);
   const handleEditOperatorNASSecurityModalClose = () =>
     setEditOperatorNASSecurityModalOpen(false);
   const handleEditOperatorSPNModalClose = () =>
@@ -173,10 +156,6 @@ const Operator = () => {
       "Operator Tracking information updated successfully.",
       "success",
     );
-  };
-  const handleEditOperatorSliceSuccess = () => {
-    queryClient.invalidateQueries({ queryKey: ["operator"] });
-    showSnackbar("Operator Slice information updated successfully.", "success");
   };
   const handleCreateHomeNetworkKeySuccess = () => {
     queryClient.invalidateQueries({ queryKey: ["operator"] });
@@ -445,38 +424,6 @@ const Operator = () => {
                         size="small"
                         onClick={handleEditOperatorTrackingClick}
                         aria-label="Edit supported TACs"
-                      >
-                        <EditIcon fontSize="small" color="primary" />
-                      </IconButton>
-                    </Tooltip>
-                  )}
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell sx={settingCellSx}>
-                  <Tooltip
-                    title="Slice/Service Type and Slice Differentiator — identifies the network slice"
-                    arrow
-                  >
-                    <span>Slice (SST/SD)</span>
-                  </Tooltip>
-                </TableCell>
-                <TableCell sx={valueCellSx}>
-                  {isLoading ? (
-                    <Skeleton variant="text" width={80} />
-                  ) : operator ? (
-                    `${operator.slice.sst}${isSdSet(operator.slice.sd) ? ` / ${formatSd(operator.slice.sd)}` : ""}`
-                  ) : (
-                    "N/A"
-                  )}
-                </TableCell>
-                <TableCell sx={actionCellSx}>
-                  {canEdit && (
-                    <Tooltip title="Edit network slice" arrow>
-                      <IconButton
-                        size="small"
-                        onClick={handleEditOperatorSliceClick}
-                        aria-label="Edit network slice"
                       >
                         <EditIcon fontSize="small" color="primary" />
                       </IconButton>
@@ -895,17 +842,6 @@ const Operator = () => {
           onClose={handleEditOperatorTrackingModalClose}
           onSuccess={handleEditOperatorTrackingSuccess}
           initialData={operator?.tracking || { supportedTacs: [""] }}
-        />
-      )}
-      {isEditOperatorSliceModalOpen && (
-        <EditOperatorSliceModal
-          open
-          onClose={handleEditOperatorSliceModalClose}
-          onSuccess={handleEditOperatorSliceSuccess}
-          initialData={{
-            sst: operator?.slice.sst ?? 1,
-            sd: operator?.slice.sd ?? "",
-          }}
         />
       )}
       {isCreateHomeNetworkKeyModalOpen && (

@@ -221,6 +221,8 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 					return fmt.Errorf("allowed nssai is empty in UE context")
 				}
 
+				// Default to the first allowed slice when the UE omits S-NSSAI.
+				// The ordering follows the policy iteration order for the subscriber's profile.
 				snssai = &ue.AllowedNssai[0]
 			}
 

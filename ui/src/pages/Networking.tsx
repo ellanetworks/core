@@ -88,6 +88,16 @@ import {
 } from "@/queries/interfaces";
 import EditInterfaceN3Modal from "@/components/EditInterfaceN3Modal";
 
+// Slices
+import {
+  listSlices,
+  deleteSlice,
+  type ListSlicesResponse,
+  type APISlice,
+} from "@/queries/slices";
+import CreateSliceModal from "@/components/CreateSliceModal";
+import EditSliceModal from "@/components/EditSliceModal";
+
 // Shared UI
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EmptyState from "@/components/EmptyState";
@@ -103,6 +113,7 @@ import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 type TabKey =
   | "data-networks"
+  | "slices"
   | "interfaces"
   | "routes"
   | "nat"
@@ -226,6 +237,112 @@ export default function NetworkingPage() {
       },
     ];
   }, [outerTheme]);
+
+  // ====================== Slices ======================
+  const [slicePagination, setSlicePagination] = useState<GridPaginationModel>({
+    page: 0,
+    pageSize: 25,
+  });
+
+  const {
+    data: slicePage,
+    isLoading: sliceLoading,
+    refetch: refetchSlices,
+  } = useQuery<ListSlicesResponse>({
+    queryKey: ["slices", slicePagination.page, slicePagination.pageSize],
+    queryFn: () =>
+      listSlices(
+        accessToken || "",
+        slicePagination.page + 1,
+        slicePagination.pageSize,
+      ),
+    enabled: !!accessToken,
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
+  });
+
+  const sliceRows: APISlice[] = slicePage?.items ?? [];
+  const sliceRowCount = slicePage?.total_count ?? 0;
+
+  const [isCreateSliceOpen, setCreateSliceOpen] = useState(false);
+  const [isEditSliceOpen, setEditSliceOpen] = useState(false);
+  const [editSlice, setEditSlice] = useState<APISlice | null>(null);
+  const [isDeleteSliceOpen, setDeleteSliceOpen] = useState(false);
+  const [selectedSliceName, setSelectedSliceName] = useState<string | null>(
+    null,
+  );
+
+  const handleOpenCreateSlice = () => setCreateSliceOpen(true);
+
+  const handleRequestEditSlice = (slice: APISlice) => {
+    setEditSlice(slice);
+    setEditSliceOpen(true);
+  };
+
+  const handleRequestDeleteSlice = (name: string) => {
+    setSelectedSliceName(name);
+    setDeleteSliceOpen(true);
+  };
+
+  const handleConfirmDeleteSlice = async () => {
+    if (!selectedSliceName || !accessToken) return;
+    try {
+      await deleteSlice(accessToken, selectedSliceName);
+      setDeleteSliceOpen(false);
+      showSnackbar(
+        `Slice "${selectedSliceName}" deleted successfully.`,
+        "success",
+      );
+      refetchSlices();
+    } catch (error: unknown) {
+      setDeleteSliceOpen(false);
+      showSnackbar(
+        `Failed to delete slice "${selectedSliceName}": ${String(error)}`,
+        "error",
+      );
+    } finally {
+      setSelectedSliceName(null);
+    }
+  };
+
+  const sliceDescription =
+    "Network slices let you partition traffic into logical groups with distinct quality-of-service policies. Each slice is identified by a Slice/Service Type (SST) and an optional Slice Differentiator (SD).";
+
+  const sliceColumns: GridColDef<APISlice>[] = useMemo(() => {
+    return [
+      { field: "name", headerName: "Name", flex: 1, minWidth: 200 },
+      { field: "sst", headerName: "SST", width: 100 },
+      { field: "sd", headerName: "SD", flex: 1, minWidth: 140 },
+      ...(canEdit
+        ? [
+            {
+              field: "actions",
+              headerName: "Actions",
+              type: "actions",
+              width: 120,
+              sortable: false,
+              disableColumnMenu: true,
+              getActions: (p: { row: APISlice }) => [
+                <GridActionsCellItem
+                  key="edit"
+                  icon={<EditIcon color="primary" />}
+                  label="Edit"
+                  onClick={() => handleRequestEditSlice(p.row)}
+                />,
+                <GridActionsCellItem
+                  key="delete"
+                  icon={<DeleteIcon color="primary" />}
+                  label="Delete"
+                  onClick={() => handleRequestDeleteSlice(p.row.name)}
+                />,
+              ],
+            } as GridColDef<APISlice>,
+          ]
+        : []),
+    ];
+  }, [canEdit]);
 
   // ====================== Interfaces ======================
   const {
@@ -738,6 +855,7 @@ export default function NetworkingPage() {
           sx={{ borderBottom: 1, borderColor: "divider" }}
         >
           <Tab value="data-networks" label="Data Networks" />
+          <Tab value="slices" label="Slices" />
           <Tab value="interfaces" label="Interfaces" />
           <Tab value="routes" label="Routes" />
           <Tab value="nat" label="NAT" />
@@ -812,6 +930,99 @@ export default function NetworkingPage() {
                   rowCount={dnRowCount}
                   paginationModel={dnPagination}
                   onPaginationModelChange={setDnPagination}
+                  pageSizeOptions={[10, 25, 50, 100]}
+                  disableColumnMenu
+                  disableRowSelectionOnClick
+                  sx={{
+                    width: "100%",
+                    border: 1,
+                    borderColor: "divider",
+                    "& .MuiDataGrid-cell": {
+                      borderBottom: "1px solid",
+                      borderColor: "divider",
+                    },
+                    "& .MuiDataGrid-columnHeaders": {
+                      borderBottom: "1px solid",
+                      borderColor: "divider",
+                    },
+                    "& .MuiDataGrid-footerContainer": {
+                      borderTop: "1px solid",
+                      borderColor: "divider",
+                    },
+                  }}
+                />
+              </ThemeProvider>
+            </>
+          )}
+        </Box>
+      )}
+
+      {/* ================= Slices Tab ================= */}
+      {tab === "slices" && (
+        <Box
+          sx={{
+            width: "100%",
+            mt: 2,
+            maxWidth: MAX_WIDTH,
+            px: PAGE_PADDING_X,
+          }}
+        >
+          {sliceLoading && sliceRowCount === 0 ? (
+            <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
+              <CircularProgress />
+            </Box>
+          ) : sliceRowCount === 0 ? (
+            <EmptyState
+              primaryText="No network slice found."
+              secondaryText="Create a network slice to partition traffic with distinct quality-of-service policies."
+              extraContent={
+                <Typography variant="body1" color="text.secondary">
+                  {sliceDescription}
+                </Typography>
+              }
+              button={canEdit}
+              buttonText="Create"
+              onCreate={handleOpenCreateSlice}
+              readOnlyHint="Ask an administrator to create a network slice."
+            />
+          ) : (
+            <>
+              <Box sx={{ mb: 3 }}>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={2}
+                  alignItems={{ xs: "stretch", sm: "center" }}
+                  justifyContent="space-between"
+                >
+                  <Box>
+                    <Typography variant="h5" sx={{ mb: 0.5 }}>
+                      Network Slices ({sliceRowCount})
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {sliceDescription}
+                    </Typography>
+                    {canEdit && (
+                      <Button
+                        variant="contained"
+                        color="success"
+                        onClick={handleOpenCreateSlice}
+                        sx={{ maxWidth: 200, mt: 2 }}
+                      >
+                        Create
+                      </Button>
+                    )}
+                  </Box>
+                </Stack>
+              </Box>
+              <ThemeProvider theme={gridTheme}>
+                <DataGrid<APISlice>
+                  rows={sliceRows}
+                  columns={sliceColumns}
+                  getRowId={(row) => row.name}
+                  paginationMode="server"
+                  rowCount={sliceRowCount}
+                  paginationModel={slicePagination}
+                  onPaginationModelChange={setSlicePagination}
                   pageSizeOptions={[10, 25, 50, 100]}
                   disableColumnMenu
                   disableRowSelectionOnClick
@@ -1641,6 +1852,37 @@ export default function NetworkingPage() {
             routerID: bgpSettings.routerID,
             listenAddress: bgpSettings.listenAddress,
           }}
+        />
+      )}
+
+      {isCreateSliceOpen && (
+        <CreateSliceModal
+          open
+          onClose={() => setCreateSliceOpen(false)}
+          onSuccess={() => {
+            refetchSlices();
+            showSnackbar("Network slice created successfully.", "success");
+          }}
+        />
+      )}
+      {isEditSliceOpen && editSlice && (
+        <EditSliceModal
+          open
+          onClose={() => setEditSliceOpen(false)}
+          onSuccess={() => {
+            refetchSlices();
+            showSnackbar("Network slice updated successfully.", "success");
+          }}
+          initialData={editSlice}
+        />
+      )}
+      {isDeleteSliceOpen && (
+        <DeleteConfirmationModal
+          open
+          onClose={() => setDeleteSliceOpen(false)}
+          onConfirm={handleConfirmDeleteSlice}
+          title="Confirm Deletion"
+          description={`Are you sure you want to delete the slice "${selectedSliceName}"? This action cannot be undone.`}
         />
       )}
     </Box>

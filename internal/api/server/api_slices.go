@@ -140,7 +140,7 @@ func CreateSlice(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if !isPolicyNameValid(params.Name) {
+		if !isResourceNameValid(params.Name) {
 			writeError(r.Context(), w, http.StatusBadRequest, "invalid name format - must be less than 256 characters", nil, logger.APILog)
 			return
 		}

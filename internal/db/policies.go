@@ -32,6 +32,7 @@ const (
 
 	getPolicyByProfileAndSliceStmt = "SELECT &Policy.* FROM %s WHERE profileID==$Policy.profileID AND sliceID==$Policy.sliceID LIMIT 1"
 	listPoliciesByProfilePagedStmt = "SELECT &Policy.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE profileID==$Policy.profileID LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	listPoliciesByProfileAllStmt   = "SELECT &Policy.* FROM %s WHERE profileID==$Policy.profileID ORDER BY id ASC"
 )
 
 type Policy struct {
@@ -158,6 +159,48 @@ func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID int
 	span.SetStatus(codes.Ok, "")
 
 	return policies, count, nil
+}
+
+func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID int) ([]Policy, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (all by profile)", "SELECT", PoliciesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			attribute.String("db.collection", PoliciesTableName),
+			attribute.Int("profileID", profileID),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
+
+	var policies []Policy
+
+	filter := Policy{ProfileID: profileID}
+
+	err := db.conn.Query(ctx, db.listPoliciesByProfileAllStmt, filter).GetAll(&policies)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetStatus(codes.Ok, "no rows")
+
+			return nil, nil
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return policies, nil
 }
 
 func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error) {

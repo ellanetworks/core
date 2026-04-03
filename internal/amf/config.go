@@ -139,12 +139,22 @@ func (amf *AMF) GetSubscriberAllowedNssai(ctx context.Context, supi etsi.SUPI) (
 
 	subscriber, err := amf.DBInstance.GetSubscriber(ctx, imsi)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get subscriber %s: %v", imsi, err)
+		return nil, fmt.Errorf("couldn't get subscriber %s: %w", imsi, err)
 	}
 
-	policies, _, err := amf.DBInstance.ListPoliciesByProfilePage(ctx, subscriber.ProfileID, 1, 100)
+	policies, err := amf.DBInstance.ListPoliciesByProfile(ctx, subscriber.ProfileID)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't list policies for profile %d: %v", subscriber.ProfileID, err)
+		return nil, fmt.Errorf("couldn't list policies for profile %d: %w", subscriber.ProfileID, err)
+	}
+
+	allSlices, err := amf.DBInstance.ListAllNetworkSlices(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't list network slices: %w", err)
+	}
+
+	sliceByID := make(map[int]*db.NetworkSlice, len(allSlices))
+	for i := range allSlices {
+		sliceByID[allSlices[i].ID] = &allSlices[i]
 	}
 
 	seen := make(map[int]struct{})
@@ -158,9 +168,9 @@ func (amf *AMF) GetSubscriberAllowedNssai(ctx context.Context, supi etsi.SUPI) (
 
 		seen[p.SliceID] = struct{}{}
 
-		slice, err := amf.DBInstance.GetNetworkSliceByID(ctx, p.SliceID)
-		if err != nil {
-			return nil, fmt.Errorf("couldn't get slice %d: %v", p.SliceID, err)
+		slice, ok := sliceByID[p.SliceID]
+		if !ok {
+			return nil, fmt.Errorf("couldn't find slice %d", p.SliceID)
 		}
 
 		sd := ""

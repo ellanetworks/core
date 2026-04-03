@@ -147,6 +147,12 @@ const ProfileDetail: React.FC = () => {
         minWidth: 140,
       },
       {
+        field: "slice_name",
+        headerName: "Slice",
+        flex: 1,
+        minWidth: 100,
+      },
+      {
         field: "session_ambr_uplink",
         headerName: "Session Bitrate Uplink",
         description:

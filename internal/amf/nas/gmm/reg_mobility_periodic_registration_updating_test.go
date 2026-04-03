@@ -49,12 +49,8 @@ func (fdb *failingSubscriberDB) GetPolicyByProfileAndSlice(ctx context.Context, 
 	return &db.Policy{ID: 1, Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: 1}, nil
 }
 
-func (fdb *failingSubscriberDB) ListPoliciesByProfilePage(_ context.Context, _ int, _ int, _ int) ([]db.Policy, int, error) {
-	return []db.Policy{{ID: 1, Name: "TestPolicy", ProfileID: 1, SliceID: 1, DataNetworkID: 1}}, 1, nil
-}
-
-func (fdb *failingSubscriberDB) GetNetworkSliceByID(_ context.Context, id int) (*db.NetworkSlice, error) {
-	return &db.NetworkSlice{ID: id, Name: "default", Sst: 1}, nil
+func (fdb *failingSubscriberDB) ListPoliciesByProfile(_ context.Context, _ int) ([]db.Policy, error) {
+	return []db.Policy{{ID: 1, Name: "TestPolicy", ProfileID: 1, SliceID: 1, DataNetworkID: 1}}, nil
 }
 
 // decryptAndDecodeNasPdu decrypts a ciphered NAS PDU using the UE's security context
@@ -870,25 +866,11 @@ func (m *multiSliceDB) GetPolicyByProfileAndSlice(_ context.Context, profileID, 
 	return &db.Policy{ID: sliceID, Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: 1}, nil
 }
 
-func (m *multiSliceDB) ListPoliciesByProfilePage(_ context.Context, _ int, _ int, _ int) ([]db.Policy, int, error) {
+func (m *multiSliceDB) ListPoliciesByProfile(_ context.Context, _ int) ([]db.Policy, error) {
 	return []db.Policy{
 		{ID: 1, Name: "Policy-A", ProfileID: 1, SliceID: 1, DataNetworkID: 1},
 		{ID: 2, Name: "Policy-B", ProfileID: 1, SliceID: 2, DataNetworkID: 2},
-	}, 2, nil
-}
-
-func (m *multiSliceDB) GetNetworkSliceByID(_ context.Context, id int) (*db.NetworkSlice, error) {
-	sd1, sd2 := "010203", "aabbcc"
-	slices := map[int]*db.NetworkSlice{
-		1: {ID: 1, Name: "slice-a", Sst: 1, Sd: &sd1},
-		2: {ID: 2, Name: "slice-b", Sst: 2, Sd: &sd2},
-	}
-
-	if s, ok := slices[id]; ok {
-		return s, nil
-	}
-
-	return nil, fmt.Errorf("slice %d not found", id)
+	}, nil
 }
 
 func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {

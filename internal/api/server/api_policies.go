@@ -89,7 +89,7 @@ const (
 	MaxNumPolicies = 12
 )
 
-func isPolicyNameValid(name string) bool {
+func isResourceNameValid(name string) bool {
 	return len(name) > 0 && len(name) < 256
 }
 
@@ -795,7 +795,7 @@ func validatePolicyParams(p CreatePolicyParams) error {
 		return errors.New("Var5qi is missing")
 	case p.Arp == 0:
 		return errors.New("arp is missing")
-	case !isPolicyNameValid(p.Name):
+	case !isResourceNameValid(p.Name):
 		return errors.New("invalid name format - must be less than 256 characters")
 	case !isValidBitrate(p.SessionAmbrUplink):
 		return errors.New("invalid session_ambr_uplink format - must be in the format `<number> <unit>`, allowed units are Mbps, Gbps")

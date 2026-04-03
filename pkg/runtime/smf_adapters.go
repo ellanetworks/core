@@ -53,11 +53,6 @@ func mapDBError(err error) error {
 	}
 }
 
-// NewSMFDBAdapter creates a new SMF database adapter.
-func NewSMFDBAdapter(database *db.Database) smf.SessionStore {
-	return &smfDBAdapter{db: database}
-}
-
 // ---------------------------------------------------------------------------
 // pcfDBAdapter adapts *db.Database to the smf.PCF interface.
 // In 3GPP terms this is the Npcf_SMPolicyControl service backed by the

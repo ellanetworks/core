@@ -142,6 +142,7 @@ type Database struct {
 
 	getPolicyByProfileAndSliceStmt *sqlair.Statement
 	listPoliciesByProfileStmt      *sqlair.Statement
+	listPoliciesByProfileAllStmt   *sqlair.Statement
 	createPolicyStmt               *sqlair.Statement
 	editPolicyStmt                 *sqlair.Statement
 	deletePolicyStmt               *sqlair.Statement
@@ -254,7 +255,6 @@ var InitialSupportedTacs = []string{"000001"}
 const (
 	InitialSliceName = "default"
 	InitialSliceSst  = 1
-	InitialSliceSd   = "102030"
 )
 
 // Initial Profile values
@@ -486,6 +486,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.getPolicyByLookupStmt, fmt.Sprintf(getPolicyByLookupStmt, PoliciesTableName), []any{Policy{}}},
 		{&db.getPolicyByProfileAndSliceStmt, fmt.Sprintf(getPolicyByProfileAndSliceStmt, PoliciesTableName), []any{Policy{}}},
 		{&db.listPoliciesByProfileStmt, fmt.Sprintf(listPoliciesByProfilePagedStmt, PoliciesTableName), []any{ListArgs{}, Policy{}, NumItems{}}},
+		{&db.listPoliciesByProfileAllStmt, fmt.Sprintf(listPoliciesByProfileAllStmt, PoliciesTableName), []any{Policy{}}},
 		{&db.createPolicyStmt, fmt.Sprintf(createPolicyStmt, PoliciesTableName), []any{Policy{}}},
 		{&db.editPolicyStmt, fmt.Sprintf(editPolicyStmt, PoliciesTableName), []any{Policy{}}},
 		{&db.deletePolicyStmt, fmt.Sprintf(deletePolicyStmt, PoliciesTableName), []any{Policy{}}},
@@ -733,12 +734,9 @@ func (db *Database) Initialize(ctx context.Context) error {
 			return fmt.Errorf("failed to get default data network: %v", err)
 		}
 
-		sd := InitialSliceSd
-
 		initialSlice := &NetworkSlice{
 			Name: InitialSliceName,
 			Sst:  InitialSliceSst,
-			Sd:   &sd,
 		}
 		if err := db.CreateNetworkSlice(ctx, initialSlice); err != nil {
 			return fmt.Errorf("failed to create default network slice: %v", err)

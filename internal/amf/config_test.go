@@ -46,24 +46,21 @@ func (d *configTestDB) GetPolicyByProfileAndSlice(context.Context, int, int) (*d
 }
 
 func (d *configTestDB) ListAllNetworkSlices(context.Context) ([]db.NetworkSlice, error) {
-	return d.allSlices, nil
-}
-
-func (d *configTestDB) ListPoliciesByProfilePage(_ context.Context, _ int, _ int, _ int) ([]db.Policy, int, error) {
-	return d.policies, len(d.policies), d.polErr
-}
-
-func (d *configTestDB) GetNetworkSliceByID(_ context.Context, id int) (*db.NetworkSlice, error) {
-	if d.sliceErr != nil {
-		return nil, d.sliceErr
+	if d.allSlices != nil {
+		return d.allSlices, nil
 	}
 
-	s, ok := d.slices[id]
-	if !ok {
-		return nil, fmt.Errorf("slice %d not found", id)
+	// Build from the slices map so GetSubscriberAllowedNssai tests work.
+	var out []db.NetworkSlice
+	for _, s := range d.slices {
+		out = append(out, *s)
 	}
 
-	return s, nil
+	return out, d.sliceErr
+}
+
+func (d *configTestDB) ListPoliciesByProfile(_ context.Context, _ int) ([]db.Policy, error) {
+	return d.policies, d.polErr
 }
 
 func mustSUPI(t *testing.T) etsi.SUPI {
