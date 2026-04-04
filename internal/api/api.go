@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/smf"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 )
@@ -56,7 +57,20 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 
 	secureCookie := scheme == HTTPS
 
-	router := server.NewHandler(dbInstance, cfg, upf, kernelInt, jwtSecret, secureCookie, embedFS, sessions, amfInstance, bgpService, registerExtraRoutes)
+	router := server.NewHandler(server.HandlerConfig{
+		DB:                  dbInstance,
+		Config:              cfg,
+		UPF:                 upf,
+		Kernel:              kernelInt,
+		JWTSecret:           jwtSecret,
+		SecureCookie:        secureCookie,
+		FrontendFS:          embedFS,
+		Sessions:            sessions,
+		AMF:                 amfInstance,
+		BGP:                 bgpService,
+		BcryptCost:          bcrypt.DefaultCost,
+		RegisterExtraRoutes: registerExtraRoutes,
+	})
 
 	httpAddr := fmt.Sprintf("%s:%d", cfg.Interfaces.API.Address, cfg.Interfaces.API.Port)
 
