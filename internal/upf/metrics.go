@@ -7,7 +7,16 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+var flowReportsDropped prometheus.Counter
+
 func RegisterMetrics() {
+	flowReportsDropped = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "app_flow_reports_dropped_total",
+		Help: "Total number of flow reports dropped because the reporter channel was full.",
+	})
+
+	prometheus.MustRegister(flowReportsDropped)
+
 	upfUplinkBytes := prometheus.NewCounterFunc(prometheus.CounterOpts{
 		Name: "app_uplink_bytes",
 		Help: "The total number of uplink bytes going through the data plane (N3 -> N6). This value includes the Ethernet header.",

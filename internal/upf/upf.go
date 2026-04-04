@@ -36,7 +36,7 @@ const (
 	ConnTrackTimeout    = 10 * time.Minute
 	InactiveFlowTimeout = 30 * time.Second
 	ActiveFlowTimeout   = 30 * time.Minute
-	maxInFlightFlows    = 2000
+	maxInFlightFlows    = 16384
 	flowReportTimeout   = 5 * time.Second
 )
 
@@ -668,6 +668,7 @@ func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flow
 	}
 
 	if dropped > 0 {
+		flowReportsDropped.Add(float64(dropped))
 		logger.UpfLog.Warn("Dropped flow reports: reporter channel full", zap.Int("dropped", dropped))
 	}
 }
