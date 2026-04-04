@@ -1245,7 +1245,7 @@ func TestSendFlowReports_StoreError(t *testing.T) {
 	req := &pfcp_dispatcher.FlowReportRequest{
 		IMSI:      testIMSI,
 		SourceIP:  "10.0.0.1",
-		Direction: "uplink",
+		Direction: models.DirectionUplink,
 	}
 
 	err := s.SendFlowReports(context.Background(), []*pfcp_dispatcher.FlowReportRequest{req})
