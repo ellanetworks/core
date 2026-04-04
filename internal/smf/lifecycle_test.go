@@ -1152,10 +1152,10 @@ func TestHandlePfcpSessionReportRequest_UnknownSEID(t *testing.T) {
 }
 
 // ===========================
-// SendFlowReport tests
+// SendFlowReports tests
 // ===========================
 
-func TestSendFlowReport_HappyPath(t *testing.T) {
+func TestSendFlowReports_HappyPath(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
@@ -1174,9 +1174,9 @@ func TestSendFlowReport_HappyPath(t *testing.T) {
 		Direction:       models.DirectionUplink,
 	}
 
-	err := s.SendFlowReport(ctx, req)
+	err := s.SendFlowReports(ctx, []*pfcp_dispatcher.FlowReportRequest{req})
 	if err != nil {
-		t.Fatalf("SendFlowReport failed: %v", err)
+		t.Fatalf("SendFlowReports failed: %v", err)
 	}
 
 	store.mu.Lock()
@@ -1199,17 +1199,24 @@ func TestSendFlowReport_HappyPath(t *testing.T) {
 	}
 }
 
-func TestSendFlowReport_NilRequest(t *testing.T) {
+func TestSendFlowReports_NilRequestSkipped(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
-	err := s.SendFlowReport(context.Background(), nil)
-	if err == nil {
-		t.Fatal("expected error for nil request")
+	err := s.SendFlowReports(context.Background(), []*pfcp_dispatcher.FlowReportRequest{nil})
+	if err != nil {
+		t.Fatalf("expected nil request to be skipped, got error: %v", err)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	if len(store.flowLog) != 0 {
+		t.Fatalf("expected 0 flow reports, got %d", len(store.flowLog))
 	}
 }
 
-func TestSendFlowReport_MissingIMSI(t *testing.T) {
+func TestSendFlowReports_MissingIMSISkipped(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
@@ -1217,23 +1224,31 @@ func TestSendFlowReport_MissingIMSI(t *testing.T) {
 		SourceIP: "10.0.0.1",
 	}
 
-	err := s.SendFlowReport(context.Background(), req)
-	if err == nil {
-		t.Fatal("expected error for missing IMSI")
+	err := s.SendFlowReports(context.Background(), []*pfcp_dispatcher.FlowReportRequest{req})
+	if err != nil {
+		t.Fatalf("expected empty-IMSI request to be skipped, got error: %v", err)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	if len(store.flowLog) != 0 {
+		t.Fatalf("expected 0 flow reports, got %d", len(store.flowLog))
 	}
 }
 
-func TestSendFlowReport_StoreError(t *testing.T) {
+func TestSendFlowReports_StoreError(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	store.err = fmt.Errorf("database error")
 	s := newTestSMF(pcf, store, upf, amfCb)
 
 	req := &pfcp_dispatcher.FlowReportRequest{
-		IMSI:     testIMSI,
-		SourceIP: "10.0.0.1",
+		IMSI:      testIMSI,
+		SourceIP:  "10.0.0.1",
+		Direction: "uplink",
 	}
 
-	err := s.SendFlowReport(context.Background(), req)
+	err := s.SendFlowReports(context.Background(), []*pfcp_dispatcher.FlowReportRequest{req})
 	if err == nil {
 		t.Fatal("expected error when store fails")
 	}

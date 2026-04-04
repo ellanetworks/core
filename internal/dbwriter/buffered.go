@@ -54,9 +54,9 @@ func (b *BufferedDBWriter) InsertAuditLog(ctx context.Context, auditLog *AuditLo
 	return b.delegate.InsertAuditLog(ctx, auditLog)
 }
 
-// InsertFlowReport is forwarded synchronously to the underlying writer.
-func (b *BufferedDBWriter) InsertFlowReport(ctx context.Context, flowReport *FlowReport) error {
-	return b.delegate.InsertFlowReport(ctx, flowReport)
+// InsertFlowReports is forwarded synchronously to the underlying writer.
+func (b *BufferedDBWriter) InsertFlowReports(ctx context.Context, flowReports []*FlowReport) error {
+	return b.delegate.InsertFlowReports(ctx, flowReports)
 }
 
 // Stop closes the event channel and blocks until all queued events have

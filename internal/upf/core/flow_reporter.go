@@ -4,7 +4,6 @@
 package core
 
 import (
-	"context"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -12,11 +11,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
-	"go.uber.org/zap"
 )
 
 var bootTime = mustGetBootTime()
@@ -56,18 +53,15 @@ func u16NtoHS(n uint16) uint16 {
 	return binary.NativeEndian.Uint16(b)
 }
 
-// SendFlowReport converts an eBPF flow record to a FlowReportRequest and sends it to the SMF dispatcher.
-// The function is synchronous; callers should invoke it asynchronously if non-blocking behavior is desired.
-// Errors are logged but do not propagate to the caller.
-func SendFlowReport(ctx context.Context, dispatcher *pfcp_dispatcher.PfcpDispatcher, flow ebpf.N3N6EntrypointFlow, stats ebpf.N3N6EntrypointFlowStats) {
+// BuildFlowReportRequest converts an eBPF flow record to a FlowReportRequest
+// without sending it. Used by the batch reporting path.
+func BuildFlowReportRequest(flow ebpf.N3N6EntrypointFlow, stats ebpf.N3N6EntrypointFlowStats) *pfcp_dispatcher.FlowReportRequest {
 	saddr := int2ip(flow.Saddr)
 	daddr := int2ip(flow.Daddr)
 	sport := u16NtoHS(flow.Sport)
 	dport := u16NtoHS(flow.Dport)
-	proto := flow.Proto
 	startTime := bootTime.Add(time.Duration(stats.FirstTs))
 	endTime := bootTime.Add(time.Duration(stats.LastTs))
-	imsiStr := fmt.Sprintf("%015d", flow.Imsi)
 
 	// Determine direction: ingress on N3 means the UE originated the traffic (uplink)
 	direction := models.DirectionDownlink
@@ -75,14 +69,13 @@ func SendFlowReport(ctx context.Context, dispatcher *pfcp_dispatcher.PfcpDispatc
 		direction = models.DirectionUplink
 	}
 
-	// Create flow report request
-	flowReportReq := &pfcp_dispatcher.FlowReportRequest{
-		IMSI:            imsiStr,
+	return &pfcp_dispatcher.FlowReportRequest{
+		IMSI:            fmt.Sprintf("%015d", flow.Imsi),
 		SourceIP:        saddr.String(),
 		DestinationIP:   daddr.String(),
 		SourcePort:      sport,
 		DestinationPort: dport,
-		Protocol:        proto,
+		Protocol:        flow.Proto,
 		Packets:         stats.Packets,
 		Bytes:           stats.Bytes,
 		StartTime:       startTime.UTC().Format(time.RFC3339),
@@ -90,32 +83,4 @@ func SendFlowReport(ctx context.Context, dispatcher *pfcp_dispatcher.PfcpDispatc
 		Direction:       direction,
 		Action:          models.Action(flow.Action),
 	}
-
-	// Send to SMF via dispatcher
-	err := dispatcher.SMF.SendFlowReport(ctx, flowReportReq)
-	if err != nil {
-		logger.UpfLog.Error(
-			"failed to send flow report to SMF",
-			logger.IMSI(imsiStr),
-			logger.SourceIP(flowReportReq.SourceIP),
-			logger.DestinationIP(flowReportReq.DestinationIP),
-			zap.Error(err),
-		)
-
-		return
-	}
-
-	logger.UpfLog.Debug(
-		"flow expired and sent to SMF",
-		logger.IMSI(imsiStr),
-		logger.SourceIP(saddr.String()),
-		logger.DestinationIP(daddr.String()),
-		logger.SourcePort(sport),
-		logger.DestinationPort(dport),
-		logger.Protocol(proto),
-		logger.Packets(stats.Packets),
-		logger.Bytes(stats.Bytes),
-		zap.Time("start", startTime),
-		zap.Time("end", endTime),
-	)
 }

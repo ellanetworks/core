@@ -461,7 +461,7 @@ func TestListFlowReportsPagination(t *testing.T) {
 			StartTime:       now,
 			EndTime:         now,
 		}
-		if err := env.DB.InsertFlowReport(context.Background(), fr); err != nil {
+		if err := env.DB.InsertFlowReports(context.Background(), []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert flow report: %s", err)
 		}
 	}
@@ -559,7 +559,7 @@ func TestListFlowReportsFilterBySubscriber(t *testing.T) {
 			StartTime:       now,
 			EndTime:         now,
 		}
-		if err := env.DB.InsertFlowReport(context.Background(), fr); err != nil {
+		if err := env.DB.InsertFlowReports(context.Background(), []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert flow report: %s", err)
 		}
 	}
@@ -577,7 +577,7 @@ func TestListFlowReportsFilterBySubscriber(t *testing.T) {
 			StartTime:       now,
 			EndTime:         now,
 		}
-		if err := env.DB.InsertFlowReport(context.Background(), fr); err != nil {
+		if err := env.DB.InsertFlowReports(context.Background(), []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert flow report: %s", err)
 		}
 	}
@@ -652,7 +652,7 @@ func TestClearFlowReports(t *testing.T) {
 			StartTime:       now,
 			EndTime:         now,
 		}
-		if err := env.DB.InsertFlowReport(context.Background(), fr); err != nil {
+		if err := env.DB.InsertFlowReports(context.Background(), []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert flow report: %s", err)
 		}
 	}
@@ -835,7 +835,7 @@ func TestGetFlowReportStats_WithData(t *testing.T) {
 			StartTime:       now,
 			EndTime:         now,
 		}
-		if err := env.DB.InsertFlowReport(context.Background(), fr); err != nil {
+		if err := env.DB.InsertFlowReports(context.Background(), []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert flow report: %s", err)
 		}
 	}
@@ -854,7 +854,7 @@ func TestGetFlowReportStats_WithData(t *testing.T) {
 			StartTime:       now,
 			EndTime:         now,
 		}
-		if err := env.DB.InsertFlowReport(context.Background(), fr); err != nil {
+		if err := env.DB.InsertFlowReports(context.Background(), []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert flow report: %s", err)
 		}
 	}
@@ -932,7 +932,7 @@ func TestGetFlowReportStats_FilterBySubscriber(t *testing.T) {
 			StartTime:       now,
 			EndTime:         now,
 		}
-		if err := env.DB.InsertFlowReport(context.Background(), fr); err != nil {
+		if err := env.DB.InsertFlowReports(context.Background(), []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert flow report: %s", err)
 		}
 	}
@@ -951,7 +951,7 @@ func TestGetFlowReportStats_FilterBySubscriber(t *testing.T) {
 			StartTime:       now,
 			EndTime:         now,
 		}
-		if err := env.DB.InsertFlowReport(context.Background(), fr); err != nil {
+		if err := env.DB.InsertFlowReports(context.Background(), []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert flow report: %s", err)
 		}
 	}
@@ -1018,7 +1018,7 @@ func TestGetFlowReportStats_FilterByProtocol(t *testing.T) {
 			StartTime:       now,
 			EndTime:         now,
 		}
-		if err := env.DB.InsertFlowReport(context.Background(), fr); err != nil {
+		if err := env.DB.InsertFlowReports(context.Background(), []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert flow report: %s", err)
 		}
 	}
@@ -1037,7 +1037,7 @@ func TestGetFlowReportStats_FilterByProtocol(t *testing.T) {
 			StartTime:       now,
 			EndTime:         now,
 		}
-		if err := env.DB.InsertFlowReport(context.Background(), fr); err != nil {
+		if err := env.DB.InsertFlowReports(context.Background(), []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert flow report: %s", err)
 		}
 	}

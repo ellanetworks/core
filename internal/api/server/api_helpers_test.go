@@ -328,7 +328,7 @@ func (f *fakeSessionStore) IncrementDailyUsage(_ context.Context, _ string, _, _
 	return nil
 }
 
-func (f *fakeSessionStore) InsertFlowReport(_ context.Context, _ *smf.FlowReport) error {
+func (f *fakeSessionStore) InsertFlowReports(_ context.Context, _ []*smf.FlowReport) error {
 	return nil
 }
 

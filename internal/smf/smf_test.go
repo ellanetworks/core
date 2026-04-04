@@ -85,11 +85,13 @@ func (f *fakeStore) IncrementDailyUsage(_ context.Context, imsi string, uplinkBy
 	return f.err
 }
 
-func (f *fakeStore) InsertFlowReport(_ context.Context, report *smf.FlowReport) error {
+func (f *fakeStore) InsertFlowReports(_ context.Context, reports []*smf.FlowReport) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.flowLog = append(f.flowLog, *report)
+	for _, r := range reports {
+		f.flowLog = append(f.flowLog, *r)
+	}
 
 	return f.err
 }

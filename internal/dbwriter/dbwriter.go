@@ -43,6 +43,6 @@ type FlowReport struct {
 
 type DBWriter interface {
 	InsertRadioEvent(ctx context.Context, radioEvent *RadioEvent) error
-	InsertFlowReport(ctx context.Context, flowReport *FlowReport) error
+	InsertFlowReports(ctx context.Context, flowReports []*FlowReport) error
 	InsertAuditLog(ctx context.Context, auditLog *AuditLog) error
 }

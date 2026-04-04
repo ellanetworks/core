@@ -38,7 +38,7 @@ type UPF interface {
 
 type SMF interface {
 	HandlePfcpSessionReportRequest(context.Context, *message.SessionReportRequest) (*message.SessionReportResponse, error)
-	SendFlowReport(context.Context, *FlowReportRequest) error
+	SendFlowReports(context.Context, []*FlowReportRequest) error
 }
 
 type PfcpDispatcher struct {
