@@ -27,7 +27,7 @@ const (
 	InitializeAction = "initialize"
 )
 
-func Initialize(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool) http.Handler {
+func Initialize(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool, bcryptCost int) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var newUser InitializeParams
 
@@ -65,7 +65,7 @@ func Initialize(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool
 			return
 		}
 
-		hashedPassword, err := hashPassword(newUser.Password)
+		hashedPassword, err := hashPassword(newUser.Password, bcryptCost)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
 			return

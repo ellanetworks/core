@@ -97,8 +97,8 @@ func isValidRoleID(roleID RoleID) bool {
 	return roleID == RoleAdmin || roleID == RoleReadOnly || roleID == RoleNetworkManager
 }
 
-func hashPassword(password string) (string, error) {
-	pw, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+func hashPassword(password string, bcryptCost int) (string, error) {
+	pw, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
 		return "", err
 	}
@@ -216,7 +216,7 @@ func GetLoggedInUser(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func CreateUser(dbInstance *db.Database) http.Handler {
+func CreateUser(dbInstance *db.Database, bcryptCost int) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 		email, _ := emailAny.(string)
@@ -248,7 +248,7 @@ func CreateUser(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		hashedPassword, err := hashPassword(newUser.Password)
+		hashedPassword, err := hashPassword(newUser.Password, bcryptCost)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
 			return
@@ -354,7 +354,7 @@ func UpdateUser(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func UpdateUserPassword(dbInstance *db.Database) http.Handler {
+func UpdateUserPassword(dbInstance *db.Database, bcryptCost int) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -382,7 +382,7 @@ func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		hashedPassword, err := hashPassword(updateUserParams.Password)
+		hashedPassword, err := hashPassword(updateUserParams.Password, bcryptCost)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
 			return
@@ -413,7 +413,7 @@ func UpdateUserPassword(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func UpdateMyUserPassword(dbInstance *db.Database) http.Handler {
+func UpdateMyUserPassword(dbInstance *db.Database, bcryptCost int) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -460,7 +460,7 @@ func UpdateMyUserPassword(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		hashedPassword, err := hashPassword(updateUserParams.Password)
+		hashedPassword, err := hashPassword(updateUserParams.Password, bcryptCost)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to hash password", err, logger.APILog)
 			return
@@ -614,8 +614,8 @@ func randAlphaNum(n int) (string, error) {
 	return string(b), nil
 }
 
-func hashAPIToken(token string) (string, error) {
-	hashedToken, err := bcrypt.GenerateFromPassword([]byte(token), bcrypt.DefaultCost)
+func hashAPIToken(token string, bcryptCost int) (string, error) {
+	hashedToken, err := bcrypt.GenerateFromPassword([]byte(token), bcryptCost)
 	if err != nil {
 		return "", fmt.Errorf("failed to hash API token: %w", err)
 	}
@@ -623,7 +623,7 @@ func hashAPIToken(token string) (string, error) {
 	return string(hashedToken), nil
 }
 
-func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
+func CreateMyAPIToken(dbInstance *db.Database, bcryptCost int) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -703,7 +703,7 @@ func CreateMyAPIToken(dbInstance *db.Database) http.Handler {
 
 		token := fmt.Sprintf("ellacore_%s_%s", tokenID, secret)
 
-		hash, err := hashAPIToken(secret)
+		hash, err := hashAPIToken(secret, bcryptCost)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to hash API token", err, logger.APILog)
 			return
@@ -870,7 +870,7 @@ func ListUserAPITokens(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func CreateUserAPIToken(dbInstance *db.Database) http.Handler {
+func CreateUserAPIToken(dbInstance *db.Database, bcryptCost int) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -960,7 +960,7 @@ func CreateUserAPIToken(dbInstance *db.Database) http.Handler {
 
 		token := fmt.Sprintf("ellacore_%s_%s", tokenID, secret)
 
-		hash, err := hashAPIToken(secret)
+		hash, err := hashAPIToken(secret, bcryptCost)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to hash API token", err, logger.APILog)
 			return
