@@ -111,7 +111,7 @@ const ProfileDetail: React.FC = () => {
         field: "name",
         headerName: "Name",
         flex: 1,
-        minWidth: 140,
+        minWidth: 100,
         renderCell: (params: GridRenderCellParams<APIPolicy>) => (
           <Box
             sx={{
@@ -144,7 +144,7 @@ const ProfileDetail: React.FC = () => {
         field: "data_network_name",
         headerName: "Data Network",
         flex: 1,
-        minWidth: 140,
+        minWidth: 100,
       },
       {
         field: "slice_name",
@@ -158,7 +158,7 @@ const ProfileDetail: React.FC = () => {
         description:
           "Per-session uplink bitrate cap (Session AMBR). Enforced by Ella Core.",
         flex: 0.8,
-        minWidth: 130,
+        minWidth: 100,
       },
       {
         field: "session_ambr_downlink",
@@ -166,7 +166,7 @@ const ProfileDetail: React.FC = () => {
         description:
           "Per-session downlink bitrate cap (Session AMBR). Enforced by Ella Core.",
         flex: 0.8,
-        minWidth: 130,
+        minWidth: 100,
       },
       {
         field: "var5qi",
@@ -196,7 +196,14 @@ const ProfileDetail: React.FC = () => {
           pb: 4,
         }}
       >
-        <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: PAGE_PADDING_X }}>
+        <Box
+          sx={{
+            width: "100%",
+            maxWidth: MAX_WIDTH,
+            mx: "auto",
+            px: PAGE_PADDING_X,
+          }}
+        >
           <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
           <Skeleton variant="rounded" height={220} />
           <Skeleton variant="rounded" height={300} sx={{ mt: 3 }} />
@@ -238,7 +245,14 @@ const ProfileDetail: React.FC = () => {
         pb: 4,
       }}
     >
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: PAGE_PADDING_X }}>
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: MAX_WIDTH,
+          mx: "auto",
+          px: PAGE_PADDING_X,
+        }}
+      >
         {/* Header / Breadcrumb */}
         <Box
           sx={{

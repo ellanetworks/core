@@ -148,7 +148,7 @@ Configure your 5G radio to connect to Ella Core. You will need to set:
 - **AMF Address**: The IP address of your radio interface. Run `ip addr show ens5` to find it (replace `ens5` with your radio interface name).
 - **PLMN ID**: `001-01` (MCC-MNC matching Ella Core's Operator configuration)
 - **TAC**: `000001` (TAC matching Ella Core's Operator configuration)
-- **SST/SD**: `1/102030` (Slice configuration matching Ella Core's Operator configuration)
+- **SST/SD**: `1/NULL` (Slice configuration matching Ella Core's Operator configuration)
 
 Power on the radio. For detailed instructions, see [Integrate with a Radio](../how_to/integrate_with_radio.md).
 

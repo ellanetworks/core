@@ -15,7 +15,7 @@ import { useSnackbar } from "@/contexts/SnackbarContext";
 import UserAccountCard from "@/components/UserAccountCard";
 import UserPasswordCard from "@/components/UserPasswordCard";
 import UserAPITokensCard from "@/components/UserAPITokensCard";
-import { MAX_WIDTH } from "@/utils/layout";
+import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -85,7 +85,14 @@ export default function Profile() {
         pb: 4,
       }}
     >
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: MAX_WIDTH,
+          mx: "auto",
+          px: PAGE_PADDING_X,
+        }}
+      >
         <Typography variant="h4" sx={{ mb: 1 }}>
           My Profile
         </Typography>
