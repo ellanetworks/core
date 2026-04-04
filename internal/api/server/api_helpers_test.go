@@ -23,6 +23,7 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/supportbundle"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -147,7 +148,18 @@ func setupServer(filepath string) (testEnv, error) {
 	}
 
 	amfInstance := amf.New(testdb, nil, smfInstance)
-	ts := httptest.NewTLSServer(server.NewHandler(testdb, cfg, fakeUPF, fakeKernel, jwtSecret, false, dummyfs, smfInstance, amfInstance, nil, nil))
+	ts := httptest.NewTLSServer(server.NewHandler(server.HandlerConfig{
+		DB:           testdb,
+		Config:       cfg,
+		UPF:          fakeUPF,
+		Kernel:       fakeKernel,
+		JWTSecret:    jwtSecret,
+		SecureCookie: false,
+		FrontendFS:   dummyfs,
+		Sessions:     smfInstance,
+		AMF:          amfInstance,
+		BcryptCost:   bcrypt.MinCost,
+	}))
 
 	supportbundle.ConfigProvider = func(ctx context.Context) ([]byte, error) {
 		return []byte("fake test config"), nil
@@ -197,7 +209,18 @@ func setupServerWithUPF(filepath string, upf server.UPFUpdater) (testEnv, error)
 	}
 
 	amfInstance := amf.New(testdb, nil, nil)
-	ts := httptest.NewTLSServer(server.NewHandler(testdb, cfg, upf, fakeKernel, jwtSecret, false, dummyfs, smfInstance, amfInstance, nil, nil))
+	ts := httptest.NewTLSServer(server.NewHandler(server.HandlerConfig{
+		DB:           testdb,
+		Config:       cfg,
+		UPF:          upf,
+		Kernel:       fakeKernel,
+		JWTSecret:    jwtSecret,
+		SecureCookie: false,
+		FrontendFS:   dummyfs,
+		Sessions:     smfInstance,
+		AMF:          amfInstance,
+		BcryptCost:   bcrypt.MinCost,
+	}))
 
 	supportbundle.ConfigProvider = func(ctx context.Context) ([]byte, error) {
 		return []byte("fake test config"), nil
