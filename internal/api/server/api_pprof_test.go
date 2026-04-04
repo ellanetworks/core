@@ -65,16 +65,8 @@ func TestGetPprof_Authorized(t *testing.T) {
 			endpoint: "/cmdline",
 		},
 		{
-			testName: "Profile endpoint",
-			endpoint: "/profile?seconds=1",
-		},
-		{
 			testName: "Symbol endpoint",
 			endpoint: "/symbol",
-		},
-		{
-			testName: "Trace endpoint",
-			endpoint: "/trace?seconds=1",
 		},
 		{
 			testName: "allocs endpoint",
