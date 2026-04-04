@@ -343,7 +343,7 @@ const EventsTab: React.FC = () => {
         field: "timestamp",
         headerName: "Timestamp",
         flex: 1,
-        minWidth: 180,
+        minWidth: 140,
         sortable: false,
         filterable: false,
         renderCell: (p) => {
@@ -355,7 +355,7 @@ const EventsTab: React.FC = () => {
         field: "radio",
         headerName: "Radio",
         flex: 1,
-        minWidth: 160,
+        minWidth: 120,
         sortable: false,
         filterable: false,
         renderCell: (p) => {
@@ -411,14 +411,14 @@ const EventsTab: React.FC = () => {
         field: "message_type",
         headerName: "Message Type",
         flex: 1,
-        minWidth: 220,
+        minWidth: 160,
         sortable: false,
         filterable: false,
       },
       {
         field: "direction",
         headerName: "Direction",
-        width: 120,
+        width: 90,
         align: "center",
         headerAlign: "center",
         sortable: false,
@@ -469,7 +469,7 @@ const EventsTab: React.FC = () => {
         direction="horizontal"
         style={{ width: "100%", height: "100%", overflow: "hidden" }}
       >
-        <Panel minSize={20}>
+        <Panel minSize={30}>
           <Box
             sx={{
               height: "100%",
@@ -491,7 +491,7 @@ const EventsTab: React.FC = () => {
                 height: "100%",
                 overflow: "hidden",
                 pl: PAGE_PAD,
-                pr: viewEventDrawerOpen ? 0 : PAGE_PAD,
+                pr: viewEventDrawerOpen ? 1 : PAGE_PAD,
               }}
             >
               <Box sx={{ flexShrink: 0 }}>
@@ -518,7 +518,7 @@ const EventsTab: React.FC = () => {
                   value={radioFilter}
                   onChange={(e) => setRadioFilter(e.target.value)}
                   size="small"
-                  sx={{ minWidth: 180 }}
+                  sx={{ minWidth: 150 }}
                 >
                   <MenuItem value="">All radios</MenuItem>
                   {radioOptions.map((r) => (
@@ -533,7 +533,7 @@ const EventsTab: React.FC = () => {
                   value={directionFilter}
                   onChange={(e) => setDirectionFilter(e.target.value)}
                   size="small"
-                  sx={{ minWidth: 160 }}
+                  sx={{ minWidth: 120 }}
                 >
                   <MenuItem value="">All</MenuItem>
                   <MenuItem value="inbound">
@@ -561,7 +561,7 @@ const EventsTab: React.FC = () => {
                   value={messageTypeFilter}
                   onChange={(e) => setMessageTypeFilter(e.target.value)}
                   size="small"
-                  sx={{ minWidth: 220 }}
+                  sx={{ minWidth: 180 }}
                 >
                   <MenuItem value="">All</MenuItem>
                   {NGAP_MESSAGE_TYPES.map((mt) => (
@@ -775,7 +775,7 @@ const Radio = () => {
         field: "name",
         headerName: "Name",
         flex: 1,
-        minWidth: 200,
+        minWidth: 140,
         renderCell: (params) => (
           <Box
             sx={{
@@ -804,11 +804,12 @@ const Radio = () => {
           </Box>
         ),
       },
-      { field: "id", headerName: "ID", flex: 0.6, minWidth: 160 },
+      { field: "id", headerName: "ID", flex: 0.6, minWidth: 100 },
       {
         field: "ran_node_type",
         headerName: "Type",
-        width: 120,
+        flex: 0.4,
+        minWidth: 80,
         renderCell: (params) => {
           const t = params.row.ran_node_type;
           const color =
@@ -824,7 +825,7 @@ const Radio = () => {
           );
         },
       },
-      { field: "address", headerName: "Address", flex: 1, minWidth: 240 },
+      { field: "address", headerName: "Address", flex: 1, minWidth: 120 },
     ],
     [theme],
   );
@@ -878,6 +879,7 @@ const Radio = () => {
                 sx={{
                   width: "100%",
                   maxWidth: MAX_WIDTH,
+                  mx: "auto",
                   px: PAGE_PAD,
                   mb: 3,
                   display: "flex",
@@ -897,6 +899,7 @@ const Radio = () => {
                 sx={{
                   width: "100%",
                   maxWidth: MAX_WIDTH,
+                  mx: "auto",
                   px: PAGE_PAD,
                 }}
               >

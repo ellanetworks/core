@@ -174,6 +174,7 @@ const BackupRestore = () => {
           sx={{
             width: "100%",
             maxWidth: MAX_WIDTH,
+            mx: "auto",
             px: PAGE_PADDING_X,
             mb: 3,
             display: "flex",
@@ -187,7 +188,14 @@ const BackupRestore = () => {
           </Typography>
         </Box>
 
-        <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: PAGE_PADDING_X }}>
+        <Box
+          sx={{
+            width: "100%",
+            maxWidth: MAX_WIDTH,
+            mx: "auto",
+            px: PAGE_PADDING_X,
+          }}
+        >
           <Grid container spacing={4} justifyContent="flex-start">
             <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <Card

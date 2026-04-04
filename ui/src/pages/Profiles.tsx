@@ -17,7 +17,7 @@ import {
 import CreateProfileModal from "@/components/CreateProfileModal";
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
-import { MAX_WIDTH } from "@/utils/layout";
+import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { Link } from "react-router-dom";
 
 const ProfilesPage: React.FC = () => {
@@ -147,7 +147,8 @@ const ProfilesPage: React.FC = () => {
             sx={{
               width: "100%",
               maxWidth: MAX_WIDTH,
-              px: { xs: 2, sm: 4 },
+              mx: "auto",
+              px: PAGE_PADDING_X,
               mb: 3,
               display: "flex",
               flexDirection: "column",
@@ -173,7 +174,12 @@ const ProfilesPage: React.FC = () => {
           </Box>
 
           <Box
-            sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}
+            sx={{
+              width: "100%",
+              maxWidth: MAX_WIDTH,
+              mx: "auto",
+              px: PAGE_PADDING_X,
+            }}
           >
             <ThemeProvider theme={gridTheme}>
               <DataGrid<APIProfile>

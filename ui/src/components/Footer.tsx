@@ -1,4 +1,5 @@
 import { Box, Container, Typography, Link } from "@mui/material";
+import { MAX_WIDTH } from "@/utils/layout";
 
 export default function Footer() {
   return (
@@ -12,7 +13,7 @@ export default function Footer() {
         bgcolor: "background.paper",
       }}
     >
-      <Container maxWidth="lg">
+      <Container maxWidth={false} sx={{ maxWidth: MAX_WIDTH }}>
         <Typography
           variant="body2"
           color="text.secondary"

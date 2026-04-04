@@ -48,7 +48,7 @@ import {
   formatProtocol,
   PIE_COLORS,
 } from "@/utils/formatters";
-import { MAX_WIDTH } from "@/utils/layout";
+import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const nf = new Intl.NumberFormat();
 const formatNumber = (n: number | null | undefined) =>
@@ -389,7 +389,7 @@ const Dashboard = () => {
   // ── Render ──────────────────────────────────────────
 
   return (
-    <Box sx={{ px: { xs: 2, sm: 4 }, py: 3, maxWidth: MAX_WIDTH, mx: "auto" }}>
+    <Box sx={{ px: PAGE_PADDING_X, py: 3, maxWidth: MAX_WIDTH, mx: "auto" }}>
       <Box
         sx={{
           mb: 3,

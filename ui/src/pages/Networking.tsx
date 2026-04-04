@@ -424,20 +424,21 @@ export default function NetworkingPage() {
 
   const rtColumns: GridColDef<APIRoute>[] = useMemo(() => {
     return [
-      { field: "id", headerName: "ID", width: 100 },
+      { field: "id", headerName: "ID", width: 70 },
       {
         field: "destination",
         headerName: "Destination",
         flex: 1,
-        minWidth: 180,
+        minWidth: 120,
       },
-      { field: "gateway", headerName: "Gateway", flex: 1, minWidth: 160 },
-      { field: "interface", headerName: "Interface", flex: 1, minWidth: 140 },
-      { field: "metric", headerName: "Metric", width: 110 },
+      { field: "gateway", headerName: "Gateway", flex: 1, minWidth: 120 },
+      { field: "interface", headerName: "Interface", flex: 1, minWidth: 100 },
+      { field: "metric", headerName: "Metric", width: 80 },
       {
         field: "source",
         headerName: "Source",
-        width: 110,
+        flex: 0.5,
+        minWidth: 80,
         renderCell: (params: GridRenderCellParams<APIRoute>) => {
           const source = params.row.source;
           return (
@@ -667,12 +668,13 @@ export default function NetworkingPage() {
 
   const bgpPeerColumns: GridColDef<APIBGPPeer>[] = useMemo(() => {
     return [
-      { field: "address", headerName: "Address", flex: 1, minWidth: 140 },
-      { field: "remoteAS", headerName: "Remote AS", width: 120 },
+      { field: "address", headerName: "Address", flex: 1, minWidth: 100 },
+      { field: "remoteAS", headerName: "Remote AS", width: 100 },
       {
         field: "importPrefixes",
         headerName: "Import Policy",
-        width: 160,
+        flex: 0.8,
+        minWidth: 100,
         sortable: false,
         renderCell: (params: GridRenderCellParams<APIBGPPeer>) =>
           getImportPolicyLabel(params.row.importPrefixes),
@@ -680,7 +682,8 @@ export default function NetworkingPage() {
       {
         field: "state",
         headerName: "Status",
-        width: 200,
+        flex: 1,
+        minWidth: 120,
         renderCell: (params: GridRenderCellParams<APIBGPPeer>) => {
           const state = params.row.state;
           if (!state) return null;
@@ -840,7 +843,14 @@ export default function NetworkingPage() {
         pb: 4,
       }}
     >
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: PAGE_PADDING_X }}>
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: MAX_WIDTH,
+          mx: "auto",
+          px: PAGE_PADDING_X,
+        }}
+      >
         <Typography variant="h4" sx={{ mb: 1 }}>
           Networking
         </Typography>
@@ -871,6 +881,7 @@ export default function NetworkingPage() {
             width: "100%",
             mt: 2,
             maxWidth: MAX_WIDTH,
+            mx: "auto",
             px: PAGE_PADDING_X,
           }}
         >
@@ -964,6 +975,7 @@ export default function NetworkingPage() {
             width: "100%",
             mt: 2,
             maxWidth: MAX_WIDTH,
+            mx: "auto",
             px: PAGE_PADDING_X,
           }}
         >
@@ -1056,6 +1068,7 @@ export default function NetworkingPage() {
           sx={{
             width: "100%",
             maxWidth: MAX_WIDTH,
+            mx: "auto",
             px: PAGE_PADDING_X,
             mt: 2,
           }}
@@ -1258,6 +1271,7 @@ export default function NetworkingPage() {
           sx={{
             width: "100%",
             maxWidth: MAX_WIDTH,
+            mx: "auto",
             px: PAGE_PADDING_X,
             mt: 2,
           }}
@@ -1356,6 +1370,7 @@ export default function NetworkingPage() {
           sx={{
             width: "100%",
             maxWidth: MAX_WIDTH,
+            mx: "auto",
             px: PAGE_PADDING_X,
             mt: 2,
           }}
@@ -1408,6 +1423,7 @@ export default function NetworkingPage() {
           sx={{
             width: "100%",
             maxWidth: MAX_WIDTH,
+            mx: "auto",
             px: PAGE_PADDING_X,
             mt: 2,
           }}
@@ -1699,6 +1715,7 @@ export default function NetworkingPage() {
           sx={{
             width: "100%",
             maxWidth: MAX_WIDTH,
+            mx: "auto",
             px: PAGE_PADDING_X,
             mt: 2,
           }}

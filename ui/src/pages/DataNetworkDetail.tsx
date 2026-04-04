@@ -141,7 +141,7 @@ const DataNetworkDetail: React.FC = () => {
         field: "imsi",
         headerName: "Subscriber",
         flex: 1,
-        minWidth: 180,
+        minWidth: 140,
         renderCell: (params: GridRenderCellParams<APIIPAllocation>) => (
           <Box
             sx={{
@@ -196,7 +196,8 @@ const DataNetworkDetail: React.FC = () => {
       {
         field: "session_id",
         headerName: "PDU Session ID",
-        width: 140,
+        flex: 0.5,
+        minWidth: 100,
         renderCell: (params: GridRenderCellParams<APIIPAllocation>) => (
           <Box
             sx={{
@@ -232,7 +233,14 @@ const DataNetworkDetail: React.FC = () => {
           pb: 4,
         }}
       >
-        <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: PAGE_PADDING_X }}>
+        <Box
+          sx={{
+            width: "100%",
+            maxWidth: MAX_WIDTH,
+            mx: "auto",
+            px: PAGE_PADDING_X,
+          }}
+        >
           <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
           <Box
             sx={{
@@ -292,7 +300,14 @@ const DataNetworkDetail: React.FC = () => {
         pb: 4,
       }}
     >
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: PAGE_PADDING_X }}>
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: MAX_WIDTH,
+          mx: "auto",
+          px: PAGE_PADDING_X,
+        }}
+      >
         {/* Header / Breadcrumb */}
         <Box
           sx={{

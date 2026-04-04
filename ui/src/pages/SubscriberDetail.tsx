@@ -23,7 +23,7 @@ import SubscriberConnectionCard from "@/components/SubscriberConnectionCard";
 import SubscriberSessionsCard from "@/components/SubscriberSessionsCard";
 import SubscriberUsageChart from "@/components/SubscriberUsageChart";
 import SubscriberProtocolChart from "@/components/SubscriberProtocolChart";
-import { MAX_WIDTH } from "@/utils/layout";
+import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const SubscriberDetail: React.FC = () => {
   const { imsi } = useParams<{ imsi: string }>();
@@ -78,7 +78,14 @@ const SubscriberDetail: React.FC = () => {
           pb: 4,
         }}
       >
-        <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
+        <Box
+          sx={{
+            width: "100%",
+            maxWidth: MAX_WIDTH,
+            mx: "auto",
+            px: PAGE_PADDING_X,
+          }}
+        >
           {/* Header skeleton */}
           <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
 
@@ -136,7 +143,14 @@ const SubscriberDetail: React.FC = () => {
         pb: 4,
       }}
     >
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: MAX_WIDTH,
+          mx: "auto",
+          px: PAGE_PADDING_X,
+        }}
+      >
         {/* Header */}
         <Box
           sx={{
