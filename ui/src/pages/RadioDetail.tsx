@@ -117,7 +117,7 @@ const RadioDetail: React.FC = () => {
         field: "imsi",
         headerName: "IMSI",
         flex: 1,
-        minWidth: 180,
+        minWidth: 140,
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => (
           <Box
             sx={{
@@ -150,8 +150,8 @@ const RadioDetail: React.FC = () => {
       {
         field: "pduSessions",
         headerName: "PDU Sessions",
-        width: 130,
-        minWidth: 110,
+        flex: 0.5,
+        minWidth: 100,
         valueGetter: (_v, row: APISubscriberSummary) =>
           row?.status?.num_pdu_sessions ?? 0,
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
@@ -170,7 +170,8 @@ const RadioDetail: React.FC = () => {
       {
         field: "lastSeenAt",
         headerName: "Last Seen",
-        width: 160,
+        flex: 0.8,
+        minWidth: 120,
         valueGetter: (_v, row: APISubscriberSummary) =>
           row?.status?.lastSeenAt ?? "",
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
@@ -206,7 +207,7 @@ const RadioDetail: React.FC = () => {
         field: "timestamp",
         headerName: "Timestamp",
         flex: 1,
-        minWidth: 180,
+        minWidth: 140,
         sortable: false,
         renderCell: (p) => {
           const ts = p.row.timestamp;
@@ -230,13 +231,13 @@ const RadioDetail: React.FC = () => {
         field: "message_type",
         headerName: "Message Type",
         flex: 1,
-        minWidth: 220,
+        minWidth: 160,
         sortable: false,
       },
       {
         field: "direction",
         headerName: "Direction",
-        width: 120,
+        width: 90,
         sortable: false,
         renderCell: (p) => {
           const val = p.row.direction;
@@ -282,7 +283,14 @@ const RadioDetail: React.FC = () => {
           pb: 4,
         }}
       >
-        <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: PAGE_PADDING_X }}>
+        <Box
+          sx={{
+            width: "100%",
+            maxWidth: MAX_WIDTH,
+            mx: "auto",
+            px: PAGE_PADDING_X,
+          }}
+        >
           <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
           <Box
             sx={{
@@ -337,7 +345,14 @@ const RadioDetail: React.FC = () => {
         pb: 4,
       }}
     >
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: PAGE_PADDING_X }}>
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: MAX_WIDTH,
+          mx: "auto",
+          px: PAGE_PADDING_X,
+        }}
+      >
         {/* Header / Breadcrumb */}
         <Box sx={{ mb: 3 }}>
           <Typography

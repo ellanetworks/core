@@ -18,7 +18,7 @@ import CreateSubscriberModal from "@/components/CreateSubscriberModal";
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { MAX_WIDTH } from "@/utils/layout";
+import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const SubscriberPage: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
@@ -65,7 +65,7 @@ const SubscriberPage: React.FC = () => {
         field: "imsi",
         headerName: "IMSI",
         flex: 1,
-        minWidth: 200,
+        minWidth: 150,
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => (
           <Box
             sx={{
@@ -99,13 +99,13 @@ const SubscriberPage: React.FC = () => {
         field: "profile_name",
         headerName: "Profile",
         flex: 0.8,
-        minWidth: 140,
+        minWidth: 100,
       },
       {
         field: "radio",
         headerName: "Radio",
         flex: 0.8,
-        minWidth: 140,
+        minWidth: 100,
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
           const radioName = params.row.radio;
           if (!radioName) {
@@ -156,8 +156,8 @@ const SubscriberPage: React.FC = () => {
       {
         field: "registration",
         headerName: "Registration",
-        width: 140,
-        minWidth: 120,
+        flex: 0.6,
+        minWidth: 110,
         valueGetter: (_v, row) => Boolean(row?.status?.registered),
         sortComparator: (v1, v2) => Number(v1) - Number(v2),
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
@@ -175,8 +175,8 @@ const SubscriberPage: React.FC = () => {
       {
         field: "pduSessions",
         headerName: "PDU Sessions",
-        width: 130,
-        minWidth: 110,
+        flex: 0.5,
+        minWidth: 100,
         valueGetter: (_v, row: APISubscriberSummary) =>
           row?.status?.num_pdu_sessions ?? 0,
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
@@ -250,7 +250,8 @@ const SubscriberPage: React.FC = () => {
             sx={{
               width: "100%",
               maxWidth: MAX_WIDTH,
-              px: { xs: 2, sm: 4 },
+              mx: "auto",
+              px: PAGE_PADDING_X,
               mb: 3,
               display: "flex",
               flexDirection: "column",
@@ -274,7 +275,12 @@ const SubscriberPage: React.FC = () => {
           </Box>
 
           <Box
-            sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}
+            sx={{
+              width: "100%",
+              maxWidth: MAX_WIDTH,
+              mx: "auto",
+              px: PAGE_PADDING_X,
+            }}
           >
             <ThemeProvider theme={gridTheme}>
               <DataGrid<APISubscriberSummary>

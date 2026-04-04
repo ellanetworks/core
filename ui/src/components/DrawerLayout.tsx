@@ -422,15 +422,16 @@ export default function DrawerLayout({
         component="main"
         sx={{
           flexGrow: 1,
+          minWidth: 0,
           ml: isMobile ? 0 : `${drawerWidth}px`,
           minHeight: "100vh",
           display: "flex",
           flexDirection: "column",
-          p: 3,
+          py: 3,
         }}
       >
         <Toolbar />
-        <Box sx={{ flexGrow: 1 }}>{children}</Box>
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>{children}</Box>
         <Footer />
       </Box>
     </Box>

@@ -24,7 +24,7 @@ import UserAccountCard from "@/components/UserAccountCard";
 import UserPasswordCard from "@/components/UserPasswordCard";
 import UserAPITokensCard from "@/components/UserAPITokensCard";
 import UserAuditLogsCard from "@/components/UserAuditLogsCard";
-import { MAX_WIDTH } from "@/utils/layout";
+import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 const UserDetail: React.FC = () => {
   const { email } = useParams<{ email: string }>();
@@ -117,7 +117,14 @@ const UserDetail: React.FC = () => {
           pb: 4,
         }}
       >
-        <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
+        <Box
+          sx={{
+            width: "100%",
+            maxWidth: MAX_WIDTH,
+            mx: "auto",
+            px: PAGE_PADDING_X,
+          }}
+        >
           <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
           <Box
             sx={{
@@ -172,7 +179,14 @@ const UserDetail: React.FC = () => {
         pb: 4,
       }}
     >
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: { xs: 2, sm: 4 } }}>
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: MAX_WIDTH,
+          mx: "auto",
+          px: PAGE_PADDING_X,
+        }}
+      >
         {/* Header / Breadcrumb */}
         <Box
           sx={{

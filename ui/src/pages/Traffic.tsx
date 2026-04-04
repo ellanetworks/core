@@ -447,14 +447,14 @@ const Traffic: React.FC = () => {
         field: "subscriber",
         headerName: "Subscriber",
         flex: 1,
-        minWidth: 200,
+        minWidth: 140,
         renderCell: renderSubscriberLink,
       },
       {
         field: "downlink_bytes",
         headerName: "Downlink (bytes)",
         flex: 1,
-        minWidth: 180,
+        minWidth: 120,
         type: "number",
         valueFormatter: (value: any) =>
           value == null ? "" : formatBytesAutoUnit(Number(value)),
@@ -463,7 +463,7 @@ const Traffic: React.FC = () => {
         field: "uplink_bytes",
         headerName: "Uplink (bytes)",
         flex: 1,
-        minWidth: 180,
+        minWidth: 120,
         type: "number",
         valueFormatter: (value: any) =>
           value == null ? "" : formatBytesAutoUnit(Number(value)),
@@ -472,7 +472,7 @@ const Traffic: React.FC = () => {
         field: "total_bytes",
         headerName: "Total (bytes)",
         flex: 1,
-        minWidth: 180,
+        minWidth: 120,
         type: "number",
         valueFormatter: (value: any) =>
           value == null ? "" : formatBytesAutoUnit(Number(value)),
@@ -502,13 +502,13 @@ const Traffic: React.FC = () => {
         field: "subscriber_id",
         headerName: "Subscriber",
         flex: 1,
-        minWidth: 160,
+        minWidth: 120,
         renderCell: renderSubscriberLink,
       },
       {
         field: "direction",
         headerName: "Direction",
-        width: 100,
+        width: 60,
         sortable: false,
         renderCell: (params) => {
           const dir = params.value as string;
@@ -539,7 +539,7 @@ const Traffic: React.FC = () => {
         field: "source_ip",
         headerName: "Source",
         flex: 1,
-        minWidth: 160,
+        minWidth: 100,
         renderCell: (params) => {
           const row = params.row as FlowReport;
           const proto = row.protocol;
@@ -553,7 +553,7 @@ const Traffic: React.FC = () => {
         field: "destination_ip",
         headerName: "Destination",
         flex: 1,
-        minWidth: 160,
+        minWidth: 100,
         renderCell: (params) => {
           const row = params.row as FlowReport;
           const proto = row.protocol;
@@ -566,7 +566,8 @@ const Traffic: React.FC = () => {
       {
         field: "protocol",
         headerName: "Protocol",
-        width: 110,
+        flex: 0.5,
+        minWidth: 80,
         renderCell: (params) => {
           const value = params.value as number;
           if (value == null) return null;
@@ -602,7 +603,8 @@ const Traffic: React.FC = () => {
         field: "packets",
         headerName: "Packets",
         type: "number",
-        width: 110,
+        flex: 0.5,
+        minWidth: 80,
         valueFormatter: (value: number) =>
           value == null ? "" : value.toLocaleString(),
       },
@@ -610,22 +612,23 @@ const Traffic: React.FC = () => {
         field: "bytes",
         headerName: "Bytes",
         type: "number",
-        width: 120,
+        flex: 0.5,
+        minWidth: 80,
         valueFormatter: (value: number) =>
           value == null ? "" : formatBytesAutoUnit(value),
       },
       {
         field: "start_time",
         headerName: "Start",
-        flex: 1,
-        minWidth: 180,
+        flex: 0.8,
+        minWidth: 120,
         valueFormatter: (value: string) => (value ? formatDateTime(value) : ""),
       },
       {
         field: "end_time",
         headerName: "End",
-        flex: 1,
-        minWidth: 180,
+        flex: 0.8,
+        minWidth: 120,
         valueFormatter: (value: string) => (value ? formatDateTime(value) : ""),
       },
     ],
@@ -792,6 +795,7 @@ const Traffic: React.FC = () => {
           sx={{
             width: "100%",
             maxWidth: MAX_WIDTH,
+            mx: "auto",
             px: PAGE_PADDING_X,
             display: "flex",
             flexDirection: "column",
@@ -1034,7 +1038,7 @@ const Traffic: React.FC = () => {
                   }}
                 >
                   {protocolPieData.length > 0 && (
-                    <Box sx={{ height: 440, overflow: "auto" }}>
+                    <Box>
                       <Typography variant="h6" sx={{ mb: 1 }}>
                         Protocols
                       </Typography>
@@ -1086,7 +1090,7 @@ const Traffic: React.FC = () => {
                     </Box>
                   )}
                   {topDestinationsPieData.length > 0 && (
-                    <Box sx={{ height: 440, overflow: "auto" }}>
+                    <Box>
                       <Typography variant="h6" sx={{ mb: 1 }}>
                         Top 10 Destinations (uplink)
                       </Typography>

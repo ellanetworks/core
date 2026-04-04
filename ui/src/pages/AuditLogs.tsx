@@ -164,7 +164,7 @@ const AuditLog: React.FC = () => {
         field: "user",
         headerName: "User",
         flex: 1,
-        minWidth: 200,
+        minWidth: 120,
         sortable: false,
         renderCell: (params) => {
           const user = params.value as string;
@@ -202,7 +202,7 @@ const AuditLog: React.FC = () => {
         field: "action",
         headerName: "Action",
         flex: 1,
-        minWidth: 180,
+        minWidth: 120,
         sortable: false,
       },
       {
@@ -216,7 +216,7 @@ const AuditLog: React.FC = () => {
         field: "details",
         headerName: "Details",
         flex: 2,
-        minWidth: 300,
+        minWidth: 150,
         sortable: false,
         renderCell: (params) => {
           const text = params.value as string;
@@ -256,6 +256,7 @@ const AuditLog: React.FC = () => {
         sx={{
           width: "100%",
           maxWidth: MAX_WIDTH,
+          mx: "auto",
           px: PAGE_PADDING_X,
           mb: 3,
           display: "flex",
@@ -348,7 +349,14 @@ const AuditLog: React.FC = () => {
         </Box>
       </Box>
 
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: PAGE_PADDING_X }}>
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: MAX_WIDTH,
+          mx: "auto",
+          px: PAGE_PADDING_X,
+        }}
+      >
         <ThemeProvider theme={gridTheme}>
           <DataGrid<APIAuditLog>
             rows={rows}
