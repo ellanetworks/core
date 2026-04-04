@@ -1,3 +1,9 @@
+let onUnauthorized: (() => void) | null = null;
+
+export function setOnUnauthorized(cb: (() => void) | null) {
+  onUnauthorized = cb;
+}
+
 export const HTTPStatus = (code: number): string => {
   const map: { [key: number]: string } = {
     400: "Bad Request",
@@ -51,6 +57,11 @@ export async function apiFetch<T = unknown>(
 
   const response = await fetch(url, init);
 
+  if (response.status === 401) {
+    onUnauthorized?.();
+    throw new Error("Session expired. Please log in again.");
+  }
+
   let respData: { result?: T; error?: string } | undefined;
   try {
     respData = await response.json();
@@ -99,6 +110,11 @@ export async function apiFetchVoid(
   }
 
   const response = await fetch(url, init);
+
+  if (response.status === 401) {
+    onUnauthorized?.();
+    throw new Error("Session expired. Please log in again.");
+  }
 
   if (!response.ok) {
     let respData: { error?: string } | undefined;

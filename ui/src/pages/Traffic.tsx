@@ -974,7 +974,7 @@ const Traffic: React.FC = () => {
                 <Alert severity="warning">
                   Flow accounting is disabled. Flows are not being collected and
                   will not appear on this page. You can enable it in the{" "}
-                  <Link to="/networking?tab=flow-accounting">
+                  <Link to="/networking/flow-accounting">
                     networking settings
                   </Link>
                   .

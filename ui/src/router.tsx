@@ -8,11 +8,20 @@ import Dashboard from "./pages/Dashboard";
 import Subscribers from "./pages/Subscribers";
 import SubscriberDetail from "./pages/SubscriberDetail";
 import Radios from "./pages/Radios";
+import RadiosListTab from "./pages/radios/RadiosListTab";
+import RadiosEventsTab from "./pages/radios/EventsTab";
 import RadioDetail from "./pages/RadioDetail";
 import Profiles from "./pages/Profiles";
 import ProfileDetail from "./pages/ProfileDetail";
 import PolicyDetail from "./pages/PolicyDetail";
 import Networking from "./pages/Networking";
+import DataNetworksTab from "./pages/networking/DataNetworksTab";
+import SlicesTab from "./pages/networking/SlicesTab";
+import InterfacesTab from "./pages/networking/InterfacesTab";
+import RoutesTab from "./pages/networking/RoutesTab";
+import NATTab from "./pages/networking/NATTab";
+import BGPTab from "./pages/networking/BGPTab";
+import FlowAccountingTab from "./pages/networking/FlowAccountingTab";
 import DataNetworkDetail from "./pages/DataNetworkDetail";
 import Operator from "./pages/Operator";
 import Users from "./pages/Users";
@@ -37,7 +46,10 @@ export default function AppRouter() {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="subscribers" element={<Subscribers />} />
         <Route path="subscribers/:imsi" element={<SubscriberDetail />} />
-        <Route path="radios" element={<Radios />} />
+        <Route path="radios" element={<Radios />}>
+          <Route index element={<RadiosListTab />} />
+          <Route path="events" element={<RadiosEventsTab />} />
+        </Route>
         <Route path="radios/:name" element={<RadioDetail />} />
         <Route path="profiles" element={<Profiles />} />
         <Route path="profiles/:name" element={<ProfileDetail />} />
@@ -50,7 +62,16 @@ export default function AppRouter() {
           path="policies/:name"
           element={<Navigate to="/profiles" replace />}
         />
-        <Route path="networking" element={<Networking />} />
+        <Route path="networking" element={<Networking />}>
+          <Route index element={<Navigate to="data-networks" replace />} />
+          <Route path="data-networks" element={<DataNetworksTab />} />
+          <Route path="slices" element={<SlicesTab />} />
+          <Route path="interfaces" element={<InterfacesTab />} />
+          <Route path="routes" element={<RoutesTab />} />
+          <Route path="nat" element={<NATTab />} />
+          <Route path="bgp" element={<BGPTab />} />
+          <Route path="flow-accounting" element={<FlowAccountingTab />} />
+        </Route>
         <Route
           path="networking/data-networks/:name"
           element={<DataNetworkDetail />}

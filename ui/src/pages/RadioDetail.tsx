@@ -578,7 +578,7 @@ const RadioDetail: React.FC = () => {
             <Typography variant="h6">Recent Network Events</Typography>
             <Button
               component={RouterLink}
-              to={`/radios?tab=events&radio=${encodeURIComponent(radio.name)}`}
+              to={`/radios/events?radio=${encodeURIComponent(radio.name)}`}
               size="small"
               sx={{
                 color: theme.palette.link,
@@ -610,7 +610,7 @@ const RadioDetail: React.FC = () => {
                 density="compact"
                 onRowClick={(params) => {
                   navigate(
-                    `/radios?tab=events&radio=${encodeURIComponent(radio.name)}&event=${params.row.id}`,
+                    `/radios/events?radio=${encodeURIComponent(radio.name)}&event=${params.row.id}`,
                   );
                 }}
                 sx={{

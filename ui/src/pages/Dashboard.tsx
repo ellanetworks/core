@@ -538,7 +538,7 @@ const Dashboard = () => {
             title={
               <Box
                 component={Link}
-                to="/radios?tab=events"
+                to="/radios/events"
                 sx={{
                   textDecoration: "none",
                   color: "inherit",

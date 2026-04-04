@@ -105,7 +105,7 @@ const DataNetworkDetail: React.FC = () => {
       await deleteDataNetwork(accessToken, name);
       setDeleteConfirmOpen(false);
       showSnackbar(`Data network "${name}" deleted successfully.`, "success");
-      navigate("/networking");
+      navigate("/networking/data-networks");
     } catch (err) {
       setDeleteConfirmOpen(false);
       showSnackbar(
@@ -274,7 +274,11 @@ const DataNetworkDetail: React.FC = () => {
             ? error.message
             : "Failed to load data network."}
         </Typography>
-        <Button variant="outlined" component={RouterLink} to="/networking">
+        <Button
+          variant="outlined"
+          component={RouterLink}
+          to="/networking/data-networks"
+        >
           Back to Networking
         </Button>
       </Box>
@@ -325,7 +329,7 @@ const DataNetworkDetail: React.FC = () => {
             >
               <Typography
                 component={RouterLink}
-                to="/networking"
+                to="/networking/data-networks"
                 variant="h4"
                 sx={{
                   color: "text.secondary",

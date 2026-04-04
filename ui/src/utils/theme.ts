@@ -23,7 +23,7 @@ const theme = createTheme({
     error: {
       main: "#c62828",
     },
-    link: "#4254FB",
+    link: "#2B3FD4",
     backgroundSubtle: "#F5F5F5",
   },
   components: {

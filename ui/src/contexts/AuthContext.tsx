@@ -11,6 +11,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import { CircularProgress, Box } from "@mui/material";
 import { refresh } from "@/queries/auth";
+import { setOnUnauthorized } from "@/queries/utils";
 
 type AuthState = { email: string; role: string };
 interface AuthContextType {
@@ -199,6 +200,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [silentRefresh]);
+
+  useEffect(() => {
+    setOnUnauthorized(() => {
+      tokenRef.current = null;
+      setAccessToken(null);
+      setAuthData(null);
+      clearRefreshTimer();
+      navigate("/login", { state: { from: location.pathname } });
+    });
+    return () => setOnUnauthorized(null);
+  }, [navigate, location.pathname, clearRefreshTimer]);
 
   if (!authReady) {
     return (
