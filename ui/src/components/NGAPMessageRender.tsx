@@ -1,28 +1,18 @@
 import * as React from "react";
-import {
-  Box,
-  Typography,
-  IconButton,
-  Tooltip,
-  Divider,
-  Collapse,
-} from "@mui/material";
+import { Box, IconButton, Tooltip, Divider, Collapse } from "@mui/material";
 import {
   ExpandMore as ExpandMoreIcon,
   ChevronRight as ChevronRightIcon,
 } from "@mui/icons-material";
+import type { DecodedNGAPMessage } from "@/queries/radio_events";
 
-const INDENT = 0.375;
-const ROW_H = 20;
+const MONO_FONT =
+  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace";
+const INDENT_PX = 16;
+const CHEVRON_W = 24;
+const ROW_H = 22;
 
-const RowGroup: React.FC<{ indent?: number; children: React.ReactNode }> = ({
-  indent = 0,
-  children,
-}) => (
-  <Box sx={{ ml: indent, display: "flex", flexDirection: "column" }}>
-    {children}
-  </Box>
-);
+// --- Enum helpers ---
 
 type EnumLike = {
   type: "enum";
@@ -39,66 +29,7 @@ const isEnumLike = (x: unknown): x is EnumLike =>
 
 const formatEnum = (e: EnumLike) => `${e.label} (${String(e.value)})`;
 
-const ChevronSlot: React.FC<{
-  present?: boolean;
-  open?: boolean;
-  onClick?: () => void;
-}> = ({ present = false, open = false, onClick }) => (
-  <Box sx={{ display: "inline-flex", alignItems: "center" }}>
-    {present ? (
-      <Tooltip title={open ? "Collapse" : "Expand"}>
-        <IconButton size="small" onClick={onClick} sx={{ p: 0.25 }}>
-          {open ? (
-            <ExpandMoreIcon fontSize="small" />
-          ) : (
-            <ChevronRightIcon fontSize="small" />
-          )}
-        </IconButton>
-      </Tooltip>
-    ) : (
-      <IconButton
-        size="small"
-        sx={{ p: 0.25, visibility: "hidden" }}
-        aria-hidden
-        tabIndex={-1}
-      >
-        <ChevronRightIcon fontSize="small" />
-      </IconButton>
-    )}
-  </Box>
-);
-
-const KVLine: React.FC<{ k: string; v: React.ReactNode }> = ({ k, v }) => (
-  <Box
-    sx={{
-      display: "grid",
-      gridTemplateColumns: "auto 1fr",
-      columnGap: 1,
-      alignItems: "center",
-      minHeight: ROW_H,
-    }}
-  >
-    <Box
-      sx={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 0.5,
-        minWidth: 0,
-      }}
-    >
-      <ChevronSlot />
-      <Typography
-        variant="body2"
-        sx={{ color: "text.secondary", whiteSpace: "pre" }}
-      >
-        {k + ":"}
-      </Typography>
-    </Box>
-    <Typography variant="body2" sx={{ wordBreak: "break-word", minWidth: 0 }}>
-      {v}
-    </Typography>
-  </Box>
-);
+// --- IE helpers ---
 
 type IEFields = {
   idEnum?: EnumLike;
@@ -123,46 +54,87 @@ const isNgapIE = (x: unknown) => {
   return isEnumLike(idEnum) && isEnumLike(criticalityEnum);
 };
 
-const RowHeader: React.FC<{
-  title: string;
-  open: boolean;
-  onToggle: () => void;
-}> = ({ title, open, onToggle }) => (
+// --- Tree primitives ---
+
+/**
+ * Base tree row. Computes its own left padding from depth.
+ * Renders either a clickable chevron (expandable) or an inert spacer (leaf).
+ */
+const TreeRow: React.FC<{
+  depth: number;
+  expandable?: boolean;
+  open?: boolean;
+  onToggle?: () => void;
+  children: React.ReactNode;
+}> = ({ depth, expandable = false, open = false, onToggle, children }) => (
   <Box
     sx={{
-      display: "grid",
-      gridTemplateColumns: "auto 1fr",
-      columnGap: 1,
+      display: "flex",
       alignItems: "center",
       minHeight: ROW_H,
+      pl: `${depth * INDENT_PX}px`,
     }}
   >
-    <Box sx={{ display: "inline-flex", alignItems: "center" }}>
-      <ChevronSlot present open={open} onClick={onToggle} />
-    </Box>
-    <Typography variant="body2" sx={{ color: "text.secondary", minWidth: 0 }}>
-      {title}
-    </Typography>
+    {expandable ? (
+      <Tooltip title={open ? "Collapse" : "Expand"}>
+        <IconButton
+          size="small"
+          onClick={onToggle}
+          sx={{ p: 0.25, width: CHEVRON_W, flexShrink: 0 }}
+        >
+          {open ? (
+            <ExpandMoreIcon fontSize="small" />
+          ) : (
+            <ChevronRightIcon fontSize="small" />
+          )}
+        </IconButton>
+      </Tooltip>
+    ) : (
+      <Box sx={{ width: CHEVRON_W, flexShrink: 0 }} />
+    )}
+    {children}
   </Box>
 );
 
+/** Leaf key-value row. */
+const KVLine: React.FC<{ depth: number; k: string; v: React.ReactNode }> = ({
+  depth,
+  k,
+  v,
+}) => (
+  <TreeRow depth={depth}>
+    <Box component="span" sx={{ color: "text.secondary", whiteSpace: "pre" }}>
+      {k + ": "}
+    </Box>
+    <Box component="span" sx={{ wordBreak: "break-word", minWidth: 0 }}>
+      {v}
+    </Box>
+  </TreeRow>
+);
+
+// --- Collapsible sections ---
+
 const ChildSection: React.FC<{
+  depth: number;
   title: string;
   defaultOpen?: boolean;
   children: React.ReactNode;
-}> = ({ title, defaultOpen = true, children }) => {
+}> = ({ depth, title, defaultOpen = true, children }) => {
   const [open, setOpen] = React.useState(defaultOpen);
   return (
-    <RowGroup indent={INDENT}>
-      <RowHeader
-        title={title}
+    <>
+      <TreeRow
+        depth={depth}
+        expandable
         open={open}
         onToggle={() => setOpen((s) => !s)}
-      />
-      <Collapse in={open}>
-        <RowGroup indent={INDENT}>{children}</RowGroup>
-      </Collapse>
-    </RowGroup>
+      >
+        <Box component="span" sx={{ color: "text.secondary" }}>
+          {title}
+        </Box>
+      </TreeRow>
+      <Collapse in={open}>{children}</Collapse>
+    </>
   );
 };
 
@@ -172,21 +144,21 @@ const IEValueRow: React.FC<{ value: unknown; depth: number }> = ({
 }) => {
   const [open, setOpen] = React.useState(true);
   return (
-    <RowGroup indent={INDENT}>
-      <Box
-        sx={{ display: "inline-flex", alignItems: "center", minHeight: ROW_H }}
+    <>
+      <TreeRow
+        depth={depth}
+        expandable
+        open={open}
+        onToggle={() => setOpen((s) => !s)}
       >
-        <ChevronSlot present open={open} onClick={() => setOpen((s) => !s)} />
-        <Typography variant="body2" sx={{ color: "text.secondary", ml: 0.5 }}>
+        <Box component="span" sx={{ color: "text.secondary" }}>
           Value
-        </Typography>
-      </Box>
+        </Box>
+      </TreeRow>
       <Collapse in={open}>
-        <RowGroup indent={INDENT}>
-          <GenericNode value={value} depth={depth + 1} />
-        </RowGroup>
+        <GenericNode value={value} depth={depth + 1} />
       </Collapse>
-    </RowGroup>
+    </>
   );
 };
 
@@ -202,31 +174,42 @@ const NgapIEBlock: React.FC<{ ie: any; depth: number; label?: string }> = ({
     : (label ?? "Information Element");
 
   return (
-    <RowGroup indent={INDENT}>
-      <RowHeader
-        title={title}
+    <>
+      <TreeRow
+        depth={depth}
+        expandable
         open={open}
         onToggle={() => setOpen((s) => !s)}
-      />
+      >
+        <Box component="span" sx={{ color: "text.secondary" }}>
+          {title}
+        </Box>
+      </TreeRow>
       <Collapse in={open}>
-        <RowGroup indent={INDENT}>
-          {isEnumLike(criticalityEnum) && (
-            <KVLine k="Criticality" v={formatEnum(criticalityEnum)} />
-          )}
-          {error && <KVLine k="Error" v={String(error)} />}
-          {value == null ||
-          typeof value === "string" ||
-          typeof value === "number" ||
-          typeof value === "boolean" ? (
-            <KVLine k="Value" v={value == null ? "—" : String(value)} />
-          ) : isEnumLike(value) ? (
-            <KVLine k="Value" v={formatEnum(value)} />
-          ) : (
-            <IEValueRow value={value} depth={depth} />
-          )}
-        </RowGroup>
+        {isEnumLike(criticalityEnum) && (
+          <KVLine
+            depth={depth + 1}
+            k="Criticality"
+            v={formatEnum(criticalityEnum)}
+          />
+        )}
+        {error && <KVLine depth={depth + 1} k="Error" v={String(error)} />}
+        {value == null ||
+        typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean" ? (
+          <KVLine
+            depth={depth + 1}
+            k="Value"
+            v={value == null ? "\u2014" : String(value)}
+          />
+        ) : isEnumLike(value) ? (
+          <KVLine depth={depth + 1} k="Value" v={formatEnum(value)} />
+        ) : (
+          <IEValueRow value={value} depth={depth + 1} />
+        )}
       </Collapse>
-    </RowGroup>
+    </>
   );
 };
 
@@ -236,42 +219,48 @@ const CollapsibleArray: React.FC<{
   label?: string;
 }> = ({ items, depth, label }) => {
   const [open, setOpen] = React.useState(true);
+  const childDepth = label ? depth + 1 : depth;
   return (
-    <RowGroup indent={INDENT}>
+    <>
       {label && (
-        <RowHeader
-          title={label}
+        <TreeRow
+          depth={depth}
+          expandable
           open={open}
           onToggle={() => setOpen((s) => !s)}
-        />
+        >
+          <Box component="span" sx={{ color: "text.secondary" }}>
+            {label}
+          </Box>
+        </TreeRow>
       )}
       <Collapse in={open || !label}>
-        <RowGroup indent={INDENT}>
-          {items.map((item, i) => (
-            <React.Fragment key={i}>
-              {isNgapIE(item) ? (
-                <NgapIEBlock ie={item} depth={depth} />
-              ) : (
-                <RowGroup>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: "text.secondary",
-                      minHeight: ROW_H,
-                      display: "flex",
-                      alignItems: "center",
-                    }}
-                  >
-                    #{i + 1}
-                  </Typography>
-                  <GenericNode value={item} depth={depth + 1} />
-                </RowGroup>
-              )}
-            </React.Fragment>
-          ))}
-        </RowGroup>
+        {items.map((item, i) => {
+          if (isNgapIE(item)) {
+            return <NgapIEBlock key={i} ie={item} depth={childDepth} />;
+          }
+          if (item == null || typeof item !== "object" || isEnumLike(item)) {
+            const display =
+              item == null
+                ? "\u2014"
+                : isEnumLike(item)
+                  ? formatEnum(item)
+                  : String(item);
+            return (
+              <KVLine key={i} depth={childDepth} k={`#${i + 1}`} v={display} />
+            );
+          }
+          return (
+            <CollapsibleObject
+              key={i}
+              obj={item as Record<string, unknown>}
+              depth={childDepth}
+              label={`#${i + 1}`}
+            />
+          );
+        })}
       </Collapse>
-    </RowGroup>
+    </>
   );
 };
 
@@ -286,47 +275,58 @@ const CollapsibleObject: React.FC<{
   if (isNgapIE(obj))
     return <NgapIEBlock ie={obj} depth={depth} label={label} />;
 
+  const childDepth = label ? depth + 1 : depth;
+
   return (
-    <RowGroup indent={INDENT}>
+    <>
       {label && (
-        <RowHeader
-          title={label}
+        <TreeRow
+          depth={depth}
+          expandable
           open={open}
           onToggle={() => setOpen((s) => !s)}
-        />
+        >
+          <Box component="span" sx={{ color: "text.secondary" }}>
+            {label}
+          </Box>
+        </TreeRow>
       )}
       <Collapse in={open || !label}>
-        <RowGroup indent={INDENT}>
-          {keys.length === 0 ? (
-            <Typography
-              variant="body2"
-              sx={{ minHeight: ROW_H, display: "flex", alignItems: "center" }}
-            >
-              —
-            </Typography>
-          ) : (
-            keys.map((k) => {
-              const v = obj[k];
-              if (isEnumLike(v))
-                return <KVLine key={k} k={k} v={formatEnum(v)} />;
-              if (
-                v == null ||
-                typeof v === "string" ||
-                typeof v === "number" ||
-                typeof v === "boolean"
-              ) {
-                return <KVLine key={k} k={k} v={v == null ? "—" : String(v)} />;
-              }
+        {keys.length === 0 ? (
+          <TreeRow depth={childDepth}>
+            <Box component="span">{"\u2014"}</Box>
+          </TreeRow>
+        ) : (
+          keys.map((k) => {
+            const v = obj[k];
+            if (isEnumLike(v))
               return (
-                <ChildSection key={k} title={k} defaultOpen>
-                  <GenericNode value={v} depth={depth + 1} />
-                </ChildSection>
+                <KVLine key={k} depth={childDepth} k={k} v={formatEnum(v)} />
               );
-            })
-          )}
-        </RowGroup>
+            if (
+              v == null ||
+              typeof v === "string" ||
+              typeof v === "number" ||
+              typeof v === "boolean"
+            ) {
+              return (
+                <KVLine
+                  key={k}
+                  depth={childDepth}
+                  k={k}
+                  v={v == null ? "\u2014" : String(v)}
+                />
+              );
+            }
+            return (
+              <ChildSection key={k} depth={childDepth} title={k} defaultOpen>
+                <GenericNode value={v} depth={childDepth + 1} />
+              </ChildSection>
+            );
+          })
+        )}
       </Collapse>
-    </RowGroup>
+    </>
   );
 };
 
@@ -341,12 +341,25 @@ const GenericNode: React.FC<GenericNodeProps> = ({
   depth = 0,
   labelOverride,
 }) => {
-  if (value == null) return <Typography variant="body2">—</Typography>;
+  if (value == null)
+    return (
+      <TreeRow depth={depth}>
+        <Box component="span">{"\u2014"}</Box>
+      </TreeRow>
+    );
   if (isEnumLike(value))
-    return <Typography variant="body2">{formatEnum(value)}</Typography>;
+    return (
+      <TreeRow depth={depth}>
+        <Box component="span">{formatEnum(value)}</Box>
+      </TreeRow>
+    );
   const t = typeof value;
   if (t === "string" || t === "number" || t === "boolean")
-    return <Typography variant="body2">{String(value)}</Typography>;
+    return (
+      <TreeRow depth={depth}>
+        <Box component="span">{String(value)}</Box>
+      </TreeRow>
+    );
   if (Array.isArray(value))
     return (
       <CollapsibleArray items={value} depth={depth} label={labelOverride} />
@@ -359,10 +372,14 @@ const GenericNode: React.FC<GenericNodeProps> = ({
         label={labelOverride}
       />
     );
-  return <Typography variant="body2">{String(value)}</Typography>;
+  return (
+    <TreeRow depth={depth}>
+      <Box component="span">{String(value)}</Box>
+    </TreeRow>
+  );
 };
 
-import type { DecodedNGAPMessage } from "@/queries/radio_events";
+// --- Top-level views ---
 
 const TopLevelNgapView: React.FC<{ decoded: DecodedNGAPMessage }> = ({
   decoded,
@@ -371,48 +388,50 @@ const TopLevelNgapView: React.FC<{ decoded: DecodedNGAPMessage }> = ({
     decoded;
 
   return (
-    <RowGroup>
-      <KVLine k="PDU Type" v={String(pdu_type ?? "—")} />
-      <KVLine k="Message Type" v={String(message_type ?? "—")} />
+    <>
+      <KVLine depth={0} k="PDU Type" v={String(pdu_type ?? "\u2014")} />
+      <KVLine depth={0} k="Message Type" v={String(message_type ?? "\u2014")} />
       <KVLine
+        depth={0}
         k="Procedure Code"
         v={
           isEnumLike(procedure_code as any)
             ? formatEnum(procedure_code as any)
-            : String(procedure_code ?? "—")
+            : String(procedure_code ?? "\u2014")
         }
       />
       <KVLine
+        depth={0}
         k="Criticality"
         v={
           isEnumLike(criticality as any)
             ? formatEnum(criticality as any)
-            : String(criticality ?? "—")
+            : String(criticality ?? "\u2014")
         }
       />
       <TopLevelValueRow value={value} />
-    </RowGroup>
+    </>
   );
 };
 
 const TopLevelValueRow: React.FC<{ value: unknown }> = ({ value }) => {
   const [open, setOpen] = React.useState(true);
   return (
-    <RowGroup>
-      <Box
-        sx={{ display: "inline-flex", alignItems: "center", minHeight: ROW_H }}
+    <>
+      <TreeRow
+        depth={0}
+        expandable
+        open={open}
+        onToggle={() => setOpen((s) => !s)}
       >
-        <ChevronSlot present open={open} onClick={() => setOpen((s) => !s)} />
-        <Typography variant="body2" sx={{ color: "text.secondary", ml: 0.5 }}>
+        <Box component="span" sx={{ color: "text.secondary" }}>
           Value
-        </Typography>
-      </Box>
+        </Box>
+      </TreeRow>
       <Collapse in={open}>
-        <RowGroup indent={INDENT}>
-          <GenericNode value={value} depth={1} />
-        </RowGroup>
+        <GenericNode value={value} depth={1} />
       </Collapse>
-    </RowGroup>
+    </>
   );
 };
 
@@ -426,13 +445,14 @@ export const NGAPMessageView: React.FC<{
         p: 1.25,
         border: (t) => `1px solid ${t.palette.divider}`,
         borderRadius: 1,
+        fontFamily: MONO_FONT,
+        fontSize: 13,
+        lineHeight: 1.5,
       }}
     >
       {title && (
         <>
-          <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-            {title}
-          </Typography>
+          <Box sx={{ fontWeight: 600, mb: 0.5 }}>{title}</Box>
           <Divider sx={{ mb: 1 }} />
         </>
       )}
