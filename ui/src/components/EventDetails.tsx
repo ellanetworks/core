@@ -7,6 +7,7 @@ import {
   IconButton,
   Divider,
   CircularProgress,
+  Collapse,
   Stack,
   Tooltip,
 } from "@mui/material";
@@ -14,6 +15,8 @@ import {
   ContentCopy as CopyIcon,
   Refresh as RefreshIcon,
   WarningAmberRounded as WarningAmberRoundedIcon,
+  ExpandMore as ExpandMoreIcon,
+  ChevronRight as ChevronRightIcon,
 } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import { getRadioEvent, type RadioEventContent } from "@/queries/radio_events";
@@ -81,6 +84,82 @@ const MetaRow: React.FC<{
     <Typography variant="subtitle2">{value ?? "—"}</Typography>
   </Box>
 );
+
+const RawHexSection: React.FC<{
+  hexDump: string;
+  onCopy: (text: string) => void;
+}> = ({ hexDump, onCopy }) => {
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <Box sx={{ flexShrink: 0 }}>
+      <Box
+        sx={{
+          mt: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            cursor: hexDump ? "pointer" : "default",
+          }}
+          onClick={() => hexDump && setOpen((s) => !s)}
+        >
+          {hexDump &&
+            (open ? (
+              <ExpandMoreIcon fontSize="small" sx={{ mr: 0.5 }} />
+            ) : (
+              <ChevronRightIcon fontSize="small" sx={{ mr: 0.5 }} />
+            ))}
+          <Typography variant="subtitle2">Raw</Typography>
+        </Box>
+        <Tooltip title="Copy raw hex dump">
+          <span>
+            <IconButton
+              size="small"
+              onClick={() => onCopy(hexDump)}
+              aria-label="Copy raw hex dump"
+              disabled={!hexDump}
+            >
+              <CopyIcon fontSize="small" />
+            </IconButton>
+          </span>
+        </Tooltip>
+      </Box>
+      <Collapse in={open}>
+        {hexDump ? (
+          <Box
+            component="pre"
+            sx={{
+              fontFamily:
+                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+              fontSize: 12,
+              lineHeight: 1.4,
+              color: "text.secondary",
+              overflow: "auto",
+              maxHeight: 200,
+              m: 0,
+              mt: 0.5,
+            }}
+          >
+            {hexDump}
+          </Box>
+        ) : (
+          <Typography
+            variant="body2"
+            sx={{ color: "text.secondary", mt: 0.5 }}
+          >
+            —
+          </Typography>
+        )}
+      </Collapse>
+    </Box>
+  );
+};
 
 export default function EventDetails({
   open,
@@ -269,58 +348,13 @@ export default function EventDetails({
           </span>
         </Tooltip>
       </Box>
-      <Box sx={{ flexShrink: 0, overflow: "auto", maxHeight: "50%" }}>
+      <Box sx={{ flex: 1, minHeight: 0, overflow: "auto" }}>
         {decodedContent}
       </Box>
 
-      {/* Raw — hex dump */}
+      {/* Raw — hex dump (collapsible) */}
       <Divider sx={{ flexShrink: 0, mt: 1.5 }} />
-      <Box
-        sx={{
-          flexShrink: 0,
-          mt: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <Typography variant="subtitle2">Raw</Typography>
-        <Tooltip title="Copy raw hex dump">
-          <span>
-            <IconButton
-              size="small"
-              onClick={() => handleCopy(hexDump)}
-              aria-label="Copy raw hex dump"
-              disabled={!hexDump}
-            >
-              <CopyIcon fontSize="small" />
-            </IconButton>
-          </span>
-        </Tooltip>
-      </Box>
-      {hexDump ? (
-        <Box
-          component="pre"
-          sx={{
-            fontFamily:
-              "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-            fontSize: 12,
-            lineHeight: 1.4,
-            color: "text.secondary",
-            overflow: "auto",
-            flex: 1,
-            minHeight: 0,
-            m: 0,
-            mt: 0.5,
-          }}
-        >
-          {hexDump}
-        </Box>
-      ) : (
-        <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
-          —
-        </Typography>
-      )}
+      <RawHexSection hexDump={hexDump} onCopy={handleCopy} />
     </Box>
   );
 }

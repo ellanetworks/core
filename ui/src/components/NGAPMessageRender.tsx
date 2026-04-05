@@ -138,6 +138,71 @@ const ChildSection: React.FC<{
   );
 };
 
+// --- NAS-PDU helpers ---
+
+const isNasPdu = (v: unknown): boolean =>
+  !!v && typeof v === "object" && (v as any).protocol === "NAS";
+
+const getNasHeader = (nasPdu: any): string => {
+  const decoded = nasPdu?.decoded;
+  if (!decoded) return "NAS-PDU";
+  if (decoded.error) return "NAS-PDU (decode error)";
+  if (decoded.encrypted) return "NAS-PDU (encrypted)";
+
+  const gmmType = decoded.gmm_message?.gmm_header?.message_type?.label;
+  const gsmType = decoded.gsm_message?.gsm_header?.message_type?.label;
+  const messageType = gmmType || gsmType || "Unknown";
+
+  const secHeader =
+    decoded.security_header?.security_header_type?.label || "Plain NAS";
+  return `NAS: ${messageType} (${secHeader})`;
+};
+
+const NasPduBlock: React.FC<{ nasPdu: any; depth: number; title: string }> = ({
+  nasPdu,
+  depth,
+  title,
+}) => {
+  const [open, setOpen] = React.useState(true);
+  const nasHeader = getNasHeader(nasPdu);
+
+  return (
+    <>
+      <TreeRow
+        depth={depth}
+        expandable
+        open={open}
+        onToggle={() => setOpen((s) => !s)}
+      >
+        <Box component="span" sx={{ color: "text.secondary" }}>
+          {title}
+          {" \u2014 "}
+        </Box>
+        <Box component="span" sx={{ fontWeight: 600 }}>
+          {nasHeader}
+        </Box>
+      </TreeRow>
+      <Collapse in={open}>
+        <Box
+          sx={{
+            borderLeft: 3,
+            borderColor: "info.main",
+            ml: `${(depth + 1) * INDENT_PX + CHEVRON_W / 2}px`,
+            pl: 1.5,
+          }}
+        >
+          {nasPdu.raw_hex && (
+            <KVLine depth={0} k="raw_hex" v={String(nasPdu.raw_hex)} />
+          )}
+          {nasPdu.decoded && <GenericNode value={nasPdu.decoded} depth={0} />}
+        </Box>
+      </Collapse>
+    </>
+  );
+};
+
+// --- NGAP IE block ---
+
 const NgapIEBlock: React.FC<{ ie: any; depth: number; label?: string }> = ({
   ie,
   depth,
@@ -170,6 +235,16 @@ const NgapIEBlock: React.FC<{ ie: any; depth: number; label?: string }> = ({
     return (
       <>
         <KVLine depth={depth} k={title} v={inlineDisplay!} />
+        {error && <KVLine depth={depth + 1} k="Error" v={String(error)} />}
+      </>
+    );
+  }
+
+  // NAS-PDU: render with protocol layer distinction
+  if (isNasPdu(value)) {
+    return (
+      <>
+        <NasPduBlock nasPdu={value} depth={depth} title={title} />
         {error && <KVLine depth={depth + 1} k="Error" v={String(error)} />}
       </>
     );
