@@ -66,9 +66,11 @@ type NASMessage struct {
 func DecodeNASMessage(raw []byte) *NASMessage {
 	securityHeaderType := nas.GetSecurityHeaderType(raw) & 0x0f
 
+	epd := nas.GetEPD(raw)
 	nasMsg := &NASMessage{
 		SecurityHeader: SecurityHeader{
-			SecurityHeaderType: securityHeaderTypeToEnum(securityHeaderType),
+			SecurityHeaderType:    securityHeaderTypeToEnum(securityHeaderType),
+			ProtocolDiscriminator: epdToEnum(epd),
 		},
 	}
 
@@ -117,12 +119,8 @@ func decodePlainNAS(nasMsg *NASMessage, raw []byte) *NASMessage {
 	switch epd {
 	case nasMessage.Epd5GSMobilityManagementMessage:
 		nasMsg.GmmMessage = buildGmmMessage(msg.GmmMessage)
-		nasMsg.SecurityHeader.ProtocolDiscriminator = utils.MakeEnum(epd, "5GSMobilityManagementMessage", false)
 	case nasMessage.Epd5GSSessionManagementMessage:
 		nasMsg.GsmMessage = buildGsmMessage(msg.GsmMessage)
-		nasMsg.SecurityHeader.ProtocolDiscriminator = utils.MakeEnum(epd, "5GSSessionManagementMessage", false)
-	default:
-		nasMsg.SecurityHeader.ProtocolDiscriminator = utils.MakeEnum(epd, "", true)
 	}
 
 	return nasMsg
@@ -319,6 +317,17 @@ func getGmmMessageType(msg *nas.GmmMessage) utils.EnumField[uint8] {
 		return utils.MakeEnum(nas.MsgTypeDLNASTransport, "DLNASTransport", false)
 	default:
 		return utils.MakeEnum(msg.GetMessageType(), "", true)
+	}
+}
+
+func epdToEnum(epd uint8) utils.EnumField[uint8] {
+	switch epd {
+	case nasMessage.Epd5GSMobilityManagementMessage:
+		return utils.MakeEnum(epd, "5GSMobilityManagementMessage", false)
+	case nasMessage.Epd5GSSessionManagementMessage:
+		return utils.MakeEnum(epd, "5GSSessionManagementMessage", false)
+	default:
+		return utils.MakeEnum(epd, "", true)
 	}
 }
 
