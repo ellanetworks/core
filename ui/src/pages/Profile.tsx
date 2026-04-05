@@ -77,65 +77,50 @@ export default function Profile() {
 
   return (
     <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        pt: 6,
-        pb: 4,
-      }}
+      sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
+      <Typography variant="h4" sx={{ mb: 1 }}>
+        My Profile
+      </Typography>
+      <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+        Manage how you authenticate with Ella Core.
+      </Typography>
+
+      {/* Two-column body */}
       <Box
         sx={{
-          width: "100%",
-          maxWidth: MAX_WIDTH,
-          mx: "auto",
-          px: PAGE_PADDING_X,
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+          gap: 3,
+          alignItems: "stretch",
         }}
       >
-        <Typography variant="h4" sx={{ mb: 1 }}>
-          My Profile
-        </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-          Manage how you authenticate with Ella Core.
-        </Typography>
-
-        {/* Two-column body */}
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-            gap: 3,
-            alignItems: "stretch",
-          }}
-        >
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            {loadingUser || !loggedInUser ? (
-              <Skeleton variant="rounded" height={140} />
-            ) : (
-              <UserAccountCard user={loggedInUser} />
-            )}
-          </Box>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            <UserPasswordCard
-              onChangePassword={() => setEditPasswordModalOpen(true)}
-              disabled={loadingUser || !loggedInUser}
-            />
-          </Box>
-        </Box>
-
-        {/* API Tokens — full width */}
-        <Box sx={{ mt: 3 }}>
-          {loadingTokens && apiTokens.length === 0 ? (
-            <Skeleton variant="rounded" height={300} />
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          {loadingUser || !loggedInUser ? (
+            <Skeleton variant="rounded" height={140} />
           ) : (
-            <UserAPITokensCard
-              tokens={apiTokens}
-              onDeleteToken={handleDeleteToken}
-              onTokenCreated={handleTokenCreated}
-            />
+            <UserAccountCard user={loggedInUser} />
           )}
         </Box>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <UserPasswordCard
+            onChangePassword={() => setEditPasswordModalOpen(true)}
+            disabled={loadingUser || !loggedInUser}
+          />
+        </Box>
+      </Box>
+
+      {/* API Tokens — full width */}
+      <Box sx={{ mt: 3 }}>
+        {loadingTokens && apiTokens.length === 0 ? (
+          <Skeleton variant="rounded" height={300} />
+        ) : (
+          <UserAPITokensCard
+            tokens={apiTokens}
+            onDeleteToken={handleDeleteToken}
+            onTokenCreated={handleTokenCreated}
+          />
+        )}
       </Box>
 
       {isEditPasswordModalOpen && (

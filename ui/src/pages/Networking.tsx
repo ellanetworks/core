@@ -51,46 +51,31 @@ export default function NetworkingPage() {
 
   return (
     <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        pt: 6,
-        pb: 4,
-      }}
+      sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
-      <Box
-        sx={{
-          width: "100%",
-          maxWidth: MAX_WIDTH,
-          mx: "auto",
-          px: PAGE_PADDING_X,
-        }}
+      <Typography variant="h4" sx={{ mb: 1 }}>
+        Networking
+      </Typography>
+      <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+        Configure networks and packet forwarding for Subscriber traffic.
+      </Typography>
+
+      <Tabs
+        value={activeTab}
+        onChange={handleTabChange}
+        aria-label="Networking sections"
+        sx={{ borderBottom: 1, borderColor: "divider" }}
       >
-        <Typography variant="h4" sx={{ mb: 1 }}>
-          Networking
-        </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-          Configure networks and packet forwarding for Subscriber traffic.
-        </Typography>
+        <Tab value="data-networks" label="Data Networks" />
+        <Tab value="slices" label="Slices" />
+        <Tab value="interfaces" label="Interfaces" />
+        <Tab value="routes" label="Routes" />
+        <Tab value="nat" label="NAT" />
+        <Tab value="bgp" label="BGP" />
+        <Tab value="flow-accounting" label="Flow Accounting" />
+      </Tabs>
 
-        <Tabs
-          value={activeTab}
-          onChange={handleTabChange}
-          aria-label="Networking sections"
-          sx={{ borderBottom: 1, borderColor: "divider" }}
-        >
-          <Tab value="data-networks" label="Data Networks" />
-          <Tab value="slices" label="Slices" />
-          <Tab value="interfaces" label="Interfaces" />
-          <Tab value="routes" label="Routes" />
-          <Tab value="nat" label="NAT" />
-          <Tab value="bgp" label="BGP" />
-          <Tab value="flow-accounting" label="Flow Accounting" />
-        </Tabs>
-
-        <Outlet context={{ accessToken, canEdit, showSnackbar, gridTheme }} />
-      </Box>
+      <Outlet context={{ accessToken, canEdit, showSnackbar, gridTheme }} />
     </Box>
   );
 }

@@ -244,20 +244,10 @@ const AuditLog: React.FC = () => {
 
   return (
     <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        pt: 6,
-        pb: 4,
-      }}
+      sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
       <Box
         sx={{
-          width: "100%",
-          maxWidth: MAX_WIDTH,
-          mx: "auto",
-          px: PAGE_PADDING_X,
           mb: 3,
           display: "flex",
           flexDirection: "column",
@@ -349,47 +339,38 @@ const AuditLog: React.FC = () => {
         </Box>
       </Box>
 
-      <Box
-        sx={{
-          width: "100%",
-          maxWidth: MAX_WIDTH,
-          mx: "auto",
-          px: PAGE_PADDING_X,
-        }}
-      >
-        <ThemeProvider theme={gridTheme}>
-          <DataGrid<APIAuditLog>
-            rows={rows}
-            columns={columns}
-            getRowId={(row) => row.id}
-            paginationMode="server"
-            rowCount={rowCount}
-            paginationModel={paginationModel}
-            onPaginationModelChange={setPaginationModel}
-            disableColumnMenu
-            disableRowSelectionOnClick
-            pageSizeOptions={[10, 25, 50, 100]}
-            rowHeight={52}
-            sx={{
-              width: "100%",
-              border: 1,
+      <ThemeProvider theme={gridTheme}>
+        <DataGrid<APIAuditLog>
+          rows={rows}
+          columns={columns}
+          getRowId={(row) => row.id}
+          paginationMode="server"
+          rowCount={rowCount}
+          paginationModel={paginationModel}
+          onPaginationModelChange={setPaginationModel}
+          disableColumnMenu
+          disableRowSelectionOnClick
+          pageSizeOptions={[10, 25, 50, 100]}
+          rowHeight={52}
+          sx={{
+            width: "100%",
+            border: 1,
+            borderColor: "divider",
+            "& .MuiDataGrid-cell": {
+              borderBottom: "1px solid",
               borderColor: "divider",
-              "& .MuiDataGrid-cell": {
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-columnHeaders": {
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              },
-              "& .MuiDataGrid-footerContainer": {
-                borderTop: "1px solid",
-                borderColor: "divider",
-              },
-            }}
-          />
-        </ThemeProvider>
-      </Box>
+            },
+            "& .MuiDataGrid-columnHeaders": {
+              borderBottom: "1px solid",
+              borderColor: "divider",
+            },
+            "& .MuiDataGrid-footerContainer": {
+              borderTop: "1px solid",
+              borderColor: "divider",
+            },
+          }}
+        />
+      </ThemeProvider>
 
       <EditAuditLogRetentionPolicyModal
         open={isEditModalOpen}

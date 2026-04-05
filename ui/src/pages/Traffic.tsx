@@ -778,13 +778,7 @@ const Traffic: React.FC = () => {
 
   return (
     <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        pt: 6,
-        pb: 4,
-      }}
+      sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
       {isInitialLoading ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
@@ -793,10 +787,6 @@ const Traffic: React.FC = () => {
       ) : (
         <Box
           sx={{
-            width: "100%",
-            maxWidth: MAX_WIDTH,
-            mx: "auto",
-            px: PAGE_PADDING_X,
             display: "flex",
             flexDirection: "column",
             gap: 2,

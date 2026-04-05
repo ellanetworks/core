@@ -109,13 +109,7 @@ const UserPage: React.FC = () => {
 
   return (
     <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        pt: 6,
-        pb: 4,
-      }}
+      sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
       {loading && rowCount === 0 ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
@@ -138,10 +132,6 @@ const UserPage: React.FC = () => {
         <>
           <Box
             sx={{
-              width: "100%",
-              maxWidth: MAX_WIDTH,
-              mx: "auto",
-              px: PAGE_PADDING_X,
               mb: 3,
               display: "flex",
               flexDirection: "column",
@@ -164,47 +154,38 @@ const UserPage: React.FC = () => {
             </Button>
           </Box>
 
-          <Box
-            sx={{
-              width: "100%",
-              maxWidth: MAX_WIDTH,
-              mx: "auto",
-              px: PAGE_PADDING_X,
-            }}
-          >
-            <ThemeProvider theme={gridTheme}>
-              <DataGrid<APIUser>
-                rows={rows}
-                columns={columns}
-                getRowId={(row) => row.email}
-                paginationMode="server"
-                rowCount={rowCount}
-                paginationModel={paginationModel}
-                onPaginationModelChange={setPaginationModel}
-                pageSizeOptions={[10, 25, 50, 100]}
-                sortingMode="server"
-                disableColumnMenu
-                disableRowSelectionOnClick
-                sx={{
-                  width: "100%",
-                  border: 1,
+          <ThemeProvider theme={gridTheme}>
+            <DataGrid<APIUser>
+              rows={rows}
+              columns={columns}
+              getRowId={(row) => row.email}
+              paginationMode="server"
+              rowCount={rowCount}
+              paginationModel={paginationModel}
+              onPaginationModelChange={setPaginationModel}
+              pageSizeOptions={[10, 25, 50, 100]}
+              sortingMode="server"
+              disableColumnMenu
+              disableRowSelectionOnClick
+              sx={{
+                width: "100%",
+                border: 1,
+                borderColor: "divider",
+                "& .MuiDataGrid-cell": {
+                  borderBottom: "1px solid",
                   borderColor: "divider",
-                  "& .MuiDataGrid-cell": {
-                    borderBottom: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-columnHeaders": {
-                    borderBottom: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-footerContainer": {
-                    borderTop: "1px solid",
-                    borderColor: "divider",
-                  },
-                }}
-              />
-            </ThemeProvider>
-          </Box>
+                },
+                "& .MuiDataGrid-columnHeaders": {
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                },
+                "& .MuiDataGrid-footerContainer": {
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                },
+              }}
+            />
+          </ThemeProvider>
         </>
       )}
 

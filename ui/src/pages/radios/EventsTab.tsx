@@ -447,19 +447,7 @@ export default function EventsTab() {
   }, [viewEventDrawerOpen]);
 
   return (
-    <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        pt: 3,
-        pb: 0,
-        width: "100%",
-        flex: 1,
-        minHeight: 0,
-        overflow: "hidden",
-      }}
-    >
+    <Box sx={{ pt: 3, width: "100%" }}>
       <PanelGroup
         direction="horizontal"
         style={{ width: "100%", height: "100%", overflow: "hidden" }}

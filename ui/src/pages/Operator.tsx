@@ -248,7 +248,9 @@ const Operator = () => {
   const actionCellSx = { width: "10%", textAlign: "right" } as const;
 
   return (
-    <Box sx={{ py: 4, px: PAGE_PADDING_X, maxWidth: MAX_WIDTH, mx: "auto" }}>
+    <Box
+      sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
+    >
       <Typography variant="h4" sx={{ mb: 1 }}>
         Operator
       </Typography>

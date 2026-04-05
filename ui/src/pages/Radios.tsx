@@ -26,34 +26,16 @@ export default function RadiosPage() {
   };
 
   return (
-    <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        pt: 6,
-        flex: 1,
-        minHeight: 0,
-      }}
-    >
-      <Box
-        sx={{
-          width: "100%",
-          maxWidth: MAX_WIDTH,
-          px: PAGE_PAD,
-          flexShrink: 0,
-        }}
+    <Box sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PAD }}>
+      <Tabs
+        value={activeTab}
+        onChange={handleTabChange}
+        aria-label="Radios tabs"
+        sx={{ borderBottom: 1, borderColor: "divider", mt: 2 }}
       >
-        <Tabs
-          value={activeTab}
-          onChange={handleTabChange}
-          aria-label="Radios tabs"
-          sx={{ borderBottom: 1, borderColor: "divider", mt: 2 }}
-        >
-          <Tab value="list" label="Radios" />
-          <Tab value="events" label="Events" />
-        </Tabs>
-      </Box>
+        <Tab value="list" label="Radios" />
+        <Tab value="events" label="Events" />
+      </Tabs>
 
       <Outlet context={{ gridTheme }} />
     </Box>
