@@ -64,21 +64,49 @@ type NASMessage struct {
 }
 
 func DecodeNASMessage(raw []byte) *NASMessage {
-	msg := new(nas.Message)
-	msg.SecurityHeaderType = nas.GetSecurityHeaderType(raw) & 0x0f
+	securityHeaderType := nas.GetSecurityHeaderType(raw) & 0x0f
 
 	nasMsg := &NASMessage{
 		SecurityHeader: SecurityHeader{
-			SecurityHeaderType:        securityHeaderTypeToEnum(msg.SecurityHeaderType),
-			MessageAuthenticationCode: msg.MessageAuthenticationCode,
-			SequenceNumber:            msg.SequenceNumber,
+			SecurityHeaderType: securityHeaderTypeToEnum(securityHeaderType),
 		},
 	}
 
-	if msg.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
+	if securityHeaderType == nas.SecurityHeaderTypePlainNas {
+		return decodePlainNAS(nasMsg, raw)
+	}
+
+	// Security-protected NAS message format (TS 24.501 section 9.1):
+	//   Byte 0:   Extended Protocol Discriminator
+	//   Byte 1:   Spare half octet + Security Header Type
+	//   Bytes 2-5: Message Authentication Code (uint32 big-endian)
+	//   Byte 6:   Sequence Number
+	//   Bytes 7+: Plain NAS message (integrity-only) or encrypted payload (ciphered)
+	const securityHeaderSize = 7
+
+	if len(raw) < securityHeaderSize {
+		nasMsg.Error = "security-protected NAS message too short"
+		return nasMsg
+	}
+
+	nasMsg.SecurityHeader.MessageAuthenticationCode = uint32(raw[2])<<24 | uint32(raw[3])<<16 | uint32(raw[4])<<8 | uint32(raw[5])
+	nasMsg.SecurityHeader.SequenceNumber = raw[6]
+
+	switch securityHeaderType {
+	case nas.SecurityHeaderTypeIntegrityProtected,
+		nas.SecurityHeaderTypeIntegrityProtectedWithNew5gNasSecurityContext:
+		// Integrity-protected but NOT ciphered — inner NAS is plaintext
+		innerNAS := raw[securityHeaderSize:]
+		return decodePlainNAS(nasMsg, innerNAS)
+	default:
+		// Ciphered (types 2 and 4) — cannot decode without keys
 		nasMsg.Encrypted = true
 		return nasMsg
 	}
+}
+
+func decodePlainNAS(nasMsg *NASMessage, raw []byte) *NASMessage {
+	msg := new(nas.Message)
 
 	if err := msg.PlainNasDecode(&raw); err != nil {
 		nasMsg.Error = fmt.Sprintf("failed to decode NAS message: %v", err)
