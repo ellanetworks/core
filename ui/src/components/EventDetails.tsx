@@ -269,7 +269,7 @@ export default function EventDetails({
           </span>
         </Tooltip>
       </Box>
-      <Box sx={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+      <Box sx={{ flexShrink: 0, overflow: "auto", maxHeight: "50%" }}>
         {decodedContent}
       </Box>
 
@@ -308,7 +308,8 @@ export default function EventDetails({
             lineHeight: 1.4,
             color: "text.secondary",
             overflow: "auto",
-            maxHeight: 200,
+            flex: 1,
+            minHeight: 0,
             m: 0,
             mt: 0.5,
           }}
