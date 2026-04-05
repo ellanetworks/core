@@ -180,7 +180,7 @@ function usePageVisible() {
   return visible;
 }
 
-const PANEL_DEFAULT_WIDTH = 550;
+const PANEL_DEFAULT_WIDTH = 825;
 const PANEL_MIN_WIDTH = 350;
 const PANEL_MAX_VW = 0.8;
 const TOOLBAR_HEIGHT = 64;

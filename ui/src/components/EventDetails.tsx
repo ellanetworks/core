@@ -26,7 +26,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { NGAPMessageView } from "@/components/NGAPMessageRender";
 
 function formatHexDump(base64: string): string {
-  const bin = atob(base64);
+  let bin: string;
+  try {
+    bin = atob(base64);
+  } catch {
+    return "(invalid base64)";
+  }
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
 

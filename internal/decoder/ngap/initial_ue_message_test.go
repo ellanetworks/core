@@ -19,6 +19,11 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 
 	ngapMsg := ngap.DecodeNGAPMessage(raw)
 
+	expectedSummary := "InitialUEMessage, RAN-UE=1, NAS=RegistrationRequest"
+	if ngapMsg.Summary != expectedSummary {
+		t.Errorf("expected Summary=%q, got %q", expectedSummary, ngapMsg.Summary)
+	}
+
 	if ngapMsg.PDUType != "InitiatingMessage" {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}

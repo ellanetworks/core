@@ -87,9 +87,9 @@ func buildNGAPSummary(msg NGAPMessage) string {
 	for _, ie := range msg.Value.IEs {
 		switch ie.ID.Label {
 		case "AMFUENGAPID":
-			summary += fmt.Sprintf(", AMF-UE=%v", ie.Value)
+			summary += fmt.Sprintf(", AMF-UE=%d", ie.Value)
 		case "RANUENGAPID":
-			summary += fmt.Sprintf(", RAN-UE=%v", ie.Value)
+			summary += fmt.Sprintf(", RAN-UE=%d", ie.Value)
 		case "NASPDU":
 			if nasPdu, ok := ie.Value.(NASPDU); ok && nasPdu.Decoded != nil {
 				summary += ", NAS=" + nasMessageTypeName(nasPdu.Decoded)
