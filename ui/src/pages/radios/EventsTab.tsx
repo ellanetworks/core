@@ -455,6 +455,9 @@ export default function EventsTab() {
         pt: 3,
         pb: 0,
         width: "100%",
+        flex: 1,
+        minHeight: 0,
+        overflow: "hidden",
       }}
     >
       <PanelGroup

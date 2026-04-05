@@ -32,10 +32,18 @@ export default function RadiosPage() {
         flexDirection: "column",
         alignItems: "center",
         pt: 6,
-        pb: 4,
+        flex: 1,
+        minHeight: 0,
       }}
     >
-      <Box sx={{ width: "100%", maxWidth: MAX_WIDTH, px: PAGE_PAD }}>
+      <Box
+        sx={{
+          width: "100%",
+          maxWidth: MAX_WIDTH,
+          px: PAGE_PAD,
+          flexShrink: 0,
+        }}
+      >
         <Tabs
           value={activeTab}
           onChange={handleTabChange}

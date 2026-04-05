@@ -471,14 +471,25 @@ export default function DrawerLayout({
           flexGrow: 1,
           minWidth: 0,
           ml: isMobile ? 0 : `${drawerWidth}px`,
-          minHeight: "100vh",
+          height: "100vh",
           display: "flex",
           flexDirection: "column",
           py: 3,
         }}
       >
         <Toolbar />
-        <Box sx={{ flexGrow: 1, minWidth: 0 }}>{children}</Box>
+        <Box
+          sx={{
+            flexGrow: 1,
+            minWidth: 0,
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "auto",
+          }}
+        >
+          {children}
+        </Box>
         <Footer />
       </Box>
     </Box>
