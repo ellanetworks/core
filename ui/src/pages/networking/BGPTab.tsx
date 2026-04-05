@@ -15,7 +15,7 @@ import {
   TableContainer,
   TableRow,
 } from "@mui/material";
-import { ThemeProvider, useTheme } from "@mui/material/styles";
+import { ThemeProvider } from "@mui/material/styles";
 import {
   Delete as DeleteIcon,
   Edit as EditIcon,
@@ -57,7 +57,6 @@ import { useNetworkingContext } from "./types";
 export default function BGPTab() {
   const { accessToken, canEdit, showSnackbar, gridTheme } =
     useNetworkingContext();
-  const outerTheme = useTheme();
 
   // BGP Settings
   const {

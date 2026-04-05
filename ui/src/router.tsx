@@ -46,6 +46,9 @@ export default function AppRouter() {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="subscribers" element={<Subscribers />} />
         <Route path="subscribers/:imsi" element={<SubscriberDetail />} />
+        {/* Note: a radio named "events" would match the nested route below
+            instead of radios/:name. Radio names are system-generated so this
+            collision cannot occur in practice. */}
         <Route path="radios" element={<Radios />}>
           <Route index element={<RadiosListTab />} />
           <Route path="events" element={<RadiosEventsTab />} />

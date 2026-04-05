@@ -129,12 +129,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setAccessToken(null);
       setAuthData(null);
       clearRefreshTimer();
-      navigate("/login", { state: { from: location.pathname } });
+      navigate("/login", { state: { from: pathnameRef.current } });
     } finally {
       refreshingRef.current = false;
       setAuthReady(true);
     }
-  }, [navigate, location.pathname, scheduleRefresh, clearRefreshTimer]);
+  }, [navigate, scheduleRefresh, clearRefreshTimer]);
 
   // Apply a token directly (from login response or navigation state).
   // Returns true if the token was valid and applied.
@@ -201,16 +201,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, [silentRefresh]);
 
+  const pathnameRef = useRef(location.pathname);
+  pathnameRef.current = location.pathname;
+
   useEffect(() => {
     setOnUnauthorized(() => {
       tokenRef.current = null;
       setAccessToken(null);
       setAuthData(null);
       clearRefreshTimer();
-      navigate("/login", { state: { from: location.pathname } });
+      navigate("/login", { state: { from: pathnameRef.current } });
     });
     return () => setOnUnauthorized(null);
-  }, [navigate, location.pathname, clearRefreshTimer]);
+  }, [navigate, clearRefreshTimer]);
 
   if (!authReady) {
     return (
