@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Box,
   Toolbar,
@@ -83,6 +83,15 @@ export default function DrawerLayout({
   const isMobile = useMediaQuery(theme.breakpoints.down("lg"));
   const { role, setAuthData } = useAuth();
 
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    document.getElementById("main-content")?.focus();
+  }, [pathname]);
+
   const [supportOpen, setSupportOpen] = useState(false);
 
   const openSupport = () => setSupportOpen(true);
@@ -118,6 +127,41 @@ export default function DrawerLayout({
 
   return (
     <Box sx={{ display: "flex" }}>
+      <Box
+        component="a"
+        href="#main-content"
+        onClick={(e: React.MouseEvent<HTMLAnchorElement>) => {
+          e.preventDefault();
+          document.getElementById("main-content")?.focus();
+        }}
+        sx={{
+          position: "absolute",
+          left: "-9999px",
+          top: "auto",
+          width: "1px",
+          height: "1px",
+          overflow: "hidden",
+          zIndex: (t) => t.zIndex.modal + 1,
+          "&:focus": {
+            position: "fixed",
+            top: 8,
+            left: 8,
+            width: "auto",
+            height: "auto",
+            overflow: "visible",
+            bgcolor: "background.paper",
+            color: "primary.main",
+            px: 2,
+            py: 1,
+            borderRadius: 1,
+            boxShadow: 3,
+            fontWeight: 700,
+            textDecoration: "none",
+          },
+        }}
+      >
+        Skip to main content
+      </Box>
       <AppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }}>
         <Toolbar>
           {isMobile && (
@@ -420,7 +464,10 @@ export default function DrawerLayout({
       </Drawer>
       <Box
         component="main"
+        id="main-content"
+        tabIndex={-1}
         sx={{
+          outline: "none",
           flexGrow: 1,
           minWidth: 0,
           ml: isMobile ? 0 : `${drawerWidth}px`,

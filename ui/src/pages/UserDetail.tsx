@@ -110,35 +110,26 @@ const UserDetail: React.FC = () => {
     return (
       <Box
         sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
           pt: 6,
           pb: 4,
+          maxWidth: MAX_WIDTH,
+          mx: "auto",
+          px: PAGE_PADDING_X,
         }}
       >
+        <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
         <Box
           sx={{
-            width: "100%",
-            maxWidth: MAX_WIDTH,
-            mx: "auto",
-            px: PAGE_PADDING_X,
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+            gap: 3,
           }}
         >
-          <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-              gap: 3,
-            }}
-          >
-            <Skeleton variant="rounded" height={180} />
-            <Skeleton variant="rounded" height={180} />
-          </Box>
-          <Skeleton variant="rounded" height={300} sx={{ mt: 3 }} />
-          <Skeleton variant="rounded" height={300} sx={{ mt: 3 }} />
+          <Skeleton variant="rounded" height={180} />
+          <Skeleton variant="rounded" height={180} />
         </Box>
+        <Skeleton variant="rounded" height={300} sx={{ mt: 3 }} />
+        <Skeleton variant="rounded" height={300} sx={{ mt: 3 }} />
       </Box>
     );
   }
@@ -171,112 +162,97 @@ const UserDetail: React.FC = () => {
 
   return (
     <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        pt: 6,
-        pb: 4,
-      }}
+      sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
+      {/* Header / Breadcrumb */}
       <Box
         sx={{
-          width: "100%",
-          maxWidth: MAX_WIDTH,
-          mx: "auto",
-          px: PAGE_PADDING_X,
+          display: "flex",
+          flexDirection: { xs: "column", sm: "row" },
+          alignItems: { xs: "flex-start", sm: "center" },
+          gap: 2,
+          mb: 3,
         }}
       >
-        {/* Header / Breadcrumb */}
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: { xs: "column", sm: "row" },
-            alignItems: { xs: "flex-start", sm: "center" },
-            gap: 2,
-            mb: 3,
-          }}
-        >
-          <Box sx={{ flex: 1 }}>
+        <Box sx={{ flex: 1 }}>
+          <Typography
+            variant="h4"
+            sx={{ display: "flex", alignItems: "baseline" }}
+          >
             <Typography
+              component={RouterLink}
+              to="/users"
               variant="h4"
-              sx={{ display: "flex", alignItems: "baseline" }}
+              sx={{
+                color: "text.secondary",
+                textDecoration: "none",
+                "&:hover": { textDecoration: "underline" },
+              }}
             >
-              <Typography
-                component={RouterLink}
-                to="/users"
-                variant="h4"
-                sx={{
-                  color: "text.secondary",
-                  textDecoration: "none",
-                  "&:hover": { textDecoration: "underline" },
-                }}
-              >
-                Users
-              </Typography>
-              <Typography
-                component="span"
-                variant="h4"
-                sx={{ color: "text.secondary", mx: 1 }}
-              >
-                /
-              </Typography>
-              <Typography component="span" variant="h4">
-                {user.email}
-              </Typography>
+              Users
             </Typography>
-          </Box>
-          {isAdmin && !isSelf && (
-            <Button
-              variant="outlined"
-              color="error"
-              onClick={() => setDeleteConfirmOpen(true)}
+            <Typography
+              component="span"
+              variant="h4"
+              sx={{ color: "text.secondary", mx: 1 }}
             >
-              Delete
-            </Button>
-          )}
+              /
+            </Typography>
+            <Typography component="span" variant="h4">
+              {user.email}
+            </Typography>
+          </Typography>
         </Box>
-
-        {/* Two-column body */}
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-            gap: 3,
-            alignItems: "stretch",
-          }}
-        >
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            <UserAccountCard
-              user={user}
-              canEdit={isAdmin && !isSelf}
-              onEdit={() => setEditModalOpen(true)}
-            />
-          </Box>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            <UserPasswordCard
-              onChangePassword={() => setEditPasswordModalOpen(true)}
-              disabled={!isAdmin}
-            />
-          </Box>
-        </Box>
-
-        {/* API Tokens — full width */}
-        {isAdmin && (
-          <Box sx={{ mt: 3 }}>
-            <UserAPITokensCard
-              tokens={tokens}
-              onDeleteToken={handleDeleteToken}
-              onTokenCreated={handleTokenCreated}
-              targetEmail={email}
-            />
-          </Box>
+        {isAdmin && !isSelf && (
+          <Button
+            variant="outlined"
+            color="error"
+            onClick={() => setDeleteConfirmOpen(true)}
+          >
+            Delete
+          </Button>
         )}
+      </Box>
 
-        {/* Recent Audit Logs — full width */}
-        <Box sx={{ mt: 3 }}>
-          <UserAuditLogsCard logs={auditLogs} email={email!} />
+      {/* Two-column body */}
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+          gap: 3,
+          alignItems: "stretch",
+        }}
+      >
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <UserAccountCard
+            user={user}
+            canEdit={isAdmin && !isSelf}
+            onEdit={() => setEditModalOpen(true)}
+          />
         </Box>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <UserPasswordCard
+            onChangePassword={() => setEditPasswordModalOpen(true)}
+            disabled={!isAdmin}
+          />
+        </Box>
+      </Box>
+
+      {/* API Tokens — full width */}
+      {isAdmin && (
+        <Box sx={{ mt: 3 }}>
+          <UserAPITokensCard
+            tokens={tokens}
+            onDeleteToken={handleDeleteToken}
+            onTokenCreated={handleTokenCreated}
+            targetEmail={email}
+          />
+        </Box>
+      )}
+
+      {/* Recent Audit Logs — full width */}
+      <Box sx={{ mt: 3 }}>
+        <UserAuditLogsCard logs={auditLogs} email={email!} />
       </Box>
 
       {/* Modals */}

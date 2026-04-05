@@ -389,7 +389,9 @@ const Dashboard = () => {
   // ── Render ──────────────────────────────────────────
 
   return (
-    <Box sx={{ px: PAGE_PADDING_X, py: 3, maxWidth: MAX_WIDTH, mx: "auto" }}>
+    <Box
+      sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
+    >
       <Box
         sx={{
           mb: 3,
@@ -538,7 +540,7 @@ const Dashboard = () => {
             title={
               <Box
                 component={Link}
-                to="/radios?tab=events"
+                to="/radios/events"
                 sx={{
                   textDecoration: "none",
                   color: "inherit",

@@ -189,25 +189,16 @@ const ProfileDetail: React.FC = () => {
     return (
       <Box
         sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
           pt: 6,
           pb: 4,
+          maxWidth: MAX_WIDTH,
+          mx: "auto",
+          px: PAGE_PADDING_X,
         }}
       >
-        <Box
-          sx={{
-            width: "100%",
-            maxWidth: MAX_WIDTH,
-            mx: "auto",
-            px: PAGE_PADDING_X,
-          }}
-        >
-          <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
-          <Skeleton variant="rounded" height={220} />
-          <Skeleton variant="rounded" height={300} sx={{ mt: 3 }} />
-        </Box>
+        <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
+        <Skeleton variant="rounded" height={220} />
+        <Skeleton variant="rounded" height={300} sx={{ mt: 3 }} />
       </Box>
     );
   }
@@ -237,225 +228,207 @@ const ProfileDetail: React.FC = () => {
 
   return (
     <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        pt: 6,
-        pb: 4,
-      }}
+      sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
+      {/* Header / Breadcrumb */}
       <Box
         sx={{
-          width: "100%",
-          maxWidth: MAX_WIDTH,
-          mx: "auto",
-          px: PAGE_PADDING_X,
+          display: "flex",
+          flexDirection: { xs: "column", sm: "row" },
+          alignItems: { xs: "flex-start", sm: "center" },
+          gap: 2,
+          mb: 3,
         }}
       >
-        {/* Header / Breadcrumb */}
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: { xs: "column", sm: "row" },
-            alignItems: { xs: "flex-start", sm: "center" },
-            gap: 2,
-            mb: 3,
-          }}
-        >
-          <Box sx={{ flex: 1 }}>
-            <Typography
-              variant="h4"
-              sx={{ display: "flex", alignItems: "baseline", gap: 0 }}
-            >
-              <Typography
-                component={RouterLink}
-                to="/profiles"
-                variant="h4"
-                sx={{
-                  color: "text.secondary",
-                  textDecoration: "none",
-                  "&:hover": { textDecoration: "underline" },
-                }}
-              >
-                Profiles
-              </Typography>
-              <Typography
-                component="span"
-                variant="h4"
-                sx={{ color: "text.secondary", mx: 1 }}
-              >
-                /
-              </Typography>
-              <Typography component="span" variant="h4">
-                {profile.name}
-              </Typography>
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              A profile defines the aggregate bitrate limits for a subscriber
-              and groups the QoS policies applied to their sessions.
-            </Typography>
-          </Box>
-          {canEdit && (
-            <Box sx={{ display: "flex", gap: 1 }}>
-              <Button
-                variant="outlined"
-                color="error"
-                onClick={() => setDeleteConfirmOpen(true)}
-              >
-                Delete
-              </Button>
-            </Box>
-          )}
-        </Box>
-
-        {/* Configuration Card */}
-        <Card
-          variant="outlined"
-          sx={{ display: "flex", flexDirection: "column" }}
-        >
-          <CardContent
-            sx={{ flex: 1, display: "flex", flexDirection: "column" }}
+        <Box sx={{ flex: 1 }}>
+          <Typography
+            variant="h4"
+            sx={{ display: "flex", alignItems: "baseline", gap: 0 }}
           >
-            <Box
+            <Typography
+              component={RouterLink}
+              to="/profiles"
+              variant="h4"
               sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                mb: 1.5,
+                color: "text.secondary",
+                textDecoration: "none",
+                "&:hover": { textDecoration: "underline" },
               }}
             >
-              <Typography variant="h6">Configuration</Typography>
-              {canEdit && (
-                <IconButton
-                  size="small"
-                  color="primary"
-                  onClick={() => setEditModalOpen(true)}
-                  aria-label="Edit configuration"
-                >
-                  <EditIcon fontSize="small" />
-                </IconButton>
-              )}
-            </Box>
-            <Table
-              size="small"
-              sx={{ "& tr:last-child td": { borderBottom: "none" } }}
+              Profiles
+            </Typography>
+            <Typography
+              component="span"
+              variant="h4"
+              sx={{ color: "text.secondary", mx: 1 }}
             >
-              <TableBody>
-                <TableRow>
-                  <TableCell sx={labelCellSx}>
-                    <Tooltip
-                      title="Aggregate uplink cap across all of this subscriber's sessions (UE-AMBR). Enforced by the radio."
-                      arrow
-                      placement="top"
-                    >
-                      <span>Bitrate Uplink</span>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell sx={valueCellSx}>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "flex-end",
-                        gap: 0.5,
-                      }}
-                    >
-                      <NorthIcon sx={{ fontSize: 16, color: UPLINK_COLOR }} />
-                      <Typography variant="body2">
-                        {profile.ue_ambr_uplink}
-                      </Typography>
-                    </Box>
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell sx={labelCellSx}>
-                    <Tooltip
-                      title="Aggregate downlink cap across all of this subscriber's sessions (UE-AMBR). Enforced by the radio."
-                      arrow
-                      placement="top"
-                    >
-                      <span>Bitrate Downlink</span>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell sx={valueCellSx}>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "flex-end",
-                        gap: 0.5,
-                      }}
-                    >
-                      <SouthIcon sx={{ fontSize: 16, color: DOWNLINK_COLOR }} />
-                      <Typography variant="body2">
-                        {profile.ue_ambr_downlink}
-                      </Typography>
-                    </Box>
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+              /
+            </Typography>
+            <Typography component="span" variant="h4">
+              {profile.name}
+            </Typography>
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            A profile defines the aggregate bitrate limits for a subscriber and
+            groups the QoS policies applied to their sessions.
+          </Typography>
+        </Box>
+        {canEdit && (
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <Button
+              variant="outlined"
+              color="error"
+              onClick={() => setDeleteConfirmOpen(true)}
+            >
+              Delete
+            </Button>
+          </Box>
+        )}
+      </Box>
 
-        {/* Policies Table */}
-        <Box sx={{ mt: 4 }}>
+      {/* Configuration Card */}
+      <Card
+        variant="outlined"
+        sx={{ display: "flex", flexDirection: "column" }}
+      >
+        <CardContent sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
           <Box
             sx={{
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              mb: 2,
+              mb: 1.5,
             }}
           >
-            <Box>
-              <Typography variant="h6">Policies ({policies.length})</Typography>
-              <Typography variant="body2" color="text.secondary">
-                QoS policies applied to subscriber sessions on each data
-                network.
-              </Typography>
-            </Box>
+            <Typography variant="h6">Configuration</Typography>
             {canEdit && (
-              <Button
-                variant="contained"
-                color="success"
+              <IconButton
                 size="small"
-                onClick={() => setCreatePolicyOpen(true)}
+                color="primary"
+                onClick={() => setEditModalOpen(true)}
+                aria-label="Edit configuration"
               >
-                Add Policy
-              </Button>
+                <EditIcon fontSize="small" />
+              </IconButton>
             )}
           </Box>
-          <ThemeProvider theme={gridTheme}>
-            <DataGrid<APIPolicy>
-              rows={policies}
-              columns={policyColumns}
-              getRowId={(row) => row.name}
-              disableRowSelectionOnClick
-              disableColumnMenu
-              hideFooter={policies.length <= 25}
-              pageSizeOptions={[25, 50, 100]}
-              sx={{
-                width: "100%",
-                border: 1,
-                borderColor: "divider",
-                "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-columnHeaders": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-                "& .MuiDataGrid-footerContainer": {
-                  borderTop: "1px solid",
-                  borderColor: "divider",
-                },
-              }}
-            />
-          </ThemeProvider>
+          <Table
+            size="small"
+            sx={{ "& tr:last-child td": { borderBottom: "none" } }}
+          >
+            <TableBody>
+              <TableRow>
+                <TableCell sx={labelCellSx}>
+                  <Tooltip
+                    title="Aggregate uplink cap across all of this subscriber's sessions (UE-AMBR). Enforced by the radio."
+                    arrow
+                    placement="top"
+                  >
+                    <span>Bitrate Uplink</span>
+                  </Tooltip>
+                </TableCell>
+                <TableCell sx={valueCellSx}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "flex-end",
+                      gap: 0.5,
+                    }}
+                  >
+                    <NorthIcon sx={{ fontSize: 16, color: UPLINK_COLOR }} />
+                    <Typography variant="body2">
+                      {profile.ue_ambr_uplink}
+                    </Typography>
+                  </Box>
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell sx={labelCellSx}>
+                  <Tooltip
+                    title="Aggregate downlink cap across all of this subscriber's sessions (UE-AMBR). Enforced by the radio."
+                    arrow
+                    placement="top"
+                  >
+                    <span>Bitrate Downlink</span>
+                  </Tooltip>
+                </TableCell>
+                <TableCell sx={valueCellSx}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "flex-end",
+                      gap: 0.5,
+                    }}
+                  >
+                    <SouthIcon sx={{ fontSize: 16, color: DOWNLINK_COLOR }} />
+                    <Typography variant="body2">
+                      {profile.ue_ambr_downlink}
+                    </Typography>
+                  </Box>
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Policies Table */}
+      <Box sx={{ mt: 4 }}>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 2,
+          }}
+        >
+          <Box>
+            <Typography variant="h6">Policies ({policies.length})</Typography>
+            <Typography variant="body2" color="text.secondary">
+              QoS policies applied to subscriber sessions on each data network.
+            </Typography>
+          </Box>
+          {canEdit && (
+            <Button
+              variant="contained"
+              color="success"
+              size="small"
+              onClick={() => setCreatePolicyOpen(true)}
+            >
+              Add Policy
+            </Button>
+          )}
         </Box>
+        <ThemeProvider theme={gridTheme}>
+          <DataGrid<APIPolicy>
+            rows={policies}
+            columns={policyColumns}
+            getRowId={(row) => row.name}
+            disableRowSelectionOnClick
+            disableColumnMenu
+            hideFooter={policies.length <= 25}
+            pageSizeOptions={[25, 50, 100]}
+            sx={{
+              width: "100%",
+              border: 1,
+              borderColor: "divider",
+              "& .MuiDataGrid-cell": {
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              },
+              "& .MuiDataGrid-columnHeaders": {
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              },
+              "& .MuiDataGrid-footerContainer": {
+                borderTop: "1px solid",
+                borderColor: "divider",
+              },
+            }}
+          />
+        </ThemeProvider>
       </Box>
 
       {/* Modals */}

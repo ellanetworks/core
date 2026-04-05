@@ -126,6 +126,9 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
         setSlices((sliceRes.items ?? []).map((s) => s.name));
       } catch (error) {
         console.error("Failed to fetch dropdown data:", error);
+        setAlert({
+          message: "Failed to load dropdown data. Please close and try again.",
+        });
       }
     };
     fetchDropdownData();

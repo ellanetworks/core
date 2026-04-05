@@ -105,7 +105,7 @@ const DataNetworkDetail: React.FC = () => {
       await deleteDataNetwork(accessToken, name);
       setDeleteConfirmOpen(false);
       showSnackbar(`Data network "${name}" deleted successfully.`, "success");
-      navigate("/networking");
+      navigate("/networking/data-networks");
     } catch (err) {
       setDeleteConfirmOpen(false);
       showSnackbar(
@@ -226,34 +226,25 @@ const DataNetworkDetail: React.FC = () => {
     return (
       <Box
         sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
           pt: 6,
           pb: 4,
+          maxWidth: MAX_WIDTH,
+          mx: "auto",
+          px: PAGE_PADDING_X,
         }}
       >
+        <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
         <Box
           sx={{
-            width: "100%",
-            maxWidth: MAX_WIDTH,
-            mx: "auto",
-            px: PAGE_PADDING_X,
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+            gap: 3,
           }}
         >
-          <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-              gap: 3,
-            }}
-          >
-            <Skeleton variant="rounded" height={220} />
-            <Skeleton variant="rounded" height={220} />
-          </Box>
-          <Skeleton variant="rounded" height={300} sx={{ mt: 3 }} />
+          <Skeleton variant="rounded" height={220} />
+          <Skeleton variant="rounded" height={220} />
         </Box>
+        <Skeleton variant="rounded" height={300} sx={{ mt: 3 }} />
       </Box>
     );
   }
@@ -274,7 +265,11 @@ const DataNetworkDetail: React.FC = () => {
             ? error.message
             : "Failed to load data network."}
         </Typography>
-        <Button variant="outlined" component={RouterLink} to="/networking">
+        <Button
+          variant="outlined"
+          component={RouterLink}
+          to="/networking/data-networks"
+        >
           Back to Networking
         </Button>
       </Box>
@@ -292,246 +287,226 @@ const DataNetworkDetail: React.FC = () => {
 
   return (
     <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        pt: 6,
-        pb: 4,
-      }}
+      sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
+      {/* Header / Breadcrumb */}
       <Box
         sx={{
-          width: "100%",
-          maxWidth: MAX_WIDTH,
-          mx: "auto",
-          px: PAGE_PADDING_X,
+          display: "flex",
+          flexDirection: { xs: "column", sm: "row" },
+          alignItems: { xs: "flex-start", sm: "center" },
+          gap: 2,
+          mb: 3,
         }}
       >
-        {/* Header / Breadcrumb */}
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: { xs: "column", sm: "row" },
-            alignItems: { xs: "flex-start", sm: "center" },
-            gap: 2,
-            mb: 3,
-          }}
-        >
-          <Box sx={{ flex: 1 }}>
+        <Box sx={{ flex: 1 }}>
+          <Typography
+            variant="h4"
+            sx={{ display: "flex", alignItems: "baseline", gap: 0 }}
+          >
             <Typography
+              component={RouterLink}
+              to="/networking/data-networks"
               variant="h4"
-              sx={{ display: "flex", alignItems: "baseline", gap: 0 }}
+              sx={{
+                color: "text.secondary",
+                textDecoration: "none",
+                "&:hover": { textDecoration: "underline" },
+              }}
             >
-              <Typography
-                component={RouterLink}
-                to="/networking"
-                variant="h4"
-                sx={{
-                  color: "text.secondary",
-                  textDecoration: "none",
-                  "&:hover": { textDecoration: "underline" },
-                }}
-              >
-                Data Networks
-              </Typography>
-              <Typography
-                component="span"
-                variant="h4"
-                sx={{ color: "text.secondary", mx: 1 }}
-              >
-                /
-              </Typography>
-              <Typography component="span" variant="h4">
-                {dataNetwork.name}
-              </Typography>
+              Data Networks
             </Typography>
-          </Box>
-          {canEdit && (
-            <Box sx={{ display: "flex", gap: 1 }}>
-              <Button
-                variant="outlined"
-                color="error"
-                onClick={() => setDeleteConfirmOpen(true)}
-              >
-                Delete
-              </Button>
-            </Box>
-          )}
-        </Box>
-
-        {/* Two-column layout: Configuration + Status */}
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-            gap: 3,
-            alignItems: "stretch",
-          }}
-        >
-          {/* Configuration Card */}
-          <Card
-            variant="outlined"
-            sx={{ height: "100%", display: "flex", flexDirection: "column" }}
-          >
-            <CardContent
-              sx={{ flex: 1, display: "flex", flexDirection: "column" }}
+            <Typography
+              component="span"
+              variant="h4"
+              sx={{ color: "text.secondary", mx: 1 }}
             >
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  mb: 1.5,
-                }}
-              >
-                <Typography variant="h6">Configuration</Typography>
-                {canEdit && (
-                  <IconButton
-                    size="small"
-                    color="primary"
-                    onClick={() => setEditModalOpen(true)}
-                    aria-label="Edit configuration"
-                  >
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                )}
-              </Box>
-              <Table
-                size="small"
-                sx={{
-                  "& tr:last-child td": { borderBottom: "none" },
-                }}
-              >
-                <TableBody>
-                  <TableRow>
-                    <TableCell sx={labelCellSx}>IP Pool</TableCell>
-                    <TableCell sx={valueCellSx}>
-                      <Typography
-                        variant="body2"
-                        sx={{ fontFamily: "monospace" }}
-                      >
-                        {dataNetwork.ip_pool}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell sx={labelCellSx}>DNS</TableCell>
-                    <TableCell sx={valueCellSx}>
-                      <Typography
-                        variant="body2"
-                        sx={{ fontFamily: "monospace" }}
-                      >
-                        {dataNetwork.dns || "—"}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell sx={labelCellSx}>MTU</TableCell>
-                    <TableCell sx={valueCellSx}>
-                      {dataNetwork.mtu || "—"}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          {/* Status Card */}
-          <Card
-            variant="outlined"
-            sx={{ height: "100%", display: "flex", flexDirection: "column" }}
-          >
-            <CardContent
-              sx={{ flex: 1, display: "flex", flexDirection: "column" }}
-            >
-              <Typography variant="h6" sx={{ mb: 1.5 }}>
-                Status
-              </Typography>
-              <Table
-                size="small"
-                sx={{
-                  "& tr:last-child td": { borderBottom: "none" },
-                }}
-              >
-                <TableBody>
-                  <TableRow>
-                    <TableCell sx={labelCellSx}>Active Sessions</TableCell>
-                    <TableCell sx={valueCellSx}>
-                      <Chip
-                        size="small"
-                        label={dataNetwork.status?.sessions ?? 0}
-                        variant="outlined"
-                      />
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell sx={labelCellSx}>IP Pool Utilization</TableCell>
-                    <TableCell sx={valueCellSx}>
-                      <Box
-                        sx={{ display: "flex", alignItems: "center", gap: 1 }}
-                      >
-                        <LinearProgress
-                          variant="determinate"
-                          value={Math.min(utilPercent, 100)}
-                          sx={{ flex: 1, height: 8, borderRadius: 4 }}
-                        />
-                        <Typography
-                          variant="body2"
-                          sx={{ whiteSpace: "nowrap" }}
-                        >
-                          {allocated.toLocaleString()} /{" "}
-                          {poolSize.toLocaleString()}
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </Box>
-
-        {/* IP Allocations DataGrid */}
-        <Box sx={{ mt: 3 }}>
-          <Typography variant="h6" sx={{ mb: 1 }}>
-            IP Allocations ({allocationRowCount.toLocaleString()})
+              /
+            </Typography>
+            <Typography component="span" variant="h4">
+              {dataNetwork.name}
+            </Typography>
           </Typography>
-          {allocationRowCount === 0 ? (
-            <TableContainer sx={tableContainerSx}>
-              <Box sx={{ p: 3, textAlign: "center" }}>
-                <Typography variant="body2" color="text.secondary">
-                  No IP addresses are currently allocated in this pool.
-                </Typography>
-              </Box>
-            </TableContainer>
-          ) : (
-            <ThemeProvider theme={gridTheme}>
-              <DataGrid<APIIPAllocation>
-                rows={allocationRows}
-                columns={allocationColumns}
-                getRowId={(row) => row.address}
-                paginationMode="server"
-                rowCount={allocationRowCount}
-                paginationModel={allocPaginationModel}
-                onPaginationModelChange={setAllocPaginationModel}
-                pageSizeOptions={[10, 25]}
-                disableColumnMenu
-                disableRowSelectionOnClick
-                density="compact"
-                sx={{
-                  height: GRID_HEIGHT,
-                  border: 1,
-                  borderColor: "divider",
-                  "& .MuiDataGrid-cell": {
-                    borderBottom: "1px solid",
-                    borderColor: "divider",
-                  },
-                }}
-              />
-            </ThemeProvider>
-          )}
         </Box>
+        {canEdit && (
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <Button
+              variant="outlined"
+              color="error"
+              onClick={() => setDeleteConfirmOpen(true)}
+            >
+              Delete
+            </Button>
+          </Box>
+        )}
+      </Box>
+
+      {/* Two-column layout: Configuration + Status */}
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+          gap: 3,
+          alignItems: "stretch",
+        }}
+      >
+        {/* Configuration Card */}
+        <Card
+          variant="outlined"
+          sx={{ height: "100%", display: "flex", flexDirection: "column" }}
+        >
+          <CardContent
+            sx={{ flex: 1, display: "flex", flexDirection: "column" }}
+          >
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                mb: 1.5,
+              }}
+            >
+              <Typography variant="h6">Configuration</Typography>
+              {canEdit && (
+                <IconButton
+                  size="small"
+                  color="primary"
+                  onClick={() => setEditModalOpen(true)}
+                  aria-label="Edit configuration"
+                >
+                  <EditIcon fontSize="small" />
+                </IconButton>
+              )}
+            </Box>
+            <Table
+              size="small"
+              sx={{
+                "& tr:last-child td": { borderBottom: "none" },
+              }}
+            >
+              <TableBody>
+                <TableRow>
+                  <TableCell sx={labelCellSx}>IP Pool</TableCell>
+                  <TableCell sx={valueCellSx}>
+                    <Typography
+                      variant="body2"
+                      sx={{ fontFamily: "monospace" }}
+                    >
+                      {dataNetwork.ip_pool}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={labelCellSx}>DNS</TableCell>
+                  <TableCell sx={valueCellSx}>
+                    <Typography
+                      variant="body2"
+                      sx={{ fontFamily: "monospace" }}
+                    >
+                      {dataNetwork.dns || "—"}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={labelCellSx}>MTU</TableCell>
+                  <TableCell sx={valueCellSx}>
+                    {dataNetwork.mtu || "—"}
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        {/* Status Card */}
+        <Card
+          variant="outlined"
+          sx={{ height: "100%", display: "flex", flexDirection: "column" }}
+        >
+          <CardContent
+            sx={{ flex: 1, display: "flex", flexDirection: "column" }}
+          >
+            <Typography variant="h6" sx={{ mb: 1.5 }}>
+              Status
+            </Typography>
+            <Table
+              size="small"
+              sx={{
+                "& tr:last-child td": { borderBottom: "none" },
+              }}
+            >
+              <TableBody>
+                <TableRow>
+                  <TableCell sx={labelCellSx}>Active Sessions</TableCell>
+                  <TableCell sx={valueCellSx}>
+                    <Chip
+                      size="small"
+                      label={dataNetwork.status?.sessions ?? 0}
+                      variant="outlined"
+                    />
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell sx={labelCellSx}>IP Pool Utilization</TableCell>
+                  <TableCell sx={valueCellSx}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <LinearProgress
+                        variant="determinate"
+                        value={Math.min(utilPercent, 100)}
+                        sx={{ flex: 1, height: 8, borderRadius: 4 }}
+                      />
+                      <Typography variant="body2" sx={{ whiteSpace: "nowrap" }}>
+                        {allocated.toLocaleString()} /{" "}
+                        {poolSize.toLocaleString()}
+                      </Typography>
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </Box>
+
+      {/* IP Allocations DataGrid */}
+      <Box sx={{ mt: 3 }}>
+        <Typography variant="h6" sx={{ mb: 1 }}>
+          IP Allocations ({allocationRowCount.toLocaleString()})
+        </Typography>
+        {allocationRowCount === 0 ? (
+          <TableContainer sx={tableContainerSx}>
+            <Box sx={{ p: 3, textAlign: "center" }}>
+              <Typography variant="body2" color="text.secondary">
+                No IP addresses are currently allocated in this pool.
+              </Typography>
+            </Box>
+          </TableContainer>
+        ) : (
+          <ThemeProvider theme={gridTheme}>
+            <DataGrid<APIIPAllocation>
+              rows={allocationRows}
+              columns={allocationColumns}
+              getRowId={(row) => row.address}
+              paginationMode="server"
+              rowCount={allocationRowCount}
+              paginationModel={allocPaginationModel}
+              onPaginationModelChange={setAllocPaginationModel}
+              pageSizeOptions={[10, 25]}
+              disableColumnMenu
+              disableRowSelectionOnClick
+              density="compact"
+              sx={{
+                height: GRID_HEIGHT,
+                border: 1,
+                borderColor: "divider",
+                "& .MuiDataGrid-cell": {
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                },
+              }}
+            />
+          </ThemeProvider>
+        )}
       </Box>
 
       {/* Modals */}

@@ -163,19 +163,15 @@ const BackupRestore = () => {
         sx={{
           pt: 6,
           pb: 4,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
+          maxWidth: MAX_WIDTH,
+          mx: "auto",
+          px: PAGE_PADDING_X,
           opacity: isRestoring ? 0.6 : 1,
           pointerEvents: isRestoring ? "none" : "auto",
         }}
       >
         <Box
           sx={{
-            width: "100%",
-            maxWidth: MAX_WIDTH,
-            mx: "auto",
-            px: PAGE_PADDING_X,
             mb: 3,
             display: "flex",
             flexDirection: "column",
@@ -188,104 +184,95 @@ const BackupRestore = () => {
           </Typography>
         </Box>
 
-        <Box
-          sx={{
-            width: "100%",
-            maxWidth: MAX_WIDTH,
-            mx: "auto",
-            px: PAGE_PADDING_X,
-          }}
-        >
-          <Grid container spacing={4} justifyContent="flex-start">
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <Card
+        <Grid container spacing={4} justifyContent="flex-start">
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+            <Card
+              sx={{
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                borderRadius: 3,
+                boxShadow: 2,
+              }}
+            >
+              <CardHeader title="Create a Backup" sx={headerStyles} />
+              <CardContent
                 sx={{
-                  height: "100%",
                   display: "flex",
                   flexDirection: "column",
-                  borderRadius: 3,
-                  boxShadow: 2,
+                  gap: 1.5,
+                  flexGrow: 1,
                 }}
               >
-                <CardHeader title="Create a Backup" sx={headerStyles} />
-                <CardContent
-                  sx={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 1.5,
-                    flexGrow: 1,
-                  }}
-                >
-                  <Typography variant="body2" color="text.secondary">
-                    Generate and download a snapshot of your Ella Core
-                    configuration and data. You can then use this file to
-                    restore your system if needed.
-                  </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Generate and download a snapshot of your Ella Core
+                  configuration and data. You can then use this file to restore
+                  your system if needed.
+                </Typography>
 
-                  <Box sx={{ flexGrow: 1 }} />
-                  <Box sx={{ display: "flex", justifyContent: "center" }}>
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      onClick={handleCreate}
-                      disabled={actionsDisabled || isBackingUp}
-                    >
-                      {isBackingUp ? "Creating Backup…" : "Create Backup"}
-                    </Button>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <Card
-                sx={{
-                  height: "100%",
-                  display: "flex",
-                  flexDirection: "column",
-                  borderRadius: 3,
-                  boxShadow: 2,
-                }}
-              >
-                <CardHeader title="Restore a Backup" sx={headerStyles} />
-                <CardContent
-                  sx={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 1.5,
-                    flexGrow: 1,
-                  }}
-                >
-                  <Typography variant="body2" color="text.secondary">
-                    Upload a previously created backup file to restore Ella Core
-                    to a previous state. This will overwrite your current
-                    configuration and data.
-                  </Typography>
-
-                  <Box sx={{ flexGrow: 1 }} />
-
-                  <Box sx={{ display: "flex", justifyContent: "center" }}>
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={actionsDisabled}
-                    >
-                      {isRestoring ? "Restoring…" : "Upload File"}
-                    </Button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      hidden
-                      accept=".backup"
-                      onChange={handleRestore}
-                    />
-                  </Box>
-                </CardContent>
-              </Card>
-            </Grid>
+                <Box sx={{ flexGrow: 1 }} />
+                <Box sx={{ display: "flex", justifyContent: "center" }}>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={handleCreate}
+                    disabled={actionsDisabled || isBackingUp}
+                  >
+                    {isBackingUp ? "Creating Backup…" : "Create Backup"}
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
           </Grid>
-        </Box>
+
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+            <Card
+              sx={{
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                borderRadius: 3,
+                boxShadow: 2,
+              }}
+            >
+              <CardHeader title="Restore a Backup" sx={headerStyles} />
+              <CardContent
+                sx={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 1.5,
+                  flexGrow: 1,
+                }}
+              >
+                <Typography variant="body2" color="text.secondary">
+                  Upload a previously created backup file to restore Ella Core
+                  to a previous state. This will overwrite your current
+                  configuration and data.
+                </Typography>
+
+                <Box sx={{ flexGrow: 1 }} />
+
+                <Box sx={{ display: "flex", justifyContent: "center" }}>
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={actionsDisabled}
+                  >
+                    {isRestoring ? "Restoring…" : "Upload File"}
+                  </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    hidden
+                    accept=".backup"
+                    onChange={handleRestore}
+                  />
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
       </Box>
 
       <Dialog

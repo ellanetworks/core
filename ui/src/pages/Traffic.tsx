@@ -508,7 +508,7 @@ const Traffic: React.FC = () => {
       {
         field: "direction",
         headerName: "Direction",
-        width: 60,
+        width: 110,
         sortable: false,
         renderCell: (params) => {
           const dir = params.value as string;
@@ -778,13 +778,7 @@ const Traffic: React.FC = () => {
 
   return (
     <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        pt: 6,
-        pb: 4,
-      }}
+      sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
       {isInitialLoading ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
@@ -793,10 +787,6 @@ const Traffic: React.FC = () => {
       ) : (
         <Box
           sx={{
-            width: "100%",
-            maxWidth: MAX_WIDTH,
-            mx: "auto",
-            px: PAGE_PADDING_X,
             display: "flex",
             flexDirection: "column",
             gap: 2,
@@ -974,7 +964,7 @@ const Traffic: React.FC = () => {
                 <Alert severity="warning">
                   Flow accounting is disabled. Flows are not being collected and
                   will not appear on this page. You can enable it in the{" "}
-                  <Link to="/networking?tab=flow-accounting">
+                  <Link to="/networking/flow-accounting">
                     networking settings
                   </Link>
                   .

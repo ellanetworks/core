@@ -142,6 +142,9 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
         setProfiles((profilePage.items ?? []).map((p: APIProfile) => p.name));
       } catch (error) {
         console.error("Failed to fetch data:", error);
+        setAlert({
+          message: "Failed to load operator or profile data. Please try again.",
+        });
       }
     };
 

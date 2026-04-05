@@ -51,6 +51,7 @@ const InitializePage = () => {
       } catch (err) {
         console.error("Failed to fetch system status:", err);
         showSnackbar("Failed to check system initialization.", "error");
+        setCheckingInitialization(false);
       }
     };
 

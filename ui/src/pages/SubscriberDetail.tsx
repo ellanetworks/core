@@ -71,39 +71,30 @@ const SubscriberDetail: React.FC = () => {
     return (
       <Box
         sx={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
           pt: 6,
           pb: 4,
+          maxWidth: MAX_WIDTH,
+          mx: "auto",
+          px: PAGE_PADDING_X,
         }}
       >
+        {/* Header skeleton */}
+        <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
+
+        {/* Two-column skeleton */}
         <Box
           sx={{
-            width: "100%",
-            maxWidth: MAX_WIDTH,
-            mx: "auto",
-            px: PAGE_PADDING_X,
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+            gap: 3,
           }}
         >
-          {/* Header skeleton */}
-          <Skeleton variant="text" width={320} height={48} sx={{ mb: 3 }} />
-
-          {/* Two-column skeleton */}
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-              gap: 3,
-            }}
-          >
-            <Skeleton variant="rounded" height={320} />
-            <Skeleton variant="rounded" height={320} />
-          </Box>
-
-          {/* Traffic card skeleton */}
-          <Skeleton variant="rounded" height={340} sx={{ mt: 3 }} />
+          <Skeleton variant="rounded" height={320} />
+          <Skeleton variant="rounded" height={320} />
         </Box>
+
+        {/* Traffic card skeleton */}
+        <Skeleton variant="rounded" height={340} sx={{ mt: 3 }} />
       </Box>
     );
   }
@@ -135,158 +126,141 @@ const SubscriberDetail: React.FC = () => {
 
   return (
     <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        pt: 6,
-        pb: 4,
-      }}
+      sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
+      {/* Header */}
       <Box
         sx={{
-          width: "100%",
-          maxWidth: MAX_WIDTH,
-          mx: "auto",
-          px: PAGE_PADDING_X,
+          display: "flex",
+          flexDirection: { xs: "column", sm: "row" },
+          alignItems: { xs: "flex-start", sm: "center" },
+          gap: 2,
+          mb: 3,
         }}
       >
-        {/* Header */}
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: { xs: "column", sm: "row" },
-            alignItems: { xs: "flex-start", sm: "center" },
-            gap: 2,
-            mb: 3,
-          }}
-        >
-          <Box sx={{ flex: 1 }}>
-            <Box
-              sx={{ display: "flex", alignItems: "center", gap: 2, mb: 0.5 }}
+        <Box sx={{ flex: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 0.5 }}>
+            <Typography
+              variant="h4"
+              sx={{ display: "flex", alignItems: "baseline", gap: 0 }}
             >
               <Typography
-                variant="h4"
-                sx={{ display: "flex", alignItems: "baseline", gap: 0 }}
-              >
-                <Typography
-                  component={RouterLink}
-                  to="/subscribers"
-                  variant="h4"
-                  sx={{
-                    color: "text.secondary",
-                    textDecoration: "none",
-                    "&:hover": { textDecoration: "underline" },
-                  }}
-                >
-                  Subscribers
-                </Typography>
-                <Typography
-                  component="span"
-                  variant="h4"
-                  sx={{ color: "text.secondary", mx: 1 }}
-                >
-                  /
-                </Typography>
-                <Typography component="span" variant="h4">
-                  {subscriber.imsi}
-                </Typography>
-              </Typography>
-            </Box>
-          </Box>
-          {canEdit && (
-            <Box sx={{ display: "flex", gap: 1 }}>
-              <Button
-                variant="outlined"
-                color="error"
-                onClick={() => setDeleteConfirmOpen(true)}
-              >
-                Delete
-              </Button>
-            </Box>
-          )}
-        </Box>
-
-        {/* Two-column body */}
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-            gap: 3,
-            alignItems: "stretch",
-          }}
-        >
-          {/* Left column */}
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 3,
-            }}
-          >
-            <SubscriberProvisioningCard
-              subscriber={subscriber}
-              onEditProfile={canEdit ? () => setEditModalOpen(true) : undefined}
-            />
-          </Box>
-
-          {/* Right column */}
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 3,
-            }}
-          >
-            <SubscriberConnectionCard status={subscriber.status} />
-          </Box>
-        </Box>
-
-        {/* PDU Sessions */}
-        <SubscriberSessionsCard
-          sessions={subscriber.pdu_sessions}
-          loading={isLoading}
-        />
-
-        {/* Traffic card */}
-        <Card variant="outlined" sx={{ mt: 3 }}>
-          <CardContent>
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                mb: 2,
-              }}
-            >
-              <Typography variant="h6">Traffic Summary</Typography>
-              <Button
                 component={RouterLink}
-                to={`/traffic/usage?subscriber_id=${subscriber.imsi}`}
-                size="small"
+                to="/subscribers"
+                variant="h4"
                 sx={{
-                  color: (theme) => theme.palette.link,
-                  textDecoration: "underline",
+                  color: "text.secondary",
+                  textDecoration: "none",
                   "&:hover": { textDecoration: "underline" },
                 }}
               >
-                View traffic for {subscriber.imsi} →
-              </Button>
-            </Box>
-            <Box
+                Subscribers
+              </Typography>
+              <Typography
+                component="span"
+                variant="h4"
+                sx={{ color: "text.secondary", mx: 1 }}
+              >
+                /
+              </Typography>
+              <Typography component="span" variant="h4">
+                {subscriber.imsi}
+              </Typography>
+            </Typography>
+          </Box>
+        </Box>
+        {canEdit && (
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <Button
+              variant="outlined"
+              color="error"
+              onClick={() => setDeleteConfirmOpen(true)}
+            >
+              Delete
+            </Button>
+          </Box>
+        )}
+      </Box>
+
+      {/* Two-column body */}
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+          gap: 3,
+          alignItems: "stretch",
+        }}
+      >
+        {/* Left column */}
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 3,
+          }}
+        >
+          <SubscriberProvisioningCard
+            subscriber={subscriber}
+            onEditProfile={canEdit ? () => setEditModalOpen(true) : undefined}
+          />
+        </Box>
+
+        {/* Right column */}
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 3,
+          }}
+        >
+          <SubscriberConnectionCard status={subscriber.status} />
+        </Box>
+      </Box>
+
+      {/* PDU Sessions */}
+      <SubscriberSessionsCard
+        sessions={subscriber.pdu_sessions}
+        loading={isLoading}
+      />
+
+      {/* Traffic card */}
+      <Card variant="outlined" sx={{ mt: 3 }}>
+        <CardContent>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              mb: 2,
+            }}
+          >
+            <Typography variant="h6">Traffic Summary</Typography>
+            <Button
+              component={RouterLink}
+              to={`/traffic/usage?subscriber_id=${subscriber.imsi}`}
+              size="small"
               sx={{
-                display: "grid",
-                gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-                gap: 3,
-                alignItems: "start",
+                color: (theme) => theme.palette.link,
+                textDecoration: "underline",
+                "&:hover": { textDecoration: "underline" },
               }}
             >
-              <SubscriberUsageChart imsi={subscriber.imsi} embedded />
-              <SubscriberProtocolChart imsi={subscriber.imsi} />
-            </Box>
-          </CardContent>
-        </Card>
-      </Box>
+              View traffic for {subscriber.imsi} →
+            </Button>
+          </Box>
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+              gap: 3,
+              alignItems: "start",
+            }}
+          >
+            <SubscriberUsageChart imsi={subscriber.imsi} embedded />
+            <SubscriberProtocolChart imsi={subscriber.imsi} />
+          </Box>
+        </CardContent>
+      </Card>
 
       {/* Modals */}
       {isEditModalOpen && (

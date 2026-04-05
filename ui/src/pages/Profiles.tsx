@@ -115,13 +115,7 @@ const ProfilesPage: React.FC = () => {
 
   return (
     <Box
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        pt: 6,
-        pb: 4,
-      }}
+      sx={{ pt: 6, pb: 4, maxWidth: MAX_WIDTH, mx: "auto", px: PAGE_PADDING_X }}
     >
       {loading && rowCount === 0 ? (
         <Box sx={{ display: "flex", justifyContent: "center", mt: 6 }}>
@@ -145,10 +139,6 @@ const ProfilesPage: React.FC = () => {
         <>
           <Box
             sx={{
-              width: "100%",
-              maxWidth: MAX_WIDTH,
-              mx: "auto",
-              px: PAGE_PADDING_X,
               mb: 3,
               display: "flex",
               flexDirection: "column",
@@ -173,46 +163,37 @@ const ProfilesPage: React.FC = () => {
             )}
           </Box>
 
-          <Box
-            sx={{
-              width: "100%",
-              maxWidth: MAX_WIDTH,
-              mx: "auto",
-              px: PAGE_PADDING_X,
-            }}
-          >
-            <ThemeProvider theme={gridTheme}>
-              <DataGrid<APIProfile>
-                rows={rows}
-                columns={columns}
-                getRowId={(row) => row.name}
-                paginationMode="server"
-                rowCount={rowCount}
-                paginationModel={pagination}
-                onPaginationModelChange={setPagination}
-                pageSizeOptions={[10, 25, 50, 100]}
-                disableRowSelectionOnClick
-                disableColumnMenu
-                sx={{
-                  width: "100%",
-                  border: 1,
+          <ThemeProvider theme={gridTheme}>
+            <DataGrid<APIProfile>
+              rows={rows}
+              columns={columns}
+              getRowId={(row) => row.name}
+              paginationMode="server"
+              rowCount={rowCount}
+              paginationModel={pagination}
+              onPaginationModelChange={setPagination}
+              pageSizeOptions={[10, 25, 50, 100]}
+              disableRowSelectionOnClick
+              disableColumnMenu
+              sx={{
+                width: "100%",
+                border: 1,
+                borderColor: "divider",
+                "& .MuiDataGrid-cell": {
+                  borderBottom: "1px solid",
                   borderColor: "divider",
-                  "& .MuiDataGrid-cell": {
-                    borderBottom: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-columnHeaders": {
-                    borderBottom: "1px solid",
-                    borderColor: "divider",
-                  },
-                  "& .MuiDataGrid-footerContainer": {
-                    borderTop: "1px solid",
-                    borderColor: "divider",
-                  },
-                }}
-              />
-            </ThemeProvider>
-          </Box>
+                },
+                "& .MuiDataGrid-columnHeaders": {
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                },
+                "& .MuiDataGrid-footerContainer": {
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                },
+              }}
+            />
+          </ThemeProvider>
         </>
       )}
 
