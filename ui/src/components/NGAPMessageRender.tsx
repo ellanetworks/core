@@ -54,6 +54,21 @@ const isNgapIE = (x: unknown) => {
   return isEnumLike(idEnum) && isEnumLike(criticalityEnum);
 };
 
+// --- Bitrate helpers ---
+
+const formatBps = (bps: number): string => {
+  if (bps >= 1_000_000_000)
+    return `${(bps / 1_000_000_000).toFixed(bps % 1_000_000_000 === 0 ? 0 : 1)} Gbps`;
+  if (bps >= 1_000_000)
+    return `${(bps / 1_000_000).toFixed(bps % 1_000_000 === 0 ? 0 : 1)} Mbps`;
+  if (bps >= 1_000)
+    return `${(bps / 1_000).toFixed(bps % 1_000 === 0 ? 0 : 1)} Kbps`;
+  return `${bps} bps`;
+};
+
+const isBpsObject = (obj: Record<string, unknown>): boolean =>
+  obj.unit === "bps";
+
 // --- Tree primitives ---
 
 /**
@@ -376,6 +391,7 @@ const CollapsibleObject: React.FC<{
   if (isNgapIE(obj))
     return <NgapIEBlock ie={obj} depth={depth} label={label} />;
 
+  const isBpsObj = isBpsObject(obj);
   const childDepth = label ? depth + 1 : depth;
 
   return (
@@ -398,33 +414,45 @@ const CollapsibleObject: React.FC<{
             <Box component="span">{"\u2014"}</Box>
           </TreeRow>
         ) : (
-          keys.map((k) => {
-            const v = obj[k];
-            if (isEnumLike(v))
+          keys
+            .filter((k) => !(isBpsObj && k === "unit"))
+            .map((k) => {
+              const v = obj[k];
+              if (isEnumLike(v))
+                return (
+                  <KVLine key={k} depth={childDepth} k={k} v={formatEnum(v)} />
+                );
+              if (
+                v == null ||
+                typeof v === "string" ||
+                typeof v === "number" ||
+                typeof v === "boolean"
+              ) {
+                const display =
+                  v == null
+                    ? "\u2014"
+                    : isBpsObj && typeof v === "number"
+                      ? formatBps(v)
+                      : String(v);
+                return <KVLine key={k} depth={childDepth} k={k} v={display} />;
+              }
+              // F11: NAS-PDU detection in nested structs
+              if (isNasPdu(v)) {
+                return (
+                  <NasPduBlock
+                    key={k}
+                    nasPdu={v}
+                    depth={childDepth}
+                    title={k}
+                  />
+                );
+              }
               return (
-                <KVLine key={k} depth={childDepth} k={k} v={formatEnum(v)} />
+                <ChildSection key={k} depth={childDepth} title={k} defaultOpen>
+                  <GenericNode value={v} depth={childDepth + 1} />
+                </ChildSection>
               );
-            if (
-              v == null ||
-              typeof v === "string" ||
-              typeof v === "number" ||
-              typeof v === "boolean"
-            ) {
-              return (
-                <KVLine
-                  key={k}
-                  depth={childDepth}
-                  k={k}
-                  v={v == null ? "\u2014" : String(v)}
-                />
-              );
-            }
-            return (
-              <ChildSection key={k} depth={childDepth} title={k} defaultOpen>
-                <GenericNode value={v} depth={childDepth + 1} />
-              </ChildSection>
-            );
-          })
+            })
         )}
       </Collapse>
     </>
