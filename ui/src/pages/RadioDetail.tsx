@@ -237,7 +237,7 @@ const RadioDetail: React.FC = () => {
       {
         field: "direction",
         headerName: "Direction",
-        width: 90,
+        width: 110,
         sortable: false,
         renderCell: (p) => {
           const val = p.row.direction;

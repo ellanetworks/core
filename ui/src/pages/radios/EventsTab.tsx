@@ -410,7 +410,7 @@ export default function EventsTab() {
       {
         field: "direction",
         headerName: "Direction",
-        width: 90,
+        width: 110,
         align: "center",
         headerAlign: "center",
         sortable: false,

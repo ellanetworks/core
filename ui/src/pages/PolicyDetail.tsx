@@ -514,7 +514,23 @@ const PolicyDetail: React.FC = () => {
                       <span>Slice</span>
                     </Tooltip>
                   </TableCell>
-                  <TableCell sx={valueCellSx}>{policy.slice_name}</TableCell>
+                  <TableCell sx={valueCellSx}>
+                    <RouterLink
+                      to="/networking/slices"
+                      style={{ textDecoration: "none" }}
+                    >
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: theme.palette.link,
+                          textDecoration: "underline",
+                          "&:hover": { textDecoration: "underline" },
+                        }}
+                      >
+                        {policy.slice_name}
+                      </Typography>
+                    </RouterLink>
+                  </TableCell>
                 </TableRow>
                 <TableRow>
                   <TableCell sx={labelCellSx}>

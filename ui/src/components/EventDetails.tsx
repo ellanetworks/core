@@ -127,7 +127,16 @@ export default function EventDetails({
     }
   };
 
-  const content = (() => {
+  const decoded = decodedData?.decoded;
+  const raw = decodedData?.raw;
+  const rawString =
+    raw == null
+      ? ""
+      : typeof raw === "string"
+        ? raw
+        : stringify(Array.from(raw));
+
+  const decodedContent = (() => {
     if (isRetrieving || isRadioEventFetching) {
       return (
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -160,117 +169,53 @@ export default function EventDetails({
     if (!decodedData)
       return <Typography variant="body2">No decoded content.</Typography>;
 
-    const { decoded, raw } = decodedData;
     const pretty = <GenericMessageView decoded={decoded} />;
 
-    return (
+    return pretty ? (
       <>
-        {pretty ? (
-          <>
-            <Box
-              sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}
-            >
-              <Typography variant="subtitle2">Decoded</Typography>
-              <Tooltip title="Copy decoded content">
-                <span>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleCopy(stringify(decoded))}
-                    aria-label="Copy decoded content"
-                    disabled={decoded == null}
-                  >
-                    <CopyIcon fontSize="small" />
-                  </IconButton>
-                </span>
-              </Tooltip>
-            </Box>
-            {pretty}
-            <Box
-              sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.75 }}
-            >
-              <WarningAmberRoundedIcon
-                fontSize="small"
-                sx={{ color: (t) => t.palette.warning.main }}
-                aria-hidden
-              />
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                message decoding support is partial and content may be
-                incomplete
-              </Typography>
-            </Box>
-            <Divider sx={{ my: 1.5 }} />
-          </>
-        ) : (
-          <>
-            <Box
-              sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}
-            >
-              <Typography variant="subtitle2">Decoded (raw JSON)</Typography>
-              <Tooltip title="Copy decoded content">
-                <span>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleCopy(stringify(decoded))}
-                    aria-label="Copy decoded content"
-                    disabled={decoded == null}
-                  >
-                    <CopyIcon fontSize="small" />
-                  </IconButton>
-                </span>
-              </Tooltip>
-            </Box>
-            <MonoBlock>{stringify(decoded)}</MonoBlock>
-            <Divider sx={{ my: 1.5 }} />
-          </>
-        )}
-
-        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
-          <Typography variant="subtitle2">
-            Raw (base64 encoded bytes)
+        {pretty}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.75 }}>
+          <WarningAmberRoundedIcon
+            fontSize="small"
+            sx={{ color: (t) => t.palette.warning.main }}
+            aria-hidden
+          />
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            message decoding support is partial and content may be incomplete
           </Typography>
-          <Tooltip title="Copy raw message">
-            <span>
-              <IconButton
-                size="small"
-                onClick={() =>
-                  handleCopy(
-                    typeof raw === "string"
-                      ? raw
-                      : stringify(Array.from(raw ?? [])),
-                  )
-                }
-                aria-label="Copy raw message"
-                disabled={!raw}
-              >
-                <CopyIcon fontSize="small" />
-              </IconButton>
-            </span>
-          </Tooltip>
         </Box>
-        <MonoBlock>
-          {typeof raw === "string" ? raw : stringify(Array.from(raw ?? []))}
-        </MonoBlock>
       </>
+    ) : (
+      <MonoBlock>{stringify(decoded)}</MonoBlock>
     );
   })();
 
   return (
-    <>
-      <Box sx={{ flex: 1, overflow: "auto", px: 2, pb: 2 }}>
-        <Stack spacing={1.25} sx={{ my: 1.25 }}>
-          <MetaRow label="Timestamp" value={log?.timestamp} />
-          <MetaRow label="Protocol" value={log?.protocol} />
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: "180px 1fr",
-              alignItems: "baseline",
-              gap: 1,
-            }}
-          >
-            <Typography variant="caption" sx={{ color: "text.secondary" }}>
-              Radio
-            </Typography>
+    <Box
+      sx={{
+        flex: 1,
+        minHeight: 0,
+        display: "flex",
+        flexDirection: "column",
+        px: 2,
+        pb: 2,
+      }}
+    >
+      {/* Metadata — fixed height */}
+      <Stack spacing={1.25} sx={{ my: 1.25, flexShrink: 0 }}>
+        <MetaRow label="Timestamp" value={log?.timestamp} />
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "180px 1fr",
+            alignItems: "baseline",
+            gap: 1,
+          }}
+        >
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            Radio
+          </Typography>
+          <Box>
             {log?.radio ? (
               <Typography
                 variant="subtitle2"
@@ -285,23 +230,98 @@ export default function EventDetails({
                 {log.radio}
               </Typography>
             ) : (
-              <Typography variant="subtitle2">{"\u2014"}</Typography>
+              <Typography variant="subtitle2" component="span">
+                {"\u2014"}
+              </Typography>
+            )}
+            {log?.address && (
+              <Typography
+                variant="subtitle2"
+                component="span"
+                sx={{ ml: 0.5, color: "text.secondary", fontWeight: 400 }}
+              >
+                ({log.address})
+              </Typography>
             )}
           </Box>
-          <MetaRow label="Address" value={log?.address} />
-          <MetaRow label="Direction" value={log?.direction} />
-          <MetaRow label="Message Type" value={log?.messageType} full />
-        </Stack>
-
-        <Divider sx={{ my: 1.5 }} />
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-          <Typography variant="subtitle1" sx={{ flex: 1 }}>
-            Message Content
-          </Typography>
         </Box>
+        <MetaRow label="Direction" value={log?.direction} />
+      </Stack>
 
-        {content}
+      <Divider sx={{ flexShrink: 0 }} />
+
+      {/* Decoded content — fills remaining space, scrolls internally */}
+      <Box
+        sx={{
+          flexShrink: 0,
+          mt: 1.5,
+          mb: 0.5,
+          display: "flex",
+          justifyContent: "space-between",
+        }}
+      >
+        <Typography variant="subtitle2">Decoded</Typography>
+        <Tooltip title="Copy decoded content">
+          <span>
+            <IconButton
+              size="small"
+              onClick={() => handleCopy(stringify(decoded))}
+              aria-label="Copy decoded content"
+              disabled={decoded == null}
+            >
+              <CopyIcon fontSize="small" />
+            </IconButton>
+          </span>
+        </Tooltip>
       </Box>
-    </>
+      <Box sx={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+        {decodedContent}
+      </Box>
+
+      {/* Raw — single line, always visible at bottom */}
+      <Divider sx={{ flexShrink: 0, mt: 1.5 }} />
+      <Box
+        sx={{
+          flexShrink: 0,
+          mt: 1,
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+        }}
+      >
+        <Typography variant="subtitle2" sx={{ flexShrink: 0 }}>
+          Raw
+        </Typography>
+        <Typography
+          variant="body2"
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            fontFamily:
+              "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+            fontSize: 13,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            color: "text.secondary",
+          }}
+        >
+          {rawString || "—"}
+        </Typography>
+        <Tooltip title="Copy raw message">
+          <span>
+            <IconButton
+              size="small"
+              onClick={() => handleCopy(rawString)}
+              aria-label="Copy raw message"
+              disabled={!rawString}
+              sx={{ flexShrink: 0 }}
+            >
+              <CopyIcon fontSize="small" />
+            </IconButton>
+          </span>
+        </Tooltip>
+      </Box>
+    </Box>
   );
 }

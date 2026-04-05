@@ -508,7 +508,7 @@ const Traffic: React.FC = () => {
       {
         field: "direction",
         headerName: "Direction",
-        width: 60,
+        width: 110,
         sortable: false,
         renderCell: (params) => {
           const dir = params.value as string;
