@@ -9,10 +9,12 @@ import (
 )
 
 type PDUSessionResourceSetupSUReq struct {
-	PDUSessionID                           int64   `json:"pdu_session_id"`
-	PDUSessionNASPDU                       *NASPDU `json:"pdu_session_nas_pdu,omitempty"`
-	SNSSAI                                 SNSSAI  `json:"snssai"`
-	PDUSessionResourceSetupRequestTransfer []byte  `json:"pdu_session_resource_setup_request_transfer"`
+	PDUSessionID                           int64                                   `json:"pdu_session_id"`
+	PDUSessionNASPDU                       *NASPDU                                 `json:"pdu_session_nas_pdu,omitempty"`
+	SNSSAI                                 SNSSAI                                  `json:"snssai"`
+	PDUSessionResourceSetupRequestTransfer *PDUSessionResourceSetupRequestTransfer `json:"pdu_session_resource_setup_request_transfer,omitempty"`
+
+	Error string `json:"error,omitempty"`
 }
 
 func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest ngapType.PDUSessionResourceSetupRequest) NGAPMessageValue {
@@ -79,9 +81,15 @@ func buildPDUSessionResourceSetupListSUReq(list ngapType.PDUSessionResourceSetup
 
 	for _, item := range list.List {
 		pduSUReq := PDUSessionResourceSetupSUReq{
-			PDUSessionID:                           item.PDUSessionID.Value,
-			SNSSAI:                                 *buildSNSSAI(&item.SNSSAI),
-			PDUSessionResourceSetupRequestTransfer: item.PDUSessionResourceSetupRequestTransfer,
+			PDUSessionID: item.PDUSessionID.Value,
+			SNSSAI:       *buildSNSSAI(&item.SNSSAI),
+		}
+
+		setupRequestTransfer, err := buildPDUSessionInfoFromSetupRequestTransfer(item.PDUSessionResourceSetupRequestTransfer)
+		if err != nil {
+			pduSUReq.Error = fmt.Sprintf("failed to decode transfer: %v", err)
+		} else {
+			pduSUReq.PDUSessionResourceSetupRequestTransfer = setupRequestTransfer
 		}
 
 		if item.PDUSessionNASPDU != nil {

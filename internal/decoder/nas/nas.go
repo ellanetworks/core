@@ -174,11 +174,22 @@ func buildGsmMessage(msg *nas.GsmMessage) *GsmMessage {
 		return nil
 	}
 
-	return &GsmMessage{
+	gsmMessage := &GsmMessage{
 		GsmHeader: GsmHeader{
 			MessageType: getGsmMessageType(msg),
 		},
 	}
+
+	switch msg.GetMessageType() {
+	case nas.MsgTypePDUSessionEstablishmentRequest:
+		gsmMessage.PDUSessionEstablishmentRequest = buildPDUSessionEstablishmentRequest(msg.PDUSessionEstablishmentRequest)
+	case nas.MsgTypePDUSessionEstablishmentAccept:
+		gsmMessage.PDUSessionEstablishmentAccept = buildPDUSessionEstablishmentAccept(msg.PDUSessionEstablishmentAccept)
+	default:
+		gsmMessage.Error = fmt.Sprintf("GSM message type %d not implemented", msg.GetMessageType())
+	}
+
+	return gsmMessage
 }
 
 func getGsmMessageType(msg *nas.GsmMessage) utils.EnumField[uint8] {
