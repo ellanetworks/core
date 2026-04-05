@@ -164,7 +164,7 @@ const NgapIEBlock: React.FC<{ ie: any; depth: number; label?: string }> = ({
         : String(value)
     : null;
 
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = React.useState(true);
 
   if (isInline) {
     return (
@@ -195,13 +195,52 @@ const NgapIEBlock: React.FC<{ ie: any; depth: number; label?: string }> = ({
   );
 };
 
+const summarizeObject = (
+  obj: Record<string, unknown>,
+  maxFields = 3,
+): string => {
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(obj)) {
+    if (parts.length >= maxFields) break;
+    if (v == null) continue;
+    if (
+      typeof v === "string" ||
+      typeof v === "number" ||
+      typeof v === "boolean"
+    ) {
+      parts.push(`${k}: ${String(v)}`);
+    } else if (isEnumLike(v)) {
+      parts.push(`${k}: ${v.label}`);
+    }
+  }
+  return parts.join(", ");
+};
+
 const CollapsibleArray: React.FC<{
   items: unknown[];
   depth: number;
   label?: string;
 }> = ({ items, depth, label }) => {
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = React.useState(true);
   const childDepth = label ? depth + 1 : depth;
+
+  // Single-element arrays: render the item directly without extra nesting
+  if (
+    items.length === 1 &&
+    items[0] != null &&
+    typeof items[0] === "object" &&
+    !Array.isArray(items[0]) &&
+    !isEnumLike(items[0])
+  ) {
+    return (
+      <CollapsibleObject
+        obj={items[0] as Record<string, unknown>}
+        depth={depth}
+        label={label}
+      />
+    );
+  }
+
   return (
     <>
       {label && (
@@ -232,12 +271,17 @@ const CollapsibleArray: React.FC<{
               <KVLine key={i} depth={childDepth} k={`#${i + 1}`} v={display} />
             );
           }
+          const obj = item as Record<string, unknown>;
+          const summary = summarizeObject(obj);
+          const itemLabel = summary
+            ? `#${i + 1} \u2014 ${summary}`
+            : `#${i + 1}`;
           return (
             <CollapsibleObject
               key={i}
-              obj={item as Record<string, unknown>}
+              obj={obj}
               depth={childDepth}
-              label={`#${i + 1}`}
+              label={itemLabel}
             />
           );
         })}
@@ -252,7 +296,7 @@ const CollapsibleObject: React.FC<{
   label?: string;
 }> = ({ obj, depth, label }) => {
   const keys = Object.keys(obj);
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = React.useState(true);
 
   if (isNgapIE(obj))
     return <NgapIEBlock ie={obj} depth={depth} label={label} />;
@@ -301,7 +345,7 @@ const CollapsibleObject: React.FC<{
               );
             }
             return (
-              <ChildSection key={k} depth={childDepth} title={k}>
+              <ChildSection key={k} depth={childDepth} title={k} defaultOpen>
                 <GenericNode value={v} depth={childDepth + 1} />
               </ChildSection>
             );
@@ -409,7 +453,7 @@ const TopLevelNgapView: React.FC<{ decoded: DecodedNGAPMessage }> = ({
 };
 
 const TopLevelValueRow: React.FC<{ value: unknown }> = ({ value }) => {
-  const [open, setOpen] = React.useState(false);
+  const [open, setOpen] = React.useState(true);
   return (
     <>
       <TreeRow
