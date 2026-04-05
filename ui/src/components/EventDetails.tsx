@@ -20,7 +20,7 @@ import { getRadioEvent, type RadioEventContent } from "@/queries/radio_events";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { GenericMessageView } from "@/components/EventMessageRender";
+import { NGAPMessageView } from "@/components/NGAPMessageRender";
 
 export interface LogRow {
   id: string;
@@ -31,34 +31,6 @@ export interface LogRow {
   messageType: string;
   direction: string;
 }
-
-const MonoBlock: React.FC<{ children: React.ReactNode; sxProp?: object }> = ({
-  children,
-  sxProp,
-}) => (
-  <Box
-    component="pre"
-    sx={{
-      m: 0,
-      p: 1.25,
-      borderRadius: 1,
-      bgcolor: "background.default",
-      fontFamily:
-        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-      fontSize: 13,
-      lineHeight: 1.5,
-      whiteSpace: "pre-wrap",
-      wordBreak: "break-word",
-      overflowWrap: "anywhere",
-      overflowX: "hidden",
-      maxWidth: "100%",
-      border: (t) => `1px solid ${t.palette.divider}`,
-      ...sxProp,
-    }}
-  >
-    {children}
-  </Box>
-);
 
 const MetaRow: React.FC<{
   label: string;
@@ -166,14 +138,12 @@ export default function EventDetails({
         </Alert>
       );
     }
-    if (!decodedData)
+    if (!decodedData || !decoded)
       return <Typography variant="body2">No decoded content.</Typography>;
 
-    const pretty = <GenericMessageView decoded={decoded} />;
-
-    return pretty ? (
+    return (
       <>
-        {pretty}
+        <NGAPMessageView decoded={decoded} />
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.75 }}>
           <WarningAmberRoundedIcon
             fontSize="small"
@@ -181,12 +151,11 @@ export default function EventDetails({
             aria-hidden
           />
           <Typography variant="caption" sx={{ color: "text.secondary" }}>
-            message decoding support is partial and content may be incomplete
+            NGAP decoding is partial — some Information Elements may appear as
+            raw values
           </Typography>
         </Box>
       </>
-    ) : (
-      <MonoBlock>{stringify(decoded)}</MonoBlock>
     );
   })();
 

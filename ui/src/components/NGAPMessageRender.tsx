@@ -336,7 +336,7 @@ type GenericNodeProps = {
   labelOverride?: string;
 };
 
-export const GenericNode: React.FC<GenericNodeProps> = ({
+const GenericNode: React.FC<GenericNodeProps> = ({
   value,
   depth = 0,
   labelOverride,
@@ -362,24 +362,11 @@ export const GenericNode: React.FC<GenericNodeProps> = ({
   return <Typography variant="body2">{String(value)}</Typography>;
 };
 
-type NgapRoot = {
-  pdu_type?: unknown;
-  message_type?: unknown;
-  procedure_code?: unknown;
-  criticality?: unknown;
-  value?: unknown;
-};
+import type { DecodedNGAPMessage } from "@/queries/radio_events";
 
-const isNgapRoot = (x: unknown): x is NgapRoot =>
-  !!x &&
-  typeof x === "object" &&
-  "pdu_type" in (x as any) &&
-  "message_type" in (x as any) &&
-  "procedure_code" in (x as any) &&
-  "criticality" in (x as any) &&
-  "value" in (x as any);
-
-const TopLevelNgapView: React.FC<{ decoded: NgapRoot }> = ({ decoded }) => {
+const TopLevelNgapView: React.FC<{ decoded: DecodedNGAPMessage }> = ({
+  decoded,
+}) => {
   const { pdu_type, message_type, procedure_code, criticality, value } =
     decoded;
 
@@ -429,8 +416,8 @@ const TopLevelValueRow: React.FC<{ value: unknown }> = ({ value }) => {
   );
 };
 
-export const GenericMessageView: React.FC<{
-  decoded: unknown;
+export const NGAPMessageView: React.FC<{
+  decoded: DecodedNGAPMessage;
   title?: string;
 }> = ({ decoded, title }) => {
   return (
@@ -449,11 +436,7 @@ export const GenericMessageView: React.FC<{
           <Divider sx={{ mb: 1 }} />
         </>
       )}
-      {isNgapRoot(decoded) ? (
-        <TopLevelNgapView decoded={decoded} />
-      ) : (
-        <GenericNode value={decoded} />
-      )}
+      <TopLevelNgapView decoded={decoded} />
     </Box>
   );
 };
