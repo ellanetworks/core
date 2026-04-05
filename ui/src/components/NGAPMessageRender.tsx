@@ -119,7 +119,7 @@ const ChildSection: React.FC<{
   title: string;
   defaultOpen?: boolean;
   children: React.ReactNode;
-}> = ({ depth, title, defaultOpen = true, children }) => {
+}> = ({ depth, title, defaultOpen = false, children }) => {
   const [open, setOpen] = React.useState(defaultOpen);
   return (
     <>
@@ -138,40 +138,42 @@ const ChildSection: React.FC<{
   );
 };
 
-const IEValueRow: React.FC<{ value: unknown; depth: number }> = ({
-  value,
-  depth,
-}) => {
-  const [open, setOpen] = React.useState(true);
-  return (
-    <>
-      <TreeRow
-        depth={depth}
-        expandable
-        open={open}
-        onToggle={() => setOpen((s) => !s)}
-      >
-        <Box component="span" sx={{ color: "text.secondary" }}>
-          Value
-        </Box>
-      </TreeRow>
-      <Collapse in={open}>
-        <GenericNode value={value} depth={depth + 1} />
-      </Collapse>
-    </>
-  );
-};
-
 const NgapIEBlock: React.FC<{ ie: any; depth: number; label?: string }> = ({
   ie,
   depth,
   label,
 }) => {
-  const { idEnum, criticalityEnum, value, error } = extractIEFields(ie);
-  const [open, setOpen] = React.useState(true);
+  const { idEnum, value, error } = extractIEFields(ie);
   const title = isEnumLike(idEnum)
     ? `${idEnum.label} (${String(idEnum.value)})`
     : (label ?? "Information Element");
+
+  // Inline primitive/enum values on the header row (no expand/collapse needed)
+  const isInline =
+    value == null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    isEnumLike(value);
+
+  const inlineDisplay = isInline
+    ? value == null
+      ? "\u2014"
+      : isEnumLike(value)
+        ? formatEnum(value)
+        : String(value)
+    : null;
+
+  const [open, setOpen] = React.useState(false);
+
+  if (isInline) {
+    return (
+      <>
+        <KVLine depth={depth} k={title} v={inlineDisplay!} />
+        {error && <KVLine depth={depth + 1} k="Error" v={String(error)} />}
+      </>
+    );
+  }
 
   return (
     <>
@@ -186,28 +188,8 @@ const NgapIEBlock: React.FC<{ ie: any; depth: number; label?: string }> = ({
         </Box>
       </TreeRow>
       <Collapse in={open}>
-        {isEnumLike(criticalityEnum) && (
-          <KVLine
-            depth={depth + 1}
-            k="Criticality"
-            v={formatEnum(criticalityEnum)}
-          />
-        )}
         {error && <KVLine depth={depth + 1} k="Error" v={String(error)} />}
-        {value == null ||
-        typeof value === "string" ||
-        typeof value === "number" ||
-        typeof value === "boolean" ? (
-          <KVLine
-            depth={depth + 1}
-            k="Value"
-            v={value == null ? "\u2014" : String(value)}
-          />
-        ) : isEnumLike(value) ? (
-          <KVLine depth={depth + 1} k="Value" v={formatEnum(value)} />
-        ) : (
-          <IEValueRow value={value} depth={depth + 1} />
-        )}
+        <GenericNode value={value} depth={depth + 1} />
       </Collapse>
     </>
   );
@@ -218,7 +200,7 @@ const CollapsibleArray: React.FC<{
   depth: number;
   label?: string;
 }> = ({ items, depth, label }) => {
-  const [open, setOpen] = React.useState(true);
+  const [open, setOpen] = React.useState(false);
   const childDepth = label ? depth + 1 : depth;
   return (
     <>
@@ -270,7 +252,7 @@ const CollapsibleObject: React.FC<{
   label?: string;
 }> = ({ obj, depth, label }) => {
   const keys = Object.keys(obj);
-  const [open, setOpen] = React.useState(true);
+  const [open, setOpen] = React.useState(false);
 
   if (isNgapIE(obj))
     return <NgapIEBlock ie={obj} depth={depth} label={label} />;

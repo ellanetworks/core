@@ -22,6 +22,36 @@ import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { NGAPMessageView } from "@/components/NGAPMessageRender";
 
+function formatHexDump(base64: string): string {
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+
+  const lines: string[] = [];
+  for (let off = 0; off < bytes.length; off += 16) {
+    const chunk = bytes.slice(off, off + 16);
+    const offset = off.toString(16).padStart(4, "0");
+    const hexParts: string[] = [];
+    const asciiParts: string[] = [];
+    for (let i = 0; i < 16; i++) {
+      if (i === 8) hexParts.push("");
+      if (i < chunk.length) {
+        hexParts.push(chunk[i].toString(16).padStart(2, "0"));
+        asciiParts.push(
+          chunk[i] >= 0x20 && chunk[i] <= 0x7e
+            ? String.fromCharCode(chunk[i])
+            : ".",
+        );
+      } else {
+        hexParts.push("  ");
+        asciiParts.push(" ");
+      }
+    }
+    lines.push(`${offset}  ${hexParts.join(" ")}  ${asciiParts.join("")}`);
+  }
+  return lines.join("\n");
+}
+
 export interface LogRow {
   id: string;
   timestamp: string;
@@ -101,12 +131,8 @@ export default function EventDetails({
 
   const decoded = decodedData?.decoded;
   const raw = decodedData?.raw;
-  const rawString =
-    raw == null
-      ? ""
-      : typeof raw === "string"
-        ? raw
-        : stringify(Array.from(raw));
+  const rawString = raw == null ? "" : typeof raw === "string" ? raw : "";
+  const hexDump = rawString ? formatHexDump(rawString) : "";
 
   const decodedContent = (() => {
     if (isRetrieving || isRadioEventFetching) {
@@ -247,7 +273,7 @@ export default function EventDetails({
         {decodedContent}
       </Box>
 
-      {/* Raw — single line, always visible at bottom */}
+      {/* Raw — hex dump */}
       <Divider sx={{ flexShrink: 0, mt: 1.5 }} />
       <Box
         sx={{
@@ -255,42 +281,45 @@ export default function EventDetails({
           mt: 1,
           display: "flex",
           alignItems: "center",
-          gap: 1,
+          justifyContent: "space-between",
         }}
       >
-        <Typography variant="subtitle2" sx={{ flexShrink: 0 }}>
-          Raw
-        </Typography>
-        <Typography
-          variant="body2"
-          sx={{
-            flex: 1,
-            minWidth: 0,
-            fontFamily:
-              "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-            fontSize: 13,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            color: "text.secondary",
-          }}
-        >
-          {rawString || "—"}
-        </Typography>
-        <Tooltip title="Copy raw message">
+        <Typography variant="subtitle2">Raw</Typography>
+        <Tooltip title="Copy raw hex dump">
           <span>
             <IconButton
               size="small"
-              onClick={() => handleCopy(rawString)}
-              aria-label="Copy raw message"
-              disabled={!rawString}
-              sx={{ flexShrink: 0 }}
+              onClick={() => handleCopy(hexDump)}
+              aria-label="Copy raw hex dump"
+              disabled={!hexDump}
             >
               <CopyIcon fontSize="small" />
             </IconButton>
           </span>
         </Tooltip>
       </Box>
+      {hexDump ? (
+        <Box
+          component="pre"
+          sx={{
+            fontFamily:
+              "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+            fontSize: 12,
+            lineHeight: 1.4,
+            color: "text.secondary",
+            overflow: "auto",
+            maxHeight: 200,
+            m: 0,
+            mt: 0.5,
+          }}
+        >
+          {hexDump}
+        </Box>
+      ) : (
+        <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
+          —
+        </Typography>
+      )}
     </Box>
   );
 }
