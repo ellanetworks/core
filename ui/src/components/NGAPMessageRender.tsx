@@ -145,9 +145,9 @@ const isNasPdu = (v: unknown): boolean =>
 
 const getNasHeader = (nasPdu: any): string => {
   const decoded = nasPdu?.decoded;
-  if (!decoded) return "NAS-PDU";
-  if (decoded.error) return "NAS-PDU (decode error)";
-  if (decoded.encrypted) return "NAS-PDU (encrypted)";
+  if (!decoded) return "undecoded";
+  if (decoded.error) return "decode error";
+  if (decoded.encrypted) return "encrypted";
 
   const gmmType = decoded.gmm_message?.gmm_header?.message_type?.label;
   const gsmType = decoded.gsm_message?.gsm_header?.message_type?.label;
@@ -155,7 +155,7 @@ const getNasHeader = (nasPdu: any): string => {
 
   const secHeader =
     decoded.security_header?.security_header_type?.label || "Plain NAS";
-  return `NAS: ${messageType} (${secHeader})`;
+  return `${messageType} (${secHeader})`;
 };
 
 const NasPduBlock: React.FC<{ nasPdu: any; depth: number; title: string }> = ({
@@ -176,7 +176,7 @@ const NasPduBlock: React.FC<{ nasPdu: any; depth: number; title: string }> = ({
       >
         <Box component="span" sx={{ color: "text.secondary" }}>
           {title}
-          {" \u2014 "}
+          {" \u2014\u00A0"}
         </Box>
         <Box component="span" sx={{ fontWeight: 600 }}>
           {nasHeader}
