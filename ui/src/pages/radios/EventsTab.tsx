@@ -1,4 +1,10 @@
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useMemo,
+  useEffect,
+  useCallback,
+  useRef,
+} from "react";
 import {
   Box,
   Button,
@@ -25,7 +31,6 @@ import CloseIcon from "@mui/icons-material/Close";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { Edit as EditIcon } from "@mui/icons-material";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
 import {
   listRadios,
@@ -47,7 +52,6 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EditRadioEventRetentionPolicyModal from "@/components/EditRadioEventRetentionPolicyModal";
 import EventDetails from "@/components/EventDetails";
 import type { LogRow } from "@/components/EventDetails";
-import { MAX_WIDTH, PAGE_PADDING_X as PAGE_PAD } from "@/utils/layout";
 import { formatDateTime } from "@/utils/formatters";
 
 // -------- Helpers & small components --------
@@ -172,47 +176,10 @@ function usePageVisible() {
   return visible;
 }
 
-const ResizeHandle: React.FC = React.memo(function ResizeHandle() {
-  return (
-    <PanelResizeHandle>
-      <Box
-        sx={{
-          width: 16,
-          height: "100%",
-          cursor: "ew-resize",
-          position: "relative",
-          zIndex: (t) => t.zIndex.appBar,
-          "&:hover .resizeIcon": { opacity: 1 },
-        }}
-        tabIndex={0}
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize details panel"
-      >
-        <Box
-          sx={{
-            position: "sticky",
-            top: "calc(50vh - 12px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            pointerEvents: "none",
-          }}
-        >
-          <DragIndicatorIcon
-            className="resizeIcon"
-            sx={{
-              fontSize: 24,
-              opacity: 0.7,
-              transition: "opacity 120ms",
-              color: "text.secondary",
-            }}
-          />
-        </Box>
-      </Box>
-    </PanelResizeHandle>
-  );
-});
+const PANEL_DEFAULT_WIDTH = 550;
+const PANEL_MIN_WIDTH = 350;
+const PANEL_MAX_VW = 0.8;
+const TOOLBAR_HEIGHT = 64;
 
 // ------------------- Events tab content -------------------
 
@@ -446,242 +413,271 @@ export default function EventsTab() {
     return () => window.removeEventListener("keydown", onKey);
   }, [viewEventDrawerOpen]);
 
+  // --- Resize handle state ---
+  const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH);
+  const dragging = useRef(false);
+
+  const onResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragging.current = true;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!dragging.current) return;
+      const maxPx = window.innerWidth * PANEL_MAX_VW;
+      const next = window.innerWidth - ev.clientX;
+      setPanelWidth(Math.max(PANEL_MIN_WIDTH, Math.min(maxPx, next)));
+    };
+    const onMouseUp = () => {
+      dragging.current = false;
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }, []);
+
   return (
     <Box sx={{ pt: 3, width: "100%" }}>
-      <PanelGroup
-        direction="horizontal"
-        style={{ width: "100%", height: "100%", overflow: "hidden" }}
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+        }}
       >
-        <Panel minSize={30}>
-          <Box
-            sx={{
-              height: "100%",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              overflow: "hidden",
-            }}
+        <Box>
+          <Typography variant="h4">Network Events</Typography>
+          <Typography variant="body1" color="text.secondary">
+            {subDescription}
+          </Typography>
+        </Box>
+
+        {/* Filters + actions row */}
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: { xs: "column", sm: "row" },
+            flexWrap: "wrap",
+            gap: 2,
+            alignItems: { xs: "flex-start", sm: "center" },
+          }}
+        >
+          <TextField
+            select
+            label="Radio"
+            value={radioFilter}
+            onChange={(e) => setRadioFilter(e.target.value)}
+            size="small"
+            sx={{ minWidth: 150 }}
           >
-            <Box
-              sx={{
-                width: "100%",
-                maxWidth: viewEventDrawerOpen ? "none" : MAX_WIDTH,
-                pb: 4,
-                display: "flex",
-                flexDirection: "column",
-                gap: 2,
-                minWidth: 0,
-                height: "100%",
-                overflow: "hidden",
-                pl: PAGE_PAD,
-                pr: viewEventDrawerOpen ? 1 : PAGE_PAD,
-              }}
-            >
-              <Box sx={{ flexShrink: 0 }}>
-                <Typography variant="h4">Network Events</Typography>
-                <Typography variant="body1" color="text.secondary">
-                  {subDescription}
-                </Typography>
-              </Box>
-
-              {/* Filters + actions row */}
-              <Box
-                sx={{
-                  display: "flex",
-                  flexDirection: { xs: "column", sm: "row" },
-                  flexWrap: "wrap",
-                  gap: 2,
-                  alignItems: { xs: "flex-start", sm: "center" },
-                  flexShrink: 0,
-                }}
-              >
-                <TextField
-                  select
-                  label="Radio"
-                  value={radioFilter}
-                  onChange={(e) => setRadioFilter(e.target.value)}
-                  size="small"
-                  sx={{ minWidth: 150 }}
-                >
-                  <MenuItem value="">All radios</MenuItem>
-                  {radioOptions.map((r) => (
-                    <MenuItem key={r.name} value={r.name}>
-                      {r.name} ({r.address})
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  select
-                  label="Direction"
-                  value={directionFilter}
-                  onChange={(e) => setDirectionFilter(e.target.value)}
-                  size="small"
-                  sx={{ minWidth: 120 }}
-                >
-                  <MenuItem value="">All</MenuItem>
-                  <MenuItem value="inbound">
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      Inbound
-                      <WestIcon
-                        fontSize="small"
-                        sx={{ color: theme.palette.success.main }}
-                      />
-                    </Box>
-                  </MenuItem>
-                  <MenuItem value="outbound">
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      Outbound
-                      <EastIcon
-                        fontSize="small"
-                        sx={{ color: theme.palette.info.main }}
-                      />
-                    </Box>
-                  </MenuItem>
-                </TextField>
-                <TextField
-                  select
-                  label="Message Type"
-                  value={messageTypeFilter}
-                  onChange={(e) => setMessageTypeFilter(e.target.value)}
-                  size="small"
-                  sx={{ minWidth: 180 }}
-                >
-                  <MenuItem value="">All</MenuItem>
-                  {NGAP_MESSAGE_TYPES.map((mt) => (
-                    <MenuItem key={mt} value={mt}>
-                      {mt}
-                    </MenuItem>
-                  ))}
-                </TextField>
-
-                <Box sx={{ flex: 1 }} />
-
-                {canEdit && (
-                  <Button
-                    variant="outlined"
-                    color="error"
-                    size="small"
-                    startIcon={<DeleteOutlineIcon />}
-                    onClick={() => setNetworkClearModalOpen(true)}
-                  >
-                    Clear All
-                  </Button>
-                )}
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
-                >
-                  Retention: <strong>{retentionQuery.data?.days ?? "…"}</strong>{" "}
-                  days
-                  {canEdit && (
-                    <IconButton
-                      aria-label="edit radio event retention"
-                      size="small"
-                      color="primary"
-                      onClick={() => setNetworkEditModalOpen(true)}
-                    >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  )}
-                </Typography>
-              </Box>
-
-              <Box sx={{ flex: 1, minHeight: 0 }}>
-                <DataGrid<APIRadioEvent>
-                  rows={networkRows}
-                  columns={networkColumns}
-                  getRowId={(row) => row.id}
-                  loading={
-                    networkLogsQuery.isLoading ||
-                    networkLogsQuery.isPlaceholderData
-                  }
-                  paginationMode="server"
-                  rowCount={subRowCount}
-                  paginationModel={paginationModel}
-                  onPaginationModelChange={setPaginationModel}
-                  disableColumnMenu
-                  pageSizeOptions={[10, 25, 50, 100]}
-                  onRowClick={handleRowClick}
-                  rowSelectionModel={selectionModel}
-                  disableRowSelectionOnClick
-                  onRowSelectionModelChange={(model) =>
-                    setSelectionModel(model)
-                  }
-                  density="compact"
-                  autoHeight
-                  sx={{
-                    border: 1,
-                    borderColor: "divider",
-                    height: "100%",
-                    "& .MuiDataGrid-columnHeaders": { borderTop: 0 },
-                    "& .MuiDataGrid-footerContainer": {
-                      borderTop: "1px solid",
-                      borderColor: "divider",
-                    },
-                    "& .MuiDataGrid-row:hover": { cursor: "pointer" },
-                    "& .MuiDataGrid-row.Mui-selected": {
-                      backgroundColor: (t) => t.palette.action.selected,
-                      "&:hover": {
-                        backgroundColor: (t) => t.palette.action.selected,
-                      },
-                      "& .MuiDataGrid-cell": { fontWeight: 500 },
-                      "&::before": { display: "none" },
-                    },
-                    "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within":
-                      { outline: "none" },
-                    "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
-                      { outline: "none" },
-                  }}
+            <MenuItem value="">All radios</MenuItem>
+            {radioOptions.map((r) => (
+              <MenuItem key={r.name} value={r.name}>
+                {r.name} ({r.address})
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="Direction"
+            value={directionFilter}
+            onChange={(e) => setDirectionFilter(e.target.value)}
+            size="small"
+            sx={{ minWidth: 120 }}
+          >
+            <MenuItem value="">All</MenuItem>
+            <MenuItem value="inbound">
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                Inbound
+                <WestIcon
+                  fontSize="small"
+                  sx={{ color: theme.palette.success.main }}
                 />
               </Box>
-            </Box>
-          </Box>
-        </Panel>
-
-        {viewEventDrawerOpen && <ResizeHandle />}
-
-        {viewEventDrawerOpen && (
-          <Panel defaultSize={45} minSize={30} maxSize={70}>
-            <Box
-              sx={{
-                height: "100%",
-                display: "flex",
-                flexDirection: "column",
-                bgcolor: "background.paper",
-                borderLeft: (t) => `1px solid ${t.palette.divider}`,
-                pl: PAGE_PAD,
-              }}
-            >
-              <Box
-                sx={{
-                  px: 0,
-                  py: 1.5,
-                  borderBottom: (t) => `1px solid ${t.palette.divider}`,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1,
-                }}
-              >
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography variant="h6" noWrap>
-                    {selectedRow?.messageType ?? "Event details"}
-                  </Typography>
-                </Box>
-                <IconButton
-                  aria-label="Close"
-                  onClick={() => setViewEventDrawerOpen(false)}
-                  size="small"
-                >
-                  <CloseIcon />
-                </IconButton>
+            </MenuItem>
+            <MenuItem value="outbound">
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                Outbound
+                <EastIcon
+                  fontSize="small"
+                  sx={{ color: theme.palette.info.main }}
+                />
               </Box>
+            </MenuItem>
+          </TextField>
+          <TextField
+            select
+            label="Message Type"
+            value={messageTypeFilter}
+            onChange={(e) => setMessageTypeFilter(e.target.value)}
+            size="small"
+            sx={{ minWidth: 180 }}
+          >
+            <MenuItem value="">All</MenuItem>
+            {NGAP_MESSAGE_TYPES.map((mt) => (
+              <MenuItem key={mt} value={mt}>
+                {mt}
+              </MenuItem>
+            ))}
+          </TextField>
 
-              <EventDetails open={viewEventDrawerOpen} log={selectedRow} />
+          <Box sx={{ flex: 1 }} />
+
+          {canEdit && (
+            <Button
+              variant="outlined"
+              color="error"
+              size="small"
+              startIcon={<DeleteOutlineIcon />}
+              onClick={() => setNetworkClearModalOpen(true)}
+            >
+              Clear All
+            </Button>
+          )}
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+          >
+            Retention: <strong>{retentionQuery.data?.days ?? "…"}</strong> days
+            {canEdit && (
+              <IconButton
+                aria-label="edit radio event retention"
+                size="small"
+                color="primary"
+                onClick={() => setNetworkEditModalOpen(true)}
+              >
+                <EditIcon fontSize="small" />
+              </IconButton>
+            )}
+          </Typography>
+        </Box>
+
+        <DataGrid<APIRadioEvent>
+          rows={networkRows}
+          columns={networkColumns}
+          getRowId={(row) => row.id}
+          loading={
+            networkLogsQuery.isLoading || networkLogsQuery.isPlaceholderData
+          }
+          paginationMode="server"
+          rowCount={subRowCount}
+          paginationModel={paginationModel}
+          onPaginationModelChange={setPaginationModel}
+          disableColumnMenu
+          pageSizeOptions={[10, 25, 50, 100]}
+          onRowClick={handleRowClick}
+          rowSelectionModel={selectionModel}
+          disableRowSelectionOnClick
+          onRowSelectionModelChange={(model) => setSelectionModel(model)}
+          density="compact"
+          autoHeight
+          sx={{
+            border: 1,
+            borderColor: "divider",
+            "& .MuiDataGrid-columnHeaders": { borderTop: 0 },
+            "& .MuiDataGrid-footerContainer": {
+              borderTop: "1px solid",
+              borderColor: "divider",
+            },
+            "& .MuiDataGrid-row:hover": { cursor: "pointer" },
+            "& .MuiDataGrid-row.Mui-selected": {
+              backgroundColor: (t) => t.palette.action.selected,
+              "&:hover": {
+                backgroundColor: (t) => t.palette.action.selected,
+              },
+              "& .MuiDataGrid-cell": { fontWeight: 500 },
+              "&::before": { display: "none" },
+            },
+            "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within": {
+              outline: "none",
+            },
+            "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
+              { outline: "none" },
+          }}
+        />
+      </Box>
+
+      {/* Fixed overlay detail panel */}
+      <Box
+        sx={{
+          position: "fixed",
+          top: TOOLBAR_HEIGHT,
+          right: 0,
+          bottom: 0,
+          width: panelWidth,
+          transform: viewEventDrawerOpen ? "translateX(0)" : "translateX(100%)",
+          transition: dragging.current ? "none" : "transform 200ms ease-in-out",
+          zIndex: (t) => t.zIndex.appBar - 1,
+          bgcolor: "background.paper",
+          boxShadow: viewEventDrawerOpen
+            ? "-4px 0 16px rgba(0,0,0,0.12)"
+            : "none",
+          display: "flex",
+          flexDirection: "row",
+        }}
+      >
+        {/* Drag handle */}
+        <Box
+          onMouseDown={onResizeMouseDown}
+          sx={{
+            width: 12,
+            flexShrink: 0,
+            cursor: "ew-resize",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            "&:hover .resizeIcon": { opacity: 1 },
+          }}
+        >
+          <DragIndicatorIcon
+            className="resizeIcon"
+            sx={{
+              fontSize: 20,
+              opacity: 0.5,
+              transition: "opacity 120ms",
+              color: "text.secondary",
+            }}
+          />
+        </Box>
+
+        {/* Panel content */}
+        <Box
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+            borderLeft: (t) => `1px solid ${t.palette.divider}`,
+          }}
+        >
+          <Box
+            sx={{
+              px: 2,
+              py: 1.5,
+              borderBottom: (t) => `1px solid ${t.palette.divider}`,
+              display: "flex",
+              alignItems: "center",
+              gap: 1,
+            }}
+          >
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography variant="h6" noWrap>
+                {selectedRow?.messageType ?? "Event details"}
+              </Typography>
             </Box>
-          </Panel>
-        )}
-      </PanelGroup>
+            <IconButton
+              aria-label="Close"
+              onClick={() => setViewEventDrawerOpen(false)}
+              size="small"
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          <EventDetails open={viewEventDrawerOpen} log={selectedRow} />
+        </Box>
+      </Box>
 
       {/* Modals */}
       <EditRadioEventRetentionPolicyModal
