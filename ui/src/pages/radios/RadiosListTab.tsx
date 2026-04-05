@@ -17,7 +17,7 @@ import {
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { MAX_WIDTH, PAGE_PADDING_X as PAGE_PAD } from "@/utils/layout";
+
 import { useRadiosContext } from "./types";
 
 export default function RadiosListTab() {
@@ -137,9 +137,6 @@ export default function RadiosListTab() {
           <Box
             sx={{
               width: "100%",
-              maxWidth: MAX_WIDTH,
-              mx: "auto",
-              px: PAGE_PAD,
               mb: 3,
               display: "flex",
               flexDirection: "column",
@@ -154,14 +151,7 @@ export default function RadiosListTab() {
             </Typography>
           </Box>
 
-          <Box
-            sx={{
-              width: "100%",
-              maxWidth: MAX_WIDTH,
-              mx: "auto",
-              px: PAGE_PAD,
-            }}
-          >
+          <Box sx={{ width: "100%" }}>
             <ThemeProvider theme={gridTheme}>
               <DataGrid<APIRadio>
                 rows={rows}

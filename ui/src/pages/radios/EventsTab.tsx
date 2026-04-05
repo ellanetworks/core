@@ -180,7 +180,7 @@ function usePageVisible() {
   return visible;
 }
 
-const PANEL_DEFAULT_WIDTH = 1100;
+const PANEL_DEFAULT_WIDTH = 550;
 const PANEL_MIN_WIDTH = 350;
 const PANEL_MAX_VW = 0.8;
 const TOOLBAR_HEIGHT = 64;
@@ -468,14 +468,13 @@ export default function EventsTab() {
           </Typography>
         </Box>
 
-        {/* Filters + actions row */}
+        {/* Filters row */}
         <Box
           sx={{
             display: "flex",
-            flexDirection: { xs: "column", sm: "row" },
             flexWrap: "wrap",
             gap: 2,
-            alignItems: { xs: "flex-start", sm: "center" },
+            alignItems: "center",
           }}
         >
           <TextField
@@ -554,6 +553,16 @@ export default function EventsTab() {
             slotProps={{ inputLabel: { shrink: true } }}
             sx={{ minWidth: 200 }}
           />
+        </Box>
+
+        {/* Actions row */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
           <Button
             variant={autoRefresh ? "outlined" : "contained"}
             size="small"
@@ -567,9 +576,6 @@ export default function EventsTab() {
           >
             {autoRefresh ? "Pause" : "Live"}
           </Button>
-
-          <Box sx={{ flex: 1 }} />
-
           {canEdit && (
             <Button
               variant="outlined"
@@ -581,6 +587,7 @@ export default function EventsTab() {
               Clear All
             </Button>
           )}
+          <Box sx={{ flex: 1 }} />
           <Typography
             variant="body2"
             color="text.secondary"
