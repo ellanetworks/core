@@ -1,6 +1,7 @@
 package ngap_test
 
 import (
+	"encoding/hex"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/ngap"
@@ -19,10 +20,6 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 
 	if ngapMsg.PDUType != "InitiatingMessage" {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
-	}
-
-	if ngapMsg.MessageType != "InitialContextSetupRequest" {
-		t.Errorf("expected MessageType=InitialContextSetupRequest, got %v", ngapMsg.MessageType)
 	}
 
 	if ngapMsg.ProcedureCode.Label != "InitialContextSetup" {
@@ -347,7 +344,8 @@ func TestDecodeNGAPMessage_InitialContextSetupRequest(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	if string(nasPdu.Raw) != string(expectedNASPDUraw) {
-		t.Errorf("expected NASPDU=%s, got %s", expectedNASPDU, nasPdu.Raw)
+	expectedHex := hex.EncodeToString(expectedNASPDUraw)
+	if nasPdu.RawHex != expectedHex {
+		t.Errorf("expected RawHex=%s, got %s", expectedHex, nasPdu.RawHex)
 	}
 }

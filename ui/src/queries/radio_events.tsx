@@ -49,8 +49,8 @@ export type EnumField = {
 };
 
 export type DecodedNGAPMessage = {
+  summary?: string;
   pdu_type: string;
-  message_type: string;
   procedure_code: EnumField;
   criticality: EnumField;
   value: unknown;

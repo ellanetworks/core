@@ -48,6 +48,7 @@ type CoreNetworkAssistanceInformation struct {
 type MaximumBitRate struct {
 	DownlinkNAggregateMaximumBitRate uint64 `json:"downlink_n_aggregate_maximum_bit_rate"`
 	UplinkNAggregateMaximumBitRate   uint64 `json:"uplink_n_aggregate_maximum_bit_rate"`
+	Unit                             string `json:"unit"`
 }
 
 type GTPTunnel struct {
@@ -180,8 +181,9 @@ func buildInitialContextSetupRequest(initialContextSetupRequest ngapType.Initial
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value: NASPDU{
-					Raw:     ie.Value.NASPDU.Value,
-					Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value),
+					Protocol: "NAS",
+					RawHex:   hex.EncodeToString(ie.Value.NASPDU.Value),
+					Decoded:  nas.DecodeNASMessage(ie.Value.NASPDU.Value),
 				},
 			})
 		case ngapType.ProtocolIEIDUERadioCapability:
@@ -223,8 +225,9 @@ func buildPDUSessionResourceSetupListCxtReq(pduSessionResourceSetupListCxtReq ng
 
 		if item.NASPDU != nil {
 			entry.NASPDU = &NASPDU{
-				Raw:     item.NASPDU.Value,
-				Decoded: nas.DecodeNASMessage(item.NASPDU.Value),
+				Protocol: "NAS",
+				RawHex:   hex.EncodeToString(item.NASPDU.Value),
+				Decoded:  nas.DecodeNASMessage(item.NASPDU.Value),
 			}
 		}
 
@@ -504,6 +507,7 @@ func buildPDUSessionInfoFromSetupRequestTransfer(transfer aper.OctetString) (*PD
 			pduTransfer.MaximumBitRate = &MaximumBitRate{
 				UplinkNAggregateMaximumBitRate:   maxBitRateUL,
 				DownlinkNAggregateMaximumBitRate: maxBitRateDL,
+				Unit:                             "bps",
 			}
 		case ngapType.ProtocolIEIDPDUSessionType:
 			enum := pduSessionTypeToEnum(ies.Value.PDUSessionType.Value)

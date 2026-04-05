@@ -1,6 +1,7 @@
 package ngap
 
 import (
+	"encoding/hex"
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
@@ -30,8 +31,9 @@ func buildUplinkNASTransport(uplinkNASTransport ngapType.UplinkNASTransport) NGA
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value: NASPDU{
-					Raw:     ie.Value.NASPDU.Value,
-					Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value),
+					Protocol: "NAS",
+					RawHex:   hex.EncodeToString(ie.Value.NASPDU.Value),
+					Decoded:  nas.DecodeNASMessage(ie.Value.NASPDU.Value),
 				},
 			})
 		case ngapType.ProtocolIEIDUserLocationInformation:

@@ -4517,9 +4517,9 @@ components:
                   type: string
                 unknown:
                   type: boolean
-            message_type:
+            summary:
               type: string
-              description: "NGAP message type name (e.g. InitialContextSetupResponse)."
+              description: "One-line summary of the decoded message (e.g. InitialUEMessage, RAN-UE=1, NAS=RegistrationRequest)."
             criticality:
               type: object
               description: "NGAP criticality."

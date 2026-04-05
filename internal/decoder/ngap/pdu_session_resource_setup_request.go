@@ -46,8 +46,9 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest ngapType
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value: NASPDU{
-					Raw:     ie.Value.NASPDU.Value,
-					Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value),
+					Protocol: "NAS",
+					RawHex:   hex.EncodeToString(ie.Value.NASPDU.Value),
+					Decoded:  nas.DecodeNASMessage(ie.Value.NASPDU.Value),
 				},
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListSUReq:
@@ -94,8 +95,9 @@ func buildPDUSessionResourceSetupListSUReq(list ngapType.PDUSessionResourceSetup
 
 		if item.PDUSessionNASPDU != nil {
 			pduSUReq.PDUSessionNASPDU = &NASPDU{
-				Raw:     item.PDUSessionNASPDU.Value,
-				Decoded: nas.DecodeNASMessage(item.PDUSessionNASPDU.Value),
+				Protocol: "NAS",
+				RawHex:   hex.EncodeToString(item.PDUSessionNASPDU.Value),
+				Decoded:  nas.DecodeNASMessage(item.PDUSessionNASPDU.Value),
 			}
 		}
 

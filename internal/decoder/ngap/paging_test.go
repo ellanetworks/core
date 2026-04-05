@@ -21,10 +21,6 @@ func TestDecodeNGAPMessage_Paging(t *testing.T) {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
-	if ngapMsg.MessageType != "Paging" {
-		t.Errorf("expected MessageType=Paging, got %v", ngapMsg.MessageType)
-	}
-
 	if ngapMsg.ProcedureCode.Label != "Paging" {
 		t.Errorf("expected ProcedureCode=Paging, got %v", ngapMsg.ProcedureCode)
 	}

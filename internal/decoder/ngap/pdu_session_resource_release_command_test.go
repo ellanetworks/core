@@ -2,6 +2,7 @@ package ngap_test
 
 import (
 	"bytes"
+	"encoding/hex"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/ngap"
@@ -20,10 +21,6 @@ func TestDecodeNGAPMessage_PDUSessionResourceReleaseCommand(t *testing.T) {
 
 	if ngapMsg.PDUType != "InitiatingMessage" {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
-	}
-
-	if ngapMsg.MessageType != "PDUSessionResourceReleaseCommand" {
-		t.Errorf("expected MessageType=PDUSessionResourceReleaseCommand, got %v", ngapMsg.MessageType)
 	}
 
 	if ngapMsg.ProcedureCode.Label != "PDUSessionResourceRelease" {
@@ -130,8 +127,9 @@ func TestDecodeNGAPMessage_PDUSessionResourceReleaseCommand(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	if string(nasPdu.Raw) != string(expectedNASPDUraw) {
-		t.Errorf("expected NASPDU=%s, got %s", expectedNASPDU, nasPdu.Raw)
+	expectedHex := hex.EncodeToString(expectedNASPDUraw)
+	if nasPdu.RawHex != expectedHex {
+		t.Errorf("expected RawHex=%s, got %s", expectedHex, nasPdu.RawHex)
 	}
 
 	item3 := ngapMsg.Value.IEs[3]

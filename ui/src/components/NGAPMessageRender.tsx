@@ -301,7 +301,7 @@ const CollapsibleObject: React.FC<{
               );
             }
             return (
-              <ChildSection key={k} depth={childDepth} title={k} defaultOpen>
+              <ChildSection key={k} depth={childDepth} title={k}>
                 <GenericNode value={v} depth={childDepth + 1} />
               </ChildSection>
             );
@@ -366,13 +366,25 @@ const GenericNode: React.FC<GenericNodeProps> = ({
 const TopLevelNgapView: React.FC<{ decoded: DecodedNGAPMessage }> = ({
   decoded,
 }) => {
-  const { pdu_type, message_type, procedure_code, criticality, value } =
-    decoded;
+  const { summary, pdu_type, procedure_code, criticality, value } = decoded;
 
   return (
     <>
+      {summary && (
+        <Box
+          sx={{
+            color: "text.secondary",
+            fontSize: 13,
+            fontFamily: MONO_FONT,
+            mb: 0.5,
+            pb: 0.5,
+            borderBottom: (t) => `1px solid ${t.palette.divider}`,
+          }}
+        >
+          {summary}
+        </Box>
+      )}
       <KVLine depth={0} k="PDU Type" v={String(pdu_type ?? "\u2014")} />
-      <KVLine depth={0} k="Message Type" v={String(message_type ?? "\u2014")} />
       <KVLine
         depth={0}
         k="Procedure Code"
@@ -397,7 +409,7 @@ const TopLevelNgapView: React.FC<{ decoded: DecodedNGAPMessage }> = ({
 };
 
 const TopLevelValueRow: React.FC<{ value: unknown }> = ({ value }) => {
-  const [open, setOpen] = React.useState(true);
+  const [open, setOpen] = React.useState(false);
   return (
     <>
       <TreeRow
