@@ -280,21 +280,27 @@ func (a *smfDBAdapter) IncrementDailyUsage(ctx context.Context, imsi string, upl
 	})
 }
 
-func (a *smfDBAdapter) InsertFlowReport(ctx context.Context, report *smf.FlowReport) error {
-	return a.db.InsertFlowReport(ctx, &dbwriter.FlowReport{
-		SubscriberID:    report.IMSI,
-		SourceIP:        report.SourceIP,
-		DestinationIP:   report.DestinationIP,
-		SourcePort:      report.SourcePort,
-		DestinationPort: report.DestinationPort,
-		Protocol:        report.Protocol,
-		Packets:         report.Packets,
-		Bytes:           report.Bytes,
-		StartTime:       report.StartTime,
-		EndTime:         report.EndTime,
-		Direction:       report.Direction.String(),
-		Action:          int(report.Action),
-	})
+func (a *smfDBAdapter) InsertFlowReports(ctx context.Context, reports []*smf.FlowReport) error {
+	batch := make([]*dbwriter.FlowReport, len(reports))
+
+	for i, report := range reports {
+		batch[i] = &dbwriter.FlowReport{
+			SubscriberID:    report.IMSI,
+			SourceIP:        report.SourceIP,
+			DestinationIP:   report.DestinationIP,
+			SourcePort:      report.SourcePort,
+			DestinationPort: report.DestinationPort,
+			Protocol:        report.Protocol,
+			Packets:         report.Packets,
+			Bytes:           report.Bytes,
+			StartTime:       report.StartTime,
+			EndTime:         report.EndTime,
+			Direction:       report.Direction.String(),
+			Action:          int(report.Action),
+		}
+	}
+
+	return a.db.InsertFlowReports(ctx, batch)
 }
 
 // ---------------------------------------------------------------------------

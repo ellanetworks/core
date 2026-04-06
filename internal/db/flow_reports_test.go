@@ -51,7 +51,7 @@ func TestFlowReportsInsertAndRetrieve(t *testing.T) {
 	}
 
 	// Insert flow report
-	err = database.InsertFlowReport(ctx, flowReport)
+	err = database.InsertFlowReports(ctx, []*dbwriter.FlowReport{flowReport})
 	if err != nil {
 		t.Fatalf("couldn't insert flow report: %s", err)
 	}
@@ -133,7 +133,7 @@ func TestFlowReportsMultipleInsert(t *testing.T) {
 			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
 		}
 
-		err := database.InsertFlowReport(ctx, flowReport)
+		err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{flowReport})
 		if err != nil {
 			t.Fatalf("couldn't insert flow report %d: %s", i, err)
 		}
@@ -151,6 +151,94 @@ func TestFlowReportsMultipleInsert(t *testing.T) {
 
 	if len(reports) != 5 {
 		t.Fatalf("Expected 5 flow reports, but found %d", len(reports))
+	}
+}
+
+func TestFlowReportsBatchInsert(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	ctx := context.Background()
+
+	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	if err != nil {
+		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
+	}
+
+	now := time.Now().UTC()
+	batch := make([]*dbwriter.FlowReport, 10)
+
+	for i := range batch {
+		batch[i] = &dbwriter.FlowReport{
+			SubscriberID:    "460123456789012",
+			SourceIP:        "192.168.1.100",
+			DestinationIP:   "8.8.8.8",
+			SourcePort:      uint16(10000 + i),
+			DestinationPort: 443,
+			Protocol:        6,
+			Packets:         uint64(50 * (i + 1)),
+			Bytes:           uint64(25000 * (i + 1)),
+			StartTime:       now.Add(time.Duration(i)*time.Minute - 10*time.Minute).Format(time.RFC3339),
+			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+			Direction:       "uplink",
+		}
+	}
+
+	err = database.InsertFlowReports(ctx, batch)
+	if err != nil {
+		t.Fatalf("batch insert failed: %s", err)
+	}
+
+	reports, total, err := database.ListFlowReports(ctx, 1, 20, nil)
+	if err != nil {
+		t.Fatalf("couldn't list flow reports: %s", err)
+	}
+
+	if total != 10 {
+		t.Fatalf("Expected total count to be 10, but got %d", total)
+	}
+
+	if len(reports) != 10 {
+		t.Fatalf("Expected 10 flow reports, but found %d", len(reports))
+	}
+
+	if reports[0].SourcePort != batch[9].SourcePort {
+		t.Fatalf("Expected most recent report source port %d, got %d", batch[9].SourcePort, reports[0].SourcePort)
+	}
+}
+
+func TestFlowReportsBatchInsertEmpty(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	err = database.InsertFlowReports(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("empty batch insert should succeed: %s", err)
+	}
+
+	err = database.InsertFlowReports(context.Background(), []*dbwriter.FlowReport{})
+	if err != nil {
+		t.Fatalf("empty slice batch insert should succeed: %s", err)
 	}
 }
 
@@ -191,7 +279,7 @@ func TestFlowReportsPagination(t *testing.T) {
 			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
 		}
 
-		err := database.InsertFlowReport(ctx, flowReport)
+		err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{flowReport})
 		if err != nil {
 			t.Fatalf("couldn't insert flow report: %s", err)
 		}
@@ -282,7 +370,7 @@ func TestFlowReportsFilterBySubscriber(t *testing.T) {
 				EndTime:         now.Add(time.Duration(j*3+i) * time.Minute).Format(time.RFC3339),
 			}
 
-			err := database.InsertFlowReport(ctx, flowReport)
+			err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{flowReport})
 			if err != nil {
 				t.Fatalf("couldn't insert flow report: %s", err)
 			}
@@ -355,7 +443,7 @@ func TestFlowReportsFilterByProtocol(t *testing.T) {
 				EndTime:         now.Add(time.Duration(i*2+j) * time.Minute).Format(time.RFC3339),
 			}
 
-			err := database.InsertFlowReport(ctx, flowReport)
+			err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{flowReport})
 			if err != nil {
 				t.Fatalf("couldn't insert flow report: %s", err)
 			}
@@ -466,7 +554,7 @@ func TestGetFlowReportStats_ProtocolCounts(t *testing.T) {
 				StartTime:       now.Add(time.Duration(idx)*time.Minute - 5*time.Minute).Format(time.RFC3339),
 				EndTime:         now.Add(time.Duration(idx) * time.Minute).Format(time.RFC3339),
 			}
-			if err := database.InsertFlowReport(ctx, fr); err != nil {
+			if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
 				t.Fatalf("couldn't insert flow report: %s", err)
 			}
 
@@ -548,7 +636,7 @@ func TestGetFlowReportStats_TopDestinationsUplink(t *testing.T) {
 			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
 			Direction:       "uplink",
 		}
-		if err := database.InsertFlowReport(ctx, fr); err != nil {
+		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert uplink flow report %d: %s", i, err)
 		}
 	}
@@ -569,7 +657,7 @@ func TestGetFlowReportStats_TopDestinationsUplink(t *testing.T) {
 			EndTime:         now.Add(time.Duration(3+i) * time.Minute).Format(time.RFC3339),
 			Direction:       "downlink",
 		}
-		if err := database.InsertFlowReport(ctx, fr); err != nil {
+		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert downlink flow report %d: %s", i, err)
 		}
 	}
@@ -640,7 +728,7 @@ func TestGetFlowReportStats_WithSubscriberFilter(t *testing.T) {
 			StartTime:       now.Add(time.Duration(i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
 			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
 		}
-		if err := database.InsertFlowReport(ctx, fr); err != nil {
+		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert flow report: %s", err)
 		}
 	}
@@ -659,7 +747,7 @@ func TestGetFlowReportStats_WithSubscriberFilter(t *testing.T) {
 			StartTime:       now.Add(time.Duration(3+i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
 			EndTime:         now.Add(time.Duration(3+i) * time.Minute).Format(time.RFC3339),
 		}
-		if err := database.InsertFlowReport(ctx, fr); err != nil {
+		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert flow report: %s", err)
 		}
 	}
@@ -723,7 +811,7 @@ func TestGetFlowReportStats_WithProtocolFilter(t *testing.T) {
 			StartTime:       now.Add(time.Duration(i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
 			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
 		}
-		if err := database.InsertFlowReport(ctx, fr); err != nil {
+		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert TCP flow report: %s", err)
 		}
 	}
@@ -742,7 +830,7 @@ func TestGetFlowReportStats_WithProtocolFilter(t *testing.T) {
 			StartTime:       now.Add(time.Duration(4+i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
 			EndTime:         now.Add(time.Duration(4+i) * time.Minute).Format(time.RFC3339),
 		}
-		if err := database.InsertFlowReport(ctx, fr); err != nil {
+		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert UDP flow report: %s", err)
 		}
 	}
@@ -806,7 +894,7 @@ func TestGetFlowReportStats_WithDateFilter(t *testing.T) {
 			StartTime:       now.Add(-10 * time.Minute).Format(time.RFC3339),
 			EndTime:         now.Add(-time.Duration(i) * time.Minute).Format(time.RFC3339),
 		}
-		if err := database.InsertFlowReport(ctx, fr); err != nil {
+		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert recent flow report: %s", err)
 		}
 	}
@@ -826,7 +914,7 @@ func TestGetFlowReportStats_WithDateFilter(t *testing.T) {
 			StartTime:       oldTime.Add(-5 * time.Minute).Format(time.RFC3339),
 			EndTime:         oldTime.Format(time.RFC3339),
 		}
-		if err := database.InsertFlowReport(ctx, fr); err != nil {
+		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
 			t.Fatalf("couldn't insert old flow report: %s", err)
 		}
 	}
@@ -894,7 +982,7 @@ func TestFlowReportsRetention(t *testing.T) {
 		EndTime:         oldTime.Format(time.RFC3339),
 	}
 
-	err = database.InsertFlowReport(ctx, oldFlowReport)
+	err = database.InsertFlowReports(ctx, []*dbwriter.FlowReport{oldFlowReport})
 	if err != nil {
 		t.Fatalf("couldn't insert old flow report: %s", err)
 	}
@@ -913,7 +1001,7 @@ func TestFlowReportsRetention(t *testing.T) {
 		EndTime:         time.Now().UTC().Format(time.RFC3339),
 	}
 
-	err = database.InsertFlowReport(ctx, recentFlowReport)
+	err = database.InsertFlowReports(ctx, []*dbwriter.FlowReport{recentFlowReport})
 	if err != nil {
 		t.Fatalf("couldn't insert recent flow report: %s", err)
 	}

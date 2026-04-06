@@ -63,8 +63,8 @@ type SessionStore interface {
 	// IncrementDailyUsage adds uplink/downlink byte counts to a subscriber's daily usage.
 	IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error
 
-	// InsertFlowReport persists a flow measurement record from the UPF.
-	InsertFlowReport(ctx context.Context, report *FlowReport) error
+	// InsertFlowReports persists multiple flow measurement records in a single transaction.
+	InsertFlowReports(ctx context.Context, reports []*FlowReport) error
 }
 
 // UPFClient abstracts the PFCP interface toward the UPF.

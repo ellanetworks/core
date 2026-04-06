@@ -673,3 +673,46 @@ groups:
         annotations:
           summary: XDP_ABORTED actions detected — the eBPF program is hitting errors.
           description: "XDP_ABORTED rate is {{ $values.A | printf \"%.1f\" }} pkt/s. This indicates the eBPF/XDP program encountered an unrecoverable error during packet processing."
+
+      - uid: ella-flow-reports-dropped
+        title: Flow Reports Being Dropped
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: mimir
+            model:
+              expr: |
+                increase(app_flow_reports_dropped_total[5m])
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    type: gt
+                    params:
+                      - 0
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    type: last
+              expression: A
+        for: 0s
+        labels:
+          severity: warning
+          component: upf
+        annotations:
+          summary: Flow reports are being dropped due to a full buffer.
+          description: "{{ $values.A | printf \"%.0f\" }} flow reports were dropped in the last 5 minutes. The flow report channel is saturated — batch inserts may be too slow or the number of active flows exceeds the buffer capacity (16384)."
