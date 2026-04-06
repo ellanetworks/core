@@ -293,6 +293,7 @@ func (a *smfDBAdapter) InsertFlowReport(ctx context.Context, report *smf.FlowRep
 		StartTime:       report.StartTime,
 		EndTime:         report.EndTime,
 		Direction:       report.Direction.String(),
+		Action:          int(report.Action),
 	})
 }
 

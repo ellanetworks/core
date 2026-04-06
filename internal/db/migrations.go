@@ -31,6 +31,7 @@ var migrations = []migration{
 	{5, "add network_rules and policy_network_rules tables", migrateV5},
 	{6, "replace address TEXT with addressBin BLOB in ip_leases", migrateV6},
 	{7, "data model redesign: profiles, policies, slices", migrateV7},
+	{8, "add action to flow reports", migrateV8},
 }
 
 // latestVersion returns the highest migration version in the registry.

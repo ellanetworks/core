@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	"github.com/wmnsk/go-pfcp/ie"
@@ -128,14 +127,9 @@ func (s *SMF) SendFlowReport(ctx context.Context, req *pfcp_dispatcher.FlowRepor
 		Bytes:           req.Bytes,
 		StartTime:       req.StartTime,
 		EndTime:         req.EndTime,
+		Direction:       req.Direction,
+		Action:          req.Action,
 	}
-
-	dir, err := models.ParseDirection(req.Direction)
-	if err != nil {
-		return fmt.Errorf("invalid direction in flow report: %w", err)
-	}
-
-	report.Direction = dir
 
 	if err := s.store.InsertFlowReport(ctx, report); err != nil {
 		logger.SmfLog.Error(

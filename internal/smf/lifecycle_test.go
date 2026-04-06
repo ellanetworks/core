@@ -1171,7 +1171,7 @@ func TestSendFlowReport_HappyPath(t *testing.T) {
 		Bytes:           50000,
 		StartTime:       time.Now().Format(time.RFC3339),
 		EndTime:         time.Now().Add(time.Minute).Format(time.RFC3339),
-		Direction:       "uplink",
+		Direction:       models.DirectionUplink,
 	}
 
 	err := s.SendFlowReport(ctx, req)
