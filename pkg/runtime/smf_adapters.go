@@ -23,7 +23,13 @@ import (
 	"github.com/ellanetworks/core/internal/smf"
 	upf_pfcp "github.com/ellanetworks/core/internal/upf/core"
 	"github.com/wmnsk/go-pfcp/ie"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer = otel.Tracer("ella-core/runtime")
 
 // ---------------------------------------------------------------------------
 // smfDBAdapter adapts *db.Database to the smf.SessionStore interface.
@@ -150,21 +156,63 @@ func (a *smfDBAdapter) resolvePoolByDNN(ctx context.Context, dnn string) (ipam.P
 }
 
 func (a *smfDBAdapter) AllocateIP(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error) {
+	ctx, span := tracer.Start(ctx, "smf/allocate_ip",
+		trace.WithAttributes(
+			attribute.String("imsi", imsi),
+			attribute.String("dnn", dnn),
+			attribute.Int("pdu_session_id", int(pduSessionID)),
+		),
+	)
+	defer span.End()
+
 	pool, err := a.resolvePoolByDNN(ctx, dnn)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "resolve pool failed")
+
 		return netip.Addr{}, fmt.Errorf("resolve pool: %w", err)
 	}
 
-	return a.allocator.Allocate(ctx, pool, imsi, int(pduSessionID))
+	addr, err := a.allocator.Allocate(ctx, pool, imsi, int(pduSessionID))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "allocate failed")
+
+		return netip.Addr{}, err
+	}
+
+	span.SetAttributes(attribute.String("ip", addr.String()))
+
+	return addr, nil
 }
 
 func (a *smfDBAdapter) ReleaseIP(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error) {
+	ctx, span := tracer.Start(ctx, "smf/release_ip",
+		trace.WithAttributes(
+			attribute.String("imsi", imsi),
+			attribute.String("dnn", dnn),
+			attribute.Int("pdu_session_id", int(pduSessionID)),
+		),
+	)
+	defer span.End()
+
 	pool, err := a.resolvePoolByDNN(ctx, dnn)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "resolve pool failed")
+
 		return netip.Addr{}, fmt.Errorf("resolve pool: %w", err)
 	}
 
-	return a.allocator.Release(ctx, pool, int(pduSessionID), imsi)
+	addr, err := a.allocator.Release(ctx, pool, int(pduSessionID), imsi)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "release failed")
+
+		return netip.Addr{}, err
+	}
+
+	return addr, nil
 }
 
 func (a *pcfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai *models.Snssai, dnn string) (*smf.Policy, error) {

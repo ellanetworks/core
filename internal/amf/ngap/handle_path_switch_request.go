@@ -205,9 +205,9 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			return
 		}
 
-		operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
+		snssaiList, err := amfInstance.ListOperatorSnssai(ctx)
 		if err != nil {
-			logger.WithTrace(ctx, ranUe.Log).Error("Get Operator Info Error", zap.Error(err))
+			logger.WithTrace(ctx, ranUe.Log).Error("List Operator SNSSAI Error", zap.Error(err))
 			return
 		}
 
@@ -220,7 +220,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			amfUe.NH,
 			pduSessionResourceSwitchedList,
 			pduSessionResourceReleasedListPSAck,
-			operatorInfo.SupportedPLMN,
+			snssaiList,
 		)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error("error sending path switch request acknowledge", zap.Error(err))

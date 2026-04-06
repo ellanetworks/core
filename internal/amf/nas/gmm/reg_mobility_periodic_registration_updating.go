@@ -38,12 +38,12 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	subscriberSlices, err := amfInstance.GetSubscriberAllowedNssai(ctx, ue.Supi)
+	subscriberProfile, err := amfInstance.GetSubscriberProfile(ctx, ue.Supi)
 	if err != nil {
-		return fmt.Errorf("error getting subscriber allowed NSSAI: %v", err)
+		return fmt.Errorf("error getting subscriber profile: %v", err)
 	}
 
-	ue.AllowedNssai = subscriberSlices
+	ue.AllowedNssai = subscriberProfile.AllowedNssai
 
 	if ue.RegistrationRequest.Capability5GMM == nil {
 		if ue.RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
@@ -85,12 +85,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return nil
 	}
 
-	bitRate, err := amfInstance.GetSubscriberBitrate(ctx, ue.Supi)
-	if err != nil {
-		return fmt.Errorf("failed to get subscriber data: %v", err)
-	}
-
-	ue.Ambr = bitRate
+	ue.Ambr = subscriberProfile.Ambr
 
 	var (
 		reactivationResult        *[16]bool
@@ -166,7 +161,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 			// downlink signalling
 			if n2Info == nil {
 				if len(suList.List) != 0 {
-					nasPdu, err := message.BuildRegistrationAccept(amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
+					nasPdu, err := message.BuildRegistrationAccept(amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, *operatorInfo.Guami.PlmnID)
 					if err != nil {
 						return err
 					}
@@ -188,7 +183,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 				} else {
 					UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
 
-					err := message.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
+					err := message.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
 					if err != nil {
 						return fmt.Errorf("error sending GMM registration accept: %v", err)
 					}
@@ -233,7 +228,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	if ranUe.UeContextRequest {
 		UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
 
-		err := message.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, operatorInfo.SupportedPLMN, operatorInfo.Guami)
+		err := message.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
 		if err != nil {
 			return fmt.Errorf("error sending GMM registration accept: %v", err)
 		}
@@ -242,7 +237,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 		return nil
 	} else {
-		nasPdu, err := message.BuildRegistrationAccept(amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, operatorInfo.SupportedPLMN)
+		nasPdu, err := message.BuildRegistrationAccept(amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, *operatorInfo.Guami.PlmnID)
 		if err != nil {
 			return fmt.Errorf("error building registration accept: %v", err)
 		}

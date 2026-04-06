@@ -352,66 +352,79 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 		return nil, nil, nil, fmt.Errorf("subscriber not found: %w", err)
 	}
 
-	slices, err := db.ListAllNetworkSlices(ctx)
+	policies, err := db.ListPoliciesByProfile(ctx, sub.ProfileID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "list policies failed")
+
+		return nil, nil, nil, fmt.Errorf("list policies for profile %d: %w", sub.ProfileID, err)
+	}
+
+	// Batch-fetch all referenced network slices.
+	sliceIDSet := make(map[int]struct{})
+	for _, p := range policies {
+		sliceIDSet[p.SliceID] = struct{}{}
+	}
+
+	sliceIDs := make([]int, 0, len(sliceIDSet))
+	for id := range sliceIDSet {
+		sliceIDs = append(sliceIDs, id)
+	}
+
+	sliceList, err := db.ListNetworkSlicesByIDs(ctx, sliceIDs)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "list slices failed")
 
-		return nil, nil, nil, fmt.Errorf("list slices: %w", err)
+		return nil, nil, nil, fmt.Errorf("list slices by IDs: %w", err)
 	}
 
-	sliceID := -1
+	sliceMap := make(map[int]NetworkSlice, len(sliceList))
+	for _, s := range sliceList {
+		sliceMap[s.ID] = s
+	}
 
-	for _, s := range slices {
-		if s.Sst != sst {
+	for _, p := range policies {
+		slice, ok := sliceMap[p.SliceID]
+		if !ok {
 			continue
 		}
 
 		sliceSd := ""
-		if s.Sd != nil {
-			sliceSd = *s.Sd
+		if slice.Sd != nil {
+			sliceSd = *slice.Sd
 		}
 
-		if sliceSd == sd {
-			sliceID = s.ID
-
-			break
+		if slice.Sst != sst || sliceSd != sd {
+			continue
 		}
+
+		dataNetwork, err := db.GetDataNetworkByID(ctx, p.DataNetworkID)
+		if err != nil {
+			span.RecordError(err)
+			return nil, nil, nil, fmt.Errorf("couldn't get data network %d: %w", p.DataNetworkID, err)
+		}
+
+		if dataNetwork.Name != dnn {
+			continue
+		}
+
+		rules, err := db.ListRulesForPolicy(ctx, int64(p.ID))
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "list rules failed")
+
+			return nil, nil, nil, fmt.Errorf("list rules for policy %d: %w", p.ID, err)
+		}
+
+		span.SetStatus(codes.Ok, "")
+
+		return &p, rules, dataNetwork, nil
 	}
 
-	if sliceID < 0 {
-		span.SetStatus(codes.Error, "no matching slice")
+	span.SetStatus(codes.Error, "no matching policy")
 
-		return nil, nil, nil, fmt.Errorf("no slice matching sst=%d sd=%q", sst, sd)
-	}
-
-	dn, err := db.GetDataNetwork(ctx, dnn)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "data network not found")
-
-		return nil, nil, nil, fmt.Errorf("data network %q: %w", dnn, ErrDataNetworkNotFound)
-	}
-
-	policy, err := db.GetPolicyByLookup(ctx, sub.ProfileID, sliceID, dn.ID)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "no matching policy")
-
-		return nil, nil, nil, fmt.Errorf("no policy for profile=%d slice=%d dnn=%d: %w", sub.ProfileID, sliceID, dn.ID, err)
-	}
-
-	rules, err := db.ListRulesForPolicy(ctx, int64(policy.ID))
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "list rules failed")
-
-		return nil, nil, nil, fmt.Errorf("list rules for policy %d: %w", policy.ID, err)
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return policy, rules, dn, nil
+	return nil, nil, nil, fmt.Errorf("no policy matching sst=%d sd=%q dnn=%q for profile %d", sst, sd, dnn, sub.ProfileID)
 }
 
 func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {

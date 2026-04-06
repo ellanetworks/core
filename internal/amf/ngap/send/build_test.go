@@ -46,16 +46,13 @@ func TestBuildNGSetupResponse_MultipleSlices(t *testing.T) {
 		AmfID:  "cafe00",
 	}
 
-	plmnSupported := &models.PlmnSupportItem{
-		PlmnID: models.PlmnID{Mcc: "001", Mnc: "01"},
-		SNssaiList: []models.Snssai{
-			{Sst: 1, Sd: "010203"},
-			{Sst: 2, Sd: "aabbcc"},
-			{Sst: 3, Sd: ""},
-		},
+	snssaiList := []models.Snssai{
+		{Sst: 1, Sd: "010203"},
+		{Sst: 2, Sd: "aabbcc"},
+		{Sst: 3, Sd: ""},
 	}
 
-	encoded, err := buildNGSetupResponse(guami, plmnSupported, "TestAMF", 255)
+	encoded, err := buildNGSetupResponse(guami, snssaiList, "TestAMF", 255)
 	if err != nil {
 		t.Fatalf("buildNGSetupResponse failed: %v", err)
 	}

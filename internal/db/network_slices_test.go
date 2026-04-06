@@ -242,6 +242,101 @@ func TestNetworkSliceNilSD(t *testing.T) {
 	}
 }
 
+func TestListNetworkSlicesByIDs(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	// Get the default slice ID
+	defaultSlice, err := database.GetNetworkSlice(context.Background(), "default")
+	if err != nil {
+		t.Fatalf("Couldn't get default slice: %s", err)
+	}
+
+	// Create two more slices
+	sd1 := "aabbcc"
+
+	err = database.CreateNetworkSlice(context.Background(), &db.NetworkSlice{Name: "slice-a", Sst: 2, Sd: &sd1})
+	if err != nil {
+		t.Fatalf("Couldn't create slice-a: %s", err)
+	}
+
+	sliceA, err := database.GetNetworkSlice(context.Background(), "slice-a")
+	if err != nil {
+		t.Fatalf("Couldn't get slice-a: %s", err)
+	}
+
+	sd2 := "112233"
+
+	err = database.CreateNetworkSlice(context.Background(), &db.NetworkSlice{Name: "slice-b", Sst: 3, Sd: &sd2})
+	if err != nil {
+		t.Fatalf("Couldn't create slice-b: %s", err)
+	}
+
+	sliceB, err := database.GetNetworkSlice(context.Background(), "slice-b")
+	if err != nil {
+		t.Fatalf("Couldn't get slice-b: %s", err)
+	}
+
+	// Fetch subset of IDs
+	slices, err := database.ListNetworkSlicesByIDs(context.Background(), []int{defaultSlice.ID, sliceB.ID})
+	if err != nil {
+		t.Fatalf("Couldn't complete ListNetworkSlicesByIDs: %s", err)
+	}
+
+	if len(slices) != 2 {
+		t.Fatalf("Expected 2 slices, got %d", len(slices))
+	}
+
+	foundIDs := map[int]bool{}
+	for _, s := range slices {
+		foundIDs[s.ID] = true
+	}
+
+	if !foundIDs[defaultSlice.ID] || !foundIDs[sliceB.ID] {
+		t.Fatalf("Expected IDs %d and %d, got %v", defaultSlice.ID, sliceB.ID, foundIDs)
+	}
+
+	// Fetch all three
+	slices, err = database.ListNetworkSlicesByIDs(context.Background(), []int{defaultSlice.ID, sliceA.ID, sliceB.ID})
+	if err != nil {
+		t.Fatalf("Couldn't complete ListNetworkSlicesByIDs: %s", err)
+	}
+
+	if len(slices) != 3 {
+		t.Fatalf("Expected 3 slices, got %d", len(slices))
+	}
+
+	// Empty IDs returns nil
+	slices, err = database.ListNetworkSlicesByIDs(context.Background(), []int{})
+	if err != nil {
+		t.Fatalf("Couldn't complete ListNetworkSlicesByIDs with empty IDs: %s", err)
+	}
+
+	if slices != nil {
+		t.Fatalf("Expected nil for empty IDs, got %d slices", len(slices))
+	}
+
+	// Non-existent IDs return empty
+	slices, err = database.ListNetworkSlicesByIDs(context.Background(), []int{9999})
+	if err != nil {
+		t.Fatalf("Couldn't complete ListNetworkSlicesByIDs with non-existent ID: %s", err)
+	}
+
+	if len(slices) != 0 {
+		t.Fatalf("Expected 0 slices for non-existent ID, got %d", len(slices))
+	}
+}
+
 func TestListAllNetworkSlices(t *testing.T) {
 	tempDir := t.TempDir()
 

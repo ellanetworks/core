@@ -220,7 +220,7 @@ func (ranUe *RanUe) SendHandoverRequest(
 	cause ngapType.Cause,
 	pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq,
 	sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer,
-	supportedPLMN *models.PlmnSupportItem,
+	snssaiList []models.Snssai,
 	supportedGUAMI *models.Guami,
 ) error {
 	sender, err := ranUe.ngapSender()
@@ -240,7 +240,7 @@ func (ranUe *RanUe) SendHandoverRequest(
 		cause,
 		pduSessionResourceSetupListHOReq,
 		sourceToTargetTransparentContainer,
-		supportedPLMN,
+		snssaiList,
 		supportedGUAMI,
 	)
 }

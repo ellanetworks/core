@@ -321,24 +321,12 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 		t.Errorf("expected Guami PlmnID MNC to be '01', but got %s", response.Guami.PlmnID.Mnc)
 	}
 
-	if response.PlmnSupported == nil {
-		t.Errorf("expected PlmnSupported to be set in NGSetupResponse, but it was nil")
+	if len(response.SnssaiList) != 1 {
+		t.Fatalf("expected 1 slice in SnssaiList, got %d", len(response.SnssaiList))
 	}
 
-	if response.PlmnSupported.PlmnID.Mcc != "001" {
-		t.Errorf("expected PlmnSupported PlmnID MCC to be '001', but got %s", response.PlmnSupported.PlmnID.Mcc)
-	}
-
-	if response.PlmnSupported.PlmnID.Mnc != "01" {
-		t.Errorf("expected PlmnSupported PlmnID MNC to be '01', but got %s", response.PlmnSupported.PlmnID.Mnc)
-	}
-
-	if len(response.PlmnSupported.SNssaiList) != 1 {
-		t.Fatalf("expected 1 slice in SNssaiList, got %d", len(response.PlmnSupported.SNssaiList))
-	}
-
-	if response.PlmnSupported.SNssaiList[0].Sst != 1 {
-		t.Errorf("expected SNssaiList[0].Sst to be 1, got %d", response.PlmnSupported.SNssaiList[0].Sst)
+	if response.SnssaiList[0].Sst != 1 {
+		t.Errorf("expected SnssaiList[0].Sst to be 1, got %d", response.SnssaiList[0].Sst)
 	}
 
 	if response.AmfName != "ella-core" {
@@ -513,8 +501,8 @@ func TestHandleNGSetupRequest_ResponseContainsAllConfiguredSlices(t *testing.T) 
 	response := fakeNGAPSender.SentNGSetupResponses[0]
 
 	// Verify the response carries all 3 configured slices from DB
-	if len(response.PlmnSupported.SNssaiList) != 3 {
-		t.Fatalf("expected 3 slices in response SNssaiList, got %d", len(response.PlmnSupported.SNssaiList))
+	if len(response.SnssaiList) != 3 {
+		t.Fatalf("expected 3 slices in response SnssaiList, got %d", len(response.SnssaiList))
 	}
 
 	expectedSlices := []struct {
@@ -527,12 +515,12 @@ func TestHandleNGSetupRequest_ResponseContainsAllConfiguredSlices(t *testing.T) 
 	}
 
 	for i, expected := range expectedSlices {
-		if response.PlmnSupported.SNssaiList[i].Sst != expected.sst {
-			t.Errorf("SNssaiList[%d]: expected SST %d, got %d", i, expected.sst, response.PlmnSupported.SNssaiList[i].Sst)
+		if response.SnssaiList[i].Sst != expected.sst {
+			t.Errorf("SnssaiList[%d]: expected SST %d, got %d", i, expected.sst, response.SnssaiList[i].Sst)
 		}
 
-		if response.PlmnSupported.SNssaiList[i].Sd != expected.sd {
-			t.Errorf("SNssaiList[%d]: expected SD %q, got %q", i, expected.sd, response.PlmnSupported.SNssaiList[i].Sd)
+		if response.SnssaiList[i].Sd != expected.sd {
+			t.Errorf("SnssaiList[%d]: expected SD %q, got %q", i, expected.sd, response.SnssaiList[i].Sd)
 		}
 	}
 }

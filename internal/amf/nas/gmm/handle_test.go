@@ -36,6 +36,41 @@ func (fdb *FakeDBInstance) GetDataNetworkByID(ctx context.Context, id int) (*db.
 	}, nil
 }
 
+func (fdb *FakeDBInstance) GetNetworkSliceByID(_ context.Context, id int) (*db.NetworkSlice, error) {
+	sd1 := "010203"
+	sd2 := "aabbcc"
+	slices := map[int]*db.NetworkSlice{
+		1: {ID: 1, Name: "default", Sst: 1, Sd: &sd1},
+		2: {ID: 2, Name: "secondary", Sst: 1, Sd: &sd2},
+	}
+
+	s, ok := slices[id]
+	if !ok {
+		return nil, fmt.Errorf("slice %d not found", id)
+	}
+
+	return s, nil
+}
+
+func (fdb *FakeDBInstance) ListNetworkSlicesByIDs(_ context.Context, ids []int) ([]db.NetworkSlice, error) {
+	sd1 := "010203"
+	sd2 := "aabbcc"
+	slices := map[int]db.NetworkSlice{
+		1: {ID: 1, Name: "default", Sst: 1, Sd: &sd1},
+		2: {ID: 2, Name: "secondary", Sst: 1, Sd: &sd2},
+	}
+
+	var out []db.NetworkSlice
+
+	for _, id := range ids {
+		if s, ok := slices[id]; ok {
+			out = append(out, s)
+		}
+	}
+
+	return out, nil
+}
+
 func (fdb *FakeDBInstance) GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error) {
 	return &db.Subscriber{
 		Imsi: imsi,
@@ -61,7 +96,10 @@ func (fdb *FakeDBInstance) GetPolicyByProfileAndSlice(ctx context.Context, profi
 }
 
 func (fdb *FakeDBInstance) ListPoliciesByProfile(_ context.Context, _ int) ([]db.Policy, error) {
-	return []db.Policy{{ID: 1, Name: "TestPolicy", ProfileID: 1, SliceID: 1, DataNetworkID: 1}}, nil
+	return []db.Policy{
+		{ID: 1, Name: "TestPolicy", ProfileID: 1, SliceID: 1, DataNetworkID: 1},
+		{ID: 2, Name: "TestPolicy2", ProfileID: 1, SliceID: 2, DataNetworkID: 1},
+	}, nil
 }
 
 type NGDLNasTransport struct {
@@ -117,7 +155,7 @@ func (fng *FakeNGAPSender) SendNGSetupFailure(ctx context.Context, cause *ngapTy
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendNGSetupResponse(ctx context.Context, guami *models.Guami, plmnSupported *models.PlmnSupportItem, amfName string, amfRelativeCapacity int64) error {
+func (fng *FakeNGAPSender) SendNGSetupResponse(ctx context.Context, guami *models.Guami, snssaiList []models.Snssai, amfName string, amfRelativeCapacity int64) error {
 	return nil
 }
 
@@ -247,7 +285,7 @@ func (fng *FakeNGAPSender) SendInitialContextSetupRequest(ctx context.Context, a
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendPathSwitchRequestAcknowledge(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ueSecurityCapability *nasType.UESecurityCapability, ncc uint8, nh []byte, pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList, pduSessionResourceReleasedList ngapType.PDUSessionResourceReleasedListPSAck, supportedPLMN *models.PlmnSupportItem) error {
+func (fng *FakeNGAPSender) SendPathSwitchRequestAcknowledge(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ueSecurityCapability *nasType.UESecurityCapability, ncc uint8, nh []byte, pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList, pduSessionResourceReleasedList ngapType.PDUSessionResourceReleasedListPSAck, snssaiList []models.Snssai) error {
 	return nil
 }
 
@@ -263,7 +301,7 @@ func (fng *FakeNGAPSender) SendHandoverRequest(
 	cause ngapType.Cause,
 	pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq,
 	sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer,
-	supportedPLMN *models.PlmnSupportItem,
+	snssaiList []models.Snssai,
 	supportedGUAMI *models.Guami,
 ) error {
 	return nil

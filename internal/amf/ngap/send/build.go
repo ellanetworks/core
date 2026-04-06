@@ -16,7 +16,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func buildNGSetupResponse(guami *models.Guami, plmnSupported *models.PlmnSupportItem, amfName string, amfRelativeCapacity int64) ([]byte, error) {
+func buildNGSetupResponse(guami *models.Guami, snssaiList []models.Snssai, amfName string, amfRelativeCapacity int64) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentSuccessfulOutcome
@@ -89,15 +89,15 @@ func buildNGSetupResponse(guami *models.Guami, plmnSupported *models.PlmnSupport
 
 	pLMNSupportItem := ngapType.PLMNSupportItem{}
 
-	plmnID, err = util.PlmnIDToNgap(plmnSupported.PlmnID)
+	plmnID, err = util.PlmnIDToNgap(*guami.PlmnID)
 	if err != nil {
 		return nil, fmt.Errorf("error converting PLMN ID to NGAP: %+v", err)
 	}
 
 	pLMNSupportItem.PLMNIdentity = *plmnID
 
-	for i := range plmnSupported.SNssaiList {
-		snssaiNgap, err := util.SNssaiToNgap(&plmnSupported.SNssaiList[i])
+	for i := range snssaiList {
+		snssaiNgap, err := util.SNssaiToNgap(&snssaiList[i])
 		if err != nil {
 			return nil, fmt.Errorf("error converting SNssai to NGAP: %+v", err)
 		}
@@ -1446,7 +1446,7 @@ func buildPathSwitchRequestAcknowledge(
 	nh []byte,
 	pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList,
 	pduSessionResourceReleasedList ngapType.PDUSessionResourceReleasedListPSAck,
-	supportedPLMN *models.PlmnSupportItem,
+	snssaiList []models.Snssai,
 ) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
@@ -1556,8 +1556,8 @@ func buildPathSwitchRequestAcknowledge(
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
 
-	for i := range supportedPLMN.SNssaiList {
-		ngapSnssai, err := util.SNssaiToNgap(&supportedPLMN.SNssaiList[i])
+	for i := range snssaiList {
+		ngapSnssai, err := util.SNssaiToNgap(&snssaiList[i])
 		if err != nil {
 			return nil, fmt.Errorf("error converting snssai to ngap: %s", err)
 		}
@@ -1588,7 +1588,7 @@ func buildHandoverRequest(
 	cause ngapType.Cause,
 	pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq,
 	sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer,
-	supportedPLMN *models.PlmnSupportItem,
+	snssaiList []models.Snssai,
 	supportedGUAMI *models.Guami,
 ) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
@@ -1713,8 +1713,8 @@ func buildHandoverRequest(
 
 	allowedNSSAI := ie.Value.AllowedNSSAI
 
-	for i := range supportedPLMN.SNssaiList {
-		ngapSnssai, err := util.SNssaiToNgap(&supportedPLMN.SNssaiList[i])
+	for i := range snssaiList {
+		ngapSnssai, err := util.SNssaiToNgap(&snssaiList[i])
 		if err != nil {
 			return nil, fmt.Errorf("error converting snssai to ngap: %s", err)
 		}

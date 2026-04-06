@@ -33,6 +33,19 @@ func (fdb *failingSubscriberDB) GetDataNetworkByID(ctx context.Context, id int) 
 	return &db.DataNetwork{ID: id, Name: "TestDataNetwork"}, nil
 }
 
+func (fdb *failingSubscriberDB) GetNetworkSliceByID(_ context.Context, id int) (*db.NetworkSlice, error) {
+	return &db.NetworkSlice{ID: id, Name: "TestSlice", Sst: 1}, nil
+}
+
+func (fdb *failingSubscriberDB) ListNetworkSlicesByIDs(_ context.Context, ids []int) ([]db.NetworkSlice, error) {
+	var out []db.NetworkSlice
+	for _, id := range ids {
+		out = append(out, db.NetworkSlice{ID: id, Name: "TestSlice", Sst: 1})
+	}
+
+	return out, nil
+}
+
 func (fdb *failingSubscriberDB) GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error) {
 	return nil, fmt.Errorf("subscriber not found")
 }
@@ -340,7 +353,7 @@ func TestMobilityReg_EmptyPei_SendsIdentityRequest(t *testing.T) {
 	}
 }
 
-func TestMobilityReg_GetSubscriberBitrateError(t *testing.T) {
+func TestMobilityReg_GetSubscriberProfileError(t *testing.T) {
 	ue, _, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	// Override DBInstance with one that returns an error for GetSubscriber
@@ -354,10 +367,10 @@ func TestMobilityReg_GetSubscriberBitrateError(t *testing.T) {
 
 	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
 	if err == nil {
-		t.Fatal("expected error for GetSubscriberBitrate failure, got nil")
+		t.Fatal("expected error for GetSubscriberProfile failure, got nil")
 	}
 
-	const wantPrefix = "error getting subscriber allowed NSSAI:"
+	const wantPrefix = "error getting subscriber profile:"
 	if got := err.Error(); len(got) < len(wantPrefix) || got[:len(wantPrefix)] != wantPrefix {
 		t.Fatalf("unexpected error prefix: %v", err)
 	}
@@ -832,7 +845,7 @@ func TestMobilityReg_NoUeContextRequest_EmptySuList_DownlinkNasTransport(t *test
 }
 
 // multiSliceDB returns multiple policies spanning two different slices,
-// causing GetSubscriberAllowedNssai to return a multi-element result.
+// causing GetSubscriberProfile to return a multi-element AllowedNssai.
 type multiSliceDB struct {
 	Operator *db.Operator
 }
@@ -843,6 +856,39 @@ func (m *multiSliceDB) GetOperator(ctx context.Context) (*db.Operator, error) {
 
 func (m *multiSliceDB) GetDataNetworkByID(_ context.Context, id int) (*db.DataNetwork, error) {
 	return &db.DataNetwork{ID: id, Name: "TestDataNetwork"}, nil
+}
+
+func (m *multiSliceDB) GetNetworkSliceByID(_ context.Context, id int) (*db.NetworkSlice, error) {
+	sd1, sd2 := "010203", "aabbcc"
+	slices := map[int]*db.NetworkSlice{
+		1: {ID: 1, Name: "slice-a", Sst: 1, Sd: &sd1},
+		2: {ID: 2, Name: "slice-b", Sst: 2, Sd: &sd2},
+	}
+
+	s, ok := slices[id]
+	if !ok {
+		return nil, fmt.Errorf("slice %d not found", id)
+	}
+
+	return s, nil
+}
+
+func (m *multiSliceDB) ListNetworkSlicesByIDs(_ context.Context, ids []int) ([]db.NetworkSlice, error) {
+	sd1, sd2 := "010203", "aabbcc"
+	slices := map[int]db.NetworkSlice{
+		1: {ID: 1, Name: "slice-a", Sst: 1, Sd: &sd1},
+		2: {ID: 2, Name: "slice-b", Sst: 2, Sd: &sd2},
+	}
+
+	var out []db.NetworkSlice
+
+	for _, id := range ids {
+		if s, ok := slices[id]; ok {
+			out = append(out, s)
+		}
+	}
+
+	return out, nil
 }
 
 func (m *multiSliceDB) GetSubscriber(_ context.Context, imsi string) (*db.Subscriber, error) {

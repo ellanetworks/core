@@ -259,6 +259,12 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
+	snssaiList, err := amfInstance.ListOperatorSnssai(ctx)
+	if err != nil {
+		logger.WithTrace(ctx, sourceUe.Log).Error("Could not list operator SNSSAI", zap.Error(err))
+		return
+	}
+
 	targetUe, err := amfInstance.NewRanUe(targetRan, models.RanUeNgapIDUnspecified)
 	if err != nil {
 		logger.WithTrace(ctx, logger.AmfLog).Error("error creating target ue", zap.Error(err))
@@ -282,7 +288,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		*cause,
 		pduSessionReqList,
 		*sourceToTargetTransparentContainer,
-		operatorInfo.SupportedPLMN,
+		snssaiList,
 		operatorInfo.Guami,
 	)
 	if err != nil {

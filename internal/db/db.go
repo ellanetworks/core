@@ -152,14 +152,15 @@ type Database struct {
 	countPoliciesInDataNetworkStmt *sqlair.Statement
 
 	// Network Slices statements
-	listNetworkSlicesStmt    *sqlair.Statement
-	listAllNetworkSlicesStmt *sqlair.Statement
-	getNetworkSliceStmt      *sqlair.Statement
-	getNetworkSliceByIDStmt  *sqlair.Statement
-	createNetworkSliceStmt   *sqlair.Statement
-	editNetworkSliceStmt     *sqlair.Statement
-	deleteNetworkSliceStmt   *sqlair.Statement
-	countNetworkSlicesStmt   *sqlair.Statement
+	listNetworkSlicesStmt      *sqlair.Statement
+	listAllNetworkSlicesStmt   *sqlair.Statement
+	getNetworkSliceStmt        *sqlair.Statement
+	getNetworkSliceByIDStmt    *sqlair.Statement
+	listNetworkSlicesByIDsStmt *sqlair.Statement
+	createNetworkSliceStmt     *sqlair.Statement
+	editNetworkSliceStmt       *sqlair.Statement
+	deleteNetworkSliceStmt     *sqlair.Statement
+	countNetworkSlicesStmt     *sqlair.Statement
 
 	// Profiles statements
 	listProfilesStmt              *sqlair.Statement
@@ -500,6 +501,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.listAllNetworkSlicesStmt, fmt.Sprintf(listAllNetworkSlicesStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
 		{&db.getNetworkSliceStmt, fmt.Sprintf(getNetworkSliceStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
 		{&db.getNetworkSliceByIDStmt, fmt.Sprintf(getNetworkSliceByIDStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
+		{&db.listNetworkSlicesByIDsStmt, fmt.Sprintf(listNetworkSlicesByIDsStmt, NetworkSlicesTableName), []any{NetworkSlice{}, SliceIDs{}}},
 		{&db.createNetworkSliceStmt, fmt.Sprintf(createNetworkSliceStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
 		{&db.editNetworkSliceStmt, fmt.Sprintf(editNetworkSliceStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
 		{&db.deleteNetworkSliceStmt, fmt.Sprintf(deleteNetworkSliceStmt, NetworkSlicesTableName), []any{NetworkSlice{}}},
