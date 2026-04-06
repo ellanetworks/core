@@ -285,7 +285,11 @@ const Traffic: React.FC = () => {
   const flowPageOneBased = flowPaginationModel.page + 1;
 
   const activeFlowFilters: FlowReportFilters = useMemo(() => {
-    const f: FlowReportFilters = { start: startDate, end: endDate };
+    const f: FlowReportFilters = {
+      start: startDate,
+      end: endDate,
+      action: "allow",
+    };
     if (selectedSubscriber) f.subscriber_id = selectedSubscriber;
     if (appliedProtocol) f.protocol = appliedProtocol;
     if (appliedSource) f.source = appliedSource;

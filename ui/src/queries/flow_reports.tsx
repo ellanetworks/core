@@ -13,6 +13,7 @@ export type FlowReport = {
   start_time: string;
   end_time: string;
   direction: string;
+  action: string;
 };
 
 export type ListFlowReportsResponse = {
@@ -97,6 +98,7 @@ export type FlowReportFilters = {
   source?: string;
   destination?: string;
   direction?: string;
+  action?: string;
 };
 
 export async function getFlowReportStats(

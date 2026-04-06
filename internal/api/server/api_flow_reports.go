@@ -44,6 +44,7 @@ type FlowReport struct {
 	StartTime       string `json:"start_time"`
 	EndTime         string `json:"end_time"`
 	Direction       string `json:"direction"`
+	Action          string `json:"action"`
 }
 
 type ListFlowReportsResponse struct {
@@ -108,6 +109,23 @@ func parseFlowReportFilters(r *http.Request) (*db.FlowReportFilters, error) {
 		}
 
 		f.Direction = &v
+	}
+
+	// action: "allow" or "drop".
+	// When absent, all flows are returned regardless of disposition.
+	// When "allow", only accepted flows are returned.
+	// When "drop", only dropped flows are returned.
+	switch strings.TrimSpace(q.Get("action")) {
+	case "":
+		// Leave f.Action nil: no filter → return all flows.
+	case "allow":
+		allow := uint8(0)
+		f.Action = &allow
+	case "drop":
+		drop := uint8(1)
+		f.Action = &drop
+	default:
+		return f, fmt.Errorf("invalid action: must be 'allow' or 'drop'")
 	}
 
 	startDate := stotimeDefault(q.Get("start"), time.Now().AddDate(0, 0, -7))
@@ -375,6 +393,11 @@ func parseEndpointFilter(v string) (ip string, port *uint16, err error) {
 }
 
 func dbFlowReportToAPI(r dbwriter.FlowReport) FlowReport {
+	action := "allow"
+	if r.Action != 0 {
+		action = "drop"
+	}
+
 	return FlowReport{
 		ID:              r.ID,
 		SubscriberID:    r.SubscriberID,
@@ -388,6 +411,7 @@ func dbFlowReportToAPI(r dbwriter.FlowReport) FlowReport {
 		StartTime:       r.StartTime,
 		EndTime:         r.EndTime,
 		Direction:       r.Direction,
+		Action:          action,
 	}
 }
 

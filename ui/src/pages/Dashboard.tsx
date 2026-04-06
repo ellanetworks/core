@@ -281,6 +281,7 @@ const Dashboard = () => {
       getFlowReportStats(accessToken!, {
         start: startDate,
         end: endDate,
+        action: "allow",
       }),
     enabled: authReady && !!accessToken,
     refetchInterval: 10000,

@@ -29,6 +29,8 @@ type FlowReport struct {
 	Bytes           uint64 `json:"bytes"`
 	StartTime       string `json:"start_time"`
 	EndTime         string `json:"end_time"`
+	Direction       string `json:"direction"`
+	Action          string `json:"action"`
 }
 
 type ListFlowReportsResponseResult struct {
@@ -1066,6 +1068,132 @@ func TestGetFlowReportStats_FilterByProtocol(t *testing.T) {
 
 	if response.Result.Protocols[0].Count != 4 {
 		t.Fatalf("expected count 4, got %d", response.Result.Protocols[0].Count)
+	}
+}
+
+func TestListFlowReportsFilterByAction(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	createFlowReportTestSubscriber(t, env.DB)
+
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	// Insert 3 allowed flows (action=0, default zero value)
+	for i := range 3 {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "001010100000001",
+			SourceIP:        "10.0.0.1",
+			DestinationIP:   "8.8.8.8",
+			SourcePort:      uint16(10000 + i),
+			DestinationPort: 443,
+			Protocol:        6,
+			Packets:         100,
+			Bytes:           5000,
+			StartTime:       now,
+			EndTime:         now,
+			Action:          0,
+		}
+		if err := env.DB.InsertFlowReports(context.Background(), []*dbwriter.FlowReport{fr}); err != nil {
+			t.Fatalf("couldn't insert allowed flow report: %s", err)
+		}
+	}
+
+	// Insert 2 dropped flows (action=1)
+	for i := range 2 {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "001010100000001",
+			SourceIP:        "10.0.0.2",
+			DestinationIP:   "1.2.3.4",
+			SourcePort:      uint16(20000 + i),
+			DestinationPort: 80,
+			Protocol:        17,
+			Packets:         5,
+			Bytes:           500,
+			StartTime:       now,
+			EndTime:         now,
+			Action:          1,
+		}
+		if err := env.DB.InsertFlowReports(context.Background(), []*dbwriter.FlowReport{fr}); err != nil {
+			t.Fatalf("couldn't insert dropped flow report: %s", err)
+		}
+	}
+
+	// No action param — expect all 5
+	statusCode, response, err := listFlowReports(env.Server.URL, client, token, 1, 100, nil)
+	if err != nil {
+		t.Fatalf("couldn't list flow reports (no filter): %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	if response.Result.TotalCount != 5 {
+		t.Fatalf("expected total 5 with no action filter, got %d", response.Result.TotalCount)
+	}
+
+	// action=allow — expect 3
+	statusCode, response, err = listFlowReports(env.Server.URL, client, token, 1, 100, map[string]string{"action": "allow"})
+	if err != nil {
+		t.Fatalf("couldn't list flow reports (action=allow): %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	if response.Result.TotalCount != 3 {
+		t.Fatalf("expected total 3 for action=allow, got %d", response.Result.TotalCount)
+	}
+
+	for _, item := range response.Result.Items {
+		if item.Action != "allow" {
+			t.Fatalf("expected action 'allow', got %q", item.Action)
+		}
+	}
+
+	// action=drop — expect 2
+	statusCode, response, err = listFlowReports(env.Server.URL, client, token, 1, 100, map[string]string{"action": "drop"})
+	if err != nil {
+		t.Fatalf("couldn't list flow reports (action=drop): %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+	}
+
+	if response.Result.TotalCount != 2 {
+		t.Fatalf("expected total 2 for action=drop, got %d", response.Result.TotalCount)
+	}
+
+	for _, item := range response.Result.Items {
+		if item.Action != "drop" {
+			t.Fatalf("expected action 'drop', got %q", item.Action)
+		}
+	}
+
+	// action=invalid — expect 400
+	statusCode, _, err = listFlowReports(env.Server.URL, client, token, 1, 100, map[string]string{"action": "invalid"})
+	if err != nil {
+		t.Fatalf("couldn't call list flow reports (action=invalid): %s", err)
+	}
+
+	if statusCode != http.StatusBadRequest {
+		t.Fatalf("expected status %d for invalid action, got %d", http.StatusBadRequest, statusCode)
 	}
 }
 

@@ -17,7 +17,7 @@ func TestListFlowReports_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"items": [{"id": 1, "subscriber_id": "001010100000001", "source_ip": "10.0.0.1", "destination_ip": "8.8.8.8", "source_port": 12345, "destination_port": 53, "protocol": 17, "packets": 100, "bytes": 50000, "start_time": "2026-02-20T10:00:00Z", "end_time": "2026-02-20T10:05:00Z", "direction": "uplink"}], "page": 1, "per_page": 25, "total_count": 1}`),
+			Result:     []byte(`{"items": [{"id": 1, "subscriber_id": "001010100000001", "source_ip": "10.0.0.1", "destination_ip": "8.8.8.8", "source_port": 12345, "destination_port": 53, "protocol": 17, "packets": 100, "bytes": 50000, "start_time": "2026-02-20T10:00:00Z", "end_time": "2026-02-20T10:05:00Z", "direction": "uplink", "action": "allow"}], "page": 1, "per_page": 25, "total_count": 1}`),
 		},
 		err: nil,
 	}
@@ -87,6 +87,10 @@ func TestListFlowReports_Success(t *testing.T) {
 
 	if resp.Items[0].Direction != "uplink" {
 		t.Fatalf("expected direction 'uplink', got '%s'", resp.Items[0].Direction)
+	}
+
+	if resp.Items[0].Action != "allow" {
+		t.Fatalf("expected action 'allow', got '%s'", resp.Items[0].Action)
 	}
 
 	if resp.Page != 1 {

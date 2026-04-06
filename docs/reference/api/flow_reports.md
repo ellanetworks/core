@@ -16,18 +16,19 @@ This path returns a paginated list of flow reports with optional filtering.
 
 ### Query Parameters
 
-| Name           | In    | Type   | Default  | Allowed              | Description                                 |
-| -------------- | ----- | ------ | -------- | -------------------- | ------------------------------------------- |
-| `page`         | query | int    | `1`      | `>= 1`               | 1-based page index.                         |
-| `per_page`     | query | int    | `25`     | `1…100`              | Number of items per page.                   |
-| `subscriber_id`| query | string | ``       |                      | Filter by subscriber ID.                    |
-| `protocol`     | query | int    | ``       | `1…255`              | Filter by protocol number.                  |
-| `source_ip`    | query | string | ``       |                      | Filter by source IP address.                |
-| `destination_ip`| query | string| ``       |                      | Filter by destination IP address.           |
-| `start`        | query | string | `now-7d` |                      | Start date for flow reports. Format: YYYY-MM-DD. |
-| `end`          | query | string | `now`    |                      | End date for flow reports. Format: YYYY-MM-DD. |
-| `direction`    | query | string | ``       | `uplink`, `downlink` | Filter by traffic direction. |
-| `group_by`     | query | string | ``       | `day`, `subscriber`  | Grouping method for flow reports. When set, returns aggregated data instead of paginated list. |
+| Name            | In    | Type   | Default  | Allowed                      | Description                                                                                                                   |
+| --------------- | ----- | ------ | -------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `page`          | query | int    | `1`      | `>= 1`                       | 1-based page index.                                                                                                           |
+| `per_page`      | query | int    | `25`     | `1…100`                      | Number of items per page.                                                                                                     |
+| `subscriber_id` | query | string | ``       |                              | Filter by subscriber ID.                                                                                                      |
+| `protocol`      | query | int    | ``       | `1…255`                      | Filter by protocol number.                                                                                                    |
+| `source`        | query | string | ``       |                              | Filter by source. Accepts: IP, IP:port, or :port.                                                                            |
+| `destination`   | query | string | ``       |                              | Filter by destination. Accepts: IP, IP:port, or :port.                                                                       |
+| `start`         | query | string | `now-7d` |                              | Start date for flow reports. Format: YYYY-MM-DD.                                                                              |
+| `end`           | query | string | `now`    |                              | End date for flow reports. Format: YYYY-MM-DD.                                                                                |
+| `direction`     | query | string | ``       | `uplink`, `downlink`         | Filter by traffic direction.                                                                                                  |
+| `action`        | query | string | ``       | `allow`, `drop`              | Filter by flow disposition. `allow` returns only accepted flows, `drop` returns only dropped flows. When omitted, all flows are returned. |
+| `group_by`      | query | string | ``       | `day`, `subscriber`          | Grouping method for flow reports. When set, returns aggregated data instead of paginated list.                                |
 
 ### Sample Response (default, no `group_by`)
 
@@ -47,7 +48,8 @@ This path returns a paginated list of flow reports with optional filtering.
         "bytes": 5000,
         "start_time": "2025-02-22T10:30:00.000Z",
         "end_time": "2025-02-22T10:30:01.000Z",
-        "direction": "uplink"
+        "direction": "uplink",
+        "action": "allow"
       }
     ],
     "page": 1,
@@ -76,7 +78,8 @@ This path returns a paginated list of flow reports with optional filtering.
           "bytes": 5000,
           "start_time": "2025-02-22T10:30:00.000Z",
           "end_time": "2025-02-22T10:30:01.000Z",
-          "direction": "uplink"
+          "direction": "uplink",
+          "action": "allow"
         }
       ]
     },
@@ -94,7 +97,8 @@ This path returns a paginated list of flow reports with optional filtering.
           "bytes": 40000,
           "start_time": "2025-02-23T08:00:00.000Z",
           "end_time": "2025-02-23T08:05:00.000Z",
-          "direction": "downlink"
+          "direction": "downlink",
+          "action": "allow"
         }
       ]
     }
@@ -121,7 +125,8 @@ This path returns a paginated list of flow reports with optional filtering.
           "bytes": 5000,
           "start_time": "2025-02-22T10:30:00.000Z",
           "end_time": "2025-02-22T10:30:01.000Z",
-          "direction": "uplink"
+          "direction": "uplink",
+          "action": "allow"
         }
       ]
     },
@@ -139,7 +144,8 @@ This path returns a paginated list of flow reports with optional filtering.
           "bytes": 25000,
           "start_time": "2025-02-22T12:00:00.000Z",
           "end_time": "2025-02-22T12:01:00.000Z",
-          "direction": "downlink"
+          "direction": "downlink",
+          "action": "allow"
         }
       ]
     }
@@ -157,7 +163,7 @@ This path returns aggregated statistics for flow reports, including protocol bre
 
 ### Query Parameters
 
-The same filter parameters as [Get Flow Reports](#get-flow-reports) are supported (`subscriber_id`, `protocol`, `source_ip`, `destination_ip`, `direction`, `start`, `end`), excluding `page`, `per_page`, and `group_by`.
+The same filter parameters as [Get Flow Reports](#get-flow-reports) are supported (`subscriber_id`, `protocol`, `source`, `destination`, `direction`, `action`, `start`, `end`), excluding `page`, `per_page`, and `group_by`.
 
 ### Sample Response
 
@@ -210,8 +216,8 @@ This path deletes all flow reports from the database.
 
 This path returns the current flow reports retention policy.
 
-| Method | Path                           |
-| ------ | ------------------------------ |
+| Method | Path                             |
+| ------ | -------------------------------- |
 | GET    | `/api/v1/flow-reports/retention` |
 
 ### Sample Response
@@ -228,8 +234,8 @@ This path returns the current flow reports retention policy.
 
 This path updates the flow reports retention policy.
 
-| Method | Path                           |
-| ------ | ------------------------------ |
+| Method | Path                             |
+| ------ | -------------------------------- |
 | PUT    | `/api/v1/flow-reports/retention` |
 
 ### Parameters
