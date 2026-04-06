@@ -85,8 +85,8 @@ func SendFlowReport(ctx context.Context, dispatcher *pfcp_dispatcher.PfcpDispatc
 		Protocol:        proto,
 		Packets:         stats.Packets,
 		Bytes:           stats.Bytes,
-		StartTime:       startTime.UTC().Format(time.RFC3339),
-		EndTime:         endTime.UTC().Format(time.RFC3339),
+		StartTime:       startTime.UTC().Format(time.RFC3339Nano),
+		EndTime:         endTime.UTC().Format(time.RFC3339Nano),
 		Direction:       direction,
 		Action:          models.Action(flow.Action),
 	}
