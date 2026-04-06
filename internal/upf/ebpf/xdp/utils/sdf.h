@@ -51,22 +51,23 @@ match_sdf_filters(struct packet_context *ctx, __u32 filter_map_index)
 	if (!ctx->ip4)
 		return XDP_PASS; /* IPv6 not filtered yet */
 
-	__u8  pkt_proto  = ctx->ip4->protocol;
-	__u32 pkt_remote = (ctx->interface == INTERFACE_N3)
-	                       ? bpf_ntohl(ctx->ip4->daddr)
-	                       : bpf_ntohl(ctx->ip4->saddr);
-	__u16 pkt_dport  = 0;
+	__u8 pkt_proto = ctx->ip4->protocol;
+	__u32 pkt_remote = (ctx->interface == INTERFACE_N3) ?
+				   bpf_ntohl(ctx->ip4->daddr) :
+				   bpf_ntohl(ctx->ip4->saddr);
+	__u16 pkt_dport = 0;
 
 	if (ctx->tcp)
-		pkt_dport = (ctx->interface == INTERFACE_N3)
-				? bpf_ntohs(ctx->tcp->dest)
-				: bpf_ntohs(ctx->tcp->source);
+		pkt_dport = (ctx->interface == INTERFACE_N3) ?
+				    bpf_ntohs(ctx->tcp->dest) :
+				    bpf_ntohs(ctx->tcp->source);
 	else if (ctx->udp)
-		pkt_dport = (ctx->interface == INTERFACE_N3)
-				? bpf_ntohs(ctx->udp->dest)
-				: bpf_ntohs(ctx->udp->source);
+		pkt_dport = (ctx->interface == INTERFACE_N3) ?
+				    bpf_ntohs(ctx->udp->dest) :
+				    bpf_ntohs(ctx->udp->source);
 
-	upf_printk("upf: filter packet for %08X:%d, proto %d", pkt_remote, pkt_dport, pkt_proto);
+	upf_printk("upf: filter packet for %08X:%d, proto %d", pkt_remote,
+		   pkt_dport, pkt_proto);
 	for (__u8 i = 0; i < MAX_RULES_PER_FILTER; i++) {
 		if (i >= num)
 			break;
@@ -78,16 +79,18 @@ match_sdf_filters(struct packet_context *ctx, __u32 filter_map_index)
 		if (r->protocol != SDF_PROTO_ANY && r->protocol != pkt_proto)
 			continue;
 
-		upf_printk("upf: checking prefix: %08X/%08X", r->remote_ip, r->remote_mask);
+		upf_printk("upf: checking prefix: %08X/%08X", r->remote_ip,
+			   r->remote_mask);
 		/* Remote IP/prefix check */
 		if (r->remote_mask != 0) {
-			__u32 rule_net   = r->remote_ip & r->remote_mask;
+			__u32 rule_net = r->remote_ip & r->remote_mask;
 			__u32 pkt_masked = pkt_remote & r->remote_mask;
 			if (pkt_masked != rule_net)
 				continue;
 		}
 
-		upf_printk("upf: checking ports: %d-%d", r->port_low, r->port_high);
+		upf_printk("upf: checking ports: %d-%d", r->port_low,
+			   r->port_high);
 		/* Port range check */
 		if (r->port_low != 0) {
 			if (pkt_dport < r->port_low || pkt_dport > r->port_high)
