@@ -4,6 +4,7 @@ package amf
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/db"
@@ -164,6 +165,7 @@ func (amf *AMF) GetSubscriberProfile(ctx context.Context, supi etsi.SUPI) (*Subs
 	for id := range sliceIDSet {
 		sliceIDs = append(sliceIDs, id)
 	}
+	sort.Ints(sliceIDs)
 
 	slices, err := amf.DBInstance.ListNetworkSlicesByIDs(ctx, sliceIDs)
 	if err != nil {
@@ -235,6 +237,7 @@ func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *mo
 	for id := range sliceIDSet {
 		sliceIDs = append(sliceIDs, id)
 	}
+	sort.Ints(sliceIDs)
 
 	sliceList, err := amf.DBInstance.ListNetworkSlicesByIDs(ctx, sliceIDs)
 	if err != nil {
