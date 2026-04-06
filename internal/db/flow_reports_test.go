@@ -946,6 +946,130 @@ func TestGetFlowReportStats_WithDateFilter(t *testing.T) {
 	}
 }
 
+func TestFlowReportsFilterByAction(t *testing.T) {
+	tempDir := t.TempDir()
+
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("Couldn't complete NewDatabase: %s", err)
+	}
+
+	defer func() {
+		if err := database.Close(); err != nil {
+			t.Fatalf("Couldn't complete Close: %s", err)
+		}
+	}()
+
+	ctx := context.Background()
+
+	_, err = createDataNetworkPolicyAndSubscriber(database, "460123456789012")
+	if err != nil {
+		t.Fatalf("couldn't create prerequisite subscriber: %s", err)
+	}
+
+	now := time.Now().UTC()
+
+	// Insert 3 allowed flows (action=0)
+	for i := range 3 {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "460123456789012",
+			SourceIP:        "10.0.0.1",
+			DestinationIP:   "8.8.8.8",
+			SourcePort:      uint16(10000 + i),
+			DestinationPort: 443,
+			Protocol:        6,
+			Packets:         10,
+			Bytes:           1000,
+			StartTime:       now.Add(time.Duration(i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
+			EndTime:         now.Add(time.Duration(i) * time.Minute).Format(time.RFC3339),
+			Action:          0,
+		}
+		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
+			t.Fatalf("couldn't insert allowed flow report %d: %s", i, err)
+		}
+	}
+
+	// Insert 2 dropped flows (action=1)
+	for i := range 2 {
+		fr := &dbwriter.FlowReport{
+			SubscriberID:    "460123456789012",
+			SourceIP:        "10.0.0.2",
+			DestinationIP:   "1.2.3.4",
+			SourcePort:      uint16(20000 + i),
+			DestinationPort: 80,
+			Protocol:        17,
+			Packets:         5,
+			Bytes:           500,
+			StartTime:       now.Add(time.Duration(3+i)*time.Minute - 5*time.Minute).Format(time.RFC3339),
+			EndTime:         now.Add(time.Duration(3+i) * time.Minute).Format(time.RFC3339),
+			Action:          1,
+		}
+		if err := database.InsertFlowReports(ctx, []*dbwriter.FlowReport{fr}); err != nil {
+			t.Fatalf("couldn't insert dropped flow report %d: %s", i, err)
+		}
+	}
+
+	// nil filter — expect all 5
+	reports, total, err := database.ListFlowReports(ctx, 1, 10, nil)
+	if err != nil {
+		t.Fatalf("couldn't list flow reports with nil filter: %s", err)
+	}
+
+	if total != 5 {
+		t.Fatalf("expected total 5 with nil filter, got %d", total)
+	}
+
+	if len(reports) != 5 {
+		t.Fatalf("expected 5 reports with nil filter, got %d", len(reports))
+	}
+
+	// action=0 filter — expect 3 allowed
+	allowAction := uint8(0)
+	allowFilter := &db.FlowReportFilters{Action: &allowAction}
+
+	reports, total, err = database.ListFlowReports(ctx, 1, 10, allowFilter)
+	if err != nil {
+		t.Fatalf("couldn't list flow reports with action=0 filter: %s", err)
+	}
+
+	if total != 3 {
+		t.Fatalf("expected total 3 for action=0, got %d", total)
+	}
+
+	if len(reports) != 3 {
+		t.Fatalf("expected 3 reports for action=0, got %d", len(reports))
+	}
+
+	for _, r := range reports {
+		if r.Action != 0 {
+			t.Fatalf("expected action 0, got %d", r.Action)
+		}
+	}
+
+	// action=1 filter — expect 2 dropped
+	dropAction := uint8(1)
+	dropFilter := &db.FlowReportFilters{Action: &dropAction}
+
+	reports, total, err = database.ListFlowReports(ctx, 1, 10, dropFilter)
+	if err != nil {
+		t.Fatalf("couldn't list flow reports with action=1 filter: %s", err)
+	}
+
+	if total != 2 {
+		t.Fatalf("expected total 2 for action=1, got %d", total)
+	}
+
+	if len(reports) != 2 {
+		t.Fatalf("expected 2 reports for action=1, got %d", len(reports))
+	}
+
+	for _, r := range reports {
+		if r.Action != 1 {
+			t.Fatalf("expected action 1, got %d", r.Action)
+		}
+	}
+}
+
 func TestFlowReportsRetention(t *testing.T) {
 	tempDir := t.TempDir()
 

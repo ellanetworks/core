@@ -2361,6 +2361,14 @@ paths:
             type: string
             enum: [uplink, downlink]
           description: Filter by traffic direction.
+        - name: action
+          in: query
+          schema:
+            type: string
+            enum: [allow, drop]
+          description: >
+            Filter by flow disposition. `allow` returns only accepted flows,
+            `drop` returns only dropped flows. When omitted, all flows are returned.
         - name: start
           in: query
           schema:
@@ -2457,6 +2465,14 @@ paths:
           schema:
             type: string
             enum: [uplink, downlink]
+        - name: action
+          in: query
+          schema:
+            type: string
+            enum: [allow, drop]
+          description: >
+            Filter by flow disposition. `allow` returns only accepted flows,
+            `drop` returns only dropped flows. When omitted, all flows are returned.
         - name: start
           in: query
           schema:
@@ -4575,7 +4591,11 @@ components:
         direction:
           type: string
           enum: [uplink, downlink]
-      required: [id, subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction]
+        action:
+          type: string
+          enum: [allow, drop]
+          description: Flow disposition — whether the flow was accepted or dropped by the UPF.
+      required: [id, subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action]
 
     ListFlowReportsResponse:
       type: object

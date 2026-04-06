@@ -40,7 +40,7 @@ const listFlowReportsPagedFilteredStmt = `
     AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
     AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
-    AND ($FlowReportFilters.action IS NULL AND action = 0)
+    AND ($FlowReportFilters.action IS NULL OR action = $FlowReportFilters.action)
   ORDER BY id DESC
   LIMIT $ListArgs.limit
   OFFSET $ListArgs.offset
@@ -59,7 +59,7 @@ const countFlowReportsFilteredStmt = `
     AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
     AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
-    AND ($FlowReportFilters.action IS NULL AND action = 0)
+    AND ($FlowReportFilters.action IS NULL OR action = $FlowReportFilters.action)
 `
 
 const listFlowReportsFilteredByDayStmt = `
@@ -75,7 +75,7 @@ WHERE
     AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
     AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
-    AND ($FlowReportFilters.action IS NULL AND action = 0)
+    AND ($FlowReportFilters.action IS NULL OR action = $FlowReportFilters.action)
 ORDER BY end_time ASC
 `
 
@@ -92,7 +92,7 @@ WHERE
     AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
     AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
-    AND ($FlowReportFilters.action IS NULL AND action = 0)
+    AND ($FlowReportFilters.action IS NULL OR action = $FlowReportFilters.action)
 ORDER BY subscriber_id ASC, end_time ASC
 `
 
@@ -109,7 +109,7 @@ WHERE
     AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
     AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
     AND ($FlowReportFilters.direction IS NULL OR direction = $FlowReportFilters.direction)
-    AND ($FlowReportFilters.action IS NULL AND action = 0)
+    AND ($FlowReportFilters.action IS NULL OR action = $FlowReportFilters.action)
 GROUP BY protocol
 ORDER BY COUNT(*) DESC
 `
@@ -127,7 +127,7 @@ WHERE
     AND ($FlowReportFilters.end_time_from IS NULL OR end_time >= $FlowReportFilters.end_time_from)
     AND ($FlowReportFilters.end_time_to IS NULL OR end_time < $FlowReportFilters.end_time_to)
     AND direction = 'uplink'
-    AND ($FlowReportFilters.action IS NULL AND action = 0)
+    AND ($FlowReportFilters.action IS NULL OR action = $FlowReportFilters.action)
 GROUP BY destination_ip
 ORDER BY COUNT(*) DESC
 LIMIT 10

@@ -24,6 +24,7 @@ type FlowReport struct {
 	StartTime       string `json:"start_time"`
 	EndTime         string `json:"end_time"`
 	Direction       string `json:"direction"`
+	Action          string `json:"action"`
 }
 
 type ListFlowReportsResponse struct {
@@ -43,6 +44,9 @@ type ListFlowReportsParams struct {
 	Direction    string `json:"direction"`
 	Start        string `json:"start"`
 	End          string `json:"end"`
+	// Action filters by flow disposition: "allow" or "drop".
+	// When empty, all flows are returned regardless of disposition.
+	Action string `json:"action"`
 }
 
 type GroupedFlowReportsResponse []map[string][]FlowReport
@@ -92,6 +96,10 @@ func buildFlowReportQuery(p *ListFlowReportsParams) url.Values {
 
 	if p.End != "" {
 		query.Set("end", p.End)
+	}
+
+	if p.Action != "" {
+		query.Set("action", p.Action)
 	}
 
 	return query
