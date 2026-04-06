@@ -14,6 +14,7 @@ type SNSSAI struct {
 }
 
 type GlobalRANNodeIDIE struct {
+	PLMNIdentity  PLMNID `json:"plmn_identity"`
 	GlobalGNBID   string `json:"global_gnb_id,omitempty"`
 	GlobalNgENBID string `json:"global_ng_enb_id,omitempty"`
 	GlobalN3IWFID string `json:"global_n3iwf_id,omitempty"`
@@ -37,16 +38,30 @@ type PLMN struct {
 func buildGlobalRANNodeIDIE(grn ngapType.GlobalRANNodeID) GlobalRANNodeIDIE {
 	ie := GlobalRANNodeIDIE{}
 
-	if grn.GlobalGNBID != nil && grn.GlobalGNBID.GNBID.GNBID != nil {
-		ie.GlobalGNBID = bitStringToHex(grn.GlobalGNBID.GNBID.GNBID)
+	if grn.GlobalGNBID != nil {
+		ie.PLMNIdentity = plmnIDToModels(grn.GlobalGNBID.PLMNIdentity)
+		if grn.GlobalGNBID.GNBID.GNBID != nil {
+			ie.GlobalGNBID = bitStringToHex(grn.GlobalGNBID.GNBID.GNBID)
+		}
 	}
 
-	if grn.GlobalNgENBID != nil && grn.GlobalNgENBID.NgENBID.MacroNgENBID != nil {
-		ie.GlobalNgENBID = bitStringToHex(grn.GlobalNgENBID.NgENBID.MacroNgENBID)
+	if grn.GlobalNgENBID != nil {
+		ie.PLMNIdentity = plmnIDToModels(grn.GlobalNgENBID.PLMNIdentity)
+		switch grn.GlobalNgENBID.NgENBID.Present {
+		case ngapType.NgENBIDPresentMacroNgENBID:
+			ie.GlobalNgENBID = bitStringToHex(grn.GlobalNgENBID.NgENBID.MacroNgENBID)
+		case ngapType.NgENBIDPresentShortMacroNgENBID:
+			ie.GlobalNgENBID = bitStringToHex(grn.GlobalNgENBID.NgENBID.ShortMacroNgENBID)
+		case ngapType.NgENBIDPresentLongMacroNgENBID:
+			ie.GlobalNgENBID = bitStringToHex(grn.GlobalNgENBID.NgENBID.LongMacroNgENBID)
+		}
 	}
 
-	if grn.GlobalN3IWFID != nil && grn.GlobalN3IWFID.N3IWFID.N3IWFID != nil {
-		ie.GlobalN3IWFID = bitStringToHex(grn.GlobalN3IWFID.N3IWFID.N3IWFID)
+	if grn.GlobalN3IWFID != nil {
+		ie.PLMNIdentity = plmnIDToModels(grn.GlobalN3IWFID.PLMNIdentity)
+		if grn.GlobalN3IWFID.N3IWFID.N3IWFID != nil {
+			ie.GlobalN3IWFID = bitStringToHex(grn.GlobalN3IWFID.N3IWFID.N3IWFID)
+		}
 	}
 
 	return ie

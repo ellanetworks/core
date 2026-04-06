@@ -9,14 +9,11 @@ import (
 func buildPDUSessionResourceReleaseResponse(resp ngapType.PDUSessionResourceReleaseResponse) NGAPMessageValue {
 	ies := make([]IE, 0)
 
-	// AMFUENGAPID := int64(0)
-
 	for i := 0; i < len(resp.ProtocolIEs.List); i++ {
 		ie := resp.ProtocolIEs.List[i]
 
 		switch ie.Id.Value {
 		case ngapType.ProtocolIEIDAMFUENGAPID:
-			// AMFUENGAPID = ie.Value.AMFUENGAPID.Value
 			ies = append(ies, IE{
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),

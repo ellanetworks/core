@@ -67,6 +67,8 @@ type RegistrationAccept struct {
 	NSSAIInclusionMode                       *UnsupportedIE `json:"nssai_inclusion_mode,omitempty"`
 	OperatordefinedAccessCategoryDefinitions *UnsupportedIE `json:"operatordefined_access_category_definitions,omitempty"`
 	NegotiatedDRXParameters                  *UnsupportedIE `json:"negotiated_drx_parameters,omitempty"`
+	Non3GppNwPolicies                        *UnsupportedIE `json:"non_3gpp_nw_policies,omitempty"`
+	EPSBearerContextStatus                   *UnsupportedIE `json:"eps_bearer_context_status,omitempty"`
 }
 
 func buildRegistrationResult5GS(msg nasType.RegistrationResult5GS) utils.EnumField[uint8] {
@@ -154,8 +156,12 @@ func buildRegistrationAccept(msg *nasMessage.RegistrationAccept) *RegistrationAc
 		registrationAccept.ServiceAreaList = makeUnsupportedIE()
 	}
 
-	if msg.ServiceAreaList != nil {
-		registrationAccept.ServiceAreaList = makeUnsupportedIE()
+	if msg.Non3GppNwPolicies != nil {
+		registrationAccept.Non3GppNwPolicies = makeUnsupportedIE()
+	}
+
+	if msg.EPSBearerContextStatus != nil {
+		registrationAccept.EPSBearerContextStatus = makeUnsupportedIE()
 	}
 
 	if msg.T3512Value != nil {

@@ -60,10 +60,21 @@ type ULNGUUPTNLInformation struct {
 	GTPTunnel GTPTunnel `json:"gtp_tunnel"`
 }
 
+type GBRQosInfo struct {
+	MaximumFlowBitRateDL    int64 `json:"maximum_flow_bit_rate_dl"`
+	MaximumFlowBitRateUL    int64 `json:"maximum_flow_bit_rate_ul"`
+	GuaranteedFlowBitRateDL int64 `json:"guaranteed_flow_bit_rate_dl"`
+	GuaranteedFlowBitRateUL int64 `json:"guaranteed_flow_bit_rate_ul"`
+}
+
 type QosFlowSetupRequest struct {
-	QosId  int64 `json:"qos_id"`
-	FiveQi int64 `json:"five_qi"`
-	PriArp int64 `json:"pri_arp"`
+	QosId             int64       `json:"qos_id"`
+	FiveQi            *int64      `json:"five_qi,omitempty"`
+	PriArp            int64       `json:"pri_arp"`
+	Dynamic           bool        `json:"dynamic,omitempty"`
+	PriorityLevelQos  *int64      `json:"priority_level_qos,omitempty"`
+	PacketDelayBudget *int64      `json:"packet_delay_budget,omitempty"`
+	GBRQosInformation *GBRQosInfo `json:"gbr_qos_information,omitempty"`
 }
 
 type PDUSessionResourceSetupRequestTransfer struct {
@@ -72,6 +83,7 @@ type PDUSessionResourceSetupRequestTransfer struct {
 	PduSType                *utils.EnumField[int64] `json:"pdu_s_type,omitempty"`
 	MaximumBitRate          *MaximumBitRate         `json:"maximum_bit_rate,omitempty"`
 	SecurityIndication      *UnsupportedIE          `json:"security_indication,omitempty"`
+	UnsupportedIEs          []string                `json:"unsupported_ies,omitempty"`
 }
 
 type PDUSessionResourceSetupCxtReq struct {
@@ -487,15 +499,39 @@ func buildPDUSessionInfoFromSetupRequestTransfer(transfer aper.OctetString) (*PD
 			qosFlowList := []QosFlowSetupRequest{}
 
 			for _, itemsQos := range ies.Value.QosFlowSetupRequestList.List {
-				qosId := itemsQos.QosFlowIdentifier.Value
-				fiveQi := itemsQos.QosFlowLevelQosParameters.QosCharacteristics.NonDynamic5QI.FiveQI.Value
-				priArp := itemsQos.QosFlowLevelQosParameters.AllocationAndRetentionPriority.PriorityLevelARP.Value
+				qosParams := itemsQos.QosFlowLevelQosParameters
+				entry := QosFlowSetupRequest{
+					QosId:  itemsQos.QosFlowIdentifier.Value,
+					PriArp: qosParams.AllocationAndRetentionPriority.PriorityLevelARP.Value,
+				}
 
-				qosFlowList = append(qosFlowList, QosFlowSetupRequest{
-					QosId:  qosId,
-					FiveQi: fiveQi,
-					PriArp: priArp,
-				})
+				switch qosParams.QosCharacteristics.Present {
+				case ngapType.QosCharacteristicsPresentNonDynamic5QI:
+					fiveQi := qosParams.QosCharacteristics.NonDynamic5QI.FiveQI.Value
+					entry.FiveQi = &fiveQi
+				case ngapType.QosCharacteristicsPresentDynamic5QI:
+					entry.Dynamic = true
+					priorityLevel := qosParams.QosCharacteristics.Dynamic5QI.PriorityLevelQos.Value
+					entry.PriorityLevelQos = &priorityLevel
+					packetDelay := qosParams.QosCharacteristics.Dynamic5QI.PacketDelayBudget.Value
+					entry.PacketDelayBudget = &packetDelay
+
+					if qosParams.QosCharacteristics.Dynamic5QI.FiveQI != nil {
+						fiveQi := qosParams.QosCharacteristics.Dynamic5QI.FiveQI.Value
+						entry.FiveQi = &fiveQi
+					}
+				}
+
+				if qosParams.GBRQosInformation != nil {
+					entry.GBRQosInformation = &GBRQosInfo{
+						MaximumFlowBitRateDL:    qosParams.GBRQosInformation.MaximumFlowBitRateDL.Value,
+						MaximumFlowBitRateUL:    qosParams.GBRQosInformation.MaximumFlowBitRateUL.Value,
+						GuaranteedFlowBitRateDL: qosParams.GBRQosInformation.GuaranteedFlowBitRateDL.Value,
+						GuaranteedFlowBitRateUL: qosParams.GBRQosInformation.GuaranteedFlowBitRateUL.Value,
+					}
+				}
+
+				qosFlowList = append(qosFlowList, entry)
 			}
 
 			pduTransfer.QosFlowSetupRequestList = qosFlowList
@@ -516,6 +552,8 @@ func buildPDUSessionInfoFromSetupRequestTransfer(transfer aper.OctetString) (*PD
 		case ngapType.ProtocolIEIDSecurityIndication:
 			securityIndication := makeUnsupportedIE()
 			pduTransfer.SecurityIndication = securityIndication
+		default:
+			pduTransfer.UnsupportedIEs = append(pduTransfer.UnsupportedIEs, fmt.Sprintf("unsupported ie type %d", ies.Id.Value))
 		}
 	}
 
