@@ -47,9 +47,8 @@ func (amf *AMF) ListAmfRan(page int, perPage int) (int, []*Radio) {
 }
 
 type OperatorInfo struct {
-	Tais          []models.Tai
-	Guami         *models.Guami
-	SupportedPLMN *models.PlmnSupportItem
+	Tais  []models.Tai
+	Guami *models.Guami
 }
 
 func (amf *AMF) GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
@@ -65,6 +64,24 @@ func (amf *AMF) GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get supported TAIs: %w", err)
 	}
+
+	operatorInfo := &OperatorInfo{
+		Tais: supportedTAIs,
+		Guami: &models.Guami{
+			PlmnID: &models.PlmnID{
+				Mcc: operator.Mcc,
+				Mnc: operator.Mnc,
+			},
+			AmfID: "cafe00", // To edit
+		},
+	}
+
+	return operatorInfo, nil
+}
+
+func (amf *AMF) ListOperatorSnssai(ctx context.Context) ([]models.Snssai, error) {
+	ctx, span := tracer.Start(ctx, "amf/list_operator_snssai")
+	defer span.End()
 
 	slices, err := amf.DBInstance.ListAllNetworkSlices(ctx)
 	if err != nil {
@@ -84,25 +101,7 @@ func (amf *AMF) GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 		})
 	}
 
-	operatorInfo := &OperatorInfo{
-		Tais: supportedTAIs,
-		Guami: &models.Guami{
-			PlmnID: &models.PlmnID{
-				Mcc: operator.Mcc,
-				Mnc: operator.Mnc,
-			},
-			AmfID: "cafe00", // To edit
-		},
-		SupportedPLMN: &models.PlmnSupportItem{
-			PlmnID: models.PlmnID{
-				Mcc: operator.Mcc,
-				Mnc: operator.Mnc,
-			},
-			SNssaiList: snssaiList,
-		},
-	}
-
-	return operatorInfo, nil
+	return snssaiList, nil
 }
 
 func getSupportedTAIs(operator *db.Operator) ([]models.Tai, error) {
@@ -127,8 +126,15 @@ func getSupportedTAIs(operator *db.Operator) ([]models.Tai, error) {
 	return tais, nil
 }
 
-func (amf *AMF) GetSubscriberAllowedNssai(ctx context.Context, supi etsi.SUPI) ([]models.Snssai, error) {
-	ctx, span := tracer.Start(ctx, "amf/get_subscriber_allowed_nssai",
+// SubscriberProfile holds the per-subscriber session configuration
+// derived from the subscriber's profile: allowed network slices and bitrate.
+type SubscriberProfile struct {
+	AllowedNssai []models.Snssai
+	Ambr         *models.Ambr
+}
+
+func (amf *AMF) GetSubscriberProfile(ctx context.Context, supi etsi.SUPI) (*SubscriberProfile, error) {
+	ctx, span := tracer.Start(ctx, "amf/get_subscriber_profile",
 		trace.WithAttributes(
 			attribute.String("supi", supi.String()),
 		),
@@ -142,24 +148,15 @@ func (amf *AMF) GetSubscriberAllowedNssai(ctx context.Context, supi etsi.SUPI) (
 		return nil, fmt.Errorf("couldn't get subscriber %s: %w", imsi, err)
 	}
 
+	// Derive allowed NSSAI from the subscriber's profile policies.
 	policies, err := amf.DBInstance.ListPoliciesByProfile(ctx, subscriber.ProfileID)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't list policies for profile %d: %w", subscriber.ProfileID, err)
 	}
 
-	allSlices, err := amf.DBInstance.ListAllNetworkSlices(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't list network slices: %w", err)
-	}
-
-	sliceByID := make(map[int]*db.NetworkSlice, len(allSlices))
-	for i := range allSlices {
-		sliceByID[allSlices[i].ID] = &allSlices[i]
-	}
-
 	seen := make(map[int]struct{})
 
-	var result []models.Snssai
+	var allowedNssai []models.Snssai
 
 	for _, p := range policies {
 		if _, ok := seen[p.SliceID]; ok {
@@ -168,9 +165,9 @@ func (amf *AMF) GetSubscriberAllowedNssai(ctx context.Context, supi etsi.SUPI) (
 
 		seen[p.SliceID] = struct{}{}
 
-		slice, ok := sliceByID[p.SliceID]
-		if !ok {
-			return nil, fmt.Errorf("couldn't find slice %d", p.SliceID)
+		slice, err := amf.DBInstance.GetNetworkSliceByID(ctx, p.SliceID)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't get slice %d: %w", p.SliceID, err)
 		}
 
 		sd := ""
@@ -178,13 +175,25 @@ func (amf *AMF) GetSubscriberAllowedNssai(ctx context.Context, supi etsi.SUPI) (
 			sd = *slice.Sd
 		}
 
-		result = append(result, models.Snssai{
+		allowedNssai = append(allowedNssai, models.Snssai{
 			Sst: slice.Sst,
 			Sd:  sd,
 		})
 	}
 
-	return result, nil
+	// Derive bitrate from the subscriber's profile.
+	profile, err := amf.DBInstance.GetProfileByID(ctx, subscriber.ProfileID)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
+	}
+
+	return &SubscriberProfile{
+		AllowedNssai: allowedNssai,
+		Ambr: &models.Ambr{
+			Downlink: profile.UeAmbrDownlink,
+			Uplink:   profile.UeAmbrUplink,
+		},
+	}, nil
 }
 
 func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai) (string, error) {
@@ -208,71 +217,33 @@ func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *mo
 		return "", fmt.Errorf("couldn't get subscriber %s: %v", imsi, err)
 	}
 
-	slices, err := amf.DBInstance.ListAllNetworkSlices(ctx)
+	policies, err := amf.DBInstance.ListPoliciesByProfile(ctx, subscriber.ProfileID)
 	if err != nil {
-		return "", fmt.Errorf("couldn't list network slices: %v", err)
+		return "", fmt.Errorf("couldn't list policies for profile %d: %v", subscriber.ProfileID, err)
 	}
 
-	sliceID := -1
-
-	for _, s := range slices {
-		if s.Sst != snssai.Sst {
-			continue
+	for _, p := range policies {
+		slice, err := amf.DBInstance.GetNetworkSliceByID(ctx, p.SliceID)
+		if err != nil {
+			return "", fmt.Errorf("couldn't get slice %d: %v", p.SliceID, err)
 		}
 
 		sliceSd := ""
-		if s.Sd != nil {
-			sliceSd = *s.Sd
+		if slice.Sd != nil {
+			sliceSd = *slice.Sd
 		}
 
-		if sliceSd == snssai.Sd {
-			sliceID = s.ID
+		if slice.Sst == snssai.Sst && sliceSd == snssai.Sd {
+			dataNetwork, err := amf.DBInstance.GetDataNetworkByID(ctx, p.DataNetworkID)
+			if err != nil {
+				return "", fmt.Errorf("couldn't get data network %d: %v", p.DataNetworkID, err)
+			}
 
-			break
+			return dataNetwork.Name, nil
 		}
 	}
 
-	if sliceID < 0 {
-		return "", fmt.Errorf("no slice matching sst=%d sd=%q", snssai.Sst, snssai.Sd)
-	}
-
-	policy, err := amf.DBInstance.GetPolicyByProfileAndSlice(ctx, subscriber.ProfileID, sliceID)
-	if err != nil {
-		return "", fmt.Errorf("couldn't get policy for profile %d slice %d: %v", subscriber.ProfileID, sliceID, err)
-	}
-
-	dataNetwork, err := amf.DBInstance.GetDataNetworkByID(ctx, policy.DataNetworkID)
-	if err != nil {
-		return "", fmt.Errorf("couldn't get data network %d: %v", policy.DataNetworkID, err)
-	}
-
-	return dataNetwork.Name, nil
-}
-
-func (amf *AMF) GetSubscriberBitrate(ctx context.Context, supi etsi.SUPI) (*models.Ambr, error) {
-	ctx, span := tracer.Start(ctx, "amf/get_subscriber_bitrate",
-		trace.WithAttributes(
-			attribute.String("supi", supi.String()),
-		),
-	)
-	defer span.End()
-
-	imsi := supi.IMSI()
-
-	subscriber, err := amf.DBInstance.GetSubscriber(ctx, imsi)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get subscriber %s: %v", imsi, err)
-	}
-
-	profile, err := amf.DBInstance.GetProfileByID(ctx, subscriber.ProfileID)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
-	}
-
-	return &models.Ambr{
-		Downlink: profile.UeAmbrDownlink,
-		Uplink:   profile.UeAmbrUplink,
-	}, nil
+	return "", fmt.Errorf("no policy matching sst=%d sd=%q for profile %d", snssai.Sst, snssai.Sd, subscriber.ProfileID)
 }
 
 var cipheringNameToAlg = map[string]uint8{

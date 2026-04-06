@@ -144,7 +144,13 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return
 	}
 
-	err = ran.NGAPSender.SendNGSetupResponse(ctx, operatorInfo.Guami, operatorInfo.SupportedPLMN, amfInstance.Name, amfInstance.RelativeCapacity)
+	snssaiList, err := amfInstance.ListOperatorSnssai(ctx)
+	if err != nil {
+		logger.WithTrace(ctx, ran.Log).Error("Could not list operator SNSSAI", zap.Error(err))
+		return
+	}
+
+	err = ran.NGAPSender.SendNGSetupResponse(ctx, operatorInfo.Guami, snssaiList, amfInstance.Name, amfInstance.RelativeCapacity)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error sending NG Setup Response", zap.Error(err))
 		return

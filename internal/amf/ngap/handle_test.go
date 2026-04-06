@@ -164,6 +164,10 @@ func (fdb *FakeDBInstance) GetDataNetworkByID(ctx context.Context, id int) (*db.
 	}, nil
 }
 
+func (fdb *FakeDBInstance) GetNetworkSliceByID(_ context.Context, id int) (*db.NetworkSlice, error) {
+	return &db.NetworkSlice{ID: id, Name: "TestSlice", Sst: 1}, nil
+}
+
 func (fdb *FakeDBInstance) GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error) {
 	return &db.Subscriber{
 		Imsi: imsi,
@@ -196,7 +200,7 @@ type NGSetupFailure struct {
 
 type NGSetupResponse struct {
 	Guami               *models.Guami
-	PlmnSupported       *models.PlmnSupportItem
+	SnssaiList          []models.Snssai
 	AmfName             string
 	AmfRelativeCapacity int64
 }
@@ -248,7 +252,7 @@ type PathSwitchRequestAcknowledge struct {
 	NH                                []byte
 	PDUSessionResourceSwitchedList    ngapType.PDUSessionResourceSwitchedList
 	PDUSessionResourceReleasedListAck ngapType.PDUSessionResourceReleasedListPSAck
-	SupportedPLMN                     *models.PlmnSupportItem
+	SnssaiList                        []models.Snssai
 }
 
 type FakeNGAPSender struct {
@@ -273,10 +277,10 @@ func (fng *FakeNGAPSender) SendNGSetupFailure(ctx context.Context, cause *ngapTy
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendNGSetupResponse(ctx context.Context, guami *models.Guami, plmnSupported *models.PlmnSupportItem, amfName string, amfRelativeCapacity int64) error {
+func (fng *FakeNGAPSender) SendNGSetupResponse(ctx context.Context, guami *models.Guami, snssaiList []models.Snssai, amfName string, amfRelativeCapacity int64) error {
 	fng.SentNGSetupResponses = append(fng.SentNGSetupResponses, &NGSetupResponse{
 		Guami:               guami,
-		PlmnSupported:       plmnSupported,
+		SnssaiList:          snssaiList,
 		AmfName:             amfName,
 		AmfRelativeCapacity: amfRelativeCapacity,
 	})
@@ -393,7 +397,7 @@ func (fng *FakeNGAPSender) SendInitialContextSetupRequest(ctx context.Context, a
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendPathSwitchRequestAcknowledge(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ueSecurityCapability *nasType.UESecurityCapability, ncc uint8, nh []byte, pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList, pduSessionResourceReleasedList ngapType.PDUSessionResourceReleasedListPSAck, supportedPLMN *models.PlmnSupportItem) error {
+func (fng *FakeNGAPSender) SendPathSwitchRequestAcknowledge(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ueSecurityCapability *nasType.UESecurityCapability, ncc uint8, nh []byte, pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList, pduSessionResourceReleasedList ngapType.PDUSessionResourceReleasedListPSAck, snssaiList []models.Snssai) error {
 	fng.SentPathSwitchRequestAcknowledges = append(fng.SentPathSwitchRequestAcknowledges, &PathSwitchRequestAcknowledge{
 		AmfUeNgapID:                       amfUeNgapID,
 		RanUeNgapID:                       ranUeNgapID,
@@ -402,7 +406,7 @@ func (fng *FakeNGAPSender) SendPathSwitchRequestAcknowledge(ctx context.Context,
 		NH:                                nh,
 		PDUSessionResourceSwitchedList:    pduSessionResourceSwitchedList,
 		PDUSessionResourceReleasedListAck: pduSessionResourceReleasedList,
-		SupportedPLMN:                     supportedPLMN,
+		SnssaiList:                        snssaiList,
 	})
 
 	return nil
@@ -420,7 +424,7 @@ func (fng *FakeNGAPSender) SendHandoverRequest(
 	cause ngapType.Cause,
 	pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq,
 	sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer,
-	supportedPLMN *models.PlmnSupportItem,
+	snssaiList []models.Snssai,
 	supportedGUAMI *models.Guami,
 ) error {
 	fng.SentHandoverRequests = append(fng.SentHandoverRequests, &HandoverRequest{

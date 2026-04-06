@@ -140,17 +140,9 @@ func TestBuildRegistrationAccept_MultipleAllowedNSSAI(t *testing.T) {
 		{Sst: 2, Sd: "aabbcc"},
 	}
 
-	supportedPLMN := &models.PlmnSupportItem{
-		PlmnID: models.PlmnID{Mcc: "001", Mnc: "01"},
-		SNssaiList: []models.Snssai{
-			{Sst: 1, Sd: "010203"},
-			{Sst: 2, Sd: "aabbcc"},
-		},
-	}
-
 	amfInstance := amf.New(nil, nil, nil)
 
-	raw, err := message.BuildRegistrationAccept(amfInstance, ue, nil, nil, nil, nil, supportedPLMN)
+	raw, err := message.BuildRegistrationAccept(amfInstance, ue, nil, nil, nil, nil, models.PlmnID{Mcc: "001", Mnc: "01"})
 	if err != nil {
 		t.Fatalf("BuildRegistrationAccept failed: %v", err)
 	}
@@ -181,14 +173,9 @@ func TestBuildRegistrationAccept_SingleAllowedNSSAI(t *testing.T) {
 		{Sst: 1, Sd: "010203"},
 	}
 
-	supportedPLMN := &models.PlmnSupportItem{
-		PlmnID:     models.PlmnID{Mcc: "001", Mnc: "01"},
-		SNssaiList: []models.Snssai{{Sst: 1, Sd: "010203"}},
-	}
-
 	amfInstance := amf.New(nil, nil, nil)
 
-	raw, err := message.BuildRegistrationAccept(amfInstance, ue, nil, nil, nil, nil, supportedPLMN)
+	raw, err := message.BuildRegistrationAccept(amfInstance, ue, nil, nil, nil, nil, models.PlmnID{Mcc: "001", Mnc: "01"})
 	if err != nil {
 		t.Fatalf("BuildRegistrationAccept failed: %v", err)
 	}
@@ -216,14 +203,9 @@ func TestBuildRegistrationAccept_EmptyAllowedNSSAI(t *testing.T) {
 	ue.T3512Value = 3600 * time.Second
 	ue.AllowedNssai = []models.Snssai{}
 
-	supportedPLMN := &models.PlmnSupportItem{
-		PlmnID:     models.PlmnID{Mcc: "001", Mnc: "01"},
-		SNssaiList: []models.Snssai{{Sst: 1, Sd: "010203"}},
-	}
-
 	amfInstance := amf.New(nil, nil, nil)
 
-	raw, err := message.BuildRegistrationAccept(amfInstance, ue, nil, nil, nil, nil, supportedPLMN)
+	raw, err := message.BuildRegistrationAccept(amfInstance, ue, nil, nil, nil, nil, models.PlmnID{Mcc: "001", Mnc: "01"})
 	if err != nil {
 		t.Fatalf("BuildRegistrationAccept failed: %v", err)
 	}

@@ -25,13 +25,13 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	// Derive per-subscriber Allowed NSSAI from the subscriber's profile policies.
-	subscriberSlices, err := amfInstance.GetSubscriberAllowedNssai(ctx, ue.Supi)
+	subscriberProfile, err := amfInstance.GetSubscriberProfile(ctx, ue.Supi)
 	if err != nil {
-		return fmt.Errorf("error getting subscriber allowed NSSAI: %v", err)
+		return fmt.Errorf("error getting subscriber profile: %v", err)
 	}
 
-	ue.AllowedNssai = subscriberSlices
+	ue.AllowedNssai = subscriberProfile.AllowedNssai
+	ue.Ambr = subscriberProfile.Ambr
 
 	if ue.RegistrationRequest.MICOIndication != nil {
 		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.RegistrationRequest.GetRAAI()))
@@ -46,13 +46,6 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 		ue.UESpecificDRX = drx
 	}
-
-	bitRate, err := amfInstance.GetSubscriberBitrate(ctx, ue.Supi)
-	if err != nil {
-		return fmt.Errorf("failed to get subscriber data: %v", err)
-	}
-
-	ue.Ambr = bitRate
 
 	ue.AllocateRegistrationArea(operatorInfo.Tais)
 
@@ -73,7 +66,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 	UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
 
-	err = message.SendRegistrationAccept(ctx, amfInstance, ue, nil, nil, nil, nil, nil, operatorInfo.SupportedPLMN, operatorInfo.Guami)
+	err = message.SendRegistrationAccept(ctx, amfInstance, ue, nil, nil, nil, nil, nil, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
 	if err != nil {
 		return fmt.Errorf("error sending GMM registration accept: %v", err)
 	}

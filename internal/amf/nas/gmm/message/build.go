@@ -298,7 +298,7 @@ func BuildRegistrationAccept(
 	pDUSessionStatus *[16]bool,
 	reactivationResult *[16]bool,
 	errPduSessionID, errCause []uint8,
-	supportedPLMN *models.PlmnSupportItem,
+	equivalentPlmnID models.PlmnID,
 ) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
@@ -331,7 +331,7 @@ func BuildRegistrationAccept(
 
 	var buf []uint8
 
-	plmnID, err := util.PlmnIDToNas(supportedPLMN.PlmnID)
+	plmnID, err := util.PlmnIDToNas(equivalentPlmnID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert PLMN ID to NAS: %s", err)
 	}

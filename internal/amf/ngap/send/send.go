@@ -82,8 +82,8 @@ func (s *RealNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType N
 	return nil
 }
 
-func (s *RealNGAPSender) SendNGSetupResponse(ctx context.Context, guami *models.Guami, plmnSupported *models.PlmnSupportItem, amfName string, amfRelativeCapacity int64) error {
-	pkt, err := buildNGSetupResponse(guami, plmnSupported, amfName, amfRelativeCapacity)
+func (s *RealNGAPSender) SendNGSetupResponse(ctx context.Context, guami *models.Guami, snssaiList []models.Snssai, amfName string, amfRelativeCapacity int64) error {
+	pkt, err := buildNGSetupResponse(guami, snssaiList, amfName, amfRelativeCapacity)
 	if err != nil {
 		return fmt.Errorf("error building NG Setup Response: %s", err.Error())
 	}
@@ -440,7 +440,7 @@ func (s *RealNGAPSender) SendPathSwitchRequestAcknowledge(
 	nh []byte,
 	pduSessionResourceSwitchedList ngapType.PDUSessionResourceSwitchedList,
 	pduSessionResourceReleasedList ngapType.PDUSessionResourceReleasedListPSAck,
-	supportedPLMN *models.PlmnSupportItem,
+	snssaiList []models.Snssai,
 ) error {
 	pkt, err := buildPathSwitchRequestAcknowledge(
 		amfUeNgapID,
@@ -450,7 +450,7 @@ func (s *RealNGAPSender) SendPathSwitchRequestAcknowledge(
 		nh,
 		pduSessionResourceSwitchedList,
 		pduSessionResourceReleasedList,
-		supportedPLMN,
+		snssaiList,
 	)
 	if err != nil {
 		return fmt.Errorf("error building path switch request acknowledge: %s", err.Error())
@@ -483,7 +483,7 @@ func (s *RealNGAPSender) SendHandoverRequest(
 	cause ngapType.Cause,
 	pduSessionResourceSetupListHOReq ngapType.PDUSessionResourceSetupListHOReq,
 	sourceToTargetTransparentContainer ngapType.SourceToTargetTransparentContainer,
-	supportedPLMN *models.PlmnSupportItem,
+	snssaiList []models.Snssai,
 	supportedGUAMI *models.Guami,
 ) error {
 	pkt, err := buildHandoverRequest(
@@ -497,7 +497,7 @@ func (s *RealNGAPSender) SendHandoverRequest(
 		cause,
 		pduSessionResourceSetupListHOReq,
 		sourceToTargetTransparentContainer,
-		supportedPLMN,
+		snssaiList,
 		supportedGUAMI,
 	)
 	if err != nil {

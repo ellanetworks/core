@@ -319,7 +319,7 @@ func SendRegistrationAccept(
 	reactivationResult *[16]bool,
 	errPduSessionID, errCause []uint8,
 	pduSessionResourceSetupList *ngapType.PDUSessionResourceSetupListCxtReq,
-	supportedPLMN *models.PlmnSupportItem,
+	equivalentPlmnID models.PlmnID,
 	supportedGUAMI *models.Guami,
 ) error {
 	if ue == nil {
@@ -334,7 +334,7 @@ func SendRegistrationAccept(
 	)
 	defer span.End()
 
-	nasMsg, err := BuildRegistrationAccept(amfInstance, ue, pDUSessionStatus, reactivationResult, errPduSessionID, errCause, supportedPLMN)
+	nasMsg, err := BuildRegistrationAccept(amfInstance, ue, pDUSessionStatus, reactivationResult, errPduSessionID, errCause, equivalentPlmnID)
 	if err != nil {
 		return fmt.Errorf("error building registration accept: %s", err.Error())
 	}

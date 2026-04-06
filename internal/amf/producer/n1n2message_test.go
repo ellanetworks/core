@@ -31,7 +31,7 @@ type fakeNGAPSender struct {
 
 func (f *fakeNGAPSender) SendToRan(context.Context, []byte, send.NGAPProcedure) error { return nil }
 func (f *fakeNGAPSender) SendNGSetupFailure(context.Context, *ngapType.Cause) error   { return nil }
-func (f *fakeNGAPSender) SendNGSetupResponse(context.Context, *models.Guami, *models.PlmnSupportItem, string, int64) error {
+func (f *fakeNGAPSender) SendNGSetupResponse(context.Context, *models.Guami, []models.Snssai, string, int64) error {
 	return nil
 }
 
@@ -106,11 +106,11 @@ func (f *fakeNGAPSender) SendInitialContextSetupRequest(_ context.Context, _, _ 
 	return nil
 }
 
-func (f *fakeNGAPSender) SendPathSwitchRequestAcknowledge(context.Context, int64, int64, *nasType.UESecurityCapability, uint8, []byte, ngapType.PDUSessionResourceSwitchedList, ngapType.PDUSessionResourceReleasedListPSAck, *models.PlmnSupportItem) error {
+func (f *fakeNGAPSender) SendPathSwitchRequestAcknowledge(context.Context, int64, int64, *nasType.UESecurityCapability, uint8, []byte, ngapType.PDUSessionResourceSwitchedList, ngapType.PDUSessionResourceReleasedListPSAck, []models.Snssai) error {
 	return nil
 }
 
-func (f *fakeNGAPSender) SendHandoverRequest(context.Context, int64, ngapType.HandoverType, string, string, *nasType.UESecurityCapability, uint8, []byte, ngapType.Cause, ngapType.PDUSessionResourceSetupListHOReq, ngapType.SourceToTargetTransparentContainer, *models.PlmnSupportItem, *models.Guami) error {
+func (f *fakeNGAPSender) SendHandoverRequest(context.Context, int64, ngapType.HandoverType, string, string, *nasType.UESecurityCapability, uint8, []byte, ngapType.Cause, ngapType.PDUSessionResourceSetupListHOReq, ngapType.SourceToTargetTransparentContainer, []models.Snssai, *models.Guami) error {
 	return nil
 }
 
@@ -127,6 +127,10 @@ func (f *fakeDBInstance) GetSubscriber(context.Context, string) (*db.Subscriber,
 }
 
 func (f *fakeDBInstance) GetDataNetworkByID(context.Context, int) (*db.DataNetwork, error) {
+	return nil, nil
+}
+
+func (f *fakeDBInstance) GetNetworkSliceByID(context.Context, int) (*db.NetworkSlice, error) {
 	return nil, nil
 }
 
