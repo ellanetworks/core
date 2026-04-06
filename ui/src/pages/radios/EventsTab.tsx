@@ -214,7 +214,7 @@ export default function EventsTab() {
   const [isNetworkClearModalOpen, setNetworkClearModalOpen] = useState(false);
 
   // URL params for deep-linking
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const radioParam = searchParams.get("radio") ?? "";
   const eventIdParam = searchParams.get("event");
 
@@ -403,31 +403,54 @@ export default function EventsTab() {
     ];
   }, [theme]);
 
-  const handleRowClick = useCallback((params: GridRowParams<APIRadioEvent>) => {
-    const r = params.row;
-    setSelectionModel(makeSelection([params.id]));
-    setSelectedRow({
-      id: String(r.id),
-      timestamp: r.timestamp,
-      protocol: r.protocol,
-      messageType: r.message_type,
-      direction: r.direction,
-      radio: r.radio,
-      address: r.address,
-    });
-    setViewEventDrawerOpen(true);
-  }, []);
+  const handleRowClick = useCallback(
+    (params: GridRowParams<APIRadioEvent>) => {
+      const r = params.row;
+      setSelectionModel(makeSelection([params.id]));
+      setSelectedRow({
+        id: String(r.id),
+        timestamp: r.timestamp,
+        protocol: r.protocol,
+        messageType: r.message_type,
+        direction: r.direction,
+        radio: r.radio,
+        address: r.address,
+      });
+      setViewEventDrawerOpen(true);
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.set("event", String(r.id));
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
 
   const subDescription =
     "Review NGAP messages between Ella Core and 5G radios. These logs are useful for auditing and troubleshooting purposes.";
 
+  const closePanel = useCallback(() => {
+    setViewEventDrawerOpen(false);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("event");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [setSearchParams]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setViewEventDrawerOpen(false);
+      if (e.key === "Escape") closePanel();
     };
     if (viewEventDrawerOpen) window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [viewEventDrawerOpen]);
+  }, [viewEventDrawerOpen, closePanel]);
 
   // --- Resize handle state ---
   const [panelWidth, setPanelWidth] = useState(PANEL_DEFAULT_WIDTH);
@@ -730,11 +753,7 @@ export default function EventsTab() {
                 {selectedRow?.messageType ?? "Event details"}
               </Typography>
             </Box>
-            <IconButton
-              aria-label="Close"
-              onClick={() => setViewEventDrawerOpen(false)}
-              size="small"
-            >
+            <IconButton aria-label="Close" onClick={closePanel} size="small">
               <CloseIcon />
             </IconButton>
           </Box>
