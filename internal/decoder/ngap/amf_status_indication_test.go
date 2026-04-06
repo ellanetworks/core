@@ -21,10 +21,6 @@ func TestDecodeNGAPMessage_AMFStatusIndication(t *testing.T) {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
-	if ngapMsg.MessageType != "AMFStatusIndication" {
-		t.Errorf("expected MessageType=AMFStatusIndication, got %v", ngapMsg.MessageType)
-	}
-
 	if ngapMsg.ProcedureCode.Label != "AMFStatusIndication" {
 		t.Errorf("expected ProcedureCode=AMFStatusIndication, got %v", ngapMsg.ProcedureCode)
 	}

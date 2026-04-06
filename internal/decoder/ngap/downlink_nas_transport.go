@@ -10,8 +10,9 @@ import (
 )
 
 type NASPDU struct {
-	Raw     []byte          `json:"raw"`
-	Decoded *nas.NASMessage `json:"decoded"`
+	Protocol string          `json:"protocol"`
+	RawHex   string          `json:"raw_hex"`
+	Decoded  *nas.NASMessage `json:"decoded"`
 }
 
 type RATRestriction struct {
@@ -39,8 +40,9 @@ type MobilityRestrictionList struct {
 }
 
 type UEAggregateMaximumBitRate struct {
-	Downlink int64 `json:"downlink"`
-	Uplink   int64 `json:"uplink"`
+	Downlink int64  `json:"downlink"`
+	Uplink   int64  `json:"uplink"`
+	Unit     string `json:"unit"`
 }
 
 func buildDownlinkNASTransport(downlinkNASTransport ngapType.DownlinkNASTransport) NGAPMessageValue {
@@ -78,8 +80,9 @@ func buildDownlinkNASTransport(downlinkNASTransport ngapType.DownlinkNASTranspor
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value: NASPDU{
-					Raw:     ie.Value.NASPDU.Value,
-					Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value),
+					Protocol: "NAS",
+					RawHex:   hex.EncodeToString(ie.Value.NASPDU.Value),
+					Decoded:  nas.DecodeNASMessage(ie.Value.NASPDU.Value),
 				},
 			})
 		case ngapType.ProtocolIEIDMobilityRestrictionList:
@@ -124,6 +127,7 @@ func buildUEAggregateMaximumBitRateIE(ueambr ngapType.UEAggregateMaximumBitRate)
 	return UEAggregateMaximumBitRate{
 		Downlink: ueambr.UEAggregateMaximumBitRateDL.Value,
 		Uplink:   ueambr.UEAggregateMaximumBitRateUL.Value,
+		Unit:     "bps",
 	}
 }
 

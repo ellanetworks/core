@@ -7,6 +7,7 @@ import {
   IconButton,
   Divider,
   CircularProgress,
+  Collapse,
   Stack,
   Tooltip,
 } from "@mui/material";
@@ -14,13 +15,50 @@ import {
   ContentCopy as CopyIcon,
   Refresh as RefreshIcon,
   WarningAmberRounded as WarningAmberRoundedIcon,
+  ExpandMore as ExpandMoreIcon,
+  ChevronRight as ChevronRightIcon,
 } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import { getRadioEvent, type RadioEventContent } from "@/queries/radio_events";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { GenericMessageView } from "@/components/EventMessageRender";
+import { NGAPMessageView } from "@/components/NGAPMessageRender";
+
+function formatHexDump(base64: string): string {
+  let bin: string;
+  try {
+    bin = atob(base64);
+  } catch {
+    return "(invalid base64)";
+  }
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+
+  const lines: string[] = [];
+  for (let off = 0; off < bytes.length; off += 16) {
+    const chunk = bytes.slice(off, off + 16);
+    const offset = off.toString(16).padStart(4, "0");
+    const hexParts: string[] = [];
+    const asciiParts: string[] = [];
+    for (let i = 0; i < 16; i++) {
+      if (i === 8) hexParts.push("");
+      if (i < chunk.length) {
+        hexParts.push(chunk[i].toString(16).padStart(2, "0"));
+        asciiParts.push(
+          chunk[i] >= 0x20 && chunk[i] <= 0x7e
+            ? String.fromCharCode(chunk[i])
+            : ".",
+        );
+      } else {
+        hexParts.push("  ");
+        asciiParts.push(" ");
+      }
+    }
+    lines.push(`${offset}  ${hexParts.join(" ")}  ${asciiParts.join("")}`);
+  }
+  return lines.join("\n");
+}
 
 export interface LogRow {
   id: string;
@@ -31,34 +69,6 @@ export interface LogRow {
   messageType: string;
   direction: string;
 }
-
-const MonoBlock: React.FC<{ children: React.ReactNode; sxProp?: object }> = ({
-  children,
-  sxProp,
-}) => (
-  <Box
-    component="pre"
-    sx={{
-      m: 0,
-      p: 1.25,
-      borderRadius: 1,
-      bgcolor: "background.default",
-      fontFamily:
-        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-      fontSize: 13,
-      lineHeight: 1.5,
-      whiteSpace: "pre-wrap",
-      wordBreak: "break-word",
-      overflowWrap: "anywhere",
-      overflowX: "hidden",
-      maxWidth: "100%",
-      border: (t) => `1px solid ${t.palette.divider}`,
-      ...sxProp,
-    }}
-  >
-    {children}
-  </Box>
-);
 
 const MetaRow: React.FC<{
   label: string;
@@ -79,6 +89,79 @@ const MetaRow: React.FC<{
     <Typography variant="subtitle2">{value ?? "—"}</Typography>
   </Box>
 );
+
+const RawHexSection: React.FC<{
+  hexDump: string;
+  onCopy: (text: string) => void;
+}> = ({ hexDump, onCopy }) => {
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <Box sx={{ flexShrink: 0 }}>
+      <Box
+        sx={{
+          mt: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            cursor: hexDump ? "pointer" : "default",
+          }}
+          onClick={() => hexDump && setOpen((s) => !s)}
+        >
+          {hexDump &&
+            (open ? (
+              <ExpandMoreIcon fontSize="small" sx={{ mr: 0.5 }} />
+            ) : (
+              <ChevronRightIcon fontSize="small" sx={{ mr: 0.5 }} />
+            ))}
+          <Typography variant="subtitle2">Raw</Typography>
+        </Box>
+        <Tooltip title="Copy raw hex dump">
+          <span>
+            <IconButton
+              size="small"
+              onClick={() => onCopy(hexDump)}
+              aria-label="Copy raw hex dump"
+              disabled={!hexDump}
+            >
+              <CopyIcon fontSize="small" />
+            </IconButton>
+          </span>
+        </Tooltip>
+      </Box>
+      <Collapse in={open}>
+        {hexDump ? (
+          <Box
+            component="pre"
+            sx={{
+              fontFamily:
+                "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+              fontSize: 12,
+              lineHeight: 1.4,
+              color: "text.secondary",
+              overflow: "auto",
+              maxHeight: 200,
+              m: 0,
+              mt: 0.5,
+            }}
+          >
+            {hexDump}
+          </Box>
+        ) : (
+          <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
+            —
+          </Typography>
+        )}
+      </Collapse>
+    </Box>
+  );
+};
 
 export default function EventDetails({
   open,
@@ -129,12 +212,8 @@ export default function EventDetails({
 
   const decoded = decodedData?.decoded;
   const raw = decodedData?.raw;
-  const rawString =
-    raw == null
-      ? ""
-      : typeof raw === "string"
-        ? raw
-        : stringify(Array.from(raw));
+  const rawString = raw == null ? "" : typeof raw === "string" ? raw : "";
+  const hexDump = rawString ? formatHexDump(rawString) : "";
 
   const decodedContent = (() => {
     if (isRetrieving || isRadioEventFetching) {
@@ -166,14 +245,12 @@ export default function EventDetails({
         </Alert>
       );
     }
-    if (!decodedData)
+    if (!decodedData || !decoded)
       return <Typography variant="body2">No decoded content.</Typography>;
 
-    const pretty = <GenericMessageView decoded={decoded} />;
-
-    return pretty ? (
+    return (
       <>
-        {pretty}
+        <NGAPMessageView decoded={decoded} />
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.75 }}>
           <WarningAmberRoundedIcon
             fontSize="small"
@@ -181,12 +258,11 @@ export default function EventDetails({
             aria-hidden
           />
           <Typography variant="caption" sx={{ color: "text.secondary" }}>
-            message decoding support is partial and content may be incomplete
+            NGAP decoding is partial — some Information Elements may appear as
+            raw values
           </Typography>
         </Box>
       </>
-    ) : (
-      <MonoBlock>{stringify(decoded)}</MonoBlock>
     );
   })();
 
@@ -278,50 +354,9 @@ export default function EventDetails({
         {decodedContent}
       </Box>
 
-      {/* Raw — single line, always visible at bottom */}
+      {/* Raw — hex dump (collapsible) */}
       <Divider sx={{ flexShrink: 0, mt: 1.5 }} />
-      <Box
-        sx={{
-          flexShrink: 0,
-          mt: 1,
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-        }}
-      >
-        <Typography variant="subtitle2" sx={{ flexShrink: 0 }}>
-          Raw
-        </Typography>
-        <Typography
-          variant="body2"
-          sx={{
-            flex: 1,
-            minWidth: 0,
-            fontFamily:
-              "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-            fontSize: 13,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            color: "text.secondary",
-          }}
-        >
-          {rawString || "—"}
-        </Typography>
-        <Tooltip title="Copy raw message">
-          <span>
-            <IconButton
-              size="small"
-              onClick={() => handleCopy(rawString)}
-              aria-label="Copy raw message"
-              disabled={!rawString}
-              sx={{ flexShrink: 0 }}
-            >
-              <CopyIcon fontSize="small" />
-            </IconButton>
-          </span>
-        </Tooltip>
-      </Box>
+      <RawHexSection hexDump={hexDump} onCopy={handleCopy} />
     </Box>
   );
 }

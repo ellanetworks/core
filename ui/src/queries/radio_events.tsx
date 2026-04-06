@@ -48,16 +48,16 @@ export type EnumField = {
   type: "enum";
 };
 
-export type DecodedRadioEvent = {
+export type DecodedNGAPMessage = {
+  summary?: string;
   pdu_type: string;
-  message_type: string;
   procedure_code: EnumField;
   criticality: EnumField;
   value: unknown;
 };
 
 export type RadioEventContent = {
-  decoded: DecodedRadioEvent;
+  decoded: DecodedNGAPMessage;
   raw: string;
 };
 

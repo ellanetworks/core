@@ -48,6 +48,7 @@ type CoreNetworkAssistanceInformation struct {
 type MaximumBitRate struct {
 	DownlinkNAggregateMaximumBitRate uint64 `json:"downlink_n_aggregate_maximum_bit_rate"`
 	UplinkNAggregateMaximumBitRate   uint64 `json:"uplink_n_aggregate_maximum_bit_rate"`
+	Unit                             string `json:"unit"`
 }
 
 type GTPTunnel struct {
@@ -78,6 +79,8 @@ type PDUSessionResourceSetupCxtReq struct {
 	NASPDU                                 *NASPDU                                `json:"nas_pdu,omitempty"`
 	SNSSAI                                 SNSSAI                                 `json:"snssai"`
 	PDUSessionResourceSetupRequestTransfer PDUSessionResourceSetupRequestTransfer `json:"pdu_session_resource_setup_request_transfer"`
+
+	Error string `json:"error,omitempty"`
 }
 
 type UESecurityCapabilities struct {
@@ -178,8 +181,9 @@ func buildInitialContextSetupRequest(initialContextSetupRequest ngapType.Initial
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value: NASPDU{
-					Raw:     ie.Value.NASPDU.Value,
-					Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value),
+					Protocol: "NAS",
+					RawHex:   hex.EncodeToString(ie.Value.NASPDU.Value),
+					Decoded:  nas.DecodeNASMessage(ie.Value.NASPDU.Value),
 				},
 			})
 		case ngapType.ProtocolIEIDUERadioCapability:
@@ -205,26 +209,29 @@ func buildInitialContextSetupRequest(initialContextSetupRequest ngapType.Initial
 func buildPDUSessionResourceSetupListCxtReq(pduSessionResourceSetupListCxtReq ngapType.PDUSessionResourceSetupListCxtReq) []PDUSessionResourceSetupCxtReq {
 	var pduSessionResourceSetupList []PDUSessionResourceSetupCxtReq
 
-	for i := 0; i < len(pduSessionResourceSetupListCxtReq.List); i++ {
-		item := pduSessionResourceSetupListCxtReq.List[i]
-
+	for _, item := range pduSessionResourceSetupListCxtReq.List {
 		setupRequestTransfer, err := buildPDUSessionInfoFromSetupRequestTransfer(item.PDUSessionResourceSetupRequestTransfer)
-		if err != nil {
-			continue
+
+		entry := PDUSessionResourceSetupCxtReq{
+			PDUSessionID: item.PDUSessionID.Value,
+			SNSSAI:       *buildSNSSAI(&item.SNSSAI),
 		}
 
-		pduSessionResourceSetupList = append(pduSessionResourceSetupList, PDUSessionResourceSetupCxtReq{
-			PDUSessionID:                           item.PDUSessionID.Value,
-			SNSSAI:                                 *buildSNSSAI(&item.SNSSAI),
-			PDUSessionResourceSetupRequestTransfer: *setupRequestTransfer,
-		})
+		if err != nil {
+			entry.Error = fmt.Sprintf("failed to decode transfer: %v", err)
+		} else {
+			entry.PDUSessionResourceSetupRequestTransfer = *setupRequestTransfer
+		}
 
 		if item.NASPDU != nil {
-			pduSessionResourceSetupList[i].NASPDU = &NASPDU{
-				Raw:     item.NASPDU.Value,
-				Decoded: nas.DecodeNASMessage(item.NASPDU.Value),
+			entry.NASPDU = &NASPDU{
+				Protocol: "NAS",
+				RawHex:   hex.EncodeToString(item.NASPDU.Value),
+				Decoded:  nas.DecodeNASMessage(item.NASPDU.Value),
 			}
 		}
+
+		pduSessionResourceSetupList = append(pduSessionResourceSetupList, entry)
 	}
 
 	return pduSessionResourceSetupList
@@ -500,6 +507,7 @@ func buildPDUSessionInfoFromSetupRequestTransfer(transfer aper.OctetString) (*PD
 			pduTransfer.MaximumBitRate = &MaximumBitRate{
 				UplinkNAggregateMaximumBitRate:   maxBitRateUL,
 				DownlinkNAggregateMaximumBitRate: maxBitRateDL,
+				Unit:                             "bps",
 			}
 		case ngapType.ProtocolIEIDPDUSessionType:
 			enum := pduSessionTypeToEnum(ies.Value.PDUSessionType.Value)

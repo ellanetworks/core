@@ -3,6 +3,7 @@ package ngap
 import (
 	"fmt"
 
+	"github.com/ellanetworks/core/internal/decoder/nas"
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/free5gc/ngap"
 	"github.com/free5gc/ngap/ngapType"
@@ -14,9 +15,9 @@ type NGAPMessageValue struct {
 }
 
 type NGAPMessage struct {
+	Summary       string                  `json:"summary,omitempty"`
 	PDUType       string                  `json:"pdu_type"`
 	ProcedureCode utils.EnumField[int64]  `json:"procedure_code"`
-	MessageType   string                  `json:"message_type,omitempty"`
 	Criticality   utils.EnumField[uint64] `json:"criticality"`
 	Value         NGAPMessageValue        `json:"value"`
 }
@@ -31,30 +32,35 @@ func DecodeNGAPMessage(raw []byte) NGAPMessage {
 		}
 	}
 
+	var msg NGAPMessage
+
 	switch pdu.Present {
 	case ngapType.NGAPPDUPresentInitiatingMessage:
-		return NGAPMessage{
+		value := buildInitiatingMessage(*pdu.InitiatingMessage)
+		setIEValueTypes(value.IEs)
+		msg = NGAPMessage{
 			PDUType:       "InitiatingMessage",
-			MessageType:   initiatingMessageTypeToString(*pdu.InitiatingMessage),
 			ProcedureCode: procedureCodeToEnum(pdu.InitiatingMessage.ProcedureCode.Value),
 			Criticality:   criticalityToEnum(pdu.InitiatingMessage.Criticality.Value),
-			Value:         buildInitiatingMessage(*pdu.InitiatingMessage),
+			Value:         value,
 		}
 	case ngapType.NGAPPDUPresentSuccessfulOutcome:
-		return NGAPMessage{
+		value := buildSuccessfulOutcome(*pdu.SuccessfulOutcome)
+		setIEValueTypes(value.IEs)
+		msg = NGAPMessage{
 			PDUType:       "SuccessfulOutcome",
-			MessageType:   successfulOutcomeTypeToString(*pdu.SuccessfulOutcome),
 			ProcedureCode: procedureCodeToEnum(pdu.SuccessfulOutcome.ProcedureCode.Value),
 			Criticality:   criticalityToEnum(pdu.SuccessfulOutcome.Criticality.Value),
-			Value:         buildSuccessfulOutcome(*pdu.SuccessfulOutcome),
+			Value:         value,
 		}
 	case ngapType.NGAPPDUPresentUnsuccessfulOutcome:
-		return NGAPMessage{
+		value := buildUnsuccessfulOutcome(*pdu.UnsuccessfulOutcome)
+		setIEValueTypes(value.IEs)
+		msg = NGAPMessage{
 			PDUType:       "UnsuccessfulOutcome",
-			MessageType:   unsuccessfulOutcomeTypeToString(*pdu.UnsuccessfulOutcome),
 			ProcedureCode: procedureCodeToEnum(pdu.UnsuccessfulOutcome.ProcedureCode.Value),
 			Criticality:   criticalityToEnum(pdu.UnsuccessfulOutcome.Criticality.Value),
-			Value:         buildUnsuccessfulOutcome(*pdu.UnsuccessfulOutcome),
+			Value:         value,
 		}
 	default:
 		return NGAPMessage{
@@ -64,6 +70,54 @@ func DecodeNGAPMessage(raw []byte) NGAPMessage {
 			},
 		}
 	}
+
+	msg.Summary = buildNGAPSummary(msg)
+
+	return msg
+}
+
+// buildNGAPSummary generates a one-line summary from the
+// procedure code and key IEs. Example: "InitialUEMessage, RAN-UE=1, NAS=RegistrationRequest"
+func buildNGAPSummary(msg NGAPMessage) string {
+	summary := msg.ProcedureCode.Label
+	if summary == "" {
+		summary = msg.PDUType
+	}
+
+	for _, ie := range msg.Value.IEs {
+		switch ie.ID.Label {
+		case "AMFUENGAPID":
+			summary += fmt.Sprintf(", AMF-UE=%d", ie.Value)
+		case "RANUENGAPID":
+			summary += fmt.Sprintf(", RAN-UE=%d", ie.Value)
+		case "NASPDU":
+			if nasPdu, ok := ie.Value.(NASPDU); ok && nasPdu.Decoded != nil {
+				summary += ", NAS=" + nasMessageTypeName(nasPdu.Decoded)
+			}
+		case "Cause":
+			if causeEnum, ok := ie.Value.(utils.EnumField[uint64]); ok {
+				summary += ", Cause=" + causeEnum.Label
+			}
+		}
+	}
+
+	return summary
+}
+
+func nasMessageTypeName(msg *nas.NASMessage) string {
+	if msg.Encrypted {
+		return "Encrypted"
+	}
+
+	if msg.GmmMessage != nil {
+		return msg.GmmMessage.GmmHeader.MessageType.Label
+	}
+
+	if msg.GsmMessage != nil {
+		return msg.GsmMessage.GsmHeader.MessageType.Label
+	}
+
+	return "Unknown"
 }
 
 func buildInitiatingMessage(initMsg ngapType.InitiatingMessage) NGAPMessageValue {

@@ -14,6 +14,7 @@ import {
   TextField,
   MenuItem,
 } from "@mui/material";
+import { ThemeProvider } from "@mui/material/styles";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme } from "@mui/material/styles";
 import {
@@ -30,6 +31,8 @@ import WestIcon from "@mui/icons-material/West";
 import CloseIcon from "@mui/icons-material/Close";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import PauseIcon from "@mui/icons-material/Pause";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { Edit as EditIcon } from "@mui/icons-material";
 
 import {
@@ -53,6 +56,7 @@ import EditRadioEventRetentionPolicyModal from "@/components/EditRadioEventReten
 import EventDetails from "@/components/EventDetails";
 import type { LogRow } from "@/components/EventDetails";
 import { formatDateTime } from "@/utils/formatters";
+import { useRadiosContext } from "./types";
 
 // -------- Helpers & small components --------
 
@@ -176,7 +180,7 @@ function usePageVisible() {
   return visible;
 }
 
-const PANEL_DEFAULT_WIDTH = 1100;
+const PANEL_DEFAULT_WIDTH = 825;
 const PANEL_MIN_WIDTH = 350;
 const PANEL_MAX_VW = 0.8;
 const TOOLBAR_HEIGHT = 64;
@@ -187,6 +191,7 @@ export default function EventsTab() {
   const { role, accessToken, authReady } = useAuth();
   const canEdit = role === "Admin";
   const theme = useTheme();
+  const { gridTheme } = useRadiosContext();
 
   const { showSnackbar } = useSnackbar();
   const [viewEventDrawerOpen, setViewEventDrawerOpen] = useState(false);
@@ -217,6 +222,8 @@ export default function EventsTab() {
   const [radioFilter, setRadioFilter] = useState(radioParam);
   const [directionFilter, setDirectionFilter] = useState("");
   const [messageTypeFilter, setMessageTypeFilter] = useState("");
+  const [timestampFrom, setTimestampFrom] = useState("");
+  const [timestampTo, setTimestampTo] = useState("");
 
   // Re-sync radio filter when URL param changes
   useEffect(() => {
@@ -247,8 +254,17 @@ export default function EventsTab() {
     if (radioFilter) params.radio = radioFilter;
     if (directionFilter) params.direction = directionFilter;
     if (messageTypeFilter) params.message_type = messageTypeFilter;
+    if (timestampFrom)
+      params.timestamp_from = new Date(timestampFrom).toISOString();
+    if (timestampTo) params.timestamp_to = new Date(timestampTo).toISOString();
     return params;
-  }, [radioFilter, directionFilter, messageTypeFilter]);
+  }, [
+    radioFilter,
+    directionFilter,
+    messageTypeFilter,
+    timestampFrom,
+    timestampTo,
+  ]);
 
   const networkLogsQuery = useQuery<ListRadioEventsResponse>({
     queryKey: ["networkLogs", pageOneBased, perPage, filterParams],
@@ -452,14 +468,13 @@ export default function EventsTab() {
           </Typography>
         </Box>
 
-        {/* Filters + actions row */}
+        {/* Filters row */}
         <Box
           sx={{
             display: "flex",
-            flexDirection: { xs: "column", sm: "row" },
             flexWrap: "wrap",
             gap: 2,
-            alignItems: { xs: "flex-start", sm: "center" },
+            alignItems: "center",
           }}
         >
           <TextField
@@ -483,7 +498,7 @@ export default function EventsTab() {
             value={directionFilter}
             onChange={(e) => setDirectionFilter(e.target.value)}
             size="small"
-            sx={{ minWidth: 120 }}
+            sx={{ minWidth: 150 }}
           >
             <MenuItem value="">All</MenuItem>
             <MenuItem value="inbound">
@@ -520,9 +535,47 @@ export default function EventsTab() {
               </MenuItem>
             ))}
           </TextField>
+          <TextField
+            label="From"
+            type="datetime-local"
+            value={timestampFrom}
+            onChange={(e) => setTimestampFrom(e.target.value)}
+            size="small"
+            slotProps={{ inputLabel: { shrink: true } }}
+            sx={{ minWidth: 200 }}
+          />
+          <TextField
+            label="To"
+            type="datetime-local"
+            value={timestampTo}
+            onChange={(e) => setTimestampTo(e.target.value)}
+            size="small"
+            slotProps={{ inputLabel: { shrink: true } }}
+            sx={{ minWidth: 200 }}
+          />
+        </Box>
 
-          <Box sx={{ flex: 1 }} />
-
+        {/* Actions row */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+          }}
+        >
+          <Button
+            variant={autoRefresh ? "outlined" : "contained"}
+            size="small"
+            startIcon={autoRefresh ? <PauseIcon /> : <PlayArrowIcon />}
+            onClick={() => {
+              setAutoRefresh((prev) => {
+                if (!prev) networkLogsQuery.refetch();
+                return !prev;
+              });
+            }}
+          >
+            {autoRefresh ? "Pause" : "Live"}
+          </Button>
           {canEdit && (
             <Button
               variant="outlined"
@@ -534,6 +587,7 @@ export default function EventsTab() {
               Clear All
             </Button>
           )}
+          <Box sx={{ flex: 1 }} />
           <Typography
             variant="body2"
             color="text.secondary"
@@ -553,49 +607,59 @@ export default function EventsTab() {
           </Typography>
         </Box>
 
-        <DataGrid<APIRadioEvent>
-          rows={networkRows}
-          columns={networkColumns}
-          getRowId={(row) => row.id}
-          loading={
-            networkLogsQuery.isLoading || networkLogsQuery.isPlaceholderData
-          }
-          paginationMode="server"
-          rowCount={subRowCount}
-          paginationModel={paginationModel}
-          onPaginationModelChange={setPaginationModel}
-          disableColumnMenu
-          pageSizeOptions={[10, 25, 50, 100]}
-          onRowClick={handleRowClick}
-          rowSelectionModel={selectionModel}
-          disableRowSelectionOnClick
-          onRowSelectionModelChange={(model) => setSelectionModel(model)}
-          density="compact"
-          autoHeight
-          sx={{
-            border: 1,
-            borderColor: "divider",
-            "& .MuiDataGrid-columnHeaders": { borderTop: 0 },
-            "& .MuiDataGrid-footerContainer": {
-              borderTop: "1px solid",
+        <ThemeProvider theme={gridTheme}>
+          <DataGrid<APIRadioEvent>
+            rows={networkRows}
+            columns={networkColumns}
+            getRowId={(row) => row.id}
+            loading={
+              networkLogsQuery.isLoading || networkLogsQuery.isPlaceholderData
+            }
+            paginationMode="server"
+            rowCount={subRowCount}
+            paginationModel={paginationModel}
+            onPaginationModelChange={setPaginationModel}
+            disableColumnMenu
+            pageSizeOptions={[10, 25, 50, 100]}
+            onRowClick={handleRowClick}
+            rowSelectionModel={selectionModel}
+            disableRowSelectionOnClick
+            onRowSelectionModelChange={(model) => setSelectionModel(model)}
+            density="compact"
+            autoHeight
+            sx={{
+              width: "100%",
+              border: 1,
               borderColor: "divider",
-            },
-            "& .MuiDataGrid-row:hover": { cursor: "pointer" },
-            "& .MuiDataGrid-row.Mui-selected": {
-              backgroundColor: (t) => t.palette.action.selected,
-              "&:hover": {
-                backgroundColor: (t) => t.palette.action.selected,
+              "& .MuiDataGrid-cell": {
+                borderBottom: "1px solid",
+                borderColor: "divider",
               },
-              "& .MuiDataGrid-cell": { fontWeight: 500 },
-              "&::before": { display: "none" },
-            },
-            "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within": {
-              outline: "none",
-            },
-            "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
-              { outline: "none" },
-          }}
-        />
+              "& .MuiDataGrid-columnHeaders": {
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              },
+              "& .MuiDataGrid-footerContainer": {
+                borderTop: "1px solid",
+                borderColor: "divider",
+              },
+              "& .MuiDataGrid-row:hover": { cursor: "pointer" },
+              "& .MuiDataGrid-row.Mui-selected": {
+                backgroundColor: (t) => t.palette.action.selected,
+                "&:hover": {
+                  backgroundColor: (t) => t.palette.action.selected,
+                },
+                "& .MuiDataGrid-cell": { fontWeight: 500 },
+                "&::before": { display: "none" },
+              },
+              "& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within": {
+                outline: "none",
+              },
+              "& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within":
+                { outline: "none" },
+            }}
+          />
+        </ThemeProvider>
       </Box>
 
       {/* Fixed overlay detail panel */}

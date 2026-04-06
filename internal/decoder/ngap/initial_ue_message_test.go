@@ -1,6 +1,7 @@
 package ngap_test
 
 import (
+	"encoding/hex"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/decoder/ngap"
@@ -18,12 +19,13 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 
 	ngapMsg := ngap.DecodeNGAPMessage(raw)
 
-	if ngapMsg.PDUType != "InitiatingMessage" {
-		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
+	expectedSummary := "InitialUEMessage, RAN-UE=1, NAS=RegistrationRequest"
+	if ngapMsg.Summary != expectedSummary {
+		t.Errorf("expected Summary=%q, got %q", expectedSummary, ngapMsg.Summary)
 	}
 
-	if ngapMsg.MessageType != "InitialUEMessage" {
-		t.Errorf("expected MessageType=InitialUEMessage, got %v", ngapMsg.MessageType)
+	if ngapMsg.PDUType != "InitiatingMessage" {
+		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
 	if ngapMsg.ProcedureCode.Label != "InitialUEMessage" {
@@ -99,8 +101,9 @@ func TestDecodeNGAPMessage_InitialUEMessage(t *testing.T) {
 		t.Fatalf("base64 decode failed: %v", err)
 	}
 
-	if string(nasPdu.Raw) != string(expectedNASPDUraw) {
-		t.Errorf("expected NASPDU=%s, got %s", expectedNASPDU, nasPdu.Raw)
+	expectedHex := hex.EncodeToString(expectedNASPDUraw)
+	if nasPdu.RawHex != expectedHex {
+		t.Errorf("expected RawHex=%s, got %s", expectedHex, nasPdu.RawHex)
 	}
 
 	item2 := ngapMsg.Value.IEs[2]

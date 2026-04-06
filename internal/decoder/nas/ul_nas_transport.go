@@ -145,20 +145,5 @@ func decodeGSMMessage(raw []byte) (*GsmMessage, error) {
 		return nil, fmt.Errorf("failed to decode N1 SM message in UL NAS Transport Payload Container: %w", err)
 	}
 
-	gsmMessage := &GsmMessage{
-		GsmHeader: GsmHeader{
-			MessageType: getGsmMessageType(m.GsmMessage),
-		},
-	}
-
-	switch m.GsmMessage.GetMessageType() {
-	case nas.MsgTypePDUSessionEstablishmentRequest:
-		gsmMessage.PDUSessionEstablishmentRequest = buildPDUSessionEstablishmentRequest(m.PDUSessionEstablishmentRequest)
-	case nas.MsgTypePDUSessionEstablishmentAccept:
-		gsmMessage.PDUSessionEstablishmentAccept = buildPDUSessionEstablishmentAccept(m.PDUSessionEstablishmentAccept)
-	default:
-		gsmMessage.Error = fmt.Sprintf("GSM message type %d not yet implemented", m.GsmMessage.GetMessageType())
-	}
-
-	return gsmMessage, nil
+	return buildGsmMessage(m.GsmMessage), nil
 }

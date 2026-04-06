@@ -21,10 +21,6 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 		t.Errorf("expected PDUType=InitiatingMessage, got %v", ngapMsg.PDUType)
 	}
 
-	if ngapMsg.MessageType != "PDUSessionResourceSetupRequest" {
-		t.Errorf("expected MessageType=PDUSessionResourceSetupRequest, got %v", ngapMsg.MessageType)
-	}
-
 	if ngapMsg.ProcedureCode.Label != "PDUSessionResourceSetup" {
 		t.Errorf("expected ProcedureCode=PDUSessionResourceSetup, got %v", ngapMsg.ProcedureCode)
 	}
@@ -136,15 +132,30 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupRequest(t *testing.T) {
 		t.Fatalf("expected PDUSessionResourceSetupRequestTransfer, got nil")
 	}
 
-	expectedTransfer := "AAAEAIIACgwL68IAMAvrwgAAiwAKAfAhISHGAAAAAQCGAAEAAIgABwABAAAJAQA="
-
-	expectedTransferRaw, err := decodeB64(expectedTransfer)
-	if err != nil {
-		t.Fatalf("base64 decode failed: %v", err)
+	if pduItem.Error != "" {
+		t.Errorf("expected no error, got %s", pduItem.Error)
 	}
 
-	if string(pduItem.PDUSessionResourceSetupRequestTransfer) != string(expectedTransferRaw) {
-		t.Errorf("expected PDUSessionResourceSetupRequestTransfer=%s, got %s", expectedTransfer, pduItem.PDUSessionResourceSetupRequestTransfer)
+	transfer := pduItem.PDUSessionResourceSetupRequestTransfer
+
+	if transfer.ULNGUUPTNLInformation == nil {
+		t.Fatalf("expected ULNGUUPTNLInformation, got nil")
+	}
+
+	if transfer.ULNGUUPTNLInformation.GTPTunnel.TransportLayerAddress != "33.33.33.198" {
+		t.Errorf("expected TransportLayerAddress=33.33.33.198, got %s", transfer.ULNGUUPTNLInformation.GTPTunnel.TransportLayerAddress)
+	}
+
+	if len(transfer.QosFlowSetupRequestList) != 1 {
+		t.Fatalf("expected 1 QoS flow, got %d", len(transfer.QosFlowSetupRequestList))
+	}
+
+	if transfer.PduSType == nil {
+		t.Fatalf("expected PduSType, got nil")
+	}
+
+	if transfer.PduSType.Label != "ipv4" {
+		t.Errorf("expected PduSType=ipv4, got %s", transfer.PduSType.Label)
 	}
 
 	item3 := ngapMsg.Value.IEs[3]

@@ -9,10 +9,12 @@ import (
 )
 
 type PDUSessionResourceSetupSUReq struct {
-	PDUSessionID                           int64   `json:"pdu_session_id"`
-	PDUSessionNASPDU                       *NASPDU `json:"pdu_session_nas_pdu,omitempty"`
-	SNSSAI                                 SNSSAI  `json:"snssai"`
-	PDUSessionResourceSetupRequestTransfer []byte  `json:"pdu_session_resource_setup_request_transfer"`
+	PDUSessionID                           int64                                   `json:"pdu_session_id"`
+	PDUSessionNASPDU                       *NASPDU                                 `json:"pdu_session_nas_pdu,omitempty"`
+	SNSSAI                                 SNSSAI                                  `json:"snssai"`
+	PDUSessionResourceSetupRequestTransfer *PDUSessionResourceSetupRequestTransfer `json:"pdu_session_resource_setup_request_transfer,omitempty"`
+
+	Error string `json:"error,omitempty"`
 }
 
 func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest ngapType.PDUSessionResourceSetupRequest) NGAPMessageValue {
@@ -44,8 +46,9 @@ func buildPDUSessionResourceSetupRequest(pduSessionResourceSetupRequest ngapType
 				ID:          protocolIEIDToEnum(ie.Id.Value),
 				Criticality: criticalityToEnum(ie.Criticality.Value),
 				Value: NASPDU{
-					Raw:     ie.Value.NASPDU.Value,
-					Decoded: nas.DecodeNASMessage(ie.Value.NASPDU.Value),
+					Protocol: "NAS",
+					RawHex:   hex.EncodeToString(ie.Value.NASPDU.Value),
+					Decoded:  nas.DecodeNASMessage(ie.Value.NASPDU.Value),
 				},
 			})
 		case ngapType.ProtocolIEIDPDUSessionResourceSetupListSUReq:
@@ -79,15 +82,22 @@ func buildPDUSessionResourceSetupListSUReq(list ngapType.PDUSessionResourceSetup
 
 	for _, item := range list.List {
 		pduSUReq := PDUSessionResourceSetupSUReq{
-			PDUSessionID:                           item.PDUSessionID.Value,
-			SNSSAI:                                 *buildSNSSAI(&item.SNSSAI),
-			PDUSessionResourceSetupRequestTransfer: item.PDUSessionResourceSetupRequestTransfer,
+			PDUSessionID: item.PDUSessionID.Value,
+			SNSSAI:       *buildSNSSAI(&item.SNSSAI),
+		}
+
+		setupRequestTransfer, err := buildPDUSessionInfoFromSetupRequestTransfer(item.PDUSessionResourceSetupRequestTransfer)
+		if err != nil {
+			pduSUReq.Error = fmt.Sprintf("failed to decode transfer: %v", err)
+		} else {
+			pduSUReq.PDUSessionResourceSetupRequestTransfer = setupRequestTransfer
 		}
 
 		if item.PDUSessionNASPDU != nil {
 			pduSUReq.PDUSessionNASPDU = &NASPDU{
-				Raw:     item.PDUSessionNASPDU.Value,
-				Decoded: nas.DecodeNASMessage(item.PDUSessionNASPDU.Value),
+				Protocol: "NAS",
+				RawHex:   hex.EncodeToString(item.PDUSessionNASPDU.Value),
+				Decoded:  nas.DecodeNASMessage(item.PDUSessionNASPDU.Value),
 			}
 		}
 
