@@ -14,6 +14,9 @@
 #define MAX_FLOW_PER_UE 100
 #define FLOWACC_MAP_SIZE (MAX_PDU_SESSIONS * MAX_FLOW_PER_UE)
 
+#define ALLOW 0
+#define DROP 1
+
 volatile const bool flowact;
 volatile const bool flowact = false;
 
@@ -36,6 +39,7 @@ struct flow {
 	};
 	__u8 proto;
 	__u8 tos;
+	__u8 action;
 };
 
 struct flow_stats {
@@ -53,7 +57,7 @@ struct {
 } flow_stats SEC(".maps");
 
 static __always_inline void account_flow(struct packet_context *ctx,
-					 __u32 egress_ifindex, __u64 imsi)
+					 __u32 egress_ifindex, __u64 imsi, __u8 action)
 {
 	if (!flowact) return;
 
@@ -65,6 +69,7 @@ static __always_inline void account_flow(struct packet_context *ctx,
 	f.ingress_ifindex = ctx->xdp_ctx->ingress_ifindex;
 	f.egress_ifindex = egress_ifindex;
 	f.imsi = imsi;
+	f.action = action;
 
 	switch (f.proto) {
 	case IPPROTO_TCP:

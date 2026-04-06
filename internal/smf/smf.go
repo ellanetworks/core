@@ -135,6 +135,7 @@ type FlowReport struct {
 	StartTime       string
 	EndTime         string
 	Direction       models.Direction
+	Action          models.Action
 }
 
 // PFCPEstablishmentRequest contains the parameters for creating a PFCP session.

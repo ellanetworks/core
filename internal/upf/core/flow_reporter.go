@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"go.uber.org/zap"
@@ -69,9 +70,9 @@ func SendFlowReport(ctx context.Context, dispatcher *pfcp_dispatcher.PfcpDispatc
 	imsiStr := fmt.Sprintf("%015d", flow.Imsi)
 
 	// Determine direction: ingress on N3 means the UE originated the traffic (uplink)
-	direction := "downlink"
+	direction := models.DirectionDownlink
 	if flow.IngressIfindex == n3IfIndex.Load() {
-		direction = "uplink"
+		direction = models.DirectionUplink
 	}
 
 	// Create flow report request
@@ -87,6 +88,7 @@ func SendFlowReport(ctx context.Context, dispatcher *pfcp_dispatcher.PfcpDispatc
 		StartTime:       startTime.UTC().Format(time.RFC3339),
 		EndTime:         endTime.UTC().Format(time.RFC3339),
 		Direction:       direction,
+		Action:          models.Action(flow.Action),
 	}
 
 	// Send to SMF via dispatcher

@@ -925,3 +925,99 @@ func TestMigrateV7_DataMigration(t *testing.T) {
 		t.Errorf("flow_reports row count = %d, want 1", flowCount)
 	}
 }
+
+func TestMigrateV8_DataMigration(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	// Apply V1-V6 to get the pre-v7 schema.
+	runMigrationsUpTo(t, db, 7)
+
+	// Seed a data network.
+	_, err := db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, name, ipPool, dns, mtu) VALUES (1, 'internet', '10.0.0.0/24', '8.8.8.8', 1500)",
+		DataNetworksTableName))
+	if err != nil {
+		t.Fatalf("failed to insert data network: %v", err)
+	}
+
+	// Seed a slice.
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, sst, sd, name) VALUES (1, 1, '102030', 'iot')",
+		NetworkSlicesTableName))
+	if err != nil {
+		t.Fatalf("failed to insert slice 1 'iot': %v", err)
+	}
+
+	// Seed a profile.
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, name, ueAmbrUplink, ueAmbrDownlink) VALUES (1, 'silver', '50 Mbps', '25 Mbps')",
+		ProfilesTableName))
+	if err != nil {
+		t.Fatalf("failed to insert profile 1 'silver': %v", err)
+	}
+
+	// Seed a policy.
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, dataNetworkID, sessionAmbrUplink, sessionAmbrDownlink) VALUES (1, 'silver', 1, 1, 1, 8, 2, 1, '50 Mbps', '25 Mbps')",
+		PoliciesTableName))
+	if err != nil {
+		t.Fatalf("failed to insert policy 1 'silver': %v", err)
+	}
+
+	// Seed a subscriber referencing policy 1 (silver).
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (id, imsi, sequenceNumber, permanentKey, opc, profileID) VALUES (1, '001010000000001', '000000000001', '00112233445566778899aabbccddeeff', '00112233445566778899aabbccddeeff', 1)",
+		SubscribersTableName))
+	if err != nil {
+		t.Fatalf("failed to insert subscriber: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, fmt.Sprintf(
+		"INSERT INTO %s (subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction) VALUES ('001010000000001', '10.0.0.1', '8.8.8.8', 12345, 443, 6, 10, 500, '2026-04-02T10:00:00Z', '2026-04-02T10:00:05Z', 'uplink')",
+		FlowReportsTableName))
+	if err != nil {
+		t.Fatalf("failed to insert flow_report: %v", err)
+	}
+
+	// Apply V8 migration. Disable FK like the runner does (PRAGMA is a no-op inside a tx).
+	_, err = db.ExecContext(ctx, "PRAGMA foreign_keys = OFF")
+	if err != nil {
+		t.Fatalf("failed to disable foreign keys: %v", err)
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatalf("failed to begin transaction: %v", err)
+	}
+
+	if err := migrateV8(ctx, tx); err != nil {
+		_ = tx.Rollback()
+
+		t.Fatalf("migrateV8 failed: %v", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("failed to commit migrateV8: %v", err)
+	}
+
+	_, err = db.ExecContext(ctx, "PRAGMA foreign_keys = ON")
+	if err != nil {
+		t.Fatalf("failed to re-enable foreign keys: %v", err)
+	}
+
+	// --- Assertions ---
+
+	var flowAction int
+
+	err = db.QueryRowContext(ctx,
+		fmt.Sprintf("SELECT action FROM %s WHERE id = 1", FlowReportsTableName),
+	).Scan(&flowAction)
+	if err != nil {
+		t.Fatalf("failed to read action from flow_reports: %v", err)
+	}
+
+	if flowAction != 0 {
+		t.Errorf("flow_reports action = %d, want 0", flowAction)
+	}
+}
