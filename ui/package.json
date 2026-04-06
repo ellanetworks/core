@@ -17,19 +17,19 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^7.3.9",
     "@mui/material": "^7.0.1",
-    "@mui/x-charts": "^8.28.0",
-    "@mui/x-data-grid": "^8.28.1",
+    "@mui/x-charts": "^8.28.2",
+    "@mui/x-data-grid": "^8.28.2",
     "@mui/x-date-pickers": "^8.27.2",
-    "@tanstack/react-query": "^5.95.2",
+    "@tanstack/react-query": "^5.96.2",
     "dayjs": "^1.11.20",
     "jwt-decode": "^4.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-router-dom": "^7.13.2",
+    "react-router-dom": "^7.14.0",
     "yup": "1.7.1"
   },
   "devDependencies": {
-    "@types/node": "25.5.0",
+    "@types/node": "25.5.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.0",
@@ -38,9 +38,9 @@
     "eslint": "9.32.0",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
-    "sass-embedded": "^1.98.0",
+    "sass-embedded": "^1.99.0",
     "tailwindcss": "^4.1.17",
     "typescript": "^6.0.2",
-    "vite": "^8.0.3"
+    "vite": "^8.0.5"
   }
 }
