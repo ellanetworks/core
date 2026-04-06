@@ -38,19 +38,22 @@
 #include "xdp/utils/parsers.h"
 #include "xdp/utils/nat.h"
 
-
 static __always_inline enum xdp_action handle_ip4(struct packet_context *ctx)
 {
 	enum xdp_action action;
 	int l4_protocol = parse_ip4(ctx);
-	if (l4_protocol == IPPROTO_UDP && GTP_UDP_PORT == parse_udp(ctx)) {
-		upf_printk("upf: gtp-u received");
-		action = handle_gtpu(ctx);
-		ctx->statistics
-			->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
-		return action;
-	} else if (l4_protocol != IPPROTO_ICMP && l4_protocol != IPPROTO_UDP &&
-		   l4_protocol != IPPROTO_TCP) {
+	if (l4_protocol == IPPROTO_UDP) {
+		struct udphdr *udp = detect_udp_header(ctx, 0);
+		if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT) {
+			parse_udp(ctx);
+			upf_printk("upf: gtp-u received");
+			action = handle_gtpu(ctx);
+			ctx->statistics->xdp_actions[action &
+						     EUPF_MAX_XDP_ACTION_MASK] +=
+				1;
+			return action;
+		}
+	} else if (l4_protocol != IPPROTO_ICMP && l4_protocol != IPPROTO_TCP) {
 		action = DEFAULT_XDP_ACTION;
 		ctx->statistics
 			->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
@@ -58,8 +61,7 @@ static __always_inline enum xdp_action handle_ip4(struct packet_context *ctx)
 	}
 	ctx->statistics->packet_counters.rx++;
 	action = handle_n6_packet_ipv4(ctx);
-	ctx->statistics
-		->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
+	ctx->statistics->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
 	return action;
 }
 
@@ -103,7 +105,7 @@ SEC("xdp/upf_n3_n6_entrypoint")
 int upf_n3_n6_entrypoint_func(struct xdp_md *ctx)
 {
 	const __u32 key = 0;
-	
+
 	struct upf_statistic *statistics = NULL;
 	if (ctx->ingress_ifindex == n3_ifindex) {
 		statistics = bpf_map_lookup_elem(&uplink_statistics, &key);
@@ -111,7 +113,8 @@ int upf_n3_n6_entrypoint_func(struct xdp_md *ctx)
 			const struct upf_statistic initval = {};
 			bpf_map_update_elem(&uplink_statistics, &key, &initval,
 					    BPF_ANY);
-			statistics = bpf_map_lookup_elem(&uplink_statistics, &key);
+			statistics =
+				bpf_map_lookup_elem(&uplink_statistics, &key);
 			if (!statistics)
 				return XDP_ABORTED;
 		}
@@ -119,9 +122,10 @@ int upf_n3_n6_entrypoint_func(struct xdp_md *ctx)
 		statistics = bpf_map_lookup_elem(&downlink_statistics, &key);
 		if (!statistics) {
 			const struct upf_statistic initval = {};
-			bpf_map_update_elem(&downlink_statistics, &key, &initval,
-					    BPF_ANY);
-			statistics = bpf_map_lookup_elem(&downlink_statistics, &key);
+			bpf_map_update_elem(&downlink_statistics, &key,
+					    &initval, BPF_ANY);
+			statistics =
+				bpf_map_lookup_elem(&downlink_statistics, &key);
 			if (!statistics)
 				return XDP_ABORTED;
 		}

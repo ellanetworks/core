@@ -18,8 +18,8 @@ struct {
 	__uint(max_entries, URR_MAP_SIZE);
 } urr_map SEC(".maps");
 
-static __always_inline void
-update_urr_bytes(struct packet_context *ctx, __u32 urr_id)
+static __always_inline void update_urr_bytes(struct packet_context *ctx,
+					     __u32 urr_id)
 {
 	if (!urr_id) {
 		upf_printk("upf: urr_id is 0 - no URR associated with packet");

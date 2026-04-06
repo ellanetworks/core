@@ -128,9 +128,8 @@ do_route_ipv6(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 	__builtin_memcpy(ctx->eth->h_dest, fib_params->dmac, ETH_ALEN);
 	__builtin_memcpy(ctx->eth->h_source, fib_params->smac, ETH_ALEN);
 
-	upf_printk("upf: bpf_redirect: if=%d %lu -> %lu",
-		   fib_params->ifindex, fib_params->smac,
-		   fib_params->dmac);
+	upf_printk("upf: bpf_redirect: if=%d %lu -> %lu", fib_params->ifindex,
+		   fib_params->smac, fib_params->dmac);
 
 	if (expected_ifindex == ctx->xdp_ctx->ingress_ifindex)
 		return XDP_TX;

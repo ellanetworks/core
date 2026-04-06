@@ -336,7 +336,7 @@ add_gtp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr,
 	/* Update packet pointers */
 	context_set_ip4(ctx, (void *)(long)ctx->xdp_ctx->data,
 			(const void *)(long)ctx->xdp_ctx->data_end, eth, vlan,
-			 ip, udp, gtp);
+			ip, udp, gtp);
 	return 0;
 }
 

@@ -184,6 +184,8 @@ static __always_inline void swap_mac(struct ethhdr *eth)
 
 static __always_inline void swap_port(struct udphdr *udp)
 {
+	if (!udp)
+		return;
 	__u16 tmp = udp->dest;
 	udp->dest = udp->source;
 	udp->source = tmp;
