@@ -154,22 +154,25 @@ func (amf *AMF) GetSubscriberProfile(ctx context.Context, supi etsi.SUPI) (*Subs
 		return nil, fmt.Errorf("couldn't list policies for profile %d: %w", subscriber.ProfileID, err)
 	}
 
-	seen := make(map[int]struct{})
+	// Collect unique slice IDs and batch-fetch.
+	sliceIDSet := make(map[int]struct{})
+	for _, p := range policies {
+		sliceIDSet[p.SliceID] = struct{}{}
+	}
+
+	sliceIDs := make([]int, 0, len(sliceIDSet))
+	for id := range sliceIDSet {
+		sliceIDs = append(sliceIDs, id)
+	}
+
+	slices, err := amf.DBInstance.ListNetworkSlicesByIDs(ctx, sliceIDs)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't list slices by IDs: %w", err)
+	}
 
 	var allowedNssai []models.Snssai
 
-	for _, p := range policies {
-		if _, ok := seen[p.SliceID]; ok {
-			continue
-		}
-
-		seen[p.SliceID] = struct{}{}
-
-		slice, err := amf.DBInstance.GetNetworkSliceByID(ctx, p.SliceID)
-		if err != nil {
-			return nil, fmt.Errorf("couldn't get slice %d: %w", p.SliceID, err)
-		}
-
+	for _, slice := range slices {
 		sd := ""
 		if slice.Sd != nil {
 			sd = *slice.Sd
@@ -222,10 +225,31 @@ func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *mo
 		return "", fmt.Errorf("couldn't list policies for profile %d: %v", subscriber.ProfileID, err)
 	}
 
+	// Batch-fetch all referenced network slices.
+	sliceIDSet := make(map[int]struct{})
 	for _, p := range policies {
-		slice, err := amf.DBInstance.GetNetworkSliceByID(ctx, p.SliceID)
-		if err != nil {
-			return "", fmt.Errorf("couldn't get slice %d: %v", p.SliceID, err)
+		sliceIDSet[p.SliceID] = struct{}{}
+	}
+
+	sliceIDs := make([]int, 0, len(sliceIDSet))
+	for id := range sliceIDSet {
+		sliceIDs = append(sliceIDs, id)
+	}
+
+	sliceList, err := amf.DBInstance.ListNetworkSlicesByIDs(ctx, sliceIDs)
+	if err != nil {
+		return "", fmt.Errorf("couldn't list slices by IDs: %v", err)
+	}
+
+	sliceMap := make(map[int]db.NetworkSlice, len(sliceList))
+	for _, s := range sliceList {
+		sliceMap[s.ID] = s
+	}
+
+	for _, p := range policies {
+		slice, ok := sliceMap[p.SliceID]
+		if !ok {
+			continue
 		}
 
 		sliceSd := ""

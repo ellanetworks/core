@@ -360,11 +360,34 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 		return nil, nil, nil, fmt.Errorf("list policies for profile %d: %w", sub.ProfileID, err)
 	}
 
+	// Batch-fetch all referenced network slices.
+	sliceIDSet := make(map[int]struct{})
 	for _, p := range policies {
-		slice, err := db.GetNetworkSliceByID(ctx, p.SliceID)
-		if err != nil {
-			span.RecordError(err)
-			return nil, nil, nil, fmt.Errorf("couldn't get slice %d: %w", p.SliceID, err)
+		sliceIDSet[p.SliceID] = struct{}{}
+	}
+
+	sliceIDs := make([]int, 0, len(sliceIDSet))
+	for id := range sliceIDSet {
+		sliceIDs = append(sliceIDs, id)
+	}
+
+	sliceList, err := db.ListNetworkSlicesByIDs(ctx, sliceIDs)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "list slices failed")
+
+		return nil, nil, nil, fmt.Errorf("list slices by IDs: %w", err)
+	}
+
+	sliceMap := make(map[int]NetworkSlice, len(sliceList))
+	for _, s := range sliceList {
+		sliceMap[s.ID] = s
+	}
+
+	for _, p := range policies {
+		slice, ok := sliceMap[p.SliceID]
+		if !ok {
+			continue
 		}
 
 		sliceSd := ""

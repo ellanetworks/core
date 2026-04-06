@@ -16,3 +16,6 @@ type cutoffArgs struct {
 type cutoffDaysArgs struct {
 	CutoffDays int64 `db:"cutoff_days"`
 }
+
+// SliceIDs is a named slice type used with sqlair's IN ($SliceIDs[:]) syntax.
+type SliceIDs []int

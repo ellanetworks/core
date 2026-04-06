@@ -52,6 +52,25 @@ func (fdb *FakeDBInstance) GetNetworkSliceByID(_ context.Context, id int) (*db.N
 	return s, nil
 }
 
+func (fdb *FakeDBInstance) ListNetworkSlicesByIDs(_ context.Context, ids []int) ([]db.NetworkSlice, error) {
+	sd1 := "010203"
+	sd2 := "aabbcc"
+	slices := map[int]db.NetworkSlice{
+		1: {ID: 1, Name: "default", Sst: 1, Sd: &sd1},
+		2: {ID: 2, Name: "secondary", Sst: 1, Sd: &sd2},
+	}
+
+	var out []db.NetworkSlice
+
+	for _, id := range ids {
+		if s, ok := slices[id]; ok {
+			out = append(out, s)
+		}
+	}
+
+	return out, nil
+}
+
 func (fdb *FakeDBInstance) GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error) {
 	return &db.Subscriber{
 		Imsi: imsi,

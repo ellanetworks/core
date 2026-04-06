@@ -27,6 +27,7 @@ const (
 	editNetworkSliceStmt       = "UPDATE %s SET sst=$NetworkSlice.sst, sd=$NetworkSlice.sd WHERE name==$NetworkSlice.name"
 	deleteNetworkSliceStmt     = "DELETE FROM %s WHERE name==$NetworkSlice.name"
 	countNetworkSlicesStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	listNetworkSlicesByIDsStmt = "SELECT &NetworkSlice.* FROM %s WHERE id IN ($SliceIDs[:])"
 )
 
 type NetworkSlice struct {
@@ -380,4 +381,47 @@ func (db *Database) CountNetworkSlices(ctx context.Context) (int, error) {
 	span.SetStatus(codes.Ok, "")
 
 	return result.Count, nil
+}
+
+func (db *Database) ListNetworkSlicesByIDs(ctx context.Context, ids []int) ([]NetworkSlice, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (by IDs)", "SELECT", NetworkSlicesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			attribute.String("db.collection", NetworkSlicesTableName),
+		),
+	)
+	defer span.End()
+
+	if len(ids) == 0 {
+		span.SetStatus(codes.Ok, "empty input")
+		return nil, nil
+	}
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NetworkSlicesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(NetworkSlicesTableName, "select").Inc()
+
+	var slices []NetworkSlice
+
+	err := db.conn.Query(ctx, db.listNetworkSlicesByIDsStmt, SliceIDs(ids)).GetAll(&slices)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetStatus(codes.Ok, "no rows")
+			return nil, nil
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return slices, nil
 }

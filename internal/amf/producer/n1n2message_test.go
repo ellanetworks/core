@@ -134,6 +134,10 @@ func (f *fakeDBInstance) GetNetworkSliceByID(context.Context, int) (*db.NetworkS
 	return nil, nil
 }
 
+func (f *fakeDBInstance) ListNetworkSlicesByIDs(context.Context, []int) ([]db.NetworkSlice, error) {
+	return nil, nil
+}
+
 func (f *fakeDBInstance) GetProfileByID(context.Context, int) (*db.Profile, error) {
 	return nil, nil
 }

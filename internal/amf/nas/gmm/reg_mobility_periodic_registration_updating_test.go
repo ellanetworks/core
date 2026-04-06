@@ -37,6 +37,15 @@ func (fdb *failingSubscriberDB) GetNetworkSliceByID(_ context.Context, id int) (
 	return &db.NetworkSlice{ID: id, Name: "TestSlice", Sst: 1}, nil
 }
 
+func (fdb *failingSubscriberDB) ListNetworkSlicesByIDs(_ context.Context, ids []int) ([]db.NetworkSlice, error) {
+	var out []db.NetworkSlice
+	for _, id := range ids {
+		out = append(out, db.NetworkSlice{ID: id, Name: "TestSlice", Sst: 1})
+	}
+
+	return out, nil
+}
+
 func (fdb *failingSubscriberDB) GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error) {
 	return nil, fmt.Errorf("subscriber not found")
 }
@@ -862,6 +871,24 @@ func (m *multiSliceDB) GetNetworkSliceByID(_ context.Context, id int) (*db.Netwo
 	}
 
 	return s, nil
+}
+
+func (m *multiSliceDB) ListNetworkSlicesByIDs(_ context.Context, ids []int) ([]db.NetworkSlice, error) {
+	sd1, sd2 := "010203", "aabbcc"
+	slices := map[int]db.NetworkSlice{
+		1: {ID: 1, Name: "slice-a", Sst: 1, Sd: &sd1},
+		2: {ID: 2, Name: "slice-b", Sst: 2, Sd: &sd2},
+	}
+
+	var out []db.NetworkSlice
+
+	for _, id := range ids {
+		if s, ok := slices[id]; ok {
+			out = append(out, s)
+		}
+	}
+
+	return out, nil
 }
 
 func (m *multiSliceDB) GetSubscriber(_ context.Context, imsi string) (*db.Subscriber, error) {

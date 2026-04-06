@@ -46,6 +46,18 @@ func (d *configTestDB) GetNetworkSliceByID(_ context.Context, id int) (*db.Netwo
 	return s, nil
 }
 
+func (d *configTestDB) ListNetworkSlicesByIDs(_ context.Context, ids []int) ([]db.NetworkSlice, error) {
+	var out []db.NetworkSlice
+
+	for _, id := range ids {
+		if s, ok := d.slices[id]; ok {
+			out = append(out, *s)
+		}
+	}
+
+	return out, d.sliceErr
+}
+
 func (d *configTestDB) GetProfileByID(_ context.Context, id int) (*db.Profile, error) {
 	return &db.Profile{ID: id}, nil
 }

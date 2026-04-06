@@ -168,6 +168,15 @@ func (fdb *FakeDBInstance) GetNetworkSliceByID(_ context.Context, id int) (*db.N
 	return &db.NetworkSlice{ID: id, Name: "TestSlice", Sst: 1}, nil
 }
 
+func (fdb *FakeDBInstance) ListNetworkSlicesByIDs(_ context.Context, ids []int) ([]db.NetworkSlice, error) {
+	var out []db.NetworkSlice
+	for _, id := range ids {
+		out = append(out, db.NetworkSlice{ID: id, Name: "TestSlice", Sst: 1})
+	}
+
+	return out, nil
+}
+
 func (fdb *FakeDBInstance) GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error) {
 	return &db.Subscriber{
 		Imsi: imsi,
