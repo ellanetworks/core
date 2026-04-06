@@ -78,8 +78,8 @@ func BuildFlowReportRequest(flow ebpf.N3N6EntrypointFlow, stats ebpf.N3N6Entrypo
 		Protocol:        flow.Proto,
 		Packets:         stats.Packets,
 		Bytes:           stats.Bytes,
-		StartTime:       startTime.UTC().Format(time.RFC3339),
-		EndTime:         endTime.UTC().Format(time.RFC3339),
+		StartTime:       startTime.UTC().Format(time.RFC3339Nano),
+		EndTime:         endTime.UTC().Format(time.RFC3339Nano),
 		Direction:       direction,
 		Action:          models.Action(flow.Action),
 	}
