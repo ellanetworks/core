@@ -23,13 +23,21 @@ import { Edit as EditIcon } from "@mui/icons-material";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import NorthIcon from "@mui/icons-material/North";
 import SouthIcon from "@mui/icons-material/South";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import CloseIcon from "@mui/icons-material/Close";
 import { useSnackbar } from "@/contexts/SnackbarContext";
-import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
+import {
+  useTheme,
+  createTheme,
+  ThemeProvider,
+  alpha,
+} from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import {
   DataGrid,
   type GridColDef,
   type GridPaginationModel,
+  type GridRowParams,
 } from "@mui/x-data-grid";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { PieChart } from "@mui/x-charts/PieChart";
@@ -83,9 +91,24 @@ import {
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
 /** Shared cell renderer for subscriber IMSI links in data grids. */
-const renderSubscriberLink = (params: { value?: unknown }) => {
+const renderSubscriberLink = (params: any) => {
   const imsi = params.value as string;
+  const action = params.row?.action as string | undefined;
   if (!imsi) return null;
+
+  // Visual-hidden style for screen readers.
+  const srOnlyStyle: React.CSSProperties = {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    padding: 0,
+    margin: -1,
+    overflow: "hidden",
+    clip: "rect(0 0 0 0)",
+    whiteSpace: "nowrap",
+    border: 0,
+  };
+
   return (
     <Box
       sx={{
@@ -93,6 +116,7 @@ const renderSubscriberLink = (params: { value?: unknown }) => {
         alignItems: "center",
         width: "100%",
         height: "100%",
+        position: "relative",
       }}
     >
       <Link
@@ -112,6 +136,12 @@ const renderSubscriberLink = (params: { value?: unknown }) => {
           {imsi}
         </Typography>
       </Link>
+      {action === "drop" && (
+        // Provide an accessible label for screen readers indicating the
+        // flow was dropped. This text is visually hidden but will be
+        // announced when a screen reader focuses the cell.
+        <span style={srOnlyStyle}>Dropped flow</span>
+      )}
     </Box>
   );
 };
@@ -215,6 +245,7 @@ const Traffic: React.FC = () => {
   const [appliedSource, setAppliedSource] = useState("");
   const [appliedDestination, setAppliedDestination] = useState("");
   const [directionFilter, setDirectionFilter] = useState("");
+  const [actionFilter, setActionFilter] = useState("");
   const [isEditFlowRetentionOpen, setEditFlowRetentionOpen] = useState(false);
   const [isFlowClearModalOpen, setFlowClearModalOpen] = useState(false);
 
@@ -288,8 +319,10 @@ const Traffic: React.FC = () => {
     const f: FlowReportFilters = {
       start: startDate,
       end: endDate,
-      action: "allow",
     };
+    // Only set action when the user has explicitly selected an action.
+    // When omitted, the API returns both allowed and dropped flows.
+    if (actionFilter) f.action = actionFilter;
     if (selectedSubscriber) f.subscriber_id = selectedSubscriber;
     if (appliedProtocol) f.protocol = appliedProtocol;
     if (appliedSource) f.source = appliedSource;
@@ -304,6 +337,7 @@ const Traffic: React.FC = () => {
     appliedSource,
     appliedDestination,
     directionFilter,
+    actionFilter,
   ]);
 
   const { data: flowRetentionPolicy, refetch: refetchFlowRetention } =
@@ -503,6 +537,39 @@ const Traffic: React.FC = () => {
   const flowColumns: GridColDef<FlowReport>[] = useMemo(
     () => [
       {
+        field: "action_icon",
+        headerName: "",
+        width: 48,
+        sortable: false,
+        filterable: false,
+        renderCell: (params) => {
+          const action = (params.row as FlowReport).action;
+          const isDropped = action === "drop";
+          const Title = isDropped ? "Dropped" : "Allowed";
+          const IconComp = isDropped ? CloseIcon : CheckCircleIcon;
+          const iconSx = isDropped
+            ? { color: (t: any) => t.palette.error.main }
+            : { color: (t: any) => t.palette.success.main };
+
+          return (
+            <Tooltip title={Title}>
+              <Box
+                sx={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  lineHeight: 0,
+                }}
+              >
+                <IconComp fontSize="small" sx={iconSx} aria-label={Title} />
+              </Box>
+            </Tooltip>
+          );
+        },
+      },
+      {
         field: "subscriber_id",
         headerName: "Subscriber",
         flex: 1,
@@ -626,14 +693,36 @@ const Traffic: React.FC = () => {
         headerName: "Start",
         flex: 0.8,
         minWidth: 120,
-        valueFormatter: (value: string) => (value ? formatDateTime(value) : ""),
+        renderCell: (params) => {
+          const value = params.value as string;
+          const formatted = value ? formatDateTime(value) : "";
+          const action = (params.row as FlowReport).action;
+          const ariaLabel =
+            action === "drop" ? `${formatted} — Dropped flow` : formatted;
+          return (
+            <Box component="span" aria-label={ariaLabel} sx={{ width: "100%" }}>
+              {formatted}
+            </Box>
+          );
+        },
       },
       {
         field: "end_time",
         headerName: "End",
         flex: 0.8,
         minWidth: 120,
-        valueFormatter: (value: string) => (value ? formatDateTime(value) : ""),
+        renderCell: (params) => {
+          const value = params.value as string;
+          const formatted = value ? formatDateTime(value) : "";
+          const action = (params.row as FlowReport).action;
+          const ariaLabel =
+            action === "drop" ? `${formatted} — Dropped flow` : formatted;
+          return (
+            <Box component="span" aria-label={ariaLabel} sx={{ width: "100%" }}>
+              {formatted}
+            </Box>
+          );
+        },
       },
     ],
     [theme, protocolColorMap],
@@ -775,6 +864,18 @@ const Traffic: React.FC = () => {
     "& .MuiDataGrid-footerContainer": {
       borderTop: "1px solid",
       borderColor: "divider",
+    },
+    // Highlight dropped flows with a light red background and a red
+    // left border on the first cell. We use the theme error color with
+    // low alpha to preserve text contrast for accessibility.
+    "& .MuiDataGrid-row.flow-row-dropped .MuiDataGrid-cell": {
+      backgroundColor: alpha(theme.palette.error.main, 0.08),
+    },
+    "& .MuiDataGrid-row.flow-row-dropped:hover .MuiDataGrid-cell": {
+      backgroundColor: alpha(theme.palette.error.main, 0.12),
+    },
+    "& .MuiDataGrid-row.flow-row-dropped .MuiDataGrid-cell:first-of-type": {
+      borderLeft: `4px solid ${theme.palette.error.main}`,
     },
   };
 
@@ -1182,6 +1283,21 @@ const Traffic: React.FC = () => {
                   ))}
                 </TextField>
                 <TextField
+                  select
+                  label="Action"
+                  value={actionFilter}
+                  onChange={(e) => {
+                    setActionFilter(e.target.value);
+                    setFlowPaginationModel((prev) => ({ ...prev, page: 0 }));
+                  }}
+                  size="small"
+                  sx={{ minWidth: 140 }}
+                >
+                  <MenuItem value="">Both</MenuItem>
+                  <MenuItem value="allow">Allowed</MenuItem>
+                  <MenuItem value="drop">Dropped</MenuItem>
+                </TextField>
+                <TextField
                   label="Source"
                   value={sourceFilter}
                   onChange={(e) => {
@@ -1218,6 +1334,9 @@ const Traffic: React.FC = () => {
                     rows={flowRows}
                     columns={flowColumns}
                     getRowId={(row) => row.id}
+                    getRowClassName={(params: GridRowParams<FlowReport>) =>
+                      params.row.action === "drop" ? "flow-row-dropped" : ""
+                    }
                     paginationMode="server"
                     rowCount={flowRowCount}
                     paginationModel={flowPaginationModel}

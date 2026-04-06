@@ -112,7 +112,7 @@ func parseFlowReportFilters(r *http.Request) (*db.FlowReportFilters, error) {
 	}
 
 	// action: "allow" or "drop".
-	// When absent, all flows are returned regardless of disposition.
+	// When absent, all flows are returned regardless of action.
 	// When "allow", only accepted flows are returned.
 	// When "drop", only dropped flows are returned.
 	switch strings.TrimSpace(q.Get("action")) {
