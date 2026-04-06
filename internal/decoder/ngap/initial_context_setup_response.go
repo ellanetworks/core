@@ -7,13 +7,17 @@ import (
 )
 
 type PDUSessionResourceFailedToSetupCxtRes struct {
-	PDUSessionID                                int64  `json:"pdu_session_id"`
-	PDUSessionResourceSetupUnsuccessfulTransfer []byte `json:"pdu_session_resource_setup_unsuccessful_transfer"`
+	PDUSessionID                                int64                                               `json:"pdu_session_id"`
+	PDUSessionResourceSetupUnsuccessfulTransfer *PDUSessionResourceSetupUnsuccessfulTransferDecoded `json:"pdu_session_resource_setup_unsuccessful_transfer,omitempty"`
+
+	Error string `json:"error,omitempty"`
 }
 
 type PDUSessionResourceSetupCxtRes struct {
-	PDUSessionID                            int64  `json:"pdu_session_id"`
-	PDUSessionResourceSetupResponseTransfer []byte `json:"pdu_session_resource_setup_response_transfer"`
+	PDUSessionID                            int64                                           `json:"pdu_session_id"`
+	PDUSessionResourceSetupResponseTransfer *PDUSessionResourceSetupResponseTransferDecoded `json:"pdu_session_resource_setup_response_transfer,omitempty"`
+
+	Error string `json:"error,omitempty"`
 }
 
 func buildInitialContextSetupResponse(initialContextSetupResponse ngapType.InitialContextSetupResponse) NGAPMessageValue {
@@ -71,11 +75,18 @@ func buildPDUSessionResourceSetupListCxtResIE(pduList ngapType.PDUSessionResourc
 
 	for i := 0; i < len(pduList.List); i++ {
 		item := pduList.List[i]
+		entry := PDUSessionResourceSetupCxtRes{
+			PDUSessionID: item.PDUSessionID.Value,
+		}
 
-		pduSessionList = append(pduSessionList, PDUSessionResourceSetupCxtRes{
-			PDUSessionID:                            item.PDUSessionID.Value,
-			PDUSessionResourceSetupResponseTransfer: item.PDUSessionResourceSetupResponseTransfer,
-		})
+		transfer, err := decodeSetupResponseTransfer(item.PDUSessionResourceSetupResponseTransfer)
+		if err != nil {
+			entry.Error = fmt.Sprintf("failed to decode response transfer: %v", err)
+		} else {
+			entry.PDUSessionResourceSetupResponseTransfer = transfer
+		}
+
+		pduSessionList = append(pduSessionList, entry)
 	}
 
 	return pduSessionList
@@ -86,11 +97,18 @@ func buildPDUSessionResourceFailedToSetupListCxtResIE(pduList ngapType.PDUSessio
 
 	for i := 0; i < len(pduList.List); i++ {
 		item := pduList.List[i]
-
-		pduSessionList = append(pduSessionList, PDUSessionResourceFailedToSetupCxtRes{
+		entry := PDUSessionResourceFailedToSetupCxtRes{
 			PDUSessionID: item.PDUSessionID.Value,
-			PDUSessionResourceSetupUnsuccessfulTransfer: item.PDUSessionResourceSetupUnsuccessfulTransfer,
-		})
+		}
+
+		transfer, err := decodeSetupUnsuccessfulTransfer(item.PDUSessionResourceSetupUnsuccessfulTransfer)
+		if err != nil {
+			entry.Error = fmt.Sprintf("failed to decode unsuccessful transfer: %v", err)
+		} else {
+			entry.PDUSessionResourceSetupUnsuccessfulTransfer = transfer
+		}
+
+		pduSessionList = append(pduSessionList, entry)
 	}
 
 	return pduSessionList

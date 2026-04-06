@@ -46,6 +46,7 @@ type RegistrationRequest struct {
 	PayloadContainer                    *UnsupportedIE `json:"payload_container,omitempty"`
 	NetworkSlicingIndication            *UnsupportedIE `json:"network_slicing_indication,omitempty"`
 	UpdateType5GS                       *UnsupportedIE `json:"update_type_5gs,omitempty"`
+	EPSBearerContextStatus              *UnsupportedIE `json:"eps_bearer_context_status,omitempty"`
 }
 
 func buildRegistrationRequest(msg *nasMessage.RegistrationRequest) *RegistrationRequest {
@@ -136,6 +137,10 @@ func buildRegistrationRequest(msg *nasMessage.RegistrationRequest) *Registration
 
 	if msg.UpdateType5GS != nil {
 		registrationRequest.UpdateType5GS = makeUnsupportedIE()
+	}
+
+	if msg.EPSBearerContextStatus != nil {
+		registrationRequest.EPSBearerContextStatus = makeUnsupportedIE()
 	}
 
 	if msg.NASMessageContainer != nil {

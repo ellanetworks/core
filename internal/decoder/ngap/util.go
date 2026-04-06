@@ -34,6 +34,8 @@ func inferValueType(v any) string {
 		return "integer"
 	case string:
 		return "string"
+	case []byte:
+		return "bytes"
 	case NASPDU:
 		return "nas_pdu"
 	case utils.Enum:

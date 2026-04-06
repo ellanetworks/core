@@ -65,6 +65,14 @@ func TestDecodeNGAPMessage_NGSetupRequest(t *testing.T) {
 		t.Fatalf("expected GlobalRANNodeIDIE, got %T", item0.Value)
 	}
 
+	if globalRANNodeID.PLMNIdentity.Mcc != "001" {
+		t.Errorf("expected PLMNIdentity.Mcc=001, got %s", globalRANNodeID.PLMNIdentity.Mcc)
+	}
+
+	if globalRANNodeID.PLMNIdentity.Mnc != "01" {
+		t.Errorf("expected PLMNIdentity.Mnc=01, got %s", globalRANNodeID.PLMNIdentity.Mnc)
+	}
+
 	if globalRANNodeID.GlobalGNBID != "00000001" {
 		t.Errorf("expected GlobalGNBID=00000001, got %s", globalRANNodeID.GlobalGNBID)
 	}

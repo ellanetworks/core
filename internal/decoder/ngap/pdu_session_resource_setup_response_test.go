@@ -128,19 +128,30 @@ func TestDecodeNGAPMessage_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Errorf("expected PDUSessionID=1, got %d", pduItem.PDUSessionID)
 	}
 
+	if pduItem.Error != "" {
+		t.Fatalf("unexpected error decoding response transfer: %s", pduItem.Error)
+	}
+
 	if pduItem.PDUSessionResourceSetupResponseTransfer == nil {
 		t.Fatalf("expected PDUSessionResourceSetupResponseTransfer, got nil")
 	}
 
-	expectedTransfer := "AAPgISEh0QAAAAEAAQ=="
+	transfer := pduItem.PDUSessionResourceSetupResponseTransfer
 
-	expectedTransferRaw, err := decodeB64(expectedTransfer)
-	if err != nil {
-		t.Fatalf("base64 decode failed: %v", err)
+	if transfer.DLQosFlowPerTNLInformation.GTPTunnel.TransportLayerAddress != "33.33.33.209" {
+		t.Errorf("expected TransportLayerAddress=33.33.33.209, got %s", transfer.DLQosFlowPerTNLInformation.GTPTunnel.TransportLayerAddress)
 	}
 
-	if string(pduItem.PDUSessionResourceSetupResponseTransfer) != string(expectedTransferRaw) {
-		t.Errorf("expected PDUSessionResourceSetupResponseTransfer=%s, got %s", expectedTransfer, pduItem.PDUSessionResourceSetupResponseTransfer)
+	if transfer.DLQosFlowPerTNLInformation.GTPTunnel.GTPTEID != 1 {
+		t.Errorf("expected GTPTEID=1, got %d", transfer.DLQosFlowPerTNLInformation.GTPTunnel.GTPTEID)
+	}
+
+	if len(transfer.DLQosFlowPerTNLInformation.AssociatedQosFlows) != 1 {
+		t.Fatalf("expected 1 AssociatedQosFlow, got %d", len(transfer.DLQosFlowPerTNLInformation.AssociatedQosFlows))
+	}
+
+	if transfer.DLQosFlowPerTNLInformation.AssociatedQosFlows[0].QosFlowIdentifier != 1 {
+		t.Errorf("expected QosFlowIdentifier=1, got %d", transfer.DLQosFlowPerTNLInformation.AssociatedQosFlows[0].QosFlowIdentifier)
 	}
 
 	item3 := ngapMsg.Value.IEs[3]

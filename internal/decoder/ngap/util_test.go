@@ -12,7 +12,3 @@ func decodeB64(s string) ([]byte, error) {
 
 	return nil, fmt.Errorf("not valid base64")
 }
-
-func encodeB64(b []byte) string {
-	return base64.StdEncoding.EncodeToString(b)
-}

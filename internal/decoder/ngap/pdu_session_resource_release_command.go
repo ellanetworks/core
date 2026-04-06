@@ -5,12 +5,20 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/decoder/nas"
+	"github.com/ellanetworks/core/internal/decoder/utils"
+	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 )
 
+type PDUSessionResourceReleaseCommandTransferDecoded struct {
+	Cause utils.EnumField[uint64] `json:"cause"`
+}
+
 type PDUSessionResourceToReleaseListRelCmd struct {
-	PDUSessionID                             int64  `json:"pdu_session_id"`
-	PDUSessionResourceReleaseCommandTransfer []byte `json:"pdu_session_resource_release_command_transfer"`
+	PDUSessionID                             int64                                            `json:"pdu_session_id"`
+	PDUSessionResourceReleaseCommandTransfer *PDUSessionResourceReleaseCommandTransferDecoded `json:"pdu_session_resource_release_command_transfer,omitempty"`
+
+	Error string `json:"error,omitempty"`
 }
 
 func buildPDUSessionResourceReleaseCommand(cmd ngapType.PDUSessionResourceReleaseCommand) NGAPMessageValue {
@@ -73,12 +81,36 @@ func buildPDUSessionResourceToReleaseListRelCmd(pduList ngapType.PDUSessionResou
 
 	for i := 0; i < len(pduList.List); i++ {
 		item := pduList.List[i]
+		entry := PDUSessionResourceToReleaseListRelCmd{
+			PDUSessionID: item.PDUSessionID.Value,
+		}
 
-		pduSessionList = append(pduSessionList, PDUSessionResourceToReleaseListRelCmd{
-			PDUSessionID:                             item.PDUSessionID.Value,
-			PDUSessionResourceReleaseCommandTransfer: item.PDUSessionResourceReleaseCommandTransfer,
-		})
+		transfer, err := decodeReleaseCommandTransfer(item.PDUSessionResourceReleaseCommandTransfer)
+		if err != nil {
+			entry.Error = fmt.Sprintf("failed to decode release command transfer: %v", err)
+		} else {
+			entry.PDUSessionResourceReleaseCommandTransfer = transfer
+		}
+
+		pduSessionList = append(pduSessionList, entry)
 	}
 
 	return pduSessionList
+}
+
+func decodeReleaseCommandTransfer(transfer aper.OctetString) (*PDUSessionResourceReleaseCommandTransferDecoded, error) {
+	if transfer == nil {
+		return nil, fmt.Errorf("transfer is nil")
+	}
+
+	pdu := &ngapType.PDUSessionResourceReleaseCommandTransfer{}
+
+	err := aper.UnmarshalWithParams(transfer, pdu, "valueExt")
+	if err != nil {
+		return nil, fmt.Errorf("could not unmarshal release command transfer: %v", err)
+	}
+
+	return &PDUSessionResourceReleaseCommandTransferDecoded{
+		Cause: causeToEnum(pdu.Cause),
+	}, nil
 }

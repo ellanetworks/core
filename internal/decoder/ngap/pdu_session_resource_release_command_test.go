@@ -1,7 +1,6 @@
 package ngap_test
 
 import (
-	"bytes"
 	"encoding/hex"
 	"testing"
 
@@ -163,14 +162,16 @@ func TestDecodeNGAPMessage_PDUSessionResourceReleaseCommand(t *testing.T) {
 		t.Errorf("expected PDUSessionID=1, got %d", pduSessionList[0].PDUSessionID)
 	}
 
-	expectedTransfer := "EA=="
-
-	expectedTransferRaw, err := decodeB64(expectedTransfer)
-	if err != nil {
-		t.Fatalf("base64 decode failed: %v", err)
+	if pduSessionList[0].Error != "" {
+		t.Fatalf("unexpected error decoding release command transfer: %s", pduSessionList[0].Error)
 	}
 
-	if !bytes.Equal(pduSessionList[0].PDUSessionResourceReleaseCommandTransfer, expectedTransferRaw) {
-		t.Errorf("expected PDUSessionResourceReleaseCommandTransfer=%s, got %s", expectedTransfer, encodeB64(pduSessionList[0].PDUSessionResourceReleaseCommandTransfer))
+	if pduSessionList[0].PDUSessionResourceReleaseCommandTransfer == nil {
+		t.Fatalf("expected decoded release command transfer, got nil")
+	}
+
+	cause := pduSessionList[0].PDUSessionResourceReleaseCommandTransfer.Cause
+	if cause.Value == 0 && cause.Label == "" {
+		t.Errorf("expected non-empty cause, got zero value")
 	}
 }
