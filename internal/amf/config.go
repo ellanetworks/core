@@ -165,6 +165,7 @@ func (amf *AMF) GetSubscriberProfile(ctx context.Context, supi etsi.SUPI) (*Subs
 	for id := range sliceIDSet {
 		sliceIDs = append(sliceIDs, id)
 	}
+
 	sort.Ints(sliceIDs)
 
 	slices, err := amf.DBInstance.ListNetworkSlicesByIDs(ctx, sliceIDs)
@@ -237,6 +238,7 @@ func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *mo
 	for id := range sliceIDSet {
 		sliceIDs = append(sliceIDs, id)
 	}
+
 	sort.Ints(sliceIDs)
 
 	sliceList, err := amf.DBInstance.ListNetworkSlicesByIDs(ctx, sliceIDs)
