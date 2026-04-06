@@ -13,6 +13,8 @@ import (
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	"github.com/wmnsk/go-pfcp/ie"
 	"github.com/wmnsk/go-pfcp/message"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -103,53 +105,52 @@ func (s *SMF) HandlePfcpSessionReportRequest(ctx context.Context, msg *message.S
 	), nil
 }
 
-// SendFlowReport persists a flow measurement record from the UPF.
-func (s *SMF) SendFlowReport(ctx context.Context, req *pfcp_dispatcher.FlowReportRequest) error {
-	ctx, span := tracer.Start(ctx, "smf/send_flow_report")
+// SendFlowReports persists a batch of flow measurement records from the UPF
+// in a single database transaction.
+func (s *SMF) SendFlowReports(ctx context.Context, reqs []*pfcp_dispatcher.FlowReportRequest) error {
+	ctx, span := tracer.Start(ctx, "smf/send_flow_reports",
+		trace.WithAttributes(attribute.Int("batch_size", len(reqs))),
+	)
 	defer span.End()
 
-	if req == nil {
-		return fmt.Errorf("flow report request is nil")
+	reports := make([]*FlowReport, 0, len(reqs))
+
+	for _, req := range reqs {
+		if req == nil || req.IMSI == "" {
+			continue
+		}
+
+		reports = append(reports, &FlowReport{
+			IMSI:            req.IMSI,
+			SourceIP:        req.SourceIP,
+			DestinationIP:   req.DestinationIP,
+			SourcePort:      req.SourcePort,
+			DestinationPort: req.DestinationPort,
+			Protocol:        req.Protocol,
+			Packets:         req.Packets,
+			Bytes:           req.Bytes,
+			StartTime:       req.StartTime,
+			EndTime:         req.EndTime,
+			Direction:       req.Direction,
+			Action:          req.Action,
+		})
 	}
 
-	if req.IMSI == "" {
-		return fmt.Errorf("flow report request missing required IMSI field")
+	if len(reports) == 0 {
+		return nil
 	}
 
-	report := &FlowReport{
-		IMSI:            req.IMSI,
-		SourceIP:        req.SourceIP,
-		DestinationIP:   req.DestinationIP,
-		SourcePort:      req.SourcePort,
-		DestinationPort: req.DestinationPort,
-		Protocol:        req.Protocol,
-		Packets:         req.Packets,
-		Bytes:           req.Bytes,
-		StartTime:       req.StartTime,
-		EndTime:         req.EndTime,
-		Direction:       req.Direction,
-		Action:          req.Action,
-	}
-
-	if err := s.store.InsertFlowReport(ctx, report); err != nil {
-		logger.SmfLog.Error(
-			"Failed to insert flow report",
-			logger.IMSI(req.IMSI),
-			logger.SourceIP(req.SourceIP),
-			logger.DestinationIP(req.DestinationIP),
+	if err := s.store.InsertFlowReports(ctx, reports); err != nil {
+		logger.SmfLog.Error("Failed to insert flow report batch",
+			zap.Int("batch_size", len(reports)),
 			zap.Error(err),
 		)
 
 		return err
 	}
 
-	logger.SmfLog.Debug(
-		"Flow report persisted",
-		logger.IMSI(req.IMSI),
-		logger.SourceIP(req.SourceIP),
-		logger.DestinationIP(req.DestinationIP),
-		logger.Packets(req.Packets),
-		logger.Bytes(req.Bytes),
+	logger.SmfLog.Debug("Flow report batch persisted",
+		zap.Int("count", len(reports)),
 	)
 
 	return nil

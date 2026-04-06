@@ -4,40 +4,14 @@
 package core_test
 
 import (
-	"context"
 	"encoding/binary"
 	"net"
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
-	"github.com/wmnsk/go-pfcp/message"
 )
-
-// MockSMF implements the SMF interface for testing
-type MockSMF struct {
-	LastFlowReport *pfcp_dispatcher.FlowReportRequest
-	CallCount      int
-	ShouldError    bool
-	ErrorMsg       string
-}
-
-func (m *MockSMF) SendFlowReport(ctx context.Context, req *pfcp_dispatcher.FlowReportRequest) error {
-	m.CallCount++
-
-	m.LastFlowReport = req
-	if m.ShouldError {
-		return nil // Error would be logged, not propagated
-	}
-
-	return nil
-}
-
-func (m *MockSMF) HandlePfcpSessionReportRequest(ctx context.Context, msg *message.SessionReportRequest) (*message.SessionReportResponse, error) {
-	return nil, nil
-}
 
 // Helper function to convert IP address to uint32 format used by eBPF
 // The actual implementation uses binary.NativeEndian.PutUint32(), so we reverse it
@@ -57,12 +31,7 @@ func makePortUint16(port uint16) uint16 {
 	return binary.BigEndian.Uint16(b)
 }
 
-func TestSendFlowReportBasic(t *testing.T) {
-	// Set up mock SMF
-	mockSMF := &MockSMF{}
-	dispatcher := pfcp_dispatcher.PfcpDispatcher{SMF: mockSMF}
-
-	// Create test flow (192.168.1.100 and 8.8.8.8)
+func TestBuildFlowReportRequestBasic(t *testing.T) {
 	flow := ebpf.N3N6EntrypointFlow{
 		Imsi:  1019756139935,
 		Saddr: makeIPUint32(192, 168, 1, 100),
@@ -79,82 +48,38 @@ func TestSendFlowReportBasic(t *testing.T) {
 		Bytes:   500000,
 	}
 
-	core.SendFlowReport(t.Context(), &dispatcher, flow, stats)
+	req := core.BuildFlowReportRequest(flow, stats)
 
-	// Verify the report was sent
-	if mockSMF.CallCount != 1 {
-		t.Fatalf("Expected SendFlowReport to be called once, got %d calls", mockSMF.CallCount)
+	if req.SourceIP != "192.168.1.100" {
+		t.Fatalf("Expected source IP 192.168.1.100, got %s", req.SourceIP)
 	}
 
-	if mockSMF.LastFlowReport == nil {
-		t.Fatalf("Expected flow report to be set, got nil")
+	if req.DestinationIP != "8.8.8.8" {
+		t.Fatalf("Expected destination IP 8.8.8.8, got %s", req.DestinationIP)
 	}
 
-	// Verify source IP
-	if mockSMF.LastFlowReport.SourceIP != "192.168.1.100" {
-		t.Fatalf("Expected source IP 192.168.1.100, got %s", mockSMF.LastFlowReport.SourceIP)
+	if req.SourcePort != 12345 {
+		t.Fatalf("Expected source port 12345, got %d", req.SourcePort)
 	}
 
-	// Verify destination IP
-	if mockSMF.LastFlowReport.DestinationIP != "8.8.8.8" {
-		t.Fatalf("Expected destination IP 8.8.8.8, got %s", mockSMF.LastFlowReport.DestinationIP)
+	if req.DestinationPort != 53 {
+		t.Fatalf("Expected destination port 53, got %d", req.DestinationPort)
 	}
 
-	// Verify ports
-	if mockSMF.LastFlowReport.SourcePort != 12345 {
-		t.Fatalf("Expected source port 12345, got %d", mockSMF.LastFlowReport.SourcePort)
+	if req.Protocol != 17 {
+		t.Fatalf("Expected protocol 17, got %d", req.Protocol)
 	}
 
-	if mockSMF.LastFlowReport.DestinationPort != 53 {
-		t.Fatalf("Expected destination port 53, got %d", mockSMF.LastFlowReport.DestinationPort)
+	if req.Packets != 1000 {
+		t.Fatalf("Expected packets 1000, got %d", req.Packets)
 	}
 
-	// Verify protocol
-	if mockSMF.LastFlowReport.Protocol != 17 {
-		t.Fatalf("Expected protocol 17, got %d", mockSMF.LastFlowReport.Protocol)
-	}
-
-	// Verify traffic metrics
-	if mockSMF.LastFlowReport.Packets != 1000 {
-		t.Fatalf("Expected packets 1000, got %d", mockSMF.LastFlowReport.Packets)
-	}
-
-	if mockSMF.LastFlowReport.Bytes != 500000 {
-		t.Fatalf("Expected bytes 500000, got %d", mockSMF.LastFlowReport.Bytes)
+	if req.Bytes != 500000 {
+		t.Fatalf("Expected bytes 500000, got %d", req.Bytes)
 	}
 }
 
-func TestSendFlowReportMultipleCalls(t *testing.T) {
-	mockSMF := &MockSMF{}
-	dispatcher := pfcp_dispatcher.PfcpDispatcher{SMF: mockSMF}
-
-	// Send multiple flow reports
-	for i := range 5 {
-		flow := ebpf.N3N6EntrypointFlow{
-			Imsi:  1019756139935 + uint64(i),
-			Saddr: makeIPUint32(192, 168, 1, 100),
-			Daddr: makeIPUint32(8, 8, 8, 8),
-			Sport: makePortUint16(uint16(10000 + i)),
-			Dport: makePortUint16(53),
-			Proto: 17,
-		}
-
-		stats := ebpf.N3N6EntrypointFlowStats{
-			FirstTs: uint64(1000000000),
-			LastTs:  uint64(1000300000),
-			Packets: uint64(100 * (i + 1)),
-			Bytes:   uint64(50000 * (i + 1)),
-		}
-
-		core.SendFlowReport(t.Context(), &dispatcher, flow, stats)
-	}
-
-	if mockSMF.CallCount != 5 {
-		t.Fatalf("Expected 5 calls to SendFlowReport, got %d", mockSMF.CallCount)
-	}
-}
-
-func TestSendFlowReportDifferentProtocols(t *testing.T) {
+func TestBuildFlowReportRequestDifferentProtocols(t *testing.T) {
 	testCases := []struct {
 		name     string
 		protocol uint8
@@ -167,9 +92,6 @@ func TestSendFlowReportDifferentProtocols(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			mockSMF := &MockSMF{}
-			dispatcher := pfcp_dispatcher.PfcpDispatcher{SMF: mockSMF}
-
 			flow := ebpf.N3N6EntrypointFlow{
 				Imsi:  1019756139935,
 				Saddr: makeIPUint32(192, 168, 1, 100),
@@ -186,23 +108,20 @@ func TestSendFlowReportDifferentProtocols(t *testing.T) {
 				Bytes:   50000,
 			}
 
-			core.SendFlowReport(t.Context(), &dispatcher, flow, stats)
+			req := core.BuildFlowReportRequest(flow, stats)
 
-			if mockSMF.LastFlowReport.Protocol != tc.protocol {
-				t.Fatalf("Expected protocol %d, got %d", tc.protocol, mockSMF.LastFlowReport.Protocol)
+			if req.Protocol != tc.protocol {
+				t.Fatalf("Expected protocol %d, got %d", tc.protocol, req.Protocol)
 			}
 
-			if mockSMF.LastFlowReport.DestinationPort != tc.port {
-				t.Fatalf("Expected port %d, got %d", tc.port, mockSMF.LastFlowReport.DestinationPort)
+			if req.DestinationPort != tc.port {
+				t.Fatalf("Expected port %d, got %d", tc.port, req.DestinationPort)
 			}
 		})
 	}
 }
 
-func TestSendFlowReportTimestampFormatting(t *testing.T) {
-	mockSMF := &MockSMF{}
-	dispatcher := pfcp_dispatcher.PfcpDispatcher{SMF: mockSMF}
-
+func TestBuildFlowReportRequestTimestampFormatting(t *testing.T) {
 	flow := ebpf.N3N6EntrypointFlow{
 		Imsi:  1019756139935,
 		Saddr: makeIPUint32(192, 168, 1, 100),
@@ -219,23 +138,20 @@ func TestSendFlowReportTimestampFormatting(t *testing.T) {
 		Bytes:   50000,
 	}
 
-	core.SendFlowReport(t.Context(), &dispatcher, flow, stats)
+	req := core.BuildFlowReportRequest(flow, stats)
 
-	// Verify timestamps are in RFC3339 format
-	report := mockSMF.LastFlowReport
-
-	_, err := time.Parse(time.RFC3339, report.StartTime)
+	_, err := time.Parse(time.RFC3339, req.StartTime)
 	if err != nil {
-		t.Fatalf("Invalid start time format: %s (error: %v)", report.StartTime, err)
+		t.Fatalf("Invalid start time format: %s (error: %v)", req.StartTime, err)
 	}
 
-	_, err = time.Parse(time.RFC3339, report.EndTime)
+	_, err = time.Parse(time.RFC3339, req.EndTime)
 	if err != nil {
-		t.Fatalf("Invalid end time format: %s (error: %v)", report.EndTime, err)
+		t.Fatalf("Invalid end time format: %s (error: %v)", req.EndTime, err)
 	}
 }
 
-func TestSendFlowReportIPAddressConversion(t *testing.T) {
+func TestBuildFlowReportRequestIPAddressConversion(t *testing.T) {
 	testCases := []struct {
 		name        string
 		saddr       uint32
@@ -268,9 +184,6 @@ func TestSendFlowReportIPAddressConversion(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			mockSMF := &MockSMF{}
-			dispatcher := pfcp_dispatcher.PfcpDispatcher{SMF: mockSMF}
-
 			flow := ebpf.N3N6EntrypointFlow{
 				Imsi:  1019756139935,
 				Saddr: tc.saddr,
@@ -287,23 +200,20 @@ func TestSendFlowReportIPAddressConversion(t *testing.T) {
 				Bytes:   50000,
 			}
 
-			core.SendFlowReport(t.Context(), &dispatcher, flow, stats)
+			req := core.BuildFlowReportRequest(flow, stats)
 
-			if mockSMF.LastFlowReport.SourceIP != tc.expectedSrc {
-				t.Fatalf("Expected source IP %s, got %s", tc.expectedSrc, mockSMF.LastFlowReport.SourceIP)
+			if req.SourceIP != tc.expectedSrc {
+				t.Fatalf("Expected source IP %s, got %s", tc.expectedSrc, req.SourceIP)
 			}
 
-			if mockSMF.LastFlowReport.DestinationIP != tc.expectedDst {
-				t.Fatalf("Expected destination IP %s, got %s", tc.expectedDst, mockSMF.LastFlowReport.DestinationIP)
+			if req.DestinationIP != tc.expectedDst {
+				t.Fatalf("Expected destination IP %s, got %s", tc.expectedDst, req.DestinationIP)
 			}
 		})
 	}
 }
 
-func TestSendFlowReportImsiFormatting(t *testing.T) {
-	mockSMF := &MockSMF{}
-	dispatcher := pfcp_dispatcher.PfcpDispatcher{SMF: mockSMF}
-
+func TestBuildFlowReportRequestImsiFormatting(t *testing.T) {
 	flow := ebpf.N3N6EntrypointFlow{
 		Imsi:  1019756139935,
 		Saddr: makeIPUint32(192, 168, 1, 100),
@@ -320,10 +230,9 @@ func TestSendFlowReportImsiFormatting(t *testing.T) {
 		Bytes:   50000,
 	}
 
-	core.SendFlowReport(t.Context(), &dispatcher, flow, stats)
+	req := core.BuildFlowReportRequest(flow, stats)
 
-	// Verify IMSI is formatted as 15-digit string
-	if mockSMF.LastFlowReport.IMSI != "001019756139935" {
-		t.Fatalf("Expected IMSI 001019756139935, got %s", mockSMF.LastFlowReport.IMSI)
+	if req.IMSI != "001019756139935" {
+		t.Fatalf("Expected IMSI 001019756139935, got %s", req.IMSI)
 	}
 }

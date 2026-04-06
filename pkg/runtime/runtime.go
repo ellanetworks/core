@@ -198,7 +198,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	smfInstance := smf.New(smfPCF, smfStore, nil, smfAMF, smf.WithNodeID(net.ParseIP(n3Address)), smf.WithBGP(bgpService))
 
-	// The SMF instance implements pfcp_dispatcher.SMF (HandlePfcpSessionReportRequest, SendFlowReport).
+	// The SMF instance implements pfcp_dispatcher.SMF (HandlePfcpSessionReportRequest, SendFlowReports).
 	dispatcher := pfcp_dispatcher.NewPfcpDispatcher(smfInstance, upf_pfcp.UpfPfcpHandler{})
 
 	// Now that dispatcher is initialized, create the SMF UPF adapter with it

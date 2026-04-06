@@ -36,7 +36,7 @@ const (
 	ConnTrackTimeout    = 10 * time.Minute
 	InactiveFlowTimeout = 30 * time.Second
 	ActiveFlowTimeout   = 30 * time.Minute
-	maxInFlightFlows    = 2000
+	maxInFlightFlows    = 16384
 	flowReportTimeout   = 5 * time.Second
 )
 
@@ -668,6 +668,7 @@ func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flow
 	}
 
 	if dropped > 0 {
+		flowReportsDropped.Add(float64(dropped))
 		logger.UpfLog.Warn("Dropped flow reports: reporter channel full", zap.Int("dropped", dropped))
 	}
 }
@@ -708,17 +709,75 @@ func (u *UPF) collectExpiredFlows(ctx context.Context, flowch chan flowReport) {
 	}
 }
 
-// reportFlows drains flowch and forwards each entry to the SMF via
-// SendFlowReport. Each call is given its own short-lived context with a
-// deadline so that a slow or unresponsive SMF cannot stall the reporter
-// goroutine indefinitely.
+// reportFlows drains flowch in batches and forwards each batch to the SMF
+// via SendFlowReports. Batching amortises the cost of SQLite transactions:
+// instead of one fsync per flow, all flows in a batch share a single
+// transaction.
+//
+// The goroutine accumulates flows until either maxFlowBatchSize entries have
+// been collected or flowBatchTimeout elapses since the first entry in the
+// current batch, whichever comes first. This ensures low-latency reporting
+// during light traffic while achieving high throughput during bursts.
 //
 // The function returns only when flowch is closed by collectExpiredFlows,
 // ensuring that all flows buffered before shutdown are reported.
 func (u *UPF) reportFlows(flowch chan flowReport) {
-	for f := range flowch {
+	const (
+		maxFlowBatchSize = 500
+		flowBatchTimeout = 100 * time.Millisecond
+	)
+
+	batch := make([]flowReport, 0, maxFlowBatchSize)
+	timer := time.NewTimer(flowBatchTimeout)
+	timer.Stop()
+
+	flush := func() {
+		if len(batch) == 0 {
+			return
+		}
+
+		reqs := make([]*pfcp_dispatcher.FlowReportRequest, len(batch))
+		for i, f := range batch {
+			reqs[i] = core.BuildFlowReportRequest(f.flow, f.stats)
+		}
+
 		rctx, cancel := context.WithTimeout(context.Background(), flowReportTimeout)
-		core.SendFlowReport(rctx, u.dispatcher, f.flow, f.stats)
+		err := u.dispatcher.SMF.SendFlowReports(rctx, reqs)
+
 		cancel()
+
+		if err != nil {
+			logger.UpfLog.Error("failed to send flow report batch",
+				zap.Int("batch_size", len(batch)),
+				zap.Error(err),
+			)
+		}
+
+		batch = batch[:0]
+	}
+
+	for {
+		select {
+		case f, ok := <-flowch:
+			if !ok {
+				flush()
+				timer.Stop()
+
+				return
+			}
+
+			if len(batch) == 0 {
+				timer.Reset(flowBatchTimeout)
+			}
+
+			batch = append(batch, f)
+
+			if len(batch) >= maxFlowBatchSize {
+				timer.Stop()
+				flush()
+			}
+		case <-timer.C:
+			flush()
+		}
 	}
 }

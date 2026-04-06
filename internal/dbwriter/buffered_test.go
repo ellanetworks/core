@@ -46,11 +46,11 @@ func (f *fakeDBWriter) InsertAuditLog(_ context.Context, log *dbwriter.AuditLog)
 	return nil
 }
 
-func (f *fakeDBWriter) InsertFlowReport(_ context.Context, flow *dbwriter.FlowReport) error {
+func (f *fakeDBWriter) InsertFlowReports(_ context.Context, flows []*dbwriter.FlowReport) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.flowReports = append(f.flowReports, flow)
+	f.flowReports = append(f.flowReports, flows...)
 
 	return nil
 }

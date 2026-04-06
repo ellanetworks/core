@@ -156,30 +156,56 @@ type FlowReportFilters struct {
 	Action          *uint8  `db:"action"`           // 0 = "allow", 1 = "drop"
 }
 
-func (db *Database) InsertFlowReport(ctx context.Context, flowReport *dbwriter.FlowReport) error {
+// InsertFlowReports inserts multiple flow reports in a single SQLite
+// transaction. This is significantly faster than individual inserts because
+// SQLite only performs one fsync per transaction instead of one per row.
+func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwriter.FlowReport) error {
+	if len(flowReports) == 0 {
+		return nil
+	}
+
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("%s %s", "INSERT", FlowReportsTableName),
+		fmt.Sprintf("BATCH INSERT %s", FlowReportsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("INSERT"),
 			attribute.String("db.collection", FlowReportsTableName),
+			attribute.Int("db.batch_size", len(flowReports)),
 		),
 	)
 	defer span.End()
 
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FlowReportsTableName, "insert"))
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FlowReportsTableName, "batch_insert"))
 	defer timer.ObserveDuration()
 
-	DBQueriesTotal.WithLabelValues(FlowReportsTableName, "insert").Inc()
+	DBQueriesTotal.WithLabelValues(FlowReportsTableName, "batch_insert").Inc()
 
-	err := db.conn.Query(ctx, db.insertFlowReportStmt, flowReport).Run()
+	tx, err := db.conn.Begin(ctx, nil)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, "begin transaction failed")
 
-		return fmt.Errorf("query failed: %w", err)
+		return fmt.Errorf("begin transaction failed: %w", err)
+	}
+
+	for _, fr := range flowReports {
+		if err := tx.Query(ctx, db.insertFlowReportStmt, fr).Run(); err != nil {
+			_ = tx.Rollback()
+
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "insert failed")
+
+			return fmt.Errorf("insert failed: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "commit failed")
+
+		return fmt.Errorf("commit failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
