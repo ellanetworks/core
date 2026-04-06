@@ -278,10 +278,11 @@ const Dashboard = () => {
   const flowStatsQuery = useQuery<FlowReportStatsResponse>({
     queryKey: ["dashboardFlowStats", startDate, endDate],
     queryFn: () =>
+      // Do not force 'allow' so the dashboard shows both allowed and dropped
+      // flows by default. The API returns both when action is omitted.
       getFlowReportStats(accessToken!, {
         start: startDate,
         end: endDate,
-        action: "allow",
       }),
     enabled: authReady && !!accessToken,
     refetchInterval: 10000,

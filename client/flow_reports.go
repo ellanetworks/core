@@ -44,8 +44,8 @@ type ListFlowReportsParams struct {
 	Direction    string `json:"direction"`
 	Start        string `json:"start"`
 	End          string `json:"end"`
-	// Action filters by flow disposition: "allow" or "drop".
-	// When empty, all flows are returned regardless of disposition.
+	// Action filters by flow action: "allow" or "drop".
+	// When empty, all flows are returned regardless of action.
 	Action string `json:"action"`
 }
 

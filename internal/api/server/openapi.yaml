@@ -2367,7 +2367,7 @@ paths:
             type: string
             enum: [allow, drop]
           description: >
-            Filter by flow disposition. `allow` returns only accepted flows,
+            Filter by flow action. `allow` returns only accepted flows,
             `drop` returns only dropped flows. When omitted, all flows are returned.
         - name: start
           in: query
@@ -2471,7 +2471,7 @@ paths:
             type: string
             enum: [allow, drop]
           description: >
-            Filter by flow disposition. `allow` returns only accepted flows,
+            Filter by flow action. `allow` returns only accepted flows,
             `drop` returns only dropped flows. When omitted, all flows are returned.
         - name: start
           in: query
@@ -4594,7 +4594,7 @@ components:
         action:
           type: string
           enum: [allow, drop]
-          description: Flow disposition — whether the flow was accepted or dropped by the UPF.
+          description: Flow action — whether the flow was accepted or dropped by the UPF.
       required: [id, subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action]
 
     ListFlowReportsResponse:

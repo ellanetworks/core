@@ -27,7 +27,7 @@ This path returns a paginated list of flow reports with optional filtering.
 | `start`         | query | string | `now-7d` |                              | Start date for flow reports. Format: YYYY-MM-DD.                                                                              |
 | `end`           | query | string | `now`    |                              | End date for flow reports. Format: YYYY-MM-DD.                                                                                |
 | `direction`     | query | string | ``       | `uplink`, `downlink`         | Filter by traffic direction.                                                                                                  |
-| `action`        | query | string | ``       | `allow`, `drop`              | Filter by flow disposition. `allow` returns only accepted flows, `drop` returns only dropped flows. When omitted, all flows are returned. |
+| `action`        | query | string | ``       | `allow`, `drop`              | Filter by flow action. `allow` returns only accepted flows, `drop` returns only dropped flows. When omitted, all flows are returned. |
 | `group_by`      | query | string | ``       | `day`, `subscriber`          | Grouping method for flow reports. When set, returns aggregated data instead of paginated list.                                |
 
 ### Sample Response (default, no `group_by`)

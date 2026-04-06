@@ -25,9 +25,11 @@ const SubscriberProtocolChart: React.FC<SubscriberProtocolChartProps> = ({
   const { data: statsData, isLoading } = useQuery<FlowReportStatsResponse>({
     queryKey: ["subscriber-protocol-stats", imsi],
     queryFn: () =>
+      // Do not force 'allow' here so the chart shows both allowed and dropped
+      // flows by default. The API will return combined stats when action is
+      // omitted.
       getFlowReportStats(accessToken || "", {
         subscriber_id: imsi,
-        action: "allow",
       }),
     enabled: authReady && !!accessToken && !!imsi,
     refetchInterval: 10000,
