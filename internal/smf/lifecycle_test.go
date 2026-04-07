@@ -14,9 +14,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/smf"
-	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
@@ -116,14 +114,12 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 		t.Fatalf("NewPDR (DL): %v", err)
 	}
 
-	dlPdr.FAR.ApplyAction = smf.ApplyAction{Forw: true}
-	dlPdr.FAR.ForwardingParameters = &smf.ForwardingParameters{
-		DestinationInterface: smf.DestinationInterface{InterfaceValue: smf.DestinationInterfaceAccess},
-		NetworkInstance:      testDNN,
-		OuterHeaderCreation: &smf.OuterHeaderCreation{
-			OuterHeaderCreationDescription: smf.OuterHeaderCreationGtpUUdpIpv4,
-			TeID:                           6000,
-			IPv4Address:                    net.ParseIP("10.0.0.100").To4(),
+	dlPdr.FAR.ApplyAction = models.ApplyAction{Forw: true}
+	dlPdr.FAR.ForwardingParameters = &models.ForwardingParameters{
+		OuterHeaderCreation: &models.OuterHeaderCreation{
+			Description: smf.OuterHeaderCreationGtpUUdpIpv4,
+			TEID:        6000,
+			IPv4Address: net.ParseIP("10.0.0.100").To4(),
 		},
 	}
 
@@ -132,7 +128,7 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 			UpLinkTunnel: &smf.GTPTunnel{
 				PDR:  ulPdr,
 				TEID: 5000,
-				N3IP: net.ParseIP("192.168.1.1").To4(),
+				N3IP: netip.MustParseAddr("192.168.1.1"),
 			},
 			DownLinkTunnel: &smf.GTPTunnel{
 				PDR: dlPdr,
@@ -194,10 +190,6 @@ func TestActivateTunnelAndPDR_HappyPath(t *testing.T) {
 
 	if smCtx.Tunnel.DataPath.DownLinkTunnel.PDR == nil {
 		t.Fatal("expected DL PDR to be set")
-	}
-
-	if smCtx.Tunnel.DataPath.UpLinkTunnel.PDR.PDI.SourceInterface.InterfaceValue != smf.SourceInterfaceAccess {
-		t.Fatal("UL PDR source interface should be Access")
 	}
 
 	if !smCtx.Tunnel.DataPath.UpLinkTunnel.PDR.FAR.ApplyAction.Forw {
@@ -471,9 +463,9 @@ func TestCreateSmContext_HappyPath(t *testing.T) {
 		t.Fatal("expected PFCP establishment call")
 	}
 
-	if upf.lastEstablish.SUPI != testIMSI {
+	if upf.lastEstablish.IMSI != testIMSI {
 		upf.mu.Unlock()
-		t.Fatalf("expected SUPI %s in PFCP request, got %s", testIMSI, upf.lastEstablish.SUPI)
+		t.Fatalf("expected IMSI %s in establish request, got %s", testIMSI, upf.lastEstablish.IMSI)
 	}
 	upf.mu.Unlock()
 
@@ -1048,32 +1040,23 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_NilPFCPContext(t *testing.T) {
 }
 
 // ===========================
-// HandlePfcpSessionReportRequest tests
+// HandleDownlinkDataReport tests
 // ===========================
 
-func TestHandlePfcpSessionReportRequest_DLDR(t *testing.T) {
+func TestHandleDownlinkDataReport(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, _ := setupSessionWithTunnel(t, s)
 
-	msg, err := core.BuildPfcpSessionReportRequestForDownlinkData(
-		smCtx.PFCPContext.LocalSEID, 1,
-		smCtx.Tunnel.DataPath.UpLinkTunnel.PDR.PDRID,
-		smCtx.PolicyData.QosData.QFI,
-	)
+	err := s.HandleDownlinkDataReport(ctx, &models.DownlinkDataReport{
+		SEID:  smCtx.PFCPContext.LocalSEID,
+		PDRID: smCtx.Tunnel.DataPath.UpLinkTunnel.PDR.PDRID,
+		QFI:   smCtx.PolicyData.QosData.QFI,
+	})
 	if err != nil {
-		t.Fatalf("build DLDR report: %v", err)
-	}
-
-	rsp, err := s.HandlePfcpSessionReportRequest(ctx, msg)
-	if err != nil {
-		t.Fatalf("HandlePfcpSessionReportRequest DLDR failed: %v", err)
-	}
-
-	if rsp == nil {
-		t.Fatal("expected non-nil response")
+		t.Fatalf("HandleDownlinkDataReport failed: %v", err)
 	}
 
 	amfCb.mu.Lock()
@@ -1084,29 +1067,24 @@ func TestHandlePfcpSessionReportRequest_DLDR(t *testing.T) {
 	amfCb.mu.Unlock()
 }
 
-func TestHandlePfcpSessionReportRequest_USAR(t *testing.T) {
+// ===========================
+// HandleUsageReport tests
+// ===========================
+
+func TestHandleUsageReport(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
 	smCtx, _ := setupSessionWithTunnel(t, s)
 
-	msg, err := core.BuildPfcpSessionReportRequestForUsage(
-		smCtx.PFCPContext.LocalSEID, 1,
-		1, 1,
-		500, 300,
-	)
+	err := s.HandleUsageReport(ctx, &models.UsageReport{
+		SEID:           smCtx.PFCPContext.LocalSEID,
+		UplinkVolume:   500,
+		DownlinkVolume: 300,
+	})
 	if err != nil {
-		t.Fatalf("build USAR report: %v", err)
-	}
-
-	rsp, err := s.HandlePfcpSessionReportRequest(ctx, msg)
-	if err != nil {
-		t.Fatalf("HandlePfcpSessionReportRequest USAR failed: %v", err)
-	}
-
-	if rsp == nil {
-		t.Fatal("expected non-nil response")
+		t.Fatalf("HandleUsageReport failed: %v", err)
 	}
 
 	store.mu.Lock()
@@ -1131,23 +1109,18 @@ func TestHandlePfcpSessionReportRequest_USAR(t *testing.T) {
 	}
 }
 
-func TestHandlePfcpSessionReportRequest_UnknownSEID(t *testing.T) {
+func TestHandleDownlinkDataReport_UnknownSEID(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
-	msg, err := core.BuildPfcpSessionReportRequestForDownlinkData(999, 1, 1, 1)
-	if err != nil {
-		t.Fatalf("build DLDR report: %v", err)
-	}
-
-	rsp, err := s.HandlePfcpSessionReportRequest(ctx, msg)
+	err := s.HandleDownlinkDataReport(ctx, &models.DownlinkDataReport{
+		SEID:  999,
+		PDRID: 1,
+		QFI:   1,
+	})
 	if err == nil {
 		t.Fatal("expected error for unknown SEID")
-	}
-
-	if rsp == nil {
-		t.Fatal("expected reject response even on error")
 	}
 }
 
@@ -1160,7 +1133,7 @@ func TestSendFlowReports_HappyPath(t *testing.T) {
 	s := newTestSMF(pcf, store, upf, amfCb)
 	ctx := context.Background()
 
-	req := &pfcp_dispatcher.FlowReportRequest{
+	req := &models.FlowReportRequest{
 		IMSI:            testIMSI,
 		SourceIP:        "10.0.0.1",
 		DestinationIP:   "8.8.8.8",
@@ -1174,7 +1147,7 @@ func TestSendFlowReports_HappyPath(t *testing.T) {
 		Direction:       models.DirectionUplink,
 	}
 
-	err := s.SendFlowReports(ctx, []*pfcp_dispatcher.FlowReportRequest{req})
+	err := s.SendFlowReports(ctx, []*models.FlowReportRequest{req})
 	if err != nil {
 		t.Fatalf("SendFlowReports failed: %v", err)
 	}
@@ -1203,7 +1176,7 @@ func TestSendFlowReports_NilRequestSkipped(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
-	err := s.SendFlowReports(context.Background(), []*pfcp_dispatcher.FlowReportRequest{nil})
+	err := s.SendFlowReports(context.Background(), []*models.FlowReportRequest{nil})
 	if err != nil {
 		t.Fatalf("expected nil request to be skipped, got error: %v", err)
 	}
@@ -1220,11 +1193,11 @@ func TestSendFlowReports_MissingIMSISkipped(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
-	req := &pfcp_dispatcher.FlowReportRequest{
+	req := &models.FlowReportRequest{
 		SourceIP: "10.0.0.1",
 	}
 
-	err := s.SendFlowReports(context.Background(), []*pfcp_dispatcher.FlowReportRequest{req})
+	err := s.SendFlowReports(context.Background(), []*models.FlowReportRequest{req})
 	if err != nil {
 		t.Fatalf("expected empty-IMSI request to be skipped, got error: %v", err)
 	}
@@ -1242,13 +1215,13 @@ func TestSendFlowReports_StoreError(t *testing.T) {
 	store.err = fmt.Errorf("database error")
 	s := newTestSMF(pcf, store, upf, amfCb)
 
-	req := &pfcp_dispatcher.FlowReportRequest{
+	req := &models.FlowReportRequest{
 		IMSI:      testIMSI,
 		SourceIP:  "10.0.0.1",
 		Direction: models.DirectionUplink,
 	}
 
-	err := s.SendFlowReports(context.Background(), []*pfcp_dispatcher.FlowReportRequest{req})
+	err := s.SendFlowReports(context.Background(), []*models.FlowReportRequest{req})
 	if err == nil {
 		t.Fatal("expected error when store fails")
 	}
@@ -1379,8 +1352,8 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_HappyPath(t *testing.T) {
 		t.Fatal("expected DL FAR outer header creation to be set")
 	}
 
-	if dlFAR.ForwardingParameters.OuterHeaderCreation.TeID != gnbTEID {
-		t.Fatalf("expected DL FAR TEID %d, got %d", gnbTEID, dlFAR.ForwardingParameters.OuterHeaderCreation.TeID)
+	if dlFAR.ForwardingParameters.OuterHeaderCreation.TEID != gnbTEID {
+		t.Fatalf("expected DL FAR TEID %d, got %d", gnbTEID, dlFAR.ForwardingParameters.OuterHeaderCreation.TEID)
 	}
 
 	if !dlFAR.ForwardingParameters.OuterHeaderCreation.IPv4Address.Equal(gnbIP) {
@@ -1441,17 +1414,12 @@ func TestUpdateSmContextXnHandoverPathSwitchReq_HappyPath(t *testing.T) {
 		t.Fatal("expected DL FAR outer header creation to be set")
 	}
 
-	if dlFAR.ForwardingParameters.OuterHeaderCreation.TeID != targetTEID {
-		t.Fatalf("expected DL FAR TEID %d, got %d", targetTEID, dlFAR.ForwardingParameters.OuterHeaderCreation.TeID)
+	if dlFAR.ForwardingParameters.OuterHeaderCreation.TEID != targetTEID {
+		t.Fatalf("expected DL FAR TEID %d, got %d", targetTEID, dlFAR.ForwardingParameters.OuterHeaderCreation.TEID)
 	}
 
 	if !dlFAR.ForwardingParameters.OuterHeaderCreation.IPv4Address.Equal(targetGnbIP) {
 		t.Fatalf("expected DL FAR IP %s, got %s", targetGnbIP, dlFAR.ForwardingParameters.OuterHeaderCreation.IPv4Address)
-	}
-
-	// Verify SNDEM flag was set for path switch.
-	if dlFAR.ForwardingParameters.PFCPSMReqFlags == nil || !dlFAR.ForwardingParameters.PFCPSMReqFlags.Sndem {
-		t.Fatal("expected PFCPSMReqFlags.Sndem to be set after path switch")
 	}
 
 	// Verify a PFCP modification was sent.

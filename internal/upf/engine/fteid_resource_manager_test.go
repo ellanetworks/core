@@ -1,13 +1,13 @@
-package core_test
+package engine_test
 
 import (
 	"testing"
 
-	"github.com/ellanetworks/core/internal/upf/core"
+	"github.com/ellanetworks/core/internal/upf/engine"
 )
 
 func TestResourceManagerEmptyRange(t *testing.T) {
-	resourceManager, err := core.NewFteIDResourceManager(0)
+	resourceManager, err := engine.NewFteIDResourceManager(0)
 	if err == nil {
 		t.Fatalf("Expected error, got nil")
 	}
@@ -20,7 +20,7 @@ func TestResourceManagerEmptyRange(t *testing.T) {
 func TestResourceManagerNonEmptyRange(t *testing.T) {
 	teIDRange := uint32(100)
 
-	resourceManager, err := core.NewFteIDResourceManager(teIDRange)
+	resourceManager, err := engine.NewFteIDResourceManager(teIDRange)
 	if err != nil {
 		t.Fatalf("Expected nil, got %v", err)
 	}

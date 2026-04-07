@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"sync/atomic"
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
@@ -19,10 +18,8 @@ import (
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/ipam"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/smf"
-	upf_pfcp "github.com/ellanetworks/core/internal/upf/core"
-	"github.com/wmnsk/go-pfcp/ie"
+	upfengine "github.com/ellanetworks/core/internal/upf/engine"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -30,10 +27,6 @@ import (
 )
 
 var tracer = otel.Tracer("ella-core/runtime")
-
-// ---------------------------------------------------------------------------
-// smfDBAdapter adapts *db.Database to the smf.SessionStore interface.
-// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // leaseStoreAdapter bridges db.Database (which uses *db.IPLease) to
@@ -280,7 +273,7 @@ func (a *smfDBAdapter) IncrementDailyUsage(ctx context.Context, imsi string, upl
 	})
 }
 
-func (a *smfDBAdapter) InsertFlowReports(ctx context.Context, reports []*smf.FlowReport) error {
+func (a *smfDBAdapter) InsertFlowReports(ctx context.Context, reports []*models.FlowReportRequest) error {
 	batch := make([]*dbwriter.FlowReport, len(reports))
 
 	for i, report := range reports {
@@ -304,152 +297,36 @@ func (a *smfDBAdapter) InsertFlowReports(ctx context.Context, reports []*smf.Flo
 }
 
 // ---------------------------------------------------------------------------
-// smfUPFAdapter adapts the in-process PFCP dispatcher to smf.UPFClient.
+// smfUPFAdapter adapts the in-process UPF calls to smf.UPFClient.
 // ---------------------------------------------------------------------------
 
-var sessionSeq uint32
-
 type smfUPFAdapter struct {
-	dispatcher *pfcp_dispatcher.PfcpDispatcher
-	nodeID     net.IP
+	engine *upfengine.SessionEngine
 }
 
-func (a *smfUPFAdapter) EstablishSession(ctx context.Context, req *smf.PFCPEstablishmentRequest) (*smf.PFCPEstablishmentResponse, error) {
-	seq := atomic.AddUint32(&sessionSeq, 1)
-
-	pfcpMsg, err := smf.BuildPfcpSessionEstablishmentRequest(
-		seq,
-		req.NodeID.String(),
-		req.NodeID,
-		req.LocalSEID,
-		req.PDRs,
-		req.FARs,
-		req.QERs,
-		req.URRs,
-		req.SUPI,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("build PFCP establishment request: %w", err)
-	}
-
-	rsp, err := upf_pfcp.HandlePfcpSessionEstablishmentRequest(ctx, pfcpMsg, req.FilterIndexByPDRID)
-	if err != nil {
-		return nil, fmt.Errorf("PFCP establishment: %w", err)
-	}
-
-	if rsp.UPFSEID == nil {
-		return nil, fmt.Errorf("PFCP establishment response missing UPF SEID")
-	}
-
-	fseid, err := rsp.UPFSEID.FSEID()
-	if err != nil {
-		return nil, fmt.Errorf("parse FSEID: %w", err)
-	}
-
-	fteid, err := findFTEID(rsp.CreatedPDR)
-	if err != nil {
-		return nil, fmt.Errorf("parse FTEID: %w", err)
-	}
-
-	if rsp.Cause == nil {
-		return nil, fmt.Errorf("PFCP establishment response missing Cause")
-	}
-
-	causeValue, err := rsp.Cause.Cause()
-	if err != nil {
-		return nil, fmt.Errorf("parse Cause: %w", err)
-	}
-
-	if causeValue != ie.CauseRequestAccepted {
-		return nil, fmt.Errorf("PFCP establishment rejected: cause %d", causeValue)
-	}
-
-	return &smf.PFCPEstablishmentResponse{
-		RemoteSEID: fseid.SEID,
-		TEID:       fteid.TEID,
-		N3IP:       fteid.IPv4Address,
-	}, nil
+func (a *smfUPFAdapter) EstablishSession(ctx context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error) {
+	return a.engine.EstablishSession(ctx, req)
 }
 
-func (a *smfUPFAdapter) ModifySession(ctx context.Context, req *smf.PFCPModificationRequest) error {
-	seq := atomic.AddUint32(&sessionSeq, 1)
-
-	pfcpMsg, err := smf.BuildPfcpSessionModificationRequest(
-		seq,
-		req.LocalSEID,
-		req.RemoteSEID,
-		a.nodeID,
-		req.PDRs,
-		req.FARs,
-		req.QERs,
-	)
-	if err != nil {
-		return fmt.Errorf("build PFCP modification request: %w", err)
-	}
-
-	rsp, err := upf_pfcp.HandlePfcpSessionModificationRequest(ctx, pfcpMsg, req.FilterIndexByPDRID)
-	if err != nil {
-		return fmt.Errorf("PFCP modification: %w", err)
-	}
-
-	if rsp.Cause == nil {
-		return fmt.Errorf("PFCP modification response missing Cause")
-	}
-
-	causeValue, err := rsp.Cause.Cause()
-	if err != nil {
-		return fmt.Errorf("parse Cause: %w", err)
-	}
-
-	if causeValue != ie.CauseRequestAccepted {
-		return fmt.Errorf("PFCP modification rejected: cause %d", causeValue)
-	}
-
-	return nil
+func (a *smfUPFAdapter) ModifySession(ctx context.Context, req *models.ModifyRequest) error {
+	return a.engine.ModifySession(ctx, req)
 }
 
-func (a *smfUPFAdapter) DeleteSession(ctx context.Context, localSEID, remoteSEID uint64) error {
-	seq := atomic.AddUint32(&sessionSeq, 1)
-	pfcpMsg := smf.BuildPfcpSessionDeletionRequest(seq, localSEID, remoteSEID, a.nodeID)
-
-	rsp, err := a.dispatcher.UPF.HandlePfcpSessionDeletionRequest(ctx, pfcpMsg)
-	if err != nil {
-		return fmt.Errorf("PFCP deletion: %w", err)
-	}
-
-	if rsp.Cause == nil {
-		return fmt.Errorf("PFCP deletion response missing Cause")
-	}
-
-	causeValue, err := rsp.Cause.Cause()
-	if err != nil {
-		return fmt.Errorf("parse Cause: %w", err)
-	}
-
-	if causeValue != ie.CauseRequestAccepted {
-		return fmt.Errorf("PFCP deletion rejected: cause %d", causeValue)
-	}
-
-	return nil
+func (a *smfUPFAdapter) DeleteSession(ctx context.Context, remoteSEID uint64) error {
+	return a.engine.DeleteSession(ctx, &models.DeleteRequest{SEID: remoteSEID})
 }
 
 func (a *smfUPFAdapter) UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {
-	return a.dispatcher.UPF.UpdateFilters(ctx, policyID, direction, rules)
+	return a.engine.UpdateFilters(policyID, direction, rules)
 }
 
 func (a *smfUPFAdapter) GetFilterIndex(ctx context.Context, policyID int64, direction models.Direction) (uint32, error) {
-	return a.dispatcher.UPF.GetFilterIndex(ctx, policyID, direction)
-}
-
-func findFTEID(createdPDRIEs []*ie.IE) (*ie.FTEIDFields, error) {
-	for _, createdPDRIE := range createdPDRIEs {
-		teid, err := createdPDRIE.FTEID()
-		if err == nil {
-			return teid, nil
-		}
+	idx, ok := a.engine.GetFilterIndex(policyID, direction)
+	if !ok {
+		return 0, fmt.Errorf("filter not found for policy %d, direction %s", policyID, direction)
 	}
 
-	return nil, fmt.Errorf("FTEID not found in CreatedPDR")
+	return idx, nil
 }
 
 // ---------------------------------------------------------------------------

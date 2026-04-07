@@ -72,7 +72,7 @@ func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
 		return nil
 	}
 
-	if err := s.upf.DeleteSession(ctx, smContext.PFCPContext.LocalSEID, smContext.PFCPContext.RemoteSEID); err != nil {
+	if err := s.upf.DeleteSession(ctx, smContext.PFCPContext.RemoteSEID); err != nil {
 		return fmt.Errorf("send PFCP session deletion request failed: %v", err)
 	}
 

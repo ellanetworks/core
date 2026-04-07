@@ -1,9 +1,9 @@
 // Copyright 2024 Ella Networks
-package core
+package engine
 
 import (
 	"maps"
-	"net"
+	"net/netip"
 	"sync"
 
 	"github.com/ellanetworks/core/internal/upf/ebpf"
@@ -30,8 +30,7 @@ type SPDRInfo struct {
 	PdrID     uint32
 	PdrInfo   ebpf.PdrInfo
 	TeID      uint32
-	Ipv4      net.IP
-	Ipv6      net.IP
+	UEIP      netip.Addr
 	Allocated bool
 }
 

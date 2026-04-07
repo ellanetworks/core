@@ -3,14 +3,14 @@ package ngap
 import (
 	"encoding/binary"
 	"fmt"
-	"net"
+	"net/netip"
 
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 )
 
 // TS 38.413 9.3.4.9
-func BuildPathSwitchRequestAcknowledgeTransfer(teid uint32, n3IP net.IP) ([]byte, error) {
+func BuildPathSwitchRequestAcknowledgeTransfer(teid uint32, n3IP netip.Addr) ([]byte, error) {
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, teid)
 
@@ -21,9 +21,11 @@ func BuildPathSwitchRequestAcknowledgeTransfer(teid uint32, n3IP net.IP) ([]byte
 	pathSwitchRequestAcknowledgeTransfer.ULNGUUPTNLInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
 	pathSwitchRequestAcknowledgeTransfer.ULNGUUPTNLInformation.GTPTunnel = new(ngapType.GTPTunnel)
 	pathSwitchRequestAcknowledgeTransfer.ULNGUUPTNLInformation.GTPTunnel.GTPTEID.Value = teidOct
+	ipv4 := n3IP.As4()
+
 	pathSwitchRequestAcknowledgeTransfer.ULNGUUPTNLInformation.GTPTunnel.TransportLayerAddress.Value = aper.BitString{
-		Bytes:     n3IP,
-		BitLength: uint64(len(n3IP) * 8),
+		Bytes:     ipv4[:],
+		BitLength: 32,
 	}
 
 	// Security Indication(optional) TS 38.413 9.3.1.27

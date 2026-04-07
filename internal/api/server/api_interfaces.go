@@ -3,8 +3,8 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
+	"net/netip"
 
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
@@ -114,8 +114,14 @@ func UpdateN3Interface(dbInstance *db.Database, upf UPFUpdater, cfg config.Confi
 			return
 		}
 
-		if !isValidExternalAddress(params.ExternalAddress) {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid external address. Must be a valid IP address", nil, logger.APILog)
+		n3Address := params.ExternalAddress
+		if n3Address == "" {
+			n3Address = cfg.Interfaces.N3.Address
+		}
+
+		n3Addr, err := netip.ParseAddr(n3Address)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid external address. Must be a valid IP address", err, logger.APILog)
 			return
 		}
 
@@ -124,13 +130,7 @@ func UpdateN3Interface(dbInstance *db.Database, upf UPFUpdater, cfg config.Confi
 			return
 		}
 
-		n3Address := params.ExternalAddress
-
-		if n3Address == "" {
-			n3Address = cfg.Interfaces.N3.Address
-		}
-
-		upf.UpdateAdvertisedN3Address(net.ParseIP(n3Address))
+		upf.UpdateAdvertisedN3Address(n3Addr)
 
 		logger.APILog.Info("N3 interface updated", logger.N3Address(n3Address))
 
@@ -144,17 +144,4 @@ func UpdateN3Interface(dbInstance *db.Database, upf UPFUpdater, cfg config.Confi
 			fmt.Sprintf("N3 settings updated: external_address=%q", params.ExternalAddress),
 		)
 	})
-}
-
-// isValidExternalAddress checks if the given address is a valid IP address.
-func isValidExternalAddress(address string) bool {
-	if address == "" {
-		return true
-	}
-
-	if net.ParseIP(address) == nil {
-		return false
-	}
-
-	return true
 }

@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	"github.com/free5gc/aper"
@@ -162,12 +163,10 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 		return fmt.Errorf("pfcp session context not found")
 	}
 
-	if err := s.upf.ModifySession(ctx, &PFCPModificationRequest{
-		LocalSEID:  smContext.PFCPContext.LocalSEID,
-		RemoteSEID: smContext.PFCPContext.RemoteSEID,
-		PDRs:       pdrList,
-		FARs:       farList,
-	}); err != nil {
+	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
+		smContext.PFCPContext.RemoteSEID,
+		pdrList, farList, nil, nil,
+	)); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to modify PFCP session")
 
@@ -187,13 +186,8 @@ func handleUpdateN2MsgPDUResourceSetupResp(binaryDataN2SmInformation []byte, smC
 	var farList []*FAR
 
 	if smContext.Tunnel.DataPath.Activated {
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ApplyAction = ApplyAction{Forw: true}
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters = &ForwardingParameters{
-			DestinationInterface: DestinationInterface{
-				InterfaceValue: DestinationInterfaceAccess,
-			},
-			NetworkInstance: smContext.Dnn,
-		}
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ApplyAction = models.ApplyAction{Forw: true}
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters = &models.ForwardingParameters{}
 
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.State = RuleUpdate
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
@@ -230,10 +224,10 @@ func handlePDUSessionResourceSetupResponseTransfer(b []byte, smContext *SMContex
 	smContext.Tunnel.ANInformation.TEID = teid
 
 	if smContext.Tunnel.DataPath.Activated {
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &OuterHeaderCreation{
-			OuterHeaderCreationDescription: OuterHeaderCreationGtpUUdpIpv4,
-			TeID:                           teid,
-			IPv4Address:                    smContext.Tunnel.ANInformation.IPAddress.To4(),
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
+			Description: OuterHeaderCreationGtpUUdpIpv4,
+			TEID:        teid,
+			IPv4Address: smContext.Tunnel.ANInformation.IPAddress.To4(),
 		}
 	}
 
@@ -483,10 +477,10 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 	teid := binary.BigEndian.Uint32(GTPTunnel.GTPTEID.Value)
 
 	if smContext.Tunnel.DataPath.Activated {
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &OuterHeaderCreation{
-			OuterHeaderCreationDescription: OuterHeaderCreationGtpUUdpIpv4,
-			TeID:                           teid,
-			IPv4Address:                    GTPTunnel.TransportLayerAddress.Value.Bytes,
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
+			Description: OuterHeaderCreationGtpUUdpIpv4,
+			TEID:        teid,
+			IPv4Address: GTPTunnel.TransportLayerAddress.Value.Bytes,
 		}
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
 	}
@@ -522,12 +516,10 @@ func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smCont
 		return nil, fmt.Errorf("pfcp session context not found for upf")
 	}
 
-	if err := s.upf.ModifySession(ctx, &PFCPModificationRequest{
-		LocalSEID:  smContext.PFCPContext.LocalSEID,
-		RemoteSEID: smContext.PFCPContext.RemoteSEID,
-		PDRs:       pdrList,
-		FARs:       farList,
-	}); err != nil {
+	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
+		smContext.PFCPContext.RemoteSEID,
+		pdrList, farList, nil, nil,
+	)); err != nil {
 		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
 
@@ -579,13 +571,12 @@ func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
 	smContext.Tunnel.ANInformation.TEID = teid
 
 	if smContext.Tunnel.DataPath.Activated {
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &OuterHeaderCreation{
-			OuterHeaderCreationDescription: OuterHeaderCreationGtpUUdpIpv4,
-			TeID:                           teid,
-			IPv4Address:                    gtpTunnel.TransportLayerAddress.Value.Bytes,
+		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
+			Description: OuterHeaderCreationGtpUUdpIpv4,
+			TEID:        teid,
+			IPv4Address: gtpTunnel.TransportLayerAddress.Value.Bytes,
 		}
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.PFCPSMReqFlags = &PFCPSMReqFlags{Sndem: true}
 	}
 
 	return nil

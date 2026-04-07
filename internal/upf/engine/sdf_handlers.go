@@ -1,4 +1,4 @@
-package core
+package engine
 
 import (
 	"encoding/binary"
@@ -44,10 +44,10 @@ func updateFiltersRule(rule models.FilterRule) ebpf.SdfRule {
 	return sdfRule
 }
 
-// UpdateFilters allocates or refreshes a sdf_filters BPF array slot for the
+// updateFiltersOnConn allocates or refreshes a sdf_filters BPF array slot for the
 // given (PolicyID, Direction) pair. It is idempotent: concurrent calls for the
 // same key update the BPF slot in place.
-func UpdateFilters(conn *PfcpConnection, policyID int64, direction string, rules []models.FilterRule) error {
+func updateFiltersOnConn(conn *SessionEngine, policyID int64, direction string, rules []models.FilterRule) error {
 	key := fmt.Sprintf("%d:%s", policyID, direction)
 
 	sdfRules := make([]ebpf.SdfRule, 0, len(rules))
@@ -87,18 +87,19 @@ func UpdateFilters(conn *PfcpConnection, policyID int64, direction string, rules
 	return nil
 }
 
+// UpdateFilters allocates or refreshes a sdf_filters BPF array slot for the
+// given (PolicyID, Direction) pair.
+func (conn *SessionEngine) UpdateFilters(policyID int64, direction models.Direction, rules []models.FilterRule) error {
+	return updateFiltersOnConn(conn, policyID, direction.String(), rules)
+}
+
 // GetFilterIndex retrieves the BPF sdf_filters map index for a given (PolicyID, Direction) pair.
 // Returns the index and true if found, or 0 and false if not allocated.
-func GetFilterIndex(policyID int64, direction string) (uint32, bool) {
-	conn := GetConnection()
-	if conn == nil {
-		return 0, false
-	}
-
+func (conn *SessionEngine) GetFilterIndex(policyID int64, direction models.Direction) (uint32, bool) {
 	conn.filterMu.Lock()
 	defer conn.filterMu.Unlock()
 
-	key := fmt.Sprintf("%d:%s", policyID, direction)
+	key := fmt.Sprintf("%d:%s", policyID, direction.String())
 	idx, ok := conn.filtersByKey[key]
 
 	return idx, ok

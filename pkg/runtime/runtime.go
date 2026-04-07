@@ -28,14 +28,12 @@ import (
 	"github.com/ellanetworks/core/internal/jobs"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/sessions"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/supportbundle"
 	"github.com/ellanetworks/core/internal/tracing"
 	"github.com/ellanetworks/core/internal/upf"
 	"github.com/ellanetworks/core/internal/upf/bpfdump"
-	upf_pfcp "github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/version"
 	nasLogger "github.com/free5gc/nas/logger"
 	"go.opentelemetry.io/otel/sdk/trace"
@@ -196,36 +194,28 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	smfStore := &smfDBAdapter{db: dbInstance, allocator: ipam.NewSequentialAllocator(&leaseStoreAdapter{db: dbInstance})}
 	smfAMF := &smfAMFAdapter{}
 
-	smfInstance := smf.New(smfPCF, smfStore, nil, smfAMF, smf.WithNodeID(net.ParseIP(n3Address)), smf.WithBGP(bgpService))
+	smfInstance := smf.New(smfPCF, smfStore, nil, smfAMF, smf.WithBGP(bgpService))
 
-	// The SMF instance implements pfcp_dispatcher.SMF (HandlePfcpSessionReportRequest, SendFlowReports).
-	dispatcher := pfcp_dispatcher.NewPfcpDispatcher(smfInstance, upf_pfcp.UpfPfcpHandler{})
-
-	// Now that dispatcher is initialized, create the SMF UPF adapter with it
-	smfUPF := &smfUPFAdapter{
-		dispatcher: &dispatcher,
-		nodeID:     net.ParseIP(n3Address),
-	}
-	smfInstance.SetUPF(smfUPF)
-
-	upfInstance, err := upf.Start(ctx, &dispatcher, cfg.Interfaces.N3, n3Address, advertisedN3Address, cfg.Interfaces.N6, cfg.XDP.AttachMode, isNATEnabled, isFlowAccountingEnabled)
+	upfInstance, err := upf.Start(ctx, smfInstance, cfg.Interfaces.N3, n3Address, advertisedN3Address, cfg.Interfaces.N6, cfg.XDP.AttachMode, isNATEnabled, isFlowAccountingEnabled)
 	if err != nil {
 		return fmt.Errorf("couldn't start UPF: %w", err)
 	}
 
+	eng := upfInstance.Engine()
+
+	smfUPF := &smfUPFAdapter{engine: eng}
+	smfInstance.SetUPF(smfUPF)
+
 	// Initialize SDF filters from database
-	conn := upf_pfcp.GetConnection()
-	if conn != nil && dbInstance != nil {
-		conn.SetBPFObjects(conn.BpfObjects, dbInstance)
+	if eng != nil && dbInstance != nil {
+		eng.SetBPFObjects(eng.BpfObjects, dbInstance)
 	}
 
 	// Wire supportbundle BPF dumper to dump live BPF maps from the UPF process.
-	// The closure captures the live BPF objects via the PFCP connection stored
-	// in the UPF core package. If the UPF hasn't initialized BPF objects, the
-	// dumper is a no-op.
+	// The closure captures the live BPF objects via the session engine.
+	// If the UPF hasn't initialized BPF objects, the dumper is a no-op.
 	supportbundle.BpfDumper = func(ctx context.Context, tw *tar.Writer) error {
-		conn := upf_pfcp.GetConnection()
-		if conn == nil || conn.BpfObjects == nil {
+		if eng == nil || eng.BpfObjects == nil {
 			// graceful no-op
 			return nil
 		}
@@ -235,7 +225,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			MaxEntriesPerMap: 10000,
 		}
 
-		_, err := bpfdump.DumpAll(ctx, conn.BpfObjects, opts, tw)
+		_, err := bpfdump.DumpAll(ctx, eng.BpfObjects, opts, tw)
 		if err != nil {
 			logger.EllaLog.Error("supportbundle: bpf dump failed", zap.Error(err))
 			return err

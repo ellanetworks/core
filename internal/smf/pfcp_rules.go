@@ -6,9 +6,162 @@
 package smf
 
 import (
-	"net"
-	"time"
+	"github.com/ellanetworks/core/internal/models"
 )
+
+// ToPDR flattens a PDR into the message struct the UPF expects.
+func (p *PDR) ToPDR() models.PDR {
+	mp := models.PDR{
+		PDRID:              p.PDRID,
+		PDI:                p.PDI,
+		OuterHeaderRemoval: p.OuterHeaderRemoval,
+	}
+
+	if p.FAR != nil {
+		mp.FARID = p.FAR.FARID
+	}
+
+	if p.QER != nil {
+		mp.QERID = p.QER.QERID
+	}
+
+	if p.URR != nil {
+		mp.URRID = p.URR.URRID
+	}
+
+	return mp
+}
+
+// ToFAR flattens a FAR into the message struct the UPF expects.
+func (f *FAR) ToFAR() models.FAR {
+	return models.FAR{
+		FARID:                f.FARID,
+		ApplyAction:          f.ApplyAction,
+		ForwardingParameters: f.ForwardingParameters,
+	}
+}
+
+// ToQER flattens a QER into the message struct the UPF expects.
+func (q *QER) ToQER() models.QER {
+	return models.QER{
+		QERID:      q.QERID,
+		QFI:        q.QFI,
+		GateStatus: q.GateStatus,
+		MBR:        q.MBR,
+	}
+}
+
+// ToURR flattens a URR into the message struct the UPF expects.
+func (u *URR) ToURR() models.URR {
+	return models.URR{
+		URRID: u.URRID,
+	}
+}
+
+// BuildEstablishRequest converts live SMF rule slices into the flat message
+// struct the UPF expects for session establishment, then marks all rules as
+// created so subsequent modifications use the correct state.
+func BuildEstablishRequest(
+	localSEID uint64,
+	imsi string,
+	pdrs []*PDR,
+	fars []*FAR,
+	qers []*QER,
+	urrs []*URR,
+	filterIndexByPDRID map[uint16]uint32,
+) *models.EstablishRequest {
+	mpdrs := make([]models.PDR, 0, len(pdrs))
+	for _, pdr := range pdrs {
+		mpdrs = append(mpdrs, pdr.ToPDR())
+	}
+
+	mfars := make([]models.FAR, 0, len(fars))
+	for _, far := range fars {
+		mfars = append(mfars, far.ToFAR())
+		far.State = RuleCreate
+	}
+
+	mqers := make([]models.QER, 0, len(qers))
+	seen := make(map[uint32]struct{})
+
+	for _, qer := range qers {
+		if _, dup := seen[qer.QERID]; dup {
+			continue
+		}
+
+		seen[qer.QERID] = struct{}{}
+		mqers = append(mqers, qer.ToQER())
+		qer.State = RuleCreate
+	}
+
+	murrs := make([]models.URR, 0, len(urrs))
+	for _, urr := range urrs {
+		murrs = append(murrs, urr.ToURR())
+	}
+
+	return &models.EstablishRequest{
+		LocalSEID:          localSEID,
+		IMSI:               imsi,
+		PDRs:               mpdrs,
+		FARs:               mfars,
+		QERs:               mqers,
+		URRs:               murrs,
+		FilterIndexByPDRID: filterIndexByPDRID,
+	}
+}
+
+// BuildModifyRequest converts live SMF rule slices into the flat message
+// struct the UPF expects for session modification. Rules are dispatched
+// into Create/Update/Remove buckets based on their RuleState, then all
+// states are advanced to RuleCreate.
+func BuildModifyRequest(
+	remoteSEID uint64,
+	pdrs []*PDR,
+	fars []*FAR,
+	qers []*QER,
+	filterIndexByPDRID map[uint16]uint32,
+) *models.ModifyRequest {
+	req := &models.ModifyRequest{
+		SEID:               remoteSEID,
+		FilterIndexByPDRID: filterIndexByPDRID,
+	}
+
+	for _, pdr := range pdrs {
+		switch pdr.State {
+		case RuleInitial:
+			req.CreatePDRs = append(req.CreatePDRs, pdr.ToPDR())
+		case RuleUpdate:
+			req.UpdatePDRs = append(req.UpdatePDRs, pdr.ToPDR())
+		case RuleRemove:
+			req.RemovePDRIDs = append(req.RemovePDRIDs, pdr.PDRID)
+		}
+
+		pdr.State = RuleCreate
+	}
+
+	for _, far := range fars {
+		switch far.State {
+		case RuleInitial:
+			req.CreateFARs = append(req.CreateFARs, far.ToFAR())
+		case RuleUpdate:
+			req.UpdateFARs = append(req.UpdateFARs, far.ToFAR())
+		case RuleRemove:
+			req.RemoveFARIDs = append(req.RemoveFARIDs, far.FARID)
+		}
+
+		far.State = RuleCreate
+	}
+
+	for _, qer := range qers {
+		if qer.State == RuleInitial {
+			req.CreateQERs = append(req.CreateQERs, qer.ToQER())
+		}
+
+		qer.State = RuleCreate
+	}
+
+	return req
+}
 
 const (
 	RuleInitial RuleState = 0
@@ -24,176 +177,46 @@ const (
 	OuterHeaderRemovalGtpUUdpIpv4  uint8  = 0
 )
 
-type OuterHeaderRemoval struct {
-	OuterHeaderRemovalDescription uint8
-}
-
-type OuterHeaderCreation struct {
-	IPv4Address                    net.IP
-	IPv6Address                    net.IP
-	TeID                           uint32
-	PortNumber                     uint16
-	OuterHeaderCreationDescription uint16
-}
-
-// Packet Detection Rule. Table 7.5.2.2-1
-type PDR struct {
-	OuterHeaderRemoval *OuterHeaderRemoval
-
-	FAR *FAR
-	URR *URR
-	QER *QER
-
-	PDI            PDI
-	State          RuleState
-	PDRID          uint16
-	FilterMapIndex uint32 // BPF sdf_filters map index; 0 = no filter
-}
-
-type FTEID struct {
-	IPv4Address net.IP
-	IPv6Address net.IP
-	Chid        bool
-	Ch          bool
-	V6          bool
-	V4          bool
-	TeID        uint32
-	ChooseID    uint8
-}
-
-type UEIPAddress struct {
-	IPv4Address              net.IP
-	IPv6Address              net.IP
-	V6                       bool // bit 1
-	V4                       bool // bit 2
-	Sd                       bool // bit 3
-	Ipv6d                    bool // bit 4
-	CHV4                     bool // bit 5
-	CHV6                     bool // bit 6
-	IP6PL                    bool // bit 7
-	Ipv6PrefixDelegationBits uint8
-	Ipv6PrefixLength         uint8
-}
-
-const (
-	SourceInterfaceAccess uint8 = iota
-	SourceInterfaceCore
-)
-
-const (
-	DestinationInterfaceAccess uint8 = iota
-	DestinationInterfaceCore
-	DestinationInterfaceSgiLanN6Lan
-)
-
-type SourceInterface struct {
-	InterfaceValue uint8 // 0x00001111
-}
-
-type DestinationInterface struct {
-	InterfaceValue uint8 // 0x00001111
-}
-
-// Packet Detection. 7.5.2.2-2
-type PDI struct {
-	LocalFTeID      *FTEID
-	UEIPAddress     *UEIPAddress
-	NetworkInstance string
-	SourceInterface SourceInterface
-	SdfFilters      []*ResolvedNetworkRule
-}
-
-type ApplyAction struct {
-	Dupl bool
-	Nocp bool
-	Buff bool
-	Forw bool
-	Drop bool
-}
-
-// Forwarding Action Rule. 7.5.2.3-1
-type FAR struct {
-	ForwardingParameters *ForwardingParameters
-
-	State RuleState
-	FARID uint32
-
-	ApplyAction ApplyAction
-}
-
-type PFCPSMReqFlags struct {
-	Qaurr bool
-	Sndem bool
-	Drobu bool
-}
-
-// Forwarding Parameters. 7.5.2.3-2
-type ForwardingParameters struct {
-	OuterHeaderCreation  *OuterHeaderCreation
-	PFCPSMReqFlags       *PFCPSMReqFlags
-	ForwardingPolicyID   string
-	NetworkInstance      string
-	DestinationInterface DestinationInterface
-}
-
 const (
 	GateOpen uint8 = iota
 	GateClose
 )
 
-type GateStatus struct {
-	ULGate uint8 // 0x00001100
-	DLGate uint8 // 0x00000011
+// Packet Detection Rule. Table 7.5.2.2-1
+type PDR struct {
+	OuterHeaderRemoval *uint8
+
+	FAR *FAR
+	URR *URR
+	QER *QER
+
+	PDI            models.PDI
+	State          RuleState
+	PDRID          uint16
+	FilterMapIndex uint32 // BPF sdf_filters map index; 0 = no filter
 }
 
-type MBR struct {
-	ULMBR uint64 // 40-bit data
-	DLMBR uint64 // 40-bit data
+// Forwarding Action Rule. 7.5.2.3-1
+type FAR struct {
+	ForwardingParameters *models.ForwardingParameters
+
+	State RuleState
+	FARID uint32
+
+	ApplyAction models.ApplyAction
 }
 
 // QoS Enhancement Rule
 type QER struct {
-	GateStatus *GateStatus
-	MBR        *MBR
+	GateStatus *models.GateStatus
+	MBR        *models.MBR
 
 	State RuleState
 	QFI   uint8
 	QERID uint32
 }
 
-type MeasurementMethods struct {
-	Duration bool
-	Volume   bool
-	Event    bool
-}
-
-type ReportingTriggers struct {
-	PeriodicReporting         bool
-	VolumeThreshold           bool
-	TimeThreshold             bool
-	QuotaHoldingTime          bool
-	StartOfTraffic            bool
-	StopOfTraffic             bool
-	DroppedDLTrafficThreshold bool
-	LinkedUsageReporting      bool
-
-	VolumeQuota           bool
-	TimeQuota             bool
-	EnvelopeClosure       bool
-	MACAddressesReporting bool
-	EventThreshold        bool
-	EventQuota            bool
-	IPMulticastJoinLeave  bool
-	QuotaValidityTime     bool
-
-	ReportEndMarkerReception bool
-}
-
 // Usage Report Rule
 type URR struct {
-	URRID              uint32
-	MeasurementMethods MeasurementMethods
-	ReportingTriggers  ReportingTriggers
-
-	MeasurementPeriod time.Duration
+	URRID uint32
 }

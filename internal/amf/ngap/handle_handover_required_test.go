@@ -5,7 +5,7 @@ package ngap_test
 import (
 	"context"
 	"fmt"
-	"net"
+	"net/netip"
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
@@ -210,7 +210,7 @@ func TestHandoverRequired(t *testing.T) {
 		DataPath: &smf.DataPath{
 			UpLinkTunnel: &smf.GTPTunnel{
 				TEID: 1234,
-				N3IP: net.ParseIP("10.0.0.1").To4(),
+				N3IP: netip.MustParseAddr("10.0.0.1"),
 			},
 		},
 	}

@@ -3,7 +3,7 @@ package ngap
 import (
 	"encoding/binary"
 	"fmt"
-	"net"
+	"net/netip"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/aper"
@@ -11,7 +11,7 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IP net.IP) ([]byte, error) {
+func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IP netip.Addr) ([]byte, error) {
 	if ambr == nil {
 		return nil, fmt.Errorf("ambr is nil")
 	}
@@ -45,6 +45,8 @@ func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *mod
 	ie.Id.Value = ngapType.ProtocolIEIDULNGUUPTNLInformation
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
 
+	ipv4 := n3IP.As4()
+
 	ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
 		Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentULNGUUPTNLInformation,
 		ULNGUUPTNLInformation: &ngapType.UPTransportLayerInformation{
@@ -52,8 +54,8 @@ func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *mod
 			GTPTunnel: &ngapType.GTPTunnel{
 				TransportLayerAddress: ngapType.TransportLayerAddress{
 					Value: aper.BitString{
-						Bytes:     n3IP,
-						BitLength: uint64(len(n3IP) * 8),
+						Bytes:     ipv4[:],
+						BitLength: 32,
 					},
 				},
 				GTPTEID: ngapType.GTPTEID{Value: teidOct},

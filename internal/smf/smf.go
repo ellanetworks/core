@@ -64,14 +64,14 @@ type SessionStore interface {
 	IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error
 
 	// InsertFlowReports persists multiple flow measurement records in a single transaction.
-	InsertFlowReports(ctx context.Context, reports []*FlowReport) error
+	InsertFlowReports(ctx context.Context, reports []*models.FlowReportRequest) error
 }
 
-// UPFClient abstracts the PFCP interface toward the UPF.
+// UPFClient abstracts the session management interface toward the UPF.
 type UPFClient interface {
-	EstablishSession(ctx context.Context, req *PFCPEstablishmentRequest) (*PFCPEstablishmentResponse, error)
-	ModifySession(ctx context.Context, req *PFCPModificationRequest) error
-	DeleteSession(ctx context.Context, localSEID, remoteSEID uint64) error
+	EstablishSession(ctx context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error)
+	ModifySession(ctx context.Context, req *models.ModifyRequest) error
+	DeleteSession(ctx context.Context, remoteSEID uint64) error
 
 	UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error
 	GetFilterIndex(ctx context.Context, policyID int64, direction models.Direction) (uint32, error)
@@ -122,64 +122,17 @@ type Policy struct {
 	MTU          uint16
 }
 
-// FlowReport is a single flow measurement record from the UPF.
-type FlowReport struct {
-	IMSI            string
-	SourceIP        string
-	DestinationIP   string
-	SourcePort      uint16
-	DestinationPort uint16
-	Protocol        uint8
-	Packets         uint64
-	Bytes           uint64
-	StartTime       string
-	EndTime         string
-	Direction       models.Direction
-	Action          models.Action
-}
-
-// PFCPEstablishmentRequest contains the parameters for creating a PFCP session.
-type PFCPEstablishmentRequest struct {
-	NodeID             net.IP
-	LocalSEID          uint64
-	PDRs               []*PDR
-	FARs               []*FAR
-	QERs               []*QER
-	URRs               []*URR
-	SUPI               string
-	FilterIndexByPDRID map[uint16]uint32
-}
-
-// PFCPEstablishmentResponse contains the result of a PFCP session establishment.
-type PFCPEstablishmentResponse struct {
-	RemoteSEID uint64
-	TEID       uint32
-	N3IP       net.IP
-}
-
-// PFCPModificationRequest contains the parameters for modifying a PFCP session.
-type PFCPModificationRequest struct {
-	LocalSEID          uint64
-	RemoteSEID         uint64
-	PDRs               []*PDR
-	FARs               []*FAR
-	QERs               []*QER
-	URRs               []*URR
-	FilterIndexByPDRID map[uint16]uint32
-}
-
 // SMF implements the Session Management Function.
 type SMF struct {
 	mu   sync.RWMutex
 	pool map[string]*SMContext // key: canonicalName(SUPI, PDUSessionID)
 
-	pcf    PCF
-	store  SessionStore
-	upf    UPFClient
-	amf    AMFCallback
-	bgp    BGPAnnouncer
-	clock  func() time.Time
-	nodeID net.IP
+	pcf   PCF
+	store SessionStore
+	upf   UPFClient
+	amf   AMFCallback
+	bgp   BGPAnnouncer
+	clock func() time.Time
 
 	seidCounter uint64 // atomic; local SEID allocation
 
@@ -195,9 +148,6 @@ type Option func(*SMF)
 // WithClock overrides the time source (useful for testing).
 func WithClock(fn func() time.Time) Option { return func(s *SMF) { s.clock = fn } }
 
-// WithNodeID overrides the control plane node ID.
-func WithNodeID(ip net.IP) Option { return func(s *SMF) { s.nodeID = ip } }
-
 // WithBGP sets the BGP announcer for advertising subscriber routes.
 func WithBGP(bgp BGPAnnouncer) Option { return func(s *SMF) { s.bgp = bgp } }
 
@@ -210,7 +160,6 @@ func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Op
 		upf:    upf,
 		amf:    amf,
 		clock:  time.Now,
-		nodeID: net.ParseIP("0.0.0.0"),
 		pdrIDs: idgenerator.NewGenerator(1, math.MaxUint16),
 		farIDs: idgenerator.NewGenerator(1, math.MaxUint32),
 		qerIDs: idgenerator.NewGenerator(1, math.MaxUint32),
@@ -365,7 +314,7 @@ func (s *SMF) NewFAR() (*FAR, error) {
 
 	return &FAR{
 		FARID:       uint32(farID),
-		ApplyAction: ApplyAction{Drop: true},
+		ApplyAction: models.ApplyAction{Drop: true},
 	}, nil
 }
 
@@ -379,11 +328,11 @@ func (s *SMF) NewQER(policy *Policy) (*QER, error) {
 	return &QER{
 		QERID: uint32(qerID),
 		QFI:   policy.QosData.QFI,
-		GateStatus: &GateStatus{
+		GateStatus: &models.GateStatus{
 			ULGate: GateOpen,
 			DLGate: GateOpen,
 		},
-		MBR: &MBR{
+		MBR: &models.MBR{
 			ULMBR: bitRateTokbps(policy.Ambr.Uplink),
 			DLMBR: bitRateTokbps(policy.Ambr.Downlink),
 		},
@@ -398,10 +347,7 @@ func (s *SMF) NewURR() (*URR, error) {
 	}
 
 	return &URR{
-		URRID:              uint32(urrID),
-		MeasurementMethods: MeasurementMethods{Volume: true},
-		ReportingTriggers:  ReportingTriggers{PeriodicReporting: true},
-		MeasurementPeriod:  60 * time.Second,
+		URRID: uint32(urrID),
 	}, nil
 }
 

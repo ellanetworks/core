@@ -58,11 +58,10 @@ func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) erro
 	localSEID := smContext.PFCPContext.LocalSEID
 	remoteSEID := smContext.PFCPContext.RemoteSEID
 
-	err = s.upf.ModifySession(ctx, &PFCPModificationRequest{
-		LocalSEID:  localSEID,
-		RemoteSEID: remoteSEID,
-		FARs:       farList,
-	})
+	err = s.upf.ModifySession(ctx, BuildModifyRequest(
+		remoteSEID,
+		nil, farList, nil, nil,
+	))
 	if err != nil {
 		// The UPF rejected the modification — the PFCP session is gone
 		// (e.g. after a restart). Nil out the tunnel so that subsequent
