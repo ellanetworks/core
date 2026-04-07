@@ -3,6 +3,7 @@ package kernel
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -24,12 +25,12 @@ const (
 type Kernel interface {
 	EnableIPForwarding() error
 	IsIPForwardingEnabled() (bool, error)
-	CreateRoute(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) error
-	DeleteRoute(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) error
-	ReplaceRoute(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) error
-	ListRoutesByPriority(priority int, ifKey NetworkInterface) ([]net.IPNet, error)
+	CreateRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error
+	DeleteRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error
+	ReplaceRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error
+	ListRoutesByPriority(priority int, ifKey NetworkInterface) ([]netip.Prefix, error)
 	InterfaceExists(ifKey NetworkInterface) (bool, error)
-	RouteExists(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) (bool, error)
+	RouteExists(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) (bool, error)
 	EnsureGatewaysOnInterfaceInNeighTable(ifKey NetworkInterface) error
 }
 
@@ -49,8 +50,25 @@ func NewRealKernel(n3Interface, n6Interface string) *RealKernel {
 	}
 }
 
+// prefixToIPNet converts a netip.Prefix to a *net.IPNet for netlink.
+func prefixToIPNet(p netip.Prefix) *net.IPNet {
+	return &net.IPNet{
+		IP:   p.Masked().Addr().AsSlice(),
+		Mask: net.CIDRMask(p.Bits(), 32),
+	}
+}
+
+// addrToNetIP converts a netip.Addr to a net.IP for netlink.
+func addrToNetIP(a netip.Addr) net.IP {
+	if !a.IsValid() {
+		return nil
+	}
+
+	return a.AsSlice()
+}
+
 // CreateRoute adds a route to the kernel for the interface defined by ifKey.
-func (rk *RealKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) error {
+func (rk *RealKernel) CreateRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error {
 	interfaceName, ok := rk.ifMapping[ifKey]
 	if !ok {
 		return fmt.Errorf("invalid interface key: %v", ifKey)
@@ -62,8 +80,8 @@ func (rk *RealKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priori
 	}
 
 	nlRoute := netlink.Route{
-		Dst:       destination,
-		Gw:        gateway,
+		Dst:       prefixToIPNet(destination),
+		Gw:        addrToNetIP(gateway),
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
 		Table:     unix.RT_TABLE_MAIN,
@@ -76,11 +94,11 @@ func (rk *RealKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priori
 	logger.EllaLog.Debug("Added route", zap.String("destination", destination.String()), zap.String("gateway", gateway.String()), zap.Int("priority", priority), zap.String("interface", interfaceName))
 
 	// Tells the kernel that the gateway is in use, and ARP requests should be sent out
-	return addNeighbourForLink(gateway, link)
+	return addNeighbourForLink(addrToNetIP(gateway), link)
 }
 
 // DeleteRoute removes a route from the kernel for the interface defined by ifKey.
-func (rk *RealKernel) DeleteRoute(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) error {
+func (rk *RealKernel) DeleteRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error {
 	interfaceName, ok := rk.ifMapping[ifKey]
 	if !ok {
 		return fmt.Errorf("invalid interface key: %v", ifKey)
@@ -92,8 +110,8 @@ func (rk *RealKernel) DeleteRoute(destination *net.IPNet, gateway net.IP, priori
 	}
 
 	nlRoute := netlink.Route{
-		Dst:       destination,
-		Gw:        gateway,
+		Dst:       prefixToIPNet(destination),
+		Gw:        addrToNetIP(gateway),
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
 		Table:     unix.RT_TABLE_MAIN,
@@ -109,7 +127,7 @@ func (rk *RealKernel) DeleteRoute(destination *net.IPNet, gateway net.IP, priori
 // ReplaceRoute creates or updates a route in the kernel for the interface defined by ifKey.
 // Unlike CreateRoute, this is idempotent — it will update an existing route with the same
 // destination and priority rather than returning an error.
-func (rk *RealKernel) ReplaceRoute(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) error {
+func (rk *RealKernel) ReplaceRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error {
 	interfaceName, ok := rk.ifMapping[ifKey]
 	if !ok {
 		return fmt.Errorf("invalid interface key: %v", ifKey)
@@ -121,8 +139,8 @@ func (rk *RealKernel) ReplaceRoute(destination *net.IPNet, gateway net.IP, prior
 	}
 
 	nlRoute := netlink.Route{
-		Dst:       destination,
-		Gw:        gateway,
+		Dst:       prefixToIPNet(destination),
+		Gw:        addrToNetIP(gateway),
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
 		Table:     unix.RT_TABLE_MAIN,
@@ -134,12 +152,12 @@ func (rk *RealKernel) ReplaceRoute(destination *net.IPNet, gateway net.IP, prior
 
 	logger.EllaLog.Debug("Replaced route", zap.String("destination", destination.String()), zap.String("gateway", gateway.String()), zap.Int("priority", priority), zap.String("interface", interfaceName))
 
-	return addNeighbourForLink(gateway, link)
+	return addNeighbourForLink(addrToNetIP(gateway), link)
 }
 
 // ListRoutesByPriority returns all route destinations with the given priority (metric)
 // on the interface defined by ifKey.
-func (rk *RealKernel) ListRoutesByPriority(priority int, ifKey NetworkInterface) ([]net.IPNet, error) {
+func (rk *RealKernel) ListRoutesByPriority(priority int, ifKey NetworkInterface) ([]netip.Prefix, error) {
 	interfaceName, ok := rk.ifMapping[ifKey]
 	if !ok {
 		return nil, fmt.Errorf("invalid interface key: %v", ifKey)
@@ -160,11 +178,17 @@ func (rk *RealKernel) ListRoutesByPriority(priority int, ifKey NetworkInterface)
 		return nil, fmt.Errorf("failed to list routes: %v", err)
 	}
 
-	var result []net.IPNet
+	var result []netip.Prefix
 
 	for _, r := range routes {
 		if r.Priority == priority && r.Dst != nil {
-			result = append(result, *r.Dst)
+			addr, ok := netip.AddrFromSlice(r.Dst.IP)
+			if !ok {
+				continue
+			}
+
+			ones, _ := r.Dst.Mask.Size()
+			result = append(result, netip.PrefixFrom(addr, ones))
 		}
 	}
 
@@ -191,7 +215,7 @@ func (rk *RealKernel) InterfaceExists(ifKey NetworkInterface) (bool, error) {
 }
 
 // RouteExists checks if a route exists for the interface defined by ifKey.
-func (rk *RealKernel) RouteExists(destination *net.IPNet, gateway net.IP, priority int, ifKey NetworkInterface) (bool, error) {
+func (rk *RealKernel) RouteExists(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) (bool, error) {
 	interfaceName, ok := rk.ifMapping[ifKey]
 	if !ok {
 		return false, fmt.Errorf("invalid interface key: %v", ifKey)
@@ -203,8 +227,8 @@ func (rk *RealKernel) RouteExists(destination *net.IPNet, gateway net.IP, priori
 	}
 
 	nlRoute := netlink.Route{
-		Dst:       destination,
-		Gw:        gateway,
+		Dst:       prefixToIPNet(destination),
+		Gw:        addrToNetIP(gateway),
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
 		Table:     unix.RT_TABLE_MAIN,

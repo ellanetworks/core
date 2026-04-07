@@ -2,7 +2,7 @@ package bgp
 
 import (
 	"context"
-	"net"
+	"net/netip"
 )
 
 // BGPSettings holds the configuration for the BGP speaker.
@@ -65,8 +65,8 @@ type ImportPrefixStore interface {
 
 // BGPAnnouncer is the interface used by SMF to announce/withdraw routes.
 type BGPAnnouncer interface {
-	Announce(ip net.IP, owner string) error
-	Withdraw(ip net.IP) error
+	Announce(ip netip.Addr, owner string) error
+	Withdraw(ip netip.Addr) error
 	IsRunning() bool
 	IsAdvertising() bool
 }

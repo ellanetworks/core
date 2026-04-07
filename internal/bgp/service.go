@@ -31,14 +31,14 @@ const MaxLearnedRoutesPerPeer = 1000
 
 // ownedPath tracks an advertised prefix and its owner.
 type ownedPath struct {
-	ip    net.IP
+	ip    netip.Addr
 	owner string
 }
 
 // learnedRoute tracks a BGP-learned route installed in the kernel.
 type learnedRoute struct {
-	prefix  net.IPNet
-	gateway net.IP
+	prefix  netip.Prefix
+	gateway netip.Addr
 	peer    string // peer address that advertised this route
 }
 
@@ -60,7 +60,7 @@ type BGPService struct {
 	settings    BGPSettings
 	peers       []BGPPeer
 	paths       map[string]ownedPath // keyed by IP string e.g. "10.45.0.3"
-	n6Addr      net.IP
+	n6Addr      netip.Addr
 	logger      *zap.Logger
 	listenPort  int32
 
@@ -114,8 +114,8 @@ func (b *BGPService) UpdateFilter(f *RouteFilter) {
 	for prefixStr, lr := range b.learnedRoutes {
 		dst := lr.prefix
 
-		if f.overlapsAny(&dst) {
-			err := b.kernel.DeleteRoute(&dst, lr.gateway, bgpRouteMetric, kernel.N6)
+		if f.overlapsAny(dst) {
+			err := b.kernel.DeleteRoute(dst, lr.gateway, bgpRouteMetric, kernel.N6)
 			if err != nil {
 				b.logger.Warn("failed to remove route rejected by updated filter",
 					zap.String("prefix", prefixStr), zap.Error(err))
@@ -134,7 +134,7 @@ func (b *BGPService) UpdateFilter(f *RouteFilter) {
 }
 
 // New creates a BGPService. Does not start the speaker.
-func New(n6Addr net.IP, logger *zap.Logger, opts ...Option) *BGPService {
+func New(n6Addr netip.Addr, logger *zap.Logger, opts ...Option) *BGPService {
 	b := &BGPService{
 		n6Addr:        n6Addr,
 		logger:        logger,
@@ -158,7 +158,7 @@ func (b *BGPService) SetListenPort(port int32) {
 // InjectLearnedRouteForTest adds a learned route to the in-memory map without
 // actually installing it in the kernel. Used by tests to set up state before
 // testing reconfiguration and cleanup methods.
-func (b *BGPService) InjectLearnedRouteForTest(prefix net.IPNet, gateway net.IP, peer string) {
+func (b *BGPService) InjectLearnedRouteForTest(prefix netip.Prefix, gateway netip.Addr, peer string) {
 	b.learnedMu.Lock()
 	defer b.learnedMu.Unlock()
 
@@ -258,8 +258,8 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 			b.paths = make(map[string]ownedPath, len(allocatedIPs))
 
 			for ipStr, subscriber := range allocatedIPs {
-				ip := net.ParseIP(ipStr)
-				if ip == nil {
+				ip, err := netip.ParseAddr(ipStr)
+				if err != nil {
 					continue
 				}
 
@@ -354,7 +354,7 @@ func (b *BGPService) Stop() error {
 
 // Announce adds a /32 route for the given IP to the BGP RIB.
 // It is a no-op if the service is not running or not advertising (NAT enabled).
-func (b *BGPService) Announce(ip net.IP, owner string) error {
+func (b *BGPService) Announce(ip netip.Addr, owner string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -373,7 +373,7 @@ func (b *BGPService) Announce(ip net.IP, owner string) error {
 
 // Withdraw removes a /32 route for the given IP from the BGP RIB.
 // It is a no-op if the service is not running or not advertising (NAT enabled).
-func (b *BGPService) Withdraw(ip net.IP) error {
+func (b *BGPService) Withdraw(ip netip.Addr) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -577,8 +577,8 @@ func (b *BGPService) SetAdvertising(advertising bool, allocatedIPs map[string]st
 		b.paths = make(map[string]ownedPath, len(allocatedIPs))
 
 		for ipStr, subscriber := range allocatedIPs {
-			ip := net.ParseIP(ipStr)
-			if ip == nil {
+			ip, err := netip.ParseAddr(ipStr)
+			if err != nil {
 				continue
 			}
 
@@ -647,32 +647,21 @@ func (b *BGPService) addPeer(ctx context.Context, s *gobgp.BgpServer, peer BGPPe
 	return s.AddPeer(ctx, &api.AddPeerRequest{Peer: p})
 }
 
-func buildPath(ip net.IP, nextHopAddr net.IP) (*apiutil.Path, error) {
-	ipv4 := ip.To4()
-	if ipv4 == nil {
+func buildPath(ip netip.Addr, nextHopAddr netip.Addr) (*apiutil.Path, error) {
+	if !ip.Is4() {
 		return nil, fmt.Errorf("only IPv4 addresses are supported, got: %s", ip.String())
 	}
 
-	addr, ok := netip.AddrFromSlice(ipv4)
-	if !ok {
-		return nil, fmt.Errorf("failed to convert IP to netip.Addr: %s", ip.String())
-	}
-
-	prefix := netip.PrefixFrom(addr, 32)
+	prefix := netip.PrefixFrom(ip, 32)
 
 	nlri, err := bgppacket.NewIPAddrPrefix(prefix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create NLRI: %w", err)
 	}
 
-	nhAddr, ok := netip.AddrFromSlice(nextHopAddr.To4())
-	if !ok {
-		return nil, fmt.Errorf("failed to convert next-hop to netip.Addr: %s", nextHopAddr.String())
-	}
-
 	origin := bgppacket.NewPathAttributeOrigin(0) // IGP
 
-	nextHop, err := bgppacket.NewPathAttributeNextHop(nhAddr)
+	nextHop, err := bgppacket.NewPathAttributeNextHop(nextHopAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create next-hop attribute: %w", err)
 	}
@@ -685,7 +674,7 @@ func buildPath(ip net.IP, nextHopAddr net.IP) (*apiutil.Path, error) {
 }
 
 // announcePath adds a /32 route to the GoBGP RIB.
-func (b *BGPService) announcePath(s *gobgp.BgpServer, ip net.IP) error {
+func (b *BGPService) announcePath(s *gobgp.BgpServer, ip netip.Addr) error {
 	path, err := buildPath(ip, b.n6Addr)
 	if err != nil {
 		return err
@@ -699,7 +688,7 @@ func (b *BGPService) announcePath(s *gobgp.BgpServer, ip net.IP) error {
 }
 
 // withdrawPath removes a /32 route from the GoBGP RIB.
-func (b *BGPService) withdrawPath(s *gobgp.BgpServer, ip net.IP) error {
+func (b *BGPService) withdrawPath(s *gobgp.BgpServer, ip netip.Addr) error {
 	path, err := buildPath(ip, b.n6Addr)
 	if err != nil {
 		return err
@@ -783,12 +772,12 @@ func (b *BGPService) listRoutesLocked() ([]BGPRoute, error) {
 			// Only include locally-originated routes (those we announced).
 			// The global RIB may also contain routes learned from peers,
 			// which are not relevant to the advertised-routes view.
-			ip, _, _ := net.ParseCIDR(route.Prefix)
-			if ip == nil {
+			prefix, err := netip.ParsePrefix(route.Prefix)
+			if err != nil {
 				continue
 			}
 
-			owned, ok := b.paths[ip.String()]
+			owned, ok := b.paths[prefix.Addr().String()]
 			if !ok {
 				continue
 			}

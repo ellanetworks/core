@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/netip"
 	"regexp"
@@ -420,12 +419,13 @@ func isDataNetworkNameValid(name string) bool {
 }
 
 func isUeIPPoolValid(ueIPPool string) bool {
-	_, _, err := net.ParseCIDR(ueIPPool)
+	_, err := netip.ParsePrefix(ueIPPool)
 	return err == nil
 }
 
 func isValidDNS(dns string) bool {
-	return net.ParseIP(dns) != nil
+	_, err := netip.ParseAddr(dns)
+	return err == nil
 }
 
 func isValidMTU(mtu int32) bool {
@@ -524,12 +524,13 @@ func rebuildBGPFilter(ctx context.Context, dbInstance *db.Database, cfg config.C
 	}
 
 	uePools := collectUEPools(ctx, dbInstance)
-	filter := bgp.BuildRouteFilter(uePools, net.ParseIP(cfg.Interfaces.N3.Address), cfg.Interfaces.N6.Name)
+	n3Addr, _ := netip.ParseAddr(cfg.Interfaces.N3.Address)
+	filter := bgp.BuildRouteFilter(uePools, n3Addr, cfg.Interfaces.N6.Name)
 	bgpService.UpdateFilter(filter)
 }
 
 // collectUEPools returns the UE IP pool CIDRs from all data networks.
-func collectUEPools(ctx context.Context, dbInstance *db.Database) []*net.IPNet {
+func collectUEPools(ctx context.Context, dbInstance *db.Database) []netip.Prefix {
 	dataNetworks, err := dbInstance.ListAllDataNetworks(ctx)
 	if err != nil {
 		logger.APILog.Warn("failed to list data networks for BGP filter rebuild")
@@ -537,15 +538,15 @@ func collectUEPools(ctx context.Context, dbInstance *db.Database) []*net.IPNet {
 		return nil
 	}
 
-	var pools []*net.IPNet
+	var pools []netip.Prefix
 
 	for _, dn := range dataNetworks {
-		_, network, err := net.ParseCIDR(dn.IPPool)
+		prefix, err := netip.ParsePrefix(dn.IPPool)
 		if err != nil {
 			continue
 		}
 
-		pools = append(pools, network)
+		pools = append(pools, prefix)
 	}
 
 	return pools

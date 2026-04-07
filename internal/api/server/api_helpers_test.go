@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -32,11 +31,11 @@ const (
 
 type FakeKernel struct{}
 
-func (fk FakeKernel) CreateRoute(destination *net.IPNet, gateway net.IP, priority int, networkInterface kernel.NetworkInterface) error {
+func (fk FakeKernel) CreateRoute(destination netip.Prefix, gateway netip.Addr, priority int, networkInterface kernel.NetworkInterface) error {
 	return nil
 }
 
-func (fk FakeKernel) DeleteRoute(destination *net.IPNet, gateway net.IP, priority int, networkInterface kernel.NetworkInterface) error {
+func (fk FakeKernel) DeleteRoute(destination netip.Prefix, gateway netip.Addr, priority int, networkInterface kernel.NetworkInterface) error {
 	return nil
 }
 
@@ -44,7 +43,7 @@ func (fk FakeKernel) InterfaceExists(networkInterface kernel.NetworkInterface) (
 	return true, nil
 }
 
-func (fk FakeKernel) RouteExists(destination *net.IPNet, gateway net.IP, priority int, networkInterface kernel.NetworkInterface) (bool, error) {
+func (fk FakeKernel) RouteExists(destination netip.Prefix, gateway netip.Addr, priority int, networkInterface kernel.NetworkInterface) (bool, error) {
 	return false, nil
 }
 
@@ -56,11 +55,11 @@ func (fk FakeKernel) IsIPForwardingEnabled() (bool, error) {
 	return true, nil
 }
 
-func (fk FakeKernel) ReplaceRoute(destination *net.IPNet, gateway net.IP, priority int, networkInterface kernel.NetworkInterface) error {
+func (fk FakeKernel) ReplaceRoute(destination netip.Prefix, gateway netip.Addr, priority int, networkInterface kernel.NetworkInterface) error {
 	return nil
 }
 
-func (fk FakeKernel) ListRoutesByPriority(priority int, networkInterface kernel.NetworkInterface) ([]net.IPNet, error) {
+func (fk FakeKernel) ListRoutesByPriority(priority int, networkInterface kernel.NetworkInterface) ([]netip.Prefix, error) {
 	return nil, nil
 }
 

@@ -2,7 +2,7 @@ package bgp_test
 
 import (
 	"context"
-	"net"
+	"net/netip"
 	"sync"
 	"testing"
 
@@ -16,7 +16,7 @@ type fakeKernel struct {
 	mu       sync.Mutex
 	replaced []fakeRoute
 	deleted  []fakeRoute
-	listed   []net.IPNet // routes returned by ListRoutesByPriority
+	listed   []netip.Prefix // routes returned by ListRoutesByPriority
 }
 
 type fakeRoute struct {
@@ -25,16 +25,16 @@ type fakeRoute struct {
 	priority    int
 }
 
-func (fk *fakeKernel) CreateRoute(dst *net.IPNet, gw net.IP, priority int, _ kernel.NetworkInterface) error {
+func (fk *fakeKernel) CreateRoute(dst netip.Prefix, gw netip.Addr, priority int, _ kernel.NetworkInterface) error {
 	return nil
 }
 
-func (fk *fakeKernel) DeleteRoute(dst *net.IPNet, gw net.IP, priority int, _ kernel.NetworkInterface) error {
+func (fk *fakeKernel) DeleteRoute(dst netip.Prefix, gw netip.Addr, priority int, _ kernel.NetworkInterface) error {
 	fk.mu.Lock()
 	defer fk.mu.Unlock()
 
 	gwStr := ""
-	if gw != nil {
+	if gw.IsValid() {
 		gwStr = gw.String()
 	}
 
@@ -47,7 +47,7 @@ func (fk *fakeKernel) DeleteRoute(dst *net.IPNet, gw net.IP, priority int, _ ker
 	return nil
 }
 
-func (fk *fakeKernel) ReplaceRoute(dst *net.IPNet, gw net.IP, priority int, _ kernel.NetworkInterface) error {
+func (fk *fakeKernel) ReplaceRoute(dst netip.Prefix, gw netip.Addr, priority int, _ kernel.NetworkInterface) error {
 	fk.mu.Lock()
 	defer fk.mu.Unlock()
 
@@ -60,7 +60,7 @@ func (fk *fakeKernel) ReplaceRoute(dst *net.IPNet, gw net.IP, priority int, _ ke
 	return nil
 }
 
-func (fk *fakeKernel) ListRoutesByPriority(priority int, _ kernel.NetworkInterface) ([]net.IPNet, error) {
+func (fk *fakeKernel) ListRoutesByPriority(priority int, _ kernel.NetworkInterface) ([]netip.Prefix, error) {
 	fk.mu.Lock()
 	defer fk.mu.Unlock()
 
@@ -68,7 +68,7 @@ func (fk *fakeKernel) ListRoutesByPriority(priority int, _ kernel.NetworkInterfa
 }
 
 func (fk *fakeKernel) InterfaceExists(_ kernel.NetworkInterface) (bool, error) { return true, nil }
-func (fk *fakeKernel) RouteExists(_ *net.IPNet, _ net.IP, _ int, _ kernel.NetworkInterface) (bool, error) {
+func (fk *fakeKernel) RouteExists(_ netip.Prefix, _ netip.Addr, _ int, _ kernel.NetworkInterface) (bool, error) {
 	return false, nil
 }
 
@@ -97,11 +97,11 @@ func TestGetLearnedRoutes_EmptyByDefault(t *testing.T) {
 }
 
 func TestCleanStaleRoutes(t *testing.T) {
-	_, n1, _ := net.ParseCIDR("0.0.0.0/0")
-	_, n2, _ := net.ParseCIDR("10.100.0.0/16")
+	n1 := netip.MustParsePrefix("0.0.0.0/0")
+	n2 := netip.MustParsePrefix("10.100.0.0/16")
 
 	fk := &fakeKernel{
-		listed: []net.IPNet{*n1, *n2},
+		listed: []netip.Prefix{n1, n2},
 	}
 
 	svc := newTestServiceWithLearning(t, fk, &fakeImportStore{})
@@ -189,7 +189,7 @@ func TestRouteLearningDisabledWithoutDeps(t *testing.T) {
 func newTestServiceWithLearning(t *testing.T, k kernel.Kernel, store bgp.ImportPrefixStore) *bgp.BGPService {
 	t.Helper()
 
-	n6Addr := net.ParseIP("10.0.0.1")
+	n6Addr := netip.MustParseAddr("10.0.0.1")
 	logger := zap.NewNop()
 
 	filter := &bgp.RouteFilter{
@@ -232,11 +232,11 @@ func TestReconfigurePeerRemovalCleansLearnedRoutes(t *testing.T) {
 	defer func() { _ = svc.Stop() }()
 
 	// Inject learned routes from both peers.
-	_, net1, _ := net.ParseCIDR("10.100.0.0/16")
-	_, net2, _ := net.ParseCIDR("10.200.0.0/16")
+	net1 := netip.MustParsePrefix("10.100.0.0/16")
+	net2 := netip.MustParsePrefix("10.200.0.0/16")
 
-	svc.InjectLearnedRouteForTest(*net1, net.ParseIP("192.168.1.1"), "192.168.1.1")
-	svc.InjectLearnedRouteForTest(*net2, net.ParseIP("192.168.1.2"), "192.168.1.2")
+	svc.InjectLearnedRouteForTest(net1, netip.MustParseAddr("192.168.1.1"), "192.168.1.1")
+	svc.InjectLearnedRouteForTest(net2, netip.MustParseAddr("192.168.1.2"), "192.168.1.2")
 
 	if len(svc.GetLearnedRoutes()) != 2 {
 		t.Fatalf("expected 2 learned routes, got %d", len(svc.GetLearnedRoutes()))
@@ -298,8 +298,8 @@ func TestReconfigureImportPolicyChangeRemovesRoutes(t *testing.T) {
 	defer func() { _ = svc.Stop() }()
 
 	// Inject a learned route.
-	_, net1, _ := net.ParseCIDR("10.100.0.0/16")
-	svc.InjectLearnedRouteForTest(*net1, net.ParseIP("192.168.1.1"), "192.168.1.1")
+	net1 := netip.MustParsePrefix("10.100.0.0/16")
+	svc.InjectLearnedRouteForTest(net1, netip.MustParseAddr("192.168.1.1"), "192.168.1.1")
 
 	if len(svc.GetLearnedRoutes()) != 1 {
 		t.Fatalf("expected 1 learned route, got %d", len(svc.GetLearnedRoutes()))
@@ -402,17 +402,17 @@ func TestUpdateFilterRemovesNewlyRejectedRoutes(t *testing.T) {
 	defer func() { _ = svc.Stop() }()
 
 	// Inject a learned route in 10.45.0.0/16 (not yet rejected).
-	_, net1, _ := net.ParseCIDR("10.45.0.5/32")
-	svc.InjectLearnedRouteForTest(*net1, net.ParseIP("192.168.1.1"), "192.168.1.1")
+	net1 := netip.MustParsePrefix("10.45.0.5/32")
+	svc.InjectLearnedRouteForTest(net1, netip.MustParseAddr("192.168.1.1"), "192.168.1.1")
 
 	if len(svc.GetLearnedRoutes()) != 1 {
 		t.Fatalf("expected 1 learned route, got %d", len(svc.GetLearnedRoutes()))
 	}
 
 	// Update the filter to reject 10.45.0.0/16 (new data network added).
-	_, uePool, _ := net.ParseCIDR("10.45.0.0/16")
+	uePool := netip.MustParsePrefix("10.45.0.0/16")
 	newFilter := &bgp.RouteFilter{
-		RejectPrefixes: bgp.BuildRejectPrefixes([]*net.IPNet{uePool}),
+		RejectPrefixes: bgp.BuildRejectPrefixes([]netip.Prefix{uePool}),
 	}
 
 	svc.UpdateFilter(newFilter)

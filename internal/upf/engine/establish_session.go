@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"net"
 	"net/netip"
 
 	"github.com/ellanetworks/core/internal/kernel"
@@ -243,9 +242,9 @@ func addRemoteIPToNeigh(ctx context.Context, remoteIP uint32) {
 		return
 	}
 
-	ipBytes := make([]byte, 4)
-	binary.NativeEndian.PutUint32(ipBytes, remoteIP)
-	ip := net.IP(ipBytes)
+	var b [4]byte
+	binary.NativeEndian.PutUint32(b[:], remoteIP)
+	ip := netip.AddrFrom4(b)
 
 	if err := kernel.AddNeighbour(ctx, ip); err != nil {
 		logger.UpfLog.Warn("could not add gnb IP to neighbour list", logger.IPAddress(ip.String()), zap.Error(err))

@@ -5,8 +5,8 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/fs"
-	"net"
 	"net/http"
+	"net/netip"
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
@@ -160,30 +160,28 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 	}
 
 	for _, route := range expectedRoutes {
-		_, ipNetwork, err := net.ParseCIDR(route.Destination)
+		destPrefix, err := netip.ParsePrefix(route.Destination)
 		if err != nil {
 			return fmt.Errorf("couldn't parse destination: %v", err)
 		}
 
-		ipGateway := net.ParseIP(route.Gateway)
-		if ipGateway == nil || ipGateway.To4() == nil {
+		gwAddr, err := netip.ParseAddr(route.Gateway)
+		if err != nil || !gwAddr.Is4() {
 			return fmt.Errorf("invalid gateway: %v", route.Gateway)
 		}
-
-		ipGateway = ipGateway.To4()
 
 		kernelNetworkInterface, ok := interfaceDBKernelMap[route.Interface]
 		if !ok {
 			return fmt.Errorf("invalid interface: %v", route.Interface)
 		}
 
-		routeExists, err := kernelInt.RouteExists(ipNetwork, ipGateway, route.Metric, kernelNetworkInterface)
+		routeExists, err := kernelInt.RouteExists(destPrefix, gwAddr, route.Metric, kernelNetworkInterface)
 		if err != nil {
 			return fmt.Errorf("couldn't check if route exists: %v", err)
 		}
 
 		if !routeExists {
-			err := kernelInt.CreateRoute(ipNetwork, ipGateway, route.Metric, kernelNetworkInterface)
+			err := kernelInt.CreateRoute(destPrefix, gwAddr, route.Metric, kernelNetworkInterface)
 			if err != nil {
 				return fmt.Errorf("couldn't create route: %v", err)
 			}

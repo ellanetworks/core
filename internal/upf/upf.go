@@ -594,7 +594,7 @@ func (u *UPF) listenForMissingNeighbours() {
 			continue
 		}
 
-		if err := kernel.AddNeighbour(u.ctx, ip.AsSlice()); err != nil {
+		if err := kernel.AddNeighbour(u.ctx, ip); err != nil {
 			logger.UpfLog.Warn("could not add neighbour", zap.String("destination", ip.String()), zap.Error(err))
 			continue
 		}

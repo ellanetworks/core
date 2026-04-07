@@ -2,7 +2,7 @@ package bgp_test
 
 import (
 	"context"
-	"net"
+	"net/netip"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/bgp"
@@ -12,7 +12,7 @@ import (
 func newTestService(t *testing.T) *bgp.BGPService {
 	t.Helper()
 
-	n6Addr := net.ParseIP("10.0.0.1")
+	n6Addr := netip.MustParseAddr("10.0.0.1")
 	logger := zap.NewNop()
 	svc := bgp.New(n6Addr, logger)
 	// Use ListenPort -1 to avoid binding to port 179 in tests
@@ -103,7 +103,7 @@ func TestAnnounceWithdraw(t *testing.T) {
 
 	defer func() { _ = svc.Stop() }()
 
-	ip := net.ParseIP("10.1.1.1")
+	ip := netip.MustParseAddr("10.1.1.1")
 
 	err = svc.Announce(ip, "001010000000001")
 	if err != nil {
@@ -150,12 +150,12 @@ func TestAnnounceWhenNotRunning(t *testing.T) {
 	svc := newTestService(t)
 
 	// Should be a no-op, not an error
-	err := svc.Announce(net.ParseIP("10.1.1.1"), "001010000000001")
+	err := svc.Announce(netip.MustParseAddr("10.1.1.1"), "001010000000001")
 	if err != nil {
 		t.Fatalf("Announce on non-running service should succeed (no-op), got: %v", err)
 	}
 
-	err = svc.Withdraw(net.ParseIP("10.1.1.1"))
+	err = svc.Withdraw(netip.MustParseAddr("10.1.1.1"))
 	if err != nil {
 		t.Fatalf("Withdraw on non-running service should succeed (no-op), got: %v", err)
 	}
@@ -423,7 +423,7 @@ func TestAnnounceIPv6Rejected(t *testing.T) {
 
 	defer func() { _ = svc.Stop() }()
 
-	err = svc.Announce(net.ParseIP("::1"), "test")
+	err = svc.Announce(netip.MustParseAddr("::1"), "test")
 	if err == nil {
 		t.Fatal("expected error for IPv6 address")
 	}
@@ -490,10 +490,10 @@ func TestMultipleAnnounceWithdraw(t *testing.T) {
 
 	defer func() { _ = svc.Stop() }()
 
-	ips := []net.IP{
-		net.ParseIP("10.1.1.1"),
-		net.ParseIP("10.1.1.2"),
-		net.ParseIP("10.1.1.3"),
+	ips := []netip.Addr{
+		netip.MustParseAddr("10.1.1.1"),
+		netip.MustParseAddr("10.1.1.2"),
+		netip.MustParseAddr("10.1.1.3"),
 	}
 
 	for _, ip := range ips {
@@ -596,7 +596,7 @@ func TestAnnounceNoOpWhenNotAdvertising(t *testing.T) {
 	defer func() { _ = svc.Stop() }()
 
 	// Announce should be a no-op
-	err = svc.Announce(net.ParseIP("10.1.1.1"), "test")
+	err = svc.Announce(netip.MustParseAddr("10.1.1.1"), "test")
 	if err != nil {
 		t.Fatalf("Announce should succeed as no-op, got: %v", err)
 	}

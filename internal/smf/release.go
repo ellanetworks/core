@@ -41,7 +41,7 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 		if releaseErr != nil {
 			logger.SmfLog.Warn("release UE IP address failed", zap.Error(releaseErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID), logger.DNN(smContext.Dnn), zap.String("smContextRef", smContextRef))
 		} else if released.IsValid() {
-			s.withdrawRoute(released.AsSlice())
+			s.withdrawRoute(released)
 		}
 	}
 

@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
+	"net/netip"
 	"slices"
 	"strconv"
 	"strings"
@@ -129,7 +129,7 @@ func validateRemotePrefix(prefix *string) error {
 		return nil
 	}
 
-	_, _, err := net.ParseCIDR(*prefix)
+	_, err := netip.ParsePrefix(*prefix)
 	if err != nil {
 		return fmt.Errorf("invalid CIDR: %w", err)
 	}

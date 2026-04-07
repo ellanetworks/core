@@ -136,7 +136,9 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	span.AddEvent("session_accepted")
 
-	s.announceRoute(pduAddress, smContext.Supi.IMSI())
+	if addr, ok := netip.AddrFromSlice(pduAddress.To4()); ok {
+		s.announceRoute(addr, smContext.Supi.IMSI())
+	}
 
 	success = true
 
