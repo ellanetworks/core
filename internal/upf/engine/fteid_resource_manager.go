@@ -1,6 +1,6 @@
 // Copyright 2026 Ella Networks
 
-package core
+package engine
 
 import (
 	"fmt"

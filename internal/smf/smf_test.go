@@ -23,7 +23,7 @@ type fakeStore struct {
 	allocatedIP   netip.Addr
 	releasedIP    netip.Addr
 	usageLog      []usageEntry
-	flowLog       []smf.FlowReport
+	flowLog       []models.FlowReportRequest
 	releasedIPs   []string
 	err           error
 	allocateIPErr error
@@ -85,7 +85,7 @@ func (f *fakeStore) IncrementDailyUsage(_ context.Context, imsi string, uplinkBy
 	return f.err
 }
 
-func (f *fakeStore) InsertFlowReports(_ context.Context, reports []*smf.FlowReport) error {
+func (f *fakeStore) InsertFlowReports(_ context.Context, reports []*models.FlowReportRequest) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -98,19 +98,18 @@ func (f *fakeStore) InsertFlowReports(_ context.Context, reports []*smf.FlowRepo
 
 type fakeUPF struct {
 	mu              sync.Mutex
-	establishResult *smf.PFCPEstablishmentResponse
-	lastEstablish   *smf.PFCPEstablishmentRequest
-	modifyCalls     []*smf.PFCPModificationRequest
+	establishResult *models.EstablishResponse
+	lastEstablish   *models.EstablishRequest
+	modifyCalls     []*models.ModifyRequest
 	deleteCalls     []deletionCall
 	err             error
 }
 
 type deletionCall struct {
-	localSEID  uint64
 	remoteSEID uint64
 }
 
-func (f *fakeUPF) EstablishSession(_ context.Context, req *smf.PFCPEstablishmentRequest) (*smf.PFCPEstablishmentResponse, error) {
+func (f *fakeUPF) EstablishSession(_ context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -119,7 +118,7 @@ func (f *fakeUPF) EstablishSession(_ context.Context, req *smf.PFCPEstablishment
 	return f.establishResult, f.err
 }
 
-func (f *fakeUPF) ModifySession(_ context.Context, req *smf.PFCPModificationRequest) error {
+func (f *fakeUPF) ModifySession(_ context.Context, req *models.ModifyRequest) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -128,11 +127,11 @@ func (f *fakeUPF) ModifySession(_ context.Context, req *smf.PFCPModificationRequ
 	return f.err
 }
 
-func (f *fakeUPF) DeleteSession(_ context.Context, localSEID, remoteSEID uint64) error {
+func (f *fakeUPF) DeleteSession(_ context.Context, remoteSEID uint64) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.deleteCalls = append(f.deleteCalls, deletionCall{localSEID, remoteSEID})
+	f.deleteCalls = append(f.deleteCalls, deletionCall{remoteSEID})
 
 	return f.err
 }
@@ -241,10 +240,11 @@ func defaultFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 		releasedIP:  netip.MustParseAddr("10.0.0.1"),
 	}
 	upf := &fakeUPF{
-		establishResult: &smf.PFCPEstablishmentResponse{
+		establishResult: &models.EstablishResponse{
 			RemoteSEID: 100,
-			TEID:       5000,
-			N3IP:       net.ParseIP("192.168.1.1").To4(),
+			CreatedPDRs: []models.CreatedPDR{
+				{PDRID: 1, TEID: 5000, N3IP: netip.MustParseAddr("192.168.1.1")},
+			},
 		},
 	}
 	amfCb := &fakeAMF{}
@@ -510,12 +510,8 @@ func TestNewURR_DefaultConfig(t *testing.T) {
 		t.Fatalf("NewURR failed: %v", err)
 	}
 
-	if !urr.MeasurementMethods.Volume {
-		t.Fatal("expected Volume measurement method")
-	}
-
-	if !urr.ReportingTriggers.PeriodicReporting {
-		t.Fatal("expected PeriodicReporting trigger")
+	if urr.URRID == 0 {
+		t.Fatal("expected non-zero URR ID")
 	}
 }
 

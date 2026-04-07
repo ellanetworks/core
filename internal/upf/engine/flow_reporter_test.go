@@ -1,7 +1,7 @@
 // Copyright 2026 Ella Networks
 // SPDX-License-Identifier: Apache-2.0
 
-package core_test
+package engine_test
 
 import (
 	"encoding/binary"
@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
+	"github.com/ellanetworks/core/internal/upf/engine"
 )
 
 // Helper function to convert IP address to uint32 format used by eBPF
@@ -48,7 +48,7 @@ func TestBuildFlowReportRequestBasic(t *testing.T) {
 		Bytes:   500000,
 	}
 
-	req := core.BuildFlowReportRequest(flow, stats)
+	req := engine.BuildFlowReportRequest(flow, stats)
 
 	if req.SourceIP != "192.168.1.100" {
 		t.Fatalf("Expected source IP 192.168.1.100, got %s", req.SourceIP)
@@ -108,7 +108,7 @@ func TestBuildFlowReportRequestDifferentProtocols(t *testing.T) {
 				Bytes:   50000,
 			}
 
-			req := core.BuildFlowReportRequest(flow, stats)
+			req := engine.BuildFlowReportRequest(flow, stats)
 
 			if req.Protocol != tc.protocol {
 				t.Fatalf("Expected protocol %d, got %d", tc.protocol, req.Protocol)
@@ -138,7 +138,7 @@ func TestBuildFlowReportRequestTimestampFormatting(t *testing.T) {
 		Bytes:   50000,
 	}
 
-	req := core.BuildFlowReportRequest(flow, stats)
+	req := engine.BuildFlowReportRequest(flow, stats)
 
 	_, err := time.Parse(time.RFC3339, req.StartTime)
 	if err != nil {
@@ -200,7 +200,7 @@ func TestBuildFlowReportRequestIPAddressConversion(t *testing.T) {
 				Bytes:   50000,
 			}
 
-			req := core.BuildFlowReportRequest(flow, stats)
+			req := engine.BuildFlowReportRequest(flow, stats)
 
 			if req.SourceIP != tc.expectedSrc {
 				t.Fatalf("Expected source IP %s, got %s", tc.expectedSrc, req.SourceIP)
@@ -230,7 +230,7 @@ func TestBuildFlowReportRequestImsiFormatting(t *testing.T) {
 		Bytes:   50000,
 	}
 
-	req := core.BuildFlowReportRequest(flow, stats)
+	req := engine.BuildFlowReportRequest(flow, stats)
 
 	if req.IMSI != "001019756139935" {
 		t.Fatalf("Expected IMSI 001019756139935, got %s", req.IMSI)

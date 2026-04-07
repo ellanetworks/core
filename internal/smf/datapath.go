@@ -9,14 +9,16 @@ package smf
 import (
 	"fmt"
 	"net"
+	"net/netip"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/models"
 )
 
 type GTPTunnel struct {
 	PDR  *PDR
 	TEID uint32
-	N3IP net.IP
+	N3IP netip.Addr
 }
 
 type DataPath struct {
@@ -75,61 +77,34 @@ func (dp *DataPath) DeactivateDownLinkTunnel(smf *SMF) {
 	dp.DownLinkTunnel = &GTPTunnel{}
 }
 
-func (dp *DataPath) ActivateUpLinkPdr(dnn string, pduAddress net.IP, defQER *QER, defURR *URR) {
+func (dp *DataPath) ActivateUpLinkPdr(pduAddress net.IP, defQER *QER, defURR *URR) {
 	dp.UpLinkTunnel.PDR.QER = defQER
 	dp.UpLinkTunnel.PDR.URR = defURR
 
-	dp.UpLinkTunnel.PDR.PDI.SourceInterface = SourceInterface{InterfaceValue: SourceInterfaceAccess}
-	dp.UpLinkTunnel.PDR.PDI.LocalFTeID = &FTEID{
-		Ch: true,
-	}
-	dp.UpLinkTunnel.PDR.PDI.UEIPAddress = &UEIPAddress{
-		V4:          true,
-		IPv4Address: pduAddress.To4(),
-	}
-	dp.UpLinkTunnel.PDR.PDI.NetworkInstance = dnn
-	dp.UpLinkTunnel.PDR.OuterHeaderRemoval = &OuterHeaderRemoval{
-		OuterHeaderRemovalDescription: OuterHeaderRemovalGtpUUdpIpv4,
-	}
+	dp.UpLinkTunnel.PDR.PDI.LocalFTEID = &models.FTEID{}
+	dp.UpLinkTunnel.PDR.PDI.UEIPAddress = netip.AddrFrom4([4]byte(pduAddress.To4()))
 
-	dp.UpLinkTunnel.PDR.FAR.ApplyAction = ApplyAction{
-		Buff: false,
-		Drop: false,
-		Dupl: false,
+	ohr := OuterHeaderRemovalGtpUUdpIpv4
+	dp.UpLinkTunnel.PDR.OuterHeaderRemoval = &ohr
+
+	dp.UpLinkTunnel.PDR.FAR.ApplyAction = models.ApplyAction{
 		Forw: true,
-		Nocp: false,
 	}
-	dp.UpLinkTunnel.PDR.FAR.ForwardingParameters = &ForwardingParameters{
-		DestinationInterface: DestinationInterface{
-			InterfaceValue: DestinationInterfaceCore,
-		},
-		NetworkInstance: dnn,
-	}
-
-	dp.UpLinkTunnel.PDR.FAR.ForwardingParameters.DestinationInterface.InterfaceValue = DestinationInterfaceSgiLanN6Lan
+	dp.UpLinkTunnel.PDR.FAR.ForwardingParameters = &models.ForwardingParameters{}
 }
 
-func (dp *DataPath) ActivateDlLinkPdr(dnn string, anIP net.IP, teid uint32, pduAddress net.IP, defQER *QER, defURR *URR) {
+func (dp *DataPath) ActivateDlLinkPdr(anIP net.IP, teid uint32, pduAddress net.IP, defQER *QER, defURR *URR) {
 	dp.DownLinkTunnel.PDR.QER = defQER
 	dp.DownLinkTunnel.PDR.URR = defURR
 
-	dp.DownLinkTunnel.PDR.PDI.SourceInterface = SourceInterface{InterfaceValue: SourceInterfaceCore}
-	dp.DownLinkTunnel.PDR.PDI.NetworkInstance = dnn
-	dp.DownLinkTunnel.PDR.PDI.UEIPAddress = &UEIPAddress{
-		V4:          true,
-		IPv4Address: pduAddress.To4(),
-	}
+	dp.DownLinkTunnel.PDR.PDI.UEIPAddress = netip.AddrFrom4([4]byte(pduAddress.To4()))
 
 	if anIP != nil {
-		dp.DownLinkTunnel.PDR.FAR.ForwardingParameters = &ForwardingParameters{
-			DestinationInterface: DestinationInterface{
-				InterfaceValue: DestinationInterfaceAccess,
-			},
-			NetworkInstance: dnn,
-			OuterHeaderCreation: &OuterHeaderCreation{
-				OuterHeaderCreationDescription: OuterHeaderCreationGtpUUdpIpv4,
-				TeID:                           teid,
-				IPv4Address:                    anIP.To4(),
+		dp.DownLinkTunnel.PDR.FAR.ForwardingParameters = &models.ForwardingParameters{
+			OuterHeaderCreation: &models.OuterHeaderCreation{
+				Description: OuterHeaderCreationGtpUUdpIpv4,
+				TEID:        teid,
+				IPv4Address: anIP.To4(),
 			},
 		}
 	}
@@ -169,9 +144,9 @@ func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, policy 
 		return fmt.Errorf("could not create downlink URR: %v", err)
 	}
 
-	dp.ActivateUpLinkPdr(smContext.Dnn, pduAddress, defQER, defULURR)
+	dp.ActivateUpLinkPdr(pduAddress, defQER, defULURR)
 
-	dp.ActivateDlLinkPdr(smContext.Dnn, smContext.Tunnel.ANInformation.IPAddress, smContext.Tunnel.ANInformation.TEID, pduAddress, defQER, defDLURR)
+	dp.ActivateDlLinkPdr(smContext.Tunnel.ANInformation.IPAddress, smContext.Tunnel.ANInformation.TEID, pduAddress, defQER, defDLURR)
 
 	dp.Activated = true
 

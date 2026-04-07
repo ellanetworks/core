@@ -1,7 +1,7 @@
 // Copyright 2026 Ella Networks
 // SPDX-License-Identifier: Apache-2.0
 
-package core
+package engine
 
 import (
 	"encoding/binary"
@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
@@ -55,7 +54,7 @@ func u16NtoHS(n uint16) uint16 {
 
 // BuildFlowReportRequest converts an eBPF flow record to a FlowReportRequest
 // without sending it. Used by the batch reporting path.
-func BuildFlowReportRequest(flow ebpf.N3N6EntrypointFlow, stats ebpf.N3N6EntrypointFlowStats) *pfcp_dispatcher.FlowReportRequest {
+func BuildFlowReportRequest(flow ebpf.N3N6EntrypointFlow, stats ebpf.N3N6EntrypointFlowStats) *models.FlowReportRequest {
 	saddr := int2ip(flow.Saddr)
 	daddr := int2ip(flow.Daddr)
 	sport := u16NtoHS(flow.Sport)
@@ -69,7 +68,7 @@ func BuildFlowReportRequest(flow ebpf.N3N6EntrypointFlow, stats ebpf.N3N6Entrypo
 		direction = models.DirectionUplink
 	}
 
-	return &pfcp_dispatcher.FlowReportRequest{
+	return &models.FlowReportRequest{
 		IMSI:            fmt.Sprintf("%015d", flow.Imsi),
 		SourceIP:        saddr.String(),
 		DestinationIP:   daddr.String(),

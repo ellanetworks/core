@@ -22,9 +22,8 @@ import (
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
-	"github.com/ellanetworks/core/internal/pfcp_dispatcher"
-	"github.com/ellanetworks/core/internal/upf/core"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
+	"github.com/ellanetworks/core/internal/upf/engine"
 	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
 )
@@ -50,8 +49,8 @@ type flowReport struct {
 type UPF struct {
 	n3Link             link.Link
 	n6Link             *link.Link
-	pfcpConn           *core.PfcpConnection
-	dispatcher         *pfcp_dispatcher.PfcpDispatcher
+	se                 *engine.SessionEngine
+	smf                engine.SMFReportHandler
 	notificationReader *ringbuf.Reader
 	noNeighReader      *ringbuf.Reader
 
@@ -66,7 +65,7 @@ type UPF struct {
 	fcDone     chan struct{} // closed when reportFlows exits (all flows reported)
 }
 
-func Start(ctx context.Context, dispatcher *pfcp_dispatcher.PfcpDispatcher, n3Interface config.N3Interface, n3Address string, advertisedN3Address string, n6Interface config.N6Interface, xdpAttachMode string, masquerade bool, flowact bool) (*UPF, error) {
+func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface config.N3Interface, n3Address string, advertisedN3Address string, n6Interface config.N6Interface, xdpAttachMode string, masquerade bool, flowact bool) (*UPF, error) {
 	var (
 		n3Vlan uint32
 		n6Vlan uint32
@@ -102,7 +101,7 @@ func Start(ctx context.Context, dispatcher *pfcp_dispatcher.PfcpDispatcher, n3In
 
 	bpfObjects = ebpf.NewBpfObjects(flowact, masquerade, n3Iface.Index, n6Iface.Index, n3Vlan, n6Vlan)
 
-	core.SetN3InterfaceIndex(n3Iface.Index)
+	engine.SetN3InterfaceIndex(n3Iface.Index)
 
 	if err := bpfObjects.Load(); err != nil {
 		logger.UpfLog.Fatal("Loading bpf objects failed", zap.Error(err))
@@ -133,14 +132,14 @@ func Start(ctx context.Context, dispatcher *pfcp_dispatcher.PfcpDispatcher, n3In
 		n6Link = &n6
 	}
 
-	resourceManager, err := core.NewFteIDResourceManager(FTEIDPool)
+	resourceManager, err := engine.NewFteIDResourceManager(FTEIDPool)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Resource Manager: %w", err)
 	}
 
-	pfcpConn, err := core.CreatePfcpConnection(PfcpAddress, PfcpNodeID, n3Address, advertisedN3Address, bpfObjects, resourceManager)
+	se, err := engine.NewSessionEngine(PfcpAddress, PfcpNodeID, n3Address, advertisedN3Address, bpfObjects, resourceManager)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create PFCP connection: %w", err)
+		return nil, fmt.Errorf("failed to create session engine: %w", err)
 	}
 
 	notificationReader, err := ringbuf.NewReader(bpfObjects.NocpMap)
@@ -156,8 +155,8 @@ func Start(ctx context.Context, dispatcher *pfcp_dispatcher.PfcpDispatcher, n3In
 	upf := &UPF{
 		n3Link:             n3Link,
 		n6Link:             n6Link,
-		pfcpConn:           pfcpConn,
-		dispatcher:         dispatcher,
+		se:                 se,
+		smf:                smfHandler,
 		notificationReader: notificationReader,
 		noNeighReader:      noNeighReader,
 		ctx:                ctx,
@@ -202,7 +201,7 @@ func (u *UPF) Close(ctx context.Context) {
 			logger.UpfLog.Warn("Failed to detach eBPF from n3", zap.Error(err))
 		}
 
-		if err := u.pfcpConn.BpfObjects.Close(); err != nil {
+		if err := u.se.BpfObjects.Close(); err != nil {
 			logger.UpfLog.Warn("Failed to close BPF objects", zap.Error(err))
 		}
 
@@ -223,26 +222,20 @@ func (u *UPF) Close(ctx context.Context) {
 	}
 }
 
-func (u *UPF) UpdateAdvertisedN3Address(newN3Addr net.IP) {
-	u.pfcpConn.SetAdvertisedN3Address(newN3Addr)
+func (u *UPF) Engine() *engine.SessionEngine {
+	return u.se
+}
+
+func (u *UPF) UpdateAdvertisedN3Address(newN3Addr netip.Addr) {
+	u.se.SetAdvertisedN3Address(newN3Addr)
 }
 
 func (u *UPF) UpdateFilters(policyID int64, direction models.Direction, rules []models.FilterRule) error {
-	conn := core.GetConnection()
-	if conn == nil {
-		return fmt.Errorf("no PFCP connection available")
-	}
-
-	return core.UpdateFilters(conn, policyID, direction.String(), rules)
+	return u.se.UpdateFilters(policyID, direction, rules)
 }
 
 func (u *UPF) GetFilterIndex(policyID int64, direction models.Direction) (uint32, error) {
-	conn := core.GetConnection()
-	if conn == nil {
-		return 0, fmt.Errorf("no PFCP connection available")
-	}
-
-	idx, ok := core.GetFilterIndex(policyID, direction.String())
+	idx, ok := u.se.GetFilterIndex(policyID, direction)
 	if !ok {
 		return 0, fmt.Errorf("filter not found for policy %d, direction %s", policyID, direction.String())
 	}
@@ -251,19 +244,19 @@ func (u *UPF) GetFilterIndex(policyID int64, direction models.Direction) (uint32
 }
 
 func (u *UPF) ReloadNAT(masquerade bool) error {
-	u.pfcpConn.BpfObjects.Masquerade = masquerade
+	u.se.BpfObjects.Masquerade = masquerade
 
-	err := u.pfcpConn.BpfObjects.LoadWithMapReplacements()
+	err := u.se.BpfObjects.LoadWithMapReplacements()
 	if err != nil {
 		return fmt.Errorf("couldn't load BPF objects: %w", err)
 	}
 
-	if err := u.n3Link.Update(u.pfcpConn.BpfObjects.UpfN3N6EntrypointFunc); err != nil {
+	if err := u.n3Link.Update(u.se.BpfObjects.UpfN3N6EntrypointFunc); err != nil {
 		return err
 	}
 
 	if u.n6Link != nil {
-		if err := (*u.n6Link).Update(u.pfcpConn.BpfObjects.UpfN3N6EntrypointFunc); err != nil {
+		if err := (*u.n6Link).Update(u.se.BpfObjects.UpfN3N6EntrypointFunc); err != nil {
 			return err
 		}
 	}
@@ -278,19 +271,19 @@ func (u *UPF) ReloadNAT(masquerade bool) error {
 }
 
 func (u *UPF) ReloadFlowAccounting(flowact bool) error {
-	u.pfcpConn.BpfObjects.FlowAccounting = flowact
+	u.se.BpfObjects.FlowAccounting = flowact
 
-	err := u.pfcpConn.BpfObjects.LoadWithMapReplacements()
+	err := u.se.BpfObjects.LoadWithMapReplacements()
 	if err != nil {
 		return fmt.Errorf("couldn't load BPF objects: %w", err)
 	}
 
-	if err := u.n3Link.Update(u.pfcpConn.BpfObjects.UpfN3N6EntrypointFunc); err != nil {
+	if err := u.n3Link.Update(u.se.BpfObjects.UpfN3N6EntrypointFunc); err != nil {
 		return err
 	}
 
 	if u.n6Link != nil {
-		if err := (*u.n6Link).Update(u.pfcpConn.BpfObjects.UpfN3N6EntrypointFunc); err != nil {
+		if err := (*u.n6Link).Update(u.se.BpfObjects.UpfN3N6EntrypointFunc); err != nil {
 			return err
 		}
 	}
@@ -438,7 +431,7 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 		nsSinceBoot := sysInfo.Uptime * time.Second.Nanoseconds()
 		expiryThreshold := nsSinceBoot - ConnTrackTimeout.Nanoseconds()
 
-		ct_entries := u.pfcpConn.BpfObjects.NatCt.Iterate()
+		ct_entries := u.se.BpfObjects.NatCt.Iterate()
 		for ct_entries.Next(&key, &value) {
 			if value.RefreshTs < uint64(expiryThreshold) {
 				expiredKeys = append(expiredKeys, key)
@@ -449,7 +442,7 @@ func (u *UPF) collectCollectionTrackingGarbage(ctx context.Context) {
 			logger.UpfLog.Warn("Conntrack iteration failed", zap.Error(err))
 		}
 
-		count, err := u.pfcpConn.BpfObjects.NatCt.BatchDelete(expiredKeys, &bpf.BatchOptions{})
+		count, err := u.se.BpfObjects.NatCt.BatchDelete(expiredKeys, &bpf.BatchOptions{})
 		if err != nil {
 			logger.UpfLog.Warn("Failed to delete expired conntrack entries", zap.Error(err))
 		}
@@ -479,14 +472,14 @@ func (u *UPF) listenForTrafficNotifications() {
 
 		logger.UpfLog.Debug("Received notification for", logger.SEID(event.LocalSEID), logger.PDRID(uint32(event.PdrID)), logger.QFI(event.QFI))
 
-		if !u.pfcpConn.BpfObjects.IsAlreadyNotified(event) {
+		if !u.se.BpfObjects.IsAlreadyNotified(event) {
 			logger.UpfLog.Debug("Notifying SMF of downlink data", logger.SEID(event.LocalSEID), logger.PDRID(uint32(event.PdrID)), logger.QFI(event.QFI))
 
-			err = core.SendPfcpSessionReportRequestForDownlinkData(u.ctx, u.dispatcher, event.LocalSEID, event.PdrID, event.QFI)
+			err = u.se.SendDownlinkDataReport(u.ctx, u.smf, event.LocalSEID, event.PdrID, event.QFI)
 			if err != nil {
 				logger.UpfLog.Warn("Failed to send downlink data notification", zap.Error(err))
 			} else {
-				u.pfcpConn.BpfObjects.MarkNotified(event)
+				u.se.BpfObjects.MarkNotified(event)
 			}
 		}
 	}
@@ -518,12 +511,12 @@ func (u *UPF) getAndResetUsageForURR(urrID uint32) (uint64, error) {
 	ncpu := runtime.NumCPU()
 	zeroes := make([]uint64, ncpu)
 
-	err := u.pfcpConn.BpfObjects.UrrMap.Lookup(&urrID, &perCPU)
+	err := u.se.BpfObjects.UrrMap.Lookup(&urrID, &perCPU)
 	if err != nil {
 		return 0, fmt.Errorf("failed to lookup URR: %w", err)
 	}
 
-	err = u.pfcpConn.BpfObjects.UrrMap.Update(&urrID, zeroes, bpf.UpdateAny)
+	err = u.se.BpfObjects.UrrMap.Update(&urrID, zeroes, bpf.UpdateAny)
 	if err != nil {
 		return 0, fmt.Errorf("failed to reset URR: %w", err)
 	}
@@ -536,11 +529,11 @@ func (u *UPF) getAndResetUsageForURR(urrID uint32) (uint64, error) {
 }
 
 func (u *UPF) pollUsageAndResetCounters() error {
-	if u.pfcpConn == nil {
+	if u.se == nil {
 		return fmt.Errorf("PFCP connection is nil")
 	}
 
-	for localSeid, session := range u.pfcpConn.ListSessions() {
+	for localSeid, session := range u.se.ListSessions() {
 		for _, pdr := range session.ListPDRs() {
 			urrID := pdr.PdrInfo.UrrID
 			if urrID == 0 {
@@ -554,7 +547,7 @@ func (u *UPF) pollUsageAndResetCounters() error {
 			var err error
 
 			// Downlink PDR
-			if pdr.Ipv4 != nil || pdr.Ipv6 != nil {
+			if pdr.UEIP.IsValid() {
 				dvol, err = u.getAndResetUsageForURR(urrID)
 				if err != nil {
 					logger.UpfLog.Warn("could not get usage for URR - downlink", logger.URRID(urrID), zap.Error(err), logger.SEID(localSeid), logger.PDRID(pdr.PdrInfo.PdrID))
@@ -568,7 +561,7 @@ func (u *UPF) pollUsageAndResetCounters() error {
 				}
 			}
 
-			err = core.SendPfcpSessionReportRequestForUsage(u.ctx, u.dispatcher, localSeid, urrID, uvol, dvol)
+			err = u.se.SendUsageReport(u.ctx, u.smf, localSeid, uvol, dvol)
 			if err != nil {
 				logger.UpfLog.Warn("could not send PFCP session report request for usage", zap.Error(err), logger.SEID(localSeid), logger.URRID(urrID))
 				continue
@@ -631,7 +624,7 @@ func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flow
 		dropped      int
 	)
 
-	iter := u.pfcpConn.BpfObjects.FlowStats.Iterate()
+	iter := u.se.BpfObjects.FlowStats.Iterate()
 	for iter.Next(&key, &value) {
 		if value.LastTs < uint64(expiryThreshold) || (value.LastTs-value.FirstTs) > uint64(ActiveFlowTimeout.Nanoseconds()) {
 			expiredKeys = append(expiredKeys, key)
@@ -649,7 +642,7 @@ func (u *UPF) scanAndEnqueueExpiredFlows(expiryThreshold int64, flowch chan flow
 
 	// Delete from the BPF map immediately so the kernel can reuse the slots
 	// as fast as possible, before we spend time forwarding reports.
-	count, err := u.pfcpConn.BpfObjects.FlowStats.BatchDelete(expiredKeys, &bpf.BatchOptions{})
+	count, err := u.se.BpfObjects.FlowStats.BatchDelete(expiredKeys, &bpf.BatchOptions{})
 	if err != nil {
 		logger.UpfLog.Warn("Failed to delete expired flow entries", zap.Error(err))
 	}
@@ -736,13 +729,13 @@ func (u *UPF) reportFlows(flowch chan flowReport) {
 			return
 		}
 
-		reqs := make([]*pfcp_dispatcher.FlowReportRequest, len(batch))
+		reqs := make([]*models.FlowReportRequest, len(batch))
 		for i, f := range batch {
-			reqs[i] = core.BuildFlowReportRequest(f.flow, f.stats)
+			reqs[i] = engine.BuildFlowReportRequest(f.flow, f.stats)
 		}
 
 		rctx, cancel := context.WithTimeout(context.Background(), flowReportTimeout)
-		err := u.dispatcher.SMF.SendFlowReports(rctx, reqs)
+		err := u.smf.SendFlowReports(rctx, reqs)
 
 		cancel()
 

@@ -2,9 +2,9 @@ package server
 
 import (
 	"io/fs"
-	"net"
 	"net/http"
 	"net/http/pprof"
+	"net/netip"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/bgp"
@@ -20,7 +20,7 @@ import (
 type UPFUpdater interface {
 	ReloadNAT(natEnabled bool) error
 	ReloadFlowAccounting(flowAccountingEnabled bool) error
-	UpdateAdvertisedN3Address(net.IP)
+	UpdateAdvertisedN3Address(netip.Addr)
 	UpdateFilters(policyID int64, direction models.Direction, rules []models.FilterRule) error
 }
 

@@ -90,7 +90,7 @@ func (f FakeUPF) ReloadFlowAccounting(flowAccountingEnabled bool) error {
 	return nil
 }
 
-func (f FakeUPF) UpdateAdvertisedN3Address(ip net.IP) {
+func (f FakeUPF) UpdateAdvertisedN3Address(ip netip.Addr) {
 }
 
 func (f FakeUPF) UpdateFilters(policyID int64, direction models.Direction, rules []models.FilterRule) error {
@@ -328,21 +328,21 @@ func (f *fakeSessionStore) IncrementDailyUsage(_ context.Context, _ string, _, _
 	return nil
 }
 
-func (f *fakeSessionStore) InsertFlowReports(_ context.Context, _ []*smf.FlowReport) error {
+func (f *fakeSessionStore) InsertFlowReports(_ context.Context, _ []*models.FlowReportRequest) error {
 	return nil
 }
 
 type fakeUPFClient struct{}
 
-func (f *fakeUPFClient) EstablishSession(ctx context.Context, req *smf.PFCPEstablishmentRequest) (*smf.PFCPEstablishmentResponse, error) {
+func (f *fakeUPFClient) EstablishSession(ctx context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error) {
 	return nil, fmt.Errorf("not implemented in test")
 }
 
-func (f *fakeUPFClient) ModifySession(ctx context.Context, req *smf.PFCPModificationRequest) error {
+func (f *fakeUPFClient) ModifySession(ctx context.Context, req *models.ModifyRequest) error {
 	return nil
 }
 
-func (f *fakeUPFClient) DeleteSession(ctx context.Context, localSEID, remoteSEID uint64) error {
+func (f *fakeUPFClient) DeleteSession(ctx context.Context, remoteSEID uint64) error {
 	return nil
 }
 

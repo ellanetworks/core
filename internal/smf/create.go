@@ -380,16 +380,14 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 	}
 
 	if smContext.PFCPContext.RemoteSEID == 0 {
-		result, err := s.upf.EstablishSession(ctx, &PFCPEstablishmentRequest{
-			NodeID:             s.nodeID,
-			LocalSEID:          smContext.PFCPContext.LocalSEID,
-			PDRs:               pdrList,
-			FARs:               farList,
-			QERs:               qerList,
-			URRs:               urrList,
-			SUPI:               smContext.Supi.IMSI(),
-			FilterIndexByPDRID: filterIndexByPDRID,
-		})
+		req := BuildEstablishRequest(
+			smContext.PFCPContext.LocalSEID,
+			smContext.Supi.IMSI(),
+			pdrList, farList, qerList, urrList,
+			filterIndexByPDRID,
+		)
+
+		resp, err := s.upf.EstablishSession(ctx, req)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "failed to establish PFCP session")
@@ -397,22 +395,25 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 			return fmt.Errorf("failed to send PFCP session establishment request: %v", err)
 		}
 
-		smContext.PFCPContext.RemoteSEID = result.RemoteSEID
-		smContext.Tunnel.DataPath.UpLinkTunnel.TEID = result.TEID
-		smContext.Tunnel.DataPath.UpLinkTunnel.N3IP = result.N3IP
+		smContext.PFCPContext.RemoteSEID = resp.RemoteSEID
+
+		for _, cp := range resp.CreatedPDRs {
+			if cp.TEID != 0 {
+				smContext.Tunnel.DataPath.UpLinkTunnel.TEID = cp.TEID
+				smContext.Tunnel.DataPath.UpLinkTunnel.N3IP = cp.N3IP
+
+				break
+			}
+		}
 
 		return nil
 	}
 
-	err := s.upf.ModifySession(ctx, &PFCPModificationRequest{
-		LocalSEID:          smContext.PFCPContext.LocalSEID,
-		RemoteSEID:         smContext.PFCPContext.RemoteSEID,
-		PDRs:               pdrList,
-		FARs:               farList,
-		QERs:               qerList,
-		URRs:               urrList,
-		FilterIndexByPDRID: filterIndexByPDRID,
-	})
+	err := s.upf.ModifySession(ctx, BuildModifyRequest(
+		smContext.PFCPContext.RemoteSEID,
+		pdrList, farList, qerList,
+		filterIndexByPDRID,
+	))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to modify PFCP session")

@@ -1,11 +1,12 @@
 // Copyright 2024 Ella Networks
-package core
+package engine
 
 import (
 	"context"
 	"fmt"
 	"maps"
 	"net"
+	"net/netip"
 	"sync"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -15,16 +16,14 @@ import (
 	"go.uber.org/zap"
 )
 
-var connection *PfcpConnection
-
-type PfcpConnection struct {
+type SessionEngine struct {
 	mu sync.Mutex
 
 	sessions             map[uint64]*Session
 	nodeID               string
 	nodeAddrV4           net.IP
 	n3Address            net.IP
-	advertisedN3Address  net.IP
+	advertisedN3Address  netip.Addr
 	BpfObjects           *ebpf.BpfObjects
 	FteIDResourceManager *FteIDResourceManager
 	SdfIndexAllocator    *SdfIndexAllocator
@@ -32,7 +31,7 @@ type PfcpConnection struct {
 	filtersByKey         map[string]uint32
 }
 
-func (pc *PfcpConnection) ListSessions() map[uint64]*Session {
+func (pc *SessionEngine) ListSessions() map[uint64]*Session {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
@@ -42,7 +41,7 @@ func (pc *PfcpConnection) ListSessions() map[uint64]*Session {
 	return sessCopy
 }
 
-func (pc *PfcpConnection) GetSession(seid uint64) *Session {
+func (pc *SessionEngine) GetSession(seid uint64) *Session {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
@@ -54,21 +53,21 @@ func (pc *PfcpConnection) GetSession(seid uint64) *Session {
 	return session
 }
 
-func (pc *PfcpConnection) DeleteSession(seid uint64) {
+func (pc *SessionEngine) RemoveSession(seid uint64) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
 	delete(pc.sessions, seid)
 }
 
-func (pc *PfcpConnection) AddSession(seid uint64, session *Session) {
+func (pc *SessionEngine) AddSession(seid uint64, session *Session) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
 	pc.sessions[seid] = session
 }
 
-func (pc *PfcpConnection) SetBPFObjects(bpfObjects *ebpf.BpfObjects, dbInstance *db.Database) {
+func (pc *SessionEngine) SetBPFObjects(bpfObjects *ebpf.BpfObjects, dbInstance *db.Database) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
@@ -84,7 +83,7 @@ func (pc *PfcpConnection) SetBPFObjects(bpfObjects *ebpf.BpfObjects, dbInstance 
 	}
 }
 
-func (pc *PfcpConnection) InitializeFiltersFromDB(dbInstance *db.Database) error {
+func (pc *SessionEngine) InitializeFiltersFromDB(dbInstance *db.Database) error {
 	ctx := context.Background()
 
 	policies, _, err := dbInstance.ListPoliciesPage(ctx, 1, 1000)
@@ -130,7 +129,7 @@ func (pc *PfcpConnection) InitializeFiltersFromDB(dbInstance *db.Database) error
 		}
 
 		if len(uplinkRules) > 0 {
-			if err := UpdateFilters(pc, int64(policy.ID), "uplink", uplinkRules); err != nil {
+			if err := updateFiltersOnConn(pc, int64(policy.ID), "uplink", uplinkRules); err != nil {
 				logger.WithTrace(ctx, logger.DBLog).Error(
 					"failed to update uplink filters",
 					zap.Int("policyID", policy.ID),
@@ -140,7 +139,7 @@ func (pc *PfcpConnection) InitializeFiltersFromDB(dbInstance *db.Database) error
 		}
 
 		if len(downlinkRules) > 0 {
-			if err := UpdateFilters(pc, int64(policy.ID), "downlink", downlinkRules); err != nil {
+			if err := updateFiltersOnConn(pc, int64(policy.ID), "downlink", downlinkRules); err != nil {
 				logger.WithTrace(ctx, logger.DBLog).Error(
 					"failed to update downlink filters",
 					zap.Int("policyID", policy.ID),
@@ -153,21 +152,21 @@ func (pc *PfcpConnection) InitializeFiltersFromDB(dbInstance *db.Database) error
 	return nil
 }
 
-func (pc *PfcpConnection) GetAdvertisedN3Address() net.IP {
+func (pc *SessionEngine) GetAdvertisedN3Address() netip.Addr {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
 	return pc.advertisedN3Address
 }
 
-func (pc *PfcpConnection) SetAdvertisedN3Address(newN3Addr net.IP) {
+func (pc *SessionEngine) SetAdvertisedN3Address(newN3Addr netip.Addr) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
 	pc.advertisedN3Address = newN3Addr
 }
 
-func CreatePfcpConnection(addr string, nodeID string, n3Ip string, advertisedN3Ip string, bpfObjects *ebpf.BpfObjects, resourceManager *FteIDResourceManager) (*PfcpConnection, error) {
+func NewSessionEngine(addr string, nodeID string, n3Ip string, advertisedN3Ip string, bpfObjects *ebpf.BpfObjects, resourceManager *FteIDResourceManager) (*SessionEngine, error) {
 	addrV4 := net.ParseIP(addr)
 	if addrV4 == nil {
 		return nil, fmt.Errorf("failed to parse IP address ID: %s", addr)
@@ -178,12 +177,12 @@ func CreatePfcpConnection(addr string, nodeID string, n3Ip string, advertisedN3I
 		return nil, fmt.Errorf("failed to parse N3 IP address ID: %s", n3Ip)
 	}
 
-	advertisedN3Addr := net.ParseIP(advertisedN3Ip)
-	if advertisedN3Addr == nil {
-		return nil, fmt.Errorf("failed to parse advertised N3 IP address ID: %s", advertisedN3Ip)
+	advertisedN3Addr, err := netip.ParseAddr(advertisedN3Ip)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse advertised N3 IP address: %w", err)
 	}
 
-	connection = &PfcpConnection{
+	conn := &SessionEngine{
 		sessions:             make(map[uint64]*Session),
 		nodeID:               nodeID,
 		nodeAddrV4:           addrV4,
@@ -195,14 +194,10 @@ func CreatePfcpConnection(addr string, nodeID string, n3Ip string, advertisedN3I
 		filtersByKey:         make(map[string]uint32),
 	}
 
-	return connection, nil
+	return conn, nil
 }
 
-func GetConnection() *PfcpConnection {
-	return connection
-}
-
-func (connection *PfcpConnection) ReleaseResources(seID uint64) {
+func (connection *SessionEngine) ReleaseResources(seID uint64) {
 	if connection.FteIDResourceManager == nil {
 		return
 	}

@@ -2,7 +2,7 @@ package ebpf
 
 import (
 	"fmt"
-	"net"
+	"net/netip"
 	"runtime"
 	"strconv"
 	"unsafe"
@@ -39,31 +39,32 @@ type PdrInfo struct {
 	FilterMapIndex     uint32 // 0 = no SDF filter
 }
 
-type IPWMask struct {
-	Type uint8 // 0: any, 1: ip4, 2: ip6
-	IP   net.IP
-	Mask net.IPMask
-}
-
 type PortRange struct {
 	LowerBound uint16
 	UpperBound uint16
 }
 
 func (bpfObjects *BpfObjects) PutPdrUplink(teid uint32, pdrInfo PdrInfo) error {
-	logger.UpfLog.Debug("Put PDR Uplink", logger.TEID(teid), zap.Any("pdrInfo", pdrInfo))
+	logger.UpfLog.Debug("Put PDR Uplink", logger.TEID(teid))
 
 	pdrToStore := ToN3N6EntrypointPdrInfo(pdrInfo)
 
 	return bpfObjects.PdrsUplink.Put(teid, unsafe.Pointer(&pdrToStore))
 }
 
-func (bpfObjects *BpfObjects) PutPdrDownlink(ipv4 net.IP, pdrInfo PdrInfo) error {
-	logger.UpfLog.Debug("Put PDR Downlink", logger.IPAddress(ipv4.String()), zap.Any("pdrInfo", pdrInfo))
+func (bpfObjects *BpfObjects) PutPdrDownlink(addr netip.Addr, pdrInfo PdrInfo) error {
+	logger.UpfLog.Debug("Put PDR Downlink", logger.IPAddress(addr.String()))
 
 	pdrToStore := ToN3N6EntrypointPdrInfo(pdrInfo)
 
-	return bpfObjects.PdrsDownlinkIp4.Put(ipv4, unsafe.Pointer(&pdrToStore))
+	if addr.Is4() {
+		key := addr.As4()
+		return bpfObjects.PdrsDownlinkIp4.Put(key, unsafe.Pointer(&pdrToStore))
+	}
+
+	key := addr.As16()
+
+	return bpfObjects.PdrsDownlinkIp6.Put(key, unsafe.Pointer(&pdrToStore))
 }
 
 func (bpfObjects *BpfObjects) DeletePdrUplink(teid uint32) error {
@@ -71,22 +72,17 @@ func (bpfObjects *BpfObjects) DeletePdrUplink(teid uint32) error {
 	return bpfObjects.PdrsUplink.Delete(teid)
 }
 
-func (bpfObjects *BpfObjects) DeletePdrDownlink(ipv4 net.IP) error {
-	logger.UpfLog.Debug("Delete PDR Downlink", logger.IPAddress(ipv4.String()))
-	return bpfObjects.PdrsDownlinkIp4.Delete(ipv4)
-}
+func (bpfObjects *BpfObjects) DeletePdrDownlink(addr netip.Addr) error {
+	logger.UpfLog.Debug("Delete PDR Downlink", logger.IPAddress(addr.String()))
 
-func (bpfObjects *BpfObjects) PutDownlinkPdrIP6(ipv6 net.IP, pdrInfo PdrInfo) error {
-	logger.UpfLog.Debug("EBPF: Put PDR Ipv6 Downlink", logger.IPAddress(ipv6.String()), zap.Any("pdrInfo", pdrInfo))
+	if addr.Is4() {
+		key := addr.As4()
+		return bpfObjects.PdrsDownlinkIp4.Delete(key)
+	}
 
-	pdrToStore := ToN3N6EntrypointPdrInfo(pdrInfo)
+	key := addr.As16()
 
-	return bpfObjects.PdrsDownlinkIp6.Put(ipv6, unsafe.Pointer(&pdrToStore))
-}
-
-func (bpfObjects *BpfObjects) DeleteDownlinkPdrIP6(ipv6 net.IP) error {
-	logger.UpfLog.Debug("Delete PDR Ipv6 Downlink", logger.IPAddress(ipv6.String()))
-	return bpfObjects.PdrsDownlinkIp6.Delete(ipv6)
+	return bpfObjects.PdrsDownlinkIp6.Delete(key)
 }
 
 // FarInfo holds Forwarding Action Rule parameters embedded directly in each PDR.

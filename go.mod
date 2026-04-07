@@ -15,7 +15,6 @@ require (
 	github.com/osrg/gobgp/v4 v4.4.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/vishvananda/netlink v1.3.1
-	github.com/wmnsk/go-pfcp v0.0.24
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.67.0
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.43.0
@@ -26,8 +25,6 @@ require (
 	golang.org/x/sys v0.42.0
 	gopkg.in/yaml.v2 v2.4.0
 )
-
-require github.com/gaissmai/bart v0.26.1 // indirect
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -47,6 +44,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/free5gc/openapi v1.2.3 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
+	github.com/gaissmai/bart v0.26.1 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect

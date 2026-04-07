@@ -3,13 +3,13 @@ package ngap
 import (
 	"encoding/binary"
 	"fmt"
-	"net"
+	"net/netip"
 
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func BuildHandoverCommandTransfer(teid uint32, n3IP net.IP) ([]byte, error) {
+func BuildHandoverCommandTransfer(teid uint32, n3IP netip.Addr) ([]byte, error) {
 	teidOct := make([]byte, 4)
 	binary.BigEndian.PutUint32(teidOct, teid)
 
@@ -19,9 +19,11 @@ func BuildHandoverCommandTransfer(teid uint32, n3IP net.IP) ([]byte, error) {
 	handoverCommandTransfer.DLForwardingUPTNLInformation.Present = ngapType.UPTransportLayerInformationPresentGTPTunnel
 	handoverCommandTransfer.DLForwardingUPTNLInformation.GTPTunnel = new(ngapType.GTPTunnel)
 	handoverCommandTransfer.DLForwardingUPTNLInformation.GTPTunnel.GTPTEID.Value = teidOct
+	ipv4 := n3IP.As4()
+
 	handoverCommandTransfer.DLForwardingUPTNLInformation.GTPTunnel.TransportLayerAddress.Value = aper.BitString{
-		Bytes:     n3IP,
-		BitLength: uint64(len(n3IP) * 8),
+		Bytes:     ipv4[:],
+		BitLength: 32,
 	}
 
 	buf, err := aper.MarshalWithParams(handoverCommandTransfer, "valueExt")
