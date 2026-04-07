@@ -79,8 +79,8 @@ type UPFClient interface {
 
 // BGPAnnouncer is the interface used by the SMF to announce/withdraw subscriber routes.
 type BGPAnnouncer interface {
-	Announce(ip net.IP, owner string) error
-	Withdraw(ip net.IP) error
+	Announce(ip netip.Addr, owner string) error
+	Withdraw(ip netip.Addr) error
 	IsRunning() bool
 	IsAdvertising() bool
 }
@@ -244,7 +244,7 @@ func (s *SMF) RemoveSession(ctx context.Context, ref string) {
 		if err != nil {
 			logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
 		} else if released.IsValid() {
-			s.withdrawRoute(released.AsSlice())
+			s.withdrawRoute(released)
 		}
 	}
 
@@ -351,12 +351,10 @@ func (s *SMF) NewURR() (*URR, error) {
 	}, nil
 }
 
-// announceRoute advertises a /32 route for the given UE IP via BGP,
-// tagged with the subscriber IMSI as owner.
-// announceRoute announces a /32 route for the given UE IP via BGP.
+// announceRoute advertises a /32 route for the given UE IP via BGP.
 // It is a no-op if no BGP announcer is configured or it is not advertising
 // (BGP not running, or NAT enabled).
-func (s *SMF) announceRoute(ip net.IP, owner string) {
+func (s *SMF) announceRoute(ip netip.Addr, owner string) {
 	if s.bgp == nil || !s.bgp.IsAdvertising() {
 		return
 	}
@@ -369,7 +367,7 @@ func (s *SMF) announceRoute(ip net.IP, owner string) {
 // withdrawRoute removes a /32 route for the given UE IP from BGP.
 // It is a no-op if no BGP announcer is configured or it is not advertising
 // (BGP not running, or NAT enabled).
-func (s *SMF) withdrawRoute(ip net.IP) {
+func (s *SMF) withdrawRoute(ip netip.Addr) {
 	if s.bgp == nil || !s.bgp.IsAdvertising() {
 		return
 	}

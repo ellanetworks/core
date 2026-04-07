@@ -3,7 +3,7 @@ package engine
 import (
 	"encoding/binary"
 	"fmt"
-	"net"
+	"net/netip"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
@@ -31,10 +31,18 @@ func updateFiltersRule(rule models.FilterRule) ebpf.SdfRule {
 	}
 
 	if rule.RemotePrefix != "" {
-		_, ipnet, err := net.ParseCIDR(rule.RemotePrefix)
+		prefix, err := netip.ParsePrefix(rule.RemotePrefix)
 		if err == nil {
-			sdfRule.RemoteIP = binary.BigEndian.Uint32(ipnet.IP.To4())
-			sdfRule.RemoteMask = binary.BigEndian.Uint32(ipnet.Mask)
+			addr4 := prefix.Masked().Addr().As4()
+			sdfRule.RemoteIP = binary.BigEndian.Uint32(addr4[:])
+			bits := prefix.Bits()
+
+			mask := uint32(0)
+			if bits > 0 {
+				mask = ^uint32(0) << (32 - bits)
+			}
+
+			sdfRule.RemoteMask = mask
 		}
 	}
 

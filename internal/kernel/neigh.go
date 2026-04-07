@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net"
+	"net/netip"
 
 	"github.com/vishvananda/netlink"
 	"go.opentelemetry.io/otel"
@@ -17,7 +18,7 @@ var tracer = otel.Tracer("ella-core/kernel")
 
 // AddNeighbour adds the provided IP as a neighbour
 // on all links that have an address in the same subnet.
-func AddNeighbour(ctx context.Context, neigh net.IP) error {
+func AddNeighbour(ctx context.Context, neigh netip.Addr) error {
 	_, span := tracer.Start(
 		ctx,
 		"kernel/add_neighbour",
@@ -25,6 +26,8 @@ func AddNeighbour(ctx context.Context, neigh net.IP) error {
 			attribute.String("IP", neigh.String()),
 		))
 	defer span.End()
+
+	neighIP := neigh.AsSlice()
 
 	links, err := netlink.LinkList()
 	if err != nil {
@@ -40,8 +43,8 @@ func AddNeighbour(ctx context.Context, neigh net.IP) error {
 		}
 
 		for _, a := range addrs {
-			if a.Contains(neigh) {
-				err = addNeighbourForLink(neigh, l)
+			if a.Contains(neighIP) {
+				err = addNeighbourForLink(neighIP, l)
 				if err != nil {
 					return fmt.Errorf("could not add neighbour for link: %v", err)
 				}

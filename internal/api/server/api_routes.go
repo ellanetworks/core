@@ -3,8 +3,8 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/bgp"
@@ -48,14 +48,14 @@ const (
 
 // isRouteDestinationValid checks if the destination is in valid CIDR notation.
 func isRouteDestinationValid(dest string) bool {
-	_, _, err := net.ParseCIDR(dest)
+	_, err := netip.ParsePrefix(dest)
 	return err == nil
 }
 
 // isRouteGatewayValid checks if the gateway is a valid IP address.
 func isRouteGatewayValid(gateway string) bool {
-	ip := net.ParseIP(gateway)
-	return ip != nil
+	addr, err := netip.ParseAddr(gateway)
+	return err == nil && addr.Is4()
 }
 
 // interfaceDBMap maps the interface string to the db.NetworkInterface enum.
@@ -218,21 +218,19 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 			return
 		}
 
-		_, ipNetwork, err := net.ParseCIDR(createRouteParams.Destination)
+		destPrefix, err := netip.ParsePrefix(createRouteParams.Destination)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid destination format", err, logger.APILog)
 			return
 		}
 
-		ipGateway := net.ParseIP(createRouteParams.Gateway)
-		if ipGateway == nil || ipGateway.To4() == nil {
+		gwAddr, err := netip.ParseAddr(createRouteParams.Gateway)
+		if err != nil || !gwAddr.Is4() {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid gateway format: expecting an IPv4 address", nil, logger.APILog)
 			return
 		}
 
-		ipGateway = ipGateway.To4()
-
-		routeExists, err := kernelInt.RouteExists(ipNetwork, ipGateway, createRouteParams.Metric, kernelNetworkInterface)
+		routeExists, err := kernelInt.RouteExists(destPrefix, gwAddr, createRouteParams.Metric, kernelNetworkInterface)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check if route exists", err, logger.APILog)
 			return
@@ -289,7 +287,7 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 			return
 		}
 
-		if err := kernelInt.CreateRoute(ipNetwork, ipGateway, createRouteParams.Metric, kernelNetworkInterface); err != nil {
+		if err := kernelInt.CreateRoute(destPrefix, gwAddr, createRouteParams.Metric, kernelNetworkInterface); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create kernel route: "+err.Error(), nil, logger.APILog)
 			return
 		}
@@ -337,19 +335,17 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 			return
 		}
 
-		_, ipNetwork, err := net.ParseCIDR(route.Destination)
+		destPrefix, err := netip.ParsePrefix(route.Destination)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid destination format: expecting CIDR notation.", err, logger.APILog)
 			return
 		}
 
-		gateway := net.ParseIP(route.Gateway)
-		if gateway == nil || gateway.To4() == nil {
+		gwAddr, err := netip.ParseAddr(route.Gateway)
+		if err != nil || !gwAddr.Is4() {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid gateway format: expecting an IPv4 address", nil, logger.APILog)
 			return
 		}
-
-		gateway = gateway.To4()
 
 		tx, err := dbInstance.BeginTransaction(r.Context())
 		if err != nil {
@@ -378,7 +374,7 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 			return
 		}
 
-		if err := kernelInt.DeleteRoute(ipNetwork, gateway, route.Metric, kernelInterface); err != nil {
+		if err := kernelInt.DeleteRoute(destPrefix, gwAddr, route.Metric, kernelInterface); err != nil {
 			logger.APILog.Warn("Failed to delete kernel route, proceeding with DB cleanup", zap.Error(err))
 		}
 

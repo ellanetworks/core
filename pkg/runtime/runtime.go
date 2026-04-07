@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
-	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"sync"
 	"time"
@@ -130,13 +130,19 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't get N6 interface IP: %w", err)
 	}
 
+	n6Addr, err := netip.ParseAddr(n6IP)
+	if err != nil {
+		return fmt.Errorf("couldn't parse N6 IP %q: %w", n6IP, err)
+	}
+
 	realKernel := kernel.NewRealKernel(cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name)
 
 	uePools := collectUEPools(ctx, dbInstance)
-	routeFilter := bgp.BuildRouteFilter(uePools, net.ParseIP(cfg.Interfaces.N3.Address), cfg.Interfaces.N6.Name)
+	n3Addr, _ := netip.ParseAddr(cfg.Interfaces.N3.Address)
+	routeFilter := bgp.BuildRouteFilter(uePools, n3Addr, cfg.Interfaces.N6.Name)
 	importStore := &bgpImportPrefixAdapter{db: dbInstance}
 
-	bgpService := bgp.New(net.ParseIP(n6IP), logger.EllaLog,
+	bgpService := bgp.New(n6Addr, logger.EllaLog,
 		bgp.WithKernel(realKernel),
 		bgp.WithImportPrefixStore(importStore),
 		bgp.WithRouteFilter(routeFilter),
@@ -454,7 +460,7 @@ func (a *bgpImportPrefixAdapter) ListImportPrefixes(ctx context.Context, peerID 
 }
 
 // collectUEPools returns the UE IP pool CIDRs from all data networks.
-func collectUEPools(ctx context.Context, dbInstance *db.Database) []*net.IPNet {
+func collectUEPools(ctx context.Context, dbInstance *db.Database) []netip.Prefix {
 	dataNetworks, err := dbInstance.ListAllDataNetworks(ctx)
 	if err != nil {
 		logger.EllaLog.Warn("failed to list data networks for BGP filter", zap.Error(err))
@@ -462,15 +468,15 @@ func collectUEPools(ctx context.Context, dbInstance *db.Database) []*net.IPNet {
 		return nil
 	}
 
-	var pools []*net.IPNet
+	var pools []netip.Prefix
 
 	for _, dn := range dataNetworks {
-		_, network, err := net.ParseCIDR(dn.IPPool)
+		prefix, err := netip.ParsePrefix(dn.IPPool)
 		if err != nil {
 			continue
 		}
 
-		pools = append(pools, network)
+		pools = append(pools, prefix)
 	}
 
 	return pools

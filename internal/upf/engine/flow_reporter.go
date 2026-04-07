@@ -6,7 +6,7 @@ package engine
 import (
 	"encoding/binary"
 	"fmt"
-	"net"
+	"net/netip"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -38,11 +38,11 @@ func mustGetBootTime() time.Time {
 	return bootTime
 }
 
-func int2ip(nn uint32) net.IP {
-	ip := make(net.IP, 4)
-	binary.NativeEndian.PutUint32(ip, nn)
+func int2ip(nn uint32) netip.Addr {
+	var b [4]byte
+	binary.NativeEndian.PutUint32(b[:], nn)
 
-	return ip
+	return netip.AddrFrom4(b)
 }
 
 func u16NtoHS(n uint16) uint16 {

@@ -5,7 +5,7 @@ package db
 import (
 	"context"
 	"fmt"
-	"net"
+	"net/netip"
 	"os"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -107,24 +107,24 @@ func (db *Database) GetIPAddressesTotal() (int, error) {
 	for _, dn := range dataNetworks {
 		ipPool := dn.IPPool
 
-		_, ipNet, err := net.ParseCIDR(ipPool)
+		prefix, err := netip.ParsePrefix(ipPool)
 		if err != nil {
 			return 0, fmt.Errorf("invalid IP pool format '%s': %v", ipPool, err)
 		}
 
-		total += countIPsInCIDR(ipNet)
+		total += countIPsInPrefix(prefix)
 	}
 
 	return total, nil
 }
 
-func countIPsInCIDR(ipNet *net.IPNet) int {
-	ones, bits := ipNet.Mask.Size()
-	if bits-ones > 30 {
+func countIPsInPrefix(prefix netip.Prefix) int {
+	bits := prefix.Bits()
+	if 32-bits > 30 {
 		return int(^uint32(0))
 	}
 
-	return 1 << (bits - ones)
+	return 1 << (32 - bits)
 }
 
 func (db *Database) GetIPAddressesAllocated(ctx context.Context) (int, error) {

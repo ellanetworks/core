@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 
 	"github.com/ellanetworks/core/internal/bgp"
@@ -154,7 +155,7 @@ func UpdateBGPSettings(dbInstance *db.Database, bgpService *bgp.BGPService) http
 		}
 
 		if params.RouterID != "" {
-			if net.ParseIP(params.RouterID) == nil {
+			if _, err := netip.ParseAddr(params.RouterID); err != nil {
 				writeError(r.Context(), w, http.StatusBadRequest, "routerID must be a valid IPv4 address or empty", nil, logger.APILog)
 				return
 			}
@@ -398,7 +399,7 @@ func validatePeerParams(address string, remoteAS int, holdTime *int, importPrefi
 		return fmt.Errorf("address is required")
 	}
 
-	if ip := net.ParseIP(address); ip == nil || ip.To4() == nil {
+	if addr, err := netip.ParseAddr(address); err != nil || !addr.Is4() {
 		return fmt.Errorf("address must be a valid IPv4 address")
 	}
 
@@ -426,12 +427,12 @@ func validateImportPrefixes(prefixes []BGPImportPrefix) error {
 	}
 
 	for _, p := range prefixes {
-		_, ipNet, err := net.ParseCIDR(p.Prefix)
+		prefix, err := netip.ParsePrefix(p.Prefix)
 		if err != nil {
 			return fmt.Errorf("invalid prefix %q: must be valid CIDR notation", p.Prefix)
 		}
 
-		prefixLen, _ := ipNet.Mask.Size()
+		prefixLen := prefix.Bits()
 
 		if p.MaxLength < prefixLen || p.MaxLength > 32 {
 			return fmt.Errorf("invalid maxLength %d for prefix %q: must be between %d and 32", p.MaxLength, p.Prefix, prefixLen)
@@ -830,7 +831,7 @@ func buildRejectedPrefixes(ctx context.Context, dbInstance *db.Database, cfg con
 	dataNetworks, err := dbInstance.ListAllDataNetworks(ctx)
 	if err == nil {
 		for _, dn := range dataNetworks {
-			if _, _, parseErr := net.ParseCIDR(dn.IPPool); parseErr == nil {
+			if _, parseErr := netip.ParsePrefix(dn.IPPool); parseErr == nil {
 				filters = append(filters, RejectedPrefix{
 					Prefix:      dn.IPPool,
 					Source:      "data_network",
@@ -840,9 +841,9 @@ func buildRejectedPrefixes(ctx context.Context, dbInstance *db.Database, cfg con
 		}
 	}
 
-	if n3IP := net.ParseIP(cfg.Interfaces.N3.Address); n3IP != nil {
+	if n3Addr, err := netip.ParseAddr(cfg.Interfaces.N3.Address); err == nil {
 		filters = append(filters, RejectedPrefix{
-			Prefix:      n3IP.String() + "/32",
+			Prefix:      n3Addr.String() + "/32",
 			Source:      "interface",
 			Description: "N3 interface address",
 		})

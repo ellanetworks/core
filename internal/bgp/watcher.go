@@ -2,7 +2,6 @@ package bgp
 
 import (
 	"context"
-	"net"
 	"net/netip"
 	"time"
 
@@ -35,8 +34,8 @@ func (b *BGPService) handleBestPaths(ctx context.Context, paths []*apiutil.Path)
 // updating, or removing a kernel route.
 func (b *BGPService) handleSinglePath(ctx context.Context, path *apiutil.Path) {
 	// Extract prefix from NLRI.
-	prefix := extractPrefix(path)
-	if prefix == nil {
+	prefix, ok := extractPrefix(path)
+	if !ok {
 		return
 	}
 
@@ -57,14 +56,11 @@ func (b *BGPService) handleSinglePath(ctx context.Context, path *apiutil.Path) {
 		return
 	}
 
-	nextHopIP := nextHop.As4()
-	gwIP := net.IP(nextHopIP[:])
-
 	peerAddr := path.PeerAddress.String()
 
 	// Skip locally-originated routes (our own subscriber /32s).
 	b.mu.RLock()
-	_, isOwnedPath := b.paths[prefix.IP.String()]
+	_, isOwnedPath := b.paths[prefix.Addr().String()]
 	running := b.running
 	peers := b.peers
 	filter := b.filter // snapshot under lock so we can use it after RUnlock
@@ -79,9 +75,9 @@ func (b *BGPService) handleSinglePath(ctx context.Context, path *apiutil.Path) {
 	}
 
 	// Skip routes with our own next-hop (routing loop prevention).
-	if gwIP.Equal(b.n6Addr) {
+	if nextHop == b.n6Addr {
 		b.logger.Debug("skipping route with own next-hop",
-			zap.String("prefix", prefixStr), zap.String("nextHop", gwIP.String()))
+			zap.String("prefix", prefixStr), zap.String("nextHop", nextHop.String()))
 
 		return
 	}
@@ -141,7 +137,7 @@ func (b *BGPService) handleSinglePath(ctx context.Context, path *apiutil.Path) {
 	}
 
 	// Install or update the route in the kernel (still holding learnedMu).
-	err = b.kernel.ReplaceRoute(prefix, gwIP, bgpRouteMetric, kernel.N6)
+	err = b.kernel.ReplaceRoute(prefix, nextHop, bgpRouteMetric, kernel.N6)
 	if err != nil {
 		b.learnedMu.Unlock()
 
@@ -152,15 +148,15 @@ func (b *BGPService) handleSinglePath(ctx context.Context, path *apiutil.Path) {
 	}
 
 	b.learnedRoutes[prefixStr] = learnedRoute{
-		prefix:  *prefix,
-		gateway: gwIP,
+		prefix:  prefix,
+		gateway: nextHop,
 		peer:    peerAddr,
 	}
 	b.learnedMu.Unlock()
 
 	b.logger.Info("installed BGP route",
 		zap.String("prefix", prefixStr),
-		zap.String("nextHop", gwIP.String()),
+		zap.String("nextHop", nextHop.String()),
 		zap.String("peer", peerAddr),
 	)
 }
@@ -179,9 +175,7 @@ func (b *BGPService) handleWithdrawal(prefixStr string) {
 	delete(b.learnedRoutes, prefixStr)
 	b.learnedMu.Unlock()
 
-	dst := lr.prefix
-
-	err := b.kernel.DeleteRoute(&dst, lr.gateway, bgpRouteMetric, kernel.N6)
+	err := b.kernel.DeleteRoute(lr.prefix, lr.gateway, bgpRouteMetric, kernel.N6)
 	if err != nil {
 		b.logger.Warn("failed to remove withdrawn BGP route",
 			zap.String("prefix", prefixStr), zap.Error(err))
@@ -206,9 +200,9 @@ func (b *BGPService) cleanStaleRoutes() {
 	for i := range stale {
 		dst := stale[i]
 
-		// We don't know the original gateway, but DeleteRoute with a nil
+		// We don't know the original gateway, but DeleteRoute with an invalid
 		// gateway will match on destination + priority + interface.
-		err := b.kernel.DeleteRoute(&dst, nil, bgpRouteMetric, kernel.N6)
+		err := b.kernel.DeleteRoute(dst, netip.Addr{}, bgpRouteMetric, kernel.N6)
 		if err != nil {
 			b.logger.Warn("failed to remove stale BGP route",
 				zap.String("prefix", dst.String()), zap.Error(err))
@@ -230,7 +224,7 @@ func (b *BGPService) removeAllLearnedRoutes() {
 	for prefixStr, lr := range b.learnedRoutes {
 		dst := lr.prefix
 
-		err := b.kernel.DeleteRoute(&dst, lr.gateway, bgpRouteMetric, kernel.N6)
+		err := b.kernel.DeleteRoute(dst, lr.gateway, bgpRouteMetric, kernel.N6)
 		if err != nil {
 			b.logger.Warn("failed to remove learned BGP route on stop",
 				zap.String("prefix", prefixStr), zap.Error(err))
@@ -261,7 +255,7 @@ func (b *BGPService) removeLearnedRoutesForPeer(peerAddr string) {
 
 		dst := lr.prefix
 
-		err := b.kernel.DeleteRoute(&dst, lr.gateway, bgpRouteMetric, kernel.N6)
+		err := b.kernel.DeleteRoute(dst, lr.gateway, bgpRouteMetric, kernel.N6)
 		if err != nil {
 			b.logger.Warn("failed to remove learned BGP route for deleted peer",
 				zap.String("prefix", prefixStr), zap.String("peer", peerAddr), zap.Error(err))
@@ -296,8 +290,8 @@ func (b *BGPService) reEvaluateLearnedRoutes(ctx context.Context, peers []BGPPee
 		// Check safety filter first.
 		dst := lr.prefix
 
-		if b.filter.overlapsAny(&dst) {
-			err := b.kernel.DeleteRoute(&dst, lr.gateway, bgpRouteMetric, kernel.N6)
+		if b.filter.overlapsAny(dst) {
+			err := b.kernel.DeleteRoute(dst, lr.gateway, bgpRouteMetric, kernel.N6)
 			if err != nil {
 				b.logger.Warn("failed to remove route rejected by updated filter",
 					zap.String("prefix", prefixStr), zap.Error(err))
@@ -314,8 +308,8 @@ func (b *BGPService) reEvaluateLearnedRoutes(ctx context.Context, peers []BGPPee
 		peerID := findPeerID(peers, lr.peer)
 		entries := prefixCache[peerID]
 
-		if len(entries) == 0 || !matchesPrefixList(&dst, entries) {
-			err := b.kernel.DeleteRoute(&dst, lr.gateway, bgpRouteMetric, kernel.N6)
+		if len(entries) == 0 || !matchesPrefixList(dst, entries) {
+			err := b.kernel.DeleteRoute(dst, lr.gateway, bgpRouteMetric, kernel.N6)
 			if err != nil {
 				b.logger.Warn("failed to remove route no longer matching import policy",
 					zap.String("prefix", prefixStr), zap.Error(err))
@@ -363,8 +357,8 @@ func (b *BGPService) replayGlobalRIB(ctx context.Context, peers []BGPPeer) {
 				continue
 			}
 
-			prefix := extractPrefix(path)
-			if prefix == nil {
+			prefix, ok := extractPrefix(path)
+			if !ok {
 				continue
 			}
 
@@ -376,7 +370,7 @@ func (b *BGPService) replayGlobalRIB(ctx context.Context, peers []BGPPeer) {
 			}
 
 			// Skip locally-originated routes.
-			if _, owned := b.paths[prefix.IP.String()]; owned {
+			if _, owned := b.paths[prefix.Addr().String()]; owned {
 				continue
 			}
 
@@ -385,11 +379,8 @@ func (b *BGPService) replayGlobalRIB(ctx context.Context, peers []BGPPeer) {
 				continue
 			}
 
-			nextHopIP := nextHop.As4()
-			gwIP := net.IP(nextHopIP[:])
-
 			// Skip routes with our own next-hop.
-			if gwIP.Equal(b.n6Addr) {
+			if nextHop == b.n6Addr {
 				continue
 			}
 
@@ -415,7 +406,7 @@ func (b *BGPService) replayGlobalRIB(ctx context.Context, peers []BGPPeer) {
 				continue
 			}
 
-			err := b.kernel.ReplaceRoute(prefix, gwIP, bgpRouteMetric, kernel.N6)
+			err := b.kernel.ReplaceRoute(prefix, nextHop, bgpRouteMetric, kernel.N6)
 			if err != nil {
 				b.logger.Warn("failed to install route during RIB replay",
 					zap.String("prefix", prefixStr), zap.Error(err))
@@ -424,8 +415,8 @@ func (b *BGPService) replayGlobalRIB(ctx context.Context, peers []BGPPeer) {
 			}
 
 			b.learnedRoutes[prefixStr] = learnedRoute{
-				prefix:  *prefix,
-				gateway: gwIP,
+				prefix:  prefix,
+				gateway: nextHop,
 				peer:    peerAddr,
 			}
 
@@ -475,7 +466,7 @@ func (b *BGPService) loadImportPrefixes(ctx context.Context, peerID int) ([]Impo
 	entries := make([]ImportPrefix, 0, len(rawEntries))
 
 	for _, raw := range rawEntries {
-		_, network, err := net.ParseCIDR(raw.Prefix)
+		network, err := netip.ParsePrefix(raw.Prefix)
 		if err != nil {
 			b.logger.Warn("skipping invalid import prefix",
 				zap.String("prefix", raw.Prefix), zap.Error(err))
@@ -504,26 +495,17 @@ func findPeerID(peers []BGPPeer, address string) int {
 }
 
 // extractPrefix returns the route destination from a path's NLRI.
-func extractPrefix(path *apiutil.Path) *net.IPNet {
+func extractPrefix(path *apiutil.Path) (netip.Prefix, bool) {
 	if path.Nlri == nil {
-		return nil
+		return netip.Prefix{}, false
 	}
 
 	ipPrefix, ok := path.Nlri.(*bgppacket.IPAddrPrefix)
 	if !ok {
-		return nil
+		return netip.Prefix{}, false
 	}
 
-	prefix := ipPrefix.Prefix
-	addr := prefix.Addr()
-	bits := prefix.Bits()
-
-	ip := addr.As4()
-
-	return &net.IPNet{
-		IP:   net.IP(ip[:]),
-		Mask: net.CIDRMask(bits, 32),
-	}
+	return ipPrefix.Prefix, true
 }
 
 // extractNextHop returns the next-hop address from a path's attributes.

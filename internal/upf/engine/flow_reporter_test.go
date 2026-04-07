@@ -5,7 +5,7 @@ package engine_test
 
 import (
 	"encoding/binary"
-	"net"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -16,10 +16,11 @@ import (
 // Helper function to convert IP address to uint32 format used by eBPF
 // The actual implementation uses binary.NativeEndian.PutUint32(), so we reverse it
 func makeIPUint32(b0, b1, b2, b3 byte) uint32 {
-	// Create a net.IP from the bytes
-	ip := net.IPv4(b0, b1, b2, b3)
+	addr := netip.AddrFrom4([4]byte{b0, b1, b2, b3})
 	// Convert to uint32 using NativeEndian (matching the actual int2ip function behavior)
-	return binary.NativeEndian.Uint32(ip.To4())
+	b := addr.As4()
+
+	return binary.NativeEndian.Uint32(b[:])
 }
 
 // Helper function to convert port from host byte order to network byte order

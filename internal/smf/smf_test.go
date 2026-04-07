@@ -614,7 +614,7 @@ type fakeBGP struct {
 	withdrawErr error
 }
 
-func (f *fakeBGP) Announce(ip net.IP, owner string) error {
+func (f *fakeBGP) Announce(ip netip.Addr, owner string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -624,7 +624,7 @@ func (f *fakeBGP) Announce(ip net.IP, owner string) error {
 	return f.announceErr
 }
 
-func (f *fakeBGP) Withdraw(ip net.IP) error {
+func (f *fakeBGP) Withdraw(ip netip.Addr) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
