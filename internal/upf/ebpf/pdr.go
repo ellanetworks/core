@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	MaxSdfFilters     = 24 // 2 * MaxPolicies; must match MAX_SDF_FILTERS in C
-	MaxPolicies       = 12 // must match MAX_POLICIES in C
-	MaxRulesPerFilter = 12 // must match MAX_RULES_PER_FILTER in C
+	MaxSdfFilters     = 288 // 2 * MaxPolicies; must match MAX_SDF_FILTERS in C
+	MaxPolicies       = 144 // must match MAX_POLICIES in C
+	MaxRulesPerFilter = 12  // must match MAX_RULES_PER_FILTER in C
 	SdfProtoAny       = 255
 	SdfActionAllow    = 0
 	SdfActionDeny     = 1

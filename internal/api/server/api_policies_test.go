@@ -3,6 +3,7 @@ package server_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -881,7 +882,7 @@ func TestCreatePolicyInvalidInput(t *testing.T) {
 	}
 }
 
-func TestCreateTooManyPolicies(t *testing.T) {
+func TestCreateTooManyPoliciesPerProfile(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
@@ -898,44 +899,48 @@ func TestCreateTooManyPolicies(t *testing.T) {
 		t.Fatalf("couldn't create first user and login: %s", err)
 	}
 
-	// Create a single extra data network for all test policies.
-	dnParams := &CreateDataNetworkParams{
-		Name:   "test-dn",
-		MTU:    1500,
-		DNS:    "8.8.8.8",
-		IPPool: "10.50.0.0/16",
+	// Create a profile to hold all policies.
+	_, _, profErr := createProfile(env.Server.URL, client, token, &CreateProfileParams{
+		Name:           "test-profile",
+		UeAmbrUplink:   SessionAmbrUplink,
+		UeAmbrDownlink: SessionAmbrDownlink,
+	})
+	if profErr != nil {
+		t.Fatalf("couldn't create profile: %s", profErr)
 	}
 
-	statusCode, _, dnErr := createDataNetwork(env.Server.URL, client, token, dnParams)
-	if dnErr != nil {
-		t.Fatalf("couldn't create data network: %s", dnErr)
-	}
-
-	if statusCode != http.StatusCreated {
-		t.Fatalf("expected status %d for DN creation, got %d", http.StatusCreated, statusCode)
-	}
-
-	for i := 0; i < 11; i++ { // We use 11 instead of 12 because the first policy is created by default
-		profileName := "profile-" + strconv.Itoa(i)
-
-		_, _, profErr := createProfile(env.Server.URL, client, token, &CreateProfileParams{
-			Name:           profileName,
-			UeAmbrUplink:   SessionAmbrUplink,
-			UeAmbrDownlink: SessionAmbrDownlink,
-		})
-		if profErr != nil {
-			t.Fatalf("couldn't create profile %s: %s", profileName, profErr)
+	// Create data networks so each policy can have a unique (profile, slice, dn) tuple.
+	// The DB already has a default DN from migration, so we create 11 more (12 total).
+	for i := 0; i < 11; i++ {
+		dnName := "test-dn-" + strconv.Itoa(i)
+		dnParams := &CreateDataNetworkParams{
+			Name:   dnName,
+			MTU:    1500,
+			DNS:    "8.8.8.8",
+			IPPool: fmt.Sprintf("10.%d.0.0/16", 50+i),
 		}
 
+		statusCode, _, dnErr := createDataNetwork(env.Server.URL, client, token, dnParams)
+		if dnErr != nil {
+			t.Fatalf("couldn't create data network %s: %s", dnName, dnErr)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d for DN creation, got %d", http.StatusCreated, statusCode)
+		}
+	}
+
+	// Fill the profile with 12 policies (one per DN).
+	for i := 0; i < 11; i++ {
 		createPolicyParams := &CreatePolicyParams{
 			Name:                PolicyName + strconv.Itoa(i),
-			ProfileName:         profileName,
+			ProfileName:         "test-profile",
 			SliceName:           DefaultSliceName,
 			SessionAmbrUplink:   SessionAmbrUplink,
 			SessionAmbrDownlink: SessionAmbrDownlink,
 			Var5qi:              Var5qi,
 			Arp:                 Arp,
-			DataNetworkName:     "test-dn",
+			DataNetworkName:     "test-dn-" + strconv.Itoa(i),
 		}
 
 		statusCode, response, err := createPolicy(env.Server.URL, client, token, createPolicyParams)
@@ -948,41 +953,68 @@ func TestCreateTooManyPolicies(t *testing.T) {
 		}
 
 		if response.Error != "" {
-			t.Fatalf("unexpected error :%q", response.Error)
+			t.Fatalf("unexpected error: %q", response.Error)
 		}
 	}
 
-	_, _, profErr := createProfile(env.Server.URL, client, token, &CreateProfileParams{
-		Name:           "excess-profile",
-		UeAmbrUplink:   SessionAmbrUplink,
-		UeAmbrDownlink: SessionAmbrDownlink,
+	// Create a 12th policy using a new slice to get a unique (profile, slice, dn) tuple.
+	_, _, sliceErr := createSlice(env.Server.URL, client, token, &CreateSliceParams{
+		Name: "extra-slice",
+		Sst:  1,
+		Sd:   "000002",
 	})
-	if profErr != nil {
-		t.Fatalf("couldn't create excess profile: %s", profErr)
+	if sliceErr != nil {
+		t.Fatalf("couldn't create extra slice: %s", sliceErr)
 	}
 
 	createPolicyParams := &CreatePolicyParams{
-		Name:                "excess-policy",
-		ProfileName:         "excess-profile",
-		SliceName:           DefaultSliceName,
+		Name:                PolicyName + "11",
+		ProfileName:         "test-profile",
+		SliceName:           "extra-slice",
 		SessionAmbrUplink:   SessionAmbrUplink,
 		SessionAmbrDownlink: SessionAmbrDownlink,
 		Var5qi:              Var5qi,
 		Arp:                 Arp,
-		DataNetworkName:     "test-dn",
+		DataNetworkName:     "test-dn-0",
 	}
 
-	excessPolicyStatus, response, excessPolicyErr := createPolicy(env.Server.URL, client, token, createPolicyParams)
-	if excessPolicyErr != nil {
-		t.Fatalf("couldn't create policy: %s", excessPolicyErr)
+	statusCode, response, err := createPolicy(env.Server.URL, client, token, createPolicyParams)
+	if err != nil {
+		t.Fatalf("couldn't create policy: %s", err)
 	}
 
-	if excessPolicyStatus != http.StatusBadRequest {
-		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, excessPolicyStatus)
+	if statusCode != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
 	}
 
-	if response.Error != "Maximum number of policies reached (12)" {
-		t.Fatalf("expected error %q, got %q", "Maximum number of policies reached (12)", response.Error)
+	if response.Error != "" {
+		t.Fatalf("unexpected error: %q", response.Error)
+	}
+
+	// Now try the 13th policy on the same profile — should be rejected.
+	excessParams := &CreatePolicyParams{
+		Name:                "excess-policy",
+		ProfileName:         "test-profile",
+		SliceName:           "extra-slice",
+		SessionAmbrUplink:   SessionAmbrUplink,
+		SessionAmbrDownlink: SessionAmbrDownlink,
+		Var5qi:              Var5qi,
+		Arp:                 Arp,
+		DataNetworkName:     "test-dn-1", // reuse DN; uniqueness doesn't matter — the limit check comes first
+	}
+
+	excessStatus, excessResp, excessErr := createPolicy(env.Server.URL, client, token, excessParams)
+	if excessErr != nil {
+		t.Fatalf("couldn't create policy: %s", excessErr)
+	}
+
+	if excessStatus != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, excessStatus)
+	}
+
+	expectedError := "Maximum number of policies per profile reached (12)"
+	if excessResp.Error != expectedError {
+		t.Fatalf("expected error %q, got %q", expectedError, excessResp.Error)
 	}
 }
 

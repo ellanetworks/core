@@ -27,7 +27,7 @@
 #define PDR_MAP_DOWNLINK_IPV6_SIZE MAX_PDU_SESSIONS
 
 #define MAX_RULES_PER_FILTER 12 /* max rules per policy-direction entry */
-#define MAX_POLICIES 12 /* max number of policies supported */
+#define MAX_POLICIES 144 /* max policies per profile (12) * max profiles (12) */
 #define MAX_SDF_FILTERS \
 	(2 * MAX_POLICIES) /* one slot per policy-direction pair */
 #define SDF_PROTO_ANY 255 /* wildcard protocol */
