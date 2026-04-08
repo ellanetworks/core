@@ -54,18 +54,12 @@ func (pc *SessionEngine) GetSession(seid uint64) *Session {
 	return session
 }
 
-func (pc *SessionEngine) RemoveSession(seid uint64) {
-	pc.mu.Lock()
-	defer pc.mu.Unlock()
-
-	delete(pc.sessions, seid)
-}
-
 func (pc *SessionEngine) AddSession(seid uint64, session *Session) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
 	pc.sessions[seid] = session
+	pc.registerPolicy(session.PolicyID(), seid)
 }
 
 // registerPolicy links a policyID to a session SEID in the reverse index.
@@ -235,10 +229,6 @@ func NewSessionEngine(addr string, nodeID string, n3Ip string, advertisedN3Ip st
 }
 
 func (connection *SessionEngine) ReleaseResources(seID uint64) {
-	if connection.FteIDResourceManager == nil {
-		return
-	}
-
 	if connection.FteIDResourceManager != nil {
 		connection.FteIDResourceManager.ReleaseTEID(seID)
 	}

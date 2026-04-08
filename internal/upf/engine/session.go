@@ -49,14 +49,7 @@ func (s *Session) SetPolicyID(id int64) {
 	s.policyID = id
 }
 
-func (s *Session) NewFar(id uint32, farInfo ebpf.FarInfo) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.fars[id] = farInfo
-}
-
-func (s *Session) UpdateFar(id uint32, farInfo ebpf.FarInfo) {
+func (s *Session) PutFar(id uint32, farInfo ebpf.FarInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

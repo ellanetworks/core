@@ -56,7 +56,7 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 		go addRemoteIPToNeigh(ctx, farInfo.RemoteIP)
 
-		session.NewFar(far.FARID, farInfo)
+		session.PutFar(far.FARID, farInfo)
 
 		logger.WithTrace(ctx, logger.UpfLog).Info("Created Forwarding Action Rule",
 			logger.FARID(far.FARID), zap.Any("farInfo", farInfo))
@@ -68,7 +68,7 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 		go addRemoteIPToNeigh(ctx, sFarInfo.RemoteIP)
 
-		session.UpdateFar(far.FARID, sFarInfo)
+		session.PutFar(far.FARID, sFarInfo)
 
 		// Re-apply all PDRs that reference this FAR with the updated embedded FAR.
 		for _, spdrInfo := range session.ListPDRs() {
@@ -205,8 +205,6 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 		conn.registerPolicy(req.PolicyID, session.SEID)
 		conn.mu.Unlock()
 	}
-
-	conn.AddSession(session.SEID, session)
 
 	return nil
 }

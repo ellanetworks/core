@@ -9,13 +9,6 @@ import (
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 )
 
-type Action int
-
-const (
-	Allow Action = iota
-	Deny
-)
-
 // updateFiltersRule converts a FilterRule to an internal Action for BPF operations
 func updateFiltersRule(rule models.FilterRule) ebpf.SdfRule {
 	sdfRule := ebpf.SdfRule{

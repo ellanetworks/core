@@ -61,7 +61,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 		go addRemoteIPToNeigh(ctx, farInfo.RemoteIP)
 
-		sess.NewFar(far.FARID, farInfo)
+		sess.PutFar(far.FARID, farInfo)
 		farMap[far.FARID] = farInfo
 
 		logger.WithTrace(ctx, logger.UpfLog).Info("Created Forwarding Action Rule",
