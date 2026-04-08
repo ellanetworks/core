@@ -72,7 +72,8 @@ type BGPService struct {
 	// learnedMu protects learnedRoutes. Acquired after mu when both are needed.
 	learnedMu     sync.RWMutex
 	learnedRoutes map[string]learnedRoute // keyed by prefix string e.g. "0.0.0.0/0"
-	cancelWatch   context.CancelFunc
+	cancelPoller  context.CancelFunc
+	pollerDone    chan struct{}
 }
 
 // Option configures the BGP service.
@@ -290,19 +291,20 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 	b.settings = settings
 	b.peers = peers
 
-	// Start watching best paths for route learning.
+	// Start RIB polling for route learning. This replaces the event-driven
+	// WatchEvent approach which has an unavoidable shutdown deadlock.
 	if b.routeLearningEnabled() {
-		watchCtx, cancel := context.WithCancel(context.Background())
+		pollCtx, cancel := context.WithCancel(context.Background())
+		b.cancelPoller = cancel
 
-		if err := b.startWatchBestPaths(watchCtx, s); err != nil {
-			cancel()
+		done := make(chan struct{})
+		b.pollerDone = done
 
-			_ = s.StopBgp(ctx, &api.StopBgpRequest{})
+		go func() {
+			defer close(done)
 
-			return fmt.Errorf("failed to start best-path watcher: %w", err)
-		}
-
-		b.cancelWatch = cancel
+			b.startRIBPoller(pollCtx)
+		}()
 	}
 
 	b.logger.Info("BGP service started",
@@ -316,15 +318,24 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 }
 
 // stopLocked shuts down the GoBGP server. Must be called with mu held.
+//
+// The poller must fully exit before StopBgp is called, because any in-flight
+// mgmtOperation (e.g. ListPath) would block forever once Serve() exits.
+// This is safe because syncRoutes uses TryRLock — it never blocks on mu,
+// so waiting here (with mu write-locked) cannot deadlock.
 func (b *BGPService) stopLocked() error {
 	if !b.running {
 		return nil
 	}
 
-	// Stop the best-path watcher before shutting down GoBGP.
-	if b.cancelWatch != nil {
-		b.cancelWatch()
-		b.cancelWatch = nil
+	b.running = false
+
+	// Stop the RIB poller and wait for it to exit before stopping GoBGP.
+	if b.cancelPoller != nil {
+		b.cancelPoller()
+		b.cancelPoller = nil
+		<-b.pollerDone
+		b.pollerDone = nil
 	}
 
 	// Remove all learned routes from the kernel.
@@ -338,7 +349,6 @@ func (b *BGPService) stopLocked() error {
 	}
 
 	b.server = nil
-	b.running = false
 	b.logger.Info("BGP service stopped")
 
 	return nil
