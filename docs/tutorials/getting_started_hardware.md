@@ -110,7 +110,7 @@ Create a subscriber with the following parameters:
 - **IMSI**: Click on the `Generate` button to create a random IMSI
 - **Key**: Click on the `Generate` button to create a random key
 - **Sequence Number**: Keep the default value
-- **Policy**: Keep the default value
+- **Profile**: Keep the default value
 
 Take note of the **IMSI**, **Key**, and **OPC** values. You will need them to burn the SIM card.
 
