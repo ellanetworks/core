@@ -84,6 +84,12 @@ type OuterHeaderCreation struct {
 	IPv4Address net.IP
 }
 
+// PFCP outer header constants.
+const (
+	OuterHeaderCreationGtpUUdpIpv4 uint16 = 256
+	OuterHeaderRemovalGtpUUdpIpv4  uint8  = 0
+)
+
 // QER describes a QoS Enforcement Rule for the UPF session API.
 type QER struct {
 	QERID      uint32
@@ -97,6 +103,12 @@ type GateStatus struct {
 	ULGate uint8
 	DLGate uint8
 }
+
+// PFCP gate status values.
+const (
+	GateOpen  uint8 = 0
+	GateClose uint8 = 1
+)
 
 // MBR holds the Maximum Bit Rate in kbps.
 type MBR struct {

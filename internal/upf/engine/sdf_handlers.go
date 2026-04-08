@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"net/netip"
@@ -49,7 +50,7 @@ func updateFiltersRule(rule models.FilterRule) ebpf.SdfRule {
 // given (PolicyID, Direction) pair. It is idempotent: concurrent calls for the
 // same key update the BPF slot in place.
 // Returns the BPF slot index and whether a new slot was allocated.
-func updateFiltersOnConn(conn *SessionEngine, policyID int64, direction string, rules []models.FilterRule) (uint32, bool, error) {
+func updateFiltersOnConn(_ context.Context, conn *SessionEngine, policyID int64, direction string, rules []models.FilterRule) (uint32, bool, error) {
 	key := fmt.Sprintf("%d:%s", policyID, direction)
 
 	sdfRules := make([]ebpf.SdfRule, 0, len(rules))
@@ -94,8 +95,8 @@ func updateFiltersOnConn(conn *SessionEngine, policyID int64, direction string, 
 // UpdateFilters allocates or refreshes a sdf_filters BPF array slot for the
 // given (PolicyID, Direction) pair. When a new slot is allocated, existing
 // sessions using this policy have their PDRs updated to point to the new slot.
-func (conn *SessionEngine) UpdateFilters(policyID int64, direction models.Direction, rules []models.FilterRule) error {
-	idx, isNew, err := updateFiltersOnConn(conn, policyID, direction.String(), rules)
+func (conn *SessionEngine) UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {
+	idx, isNew, err := updateFiltersOnConn(ctx, conn, policyID, direction.String(), rules)
 	if err != nil {
 		return err
 	}

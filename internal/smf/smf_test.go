@@ -496,7 +496,7 @@ func TestNewQER_SetsPolicy(t *testing.T) {
 		t.Fatalf("expected DLMBR 200000, got %d", qer.MBR.DLMBR)
 	}
 
-	if qer.GateStatus.ULGate != smf.GateOpen || qer.GateStatus.DLGate != smf.GateOpen {
+	if qer.GateStatus.ULGate != models.GateOpen || qer.GateStatus.DLGate != models.GateOpen {
 		t.Fatal("expected gates to be open")
 	}
 }

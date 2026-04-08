@@ -92,7 +92,7 @@ func (f FakeUPF) ReloadFlowAccounting(flowAccountingEnabled bool) error {
 func (f FakeUPF) UpdateAdvertisedN3Address(ip netip.Addr) {
 }
 
-func (f FakeUPF) UpdateFilters(policyID int64, direction models.Direction, rules []models.FilterRule) error {
+func (f FakeUPF) UpdateFilters(_ context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {
 	*f.calledFilters = append(*f.calledFilters, struct {
 		policyID  int64
 		direction models.Direction

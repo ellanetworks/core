@@ -161,7 +161,7 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 	}
 
 	for _, pdr := range req.UpdatePDRs {
-		spdrInfo := session.GetPDR(pdr.PDRID)
+		spdrInfo := session.GetPDR(uint32(pdr.PDRID))
 
 		if err := pdrContext.ExtractPDR(pdr, &spdrInfo, farMap, qerMap); err != nil {
 			span.RecordError(err)

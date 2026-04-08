@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"context"
 	"net/netip"
 	"testing"
 
@@ -52,7 +53,7 @@ func TestUpdateFilters_PropagatesNewIndexToExistingPDRs(t *testing.T) {
 	eng.mu.Unlock()
 
 	// Now add uplink rules to policy 42. This should propagate to the uplink PDR.
-	err := eng.UpdateFilters(42, models.DirectionUplink, []models.FilterRule{
+	err := eng.UpdateFilters(context.Background(), 42, models.DirectionUplink, []models.FilterRule{
 		{Protocol: 6, PortLow: 80, PortHigh: 80, Action: models.Allow},
 	})
 	if err != nil {
@@ -72,7 +73,7 @@ func TestUpdateFilters_PropagatesNewIndexToExistingPDRs(t *testing.T) {
 	}
 
 	// Now add downlink rules. This should propagate to the downlink PDR.
-	err = eng.UpdateFilters(42, models.DirectionDownlink, []models.FilterRule{
+	err = eng.UpdateFilters(context.Background(), 42, models.DirectionDownlink, []models.FilterRule{
 		{Protocol: 6, PortLow: 443, PortHigh: 443, Action: models.Allow},
 	})
 	if err != nil {
@@ -89,7 +90,7 @@ func TestUpdateFilters_ExistingSlotDoesNotReapply(t *testing.T) {
 	eng := newTestEngine()
 
 	// Pre-populate a filter slot for policy 42 uplink.
-	err := eng.UpdateFilters(42, models.DirectionUplink, []models.FilterRule{
+	err := eng.UpdateFilters(context.Background(), 42, models.DirectionUplink, []models.FilterRule{
 		{Protocol: 6, PortLow: 80, PortHigh: 80, Action: models.Allow},
 	})
 	if err != nil {
@@ -121,7 +122,7 @@ func TestUpdateFilters_ExistingSlotDoesNotReapply(t *testing.T) {
 
 	// Update the same filter slot with new rules. This is an in-place update
 	// (not a new allocation), so no PDR propagation is needed.
-	err = eng.UpdateFilters(42, models.DirectionUplink, []models.FilterRule{
+	err = eng.UpdateFilters(context.Background(), 42, models.DirectionUplink, []models.FilterRule{
 		{Protocol: 17, PortLow: 53, PortHigh: 53, Action: models.Deny},
 	})
 	if err != nil {
@@ -158,7 +159,7 @@ func TestUpdateFilters_MultipleSessionsSamePolicy(t *testing.T) {
 		eng.mu.Unlock()
 	}
 
-	err := eng.UpdateFilters(10, models.DirectionUplink, []models.FilterRule{
+	err := eng.UpdateFilters(context.Background(), 10, models.DirectionUplink, []models.FilterRule{
 		{Protocol: 6, PortLow: 80, PortHigh: 80, Action: models.Allow},
 	})
 	if err != nil {

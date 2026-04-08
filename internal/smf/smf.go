@@ -329,8 +329,8 @@ func (s *SMF) NewQER(policy *Policy) (*QER, error) {
 		QERID: uint32(qerID),
 		QFI:   policy.QosData.QFI,
 		GateStatus: &models.GateStatus{
-			ULGate: GateOpen,
-			DLGate: GateOpen,
+			ULGate: models.GateOpen,
+			DLGate: models.GateOpen,
 		},
 		MBR: &models.MBR{
 			ULMBR: bitRateTokbps(policy.Ambr.Uplink),

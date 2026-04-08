@@ -176,16 +176,6 @@ const (
 
 type RuleState uint8
 
-const (
-	OuterHeaderCreationGtpUUdpIpv4 uint16 = 256
-	OuterHeaderRemovalGtpUUdpIpv4  uint8  = 0
-)
-
-const (
-	GateOpen uint8 = iota
-	GateClose
-)
-
 // Packet Detection Rule. Table 7.5.2.2-1
 type PDR struct {
 	OuterHeaderRemoval *uint8

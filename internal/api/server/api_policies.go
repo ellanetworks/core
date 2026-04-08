@@ -729,7 +729,7 @@ func UpdatePolicy(dbInstance *db.Database, filterUpdater UPFUpdater) http.Handle
 			} else {
 				uplinkRules := convertNetworkRulesToFilterRules(rules, DirectionUplink)
 				if len(uplinkRules) > 0 {
-					if err := filterUpdater.UpdateFilters(int64(policy.ID), models.DirectionUplink, uplinkRules); err != nil {
+					if err := filterUpdater.UpdateFilters(r.Context(), int64(policy.ID), models.DirectionUplink, uplinkRules); err != nil {
 						logger.APILog.Warn("Failed to update uplink filters",
 							zap.String("policyName", policyName),
 							zap.Error(err),
@@ -739,7 +739,7 @@ func UpdatePolicy(dbInstance *db.Database, filterUpdater UPFUpdater) http.Handle
 
 				downlinkRules := convertNetworkRulesToFilterRules(rules, DirectionDownlink)
 				if len(downlinkRules) > 0 {
-					if err := filterUpdater.UpdateFilters(int64(policy.ID), models.DirectionDownlink, downlinkRules); err != nil {
+					if err := filterUpdater.UpdateFilters(r.Context(), int64(policy.ID), models.DirectionDownlink, downlinkRules); err != nil {
 						logger.APILog.Warn("Failed to update downlink filters",
 							zap.String("policyName", policyName),
 							zap.Error(err),

@@ -226,7 +226,7 @@ func handlePDUSessionResourceSetupResponseTransfer(b []byte, smContext *SMContex
 
 	if smContext.Tunnel.DataPath.Activated {
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
-			Description: OuterHeaderCreationGtpUUdpIpv4,
+			Description: models.OuterHeaderCreationGtpUUdpIpv4,
 			TEID:        teid,
 			IPv4Address: smContext.Tunnel.ANInformation.IPAddress.To4(),
 		}
@@ -479,7 +479,7 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 
 	if smContext.Tunnel.DataPath.Activated {
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
-			Description: OuterHeaderCreationGtpUUdpIpv4,
+			Description: models.OuterHeaderCreationGtpUUdpIpv4,
 			TEID:        teid,
 			IPv4Address: GTPTunnel.TransportLayerAddress.Value.Bytes,
 		}
@@ -574,7 +574,7 @@ func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
 
 	if smContext.Tunnel.DataPath.Activated {
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
-			Description: OuterHeaderCreationGtpUUdpIpv4,
+			Description: models.OuterHeaderCreationGtpUUdpIpv4,
 			TEID:        teid,
 			IPv4Address: gtpTunnel.TransportLayerAddress.Value.Bytes,
 		}
