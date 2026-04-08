@@ -11,11 +11,9 @@
  * Enabled by compiling with -DENABLE_PROFILING (passed via BPF_CFLAGS).
  * When disabled, all macros expand to nothing — zero overhead.
  *
- * Overhead note: each bpf_ktime_get_ns() call costs ~600–900 ns on typical
- * hardware. With all sections enabled (~15 START/END pairs per packet) the
- * total instrumentation overhead is roughly 9–14 µs per packet. This is
- * intentional and documented; do not attempt to optimise it away by reusing
- * timestamps across sections.
+ * Overhead note: each bpf_ktime_get_ns() call has a non-negligible cost dependant
+ * hardware. With many sections instrumented, this overhead can compound and become
+ * large.
  *
  * Usage (BPF C side):
  *   PROFILE_START(idx);
