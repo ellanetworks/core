@@ -75,6 +75,8 @@ send_to_gtp_tunnel(struct packet_context *ctx, int srcip, int dstip, __u8 tos,
 	PROFILE_START(PROF_N6_FIB_ROUTING);
 	enum xdp_action fib_ret = route_ipv4(ctx, route_statistic);
 	PROFILE_END(PROF_N6_FIB_ROUTING);
+	PROFILE_START(PROF_N6_NOOP);
+	PROFILE_END(PROF_N6_NOOP);
 	return fib_ret;
 }
 

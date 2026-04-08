@@ -93,12 +93,6 @@ type N3N6EntrypointPdrInfo struct {
 	_              [4]byte
 }
 
-type N3N6EntrypointProfileEntry struct {
-	_       structs.HostLayout
-	TotalNs uint64
-	Count   uint64
-}
-
 type N3N6EntrypointRouteStat struct {
 	_                       structs.HostLayout
 	FibLookupIp4Cache       uint64
@@ -215,7 +209,6 @@ type N3N6EntrypointMapSpecs struct {
 	PdrsDownlinkIp4    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip4"`
 	PdrsDownlinkIp6    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip6"`
 	PdrsUplink         *ebpf.MapSpec `ebpf:"pdrs_uplink"`
-	ProfilingMap       *ebpf.MapSpec `ebpf:"profiling_map"`
 	SdfFilters         *ebpf.MapSpec `ebpf:"sdf_filters"`
 	UplinkRouteStats   *ebpf.MapSpec `ebpf:"uplink_route_stats"`
 	UplinkStatistics   *ebpf.MapSpec `ebpf:"uplink_statistics"`
@@ -263,7 +256,6 @@ type N3N6EntrypointMaps struct {
 	PdrsDownlinkIp4    *ebpf.Map `ebpf:"pdrs_downlink_ip4"`
 	PdrsDownlinkIp6    *ebpf.Map `ebpf:"pdrs_downlink_ip6"`
 	PdrsUplink         *ebpf.Map `ebpf:"pdrs_uplink"`
-	ProfilingMap       *ebpf.Map `ebpf:"profiling_map"`
 	SdfFilters         *ebpf.Map `ebpf:"sdf_filters"`
 	UplinkRouteStats   *ebpf.Map `ebpf:"uplink_route_stats"`
 	UplinkStatistics   *ebpf.Map `ebpf:"uplink_statistics"`
@@ -281,7 +273,6 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.PdrsDownlinkIp4,
 		m.PdrsDownlinkIp6,
 		m.PdrsUplink,
-		m.ProfilingMap,
 		m.SdfFilters,
 		m.UplinkRouteStats,
 		m.UplinkStatistics,

@@ -56,7 +56,9 @@ enum profile_index {
 	PROF_N6_NAT          = 13, /* downlink destination NAT (masquerade) */
 	PROF_N3_FIB_ROUTING  = 14, /* uplink FIB lookup + redirect */
 	PROF_N6_FIB_ROUTING  = 15, /* downlink FIB lookup + redirect */
-	PROF_NUM_ENTRIES     = 16,
+	PROF_N3_NOOP         = 16, /* uplink no-op (measures instrumentation overhead) */
+	PROF_N6_NOOP         = 17, /* downlink no-op (measures instrumentation overhead) */
+	PROF_NUM_ENTRIES     = 18,
 };
 
 #ifdef ENABLE_PROFILING

@@ -154,11 +154,15 @@ handle_gtp_packet(struct packet_context *ctx)
 		PROFILE_START(PROF_N3_FIB_ROUTING);
 		enum xdp_action fib_ret = route_ipv4(ctx, route_statistic);
 		PROFILE_END(PROF_N3_FIB_ROUTING);
+		PROFILE_START(PROF_N3_NOOP);
+		PROFILE_END(PROF_N3_NOOP);
 		return fib_ret;
 	} else if (ctx->ip6) {
 		PROFILE_START(PROF_N3_FIB_ROUTING);
 		enum xdp_action fib_ret = route_ipv6(ctx, route_statistic);
 		PROFILE_END(PROF_N3_FIB_ROUTING);
+		PROFILE_START(PROF_N3_NOOP);
+		PROFILE_END(PROF_N3_NOOP);
 		return fib_ret;
 	} else {
 		return XDP_ABORTED;
