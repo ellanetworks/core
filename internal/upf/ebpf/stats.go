@@ -199,7 +199,9 @@ const (
 	ProfN6FibRouting   = 15
 	ProfN3Noop         = 16
 	ProfN6Noop         = 17
-	ProfNumEntries     = 18
+	ProfN3NoopOuter    = 18
+	ProfN6NoopOuter    = 19
+	ProfNumEntries     = 20
 )
 
 // ProfileEntry holds the aggregated (across all CPUs) profiling data for one
