@@ -11,11 +11,13 @@
  * Enabled by compiling with -DENABLE_PROFILING (passed via BPF_CFLAGS).
  * When disabled, all macros expand to nothing — zero overhead.
  *
- * Overhead note: each bpf_ktime_get_ns() call costs ~600–900 ns on typical
- * hardware. With all sections enabled (~15 START/END pairs per packet) the
- * total instrumentation overhead is roughly 9–14 µs per packet. This is
- * intentional and documented; do not attempt to optimise it away by reusing
- * timestamps across sections.
+ * Overhead note (measured experimentally with noop/noop_outer stages):
+ *   - bpf_ktime_get_ns() alone: ~23-26 ns
+ *   - Full PROFILE_START/PROFILE_END pair (2x ktime + map lookup +
+ *     accumulate): ~90 ns
+ * With 7 profiled pairs per packet (6 stages + total) the instrumentation
+ * overhead is roughly 630 ns per packet (~40% of the measured total).
+ * Do not attempt to optimise it away by reusing timestamps across sections.
  *
  * Usage (BPF C side):
  *   PROFILE_START(idx);
@@ -58,9 +60,7 @@ enum profile_index {
 	PROF_N6_FIB_ROUTING  = 15, /* downlink FIB lookup + redirect */
 	PROF_N3_NOOP         = 16, /* uplink no-op (measures bpf_ktime_get_ns cost) */
 	PROF_N6_NOOP         = 17, /* downlink no-op (measures bpf_ktime_get_ns cost) */
-	PROF_N3_NOOP_OUTER   = 18, /* uplink wrapper around noop (measures full pair overhead) */
-	PROF_N6_NOOP_OUTER   = 19, /* downlink wrapper around noop (measures full pair overhead) */
-	PROF_NUM_ENTRIES     = 20,
+	PROF_NUM_ENTRIES     = 18,
 };
 
 #ifdef ENABLE_PROFILING

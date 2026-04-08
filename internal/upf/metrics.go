@@ -159,8 +159,6 @@ func RegisterMetrics() {
 		ebpf.ProfN6FibRouting:   {"n6", "fib_routing"},
 		ebpf.ProfN3Noop:         {"n3", "noop"},
 		ebpf.ProfN6Noop:         {"n6", "noop"},
-		ebpf.ProfN3NoopOuter:    {"n3", "noop_outer"},
-		ebpf.ProfN6NoopOuter:    {"n6", "noop_outer"},
 	}
 
 	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
