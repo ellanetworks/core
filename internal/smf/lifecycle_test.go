@@ -117,7 +117,7 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 	dlPdr.FAR.ApplyAction = models.ApplyAction{Forw: true}
 	dlPdr.FAR.ForwardingParameters = &models.ForwardingParameters{
 		OuterHeaderCreation: &models.OuterHeaderCreation{
-			Description: smf.OuterHeaderCreationGtpUUdpIpv4,
+			Description: models.OuterHeaderCreationGtpUUdpIpv4,
 			TEID:        6000,
 			IPv4Address: net.ParseIP("10.0.0.100").To4(),
 		},

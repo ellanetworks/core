@@ -140,10 +140,6 @@ func (f *fakeUPF) UpdateFilters(_ context.Context, _ int64, _ models.Direction, 
 	return nil
 }
 
-func (f *fakeUPF) GetFilterIndex(_ context.Context, _ int64, _ models.Direction) (uint32, error) {
-	return 0, nil
-}
-
 type fakeAMF struct {
 	mu        sync.Mutex
 	n1Calls   []n1Call
@@ -496,7 +492,7 @@ func TestNewQER_SetsPolicy(t *testing.T) {
 		t.Fatalf("expected DLMBR 200000, got %d", qer.MBR.DLMBR)
 	}
 
-	if qer.GateStatus.ULGate != smf.GateOpen || qer.GateStatus.DLGate != smf.GateOpen {
+	if qer.GateStatus.ULGate != models.GateOpen || qer.GateStatus.DLGate != models.GateOpen {
 		t.Fatal("expected gates to be open")
 	}
 }

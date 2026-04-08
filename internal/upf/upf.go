@@ -230,17 +230,8 @@ func (u *UPF) UpdateAdvertisedN3Address(newN3Addr netip.Addr) {
 	u.se.SetAdvertisedN3Address(newN3Addr)
 }
 
-func (u *UPF) UpdateFilters(policyID int64, direction models.Direction, rules []models.FilterRule) error {
-	return u.se.UpdateFilters(policyID, direction, rules)
-}
-
-func (u *UPF) GetFilterIndex(policyID int64, direction models.Direction) (uint32, error) {
-	idx, ok := u.se.GetFilterIndex(policyID, direction)
-	if !ok {
-		return 0, fmt.Errorf("filter not found for policy %d, direction %s", policyID, direction.String())
-	}
-
-	return idx, nil
+func (u *UPF) UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {
+	return u.se.UpdateFilters(ctx, policyID, direction, rules)
 }
 
 func (u *UPF) ReloadNAT(masquerade bool) error {

@@ -166,7 +166,7 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
 		smContext.PFCPContext.RemoteSEID,
 		0,
-		pdrList, farList, nil, nil,
+		pdrList, farList, nil,
 	)); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to modify PFCP session")
@@ -226,7 +226,7 @@ func handlePDUSessionResourceSetupResponseTransfer(b []byte, smContext *SMContex
 
 	if smContext.Tunnel.DataPath.Activated {
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
-			Description: OuterHeaderCreationGtpUUdpIpv4,
+			Description: models.OuterHeaderCreationGtpUUdpIpv4,
 			TEID:        teid,
 			IPv4Address: smContext.Tunnel.ANInformation.IPAddress.To4(),
 		}
@@ -479,7 +479,7 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 
 	if smContext.Tunnel.DataPath.Activated {
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
-			Description: OuterHeaderCreationGtpUUdpIpv4,
+			Description: models.OuterHeaderCreationGtpUUdpIpv4,
 			TEID:        teid,
 			IPv4Address: GTPTunnel.TransportLayerAddress.Value.Bytes,
 		}
@@ -520,7 +520,7 @@ func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smCont
 	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
 		smContext.PFCPContext.RemoteSEID,
 		0,
-		pdrList, farList, nil, nil,
+		pdrList, farList, nil,
 	)); err != nil {
 		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
@@ -574,7 +574,7 @@ func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
 
 	if smContext.Tunnel.DataPath.Activated {
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
-			Description: OuterHeaderCreationGtpUUdpIpv4,
+			Description: models.OuterHeaderCreationGtpUUdpIpv4,
 			TEID:        teid,
 			IPv4Address: gtpTunnel.TransportLayerAddress.Value.Bytes,
 		}

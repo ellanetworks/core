@@ -84,7 +84,7 @@ func (dp *DataPath) ActivateUpLinkPdr(pduAddress net.IP, defQER *QER, defURR *UR
 	dp.UpLinkTunnel.PDR.PDI.LocalFTEID = &models.FTEID{}
 	dp.UpLinkTunnel.PDR.PDI.UEIPAddress = netip.AddrFrom4([4]byte(pduAddress.To4()))
 
-	ohr := OuterHeaderRemovalGtpUUdpIpv4
+	ohr := models.OuterHeaderRemovalGtpUUdpIpv4
 	dp.UpLinkTunnel.PDR.OuterHeaderRemoval = &ohr
 
 	dp.UpLinkTunnel.PDR.FAR.ApplyAction = models.ApplyAction{
@@ -102,7 +102,7 @@ func (dp *DataPath) ActivateDlLinkPdr(anIP net.IP, teid uint32, pduAddress net.I
 	if anIP != nil {
 		dp.DownLinkTunnel.PDR.FAR.ForwardingParameters = &models.ForwardingParameters{
 			OuterHeaderCreation: &models.OuterHeaderCreation{
-				Description: OuterHeaderCreationGtpUUdpIpv4,
+				Description: models.OuterHeaderCreationGtpUUdpIpv4,
 				TEID:        teid,
 				IPv4Address: anIP.To4(),
 			},

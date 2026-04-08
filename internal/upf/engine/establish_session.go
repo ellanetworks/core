@@ -104,8 +104,13 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 			return nil, fmt.Errorf("couldn't extract PDR info: %w", err)
 		}
 
-		if idx, ok := req.FilterIndexByPDRID[pdr.PDRID]; ok {
-			spdrInfo.PdrInfo.FilterMapIndex = idx
+		if req.PolicyID != 0 {
+			dir := models.DirectionUplink
+			if spdrInfo.UEIP.IsValid() {
+				dir = models.DirectionDownlink
+			}
+
+			spdrInfo.PdrInfo.FilterMapIndex = conn.resolveFilterIndex(req.PolicyID, dir)
 		}
 
 		sess.PutPDR(spdrInfo.PdrID, spdrInfo)

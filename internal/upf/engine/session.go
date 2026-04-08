@@ -77,11 +77,11 @@ func (s *Session) PutPDR(id uint32, info SPDRInfo) {
 	s.pdrs[id] = info
 }
 
-func (s *Session) GetPDR(id uint16) SPDRInfo {
+func (s *Session) GetPDR(id uint32) SPDRInfo {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return s.pdrs[uint32(id)]
+	return s.pdrs[id]
 }
 
 func (s *Session) HasPDR(id uint32) bool {

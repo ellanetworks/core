@@ -317,16 +317,7 @@ func (a *smfUPFAdapter) DeleteSession(ctx context.Context, remoteSEID uint64) er
 }
 
 func (a *smfUPFAdapter) UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {
-	return a.engine.UpdateFilters(policyID, direction, rules)
-}
-
-func (a *smfUPFAdapter) GetFilterIndex(ctx context.Context, policyID int64, direction models.Direction) (uint32, error) {
-	idx, ok := a.engine.GetFilterIndex(policyID, direction)
-	if !ok {
-		return 0, fmt.Errorf("filter not found for policy %d, direction %s", policyID, direction)
-	}
-
-	return idx, nil
+	return a.engine.UpdateFilters(ctx, policyID, direction, rules)
 }
 
 // ---------------------------------------------------------------------------

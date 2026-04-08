@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"io/fs"
 	"net/http"
 	"net/http/pprof"
@@ -21,7 +22,7 @@ type UPFUpdater interface {
 	ReloadNAT(natEnabled bool) error
 	ReloadFlowAccounting(flowAccountingEnabled bool) error
 	UpdateAdvertisedN3Address(netip.Addr)
-	UpdateFilters(policyID int64, direction models.Direction, rules []models.FilterRule) error
+	UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error
 }
 
 type HandlerConfig struct {

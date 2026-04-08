@@ -92,12 +92,14 @@ func (f FakeUPF) ReloadFlowAccounting(flowAccountingEnabled bool) error {
 func (f FakeUPF) UpdateAdvertisedN3Address(ip netip.Addr) {
 }
 
-func (f FakeUPF) UpdateFilters(policyID int64, direction models.Direction, rules []models.FilterRule) error {
-	*f.calledFilters = append(*f.calledFilters, struct {
-		policyID  int64
-		direction models.Direction
-		rules     []models.FilterRule
-	}{policyID: policyID, direction: direction, rules: rules})
+func (f FakeUPF) UpdateFilters(_ context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {
+	if f.calledFilters != nil {
+		*f.calledFilters = append(*f.calledFilters, struct {
+			policyID  int64
+			direction models.Direction
+			rules     []models.FilterRule
+		}{policyID: policyID, direction: direction, rules: rules})
+	}
 
 	return nil
 }
@@ -347,10 +349,6 @@ func (f *fakeUPFClient) DeleteSession(ctx context.Context, remoteSEID uint64) er
 
 func (f *fakeUPFClient) UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {
 	return nil
-}
-
-func (f *fakeUPFClient) GetFilterIndex(ctx context.Context, policyID int64, direction models.Direction) (uint32, error) {
-	return 0, nil
 }
 
 type fakeAMFCallback struct{}

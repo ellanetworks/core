@@ -69,7 +69,6 @@ func BuildEstablishRequest(
 	fars []*FAR,
 	qers []*QER,
 	urrs []*URR,
-	filterIndexByPDRID map[uint16]uint32,
 ) *models.EstablishRequest {
 	mpdrs := make([]models.PDR, 0, len(pdrs))
 	for _, pdr := range pdrs {
@@ -101,14 +100,13 @@ func BuildEstablishRequest(
 	}
 
 	return &models.EstablishRequest{
-		LocalSEID:          localSEID,
-		IMSI:               imsi,
-		PolicyID:           policyID,
-		PDRs:               mpdrs,
-		FARs:               mfars,
-		QERs:               mqers,
-		URRs:               murrs,
-		FilterIndexByPDRID: filterIndexByPDRID,
+		LocalSEID: localSEID,
+		IMSI:      imsi,
+		PolicyID:  policyID,
+		PDRs:      mpdrs,
+		FARs:      mfars,
+		QERs:      mqers,
+		URRs:      murrs,
 	}
 }
 
@@ -122,12 +120,10 @@ func BuildModifyRequest(
 	pdrs []*PDR,
 	fars []*FAR,
 	qers []*QER,
-	filterIndexByPDRID map[uint16]uint32,
 ) *models.ModifyRequest {
 	req := &models.ModifyRequest{
-		SEID:               remoteSEID,
-		PolicyID:           policyID,
-		FilterIndexByPDRID: filterIndexByPDRID,
+		SEID:     remoteSEID,
+		PolicyID: policyID,
 	}
 
 	for _, pdr := range pdrs {
@@ -176,16 +172,6 @@ const (
 
 type RuleState uint8
 
-const (
-	OuterHeaderCreationGtpUUdpIpv4 uint16 = 256
-	OuterHeaderRemovalGtpUUdpIpv4  uint8  = 0
-)
-
-const (
-	GateOpen uint8 = iota
-	GateClose
-)
-
 // Packet Detection Rule. Table 7.5.2.2-1
 type PDR struct {
 	OuterHeaderRemoval *uint8
@@ -194,10 +180,9 @@ type PDR struct {
 	URR *URR
 	QER *QER
 
-	PDI            models.PDI
-	State          RuleState
-	PDRID          uint16
-	FilterMapIndex uint32 // BPF sdf_filters map index; 0 = no filter
+	PDI   models.PDI
+	State RuleState
+	PDRID uint16
 }
 
 // Forwarding Action Rule. 7.5.2.3-1

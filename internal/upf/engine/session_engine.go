@@ -17,7 +17,7 @@ import (
 )
 
 type SessionEngine struct {
-	mu sync.Mutex
+	mu sync.RWMutex
 
 	sessions             map[uint64]*Session
 	policyToSEIDs        map[int64]map[uint64]struct{}
@@ -28,13 +28,13 @@ type SessionEngine struct {
 	BpfObjects           *ebpf.BpfObjects
 	FteIDResourceManager *FteIDResourceManager
 	SdfIndexAllocator    *SdfIndexAllocator
-	filterMu             sync.Mutex
+	filterMu             sync.RWMutex
 	filtersByKey         map[string]uint32
 }
 
 func (pc *SessionEngine) ListSessions() map[uint64]*Session {
-	pc.mu.Lock()
-	defer pc.mu.Unlock()
+	pc.mu.RLock()
+	defer pc.mu.RUnlock()
 
 	sessCopy := make(map[uint64]*Session, len(pc.sessions))
 	maps.Copy(sessCopy, pc.sessions)
@@ -43,8 +43,8 @@ func (pc *SessionEngine) ListSessions() map[uint64]*Session {
 }
 
 func (pc *SessionEngine) GetSession(seid uint64) *Session {
-	pc.mu.Lock()
-	defer pc.mu.Unlock()
+	pc.mu.RLock()
+	defer pc.mu.RUnlock()
 
 	session, ok := pc.sessions[seid]
 	if !ok {
@@ -159,7 +159,7 @@ func (pc *SessionEngine) InitializeFiltersFromDB(dbInstance *db.Database) error 
 		}
 
 		if len(uplinkRules) > 0 {
-			if _, _, err := updateFiltersOnConn(pc, int64(policy.ID), "uplink", uplinkRules); err != nil {
+			if err := pc.UpdateFilters(ctx, int64(policy.ID), models.DirectionUplink, uplinkRules); err != nil {
 				logger.WithTrace(ctx, logger.DBLog).Error(
 					"failed to update uplink filters",
 					zap.Int("policyID", policy.ID),
@@ -169,7 +169,7 @@ func (pc *SessionEngine) InitializeFiltersFromDB(dbInstance *db.Database) error 
 		}
 
 		if len(downlinkRules) > 0 {
-			if _, _, err := updateFiltersOnConn(pc, int64(policy.ID), "downlink", downlinkRules); err != nil {
+			if err := pc.UpdateFilters(ctx, int64(policy.ID), models.DirectionDownlink, downlinkRules); err != nil {
 				logger.WithTrace(ctx, logger.DBLog).Error(
 					"failed to update downlink filters",
 					zap.Int("policyID", policy.ID),
@@ -183,8 +183,8 @@ func (pc *SessionEngine) InitializeFiltersFromDB(dbInstance *db.Database) error 
 }
 
 func (pc *SessionEngine) GetAdvertisedN3Address() netip.Addr {
-	pc.mu.Lock()
-	defer pc.mu.Unlock()
+	pc.mu.RLock()
+	defer pc.mu.RUnlock()
 
 	return pc.advertisedN3Address
 }
