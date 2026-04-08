@@ -86,7 +86,7 @@ const (
 )
 
 const (
-	MaxNumPolicies = 12
+	MaxNumPoliciesPerProfile = 12
 )
 
 func isResourceNameValid(name string) bool {
@@ -530,20 +530,20 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		numPolicies, err := dbInstance.CountPolicies(r.Context())
+		profile, err := dbInstance.GetProfile(r.Context(), createPolicyParams.ProfileName)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusNotFound, "Profile not found", nil, logger.APILog)
+			return
+		}
+
+		numPolicies, err := dbInstance.CountPoliciesInProfile(r.Context(), profile.ID)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count policies", err, logger.APILog)
 			return
 		}
 
-		if numPolicies >= MaxNumPolicies {
-			writeError(r.Context(), w, http.StatusBadRequest, "Maximum number of policies reached ("+strconv.Itoa(MaxNumPolicies)+")", nil, logger.APILog)
-			return
-		}
-
-		profile, err := dbInstance.GetProfile(r.Context(), createPolicyParams.ProfileName)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusNotFound, "Profile not found", nil, logger.APILog)
+		if numPolicies >= MaxNumPoliciesPerProfile {
+			writeError(r.Context(), w, http.StatusBadRequest, "Maximum number of policies per profile reached ("+strconv.Itoa(MaxNumPoliciesPerProfile)+")", nil, logger.APILog)
 			return
 		}
 
