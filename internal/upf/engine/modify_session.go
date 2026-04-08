@@ -196,6 +196,16 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 	logger.WithTrace(ctx, logger.UpfLog).Debug("Session modification successful")
 
+	if req.PolicyID != 0 && req.PolicyID != session.PolicyID() {
+		oldPolicyID := session.PolicyID()
+		session.SetPolicyID(req.PolicyID)
+
+		conn.mu.Lock()
+		conn.deregisterPolicy(oldPolicyID, session.SEID)
+		conn.registerPolicy(req.PolicyID, session.SEID)
+		conn.mu.Unlock()
+	}
+
 	conn.AddSession(session.SEID, session)
 
 	return nil

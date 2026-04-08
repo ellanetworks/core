@@ -46,7 +46,12 @@ func (conn *SessionEngine) DeleteSession(ctx context.Context, req *models.Delete
 		}
 	}
 
-	conn.RemoveSession(req.SEID)
+	policyID := session.PolicyID()
+
+	conn.mu.Lock()
+	delete(conn.sessions, req.SEID)
+	conn.deregisterPolicy(policyID, req.SEID)
+	conn.mu.Unlock()
 
 	logger.WithTrace(ctx, logger.UpfLog).Info("Deleted session", logger.SEID(req.SEID))
 

@@ -20,6 +20,7 @@ type SessionEngine struct {
 	mu sync.Mutex
 
 	sessions             map[uint64]*Session
+	policyToSEIDs        map[int64]map[uint64]struct{}
 	nodeID               string
 	nodeAddrV4           net.IP
 	n3Address            net.IP
@@ -65,6 +66,41 @@ func (pc *SessionEngine) AddSession(seid uint64, session *Session) {
 	defer pc.mu.Unlock()
 
 	pc.sessions[seid] = session
+}
+
+// registerPolicy links a policyID to a session SEID in the reverse index.
+// Caller must hold pc.mu.
+func (pc *SessionEngine) registerPolicy(policyID int64, seid uint64) {
+	if policyID == 0 {
+		return
+	}
+
+	seids, ok := pc.policyToSEIDs[policyID]
+	if !ok {
+		seids = make(map[uint64]struct{})
+		pc.policyToSEIDs[policyID] = seids
+	}
+
+	seids[seid] = struct{}{}
+}
+
+// deregisterPolicy removes a session SEID from the reverse index.
+// Caller must hold pc.mu.
+func (pc *SessionEngine) deregisterPolicy(policyID int64, seid uint64) {
+	if policyID == 0 {
+		return
+	}
+
+	seids, ok := pc.policyToSEIDs[policyID]
+	if !ok {
+		return
+	}
+
+	delete(seids, seid)
+
+	if len(seids) == 0 {
+		delete(pc.policyToSEIDs, policyID)
+	}
 }
 
 func (pc *SessionEngine) SetBPFObjects(bpfObjects *ebpf.BpfObjects, dbInstance *db.Database) {
@@ -129,7 +165,7 @@ func (pc *SessionEngine) InitializeFiltersFromDB(dbInstance *db.Database) error 
 		}
 
 		if len(uplinkRules) > 0 {
-			if err := updateFiltersOnConn(pc, int64(policy.ID), "uplink", uplinkRules); err != nil {
+			if _, _, err := updateFiltersOnConn(pc, int64(policy.ID), "uplink", uplinkRules); err != nil {
 				logger.WithTrace(ctx, logger.DBLog).Error(
 					"failed to update uplink filters",
 					zap.Int("policyID", policy.ID),
@@ -139,7 +175,7 @@ func (pc *SessionEngine) InitializeFiltersFromDB(dbInstance *db.Database) error 
 		}
 
 		if len(downlinkRules) > 0 {
-			if err := updateFiltersOnConn(pc, int64(policy.ID), "downlink", downlinkRules); err != nil {
+			if _, _, err := updateFiltersOnConn(pc, int64(policy.ID), "downlink", downlinkRules); err != nil {
 				logger.WithTrace(ctx, logger.DBLog).Error(
 					"failed to update downlink filters",
 					zap.Int("policyID", policy.ID),
@@ -184,6 +220,7 @@ func NewSessionEngine(addr string, nodeID string, n3Ip string, advertisedN3Ip st
 
 	conn := &SessionEngine{
 		sessions:             make(map[uint64]*Session),
+		policyToSEIDs:        make(map[int64]map[uint64]struct{}),
 		nodeID:               nodeID,
 		nodeAddrV4:           addrV4,
 		n3Address:            n3Addr,

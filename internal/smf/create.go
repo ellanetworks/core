@@ -381,10 +381,16 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 		}
 	}
 
+	var policyID int64
+	if smContext.PolicyData != nil {
+		policyID = smContext.PolicyData.PolicyID
+	}
+
 	if smContext.PFCPContext.RemoteSEID == 0 {
 		req := BuildEstablishRequest(
 			smContext.PFCPContext.LocalSEID,
 			smContext.Supi.IMSI(),
+			policyID,
 			pdrList, farList, qerList, urrList,
 			filterIndexByPDRID,
 		)
@@ -413,6 +419,7 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 
 	err := s.upf.ModifySession(ctx, BuildModifyRequest(
 		smContext.PFCPContext.RemoteSEID,
+		policyID,
 		pdrList, farList, qerList,
 		filterIndexByPDRID,
 	))
