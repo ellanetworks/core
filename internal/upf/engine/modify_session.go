@@ -147,9 +147,9 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 		}
 
 		if policyID != 0 {
-			dir := "uplink"
+			dir := models.DirectionUplink
 			if spdrInfo.UEIP.IsValid() {
-				dir = "downlink"
+				dir = models.DirectionDownlink
 			}
 
 			spdrInfo.PdrInfo.FilterMapIndex = conn.resolveFilterIndex(policyID, dir)

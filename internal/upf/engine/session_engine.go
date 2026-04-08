@@ -28,7 +28,7 @@ type SessionEngine struct {
 	BpfObjects           *ebpf.BpfObjects
 	FteIDResourceManager *FteIDResourceManager
 	SdfIndexAllocator    *SdfIndexAllocator
-	filterMu             sync.Mutex
+	filterMu             sync.RWMutex
 	filtersByKey         map[string]uint32
 }
 

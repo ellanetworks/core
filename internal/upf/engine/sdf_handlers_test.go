@@ -101,7 +101,7 @@ func TestUpdateFilters_InPlaceUpdateKeepsSameSlot(t *testing.T) {
 		t.Fatalf("initial UpdateFilters: %v", err)
 	}
 
-	idx := eng.resolveFilterIndex(42, "uplink")
+	idx := eng.resolveFilterIndex(42, models.DirectionUplink)
 	if idx == ebpf.NoFilterIndex {
 		t.Fatal("filter index not found after initial UpdateFilters")
 	}
@@ -129,7 +129,7 @@ func TestUpdateFilters_InPlaceUpdateKeepsSameSlot(t *testing.T) {
 	}
 
 	// The resolved index should still be the same.
-	if eng.resolveFilterIndex(42, "uplink") != idx {
+	if eng.resolveFilterIndex(42, models.DirectionUplink) != idx {
 		t.Error("resolveFilterIndex returned different index after in-place update")
 	}
 }
@@ -186,7 +186,7 @@ func TestUpdateFilters_EmptyRulesClearsFilter(t *testing.T) {
 		t.Errorf("expected FilterMapIndex to be reset to NoFilterIndex, got %d", pdr.PdrInfo.FilterMapIndex)
 	}
 
-	if eng.resolveFilterIndex(42, "uplink") != ebpf.NoFilterIndex {
+	if eng.resolveFilterIndex(42, models.DirectionUplink) != ebpf.NoFilterIndex {
 		t.Error("expected resolveFilterIndex to return NoFilterIndex after clearing")
 	}
 }
@@ -221,7 +221,7 @@ func TestUpdateFilters_ClearThenReaddAllocatesNewSlot(t *testing.T) {
 		t.Fatalf("initial UpdateFilters: %v", err)
 	}
 
-	firstIdx := eng.resolveFilterIndex(42, "uplink")
+	firstIdx := eng.resolveFilterIndex(42, models.DirectionUplink)
 
 	// Clear rules.
 	err = eng.UpdateFilters(context.Background(), 42, models.DirectionUplink, nil)
@@ -237,7 +237,7 @@ func TestUpdateFilters_ClearThenReaddAllocatesNewSlot(t *testing.T) {
 		t.Fatalf("re-add UpdateFilters: %v", err)
 	}
 
-	newIdx := eng.resolveFilterIndex(42, "uplink")
+	newIdx := eng.resolveFilterIndex(42, models.DirectionUplink)
 	if newIdx == ebpf.NoFilterIndex {
 		t.Fatal("expected a valid filter index after re-adding rules")
 	}
@@ -306,7 +306,7 @@ func TestUpdateFilters_NoSessionsForPolicy(t *testing.T) {
 	}
 
 	// The slot should still be allocated (ready for future sessions).
-	if eng.resolveFilterIndex(99, "uplink") == ebpf.NoFilterIndex {
+	if eng.resolveFilterIndex(99, models.DirectionUplink) == ebpf.NoFilterIndex {
 		t.Error("expected filter index to be allocated even with no sessions")
 	}
 }
