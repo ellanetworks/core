@@ -11,14 +11,13 @@ import (
 // EstablishRequest asks the UPF to create a new session with the
 // given packet detection, forwarding, QoS, and usage reporting rules.
 type EstablishRequest struct {
-	LocalSEID          uint64
-	IMSI               string
-	PolicyID           int64
-	PDRs               []PDR
-	FARs               []FAR
-	QERs               []QER
-	URRs               []URR
-	FilterIndexByPDRID map[uint16]uint32
+	LocalSEID uint64
+	IMSI      string
+	PolicyID  int64
+	PDRs      []PDR
+	FARs      []FAR
+	QERs      []QER
+	URRs      []URR
 }
 
 // EstablishResponse returns the allocated identifiers from the UPF.
@@ -126,9 +125,8 @@ type URR struct {
 // mirroring the PFCP state machine (RuleInitial→Create,
 // RuleUpdate→Update, RuleRemove→Remove).
 type ModifyRequest struct {
-	SEID               uint64
-	PolicyID           int64
-	FilterIndexByPDRID map[uint16]uint32
+	SEID     uint64
+	PolicyID int64
 
 	CreatePDRs   []PDR
 	UpdatePDRs   []PDR

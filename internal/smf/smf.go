@@ -74,7 +74,6 @@ type UPFClient interface {
 	DeleteSession(ctx context.Context, remoteSEID uint64) error
 
 	UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error
-	GetFilterIndex(ctx context.Context, policyID int64, direction models.Direction) (uint32, error)
 }
 
 // BGPAnnouncer is the interface used by the SMF to announce/withdraw subscriber routes.

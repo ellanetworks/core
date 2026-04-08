@@ -141,8 +141,18 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 			return fmt.Errorf("couldn't extract PDR info: %w", err)
 		}
 
-		if idx, ok := req.FilterIndexByPDRID[pdr.PDRID]; ok {
-			spdrInfo.PdrInfo.FilterMapIndex = idx
+		policyID := req.PolicyID
+		if policyID == 0 {
+			policyID = session.PolicyID()
+		}
+
+		if policyID != 0 {
+			dir := "uplink"
+			if spdrInfo.UEIP.IsValid() {
+				dir = "downlink"
+			}
+
+			spdrInfo.PdrInfo.FilterMapIndex = conn.resolveFilterIndex(policyID, dir)
 		}
 
 		session.PutPDR(spdrInfo.PdrID, spdrInfo)

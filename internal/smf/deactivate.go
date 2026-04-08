@@ -61,7 +61,7 @@ func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) erro
 	err = s.upf.ModifySession(ctx, BuildModifyRequest(
 		remoteSEID,
 		0,
-		nil, farList, nil, nil,
+		nil, farList, nil,
 	))
 	if err != nil {
 		// The UPF rejected the modification — the PFCP session is gone

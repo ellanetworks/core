@@ -140,10 +140,6 @@ func (f *fakeUPF) UpdateFilters(_ context.Context, _ int64, _ models.Direction, 
 	return nil
 }
 
-func (f *fakeUPF) GetFilterIndex(_ context.Context, _ int64, _ models.Direction) (uint32, error) {
-	return 0, nil
-}
-
 type fakeAMF struct {
 	mu        sync.Mutex
 	n1Calls   []n1Call

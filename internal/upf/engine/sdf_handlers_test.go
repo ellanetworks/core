@@ -97,8 +97,8 @@ func TestUpdateFilters_ExistingSlotDoesNotReapply(t *testing.T) {
 		t.Fatalf("initial UpdateFilters: %v", err)
 	}
 
-	idx, ok := eng.GetFilterIndex(42, models.DirectionUplink)
-	if !ok {
+	idx := eng.resolveFilterIndex(42, "uplink")
+	if idx == ebpf.NoFilterIndex {
 		t.Fatal("filter index not found after initial UpdateFilters")
 	}
 

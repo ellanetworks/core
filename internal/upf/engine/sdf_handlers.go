@@ -46,6 +46,25 @@ func updateFiltersRule(rule models.FilterRule) ebpf.SdfRule {
 	return sdfRule
 }
 
+// resolveFilterIndex returns the BPF filter map index for a (policyID, direction) pair.
+// Returns ebpf.NoFilterIndex if no filter is allocated.
+func (conn *SessionEngine) resolveFilterIndex(policyID int64, direction string) uint32 {
+	if policyID == 0 {
+		return ebpf.NoFilterIndex
+	}
+
+	key := fmt.Sprintf("%d:%s", policyID, direction)
+
+	conn.filterMu.Lock()
+	defer conn.filterMu.Unlock()
+
+	if idx, ok := conn.filtersByKey[key]; ok {
+		return idx
+	}
+
+	return ebpf.NoFilterIndex
+}
+
 // updateFiltersOnConn allocates or refreshes a sdf_filters BPF array slot for the
 // given (PolicyID, Direction) pair. It is idempotent: concurrent calls for the
 // same key update the BPF slot in place.
@@ -150,16 +169,4 @@ func (conn *SessionEngine) UpdateFilters(ctx context.Context, policyID int64, di
 	}
 
 	return nil
-}
-
-// GetFilterIndex retrieves the BPF sdf_filters map index for a given (PolicyID, Direction) pair.
-// Returns the index and true if found, or 0 and false if not allocated.
-func (conn *SessionEngine) GetFilterIndex(policyID int64, direction models.Direction) (uint32, bool) {
-	conn.filterMu.Lock()
-	defer conn.filterMu.Unlock()
-
-	key := fmt.Sprintf("%d:%s", policyID, direction.String())
-	idx, ok := conn.filtersByKey[key]
-
-	return idx, ok
 }

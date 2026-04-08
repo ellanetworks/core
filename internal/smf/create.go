@@ -31,16 +31,6 @@ func netipToIP(addr netip.Addr) net.IP {
 	return net.IP(b[:])
 }
 
-func hasRulesForDirection(rules []*ResolvedNetworkRule, dir models.Direction) bool {
-	for _, v := range rules {
-		if v.Direction == dir {
-			return true
-		}
-	}
-
-	return false
-}
-
 // CreateSmContext creates a new PDU session. It decodes the NAS message, retrieves the
 // subscriber policy and DNN info, allocates an IP, creates the data path, sends
 // PFCP rules to the UPF, and delivers the accept/reject to the AMF.
@@ -349,38 +339,6 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 		return fmt.Errorf("PFCP context not initialized")
 	}
 
-	filterIndexByPDRID := make(map[uint16]uint32)
-
-	if smContext.PFCPContext.RemoteSEID == 0 && smContext.PolicyData != nil {
-		if hasRulesForDirection(smContext.PolicyData.NetworkRules, models.DirectionUplink) {
-			idx, err := s.upf.GetFilterIndex(ctx, smContext.PolicyData.PolicyID, models.DirectionUplink)
-			if err == nil {
-				if dataPath.UpLinkTunnel != nil && dataPath.UpLinkTunnel.PDR != nil {
-					dataPath.UpLinkTunnel.PDR.FilterMapIndex = idx
-					filterIndexByPDRID[dataPath.UpLinkTunnel.PDR.PDRID] = idx
-				}
-			} else {
-				span.RecordError(err)
-				span.SetStatus(codes.Error, "failed to get uplink filter index")
-				logger.WithTrace(ctx, logger.SmfLog).Warn("Failed to get uplink filter index", zap.Error(err))
-			}
-		}
-
-		if hasRulesForDirection(smContext.PolicyData.NetworkRules, models.DirectionDownlink) {
-			idx, err := s.upf.GetFilterIndex(ctx, smContext.PolicyData.PolicyID, models.DirectionDownlink)
-			if err == nil {
-				if dataPath.DownLinkTunnel != nil && dataPath.DownLinkTunnel.PDR != nil {
-					dataPath.DownLinkTunnel.PDR.FilterMapIndex = idx
-					filterIndexByPDRID[dataPath.DownLinkTunnel.PDR.PDRID] = idx
-				}
-			} else {
-				span.RecordError(err)
-				span.SetStatus(codes.Error, "failed to get downlink filter index")
-				logger.WithTrace(ctx, logger.SmfLog).Debug("Failed to get downlink filter index", zap.Error(err))
-			}
-		}
-	}
-
 	var policyID int64
 	if smContext.PolicyData != nil {
 		policyID = smContext.PolicyData.PolicyID
@@ -392,7 +350,6 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 			smContext.Supi.IMSI(),
 			policyID,
 			pdrList, farList, qerList, urrList,
-			filterIndexByPDRID,
 		)
 
 		resp, err := s.upf.EstablishSession(ctx, req)
@@ -421,7 +378,6 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 		smContext.PFCPContext.RemoteSEID,
 		policyID,
 		pdrList, farList, qerList,
-		filterIndexByPDRID,
 	))
 	if err != nil {
 		span.RecordError(err)

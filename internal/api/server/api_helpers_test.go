@@ -349,10 +349,6 @@ func (f *fakeUPFClient) UpdateFilters(ctx context.Context, policyID int64, direc
 	return nil
 }
 
-func (f *fakeUPFClient) GetFilterIndex(ctx context.Context, policyID int64, direction models.Direction) (uint32, error) {
-	return 0, nil
-}
-
 type fakeAMFCallback struct{}
 
 func (f *fakeAMFCallback) TransferN1(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error {
