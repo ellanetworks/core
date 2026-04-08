@@ -10,11 +10,12 @@ import (
 )
 
 type Session struct {
-	mu   sync.RWMutex
-	SEID uint64
-	pdrs map[uint32]SPDRInfo
-	fars map[uint32]ebpf.FarInfo
-	qers map[uint32]ebpf.QerInfo
+	mu       sync.RWMutex
+	SEID     uint64
+	policyID int64
+	pdrs     map[uint32]SPDRInfo
+	fars     map[uint32]ebpf.FarInfo
+	qers     map[uint32]ebpf.QerInfo
 }
 
 func NewSession(seid uint64) *Session {
@@ -34,14 +35,21 @@ type SPDRInfo struct {
 	Allocated bool
 }
 
-func (s *Session) NewFar(id uint32, farInfo ebpf.FarInfo) {
+func (s *Session) PolicyID() int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.policyID
+}
+
+func (s *Session) SetPolicyID(id int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.fars[id] = farInfo
+	s.policyID = id
 }
 
-func (s *Session) UpdateFar(id uint32, farInfo ebpf.FarInfo) {
+func (s *Session) PutFar(id uint32, farInfo ebpf.FarInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

@@ -61,7 +61,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 		go addRemoteIPToNeigh(ctx, farInfo.RemoteIP)
 
-		sess.NewFar(far.FARID, farInfo)
+		sess.PutFar(far.FARID, farInfo)
 		farMap[far.FARID] = farInfo
 
 		logger.WithTrace(ctx, logger.UpfLog).Info("Created Forwarding Action Rule",
@@ -130,7 +130,14 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	span.AddEvent("pdrs_processed", trace.WithAttributes(attribute.Int("count", len(createdPDRs))))
 	span.AddEvent("ebpf_maps_updated")
 
-	conn.AddSession(seid, sess)
+	if req.PolicyID != 0 {
+		sess.SetPolicyID(req.PolicyID)
+	}
+
+	conn.mu.Lock()
+	conn.sessions[seid] = sess
+	conn.registerPolicy(req.PolicyID, seid)
+	conn.mu.Unlock()
 
 	logger.WithTrace(ctx, logger.UpfLog).Debug("Accepted Session Establishment Request")
 
