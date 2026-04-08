@@ -235,11 +235,7 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 	go s.Serve()
 
 	// Families restricts which address families GoBGP allocates routing
-	// tables for. Without this, GoBGP creates tables for all 26 families
-	// (~9 MB of wasted memory). The integer values are GoBGP-internal
-	// indices into IntToAfiSafiTypeMap (pkg/config/oc/bgp_configs.go),
-	// not standard BGP AFI/SAFI numbers.
-	// IPv6 support: add oc.AFI_SAFI_TYPE_IPV6_UNICAST here.
+	// tables for. Add oc.AFI_SAFI_TYPE_IPV6_UNICAST when IPv6 support is added.
 	families := []uint32{
 		uint32(oc.AfiSafiTypeToIntMap[oc.AFI_SAFI_TYPE_IPV4_UNICAST]),
 	}
