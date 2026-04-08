@@ -16,9 +16,11 @@ This document explains the key concepts behind packet Ella Core's packet process
 
 Ella Core's data plane uses XDP to achieve high throughput and low latency. Key features include:
 
-- **Packet filtering**: Applying rules to determine whether packets should be dropped, forwarded, or passed.
+- **Policy rules enforcement**: Evaluating ordered per-policy uplink and downlink rules to allow or deny traffic based on remote prefix, protocol, and port range.
 - **Encapsulation and decapsulation**: Managing GTP-U (GPRS Tunneling Protocol-User Plane) headers for data transmission.
 - **Rate limiting**: Enforcing Quality of Service (QoS) with QER (QoS Enforcement Rules).
+- **Flow reporting**: Recording per-flow traffic details including source, destination, protocol, port, and whether the flow was allowed or dropped.
+- **Usage reporting**: Aggregating per-subscriber byte and packet counts for data usage tracking.
 - **Statistics collection**: Monitoring metrics such as packet counts, drops, and processing times.
 
 Data plane processing in Ella Core occurs between the **n3** and **n6** interfaces.

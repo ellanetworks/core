@@ -81,7 +81,7 @@ mux.HandleFunc("GET /api/v1/subscribers",
 
 **Response envelope**: Success → `{"result": <payload>}`, Error → `{"error": "message"}`, Mutation → `{"result": {"message": "..."}}`. Use `writeResponse()` / `writeError()` helpers.
 
-**Auth**: JWT tokens (session) + API tokens (prefixed `ella_`). RBAC with 3 roles: admin (1), network manager (2), read only (3). Permissions are strings like `subscriber:list`.
+**Auth**: JWT tokens (session) + API tokens (prefixed `ellacore_`). RBAC with 3 roles: admin (1), network manager (2), read only (3). Permissions are strings like `subscriber:list`.
 
 **Server**: HTTP/2 always enabled (TLS native or h2c for cleartext). JWT secret generated randomly at startup.
 
