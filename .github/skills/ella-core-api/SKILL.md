@@ -2,8 +2,8 @@
 name: ella-core-api
 description: >
   Query and manage a live Ella Core 5G private network instance via its REST API.
-  Use when the user asks about subscribers, data usage, QoS policies, radios,
-  data networks, routes, NAT, flow reports, audit logs, operator configuration,
+  Use when the user asks about subscribers, profiles, slices, data usage, QoS policies,
+  radios, data networks, routes, NAT, BGP, flow reports, audit logs, operator configuration,
   or any runtime state of the Ella Core network. Also use when the user asks to
   provision, update, or delete network resources.
 ---
@@ -57,7 +57,7 @@ curl -s -H "Authorization: Bearer <API_TOKEN>" \
 ```bash
 curl -s -X POST -H "Authorization: Bearer <API_TOKEN>" \
   -H "Content-Type: application/json" \
-  -d '{"name":"my-policy","bitrate_uplink":"50 Mbps","bitrate_downlink":"100 Mbps","var5qi":9,"arp":1,"data_network_name":"internet"}' \
+  -d '{"name":"my-policy","profile_name":"default","slice_name":"default","data_network_name":"internet","session_ambr_uplink":"50 Mbps","session_ambr_downlink":"100 Mbps","var5qi":9,"arp":1}' \
   "<BASE_URL>/api/v1/policies" | python3 -m json.tool
 ```
 
@@ -76,15 +76,17 @@ Responses include `items`, `page`, `per_page`, and `total_count`.
 
 To iterate all items, increment `page` until `page * per_page >= total_count`. When fetching all records for analysis, use `per_page=100` to minimize round-trips.
 
-## Multi-step provisioning
+## Data model and provisioning order
 
-Some operations require multiple API calls in a specific order. In general:
+Resources have the following dependency chain:
 
-1. **Data network** must exist before it can be referenced by a policy or subscriber.
-2. **Policy** must exist before it can be assigned to a subscriber.
-3. **Subscriber** is created last, referencing an existing policy and data network.
+1. **Data network** — represents a DNN/APN (e.g. `internet`). Has a name, DNS, MTU, and UE subnet for IP allocation.
+2. **Slice** — represents an S-NSSAI (SST + optional SD). Defines a network slice.
+3. **Profile** — defines subscriber-level aggregate bitrate caps (UE-AMBR uplink/downlink). Subscribers are assigned to a profile.
+4. **Policy** — defines per-session QoS (session AMBR, 5QI, ARP) and binds a **profile** to a **slice** and **data network**. A profile can have multiple policies (one per slice+data network combination). Policies can optionally include ordered uplink/downlink network rules (allow/deny with optional prefix, protocol, and port range filters).
+5. **Subscriber** — a SIM/device identified by IMSI, assigned to a **profile**. The subscriber inherits all policies associated with that profile.
 
-When provisioning, verify prerequisites exist first (via GET) before creating dependent resources.
+When provisioning, create resources in the order above. Verify prerequisites exist (via GET) before creating dependent resources.
 
 ## Documentation
 
@@ -101,5 +103,8 @@ If you need guidance beyond what the OpenAPI spec provides, WebFetch the relevan
 - Bitrate strings use format like `"100 Mbps"` or `"1 Gbps"`
 - 5QI valid values: 5, 6, 7, 8, 9, 69, 70, 79, 80
 - ARP range: 1-15
-- Policy, data network, and subscriber names/IMSIs must be unique
+- Policy, profile, slice, data network, and subscriber names/IMSIs must be unique
+- A profile can have up to 12 policies
 - Usage endpoints return byte counts as raw integers. When presenting data volumes to users, convert to binary units: divide by 1,048,576 for MiB or 1,073,741,824 for GiB. Always display values rounded to one decimal place with the unit suffix (e.g. "46.2 MiB", "1.3 GiB"). Verify that uplink + downlink = total before presenting.
+- Flow reports support filtering by subscriber, protocol, source/destination, and include both allowed and dropped flows
+- BGP supports up to 5 peers; when NAT is enabled the BGP speaker runs but does not advertise subscriber routes
