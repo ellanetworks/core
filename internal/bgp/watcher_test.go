@@ -5,6 +5,7 @@ import (
 	"net/netip"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/kernel"
@@ -430,5 +431,95 @@ func TestUpdateFilterRemovesNewlyRejectedRoutes(t *testing.T) {
 
 	if deletedCount < 1 {
 		t.Fatalf("expected at least 1 kernel route deletion, got %d", deletedCount)
+	}
+}
+
+func TestStopWithPollerDoesNotDeadlock(t *testing.T) {
+	svc := newTestServiceWithLearning(t, &fakeKernel{}, &fakeImportStore{})
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+
+	err := svc.Start(ctx, settings, nil, nil, true)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	done := make(chan error, 1)
+
+	go func() {
+		done <- svc.Stop()
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Stop failed: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop deadlocked — did not complete within 5 seconds")
+	}
+
+	if svc.IsRunning() {
+		t.Fatal("expected service to not be running after Stop")
+	}
+}
+
+func TestStartStopCyclesWithPoller(t *testing.T) {
+	svc := newTestServiceWithLearning(t, &fakeKernel{}, &fakeImportStore{})
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+
+	for i := range 10 {
+		err := svc.Start(ctx, settings, nil, nil, true)
+		if err != nil {
+			t.Fatalf("Start cycle %d failed: %v", i, err)
+		}
+
+		err = svc.Stop()
+		if err != nil {
+			t.Fatalf("Stop cycle %d failed: %v", i, err)
+		}
+	}
+
+	if svc.IsRunning() {
+		t.Fatal("expected service to not be running after final Stop")
+	}
+}
+
+func TestReconfigureRestartWithPollerDoesNotDeadlock(t *testing.T) {
+	svc := newTestServiceWithLearning(t, &fakeKernel{}, &fakeImportStore{})
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
+
+	err := svc.Start(ctx, settings, nil, nil, true)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	// Change AS number → triggers full restart (stopLocked + startLocked).
+	newSettings := bgp.BGPSettings{Enabled: true, LocalAS: 65001}
+
+	done := make(chan error, 1)
+
+	go func() {
+		done <- svc.Reconfigure(ctx, newSettings, nil)
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Reconfigure failed: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Reconfigure deadlocked — did not complete within 5 seconds")
+	}
+
+	if !svc.IsRunning() {
+		t.Fatal("expected service to be running after reconfigure restart")
 	}
 }

@@ -9,182 +9,219 @@ import (
 	api "github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	bgppacket "github.com/osrg/gobgp/v4/pkg/packet/bgp"
-	gobgp "github.com/osrg/gobgp/v4/pkg/server"
 	"go.uber.org/zap"
 )
 
-// startWatchBestPaths registers a WatchEvent callback that installs and removes
-// kernel routes as GoBGP's best-path set changes. Must be called with mu held.
-func (b *BGPService) startWatchBestPaths(ctx context.Context, s *gobgp.BgpServer) error {
-	return s.WatchEvent(ctx, gobgp.WatchEventMessageCallbacks{
-		OnBestPath: func(paths []*apiutil.Path, _ time.Time) {
-			b.handleBestPaths(ctx, paths)
-		},
-	}, gobgp.WatchBestPath(true))
-}
+// ribPollInterval is the interval between RIB polling cycles.
+const ribPollInterval = 3 * time.Second
 
-// handleBestPaths processes a batch of best-path updates from GoBGP.
-func (b *BGPService) handleBestPaths(ctx context.Context, paths []*apiutil.Path) {
-	for _, path := range paths {
-		b.handleSinglePath(ctx, path)
+// startRIBPoller periodically syncs kernel routes with the GoBGP global RIB.
+// It replaces the event-driven WatchEvent approach, which has an unavoidable
+// deadlock on shutdown (see https://github.com/osrg/gobgp/issues/3366).
+// It exits when ctx is cancelled.
+func (b *BGPService) startRIBPoller(ctx context.Context) {
+	ticker := time.NewTicker(ribPollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			b.syncRoutes(ctx)
+		}
 	}
 }
 
-// handleSinglePath processes a single best-path event: either installing,
-// updating, or removing a kernel route.
-func (b *BGPService) handleSinglePath(ctx context.Context, path *apiutil.Path) {
-	// Extract prefix from NLRI.
-	prefix, ok := extractPrefix(path)
-	if !ok {
+// syncRoutes performs a full reconciliation of kernel routes against the GoBGP
+// global RIB. Routes present in the RIB that pass all filters are installed;
+// previously learned routes no longer in the RIB are removed.
+func (b *BGPService) syncRoutes(ctx context.Context) {
+	// TryRLock so we never block a concurrent stopLocked (which holds mu
+	// write-lock and waits for the poller to exit). If mu is write-locked we
+	// simply skip this cycle; the next tick will retry.
+	if !b.mu.TryRLock() {
 		return
 	}
 
-	prefixStr := prefix.String()
-
-	// Extract next-hop.
-	nextHop := extractNextHop(path)
-
-	if path.Withdrawal {
-		b.handleWithdrawal(prefixStr)
-
-		return
-	}
-
-	if !nextHop.IsValid() {
-		b.logger.Debug("skipping path with no next-hop", zap.String("prefix", prefixStr))
+	if !b.running || !b.routeLearningEnabled() {
+		b.mu.RUnlock()
 
 		return
 	}
 
-	peerAddr := path.PeerAddress.String()
-
-	// Skip locally-originated routes (our own subscriber /32s).
-	b.mu.RLock()
-	_, isOwnedPath := b.paths[prefix.Addr().String()]
-	running := b.running
+	server := b.server
 	peers := b.peers
-	filter := b.filter // snapshot under lock so we can use it after RUnlock
+	filter := b.filter
+	ownedPaths := b.paths
+	n6Addr := b.n6Addr
 	b.mu.RUnlock()
 
-	if !running {
+	prefixCache := b.preloadImportPrefixes(ctx, peers)
+
+	if ctx.Err() != nil {
 		return
 	}
 
-	if isOwnedPath {
-		return
+	type ribEntry struct {
+		prefix  netip.Prefix
+		nextHop netip.Addr
+		peer    string
 	}
 
-	// Skip routes with our own next-hop (routing loop prevention).
-	if nextHop == b.n6Addr {
-		b.logger.Debug("skipping route with own next-hop",
-			zap.String("prefix", prefixStr), zap.String("nextHop", nextHop.String()))
+	var ribRoutes []ribEntry
 
-		return
-	}
-
-	// Safety rejection: check against hard-coded reject prefixes.
-	if filter.overlapsAny(prefix) {
-		b.logger.Warn("rejecting BGP route (safety filter)",
-			zap.String("prefix", prefixStr), zap.String("peer", peerAddr))
-
-		return
-	}
-
-	// Per-peer prefix list filtering.
-	peerID := findPeerID(peers, peerAddr)
-	if peerID == 0 {
-		b.logger.Debug("skipping route from unknown peer", zap.String("peer", peerAddr))
-
-		return
-	}
-
-	entries, err := b.loadImportPrefixes(ctx, peerID)
-	if err != nil {
-		b.logger.Warn("failed to load import prefixes",
-			zap.Int("peerID", peerID), zap.Error(err))
-
-		return
-	}
-
-	if len(entries) == 0 || !matchesPrefixList(prefix, entries) {
-		b.logger.Warn("rejecting BGP route (import policy)",
-			zap.String("prefix", prefixStr), zap.String("peer", peerAddr))
-
-		return
-	}
-
-	// Hold learnedMu across check → install → record to prevent TOCTOU race
-	// where concurrent goroutines could both pass the max-prefix check.
-	b.learnedMu.Lock()
-
-	if _, isUpdate := b.learnedRoutes[prefixStr]; !isUpdate {
-		peerCount := 0
-
-		for _, lr := range b.learnedRoutes {
-			if lr.peer == peerAddr {
-				peerCount++
+	err := server.ListPath(apiutil.ListPathRequest{
+		TableType: api.TableType_TABLE_TYPE_GLOBAL,
+		Family:    bgppacket.RF_IPv4_UC,
+	}, func(_ bgppacket.NLRI, paths []*apiutil.Path) {
+		for _, path := range paths {
+			if path.Withdrawal {
+				continue
 			}
+
+			prefix, ok := extractPrefix(path)
+			if !ok {
+				continue
+			}
+
+			if _, owned := ownedPaths[prefix.Addr().String()]; owned {
+				continue
+			}
+
+			nextHop := extractNextHop(path)
+			if !nextHop.IsValid() || nextHop == n6Addr {
+				continue
+			}
+
+			if filter.overlapsAny(prefix) {
+				continue
+			}
+
+			peerAddr := path.PeerAddress.String()
+			peerID := findPeerID(peers, peerAddr)
+
+			if peerID == 0 {
+				continue
+			}
+
+			entries := prefixCache[peerID]
+			if len(entries) == 0 || !matchesPrefixList(prefix, entries) {
+				continue
+			}
+
+			ribRoutes = append(ribRoutes, ribEntry{
+				prefix:  prefix,
+				nextHop: nextHop,
+				peer:    peerAddr,
+			})
 		}
-
-		if peerCount >= MaxLearnedRoutesPerPeer {
-			b.learnedMu.Unlock()
-
-			b.logger.Warn("max learned routes exceeded for peer",
-				zap.String("peer", peerAddr), zap.Int("limit", MaxLearnedRoutesPerPeer))
-
-			return
-		}
-	}
-
-	// Install or update the route in the kernel (still holding learnedMu).
-	err = b.kernel.ReplaceRoute(prefix, nextHop, bgpRouteMetric, kernel.N6)
+	})
 	if err != nil {
-		b.learnedMu.Unlock()
-
-		b.logger.Warn("failed to install BGP route",
-			zap.String("prefix", prefixStr), zap.Error(err))
+		b.logger.Warn("failed to list global RIB for route sync", zap.Error(err))
 
 		return
 	}
 
-	b.learnedRoutes[prefixStr] = learnedRoute{
-		prefix:  prefix,
-		gateway: nextHop,
-		peer:    peerAddr,
+	if ctx.Err() != nil {
+		return
 	}
-	b.learnedMu.Unlock()
 
-	b.logger.Info("installed BGP route",
-		zap.String("prefix", prefixStr),
-		zap.String("nextHop", nextHop.String()),
-		zap.String("peer", peerAddr),
-	)
-}
+	ribSet := make(map[string]ribEntry, len(ribRoutes))
+	for _, r := range ribRoutes {
+		ribSet[r.prefix.String()] = r
+	}
 
-// handleWithdrawal removes a previously learned route from the kernel.
-func (b *BGPService) handleWithdrawal(prefixStr string) {
 	b.learnedMu.Lock()
-	lr, exists := b.learnedRoutes[prefixStr]
+	defer b.learnedMu.Unlock()
 
-	if !exists {
-		b.learnedMu.Unlock()
+	// Remove routes no longer in the RIB.
+	for prefixStr, lr := range b.learnedRoutes {
+		if _, inRIB := ribSet[prefixStr]; !inRIB {
+			err := b.kernel.DeleteRoute(lr.prefix, lr.gateway, bgpRouteMetric, kernel.N6)
+			if err != nil {
+				b.logger.Warn("failed to remove withdrawn BGP route",
+					zap.String("prefix", prefixStr), zap.Error(err))
+			}
 
-		return
+			delete(b.learnedRoutes, prefixStr)
+
+			b.logger.Info("removed BGP route (withdrawn)",
+				zap.String("prefix", prefixStr), zap.String("peer", lr.peer))
+		}
 	}
 
-	delete(b.learnedRoutes, prefixStr)
-	b.learnedMu.Unlock()
+	// Update routes whose gateway or peer changed.
+	for prefixStr, lr := range b.learnedRoutes {
+		r, ok := ribSet[prefixStr]
+		if !ok {
+			continue
+		}
 
-	err := b.kernel.DeleteRoute(lr.prefix, lr.gateway, bgpRouteMetric, kernel.N6)
-	if err != nil {
-		b.logger.Warn("failed to remove withdrawn BGP route",
-			zap.String("prefix", prefixStr), zap.Error(err))
+		if lr.gateway == r.nextHop && lr.peer == r.peer {
+			continue
+		}
 
-		return
+		err := b.kernel.ReplaceRoute(r.prefix, r.nextHop, bgpRouteMetric, kernel.N6)
+		if err != nil {
+			b.logger.Warn("failed to update BGP route",
+				zap.String("prefix", prefixStr), zap.Error(err))
+
+			continue
+		}
+
+		b.learnedRoutes[prefixStr] = learnedRoute{
+			prefix:  r.prefix,
+			gateway: r.nextHop,
+			peer:    r.peer,
+		}
+
+		b.logger.Info("updated BGP route",
+			zap.String("prefix", prefixStr),
+			zap.String("nextHop", r.nextHop.String()),
+			zap.String("peer", r.peer),
+		)
 	}
 
-	b.logger.Info("removed BGP route (withdrawn)",
-		zap.String("prefix", prefixStr), zap.String("peer", lr.peer))
+	// Install new routes, respecting per-peer limits.
+	peerCounts := make(map[string]int)
+	for _, lr := range b.learnedRoutes {
+		peerCounts[lr.peer]++
+	}
+
+	for _, r := range ribRoutes {
+		prefixStr := r.prefix.String()
+
+		if _, exists := b.learnedRoutes[prefixStr]; exists {
+			continue
+		}
+
+		if peerCounts[r.peer] >= MaxLearnedRoutesPerPeer {
+			continue
+		}
+
+		err := b.kernel.ReplaceRoute(r.prefix, r.nextHop, bgpRouteMetric, kernel.N6)
+		if err != nil {
+			b.logger.Warn("failed to install BGP route",
+				zap.String("prefix", prefixStr), zap.Error(err))
+
+			continue
+		}
+
+		b.learnedRoutes[prefixStr] = learnedRoute{
+			prefix:  r.prefix,
+			gateway: r.nextHop,
+			peer:    r.peer,
+		}
+
+		peerCounts[r.peer]++
+
+		b.logger.Info("installed BGP route",
+			zap.String("prefix", prefixStr),
+			zap.String("nextHop", r.nextHop.String()),
+			zap.String("peer", r.peer),
+		)
+	}
 }
 
 // cleanStaleRoutes removes leftover metric-200 routes from a prior crash.
