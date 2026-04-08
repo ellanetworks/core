@@ -93,11 +93,13 @@ func (f FakeUPF) UpdateAdvertisedN3Address(ip netip.Addr) {
 }
 
 func (f FakeUPF) UpdateFilters(_ context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {
-	*f.calledFilters = append(*f.calledFilters, struct {
-		policyID  int64
-		direction models.Direction
-		rules     []models.FilterRule
-	}{policyID: policyID, direction: direction, rules: rules})
+	if f.calledFilters != nil {
+		*f.calledFilters = append(*f.calledFilters, struct {
+			policyID  int64
+			direction models.Direction
+			rules     []models.FilterRule
+		}{policyID: policyID, direction: direction, rules: rules})
+	}
 
 	return nil
 }

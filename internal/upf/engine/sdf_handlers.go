@@ -65,13 +65,33 @@ func (conn *SessionEngine) resolveFilterIndex(policyID int64, direction string) 
 	return ebpf.NoFilterIndex
 }
 
-// updateFiltersOnConn allocates or refreshes a sdf_filters BPF array slot for the
-// given (PolicyID, Direction) pair. It is idempotent: concurrent calls for the
-// same key update the BPF slot in place.
-// Returns the BPF slot index and whether a new slot was allocated.
-func updateFiltersOnConn(_ context.Context, conn *SessionEngine, policyID int64, direction string, rules []models.FilterRule) (uint32, bool, error) {
-	key := fmt.Sprintf("%d:%s", policyID, direction)
+// UpdateFilters is an idempotent PUT-style operation for the sdf_filters BPF
+// slot of a given (PolicyID, Direction) pair.
+//
+//   - Non-empty rules: allocate or update the BPF slot, propagate to PDRs.
+//   - Empty rules: deallocate the slot and reset PDRs to NoFilterIndex.
+func (conn *SessionEngine) UpdateFilters(_ context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {
+	key := fmt.Sprintf("%d:%s", policyID, direction.String())
 
+	// Empty rules: deallocate the existing slot (if any) and reset PDRs.
+	if len(rules) == 0 {
+		conn.filterMu.Lock()
+
+		idx, ok := conn.filtersByKey[key]
+		if !ok {
+			conn.filterMu.Unlock()
+			return nil
+		}
+
+		delete(conn.filtersByKey, key)
+		conn.filterMu.Unlock()
+
+		conn.SdfIndexAllocator.Release(idx)
+
+		return conn.propagateFilterIndex(policyID, direction, ebpf.NoFilterIndex)
+	}
+
+	// Non-empty rules: build the BPF filter list.
 	sdfRules := make([]ebpf.SdfRule, 0, len(rules))
 	for _, r := range rules {
 		sdfRules = append(sdfRules, updateFiltersRule(r))
@@ -81,66 +101,59 @@ func updateFiltersOnConn(_ context.Context, conn *SessionEngine, policyID int64,
 	copy(list.Rules[:len(sdfRules)], sdfRules)
 
 	conn.filterMu.Lock()
-	defer conn.filterMu.Unlock()
 
+	// Existing slot: update in place, no propagation needed.
 	if entry, ok := conn.filtersByKey[key]; ok {
-		// Update BPF slot in place (skip if BPF objects not available - test mode)
 		if conn.BpfObjects != nil {
 			if err := conn.BpfObjects.PutSdfFilterList(entry, list); err != nil {
-				return 0, false, fmt.Errorf("update sdf filter list: %w", err)
+				conn.filterMu.Unlock()
+				return fmt.Errorf("update sdf filter list: %w", err)
 			}
 		}
 
-		return entry, false, nil
+		conn.filterMu.Unlock()
+
+		return nil
 	}
 
+	// New slot: allocate, write, and propagate to existing sessions.
 	idx, err := conn.SdfIndexAllocator.Allocate()
 	if err != nil {
-		return 0, false, fmt.Errorf("allocate sdf filter index: %w", err)
+		conn.filterMu.Unlock()
+		return fmt.Errorf("allocate sdf filter index: %w", err)
 	}
 
 	if conn.BpfObjects != nil {
 		if err := conn.BpfObjects.PutSdfFilterList(idx, list); err != nil {
 			conn.SdfIndexAllocator.Release(idx)
-			return 0, false, fmt.Errorf("write sdf filter list: %w", err)
+			conn.filterMu.Unlock()
+
+			return fmt.Errorf("write sdf filter list: %w", err)
 		}
 	}
 
 	conn.filtersByKey[key] = idx
+	conn.filterMu.Unlock()
 
-	return idx, true, nil
+	return conn.propagateFilterIndex(policyID, direction, idx)
 }
 
-// UpdateFilters allocates or refreshes a sdf_filters BPF array slot for the
-// given (PolicyID, Direction) pair. When a new slot is allocated, existing
-// sessions using this policy have their PDRs updated to point to the new slot.
-func (conn *SessionEngine) UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {
-	idx, isNew, err := updateFiltersOnConn(ctx, conn, policyID, direction.String(), rules)
-	if err != nil {
-		return err
-	}
-
-	if !isNew {
-		return nil
-	}
-
-	// A new filter slot was allocated (first rules for this policy+direction).
-	// Propagate the index to all existing sessions that reference this policy.
-	conn.mu.Lock()
+// propagateFilterIndex updates FilterMapIndex on all PDRs matching (policyID, direction).
+func (conn *SessionEngine) propagateFilterIndex(policyID int64, direction models.Direction, idx uint32) error {
+	conn.mu.RLock()
 
 	seids, ok := conn.policyToSEIDs[policyID]
 	if !ok {
-		conn.mu.Unlock()
+		conn.mu.RUnlock()
 		return nil
 	}
 
-	// Copy the SEID set so we can release conn.mu before touching sessions.
 	seidList := make([]uint64, 0, len(seids))
 	for seid := range seids {
 		seidList = append(seidList, seid)
 	}
 
-	conn.mu.Unlock()
+	conn.mu.RUnlock()
 
 	isUplink := direction == models.DirectionUplink
 
@@ -151,7 +164,6 @@ func (conn *SessionEngine) UpdateFilters(ctx context.Context, policyID int64, di
 		}
 
 		for pdrID, spdrInfo := range session.ListPDRs() {
-			// Match direction: uplink PDRs have no UEIP, downlink PDRs have UEIP.
 			pdrIsUplink := !spdrInfo.UEIP.IsValid()
 			if pdrIsUplink != isUplink {
 				continue
