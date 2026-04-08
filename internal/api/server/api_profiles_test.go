@@ -355,8 +355,8 @@ func TestProfileTooMany(t *testing.T) {
 		t.Fatalf("Couldn't complete createProfile: %s", err)
 	}
 
-	if statusCode != http.StatusConflict {
-		t.Fatalf("Expected status %d for too many profiles, got %d", http.StatusConflict, statusCode)
+	if statusCode != http.StatusBadRequest {
+		t.Fatalf("Expected status %d for too many profiles, got %d", http.StatusBadRequest, statusCode)
 	}
 }
 

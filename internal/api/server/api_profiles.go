@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -151,7 +152,7 @@ func CreateProfile(dbInstance *db.Database) http.Handler {
 		}
 
 		if numProfiles >= MaxNumProfiles {
-			writeError(r.Context(), w, http.StatusConflict, "Maximum number of profiles reached", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "Maximum number of profiles reached ("+strconv.Itoa(MaxNumProfiles)+")", nil, logger.APILog)
 			return
 		}
 
