@@ -3,6 +3,7 @@ package ebpf
 import (
 	"errors"
 	"io"
+	"reflect"
 	"sync"
 
 	"github.com/cilium/ebpf"
@@ -14,8 +15,14 @@ import (
 // Supported BPF_CFLAGS:
 // 	- ENABLE_LOG:
 //		- enables debug output to tracepipe (`bpftool prog tracelog`)
+// 	- ENABLE_PROFILING:
+//		- enables per-packet latency profiling via profiling_map (per-CPU array).
+//		- each bpf_ktime_get_ns() call adds ~600-900 ns overhead per sample.
+//		- read results with ReadProfilingStats() in stats.go.
 //
 // Usage: export BPF_CFLAGS="-DENABLE_LOG"
+// Usage: export BPF_CFLAGS="-DENABLE_PROFILING"
+// Usage: export BPF_CFLAGS="-DENABLE_LOG -DENABLE_PROFILING"
 
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf N3N6Entrypoint xdp/n3n6_bpf.c -- -I. -O2 -Wall -Werror -g
 
@@ -27,6 +34,13 @@ type DataNotification struct {
 
 type BpfObjects struct {
 	N3N6EntrypointObjects
+
+	// ProfilingMap is the optional per-CPU profiling map. It is non-nil only
+	// when the BPF code was compiled with -DENABLE_PROFILING. The field
+	// shadows the same-named field promoted from N3N6EntrypointMaps so that
+	// package code can reference bpfObjects.ProfilingMap unconditionally
+	// without a compile error when profiling is absent.
+	ProfilingMap *ebpf.Map
 
 	FlowAccounting   bool
 	Masquerade       bool
@@ -67,6 +81,11 @@ func (bpfObjects *BpfObjects) Load() error {
 
 		return err
 	}
+
+	// Populate the optional profiling map from the embedded maps struct. The
+	// field only exists in N3N6EntrypointMaps when compiled with
+	// -DENABLE_PROFILING; reflection lets us check without a hard reference.
+	bpfObjects.ProfilingMap = profilingMapFromMaps(bpfObjects.N3N6EntrypointMaps)
 
 	return nil
 }
@@ -138,6 +157,12 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 		"uplink_route_stats":   bpfObjects.UplinkRouteStats,
 		"uplink_statistics":    bpfObjects.UplinkStatistics,
 		"urr_map":              bpfObjects.UrrMap,
+	}
+
+	// Only preserve the profiling map when it was compiled in; it may be
+	// absent when the BPF code was built without -DENABLE_PROFILING.
+	if bpfObjects.ProfilingMap != nil {
+		replacements["profiling_map"] = bpfObjects.ProfilingMap
 	}
 
 	opts := &ebpf.CollectionOptions{
@@ -213,4 +238,22 @@ func CloseAllObjects(closers ...io.Closer) error {
 	}
 
 	return nil
+}
+
+// profilingMapFromMaps extracts the ProfilingMap field from an
+// N3N6EntrypointMaps value using reflection. The field only exists when the
+// BPF code was compiled with -DENABLE_PROFILING; reflection lets the rest of
+// the package refer to BpfObjects.ProfilingMap unconditionally without a
+// compile error when the field is absent in the generated struct.
+func profilingMapFromMaps(maps N3N6EntrypointMaps) *ebpf.Map {
+	v := reflect.ValueOf(maps)
+
+	f := v.FieldByName("ProfilingMap")
+	if !f.IsValid() || f.IsNil() {
+		return nil
+	}
+
+	m, _ := f.Interface().(*ebpf.Map)
+
+	return m
 }

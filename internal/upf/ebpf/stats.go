@@ -177,3 +177,76 @@ func GetN6DownlinkThroughputStats(bpfObjects *BpfObjects) uint64 {
 
 	return totalValue
 }
+
+// ProfileIndex mirrors the profile_index enum in profiling.h.
+// The values must stay in sync with the C enum.
+const (
+	ProfN3Total        = 0
+	ProfN6Total        = 1
+	ProfN3PdrLookup    = 2
+	ProfN6PdrLookup    = 3
+	ProfN3MtuCheck     = 4
+	ProfN6MtuCheck     = 5
+	ProfN3QerRatelimit = 6
+	ProfN6QerRatelimit = 7
+	ProfN3GtpManip     = 8
+	ProfN6GtpManip     = 9
+	ProfN3SdfFilter    = 10
+	ProfN6SdfFilter    = 11
+	ProfN3Nat          = 12
+	ProfN6Nat          = 13
+	ProfN3FibRouting   = 14
+	ProfN6FibRouting   = 15
+	ProfNumEntries     = 16
+)
+
+// ProfileEntry holds the aggregated (across all CPUs) profiling data for one
+// pipeline sub-stage.
+type ProfileEntry struct {
+	TotalNs uint64
+	Count   uint64
+}
+
+// bpfProfileEntry mirrors the C struct profile_entry { __u64 total_ns; __u64 count; }
+// from profiling.h. Using a local type avoids a direct reference to the
+// bpf2go-generated N3N6EntrypointProfileEntry, which is only emitted when the
+// BPF code is compiled with -DENABLE_PROFILING.
+type bpfProfileEntry struct {
+	TotalNs uint64
+	Count   uint64
+}
+
+// ReadProfilingStats reads the per-CPU profiling_map and aggregates all
+// entries across CPUs. It returns a slice of ProfNumEntries elements indexed
+// by the ProfileIndex constants above.
+//
+// If the map is not present (i.e. the BPF program was compiled without
+// -DENABLE_PROFILING) the function returns nil, nil.
+func ReadProfilingStats(bpfObjects *BpfObjects) ([]ProfileEntry, error) {
+	if bpfObjects == nil || bpfObjects.ProfilingMap == nil {
+		return nil, nil
+	}
+
+	results := make([]ProfileEntry, ProfNumEntries)
+
+	for i := uint32(0); i < ProfNumEntries; i++ {
+		var perCPU []bpfProfileEntry
+		if err := bpfObjects.ProfilingMap.Lookup(i, &perCPU); err != nil {
+			logger.UpfLog.Warn("failed to read profiling map", zap.Uint32("index", i), zap.Error(err))
+			continue
+		}
+
+		var totalNs, count uint64
+		for _, e := range perCPU {
+			totalNs += e.TotalNs
+			count += e.Count
+		}
+
+		results[i] = ProfileEntry{
+			TotalNs: totalNs,
+			Count:   count,
+		}
+	}
+
+	return results, nil
+}

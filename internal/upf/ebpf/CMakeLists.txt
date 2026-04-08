@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.28)
 project(ellacore)
 
 set(CMAKE_C_COMPILER clang)
+# Optional flags (for clangd / IDE support only — the real build uses go generate):
+#   -DENABLE_LOG        enable debug output to tracepipe
+#   -DENABLE_PROFILING  enable per-packet latency profiling via profiling_map
 set(CMAKE_C_FLAGS "-target bpf -std=gnu11 -Wall -Werror -g -O2 -I.")
 set(CMAKE_EXPORT_COMPILE_COMMANDS on)
 

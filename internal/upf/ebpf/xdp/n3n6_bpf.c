@@ -34,6 +34,7 @@
 #include "xdp/utils/routing.h"
 
 #include "xdp/utils/trace.h"
+#include "xdp/utils/profiling.h"
 #include "xdp/utils/packet_context.h"
 #include "xdp/utils/parsers.h"
 #include "xdp/utils/nat.h"
@@ -140,7 +141,17 @@ int upf_n3_n6_entrypoint_func(struct xdp_md *ctx)
 		.statistics = statistics,
 	};
 
-	return process_packet(&context);
+	if (ctx->ingress_ifindex == n3_ifindex) {
+		PROFILE_START(PROF_N3_TOTAL);
+		enum xdp_action ret = process_packet(&context);
+		PROFILE_END(PROF_N3_TOTAL);
+		return ret;
+	} else {
+		PROFILE_START(PROF_N6_TOTAL);
+		enum xdp_action ret = process_packet(&context);
+		PROFILE_END(PROF_N6_TOTAL);
+		return ret;
+	}
 }
 
 char _license[] SEC("license") = "GPL";
