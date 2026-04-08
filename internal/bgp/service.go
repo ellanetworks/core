@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/kernel"
 	api "github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
+	"github.com/osrg/gobgp/v4/pkg/config/oc"
 	bgppacket "github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	gobgp "github.com/osrg/gobgp/v4/pkg/server"
 	"go.uber.org/zap"
@@ -235,10 +236,13 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 
 	// Families restricts which address families GoBGP allocates routing
 	// tables for. Without this, GoBGP creates tables for all 26 families
-	// (~9 MB of wasted memory). Value 0 maps to IPv4 Unicast in GoBGP's
-	// IntToAfiSafiTypeMap (pkg/config/oc/bgp_configs.go).
-	// When adding IPv6 support, append the IPv6 Unicast family (1).
-	families := []uint32{0} // IPv4 Unicast only
+	// (~9 MB of wasted memory). The integer values are GoBGP-internal
+	// indices into IntToAfiSafiTypeMap (pkg/config/oc/bgp_configs.go),
+	// not standard BGP AFI/SAFI numbers.
+	// IPv6 support: add oc.AFI_SAFI_TYPE_IPV6_UNICAST here.
+	families := []uint32{
+		uint32(oc.AfiSafiTypeToIntMap[oc.AFI_SAFI_TYPE_IPV4_UNICAST]),
+	}
 
 	err := s.StartBgp(ctx, &api.StartBgpRequest{
 		Global: &api.Global{
