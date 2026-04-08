@@ -233,11 +233,19 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 	s := gobgp.NewBgpServer(gobgp.GrpcListenAddress(""))
 	go s.Serve()
 
+	// Families restricts which address families GoBGP allocates routing
+	// tables for. Without this, GoBGP creates tables for all 26 families
+	// (~9 MB of wasted memory). Value 0 maps to IPv4 Unicast in GoBGP's
+	// IntToAfiSafiTypeMap (pkg/config/oc/bgp_configs.go).
+	// When adding IPv6 support, append the IPv6 Unicast family (1).
+	families := []uint32{0} // IPv4 Unicast only
+
 	err := s.StartBgp(ctx, &api.StartBgpRequest{
 		Global: &api.Global{
 			Asn:        uint32(settings.LocalAS),
 			RouterId:   routerID,
 			ListenPort: listenPort,
+			Families:   families,
 		},
 	})
 	if err != nil {
