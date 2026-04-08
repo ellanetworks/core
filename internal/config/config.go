@@ -17,6 +17,16 @@ const (
 	AttachModeGeneric = "generic"
 )
 
+// AddressFamily specifies which IP address family to return when resolving an interface IP.
+type AddressFamily int
+
+const (
+	// IPv4 filters for IPv4-only addresses.
+	IPv4 AddressFamily = iota
+	// AnyFamily accepts any address family, preferring non-link-local IPv6 over IPv4.
+	AnyFamily
+)
+
 const (
 	LoggingSystemOutputStdout = "stdout"
 	LoggingSystemOutputFile   = "file"
@@ -128,6 +138,7 @@ type N6Interface struct {
 }
 
 type APIInterface struct {
+	Name    string
 	Address string
 	Port    int
 	TLS     TLS
@@ -248,7 +259,7 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, errors.New("interfaces.n2 is empty")
 	}
 
-	_, n2Address, err := getInterfaceNameAndAddress(c.Interfaces.N2.Name, c.Interfaces.N2.Address)
+	_, n2Address, err := getInterfaceNameAndAddress(c.Interfaces.N2.Name, c.Interfaces.N2.Address, IPv4)
 	if err != nil {
 		return Config{}, fmt.Errorf("interfaces.n2: %w", err)
 	}
@@ -257,7 +268,7 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, errors.New("interfaces.n3 is empty")
 	}
 
-	n3InterfaceName, n3Address, err := getInterfaceNameAndAddress(c.Interfaces.N3.Name, c.Interfaces.N3.Address)
+	n3InterfaceName, n3Address, err := getInterfaceNameAndAddress(c.Interfaces.N3.Name, c.Interfaces.N3.Address, IPv4)
 	if err != nil {
 		return Config{}, fmt.Errorf("interfaces.n3: %w", err)
 	}
@@ -274,7 +285,7 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, errors.New("interfaces.api is empty")
 	}
 
-	_, apiAddress, err := getInterfaceNameAndAddress(c.Interfaces.API.Name, c.Interfaces.API.Address)
+	apiInterfaceName, apiAddress, err := getInterfaceNameAndAddress(c.Interfaces.API.Name, c.Interfaces.API.Address, AnyFamily)
 	if err != nil {
 		return Config{}, fmt.Errorf("interfaces.api: %w", err)
 	}
@@ -337,8 +348,14 @@ func Validate(filePath string) (Config, error) {
 	config.Interfaces.N2.Port = c.Interfaces.N2.Port
 	config.Interfaces.N3.Name = n3InterfaceName
 	config.Interfaces.N3.Address = n3Address
+
 	config.Interfaces.N6.Name = c.Interfaces.N6.Name
-	config.Interfaces.API.Address = apiAddress
+	if c.Interfaces.API.Name != "" {
+		config.Interfaces.API.Name = apiInterfaceName
+	} else {
+		config.Interfaces.API.Address = apiAddress
+	}
+
 	config.Interfaces.API.Port = c.Interfaces.API.Port
 	config.XDP.AttachMode = c.XDP.AttachMode
 	config.Telemetry.OTLPEndpoint = c.Telemetry.OTLPEndpoint
@@ -347,7 +364,7 @@ func Validate(filePath string) (Config, error) {
 	return config, nil
 }
 
-func getInterfaceNameAndAddress(interfaceName string, address string) (string, string, error) {
+func getInterfaceNameAndAddress(interfaceName string, address string, family AddressFamily) (string, string, error) {
 	if interfaceName != "" && address != "" {
 		return "", "", errors.New("interface name and address cannot be both set")
 	}
@@ -362,9 +379,9 @@ func getInterfaceNameAndAddress(interfaceName string, address string) (string, s
 			return "", "", fmt.Errorf("interface name %s does not exist on the host: %w", interfaceName, err)
 		}
 
-		computedAddress, err := GetInterfaceIP(interfaceName)
+		computedAddress, err := GetInterfaceIP(interfaceName, family)
 		if err != nil {
-			return "", "", fmt.Errorf("cannot get IPv4 address for interface %s: %w", interfaceName, err)
+			return "", "", fmt.Errorf("cannot get IP address for interface %s: %w", interfaceName, err)
 		}
 
 		return interfaceName, computedAddress, nil
@@ -377,7 +394,7 @@ func getInterfaceNameAndAddress(interfaceName string, address string) (string, s
 
 		computedInterfaceName, err := GetInterfaceName(address)
 		if err != nil {
-			return "", "", fmt.Errorf("cannot get interface name for IP address  %s: %w", address, err)
+			return "", "", fmt.Errorf("cannot get interface name for IP address %s: %w", address, err)
 		}
 
 		return computedInterfaceName, address, nil
@@ -399,7 +416,7 @@ var CheckInterfaceExistsFunc = func(name string) (bool, error) {
 	return true, nil
 }
 
-var GetInterfaceIPFunc = func(name string) (string, error) {
+var GetInterfaceIPFunc = func(name string, family AddressFamily) (string, error) {
 	iface, err := net.InterfaceByName(name)
 	if err != nil {
 		return "", err
@@ -410,15 +427,32 @@ var GetInterfaceIPFunc = func(name string) (string, error) {
 		return "", err
 	}
 
+	var ipv4Fallback string
+
 	for _, addr := range addresses {
 		if ip, _, err := net.ParseCIDR(addr.String()); err == nil {
-			if ip.To4() != nil {
-				return ip.String(), nil
+			switch family {
+			case IPv4:
+				if ip.To4() != nil {
+					return ip.String(), nil
+				}
+			case AnyFamily:
+				if ip.To4() == nil && !ip.IsLinkLocalUnicast() {
+					return ip.String(), nil
+				}
+
+				if ip.To4() != nil && ipv4Fallback == "" {
+					ipv4Fallback = ip.String()
+				}
 			}
 		}
 	}
 
-	return "", errors.New("no valid IPv4 address found")
+	if family == AnyFamily && ipv4Fallback != "" {
+		return ipv4Fallback, nil
+	}
+
+	return "", errors.New("no valid IP address found")
 }
 
 var GetInterfaceNameFunc = func(address string) (string, error) {
@@ -471,8 +505,8 @@ var GetVLANConfigForInterfaceFunc = func(name string) (*VlanConfig, error) {
 	return nil, nil
 }
 
-func GetInterfaceIP(name string) (string, error) {
-	return GetInterfaceIPFunc(name)
+func GetInterfaceIP(name string, family AddressFamily) (string, error) {
+	return GetInterfaceIPFunc(name, family)
 }
 
 func InterfaceExists(name string) (bool, error) {
@@ -481,4 +515,32 @@ func InterfaceExists(name string) (bool, error) {
 
 func GetInterfaceName(address string) (string, error) {
 	return GetInterfaceNameFunc(address)
+}
+
+var GetInterfaceIPsFunc = func(name string) ([]string, error) {
+	iface, err := net.InterfaceByName(name)
+	if err != nil {
+		return nil, err
+	}
+
+	addresses, err := iface.Addrs()
+	if err != nil {
+		return nil, err
+	}
+
+	var ips []string
+
+	for _, addr := range addresses {
+		if ip, _, err := net.ParseCIDR(addr.String()); err == nil {
+			if !ip.IsLinkLocalUnicast() && !ip.IsLoopback() {
+				ips = append(ips, ip.String())
+			}
+		}
+	}
+
+	return ips, nil
+}
+
+func GetInterfaceIPs(name string) ([]string, error) {
+	return GetInterfaceIPsFunc(name)
 }

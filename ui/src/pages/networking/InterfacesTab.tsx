@@ -209,9 +209,18 @@ export default function InterfacesTab() {
                 <Typography variant="subtitle1">API</Typography>
                 <Chip label="Management" size="small" />
               </Stack>
-              <Typography variant="body2" color="text.secondary">
-                Address: <strong>{interfacesInfo.api?.address ?? "—"}</strong>
-              </Typography>
+              {interfacesInfo.api?.addresses &&
+              interfacesInfo.api.addresses.length > 0 ? (
+                interfacesInfo.api.addresses.map((addr) => (
+                  <Typography key={addr} variant="body2" color="text.secondary">
+                    Address: <strong>{addr}</strong>
+                  </Typography>
+                ))
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  Address: <strong>—</strong>
+                </Typography>
+              )}
               <Typography variant="body2" color="text.secondary">
                 Port: <strong>{interfacesInfo.api?.port ?? "—"}</strong>
               </Typography>
