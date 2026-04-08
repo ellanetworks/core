@@ -3,6 +3,7 @@
 #pragma once
 
 #include "xdp/utils/flow.h"
+#include "xdp/utils/profiling.h"
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 #include <linux/ipv6.h>
@@ -55,8 +56,12 @@ static __always_inline enum xdp_action
 send_to_gtp_tunnel(struct packet_context *ctx, int srcip, int dstip, __u8 tos,
 		   __u8 qfi, int teid)
 {
-	if (-1 == add_gtp_over_ip4_headers(ctx, srcip, dstip, tos, qfi, teid))
+	PROFILE_START(PROF_N6_GTP_MANIP);
+	if (-1 == add_gtp_over_ip4_headers(ctx, srcip, dstip, tos, qfi, teid)) {
+		PROFILE_END(PROF_N6_GTP_MANIP);
 		return XDP_ABORTED;
+	}
+	PROFILE_END(PROF_N6_GTP_MANIP);
 	upf_printk("upf: send gtp pdu %pI4 -> %pI4", &ctx->ip4->saddr,
 		   &ctx->ip4->daddr);
 	ctx->statistics->packet_counters.tx++;
@@ -66,7 +71,11 @@ send_to_gtp_tunnel(struct packet_context *ctx, int srcip, int dstip, __u8 tos,
 		bpf_map_lookup_elem(&downlink_route_stats, &key);
 	if (!route_statistic)
 		return XDP_ABORTED;
-	return route_ipv4(ctx, route_statistic);
+
+	PROFILE_START(PROF_N6_FIB_ROUTING);
+	enum xdp_action fib_ret = route_ipv4(ctx, route_statistic);
+	PROFILE_END(PROF_N6_FIB_ROUTING);
+	return fib_ret;
 }
 
 /*
@@ -76,19 +85,26 @@ send_to_gtp_tunnel(struct packet_context *ctx, int srcip, int dstip, __u8 tos,
 static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 {
 	if (masquerade) {
+		PROFILE_START(PROF_N6_NAT);
 		destination_nat(ctx);
+		PROFILE_END(PROF_N6_NAT);
 	}
 	const struct iphdr *ip4 = ctx->ip4;
+
+	PROFILE_START(PROF_N6_PDR_LOOKUP);
 	struct pdr_info *pdr =
 		bpf_map_lookup_elem(&pdrs_downlink_ip4, &ip4->daddr);
+	PROFILE_END(PROF_N6_PDR_LOOKUP);
 	if (!pdr) {
 		upf_printk("upf: no downlink session for ip:%pI4", &ip4->daddr);
 		return DEFAULT_XDP_ACTION;
 	}
 
+	PROFILE_START(PROF_N6_MTU_CHECK);
 	__u32 mtu_len = 0;
 	long ret = 0;
 	ret = bpf_check_mtu(ctx->xdp_ctx, n3_ifindex, &mtu_len, GTP_ENCAP_SIZE, 0);
+	PROFILE_END(PROF_N6_MTU_CHECK);
 	if (ret < 0) {
 		ctx->statistics->xdp_actions[XDP_ABORTED & EUPF_MAX_XDP_ACTION_MASK] += 1;
 		return XDP_ABORTED;
@@ -126,21 +142,29 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 		return XDP_DROP;
 	}
 
+	PROFILE_START(PROF_N6_QER_RATELIMIT);
 	upf_printk("upf: qer gate_status:%d mbr:%d", qer->dl_gate_status, qer->dl_maximum_bitrate);
-	if (qer->dl_gate_status != GATE_STATUS_OPEN)
+	if (qer->dl_gate_status != GATE_STATUS_OPEN) {
+		PROFILE_END(PROF_N6_QER_RATELIMIT);
 		return XDP_DROP;
+	}
 
 	const __u64 packet_size = ctx->data_end - (void *)ctx->ip4;
 	if (XDP_DROP == limit_rate_sliding_window(packet_size, &qer->dl_start,
-						  qer->dl_maximum_bitrate))
+						  qer->dl_maximum_bitrate)) {
+		PROFILE_END(PROF_N6_QER_RATELIMIT);
 		return XDP_DROP;
+	}
+	PROFILE_END(PROF_N6_QER_RATELIMIT);
 
 	/* Parse inner L4 so match_sdf_filters can inspect protocol/ports */
 	parse_l4(ip4->protocol, ctx);
 
 	/* SDF filter enforcement (downlink) */
 	{
+		PROFILE_START(PROF_N6_SDF_FILTER);
 		enum xdp_action sdf_verdict = match_sdf_filters(ctx, pdr->filter_map_index);
+		PROFILE_END(PROF_N6_SDF_FILTER);
 		if (sdf_verdict == XDP_DROP) {
 			upf_printk("upf: downlink SDF drop ip:%pI4", &ip4->daddr);
 			ctx->statistics->xdp_actions[XDP_DROP & EUPF_MAX_XDP_ACTION_MASK] += 1;
@@ -173,8 +197,11 @@ static __always_inline enum xdp_action
 handle_n6_packet_ipv6(struct packet_context *ctx)
 {
 	const struct ipv6hdr *ip6 = ctx->ip6;
+
+	PROFILE_START(PROF_N6_PDR_LOOKUP);
 	struct pdr_info *pdr =
 		bpf_map_lookup_elem(&pdrs_downlink_ip6, &ip6->daddr);
+	PROFILE_END(PROF_N6_PDR_LOOKUP);
 	if (!pdr) {
 		upf_printk("upf: no downlink session for ip:%pI6c",
 			   &ip6->daddr);

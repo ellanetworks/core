@@ -30,6 +30,7 @@
 #include <sys/socket.h>
 
 #include "xdp/utils/nat.h"
+#include "xdp/utils/profiling.h"
 #include "xdp/utils/trace.h"
 
 volatile const int n3_ifindex;
@@ -95,7 +96,10 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 
 	if (ctx->interface == INTERFACE_N3) {
 		if (masquerade) {
-			if (!source_nat(ctx, fib_params)) {
+			PROFILE_START(PROF_N3_NAT);
+			int nat_ok = source_nat(ctx, fib_params);
+			PROFILE_END(PROF_N3_NAT);
+			if (!nat_ok) {
 				return XDP_DROP;
 			}
 		}
