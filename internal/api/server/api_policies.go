@@ -174,6 +174,10 @@ func validatePolicyRule(rule PolicyRule) error {
 		return errors.New("rule description is missing")
 	}
 
+	if len(rule.Description) > 256 {
+		return errors.New("rule description must be 256 characters or fewer")
+	}
+
 	if err := validateAction(rule.Action); err != nil {
 		return errors.New("rule action must be 'allow' or 'deny'")
 	}
