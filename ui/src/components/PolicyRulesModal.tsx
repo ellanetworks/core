@@ -30,7 +30,7 @@ import {
   type PolicyRule,
 } from "@/queries/policies";
 import { useAuth } from "@/contexts/AuthContext";
-import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
+
 import * as yup from "yup";
 import { ValidationError } from "yup";
 import {
@@ -90,7 +90,10 @@ interface FormValues {
 }
 
 const schema = yup.object().shape({
-  description: yup.string(),
+  description: yup
+    .string()
+    .required("Description is required")
+    .max(256, "Description must be 256 characters or fewer"),
   action: yup
     .string()
     .oneOf(["allow", "deny"], "Invalid action")
@@ -158,8 +161,6 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
 
   const [isFormDialogOpen, setFormDialogOpen] = useState(false);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
   const [formValues, setFormValues] = useState<FormValues>({
     description: "",
     action: "allow",
@@ -298,15 +299,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
   };
 
   const handleDeleteRule = (rule: InMemoryRule) => {
-    setSelectedRuleId(rule.tempId);
-    setDeleteConfirmOpen(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (selectedRuleId === null) return;
-    setRules((prev) => prev.filter((r) => r.tempId !== selectedRuleId));
-    setDeleteConfirmOpen(false);
-    setSelectedRuleId(null);
+    setRules((prev) => prev.filter((r) => r.tempId !== rule.tempId));
   };
 
   const handleFormChange = (field: keyof FormValues, value: string) => {
@@ -646,7 +639,11 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
             onChange={(e) => handleFormChange("description", e.target.value)}
             onBlur={() => handleFormBlur("description")}
             error={!!errors.description && touched.description}
-            helperText={touched.description ? errors.description : ""}
+            helperText={
+              touched.description && errors.description
+                ? errors.description
+                : "A short label for this rule"
+            }
             margin="normal"
             autoFocus
           />
@@ -675,7 +672,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
             onBlur={() => handleFormBlur("remotePrefix")}
             error={!!errors.remotePrefix && touched.remotePrefix}
             helperText={
-              touched.remotePrefix
+              touched.remotePrefix && errors.remotePrefix
                 ? errors.remotePrefix
                 : "Optional — IP network range (e.g., 10.0.0.0/8 for all 10.x.x.x addresses)"
             }
@@ -705,7 +702,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
                 placeholder="Search protocols..."
                 error={!!errors.protocol && touched.protocol}
                 helperText={
-                  touched.protocol
+                  touched.protocol && errors.protocol
                     ? errors.protocol
                     : "Optional \u2013 search or leave empty for any"
                 }
@@ -724,7 +721,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
               onBlur={() => handleFormBlur("portLow")}
               error={!!errors.portLow && touched.portLow}
               helperText={
-                touched.portLow
+                touched.portLow && errors.portLow
                   ? errors.portLow
                   : "Optional — applies to TCP/UDP only"
               }
@@ -740,7 +737,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
               onBlur={() => handleFormBlur("portHigh")}
               error={!!errors.portHigh && touched.portHigh}
               helperText={
-                touched.portHigh
+                touched.portHigh && errors.portHigh
                   ? errors.portHigh
                   : "Optional — applies to TCP/UDP only"
               }
@@ -761,14 +758,6 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
           </Button>
         </DialogActions>
       </Dialog>
-
-      <DeleteConfirmationModal
-        open={deleteConfirmOpen}
-        onClose={() => setDeleteConfirmOpen(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Delete Network Rule"
-        description="Are you sure you want to delete this network rule? This action cannot be undone."
-      />
     </>
   );
 };
