@@ -477,6 +477,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
                   sx={{
                     display: "flex",
                     alignItems: "center",
+                    overflow: "hidden",
                     py: 1,
                     px: 1.5,
                     backgroundColor:
