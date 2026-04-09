@@ -30,7 +30,7 @@ import {
   type PolicyRule,
 } from "@/queries/policies";
 import { useAuth } from "@/contexts/AuthContext";
-import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
+
 import * as yup from "yup";
 import { ValidationError } from "yup";
 import {
@@ -158,8 +158,6 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
 
   const [isFormDialogOpen, setFormDialogOpen] = useState(false);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
   const [formValues, setFormValues] = useState<FormValues>({
     description: "",
     action: "allow",
@@ -298,15 +296,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
   };
 
   const handleDeleteRule = (rule: InMemoryRule) => {
-    setSelectedRuleId(rule.tempId);
-    setDeleteConfirmOpen(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (selectedRuleId === null) return;
-    setRules((prev) => prev.filter((r) => r.tempId !== selectedRuleId));
-    setDeleteConfirmOpen(false);
-    setSelectedRuleId(null);
+    setRules((prev) => prev.filter((r) => r.tempId !== rule.tempId));
   };
 
   const handleFormChange = (field: keyof FormValues, value: string) => {
@@ -761,14 +751,6 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
           </Button>
         </DialogActions>
       </Dialog>
-
-      <DeleteConfirmationModal
-        open={deleteConfirmOpen}
-        onClose={() => setDeleteConfirmOpen(false)}
-        onConfirm={handleDeleteConfirm}
-        title="Delete Network Rule"
-        description="Are you sure you want to delete this network rule? This action cannot be undone."
-      />
     </>
   );
 };
