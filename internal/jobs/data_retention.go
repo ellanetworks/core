@@ -17,6 +17,13 @@ func RunDataRetentionWorker(ctx context.Context, database *db.Database) {
 	defer ticker.Stop()
 
 	for {
+		select {
+		case <-ctx.Done():
+			logger.EllaLog.Info("Data retention worker stopped")
+			return
+		case <-ticker.C:
+		}
+
 		if err := enforceAuditDataRetention(ctx, database); err != nil {
 			logger.EllaLog.Error("error enforcing audit log retention", zap.Error(err))
 		}
@@ -31,13 +38,6 @@ func RunDataRetentionWorker(ctx context.Context, database *db.Database) {
 
 		if err := enforceFlowReportsDataRetention(ctx, database); err != nil {
 			logger.EllaLog.Error("error enforcing flow reports retention", zap.Error(err))
-		}
-
-		select {
-		case <-ctx.Done():
-			logger.EllaLog.Info("Data retention worker stopped")
-			return
-		case <-ticker.C:
 		}
 	}
 }

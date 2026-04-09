@@ -97,15 +97,14 @@ func (pc *SessionEngine) deregisterPolicy(policyID int64, seid uint64) {
 	}
 }
 
-func (pc *SessionEngine) SetBPFObjects(bpfObjects *ebpf.BpfObjects, dbInstance *db.Database) {
+func (pc *SessionEngine) SetBPFObjects(ctx context.Context, bpfObjects *ebpf.BpfObjects, dbInstance *db.Database) {
 	pc.mu.Lock()
-	defer pc.mu.Unlock()
-
 	pc.BpfObjects = bpfObjects
+	pc.mu.Unlock()
 
 	if dbInstance != nil {
-		if err := pc.InitializeFiltersFromDB(dbInstance); err != nil {
-			logger.WithTrace(context.Background(), logger.DBLog).Warn(
+		if err := pc.InitializeFiltersFromDB(ctx, dbInstance); err != nil {
+			logger.WithTrace(ctx, logger.DBLog).Warn(
 				"failed to initialize filters from DB",
 				zap.Error(err),
 			)
@@ -113,9 +112,7 @@ func (pc *SessionEngine) SetBPFObjects(bpfObjects *ebpf.BpfObjects, dbInstance *
 	}
 }
 
-func (pc *SessionEngine) InitializeFiltersFromDB(dbInstance *db.Database) error {
-	ctx := context.Background()
-
+func (pc *SessionEngine) InitializeFiltersFromDB(ctx context.Context, dbInstance *db.Database) error {
 	policies, _, err := dbInstance.ListPoliciesPage(ctx, 1, 1000)
 	if err != nil {
 		logger.WithTrace(ctx, logger.DBLog).Error("failed to list policies", zap.Error(err))
