@@ -92,6 +92,22 @@ func addrToNetIP(a netip.Addr) net.IP {
 	return a.AsSlice()
 }
 
+// addrToVia converts a netip.Addr to a netlink.Via for netlink.
+func addrToVia(a netip.Addr) *netlink.Via {
+	if !a.IsValid() {
+		return nil
+	}
+
+    family := netlink.FAMILY_V4
+    if a.Is6() {
+        family = netlink.FAMILY_V6
+    }
+    return &netlink.Via{
+        AddrFamily: family,
+        Addr:       net.IP(a.AsSlice()),
+    }
+}
+
 // CreateRoute adds a route to the kernel for the interface defined by ifKey.
 func (rk *RealKernel) CreateRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error {
 	interfaceName, ok := rk.ifMapping[ifKey]
@@ -106,7 +122,7 @@ func (rk *RealKernel) CreateRoute(destination netip.Prefix, gateway netip.Addr, 
 
 	nlRoute := netlink.Route{
 		Dst:       prefixToIPNet(destination),
-		Gw:        addrToNetIP(gateway),
+		Via:       addrToVia(gateway),
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
 		Table:     unix.RT_TABLE_MAIN,
@@ -139,7 +155,7 @@ func (rk *RealKernel) DeleteRoute(destination netip.Prefix, gateway netip.Addr, 
 
 	nlRoute := netlink.Route{
 		Dst:       prefixToIPNet(destination),
-		Gw:        addrToNetIP(gateway),
+		Via:       addrToVia(gateway),
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
 		Table:     unix.RT_TABLE_MAIN,
@@ -169,7 +185,7 @@ func (rk *RealKernel) ReplaceRoute(destination netip.Prefix, gateway netip.Addr,
 
 	nlRoute := netlink.Route{
 		Dst:       prefixToIPNet(destination),
-		Gw:        addrToNetIP(gateway),
+		Via:       addrToVia(gateway),
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
 		Table:     unix.RT_TABLE_MAIN,
