@@ -639,7 +639,11 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
             onChange={(e) => handleFormChange("description", e.target.value)}
             onBlur={() => handleFormBlur("description")}
             error={!!errors.description && touched.description}
-            helperText={touched.description ? errors.description : ""}
+            helperText={
+              touched.description && errors.description
+                ? errors.description
+                : "A short label for this rule"
+            }
             margin="normal"
             autoFocus
           />
@@ -668,7 +672,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
             onBlur={() => handleFormBlur("remotePrefix")}
             error={!!errors.remotePrefix && touched.remotePrefix}
             helperText={
-              touched.remotePrefix
+              touched.remotePrefix && errors.remotePrefix
                 ? errors.remotePrefix
                 : "Optional — IP network range (e.g., 10.0.0.0/8 for all 10.x.x.x addresses)"
             }
@@ -698,7 +702,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
                 placeholder="Search protocols..."
                 error={!!errors.protocol && touched.protocol}
                 helperText={
-                  touched.protocol
+                  touched.protocol && errors.protocol
                     ? errors.protocol
                     : "Optional \u2013 search or leave empty for any"
                 }
@@ -717,7 +721,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
               onBlur={() => handleFormBlur("portLow")}
               error={!!errors.portLow && touched.portLow}
               helperText={
-                touched.portLow
+                touched.portLow && errors.portLow
                   ? errors.portLow
                   : "Optional — applies to TCP/UDP only"
               }
@@ -733,7 +737,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
               onBlur={() => handleFormBlur("portHigh")}
               error={!!errors.portHigh && touched.portHigh}
               helperText={
-                touched.portHigh
+                touched.portHigh && errors.portHigh
                   ? errors.portHigh
                   : "Optional — applies to TCP/UDP only"
               }
