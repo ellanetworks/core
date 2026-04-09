@@ -214,7 +214,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	// Initialize SDF filters from database
 	if eng != nil && dbInstance != nil {
-		eng.SetBPFObjects(eng.BpfObjects, dbInstance)
+		eng.SetBPFObjects(ctx, eng.BpfObjects, dbInstance)
 	}
 
 	// Wire supportbundle BPF dumper to dump live BPF maps from the UPF process.
