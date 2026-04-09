@@ -252,6 +252,7 @@ const PolicyDetail: React.FC = () => {
           >
             <Typography
               variant="body2"
+              noWrap
               sx={params.row.description ? {} : { color: "text.secondary" }}
             >
               {params.row.description || "—"}
