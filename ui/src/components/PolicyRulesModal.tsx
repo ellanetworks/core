@@ -90,7 +90,10 @@ interface FormValues {
 }
 
 const schema = yup.object().shape({
-  description: yup.string(),
+  description: yup
+    .string()
+    .required("Description is required")
+    .max(256, "Description must be 256 characters or fewer"),
   action: yup
     .string()
     .oneOf(["allow", "deny"], "Invalid action")
