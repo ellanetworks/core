@@ -44,7 +44,7 @@ const schema = yup.object().shape({
   address: yup
     .string()
     .required("Neighbor address is required")
-    .matches(ipv4Regex, "Must be a valid IPv4 address"),
+    .matches(ipRegex, "Must be a valid IP address"),
   remoteAS: yup
     .number()
     .required("Remote AS is required")
