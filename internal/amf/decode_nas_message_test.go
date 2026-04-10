@@ -15,9 +15,8 @@ import (
 )
 
 // newDecoderTestUE returns a UE in the "registered with valid security
-// context" state, attached to a fresh RanUe carrying the given
-// RRCEstablishmentCause.
-func newDecoderTestUE(t *testing.T, rrcCause string) *AmfUe {
+// context" state, attached to a fresh RanUe.
+func newDecoderTestUE(t *testing.T) *AmfUe {
 	t.Helper()
 
 	ue := NewAmfUe()
@@ -31,11 +30,10 @@ func newDecoderTestUE(t *testing.T, rrcCause string) *AmfUe {
 		Log:    zap.NewNop(),
 	}
 	ranUe := &RanUe{
-		Radio:                 radio,
-		RanUeNgapID:           1,
-		AmfUeNgapID:           1,
-		Log:                   zap.NewNop(),
-		RRCEstablishmentCause: rrcCause,
+		Radio:       radio,
+		RanUeNgapID: 1,
+		AmfUeNgapID: 1,
+		Log:         zap.NewNop(),
 	}
 	ue.AttachRanUe(ranUe)
 
@@ -163,34 +161,29 @@ func encodePlainRegistrationRequest(t *testing.T) []byte {
 }
 
 // TestDecodeNASMessage_PlainServiceRequestRejected verifies a plain
-// ServiceRequest is rejected for every value of RRCEstablishmentCause
-// (TS 24.501 §4.4.4.3).
+// ServiceRequest is rejected by the decoder (TS 24.501 §4.4.4.3).
 func TestDecodeNASMessage_PlainServiceRequestRejected(t *testing.T) {
-	for _, cause := range []string{"", "0", "1", "2", "3"} {
-		t.Run("RRCEstablishmentCause="+cause, func(t *testing.T) {
-			ue := newDecoderTestUE(t, cause)
-			payload := encodePlainServiceRequest(t)
+	ue := newDecoderTestUE(t)
+	payload := encodePlainServiceRequest(t)
 
-			msg, err := ue.DecodeNASMessage(payload)
-			if err == nil {
-				t.Fatalf("expected error, got msg=%v", msg)
-			}
+	msg, err := ue.DecodeNASMessage(payload)
+	if err == nil {
+		t.Fatalf("expected error, got msg=%v", msg)
+	}
 
-			if !strings.Contains(err.Error(), "not permitted by TS 24.501") {
-				t.Errorf("expected TS 24.501 §4.4.4.3 rejection, got: %v", err)
-			}
+	if !strings.Contains(err.Error(), "not permitted by TS 24.501") {
+		t.Errorf("expected TS 24.501 §4.4.4.3 rejection, got: %v", err)
+	}
 
-			if !ue.SecurityContextAvailable {
-				t.Error("decoder must NOT tear down SecurityContextAvailable on a hostile plain NAS message (DoS amplification)")
-			}
-		})
+	if !ue.SecurityContextAvailable {
+		t.Error("decoder must NOT tear down SecurityContextAvailable on a hostile plain NAS message (DoS amplification)")
 	}
 }
 
 // TestDecodeNASMessage_PlainULNasTransportRejected verifies a plain
 // ULNasTransport is rejected by the decoder.
 func TestDecodeNASMessage_PlainULNasTransportRejected(t *testing.T) {
-	ue := newDecoderTestUE(t, "0")
+	ue := newDecoderTestUE(t)
 	payload := encodePlainULNasTransport(t)
 
 	msg, err := ue.DecodeNASMessage(payload)
@@ -211,7 +204,7 @@ func TestDecodeNASMessage_PlainULNasTransportRejected(t *testing.T) {
 // decoder accepts a plain RegistrationRequest from a fresh UE and marks
 // it MacFailed.
 func TestDecodeNASMessage_PlainRegistrationRequest_Bootstrap(t *testing.T) {
-	ue := newDecoderTestUE(t, "1")
+	ue := newDecoderTestUE(t)
 	ue.SecurityContextAvailable = false // fresh UE
 	payload := encodePlainRegistrationRequest(t)
 
@@ -238,7 +231,7 @@ func TestDecodeNASMessage_PlainRegistrationRequest_Bootstrap(t *testing.T) {
 // still has a stored security context, marks it MacFailed, and leaves
 // the security context for the handler to clear.
 func TestDecodeNASMessage_PlainRegistrationRequest_WithExistingContext(t *testing.T) {
-	ue := newDecoderTestUE(t, "1")
+	ue := newDecoderTestUE(t)
 	payload := encodePlainRegistrationRequest(t)
 
 	msg, err := ue.DecodeNASMessage(payload)
@@ -263,7 +256,7 @@ func TestDecodeNASMessage_PlainRegistrationRequest_WithExistingContext(t *testin
 // a plain DeregistrationRequest is accepted by the decoder (it is on the
 // §4.4.4.3 whitelist).
 func TestDecodeNASMessage_PlainDeregistrationRequest_PassesDecoder(t *testing.T) {
-	ue := newDecoderTestUE(t, "0")
+	ue := newDecoderTestUE(t)
 	payload := encodePlainDeregistrationRequest(t)
 
 	msg, err := ue.DecodeNASMessage(payload)
@@ -281,36 +274,5 @@ func TestDecodeNASMessage_PlainDeregistrationRequest_PassesDecoder(t *testing.T)
 
 	if !ue.SecurityContextAvailable {
 		t.Error("decoder must NOT clear SecurityContextAvailable")
-	}
-}
-
-// TestDecodeNASMessage_PlainNasIgnoresRRCEstablishmentCause verifies the
-// decoder produces identical behaviour for every value of
-// RRCEstablishmentCause.
-func TestDecodeNASMessage_PlainNasIgnoresRRCEstablishmentCause(t *testing.T) {
-	results := make(map[string]string)
-
-	for _, cause := range []string{"", "0", "1", "2", "3", "4", "5", "6", "7"} {
-		ue := newDecoderTestUE(t, cause)
-
-		_, err := ue.DecodeNASMessage(encodePlainServiceRequest(t))
-		if err == nil {
-			t.Errorf("RRCEstablishmentCause=%q: expected error, got nil", cause)
-			continue
-		}
-
-		results[cause] = err.Error()
-	}
-
-	first := ""
-	for _, msg := range results {
-		if first == "" {
-			first = msg
-			continue
-		}
-
-		if msg != first {
-			t.Fatalf("decoder behaviour varies with RRCEstablishmentCause: %v", results)
-		}
 	}
 }
