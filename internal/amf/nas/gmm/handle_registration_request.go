@@ -13,6 +13,7 @@ import (
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
+	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/nas/security"
 	"go.uber.org/zap"
 )
@@ -198,10 +199,48 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	}
 
 	if registrationRequest.UESecurityCapability != nil {
-		ue.UESecurityCapability = registrationRequest.UESecurityCapability
+		acceptRegistrationUESecurityCapability(ue, registrationRequest.UESecurityCapability)
 	}
 
 	return nil
+}
+
+// acceptRegistrationUESecurityCapability applies the received UE Security
+// Capability to the stored AmfUe state, enforcing TS 33.501 §6.7.3.1
+// downgrade protection. Initial and Emergency Registration overwrite the
+// stored value (they mint an AuthProof); Mobility and Periodic
+// Registration Update keep the existing stored value on match and log
+// any mismatch. When no stored value exists at all (first observation
+// in a Mobility/Periodic update), the received caps are adopted through
+// the same audited write path, with downgrade protection deferred to
+// the SMC replay check.
+func acceptRegistrationUESecurityCapability(ue *amf.AmfUe, received *nasType.UESecurityCapability) {
+	switch ue.RegistrationType5GS {
+	case nasMessage.RegistrationType5GSInitialRegistration,
+		nasMessage.RegistrationType5GSEmergencyRegistration:
+		ue.SetUESecurityCapability(received, amf.MintAuthProofForRegistrationRequest())
+		return
+	}
+
+	// Mobility / Periodic Registration Update: read-only path by default.
+	switch ue.VerifyUESecurityCapability(received) {
+	case amf.VerifyMatch:
+		return
+	case amf.VerifyNoStoredValue:
+		// No stored value to protect. Route through the same audited
+		// setter as Initial Registration so every write to
+		// UESecurityCapability is grep-findable via SetUESecurityCapability.
+		// Downgrade protection relies on the SMC replay check per
+		// TS 33.501 §6.7.3.1.
+		ue.SetUESecurityCapability(received, amf.MintAuthProofForRegistrationRequest())
+	case amf.VerifyMismatch:
+		ue.Log.Warn(
+			"UE security capabilities in Mobility/Periodic Registration differ from stored values; ignoring received values (TS 33.501 §6.7.3.1)",
+			zap.String("registrationType", getRegistrationType5GSName(ue.RegistrationType5GS)),
+			zap.Binary("stored", ue.UESecurityCapability.Buffer),
+			zap.Binary("received", received.Buffer),
+		)
+	}
 }
 
 func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nas.GmmMessage) error {

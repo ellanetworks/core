@@ -5,6 +5,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -118,21 +119,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 		return
 	}
 
-	if uESecurityCapabilities != nil {
-		if len(uESecurityCapabilities.NRencryptionAlgorithms.Value.Bytes) == 0 ||
-			len(uESecurityCapabilities.NRintegrityProtectionAlgorithms.Value.Bytes) == 0 {
-			logger.WithTrace(ctx, ranUe.Log).Error("UE security capabilities have empty NR algorithm bitstrings")
-			return
-		}
-
-		amfUe.UESecurityCapability.SetEA1_128_5G((uESecurityCapabilities.NRencryptionAlgorithms.Value.Bytes[0] & 0x80) >> 7)
-		amfUe.UESecurityCapability.SetEA2_128_5G((uESecurityCapabilities.NRencryptionAlgorithms.Value.Bytes[0] & 0x40) >> 6)
-		amfUe.UESecurityCapability.SetEA3_128_5G((uESecurityCapabilities.NRencryptionAlgorithms.Value.Bytes[0] & 0x20) >> 5)
-		amfUe.UESecurityCapability.SetIA1_128_5G((uESecurityCapabilities.NRintegrityProtectionAlgorithms.Value.Bytes[0] & 0x80) >> 7)
-		amfUe.UESecurityCapability.SetIA2_128_5G((uESecurityCapabilities.NRintegrityProtectionAlgorithms.Value.Bytes[0] & 0x40) >> 6)
-		amfUe.UESecurityCapability.SetIA3_128_5G((uESecurityCapabilities.NRintegrityProtectionAlgorithms.Value.Bytes[0] & 0x20) >> 5)
-		// not support any E-UTRA algorithms
-	}
+	verifyUESecurityCapabilitiesOnPathSwitch(ctx, ranUe, amfUe, uESecurityCapabilities)
 
 	ranUe.RanUeNgapID = rANUENGAPID.Value
 
@@ -245,4 +232,73 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 		logger.WithTrace(ctx, ranUe.Log).Info("sent path switch request failure")
 	}
+}
+
+// verifyUESecurityCapabilitiesOnPathSwitch compares the UE 5G security
+// capabilities reported by the target gNB against the AMF's stored
+// values via the VerifyUESecurityCapability accessor and logs any
+// mismatch (TS 33.501 §6.7.3.1). It never mutates amfUe — stored values
+// are preserved by construction because the handler has no AuthProof.
+func verifyUESecurityCapabilitiesOnPathSwitch(
+	ctx context.Context,
+	ranUe *amf.RanUe,
+	amfUe *amf.AmfUe,
+	received *ngapType.UESecurityCapabilities,
+) {
+	if received == nil {
+		return
+	}
+
+	if len(received.NRencryptionAlgorithms.Value.Bytes) == 0 ||
+		len(received.NRintegrityProtectionAlgorithms.Value.Bytes) == 0 {
+		logger.WithTrace(ctx, ranUe.Log).Warn(
+			"UE security capabilities from target gNB have empty NR algorithm bitstrings; ignoring and using locally stored values",
+		)
+
+		return
+	}
+
+	reported := ngapToNasUESecurityCapability(received)
+
+	switch amfUe.VerifyUESecurityCapability(reported) {
+	case amf.VerifyMatch:
+		return
+	case amf.VerifyNoStoredValue:
+		logger.WithTrace(ctx, ranUe.Log).Warn(
+			"received UE security capabilities in PathSwitchRequest but AMF has no stored capabilities for this UE",
+		)
+
+		return
+	case amf.VerifyMismatch:
+		logger.WithTrace(ctx, ranUe.Log).Warn(
+			"UE 5G security capabilities reported by target gNB differ from locally stored values; ignoring received values (TS 33.501 §6.7.3.1)",
+			zap.Binary("stored", amfUe.UESecurityCapability.Buffer),
+			zap.Binary("received", reported.Buffer),
+		)
+	}
+}
+
+// ngapToNasUESecurityCapability converts the NGAP UESecurityCapabilities
+// IE to the NAS UESecurityCapability type the AMF stores internally,
+// using the common "first byte only" encoding (EA/IA 1..3 + EIA0).
+//
+// E-UTRA (EEA/EIA) bits carried by the NGAP IE are intentionally
+// dropped: this AMF does not negotiate E-UTRA algorithms with the UE,
+// so the verify path compares only the 5G NR columns. This matches the
+// legacy behaviour of the pre-refactor handler.
+func ngapToNasUESecurityCapability(received *ngapType.UESecurityCapabilities) *nasType.UESecurityCapability {
+	out := &nasType.UESecurityCapability{}
+	out.SetLen(2)
+
+	encByte := received.NRencryptionAlgorithms.Value.Bytes[0]
+	intByte := received.NRintegrityProtectionAlgorithms.Value.Bytes[0]
+
+	out.SetEA1_128_5G((encByte & 0x80) >> 7)
+	out.SetEA2_128_5G((encByte & 0x40) >> 6)
+	out.SetEA3_128_5G((encByte & 0x20) >> 5)
+	out.SetIA1_128_5G((intByte & 0x80) >> 7)
+	out.SetIA2_128_5G((intByte & 0x40) >> 6)
+	out.SetIA3_128_5G((intByte & 0x20) >> 5)
+
+	return out
 }

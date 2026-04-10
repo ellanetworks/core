@@ -50,10 +50,12 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu 
 		amfUe.AttachRanUe(ue)
 	}
 
-	msg, err := ue.AmfUe().DecodeNASMessage(nasPdu)
+	result, err := amf.DecodeNASMessage(ue.AmfUe(), nasPdu)
 	if err != nil {
 		return fmt.Errorf("error decoding NAS message: %v", err)
 	}
+
+	msg := result.Message
 
 	if msg.GmmMessage == nil {
 		return errors.New("gmm message is nil")
@@ -61,6 +63,18 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu 
 
 	if msg.GsmMessage != nil {
 		return errors.New("gsm message is not nil")
+	}
+
+	// Handlers are the only site that may mutate security-state flags.
+	// Set MacFailed according to the decoder's verdict.
+	switch result.Verdict {
+	case amf.VerdictIntegrityVerified:
+		ue.AmfUe().MacFailed = false
+	case amf.VerdictPlainAllowed, amf.VerdictMacFailedAllowed:
+		ue.AmfUe().MacFailed = true
+	case amf.VerdictReject:
+		// Unreachable: DecodeNASMessage returns an error for VerdictReject.
+		return fmt.Errorf("nas pdu rejected by classifier")
 	}
 
 	msgTypeName := messageName(msg.GmmHeader.GetMessageType())

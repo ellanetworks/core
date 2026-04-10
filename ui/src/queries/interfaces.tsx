@@ -6,7 +6,7 @@ export type VlanInfo = {
 };
 
 export type InterfacesInfo = {
-  n2?: { address?: string; port?: number };
+  n2?: { addresses?: string[]; port?: number; interface?: string };
   n3?: {
     name?: string;
     address?: string;
@@ -14,7 +14,7 @@ export type InterfacesInfo = {
     vlan?: VlanInfo;
   };
   n6?: { name?: string; vlan?: VlanInfo };
-  api?: { address?: string; port?: number };
+  api?: { addresses?: string[]; port?: number };
 };
 
 export const getInterfaces = async (

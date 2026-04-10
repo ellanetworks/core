@@ -3,6 +3,7 @@ package gmm
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
@@ -171,6 +172,47 @@ func TestHandleDeregistrationRequest_SwitchOff_NoDeregistrationAccept(t *testing
 
 	if len(ngapSender.SentUEContextReleaseCommand) != 1 {
 		t.Fatal("should have sent a UE Context Release Command message")
+	}
+}
+
+// TestHandleDeregistrationRequest_MacFailed_RejectsForgery verifies the
+// handler rejects a MacFailed Deregistration Request while the AMF still
+// holds a valid security context (TS 24.501 §4.4.4.3 defense in depth).
+func TestHandleDeregistrationRequest_MacFailed_RejectsForgery(t *testing.T) {
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build test ue: %v", err)
+	}
+
+	ue.ForceState(amf.Registered)
+	ue.SecurityContextAvailable = true
+	ue.MacFailed = true
+
+	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
+
+	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration)
+	if err == nil {
+		t.Fatal("expected handler to reject unauthenticated deregistration, got nil error")
+	}
+
+	if !strings.Contains(err.Error(), "rejecting unauthenticated Deregistration Request") {
+		t.Fatalf("expected rejection error, got: %v", err)
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 0 {
+		t.Fatal("must not send Deregistration Accept on a forged request")
+	}
+
+	if len(ngapSender.SentUEContextReleaseCommand) != 0 {
+		t.Fatal("must not release UE context on a forged request")
+	}
+
+	if ue.GetState() != amf.Registered {
+		t.Fatalf("UE must remain Registered after rejecting forgery, got %s", ue.GetState())
+	}
+
+	if !ue.SecurityContextAvailable {
+		t.Error("handler must not tear down SecurityContextAvailable on a forged request")
 	}
 }
 

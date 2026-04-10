@@ -12,8 +12,9 @@ import (
 )
 
 type N2Interface struct {
-	Address string `json:"address"`
-	Port    int    `json:"port"`
+	Addresses []string `json:"addresses"`
+	Port      int      `json:"port"`
+	Interface string   `json:"interface,omitempty"`
 }
 
 type N3Interface struct {
@@ -34,8 +35,8 @@ type N6Interface struct {
 }
 
 type APIInterface struct {
-	Address string `json:"address"`
-	Port    int    `json:"port"`
+	Addresses []string `json:"addresses"`
+	Port      int      `json:"port"`
 }
 
 type NetworkInterfaces struct {
@@ -61,10 +62,39 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 			return
 		}
 
+		var apiAddresses []string
+
+		if cfg.Interfaces.API.Name != "" {
+			ips, err := config.GetInterfaceIPs(cfg.Interfaces.API.Name)
+			if err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get API interface IPs", err, logger.APILog)
+				return
+			}
+
+			apiAddresses = ips
+		} else if cfg.Interfaces.API.Address != "" {
+			apiAddresses = []string{cfg.Interfaces.API.Address}
+		}
+
+		var n2Addresses []string
+
+		if cfg.Interfaces.N2.Name != "" {
+			ips, err := config.GetInterfaceIPs(cfg.Interfaces.N2.Name)
+			if err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get N2 interface IPs", err, logger.APILog)
+				return
+			}
+
+			n2Addresses = ips
+		} else if cfg.Interfaces.N2.Address != "" {
+			n2Addresses = []string{cfg.Interfaces.N2.Address}
+		}
+
 		resp := &NetworkInterfaces{
 			N2: N2Interface{
-				Address: cfg.Interfaces.N2.Address,
-				Port:    cfg.Interfaces.N2.Port,
+				Addresses: n2Addresses,
+				Port:      cfg.Interfaces.N2.Port,
+				Interface: cfg.Interfaces.N2.Name,
 			},
 			N3: N3Interface{
 				Name:            cfg.Interfaces.N3.Name,
@@ -75,8 +105,8 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 				Name: cfg.Interfaces.N6.Name,
 			},
 			API: APIInterface{
-				Address: cfg.Interfaces.API.Address,
-				Port:    cfg.Interfaces.API.Port,
+				Addresses: apiAddresses,
+				Port:      cfg.Interfaces.API.Port,
 			},
 		}
 

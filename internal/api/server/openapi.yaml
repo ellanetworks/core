@@ -4311,11 +4311,13 @@ components:
     APIInterface:
       type: object
       properties:
-        address:
-          type: string
+        addresses:
+          type: array
+          items:
+            type: string
         port:
           type: integer
-      required: [address, port]
+      required: [addresses, port]
 
     NetworkInterfaces:
       type: object

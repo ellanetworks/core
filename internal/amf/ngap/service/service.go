@@ -14,6 +14,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"syscall"
 
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
@@ -54,26 +55,61 @@ func NewServer(cb Callbacks) *Server {
 	return &Server{cb: cb}
 }
 
-func (s *Server) ListenAndServe(ctx context.Context, address string, port int) error {
-	netAddr, err := net.ResolveIPAddr("ip", address)
-	if err != nil {
-		return fmt.Errorf("error resolving address '%s': %v", address, err)
+func (s *Server) ListenAndServe(ctx context.Context, address string, port int, interfaceName string) error {
+	var (
+		laddr   *sctp.SCTPAddr
+		addrStr string
+	)
+
+	if interfaceName != "" {
+		laddr = &sctp.SCTPAddr{
+			Port: port,
+		}
+		addrStr = fmt.Sprintf(":%d", port)
+	} else {
+		netAddr, err := net.ResolveIPAddr("ip", address)
+		if err != nil {
+			return fmt.Errorf("error resolving address '%s': %v", address, err)
+		}
+
+		laddr = &sctp.SCTPAddr{
+			IPAddrs: []net.IPAddr{*netAddr},
+			Port:    port,
+		}
+		addrStr = laddr.String()
 	}
 
-	addr := &sctp.SCTPAddr{
-		IPAddrs: []net.IPAddr{*netAddr},
-		Port:    port,
+	var control func(network, address string, c syscall.RawConn) error
+	if interfaceName != "" {
+		control = func(network, address string, c syscall.RawConn) error {
+			var setSockOptErr error
+
+			if err := c.Control(func(fd uintptr) {
+				setSockOptErr = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, interfaceName)
+			}); err != nil {
+				return err
+			}
+
+			return setSockOptErr
+		}
 	}
 
-	listener, err := sctpConfig.Listen("sctp", addr)
+	sctpConfig.Control = control
+
+	listener, err := sctpConfig.Listen("sctp", laddr)
 	if err != nil {
-		return fmt.Errorf("failed to listen on %s: %v", addr, err)
+		return fmt.Errorf("failed to listen on %s: %v", addrStr, err)
 	}
 
 	s.listener = listener
 	s.acceptDone = make(chan struct{}) // fresh channel each call for restart-safety
 
-	logger.AmfLog.Info("NGAP server started", zap.String("address", addr.String()))
+	logFields := []zap.Field{zap.String("address", addrStr)}
+	if interfaceName != "" {
+		logFields = append(logFields, zap.String("interface", interfaceName))
+	}
+
+	logger.AmfLog.Info("NGAP server started", logFields...)
 
 	go s.acceptLoop(ctx)
 

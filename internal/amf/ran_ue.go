@@ -51,7 +51,6 @@ type RanUe struct {
 	amfUe                            *AmfUe
 	Radio                            *Radio
 	ReleaseAction                    RelAction
-	RRCEstablishmentCause            string // Received from initial ue message; pattern: ^[0-9a-fA-F]+$
 	UeContextRequest                 bool
 	SentInitialContextSetupRequest   bool
 	RecvdInitialContextSetupResponse bool /*Received Initial context setup response or not */
