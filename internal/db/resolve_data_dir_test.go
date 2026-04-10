@@ -22,49 +22,29 @@ func seedLegacyV8(t *testing.T, path string) {
 		t.Fatalf("failed to open seed legacy db: %v", err)
 	}
 
-	if err := runLegacyMigrations(ctx, conn); err != nil {
+	if migrErr := runLegacyMigrations(ctx, conn); migrErr != nil {
 		_ = conn.Close()
-		t.Fatalf("failed to run legacy migrations: %v", err)
+
+		t.Fatalf("failed to run legacy migrations: %v", migrErr)
 	}
 
 	// Seed a couple of rows so the row-count check is non-trivial.
-	if _, err := conn.ExecContext(ctx,
-		"INSERT INTO data_networks (id, name, ipPool, dns, mtu) VALUES (1, 'internet', '10.0.0.0/24', '8.8.8.8', 1500)",
-	); err != nil {
-		_ = conn.Close()
-		t.Fatalf("failed to insert data network: %v", err)
+	exec := func(stmt string) {
+		if _, execErr := conn.ExecContext(ctx, stmt); execErr != nil {
+			_ = conn.Close()
+
+			t.Fatalf("seed failed: %s\n%v", stmt, execErr)
+		}
 	}
 
-	if _, err := conn.ExecContext(ctx,
-		"INSERT INTO network_slices (id, sst, sd, name) VALUES (1, 1, NULL, 'default')",
-	); err != nil {
-		_ = conn.Close()
-		t.Fatalf("failed to insert network slice: %v", err)
-	}
-
-	if _, err := conn.ExecContext(ctx,
-		"INSERT INTO profiles (id, name, ueAmbrUplink, ueAmbrDownlink) VALUES (1, 'default', '200 Mbps', '200 Mbps')",
-	); err != nil {
-		_ = conn.Close()
-		t.Fatalf("failed to insert profile: %v", err)
-	}
-
-	if _, err := conn.ExecContext(ctx,
-		"INSERT INTO policies (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink) "+
-			"VALUES (1, 'default', 1, 1, 1, 9, 1, '200 Mbps', '200 Mbps')",
-	); err != nil {
-		_ = conn.Close()
-		t.Fatalf("failed to insert policy: %v", err)
-	}
-
-	if _, err := conn.ExecContext(ctx,
-		"INSERT INTO subscribers (id, imsi, sequenceNumber, permanentKey, opc, profileID) "+
-			"VALUES (1, '001010000000001', '000000000001', '"+
-			"00000000000000000000000000000001', '00000000000000000000000000000002', 1)",
-	); err != nil {
-		_ = conn.Close()
-		t.Fatalf("failed to insert subscriber: %v", err)
-	}
+	exec("INSERT INTO data_networks (id, name, ipPool, dns, mtu) VALUES (1, 'internet', '10.0.0.0/24', '8.8.8.8', 1500)")
+	exec("INSERT INTO network_slices (id, sst, sd, name) VALUES (1, 1, NULL, 'default')")
+	exec("INSERT INTO profiles (id, name, ueAmbrUplink, ueAmbrDownlink) VALUES (1, 'default', '200 Mbps', '200 Mbps')")
+	exec("INSERT INTO policies (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink) " +
+		"VALUES (1, 'default', 1, 1, 1, 9, 1, '200 Mbps', '200 Mbps')")
+	exec("INSERT INTO subscribers (id, imsi, sequenceNumber, permanentKey, opc, profileID) " +
+		"VALUES (1, '001010000000001', '000000000001', " +
+		"'00000000000000000000000000000001', '00000000000000000000000000000002', 1)")
 
 	if err := conn.Close(); err != nil {
 		t.Fatalf("failed to close seed legacy db: %v", err)

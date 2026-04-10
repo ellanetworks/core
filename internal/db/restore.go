@@ -53,14 +53,14 @@ func validateSQLiteFile(ctx context.Context, path string) error {
 	return nil
 }
 
-// extractBackupArchive reads a backup tar.gz from r, writes shared.db,
-// local.db, and manifest.json into destDir, and returns the parsed manifest.
-// Unknown members, missing required members, oversize files, and path
-// traversal attempts are rejected.
-func extractBackupArchive(r io.Reader, destDir string) (*BackupManifest, error) {
+// extractBackupArchive reads a backup tar.gz from r and writes shared.db and
+// local.db into destDir. The manifest is parsed and validated but not
+// returned. Unknown members, missing required members, oversize files,
+// duplicate entries, and path traversal attempts are rejected.
+func extractBackupArchive(r io.Reader, destDir string) error {
 	gzReader, err := gzip.NewReader(r)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open gzip stream: %w", err)
+		return fmt.Errorf("failed to open gzip stream: %w", err)
 	}
 
 	defer func() { _ = gzReader.Close() }()
@@ -68,7 +68,7 @@ func extractBackupArchive(r io.Reader, destDir string) (*BackupManifest, error) 
 	tarReader := tar.NewReader(gzReader)
 
 	var (
-		manifest            *BackupManifest
+		sawManifest         bool
 		sawShared, sawLocal bool
 		totalExtracted      int64
 	)
@@ -80,90 +80,90 @@ func extractBackupArchive(r io.Reader, destDir string) (*BackupManifest, error) 
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to read tar entry: %w", err)
+			return fmt.Errorf("failed to read tar entry: %w", err)
 		}
 
 		if hdr.Typeflag != tar.TypeReg {
-			return nil, fmt.Errorf("unexpected tar entry type %d for %q", hdr.Typeflag, hdr.Name)
+			return fmt.Errorf("unexpected tar entry type %d for %q", hdr.Typeflag, hdr.Name)
 		}
 
 		// Reject path traversal: only bare filenames are allowed.
 		if filepath.Base(hdr.Name) != hdr.Name || hdr.Name == "" || hdr.Name == "." || hdr.Name == ".." {
-			return nil, fmt.Errorf("invalid tar entry name %q", hdr.Name)
+			return fmt.Errorf("invalid tar entry name %q", hdr.Name)
 		}
 
 		if hdr.Size < 0 || hdr.Size > maxBackupMemberSize {
-			return nil, fmt.Errorf("tar entry %q has invalid size %d", hdr.Name, hdr.Size)
+			return fmt.Errorf("tar entry %q has invalid size %d", hdr.Name, hdr.Size)
 		}
 
 		if totalExtracted+hdr.Size > maxBackupTotalSize {
-			return nil, fmt.Errorf("tar entry %q would exceed total extracted budget of %d bytes", hdr.Name, maxBackupTotalSize)
+			return fmt.Errorf("tar entry %q would exceed total extracted budget of %d bytes", hdr.Name, maxBackupTotalSize)
 		}
 
 		totalExtracted += hdr.Size
 
 		switch hdr.Name {
 		case manifestArchiveName:
-			if manifest != nil {
-				return nil, fmt.Errorf("duplicate tar entry %q", hdr.Name)
+			if sawManifest {
+				return fmt.Errorf("duplicate tar entry %q", hdr.Name)
 			}
 
 			data, err := io.ReadAll(io.LimitReader(tarReader, maxBackupMemberSize))
 			if err != nil {
-				return nil, fmt.Errorf("failed to read manifest: %w", err)
+				return fmt.Errorf("failed to read manifest: %w", err)
 			}
 
 			var m BackupManifest
 			if err := json.Unmarshal(data, &m); err != nil {
-				return nil, fmt.Errorf("failed to decode manifest: %w", err)
+				return fmt.Errorf("failed to decode manifest: %w", err)
 			}
 
 			if m.Version != BackupManifestVersion {
-				return nil, fmt.Errorf("unsupported backup manifest version %d (expected %d)", m.Version, BackupManifestVersion)
+				return fmt.Errorf("unsupported backup manifest version %d (expected %d)", m.Version, BackupManifestVersion)
 			}
 
-			manifest = &m
+			sawManifest = true
 
 		case SharedDBFilename:
 			if sawShared {
-				return nil, fmt.Errorf("duplicate tar entry %q", hdr.Name)
+				return fmt.Errorf("duplicate tar entry %q", hdr.Name)
 			}
 
 			if err := writeArchiveMember(filepath.Join(destDir, SharedDBFilename), tarReader, hdr.Size); err != nil {
-				return nil, fmt.Errorf("failed to write shared.db: %w", err)
+				return fmt.Errorf("failed to write shared.db: %w", err)
 			}
 
 			sawShared = true
 
 		case LocalDBFilename:
 			if sawLocal {
-				return nil, fmt.Errorf("duplicate tar entry %q", hdr.Name)
+				return fmt.Errorf("duplicate tar entry %q", hdr.Name)
 			}
 
 			if err := writeArchiveMember(filepath.Join(destDir, LocalDBFilename), tarReader, hdr.Size); err != nil {
-				return nil, fmt.Errorf("failed to write local.db: %w", err)
+				return fmt.Errorf("failed to write local.db: %w", err)
 			}
 
 			sawLocal = true
 
 		default:
-			return nil, fmt.Errorf("unexpected backup member %q", hdr.Name)
+			return fmt.Errorf("unexpected backup member %q", hdr.Name)
 		}
 	}
 
-	if manifest == nil {
-		return nil, errors.New("backup is missing manifest.json")
+	if !sawManifest {
+		return errors.New("backup is missing manifest.json")
 	}
 
 	if !sawShared {
-		return nil, fmt.Errorf("backup is missing %s", SharedDBFilename)
+		return fmt.Errorf("backup is missing %s", SharedDBFilename)
 	}
 
 	if !sawLocal {
-		return nil, fmt.Errorf("backup is missing %s", LocalDBFilename)
+		return fmt.Errorf("backup is missing %s", LocalDBFilename)
 	}
 
-	return manifest, nil
+	return nil
 }
 
 func writeArchiveMember(destPath string, src io.Reader, size int64) error {
@@ -300,7 +300,7 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 
 	defer func() { _ = os.RemoveAll(stageDir) }()
 
-	if _, err := extractBackupArchive(backupFile, stageDir); err != nil {
+	if err := extractBackupArchive(backupFile, stageDir); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidBackupFile, err)
 	}
 
