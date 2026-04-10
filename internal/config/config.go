@@ -113,12 +113,29 @@ type TelemetryYaml struct {
 	OTLPEndpoint string `yaml:"otlp-endpoint"`
 }
 
+type ClusterYaml struct {
+	Enabled bool `yaml:"enabled"`
+	// Phase 2 fields (node-id, bind-address, peers) are intentionally
+	// NOT modeled. They are detected and rejected via the strict-reject
+	// validator in validateClusterSection — silently accepting Phase-2
+	// shaped config while none of it is honored is a footgun.
+}
+
 type ConfigYAML struct {
 	Logging    LoggingYaml    `yaml:"logging"`
 	DB         DBYaml         `yaml:"db"`
 	Interfaces InterfacesYaml `yaml:"interfaces"`
 	XDP        XDPYaml        `yaml:"xdp"`
 	Telemetry  TelemetryYaml  `yaml:"telemetry"`
+	Cluster    ClusterYaml    `yaml:"cluster"`
+}
+
+// allowedClusterFields enumerates the keys permitted under the `cluster:`
+// section in Phase 1. Adding a key here without backing implementation will
+// silently accept Phase-2 config — see the strict-reject contract in
+// spec_ha.md §8.
+var allowedClusterFields = map[string]struct{}{
+	"enabled": {},
 }
 
 type N2Interface struct {
@@ -177,12 +194,20 @@ type Telemetry struct {
 	OTLPEndpoint string // e.g., "otel-collector.default.svc:4317"
 }
 
+type Cluster struct {
+	// Enabled mirrors cluster.enabled in YAML. In Phase 1 the validator
+	// rejects `enabled: true` outright; this field is reserved for the
+	// Phase 2 Raft wiring.
+	Enabled bool
+}
+
 type Config struct {
 	Logging    Logging
 	DB         DB
 	Interfaces Interfaces
 	XDP        XDP
 	Telemetry  Telemetry
+	Cluster    Cluster
 }
 
 type VlanConfig struct {
@@ -339,6 +364,16 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, errors.New("telemetry.otlp-endpoint is empty when telemetry.enabled is true")
 	}
 
+	if err := validateClusterSection(configYaml); err != nil {
+		return Config{}, err
+	}
+
+	if c.Cluster.Enabled {
+		return Config{}, errors.New("cluster.enabled requires Phase 2 (HA not yet implemented)")
+	}
+
+	config.Cluster.Enabled = c.Cluster.Enabled
+
 	config.Logging.SystemLogging.Level = c.Logging.SystemLogging.Level
 	config.Logging.SystemLogging.Output = c.Logging.SystemLogging.Output
 	config.Logging.SystemLogging.Path = c.Logging.SystemLogging.Path
@@ -369,6 +404,40 @@ func Validate(filePath string) (Config, error) {
 	config.Telemetry.Enabled = c.Telemetry.Enabled
 
 	return config, nil
+}
+
+// validateClusterSection performs the Phase 1 strict-reject check on the
+// `cluster:` block: any key that is not in allowedClusterFields is rejected
+// as `unknown configuration field`. The cluster section may legitimately be
+// absent (standalone deployments) or contain only `enabled: false`.
+//
+// Implemented by re-parsing the YAML into a generic structure so we can see
+// the actual user-supplied keys, not just the typed ClusterYaml mapping
+// (which silently drops unknown fields).
+func validateClusterSection(rawYaml []byte) error {
+	var raw struct {
+		Cluster yaml.MapSlice `yaml:"cluster"`
+	}
+
+	if err := yaml.Unmarshal(rawYaml, &raw); err != nil {
+		// The main unmarshal already validated overall structure; if this
+		// secondary parse fails the file is unusable. Surface as a generic
+		// error.
+		return fmt.Errorf("cannot parse cluster section: %w", err)
+	}
+
+	for _, item := range raw.Cluster {
+		key, ok := item.Key.(string)
+		if !ok {
+			return fmt.Errorf("cluster: unknown configuration field %v", item.Key)
+		}
+
+		if _, allowed := allowedClusterFields[key]; !allowed {
+			return fmt.Errorf("cluster.%s: unknown configuration field", key)
+		}
+	}
+
+	return nil
 }
 
 func getInterfaceNameAndAddress(interfaceName string, address string, family AddressFamily) (string, string, error) {

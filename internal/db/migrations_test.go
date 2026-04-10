@@ -92,6 +92,14 @@ func allIndexNames(t *testing.T, db *sql.DB) []string {
 	return names
 }
 
+func legacyLatestVersion() int {
+	if len(legacyMigrations) == 0 {
+		return 0
+	}
+
+	return legacyMigrations[len(legacyMigrations)-1].version
+}
+
 func schemaVersion(t *testing.T, db *sql.DB) int {
 	t.Helper()
 
@@ -108,11 +116,11 @@ func schemaVersion(t *testing.T, db *sql.DB) int {
 }
 
 func TestMigrationRegistryInvariants(t *testing.T) {
-	if len(migrations) == 0 {
-		t.Fatal("migrations slice is empty")
+	if len(legacyMigrations) == 0 {
+		t.Fatal("legacyMigrations slice is empty")
 	}
 
-	for i, m := range migrations {
+	for i, m := range legacyMigrations {
 		if m.version != i+1 {
 			t.Errorf("migration at index %d has version %d, expected %d", i, m.version, i+1)
 		}
@@ -131,13 +139,13 @@ func TestRunMigrations_FreshDatabase(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 
-	if err := RunMigrations(ctx, db); err != nil {
-		t.Fatalf("RunMigrations failed: %v", err)
+	if err := runLegacyMigrations(ctx, db); err != nil {
+		t.Fatalf("runLegacyMigrations failed: %v", err)
 	}
 
 	got := schemaVersion(t, db)
 
-	want := latestVersion()
+	want := legacyLatestVersion()
 	if got != want {
 		t.Errorf("schema version = %d, want %d", got, want)
 	}
@@ -184,15 +192,15 @@ func TestRunMigrations_Idempotent(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 
-	if err := RunMigrations(ctx, db); err != nil {
-		t.Fatalf("first RunMigrations failed: %v", err)
+	if err := runLegacyMigrations(ctx, db); err != nil {
+		t.Fatalf("first runLegacyMigrations failed: %v", err)
 	}
 
 	tablesAfterFirst := allTableNames(t, db)
 	versionAfterFirst := schemaVersion(t, db)
 
-	if err := RunMigrations(ctx, db); err != nil {
-		t.Fatalf("second RunMigrations failed: %v", err)
+	if err := runLegacyMigrations(ctx, db); err != nil {
+		t.Fatalf("second runLegacyMigrations failed: %v", err)
 	}
 
 	tablesAfterSecond := allTableNames(t, db)
@@ -217,18 +225,18 @@ func TestRunMigrations_FailedMigrationRollsBack(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 
-	if err := RunMigrations(ctx, db); err != nil {
-		t.Fatalf("initial RunMigrations failed: %v", err)
+	if err := runLegacyMigrations(ctx, db); err != nil {
+		t.Fatalf("initial runLegacyMigrations failed: %v", err)
 	}
 
 	versionBefore := schemaVersion(t, db)
 
-	originalMigrations := migrations
+	originalMigrations := legacyMigrations
 
-	defer func() { migrations = originalMigrations }()
+	defer func() { legacyMigrations = originalMigrations }()
 
-	migrations = append(migrations, migration{
-		version:     latestVersion() + 1,
+	legacyMigrations = append(legacyMigrations, migration{
+		version:     legacyLatestVersion() + 1,
 		description: "deliberately broken",
 		fn: func(ctx context.Context, tx *sql.Tx) error {
 			_, err := tx.ExecContext(ctx, "CREATE TABLE this_is_invalid (")
@@ -237,9 +245,9 @@ func TestRunMigrations_FailedMigrationRollsBack(t *testing.T) {
 		},
 	})
 
-	err := RunMigrations(ctx, db)
+	err := runLegacyMigrations(ctx, db)
 	if err == nil {
-		t.Fatal("expected RunMigrations to fail, but it succeeded")
+		t.Fatal("expected runLegacyMigrations to fail, but it succeeded")
 	}
 
 	versionAfter := schemaVersion(t, db)
@@ -361,8 +369,8 @@ func TestMigrateV1_ExistingDatabase(t *testing.T) {
 		t.Fatalf("failed to insert test data: %v", err)
 	}
 
-	if err := RunMigrations(ctx, db); err != nil {
-		t.Fatalf("RunMigrations on existing database failed: %v", err)
+	if err := runLegacyMigrations(ctx, db); err != nil {
+		t.Fatalf("runLegacyMigrations on existing database failed: %v", err)
 	}
 
 	var mcc string
@@ -378,7 +386,7 @@ func TestMigrateV1_ExistingDatabase(t *testing.T) {
 
 	got := schemaVersion(t, db)
 
-	want := latestVersion()
+	want := legacyLatestVersion()
 	if got != want {
 		t.Errorf("schema version = %d, want %d", got, want)
 	}
@@ -388,8 +396,8 @@ func TestRunMigrations_Incremental(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 
-	if err := RunMigrations(ctx, db); err != nil {
-		t.Fatalf("initial RunMigrations failed: %v", err)
+	if err := runLegacyMigrations(ctx, db); err != nil {
+		t.Fatalf("initial runLegacyMigrations failed: %v", err)
 	}
 
 	_, err := db.ExecContext(ctx, fmt.Sprintf(
@@ -399,12 +407,12 @@ func TestRunMigrations_Incremental(t *testing.T) {
 		t.Fatalf("failed to insert test data: %v", err)
 	}
 
-	originalMigrations := migrations
+	originalMigrations := legacyMigrations
 
-	defer func() { migrations = originalMigrations }()
+	defer func() { legacyMigrations = originalMigrations }()
 
-	migrations = append(migrations, migration{
-		version:     latestVersion() + 1,
+	legacyMigrations = append(legacyMigrations, migration{
+		version:     legacyLatestVersion() + 1,
 		description: "add test_column to operator",
 		fn: func(ctx context.Context, tx *sql.Tx) error {
 			_, err := tx.ExecContext(ctx,
@@ -414,13 +422,13 @@ func TestRunMigrations_Incremental(t *testing.T) {
 		},
 	})
 
-	if err := RunMigrations(ctx, db); err != nil {
-		t.Fatalf("incremental RunMigrations failed: %v", err)
+	if err := runLegacyMigrations(ctx, db); err != nil {
+		t.Fatalf("incremental runLegacyMigrations failed: %v", err)
 	}
 
 	got := schemaVersion(t, db)
-	if got != latestVersion() {
-		t.Errorf("schema version = %d, want %d", got, latestVersion())
+	if got != legacyLatestVersion() {
+		t.Errorf("schema version = %d, want %d", got, legacyLatestVersion())
 	}
 
 	var testCol string
@@ -436,9 +444,9 @@ func TestRunMigrations_Incremental(t *testing.T) {
 }
 
 func TestLatestVersion(t *testing.T) {
-	got := latestVersion()
-	if got != len(migrations) {
-		t.Errorf("latestVersion() = %d, want %d", got, len(migrations))
+	got := legacyLatestVersion()
+	if got != len(legacyMigrations) {
+		t.Errorf("legacyLatestVersion() = %d, want %d", got, len(legacyMigrations))
 	}
 }
 
@@ -617,27 +625,27 @@ func TestMigrateV2_NoExistingKey(t *testing.T) {
 	}
 }
 
-// runMigrationsUpTo applies all registered migrations up to and including
+// runMigrationsUpTo applies all registered legacyMigrations up to and including
 // the given version, then stops. It temporarily truncates the global
-// migrations slice so RunMigrations only sees the desired prefix.
+// legacyMigrations slice so runLegacyMigrations only sees the desired prefix.
 func runMigrationsUpTo(t *testing.T, db *sql.DB, version int) {
 	t.Helper()
 
-	original := migrations
+	original := legacyMigrations
 
-	defer func() { migrations = original }()
+	defer func() { legacyMigrations = original }()
 
 	if version > len(original) {
-		t.Fatalf("requested version %d exceeds available migrations (%d)", version, len(original))
+		t.Fatalf("requested version %d exceeds available legacyMigrations (%d)", version, len(original))
 	}
 
-	migrations = original[:version]
+	legacyMigrations = original[:version]
 
-	if err := RunMigrations(context.Background(), db); err != nil {
-		t.Fatalf("RunMigrations up to v%d failed: %v", version, err)
+	if err := runLegacyMigrations(context.Background(), db); err != nil {
+		t.Fatalf("runLegacyMigrations up to v%d failed: %v", version, err)
 	}
 
-	migrations = original
+	legacyMigrations = original
 }
 
 func TestMigrateV7_DataMigration(t *testing.T) {

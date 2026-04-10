@@ -21,7 +21,7 @@ func Backup(dbInstance *db.Database) http.HandlerFunc {
 			return
 		}
 
-		tempFile, err := os.CreateTemp(dbInstance.Dir(), "backup_*.db")
+		tempFile, err := os.CreateTemp(dbInstance.Dir(), "backup_*.tar.gz")
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create temp backup file", err, logger.APILog)
 			return
@@ -42,8 +42,8 @@ func Backup(dbInstance *db.Database) http.HandlerFunc {
 			return
 		}
 
-		w.Header().Set("Content-Disposition", "attachment; filename=\"database_backup_"+time.Now().Format("20060102_150405")+".db\"")
-		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Disposition", "attachment; filename=\"database_backup_"+time.Now().Format("20060102_150405")+".tar.gz\"")
+		w.Header().Set("Content-Type", "application/gzip")
 		http.ServeContent(w, r, "", time.Now(), tempFile)
 
 		logger.LogAuditEvent(

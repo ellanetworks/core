@@ -66,7 +66,7 @@ func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage i
 		Offset: (page - 1) * perPage,
 	}
 
-	err := db.conn.Query(ctx, db.listSubscribersStmt, args).GetAll(&subs, &counts)
+	err := db.shared.Query(ctx, db.listSubscribersStmt, args).GetAll(&subs, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -115,7 +115,7 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 
 	row := Subscriber{Imsi: imsi}
 
-	err := db.conn.Query(ctx, db.getSubscriberStmt, row).Get(&row)
+	err := db.shared.Query(ctx, db.getSubscriberStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -151,7 +151,7 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "insert").Inc()
 
-	err := db.conn.Query(ctx, db.createSubscriberStmt, subscriber).Run()
+	err := db.shared.Query(ctx, db.createSubscriberStmt, subscriber).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
@@ -191,7 +191,7 @@ func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Sub
 
 	var outcome sqlair.Outcome
 
-	err := db.conn.Query(ctx, db.updateSubscriberProfileStmt, subscriber).Get(&outcome)
+	err := db.shared.Query(ctx, db.updateSubscriberProfileStmt, subscriber).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -244,7 +244,7 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 
 	var outcome sqlair.Outcome
 
-	err := db.conn.Query(ctx, db.updateSubscriberSqnNumStmt, subscriber).Get(&outcome)
+	err := db.shared.Query(ctx, db.updateSubscriberSqnNumStmt, subscriber).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -292,7 +292,7 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 
 	var outcome sqlair.Outcome
 
-	err := db.conn.Query(ctx, db.deleteSubscriberStmt, Subscriber{Imsi: imsi}).Get(&outcome)
+	err := db.shared.Query(ctx, db.deleteSubscriberStmt, Subscriber{Imsi: imsi}).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -340,7 +340,7 @@ func (db *Database) CountSubscribers(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.conn.Query(ctx, db.countSubscribersStmt).Get(&result)
+	err := db.shared.Query(ctx, db.countSubscribersStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

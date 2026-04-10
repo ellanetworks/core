@@ -156,7 +156,7 @@ func (db *Database) IsOperatorInitialized(ctx context.Context) bool {
 
 	var op Operator
 
-	err := db.conn.Query(ctx, db.getOperatorStmt).Get(&op)
+	err := db.shared.Query(ctx, db.getOperatorStmt).Get(&op)
 	if err != nil {
 		if err == sqlair.ErrNoRows {
 			span.SetStatus(codes.Ok, "operator not initialized")
@@ -193,7 +193,7 @@ func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Ope
 
 	DBQueriesTotal.WithLabelValues(OperatorTableName, "insert").Inc()
 
-	err := db.conn.Query(ctx, db.initializeOperatorStmt, initialOperator).Run()
+	err := db.shared.Query(ctx, db.initializeOperatorStmt, initialOperator).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -227,7 +227,7 @@ func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
 
 	var op Operator
 
-	err := db.conn.Query(ctx, db.getOperatorStmt).Get(&op)
+	err := db.shared.Query(ctx, db.getOperatorStmt).Get(&op)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -269,7 +269,7 @@ func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []
 		return fmt.Errorf("failed to set supported TACs: %w", err)
 	}
 
-	err = db.conn.Query(ctx, db.updateOperatorTrackingStmt, op).Run()
+	err = db.shared.Query(ctx, db.updateOperatorTrackingStmt, op).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -303,7 +303,7 @@ func (db *Database) UpdateOperatorID(ctx context.Context, mcc, mnc string) error
 
 	op := Operator{Mcc: mcc, Mnc: mnc}
 
-	err := db.conn.Query(ctx, db.updateOperatorIDStmt, op).Run()
+	err := db.shared.Query(ctx, db.updateOperatorIDStmt, op).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -337,7 +337,7 @@ func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
 
 	var op Operator
 
-	err := db.conn.Query(ctx, db.getOperatorStmt).Get(&op)
+	err := db.shared.Query(ctx, db.getOperatorStmt).Get(&op)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -371,7 +371,7 @@ func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string)
 
 	op := Operator{OperatorCode: operatorCode}
 
-	err := db.conn.Query(ctx, db.updateOperatorCodeStmt, op).Run()
+	err := db.shared.Query(ctx, db.updateOperatorCodeStmt, op).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -421,7 +421,7 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 		return fmt.Errorf("failed to set integrity order: %w", err)
 	}
 
-	err = db.conn.Query(ctx, db.updateOperatorSecurityAlgorithmsStmt, op).Run()
+	err = db.shared.Query(ctx, db.updateOperatorSecurityAlgorithmsStmt, op).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -455,7 +455,7 @@ func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFullName, spnShort
 
 	op := Operator{SpnFullName: spnFullName, SpnShortName: spnShortName}
 
-	err := db.conn.Query(ctx, db.updateOperatorSPNStmt, op).Run()
+	err := db.shared.Query(ctx, db.updateOperatorSPNStmt, op).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

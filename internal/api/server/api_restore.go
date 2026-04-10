@@ -23,7 +23,7 @@ func Restore(dbInstance *db.Database) http.HandlerFunc {
 			return
 		}
 
-		const maxRestoreSize = 32 << 20 // 32MB
+		const maxRestoreSize = 256 << 20 // 256MB — tar.gz contains shared.db + local.db
 
 		r.Body = http.MaxBytesReader(w, r.Body, maxRestoreSize)
 
@@ -46,7 +46,7 @@ func Restore(dbInstance *db.Database) http.HandlerFunc {
 			}
 		}()
 
-		tempFile, err := os.CreateTemp(dbInstance.Dir(), "restore_*.db")
+		tempFile, err := os.CreateTemp(dbInstance.Dir(), "restore_*.tar.gz")
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create temporary file", err, logger.APILog)
 			return
@@ -74,7 +74,7 @@ func Restore(dbInstance *db.Database) http.HandlerFunc {
 			}
 
 			if errors.Is(err, db.ErrInvalidBackupFile) {
-				writeError(r.Context(), w, http.StatusBadRequest, "Invalid backup file: not a valid SQLite database", err, logger.APILog)
+				writeError(r.Context(), w, http.StatusBadRequest, "Invalid backup file", err, logger.APILog)
 				return
 			}
 

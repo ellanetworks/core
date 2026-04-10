@@ -24,17 +24,32 @@ func RegisterMetrics(db *Database) {
 		return
 	}
 
-	databaseStorageUsed := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-		Name: "app_database_storage_bytes",
-		Help: "The total storage used by the database in bytes. This is the size of the database file on disk.",
+	sharedDBStorageUsed := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name:        "app_database_storage_bytes",
+		Help:        "Storage used by an Ella Core SQLite database file on disk, in bytes.",
+		ConstLabels: prometheus.Labels{"database": "shared"},
 	}, func() float64 {
-		dbSize, err := db.GetSize()
+		size, err := db.GetSharedSize()
 		if err != nil {
-			logger.MetricsLog.Warn("Failed to get database storage used", zap.Error(err))
+			logger.MetricsLog.Warn("Failed to get shared database storage used", zap.Error(err))
 			return 0
 		}
 
-		return float64(dbSize)
+		return float64(size)
+	})
+
+	localDBStorageUsed := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Name:        "app_database_storage_bytes",
+		Help:        "Storage used by an Ella Core SQLite database file on disk, in bytes.",
+		ConstLabels: prometheus.Labels{"database": "local"},
+	}, func() float64 {
+		size, err := db.GetLocalSize()
+		if err != nil {
+			logger.MetricsLog.Warn("Failed to get local database storage used", zap.Error(err))
+			return 0
+		}
+
+		return float64(size)
 	})
 
 	ipAddressesTotal := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
@@ -80,15 +95,27 @@ func RegisterMetrics(db *Database) {
 		[]string{"table", "operation"},
 	)
 
-	prometheus.MustRegister(databaseStorageUsed)
+	prometheus.MustRegister(sharedDBStorageUsed)
+	prometheus.MustRegister(localDBStorageUsed)
 	prometheus.MustRegister(ipAddressesTotal)
 	prometheus.MustRegister(ipAddressesAllocated)
 	prometheus.MustRegister(DBQueryDuration)
 	prometheus.MustRegister(DBQueriesTotal)
 }
 
-func (db *Database) GetSize() (int64, error) {
-	fileInfo, err := os.Stat(db.filepath)
+// GetSharedSize returns the on-disk size of shared.db in bytes.
+func (db *Database) GetSharedSize() (int64, error) {
+	fileInfo, err := os.Stat(db.SharedPath())
+	if err != nil {
+		return 0, err
+	}
+
+	return fileInfo.Size(), nil
+}
+
+// GetLocalSize returns the on-disk size of local.db in bytes.
+func (db *Database) GetLocalSize() (int64, error) {
+	fileInfo, err := os.Stat(db.LocalPath())
 	if err != nil {
 		return 0, err
 	}

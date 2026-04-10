@@ -73,7 +73,7 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 
 	var counts []NumItems
 
-	err := db.conn.Query(ctx, db.listUsersStmt, args).GetAll(&users, &counts)
+	err := db.shared.Query(ctx, db.listUsersStmt, args).GetAll(&users, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -123,7 +123,7 @@ func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
 
 	row := User{Email: email}
 
-	err := db.conn.Query(ctx, db.getUserStmt, row).Get(&row)
+	err := db.shared.Query(ctx, db.getUserStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -162,7 +162,7 @@ func (db *Database) GetUserByID(ctx context.Context, id int64) (*User, error) {
 
 	row := User{ID: id}
 
-	err := db.conn.Query(ctx, db.getUserByIDStmt, row).Get(&row)
+	err := db.shared.Query(ctx, db.getUserByIDStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -200,7 +200,7 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (int64, error) {
 
 	var outcome sqlair.Outcome
 
-	err := db.conn.Query(ctx, db.createUserStmt, user).Get(&outcome)
+	err := db.shared.Query(ctx, db.createUserStmt, user).Get(&outcome)
 	if err != nil {
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
@@ -254,7 +254,7 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 
 	var outcome sqlair.Outcome
 
-	err := db.conn.Query(ctx, db.editUserStmt, user).Get(&outcome)
+	err := db.shared.Query(ctx, db.editUserStmt, user).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -308,7 +308,7 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 
 	var outcome sqlair.Outcome
 
-	err := db.conn.Query(ctx, db.editUserPasswordStmt, user).Get(&outcome)
+	err := db.shared.Query(ctx, db.editUserPasswordStmt, user).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -357,7 +357,7 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 
 	var outcome sqlair.Outcome
 
-	err := db.conn.Query(ctx, db.deleteUserStmt, User{Email: email}).Get(&outcome)
+	err := db.shared.Query(ctx, db.deleteUserStmt, User{Email: email}).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -406,7 +406,7 @@ func (db *Database) CountUsers(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.conn.Query(ctx, db.countUsersStmt).Get(&result)
+	err := db.shared.Query(ctx, db.countUsersStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

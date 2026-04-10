@@ -61,7 +61,7 @@ func (db *Database) InitializeBGPSettings(ctx context.Context) error {
 		ListenAddress: ":179",
 	}
 
-	err := db.conn.Query(ctx, db.insertDefaultBGPSettingsStmt, bgpSettings).Run()
+	err := db.shared.Query(ctx, db.insertDefaultBGPSettingsStmt, bgpSettings).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -94,7 +94,7 @@ func (db *Database) GetBGPSettings(ctx context.Context) (*BGPSettings, error) {
 
 	var bgpSettings BGPSettings
 
-	err := db.conn.Query(ctx, db.getBGPSettingsStmt).Get(&bgpSettings)
+	err := db.shared.Query(ctx, db.getBGPSettingsStmt).Get(&bgpSettings)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -134,7 +134,7 @@ func (db *Database) UpdateBGPSettings(ctx context.Context, settings *BGPSettings
 
 	DBQueriesTotal.WithLabelValues(BGPSettingsTableName, "update").Inc()
 
-	err := db.conn.Query(ctx, db.upsertBGPSettingsStmt, *settings).Run()
+	err := db.shared.Query(ctx, db.upsertBGPSettingsStmt, *settings).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

@@ -64,7 +64,7 @@ func (db *Database) ListBGPPeersPage(ctx context.Context, page, perPage int) ([]
 		Offset: (page - 1) * perPage,
 	}
 
-	err := db.conn.Query(ctx, db.listBGPPeersStmt, args).GetAll(&peers, &counts)
+	err := db.shared.Query(ctx, db.listBGPPeersStmt, args).GetAll(&peers, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -113,7 +113,7 @@ func (db *Database) ListAllBGPPeers(ctx context.Context) ([]BGPPeer, error) {
 
 	var peers []BGPPeer
 
-	err := db.conn.Query(ctx, db.listAllBGPPeersStmt).GetAll(&peers)
+	err := db.shared.Query(ctx, db.listAllBGPPeersStmt).GetAll(&peers)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -152,7 +152,7 @@ func (db *Database) GetBGPPeer(ctx context.Context, id int) (*BGPPeer, error) {
 
 	row := BGPPeer{ID: id}
 
-	err := db.conn.Query(ctx, db.getBGPPeerStmt, row).Get(&row)
+	err := db.shared.Query(ctx, db.getBGPPeerStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.RecordError(err)
@@ -192,7 +192,7 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 	var outcome sqlair.Outcome
 
-	err := db.conn.Query(ctx, db.createBGPPeerStmt, peer).Get(&outcome)
+	err := db.shared.Query(ctx, db.createBGPPeerStmt, peer).Get(&outcome)
 	if err != nil {
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
@@ -242,7 +242,7 @@ func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 	var outcome sqlair.Outcome
 
-	err := db.conn.Query(ctx, db.updateBGPPeerStmt, peer).Get(&outcome)
+	err := db.shared.Query(ctx, db.updateBGPPeerStmt, peer).Get(&outcome)
 	if err != nil {
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
@@ -297,7 +297,7 @@ func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
 
 	var outcome sqlair.Outcome
 
-	err := db.conn.Query(ctx, db.deleteBGPPeerStmt, BGPPeer{ID: id}).Get(&outcome)
+	err := db.shared.Query(ctx, db.deleteBGPPeerStmt, BGPPeer{ID: id}).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -345,7 +345,7 @@ func (db *Database) CountBGPPeers(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.conn.Query(ctx, db.countBGPPeersStmt).Get(&result)
+	err := db.shared.Query(ctx, db.countBGPPeersStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

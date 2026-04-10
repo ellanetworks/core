@@ -65,7 +65,7 @@ func (db *Database) GetJWTSecret(ctx context.Context) ([]byte, error) {
 
 	var row JWTSecret
 
-	err := db.conn.Query(ctx, db.getJWTSecretStmt).Get(&row)
+	err := db.shared.Query(ctx, db.getJWTSecretStmt).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -103,7 +103,7 @@ func (db *Database) SetJWTSecret(ctx context.Context, secret []byte) error {
 
 	row := JWTSecret{Secret: secret}
 
-	err := db.conn.Query(ctx, db.upsertJWTSecretStmt, row).Run()
+	err := db.shared.Query(ctx, db.upsertJWTSecretStmt, row).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -136,7 +136,7 @@ func (db *Database) RotateJWTSecret(ctx context.Context, newSecret []byte) error
 
 	DBQueriesTotal.WithLabelValues(JWTSecretTableName, "rotate").Inc()
 
-	tx, err := db.conn.Begin(ctx, nil)
+	tx, err := db.shared.Begin(ctx, nil)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "begin transaction failed")

@@ -65,7 +65,7 @@ func (db *Database) ListAPITokensPage(ctx context.Context, userID int64, page in
 
 	apiTokenArg := APIToken{UserID: userID}
 
-	err := db.conn.Query(ctx, db.listAPITokensStmt, args, apiTokenArg).GetAll(&tokens, &counts)
+	err := db.shared.Query(ctx, db.listAPITokensStmt, args, apiTokenArg).GetAll(&tokens, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -113,7 +113,7 @@ func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) erro
 
 	DBQueriesTotal.WithLabelValues(APITokensTableName, "insert").Inc()
 
-	err := db.conn.Query(ctx, db.createAPITokenStmt, apiToken).Run()
+	err := db.shared.Query(ctx, db.createAPITokenStmt, apiToken).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
@@ -153,7 +153,7 @@ func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (*
 
 	row := APIToken{TokenID: tokenID}
 
-	err := db.conn.Query(ctx, db.getAPITokenByIDStmt, row).Get(&row)
+	err := db.shared.Query(ctx, db.getAPITokenByIDStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -191,7 +191,7 @@ func (db *Database) GetAPITokenByName(ctx context.Context, userID int64, name st
 
 	row := APIToken{UserID: userID, Name: name}
 
-	err := db.conn.Query(ctx, db.getAPITokenByNameStmt, row).Get(&row)
+	err := db.shared.Query(ctx, db.getAPITokenByNameStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -229,7 +229,7 @@ func (db *Database) DeleteAPIToken(ctx context.Context, id int) error {
 
 	arg := APIToken{ID: id}
 
-	err := db.conn.Query(ctx, db.deleteAPITokenStmt, arg).Run()
+	err := db.shared.Query(ctx, db.deleteAPITokenStmt, arg).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -264,7 +264,7 @@ func (db *Database) CountAPITokens(ctx context.Context, userID int64) (int, erro
 
 	arg := APIToken{UserID: userID}
 
-	err := db.conn.Query(ctx, db.countAPITokensStmt, arg).Get(&result)
+	err := db.shared.Query(ctx, db.countAPITokensStmt, arg).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
