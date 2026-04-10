@@ -65,7 +65,7 @@ type UPF struct {
 	fcDone     chan struct{} // closed when reportFlows exits (all flows reported)
 }
 
-func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface config.N3Interface, n3Address string, advertisedN3Address string, n6Interface config.N6Interface, xdpAttachMode string, masquerade bool, flowact bool) (*UPF, error) {
+func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface config.N3Interface, n3IPv4 string, n3IPv6 string, advertisedN3IPv4 string, advertisedN3IPv6 string, n6Interface config.N6Interface, xdpAttachMode string, masquerade bool, flowact bool) (*UPF, error) {
 	var (
 		n3Vlan uint32
 		n6Vlan uint32
@@ -137,7 +137,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		return nil, fmt.Errorf("failed to create Resource Manager: %w", err)
 	}
 
-	se, err := engine.NewSessionEngine(PfcpAddress, PfcpNodeID, n3Address, advertisedN3Address, bpfObjects, resourceManager)
+	se, err := engine.NewSessionEngine(PfcpAddress, PfcpNodeID, n3IPv4, n3IPv6, advertisedN3IPv4, advertisedN3IPv6, bpfObjects, resourceManager)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session engine: %w", err)
 	}
@@ -227,7 +227,11 @@ func (u *UPF) Engine() *engine.SessionEngine {
 }
 
 func (u *UPF) UpdateAdvertisedN3Address(newN3Addr netip.Addr) {
-	u.se.SetAdvertisedN3Address(newN3Addr)
+	if newN3Addr.Is4() {
+		u.se.SetAdvertisedN3Address(newN3Addr)
+	} else {
+		u.se.SetAdvertisedN3AddressIPv6(newN3Addr)
+	}
 }
 
 func (u *UPF) UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {

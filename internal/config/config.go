@@ -306,7 +306,7 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, errors.New("interfaces.n3 is empty")
 	}
 
-	n3InterfaceName, n3Address, err := getInterfaceNameAndAddress(c.Interfaces.N3.Name, c.Interfaces.N3.Address, IPv4)
+	n3InterfaceName, n3Address, err := getInterfaceNameAndAddress(c.Interfaces.N3.Name, c.Interfaces.N3.Address, AnyFamily)
 	if err != nil {
 		return Config{}, fmt.Errorf("interfaces.n3: %w", err)
 	}

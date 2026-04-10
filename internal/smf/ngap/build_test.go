@@ -14,7 +14,7 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func decodeSetupRequestGTPTunnel(t *testing.T, buf []byte) (uint32, [4]byte) {
+func decodeSetupRequestGTPTunnel(t *testing.T, buf []byte) (uint32, aper.BitString) {
 	t.Helper()
 
 	var transfer ngapType.PDUSessionResourceSetupRequestTransfer
@@ -30,20 +30,12 @@ func decodeSetupRequestGTPTunnel(t *testing.T, buf []byte) (uint32, [4]byte) {
 		tunnel := ie.Value.ULNGUUPTNLInformation.GTPTunnel
 		teid := binary.BigEndian.Uint32(tunnel.GTPTEID.Value)
 
-		bs := tunnel.TransportLayerAddress.Value
-		if bs.BitLength != 32 {
-			t.Fatalf("expected BitLength=32, got %d", bs.BitLength)
-		}
-
-		var ip [4]byte
-		copy(ip[:], bs.Bytes)
-
-		return teid, ip
+		return teid, tunnel.TransportLayerAddress.Value
 	}
 
 	t.Fatal("ULNGUUPTNLInformation IE not found")
 
-	return 0, [4]byte{}
+	return 0, aper.BitString{}
 }
 
 func TestBuildPDUSessionResourceSetupRequestTransfer(t *testing.T) {
@@ -51,16 +43,23 @@ func TestBuildPDUSessionResourceSetupRequestTransfer(t *testing.T) {
 	qos := &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}
 	addr := netip.MustParseAddr("10.3.0.2")
 
-	buf, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(ambr, qos, 42, addr)
+	buf, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(ambr, qos, 42, addr, netip.Addr{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	teid, ip := decodeSetupRequestGTPTunnel(t, buf)
+	teid, bs := decodeSetupRequestGTPTunnel(t, buf)
 
 	if teid != 42 {
 		t.Errorf("TEID: got %d, want 42", teid)
 	}
+
+	if bs.BitLength != 32 {
+		t.Fatalf("BitLength: got %d, want 32", bs.BitLength)
+	}
+
+	var ip [4]byte
+	copy(ip[:], bs.Bytes)
 
 	if ip != [4]byte{10, 3, 0, 2} {
 		t.Errorf("IP: got %v, want [10 3 0 2]", ip)
@@ -68,16 +67,78 @@ func TestBuildPDUSessionResourceSetupRequestTransfer(t *testing.T) {
 }
 
 func TestBuildPDUSessionResourceSetupRequestTransfer_NilAmbr(t *testing.T) {
-	_, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(nil, nil, 1, netip.MustParseAddr("1.2.3.4"))
+	_, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(nil, nil, 1, netip.MustParseAddr("1.2.3.4"), netip.Addr{})
 	if err == nil {
 		t.Fatal("expected error for nil ambr")
+	}
+}
+
+func TestBuildPDUSessionResourceSetupRequestTransfer_IPv6Only(t *testing.T) {
+	ambr := &models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"}
+	qos := &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}
+	ipv6 := netip.MustParseAddr("2001:db8::1")
+
+	buf, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(ambr, qos, 7, netip.Addr{}, ipv6)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	_, bs := decodeSetupRequestGTPTunnel(t, buf)
+
+	if bs.BitLength != 128 {
+		t.Fatalf("BitLength: got %d, want 128", bs.BitLength)
+	}
+
+	if len(bs.Bytes) != 16 {
+		t.Fatalf("Bytes length: got %d, want 16", len(bs.Bytes))
+	}
+
+	v6 := ipv6.As16()
+	for i, b := range bs.Bytes {
+		if b != v6[i] {
+			t.Errorf("IPv6 byte[%d]: got %02x, want %02x", i, b, v6[i])
+		}
+	}
+}
+
+func TestBuildPDUSessionResourceSetupRequestTransfer_DualStack(t *testing.T) {
+	ambr := &models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"}
+	qos := &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}
+	ipv4 := netip.MustParseAddr("10.3.0.2")
+	ipv6 := netip.MustParseAddr("2001:db8::1")
+
+	buf, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(ambr, qos, 99, ipv4, ipv6)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	_, bs := decodeSetupRequestGTPTunnel(t, buf)
+
+	if bs.BitLength != 160 {
+		t.Fatalf("BitLength: got %d, want 160", bs.BitLength)
+	}
+
+	if len(bs.Bytes) != 20 {
+		t.Fatalf("Bytes length: got %d, want 20", len(bs.Bytes))
+	}
+
+	wantV4 := ipv4.As4()
+	if [4]byte(bs.Bytes[0:4]) != wantV4 {
+		t.Errorf("IPv4 part: got %v, want %v", bs.Bytes[0:4], wantV4)
+	}
+
+	wantV6 := ipv6.As16()
+	for i, b := range bs.Bytes[4:20] {
+		if b != wantV6[i] {
+			t.Errorf("IPv6 byte[%d]: got %02x, want %02x", i, b, wantV6[i])
+		}
 	}
 }
 
 func TestBuildHandoverCommandTransfer(t *testing.T) {
 	addr := netip.MustParseAddr("192.168.1.100")
 
-	buf, err := ngap.BuildHandoverCommandTransfer(99, addr)
+	buf, err := ngap.BuildHandoverCommandTransfer(99, addr, netip.Addr{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -107,10 +168,31 @@ func TestBuildHandoverCommandTransfer(t *testing.T) {
 	}
 }
 
+func TestBuildHandoverCommandTransfer_DualStack(t *testing.T) {
+	ipv4 := netip.MustParseAddr("10.1.2.3")
+	ipv6 := netip.MustParseAddr("2001:db8::2")
+
+	buf, err := ngap.BuildHandoverCommandTransfer(55, ipv4, ipv6)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var transfer ngapType.HandoverCommandTransfer
+	if err := aper.UnmarshalWithParams(buf, &transfer, "valueExt"); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	bs := transfer.DLForwardingUPTNLInformation.GTPTunnel.TransportLayerAddress.Value
+
+	if bs.BitLength != 160 {
+		t.Fatalf("BitLength: got %d, want 160", bs.BitLength)
+	}
+}
+
 func TestBuildPathSwitchRequestAcknowledgeTransfer(t *testing.T) {
 	addr := netip.MustParseAddr("172.16.0.1")
 
-	buf, err := ngap.BuildPathSwitchRequestAcknowledgeTransfer(7, addr)
+	buf, err := ngap.BuildPathSwitchRequestAcknowledgeTransfer(7, addr, netip.Addr{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -137,5 +219,25 @@ func TestBuildPathSwitchRequestAcknowledgeTransfer(t *testing.T) {
 
 	if ip != [4]byte{172, 16, 0, 1} {
 		t.Errorf("IP: got %v, want [172 16 0 1]", ip)
+	}
+}
+
+func TestBuildPathSwitchRequestAcknowledgeTransfer_IPv6Only(t *testing.T) {
+	ipv6 := netip.MustParseAddr("2001:db8::3")
+
+	buf, err := ngap.BuildPathSwitchRequestAcknowledgeTransfer(3, netip.Addr{}, ipv6)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var transfer ngapType.PathSwitchRequestAcknowledgeTransfer
+	if err := aper.UnmarshalWithParams(buf, &transfer, "valueExt"); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	bs := transfer.ULNGUUPTNLInformation.GTPTunnel.TransportLayerAddress.Value
+
+	if bs.BitLength != 128 {
+		t.Fatalf("BitLength: got %d, want 128", bs.BitLength)
 	}
 }

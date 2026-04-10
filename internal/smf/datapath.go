@@ -16,9 +16,10 @@ import (
 )
 
 type GTPTunnel struct {
-	PDR  *PDR
-	TEID uint32
-	N3IP netip.Addr
+	PDR    *PDR
+	TEID   uint32
+	N3IPv4 netip.Addr
+	N3IPv6 netip.Addr
 }
 
 type DataPath struct {
@@ -77,7 +78,7 @@ func (dp *DataPath) DeactivateDownLinkTunnel(smf *SMF) {
 	dp.DownLinkTunnel = &GTPTunnel{}
 }
 
-func (dp *DataPath) ActivateUpLinkPdr(pduAddress net.IP, defQER *QER, defURR *URR) {
+func (dp *DataPath) ActivateUpLinkPdr(pduAddress net.IP, anIP net.IP, defQER *QER, defURR *URR) {
 	dp.UpLinkTunnel.PDR.QER = defQER
 	dp.UpLinkTunnel.PDR.URR = defURR
 
@@ -85,6 +86,10 @@ func (dp *DataPath) ActivateUpLinkPdr(pduAddress net.IP, defQER *QER, defURR *UR
 	dp.UpLinkTunnel.PDR.PDI.UEIPAddress = netip.AddrFrom4([4]byte(pduAddress.To4()))
 
 	ohr := models.OuterHeaderRemovalGtpUUdpIpv4
+	if anIP != nil && anIP.To4() == nil {
+		ohr = models.OuterHeaderRemovalGtpUUdpIpv6
+	}
+
 	dp.UpLinkTunnel.PDR.OuterHeaderRemoval = &ohr
 
 	dp.UpLinkTunnel.PDR.FAR.ApplyAction = models.ApplyAction{
@@ -93,18 +98,28 @@ func (dp *DataPath) ActivateUpLinkPdr(pduAddress net.IP, defQER *QER, defURR *UR
 	dp.UpLinkTunnel.PDR.FAR.ForwardingParameters = &models.ForwardingParameters{}
 }
 
-func (dp *DataPath) ActivateDlLinkPdr(anIP net.IP, teid uint32, pduAddress net.IP, defQER *QER, defURR *URR) {
+func (dp *DataPath) ActivateDlLinkPdr(anIPv4 net.IP, anIPv6 net.IP, teid uint32, pduAddress net.IP, defQER *QER, defURR *URR) {
 	dp.DownLinkTunnel.PDR.QER = defQER
 	dp.DownLinkTunnel.PDR.URR = defURR
 
 	dp.DownLinkTunnel.PDR.PDI.UEIPAddress = netip.AddrFrom4([4]byte(pduAddress.To4()))
 
-	if anIP != nil {
+	// When both addresses are available, IPv6 is preferred for the downlink tunnel.
+	// This preference is intentional and is documented in the configuration file reference.
+	if anIPv6 != nil {
+		dp.DownLinkTunnel.PDR.FAR.ForwardingParameters = &models.ForwardingParameters{
+			OuterHeaderCreation: &models.OuterHeaderCreation{
+				Description: models.OuterHeaderCreationGtpUUdpIpv6,
+				TEID:        teid,
+				IPv6Address: anIPv6,
+			},
+		}
+	} else if anIPv4 != nil {
 		dp.DownLinkTunnel.PDR.FAR.ForwardingParameters = &models.ForwardingParameters{
 			OuterHeaderCreation: &models.OuterHeaderCreation{
 				Description: models.OuterHeaderCreationGtpUUdpIpv4,
 				TEID:        teid,
-				IPv4Address: anIP.To4(),
+				IPv4Address: anIPv4.To4(),
 			},
 		}
 	}
@@ -144,9 +159,9 @@ func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, policy 
 		return fmt.Errorf("could not create downlink URR: %v", err)
 	}
 
-	dp.ActivateUpLinkPdr(pduAddress, defQER, defULURR)
+	dp.ActivateUpLinkPdr(pduAddress, smContext.Tunnel.ANInformation.IPAddress, defQER, defULURR)
 
-	dp.ActivateDlLinkPdr(smContext.Tunnel.ANInformation.IPAddress, smContext.Tunnel.ANInformation.TEID, pduAddress, defQER, defDLURR)
+	dp.ActivateDlLinkPdr(smContext.Tunnel.ANInformation.IPAddress, smContext.Tunnel.ANInformation.IPv6Address, smContext.Tunnel.ANInformation.TEID, pduAddress, defQER, defDLURR)
 
 	dp.Activated = true
 

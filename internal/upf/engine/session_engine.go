@@ -19,17 +19,19 @@ import (
 type SessionEngine struct {
 	mu sync.RWMutex
 
-	sessions             map[uint64]*Session
-	policyToSEIDs        map[int64]map[uint64]struct{}
-	nodeID               string
-	nodeAddrV4           net.IP
-	n3Address            net.IP
-	advertisedN3Address  netip.Addr
-	BpfObjects           *ebpf.BpfObjects
-	FteIDResourceManager *FteIDResourceManager
-	SdfIndexAllocator    *SdfIndexAllocator
-	filterMu             sync.RWMutex
-	filtersByKey         map[string]uint32
+	sessions                map[uint64]*Session
+	policyToSEIDs           map[int64]map[uint64]struct{}
+	nodeID                  string
+	nodeAddrV4              net.IP
+	n3AddressIPv4           netip.Addr // may be zero if not available
+	n3AddressIPv6           netip.Addr // may be zero if not available
+	advertisedN3AddressIPv4 netip.Addr
+	advertisedN3AddressIPv6 netip.Addr
+	BpfObjects              *ebpf.BpfObjects
+	FteIDResourceManager    *FteIDResourceManager
+	SdfIndexAllocator       *SdfIndexAllocator
+	filterMu                sync.RWMutex
+	filtersByKey            map[string]uint32
 }
 
 func (pc *SessionEngine) ListSessions() map[uint64]*Session {
@@ -183,43 +185,93 @@ func (pc *SessionEngine) GetAdvertisedN3Address() netip.Addr {
 	pc.mu.RLock()
 	defer pc.mu.RUnlock()
 
-	return pc.advertisedN3Address
+	return pc.advertisedN3AddressIPv4
+}
+
+func (pc *SessionEngine) GetAdvertisedN3AddressIPv6() netip.Addr {
+	pc.mu.RLock()
+	defer pc.mu.RUnlock()
+
+	return pc.advertisedN3AddressIPv6
 }
 
 func (pc *SessionEngine) SetAdvertisedN3Address(newN3Addr netip.Addr) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
-	pc.advertisedN3Address = newN3Addr
+	pc.advertisedN3AddressIPv4 = newN3Addr
 }
 
-func NewSessionEngine(addr string, nodeID string, n3Ip string, advertisedN3Ip string, bpfObjects *ebpf.BpfObjects, resourceManager *FteIDResourceManager) (*SessionEngine, error) {
+func (pc *SessionEngine) SetAdvertisedN3AddressIPv6(newN3Addr netip.Addr) {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+
+	pc.advertisedN3AddressIPv6 = newN3Addr
+}
+
+func NewSessionEngine(addr string, nodeID string, n3IPv4 string, n3IPv6 string, advertisedN3IPv4 string, advertisedN3IPv6 string, bpfObjects *ebpf.BpfObjects, resourceManager *FteIDResourceManager) (*SessionEngine, error) {
 	addrV4 := net.ParseIP(addr)
 	if addrV4 == nil {
 		return nil, fmt.Errorf("failed to parse IP address ID: %s", addr)
 	}
 
-	n3Addr := net.ParseIP(n3Ip)
-	if n3Addr == nil {
-		return nil, fmt.Errorf("failed to parse N3 IP address ID: %s", n3Ip)
+	var n3AddrIPv4 netip.Addr
+
+	if n3IPv4 != "" {
+		parsed, err := netip.ParseAddr(n3IPv4)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse N3 IPv4 address: %s", n3IPv4)
+		}
+
+		n3AddrIPv4 = parsed
 	}
 
-	advertisedN3Addr, err := netip.ParseAddr(advertisedN3Ip)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse advertised N3 IP address: %w", err)
+	var n3AddrIPv6 netip.Addr
+
+	if n3IPv6 != "" {
+		parsed, err := netip.ParseAddr(n3IPv6)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse N3 IPv6 address: %s", n3IPv6)
+		}
+
+		n3AddrIPv6 = parsed
+	}
+
+	var advertisedN3AddrIPv4 netip.Addr
+
+	if advertisedN3IPv4 != "" {
+		parsed, err := netip.ParseAddr(advertisedN3IPv4)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse advertised N3 IPv4 address: %w", err)
+		}
+
+		advertisedN3AddrIPv4 = parsed
+	}
+
+	var advertisedN3AddrIPv6 netip.Addr
+
+	if advertisedN3IPv6 != "" {
+		parsed, err := netip.ParseAddr(advertisedN3IPv6)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse advertised N3 IPv6 address: %w", err)
+		}
+
+		advertisedN3AddrIPv6 = parsed
 	}
 
 	conn := &SessionEngine{
-		sessions:             make(map[uint64]*Session),
-		policyToSEIDs:        make(map[int64]map[uint64]struct{}),
-		nodeID:               nodeID,
-		nodeAddrV4:           addrV4,
-		n3Address:            n3Addr,
-		advertisedN3Address:  advertisedN3Addr,
-		BpfObjects:           bpfObjects,
-		FteIDResourceManager: resourceManager,
-		SdfIndexAllocator:    NewSdfIndexAllocator(ebpf.MaxSdfFilters),
-		filtersByKey:         make(map[string]uint32),
+		sessions:                make(map[uint64]*Session),
+		policyToSEIDs:           make(map[int64]map[uint64]struct{}),
+		nodeID:                  nodeID,
+		nodeAddrV4:              addrV4,
+		n3AddressIPv4:           n3AddrIPv4,
+		n3AddressIPv6:           n3AddrIPv6,
+		advertisedN3AddressIPv4: advertisedN3AddrIPv4,
+		advertisedN3AddressIPv6: advertisedN3AddrIPv6,
+		BpfObjects:              bpfObjects,
+		FteIDResourceManager:    resourceManager,
+		SdfIndexAllocator:       NewSdfIndexAllocator(ebpf.MaxSdfFilters),
+		filtersByKey:            make(map[string]uint32),
 	}
 
 	return conn, nil

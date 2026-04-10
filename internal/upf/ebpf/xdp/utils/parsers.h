@@ -221,6 +221,21 @@ context_set_ip4(struct packet_context *ctx, void *data, const void *data_end,
 	ctx->gtp = gtp;
 }
 
+static __always_inline void
+context_set_ip6(struct packet_context *ctx, void *data, const void *data_end,
+		struct ethhdr *eth, struct vlan_hdr *vlan, struct ipv6hdr *ip6,
+		struct udphdr *udp, struct gtpuhdr *gtp)
+{
+	ctx->data = data;
+	ctx->data_end = data_end;
+	ctx->eth = eth;
+	ctx->vlan = vlan;
+	ctx->ip4 = NULL;
+	ctx->ip6 = ip6;
+	ctx->udp = udp;
+	ctx->gtp = gtp;
+}
+
 static __always_inline void context_reset(struct packet_context *ctx,
 					  void *data, const void *data_end)
 {

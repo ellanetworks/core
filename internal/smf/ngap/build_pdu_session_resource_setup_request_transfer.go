@@ -11,7 +11,7 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IP netip.Addr) ([]byte, error) {
+func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr) ([]byte, error) {
 	if ambr == nil {
 		return nil, fmt.Errorf("ambr is nil")
 	}
@@ -45,23 +45,23 @@ func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *mod
 	ie.Id.Value = ngapType.ProtocolIEIDULNGUUPTNLInformation
 	ie.Criticality.Value = ngapType.CriticalityPresentReject
 
-	ipv4 := n3IP.As4()
-
 	ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
 		Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentULNGUUPTNLInformation,
 		ULNGUUPTNLInformation: &ngapType.UPTransportLayerInformation{
 			Present: ngapType.UPTransportLayerInformationPresentGTPTunnel,
 			GTPTunnel: &ngapType.GTPTunnel{
-				TransportLayerAddress: ngapType.TransportLayerAddress{
-					Value: aper.BitString{
-						Bytes:     ipv4[:],
-						BitLength: 32,
-					},
-				},
-				GTPTEID: ngapType.GTPTEID{Value: teidOct},
+				TransportLayerAddress: ngapType.TransportLayerAddress{},
+				GTPTEID:               ngapType.GTPTEID{Value: teidOct},
 			},
 		},
 	}
+
+	tla, err := encodeTransportLayerAddress(n3IPv4, n3IPv6)
+	if err != nil {
+		return nil, fmt.Errorf("encode transport layer address failed: %s", err)
+	}
+
+	ie.Value.ULNGUUPTNLInformation.GTPTunnel.TransportLayerAddress.Value = tla
 
 	resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)
 

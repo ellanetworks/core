@@ -126,9 +126,9 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 	smCtx.Tunnel = &smf.UPTunnel{
 		DataPath: &smf.DataPath{
 			UpLinkTunnel: &smf.GTPTunnel{
-				PDR:  ulPdr,
-				TEID: 5000,
-				N3IP: netip.MustParseAddr("192.168.1.1"),
+				PDR:    ulPdr,
+				TEID:   5000,
+				N3IPv4: netip.MustParseAddr("192.168.1.1"),
 			},
 			DownLinkTunnel: &smf.GTPTunnel{
 				PDR: dlPdr,

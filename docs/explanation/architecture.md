@@ -75,3 +75,7 @@ This design greatly simplifies the deployment and operation of the Core network,
 ### The database is embedded
 
 Persistent data is stored in an embedded database, eliminating the need for managing external databases. This design choice allows for a simple deployment process, backup and restore functionality, and high availability through Raft-based clustering.
+
+### Dual-stack N3 transport
+
+The N3 interface (between the UPF and the gNB) supports both IPv4 and IPv6 transport for GTP-U tunnels. At startup Ella Core automatically resolves both IPv4 and IPv6 addresses from the configured N3 interface and advertises them to the gNB via a 160-bit NGAP `TransportLayerAddress` (per 3GPP TS 38.414 Section 5.1). The gNB selects its preferred address family when it responds; subsequent GTP-U encapsulation and decapsulation use the matching outer header type. IPv4-only and IPv6-only N3 configurations are also supported.

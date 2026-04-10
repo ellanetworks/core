@@ -157,3 +157,9 @@ interfaces:
 
 !!! note
     IPv6 support is currently available for the management interface (`api`) and radio interface (`n2`). The subscriber data interfaces (`n3` and `n6`) currently only support IPv4 addresses.
+
+## GTP-U Transport over IPv6
+
+Ella Core supports GTP-U tunnels over IPv6 for the N3 interface (between the core and the gNB). When a gNB advertises a dual-stack transport address (both IPv4 and IPv6) in the N2 signaling and Ella Core is configured for dual-stack, Ella Core always prefers IPv6 for the GTP-U data path.
+
+If the configuration specifies an address for N2, this address will be used. However, if an interface is specified, Ella Core will try to use all non link-local addresses on that interface; if that interface is dual-stack, Ella Core will advertise dual-stack support, prefering IPv6.

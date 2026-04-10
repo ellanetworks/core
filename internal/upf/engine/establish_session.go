@@ -5,7 +5,6 @@ package engine
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"net/netip"
 
@@ -40,13 +39,6 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 	logger.WithTrace(ctx, logger.UpfLog).Debug("Tracking new session", logger.SEID(seid))
 
-	localIPv4 := conn.n3Address.To4()
-	if localIPv4 == nil {
-		return nil, fmt.Errorf("N3 address is not IPv4")
-	}
-
-	localIP := binary.LittleEndian.Uint32(localIPv4)
-
 	var createdPDRs []SPDRInfo
 
 	pdrContext := NewPDRCreationContext(sess, conn.FteIDResourceManager)
@@ -57,7 +49,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	bpfObjects := conn.BpfObjects
 
 	for _, far := range req.FARs {
-		farInfo := farInfoFromModel(far, localIP)
+		farInfo := farInfoFromModel(far, conn.n3AddressIPv4, conn.n3AddressIPv6)
 
 		go addRemoteIPToNeigh(ctx, farInfo.RemoteIP)
 
@@ -148,15 +140,14 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 
 	return &models.EstablishResponse{
 		RemoteSEID:  seid,
-		CreatedPDRs: createdPDRsToResponse(createdPDRs, conn.advertisedN3Address),
+		CreatedPDRs: createdPDRsToResponse(createdPDRs, conn.advertisedN3AddressIPv4, conn.advertisedN3AddressIPv6),
 	}, nil
 }
 
 // farInfoFromModel converts a models.FAR to an ebpf.FarInfo.
-func farInfoFromModel(far models.FAR, localIP uint32) ebpf.FarInfo {
+func farInfoFromModel(far models.FAR, localIPv4 netip.Addr, localIPv6 netip.Addr) ebpf.FarInfo {
 	info := ebpf.FarInfo{
-		LocalIP: localIP,
-		Action:  encodeApplyAction(far.ApplyAction),
+		Action: encodeApplyAction(far.ApplyAction),
 	}
 
 	if fp := far.ForwardingParameters; fp != nil {
@@ -164,11 +155,28 @@ func farInfoFromModel(far models.FAR, localIP uint32) ebpf.FarInfo {
 			info.OuterHeaderCreation = uint8(ohc.Description >> 8)
 			info.TeID = ohc.TEID
 
-			if ohc.IPv4Address != nil {
+			if ohc.Description == models.OuterHeaderCreationGtpUUdpIpv6 && ohc.IPv6Address != nil {
+				info.LocalIP = ebpf.IPToIn6Addr(localIPv6)
+
+				v6 := ohc.IPv6Address.To16()
+				if v6 != nil {
+					var v6arr [16]byte
+					copy(v6arr[:], v6)
+					info.RemoteIP = v6arr
+				}
+			} else if ohc.IPv4Address != nil {
+				info.LocalIP = ebpf.IPToIn6Addr(localIPv4)
+
 				ip4 := ohc.IPv4Address.To4()
 				if ip4 != nil {
-					info.RemoteIP = binary.LittleEndian.Uint32(ip4)
+					var ip4arr [4]byte
+					copy(ip4arr[:], ip4)
+					info.RemoteIP = ebpf.IPToIn6Addr(netip.AddrFrom4(ip4arr))
 				}
+			} else {
+				// No remote IP set yet (e.g. DL FAR before gNB responds) —
+				// default to IPv4 local address.
+				info.LocalIP = ebpf.IPToIn6Addr(localIPv4)
 			}
 		}
 	}
@@ -223,7 +231,7 @@ func qerInfoFromModel(qer models.QER) ebpf.QerInfo {
 }
 
 // createdPDRsToResponse converts internal SPDRInfo to models.CreatedPDR.
-func createdPDRsToResponse(createdPDRs []SPDRInfo, n3Address netip.Addr) []models.CreatedPDR {
+func createdPDRsToResponse(createdPDRs []SPDRInfo, n3IPv4 netip.Addr, n3IPv6 netip.Addr) []models.CreatedPDR {
 	var result []models.CreatedPDR
 
 	for _, pdr := range createdPDRs {
@@ -238,25 +246,28 @@ func createdPDRsToResponse(createdPDRs []SPDRInfo, n3Address netip.Addr) []model
 		}
 
 		result = append(result, models.CreatedPDR{
-			PDRID: uint16(pdr.PdrID),
-			TEID:  pdr.TeID,
-			N3IP:  n3Address,
+			PDRID:  uint16(pdr.PdrID),
+			TEID:   pdr.TeID,
+			N3IPv4: n3IPv4,
+			N3IPv6: n3IPv6,
 		})
 	}
 
 	return result
 }
 
-// addRemoteIPToNeigh adds the given remote IP (encoded as a little-endian uint32)
-// to the kernel neighbour table so that GTP encapsulated packets can be forwarded.
-func addRemoteIPToNeigh(ctx context.Context, remoteIP uint32) {
-	if remoteIP == 0 {
+// addRemoteIPToNeigh adds the given remote IP (as an in6_addr [16]byte) to the kernel
+// neighbour table so that GTP encapsulated packets can be forwarded.
+func addRemoteIPToNeigh(ctx context.Context, remoteIP [16]byte) {
+	var zero [16]byte
+	if remoteIP == zero {
 		return
 	}
 
-	var b [4]byte
-	binary.NativeEndian.PutUint32(b[:], remoteIP)
-	ip := netip.AddrFrom4(b)
+	ip := ebpf.In6AddrToIP(remoteIP)
+	if !ip.IsValid() {
+		return
+	}
 
 	if err := kernel.AddNeighbour(ctx, ip); err != nil {
 		logger.UpfLog.Warn("could not add gnb IP to neighbour list", logger.IPAddress(ip.String()), zap.Error(err))

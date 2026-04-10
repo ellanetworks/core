@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"net"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -27,6 +28,22 @@ type UpdateResult struct {
 	ReleaseN2 bool   // true when N2 info signals PDU session resource release
 	N1Msg     []byte // NAS message for the UE (may be nil)
 	N2Msg     []byte // NGAP transfer for the RAN (may be nil)
+}
+
+// parseTransportLayerAddress extracts IPv4 and/or IPv6 from a NGAP TransportLayerAddress
+// per 3GPP TS 38.414 Section 5.1.
+func parseTransportLayerAddress(bs aper.BitString) (ipv4 net.IP, ipv6 net.IP) {
+	switch {
+	case bs.BitLength == 32 && len(bs.Bytes) >= 4:
+		ipv4 = net.IP(bs.Bytes[0:4])
+	case bs.BitLength == 128 && len(bs.Bytes) >= 16:
+		ipv6 = net.IP(bs.Bytes[0:16])
+	case bs.BitLength == 160 && len(bs.Bytes) >= 20:
+		ipv4 = net.IP(bs.Bytes[0:4])
+		ipv6 = net.IP(bs.Bytes[4:20])
+	}
+
+	return
 }
 
 // UpdateSmContextN1Msg handles a NAS N1 message update (e.g. PDU session release request).
@@ -195,6 +212,12 @@ func handleUpdateN2MsgPDUResourceSetupResp(binaryDataN2SmInformation []byte, smC
 
 		pdrList = append(pdrList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR)
 		farList = append(farList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR)
+
+		// The UL PDR's OuterHeaderRemoval is set during initial PDR creation before the gNB IP
+		// is known, so it may be wrong. Mark it for update so the corrected value (set by
+		// handlePDUSessionResourceSetupResponseTransfer below) is pushed to the UPF.
+		smContext.Tunnel.DataPath.UpLinkTunnel.PDR.State = RuleUpdate
+		pdrList = append(pdrList, smContext.Tunnel.DataPath.UpLinkTunnel.PDR)
 	}
 
 	if err := handlePDUSessionResourceSetupResponseTransfer(binaryDataN2SmInformation, smContext); err != nil {
@@ -221,14 +244,28 @@ func handlePDUSessionResourceSetupResponseTransfer(b []byte, smContext *SMContex
 
 	teid := binary.BigEndian.Uint32(gtpTunnel.GTPTEID.Value)
 
-	smContext.Tunnel.ANInformation.IPAddress = gtpTunnel.TransportLayerAddress.Value.Bytes
+	anIPv4, anIPv6 := parseTransportLayerAddress(gtpTunnel.TransportLayerAddress.Value)
+	smContext.Tunnel.ANInformation.IPAddress = anIPv4
+	smContext.Tunnel.ANInformation.IPv6Address = anIPv6
 	smContext.Tunnel.ANInformation.TEID = teid
 
 	if smContext.Tunnel.DataPath.Activated {
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
-			Description: models.OuterHeaderCreationGtpUUdpIpv4,
-			TEID:        teid,
-			IPv4Address: smContext.Tunnel.ANInformation.IPAddress.To4(),
+		if anIPv6 != nil {
+			smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
+				Description: models.OuterHeaderCreationGtpUUdpIpv6,
+				TEID:        teid,
+				IPv6Address: anIPv6,
+			}
+			ohr := models.OuterHeaderRemovalGtpUUdpIpv6
+			smContext.Tunnel.DataPath.UpLinkTunnel.PDR.OuterHeaderRemoval = &ohr
+		} else {
+			smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
+				Description: models.OuterHeaderCreationGtpUUdpIpv4,
+				TEID:        teid,
+				IPv4Address: anIPv4.To4(),
+			}
+			ohr := models.OuterHeaderRemovalGtpUUdpIpv4
+			smContext.Tunnel.DataPath.UpLinkTunnel.PDR.OuterHeaderRemoval = &ohr
 		}
 	}
 
@@ -400,7 +437,7 @@ func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextR
 		return nil, fmt.Errorf("handle HandoverRequiredTransfer failed: %v", err)
 	}
 
-	n2Rsp, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IP)
+	n2Rsp, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build PDU session resource setup request transfer")
@@ -454,7 +491,7 @@ func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRe
 		return nil, fmt.Errorf("handle HandoverRequestAcknowledgeTransfer failed: %v", err)
 	}
 
-	n2Rsp, err := ngap.BuildHandoverCommandTransfer(smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IP)
+	n2Rsp, err := ngap.BuildHandoverCommandTransfer(smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build handover command transfer")
@@ -477,12 +514,30 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 
 	teid := binary.BigEndian.Uint32(GTPTunnel.GTPTEID.Value)
 
+	anIPv4, anIPv6 := parseTransportLayerAddress(GTPTunnel.TransportLayerAddress.Value)
+	smContext.Tunnel.ANInformation.IPAddress = anIPv4
+	smContext.Tunnel.ANInformation.IPv6Address = anIPv6
+	smContext.Tunnel.ANInformation.TEID = teid
+
 	if smContext.Tunnel.DataPath.Activated {
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
-			Description: models.OuterHeaderCreationGtpUUdpIpv4,
-			TEID:        teid,
-			IPv4Address: GTPTunnel.TransportLayerAddress.Value.Bytes,
+		if anIPv6 != nil {
+			smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
+				Description: models.OuterHeaderCreationGtpUUdpIpv6,
+				TEID:        teid,
+				IPv6Address: anIPv6,
+			}
+			ohr := models.OuterHeaderRemovalGtpUUdpIpv6
+			smContext.Tunnel.DataPath.UpLinkTunnel.PDR.OuterHeaderRemoval = &ohr
+		} else {
+			smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
+				Description: models.OuterHeaderCreationGtpUUdpIpv4,
+				TEID:        teid,
+				IPv4Address: anIPv4,
+			}
+			ohr := models.OuterHeaderRemovalGtpUUdpIpv4
+			smContext.Tunnel.DataPath.UpLinkTunnel.PDR.OuterHeaderRemoval = &ohr
 		}
+
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
 	}
 
@@ -537,7 +592,7 @@ func handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data []byte, smContext *SMContex
 		return nil, nil, nil, fmt.Errorf("handle PathSwitchRequestTransfer failed: %v", err)
 	}
 
-	n2Buf, err := ngap.BuildPathSwitchRequestAcknowledgeTransfer(smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IP)
+	n2Buf, err := ngap.BuildPathSwitchRequestAcknowledgeTransfer(smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("build Path Switch Transfer Error: %v", err)
 	}
@@ -549,6 +604,11 @@ func handleUpdateN2MsgXnHandoverPathSwitchReq(n2Data []byte, smContext *SMContex
 	if smContext.Tunnel.DataPath.Activated {
 		pdrList = append(pdrList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR)
 		farList = append(farList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR)
+
+		// The UL PDR's OuterHeaderRemoval is corrected by handlePathSwitchRequestTransfer above;
+		// include it in the update list so the new value reaches the UPF.
+		smContext.Tunnel.DataPath.UpLinkTunnel.PDR.State = RuleUpdate
+		pdrList = append(pdrList, smContext.Tunnel.DataPath.UpLinkTunnel.PDR)
 	}
 
 	return pdrList, farList, n2Buf, nil
@@ -569,15 +629,31 @@ func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
 
 	teid := binary.BigEndian.Uint32(gtpTunnel.GTPTEID.Value)
 
-	smContext.Tunnel.ANInformation.IPAddress = gtpTunnel.TransportLayerAddress.Value.Bytes
+	anIPv4, anIPv6 := parseTransportLayerAddress(gtpTunnel.TransportLayerAddress.Value)
+	smContext.Tunnel.ANInformation.IPAddress = anIPv4
+	smContext.Tunnel.ANInformation.IPv6Address = anIPv6
+
 	smContext.Tunnel.ANInformation.TEID = teid
 
 	if smContext.Tunnel.DataPath.Activated {
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
-			Description: models.OuterHeaderCreationGtpUUdpIpv4,
-			TEID:        teid,
-			IPv4Address: gtpTunnel.TransportLayerAddress.Value.Bytes,
+		if anIPv6 != nil {
+			smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
+				Description: models.OuterHeaderCreationGtpUUdpIpv6,
+				TEID:        teid,
+				IPv6Address: anIPv6,
+			}
+			ohr := models.OuterHeaderRemovalGtpUUdpIpv6
+			smContext.Tunnel.DataPath.UpLinkTunnel.PDR.OuterHeaderRemoval = &ohr
+		} else {
+			smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
+				Description: models.OuterHeaderCreationGtpUUdpIpv4,
+				TEID:        teid,
+				IPv4Address: anIPv4.To4(),
+			}
+			ohr := models.OuterHeaderRemovalGtpUUdpIpv4
+			smContext.Tunnel.DataPath.UpLinkTunnel.PDR.OuterHeaderRemoval = &ohr
 		}
+
 		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
 	}
 

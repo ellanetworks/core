@@ -86,13 +86,32 @@ func (bpfObjects *BpfObjects) DeletePdrDownlink(addr netip.Addr) error {
 }
 
 // FarInfo holds Forwarding Action Rule parameters embedded directly in each PDR.
+// RemoteIP and LocalIP use the IPv4-mapped IPv6 representation (::ffff:x.x.x.x)
+// for IPv4 addresses and native IPv6 for IPv6 addresses, matching the C struct in6_addr layout.
 type FarInfo struct {
 	Action                uint8
 	OuterHeaderCreation   uint8
 	TeID                  uint32
-	RemoteIP              uint32
-	LocalIP               uint32
+	RemoteIP              [16]byte // struct in6_addr equivalent
+	LocalIP               [16]byte // struct in6_addr equivalent
 	TransportLevelMarking uint16
+}
+
+// IPToIn6Addr converts a netip.Addr to a [16]byte in6_addr.
+// IPv4 addresses are stored as IPv4-mapped IPv6 (::ffff:x.x.x.x) via As16().
+func IPToIn6Addr(addr netip.Addr) [16]byte {
+	return addr.As16()
+}
+
+// In6AddrToIP converts a [16]byte in6_addr to a netip.Addr.
+// IPv4-mapped addresses (::ffff:x.x.x.x) are returned as a pure IPv4 addr via Unmap().
+func In6AddrToIP(b [16]byte) netip.Addr {
+	addr := netip.AddrFrom16(b)
+	if addr.Is4In6() {
+		return addr.Unmap()
+	}
+
+	return addr
 }
 
 // QerInfo holds QoS Enforcement Rule parameters embedded directly in each PDR.
@@ -165,8 +184,8 @@ func ToN3N6EntrypointPdrInfo(defaultPdr PdrInfo) N3N6EntrypointPdrInfo {
 	pdrToStore.Far.Action = defaultPdr.Far.Action
 	pdrToStore.Far.OuterHeaderCreation = defaultPdr.Far.OuterHeaderCreation
 	pdrToStore.Far.Teid = defaultPdr.Far.TeID
-	pdrToStore.Far.Remoteip = defaultPdr.Far.RemoteIP
-	pdrToStore.Far.Localip = defaultPdr.Far.LocalIP
+	pdrToStore.Far.Remoteip.In6U.U6Addr8 = defaultPdr.Far.RemoteIP
+	pdrToStore.Far.Localip.In6U.U6Addr8 = defaultPdr.Far.LocalIP
 	pdrToStore.Far.TransportLevelMarking = defaultPdr.Far.TransportLevelMarking
 
 	pdrToStore.Qer.UlGateStatus = defaultPdr.Qer.GateStatusUL

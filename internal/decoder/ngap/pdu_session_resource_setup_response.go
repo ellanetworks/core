@@ -159,7 +159,7 @@ func decodeSetupResponseTransfer(transfer aper.OctetString) (*PDUSessionResource
 		tunnel := dlInfo.UPTransportLayerInformation.GTPTunnel
 		teid := binary.BigEndian.Uint32(tunnel.GTPTEID.Value)
 		addr := tunnel.TransportLayerAddress.Value.Bytes
-		ip := fmt.Sprintf("%d.%d.%d.%d", addr[0], addr[1], addr[2], addr[3])
+		ip := transportLayerAddressToString(addr)
 
 		result.DLQosFlowPerTNLInformation.GTPTunnel = GTPTunnel{
 			GTPTEID:               teid,
