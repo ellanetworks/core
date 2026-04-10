@@ -22,8 +22,8 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `path` (string): The path to the database file.
 - `interfaces` (object): The network interfaces configuration.
     - `n2` (object): The configuration for the n2 interface. This interface should be connected to the radios.
-        - `name` (string): The name of the network interface (optional: either name or address must be provided).
-        - `address` (string): The address to listen on. Currently only IPv4 is supported (optional: either name or address must be provided).
+        - `name` (string): The name of the network interface to listen on (optional: either name or address must be provided). When set, the server listens on all addresses (`0.0.0.0`) but uses `SO_BINDTODEVICE` to restrict incoming traffic to this interface. Use this when you want to bind to a device without pinning to a specific IP address.
+        - `address` (string): The IP address to listen on. Supports both IPv4 and IPv6 addresses (optional: either name or address must be provided). When set, the server binds to this specific address.
         - `port` (int): The port to listen on.
     - `n3` (object): The configuration for the n3 interface. This interface should be connected to the radios.
         - `name` (string): The name of the network interface (optional: either name or address must be provided).
@@ -81,21 +81,41 @@ telemetry:
 
 ## IPv6 Support
 
-Ella Core supports IPv6 addresses for the management interface (`api`). The following example demonstrates using an IPv6 address:
+Ella Core supports IPv6 addresses for the management interface (`api`) and the radio interface (`n2`).
+
+The following example demonstrates using an IPv6 address for those interfaces:
 
 ```yaml
 interfaces:
   n2:
-    address: "22.22.22.2"
+    address: "2001:db8::1"
     port: 38412
   n3:
-    name: "ens5"
+    address: "22.22.22.2"
+    port: 38412
   n6:
     name: "ens3"
   api:
-    address: "2001:db8::2"
+    address: "2001:db9::1"
+    port: 5002
+```
+
+The following example demonstrates using `SO_BINDTODEVICE` for those interfaces:
+
+```yaml
+interfaces:
+  n2:
+    name: "ens5"
+    port: 38412
+  n3:
+    address: "22.22.22.2"
+    port: 38412
+  n6:
+    name: "ens3"
+  api:
+    name: "ens0"
     port: 5002
 ```
 
 !!! note
-    IPv6 support is currently limited to the management interfaces (`api`). The subscriber data interfaces (`n3` and `n6`) and radio interface (`n2`) currently only support IPv4 addresses.
+    IPv6 support is currently available for the management interface (`api`) and radio interface (`n2`). The subscriber data interfaces (`n3` and `n6`) currently only support IPv4 addresses.

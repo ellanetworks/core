@@ -301,7 +301,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		},
 	})
 
-	err = sctpServer.ListenAndServe(ctx, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port)
+	interfaceName := ""
+	if cfg.Interfaces.N2.Name != "" {
+		interfaceName = cfg.Interfaces.N2.Name
+	}
+
+	err = sctpServer.ListenAndServe(ctx, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port, interfaceName)
 	if err != nil {
 		return fmt.Errorf("couldn't start AMF: %w", err)
 	}

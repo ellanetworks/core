@@ -6,7 +6,7 @@ export type VlanInfo = {
 };
 
 export type InterfacesInfo = {
-  n2?: { address?: string; port?: number };
+  n2?: { addresses?: string[]; port?: number; interface?: string };
   n3?: {
     name?: string;
     address?: string;
