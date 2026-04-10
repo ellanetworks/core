@@ -11,7 +11,7 @@ data:
       audit:
         output: "stdout"
     db:
-      path: /core/data/core.db
+      path: /core/data
     interfaces:
       n2:
         address: "192.168.253.3"

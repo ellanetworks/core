@@ -59,7 +59,7 @@ logging:
   audit:
     output: "stdout"
 db:
-  path: "core.db"
+  path: "/var/snap/ella-core/common/data"
 interfaces:
   n2:
     name: "n3-upf-veth"

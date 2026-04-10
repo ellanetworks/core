@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -351,8 +352,8 @@ func openSQLiteConnection(ctx context.Context, databasePath string, sync SyncMod
 	return sqlConnection, nil
 }
 
-// Close closes both database connections. Both are always attempted; the
-// shared error takes precedence on return.
+// Close closes both database connections. Both are always attempted and any
+// errors are joined.
 func (db *Database) Close() error {
 	var sharedErr, localErr error
 
@@ -364,11 +365,7 @@ func (db *Database) Close() error {
 		localErr = db.local.PlainDB().Close()
 	}
 
-	if sharedErr != nil {
-		return sharedErr
-	}
-
-	return localErr
+	return errors.Join(sharedErr, localErr)
 }
 
 // Dir returns the directory containing both database files.
@@ -386,9 +383,10 @@ func (db *Database) LocalPath() string {
 
 // NewDatabase opens (or creates) the two-database directory layout. dataPath
 // may be a directory containing shared.db and local.db, a legacy single-file
-// SQLite database (whose contents are migrated into the directory holding it
-// and renamed to <name>.sqlite.bak), or a non-existent path treated as a
-// fresh install.
+// SQLite database (whose contents are split into shared.db and local.db
+// inside dataPath itself, with the original file preserved as
+// legacy.sqlite.bak in the new directory), or a non-existent path treated as
+// a fresh install.
 func NewDatabase(ctx context.Context, dataPath string) (*Database, error) {
 	dataDir, err := resolveDataDir(ctx, dataPath)
 	if err != nil {
@@ -403,7 +401,7 @@ func NewDatabase(ctx context.Context, dataPath string) (*Database, error) {
 		return nil, fmt.Errorf("failed to open shared database: %w", err)
 	}
 
-	if err := RunSharedMigrations(ctx, sharedConn); err != nil {
+	if err := runSharedMigrations(ctx, sharedConn); err != nil {
 		_ = sharedConn.Close()
 		return nil, fmt.Errorf("shared schema migration failed: %w", err)
 	}
@@ -414,7 +412,7 @@ func NewDatabase(ctx context.Context, dataPath string) (*Database, error) {
 		return nil, fmt.Errorf("failed to open local database: %w", err)
 	}
 
-	if err := RunLocalMigrations(ctx, localConn); err != nil {
+	if err := runLocalMigrations(ctx, localConn); err != nil {
 		_ = localConn.Close()
 		_ = sharedConn.Close()
 

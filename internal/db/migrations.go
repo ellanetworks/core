@@ -138,13 +138,13 @@ func runMigrations(ctx context.Context, sqlConn *sql.DB, registry []migration, l
 	return nil
 }
 
-// RunSharedMigrations brings shared.db up to the latest sharedMigrations version.
-func RunSharedMigrations(ctx context.Context, sqlConn *sql.DB) error {
+// runSharedMigrations brings shared.db up to the latest sharedMigrations version.
+func runSharedMigrations(ctx context.Context, sqlConn *sql.DB) error {
 	return runMigrations(ctx, sqlConn, sharedMigrations, "shared")
 }
 
-// RunLocalMigrations brings local.db up to the latest localMigrations version.
-func RunLocalMigrations(ctx context.Context, sqlConn *sql.DB) error {
+// runLocalMigrations brings local.db up to the latest localMigrations version.
+func runLocalMigrations(ctx context.Context, sqlConn *sql.DB) error {
 	return runMigrations(ctx, sqlConn, localMigrations, "local")
 }
 

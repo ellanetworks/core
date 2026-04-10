@@ -19,7 +19,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
         - `output` (string): The output for the logs. Options are `stdout` and `file`.
         - `path` (string): The path to the log file. This is only used if the output is set to `file`.
 - `db` (object): The database configuration.
-    - `path` (string): The path to the database file.
+    - `path` (string): The path to the directory holding the database files (`shared.db` and `local.db`). For backwards compatibility, if this path points at a legacy single-file SQLite database, Ella Core will migrate it in place on first startup: the path becomes a directory containing the new files, and the original file is preserved inside as `legacy.sqlite.bak`.
 - `interfaces` (object): The network interfaces configuration.
     - `n2` (object): The configuration for the n2 interface. This interface should be connected to the radios.
         - `name` (string): The name of the network interface to listen on (optional: either name or address must be provided). When set, the server listens on all addresses (`0.0.0.0`) but uses `SO_BINDTODEVICE` to restrict incoming traffic to this interface. Use this when you want to bind to a device without pinning to a specific IP address.
@@ -57,7 +57,7 @@ logging:
     output: "file"
     path: "/var/log/ella_system.log"
 db:
-  path: "core.db"
+  path: "/var/lib/ella-core"
 interfaces:
   n2:
     address: "22.22.22.2"

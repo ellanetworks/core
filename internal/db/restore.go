@@ -24,9 +24,12 @@ const (
 	safetyCopySharedFilename = "restore_safety_shared.db"
 	safetyCopyLocalFilename  = "restore_safety_local.db"
 	manifestArchiveName      = "manifest.json"
-	// maxBackupMemberSize caps tar member sizes to guard against
-	// decompression bombs.
-	maxBackupMemberSize = 8 << 30
+	// maxBackupMemberSize caps a single tar member at 2 GiB; combined with
+	// maxBackupTotalSize this defends against decompression bombs.
+	maxBackupMemberSize = 2 << 30
+	// maxBackupTotalSize caps the cumulative bytes extracted from a single
+	// backup, regardless of how many members it contains.
+	maxBackupTotalSize = 4 << 30
 )
 
 // validateSQLiteFile runs PRAGMA integrity_check against the file.
@@ -67,6 +70,7 @@ func extractBackupArchive(r io.Reader, destDir string) (*BackupManifest, error) 
 	var (
 		manifest            *BackupManifest
 		sawShared, sawLocal bool
+		totalExtracted      int64
 	)
 
 	for {
@@ -92,8 +96,18 @@ func extractBackupArchive(r io.Reader, destDir string) (*BackupManifest, error) 
 			return nil, fmt.Errorf("tar entry %q has invalid size %d", hdr.Name, hdr.Size)
 		}
 
+		if totalExtracted+hdr.Size > maxBackupTotalSize {
+			return nil, fmt.Errorf("tar entry %q would exceed total extracted budget of %d bytes", hdr.Name, maxBackupTotalSize)
+		}
+
+		totalExtracted += hdr.Size
+
 		switch hdr.Name {
 		case manifestArchiveName:
+			if manifest != nil {
+				return nil, fmt.Errorf("duplicate tar entry %q", hdr.Name)
+			}
+
 			data, err := io.ReadAll(io.LimitReader(tarReader, maxBackupMemberSize))
 			if err != nil {
 				return nil, fmt.Errorf("failed to read manifest: %w", err)
@@ -111,6 +125,10 @@ func extractBackupArchive(r io.Reader, destDir string) (*BackupManifest, error) 
 			manifest = &m
 
 		case SharedDBFilename:
+			if sawShared {
+				return nil, fmt.Errorf("duplicate tar entry %q", hdr.Name)
+			}
+
 			if err := writeArchiveMember(filepath.Join(destDir, SharedDBFilename), tarReader, hdr.Size); err != nil {
 				return nil, fmt.Errorf("failed to write shared.db: %w", err)
 			}
@@ -118,6 +136,10 @@ func extractBackupArchive(r io.Reader, destDir string) (*BackupManifest, error) 
 			sawShared = true
 
 		case LocalDBFilename:
+			if sawLocal {
+				return nil, fmt.Errorf("duplicate tar entry %q", hdr.Name)
+			}
+
 			if err := writeArchiveMember(filepath.Join(destDir, LocalDBFilename), tarReader, hdr.Size); err != nil {
 				return nil, fmt.Errorf("failed to write local.db: %w", err)
 			}
@@ -186,7 +208,7 @@ func (db *Database) reopenAfterRestore(ctx context.Context) error {
 		return fmt.Errorf("failed to reopen shared database: %w", err)
 	}
 
-	if err := RunSharedMigrations(ctx, sharedConn); err != nil {
+	if err := runSharedMigrations(ctx, sharedConn); err != nil {
 		_ = sharedConn.Close()
 		return fmt.Errorf("shared schema migration after restore failed: %w", err)
 	}
@@ -197,7 +219,7 @@ func (db *Database) reopenAfterRestore(ctx context.Context) error {
 		return fmt.Errorf("failed to reopen local database: %w", err)
 	}
 
-	if err := RunLocalMigrations(ctx, localConn); err != nil {
+	if err := runLocalMigrations(ctx, localConn); err != nil {
 		_ = localConn.Close()
 		_ = sharedConn.Close()
 
@@ -305,6 +327,18 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		return fmt.Errorf("failed to close database connections: %w", err)
 	}
 
+	// Remove stale WAL/SHM sidecars before the rename so a crash mid-swap
+	// cannot leave a fresh database file paired with old WAL state.
+	for _, base := range []string{SharedDBFilename, LocalDBFilename} {
+		for _, suffix := range []string{"-wal", "-shm"} {
+			p := filepath.Join(db.Dir(), base+suffix)
+			if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+				logger.WithTrace(ctx, logger.DBLog).Warn("Failed to remove stale sidecar file",
+					zap.String("file", p), zap.Error(err))
+			}
+		}
+	}
+
 	if err := overwriteFile(stagedShared, db.SharedPath()); err != nil {
 		if rbErr := db.rollbackFromSafetyCopy(ctx); rbErr != nil {
 			logger.WithTrace(ctx, logger.DBLog).Error("Rollback after failed restore also failed", zap.Error(rbErr))
@@ -321,15 +355,10 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		return fmt.Errorf("failed to install new local.db: %w", err)
 	}
 
-	// Remove stale WAL/SHM sidecars left over from the previous handles.
-	for _, base := range []string{SharedDBFilename, LocalDBFilename} {
-		for _, suffix := range []string{"-wal", "-shm"} {
-			p := filepath.Join(db.Dir(), base+suffix)
-			if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
-				logger.WithTrace(ctx, logger.DBLog).Warn("Failed to remove stale sidecar file",
-					zap.String("file", p), zap.Error(err))
-			}
-		}
+	// fsync the parent directory so the renames are durable across crashes.
+	if err := fsyncDir(db.Dir()); err != nil {
+		logger.WithTrace(ctx, logger.DBLog).Warn("Failed to fsync data directory after restore",
+			zap.String("dir", db.Dir()), zap.Error(err))
 	}
 
 	if err := db.reopenAfterRestore(ctx); err != nil {
