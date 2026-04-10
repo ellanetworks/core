@@ -91,7 +91,22 @@ export default function InterfacesTab() {
                 <Chip label="Control Plane" size="small" />
               </Stack>
               <Typography variant="body2" color="text.secondary">
-                Address: <strong>{interfacesInfo.n2?.address ?? "—"}</strong>
+                {interfacesInfo.n2?.addresses &&
+                interfacesInfo.n2.addresses.length > 0 ? (
+                  interfacesInfo.n2.addresses.map((addr) => (
+                    <Typography
+                      key={addr}
+                      variant="body2"
+                      color="text.secondary"
+                    >
+                      Address: <strong>{addr}</strong>
+                    </Typography>
+                  ))
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    Address: <strong>—</strong>
+                  </Typography>
+                )}
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 Port: <strong>{interfacesInfo.n2?.port ?? "—"}</strong>
@@ -134,8 +149,20 @@ export default function InterfacesTab() {
                 Interface name:{" "}
                 <strong>{interfacesInfo.n3?.name ?? "—"}</strong>
               </Typography>
+              {interfacesInfo.n2?.addresses &&
+              interfacesInfo.n2.addresses.length > 0 ? (
+                interfacesInfo.n2.addresses.map((addr) => (
+                  <Typography key={addr} variant="body2" color="text.secondary">
+                    Address: <strong>{addr}</strong>
+                  </Typography>
+                ))
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  Address: <strong>—</strong>
+                </Typography>
+              )}
               <Typography variant="body2" color="text.secondary">
-                Address: <strong>{interfacesInfo.n3?.address ?? "—"}</strong>
+                Port: <strong>{interfacesInfo.n2?.port ?? "—"}</strong>
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 External address:{" "}

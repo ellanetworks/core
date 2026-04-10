@@ -122,6 +122,7 @@ type ConfigYAML struct {
 }
 
 type N2Interface struct {
+	Name    string
 	Address string
 	Port    int
 }
@@ -259,7 +260,7 @@ func Validate(filePath string) (Config, error) {
 		return Config{}, errors.New("interfaces.n2 is empty")
 	}
 
-	_, n2Address, err := getInterfaceNameAndAddress(c.Interfaces.N2.Name, c.Interfaces.N2.Address, IPv4)
+	n2InterfaceName, n2Address, err := getInterfaceNameAndAddress(c.Interfaces.N2.Name, c.Interfaces.N2.Address, IPv4)
 	if err != nil {
 		return Config{}, fmt.Errorf("interfaces.n2: %w", err)
 	}
@@ -344,12 +345,18 @@ func Validate(filePath string) (Config, error) {
 	config.Logging.AuditLogging.Output = c.Logging.AuditLogging.Output
 	config.Logging.AuditLogging.Path = c.Logging.AuditLogging.Path
 	config.DB.Path = c.DB.Path
-	config.Interfaces.N2.Address = n2Address
-	config.Interfaces.N2.Port = c.Interfaces.N2.Port
 	config.Interfaces.N3.Name = n3InterfaceName
 	config.Interfaces.N3.Address = n3Address
-
 	config.Interfaces.N6.Name = c.Interfaces.N6.Name
+
+	if c.Interfaces.N2.Name != "" {
+		config.Interfaces.N2.Name = n2InterfaceName
+	} else {
+		config.Interfaces.N2.Address = n2Address
+	}
+
+	config.Interfaces.N2.Port = c.Interfaces.N2.Port
+
 	if c.Interfaces.API.Name != "" {
 		config.Interfaces.API.Name = apiInterfaceName
 	} else {

@@ -17,29 +17,33 @@ const (
 func TestValidConfigSuccess(t *testing.T) {
 	testcases := []struct {
 		name    string
-		n2n3IP  string
+		n2IP    string
+		n3IP    string
 		apiIP   string
 		apiName string
 		file    string
 	}{
 		{
-			name:   "IPv4",
-			n2n3IP: "1.2.3.4",
-			apiIP:  "1.2.3.4",
-			file:   "testdata/valid.yaml",
+			name:  "IPv4",
+			n2IP:  "1.2.3.4",
+			n3IP:  "1.2.3.4",
+			apiIP: "1.2.3.4",
+			file:  "testdata/valid.yaml",
 		},
 		{
-			name:   "IPv6",
-			n2n3IP: "10.0.0.1",
-			apiIP:  "fc42:dead:beef::1",
-			file:   "testdata/valid_v6.yaml",
+			name:  "IPv6",
+			n2IP:  "fc42:dead:beef:2::1",
+			n3IP:  "10.0.0.1",
+			apiIP: "fc42:dead:beef::1",
+			file:  "testdata/valid_v6.yaml",
 		},
 		{
-			name:    "IPv6-Interface",
-			n2n3IP:  "10.0.0.1",
-			apiIP:   "2001:db8::1",
+			name:    "Interface",
+			n2IP:    "",
+			n3IP:    "10.0.0.1",
+			apiIP:   "",
 			apiName: "eth0",
-			file:    "testdata/valid_v6_iface.yaml",
+			file:    "testdata/valid_iface.yaml",
 		},
 	}
 
@@ -92,11 +96,16 @@ func TestValidConfigSuccess(t *testing.T) {
 			}
 
 			config.GetInterfaceIPFunc = func(name string, family config.AddressFamily) (string, error) {
-				if family == config.AnyFamily {
+				switch name {
+				case "enp2s0":
+					return tc.n2IP, nil
+				case "enp3s0":
+					return tc.n3IP, nil
+				case "eth0":
 					return tc.apiIP, nil
 				}
 
-				return tc.n2n3IP, nil
+				return tc.n3IP, nil
 			}
 			config.GetInterfaceNameFunc = func(address string) (string, error) {
 				return "eth0", nil
@@ -129,8 +138,8 @@ func TestValidConfigSuccess(t *testing.T) {
 				t.Fatalf("Error occurred: %s", err)
 			}
 
-			if conf.Interfaces.N2.Address != tc.n2n3IP {
-				t.Fatalf("N2 interface address was not configured correctly")
+			if conf.Interfaces.N2.Address != tc.n2IP {
+				t.Fatalf("N2 interface address was not configured correctly, expected %s, got %s", tc.n2IP, conf.Interfaces.N2.Address)
 			}
 
 			if conf.Interfaces.N2.Port != 38412 {
@@ -141,7 +150,7 @@ func TestValidConfigSuccess(t *testing.T) {
 				t.Fatalf("N3 interface was not configured correctly")
 			}
 
-			if conf.Interfaces.N3.Address != tc.n2n3IP {
+			if conf.Interfaces.N3.Address != tc.n3IP {
 				t.Fatalf("N3 interface address was not configured correctly")
 			}
 
@@ -149,14 +158,12 @@ func TestValidConfigSuccess(t *testing.T) {
 				t.Fatalf("N6 interface was not configured correctly")
 			}
 
-			if tc.apiName != "" {
-				if conf.Interfaces.API.Name != tc.apiName {
-					t.Fatalf("API interface name was not configured correctly, expected: %s, got %s", tc.apiName, conf.Interfaces.API.Name)
-				}
-			} else {
-				if conf.Interfaces.API.Address != tc.apiIP {
-					t.Fatalf("API interface was not configured correctly, expected: %s, got %s", tc.apiIP, conf.Interfaces.API.Address)
-				}
+			if conf.Interfaces.API.Name != tc.apiName {
+				t.Fatalf("API interface name was not configured correctly, expected: %s, got %s", tc.apiName, conf.Interfaces.API.Name)
+			}
+
+			if conf.Interfaces.API.Address != tc.apiIP {
+				t.Fatalf("API interface was not configured correctly, expected: %s, got %s", tc.apiIP, conf.Interfaces.API.Address)
 			}
 
 			if conf.Interfaces.API.Port != 5002 {
