@@ -405,10 +405,9 @@ func copyTablesViaAttach(ctx context.Context, targetConn *sql.DB, legacyFile str
 		_, _ = targetConn.ExecContext(ctx, "PRAGMA foreign_keys = ON")
 	}()
 
-	// ATTACH cannot be parameterised; the legacy file path comes from
-	// trusted local config / OS-level startup, never user input.
-	attachStmt := fmt.Sprintf("ATTACH DATABASE '%s' AS legacy", escapeSQLString(legacyFile))
-	if _, err := targetConn.ExecContext(ctx, attachStmt); err != nil {
+	// ATTACH DATABASE accepts the filename as a bound parameter, so we
+	// avoid string interpolation entirely.
+	if _, err := targetConn.ExecContext(ctx, "ATTACH DATABASE ? AS legacy", legacyFile); err != nil {
 		return fmt.Errorf("failed to attach legacy database: %w", err)
 	}
 
@@ -508,20 +507,4 @@ func fsyncDir(path string) error {
 	}
 
 	return closeErr
-}
-
-// escapeSQLString doubles single quotes for use in a SQL string literal.
-func escapeSQLString(s string) string {
-	out := make([]byte, 0, len(s))
-
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\'' {
-			out = append(out, '\'', '\'')
-			continue
-		}
-
-		out = append(out, s[i])
-	}
-
-	return string(out)
 }

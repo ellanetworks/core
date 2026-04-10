@@ -26,6 +26,14 @@ const (
 	manifestArchiveName      = "manifest.json"
 	// maxBackupMemberSize caps a single tar member at 2 GiB; combined with
 	// maxBackupTotalSize this defends against decompression bombs.
+	//
+	// These in-package limits are intentionally larger than the API
+	// upload cap (see internal/api/server/api_restore.go's maxRestoreSize,
+	// currently 256 MiB): the API gate is the operational ceiling for
+	// HTTP-uploaded backups, while these constants are defence-in-depth
+	// for in-process callers (tests, future tooling) that may legitimately
+	// extract larger archives. Lowering these to the API cap would couple
+	// the parser to a transport-layer policy.
 	maxBackupMemberSize = 2 << 30
 	// maxBackupTotalSize caps the cumulative bytes extracted from a single
 	// backup, regardless of how many members it contains.
@@ -320,7 +328,37 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		return fmt.Errorf("failed to create safety copies: %w", err)
 	}
 
-	defer db.removeSafetyCopies()
+	// Safety copies are only deleted once we either fully succeeded or
+	// fully rolled back. If the restore fails AND rollback fails, the
+	// safety copies are the only remaining good image of the live DB and
+	// must stay on disk for manual recovery.
+	var safeToDeleteSafetyCopies bool
+
+	defer func() {
+		if safeToDeleteSafetyCopies {
+			db.removeSafetyCopies()
+			return
+		}
+
+		logger.WithTrace(ctx, logger.DBLog).Warn(
+			"Leaving restore safety copies in place; manual recovery may be required",
+			zap.String("dir", db.Dir()),
+			zap.String("shared", safetyCopySharedFilename),
+			zap.String("local", safetyCopyLocalFilename),
+		)
+	}()
+
+	// rollback runs the safety-copy rollback and reports whether it
+	// succeeded so the deferred cleanup can decide whether to drop the
+	// safety copies or leave them in place.
+	rollback := func() bool {
+		if rbErr := db.rollbackFromSafetyCopy(ctx); rbErr != nil {
+			logger.WithTrace(ctx, logger.DBLog).Error("Rollback after failed restore also failed", zap.Error(rbErr))
+			return false
+		}
+
+		return true
+	}
 
 	// Close live connections and overwrite both files.
 	if err := db.Close(); err != nil {
@@ -340,18 +378,12 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	}
 
 	if err := overwriteFile(stagedShared, db.SharedPath()); err != nil {
-		if rbErr := db.rollbackFromSafetyCopy(ctx); rbErr != nil {
-			logger.WithTrace(ctx, logger.DBLog).Error("Rollback after failed restore also failed", zap.Error(rbErr))
-		}
-
+		safeToDeleteSafetyCopies = rollback()
 		return fmt.Errorf("failed to install new shared.db: %w", err)
 	}
 
 	if err := overwriteFile(stagedLocal, db.LocalPath()); err != nil {
-		if rbErr := db.rollbackFromSafetyCopy(ctx); rbErr != nil {
-			logger.WithTrace(ctx, logger.DBLog).Error("Rollback after failed restore also failed", zap.Error(rbErr))
-		}
-
+		safeToDeleteSafetyCopies = rollback()
 		return fmt.Errorf("failed to install new local.db: %w", err)
 	}
 
@@ -362,12 +394,11 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	}
 
 	if err := db.reopenAfterRestore(ctx); err != nil {
-		if rbErr := db.rollbackFromSafetyCopy(ctx); rbErr != nil {
-			logger.WithTrace(ctx, logger.DBLog).Error("Rollback after failed restore also failed", zap.Error(rbErr))
-		}
-
+		safeToDeleteSafetyCopies = rollback()
 		return err
 	}
+
+	safeToDeleteSafetyCopies = true
 
 	return nil
 }
