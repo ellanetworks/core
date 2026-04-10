@@ -10,8 +10,9 @@ import (
 )
 
 type N2Interface struct {
-	Address string `json:"address"`
-	Port    int    `json:"port"`
+	Addresses []string `json:"addresses"`
+	Port      int      `json:"port"`
+	Interface string   `json:"interface"`
 }
 
 type N3Interface struct {
@@ -152,8 +153,8 @@ func TestNetworkInteraces_EndToEnd(t *testing.T) {
 			t.Fatalf("expected no error, got %s", resp.Error)
 		}
 
-		if resp.Result.N2.Address != "12.12.12.12" {
-			t.Fatalf("unexpected N2 interface address: %s", resp.Result.N2.Address)
+		if resp.Result.N2.Addresses[0] != "12.12.12.12" {
+			t.Fatalf("unexpected N2 interface address: %v", resp.Result.N2.Addresses)
 		}
 
 		if resp.Result.N2.Port != 2152 {
