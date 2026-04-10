@@ -364,13 +364,13 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	decodedMessage, err := ue.DecodeNASMessage(resp.NasPdu)
+	decoded, err := amf.DecodeNASMessage(ue, resp.NasPdu)
 	if err != nil {
 		t.Fatalf("could not decode ciphered NAS message")
 	}
 
-	if decodedMessage.GmmHeader.GetMessageType() != nas.MsgTypeServiceAccept {
-		t.Fatalf("expected a service accept message, got '%v'", decodedMessage.GmmHeader.GetMessageType())
+	if decoded.Message.GmmHeader.GetMessageType() != nas.MsgTypeServiceAccept {
+		t.Fatalf("expected a service accept message, got '%v'", decoded.Message.GmmHeader.GetMessageType())
 	}
 
 	if ue.T3513 != nil {

@@ -3,7 +3,6 @@ package ngap
 import (
 	"context"
 	"encoding/binary"
-	"strconv"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
@@ -195,7 +194,6 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	if rRCEstablishmentCause != nil {
 		logger.WithTrace(ctx, ranUe.Log).Debug("RRC Establishment Cause", zap.Any("Value", rRCEstablishmentCause.Value))
-		ranUe.RRCEstablishmentCause = strconv.Itoa(int(rRCEstablishmentCause.Value))
 	}
 
 	if uEContextRequest != nil {

@@ -807,7 +807,10 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 	}
 }
 
-func TestPathSwitchRequest_UESecurityCapabilitiesUpdated(t *testing.T) {
+// TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten verifies the
+// AMF keeps its stored UE 5G security capabilities when the target gNB
+// reports different values in a PathSwitchRequest (TS 33.501 §6.7.3.1).
+func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
 	sourceNGAPSender := &FakeNGAPSender{}
 	sourceRan := &amf.Radio{
 		Log:        logger.AmfLog,
@@ -817,7 +820,13 @@ func TestPathSwitchRequest_UESecurityCapabilitiesUpdated(t *testing.T) {
 
 	amfUe := newValidAmfUe()
 	amfUe.UESecurityCapability = &nasType.UESecurityCapability{}
-	amfUe.UESecurityCapability.SetLen(4) // allocate Buffer for 5G + E-UTRA algorithms
+	amfUe.UESecurityCapability.SetLen(4)
+	amfUe.UESecurityCapability.SetEA1_128_5G(1)
+	amfUe.UESecurityCapability.SetEA2_128_5G(1)
+	amfUe.UESecurityCapability.SetEA3_128_5G(1)
+	amfUe.UESecurityCapability.SetIA1_128_5G(1)
+	amfUe.UESecurityCapability.SetIA2_128_5G(1)
+	amfUe.UESecurityCapability.SetIA3_128_5G(1)
 	amfUe.SmContextList[1] = &amf.SmContext{
 		Ref:    "imsi-001010000000001-1",
 		Snssai: &models.Snssai{Sst: 1},
@@ -850,14 +859,13 @@ func TestPathSwitchRequest_UESecurityCapabilitiesUpdated(t *testing.T) {
 		t.Fatalf("failed to build transfer: %v", err)
 	}
 
-	// Set UE security capabilities with EA1 and IA2
 	secCap := &ngapType.UESecurityCapabilities{}
 	secCap.NRencryptionAlgorithms.Value = aper.BitString{
-		Bytes:     []byte{0x80, 0x00}, // EA1 set
+		Bytes:     []byte{0x00, 0x00},
 		BitLength: 16,
 	}
 	secCap.NRintegrityProtectionAlgorithms.Value = aper.BitString{
-		Bytes:     []byte{0x40, 0x00}, // IA2 set
+		Bytes:     []byte{0x00, 0x00},
 		BitLength: 16,
 	}
 	secCap.EUTRAencryptionAlgorithms.Value = aper.BitString{
@@ -886,9 +894,47 @@ func TestPathSwitchRequest_UESecurityCapabilitiesUpdated(t *testing.T) {
 
 	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 
+	if got := amfUe.UESecurityCapability.GetEA1_128_5G(); got != 1 {
+		t.Errorf("stored EA1_128_5G was overwritten: got %d, want 1", got)
+	}
+
+	if got := amfUe.UESecurityCapability.GetEA2_128_5G(); got != 1 {
+		t.Errorf("stored EA2_128_5G was overwritten: got %d, want 1", got)
+	}
+
+	if got := amfUe.UESecurityCapability.GetEA3_128_5G(); got != 1 {
+		t.Errorf("stored EA3_128_5G was overwritten: got %d, want 1", got)
+	}
+
+	if got := amfUe.UESecurityCapability.GetIA1_128_5G(); got != 1 {
+		t.Errorf("stored IA1_128_5G was overwritten: got %d, want 1", got)
+	}
+
+	if got := amfUe.UESecurityCapability.GetIA2_128_5G(); got != 1 {
+		t.Errorf("stored IA2_128_5G was overwritten: got %d, want 1", got)
+	}
+
+	if got := amfUe.UESecurityCapability.GetIA3_128_5G(); got != 1 {
+		t.Errorf("stored IA3_128_5G was overwritten: got %d, want 1", got)
+	}
+
 	if len(targetNGAPSender.SentPathSwitchRequestAcknowledges) != 1 {
 		t.Fatalf("expected 1 PathSwitchRequestAcknowledge, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestAcknowledges))
+	}
+
+	ack := targetNGAPSender.SentPathSwitchRequestAcknowledges[0]
+	if ack.UESecurityCapability == nil {
+		t.Fatal("PathSwitchRequestAcknowledge has nil UESecurityCapability")
+	}
+
+	if ack.UESecurityCapability.GetEA1_128_5G() != 1 ||
+		ack.UESecurityCapability.GetEA2_128_5G() != 1 ||
+		ack.UESecurityCapability.GetEA3_128_5G() != 1 ||
+		ack.UESecurityCapability.GetIA1_128_5G() != 1 ||
+		ack.UESecurityCapability.GetIA2_128_5G() != 1 ||
+		ack.UESecurityCapability.GetIA3_128_5G() != 1 {
+		t.Error("PathSwitchRequestAcknowledge does not echo locally stored UE security capabilities")
 	}
 }
 
@@ -920,7 +966,10 @@ func TestHandlePathSwitchRequest_MissingRANUENGAPID(t *testing.T) {
 	})
 }
 
-func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
+// TestPathSwitchRequest_UESecurityCapabilitiesMatching exercises the
+// happy path where the target gNB reports the same capabilities the AMF
+// has stored.
+func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 	sourceNGAPSender := &FakeNGAPSender{}
 	sourceRan := &amf.Radio{
 		Log:        logger.AmfLog,
@@ -929,6 +978,14 @@ func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
 	}
 
 	amfUe := newValidAmfUe()
+	amfUe.UESecurityCapability = &nasType.UESecurityCapability{}
+	amfUe.UESecurityCapability.SetLen(4)
+	amfUe.UESecurityCapability.SetEA1_128_5G(1)
+	amfUe.UESecurityCapability.SetIA2_128_5G(1)
+	amfUe.SmContextList[1] = &amf.SmContext{
+		Ref:    "imsi-001010000000001-1",
+		Snssai: &models.Snssai{Sst: 1},
+	}
 
 	ranUe := &amf.RanUe{
 		RanUeNgapID: 1,
@@ -946,11 +1003,128 @@ func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
 		RanUEs:     make(map[int64]*amf.RanUe),
 	}
 
-	fakeSmf := &FakeSmfSbi{}
+	fakeSmf := &FakeSmfSbi{
+		PathSwitchResponse: []byte{0xAA},
+	}
 	amfInstance := newTestAMFWithSmf(fakeSmf)
 	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
 
-	// UESecurityCapabilities with empty Bytes slices — must not panic
+	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
+	if err != nil {
+		t.Fatalf("failed to build transfer: %v", err)
+	}
+
+	matchingCaps := &ngapType.UESecurityCapabilities{}
+	matchingCaps.NRencryptionAlgorithms.Value = aper.BitString{
+		Bytes:     []byte{0x80, 0x00}, // EA1
+		BitLength: 16,
+	}
+	matchingCaps.NRintegrityProtectionAlgorithms.Value = aper.BitString{
+		Bytes:     []byte{0x40, 0x00}, // IA2
+		BitLength: 16,
+	}
+	matchingCaps.EUTRAencryptionAlgorithms.Value = aper.BitString{
+		Bytes:     []byte{0x00, 0x00},
+		BitLength: 16,
+	}
+	matchingCaps.EUTRAintegrityProtectionAlgorithms.Value = aper.BitString{
+		Bytes:     []byte{0x00, 0x00},
+		BitLength: 16,
+	}
+
+	msg := buildPathSwitchRequest(
+		&ngapType.AMFUENGAPID{Value: 10},
+		&ngapType.RANUENGAPID{Value: 2},
+		&ngapType.PDUSessionResourceToBeSwitchedDLList{
+			List: []ngapType.PDUSessionResourceToBeSwitchedDLItem{
+				{
+					PDUSessionID:              ngapType.PDUSessionID{Value: 1},
+					PathSwitchRequestTransfer: transfer,
+				},
+			},
+		},
+		nil,
+		matchingCaps,
+	)
+
+	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
+
+	if got := amfUe.UESecurityCapability.GetEA1_128_5G(); got != 1 {
+		t.Errorf("stored EA1_128_5G changed after matching path switch: got %d, want 1", got)
+	}
+
+	if got := amfUe.UESecurityCapability.GetIA2_128_5G(); got != 1 {
+		t.Errorf("stored IA2_128_5G changed after matching path switch: got %d, want 1", got)
+	}
+
+	if got := amfUe.UESecurityCapability.GetEA2_128_5G(); got != 0 {
+		t.Errorf("stored EA2_128_5G unexpectedly set: got %d, want 0", got)
+	}
+
+	if len(targetNGAPSender.SentPathSwitchRequestAcknowledges) != 1 {
+		t.Fatalf("expected 1 PathSwitchRequestAcknowledge, got %d",
+			len(targetNGAPSender.SentPathSwitchRequestAcknowledges))
+	}
+
+	ack := targetNGAPSender.SentPathSwitchRequestAcknowledges[0]
+	if ack.UESecurityCapability == nil {
+		t.Fatal("PathSwitchRequestAcknowledge has nil UESecurityCapability")
+	}
+
+	if ack.UESecurityCapability.GetEA1_128_5G() != 1 || ack.UESecurityCapability.GetIA2_128_5G() != 1 {
+		t.Error("PathSwitchRequestAcknowledge does not echo locally stored UE security capabilities")
+	}
+}
+
+// TestPathSwitchRequest_EmptySecurityCapabilityBytes covers a
+// PathSwitchRequest whose UESecurityCapabilities IE has empty NR
+// bitstrings: the handler must not panic, must leave stored capabilities
+// untouched, and must still emit the PathSwitchRequestAcknowledge.
+func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
+	sourceNGAPSender := &FakeNGAPSender{}
+	sourceRan := &amf.Radio{
+		Log:        logger.AmfLog,
+		NGAPSender: sourceNGAPSender,
+		RanUEs:     make(map[int64]*amf.RanUe),
+	}
+
+	amfUe := newValidAmfUe()
+	amfUe.UESecurityCapability = &nasType.UESecurityCapability{}
+	amfUe.UESecurityCapability.SetLen(4)
+	amfUe.UESecurityCapability.SetEA1_128_5G(1)
+	amfUe.UESecurityCapability.SetIA2_128_5G(1)
+	amfUe.SmContextList[1] = &amf.SmContext{
+		Ref:    "imsi-001010000000001-1",
+		Snssai: &models.Snssai{Sst: 1},
+	}
+
+	ranUe := &amf.RanUe{
+		RanUeNgapID: 1,
+		AmfUeNgapID: 10,
+		Radio:       sourceRan,
+		Log:         logger.AmfLog,
+	}
+	amfUe.AttachRanUe(ranUe)
+	sourceRan.RanUEs[1] = ranUe
+
+	targetNGAPSender := &FakeNGAPSender{}
+	targetRan := &amf.Radio{
+		Log:        logger.AmfLog,
+		NGAPSender: targetNGAPSender,
+		RanUEs:     make(map[int64]*amf.RanUe),
+	}
+
+	fakeSmf := &FakeSmfSbi{
+		PathSwitchResponse: []byte{0xAA},
+	}
+	amfInstance := newTestAMFWithSmf(fakeSmf)
+	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
+
+	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
+	if err != nil {
+		t.Fatalf("failed to build transfer: %v", err)
+	}
+
 	emptyCaps := &ngapType.UESecurityCapabilities{
 		NRencryptionAlgorithms: ngapType.NRencryptionAlgorithms{
 			Value: aper.BitString{Bytes: []byte{}, BitLength: 0},
@@ -969,7 +1143,14 @@ func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
 	msg := buildPathSwitchRequest(
 		&ngapType.AMFUENGAPID{Value: 10},
 		&ngapType.RANUENGAPID{Value: 2},
-		nil,
+		&ngapType.PDUSessionResourceToBeSwitchedDLList{
+			List: []ngapType.PDUSessionResourceToBeSwitchedDLItem{
+				{
+					PDUSessionID:              ngapType.PDUSessionID{Value: 1},
+					PathSwitchRequestTransfer: transfer,
+				},
+			},
+		},
 		nil,
 		emptyCaps,
 	)
@@ -977,4 +1158,17 @@ func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
 	assertNoPanic(t, "HandlePathSwitchRequest(empty security capability bytes)", func() {
 		ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, msg)
 	})
+
+	if got := amfUe.UESecurityCapability.GetEA1_128_5G(); got != 1 {
+		t.Errorf("stored EA1_128_5G was modified by malformed IE: got %d, want 1", got)
+	}
+
+	if got := amfUe.UESecurityCapability.GetIA2_128_5G(); got != 1 {
+		t.Errorf("stored IA2_128_5G was modified by malformed IE: got %d, want 1", got)
+	}
+
+	if len(targetNGAPSender.SentPathSwitchRequestAcknowledges) != 1 {
+		t.Fatalf("expected 1 PathSwitchRequestAcknowledge despite malformed security IE, got %d",
+			len(targetNGAPSender.SentPathSwitchRequestAcknowledges))
+	}
 }
