@@ -186,7 +186,7 @@ const sharedV1CreateJWTSecret = `
 	CREATE TABLE IF NOT EXISTS %s (
 		singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton = TRUE),
 		secret    BLOB    NOT NULL
-)`
+)` // #nosec: G101
 
 const sharedV1CreateBGPSettings = `
 	CREATE TABLE IF NOT EXISTS %s (

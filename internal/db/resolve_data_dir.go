@@ -301,7 +301,7 @@ func copyTablesViaAttach(ctx context.Context, targetConn *sql.DB, legacyFile str
 	for _, table := range tables {
 		// Identifier-only interpolation of a hard-coded table name list —
 		// no user input reaches this string.
-		stmt := fmt.Sprintf("INSERT INTO main.%s SELECT * FROM legacy.%s", table, table)
+		stmt := fmt.Sprintf("INSERT INTO main.%s SELECT * FROM legacy.%s", table, table) // #nosec: G201
 
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
 			_ = tx.Rollback()
