@@ -22,16 +22,11 @@ import (
 
 var tracer = otel.Tracer("ella-core/db")
 
-// Database is the object used to communicate with the established repository.
+// Database holds the two SQLite handles backing the application:
+//   - shared: configuration and state (subscribers, policies, leases, ...).
+//   - local:  per-instance telemetry (radio events, flow reports).
 //
-// As of Phase 1 of the HA design, each Database holds two SQLite handles:
-//   - shared: the cluster-shared database (subscribers, policies, leases, ...)
-//     replicated via Raft in HA mode (Phase 2+).
-//   - local: the per-instance database (radio events, flow reports) which is
-//     never replicated.
-//
-// dataDir is the directory holding both files (and Raft state in HA mode).
-// See spec_ha.md §3.2 for the full classification.
+// dataDir is the directory containing both files.
 type Database struct {
 	dataDir   string
 	restoreMu sync.Mutex
@@ -244,23 +239,18 @@ type Database struct {
 	deleteUserStmt       *sqlair.Statement
 	countUsersStmt       *sqlair.Statement
 
-	// shared holds the cluster-shared SQLite handle. All tables except
-	// network_logs and flow_reports live here. In HA mode (Phase 2+) writes
-	// against this DB will be proposed through Raft; in standalone mode it
-	// is a plain SQLite file at <dataDir>/shared.db.
+	// shared holds the SQLite handle for configuration/state tables.
 	shared *sqlair.DB
 
-	// local holds the per-instance SQLite handle for high-volume telemetry
-	// (network_logs, flow_reports). Never replicated. Located at
-	// <dataDir>/local.db.
+	// local holds the SQLite handle for per-instance telemetry tables
+	// (network_logs, flow_reports).
 	local *sqlair.DB
 }
 
-// SharedDBFilename is the on-disk name of the cluster-shared SQLite file.
-const SharedDBFilename = "shared.db"
-
-// LocalDBFilename is the on-disk name of the per-instance SQLite file.
-const LocalDBFilename = "local.db"
+const (
+	SharedDBFilename = "shared.db"
+	LocalDBFilename  = "local.db"
+)
 
 // Initial Retention Policy values
 const (
@@ -307,12 +297,8 @@ const (
 	InitialPolicyArp                 = 1 // Default ARP of 1
 )
 
-// SyncMode controls the SQLite synchronous PRAGMA used when opening a
-// database. shared.db must use SyncFull so that a Raft-committed write can
-// never be lost from the leader's local SQLite (which would diverge replicas
-// in HA mode). local.db keeps SyncNormal — fsyncs are deferred to WAL
-// checkpoints, writes complete in microseconds, and a power failure can lose
-// the last few seconds of telemetry but cannot corrupt the file.
+// SyncMode selects the SQLite synchronous PRAGMA. shared.db uses SyncFull for
+// durability; local.db uses SyncNormal to keep telemetry writes cheap.
 type SyncMode int
 
 const (
@@ -365,8 +351,8 @@ func openSQLiteConnection(ctx context.Context, databasePath string, sync SyncMod
 	return sqlConnection, nil
 }
 
-// Close closes both database connections cleanly. Errors from closing the
-// shared DB take precedence; the local DB is always attempted.
+// Close closes both database connections. Both are always attempted; the
+// shared error takes precedence on return.
 func (db *Database) Close() error {
 	var sharedErr, localErr error
 
@@ -385,33 +371,24 @@ func (db *Database) Close() error {
 	return localErr
 }
 
-// Dir returns the directory containing both database files (and, in HA mode,
-// the Raft state).
+// Dir returns the directory containing both database files.
 func (db *Database) Dir() string {
 	return db.dataDir
 }
 
-// SharedPath returns the on-disk path of the shared SQLite file.
 func (db *Database) SharedPath() string {
 	return filepath.Join(db.dataDir, SharedDBFilename)
 }
 
-// LocalPath returns the on-disk path of the local SQLite file.
 func (db *Database) LocalPath() string {
 	return filepath.Join(db.dataDir, LocalDBFilename)
 }
 
-// NewDatabase opens (or creates) the two-database directory layout used since
-// Phase 1 of the HA design. The dataPath argument may be:
-//
-//   - a directory containing shared.db and local.db (post-split deployment),
-//   - a regular file (legacy single-SQLite deployment), in which case the
-//     contents are migrated into <parent>/shared.db and <parent>/local.db
-//     and the legacy file is renamed to <basename>.sqlite.bak,
-//   - a non-existent path, treated as a fresh install: the directory is
-//     created and empty shared.db / local.db are initialised.
-//
-// See spec_ha.md §3.2.5 for the full detection logic.
+// NewDatabase opens (or creates) the two-database directory layout. dataPath
+// may be a directory containing shared.db and local.db, a legacy single-file
+// SQLite database (whose contents are migrated into the directory holding it
+// and renamed to <name>.sqlite.bak), or a non-existent path treated as a
+// fresh install.
 func NewDatabase(ctx context.Context, dataPath string) (*Database, error) {
 	dataDir, err := resolveDataDir(ctx, dataPath)
 	if err != nil {
@@ -884,8 +861,7 @@ func (db *Database) Initialize(ctx context.Context) error {
 	return nil
 }
 
-// BeginTransaction starts a transaction against the shared database. All
-// callers (routes, policies) operate on shared tables.
+// BeginTransaction starts a transaction against the shared database.
 func (db *Database) BeginTransaction(ctx context.Context) (*Transaction, error) {
 	tx, err := db.shared.Begin(ctx, nil)
 	if err != nil {

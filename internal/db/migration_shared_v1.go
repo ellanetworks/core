@@ -8,26 +8,9 @@ import (
 	"fmt"
 )
 
-// ---------------------------------------------------------------------------
-// Shared V1 split-baseline DDL — FROZEN.
-//
-// This migration emits the END STATE of legacyMigrations v1..v8 restricted
-// to the tables that live in shared.db (see spec_ha.md §3.2.1). It is a new
-// function — not an edited copy of any historical migration. Once shipped,
-// it MUST NOT be modified; further schema changes go in sharedMigrations v2+.
-//
-// Tables created here:
-//
-//   operator, network_slices, profiles, data_networks, policies,
-//   network_rules, subscribers, daily_usage, ip_leases,
-//   home_network_keys, users, sessions, api_tokens, jwt_secret,
-//   bgp_settings, bgp_peers, bgp_import_prefixes, routes,
-//   nat_settings, n3_settings, flow_accounting_settings,
-//   retention_policies, audit_logs.
-//
-// network_logs and flow_reports are intentionally absent — they live in
-// local.db and are created by migrateLocalV1.
-// ---------------------------------------------------------------------------
+// Shared V1 split-baseline DDL — FROZEN. Emits the end state of
+// legacyMigrations v1..v8 for the shared tables. Once shipped, must not be
+// modified; further changes go in sharedMigrations v2+.
 
 const sharedV1CreateOperator = `
 	CREATE TABLE IF NOT EXISTS %s (
@@ -266,47 +249,30 @@ const sharedV1CreateAuditLogs = `
 func migrateSharedV1(ctx context.Context, tx *sql.Tx) error {
 	// Order matters: parents before children for FK references.
 	stmts := []string{
-		// Independent / parent tables.
 		fmt.Sprintf(sharedV1CreateOperator, OperatorTableName),
 		fmt.Sprintf(sharedV1CreateNetworkSlices, NetworkSlicesTableName),
 		fmt.Sprintf(sharedV1CreateProfiles, ProfilesTableName),
 		fmt.Sprintf(sharedV1CreateDataNetworks, DataNetworksTableName),
-
-		// policies depends on profiles, network_slices, data_networks.
 		fmt.Sprintf(sharedV1CreatePolicies,
 			PoliciesTableName,
 			ProfilesTableName,
 			NetworkSlicesTableName,
 			DataNetworksTableName),
-
-		// network_rules depends on policies.
 		fmt.Sprintf(sharedV1CreateNetworkRules, NetworkRulesTableName, PoliciesTableName),
-
-		// subscribers depends on profiles.
 		fmt.Sprintf(sharedV1CreateSubscribers, SubscribersTableName, ProfilesTableName),
-
-		// daily_usage depends on subscribers.
 		fmt.Sprintf(sharedV1CreateDailyUsage, DailyUsageTableName, SubscribersTableName),
-
-		// ip_leases depends on data_networks and subscribers.
 		fmt.Sprintf(sharedV1CreateIPLeases,
 			IPLeasesTableName,
 			DataNetworksTableName,
 			SubscribersTableName),
-
-		// Independent auth/keys/settings tables.
 		fmt.Sprintf(sharedV1CreateHomeNetworkKeys, HomeNetworkKeysTableName),
 		fmt.Sprintf(sharedV1CreateUsers, UsersTableName),
 		fmt.Sprintf(sharedV1CreateSessions, SessionsTableName, UsersTableName),
 		fmt.Sprintf(sharedV1CreateAPITokens, APITokensTableName, UsersTableName),
 		fmt.Sprintf(sharedV1CreateJWTSecret, JWTSecretTableName),
-
-		// BGP.
 		fmt.Sprintf(sharedV1CreateBGPSettings, BGPSettingsTableName),
 		fmt.Sprintf(sharedV1CreateBGPPeers, BGPPeersTableName),
 		fmt.Sprintf(sharedV1CreateBGPImportPrefixes, BGPImportPrefixesTableName, BGPPeersTableName),
-
-		// Networking + retention + audit.
 		fmt.Sprintf(sharedV1CreateRoutes, RoutesTableName),
 		fmt.Sprintf(sharedV1CreateNATSettings, NATSettingsTableName),
 		fmt.Sprintf(sharedV1CreateN3Settings, N3SettingsTableName),

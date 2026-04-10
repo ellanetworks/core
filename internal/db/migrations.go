@@ -18,16 +18,10 @@ type migration struct {
 	fn          func(ctx context.Context, tx *sql.Tx) error
 }
 
-// legacyMigrations is the FROZEN list of pre-split single-database migrations
-// that ran before the Phase 1 two-database split. They are only invoked when
-// upgrading a legacy single-file database (see resolveDataDir in db.go), and
-// are never run against the new shared.db / local.db files.
-//
-// Rules:
-//   - This slice is APPEND-NEVER. No new entries.
-//   - Existing entries are immutable — never edit their fn or description.
-//   - Schema changes shipped after Phase 1 belong in sharedMigrations or
-//     localMigrations.
+// legacyMigrations is the FROZEN list of pre-split single-database migrations.
+// Only invoked when upgrading a legacy single-file database via resolveDataDir;
+// never run against shared.db or local.db. Append-never; entries are immutable.
+// New schema changes belong in sharedMigrations or localMigrations.
 var legacyMigrations = []migration{
 	{1, "baseline schema", migrateV1},
 	{2, "add NAS security columns, home network keys table, and SPN columns", migrateV2},
@@ -39,22 +33,15 @@ var legacyMigrations = []migration{
 	{8, "add action to flow reports", migrateV8},
 }
 
-// sharedMigrations is the append-only registry of schema migrations applied
-// to shared.db. It starts at v1 with the canonical post-split-baseline schema
-// — i.e. the end state of legacyMigrations v1..v8 restricted to the tables
-// that live in the shared database (see spec_ha.md §3.2.1).
-//
-// Rules:
-//   - Versions sequential starting at 1, no gaps.
-//   - Once shipped, a migration is immutable — never edit its fn.
-//   - Append-only.
+// sharedMigrations is the append-only schema migration registry for shared.db.
+// v1 is the canonical end state of legacyMigrations v1..v8 for shared tables.
+// Versions are sequential from 1 with no gaps; shipped entries are immutable.
 var sharedMigrations = []migration{
 	{1, "split baseline (shared)", migrateSharedV1},
 }
 
-// localMigrations is the append-only registry of schema migrations applied
-// to local.db. It starts at v1 with the canonical post-split-baseline schema
-// for the per-instance tables (network_logs, flow_reports).
+// localMigrations is the append-only schema migration registry for local.db
+// (network_logs, flow_reports).
 var localMigrations = []migration{
 	{1, "split baseline (local)", migrateLocalV1},
 }
@@ -151,22 +138,18 @@ func runMigrations(ctx context.Context, sqlConn *sql.DB, registry []migration, l
 	return nil
 }
 
-// RunSharedMigrations brings shared.db up to the latest sharedMigrations
-// version. In HA mode (Phase 2+) this must only run on the Raft leader; the
-// followers receive the resulting writes via FSM replay.
+// RunSharedMigrations brings shared.db up to the latest sharedMigrations version.
 func RunSharedMigrations(ctx context.Context, sqlConn *sql.DB) error {
 	return runMigrations(ctx, sqlConn, sharedMigrations, "shared")
 }
 
 // RunLocalMigrations brings local.db up to the latest localMigrations version.
-// Always run independently on each instance during startup — local.db is
-// per-instance and never replicated.
 func RunLocalMigrations(ctx context.Context, sqlConn *sql.DB) error {
 	return runMigrations(ctx, sqlConn, localMigrations, "local")
 }
 
 // runLegacyMigrations brings a pre-split single-file database up to the v8
-// frozen end state. Used only by resolveDataDir during legacy file migration.
+// frozen end state. Only used during one-shot legacy → split migration.
 func runLegacyMigrations(ctx context.Context, sqlConn *sql.DB) error {
 	return runMigrations(ctx, sqlConn, legacyMigrations, "legacy")
 }

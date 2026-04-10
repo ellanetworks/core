@@ -14,13 +14,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// sharedTablesInLegacyOrder is the FROZEN list of tables that live in shared.db
-// after the split. The order is parents-before-children so that the
-// `INSERT ... SELECT` statements during legacy migration succeed even with
-// foreign keys enforced (we still copy with foreign_keys=OFF on the target
-// connection — see migrateLegacyToSplit — but the order is still correct).
-//
-// MUST stay in sync with sharedV1 DDL in migration_shared_v1.go.
+// sharedTablesInLegacyOrder is the FROZEN list of tables copied from a legacy
+// database into shared.db, ordered parents-before-children for FK references.
+// MUST stay in sync with migrateSharedV1.
 var sharedTablesInLegacyOrder = []string{
 	"operator",
 	"network_slices",
@@ -47,31 +43,24 @@ var sharedTablesInLegacyOrder = []string{
 	"audit_logs",
 }
 
-// localTablesInLegacyOrder is the list of tables that live in local.db.
-//
-// MUST stay in sync with localV1 DDL in migration_local_v1.go.
+// localTablesInLegacyOrder lists the tables copied from a legacy database into
+// local.db. MUST stay in sync with migrateLocalV1.
 var localTablesInLegacyOrder = []string{
 	"network_logs",
 	"flow_reports",
 }
 
-// legacyV8Version is the schema_version that the legacy single-file database
-// must reach before its contents can be copied into the split layout.
+// legacyV8Version is the schema_version a legacy single-file database must
+// reach before it can be split.
 const legacyV8Version = 8
 
-// resolveDataDir interprets the configured db.path and returns the directory
-// holding shared.db and local.db, performing the legacy single-file → split
-// migration if necessary. Implements the detection logic specified in
-// spec_ha.md §3.2.5.
+// resolveDataDir interprets dataPath and returns the directory holding
+// shared.db and local.db:
 //
-// Behaviour:
-//
-//   - dataPath is a directory ⇒ return it.
-//   - dataPath is a regular file ⇒ migrate the legacy single-file database
-//     into <dirname(dataPath)>/{shared.db,local.db}, then return that
-//     directory.
-//   - dataPath does not exist ⇒ treat it as a fresh install: create the
-//     directory and return it (the caller will create empty databases).
+//   - directory ⇒ returned as-is.
+//   - regular file ⇒ legacy single-SQLite layout; migrated into the directory
+//     containing it.
+//   - missing ⇒ fresh install: directory is created.
 func resolveDataDir(ctx context.Context, dataPath string) (string, error) {
 	if dataPath == "" {
 		return "", errors.New("db.path is empty")
@@ -80,7 +69,6 @@ func resolveDataDir(ctx context.Context, dataPath string) (string, error) {
 	info, err := os.Stat(dataPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			// Fresh install: create the directory and return it.
 			if mkErr := os.MkdirAll(dataPath, 0o750); mkErr != nil {
 				return "", fmt.Errorf("failed to create database directory %q: %w", dataPath, mkErr)
 			}
@@ -97,8 +85,6 @@ func resolveDataDir(ctx context.Context, dataPath string) (string, error) {
 		return dataPath, nil
 	}
 
-	// Regular file: legacy single-SQLite layout. Migrate it into the
-	// directory holding it.
 	legacyDir := filepath.Dir(dataPath)
 
 	logger.WithTrace(ctx, logger.DBLog).Info(
@@ -115,15 +101,12 @@ func resolveDataDir(ctx context.Context, dataPath string) (string, error) {
 }
 
 // migrateLegacyToSplit performs the one-shot legacy → two-DB migration.
-// Restartable on crash mid-copy: a partial target DB is deleted before retry.
 func migrateLegacyToSplit(ctx context.Context, legacyFile, dataDir string) error {
 	sharedTarget := filepath.Join(dataDir, SharedDBFilename)
 	localTarget := filepath.Join(dataDir, LocalDBFilename)
 
-	// If a previous migration crashed mid-copy, the targets exist but the
-	// legacy file is also still around. Detect that explicitly: refuse to
-	// proceed if either target exists, since restarting the migration would
-	// double-write rows.
+	// Refuse to retry on top of partial output: a previous crashed run could
+	// leave one of the targets behind, and rerunning would double-insert rows.
 	for _, p := range []string{sharedTarget, localTarget} {
 		if _, err := os.Stat(p); err == nil {
 			return fmt.Errorf("both legacy file %q and target %q exist; remove the target manually after verifying its contents", legacyFile, p)
@@ -132,7 +115,7 @@ func migrateLegacyToSplit(ctx context.Context, legacyFile, dataDir string) error
 		}
 	}
 
-	// 1. Bring the legacy file up to v8.
+	// Bring the legacy file up to v8.
 	legacyConn, err := openSQLiteConnection(ctx, legacyFile, SyncFull)
 	if err != nil {
 		return fmt.Errorf("failed to open legacy database: %w", err)
@@ -143,7 +126,6 @@ func migrateLegacyToSplit(ctx context.Context, legacyFile, dataDir string) error
 		return fmt.Errorf("legacy migrations failed: %w", err)
 	}
 
-	// 2. Verify legacy is at v8.
 	var legacyVersion int
 
 	if err := legacyConn.QueryRowContext(ctx,
@@ -157,14 +139,13 @@ func migrateLegacyToSplit(ctx context.Context, legacyFile, dataDir string) error
 		return fmt.Errorf("legacy database at version %d, expected %d", legacyVersion, legacyV8Version)
 	}
 
-	// Close the legacy connection so ATTACH DATABASE on the targets can
-	// open it independently. WAL files written by go-sqlite3 are checkpointed
-	// on close.
+	// Close the legacy connection so ATTACH DATABASE on the targets can open
+	// it independently (go-sqlite3 checkpoints WAL on close).
 	if err := legacyConn.Close(); err != nil {
 		return fmt.Errorf("failed to close legacy database: %w", err)
 	}
 
-	// 3. Create empty shared/local DBs at split-baseline v1.
+	// Create empty shared/local DBs at the split-baseline.
 	sharedConn, err := openSQLiteConnection(ctx, sharedTarget, SyncFull)
 	if err != nil {
 		_ = os.Remove(sharedTarget)
@@ -178,7 +159,6 @@ func migrateLegacyToSplit(ctx context.Context, legacyFile, dataDir string) error
 		return fmt.Errorf("shared split-baseline migration failed: %w", err)
 	}
 
-	// 4. Copy shared tables from legacy.
 	if err := copyTablesViaAttach(ctx, sharedConn, legacyFile, sharedTablesInLegacyOrder); err != nil {
 		_ = sharedConn.Close()
 		_ = os.Remove(sharedTarget)
@@ -222,7 +202,6 @@ func migrateLegacyToSplit(ctx context.Context, legacyFile, dataDir string) error
 		return fmt.Errorf("failed to close local.db after copy: %w", err)
 	}
 
-	// 5. Verify row counts.
 	if err := verifyRowCounts(ctx, legacyFile, sharedTarget, sharedTablesInLegacyOrder); err != nil {
 		_ = os.Remove(sharedTarget)
 		_ = os.Remove(localTarget)
@@ -237,7 +216,7 @@ func migrateLegacyToSplit(ctx context.Context, legacyFile, dataDir string) error
 		return fmt.Errorf("local row count verification failed: %w", err)
 	}
 
-	// 6. fsync and rename the legacy file.
+	// fsync the new files before renaming the legacy file out of the way.
 	if err := fsyncFile(sharedTarget); err != nil {
 		return fmt.Errorf("failed to fsync shared.db: %w", err)
 	}
@@ -251,8 +230,7 @@ func migrateLegacyToSplit(ctx context.Context, legacyFile, dataDir string) error
 		return fmt.Errorf("failed to rename legacy file to %q: %w", backupPath, err)
 	}
 
-	// Best-effort cleanup of leftover WAL/SHM sidecars next to the now-renamed
-	// legacy file. Errors are non-fatal.
+	// Best-effort cleanup of stale WAL/SHM sidecars.
 	for _, suffix := range []string{"-wal", "-shm"} {
 		_ = os.Remove(legacyFile + suffix)
 	}
@@ -265,14 +243,9 @@ func migrateLegacyToSplit(ctx context.Context, legacyFile, dataDir string) error
 	return nil
 }
 
-// copyTablesViaAttach attaches the legacy file to targetConn and copies every
-// listed table within a single IMMEDIATE transaction. Returns nil if every
-// INSERT ... SELECT succeeds.
-//
-// Foreign keys are temporarily disabled on the target connection so that the
-// FK references between subscribers/profiles/policies/etc. don't reject rows
-// inserted out of dependency order in the (unlikely) event of cycles. Order
-// is still parents-before-children, so this is defence-in-depth.
+// copyTablesViaAttach ATTACHes the legacy file and copies the listed tables
+// into the target within a single transaction. FKs are disabled on the target
+// connection as defence-in-depth (the table list is already parents-first).
 func copyTablesViaAttach(ctx context.Context, targetConn *sql.DB, legacyFile string, tables []string) error {
 	if _, err := targetConn.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
 		return fmt.Errorf("failed to disable foreign keys: %w", err)
@@ -352,9 +325,7 @@ func verifyRowCounts(ctx context.Context, legacyFile, targetFile string, tables 
 	return nil
 }
 
-// fsyncFile flushes a file to disk by opening it for read+write, calling
-// Sync(), and closing it. Used after migration to make the new split files
-// durable before renaming the legacy file out of the way.
+// fsyncFile flushes a file to disk.
 func fsyncFile(path string) error {
 	f, err := os.OpenFile(path, os.O_RDWR, 0o600) // #nosec: G304
 	if err != nil {
@@ -371,15 +342,12 @@ func fsyncFile(path string) error {
 	return closeErr
 }
 
-// legacyBackupName returns the path to which a successfully migrated legacy
-// file is renamed. The chosen suffix is `.sqlite.bak`.
+// legacyBackupName returns the post-migration name of the legacy file.
 func legacyBackupName(legacyFile string) string {
 	return legacyFile + ".sqlite.bak"
 }
 
-// escapeSQLString escapes a single-quote in a SQL string literal. Only used
-// for the ATTACH DATABASE path, which comes from local config and never from
-// user input.
+// escapeSQLString doubles single quotes for use in a SQL string literal.
 func escapeSQLString(s string) string {
 	out := make([]byte, 0, len(s))
 

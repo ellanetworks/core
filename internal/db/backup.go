@@ -17,24 +17,18 @@ import (
 )
 
 // BackupManifestVersion is the on-disk version of the backup tar.gz format.
-// Phase 1 ships v1; Phase 2 will introduce a v2 with Raft snapshot fields.
 const BackupManifestVersion = 1
 
 // BackupManifest is the JSON document embedded as manifest.json inside every
-// backup tar.gz. Phase 1 leaves Raft fields out entirely.
+// backup tar.gz.
 type BackupManifest struct {
 	Version   int       `json:"version"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// Backup writes a tar.gz archive containing shared.db, local.db, and a
-// manifest.json to dst. Both source databases are first VACUUM INTO'd into
-// temporary files inside Database.Dir() so that the on-disk image is fully
-// consistent and free of WAL pages, then they are streamed into the archive.
-// The temp files are removed before returning.
-//
-// This is a BREAKING CHANGE from the pre-Phase-1 backup format, which wrote
-// a single .db file. See spec_ha.md §10 for the authorisation.
+// Backup writes a tar.gz archive (manifest.json, shared.db, local.db) to dst.
+// Both source databases are VACUUM INTO'd into temp files first to produce a
+// consistent, WAL-free image before streaming.
 func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 	ctx, span := tracer.Start(ctx, "db/backup", trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()

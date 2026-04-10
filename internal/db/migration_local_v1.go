@@ -8,24 +8,9 @@ import (
 	"fmt"
 )
 
-// ---------------------------------------------------------------------------
-// Local V1 split-baseline DDL — FROZEN.
-//
-// This migration emits the END STATE of legacyMigrations v1..v8 restricted
-// to the tables that live in local.db (see spec_ha.md §3.2.1). It is a new
-// function — not an edited copy of any historical migration. Once shipped,
-// it MUST NOT be modified; further schema changes go in localMigrations v2+.
-//
-// Tables created here:
-//
-//   network_logs (radio events) — includes the radio_name column added in
-//   legacy v3.
-//
-//   flow_reports — includes the action column added in legacy v8. The
-//   subscriber_id column is intentionally NOT a foreign key here: subscribers
-//   live in shared.db so cross-database FK enforcement is impossible. The
-//   column remains a plain TEXT IMSI.
-// ---------------------------------------------------------------------------
+// Local V1 split-baseline DDL — FROZEN. Emits the end state of
+// legacyMigrations v1..v8 for the per-instance tables (network_logs,
+// flow_reports). Once shipped, must not be modified.
 
 const localV1CreateNetworkLogs = `
 	CREATE TABLE IF NOT EXISTS %s (
@@ -51,8 +36,8 @@ const localV1CreateNetworkLogsIndexes = `
 	CREATE INDEX IF NOT EXISTS idx_network_logs_radio_name     ON network_logs (radio_name);
 `
 
-// flow_reports lives in local.db, so subscriber_id is a plain TEXT column
-// (no FK) — its referent (subscribers) is in shared.db.
+// subscriber_id is a plain TEXT column with no FK: subscribers live in
+// shared.db, so cross-database FK enforcement is impossible.
 const localV1CreateFlowReports = `
 	CREATE TABLE IF NOT EXISTS %s (
 		id               INTEGER PRIMARY KEY AUTOINCREMENT,

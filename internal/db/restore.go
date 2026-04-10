@@ -24,15 +24,12 @@ const (
 	safetyCopySharedFilename = "restore_safety_shared.db"
 	safetyCopyLocalFilename  = "restore_safety_local.db"
 	manifestArchiveName      = "manifest.json"
-	// maxBackupMemberSize caps individual member sizes inside the tar.gz to
-	// avoid decompression bombs. 8 GiB is comfortably above any plausible
-	// real-world backup file.
+	// maxBackupMemberSize caps tar member sizes to guard against
+	// decompression bombs.
 	maxBackupMemberSize = 8 << 30
 )
 
-// validateSQLiteFile opens the file as a SQLite database and runs
-// PRAGMA integrity_check. It returns nil only when the file is a valid,
-// non-corrupt SQLite database.
+// validateSQLiteFile runs PRAGMA integrity_check against the file.
 func validateSQLiteFile(ctx context.Context, path string) error {
 	conn, err := sql.Open("sqlite3", path)
 	if err != nil {
@@ -53,10 +50,10 @@ func validateSQLiteFile(ctx context.Context, path string) error {
 	return nil
 }
 
-// extractBackupArchive reads a Phase 1 backup tar.gz from r and writes the
-// embedded shared.db / local.db / manifest.json into destDir. It returns the
-// parsed manifest. Errors are returned for unknown members, missing required
-// members, oversize files, and traversal attempts.
+// extractBackupArchive reads a backup tar.gz from r, writes shared.db,
+// local.db, and manifest.json into destDir, and returns the parsed manifest.
+// Unknown members, missing required members, oversize files, and path
+// traversal attempts are rejected.
 func extractBackupArchive(r io.Reader, destDir string) (*BackupManifest, error) {
 	gzReader, err := gzip.NewReader(r)
 	if err != nil {
@@ -161,9 +158,8 @@ func writeArchiveMember(destPath string, src io.Reader, size int64) error {
 	return out.Close()
 }
 
-// rollbackFromSafetyCopy restores the original databases from the directory
-// safety copies and reopens both connections. Used when a restore fails after
-// the production files have already been overwritten.
+// rollbackFromSafetyCopy restores both DBs from their safety copies and
+// reopens connections. Called when a restore fails mid-overwrite.
 func (db *Database) rollbackFromSafetyCopy(ctx context.Context) error {
 	if err := copyWithinDir(db.Dir(), safetyCopySharedFilename, SharedDBFilename); err != nil {
 		return fmt.Errorf("failed to restore shared.db from safety copy: %w", err)
@@ -182,9 +178,8 @@ func (db *Database) rollbackFromSafetyCopy(ctx context.Context) error {
 	return db.reopenAfterRestore(ctx)
 }
 
-// reopenAfterRestore opens new SQLite connections against the (possibly
-// freshly overwritten) shared.db / local.db, runs migrations on each, and
-// re-prepares all sqlair statements.
+// reopenAfterRestore opens fresh SQLite connections, runs migrations on each,
+// and re-prepares all sqlair statements.
 func (db *Database) reopenAfterRestore(ctx context.Context) error {
 	sharedConn, err := openSQLiteConnection(ctx, db.SharedPath(), SyncFull)
 	if err != nil {
@@ -219,9 +214,8 @@ func (db *Database) reopenAfterRestore(ctx context.Context) error {
 	return nil
 }
 
-// copyWithinDir copies srcName to dstName, both interpreted as bare filenames
-// inside dir. Uses os.Root to enforce that no path traversal escapes the
-// directory.
+// copyWithinDir copies srcName to dstName as bare filenames inside dir,
+// using os.Root to enforce that path traversal cannot escape the directory.
 func copyWithinDir(dir, srcName, dstName string) error {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
@@ -250,10 +244,10 @@ func copyWithinDir(dir, srcName, dstName string) error {
 	return dst.Close()
 }
 
-// Restore replaces both shared.db and local.db with the contents of a Phase 1
-// backup tar.gz uploaded to backupFile. The operation is atomic across both
-// databases: a directory-scoped safety copy of each existing file is taken
-// before the swap, and a failure at any point rolls both files back together.
+// Restore replaces both shared.db and local.db with the contents of the
+// backup tar.gz in backupFile. The operation is atomic across both files: a
+// safety copy of each is taken before the swap and rolled back together on
+// failure.
 func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	// Concurrency guard: only one restore at a time.
 	if !db.restoreMu.TryLock() {
@@ -276,8 +270,7 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		return fmt.Errorf("failed to rewind backup file: %w", err)
 	}
 
-	// ── Step 1: Stage the archive into a temp dir under db.Dir() and
-	//             validate every embedded SQLite file. ─────────────────────
+	// Stage the archive and validate every embedded SQLite file.
 	stageDir, err := os.MkdirTemp(db.Dir(), "restore-stage-*")
 	if err != nil {
 		return fmt.Errorf("failed to create restore stage directory: %w", err)
@@ -300,14 +293,14 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		return fmt.Errorf("%w: local: %v", ErrInvalidBackupFile, err)
 	}
 
-	// ── Step 2: Take a directory-scoped safety copy of both live DBs. ─────
+	// Take a safety copy of both live DBs before overwriting them.
 	if err := db.takeSafetyCopies(ctx); err != nil {
 		return fmt.Errorf("failed to create safety copies: %w", err)
 	}
 
 	defer db.removeSafetyCopies()
 
-	// ── Step 3: Close live connections and overwrite both files. ──────────
+	// Close live connections and overwrite both files.
 	if err := db.Close(); err != nil {
 		return fmt.Errorf("failed to close database connections: %w", err)
 	}
@@ -328,7 +321,7 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		return fmt.Errorf("failed to install new local.db: %w", err)
 	}
 
-	// ── Step 4: Remove stale WAL/SHM next to both DBs. ────────────────────
+	// Remove stale WAL/SHM sidecars left over from the previous handles.
 	for _, base := range []string{SharedDBFilename, LocalDBFilename} {
 		for _, suffix := range []string{"-wal", "-shm"} {
 			p := filepath.Join(db.Dir(), base+suffix)
@@ -339,7 +332,6 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		}
 	}
 
-	// ── Step 5: Reopen, migrate, re-prepare. ──────────────────────────────
 	if err := db.reopenAfterRestore(ctx); err != nil {
 		if rbErr := db.rollbackFromSafetyCopy(ctx); rbErr != nil {
 			logger.WithTrace(ctx, logger.DBLog).Error("Rollback after failed restore also failed", zap.Error(rbErr))
@@ -351,9 +343,8 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	return nil
 }
 
-// takeSafetyCopies VACUUMs both live databases into directory-local safety
-// copy files. Both copies must succeed for the safety copy step to be
-// considered complete; failure cleans up any partial output.
+// takeSafetyCopies VACUUMs both live databases into safety copy files in
+// db.Dir(). Partial output is cleaned up on failure.
 func (db *Database) takeSafetyCopies(ctx context.Context) error {
 	sharedSafety := filepath.Join(db.Dir(), safetyCopySharedFilename)
 	localSafety := filepath.Join(db.Dir(), safetyCopyLocalFilename)
@@ -378,8 +369,7 @@ func (db *Database) removeSafetyCopies() {
 	}
 }
 
-// overwriteFile renames src onto dst within the same filesystem (the parent
-// directory holds both, so they share a mount point in normal use).
+// overwriteFile atomically replaces dst with src (same filesystem).
 func overwriteFile(src, dst string) error {
 	return os.Rename(src, dst)
 }

@@ -2580,8 +2580,7 @@ paths:
       description: |
         Downloads a complete backup of the Ella Core databases as a gzipped tar
         archive (`.tar.gz`) containing `shared.db`, `local.db`, and a
-        `manifest.json` describing the backup format version. This is a breaking
-        change from earlier releases, which returned a single `.db` file.
+        `manifest.json` describing the backup format version.
       responses:
         "200":
           description: Database backup archive.
