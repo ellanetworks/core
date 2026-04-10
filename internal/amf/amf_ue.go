@@ -726,6 +726,34 @@ func (ue *AmfUe) EncodeNASMessage(msg *nas.Message) ([]byte, error) {
 	return payload, nil
 }
 
+// plainNasAllowed reports whether a NAS message type may be processed
+// without integrity protection per TS 24.501 §4.4.4.3.
+func plainNasAllowed(msgType uint8) bool {
+	switch msgType {
+	case nas.MsgTypeRegistrationRequest,
+		nas.MsgTypeIdentityResponse,
+		nas.MsgTypeAuthenticationResponse,
+		nas.MsgTypeAuthenticationFailure,
+		nas.MsgTypeSecurityModeReject,
+		nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration,
+		nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:
+		return true
+	default:
+		return false
+	}
+}
+
+// macFailedAllowed reports whether a NAS message type may be processed
+// after MAC verification failure per TS 33.501 §6.4.6 step 3. It extends
+// plainNasAllowed with ServiceRequest.
+func macFailedAllowed(msgType uint8) bool {
+	if plainNasAllowed(msgType) {
+		return true
+	}
+
+	return msgType == nas.MsgTypeServiceRequest
+}
+
 /*
 payload either a security protected 5GS NAS message or a plain 5GS NAS message which
 format is followed TS 24.501 9.1.1
@@ -746,48 +774,25 @@ func (ue *AmfUe) DecodeNASMessage(payload []byte) (*nas.Message, error) {
 
 	msg.SecurityHeaderType = nas.GetSecurityHeaderType(payload) & 0x0f
 	if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
-		// RRCEstablishmentCause 0 is for emergency service
-		if ue.SecurityContextAvailable && ue.ranUe.RRCEstablishmentCause != "0" {
-			ue.Log.Warn("Received Plain NAS message")
-			ue.MacFailed = false
-			ue.SecurityContextAvailable = false
-
-			if err := msg.PlainNasDecode(&payload); err != nil {
-				return nil, err
-			}
-
-			if msg.GmmMessage == nil {
-				return nil, fmt.Errorf("gmm message is nil")
-			}
-
-			// TS 24.501 4.4.4.3: Except the messages listed below, no NAS signalling messages shall be processed
-			// by the receiving 5GMM entity in the AMF or forwarded to the 5GSM entity, unless the secure exchange
-			// of NAS messages has been established for the NAS signalling connection
-			switch msg.GmmHeader.GetMessageType() {
-			case nas.MsgTypeRegistrationRequest:
-				return msg, nil
-			case nas.MsgTypeIdentityResponse:
-				return msg, nil
-			case nas.MsgTypeAuthenticationResponse:
-				return msg, nil
-			case nas.MsgTypeAuthenticationFailure:
-				return msg, nil
-			case nas.MsgTypeSecurityModeReject:
-				return msg, nil
-			case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
-				return msg, nil
-			case nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:
-				return msg, nil
-			default:
-				return nil, fmt.Errorf(
-					"UE can not send plain nas for non-emergency service when there is a valid security context")
-			}
-		} else {
-			ue.MacFailed = false
-			err := msg.PlainNasDecode(&payload)
-
-			return msg, err
+		if err := msg.PlainNasDecode(&payload); err != nil {
+			return nil, err
 		}
+
+		if msg.GmmMessage == nil {
+			return nil, fmt.Errorf("plain NAS message has no GMM body")
+		}
+
+		msgType := msg.GmmHeader.GetMessageType()
+		if !plainNasAllowed(msgType) {
+			return nil, fmt.Errorf(
+				"plain NAS message type %d not permitted by TS 24.501 §4.4.4.3",
+				msgType,
+			)
+		}
+
+		ue.MacFailed = true
+
+		return msg, nil
 	} else { // Security protected NAS message
 		if len(payload) < 7 {
 			return nil, fmt.Errorf("nas payload is too short")
@@ -848,30 +853,12 @@ func (ue *AmfUe) DecodeNASMessage(payload []byte) (*nas.Message, error) {
 		payload = payload[1:]
 		err = msg.PlainNasDecode(&payload)
 
-		/*
-			integrity check failed, as per spec 24501 section 4.4.4.3 AMF shouldnt process or forward to SMF
-			except below message types
-		*/
+		// TS 24.501 §4.4.4.3 / TS 33.501 §6.4.6 step 3: drop MAC-failed
+		// messages not permitted by macFailedAllowed.
 		if err == nil && ue.MacFailed {
-			switch msg.GmmHeader.GetMessageType() {
-			case nas.MsgTypeRegistrationRequest:
-				return msg, nil
-			case nas.MsgTypeIdentityResponse:
-				return msg, nil
-			case nas.MsgTypeAuthenticationResponse:
-				return msg, nil
-			case nas.MsgTypeAuthenticationFailure:
-				return msg, nil
-			case nas.MsgTypeSecurityModeReject:
-				return msg, nil
-			case nas.MsgTypeServiceRequest:
-				return msg, nil
-			case nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration:
-				return msg, nil
-			case nas.MsgTypeDeregistrationAcceptUETerminatedDeregistration:
-				return msg, nil
-			default:
-				return nil, fmt.Errorf("mac verification failed for the nas message: %v", msg.GmmHeader.GetMessageType())
+			msgType := msg.GmmHeader.GetMessageType()
+			if !macFailedAllowed(msgType) {
+				return nil, fmt.Errorf("mac verification failed for the nas message: %v", msgType)
 			}
 		}
 

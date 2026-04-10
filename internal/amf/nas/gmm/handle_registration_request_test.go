@@ -1076,3 +1076,104 @@ func buildUeAndRadio() (*amf.AmfUe, *FakeNGAPSender, error) {
 
 	return ue, &ngapSender, nil
 }
+
+// newUESecCaps builds a UESecurityCapability with a 2-byte {EA, IA} payload.
+func newUESecCaps(ea, ia uint8) *nasType.UESecurityCapability {
+	return &nasType.UESecurityCapability{
+		Iei:    nasMessage.RegistrationRequestUESecurityCapabilityType,
+		Len:    2,
+		Buffer: []uint8{ea, ia},
+	}
+}
+
+func TestAcceptRegistrationUESecurityCapability_InitialOverwrites(t *testing.T) {
+	ue := amf.NewAmfUe()
+	ue.RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
+	ue.UESecurityCapability = newUESecCaps(0xE0, 0xE0) // EA1/2/3 + IA1/2/3
+
+	incoming := newUESecCaps(0x80, 0x80) // only EA1 + IA1
+	acceptRegistrationUESecurityCapability(ue, incoming)
+
+	if ue.UESecurityCapability != incoming {
+		t.Fatalf("Initial Registration must replace stored caps")
+	}
+}
+
+func TestAcceptRegistrationUESecurityCapability_EmergencyOverwrites(t *testing.T) {
+	ue := amf.NewAmfUe()
+	ue.RegistrationType5GS = nasMessage.RegistrationType5GSEmergencyRegistration
+	ue.UESecurityCapability = newUESecCaps(0xE0, 0xE0)
+
+	incoming := newUESecCaps(0x00, 0x00)
+	acceptRegistrationUESecurityCapability(ue, incoming)
+
+	if ue.UESecurityCapability != incoming {
+		t.Fatalf("Emergency Registration must replace stored caps")
+	}
+}
+
+func TestAcceptRegistrationUESecurityCapability_MobilityNoStored(t *testing.T) {
+	ue := amf.NewAmfUe()
+	ue.RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
+	ue.UESecurityCapability = nil
+
+	incoming := newUESecCaps(0xE0, 0xE0)
+	acceptRegistrationUESecurityCapability(ue, incoming)
+
+	if ue.UESecurityCapability != incoming {
+		t.Fatalf("Mobility Update with no stored caps must adopt received caps")
+	}
+}
+
+// TestAcceptRegistrationUESecurityCapability_MobilityRejectsDowngrade is
+// the regression for TS 33.501 §6.7.3.1 downgrade protection on Mobility
+// Registration Update.
+func TestAcceptRegistrationUESecurityCapability_MobilityRejectsDowngrade(t *testing.T) {
+	stored := newUESecCaps(0xE0, 0xE0)
+
+	ue := amf.NewAmfUe()
+	ue.Log = logger.AmfLog
+	ue.RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
+	ue.UESecurityCapability = stored
+
+	attacker := newUESecCaps(0x00, 0x00)
+	acceptRegistrationUESecurityCapability(ue, attacker)
+
+	if ue.UESecurityCapability != stored {
+		t.Fatalf("Mobility Update must NOT overwrite stored caps with forged downgrade (TS 33.501 §6.7.3.1)")
+	}
+
+	if !bytes.Equal(ue.UESecurityCapability.Buffer, []byte{0xE0, 0xE0}) {
+		t.Fatalf("stored caps corrupted: %#v", ue.UESecurityCapability.Buffer)
+	}
+}
+
+func TestAcceptRegistrationUESecurityCapability_PeriodicRejectsDowngrade(t *testing.T) {
+	stored := newUESecCaps(0xE0, 0xE0)
+
+	ue := amf.NewAmfUe()
+	ue.Log = logger.AmfLog
+	ue.RegistrationType5GS = nasMessage.RegistrationType5GSPeriodicRegistrationUpdating
+	ue.UESecurityCapability = stored
+
+	acceptRegistrationUESecurityCapability(ue, newUESecCaps(0x00, 0x00))
+
+	if ue.UESecurityCapability != stored {
+		t.Fatalf("Periodic Update must NOT overwrite stored caps with forged downgrade")
+	}
+}
+
+func TestAcceptRegistrationUESecurityCapability_MobilityIdenticalCapsNoop(t *testing.T) {
+	stored := newUESecCaps(0xE0, 0xE0)
+
+	ue := amf.NewAmfUe()
+	ue.Log = logger.AmfLog
+	ue.RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
+	ue.UESecurityCapability = stored
+
+	acceptRegistrationUESecurityCapability(ue, newUESecCaps(0xE0, 0xE0))
+
+	if ue.UESecurityCapability != stored {
+		t.Fatalf("Mobility Update with identical caps must be a no-op on the stored pointer")
+	}
+}

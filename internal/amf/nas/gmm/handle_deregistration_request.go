@@ -17,6 +17,13 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 		return fmt.Errorf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", state)
 	}
 
+	// Reject unauthenticated Deregistration Requests while the AMF still
+	// holds a valid security context (TS 24.501 §4.4.4.3 defense in depth).
+	// A UE that lost its keys can recover via Initial Registration.
+	if ue.MacFailed && ue.SecurityContextAvailable {
+		return fmt.Errorf("rejecting unauthenticated Deregistration Request from UE with valid security context")
+	}
+
 	defer ue.Deregister(ctx)
 
 	ranUe := ue.RanUe()
