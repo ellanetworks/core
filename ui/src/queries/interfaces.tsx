@@ -14,7 +14,7 @@ export type InterfacesInfo = {
     vlan?: VlanInfo;
   };
   n6?: { name?: string; vlan?: VlanInfo };
-  api?: { address?: string; port?: number };
+  api?: { addresses?: string[]; port?: number };
 };
 
 export const getInterfaces = async (

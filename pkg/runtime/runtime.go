@@ -125,7 +125,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	// Initialize BGP service
-	n6IP, err := config.GetInterfaceIPFunc(cfg.Interfaces.N6.Name)
+	n6IP, err := config.GetInterfaceIPFunc(cfg.Interfaces.N6.Name, config.IPv4)
 	if err != nil {
 		return fmt.Errorf("couldn't get N6 interface IP: %w", err)
 	}
