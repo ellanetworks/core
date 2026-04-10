@@ -10,21 +10,28 @@ import (
 	"github.com/free5gc/nas/nasType"
 )
 
-// AuthProof is an unforgeable witness that the current NAS procedure has
-// successfully authenticated the UE. Holding an AuthProof is a
-// precondition for mutating security-critical state on an AmfUe.
+// AuthProof is an unforgeable witness that the caller is entitled to
+// mutate security-critical state on an AmfUe. Holding an AuthProof is
+// a precondition for calling setters like SetUESecurityCapability.
 //
 // AuthProof has no exported constructor. It may only be minted from
 // within the amf package, at exactly two authorized call sites:
 //
-//   - Security Mode Complete handling, after MAC verification succeeds.
-//   - Initial/Emergency Registration handling, after UE authentication
-//     completes.
+//   - Security Mode Complete handling, after MAC verification succeeds
+//     (MintAuthProofForSMC).
+//   - Registration Request handling, during request parsing
+//     (MintAuthProofForRegistrationRequest).
 //
 // The handlers that live in internal/amf/nas/gmm call into this package
-// through the helpers declared below (MintAuthProofForSMC,
-// MintAuthProofForInitialRegistration). Grepping for those two function
-// names gives the full set of mint sites.
+// through the helpers declared below. Grepping for the two Mint*
+// function names gives the full set of mint call sites outside this
+// file — see TestAuthProofMintSites for the enforcing test.
+//
+// Note: the unexported field prevents external packages from forging an
+// AuthProof via struct literal, but any code in package amf can still
+// write AuthProof{} directly. The mint-site test guards the external
+// surface; this file is the trust boundary to audit for in-package
+// abuses.
 type AuthProof struct {
 	_ struct{} // unexported field forbids struct-literal construction outside this package
 }
@@ -36,10 +43,18 @@ func MintAuthProofForSMC() AuthProof {
 	return AuthProof{}
 }
 
-// MintAuthProofForInitialRegistration returns an AuthProof. It must only
-// be called from the Initial/Emergency Registration handler after UE
-// authentication has completed.
-func MintAuthProofForInitialRegistration() AuthProof {
+// MintAuthProofForRegistrationRequest returns an AuthProof. It must
+// only be called from the Registration Request handler while parsing
+// the incoming request, before the authentication procedure has run.
+//
+// The security property this mint establishes is not "the UE has been
+// authenticated" — it has not — but "the AMF is in the registration
+// request handler, and any stored UESecurityCapability installed here
+// will be re-verified by the SMC replay check per TS 33.501 §6.7.3.1
+// before any PDU session is accepted." That is the actual downgrade
+// protection for Initial/Emergency Registration and for first-time
+// capability adoption in Mobility/Periodic Registration Update.
+func MintAuthProofForRegistrationRequest() AuthProof {
 	return AuthProof{}
 }
 

@@ -281,6 +281,11 @@ func verifyUESecurityCapabilitiesOnPathSwitch(
 // ngapToNasUESecurityCapability converts the NGAP UESecurityCapabilities
 // IE to the NAS UESecurityCapability type the AMF stores internally,
 // using the common "first byte only" encoding (EA/IA 1..3 + EIA0).
+//
+// E-UTRA (EEA/EIA) bits carried by the NGAP IE are intentionally
+// dropped: this AMF does not negotiate E-UTRA algorithms with the UE,
+// so the verify path compares only the 5G NR columns. This matches the
+// legacy behaviour of the pre-refactor handler.
 func ngapToNasUESecurityCapability(received *ngapType.UESecurityCapabilities) *nasType.UESecurityCapability {
 	out := &nasType.UESecurityCapability{}
 	out.SetLen(2)

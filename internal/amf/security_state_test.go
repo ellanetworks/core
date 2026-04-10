@@ -12,11 +12,17 @@ import (
 	"testing"
 )
 
-// TestAuthProofMintSites enforces that the two AuthProof constructors
-// are called only from the authorized files. This is the compile-time
+// TestAuthProofMintSites enforces that the AuthProof constructors are
+// called only from the authorized files. This is the compile-time
 // equivalent of "you cannot mint an AuthProof outside these files" —
 // because Go does not support package-private symbol exports, the
 // guarantee is instead pinned by this grep test.
+//
+// NOTE: this test only guards against calls to the Mint helpers from
+// unauthorized .go files. It does NOT catch in-package abuses that
+// construct AuthProof{} via struct literal — the unexported field on
+// AuthProof prevents that outside the amf package, but inside it
+// relies on reviewer vigilance when editing internal/amf/*.
 //
 // Any change to this list is a security-boundary change and should be
 // reviewed accordingly.
@@ -25,7 +31,7 @@ func TestAuthProofMintSites(t *testing.T) {
 		"MintAuthProofForSMC": {
 			"internal/amf/nas/gmm/handle_security_mode_complete.go": {},
 		},
-		"MintAuthProofForInitialRegistration": {
+		"MintAuthProofForRegistrationRequest": {
 			"internal/amf/nas/gmm/handle_registration_request.go": {},
 		},
 	}

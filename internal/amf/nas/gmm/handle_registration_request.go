@@ -209,25 +209,30 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 // Capability to the stored AmfUe state, enforcing TS 33.501 §6.7.3.1
 // downgrade protection. Initial and Emergency Registration overwrite the
 // stored value (they mint an AuthProof); Mobility and Periodic
-// Registration Update keep it (or adopt the received value when none is
-// stored) and log any mismatch.
+// Registration Update keep the existing stored value on match and log
+// any mismatch. When no stored value exists at all (first observation
+// in a Mobility/Periodic update), the received caps are adopted through
+// the same audited write path, with downgrade protection deferred to
+// the SMC replay check.
 func acceptRegistrationUESecurityCapability(ue *amf.AmfUe, received *nasType.UESecurityCapability) {
 	switch ue.RegistrationType5GS {
 	case nasMessage.RegistrationType5GSInitialRegistration,
 		nasMessage.RegistrationType5GSEmergencyRegistration:
-		ue.SetUESecurityCapability(received, amf.MintAuthProofForInitialRegistration())
+		ue.SetUESecurityCapability(received, amf.MintAuthProofForRegistrationRequest())
 		return
 	}
 
-	// Mobility / Periodic Registration Update: read-only path, no proof.
+	// Mobility / Periodic Registration Update: read-only path by default.
 	switch ue.VerifyUESecurityCapability(received) {
 	case amf.VerifyMatch:
 		return
 	case amf.VerifyNoStoredValue:
-		// No stored value to protect. The AMF adopts the received caps
-		// on the understanding that an authenticated SMC will soon
-		// follow; this matches existing behaviour.
-		ue.UESecurityCapability = received
+		// No stored value to protect. Route through the same audited
+		// setter as Initial Registration so every write to
+		// UESecurityCapability is grep-findable via SetUESecurityCapability.
+		// Downgrade protection relies on the SMC replay check per
+		// TS 33.501 §6.7.3.1.
+		ue.SetUESecurityCapability(received, amf.MintAuthProofForRegistrationRequest())
 	case amf.VerifyMismatch:
 		ue.Log.Warn(
 			"UE security capabilities in Mobility/Periodic Registration differ from stored values; ignoring received values (TS 33.501 §6.7.3.1)",
