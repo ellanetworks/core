@@ -461,13 +461,13 @@ func TestHandleRegistrationRequest_RegistrationAccepted(t *testing.T) {
 		t.Fatalf("expected a protected and ciphered NAS message")
 	}
 
-	decodedMessage, err := ue.DecodeNASMessage(resp.NasPdu)
+	decoded, err := amf.DecodeNASMessage(ue, resp.NasPdu)
 	if err != nil {
 		t.Fatalf("could not decode ciphered NAS message")
 	}
 
-	if decodedMessage.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
-		t.Fatalf("expected a registration accept message, got '%v'", decodedMessage.GmmHeader.GetMessageType())
+	if decoded.Message.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
+		t.Fatalf("expected a registration accept message, got '%v'", decoded.Message.GmmHeader.GetMessageType())
 	}
 }
 

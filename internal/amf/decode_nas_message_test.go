@@ -166,13 +166,17 @@ func TestDecodeNASMessage_PlainServiceRequestRejected(t *testing.T) {
 	ue := newDecoderTestUE(t)
 	payload := encodePlainServiceRequest(t)
 
-	msg, err := ue.DecodeNASMessage(payload)
+	result, err := DecodeNASMessage(ue, payload)
 	if err == nil {
-		t.Fatalf("expected error, got msg=%v", msg)
+		t.Fatalf("expected error, got result=%v", result)
 	}
 
 	if !strings.Contains(err.Error(), "not permitted by TS 24.501") {
 		t.Errorf("expected TS 24.501 §4.4.4.3 rejection, got: %v", err)
+	}
+
+	if ue.MacFailed {
+		t.Error("decoder must NOT touch MacFailed on a rejected PDU")
 	}
 
 	if !ue.SecurityContextAvailable {
@@ -186,13 +190,17 @@ func TestDecodeNASMessage_PlainULNasTransportRejected(t *testing.T) {
 	ue := newDecoderTestUE(t)
 	payload := encodePlainULNasTransport(t)
 
-	msg, err := ue.DecodeNASMessage(payload)
+	result, err := DecodeNASMessage(ue, payload)
 	if err == nil {
-		t.Fatalf("expected error, got msg=%v", msg)
+		t.Fatalf("expected error, got result=%v", result)
 	}
 
 	if !strings.Contains(err.Error(), "not permitted by TS 24.501") {
 		t.Errorf("expected TS 24.501 §4.4.4.3 rejection, got: %v", err)
+	}
+
+	if ue.MacFailed {
+		t.Error("decoder must NOT touch MacFailed on a rejected PDU")
 	}
 
 	if !ue.SecurityContextAvailable {
@@ -201,24 +209,28 @@ func TestDecodeNASMessage_PlainULNasTransportRejected(t *testing.T) {
 }
 
 // TestDecodeNASMessage_PlainRegistrationRequest_Bootstrap verifies the
-// decoder accepts a plain RegistrationRequest from a fresh UE and marks
-// it MacFailed.
+// decoder returns VerdictPlainAllowed for a fresh UE and does not
+// mutate security state.
 func TestDecodeNASMessage_PlainRegistrationRequest_Bootstrap(t *testing.T) {
 	ue := newDecoderTestUE(t)
 	ue.SecurityContextAvailable = false // fresh UE
 	payload := encodePlainRegistrationRequest(t)
 
-	msg, err := ue.DecodeNASMessage(payload)
+	result, err := DecodeNASMessage(ue, payload)
 	if err != nil {
 		t.Fatalf("plain RegistrationRequest must be accepted during bootstrap: %v", err)
 	}
 
-	if msg == nil || msg.GmmMessage == nil || msg.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationRequest {
-		t.Fatalf("expected RegistrationRequest, got %+v", msg)
+	if result == nil || result.Message == nil || result.Message.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationRequest {
+		t.Fatalf("expected RegistrationRequest, got %+v", result)
 	}
 
-	if !ue.MacFailed {
-		t.Error("decoder must mark plain NAS as MacFailed=true so handlers know it is unauthenticated")
+	if result.Verdict != VerdictPlainAllowed {
+		t.Errorf("expected VerdictPlainAllowed, got %d", result.Verdict)
+	}
+
+	if ue.MacFailed {
+		t.Error("pure decoder must NOT write to ue.MacFailed (that is the handler's job)")
 	}
 
 	if ue.SecurityContextAvailable {
@@ -227,24 +239,27 @@ func TestDecodeNASMessage_PlainRegistrationRequest_Bootstrap(t *testing.T) {
 }
 
 // TestDecodeNASMessage_PlainRegistrationRequest_WithExistingContext
-// verifies the decoder accepts a plain RegistrationRequest for a UE that
-// still has a stored security context, marks it MacFailed, and leaves
-// the security context for the handler to clear.
+// verifies the decoder returns VerdictPlainAllowed for a UE that still
+// has a stored security context and leaves all security state untouched.
 func TestDecodeNASMessage_PlainRegistrationRequest_WithExistingContext(t *testing.T) {
 	ue := newDecoderTestUE(t)
 	payload := encodePlainRegistrationRequest(t)
 
-	msg, err := ue.DecodeNASMessage(payload)
+	result, err := DecodeNASMessage(ue, payload)
 	if err != nil {
 		t.Fatalf("plain RegistrationRequest must be accepted: %v", err)
 	}
 
-	if msg.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationRequest {
-		t.Fatalf("expected RegistrationRequest, got %d", msg.GmmHeader.GetMessageType())
+	if result.Message.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationRequest {
+		t.Fatalf("expected RegistrationRequest, got %d", result.Message.GmmHeader.GetMessageType())
 	}
 
-	if !ue.MacFailed {
-		t.Error("decoder must mark plain NAS as MacFailed=true")
+	if result.Verdict != VerdictPlainAllowed {
+		t.Errorf("expected VerdictPlainAllowed, got %d", result.Verdict)
+	}
+
+	if ue.MacFailed {
+		t.Error("pure decoder must NOT write to ue.MacFailed")
 	}
 
 	if !ue.SecurityContextAvailable {
@@ -259,17 +274,21 @@ func TestDecodeNASMessage_PlainDeregistrationRequest_PassesDecoder(t *testing.T)
 	ue := newDecoderTestUE(t)
 	payload := encodePlainDeregistrationRequest(t)
 
-	msg, err := ue.DecodeNASMessage(payload)
+	result, err := DecodeNASMessage(ue, payload)
 	if err != nil {
 		t.Fatalf("plain DeregistrationRequest is on the §4.4.4.3 whitelist; decoder must return it: %v", err)
 	}
 
-	if msg.GmmHeader.GetMessageType() != nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration {
-		t.Fatalf("expected DeregistrationRequest, got %d", msg.GmmHeader.GetMessageType())
+	if result.Message.GmmHeader.GetMessageType() != nas.MsgTypeDeregistrationRequestUEOriginatingDeregistration {
+		t.Fatalf("expected DeregistrationRequest, got %d", result.Message.GmmHeader.GetMessageType())
 	}
 
-	if !ue.MacFailed {
-		t.Error("decoder must mark plain NAS as MacFailed=true")
+	if result.Verdict != VerdictPlainAllowed {
+		t.Errorf("expected VerdictPlainAllowed, got %d", result.Verdict)
+	}
+
+	if ue.MacFailed {
+		t.Error("pure decoder must NOT write to ue.MacFailed")
 	}
 
 	if !ue.SecurityContextAvailable {

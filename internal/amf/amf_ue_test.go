@@ -15,7 +15,7 @@ func TestDecodePayloadTooShort(t *testing.T) {
 	ue := &amf.AmfUe{}
 	payload := []byte{0x00, 0x01, 0x02}
 
-	_, err := ue.DecodeNASMessage(payload)
+	_, err := amf.DecodeNASMessage(ue, payload)
 	if err == nil {
 		t.Fatal("expected error when payload is too short, got nil")
 	}

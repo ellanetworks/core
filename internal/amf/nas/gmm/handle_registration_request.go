@@ -1,7 +1,6 @@
 package gmm
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -209,22 +208,27 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 // acceptRegistrationUESecurityCapability applies the received UE Security
 // Capability to the stored AmfUe state, enforcing TS 33.501 §6.7.3.1
 // downgrade protection. Initial and Emergency Registration overwrite the
-// stored value; Mobility and Periodic Registration Update keep it (or
-// adopt the received value when none is stored) and log any mismatch.
+// stored value (they mint an AuthProof); Mobility and Periodic
+// Registration Update keep it (or adopt the received value when none is
+// stored) and log any mismatch.
 func acceptRegistrationUESecurityCapability(ue *amf.AmfUe, received *nasType.UESecurityCapability) {
 	switch ue.RegistrationType5GS {
 	case nasMessage.RegistrationType5GSInitialRegistration,
 		nasMessage.RegistrationType5GSEmergencyRegistration:
-		ue.UESecurityCapability = received
+		ue.SetUESecurityCapability(received, amf.MintAuthProofForInitialRegistration())
 		return
 	}
 
-	if ue.UESecurityCapability == nil {
-		ue.UESecurityCapability = received
+	// Mobility / Periodic Registration Update: read-only path, no proof.
+	switch ue.VerifyUESecurityCapability(received) {
+	case amf.VerifyMatch:
 		return
-	}
-
-	if !bytes.Equal(ue.UESecurityCapability.Buffer, received.Buffer) {
+	case amf.VerifyNoStoredValue:
+		// No stored value to protect. The AMF adopts the received caps
+		// on the understanding that an authenticated SMC will soon
+		// follow; this matches existing behaviour.
+		ue.UESecurityCapability = received
+	case amf.VerifyMismatch:
 		ue.Log.Warn(
 			"UE security capabilities in Mobility/Periodic Registration differ from stored values; ignoring received values (TS 33.501 §6.7.3.1)",
 			zap.String("registrationType", getRegistrationType5GSName(ue.RegistrationType5GS)),
