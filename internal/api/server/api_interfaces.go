@@ -34,8 +34,8 @@ type N6Interface struct {
 }
 
 type APIInterface struct {
-	Address string `json:"address"`
-	Port    int    `json:"port"`
+	Addresses []string `json:"addresses"`
+	Port      int      `json:"port"`
 }
 
 type NetworkInterfaces struct {
@@ -61,6 +61,20 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 			return
 		}
 
+		var apiAddresses []string
+
+		if cfg.Interfaces.API.Name != "" {
+			ips, err := config.GetInterfaceIPs(cfg.Interfaces.API.Name)
+			if err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get API interface IPs", err, logger.APILog)
+				return
+			}
+
+			apiAddresses = ips
+		} else if cfg.Interfaces.API.Address != "" {
+			apiAddresses = []string{cfg.Interfaces.API.Address}
+		}
+
 		resp := &NetworkInterfaces{
 			N2: N2Interface{
 				Address: cfg.Interfaces.N2.Address,
@@ -75,8 +89,8 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 				Name: cfg.Interfaces.N6.Name,
 			},
 			API: APIInterface{
-				Address: cfg.Interfaces.API.Address,
-				Port:    cfg.Interfaces.API.Port,
+				Addresses: apiAddresses,
+				Port:      cfg.Interfaces.API.Port,
 			},
 		}
 

@@ -25,8 +25,8 @@ type N6Interface struct {
 }
 
 type APIInterface struct {
-	Address string `json:"address"`
-	Port    int    `json:"port"`
+	Addresses []string `json:"addresses"`
+	Port      int      `json:"port"`
 }
 
 type NetworkInterfaces struct {
@@ -176,8 +176,8 @@ func TestNetworkInteraces_EndToEnd(t *testing.T) {
 			t.Fatalf("unexpected N6 interface name: %s", resp.Result.N6.Name)
 		}
 
-		if resp.Result.API.Address != "" {
-			t.Fatalf("unexpected API interface address: %s", resp.Result.API.Address)
+		if len(resp.Result.API.Addresses) != 0 {
+			t.Fatalf("unexpected API interface addresses: %v", resp.Result.API.Addresses)
 		}
 
 		if resp.Result.API.Port != 8443 {

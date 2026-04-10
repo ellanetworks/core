@@ -23,16 +23,16 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
 - `interfaces` (object): The network interfaces configuration.
     - `n2` (object): The configuration for the n2 interface. This interface should be connected to the radios.
         - `name` (string): The name of the network interface (optional: either name or address must be provided).
-        - `address` (string): The address to listen on (optional: either name or address must be provided).
+        - `address` (string): The address to listen on. Currently only IPv4 is supported (optional: either name or address must be provided).
         - `port` (int): The port to listen on.
     - `n3` (object): The configuration for the n3 interface. This interface should be connected to the radios.
         - `name` (string): The name of the network interface (optional: either name or address must be provided).
-        - `address` (string): The address to listen on (optional: either name or address must be provided).
+        - `address` (string): The address to listen on. Currently only IPv4 is supported (optional: either name or address must be provided).
     - `n6` (object): The configuration for the n6 interface. This interface should be connected to the internet.
         - `name` (string): The name of the network interface.
     - `api` (object): The configuration for the api interface.
-        - `name` (string): The name of the network interface (optional: either name or address must be provided).
-        - `address` (string): The address to listen on (optional: either name or address must be provided).
+        - `name` (string): The name of the network interface to listen on (optional: either name or address must be provided). When set, the server listens on all addresses (`0.0.0.0`) but uses `SO_BINDTODEVICE` to restrict incoming traffic to this interface. Use this when you want to bind to a device without pinning to a specific IP address.
+        - `address` (string): The IP address to listen on. Supports both IPv4 and IPv6 addresses (optional: either name or address must be provided). When set, the server binds to this specific address.
         - `port` (int): The port to listen on.
         - `tls` (object): The TLS configuration (optional).
             - `cert` (string): The path to the TLS certificate file (optional).
@@ -78,3 +78,24 @@ telemetry:
   enabled: true
   otlp-endpoint: "localhost:4317"
 ```
+
+## IPv6 Support
+
+Ella Core supports IPv6 addresses for the management interface (`api`). The following example demonstrates using an IPv6 address:
+
+```yaml
+interfaces:
+  n2:
+    address: "22.22.22.2"
+    port: 38412
+  n3:
+    name: "ens5"
+  n6:
+    name: "ens3"
+  api:
+    address: "2001:db8::2"
+    port: 5002
+```
+
+!!! note
+    IPv6 support is currently limited to the management interfaces (`api`). The subscriber data interfaces (`n3` and `n6`) and radio interface (`n2`) currently only support IPv4 addresses.

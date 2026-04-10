@@ -5,8 +5,11 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/fs"
+	"net"
 	"net/http"
 	"net/netip"
+	"strconv"
+	"syscall"
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
@@ -72,7 +75,10 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 		RegisterExtraRoutes: registerExtraRoutes,
 	})
 
-	httpAddr := fmt.Sprintf("%s:%d", cfg.Interfaces.API.Address, cfg.Interfaces.API.Port)
+	httpAddr := fmt.Sprintf(":%s", strconv.Itoa(cfg.Interfaces.API.Port))
+	if cfg.Interfaces.API.Address != "" {
+		httpAddr = net.JoinHostPort(cfg.Interfaces.API.Address, strconv.Itoa(cfg.Interfaces.API.Port))
+	}
 
 	h2Server := &http2.Server{
 		IdleTimeout: 120 * time.Second,
@@ -88,8 +94,43 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 	go func() {
 		var serveErr error
 
+		var ln net.Listener
+
+		if cfg.Interfaces.API.Name != "" {
+			lc := net.ListenConfig{
+				Control: func(network, address string, c syscall.RawConn) error {
+					var setSockOptErr error
+
+					if err := c.Control(func(fd uintptr) {
+						setSockOptErr = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, cfg.Interfaces.API.Name)
+					}); err != nil {
+						return err
+					}
+
+					return setSockOptErr
+				},
+			}
+
+			ln, serveErr = lc.Listen(ctx, "tcp", httpAddr)
+			if serveErr != nil {
+				logger.APILog.Fatal("couldn't create listener", zap.Error(serveErr))
+				return
+			}
+		}
+
+		logFields := []zap.Field{
+			zap.String("scheme", string(scheme)),
+			zap.String("address", httpAddr),
+		}
+		if cfg.Interfaces.API.Name != "" {
+			logFields = append(logFields, zap.String("interface", cfg.Interfaces.API.Name))
+		}
+
+		logger.APILog.Info("API server started", logFields...)
+
 		if scheme == HTTPS {
 			srv.Handler = router
+
 			srv.TLSConfig = &tls.Config{
 				MinVersion: tls.VersionTLS12,
 				CipherSuites: []uint16{
@@ -106,18 +147,24 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 					tls.CurveP384,
 				},
 			}
-			serveErr = srv.ListenAndServeTLS(cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key)
+			if ln != nil {
+				serveErr = srv.ServeTLS(ln, cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key)
+			} else {
+				serveErr = srv.ListenAndServeTLS(cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key)
+			}
 		} else {
 			srv.Handler = h2c.NewHandler(router, h2Server)
-			serveErr = srv.ListenAndServe()
+			if ln != nil {
+				serveErr = srv.Serve(ln)
+			} else {
+				serveErr = srv.ListenAndServe()
+			}
 		}
 
 		if serveErr != nil && serveErr != http.ErrServerClosed {
 			logger.APILog.Fatal("couldn't start API server", zap.Error(serveErr))
 		}
 	}()
-
-	logger.APILog.Info("API server started", zap.String("scheme", string(scheme)), zap.String("address", fmt.Sprintf("%s://%s:%d", scheme, cfg.Interfaces.API.Address, cfg.Interfaces.API.Port)))
 
 	// Reconcile routes on startup and every 5 minutes.
 	reconcile := routeReconciler // capture to avoid racing with test teardown

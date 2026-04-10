@@ -11,129 +11,170 @@ import (
 )
 
 const (
-	InterfaceIP   = "1.2.3.4"
 	InterfaceName = "enp3s0"
 )
 
 func TestValidConfigSuccess(t *testing.T) {
-	tempCertFile, err := os.CreateTemp("", "ella_cert_*.pem")
-	if err != nil {
-		t.Fatalf("Failed to create temp cert file: %s", err)
+	testcases := []struct {
+		name    string
+		n2n3IP  string
+		apiIP   string
+		apiName string
+		file    string
+	}{
+		{
+			name:   "IPv4",
+			n2n3IP: "1.2.3.4",
+			apiIP:  "1.2.3.4",
+			file:   "testdata/valid.yaml",
+		},
+		{
+			name:   "IPv6",
+			n2n3IP: "10.0.0.1",
+			apiIP:  "fc42:dead:beef::1",
+			file:   "testdata/valid_v6.yaml",
+		},
+		{
+			name:    "IPv6-Interface",
+			n2n3IP:  "10.0.0.1",
+			apiIP:   "2001:db8::1",
+			apiName: "eth0",
+			file:    "testdata/valid_v6_iface.yaml",
+		},
 	}
 
-	defer func() {
-		if err := os.Remove(tempCertFile.Name()); err != nil {
-			t.Fatalf("Failed to remove temp key file: %v", err)
-		}
-	}()
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			tempCertFile, err := os.CreateTemp("", "ella_cert_*.pem")
+			if err != nil {
+				t.Fatalf("Failed to create temp cert file: %s", err)
+			}
 
-	tempKeyFile, err := os.CreateTemp("", "ella_key_*.pem")
-	if err != nil {
-		t.Fatalf("Failed to create temp key file: %s", err)
-	}
+			defer func() {
+				if err := os.Remove(tempCertFile.Name()); err != nil {
+					t.Fatalf("Failed to remove temp key file: %v", err)
+				}
+			}()
 
-	defer func() {
-		if err := os.Remove(tempKeyFile.Name()); err != nil {
-			t.Fatalf("Failed to remove temp key file: %v", err)
-		}
-	}()
+			tempKeyFile, err := os.CreateTemp("", "ella_key_*.pem")
+			if err != nil {
+				t.Fatalf("Failed to create temp key file: %s", err)
+			}
 
-	if _, err := tempCertFile.WriteString("dummy cert data"); err != nil {
-		t.Fatalf("Failed to write to temp cert file: %s", err)
-	}
+			defer func() {
+				if err := os.Remove(tempKeyFile.Name()); err != nil {
+					t.Fatalf("Failed to remove temp key file: %v", err)
+				}
+			}()
 
-	if _, err := tempKeyFile.WriteString("dummy key data"); err != nil {
-		t.Fatalf("Failed to write to temp key file: %s", err)
-	}
+			if err := os.WriteFile(tempCertFile.Name(), []byte("dummy cert data"), 0o644); err != nil {
+				t.Fatalf("Failed to write to temp cert file: %s", err)
+			}
 
-	defer func() {
-		if err := tempCertFile.Close(); err != nil {
-			t.Fatalf("Faile to close temp cert file: %v", err)
-		}
-	}()
+			if err := os.WriteFile(tempKeyFile.Name(), []byte("dummy key data"), 0o644); err != nil {
+				t.Fatalf("Failed to write to temp key file: %s", err)
+			}
 
-	defer func() {
-		if err := tempKeyFile.Close(); err != nil {
-			t.Fatalf("Faile to close temp key file: %v", err)
-		}
-	}()
+			defer func() {
+				if err := tempCertFile.Close(); err != nil {
+					t.Fatalf("Faile to close temp cert file: %v", err)
+				}
+			}()
 
-	config.CheckInterfaceExistsFunc = func(name string) (bool, error) {
-		return true, nil
-	}
+			defer func() {
+				if err := tempKeyFile.Close(); err != nil {
+					t.Fatalf("Faile to close temp key file: %v", err)
+				}
+			}()
 
-	config.GetInterfaceIPFunc = func(name string) (string, error) {
-		return InterfaceIP, nil
-	}
-	config.GetVLANConfigForInterfaceFunc = func(name string) (*config.VlanConfig, error) {
-		return nil, nil
-	}
+			config.CheckInterfaceExistsFunc = func(name string) (bool, error) {
+				return true, nil
+			}
 
-	// Update the config file to use the temporary cert and key paths
-	confFilePath := "testdata/valid.yaml"
+			config.GetInterfaceIPFunc = func(name string, family config.AddressFamily) (string, error) {
+				if family == config.AnyFamily {
+					return tc.apiIP, nil
+				}
 
-	originalContent, err := os.ReadFile(confFilePath)
-	if err != nil {
-		t.Fatalf("Failed to read config file: %s", err)
-	}
+				return tc.n2n3IP, nil
+			}
+			config.GetInterfaceNameFunc = func(address string) (string, error) {
+				return "eth0", nil
+			}
+			config.GetVLANConfigForInterfaceFunc = func(name string) (*config.VlanConfig, error) {
+				return nil, nil
+			}
 
-	updatedContent := strings.ReplaceAll(string(originalContent), "/etc/ella/cert.pem", tempCertFile.Name())
-	updatedContent = strings.ReplaceAll(updatedContent, "/etc/ella/key.pem", tempKeyFile.Name())
+			originalContent, err := os.ReadFile(tc.file)
+			if err != nil {
+				t.Fatalf("Failed to read config file: %s", err)
+			}
 
-	err = os.WriteFile(confFilePath, []byte(updatedContent), os.FileMode(0o600))
-	if err != nil {
-		t.Fatalf("Failed to update config file: %s", err)
-	}
+			updatedContent := strings.ReplaceAll(string(originalContent), "/etc/ella/cert.pem", tempCertFile.Name())
+			updatedContent = strings.ReplaceAll(updatedContent, "/etc/ella/key.pem", tempKeyFile.Name())
 
-	defer func() {
-		if err := os.WriteFile(confFilePath, originalContent, os.FileMode(0o600)); err != nil {
-			t.Fatalf("Failed to close database: %v", err)
-		}
-	}()
+			err = os.WriteFile(tc.file, []byte(updatedContent), os.FileMode(0o600))
+			if err != nil {
+				t.Fatalf("Failed to update config file: %s", err)
+			}
 
-	conf, err := config.Validate(confFilePath)
-	if err != nil {
-		t.Fatalf("Error occurred: %s", err)
-	}
+			defer func() {
+				if err := os.WriteFile(tc.file, originalContent, os.FileMode(0o600)); err != nil {
+					t.Fatalf("Failed to close database: %v", err)
+				}
+			}()
 
-	if conf.Interfaces.N2.Address != "1.2.3.4" {
-		t.Fatalf("N2 interface address was not configured correctly")
-	}
+			conf, err := config.Validate(tc.file)
+			if err != nil {
+				t.Fatalf("Error occurred: %s", err)
+			}
 
-	if conf.Interfaces.N2.Port != 38412 {
-		t.Fatalf("N2 port was not configured correctly")
-	}
+			if conf.Interfaces.N2.Address != tc.n2n3IP {
+				t.Fatalf("N2 interface address was not configured correctly")
+			}
 
-	if conf.Interfaces.N3.Name != "enp3s0" {
-		t.Fatalf("N3 interface was not configured correctly")
-	}
+			if conf.Interfaces.N2.Port != 38412 {
+				t.Fatalf("N2 port was not configured correctly")
+			}
 
-	if conf.Interfaces.N3.Address != "1.2.3.4" {
-		t.Fatalf("N3 interface address was not configured correctly")
-	}
+			if conf.Interfaces.N3.Name != "enp3s0" {
+				t.Fatalf("N3 interface was not configured correctly")
+			}
 
-	if conf.Interfaces.N6.Name != "enp6s0" {
-		t.Fatalf("N6 interface was not configured correctly")
-	}
+			if conf.Interfaces.N3.Address != tc.n2n3IP {
+				t.Fatalf("N3 interface address was not configured correctly")
+			}
 
-	if conf.Interfaces.API.Address != "1.2.3.4" {
-		t.Fatalf("API interface was not configured correctly")
-	}
+			if conf.Interfaces.N6.Name != "enp6s0" {
+				t.Fatalf("N6 interface was not configured correctly")
+			}
 
-	if conf.Interfaces.API.Port != 5002 {
-		t.Fatalf("API port was not configured correctly")
-	}
+			if tc.apiName != "" {
+				if conf.Interfaces.API.Name != tc.apiName {
+					t.Fatalf("API interface name was not configured correctly, expected: %s, got %s", tc.apiName, conf.Interfaces.API.Name)
+				}
+			} else {
+				if conf.Interfaces.API.Address != tc.apiIP {
+					t.Fatalf("API interface was not configured correctly, expected: %s, got %s", tc.apiIP, conf.Interfaces.API.Address)
+				}
+			}
 
-	if conf.Interfaces.API.TLS.Cert != tempCertFile.Name() {
-		t.Fatalf("TLS cert was not configured correctly")
-	}
+			if conf.Interfaces.API.Port != 5002 {
+				t.Fatalf("API port was not configured correctly")
+			}
 
-	if conf.Interfaces.API.TLS.Key != tempKeyFile.Name() {
-		t.Fatalf("TLS key was not configured correctly")
-	}
+			if conf.Interfaces.API.TLS.Cert != tempCertFile.Name() {
+				t.Fatalf("TLS cert was not configured correctly")
+			}
 
-	if conf.DB.Path != "test" {
-		t.Fatalf("Database path was not configured correctly")
+			if conf.Interfaces.API.TLS.Key != tempKeyFile.Name() {
+				t.Fatalf("TLS key was not configured correctly")
+			}
+
+			if conf.DB.Path != "test" {
+				t.Fatalf("Database path was not configured correctly")
+			}
+		})
 	}
 }
 
@@ -217,6 +258,7 @@ func TestBadConfigFail(t *testing.T) {
 		{"no db", "testdata/invalid_no_db.yaml", "db is empty"},
 		{"invalid yaml", "testdata/invalid_yaml.yaml", "cannot unmarshal config file"},
 		{"n2 missing both name and address", "testdata/invalid_both_name_and_address.yaml", "interfaces.n2: interface name and address cannot be both set"},
+		{"invalid ip address", "testdata/invalid_ip.yaml", "is not a valid IP address"},
 	}
 
 	for _, tc := range cases {
