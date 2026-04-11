@@ -394,6 +394,88 @@ type HandoverRequestAcknowledge struct {
 	TargetToSourceTransparentContainer ngapType.TargetToSourceTransparentContainer
 }
 
+// HandoverNotify is a decoded NGAP HandoverNotify (3GPP TS 38.413
+// §9.2.3.5). AMFUENGAPID and RANUENGAPID are mandatory-reject and
+// populated when the accompanying *Report is non-fatal.
+// UserLocationInformation is mandatory-ignore: a missing or malformed
+// value yields a non-fatal report and a nil pointer so the handler can
+// skip the location update.
+//
+// UserLocationInformation aliases the source PDU buffer; callers must
+// finish consuming it within the synchronous handler invocation driven
+// by the dispatcher.
+type HandoverNotify struct {
+	AMFUENGAPID             int64
+	RANUENGAPID             int64
+	UserLocationInformation *ngapType.UserLocationInformation
+}
+
+// PDUSessionResourceNotify is a decoded NGAP PDUSessionResourceNotify
+// (3GPP TS 38.413 §9.2.1.8). AMFUENGAPID and RANUENGAPID are
+// mandatory-reject and populated when the accompanying *Report is
+// non-fatal. HasNotifyList records whether the optional-reject
+// PDUSessionResourceNotifyList IE was present; the handler only logs a
+// warning on presence so the contents are not surfaced.
+// PDUSessionResourceReleasedItems and UserLocationInformation are both
+// optional-ignore.
+//
+// PDUSessionResourceReleasedItems aliases the source PDU buffer
+// (PDUSessionResourceNotifyReleasedTransfer octet strings); callers
+// must finish consuming it within the synchronous handler invocation
+// driven by the dispatcher.
+type PDUSessionResourceNotify struct {
+	AMFUENGAPID                     int64
+	RANUENGAPID                     int64
+	HasNotifyList                   bool
+	PDUSessionResourceReleasedItems []ngapType.PDUSessionResourceReleasedItemNot
+	UserLocationInformation         *ngapType.UserLocationInformation
+}
+
+// LocationReport is a decoded NGAP LocationReport (3GPP TS 38.413
+// §9.2.4.2). AMFUENGAPID and RANUENGAPID are mandatory-reject and
+// populated when the accompanying *Report is non-fatal.
+// UserLocationInformation and LocationReportingRequestType are
+// mandatory-ignore — missing or malformed values yield a non-fatal
+// report and leave the corresponding pointer nil so the handler can
+// nil-check before dereferencing. UEPresenceInAreaOfInterestList is
+// optional-ignore.
+//
+// All pointer fields alias the source PDU buffer; callers must finish
+// consuming them within the synchronous handler invocation driven by
+// the dispatcher.
+type LocationReport struct {
+	AMFUENGAPID                    int64
+	RANUENGAPID                    int64
+	UserLocationInformation        *ngapType.UserLocationInformation
+	UEPresenceInAreaOfInterestList *ngapType.UEPresenceInAreaOfInterestList
+	LocationReportingRequestType   *ngapType.LocationReportingRequestType
+}
+
+// UplinkRANConfigurationTransfer is a decoded NGAP
+// UplinkRANConfigurationTransfer (3GPP TS 38.413 §9.2.6.8). All IEs
+// are optional-ignore. SONConfigurationTransferUL is the only IE
+// surfaced — ENDCSONConfigurationTransferUL is consumed for validation
+// only because no current handler uses it.
+//
+// SONConfigurationTransferUL aliases the source PDU buffer (TargetRANNodeID,
+// SourceRANNodeID and XnTNLConfigurationInfo inside); callers must finish
+// consuming it within the synchronous handler invocation driven by the
+// dispatcher.
+type UplinkRANConfigurationTransfer struct {
+	SONConfigurationTransferUL *ngapType.SONConfigurationTransfer
+}
+
+// PDUSessionResourceModifyIndication is a decoded NGAP
+// PDUSessionResourceModifyIndication (3GPP TS 38.413 §9.2.1.6). All
+// three IEs are mandatory-reject so missing or malformed values yield a
+// fatal report. The handler does not consume
+// PDUSessionResourceModifyListModInd contents — presence validation
+// happens in the decoder and the list itself is not surfaced.
+type PDUSessionResourceModifyIndication struct {
+	AMFUENGAPID int64
+	RANUENGAPID int64
+}
+
 // RANConfigurationUpdate is a decoded NGAP RANConfigurationUpdate
 // (3GPP TS 38.413 §9.2.6.6). All IEs in this message are optional;
 // the decoder records malformed-IE diagnostics in *Report but never

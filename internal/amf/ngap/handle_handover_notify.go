@@ -4,61 +4,17 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.HandoverNotify) {
-	if msg == nil {
-		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
-		return
-	}
-
-	var (
-		aMFUENGAPID             *ngapType.AMFUENGAPID
-		rANUENGAPID             *ngapType.RANUENGAPID
-		userLocationInformation *ngapType.UserLocationInformation
-	)
-
-	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
-		ie := msg.ProtocolIEs.List[i]
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			aMFUENGAPID = ie.Value.AMFUENGAPID
-			if aMFUENGAPID == nil {
-				logger.WithTrace(ctx, ran.Log).Error("AMFUENGAPID is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			rANUENGAPID = ie.Value.RANUENGAPID
-			if rANUENGAPID == nil {
-				logger.WithTrace(ctx, ran.Log).Error("RANUENGAPID is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDUserLocationInformation:
-			userLocationInformation = ie.Value.UserLocationInformation
-			if userLocationInformation == nil {
-				logger.WithTrace(ctx, ran.Log).Error("userLocationInformation is nil")
-				return
-			}
-		}
-	}
-
-	if aMFUENGAPID == nil {
-		logger.WithTrace(ctx, ran.Log).Error("AMFUENGAPID IE (mandatory) is missing in HandoverNotify")
-		return
-	}
-
-	if rANUENGAPID == nil {
-		logger.WithTrace(ctx, ran.Log).Error("RANUENGAPID IE (mandatory) is missing in HandoverNotify")
-		return
-	}
-
-	targetUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
-
+func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.HandoverNotify) {
+	targetUe := ran.FindUEByRanUeNgapID(msg.RANUENGAPID)
 	if targetUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No RanUe Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Error("No RanUe Context", zap.Int64("AmfUeNgapID", msg.AMFUENGAPID), zap.Int64("RanUeNgapID", msg.RANUENGAPID))
+
 		cause := ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
 			RadioNetwork: &ngapType.CauseRadioNetwork{
@@ -72,13 +28,13 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 			return
 		}
 
-		logger.WithTrace(ctx, ran.Log).Info("sent error indication", zap.Int64("AMFUENGAPID", aMFUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Info("sent error indication", zap.Int64("AMFUENGAPID", msg.AMFUENGAPID))
 
 		return
 	}
 
-	if userLocationInformation != nil {
-		targetUe.UpdateLocation(ctx, amfInstance, userLocationInformation)
+	if msg.UserLocationInformation != nil {
+		targetUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
 	}
 
 	amfUe := targetUe.AmfUe()

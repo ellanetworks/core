@@ -78,8 +78,14 @@ func TestDecodeHandoverFailure_NilBody(t *testing.T) {
 
 func TestDecodeHandoverFailure_EmptyIEs(t *testing.T) {
 	_, report := decode.DecodeHandoverFailure(&ngapType.HandoverFailure{})
-	if report == nil || !report.Fatal() {
-		t.Fatalf("expected fatal report (missing AMFUENGAPID), got %+v", report)
+	if report == nil {
+		t.Fatal("expected non-nil report")
+	}
+
+	// All IEs in HandoverFailure are ignore criticality, so missing
+	// mandatories yield a non-fatal report.
+	if report.Fatal() {
+		t.Fatalf("expected non-fatal report, got %+v", report)
 	}
 
 	wantIEs := map[int64]bool{
@@ -143,7 +149,7 @@ func TestDecodeHandoverFailure_NilCauseValueNonFatal(t *testing.T) {
 	}
 }
 
-func TestDecodeHandoverFailure_NilAMFUENGAPIDValueIsFatal(t *testing.T) {
+func TestDecodeHandoverFailure_NilAMFUENGAPIDValueNonFatal(t *testing.T) {
 	msg := validHandoverFailure()
 	for i := range msg.ProtocolIEs.List {
 		if msg.ProtocolIEs.List[i].Id.Value == ngapType.ProtocolIEIDAMFUENGAPID {
@@ -151,13 +157,23 @@ func TestDecodeHandoverFailure_NilAMFUENGAPIDValueIsFatal(t *testing.T) {
 		}
 	}
 
-	_, report := decode.DecodeHandoverFailure(msg)
-	if report == nil || !report.Fatal() {
-		t.Fatalf("expected fatal report, got %+v", report)
+	out, report := decode.DecodeHandoverFailure(msg)
+	if report == nil {
+		t.Fatal("expected non-nil report")
+	}
+
+	// AMF-UE-NGAP-ID criticality is ignore; a malformed value yields a
+	// non-fatal report with AMFUENGAPID left at zero.
+	if report.Fatal() {
+		t.Fatalf("expected non-fatal report, got %+v", report)
 	}
 
 	if len(report.Items) != 1 {
 		t.Fatalf("expected 1 item (no double-report), got %d", len(report.Items))
+	}
+
+	if out.AMFUENGAPID != 0 {
+		t.Errorf("AMFUENGAPID = %d, want 0", out.AMFUENGAPID)
 	}
 }
 

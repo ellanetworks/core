@@ -4,36 +4,19 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleUplinkRanConfigurationTransfer(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.UplinkRANConfigurationTransfer) {
-	if msg == nil {
-		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
-		return
-	}
-
-	var sONConfigurationTransferUL *ngapType.SONConfigurationTransfer
-
-	for _, ie := range msg.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDSONConfigurationTransferUL: // optional, ignore
-			sONConfigurationTransferUL = ie.Value.SONConfigurationTransferUL
-			if sONConfigurationTransferUL == nil {
-				logger.WithTrace(ctx, ran.Log).Warn("sONConfigurationTransferUL is nil")
-			}
-		}
-	}
-
-	if sONConfigurationTransferUL == nil {
+func HandleUplinkRanConfigurationTransfer(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.UplinkRANConfigurationTransfer) {
+	if msg.SONConfigurationTransferUL == nil {
 		logger.WithTrace(ctx, ran.Log).Warn("sONConfigurationTransferUL is nil")
 		return
 	}
 
-	targetRanNodeID := util.RanIDToModels(sONConfigurationTransferUL.TargetRANNodeID.GlobalRANNodeID)
+	targetRanNodeID := util.RanIDToModels(msg.SONConfigurationTransferUL.TargetRANNodeID.GlobalRANNodeID)
 
 	if targetRanNodeID.GNbID != nil && targetRanNodeID.GNbID.GNBValue != "" {
 		logger.WithTrace(ctx, ran.Log).Debug("targetRanID", zap.String("targetRanID", targetRanNodeID.GNbID.GNBValue))
@@ -45,7 +28,7 @@ func HandleUplinkRanConfigurationTransfer(ctx context.Context, amfInstance *amf.
 		return
 	}
 
-	err := targetRan.NGAPSender.SendDownlinkRanConfigurationTransfer(ctx, sONConfigurationTransferUL)
+	err := targetRan.NGAPSender.SendDownlinkRanConfigurationTransfer(ctx, msg.SONConfigurationTransferUL)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error sending downlink ran configuration transfer", zap.Error(err))
 		return

@@ -17,7 +17,11 @@ import (
 func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.InitialUEMessage) {
 	// TS 38.413 §10.4 logical error case 2: InitialUEMessage before NGSetup.
 	if ran.RanID == nil {
-		criticalityDiagnostics := buildCriticalityDiagnostics(ngapType.ProcedureCodeInitialUEMessage, ngapType.TriggeringMessagePresentInitiatingMessage, ngapType.CriticalityPresentIgnore, nil)
+		criticalityDiagnostics := (&decode.Report{
+			ProcedureCode:        ngapType.ProcedureCodeInitialUEMessage,
+			TriggeringMessage:    ngapType.TriggeringMessagePresentInitiatingMessage,
+			ProcedureCriticality: ngapType.CriticalityPresentIgnore,
+		}).ToCriticalityDiagnostics()
 		cause := ngapType.Cause{
 			Present: ngapType.CausePresentProtocol,
 			Protocol: &ngapType.CauseProtocol{

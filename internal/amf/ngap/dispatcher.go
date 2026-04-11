@@ -86,13 +86,24 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 		attribute.String("network.local.address", localAddress.String()),
 	)
 
-	// For NGSetupRequest the radio name is embedded in the message IEs and
-	// hasn't been applied to ran.Name yet (that happens inside
-	// HandleNGSetupRequest).  Peek at the decoded PDU so the inbound event
-	// is logged with the correct radio name *before* dispatch — preserving
-	// correct chronological ordering with the outbound NGSetupResponse.
-	if name := ngSetupRadioName(pdu); name != "" {
-		ran.Name = name
+	// Pre-decode NGSetupRequest so the peer's RANNodeName can be applied to
+	// ran.Name *before* the inbound event is logged, preserving chronological
+	// ordering with the outbound NGSetupResponse.
+	var (
+		ngSetupDecoded decode.NGSetupRequest
+		ngSetupReport  *decode.Report
+		haveNGSetup    bool
+	)
+
+	if pdu.Present == ngapType.NGAPPDUPresentInitiatingMessage &&
+		pdu.InitiatingMessage != nil &&
+		pdu.InitiatingMessage.ProcedureCode.Value == ngapType.ProcedureCodeNGSetup {
+		ngSetupDecoded, ngSetupReport = decode.DecodeNGSetupRequest(pdu.InitiatingMessage.Value.NGSetupRequest)
+		haveNGSetup = true
+
+		if ngSetupDecoded.RANNodeName != "" {
+			ran.Name = ngSetupDecoded.RANNodeName
+		}
 	}
 
 	logger.LogNetworkEvent(
@@ -106,35 +117,22 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 		msg,
 	)
 
+	NGAPMessages.WithLabelValues(messageType).Inc()
+
+	if haveNGSetup {
+		if !handleDecodeReport(ctx, ran, ngSetupReport) {
+			return
+		}
+
+		HandleNGSetupRequest(ctx, amfInstance, ran, ngSetupDecoded)
+
+		return
+	}
+
 	dispatchNgapMsg(ctx, amfInstance, ran, pdu)
 }
 
-// ngSetupRadioName extracts the RANNodeName from an NGSetupRequest PDU.
-// Returns "" for any other message type or if the name IE is absent.
-func ngSetupRadioName(pdu *ngapType.NGAPPDU) string {
-	if pdu.Present != ngapType.NGAPPDUPresentInitiatingMessage ||
-		pdu.InitiatingMessage == nil ||
-		pdu.InitiatingMessage.ProcedureCode.Value != ngapType.ProcedureCodeNGSetup {
-		return ""
-	}
-
-	req := pdu.InitiatingMessage.Value.NGSetupRequest
-	if req == nil {
-		return ""
-	}
-
-	for _, ie := range req.ProtocolIEs.List {
-		if ie.Id.Value == ngapType.ProtocolIEIDRANNodeName && ie.Value.RANNodeName != nil {
-			return ie.Value.RANNodeName.Value
-		}
-	}
-
-	return ""
-}
-
 func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, pdu *ngapType.NGAPPDU) {
-	NGAPMessages.WithLabelValues(getMessageType(pdu)).Inc()
-
 	switch pdu.Present {
 	case ngapType.NGAPPDUPresentInitiatingMessage:
 		initiatingMessage := pdu.InitiatingMessage
@@ -144,13 +142,6 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		}
 
 		switch initiatingMessage.ProcedureCode.Value {
-		case ngapType.ProcedureCodeNGSetup:
-			decoded, report := decode.DecodeNGSetupRequest(pdu.InitiatingMessage.Value.NGSetupRequest)
-			if !handleDecodeReport(ctx, ran, report) {
-				return
-			}
-
-			HandleNGSetupRequest(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeInitialUEMessage:
 			decoded, report := decode.DecodeInitialUEMessage(pdu.InitiatingMessage.Value.InitialUEMessage)
 			if !handleDecodeReport(ctx, ran, report) {
@@ -208,7 +199,12 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 
 			HandleUERadioCapabilityInfoIndication(ctx, ran, decoded)
 		case ngapType.ProcedureCodeHandoverNotification:
-			HandleHandoverNotify(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.HandoverNotify)
+			decoded, report := decode.DecodeHandoverNotify(pdu.InitiatingMessage.Value.HandoverNotify)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleHandoverNotify(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeHandoverPreparation:
 			decoded, report := decode.DecodeHandoverRequired(pdu.InitiatingMessage.Value.HandoverRequired)
 			if !handleDecodeReport(ctx, ran, report) {
@@ -224,7 +220,12 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 
 			HandleRanConfigurationUpdate(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodePDUSessionResourceNotify:
-			HandlePDUSessionResourceNotify(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.PDUSessionResourceNotify)
+			decoded, report := decode.DecodePDUSessionResourceNotify(pdu.InitiatingMessage.Value.PDUSessionResourceNotify)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandlePDUSessionResourceNotify(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodePathSwitchRequest:
 			decoded, report := decode.DecodePathSwitchRequest(pdu.InitiatingMessage.Value.PathSwitchRequest)
 			if !handleDecodeReport(ctx, ran, report) {
@@ -233,11 +234,26 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 
 			HandlePathSwitchRequest(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeLocationReport:
-			HandleLocationReport(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.LocationReport)
+			decoded, report := decode.DecodeLocationReport(pdu.InitiatingMessage.Value.LocationReport)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleLocationReport(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeUplinkRANConfigurationTransfer:
-			HandleUplinkRanConfigurationTransfer(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.UplinkRANConfigurationTransfer)
+			decoded, report := decode.DecodeUplinkRANConfigurationTransfer(pdu.InitiatingMessage.Value.UplinkRANConfigurationTransfer)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleUplinkRanConfigurationTransfer(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodePDUSessionResourceModifyIndication:
-			HandlePDUSessionResourceModifyIndication(ctx, ran, pdu.InitiatingMessage.Value.PDUSessionResourceModifyIndication)
+			decoded, report := decode.DecodePDUSessionResourceModifyIndication(pdu.InitiatingMessage.Value.PDUSessionResourceModifyIndication)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandlePDUSessionResourceModifyIndication(ctx, ran, decoded)
 		default:
 			ran.Log.Warn("Not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", initiatingMessage.ProcedureCode.Value))
 		}
