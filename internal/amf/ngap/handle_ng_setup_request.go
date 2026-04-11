@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
@@ -12,67 +13,22 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.NGSetupRequest) {
-	if msg == nil {
-		logger.WithTrace(ctx, ran.Log).Error("NG Setup Request Message is nil")
-		return
-	}
+func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.NGSetupRequest) {
+	ran.SetRanID(msg.GlobalRANNodeID.Raw())
 
-	var (
-		globalRANNodeID *ngapType.GlobalRANNodeID
-		rANNodeName     *ngapType.RANNodeName
-		supportedTAList *ngapType.SupportedTAList
-		pagingDRX       *ngapType.PagingDRX
-	)
-
-	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
-		ie := msg.ProtocolIEs.List[i]
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDGlobalRANNodeID:
-			globalRANNodeID = ie.Value.GlobalRANNodeID
-			if globalRANNodeID == nil {
-				logger.WithTrace(ctx, ran.Log).Error("GlobalRANNodeID is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDSupportedTAList:
-			supportedTAList = ie.Value.SupportedTAList
-			if supportedTAList == nil {
-				logger.WithTrace(ctx, ran.Log).Error("SupportedTAList is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDRANNodeName:
-			rANNodeName = ie.Value.RANNodeName
-			if rANNodeName == nil {
-				logger.WithTrace(ctx, ran.Log).Error("RANNodeName is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDDefaultPagingDRX:
-			pagingDRX = ie.Value.DefaultPagingDRX
-			if pagingDRX == nil {
-				logger.WithTrace(ctx, ran.Log).Error("DefaultPagingDRX is nil")
-				return
-			}
-		}
-	}
-
-	if globalRANNodeID != nil {
-		ran.SetRanID(globalRANNodeID)
-	}
-
-	if rANNodeName != nil {
-		ran.Name = rANNodeName.Value
+	if msg.RANNodeName != "" {
+		ran.Name = msg.RANNodeName
 
 		if realSender, ok := ran.NGAPSender.(*send.RealNGAPSender); ok {
 			realSender.RadioName = ran.Name
 		}
 	}
 
-	// Clearing any existing contents of ran.SupportedTAList
 	if len(ran.SupportedTAIs) != 0 {
 		ran.SupportedTAIs = make([]amf.SupportedTAI, 0)
 	}
 
-	if supportedTAList == nil || len(supportedTAList.List) == 0 {
+	if len(msg.SupportedTAItems) == 0 {
 		err := ran.NGAPSender.SendNGSetupFailure(ctx, &ngapType.Cause{
 			Present: ngapType.CausePresentMisc,
 			Misc: &ngapType.CauseMisc{
@@ -89,8 +45,8 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return
 	}
 
-	for i := 0; i < len(supportedTAList.List); i++ {
-		supportedTAItem := supportedTAList.List[i]
+	for i := 0; i < len(msg.SupportedTAItems); i++ {
+		supportedTAItem := msg.SupportedTAItems[i]
 
 		tac := hex.EncodeToString(supportedTAItem.TAC.Value)
 		for j := 0; j < len(supportedTAItem.BroadcastPLMNList.List); j++ {

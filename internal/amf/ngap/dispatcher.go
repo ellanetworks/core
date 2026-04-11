@@ -145,7 +145,12 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 
 		switch initiatingMessage.ProcedureCode.Value {
 		case ngapType.ProcedureCodeNGSetup:
-			HandleNGSetupRequest(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.NGSetupRequest)
+			decoded, report := decode.DecodeNGSetupRequest(pdu.InitiatingMessage.Value.NGSetupRequest)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleNGSetupRequest(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeInitialUEMessage:
 			decoded, report := decode.DecodeInitialUEMessage(pdu.InitiatingMessage.Value.InitialUEMessage)
 			if !handleDecodeReport(ctx, ran, report) {

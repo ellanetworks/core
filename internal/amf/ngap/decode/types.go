@@ -10,6 +10,29 @@ import (
 
 type RRCEstablishmentCause aper.Enumerated
 
+type GlobalRANNodeKind uint8
+
+const (
+	GlobalRANNodeKindUnknown GlobalRANNodeKind = iota
+	GlobalRANNodeKindGNB
+	GlobalRANNodeKindNgENB
+	GlobalRANNodeKindN3IWF
+)
+
+// GlobalRANNodeID wraps the validated free5gc CHOICE. When Kind is not
+// Unknown, the variant pointer matching Kind and any nested
+// *aper.BitString are non-nil. Raw is a transitional accessor — like
+// UserLocationInformation.Raw, the bytes inside the returned pointer
+// alias the source PDU buffer and must be consumed within the
+// synchronous handler invocation.
+type GlobalRANNodeID struct {
+	kind GlobalRANNodeKind
+	raw  *ngapType.GlobalRANNodeID
+}
+
+func (g GlobalRANNodeID) Kind() GlobalRANNodeKind        { return g.kind }
+func (g GlobalRANNodeID) Raw() *ngapType.GlobalRANNodeID { return g.raw }
+
 type UserLocationKind uint8
 
 const (
@@ -51,4 +74,22 @@ type InitialUEMessage struct {
 	RRCEstablishmentCause   RRCEstablishmentCause
 	FiveGSTMSI              *FiveGSTMSI
 	UEContextRequest        bool
+}
+
+// NGSetupRequest is a decoded NGAP NGSetupRequest (3GPP TS 38.413
+// §9.2.6.1). GlobalRANNodeID and SupportedTAItems are mandatory and
+// populated when the accompanying *Report is non-fatal. RANNodeName is
+// optional ("" when absent).
+//
+// SupportedTAItems aliases the source PDU buffer (TAC, PLMNIdentity
+// and SNSSAI octet strings); like UserLocationInformation.Raw, callers
+// must finish consuming it within the synchronous handler invocation.
+// SupportedTAItems may be empty even after a non-fatal decode: the IE
+// container itself was present but carried zero items, which TS
+// 38.413 forbids structurally but real gNBs occasionally send. The
+// handler decides whether to reject empty lists.
+type NGSetupRequest struct {
+	GlobalRANNodeID  GlobalRANNodeID
+	SupportedTAItems []ngapType.SupportedTAItem
+	RANNodeName      string
 }
