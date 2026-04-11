@@ -29,9 +29,12 @@ func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) 
 		RANUENGAPID: 1,
 	}
 
-	assertNoPanic(t, "HandleLocationReport(missing LocationReportingRequestType)", func() {
-		ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
-	})
+	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
+
+	sender := ran.NGAPSender.(*FakeNGAPSender)
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
 }
 
 // TestHandleLocationReport_UePresenceInAreaOfInterest_NilList verifies that
@@ -62,9 +65,12 @@ func TestHandleLocationReport_UePresenceInAreaOfInterest_NilList(t *testing.T) {
 		},
 	}
 
-	assertNoPanic(t, "HandleLocationReport(UePresenceInAreaOfInterest with nil list)", func() {
-		ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
-	})
+	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
+
+	sender := ran.NGAPSender.(*FakeNGAPSender)
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
 }
 
 // TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled verifies
@@ -95,9 +101,12 @@ func TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled(t *test
 		},
 	}
 
-	assertNoPanic(t, "HandleLocationReport(StopUePresence with nil ReferenceIDToBeCancelled)", func() {
-		ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
-	})
+	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
+
+	sender := ran.NGAPSender.(*FakeNGAPSender)
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
 }
 
 // TestHandleLocationReport_UePresence_NilAreaOfInterestList verifies that
@@ -136,7 +145,10 @@ func TestHandleLocationReport_UePresence_NilAreaOfInterestList(t *testing.T) {
 		},
 	}
 
-	assertNoPanic(t, "HandleLocationReport(UePresence with nil AreaOfInterestList)", func() {
-		ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
-	})
+	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
+
+	sender := ran.NGAPSender.(*FakeNGAPSender)
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
 }

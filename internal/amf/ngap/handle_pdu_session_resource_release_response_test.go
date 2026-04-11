@@ -12,11 +12,14 @@ import (
 
 func TestHandlePDUSessionResourceReleaseResponse_MissingIDs(t *testing.T) {
 	ran := newTestRadio()
+	sender := ran.NGAPSender.(*FakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	msg := decode.PDUSessionResourceReleaseResponse{}
 
-	assertNoPanic(t, "HandlePDUSessionResourceReleaseResponse(missing IDs)", func() {
-		ngap.HandlePDUSessionResourceReleaseResponse(context.Background(), amfInstance, ran, msg)
-	})
+	ngap.HandlePDUSessionResourceReleaseResponse(context.Background(), amfInstance, ran, msg)
+
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
 }

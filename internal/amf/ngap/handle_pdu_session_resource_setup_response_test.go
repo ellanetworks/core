@@ -12,13 +12,16 @@ import (
 
 func TestHandlePDUSessionResourceSetupResponse_EmptyMessage(t *testing.T) {
 	ran := newTestRadio()
+	sender := ran.NGAPSender.(*FakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	msg := decode.PDUSessionResourceSetupResponse{}
 
-	assertNoPanic(t, "HandlePDUSessionResourceSetupResponse(empty message)", func() {
-		ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
-	})
+	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
+
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
 }
 
 // TestHandlePDUSessionResourceSetupResponse_UnknownAMFUENGAPID verifies that a
@@ -37,9 +40,12 @@ func TestHandlePDUSessionResourceSetupResponse_UnknownAMFUENGAPID(t *testing.T) 
 		RANUENGAPID: &ranID,
 	}
 
-	assertNoPanic(t, "HandlePDUSessionResourceSetupResponse(unknown AMF UE NGAP ID)", func() {
-		ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
-	})
+	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
+
+	sender := ran.NGAPSender.(*FakeNGAPSender)
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
 }
 
 // TestHandlePDUSessionResourceSetupResponse_OnlyUnknownRANUENGAPID verifies
@@ -54,7 +60,10 @@ func TestHandlePDUSessionResourceSetupResponse_OnlyUnknownRANUENGAPID(t *testing
 		RANUENGAPID: &ranID,
 	}
 
-	assertNoPanic(t, "HandlePDUSessionResourceSetupResponse(only unknown RAN ID)", func() {
-		ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
-	})
+	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
+
+	sender := ran.NGAPSender.(*FakeNGAPSender)
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
 }

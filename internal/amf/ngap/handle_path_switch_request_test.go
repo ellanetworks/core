@@ -1086,9 +1086,7 @@ func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
 		emptyCaps,
 	)
 
-	assertNoPanic(t, "HandlePathSwitchRequest(empty security capability bytes)", func() {
-		ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
-	})
+	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
 
 	if got := amfUe.UESecurityCapability.GetEA1_128_5G(); got != 1 {
 		t.Errorf("stored EA1_128_5G was modified by malformed IE: got %d, want 1", got)

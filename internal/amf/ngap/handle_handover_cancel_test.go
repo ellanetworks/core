@@ -28,9 +28,7 @@ func TestHandleHandoverCancel_UnknownRanUeNgapID(t *testing.T) {
 		},
 	}
 
-	assertNoPanic(t, "HandleHandoverCancel(unknown RAN UE NGAP ID)", func() {
-		ngap.HandleHandoverCancel(context.Background(), ran, msg)
-	})
+	ngap.HandleHandoverCancel(context.Background(), ran, msg)
 
 	if len(sender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))

@@ -12,6 +12,7 @@ import (
 
 func TestHandleUEContextModificationResponse_MissingAMFUENGAPID(t *testing.T) {
 	ran := newTestRadio()
+	sender := ran.NGAPSender.(*FakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	ranID := int64(1)
@@ -19,7 +20,9 @@ func TestHandleUEContextModificationResponse_MissingAMFUENGAPID(t *testing.T) {
 		RANUENGAPID: &ranID,
 	}
 
-	assertNoPanic(t, "HandleUEContextModificationResponse(missing AMFUENGAPID)", func() {
-		ngap.HandleUEContextModificationResponse(context.Background(), amfInstance, ran, msg)
-	})
+	ngap.HandleUEContextModificationResponse(context.Background(), amfInstance, ran, msg)
+
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
 }

@@ -224,7 +224,7 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SendsPreparationFailur
 // context has been detached (e.g. due to a concurrent deregistration), the
 // handler does not panic.
 func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceAmfUeDetached(t *testing.T) {
-	targetRan, _, amfInstance := setupHandoverAckTestContext(t)
+	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t)
 
 	targetUe := amfInstance.FindRanUeByAmfUeNgapID(1)
 	if targetUe == nil {
@@ -248,9 +248,15 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceAmfUeDetached(t 
 		},
 	}
 
-	assertNoPanic(t, "HandleHandoverRequestAcknowledge(source AmfUe detached, 0 PDU sessions)", func() {
-		ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, targetRan, msg)
-	})
+	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, targetRan, msg)
+
+	if len(sourceNGAPSender.SentHandoverPreparationFailures) != 1 {
+		t.Fatalf("expected 1 HandoverPreparationFailure on source radio, got %d", len(sourceNGAPSender.SentHandoverPreparationFailures))
+	}
+
+	if len(sourceNGAPSender.SentHandoverCommands) != 0 {
+		t.Fatalf("expected no HandoverCommand, got %d", len(sourceNGAPSender.SentHandoverCommands))
+	}
 }
 
 func TestHandoverRequestAcknowledge_HappyPath(t *testing.T) {

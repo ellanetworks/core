@@ -58,9 +58,11 @@ func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) 
 		RANUENGAPID: &ranID,
 	}
 
-	assertNoPanic(t, "HandleUEContextReleaseComplete(handover target with nil TargetUe)", func() {
-		ngap.HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, msg)
-	})
+	ngap.HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, msg)
+
+	if _, exists := ran.RanUEs[targetRanUe.RanUeNgapID]; exists {
+		t.Fatal("expected target RanUe to be removed after release complete")
+	}
 }
 
 // TestHandleUEContextReleaseComplete_SmContextNotFound verifies that a
@@ -99,7 +101,9 @@ func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
 		},
 	}
 
-	assertNoPanic(t, "HandleUEContextReleaseComplete(SmContext not found)", func() {
-		ngap.HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, msg)
-	})
+	ngap.HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, msg)
+
+	if _, exists := ran.RanUEs[ranUe.RanUeNgapID]; exists {
+		t.Fatal("expected RanUe to be removed after release complete")
+	}
 }

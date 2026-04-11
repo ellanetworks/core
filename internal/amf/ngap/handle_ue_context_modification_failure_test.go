@@ -12,13 +12,16 @@ import (
 
 func TestHandleUEContextModificationFailure_MissingAMFUENGAPID(t *testing.T) {
 	ran := newTestRadio()
+	sender := ran.NGAPSender.(*FakeNGAPSender)
 	amfInstance := newTestAMF()
 	ranUeNgapID := int64(1)
 	msg := decode.UEContextModificationFailure{
 		RANUENGAPID: &ranUeNgapID,
 	}
 
-	assertNoPanic(t, "HandleUEContextModificationFailure(missing AMFUENGAPID)", func() {
-		ngap.HandleUEContextModificationFailure(context.Background(), amfInstance, ran, msg)
-	})
+	ngap.HandleUEContextModificationFailure(context.Background(), amfInstance, ran, msg)
+
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
 }

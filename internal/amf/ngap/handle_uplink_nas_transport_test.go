@@ -12,13 +12,16 @@ import (
 
 func TestHandleUplinkNasTransport_UnknownRanUe(t *testing.T) {
 	ran := newTestRadio()
+	sender := ran.NGAPSender.(*FakeNGAPSender)
 	amf := newTestAMF()
 
-	assertNoPanic(t, "HandleUplinkNasTransport(unknown RAN UE)", func() {
-		ngap.HandleUplinkNasTransport(context.Background(), amf, ran, decode.UplinkNASTransport{
-			AMFUENGAPID: 1,
-			RANUENGAPID: 1,
-			NASPDU:      []byte{0x7E, 0x00, 0x55},
-		})
+	ngap.HandleUplinkNasTransport(context.Background(), amf, ran, decode.UplinkNASTransport{
+		AMFUENGAPID: 1,
+		RANUENGAPID: 1,
+		NASPDU:      []byte{0x7E, 0x00, 0x55},
 	})
+
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
 }

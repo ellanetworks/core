@@ -30,9 +30,7 @@ func TestHandleUEContextReleaseRequest_UnknownUENGAPIDs(t *testing.T) {
 		},
 	}
 
-	assertNoPanic(t, "HandleUEContextReleaseRequest(unknown IDs)", func() {
-		ngap.HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
-	})
+	ngap.HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
 
 	if len(sender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))

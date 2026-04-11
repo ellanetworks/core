@@ -16,12 +16,15 @@ import (
 
 func TestHandleHandoverFailure_MissingCause(t *testing.T) {
 	ran := newTestRadio()
+	sender := ran.NGAPSender.(*FakeNGAPSender)
 	amfInstance := newTestAMF()
 	msg := decode.HandoverFailure{AMFUENGAPID: 1}
 
-	assertNoPanic(t, "HandleHandoverFailure(missing cause)", func() {
-		ngap.HandleHandoverFailure(context.Background(), amfInstance, ran, msg)
-	})
+	ngap.HandleHandoverFailure(context.Background(), amfInstance, ran, msg)
+
+	if len(sender.SentErrorIndications) != 1 {
+		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
 }
 
 // TestHandleHandoverFailure_SourceAmfUeDetached verifies that a handover
@@ -30,6 +33,8 @@ func TestHandleHandoverFailure_MissingCause(t *testing.T) {
 func TestHandleHandoverFailure_SourceAmfUeDetached(t *testing.T) {
 	sourceRan := newTestRadio()
 	targetRan := newTestRadio()
+	sourceSender := sourceRan.NGAPSender.(*FakeNGAPSender)
+	targetSender := targetRan.NGAPSender.(*FakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	amfUe := amf.NewAmfUe()
@@ -74,7 +79,13 @@ func TestHandleHandoverFailure_SourceAmfUeDetached(t *testing.T) {
 		},
 	}
 
-	assertNoPanic(t, "HandleHandoverFailure(source AmfUe detached)", func() {
-		ngap.HandleHandoverFailure(context.Background(), amfInstance, targetRan, msg)
-	})
+	ngap.HandleHandoverFailure(context.Background(), amfInstance, targetRan, msg)
+
+	if len(sourceSender.SentHandoverPreparationFailures) != 1 {
+		t.Fatalf("expected 1 HandoverPreparationFailure on source radio, got %d", len(sourceSender.SentHandoverPreparationFailures))
+	}
+
+	if len(targetSender.SentUEContextReleaseCommands) != 1 {
+		t.Fatalf("expected 1 UEContextReleaseCommand on target radio, got %d", len(targetSender.SentUEContextReleaseCommands))
+	}
 }

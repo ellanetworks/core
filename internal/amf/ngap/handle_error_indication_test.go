@@ -12,8 +12,11 @@ import (
 
 func TestHandleErrorIndication_EmptyIEs(t *testing.T) {
 	ran := newTestRadio()
+	sender := ran.NGAPSender.(*FakeNGAPSender)
 
-	assertNoPanic(t, "HandleErrorIndication(empty IEs)", func() {
-		ngap.HandleErrorIndication(context.Background(), ran, decode.ErrorIndication{})
-	})
+	ngap.HandleErrorIndication(context.Background(), ran, decode.ErrorIndication{})
+
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
 }

@@ -148,9 +148,7 @@ func TestHandleNGReset_PartOfNGInterface_UnknownUE(t *testing.T) {
 		},
 	}
 
-	assertNoPanic(t, "HandleNGReset(PartOfNGInterface with unknown UE)", func() {
-		ngap.HandleNGReset(context.Background(), ran, msg)
-	})
+	ngap.HandleNGReset(context.Background(), ran, msg)
 
 	if len(fakeNGAPSender.SentNGResetAcknowledges) != 1 {
 		t.Fatalf("expected 1 NGResetAcknowledge, got %d", len(fakeNGAPSender.SentNGResetAcknowledges))

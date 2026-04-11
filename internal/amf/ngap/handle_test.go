@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"testing"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
@@ -461,19 +460,6 @@ func (fng *FakeNGAPSender) SendHandoverRequest(
 	})
 
 	return nil
-}
-
-// assertNoPanic runs fn and fails the test if it panics.
-func assertNoPanic(t *testing.T, name string, fn func()) {
-	t.Helper()
-
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("%s panicked (nil pointer dereference with missing IEs): %v", name, r)
-		}
-	}()
-
-	fn()
 }
 
 // newTestRadio creates a minimal Radio with a FakeNGAPSender for testing.
