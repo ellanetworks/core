@@ -28,18 +28,18 @@ func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF
 		logger.WithTrace(ctx, ranUe.Log).Debug("Send PDUSessionResourceSetupResponseTransfer to SMF")
 
 		for _, item := range msg.SetupItems {
-			if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+			pduSessionID, ok := validPDUSessionID(item.PDUSessionID.Value)
+			if !ok {
 				logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
 				continue
 			}
 
-			pduSessionID := uint8(item.PDUSessionID.Value)
 			transfer := item.PDUSessionResourceSetupResponseTransfer
 
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
 				logger.WithTrace(ctx, ranUe.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
-				return
+				continue
 			}
 
 			err := amfInstance.Smf.UpdateSmContextN2InfoPduResSetupRsp(ctx, smContext.Ref, transfer)
@@ -53,18 +53,18 @@ func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF
 		logger.WithTrace(ctx, ranUe.Log).Debug("Send PDUSessionResourceSetupUnsuccessfulTransfer to SMF")
 
 		for _, item := range msg.FailedToSetupItems {
-			if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+			pduSessionID, ok := validPDUSessionID(item.PDUSessionID.Value)
+			if !ok {
 				logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
 				continue
 			}
 
-			pduSessionID := uint8(item.PDUSessionID.Value)
 			transfer := item.PDUSessionResourceSetupUnsuccessfulTransfer
 
 			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 			if !ok {
 				logger.WithTrace(ctx, ranUe.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
-				return
+				continue
 			}
 
 			err := amfInstance.Smf.UpdateSmContextN2InfoPduResSetupFail(ctx, smContext.Ref, transfer)

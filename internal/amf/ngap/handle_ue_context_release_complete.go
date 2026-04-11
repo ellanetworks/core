@@ -105,12 +105,11 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 
 		if msg.PDUSessionResourceList != nil {
 			for _, pduSessionReourceItem := range msg.PDUSessionResourceList.List {
-				if pduSessionReourceItem.PDUSessionID.Value < 1 || pduSessionReourceItem.PDUSessionID.Value > 15 {
+				pduSessionID, ok := validPDUSessionID(pduSessionReourceItem.PDUSessionID.Value)
+				if !ok {
 					logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", pduSessionReourceItem.PDUSessionID.Value))
 					continue
 				}
-
-				pduSessionID := uint8(pduSessionReourceItem.PDUSessionID.Value)
 
 				smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 				if !ok {
@@ -125,16 +124,22 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 			}
 		} else {
 			logger.WithTrace(ctx, ranUe.Log).Info("Pdu Session IDs not received from gNB, Releasing the UE Context with SMF using local context")
+
 			amfUe.Mutex.Lock()
 
+			smContextRefs := make([]string, 0, len(amfUe.SmContextList))
 			for _, smContext := range amfUe.SmContextList {
-				err := amfInstance.Smf.DeactivateSmContext(ctx, smContext.Ref)
+				smContextRefs = append(smContextRefs, smContext.Ref)
+			}
+
+			amfUe.Mutex.Unlock()
+
+			for _, smContextRef := range smContextRefs {
+				err := amfInstance.Smf.DeactivateSmContext(ctx, smContextRef)
 				if err != nil {
 					logger.WithTrace(ctx, ran.Log).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
 				}
 			}
-
-			amfUe.Mutex.Unlock()
 		}
 	}
 

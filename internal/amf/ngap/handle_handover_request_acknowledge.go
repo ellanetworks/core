@@ -44,15 +44,13 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 	// describe in 23.502 4.9.1.3.2 step11
 
 	for _, item := range msg.AdmittedItems {
-		if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+		pduSessionIDUint8, ok := validPDUSessionID(item.PDUSessionID.Value)
+		if !ok {
 			logger.WithTrace(ctx, targetUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
 			continue
 		}
 
-		pduSessionID := item.PDUSessionID.Value
 		transfer := item.HandoverRequestAcknowledgeTransfer
-
-		pduSessionIDUint8 := uint8(pduSessionID)
 		if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
 			n2Rsp, err := amfInstance.Smf.UpdateSmContextN2HandoverPrepared(ctx, smContext.Ref, transfer)
 			if err != nil {
@@ -68,15 +66,13 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 	}
 
 	for _, item := range msg.FailedToSetupItems {
-		if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+		pduSessionIDUint8, ok := validPDUSessionID(item.PDUSessionID.Value)
+		if !ok {
 			logger.WithTrace(ctx, targetUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
 			continue
 		}
 
-		pduSessionID := item.PDUSessionID.Value
 		transfer := item.HandoverResourceAllocationUnsuccessfulTransfer
-
-		pduSessionIDUint8 := uint8(pduSessionID)
 		if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
 			_, err := amfInstance.Smf.UpdateSmContextN2HandoverPrepared(ctx, smContext.Ref, transfer)
 			if err != nil {

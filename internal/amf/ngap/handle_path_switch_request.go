@@ -80,12 +80,12 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	)
 
 	for _, item := range msg.PDUSessionResourceItems {
-		if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+		pduSessionID, ok := validPDUSessionID(item.PDUSessionID.Value)
+		if !ok {
 			logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
 			continue
 		}
 
-		pduSessionID := uint8(item.PDUSessionID.Value)
 		transfer := item.PathSwitchRequestTransfer
 
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
@@ -107,12 +107,12 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	}
 
 	for _, item := range msg.FailedToSetupItems {
-		if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+		pduSessionID, ok := validPDUSessionID(item.PDUSessionID.Value)
+		if !ok {
 			logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
 			continue
 		}
 
-		pduSessionID := uint8(item.PDUSessionID.Value)
 		transfer := item.PathSwitchRequestSetupFailedTransfer
 
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
