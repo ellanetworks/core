@@ -5,10 +5,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
-	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
-	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -41,8 +38,6 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 			return
 		}
 
-		logger.WithTrace(ctx, ran.Log).Info("sent error indication")
-
 		return
 	}
 
@@ -55,49 +50,14 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 
 	amfUe := ranUe.AmfUe()
 	if amfUe == nil {
-		logger.WithTrace(ctx, ran.Log).Info("Release UE Context", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", *msg.RANUENGAPID))
+		logger.WithTrace(ctx, ranUe.Log).Info("Release UE Context", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", *msg.RANUENGAPID))
 
 		err := ranUe.Remove()
 		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error(err.Error())
+			logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
 		}
 
 		return
-	}
-
-	if msg.InfoOnRecommendedCellsAndRANNodesForPaging != nil {
-		logger.WithTrace(ctx, ran.Log).Warn("IE infoOnRecommendedCellsAndRANNodesForPaging is not support")
-
-		amfUe.InfoOnRecommendedCellsAndRanNodesForPaging = new(models.InfoOnRecommendedCellsAndRanNodesForPaging)
-
-		recommendedCells := &amfUe.InfoOnRecommendedCellsAndRanNodesForPaging.RecommendedCells
-
-		for _, item := range msg.InfoOnRecommendedCellsAndRANNodesForPaging.RecommendedCellsForPaging.RecommendedCellList.List {
-			recommendedCell := models.RecommendedCell{}
-
-			switch item.NGRANCGI.Present {
-			case ngapType.NGRANCGIPresentNRCGI:
-				recommendedCell.NgRanCGI.Present = models.NgRanCgiPresentNRCGI
-				recommendedCell.NgRanCGI.NRCGI = new(models.Ncgi)
-				plmnID := util.PlmnIDToModels(item.NGRANCGI.NRCGI.PLMNIdentity)
-				recommendedCell.NgRanCGI.NRCGI.PlmnID = &plmnID
-				recommendedCell.NgRanCGI.NRCGI.NrCellID = ngapConvert.BitStringToHex(&item.NGRANCGI.NRCGI.NRCellIdentity.Value)
-			case ngapType.NGRANCGIPresentEUTRACGI:
-				recommendedCell.NgRanCGI.Present = models.NgRanCgiPresentEUTRACGI
-				recommendedCell.NgRanCGI.EUTRACGI = new(models.Ecgi)
-				plmnID := util.PlmnIDToModels(item.NGRANCGI.EUTRACGI.PLMNIdentity)
-				recommendedCell.NgRanCGI.EUTRACGI.PlmnID = &plmnID
-				recommendedCell.NgRanCGI.EUTRACGI.EutraCellID = ngapConvert.BitStringToHex(
-					&item.NGRANCGI.EUTRACGI.EUTRACellIdentity.Value)
-			}
-
-			if item.TimeStayedInCell != nil {
-				recommendedCell.TimeStayedInCell = new(int64)
-				*recommendedCell.TimeStayedInCell = *item.TimeStayedInCell
-			}
-
-			*recommendedCells = append(*recommendedCells, recommendedCell)
-		}
 	}
 
 	if amfUe.GetState() == amf.Registered {
@@ -105,12 +65,11 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 
 		if msg.PDUSessionResourceList != nil {
 			for _, pduSessionReourceItem := range msg.PDUSessionResourceList.List {
-				if pduSessionReourceItem.PDUSessionID.Value < 1 || pduSessionReourceItem.PDUSessionID.Value > 15 {
+				pduSessionID, ok := validPDUSessionID(pduSessionReourceItem.PDUSessionID.Value)
+				if !ok {
 					logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", pduSessionReourceItem.PDUSessionID.Value))
 					continue
 				}
-
-				pduSessionID := uint8(pduSessionReourceItem.PDUSessionID.Value)
 
 				smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
 				if !ok {
@@ -120,21 +79,32 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 
 				err := amfInstance.Smf.DeactivateSmContext(ctx, smContext.Ref)
 				if err != nil {
-					logger.WithTrace(ctx, ran.Log).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
+					logger.WithTrace(ctx, ranUe.Log).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 				}
 			}
 		} else {
 			logger.WithTrace(ctx, ranUe.Log).Info("Pdu Session IDs not received from gNB, Releasing the UE Context with SMF using local context")
+
 			amfUe.Mutex.Lock()
 
-			for _, smContext := range amfUe.SmContextList {
-				err := amfInstance.Smf.DeactivateSmContext(ctx, smContext.Ref)
-				if err != nil {
-					logger.WithTrace(ctx, ran.Log).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
-				}
+			type smCtxRef struct {
+				ref string
+				id  uint8
+			}
+
+			smContextRefs := make([]smCtxRef, 0, len(amfUe.SmContextList))
+			for pduSessionID, smContext := range amfUe.SmContextList {
+				smContextRefs = append(smContextRefs, smCtxRef{ref: smContext.Ref, id: pduSessionID})
 			}
 
 			amfUe.Mutex.Unlock()
+
+			for _, sr := range smContextRefs {
+				err := amfInstance.Smf.DeactivateSmContext(ctx, sr.ref)
+				if err != nil {
+					logger.WithTrace(ctx, ranUe.Log).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", sr.id))
+				}
+			}
 		}
 	}
 
@@ -144,36 +114,36 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 
 	switch ranUe.ReleaseAction {
 	case amf.UeContextN2NormalRelease:
-		logger.WithTrace(ctx, ran.Log).Info("Release UE Context: N2 Connection Release", logger.SUPI(amfUe.Supi.String()))
+		logger.WithTrace(ctx, ranUe.Log).Info("Release UE Context: N2 Connection Release", logger.SUPI(amfUe.Supi.String()))
 
 		err := ranUe.Remove()
 		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error(err.Error())
+			logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
 		}
 	case amf.UeContextReleaseUeContext:
-		logger.WithTrace(ctx, ran.Log).Info("Release UE Context: Release Ue Context", logger.SUPI(amfUe.Supi.String()))
+		logger.WithTrace(ctx, ranUe.Log).Info("Release UE Context: Release Ue Context", logger.SUPI(amfUe.Supi.String()))
 
 		err := ranUe.Remove()
 		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error(err.Error())
+			logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
 		}
 
 		// No valid security context exists for this UE, so delete the AMF UE context
 		if !amfUe.SecurityContextAvailable {
-			logger.WithTrace(ctx, ran.Log).Info("No valid security context for UE, deleting AMF UE context", logger.SUPI(amfUe.Supi.String()))
+			logger.WithTrace(ctx, ranUe.Log).Info("No valid security context for UE, deleting AMF UE context", logger.SUPI(amfUe.Supi.String()))
 			amfInstance.DeregisterAndRemoveAMFUE(ctx, amfUe)
 		}
 	case amf.UeContextReleaseDueToNwInitiatedDeregistraion:
-		logger.WithTrace(ctx, ran.Log).Info("Release UE Context Due to Nw Initiated: Release Ue Context", logger.SUPI(amfUe.Supi.String()))
+		logger.WithTrace(ctx, ranUe.Log).Info("Release UE Context Due to Nw Initiated: Release Ue Context", logger.SUPI(amfUe.Supi.String()))
 
 		err := ranUe.Remove()
 		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error(err.Error())
+			logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
 		}
 
 		amfInstance.DeregisterAndRemoveAMFUE(ctx, amfUe)
 	case amf.UeContextReleaseHandover:
-		logger.WithTrace(ctx, ran.Log).Info("Release UE Context : Release for Handover", logger.SUPI(amfUe.Supi.String()))
+		logger.WithTrace(ctx, ranUe.Log).Info("Release UE Context : Release for Handover", logger.SUPI(amfUe.Supi.String()))
 
 		if ranUe.TargetUe != nil {
 			// Success path: ranUe is the SOURCE being released after a
@@ -181,7 +151,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 			// association to the target.
 			targetRanUe := amfInstance.FindRanUeByAmfUeNgapID(ranUe.TargetUe.AmfUeNgapID)
 			if targetRanUe == nil {
-				logger.WithTrace(ctx, ran.Log).Error("target RAN UE not found during handover release",
+				logger.WithTrace(ctx, ranUe.Log).Error("target RAN UE not found during handover release",
 					zap.Int64("targetAmfUeNgapID", ranUe.TargetUe.AmfUeNgapID))
 			} else {
 				targetRanUe.Radio = ran
@@ -191,16 +161,16 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 			// Failure/cancel path: ranUe is the TARGET being released
 			// after a failed or cancelled handover. The source UE
 			// remains the active RAN UE — just clean up the target.
-			logger.WithTrace(ctx, ran.Log).Info("Release target UE context after handover failure/cancel", logger.SUPI(amfUe.Supi.String()))
+			logger.WithTrace(ctx, ranUe.Log).Info("Release target UE context after handover failure/cancel", logger.SUPI(amfUe.Supi.String()))
 		}
 
 		amf.DetachSourceUeTargetUe(ranUe)
 
 		err := ranUe.Remove()
 		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error(err.Error())
+			logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
 		}
 	default:
-		logger.WithTrace(ctx, ran.Log).Error("Invalid Release Action", zap.Any("ReleaseAction", ranUe.ReleaseAction))
+		logger.WithTrace(ctx, ranUe.Log).Error("Invalid Release Action", zap.Any("ReleaseAction", ranUe.ReleaseAction))
 	}
 }

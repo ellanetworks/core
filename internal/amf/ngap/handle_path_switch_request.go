@@ -23,8 +23,6 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			return
 		}
 
-		logger.WithTrace(ctx, ran.Log).Info("sent path switch request failure", zap.Int64("sourceAMFUENGAPID", msg.SourceAMFUENGAPID))
-
 		return
 	}
 
@@ -42,8 +40,6 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			return
 		}
 
-		logger.WithTrace(ctx, ranUe.Log).Info("sent path switch request failure")
-
 		return
 	}
 
@@ -55,8 +51,6 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			logger.WithTrace(ctx, ranUe.Log).Error("error sending path switch request failure", zap.Error(err))
 			return
 		}
-
-		logger.WithTrace(ctx, ranUe.Log).Info("sent path switch request failure", logger.SUPI(amfUe.Supi.String()))
 
 		return
 	}
@@ -80,12 +74,12 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	)
 
 	for _, item := range msg.PDUSessionResourceItems {
-		if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+		pduSessionID, ok := validPDUSessionID(item.PDUSessionID.Value)
+		if !ok {
 			logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
 			continue
 		}
 
-		pduSessionID := uint8(item.PDUSessionID.Value)
 		transfer := item.PathSwitchRequestTransfer
 
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
@@ -96,7 +90,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 		n2Rsp, err := amfInstance.Smf.UpdateSmContextXnHandoverPathSwitchReq(ctx, smContext.Ref, transfer)
 		if err != nil {
-			logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextXnHandover[PathSwitchRequestTransfer] Error", zap.Error(err))
+			logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextXnHandover[PathSwitchRequestTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 			continue
 		}
 
@@ -107,12 +101,12 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	}
 
 	for _, item := range msg.FailedToSetupItems {
-		if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+		pduSessionID, ok := validPDUSessionID(item.PDUSessionID.Value)
+		if !ok {
 			logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
 			continue
 		}
 
-		pduSessionID := uint8(item.PDUSessionID.Value)
 		transfer := item.PathSwitchRequestSetupFailedTransfer
 
 		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
@@ -123,7 +117,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 		err := amfInstance.Smf.UpdateSmContextHandoverFailed(ctx, smContext.Ref, transfer)
 		if err != nil {
-			logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextXnHandoverFailed[PathSwitchRequestSetupFailedTransfer] Error", zap.Error(err))
+			logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextXnHandoverFailed[PathSwitchRequestSetupFailedTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 		}
 	}
 
@@ -157,24 +151,18 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			logger.WithTrace(ctx, ranUe.Log).Error("error sending path switch request acknowledge", zap.Error(err))
 			return
 		}
-
-		logger.WithTrace(ctx, ranUe.Log).Info("sent path switch request acknowledge")
 	} else if len(pduSessionResourceReleasedListPSFail.List) > 0 {
 		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, msg.SourceAMFUENGAPID, msg.RANUENGAPID, &pduSessionResourceReleasedListPSFail, nil)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error("error sending path switch request failure", zap.Error(err))
 			return
 		}
-
-		logger.WithTrace(ctx, ranUe.Log).Info("sent path switch request failure")
 	} else {
 		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, msg.SourceAMFUENGAPID, msg.RANUENGAPID, nil, nil)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error("error sending path switch request failure", zap.Error(err))
 			return
 		}
-
-		logger.WithTrace(ctx, ranUe.Log).Info("sent path switch request failure")
 	}
 }
 

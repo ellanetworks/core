@@ -100,10 +100,9 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 		return nil
 	}
 
-	ue.Kseaf = kseaf
 	ue.Supi = supi
 
-	err = ue.DerivateKamf()
+	err = ue.DerivateKamf(kseaf)
 	if err != nil {
 		return fmt.Errorf("couldn't derive Kamf: %v", err)
 	}

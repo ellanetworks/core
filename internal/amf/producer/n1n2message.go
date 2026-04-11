@@ -192,7 +192,6 @@ func N2MessageTransferOrPage(ctx context.Context, amfInstance *amf.AMF, supi ets
 		ue.Guti,
 		ue.RegistrationArea,
 		ue.UeRadioCapabilityForPaging,
-		ue.InfoOnRecommendedCellsAndRanNodesForPaging,
 		pagingPriority,
 	)
 	if err != nil {

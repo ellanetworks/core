@@ -8,7 +8,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
@@ -20,33 +19,24 @@ func HandleRanConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 		logger.WithTrace(ctx, ran.Log).Warn("SupportedTAList IE is missing in RANConfigurationUpdate")
 	}
 
+	ran.SupportedTAIs = make([]amf.SupportedTAI, 0)
+
 	for _, supportedTAItem := range msg.SupportedTAItems {
 		tac := hex.EncodeToString(supportedTAItem.TAC.Value)
-		capOfSupportTai := cap(ran.SupportedTAIs)
 
 		for _, broadcastPLMNItem := range supportedTAItem.BroadcastPLMNList.List {
 			supportedTAI := amf.SupportedTAI{}
-			supportedTAI.SNssaiList = make([]models.Snssai, 0)
 			supportedTAI.Tai.Tac = tac
 			plmnID := util.PlmnIDToModels(broadcastPLMNItem.PLMNIdentity)
 			supportedTAI.Tai.PlmnID = &plmnID
-			capOfSNssaiList := cap(supportedTAI.SNssaiList)
 
 			for _, tAISliceSupportItem := range broadcastPLMNItem.TAISliceSupportList.List {
-				if len(supportedTAI.SNssaiList) < capOfSNssaiList {
-					supportedTAI.SNssaiList = append(supportedTAI.SNssaiList, util.SNssaiToModels(tAISliceSupportItem.SNSSAI))
-				} else {
-					break
-				}
+				supportedTAI.SNssaiList = append(supportedTAI.SNssaiList, util.SNssaiToModels(tAISliceSupportItem.SNSSAI))
 			}
 
 			logger.WithTrace(ctx, ran.Log).Debug("handle ran configuration update", zap.Any("PLMN_ID", plmnID), zap.String("TAC", tac))
 
-			if len(ran.SupportedTAIs) < capOfSupportTai {
-				ran.SupportedTAIs = append(ran.SupportedTAIs, supportedTAI)
-			} else {
-				break
-			}
+			ran.SupportedTAIs = append(ran.SupportedTAIs, supportedTAI)
 		}
 	}
 
@@ -97,14 +87,10 @@ func HandleRanConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 		if err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("error sending ran configuration update acknowledge", zap.Error(err))
 		}
-
-		logger.WithTrace(ctx, ran.Log).Info("sent ran configuration update acknowledge to target ran", zap.Any("RAN ID", ran.RanID))
 	} else {
 		err := ran.NGAPSender.SendRanConfigurationUpdateFailure(ctx, cause, nil)
 		if err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("error sending ran configuration update failure", zap.Error(err))
 		}
-
-		logger.WithTrace(ctx, ran.Log).Info("sent ran configuration update failure to target ran", zap.Any("RAN ID", ran.RanID))
 	}
 }

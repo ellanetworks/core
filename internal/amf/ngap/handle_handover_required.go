@@ -31,13 +31,11 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			return
 		}
 
-		logger.WithTrace(ctx, ran.Log).Info("sent error indication to source UE")
-
 		return
 	}
 
 	if sourceUe.AmfUeNgapID != msg.AMFUENGAPID {
-		logger.WithTrace(ctx, ran.Log).Error("AMF UE NGAP ID mismatch", zap.Int64("expected", sourceUe.AmfUeNgapID), zap.Int64("received", msg.AMFUENGAPID))
+		logger.WithTrace(ctx, sourceUe.Log).Error("AMF UE NGAP ID mismatch", zap.Int64("expected", sourceUe.AmfUeNgapID), zap.Int64("received", msg.AMFUENGAPID))
 
 		cause := ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
@@ -48,25 +46,23 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
+			logger.WithTrace(ctx, sourceUe.Log).Error("error sending error indication", zap.Error(err))
 			return
 		}
-
-		logger.WithTrace(ctx, ran.Log).Info("sent error indication for AMF UE NGAP ID mismatch")
 
 		return
 	}
 
 	amfUe := sourceUe.AmfUe()
 	if amfUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("Cannot find amfUE from sourceUE")
+		logger.WithTrace(ctx, sourceUe.Log).Error("Cannot find amfUE from sourceUE")
 		return
 	}
 
 	sourceUe.TouchLastSeen()
 
 	if msg.TargetID.Present != ngapType.TargetIDPresentTargetRANNodeID {
-		logger.WithTrace(ctx, ran.Log).Error("targetID type is not supported", zap.Int("targetID", msg.TargetID.Present))
+		logger.WithTrace(ctx, sourceUe.Log).Error("targetID type is not supported", zap.Int("targetID", msg.TargetID.Present))
 		return
 	}
 
@@ -90,8 +86,6 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			return
 		}
 
-		logger.WithTrace(ctx, sourceUe.Log).Info("sent handover preparation failure to source UE")
-
 		return
 	}
 
@@ -111,12 +105,12 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	var pduSessionReqList ngapType.PDUSessionResourceSetupListHOReq
 
 	for _, pDUSessionResourceHoItem := range msg.PDUSessionResourceItems {
-		if pDUSessionResourceHoItem.PDUSessionID.Value < 1 || pDUSessionResourceHoItem.PDUSessionID.Value > 15 {
+		pduSessionIDUint8, ok := validPDUSessionID(pDUSessionResourceHoItem.PDUSessionID.Value)
+		if !ok {
 			logger.WithTrace(ctx, sourceUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", pDUSessionResourceHoItem.PDUSessionID.Value))
 			continue
 		}
 
-		pduSessionIDUint8 := uint8(pDUSessionResourceHoItem.PDUSessionID.Value)
 		if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
 			n2Rsp, err := amfInstance.Smf.UpdateSmContextN2HandoverPreparing(ctx, smContext.Ref, pDUSessionResourceHoItem.HandoverRequiredTransfer)
 			if err != nil {
@@ -146,8 +140,6 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			return
 		}
 
-		logger.WithTrace(ctx, sourceUe.Log).Info("sent handover preparation failure to source UE")
-
 		return
 	}
 
@@ -171,13 +163,13 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	targetUe, err := amfInstance.NewRanUe(targetRan, models.RanUeNgapIDUnspecified)
 	if err != nil {
-		logger.WithTrace(ctx, logger.AmfLog).Error("error creating target ue", zap.Error(err))
+		logger.WithTrace(ctx, sourceUe.Log).Error("error creating target ue", zap.Error(err))
 		return
 	}
 
 	err = amf.AttachSourceUeTargetUe(sourceUe, targetUe)
 	if err != nil {
-		logger.WithTrace(ctx, logger.AmfLog).Error("attach source ue target ue error", zap.Error(err))
+		logger.WithTrace(ctx, sourceUe.Log).Error("attach source ue target ue error", zap.Error(err))
 		return
 	}
 
@@ -199,6 +191,4 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover request to target UE", zap.Error(err))
 		return
 	}
-
-	logger.WithTrace(ctx, sourceUe.Log).Info("sent handover request to target UE")
 }

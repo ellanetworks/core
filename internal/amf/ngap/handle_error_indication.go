@@ -15,6 +15,6 @@ func HandleErrorIndication(ctx gocontext.Context, ran *amf.Radio, msg decode.Err
 	}
 
 	if msg.Cause != nil {
-		logger.WithTrace(ctx, logger.AmfLog).Debug("Error Indication Cause", logger.Cause(causeToString(*msg.Cause)))
+		logger.WithTrace(ctx, ran.Log).Debug("Error Indication Cause", logger.Cause(causeToString(*msg.Cause)))
 	}
 }

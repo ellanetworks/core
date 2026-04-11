@@ -1779,7 +1779,6 @@ func BuildPaging(
 	guti etsi.GUTI,
 	registrationArea []models.Tai,
 	ueRadioCapabilityForPaging *models.UERadioCapabilityForPaging,
-	ueInfoOnRecommendedCellsAndRanNodesForPaging *models.InfoOnRecommendedCellsAndRanNodesForPaging,
 	pagingPriority *ngapType.PagingPriority,
 ) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
@@ -1891,59 +1890,6 @@ func BuildPaging(
 			if err != nil {
 				return nil, fmt.Errorf("DecodeString ue.UeRadioCapabilityForPaging.EUTRA error: %s", err)
 			}
-		}
-
-		pagingIEs.List = append(pagingIEs.List, ie)
-	}
-
-	// Assistance Data for Paing (optional)
-	if ueInfoOnRecommendedCellsAndRanNodesForPaging != nil {
-		ie = ngapType.PagingIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDAssistanceDataForPaging
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.PagingIEsPresentAssistanceDataForPaging
-		ie.Value.AssistanceDataForPaging = new(ngapType.AssistanceDataForPaging)
-
-		assistanceDataForPaging := ie.Value.AssistanceDataForPaging
-		assistanceDataForPaging.AssistanceDataForRecommendedCells = new(ngapType.AssistanceDataForRecommendedCells)
-		recommendedCellList := &assistanceDataForPaging.
-			AssistanceDataForRecommendedCells.RecommendedCellsForPaging.RecommendedCellList
-
-		for _, recommendedCell := range ueInfoOnRecommendedCellsAndRanNodesForPaging.RecommendedCells {
-			recommendedCellItem := ngapType.RecommendedCellItem{}
-
-			switch recommendedCell.NgRanCGI.Present {
-			case models.NgRanCgiPresentNRCGI:
-				recommendedCellItem.NGRANCGI.Present = ngapType.NGRANCGIPresentNRCGI
-				recommendedCellItem.NGRANCGI.NRCGI = new(ngapType.NRCGI)
-				nrCGI := recommendedCellItem.NGRANCGI.NRCGI
-
-				plmnID, err := util.PlmnIDToNgap(*recommendedCell.NgRanCGI.NRCGI.PlmnID)
-				if err != nil {
-					return nil, fmt.Errorf("error converting plmn id to ngap: %s", err)
-				}
-
-				nrCGI.PLMNIdentity = *plmnID
-				nrCGI.NRCellIdentity.Value = ngapConvert.HexToBitString(recommendedCell.NgRanCGI.NRCGI.NrCellID, 36)
-			case models.NgRanCgiPresentEUTRACGI:
-				recommendedCellItem.NGRANCGI.Present = ngapType.NGRANCGIPresentEUTRACGI
-				recommendedCellItem.NGRANCGI.EUTRACGI = new(ngapType.EUTRACGI)
-				eutraCGI := recommendedCellItem.NGRANCGI.EUTRACGI
-
-				plmnID, err := util.PlmnIDToNgap(*recommendedCell.NgRanCGI.NRCGI.PlmnID)
-				if err != nil {
-					return nil, fmt.Errorf("error converting plmn id to ngap: %s", err)
-				}
-
-				eutraCGI.PLMNIdentity = *plmnID
-				eutraCGI.EUTRACellIdentity.Value = ngapConvert.HexToBitString(recommendedCell.NgRanCGI.EUTRACGI.EutraCellID, 28)
-			}
-
-			if recommendedCell.TimeStayedInCell != nil {
-				recommendedCellItem.TimeStayedInCell = recommendedCell.TimeStayedInCell
-			}
-
-			recommendedCellList.List = append(recommendedCellList.List, recommendedCellItem)
 		}
 
 		pagingIEs.List = append(pagingIEs.List, ie)
