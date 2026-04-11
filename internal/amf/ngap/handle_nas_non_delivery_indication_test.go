@@ -3,6 +3,7 @@
 package ngap_test
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
@@ -49,4 +50,46 @@ func TestNasNonDeliveryIndication_UEFoundDispatchesNAS(t *testing.T) {
 			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID},
 		},
 	})
+}
+
+func TestNasNonDeliveryIndication_VerifyNASCalledWithPDU(t *testing.T) {
+	fakeNAS := &FakeNASHandler{}
+	amfInstance := newTestAMFWithNAS(fakeNAS)
+
+	ran := newTestRadio()
+
+	amfUe := amf.NewAmfUe()
+	amfUe.Log = logger.AmfLog
+
+	ranUe := &amf.RanUe{
+		RanUeNgapID: 1,
+		AmfUeNgapID: 10,
+		Radio:       ran,
+		Log:         logger.AmfLog,
+	}
+	amfUe.AttachRanUe(ranUe)
+	ran.RanUEs[1] = ranUe
+
+	nasPDU := []byte{0xDE, 0xAD}
+
+	ngap.HandleNasNonDeliveryIndication(context.Background(), amfInstance, ran, decode.NASNonDeliveryIndication{
+		RANUENGAPID: 1,
+		NASPDU:      nasPDU,
+		Cause: ngapType.Cause{
+			Present:      ngapType.CausePresentRadioNetwork,
+			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID},
+		},
+	})
+
+	if len(fakeNAS.Calls) != 1 {
+		t.Fatalf("NAS calls = %d, want 1", len(fakeNAS.Calls))
+	}
+
+	if !bytes.Equal(fakeNAS.Calls[0].NASPDU, nasPDU) {
+		t.Errorf("NAS PDU = %x, want %x", fakeNAS.Calls[0].NASPDU, nasPDU)
+	}
+
+	if fakeNAS.Calls[0].RanUe != ranUe {
+		t.Error("NAS called with wrong RanUe")
+	}
 }

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/nas"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
@@ -263,6 +264,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	})
 
 	amfInstance := amf.New(dbInstance, ausfInstance, smfInstance)
+	amfInstance.NAS = nas.HandleNAS
 	smfAMF.amf = amfInstance
 
 	amf.RegisterMetrics(amfInstance)

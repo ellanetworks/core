@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/nas"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
@@ -20,8 +19,10 @@ func HandleNasNonDeliveryIndication(ctx context.Context, amfInstance *amf.AMF, r
 	logger.WithTrace(ctx, ranUe.Log).Debug("Handle NAS Non Delivery Indication", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), logger.Cause(causeToString(msg.Cause)))
 	ranUe.TouchLastSeen()
 
-	err := nas.HandleNAS(ctx, amfInstance, ranUe, msg.NASPDU)
-	if err != nil {
-		logger.WithTrace(ctx, ranUe.Log).Error("error handling NAS", zap.Error(err))
+	if amfInstance.NAS != nil {
+		err := amfInstance.NAS(ctx, amfInstance, ranUe, msg.NASPDU)
+		if err != nil {
+			logger.WithTrace(ctx, ranUe.Log).Error("error handling NAS", zap.Error(err))
+		}
 	}
 }
