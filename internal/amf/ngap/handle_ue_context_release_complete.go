@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -12,59 +13,21 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.UEContextReleaseComplete) {
-	if msg == nil {
-		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
-		return
-	}
-
-	var (
-		aMFUENGAPID                                *ngapType.AMFUENGAPID
-		rANUENGAPID                                *ngapType.RANUENGAPID
-		userLocationInformation                    *ngapType.UserLocationInformation
-		infoOnRecommendedCellsAndRANNodesForPaging *ngapType.InfoOnRecommendedCellsAndRANNodesForPaging
-		pDUSessionResourceList                     *ngapType.PDUSessionResourceListCxtRelCpl
-	)
-
-	for _, ie := range msg.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			aMFUENGAPID = ie.Value.AMFUENGAPID
-			if aMFUENGAPID == nil {
-				logger.WithTrace(ctx, ran.Log).Error("AmfUeNgapID is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			rANUENGAPID = ie.Value.RANUENGAPID
-			if rANUENGAPID == nil {
-				logger.WithTrace(ctx, ran.Log).Error("RanUeNgapID is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDUserLocationInformation:
-			userLocationInformation = ie.Value.UserLocationInformation
-		case ngapType.ProtocolIEIDInfoOnRecommendedCellsAndRANNodesForPaging:
-			infoOnRecommendedCellsAndRANNodesForPaging = ie.Value.InfoOnRecommendedCellsAndRANNodesForPaging
-			if infoOnRecommendedCellsAndRANNodesForPaging != nil {
-				logger.WithTrace(ctx, ran.Log).Warn("IE infoOnRecommendedCellsAndRANNodesForPaging is not support")
-			}
-		case ngapType.ProtocolIEIDPDUSessionResourceListCxtRelCpl:
-			pDUSessionResourceList = ie.Value.PDUSessionResourceListCxtRelCpl
-		}
-	}
-
-	if aMFUENGAPID == nil {
+func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.UEContextReleaseComplete) {
+	if msg.AMFUENGAPID == nil {
 		logger.WithTrace(ctx, ran.Log).Error("AMFUENGAPID IE (mandatory) is missing in UEContextReleaseComplete")
 		return
 	}
 
-	if rANUENGAPID == nil {
+	if msg.RANUENGAPID == nil {
 		logger.WithTrace(ctx, ran.Log).Error("RANUENGAPID IE (mandatory) is missing in UEContextReleaseComplete")
 		return
 	}
 
-	ranUe := amfInstance.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
+	ranUe := amfInstance.FindRanUeByAmfUeNgapID(*msg.AMFUENGAPID)
 	if ranUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No RanUe Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Error("No RanUe Context", zap.Int64("AmfUeNgapID", *msg.AMFUENGAPID), zap.Int64("RanUeNgapID", *msg.RANUENGAPID))
+
 		cause := ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
 			RadioNetwork: &ngapType.CauseRadioNetwork{
@@ -83,8 +46,8 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 		return
 	}
 
-	if userLocationInformation != nil {
-		ranUe.UpdateLocation(ctx, amfInstance, userLocationInformation)
+	if msg.UserLocationInformation != nil {
+		ranUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
 	}
 
 	ranUe.Radio = ran
@@ -92,7 +55,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 
 	amfUe := ranUe.AmfUe()
 	if amfUe == nil {
-		logger.WithTrace(ctx, ran.Log).Info("Release UE Context", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Info("Release UE Context", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", *msg.RANUENGAPID))
 
 		err := ranUe.Remove()
 		if err != nil {
@@ -102,12 +65,14 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 		return
 	}
 
-	if infoOnRecommendedCellsAndRANNodesForPaging != nil {
+	if msg.InfoOnRecommendedCellsAndRANNodesForPaging != nil {
+		logger.WithTrace(ctx, ran.Log).Warn("IE infoOnRecommendedCellsAndRANNodesForPaging is not support")
+
 		amfUe.InfoOnRecommendedCellsAndRanNodesForPaging = new(models.InfoOnRecommendedCellsAndRanNodesForPaging)
 
 		recommendedCells := &amfUe.InfoOnRecommendedCellsAndRanNodesForPaging.RecommendedCells
 
-		for _, item := range infoOnRecommendedCellsAndRANNodesForPaging.RecommendedCellsForPaging.RecommendedCellList.List {
+		for _, item := range msg.InfoOnRecommendedCellsAndRANNodesForPaging.RecommendedCellsForPaging.RecommendedCellList.List {
 			recommendedCell := models.RecommendedCell{}
 
 			switch item.NGRANCGI.Present {
@@ -138,8 +103,8 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 	if amfUe.GetState() == amf.Registered {
 		logger.WithTrace(ctx, ranUe.Log).Debug("Release UE Context in GMM-Registered", logger.SUPI(amfUe.Supi.String()))
 
-		if pDUSessionResourceList != nil {
-			for _, pduSessionReourceItem := range pDUSessionResourceList.List {
+		if msg.PDUSessionResourceList != nil {
+			for _, pduSessionReourceItem := range msg.PDUSessionResourceList.List {
 				if pduSessionReourceItem.PDUSessionID.Value < 1 || pduSessionReourceItem.PDUSessionID.Value > 15 {
 					logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", pduSessionReourceItem.PDUSessionID.Value))
 					continue

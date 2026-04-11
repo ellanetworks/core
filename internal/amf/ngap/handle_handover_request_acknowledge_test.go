@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -17,72 +18,6 @@ import (
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 )
-
-type HandoverRequestAcknowledgeOpts struct {
-	AMFUENGAPID                              *ngapType.AMFUENGAPID
-	RANUENGAPID                              *ngapType.RANUENGAPID
-	PDUSessionResourceAdmittedList           *ngapType.PDUSessionResourceAdmittedList
-	PDUSessionResourceFailedToSetupListHOAck *ngapType.PDUSessionResourceFailedToSetupListHOAck
-	TargetToSourceTransparentContainer       *ngapType.TargetToSourceTransparentContainer
-}
-
-// buildHandoverRequestAcknowledge constructs an NGAP HandoverRequestAcknowledge
-// message from the given options.
-func buildHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) *ngapType.HandoverRequestAcknowledge {
-	if opts == nil {
-		return nil
-	}
-
-	msg := &ngapType.HandoverRequestAcknowledge{}
-	ies := &msg.ProtocolIEs
-
-	if opts.AMFUENGAPID != nil {
-		ie := ngapType.HandoverRequestAcknowledgeIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.HandoverRequestAcknowledgeIEsPresentAMFUENGAPID
-		ie.Value.AMFUENGAPID = opts.AMFUENGAPID
-		ies.List = append(ies.List, ie)
-	}
-
-	if opts.RANUENGAPID != nil {
-		ie := ngapType.HandoverRequestAcknowledgeIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.HandoverRequestAcknowledgeIEsPresentRANUENGAPID
-		ie.Value.RANUENGAPID = opts.RANUENGAPID
-		ies.List = append(ies.List, ie)
-	}
-
-	if opts.PDUSessionResourceAdmittedList != nil {
-		ie := ngapType.HandoverRequestAcknowledgeIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceAdmittedList
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.HandoverRequestAcknowledgeIEsPresentPDUSessionResourceAdmittedList
-		ie.Value.PDUSessionResourceAdmittedList = opts.PDUSessionResourceAdmittedList
-		ies.List = append(ies.List, ie)
-	}
-
-	if opts.PDUSessionResourceFailedToSetupListHOAck != nil {
-		ie := ngapType.HandoverRequestAcknowledgeIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListHOAck
-		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
-		ie.Value.Present = ngapType.HandoverRequestAcknowledgeIEsPresentPDUSessionResourceFailedToSetupListHOAck
-		ie.Value.PDUSessionResourceFailedToSetupListHOAck = opts.PDUSessionResourceFailedToSetupListHOAck
-		ies.List = append(ies.List, ie)
-	}
-
-	if opts.TargetToSourceTransparentContainer != nil {
-		ie := ngapType.HandoverRequestAcknowledgeIEs{}
-		ie.Id.Value = ngapType.ProtocolIEIDTargetToSourceTransparentContainer
-		ie.Criticality.Value = ngapType.CriticalityPresentReject
-		ie.Value.Present = ngapType.HandoverRequestAcknowledgeIEsPresentTargetToSourceTransparentContainer
-		ie.Value.TargetToSourceTransparentContainer = opts.TargetToSourceTransparentContainer
-		ies.List = append(ies.List, ie)
-	}
-
-	return msg
-}
 
 // setupHandoverAckTestContext creates the AMF, source/target UEs, radios, and
 // SMF context needed for handover request acknowledge tests.
@@ -171,69 +106,6 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *FakeNGAPSender, *am
 	return targetRan, sourceNGAPSender, amfInstance
 }
 
-func TestHandoverRequestAcknowledge_NilMessage(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
-	ran := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: fakeNGAPSender,
-	}
-	amfInstance := newTestAMF()
-
-	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, ran, nil)
-
-	if len(fakeNGAPSender.SentErrorIndications) != 0 {
-		t.Fatalf("expected no ErrorIndication, got %d", len(fakeNGAPSender.SentErrorIndications))
-	}
-
-	if len(fakeNGAPSender.SentHandoverCommands) != 0 {
-		t.Fatalf("expected no HandoverCommand, got %d", len(fakeNGAPSender.SentHandoverCommands))
-	}
-}
-
-func TestHandoverRequestAcknowledge_MissingTargetToSourceContainer(t *testing.T) {
-	fakeNGAPSender := &FakeNGAPSender{}
-	ran := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: fakeNGAPSender,
-	}
-	amfInstance := newTestAMF()
-
-	msg := buildHandoverRequestAcknowledge(&HandoverRequestAcknowledgeOpts{
-		AMFUENGAPID: &ngapType.AMFUENGAPID{Value: 1},
-		RANUENGAPID: &ngapType.RANUENGAPID{Value: 2},
-		// TargetToSourceTransparentContainer intentionally omitted
-	})
-
-	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, ran, msg)
-
-	if len(fakeNGAPSender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication, got %d", len(fakeNGAPSender.SentErrorIndications))
-	}
-
-	errorIndication := fakeNGAPSender.SentErrorIndications[0]
-	if errorIndication.CriticalityDiagnostics == nil {
-		t.Fatal("expected CriticalityDiagnostics in ErrorIndication, got nil")
-	}
-
-	ieList := errorIndication.CriticalityDiagnostics.IEsCriticalityDiagnostics
-	if ieList == nil || len(ieList.List) != 1 {
-		count := 0
-		if ieList != nil {
-			count = len(ieList.List)
-		}
-
-		t.Fatalf("expected 1 missing IE diagnostic, got %d", count)
-	}
-
-	if ieList.List[0].IEID.Value != ngapType.ProtocolIEIDTargetToSourceTransparentContainer {
-		t.Fatalf("expected missing IE to be TargetToSourceTransparentContainer, got %d", ieList.List[0].IEID.Value)
-	}
-
-	if len(fakeNGAPSender.SentHandoverCommands) != 0 {
-		t.Fatalf("expected no HandoverCommand after missing IE, got %d", len(fakeNGAPSender.SentHandoverCommands))
-	}
-}
-
 func TestHandoverRequestAcknowledge_UeNotFound(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 	ran := &amf.Radio{
@@ -246,13 +118,15 @@ func TestHandoverRequestAcknowledge_UeNotFound(t *testing.T) {
 	amfInstance := newTestAMF()
 	amfInstance.Radios[new(sctp.SCTPConn)] = ran
 
-	msg := buildHandoverRequestAcknowledge(&HandoverRequestAcknowledgeOpts{
-		AMFUENGAPID: &ngapType.AMFUENGAPID{Value: 999},
-		RANUENGAPID: &ngapType.RANUENGAPID{Value: 1},
-		TargetToSourceTransparentContainer: &ngapType.TargetToSourceTransparentContainer{
+	amfID := int64(999)
+	ranID := int64(1)
+	msg := decode.HandoverRequestAcknowledge{
+		AMFUENGAPID: &amfID,
+		RANUENGAPID: &ranID,
+		TargetToSourceTransparentContainer: ngapType.TargetToSourceTransparentContainer{
 			Value: []byte{0x01, 0x02, 0x03},
 		},
-	})
+	}
 
 	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, ran, msg)
 
@@ -290,13 +164,15 @@ func TestHandoverRequestAcknowledge_NoSourceUe(t *testing.T) {
 	amfInstance := newTestAMF()
 	amfInstance.Radios[new(sctp.SCTPConn)] = ran
 
-	msg := buildHandoverRequestAcknowledge(&HandoverRequestAcknowledgeOpts{
-		AMFUENGAPID: &ngapType.AMFUENGAPID{Value: 1},
-		RANUENGAPID: &ngapType.RANUENGAPID{Value: 2},
-		TargetToSourceTransparentContainer: &ngapType.TargetToSourceTransparentContainer{
+	amfID := int64(1)
+	ranID := int64(2)
+	msg := decode.HandoverRequestAcknowledge{
+		AMFUENGAPID: &amfID,
+		RANUENGAPID: &ranID,
+		TargetToSourceTransparentContainer: ngapType.TargetToSourceTransparentContainer{
 			Value: []byte{0x01, 0x02, 0x03},
 		},
-	})
+	}
 
 	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, ran, msg)
 
@@ -312,13 +188,15 @@ func TestHandoverRequestAcknowledge_NoSourceUe(t *testing.T) {
 func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SendsPreparationFailure(t *testing.T) {
 	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t)
 
-	msg := buildHandoverRequestAcknowledge(&HandoverRequestAcknowledgeOpts{
-		AMFUENGAPID: &ngapType.AMFUENGAPID{Value: 1},
-		RANUENGAPID: &ngapType.RANUENGAPID{Value: 2},
-		TargetToSourceTransparentContainer: &ngapType.TargetToSourceTransparentContainer{
+	amfID := int64(1)
+	ranID := int64(2)
+	msg := decode.HandoverRequestAcknowledge{
+		AMFUENGAPID: &amfID,
+		RANUENGAPID: &ranID,
+		TargetToSourceTransparentContainer: ngapType.TargetToSourceTransparentContainer{
 			Value: []byte{0x01, 0x02, 0x03},
 		},
-	})
+	}
 
 	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, targetRan, msg)
 
@@ -348,8 +226,6 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SendsPreparationFailur
 func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceAmfUeDetached(t *testing.T) {
 	targetRan, _, amfInstance := setupHandoverAckTestContext(t)
 
-	// Simulate the source UE's AMF UE being detached (e.g. deregistration
-	// race). Find the target UE, then detach the AMF UE from the source.
 	targetUe := amfInstance.FindRanUeByAmfUeNgapID(1)
 	if targetUe == nil {
 		t.Fatal("target UE not found")
@@ -362,13 +238,15 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceAmfUeDetached(t 
 
 	sourceAmfUe.DetachRanUe(nil)
 
-	msg := buildHandoverRequestAcknowledge(&HandoverRequestAcknowledgeOpts{
-		AMFUENGAPID: &ngapType.AMFUENGAPID{Value: 1},
-		RANUENGAPID: &ngapType.RANUENGAPID{Value: 2},
-		TargetToSourceTransparentContainer: &ngapType.TargetToSourceTransparentContainer{
+	amfID := int64(1)
+	ranID := int64(2)
+	msg := decode.HandoverRequestAcknowledge{
+		AMFUENGAPID: &amfID,
+		RANUENGAPID: &ranID,
+		TargetToSourceTransparentContainer: ngapType.TargetToSourceTransparentContainer{
 			Value: []byte{0x01, 0x02, 0x03},
 		},
-	})
+	}
 
 	assertNoPanic(t, "HandleHandoverRequestAcknowledge(source AmfUe detached, 0 PDU sessions)", func() {
 		ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, targetRan, msg)
@@ -408,21 +286,22 @@ func TestHandoverRequestAcknowledge_HappyPath(t *testing.T) {
 	}
 
 	containerData := []byte{0xAA, 0xBB, 0xCC}
-	msg := buildHandoverRequestAcknowledge(&HandoverRequestAcknowledgeOpts{
-		AMFUENGAPID: &ngapType.AMFUENGAPID{Value: 1},
-		RANUENGAPID: &ngapType.RANUENGAPID{Value: 2},
-		PDUSessionResourceAdmittedList: &ngapType.PDUSessionResourceAdmittedList{
-			List: []ngapType.PDUSessionResourceAdmittedItem{
-				{
-					PDUSessionID:                       ngapType.PDUSessionID{Value: 1},
-					HandoverRequestAcknowledgeTransfer: transferBytes,
-				},
+
+	amfID := int64(1)
+	ranID := int64(2)
+	msg := decode.HandoverRequestAcknowledge{
+		AMFUENGAPID: &amfID,
+		RANUENGAPID: &ranID,
+		AdmittedItems: []ngapType.PDUSessionResourceAdmittedItem{
+			{
+				PDUSessionID:                       ngapType.PDUSessionID{Value: 1},
+				HandoverRequestAcknowledgeTransfer: transferBytes,
 			},
 		},
-		TargetToSourceTransparentContainer: &ngapType.TargetToSourceTransparentContainer{
+		TargetToSourceTransparentContainer: ngapType.TargetToSourceTransparentContainer{
 			Value: containerData,
 		},
-	})
+	}
 
 	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, targetRan, msg)
 

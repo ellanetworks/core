@@ -8,36 +8,19 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func TestHandleHandoverFailure_EmptyIEs(t *testing.T) {
-	ran := newTestRadio()
-	amf := newTestAMF()
-	msg := &ngapType.HandoverFailure{}
-
-	assertNoPanic(t, "HandleHandoverFailure(empty IEs)", func() {
-		ngap.HandleHandoverFailure(context.Background(), amf, ran, msg)
-	})
-}
-
 func TestHandleHandoverFailure_MissingCause(t *testing.T) {
 	ran := newTestRadio()
-	amf := newTestAMF()
-	msg := &ngapType.HandoverFailure{}
-	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.HandoverFailureIEs{
-		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDAMFUENGAPID},
-		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentIgnore},
-		Value: ngapType.HandoverFailureIEsValue{
-			Present:     ngapType.HandoverFailureIEsPresentAMFUENGAPID,
-			AMFUENGAPID: &ngapType.AMFUENGAPID{Value: 1},
-		},
-	})
+	amfInstance := newTestAMF()
+	msg := decode.HandoverFailure{AMFUENGAPID: 1}
 
 	assertNoPanic(t, "HandleHandoverFailure(missing cause)", func() {
-		ngap.HandleHandoverFailure(context.Background(), amf, ran, msg)
+		ngap.HandleHandoverFailure(context.Background(), amfInstance, ran, msg)
 	})
 }
 
@@ -81,28 +64,15 @@ func TestHandleHandoverFailure_SourceAmfUeDetached(t *testing.T) {
 	// Simulate the AMF UE being detached from the source (deregistration race).
 	amfUe.DetachRanUe(nil)
 
-	msg := &ngapType.HandoverFailure{}
-	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.HandoverFailureIEs{
-		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDAMFUENGAPID},
-		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentIgnore},
-		Value: ngapType.HandoverFailureIEsValue{
-			Present:     ngapType.HandoverFailureIEsPresentAMFUENGAPID,
-			AMFUENGAPID: &ngapType.AMFUENGAPID{Value: 200},
-		},
-	})
-	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.HandoverFailureIEs{
-		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDCause},
-		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentIgnore},
-		Value: ngapType.HandoverFailureIEsValue{
-			Present: ngapType.HandoverFailureIEsPresentCause,
-			Cause: &ngapType.Cause{
-				Present: ngapType.CausePresentRadioNetwork,
-				RadioNetwork: &ngapType.CauseRadioNetwork{
-					Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
-				},
+	msg := decode.HandoverFailure{
+		AMFUENGAPID: 200,
+		Cause: &ngapType.Cause{
+			Present: ngapType.CausePresentRadioNetwork,
+			RadioNetwork: &ngapType.CauseRadioNetwork{
+				Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
 			},
 		},
-	})
+	}
 
 	assertNoPanic(t, "HandleHandoverFailure(source AmfUe detached)", func() {
 		ngap.HandleHandoverFailure(context.Background(), amfInstance, targetRan, msg)

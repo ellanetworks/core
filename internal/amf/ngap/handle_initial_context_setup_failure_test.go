@@ -7,33 +7,18 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 )
-
-func TestHandleInitialContextSetupFailure_EmptyIEs(t *testing.T) {
-	ran := newTestRadio()
-	amf := newTestAMF()
-	msg := &ngapType.InitialContextSetupFailure{}
-
-	assertNoPanic(t, "HandleInitialContextSetupFailure(empty IEs)", func() {
-		ngap.HandleInitialContextSetupFailure(context.Background(), amf, ran, msg)
-	})
-}
 
 func TestHandleInitialContextSetupFailure_MissingCause(t *testing.T) {
 	ran := newTestRadio()
-	amf := newTestAMF()
-	msg := &ngapType.InitialContextSetupFailure{}
-	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.InitialContextSetupFailureIEs{
-		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDRANUENGAPID},
-		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentIgnore},
-		Value: ngapType.InitialContextSetupFailureIEsValue{
-			Present:     ngapType.InitialContextSetupFailureIEsPresentRANUENGAPID,
-			RANUENGAPID: &ngapType.RANUENGAPID{Value: 1},
-		},
-	})
+	amfInstance := newTestAMF()
+	msg := decode.InitialContextSetupFailure{
+		AMFUENGAPID: 1,
+		RANUENGAPID: 1,
+	}
 
 	assertNoPanic(t, "HandleInitialContextSetupFailure(missing cause)", func() {
-		ngap.HandleInitialContextSetupFailure(context.Background(), amf, ran, msg)
+		ngap.HandleInitialContextSetupFailure(context.Background(), amfInstance, ran, msg)
 	})
 }

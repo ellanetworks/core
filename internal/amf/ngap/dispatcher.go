@@ -250,9 +250,19 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 
 		switch successfulOutcome.ProcedureCode.Value {
 		case ngapType.ProcedureCodeUEContextRelease:
-			HandleUEContextReleaseComplete(ctx, amfInstance, ran, pdu.SuccessfulOutcome.Value.UEContextReleaseComplete)
+			decoded, report := decode.DecodeUEContextReleaseComplete(pdu.SuccessfulOutcome.Value.UEContextReleaseComplete)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleUEContextReleaseComplete(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodePDUSessionResourceRelease:
-			HandlePDUSessionResourceReleaseResponse(ctx, amfInstance, ran, pdu.SuccessfulOutcome.Value.PDUSessionResourceReleaseResponse)
+			decoded, report := decode.DecodePDUSessionResourceReleaseResponse(pdu.SuccessfulOutcome.Value.PDUSessionResourceReleaseResponse)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandlePDUSessionResourceReleaseResponse(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeInitialContextSetup:
 			decoded, report := decode.DecodeInitialContextSetupResponse(pdu.SuccessfulOutcome.Value.InitialContextSetupResponse)
 			if !handleDecodeReport(ctx, ran, report) {
@@ -261,13 +271,33 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 
 			HandleInitialContextSetupResponse(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeUEContextModification:
-			HandleUEContextModificationResponse(ctx, amfInstance, ran, pdu.SuccessfulOutcome.Value.UEContextModificationResponse)
+			decoded, report := decode.DecodeUEContextModificationResponse(pdu.SuccessfulOutcome.Value.UEContextModificationResponse)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleUEContextModificationResponse(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodePDUSessionResourceSetup:
-			HandlePDUSessionResourceSetupResponse(ctx, amfInstance, ran, pdu.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse)
+			decoded, report := decode.DecodePDUSessionResourceSetupResponse(pdu.SuccessfulOutcome.Value.PDUSessionResourceSetupResponse)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandlePDUSessionResourceSetupResponse(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodePDUSessionResourceModify:
-			HandlePDUSessionResourceModifyResponse(ctx, amfInstance, ran, pdu.SuccessfulOutcome.Value.PDUSessionResourceModifyResponse)
+			decoded, report := decode.DecodePDUSessionResourceModifyResponse(pdu.SuccessfulOutcome.Value.PDUSessionResourceModifyResponse)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandlePDUSessionResourceModifyResponse(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeHandoverResourceAllocation:
-			HandleHandoverRequestAcknowledge(ctx, amfInstance, ran, pdu.SuccessfulOutcome.Value.HandoverRequestAcknowledge)
+			decoded, report := decode.DecodeHandoverRequestAcknowledge(pdu.SuccessfulOutcome.Value.HandoverRequestAcknowledge)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleHandoverRequestAcknowledge(ctx, amfInstance, ran, decoded)
 		default:
 			ran.Log.Warn("NGAP Message handler not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", successfulOutcome.ProcedureCode.Value))
 		}
@@ -280,11 +310,26 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 
 		switch unsuccessfulOutcome.ProcedureCode.Value {
 		case ngapType.ProcedureCodeInitialContextSetup:
-			HandleInitialContextSetupFailure(ctx, amfInstance, ran, pdu.UnsuccessfulOutcome.Value.InitialContextSetupFailure)
+			decoded, report := decode.DecodeInitialContextSetupFailure(pdu.UnsuccessfulOutcome.Value.InitialContextSetupFailure)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleInitialContextSetupFailure(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeUEContextModification:
-			HandleUEContextModificationFailure(ctx, amfInstance, ran, pdu.UnsuccessfulOutcome.Value.UEContextModificationFailure)
+			decoded, report := decode.DecodeUEContextModificationFailure(pdu.UnsuccessfulOutcome.Value.UEContextModificationFailure)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleUEContextModificationFailure(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeHandoverResourceAllocation:
-			HandleHandoverFailure(ctx, amfInstance, ran, pdu.UnsuccessfulOutcome.Value.HandoverFailure)
+			decoded, report := decode.DecodeHandoverFailure(pdu.UnsuccessfulOutcome.Value.HandoverFailure)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleHandoverFailure(ctx, amfInstance, ran, decoded)
 		default:
 			ran.Log.Warn("Not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", unsuccessfulOutcome.ProcedureCode.Value))
 		}

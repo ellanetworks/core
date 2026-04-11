@@ -4,67 +4,30 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.PDUSessionResourceReleaseResponse) {
-	if msg == nil {
-		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
-		return
-	}
-
-	var (
-		aMFUENGAPID                    *ngapType.AMFUENGAPID
-		rANUENGAPID                    *ngapType.RANUENGAPID
-		pDUSessionResourceReleasedList *ngapType.PDUSessionResourceReleasedListRelRes
-		userLocationInformation        *ngapType.UserLocationInformation
-	)
-
-	for _, ie := range msg.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			aMFUENGAPID = ie.Value.AMFUENGAPID
-			if aMFUENGAPID == nil {
-				logger.WithTrace(ctx, ran.Log).Error("AmfUeNgapID is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			rANUENGAPID = ie.Value.RANUENGAPID
-			if rANUENGAPID == nil {
-				logger.WithTrace(ctx, ran.Log).Error("RanUeNgapID is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDPDUSessionResourceReleasedListRelRes:
-			pDUSessionResourceReleasedList = ie.Value.PDUSessionResourceReleasedListRelRes
-			if pDUSessionResourceReleasedList == nil {
-				logger.WithTrace(ctx, ran.Log).Error("PDUSessionResourceReleasedList is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDUserLocationInformation:
-			userLocationInformation = ie.Value.UserLocationInformation
-		}
-	}
-
-	if aMFUENGAPID == nil {
+func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.PDUSessionResourceReleaseResponse) {
+	if msg.AMFUENGAPID == nil {
 		logger.WithTrace(ctx, ran.Log).Error("AMFUENGAPID IE (mandatory) is missing in PDUSessionResourceReleaseResponse")
 		return
 	}
 
-	if rANUENGAPID == nil {
+	if msg.RANUENGAPID == nil {
 		logger.WithTrace(ctx, ran.Log).Error("RANUENGAPID IE (mandatory) is missing in PDUSessionResourceReleaseResponse")
 		return
 	}
 
-	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
+	ranUe := ran.FindUEByRanUeNgapID(*msg.RANUENGAPID)
 	if ranUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("AmfUeNgapID", *msg.AMFUENGAPID), zap.Int64("RanUeNgapID", *msg.RANUENGAPID))
 		return
 	}
 
-	if userLocationInformation != nil {
-		ranUe.UpdateLocation(ctx, amfInstance, userLocationInformation)
+	if msg.UserLocationInformation != nil {
+		ranUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
 	}
 
 	ranUe.TouchLastSeen()
@@ -75,10 +38,10 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *a
 		return
 	}
 
-	if pDUSessionResourceReleasedList != nil {
+	if len(msg.PDUSessionResourceReleasedItems) > 0 {
 		logger.WithTrace(ctx, ranUe.Log).Debug("Send PDUSessionResourceReleaseResponseTransfer to SMF")
 
-		for _, item := range pDUSessionResourceReleasedList.List {
+		for _, item := range msg.PDUSessionResourceReleasedItems {
 			if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
 				logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
 				continue
