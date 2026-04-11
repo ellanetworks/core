@@ -7,44 +7,40 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func TestHandleInitialUEMessage_EmptyIEs(t *testing.T) {
+func TestHandleInitialUEMessage_NoRanID_SendsErrorIndication(t *testing.T) {
 	ran := newTestRadio()
-	ran.RanID = &models.GlobalRanNodeID{}
-	amf := newTestAMF()
-	msg := &ngapType.InitialUEMessage{}
+	amfInstance := newTestAMF()
 
-	assertNoPanic(t, "HandleInitialUEMessage(empty IEs)", func() {
-		ngap.HandleInitialUEMessage(context.Background(), amf, ran, msg)
-	})
-}
+	ngap.HandleInitialUEMessage(context.Background(), amfInstance, ran, decode.InitialUEMessage{})
 
-func TestHandleInitialUEMessage_NilValueIEs(t *testing.T) {
-	ran := newTestRadio()
-	ran.RanID = &models.GlobalRanNodeID{}
-	amf := newTestAMF()
-	msg := &ngapType.InitialUEMessage{}
-	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.InitialUEMessageIEs{
-		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDRANUENGAPID},
-		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentReject},
-		Value: ngapType.InitialUEMessageIEsValue{
-			Present:     ngapType.InitialUEMessageIEsPresentRANUENGAPID,
-			RANUENGAPID: nil,
-		},
-	})
-	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.InitialUEMessageIEs{
-		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDNASPDU},
-		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentReject},
-		Value: ngapType.InitialUEMessageIEsValue{
-			Present: ngapType.InitialUEMessageIEsPresentNASPDU,
-			NASPDU:  nil,
-		},
-	})
+	sender, ok := ran.NGAPSender.(*FakeNGAPSender)
+	if !ok {
+		t.Fatalf("ran.NGAPSender is %T, want *FakeNGAPSender", ran.NGAPSender)
+	}
 
-	assertNoPanic(t, "HandleInitialUEMessage(nil value IEs)", func() {
-		ngap.HandleInitialUEMessage(context.Background(), amf, ran, msg)
-	})
+	if got := len(sender.SentErrorIndications); got != 1 {
+		t.Fatalf("len(SentErrorIndications) = %d, want 1", got)
+	}
+
+	ei := sender.SentErrorIndications[0]
+	if ei.Cause == nil {
+		t.Fatal("ErrorIndication.Cause is nil")
+	}
+
+	if ei.Cause.Present != ngapType.CausePresentProtocol {
+		t.Errorf("cause.Present = %d, want CausePresentProtocol", ei.Cause.Present)
+	}
+
+	if ei.Cause.Protocol == nil ||
+		ei.Cause.Protocol.Value != ngapType.CauseProtocolPresentMessageNotCompatibleWithReceiverState {
+		t.Errorf("cause.Protocol = %+v, want MessageNotCompatibleWithReceiverState", ei.Cause.Protocol)
+	}
+
+	if ei.CriticalityDiagnostics == nil {
+		t.Error("CriticalityDiagnostics is nil")
+	}
 }

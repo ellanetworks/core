@@ -4,60 +4,17 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverCancel(ctx context.Context, ran *amf.Radio, msg *ngapType.HandoverCancel) {
-	if msg == nil {
-		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
-		return
-	}
-
-	var (
-		aMFUENGAPID *ngapType.AMFUENGAPID
-		rANUENGAPID *ngapType.RANUENGAPID
-		cause       *ngapType.Cause
-	)
-
-	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
-		ie := msg.ProtocolIEs.List[i]
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			aMFUENGAPID = ie.Value.AMFUENGAPID
-			if aMFUENGAPID == nil {
-				logger.WithTrace(ctx, ran.Log).Error("AMFUENGAPID is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			rANUENGAPID = ie.Value.RANUENGAPID
-			if rANUENGAPID == nil {
-				logger.WithTrace(ctx, ran.Log).Error("RANUENGAPID is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDCause:
-			cause = ie.Value.Cause
-			if cause == nil {
-				logger.WithTrace(ctx, ran.Log).Error("Cause is nil")
-				return
-			}
-		}
-	}
-
-	if aMFUENGAPID == nil {
-		logger.WithTrace(ctx, ran.Log).Error("AMFUENGAPID IE (mandatory) is missing in HandoverCancel")
-		return
-	}
-
-	if rANUENGAPID == nil {
-		logger.WithTrace(ctx, ran.Log).Error("RANUENGAPID IE (mandatory) is missing in HandoverCancel")
-		return
-	}
-
-	sourceUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
+func HandleHandoverCancel(ctx context.Context, ran *amf.Radio, msg decode.HandoverCancel) {
+	sourceUe := ran.FindUEByRanUeNgapID(msg.RANUENGAPID)
 	if sourceUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("RanUeNgapID", msg.RANUENGAPID))
+
 		cause := ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
 			RadioNetwork: &ngapType.CauseRadioNetwork{
@@ -67,7 +24,7 @@ func HandleHandoverCancel(ctx context.Context, ran *amf.Radio, msg *ngapType.Han
 
 		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
 		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err), zap.Int64("RAN_UE_NGAP_ID", rANUENGAPID.Value))
+			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err), zap.Int64("RAN_UE_NGAP_ID", msg.RANUENGAPID))
 			return
 		}
 
@@ -76,8 +33,8 @@ func HandleHandoverCancel(ctx context.Context, ran *amf.Radio, msg *ngapType.Han
 		return
 	}
 
-	if sourceUe.AmfUeNgapID != aMFUENGAPID.Value {
-		logger.WithTrace(ctx, ran.Log).Warn("Conflict AMF_UE_NGAP_ID", zap.Int64("sourceUe.AmfUeNgapID", sourceUe.AmfUeNgapID), zap.Int64("aMFUENGAPID.Value", aMFUENGAPID.Value))
+	if sourceUe.AmfUeNgapID != msg.AMFUENGAPID {
+		logger.WithTrace(ctx, ran.Log).Warn("Conflict AMF_UE_NGAP_ID", zap.Int64("sourceUe.AmfUeNgapID", sourceUe.AmfUeNgapID), zap.Int64("aMFUENGAPID.Value", msg.AMFUENGAPID))
 	}
 
 	logger.WithTrace(ctx, ran.Log).Debug("Handle Handover Cancel", zap.Int64("sourceRanUeNgapID", sourceUe.RanUeNgapID), zap.Int64("sourceAmfUeNgapID", sourceUe.AmfUeNgapID))
@@ -88,10 +45,10 @@ func HandleHandoverCancel(ctx context.Context, ran *amf.Radio, msg *ngapType.Han
 
 	var err error
 
-	if cause != nil {
-		logger.WithTrace(ctx, ran.Log).Debug("Handover Cancel Cause", logger.Cause(causeToString(*cause)))
+	if msg.Cause != nil {
+		logger.WithTrace(ctx, ran.Log).Debug("Handover Cancel Cause", logger.Cause(causeToString(*msg.Cause)))
 
-		causePresent, causeValue, err = getCause(cause)
+		causePresent, causeValue, err = getCause(msg.Cause)
 		if err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("Get Cause from Handover Failure Error", zap.Error(err))
 			return

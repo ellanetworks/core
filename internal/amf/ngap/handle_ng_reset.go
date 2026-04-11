@@ -4,52 +4,16 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleNGReset(ctx context.Context, ran *amf.Radio, msg *ngapType.NGReset) {
-	if msg == nil {
-		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
-		return
-	}
+func HandleNGReset(ctx context.Context, ran *amf.Radio, msg decode.NGReset) {
+	logger.WithTrace(ctx, logger.AmfLog).Debug("Received NG Reset with Cause", logger.Cause(causeToString(msg.Cause)))
 
-	var (
-		cause     *ngapType.Cause
-		resetType *ngapType.ResetType
-	)
-
-	for _, ie := range msg.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDCause:
-			cause = ie.Value.Cause
-			if cause == nil {
-				logger.WithTrace(ctx, ran.Log).Error("Cause is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDResetType:
-			resetType = ie.Value.ResetType
-			if resetType == nil {
-				logger.WithTrace(ctx, ran.Log).Error("ResetType is nil")
-				return
-			}
-		}
-	}
-
-	if cause == nil {
-		logger.WithTrace(ctx, logger.AmfLog).Error("Cause IE (mandatory) is missing in NG Reset")
-		return
-	}
-
-	if resetType == nil {
-		logger.WithTrace(ctx, logger.AmfLog).Error("ResetType IE (mandatory) is missing in NG Reset")
-		return
-	}
-
-	logger.WithTrace(ctx, logger.AmfLog).Debug("Received NG Reset with Cause", logger.Cause(causeToString(*cause)))
-
-	switch resetType.Present {
+	switch msg.ResetType.Present {
 	case ngapType.ResetTypePresentNGInterface:
 		logger.WithTrace(ctx, ran.Log).Debug("ResetType Present: NG Interface")
 		ran.RemoveAllUeInRan()
@@ -63,7 +27,7 @@ func HandleNGReset(ctx context.Context, ran *amf.Radio, msg *ngapType.NGReset) {
 	case ngapType.ResetTypePresentPartOfNGInterface:
 		logger.WithTrace(ctx, ran.Log).Debug("ResetType Present: Part of NG Interface")
 
-		partOfNGInterface := resetType.PartOfNGInterface
+		partOfNGInterface := msg.ResetType.PartOfNGInterface
 		if partOfNGInterface == nil {
 			logger.WithTrace(ctx, ran.Log).Error("PartOfNGInterface is nil")
 			return
@@ -106,6 +70,6 @@ func HandleNGReset(ctx context.Context, ran *amf.Radio, msg *ngapType.NGReset) {
 			return
 		}
 	default:
-		logger.WithTrace(ctx, ran.Log).Warn("Invalid ResetType", zap.Any("ResetType", resetType.Present))
+		logger.WithTrace(ctx, ran.Log).Warn("Invalid ResetType", zap.Any("ResetType", msg.ResetType.Present))
 	}
 }

@@ -4,59 +4,32 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.HandoverFailure) {
-	if msg == nil {
-		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
-		return
-	}
-
-	var (
-		aMFUENGAPID            *ngapType.AMFUENGAPID
-		cause                  *ngapType.Cause
-		targetUe               *amf.RanUe
-		criticalityDiagnostics *ngapType.CriticalityDiagnostics
-	)
-
-	for _, ie := range msg.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
-			aMFUENGAPID = ie.Value.AMFUENGAPID
-		case ngapType.ProtocolIEIDCause: // ignore
-			cause = ie.Value.Cause
-		case ngapType.ProtocolIEIDCriticalityDiagnostics: // ignore
-			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
-		}
-	}
-
-	if aMFUENGAPID == nil {
-		logger.WithTrace(ctx, ran.Log).Error("AMFUENGAPID IE (mandatory) is missing in HandoverFailure")
-		return
-	}
-
+func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.HandoverFailure) {
 	causePresent := ngapType.CausePresentRadioNetwork
 	causeValue := ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem
 
 	var err error
 
-	if cause != nil {
-		logger.WithTrace(ctx, ran.Log).Debug("Handover Failure Cause", logger.Cause(causeToString(*cause)))
+	if msg.Cause != nil {
+		logger.WithTrace(ctx, ran.Log).Debug("Handover Failure Cause", logger.Cause(causeToString(*msg.Cause)))
 
-		causePresent, causeValue, err = getCause(cause)
+		causePresent, causeValue, err = getCause(msg.Cause)
 		if err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("Get Cause from Handover Failure Error", zap.Error(err))
 			return
 		}
 	}
 
-	targetUe = amfInstance.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
-
+	targetUe := amfInstance.FindRanUeByAmfUeNgapID(msg.AMFUENGAPID)
 	if targetUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("AmfUeNgapID", msg.AMFUENGAPID))
+
 		cause := ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
 			RadioNetwork: &ngapType.CauseRadioNetwork{
@@ -92,14 +65,14 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 				Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
 			},
 		}
-		if cause != nil {
-			failureCause = *cause
+		if msg.Cause != nil {
+			failureCause = *msg.Cause
 		}
 
 		if sourceUe.Radio == nil {
 			logger.WithTrace(ctx, ran.Log).Error("source UE radio is nil, cannot send handover preparation failure")
 		} else {
-			err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, failureCause, criticalityDiagnostics)
+			err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, failureCause, msg.CriticalityDiagnostics)
 			if err != nil {
 				logger.WithTrace(ctx, ran.Log).Error("error sending handover preparation failure", zap.Error(err))
 				return

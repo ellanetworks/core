@@ -10,12 +10,24 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 )
+
+func decodeNGSetupRequestOrFatal(t *testing.T, pdu *ngapType.NGAPPDU) decode.NGSetupRequest {
+	t.Helper()
+
+	decoded, report := decode.DecodeNGSetupRequest(pdu.InitiatingMessage.Value.NGSetupRequest)
+	if report != nil {
+		t.Fatalf("decoder produced report: %+v", report)
+	}
+
+	return decoded
+}
 
 type SliceOpt struct {
 	Sst int32
@@ -174,12 +186,16 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
+	// Use a valid TAC to satisfy the decoder (missing IE → ErrorIndication
+	// at the dispatcher layer, not NGSetupFailure here), then erase the
+	// item list to exercise the "gNB advertised no supported TAs" branch.
 	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
 		Name:  "TestRAN",
 		GnbID: "ABCDE1",
 		ID:    12345,
 		Mcc:   "001",
 		Mnc:   "01",
+		Tac:   "000064",
 		Sst:   1,
 		Sd:    "010203",
 	})
@@ -194,7 +210,10 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 		},
 	}, nil, nil)
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg.InitiatingMessage.Value.NGSetupRequest)
+	decoded := decodeNGSetupRequestOrFatal(t, msg)
+	decoded.SupportedTAItems = nil
+
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decoded)
 
 	if len(fakeNGAPSender.SentNGSetupFailures) != 1 {
 		t.Fatalf("expected 1 NGSetupFailure to be sent, but got %d", len(fakeNGAPSender.SentNGSetupFailures))
@@ -247,7 +266,7 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testi
 		Operator: op,
 	}, nil, nil)
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg.InitiatingMessage.Value.NGSetupRequest)
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
 
 	if len(fakeNGAPSender.SentNGSetupFailures) != 1 {
 		t.Fatalf("expected 1 NGSetupFailure to be sent, but got %d", len(fakeNGAPSender.SentNGSetupFailures))
@@ -301,7 +320,7 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 	}, nil, nil)
 	amfInstance.Name = "ella-core"
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg.InitiatingMessage.Value.NGSetupRequest)
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
 
 	if len(fakeNGAPSender.SentNGSetupResponses) != 1 {
 		t.Fatalf("expected 1 NGSetupResponse to be sent, but got %d", len(fakeNGAPSender.SentNGSetupResponses))
@@ -359,16 +378,6 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 	}
 }
 
-func TestHandleNGSetupRequest_EmptyIEs(t *testing.T) {
-	ran := newTestRadio()
-	amfInstance := newTestAMF()
-	msg := &ngapType.NGSetupRequest{}
-
-	assertNoPanic(t, "HandleNGSetupRequest(empty IEs)", func() {
-		ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg)
-	})
-}
-
 func TestHandleNGSetupRequest_MultipleSlicesInRequest(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
@@ -410,7 +419,7 @@ func TestHandleNGSetupRequest_MultipleSlicesInRequest(t *testing.T) {
 	}, nil, nil)
 	amfInstance.Name = "ella-core"
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg.InitiatingMessage.Value.NGSetupRequest)
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
 
 	if len(fakeNGAPSender.SentNGSetupResponses) != 1 {
 		t.Fatalf("expected 1 NGSetupResponse, got %d", len(fakeNGAPSender.SentNGSetupResponses))
@@ -492,7 +501,7 @@ func TestHandleNGSetupRequest_ResponseContainsAllConfiguredSlices(t *testing.T) 
 	}, nil, nil)
 	amfInstance.Name = "ella-core"
 
-	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, msg.InitiatingMessage.Value.NGSetupRequest)
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
 
 	if len(fakeNGAPSender.SentNGSetupResponses) != 1 {
 		t.Fatalf("expected 1 NGSetupResponse, got %d", len(fakeNGAPSender.SentNGSetupResponses))
