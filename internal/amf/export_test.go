@@ -152,11 +152,6 @@ func TestExportJSON_MinimalUE(t *testing.T) {
 		t.Fatal("expected identity.pei to be absent")
 	}
 
-	location := jsonMap(t, ueExport, "location")
-	if _, ok := location["timezone"]; ok {
-		t.Fatal("expected location.timezone to be absent")
-	}
-
 	lastActivity := jsonMap(t, ueExport, "last_activity")
 	if _, ok := lastActivity["radio_node"]; ok {
 		t.Fatal("expected last_activity.radio_node to be absent")
@@ -211,7 +206,6 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 			},
 		}
 		ue.Tai = models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}
-		ue.TimeZone = "+09:00"
 		ue.RegistrationArea = []models.Tai{
 			{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
 			{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000002"},
@@ -308,9 +302,6 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 	}
 
 	location := jsonMap(t, ueExport, "location")
-	if timezone, ok := location["timezone"].(string); !ok || timezone != "+09:00" {
-		t.Fatalf("expected location.timezone to be '+09:00', got %v", location["timezone"])
-	}
 
 	registrationArea, ok := location["registration_area"].([]any)
 	if !ok {

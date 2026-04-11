@@ -28,8 +28,6 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 			return
 		}
 
-		logger.WithTrace(ctx, ran.Log).Info("sent error indication", zap.Int64("AMFUENGAPID", msg.AMFUENGAPID))
-
 		return
 	}
 
@@ -39,17 +37,17 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	amfUe := targetUe.AmfUe()
 	if amfUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("AmfUe is nil")
+		logger.WithTrace(ctx, targetUe.Log).Error("AmfUe is nil")
 		return
 	}
 
 	sourceUe := targetUe.SourceUe
 	if sourceUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("N2 Handover between AMF has not been implemented yet")
+		logger.WithTrace(ctx, targetUe.Log).Error("N2 Handover between AMF has not been implemented yet")
 		return
 	}
 
-	logger.WithTrace(ctx, ran.Log).Info("Handle Handover notification Finshed ")
+	logger.WithTrace(ctx, targetUe.Log).Info("Handle Handover notification Finshed ")
 
 	amfUe.AttachRanUe(targetUe)
 
@@ -57,7 +55,7 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	err := sourceUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, ngapType.CausePresentNas, ngapType.CauseNasPresentNormalRelease)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("error sending ue context release command", zap.Error(err))
+		logger.WithTrace(ctx, targetUe.Log).Error("error sending ue context release command", zap.Error(err))
 		return
 	}
 }

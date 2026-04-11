@@ -63,8 +63,6 @@ func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error("error sending location reporting control", zap.Error(err))
 		}
-
-		logger.WithTrace(ctx, ranUe.Log).Info("sent location reporting control ngap message")
 	case ngapType.EventTypePresentStopUePresenceInAreaOfInterest:
 		if msg.LocationReportingRequestType.LocationReportingReferenceIDToBeCancelled == nil {
 			logger.WithTrace(ctx, ranUe.Log).Warn("LocationReportingReferenceIDToBeCancelled is nil, skipping")

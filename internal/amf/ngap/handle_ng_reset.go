@@ -11,7 +11,7 @@ import (
 )
 
 func HandleNGReset(ctx context.Context, ran *amf.Radio, msg decode.NGReset) {
-	logger.WithTrace(ctx, logger.AmfLog).Debug("Received NG Reset with Cause", logger.Cause(causeToString(msg.Cause)))
+	logger.WithTrace(ctx, ran.Log).Debug("Received NG Reset with Cause", logger.Cause(causeToString(msg.Cause)))
 
 	switch msg.ResetType.Present {
 	case ngapType.ResetTypePresentNGInterface:
@@ -60,7 +60,7 @@ func HandleNGReset(ctx context.Context, ran *amf.Radio, msg decode.NGReset) {
 
 			err := ranUe.Remove()
 			if err != nil {
-				logger.WithTrace(ctx, ran.Log).Error(err.Error())
+				logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
 			}
 		}
 

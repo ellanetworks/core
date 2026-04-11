@@ -17,7 +17,7 @@ func HandleNasNonDeliveryIndication(ctx context.Context, amfInstance *amf.AMF, r
 		return
 	}
 
-	logger.WithTrace(ctx, ran.Log).Debug("Handle NAS Non Delivery Indication", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), logger.Cause(causeToString(msg.Cause)))
+	logger.WithTrace(ctx, ranUe.Log).Debug("Handle NAS Non Delivery Indication", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID), zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), logger.Cause(causeToString(msg.Cause)))
 	ranUe.TouchLastSeen()
 
 	err := nas.HandleNAS(ctx, amfInstance, ranUe, msg.NASPDU)

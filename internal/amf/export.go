@@ -58,7 +58,6 @@ type UESecurityExport struct {
 type UELocationExport struct {
 	Current          models.UserLocation `json:"current"`
 	Tai              models.Tai          `json:"tai"`
-	Timezone         string              `json:"timezone,omitempty"`
 	RegistrationArea []models.Tai        `json:"registration_area"`
 }
 
@@ -332,7 +331,6 @@ func (amf *AMF) exportAmfUe(ue *AmfUe) AmfUeExport {
 		Location: UELocationExport{
 			Current:          copyUserLocation(ue.Location),
 			Tai:              ue.Tai,
-			Timezone:         ue.TimeZone,
 			RegistrationArea: append([]models.Tai(nil), ue.RegistrationArea...),
 		},
 		Subscription: UESubscriptionExport{

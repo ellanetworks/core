@@ -43,8 +43,6 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 			return
 		}
 
-		logger.WithTrace(ctx, ran.Log).Info("sent error indication")
-
 		return
 	}
 
@@ -53,7 +51,7 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 
 	sourceUe := targetUe.SourceUe
 	if sourceUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("N2 Handover between AMF has not been implemented yet")
+		logger.WithTrace(ctx, targetUe.Log).Error("N2 Handover between AMF has not been implemented yet")
 	} else {
 		if sourceAmfUe := sourceUe.AmfUe(); sourceAmfUe != nil {
 			sourceAmfUe.SetOnGoing(amf.OnGoingProcedureNothing)
@@ -70,15 +68,13 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 		}
 
 		if sourceUe.Radio == nil {
-			logger.WithTrace(ctx, ran.Log).Error("source UE radio is nil, cannot send handover preparation failure")
+			logger.WithTrace(ctx, targetUe.Log).Error("source UE radio is nil, cannot send handover preparation failure")
 		} else {
 			err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, failureCause, msg.CriticalityDiagnostics)
 			if err != nil {
-				logger.WithTrace(ctx, ran.Log).Error("error sending handover preparation failure", zap.Error(err))
+				logger.WithTrace(ctx, targetUe.Log).Error("error sending handover preparation failure", zap.Error(err))
 				return
 			}
-
-			logger.WithTrace(ctx, ran.Log).Info("sent handover preparation failure to source UE")
 		}
 	}
 
@@ -86,7 +82,7 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 
 	err = targetUe.Radio.NGAPSender.SendUEContextReleaseCommand(ctx, targetUe.AmfUeNgapID, targetUe.RanUeNgapID, causePresent, causeValue)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("error sending UE Context Release Command to target UE", zap.Error(err))
+		logger.WithTrace(ctx, targetUe.Log).Error("error sending UE Context Release Command to target UE", zap.Error(err))
 		return
 	}
 }

@@ -33,6 +33,4 @@ func HandleUplinkRanConfigurationTransfer(ctx context.Context, amfInstance *amf.
 		logger.WithTrace(ctx, ran.Log).Error("error sending downlink ran configuration transfer", zap.Error(err))
 		return
 	}
-
-	logger.WithTrace(ctx, ran.Log).Info("sent downlink ran configuration transfer to target ran", zap.Any("RAN ID", targetRan.RanID))
 }
