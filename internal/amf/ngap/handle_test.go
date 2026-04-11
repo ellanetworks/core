@@ -81,13 +81,22 @@ type SmfHandoverFailedCall struct {
 	N2Data       []byte
 }
 
+type SmfN2InfoCall struct {
+	SmContextRef string
+	N2Data       []byte
+}
+
 type FakeSmfSbi struct {
 	*smf.SMF
-	PathSwitchResponse  []byte
-	PathSwitchErr       error
-	HandoverFailedErr   error
-	PathSwitchCalls     []*SmfPathSwitchCall
-	HandoverFailedCalls []*SmfHandoverFailedCall
+	PathSwitchResponse       []byte
+	PathSwitchErr            error
+	HandoverFailedErr        error
+	PathSwitchCalls          []*SmfPathSwitchCall
+	HandoverFailedCalls      []*SmfHandoverFailedCall
+	PduResSetupRspCalls      []*SmfN2InfoCall
+	PduResSetupFailCalls     []*SmfN2InfoCall
+	PduResRelRspCalls        []string
+	DeactivateSmContextCalls []string
 }
 
 func (f *FakeSmfSbi) ActivateSmContext(_ context.Context, smContextRef string) ([]byte, error) {
@@ -128,19 +137,23 @@ func (f *FakeSmfSbi) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Conte
 	return nil, nil
 }
 
-func (f *FakeSmfSbi) DeactivateSmContext(_ context.Context, _ string) error {
+func (f *FakeSmfSbi) DeactivateSmContext(_ context.Context, smContextRef string) error {
+	f.DeactivateSmContextCalls = append(f.DeactivateSmContextCalls, smContextRef)
 	return nil
 }
 
-func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResSetupRsp(_ context.Context, _ string, _ []byte) error {
+func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResSetupRsp(_ context.Context, smContextRef string, n2Data []byte) error {
+	f.PduResSetupRspCalls = append(f.PduResSetupRspCalls, &SmfN2InfoCall{SmContextRef: smContextRef, N2Data: n2Data})
 	return nil
 }
 
-func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResSetupFail(_ context.Context, _ string, _ []byte) error {
+func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResSetupFail(_ context.Context, smContextRef string, n2Data []byte) error {
+	f.PduResSetupFailCalls = append(f.PduResSetupFailCalls, &SmfN2InfoCall{SmContextRef: smContextRef, N2Data: n2Data})
 	return nil
 }
 
-func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, _ string) error {
+func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, smContextRef string) error {
+	f.PduResRelRspCalls = append(f.PduResRelRspCalls, smContextRef)
 	return nil
 }
 
@@ -285,6 +298,15 @@ type FakeNGAPSender struct {
 	SentPathSwitchRequestAcknowledges  []*PathSwitchRequestAcknowledge
 	SentRanConfigurationUpdateAcks     []*RanConfigurationUpdateAcknowledge
 	SentRanConfigurationUpdateFailures []*RanConfigurationUpdateFailure
+	SentDownlinkRanConfigTransfers     []*ngapType.SONConfigurationTransfer
+	SentPDUSessionModifyConfirms       []PDUSessionModifyConfirm
+}
+
+type PDUSessionModifyConfirm struct {
+	AmfUeNgapID                          int64
+	RanUeNgapID                          int64
+	PDUSessionResourceModifyConfirmList  ngapType.PDUSessionResourceModifyListModCfm
+	PDUSessionResourceFailedToModifyList ngapType.PDUSessionResourceFailedToModifyListModCfm
 }
 
 func (fng *FakeNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType send.NGAPProcedure) error {
@@ -342,6 +364,7 @@ func (fng *FakeNGAPSender) SendRanConfigurationUpdateFailure(ctx context.Context
 }
 
 func (fng *FakeNGAPSender) SendDownlinkRanConfigurationTransfer(ctx context.Context, transfer *ngapType.SONConfigurationTransfer) error {
+	fng.SentDownlinkRanConfigTransfers = append(fng.SentDownlinkRanConfigTransfers, transfer)
 	return nil
 }
 
@@ -390,6 +413,13 @@ func (fng *FakeNGAPSender) SendHandoverCancelAcknowledge(ctx context.Context, am
 }
 
 func (fng *FakeNGAPSender) SendPDUSessionResourceModifyConfirm(ctx context.Context, amfUENGAPID int64, ranUENGAPID int64, pduSessionResourceModifyConfirmList ngapType.PDUSessionResourceModifyListModCfm, pduSessionResourceFailedToModifyList ngapType.PDUSessionResourceFailedToModifyListModCfm) error {
+	fng.SentPDUSessionModifyConfirms = append(fng.SentPDUSessionModifyConfirms, PDUSessionModifyConfirm{
+		AmfUeNgapID:                          amfUENGAPID,
+		RanUeNgapID:                          ranUENGAPID,
+		PDUSessionResourceModifyConfirmList:  pduSessionResourceModifyConfirmList,
+		PDUSessionResourceFailedToModifyList: pduSessionResourceFailedToModifyList,
+	})
+
 	return nil
 }
 
