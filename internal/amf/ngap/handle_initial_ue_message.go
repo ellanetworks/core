@@ -35,8 +35,6 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			return
 		}
 
-		logger.WithTrace(ctx, ran.Log).Info("sent error indication")
-
 		return
 	}
 
@@ -46,13 +44,13 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		// UEContextRelease. Drop the stale ranUe so a deferred
 		// UEContextReleaseComplete carrying the old AMF UE NGAP ID
 		// cannot remove the freshly created context below.
-		logger.WithTrace(ctx, ran.Log).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale RanUe",
+		logger.WithTrace(ctx, ranUe.Log).Debug("RAN UE NGAP ID reused in InitialUEMessage, removing stale RanUe",
 			zap.Int64("RanUeNgapID", ranUe.RanUeNgapID),
 			zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID))
 
 		err := ranUe.Remove()
 		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error(err.Error())
+			logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
 		}
 
 		ranUe = nil
@@ -63,11 +61,11 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 		ranUe, err = amfInstance.NewRanUe(ran, msg.RANUENGAPID)
 		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("Failed to add Ran UE to the pool", zap.Error(err))
+			logger.WithTrace(ctx, ranUe.Log).Error("Failed to add Ran UE to the pool", zap.Error(err))
 			return
 		}
 
-		logger.WithTrace(ctx, ran.Log).Debug("Added Ran UE to the pool", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+		logger.WithTrace(ctx, ranUe.Log).Debug("Added Ran UE to the pool", zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
 		if msg.FiveGSTMSI != nil {
 			logger.WithTrace(ctx, ranUe.Log).Debug("Receive 5G-S-TMSI")
@@ -121,7 +119,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	err := nas.HandleNAS(ctx, amfInstance, ranUe, msg.NASPDU)
 	if err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("error handling NAS Message", zap.Error(err))
+		logger.WithTrace(ctx, ranUe.Log).Error("error handling NAS Message", zap.Error(err))
 		return
 	}
 }

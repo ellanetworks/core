@@ -20,7 +20,7 @@ func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF
 
 	amfUe := ranUe.AmfUe()
 	if amfUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("amfUe is nil")
+		logger.WithTrace(ctx, ranUe.Log).Error("amfUe is nil")
 		return
 	}
 
@@ -44,7 +44,7 @@ func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF
 
 			err := amfInstance.Smf.UpdateSmContextN2InfoPduResSetupRsp(ctx, smContext.Ref, transfer)
 			if err != nil {
-				logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupResponseTransfer] Error", zap.Error(err))
+				logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupResponseTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 			}
 		}
 	}
@@ -69,7 +69,7 @@ func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF
 
 			err := amfInstance.Smf.UpdateSmContextN2InfoPduResSetupFail(ctx, smContext.Ref, transfer)
 			if err != nil {
-				logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err))
+				logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 			}
 		}
 	}

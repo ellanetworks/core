@@ -21,7 +21,7 @@ func createTestGuti() etsi.GUTI {
 func TestBuildPaging_MinimumValues_Success(t *testing.T) {
 	tai := models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}
 
-	msg, err := BuildPaging(createTestGuti(), []models.Tai{tai}, nil, nil, nil)
+	msg, err := BuildPaging(createTestGuti(), []models.Tai{tai}, nil, nil)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestBuildPaging_MinimumValues_Success(t *testing.T) {
 func TestBuildPaging_NoRegistrationArea_ClearError(t *testing.T) {
 	expected := "registration area is empty for ue"
 
-	_, err := BuildPaging(createTestGuti(), []models.Tai{}, nil, nil, nil)
+	_, err := BuildPaging(createTestGuti(), []models.Tai{}, nil, nil)
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected error: %s, got: %v", expected, err)
 	}

@@ -24,10 +24,10 @@ func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 	if amfUe == nil {
 		err := ranUe.Remove()
 		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error removing ran ue context", zap.Error(err))
+			logger.WithTrace(ctx, ranUe.Log).Error("error removing ran ue context", zap.Error(err))
 		}
 
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context of RanUe", zap.Int64("ranUeNgapID", msg.RANUENGAPID), zap.Int64("amfUeNgapID", msg.AMFUENGAPID))
+		logger.WithTrace(ctx, ranUe.Log).Error("No UE Context of RanUe", zap.Int64("ranUeNgapID", msg.RANUENGAPID), zap.Int64("amfUeNgapID", msg.AMFUENGAPID))
 
 		return
 	}

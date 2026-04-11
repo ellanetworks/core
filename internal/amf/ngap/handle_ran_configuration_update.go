@@ -87,14 +87,10 @@ func HandleRanConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran
 		if err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("error sending ran configuration update acknowledge", zap.Error(err))
 		}
-
-		logger.WithTrace(ctx, ran.Log).Info("sent ran configuration update acknowledge to target ran", zap.Any("RAN ID", ran.RanID))
 	} else {
 		err := ran.NGAPSender.SendRanConfigurationUpdateFailure(ctx, cause, nil)
 		if err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("error sending ran configuration update failure", zap.Error(err))
 		}
-
-		logger.WithTrace(ctx, ran.Log).Info("sent ran configuration update failure to target ran", zap.Any("RAN ID", ran.RanID))
 	}
 }

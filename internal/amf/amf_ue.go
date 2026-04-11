@@ -83,7 +83,6 @@ type AmfUe struct {
 	/* User Location*/
 	Location models.UserLocation
 	Tai      models.Tai
-	TimeZone string
 	/* Last Seen — updated on every UE-specific NGAP message */
 	LastSeenAt    time.Time
 	LastSeenRadio string
@@ -92,7 +91,6 @@ type AmfUe struct {
 	AuthenticationCtx                 *ausf.AuthResult
 	AuthFailureCauseSynchFailureTimes int
 	ABBA                              []uint8
-	Kseaf                             string
 	Kamf                              string
 	N1N2Message                       *models.N1N2MessageTransferRequest
 	SmContextList                     map[uint8]*SmContext // Key: pdu session id
@@ -101,9 +99,8 @@ type AmfUe struct {
 	UeRadioCapability                 string // OCTET string
 
 	/* context related to Paging */
-	UeRadioCapabilityForPaging                 *models.UERadioCapabilityForPaging
-	InfoOnRecommendedCellsAndRanNodesForPaging *models.InfoOnRecommendedCellsAndRanNodesForPaging
-	UESpecificDRX                              uint8
+	UeRadioCapabilityForPaging *models.UERadioCapabilityForPaging
+	UESpecificDRX              uint8
 
 	/* Security Context */
 	SecurityContextAvailable bool
@@ -393,7 +390,7 @@ func (ue *AmfUe) Snapshot() UESnapshot {
 }
 
 // Kamf Derivation function defined in TS 33.501 Annex A.7
-func (ue *AmfUe) DerivateKamf() error {
+func (ue *AmfUe) DerivateKamf(kseaf string) error {
 	if !ue.Supi.IsValid() || !ue.Supi.IsIMSI() {
 		return fmt.Errorf("supi is not a valid IMSI")
 	}
@@ -403,7 +400,7 @@ func (ue *AmfUe) DerivateKamf() error {
 	P1 := ue.ABBA
 	L1 := ueauth.KDFLen(P1)
 
-	kSeafDecode, err := hex.DecodeString(ue.Kseaf)
+	kSeafDecode, err := hex.DecodeString(kseaf)
 	if err != nil {
 		return fmt.Errorf("could not decode kseaf: %v", err)
 	}

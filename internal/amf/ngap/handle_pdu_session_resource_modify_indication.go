@@ -28,12 +28,10 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amf.Radi
 			return
 		}
 
-		logger.WithTrace(ctx, ran.Log).Info("sent error indication")
-
 		return
 	}
 
-	logger.WithTrace(ctx, ran.Log).Debug("UE Context", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+	logger.WithTrace(ctx, ranUe.Log).Debug("UE Context", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 	ranUe.TouchLastSeen()
 
 	pduSessionResourceModifyListModCfm := ngapType.PDUSessionResourceModifyListModCfm{}
@@ -44,6 +42,4 @@ func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amf.Radi
 		logger.WithTrace(ctx, ranUe.Log).Error("error sending pdu session resource modify confirm", zap.Error(err))
 		return
 	}
-
-	logger.WithTrace(ctx, ran.Log).Info("sent pdu session resource modify confirm")
 }

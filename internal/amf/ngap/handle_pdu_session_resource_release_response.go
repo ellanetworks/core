@@ -56,7 +56,7 @@ func HandlePDUSessionResourceReleaseResponse(ctx context.Context, amfInstance *a
 
 			err := amfInstance.Smf.UpdateSmContextN2InfoPduResRelRsp(ctx, smContext.Ref)
 			if err != nil {
-				logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2InfoPduResRelRsp failed", zap.Error(err))
+				logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2InfoPduResRelRsp failed", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 				continue
 			}
 

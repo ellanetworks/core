@@ -32,8 +32,6 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 			return
 		}
 
-		logger.WithTrace(ctx, ran.Log).Info("sent error indication")
-
 		return
 	}
 
@@ -81,7 +79,7 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 
 					err := amfInstance.Smf.DeactivateSmContext(ctx, smContext.Ref)
 					if err != nil {
-						logger.WithTrace(ctx, ranUe.Log).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
+						logger.WithTrace(ctx, ranUe.Log).Error("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionID))
 					}
 				}
 			} else {
