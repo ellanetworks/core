@@ -4,66 +4,22 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.UEContextReleaseRequest) {
-	if msg == nil {
-		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
-		return
-	}
-
-	var (
-		aMFUENGAPID            *ngapType.AMFUENGAPID
-		rANUENGAPID            *ngapType.RANUENGAPID
-		pDUSessionResourceList *ngapType.PDUSessionResourceListCxtRelReq
-		cause                  *ngapType.Cause
-	)
-
-	for _, ie := range msg.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			aMFUENGAPID = ie.Value.AMFUENGAPID
-			if aMFUENGAPID == nil {
-				logger.WithTrace(ctx, ran.Log).Error("AmfUeNgapID is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			rANUENGAPID = ie.Value.RANUENGAPID
-			if rANUENGAPID == nil {
-				logger.WithTrace(ctx, ran.Log).Error("RanUeNgapID is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDPDUSessionResourceListCxtRelReq:
-			pDUSessionResourceList = ie.Value.PDUSessionResourceListCxtRelReq
-		case ngapType.ProtocolIEIDCause:
-			cause = ie.Value.Cause
-			if cause == nil {
-				logger.WithTrace(ctx, ran.Log).Warn("Cause is nil")
-			}
-		}
-	}
-
-	if aMFUENGAPID == nil {
-		logger.WithTrace(ctx, ran.Log).Error("AMFUENGAPID IE (mandatory) is missing in UEContextReleaseRequest")
-		return
-	}
-
-	if rANUENGAPID == nil {
-		logger.WithTrace(ctx, ran.Log).Error("RANUENGAPID IE (mandatory) is missing in UEContextReleaseRequest")
-		return
-	}
-
-	ranUe := amfInstance.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
+func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.UEContextReleaseRequest) {
+	ranUe := amfInstance.FindRanUeByAmfUeNgapID(msg.AMFUENGAPID)
 	if ranUe == nil {
-		ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
+		ranUe = ran.FindUEByRanUeNgapID(msg.RANUENGAPID)
 	}
 
 	if ranUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No RanUe Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value), zap.Int64("RanUeNgapID", rANUENGAPID.Value))
-		cause = &ngapType.Cause{
+		logger.WithTrace(ctx, ran.Log).Error("No RanUe Context", zap.Int64("AmfUeNgapID", msg.AMFUENGAPID), zap.Int64("RanUeNgapID", msg.RANUENGAPID))
+
+		cause := &ngapType.Cause{
 			Present: ngapType.CausePresentRadioNetwork,
 			RadioNetwork: &ngapType.CauseRadioNetwork{
 				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
@@ -90,15 +46,15 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 
 	var err error
 
-	if cause != nil {
-		fields := []zap.Field{logger.Cause(causeToString(*cause))}
+	if msg.Cause != nil {
+		fields := []zap.Field{logger.Cause(causeToString(*msg.Cause))}
 		if ranUe.AmfUe() != nil {
 			fields = append(fields, logger.SUPI(ranUe.AmfUe().Supi.String()))
 		}
 
 		logger.WithTrace(ctx, ranUe.Log).Info("UE Context Release Cause", fields...)
 
-		causeGroup, causeValue, err = getCause(cause)
+		causeGroup, causeValue, err = getCause(msg.Cause)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error("could not get cause group and value", zap.Error(err))
 		}
@@ -109,8 +65,8 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 		if amfUe.GetState() == amf.Registered {
 			logger.WithTrace(ctx, ranUe.Log).Info("Ue Context in GMM-Registered")
 
-			if pDUSessionResourceList != nil {
-				for _, pduSessionReourceItem := range pDUSessionResourceList.List {
+			if msg.PDUSessionResourceList != nil {
+				for _, pduSessionReourceItem := range msg.PDUSessionResourceList {
 					if pduSessionReourceItem.PDUSessionID.Value < 1 || pduSessionReourceItem.PDUSessionID.Value > 15 {
 						logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", pduSessionReourceItem.PDUSessionID.Value))
 						continue

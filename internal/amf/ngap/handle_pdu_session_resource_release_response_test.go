@@ -7,15 +7,19 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 )
 
-func TestHandlePDUSessionResourceReleaseResponse_EmptyIEs(t *testing.T) {
+func TestHandlePDUSessionResourceReleaseResponse_MissingIDs(t *testing.T) {
 	ran := newTestRadio()
-	amf := newTestAMF()
-	msg := &ngapType.PDUSessionResourceReleaseResponse{}
+	sender := ran.NGAPSender.(*FakeNGAPSender)
+	amfInstance := newTestAMF()
 
-	assertNoPanic(t, "HandlePDUSessionResourceReleaseResponse(empty IEs)", func() {
-		ngap.HandlePDUSessionResourceReleaseResponse(context.Background(), amf, ran, msg)
-	})
+	msg := decode.PDUSessionResourceReleaseResponse{}
+
+	ngap.HandlePDUSessionResourceReleaseResponse(context.Background(), amfInstance, ran, msg)
+
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
 }

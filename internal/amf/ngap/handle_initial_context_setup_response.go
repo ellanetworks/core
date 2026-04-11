@@ -4,68 +4,15 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.InitialContextSetupResponse) {
-	if msg == nil {
-		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
-		return
-	}
-
-	var (
-		aMFUENGAPID                         *ngapType.AMFUENGAPID
-		rANUENGAPID                         *ngapType.RANUENGAPID
-		pDUSessionResourceSetupResponseList *ngapType.PDUSessionResourceSetupListCxtRes
-		pDUSessionResourceFailedToSetupList *ngapType.PDUSessionResourceFailedToSetupListCxtRes
-		criticalityDiagnostics              *ngapType.CriticalityDiagnostics
-	)
-
-	for _, ie := range msg.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID:
-			aMFUENGAPID = ie.Value.AMFUENGAPID
-			if aMFUENGAPID == nil {
-				logger.WithTrace(ctx, ran.Log).Warn("AmfUeNgapID is nil")
-			}
-		case ngapType.ProtocolIEIDRANUENGAPID:
-			rANUENGAPID = ie.Value.RANUENGAPID
-			if rANUENGAPID == nil {
-				logger.WithTrace(ctx, ran.Log).Warn("RanUeNgapID is nil")
-			}
-		case ngapType.ProtocolIEIDPDUSessionResourceSetupListCxtRes:
-			pDUSessionResourceSetupResponseList = ie.Value.PDUSessionResourceSetupListCxtRes
-			if pDUSessionResourceSetupResponseList == nil {
-				logger.WithTrace(ctx, ran.Log).Warn("PDUSessionResourceSetupResponseList is nil")
-			}
-		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListCxtRes:
-			pDUSessionResourceFailedToSetupList = ie.Value.PDUSessionResourceFailedToSetupListCxtRes
-			if pDUSessionResourceFailedToSetupList == nil {
-				logger.WithTrace(ctx, ran.Log).Warn("PDUSessionResourceFailedToSetupList is nil")
-			}
-		case ngapType.ProtocolIEIDCriticalityDiagnostics:
-			criticalityDiagnostics = ie.Value.CriticalityDiagnostics
-			if criticalityDiagnostics == nil {
-				logger.WithTrace(ctx, ran.Log).Warn("Criticality Diagnostics is nil")
-			}
-		}
-	}
-
-	if rANUENGAPID == nil {
-		logger.WithTrace(ctx, ran.Log).Error("initial context setup response is missing RANUENGAPID")
-		return
-	}
-
-	if aMFUENGAPID == nil {
-		logger.WithTrace(ctx, ran.Log).Error("initial context setup response is missing AMFUENGAPID")
-		return
-	}
-
-	ranUe := ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
+func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.InitialContextSetupResponse) {
+	ranUe := ran.FindUEByRanUeNgapID(msg.RANUENGAPID)
 	if ranUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value), zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("RanUeNgapID", msg.RANUENGAPID), zap.Int64("AmfUeNgapID", msg.AMFUENGAPID))
 		return
 	}
 
@@ -77,10 +24,10 @@ func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF
 		return
 	}
 
-	if pDUSessionResourceSetupResponseList != nil {
+	if len(msg.SetupItems) > 0 {
 		logger.WithTrace(ctx, ranUe.Log).Debug("Send PDUSessionResourceSetupResponseTransfer to SMF")
 
-		for _, item := range pDUSessionResourceSetupResponseList.List {
+		for _, item := range msg.SetupItems {
 			if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
 				logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
 				continue
@@ -102,10 +49,10 @@ func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF
 		}
 	}
 
-	if pDUSessionResourceFailedToSetupList != nil {
+	if len(msg.FailedToSetupItems) > 0 {
 		logger.WithTrace(ctx, ranUe.Log).Debug("Send PDUSessionResourceSetupUnsuccessfulTransfer to SMF")
 
-		for _, item := range pDUSessionResourceFailedToSetupList.List {
+		for _, item := range msg.FailedToSetupItems {
 			if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
 				logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
 				continue

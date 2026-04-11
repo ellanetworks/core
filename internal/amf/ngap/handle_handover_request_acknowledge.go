@@ -4,74 +4,26 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.HandoverRequestAcknowledge) {
-	if msg == nil {
-		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
-		return
-	}
-
-	var (
-		aMFUENGAPID                              *ngapType.AMFUENGAPID
-		rANUENGAPID                              *ngapType.RANUENGAPID
-		pDUSessionResourceAdmittedList           *ngapType.PDUSessionResourceAdmittedList
-		pDUSessionResourceFailedToSetupListHOAck *ngapType.PDUSessionResourceFailedToSetupListHOAck
-		targetToSourceTransparentContainer       *ngapType.TargetToSourceTransparentContainer
-		iesCriticalityDiagnostics                ngapType.CriticalityDiagnosticsIEList
-	)
-
-	for _, ie := range msg.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
-			aMFUENGAPID = ie.Value.AMFUENGAPID
-		case ngapType.ProtocolIEIDRANUENGAPID: // ignore
-			rANUENGAPID = ie.Value.RANUENGAPID
-		case ngapType.ProtocolIEIDPDUSessionResourceAdmittedList: // ignore
-			pDUSessionResourceAdmittedList = ie.Value.PDUSessionResourceAdmittedList
-		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListHOAck: // ignore
-			pDUSessionResourceFailedToSetupListHOAck = ie.Value.PDUSessionResourceFailedToSetupListHOAck
-		case ngapType.ProtocolIEIDTargetToSourceTransparentContainer: // reject
-			targetToSourceTransparentContainer = ie.Value.TargetToSourceTransparentContainer
-		}
-	}
-
-	if targetToSourceTransparentContainer == nil {
-		logger.WithTrace(ctx, ran.Log).Error("TargetToSourceTransparentContainer is nil")
-
-		item := buildCriticalityDiagnosticsIEItem(ngapType.ProtocolIEIDTargetToSourceTransparentContainer)
-		iesCriticalityDiagnostics.List = append(iesCriticalityDiagnostics.List, item)
-	}
-
-	if len(iesCriticalityDiagnostics.List) > 0 {
-		logger.WithTrace(ctx, ran.Log).Error("Has missing reject IE(s)")
-
-		criticalityDiagnostics := buildCriticalityDiagnostics(ngapType.ProcedureCodeHandoverResourceAllocation, ngapType.TriggeringMessagePresentSuccessfulOutcome, ngapType.CriticalityPresentReject, &iesCriticalityDiagnostics)
-
-		err := ran.NGAPSender.SendErrorIndication(ctx, nil, &criticalityDiagnostics)
-		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
-		}
-
-		return
-	}
-
-	if aMFUENGAPID == nil {
+func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.HandoverRequestAcknowledge) {
+	if msg.AMFUENGAPID == nil {
 		logger.WithTrace(ctx, ran.Log).Error("AMF UE NGAP ID is nil")
 		return
 	}
 
-	targetUe := amfInstance.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
+	targetUe := amfInstance.FindRanUeByAmfUeNgapID(*msg.AMFUENGAPID)
 	if targetUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("AmfUeNgapID", *msg.AMFUENGAPID))
 		return
 	}
 
-	if rANUENGAPID != nil {
-		targetUe.RanUeNgapID = rANUENGAPID.Value
+	if msg.RANUENGAPID != nil {
+		targetUe.RanUeNgapID = *msg.RANUENGAPID
 	}
 
 	targetUe.Radio = ran
@@ -91,48 +43,44 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 
 	// describe in 23.502 4.9.1.3.2 step11
 
-	if pDUSessionResourceAdmittedList != nil {
-		for _, item := range pDUSessionResourceAdmittedList.List {
-			if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
-				logger.WithTrace(ctx, targetUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+	for _, item := range msg.AdmittedItems {
+		if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+			logger.WithTrace(ctx, targetUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+			continue
+		}
+
+		pduSessionID := item.PDUSessionID.Value
+		transfer := item.HandoverRequestAcknowledgeTransfer
+
+		pduSessionIDUint8 := uint8(pduSessionID)
+		if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
+			n2Rsp, err := amfInstance.Smf.UpdateSmContextN2HandoverPrepared(ctx, smContext.Ref, transfer)
+			if err != nil {
+				logger.WithTrace(ctx, targetUe.Log).Error("Send HandoverRequestAcknowledgeTransfer error", zap.Error(err))
 				continue
 			}
 
-			pduSessionID := item.PDUSessionID.Value
-			transfer := item.HandoverRequestAcknowledgeTransfer
-
-			pduSessionIDUint8 := uint8(pduSessionID)
-			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
-				n2Rsp, err := amfInstance.Smf.UpdateSmContextN2HandoverPrepared(ctx, smContext.Ref, transfer)
-				if err != nil {
-					logger.WithTrace(ctx, targetUe.Log).Error("Send HandoverRequestAcknowledgeTransfer error", zap.Error(err))
-					continue
-				}
-
-				handoverItem := ngapType.PDUSessionResourceHandoverItem{}
-				handoverItem.PDUSessionID = item.PDUSessionID
-				handoverItem.HandoverCommandTransfer = n2Rsp
-				pduSessionResourceHandoverList.List = append(pduSessionResourceHandoverList.List, handoverItem)
-			}
+			handoverItem := ngapType.PDUSessionResourceHandoverItem{}
+			handoverItem.PDUSessionID = item.PDUSessionID
+			handoverItem.HandoverCommandTransfer = n2Rsp
+			pduSessionResourceHandoverList.List = append(pduSessionResourceHandoverList.List, handoverItem)
 		}
 	}
 
-	if pDUSessionResourceFailedToSetupListHOAck != nil {
-		for _, item := range pDUSessionResourceFailedToSetupListHOAck.List {
-			if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
-				logger.WithTrace(ctx, targetUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
-				continue
-			}
+	for _, item := range msg.FailedToSetupItems {
+		if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+			logger.WithTrace(ctx, targetUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+			continue
+		}
 
-			pduSessionID := item.PDUSessionID.Value
-			transfer := item.HandoverResourceAllocationUnsuccessfulTransfer
+		pduSessionID := item.PDUSessionID.Value
+		transfer := item.HandoverResourceAllocationUnsuccessfulTransfer
 
-			pduSessionIDUint8 := uint8(pduSessionID)
-			if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
-				_, err := amfInstance.Smf.UpdateSmContextN2HandoverPrepared(ctx, smContext.Ref, transfer)
-				if err != nil {
-					logger.WithTrace(ctx, targetUe.Log).Error("Send HandoverResourceAllocationUnsuccessfulTransfer error", zap.Error(err))
-				}
+		pduSessionIDUint8 := uint8(pduSessionID)
+		if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
+			_, err := amfInstance.Smf.UpdateSmContextN2HandoverPrepared(ctx, smContext.Ref, transfer)
+			if err != nil {
+				logger.WithTrace(ctx, targetUe.Log).Error("Send HandoverResourceAllocationUnsuccessfulTransfer error", zap.Error(err))
 			}
 		}
 	}
@@ -175,7 +123,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	err := sourceUe.Radio.NGAPSender.SendHandoverCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, sourceUe.HandOverType, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, *targetToSourceTransparentContainer)
+	err := sourceUe.Radio.NGAPSender.SendHandoverCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, sourceUe.HandOverType, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, msg.TargetToSourceTransparentContainer)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("error sending handover command to source UE", zap.Error(err))
 	}

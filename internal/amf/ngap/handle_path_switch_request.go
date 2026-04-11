@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapType"
@@ -11,71 +12,18 @@ import (
 )
 
 // TS 23.502 4.9.1
-func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.PathSwitchRequest) {
-	if msg == nil {
-		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
-		return
-	}
-
-	var (
-		rANUENGAPID                            *ngapType.RANUENGAPID
-		sourceAMFUENGAPID                      *ngapType.AMFUENGAPID
-		userLocationInformation                *ngapType.UserLocationInformation
-		uESecurityCapabilities                 *ngapType.UESecurityCapabilities
-		pduSessionResourceToBeSwitchedInDLList *ngapType.PDUSessionResourceToBeSwitchedDLList
-		pduSessionResourceFailedToSetupList    *ngapType.PDUSessionResourceFailedToSetupListPSReq
-	)
-
-	for _, ie := range msg.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDRANUENGAPID: // reject
-			rANUENGAPID = ie.Value.RANUENGAPID
-			if rANUENGAPID == nil {
-				logger.WithTrace(ctx, ran.Log).Error("RanUeNgapID is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDSourceAMFUENGAPID: // reject
-			sourceAMFUENGAPID = ie.Value.SourceAMFUENGAPID
-			if sourceAMFUENGAPID == nil {
-				logger.WithTrace(ctx, ran.Log).Error("SourceAmfUeNgapID is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDUserLocationInformation: // ignore
-			userLocationInformation = ie.Value.UserLocationInformation
-		case ngapType.ProtocolIEIDUESecurityCapabilities: // ignore
-			uESecurityCapabilities = ie.Value.UESecurityCapabilities
-		case ngapType.ProtocolIEIDPDUSessionResourceToBeSwitchedDLList: // reject
-			pduSessionResourceToBeSwitchedInDLList = ie.Value.PDUSessionResourceToBeSwitchedDLList
-			if pduSessionResourceToBeSwitchedInDLList == nil {
-				logger.WithTrace(ctx, ran.Log).Error("PDUSessionResourceToBeSwitchedDLList is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListPSReq: // ignore
-			pduSessionResourceFailedToSetupList = ie.Value.PDUSessionResourceFailedToSetupListPSReq
-		}
-	}
-
-	if sourceAMFUENGAPID == nil {
-		logger.WithTrace(ctx, ran.Log).Error("SourceAmfUeNgapID is nil")
-		return
-	}
-
-	if rANUENGAPID == nil {
-		logger.WithTrace(ctx, ran.Log).Error("RANUENGAPID IE (mandatory) is missing in PathSwitchRequest")
-		return
-	}
-
-	ranUe := amfInstance.FindRanUeByAmfUeNgapID(sourceAMFUENGAPID.Value)
+func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.PathSwitchRequest) {
+	ranUe := amfInstance.FindRanUeByAmfUeNgapID(msg.SourceAMFUENGAPID)
 	if ranUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("Cannot find UE from sourceAMfUeNgapID", zap.Int64("sourceAMFUENGAPID", sourceAMFUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Error("Cannot find UE from sourceAMfUeNgapID", zap.Int64("sourceAMFUENGAPID", msg.SourceAMFUENGAPID))
 
-		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
+		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, msg.SourceAMFUENGAPID, msg.RANUENGAPID, nil, nil)
 		if err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("error sending path switch request failure", zap.Error(err))
 			return
 		}
 
-		logger.WithTrace(ctx, ran.Log).Info("sent path switch request failure", zap.Int64("sourceAMFUENGAPID", sourceAMFUENGAPID.Value))
+		logger.WithTrace(ctx, ran.Log).Info("sent path switch request failure", zap.Int64("sourceAMFUENGAPID", msg.SourceAMFUENGAPID))
 
 		return
 	}
@@ -88,7 +36,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	if amfUe == nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("AmfUe is nil")
 
-		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
+		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, msg.SourceAMFUENGAPID, msg.RANUENGAPID, nil, nil)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error("error sending path switch request failure", zap.Error(err))
 			return
@@ -102,7 +50,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	if !amfUe.SecurityContextIsValid() {
 		logger.WithTrace(ctx, ranUe.Log).Error("No Security Context", logger.SUPI(amfUe.Supi.String()))
 
-		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
+		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, msg.SourceAMFUENGAPID, msg.RANUENGAPID, nil, nil)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error("error sending path switch request failure", zap.Error(err))
 			return
@@ -119,11 +67,11 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 		return
 	}
 
-	verifyUESecurityCapabilitiesOnPathSwitch(ctx, ranUe, amfUe, uESecurityCapabilities)
+	verifyUESecurityCapabilitiesOnPathSwitch(ctx, ranUe, amfUe, msg.UESecurityCapabilities)
 
-	ranUe.RanUeNgapID = rANUENGAPID.Value
+	ranUe.RanUeNgapID = msg.RANUENGAPID
 
-	ranUe.UpdateLocation(ctx, amfInstance, userLocationInformation)
+	ranUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation.Raw())
 
 	var (
 		pduSessionResourceSwitchedList       ngapType.PDUSessionResourceSwitchedList
@@ -131,62 +79,58 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 		pduSessionResourceReleasedListPSFail ngapType.PDUSessionResourceReleasedListPSFail
 	)
 
-	if pduSessionResourceToBeSwitchedInDLList != nil {
-		for _, item := range pduSessionResourceToBeSwitchedInDLList.List {
-			if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
-				logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
-				continue
-			}
-
-			pduSessionID := uint8(item.PDUSessionID.Value)
-			transfer := item.PathSwitchRequestTransfer
-
-			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
-			if !ok {
-				logger.WithTrace(ctx, ranUe.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
-				continue
-			}
-
-			n2Rsp, err := amfInstance.Smf.UpdateSmContextXnHandoverPathSwitchReq(ctx, smContext.Ref, transfer)
-			if err != nil {
-				logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextXnHandover[PathSwitchRequestTransfer] Error", zap.Error(err))
-				continue
-			}
-
-			pduSessionResourceSwitchedItem := ngapType.PDUSessionResourceSwitchedItem{}
-			pduSessionResourceSwitchedItem.PDUSessionID.Value = int64(pduSessionID)
-			pduSessionResourceSwitchedItem.PathSwitchRequestAcknowledgeTransfer = n2Rsp
-			pduSessionResourceSwitchedList.List = append(pduSessionResourceSwitchedList.List, pduSessionResourceSwitchedItem)
+	for _, item := range msg.PDUSessionResourceItems {
+		if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+			logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+			continue
 		}
+
+		pduSessionID := uint8(item.PDUSessionID.Value)
+		transfer := item.PathSwitchRequestTransfer
+
+		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
+		if !ok {
+			logger.WithTrace(ctx, ranUe.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+			continue
+		}
+
+		n2Rsp, err := amfInstance.Smf.UpdateSmContextXnHandoverPathSwitchReq(ctx, smContext.Ref, transfer)
+		if err != nil {
+			logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextXnHandover[PathSwitchRequestTransfer] Error", zap.Error(err))
+			continue
+		}
+
+		pduSessionResourceSwitchedItem := ngapType.PDUSessionResourceSwitchedItem{}
+		pduSessionResourceSwitchedItem.PDUSessionID.Value = int64(pduSessionID)
+		pduSessionResourceSwitchedItem.PathSwitchRequestAcknowledgeTransfer = n2Rsp
+		pduSessionResourceSwitchedList.List = append(pduSessionResourceSwitchedList.List, pduSessionResourceSwitchedItem)
 	}
 
-	if pduSessionResourceFailedToSetupList != nil {
-		for _, item := range pduSessionResourceFailedToSetupList.List {
-			if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
-				logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
-				continue
-			}
+	for _, item := range msg.FailedToSetupItems {
+		if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+			logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+			continue
+		}
 
-			pduSessionID := uint8(item.PDUSessionID.Value)
-			transfer := item.PathSwitchRequestSetupFailedTransfer
+		pduSessionID := uint8(item.PDUSessionID.Value)
+		transfer := item.PathSwitchRequestSetupFailedTransfer
 
-			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
-			if !ok {
-				logger.WithTrace(ctx, ranUe.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
-				continue
-			}
+		smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
+		if !ok {
+			logger.WithTrace(ctx, ranUe.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+			continue
+		}
 
-			err := amfInstance.Smf.UpdateSmContextHandoverFailed(ctx, smContext.Ref, transfer)
-			if err != nil {
-				logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextXnHandoverFailed[PathSwitchRequestSetupFailedTransfer] Error", zap.Error(err))
-			}
+		err := amfInstance.Smf.UpdateSmContextHandoverFailed(ctx, smContext.Ref, transfer)
+		if err != nil {
+			logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextXnHandoverFailed[PathSwitchRequestSetupFailedTransfer] Error", zap.Error(err))
 		}
 	}
 
 	// TS 23.502 4.9.1.2.2 step 7: send ack to Target NG-RAN. If none of the requested PDU Sessions have been switched
 	// successfully, the AMF shall send an N2 Path Switch Request Failure message to the Target NG-RAN
 	if len(pduSessionResourceSwitchedList.List) > 0 {
-		err := ranUe.SwitchToRan(ran, rANUENGAPID.Value)
+		err := ranUe.SwitchToRan(ran, msg.RANUENGAPID)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
 			return
@@ -216,7 +160,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 		logger.WithTrace(ctx, ranUe.Log).Info("sent path switch request acknowledge")
 	} else if len(pduSessionResourceReleasedListPSFail.List) > 0 {
-		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, sourceAMFUENGAPID.Value, rANUENGAPID.Value, &pduSessionResourceReleasedListPSFail, nil)
+		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, msg.SourceAMFUENGAPID, msg.RANUENGAPID, &pduSessionResourceReleasedListPSFail, nil)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error("error sending path switch request failure", zap.Error(err))
 			return
@@ -224,7 +168,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 
 		logger.WithTrace(ctx, ranUe.Log).Info("sent path switch request failure")
 	} else {
-		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, sourceAMFUENGAPID.Value, rANUENGAPID.Value, nil, nil)
+		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, msg.SourceAMFUENGAPID, msg.RANUENGAPID, nil, nil)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error("error sending path switch request failure", zap.Error(err))
 			return

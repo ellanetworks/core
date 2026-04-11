@@ -8,19 +8,10 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 )
-
-func TestHandleLocationReport_EmptyIEs(t *testing.T) {
-	ran := newTestRadio()
-	amfInstance := newTestAMF()
-	msg := &ngapType.LocationReport{}
-
-	assertNoPanic(t, "HandleLocationReport(empty IEs)", func() {
-		ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
-	})
-}
 
 func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) {
 	ran := newTestRadio()
@@ -32,19 +23,18 @@ func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) 
 		Log:         logger.AmfLog,
 	}
 	ran.RanUEs[1] = ranUe
-	msg := &ngapType.LocationReport{}
-	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.LocationReportIEs{
-		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDRANUENGAPID},
-		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentReject},
-		Value: ngapType.LocationReportIEsValue{
-			Present:     ngapType.LocationReportIEsPresentRANUENGAPID,
-			RANUENGAPID: &ngapType.RANUENGAPID{Value: 1},
-		},
-	})
 
-	assertNoPanic(t, "HandleLocationReport(missing LocationReportingRequestType)", func() {
-		ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
-	})
+	msg := decode.LocationReport{
+		AMFUENGAPID: 1,
+		RANUENGAPID: 1,
+	}
+
+	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
+
+	sender := ran.NGAPSender.(*FakeNGAPSender)
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
 }
 
 // TestHandleLocationReport_UePresenceInAreaOfInterest_NilList verifies that
@@ -62,41 +52,25 @@ func TestHandleLocationReport_UePresenceInAreaOfInterest_NilList(t *testing.T) {
 	}
 	ran.RanUEs[1] = ranUe
 
-	msg := &ngapType.LocationReport{}
-
-	// Add mandatory RANUENGAPID IE
-	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.LocationReportIEs{
-		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDRANUENGAPID},
-		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentReject},
-		Value: ngapType.LocationReportIEsValue{
-			Present:     ngapType.LocationReportIEsPresentRANUENGAPID,
-			RANUENGAPID: &ngapType.RANUENGAPID{Value: 1},
-		},
-	})
-
-	// Add LocationReportingRequestType with EventType = UePresenceInAreaOfInterest
-	// but deliberately omit the UEPresenceInAreaOfInterestList IE.
-	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.LocationReportIEs{
-		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDLocationReportingRequestType},
-		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentIgnore},
-		Value: ngapType.LocationReportIEsValue{
-			Present: ngapType.LocationReportIEsPresentLocationReportingRequestType,
-			LocationReportingRequestType: &ngapType.LocationReportingRequestType{
-				EventType: ngapType.EventType{
-					Value: ngapType.EventTypePresentUePresenceInAreaOfInterest,
-				},
-				ReportArea: ngapType.ReportArea{
-					Value: ngapType.ReportAreaPresentCell,
-				},
+	msg := decode.LocationReport{
+		AMFUENGAPID: 1,
+		RANUENGAPID: 1,
+		LocationReportingRequestType: &ngapType.LocationReportingRequestType{
+			EventType: ngapType.EventType{
+				Value: ngapType.EventTypePresentUePresenceInAreaOfInterest,
+			},
+			ReportArea: ngapType.ReportArea{
+				Value: ngapType.ReportAreaPresentCell,
 			},
 		},
-	})
+	}
 
-	// No UEPresenceInAreaOfInterestList IE is added — it is optional.
-	// The handler must not panic when it is absent.
-	assertNoPanic(t, "HandleLocationReport(UePresenceInAreaOfInterest with nil list)", func() {
-		ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
-	})
+	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
+
+	sender := ran.NGAPSender.(*FakeNGAPSender)
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
 }
 
 // TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled verifies
@@ -114,39 +88,25 @@ func TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled(t *test
 	}
 	ran.RanUEs[1] = ranUe
 
-	msg := &ngapType.LocationReport{}
-
-	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.LocationReportIEs{
-		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDRANUENGAPID},
-		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentReject},
-		Value: ngapType.LocationReportIEsValue{
-			Present:     ngapType.LocationReportIEsPresentRANUENGAPID,
-			RANUENGAPID: &ngapType.RANUENGAPID{Value: 1},
-		},
-	})
-
-	// EventType = StopUePresenceInAreaOfInterest, but
-	// LocationReportingReferenceIDToBeCancelled is nil (optional, omitted).
-	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.LocationReportIEs{
-		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDLocationReportingRequestType},
-		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentIgnore},
-		Value: ngapType.LocationReportIEsValue{
-			Present: ngapType.LocationReportIEsPresentLocationReportingRequestType,
-			LocationReportingRequestType: &ngapType.LocationReportingRequestType{
-				EventType: ngapType.EventType{
-					Value: ngapType.EventTypePresentStopUePresenceInAreaOfInterest,
-				},
-				ReportArea: ngapType.ReportArea{
-					Value: ngapType.ReportAreaPresentCell,
-				},
-				// LocationReportingReferenceIDToBeCancelled deliberately nil
+	msg := decode.LocationReport{
+		AMFUENGAPID: 1,
+		RANUENGAPID: 1,
+		LocationReportingRequestType: &ngapType.LocationReportingRequestType{
+			EventType: ngapType.EventType{
+				Value: ngapType.EventTypePresentStopUePresenceInAreaOfInterest,
+			},
+			ReportArea: ngapType.ReportArea{
+				Value: ngapType.ReportAreaPresentCell,
 			},
 		},
-	})
+	}
 
-	assertNoPanic(t, "HandleLocationReport(StopUePresence with nil ReferenceIDToBeCancelled)", func() {
-		ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
-	})
+	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
+
+	sender := ran.NGAPSender.(*FakeNGAPSender)
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
 }
 
 // TestHandleLocationReport_UePresence_NilAreaOfInterestList verifies that
@@ -164,54 +124,31 @@ func TestHandleLocationReport_UePresence_NilAreaOfInterestList(t *testing.T) {
 	}
 	ran.RanUEs[1] = ranUe
 
-	msg := &ngapType.LocationReport{}
-
-	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.LocationReportIEs{
-		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDRANUENGAPID},
-		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentReject},
-		Value: ngapType.LocationReportIEsValue{
-			Present:     ngapType.LocationReportIEsPresentRANUENGAPID,
-			RANUENGAPID: &ngapType.RANUENGAPID{Value: 1},
-		},
-	})
-
-	// EventType = UePresenceInAreaOfInterest with AreaOfInterestList nil (omitted).
-	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.LocationReportIEs{
-		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDLocationReportingRequestType},
-		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentIgnore},
-		Value: ngapType.LocationReportIEsValue{
-			Present: ngapType.LocationReportIEsPresentLocationReportingRequestType,
-			LocationReportingRequestType: &ngapType.LocationReportingRequestType{
-				EventType: ngapType.EventType{
-					Value: ngapType.EventTypePresentUePresenceInAreaOfInterest,
-				},
-				ReportArea: ngapType.ReportArea{
-					Value: ngapType.ReportAreaPresentCell,
-				},
-				// AreaOfInterestList deliberately nil
+	msg := decode.LocationReport{
+		AMFUENGAPID: 1,
+		RANUENGAPID: 1,
+		LocationReportingRequestType: &ngapType.LocationReportingRequestType{
+			EventType: ngapType.EventType{
+				Value: ngapType.EventTypePresentUePresenceInAreaOfInterest,
+			},
+			ReportArea: ngapType.ReportArea{
+				Value: ngapType.ReportAreaPresentCell,
 			},
 		},
-	})
-
-	// Provide a non-nil UEPresenceInAreaOfInterestList so the outer loop
-	// executes and the inner loop hits the nil AreaOfInterestList.
-	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.LocationReportIEs{
-		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDUEPresenceInAreaOfInterestList},
-		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentIgnore},
-		Value: ngapType.LocationReportIEsValue{
-			Present: ngapType.LocationReportIEsPresentUEPresenceInAreaOfInterestList,
-			UEPresenceInAreaOfInterestList: &ngapType.UEPresenceInAreaOfInterestList{
-				List: []ngapType.UEPresenceInAreaOfInterestItem{
-					{
-						LocationReportingReferenceID: ngapType.LocationReportingReferenceID{Value: 1},
-						UEPresence:                   ngapType.UEPresence{Value: ngapType.UEPresencePresentIn},
-					},
+		UEPresenceInAreaOfInterestList: &ngapType.UEPresenceInAreaOfInterestList{
+			List: []ngapType.UEPresenceInAreaOfInterestItem{
+				{
+					LocationReportingReferenceID: ngapType.LocationReportingReferenceID{Value: 1},
+					UEPresence:                   ngapType.UEPresence{Value: ngapType.UEPresencePresentIn},
 				},
 			},
 		},
-	})
+	}
 
-	assertNoPanic(t, "HandleLocationReport(UePresence with nil AreaOfInterestList)", func() {
-		ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
-	})
+	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
+
+	sender := ran.NGAPSender.(*FakeNGAPSender)
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
 }

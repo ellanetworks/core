@@ -7,23 +7,21 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 )
 
 func TestHandleUEContextModificationFailure_MissingAMFUENGAPID(t *testing.T) {
 	ran := newTestRadio()
-	amf := newTestAMF()
-	msg := &ngapType.UEContextModificationFailure{}
-	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.UEContextModificationFailureIEs{
-		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDRANUENGAPID},
-		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentIgnore},
-		Value: ngapType.UEContextModificationFailureIEsValue{
-			Present:     ngapType.UEContextModificationFailureIEsPresentRANUENGAPID,
-			RANUENGAPID: &ngapType.RANUENGAPID{Value: 1},
-		},
-	})
+	sender := ran.NGAPSender.(*FakeNGAPSender)
+	amfInstance := newTestAMF()
+	ranUeNgapID := int64(1)
+	msg := decode.UEContextModificationFailure{
+		RANUENGAPID: &ranUeNgapID,
+	}
 
-	assertNoPanic(t, "HandleUEContextModificationFailure(missing AMFUENGAPID)", func() {
-		ngap.HandleUEContextModificationFailure(context.Background(), amf, ran, msg)
-	})
+	ngap.HandleUEContextModificationFailure(context.Background(), amfInstance, ran, msg)
+
+	if len(sender.SentErrorIndications) != 0 {
+		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	}
 }

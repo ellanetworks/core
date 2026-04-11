@@ -4,111 +4,88 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
-func HandlePDUSessionResourceSetupResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.PDUSessionResourceSetupResponse) {
-	if msg == nil {
-		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
+func HandlePDUSessionResourceSetupResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.PDUSessionResourceSetupResponse) {
+	var ranUe *amf.RanUe
+
+	if msg.RANUENGAPID != nil {
+		ranUe = ran.FindUEByRanUeNgapID(*msg.RANUENGAPID)
+		if ranUe == nil {
+			logger.WithTrace(ctx, ran.Log).Warn("No UE Context", zap.Int64("RanUeNgapID", *msg.RANUENGAPID))
+		}
+	}
+
+	if msg.AMFUENGAPID != nil {
+		ranUe = amfInstance.FindRanUeByAmfUeNgapID(*msg.AMFUENGAPID)
+		if ranUe == nil {
+			logger.WithTrace(ctx, ran.Log).Warn("UE Context not found", zap.Int64("AmfUeNgapID", *msg.AMFUENGAPID))
+			return
+		}
+	}
+
+	if ranUe == nil {
 		return
 	}
 
-	var (
-		aMFUENGAPID                         *ngapType.AMFUENGAPID
-		rANUENGAPID                         *ngapType.RANUENGAPID
-		pDUSessionResourceSetupResponseList *ngapType.PDUSessionResourceSetupListSURes
-		pDUSessionResourceFailedToSetupList *ngapType.PDUSessionResourceFailedToSetupListSURes
-	)
+	ranUe.Radio = ran
+	ranUe.TouchLastSeen()
 
-	for _, ie := range msg.ProtocolIEs.List {
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDAMFUENGAPID: // ignore
-			aMFUENGAPID = ie.Value.AMFUENGAPID
-		case ngapType.ProtocolIEIDRANUENGAPID: // ignore
-			rANUENGAPID = ie.Value.RANUENGAPID
-		case ngapType.ProtocolIEIDPDUSessionResourceSetupListSURes: // ignore
-			pDUSessionResourceSetupResponseList = ie.Value.PDUSessionResourceSetupListSURes
-		case ngapType.ProtocolIEIDPDUSessionResourceFailedToSetupListSURes: // ignore
-			pDUSessionResourceFailedToSetupList = ie.Value.PDUSessionResourceFailedToSetupListSURes
-		}
+	amfUe := ranUe.AmfUe()
+	if amfUe == nil {
+		logger.WithTrace(ctx, ranUe.Log).Error("amfUe is nil")
+		return
 	}
 
-	var ranUe *amf.RanUe
+	if len(msg.SetupItems) > 0 {
+		logger.WithTrace(ctx, ranUe.Log).Debug("Send PDUSessionResourceSetupResponseTransfer to SMF")
 
-	if rANUENGAPID != nil {
-		ranUe = ran.FindUEByRanUeNgapID(rANUENGAPID.Value)
-		if ranUe == nil {
-			logger.WithTrace(ctx, ran.Log).Warn("No UE Context", zap.Int64("RanUeNgapID", rANUENGAPID.Value))
-		}
-	}
+		for _, item := range msg.SetupItems {
+			if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+				logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+				continue
+			}
 
-	if aMFUENGAPID != nil {
-		ranUe = amfInstance.FindRanUeByAmfUeNgapID(aMFUENGAPID.Value)
-		if ranUe == nil {
-			logger.WithTrace(ctx, ran.Log).Warn("UE Context not found", zap.Int64("AmfUeNgapID", aMFUENGAPID.Value))
-			return
-		}
-	}
+			pduSessionID := uint8(item.PDUSessionID.Value)
+			transfer := item.PDUSessionResourceSetupResponseTransfer
 
-	if ranUe != nil {
-		ranUe.Radio = ran
-		ranUe.TouchLastSeen()
+			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
+			if !ok {
+				logger.WithTrace(ctx, ranUe.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+				continue
+			}
 
-		amfUe := ranUe.AmfUe()
-		if amfUe == nil {
-			logger.WithTrace(ctx, ranUe.Log).Error("amfUe is nil")
-			return
-		}
-
-		if pDUSessionResourceSetupResponseList != nil {
-			logger.WithTrace(ctx, ranUe.Log).Debug("Send PDUSessionResourceSetupResponseTransfer to SMF")
-
-			for _, item := range pDUSessionResourceSetupResponseList.List {
-				if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
-					logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
-					continue
-				}
-
-				pduSessionID := uint8(item.PDUSessionID.Value)
-				transfer := item.PDUSessionResourceSetupResponseTransfer
-
-				smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
-				if !ok {
-					logger.WithTrace(ctx, ranUe.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
-					continue
-				}
-
-				err := amfInstance.Smf.UpdateSmContextN2InfoPduResSetupRsp(ctx, smContext.Ref, transfer)
-				if err != nil {
-					logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupResponseTransfer] Error", zap.Error(err))
-				}
+			err := amfInstance.Smf.UpdateSmContextN2InfoPduResSetupRsp(ctx, smContext.Ref, transfer)
+			if err != nil {
+				logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupResponseTransfer] Error", zap.Error(err))
 			}
 		}
+	}
 
-		if pDUSessionResourceFailedToSetupList != nil {
-			logger.WithTrace(ctx, ranUe.Log).Debug("Send PDUSessionResourceSetupUnsuccessfulTransfer to SMF")
+	if len(msg.FailedToSetupItems) > 0 {
+		logger.WithTrace(ctx, ranUe.Log).Debug("Send PDUSessionResourceSetupUnsuccessfulTransfer to SMF")
 
-			for _, item := range pDUSessionResourceFailedToSetupList.List {
-				if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
-					logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
-					continue
-				}
+		for _, item := range msg.FailedToSetupItems {
+			if item.PDUSessionID.Value < 1 || item.PDUSessionID.Value > 15 {
+				logger.WithTrace(ctx, ranUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
+				continue
+			}
 
-				pduSessionID := uint8(item.PDUSessionID.Value)
-				transfer := item.PDUSessionResourceSetupUnsuccessfulTransfer
+			pduSessionID := uint8(item.PDUSessionID.Value)
+			transfer := item.PDUSessionResourceSetupUnsuccessfulTransfer
 
-				smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
-				if !ok {
-					logger.WithTrace(ctx, ranUe.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
-					continue
-				}
+			smContext, ok := amfUe.SmContextFindByPDUSessionID(pduSessionID)
+			if !ok {
+				logger.WithTrace(ctx, ranUe.Log).Error("SmContext not found", zap.Uint8("PduSessionID", pduSessionID))
+				continue
+			}
 
-				err := amfInstance.Smf.UpdateSmContextN2InfoPduResSetupFail(ctx, smContext.Ref, transfer)
-				if err != nil {
-					logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err))
-				}
+			err := amfInstance.Smf.UpdateSmContextN2InfoPduResSetupFail(ctx, smContext.Ref, transfer)
+			if err != nil {
+				logger.WithTrace(ctx, ranUe.Log).Error("SendUpdateSmContextN2Info[PDUSessionResourceSetupUnsuccessfulTransfer] Error", zap.Error(err))
 			}
 		}
 	}

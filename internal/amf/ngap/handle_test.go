@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"testing"
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
@@ -223,6 +222,15 @@ type ErrorIndication struct {
 	CriticalityDiagnostics *ngapType.CriticalityDiagnostics
 }
 
+type RanConfigurationUpdateAcknowledge struct {
+	CriticalityDiagnostics *ngapType.CriticalityDiagnostics
+}
+
+type RanConfigurationUpdateFailure struct {
+	Cause                  ngapType.Cause
+	CriticalityDiagnostics *ngapType.CriticalityDiagnostics
+}
+
 type HandoverPreparationFailure struct {
 	AmfUeNgapID int64
 	RanUeNgapID int64
@@ -265,16 +273,18 @@ type PathSwitchRequestAcknowledge struct {
 }
 
 type FakeNGAPSender struct {
-	SentNGSetupFailures               []*NGSetupFailure
-	SentNGSetupResponses              []*NGSetupResponse
-	SentNGResetAcknowledges           []*NGResetAcknowledge
-	SentHandoverRequests              []*HandoverRequest
-	SentHandoverCommands              []*HandoverCommand
-	SentErrorIndications              []*ErrorIndication
-	SentHandoverPreparationFailures   []*HandoverPreparationFailure
-	SentUEContextReleaseCommands      []*UEContextReleaseCommand
-	SentPathSwitchRequestFailures     []*PathSwitchRequestFailure
-	SentPathSwitchRequestAcknowledges []*PathSwitchRequestAcknowledge
+	SentNGSetupFailures                []*NGSetupFailure
+	SentNGSetupResponses               []*NGSetupResponse
+	SentNGResetAcknowledges            []*NGResetAcknowledge
+	SentHandoverRequests               []*HandoverRequest
+	SentHandoverCommands               []*HandoverCommand
+	SentErrorIndications               []*ErrorIndication
+	SentHandoverPreparationFailures    []*HandoverPreparationFailure
+	SentUEContextReleaseCommands       []*UEContextReleaseCommand
+	SentPathSwitchRequestFailures      []*PathSwitchRequestFailure
+	SentPathSwitchRequestAcknowledges  []*PathSwitchRequestAcknowledge
+	SentRanConfigurationUpdateAcks     []*RanConfigurationUpdateAcknowledge
+	SentRanConfigurationUpdateFailures []*RanConfigurationUpdateFailure
 }
 
 func (fng *FakeNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType send.NGAPProcedure) error {
@@ -315,10 +325,19 @@ func (fng *FakeNGAPSender) SendErrorIndication(ctx context.Context, cause *ngapT
 }
 
 func (fng *FakeNGAPSender) SendRanConfigurationUpdateAcknowledge(ctx context.Context, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+	fng.SentRanConfigurationUpdateAcks = append(fng.SentRanConfigurationUpdateAcks, &RanConfigurationUpdateAcknowledge{
+		CriticalityDiagnostics: criticalityDiagnostics,
+	})
+
 	return nil
 }
 
 func (fng *FakeNGAPSender) SendRanConfigurationUpdateFailure(ctx context.Context, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+	fng.SentRanConfigurationUpdateFailures = append(fng.SentRanConfigurationUpdateFailures, &RanConfigurationUpdateFailure{
+		Cause:                  cause,
+		CriticalityDiagnostics: criticalityDiagnostics,
+	})
+
 	return nil
 }
 
@@ -441,19 +460,6 @@ func (fng *FakeNGAPSender) SendHandoverRequest(
 	})
 
 	return nil
-}
-
-// assertNoPanic runs fn and fails the test if it panics.
-func assertNoPanic(t *testing.T, name string, fn func()) {
-	t.Helper()
-
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("%s panicked (nil pointer dereference with missing IEs): %v", name, r)
-		}
-	}()
-
-	fn()
 }
 
 // newTestRadio creates a minimal Radio with a FakeNGAPSender for testing.
