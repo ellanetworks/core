@@ -135,6 +135,18 @@ func TestDecodeInitialUEMessage_NilBody(t *testing.T) {
 		t.Errorf("expected fatal report for nil body")
 	}
 
+	if !report.ProcedureRejected {
+		t.Errorf("expected ProcedureRejected to be set for nil body")
+	}
+
+	if len(report.Items) != 0 {
+		t.Errorf("expected no per-IE items for nil body, got %+v", report.Items)
+	}
+
+	if !report.HasItems() {
+		t.Errorf("HasItems() should return true so the dispatcher emits an ErrorIndication")
+	}
+
 	if out.RANUENGAPID != 0 {
 		t.Errorf("expected zero value")
 	}
@@ -275,6 +287,47 @@ func TestDecodeInitialUEMessage_MalformedUserLocation(t *testing.T) {
 	}
 }
 
+func TestDecodeInitialUEMessage_NilRRCEstablishmentCauseValue(t *testing.T) {
+	// RRCEstablishmentCause is mandatory-ignore. A malformed value
+	// must produce a non-fatal report so the dispatcher still invokes
+	// the handler.
+	msg := validInitialUEMessage()
+	for i := range msg.ProtocolIEs.List {
+		if msg.ProtocolIEs.List[i].Id.Value == ngapType.ProtocolIEIDRRCEstablishmentCause {
+			msg.ProtocolIEs.List[i].Value.RRCEstablishmentCause = nil
+		}
+	}
+
+	_, report := decode.DecodeInitialUEMessage(msg)
+	if report == nil {
+		t.Fatal("expected non-nil report")
+	}
+
+	if report.Fatal() {
+		t.Errorf("RRCEstablishmentCause is ignore-criticality; report should not be fatal")
+	}
+
+	found := false
+
+	for _, item := range report.Items {
+		if item.IEID == ngapType.ProtocolIEIDRRCEstablishmentCause {
+			found = true
+
+			if item.TypeOfError != ngapType.TypeOfErrorPresentNotUnderstood {
+				t.Errorf("TypeOfError = %d, want NotUnderstood", item.TypeOfError)
+			}
+
+			if item.Criticality != ngapType.CriticalityPresentIgnore {
+				t.Errorf("Criticality = %d, want Ignore", item.Criticality)
+			}
+		}
+	}
+
+	if !found {
+		t.Errorf("expected report item for RRCEstablishmentCause")
+	}
+}
+
 func TestDecodeInitialUEMessage_WithFiveGSTMSI(t *testing.T) {
 	msg := validInitialUEMessage()
 	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.InitialUEMessageIEs{
@@ -305,6 +358,40 @@ func TestDecodeInitialUEMessage_WithFiveGSTMSI(t *testing.T) {
 
 	if out.FiveGSTMSI.AMFPointer.BitLength != 6 {
 		t.Errorf("AMFPointer BitLength = %d, want 6", out.FiveGSTMSI.AMFPointer.BitLength)
+	}
+}
+
+func TestDecodeInitialUEMessage_FiveGSTMSICopiesBytes(t *testing.T) {
+	msg := validInitialUEMessage()
+	src := validFiveGSTMSI()
+	msg.ProtocolIEs.List = append(msg.ProtocolIEs.List, ngapType.InitialUEMessageIEs{
+		Id:          ngapType.ProtocolIEID{Value: ngapType.ProtocolIEIDFiveGSTMSI},
+		Criticality: ngapType.Criticality{Value: ngapType.CriticalityPresentReject},
+		Value: ngapType.InitialUEMessageIEsValue{
+			Present:    ngapType.InitialUEMessageIEsPresentFiveGSTMSI,
+			FiveGSTMSI: src,
+		},
+	})
+
+	out, report := decode.DecodeInitialUEMessage(msg)
+	if report != nil {
+		t.Fatalf("unexpected report: %+v", report)
+	}
+
+	src.FiveGTMSI.Value[0] = 0xFF
+	src.AMFSetID.Value.Bytes[0] = 0xFF
+	src.AMFPointer.Value.Bytes[0] = 0xFF
+
+	if out.FiveGSTMSI.FiveGTMSI[0] != 0x01 {
+		t.Errorf("FiveGTMSI was aliased to source buffer; got %x", out.FiveGSTMSI.FiveGTMSI)
+	}
+
+	if out.FiveGSTMSI.AMFSetID.Bytes[0] != 0xC0 {
+		t.Errorf("AMFSetID was aliased to source buffer; got %x", out.FiveGSTMSI.AMFSetID.Bytes)
+	}
+
+	if out.FiveGSTMSI.AMFPointer.Bytes[0] != 0x40 {
+		t.Errorf("AMFPointer was aliased to source buffer; got %x", out.FiveGSTMSI.AMFPointer.Bytes)
 	}
 }
 
@@ -387,8 +474,8 @@ func TestDecodeInitialUEMessage_DuplicateIELastWins(t *testing.T) {
 	}
 }
 
-func TestDecodeReport_ToCriticalityDiagnostics(t *testing.T) {
-	r := &decode.DecodeReport{
+func TestReport_ToCriticalityDiagnostics(t *testing.T) {
+	r := &decode.Report{
 		ProcedureCode:        ngapType.ProcedureCodeInitialUEMessage,
 		TriggeringMessage:    ngapType.TriggeringMessagePresentInitiatingMessage,
 		ProcedureCriticality: ngapType.CriticalityPresentIgnore,

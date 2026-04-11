@@ -106,11 +106,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		}
 	}
 
-	if uli := msg.UserLocationInformation.Raw(); uli != nil {
-		ranUe.UpdateLocation(ctx, amfInstance, uli)
-	}
-
-	logger.WithTrace(ctx, ranUe.Log).Debug("RRC Establishment Cause", zap.Any("Value", msg.RRCEstablishmentCause))
+	ranUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation.Raw())
 
 	ranUe.UeContextRequest = msg.UEContextRequest
 

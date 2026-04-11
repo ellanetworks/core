@@ -21,8 +21,12 @@ const (
 
 // UserLocationInformation wraps the free5gc CHOICE. When Kind is not
 // Unknown, raw and the variant pointer matching Kind are both non-nil.
+//
 // Raw is a transitional accessor for callers not yet migrated to typed
-// fields.
+// fields. Unlike NASPDU and FiveGTMSI, the bytes inside the returned
+// pointer are NOT copied out of the source PDU buffer; callers must
+// finish consuming the value within the synchronous handler invocation
+// driven by the dispatcher.
 type UserLocationInformation struct {
 	kind UserLocationKind
 	raw  *ngapType.UserLocationInformation
@@ -39,7 +43,7 @@ type FiveGSTMSI struct {
 
 // InitialUEMessage is a decoded NGAP InitialUEMessage (3GPP TS 38.413
 // §9.2.5.1). Non-pointer fields are mandatory and populated when the
-// accompanying *DecodeReport is non-fatal; pointer fields are optional.
+// accompanying *Report is non-fatal; pointer fields are optional.
 type InitialUEMessage struct {
 	RANUENGAPID             int64
 	NASPDU                  []byte

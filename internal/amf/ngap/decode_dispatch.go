@@ -15,7 +15,7 @@ import (
 // handleDecodeReport sends an ErrorIndication for any items in report
 // and returns false iff report.Fatal(), in which case the dispatcher
 // must skip the handler.
-func handleDecodeReport(ctx context.Context, ran *amf.Radio, report *decode.DecodeReport) bool {
+func handleDecodeReport(ctx context.Context, ran *amf.Radio, report *decode.Report) bool {
 	if !report.HasItems() {
 		return true
 	}

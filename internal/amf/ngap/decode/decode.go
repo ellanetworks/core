@@ -4,6 +4,19 @@
 // Package decode converts free5gc NGAP message types into validated Go
 // value types so handlers cannot deref nil mandatory IEs. Handlers in
 // internal/amf/ngap must not walk ProtocolIEs.List themselves.
+//
+// Per-message decoder functions return a value plus a *Report. Callers
+// (the dispatcher) must construct a non-nil Report; the methods on
+// *Report assume a non-nil receiver. A *Report describes any structural
+// problems found while decoding the PDU and maps onto an NGAP
+// CriticalityDiagnostics IE (3GPP TS 38.413 §10.3).
+//
+// Duplicate IE policy: when an IE id appears multiple times in a single
+// message, the last well-formed occurrence wins. TS 38.413 forbids
+// duplicates outright, but recording a per-IE diagnostic for every
+// duplicate would force callers to drop messages that real-world gNBs
+// might send. Decoders silently accept duplicates and overwrite earlier
+// values.
 package decode
 
 import (
@@ -11,41 +24,52 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-// DecodeReport maps 1:1 onto an NGAP ErrorIndication with
-// CriticalityDiagnostics (3GPP TS 38.413 §10.3). A report is fatal iff
-// at least one item carries reject criticality.
-type DecodeReport struct {
+// Report accumulates structural problems found while decoding a PDU and
+// maps 1:1 onto NGAP CriticalityDiagnostics. A report is fatal iff it
+// carries any reject-criticality item OR ProcedureRejected is set
+// (used for nil/unparseable PDU bodies that cannot be attributed to a
+// specific IE).
+type Report struct {
 	ProcedureCode        int64
 	TriggeringMessage    aper.Enumerated
 	ProcedureCriticality aper.Enumerated
-	Items                []DecodeErrorItem
+	Items                []ErrorItem
+
+	// ProcedureRejected marks the entire procedure as unprocessable
+	// without naming a specific IE. Set when the PDU body itself is
+	// nil; do not pair with per-IE Items.
+	ProcedureRejected bool
 }
 
-type DecodeErrorItem struct {
+type ErrorItem struct {
 	IEID        int64
 	Criticality aper.Enumerated
 	TypeOfError aper.Enumerated
 }
 
-func (r *DecodeReport) MissingMandatory(id int64, criticality aper.Enumerated) {
-	r.Items = append(r.Items, DecodeErrorItem{
+func (r *Report) MissingMandatory(id int64, criticality aper.Enumerated) {
+	r.Items = append(r.Items, ErrorItem{
 		IEID:        id,
 		Criticality: criticality,
 		TypeOfError: ngapType.TypeOfErrorPresentMissing,
 	})
 }
 
-func (r *DecodeReport) Malformed(id int64, criticality aper.Enumerated) {
-	r.Items = append(r.Items, DecodeErrorItem{
+func (r *Report) Malformed(id int64, criticality aper.Enumerated) {
+	r.Items = append(r.Items, ErrorItem{
 		IEID:        id,
 		Criticality: criticality,
 		TypeOfError: ngapType.TypeOfErrorPresentNotUnderstood,
 	})
 }
 
-func (r *DecodeReport) Fatal() bool {
+func (r *Report) Fatal() bool {
 	if r == nil {
 		return false
+	}
+
+	if r.ProcedureRejected {
+		return true
 	}
 
 	for _, item := range r.Items {
@@ -57,11 +81,15 @@ func (r *DecodeReport) Fatal() bool {
 	return false
 }
 
-func (r *DecodeReport) HasItems() bool {
-	return r != nil && len(r.Items) > 0
+func (r *Report) HasItems() bool {
+	if r == nil {
+		return false
+	}
+
+	return r.ProcedureRejected || len(r.Items) > 0
 }
 
-func (r *DecodeReport) ToCriticalityDiagnostics() ngapType.CriticalityDiagnostics {
+func (r *Report) ToCriticalityDiagnostics() ngapType.CriticalityDiagnostics {
 	cd := ngapType.CriticalityDiagnostics{
 		ProcedureCode: &ngapType.ProcedureCode{
 			Value: r.ProcedureCode,

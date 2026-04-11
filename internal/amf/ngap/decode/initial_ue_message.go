@@ -11,8 +11,8 @@ import (
 // (3GPP TS 38.413 §9.2.5.1). Mandatory IEs are RANUENGAPID, NASPDU,
 // UserLocationInformation (all reject) and RRCEstablishmentCause
 // (ignore). Duplicate IEs follow a last-wins policy.
-func DecodeInitialUEMessage(in *ngapType.InitialUEMessage) (InitialUEMessage, *DecodeReport) {
-	report := &DecodeReport{
+func DecodeInitialUEMessage(in *ngapType.InitialUEMessage) (InitialUEMessage, *Report) {
+	report := &Report{
 		ProcedureCode:        ngapType.ProcedureCodeInitialUEMessage,
 		TriggeringMessage:    ngapType.TriggeringMessagePresentInitiatingMessage,
 		ProcedureCriticality: ngapType.CriticalityPresentIgnore,
@@ -21,7 +21,7 @@ func DecodeInitialUEMessage(in *ngapType.InitialUEMessage) (InitialUEMessage, *D
 	var out InitialUEMessage
 
 	if in == nil {
-		report.Malformed(0, ngapType.CriticalityPresentReject)
+		report.ProcedureRejected = true
 		return out, report
 	}
 
