@@ -264,7 +264,9 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	})
 
 	amfInstance := amf.New(dbInstance, ausfInstance, smfInstance)
-	amfInstance.NAS = nas.HandleNAS
+	amfInstance.NAS = func(ctx context.Context, ue *amf.RanUe, pdu []byte) error {
+		return nas.HandleNAS(ctx, amfInstance, ue, pdu)
+	}
 	smfAMF.amf = amfInstance
 
 	amf.RegisterMetrics(amfInstance)

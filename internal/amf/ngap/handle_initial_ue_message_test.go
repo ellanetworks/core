@@ -257,7 +257,7 @@ func TestHandleInitialUEMessage_SetsUeContextRequest(t *testing.T) {
 	}
 }
 
-func TestHandleInitialUEMessage_StopsTimersOnRegisteredUE(t *testing.T) {
+func TestHandleInitialUEMessage_RegisteredUE_DoesNotPanic(t *testing.T) {
 	fakeNAS := &FakeNASHandler{}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 	amfInstance.DBInstance = &FakeDBInstance{

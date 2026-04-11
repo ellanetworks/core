@@ -87,7 +87,7 @@ type DBer interface {
 }
 
 // NASHandler processes an uplink NAS PDU for the given RAN UE.
-type NASHandler func(ctx context.Context, amfInstance *AMF, ue *RanUe, nasPdu []byte) error
+type NASHandler func(ctx context.Context, ue *RanUe, nasPdu []byte) error
 
 // Lock ordering (acquire in this order, never reverse):
 //

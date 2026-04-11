@@ -533,7 +533,7 @@ type FakeNASHandler struct {
 	Err   error
 }
 
-func (f *FakeNASHandler) Handle(_ context.Context, _ *amf.AMF, ue *amf.RanUe, nasPdu []byte) error {
+func (f *FakeNASHandler) Handle(_ context.Context, ue *amf.RanUe, nasPdu []byte) error {
 	f.Calls = append(f.Calls, NASCall{RanUe: ue, NASPDU: nasPdu})
 	return f.Err
 }
