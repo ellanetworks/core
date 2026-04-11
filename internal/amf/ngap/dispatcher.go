@@ -181,7 +181,12 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		case ngapType.ProcedureCodePDUSessionResourceNotify:
 			HandlePDUSessionResourceNotify(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.PDUSessionResourceNotify)
 		case ngapType.ProcedureCodePathSwitchRequest:
-			HandlePathSwitchRequest(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.PathSwitchRequest)
+			decoded, report := decode.DecodePathSwitchRequest(pdu.InitiatingMessage.Value.PathSwitchRequest)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandlePathSwitchRequest(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeLocationReport:
 			HandleLocationReport(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.LocationReport)
 		case ngapType.ProcedureCodeUplinkRANConfigurationTransfer:

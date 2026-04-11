@@ -116,6 +116,70 @@ func TestDecodeNGSetupRequest_Happy(t *testing.T) {
 	}
 }
 
+func TestDecodeNGSetupRequest_HappyNgENB(t *testing.T) {
+	msg := validNGSetupRequest()
+	for i := range msg.ProtocolIEs.List {
+		if msg.ProtocolIEs.List[i].Id.Value == ngapType.ProtocolIEIDGlobalRANNodeID {
+			msg.ProtocolIEs.List[i].Value.GlobalRANNodeID = &ngapType.GlobalRANNodeID{
+				Present: ngapType.GlobalRANNodeIDPresentGlobalNgENBID,
+				GlobalNgENBID: &ngapType.GlobalNgENBID{
+					PLMNIdentity: ngapType.PLMNIdentity{Value: aper.OctetString{0x00, 0xF1, 0x10}},
+					NgENBID: ngapType.NgENBID{
+						Present:      ngapType.NgENBIDPresentMacroNgENBID,
+						MacroNgENBID: &aper.BitString{Bytes: []byte{0xAB, 0xCD, 0xE0}, BitLength: 20},
+					},
+				},
+			}
+		}
+	}
+
+	out, report := decode.DecodeNGSetupRequest(msg)
+	if report != nil {
+		t.Fatalf("expected nil report, got %+v", report)
+	}
+
+	if out.GlobalRANNodeID.Kind() != decode.GlobalRANNodeKindNgENB {
+		t.Errorf("kind = %d, want NgENB", out.GlobalRANNodeID.Kind())
+	}
+
+	raw := out.GlobalRANNodeID.Raw()
+	if raw == nil || raw.GlobalNgENBID == nil || raw.GlobalNgENBID.NgENBID.MacroNgENBID == nil {
+		t.Fatal("decoded NgENB structure incomplete")
+	}
+}
+
+func TestDecodeNGSetupRequest_HappyN3IWF(t *testing.T) {
+	msg := validNGSetupRequest()
+	for i := range msg.ProtocolIEs.List {
+		if msg.ProtocolIEs.List[i].Id.Value == ngapType.ProtocolIEIDGlobalRANNodeID {
+			msg.ProtocolIEs.List[i].Value.GlobalRANNodeID = &ngapType.GlobalRANNodeID{
+				Present: ngapType.GlobalRANNodeIDPresentGlobalN3IWFID,
+				GlobalN3IWFID: &ngapType.GlobalN3IWFID{
+					PLMNIdentity: ngapType.PLMNIdentity{Value: aper.OctetString{0x00, 0xF1, 0x10}},
+					N3IWFID: ngapType.N3IWFID{
+						Present: ngapType.N3IWFIDPresentN3IWFID,
+						N3IWFID: &aper.BitString{Bytes: []byte{0x12, 0x34}, BitLength: 16},
+					},
+				},
+			}
+		}
+	}
+
+	out, report := decode.DecodeNGSetupRequest(msg)
+	if report != nil {
+		t.Fatalf("expected nil report, got %+v", report)
+	}
+
+	if out.GlobalRANNodeID.Kind() != decode.GlobalRANNodeKindN3IWF {
+		t.Errorf("kind = %d, want N3IWF", out.GlobalRANNodeID.Kind())
+	}
+
+	raw := out.GlobalRANNodeID.Raw()
+	if raw == nil || raw.GlobalN3IWFID == nil || raw.GlobalN3IWFID.N3IWFID.N3IWFID == nil {
+		t.Fatal("decoded N3IWF structure incomplete")
+	}
+}
+
 func TestDecodeNGSetupRequest_NilBody(t *testing.T) {
 	out, report := decode.DecodeNGSetupRequest(nil)
 	if report == nil {

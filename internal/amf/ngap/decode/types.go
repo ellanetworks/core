@@ -93,3 +93,29 @@ type NGSetupRequest struct {
 	SupportedTAItems []ngapType.SupportedTAItem
 	RANNodeName      string
 }
+
+// PathSwitchRequest is a decoded NGAP PathSwitchRequest (3GPP TS 38.413
+// §9.2.3.1). RANUENGAPID, SourceAMFUENGAPID and PDUSessionResourceItems
+// are mandatory-reject and populated when the accompanying *Report is
+// non-fatal. UserLocationInformation and UESecurityCapabilities are
+// mandatory-ignore: missing or malformed values yield a non-fatal report
+// and a zero-value field, so the handler must still cope with an empty
+// ULI Kind and a nil UESecurityCapabilities. FailedToSetupItems is
+// optional and may be nil.
+//
+// PDUSessionResourceItems and FailedToSetupItems alias the source PDU
+// buffer (PathSwitchRequest{Transfer,SetupFailedTransfer} octet
+// strings); like UserLocationInformation.Raw, callers must finish
+// consuming them within the synchronous handler invocation.
+//
+// PDUSessionResourceItems may be structurally empty even on a non-fatal
+// decode: TS 38.413 sizeLB:1 forbids it, but the decoder does not
+// enforce sizeLB and the handler decides how to react.
+type PathSwitchRequest struct {
+	RANUENGAPID             int64
+	SourceAMFUENGAPID       int64
+	UserLocationInformation UserLocationInformation
+	UESecurityCapabilities  *ngapType.UESecurityCapabilities
+	PDUSessionResourceItems []ngapType.PDUSessionResourceToBeSwitchedDLItem
+	FailedToSetupItems      []ngapType.PDUSessionResourceFailedToSetupItemPSReq
+}
