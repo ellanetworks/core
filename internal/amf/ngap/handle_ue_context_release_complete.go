@@ -87,17 +87,22 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 
 			amfUe.Mutex.Lock()
 
-			smContextRefs := make([]string, 0, len(amfUe.SmContextList))
-			for _, smContext := range amfUe.SmContextList {
-				smContextRefs = append(smContextRefs, smContext.Ref)
+			type smCtxRef struct {
+				ref string
+				id  uint8
+			}
+
+			smContextRefs := make([]smCtxRef, 0, len(amfUe.SmContextList))
+			for pduSessionID, smContext := range amfUe.SmContextList {
+				smContextRefs = append(smContextRefs, smCtxRef{ref: smContext.Ref, id: pduSessionID})
 			}
 
 			amfUe.Mutex.Unlock()
 
-			for _, smContextRef := range smContextRefs {
-				err := amfInstance.Smf.DeactivateSmContext(ctx, smContextRef)
+			for _, sr := range smContextRefs {
+				err := amfInstance.Smf.DeactivateSmContext(ctx, sr.ref)
 				if err != nil {
-					logger.WithTrace(ctx, ranUe.Log).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err))
+					logger.WithTrace(ctx, ranUe.Log).Warn("Send Update SmContextDeactivate UpCnxState Error", zap.Error(err), zap.Uint8("PduSessionID", sr.id))
 				}
 			}
 		}
