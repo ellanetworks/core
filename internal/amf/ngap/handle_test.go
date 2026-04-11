@@ -285,6 +285,11 @@ type PathSwitchRequestAcknowledge struct {
 	SnssaiList                        []models.Snssai
 }
 
+type HandoverCancelAcknowledge struct {
+	AmfUeNgapID int64
+	RanUeNgapID int64
+}
+
 type FakeNGAPSender struct {
 	SentNGSetupFailures                []*NGSetupFailure
 	SentNGSetupResponses               []*NGSetupResponse
@@ -293,6 +298,7 @@ type FakeNGAPSender struct {
 	SentHandoverCommands               []*HandoverCommand
 	SentErrorIndications               []*ErrorIndication
 	SentHandoverPreparationFailures    []*HandoverPreparationFailure
+	SentHandoverCancelAcknowledges     []*HandoverCancelAcknowledge
 	SentUEContextReleaseCommands       []*UEContextReleaseCommand
 	SentPathSwitchRequestFailures      []*PathSwitchRequestFailure
 	SentPathSwitchRequestAcknowledges  []*PathSwitchRequestAcknowledge
@@ -409,6 +415,11 @@ func (fng *FakeNGAPSender) SendPDUSessionResourceReleaseCommand(ctx context.Cont
 }
 
 func (fng *FakeNGAPSender) SendHandoverCancelAcknowledge(ctx context.Context, amfUENGAPID int64, ranUENGAPID int64) error {
+	fng.SentHandoverCancelAcknowledges = append(fng.SentHandoverCancelAcknowledges, &HandoverCancelAcknowledge{
+		AmfUeNgapID: amfUENGAPID,
+		RanUeNgapID: ranUENGAPID,
+	})
+
 	return nil
 }
 

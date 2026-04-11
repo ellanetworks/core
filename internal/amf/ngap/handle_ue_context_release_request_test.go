@@ -6,16 +6,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 )
 
-// TestHandleUEContextReleaseRequest_UnknownUENGAPIDs verifies that a
-// UEContextReleaseRequest with AMF_UE_NGAP_ID and RAN_UE_NGAP_ID values that
-// don't match any existing UE context is handled gracefully — no panic, and an
-// ErrorIndication with UnknownLocalUENGAPID cause is sent back.
-// Regression test inspired by open5gs/open5gs#4371.
 func TestHandleUEContextReleaseRequest_UnknownUENGAPIDs(t *testing.T) {
 	ran := newTestRadio()
 	amfInstance := newTestAMF()
@@ -47,5 +44,48 @@ func TestHandleUEContextReleaseRequest_UnknownUENGAPIDs(t *testing.T) {
 
 	if len(sender.SentUEContextReleaseCommands) != 0 {
 		t.Fatalf("expected no UEContextReleaseCommand, got %d", len(sender.SentUEContextReleaseCommands))
+	}
+}
+
+func TestHandleUEContextReleaseRequest_UEFoundRegistered(t *testing.T) {
+	ran := newTestRadio()
+	sender := ran.NGAPSender.(*FakeNGAPSender)
+	amfInstance := newTestAMF()
+
+	amfUe := amf.NewAmfUe()
+	amfUe.Log = logger.AmfLog
+	amfUe.ForceState(amf.Registered)
+
+	ranUe := &amf.RanUe{
+		RanUeNgapID: 1,
+		AmfUeNgapID: 10,
+		Radio:       ran,
+		Log:         logger.AmfLog,
+	}
+	amfUe.AttachRanUe(ranUe)
+	ran.RanUEs[1] = ranUe
+
+	msg := decode.UEContextReleaseRequest{
+		AMFUENGAPID: 10,
+		RANUENGAPID: 1,
+		Cause: &ngapType.Cause{
+			Present:      ngapType.CausePresentRadioNetwork,
+			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentUserInactivity},
+		},
+	}
+
+	ngap.HandleUEContextReleaseRequest(context.Background(), amfInstance, ran, msg)
+
+	if len(sender.SentUEContextReleaseCommands) != 1 {
+		t.Fatalf("expected 1 UEContextReleaseCommand, got %d", len(sender.SentUEContextReleaseCommands))
+	}
+
+	cmd := sender.SentUEContextReleaseCommands[0]
+	if cmd.AmfUeNgapID != 10 || cmd.RanUeNgapID != 1 {
+		t.Errorf("UEContextReleaseCommand IDs = (%d, %d), want (10, 1)", cmd.AmfUeNgapID, cmd.RanUeNgapID)
+	}
+
+	if ranUe.ReleaseAction != amf.UeContextN2NormalRelease {
+		t.Errorf("expected ReleaseAction = UeContextN2NormalRelease, got %d", ranUe.ReleaseAction)
 	}
 }
