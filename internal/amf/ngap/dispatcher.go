@@ -11,6 +11,7 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap"
@@ -146,7 +147,12 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		case ngapType.ProcedureCodeNGSetup:
 			HandleNGSetupRequest(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.NGSetupRequest)
 		case ngapType.ProcedureCodeInitialUEMessage:
-			HandleInitialUEMessage(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.InitialUEMessage)
+			decoded, report := decode.DecodeInitialUEMessage(pdu.InitiatingMessage.Value.InitialUEMessage)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleInitialUEMessage(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeUplinkNASTransport:
 			HandleUplinkNasTransport(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.UplinkNASTransport)
 		case ngapType.ProcedureCodeNGReset:
