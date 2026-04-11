@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -12,78 +13,39 @@ import (
 	"go.uber.org/zap"
 )
 
-func HandleRanConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg *ngapType.RANConfigurationUpdate) {
-	if msg == nil {
-		logger.WithTrace(ctx, ran.Log).Error("NGAP Message is nil")
-		return
-	}
+func HandleRanConfigurationUpdate(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.RANConfigurationUpdate) {
+	var cause ngapType.Cause
 
-	var (
-		rANNodeName     *ngapType.RANNodeName
-		supportedTAList *ngapType.SupportedTAList
-		pagingDRX       *ngapType.PagingDRX
-		cause           ngapType.Cause
-	)
-
-	for i := 0; i < len(msg.ProtocolIEs.List); i++ {
-		ie := msg.ProtocolIEs.List[i]
-		switch ie.Id.Value {
-		case ngapType.ProtocolIEIDRANNodeName:
-			rANNodeName = ie.Value.RANNodeName
-			if rANNodeName == nil {
-				logger.WithTrace(ctx, ran.Log).Error("RAN Node Name is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDSupportedTAList:
-			supportedTAList = ie.Value.SupportedTAList
-			if supportedTAList == nil {
-				logger.WithTrace(ctx, ran.Log).Error("Supported TA List is nil")
-				return
-			}
-		case ngapType.ProtocolIEIDDefaultPagingDRX:
-			pagingDRX = ie.Value.DefaultPagingDRX
-			if pagingDRX == nil {
-				logger.WithTrace(ctx, ran.Log).Error("PagingDRX is nil")
-				return
-			}
-		}
-	}
-
-	if supportedTAList == nil {
+	if msg.SupportedTAItems == nil {
 		logger.WithTrace(ctx, ran.Log).Warn("SupportedTAList IE is missing in RANConfigurationUpdate")
 	}
 
-	if supportedTAList != nil {
-		for i := 0; i < len(supportedTAList.List); i++ {
-			supportedTAItem := supportedTAList.List[i]
-			tac := hex.EncodeToString(supportedTAItem.TAC.Value)
-			capOfSupportTai := cap(ran.SupportedTAIs)
+	for _, supportedTAItem := range msg.SupportedTAItems {
+		tac := hex.EncodeToString(supportedTAItem.TAC.Value)
+		capOfSupportTai := cap(ran.SupportedTAIs)
 
-			for j := 0; j < len(supportedTAItem.BroadcastPLMNList.List); j++ {
-				supportedTAI := amf.SupportedTAI{}
-				supportedTAI.SNssaiList = make([]models.Snssai, 0)
-				supportedTAI.Tai.Tac = tac
-				broadcastPLMNItem := supportedTAItem.BroadcastPLMNList.List[j]
-				plmnID := util.PlmnIDToModels(broadcastPLMNItem.PLMNIdentity)
-				supportedTAI.Tai.PlmnID = &plmnID
-				capOfSNssaiList := cap(supportedTAI.SNssaiList)
+		for _, broadcastPLMNItem := range supportedTAItem.BroadcastPLMNList.List {
+			supportedTAI := amf.SupportedTAI{}
+			supportedTAI.SNssaiList = make([]models.Snssai, 0)
+			supportedTAI.Tai.Tac = tac
+			plmnID := util.PlmnIDToModels(broadcastPLMNItem.PLMNIdentity)
+			supportedTAI.Tai.PlmnID = &plmnID
+			capOfSNssaiList := cap(supportedTAI.SNssaiList)
 
-				for k := 0; k < len(broadcastPLMNItem.TAISliceSupportList.List); k++ {
-					tAISliceSupportItem := broadcastPLMNItem.TAISliceSupportList.List[k]
-					if len(supportedTAI.SNssaiList) < capOfSNssaiList {
-						supportedTAI.SNssaiList = append(supportedTAI.SNssaiList, util.SNssaiToModels(tAISliceSupportItem.SNSSAI))
-					} else {
-						break
-					}
-				}
-
-				logger.WithTrace(ctx, ran.Log).Debug("handle ran configuration update", zap.Any("PLMN_ID", plmnID), zap.String("TAC", tac))
-
-				if len(ran.SupportedTAIs) < capOfSupportTai {
-					ran.SupportedTAIs = append(ran.SupportedTAIs, supportedTAI)
+			for _, tAISliceSupportItem := range broadcastPLMNItem.TAISliceSupportList.List {
+				if len(supportedTAI.SNssaiList) < capOfSNssaiList {
+					supportedTAI.SNssaiList = append(supportedTAI.SNssaiList, util.SNssaiToModels(tAISliceSupportItem.SNSSAI))
 				} else {
 					break
 				}
+			}
+
+			logger.WithTrace(ctx, ran.Log).Debug("handle ran configuration update", zap.Any("PLMN_ID", plmnID), zap.String("TAC", tac))
+
+			if len(ran.SupportedTAIs) < capOfSupportTai {
+				ran.SupportedTAIs = append(ran.SupportedTAIs, supportedTAI)
+			} else {
+				break
 			}
 		}
 	}

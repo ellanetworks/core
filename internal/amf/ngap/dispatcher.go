@@ -159,25 +159,70 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 
 			HandleInitialUEMessage(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeUplinkNASTransport:
-			HandleUplinkNasTransport(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.UplinkNASTransport)
+			decoded, report := decode.DecodeUplinkNASTransport(pdu.InitiatingMessage.Value.UplinkNASTransport)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleUplinkNasTransport(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeNGReset:
-			HandleNGReset(ctx, ran, pdu.InitiatingMessage.Value.NGReset)
+			decoded, report := decode.DecodeNGReset(pdu.InitiatingMessage.Value.NGReset)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleNGReset(ctx, ran, decoded)
 		case ngapType.ProcedureCodeHandoverCancel:
-			HandleHandoverCancel(ctx, ran, pdu.InitiatingMessage.Value.HandoverCancel)
+			decoded, report := decode.DecodeHandoverCancel(pdu.InitiatingMessage.Value.HandoverCancel)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleHandoverCancel(ctx, ran, decoded)
 		case ngapType.ProcedureCodeUEContextReleaseRequest:
-			HandleUEContextReleaseRequest(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.UEContextReleaseRequest)
+			decoded, report := decode.DecodeUEContextReleaseRequest(pdu.InitiatingMessage.Value.UEContextReleaseRequest)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleUEContextReleaseRequest(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeNASNonDeliveryIndication:
-			HandleNasNonDeliveryIndication(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.NASNonDeliveryIndication)
+			decoded, report := decode.DecodeNASNonDeliveryIndication(pdu.InitiatingMessage.Value.NASNonDeliveryIndication)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleNasNonDeliveryIndication(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeErrorIndication:
-			HandleErrorIndication(ctx, ran, pdu.InitiatingMessage.Value.ErrorIndication)
+			decoded, report := decode.DecodeErrorIndication(pdu.InitiatingMessage.Value.ErrorIndication)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleErrorIndication(ctx, ran, decoded)
 		case ngapType.ProcedureCodeUERadioCapabilityInfoIndication:
-			HandleUERadioCapabilityInfoIndication(ctx, ran, pdu.InitiatingMessage.Value.UERadioCapabilityInfoIndication)
+			decoded, report := decode.DecodeUERadioCapabilityInfoIndication(pdu.InitiatingMessage.Value.UERadioCapabilityInfoIndication)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleUERadioCapabilityInfoIndication(ctx, ran, decoded)
 		case ngapType.ProcedureCodeHandoverNotification:
 			HandleHandoverNotify(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.HandoverNotify)
 		case ngapType.ProcedureCodeHandoverPreparation:
-			HandleHandoverRequired(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.HandoverRequired)
+			decoded, report := decode.DecodeHandoverRequired(pdu.InitiatingMessage.Value.HandoverRequired)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleHandoverRequired(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeRANConfigurationUpdate:
-			HandleRanConfigurationUpdate(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.RANConfigurationUpdate)
+			decoded, report := decode.DecodeRANConfigurationUpdate(pdu.InitiatingMessage.Value.RANConfigurationUpdate)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleRanConfigurationUpdate(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodePDUSessionResourceNotify:
 			HandlePDUSessionResourceNotify(ctx, amfInstance, ran, pdu.InitiatingMessage.Value.PDUSessionResourceNotify)
 		case ngapType.ProcedureCodePathSwitchRequest:
@@ -209,7 +254,12 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 		case ngapType.ProcedureCodePDUSessionResourceRelease:
 			HandlePDUSessionResourceReleaseResponse(ctx, amfInstance, ran, pdu.SuccessfulOutcome.Value.PDUSessionResourceReleaseResponse)
 		case ngapType.ProcedureCodeInitialContextSetup:
-			HandleInitialContextSetupResponse(ctx, amfInstance, ran, pdu.SuccessfulOutcome.Value.InitialContextSetupResponse)
+			decoded, report := decode.DecodeInitialContextSetupResponse(pdu.SuccessfulOutcome.Value.InitialContextSetupResponse)
+			if !handleDecodeReport(ctx, ran, report) {
+				return
+			}
+
+			HandleInitialContextSetupResponse(ctx, amfInstance, ran, decoded)
 		case ngapType.ProcedureCodeUEContextModification:
 			HandleUEContextModificationResponse(ctx, amfInstance, ran, pdu.SuccessfulOutcome.Value.UEContextModificationResponse)
 		case ngapType.ProcedureCodePDUSessionResourceSetup:

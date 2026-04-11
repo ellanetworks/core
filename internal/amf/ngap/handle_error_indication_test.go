@@ -7,14 +7,13 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf/ngap"
-	"github.com/free5gc/ngap/ngapType"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 )
 
 func TestHandleErrorIndication_EmptyIEs(t *testing.T) {
 	ran := newTestRadio()
-	msg := &ngapType.ErrorIndication{}
 
 	assertNoPanic(t, "HandleErrorIndication(empty IEs)", func() {
-		ngap.HandleErrorIndication(context.Background(), ran, msg)
+		ngap.HandleErrorIndication(context.Background(), ran, decode.ErrorIndication{})
 	})
 }

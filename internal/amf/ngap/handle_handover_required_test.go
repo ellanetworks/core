@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
+	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -20,6 +21,20 @@ import (
 	"github.com/free5gc/ngap/ngapConvert"
 	"github.com/free5gc/ngap/ngapType"
 )
+
+// decodeHandoverRequiredOrFatal decodes msg and fails the test only if
+// the decoder reports a fatal error. Non-fatal reports are accepted:
+// the dispatcher would invoke the handler in that case anyway.
+func decodeHandoverRequiredOrFatal(t *testing.T, msg *ngapType.HandoverRequired) decode.HandoverRequired {
+	t.Helper()
+
+	decoded, report := decode.DecodeHandoverRequired(msg)
+	if report != nil && report.Fatal() {
+		t.Fatalf("decoder produced fatal report: %+v", report)
+	}
+
+	return decoded
+}
 
 type HandoverRequiredOpts struct {
 	AMFUENGAPID ngapType.AMFUENGAPID
@@ -275,61 +290,11 @@ func TestHandoverRequired(t *testing.T) {
 		new(sctp.SCTPConn): targetRan,
 	}
 
-	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg.InitiatingMessage.Value.HandoverRequired)
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, decodeHandoverRequiredOrFatal(t, msg.InitiatingMessage.Value.HandoverRequired))
 
 	// Verify a HandoverRequest was sent to the target gNB
 	if len(targetNGAPSender.SentHandoverRequests) != 1 {
 		t.Fatalf("expected 1 HandoverRequest to target gNB, got %d", len(targetNGAPSender.SentHandoverRequests))
-	}
-}
-
-func TestHandoverRequired_MissingMandatoryIEs(t *testing.T) {
-	// Build a HandoverRequired message without TargetID, PDUSessionResourceListHORqd,
-	// or SourceToTargetTransparentContainer. The handler should send an ErrorIndication
-	// with criticality diagnostics listing the missing IEs.
-	msg, err := buildHandoverRequired(&HandoverRequiredOpts{
-		AMFUENGAPID: ngapType.AMFUENGAPID{Value: 1},
-		RANUENGAPID: ngapType.RANUENGAPID{Value: 1},
-		// TargetID, PDUSessionResourceListHORqd, SourceToTargetTransparentContainer all nil
-	})
-	if err != nil {
-		t.Fatalf("failed to build HandoverRequired: %v", err)
-	}
-
-	fakeNGAPSender := &FakeNGAPSender{}
-	ran := &amf.Radio{
-		Log:           logger.AmfLog,
-		NGAPSender:    fakeNGAPSender,
-		RanUEs:        make(map[int64]*amf.RanUe),
-		SupportedTAIs: make([]amf.SupportedTAI, 0),
-	}
-
-	amfInstance := amf.New(nil, nil, nil)
-
-	ngap.HandleHandoverRequired(context.Background(), amfInstance, ran, msg.InitiatingMessage.Value.HandoverRequired)
-
-	if len(fakeNGAPSender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication, got %d", len(fakeNGAPSender.SentErrorIndications))
-	}
-
-	errorIndication := fakeNGAPSender.SentErrorIndications[0]
-	if errorIndication.CriticalityDiagnostics == nil {
-		t.Fatal("expected CriticalityDiagnostics in ErrorIndication, got nil")
-	}
-
-	// Should report 3 missing IEs: TargetID, PDUSessionResourceListHORqd, SourceToTargetTransparentContainer
-	ieList := errorIndication.CriticalityDiagnostics.IEsCriticalityDiagnostics
-	if ieList == nil || len(ieList.List) != 3 {
-		count := 0
-		if ieList != nil {
-			count = len(ieList.List)
-		}
-
-		t.Fatalf("expected 3 missing IE diagnostics, got %d", count)
-	}
-
-	if len(fakeNGAPSender.SentHandoverRequests) != 0 {
-		t.Fatalf("expected no HandoverRequest to be sent, got %d", len(fakeNGAPSender.SentHandoverRequests))
 	}
 }
 
@@ -390,7 +355,7 @@ func TestHandoverRequired_UnknownRanUeNgapID(t *testing.T) {
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	ngap.HandleHandoverRequired(context.Background(), amfInstance, ran, msg.InitiatingMessage.Value.HandoverRequired)
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, ran, decodeHandoverRequiredOrFatal(t, msg.InitiatingMessage.Value.HandoverRequired))
 
 	if len(fakeNGAPSender.SentErrorIndications) != 1 {
 		t.Fatalf("expected 1 ErrorIndication, got %d", len(fakeNGAPSender.SentErrorIndications))
@@ -485,7 +450,7 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, msg.InitiatingMessage.Value.HandoverRequired)
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, decodeHandoverRequiredOrFatal(t, msg.InitiatingMessage.Value.HandoverRequired))
 
 	if len(sourceNGAPSender.SentHandoverPreparationFailures) != 1 {
 		t.Fatalf("expected 1 HandoverPreparationFailure, got %d", len(sourceNGAPSender.SentHandoverPreparationFailures))
