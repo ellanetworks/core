@@ -520,3 +520,28 @@ func newTestRadio() *amf.Radio {
 func newTestAMF() *amf.AMF {
 	return amf.New(nil, nil, nil)
 }
+
+// NASCall records one invocation of the NAS handler.
+type NASCall struct {
+	RanUe  *amf.RanUe
+	NASPDU []byte
+}
+
+// FakeNASHandler records calls and returns a pre-configured error.
+type FakeNASHandler struct {
+	Calls []NASCall
+	Err   error
+}
+
+func (f *FakeNASHandler) HandleNAS(_ context.Context, ue *amf.RanUe, nasPdu []byte) error {
+	f.Calls = append(f.Calls, NASCall{RanUe: ue, NASPDU: nasPdu})
+	return f.Err
+}
+
+// newTestAMFWithNAS creates a minimal AMF with a FakeNASHandler wired in.
+func newTestAMFWithNAS(nasHandler *FakeNASHandler) *amf.AMF {
+	a := newTestAMF()
+	a.NAS = nasHandler
+
+	return a
+}

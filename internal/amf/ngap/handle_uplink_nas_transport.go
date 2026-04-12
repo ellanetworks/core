@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/amf/nas"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
@@ -36,7 +35,12 @@ func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 		ranUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation.Raw())
 	}
 
-	err := nas.HandleNAS(ctx, amfInstance, ranUe, msg.NASPDU)
+	if amfInstance.NAS == nil {
+		logger.WithTrace(ctx, ranUe.Log).Error("NAS handler not set")
+		return
+	}
+
+	err := amfInstance.NAS.HandleNAS(ctx, ranUe, msg.NASPDU)
 	if err != nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("error handling NAS message", zap.Error(err))
 	}

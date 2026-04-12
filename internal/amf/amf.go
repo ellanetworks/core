@@ -86,6 +86,10 @@ type DBer interface {
 	ListPoliciesByProfile(ctx context.Context, profileID int) ([]db.Policy, error)
 }
 
+type NASHandler interface {
+	HandleNAS(ctx context.Context, ue *RanUe, nasPdu []byte) error
+}
+
 // Lock ordering (acquire in this order, never reverse):
 //
 //	AMF.mu  →  AmfUe.Mutex
@@ -116,6 +120,7 @@ type AMF struct {
 	T3560Cfg                 TimerValue
 	T3565Cfg                 TimerValue
 	Smf                      SmfSbi
+	NAS                      NASHandler
 }
 
 func (a *AMF) allocateTMSI(ctx context.Context) (etsi.TMSI, error) {
