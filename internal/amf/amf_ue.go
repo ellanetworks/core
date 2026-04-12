@@ -521,15 +521,12 @@ func (ue *AmfUe) UpdateNH() error {
 	return nil
 }
 
-func (ue *AmfUe) SelectSecurityAlg(intOrder, encOrder []uint8) {
-	ue.CipheringAlg = security.AlgCiphering128NEA0
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
-
+func (ue *AmfUe) SelectSecurityAlg(intOrder, encOrder []uint8) error {
 	if ue.UESecurityCapability == nil {
-		logger.AmfLog.Warn("AMF UE Security Capability is not available, using null encryption (NEA0) and null integrity (NIA0)")
-		return
+		return fmt.Errorf("UE security capability not available, cannot negotiate NAS security algorithms")
 	}
 
+	intFound := false
 	ueSupported := uint8(0)
 
 	for _, intAlg := range intOrder {
@@ -546,10 +543,17 @@ func (ue *AmfUe) SelectSecurityAlg(intOrder, encOrder []uint8) {
 
 		if ueSupported == 1 {
 			ue.IntegrityAlg = intAlg
+			intFound = true
+
 			break
 		}
 	}
 
+	if !intFound {
+		return fmt.Errorf("no common NAS integrity algorithm found")
+	}
+
+	encFound := false
 	ueSupported = uint8(0)
 
 	for _, encAlg := range encOrder {
@@ -566,9 +570,17 @@ func (ue *AmfUe) SelectSecurityAlg(intOrder, encOrder []uint8) {
 
 		if ueSupported == 1 {
 			ue.CipheringAlg = encAlg
+			encFound = true
+
 			break
 		}
 	}
+
+	if !encFound {
+		return fmt.Errorf("no common NAS ciphering algorithm found")
+	}
+
+	return nil
 }
 
 // this is clearing the transient data of registration request, this is called entrypoint of Deregistration and Registration state

@@ -13,7 +13,6 @@ import (
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/nas/nasType"
-	"github.com/free5gc/nas/security"
 )
 
 func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *testing.T) {
@@ -304,6 +303,8 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 			Mcc:           "001",
 			Mnc:           "01",
 			SupportedTACs: "[\"1\"]",
+			Integrity:     `["NIA1","NIA0"]`,
+			Ciphering:     `["NEA1","NEA0"]`,
 		},
 	}, &FakeAusf{
 		AvKgAka: &ausf.AuthResult{
@@ -331,12 +332,8 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 	}
 	ue.UESecurityCapability.SetEA0_5G(1)
 	ue.UESecurityCapability.SetEA1_128_5G(1)
-	ue.UESecurityCapability.SetEA2_128_5G(1)
-	ue.UESecurityCapability.SetEA2_128_5G(0)
 	ue.UESecurityCapability.SetIA0_5G(1)
 	ue.UESecurityCapability.SetIA1_128_5G(1)
-	ue.UESecurityCapability.SetIA2_128_5G(1)
-	ue.UESecurityCapability.SetIA2_128_5G(0)
 
 	err = handleAuthenticationResponse(t.Context(), amfInstance, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 	if err != nil {
@@ -359,13 +356,9 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 		t.Fatalf("expected a protected with new 5g NAS security context NAS message, got: %v", nm.SecurityHeaderType)
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
-		t.Fatalf("could not decrypt NAS message: %v", err)
-	}
-
 	err = nm.PlainNasDecode(&payload)
 	if err != nil {
-		t.Fatalf("could not decode ciphered NAS message: %v", err)
+		t.Fatalf("could not decode NAS message: %v", err)
 	}
 
 	if nm.GmmHeader.GetMessageType() != nas.MsgTypeSecurityModeCommand {

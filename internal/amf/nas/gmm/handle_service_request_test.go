@@ -1470,12 +1470,6 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("handleServiceRequest panicked with out-of-range PDU session ID: %v", r)
-		}
-	}()
-
 	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest)
 	if err != nil {
 		t.Logf("handleServiceRequest returned error (acceptable): %v", err)
@@ -1535,12 +1529,6 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 	// Ensure PDUSessionStatus is set in the inner message (it is by default in
 	// buildTestServiceRequestCiphered). The panic occurs when iterating SmContextList
 	// and indexing into the [16]bool psiArray with pduSessionID >= 16.
-
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("handleServiceRequest panicked with out-of-range PDU session ID: %v", r)
-		}
-	}()
 
 	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest)
 	if err != nil {

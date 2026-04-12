@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 var tracer = otel.Tracer("ella-core/amf/ngap/send")
@@ -41,13 +40,6 @@ func (s *RealNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType N
 		return fmt.Errorf("could not determine SCTP stream ID from NGAP message type (%s): %s", msgType, err.Error())
 	}
 
-	defer func() {
-		err := recover()
-		if err != nil {
-			logger.AmfLog.Warn("could not send to ran", zap.Any("error", err))
-		}
-	}()
-
 	if len(packet) == 0 {
 		return fmt.Errorf("packet len is 0")
 	}
@@ -56,8 +48,14 @@ func (s *RealNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType N
 		return fmt.Errorf("ran conn is nil")
 	}
 
-	if s.Conn.RemoteAddr() == nil {
-		return fmt.Errorf("ran address is nil")
+	localAddr := s.Conn.LocalAddr()
+	if localAddr == nil {
+		return fmt.Errorf("ran local address is nil")
+	}
+
+	remoteAddr := s.Conn.RemoteAddr()
+	if remoteAddr == nil {
+		return fmt.Errorf("ran remote address is nil")
 	}
 
 	info := sctp.SndRcvInfo{
@@ -73,8 +71,8 @@ func (s *RealNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType N
 		logger.NGAPNetworkProtocol,
 		string(msgType),
 		logger.DirectionOutbound,
-		s.Conn.LocalAddr().String(),
-		s.Conn.RemoteAddr().String(),
+		localAddr.String(),
+		remoteAddr.String(),
 		s.RadioName,
 		packet,
 	)
