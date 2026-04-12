@@ -1238,12 +1238,5 @@ func TestTransport5GSMMessage_NoSmContext_NilRequestType_Panic(t *testing.T) {
 
 	amfInstance := amf.New(&FakeDBInstance{}, nil, &FakeSmf{})
 
-	// This should NOT panic — it should return an error gracefully
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("transport5GSMMessage panicked with nil RequestType (no SM context): %v", r)
-		}
-	}()
-
 	_ = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 }

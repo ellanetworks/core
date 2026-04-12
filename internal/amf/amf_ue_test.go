@@ -4,10 +4,13 @@ package amf_test
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/free5gc/nas/nasMessage"
+	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/nas/security"
 )
 
@@ -188,6 +191,167 @@ func TestIsAllowedNssai(t *testing.T) {
 			got := ue.IsAllowedNssai(tc.target)
 			if got != tc.expected {
 				t.Fatalf("expected %v, got %v", tc.expected, got)
+			}
+		})
+	}
+}
+
+// makeUESecCap creates a UESecurityCapability with the given 5G integrity and ciphering bits set.
+func makeUESecCap(ia0, ia1, ia2, ia3, ea0, ea1, ea2, ea3 uint8) *nasType.UESecurityCapability {
+	ueCap := &nasType.UESecurityCapability{
+		Iei:    nasMessage.RegistrationRequestUESecurityCapabilityType,
+		Len:    2,
+		Buffer: []uint8{0x00, 0x00},
+	}
+	ueCap.SetIA0_5G(ia0)
+	ueCap.SetIA1_128_5G(ia1)
+	ueCap.SetIA2_128_5G(ia2)
+	ueCap.SetIA3_128_5G(ia3)
+	ueCap.SetEA0_5G(ea0)
+	ueCap.SetEA1_128_5G(ea1)
+	ueCap.SetEA2_128_5G(ea2)
+	ueCap.SetEA3_128_5G(ea3)
+
+	return ueCap
+}
+
+func TestSelectSecurityAlg(t *testing.T) {
+	tests := []struct {
+		name       string
+		cap        *nasType.UESecurityCapability
+		intOrder   []uint8
+		encOrder   []uint8
+		wantErr    string
+		wantIntAlg uint8
+		wantEncAlg uint8
+	}{
+		{
+			name:    "nil UE security capability",
+			cap:     nil,
+			wantErr: "UE security capability not available",
+		},
+		{
+			name:     "no common integrity algorithm",
+			cap:      makeUESecCap(0, 0, 1, 0, 1, 1, 1, 1),
+			intOrder: []uint8{security.AlgIntegrity128NIA1},
+			encOrder: []uint8{security.AlgCiphering128NEA0},
+			wantErr:  "no common NAS integrity algorithm found",
+		},
+		{
+			name:     "no common ciphering algorithm",
+			cap:      makeUESecCap(1, 1, 1, 1, 0, 0, 1, 0),
+			intOrder: []uint8{security.AlgIntegrity128NIA1},
+			encOrder: []uint8{security.AlgCiphering128NEA1},
+			wantErr:  "no common NAS ciphering algorithm found",
+		},
+		{
+			name:       "selects highest priority integrity and ciphering",
+			cap:        makeUESecCap(1, 1, 1, 0, 1, 1, 1, 0),
+			intOrder:   []uint8{security.AlgIntegrity128NIA2, security.AlgIntegrity128NIA1},
+			encOrder:   []uint8{security.AlgCiphering128NEA2, security.AlgCiphering128NEA1},
+			wantIntAlg: security.AlgIntegrity128NIA2,
+			wantEncAlg: security.AlgCiphering128NEA2,
+		},
+		{
+			name:       "falls back to second choice when first not supported",
+			cap:        makeUESecCap(0, 1, 0, 0, 0, 0, 1, 0),
+			intOrder:   []uint8{security.AlgIntegrity128NIA2, security.AlgIntegrity128NIA1},
+			encOrder:   []uint8{security.AlgCiphering128NEA1, security.AlgCiphering128NEA2},
+			wantIntAlg: security.AlgIntegrity128NIA1,
+			wantEncAlg: security.AlgCiphering128NEA2,
+		},
+		{
+			name:       "NIA0 and NEA0 selected when explicitly in preference order",
+			cap:        makeUESecCap(1, 0, 0, 0, 1, 0, 0, 0),
+			intOrder:   []uint8{security.AlgIntegrity128NIA0},
+			encOrder:   []uint8{security.AlgCiphering128NEA0},
+			wantIntAlg: security.AlgIntegrity128NIA0,
+			wantEncAlg: security.AlgCiphering128NEA0,
+		},
+		{
+			name:       "NIA0 not selected when not in preference order even if UE supports it",
+			cap:        makeUESecCap(1, 1, 1, 1, 1, 1, 1, 1),
+			intOrder:   []uint8{security.AlgIntegrity128NIA2, security.AlgIntegrity128NIA1},
+			encOrder:   []uint8{security.AlgCiphering128NEA2, security.AlgCiphering128NEA1},
+			wantIntAlg: security.AlgIntegrity128NIA2,
+			wantEncAlg: security.AlgCiphering128NEA2,
+		},
+		{
+			name:       "single algorithm match NIA1 NEA1",
+			cap:        makeUESecCap(0, 1, 0, 0, 0, 1, 0, 0),
+			intOrder:   []uint8{security.AlgIntegrity128NIA1},
+			encOrder:   []uint8{security.AlgCiphering128NEA1},
+			wantIntAlg: security.AlgIntegrity128NIA1,
+			wantEncAlg: security.AlgCiphering128NEA1,
+		},
+		{
+			name:       "NIA3 NEA3 only",
+			cap:        makeUESecCap(0, 0, 0, 1, 0, 0, 0, 1),
+			intOrder:   []uint8{security.AlgIntegrity128NIA3},
+			encOrder:   []uint8{security.AlgCiphering128NEA3},
+			wantIntAlg: security.AlgIntegrity128NIA3,
+			wantEncAlg: security.AlgCiphering128NEA3,
+		},
+		{
+			name:     "empty preference lists",
+			cap:      makeUESecCap(1, 1, 1, 1, 1, 1, 1, 1),
+			intOrder: []uint8{},
+			encOrder: []uint8{},
+			wantErr:  "no common NAS integrity algorithm found",
+		},
+		{
+			name:     "integrity matches but empty ciphering preference",
+			cap:      makeUESecCap(0, 1, 0, 0, 1, 1, 1, 1),
+			intOrder: []uint8{security.AlgIntegrity128NIA1},
+			encOrder: []uint8{},
+			wantErr:  "no common NAS ciphering algorithm found",
+		},
+		{
+			name:       "operator preference order is respected: NIA1 before NIA2",
+			cap:        makeUESecCap(0, 1, 1, 0, 0, 1, 1, 0),
+			intOrder:   []uint8{security.AlgIntegrity128NIA1, security.AlgIntegrity128NIA2},
+			encOrder:   []uint8{security.AlgCiphering128NEA1, security.AlgCiphering128NEA2},
+			wantIntAlg: security.AlgIntegrity128NIA1,
+			wantEncAlg: security.AlgCiphering128NEA1,
+		},
+		{
+			name:       "operator preference order is respected: NIA2 before NIA1",
+			cap:        makeUESecCap(0, 1, 1, 0, 0, 1, 1, 0),
+			intOrder:   []uint8{security.AlgIntegrity128NIA2, security.AlgIntegrity128NIA1},
+			encOrder:   []uint8{security.AlgCiphering128NEA2, security.AlgCiphering128NEA1},
+			wantIntAlg: security.AlgIntegrity128NIA2,
+			wantEncAlg: security.AlgCiphering128NEA2,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ue := &amf.AmfUe{UESecurityCapability: tc.cap}
+
+			err := ue.SelectSecurityAlg(tc.intOrder, tc.encOrder)
+
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tc.wantErr)
+				}
+
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected error containing %q, got %q", tc.wantErr, err.Error())
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if ue.IntegrityAlg != tc.wantIntAlg {
+				t.Errorf("IntegrityAlg: got %d, want %d", ue.IntegrityAlg, tc.wantIntAlg)
+			}
+
+			if ue.CipheringAlg != tc.wantEncAlg {
+				t.Errorf("CipheringAlg: got %d, want %d", ue.CipheringAlg, tc.wantEncAlg)
 			}
 		})
 	}

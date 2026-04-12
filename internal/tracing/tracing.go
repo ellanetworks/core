@@ -8,8 +8,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
-	sdkresource "go.opentelemetry.io/otel/sdk/resource"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/resource"
+	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 )
 
@@ -22,7 +22,7 @@ type TelemetryConfig struct {
 }
 
 // InitTracer sets up a global TracerProvider based on the given configuration.
-func InitTracer(ctx context.Context, cfg TelemetryConfig) (*sdktrace.TracerProvider, error) {
+func InitTracer(ctx context.Context, cfg TelemetryConfig) (*trace.TracerProvider, error) {
 	exp, err := otlptracegrpc.New(ctx,
 		otlptracegrpc.WithEndpoint(cfg.OTLPEndpoint),
 		otlptracegrpc.WithInsecure(),
@@ -31,12 +31,12 @@ func InitTracer(ctx context.Context, cfg TelemetryConfig) (*sdktrace.TracerProvi
 		return nil, fmt.Errorf("failed to create OTLP exporter: %w", err)
 	}
 
-	sampler := sdktrace.AlwaysSample()
+	sampler := trace.AlwaysSample()
 
-	res, err := sdkresource.New(ctx,
-		sdkresource.WithHost(),
-		sdkresource.WithProcess(),
-		sdkresource.WithAttributes(
+	res, err := resource.New(ctx,
+		resource.WithHost(),
+		resource.WithProcess(),
+		resource.WithAttributes(
 			semconv.ServiceName(cfg.ServiceName),
 			semconv.ServiceVersion(cfg.ServiceVersion),
 			attribute.String("service.revision", cfg.ServiceRevision),
@@ -46,10 +46,10 @@ func InitTracer(ctx context.Context, cfg TelemetryConfig) (*sdktrace.TracerProvi
 		return nil, fmt.Errorf("failed to create resource: %w", err)
 	}
 
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sampler),
-		sdktrace.WithBatcher(exp),
-		sdktrace.WithResource(res),
+	tp := trace.NewTracerProvider(
+		trace.WithSampler(sampler),
+		trace.WithBatcher(exp),
+		trace.WithResource(res),
 	)
 
 	otel.SetTracerProvider(tp)

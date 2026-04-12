@@ -29,7 +29,10 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe) erro
 		return fmt.Errorf("error getting security algorithms: %v", err)
 	}
 
-	ue.SelectSecurityAlg(integrityOrder, cipheringOrder)
+	err = ue.SelectSecurityAlg(integrityOrder, cipheringOrder)
+	if err != nil {
+		return fmt.Errorf("NAS security algorithm negotiation failed: %v", err)
+	}
 
 	err = ue.DerivateAlgKey()
 	if err != nil {

@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 var tracer = otel.Tracer("ella-core/amf/ngap/send")
@@ -40,13 +39,6 @@ func (s *RealNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType N
 	if err != nil {
 		return fmt.Errorf("could not determine SCTP stream ID from NGAP message type (%s): %s", msgType, err.Error())
 	}
-
-	defer func() {
-		err := recover()
-		if err != nil {
-			logger.AmfLog.Warn("could not send to ran", zap.Any("error", err))
-		}
-	}()
 
 	if len(packet) == 0 {
 		return fmt.Errorf("packet len is 0")

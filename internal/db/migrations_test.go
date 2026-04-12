@@ -530,11 +530,11 @@ func TestMigrateV2_AddsColumns(t *testing.T) {
 		t.Fatalf("failed to query new columns: %v", err)
 	}
 
-	if want := `["NEA2","NEA1","NEA0"]`; ciphering != want {
+	if want := `["NEA2","NEA1"]`; ciphering != want {
 		t.Errorf("ciphering = %q, want %q", ciphering, want)
 	}
 
-	if want := `["NIA2","NIA1","NIA0"]`; integrity != want {
+	if want := `["NIA2","NIA1"]`; integrity != want {
 		t.Errorf("integrity = %q, want %q", integrity, want)
 	}
 
