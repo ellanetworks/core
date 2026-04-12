@@ -246,8 +246,8 @@ func migrateV7(ctx context.Context, tx *sql.Tx) error {
 			mnc           TEXT NOT NULL,
 			operatorCode  TEXT NOT NULL,
 			supportedTACs TEXT DEFAULT '[]',
-			ciphering     TEXT NOT NULL DEFAULT '["NEA2","NEA1","NEA0"]',
-			integrity     TEXT NOT NULL DEFAULT '["NIA2","NIA1","NIA0"]',
+			ciphering     TEXT NOT NULL DEFAULT '["NEA2","NEA1"]',
+			integrity     TEXT NOT NULL DEFAULT '["NIA2","NIA1"]',
 			spnFullName   TEXT NOT NULL DEFAULT 'Ella Networks',
 			spnShortName  TEXT NOT NULL DEFAULT 'Ella'
 		)`, OperatorTableName))

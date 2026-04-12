@@ -22,12 +22,10 @@ func TestHandleNAS_ShortIntegrityProtectedPayload(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	ue := &amf.RanUe{} // AmfUe is nil, so HandleNAS enters fetchUeContextWithMobileIdentity
 
-	assertNoPanic(t, "HandleNAS(short integrity-protected payload)", func() {
-		err := HandleNAS(context.Background(), amfInstance, ue, shortPayload)
-		if err == nil {
-			t.Fatal("expected error for short integrity-protected payload, got nil")
-		}
-	})
+	err := HandleNAS(context.Background(), amfInstance, ue, shortPayload)
+	if err == nil {
+		t.Fatal("expected error for short integrity-protected payload, got nil")
+	}
 }
 
 func TestHandleNAS_NilPayload(t *testing.T) {
@@ -44,12 +42,10 @@ func TestHandleNAS_SingleBytePayload(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	ue := &amf.RanUe{}
 
-	assertNoPanic(t, "HandleNAS(single-byte payload)", func() {
-		err := HandleNAS(context.Background(), amfInstance, ue, []byte{0x7e})
-		if err == nil {
-			t.Fatal("expected error for single-byte payload, got nil")
-		}
-	})
+	err := HandleNAS(context.Background(), amfInstance, ue, []byte{0x7e})
+	if err == nil {
+		t.Fatal("expected error for single-byte payload, got nil")
+	}
 }
 
 func TestHandleNAS_IntegrityProtectedPayloadExactly6Bytes(t *testing.T) {
@@ -59,23 +55,8 @@ func TestHandleNAS_IntegrityProtectedPayloadExactly6Bytes(t *testing.T) {
 	amfInstance := amf.New(nil, nil, nil)
 	ue := &amf.RanUe{}
 
-	assertNoPanic(t, "HandleNAS(6-byte integrity-protected payload)", func() {
-		err := HandleNAS(context.Background(), amfInstance, ue, payload)
-		if err == nil {
-			t.Fatal("expected error for 6-byte integrity-protected payload, got nil")
-		}
-	})
-}
-
-// assertNoPanic runs fn and fails the test if it panics.
-func assertNoPanic(t *testing.T, name string, fn func()) {
-	t.Helper()
-
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatalf("%s panicked: %v", name, r)
-		}
-	}()
-
-	fn()
+	err := HandleNAS(context.Background(), amfInstance, ue, payload)
+	if err == nil {
+		t.Fatal("expected error for 6-byte integrity-protected payload, got nil")
+	}
 }
