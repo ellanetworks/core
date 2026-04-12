@@ -8,7 +8,9 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"path/filepath"
 	"sync"
 
 	"github.com/canonical/sqlair"
@@ -21,9 +23,13 @@ import (
 
 var tracer = otel.Tracer("ella-core/db")
 
-// Database is the object used to communicate with the established repository.
+// Database holds the two SQLite handles backing the application:
+//   - shared: configuration and state (subscribers, policies, leases, ...).
+//   - local:  per-instance telemetry (radio events, flow reports).
+//
+// dataDir is the directory containing both files.
 type Database struct {
-	filepath  string
+	dataDir   string
 	restoreMu sync.Mutex
 
 	// Subscriber statements
@@ -234,8 +240,18 @@ type Database struct {
 	deleteUserStmt       *sqlair.Statement
 	countUsersStmt       *sqlair.Statement
 
-	conn *sqlair.DB
+	// shared holds the SQLite handle for configuration/state tables.
+	shared *sqlair.DB
+
+	// local holds the SQLite handle for per-instance telemetry tables
+	// (network_logs, flow_reports).
+	local *sqlair.DB
 }
+
+const (
+	SharedDBFilename = "shared.db"
+	LocalDBFilename  = "local.db"
+)
 
 // Initial Retention Policy values
 const (
@@ -282,9 +298,18 @@ const (
 	InitialPolicyArp                 = 1 // Default ARP of 1
 )
 
+// SyncMode selects the SQLite synchronous PRAGMA. shared.db uses SyncFull for
+// durability; local.db uses SyncNormal to keep telemetry writes cheap.
+type SyncMode int
+
+const (
+	SyncNormal SyncMode = iota
+	SyncFull
+)
+
 // openSQLiteConnection opens a SQLite database at the given path and configures
 // connection limits, busy timeout, WAL journaling, synchronous mode, and foreign keys.
-func openSQLiteConnection(ctx context.Context, databasePath string) (*sql.DB, error) {
+func openSQLiteConnection(ctx context.Context, databasePath string, sync SyncMode) (*sql.DB, error) {
 	// _txlock=immediate makes every BEGIN use BEGIN IMMEDIATE, which
 	// acquires a write lock up front. This is important for migrations
 	// (prevents two processes from entering the same migration) and is
@@ -299,13 +324,21 @@ func openSQLiteConnection(ctx context.Context, databasePath string) (*sql.DB, er
 
 	sqlConnection.SetMaxOpenConns(1)
 
+	syncPragma := "PRAGMA synchronous = NORMAL;"
+	syncDesc := "set synchronous to NORMAL"
+
+	if sync == SyncFull {
+		syncPragma = "PRAGMA synchronous = FULL;"
+		syncDesc = "set synchronous to FULL"
+	}
+
 	pragmas := []struct {
 		sql  string
 		desc string
 	}{
 		{"PRAGMA busy_timeout = 5000;", "set busy_timeout"},
 		{"PRAGMA journal_mode = WAL;", "enable WAL journaling"},
-		{"PRAGMA synchronous = NORMAL;", "set synchronous to NORMAL"},
+		{syncPragma, syncDesc},
 		{"PRAGMA foreign_keys = ON;", "enable foreign key support"},
 	}
 
@@ -319,43 +352,87 @@ func openSQLiteConnection(ctx context.Context, databasePath string) (*sql.DB, er
 	return sqlConnection, nil
 }
 
-// Close closes the connection to the repository cleanly.
+// Close closes both database connections. Both are always attempted and any
+// errors are joined.
 func (db *Database) Close() error {
-	if db.conn == nil {
-		return nil
+	var sharedErr, localErr error
+
+	if db.shared != nil {
+		sharedErr = db.shared.PlainDB().Close()
 	}
 
-	return db.conn.PlainDB().Close()
+	if db.local != nil {
+		localErr = db.local.PlainDB().Close()
+	}
+
+	return errors.Join(sharedErr, localErr)
 }
 
-// NewDatabase connects to a given table in a given database,
-// stores the connection information and returns an object containing the information.
-// The database path must be a valid file path or ":memory:".
-// The table will be created if it doesn't exist in the format expected by the package.
-func NewDatabase(ctx context.Context, databasePath string) (*Database, error) {
-	sqlConnection, err := openSQLiteConnection(ctx, databasePath)
+// Dir returns the directory containing both database files.
+func (db *Database) Dir() string {
+	return db.dataDir
+}
+
+func (db *Database) SharedPath() string {
+	return filepath.Join(db.dataDir, SharedDBFilename)
+}
+
+func (db *Database) LocalPath() string {
+	return filepath.Join(db.dataDir, LocalDBFilename)
+}
+
+// NewDatabase opens (or creates) the two-database directory layout. dataPath
+// may be a directory containing shared.db and local.db, a legacy single-file
+// SQLite database (whose contents are split into shared.db and local.db
+// inside dataPath itself, with the original file preserved as
+// legacy.sqlite.bak in the new directory), or a non-existent path treated as
+// a fresh install.
+func NewDatabase(ctx context.Context, dataPath string) (*Database, error) {
+	dataDir, err := resolveDataDir(ctx, dataPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to resolve database directory: %w", err)
 	}
 
-	if err := RunMigrations(ctx, sqlConnection); err != nil {
-		_ = sqlConnection.Close()
-		return nil, fmt.Errorf("schema migration failed: %w", err)
+	sharedPath := filepath.Join(dataDir, SharedDBFilename)
+	localPath := filepath.Join(dataDir, LocalDBFilename)
+
+	sharedConn, err := openSQLiteConnection(ctx, sharedPath, SyncFull)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open shared database: %w", err)
+	}
+
+	if err := runSharedMigrations(ctx, sharedConn); err != nil {
+		_ = sharedConn.Close()
+		return nil, fmt.Errorf("shared schema migration failed: %w", err)
+	}
+
+	localConn, err := openSQLiteConnection(ctx, localPath, SyncNormal)
+	if err != nil {
+		_ = sharedConn.Close()
+		return nil, fmt.Errorf("failed to open local database: %w", err)
+	}
+
+	if err := runLocalMigrations(ctx, localConn); err != nil {
+		_ = localConn.Close()
+		_ = sharedConn.Close()
+
+		return nil, fmt.Errorf("local schema migration failed: %w", err)
 	}
 
 	db := new(Database)
-	db.conn = sqlair.NewDB(sqlConnection)
-	db.filepath = databasePath
+	db.shared = sqlair.NewDB(sharedConn)
+	db.local = sqlair.NewDB(localConn)
+	db.dataDir = dataDir
 
-	err = db.PrepareStatements()
-	if err != nil {
+	if err := db.PrepareStatements(); err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to prepare statements: %w", err)
 	}
 
 	RegisterMetrics(db)
 
-	err = db.Initialize(ctx)
-	if err != nil {
+	if err := db.Initialize(ctx); err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
@@ -782,8 +859,9 @@ func (db *Database) Initialize(ctx context.Context) error {
 	return nil
 }
 
+// BeginTransaction starts a transaction against the shared database.
 func (db *Database) BeginTransaction(ctx context.Context) (*Transaction, error) {
-	tx, err := db.conn.Begin(ctx, nil)
+	tx, err := db.shared.Begin(ctx, nil)
 	if err != nil {
 		return nil, err
 	}

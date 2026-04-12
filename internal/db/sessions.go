@@ -69,7 +69,7 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) (int64,
 
 	var outcome sqlair.Outcome
 
-	err := db.conn.Query(ctx, db.createSessionStmt, session).Get(&outcome)
+	err := db.shared.Query(ctx, db.createSessionStmt, session).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -110,7 +110,7 @@ func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte)
 
 	row := Session{TokenHash: tokenHash}
 
-	err := db.conn.Query(ctx, db.getSessionByTokenHashStmt, row).Get(&row)
+	err := db.shared.Query(ctx, db.getSessionByTokenHashStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -148,7 +148,7 @@ func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []by
 
 	arg := Session{TokenHash: tokenHash}
 
-	err := db.conn.Query(ctx, db.deleteSessionByTokenHashStmt, arg).Run()
+	err := db.shared.Query(ctx, db.deleteSessionByTokenHashStmt, arg).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -183,7 +183,7 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 
 	cutoff := SessionCutoff{NowUnix: time.Now().Unix()}
 
-	err := db.conn.Query(ctx, db.deleteExpiredSessionsStmt, cutoff).Get(&outcome)
+	err := db.shared.Query(ctx, db.deleteExpiredSessionsStmt, cutoff).Get(&outcome)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -226,7 +226,7 @@ func (db *Database) CountSessionsByUser(ctx context.Context, userID int64) (int,
 
 	var result NumItems
 
-	err := db.conn.Query(ctx, db.countSessionsByUserStmt, args).Get(&result)
+	err := db.shared.Query(ctx, db.countSessionsByUserStmt, args).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -259,7 +259,7 @@ func (db *Database) DeleteOldestSessions(ctx context.Context, userID int64, limi
 
 	args := DeleteOldestArgs{UserID: userID, Limit: limit}
 
-	err := db.conn.Query(ctx, db.deleteOldestSessionsStmt, args).Run()
+	err := db.shared.Query(ctx, db.deleteOldestSessionsStmt, args).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -292,7 +292,7 @@ func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID int64) 
 
 	args := UserIDArgs{UserID: userID}
 
-	err := db.conn.Query(ctx, db.deleteAllSessionsForUserStmt, args).Run()
+	err := db.shared.Query(ctx, db.deleteAllSessionsForUserStmt, args).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -323,7 +323,7 @@ func (db *Database) DeleteAllSessions(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	err := db.conn.Query(ctx, db.deleteAllSessionsStmt).Run()
+	err := db.shared.Query(ctx, db.deleteAllSessionsStmt).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

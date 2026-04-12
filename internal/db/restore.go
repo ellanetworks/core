@@ -3,8 +3,12 @@
 package db
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -16,11 +20,27 @@ import (
 	"go.uber.org/zap"
 )
 
-const safetyCopyFilename = "restore_safety_copy.db"
+const (
+	safetyCopySharedFilename = "restore_safety_shared.db"
+	safetyCopyLocalFilename  = "restore_safety_local.db"
+	manifestArchiveName      = "manifest.json"
+	// maxBackupMemberSize caps a single tar member at 2 GiB; combined with
+	// maxBackupTotalSize this defends against decompression bombs.
+	//
+	// These in-package limits are intentionally larger than the API
+	// upload cap (see internal/api/server/api_restore.go's maxRestoreSize,
+	// currently 256 MiB): the API gate is the operational ceiling for
+	// HTTP-uploaded backups, while these constants are defence-in-depth
+	// for in-process callers (tests, future tooling) that may legitimately
+	// extract larger archives. Lowering these to the API cap would couple
+	// the parser to a transport-layer policy.
+	maxBackupMemberSize = 2 << 30
+	// maxBackupTotalSize caps the cumulative bytes extracted from a single
+	// backup, regardless of how many members it contains.
+	maxBackupTotalSize = 4 << 30
+)
 
-// validateSQLiteFile opens the file as a SQLite database and runs
-// PRAGMA integrity_check. It returns nil only when the file is a valid,
-// non-corrupt SQLite database.
+// validateSQLiteFile runs PRAGMA integrity_check against the file.
 func validateSQLiteFile(ctx context.Context, path string) error {
 	conn, err := sql.Open("sqlite3", path)
 	if err != nil {
@@ -41,67 +61,223 @@ func validateSQLiteFile(ctx context.Context, path string) error {
 	return nil
 }
 
-// Dir returns the parent directory of the database file.
-func (db *Database) Dir() string {
-	return filepath.Dir(db.filepath)
-}
-
-// dbDirRoot opens the database's parent directory as an os.Root, scoping
-// all file access to that directory and preventing path traversal.
-func (db *Database) dbDirRoot() (*os.Root, error) {
-	return os.OpenRoot(db.Dir())
-}
-
-// rollbackFromSafetyCopy restores the original database from the safety copy
-// and reopens the connection. It is called when the restore fails after the
-// production database has already been overwritten.
-func (db *Database) rollbackFromSafetyCopy(ctx context.Context) error {
-	root, err := db.dbDirRoot()
+// extractBackupArchive reads a backup tar.gz from r and writes shared.db and
+// local.db into destDir. The manifest is parsed and validated but not
+// returned. Unknown members, missing required members, oversize files,
+// duplicate entries, and path traversal attempts are rejected.
+func extractBackupArchive(r io.Reader, destDir string) error {
+	gzReader, err := gzip.NewReader(r)
 	if err != nil {
-		return fmt.Errorf("failed to open database directory: %w", err)
+		return fmt.Errorf("failed to open gzip stream: %w", err)
 	}
 
-	defer func() { _ = root.Close() }()
+	defer func() { _ = gzReader.Close() }()
 
-	src, err := root.Open(safetyCopyFilename)
-	if err != nil {
-		return fmt.Errorf("failed to open safety copy: %w", err)
+	tarReader := tar.NewReader(gzReader)
+
+	var (
+		sawManifest         bool
+		sawShared, sawLocal bool
+		totalExtracted      int64
+	)
+
+	for {
+		hdr, err := tarReader.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		if err != nil {
+			return fmt.Errorf("failed to read tar entry: %w", err)
+		}
+
+		if hdr.Typeflag != tar.TypeReg {
+			return fmt.Errorf("unexpected tar entry type %d for %q", hdr.Typeflag, hdr.Name)
+		}
+
+		// Reject path traversal: only bare filenames are allowed.
+		if filepath.Base(hdr.Name) != hdr.Name || hdr.Name == "" || hdr.Name == "." || hdr.Name == ".." {
+			return fmt.Errorf("invalid tar entry name %q", hdr.Name)
+		}
+
+		if hdr.Size < 0 || hdr.Size > maxBackupMemberSize {
+			return fmt.Errorf("tar entry %q has invalid size %d", hdr.Name, hdr.Size)
+		}
+
+		if totalExtracted+hdr.Size > maxBackupTotalSize {
+			return fmt.Errorf("tar entry %q would exceed total extracted budget of %d bytes", hdr.Name, maxBackupTotalSize)
+		}
+
+		totalExtracted += hdr.Size
+
+		switch hdr.Name {
+		case manifestArchiveName:
+			if sawManifest {
+				return fmt.Errorf("duplicate tar entry %q", hdr.Name)
+			}
+
+			data, err := io.ReadAll(io.LimitReader(tarReader, maxBackupMemberSize))
+			if err != nil {
+				return fmt.Errorf("failed to read manifest: %w", err)
+			}
+
+			var m BackupManifest
+			if err := json.Unmarshal(data, &m); err != nil {
+				return fmt.Errorf("failed to decode manifest: %w", err)
+			}
+
+			if m.Version != BackupManifestVersion {
+				return fmt.Errorf("unsupported backup manifest version %d (expected %d)", m.Version, BackupManifestVersion)
+			}
+
+			sawManifest = true
+
+		case SharedDBFilename:
+			if sawShared {
+				return fmt.Errorf("duplicate tar entry %q", hdr.Name)
+			}
+
+			if err := writeArchiveMember(filepath.Join(destDir, SharedDBFilename), tarReader, hdr.Size); err != nil {
+				return fmt.Errorf("failed to write shared.db: %w", err)
+			}
+
+			sawShared = true
+
+		case LocalDBFilename:
+			if sawLocal {
+				return fmt.Errorf("duplicate tar entry %q", hdr.Name)
+			}
+
+			if err := writeArchiveMember(filepath.Join(destDir, LocalDBFilename), tarReader, hdr.Size); err != nil {
+				return fmt.Errorf("failed to write local.db: %w", err)
+			}
+
+			sawLocal = true
+
+		default:
+			return fmt.Errorf("unexpected backup member %q", hdr.Name)
+		}
 	}
 
-	defer func() { _ = src.Close() }()
-
-	dst, err := os.Create(db.filepath)
-	if err != nil {
-		return fmt.Errorf("failed to create destination for rollback: %w", err)
+	if !sawManifest {
+		return errors.New("backup is missing manifest.json")
 	}
 
-	if _, err := io.Copy(dst, src); err != nil {
-		_ = dst.Close()
-		return fmt.Errorf("failed to copy safety copy back: %w", err)
+	if !sawShared {
+		return fmt.Errorf("backup is missing %s", SharedDBFilename)
 	}
 
-	if err := dst.Close(); err != nil {
-		return fmt.Errorf("failed to close destination after rollback: %w", err)
-	}
-
-	// Remove WAL/SHM that may be stale after the overwrite.
-	_ = os.Remove(db.filepath + "-wal")
-	_ = os.Remove(db.filepath + "-shm")
-
-	sqlConn, err := openSQLiteConnection(ctx, db.filepath)
-	if err != nil {
-		return fmt.Errorf("failed to reopen original database after rollback: %w", err)
-	}
-
-	db.conn = sqlair.NewDB(sqlConn)
-
-	if err := db.PrepareStatements(); err != nil {
-		return fmt.Errorf("failed to re-prepare statements after rollback: %w", err)
+	if !sawLocal {
+		return fmt.Errorf("backup is missing %s", LocalDBFilename)
 	}
 
 	return nil
 }
 
+func writeArchiveMember(destPath string, src io.Reader, size int64) error {
+	out, err := os.OpenFile(destPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600) // #nosec: G304 — destination is under db.Dir()
+	if err != nil {
+		return err
+	}
+
+	if _, err := io.CopyN(out, src, size); err != nil {
+		_ = out.Close()
+		return err
+	}
+
+	return out.Close()
+}
+
+// rollbackFromSafetyCopy restores both DBs from their safety copies and
+// reopens connections. Called when a restore fails mid-overwrite.
+func (db *Database) rollbackFromSafetyCopy(ctx context.Context) error {
+	if err := copyWithinDir(db.Dir(), safetyCopySharedFilename, SharedDBFilename); err != nil {
+		return fmt.Errorf("failed to restore shared.db from safety copy: %w", err)
+	}
+
+	if err := copyWithinDir(db.Dir(), safetyCopyLocalFilename, LocalDBFilename); err != nil {
+		return fmt.Errorf("failed to restore local.db from safety copy: %w", err)
+	}
+
+	// Remove WAL/SHM that may be stale after the overwrite.
+	for _, base := range []string{SharedDBFilename, LocalDBFilename} {
+		_ = os.Remove(filepath.Join(db.Dir(), base+"-wal"))
+		_ = os.Remove(filepath.Join(db.Dir(), base+"-shm"))
+	}
+
+	return db.reopenAfterRestore(ctx)
+}
+
+// reopenAfterRestore opens fresh SQLite connections, runs migrations on each,
+// and re-prepares all sqlair statements.
+func (db *Database) reopenAfterRestore(ctx context.Context) error {
+	sharedConn, err := openSQLiteConnection(ctx, db.SharedPath(), SyncFull)
+	if err != nil {
+		return fmt.Errorf("failed to reopen shared database: %w", err)
+	}
+
+	if err := runSharedMigrations(ctx, sharedConn); err != nil {
+		_ = sharedConn.Close()
+		return fmt.Errorf("shared schema migration after restore failed: %w", err)
+	}
+
+	localConn, err := openSQLiteConnection(ctx, db.LocalPath(), SyncNormal)
+	if err != nil {
+		_ = sharedConn.Close()
+		return fmt.Errorf("failed to reopen local database: %w", err)
+	}
+
+	if err := runLocalMigrations(ctx, localConn); err != nil {
+		_ = localConn.Close()
+		_ = sharedConn.Close()
+
+		return fmt.Errorf("local schema migration after restore failed: %w", err)
+	}
+
+	db.shared = sqlair.NewDB(sharedConn)
+	db.local = sqlair.NewDB(localConn)
+
+	if err := db.PrepareStatements(); err != nil {
+		return fmt.Errorf("failed to re-prepare statements after restore: %w", err)
+	}
+
+	return nil
+}
+
+// copyWithinDir copies srcName to dstName as bare filenames inside dir,
+// using os.Root to enforce that path traversal cannot escape the directory.
+func copyWithinDir(dir, srcName, dstName string) error {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+
+	defer func() { _ = root.Close() }()
+
+	src, err := root.Open(srcName)
+	if err != nil {
+		return err
+	}
+
+	defer func() { _ = src.Close() }()
+
+	dst, err := root.OpenFile(dstName, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+
+	if _, err := io.Copy(dst, src); err != nil {
+		_ = dst.Close()
+		return err
+	}
+
+	return dst.Close()
+}
+
+// Restore replaces both shared.db and local.db with the contents of the
+// backup tar.gz in backupFile. The operation is atomic across both files: a
+// safety copy of each is taken before the swap and rolled back together on
+// failure.
 func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	// Concurrency guard: only one restore at a time.
 	if !db.restoreMu.TryLock() {
@@ -112,125 +288,148 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	_, span := tracer.Start(ctx, "db/restore", trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	if db.conn == nil {
-		return fmt.Errorf("database connection is not initialized")
+	if db.shared == nil || db.local == nil {
+		return fmt.Errorf("database connections are not initialized")
 	}
 
 	if backupFile == nil {
 		return fmt.Errorf("backup file is nil")
 	}
 
-	// ── Step 1: Validate the uploaded file before any destructive action. ──
-	if err := validateSQLiteFile(ctx, backupFile.Name()); err != nil {
+	if _, err := backupFile.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("failed to rewind backup file: %w", err)
+	}
+
+	// Stage the archive and validate every embedded SQLite file.
+	stageDir, err := os.MkdirTemp(db.Dir(), "restore-stage-*")
+	if err != nil {
+		return fmt.Errorf("failed to create restore stage directory: %w", err)
+	}
+
+	defer func() { _ = os.RemoveAll(stageDir) }()
+
+	if err := extractBackupArchive(backupFile, stageDir); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidBackupFile, err)
 	}
 
-	// ── Step 2: Create a safety copy of the current database. ──
-	root, err := db.dbDirRoot()
-	if err != nil {
-		return fmt.Errorf("failed to open database directory: %w", err)
+	stagedShared := filepath.Join(stageDir, SharedDBFilename)
+	stagedLocal := filepath.Join(stageDir, LocalDBFilename)
+
+	if err := validateSQLiteFile(ctx, stagedShared); err != nil {
+		return fmt.Errorf("%w: shared: %v", ErrInvalidBackupFile, err)
 	}
 
-	safetyCopyFile, err := root.Create(safetyCopyFilename)
-	if err != nil {
-		_ = root.Close()
-		return fmt.Errorf("failed to create safety copy file: %w", err)
+	if err := validateSQLiteFile(ctx, stagedLocal); err != nil {
+		return fmt.Errorf("%w: local: %v", ErrInvalidBackupFile, err)
 	}
 
-	if err := db.Backup(ctx, safetyCopyFile); err != nil {
-		_ = safetyCopyFile.Close()
-		_ = root.Remove(safetyCopyFilename)
-		_ = root.Close()
-
-		return fmt.Errorf("failed to create safety copy of current database: %w", err)
+	// Take a safety copy of both live DBs before overwriting them.
+	if err := db.takeSafetyCopies(ctx); err != nil {
+		return fmt.Errorf("failed to create safety copies: %w", err)
 	}
 
-	_ = safetyCopyFile.Close()
-	_ = root.Close()
+	// Safety copies are only deleted once we either fully succeeded or
+	// fully rolled back. If the restore fails AND rollback fails, the
+	// safety copies are the only remaining good image of the live DB and
+	// must stay on disk for manual recovery.
+	var safeToDeleteSafetyCopies bool
 
 	defer func() {
-		if cleanupRoot, err := db.dbDirRoot(); err == nil {
-			_ = cleanupRoot.Remove(safetyCopyFilename)
-			_ = cleanupRoot.Close()
+		if safeToDeleteSafetyCopies {
+			db.removeSafetyCopies()
+			return
 		}
+
+		logger.WithTrace(ctx, logger.DBLog).Warn(
+			"Leaving restore safety copies in place; manual recovery may be required",
+			zap.String("dir", db.Dir()),
+			zap.String("shared", safetyCopySharedFilename),
+			zap.String("local", safetyCopyLocalFilename),
+		)
 	}()
 
-	// ── Step 3: Close the live connection and overwrite the DB file. ──
+	// rollback runs the safety-copy rollback and reports whether it
+	// succeeded so the deferred cleanup can decide whether to drop the
+	// safety copies or leave them in place.
+	rollback := func() bool {
+		if rbErr := db.rollbackFromSafetyCopy(ctx); rbErr != nil {
+			logger.WithTrace(ctx, logger.DBLog).Error("Rollback after failed restore also failed", zap.Error(rbErr))
+			return false
+		}
+
+		return true
+	}
+
+	// Close live connections and overwrite both files.
 	if err := db.Close(); err != nil {
-		return fmt.Errorf("failed to close the database connection: %v", err)
+		return fmt.Errorf("failed to close database connections: %w", err)
 	}
 
-	destinationFile, err := os.Create(db.filepath)
-	if err != nil {
-		if rbErr := db.rollbackFromSafetyCopy(ctx); rbErr != nil {
-			logger.WithTrace(ctx, logger.DBLog).Error("Rollback after failed restore also failed", zap.Error(rbErr))
+	// Remove stale WAL/SHM sidecars before the rename so a crash mid-swap
+	// cannot leave a fresh database file paired with old WAL state.
+	for _, base := range []string{SharedDBFilename, LocalDBFilename} {
+		for _, suffix := range []string{"-wal", "-shm"} {
+			p := filepath.Join(db.Dir(), base+suffix)
+			if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+				logger.WithTrace(ctx, logger.DBLog).Warn("Failed to remove stale sidecar file",
+					zap.String("file", p), zap.Error(err))
+			}
 		}
-
-		return fmt.Errorf("failed to open destination database file: %v", err)
 	}
 
-	_, err = io.Copy(destinationFile, backupFile)
-	if err != nil {
-		_ = destinationFile.Close()
-
-		if rbErr := db.rollbackFromSafetyCopy(ctx); rbErr != nil {
-			logger.WithTrace(ctx, logger.DBLog).Error("Rollback after failed restore also failed", zap.Error(rbErr))
-		}
-
-		return fmt.Errorf("failed to restore database file: %v", err)
+	if err := overwriteFile(stagedShared, db.SharedPath()); err != nil {
+		safeToDeleteSafetyCopies = rollback()
+		return fmt.Errorf("failed to install new shared.db: %w", err)
 	}
 
-	if err := destinationFile.Close(); err != nil {
-		if rbErr := db.rollbackFromSafetyCopy(ctx); rbErr != nil {
-			logger.WithTrace(ctx, logger.DBLog).Error("Rollback after failed restore also failed", zap.Error(rbErr))
-		}
-
-		return fmt.Errorf("failed to close destination database file: %w", err)
+	if err := overwriteFile(stagedLocal, db.LocalPath()); err != nil {
+		safeToDeleteSafetyCopies = rollback()
+		return fmt.Errorf("failed to install new local.db: %w", err)
 	}
 
-	// ── Step 4: Remove stale WAL/SHM files. ──
-	walFile := db.filepath + "-wal"
-	shmFile := db.filepath + "-shm"
-
-	if err := os.Remove(walFile); err != nil && !os.IsNotExist(err) {
-		logger.WithTrace(ctx, logger.DBLog).Warn("Failed to remove old WAL file", zap.String("file", walFile), zap.Error(err))
+	// fsync the parent directory so the renames are durable across crashes.
+	if err := fsyncDir(db.Dir()); err != nil {
+		logger.WithTrace(ctx, logger.DBLog).Warn("Failed to fsync data directory after restore",
+			zap.String("dir", db.Dir()), zap.Error(err))
 	}
 
-	if err := os.Remove(shmFile); err != nil && !os.IsNotExist(err) {
-		logger.WithTrace(ctx, logger.DBLog).Warn("Failed to remove old SHM file", zap.String("file", shmFile), zap.Error(err))
+	if err := db.reopenAfterRestore(ctx); err != nil {
+		safeToDeleteSafetyCopies = rollback()
+		return err
 	}
 
-	// ── Step 5: Reopen, migrate, and re-prepare. ──
-	sqlConnection, err := openSQLiteConnection(ctx, db.filepath)
-	if err != nil {
-		if rbErr := db.rollbackFromSafetyCopy(ctx); rbErr != nil {
-			logger.WithTrace(ctx, logger.DBLog).Error("Rollback after failed restore also failed", zap.Error(rbErr))
-		}
+	safeToDeleteSafetyCopies = true
 
-		return fmt.Errorf("failed to reopen database after restore: %w", err)
+	return nil
+}
+
+// takeSafetyCopies VACUUMs both live databases into safety copy files in
+// db.Dir(). Partial output is cleaned up on failure.
+func (db *Database) takeSafetyCopies(ctx context.Context) error {
+	sharedSafety := filepath.Join(db.Dir(), safetyCopySharedFilename)
+	localSafety := filepath.Join(db.Dir(), safetyCopyLocalFilename)
+
+	if _, err := db.shared.PlainDB().ExecContext(ctx, "VACUUM INTO ?", sharedSafety); err != nil {
+		return fmt.Errorf("failed to VACUUM shared safety copy: %w", err)
 	}
 
-	// Migrate the restored database to the current schema. This handles
-	// restoring a backup taken from an older version of the binary.
-	if err := RunMigrations(ctx, sqlConnection); err != nil {
-		_ = sqlConnection.Close()
-
-		if rbErr := db.rollbackFromSafetyCopy(ctx); rbErr != nil {
-			logger.WithTrace(ctx, logger.DBLog).Error("Rollback after failed restore also failed", zap.Error(rbErr))
-		}
-
-		return fmt.Errorf("schema migration after restore failed: %w", err)
-	}
-
-	db.conn = sqlair.NewDB(sqlConnection)
-
-	if err := db.PrepareStatements(); err != nil {
-		if rbErr := db.rollbackFromSafetyCopy(ctx); rbErr != nil {
-			logger.WithTrace(ctx, logger.DBLog).Error("Rollback after failed restore also failed", zap.Error(rbErr))
-		}
-
-		return fmt.Errorf("failed to re-prepare statements after restore: %w", err)
+	if _, err := db.local.PlainDB().ExecContext(ctx, "VACUUM INTO ?", localSafety); err != nil {
+		_ = os.Remove(sharedSafety)
+		return fmt.Errorf("failed to VACUUM local safety copy: %w", err)
 	}
 
 	return nil
+}
+
+func (db *Database) removeSafetyCopies() {
+	for _, name := range []string{safetyCopySharedFilename, safetyCopyLocalFilename} {
+		if err := os.Remove(filepath.Join(db.Dir(), name)); err != nil && !os.IsNotExist(err) {
+			logger.DBLog.Warn("Failed to remove safety copy", zap.String("file", name), zap.Error(err))
+		}
+	}
+}
+
+// overwriteFile atomically replaces dst with src (same filesystem).
+func overwriteFile(src, dst string) error {
+	return os.Rename(src, dst)
 }

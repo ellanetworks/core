@@ -116,7 +116,7 @@ func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) e
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "insert").Inc()
 
-	err := db.conn.Query(ctx, db.incrementDailyUsageStmt, usage).Run()
+	err := db.shared.Query(ctx, db.incrementDailyUsageStmt, usage).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -158,7 +158,7 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate t
 
 	var dailyUsage []UsagePerDay
 
-	err := db.conn.Query(ctx, db.getUsagePerDayStmt, dailyUsageFilters).GetAll(&dailyUsage)
+	err := db.shared.Query(ctx, db.getUsagePerDayStmt, dailyUsageFilters).GetAll(&dailyUsage)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -205,7 +205,7 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, star
 
 	var dailyUsage []UsagePerSub
 
-	err := db.conn.Query(ctx, db.getUsagePerSubscriberStmt, dailyUsageFilters).GetAll(&dailyUsage)
+	err := db.shared.Query(ctx, db.getUsagePerSubscriberStmt, dailyUsageFilters).GetAll(&dailyUsage)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -241,7 +241,7 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "delete").Inc()
 
-	err := db.conn.Query(ctx, db.deleteAllDailyUsageStmt).Run()
+	err := db.shared.Query(ctx, db.deleteAllDailyUsageStmt).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -277,7 +277,7 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 
 	cutoffDay := DaysSinceEpoch(now.AddDate(0, 0, -days))
 
-	err := db.conn.Query(ctx, db.deleteOldDailyUsageStmt, cutoffDaysArgs{CutoffDays: cutoffDay}).Run()
+	err := db.shared.Query(ctx, db.deleteOldDailyUsageStmt, cutoffDaysArgs{CutoffDays: cutoffDay}).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

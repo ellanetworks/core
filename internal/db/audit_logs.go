@@ -65,7 +65,7 @@ func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.Audit
 
 	DBQueriesTotal.WithLabelValues(AuditLogsTableName, "insert").Inc()
 
-	err := db.conn.Query(ctx, db.insertAuditLogStmt, auditLog).Run()
+	err := db.shared.Query(ctx, db.insertAuditLogStmt, auditLog).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -111,7 +111,7 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, filters *AuditLogFilt
 
 	var counts []NumItems
 
-	err := db.conn.Query(ctx, db.listAuditLogsFilteredStmt, args, *filters).GetAll(&logs, &counts)
+	err := db.shared.Query(ctx, db.listAuditLogsFilteredStmt, args, *filters).GetAll(&logs, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -160,7 +160,7 @@ func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
 
 	args := cutoffArgs{Cutoff: cutoff}
 
-	if err := db.conn.Query(ctx, db.deleteOldAuditLogsStmt, args).Run(); err != nil {
+	if err := db.shared.Query(ctx, db.deleteOldAuditLogsStmt, args).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
@@ -198,7 +198,7 @@ func (db *Database) CountAuditLogs(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.conn.Query(ctx, db.countAuditLogsStmt).Get(&result)
+	err := db.shared.Query(ctx, db.countAuditLogsStmt).Get(&result)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")

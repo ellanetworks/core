@@ -49,7 +49,7 @@ func (db *Database) ListImportPrefixesByPeer(ctx context.Context, peerID int) ([
 
 	var prefixes []BGPImportPrefix
 
-	err := db.conn.Query(ctx, db.listImportPrefixesByPeerStmt, BGPImportPrefix{PeerID: peerID}).GetAll(&prefixes)
+	err := db.shared.Query(ctx, db.listImportPrefixesByPeerStmt, BGPImportPrefix{PeerID: peerID}).GetAll(&prefixes)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -87,7 +87,7 @@ func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, pr
 
 	DBQueriesTotal.WithLabelValues(BGPImportPrefixesTableName, "replace").Inc()
 
-	tx, err := db.conn.Begin(ctx, nil)
+	tx, err := db.shared.Begin(ctx, nil)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "begin transaction failed")

@@ -102,7 +102,7 @@ func (db *Database) ListHomeNetworkKeys(ctx context.Context) ([]HomeNetworkKey, 
 
 	var keys []HomeNetworkKey
 
-	err := db.conn.Query(ctx, db.listHomeNetworkKeysStmt).GetAll(&keys)
+	err := db.shared.Query(ctx, db.listHomeNetworkKeysStmt).GetAll(&keys)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -141,7 +141,7 @@ func (db *Database) GetHomeNetworkKey(ctx context.Context, id int) (*HomeNetwork
 
 	row := HomeNetworkKey{ID: id}
 
-	err := db.conn.Query(ctx, db.getHomeNetworkKeyStmt, row).Get(&row)
+	err := db.shared.Query(ctx, db.getHomeNetworkKeyStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -180,7 +180,7 @@ func (db *Database) GetHomeNetworkKeyBySchemeAndIdentifier(ctx context.Context, 
 
 	row := HomeNetworkKey{Scheme: scheme, KeyIdentifier: keyIdentifier}
 
-	err := db.conn.Query(ctx, db.getHomeNetworkKeyBySchemeAndIdentifierStmt, row).Get(&row)
+	err := db.shared.Query(ctx, db.getHomeNetworkKeyBySchemeAndIdentifierStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -217,7 +217,7 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 
 	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "insert").Inc()
 
-	err := db.conn.Query(ctx, db.createHomeNetworkKeyStmt, key).Run()
+	err := db.shared.Query(ctx, db.createHomeNetworkKeyStmt, key).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
@@ -256,7 +256,7 @@ func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id int) error {
 
 	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "delete").Inc()
 
-	err := db.conn.Query(ctx, db.deleteHomeNetworkKeyStmt, HomeNetworkKey{ID: id}).Run()
+	err := db.shared.Query(ctx, db.deleteHomeNetworkKeyStmt, HomeNetworkKey{ID: id}).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -290,7 +290,7 @@ func (db *Database) CountHomeNetworkKeys(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.conn.Query(ctx, db.countHomeNetworkKeysStmt).Get(&result)
+	err := db.shared.Query(ctx, db.countHomeNetworkKeysStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
