@@ -24,7 +24,7 @@ func HandleNasNonDeliveryIndication(ctx context.Context, amfInstance *amf.AMF, r
 		return
 	}
 
-	err := amfInstance.NAS(ctx, ranUe, msg.NASPDU)
+	err := amfInstance.NAS.HandleNAS(ctx, ranUe, msg.NASPDU)
 	if err != nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("error handling NAS", zap.Error(err))
 	}

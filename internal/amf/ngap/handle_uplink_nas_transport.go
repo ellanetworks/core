@@ -40,7 +40,7 @@ func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 		return
 	}
 
-	err := amfInstance.NAS(ctx, ranUe, msg.NASPDU)
+	err := amfInstance.NAS.HandleNAS(ctx, ranUe, msg.NASPDU)
 	if err != nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("error handling NAS message", zap.Error(err))
 	}

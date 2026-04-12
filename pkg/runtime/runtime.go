@@ -264,9 +264,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	})
 
 	amfInstance := amf.New(dbInstance, ausfInstance, smfInstance)
-	amfInstance.NAS = func(ctx context.Context, ue *amf.RanUe, pdu []byte) error {
-		return nas.HandleNAS(ctx, amfInstance, ue, pdu)
-	}
+	amfInstance.NAS = &nasAdapter{amf: amfInstance}
 	smfAMF.amf = amfInstance
 
 	amf.RegisterMetrics(amfInstance)
@@ -422,6 +420,14 @@ func closeAMF(ctx context.Context, amfInstance *amf.AMF, srv *service.Server) {
 	srv.Shutdown(ctx)
 
 	logger.AmfLog.Info("AMF terminated")
+}
+
+type nasAdapter struct {
+	amf *amf.AMF
+}
+
+func (n *nasAdapter) HandleNAS(ctx context.Context, ue *amf.RanUe, nasPdu []byte) error {
+	return nas.HandleNAS(ctx, n.amf, ue, nasPdu)
 }
 
 // ausfDBAdapter adapts *db.Database to the ausf.SubscriberStore interface.

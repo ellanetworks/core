@@ -121,7 +121,7 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	err := amfInstance.NAS(ctx, ranUe, msg.NASPDU)
+	err := amfInstance.NAS.HandleNAS(ctx, ranUe, msg.NASPDU)
 	if err != nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("error handling NAS Message", zap.Error(err))
 		return

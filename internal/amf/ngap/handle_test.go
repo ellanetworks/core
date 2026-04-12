@@ -533,7 +533,7 @@ type FakeNASHandler struct {
 	Err   error
 }
 
-func (f *FakeNASHandler) Handle(_ context.Context, ue *amf.RanUe, nasPdu []byte) error {
+func (f *FakeNASHandler) HandleNAS(_ context.Context, ue *amf.RanUe, nasPdu []byte) error {
 	f.Calls = append(f.Calls, NASCall{RanUe: ue, NASPDU: nasPdu})
 	return f.Err
 }
@@ -541,7 +541,7 @@ func (f *FakeNASHandler) Handle(_ context.Context, ue *amf.RanUe, nasPdu []byte)
 // newTestAMFWithNAS creates a minimal AMF with a FakeNASHandler wired in.
 func newTestAMFWithNAS(nasHandler *FakeNASHandler) *amf.AMF {
 	a := newTestAMF()
-	a.NAS = nasHandler.Handle
+	a.NAS = nasHandler
 
 	return a
 }

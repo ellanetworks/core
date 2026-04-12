@@ -86,8 +86,9 @@ type DBer interface {
 	ListPoliciesByProfile(ctx context.Context, profileID int) ([]db.Policy, error)
 }
 
-// NASHandler processes an uplink NAS PDU for the given RAN UE.
-type NASHandler func(ctx context.Context, ue *RanUe, nasPdu []byte) error
+type NASHandler interface {
+	HandleNAS(ctx context.Context, ue *RanUe, nasPdu []byte) error
+}
 
 // Lock ordering (acquire in this order, never reverse):
 //
