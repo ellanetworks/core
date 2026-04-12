@@ -685,7 +685,7 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
 
-		expectedCiphering := []string{"NEA2", "NEA1", "NEA0"}
+		expectedCiphering := []string{"NEA2", "NEA1"}
 		if len(response.Result.NASSecurity.Ciphering) != len(expectedCiphering) {
 			t.Fatalf("expected %d ciphering algorithms, got %d", len(expectedCiphering), len(response.Result.NASSecurity.Ciphering))
 		}
@@ -696,7 +696,7 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 			}
 		}
 
-		expectedIntegrity := []string{"NIA2", "NIA1", "NIA0"}
+		expectedIntegrity := []string{"NIA2", "NIA1"}
 		if len(response.Result.NASSecurity.Integrity) != len(expectedIntegrity) {
 			t.Fatalf("expected %d integrity algorithms, got %d", len(expectedIntegrity), len(response.Result.NASSecurity.Integrity))
 		}

@@ -332,12 +332,8 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 	}
 	ue.UESecurityCapability.SetEA0_5G(1)
 	ue.UESecurityCapability.SetEA1_128_5G(1)
-	ue.UESecurityCapability.SetEA2_128_5G(1)
-	ue.UESecurityCapability.SetEA2_128_5G(0)
 	ue.UESecurityCapability.SetIA0_5G(1)
 	ue.UESecurityCapability.SetIA1_128_5G(1)
-	ue.UESecurityCapability.SetIA2_128_5G(1)
-	ue.UESecurityCapability.SetIA2_128_5G(0)
 
 	err = handleAuthenticationResponse(t.Context(), amfInstance, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 	if err != nil {
