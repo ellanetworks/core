@@ -81,13 +81,22 @@ type SmfHandoverFailedCall struct {
 	N2Data       []byte
 }
 
+type SmfN2InfoCall struct {
+	SmContextRef string
+	N2Data       []byte
+}
+
 type FakeSmfSbi struct {
 	*smf.SMF
-	PathSwitchResponse  []byte
-	PathSwitchErr       error
-	HandoverFailedErr   error
-	PathSwitchCalls     []*SmfPathSwitchCall
-	HandoverFailedCalls []*SmfHandoverFailedCall
+	PathSwitchResponse       []byte
+	PathSwitchErr            error
+	HandoverFailedErr        error
+	PathSwitchCalls          []*SmfPathSwitchCall
+	HandoverFailedCalls      []*SmfHandoverFailedCall
+	PduResSetupRspCalls      []*SmfN2InfoCall
+	PduResSetupFailCalls     []*SmfN2InfoCall
+	PduResRelRspCalls        []string
+	DeactivateSmContextCalls []string
 }
 
 func (f *FakeSmfSbi) ActivateSmContext(_ context.Context, smContextRef string) ([]byte, error) {
@@ -128,19 +137,23 @@ func (f *FakeSmfSbi) UpdateSmContextCauseDuplicatePDUSessionID(ctx context.Conte
 	return nil, nil
 }
 
-func (f *FakeSmfSbi) DeactivateSmContext(_ context.Context, _ string) error {
+func (f *FakeSmfSbi) DeactivateSmContext(_ context.Context, smContextRef string) error {
+	f.DeactivateSmContextCalls = append(f.DeactivateSmContextCalls, smContextRef)
 	return nil
 }
 
-func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResSetupRsp(_ context.Context, _ string, _ []byte) error {
+func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResSetupRsp(_ context.Context, smContextRef string, n2Data []byte) error {
+	f.PduResSetupRspCalls = append(f.PduResSetupRspCalls, &SmfN2InfoCall{SmContextRef: smContextRef, N2Data: n2Data})
 	return nil
 }
 
-func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResSetupFail(_ context.Context, _ string, _ []byte) error {
+func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResSetupFail(_ context.Context, smContextRef string, n2Data []byte) error {
+	f.PduResSetupFailCalls = append(f.PduResSetupFailCalls, &SmfN2InfoCall{SmContextRef: smContextRef, N2Data: n2Data})
 	return nil
 }
 
-func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, _ string) error {
+func (f *FakeSmfSbi) UpdateSmContextN2InfoPduResRelRsp(_ context.Context, smContextRef string) error {
+	f.PduResRelRspCalls = append(f.PduResRelRspCalls, smContextRef)
 	return nil
 }
 
@@ -272,6 +285,11 @@ type PathSwitchRequestAcknowledge struct {
 	SnssaiList                        []models.Snssai
 }
 
+type HandoverCancelAcknowledge struct {
+	AmfUeNgapID int64
+	RanUeNgapID int64
+}
+
 type FakeNGAPSender struct {
 	SentNGSetupFailures                []*NGSetupFailure
 	SentNGSetupResponses               []*NGSetupResponse
@@ -280,11 +298,21 @@ type FakeNGAPSender struct {
 	SentHandoverCommands               []*HandoverCommand
 	SentErrorIndications               []*ErrorIndication
 	SentHandoverPreparationFailures    []*HandoverPreparationFailure
+	SentHandoverCancelAcknowledges     []*HandoverCancelAcknowledge
 	SentUEContextReleaseCommands       []*UEContextReleaseCommand
 	SentPathSwitchRequestFailures      []*PathSwitchRequestFailure
 	SentPathSwitchRequestAcknowledges  []*PathSwitchRequestAcknowledge
 	SentRanConfigurationUpdateAcks     []*RanConfigurationUpdateAcknowledge
 	SentRanConfigurationUpdateFailures []*RanConfigurationUpdateFailure
+	SentDownlinkRanConfigTransfers     []*ngapType.SONConfigurationTransfer
+	SentPDUSessionModifyConfirms       []PDUSessionModifyConfirm
+}
+
+type PDUSessionModifyConfirm struct {
+	AmfUeNgapID                          int64
+	RanUeNgapID                          int64
+	PDUSessionResourceModifyConfirmList  ngapType.PDUSessionResourceModifyListModCfm
+	PDUSessionResourceFailedToModifyList ngapType.PDUSessionResourceFailedToModifyListModCfm
 }
 
 func (fng *FakeNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType send.NGAPProcedure) error {
@@ -342,6 +370,7 @@ func (fng *FakeNGAPSender) SendRanConfigurationUpdateFailure(ctx context.Context
 }
 
 func (fng *FakeNGAPSender) SendDownlinkRanConfigurationTransfer(ctx context.Context, transfer *ngapType.SONConfigurationTransfer) error {
+	fng.SentDownlinkRanConfigTransfers = append(fng.SentDownlinkRanConfigTransfers, transfer)
 	return nil
 }
 
@@ -386,10 +415,22 @@ func (fng *FakeNGAPSender) SendPDUSessionResourceReleaseCommand(ctx context.Cont
 }
 
 func (fng *FakeNGAPSender) SendHandoverCancelAcknowledge(ctx context.Context, amfUENGAPID int64, ranUENGAPID int64) error {
+	fng.SentHandoverCancelAcknowledges = append(fng.SentHandoverCancelAcknowledges, &HandoverCancelAcknowledge{
+		AmfUeNgapID: amfUENGAPID,
+		RanUeNgapID: ranUENGAPID,
+	})
+
 	return nil
 }
 
 func (fng *FakeNGAPSender) SendPDUSessionResourceModifyConfirm(ctx context.Context, amfUENGAPID int64, ranUENGAPID int64, pduSessionResourceModifyConfirmList ngapType.PDUSessionResourceModifyListModCfm, pduSessionResourceFailedToModifyList ngapType.PDUSessionResourceFailedToModifyListModCfm) error {
+	fng.SentPDUSessionModifyConfirms = append(fng.SentPDUSessionModifyConfirms, PDUSessionModifyConfirm{
+		AmfUeNgapID:                          amfUENGAPID,
+		RanUeNgapID:                          ranUENGAPID,
+		PDUSessionResourceModifyConfirmList:  pduSessionResourceModifyConfirmList,
+		PDUSessionResourceFailedToModifyList: pduSessionResourceFailedToModifyList,
+	})
+
 	return nil
 }
 
@@ -478,4 +519,29 @@ func newTestRadio() *amf.Radio {
 // newTestAMF creates a minimal AMF context for testing.
 func newTestAMF() *amf.AMF {
 	return amf.New(nil, nil, nil)
+}
+
+// NASCall records one invocation of the NAS handler.
+type NASCall struct {
+	RanUe  *amf.RanUe
+	NASPDU []byte
+}
+
+// FakeNASHandler records calls and returns a pre-configured error.
+type FakeNASHandler struct {
+	Calls []NASCall
+	Err   error
+}
+
+func (f *FakeNASHandler) HandleNAS(_ context.Context, ue *amf.RanUe, nasPdu []byte) error {
+	f.Calls = append(f.Calls, NASCall{RanUe: ue, NASPDU: nasPdu})
+	return f.Err
+}
+
+// newTestAMFWithNAS creates a minimal AMF with a FakeNASHandler wired in.
+func newTestAMFWithNAS(nasHandler *FakeNASHandler) *amf.AMF {
+	a := newTestAMF()
+	a.NAS = nasHandler
+
+	return a
 }
