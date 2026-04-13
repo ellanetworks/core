@@ -129,6 +129,14 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 		return
 	}
 
+	// TS 38.413 §10.4: NG Setup must be the first NGAP procedure after
+	// the TNL association is established. Reject anything else.
+	if ran.RanID == nil {
+		ran.Log.Error("Received NGAP message before NG Setup, dropping", zap.String("messageType", messageType))
+
+		return
+	}
+
 	dispatchNgapMsg(ctx, amfInstance, ran, pdu)
 }
 

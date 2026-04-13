@@ -9,34 +9,10 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapConvert"
-	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
 func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.InitialUEMessage) {
-	// TS 38.413 §10.4 logical error case 2: InitialUEMessage before NGSetup.
-	if ran.RanID == nil {
-		criticalityDiagnostics := (&decode.Report{
-			ProcedureCode:        ngapType.ProcedureCodeInitialUEMessage,
-			TriggeringMessage:    ngapType.TriggeringMessagePresentInitiatingMessage,
-			ProcedureCriticality: ngapType.CriticalityPresentIgnore,
-		}).ToCriticalityDiagnostics()
-		cause := ngapType.Cause{
-			Present: ngapType.CausePresentProtocol,
-			Protocol: &ngapType.CauseProtocol{
-				Value: ngapType.CauseProtocolPresentMessageNotCompatibleWithReceiverState,
-			},
-		}
-
-		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, &criticalityDiagnostics)
-		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
-			return
-		}
-
-		return
-	}
-
 	ranUe := ran.FindUEByRanUeNgapID(msg.RANUENGAPID)
 	if ranUe != nil {
 		// gNB reused a RAN UE NGAP ID before completing the previous
