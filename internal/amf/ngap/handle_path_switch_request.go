@@ -55,12 +55,6 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 		return
 	}
 
-	err := amfUe.UpdateNH()
-	if err != nil {
-		logger.WithTrace(ctx, ranUe.Log).Error("error updating NH", zap.Error(err))
-		return
-	}
-
 	verifyUESecurityCapabilitiesOnPathSwitch(ctx, ranUe, amfUe, msg.UESecurityCapabilities)
 
 	ranUe.RanUeNgapID = msg.RANUENGAPID
@@ -124,7 +118,14 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	// TS 23.502 4.9.1.2.2 step 7: send ack to Target NG-RAN. If none of the requested PDU Sessions have been switched
 	// successfully, the AMF shall send an N2 Path Switch Request Failure message to the Target NG-RAN
 	if len(pduSessionResourceSwitchedList.List) > 0 {
-		err := ranUe.SwitchToRan(ran, msg.RANUENGAPID)
+		// TS 33.501 §6.9.2.3.2: compute fresh {NH, NCC} for the Ack
+		err := amfUe.UpdateNH()
+		if err != nil {
+			logger.WithTrace(ctx, ranUe.Log).Error("error updating NH", zap.Error(err))
+			return
+		}
+
+		err = ranUe.SwitchToRan(ran, msg.RANUENGAPID)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
 			return
