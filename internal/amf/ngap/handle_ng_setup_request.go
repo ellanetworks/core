@@ -14,8 +14,6 @@ import (
 )
 
 func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.NGSetupRequest) {
-	ran.SetRanID(msg.GlobalRANNodeID.Raw())
-
 	if msg.RANNodeName != "" {
 		ran.Name = msg.RANNodeName
 
@@ -105,6 +103,11 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		logger.WithTrace(ctx, ran.Log).Error("Could not list operator SNSSAI", zap.Error(err))
 		return
 	}
+
+	// Set RanID only after all validation passes — this gates the
+	// dispatcher guard (ran.RanID != nil) that protects all other
+	// NGAP handlers (TS 38.413 §10.4).
+	ran.SetRanID(msg.GlobalRANNodeID.Raw())
 
 	err = ran.NGAPSender.SendNGSetupResponse(ctx, operatorInfo.Guami, snssaiList, amfInstance.Name, amfInstance.RelativeCapacity)
 	if err != nil {
