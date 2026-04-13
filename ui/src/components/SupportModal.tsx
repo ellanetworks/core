@@ -86,7 +86,7 @@ export default function SupportModal({
           Generate Support Bundle
         </DialogTitle>
         <DialogContent dividers>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="textSecondary">
             The support bundle contains system diagnostics, configuration and
             database-derived information to help Ella Networks investigate
             issues. Sensitive fields (like private keys) are redacted where

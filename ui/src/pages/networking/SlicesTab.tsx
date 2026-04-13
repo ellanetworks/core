@@ -135,7 +135,7 @@ export default function SlicesTab() {
           primaryText="No network slice found."
           secondaryText="Create a network slice to get started. Ella Core uses slice information alongside the data network name to determine which policies apply to a subscriber's session."
           extraContent={
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="textSecondary">
               {description}
             </Typography>
           }
@@ -150,14 +150,16 @@ export default function SlicesTab() {
             <Stack
               direction={{ xs: "column", sm: "row" }}
               spacing={2}
-              alignItems={{ xs: "stretch", sm: "center" }}
-              justifyContent="space-between"
+              sx={{
+                alignItems: { xs: "stretch", sm: "center" },
+                justifyContent: "space-between",
+              }}
             >
               <Box>
                 <Typography variant="h5" sx={{ mb: 0.5 }}>
                   Network Slices ({rowCount})
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="textSecondary">
                   {description}
                 </Typography>
                 {canEdit && (

@@ -476,7 +476,7 @@ const DataNetworkDetail: React.FC = () => {
         {allocationRowCount === 0 ? (
           <TableContainer sx={tableContainerSx}>
             <Box sx={{ p: 3, textAlign: "center" }}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="textSecondary">
                 No IP addresses are currently allocated in this pool.
               </Typography>
             </Box>

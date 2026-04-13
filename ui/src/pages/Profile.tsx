@@ -82,7 +82,7 @@ export default function Profile() {
       <Typography variant="h4" sx={{ mb: 1 }}>
         My Profile
       </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+      <Typography variant="body1" color="textSecondary" sx={{ mb: 3 }}>
         Manage how you authenticate with Ella Core.
       </Typography>
 

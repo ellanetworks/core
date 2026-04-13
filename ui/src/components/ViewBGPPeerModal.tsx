@@ -60,40 +60,40 @@ const ViewBGPPeerModal: React.FC<ViewBGPPeerModalProps> = ({
       </DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2}>
-          <Stack direction="row" justifyContent="space-between">
-            <Typography variant="body2" color="text.secondary">
+          <Stack direction="row" sx={{ justifyContent: "space-between" }}>
+            <Typography variant="body2" color="textSecondary">
               Neighbor Address
             </Typography>
-            <Typography variant="body2" fontFamily="monospace">
+            <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
               {peer.address}
             </Typography>
           </Stack>
 
-          <Stack direction="row" justifyContent="space-between">
-            <Typography variant="body2" color="text.secondary">
+          <Stack direction="row" sx={{ justifyContent: "space-between" }}>
+            <Typography variant="body2" color="textSecondary">
               Remote AS
             </Typography>
             <Typography variant="body2">{peer.remoteAS}</Typography>
           </Stack>
 
-          <Stack direction="row" justifyContent="space-between">
-            <Typography variant="body2" color="text.secondary">
+          <Stack direction="row" sx={{ justifyContent: "space-between" }}>
+            <Typography variant="body2" color="textSecondary">
               Hold Time
             </Typography>
             <Typography variant="body2">{peer.holdTime}s</Typography>
           </Stack>
 
           {peer.description && (
-            <Stack direction="row" justifyContent="space-between">
-              <Typography variant="body2" color="text.secondary">
+            <Stack direction="row" sx={{ justifyContent: "space-between" }}>
+              <Typography variant="body2" color="textSecondary">
                 Description
               </Typography>
               <Typography variant="body2">{peer.description}</Typography>
             </Stack>
           )}
 
-          <Stack direction="row" justifyContent="space-between">
-            <Typography variant="body2" color="text.secondary">
+          <Stack direction="row" sx={{ justifyContent: "space-between" }}>
+            <Typography variant="body2" color="textSecondary">
               Password
             </Typography>
             <Typography variant="body2">
@@ -103,10 +103,9 @@ const ViewBGPPeerModal: React.FC<ViewBGPPeerModalProps> = ({
 
           <Stack
             direction="row"
-            justifyContent="space-between"
-            alignItems="center"
+            sx={{ justifyContent: "space-between", alignItems: "center" }}
           >
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" color="textSecondary">
               Status
             </Typography>
             <Chip
@@ -116,15 +115,15 @@ const ViewBGPPeerModal: React.FC<ViewBGPPeerModalProps> = ({
             />
           </Stack>
 
-          <Stack direction="row" justifyContent="space-between">
-            <Typography variant="body2" color="text.secondary">
+          <Stack direction="row" sx={{ justifyContent: "space-between" }}>
+            <Typography variant="body2" color="textSecondary">
               Prefixes Sent
             </Typography>
             <Typography variant="body2">{peer.prefixesSent ?? 0}</Typography>
           </Stack>
 
-          <Stack direction="row" justifyContent="space-between">
-            <Typography variant="body2" color="text.secondary">
+          <Stack direction="row" sx={{ justifyContent: "space-between" }}>
+            <Typography variant="body2" color="textSecondary">
               Prefixes Received
             </Typography>
             <Typography variant="body2">
@@ -132,8 +131,8 @@ const ViewBGPPeerModal: React.FC<ViewBGPPeerModalProps> = ({
             </Typography>
           </Stack>
 
-          <Stack direction="row" justifyContent="space-between">
-            <Typography variant="body2" color="text.secondary">
+          <Stack direction="row" sx={{ justifyContent: "space-between" }}>
+            <Typography variant="body2" color="textSecondary">
               Prefixes Accepted
             </Typography>
             <Typography variant="body2">
@@ -187,7 +186,7 @@ const ViewBGPPeerModal: React.FC<ViewBGPPeerModalProps> = ({
               <Collapse in={showRejected}>
                 <Typography
                   variant="body2"
-                  color="text.secondary"
+                  color="textSecondary"
                   sx={{ mb: 1 }}
                 >
                   These prefixes are always rejected regardless of import

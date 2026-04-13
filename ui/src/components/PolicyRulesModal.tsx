@@ -439,7 +439,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
         </DialogTitle>
 
         <DialogContent dividers>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
             Rules are evaluated in order, top to bottom. The first matching rule
             is applied. Drag rows to reorder.
           </Typography>
@@ -455,7 +455,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
           )}
 
           {rules.length === 0 ? (
-            <Typography color="text.secondary" sx={{ p: 2 }}>
+            <Typography color="textSecondary" sx={{ p: 2 }}>
               No {direction} rules configured.
             </Typography>
           ) : (
@@ -540,14 +540,14 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
                   </Typography>
                   <Typography
                     variant="body2"
-                    color="text.secondary"
+                    color="textSecondary"
                     sx={{ width: 90, flexShrink: 0 }}
                   >
                     {formatPorts(rule)}
                   </Typography>
                   <Typography
                     variant="body2"
-                    color="text.secondary"
+                    color="textSecondary"
                     sx={{
                       flex: 1,
                       minWidth: 0,

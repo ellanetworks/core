@@ -16,7 +16,7 @@ export default function Footer() {
       <Container maxWidth={false} sx={{ maxWidth: MAX_WIDTH }}>
         <Typography
           variant="body2"
-          color="text.secondary"
+          color="textSecondary"
           sx={{
             display: "flex",
             flexWrap: "wrap",
@@ -30,7 +30,7 @@ export default function Footer() {
             href="https://ellanetworks.com"
             target="_blank"
             rel="noopener noreferrer"
-            color="text.secondary"
+            color="textSecondary"
             underline="hover"
           >
             ellanetworks.com

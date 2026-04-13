@@ -16,7 +16,7 @@ const UserPasswordCard: React.FC<UserPasswordCardProps> = ({
         <Typography variant="h6" sx={{ mb: 1.5 }}>
           Password
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
           Keep this account secure by using a strong password and updating it
           periodically.
         </Typography>

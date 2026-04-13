@@ -179,12 +179,12 @@ const BackupRestore = () => {
           }}
         >
           <Typography variant="h4">Backup & Restore</Typography>
-          <Typography variant="body1" color="text.secondary">
+          <Typography variant="body1" color="textSecondary">
             {pageDescription}
           </Typography>
         </Box>
 
-        <Grid container spacing={4} justifyContent="flex-start">
+        <Grid container spacing={4} sx={{ justifyContent: "flex-start" }}>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <Card
               sx={{
@@ -204,7 +204,7 @@ const BackupRestore = () => {
                   flexGrow: 1,
                 }}
               >
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="textSecondary">
                   Generate and download a snapshot of your Ella Core
                   configuration and data. You can then use this file to restore
                   your system if needed.
@@ -244,7 +244,7 @@ const BackupRestore = () => {
                   flexGrow: 1,
                 }}
               >
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="textSecondary">
                   Upload a previously created backup file to restore Ella Core
                   to a previous state. This will overwrite your current
                   configuration and data.

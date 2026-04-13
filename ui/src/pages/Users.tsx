@@ -120,7 +120,7 @@ const UserPage: React.FC = () => {
           primaryText="No user found."
           secondaryText="Create a new user."
           extraContent={
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="textSecondary">
               {descriptionText}
             </Typography>
           }
@@ -140,7 +140,7 @@ const UserPage: React.FC = () => {
           >
             <Typography variant="h4">Users ({rowCount})</Typography>
 
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="textSecondary">
               {descriptionText}
             </Typography>
 

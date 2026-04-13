@@ -187,7 +187,7 @@ const EditOperatorSPNModal: React.FC<EditOperatorSPNModalProps> = ({
           }
           margin="normal"
           autoFocus
-          inputProps={{ maxLength: MAX_SPN_LENGTH }}
+          slotProps={{ htmlInput: { maxLength: MAX_SPN_LENGTH } }}
         />
 
         <TextField
@@ -202,7 +202,7 @@ const EditOperatorSPNModal: React.FC<EditOperatorSPNModalProps> = ({
             `An abbreviated network name (max ${MAX_SPN_LENGTH} characters).`
           }
           margin="normal"
-          inputProps={{ maxLength: MAX_SPN_LENGTH }}
+          slotProps={{ htmlInput: { maxLength: MAX_SPN_LENGTH } }}
         />
       </DialogContent>
 

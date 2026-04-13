@@ -56,7 +56,7 @@ export default function NetworkingPage() {
       <Typography variant="h4" sx={{ mb: 1 }}>
         Networking
       </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+      <Typography variant="body1" color="textSecondary" sx={{ mb: 2 }}>
         Configure networks and packet forwarding for Subscriber traffic.
       </Typography>
 

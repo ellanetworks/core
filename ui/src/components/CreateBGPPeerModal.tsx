@@ -331,7 +331,7 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
         <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>
           Import Prefix List
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
           Control which routes this peer is allowed to advertise to Ella Core.
         </Typography>
 
@@ -349,17 +349,17 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
         </ToggleButtonGroup>
 
         {importPreset === "none" && (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="textSecondary">
             All routes from this peer will be rejected.
           </Typography>
         )}
         {importPreset === "default-route" && (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="textSecondary">
             Only the default route (0.0.0.0/0) will be accepted.
           </Typography>
         )}
         {importPreset === "all" && (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="textSecondary">
             All routes will be accepted from this peer.
           </Typography>
         )}
@@ -371,8 +371,7 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
                 key={index}
                 direction="row"
                 spacing={1}
-                sx={{ mb: 1 }}
-                alignItems="center"
+                sx={{ mb: 1, alignItems: "center" }}
               >
                 <TextField
                   label="Prefix"
@@ -451,7 +450,7 @@ const CreateBGPPeerModal: React.FC<CreateBGPPeerModalProps> = ({
               {rejectedPrefixes.length === 1 ? "prefix" : "prefixes"} (system)
             </Button>
             <Collapse in={showRejected}>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
                 These prefixes are always rejected regardless of import policy.
               </Typography>
               <TableContainer>

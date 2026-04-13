@@ -255,7 +255,7 @@ const Operator = () => {
         Operator
       </Typography>
 
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+      <Typography variant="body1" color="textSecondary" sx={{ mb: 3 }}>
         Review and configure your operator identifiers and core settings.
       </Typography>
 
@@ -556,11 +556,9 @@ const Operator = () => {
         </Typography>
         <Stack
           direction="row"
-          alignItems="center"
-          justifyContent="space-between"
-          sx={{ mb: 2 }}
+          sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}
         >
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="textSecondary">
             Keys used for SUCI de-concealment. At least one key is required for
             UE registration with concealed identities.
           </Typography>

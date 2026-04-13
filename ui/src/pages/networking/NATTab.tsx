@@ -61,7 +61,7 @@ export default function NATTab() {
             <Typography variant="h5" sx={{ mb: 0.5 }}>
               NAT
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" color="textSecondary">
               {description}
             </Typography>
           </Box>
@@ -75,7 +75,7 @@ export default function NATTab() {
           <Stack
             direction={{ xs: "column", sm: "row" }}
             spacing={2}
-            alignItems="center"
+            sx={{ alignItems: "center" }}
           >
             <FormControlLabel
               control={

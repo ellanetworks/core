@@ -223,7 +223,7 @@ const CreateHomeNetworkKeyModal: React.FC<CreateHomeNetworkKeyModalProps> = ({
           </Select>
         </FormControl>
 
-        <Box display="flex" gap={2} alignItems="flex-start">
+        <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
           <TextField
             fullWidth
             label="Private Key"

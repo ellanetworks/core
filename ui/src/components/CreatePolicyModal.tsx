@@ -314,7 +314,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
           )}
         </FormControl>
 
-        <Box display="flex" gap={2}>
+        <Box sx={{ display: "flex", gap: 2 }}>
           <TextField
             label="Session Bitrate Uplink"
             type="number"
@@ -342,7 +342,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
           </TextField>
         </Box>
 
-        <Box display="flex" gap={2}>
+        <Box sx={{ display: "flex", gap: 2 }}>
           <TextField
             label="Session Bitrate Downlink"
             type="number"
@@ -391,7 +391,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
               {errors.fiveQi}
             </Typography>
           )}
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" color="textSecondary">
             Determines radio scheduling behavior. Only non-GBR classes are
             supported.
           </Typography>

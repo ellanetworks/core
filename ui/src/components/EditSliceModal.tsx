@@ -187,7 +187,7 @@ const EditSliceModal: React.FC<EditSliceModalProps> = ({
           }
           margin="normal"
           autoFocus
-          inputProps={{ min: 0, max: 255 }}
+          slotProps={{ htmlInput: { min: 0, max: 255 } }}
         />
         <TextField
           fullWidth

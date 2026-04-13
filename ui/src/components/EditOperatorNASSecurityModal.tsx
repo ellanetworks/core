@@ -268,9 +268,11 @@ const EditOperatorNASSecurityModal: React.FC<
                 </ListItemIcon>
                 <ListItemText
                   primary={ALGORITHM_DESCRIPTIONS[entry.name] || entry.name}
-                  primaryTypographyProps={{
-                    variant: "body2",
-                    color: "text.primary",
+                  slotProps={{
+                    primary: {
+                      variant: "body2",
+                      color: "textPrimary",
+                    },
                   }}
                 />
               </ListItem>

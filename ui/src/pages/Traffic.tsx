@@ -20,7 +20,7 @@ import {
   Chip,
 } from "@mui/material";
 import { Edit as EditIcon } from "@mui/icons-material";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
 import NorthIcon from "@mui/icons-material/North";
 import SouthIcon from "@mui/icons-material/South";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
@@ -899,7 +899,7 @@ const Traffic: React.FC = () => {
         >
           {/* Header */}
           <Typography variant="h4">Traffic</Typography>
-          <Typography variant="body1" color="text.secondary">
+          <Typography variant="body1" color="textSecondary">
             Monitor network traffic — view aggregated data usage and individual
             flow records collected by the user plane.
           </Typography>
@@ -918,7 +918,7 @@ const Traffic: React.FC = () => {
               type="date"
               value={startDate}
               onChange={handleStartChange}
-              InputLabelProps={{ shrink: true }}
+              slotProps={{ inputLabel: { shrink: true } }}
               size="small"
             />
             <TextField
@@ -926,7 +926,7 @@ const Traffic: React.FC = () => {
               type="date"
               value={endDate}
               onChange={handleEndChange}
-              InputLabelProps={{ shrink: true }}
+              slotProps={{ inputLabel: { shrink: true } }}
               size="small"
             />
             <TextField
@@ -990,7 +990,7 @@ const Traffic: React.FC = () => {
                       Clear All
                     </Button>
                   )}
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" color="textSecondary">
                     Retention:{" "}
                     <strong>{usageRetentionPolicy?.days ?? "…"}</strong> days
                   </Typography>
@@ -1104,7 +1104,7 @@ const Traffic: React.FC = () => {
                       Clear All
                     </Button>
                   )}
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" color="textSecondary">
                     Retention:{" "}
                     <strong>{flowRetentionPolicy?.days ?? "…"}</strong> days
                   </Typography>

@@ -126,7 +126,7 @@ const ProfilesPage: React.FC = () => {
           primaryText="No profile found."
           secondaryText="Create a new profile to define subscriber-level bitrate limits and QoS policies."
           extraContent={
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="textSecondary">
               {descriptionText}
             </Typography>
           }
@@ -147,7 +147,7 @@ const ProfilesPage: React.FC = () => {
           >
             <Typography variant="h4">Profiles ({rowCount})</Typography>
 
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="textSecondary">
               {descriptionText}
             </Typography>
 

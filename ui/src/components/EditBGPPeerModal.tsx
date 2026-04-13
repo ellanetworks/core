@@ -341,7 +341,7 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
           }
           margin="normal"
         />
-        <Stack direction="row" spacing={1} alignItems="flex-start">
+        <Stack direction="row" spacing={1} sx={{ alignItems: "flex-start" }}>
           <TextField
             fullWidth
             label="Password"
@@ -391,7 +391,7 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
         <Typography variant="subtitle2" sx={{ mt: 3, mb: 1 }}>
           Import Prefix List
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
           Control which routes this peer is allowed to advertise to Ella Core.
         </Typography>
 
@@ -409,17 +409,17 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
         </ToggleButtonGroup>
 
         {importPreset === "none" && (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="textSecondary">
             All routes from this peer will be rejected.
           </Typography>
         )}
         {importPreset === "default-route" && (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="textSecondary">
             Only the default route (0.0.0.0/0) will be accepted.
           </Typography>
         )}
         {importPreset === "all" && (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="textSecondary">
             All routes will be accepted from this peer.
           </Typography>
         )}
@@ -431,8 +431,7 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
                 key={index}
                 direction="row"
                 spacing={1}
-                sx={{ mb: 1 }}
-                alignItems="center"
+                sx={{ mb: 1, alignItems: "center" }}
               >
                 <TextField
                   label="Prefix"
@@ -511,7 +510,7 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
               {rejectedPrefixes.length === 1 ? "prefix" : "prefixes"} (system)
             </Button>
             <Collapse in={showRejected}>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
                 These prefixes are always rejected regardless of import policy.
               </Typography>
               <TableContainer>

@@ -187,7 +187,7 @@ const CreateSliceModal: React.FC<CreateSliceModalProps> = ({
               : "Slice/Service Type (0–255)"
           }
           margin="normal"
-          inputProps={{ min: 0, max: 255 }}
+          slotProps={{ htmlInput: { min: 0, max: 255 } }}
         />
         <TextField
           fullWidth

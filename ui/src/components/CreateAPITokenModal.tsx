@@ -219,7 +219,7 @@ const CreateAPITokenModal: React.FC<CreateAPITokenModalProps> = ({
       onClose={handleClose}
       aria-labelledby="create-api-token-modal-title"
       aria-describedby="create-api-token-modal-description"
-      PaperProps={{ sx: { width: { xs: 320, sm: 440 } } }}
+      slotProps={{ paper: { sx: { width: { xs: 320, sm: 440 } } } }}
     >
       <DialogTitle id="create-api-token-modal-title">
         Create API Token
