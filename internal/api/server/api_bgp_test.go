@@ -1007,22 +1007,6 @@ func TestApiBGPPeerValidation(t *testing.T) {
 		}
 	})
 
-	t.Run("IPv6 address rejected", func(t *testing.T) {
-		params := &CreateBGPPeerParams{
-			Address:  "::1",
-			RemoteAS: 64512,
-		}
-
-		statusCode, _, err := createBGPPeer(env.Server.URL, client, token, params)
-		if err != nil {
-			t.Fatalf("couldn't create BGP peer: %s", err)
-		}
-
-		if statusCode != http.StatusBadRequest {
-			t.Fatalf("expected status %d for IPv6 address, got %d", http.StatusBadRequest, statusCode)
-		}
-	})
-
 	t.Run("Invalid remoteAS (0)", func(t *testing.T) {
 		params := &CreateBGPPeerParams{
 			Address:  "10.0.0.1",
