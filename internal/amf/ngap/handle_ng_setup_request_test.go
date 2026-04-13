@@ -227,6 +227,10 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBDoesntSupportAnyTAC(t *testin
 	if cause.Misc.Value != ngapType.CauseMiscPresentUnspecified {
 		t.Errorf("expected Cause Miscellaneous Value to be CauseMiscPresentUnspecified, but got %v", cause.Misc.Value)
 	}
+
+	if ran.RanID != nil {
+		t.Error("RanID should remain nil after failed NG Setup")
+	}
 }
 
 func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testing.T) {
@@ -279,6 +283,10 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testi
 
 	if cause.Misc.Value != ngapType.CauseMiscPresentUnknownPLMN {
 		t.Errorf("expected Cause Miscellaneous Value to be CauseMiscPresentUnknownPLMN, but got %v", cause.Misc.Value)
+	}
+
+	if ran.RanID != nil {
+		t.Error("RanID should remain nil after failed NG Setup")
 	}
 }
 
@@ -354,6 +362,10 @@ func TestHandleNGSetupRequest_NGSetupResponse(t *testing.T) {
 
 	if response.AmfRelativeCapacity != 0xff {
 		t.Errorf("expected AmfRelativeCapacity to be 0xff, but got %d", response.AmfRelativeCapacity)
+	}
+
+	if ran.RanID == nil {
+		t.Fatal("RanID should be set after successful NG Setup")
 	}
 
 	// Verify ran.SupportedTAIs was populated from the request
