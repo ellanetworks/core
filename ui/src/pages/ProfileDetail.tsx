@@ -268,7 +268,7 @@ const ProfileDetail: React.FC = () => {
               {profile.name}
             </Typography>
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
             A profile defines the aggregate bitrate limits for a subscriber and
             groups the QoS policies applied to their sessions.
           </Typography>
@@ -386,7 +386,7 @@ const ProfileDetail: React.FC = () => {
         >
           <Box>
             <Typography variant="h6">Policies ({policies.length})</Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" color="textSecondary">
               QoS policies applied to subscriber sessions on each data network.
             </Typography>
           </Box>

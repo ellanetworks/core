@@ -317,7 +317,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
           </Alert>
         </Collapse>
 
-        <Box display="flex" gap={2} alignItems="flex-start">
+        <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
           <TextField
             fullWidth
             label="IMSI"
@@ -359,7 +359,7 @@ const CreateSubscriberModal: React.FC<CreateSubscriberModalProps> = ({
             Generate
           </Button>
         </Box>
-        <Box display="flex" gap={2} alignItems="flex-start">
+        <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
           <TextField
             fullWidth
             label="Key"

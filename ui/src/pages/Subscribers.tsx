@@ -118,7 +118,7 @@ const SubscriberPage: React.FC = () => {
                   height: "100%",
                 }}
               >
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="textSecondary">
                   —
                 </Typography>
               </Box>
@@ -229,7 +229,7 @@ const SubscriberPage: React.FC = () => {
           primaryText="No subscriber found."
           secondaryText="Create a new subscriber."
           extraContent={
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="textSecondary">
               {descriptionText}
             </Typography>
           }
@@ -249,7 +249,7 @@ const SubscriberPage: React.FC = () => {
             }}
           >
             <Typography variant="h4">Subscribers ({rowCount})</Typography>
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="textSecondary">
               {descriptionText}
             </Typography>
             {canEdit && (

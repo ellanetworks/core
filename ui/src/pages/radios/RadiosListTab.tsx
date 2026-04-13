@@ -126,7 +126,7 @@ export default function RadiosListTab() {
           primaryText="No radio found."
           secondaryText="Connected radios will automatically appear here."
           extraContent={
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="textSecondary">
               {descriptionText}
             </Typography>
           }
@@ -146,7 +146,7 @@ export default function RadiosListTab() {
           >
             <Typography variant="h4">Radios ({rowCount})</Typography>
 
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="textSecondary">
               {descriptionText}
             </Typography>
           </Box>

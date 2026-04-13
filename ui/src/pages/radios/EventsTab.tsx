@@ -30,7 +30,7 @@ import EastIcon from "@mui/icons-material/East";
 import WestIcon from "@mui/icons-material/West";
 import CloseIcon from "@mui/icons-material/Close";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
 import PauseIcon from "@mui/icons-material/Pause";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { Edit as EditIcon } from "@mui/icons-material";
@@ -486,7 +486,7 @@ export default function EventsTab() {
       >
         <Box>
           <Typography variant="h4">Network Events</Typography>
-          <Typography variant="body1" color="text.secondary">
+          <Typography variant="body1" color="textSecondary">
             {subDescription}
           </Typography>
         </Box>
@@ -613,7 +613,7 @@ export default function EventsTab() {
           <Box sx={{ flex: 1 }} />
           <Typography
             variant="body2"
-            color="text.secondary"
+            color="textSecondary"
             sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
           >
             Retention: <strong>{retentionQuery.data?.days ?? "…"}</strong> days

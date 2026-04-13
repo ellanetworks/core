@@ -123,7 +123,7 @@ const UserAPITokensCard: React.FC<UserAPITokensCardProps> = ({
             </Tooltip>
           </Box>
 
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
             {targetEmail
               ? "Manage API tokens for this user. Tokens authenticate programmatically with Ella Core and inherit the user's permissions."
               : "Manage your API tokens to authenticate programmatically with Ella Core. Your API token will have the same permissions as your user account. Actions performed with the token will be logged under your user account."}
@@ -185,7 +185,7 @@ const UserAPITokensCard: React.FC<UserAPITokensCardProps> = ({
                 {tokens.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={4}>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" color="textSecondary">
                         No API tokens yet. Click "Create Token" to add one.
                       </Typography>
                     </TableCell>
@@ -215,7 +215,7 @@ const UserAPITokensCard: React.FC<UserAPITokensCardProps> = ({
                         )}
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" color="textSecondary">
                           {token.expires_at
                             ? new Date(token.expires_at).toDateString()
                             : "Never"}

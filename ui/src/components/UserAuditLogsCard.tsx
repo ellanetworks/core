@@ -53,7 +53,7 @@ const UserAuditLogsCard: React.FC<UserAuditLogsCardProps> = ({
         </Box>
 
         {logs.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="textSecondary">
             No audit log entries for this user.
           </Typography>
         ) : (

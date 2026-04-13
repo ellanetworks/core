@@ -167,7 +167,7 @@ const LoginPage = () => {
         }}
       >
         <form onSubmit={handleSubmit} noValidate>
-          <Typography variant="h5" textAlign="center" gutterBottom>
+          <Typography variant="h5" gutterBottom sx={{ textAlign: "center" }}>
             Login
           </Typography>
 

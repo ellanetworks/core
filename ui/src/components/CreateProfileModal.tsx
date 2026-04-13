@@ -171,7 +171,7 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
           autoFocus
         />
 
-        <Box display="flex" gap={2}>
+        <Box sx={{ display: "flex", gap: 2 }}>
           <TextField
             label="Bitrate Uplink"
             type="number"
@@ -197,7 +197,7 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
           </TextField>
         </Box>
 
-        <Box display="flex" gap={2}>
+        <Box sx={{ display: "flex", gap: 2 }}>
           <TextField
             label="Bitrate Downlink"
             type="number"

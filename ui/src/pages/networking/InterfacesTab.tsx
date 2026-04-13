@@ -44,7 +44,7 @@ export default function InterfacesTab() {
           primaryText="No interface information available."
           secondaryText="Ella Core could not retrieve interface information from the API."
           extraContent={
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="textSecondary">
               {description}
             </Typography>
           }
@@ -58,7 +58,7 @@ export default function InterfacesTab() {
             <Typography variant="h5" sx={{ mb: 0.5 }}>
               Network Interfaces
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" color="textSecondary">
               {description}
             </Typography>
           </Box>
@@ -83,32 +83,34 @@ export default function InterfacesTab() {
               <Stack
                 direction="row"
                 spacing={1}
-                alignItems="center"
-                justifyContent="space-between"
-                sx={{ mb: 1 }}
+                sx={{
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 1,
+                }}
               >
                 <Typography variant="subtitle1">N2 (NGAP)</Typography>
                 <Chip label="Control Plane" size="small" />
               </Stack>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="textSecondary">
                 {interfacesInfo.n2?.addresses &&
                 interfacesInfo.n2.addresses.length > 0 ? (
                   interfacesInfo.n2.addresses.map((addr) => (
                     <Typography
                       key={addr}
                       variant="body2"
-                      color="text.secondary"
+                      color="textSecondary"
                     >
                       Address: <strong>{addr}</strong>
                     </Typography>
                   ))
                 ) : (
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" color="textSecondary">
                     Address: <strong>—</strong>
                   </Typography>
                 )}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="textSecondary">
                 Port: <strong>{interfacesInfo.n2?.port ?? "—"}</strong>
               </Typography>
             </Box>
@@ -125,12 +127,18 @@ export default function InterfacesTab() {
               <Stack
                 direction="row"
                 spacing={1}
-                alignItems="center"
-                justifyContent="space-between"
-                sx={{ mb: 1 }}
+                sx={{
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 1,
+                }}
               >
                 <Typography variant="subtitle1">N3 (GTP-U)</Typography>
-                <Stack direction="row" spacing={0.5} alignItems="center">
+                <Stack
+                  direction="row"
+                  spacing={0.5}
+                  sx={{ alignItems: "center" }}
+                >
                   <Chip label="User Plane" size="small" />
                   {canEdit && (
                     <Tooltip title="Edit external address">
@@ -145,31 +153,31 @@ export default function InterfacesTab() {
                   )}
                 </Stack>
               </Stack>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="textSecondary">
                 Interface name:{" "}
                 <strong>{interfacesInfo.n3?.name ?? "—"}</strong>
               </Typography>
               {interfacesInfo.n2?.addresses &&
               interfacesInfo.n2.addresses.length > 0 ? (
                 interfacesInfo.n2.addresses.map((addr) => (
-                  <Typography key={addr} variant="body2" color="text.secondary">
+                  <Typography key={addr} variant="body2" color="textSecondary">
                     Address: <strong>{addr}</strong>
                   </Typography>
                 ))
               ) : (
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="textSecondary">
                   Address: <strong>—</strong>
                 </Typography>
               )}
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="textSecondary">
                 Port: <strong>{interfacesInfo.n2?.port ?? "—"}</strong>
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="textSecondary">
                 External address:{" "}
                 <strong>{interfacesInfo.n3?.external_address || "—"}</strong>
               </Typography>
               {interfacesInfo.n3?.vlan && (
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="textSecondary">
                   VLAN:{" "}
                   <strong>
                     {interfacesInfo.n3.vlan.vlan_id ?? "—"}
@@ -193,19 +201,21 @@ export default function InterfacesTab() {
               <Stack
                 direction="row"
                 spacing={1}
-                alignItems="center"
-                justifyContent="space-between"
-                sx={{ mb: 1 }}
+                sx={{
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 1,
+                }}
               >
                 <Typography variant="subtitle1">N6 (External)</Typography>
                 <Chip label="External Network" size="small" />
               </Stack>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="textSecondary">
                 Interface name:{" "}
                 <strong>{interfacesInfo.n6?.name ?? "—"}</strong>
               </Typography>
               {interfacesInfo.n6?.vlan && (
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="textSecondary">
                   VLAN:{" "}
                   <strong>
                     {interfacesInfo.n6.vlan.vlan_id ?? "—"}
@@ -229,9 +239,11 @@ export default function InterfacesTab() {
               <Stack
                 direction="row"
                 spacing={1}
-                alignItems="center"
-                justifyContent="space-between"
-                sx={{ mb: 1 }}
+                sx={{
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  mb: 1,
+                }}
               >
                 <Typography variant="subtitle1">API</Typography>
                 <Chip label="Management" size="small" />
@@ -239,16 +251,16 @@ export default function InterfacesTab() {
               {interfacesInfo.api?.addresses &&
               interfacesInfo.api.addresses.length > 0 ? (
                 interfacesInfo.api.addresses.map((addr) => (
-                  <Typography key={addr} variant="body2" color="text.secondary">
+                  <Typography key={addr} variant="body2" color="textSecondary">
                     Address: <strong>{addr}</strong>
                   </Typography>
                 ))
               ) : (
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="textSecondary">
                   Address: <strong>—</strong>
                 </Typography>
               )}
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="textSecondary">
                 Port: <strong>{interfacesInfo.api?.port ?? "—"}</strong>
               </Typography>
             </Box>

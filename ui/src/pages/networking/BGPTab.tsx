@@ -359,18 +359,20 @@ export default function BGPTab() {
             <Typography variant="h5" sx={{ mb: 0.5 }}>
               BGP Settings
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
               {description}
             </Typography>
 
             <Stack
               direction={{ xs: "column", sm: "row" }}
               spacing={2}
-              alignItems={{ xs: "stretch", sm: "center" }}
-              justifyContent="space-between"
-              sx={{ mb: 2 }}
+              sx={{
+                alignItems: { xs: "stretch", sm: "center" },
+                justifyContent: "space-between",
+                mb: 2,
+              }}
             >
-              <Stack direction="row" spacing={2} alignItems="center">
+              <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
                 <FormControlLabel
                   control={
                     <Switch
@@ -431,15 +433,17 @@ export default function BGPTab() {
             <Stack
               direction={{ xs: "column", sm: "row" }}
               spacing={2}
-              alignItems={{ xs: "stretch", sm: "center" }}
-              justifyContent="space-between"
-              sx={{ mb: 2 }}
+              sx={{
+                alignItems: { xs: "stretch", sm: "center" },
+                justifyContent: "space-between",
+                mb: 2,
+              }}
             >
               <Box>
                 <Typography variant="h5" sx={{ mb: 0.5 }}>
                   Peers ({peerRowCount})
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="textSecondary">
                   Configured BGP neighbors. Changes are applied immediately.
                 </Typography>
               </Box>
@@ -499,7 +503,7 @@ export default function BGPTab() {
             <Typography variant="h5" sx={{ mb: 0.5 }}>
               Advertised Routes
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
               Routes currently announced to BGP peers. These are derived from
               active PDU sessions and cannot be edited directly.
             </Typography>
@@ -526,11 +530,14 @@ export default function BGPTab() {
                   slots={{
                     noRowsOverlay: () => (
                       <Stack
-                        alignItems="center"
-                        justifyContent="center"
-                        sx={{ height: "100%", p: 2 }}
+                        sx={{
+                          alignItems: "center",
+                          justifyContent: "center",
+                          height: "100%",
+                          p: 2,
+                        }}
                       >
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" color="textSecondary">
                           No advertised routes
                         </Typography>
                       </Stack>
@@ -563,7 +570,7 @@ export default function BGPTab() {
             <Typography variant="h5" sx={{ mb: 0.5 }}>
               Learned Routes
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
               Routes received from BGP peers and installed in the kernel routing
               table. These are controlled by each peer's import policy.
             </Typography>

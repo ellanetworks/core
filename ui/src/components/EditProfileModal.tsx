@@ -193,7 +193,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
           disabled
         />
 
-        <Box display="flex" gap={2}>
+        <Box sx={{ display: "flex", gap: 2 }}>
           <TextField
             label="Bitrate Uplink"
             type="number"
@@ -219,7 +219,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
           </TextField>
         </Box>
 
-        <Box display="flex" gap={2}>
+        <Box sx={{ display: "flex", gap: 2 }}>
           <TextField
             label="Bitrate Downlink"
             type="number"

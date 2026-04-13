@@ -134,7 +134,7 @@ export default function DataNetworksTab() {
           primaryText="No data network found."
           secondaryText="Create a data network to assign subscribers and control egress."
           extraContent={
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="textSecondary">
               {description}
             </Typography>
           }
@@ -149,14 +149,16 @@ export default function DataNetworksTab() {
             <Stack
               direction={{ xs: "column", sm: "row" }}
               spacing={2}
-              alignItems={{ xs: "stretch", sm: "center" }}
-              justifyContent="space-between"
+              sx={{
+                alignItems: { xs: "stretch", sm: "center" },
+                justifyContent: "space-between",
+              }}
             >
               <Box>
                 <Typography variant="h5" sx={{ mb: 0.5 }}>
                   Data Networks ({rowCount})
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="textSecondary">
                   {description}
                 </Typography>
                 {canEdit && (

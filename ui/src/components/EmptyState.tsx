@@ -44,7 +44,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
       {extraContent && (
         <Box sx={{ mt: 1, width: "100%" }}>
           {typeof extraContent === "string" ? (
-            <Typography variant="body1" color="text.secondary">
+            <Typography variant="body1" color="textSecondary">
               {extraContent}
             </Typography>
           ) : (
@@ -65,7 +65,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({
       )}
 
       {!button && readOnlyHint && (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+        <Typography variant="body2" color="textSecondary" sx={{ mt: 2 }}>
           {readOnlyHint}
         </Typography>
       )}

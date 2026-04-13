@@ -59,7 +59,7 @@ const SubscriberProtocolChart: React.FC<SubscriberProtocolChartProps> = ({
     return (
       <Typography
         variant="body2"
-        color="text.secondary"
+        color="textSecondary"
         sx={{ py: 4, textAlign: "center" }}
       >
         No protocol data available.

@@ -256,7 +256,7 @@ const AuditLog: React.FC = () => {
       >
         <Typography variant="h4">Audit Logs</Typography>
 
-        <Typography variant="body1" color="text.secondary">
+        <Typography variant="body1" color="textSecondary">
           {descriptionText}
         </Typography>
 
@@ -274,7 +274,7 @@ const AuditLog: React.FC = () => {
             type="date"
             value={startDate}
             onChange={handleStartChange}
-            InputLabelProps={{ shrink: true }}
+            slotProps={{ inputLabel: { shrink: true } }}
             size="small"
           />
           <TextField
@@ -282,11 +282,11 @@ const AuditLog: React.FC = () => {
             type="date"
             value={endDate}
             onChange={handleEndChange}
-            InputLabelProps={{ shrink: true }}
             size="small"
             error={!!dateError}
             helperText={dateError}
             slotProps={{
+              inputLabel: { shrink: true },
               input: { inputProps: { min: startDate || undefined } },
             }}
           />
@@ -322,7 +322,7 @@ const AuditLog: React.FC = () => {
               ml: { sm: "auto" },
             }}
           >
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" color="textSecondary">
               Retention: <strong>{retentionPolicy?.days ?? "…"}</strong> days
             </Typography>
             {canEdit && (

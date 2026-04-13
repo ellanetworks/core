@@ -337,7 +337,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           </Select>
         </FormControl>
 
-        <Box display="flex" gap={2}>
+        <Box sx={{ display: "flex", gap: 2 }}>
           <TextField
             label="Session Bitrate Uplink"
             type="number"
@@ -363,7 +363,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           </TextField>
         </Box>
 
-        <Box display="flex" gap={2}>
+        <Box sx={{ display: "flex", gap: 2 }}>
           <TextField
             label="Session Bitrate Downlink"
             type="number"
@@ -410,7 +410,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
               </MenuItem>
             ))}
           </Select>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" color="textSecondary">
             Determines radio scheduling behavior. Only non-GBR classes are
             supported.
           </Typography>

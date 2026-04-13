@@ -401,7 +401,7 @@ const PolicyDetail: React.FC = () => {
               {policy.name}
             </Typography>
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
             A policy defines the QoS parameters and network rules applied to a
             subscriber's session on a specific data network.
           </Typography>
@@ -594,7 +594,7 @@ const PolicyDetail: React.FC = () => {
         <Typography variant="h6" sx={{ mb: 0.5 }}>
           Network Rules
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
           Control which traffic is allowed or denied for subscribers using this
           policy. Rules are evaluated in order — the first match wins.
         </Typography>

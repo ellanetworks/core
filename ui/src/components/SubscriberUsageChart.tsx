@@ -134,7 +134,7 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
       ) : !hasData ? (
         <Typography
           variant="body2"
-          color="text.secondary"
+          color="textSecondary"
           sx={{ py: 4, textAlign: "center" }}
         >
           No usage data available for this subscriber.
@@ -151,13 +151,13 @@ const SubscriberUsageChart: React.FC<SubscriberUsageChartProps> = ({
           >
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
               <SouthIcon sx={{ fontSize: 16, color: DOWNLINK_COLOR }} />
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="textSecondary">
                 {formatBytesAutoUnit(totalDownlink)}
               </Typography>
             </Box>
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
               <NorthIcon sx={{ fontSize: 16, color: UPLINK_COLOR }} />
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="textSecondary">
                 {formatBytesAutoUnit(totalUplink)}
               </Typography>
             </Box>

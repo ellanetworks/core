@@ -502,7 +502,7 @@ const RadioDetail: React.FC = () => {
           {subscriberRowCount === 0 ? (
             <TableContainer sx={{ ...tableContainerSx, height: PANEL_HEIGHT }}>
               <Box sx={{ p: 3, textAlign: "center" }}>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="textSecondary">
                   No subscribers are currently connected to this radio.
                 </Typography>
               </Box>
@@ -563,7 +563,7 @@ const RadioDetail: React.FC = () => {
         {eventRows.length === 0 ? (
           <TableContainer sx={tableContainerSx}>
             <Box sx={{ p: 3, textAlign: "center" }}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="textSecondary">
                 No recent events for this radio.
               </Typography>
             </Box>

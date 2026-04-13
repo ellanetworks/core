@@ -422,8 +422,7 @@ const Dashboard = () => {
       <Grid
         container
         spacing={4}
-        alignItems="stretch"
-        justifyContent="flex-start"
+        sx={{ alignItems: "stretch", justifyContent: "flex-start" }}
       >
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Tooltip
@@ -494,8 +493,7 @@ const Dashboard = () => {
       <Grid
         container
         spacing={4}
-        alignItems="stretch"
-        justifyContent="flex-start"
+        sx={{ alignItems: "stretch", justifyContent: "flex-start" }}
       >
         <Grid size={{ xs: 12, sm: 12, md: 4 }}>
           <KpiCard
@@ -526,7 +524,7 @@ const Dashboard = () => {
                 />
                 <Typography
                   variant="body2"
-                  color="text.secondary"
+                  color="textSecondary"
                   sx={{ mt: 1 }}
                 >
                   {ipChart.total > 0
@@ -651,10 +649,7 @@ const Dashboard = () => {
                                 </Typography>
                               </Link>
                             ) : (
-                              <Typography
-                                variant="body2"
-                                color="text.secondary"
-                              >
+                              <Typography variant="body2" color="textSecondary">
                                 —
                               </Typography>
                             )}
@@ -681,7 +676,7 @@ const Dashboard = () => {
                     {(!networkLogs || networkLogs.length === 0) && (
                       <TableRow>
                         <TableCell colSpan={4}>
-                          <Typography variant="body2" color="text.secondary">
+                          <Typography variant="body2" color="textSecondary">
                             No network events.
                           </Typography>
                         </TableCell>
@@ -703,8 +698,7 @@ const Dashboard = () => {
       <Grid
         container
         spacing={4}
-        alignItems="stretch"
-        justifyContent="flex-start"
+        sx={{ alignItems: "stretch", justifyContent: "flex-start" }}
       >
         <Grid size={{ xs: 12, sm: 12, md: 4 }}>
           <KpiCard
@@ -728,7 +722,7 @@ const Dashboard = () => {
             {flowStatsQuery.isLoading ? (
               <Skeleton variant="rounded" width="100%" height={200} />
             ) : protocolPieData.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="textSecondary">
                 No flow data available.
               </Typography>
             ) : (
@@ -781,7 +775,7 @@ const Dashboard = () => {
             {usageQuery.isLoading ? (
               <Skeleton variant="rounded" width="100%" height={200} />
             ) : topUsers.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" color="textSecondary">
                 No usage data available.
               </Typography>
             ) : (
@@ -859,8 +853,7 @@ const Dashboard = () => {
       <Grid
         container
         spacing={4}
-        alignItems="stretch"
-        justifyContent="flex-start"
+        sx={{ alignItems: "stretch", justifyContent: "flex-start" }}
       >
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Tooltip
