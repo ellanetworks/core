@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/dbwriter"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -65,12 +66,28 @@ func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.Audit
 
 	DBQueriesTotal.WithLabelValues(AuditLogsTableName, "insert").Inc()
 
-	err := db.shared.Query(ctx, db.insertAuditLogStmt, auditLog).Run()
+	payload := &auditLogPayload{
+		Timestamp: auditLog.Timestamp,
+		Level:     auditLog.Level,
+		Actor:     auditLog.Actor,
+		Action:    auditLog.Action,
+		IP:        auditLog.IP,
+		Details:   auditLog.Details,
+	}
+
+	var err error
+
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdInsertAuditLog, payload)
+	} else {
+		_, err = db.applyInsertAuditLog(ctx, payload)
+	}
+
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -158,13 +175,19 @@ func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
 	// Compute cutoff entirely in UTC so the boundary is timezone/DST-independent.
 	cutoff := time.Now().UTC().AddDate(0, 0, -days).Format(time.RFC3339)
 
-	args := cutoffArgs{Cutoff: cutoff}
+	var err error
 
-	if err := db.shared.Query(ctx, db.deleteOldAuditLogsStmt, args).Run(); err != nil {
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdDeleteOldAuditLogs, &stringPayload{Value: cutoff})
+	} else {
+		_, err = db.applyDeleteOldAuditLogs(ctx, &stringPayload{Value: cutoff})
+	}
+
+	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

@@ -104,11 +104,23 @@ const parseMetrics = (raw: string): ParsedMetrics => {
 
   const g = (k: string) => map.get(k) ?? null;
 
+  const sum = (prefix: string): number | null => {
+    let total = 0;
+    let found = false;
+    for (const [k, v] of map) {
+      if (k.startsWith(prefix)) {
+        total += v;
+        found = true;
+      }
+    }
+    return found ? total : null;
+  };
+
   return {
     pduSessions: g("app_pdu_sessions_total "),
     heapMemoryBytes: g("go_memstats_heap_inuse_bytes "),
     totalMemoryBytes: g("process_resident_memory_bytes "),
-    databaseSizeBytes: g("app_database_storage_bytes "),
+    databaseSizeBytes: sum("app_database_storage_bytes"),
     routines: g("go_goroutines "),
     allocatedIPs:
       g("app_ip_addresses_allocated_total ") != null
@@ -883,7 +895,7 @@ const Dashboard = () => {
           </Tooltip>
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Tooltip title="Size of the database file on disk" arrow>
+          <Tooltip title="Total size of the database files on disk" arrow>
             <Box>
               <KpiCard
                 title="Database Size"

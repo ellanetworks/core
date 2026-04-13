@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -83,14 +84,19 @@ func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string
 
 	DBQueriesTotal.WithLabelValues(N3SettingsTableName, "update").Inc()
 
-	arg := N3Settings{ExternalAddress: externalAddress}
+	var err error
 
-	err := db.shared.Query(ctx, db.updateN3SettingsStmt, arg).Run()
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdUpdateN3Settings, &stringPayload{Value: externalAddress})
+	} else {
+		_, err = db.applyUpdateN3Settings(ctx, &stringPayload{Value: externalAddress})
+	}
+
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

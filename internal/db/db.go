@@ -12,10 +12,12 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/logger"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	_ "github.com/mattn/go-sqlite3"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
@@ -29,8 +31,10 @@ var tracer = otel.Tracer("ella-core/db")
 //
 // dataDir is the directory containing both files.
 type Database struct {
-	dataDir   string
-	restoreMu sync.Mutex
+	dataDir        string
+	restoreMu      sync.Mutex
+	raftManager    *ellaraft.Manager
+	proposeTimeout time.Duration
 
 	// Subscriber statements
 	listSubscribersStmt         *sqlair.Statement

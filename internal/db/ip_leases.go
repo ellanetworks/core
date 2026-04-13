@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"net/netip"
 
-	"github.com/canonical/sqlair"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -88,23 +88,21 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address net
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "insert").Inc()
 
 	b := address.As16()
+	lease.AddressBin = b[:]
 
-	row := *lease
-	row.AddressBin = b[:]
+	var err error
 
-	err := db.shared.Query(ctx, db.createLeaseStmt, &row).Run()
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdCreateLease, lease)
+	} else {
+		_, err = db.applyCreateLease(ctx, lease)
+	}
+
 	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "unique constraint failed")
-
-			return ErrAlreadyExists
-		}
-
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -209,31 +207,21 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID int, session
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "update").Inc()
 
-	lease := IPLease{ID: leaseID, SessionID: &sessionID}
+	lease := &IPLease{ID: leaseID, SessionID: &sessionID}
 
-	var outcome sqlair.Outcome
+	var err error
 
-	err := db.shared.Query(ctx, db.updateLeaseSessionStmt, lease).Get(&outcome)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdUpdateLeaseSession, lease)
+	} else {
+		_, err = db.applyUpdateLeaseSession(ctx, lease)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -260,12 +248,19 @@ func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID int) error {
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
-	err := db.shared.Query(ctx, db.deleteLeaseStmt, IPLease{ID: leaseID}).Run()
+	var err error
+
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdDeleteDynamicLease, &intPayload{Value: leaseID})
+	} else {
+		_, err = db.applyDeleteDynamicLease(ctx, &intPayload{Value: leaseID})
+	}
+
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -293,12 +288,19 @@ func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
-	err := db.shared.Query(ctx, db.deleteAllDynamicLeasesStmt).Run()
+	var err error
+
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdDeleteAllDynamicLeases, nil)
+	} else {
+		err = db.applyDeleteAllDynamicLeases(ctx)
+	}
+
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("failed to delete all dynamic leases: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

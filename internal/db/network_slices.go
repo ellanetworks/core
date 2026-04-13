@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/canonical/sqlair"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -227,19 +227,19 @@ func (db *Database) CreateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 
 	DBQueriesTotal.WithLabelValues(NetworkSlicesTableName, "insert").Inc()
 
-	err := db.shared.Query(ctx, db.createNetworkSliceStmt, slice).Run()
+	var err error
+
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdCreateNetworkSlice, slice)
+	} else {
+		_, err = db.applyCreateNetworkSlice(ctx, slice)
+	}
+
 	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "unique constraint failed")
-
-			return ErrAlreadyExists
-		}
-
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -265,36 +265,19 @@ func (db *Database) UpdateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 
 	DBQueriesTotal.WithLabelValues(NetworkSlicesTableName, "update").Inc()
 
-	var outcome sqlair.Outcome
+	var err error
 
-	err := db.shared.Query(ctx, db.editNetworkSliceStmt, slice).Get(&outcome)
-	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "unique constraint failed")
-
-			return ErrAlreadyExists
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdUpdateNetworkSlice, slice)
+	} else {
+		_, err = db.applyUpdateNetworkSlice(ctx, slice)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -320,29 +303,19 @@ func (db *Database) DeleteNetworkSlice(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(NetworkSlicesTableName, "delete").Inc()
 
-	var outcome sqlair.Outcome
+	var err error
 
-	err := db.shared.Query(ctx, db.deleteNetworkSliceStmt, NetworkSlice{Name: name}).Get(&outcome)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdDeleteNetworkSlice, &stringPayload{Value: name})
+	} else {
+		_, err = db.applyDeleteNetworkSlice(ctx, &stringPayload{Value: name})
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

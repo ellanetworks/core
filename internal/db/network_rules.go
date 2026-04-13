@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/canonical/sqlair"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -70,34 +71,27 @@ func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (int
 	nr.CreatedAt = now
 	nr.UpdatedAt = now
 
-	var outcome sqlair.Outcome
+	var (
+		result any
+		err    error
+	)
 
-	err := db.shared.Query(ctx, db.createNetworkRuleStmt, nr).Get(&outcome)
-	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "unique constraint failed")
-
-			return 0, ErrAlreadyExists
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return 0, fmt.Errorf("query failed: %w", err)
+	if db.raftManager != nil {
+		result, err = db.propose(ellaraft.CmdCreateNetworkRule, nr)
+	} else {
+		result, err = db.applyCreateNetworkRule(ctx, nr)
 	}
 
-	result, err := outcome.Result().LastInsertId()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving last insert id failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return 0, fmt.Errorf("retrieving last insert id failed: %w", err)
+		return 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
 
-	return result, nil
+	return result.(int64), nil
 }
 
 // GetNetworkRule retrieves a network rule by ID.
@@ -160,36 +154,19 @@ func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) erro
 
 	nr.UpdatedAt = time.Now().UTC()
 
-	var outcome sqlair.Outcome
+	var err error
 
-	err := db.shared.Query(ctx, db.updateNetworkRuleStmt, nr).Get(&outcome)
-	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "unique constraint failed")
-
-			return ErrAlreadyExists
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdUpdateNetworkRule, nr)
+	} else {
+		_, err = db.applyUpdateNetworkRule(ctx, nr)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -316,29 +293,19 @@ func (db *Database) DeleteNetworkRule(ctx context.Context, id int64) error {
 
 	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "delete").Inc()
 
-	var outcome sqlair.Outcome
+	var err error
 
-	err := db.shared.Query(ctx, db.deleteNetworkRuleStmt, NetworkRule{ID: id}).Get(&outcome)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdDeleteNetworkRule, &int64Payload{Value: id})
+	} else {
+		_, err = db.applyDeleteNetworkRule(ctx, &int64Payload{Value: id})
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -527,14 +494,19 @@ func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID i
 
 	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "delete").Inc()
 
-	var outcome sqlair.Outcome
+	var err error
 
-	err := db.shared.Query(ctx, db.deleteNetworkRulesByPolicyStmt, NetworkRule{PolicyID: policyID}).Get(&outcome)
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdDeleteNetworkRulesByPolicy, &int64Payload{Value: policyID})
+	} else {
+		_, err = db.applyDeleteNetworkRulesByPolicy(ctx, &int64Payload{Value: policyID})
+	}
+
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

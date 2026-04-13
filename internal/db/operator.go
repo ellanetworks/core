@@ -11,6 +11,7 @@ import (
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -193,12 +194,19 @@ func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Ope
 
 	DBQueriesTotal.WithLabelValues(OperatorTableName, "insert").Inc()
 
-	err := db.shared.Query(ctx, db.initializeOperatorStmt, initialOperator).Run()
+	var err error
+
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdInitializeOperator, initialOperator)
+	} else {
+		_, err = db.applyInitializeOperator(ctx, initialOperator)
+	}
+
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -259,7 +267,7 @@ func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []
 
 	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
 
-	op := Operator{}
+	op := &Operator{}
 
 	err := op.SetSupportedTacs(supportedTACs)
 	if err != nil {
@@ -269,12 +277,17 @@ func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []
 		return fmt.Errorf("failed to set supported TACs: %w", err)
 	}
 
-	err = db.shared.Query(ctx, db.updateOperatorTrackingStmt, op).Run()
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdUpdateOperatorTracking, op)
+	} else {
+		_, err = db.applyUpdateOperatorTracking(ctx, op)
+	}
+
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -301,14 +314,21 @@ func (db *Database) UpdateOperatorID(ctx context.Context, mcc, mnc string) error
 
 	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
 
-	op := Operator{Mcc: mcc, Mnc: mnc}
+	op := &Operator{Mcc: mcc, Mnc: mnc}
 
-	err := db.shared.Query(ctx, db.updateOperatorIDStmt, op).Run()
+	var err error
+
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdUpdateOperatorID, op)
+	} else {
+		_, err = db.applyUpdateOperatorID(ctx, op)
+	}
+
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -369,14 +389,21 @@ func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string)
 
 	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
 
-	op := Operator{OperatorCode: operatorCode}
+	op := &Operator{OperatorCode: operatorCode}
 
-	err := db.shared.Query(ctx, db.updateOperatorCodeStmt, op).Run()
+	var err error
+
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdUpdateOperatorCode, op)
+	} else {
+		_, err = db.applyUpdateOperatorCode(ctx, op)
+	}
+
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -403,7 +430,7 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 
 	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
 
-	op := Operator{}
+	op := &Operator{}
 
 	err := op.SetCiphering(cipheringOrder)
 	if err != nil {
@@ -421,12 +448,17 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 		return fmt.Errorf("failed to set integrity order: %w", err)
 	}
 
-	err = db.shared.Query(ctx, db.updateOperatorSecurityAlgorithmsStmt, op).Run()
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdUpdateOperatorSecurityAlgorithms, op)
+	} else {
+		_, err = db.applyUpdateOperatorSecurityAlgorithms(ctx, op)
+	}
+
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -453,14 +485,21 @@ func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFullName, spnShort
 
 	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
 
-	op := Operator{SpnFullName: spnFullName, SpnShortName: spnShortName}
+	op := &Operator{SpnFullName: spnFullName, SpnShortName: spnShortName}
 
-	err := db.shared.Query(ctx, db.updateOperatorSPNStmt, op).Run()
+	var err error
+
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdUpdateOperatorSPN, op)
+	} else {
+		_, err = db.applyUpdateOperatorSPN(ctx, op)
+	}
+
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

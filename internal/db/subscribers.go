@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/canonical/sqlair"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -151,19 +151,19 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "insert").Inc()
 
-	err := db.shared.Query(ctx, db.createSubscriberStmt, subscriber).Run()
+	var err error
+
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdCreateSubscriber, subscriber)
+	} else {
+		_, err = db.applyCreateSubscriber(ctx, subscriber)
+	}
+
 	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "unique constraint failed")
-
-			return ErrAlreadyExists
-		}
-
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -189,29 +189,19 @@ func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Sub
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "update").Inc()
 
-	var outcome sqlair.Outcome
+	var err error
 
-	err := db.shared.Query(ctx, db.updateSubscriberProfileStmt, subscriber).Get(&outcome)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdUpdateSubscriberProfile, subscriber)
+	} else {
+		_, err = db.applyUpdateSubscriberProfile(ctx, subscriber)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -242,29 +232,19 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 		SequenceNumber: sequenceNumber,
 	}
 
-	var outcome sqlair.Outcome
+	var err error
 
-	err := db.shared.Query(ctx, db.updateSubscriberSqnNumStmt, subscriber).Get(&outcome)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdEditSubscriberSeqNum, subscriber)
+	} else {
+		_, err = db.applyEditSubscriberSeqNum(ctx, subscriber)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -290,29 +270,19 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "delete").Inc()
 
-	var outcome sqlair.Outcome
+	var err error
 
-	err := db.shared.Query(ctx, db.deleteSubscriberStmt, Subscriber{Imsi: imsi}).Get(&outcome)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdDeleteSubscriber, &stringPayload{Value: imsi})
+	} else {
+		_, err = db.applyDeleteSubscriber(ctx, &stringPayload{Value: imsi})
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

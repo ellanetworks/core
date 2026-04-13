@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -134,12 +135,19 @@ func (db *Database) UpdateBGPSettings(ctx context.Context, settings *BGPSettings
 
 	DBQueriesTotal.WithLabelValues(BGPSettingsTableName, "update").Inc()
 
-	err := db.shared.Query(ctx, db.upsertBGPSettingsStmt, *settings).Run()
+	var err error
+
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdUpdateBGPSettings, settings)
+	} else {
+		_, err = db.applyUpdateBGPSettings(ctx, settings)
+	}
+
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

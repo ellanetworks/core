@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/canonical/sqlair"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -198,34 +198,27 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (int64, error) {
 
 	DBQueriesTotal.WithLabelValues(UsersTableName, "insert").Inc()
 
-	var outcome sqlair.Outcome
+	var (
+		result any
+		err    error
+	)
 
-	err := db.shared.Query(ctx, db.createUserStmt, user).Get(&outcome)
-	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "unique constraint failed")
-
-			return 0, ErrAlreadyExists
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return 0, err
+	if db.raftManager != nil {
+		result, err = db.propose(ellaraft.CmdCreateUser, user)
+	} else {
+		result, err = db.applyCreateUser(ctx, user)
 	}
 
-	id, err := outcome.Result().LastInsertId()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving insert ID failed")
+		span.SetStatus(codes.Error, err.Error())
 
 		return 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
 
-	return id, nil
+	return result.(int64), nil
 }
 
 // UpdateUser updates a user's role with a span named "UPDATE users".
@@ -252,29 +245,19 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 		RoleID: roleID,
 	}
 
-	var outcome sqlair.Outcome
+	var err error
 
-	err := db.shared.Query(ctx, db.editUserStmt, user).Get(&outcome)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return err
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdUpdateUser, user)
+	} else {
+		_, err = db.applyUpdateUser(ctx, user)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		span.SetStatus(codes.Error, err.Error())
 
 		return err
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -306,29 +289,19 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 		HashedPassword: hashedPassword,
 	}
 
-	var outcome sqlair.Outcome
+	var err error
 
-	err := db.shared.Query(ctx, db.editUserPasswordStmt, user).Get(&outcome)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return err
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdUpdateUserPassword, user)
+	} else {
+		_, err = db.applyUpdateUserPassword(ctx, user)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		span.SetStatus(codes.Error, err.Error())
 
 		return err
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -355,29 +328,19 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 
 	DBQueriesTotal.WithLabelValues(UsersTableName, "delete").Inc()
 
-	var outcome sqlair.Outcome
+	var err error
 
-	err := db.shared.Query(ctx, db.deleteUserStmt, User{Email: email}).Get(&outcome)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return err
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdDeleteUser, &stringPayload{Value: email})
+	} else {
+		_, err = db.applyDeleteUser(ctx, &stringPayload{Value: email})
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		span.SetStatus(codes.Error, err.Error())
 
 		return err
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
 	}
 
 	span.SetStatus(codes.Ok, "")

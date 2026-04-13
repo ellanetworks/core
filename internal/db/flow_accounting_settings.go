@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -114,14 +115,19 @@ func (db *Database) UpdateFlowAccountingSettings(ctx context.Context, enabled bo
 
 	DBQueriesTotal.WithLabelValues(FlowAccountingSettingsTableName, "update").Inc()
 
-	arg := FlowAccountingSettings{Enabled: enabled}
+	var err error
 
-	err := db.shared.Query(ctx, db.upsertFlowAccountingSettingsStmt, arg).Run()
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdUpdateFlowAccountingSettings, &boolPayload{Value: enabled})
+	} else {
+		_, err = db.applyUpdateFlowAccountingSettings(ctx, &boolPayload{Value: enabled})
+	}
+
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -116,12 +117,19 @@ func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) e
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "insert").Inc()
 
-	err := db.shared.Query(ctx, db.incrementDailyUsageStmt, usage).Run()
+	var err error
+
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdIncrementDailyUsage, &usage)
+	} else {
+		_, err = db.applyIncrementDailyUsage(ctx, &usage)
+	}
+
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -241,12 +249,19 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "delete").Inc()
 
-	err := db.shared.Query(ctx, db.deleteAllDailyUsageStmt).Run()
+	var err error
+
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdClearDailyUsage, nil)
+	} else {
+		err = db.applyClearDailyUsage(ctx)
+	}
+
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -273,16 +288,19 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "delete").Inc()
 
-	now := time.Now().UTC()
+	var err error
 
-	cutoffDay := DaysSinceEpoch(now.AddDate(0, 0, -days))
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdDeleteOldDailyUsage, &intPayload{Value: days})
+	} else {
+		_, err = db.applyDeleteOldDailyUsage(ctx, &intPayload{Value: days})
+	}
 
-	err := db.shared.Query(ctx, db.deleteOldDailyUsageStmt, cutoffDaysArgs{CutoffDays: cutoffDay}).Run()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

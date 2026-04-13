@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/canonical/sqlair"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -188,19 +188,19 @@ func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 
 	DBQueriesTotal.WithLabelValues(ProfilesTableName, "insert").Inc()
 
-	err := db.shared.Query(ctx, db.createProfileStmt, profile).Run()
+	var err error
+
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdCreateProfile, profile)
+	} else {
+		_, err = db.applyCreateProfile(ctx, profile)
+	}
+
 	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "unique constraint failed")
-
-			return ErrAlreadyExists
-		}
-
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -226,29 +226,19 @@ func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
 
 	DBQueriesTotal.WithLabelValues(ProfilesTableName, "update").Inc()
 
-	var outcome sqlair.Outcome
+	var err error
 
-	err := db.shared.Query(ctx, db.editProfileStmt, profile).Get(&outcome)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdUpdateProfile, profile)
+	} else {
+		_, err = db.applyUpdateProfile(ctx, profile)
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -274,29 +264,19 @@ func (db *Database) DeleteProfile(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(ProfilesTableName, "delete").Inc()
 
-	var outcome sqlair.Outcome
+	var err error
 
-	err := db.shared.Query(ctx, db.deleteProfileStmt, Profile{Name: name}).Get(&outcome)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
+	if db.raftManager != nil {
+		_, err = db.propose(ellaraft.CmdDeleteProfile, &stringPayload{Value: name})
+	} else {
+		_, err = db.applyDeleteProfile(ctx, &stringPayload{Value: name})
 	}
 
-	rowsAffected, err := outcome.Result().RowsAffected()
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
