@@ -137,7 +137,6 @@ func setupServer(filepath string) (testEnv, error) {
 				Port:    2152,
 			},
 			N3: config.N3Interface{
-				Name:    "eth0",
 				Address: "13.13.13.13",
 			},
 			N6: config.N6Interface{
@@ -198,7 +197,6 @@ func setupServerWithUPF(filepath string, upf server.UPFUpdater) (testEnv, error)
 				Port:    2152,
 			},
 			N3: config.N3Interface{
-				Name:    "eth0",
 				Address: "13.13.13.13",
 			},
 			N6: config.N6Interface{

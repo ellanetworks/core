@@ -157,10 +157,10 @@ export default function InterfacesTab() {
                 Interface name:{" "}
                 <strong>{interfacesInfo.n3?.name ?? "—"}</strong>
               </Typography>
-              {interfacesInfo.n2?.addresses &&
-              interfacesInfo.n2.addresses.length > 0 ? (
-                interfacesInfo.n2.addresses.map((addr) => (
-                  <Typography key={addr} variant="body2" color="textSecondary">
+              {interfacesInfo.n3?.addresses &&
+              interfacesInfo.n3.addresses.length > 0 ? (
+                interfacesInfo.n3.addresses.map((addr) => (
+                  <Typography key={addr} variant="body2" color="text.secondary">
                     Address: <strong>{addr}</strong>
                   </Typography>
                 ))
@@ -169,10 +169,7 @@ export default function InterfacesTab() {
                   Address: <strong>—</strong>
                 </Typography>
               )}
-              <Typography variant="body2" color="textSecondary">
-                Port: <strong>{interfacesInfo.n2?.port ?? "—"}</strong>
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
+              <Typography variant="body2" color="text.secondary">
                 External address:{" "}
                 <strong>{interfacesInfo.n3?.external_address || "—"}</strong>
               </Typography>

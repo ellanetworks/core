@@ -16,9 +16,9 @@ type N2Interface struct {
 }
 
 type N3Interface struct {
-	Name            string `json:"name"`
-	Address         string `json:"address"`
-	ExternalAddress string `json:"external_address"`
+	Name            string   `json:"name"`
+	Addresses       []string `json:"addresses"`
+	ExternalAddress string   `json:"external_address"`
 }
 
 type N6Interface struct {
@@ -161,12 +161,12 @@ func TestNetworkInteraces_EndToEnd(t *testing.T) {
 			t.Fatalf("unexpected N2 interface port: %d", resp.Result.N2.Port)
 		}
 
-		if resp.Result.N3.Name != "eth0" {
+		if resp.Result.N3.Name != "" {
 			t.Fatalf("unexpected N3 interface name: %s", resp.Result.N3.Name)
 		}
 
-		if resp.Result.N3.Address != "13.13.13.13" {
-			t.Fatalf("unexpected N3 interface address: %s", resp.Result.N3.Address)
+		if resp.Result.N3.Addresses[0] != "13.13.13.13" {
+			t.Fatalf("unexpected N3 interface address: %v", resp.Result.N3.Addresses)
 		}
 
 		if resp.Result.N3.ExternalAddress != "" {
