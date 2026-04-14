@@ -87,7 +87,21 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	ellaraft.RegisterMetrics()
 
-	dbInstance, err := db.NewDatabase(ctx, cfg.DB.Path)
+	raftCfg := ellaraft.ClusterConfig{
+		Enabled:             cfg.Cluster.Enabled,
+		NodeID:              cfg.Cluster.NodeID,
+		BindAddress:         cfg.Cluster.BindAddress,
+		AdvertiseAPIAddress: cfg.Cluster.AdvertiseAPIAddress,
+		BootstrapExpect:     cfg.Cluster.BootstrapExpect,
+		Peers:               cfg.Cluster.Peers,
+		JoinToken:           cfg.Cluster.JoinToken,
+		JoinTimeout:         cfg.Cluster.JoinTimeout,
+		ProposeTimeout:      cfg.Cluster.ProposeTimeout,
+		SnapshotInterval:    cfg.Cluster.SnapshotInterval,
+		SnapshotThreshold:   cfg.Cluster.SnapshotThreshold,
+	}
+
+	dbInstance, err := db.NewDatabase(ctx, cfg.DB.Path, raftCfg)
 	if err != nil {
 		return fmt.Errorf("couldn't initialize database: %w", err)
 	}
@@ -116,6 +130,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	if observer := dbInstance.LeaderObserver(); observer != nil {
 		observer.Register(sessionsGuard)
 		observer.Register(jobsGuard)
+		observer.Register(server.NewLeadershipAuditCallback(dbInstance.NodeID()))
 	}
 
 	wg.Go(func() {
@@ -297,6 +312,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't start API: %w", err)
 	}
 
+	if err := dbInstance.RunDiscovery(ctx); err != nil {
+		return fmt.Errorf("cluster discovery failed: %w", err)
+	}
+
 	nasLogger.SetLogLevel(0) // Suppress free5gc NAS log output
 
 	sctpServer := service.NewServer(service.Callbacks{
@@ -332,6 +351,18 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// Each shutdown step gets its own timeout so that a slow step
 		// does not starve subsequent ones.
 		stepTimeout := 5 * time.Second
+
+		// 0. Transfer leadership (HA only) so the cluster can continue
+		//    serving writes while this node tears down.
+		if dbInstance.ClusterEnabled() && dbInstance.IsLeader() {
+			logger.EllaLog.Info("Transferring Raft leadership before shutdown")
+
+			if err := dbInstance.LeadershipTransfer(); err != nil {
+				logger.EllaLog.Warn("Leadership transfer failed", zap.Error(err))
+			} else {
+				logger.EllaLog.Info("Leadership transferred successfully")
+			}
+		}
 
 		// 1. Stop accepting new HTTP requests.
 		logger.EllaLog.Info("Shutting down API server")

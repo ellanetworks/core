@@ -20,12 +20,14 @@ import (
 const IPLeasesTableName = "ip_leases"
 
 const (
-	createLeaseStmt              = "INSERT INTO %s (poolID, addressBin, imsi, sessionID, type, createdAt) VALUES ($IPLease.poolID, $IPLease.addressBin, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt)"
+	createLeaseStmt              = "INSERT INTO %s (poolID, addressBin, imsi, sessionID, type, createdAt, nodeID) VALUES ($IPLease.poolID, $IPLease.addressBin, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt, $IPLease.nodeID)"
 	getDynamicLeaseStmt          = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND imsi==$IPLease.imsi AND type='dynamic'"
 	getLeaseBySessionStmt        = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND sessionID==$IPLease.sessionID AND imsi==$IPLease.imsi"
 	updateLeaseSessionStmt       = "UPDATE %s SET sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
+	updateLeaseNodeStmt          = "UPDATE %s SET nodeID=$IPLease.nodeID, sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
 	deleteLeaseStmt              = "DELETE FROM %s WHERE id==$IPLease.id AND type='dynamic'"
 	deleteAllDynamicLeasesStmt   = "DELETE FROM %s WHERE type='dynamic'"
+	deleteDynLeasesByNodeStmt    = "DELETE FROM %s WHERE type='dynamic' AND nodeID==$IPLease.nodeID"
 	listActiveLeasesStmt         = "SELECT &IPLease.* FROM %s WHERE sessionID IS NOT NULL"
 	listLeasesByPoolStmt         = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID"
 	listLeaseAddressesByPoolStmt = "SELECT &IPLease.addressBin FROM %s WHERE poolID==$IPLease.poolID ORDER BY addressBin"
@@ -45,6 +47,7 @@ type IPLease struct {
 	SessionID  *int   `db:"sessionID"`
 	Type       string `db:"type"`
 	CreatedAt  int64  `db:"createdAt"`
+	NodeID     int    `db:"nodeID"`
 }
 
 // Address returns the IP address derived from AddressBin.
@@ -268,6 +271,75 @@ func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
 	_, err := db.propose(ellaraft.CmdDeleteAllDynamicLeases, nil)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+// DeleteDynamicLeasesByNode removes dynamic leases owned by a specific node.
+// In HA mode this scopes startup cleanup to this instance's leases only.
+func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID int) error {
+	_, span := tracer.Start(
+		ctx,
+		"DeleteDynamicLeasesByNode",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("DELETE"),
+			attribute.String("db.collection", IPLeasesTableName),
+			attribute.Int("node_id", nodeID),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
+
+	_, err := db.propose(ellaraft.CmdDeleteDynamicLeasesByNode, &intPayload{Value: nodeID})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+// UpdateLeaseNode updates the nodeID and sessionID on an existing lease.
+// Used during failover to transfer lease ownership to the new serving node.
+func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID int, nodeID int, sessionID int) error {
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (node)", "UPDATE", IPLeasesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPDATE"),
+			attribute.String("db.collection", IPLeasesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "update").Inc()
+
+	lease := &IPLease{ID: leaseID, NodeID: nodeID, SessionID: &sessionID}
+
+	_, err := db.propose(ellaraft.CmdUpdateLeaseNode, lease)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

@@ -20,6 +20,7 @@ import (
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/supportbundle"
 	"golang.org/x/crypto/bcrypt"
@@ -114,7 +115,7 @@ type testEnv struct {
 }
 
 func setupServer(filepath string) (testEnv, error) {
-	testdb, err := db.NewDatabase(context.Background(), filepath)
+	testdb, err := db.NewDatabase(context.Background(), filepath, ellaraft.ClusterConfig{})
 	if err != nil {
 		return testEnv{}, err
 	}
@@ -176,7 +177,7 @@ func setupServer(filepath string) (testEnv, error) {
 }
 
 func setupServerWithUPF(filepath string, upf server.UPFUpdater) (testEnv, error) {
-	testdb, err := db.NewDatabase(context.Background(), filepath)
+	testdb, err := db.NewDatabase(context.Background(), filepath, ellaraft.ClusterConfig{})
 	if err != nil {
 		return testEnv{}, err
 	}

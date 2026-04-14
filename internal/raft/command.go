@@ -25,10 +25,12 @@ const (
 	CmdDeleteOldDailyUsage CommandType = 12
 
 	// IP Leases
-	CmdCreateLease            CommandType = 20
-	CmdUpdateLeaseSession     CommandType = 21
-	CmdDeleteDynamicLease     CommandType = 22
-	CmdDeleteAllDynamicLeases CommandType = 23
+	CmdCreateLease               CommandType = 20
+	CmdUpdateLeaseSession        CommandType = 21
+	CmdDeleteDynamicLease        CommandType = 22
+	CmdDeleteAllDynamicLeases    CommandType = 23
+	CmdDeleteDynamicLeasesByNode CommandType = 24
+	CmdUpdateLeaseNode           CommandType = 25
 
 	// Audit Logs
 	CmdInsertAuditLog     CommandType = 30
@@ -106,6 +108,8 @@ const (
 	CmdUpdateOperatorCode               CommandType = 173
 	CmdUpdateOperatorSecurityAlgorithms CommandType = 174
 	CmdUpdateOperatorSPN                CommandType = 175
+	CmdUpdateOperatorAMFIdentity        CommandType = 176
+	CmdUpdateOperatorClusterID          CommandType = 177
 
 	// JWT Secret
 	CmdSetJWTSecret CommandType = 180
@@ -113,6 +117,10 @@ const (
 	// Routes
 	CmdCreateRoute CommandType = 190
 	CmdDeleteRoute CommandType = 191
+
+	// Cluster Members
+	CmdUpsertClusterMember CommandType = 200
+	CmdDeleteClusterMember CommandType = 201
 
 	// Restore — special: replaces the entire shared.db
 	CmdRestore CommandType = 255
@@ -131,6 +139,8 @@ var commandNames = map[CommandType]string{
 	CmdUpdateLeaseSession:               "UpdateLeaseSession",
 	CmdDeleteDynamicLease:               "DeleteDynamicLease",
 	CmdDeleteAllDynamicLeases:           "DeleteAllDynamicLeases",
+	CmdDeleteDynamicLeasesByNode:        "DeleteDynamicLeasesByNode",
+	CmdUpdateLeaseNode:                  "UpdateLeaseNode",
 	CmdInsertAuditLog:                   "InsertAuditLog",
 	CmdDeleteOldAuditLogs:               "DeleteOldAuditLogs",
 	CmdCreateUser:                       "CreateUser",
@@ -178,9 +188,13 @@ var commandNames = map[CommandType]string{
 	CmdUpdateOperatorCode:               "UpdateOperatorCode",
 	CmdUpdateOperatorSecurityAlgorithms: "UpdateOperatorSecurityAlgorithms",
 	CmdUpdateOperatorSPN:                "UpdateOperatorSPN",
+	CmdUpdateOperatorAMFIdentity:        "UpdateOperatorAMFIdentity",
+	CmdUpdateOperatorClusterID:          "UpdateOperatorClusterID",
 	CmdSetJWTSecret:                     "SetJWTSecret",
 	CmdCreateRoute:                      "CreateRoute",
 	CmdDeleteRoute:                      "DeleteRoute",
+	CmdUpsertClusterMember:              "UpsertClusterMember",
+	CmdDeleteClusterMember:              "DeleteClusterMember",
 	CmdRestore:                          "Restore",
 }
 

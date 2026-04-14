@@ -29,6 +29,8 @@ const (
 	updateOperatorTrackingStmt                = "UPDATE %s SET supportedTACs=$Operator.supportedTACs WHERE id=1"
 	updateOperatorSecurityAlgorithmsStmtConst = "UPDATE %s SET ciphering=$Operator.ciphering, integrity=$Operator.integrity WHERE id=1"
 	updateOperatorSPNStmtConst                = "UPDATE %s SET spnFullName=$Operator.spnFullName, spnShortName=$Operator.spnShortName WHERE id=1"
+	updateOperatorAMFIdentityStmtConst        = "UPDATE %s SET amfRegionID=$Operator.amfRegionID, amfSetID=$Operator.amfSetID WHERE id=1"
+	updateOperatorClusterIDStmtConst          = "UPDATE %s SET clusterID=$Operator.clusterID WHERE id=1"
 	initializeOperatorStmt                    = "INSERT INTO %s (mcc, mnc, operatorCode, supportedTACs) VALUES ($Operator.mcc, $Operator.mnc, $Operator.operatorCode, $Operator.supportedTACs)"
 )
 
@@ -37,11 +39,14 @@ type Operator struct {
 	Mcc           string `db:"mcc"`
 	Mnc           string `db:"mnc"`
 	OperatorCode  string `db:"operatorCode"`
-	SupportedTACs string `db:"supportedTACs"` // JSON-encoded list of strings
+	SupportedTACs string `db:"supportedTACs"` // JSON-encoded list of algorithm names
 	Ciphering     string `db:"ciphering"`     // JSON-encoded list of algorithm names, e.g. '["NEA2","NEA1"]'
 	Integrity     string `db:"integrity"`     // JSON-encoded list of algorithm names, e.g. '["NIA2","NIA1"]'
 	SpnFullName   string `db:"spnFullName"`
 	SpnShortName  string `db:"spnShortName"`
+	AmfRegionID   int    `db:"amfRegionID"`
+	AmfSetID      int    `db:"amfSetID"`
+	ClusterID     string `db:"clusterID"`
 }
 
 func (operator *Operator) GetSupportedTacs() ([]string, error) {
@@ -457,6 +462,75 @@ func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFullName, spnShort
 	op := &Operator{SpnFullName: spnFullName, SpnShortName: spnShortName}
 
 	_, err := db.propose(ellaraft.CmdUpdateOperatorSPN, op)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+// UpdateOperatorAMFIdentity updates the AMF Region ID and Set ID used to
+// compute the 24-bit AMF ID (3GPP TS 23.003 §2.10.1).
+func (db *Database) UpdateOperatorAMFIdentity(ctx context.Context, regionID, setID int) error {
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (amf identity)", "UPDATE", OperatorTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPDATE"),
+			attribute.String("db.collection", OperatorTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
+
+	op := &Operator{AmfRegionID: regionID, AmfSetID: setID}
+
+	_, err := db.propose(ellaraft.CmdUpdateOperatorAMFIdentity, op)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+// UpdateOperatorClusterID sets the cluster UUID in the operator row.
+func (db *Database) UpdateOperatorClusterID(ctx context.Context, clusterID string) error {
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (cluster id)", "UPDATE", OperatorTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPDATE"),
+			attribute.String("db.collection", OperatorTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
+
+	op := &Operator{ClusterID: clusterID}
+
+	_, err := db.propose(ellaraft.CmdUpdateOperatorClusterID, op)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

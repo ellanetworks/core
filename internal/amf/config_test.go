@@ -84,6 +84,8 @@ func (d *configTestDB) ListPoliciesByProfile(_ context.Context, _ int) ([]db.Pol
 	return d.policies, d.polErr
 }
 
+func (d *configTestDB) NodeID() int { return 0 }
+
 func mustSUPI(t *testing.T) etsi.SUPI {
 	t.Helper()
 
@@ -309,5 +311,43 @@ func TestListOperatorSnssai_SliceWithNilSD(t *testing.T) {
 
 	if snssaiList[0].Sd != "" {
 		t.Fatalf("expected empty SD, got %q", snssaiList[0].Sd)
+	}
+}
+
+func TestGetOperatorInfo_AmfID(t *testing.T) {
+	tests := []struct {
+		name     string
+		regionID int
+		setID    int
+		wantAmf  string
+	}{
+		{"defaults", 1, 1, "010040"},
+		{"region_255_set_1023_pointer_0", 255, 1023, "ffffc0"},
+		{"region_0_set_0_pointer_0", 0, 0, "000000"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeDB := &configTestDB{
+				operator: &db.Operator{
+					Mcc:           "001",
+					Mnc:           "01",
+					SupportedTACs: "[\"1\"]",
+					AmfRegionID:   tt.regionID,
+					AmfSetID:      tt.setID,
+				},
+			}
+
+			amfInstance := amf.New(fakeDB, nil, nil)
+
+			info, err := amfInstance.GetOperatorInfo(context.Background())
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if info.Guami.AmfID != tt.wantAmf {
+				t.Fatalf("expected AmfID %q, got %q", tt.wantAmf, info.Guami.AmfID)
+			}
+		})
 	}
 }

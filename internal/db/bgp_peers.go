@@ -20,8 +20,8 @@ const (
 	listBGPPeersPagedStmt = "SELECT &BGPPeer.*, COUNT(*) OVER() AS &NumItems.count FROM %s ORDER BY id ASC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	listAllBGPPeersStmt   = "SELECT &BGPPeer.* FROM %s ORDER BY id ASC"
 	getBGPPeerStmt        = "SELECT &BGPPeer.* FROM %s WHERE id==$BGPPeer.id"
-	createBGPPeerStmt     = "INSERT INTO %s (address, remoteAS, holdTime, password, description) VALUES ($BGPPeer.address, $BGPPeer.remoteAS, $BGPPeer.holdTime, $BGPPeer.password, $BGPPeer.description)"
-	updateBGPPeerStmt     = "UPDATE %s SET address=$BGPPeer.address, remoteAS=$BGPPeer.remoteAS, holdTime=$BGPPeer.holdTime, password=$BGPPeer.password, description=$BGPPeer.description WHERE id==$BGPPeer.id"
+	createBGPPeerStmt     = "INSERT INTO %s (address, remoteAS, holdTime, password, description, nodeID) VALUES ($BGPPeer.address, $BGPPeer.remoteAS, $BGPPeer.holdTime, $BGPPeer.password, $BGPPeer.description, $BGPPeer.nodeID)"
+	updateBGPPeerStmt     = "UPDATE %s SET address=$BGPPeer.address, remoteAS=$BGPPeer.remoteAS, holdTime=$BGPPeer.holdTime, password=$BGPPeer.password, description=$BGPPeer.description, nodeID=$BGPPeer.nodeID WHERE id==$BGPPeer.id"
 	deleteBGPPeerStmt     = "DELETE FROM %s WHERE id==$BGPPeer.id"
 	countBGPPeersStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
@@ -33,6 +33,7 @@ type BGPPeer struct {
 	HoldTime    int    `db:"holdTime"`
 	Password    string `db:"password"` // stored in plaintext — required by GoBGP TCP MD5 API
 	Description string `db:"description"`
+	NodeID      *int   `db:"nodeID"`
 }
 
 func (db *Database) ListBGPPeersPage(ctx context.Context, page, perPage int) ([]BGPPeer, int, error) {

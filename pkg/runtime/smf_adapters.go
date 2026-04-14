@@ -76,6 +76,7 @@ func dbLeaseToIPAM(l *db.IPLease) *ipam.Lease {
 		SessionID: l.SessionID,
 		Type:      l.Type,
 		CreatedAt: l.CreatedAt,
+		NodeID:    l.NodeID,
 	}
 }
 
@@ -87,6 +88,7 @@ func ipamLeaseToDB(l *ipam.Lease) *db.IPLease {
 		SessionID: l.SessionID,
 		Type:      l.Type,
 		CreatedAt: l.CreatedAt,
+		NodeID:    l.NodeID,
 	}
 }
 
@@ -123,6 +125,10 @@ func (a *leaseStoreAdapter) CreateLease(ctx context.Context, lease *ipam.Lease) 
 
 func (a *leaseStoreAdapter) UpdateLeaseSession(ctx context.Context, leaseID int, sessionID int) error {
 	return mapDBError(a.db.UpdateLeaseSession(ctx, leaseID, sessionID))
+}
+
+func (a *leaseStoreAdapter) UpdateLeaseNode(ctx context.Context, leaseID int, nodeID int, sessionID int) error {
+	return mapDBError(a.db.UpdateLeaseNode(ctx, leaseID, nodeID, sessionID))
 }
 
 func (a *leaseStoreAdapter) DeleteDynamicLease(ctx context.Context, leaseID int) error {
@@ -166,7 +172,7 @@ func (a *smfDBAdapter) AllocateIP(ctx context.Context, imsi string, dnn string, 
 		return netip.Addr{}, fmt.Errorf("resolve pool: %w", err)
 	}
 
-	addr, err := a.allocator.Allocate(ctx, pool, imsi, int(pduSessionID))
+	addr, err := a.allocator.Allocate(ctx, pool, imsi, int(pduSessionID), a.db.NodeID())
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "allocate failed")

@@ -22,8 +22,11 @@ const BackupManifestVersion = 1
 // BackupManifest is the JSON document embedded as manifest.json inside every
 // backup tar.gz.
 type BackupManifest struct {
-	Version   int       `json:"version"`
-	CreatedAt time.Time `json:"created_at"`
+	Version      int       `json:"version"`
+	CreatedAt    time.Time `json:"created_at"`
+	RaftIndex    uint64    `json:"raft_index"`
+	RaftTerm     uint64    `json:"raft_term"`
+	SourceNodeID int       `json:"source_node_id"`
 }
 
 // Backup writes a tar.gz archive (manifest.json, shared.db, local.db) to dst.
@@ -52,8 +55,18 @@ func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 	}
 
 	manifest := BackupManifest{
-		Version:   BackupManifestVersion,
-		CreatedAt: time.Now().UTC(),
+		Version:      BackupManifestVersion,
+		CreatedAt:    time.Now().UTC(),
+		SourceNodeID: db.NodeID(),
+	}
+
+	if db.raftManager != nil {
+		manifest.RaftIndex = db.raftManager.AppliedIndex()
+
+		stats := db.raftManager.Stats()
+		if v, ok := stats["term"]; ok {
+			_, _ = fmt.Sscanf(v, "%d", &manifest.RaftTerm)
+		}
 	}
 
 	manifestBytes, err := json.MarshalIndent(manifest, "", "  ")

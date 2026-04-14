@@ -8,10 +8,19 @@ import (
 	"github.com/ellanetworks/core/version"
 )
 
+type ClusterStatusResponse struct {
+	Enabled      bool   `json:"enabled"`
+	Role         string `json:"role"`
+	NodeID       int    `json:"nodeId"`
+	AppliedIndex uint64 `json:"appliedIndex"`
+	ClusterID    string `json:"clusterId,omitempty"`
+}
+
 type StatusResponse struct {
-	Version     string `json:"version"`
-	Revision    string `json:"revision"`
-	Initialized bool   `json:"initialized"`
+	Version     string                 `json:"version"`
+	Revision    string                 `json:"revision"`
+	Initialized bool                   `json:"initialized"`
+	Cluster     *ClusterStatusResponse `json:"cluster,omitempty"`
 }
 
 func GetStatus(dbInstance *db.Database) http.Handler {
@@ -32,6 +41,22 @@ func GetStatus(dbInstance *db.Database) http.Handler {
 			Version:     ver.Version,
 			Revision:    ver.Revision,
 			Initialized: initialized,
+		}
+
+		if dbInstance.ClusterEnabled() {
+			clusterStatus := &ClusterStatusResponse{
+				Enabled:      true,
+				Role:         dbInstance.RaftState(),
+				NodeID:       dbInstance.NodeID(),
+				AppliedIndex: dbInstance.RaftAppliedIndex(),
+			}
+
+			op, err := dbInstance.GetOperator(ctx)
+			if err == nil && op.ClusterID != "" {
+				clusterStatus.ClusterID = op.ClusterID
+			}
+
+			statusResponse.Cluster = clusterStatus
 		}
 
 		writeResponse(r.Context(), w, statusResponse, http.StatusOK, logger.APILog)

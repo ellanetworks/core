@@ -22,7 +22,10 @@ const sharedV1CreateOperator = `
 		ciphering     TEXT NOT NULL DEFAULT '["NEA2","NEA1"]',
 		integrity     TEXT NOT NULL DEFAULT '["NIA2","NIA1"]',
 		spnFullName   TEXT NOT NULL DEFAULT 'Ella Networks',
-		spnShortName  TEXT NOT NULL DEFAULT 'Ella'
+		spnShortName  TEXT NOT NULL DEFAULT 'Ella',
+		amfRegionID   INTEGER NOT NULL DEFAULT 1,
+		amfSetID      INTEGER NOT NULL DEFAULT 1,
+		clusterID     TEXT NOT NULL DEFAULT ''
 )`
 
 const sharedV1CreateNetworkSlices = `
@@ -116,6 +119,7 @@ const sharedV1CreateIPLeases = `
 		sessionID   INTEGER,
 		type        TEXT    NOT NULL DEFAULT 'dynamic',
 		createdAt   INTEGER NOT NULL,
+		nodeID      INTEGER NOT NULL DEFAULT 0,
 		UNIQUE(poolID, addressBin)
 )`
 
@@ -124,6 +128,7 @@ const sharedV1CreateIPLeasesIndexes = `
 	CREATE INDEX IF NOT EXISTS idx_leases_imsi ON ip_leases(imsi);
 	CREATE INDEX IF NOT EXISTS idx_leases_session ON ip_leases(sessionID);
 	CREATE INDEX IF NOT EXISTS idx_leases_pool_address_bin ON ip_leases(poolID, addressBin);
+	CREATE INDEX IF NOT EXISTS idx_leases_node ON ip_leases(nodeID);
 `
 
 const sharedV1CreateHomeNetworkKeys = `
@@ -187,7 +192,8 @@ const sharedV1CreateBGPPeers = `
 		remoteAS    INTEGER NOT NULL,
 		holdTime    INTEGER NOT NULL DEFAULT 90,
 		password    TEXT    NOT NULL DEFAULT '',
-		description TEXT    NOT NULL DEFAULT ''
+		description TEXT    NOT NULL DEFAULT '',
+		nodeID      INTEGER
 )`
 
 const sharedV1CreateBGPImportPrefixes = `
@@ -246,6 +252,13 @@ const sharedV1CreateAuditLogs = `
 		details   TEXT NOT NULL DEFAULT ''
 )`
 
+const sharedV1CreateClusterMembers = `
+	CREATE TABLE IF NOT EXISTS %s (
+		nodeID      INTEGER PRIMARY KEY,
+		raftAddress TEXT NOT NULL,
+		apiAddress  TEXT NOT NULL
+)`
+
 func migrateSharedV1(ctx context.Context, tx *sql.Tx) error {
 	// Order matters: parents before children for FK references.
 	stmts := []string{
@@ -279,6 +292,7 @@ func migrateSharedV1(ctx context.Context, tx *sql.Tx) error {
 		fmt.Sprintf(sharedV1CreateFlowAccountingSettings, FlowAccountingSettingsTableName),
 		fmt.Sprintf(sharedV1CreateRetentionPolicies, RetentionPolicyTableName),
 		fmt.Sprintf(sharedV1CreateAuditLogs, AuditLogsTableName),
+		fmt.Sprintf(sharedV1CreateClusterMembers, ClusterMembersTableName),
 	}
 
 	for _, stmt := range stmts {

@@ -25,14 +25,14 @@ import (
 func TestFSMDeterminism_ReplayProducesBitIdenticalState(t *testing.T) {
 	ctx := context.Background()
 
-	dbA, err := db.NewDatabase(ctx, filepath.Join(t.TempDir(), "a"))
+	dbA, err := db.NewDatabase(ctx, filepath.Join(t.TempDir(), "a"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("create db A: %v", err)
 	}
 
 	defer func() { _ = dbA.Close() }()
 
-	dbB, err := db.NewDatabase(ctx, filepath.Join(t.TempDir(), "b"))
+	dbB, err := db.NewDatabase(ctx, filepath.Join(t.TempDir(), "b"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("create db B: %v", err)
 	}

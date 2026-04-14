@@ -208,6 +208,12 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("PUT /api/v1/logs/audit/retention", Authenticate(jwtSecret, dbInstance, Authorize(PermSetAuditLogRetentionPolicy, UpdateAuditLogRetentionPolicy(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/logs/audit", Authenticate(jwtSecret, dbInstance, Authorize(PermListAuditLogs, ListAuditLogs(dbInstance))).ServeHTTP)
 
+	// Cluster (Authenticated, admin only)
+	mux.HandleFunc("GET /api/v1/cluster/members", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, ListClusterMembers(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/cluster/members", ClusterTokenOrAuth(appCfg.Cluster.JoinToken, jwtSecret, dbInstance, AddClusterMember(dbInstance)).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/cluster/members/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, RemoveClusterMember(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/cluster/drain", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, DrainNode(dbInstance))).ServeHTTP)
+
 	// Fallback to UI
 	frontendHandler, err := newFrontendFileServer(embedFS)
 	if err != nil {
@@ -224,6 +230,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	var handler http.Handler = mux
 
 	handler = MaxBodySizeMiddleware(handler)
+	handler = LeaderProxyMiddleware(dbInstance, handler)
 	handler = SecurityHeadersMiddleware(secureCookie, handler)
 	handler = MetricsMiddleware(handler)
 

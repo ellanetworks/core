@@ -421,9 +421,19 @@ func copyTablesViaAttach(ctx context.Context, targetConn *sql.DB, legacyFile str
 	}
 
 	for _, table := range tables {
-		// Identifier-only interpolation of a hard-coded table name list —
-		// no user input reaches this string.
-		stmt := fmt.Sprintf("INSERT INTO main.%s SELECT * FROM legacy.%s", table, table) // #nosec: G201
+		// Discover the legacy table's columns so the INSERT names them
+		// explicitly. New columns added in the split DDL (that don't exist
+		// in the legacy schema) fill from their DEFAULT values.
+		cols, cErr := legacyColumnNames(ctx, tx, table)
+		if cErr != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("failed to read columns for table %q: %w", table, cErr)
+		}
+
+		colList := strings.Join(cols, ", ")
+		// Identifier-only interpolation of hard-coded table names and
+		// column names read from PRAGMA — no user input reaches this string.
+		stmt := fmt.Sprintf("INSERT INTO main.%s (%s) SELECT %s FROM legacy.%s", table, colList, colList, table) // #nosec: G201
 
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
 			_ = tx.Rollback()
@@ -436,6 +446,47 @@ func copyTablesViaAttach(ctx context.Context, targetConn *sql.DB, legacyFile str
 	}
 
 	return nil
+}
+
+// legacyColumnNames returns the column names of the given table in the
+// "legacy" attached database. The caller must already be inside a transaction
+// that has the legacy DB attached.
+func legacyColumnNames(ctx context.Context, tx *sql.Tx, table string) ([]string, error) {
+	// PRAGMA table_info works through ATTACH aliases.
+	rows, err := tx.QueryContext(ctx, fmt.Sprintf("PRAGMA legacy.table_info(%s)", table)) // #nosec: G201
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() { _ = rows.Close() }()
+
+	var cols []string
+
+	for rows.Next() {
+		var (
+			cid           int
+			name, colType string
+			notNull       int
+			dfltValue     *string
+			pk            int
+		)
+
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &dfltValue, &pk); err != nil {
+			return nil, err
+		}
+
+		cols = append(cols, name)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(cols) == 0 {
+		return nil, fmt.Errorf("table %q has no columns (or does not exist)", table)
+	}
+
+	return cols, nil
 }
 
 // verifyRowCounts confirms that every table in the target database has the

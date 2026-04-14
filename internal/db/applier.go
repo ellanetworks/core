@@ -50,6 +50,10 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 		return applyJSON[intPayload](ctx, cmd.Payload, db.applyDeleteDynamicLease)
 	case ellaraft.CmdDeleteAllDynamicLeases:
 		return nil, db.applyDeleteAllDynamicLeases(ctx)
+	case ellaraft.CmdDeleteDynamicLeasesByNode:
+		return applyJSON[intPayload](ctx, cmd.Payload, db.applyDeleteDynamicLeasesByNode)
+	case ellaraft.CmdUpdateLeaseNode:
+		return applyJSON[IPLease](ctx, cmd.Payload, db.applyUpdateLeaseNode)
 
 	// Audit Logs
 	case ellaraft.CmdInsertAuditLog:
@@ -174,6 +178,10 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 		return applyJSON[Operator](ctx, cmd.Payload, db.applyUpdateOperatorSecurityAlgorithms)
 	case ellaraft.CmdUpdateOperatorSPN:
 		return applyJSON[Operator](ctx, cmd.Payload, db.applyUpdateOperatorSPN)
+	case ellaraft.CmdUpdateOperatorAMFIdentity:
+		return applyJSON[Operator](ctx, cmd.Payload, db.applyUpdateOperatorAMFIdentity)
+	case ellaraft.CmdUpdateOperatorClusterID:
+		return applyJSON[Operator](ctx, cmd.Payload, db.applyUpdateOperatorClusterID)
 
 	// JWT Secret
 	case ellaraft.CmdSetJWTSecret:
@@ -184,6 +192,12 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 		return applyJSON[Route](ctx, cmd.Payload, db.applyCreateRoute)
 	case ellaraft.CmdDeleteRoute:
 		return applyJSON[int64Payload](ctx, cmd.Payload, db.applyDeleteRoute)
+
+	// Cluster Members
+	case ellaraft.CmdUpsertClusterMember:
+		return applyJSON[ClusterMember](ctx, cmd.Payload, db.applyUpsertClusterMember)
+	case ellaraft.CmdDeleteClusterMember:
+		return applyJSON[intPayload](ctx, cmd.Payload, db.applyDeleteClusterMember)
 
 	// Restore — replaces shared.db with the carried backup bytes.
 	case ellaraft.CmdRestore:
@@ -442,6 +456,24 @@ func (db *Database) applyDeleteAllDynamicLeases(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (db *Database) applyDeleteDynamicLeasesByNode(ctx context.Context, p *intPayload) (any, error) {
+	err := db.shared.Query(ctx, db.deleteDynLeasesByNodeStmt, IPLease{NodeID: p.Value}).Run()
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return nil, nil
+}
+
+func (db *Database) applyUpdateLeaseNode(ctx context.Context, lease *IPLease) (any, error) {
+	err := db.shared.Query(ctx, db.updateLeaseNodeStmt, lease).Run()
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return nil, nil
 }
 
 func (db *Database) applyInsertAuditLog(ctx context.Context, p *auditLogPayload) (any, error) {
@@ -1143,6 +1175,24 @@ func (db *Database) applyUpdateOperatorSPN(ctx context.Context, op *Operator) (a
 	return nil, nil
 }
 
+func (db *Database) applyUpdateOperatorAMFIdentity(ctx context.Context, op *Operator) (any, error) {
+	err := db.shared.Query(ctx, db.updateOperatorAMFIdentityStmt, op).Run()
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return nil, nil
+}
+
+func (db *Database) applyUpdateOperatorClusterID(ctx context.Context, op *Operator) (any, error) {
+	err := db.shared.Query(ctx, db.updateOperatorClusterIDStmt, op).Run()
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return nil, nil
+}
+
 func (db *Database) applySetJWTSecret(ctx context.Context, p *bytesPayload) (any, error) {
 	err := db.shared.Query(ctx, db.upsertJWTSecretStmt, JWTSecret{Secret: p.Value}).Run()
 	if err != nil {
@@ -1169,6 +1219,35 @@ func (db *Database) applyDeleteRoute(ctx context.Context, p *int64Payload) (any,
 	var outcome sqlair.Outcome
 
 	err := db.shared.Query(ctx, db.deleteRouteStmt, Route{ID: p.Value}).Get(&outcome)
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return nil, ErrNotFound
+	}
+
+	return nil, nil
+}
+
+func (db *Database) applyUpsertClusterMember(ctx context.Context, m *ClusterMember) (any, error) {
+	err := db.shared.Query(ctx, db.upsertClusterMemberStmt, m).Run()
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return nil, nil
+}
+
+func (db *Database) applyDeleteClusterMember(ctx context.Context, p *intPayload) (any, error) {
+	var outcome sqlair.Outcome
+
+	err := db.shared.Query(ctx, db.deleteClusterMemberStmt, ClusterMember{NodeID: p.Value}).Get(&outcome)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

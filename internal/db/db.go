@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/logger"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
+	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
@@ -50,8 +51,10 @@ type Database struct {
 	getDynamicLeaseStmt          *sqlair.Statement
 	getLeaseBySessionStmt        *sqlair.Statement
 	updateLeaseSessionStmt       *sqlair.Statement
+	updateLeaseNodeStmt          *sqlair.Statement
 	deleteLeaseStmt              *sqlair.Statement
 	deleteAllDynamicLeasesStmt   *sqlair.Statement
+	deleteDynLeasesByNodeStmt    *sqlair.Statement
 	listActiveLeasesStmt         *sqlair.Statement
 	listLeasesByPoolStmt         *sqlair.Statement
 	listLeaseAddressesByPoolStmt *sqlair.Statement
@@ -136,6 +139,8 @@ type Database struct {
 	updateOperatorCodeStmt               *sqlair.Statement
 	updateOperatorSecurityAlgorithmsStmt *sqlair.Statement
 	updateOperatorSPNStmt                *sqlair.Statement
+	updateOperatorAMFIdentityStmt        *sqlair.Statement
+	updateOperatorClusterIDStmt          *sqlair.Statement
 
 	// Home Network Key statements
 	listHomeNetworkKeysStmt                    *sqlair.Statement
@@ -243,6 +248,13 @@ type Database struct {
 	editUserPasswordStmt *sqlair.Statement
 	deleteUserStmt       *sqlair.Statement
 	countUsersStmt       *sqlair.Statement
+
+	// Cluster Members statements
+	listClusterMembersStmt  *sqlair.Statement
+	getClusterMemberStmt    *sqlair.Statement
+	upsertClusterMemberStmt *sqlair.Statement
+	deleteClusterMemberStmt *sqlair.Statement
+	countClusterMembersStmt *sqlair.Statement
 
 	// shared holds the SQLite handle for configuration/state tables.
 	shared *sqlair.DB
@@ -410,6 +422,100 @@ func (db *Database) IsLeader() bool {
 	return db.raftManager.IsLeader()
 }
 
+// NodeID returns this node's Raft node ID. Returns 0 when running standalone.
+func (db *Database) NodeID() int {
+	if db.raftManager == nil {
+		return 0
+	}
+
+	return db.raftManager.NodeID()
+}
+
+// LeaderAddress returns the Raft transport address of the current leader.
+func (db *Database) LeaderAddress() string {
+	if db.raftManager == nil {
+		return ""
+	}
+
+	return db.raftManager.LeaderAddress()
+}
+
+// RaftState returns the current Raft state as a string (Leader, Follower, etc.).
+func (db *Database) RaftState() string {
+	if db.raftManager == nil {
+		return "Leader"
+	}
+
+	return db.raftManager.State().String()
+}
+
+// ClusterEnabled returns whether clustering is active.
+func (db *Database) ClusterEnabled() bool {
+	if db.raftManager == nil {
+		return false
+	}
+
+	return db.raftManager.ClusterEnabled()
+}
+
+// LeadershipTransfer triggers a leadership transfer to another node.
+func (db *Database) LeadershipTransfer() error {
+	if db.raftManager == nil {
+		return fmt.Errorf("clustering not enabled")
+	}
+
+	return db.raftManager.LeadershipTransfer()
+}
+
+// AddVoter adds a node to the Raft cluster. Only callable on the leader.
+func (db *Database) AddVoter(nodeID int, raftAddress string) error {
+	if db.raftManager == nil {
+		return fmt.Errorf("clustering not enabled")
+	}
+
+	return db.raftManager.AddVoter(nodeID, raftAddress)
+}
+
+// RemoveServer removes a node from the Raft cluster. Only callable on the leader.
+func (db *Database) RemoveServer(nodeID int) error {
+	if db.raftManager == nil {
+		return fmt.Errorf("clustering not enabled")
+	}
+
+	return db.raftManager.RemoveServer(nodeID)
+}
+
+// RunDiscovery performs cluster formation for HA mode. Must be called after
+// the HTTP server starts so peers can reach this node's API.
+// After discovery, the leader generates a cluster ID if none exists yet.
+func (db *Database) RunDiscovery(ctx context.Context) error {
+	if db.raftManager == nil {
+		return nil
+	}
+
+	if err := db.raftManager.RunDiscovery(ctx); err != nil {
+		return err
+	}
+
+	if db.raftManager.IsLeader() {
+		op, err := db.GetOperator(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to read operator for cluster ID check: %w", err)
+		}
+
+		if op.ClusterID == "" {
+			clusterID := uuid.New().String()
+			if err := db.UpdateOperatorClusterID(ctx, clusterID); err != nil {
+				return fmt.Errorf("failed to set cluster ID: %w", err)
+			}
+
+			logger.WithTrace(ctx, logger.DBLog).Info("Generated cluster ID", zap.String("cluster_id", clusterID))
+		}
+	}
+
+	return nil
+}
+
 func (db *Database) SharedPath() string {
 	return filepath.Join(db.dataDir, SharedDBFilename)
 }
@@ -424,7 +530,7 @@ func (db *Database) LocalPath() string {
 // inside dataPath itself, with the original file preserved as
 // legacy.sqlite.bak in the new directory), or a non-existent path treated as
 // a fresh install.
-func NewDatabase(ctx context.Context, dataPath string) (*Database, error) {
+func NewDatabase(ctx context.Context, dataPath string, raftCfg ellaraft.ClusterConfig) (*Database, error) {
 	dataDir, err := resolveDataDir(ctx, dataPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve database directory: %w", err)
@@ -466,7 +572,7 @@ func NewDatabase(ctx context.Context, dataPath string) (*Database, error) {
 		return nil, fmt.Errorf("failed to prepare statements: %w", err)
 	}
 
-	raftMgr, err := ellaraft.NewManager(ctx, ellaraft.ClusterConfig{}, db, dataDir)
+	raftMgr, err := ellaraft.NewManager(ctx, raftCfg, db, dataDir)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to start raft manager: %w", err)
@@ -509,8 +615,10 @@ func (db *Database) PrepareStatements() error {
 		{&db.getDynamicLeaseStmt, fmt.Sprintf(getDynamicLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.getLeaseBySessionStmt, fmt.Sprintf(getLeaseBySessionStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.updateLeaseSessionStmt, fmt.Sprintf(updateLeaseSessionStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.updateLeaseNodeStmt, fmt.Sprintf(updateLeaseNodeStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.deleteLeaseStmt, fmt.Sprintf(deleteLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.deleteAllDynamicLeasesStmt, fmt.Sprintf(deleteAllDynamicLeasesStmt, IPLeasesTableName), nil},
+		{&db.deleteDynLeasesByNodeStmt, fmt.Sprintf(deleteDynLeasesByNodeStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listActiveLeasesStmt, fmt.Sprintf(listActiveLeasesStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listLeasesByPoolStmt, fmt.Sprintf(listLeasesByPoolStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listLeaseAddressesByPoolStmt, fmt.Sprintf(listLeaseAddressesByPoolStmt, IPLeasesTableName), []any{IPLease{}}},
@@ -595,6 +703,8 @@ func (db *Database) PrepareStatements() error {
 		{&db.updateOperatorCodeStmt, fmt.Sprintf(updateOperatorCodeStmt, OperatorTableName), []any{Operator{}}},
 		{&db.updateOperatorSecurityAlgorithmsStmt, fmt.Sprintf(updateOperatorSecurityAlgorithmsStmtConst, OperatorTableName), []any{Operator{}}},
 		{&db.updateOperatorSPNStmt, fmt.Sprintf(updateOperatorSPNStmtConst, OperatorTableName), []any{Operator{}}},
+		{&db.updateOperatorAMFIdentityStmt, fmt.Sprintf(updateOperatorAMFIdentityStmtConst, OperatorTableName), []any{Operator{}}},
+		{&db.updateOperatorClusterIDStmt, fmt.Sprintf(updateOperatorClusterIDStmtConst, OperatorTableName), []any{Operator{}}},
 
 		// Home Network Keys
 		{&db.listHomeNetworkKeysStmt, fmt.Sprintf(listHomeNetworkKeysStmtStr, HomeNetworkKeysTableName), []any{HomeNetworkKey{}}},
@@ -701,6 +811,13 @@ func (db *Database) PrepareStatements() error {
 		{&db.editUserPasswordStmt, fmt.Sprintf(editUserPasswordStmt, UsersTableName), []any{User{}}},
 		{&db.deleteUserStmt, fmt.Sprintf(deleteUserStmt, UsersTableName), []any{User{}}},
 		{&db.countUsersStmt, fmt.Sprintf(countUsersStmt, UsersTableName), []any{NumItems{}}},
+
+		// Cluster Members
+		{&db.listClusterMembersStmt, fmt.Sprintf(listClusterMembersStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
+		{&db.getClusterMemberStmt, fmt.Sprintf(getClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
+		{&db.upsertClusterMemberStmt, fmt.Sprintf(upsertClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
+		{&db.deleteClusterMemberStmt, fmt.Sprintf(deleteClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
+		{&db.countClusterMembersStmt, fmt.Sprintf(countClusterMembersStmtStr, ClusterMembersTableName), []any{NumItems{}}},
 	}
 
 	for _, s := range stmts {

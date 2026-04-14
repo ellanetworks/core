@@ -215,6 +215,8 @@ func (fdb *FakeDBInstance) ListPoliciesByProfile(_ context.Context, _ int) ([]db
 	return []db.Policy{{ID: 1, Name: "TestPolicy", ProfileID: 1, SliceID: 1, DataNetworkID: 1}}, nil
 }
 
+func (fdb *FakeDBInstance) NodeID() int { return 0 }
+
 type NGSetupFailure struct {
 	Cause *ngapType.Cause
 }

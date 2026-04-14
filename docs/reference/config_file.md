@@ -42,6 +42,18 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
 - `telemetry` (object): The telemetry configuration.
     - `enabled` (boolean): Whether telemetry is enabled or not. Default is `false`.
     - `otlp-endpoint` (string): The endpoint for the OpenTelemetry Protocol (OTLP) collector.
+- `cluster` (object): The clustering configuration for high-availability deployments. When enabled, multiple Ella Core instances form a Raft consensus cluster.
+    - `enabled` (boolean): Whether clustering is enabled. Default is `false`.
+    - `node-id` (int): Unique Raft node identifier (1–63). Must be unique across all cluster members.
+    - `bind-address` (string): The `host:port` that the Raft transport listens on for inter-node communication.
+    - `advertise-api-address` (string): The `host:port` that other cluster members use to reach this node's API. Used for leader proxy forwarding.
+    - `bootstrap-expect` (int): Number of nodes expected for initial cluster bootstrap. Must equal the number of entries in `peers`.
+    - `peers` (list of strings): List of `host:port` addresses of all initial cluster members (including this node's `bind-address`).
+    - `join-token` (string): Shared secret used to authenticate nodes during cluster bootstrap.
+    - `join-timeout` (string): Maximum time to wait for peers during bootstrap (e.g. `"30s"`). Default is `"30s"`.
+    - `propose-timeout` (string): Maximum time to wait for a Raft proposal to be committed (e.g. `"10s"`). Default is `"10s"`.
+    - `snapshot-interval` (string): How often Raft takes a snapshot (e.g. `"2m"`). Default is `"2m"`.
+    - `snapshot-threshold` (int): Minimum number of log entries before a snapshot is taken. Default is `8192`.
 
 !!! note
     When you use the Ella Core snap, the configuration file is located at `/var/snap/ella-core/common/config.yaml`. After modifying the configuration file, restart Ella Core with `sudo snap restart ella-core.cored` for the changes to take effect.
@@ -78,6 +90,27 @@ telemetry:
   enabled: true
   otlp-endpoint: "localhost:4317"
 ```
+
+## Clustering
+
+To deploy Ella Core in a high-availability configuration, enable clustering on each node. All nodes must share the same `join-token` and list each other in `peers`.
+
+```yaml
+cluster:
+  enabled: true
+  node-id: 1
+  bind-address: "10.0.0.1:7000"
+  advertise-api-address: "10.0.0.1:5000"
+  bootstrap-expect: 3
+  peers:
+    - "10.0.0.1:7000"
+    - "10.0.0.2:7000"
+    - "10.0.0.3:7000"
+  join-token: "my-shared-secret"
+```
+
+!!! note
+    When clustering is enabled, write requests (POST, PUT, PATCH, DELETE) are automatically forwarded to the current Raft leader. Read requests are served by any node.
 
 ## IPv6 Support
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 func TestRestore(t *testing.T) {
@@ -20,7 +21,7 @@ func TestRestore(t *testing.T) {
 
 	databasePath := filepath.Join(tempDir, "db.sqlite3")
 
-	database, err := db.NewDatabase(context.Background(), databasePath)
+	database, err := db.NewDatabase(context.Background(), databasePath, ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
 	}
@@ -77,7 +78,7 @@ func TestRestore_InvalidFile(t *testing.T) {
 	tempDir := t.TempDir()
 	databasePath := filepath.Join(tempDir, "db.sqlite3")
 
-	database, err := db.NewDatabase(context.Background(), databasePath)
+	database, err := db.NewDatabase(context.Background(), databasePath, ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
 	}
@@ -131,7 +132,7 @@ func TestRestore_ConcurrentRestore(t *testing.T) {
 	tempDir := t.TempDir()
 	databasePath := filepath.Join(tempDir, "db.sqlite3")
 
-	database, err := db.NewDatabase(context.Background(), databasePath)
+	database, err := db.NewDatabase(context.Background(), databasePath, ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
 	}
@@ -232,7 +233,7 @@ func TestRestore_RoundTripPreservesData(t *testing.T) {
 	databasePath := filepath.Join(tempDir, "data")
 	ctx := context.Background()
 
-	database, err := db.NewDatabase(ctx, databasePath)
+	database, err := db.NewDatabase(ctx, databasePath, ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
 	}

@@ -79,15 +79,17 @@ func closeTransport(t raft.Transport) {
 
 // Manager wraps a hashicorp/raft instance and its supporting infrastructure.
 type Manager struct {
-	raft      *raft.Raft
-	fsm       *FSM
-	transport raft.Transport
-	logStore  raft.LogStore
-	snaps     raft.SnapshotStore
-	config    ClusterConfig
-	nodeID    int
-	dataDir   string
-	observer  *LeaderObserver
+	raft           *raft.Raft
+	fsm            *FSM
+	transport      raft.Transport
+	logStore       raft.LogStore
+	snaps          raft.SnapshotStore
+	config         ClusterConfig
+	nodeID         int
+	dataDir        string
+	observer       *LeaderObserver
+	needsDiscovery bool
+	autopilot      *autopilotRunner
 }
 
 // defaultStandaloneBindAddress is the bind address used when ClusterConfig
@@ -226,15 +228,21 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 	observer := NewLeaderObserver()
 
 	m := &Manager{
-		raft:      r,
-		fsm:       fsm,
-		transport: transport,
-		logStore:  boltStore,
-		snaps:     snapshotStore,
-		config:    cfg,
-		nodeID:    nodeID,
-		dataDir:   dataDir,
-		observer:  observer,
+		raft:           r,
+		fsm:            fsm,
+		transport:      transport,
+		logStore:       boltStore,
+		snaps:          snapshotStore,
+		config:         cfg,
+		nodeID:         nodeID,
+		dataDir:        dataDir,
+		observer:       observer,
+		needsDiscovery: !singleServer && !hasState && !recovered,
+	}
+
+	if !singleServer {
+		m.autopilot = newAutopilotRunner(r, m)
+		observer.Register(m.autopilot)
 	}
 
 	if singleServer {
@@ -383,12 +391,73 @@ func (m *Manager) State() raft.RaftState {
 	return m.raft.State()
 }
 
+// Stats returns the Raft stats map (wraps raft.Stats()).
+func (m *Manager) Stats() map[string]string {
+	return m.raft.Stats()
+}
+
 // LeaderObserver returns the manager's leadership observer. Callers register
 // LeaderCallback implementations before the observer's Run loop fires the
 // initial state; in practice, registration happens between NewDatabase and
 // the background-worker launch in runtime.go.
 func (m *Manager) LeaderObserver() *LeaderObserver {
 	return m.observer
+}
+
+// AddVoter adds a new node to the Raft cluster as a voting member. Only the
+// leader can add nodes. The nodeID and address identify the new server; if the
+// node already exists with a different address, it is updated.
+func (m *Manager) AddVoter(nodeID int, address string) error {
+	serverID := raft.ServerID(fmt.Sprintf("%d", nodeID))
+	serverAddr := raft.ServerAddress(address)
+
+	future := m.raft.AddVoter(serverID, serverAddr, 0, 0)
+	if err := future.Error(); err != nil {
+		return fmt.Errorf("add voter %d at %s: %w", nodeID, address, err)
+	}
+
+	return nil
+}
+
+// RemoveServer removes a node from the Raft cluster. Only the leader can
+// remove nodes. After removal the target node will revert to follower state
+// and stop receiving replication.
+func (m *Manager) RemoveServer(nodeID int) error {
+	serverID := raft.ServerID(fmt.Sprintf("%d", nodeID))
+
+	future := m.raft.RemoveServer(serverID, 0, 0)
+	if err := future.Error(); err != nil {
+		return fmt.Errorf("remove server %d: %w", nodeID, err)
+	}
+
+	return nil
+}
+
+// LeaderAPIAddress returns the advertise-api-address of the current leader by
+// looking up the leader's Raft transport address in the cluster members table
+// via the provided resolver function. Returns empty string if this node is the
+// leader or if the leader is unknown.
+func (m *Manager) LeaderAPIAddress(resolver func(raftAddr string) string) string {
+	if m.IsLeader() {
+		return ""
+	}
+
+	addr := m.LeaderAddress()
+	if addr == "" {
+		return ""
+	}
+
+	return resolver(addr)
+}
+
+// ClusterEnabled returns whether the manager was started in HA mode.
+func (m *Manager) ClusterEnabled() bool {
+	return m.config.Enabled
+}
+
+// LeadershipTransfer triggers a leadership transfer to another node.
+func (m *Manager) LeadershipTransfer() error {
+	return m.raft.LeadershipTransfer().Error()
 }
 
 // Shutdown gracefully shuts down the Raft node.
