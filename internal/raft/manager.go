@@ -378,24 +378,6 @@ func (m *Manager) Snapshot() error {
 	return nil
 }
 
-// RestoreSnapshot feeds a snapshot (SQLite database image) to the Raft
-// library's user-restore path. This forces every node in the cluster to
-// install the snapshot, replacing their shared.db via FSM.Restore.
-func (m *Manager) RestoreSnapshot(reader io.ReadCloser, size int64) error {
-	meta := &raft.SnapshotMeta{
-		// ID and Index/Term are filled by the library during restore.
-		Size: size,
-	}
-
-	timeout := m.ProposeTimeout()
-
-	if err := m.raft.Restore(meta, reader, timeout); err != nil {
-		return fmt.Errorf("raft restore: %w", err)
-	}
-
-	return nil
-}
-
 // State returns the current Raft state (Leader, Follower, Candidate, Shutdown).
 func (m *Manager) State() raft.RaftState {
 	return m.raft.State()

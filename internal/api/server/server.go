@@ -200,10 +200,6 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("POST /api/v1/backup", Authenticate(jwtSecret, dbInstance, Authorize(PermBackup, Backup(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/restore", Authenticate(jwtSecret, dbInstance, Authorize(PermRestore, Restore(dbInstance))).ServeHTTP)
 
-	// Cluster snapshot (Authenticated)
-	mux.HandleFunc("POST /api/v1/cluster/snapshot", Authenticate(jwtSecret, dbInstance, Authorize(PermSnapshot, CreateSnapshot(dbInstance))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/cluster/snapshot/restore", Authenticate(jwtSecret, dbInstance, Authorize(PermSnapshotRestore, RestoreSnapshot(dbInstance))).ServeHTTP)
-
 	// Support bundle generation (Authenticated)
 	mux.HandleFunc("POST /api/v1/support-bundle", Authenticate(jwtSecret, dbInstance, Authorize(PermSupportBundle, SupportBundle(dbInstance))).ServeHTTP)
 
