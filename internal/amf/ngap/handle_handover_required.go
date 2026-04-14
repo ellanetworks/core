@@ -6,6 +6,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -66,7 +67,11 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	amfUe.SetOnGoing(amf.OnGoingProcedureN2Handover)
+	_, beginErr := amfUe.Procedures.Begin(ctx, procedure.Procedure{Type: procedure.N2Handover})
+	if beginErr != nil {
+		logger.WithTrace(ctx, sourceUe.Log).Info("N2Handover rejected by procedure registry", zap.Error(beginErr))
+		return
+	}
 
 	if !amfUe.SecurityContextIsValid() {
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Authentication Failure]")
@@ -78,7 +83,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		sourceUe.AmfUe().SetOnGoing(amf.OnGoingProcedureNothing)
+		sourceUe.AmfUe().Procedures.End(procedure.N2Handover)
 
 		err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
 		if err != nil {
@@ -132,7 +137,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		sourceUe.AmfUe().SetOnGoing(amf.OnGoingProcedureNothing)
+		sourceUe.AmfUe().Procedures.End(procedure.N2Handover)
 
 		err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
 		if err != nil {

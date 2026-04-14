@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas/nasMessage"
@@ -117,13 +118,15 @@ func N2MessageTransferOrPage(ctx context.Context, amfInstance *amf.AMF, supi ets
 		return fmt.Errorf("ue context not found")
 	}
 
-	onGoing := ue.GetOnGoing()
-	switch onGoing {
-	case amf.OnGoingProcedurePaging:
+	if ue.Procedures.Active(procedure.Paging) {
 		return fmt.Errorf("higher priority request ongoing")
-	case amf.OnGoingProcedureRegistration:
+	}
+
+	if ue.Procedures.Active(procedure.Registration) {
 		return fmt.Errorf("temporary reject registration ongoing")
-	case amf.OnGoingProcedureN2Handover:
+	}
+
+	if ue.Procedures.Active(procedure.N2Handover) {
 		return fmt.Errorf("temporary reject handover ongoing")
 	}
 
@@ -186,7 +189,11 @@ func N2MessageTransferOrPage(ctx context.Context, amfInstance *amf.AMF, supi ets
 	var pagingPriority *ngapType.PagingPriority
 
 	ue.N1N2Message = &req
-	ue.SetOnGoing(amf.OnGoingProcedurePaging)
+
+	_, beginErr := ue.Procedures.Begin(ctx, procedure.Procedure{Type: procedure.Paging})
+	if beginErr != nil {
+		return fmt.Errorf("begin paging procedure: %w", beginErr)
+	}
 
 	pkg, err := send.BuildPaging(
 		ue.Guti,

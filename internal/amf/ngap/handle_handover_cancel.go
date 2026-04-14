@@ -5,6 +5,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
@@ -51,6 +52,11 @@ func HandleHandoverCancel(ctx context.Context, ran *amf.Radio, msg decode.Handov
 			logger.WithTrace(ctx, sourceUe.Log).Error("Get Cause from Handover Failure Error", zap.Error(err))
 			return
 		}
+	}
+
+	// Clear the N2 Handover procedure since it was cancelled by the source.
+	if amfUe := sourceUe.AmfUe(); amfUe != nil {
+		amfUe.Procedures.End(procedure.N2Handover)
 	}
 
 	targetUe := sourceUe.TargetUe

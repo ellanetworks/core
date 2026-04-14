@@ -6,6 +6,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 )
 
@@ -44,8 +45,14 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe) erro
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
+	if _, beginErr := ue.Procedures.Begin(ctx, procedure.Procedure{Type: procedure.SecurityMode}); beginErr != nil {
+		return fmt.Errorf("security mode blocked by conflict: %w", beginErr)
+	}
+
 	err = message.SendSecurityModeCommand(ctx, amfInstance, ranUe)
 	if err != nil {
+		ue.Procedures.End(procedure.SecurityMode)
+
 		return fmt.Errorf("error sending security mode command: %v", err)
 	}
 
