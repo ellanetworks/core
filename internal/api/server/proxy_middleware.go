@@ -113,7 +113,7 @@ func proxyToLeader(w http.ResponseWriter, r *http.Request, leaderAPI string, dbI
 		targetURL = fmt.Sprintf("%s%s", leaderAPI, r.RequestURI)
 	}
 
-	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, r.Body)
+	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, r.Body) // #nosec: G704 -- targetURL is built from the trusted Raft leader's cluster-member API address
 	if err != nil {
 		writeError(r.Context(), w, http.StatusBadGateway, "failed to create proxy request", err, logger.APILog)
 		return
@@ -131,7 +131,7 @@ func proxyToLeader(w http.ResponseWriter, r *http.Request, leaderAPI string, dbI
 
 	proxyReq.Header.Set(headerForwarded, "true")
 
-	resp, err := proxyClient.Do(proxyReq)
+	resp, err := proxyClient.Do(proxyReq) // #nosec: G704 -- proxyReq targets the trusted Raft leader's cluster-member API address
 	if err != nil {
 		logger.APILog.Warn("Leader proxy failed", zap.Error(err))
 		writeError(r.Context(), w, http.StatusBadGateway, "leader unreachable", err, logger.APILog)

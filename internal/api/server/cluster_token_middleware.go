@@ -10,7 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 )
 
-const headerClusterToken = "X-Ella-Cluster-Token"
+const headerClusterToken = "X-Ella-Cluster-Token" // #nosec: G101 -- HTTP header name, not a credential
 
 // ClusterTokenOrAuth accepts either a valid cluster join token (via the
 // X-Ella-Cluster-Token header) or standard JWT/API-token authentication

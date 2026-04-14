@@ -140,7 +140,7 @@ var sqliteMagic = []byte("SQLite format 3\x00")
 
 // readSchemaVersion opens a SQLite file read-only and returns the
 // schema_version value. Returns 0 if the table doesn't exist.
-func readSchemaVersion(ctx context.Context, path string) (int, error) {
+func readSchemaVersion(ctx context.Context, path string) (uint32, error) {
 	db, err := sql.Open("sqlite3", path+"?mode=ro")
 	if err != nil {
 		return 0, err
@@ -148,7 +148,7 @@ func readSchemaVersion(ctx context.Context, path string) (int, error) {
 
 	defer func() { _ = db.Close() }()
 
-	var v int
+	var v uint32
 
 	err = db.QueryRowContext(ctx, "SELECT version FROM schema_version WHERE id = 1").Scan(&v)
 	if err != nil {
@@ -159,11 +159,11 @@ func readSchemaVersion(ctx context.Context, path string) (int, error) {
 }
 
 // writeSnapshotHeader writes the 16-byte ELSN header into buf.
-func writeSnapshotHeader(buf []byte, schemaVersion, protocolVersion int) {
+func writeSnapshotHeader(buf []byte, schemaVersion, protocolVersion uint32) {
 	copy(buf[0:4], snapshotMagic)
 	binary.BigEndian.PutUint32(buf[4:8], snapshotFormatVersion)
-	binary.BigEndian.PutUint32(buf[8:12], uint32(schemaVersion))
-	binary.BigEndian.PutUint32(buf[12:16], uint32(protocolVersion))
+	binary.BigEndian.PutUint32(buf[8:12], schemaVersion)
+	binary.BigEndian.PutUint32(buf[12:16], protocolVersion)
 }
 
 // Snapshot implements raft.FSM. It uses SQLite's VACUUM INTO to produce a
@@ -240,7 +240,7 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 		}
 
 		protoVer := binary.BigEndian.Uint32(peek[12:16])
-		if int(protoVer) > version.ProtocolVersion() {
+		if protoVer > version.ProtocolVersion() {
 			return fmt.Errorf("snapshot protocol version %d exceeds this binary's protocol version %d", protoVer, version.ProtocolVersion())
 		}
 

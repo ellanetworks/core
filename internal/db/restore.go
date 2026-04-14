@@ -294,7 +294,7 @@ func copyTableRowsTx(ctx context.Context, src *sql.DB, dest *sql.Tx, table strin
 		placeholders[i] = "?"
 	}
 
-	insertStmt := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
+	insertStmt := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)", // #nosec: G201 -- table comes from the hardcoded localOnlyTables list; columns come from sqlite metadata
 		table,
 		strings.Join(columns, ", "),
 		strings.Join(placeholders, ", "))

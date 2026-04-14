@@ -13,9 +13,9 @@ import (
 	"testing"
 )
 
-// TestApplyXFunctions_AreDeterministic walks every applyX method in the db
-// package AST and fails if any of them references a source of
-// non-determinism. Each applyX runs once per node against the committed Raft
+// TestIntentApplyFunctions_AreDeterministic walks the explicit non-changeset
+// apply handlers in the db package AST and fails if any of them references a
+// source of non-determinism. Each applyX runs once per node against the committed Raft
 // log, so two followers replaying the same log must produce byte-identical
 // shared.db state. Reading the wall clock, drawing random bytes, generating
 // UUIDs, or letting SQLite evaluate CURRENT_TIMESTAMP / RANDOM() inside an
@@ -24,7 +24,7 @@ import (
 // Any non-deterministic value must be captured at propose time (by the
 // leader, before Command.MarshalBinary) and carried into the applyX via its
 // payload — see applyInsertAuditLog's Timestamp field for an example.
-func TestApplyXFunctions_AreDeterministic(t *testing.T) {
+func TestIntentApplyFunctions_AreDeterministic(t *testing.T) {
 	// Package-qualified identifiers banned inside applyX bodies. Each entry
 	// is matched as a selector (pkg.Name) so unrelated uses like
 	// time.Duration are not flagged — only calls to the specific function
@@ -66,6 +66,15 @@ func TestApplyXFunctions_AreDeterministic(t *testing.T) {
 		t.Fatalf("read dir: %v", err)
 	}
 
+	targetedApplyMethods := map[string]struct{}{
+		"applyDeleteOldAuditLogs":     {},
+		"applyDeleteOldDailyUsage":    {},
+		"applyDeleteExpiredSessions":  {},
+		"applyDeleteAllDynamicLeases": {},
+		"applyMigrateShared":          {},
+		"applyRestore":                {},
+	}
+
 	var scanned int
 
 	for _, entry := range entries {
@@ -90,7 +99,7 @@ func TestApplyXFunctions_AreDeterministic(t *testing.T) {
 				continue
 			}
 
-			if !isApplyXMethod(fn) {
+			if !isTargetedApplyMethod(fn, targetedApplyMethods) {
 				continue
 			}
 
@@ -142,37 +151,20 @@ func TestApplyXFunctions_AreDeterministic(t *testing.T) {
 	}
 
 	if scanned == 0 {
-		t.Fatal("determinism test scanned 0 applyX functions — test harness broken")
+		t.Fatal("determinism test scanned 0 targeted apply methods — test harness broken")
 	}
 
-	t.Logf("scanned %d applyX functions", scanned)
+	t.Logf("scanned %d targeted apply methods", scanned)
 }
 
-// isApplyXMethod reports whether fn is a method of the form `applyXxx` on
-// *Database, i.e. a candidate FSM apply function. applyJSON is a generic
-// helper and is skipped.
-func isApplyXMethod(fn *ast.FuncDecl) bool {
+// isTargetedApplyMethod reports whether fn is one of the explicit non-changeset
+// apply handlers still replayed directly from the Raft log.
+func isTargetedApplyMethod(fn *ast.FuncDecl, targets map[string]struct{}) bool {
 	if fn.Recv == nil || len(fn.Recv.List) == 0 {
 		return false
 	}
 
-	if !strings.HasPrefix(fn.Name.Name, "apply") {
-		return false
-	}
+	_, ok := targets[fn.Name.Name]
 
-	if fn.Name.Name == "applyJSON" {
-		return false
-	}
-
-	// "apply" alone or lowercase second character → not a command applyX.
-	if len(fn.Name.Name) < 6 {
-		return false
-	}
-
-	second := fn.Name.Name[5]
-	if second < 'A' || second > 'Z' {
-		return false
-	}
-
-	return true
+	return ok
 }
