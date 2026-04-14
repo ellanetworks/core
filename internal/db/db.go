@@ -391,6 +391,25 @@ func (db *Database) RaftAppliedIndex() uint64 {
 	return db.raftManager.AppliedIndex()
 }
 
+// LeaderObserver returns the Raft leadership observer for registering
+// callbacks that react to leadership transitions.
+func (db *Database) LeaderObserver() *ellaraft.LeaderObserver {
+	if db.raftManager == nil {
+		return nil
+	}
+
+	return db.raftManager.LeaderObserver()
+}
+
+// IsLeader returns true if this node is the current Raft leader.
+func (db *Database) IsLeader() bool {
+	if db.raftManager == nil {
+		return true
+	}
+
+	return db.raftManager.IsLeader()
+}
+
 func (db *Database) SharedPath() string {
 	return filepath.Join(db.dataDir, SharedDBFilename)
 }

@@ -87,6 +87,7 @@ type Manager struct {
 	config    ClusterConfig
 	nodeID    int
 	dataDir   string
+	observer  *LeaderObserver
 }
 
 // defaultStandaloneBindAddress is the bind address used when ClusterConfig
@@ -222,6 +223,8 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 		}
 	}
 
+	observer := NewLeaderObserver()
+
 	m := &Manager{
 		raft:      r,
 		fsm:       fsm,
@@ -231,6 +234,7 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 		config:    cfg,
 		nodeID:    nodeID,
 		dataDir:   dataDir,
+		observer:  observer,
 	}
 
 	if singleServer {
@@ -244,6 +248,9 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 			return nil, err
 		}
 	}
+
+	go observer.Run(r)
+	go runMetricsLoop(r, observer.stopCh)
 
 	return m, nil
 }
@@ -376,8 +383,20 @@ func (m *Manager) State() raft.RaftState {
 	return m.raft.State()
 }
 
+// LeaderObserver returns the manager's leadership observer. Callers register
+// LeaderCallback implementations before the observer's Run loop fires the
+// initial state; in practice, registration happens between NewDatabase and
+// the background-worker launch in runtime.go.
+func (m *Manager) LeaderObserver() *LeaderObserver {
+	return m.observer
+}
+
 // Shutdown gracefully shuts down the Raft node.
 func (m *Manager) Shutdown() error {
+	if m.observer != nil {
+		m.observer.Stop()
+	}
+
 	future := m.raft.Shutdown()
 	if err := future.Error(); err != nil {
 		return fmt.Errorf("raft shutdown: %w", err)

@@ -29,6 +29,7 @@ import (
 	"github.com/ellanetworks/core/internal/jobs"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/ellanetworks/core/internal/sessions"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/supportbundle"
@@ -84,6 +85,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}
 	}
 
+	ellaraft.RegisterMetrics()
+
 	dbInstance, err := db.NewDatabase(ctx, cfg.DB.Path)
 	if err != nil {
 		return fmt.Errorf("couldn't initialize database: %w", err)
@@ -107,12 +110,20 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	var wg sync.WaitGroup
 
+	sessionsGuard := sessions.NewLeaderGuard()
+	jobsGuard := jobs.NewLeaderGuard()
+
+	if observer := dbInstance.LeaderObserver(); observer != nil {
+		observer.Register(sessionsGuard)
+		observer.Register(jobsGuard)
+	}
+
 	wg.Go(func() {
-		jobs.RunDataRetentionWorker(ctx, dbInstance)
+		jobs.RunDataRetentionWorker(ctx, dbInstance, jobsGuard)
 	})
 
 	wg.Go(func() {
-		sessions.CleanUp(ctx, dbInstance)
+		sessions.CleanUp(ctx, dbInstance, sessionsGuard)
 	})
 
 	isNATEnabled, err := dbInstance.IsNATEnabled(ctx)
