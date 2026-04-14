@@ -9,11 +9,12 @@ import (
 )
 
 type ClusterStatusResponse struct {
-	Enabled      bool   `json:"enabled"`
-	Role         string `json:"role"`
-	NodeID       int    `json:"nodeId"`
-	AppliedIndex uint64 `json:"appliedIndex"`
-	ClusterID    string `json:"clusterId,omitempty"`
+	Enabled       bool   `json:"enabled"`
+	Role          string `json:"role"`
+	NodeID        int    `json:"nodeId"`
+	AppliedIndex  uint64 `json:"appliedIndex"`
+	ClusterID     string `json:"clusterId,omitempty"`
+	SchemaVersion int    `json:"schemaVersion"`
 }
 
 type StatusResponse struct {
@@ -45,10 +46,11 @@ func GetStatus(dbInstance *db.Database) http.Handler {
 
 		if dbInstance.ClusterEnabled() {
 			clusterStatus := &ClusterStatusResponse{
-				Enabled:      true,
-				Role:         dbInstance.RaftState(),
-				NodeID:       dbInstance.NodeID(),
-				AppliedIndex: dbInstance.RaftAppliedIndex(),
+				Enabled:       true,
+				Role:          dbInstance.RaftState(),
+				NodeID:        dbInstance.NodeID(),
+				AppliedIndex:  dbInstance.RaftAppliedIndex(),
+				SchemaVersion: db.SharedSchemaVersion(),
 			}
 
 			op, err := dbInstance.GetOperator(ctx)

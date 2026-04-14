@@ -46,6 +46,12 @@ var localMigrations = []migration{
 	{1, "split baseline (local)", migrateLocalV1},
 }
 
+// SharedSchemaVersion returns the highest shared-DB migration version this
+// binary understands. Used during cluster join to reject version-skewed nodes.
+func SharedSchemaVersion() int {
+	return sharedMigrations[len(sharedMigrations)-1].version
+}
+
 // runMigrations applies the given migration registry against sqlConn. The
 // schema_version table is local to each database file, so shared and local
 // each track their own version counter independently.

@@ -108,7 +108,11 @@ func New(config *Config) (*Client, error) {
 
 	client.token = config.APIToken
 
-	if len(config.BaseURLs) > 0 {
+	if config.BaseURLs != nil {
+		if len(config.BaseURLs) == 0 {
+			return nil, fmt.Errorf("BaseURLs must not be empty when set")
+		}
+
 		ha, err := newHARequester(client, config)
 		if err != nil {
 			return nil, err

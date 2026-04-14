@@ -33,11 +33,14 @@ func DrainNode(dbInstance *db.Database) http.Handler {
 
 		transferred := false
 
+		var transferErr error
+
 		if dbInstance.IsLeader() && dbInstance.ClusterEnabled() {
 			if err := dbInstance.LeadershipTransfer(); err != nil {
 				logger.APILog.Warn("Leadership transfer failed during drain",
 					zap.Error(err),
 				)
+				transferErr = err
 			} else {
 				transferred = true
 			}
@@ -53,9 +56,17 @@ func DrainNode(dbInstance *db.Database) http.Handler {
 			fmt.Sprintf("Node %d draining, leadership_transferred=%v", dbInstance.NodeID(), transferred),
 		)
 
+		status := http.StatusOK
+		msg := "draining"
+
+		if transferErr != nil {
+			status = http.StatusInternalServerError
+			msg = "draining but leadership transfer failed"
+		}
+
 		writeResponse(r.Context(), w, DrainResponse{
-			Message:               "draining",
+			Message:               msg,
 			TransferredLeadership: transferred,
-		}, http.StatusOK, logger.APILog)
+		}, status, logger.APILog)
 	})
 }

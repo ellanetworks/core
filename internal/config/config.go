@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/vishvananda/netlink"
@@ -635,13 +636,15 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 
 	selfFound := false
 
+	normalizedSelf := strings.TrimRight(c.AdvertiseAPIAddress, "/")
+
 	for i, peer := range c.Peers {
 		peerURL, pErr := url.Parse(peer)
 		if pErr != nil || peerURL.Scheme == "" || peerURL.Host == "" {
 			return Cluster{}, fmt.Errorf("cluster.peers[%d] %q is not a valid URL", i, peer)
 		}
 
-		if peer == c.AdvertiseAPIAddress {
+		if strings.TrimRight(peer, "/") == normalizedSelf {
 			selfFound = true
 		}
 	}

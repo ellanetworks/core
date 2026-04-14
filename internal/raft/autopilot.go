@@ -18,7 +18,6 @@ const (
 	defaultCleanupDeadServers      = true
 	defaultLastContactThreshold    = 10 * time.Second
 	defaultMaxTrailingLogs         = uint64(500)
-	defaultMinQuorum               = uint(2)
 	defaultServerStabilizationTime = 10 * time.Second
 )
 
@@ -29,11 +28,16 @@ type autopilotDelegate struct {
 }
 
 func (d *autopilotDelegate) AutopilotConfig() *autopilot.Config {
+	minQuorum := uint((d.manager.config.BootstrapExpect + 1) / 2)
+	if minQuorum < 1 {
+		minQuorum = 1
+	}
+
 	return &autopilot.Config{
 		CleanupDeadServers:      defaultCleanupDeadServers,
 		LastContactThreshold:    defaultLastContactThreshold,
 		MaxTrailingLogs:         defaultMaxTrailingLogs,
-		MinQuorum:               defaultMinQuorum,
+		MinQuorum:               minQuorum,
 		ServerStabilizationTime: defaultServerStabilizationTime,
 	}
 }

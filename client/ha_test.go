@@ -32,8 +32,8 @@ func TestNew_HAClient_EmptyURLs(t *testing.T) {
 	_, err := client.New(&client.Config{
 		BaseURLs: []string{},
 	})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err == nil {
+		t.Fatal("expected error for empty BaseURLs")
 	}
 }
 

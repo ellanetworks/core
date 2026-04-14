@@ -39,7 +39,7 @@ type Operator struct {
 	Mcc           string `db:"mcc"`
 	Mnc           string `db:"mnc"`
 	OperatorCode  string `db:"operatorCode"`
-	SupportedTACs string `db:"supportedTACs"` // JSON-encoded list of algorithm names
+	SupportedTACs string `db:"supportedTACs"` // JSON-encoded list of TAC strings
 	Ciphering     string `db:"ciphering"`     // JSON-encoded list of algorithm names, e.g. '["NEA2","NEA1"]'
 	Integrity     string `db:"integrity"`     // JSON-encoded list of algorithm names, e.g. '["NIA2","NIA1"]'
 	SpnFullName   string `db:"spnFullName"`

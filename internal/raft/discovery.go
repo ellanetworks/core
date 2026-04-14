@@ -33,9 +33,10 @@ const (
 
 // statusClusterBlock mirrors the cluster block of the status API response.
 type statusClusterBlock struct {
-	Role      string `json:"role"`
-	NodeID    int    `json:"nodeId"`
-	ClusterID string `json:"clusterId"`
+	Role          string `json:"role"`
+	NodeID        int    `json:"nodeId"`
+	ClusterID     string `json:"clusterId"`
+	SchemaVersion int    `json:"schemaVersion"`
 }
 
 type statusResult struct {
@@ -117,10 +118,20 @@ func (m *Manager) discoveryTick(ctx context.Context, client *http.Client) (bool,
 			continue
 		}
 
-		state, nodeID, clusterID := m.probePeer(ctx, client, peerURL)
+		state, nodeID, clusterID, peerSchema := m.probePeer(ctx, client, peerURL)
 
 		switch state {
 		case peerFormed:
+			if peerSchema != m.config.SchemaVersion {
+				logger.RaftLog.Warn("Schema version mismatch with peer, skipping",
+					zap.String("peer", peerURL),
+					zap.Int("local", m.config.SchemaVersion),
+					zap.Int("remote", peerSchema),
+				)
+
+				continue
+			}
+
 			if err := m.joinCluster(ctx, client, peerURL, clusterID); err != nil {
 				logger.RaftLog.Warn("Failed to join cluster via peer",
 					zap.String("peer", peerURL),
@@ -160,56 +171,70 @@ func (m *Manager) discoveryTick(ctx context.Context, client *http.Client) (bool,
 	return false, nil
 }
 
-// probePeer queries a peer's status endpoint and returns its state and node ID.
-func (m *Manager) probePeer(ctx context.Context, client *http.Client, peerURL string) (peerState, int, string) {
+// probePeer queries a peer's status endpoint and returns its state, node ID,
+// cluster ID, and schema version.
+func (m *Manager) probePeer(ctx context.Context, client *http.Client, peerURL string) (peerState, int, string, int) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, peerURL+"/api/v1/status", nil)
 	if err != nil {
-		return peerUnreachable, 0, ""
+		return peerUnreachable, 0, "", 0
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return peerUnreachable, 0, ""
+		return peerUnreachable, 0, "", 0
 	}
 
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return peerForming, 0, ""
+		return peerForming, 0, "", 0
 	}
 
 	var status statusResponse
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&status); err != nil {
-		return peerForming, 0, ""
+		return peerForming, 0, "", 0
 	}
 
 	if status.Result.Cluster == nil {
-		return peerForming, 0, ""
+		return peerForming, 0, "", 0
 	}
 
 	nodeID := status.Result.Cluster.NodeID
 	role := status.Result.Cluster.Role
 	clusterID := status.Result.Cluster.ClusterID
+	schemaVersion := status.Result.Cluster.SchemaVersion
 
 	if role == "Leader" || role == "Follower" {
-		return peerFormed, nodeID, clusterID
+		return peerFormed, nodeID, clusterID, schemaVersion
 	}
 
-	return peerForming, nodeID, clusterID
+	return peerForming, nodeID, clusterID, schemaVersion
 }
 
 // joinCluster POSTs our membership to a peer (proxied to leader via the
 // LeaderProxyMiddleware).
 func (m *Manager) joinCluster(ctx context.Context, client *http.Client, peerURL string, clusterID string) error {
-	body := fmt.Sprintf(`{"nodeId":%d,"raftAddress":%q,"apiAddress":%q,"clusterId":%q}`,
-		m.nodeID,
-		string(m.transport.LocalAddr()),
-		m.config.AdvertiseAPIAddress,
-		clusterID,
-	)
+	payload := struct {
+		NodeID        int    `json:"nodeId"`
+		RaftAddress   string `json:"raftAddress"`
+		APIAddress    string `json:"apiAddress"`
+		ClusterID     string `json:"clusterId"`
+		SchemaVersion int    `json:"schemaVersion"`
+	}{
+		NodeID:        m.nodeID,
+		RaftAddress:   string(m.transport.LocalAddr()),
+		APIAddress:    m.config.AdvertiseAPIAddress,
+		ClusterID:     clusterID,
+		SchemaVersion: m.config.SchemaVersion,
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal join request: %w", err)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		peerURL+"/api/v1/cluster/members", strings.NewReader(body))
+		peerURL+"/api/v1/cluster/members", strings.NewReader(string(body)))
 	if err != nil {
 		return err
 	}

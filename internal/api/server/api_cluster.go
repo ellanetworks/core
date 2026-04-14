@@ -22,10 +22,11 @@ type ClusterMemberResponse struct {
 }
 
 type AddClusterMemberRequest struct {
-	NodeID      int    `json:"nodeId"`
-	RaftAddress string `json:"raftAddress"`
-	APIAddress  string `json:"apiAddress"`
-	ClusterID   string `json:"clusterId,omitempty"`
+	NodeID        int    `json:"nodeId"`
+	RaftAddress   string `json:"raftAddress"`
+	APIAddress    string `json:"apiAddress"`
+	ClusterID     string `json:"clusterId,omitempty"`
+	SchemaVersion int    `json:"schemaVersion,omitempty"`
 }
 
 func ListClusterMembers(dbInstance *db.Database) http.Handler {
@@ -81,6 +82,17 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 
 			if op.ClusterID != "" && req.ClusterID != op.ClusterID {
 				writeError(r.Context(), w, http.StatusConflict, "Cluster ID mismatch: node belongs to a different cluster", nil, logger.APILog)
+				return
+			}
+		}
+
+		if req.SchemaVersion > 0 {
+			local := db.SharedSchemaVersion()
+			if req.SchemaVersion != local {
+				writeError(r.Context(), w, http.StatusConflict,
+					fmt.Sprintf("Schema version mismatch: node has %d, cluster has %d", req.SchemaVersion, local),
+					nil, logger.APILog)
+
 				return
 			}
 		}

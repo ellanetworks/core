@@ -99,6 +99,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		ProposeTimeout:      cfg.Cluster.ProposeTimeout,
 		SnapshotInterval:    cfg.Cluster.SnapshotInterval,
 		SnapshotThreshold:   cfg.Cluster.SnapshotThreshold,
+		SchemaVersion:       db.SharedSchemaVersion(),
 	}
 
 	dbInstance, err := db.NewDatabase(ctx, cfg.DB.Path, raftCfg)

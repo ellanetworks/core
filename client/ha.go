@@ -75,6 +75,9 @@ func (ha *haRequester) Do(ctx context.Context, opts *RequestOptions) (*RequestRe
 	return nil, ConnectionError{fmt.Errorf("all endpoints failed after %d attempts: %w", retries, lastErr)}
 }
 
+// host returns the host of the currently selected requester. The result may
+// change after each Do call due to round-robin rotation; callers that need a
+// stable value should capture it once (as client.New does at construction).
 func (ha *haRequester) host() string {
 	idx := int(ha.current.Load()) % len(ha.requesters)
 	return ha.requesters[idx].baseURL.Host

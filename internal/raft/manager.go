@@ -39,6 +39,10 @@ type ClusterConfig struct {
 	// snapshots to followers that lag. Zero keeps the hashicorp/raft
 	// default (10240).
 	TrailingLogs uint64
+
+	// SchemaVersion is the shared-DB migration version this binary expects.
+	// Included in the join handshake so version-skewed nodes are rejected.
+	SchemaVersion int
 }
 
 const (
@@ -90,6 +94,7 @@ type Manager struct {
 	observer       *LeaderObserver
 	needsDiscovery bool
 	autopilot      *autopilotRunner
+	boltNoSync     bool
 }
 
 // defaultStandaloneBindAddress is the bind address used when ClusterConfig
@@ -148,7 +153,17 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 
 	boltPath := filepath.Join(raftDir, "raft.db")
 
-	boltStore, err := raftboltdb.NewBoltStore(boltPath)
+	// In single-server mode the raft log is auxiliary: shared.db (fsynced on
+	// COMMIT) is the canonical FSM state, there are no peers to replicate to,
+	// and losing trailing raft-log entries on crash is harmless — the FSM
+	// state on disk is already authoritative. Skipping per-entry fsync halves
+	// write latency (one fsync per COMMIT instead of two) and restores the
+	// pre-HA throughput the API layer depends on for batched mutations.
+	// HA mode keeps fsync enabled: replicas derive truth from the log.
+	boltStore, err := raftboltdb.New(raftboltdb.Options{
+		Path:   boltPath,
+		NoSync: singleServer,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("create bolt store at %s: %w", boltPath, err)
 	}
@@ -238,6 +253,7 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 		dataDir:        dataDir,
 		observer:       observer,
 		needsDiscovery: !singleServer && !hasState && !recovered,
+		boltNoSync:     singleServer,
 	}
 
 	if !singleServer {
@@ -453,6 +469,14 @@ func (m *Manager) LeaderAPIAddress(resolver func(raftAddr string) string) string
 // ClusterEnabled returns whether the manager was started in HA mode.
 func (m *Manager) ClusterEnabled() bool {
 	return m.config.Enabled
+}
+
+// BoltNoSync reports whether the raft log store was opened with fsync
+// disabled. Single-server nodes skip fsync because shared.db is the canonical
+// FSM state and is itself fsynced on COMMIT; HA nodes keep fsync enabled
+// because the raft log is the replicated source of truth.
+func (m *Manager) BoltNoSync() bool {
+	return m.boltNoSync
 }
 
 // LeadershipTransfer triggers a leadership transfer to another node.

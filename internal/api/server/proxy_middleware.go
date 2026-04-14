@@ -88,6 +88,18 @@ func resolveLeaderAPI(dbInstance *db.Database) string {
 	return ""
 }
 
+// isHopByHopHeader returns true for headers that must not be forwarded by
+// proxies per RFC 7230 §6.1.
+func isHopByHopHeader(h string) bool {
+	switch strings.ToLower(h) {
+	case "connection", "keep-alive", "proxy-authenticate",
+		"proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade":
+		return true
+	}
+
+	return false
+}
+
 func proxyToLeader(w http.ResponseWriter, r *http.Request, leaderAPI string, dbInstance *db.Database) {
 	scheme := "https"
 	if strings.HasPrefix(leaderAPI, "http://") || strings.HasPrefix(leaderAPI, "https://") {
@@ -108,6 +120,10 @@ func proxyToLeader(w http.ResponseWriter, r *http.Request, leaderAPI string, dbI
 	}
 
 	for key, values := range r.Header {
+		if isHopByHopHeader(key) {
+			continue
+		}
+
 		for _, v := range values {
 			proxyReq.Header.Add(key, v)
 		}
@@ -126,6 +142,10 @@ func proxyToLeader(w http.ResponseWriter, r *http.Request, leaderAPI string, dbI
 	defer func() { _ = resp.Body.Close() }()
 
 	for key, values := range resp.Header {
+		if isHopByHopHeader(key) {
+			continue
+		}
+
 		for _, v := range values {
 			w.Header().Add(key, v)
 		}
