@@ -111,10 +111,6 @@ func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload) (
 			return fmt.Errorf("apply sqlite changeset: %w", err)
 		}
 
-		if _, err := sqliteConn.ExecContext(ctx, "PRAGMA foreign_keys = ON", nil); err != nil {
-			return fmt.Errorf("re-enable foreign keys after changeset apply: %w", err)
-		}
-
 		return nil
 	}); err != nil {
 		return nil, err

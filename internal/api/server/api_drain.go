@@ -50,6 +50,20 @@ func DrainNode(dbInstance *db.Database, amfInstance *amf.AMF, bgpService *bgp.BG
 			stepTimeout = time.Duration(req.TimeoutSeconds) * time.Second
 		}
 
+		if dbInstance.IsLeader() && dbInstance.ClusterEnabled() {
+			if err := dbInstance.LeadershipTransfer(); err != nil {
+				logger.APILog.Warn("Leadership transfer failed during drain", zap.Error(err))
+				writeResponse(r.Context(), w, DrainResponse{
+					Message:               "drain aborted: leadership transfer failed",
+					TransferredLeadership: false,
+					RANsNotified:          0,
+					BGPStopped:            false,
+				}, http.StatusInternalServerError, logger.APILog)
+
+				return
+			}
+		}
+
 		ransNotified := notifyRANsUnavailable(r.Context(), amfInstance, stepTimeout)
 
 		bgpStopped := false
@@ -62,18 +76,7 @@ func DrainNode(dbInstance *db.Database, amfInstance *amf.AMF, bgpService *bgp.BG
 			}
 		}
 
-		transferred := false
-
-		var transferErr error
-
-		if dbInstance.IsLeader() && dbInstance.ClusterEnabled() {
-			if err := dbInstance.LeadershipTransfer(); err != nil {
-				logger.APILog.Warn("Leadership transfer failed during drain", zap.Error(err))
-				transferErr = err
-			} else {
-				transferred = true
-			}
-		}
+		transferred := dbInstance.ClusterEnabled() && dbInstance.IsLeader()
 
 		email := getEmailFromContext(r)
 
@@ -86,20 +89,12 @@ func DrainNode(dbInstance *db.Database, amfInstance *amf.AMF, bgpService *bgp.BG
 				dbInstance.NodeID(), transferred, ransNotified, bgpStopped),
 		)
 
-		status := http.StatusOK
-		msg := "draining"
-
-		if transferErr != nil {
-			status = http.StatusInternalServerError
-			msg = "draining but leadership transfer failed"
-		}
-
 		writeResponse(r.Context(), w, DrainResponse{
-			Message:               msg,
+			Message:               "draining",
 			TransferredLeadership: transferred,
 			RANsNotified:          ransNotified,
 			BGPStopped:            bgpStopped,
-		}, status, logger.APILog)
+		}, http.StatusOK, logger.APILog)
 	})
 }
 

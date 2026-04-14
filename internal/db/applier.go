@@ -97,6 +97,8 @@ func (db *Database) Reopen(ctx context.Context) error {
 		return fmt.Errorf("reopen database: %w", err)
 	}
 
+	// In cluster mode, restore/reopen must track the snapshot baseline.
+	// Post-baseline shared migrations are proposed by the leader via Raft.
 	if db.raftManager != nil && db.raftManager.ClusterEnabled() {
 		if err := runMigrationsUpTo(ctx, sqlConn, baselineVersion); err != nil {
 			_ = sqlConn.Close()

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -17,11 +18,13 @@ import (
 const (
 	headerAppliedIndex = "X-Ella-Applied-Index"
 	headerForwarded    = "X-Ella-Forwarded"
-	proxyTimeout       = 30 * time.Second
 )
 
 var proxyClient = &http.Client{
-	Timeout: proxyTimeout,
+	// Use request context deadlines instead of a fixed client timeout so
+	// long-running proxied operations (e.g. restore/backup streams) are not
+	// truncated at an arbitrary wall-clock limit.
+	Timeout: 0,
 	CheckRedirect: func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	},
@@ -101,17 +104,13 @@ func isHopByHopHeader(h string) bool {
 }
 
 func proxyToLeader(w http.ResponseWriter, r *http.Request, leaderAPI string, dbInstance *db.Database) {
-	scheme := "https"
-	if strings.HasPrefix(leaderAPI, "http://") || strings.HasPrefix(leaderAPI, "https://") {
-		scheme = ""
+	leaderURL, err := url.Parse(leaderAPI)
+	if err != nil || leaderURL.Scheme == "" || leaderURL.Host == "" {
+		writeError(r.Context(), w, http.StatusBadGateway, "invalid leader API address", err, logger.APILog)
+		return
 	}
 
-	var targetURL string
-	if scheme != "" {
-		targetURL = fmt.Sprintf("%s://%s%s", scheme, leaderAPI, r.RequestURI)
-	} else {
-		targetURL = fmt.Sprintf("%s%s", leaderAPI, r.RequestURI)
-	}
+	targetURL := fmt.Sprintf("%s%s", strings.TrimRight(leaderAPI, "/"), r.RequestURI)
 
 	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, r.Body) // #nosec: G704 -- targetURL is built from the trusted Raft leader's cluster-member API address
 	if err != nil {

@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"sync/atomic"
+	"time"
 )
 
 const maxHARetries = 3
+
+const haRetryBackoff = 100 * time.Millisecond
 
 // haRequester wraps multiple defaultRequesters and provides round-robin with
 // automatic retry on 503 responses (leader unavailable).
@@ -61,11 +64,25 @@ func (ha *haRequester) Do(ctx context.Context, opts *RequestOptions) (*RequestRe
 		resp, err := rq.Do(ctx, opts)
 		if err != nil {
 			lastErr = err
+
+			if attempt < retries-1 {
+				if waitErr := waitForRetry(ctx, time.Duration(attempt+1)*haRetryBackoff); waitErr != nil {
+					return nil, ConnectionError{waitErr}
+				}
+			}
+
 			continue
 		}
 
 		if resp.StatusCode == 503 {
 			lastErr = fmt.Errorf("server %s returned 503", rq.baseURL.String())
+
+			if attempt < retries-1 {
+				if waitErr := waitForRetry(ctx, time.Duration(attempt+1)*haRetryBackoff); waitErr != nil {
+					return nil, ConnectionError{waitErr}
+				}
+			}
+
 			continue
 		}
 
@@ -73,6 +90,18 @@ func (ha *haRequester) Do(ctx context.Context, opts *RequestOptions) (*RequestRe
 	}
 
 	return nil, ConnectionError{fmt.Errorf("all endpoints failed after %d attempts: %w", retries, lastErr)}
+}
+
+func waitForRetry(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }
 
 // host returns the host of the currently selected requester. The result may

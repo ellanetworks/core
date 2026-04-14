@@ -150,6 +150,13 @@ func (m *Manager) discoveryTick(ctx context.Context, client *http.Client) (bool,
 		case peerForming:
 			reachableCount++
 
+			if nodeID == m.nodeID {
+				logger.RaftLog.Warn("Peer reports duplicate node-id during discovery",
+					zap.String("peer", peerURL),
+					zap.Int("node_id", nodeID),
+				)
+			}
+
 			if nodeID > 0 && nodeID < lowestReachableNodeID {
 				lowestReachableNodeID = nodeID
 			}

@@ -659,6 +659,10 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 		return Cluster{}, errors.New("cluster.join-token is required when cluster is enabled")
 	}
 
+	if len(c.JoinToken) < 32 {
+		return Cluster{}, fmt.Errorf("cluster.join-token must be at least 32 characters, got %d", len(c.JoinToken))
+	}
+
 	var joinTimeout time.Duration
 
 	if c.JoinTimeout != "" {

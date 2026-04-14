@@ -16,6 +16,9 @@ const (
 	// Changeset replication (opaque sqlite3session bytes)
 	CmdChangeset CommandType = 0
 
+	// Gaps are intentional: retired command ids are never reused so any
+	// historical logs/snapshots remain decodable.
+
 	// Intent-based bulk deletes kept explicit for log-size control.
 	CmdDeleteOldDailyUsage    CommandType = 12
 	CmdDeleteAllDynamicLeases CommandType = 23

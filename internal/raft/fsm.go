@@ -7,10 +7,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -152,7 +154,11 @@ func readSchemaVersion(ctx context.Context, path string) (uint32, error) {
 
 	err = db.QueryRowContext(ctx, "SELECT version FROM schema_version WHERE id = 1").Scan(&v)
 	if err != nil {
-		return 0, nil
+		if errors.Is(err, sql.ErrNoRows) || strings.Contains(err.Error(), "no such table: schema_version") {
+			return 0, nil
+		}
+
+		return 0, fmt.Errorf("read schema_version row: %w", err)
 	}
 
 	return v, nil
