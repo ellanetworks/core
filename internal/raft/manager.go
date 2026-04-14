@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sync/atomic"
 	"time"
 
 	"github.com/hashicorp/raft"
@@ -104,16 +103,6 @@ type Manager struct {
 	needsDiscovery bool
 	autopilot      *autopilotRunner
 	boltNoSync     bool
-	cwmp           atomic.Int32
-
-	// MemberVersionResolver returns the protocol version for a given node ID.
-	// Set by the database layer after initialization.
-	MemberVersionResolver func(nodeID int) int
-
-	// OnCWMPChange is invoked asynchronously whenever RefreshCWMP advances
-	// or retreats CWMP. Set by the database layer to trigger pending
-	// migrations and deferred initialization steps.
-	OnCWMPChange func(newCWMP int)
 }
 
 // defaultStandaloneBindAddress is the bind address used when ClusterConfig
@@ -356,12 +345,6 @@ func applyTimeouts(rc *raft.Config, cfg ClusterConfig, singleServer, freshBoot b
 // Propose serializes a command and applies it through Raft consensus.
 // Only the leader can propose; followers receive ErrNotLeader.
 func (m *Manager) Propose(cmd *Command, timeout time.Duration) (any, error) {
-	if m.config.Enabled {
-		if Introduced(cmd.Type) > m.CWMP() {
-			return nil, ErrCommandNotYetAvailable
-		}
-	}
-
 	data, err := cmd.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("marshal command: %w", err)
@@ -595,56 +578,6 @@ func (m *Manager) waitForLeader(ctx context.Context) error {
 	}
 }
 
-// CWMP returns the cluster-wide minimum protocol version. The value is cached
-// in an atomic and refreshed by RefreshCWMP on leadership transitions and
-// voter-set changes. Returns this node's protocol version when uncached (0).
-func (m *Manager) CWMP() int {
-	v := int(m.cwmp.Load())
-	if v == 0 {
-		return m.config.ProtocolVersion
-	}
-
-	return v
-}
-
-// RefreshCWMP recomputes the cluster-wide minimum protocol version from the
-// Raft voter set and the cluster_members table. versionOf maps raft.ServerID
-// to the protocol version stored in cluster_members. Call this on leadership
-// transitions and after voter-set-changing commands.
-func (m *Manager) RefreshCWMP(versionOf func(raft.ServerID) int) {
-	future := m.raft.GetConfiguration()
-	if err := future.Error(); err != nil {
-		return
-	}
-
-	minVersion := m.config.ProtocolVersion
-
-	for _, srv := range future.Configuration().Servers {
-		if srv.Suffrage != raft.Voter {
-			continue
-		}
-
-		v := versionOf(srv.ID)
-		if v > 0 && v < minVersion {
-			minVersion = v
-		}
-	}
-
-	prev := m.cwmp.Swap(int32(minVersion))
-
-	UpdateCWMPMetric(minVersion)
-
-	if prev != int32(minVersion) && m.OnCWMPChange != nil {
-		go m.OnCWMPChange(minVersion)
-	}
-}
-
-// RefreshCWMPDefault recomputes CWMP using the manager's configured
-// MemberVersionResolver. A convenience wrapper used by applier hooks.
-func (m *Manager) RefreshCWMPDefault() {
-	m.RefreshCWMP(m.memberProtocolVersion)
-}
-
 // AddNonvoter adds a new node to the Raft cluster as a non-voting member.
 // Non-voters receive log replication but do not participate in elections
 // or commit quorum. Used during rolling upgrades for catch-up before promotion.
@@ -658,26 +591,4 @@ func (m *Manager) AddNonvoter(nodeID int, address string) error {
 	}
 
 	return nil
-}
-
-// memberProtocolVersion resolves a raft.ServerID to the protocol version from
-// the cluster_members table. Falls back to this node's protocol version if the
-// resolver is not set or the node is not found.
-func (m *Manager) memberProtocolVersion(id raft.ServerID) int {
-	if m.MemberVersionResolver == nil {
-		return m.config.ProtocolVersion
-	}
-
-	nodeID := 0
-
-	if _, err := fmt.Sscanf(string(id), "%d", &nodeID); err != nil {
-		return m.config.ProtocolVersion
-	}
-
-	v := m.MemberVersionResolver(nodeID)
-	if v <= 0 {
-		return m.config.ProtocolVersion
-	}
-
-	return v
 }

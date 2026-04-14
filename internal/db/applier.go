@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/dbwriter"
@@ -23,6 +24,9 @@ var _ ellaraft.Applier = (*Database)(nil)
 // log entry. Each applyX uses sqlair to execute SQL against the shared database.
 func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (any, error) {
 	switch cmd.Type {
+	case ellaraft.CmdChangeset:
+		return applyJSON[bytesPayload](ctx, cmd.Payload, db.applyChangeset)
+
 	// Subscribers
 	case ellaraft.CmdCreateSubscriber:
 		return applyJSON[Subscriber](ctx, cmd.Payload, db.applyCreateSubscriber)
@@ -300,6 +304,42 @@ type (
 // lost, shutdown) are mapped to ErrProposeTimeout so the API layer can
 // return 503.
 func (db *Database) propose(cmdType ellaraft.CommandType, payload any) (any, error) {
+	if !isIntentBulkCommand(cmdType) && cmdType != ellaraft.CmdMigrateShared && cmdType != ellaraft.CmdRestore {
+		typedCmd, err := ellaraft.NewCommand(cmdType, payload)
+		if err != nil {
+			return nil, err
+		}
+
+		changeset, applyResult, err := db.captureChangesetForCommand(context.Background(), typedCmd)
+		if err != nil {
+			if errors.Is(err, ErrAlreadyExists) {
+				return nil, ErrAlreadyExists
+			}
+
+			if errors.Is(err, ErrNotFound) {
+				return nil, ErrNotFound
+			}
+
+			return nil, fmt.Errorf("capture changeset for %s: %w", cmdType, err)
+		}
+
+		changesetCmd, err := ellaraft.NewCommand(ellaraft.CmdChangeset, &bytesPayload{Value: changeset})
+		if err != nil {
+			return nil, err
+		}
+
+		_, err = db.raftManager.Propose(changesetCmd, db.proposeTimeout)
+		if err != nil {
+			if isTransientRaftErr(err) {
+				return nil, fmt.Errorf("%w: %v", ErrProposeTimeout, err)
+			}
+
+			return nil, err
+		}
+
+		return applyResult, nil
+	}
+
 	cmd, err := ellaraft.NewCommand(cmdType, payload)
 	if err != nil {
 		return nil, err
@@ -1073,6 +1113,22 @@ func (db *Database) applyUpdateBGPSettings(ctx context.Context, s *BGPSettings) 
 func (db *Database) applySetImportPrefixesForPeer(ctx context.Context, p *importPrefixesPayload) (any, error) {
 	tx, err := db.conn.Begin(ctx, nil)
 	if err != nil {
+		if strings.Contains(err.Error(), "cannot start a transaction within a transaction") {
+			if err := db.conn.Query(ctx, db.deleteImportPrefixesByPeerStmt, BGPImportPrefix{PeerID: p.PeerID}).Run(); err != nil {
+				return nil, fmt.Errorf("delete existing prefixes: %w", err)
+			}
+
+			for _, prefix := range p.Prefixes {
+				prefix.PeerID = p.PeerID
+
+				if err := db.conn.Query(ctx, db.createImportPrefixStmt, prefix).Run(); err != nil {
+					return nil, fmt.Errorf("insert prefix: %w", err)
+				}
+			}
+
+			return nil, nil
+		}
+
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
 
@@ -1255,10 +1311,6 @@ func (db *Database) applyUpsertClusterMember(ctx context.Context, m *ClusterMemb
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	if db.raftManager != nil {
-		db.raftManager.RefreshCWMPDefault()
-	}
-
 	return nil, nil
 }
 
@@ -1277,10 +1329,6 @@ func (db *Database) applyDeleteClusterMember(ctx context.Context, p *intPayload)
 
 	if rowsAffected == 0 {
 		return nil, ErrNotFound
-	}
-
-	if db.raftManager != nil {
-		db.raftManager.RefreshCWMPDefault()
 	}
 
 	return nil, nil

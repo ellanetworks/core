@@ -120,30 +120,6 @@ func parseRaftStats(stats map[string]string) *autopilot.ServerStats {
 	return s
 }
 
-// versionGatedPromoter wraps the default autopilot promoter to prevent
-// automatic promotion of non-voters whose protocol version exceeds CWMP.
-type versionGatedPromoter struct {
-	autopilot.Promoter
-	cwmp      func() int
-	versionOf func(raft.ServerID) int
-}
-
-func (p *versionGatedPromoter) CalculatePromotionsAndDemotions(c *autopilot.Config, s *autopilot.State) autopilot.RaftChanges {
-	base := p.Promoter.CalculatePromotionsAndDemotions(c, s)
-
-	var filtered []raft.ServerID
-
-	for _, id := range base.Promotions {
-		if p.versionOf(id) <= p.cwmp() {
-			filtered = append(filtered, id)
-		}
-	}
-
-	base.Promotions = filtered
-
-	return base
-}
-
 // autopilotRunner wraps the autopilot.Autopilot lifecycle, starting it when
 // this node becomes leader and stopping it when leadership is lost.
 // Implements LeaderCallback.
@@ -154,15 +130,9 @@ type autopilotRunner struct {
 func newAutopilotRunner(r *raft.Raft, m *Manager) *autopilotRunner {
 	delegate := &autopilotDelegate{manager: m}
 
-	promoter := &versionGatedPromoter{
-		Promoter:  autopilot.DefaultPromoter(),
-		cwmp:      m.CWMP,
-		versionOf: m.memberProtocolVersion,
-	}
-
 	ap := autopilot.New(r, delegate,
 		autopilot.WithLogger(hclog.NewNullLogger()),
-		autopilot.WithPromoter(promoter),
+		autopilot.WithPromoter(autopilot.DefaultPromoter()),
 	)
 
 	return &autopilotRunner{ap: ap}

@@ -34,6 +34,7 @@ type Database struct {
 	dbPath         string
 	dataDir        string
 	restoreMu      sync.Mutex
+	captureMu      sync.Mutex
 	raftManager    *ellaraft.Manager
 	proposeTimeout time.Duration
 
@@ -514,13 +515,13 @@ func (db *Database) AddNonvoter(nodeID int, raftAddress string) error {
 	return db.raftManager.AddNonvoter(nodeID, raftAddress)
 }
 
-// CWMP returns the cluster-wide minimum protocol version.
+// CWMP returns the local protocol version in the changeset-replication model.
 func (db *Database) CWMP() int {
 	if db.raftManager == nil {
 		return 0
 	}
 
-	return db.raftManager.CWMP()
+	return db.raftManager.ProtocolVersion()
 }
 
 // CurrentSchemaVersion reads the schema_version singleton.
@@ -537,9 +538,8 @@ func (db *Database) CurrentSchemaVersion(ctx context.Context) (int, error) {
 }
 
 // CheckPendingMigrations proposes CmdMigrateShared entries for each
-// migration beyond the current applied version, provided CWMP covers the
-// migration command. Called on leadership transitions and CWMP changes.
-// Only the leader proposes; followers no-op.
+// migration beyond the current applied version. Called on leadership
+// transitions. Only the leader proposes; followers no-op.
 func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 	if db.raftManager == nil || !db.raftManager.ClusterEnabled() {
 		return nil
@@ -559,23 +559,11 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 		return nil
 	}
 
-	cwmp := db.raftManager.CWMP()
-	if ellaraft.Introduced(ellaraft.CmdMigrateShared) > cwmp {
-		logger.WithTrace(ctx, logger.DBLog).Info("Deferring migration: CWMP too low",
-			zap.Int("current", current), zap.Int("target", target), zap.Int("cwmp", cwmp))
-
-		return nil
-	}
-
 	for v := current + 1; v <= target; v++ {
 		logger.WithTrace(ctx, logger.DBLog).Info("Proposing migration over Raft",
 			zap.Int("targetVersion", v))
 
 		if _, err := db.propose(ellaraft.CmdMigrateShared, migrateSharedPayload{TargetVersion: v}); err != nil {
-			if errors.Is(err, ellaraft.ErrCommandNotYetAvailable) {
-				return nil
-			}
-
 			return fmt.Errorf("propose migration %d: %w", v, err)
 		}
 	}
@@ -583,8 +571,8 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 	return nil
 }
 
-// clusterCoordinator implements ellaraft.LeaderCallback to refresh CWMP and
-// propose deferred migrations on leadership transitions.
+// clusterCoordinator implements ellaraft.LeaderCallback to propose deferred
+// migrations on leadership transitions.
 type clusterCoordinator struct {
 	db *Database
 }
@@ -597,8 +585,6 @@ func (c *clusterCoordinator) OnBecameLeader() {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-
-		c.db.raftManager.RefreshCWMPDefault()
 
 		if err := c.db.CheckPendingMigrations(ctx); err != nil {
 			logger.WithTrace(ctx, logger.DBLog).Warn("check pending migrations on leader change failed",
@@ -716,6 +702,11 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	db.dbPath = dbPath
 	db.dataDir = dataDir
 
+	if err := db.assertTableReplicationClassification(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed table replication classification check: %w", err)
+	}
+
 	if err := db.PrepareStatements(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to prepare statements: %w", err)
@@ -729,25 +720,6 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 
 	db.raftManager = raftMgr
 	db.proposeTimeout = raftMgr.ProposeTimeout()
-
-	raftMgr.MemberVersionResolver = func(nodeID int) int {
-		member, err := db.GetClusterMember(ctx, nodeID)
-		if err != nil {
-			return 0
-		}
-
-		return member.ProtocolVersion
-	}
-
-	raftMgr.OnCWMPChange = func(newCWMP int) {
-		bgCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
-		if err := db.CheckPendingMigrations(bgCtx); err != nil {
-			logger.WithTrace(bgCtx, logger.DBLog).Warn("check pending migrations after CWMP change failed",
-				zap.Int("cwmp", newCWMP), zap.Error(err))
-		}
-	}
 
 	ellaraft.SetProtocolVersionMetric(raftMgr.NodeID(), raftMgr.ProtocolVersion())
 
@@ -1026,13 +998,6 @@ func (db *Database) Initialize(ctx context.Context) error {
 
 	for _, step := range initSteps {
 		if err := step.fn(); err != nil {
-			if errors.Is(err, ellaraft.ErrCommandNotYetAvailable) {
-				logger.WithTrace(ctx, logger.DBLog).Info("Skipping initialization step (CWMP too low)",
-					zap.String("step", step.name))
-
-				continue
-			}
-
 			return fmt.Errorf("failed to initialize %s: %w", step.name, err)
 		}
 	}
