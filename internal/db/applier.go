@@ -6,12 +6,13 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"time"
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/dbwriter"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
+	hraft "github.com/hashicorp/raft"
 )
 
 // Compile-time check that *Database implements ellaraft.Applier.
@@ -38,7 +39,7 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 	case ellaraft.CmdClearDailyUsage:
 		return nil, db.applyClearDailyUsage(ctx)
 	case ellaraft.CmdDeleteOldDailyUsage:
-		return applyJSON[intPayload](ctx, cmd.Payload, db.applyDeleteOldDailyUsage)
+		return applyJSON[int64Payload](ctx, cmd.Payload, db.applyDeleteOldDailyUsage)
 
 	// IP Leases
 	case ellaraft.CmdCreateLease:
@@ -184,6 +185,10 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 	case ellaraft.CmdDeleteRoute:
 		return applyJSON[int64Payload](ctx, cmd.Payload, db.applyDeleteRoute)
 
+	// Restore — replaces shared.db with the carried backup bytes.
+	case ellaraft.CmdRestore:
+		return applyJSON[bytesPayload](ctx, cmd.Payload, db.applyRestore)
+
 	default:
 		return nil, fmt.Errorf("unknown command type: %s", cmd.Type)
 	}
@@ -263,14 +268,35 @@ type (
 )
 
 // propose creates a Raft command and proposes it through the leader. Returns
-// the result from FSM.Apply. Only used when the Database has a raftManager.
+// the result from FSM.Apply. Transient Raft errors (queue full, leadership
+// lost, shutdown) are mapped to ErrProposeTimeout so the API layer can
+// return 503.
 func (db *Database) propose(cmdType ellaraft.CommandType, payload any) (any, error) {
 	cmd, err := ellaraft.NewCommand(cmdType, payload)
 	if err != nil {
 		return nil, err
 	}
 
-	return db.raftManager.Propose(cmd, db.proposeTimeout)
+	result, err := db.raftManager.Propose(cmd, db.proposeTimeout)
+	if err != nil {
+		if isTransientRaftErr(err) {
+			return nil, fmt.Errorf("%w: %v", ErrProposeTimeout, err)
+		}
+
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// isTransientRaftErr reports whether a Raft apply error is transient —
+// the caller should retry or surface a 503. ErrNotLeader is included for
+// future HA mode; in standalone the local node is always the leader.
+func isTransientRaftErr(err error) bool {
+	return errors.Is(err, hraft.ErrEnqueueTimeout) ||
+		errors.Is(err, hraft.ErrLeadershipLost) ||
+		errors.Is(err, hraft.ErrRaftShutdown) ||
+		errors.Is(err, hraft.ErrNotLeader)
 }
 
 // --- Apply functions ---
@@ -369,10 +395,8 @@ func (db *Database) applyClearDailyUsage(ctx context.Context) error {
 	return nil
 }
 
-func (db *Database) applyDeleteOldDailyUsage(ctx context.Context, p *intPayload) (any, error) {
-	cutoffDay := time.Now().UTC().AddDate(0, 0, -p.Value).Unix() / 86400
-
-	err := db.shared.Query(ctx, db.deleteOldDailyUsageStmt, cutoffDaysArgs{CutoffDays: cutoffDay}).Run()
+func (db *Database) applyDeleteOldDailyUsage(ctx context.Context, p *int64Payload) (any, error) {
+	err := db.shared.Query(ctx, db.deleteOldDailyUsageStmt, cutoffDaysArgs{CutoffDays: p.Value}).Run()
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}

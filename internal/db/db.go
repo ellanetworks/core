@@ -381,6 +381,16 @@ func (db *Database) Dir() string {
 	return db.dataDir
 }
 
+// RaftAppliedIndex returns the index of the highest Raft log entry applied
+// to the shared database. Exposed for tests and support bundles.
+func (db *Database) RaftAppliedIndex() uint64 {
+	if db.raftManager == nil {
+		return 0
+	}
+
+	return db.raftManager.AppliedIndex()
+}
+
 func (db *Database) SharedPath() string {
 	return filepath.Join(db.dataDir, SharedDBFilename)
 }

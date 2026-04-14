@@ -3,8 +3,10 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
+	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
@@ -50,8 +52,15 @@ func writeResponse(ctx context.Context, w http.ResponseWriter, v any, status int
 	}
 }
 
-// writeError is a helper function that logs errors and writes http response for errors
+// writeError is a helper function that logs errors and writes http response for errors.
+// Transient Raft errors are upgraded to 503 regardless of the caller's status choice
+// so individual handlers don't need to special-case ErrProposeTimeout.
 func writeError(ctx context.Context, w http.ResponseWriter, status int, message string, err error, l *zap.Logger) {
+	if errors.Is(err, db.ErrProposeTimeout) {
+		status = http.StatusServiceUnavailable
+		message = "raft commit timeout"
+	}
+
 	log := logger.WithTrace(ctx, l)
 	if status >= 500 {
 		log.Error(message, zap.Error(err))

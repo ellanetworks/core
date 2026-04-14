@@ -238,12 +238,22 @@ func (m *Manager) Bootstrap() error {
 	return future.Error()
 }
 
-// NewStandaloneManager creates a single-node Raft cluster using in-memory
-// transport and stores. It auto-bootstraps and waits for leadership before
-// returning, so writes can proceed immediately. Used in standalone mode and
-// tests — the SQLite database is the durable state, Raft only provides the
-// write-ordering layer.
+// NewStandaloneManager creates a single-node Raft cluster persisted at
+// <dataDir>/raft/ (BoltDB log+stable store, file snapshot store). The
+// transport is in-memory since a standalone node has no peers to replicate
+// to. Bootstrap is only attempted on first boot (detected by the absence of
+// existing Raft state); subsequent boots recover log+snapshots from disk.
+//
+// SQLite remains the durable application state. The Raft log exists only so
+// that FSM.appliedIndex stays consistent with shared.db across restarts;
+// without it, CmdRestore (§5.7) and future HA mode (§10 Phase 3) could not
+// reason about what has been applied.
 func NewStandaloneManager(ctx context.Context, applier Applier, dataDir string) (*Manager, error) {
+	raftDir := filepath.Join(dataDir, "raft")
+	if err := os.MkdirAll(raftDir, 0o700); err != nil {
+		return nil, fmt.Errorf("create raft directory: %w", err)
+	}
+
 	fsm := NewFSM(applier, dataDir)
 	idCounters := NewIDCounters()
 
@@ -253,33 +263,67 @@ func NewStandaloneManager(ctx context.Context, applier Applier, dataDir string) 
 	raftConfig.SnapshotInterval = 2 * time.Minute
 	raftConfig.Logger = newZapRaftLogger()
 
-	store := raft.NewInmemStore()
-	snapshots := raft.NewDiscardSnapshotStore()
+	// Single-node cluster has no peers to time out on, so the defaults
+	// (1 s heartbeat / election) add ~1 s of dead time to every startup.
+	// Tightening them makes standalone bootstrap near-instant; the
+	// commit/leader-lease ratios stay in the proportions the library
+	// expects.
+	raftConfig.HeartbeatTimeout = 50 * time.Millisecond
+	raftConfig.ElectionTimeout = 50 * time.Millisecond
+	raftConfig.LeaderLeaseTimeout = 50 * time.Millisecond
+	raftConfig.CommitTimeout = 5 * time.Millisecond
+
+	boltPath := filepath.Join(raftDir, "raft.db")
+
+	boltStore, err := raftboltdb.NewBoltStore(boltPath)
+	if err != nil {
+		return nil, fmt.Errorf("create bolt store at %s: %w", boltPath, err)
+	}
+
+	snapshots, err := raft.NewFileSnapshotStore(raftDir, 3, os.Stderr)
+	if err != nil {
+		_ = boltStore.Close()
+		return nil, fmt.Errorf("create snapshot store: %w", err)
+	}
+
+	// hashicorp/raft requires HasExistingState to be checked BEFORE NewRaft,
+	// because NewRaft may write an initial term to the stable store.
+	hasState, err := raft.HasExistingState(boltStore, boltStore, snapshots)
+	if err != nil {
+		_ = boltStore.Close()
+		return nil, fmt.Errorf("check existing raft state: %w", err)
+	}
+
 	addr, transport := raft.NewInmemTransport("")
 
-	r, err := raft.NewRaft(raftConfig, fsm, store, store, snapshots, transport)
+	r, err := raft.NewRaft(raftConfig, fsm, boltStore, boltStore, snapshots, transport)
 	if err != nil {
+		_ = boltStore.Close()
 		return nil, fmt.Errorf("create standalone raft: %w", err)
 	}
 
-	// Bootstrap as single-node cluster.
-	bootCfg := raft.Configuration{
-		Servers: []raft.Server{{
-			ID:      "1",
-			Address: addr,
-		}},
-	}
+	if !hasState {
+		bootCfg := raft.Configuration{
+			Servers: []raft.Server{{
+				ID:      "1",
+				Address: addr,
+			}},
+		}
 
-	if err := r.BootstrapCluster(bootCfg).Error(); err != nil {
-		return nil, fmt.Errorf("bootstrap standalone raft: %w", err)
+		if err := r.BootstrapCluster(bootCfg).Error(); err != nil {
+			_ = r.Shutdown().Error()
+			_ = boltStore.Close()
+
+			return nil, fmt.Errorf("bootstrap standalone raft: %w", err)
+		}
 	}
 
 	m := &Manager{
 		raft:        r,
 		fsm:         fsm,
 		transport:   transport,
-		logStore:    store,
-		stableStore: store,
+		logStore:    boltStore,
+		stableStore: boltStore,
 		snaps:       snapshots,
 		config: ClusterConfig{
 			BindAddress: string(addr),
@@ -289,15 +333,17 @@ func NewStandaloneManager(ctx context.Context, applier Applier, dataDir string) 
 		dataDir:    dataDir,
 	}
 
-	// Wait for this node to become leader before returning.
 	if err := m.waitForLeader(ctx); err != nil {
 		_ = r.Shutdown().Error()
+		_ = boltStore.Close()
+
 		return nil, err
 	}
 
-	// Seed ID counters from current DB state.
 	if err := idCounters.SeedFromDB(ctx, applier.SharedPlainDB()); err != nil {
 		_ = r.Shutdown().Error()
+		_ = boltStore.Close()
+
 		return nil, fmt.Errorf("seed ID counters: %w", err)
 	}
 

@@ -350,10 +350,10 @@ func TestRestore_RoundTripPreservesData(t *testing.T) {
 			reports[0].Bytes, reports[0].Packets, flow.Bytes, flow.Packets)
 	}
 
-	// Safety copies must be cleaned up after a successful restore.
-	for _, name := range []string{"restore_safety_shared.db", "restore_safety_local.db"} {
-		if _, err := os.Stat(filepath.Join(database.Dir(), name)); !os.IsNotExist(err) {
-			t.Fatalf("expected %s to be removed after successful restore, got err=%v", name, err)
-		}
+	// Only local.db gets a safety copy; shared.db is replicated through the
+	// Raft log via CmdRestore. The local safety copy must be cleaned up
+	// after a successful restore.
+	if _, err := os.Stat(filepath.Join(database.Dir(), "restore_safety_local.db")); !os.IsNotExist(err) {
+		t.Fatalf("expected restore_safety_local.db to be removed after successful restore, got err=%v", err)
 	}
 }

@@ -274,7 +274,12 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteOldDailyUsage, &intPayload{Value: days})
+	// Compute the cutoff on the leader so every follower applies the same
+	// day boundary during Raft replay; time.Now inside the apply path would
+	// desync replicas.
+	cutoffDay := time.Now().UTC().AddDate(0, 0, -days).Unix() / 86400
+
+	_, err := db.propose(ellaraft.CmdDeleteOldDailyUsage, &int64Payload{Value: cutoffDay})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
