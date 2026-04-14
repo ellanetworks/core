@@ -12,6 +12,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel"
@@ -277,6 +278,7 @@ func SendSecurityModeCommand(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 			amfUe.Log.Info("sent security mode command")
 		}, func() {
 			amfUe.Log.Warn("T3560 Expires, abort security mode control procedure", zap.Any("expireTimes", cfg.MaxRetryTimes))
+			amfUe.Procedures.End(procedure.SecurityMode)
 			amfInstance.DeregisterAndRemoveAMFUE(context.Background(), amfUe)
 		})
 	}

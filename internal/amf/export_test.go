@@ -114,8 +114,10 @@ func TestExportJSON_MinimalUE(t *testing.T) {
 		t.Fatalf("expected state.gmm_state to be 'Deregistered', got %v", state["gmm_state"])
 	}
 
-	if ongoingProc, ok := state["ongoing_procedure"].(string); !ok || ongoingProc != "Nothing" {
-		t.Fatalf("expected state.ongoing_procedure to be 'Nothing', got %v", state["ongoing_procedure"])
+	if ongoingProcs, ok := state["ongoing_procedures"]; ok && ongoingProcs != nil {
+		if arr, ok := ongoingProcs.([]interface{}); ok && len(arr) != 0 {
+			t.Fatalf("expected state.ongoing_procedures to be empty, got %v", ongoingProcs)
+		}
 	}
 
 	if secCtx, ok := state["security_context_available"].(bool); !ok || secCtx != false {
@@ -192,7 +194,6 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 		ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 		ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
 		ue.ForceState(amf.Registered)
-		ue.OnGoing = amf.OnGoingProcedureNothing
 		ue.SecurityContextAvailable = true
 		ue.CipheringAlg = security.AlgCiphering128NEA2
 		ue.IntegrityAlg = security.AlgIntegrity128NIA2
@@ -283,8 +284,10 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 		t.Fatalf("expected state.mac_failed to be false, got %v", state["mac_failed"])
 	}
 
-	if ongoingProc, ok := state["ongoing_procedure"].(string); !ok || ongoingProc != "Nothing" {
-		t.Fatalf("expected state.ongoing_procedure to be 'Nothing', got %v", state["ongoing_procedure"])
+	if ongoingProcs, ok := state["ongoing_procedures"]; ok && ongoingProcs != nil {
+		if arr, ok := ongoingProcs.([]interface{}); ok && len(arr) != 0 {
+			t.Fatalf("expected state.ongoing_procedures to be empty, got %v", ongoingProcs)
+		}
 	}
 
 	security := jsonMap(t, ueExport, "security")

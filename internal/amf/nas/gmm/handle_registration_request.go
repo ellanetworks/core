@@ -8,6 +8,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
@@ -54,7 +55,15 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		ue.SecurityContextAvailable = false
 	}
 
-	ue.SetOnGoing(amf.OnGoingProcedureRegistration)
+	// Supersession: cancel any active N2 Handover before starting Registration.
+	if ue.Procedures.Active(procedure.N2Handover) {
+		_ = ue.Procedures.Cancel(ctx, procedure.N2Handover)
+	}
+
+	_, err := ue.Procedures.Begin(ctx, procedure.Procedure{Type: procedure.Registration})
+	if err != nil {
+		ue.Log.Warn("failed to begin registration procedure", zap.Error(err))
+	}
 
 	if ue.T3513 != nil {
 		ue.T3513.Stop()
@@ -286,6 +295,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 			ue.T3560 = nil
 		}
 
+		ue.Procedures.End(procedure.SecurityMode)
 		ue.Deregister(ctx)
 
 		return HandleGmmMessage(ctx, amfInstance, ue, msg)

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
@@ -61,7 +62,10 @@ func setupRegistrationCompleteUE(t *testing.T) (*amf.AmfUe, *FakeNGAPSender) {
 	ue.RanUe().UeContextRequest = true
 	ue.RanUe().RecvdInitialContextSetupResponse = true
 	ue.RetransmissionOfInitialNASMsg = true
-	ue.SetOnGoing(amf.OnGoingProcedurePaging)
+
+	if _, err := ue.Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+		t.Fatal(err)
+	}
 
 	return ue, ngapSender
 }
@@ -300,7 +304,7 @@ func checkUERegistrationDataIsCleared(ue *amf.AmfUe) error {
 		return fmt.Errorf("retransmission of initial NAS msg should be false")
 	}
 
-	if ue.GetOnGoing() != amf.OnGoingProcedureNothing {
+	if ue.Procedures.Active(procedure.Paging) {
 		return fmt.Errorf("ongoing should be nothing")
 	}
 

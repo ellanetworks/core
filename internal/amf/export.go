@@ -41,10 +41,10 @@ type UEIdentityExport struct {
 
 // UEStateExport contains the current GMM and procedure state of a UE.
 type UEStateExport struct {
-	GMMState                 string `json:"gmm_state"`
-	OngoingProcedure         string `json:"ongoing_procedure"`
-	SecurityContextAvailable bool   `json:"security_context_available"`
-	MacFailed                bool   `json:"mac_failed"`
+	GMMState                 string   `json:"gmm_state"`
+	OngoingProcedures        []string `json:"ongoing_procedures"`
+	SecurityContextAvailable bool     `json:"security_context_available"`
+	MacFailed                bool     `json:"mac_failed"`
 }
 
 // UESecurityExport contains non-sensitive security context info for a UE.
@@ -319,7 +319,7 @@ func (amf *AMF) exportAmfUe(ue *AmfUe) AmfUeExport {
 		},
 		State: UEStateExport{
 			GMMState:                 string(ue.state),
-			OngoingProcedure:         string(ue.OnGoing),
+			OngoingProcedures:        ue.Procedures.ActiveTypes(),
 			SecurityContextAvailable: ue.SecurityContextAvailable,
 			MacFailed:                ue.MacFailed,
 		},

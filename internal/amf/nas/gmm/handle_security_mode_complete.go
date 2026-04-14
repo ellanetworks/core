@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasConvert"
 	"github.com/free5gc/nas/nasMessage"
@@ -24,6 +25,8 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 		ue.T3560.Stop()
 		ue.T3560 = nil // clear the timer
 	}
+
+	ue.Procedures.End(procedure.SecurityMode)
 
 	if ue.SecurityContextIsValid() {
 		err := ue.UpdateSecurityContext()

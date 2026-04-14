@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -26,15 +27,6 @@ import (
 	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/nas/security"
 	"go.uber.org/zap"
-)
-
-type OnGoingProcedure string
-
-const (
-	OnGoingProcedureNothing      OnGoingProcedure = "Nothing"
-	OnGoingProcedurePaging       OnGoingProcedure = "Paging"
-	OnGoingProcedureN2Handover   OnGoingProcedure = "N2Handover"
-	OnGoingProcedureRegistration OnGoingProcedure = "Registration"
 )
 
 type StateType string
@@ -95,7 +87,7 @@ type AmfUe struct {
 	N1N2Message                       *models.N1N2MessageTransferRequest
 	SmContextList                     map[uint8]*SmContext // Key: pdu session id
 	ranUe                             *RanUe
-	OnGoing                           OnGoingProcedure
+	Procedures                        *procedure.Registry
 	UeRadioCapability                 string // OCTET string
 
 	/* context related to Paging */
@@ -149,7 +141,7 @@ func NewAmfUe() *AmfUe {
 	return &AmfUe{
 		state:            Deregistered,
 		RegistrationArea: make([]models.Tai, 0),
-		OnGoing:          OnGoingProcedureNothing,
+		Procedures:       procedure.NewRegistry(logger.AmfLog),
 		SmContextList:    make(map[uint8]*SmContext),
 	}
 }
@@ -596,23 +588,17 @@ func (ue *AmfUe) ClearRegistrationRequestData() {
 	}
 
 	ue.RetransmissionOfInitialNASMsg = false
-	ue.OnGoing = OnGoingProcedureNothing
+
+	// Clear any active procedures — this is a registration boundary.
+	for _, t := range ue.Procedures.ActiveTypes() {
+		ue.Procedures.End(procedure.Type(t))
+	}
 }
 
 func (ue *AmfUe) ClearRegistrationData(ctx context.Context) {
 	ue.releaseSmContexts(ctx)
 
 	ue.SmContextList = make(map[uint8]*SmContext)
-}
-
-func (ue *AmfUe) SetOnGoing(onGoing OnGoingProcedure) {
-	prevOnGoing := ue.OnGoing
-	ue.OnGoing = onGoing
-	ue.Log.Debug("set ongoing procedure", zap.Any("ongoingProcedure", onGoing), zap.Any("previousOnGoingProcedure", prevOnGoing))
-}
-
-func (ue *AmfUe) GetOnGoing() OnGoingProcedure {
-	return ue.OnGoing
 }
 
 func (ue *AmfUe) CreateSmContext(pduSessionID uint8, ref string, snssai *models.Snssai) error {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
@@ -21,6 +22,8 @@ func handleSecurityModeReject(ctx context.Context, ue *amf.AmfUe, msg *nasMessag
 		ue.T3560.Stop()
 		ue.T3560 = nil // clear the timer
 	}
+
+	ue.Procedures.End(procedure.SecurityMode)
 
 	ue.Log.Error("UE rejected the security mode command, abort the ongoing procedure", logger.Cause(nasMessage.Cause5GMMToString(msg.GetCauseValue())), logger.SUPI(ue.Supi.String()))
 

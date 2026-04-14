@@ -7,6 +7,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/nas"
@@ -153,10 +154,8 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 	}
 
 	// Set No ongoing
-	if procedure := ue.GetOnGoing(); procedure == amf.OnGoingProcedurePaging {
-		ue.SetOnGoing(amf.OnGoingProcedureNothing)
-	} else if procedure != amf.OnGoingProcedureNothing {
-		ue.Log.Warn("UE should not in OnGoing", zap.Any("procedure", procedure))
+	if ue.Procedures.Active(procedure.Paging) {
+		ue.Procedures.End(procedure.Paging)
 	}
 
 	// TS 24.501 8.2.6.21: if the UE is sending a REGISTRATION REQUEST message as an initial NAS message,
