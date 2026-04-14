@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -30,6 +29,48 @@ type ClusterConfig struct {
 	ProposeTimeout      time.Duration
 	SnapshotInterval    time.Duration
 	SnapshotThreshold   uint64
+
+	// PerformanceMultiplier scales heartbeat/election/leader-lease timeouts
+	// in HA mode. Default 5 matches Vault's integrated storage, trading a
+	// slower election for tolerance of real-network jitter. Ignored in
+	// single-server mode, which uses fixed fast timeouts.
+	PerformanceMultiplier int
+
+	// TrailingLogs bounds the number of Raft log entries retained after a
+	// snapshot. Lower values shrink BoltDB at the cost of forcing full
+	// snapshots to followers that lag. Zero keeps the hashicorp/raft
+	// default (10240).
+	TrailingLogs uint64
+}
+
+const (
+	// defaultPerformanceMultiplier is the per-operator scaling factor
+	// applied to the library's default timeouts when running in HA mode.
+	// Matches Vault.
+	defaultPerformanceMultiplier = 5
+
+	// initialTimeoutMultiplier slows down heartbeat/election once on first
+	// boot so a newly joined HA node doesn't contest leadership before the
+	// cluster has stabilised. Also from Vault.
+	initialTimeoutMultiplier = 3
+
+	// standaloneHeartbeatTimeout and friends govern the single-server bootstrap
+	// path. Aggressive values are safe because there are no peers to time
+	// out against — the timeout is a ceiling, not a floor, and the real
+	// election completes in microseconds over the loopback listener.
+	standaloneHeartbeatTimeout   = 50 * time.Millisecond
+	standaloneElectionTimeout    = 50 * time.Millisecond
+	standaloneLeaderLeaseTimeout = 50 * time.Millisecond
+	standaloneCommitTimeout      = 5 * time.Millisecond
+)
+
+// closeTransport best-effort closes a raft.Transport. The interface itself
+// has no Close method, but concrete transports (TCP, in-mem) implement
+// io.Closer. Used on error paths in NewManager and Shutdown.
+func closeTransport(t raft.Transport) {
+	if c, ok := t.(io.Closer); ok {
+		_ = c.Close()
+	}
 }
 
 // Manager wraps a hashicorp/raft instance and its supporting infrastructure.
@@ -46,12 +87,37 @@ type Manager struct {
 	dataDir     string
 }
 
-// NewManager creates and starts a Raft node. The applier is called by the FSM
-// for every committed log entry.
-func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir string) (*Manager, error) {
-	nodeID, err := ResolveNodeID(cfg.NodeID, dataDir)
+// defaultStandaloneBindAddress is the bind address used when ClusterConfig
+// leaves BindAddress empty. Port 0 asks the kernel for an ephemeral port, so
+// standalone processes (and concurrent test processes) never compete for a
+// fixed port. The actual bound address is surfaced via transport.LocalAddr()
+// and used as the sole entry in the single-server bootstrap configuration.
+const defaultStandaloneBindAddress = "127.0.0.1:0"
+
+// NewManager creates and starts a Raft node over a real TCP transport. The
+// applier is called by the FSM for every committed log entry.
+//
+// When cfg.Enabled is false, the manager runs as a single-server cluster:
+// fast timeouts, auto-bootstrap on fresh state, synchronous wait for
+// self-election, and synchronous ID-counter seeding. This is the shipping
+// standalone mode. Tests that want an in-memory transport should use
+// NewTestManager instead.
+//
+// When cfg.Enabled is true, the manager runs in HA mode: library default
+// timeouts, no auto-bootstrap (operators call Bootstrap on the designated
+// node), and async leadership-change handling that re-seeds ID counters on
+// promotion.
+func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir string, opts ...ManagerOption) (*Manager, error) {
+	options := managerOptions{transportFactory: tcpTransportFactory}
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	singleServer := !cfg.Enabled
+
+	nodeID, err := resolveNodeIDForMode(cfg, singleServer, dataDir)
 	if err != nil {
-		return nil, fmt.Errorf("resolve node ID: %w", err)
+		return nil, err
 	}
 
 	raftDir := filepath.Join(dataDir, "raft")
@@ -64,11 +130,20 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 
 	raftConfig := raft.DefaultConfig()
 	raftConfig.LocalID = raft.ServerID(fmt.Sprintf("%d", nodeID))
-	raftConfig.SnapshotInterval = cfg.SnapshotInterval
-	raftConfig.SnapshotThreshold = cfg.SnapshotThreshold
 	raftConfig.Logger = newZapRaftLogger()
 
-	// BoltDB for LogStore and StableStore.
+	if cfg.SnapshotInterval > 0 {
+		raftConfig.SnapshotInterval = cfg.SnapshotInterval
+	}
+
+	if cfg.SnapshotThreshold > 0 {
+		raftConfig.SnapshotThreshold = cfg.SnapshotThreshold
+	}
+
+	if cfg.TrailingLogs > 0 {
+		raftConfig.TrailingLogs = cfg.TrailingLogs
+	}
+
 	boltPath := filepath.Join(raftDir, "raft.db")
 
 	boltStore, err := raftboltdb.NewBoltStore(boltPath)
@@ -76,30 +151,76 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 		return nil, fmt.Errorf("create bolt store at %s: %w", boltPath, err)
 	}
 
-	snapshotStore, err := raft.NewFileSnapshotStore(raftDir, 3, os.Stderr)
+	snapshotStore, err := raft.NewFileSnapshotStore(raftDir, 3, newZapIOWriter("snapshot"))
 	if err != nil {
 		_ = boltStore.Close()
 		return nil, fmt.Errorf("create snapshot store: %w", err)
 	}
 
-	bindAddr, err := net.ResolveTCPAddr("tcp", cfg.BindAddress)
+	logCache, err := raft.NewLogCache(raftLogCacheSize, boltStore)
 	if err != nil {
 		_ = boltStore.Close()
-		return nil, fmt.Errorf("resolve bind address %s: %w", cfg.BindAddress, err)
+		return nil, fmt.Errorf("create log cache: %w", err)
 	}
 
-	transport, err := raft.NewTCPTransport(cfg.BindAddress, bindAddr, 3, 10*time.Second, os.Stderr)
+	transport, err := options.transportFactory(cfg)
 	if err != nil {
 		_ = boltStore.Close()
-		return nil, fmt.Errorf("create TCP transport: %w", err)
+		return nil, err
 	}
 
-	r, err := raft.NewRaft(raftConfig, fsm, boltStore, boltStore, snapshotStore, transport)
+	// HasExistingState must run before NewRaft, which may write an initial
+	// term. Bootstrap detection (below) keys off this pre-state.
+	hasState, err := raft.HasExistingState(logCache, boltStore, snapshotStore)
 	if err != nil {
-		_ = transport.Close()
+		closeTransport(transport)
+
+		_ = boltStore.Close()
+
+		return nil, fmt.Errorf("check existing raft state: %w", err)
+	}
+
+	recovered, err := maybeRecoverCluster(raftDir, raftConfig, fsm, logCache, boltStore, snapshotStore, transport)
+	if err != nil {
+		closeTransport(transport)
+
+		_ = boltStore.Close()
+
+		return nil, err
+	}
+
+	// Timeouts depend on (hasState || recovered) — only apply once both are
+	// known, but before NewRaft spins up the internal loop that consumes them.
+	// RecoverCluster above only uses LocalID from raftConfig, so the order is
+	// safe.
+	applyTimeouts(raftConfig, cfg, singleServer, !hasState && !recovered)
+
+	r, err := raft.NewRaft(raftConfig, fsm, logCache, boltStore, snapshotStore, transport)
+	if err != nil {
+		closeTransport(transport)
+
 		_ = boltStore.Close()
 
 		return nil, fmt.Errorf("create raft instance: %w", err)
+	}
+
+	if singleServer && !hasState && !recovered {
+		bootCfg := raft.Configuration{
+			Servers: []raft.Server{{
+				ID:      raftConfig.LocalID,
+				Address: transport.LocalAddr(),
+			}},
+		}
+
+		if err := r.BootstrapCluster(bootCfg).Error(); err != nil {
+			_ = r.Shutdown().Error()
+
+			closeTransport(transport)
+
+			_ = boltStore.Close()
+
+			return nil, fmt.Errorf("bootstrap standalone raft: %w", err)
+		}
 	}
 
 	m := &Manager{
@@ -115,10 +236,51 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 		dataDir:     dataDir,
 	}
 
-	// Watch for leadership changes to seed ID counters.
+	if singleServer {
+		if err := m.waitForLeader(ctx); err != nil {
+			_ = r.Shutdown().Error()
+
+			closeTransport(transport)
+
+			_ = boltStore.Close()
+
+			return nil, err
+		}
+
+		if err := idCounters.SeedFromDB(ctx, applier.SharedPlainDB()); err != nil {
+			_ = r.Shutdown().Error()
+
+			closeTransport(transport)
+
+			_ = boltStore.Close()
+
+			return nil, fmt.Errorf("seed ID counters: %w", err)
+		}
+
+		return m, nil
+	}
+
 	go m.watchLeadership(ctx, applier)
 
 	return m, nil
+}
+
+// resolveNodeIDForMode picks the Raft server ID. In single-server mode the
+// node is alone in its configuration, so ID 1 is sufficient and doesn't
+// require operators to provision cluster.node-id on every standalone install.
+// HA mode goes through ResolveNodeID, which enforces config/env/file
+// consistency and rejects mismatches that would invalidate issued GUTIs.
+func resolveNodeIDForMode(cfg ClusterConfig, singleServer bool, dataDir string) (int, error) {
+	if singleServer && cfg.NodeID == 0 {
+		return 1, nil
+	}
+
+	id, err := ResolveNodeID(cfg.NodeID, dataDir)
+	if err != nil {
+		return 0, fmt.Errorf("resolve node ID: %w", err)
+	}
+
+	return id, nil
 }
 
 // watchLeadership monitors raft.LeaderCh() and seeds ID counters on promotion.
@@ -141,6 +303,43 @@ func (m *Manager) watchLeadership(ctx context.Context, applier Applier) {
 					zap.Int("nodeID", m.nodeID))
 			}
 		}
+	}
+}
+
+// applyTimeouts configures heartbeat / election / leader-lease / commit
+// timeouts based on whether the manager is single-server or HA, and whether
+// this is a fresh boot with no prior state.
+//
+// Single-server mode uses fixed 50 ms timeouts: with no peers to negotiate
+// with the library defaults are pure dead time during bootstrap.
+//
+// HA mode scales the library defaults by PerformanceMultiplier (default 5,
+// matching Vault) to tolerate real-network jitter. On a fresh boot the
+// heartbeat and election timeouts are further multiplied by
+// initialTimeoutMultiplier so a slow first election on a newly joined node
+// doesn't trigger spurious leadership contests before the cluster stabilises.
+func applyTimeouts(rc *raft.Config, cfg ClusterConfig, singleServer, freshBoot bool) {
+	if singleServer {
+		rc.HeartbeatTimeout = standaloneHeartbeatTimeout
+		rc.ElectionTimeout = standaloneElectionTimeout
+		rc.LeaderLeaseTimeout = standaloneLeaderLeaseTimeout
+		rc.CommitTimeout = standaloneCommitTimeout
+
+		return
+	}
+
+	multiplier := cfg.PerformanceMultiplier
+	if multiplier <= 0 {
+		multiplier = defaultPerformanceMultiplier
+	}
+
+	rc.HeartbeatTimeout *= time.Duration(multiplier)
+	rc.ElectionTimeout *= time.Duration(multiplier)
+	rc.LeaderLeaseTimeout *= time.Duration(multiplier)
+
+	if freshBoot {
+		rc.HeartbeatTimeout *= initialTimeoutMultiplier
+		rc.ElectionTimeout *= initialTimeoutMultiplier
 	}
 }
 
@@ -236,118 +435,6 @@ func (m *Manager) Bootstrap() error {
 	future := m.raft.BootstrapCluster(cfg)
 
 	return future.Error()
-}
-
-// NewStandaloneManager creates a single-node Raft cluster persisted at
-// <dataDir>/raft/ (BoltDB log+stable store, file snapshot store). The
-// transport is in-memory since a standalone node has no peers to replicate
-// to. Bootstrap is only attempted on first boot (detected by the absence of
-// existing Raft state); subsequent boots recover log+snapshots from disk.
-//
-// SQLite remains the durable application state. The Raft log exists only so
-// that FSM.appliedIndex stays consistent with shared.db across restarts;
-// without it, CmdRestore (§5.7) and future HA mode (§10 Phase 3) could not
-// reason about what has been applied.
-func NewStandaloneManager(ctx context.Context, applier Applier, dataDir string) (*Manager, error) {
-	raftDir := filepath.Join(dataDir, "raft")
-	if err := os.MkdirAll(raftDir, 0o700); err != nil {
-		return nil, fmt.Errorf("create raft directory: %w", err)
-	}
-
-	fsm := NewFSM(applier, dataDir)
-	idCounters := NewIDCounters()
-
-	raftConfig := raft.DefaultConfig()
-	raftConfig.LocalID = "1"
-	raftConfig.SnapshotThreshold = 8192
-	raftConfig.SnapshotInterval = 2 * time.Minute
-	raftConfig.Logger = newZapRaftLogger()
-
-	// Single-node cluster has no peers to time out on, so the defaults
-	// (1 s heartbeat / election) add ~1 s of dead time to every startup.
-	// Tightening them makes standalone bootstrap near-instant; the
-	// commit/leader-lease ratios stay in the proportions the library
-	// expects.
-	raftConfig.HeartbeatTimeout = 50 * time.Millisecond
-	raftConfig.ElectionTimeout = 50 * time.Millisecond
-	raftConfig.LeaderLeaseTimeout = 50 * time.Millisecond
-	raftConfig.CommitTimeout = 5 * time.Millisecond
-
-	boltPath := filepath.Join(raftDir, "raft.db")
-
-	boltStore, err := raftboltdb.NewBoltStore(boltPath)
-	if err != nil {
-		return nil, fmt.Errorf("create bolt store at %s: %w", boltPath, err)
-	}
-
-	snapshots, err := raft.NewFileSnapshotStore(raftDir, 3, os.Stderr)
-	if err != nil {
-		_ = boltStore.Close()
-		return nil, fmt.Errorf("create snapshot store: %w", err)
-	}
-
-	// hashicorp/raft requires HasExistingState to be checked BEFORE NewRaft,
-	// because NewRaft may write an initial term to the stable store.
-	hasState, err := raft.HasExistingState(boltStore, boltStore, snapshots)
-	if err != nil {
-		_ = boltStore.Close()
-		return nil, fmt.Errorf("check existing raft state: %w", err)
-	}
-
-	addr, transport := raft.NewInmemTransport("")
-
-	r, err := raft.NewRaft(raftConfig, fsm, boltStore, boltStore, snapshots, transport)
-	if err != nil {
-		_ = boltStore.Close()
-		return nil, fmt.Errorf("create standalone raft: %w", err)
-	}
-
-	if !hasState {
-		bootCfg := raft.Configuration{
-			Servers: []raft.Server{{
-				ID:      "1",
-				Address: addr,
-			}},
-		}
-
-		if err := r.BootstrapCluster(bootCfg).Error(); err != nil {
-			_ = r.Shutdown().Error()
-			_ = boltStore.Close()
-
-			return nil, fmt.Errorf("bootstrap standalone raft: %w", err)
-		}
-	}
-
-	m := &Manager{
-		raft:        r,
-		fsm:         fsm,
-		transport:   transport,
-		logStore:    boltStore,
-		stableStore: boltStore,
-		snaps:       snapshots,
-		config: ClusterConfig{
-			BindAddress: string(addr),
-		},
-		idCounters: idCounters,
-		nodeID:     1,
-		dataDir:    dataDir,
-	}
-
-	if err := m.waitForLeader(ctx); err != nil {
-		_ = r.Shutdown().Error()
-		_ = boltStore.Close()
-
-		return nil, err
-	}
-
-	if err := idCounters.SeedFromDB(ctx, applier.SharedPlainDB()); err != nil {
-		_ = r.Shutdown().Error()
-		_ = boltStore.Close()
-
-		return nil, fmt.Errorf("seed ID counters: %w", err)
-	}
-
-	return m, nil
 }
 
 // waitForLeader blocks until this node becomes the Raft leader or ctx is cancelled.

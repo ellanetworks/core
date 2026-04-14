@@ -3,8 +3,11 @@
 package raft
 
 import (
+	"bytes"
 	"io"
 	"log"
+	"strings"
+	"sync"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/hashicorp/go-hclog"
@@ -73,6 +76,51 @@ func (l *zapRaftLogger) SetLevel(hclog.Level)                                   
 func (l *zapRaftLogger) GetLevel() hclog.Level                                   { return hclog.Debug }
 func (l *zapRaftLogger) StandardLogger(*hclog.StandardLoggerOptions) *log.Logger { return nil }
 func (l *zapRaftLogger) StandardWriter(*hclog.StandardLoggerOptions) io.Writer   { return io.Discard }
+
+// zapIOWriter adapts an io.Writer to zap. hashicorp/raft's file snapshot
+// store and TCP transport build a stdlib *log.Logger over the writer
+// supplied at construction time; without this adapter their output bypasses
+// the structured logger and goes to bare stderr. Lines are buffered until a
+// newline and then forwarded to DBLog at Info level with a subsystem field,
+// so operators can grep one stream instead of three.
+type zapIOWriter struct {
+	mu        sync.Mutex
+	buf       []byte
+	zap       *zap.Logger
+	subsystem string
+}
+
+func newZapIOWriter(subsystem string) io.Writer {
+	return &zapIOWriter{
+		zap:       logger.DBLog,
+		subsystem: subsystem,
+	}
+}
+
+func (w *zapIOWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.buf = append(w.buf, p...)
+
+	for {
+		i := bytes.IndexByte(w.buf, '\n')
+		if i < 0 {
+			break
+		}
+
+		line := strings.TrimRight(string(w.buf[:i]), "\r")
+		w.buf = w.buf[i+1:]
+
+		if line == "" {
+			continue
+		}
+
+		w.zap.Info(line, zap.String("subsystem", w.subsystem))
+	}
+
+	return len(p), nil
+}
 
 func argsToFields(args []interface{}) []zap.Field {
 	fields := make([]zap.Field, 0, len(args)/2)

@@ -447,10 +447,10 @@ func NewDatabase(ctx context.Context, dataPath string) (*Database, error) {
 		return nil, fmt.Errorf("failed to prepare statements: %w", err)
 	}
 
-	raftMgr, err := ellaraft.NewStandaloneManager(ctx, db, dataDir)
+	raftMgr, err := ellaraft.NewManager(ctx, ellaraft.ClusterConfig{}, db, dataDir)
 	if err != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("failed to start standalone raft: %w", err)
+		return nil, fmt.Errorf("failed to start raft manager: %w", err)
 	}
 
 	db.raftManager = raftMgr
