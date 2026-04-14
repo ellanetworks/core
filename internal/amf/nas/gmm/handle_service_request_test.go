@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
@@ -342,8 +343,11 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 	ue.ForceState(amf.Registered)
 	ue.SecurityContextAvailable = true
 	ue.MacFailed = false
+
 	ue.T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.SetOnGoing(amf.OnGoingProcedurePaging)
+	if _, err := ue.Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+		t.Fatal(err)
+	}
 
 	m := buildTestServiceRequest()
 
@@ -377,7 +381,7 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if ue.GetOnGoing() != amf.OnGoingProcedureNothing {
+	if ue.Procedures.Active(procedure.Paging) {
 		t.Fatalf("expected paging procedure to be completed")
 	}
 }
@@ -572,7 +576,10 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 
 	ue.T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.SetOnGoing(amf.OnGoingProcedurePaging)
+	if _, err := ue.Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+		t.Fatal(err)
+	}
+
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
@@ -664,7 +671,10 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 	}
 
 	ue.T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.SetOnGoing(amf.OnGoingProcedurePaging)
+	if _, err := ue.Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+		t.Fatal(err)
+	}
+
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceState(amf.Registered)
 	ue.Guti = mustTestGuti("001", "01", "cafe42", 0x00000001)
@@ -725,8 +735,12 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
+
 	ue.T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.SetOnGoing(amf.OnGoingProcedurePaging)
+	if _, err := ue.Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+		t.Fatal(err)
+	}
+
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
@@ -856,8 +870,12 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
+
 	ue.T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.SetOnGoing(amf.OnGoingProcedurePaging)
+	if _, err := ue.Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+		t.Fatal(err)
+	}
+
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
@@ -992,8 +1010,12 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
+
 	ue.T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.SetOnGoing(amf.OnGoingProcedurePaging)
+	if _, err := ue.Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+		t.Fatal(err)
+	}
+
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
@@ -1136,8 +1158,12 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
+
 	ue.T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.SetOnGoing(amf.OnGoingProcedurePaging)
+	if _, err := ue.Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+		t.Fatal(err)
+	}
+
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
@@ -1269,8 +1295,12 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
+
 	ue.T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.SetOnGoing(amf.OnGoingProcedurePaging)
+	if _, err := ue.Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+		t.Fatal(err)
+	}
+
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti

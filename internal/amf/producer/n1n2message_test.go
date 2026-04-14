@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
+	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/amf/producer"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
@@ -337,7 +338,10 @@ func TestN2MessageTransferOrPage_OnGoingPaging(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000006", nil)
-	ue.SetOnGoing(amf.OnGoingProcedurePaging)
+
+	if _, err := ue.Procedures.Begin(context.Background(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+		t.Fatal(err)
+	}
 
 	err := producer.N2MessageTransferOrPage(context.Background(), amfInstance, ue.Supi, newReq())
 	if err == nil {
@@ -349,7 +353,10 @@ func TestN2MessageTransferOrPage_OnGoingRegistration(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000007", nil)
-	ue.SetOnGoing(amf.OnGoingProcedureRegistration)
+
+	if _, err := ue.Procedures.Begin(context.Background(), procedure.Procedure{Type: procedure.Registration}); err != nil {
+		t.Fatal(err)
+	}
 
 	err := producer.N2MessageTransferOrPage(context.Background(), amfInstance, ue.Supi, newReq())
 	if err == nil {
@@ -361,7 +368,10 @@ func TestN2MessageTransferOrPage_OnGoingN2Handover(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000008", nil)
-	ue.SetOnGoing(amf.OnGoingProcedureN2Handover)
+
+	if _, err := ue.Procedures.Begin(context.Background(), procedure.Procedure{Type: procedure.N2Handover}); err != nil {
+		t.Fatal(err)
+	}
 
 	err := producer.N2MessageTransferOrPage(context.Background(), amfInstance, ue.Supi, newReq())
 	if err == nil {
