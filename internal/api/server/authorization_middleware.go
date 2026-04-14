@@ -183,6 +183,10 @@ const (
 	PermListFlowReports               = "flow_reports:list"
 	PermClearFlowReports              = "flow_reports:clear"
 
+	// Cluster snapshot permissions
+	PermSnapshot        = "cluster:snapshot"
+	PermSnapshotRestore = "cluster:snapshot_restore"
+
 	// Network Rule permissions
 	PermCreateNetworkRule = "network_rule:create"
 	PermListNetworkRules  = "network_rule:list"

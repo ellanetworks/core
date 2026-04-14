@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
@@ -10,9 +11,23 @@ import (
 	"go.uber.org/zap"
 )
 
+// LeaderGuard tracks leadership state for the data retention worker.
+// Implements raft.LeaderCallback.
+type LeaderGuard struct {
+	isLeader atomic.Bool
+}
+
+func NewLeaderGuard() *LeaderGuard {
+	return &LeaderGuard{}
+}
+
+func (g *LeaderGuard) OnBecameLeader()   { g.isLeader.Store(true) }
+func (g *LeaderGuard) OnLostLeadership() { g.isLeader.Store(false) }
+func (g *LeaderGuard) IsLeader() bool    { return g.isLeader.Load() }
+
 // RunDataRetentionWorker runs the data retention loop. It blocks until ctx
 // is cancelled, so callers should invoke it in a goroutine.
-func RunDataRetentionWorker(ctx context.Context, database *db.Database) {
+func RunDataRetentionWorker(ctx context.Context, database *db.Database, guard *LeaderGuard) {
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
 
@@ -22,6 +37,10 @@ func RunDataRetentionWorker(ctx context.Context, database *db.Database) {
 			logger.EllaLog.Info("Data retention worker stopped")
 			return
 		case <-ticker.C:
+		}
+
+		if !guard.IsLeader() {
+			continue
 		}
 
 		if err := enforceAuditDataRetention(ctx, database); err != nil {

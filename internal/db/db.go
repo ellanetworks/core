@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -389,6 +390,55 @@ func (db *Database) RaftAppliedIndex() uint64 {
 	}
 
 	return db.raftManager.AppliedIndex()
+}
+
+// LeaderObserver returns the Raft leadership observer for registering
+// callbacks that react to leadership transitions.
+func (db *Database) LeaderObserver() *ellaraft.LeaderObserver {
+	if db.raftManager == nil {
+		return nil
+	}
+
+	return db.raftManager.LeaderObserver()
+}
+
+// IsLeader returns true if this node is the current Raft leader.
+func (db *Database) IsLeader() bool {
+	if db.raftManager == nil {
+		return true
+	}
+
+	return db.raftManager.IsLeader()
+}
+
+// RaftSnapshot triggers an immediate Raft snapshot and blocks until it
+// completes. Returns the current applied index after the snapshot.
+func (db *Database) RaftSnapshot() (uint64, error) {
+	if db.raftManager == nil {
+		return 0, fmt.Errorf("raft not initialized")
+	}
+
+	if err := db.raftManager.Snapshot(); err != nil {
+		return 0, err
+	}
+
+	return db.raftManager.AppliedIndex(), nil
+}
+
+// RestoreRaftSnapshot feeds a previously-saved snapshot (a raw SQLite
+// database file) to the Raft library's user-restore path. Every node in
+// the cluster will install it via FSM.Restore, replacing their shared.db.
+func (db *Database) RestoreRaftSnapshot(_ context.Context, snapshotFile *os.File) error {
+	if db.raftManager == nil {
+		return fmt.Errorf("raft not initialized")
+	}
+
+	info, err := snapshotFile.Stat()
+	if err != nil {
+		return fmt.Errorf("stat snapshot file: %w", err)
+	}
+
+	return db.raftManager.RestoreSnapshot(snapshotFile, info.Size())
 }
 
 func (db *Database) SharedPath() string {
