@@ -458,13 +458,65 @@ func (db *Database) ClusterEnabled() bool {
 	return db.raftManager.ClusterEnabled()
 }
 
-// LeadershipTransfer triggers a leadership transfer to another node.
+// LeadershipTransfer triggers a leadership transfer to another node. During a
+// rolling upgrade the target is chosen from the voters by descending protocol
+// version, then by lowest nodeID, so the new leader has the highest chance of
+// being able to propose post-upgrade commands and migrations.
 func (db *Database) LeadershipTransfer() error {
 	if db.raftManager == nil {
 		return fmt.Errorf("clustering not enabled")
 	}
 
-	return db.raftManager.LeadershipTransfer()
+	target := db.pickLeadershipTransferTarget()
+	if target == nil {
+		return db.raftManager.LeadershipTransfer()
+	}
+
+	return db.raftManager.LeadershipTransferToServer(target.NodeID, target.RaftAddress)
+}
+
+// pickLeadershipTransferTarget returns the preferred voter to transfer
+// leadership to, or nil if no suitable target is found (fall back to the
+// library's default choice). Excludes self.
+func (db *Database) pickLeadershipTransferTarget() *ClusterMember {
+	if db.raftManager == nil {
+		return nil
+	}
+
+	voterIDs := db.raftManager.VoterIDs()
+	if len(voterIDs) == 0 {
+		return nil
+	}
+
+	selfID := db.raftManager.NodeID()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	var best *ClusterMember
+
+	for _, id := range voterIDs {
+		if id == selfID {
+			continue
+		}
+
+		member, err := db.GetClusterMember(ctx, id)
+		if err != nil {
+			continue
+		}
+
+		if best == nil {
+			best = member
+			continue
+		}
+
+		if member.ProtocolVersion > best.ProtocolVersion ||
+			(member.ProtocolVersion == best.ProtocolVersion && member.NodeID < best.NodeID) {
+			best = member
+		}
+	}
+
+	return best
 }
 
 // AddVoter adds a node to the Raft cluster. Only callable on the leader.
@@ -475,6 +527,110 @@ func (db *Database) AddVoter(nodeID int, raftAddress string) error {
 
 	return db.raftManager.AddVoter(nodeID, raftAddress)
 }
+
+// AddNonvoter adds a node to the Raft cluster as a non-voting member.
+func (db *Database) AddNonvoter(nodeID int, raftAddress string) error {
+	if db.raftManager == nil {
+		return fmt.Errorf("clustering not enabled")
+	}
+
+	return db.raftManager.AddNonvoter(nodeID, raftAddress)
+}
+
+// CWMP returns the cluster-wide minimum protocol version.
+func (db *Database) CWMP() int {
+	if db.raftManager == nil {
+		return 0
+	}
+
+	return db.raftManager.CWMP()
+}
+
+// CurrentSharedSchemaVersion reads the shared.db schema_version singleton.
+// Returns 0 on error.
+func (db *Database) CurrentSharedSchemaVersion(ctx context.Context) (int, error) {
+	var v int
+
+	if err := db.shared.PlainDB().QueryRowContext(ctx,
+		"SELECT version FROM schema_version WHERE id = 1").Scan(&v); err != nil {
+		return 0, fmt.Errorf("read shared schema_version: %w", err)
+	}
+
+	return v, nil
+}
+
+// CheckPendingMigrations proposes CmdMigrateShared entries for each shared
+// migration beyond the current applied version, provided CWMP covers the
+// migration command. Called on leadership transitions and CWMP changes.
+// Only the leader proposes; followers no-op.
+func (db *Database) CheckPendingMigrations(ctx context.Context) error {
+	if db.raftManager == nil || !db.raftManager.ClusterEnabled() {
+		return nil
+	}
+
+	if !db.raftManager.IsLeader() {
+		return nil
+	}
+
+	current, err := db.CurrentSharedSchemaVersion(ctx)
+	if err != nil {
+		return err
+	}
+
+	target := SharedSchemaVersion()
+	if current >= target {
+		return nil
+	}
+
+	cwmp := db.raftManager.CWMP()
+	if ellaraft.Introduced(ellaraft.CmdMigrateShared) > cwmp {
+		logger.WithTrace(ctx, logger.DBLog).Info("Deferring shared migration: CWMP too low",
+			zap.Int("current", current), zap.Int("target", target), zap.Int("cwmp", cwmp))
+
+		return nil
+	}
+
+	for v := current + 1; v <= target; v++ {
+		logger.WithTrace(ctx, logger.DBLog).Info("Proposing shared migration over Raft",
+			zap.Int("targetVersion", v))
+
+		if _, err := db.propose(ellaraft.CmdMigrateShared, migrateSharedPayload{TargetVersion: v}); err != nil {
+			if errors.Is(err, ellaraft.ErrCommandNotYetAvailable) {
+				return nil
+			}
+
+			return fmt.Errorf("propose shared migration %d: %w", v, err)
+		}
+	}
+
+	return nil
+}
+
+// clusterCoordinator implements ellaraft.LeaderCallback to refresh CWMP and
+// propose deferred shared migrations on leadership transitions.
+type clusterCoordinator struct {
+	db *Database
+}
+
+func newClusterCoordinator(db *Database) *clusterCoordinator {
+	return &clusterCoordinator{db: db}
+}
+
+func (c *clusterCoordinator) OnBecameLeader() {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		c.db.raftManager.RefreshCWMPDefault()
+
+		if err := c.db.CheckPendingMigrations(ctx); err != nil {
+			logger.WithTrace(ctx, logger.DBLog).Warn("check pending migrations on leader change failed",
+				zap.Error(err))
+		}
+	}()
+}
+
+func (c *clusterCoordinator) OnLostLeadership() {}
 
 // RemoveServer removes a node from the Raft cluster. Only callable on the leader.
 func (db *Database) RemoveServer(nodeID int) error {
@@ -488,7 +644,7 @@ func (db *Database) RemoveServer(nodeID int) error {
 // RunDiscovery performs cluster formation for HA mode. Must be called after
 // the HTTP server starts so peers can reach this node's API.
 // After discovery, the leader generates a cluster ID if none exists yet.
-func (db *Database) RunDiscovery(ctx context.Context) error {
+func (db *Database) RunDiscovery(ctx context.Context, binaryVersion string) error {
 	if db.raftManager == nil {
 		return nil
 	}
@@ -511,9 +667,48 @@ func (db *Database) RunDiscovery(ctx context.Context) error {
 
 			logger.WithTrace(ctx, logger.DBLog).Info("Generated cluster ID", zap.String("cluster_id", clusterID))
 		}
+
+		if err := db.selfUpsertClusterMember(ctx, binaryVersion); err != nil {
+			logger.WithTrace(ctx, logger.DBLog).Warn("self-upsert cluster member failed", zap.Error(err))
+		}
 	}
 
 	return nil
+}
+
+// selfUpsertClusterMember proposes this leader's own cluster_members row with
+// the running binary's protocol and binary version. Idempotent via
+// ON CONFLICT(nodeID). Called after discovery on the leader. Followers will
+// self-register indirectly via the join handshake (the leader writes the row
+// containing the joiner's protocol version).
+func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion string) error {
+	if db.raftManager == nil {
+		return nil
+	}
+
+	existing, err := db.GetClusterMember(ctx, db.raftManager.NodeID())
+
+	var raftAddr, apiAddr, suffrage string
+	if err == nil && existing != nil {
+		raftAddr = existing.RaftAddress
+		apiAddr = existing.APIAddress
+		suffrage = existing.Suffrage
+	}
+
+	if suffrage == "" {
+		suffrage = "voter"
+	}
+
+	member := &ClusterMember{
+		NodeID:          db.raftManager.NodeID(),
+		RaftAddress:     raftAddr,
+		APIAddress:      apiAddr,
+		ProtocolVersion: db.raftManager.ProtocolVersion(),
+		BinaryVersion:   binaryVersion,
+		Suffrage:        suffrage,
+	}
+
+	return db.UpsertClusterMember(ctx, member)
 }
 
 func (db *Database) SharedPath() string {
@@ -544,9 +739,16 @@ func NewDatabase(ctx context.Context, dataPath string, raftCfg ellaraft.ClusterC
 		return nil, fmt.Errorf("failed to open shared database: %w", err)
 	}
 
-	if err := runSharedMigrations(ctx, sharedConn); err != nil {
-		_ = sharedConn.Close()
-		return nil, fmt.Errorf("shared schema migration failed: %w", err)
+	if raftCfg.Enabled {
+		if err := runSharedMigrationsUpTo(ctx, sharedConn, sharedBaselineVersion); err != nil {
+			_ = sharedConn.Close()
+			return nil, fmt.Errorf("shared schema migration failed: %w", err)
+		}
+	} else {
+		if err := runSharedMigrations(ctx, sharedConn); err != nil {
+			_ = sharedConn.Close()
+			return nil, fmt.Errorf("shared schema migration failed: %w", err)
+		}
 	}
 
 	localConn, err := openSQLiteConnection(ctx, localPath, SyncNormal)
@@ -580,6 +782,31 @@ func NewDatabase(ctx context.Context, dataPath string, raftCfg ellaraft.ClusterC
 
 	db.raftManager = raftMgr
 	db.proposeTimeout = raftMgr.ProposeTimeout()
+
+	raftMgr.MemberVersionResolver = func(nodeID int) int {
+		member, err := db.GetClusterMember(ctx, nodeID)
+		if err != nil {
+			return 0
+		}
+
+		return member.ProtocolVersion
+	}
+
+	raftMgr.OnCWMPChange = func(newCWMP int) {
+		bgCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		if err := db.CheckPendingMigrations(bgCtx); err != nil {
+			logger.WithTrace(bgCtx, logger.DBLog).Warn("check pending migrations after CWMP change failed",
+				zap.Int("cwmp", newCWMP), zap.Error(err))
+		}
+	}
+
+	ellaraft.SetProtocolVersionMetric(raftMgr.NodeID(), raftMgr.ProtocolVersion())
+
+	if observer := raftMgr.LeaderObserver(); observer != nil {
+		observer.Register(newClusterCoordinator(db))
+	}
 
 	RegisterMetrics(db)
 
@@ -833,29 +1060,28 @@ func (db *Database) PrepareStatements() error {
 }
 
 func (db *Database) Initialize(ctx context.Context) error {
-	err := db.InitializeNATSettings(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to initialize NAT settings: %w", err)
+	initSteps := []struct {
+		name string
+		fn   func() error
+	}{
+		{"NAT settings", func() error { return db.InitializeNATSettings(ctx) }},
+		{"flow accounting settings", func() error { return db.InitializeFlowAccountingSettings(ctx) }},
+		{"BGP settings", func() error { return db.InitializeBGPSettings(ctx) }},
+		{"JWT secret", func() error { return db.InitializeJWTSecret(ctx) }},
+		{"N3 settings", func() error { return db.InitializeN3Settings(ctx) }},
 	}
 
-	err = db.InitializeFlowAccountingSettings(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to initialize flow accounting settings: %w", err)
-	}
+	for _, step := range initSteps {
+		if err := step.fn(); err != nil {
+			if errors.Is(err, ellaraft.ErrCommandNotYetAvailable) {
+				logger.WithTrace(ctx, logger.DBLog).Info("Skipping initialization step (CWMP too low)",
+					zap.String("step", step.name))
 
-	err = db.InitializeBGPSettings(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to initialize BGP settings: %w", err)
-	}
+				continue
+			}
 
-	err = db.InitializeJWTSecret(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to initialize JWT secret: %w", err)
-	}
-
-	err = db.InitializeN3Settings(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to initialize N3 settings: %w", err)
+			return fmt.Errorf("failed to initialize %s: %w", step.name, err)
+		}
 	}
 
 	if !db.IsOperatorInitialized(ctx) {

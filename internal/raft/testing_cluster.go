@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ellanetworks/core/version"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 )
@@ -181,7 +182,7 @@ func createTestNode(t testing.TB, nodeID int, applier Applier) (*Manager, raft.S
 		transport: transport,
 		logStore:  boltStore,
 		snaps:     snapshots,
-		config:    ClusterConfig{Enabled: true, BindAddress: string(addr)},
+		config:    ClusterConfig{Enabled: true, BindAddress: string(addr), ProtocolVersion: version.ProtocolVersion()},
 		nodeID:    nodeID,
 		dataDir:   dataDir,
 		observer:  observer,

@@ -16,17 +16,22 @@ const (
 )
 
 type ClusterMemberResponse struct {
-	NodeID      int    `json:"nodeId"`
-	RaftAddress string `json:"raftAddress"`
-	APIAddress  string `json:"apiAddress"`
+	NodeID          int    `json:"nodeId"`
+	RaftAddress     string `json:"raftAddress"`
+	APIAddress      string `json:"apiAddress"`
+	ProtocolVersion int    `json:"protocolVersion"`
+	BinaryVersion   string `json:"binaryVersion"`
+	Suffrage        string `json:"suffrage"`
 }
 
 type AddClusterMemberRequest struct {
-	NodeID        int    `json:"nodeId"`
-	RaftAddress   string `json:"raftAddress"`
-	APIAddress    string `json:"apiAddress"`
-	ClusterID     string `json:"clusterId,omitempty"`
-	SchemaVersion int    `json:"schemaVersion,omitempty"`
+	NodeID          int    `json:"nodeId"`
+	RaftAddress     string `json:"raftAddress"`
+	APIAddress      string `json:"apiAddress"`
+	ClusterID       string `json:"clusterId,omitempty"`
+	SchemaVersion   int    `json:"schemaVersion,omitempty"`
+	ProtocolVersion int    `json:"protocolVersion,omitempty"`
+	Suffrage        string `json:"suffrage,omitempty"`
 }
 
 func ListClusterMembers(dbInstance *db.Database) http.Handler {
@@ -40,9 +45,12 @@ func ListClusterMembers(dbInstance *db.Database) http.Handler {
 		result := make([]ClusterMemberResponse, 0, len(members))
 		for _, m := range members {
 			result = append(result, ClusterMemberResponse{
-				NodeID:      m.NodeID,
-				RaftAddress: m.RaftAddress,
-				APIAddress:  m.APIAddress,
+				NodeID:          m.NodeID,
+				RaftAddress:     m.RaftAddress,
+				APIAddress:      m.APIAddress,
+				ProtocolVersion: m.ProtocolVersion,
+				BinaryVersion:   m.BinaryVersion,
+				Suffrage:        m.Suffrage,
 			})
 		}
 
@@ -73,6 +81,19 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		// Default suffrage to "voter" for backward compatibility.
+		suffrage := req.Suffrage
+		if suffrage == "" {
+			suffrage = "voter"
+		}
+
+		if suffrage != "voter" && suffrage != "nonvoter" {
+			writeError(r.Context(), w, http.StatusBadRequest,
+				"suffrage must be \"voter\" or \"nonvoter\"", nil, logger.APILog)
+
+			return
+		}
+
 		if req.ClusterID != "" {
 			op, err := dbInstance.GetOperator(r.Context())
 			if err != nil {
@@ -88,7 +109,7 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 
 		if req.SchemaVersion > 0 {
 			local := db.SharedSchemaVersion()
-			if req.SchemaVersion != local {
+			if req.SchemaVersion < local {
 				writeError(r.Context(), w, http.StatusConflict,
 					fmt.Sprintf("Schema version mismatch: node has %d, cluster has %d", req.SchemaVersion, local),
 					nil, logger.APILog)
@@ -97,15 +118,46 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 			}
 		}
 
-		if err := dbInstance.AddVoter(req.NodeID, req.RaftAddress); err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to add voter to Raft cluster", err, logger.APILog)
-			return
+		// Protocol version validation per §5.4.
+		cwmp := dbInstance.CWMP()
+		if req.ProtocolVersion > 0 && cwmp > 0 {
+			if req.ProtocolVersion < cwmp {
+				writeError(r.Context(), w, http.StatusConflict,
+					fmt.Sprintf("Protocol version %d is below cluster-wide minimum %d; downgrades are not supported",
+						req.ProtocolVersion, cwmp),
+					nil, logger.APILog)
+
+				return
+			}
+
+			if req.ProtocolVersion > cwmp && suffrage == "voter" {
+				writeError(r.Context(), w, http.StatusConflict,
+					"Higher-protocol nodes must join as nonvoter during upgrade",
+					nil, logger.APILog)
+
+				return
+			}
+		}
+
+		if suffrage == "nonvoter" {
+			if err := dbInstance.AddNonvoter(req.NodeID, req.RaftAddress); err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to add nonvoter to Raft cluster", err, logger.APILog)
+				return
+			}
+		} else {
+			if err := dbInstance.AddVoter(req.NodeID, req.RaftAddress); err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to add voter to Raft cluster", err, logger.APILog)
+				return
+			}
 		}
 
 		member := &db.ClusterMember{
-			NodeID:      req.NodeID,
-			RaftAddress: req.RaftAddress,
-			APIAddress:  req.APIAddress,
+			NodeID:          req.NodeID,
+			RaftAddress:     req.RaftAddress,
+			APIAddress:      req.APIAddress,
+			ProtocolVersion: req.ProtocolVersion,
+			BinaryVersion:   "", // populated by the joining node's CmdUpsertClusterMember at startup
+			Suffrage:        suffrage,
 		}
 
 		if err := dbInstance.UpsertClusterMember(r.Context(), member); err != nil {
@@ -120,7 +172,7 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 			ClusterMemberAddAction,
 			email,
 			getClientIP(r),
-			fmt.Sprintf("Added cluster member node %d at %s", req.NodeID, req.RaftAddress),
+			fmt.Sprintf("Added cluster member node %d at %s (suffrage: %s)", req.NodeID, req.RaftAddress, suffrage),
 		)
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member added"}, http.StatusCreated, logger.APILog)
@@ -158,5 +210,54 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 		)
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member removed"}, http.StatusOK, logger.APILog)
+	})
+}
+
+const ClusterMemberPromoteAction = "cluster_member_promote"
+
+func PromoteClusterMember(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nodeIDStr := r.PathValue("id")
+
+		nodeID, err := strconv.Atoi(nodeIDStr)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid node ID", err, logger.APILog)
+			return
+		}
+
+		member, err := dbInstance.GetClusterMember(r.Context(), nodeID)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusNotFound, "Cluster member not found", err, logger.APILog)
+			return
+		}
+
+		if member.Suffrage == "voter" {
+			writeError(r.Context(), w, http.StatusConflict, "Node is already a voter", nil, logger.APILog)
+			return
+		}
+
+		if err := dbInstance.AddVoter(nodeID, member.RaftAddress); err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to promote node to voter", err, logger.APILog)
+			return
+		}
+
+		member.Suffrage = "voter"
+
+		if err := dbInstance.UpsertClusterMember(r.Context(), member); err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update cluster member record", err, logger.APILog)
+			return
+		}
+
+		email := getEmailFromContext(r)
+
+		logger.LogAuditEvent(
+			r.Context(),
+			ClusterMemberPromoteAction,
+			email,
+			getClientIP(r),
+			fmt.Sprintf("Promoted cluster member node %d to voter", nodeID),
+		)
+
+		writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member promoted to voter"}, http.StatusOK, logger.APILog)
 	})
 }

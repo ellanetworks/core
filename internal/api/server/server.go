@@ -212,6 +212,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("GET /api/v1/cluster/members", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, ListClusterMembers(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/cluster/members", ClusterTokenOrAuth(appCfg.Cluster.JoinToken, jwtSecret, dbInstance, AddClusterMember(dbInstance)).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/cluster/members/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, RemoveClusterMember(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/cluster/members/{id}/promote", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, PromoteClusterMember(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/cluster/drain", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, DrainNode(dbInstance))).ServeHTTP)
 
 	// Fallback to UI

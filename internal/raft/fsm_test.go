@@ -260,7 +260,12 @@ func TestFSM_Snapshot_ProducesValidSQLite(t *testing.T) {
 
 	tmp := filepath.Join(t.TempDir(), "out.db")
 
-	if err := os.WriteFile(tmp, sink.buf.Bytes(), 0o600); err != nil {
+	raw := sink.buf.Bytes()
+	if len(raw) < snapshotHeaderSize || !bytes.Equal(raw[:4], []byte(snapshotMagic)) {
+		t.Fatalf("snapshot missing ELSN header: %q", raw[:min(16, len(raw))])
+	}
+
+	if err := os.WriteFile(tmp, raw[snapshotHeaderSize:], 0o600); err != nil {
 		t.Fatalf("write snapshot: %v", err)
 	}
 

@@ -254,9 +254,12 @@ const sharedV1CreateAuditLogs = `
 
 const sharedV1CreateClusterMembers = `
 	CREATE TABLE IF NOT EXISTS %s (
-		nodeID      INTEGER PRIMARY KEY,
-		raftAddress TEXT NOT NULL,
-		apiAddress  TEXT NOT NULL
+		nodeID          INTEGER PRIMARY KEY,
+		raftAddress     TEXT NOT NULL,
+		apiAddress      TEXT NOT NULL,
+		protocolVersion INTEGER NOT NULL DEFAULT 0,
+		binaryVersion   TEXT NOT NULL DEFAULT '',
+		suffrage        TEXT NOT NULL DEFAULT 'voter'
 )`
 
 func migrateSharedV1(ctx context.Context, tx *sql.Tx) error {

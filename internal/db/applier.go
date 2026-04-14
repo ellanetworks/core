@@ -199,6 +199,10 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 	case ellaraft.CmdDeleteClusterMember:
 		return applyJSON[intPayload](ctx, cmd.Payload, db.applyDeleteClusterMember)
 
+	// Schema Migrations
+	case ellaraft.CmdMigrateShared:
+		return applyJSON[migrateSharedPayload](ctx, cmd.Payload, db.applyMigrateShared)
+
 	// Restore — replaces shared.db with the carried backup bytes.
 	case ellaraft.CmdRestore:
 		return applyJSON[bytesPayload](ctx, cmd.Payload, db.applyRestore)
@@ -225,9 +229,16 @@ func (db *Database) ReopenShared(ctx context.Context) error {
 		return fmt.Errorf("reopen shared database: %w", err)
 	}
 
-	if err := runSharedMigrations(ctx, sharedConn); err != nil {
-		_ = sharedConn.Close()
-		return fmt.Errorf("shared migrations after reopen: %w", err)
+	if db.raftManager != nil && db.raftManager.ClusterEnabled() {
+		if err := runSharedMigrationsUpTo(ctx, sharedConn, sharedBaselineVersion); err != nil {
+			_ = sharedConn.Close()
+			return fmt.Errorf("shared migrations after reopen: %w", err)
+		}
+	} else {
+		if err := runSharedMigrations(ctx, sharedConn); err != nil {
+			_ = sharedConn.Close()
+			return fmt.Errorf("shared migrations after reopen: %w", err)
+		}
 	}
 
 	db.shared = sqlair.NewDB(sharedConn)
@@ -278,6 +289,9 @@ type (
 	importPrefixesPayload struct {
 		PeerID   int               `json:"peer_id"`
 		Prefixes []BGPImportPrefix `json:"prefixes"`
+	}
+	migrateSharedPayload struct {
+		TargetVersion int `json:"targetVersion"`
 	}
 )
 
@@ -1241,6 +1255,10 @@ func (db *Database) applyUpsertClusterMember(ctx context.Context, m *ClusterMemb
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
+	if db.raftManager != nil {
+		db.raftManager.RefreshCWMPDefault()
+	}
+
 	return nil, nil
 }
 
@@ -1259,6 +1277,53 @@ func (db *Database) applyDeleteClusterMember(ctx context.Context, p *intPayload)
 
 	if rowsAffected == 0 {
 		return nil, ErrNotFound
+	}
+
+	if db.raftManager != nil {
+		db.raftManager.RefreshCWMPDefault()
+	}
+
+	return nil, nil
+}
+
+func (db *Database) applyMigrateShared(ctx context.Context, p *migrateSharedPayload) (any, error) {
+	idx := p.TargetVersion - 1
+	if idx < 0 || idx >= len(sharedMigrations) {
+		return nil, fmt.Errorf("unknown shared migration version %d", p.TargetVersion)
+	}
+
+	m := sharedMigrations[idx]
+	if m.version != p.TargetVersion {
+		return nil, fmt.Errorf("migration registry mismatch: expected version %d at index %d, got %d", p.TargetVersion, idx, m.version)
+	}
+
+	sqlConn := db.shared.PlainDB()
+
+	if _, err := sqlConn.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
+		return nil, fmt.Errorf("disable foreign keys for migration %d: %w", p.TargetVersion, err)
+	}
+
+	tx, err := sqlConn.BeginTx(ctx, &sql.TxOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("begin migration %d tx: %w", p.TargetVersion, err)
+	}
+
+	if err := m.fn(ctx, tx); err != nil {
+		_ = tx.Rollback()
+		return nil, fmt.Errorf("shared migration %d (%s) failed: %w", m.version, m.description, err)
+	}
+
+	if _, err := tx.ExecContext(ctx, "UPDATE schema_version SET version = ? WHERE id = 1", p.TargetVersion); err != nil {
+		_ = tx.Rollback()
+		return nil, fmt.Errorf("update schema_version to %d: %w", p.TargetVersion, err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit migration %d: %w", p.TargetVersion, err)
+	}
+
+	if _, err := sqlConn.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err != nil {
+		return nil, fmt.Errorf("re-enable foreign keys after migration %d: %w", p.TargetVersion, err)
 	}
 
 	return nil, nil

@@ -128,6 +128,7 @@ type ClusterYaml struct {
 	ProposeTimeout      string   `yaml:"propose-timeout"`
 	SnapshotInterval    string   `yaml:"snapshot-interval"`
 	SnapshotThreshold   uint64   `yaml:"snapshot-threshold"`
+	InitialSuffrage     string   `yaml:"initial-suffrage"`
 }
 
 type ConfigYAML struct {
@@ -209,6 +210,7 @@ type Cluster struct {
 	ProposeTimeout      time.Duration
 	SnapshotInterval    time.Duration
 	SnapshotThreshold   uint64
+	InitialSuffrage     string
 }
 
 type Config struct {
@@ -684,6 +686,15 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 		}
 	}
 
+	initialSuffrage := c.InitialSuffrage
+	if initialSuffrage == "" {
+		initialSuffrage = "voter"
+	}
+
+	if initialSuffrage != "voter" && initialSuffrage != "nonvoter" {
+		return Cluster{}, fmt.Errorf("cluster.initial-suffrage must be \"voter\" or \"nonvoter\", got %q", initialSuffrage)
+	}
+
 	return Cluster{
 		Enabled:             true,
 		NodeID:              c.NodeID,
@@ -696,5 +707,6 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 		ProposeTimeout:      proposeTimeout,
 		SnapshotInterval:    snapshotInterval,
 		SnapshotThreshold:   c.SnapshotThreshold,
+		InitialSuffrage:     initialSuffrage,
 	}, nil
 }

@@ -3,8 +3,10 @@
 package raft
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -13,7 +15,9 @@ import (
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/version"
 	"github.com/hashicorp/raft"
+	_ "github.com/mattn/go-sqlite3"
 	"go.uber.org/zap"
 )
 
@@ -114,6 +118,49 @@ func (f *FSM) Apply(l *raft.Log) interface{} {
 	return result
 }
 
+// Snapshot header format (16 bytes):
+//
+//	[0:4]   magic "ELSN"
+//	[4:8]   snapshot format version (uint32, big-endian) — starts at 1
+//	[8:12]  shared_schema_version (uint32, big-endian)
+//	[12:16] protocol_version (uint32, big-endian)
+const (
+	snapshotMagic         = "ELSN"
+	snapshotHeaderSize    = 16
+	snapshotFormatVersion = 1
+)
+
+// sqliteMagic is the first 16 bytes of any SQLite database file.
+var sqliteMagic = []byte("SQLite format 3\x00")
+
+// readSchemaVersion opens a SQLite file read-only and returns the
+// schema_version value. Returns 0 if the table doesn't exist.
+func readSchemaVersion(ctx context.Context, path string) (int, error) {
+	db, err := sql.Open("sqlite3", path+"?mode=ro")
+	if err != nil {
+		return 0, err
+	}
+
+	defer func() { _ = db.Close() }()
+
+	var v int
+
+	err = db.QueryRowContext(ctx, "SELECT version FROM schema_version WHERE id = 1").Scan(&v)
+	if err != nil {
+		return 0, nil
+	}
+
+	return v, nil
+}
+
+// writeSnapshotHeader writes the 16-byte ELSN header into buf.
+func writeSnapshotHeader(buf []byte, schemaVersion, protocolVersion int) {
+	copy(buf[0:4], snapshotMagic)
+	binary.BigEndian.PutUint32(buf[4:8], snapshotFormatVersion)
+	binary.BigEndian.PutUint32(buf[8:12], uint32(schemaVersion))
+	binary.BigEndian.PutUint32(buf[12:16], uint32(protocolVersion))
+}
+
 // Snapshot implements raft.FSM. It uses SQLite's VACUUM INTO to produce a
 // consistent, WAL-free copy of shared.db in a temp file, then returns an
 // FSMSnapshot that streams it to the Raft snapshot sink.
@@ -150,16 +197,56 @@ func (f *FSM) Snapshot() (raft.FSMSnapshot, error) {
 		return nil, fmt.Errorf("VACUUM INTO snapshot: %w", err)
 	}
 
-	return &fsmSnapshot{path: tmpPath}, nil
+	schemaVer, err := readSchemaVersion(ctx, tmpPath)
+	if err != nil {
+		_ = os.Remove(tmpPath)
+		return nil, fmt.Errorf("read schema_version from snapshot: %w", err)
+	}
+
+	var header [snapshotHeaderSize]byte
+	writeSnapshotHeader(header[:], schemaVer, version.ProtocolVersion())
+
+	return &fsmSnapshot{path: tmpPath, header: header}, nil
 }
 
 // Restore implements raft.FSM. It replaces shared.db with the snapshot
 // contents, then reopens the database connection and re-prepares statements.
+// Detects both legacy (raw SQLite) and new (ELSN-prefixed) snapshot formats.
 func (f *FSM) Restore(rc io.ReadCloser) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	defer func() { _ = rc.Close() }()
+
+	// Read the first 16 bytes to detect format.
+	var peek [snapshotHeaderSize]byte
+
+	if _, err := io.ReadFull(rc, peek[:]); err != nil {
+		return fmt.Errorf("read snapshot header: %w", err)
+	}
+
+	// Determine format and build a reader for the SQLite payload.
+	var sqliteReader io.Reader
+
+	if bytes.Equal(peek[:4], []byte(snapshotMagic)) {
+		fmtVer := binary.BigEndian.Uint32(peek[4:8])
+		if fmtVer > snapshotFormatVersion {
+			return fmt.Errorf("snapshot format version %d exceeds supported version %d", fmtVer, snapshotFormatVersion)
+		}
+
+		protoVer := binary.BigEndian.Uint32(peek[12:16])
+		if int(protoVer) > version.ProtocolVersion() {
+			return fmt.Errorf("snapshot protocol version %d exceeds this binary's protocol version %d", protoVer, version.ProtocolVersion())
+		}
+
+		// SQLite payload follows the header.
+		sqliteReader = rc
+	} else if bytes.Equal(peek[:], sqliteMagic) {
+		// Legacy headerless snapshot — prepend the already-read 16 bytes.
+		sqliteReader = io.MultiReader(bytes.NewReader(peek[:]), rc)
+	} else {
+		return fmt.Errorf("corrupt snapshot: unrecognized header magic %q", peek[:4])
+	}
 
 	// Write snapshot to a temp file in the data directory.
 	tmpFile, err := os.CreateTemp(f.dataDir, "restore-*.db")
@@ -169,7 +256,7 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 
 	tmpPath := tmpFile.Name()
 
-	if _, err := io.Copy(tmpFile, rc); err != nil {
+	if _, err := io.Copy(tmpFile, sqliteReader); err != nil {
 		_ = tmpFile.Close()
 		_ = os.Remove(tmpPath)
 
@@ -216,13 +303,21 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 
 // fsmSnapshot holds a temp-file-backed snapshot of shared.db.
 type fsmSnapshot struct {
-	path string
+	path   string
+	header [snapshotHeaderSize]byte
 }
 
 const snapshotChunkSize = 64 * 1024
 
-// Persist streams the snapshot file to the Raft snapshot sink in 64 KiB chunks.
+// Persist streams the snapshot header followed by the SQLite file to the Raft
+// snapshot sink in 64 KiB chunks.
 func (s *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
+	// Write the ELSN header first.
+	if _, err := sink.Write(s.header[:]); err != nil {
+		_ = sink.Cancel()
+		return fmt.Errorf("write snapshot header: %w", err)
+	}
+
 	f, err := os.Open(s.path) // #nosec: G304 — path is under our snapshot tmp dir
 	if err != nil {
 		_ = sink.Cancel()

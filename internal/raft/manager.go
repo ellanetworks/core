@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/hashicorp/raft"
@@ -43,6 +44,14 @@ type ClusterConfig struct {
 	// SchemaVersion is the shared-DB migration version this binary expects.
 	// Included in the join handshake so version-skewed nodes are rejected.
 	SchemaVersion int
+
+	// ProtocolVersion is the minor component of the semver version string.
+	// Used for CWMP computation and the Propose gate.
+	ProtocolVersion int
+
+	// InitialSuffrage controls whether this node joins as "voter" or
+	// "nonvoter". Set to "nonvoter" during rolling upgrade re-joins.
+	InitialSuffrage string
 }
 
 const (
@@ -95,6 +104,16 @@ type Manager struct {
 	needsDiscovery bool
 	autopilot      *autopilotRunner
 	boltNoSync     bool
+	cwmp           atomic.Int32
+
+	// MemberVersionResolver returns the protocol version for a given node ID.
+	// Set by the database layer after initialization.
+	MemberVersionResolver func(nodeID int) int
+
+	// OnCWMPChange is invoked asynchronously whenever RefreshCWMP advances
+	// or retreats CWMP. Set by the database layer to trigger pending
+	// migrations and deferred initialization steps.
+	OnCWMPChange func(newCWMP int)
 }
 
 // defaultStandaloneBindAddress is the bind address used when ClusterConfig
@@ -337,6 +356,12 @@ func applyTimeouts(rc *raft.Config, cfg ClusterConfig, singleServer, freshBoot b
 // Propose serializes a command and applies it through Raft consensus.
 // Only the leader can propose; followers receive ErrNotLeader.
 func (m *Manager) Propose(cmd *Command, timeout time.Duration) (any, error) {
+	if m.config.Enabled {
+		if Introduced(cmd.Type) > m.CWMP() {
+			return nil, ErrCommandNotYetAvailable
+		}
+	}
+
 	data, err := cmd.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("marshal command: %w", err)
@@ -471,6 +496,11 @@ func (m *Manager) ClusterEnabled() bool {
 	return m.config.Enabled
 }
 
+// ProtocolVersion returns this node's configured protocol version.
+func (m *Manager) ProtocolVersion() int {
+	return m.config.ProtocolVersion
+}
+
 // BoltNoSync reports whether the raft log store was opened with fsync
 // disabled. Single-server nodes skip fsync because shared.db is the canonical
 // FSM state and is itself fsynced on COMMIT; HA nodes keep fsync enabled
@@ -482,6 +512,47 @@ func (m *Manager) BoltNoSync() bool {
 // LeadershipTransfer triggers a leadership transfer to another node.
 func (m *Manager) LeadershipTransfer() error {
 	return m.raft.LeadershipTransfer().Error()
+}
+
+// LeadershipTransferToServer triggers a leadership transfer to a specific
+// target node. Returns an error if the target is not a voter or the transfer
+// fails.
+func (m *Manager) LeadershipTransferToServer(nodeID int, raftAddress string) error {
+	serverID := raft.ServerID(fmt.Sprintf("%d", nodeID))
+	serverAddr := raft.ServerAddress(raftAddress)
+
+	future := m.raft.LeadershipTransferToServer(serverID, serverAddr)
+	if err := future.Error(); err != nil {
+		return fmt.Errorf("leadership transfer to %d: %w", nodeID, err)
+	}
+
+	return nil
+}
+
+// VoterIDs returns the server IDs of all voting members in the current Raft
+// configuration. Returns nil on error (e.g. no quorum).
+func (m *Manager) VoterIDs() []int {
+	future := m.raft.GetConfiguration()
+	if err := future.Error(); err != nil {
+		return nil
+	}
+
+	var ids []int
+
+	for _, srv := range future.Configuration().Servers {
+		if srv.Suffrage != raft.Voter {
+			continue
+		}
+
+		var id int
+		if _, err := fmt.Sscanf(string(srv.ID), "%d", &id); err != nil {
+			continue
+		}
+
+		ids = append(ids, id)
+	}
+
+	return ids
 }
 
 // Shutdown gracefully shuts down the Raft node.
@@ -522,4 +593,91 @@ func (m *Manager) waitForLeader(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+// CWMP returns the cluster-wide minimum protocol version. The value is cached
+// in an atomic and refreshed by RefreshCWMP on leadership transitions and
+// voter-set changes. Returns this node's protocol version when uncached (0).
+func (m *Manager) CWMP() int {
+	v := int(m.cwmp.Load())
+	if v == 0 {
+		return m.config.ProtocolVersion
+	}
+
+	return v
+}
+
+// RefreshCWMP recomputes the cluster-wide minimum protocol version from the
+// Raft voter set and the cluster_members table. versionOf maps raft.ServerID
+// to the protocol version stored in cluster_members. Call this on leadership
+// transitions and after voter-set-changing commands.
+func (m *Manager) RefreshCWMP(versionOf func(raft.ServerID) int) {
+	future := m.raft.GetConfiguration()
+	if err := future.Error(); err != nil {
+		return
+	}
+
+	minVersion := m.config.ProtocolVersion
+
+	for _, srv := range future.Configuration().Servers {
+		if srv.Suffrage != raft.Voter {
+			continue
+		}
+
+		v := versionOf(srv.ID)
+		if v > 0 && v < minVersion {
+			minVersion = v
+		}
+	}
+
+	prev := m.cwmp.Swap(int32(minVersion))
+
+	UpdateCWMPMetric(minVersion)
+
+	if prev != int32(minVersion) && m.OnCWMPChange != nil {
+		go m.OnCWMPChange(minVersion)
+	}
+}
+
+// RefreshCWMPDefault recomputes CWMP using the manager's configured
+// MemberVersionResolver. A convenience wrapper used by applier hooks.
+func (m *Manager) RefreshCWMPDefault() {
+	m.RefreshCWMP(m.memberProtocolVersion)
+}
+
+// AddNonvoter adds a new node to the Raft cluster as a non-voting member.
+// Non-voters receive log replication but do not participate in elections
+// or commit quorum. Used during rolling upgrades for catch-up before promotion.
+func (m *Manager) AddNonvoter(nodeID int, address string) error {
+	serverID := raft.ServerID(fmt.Sprintf("%d", nodeID))
+	serverAddr := raft.ServerAddress(address)
+
+	future := m.raft.AddNonvoter(serverID, serverAddr, 0, 0)
+	if err := future.Error(); err != nil {
+		return fmt.Errorf("add nonvoter %d at %s: %w", nodeID, address, err)
+	}
+
+	return nil
+}
+
+// memberProtocolVersion resolves a raft.ServerID to the protocol version from
+// the cluster_members table. Falls back to this node's protocol version if the
+// resolver is not set or the node is not found.
+func (m *Manager) memberProtocolVersion(id raft.ServerID) int {
+	if m.MemberVersionResolver == nil {
+		return m.config.ProtocolVersion
+	}
+
+	nodeID := 0
+
+	if _, err := fmt.Sscanf(string(id), "%d", &nodeID); err != nil {
+		return m.config.ProtocolVersion
+	}
+
+	v := m.MemberVersionResolver(nodeID)
+	if v <= 0 {
+		return m.config.ProtocolVersion
+	}
+
+	return v
 }

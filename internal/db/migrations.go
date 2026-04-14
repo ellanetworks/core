@@ -46,6 +46,11 @@ var localMigrations = []migration{
 	{1, "split baseline (local)", migrateLocalV1},
 }
 
+// sharedBaselineVersion is the highest shared migration that runs locally
+// during cluster-mode startup. Post-baseline migrations are proposed through
+// Raft by the leader (§5.5).
+const sharedBaselineVersion = 1
+
 // SharedSchemaVersion returns the highest shared-DB migration version this
 // binary understands. Used during cluster join to reject version-skewed nodes.
 func SharedSchemaVersion() int {
@@ -147,6 +152,23 @@ func runMigrations(ctx context.Context, sqlConn *sql.DB, registry []migration, l
 // runSharedMigrations brings shared.db up to the latest sharedMigrations version.
 func runSharedMigrations(ctx context.Context, sqlConn *sql.DB) error {
 	return runMigrations(ctx, sqlConn, sharedMigrations, "shared")
+}
+
+// runSharedMigrationsUpTo applies shared migrations up to (and including) maxVersion.
+// In cluster mode, only the baseline (v1) runs locally; post-baseline migrations
+// are proposed through Raft by the leader.
+func runSharedMigrationsUpTo(ctx context.Context, sqlConn *sql.DB, maxVersion int) error {
+	var capped []migration
+
+	for _, m := range sharedMigrations {
+		if m.version > maxVersion {
+			break
+		}
+
+		capped = append(capped, m)
+	}
+
+	return runMigrations(ctx, sqlConn, capped, "shared")
 }
 
 // runLocalMigrations brings local.db up to the latest localMigrations version.

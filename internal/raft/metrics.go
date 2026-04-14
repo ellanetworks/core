@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"fmt"
 	"time"
 
 	gometrics "github.com/hashicorp/go-metrics"
@@ -21,6 +22,14 @@ var (
 	leadershipTransitionsTotal = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "ella_raft_leadership_transitions_total",
 		Help: "Number of leadership transitions observed.",
+	})
+	clusterProtocolVersion = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "app_cluster_protocol_version",
+		Help: "Protocol version (semver minor) of this node.",
+	}, []string{"node_id"})
+	clusterWideMinProtocol = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "app_cluster_wide_min_protocol",
+		Help: "Cluster-wide minimum protocol version (CWMP) observed by the leader.",
 	})
 )
 
@@ -43,12 +52,24 @@ func RegisterMetrics() {
 	prometheus.MustRegister(peersTotal)
 	prometheus.MustRegister(votersTotal)
 	prometheus.MustRegister(leadershipTransitionsTotal)
+	prometheus.MustRegister(clusterProtocolVersion)
+	prometheus.MustRegister(clusterWideMinProtocol)
 }
 
 // IncrLeadershipTransitions bumps the ella_raft_leadership_transitions_total
 // counter. Called by the LeaderObserver on each transition.
 func IncrLeadershipTransitions() {
 	leadershipTransitionsTotal.Inc()
+}
+
+// SetProtocolVersionMetric publishes this node's protocol version for Prometheus.
+func SetProtocolVersionMetric(nodeID, protocolVersion int) {
+	clusterProtocolVersion.WithLabelValues(fmt.Sprintf("%d", nodeID)).Set(float64(protocolVersion))
+}
+
+// UpdateCWMPMetric publishes the current cluster-wide minimum protocol version.
+func UpdateCWMPMetric(cwmp int) {
+	clusterWideMinProtocol.Set(float64(cwmp))
 }
 
 // runMetricsLoop periodically reads Raft cluster configuration and updates

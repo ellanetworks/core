@@ -100,6 +100,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		SnapshotInterval:    cfg.Cluster.SnapshotInterval,
 		SnapshotThreshold:   cfg.Cluster.SnapshotThreshold,
 		SchemaVersion:       db.SharedSchemaVersion(),
+		ProtocolVersion:     version.ProtocolVersion(),
+		InitialSuffrage:     cfg.Cluster.InitialSuffrage,
 	}
 
 	dbInstance, err := db.NewDatabase(ctx, cfg.DB.Path, raftCfg)
@@ -313,7 +315,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't start API: %w", err)
 	}
 
-	if err := dbInstance.RunDiscovery(ctx); err != nil {
+	if err := dbInstance.RunDiscovery(ctx, ver.Version); err != nil {
 		return fmt.Errorf("cluster discovery failed: %w", err)
 	}
 
