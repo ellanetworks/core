@@ -291,15 +291,15 @@ func (m *Manager) watchLeadership(ctx context.Context, applier Applier) {
 			return
 		case isLeader := <-m.raft.LeaderCh():
 			if isLeader {
-				logger.DBLog.Info("Raft: this node is now the leader",
+				logger.RaftLog.Info("Raft: this node is now the leader",
 					zap.Int("nodeID", m.nodeID))
 
 				if err := m.idCounters.SeedFromDB(ctx, applier.SharedPlainDB()); err != nil {
-					logger.DBLog.Error("Raft: failed to seed ID counters on leader promotion",
+					logger.RaftLog.Error("Raft: failed to seed ID counters on leader promotion",
 						zap.Error(err))
 				}
 			} else {
-				logger.DBLog.Info("Raft: this node lost leadership",
+				logger.RaftLog.Info("Raft: this node lost leadership",
 					zap.Int("nodeID", m.nodeID))
 			}
 		}

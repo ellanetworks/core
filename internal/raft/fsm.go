@@ -83,7 +83,7 @@ func (f *FSM) Apply(l *raft.Log) interface{} {
 
 	cmd, err := UnmarshalCommand(l.Data)
 	if err != nil {
-		logger.DBLog.Error("FSM: failed to unmarshal command",
+		logger.RaftLog.Error("FSM: failed to unmarshal command",
 			zap.Uint64("index", l.Index),
 			zap.Error(err))
 
@@ -94,7 +94,7 @@ func (f *FSM) Apply(l *raft.Log) interface{} {
 
 	result, err := f.applier.ApplyCommand(ctx, cmd)
 	if err != nil {
-		logger.DBLog.Error("FSM: command failed",
+		logger.RaftLog.Error("FSM: command failed",
 			zap.Uint64("index", l.Index),
 			zap.String("command", cmd.Type.String()),
 			zap.Error(err))
@@ -196,7 +196,7 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 		return fmt.Errorf("reopen shared.db after restore: %w", err)
 	}
 
-	logger.DBLog.Info("FSM: restored shared.db from Raft snapshot")
+	logger.RaftLog.Info("FSM: restored shared.db from Raft snapshot")
 
 	return nil
 }

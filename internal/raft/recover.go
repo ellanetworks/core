@@ -54,7 +54,7 @@ func maybeRecoverCluster(
 		return false, fmt.Errorf("%s is a directory, expected a file", peersPath)
 	}
 
-	logger.DBLog.Warn("Raft: peers.json detected, forcing cluster recovery",
+	logger.RaftLog.Warn("Raft: peers.json detected, forcing cluster recovery",
 		zap.String("path", peersPath))
 
 	recoveryConfig, err := raft.ReadConfigJSON(peersPath)
@@ -70,7 +70,7 @@ func maybeRecoverCluster(
 		return false, fmt.Errorf("remove peers.json after recovery: %w", err)
 	}
 
-	logger.DBLog.Info("Raft: cluster recovered from peers.json",
+	logger.RaftLog.Info("Raft: cluster recovered from peers.json",
 		zap.Int("servers", len(recoveryConfig.Servers)))
 
 	return true, nil

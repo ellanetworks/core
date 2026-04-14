@@ -23,7 +23,7 @@ type zapRaftLogger struct {
 
 func newZapRaftLogger() hclog.Logger {
 	return &zapRaftLogger{
-		zap:  logger.DBLog,
+		zap:  logger.RaftLog,
 		name: "raft",
 	}
 }
@@ -69,7 +69,7 @@ func (l *zapRaftLogger) Named(name string) hclog.Logger {
 }
 
 func (l *zapRaftLogger) ResetNamed(name string) hclog.Logger {
-	return &zapRaftLogger{zap: logger.DBLog.Named(name), name: name}
+	return &zapRaftLogger{zap: logger.RaftLog.Named(name), name: name}
 }
 
 func (l *zapRaftLogger) SetLevel(hclog.Level)                                    {}
@@ -92,7 +92,7 @@ type zapIOWriter struct {
 
 func newZapIOWriter(subsystem string) io.Writer {
 	return &zapIOWriter{
-		zap:       logger.DBLog,
+		zap:       logger.RaftLog,
 		subsystem: subsystem,
 	}
 }
