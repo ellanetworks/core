@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -99,7 +100,7 @@ func (db *Database) IsNATEnabled(ctx context.Context) (bool, error) {
 }
 
 func (db *Database) UpdateNATSettings(ctx context.Context, enabled bool) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPSERT", NATSettingsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -116,14 +117,12 @@ func (db *Database) UpdateNATSettings(ctx context.Context, enabled bool) error {
 
 	DBQueriesTotal.WithLabelValues(NATSettingsTableName, "update").Inc()
 
-	arg := NATSettings{Enabled: enabled}
-
-	err := db.shared.Query(ctx, db.upsertNATSettingsStmt, arg).Run()
+	_, err := db.propose(ellaraft.CmdUpdateNATSettings, &boolPayload{Value: enabled})
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

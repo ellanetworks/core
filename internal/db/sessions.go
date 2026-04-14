@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/canonical/sqlair"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -50,7 +50,7 @@ type DeleteOldestArgs struct {
 }
 
 func (db *Database) CreateSession(ctx context.Context, session *Session) (int64, error) {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", SessionsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -67,27 +67,17 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) (int64,
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "insert").Inc()
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.createSessionStmt, session).Get(&outcome)
+	result, err := db.propose(ellaraft.CmdCreateSession, session)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return 0, fmt.Errorf("query failed: %w", err)
-	}
-
-	id, err := outcome.Result().LastInsertId()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving insert ID failed")
-
-		return 0, fmt.Errorf("retrieving insert ID failed: %w", err)
+		return 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
 
-	return id, nil
+	return result.(int64), nil
 }
 
 func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (*Session, error) {
@@ -129,7 +119,7 @@ func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte)
 }
 
 func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []byte) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", SessionsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -146,14 +136,12 @@ func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []by
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	arg := Session{TokenHash: tokenHash}
-
-	err := db.shared.Query(ctx, db.deleteSessionByTokenHashStmt, arg).Run()
+	_, err := db.propose(ellaraft.CmdDeleteSessionByTokenHash, &bytesPayload{Value: tokenHash})
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -162,7 +150,7 @@ func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []by
 }
 
 func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", SessionsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -179,29 +167,19 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	var outcome sqlair.Outcome
+	nowUnix := time.Now().Unix()
 
-	cutoff := SessionCutoff{NowUnix: time.Now().Unix()}
-
-	err := db.shared.Query(ctx, db.deleteExpiredSessionsStmt, cutoff).Get(&outcome)
+	result, err := db.propose(ellaraft.CmdDeleteExpiredSessions, &int64Payload{Value: nowUnix})
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return 0, fmt.Errorf("query failed: %w", err)
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
-
-		return 0, fmt.Errorf("retrieving rows affected failed: %w", err)
+		return 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
 
-	return int(rowsAffected), nil
+	return result.(int), nil
 }
 
 func (db *Database) CountSessionsByUser(ctx context.Context, userID int64) (int, error) {
@@ -240,7 +218,7 @@ func (db *Database) CountSessionsByUser(ctx context.Context, userID int64) (int,
 }
 
 func (db *Database) DeleteOldestSessions(ctx context.Context, userID int64, limit int) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", SessionsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -257,14 +235,12 @@ func (db *Database) DeleteOldestSessions(ctx context.Context, userID int64, limi
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	args := DeleteOldestArgs{UserID: userID, Limit: limit}
-
-	err := db.shared.Query(ctx, db.deleteOldestSessionsStmt, args).Run()
+	_, err := db.propose(ellaraft.CmdDeleteOldestSessions, &DeleteOldestArgs{UserID: userID, Limit: limit})
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -273,7 +249,7 @@ func (db *Database) DeleteOldestSessions(ctx context.Context, userID int64, limi
 }
 
 func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID int64) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", SessionsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -290,14 +266,12 @@ func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID int64) 
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	args := UserIDArgs{UserID: userID}
-
-	err := db.shared.Query(ctx, db.deleteAllSessionsForUserStmt, args).Run()
+	_, err := db.propose(ellaraft.CmdDeleteAllSessionsForUser, &int64Payload{Value: userID})
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -306,7 +280,7 @@ func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID int64) 
 }
 
 func (db *Database) DeleteAllSessions(ctx context.Context) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE_ALL", SessionsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -323,12 +297,12 @@ func (db *Database) DeleteAllSessions(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	err := db.shared.Query(ctx, db.deleteAllSessionsStmt).Run()
+	_, err := db.propose(ellaraft.CmdDeleteAllSessions, nil)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/dbwriter"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -48,7 +49,7 @@ type AuditLogFilters struct {
 
 // InsertAuditLogJSON parses the zap JSON and inserts a structured row.
 func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.AuditLog) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", AuditLogsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -65,12 +66,21 @@ func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.Audit
 
 	DBQueriesTotal.WithLabelValues(AuditLogsTableName, "insert").Inc()
 
-	err := db.shared.Query(ctx, db.insertAuditLogStmt, auditLog).Run()
+	payload := &auditLogPayload{
+		Timestamp: auditLog.Timestamp,
+		Level:     auditLog.Level,
+		Actor:     auditLog.Actor,
+		Action:    auditLog.Action,
+		IP:        auditLog.IP,
+		Details:   auditLog.Details,
+	}
+
+	_, err := db.propose(ellaraft.CmdInsertAuditLog, payload)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -137,7 +147,7 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, filters *AuditLogFilt
 
 // DeleteOldAuditLogs removes logs older than the specified retention period in days.
 func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (retention)", "DELETE", AuditLogsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -158,13 +168,12 @@ func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
 	// Compute cutoff entirely in UTC so the boundary is timezone/DST-independent.
 	cutoff := time.Now().UTC().AddDate(0, 0, -days).Format(time.RFC3339)
 
-	args := cutoffArgs{Cutoff: cutoff}
-
-	if err := db.shared.Query(ctx, db.deleteOldAuditLogsStmt, args).Run(); err != nil {
+	_, err := db.propose(ellaraft.CmdDeleteOldAuditLogs, &stringPayload{Value: cutoff})
+	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/canonical/sqlair"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -49,7 +50,7 @@ type NetworkRule struct {
 
 // CreateNetworkRule creates a new network rule and returns its ID.
 func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (int64, error) {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", NetworkRulesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -70,34 +71,17 @@ func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (int
 	nr.CreatedAt = now
 	nr.UpdatedAt = now
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.createNetworkRuleStmt, nr).Get(&outcome)
-	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "unique constraint failed")
-
-			return 0, ErrAlreadyExists
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return 0, fmt.Errorf("query failed: %w", err)
-	}
-
-	result, err := outcome.Result().LastInsertId()
+	result, err := db.propose(ellaraft.CmdCreateNetworkRule, nr)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving last insert id failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return 0, fmt.Errorf("retrieving last insert id failed: %w", err)
+		return 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
 
-	return result, nil
+	return result.(int64), nil
 }
 
 // GetNetworkRule retrieves a network rule by ID.
@@ -141,7 +125,7 @@ func (db *Database) GetNetworkRule(ctx context.Context, id int64) (*NetworkRule,
 
 // UpdateNetworkRule updates an existing network rule.
 func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", NetworkRulesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -160,36 +144,12 @@ func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) erro
 
 	nr.UpdatedAt = time.Now().UTC()
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.updateNetworkRuleStmt, nr).Get(&outcome)
-	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "unique constraint failed")
-
-			return ErrAlreadyExists
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
+	_, err := db.propose(ellaraft.CmdUpdateNetworkRule, nr)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -299,7 +259,7 @@ func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID int64, m
 
 // DeleteNetworkRule deletes a network rule by ID.
 func (db *Database) DeleteNetworkRule(ctx context.Context, id int64) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -316,29 +276,12 @@ func (db *Database) DeleteNetworkRule(ctx context.Context, id int64) error {
 
 	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "delete").Inc()
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.deleteNetworkRuleStmt, NetworkRule{ID: id}).Get(&outcome)
+	_, err := db.propose(ellaraft.CmdDeleteNetworkRule, &int64Payload{Value: id})
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
-
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -510,7 +453,7 @@ func (t *Transaction) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID
 
 // DeleteNetworkRulesByPolicyID deletes all network rules for a given policy ID.
 func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID int64) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -527,14 +470,12 @@ func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID i
 
 	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "delete").Inc()
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.deleteNetworkRulesByPolicyStmt, NetworkRule{PolicyID: policyID}).Get(&outcome)
+	_, err := db.propose(ellaraft.CmdDeleteNetworkRulesByPolicy, &int64Payload{Value: policyID})
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

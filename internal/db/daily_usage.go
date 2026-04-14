@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -99,7 +100,7 @@ func (d *UsagePerDay) GetDay() time.Time {
 }
 
 func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", DailyUsageTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -116,12 +117,12 @@ func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) e
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "insert").Inc()
 
-	err := db.shared.Query(ctx, db.incrementDailyUsageStmt, usage).Run()
+	_, err := db.propose(ellaraft.CmdIncrementDailyUsage, &usage)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -224,7 +225,7 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, star
 }
 
 func (db *Database) ClearDailyUsage(ctx context.Context) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", DailyUsageTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -241,12 +242,12 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "delete").Inc()
 
-	err := db.shared.Query(ctx, db.deleteAllDailyUsageStmt).Run()
+	_, err := db.propose(ellaraft.CmdClearDailyUsage, nil)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -255,7 +256,7 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 }
 
 func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (older than %d days)", "DELETE", DailyUsageTableName, days),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -273,16 +274,17 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "delete").Inc()
 
-	now := time.Now().UTC()
+	// Compute the cutoff on the leader so every follower applies the same
+	// day boundary during Raft replay; time.Now inside the apply path would
+	// desync replicas.
+	cutoffDay := time.Now().UTC().AddDate(0, 0, -days).Unix() / 86400
 
-	cutoffDay := DaysSinceEpoch(now.AddDate(0, 0, -days))
-
-	err := db.shared.Query(ctx, db.deleteOldDailyUsageStmt, cutoffDaysArgs{CutoffDays: cutoffDay}).Run()
+	_, err := db.propose(ellaraft.CmdDeleteOldDailyUsage, &int64Payload{Value: cutoffDay})
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

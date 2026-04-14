@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"net/netip"
 
-	"github.com/canonical/sqlair"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -70,7 +70,7 @@ func (l *IPLease) Address() netip.Addr {
 // binary form. Returns ErrAlreadyExists if the (poolID, addressBin) unique
 // constraint is violated.
 func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address netip.Addr) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", IPLeasesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -88,23 +88,14 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address net
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "insert").Inc()
 
 	b := address.As16()
+	lease.AddressBin = b[:]
 
-	row := *lease
-	row.AddressBin = b[:]
-
-	err := db.shared.Query(ctx, db.createLeaseStmt, &row).Run()
+	_, err := db.propose(ellaraft.CmdCreateLease, lease)
 	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "unique constraint failed")
-
-			return ErrAlreadyExists
-		}
-
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -192,7 +183,7 @@ func (db *Database) GetLeaseBySession(ctx context.Context, poolID int, sessionID
 
 // UpdateLeaseSession sets the sessionID on an existing lease.
 func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID int, sessionID int) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (session)", "UPDATE", IPLeasesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -209,31 +200,14 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID int, session
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "update").Inc()
 
-	lease := IPLease{ID: leaseID, SessionID: &sessionID}
+	lease := &IPLease{ID: leaseID, SessionID: &sessionID}
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.updateLeaseSessionStmt, lease).Get(&outcome)
+	_, err := db.propose(ellaraft.CmdUpdateLeaseSession, lease)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
-
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -243,7 +217,7 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID int, session
 
 // DeleteDynamicLease deletes a dynamic lease by ID.
 func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID int) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", IPLeasesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -260,12 +234,12 @@ func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID int) error {
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
-	err := db.shared.Query(ctx, db.deleteLeaseStmt, IPLease{ID: leaseID}).Run()
+	_, err := db.propose(ellaraft.CmdDeleteDynamicLease, &intPayload{Value: leaseID})
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -276,7 +250,7 @@ func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID int) error {
 // DeleteAllDynamicLeases removes all dynamic leases. Called on startup to clean
 // up stale leases from a previous process lifetime. Static leases are preserved.
 func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		"DeleteAllDynamicLeases",
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -293,12 +267,12 @@ func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
-	err := db.shared.Query(ctx, db.deleteAllDynamicLeasesStmt).Run()
+	_, err := db.propose(ellaraft.CmdDeleteAllDynamicLeases, nil)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("failed to delete all dynamic leases: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

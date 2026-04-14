@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/canonical/sqlair"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -428,7 +429,7 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 }
 
 func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", PoliciesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -445,19 +446,12 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 
 	DBQueriesTotal.WithLabelValues(PoliciesTableName, "insert").Inc()
 
-	err := db.shared.Query(ctx, db.createPolicyStmt, policy).Run()
+	_, err := db.propose(ellaraft.CmdCreatePolicy, policy)
 	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "unique constraint failed")
-
-			return ErrAlreadyExists
-		}
-
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -466,7 +460,7 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 }
 
 func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", PoliciesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -483,29 +477,12 @@ func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
 
 	DBQueriesTotal.WithLabelValues(PoliciesTableName, "update").Inc()
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.editPolicyStmt, policy).Get(&outcome)
+	_, err := db.propose(ellaraft.CmdUpdatePolicy, policy)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
-
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -610,7 +587,7 @@ func (t *Transaction) UpdatePolicy(ctx context.Context, policy *Policy) error {
 }
 
 func (db *Database) DeletePolicy(ctx context.Context, name string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", PoliciesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -627,29 +604,12 @@ func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(PoliciesTableName, "delete").Inc()
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.deletePolicyStmt, Policy{Name: name}).Get(&outcome)
+	_, err := db.propose(ellaraft.CmdDeletePolicy, &stringPayload{Value: name})
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
-
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

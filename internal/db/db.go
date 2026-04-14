@@ -12,10 +12,12 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/logger"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	_ "github.com/mattn/go-sqlite3"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
@@ -29,8 +31,10 @@ var tracer = otel.Tracer("ella-core/db")
 //
 // dataDir is the directory containing both files.
 type Database struct {
-	dataDir   string
-	restoreMu sync.Mutex
+	dataDir        string
+	restoreMu      sync.Mutex
+	raftManager    *ellaraft.Manager
+	proposeTimeout time.Duration
 
 	// Subscriber statements
 	listSubscribersStmt         *sqlair.Statement
@@ -355,7 +359,11 @@ func openSQLiteConnection(ctx context.Context, databasePath string, sync SyncMod
 // Close closes both database connections. Both are always attempted and any
 // errors are joined.
 func (db *Database) Close() error {
-	var sharedErr, localErr error
+	var raftErr, sharedErr, localErr error
+
+	if db.raftManager != nil {
+		raftErr = db.raftManager.Shutdown()
+	}
 
 	if db.shared != nil {
 		sharedErr = db.shared.PlainDB().Close()
@@ -365,12 +373,22 @@ func (db *Database) Close() error {
 		localErr = db.local.PlainDB().Close()
 	}
 
-	return errors.Join(sharedErr, localErr)
+	return errors.Join(raftErr, sharedErr, localErr)
 }
 
 // Dir returns the directory containing both database files.
 func (db *Database) Dir() string {
 	return db.dataDir
+}
+
+// RaftAppliedIndex returns the index of the highest Raft log entry applied
+// to the shared database. Exposed for tests and support bundles.
+func (db *Database) RaftAppliedIndex() uint64 {
+	if db.raftManager == nil {
+		return 0
+	}
+
+	return db.raftManager.AppliedIndex()
 }
 
 func (db *Database) SharedPath() string {
@@ -428,6 +446,15 @@ func NewDatabase(ctx context.Context, dataPath string) (*Database, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to prepare statements: %w", err)
 	}
+
+	raftMgr, err := ellaraft.NewManager(ctx, ellaraft.ClusterConfig{}, db, dataDir)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to start raft manager: %w", err)
+	}
+
+	db.raftManager = raftMgr
+	db.proposeTimeout = raftMgr.ProposeTimeout()
 
 	RegisterMetrics(db)
 

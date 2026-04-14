@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/canonical/sqlair"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -173,7 +173,7 @@ func (db *Database) GetBGPPeer(ctx context.Context, id int) (*BGPPeer, error) {
 }
 
 func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", BGPPeersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -190,32 +190,15 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "insert").Inc()
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.createBGPPeerStmt, peer).Get(&outcome)
-	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "unique constraint failed")
-
-			return ErrAlreadyExists
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	id, err := outcome.Result().LastInsertId()
+	result, err := db.propose(ellaraft.CmdCreateBGPPeer, peer)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving insert ID failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("retrieving insert ID failed: %w", err)
+		return err
 	}
 
-	peer.ID = int(id)
+	peer.ID = result.(int)
 
 	span.SetStatus(codes.Ok, "")
 
@@ -223,7 +206,7 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 }
 
 func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", BGPPeersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -240,36 +223,12 @@ func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "update").Inc()
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.updateBGPPeerStmt, peer).Get(&outcome)
-	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "unique constraint failed")
-
-			return ErrAlreadyExists
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
+	_, err := db.propose(ellaraft.CmdUpdateBGPPeer, peer)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -278,7 +237,7 @@ func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 }
 
 func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", BGPPeersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -295,29 +254,12 @@ func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "delete").Inc()
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.deleteBGPPeerStmt, BGPPeer{ID: id}).Get(&outcome)
+	_, err := db.propose(ellaraft.CmdDeleteBGPPeer, &intPayload{Value: id})
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
-
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

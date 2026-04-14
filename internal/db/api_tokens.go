@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -96,7 +97,7 @@ func (db *Database) ListAPITokensPage(ctx context.Context, userID int64, page in
 
 // CreateAPIToken inserts a new api token with a span named "INSERT api_token".
 func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", APITokensTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -113,19 +114,12 @@ func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) erro
 
 	DBQueriesTotal.WithLabelValues(APITokensTableName, "insert").Inc()
 
-	err := db.shared.Query(ctx, db.createAPITokenStmt, apiToken).Run()
+	_, err := db.propose(ellaraft.CmdCreateAPIToken, apiToken)
 	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "unique constraint failed")
-
-			return ErrAlreadyExists
-		}
-
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -210,7 +204,7 @@ func (db *Database) GetAPITokenByName(ctx context.Context, userID int64, name st
 }
 
 func (db *Database) DeleteAPIToken(ctx context.Context, id int) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", APITokensTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -227,14 +221,12 @@ func (db *Database) DeleteAPIToken(ctx context.Context, id int) error {
 
 	DBQueriesTotal.WithLabelValues(APITokensTableName, "delete").Inc()
 
-	arg := APIToken{ID: id}
-
-	err := db.shared.Query(ctx, db.deleteAPITokenStmt, arg).Run()
+	_, err := db.propose(ellaraft.CmdDeleteAPIToken, &intPayload{Value: id})
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

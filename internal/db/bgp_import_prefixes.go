@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -69,7 +70,7 @@ func (db *Database) ListImportPrefixesByPeer(ctx context.Context, peerID int) ([
 }
 
 func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, prefixes []BGPImportPrefix) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "REPLACE", BGPImportPrefixesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -87,45 +88,12 @@ func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, pr
 
 	DBQueriesTotal.WithLabelValues(BGPImportPrefixesTableName, "replace").Inc()
 
-	tx, err := db.shared.Begin(ctx, nil)
+	_, err := db.propose(ellaraft.CmdSetImportPrefixesForPeer, &importPrefixesPayload{PeerID: peerID, Prefixes: prefixes})
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "begin transaction failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("begin transaction failed: %w", err)
-	}
-
-	// Delete existing prefixes for this peer
-	err = tx.Query(ctx, db.deleteImportPrefixesByPeerStmt, BGPImportPrefix{PeerID: peerID}).Run()
-	if err != nil {
-		_ = tx.Rollback()
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "delete failed")
-
-		return fmt.Errorf("delete existing prefixes failed: %w", err)
-	}
-
-	// Insert new prefixes
-	for _, p := range prefixes {
-		p.PeerID = peerID
-
-		err = tx.Query(ctx, db.createImportPrefixStmt, p).Run()
-		if err != nil {
-			_ = tx.Rollback()
-
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "insert failed")
-
-			return fmt.Errorf("insert prefix failed: %w", err)
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "commit failed")
-
-		return fmt.Errorf("commit failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

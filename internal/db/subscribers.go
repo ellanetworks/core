@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/canonical/sqlair"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -134,7 +134,7 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 }
 
 func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", SubscribersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -151,19 +151,12 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "insert").Inc()
 
-	err := db.shared.Query(ctx, db.createSubscriberStmt, subscriber).Run()
+	_, err := db.propose(ellaraft.CmdCreateSubscriber, subscriber)
 	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "unique constraint failed")
-
-			return ErrAlreadyExists
-		}
-
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -172,7 +165,7 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 }
 
 func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Subscriber) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", SubscribersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -189,29 +182,12 @@ func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Sub
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "update").Inc()
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.updateSubscriberProfileStmt, subscriber).Get(&outcome)
+	_, err := db.propose(ellaraft.CmdUpdateSubscriberProfile, subscriber)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
-
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -220,7 +196,7 @@ func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Sub
 }
 
 func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi string, sequenceNumber string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (sequence number)", "UPDATE", SubscribersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -242,29 +218,12 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 		SequenceNumber: sequenceNumber,
 	}
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.updateSubscriberSqnNumStmt, subscriber).Get(&outcome)
+	_, err := db.propose(ellaraft.CmdEditSubscriberSeqNum, subscriber)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
-
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -273,7 +232,7 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 }
 
 func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", SubscribersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -290,29 +249,12 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "delete").Inc()
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.deleteSubscriberStmt, Subscriber{Imsi: imsi}).Get(&outcome)
+	_, err := db.propose(ellaraft.CmdDeleteSubscriber, &stringPayload{Value: imsi})
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
-
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

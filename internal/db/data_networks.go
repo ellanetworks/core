@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/canonical/sqlair"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -215,7 +215,7 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id int) (*DataNetwor
 }
 
 func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetwork) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", DataNetworksTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -232,19 +232,12 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 
 	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "insert").Inc()
 
-	err := db.shared.Query(ctx, db.createDataNetworkStmt, dataNetwork).Run()
+	_, err := db.propose(ellaraft.CmdCreateDataNetwork, dataNetwork)
 	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "unique constraint failed")
-
-			return ErrAlreadyExists
-		}
-
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -253,7 +246,7 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 }
 
 func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetwork) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", DataNetworksTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -270,29 +263,12 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 
 	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "update").Inc()
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.editDataNetworkStmt, dataNetwork).Get(&outcome)
+	_, err := db.propose(ellaraft.CmdUpdateDataNetwork, dataNetwork)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
-
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -301,7 +277,7 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 }
 
 func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", DataNetworksTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -318,29 +294,12 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "delete").Inc()
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.deleteDataNetworkStmt, DataNetwork{Name: name}).Get(&outcome)
+	_, err := db.propose(ellaraft.CmdDeleteDataNetwork, &stringPayload{Value: name})
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
-
-		return fmt.Errorf("retrieving rows affected failed: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

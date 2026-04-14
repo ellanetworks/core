@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -200,7 +201,7 @@ func (db *Database) GetHomeNetworkKeyBySchemeAndIdentifier(ctx context.Context, 
 
 // CreateHomeNetworkKey inserts a new home network key.
 func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKey) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", HomeNetworkKeysTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -217,19 +218,12 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 
 	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "insert").Inc()
 
-	err := db.shared.Query(ctx, db.createHomeNetworkKeyStmt, key).Run()
+	_, err := db.propose(ellaraft.CmdCreateHomeNetworkKey, key)
 	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "already exists")
-
-			return ErrAlreadyExists
-		}
-
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -239,7 +233,7 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 
 // DeleteHomeNetworkKey removes a home network key by its database row ID.
 func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id int) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", HomeNetworkKeysTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -256,12 +250,12 @@ func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id int) error {
 
 	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "delete").Inc()
 
-	err := db.shared.Query(ctx, db.deleteHomeNetworkKeyStmt, HomeNetworkKey{ID: id}).Run()
+	_, err := db.propose(ellaraft.CmdDeleteHomeNetworkKey, &intPayload{Value: id})
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
-		return fmt.Errorf("query failed: %w", err)
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")

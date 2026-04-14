@@ -27,7 +27,7 @@ const sharedV1CreateOperator = `
 
 const sharedV1CreateNetworkSlices = `
 	CREATE TABLE IF NOT EXISTS %s (
-		id   INTEGER PRIMARY KEY AUTOINCREMENT,
+		id   INTEGER PRIMARY KEY,
 		sst  INTEGER NOT NULL,
 		sd   TEXT,
 		name TEXT NOT NULL UNIQUE,
@@ -36,7 +36,7 @@ const sharedV1CreateNetworkSlices = `
 
 const sharedV1CreateProfiles = `
 	CREATE TABLE IF NOT EXISTS %s (
-		id             INTEGER PRIMARY KEY AUTOINCREMENT,
+		id             INTEGER PRIMARY KEY,
 		name           TEXT NOT NULL UNIQUE,
 		ueAmbrUplink   TEXT NOT NULL,
 		ueAmbrDownlink TEXT NOT NULL
@@ -44,7 +44,7 @@ const sharedV1CreateProfiles = `
 
 const sharedV1CreateDataNetworks = `
 	CREATE TABLE IF NOT EXISTS %s (
-		id     INTEGER PRIMARY KEY AUTOINCREMENT,
+		id     INTEGER PRIMARY KEY,
 		name   TEXT NOT NULL UNIQUE,
 		ipPool TEXT NOT NULL,
 		dns    TEXT NOT NULL,
@@ -53,7 +53,7 @@ const sharedV1CreateDataNetworks = `
 
 const sharedV1CreatePolicies = `
 	CREATE TABLE IF NOT EXISTS %s (
-		id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+		id                  INTEGER PRIMARY KEY,
 		name                TEXT    NOT NULL UNIQUE,
 		profileID           INTEGER NOT NULL,
 		sliceID             INTEGER NOT NULL,
@@ -70,7 +70,7 @@ const sharedV1CreatePolicies = `
 
 const sharedV1CreateNetworkRules = `
 	CREATE TABLE IF NOT EXISTS %s (
-		id            INTEGER PRIMARY KEY AUTOINCREMENT,
+		id            INTEGER PRIMARY KEY,
 		policy_id     INTEGER NOT NULL,
 		description   TEXT NOT NULL,
 		direction     TEXT NOT NULL,
@@ -88,7 +88,7 @@ const sharedV1CreateNetworkRules = `
 
 const sharedV1CreateSubscribers = `
 	CREATE TABLE IF NOT EXISTS %s (
-		id             INTEGER PRIMARY KEY AUTOINCREMENT,
+		id             INTEGER PRIMARY KEY,
 		imsi           TEXT NOT NULL UNIQUE CHECK (length(imsi) BETWEEN 6 AND 15 AND imsi GLOB '[0-9]*'),
 		sequenceNumber TEXT NOT NULL CHECK (length(sequenceNumber) = 12),
 		permanentKey   TEXT NOT NULL CHECK (length(permanentKey) = 32),
@@ -109,7 +109,7 @@ const sharedV1CreateDailyUsage = `
 
 const sharedV1CreateIPLeases = `
 	CREATE TABLE IF NOT EXISTS %s (
-		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		id          INTEGER PRIMARY KEY,
 		poolID      INTEGER NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
 		addressBin  BLOB    NOT NULL,
 		imsi        TEXT    NOT NULL REFERENCES %s(imsi) ON DELETE CASCADE,
@@ -128,7 +128,7 @@ const sharedV1CreateIPLeasesIndexes = `
 
 const sharedV1CreateHomeNetworkKeys = `
 	CREATE TABLE IF NOT EXISTS %s (
-		id              INTEGER PRIMARY KEY AUTOINCREMENT,
+		id              INTEGER PRIMARY KEY,
 		key_identifier  INTEGER NOT NULL CHECK (key_identifier >= 0 AND key_identifier <= 255),
 		scheme          TEXT    NOT NULL CHECK (scheme IN ('A', 'B')),
 		private_key     TEXT    NOT NULL,
@@ -137,7 +137,7 @@ const sharedV1CreateHomeNetworkKeys = `
 
 const sharedV1CreateUsers = `
 	CREATE TABLE IF NOT EXISTS %s (
-		id             INTEGER PRIMARY KEY AUTOINCREMENT,
+		id             INTEGER PRIMARY KEY,
 		email          TEXT NOT NULL UNIQUE,
 		roleID         INTEGER NOT NULL,
 		hashedPassword TEXT NOT NULL
@@ -145,7 +145,7 @@ const sharedV1CreateUsers = `
 
 const sharedV1CreateSessions = `
 	CREATE TABLE IF NOT EXISTS %s (
-		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		id          INTEGER PRIMARY KEY,
 		user_id     INTEGER NOT NULL,
 		token_hash  BLOB    NOT NULL UNIQUE,
 		created_at  INTEGER NOT NULL DEFAULT (strftime('%%s','now')),
@@ -155,7 +155,7 @@ const sharedV1CreateSessions = `
 
 const sharedV1CreateAPITokens = `
 	CREATE TABLE IF NOT EXISTS %s (
-		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		id          INTEGER PRIMARY KEY,
 		token_id    TEXT NOT NULL UNIQUE,
 		name        TEXT NOT NULL,
 		token_hash  TEXT NOT NULL,
@@ -182,7 +182,7 @@ const sharedV1CreateBGPSettings = `
 
 const sharedV1CreateBGPPeers = `
 	CREATE TABLE IF NOT EXISTS %s (
-		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		id          INTEGER PRIMARY KEY,
 		address     TEXT    NOT NULL UNIQUE,
 		remoteAS    INTEGER NOT NULL,
 		holdTime    INTEGER NOT NULL DEFAULT 90,
@@ -192,7 +192,7 @@ const sharedV1CreateBGPPeers = `
 
 const sharedV1CreateBGPImportPrefixes = `
 	CREATE TABLE IF NOT EXISTS %s (
-		id        INTEGER PRIMARY KEY AUTOINCREMENT,
+		id        INTEGER PRIMARY KEY,
 		peerID    INTEGER NOT NULL REFERENCES %s(id) ON DELETE CASCADE,
 		prefix    TEXT    NOT NULL,
 		maxLength INTEGER NOT NULL
@@ -200,7 +200,7 @@ const sharedV1CreateBGPImportPrefixes = `
 
 const sharedV1CreateRoutes = `
 	CREATE TABLE IF NOT EXISTS %s (
-		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		id          INTEGER PRIMARY KEY,
 		destination TEXT NOT NULL,
 		gateway     TEXT NOT NULL,
 		interface   TEXT NOT NULL,
@@ -230,14 +230,14 @@ const sharedV1CreateFlowAccountingSettings = `
 
 const sharedV1CreateRetentionPolicies = `
 	CREATE TABLE IF NOT EXISTS %s (
-		id             INTEGER PRIMARY KEY AUTOINCREMENT,
+		id             INTEGER PRIMARY KEY,
 		category       TEXT NOT NULL UNIQUE,
 		retention_days INTEGER NOT NULL CHECK (retention_days >= 1)
 )`
 
 const sharedV1CreateAuditLogs = `
 	CREATE TABLE IF NOT EXISTS %s (
-		id        INTEGER PRIMARY KEY AUTOINCREMENT,
+		id        INTEGER PRIMARY KEY,
 		timestamp TEXT NOT NULL,
 		level     TEXT NOT NULL,
 		actor     TEXT NOT NULL DEFAULT '',

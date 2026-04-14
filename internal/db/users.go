@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/canonical/sqlair"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -181,7 +181,7 @@ func (db *Database) GetUserByID(ctx context.Context, id int64) (*User, error) {
 }
 
 func (db *Database) CreateUser(ctx context.Context, user *User) (int64, error) {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", UsersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -198,39 +198,22 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (int64, error) {
 
 	DBQueriesTotal.WithLabelValues(UsersTableName, "insert").Inc()
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.createUserStmt, user).Get(&outcome)
-	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "unique constraint failed")
-
-			return 0, ErrAlreadyExists
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return 0, err
-	}
-
-	id, err := outcome.Result().LastInsertId()
+	result, err := db.propose(ellaraft.CmdCreateUser, user)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving insert ID failed")
+		span.SetStatus(codes.Error, err.Error())
 
 		return 0, err
 	}
 
 	span.SetStatus(codes.Ok, "")
 
-	return id, nil
+	return result.(int64), nil
 }
 
 // UpdateUser updates a user's role with a span named "UPDATE users".
 func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", UsersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -252,29 +235,12 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 		RoleID: roleID,
 	}
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.editUserStmt, user).Get(&outcome)
+	_, err := db.propose(ellaraft.CmdUpdateUser, user)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
 		return err
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
-
-		return err
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -284,7 +250,7 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 
 // UpdateUserPassword sets a new password hash with a span named "UPDATE users".
 func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashedPassword string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", UsersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -306,29 +272,12 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 		HashedPassword: hashedPassword,
 	}
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.editUserPasswordStmt, user).Get(&outcome)
+	_, err := db.propose(ellaraft.CmdUpdateUserPassword, user)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
 		return err
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
-
-		return err
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
 	}
 
 	span.SetStatus(codes.Ok, "")
@@ -338,7 +287,7 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 
 // DeleteUser removes a user by email with a span named "DELETE users".
 func (db *Database) DeleteUser(ctx context.Context, email string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", UsersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -355,29 +304,12 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 
 	DBQueriesTotal.WithLabelValues(UsersTableName, "delete").Inc()
 
-	var outcome sqlair.Outcome
-
-	err := db.shared.Query(ctx, db.deleteUserStmt, User{Email: email}).Get(&outcome)
+	_, err := db.propose(ellaraft.CmdDeleteUser, &stringPayload{Value: email})
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
+		span.SetStatus(codes.Error, err.Error())
 
 		return err
-	}
-
-	rowsAffected, err := outcome.Result().RowsAffected()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving rows affected failed")
-
-		return err
-	}
-
-	if rowsAffected == 0 {
-		span.RecordError(ErrNotFound)
-		span.SetStatus(codes.Error, "not found")
-
-		return ErrNotFound
 	}
 
 	span.SetStatus(codes.Ok, "")

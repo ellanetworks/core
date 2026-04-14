@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/canonical/sqlair"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -215,6 +216,70 @@ func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
 		span.SetStatus(codes.Error, "query failed")
 
 		return fmt.Errorf("query failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+func (db *Database) CreateRoute(ctx context.Context, route *Route) (int64, error) {
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "INSERT", RoutesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("INSERT"),
+			attribute.String("db.collection", RoutesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoutesTableName, "insert"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(RoutesTableName, "insert").Inc()
+
+	result, err := db.propose(ellaraft.CmdCreateRoute, route)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return 0, err
+	}
+
+	id, _ := result.(int64)
+
+	span.SetStatus(codes.Ok, "")
+
+	return id, nil
+}
+
+func (db *Database) DeleteRoute(ctx context.Context, id int64) error {
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "DELETE", RoutesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("DELETE"),
+			attribute.String("db.collection", RoutesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(RoutesTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(RoutesTableName, "delete").Inc()
+
+	_, err := db.propose(ellaraft.CmdDeleteRoute, &int64Payload{Value: id})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
