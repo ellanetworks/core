@@ -16,22 +16,20 @@ const (
 )
 
 type ClusterMemberResponse struct {
-	NodeID          int    `json:"nodeId"`
-	RaftAddress     string `json:"raftAddress"`
-	APIAddress      string `json:"apiAddress"`
-	ProtocolVersion int    `json:"protocolVersion"`
-	BinaryVersion   string `json:"binaryVersion"`
-	Suffrage        string `json:"suffrage"`
+	NodeID        int    `json:"nodeId"`
+	RaftAddress   string `json:"raftAddress"`
+	APIAddress    string `json:"apiAddress"`
+	BinaryVersion string `json:"binaryVersion"`
+	Suffrage      string `json:"suffrage"`
 }
 
 type AddClusterMemberRequest struct {
-	NodeID          int    `json:"nodeId"`
-	RaftAddress     string `json:"raftAddress"`
-	APIAddress      string `json:"apiAddress"`
-	ClusterID       string `json:"clusterId,omitempty"`
-	SchemaVersion   int    `json:"schemaVersion,omitempty"`
-	ProtocolVersion int    `json:"protocolVersion,omitempty"`
-	Suffrage        string `json:"suffrage,omitempty"`
+	NodeID        int    `json:"nodeId"`
+	RaftAddress   string `json:"raftAddress"`
+	APIAddress    string `json:"apiAddress"`
+	ClusterID     string `json:"clusterId,omitempty"`
+	SchemaVersion int    `json:"schemaVersion,omitempty"`
+	Suffrage      string `json:"suffrage,omitempty"`
 }
 
 func ListClusterMembers(dbInstance *db.Database) http.Handler {
@@ -45,12 +43,11 @@ func ListClusterMembers(dbInstance *db.Database) http.Handler {
 		result := make([]ClusterMemberResponse, 0, len(members))
 		for _, m := range members {
 			result = append(result, ClusterMemberResponse{
-				NodeID:          m.NodeID,
-				RaftAddress:     m.RaftAddress,
-				APIAddress:      m.APIAddress,
-				ProtocolVersion: m.ProtocolVersion,
-				BinaryVersion:   m.BinaryVersion,
-				Suffrage:        m.Suffrage,
+				NodeID:        m.NodeID,
+				RaftAddress:   m.RaftAddress,
+				APIAddress:    m.APIAddress,
+				BinaryVersion: m.BinaryVersion,
+				Suffrage:      m.Suffrage,
 			})
 		}
 
@@ -118,27 +115,6 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 			}
 		}
 
-		// Protocol version validation per §5.4.
-		cwmp := dbInstance.CWMP()
-		if req.ProtocolVersion > 0 && cwmp > 0 {
-			if req.ProtocolVersion < cwmp {
-				writeError(r.Context(), w, http.StatusConflict,
-					fmt.Sprintf("Protocol version %d is below cluster-wide minimum %d; downgrades are not supported",
-						req.ProtocolVersion, cwmp),
-					nil, logger.APILog)
-
-				return
-			}
-
-			if req.ProtocolVersion > cwmp && suffrage == "voter" {
-				writeError(r.Context(), w, http.StatusConflict,
-					"Higher-protocol nodes must join as nonvoter during upgrade",
-					nil, logger.APILog)
-
-				return
-			}
-		}
-
 		if suffrage == "nonvoter" {
 			if err := dbInstance.AddNonvoter(req.NodeID, req.RaftAddress); err != nil {
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to add nonvoter to Raft cluster", err, logger.APILog)
@@ -152,12 +128,11 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 		}
 
 		member := &db.ClusterMember{
-			NodeID:          req.NodeID,
-			RaftAddress:     req.RaftAddress,
-			APIAddress:      req.APIAddress,
-			ProtocolVersion: req.ProtocolVersion,
-			BinaryVersion:   "", // populated by the joining node's CmdUpsertClusterMember at startup
-			Suffrage:        suffrage,
+			NodeID:        req.NodeID,
+			RaftAddress:   req.RaftAddress,
+			APIAddress:    req.APIAddress,
+			BinaryVersion: "", // populated by the joining node's CmdUpsertClusterMember at startup
+			Suffrage:      suffrage,
 		}
 
 		if err := dbInstance.UpsertClusterMember(r.Context(), member); err != nil {

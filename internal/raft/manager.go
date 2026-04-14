@@ -44,10 +44,6 @@ type ClusterConfig struct {
 	// Included in the join handshake so version-skewed nodes are rejected.
 	SchemaVersion int
 
-	// ProtocolVersion is the minor component of the semver version string.
-	// Used for CWMP computation and the Propose gate.
-	ProtocolVersion int
-
 	// InitialSuffrage controls whether this node joins as "voter" or
 	// "nonvoter". Set to "nonvoter" during rolling upgrade re-joins.
 	InitialSuffrage string
@@ -477,11 +473,6 @@ func (m *Manager) LeaderAPIAddress(resolver func(raftAddr string) string) string
 // ClusterEnabled returns whether the manager was started in HA mode.
 func (m *Manager) ClusterEnabled() bool {
 	return m.config.Enabled
-}
-
-// ProtocolVersion returns this node's configured protocol version.
-func (m *Manager) ProtocolVersion() int {
-	return m.config.ProtocolVersion
 }
 
 // BoltNoSync reports whether the raft log store was opened with fsync

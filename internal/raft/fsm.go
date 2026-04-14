@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/version"
@@ -95,8 +96,12 @@ func (f *FSM) Apply(l *raft.Log) interface{} {
 	}
 
 	ctx := context.Background()
+	started := time.Now()
 
 	result, err := f.applier.ApplyCommand(ctx, cmd)
+	if cmd.Type == CmdChangeset {
+		ObserveChangesetApply(len(cmd.Payload), time.Since(started))
+	}
 
 	// Advance appliedIndex regardless of applier outcome: hashicorp/raft
 	// considers every entry it hands to Apply as committed, and its own

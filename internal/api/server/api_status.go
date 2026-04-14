@@ -9,14 +9,12 @@ import (
 )
 
 type ClusterStatusResponse struct {
-	Enabled                bool   `json:"enabled"`
-	Role                   string `json:"role"`
-	NodeID                 int    `json:"nodeId"`
-	AppliedIndex           uint64 `json:"appliedIndex"`
-	ClusterID              string `json:"clusterId,omitempty"`
-	SchemaVersion          int    `json:"schemaVersion"`
-	ProtocolVersion        int    `json:"protocolVersion"`
-	ClusterWideMinProtocol int    `json:"clusterWideMinProtocol,omitempty"`
+	Enabled       bool   `json:"enabled"`
+	Role          string `json:"role"`
+	NodeID        int    `json:"nodeId"`
+	AppliedIndex  uint64 `json:"appliedIndex"`
+	ClusterID     string `json:"clusterId,omitempty"`
+	SchemaVersion int    `json:"schemaVersion"`
 }
 
 type StatusResponse struct {
@@ -48,16 +46,11 @@ func GetStatus(dbInstance *db.Database) http.Handler {
 
 		if dbInstance.ClusterEnabled() {
 			clusterStatus := &ClusterStatusResponse{
-				Enabled:         true,
-				Role:            dbInstance.RaftState(),
-				NodeID:          dbInstance.NodeID(),
-				AppliedIndex:    dbInstance.RaftAppliedIndex(),
-				SchemaVersion:   db.SchemaVersion(),
-				ProtocolVersion: version.ProtocolVersion(),
-			}
-
-			if dbInstance.RaftState() == "Leader" {
-				clusterStatus.ClusterWideMinProtocol = dbInstance.CWMP()
+				Enabled:       true,
+				Role:          dbInstance.RaftState(),
+				NodeID:        dbInstance.NodeID(),
+				AppliedIndex:  dbInstance.RaftAppliedIndex(),
+				SchemaVersion: db.SchemaVersion(),
 			}
 
 			op, err := dbInstance.GetOperator(ctx)

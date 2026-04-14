@@ -1,7 +1,6 @@
 package raft
 
 import (
-	"fmt"
 	"time"
 
 	gometrics "github.com/hashicorp/go-metrics"
@@ -23,13 +22,14 @@ var (
 		Name: "ella_raft_leadership_transitions_total",
 		Help: "Number of leadership transitions observed.",
 	})
-	clusterProtocolVersion = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "app_cluster_protocol_version",
-		Help: "Protocol version (semver minor) of this node.",
-	}, []string{"node_id"})
-	clusterWideMinProtocol = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "app_cluster_wide_min_protocol",
-		Help: "Cluster-wide minimum protocol version (CWMP) observed by the leader.",
+	changesetBytesTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "app_raft_changeset_bytes_total",
+		Help: "Total number of SQLite changeset bytes applied through the Raft FSM.",
+	})
+	changesetApplyDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "app_raft_changeset_apply_duration_seconds",
+		Help:    "Latency of SQLite changeset application in the Raft FSM.",
+		Buckets: prometheus.DefBuckets,
 	})
 )
 
@@ -52,8 +52,8 @@ func RegisterMetrics() {
 	prometheus.MustRegister(peersTotal)
 	prometheus.MustRegister(votersTotal)
 	prometheus.MustRegister(leadershipTransitionsTotal)
-	prometheus.MustRegister(clusterProtocolVersion)
-	prometheus.MustRegister(clusterWideMinProtocol)
+	prometheus.MustRegister(changesetBytesTotal)
+	prometheus.MustRegister(changesetApplyDuration)
 }
 
 // IncrLeadershipTransitions bumps the ella_raft_leadership_transitions_total
@@ -62,14 +62,10 @@ func IncrLeadershipTransitions() {
 	leadershipTransitionsTotal.Inc()
 }
 
-// SetProtocolVersionMetric publishes this node's protocol version for Prometheus.
-func SetProtocolVersionMetric(nodeID, protocolVersion int) {
-	clusterProtocolVersion.WithLabelValues(fmt.Sprintf("%d", nodeID)).Set(float64(protocolVersion))
-}
-
-// UpdateCWMPMetric publishes the current cluster-wide minimum protocol version.
-func UpdateCWMPMetric(cwmp int) {
-	clusterWideMinProtocol.Set(float64(cwmp))
+// ObserveChangesetApply records the size and latency of an applied changeset.
+func ObserveChangesetApply(sizeBytes int, duration time.Duration) {
+	changesetBytesTotal.Add(float64(sizeBytes))
+	changesetApplyDuration.Observe(duration.Seconds())
 }
 
 // runMetricsLoop periodically reads Raft cluster configuration and updates

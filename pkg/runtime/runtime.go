@@ -100,7 +100,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		SnapshotInterval:    cfg.Cluster.SnapshotInterval,
 		SnapshotThreshold:   cfg.Cluster.SnapshotThreshold,
 		SchemaVersion:       db.SchemaVersion(),
-		ProtocolVersion:     version.ProtocolVersion(),
 		InitialSuffrage:     cfg.Cluster.InitialSuffrage,
 	}
 

@@ -224,10 +224,9 @@ func TestRestore_ConcurrentRestore(t *testing.T) {
 }
 
 // TestRestore_RoundTripPreservesData populates a database with rows in both
-// shared.db (subscribers via createDataNetworkPolicyAndSubscriber) and
-// local.db (flow_reports), takes a Backup, wipes the live data, then Restores
-// the backup and verifies every row is accounted for. This locks in the
-// tar.gz format end-to-end.
+// replicated tables and local-only tables, takes a backup, mutates the live
+// data, then restores the backup. Replicated rows come from the backup image;
+// local-only rows are preserved from the current node state.
 func TestRestore_RoundTripPreservesData(t *testing.T) {
 	tempDir := t.TempDir()
 	databasePath := filepath.Join(tempDir, "data")
@@ -332,23 +331,15 @@ func TestRestore_RoundTripPreservesData(t *testing.T) {
 		t.Fatalf("expected imsi %q, got %q", imsi, subs[0].Imsi)
 	}
 
-	// Flow report from local.db should be back.
+	// Local-only flow reports are preserved from the current node state rather
+	// than restored from the backup image, so the explicit clear above remains.
 	reports, total, err := database.ListFlowReports(ctx, 1, 10, nil)
 	if err != nil {
 		t.Fatalf("list flow reports after restore failed: %v", err)
 	}
 
-	if total != 1 || len(reports) != 1 {
-		t.Fatalf("expected 1 flow report after restore, got total=%d len=%d", total, len(reports))
-	}
-
-	if reports[0].SubscriberID != imsi {
-		t.Fatalf("expected flow report subscriber %q, got %q", imsi, reports[0].SubscriberID)
-	}
-
-	if reports[0].Bytes != flow.Bytes || reports[0].Packets != flow.Packets {
-		t.Fatalf("flow report payload mismatch: got bytes=%d packets=%d, want bytes=%d packets=%d",
-			reports[0].Bytes, reports[0].Packets, flow.Bytes, flow.Packets)
+	if total != 0 || len(reports) != 0 {
+		t.Fatalf("expected local-only flow reports to remain cleared after restore, got total=%d len=%d", total, len(reports))
 	}
 
 	// Only local.db gets a safety copy; shared.db is replicated through the

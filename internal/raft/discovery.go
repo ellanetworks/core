@@ -33,12 +33,10 @@ const (
 
 // statusClusterBlock mirrors the cluster block of the status API response.
 type statusClusterBlock struct {
-	Role                   string `json:"role"`
-	NodeID                 int    `json:"nodeId"`
-	ClusterID              string `json:"clusterId"`
-	SchemaVersion          int    `json:"schemaVersion"`
-	ProtocolVersion        int    `json:"protocolVersion"`
-	ClusterWideMinProtocol int    `json:"clusterWideMinProtocol"`
+	Role          string `json:"role"`
+	NodeID        int    `json:"nodeId"`
+	ClusterID     string `json:"clusterId"`
+	SchemaVersion int    `json:"schemaVersion"`
 }
 
 type statusResult struct {
@@ -221,21 +219,19 @@ func (m *Manager) probePeer(ctx context.Context, client *http.Client, peerURL st
 // LeaderProxyMiddleware).
 func (m *Manager) joinCluster(ctx context.Context, client *http.Client, peerURL string, clusterID string) error {
 	payload := struct {
-		NodeID          int    `json:"nodeId"`
-		RaftAddress     string `json:"raftAddress"`
-		APIAddress      string `json:"apiAddress"`
-		ClusterID       string `json:"clusterId"`
-		SchemaVersion   int    `json:"schemaVersion"`
-		ProtocolVersion int    `json:"protocolVersion"`
-		Suffrage        string `json:"suffrage,omitempty"`
+		NodeID        int    `json:"nodeId"`
+		RaftAddress   string `json:"raftAddress"`
+		APIAddress    string `json:"apiAddress"`
+		ClusterID     string `json:"clusterId"`
+		SchemaVersion int    `json:"schemaVersion"`
+		Suffrage      string `json:"suffrage,omitempty"`
 	}{
-		NodeID:          m.nodeID,
-		RaftAddress:     string(m.transport.LocalAddr()),
-		APIAddress:      m.config.AdvertiseAPIAddress,
-		ClusterID:       clusterID,
-		SchemaVersion:   m.config.SchemaVersion,
-		ProtocolVersion: m.config.ProtocolVersion,
-		Suffrage:        m.config.InitialSuffrage,
+		NodeID:        m.nodeID,
+		RaftAddress:   string(m.transport.LocalAddr()),
+		APIAddress:    m.config.AdvertiseAPIAddress,
+		ClusterID:     clusterID,
+		SchemaVersion: m.config.SchemaVersion,
+		Suffrage:      m.config.InitialSuffrage,
 	}
 
 	body, err := json.Marshal(payload)

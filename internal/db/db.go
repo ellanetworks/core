@@ -437,9 +437,8 @@ func (db *Database) ClusterEnabled() bool {
 }
 
 // LeadershipTransfer triggers a leadership transfer to another node. During a
-// rolling upgrade the target is chosen from the voters by descending protocol
-// version, then by lowest nodeID, so the new leader has the highest chance of
-// being able to propose post-upgrade commands and migrations.
+// rolling upgrade the target preference is the highest advertise API address
+// lexicographically, excluding self, with a fallback to raft's default choice.
 func (db *Database) LeadershipTransfer() error {
 	if db.raftManager == nil {
 		return fmt.Errorf("clustering not enabled")
@@ -488,8 +487,8 @@ func (db *Database) pickLeadershipTransferTarget() *ClusterMember {
 			continue
 		}
 
-		if member.ProtocolVersion > best.ProtocolVersion ||
-			(member.ProtocolVersion == best.ProtocolVersion && member.NodeID < best.NodeID) {
+		if member.APIAddress > best.APIAddress ||
+			(member.APIAddress == best.APIAddress && member.NodeID < best.NodeID) {
 			best = member
 		}
 	}
@@ -513,15 +512,6 @@ func (db *Database) AddNonvoter(nodeID int, raftAddress string) error {
 	}
 
 	return db.raftManager.AddNonvoter(nodeID, raftAddress)
-}
-
-// CWMP returns the local protocol version in the changeset-replication model.
-func (db *Database) CWMP() int {
-	if db.raftManager == nil {
-		return 0
-	}
-
-	return db.raftManager.ProtocolVersion()
 }
 
 // CurrentSchemaVersion reads the schema_version singleton.
@@ -640,10 +630,9 @@ func (db *Database) RunDiscovery(ctx context.Context, binaryVersion string) erro
 }
 
 // selfUpsertClusterMember proposes this leader's own cluster_members row with
-// the running binary's protocol and binary version. Idempotent via
-// ON CONFLICT(nodeID). Called after discovery on the leader. Followers will
-// self-register indirectly via the join handshake (the leader writes the row
-// containing the joiner's protocol version).
+// the running binary version. Idempotent via ON CONFLICT(nodeID). Called after
+// discovery on the leader. Followers self-register indirectly via the join
+// handshake.
 func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion string) error {
 	if db.raftManager == nil {
 		return nil
@@ -663,12 +652,11 @@ func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion s
 	}
 
 	member := &ClusterMember{
-		NodeID:          db.raftManager.NodeID(),
-		RaftAddress:     raftAddr,
-		APIAddress:      apiAddr,
-		ProtocolVersion: db.raftManager.ProtocolVersion(),
-		BinaryVersion:   binaryVersion,
-		Suffrage:        suffrage,
+		NodeID:        db.raftManager.NodeID(),
+		RaftAddress:   raftAddr,
+		APIAddress:    apiAddr,
+		BinaryVersion: binaryVersion,
+		Suffrage:      suffrage,
 	}
 
 	return db.UpsertClusterMember(ctx, member)
@@ -720,8 +708,6 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 
 	db.raftManager = raftMgr
 	db.proposeTimeout = raftMgr.ProposeTimeout()
-
-	ellaraft.SetProtocolVersionMetric(raftMgr.NodeID(), raftMgr.ProtocolVersion())
 
 	if observer := raftMgr.LeaderObserver(); observer != nil {
 		observer.Register(newClusterCoordinator(db))

@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ellanetworks/core/internal/logger"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
@@ -163,6 +164,172 @@ func writeArchiveMember(destPath string, src io.Reader, size int64) error {
 	return out.Close()
 }
 
+func backupLocalOnlyTables(ctx context.Context, srcPath, destPath string) error {
+	src, err := sql.Open("sqlite3", srcPath)
+	if err != nil {
+		return fmt.Errorf("open source database: %w", err)
+	}
+
+	defer func() { _ = src.Close() }()
+
+	dest, err := sql.Open("sqlite3", destPath)
+	if err != nil {
+		return fmt.Errorf("open local-only backup database: %w", err)
+	}
+
+	defer func() { _ = dest.Close() }()
+
+	for _, table := range localOnlyTables {
+		createStmt, err := readTableDDL(ctx, src, table)
+		if err != nil {
+			return err
+		}
+
+		if _, err := dest.ExecContext(ctx, createStmt); err != nil {
+			return fmt.Errorf("create local-only backup table %s: %w", table, err)
+		}
+
+		if err := copyTableRows(ctx, src, dest, table); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func restoreLocalOnlyTables(ctx context.Context, backupPath, destPath string) error {
+	backup, err := sql.Open("sqlite3", backupPath)
+	if err != nil {
+		return fmt.Errorf("open local-only backup database: %w", err)
+	}
+
+	defer func() { _ = backup.Close() }()
+
+	dest, err := sql.Open("sqlite3", destPath)
+	if err != nil {
+		return fmt.Errorf("open restored database: %w", err)
+	}
+
+	defer func() { _ = dest.Close() }()
+
+	tx, err := dest.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin restore of local-only tables: %w", err)
+	}
+
+	defer func() {
+		if tx != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	for _, table := range localOnlyTables {
+		if _, err := tx.ExecContext(ctx, fmt.Sprintf("DELETE FROM %s", table)); err != nil {
+			return fmt.Errorf("clear restored %s: %w", table, err)
+		}
+
+		if err := copyTableRowsTx(ctx, backup, tx, table); err != nil {
+			return err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit restore of local-only tables: %w", err)
+	}
+
+	tx = nil
+
+	return nil
+}
+
+func readTableDDL(ctx context.Context, conn *sql.DB, table string) (string, error) {
+	var ddl string
+
+	if err := conn.QueryRowContext(ctx,
+		"SELECT sql FROM sqlite_master WHERE type='table' AND name = ?", table).Scan(&ddl); err != nil {
+		return "", fmt.Errorf("read DDL for %s: %w", table, err)
+	}
+
+	if strings.TrimSpace(ddl) == "" {
+		return "", fmt.Errorf("table %s has empty DDL", table)
+	}
+
+	return ddl, nil
+}
+
+func copyTableRows(ctx context.Context, src, dest *sql.DB, table string) error {
+	tx, err := dest.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin copy of %s: %w", table, err)
+	}
+
+	defer func() { _ = tx.Rollback() }()
+
+	if err := copyTableRowsTx(ctx, src, tx, table); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit copy of %s: %w", table, err)
+	}
+
+	return nil
+}
+
+func copyTableRowsTx(ctx context.Context, src *sql.DB, dest *sql.Tx, table string) error {
+	rows, err := src.QueryContext(ctx, fmt.Sprintf("SELECT * FROM %s", table))
+	if err != nil {
+		return fmt.Errorf("query rows for %s: %w", table, err)
+	}
+
+	defer func() { _ = rows.Close() }()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return fmt.Errorf("list columns for %s: %w", table, err)
+	}
+
+	placeholders := make([]string, len(columns))
+	for i := range placeholders {
+		placeholders[i] = "?"
+	}
+
+	insertStmt := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
+		table,
+		strings.Join(columns, ", "),
+		strings.Join(placeholders, ", "))
+
+	stmt, err := dest.PrepareContext(ctx, insertStmt)
+	if err != nil {
+		return fmt.Errorf("prepare insert for %s: %w", table, err)
+	}
+
+	defer func() { _ = stmt.Close() }()
+
+	values := make([]any, len(columns))
+
+	scanArgs := make([]any, len(columns))
+	for i := range values {
+		scanArgs[i] = &values[i]
+	}
+
+	for rows.Next() {
+		if err := rows.Scan(scanArgs...); err != nil {
+			return fmt.Errorf("scan row for %s: %w", table, err)
+		}
+
+		if _, err := stmt.ExecContext(ctx, values...); err != nil {
+			return fmt.Errorf("insert row for %s: %w", table, err)
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate rows for %s: %w", table, err)
+	}
+
+	return nil
+}
+
 // Restore replaces the database file with the contents of the backup tar.gz
 // in backupFile. The database is replicated via Raft through a CmdRestore log
 // entry so followers stay in sync.
@@ -240,14 +407,23 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 // so deterministic IDs pick up from MAX(id) in the restored state.
 func (db *Database) applyRestore(ctx context.Context, p *bytesPayload) (any, error) {
 	stagedPath := filepath.Join(db.Dir(), "restore-apply-staged.db")
+	localOnlyPath := filepath.Join(db.Dir(), "restore_safety_local.db")
+
 	if err := os.WriteFile(stagedPath, p.Value, 0o600); err != nil {
 		return nil, fmt.Errorf("write staged database: %w", err)
 	}
 
-	defer func() { _ = os.Remove(stagedPath) }()
+	defer func() {
+		_ = os.Remove(stagedPath)
+		_ = os.Remove(localOnlyPath)
+	}()
 
 	if err := validateSQLiteFile(ctx, stagedPath); err != nil {
 		return nil, fmt.Errorf("validate staged database: %w", err)
+	}
+
+	if err := backupLocalOnlyTables(ctx, db.Path(), localOnlyPath); err != nil {
+		return nil, fmt.Errorf("backup local-only tables before restore: %w", err)
 	}
 
 	if db.conn != nil {
@@ -260,6 +436,10 @@ func (db *Database) applyRestore(ctx context.Context, p *bytesPayload) (any, err
 
 	if err := os.Rename(stagedPath, db.Path()); err != nil {
 		return nil, fmt.Errorf("install new database: %w", err)
+	}
+
+	if err := restoreLocalOnlyTables(ctx, localOnlyPath, db.Path()); err != nil {
+		return nil, fmt.Errorf("restore local-only tables: %w", err)
 	}
 
 	if err := db.Reopen(ctx); err != nil {
