@@ -114,30 +114,17 @@ func TestDatabaseMetrics(t *testing.T) {
 		t.Fatalf("CreateLease 2: %s", err)
 	}
 
-	t.Run("GetSharedSize", func(t *testing.T) {
-		size, err := database.GetSharedSize()
+	t.Run("GetSize", func(t *testing.T) {
+		size, err := database.GetSize()
 		if err != nil {
-			t.Fatalf("Couldn't get shared database size: %s", err)
+			t.Fatalf("Couldn't get database size: %s", err)
 		}
 
 		if size == 0 {
-			t.Fatalf("Shared database size should not be zero")
+			t.Fatalf("Database size should not be zero")
 		}
 
-		t.Logf("Shared database size: %d bytes", size)
-	})
-
-	t.Run("GetLocalSize", func(t *testing.T) {
-		size, err := database.GetLocalSize()
-		if err != nil {
-			t.Fatalf("Couldn't get local database size: %s", err)
-		}
-
-		if size == 0 {
-			t.Fatalf("Local database size should not be zero")
-		}
-
-		t.Logf("Local database size: %d bytes", size)
+		t.Logf("Database size: %d bytes", size)
 	})
 
 	t.Run("GetIPAddressesTotal", func(t *testing.T) {

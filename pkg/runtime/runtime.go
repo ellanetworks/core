@@ -99,7 +99,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		ProposeTimeout:      cfg.Cluster.ProposeTimeout,
 		SnapshotInterval:    cfg.Cluster.SnapshotInterval,
 		SnapshotThreshold:   cfg.Cluster.SnapshotThreshold,
-		SchemaVersion:       db.SharedSchemaVersion(),
+		SchemaVersion:       db.SchemaVersion(),
 		ProtocolVersion:     version.ProtocolVersion(),
 		InitialSuffrage:     cfg.Cluster.InitialSuffrage,
 	}
@@ -109,9 +109,13 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't initialize database: %w", err)
 	}
 
-	err = dbInstance.DeleteAllDynamicLeases(ctx)
-	if err != nil {
-		return fmt.Errorf("couldn't release all dynamic leases: %w", err)
+	// DeleteAllDynamicLeases and initial seeding run via Raft propose(), so
+	// in HA mode they must wait until RunDiscovery has formed/joined the
+	// cluster and a leader exists. See the post-RunDiscovery block below.
+	if !cfg.Cluster.Enabled {
+		if err := dbInstance.DeleteAllDynamicLeases(ctx); err != nil {
+			return fmt.Errorf("couldn't release all dynamic leases: %w", err)
+		}
 	}
 
 	bufferedWriter := dbwriter.NewBufferedDBWriter(dbInstance, 1000, logger.NetworkLog)
@@ -317,6 +321,18 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	if err := dbInstance.RunDiscovery(ctx, ver.Version); err != nil {
 		return fmt.Errorf("cluster discovery failed: %w", err)
+	}
+
+	// HA-mode deferred startup: the leader seeds defaults and cleans up
+	// dynamic leases; followers receive the writes via Raft replication.
+	if cfg.Cluster.Enabled && dbInstance.IsLeader() {
+		if err := dbInstance.Initialize(ctx); err != nil {
+			return fmt.Errorf("couldn't initialize database: %w", err)
+		}
+
+		if err := dbInstance.DeleteAllDynamicLeases(ctx); err != nil {
+			return fmt.Errorf("couldn't release all dynamic leases: %w", err)
+		}
 	}
 
 	nasLogger.SetLogLevel(0) // Suppress free5gc NAS log output

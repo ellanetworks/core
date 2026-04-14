@@ -109,3 +109,9 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+// Fork of mattn/go-sqlite3 that exposes the SQLite session extension
+// (sqlite3session_* / sqlite3changeset_apply) behind the sqlite_session
+// build tag. Used by internal/raft to replicate write-set changesets
+// rather than typed commands.
+replace github.com/mattn/go-sqlite3 => github.com/ellanetworks/go-sqlite3 v0.0.0-20260414212710-333ead4fa037

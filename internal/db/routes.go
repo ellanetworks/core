@@ -84,7 +84,7 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 		Offset: (page - 1) * perPage,
 	}
 
-	err := db.shared.Query(ctx, db.listRoutesStmt, args).GetAll(&routes, &counts)
+	err := db.conn.Query(ctx, db.listRoutesStmt, args).GetAll(&routes, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -133,7 +133,7 @@ func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
 
 	row := Route{ID: id}
 
-	err := db.shared.Query(ctx, db.getRouteStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getRouteStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -308,7 +308,7 @@ func (db *Database) CountRoutes(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.shared.Query(ctx, db.countRoutesStmt).Get(&result)
+	err := db.conn.Query(ctx, db.countRoutesStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

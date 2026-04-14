@@ -67,10 +67,10 @@ func (a *testApplier) ApplyCommand(_ context.Context, cmd *Command) (any, error)
 	return nil, a.applyErr
 }
 
-func (a *testApplier) SharedPlainDB() *sql.DB { return a.db }
-func (a *testApplier) SharedPath() string     { return a.dbPath }
+func (a *testApplier) PlainDB() *sql.DB { return a.db }
+func (a *testApplier) Path() string     { return a.dbPath }
 
-func (a *testApplier) ReopenShared(_ context.Context) error {
+func (a *testApplier) Reopen(_ context.Context) error {
 	if a.db != nil {
 		_ = a.db.Close()
 	}

@@ -108,7 +108,7 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 		}
 
 		if req.SchemaVersion > 0 {
-			local := db.SharedSchemaVersion()
+			local := db.SchemaVersion()
 			if req.SchemaVersion < local {
 				writeError(r.Context(), w, http.StatusConflict,
 					fmt.Sprintf("Schema version mismatch: node has %d, cluster has %d", req.SchemaVersion, local),

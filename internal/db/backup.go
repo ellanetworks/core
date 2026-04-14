@@ -29,9 +29,9 @@ type BackupManifest struct {
 	SourceNodeID int       `json:"source_node_id"`
 }
 
-// Backup writes a tar.gz archive (manifest.json, shared.db, local.db) to dst.
-// Both source databases are VACUUM INTO'd into temp files first to produce a
-// consistent, WAL-free image before streaming.
+// Backup writes a tar.gz archive (manifest.json, ella.db) to dst. The source
+// database is VACUUM INTO'd into a temp file first to produce a consistent,
+// WAL-free image before streaming.
 func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 	ctx, span := tracer.Start(ctx, "db/backup", trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
@@ -43,15 +43,10 @@ func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	sharedTmp := filepath.Join(tmpDir, SharedDBFilename)
-	localTmp := filepath.Join(tmpDir, LocalDBFilename)
+	dbTmp := filepath.Join(tmpDir, DBFilename)
 
-	if _, err := db.shared.PlainDB().ExecContext(ctx, "VACUUM INTO ?", sharedTmp); err != nil {
-		return fmt.Errorf("failed to VACUUM INTO shared backup file: %w", err)
-	}
-
-	if _, err := db.local.PlainDB().ExecContext(ctx, "VACUUM INTO ?", localTmp); err != nil {
-		return fmt.Errorf("failed to VACUUM INTO local backup file: %w", err)
+	if _, err := db.conn.PlainDB().ExecContext(ctx, "VACUUM INTO ?", dbTmp); err != nil {
+		return fmt.Errorf("failed to VACUUM INTO backup file: %w", err)
 	}
 
 	manifest := BackupManifest{
@@ -81,12 +76,8 @@ func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 		return fmt.Errorf("failed to write manifest: %w", err)
 	}
 
-	if err := writeTarFromDisk(tarWriter, sharedTmp, SharedDBFilename); err != nil {
-		return fmt.Errorf("failed to write shared.db: %w", err)
-	}
-
-	if err := writeTarFromDisk(tarWriter, localTmp, LocalDBFilename); err != nil {
-		return fmt.Errorf("failed to write local.db: %w", err)
+	if err := writeTarFromDisk(tarWriter, dbTmp, DBFilename); err != nil {
+		return fmt.Errorf("failed to write %s: %w", DBFilename, err)
 	}
 
 	if err := tarWriter.Close(); err != nil {

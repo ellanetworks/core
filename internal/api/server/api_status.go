@@ -52,7 +52,7 @@ func GetStatus(dbInstance *db.Database) http.Handler {
 				Role:            dbInstance.RaftState(),
 				NodeID:          dbInstance.NodeID(),
 				AppliedIndex:    dbInstance.RaftAppliedIndex(),
-				SchemaVersion:   db.SharedSchemaVersion(),
+				SchemaVersion:   db.SchemaVersion(),
 				ProtocolVersion: version.ProtocolVersion(),
 			}
 

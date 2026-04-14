@@ -124,8 +124,12 @@ func (m *Manager) discoveryTick(ctx context.Context, client *http.Client) (bool,
 
 		switch state {
 		case peerFormed:
-			if peerSchema != m.config.SchemaVersion {
-				logger.RaftLog.Warn("Schema version mismatch with peer, skipping",
+			// Allow joining a peer whose cluster schema is <= our local
+			// schema: post-baseline migrations are proposed through Raft
+			// by the leader, so a newer binary can join and catch up.
+			// Reject only the reverse direction (we'd be downgrading).
+			if m.config.SchemaVersion < peerSchema {
+				logger.RaftLog.Warn("Schema version lower than peer, skipping (downgrade)",
 					zap.String("peer", peerURL),
 					zap.Int("local", m.config.SchemaVersion),
 					zap.Int("remote", peerSchema),

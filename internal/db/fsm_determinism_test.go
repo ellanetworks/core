@@ -58,11 +58,11 @@ func TestFSMDeterminism_ReplayProducesBitIdenticalState(t *testing.T) {
 	// whose initial value is deterministic, so they are safe to compare.
 	touchedTables := []string{"data_networks", "profiles", "nat_settings", "flow_accounting_settings"}
 
-	hashA := canonicalHash(t, dbA.SharedPlainDB(), touchedTables)
-	hashB := canonicalHash(t, dbB.SharedPlainDB(), touchedTables)
+	hashA := canonicalHash(t, dbA.PlainDB(), touchedTables)
+	hashB := canonicalHash(t, dbB.PlainDB(), touchedTables)
 
 	if hashA != hashB {
-		t.Fatalf("shared.db diverged after replaying %d commands\n  A: %s\n  B: %s", len(commands), hashA, hashB)
+		t.Fatalf("database diverged after replaying %d commands\n  A: %s\n  B: %s", len(commands), hashA, hashB)
 	}
 
 	t.Logf("replayed %d commands — databases are identical (sha256: %s)", len(commands), hashA)

@@ -53,7 +53,7 @@ func (db *Database) ListClusterMembers(ctx context.Context) ([]ClusterMember, er
 
 	var members []ClusterMember
 
-	err := db.shared.Query(ctx, db.listClusterMembersStmt).GetAll(&members)
+	err := db.conn.Query(ctx, db.listClusterMembersStmt).GetAll(&members)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -92,7 +92,7 @@ func (db *Database) GetClusterMember(ctx context.Context, nodeID int) (*ClusterM
 
 	row := ClusterMember{NodeID: nodeID}
 
-	err := db.shared.Query(ctx, db.getClusterMemberStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getClusterMemberStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.RecordError(err)
@@ -194,7 +194,7 @@ func (db *Database) CountClusterMembers(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.shared.Query(ctx, db.countClusterMembersStmt).Get(&result)
+	err := db.conn.Query(ctx, db.countClusterMembersStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

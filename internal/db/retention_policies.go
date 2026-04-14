@@ -63,7 +63,7 @@ func (db *Database) GetRetentionPolicy(ctx context.Context, category RetentionCa
 
 	var row RetentionPolicy
 
-	err := db.shared.Query(ctx, db.selectRetentionPolicyStmt, arg).Get(&row)
+	err := db.conn.Query(ctx, db.selectRetentionPolicyStmt, arg).Get(&row)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -98,7 +98,7 @@ func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category R
 
 	row := RetentionPolicy{Category: category}
 
-	err := db.shared.Query(ctx, db.selectRetentionPolicyStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.selectRetentionPolicyStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")

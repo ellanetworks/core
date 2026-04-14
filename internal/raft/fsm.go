@@ -34,24 +34,24 @@ type Applier interface {
 	// transactions as they do in standalone mode.
 	ApplyCommand(ctx context.Context, cmd *Command) (any, error)
 
-	// SharedPlainDB returns the raw *sql.DB for the shared database,
+	// PlainDB returns the raw *sql.DB for the application database,
 	// needed for snapshot operations (VACUUM INTO) and ID counter seeding.
-	SharedPlainDB() *sql.DB
+	PlainDB() *sql.DB
 
-	// SharedPath returns the filesystem path to shared.db.
-	SharedPath() string
+	// Path returns the filesystem path to the database file.
+	Path() string
 
-	// ReopenShared closes and reopens the shared database connection,
-	// re-prepares all sqlair statements. Called after FSM.Restore
-	// replaces the shared.db file on disk.
-	ReopenShared(ctx context.Context) error
+	// Reopen closes and reopens the database connection, re-prepares all
+	// sqlair statements. Called after FSM.Restore replaces the database
+	// file on disk.
+	Reopen(ctx context.Context) error
 }
 
-// FSM implements raft.FSM for the shared database.
+// FSM implements raft.FSM for the application database.
 //
 // Each Apply call deserializes a Command and executes it via the Applier
 // interface. Snapshots use SQLite's VACUUM INTO for a consistent, WAL-free
-// copy. Restore replaces shared.db atomically and reopens connections.
+// copy. Restore replaces the database file atomically and reopens connections.
 type FSM struct {
 	applier Applier
 
@@ -59,7 +59,7 @@ type FSM struct {
 	// Updated atomically at the end of every Apply; used by the RYW barrier.
 	appliedIndex atomic.Uint64
 
-	// dataDir is the directory containing shared.db and the raft/ subdirectory.
+	// dataDir is the directory containing the database file and the raft/ subdirectory.
 	dataDir string
 
 	// mu serializes snapshot and restore operations against applies.
@@ -191,7 +191,7 @@ func (f *FSM) Snapshot() (raft.FSMSnapshot, error) {
 
 	ctx := context.Background()
 
-	_, err = f.applier.SharedPlainDB().ExecContext(ctx, "VACUUM INTO ?", tmpPath)
+	_, err = f.applier.PlainDB().ExecContext(ctx, "VACUUM INTO ?", tmpPath)
 	if err != nil {
 		_ = os.Remove(tmpPath)
 		return nil, fmt.Errorf("VACUUM INTO snapshot: %w", err)
@@ -209,7 +209,7 @@ func (f *FSM) Snapshot() (raft.FSMSnapshot, error) {
 	return &fsmSnapshot{path: tmpPath, header: header}, nil
 }
 
-// Restore implements raft.FSM. It replaces shared.db with the snapshot
+// Restore implements raft.FSM. It replaces the database file with the snapshot
 // contents, then reopens the database connection and re-prepares statements.
 // Detects both legacy (raw SQLite) and new (ELSN-prefixed) snapshot formats.
 func (f *FSM) Restore(rc io.ReadCloser) error {
@@ -273,15 +273,15 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 	_ = tmpFile.Close()
 
 	// Remove WAL/SHM sidecars before the rename.
-	sharedPath := f.applier.SharedPath()
+	dbPath := f.applier.Path()
 	for _, suffix := range []string{"-wal", "-shm"} {
-		_ = os.Remove(sharedPath + suffix)
+		_ = os.Remove(dbPath + suffix)
 	}
 
-	// Atomically replace shared.db.
-	if err := os.Rename(tmpPath, sharedPath); err != nil {
+	// Atomically replace the database file.
+	if err := os.Rename(tmpPath, dbPath); err != nil {
 		_ = os.Remove(tmpPath)
-		return fmt.Errorf("rename snapshot over shared.db: %w", err)
+		return fmt.Errorf("rename snapshot over database: %w", err)
 	}
 
 	// Fsync the parent directory.
@@ -292,11 +292,11 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 
 	ctx := context.Background()
 
-	if err := f.applier.ReopenShared(ctx); err != nil {
-		return fmt.Errorf("reopen shared.db after restore: %w", err)
+	if err := f.applier.Reopen(ctx); err != nil {
+		return fmt.Errorf("reopen database after restore: %w", err)
 	}
 
-	logger.RaftLog.Info("FSM: restored shared.db from Raft snapshot")
+	logger.RaftLog.Info("FSM: restored database from Raft snapshot")
 
 	return nil
 }

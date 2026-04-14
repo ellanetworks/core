@@ -162,7 +162,7 @@ func (db *Database) IsOperatorInitialized(ctx context.Context) bool {
 
 	var op Operator
 
-	err := db.shared.Query(ctx, db.getOperatorStmt).Get(&op)
+	err := db.conn.Query(ctx, db.getOperatorStmt).Get(&op)
 	if err != nil {
 		if err == sqlair.ErrNoRows {
 			span.SetStatus(codes.Ok, "operator not initialized")
@@ -233,7 +233,7 @@ func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
 
 	var op Operator
 
-	err := db.shared.Query(ctx, db.getOperatorStmt).Get(&op)
+	err := db.conn.Query(ctx, db.getOperatorStmt).Get(&op)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -343,7 +343,7 @@ func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
 
 	var op Operator
 
-	err := db.shared.Query(ctx, db.getOperatorStmt).Get(&op)
+	err := db.conn.Query(ctx, db.getOperatorStmt).Get(&op)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

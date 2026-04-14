@@ -26,12 +26,12 @@ import (
 
 var tracer = otel.Tracer("ella-core/db")
 
-// Database holds the two SQLite handles backing the application:
-//   - shared: configuration and state (subscribers, policies, leases, ...).
-//   - local:  per-instance telemetry (radio events, flow reports).
+// Database holds the single SQLite handle backing the application.
 //
-// dataDir is the directory containing both files.
+// dbPath is the SQLite file path; dataDir is its parent directory, used for
+// sibling artifacts (raft/ subdirectory, backup/restore staging).
 type Database struct {
+	dbPath         string
 	dataDir        string
 	restoreMu      sync.Mutex
 	raftManager    *ellaraft.Manager
@@ -256,18 +256,11 @@ type Database struct {
 	deleteClusterMemberStmt *sqlair.Statement
 	countClusterMembersStmt *sqlair.Statement
 
-	// shared holds the SQLite handle for configuration/state tables.
-	shared *sqlair.DB
-
-	// local holds the SQLite handle for per-instance telemetry tables
-	// (network_logs, flow_reports).
-	local *sqlair.DB
+	// conn holds the SQLite handle for the application database.
+	conn *sqlair.DB
 }
 
-const (
-	SharedDBFilename = "shared.db"
-	LocalDBFilename  = "local.db"
-)
+const DBFilename = "ella.db"
 
 // Initial Retention Policy values
 const (
@@ -314,18 +307,9 @@ const (
 	InitialPolicyArp                 = 1 // Default ARP of 1
 )
 
-// SyncMode selects the SQLite synchronous PRAGMA. shared.db uses SyncFull for
-// durability; local.db uses SyncNormal to keep telemetry writes cheap.
-type SyncMode int
-
-const (
-	SyncNormal SyncMode = iota
-	SyncFull
-)
-
 // openSQLiteConnection opens a SQLite database at the given path and configures
 // connection limits, busy timeout, WAL journaling, synchronous mode, and foreign keys.
-func openSQLiteConnection(ctx context.Context, databasePath string, sync SyncMode) (*sql.DB, error) {
+func openSQLiteConnection(ctx context.Context, databasePath string) (*sql.DB, error) {
 	// _txlock=immediate makes every BEGIN use BEGIN IMMEDIATE, which
 	// acquires a write lock up front. This is important for migrations
 	// (prevents two processes from entering the same migration) and is
@@ -340,21 +324,13 @@ func openSQLiteConnection(ctx context.Context, databasePath string, sync SyncMod
 
 	sqlConnection.SetMaxOpenConns(1)
 
-	syncPragma := "PRAGMA synchronous = NORMAL;"
-	syncDesc := "set synchronous to NORMAL"
-
-	if sync == SyncFull {
-		syncPragma = "PRAGMA synchronous = FULL;"
-		syncDesc = "set synchronous to FULL"
-	}
-
 	pragmas := []struct {
 		sql  string
 		desc string
 	}{
 		{"PRAGMA busy_timeout = 5000;", "set busy_timeout"},
 		{"PRAGMA journal_mode = WAL;", "enable WAL journaling"},
-		{syncPragma, syncDesc},
+		{"PRAGMA synchronous = FULL;", "set synchronous to FULL"},
 		{"PRAGMA foreign_keys = ON;", "enable foreign key support"},
 	}
 
@@ -368,33 +344,34 @@ func openSQLiteConnection(ctx context.Context, databasePath string, sync SyncMod
 	return sqlConnection, nil
 }
 
-// Close closes both database connections. Both are always attempted and any
-// errors are joined.
+// Close closes the database connection and shuts down the raft manager.
+// Both are always attempted and any errors are joined.
 func (db *Database) Close() error {
-	var raftErr, sharedErr, localErr error
+	var raftErr, connErr error
 
 	if db.raftManager != nil {
 		raftErr = db.raftManager.Shutdown()
 	}
 
-	if db.shared != nil {
-		sharedErr = db.shared.PlainDB().Close()
+	if db.conn != nil {
+		connErr = db.conn.PlainDB().Close()
 	}
 
-	if db.local != nil {
-		localErr = db.local.PlainDB().Close()
-	}
-
-	return errors.Join(raftErr, sharedErr, localErr)
+	return errors.Join(raftErr, connErr)
 }
 
-// Dir returns the directory containing both database files.
+// Dir returns the directory containing the database file.
 func (db *Database) Dir() string {
 	return db.dataDir
 }
 
+// Path returns the SQLite database file path.
+func (db *Database) Path() string {
+	return db.dbPath
+}
+
 // RaftAppliedIndex returns the index of the highest Raft log entry applied
-// to the shared database. Exposed for tests and support bundles.
+// to the database. Exposed for tests and support bundles.
 func (db *Database) RaftAppliedIndex() uint64 {
 	if db.raftManager == nil {
 		return 0
@@ -546,20 +523,20 @@ func (db *Database) CWMP() int {
 	return db.raftManager.CWMP()
 }
 
-// CurrentSharedSchemaVersion reads the shared.db schema_version singleton.
+// CurrentSchemaVersion reads the schema_version singleton.
 // Returns 0 on error.
-func (db *Database) CurrentSharedSchemaVersion(ctx context.Context) (int, error) {
+func (db *Database) CurrentSchemaVersion(ctx context.Context) (int, error) {
 	var v int
 
-	if err := db.shared.PlainDB().QueryRowContext(ctx,
+	if err := db.conn.PlainDB().QueryRowContext(ctx,
 		"SELECT version FROM schema_version WHERE id = 1").Scan(&v); err != nil {
-		return 0, fmt.Errorf("read shared schema_version: %w", err)
+		return 0, fmt.Errorf("read schema_version: %w", err)
 	}
 
 	return v, nil
 }
 
-// CheckPendingMigrations proposes CmdMigrateShared entries for each shared
+// CheckPendingMigrations proposes CmdMigrateShared entries for each
 // migration beyond the current applied version, provided CWMP covers the
 // migration command. Called on leadership transitions and CWMP changes.
 // Only the leader proposes; followers no-op.
@@ -572,26 +549,26 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 		return nil
 	}
 
-	current, err := db.CurrentSharedSchemaVersion(ctx)
+	current, err := db.CurrentSchemaVersion(ctx)
 	if err != nil {
 		return err
 	}
 
-	target := SharedSchemaVersion()
+	target := SchemaVersion()
 	if current >= target {
 		return nil
 	}
 
 	cwmp := db.raftManager.CWMP()
 	if ellaraft.Introduced(ellaraft.CmdMigrateShared) > cwmp {
-		logger.WithTrace(ctx, logger.DBLog).Info("Deferring shared migration: CWMP too low",
+		logger.WithTrace(ctx, logger.DBLog).Info("Deferring migration: CWMP too low",
 			zap.Int("current", current), zap.Int("target", target), zap.Int("cwmp", cwmp))
 
 		return nil
 	}
 
 	for v := current + 1; v <= target; v++ {
-		logger.WithTrace(ctx, logger.DBLog).Info("Proposing shared migration over Raft",
+		logger.WithTrace(ctx, logger.DBLog).Info("Proposing migration over Raft",
 			zap.Int("targetVersion", v))
 
 		if _, err := db.propose(ellaraft.CmdMigrateShared, migrateSharedPayload{TargetVersion: v}); err != nil {
@@ -599,7 +576,7 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 				return nil
 			}
 
-			return fmt.Errorf("propose shared migration %d: %w", v, err)
+			return fmt.Errorf("propose migration %d: %w", v, err)
 		}
 	}
 
@@ -607,7 +584,7 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 }
 
 // clusterCoordinator implements ellaraft.LeaderCallback to refresh CWMP and
-// propose deferred shared migrations on leadership transitions.
+// propose deferred migrations on leadership transitions.
 type clusterCoordinator struct {
 	db *Database
 }
@@ -711,62 +688,32 @@ func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion s
 	return db.UpsertClusterMember(ctx, member)
 }
 
-func (db *Database) SharedPath() string {
-	return filepath.Join(db.dataDir, SharedDBFilename)
-}
+// NewDatabase opens (or creates) the SQLite database file at dbPath. The
+// parent directory is used for sibling artifacts (raft/, backup/restore
+// staging). A non-existent path is treated as a fresh install.
+func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterConfig) (*Database, error) {
+	dataDir := filepath.Dir(dbPath)
 
-func (db *Database) LocalPath() string {
-	return filepath.Join(db.dataDir, LocalDBFilename)
-}
-
-// NewDatabase opens (or creates) the two-database directory layout. dataPath
-// may be a directory containing shared.db and local.db, a legacy single-file
-// SQLite database (whose contents are split into shared.db and local.db
-// inside dataPath itself, with the original file preserved as
-// legacy.sqlite.bak in the new directory), or a non-existent path treated as
-// a fresh install.
-func NewDatabase(ctx context.Context, dataPath string, raftCfg ellaraft.ClusterConfig) (*Database, error) {
-	dataDir, err := resolveDataDir(ctx, dataPath)
+	sqlConn, err := openSQLiteConnection(ctx, dbPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve database directory: %w", err)
-	}
-
-	sharedPath := filepath.Join(dataDir, SharedDBFilename)
-	localPath := filepath.Join(dataDir, LocalDBFilename)
-
-	sharedConn, err := openSQLiteConnection(ctx, sharedPath, SyncFull)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open shared database: %w", err)
+		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
 	if raftCfg.Enabled {
-		if err := runSharedMigrationsUpTo(ctx, sharedConn, sharedBaselineVersion); err != nil {
-			_ = sharedConn.Close()
-			return nil, fmt.Errorf("shared schema migration failed: %w", err)
+		if err := runMigrationsUpTo(ctx, sqlConn, baselineVersion); err != nil {
+			_ = sqlConn.Close()
+			return nil, fmt.Errorf("schema migration failed: %w", err)
 		}
 	} else {
-		if err := runSharedMigrations(ctx, sharedConn); err != nil {
-			_ = sharedConn.Close()
-			return nil, fmt.Errorf("shared schema migration failed: %w", err)
+		if err := runMigrations(ctx, sqlConn); err != nil {
+			_ = sqlConn.Close()
+			return nil, fmt.Errorf("schema migration failed: %w", err)
 		}
-	}
-
-	localConn, err := openSQLiteConnection(ctx, localPath, SyncNormal)
-	if err != nil {
-		_ = sharedConn.Close()
-		return nil, fmt.Errorf("failed to open local database: %w", err)
-	}
-
-	if err := runLocalMigrations(ctx, localConn); err != nil {
-		_ = localConn.Close()
-		_ = sharedConn.Close()
-
-		return nil, fmt.Errorf("local schema migration failed: %w", err)
 	}
 
 	db := new(Database)
-	db.shared = sqlair.NewDB(sharedConn)
-	db.local = sqlair.NewDB(localConn)
+	db.conn = sqlair.NewDB(sqlConn)
+	db.dbPath = dbPath
 	db.dataDir = dataDir
 
 	if err := db.PrepareStatements(); err != nil {
@@ -810,9 +757,15 @@ func NewDatabase(ctx context.Context, dataPath string, raftCfg ellaraft.ClusterC
 
 	RegisterMetrics(db)
 
-	if err := db.Initialize(ctx); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("failed to initialize database: %w", err)
+	// In HA mode, defer Initialize() until RunDiscovery has formed or
+	// joined the cluster and a leader exists — otherwise every propose()
+	// here would fail with ErrNotLeader on a fresh follower. Callers must
+	// invoke Initialize explicitly after RunDiscovery.
+	if !raftCfg.Enabled {
+		if err := db.Initialize(ctx); err != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("failed to initialize database: %w", err)
+		}
 	}
 
 	logger.WithTrace(ctx, logger.DBLog).Debug("Database Initialized")
@@ -1248,9 +1201,9 @@ func (db *Database) Initialize(ctx context.Context) error {
 	return nil
 }
 
-// BeginTransaction starts a transaction against the shared database.
+// BeginTransaction starts a transaction against the database.
 func (db *Database) BeginTransaction(ctx context.Context) (*Transaction, error) {
-	tx, err := db.shared.Begin(ctx, nil)
+	tx, err := db.conn.Begin(ctx, nil)
 	if err != nil {
 		return nil, err
 	}

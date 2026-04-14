@@ -73,7 +73,7 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 
 	var counts []NumItems
 
-	err := db.shared.Query(ctx, db.listUsersStmt, args).GetAll(&users, &counts)
+	err := db.conn.Query(ctx, db.listUsersStmt, args).GetAll(&users, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -123,7 +123,7 @@ func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
 
 	row := User{Email: email}
 
-	err := db.shared.Query(ctx, db.getUserStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getUserStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -162,7 +162,7 @@ func (db *Database) GetUserByID(ctx context.Context, id int64) (*User, error) {
 
 	row := User{ID: id}
 
-	err := db.shared.Query(ctx, db.getUserByIDStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getUserByIDStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -338,7 +338,7 @@ func (db *Database) CountUsers(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.shared.Query(ctx, db.countUsersStmt).Get(&result)
+	err := db.conn.Query(ctx, db.countUsersStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

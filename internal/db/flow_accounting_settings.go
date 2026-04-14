@@ -51,7 +51,7 @@ func (db *Database) InitializeFlowAccountingSettings(ctx context.Context) error 
 
 	flowAccountingSettings := FlowAccountingSettings{Enabled: FlowAccountingDefaultEnabled}
 
-	err := db.shared.Query(ctx, db.insertDefaultFlowAccountingSettingsStmt, flowAccountingSettings).Run()
+	err := db.conn.Query(ctx, db.insertDefaultFlowAccountingSettingsStmt, flowAccountingSettings).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -84,7 +84,7 @@ func (db *Database) IsFlowAccountingEnabled(ctx context.Context) (bool, error) {
 
 	var flowAccountingSettings FlowAccountingSettings
 
-	err := db.shared.Query(ctx, db.getFlowAccountingSettingsStmt).Get(&flowAccountingSettings)
+	err := db.conn.Query(ctx, db.getFlowAccountingSettingsStmt).Get(&flowAccountingSettings)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

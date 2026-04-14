@@ -50,7 +50,7 @@ func (db *Database) ListImportPrefixesByPeer(ctx context.Context, peerID int) ([
 
 	var prefixes []BGPImportPrefix
 
-	err := db.shared.Query(ctx, db.listImportPrefixesByPeerStmt, BGPImportPrefix{PeerID: peerID}).GetAll(&prefixes)
+	err := db.conn.Query(ctx, db.listImportPrefixesByPeerStmt, BGPImportPrefix{PeerID: peerID}).GetAll(&prefixes)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")

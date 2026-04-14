@@ -66,7 +66,7 @@ func (db *Database) ListAPITokensPage(ctx context.Context, userID int64, page in
 
 	apiTokenArg := APIToken{UserID: userID}
 
-	err := db.shared.Query(ctx, db.listAPITokensStmt, args, apiTokenArg).GetAll(&tokens, &counts)
+	err := db.conn.Query(ctx, db.listAPITokensStmt, args, apiTokenArg).GetAll(&tokens, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -147,7 +147,7 @@ func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (*
 
 	row := APIToken{TokenID: tokenID}
 
-	err := db.shared.Query(ctx, db.getAPITokenByIDStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getAPITokenByIDStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -185,7 +185,7 @@ func (db *Database) GetAPITokenByName(ctx context.Context, userID int64, name st
 
 	row := APIToken{UserID: userID, Name: name}
 
-	err := db.shared.Query(ctx, db.getAPITokenByNameStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getAPITokenByNameStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -256,7 +256,7 @@ func (db *Database) CountAPITokens(ctx context.Context, userID int64) (int, erro
 
 	arg := APIToken{UserID: userID}
 
-	err := db.shared.Query(ctx, db.countAPITokensStmt, arg).Get(&result)
+	err := db.conn.Query(ctx, db.countAPITokensStmt, arg).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

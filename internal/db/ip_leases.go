@@ -127,7 +127,7 @@ func (db *Database) GetDynamicLease(ctx context.Context, poolID int, imsi string
 
 	row := IPLease{PoolID: poolID, IMSI: imsi}
 
-	err := db.shared.Query(ctx, db.getDynamicLeaseStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getDynamicLeaseStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -166,7 +166,7 @@ func (db *Database) GetLeaseBySession(ctx context.Context, poolID int, sessionID
 
 	row := IPLease{PoolID: poolID, SessionID: &sessionID, IMSI: imsi}
 
-	err := db.shared.Query(ctx, db.getLeaseBySessionStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getLeaseBySessionStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -373,7 +373,7 @@ func (db *Database) ListActiveLeases(ctx context.Context) ([]IPLease, error) {
 
 	var leases []IPLease
 
-	err := db.shared.Query(ctx, db.listActiveLeasesStmt).GetAll(&leases)
+	err := db.conn.Query(ctx, db.listActiveLeasesStmt).GetAll(&leases)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -395,7 +395,7 @@ func (db *Database) ListActiveLeases(ctx context.Context) ([]IPLease, error) {
 func (db *Database) listAllLeases(ctx context.Context) ([]IPLease, error) {
 	var leases []IPLease
 
-	err := db.shared.Query(ctx, db.listAllLeasesStmt).GetAll(&leases)
+	err := db.conn.Query(ctx, db.listAllLeasesStmt).GetAll(&leases)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -428,7 +428,7 @@ func (db *Database) ListLeasesByPool(ctx context.Context, poolID int) ([]IPLease
 
 	var leases []IPLease
 
-	err := db.shared.Query(ctx, db.listLeasesByPoolStmt, IPLease{PoolID: poolID}).GetAll(&leases)
+	err := db.conn.Query(ctx, db.listLeasesByPoolStmt, IPLease{PoolID: poolID}).GetAll(&leases)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -477,7 +477,7 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID int, page, 
 		Offset: (page - 1) * perPage,
 	}
 
-	err := db.shared.Query(ctx, db.listLeasesByPoolPageStmt, args, IPLease{PoolID: poolID}).GetAll(&leases, &counts)
+	err := db.conn.Query(ctx, db.listLeasesByPoolPageStmt, args, IPLease{PoolID: poolID}).GetAll(&leases, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -528,7 +528,7 @@ func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID int) ([
 
 	var leases []IPLease
 
-	err := db.shared.Query(ctx, db.listLeaseAddressesByPoolStmt, IPLease{PoolID: poolID}).GetAll(&leases)
+	err := db.conn.Query(ctx, db.listLeaseAddressesByPoolStmt, IPLease{PoolID: poolID}).GetAll(&leases)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -573,7 +573,7 @@ func (db *Database) CountLeasesByPool(ctx context.Context, poolID int) (int, err
 
 	var result NumItems
 
-	err := db.shared.Query(ctx, db.countLeasesByPoolStmt, IPLease{PoolID: poolID}).Get(&result)
+	err := db.conn.Query(ctx, db.countLeasesByPoolStmt, IPLease{PoolID: poolID}).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -607,7 +607,7 @@ func (db *Database) CountActiveLeases(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.shared.Query(ctx, db.countActiveLeasesStmt).Get(&result)
+	err := db.conn.Query(ctx, db.countActiveLeasesStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -641,7 +641,7 @@ func (db *Database) CountLeasesByIMSI(ctx context.Context, imsi string) (int, er
 
 	var result NumItems
 
-	err := db.shared.Query(ctx, db.countLeasesByIMSIStmt, IPLease{IMSI: imsi}).Get(&result)
+	err := db.conn.Query(ctx, db.countLeasesByIMSIStmt, IPLease{IMSI: imsi}).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

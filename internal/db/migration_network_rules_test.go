@@ -243,8 +243,8 @@ func TestRunMigrations_IncludesNetworkRulesTable(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 
-	if err := runLegacyMigrations(ctx, db); err != nil {
-		t.Fatalf("runLegacyMigrations failed: %v", err)
+	if err := runMigrations(ctx, db); err != nil {
+		t.Fatalf("runMigrations failed: %v", err)
 	}
 
 	tables := allTableNames(t, db)
@@ -255,7 +255,7 @@ func TestRunMigrations_IncludesNetworkRulesTable(t *testing.T) {
 	}
 
 	if !tableSet[NetworkRulesTableName] {
-		t.Errorf("expected table %q not found after runLegacyMigrations", NetworkRulesTableName)
+		t.Errorf("expected table %q not found after runMigrations", NetworkRulesTableName)
 	}
 }
 

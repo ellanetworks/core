@@ -77,7 +77,7 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 		Offset: (page - 1) * perPage,
 	}
 
-	err := db.shared.Query(ctx, db.listPoliciesStmt, args).GetAll(&policies, &counts)
+	err := db.conn.Query(ctx, db.listPoliciesStmt, args).GetAll(&policies, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -138,7 +138,7 @@ func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID int
 
 	filter := Policy{ProfileID: profileID}
 
-	err := db.shared.Query(ctx, db.listPoliciesByProfileStmt, args, filter).GetAll(&policies, &counts)
+	err := db.conn.Query(ctx, db.listPoliciesByProfileStmt, args, filter).GetAll(&policies, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -185,7 +185,7 @@ func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID int) ([
 
 	filter := Policy{ProfileID: profileID}
 
-	err := db.shared.Query(ctx, db.listPoliciesByProfileAllStmt, filter).GetAll(&policies)
+	err := db.conn.Query(ctx, db.listPoliciesByProfileAllStmt, filter).GetAll(&policies)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -224,7 +224,7 @@ func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error)
 
 	row := Policy{Name: name}
 
-	err := db.shared.Query(ctx, db.getPolicyStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getPolicyStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -266,7 +266,7 @@ func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, d
 
 	row := Policy{ProfileID: profileID, SliceID: sliceID, DataNetworkID: dataNetworkID}
 
-	err := db.shared.Query(ctx, db.getPolicyByLookupStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getPolicyByLookupStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -309,7 +309,7 @@ func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, s
 
 	row := Policy{ProfileID: profileID, SliceID: sliceID}
 
-	err := db.shared.Query(ctx, db.getPolicyByProfileAndSliceStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getPolicyByProfileAndSliceStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -638,7 +638,7 @@ func (db *Database) CountPolicies(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.shared.Query(ctx, db.countPoliciesStmt).Get(&result)
+	err := db.conn.Query(ctx, db.countPoliciesStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -674,7 +674,7 @@ func (db *Database) CountPoliciesInProfile(ctx context.Context, profileID int) (
 
 	policy := Policy{ProfileID: profileID}
 
-	err := db.shared.Query(ctx, db.countPoliciesInProfileStmt, policy).Get(&result)
+	err := db.conn.Query(ctx, db.countPoliciesInProfileStmt, policy).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -710,7 +710,7 @@ func (db *Database) CountPoliciesInSlice(ctx context.Context, sliceID int) (int,
 
 	policy := Policy{SliceID: sliceID}
 
-	err := db.shared.Query(ctx, db.countPoliciesInSliceStmt, policy).Get(&result)
+	err := db.conn.Query(ctx, db.countPoliciesInSliceStmt, policy).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -746,7 +746,7 @@ func (db *Database) CountPoliciesInDataNetwork(ctx context.Context, dataNetworkI
 
 	policy := Policy{DataNetworkID: dataNetworkID}
 
-	err := db.shared.Query(ctx, db.countPoliciesInDataNetworkStmt, policy).Get(&result)
+	err := db.conn.Query(ctx, db.countPoliciesInDataNetworkStmt, policy).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

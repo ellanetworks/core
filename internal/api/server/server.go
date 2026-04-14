@@ -213,7 +213,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("POST /api/v1/cluster/members", ClusterTokenOrAuth(appCfg.Cluster.JoinToken, jwtSecret, dbInstance, AddClusterMember(dbInstance)).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/cluster/members/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, RemoveClusterMember(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/cluster/members/{id}/promote", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, PromoteClusterMember(dbInstance))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/cluster/drain", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, DrainNode(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/cluster/drain", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, DrainNode(dbInstance, amfInstance, bgpService))).ServeHTTP)
 
 	// Fallback to UI
 	frontendHandler, err := newFrontendFileServer(embedFS)
@@ -231,6 +231,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	var handler http.Handler = mux
 
 	handler = MaxBodySizeMiddleware(handler)
+	handler = AppliedIndexMiddleware(dbInstance, handler)
 	handler = LeaderProxyMiddleware(dbInstance, handler)
 	handler = SecurityHeadersMiddleware(secureCookie, handler)
 	handler = MetricsMiddleware(handler)

@@ -100,7 +100,7 @@ func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte)
 
 	row := Session{TokenHash: tokenHash}
 
-	err := db.shared.Query(ctx, db.getSessionByTokenHashStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getSessionByTokenHashStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -204,7 +204,7 @@ func (db *Database) CountSessionsByUser(ctx context.Context, userID int64) (int,
 
 	var result NumItems
 
-	err := db.shared.Query(ctx, db.countSessionsByUserStmt, args).Get(&result)
+	err := db.conn.Query(ctx, db.countSessionsByUserStmt, args).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
