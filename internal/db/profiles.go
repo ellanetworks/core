@@ -171,7 +171,7 @@ func (db *Database) GetProfileByID(ctx context.Context, id int) (*Profile, error
 }
 
 func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", ProfilesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -188,14 +188,7 @@ func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 
 	DBQueriesTotal.WithLabelValues(ProfilesTableName, "insert").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdCreateProfile, profile)
-	} else {
-		_, err = db.applyCreateProfile(ctx, profile)
-	}
-
+	_, err := db.propose(ellaraft.CmdCreateProfile, profile)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -209,7 +202,7 @@ func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 }
 
 func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", ProfilesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -226,14 +219,7 @@ func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
 
 	DBQueriesTotal.WithLabelValues(ProfilesTableName, "update").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdUpdateProfile, profile)
-	} else {
-		_, err = db.applyUpdateProfile(ctx, profile)
-	}
-
+	_, err := db.propose(ellaraft.CmdUpdateProfile, profile)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -247,7 +233,7 @@ func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
 }
 
 func (db *Database) DeleteProfile(ctx context.Context, name string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", ProfilesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -264,14 +250,7 @@ func (db *Database) DeleteProfile(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(ProfilesTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeleteProfile, &stringPayload{Value: name})
-	} else {
-		_, err = db.applyDeleteProfile(ctx, &stringPayload{Value: name})
-	}
-
+	_, err := db.propose(ellaraft.CmdDeleteProfile, &stringPayload{Value: name})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

@@ -98,7 +98,7 @@ func (db *Database) IsFlowAccountingEnabled(ctx context.Context) (bool, error) {
 }
 
 func (db *Database) UpdateFlowAccountingSettings(ctx context.Context, enabled bool) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPSERT", FlowAccountingSettingsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -115,14 +115,7 @@ func (db *Database) UpdateFlowAccountingSettings(ctx context.Context, enabled bo
 
 	DBQueriesTotal.WithLabelValues(FlowAccountingSettingsTableName, "update").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdUpdateFlowAccountingSettings, &boolPayload{Value: enabled})
-	} else {
-		_, err = db.applyUpdateFlowAccountingSettings(ctx, &boolPayload{Value: enabled})
-	}
-
+	_, err := db.propose(ellaraft.CmdUpdateFlowAccountingSettings, &boolPayload{Value: enabled})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

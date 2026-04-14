@@ -201,7 +201,7 @@ func (db *Database) GetHomeNetworkKeyBySchemeAndIdentifier(ctx context.Context, 
 
 // CreateHomeNetworkKey inserts a new home network key.
 func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKey) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", HomeNetworkKeysTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -218,14 +218,7 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 
 	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "insert").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdCreateHomeNetworkKey, key)
-	} else {
-		_, err = db.applyCreateHomeNetworkKey(ctx, key)
-	}
-
+	_, err := db.propose(ellaraft.CmdCreateHomeNetworkKey, key)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -240,7 +233,7 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 
 // DeleteHomeNetworkKey removes a home network key by its database row ID.
 func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id int) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", HomeNetworkKeysTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -257,14 +250,7 @@ func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id int) error {
 
 	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeleteHomeNetworkKey, &intPayload{Value: id})
-	} else {
-		_, err = db.applyDeleteHomeNetworkKey(ctx, &intPayload{Value: id})
-	}
-
+	_, err := db.propose(ellaraft.CmdDeleteHomeNetworkKey, &intPayload{Value: id})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

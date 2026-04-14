@@ -173,7 +173,7 @@ func (db *Database) GetBGPPeer(ctx context.Context, id int) (*BGPPeer, error) {
 }
 
 func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", BGPPeersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -190,17 +190,7 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "insert").Inc()
 
-	var (
-		result any
-		err    error
-	)
-
-	if db.raftManager != nil {
-		result, err = db.propose(ellaraft.CmdCreateBGPPeer, peer)
-	} else {
-		result, err = db.applyCreateBGPPeer(ctx, peer)
-	}
-
+	result, err := db.propose(ellaraft.CmdCreateBGPPeer, peer)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -216,7 +206,7 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 }
 
 func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", BGPPeersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -233,14 +223,7 @@ func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "update").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdUpdateBGPPeer, peer)
-	} else {
-		_, err = db.applyUpdateBGPPeer(ctx, peer)
-	}
-
+	_, err := db.propose(ellaraft.CmdUpdateBGPPeer, peer)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -254,7 +237,7 @@ func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 }
 
 func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", BGPPeersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -271,14 +254,7 @@ func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeleteBGPPeer, &intPayload{Value: id})
-	} else {
-		_, err = db.applyDeleteBGPPeer(ctx, &intPayload{Value: id})
-	}
-
+	_, err := db.propose(ellaraft.CmdDeleteBGPPeer, &intPayload{Value: id})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

@@ -118,7 +118,7 @@ func (db *Database) IsBGPEnabled(ctx context.Context) (bool, error) {
 }
 
 func (db *Database) UpdateBGPSettings(ctx context.Context, settings *BGPSettings) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPSERT", BGPSettingsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -135,14 +135,7 @@ func (db *Database) UpdateBGPSettings(ctx context.Context, settings *BGPSettings
 
 	DBQueriesTotal.WithLabelValues(BGPSettingsTableName, "update").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdUpdateBGPSettings, settings)
-	} else {
-		_, err = db.applyUpdateBGPSettings(ctx, settings)
-	}
-
+	_, err := db.propose(ellaraft.CmdUpdateBGPSettings, settings)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

@@ -359,7 +359,11 @@ func openSQLiteConnection(ctx context.Context, databasePath string, sync SyncMod
 // Close closes both database connections. Both are always attempted and any
 // errors are joined.
 func (db *Database) Close() error {
-	var sharedErr, localErr error
+	var raftErr, sharedErr, localErr error
+
+	if db.raftManager != nil {
+		raftErr = db.raftManager.Shutdown()
+	}
 
 	if db.shared != nil {
 		sharedErr = db.shared.PlainDB().Close()
@@ -369,7 +373,7 @@ func (db *Database) Close() error {
 		localErr = db.local.PlainDB().Close()
 	}
 
-	return errors.Join(sharedErr, localErr)
+	return errors.Join(raftErr, sharedErr, localErr)
 }
 
 // Dir returns the directory containing both database files.
@@ -432,6 +436,15 @@ func NewDatabase(ctx context.Context, dataPath string) (*Database, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to prepare statements: %w", err)
 	}
+
+	raftMgr, err := ellaraft.NewStandaloneManager(ctx, db, dataDir)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to start standalone raft: %w", err)
+	}
+
+	db.raftManager = raftMgr
+	db.proposeTimeout = 5 * time.Second
 
 	RegisterMetrics(db)
 

@@ -210,7 +210,7 @@ func (db *Database) GetNetworkSliceByID(ctx context.Context, id int) (*NetworkSl
 }
 
 func (db *Database) CreateNetworkSlice(ctx context.Context, slice *NetworkSlice) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", NetworkSlicesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -227,14 +227,7 @@ func (db *Database) CreateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 
 	DBQueriesTotal.WithLabelValues(NetworkSlicesTableName, "insert").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdCreateNetworkSlice, slice)
-	} else {
-		_, err = db.applyCreateNetworkSlice(ctx, slice)
-	}
-
+	_, err := db.propose(ellaraft.CmdCreateNetworkSlice, slice)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -248,7 +241,7 @@ func (db *Database) CreateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 }
 
 func (db *Database) UpdateNetworkSlice(ctx context.Context, slice *NetworkSlice) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", NetworkSlicesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -265,14 +258,7 @@ func (db *Database) UpdateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 
 	DBQueriesTotal.WithLabelValues(NetworkSlicesTableName, "update").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdUpdateNetworkSlice, slice)
-	} else {
-		_, err = db.applyUpdateNetworkSlice(ctx, slice)
-	}
-
+	_, err := db.propose(ellaraft.CmdUpdateNetworkSlice, slice)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -286,7 +272,7 @@ func (db *Database) UpdateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 }
 
 func (db *Database) DeleteNetworkSlice(ctx context.Context, name string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", NetworkSlicesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -303,14 +289,7 @@ func (db *Database) DeleteNetworkSlice(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(NetworkSlicesTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeleteNetworkSlice, &stringPayload{Value: name})
-	} else {
-		_, err = db.applyDeleteNetworkSlice(ctx, &stringPayload{Value: name})
-	}
-
+	_, err := db.propose(ellaraft.CmdDeleteNetworkSlice, &stringPayload{Value: name})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

@@ -70,7 +70,7 @@ func (l *IPLease) Address() netip.Addr {
 // binary form. Returns ErrAlreadyExists if the (poolID, addressBin) unique
 // constraint is violated.
 func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address netip.Addr) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", IPLeasesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -90,14 +90,7 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address net
 	b := address.As16()
 	lease.AddressBin = b[:]
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdCreateLease, lease)
-	} else {
-		_, err = db.applyCreateLease(ctx, lease)
-	}
-
+	_, err := db.propose(ellaraft.CmdCreateLease, lease)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -190,7 +183,7 @@ func (db *Database) GetLeaseBySession(ctx context.Context, poolID int, sessionID
 
 // UpdateLeaseSession sets the sessionID on an existing lease.
 func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID int, sessionID int) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (session)", "UPDATE", IPLeasesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -209,14 +202,7 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID int, session
 
 	lease := &IPLease{ID: leaseID, SessionID: &sessionID}
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdUpdateLeaseSession, lease)
-	} else {
-		_, err = db.applyUpdateLeaseSession(ctx, lease)
-	}
-
+	_, err := db.propose(ellaraft.CmdUpdateLeaseSession, lease)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -231,7 +217,7 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID int, session
 
 // DeleteDynamicLease deletes a dynamic lease by ID.
 func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID int) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", IPLeasesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -248,14 +234,7 @@ func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID int) error {
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeleteDynamicLease, &intPayload{Value: leaseID})
-	} else {
-		_, err = db.applyDeleteDynamicLease(ctx, &intPayload{Value: leaseID})
-	}
-
+	_, err := db.propose(ellaraft.CmdDeleteDynamicLease, &intPayload{Value: leaseID})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -271,7 +250,7 @@ func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID int) error {
 // DeleteAllDynamicLeases removes all dynamic leases. Called on startup to clean
 // up stale leases from a previous process lifetime. Static leases are preserved.
 func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		"DeleteAllDynamicLeases",
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -288,14 +267,7 @@ func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeleteAllDynamicLeases, nil)
-	} else {
-		err = db.applyDeleteAllDynamicLeases(ctx)
-	}
-
+	_, err := db.propose(ellaraft.CmdDeleteAllDynamicLeases, nil)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

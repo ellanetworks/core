@@ -224,7 +224,7 @@ func (t *Transaction) DeleteRoute(ctx context.Context, id int64) error {
 }
 
 func (db *Database) CreateRoute(ctx context.Context, route *Route) (int64, error) {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", RoutesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -241,17 +241,7 @@ func (db *Database) CreateRoute(ctx context.Context, route *Route) (int64, error
 
 	DBQueriesTotal.WithLabelValues(RoutesTableName, "insert").Inc()
 
-	var (
-		result any
-		err    error
-	)
-
-	if db.raftManager != nil {
-		result, err = db.propose(ellaraft.CmdCreateRoute, route)
-	} else {
-		result, err = db.applyCreateRoute(ctx, route)
-	}
-
+	result, err := db.propose(ellaraft.CmdCreateRoute, route)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -267,7 +257,7 @@ func (db *Database) CreateRoute(ctx context.Context, route *Route) (int64, error
 }
 
 func (db *Database) DeleteRoute(ctx context.Context, id int64) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", RoutesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -284,14 +274,7 @@ func (db *Database) DeleteRoute(ctx context.Context, id int64) error {
 
 	DBQueriesTotal.WithLabelValues(RoutesTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeleteRoute, &int64Payload{Value: id})
-	} else {
-		_, err = db.applyDeleteRoute(ctx, &int64Payload{Value: id})
-	}
-
+	_, err := db.propose(ellaraft.CmdDeleteRoute, &int64Payload{Value: id})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

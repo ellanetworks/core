@@ -118,7 +118,7 @@ func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category R
 
 // SetRetentionPolicy upserts the retention policy for a category.
 func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPolicy) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPSERT", RetentionPolicyTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -137,14 +137,7 @@ func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPol
 
 	DBQueriesTotal.WithLabelValues(RetentionPolicyTableName, "insert").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdSetRetentionPolicy, policy)
-	} else {
-		_, err = db.applySetRetentionPolicy(ctx, policy)
-	}
-
+	_, err := db.propose(ellaraft.CmdSetRetentionPolicy, policy)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

@@ -134,7 +134,7 @@ func (db *Database) GetSubscriber(ctx context.Context, imsi string) (*Subscriber
 }
 
 func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", SubscribersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -151,14 +151,7 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "insert").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdCreateSubscriber, subscriber)
-	} else {
-		_, err = db.applyCreateSubscriber(ctx, subscriber)
-	}
-
+	_, err := db.propose(ellaraft.CmdCreateSubscriber, subscriber)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -172,7 +165,7 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 }
 
 func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Subscriber) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", SubscribersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -189,14 +182,7 @@ func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Sub
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "update").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdUpdateSubscriberProfile, subscriber)
-	} else {
-		_, err = db.applyUpdateSubscriberProfile(ctx, subscriber)
-	}
-
+	_, err := db.propose(ellaraft.CmdUpdateSubscriberProfile, subscriber)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -210,7 +196,7 @@ func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Sub
 }
 
 func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi string, sequenceNumber string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (sequence number)", "UPDATE", SubscribersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -232,14 +218,7 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 		SequenceNumber: sequenceNumber,
 	}
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdEditSubscriberSeqNum, subscriber)
-	} else {
-		_, err = db.applyEditSubscriberSeqNum(ctx, subscriber)
-	}
-
+	_, err := db.propose(ellaraft.CmdEditSubscriberSeqNum, subscriber)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -253,7 +232,7 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 }
 
 func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", SubscribersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -270,14 +249,7 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeleteSubscriber, &stringPayload{Value: imsi})
-	} else {
-		_, err = db.applyDeleteSubscriber(ctx, &stringPayload{Value: imsi})
-	}
-
+	_, err := db.propose(ellaraft.CmdDeleteSubscriber, &stringPayload{Value: imsi})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

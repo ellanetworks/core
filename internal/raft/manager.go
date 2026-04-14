@@ -237,3 +237,83 @@ func (m *Manager) Bootstrap() error {
 
 	return future.Error()
 }
+
+// NewStandaloneManager creates a single-node Raft cluster using in-memory
+// transport and stores. It auto-bootstraps and waits for leadership before
+// returning, so writes can proceed immediately. Used in standalone mode and
+// tests — the SQLite database is the durable state, Raft only provides the
+// write-ordering layer.
+func NewStandaloneManager(ctx context.Context, applier Applier, dataDir string) (*Manager, error) {
+	fsm := NewFSM(applier, dataDir)
+	idCounters := NewIDCounters()
+
+	raftConfig := raft.DefaultConfig()
+	raftConfig.LocalID = "1"
+	raftConfig.SnapshotThreshold = 8192
+	raftConfig.SnapshotInterval = 2 * time.Minute
+	raftConfig.Logger = newZapRaftLogger()
+
+	store := raft.NewInmemStore()
+	snapshots := raft.NewDiscardSnapshotStore()
+	addr, transport := raft.NewInmemTransport("")
+
+	r, err := raft.NewRaft(raftConfig, fsm, store, store, snapshots, transport)
+	if err != nil {
+		return nil, fmt.Errorf("create standalone raft: %w", err)
+	}
+
+	// Bootstrap as single-node cluster.
+	bootCfg := raft.Configuration{
+		Servers: []raft.Server{{
+			ID:      "1",
+			Address: addr,
+		}},
+	}
+
+	if err := r.BootstrapCluster(bootCfg).Error(); err != nil {
+		return nil, fmt.Errorf("bootstrap standalone raft: %w", err)
+	}
+
+	m := &Manager{
+		raft:        r,
+		fsm:         fsm,
+		transport:   transport,
+		logStore:    store,
+		stableStore: store,
+		snaps:       snapshots,
+		config: ClusterConfig{
+			BindAddress: string(addr),
+		},
+		idCounters: idCounters,
+		nodeID:     1,
+		dataDir:    dataDir,
+	}
+
+	// Wait for this node to become leader before returning.
+	if err := m.waitForLeader(ctx); err != nil {
+		_ = r.Shutdown().Error()
+		return nil, err
+	}
+
+	// Seed ID counters from current DB state.
+	if err := idCounters.SeedFromDB(ctx, applier.SharedPlainDB()); err != nil {
+		_ = r.Shutdown().Error()
+		return nil, fmt.Errorf("seed ID counters: %w", err)
+	}
+
+	return m, nil
+}
+
+// waitForLeader blocks until this node becomes the Raft leader or ctx is cancelled.
+func (m *Manager) waitForLeader(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case isLeader := <-m.raft.LeaderCh():
+			if isLeader {
+				return nil
+			}
+		}
+	}
+}

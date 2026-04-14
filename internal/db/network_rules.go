@@ -50,7 +50,7 @@ type NetworkRule struct {
 
 // CreateNetworkRule creates a new network rule and returns its ID.
 func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (int64, error) {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", NetworkRulesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -71,17 +71,7 @@ func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (int
 	nr.CreatedAt = now
 	nr.UpdatedAt = now
 
-	var (
-		result any
-		err    error
-	)
-
-	if db.raftManager != nil {
-		result, err = db.propose(ellaraft.CmdCreateNetworkRule, nr)
-	} else {
-		result, err = db.applyCreateNetworkRule(ctx, nr)
-	}
-
+	result, err := db.propose(ellaraft.CmdCreateNetworkRule, nr)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -135,7 +125,7 @@ func (db *Database) GetNetworkRule(ctx context.Context, id int64) (*NetworkRule,
 
 // UpdateNetworkRule updates an existing network rule.
 func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", NetworkRulesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -154,14 +144,7 @@ func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) erro
 
 	nr.UpdatedAt = time.Now().UTC()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdUpdateNetworkRule, nr)
-	} else {
-		_, err = db.applyUpdateNetworkRule(ctx, nr)
-	}
-
+	_, err := db.propose(ellaraft.CmdUpdateNetworkRule, nr)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -276,7 +259,7 @@ func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID int64, m
 
 // DeleteNetworkRule deletes a network rule by ID.
 func (db *Database) DeleteNetworkRule(ctx context.Context, id int64) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -293,14 +276,7 @@ func (db *Database) DeleteNetworkRule(ctx context.Context, id int64) error {
 
 	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeleteNetworkRule, &int64Payload{Value: id})
-	} else {
-		_, err = db.applyDeleteNetworkRule(ctx, &int64Payload{Value: id})
-	}
-
+	_, err := db.propose(ellaraft.CmdDeleteNetworkRule, &int64Payload{Value: id})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -477,7 +453,7 @@ func (t *Transaction) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID
 
 // DeleteNetworkRulesByPolicyID deletes all network rules for a given policy ID.
 func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID int64) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -494,14 +470,7 @@ func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID i
 
 	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeleteNetworkRulesByPolicy, &int64Payload{Value: policyID})
-	} else {
-		_, err = db.applyDeleteNetworkRulesByPolicy(ctx, &int64Payload{Value: policyID})
-	}
-
+	_, err := db.propose(ellaraft.CmdDeleteNetworkRulesByPolicy, &int64Payload{Value: policyID})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

@@ -97,7 +97,7 @@ func (db *Database) ListAPITokensPage(ctx context.Context, userID int64, page in
 
 // CreateAPIToken inserts a new api token with a span named "INSERT api_token".
 func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", APITokensTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -114,14 +114,7 @@ func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) erro
 
 	DBQueriesTotal.WithLabelValues(APITokensTableName, "insert").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdCreateAPIToken, apiToken)
-	} else {
-		_, err = db.applyCreateAPIToken(ctx, apiToken)
-	}
-
+	_, err := db.propose(ellaraft.CmdCreateAPIToken, apiToken)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -211,7 +204,7 @@ func (db *Database) GetAPITokenByName(ctx context.Context, userID int64, name st
 }
 
 func (db *Database) DeleteAPIToken(ctx context.Context, id int) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", APITokensTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -228,14 +221,7 @@ func (db *Database) DeleteAPIToken(ctx context.Context, id int) error {
 
 	DBQueriesTotal.WithLabelValues(APITokensTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeleteAPIToken, &intPayload{Value: id})
-	} else {
-		_, err = db.applyDeleteAPIToken(ctx, &intPayload{Value: id})
-	}
-
+	_, err := db.propose(ellaraft.CmdDeleteAPIToken, &intPayload{Value: id})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

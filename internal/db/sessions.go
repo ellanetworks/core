@@ -50,7 +50,7 @@ type DeleteOldestArgs struct {
 }
 
 func (db *Database) CreateSession(ctx context.Context, session *Session) (int64, error) {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", SessionsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -67,17 +67,7 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) (int64,
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "insert").Inc()
 
-	var (
-		result any
-		err    error
-	)
-
-	if db.raftManager != nil {
-		result, err = db.propose(ellaraft.CmdCreateSession, session)
-	} else {
-		result, err = db.applyCreateSession(ctx, session)
-	}
-
+	result, err := db.propose(ellaraft.CmdCreateSession, session)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -129,7 +119,7 @@ func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte)
 }
 
 func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []byte) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", SessionsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -146,14 +136,7 @@ func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []by
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeleteSessionByTokenHash, &bytesPayload{Value: tokenHash})
-	} else {
-		_, err = db.applyDeleteSessionByTokenHash(ctx, &bytesPayload{Value: tokenHash})
-	}
-
+	_, err := db.propose(ellaraft.CmdDeleteSessionByTokenHash, &bytesPayload{Value: tokenHash})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -167,7 +150,7 @@ func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []by
 }
 
 func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", SessionsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -186,17 +169,7 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 
 	nowUnix := time.Now().Unix()
 
-	var (
-		result any
-		err    error
-	)
-
-	if db.raftManager != nil {
-		result, err = db.propose(ellaraft.CmdDeleteExpiredSessions, &int64Payload{Value: nowUnix})
-	} else {
-		result, err = db.applyDeleteExpiredSessions(ctx, &int64Payload{Value: nowUnix})
-	}
-
+	result, err := db.propose(ellaraft.CmdDeleteExpiredSessions, &int64Payload{Value: nowUnix})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -245,7 +218,7 @@ func (db *Database) CountSessionsByUser(ctx context.Context, userID int64) (int,
 }
 
 func (db *Database) DeleteOldestSessions(ctx context.Context, userID int64, limit int) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", SessionsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -262,14 +235,7 @@ func (db *Database) DeleteOldestSessions(ctx context.Context, userID int64, limi
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeleteOldestSessions, &DeleteOldestArgs{UserID: userID, Limit: limit})
-	} else {
-		_, err = db.applyDeleteOldestSessions(ctx, &DeleteOldestArgs{UserID: userID, Limit: limit})
-	}
-
+	_, err := db.propose(ellaraft.CmdDeleteOldestSessions, &DeleteOldestArgs{UserID: userID, Limit: limit})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -283,7 +249,7 @@ func (db *Database) DeleteOldestSessions(ctx context.Context, userID int64, limi
 }
 
 func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID int64) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", SessionsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -300,14 +266,7 @@ func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID int64) 
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeleteAllSessionsForUser, &int64Payload{Value: userID})
-	} else {
-		_, err = db.applyDeleteAllSessionsForUser(ctx, &int64Payload{Value: userID})
-	}
-
+	_, err := db.propose(ellaraft.CmdDeleteAllSessionsForUser, &int64Payload{Value: userID})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -321,7 +280,7 @@ func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID int64) 
 }
 
 func (db *Database) DeleteAllSessions(ctx context.Context) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE_ALL", SessionsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -338,14 +297,7 @@ func (db *Database) DeleteAllSessions(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeleteAllSessions, nil)
-	} else {
-		err = db.applyDeleteAllSessions(ctx)
-	}
-
+	_, err := db.propose(ellaraft.CmdDeleteAllSessions, nil)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

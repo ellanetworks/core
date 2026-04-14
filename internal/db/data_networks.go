@@ -215,7 +215,7 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id int) (*DataNetwor
 }
 
 func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetwork) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", DataNetworksTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -232,14 +232,7 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 
 	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "insert").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdCreateDataNetwork, dataNetwork)
-	} else {
-		_, err = db.applyCreateDataNetwork(ctx, dataNetwork)
-	}
-
+	_, err := db.propose(ellaraft.CmdCreateDataNetwork, dataNetwork)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -253,7 +246,7 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 }
 
 func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetwork) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", DataNetworksTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -270,14 +263,7 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 
 	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "update").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdUpdateDataNetwork, dataNetwork)
-	} else {
-		_, err = db.applyUpdateDataNetwork(ctx, dataNetwork)
-	}
-
+	_, err := db.propose(ellaraft.CmdUpdateDataNetwork, dataNetwork)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -291,7 +277,7 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 }
 
 func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", DataNetworksTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -308,14 +294,7 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeleteDataNetwork, &stringPayload{Value: name})
-	} else {
-		_, err = db.applyDeleteDataNetwork(ctx, &stringPayload{Value: name})
-	}
-
+	_, err := db.propose(ellaraft.CmdDeleteDataNetwork, &stringPayload{Value: name})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

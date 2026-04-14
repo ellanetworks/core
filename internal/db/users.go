@@ -181,7 +181,7 @@ func (db *Database) GetUserByID(ctx context.Context, id int64) (*User, error) {
 }
 
 func (db *Database) CreateUser(ctx context.Context, user *User) (int64, error) {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", UsersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -198,17 +198,7 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (int64, error) {
 
 	DBQueriesTotal.WithLabelValues(UsersTableName, "insert").Inc()
 
-	var (
-		result any
-		err    error
-	)
-
-	if db.raftManager != nil {
-		result, err = db.propose(ellaraft.CmdCreateUser, user)
-	} else {
-		result, err = db.applyCreateUser(ctx, user)
-	}
-
+	result, err := db.propose(ellaraft.CmdCreateUser, user)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -223,7 +213,7 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (int64, error) {
 
 // UpdateUser updates a user's role with a span named "UPDATE users".
 func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", UsersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -245,14 +235,7 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 		RoleID: roleID,
 	}
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdUpdateUser, user)
-	} else {
-		_, err = db.applyUpdateUser(ctx, user)
-	}
-
+	_, err := db.propose(ellaraft.CmdUpdateUser, user)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -267,7 +250,7 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 
 // UpdateUserPassword sets a new password hash with a span named "UPDATE users".
 func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashedPassword string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", UsersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -289,14 +272,7 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 		HashedPassword: hashedPassword,
 	}
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdUpdateUserPassword, user)
-	} else {
-		_, err = db.applyUpdateUserPassword(ctx, user)
-	}
-
+	_, err := db.propose(ellaraft.CmdUpdateUserPassword, user)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -311,7 +287,7 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 
 // DeleteUser removes a user by email with a span named "DELETE users".
 func (db *Database) DeleteUser(ctx context.Context, email string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", UsersTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -328,14 +304,7 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 
 	DBQueriesTotal.WithLabelValues(UsersTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeleteUser, &stringPayload{Value: email})
-	} else {
-		_, err = db.applyDeleteUser(ctx, &stringPayload{Value: email})
-	}
-
+	_, err := db.propose(ellaraft.CmdDeleteUser, &stringPayload{Value: email})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

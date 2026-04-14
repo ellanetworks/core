@@ -70,7 +70,7 @@ func (db *Database) ListImportPrefixesByPeer(ctx context.Context, peerID int) ([
 }
 
 func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, prefixes []BGPImportPrefix) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "REPLACE", BGPImportPrefixesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -88,14 +88,7 @@ func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, pr
 
 	DBQueriesTotal.WithLabelValues(BGPImportPrefixesTableName, "replace").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdSetImportPrefixesForPeer, &importPrefixesPayload{PeerID: peerID, Prefixes: prefixes})
-	} else {
-		_, err = db.applySetImportPrefixesForPeer(ctx, &importPrefixesPayload{PeerID: peerID, Prefixes: prefixes})
-	}
-
+	_, err := db.propose(ellaraft.CmdSetImportPrefixesForPeer, &importPrefixesPayload{PeerID: peerID, Prefixes: prefixes})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

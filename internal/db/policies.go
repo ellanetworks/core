@@ -429,7 +429,7 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 }
 
 func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", PoliciesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -446,14 +446,7 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 
 	DBQueriesTotal.WithLabelValues(PoliciesTableName, "insert").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdCreatePolicy, policy)
-	} else {
-		_, err = db.applyCreatePolicy(ctx, policy)
-	}
-
+	_, err := db.propose(ellaraft.CmdCreatePolicy, policy)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -467,7 +460,7 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 }
 
 func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", PoliciesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -484,14 +477,7 @@ func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
 
 	DBQueriesTotal.WithLabelValues(PoliciesTableName, "update").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdUpdatePolicy, policy)
-	} else {
-		_, err = db.applyUpdatePolicy(ctx, policy)
-	}
-
+	_, err := db.propose(ellaraft.CmdUpdatePolicy, policy)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -601,7 +587,7 @@ func (t *Transaction) UpdatePolicy(ctx context.Context, policy *Policy) error {
 }
 
 func (db *Database) DeletePolicy(ctx context.Context, name string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", PoliciesTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -618,14 +604,7 @@ func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(PoliciesTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeletePolicy, &stringPayload{Value: name})
-	} else {
-		_, err = db.applyDeletePolicy(ctx, &stringPayload{Value: name})
-	}
-
+	_, err := db.propose(ellaraft.CmdDeletePolicy, &stringPayload{Value: name})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

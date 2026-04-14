@@ -100,7 +100,7 @@ func (d *UsagePerDay) GetDay() time.Time {
 }
 
 func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", DailyUsageTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -117,14 +117,7 @@ func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) e
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "insert").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdIncrementDailyUsage, &usage)
-	} else {
-		_, err = db.applyIncrementDailyUsage(ctx, &usage)
-	}
-
+	_, err := db.propose(ellaraft.CmdIncrementDailyUsage, &usage)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -232,7 +225,7 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, star
 }
 
 func (db *Database) ClearDailyUsage(ctx context.Context) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", DailyUsageTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -249,14 +242,7 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdClearDailyUsage, nil)
-	} else {
-		err = db.applyClearDailyUsage(ctx)
-	}
-
+	_, err := db.propose(ellaraft.CmdClearDailyUsage, nil)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -270,7 +256,7 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 }
 
 func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (older than %d days)", "DELETE", DailyUsageTableName, days),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -288,14 +274,7 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "delete").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeleteOldDailyUsage, &intPayload{Value: days})
-	} else {
-		_, err = db.applyDeleteOldDailyUsage(ctx, &intPayload{Value: days})
-	}
-
+	_, err := db.propose(ellaraft.CmdDeleteOldDailyUsage, &intPayload{Value: days})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

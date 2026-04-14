@@ -177,7 +177,7 @@ func (db *Database) IsOperatorInitialized(ctx context.Context) bool {
 }
 
 func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Operator) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", OperatorTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -194,14 +194,7 @@ func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Ope
 
 	DBQueriesTotal.WithLabelValues(OperatorTableName, "insert").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdInitializeOperator, initialOperator)
-	} else {
-		_, err = db.applyInitializeOperator(ctx, initialOperator)
-	}
-
+	_, err := db.propose(ellaraft.CmdInitializeOperator, initialOperator)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -250,7 +243,7 @@ func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
 
 // UpdateOperatorTracking updates supported TACs.
 func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", OperatorTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -277,12 +270,7 @@ func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []
 		return fmt.Errorf("failed to set supported TACs: %w", err)
 	}
 
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdUpdateOperatorTracking, op)
-	} else {
-		_, err = db.applyUpdateOperatorTracking(ctx, op)
-	}
-
+	_, err = db.propose(ellaraft.CmdUpdateOperatorTracking, op)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -297,7 +285,7 @@ func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []
 
 // UpdateOperatorID updates MCC/MNC.
 func (db *Database) UpdateOperatorID(ctx context.Context, mcc, mnc string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", OperatorTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -316,14 +304,7 @@ func (db *Database) UpdateOperatorID(ctx context.Context, mcc, mnc string) error
 
 	op := &Operator{Mcc: mcc, Mnc: mnc}
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdUpdateOperatorID, op)
-	} else {
-		_, err = db.applyUpdateOperatorID(ctx, op)
-	}
-
+	_, err := db.propose(ellaraft.CmdUpdateOperatorID, op)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -372,7 +353,7 @@ func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
 
 // UpdateOperatorCode sets a new operatorCode.
 func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", OperatorTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -391,14 +372,7 @@ func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string)
 
 	op := &Operator{OperatorCode: operatorCode}
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdUpdateOperatorCode, op)
-	} else {
-		_, err = db.applyUpdateOperatorCode(ctx, op)
-	}
-
+	_, err := db.propose(ellaraft.CmdUpdateOperatorCode, op)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -413,7 +387,7 @@ func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string)
 
 // UpdateOperatorSecurityAlgorithms updates the NAS security algorithm preference order.
 func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipheringOrder, integrityOrder []string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", OperatorTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -448,12 +422,7 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 		return fmt.Errorf("failed to set integrity order: %w", err)
 	}
 
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdUpdateOperatorSecurityAlgorithms, op)
-	} else {
-		_, err = db.applyUpdateOperatorSecurityAlgorithms(ctx, op)
-	}
-
+	_, err = db.propose(ellaraft.CmdUpdateOperatorSecurityAlgorithms, op)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -468,7 +437,7 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 
 // UpdateOperatorSPN updates the Service Provider Name (full and short).
 func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFullName, spnShortName string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", OperatorTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -487,14 +456,7 @@ func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFullName, spnShort
 
 	op := &Operator{SpnFullName: spnFullName, SpnShortName: spnShortName}
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdUpdateOperatorSPN, op)
-	} else {
-		_, err = db.applyUpdateOperatorSPN(ctx, op)
-	}
-
+	_, err := db.propose(ellaraft.CmdUpdateOperatorSPN, op)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

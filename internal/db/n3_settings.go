@@ -67,7 +67,7 @@ func (db *Database) InitializeN3Settings(ctx context.Context) error {
 }
 
 func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPSERT", N3SettingsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -84,14 +84,7 @@ func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string
 
 	DBQueriesTotal.WithLabelValues(N3SettingsTableName, "update").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdUpdateN3Settings, &stringPayload{Value: externalAddress})
-	} else {
-		_, err = db.applyUpdateN3Settings(ctx, &stringPayload{Value: externalAddress})
-	}
-
+	_, err := db.propose(ellaraft.CmdUpdateN3Settings, &stringPayload{Value: externalAddress})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

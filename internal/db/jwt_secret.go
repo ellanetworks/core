@@ -85,7 +85,7 @@ func (db *Database) GetJWTSecret(ctx context.Context) ([]byte, error) {
 }
 
 func (db *Database) SetJWTSecret(ctx context.Context, secret []byte) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPSERT", JWTSecretTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -102,14 +102,7 @@ func (db *Database) SetJWTSecret(ctx context.Context, secret []byte) error {
 
 	DBQueriesTotal.WithLabelValues(JWTSecretTableName, "update").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdSetJWTSecret, &bytesPayload{Value: secret})
-	} else {
-		_, err = db.applySetJWTSecret(ctx, &bytesPayload{Value: secret})
-	}
-
+	_, err := db.propose(ellaraft.CmdSetJWTSecret, &bytesPayload{Value: secret})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

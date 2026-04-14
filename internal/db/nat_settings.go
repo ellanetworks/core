@@ -100,7 +100,7 @@ func (db *Database) IsNATEnabled(ctx context.Context) (bool, error) {
 }
 
 func (db *Database) UpdateNATSettings(ctx context.Context, enabled bool) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPSERT", NATSettingsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -117,14 +117,7 @@ func (db *Database) UpdateNATSettings(ctx context.Context, enabled bool) error {
 
 	DBQueriesTotal.WithLabelValues(NATSettingsTableName, "update").Inc()
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdUpdateNATSettings, &boolPayload{Value: enabled})
-	} else {
-		_, err = db.applyUpdateNATSettings(ctx, &boolPayload{Value: enabled})
-	}
-
+	_, err := db.propose(ellaraft.CmdUpdateNATSettings, &boolPayload{Value: enabled})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

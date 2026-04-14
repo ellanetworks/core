@@ -49,7 +49,7 @@ type AuditLogFilters struct {
 
 // InsertAuditLogJSON parses the zap JSON and inserts a structured row.
 func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.AuditLog) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", AuditLogsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -75,14 +75,7 @@ func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.Audit
 		Details:   auditLog.Details,
 	}
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdInsertAuditLog, payload)
-	} else {
-		_, err = db.applyInsertAuditLog(ctx, payload)
-	}
-
+	_, err := db.propose(ellaraft.CmdInsertAuditLog, payload)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -154,7 +147,7 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, filters *AuditLogFilt
 
 // DeleteOldAuditLogs removes logs older than the specified retention period in days.
 func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
-	ctx, span := tracer.Start(
+	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (retention)", "DELETE", AuditLogsTableName),
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -175,14 +168,7 @@ func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
 	// Compute cutoff entirely in UTC so the boundary is timezone/DST-independent.
 	cutoff := time.Now().UTC().AddDate(0, 0, -days).Format(time.RFC3339)
 
-	var err error
-
-	if db.raftManager != nil {
-		_, err = db.propose(ellaraft.CmdDeleteOldAuditLogs, &stringPayload{Value: cutoff})
-	} else {
-		_, err = db.applyDeleteOldAuditLogs(ctx, &stringPayload{Value: cutoff})
-	}
-
+	_, err := db.propose(ellaraft.CmdDeleteOldAuditLogs, &stringPayload{Value: cutoff})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
