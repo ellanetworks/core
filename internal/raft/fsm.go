@@ -93,6 +93,15 @@ func (f *FSM) Apply(l *raft.Log) interface{} {
 	ctx := context.Background()
 
 	result, err := f.applier.ApplyCommand(ctx, cmd)
+
+	// Advance appliedIndex regardless of applier outcome: hashicorp/raft
+	// considers every entry it hands to Apply as committed, and its own
+	// LastApplied bookkeeping will move forward on the next snapshot/restart
+	// whether or not the FSM reported success. Lagging this counter behind
+	// the library's view would misrepresent progress for observability
+	// callers (Manager.AppliedIndex, RaftAppliedIndex).
+	f.appliedIndex.Store(l.Index)
+
 	if err != nil {
 		logger.RaftLog.Error("FSM: command failed",
 			zap.Uint64("index", l.Index),
@@ -102,14 +111,18 @@ func (f *FSM) Apply(l *raft.Log) interface{} {
 		return err
 	}
 
-	f.appliedIndex.Store(l.Index)
-
 	return result
 }
 
 // Snapshot implements raft.FSM. It uses SQLite's VACUUM INTO to produce a
 // consistent, WAL-free copy of shared.db in a temp file, then returns an
 // FSMSnapshot that streams it to the Raft snapshot sink.
+//
+// The RLock here participates in Apply/Restore exclusion, but the real
+// safety against VACUUM INTO racing concurrent Applies comes from the
+// shared connection's MaxOpenConns(1) — SQLite serialises writers at the
+// driver level. The mutex is a redundant belt that would matter if that
+// connection cap ever changed.
 func (f *FSM) Snapshot() (raft.FSMSnapshot, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()

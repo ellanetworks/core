@@ -37,7 +37,6 @@ func NewTestManager(t testing.TB, applier Applier) (*Manager, func()) {
 	}
 
 	fsm := NewFSM(applier, dataDir)
-	idCounters := NewIDCounters()
 
 	cfg := raft.DefaultConfig()
 	cfg.LocalID = "1"
@@ -94,16 +93,14 @@ func NewTestManager(t testing.TB, applier Applier) (*Manager, func()) {
 	}
 
 	m := &Manager{
-		raft:        r,
-		fsm:         fsm,
-		transport:   transport,
-		logStore:    boltStore,
-		stableStore: boltStore,
-		snaps:       snapshots,
-		config:      ClusterConfig{BindAddress: string(addr)},
-		idCounters:  idCounters,
-		nodeID:      1,
-		dataDir:     dataDir,
+		raft:      r,
+		fsm:       fsm,
+		transport: transport,
+		logStore:  boltStore,
+		snaps:     snapshots,
+		config:    ClusterConfig{BindAddress: string(addr)},
+		nodeID:    1,
+		dataDir:   dataDir,
 	}
 
 	if err := waitForLeaderTest(t, m); err != nil {

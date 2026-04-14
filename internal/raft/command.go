@@ -114,10 +114,6 @@ const (
 	CmdCreateRoute CommandType = 190
 	CmdDeleteRoute CommandType = 191
 
-	// Cluster Members (Phase 2 cluster lifecycle)
-	CmdUpsertClusterMember CommandType = 200
-	CmdDeleteClusterMember CommandType = 201
-
 	// Restore — special: replaces the entire shared.db
 	CmdRestore CommandType = 255
 )
@@ -185,8 +181,6 @@ var commandNames = map[CommandType]string{
 	CmdSetJWTSecret:                     "SetJWTSecret",
 	CmdCreateRoute:                      "CreateRoute",
 	CmdDeleteRoute:                      "DeleteRoute",
-	CmdUpsertClusterMember:              "UpsertClusterMember",
-	CmdDeleteClusterMember:              "DeleteClusterMember",
 	CmdRestore:                          "Restore",
 }
 

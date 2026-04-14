@@ -454,7 +454,7 @@ func NewDatabase(ctx context.Context, dataPath string) (*Database, error) {
 	}
 
 	db.raftManager = raftMgr
-	db.proposeTimeout = 5 * time.Second
+	db.proposeTimeout = raftMgr.ProposeTimeout()
 
 	RegisterMetrics(db)
 

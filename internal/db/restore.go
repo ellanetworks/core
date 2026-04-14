@@ -367,6 +367,15 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 
 	safeToDeleteLocalSafetyCopy = true
 
+	// CmdRestore carries the full shared.db as a log entry. Force a
+	// snapshot so the blob doesn't linger in the Raft log and get replicated
+	// to followers that fall behind.
+	if err := db.raftManager.Snapshot(); err != nil {
+		logger.WithTrace(ctx, logger.DBLog).Warn(
+			"Failed to snapshot after restore; log retains shared.db blob until next scheduled snapshot",
+			zap.Error(err))
+	}
+
 	return nil
 }
 
@@ -446,13 +455,6 @@ func (db *Database) applyRestore(ctx context.Context, p *bytesPayload) (any, err
 
 	if err := db.ReopenShared(ctx); err != nil {
 		return nil, fmt.Errorf("reopen shared.db after restore apply: %w", err)
-	}
-
-	if db.raftManager != nil {
-		if err := db.raftManager.IDCounters().SeedFromDB(ctx, db.shared.PlainDB()); err != nil {
-			logger.WithTrace(ctx, logger.DBLog).Warn(
-				"Failed to re-seed ID counters after restore apply", zap.Error(err))
-		}
 	}
 
 	return nil, nil

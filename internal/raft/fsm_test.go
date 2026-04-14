@@ -179,8 +179,8 @@ func TestFSM_Apply_PropagatesApplierError(t *testing.T) {
 		t.Fatalf("want boom, got %v", gotErr)
 	}
 
-	if got := fsm.AppliedIndex(); got != 0 {
-		t.Fatalf("applied index must not advance when applier fails, got %d", got)
+	if got := fsm.AppliedIndex(); got != 5 {
+		t.Fatalf("applied index must advance on applier error per hashicorp/raft semantics, got %d", got)
 	}
 }
 
