@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -198,7 +197,7 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (int64, error) {
 
 	DBQueriesTotal.WithLabelValues(UsersTableName, "insert").Inc()
 
-	result, err := db.propose(ellaraft.CmdCreateUser, user)
+	result, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateUser(ctx, user) }, "CreateUser")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -235,7 +234,7 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 		RoleID: roleID,
 	}
 
-	_, err := db.propose(ellaraft.CmdUpdateUser, user)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateUser(ctx, user) }, "UpdateUser")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -272,7 +271,7 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 		HashedPassword: hashedPassword,
 	}
 
-	_, err := db.propose(ellaraft.CmdUpdateUserPassword, user)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateUserPassword(ctx, user) }, "UpdateUserPassword")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -304,7 +303,7 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 
 	DBQueriesTotal.WithLabelValues(UsersTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteUser, &stringPayload{Value: email})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyDeleteUser(ctx, &stringPayload{Value: email}) }, "DeleteUser")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

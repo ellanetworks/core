@@ -9,7 +9,6 @@ import (
 	"fmt"
 
 	"github.com/canonical/sqlair"
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -446,7 +445,7 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 
 	DBQueriesTotal.WithLabelValues(PoliciesTableName, "insert").Inc()
 
-	_, err := db.propose(ellaraft.CmdCreatePolicy, policy)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreatePolicy(ctx, policy) }, "CreatePolicy")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -477,7 +476,7 @@ func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
 
 	DBQueriesTotal.WithLabelValues(PoliciesTableName, "update").Inc()
 
-	_, err := db.propose(ellaraft.CmdUpdatePolicy, policy)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdatePolicy(ctx, policy) }, "UpdatePolicy")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -604,7 +603,7 @@ func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(PoliciesTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeletePolicy, &stringPayload{Value: name})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyDeletePolicy(ctx, &stringPayload{Value: name}) }, "DeletePolicy")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

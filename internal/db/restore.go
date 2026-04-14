@@ -382,7 +382,7 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 
 	// Route through Raft: applyRestore swaps the file on every node and
 	// re-opens the connection.
-	if _, err := db.propose(ellaraft.CmdRestore, &bytesPayload{Value: dbBytes}); err != nil {
+	if _, err := db.proposeIntent(ellaraft.CmdRestore, &bytesPayload{Value: dbBytes}); err != nil {
 		return fmt.Errorf("propose restore: %w", err)
 	}
 

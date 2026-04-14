@@ -93,7 +93,7 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address net
 	b := address.As16()
 	lease.AddressBin = b[:]
 
-	_, err := db.propose(ellaraft.CmdCreateLease, lease)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateLease(ctx, lease) }, "CreateLease")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -205,7 +205,7 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID int, session
 
 	lease := &IPLease{ID: leaseID, SessionID: &sessionID}
 
-	_, err := db.propose(ellaraft.CmdUpdateLeaseSession, lease)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateLeaseSession(ctx, lease) }, "UpdateLeaseSession")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -237,7 +237,9 @@ func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID int) error {
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteDynamicLease, &intPayload{Value: leaseID})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyDeleteDynamicLease(ctx, &intPayload{Value: leaseID})
+	}, "DeleteDynamicLease")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -270,7 +272,7 @@ func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteAllDynamicLeases, nil)
+	_, err := db.proposeIntent(ellaraft.CmdDeleteAllDynamicLeases, nil)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -304,7 +306,9 @@ func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID int) e
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteDynamicLeasesByNode, &intPayload{Value: nodeID})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyDeleteDynamicLeasesByNode(ctx, &intPayload{Value: nodeID})
+	}, "DeleteDynamicLeasesByNode")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -339,7 +343,7 @@ func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID int, nodeID int
 
 	lease := &IPLease{ID: leaseID, NodeID: nodeID, SessionID: &sessionID}
 
-	_, err := db.propose(ellaraft.CmdUpdateLeaseNode, lease)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateLeaseNode(ctx, lease) }, "UpdateLeaseNode")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -84,7 +83,9 @@ func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string
 
 	DBQueriesTotal.WithLabelValues(N3SettingsTableName, "update").Inc()
 
-	_, err := db.propose(ellaraft.CmdUpdateN3Settings, &stringPayload{Value: externalAddress})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyUpdateN3Settings(ctx, &stringPayload{Value: externalAddress})
+	}, "UpdateN3Settings")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

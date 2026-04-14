@@ -553,7 +553,7 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 		logger.WithTrace(ctx, logger.DBLog).Info("Proposing migration over Raft",
 			zap.Int("targetVersion", v))
 
-		if _, err := db.propose(ellaraft.CmdMigrateShared, migrateSharedPayload{TargetVersion: v}); err != nil {
+		if _, err := db.proposeIntent(ellaraft.CmdMigrateShared, migrateSharedPayload{TargetVersion: v}); err != nil {
 			return fmt.Errorf("propose migration %d: %w", v, err)
 		}
 	}

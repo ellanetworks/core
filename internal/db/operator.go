@@ -11,7 +11,6 @@ import (
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -199,7 +198,7 @@ func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Ope
 
 	DBQueriesTotal.WithLabelValues(OperatorTableName, "insert").Inc()
 
-	_, err := db.propose(ellaraft.CmdInitializeOperator, initialOperator)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyInitializeOperator(ctx, initialOperator) }, "InitializeOperator")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -275,7 +274,7 @@ func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []
 		return fmt.Errorf("failed to set supported TACs: %w", err)
 	}
 
-	_, err = db.propose(ellaraft.CmdUpdateOperatorTracking, op)
+	_, err = db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateOperatorTracking(ctx, op) }, "UpdateOperatorTracking")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -309,7 +308,7 @@ func (db *Database) UpdateOperatorID(ctx context.Context, mcc, mnc string) error
 
 	op := &Operator{Mcc: mcc, Mnc: mnc}
 
-	_, err := db.propose(ellaraft.CmdUpdateOperatorID, op)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateOperatorID(ctx, op) }, "UpdateOperatorID")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -377,7 +376,7 @@ func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string)
 
 	op := &Operator{OperatorCode: operatorCode}
 
-	_, err := db.propose(ellaraft.CmdUpdateOperatorCode, op)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateOperatorCode(ctx, op) }, "UpdateOperatorCode")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -427,7 +426,9 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 		return fmt.Errorf("failed to set integrity order: %w", err)
 	}
 
-	_, err = db.propose(ellaraft.CmdUpdateOperatorSecurityAlgorithms, op)
+	_, err = db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyUpdateOperatorSecurityAlgorithms(ctx, op)
+	}, "UpdateOperatorSecurityAlgorithms")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -461,7 +462,7 @@ func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFullName, spnShort
 
 	op := &Operator{SpnFullName: spnFullName, SpnShortName: spnShortName}
 
-	_, err := db.propose(ellaraft.CmdUpdateOperatorSPN, op)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateOperatorSPN(ctx, op) }, "UpdateOperatorSPN")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -496,7 +497,7 @@ func (db *Database) UpdateOperatorAMFIdentity(ctx context.Context, regionID, set
 
 	op := &Operator{AmfRegionID: regionID, AmfSetID: setID}
 
-	_, err := db.propose(ellaraft.CmdUpdateOperatorAMFIdentity, op)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateOperatorAMFIdentity(ctx, op) }, "UpdateOperatorAMFIdentity")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -530,7 +531,7 @@ func (db *Database) UpdateOperatorClusterID(ctx context.Context, clusterID strin
 
 	op := &Operator{ClusterID: clusterID}
 
-	_, err := db.propose(ellaraft.CmdUpdateOperatorClusterID, op)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateOperatorClusterID(ctx, op) }, "UpdateOperatorClusterID")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

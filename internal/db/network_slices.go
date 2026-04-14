@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -227,7 +226,7 @@ func (db *Database) CreateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 
 	DBQueriesTotal.WithLabelValues(NetworkSlicesTableName, "insert").Inc()
 
-	_, err := db.propose(ellaraft.CmdCreateNetworkSlice, slice)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateNetworkSlice(ctx, slice) }, "CreateNetworkSlice")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -258,7 +257,7 @@ func (db *Database) UpdateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 
 	DBQueriesTotal.WithLabelValues(NetworkSlicesTableName, "update").Inc()
 
-	_, err := db.propose(ellaraft.CmdUpdateNetworkSlice, slice)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateNetworkSlice(ctx, slice) }, "UpdateNetworkSlice")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -289,7 +288,9 @@ func (db *Database) DeleteNetworkSlice(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(NetworkSlicesTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteNetworkSlice, &stringPayload{Value: name})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyDeleteNetworkSlice(ctx, &stringPayload{Value: name})
+	}, "DeleteNetworkSlice")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

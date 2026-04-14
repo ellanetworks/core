@@ -117,7 +117,7 @@ func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) e
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "insert").Inc()
 
-	_, err := db.propose(ellaraft.CmdIncrementDailyUsage, &usage)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyIncrementDailyUsage(ctx, &usage) }, "IncrementDailyUsage")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -242,7 +242,7 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdClearDailyUsage, nil)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return nil, db.applyClearDailyUsage(ctx) }, "ClearDailyUsage")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -279,7 +279,7 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 	// desync replicas.
 	cutoffDay := time.Now().UTC().AddDate(0, 0, -days).Unix() / 86400
 
-	_, err := db.propose(ellaraft.CmdDeleteOldDailyUsage, &int64Payload{Value: cutoffDay})
+	_, err := db.proposeIntent(ellaraft.CmdDeleteOldDailyUsage, &int64Payload{Value: cutoffDay})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

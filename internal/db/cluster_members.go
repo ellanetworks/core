@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -129,7 +128,7 @@ func (db *Database) UpsertClusterMember(ctx context.Context, member *ClusterMemb
 
 	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "upsert").Inc()
 
-	_, err := db.propose(ellaraft.CmdUpsertClusterMember, member)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpsertClusterMember(ctx, member) }, "UpsertClusterMember")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -160,7 +159,9 @@ func (db *Database) DeleteClusterMember(ctx context.Context, nodeID int) error {
 
 	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteClusterMember, &intPayload{Value: nodeID})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyDeleteClusterMember(ctx, &intPayload{Value: nodeID})
+	}, "DeleteClusterMember")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

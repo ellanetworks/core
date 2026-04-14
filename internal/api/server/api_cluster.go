@@ -131,7 +131,7 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 			NodeID:        req.NodeID,
 			RaftAddress:   req.RaftAddress,
 			APIAddress:    req.APIAddress,
-			BinaryVersion: "", // populated by the joining node's CmdUpsertClusterMember at startup
+			BinaryVersion: "", // populated by the joining node during startup registration
 			Suffrage:      suffrage,
 		}
 

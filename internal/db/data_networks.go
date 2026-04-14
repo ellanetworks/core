@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -232,7 +231,7 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 
 	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "insert").Inc()
 
-	_, err := db.propose(ellaraft.CmdCreateDataNetwork, dataNetwork)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateDataNetwork(ctx, dataNetwork) }, "CreateDataNetwork")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -263,7 +262,7 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 
 	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "update").Inc()
 
-	_, err := db.propose(ellaraft.CmdUpdateDataNetwork, dataNetwork)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateDataNetwork(ctx, dataNetwork) }, "UpdateDataNetwork")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -294,7 +293,9 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteDataNetwork, &stringPayload{Value: name})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyDeleteDataNetwork(ctx, &stringPayload{Value: name})
+	}, "DeleteDataNetwork")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

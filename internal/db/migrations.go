@@ -30,13 +30,12 @@ var migrations = []migration{
 	{7, "data model redesign: profiles, policies, slices", migrateV7},
 	{8, "add action to flow reports", migrateV8},
 	{9, "HA schema additions (amfRegionID, cluster_members, ip_leases.nodeID, bgp_peers.nodeID)", migrateV9},
-	{10, "remove cluster_members protocolVersion column", migrateV10},
 }
 
 // baselineVersion is the highest migration that runs locally during
 // cluster-mode startup. Post-baseline migrations are proposed through Raft
 // by the leader (§5.5).
-const baselineVersion = 10
+const baselineVersion = 9
 
 // SchemaVersion returns the highest migration version this binary understands.
 // Used during cluster join to reject version-skewed nodes.

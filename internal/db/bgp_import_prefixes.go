@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -88,7 +87,9 @@ func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, pr
 
 	DBQueriesTotal.WithLabelValues(BGPImportPrefixesTableName, "replace").Inc()
 
-	_, err := db.propose(ellaraft.CmdSetImportPrefixesForPeer, &importPrefixesPayload{PeerID: peerID, Prefixes: prefixes})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applySetImportPrefixesForPeer(ctx, &importPrefixesPayload{PeerID: peerID, Prefixes: prefixes})
+	}, "SetImportPrefixesForPeer")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

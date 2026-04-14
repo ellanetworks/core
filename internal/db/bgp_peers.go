@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -191,7 +190,7 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "insert").Inc()
 
-	result, err := db.propose(ellaraft.CmdCreateBGPPeer, peer)
+	result, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateBGPPeer(ctx, peer) }, "CreateBGPPeer")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -224,7 +223,7 @@ func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "update").Inc()
 
-	_, err := db.propose(ellaraft.CmdUpdateBGPPeer, peer)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateBGPPeer(ctx, peer) }, "UpdateBGPPeer")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -255,7 +254,7 @@ func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteBGPPeer, &intPayload{Value: id})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyDeleteBGPPeer(ctx, &intPayload{Value: id}) }, "DeleteBGPPeer")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

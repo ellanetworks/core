@@ -17,11 +17,8 @@ import (
 )
 
 // TestFSMDeterminism_ReplayProducesBitIdenticalState replays the same
-// command sequence through two independent Database instances (each backed
-// by its own SQLite file) and asserts that the resulting shared.db content
-// is identical. This catches non-determinism such as time.Now() inside
-// applyX, map iteration order influencing SQL output, or reads from local.db
-// during a shared.db apply — all of which would silently desync replicas.
+// deterministic write sequence through two independent Database instances
+// and asserts that the resulting shared.db content is identical.
 func TestFSMDeterminism_ReplayProducesBitIdenticalState(t *testing.T) {
 	ctx := context.Background()
 
@@ -39,15 +36,15 @@ func TestFSMDeterminism_ReplayProducesBitIdenticalState(t *testing.T) {
 
 	defer func() { _ = dbB.Close() }()
 
-	commands := buildDeterminismCommandStream(t)
+	operations := buildDeterminismOperations()
 
-	for i, cmd := range commands {
-		if _, err := dbA.ApplyCommand(ctx, cmd); err != nil {
-			t.Fatalf("apply command %d (%s) to A: %v", i, cmd.Type, err)
+	for i, op := range operations {
+		if err := op(ctx, dbA); err != nil {
+			t.Fatalf("apply operation %d to A: %v", i, err)
 		}
 
-		if _, err := dbB.ApplyCommand(ctx, cmd); err != nil {
-			t.Fatalf("apply command %d (%s) to B: %v", i, cmd.Type, err)
+		if err := op(ctx, dbB); err != nil {
+			t.Fatalf("apply operation %d to B: %v", i, err)
 		}
 	}
 
@@ -62,73 +59,39 @@ func TestFSMDeterminism_ReplayProducesBitIdenticalState(t *testing.T) {
 	hashB := canonicalHash(t, dbB.PlainDB(), touchedTables)
 
 	if hashA != hashB {
-		t.Fatalf("database diverged after replaying %d commands\n  A: %s\n  B: %s", len(commands), hashA, hashB)
+		t.Fatalf("database diverged after replaying %d operations\n  A: %s\n  B: %s", len(operations), hashA, hashB)
 	}
 
-	t.Logf("replayed %d commands — databases are identical (sha256: %s)", len(commands), hashA)
+	t.Logf("replayed %d operations - databases are identical (sha256: %s)", len(operations), hashA)
 }
 
-// buildDeterminismCommandStream returns a fixed sequence of commands covering
-// multiple entity types. Payloads are fully deterministic (no timestamps or
-// random values). Commands that depend on FK relationships are ordered so
-// parents are created first.
-func buildDeterminismCommandStream(t *testing.T) []*ellaraft.Command {
-	t.Helper()
-
-	type entry struct {
-		cmdType ellaraft.CommandType
-		payload any
+func buildDeterminismOperations() []func(context.Context, *db.Database) error {
+	return []func(context.Context, *db.Database) error{
+		func(ctx context.Context, d *db.Database) error {
+			return d.CreateDataNetwork(ctx, &db.DataNetwork{Name: "testnet-a", IPPool: "10.99.0.0/24", DNS: "9.9.9.9", MTU: 1300})
+		},
+		func(ctx context.Context, d *db.Database) error {
+			return d.CreateDataNetwork(ctx, &db.DataNetwork{Name: "testnet-b", IPPool: "10.98.0.0/24", DNS: "1.0.0.1", MTU: 1500})
+		},
+		func(ctx context.Context, d *db.Database) error {
+			return d.CreateProfile(ctx, &db.Profile{Name: "det-basic", UeAmbrUplink: "500000 bps", UeAmbrDownlink: "2000000 bps"})
+		},
+		func(ctx context.Context, d *db.Database) error {
+			return d.CreateProfile(ctx, &db.Profile{Name: "det-premium", UeAmbrUplink: "1000000 bps", UeAmbrDownlink: "5000000 bps"})
+		},
+		func(ctx context.Context, d *db.Database) error {
+			return d.UpdateNATSettings(ctx, true)
+		},
+		func(ctx context.Context, d *db.Database) error {
+			return d.UpdateFlowAccountingSettings(ctx, false)
+		},
+		func(ctx context.Context, d *db.Database) error {
+			return d.UpdateOperatorSPN(ctx, "UpdatedNet", "UN")
+		},
+		func(ctx context.Context, d *db.Database) error {
+			return d.UpdateOperatorTracking(ctx, []string{"0001", "0002"})
+		},
 	}
-
-	entries := []entry{
-		// Data networks (using names that don't conflict with defaults)
-		{ellaraft.CmdCreateDataNetwork, db.DataNetwork{
-			Name: "testnet-a", IPPool: "10.99.0.0/24", DNS: "9.9.9.9", MTU: 1300,
-		}},
-		{ellaraft.CmdCreateDataNetwork, db.DataNetwork{
-			Name: "testnet-b", IPPool: "10.98.0.0/24", DNS: "1.0.0.1", MTU: 1500,
-		}},
-		// Profiles
-		{ellaraft.CmdCreateProfile, db.Profile{
-			Name:           "det-basic",
-			UeAmbrUplink:   "500000 bps",
-			UeAmbrDownlink: "2000000 bps",
-		}},
-		{ellaraft.CmdCreateProfile, db.Profile{
-			Name:           "det-premium",
-			UeAmbrUplink:   "1000000 bps",
-			UeAmbrDownlink: "5000000 bps",
-		}},
-		// Singleton settings
-		{ellaraft.CmdUpdateNATSettings, struct {
-			Value bool `json:"value"`
-		}{Value: true}},
-		{ellaraft.CmdUpdateFlowAccountingSettings, struct {
-			Value bool `json:"value"`
-		}{Value: false}},
-		// Update operator (already initialized by NewDatabase)
-		{ellaraft.CmdUpdateOperatorSPN, db.Operator{
-			ID:           1,
-			SpnFullName:  "UpdatedNet",
-			SpnShortName: "UN",
-		}},
-		{ellaraft.CmdUpdateOperatorTracking, db.Operator{
-			ID:            1,
-			SupportedTACs: `["0001","0002"]`,
-		}},
-	}
-
-	cmds := make([]*ellaraft.Command, 0, len(entries))
-	for _, e := range entries {
-		cmd, err := ellaraft.NewCommand(e.cmdType, e.payload)
-		if err != nil {
-			t.Fatalf("build command %s: %v", e.cmdType, err)
-		}
-
-		cmds = append(cmds, cmd)
-	}
-
-	return cmds
 }
 
 // canonicalHash produces a SHA-256 digest of the specified tables' content in

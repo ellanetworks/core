@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -102,7 +101,7 @@ func (db *Database) SetJWTSecret(ctx context.Context, secret []byte) error {
 
 	DBQueriesTotal.WithLabelValues(JWTSecretTableName, "update").Inc()
 
-	_, err := db.propose(ellaraft.CmdSetJWTSecret, &bytesPayload{Value: secret})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applySetJWTSecret(ctx, &bytesPayload{Value: secret}) }, "SetJWTSecret")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

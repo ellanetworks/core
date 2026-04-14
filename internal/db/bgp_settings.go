@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -135,7 +134,7 @@ func (db *Database) UpdateBGPSettings(ctx context.Context, settings *BGPSettings
 
 	DBQueriesTotal.WithLabelValues(BGPSettingsTableName, "update").Inc()
 
-	_, err := db.propose(ellaraft.CmdUpdateBGPSettings, settings)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateBGPSettings(ctx, settings) }, "UpdateBGPSettings")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

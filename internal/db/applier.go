@@ -25,191 +25,55 @@ var _ ellaraft.Applier = (*Database)(nil)
 func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (any, error) {
 	switch cmd.Type {
 	case ellaraft.CmdChangeset:
-		return applyJSON[bytesPayload](ctx, cmd.Payload, db.applyChangeset)
+		payload, err := unmarshalPayload[bytesPayload](cmd.Payload)
+		if err != nil {
+			return nil, err
+		}
 
-	// Subscribers
-	case ellaraft.CmdCreateSubscriber:
-		return applyJSON[Subscriber](ctx, cmd.Payload, db.applyCreateSubscriber)
-	case ellaraft.CmdUpdateSubscriberProfile:
-		return applyJSON[Subscriber](ctx, cmd.Payload, db.applyUpdateSubscriberProfile)
-	case ellaraft.CmdEditSubscriberSeqNum:
-		return applyJSON[Subscriber](ctx, cmd.Payload, db.applyEditSubscriberSeqNum)
-	case ellaraft.CmdDeleteSubscriber:
-		return applyJSON[stringPayload](ctx, cmd.Payload, db.applyDeleteSubscriber)
+		return db.applyChangeset(ctx, payload)
 
-	// Daily Usage
-	case ellaraft.CmdIncrementDailyUsage:
-		return applyJSON[DailyUsage](ctx, cmd.Payload, db.applyIncrementDailyUsage)
-	case ellaraft.CmdClearDailyUsage:
-		return nil, db.applyClearDailyUsage(ctx)
+	case ellaraft.CmdDeleteOldAuditLogs:
+		payload, err := unmarshalPayload[stringPayload](cmd.Payload)
+		if err != nil {
+			return nil, err
+		}
+
+		return db.applyDeleteOldAuditLogs(ctx, payload)
+
 	case ellaraft.CmdDeleteOldDailyUsage:
-		return applyJSON[int64Payload](ctx, cmd.Payload, db.applyDeleteOldDailyUsage)
+		payload, err := unmarshalPayload[int64Payload](cmd.Payload)
+		if err != nil {
+			return nil, err
+		}
 
-	// IP Leases
-	case ellaraft.CmdCreateLease:
-		return applyJSON[IPLease](ctx, cmd.Payload, db.applyCreateLease)
-	case ellaraft.CmdUpdateLeaseSession:
-		return applyJSON[IPLease](ctx, cmd.Payload, db.applyUpdateLeaseSession)
-	case ellaraft.CmdDeleteDynamicLease:
-		return applyJSON[intPayload](ctx, cmd.Payload, db.applyDeleteDynamicLease)
+		return db.applyDeleteOldDailyUsage(ctx, payload)
+
 	case ellaraft.CmdDeleteAllDynamicLeases:
 		return nil, db.applyDeleteAllDynamicLeases(ctx)
-	case ellaraft.CmdDeleteDynamicLeasesByNode:
-		return applyJSON[intPayload](ctx, cmd.Payload, db.applyDeleteDynamicLeasesByNode)
-	case ellaraft.CmdUpdateLeaseNode:
-		return applyJSON[IPLease](ctx, cmd.Payload, db.applyUpdateLeaseNode)
 
-	// Audit Logs
-	case ellaraft.CmdInsertAuditLog:
-		return applyJSON[auditLogPayload](ctx, cmd.Payload, db.applyInsertAuditLog)
-	case ellaraft.CmdDeleteOldAuditLogs:
-		return applyJSON[stringPayload](ctx, cmd.Payload, db.applyDeleteOldAuditLogs)
-
-	// Users
-	case ellaraft.CmdCreateUser:
-		return applyJSON[User](ctx, cmd.Payload, db.applyCreateUser)
-	case ellaraft.CmdUpdateUser:
-		return applyJSON[User](ctx, cmd.Payload, db.applyUpdateUser)
-	case ellaraft.CmdUpdateUserPassword:
-		return applyJSON[User](ctx, cmd.Payload, db.applyUpdateUserPassword)
-	case ellaraft.CmdDeleteUser:
-		return applyJSON[stringPayload](ctx, cmd.Payload, db.applyDeleteUser)
-
-	// Profiles
-	case ellaraft.CmdCreateProfile:
-		return applyJSON[Profile](ctx, cmd.Payload, db.applyCreateProfile)
-	case ellaraft.CmdUpdateProfile:
-		return applyJSON[Profile](ctx, cmd.Payload, db.applyUpdateProfile)
-	case ellaraft.CmdDeleteProfile:
-		return applyJSON[stringPayload](ctx, cmd.Payload, db.applyDeleteProfile)
-
-	// API Tokens
-	case ellaraft.CmdCreateAPIToken:
-		return applyJSON[APIToken](ctx, cmd.Payload, db.applyCreateAPIToken)
-	case ellaraft.CmdDeleteAPIToken:
-		return applyJSON[intPayload](ctx, cmd.Payload, db.applyDeleteAPIToken)
-
-	// Sessions
-	case ellaraft.CmdCreateSession:
-		return applyJSON[Session](ctx, cmd.Payload, db.applyCreateSession)
-	case ellaraft.CmdDeleteSessionByTokenHash:
-		return applyJSON[bytesPayload](ctx, cmd.Payload, db.applyDeleteSessionByTokenHash)
 	case ellaraft.CmdDeleteExpiredSessions:
-		return applyJSON[int64Payload](ctx, cmd.Payload, db.applyDeleteExpiredSessions)
-	case ellaraft.CmdDeleteOldestSessions:
-		return applyJSON[DeleteOldestArgs](ctx, cmd.Payload, db.applyDeleteOldestSessions)
-	case ellaraft.CmdDeleteAllSessionsForUser:
-		return applyJSON[int64Payload](ctx, cmd.Payload, db.applyDeleteAllSessionsForUser)
-	case ellaraft.CmdDeleteAllSessions:
-		return nil, db.applyDeleteAllSessions(ctx)
+		payload, err := unmarshalPayload[int64Payload](cmd.Payload)
+		if err != nil {
+			return nil, err
+		}
 
-	// Network Slices
-	case ellaraft.CmdCreateNetworkSlice:
-		return applyJSON[NetworkSlice](ctx, cmd.Payload, db.applyCreateNetworkSlice)
-	case ellaraft.CmdUpdateNetworkSlice:
-		return applyJSON[NetworkSlice](ctx, cmd.Payload, db.applyUpdateNetworkSlice)
-	case ellaraft.CmdDeleteNetworkSlice:
-		return applyJSON[stringPayload](ctx, cmd.Payload, db.applyDeleteNetworkSlice)
+		return db.applyDeleteExpiredSessions(ctx, payload)
 
-	// Data Networks
-	case ellaraft.CmdCreateDataNetwork:
-		return applyJSON[DataNetwork](ctx, cmd.Payload, db.applyCreateDataNetwork)
-	case ellaraft.CmdUpdateDataNetwork:
-		return applyJSON[DataNetwork](ctx, cmd.Payload, db.applyUpdateDataNetwork)
-	case ellaraft.CmdDeleteDataNetwork:
-		return applyJSON[stringPayload](ctx, cmd.Payload, db.applyDeleteDataNetwork)
-
-	// Policies
-	case ellaraft.CmdCreatePolicy:
-		return applyJSON[Policy](ctx, cmd.Payload, db.applyCreatePolicy)
-	case ellaraft.CmdUpdatePolicy:
-		return applyJSON[Policy](ctx, cmd.Payload, db.applyUpdatePolicy)
-	case ellaraft.CmdDeletePolicy:
-		return applyJSON[stringPayload](ctx, cmd.Payload, db.applyDeletePolicy)
-
-	// Network Rules
-	case ellaraft.CmdCreateNetworkRule:
-		return applyJSON[NetworkRule](ctx, cmd.Payload, db.applyCreateNetworkRule)
-	case ellaraft.CmdUpdateNetworkRule:
-		return applyJSON[NetworkRule](ctx, cmd.Payload, db.applyUpdateNetworkRule)
-	case ellaraft.CmdDeleteNetworkRule:
-		return applyJSON[int64Payload](ctx, cmd.Payload, db.applyDeleteNetworkRule)
-	case ellaraft.CmdDeleteNetworkRulesByPolicy:
-		return applyJSON[int64Payload](ctx, cmd.Payload, db.applyDeleteNetworkRulesByPolicy)
-
-	// Home Network Keys
-	case ellaraft.CmdCreateHomeNetworkKey:
-		return applyJSON[HomeNetworkKey](ctx, cmd.Payload, db.applyCreateHomeNetworkKey)
-	case ellaraft.CmdDeleteHomeNetworkKey:
-		return applyJSON[intPayload](ctx, cmd.Payload, db.applyDeleteHomeNetworkKey)
-
-	// BGP Peers
-	case ellaraft.CmdCreateBGPPeer:
-		return applyJSON[BGPPeer](ctx, cmd.Payload, db.applyCreateBGPPeer)
-	case ellaraft.CmdUpdateBGPPeer:
-		return applyJSON[BGPPeer](ctx, cmd.Payload, db.applyUpdateBGPPeer)
-	case ellaraft.CmdDeleteBGPPeer:
-		return applyJSON[intPayload](ctx, cmd.Payload, db.applyDeleteBGPPeer)
-
-	// BGP Settings
-	case ellaraft.CmdUpdateBGPSettings:
-		return applyJSON[BGPSettings](ctx, cmd.Payload, db.applyUpdateBGPSettings)
-
-	// BGP Import Prefixes
-	case ellaraft.CmdSetImportPrefixesForPeer:
-		return applyJSON[importPrefixesPayload](ctx, cmd.Payload, db.applySetImportPrefixesForPeer)
-
-	// Settings (singletons)
-	case ellaraft.CmdUpdateNATSettings:
-		return applyJSON[boolPayload](ctx, cmd.Payload, db.applyUpdateNATSettings)
-	case ellaraft.CmdUpdateN3Settings:
-		return applyJSON[stringPayload](ctx, cmd.Payload, db.applyUpdateN3Settings)
-	case ellaraft.CmdUpdateFlowAccountingSettings:
-		return applyJSON[boolPayload](ctx, cmd.Payload, db.applyUpdateFlowAccountingSettings)
-	case ellaraft.CmdSetRetentionPolicy:
-		return applyJSON[RetentionPolicy](ctx, cmd.Payload, db.applySetRetentionPolicy)
-
-	// Operator
-	case ellaraft.CmdInitializeOperator:
-		return applyJSON[Operator](ctx, cmd.Payload, db.applyInitializeOperator)
-	case ellaraft.CmdUpdateOperatorTracking:
-		return applyJSON[Operator](ctx, cmd.Payload, db.applyUpdateOperatorTracking)
-	case ellaraft.CmdUpdateOperatorID:
-		return applyJSON[Operator](ctx, cmd.Payload, db.applyUpdateOperatorID)
-	case ellaraft.CmdUpdateOperatorCode:
-		return applyJSON[Operator](ctx, cmd.Payload, db.applyUpdateOperatorCode)
-	case ellaraft.CmdUpdateOperatorSecurityAlgorithms:
-		return applyJSON[Operator](ctx, cmd.Payload, db.applyUpdateOperatorSecurityAlgorithms)
-	case ellaraft.CmdUpdateOperatorSPN:
-		return applyJSON[Operator](ctx, cmd.Payload, db.applyUpdateOperatorSPN)
-	case ellaraft.CmdUpdateOperatorAMFIdentity:
-		return applyJSON[Operator](ctx, cmd.Payload, db.applyUpdateOperatorAMFIdentity)
-	case ellaraft.CmdUpdateOperatorClusterID:
-		return applyJSON[Operator](ctx, cmd.Payload, db.applyUpdateOperatorClusterID)
-
-	// JWT Secret
-	case ellaraft.CmdSetJWTSecret:
-		return applyJSON[bytesPayload](ctx, cmd.Payload, db.applySetJWTSecret)
-
-	// Routes
-	case ellaraft.CmdCreateRoute:
-		return applyJSON[Route](ctx, cmd.Payload, db.applyCreateRoute)
-	case ellaraft.CmdDeleteRoute:
-		return applyJSON[int64Payload](ctx, cmd.Payload, db.applyDeleteRoute)
-
-	// Cluster Members
-	case ellaraft.CmdUpsertClusterMember:
-		return applyJSON[ClusterMember](ctx, cmd.Payload, db.applyUpsertClusterMember)
-	case ellaraft.CmdDeleteClusterMember:
-		return applyJSON[intPayload](ctx, cmd.Payload, db.applyDeleteClusterMember)
-
-	// Schema Migrations
 	case ellaraft.CmdMigrateShared:
-		return applyJSON[migrateSharedPayload](ctx, cmd.Payload, db.applyMigrateShared)
+		payload, err := unmarshalPayload[migrateSharedPayload](cmd.Payload)
+		if err != nil {
+			return nil, err
+		}
 
-	// Restore — replaces shared.db with the carried backup bytes.
+		return db.applyMigrateShared(ctx, payload)
+
 	case ellaraft.CmdRestore:
-		return applyJSON[bytesPayload](ctx, cmd.Payload, db.applyRestore)
+		payload, err := unmarshalPayload[bytesPayload](cmd.Payload)
+		if err != nil {
+			return nil, err
+		}
+
+		return db.applyRestore(ctx, payload)
 
 	default:
 		return nil, fmt.Errorf("unknown command type: %s", cmd.Type)
@@ -254,15 +118,13 @@ func (db *Database) Reopen(ctx context.Context) error {
 	return nil
 }
 
-// applyJSON is a generic helper that unmarshals a JSON payload and calls the
-// apply function. It reduces boilerplate in the ApplyCommand dispatch table.
-func applyJSON[T any](ctx context.Context, payload json.RawMessage, fn func(context.Context, *T) (any, error)) (any, error) {
+func unmarshalPayload[T any](payload json.RawMessage) (*T, error) {
 	var v T
 	if err := json.Unmarshal(payload, &v); err != nil {
 		return nil, fmt.Errorf("unmarshal payload: %w", err)
 	}
 
-	return fn(ctx, &v)
+	return &v, nil
 }
 
 // Payload types for simple values that don't warrant a dedicated struct.
@@ -299,47 +161,43 @@ type (
 	}
 )
 
-// propose creates a Raft command and proposes it through the leader. Returns
-// the result from FSM.Apply. Transient Raft errors (queue full, leadership
-// lost, shutdown) are mapped to ErrProposeTimeout so the API layer can
-// return 503.
-func (db *Database) propose(cmdType ellaraft.CommandType, payload any) (any, error) {
-	if !isIntentBulkCommand(cmdType) && cmdType != ellaraft.CmdMigrateShared && cmdType != ellaraft.CmdRestore {
-		typedCmd, err := ellaraft.NewCommand(cmdType, payload)
-		if err != nil {
-			return nil, err
+// proposeChangeset captures a local SQL mutation as a sqlite changeset and
+// replicates it through Raft as CmdChangeset. The leader's SQL writes are
+// rolled back locally and only become durable through committed apply.
+func (db *Database) proposeChangeset(applyFn func(context.Context) (any, error), operation string) (any, error) {
+	changeset, applyResult, err := db.captureChangeset(context.Background(), applyFn, operation)
+	if err != nil {
+		if errors.Is(err, ErrAlreadyExists) {
+			return nil, ErrAlreadyExists
 		}
 
-		changeset, applyResult, err := db.captureChangesetForCommand(context.Background(), typedCmd)
-		if err != nil {
-			if errors.Is(err, ErrAlreadyExists) {
-				return nil, ErrAlreadyExists
-			}
-
-			if errors.Is(err, ErrNotFound) {
-				return nil, ErrNotFound
-			}
-
-			return nil, fmt.Errorf("capture changeset for %s: %w", cmdType, err)
+		if errors.Is(err, ErrNotFound) {
+			return nil, ErrNotFound
 		}
 
-		changesetCmd, err := ellaraft.NewCommand(ellaraft.CmdChangeset, &bytesPayload{Value: changeset})
-		if err != nil {
-			return nil, err
-		}
-
-		_, err = db.raftManager.Propose(changesetCmd, db.proposeTimeout)
-		if err != nil {
-			if isTransientRaftErr(err) {
-				return nil, fmt.Errorf("%w: %v", ErrProposeTimeout, err)
-			}
-
-			return nil, err
-		}
-
-		return applyResult, nil
+		return nil, fmt.Errorf("capture changeset for %s: %w", operation, err)
 	}
 
+	changesetCmd, err := ellaraft.NewCommand(ellaraft.CmdChangeset, &bytesPayload{Value: changeset})
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = db.raftManager.Propose(changesetCmd, db.proposeTimeout)
+	if err != nil {
+		if isTransientRaftErr(err) {
+			return nil, fmt.Errorf("%w: %v", ErrProposeTimeout, err)
+		}
+
+		return nil, err
+	}
+
+	return applyResult, nil
+}
+
+// proposeIntent proposes non-changeset commands that intentionally remain
+// explicit in the Raft log (bulk retention deletes, migrations, restore).
+func (db *Database) proposeIntent(cmdType ellaraft.CommandType, payload any) (any, error) {
 	cmd, err := ellaraft.NewCommand(cmdType, payload)
 	if err != nil {
 		return nil, err

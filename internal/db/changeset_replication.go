@@ -7,11 +7,9 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
-	"slices"
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/mattn/go-sqlite3"
 	"go.uber.org/zap"
 )
@@ -87,15 +85,6 @@ func (db *Database) assertTableReplicationClassification(ctx context.Context) er
 	return nil
 }
 
-func isIntentBulkCommand(cmdType ellaraft.CommandType) bool {
-	return slices.Contains([]ellaraft.CommandType{
-		ellaraft.CmdDeleteOldAuditLogs,
-		ellaraft.CmdDeleteOldDailyUsage,
-		ellaraft.CmdDeleteExpiredSessions,
-		ellaraft.CmdDeleteAllDynamicLeases,
-	}, cmdType)
-}
-
 func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload) (any, error) {
 	conn, err := db.conn.PlainDB().Conn(ctx)
 	if err != nil {
@@ -134,7 +123,7 @@ func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload) (
 	return nil, nil
 }
 
-func (db *Database) captureChangesetForCommand(ctx context.Context, cmd *ellaraft.Command) ([]byte, any, error) {
+func (db *Database) captureChangeset(ctx context.Context, applyFn func(context.Context) (any, error), operation string) ([]byte, any, error) {
 	conn, err := db.conn.PlainDB().Conn(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("acquire sqlite conn for capture: %w", err)
@@ -170,7 +159,7 @@ func (db *Database) captureChangesetForCommand(ctx context.Context, cmd *ellaraf
 				return fmt.Errorf("raw sqlite conn does not implement driver.Conn")
 			}
 
-			applyResult, applyErr := db.applyCommandWithPinnedConn(ctx, dconn, cmd)
+			applyResult, applyErr := db.applyWithPinnedConn(ctx, dconn, applyFn)
 			if applyErr != nil {
 				return applyErr
 			}
@@ -200,13 +189,13 @@ func (db *Database) captureChangesetForCommand(ctx context.Context, cmd *ellaraf
 	}
 
 	logger.WithTrace(ctx, logger.DBLog).Debug("captured changeset",
-		zap.String("command", cmd.Type.String()),
+		zap.String("operation", operation),
 		zap.Int("bytes", len(changeset)))
 
 	return changeset, result, nil
 }
 
-func (db *Database) applyCommandWithPinnedConn(ctx context.Context, conn driver.Conn, cmd *ellaraft.Command) (any, error) {
+func (db *Database) applyWithPinnedConn(ctx context.Context, conn driver.Conn, applyFn func(context.Context) (any, error)) (any, error) {
 	pinned := sql.OpenDB(&pinnedConnector{conn: conn})
 	pinned.SetMaxOpenConns(1)
 	pinned.SetMaxIdleConns(1)
@@ -223,7 +212,7 @@ func (db *Database) applyCommandWithPinnedConn(ctx context.Context, conn driver.
 
 	defer func() { db.conn = originalConn }()
 
-	return db.ApplyCommand(ctx, cmd)
+	return applyFn(ctx)
 }
 
 type pinnedConnector struct {

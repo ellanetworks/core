@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -151,7 +150,7 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "insert").Inc()
 
-	_, err := db.propose(ellaraft.CmdCreateSubscriber, subscriber)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateSubscriber(ctx, subscriber) }, "CreateSubscriber")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -182,7 +181,7 @@ func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Sub
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "update").Inc()
 
-	_, err := db.propose(ellaraft.CmdUpdateSubscriberProfile, subscriber)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateSubscriberProfile(ctx, subscriber) }, "UpdateSubscriberProfile")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -218,7 +217,7 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 		SequenceNumber: sequenceNumber,
 	}
 
-	_, err := db.propose(ellaraft.CmdEditSubscriberSeqNum, subscriber)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyEditSubscriberSeqNum(ctx, subscriber) }, "EditSubscriberSeqNum")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -249,7 +248,9 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteSubscriber, &stringPayload{Value: imsi})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyDeleteSubscriber(ctx, &stringPayload{Value: imsi})
+	}, "DeleteSubscriber")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

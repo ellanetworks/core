@@ -67,7 +67,7 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) (int64,
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "insert").Inc()
 
-	result, err := db.propose(ellaraft.CmdCreateSession, session)
+	result, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateSession(ctx, session) }, "CreateSession")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -136,7 +136,9 @@ func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []by
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteSessionByTokenHash, &bytesPayload{Value: tokenHash})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyDeleteSessionByTokenHash(ctx, &bytesPayload{Value: tokenHash})
+	}, "DeleteSessionByTokenHash")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -169,7 +171,7 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 
 	nowUnix := time.Now().Unix()
 
-	result, err := db.propose(ellaraft.CmdDeleteExpiredSessions, &int64Payload{Value: nowUnix})
+	result, err := db.proposeIntent(ellaraft.CmdDeleteExpiredSessions, &int64Payload{Value: nowUnix})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -235,7 +237,9 @@ func (db *Database) DeleteOldestSessions(ctx context.Context, userID int64, limi
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteOldestSessions, &DeleteOldestArgs{UserID: userID, Limit: limit})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyDeleteOldestSessions(ctx, &DeleteOldestArgs{UserID: userID, Limit: limit})
+	}, "DeleteOldestSessions")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -266,7 +270,9 @@ func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID int64) 
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteAllSessionsForUser, &int64Payload{Value: userID})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyDeleteAllSessionsForUser(ctx, &int64Payload{Value: userID})
+	}, "DeleteAllSessionsForUser")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -297,7 +303,7 @@ func (db *Database) DeleteAllSessions(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteAllSessions, nil)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return nil, db.applyDeleteAllSessions(ctx) }, "DeleteAllSessions")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

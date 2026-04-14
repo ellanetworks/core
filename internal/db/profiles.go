@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -188,7 +187,7 @@ func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 
 	DBQueriesTotal.WithLabelValues(ProfilesTableName, "insert").Inc()
 
-	_, err := db.propose(ellaraft.CmdCreateProfile, profile)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateProfile(ctx, profile) }, "CreateProfile")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -219,7 +218,7 @@ func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
 
 	DBQueriesTotal.WithLabelValues(ProfilesTableName, "update").Inc()
 
-	_, err := db.propose(ellaraft.CmdUpdateProfile, profile)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateProfile(ctx, profile) }, "UpdateProfile")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -250,7 +249,7 @@ func (db *Database) DeleteProfile(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(ProfilesTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteProfile, &stringPayload{Value: name})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyDeleteProfile(ctx, &stringPayload{Value: name}) }, "DeleteProfile")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

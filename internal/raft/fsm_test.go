@@ -104,7 +104,7 @@ func TestFSM_Apply_AdvancesAppliedIndex(t *testing.T) {
 	a := newTestApplier(t)
 	fsm := NewFSM(a, t.TempDir())
 
-	cmd, err := NewCommand(CmdCreateSubscriber, map[string]string{"imsi": "001"})
+	cmd, err := NewCommand(CmdChangeset, map[string]string{"imsi": "001"})
 	if err != nil {
 		t.Fatalf("new command: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestFSM_Apply_PropagatesApplierError(t *testing.T) {
 
 	fsm := NewFSM(a, t.TempDir())
 
-	cmd, err := NewCommand(CmdDeleteSubscriber, map[string]string{"value": "x"})
+	cmd, err := NewCommand(CmdChangeset, map[string]string{"value": "x"})
 	if err != nil {
 		t.Fatalf("new command: %v", err)
 	}
@@ -293,7 +293,7 @@ func TestCommand_RoundTrip(t *testing.T) {
 		IMSI string `json:"imsi"`
 	}
 
-	cmd, err := NewCommand(CmdCreateSubscriber, payload{IMSI: "001010000000001"})
+	cmd, err := NewCommand(CmdChangeset, payload{IMSI: "001010000000001"})
 	if err != nil {
 		t.Fatalf("new command: %v", err)
 	}
@@ -308,8 +308,8 @@ func TestCommand_RoundTrip(t *testing.T) {
 		t.Fatalf("unmarshal: %v", err)
 	}
 
-	if got.Type != CmdCreateSubscriber {
-		t.Fatalf("type: want %v, got %v", CmdCreateSubscriber, got.Type)
+	if got.Type != CmdChangeset {
+		t.Fatalf("type: want %v, got %v", CmdChangeset, got.Type)
 	}
 
 	var p payload
