@@ -9,11 +9,14 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/dbwriter"
+	"github.com/ellanetworks/core/internal/logger"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	hraft "github.com/hashicorp/raft"
+	"go.uber.org/zap"
 )
 
 // Compile-time check that *Database implements ellaraft.Applier.
@@ -167,7 +170,11 @@ type (
 // replicates it through Raft as CmdChangeset. The leader's SQL writes are
 // rolled back locally and only become durable through committed apply.
 func (db *Database) proposeChangeset(applyFn func(context.Context) (any, error), operation string) (any, error) {
+	start := time.Now()
+
 	changeset, applyResult, err := db.captureChangeset(context.Background(), applyFn, operation)
+	captureDur := time.Since(start)
+
 	if err != nil {
 		if errors.Is(err, ErrAlreadyExists) {
 			return nil, ErrAlreadyExists
@@ -185,13 +192,40 @@ func (db *Database) proposeChangeset(applyFn func(context.Context) (any, error),
 		return nil, err
 	}
 
+	proposeStart := time.Now()
+
 	_, err = db.raftManager.Propose(changesetCmd, db.proposeTimeout)
+
+	proposeDur := time.Since(proposeStart)
 	if err != nil {
+		logger.DBLog.Warn("propose changeset failed",
+			zap.String("operation", operation),
+			zap.Int("bytes", len(changeset)),
+			zap.Duration("capture", captureDur),
+			zap.Duration("propose", proposeDur),
+			zap.Error(err))
+
 		if isTransientRaftErr(err) {
 			return nil, fmt.Errorf("%w: %v", ErrProposeTimeout, err)
 		}
 
 		return nil, err
+	}
+
+	if total := time.Since(start); total > 500*time.Millisecond {
+		logger.DBLog.Warn("propose changeset slow",
+			zap.String("operation", operation),
+			zap.Int("bytes", len(changeset)),
+			zap.Duration("capture", captureDur),
+			zap.Duration("propose", proposeDur),
+			zap.Uint64("appliedIndex", db.raftManager.AppliedIndex()))
+	} else {
+		logger.DBLog.Debug("propose changeset ok",
+			zap.String("operation", operation),
+			zap.Int("bytes", len(changeset)),
+			zap.Duration("capture", captureDur),
+			zap.Duration("propose", proposeDur),
+			zap.Uint64("appliedIndex", db.raftManager.AppliedIndex()))
 	}
 
 	return applyResult, nil

@@ -31,6 +31,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
+	"time"
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
@@ -110,10 +111,14 @@ func (db *Database) assertTableReplicationClassification(ctx context.Context) er
 }
 
 func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload) (any, error) {
+	start := time.Now()
+
 	conn, err := db.conn.PlainDB().Conn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("acquire sqlite conn for apply: %w", err)
 	}
+
+	connWait := time.Since(start)
 
 	defer func() { _ = conn.Close() }()
 
@@ -137,7 +142,20 @@ func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload) (
 
 		return nil
 	}); err != nil {
+		logger.DBLog.Warn("apply changeset failed",
+			zap.Int("bytes", len(payload.Value)),
+			zap.Duration("connWait", connWait),
+			zap.Duration("total", time.Since(start)),
+			zap.Error(err))
+
 		return nil, err
+	}
+
+	if total := time.Since(start); total > 200*time.Millisecond || connWait > 100*time.Millisecond {
+		logger.DBLog.Warn("apply changeset slow",
+			zap.Int("bytes", len(payload.Value)),
+			zap.Duration("connWait", connWait),
+			zap.Duration("total", total))
 	}
 
 	return nil, nil
