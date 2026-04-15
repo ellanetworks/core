@@ -119,6 +119,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return os.ReadFile(rc.ConfigPath)
 	}
 
+	server.RegisterMetrics()
+
 	// --- Phase A: start the HTTP server with discovery-only routes so
 	// peers can probe /api/v1/status and POST /api/v1/cluster/members
 	// during Raft cluster formation. ---
@@ -297,7 +299,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return nil
 	}
 
-	server.RegisterMetrics()
 	smf.RegisterMetrics(smfInstance)
 	upf.RegisterMetrics()
 
