@@ -39,4 +39,4 @@ jobs:
 
       - name: Run integration tests
         run: |
-          INTEGRATION=1 go test ./integration/... -run '^TestIntegration(?!HA)' -v
+          INTEGRATION=1 go test ./integration/... -skip TestIntegrationHA -v

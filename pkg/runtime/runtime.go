@@ -149,12 +149,24 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	isNATEnabled, err := dbInstance.IsNATEnabled(ctx)
 	if err != nil {
-		return fmt.Errorf("couldn't determine if NAT is enabled: %w", err)
+		if cfg.Cluster.Enabled {
+			logger.EllaLog.Warn("Settings not yet seeded, defaulting NAT to enabled", zap.Error(err))
+
+			isNATEnabled = db.NATDefaultEnabled
+		} else {
+			return fmt.Errorf("couldn't determine if NAT is enabled: %w", err)
+		}
 	}
 
 	isFlowAccountingEnabled, err := dbInstance.IsFlowAccountingEnabled(ctx)
 	if err != nil {
-		return fmt.Errorf("couldn't determine if flow accounting is enabled: %w", err)
+		if cfg.Cluster.Enabled {
+			logger.EllaLog.Warn("Settings not yet seeded, defaulting flow accounting to enabled", zap.Error(err))
+
+			isFlowAccountingEnabled = db.FlowAccountingDefaultEnabled
+		} else {
+			return fmt.Errorf("couldn't determine if flow accounting is enabled: %w", err)
+		}
 	}
 
 	// Initialize BGP service
@@ -183,7 +195,13 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	bgpSettings, err := dbInstance.GetBGPSettings(ctx)
 	if err != nil {
-		return fmt.Errorf("couldn't get BGP settings: %w", err)
+		if cfg.Cluster.Enabled {
+			logger.EllaLog.Warn("Settings not yet seeded, defaulting BGP to disabled", zap.Error(err))
+
+			bgpSettings = &db.BGPSettings{Enabled: db.BGPDefaultEnabled}
+		} else {
+			return fmt.Errorf("couldn't get BGP settings: %w", err)
+		}
 	}
 
 	if bgpSettings.Enabled {
@@ -219,7 +237,13 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	n3Settings, err := dbInstance.GetN3Settings(ctx)
 	if err != nil {
-		return fmt.Errorf("couldn't get N3 external address: %w", err)
+		if cfg.Cluster.Enabled {
+			logger.EllaLog.Warn("Settings not yet seeded, using config N3 address", zap.Error(err))
+
+			n3Settings = nil
+		} else {
+			return fmt.Errorf("couldn't get N3 external address: %w", err)
+		}
 	}
 
 	advertisedN3Address := n3Address
