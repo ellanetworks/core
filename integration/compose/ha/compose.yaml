@@ -26,12 +26,12 @@ configs:
         enabled: true
         node-id: 1
         bind-address: "10.100.0.11:7000"
-        advertise-api-address: "https://10.100.0.11:5002"
+        advertise-api-address: "http://10.100.0.11:5002"
         bootstrap-expect: 3
         peers:
-          - "https://10.100.0.11:5002"
-          - "https://10.100.0.12:5002"
-          - "https://10.100.0.13:5002"
+          - "http://10.100.0.11:5002"
+          - "http://10.100.0.12:5002"
+          - "http://10.100.0.13:5002"
         join-token: "integration-test-token-that-is-long-enough"
   node2_config:
     content: |
@@ -60,12 +60,12 @@ configs:
         enabled: true
         node-id: 2
         bind-address: "10.100.0.12:7000"
-        advertise-api-address: "https://10.100.0.12:5002"
+        advertise-api-address: "http://10.100.0.12:5002"
         bootstrap-expect: 3
         peers:
-          - "https://10.100.0.11:5002"
-          - "https://10.100.0.12:5002"
-          - "https://10.100.0.13:5002"
+          - "http://10.100.0.11:5002"
+          - "http://10.100.0.12:5002"
+          - "http://10.100.0.13:5002"
         join-token: "integration-test-token-that-is-long-enough"
   node3_config:
     content: |
@@ -94,12 +94,12 @@ configs:
         enabled: true
         node-id: 3
         bind-address: "10.100.0.13:7000"
-        advertise-api-address: "https://10.100.0.13:5002"
+        advertise-api-address: "http://10.100.0.13:5002"
         bootstrap-expect: 3
         peers:
-          - "https://10.100.0.11:5002"
-          - "https://10.100.0.12:5002"
-          - "https://10.100.0.13:5002"
+          - "http://10.100.0.11:5002"
+          - "http://10.100.0.12:5002"
+          - "http://10.100.0.13:5002"
         join-token: "integration-test-token-that-is-long-enough"
 
 services:

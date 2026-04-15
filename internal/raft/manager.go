@@ -588,14 +588,28 @@ func (m *Manager) Shutdown() error {
 	return nil
 }
 
-// waitForLeader blocks until this node becomes the Raft leader or ctx is cancelled.
+// waitForLeader blocks until the cluster has an elected leader or ctx is
+// cancelled. On the bootstrapper LeaderCh fires quickly; on joiners we
+// poll LeaderWithID because LeaderCh only signals this node's own
+// leadership transitions.
 func (m *Manager) waitForLeader(ctx context.Context) error {
+	if addr, _ := m.raft.LeaderWithID(); addr != "" {
+		return nil
+	}
+
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case isLeader := <-m.raft.LeaderCh():
 			if isLeader {
+				return nil
+			}
+		case <-ticker.C:
+			if addr, _ := m.raft.LeaderWithID(); addr != "" {
 				return nil
 			}
 		}

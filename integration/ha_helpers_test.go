@@ -2,7 +2,6 @@ package integration_test
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"time"
 
@@ -14,17 +13,14 @@ const haComposeDir = "compose/ha/"
 var haNodeServices = []string{"ella-core-1", "ella-core-2", "ella-core-3"}
 
 var haNodeURLs = []string{
-	"https://10.100.0.11:5002",
-	"https://10.100.0.12:5002",
-	"https://10.100.0.13:5002",
+	"http://10.100.0.11:5002",
+	"http://10.100.0.12:5002",
+	"http://10.100.0.13:5002",
 }
 
 func newInsecureClient(baseURL string) (*client.Client, error) {
 	return client.New(&client.Config{
 		BaseURL: baseURL,
-		TLSConfig: &tls.Config{
-			InsecureSkipVerify: true, // #nosec G402 -- integration test against self-signed certs
-		},
 	})
 }
 
