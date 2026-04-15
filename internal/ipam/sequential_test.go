@@ -100,6 +100,22 @@ func (s *fakeStore) UpdateLeaseSession(_ context.Context, leaseID int, sessionID
 	return ErrNotFound
 }
 
+func (s *fakeStore) UpdateLeaseNode(_ context.Context, leaseID int, nodeID int, sessionID int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for i := range s.leases {
+		if s.leases[i].ID == leaseID {
+			s.leases[i].NodeID = nodeID
+			s.leases[i].SessionID = &sessionID
+
+			return nil
+		}
+	}
+
+	return ErrNotFound
+}
+
 func (s *fakeStore) DeleteDynamicLease(_ context.Context, leaseID int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -132,7 +148,7 @@ func TestAllocate_FirstAddress(t *testing.T) {
 	alloc := NewSequentialAllocator(store)
 	pool := mustPool("192.168.1.0/24")
 
-	addr, err := alloc.Allocate(context.Background(), pool, "001010000000001", 1)
+	addr, err := alloc.Allocate(context.Background(), pool, "001010000000001", 1, 0)
 	if err != nil {
 		t.Fatalf("Allocate: %v", err)
 	}
@@ -153,7 +169,7 @@ func TestAllocate_Sequential(t *testing.T) {
 	for i := 1; i <= 5; i++ {
 		imsi := fmt.Sprintf("0010100000000%02d", i)
 
-		addr, err := alloc.Allocate(context.Background(), pool, imsi, i)
+		addr, err := alloc.Allocate(context.Background(), pool, imsi, i, 0)
 		if err != nil {
 			t.Fatalf("Allocate #%d: %v", i, err)
 		}
@@ -182,14 +198,14 @@ func TestAllocate_PoolExhaustion(t *testing.T) {
 	for i := 1; i <= 6; i++ {
 		imsi := fmt.Sprintf("0010100000000%02d", i)
 
-		_, err := alloc.Allocate(context.Background(), pool, imsi, i)
+		_, err := alloc.Allocate(context.Background(), pool, imsi, i, 0)
 		if err != nil {
 			t.Fatalf("Allocate #%d: %v", i, err)
 		}
 	}
 
 	// 7th allocation should fail.
-	_, err := alloc.Allocate(context.Background(), pool, "001010000000007", 7)
+	_, err := alloc.Allocate(context.Background(), pool, "001010000000007", 7, 0)
 	if err != ErrPoolExhausted {
 		t.Fatalf("expected ErrPoolExhausted, got %v", err)
 	}
@@ -200,7 +216,7 @@ func TestAllocate_SkipsNetworkAndBroadcast(t *testing.T) {
 	alloc := NewSequentialAllocator(store)
 	pool := mustPool("10.0.0.0/30") // 4 total: .0 (network), .1, .2, .3 (broadcast) — 2 usable
 
-	addr1, err := alloc.Allocate(context.Background(), pool, "001010000000001", 1)
+	addr1, err := alloc.Allocate(context.Background(), pool, "001010000000001", 1, 0)
 	if err != nil {
 		t.Fatalf("Allocate 1: %v", err)
 	}
@@ -209,7 +225,7 @@ func TestAllocate_SkipsNetworkAndBroadcast(t *testing.T) {
 		t.Fatalf("expected 10.0.0.1, got %s", addr1)
 	}
 
-	addr2, err := alloc.Allocate(context.Background(), pool, "001010000000002", 2)
+	addr2, err := alloc.Allocate(context.Background(), pool, "001010000000002", 2, 0)
 	if err != nil {
 		t.Fatalf("Allocate 2: %v", err)
 	}
@@ -219,7 +235,7 @@ func TestAllocate_SkipsNetworkAndBroadcast(t *testing.T) {
 	}
 
 	// Pool should now be exhausted.
-	_, err = alloc.Allocate(context.Background(), pool, "001010000000003", 3)
+	_, err = alloc.Allocate(context.Background(), pool, "001010000000003", 3, 0)
 	if err != ErrPoolExhausted {
 		t.Fatalf("expected ErrPoolExhausted, got %v", err)
 	}
@@ -231,13 +247,13 @@ func TestAllocate_LeaseReuse_ReRegistration(t *testing.T) {
 	pool := mustPool("192.168.1.0/24")
 
 	// Initial allocation.
-	addr1, err := alloc.Allocate(context.Background(), pool, "001010000000001", 1)
+	addr1, err := alloc.Allocate(context.Background(), pool, "001010000000001", 1, 0)
 	if err != nil {
 		t.Fatalf("Allocate: %v", err)
 	}
 
 	// Re-registration with a new session for the same IMSI.
-	addr2, err := alloc.Allocate(context.Background(), pool, "001010000000001", 2)
+	addr2, err := alloc.Allocate(context.Background(), pool, "001010000000001", 2, 0)
 	if err != nil {
 		t.Fatalf("Allocate (re-registration): %v", err)
 	}
@@ -257,7 +273,7 @@ func TestAllocate_GapFilling(t *testing.T) {
 	for i := 1; i <= 3; i++ {
 		imsi := fmt.Sprintf("0010100000000%02d", i)
 
-		_, err := alloc.Allocate(context.Background(), pool, imsi, i)
+		_, err := alloc.Allocate(context.Background(), pool, imsi, i, 0)
 		if err != nil {
 			t.Fatalf("Allocate #%d: %v", i, err)
 		}
@@ -274,7 +290,7 @@ func TestAllocate_GapFilling(t *testing.T) {
 	}
 
 	// Next allocation should fill the gap.
-	addr, err := alloc.Allocate(context.Background(), pool, "001010000000004", 4)
+	addr, err := alloc.Allocate(context.Background(), pool, "001010000000004", 4, 0)
 	if err != nil {
 		t.Fatalf("Allocate (gap): %v", err)
 	}
@@ -289,7 +305,7 @@ func TestRelease_Dynamic(t *testing.T) {
 	alloc := NewSequentialAllocator(store)
 	pool := mustPool("192.168.1.0/24")
 
-	addr, _ := alloc.Allocate(context.Background(), pool, "001010000000001", 1)
+	addr, _ := alloc.Allocate(context.Background(), pool, "001010000000001", 1, 0)
 
 	released, err := alloc.Release(context.Background(), pool, 1, "001010000000001")
 	if err != nil {
@@ -338,7 +354,7 @@ func TestAllocate_ConcurrentRaces(t *testing.T) {
 
 			imsi := fmt.Sprintf("001010000000%03d", idx+1)
 
-			addr, err := alloc.Allocate(context.Background(), pool, imsi, idx+1)
+			addr, err := alloc.Allocate(context.Background(), pool, imsi, idx+1, 0)
 			if err != nil {
 				errs[idx] = err
 			} else {
@@ -390,7 +406,7 @@ func TestAllocate_MergeScanCorrectness(t *testing.T) {
 	}
 
 	// Next allocation should fill the first gap at .2.
-	addr, err := alloc.Allocate(context.Background(), pool, "001010000000010", 10)
+	addr, err := alloc.Allocate(context.Background(), pool, "001010000000010", 10, 0)
 	if err != nil {
 		t.Fatalf("Allocate: %v", err)
 	}
@@ -400,7 +416,7 @@ func TestAllocate_MergeScanCorrectness(t *testing.T) {
 	}
 
 	// Next should fill .4.
-	addr, err = alloc.Allocate(context.Background(), pool, "001010000000011", 11)
+	addr, err = alloc.Allocate(context.Background(), pool, "001010000000011", 11, 0)
 	if err != nil {
 		t.Fatalf("Allocate: %v", err)
 	}
@@ -410,7 +426,7 @@ func TestAllocate_MergeScanCorrectness(t *testing.T) {
 	}
 
 	// Next should fill .6.
-	addr, err = alloc.Allocate(context.Background(), pool, "001010000000012", 12)
+	addr, err = alloc.Allocate(context.Background(), pool, "001010000000012", 12, 0)
 	if err != nil {
 		t.Fatalf("Allocate: %v", err)
 	}
@@ -420,7 +436,7 @@ func TestAllocate_MergeScanCorrectness(t *testing.T) {
 	}
 
 	// Pool should now be exhausted.
-	_, err = alloc.Allocate(context.Background(), pool, "001010000000013", 13)
+	_, err = alloc.Allocate(context.Background(), pool, "001010000000013", 13, 0)
 	if err != ErrPoolExhausted {
 		t.Fatalf("expected ErrPoolExhausted, got %v", err)
 	}

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/canonical/sqlair"
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -71,7 +70,7 @@ func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (int
 	nr.CreatedAt = now
 	nr.UpdatedAt = now
 
-	result, err := db.propose(ellaraft.CmdCreateNetworkRule, nr)
+	result, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateNetworkRule(ctx, nr) }, "CreateNetworkRule")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -105,7 +104,7 @@ func (db *Database) GetNetworkRule(ctx context.Context, id int64) (*NetworkRule,
 
 	row := NetworkRule{ID: id}
 
-	err := db.shared.Query(ctx, db.getNetworkRuleStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getNetworkRuleStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -144,7 +143,7 @@ func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) erro
 
 	nr.UpdatedAt = time.Now().UTC()
 
-	_, err := db.propose(ellaraft.CmdUpdateNetworkRule, nr)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateNetworkRule(ctx, nr) }, "UpdateNetworkRule")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -276,7 +275,9 @@ func (db *Database) DeleteNetworkRule(ctx context.Context, id int64) error {
 
 	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteNetworkRule, &int64Payload{Value: id})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyDeleteNetworkRule(ctx, &int64Payload{Value: id})
+	}, "DeleteNetworkRule")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -310,7 +311,7 @@ func (db *Database) CountNetworkRules(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.shared.Query(ctx, db.countNetworkRulesStmt).Get(&result)
+	err := db.conn.Query(ctx, db.countNetworkRulesStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -346,7 +347,7 @@ func (db *Database) ListRulesForPolicy(ctx context.Context, policyID int64) ([]*
 
 	params := NetworkRule{PolicyID: policyID}
 
-	err := db.shared.Query(ctx, db.listRulesForPolicyStmt, params).GetAll(&rules)
+	err := db.conn.Query(ctx, db.listRulesForPolicyStmt, params).GetAll(&rules)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -470,7 +471,9 @@ func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID i
 
 	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteNetworkRulesByPolicy, &int64Payload{Value: policyID})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyDeleteNetworkRulesByPolicy(ctx, &int64Payload{Value: policyID})
+	}, "DeleteNetworkRulesByPolicy")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

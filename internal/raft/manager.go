@@ -39,6 +39,14 @@ type ClusterConfig struct {
 	// snapshots to followers that lag. Zero keeps the hashicorp/raft
 	// default (10240).
 	TrailingLogs uint64
+
+	// SchemaVersion is the shared-DB migration version this binary expects.
+	// Included in the join handshake so version-skewed nodes are rejected.
+	SchemaVersion int
+
+	// InitialSuffrage controls whether this node joins as "voter" or
+	// "nonvoter". Set to "nonvoter" during rolling upgrade re-joins.
+	InitialSuffrage string
 }
 
 const (
@@ -79,15 +87,18 @@ func closeTransport(t raft.Transport) {
 
 // Manager wraps a hashicorp/raft instance and its supporting infrastructure.
 type Manager struct {
-	raft      *raft.Raft
-	fsm       *FSM
-	transport raft.Transport
-	logStore  raft.LogStore
-	snaps     raft.SnapshotStore
-	config    ClusterConfig
-	nodeID    int
-	dataDir   string
-	observer  *LeaderObserver
+	raft           *raft.Raft
+	fsm            *FSM
+	transport      raft.Transport
+	logStore       raft.LogStore
+	snaps          raft.SnapshotStore
+	config         ClusterConfig
+	nodeID         int
+	dataDir        string
+	observer       *LeaderObserver
+	needsDiscovery bool
+	autopilot      *autopilotRunner
+	boltNoSync     bool
 }
 
 // defaultStandaloneBindAddress is the bind address used when ClusterConfig
@@ -146,7 +157,17 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 
 	boltPath := filepath.Join(raftDir, "raft.db")
 
-	boltStore, err := raftboltdb.NewBoltStore(boltPath)
+	// In single-server mode the raft log is auxiliary: ella.db (fsynced on
+	// COMMIT) is the canonical FSM state, there are no peers to replicate to,
+	// and losing trailing raft-log entries on crash is harmless — the FSM
+	// state on disk is already authoritative. Skipping per-entry fsync halves
+	// write latency (one fsync per COMMIT instead of two) and restores the
+	// pre-HA throughput the API layer depends on for batched mutations.
+	// HA mode keeps fsync enabled: replicas derive truth from the log.
+	boltStore, err := raftboltdb.New(raftboltdb.Options{
+		Path:   boltPath,
+		NoSync: singleServer,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("create bolt store at %s: %w", boltPath, err)
 	}
@@ -226,15 +247,22 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 	observer := NewLeaderObserver()
 
 	m := &Manager{
-		raft:      r,
-		fsm:       fsm,
-		transport: transport,
-		logStore:  boltStore,
-		snaps:     snapshotStore,
-		config:    cfg,
-		nodeID:    nodeID,
-		dataDir:   dataDir,
-		observer:  observer,
+		raft:           r,
+		fsm:            fsm,
+		transport:      transport,
+		logStore:       boltStore,
+		snaps:          snapshotStore,
+		config:         cfg,
+		nodeID:         nodeID,
+		dataDir:        dataDir,
+		observer:       observer,
+		needsDiscovery: !singleServer && !hasState && !recovered,
+		boltNoSync:     singleServer,
+	}
+
+	if !singleServer {
+		m.autopilot = newAutopilotRunner(r, m)
+		observer.Register(m.autopilot)
 	}
 
 	if singleServer {
@@ -367,7 +395,7 @@ func (m *Manager) AppliedIndex() uint64 {
 
 // Snapshot triggers a user-requested Raft snapshot and blocks until it
 // completes. Callers use this to force log truncation after large log
-// entries (e.g. CmdRestore, which ships the full shared.db as a blob) so
+// entries (e.g. CmdRestore, which ships the full ella.db as a blob) so
 // followers don't carry the blob in their log indefinitely.
 func (m *Manager) Snapshot() error {
 	future := m.raft.Snapshot()
@@ -383,12 +411,122 @@ func (m *Manager) State() raft.RaftState {
 	return m.raft.State()
 }
 
+// Stats returns the Raft stats map (wraps raft.Stats()).
+func (m *Manager) Stats() map[string]string {
+	return m.raft.Stats()
+}
+
 // LeaderObserver returns the manager's leadership observer. Callers register
 // LeaderCallback implementations before the observer's Run loop fires the
 // initial state; in practice, registration happens between NewDatabase and
 // the background-worker launch in runtime.go.
 func (m *Manager) LeaderObserver() *LeaderObserver {
 	return m.observer
+}
+
+// AddVoter adds a new node to the Raft cluster as a voting member. Only the
+// leader can add nodes. The nodeID and address identify the new server; if the
+// node already exists with a different address, it is updated.
+func (m *Manager) AddVoter(nodeID int, address string) error {
+	serverID := raft.ServerID(fmt.Sprintf("%d", nodeID))
+	serverAddr := raft.ServerAddress(address)
+
+	future := m.raft.AddVoter(serverID, serverAddr, 0, 0)
+	if err := future.Error(); err != nil {
+		return fmt.Errorf("add voter %d at %s: %w", nodeID, address, err)
+	}
+
+	return nil
+}
+
+// RemoveServer removes a node from the Raft cluster. Only the leader can
+// remove nodes. After removal the target node will revert to follower state
+// and stop receiving replication.
+func (m *Manager) RemoveServer(nodeID int) error {
+	serverID := raft.ServerID(fmt.Sprintf("%d", nodeID))
+
+	future := m.raft.RemoveServer(serverID, 0, 0)
+	if err := future.Error(); err != nil {
+		return fmt.Errorf("remove server %d: %w", nodeID, err)
+	}
+
+	return nil
+}
+
+// LeaderAPIAddress returns the advertise-api-address of the current leader by
+// looking up the leader's Raft transport address in the cluster members table
+// via the provided resolver function. Returns empty string if this node is the
+// leader or if the leader is unknown.
+func (m *Manager) LeaderAPIAddress(resolver func(raftAddr string) string) string {
+	if m.IsLeader() {
+		return ""
+	}
+
+	addr := m.LeaderAddress()
+	if addr == "" {
+		return ""
+	}
+
+	return resolver(addr)
+}
+
+// ClusterEnabled returns whether the manager was started in HA mode.
+func (m *Manager) ClusterEnabled() bool {
+	return m.config.Enabled
+}
+
+// BoltNoSync reports whether the raft log store was opened with fsync
+// disabled. Single-server nodes skip fsync because ella.db is the canonical
+// FSM state and is itself fsynced on COMMIT; HA nodes keep fsync enabled
+// because the raft log is the replicated source of truth.
+func (m *Manager) BoltNoSync() bool {
+	return m.boltNoSync
+}
+
+// LeadershipTransfer triggers a leadership transfer to another node.
+func (m *Manager) LeadershipTransfer() error {
+	return m.raft.LeadershipTransfer().Error()
+}
+
+// LeadershipTransferToServer triggers a leadership transfer to a specific
+// target node. Returns an error if the target is not a voter or the transfer
+// fails.
+func (m *Manager) LeadershipTransferToServer(nodeID int, raftAddress string) error {
+	serverID := raft.ServerID(fmt.Sprintf("%d", nodeID))
+	serverAddr := raft.ServerAddress(raftAddress)
+
+	future := m.raft.LeadershipTransferToServer(serverID, serverAddr)
+	if err := future.Error(); err != nil {
+		return fmt.Errorf("leadership transfer to %d: %w", nodeID, err)
+	}
+
+	return nil
+}
+
+// VoterIDs returns the server IDs of all voting members in the current Raft
+// configuration. Returns nil on error (e.g. no quorum).
+func (m *Manager) VoterIDs() []int {
+	future := m.raft.GetConfiguration()
+	if err := future.Error(); err != nil {
+		return nil
+	}
+
+	var ids []int
+
+	for _, srv := range future.Configuration().Servers {
+		if srv.Suffrage != raft.Voter {
+			continue
+		}
+
+		var id int
+		if _, err := fmt.Sscanf(string(srv.ID), "%d", &id); err != nil {
+			continue
+		}
+
+		ids = append(ids, id)
+	}
+
+	return ids
 }
 
 // Shutdown gracefully shuts down the Raft node.
@@ -429,4 +567,19 @@ func (m *Manager) waitForLeader(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+// AddNonvoter adds a new node to the Raft cluster as a non-voting member.
+// Non-voters receive log replication but do not participate in elections
+// or commit quorum. Used during rolling upgrades for catch-up before promotion.
+func (m *Manager) AddNonvoter(nodeID int, address string) error {
+	serverID := raft.ServerID(fmt.Sprintf("%d", nodeID))
+	serverAddr := raft.ServerAddress(address)
+
+	future := m.raft.AddNonvoter(serverID, serverAddr, 0, 0)
+	if err := future.Error(); err != nil {
+		return fmt.Errorf("add nonvoter %d at %s: %w", nodeID, address, err)
+	}
+
+	return nil
 }

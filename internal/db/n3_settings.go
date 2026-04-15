@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -54,7 +53,7 @@ func (db *Database) InitializeN3Settings(ctx context.Context) error {
 
 	n3Settings := N3Settings{ExternalAddress: N3DefaultExternalAddress}
 
-	if err := db.shared.Query(ctx, db.insertDefaultN3SettingsStmt, n3Settings).Run(); err != nil {
+	if err := db.conn.Query(ctx, db.insertDefaultN3SettingsStmt, n3Settings).Run(); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
@@ -84,7 +83,9 @@ func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string
 
 	DBQueriesTotal.WithLabelValues(N3SettingsTableName, "update").Inc()
 
-	_, err := db.propose(ellaraft.CmdUpdateN3Settings, &stringPayload{Value: externalAddress})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyUpdateN3Settings(ctx, &stringPayload{Value: externalAddress})
+	}, "UpdateN3Settings")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -115,7 +116,7 @@ func (db *Database) GetN3Settings(ctx context.Context) (*N3Settings, error) {
 
 	var n3Settings N3Settings
 
-	if err := db.shared.Query(ctx, db.getN3SettingsStmt).Get(&n3Settings); err != nil {
+	if err := db.conn.Query(ctx, db.getN3SettingsStmt).Get(&n3Settings); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 

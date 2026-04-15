@@ -15,6 +15,7 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 // freePort finds an available port on localhost.
@@ -55,7 +56,7 @@ func TestStartServerStandup(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	testdb, err := db.NewDatabase(context.Background(), dbPath)
+	testdb, err := db.NewDatabase(context.Background(), dbPath, ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("could not create new database: %v", err)
 	}

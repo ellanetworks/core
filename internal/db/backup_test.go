@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 func TestDatabaseBackup(t *testing.T) {
@@ -16,7 +17,7 @@ func TestDatabaseBackup(t *testing.T) {
 
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	database, err := db.NewDatabase(context.Background(), dbPath)
+	database, err := db.NewDatabase(context.Background(), dbPath, ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("Couldn't initialize NewDatabase: %s", err)
 	}

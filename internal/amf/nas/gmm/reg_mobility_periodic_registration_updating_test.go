@@ -66,6 +66,8 @@ func (fdb *failingSubscriberDB) ListPoliciesByProfile(_ context.Context, _ int) 
 	return []db.Policy{{ID: 1, Name: "TestPolicy", ProfileID: 1, SliceID: 1, DataNetworkID: 1}}, nil
 }
 
+func (fdb *failingSubscriberDB) NodeID() int { return 0 }
+
 // decryptAndDecodeNasPdu decrypts a ciphered NAS PDU using the UE's security context
 // and decodes it, returning the NAS message. It verifies the security header is
 // IntegrityProtectedAndCiphered. The dlCountOffset parameter specifies the offset
@@ -918,6 +920,8 @@ func (m *multiSliceDB) ListPoliciesByProfile(_ context.Context, _ int) ([]db.Pol
 		{ID: 2, Name: "Policy-B", ProfileID: 1, SliceID: 2, DataNetworkID: 2},
 	}, nil
 }
+
+func (m *multiSliceDB) NodeID() int { return 0 }
 
 func TestMobilityReg_MultiSlice_AllowedNssaiContainsAllSlices(t *testing.T) {
 	supi := mustSUPIFromPrefixed("imsi-001019756139935")

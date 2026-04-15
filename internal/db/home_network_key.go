@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -103,7 +102,7 @@ func (db *Database) ListHomeNetworkKeys(ctx context.Context) ([]HomeNetworkKey, 
 
 	var keys []HomeNetworkKey
 
-	err := db.shared.Query(ctx, db.listHomeNetworkKeysStmt).GetAll(&keys)
+	err := db.conn.Query(ctx, db.listHomeNetworkKeysStmt).GetAll(&keys)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -142,7 +141,7 @@ func (db *Database) GetHomeNetworkKey(ctx context.Context, id int) (*HomeNetwork
 
 	row := HomeNetworkKey{ID: id}
 
-	err := db.shared.Query(ctx, db.getHomeNetworkKeyStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getHomeNetworkKeyStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -181,7 +180,7 @@ func (db *Database) GetHomeNetworkKeyBySchemeAndIdentifier(ctx context.Context, 
 
 	row := HomeNetworkKey{Scheme: scheme, KeyIdentifier: keyIdentifier}
 
-	err := db.shared.Query(ctx, db.getHomeNetworkKeyBySchemeAndIdentifierStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getHomeNetworkKeyBySchemeAndIdentifierStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -218,7 +217,7 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 
 	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "insert").Inc()
 
-	_, err := db.propose(ellaraft.CmdCreateHomeNetworkKey, key)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateHomeNetworkKey(ctx, key) }, "CreateHomeNetworkKey")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -250,7 +249,9 @@ func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id int) error {
 
 	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteHomeNetworkKey, &intPayload{Value: id})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyDeleteHomeNetworkKey(ctx, &intPayload{Value: id})
+	}, "DeleteHomeNetworkKey")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -284,7 +285,7 @@ func (db *Database) CountHomeNetworkKeys(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.shared.Query(ctx, db.countHomeNetworkKeysStmt).Get(&result)
+	err := db.conn.Query(ctx, db.countHomeNetworkKeysStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

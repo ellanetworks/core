@@ -6,7 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/vishvananda/netlink"
 	"gopkg.in/yaml.v2"
@@ -113,12 +116,28 @@ type TelemetryYaml struct {
 	OTLPEndpoint string `yaml:"otlp-endpoint"`
 }
 
+type ClusterYaml struct {
+	Enabled             bool     `yaml:"enabled"`
+	NodeID              int      `yaml:"node-id"`
+	BindAddress         string   `yaml:"bind-address"`
+	AdvertiseAPIAddress string   `yaml:"advertise-api-address"`
+	BootstrapExpect     int      `yaml:"bootstrap-expect"`
+	Peers               []string `yaml:"peers"`
+	JoinToken           string   `yaml:"join-token"`
+	JoinTimeout         string   `yaml:"join-timeout"`
+	ProposeTimeout      string   `yaml:"propose-timeout"`
+	SnapshotInterval    string   `yaml:"snapshot-interval"`
+	SnapshotThreshold   uint64   `yaml:"snapshot-threshold"`
+	InitialSuffrage     string   `yaml:"initial-suffrage"`
+}
+
 type ConfigYAML struct {
 	Logging    LoggingYaml    `yaml:"logging"`
 	DB         DBYaml         `yaml:"db"`
 	Interfaces InterfacesYaml `yaml:"interfaces"`
 	XDP        XDPYaml        `yaml:"xdp"`
 	Telemetry  TelemetryYaml  `yaml:"telemetry"`
+	Cluster    ClusterYaml    `yaml:"cluster"`
 }
 
 type N2Interface struct {
@@ -177,12 +196,30 @@ type Telemetry struct {
 	OTLPEndpoint string // e.g., "otel-collector.default.svc:4317"
 }
 
+// Cluster holds the resolved cluster configuration. When Enabled is false the
+// binary runs as a standalone single-server instance.
+type Cluster struct {
+	Enabled             bool
+	NodeID              int
+	BindAddress         string
+	AdvertiseAPIAddress string
+	BootstrapExpect     int
+	Peers               []string
+	JoinToken           string
+	JoinTimeout         time.Duration
+	ProposeTimeout      time.Duration
+	SnapshotInterval    time.Duration
+	SnapshotThreshold   uint64
+	InitialSuffrage     string
+}
+
 type Config struct {
 	Logging    Logging
 	DB         DB
 	Interfaces Interfaces
 	XDP        XDP
 	Telemetry  Telemetry
+	Cluster    Cluster
 }
 
 type VlanConfig struct {
@@ -368,6 +405,13 @@ func Validate(filePath string) (Config, error) {
 	config.Telemetry.OTLPEndpoint = c.Telemetry.OTLPEndpoint
 	config.Telemetry.Enabled = c.Telemetry.Enabled
 
+	cluster, err := validateCluster(c.Cluster)
+	if err != nil {
+		return Config{}, err
+	}
+
+	config.Cluster = cluster
+
 	return config, nil
 }
 
@@ -550,4 +594,123 @@ var GetInterfaceIPsFunc = func(name string) ([]string, error) {
 
 func GetInterfaceIPs(name string) ([]string, error) {
 	return GetInterfaceIPsFunc(name)
+}
+
+const maxClusterNodeID = 63
+
+func validateCluster(c ClusterYaml) (Cluster, error) {
+	if !c.Enabled {
+		return Cluster{}, nil
+	}
+
+	if c.NodeID < 1 || c.NodeID > maxClusterNodeID {
+		return Cluster{}, fmt.Errorf("cluster.node-id must be between 1 and %d (constrained by the 6-bit AMF Pointer field), got %d", maxClusterNodeID, c.NodeID)
+	}
+
+	if c.BindAddress == "" {
+		return Cluster{}, errors.New("cluster.bind-address is required when cluster is enabled")
+	}
+
+	if _, _, err := net.SplitHostPort(c.BindAddress); err != nil {
+		return Cluster{}, fmt.Errorf("cluster.bind-address %q is not a valid host:port: %w", c.BindAddress, err)
+	}
+
+	if c.AdvertiseAPIAddress == "" {
+		return Cluster{}, errors.New("cluster.advertise-api-address is required when cluster is enabled")
+	}
+
+	selfURL, err := url.Parse(c.AdvertiseAPIAddress)
+	if err != nil || selfURL.Scheme == "" || selfURL.Host == "" {
+		return Cluster{}, fmt.Errorf("cluster.advertise-api-address %q is not a valid URL", c.AdvertiseAPIAddress)
+	}
+
+	if c.BootstrapExpect < 1 {
+		return Cluster{}, fmt.Errorf("cluster.bootstrap-expect must be >= 1, got %d", c.BootstrapExpect)
+	}
+
+	if len(c.Peers) == 0 {
+		return Cluster{}, errors.New("cluster.peers must not be empty when cluster is enabled")
+	}
+
+	if len(c.Peers) < c.BootstrapExpect {
+		return Cluster{}, fmt.Errorf("cluster.peers has %d entries but cluster.bootstrap-expect is %d; peers must be >= bootstrap-expect", len(c.Peers), c.BootstrapExpect)
+	}
+
+	selfFound := false
+
+	normalizedSelf := strings.TrimRight(c.AdvertiseAPIAddress, "/")
+
+	for i, peer := range c.Peers {
+		peerURL, pErr := url.Parse(peer)
+		if pErr != nil || peerURL.Scheme == "" || peerURL.Host == "" {
+			return Cluster{}, fmt.Errorf("cluster.peers[%d] %q is not a valid URL", i, peer)
+		}
+
+		if strings.TrimRight(peer, "/") == normalizedSelf {
+			selfFound = true
+		}
+	}
+
+	if !selfFound {
+		return Cluster{}, fmt.Errorf("cluster.peers must include this node's advertise-api-address %q", c.AdvertiseAPIAddress)
+	}
+
+	if c.JoinToken == "" {
+		return Cluster{}, errors.New("cluster.join-token is required when cluster is enabled")
+	}
+
+	if len(c.JoinToken) < 32 {
+		return Cluster{}, fmt.Errorf("cluster.join-token must be at least 32 characters, got %d", len(c.JoinToken))
+	}
+
+	var joinTimeout time.Duration
+
+	if c.JoinTimeout != "" {
+		joinTimeout, err = time.ParseDuration(c.JoinTimeout)
+		if err != nil {
+			return Cluster{}, fmt.Errorf("cluster.join-timeout %q: %w", c.JoinTimeout, err)
+		}
+	}
+
+	var proposeTimeout time.Duration
+
+	if c.ProposeTimeout != "" {
+		proposeTimeout, err = time.ParseDuration(c.ProposeTimeout)
+		if err != nil {
+			return Cluster{}, fmt.Errorf("cluster.propose-timeout %q: %w", c.ProposeTimeout, err)
+		}
+	}
+
+	var snapshotInterval time.Duration
+
+	if c.SnapshotInterval != "" {
+		snapshotInterval, err = time.ParseDuration(c.SnapshotInterval)
+		if err != nil {
+			return Cluster{}, fmt.Errorf("cluster.snapshot-interval %q: %w", c.SnapshotInterval, err)
+		}
+	}
+
+	initialSuffrage := c.InitialSuffrage
+	if initialSuffrage == "" {
+		initialSuffrage = "voter"
+	}
+
+	if initialSuffrage != "voter" && initialSuffrage != "nonvoter" {
+		return Cluster{}, fmt.Errorf("cluster.initial-suffrage must be \"voter\" or \"nonvoter\", got %q", initialSuffrage)
+	}
+
+	return Cluster{
+		Enabled:             true,
+		NodeID:              c.NodeID,
+		BindAddress:         c.BindAddress,
+		AdvertiseAPIAddress: c.AdvertiseAPIAddress,
+		BootstrapExpect:     c.BootstrapExpect,
+		Peers:               c.Peers,
+		JoinToken:           c.JoinToken,
+		JoinTimeout:         joinTimeout,
+		ProposeTimeout:      proposeTimeout,
+		SnapshotInterval:    snapshotInterval,
+		SnapshotThreshold:   c.SnapshotThreshold,
+		InitialSuffrage:     initialSuffrage,
+	}, nil
 }

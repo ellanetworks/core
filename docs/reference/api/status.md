@@ -28,3 +28,21 @@ None
     }
 }
 ```
+
+When clustering is enabled, the response includes a `cluster` object:
+
+```json
+{
+    "result": {
+        "version": "v1.9.1",
+        "revision": "388ce92244a0b304e9f6c15e3f896acee6fe7b1a",
+        "initialized": true,
+        "cluster": {
+            "enabled": true,
+            "role": "Leader",
+            "nodeId": 1,
+            "appliedIndex": 42
+        }
+    }
+}
+```

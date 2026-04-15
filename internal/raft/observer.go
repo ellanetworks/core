@@ -37,12 +37,18 @@ func NewLeaderObserver() *LeaderObserver {
 	}
 }
 
-// Register adds a callback. Must be called before Run.
+// Register adds a callback. If the observer has already determined that this
+// node is the leader, the callback's OnBecameLeader is fired immediately so
+// late subscribers don't miss the initial transition.
 func (o *LeaderObserver) Register(cb LeaderCallback) {
 	o.mu.Lock()
-	defer o.mu.Unlock()
-
+	alreadyLeader := o.isLeader
 	o.callbacks = append(o.callbacks, cb)
+	o.mu.Unlock()
+
+	if alreadyLeader {
+		cb.OnBecameLeader()
+	}
 }
 
 // IsLeader returns the last observed leadership state.

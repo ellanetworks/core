@@ -23,7 +23,7 @@ func Restore(dbInstance *db.Database) http.HandlerFunc {
 			return
 		}
 
-		const maxRestoreSize = 256 << 20 // 256MB — tar.gz contains shared.db + local.db
+		const maxRestoreSize = 256 << 20 // 256MB
 
 		r.Body = http.MaxBytesReader(w, r.Body, maxRestoreSize)
 

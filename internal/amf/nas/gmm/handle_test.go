@@ -102,6 +102,8 @@ func (fdb *FakeDBInstance) ListPoliciesByProfile(_ context.Context, _ int) ([]db
 	}, nil
 }
 
+func (fdb *FakeDBInstance) NodeID() int { return 0 }
+
 type NGDLNasTransport struct {
 	AmfUeNGAPID int64
 	RanUeNGAPID int64

@@ -8,12 +8,13 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 func TestHomeNetworkKeysCRUD(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -179,7 +180,7 @@ func TestHomeNetworkKeysCRUD(t *testing.T) {
 func TestCreateHomeNetworkKey_Duplicate(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -212,7 +213,7 @@ func TestCreateHomeNetworkKey_Duplicate(t *testing.T) {
 func TestGetHomeNetworkKey_NotFound(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -238,7 +239,7 @@ func TestGetHomeNetworkKey_NotFound(t *testing.T) {
 func TestGetHomeNetworkKeyBySchemeAndIdentifier_NotFound(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}

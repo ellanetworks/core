@@ -87,6 +87,8 @@ tags:
     description: View and manage per-flow traffic reports collected by the user plane.
   - name: Audit Logs
     description: View audit log entries that record administrative actions.
+  - name: Cluster
+    description: Manage cluster membership for high-availability deployments. Only available when clustering is enabled.
   - name: Backup & Restore
     description: Create and restore full database backups.
   - name: Support Bundle
@@ -2578,9 +2580,9 @@ paths:
       tags: [Backup & Restore]
       summary: Create a database backup
       description: |
-        Downloads a complete backup of the Ella Core databases as a gzipped tar
-        archive (`.tar.gz`) containing `shared.db`, `local.db`, and a
-        `manifest.json` describing the backup format version.
+        Downloads a complete backup of the Ella Core database as a gzipped tar
+        archive (`.tar.gz`) containing `ella.db` and a `manifest.json`
+        describing the backup format version.
       responses:
         "200":
           description: Database backup archive.
@@ -2598,12 +2600,11 @@ paths:
       tags: [Backup & Restore]
       summary: Restore from backup
       description: |
-        Restores the Ella Core databases from an uploaded `.tar.gz` archive
-        produced by `POST /api/v1/backup`. The archive must contain `shared.db`,
-        `local.db`, and `manifest.json`. Both databases are swapped atomically:
-        a directory-scoped safety copy of each live database is taken before
-        the swap, and a failure at any step rolls both files back together.
-        Maximum upload size: 256 MB.
+        Restores the Ella Core database from an uploaded `.tar.gz` archive
+        produced by `POST /api/v1/backup`. The archive must contain `ella.db`
+        and `manifest.json`. The database is swapped atomically: a safety
+        copy of the live database is taken before the swap, and a failure
+        at any step rolls the file back. Maximum upload size: 256 MB.
       requestBody:
         required: true
         content:
@@ -2641,6 +2642,69 @@ paths:
                 format: binary
         "401":
           $ref: "#/components/responses/Unauthorized"
+
+  # ── Cluster ───────────────────────────────────────────────────────────
+  /api/v1/cluster/members:
+    get:
+      operationId: listClusterMembers
+      tags: [Cluster]
+      summary: List cluster members
+      description: Returns all registered cluster members. Only available when clustering is enabled.
+      responses:
+        "200":
+          description: List of cluster members.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListClusterMembersResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: addClusterMember
+      tags: [Cluster]
+      summary: Add a cluster member
+      description: >-
+        Adds a new node to the Raft cluster and registers it in the cluster
+        members table. The node must already be running and reachable at the
+        given raft address. Requires admin privileges.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddClusterMemberParams"
+      responses:
+        "201":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/cluster/members/{id}:
+    delete:
+      operationId: removeClusterMember
+      tags: [Cluster]
+      summary: Remove a cluster member
+      description: >-
+        Removes a node from the Raft cluster and deletes its cluster members
+        record. The node should be shut down after removal. Requires admin privileges.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Node ID of the cluster member to remove.
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
 components:
   securitySchemes:
@@ -2828,6 +2892,8 @@ components:
         initialized:
           type: boolean
           description: True if the system has at least one user.
+        cluster:
+          $ref: "#/components/schemas/ClusterStatus"
       required: [version, revision, initialized]
 
     StatusResponseEnvelope:
@@ -4706,3 +4772,59 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/ListAuditLogsResponse"
+
+    # ── Cluster ─────────────────────────────────────────────────────────
+    ClusterStatus:
+      type: object
+      description: Cluster information. Only present when clustering is enabled.
+      properties:
+        enabled:
+          type: boolean
+        role:
+          type: string
+          description: "Raft role of this node (e.g. Leader, Follower, Candidate)."
+        nodeId:
+          type: integer
+          description: Raft node ID of this instance.
+        appliedIndex:
+          type: integer
+          format: uint64
+          description: Last applied Raft log index.
+      required: [enabled, role, nodeId, appliedIndex]
+
+    ClusterMember:
+      type: object
+      properties:
+        nodeId:
+          type: integer
+          description: Raft node ID.
+        raftAddress:
+          type: string
+          description: "Address used for Raft consensus (host:port)."
+        apiAddress:
+          type: string
+          description: "API address for proxying requests (host:port)."
+      required: [nodeId, raftAddress, apiAddress]
+
+    ListClusterMembersResponseEnvelope:
+      type: object
+      properties:
+        result:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClusterMember"
+
+    AddClusterMemberParams:
+      type: object
+      required: [nodeId, raftAddress, apiAddress]
+      properties:
+        nodeId:
+          type: integer
+          minimum: 1
+          description: Raft node ID for the new member.
+        raftAddress:
+          type: string
+          description: "Raft consensus address of the new member (host:port)."
+        apiAddress:
+          type: string
+          description: "API address of the new member (host:port)."

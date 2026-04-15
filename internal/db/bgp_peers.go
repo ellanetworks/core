@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -20,8 +19,8 @@ const (
 	listBGPPeersPagedStmt = "SELECT &BGPPeer.*, COUNT(*) OVER() AS &NumItems.count FROM %s ORDER BY id ASC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	listAllBGPPeersStmt   = "SELECT &BGPPeer.* FROM %s ORDER BY id ASC"
 	getBGPPeerStmt        = "SELECT &BGPPeer.* FROM %s WHERE id==$BGPPeer.id"
-	createBGPPeerStmt     = "INSERT INTO %s (address, remoteAS, holdTime, password, description) VALUES ($BGPPeer.address, $BGPPeer.remoteAS, $BGPPeer.holdTime, $BGPPeer.password, $BGPPeer.description)"
-	updateBGPPeerStmt     = "UPDATE %s SET address=$BGPPeer.address, remoteAS=$BGPPeer.remoteAS, holdTime=$BGPPeer.holdTime, password=$BGPPeer.password, description=$BGPPeer.description WHERE id==$BGPPeer.id"
+	createBGPPeerStmt     = "INSERT INTO %s (address, remoteAS, holdTime, password, description, nodeID) VALUES ($BGPPeer.address, $BGPPeer.remoteAS, $BGPPeer.holdTime, $BGPPeer.password, $BGPPeer.description, $BGPPeer.nodeID)"
+	updateBGPPeerStmt     = "UPDATE %s SET address=$BGPPeer.address, remoteAS=$BGPPeer.remoteAS, holdTime=$BGPPeer.holdTime, password=$BGPPeer.password, description=$BGPPeer.description, nodeID=$BGPPeer.nodeID WHERE id==$BGPPeer.id"
 	deleteBGPPeerStmt     = "DELETE FROM %s WHERE id==$BGPPeer.id"
 	countBGPPeersStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
@@ -33,6 +32,7 @@ type BGPPeer struct {
 	HoldTime    int    `db:"holdTime"`
 	Password    string `db:"password"` // stored in plaintext — required by GoBGP TCP MD5 API
 	Description string `db:"description"`
+	NodeID      *int   `db:"nodeID"`
 }
 
 func (db *Database) ListBGPPeersPage(ctx context.Context, page, perPage int) ([]BGPPeer, int, error) {
@@ -64,7 +64,7 @@ func (db *Database) ListBGPPeersPage(ctx context.Context, page, perPage int) ([]
 		Offset: (page - 1) * perPage,
 	}
 
-	err := db.shared.Query(ctx, db.listBGPPeersStmt, args).GetAll(&peers, &counts)
+	err := db.conn.Query(ctx, db.listBGPPeersStmt, args).GetAll(&peers, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -113,7 +113,7 @@ func (db *Database) ListAllBGPPeers(ctx context.Context) ([]BGPPeer, error) {
 
 	var peers []BGPPeer
 
-	err := db.shared.Query(ctx, db.listAllBGPPeersStmt).GetAll(&peers)
+	err := db.conn.Query(ctx, db.listAllBGPPeersStmt).GetAll(&peers)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -152,7 +152,7 @@ func (db *Database) GetBGPPeer(ctx context.Context, id int) (*BGPPeer, error) {
 
 	row := BGPPeer{ID: id}
 
-	err := db.shared.Query(ctx, db.getBGPPeerStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getBGPPeerStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.RecordError(err)
@@ -190,7 +190,7 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "insert").Inc()
 
-	result, err := db.propose(ellaraft.CmdCreateBGPPeer, peer)
+	result, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateBGPPeer(ctx, peer) }, "CreateBGPPeer")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -223,7 +223,7 @@ func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "update").Inc()
 
-	_, err := db.propose(ellaraft.CmdUpdateBGPPeer, peer)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateBGPPeer(ctx, peer) }, "UpdateBGPPeer")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -254,7 +254,7 @@ func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteBGPPeer, &intPayload{Value: id})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyDeleteBGPPeer(ctx, &intPayload{Value: id}) }, "DeleteBGPPeer")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -287,7 +287,7 @@ func (db *Database) CountBGPPeers(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.shared.Query(ctx, db.countBGPPeersStmt).Get(&result)
+	err := db.conn.Query(ctx, db.countBGPPeersStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

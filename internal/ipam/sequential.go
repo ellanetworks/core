@@ -28,6 +28,9 @@ type LeaseStore interface {
 	// UpdateLeaseSession sets the sessionID on a lease.
 	UpdateLeaseSession(ctx context.Context, leaseID int, sessionID int) error
 
+	// UpdateLeaseNode updates the nodeID and sessionID on a lease.
+	UpdateLeaseNode(ctx context.Context, leaseID int, nodeID int, sessionID int) error
+
 	// DeleteDynamicLease deletes a dynamic lease by ID.
 	DeleteDynamicLease(ctx context.Context, leaseID int) error
 }
@@ -42,6 +45,7 @@ type Lease struct {
 	SessionID *int
 	Type      string
 	CreatedAt int64
+	NodeID    int
 }
 
 // SequentialAllocator implements the merge-scan allocation algorithm for IPv4.
@@ -56,18 +60,26 @@ func NewSequentialAllocator(store LeaseStore) *SequentialAllocator {
 }
 
 // Allocate assigns an address from pool to imsi for the given sessionID.
+// nodeID identifies the owning cluster node (0 in standalone).
 //
 // Algorithm:
 //  1. Check for an existing dynamic lease (re-registration) — reuse it.
 //  2. Fetch all allocated addresses as offsets (one query, sorted).
 //  3. Merge-scan: walk offsets [FirstUsable, FirstUsable+Size), skipping allocated.
 //  4. INSERT the first free address. On unique violation (race), retry next.
-func (a *SequentialAllocator) Allocate(ctx context.Context, pool Pool, imsi string, sessionID int) (netip.Addr, error) {
+func (a *SequentialAllocator) Allocate(ctx context.Context, pool Pool, imsi string, sessionID int, nodeID int) (netip.Addr, error) {
 	// Step 1: existing dynamic lease (re-registration).
 	existing, err := a.store.GetDynamicLease(ctx, pool.ID, imsi)
 	if err == nil {
-		if err := a.store.UpdateLeaseSession(ctx, existing.ID, sessionID); err != nil {
-			return netip.Addr{}, err
+		if existing.NodeID != nodeID {
+			// Failover: update ownership to the new serving node.
+			if err := a.store.UpdateLeaseNode(ctx, existing.ID, nodeID, sessionID); err != nil {
+				return netip.Addr{}, err
+			}
+		} else {
+			if err := a.store.UpdateLeaseSession(ctx, existing.ID, sessionID); err != nil {
+				return netip.Addr{}, err
+			}
 		}
 
 		addr, parseErr := netip.ParseAddr(existing.Address)
@@ -128,6 +140,7 @@ func (a *SequentialAllocator) Allocate(ctx context.Context, pool Pool, imsi stri
 			SessionID: &sessionID,
 			Type:      "dynamic",
 			CreatedAt: now,
+			NodeID:    nodeID,
 		}
 
 		err := a.store.CreateLease(ctx, lease)

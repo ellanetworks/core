@@ -5,7 +5,7 @@ logging:
   audit:
     output: "stdout"
 db:
-  path: "data"
+  path: "ella.db"
 interfaces:
   n2:
     address: "10.3.0.2"

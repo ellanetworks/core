@@ -9,7 +9,6 @@ import (
 	"fmt"
 
 	"github.com/canonical/sqlair"
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -84,7 +83,7 @@ func (db *Database) ListRoutesPage(ctx context.Context, page int, perPage int) (
 		Offset: (page - 1) * perPage,
 	}
 
-	err := db.shared.Query(ctx, db.listRoutesStmt, args).GetAll(&routes, &counts)
+	err := db.conn.Query(ctx, db.listRoutesStmt, args).GetAll(&routes, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -133,7 +132,7 @@ func (db *Database) GetRoute(ctx context.Context, id int64) (*Route, error) {
 
 	row := Route{ID: id}
 
-	err := db.shared.Query(ctx, db.getRouteStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getRouteStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -241,7 +240,7 @@ func (db *Database) CreateRoute(ctx context.Context, route *Route) (int64, error
 
 	DBQueriesTotal.WithLabelValues(RoutesTableName, "insert").Inc()
 
-	result, err := db.propose(ellaraft.CmdCreateRoute, route)
+	result, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateRoute(ctx, route) }, "CreateRoute")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -274,7 +273,7 @@ func (db *Database) DeleteRoute(ctx context.Context, id int64) error {
 
 	DBQueriesTotal.WithLabelValues(RoutesTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteRoute, &int64Payload{Value: id})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyDeleteRoute(ctx, &int64Payload{Value: id}) }, "DeleteRoute")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -308,7 +307,7 @@ func (db *Database) CountRoutes(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.shared.Query(ctx, db.countRoutesStmt).Get(&result)
+	err := db.conn.Query(ctx, db.countRoutesStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

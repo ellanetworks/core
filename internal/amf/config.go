@@ -66,6 +66,9 @@ func (amf *AMF) GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 		return nil, fmt.Errorf("failed to get supported TAIs: %w", err)
 	}
 
+	// 3GPP TS 23.003 §2.10.1: AMF Identifier = <AMF Region ID><AMF Set ID><AMF Pointer>
+	amfID := fmt.Sprintf("%06x", (operator.AmfRegionID<<16)|(operator.AmfSetID<<6)|amf.DBInstance.NodeID())
+
 	operatorInfo := &OperatorInfo{
 		Tais: supportedTAIs,
 		Guami: &models.Guami{
@@ -73,7 +76,7 @@ func (amf *AMF) GetOperatorInfo(ctx context.Context) (*OperatorInfo, error) {
 				Mcc: operator.Mcc,
 				Mnc: operator.Mnc,
 			},
-			AmfID: "cafe00", // To edit
+			AmfID: amfID,
 		},
 	}
 

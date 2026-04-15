@@ -78,6 +78,7 @@ nav:
       - reference/api/index.md
       - Authentication: reference/api/auth.md
       - Backup: reference/api/backup.md
+      - Cluster: reference/api/cluster.md
       - Initialization: reference/api/initialize.md
       - Audit Logs: reference/api/audit_logs.md
       - Metrics: reference/api/metrics.md

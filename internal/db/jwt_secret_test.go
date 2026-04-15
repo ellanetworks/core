@@ -8,12 +8,13 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 func TestJWTSecretInitialize(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -54,7 +55,7 @@ func TestJWTSecretInitialize(t *testing.T) {
 func TestJWTSecretSetAndGet(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -86,7 +87,7 @@ func TestJWTSecretPersistsAcrossReopen(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	database, err := db.NewDatabase(context.Background(), dbPath)
+	database, err := db.NewDatabase(context.Background(), dbPath, ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -101,7 +102,7 @@ func TestJWTSecretPersistsAcrossReopen(t *testing.T) {
 	}
 
 	// Re-open the same database file.
-	database2, err := db.NewDatabase(context.Background(), dbPath)
+	database2, err := db.NewDatabase(context.Background(), dbPath, ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase on reopen: %s", err)
 	}

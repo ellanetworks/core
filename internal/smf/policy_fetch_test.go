@@ -10,13 +10,14 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/ellanetworks/core/pkg/runtime"
 )
 
 func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("couldn't create test database: %s", err)
 	}
@@ -229,7 +230,7 @@ func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
 func TestGetSessionPolicy_NoNetworkRules(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("couldn't create test database: %s", err)
 	}

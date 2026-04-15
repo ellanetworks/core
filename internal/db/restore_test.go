@@ -13,6 +13,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 func TestRestore(t *testing.T) {
@@ -20,7 +21,7 @@ func TestRestore(t *testing.T) {
 
 	databasePath := filepath.Join(tempDir, "db.sqlite3")
 
-	database, err := db.NewDatabase(context.Background(), databasePath)
+	database, err := db.NewDatabase(context.Background(), databasePath, ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
 	}
@@ -77,7 +78,7 @@ func TestRestore_InvalidFile(t *testing.T) {
 	tempDir := t.TempDir()
 	databasePath := filepath.Join(tempDir, "db.sqlite3")
 
-	database, err := db.NewDatabase(context.Background(), databasePath)
+	database, err := db.NewDatabase(context.Background(), databasePath, ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
 	}
@@ -131,7 +132,7 @@ func TestRestore_ConcurrentRestore(t *testing.T) {
 	tempDir := t.TempDir()
 	databasePath := filepath.Join(tempDir, "db.sqlite3")
 
-	database, err := db.NewDatabase(context.Background(), databasePath)
+	database, err := db.NewDatabase(context.Background(), databasePath, ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
 	}
@@ -223,16 +224,15 @@ func TestRestore_ConcurrentRestore(t *testing.T) {
 }
 
 // TestRestore_RoundTripPreservesData populates a database with rows in both
-// shared.db (subscribers via createDataNetworkPolicyAndSubscriber) and
-// local.db (flow_reports), takes a Backup, wipes the live data, then Restores
-// the backup and verifies every row is accounted for. This locks in the
-// tar.gz format end-to-end.
+// replicated tables and local-only tables, takes a backup, mutates the live
+// data, then restores the backup. Replicated rows come from the backup image;
+// local-only rows are preserved from the current node state.
 func TestRestore_RoundTripPreservesData(t *testing.T) {
 	tempDir := t.TempDir()
 	databasePath := filepath.Join(tempDir, "data")
 	ctx := context.Background()
 
-	database, err := db.NewDatabase(ctx, databasePath)
+	database, err := db.NewDatabase(ctx, databasePath, ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("failed to create database: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestRestore_RoundTripPreservesData(t *testing.T) {
 		t.Fatalf("restore failed: %v", err)
 	}
 
-	// Subscriber from shared.db should be back.
+	// Subscriber should be back after restore.
 	subs, total, err := database.ListSubscribersPage(ctx, 1, 10)
 	if err != nil {
 		t.Fatalf("list subscribers after restore failed: %v", err)
@@ -331,27 +331,19 @@ func TestRestore_RoundTripPreservesData(t *testing.T) {
 		t.Fatalf("expected imsi %q, got %q", imsi, subs[0].Imsi)
 	}
 
-	// Flow report from local.db should be back.
+	// Local-only flow reports are preserved from the current node state rather
+	// than restored from the backup image, so the explicit clear above remains.
 	reports, total, err := database.ListFlowReports(ctx, 1, 10, nil)
 	if err != nil {
 		t.Fatalf("list flow reports after restore failed: %v", err)
 	}
 
-	if total != 1 || len(reports) != 1 {
-		t.Fatalf("expected 1 flow report after restore, got total=%d len=%d", total, len(reports))
+	if total != 0 || len(reports) != 0 {
+		t.Fatalf("expected local-only flow reports to remain cleared after restore, got total=%d len=%d", total, len(reports))
 	}
 
-	if reports[0].SubscriberID != imsi {
-		t.Fatalf("expected flow report subscriber %q, got %q", imsi, reports[0].SubscriberID)
-	}
-
-	if reports[0].Bytes != flow.Bytes || reports[0].Packets != flow.Packets {
-		t.Fatalf("flow report payload mismatch: got bytes=%d packets=%d, want bytes=%d packets=%d",
-			reports[0].Bytes, reports[0].Packets, flow.Bytes, flow.Packets)
-	}
-
-	// Only local.db gets a safety copy; shared.db is replicated through the
-	// Raft log via CmdRestore. The local safety copy must be cleaned up
+	// Per-node tables get a safety copy during restore; replicated tables
+	// come from the backup image. The safety copy must be cleaned up
 	// after a successful restore.
 	if _, err := os.Stat(filepath.Join(database.Dir(), "restore_safety_local.db")); !os.IsNotExist(err) {
 		t.Fatalf("expected restore_safety_local.db to be removed after successful restore, got err=%v", err)

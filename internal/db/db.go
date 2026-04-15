@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/logger"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
+	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
@@ -25,14 +26,15 @@ import (
 
 var tracer = otel.Tracer("ella-core/db")
 
-// Database holds the two SQLite handles backing the application:
-//   - shared: configuration and state (subscribers, policies, leases, ...).
-//   - local:  per-instance telemetry (radio events, flow reports).
+// Database holds the single SQLite handle backing the application.
 //
-// dataDir is the directory containing both files.
+// dbPath is the SQLite file path; dataDir is its parent directory, used for
+// sibling artifacts (raft/ subdirectory, backup/restore staging).
 type Database struct {
+	dbPath         string
 	dataDir        string
 	restoreMu      sync.Mutex
+	captureMu      sync.Mutex
 	raftManager    *ellaraft.Manager
 	proposeTimeout time.Duration
 
@@ -50,8 +52,10 @@ type Database struct {
 	getDynamicLeaseStmt          *sqlair.Statement
 	getLeaseBySessionStmt        *sqlair.Statement
 	updateLeaseSessionStmt       *sqlair.Statement
+	updateLeaseNodeStmt          *sqlair.Statement
 	deleteLeaseStmt              *sqlair.Statement
 	deleteAllDynamicLeasesStmt   *sqlair.Statement
+	deleteDynLeasesByNodeStmt    *sqlair.Statement
 	listActiveLeasesStmt         *sqlair.Statement
 	listLeasesByPoolStmt         *sqlair.Statement
 	listLeaseAddressesByPoolStmt *sqlair.Statement
@@ -136,6 +140,8 @@ type Database struct {
 	updateOperatorCodeStmt               *sqlair.Statement
 	updateOperatorSecurityAlgorithmsStmt *sqlair.Statement
 	updateOperatorSPNStmt                *sqlair.Statement
+	updateOperatorAMFIdentityStmt        *sqlair.Statement
+	updateOperatorClusterIDStmt          *sqlair.Statement
 
 	// Home Network Key statements
 	listHomeNetworkKeysStmt                    *sqlair.Statement
@@ -244,18 +250,18 @@ type Database struct {
 	deleteUserStmt       *sqlair.Statement
 	countUsersStmt       *sqlair.Statement
 
-	// shared holds the SQLite handle for configuration/state tables.
-	shared *sqlair.DB
+	// Cluster Members statements
+	listClusterMembersStmt  *sqlair.Statement
+	getClusterMemberStmt    *sqlair.Statement
+	upsertClusterMemberStmt *sqlair.Statement
+	deleteClusterMemberStmt *sqlair.Statement
+	countClusterMembersStmt *sqlair.Statement
 
-	// local holds the SQLite handle for per-instance telemetry tables
-	// (network_logs, flow_reports).
-	local *sqlair.DB
+	// conn holds the SQLite handle for the application database.
+	conn *sqlair.DB
 }
 
-const (
-	SharedDBFilename = "shared.db"
-	LocalDBFilename  = "local.db"
-)
+const DBFilename = "ella.db"
 
 // Initial Retention Policy values
 const (
@@ -302,18 +308,9 @@ const (
 	InitialPolicyArp                 = 1 // Default ARP of 1
 )
 
-// SyncMode selects the SQLite synchronous PRAGMA. shared.db uses SyncFull for
-// durability; local.db uses SyncNormal to keep telemetry writes cheap.
-type SyncMode int
-
-const (
-	SyncNormal SyncMode = iota
-	SyncFull
-)
-
 // openSQLiteConnection opens a SQLite database at the given path and configures
 // connection limits, busy timeout, WAL journaling, synchronous mode, and foreign keys.
-func openSQLiteConnection(ctx context.Context, databasePath string, sync SyncMode) (*sql.DB, error) {
+func openSQLiteConnection(ctx context.Context, databasePath string) (*sql.DB, error) {
 	// _txlock=immediate makes every BEGIN use BEGIN IMMEDIATE, which
 	// acquires a write lock up front. This is important for migrations
 	// (prevents two processes from entering the same migration) and is
@@ -328,21 +325,13 @@ func openSQLiteConnection(ctx context.Context, databasePath string, sync SyncMod
 
 	sqlConnection.SetMaxOpenConns(1)
 
-	syncPragma := "PRAGMA synchronous = NORMAL;"
-	syncDesc := "set synchronous to NORMAL"
-
-	if sync == SyncFull {
-		syncPragma = "PRAGMA synchronous = FULL;"
-		syncDesc = "set synchronous to FULL"
-	}
-
 	pragmas := []struct {
 		sql  string
 		desc string
 	}{
 		{"PRAGMA busy_timeout = 5000;", "set busy_timeout"},
 		{"PRAGMA journal_mode = WAL;", "enable WAL journaling"},
-		{syncPragma, syncDesc},
+		{"PRAGMA synchronous = NORMAL;", "set synchronous to NORMAL"},
 		{"PRAGMA foreign_keys = ON;", "enable foreign key support"},
 	}
 
@@ -356,33 +345,34 @@ func openSQLiteConnection(ctx context.Context, databasePath string, sync SyncMod
 	return sqlConnection, nil
 }
 
-// Close closes both database connections. Both are always attempted and any
-// errors are joined.
+// Close closes the database connection and shuts down the raft manager.
+// Both are always attempted and any errors are joined.
 func (db *Database) Close() error {
-	var raftErr, sharedErr, localErr error
+	var raftErr, connErr error
 
 	if db.raftManager != nil {
 		raftErr = db.raftManager.Shutdown()
 	}
 
-	if db.shared != nil {
-		sharedErr = db.shared.PlainDB().Close()
+	if db.conn != nil {
+		connErr = db.conn.PlainDB().Close()
 	}
 
-	if db.local != nil {
-		localErr = db.local.PlainDB().Close()
-	}
-
-	return errors.Join(raftErr, sharedErr, localErr)
+	return errors.Join(raftErr, connErr)
 }
 
-// Dir returns the directory containing both database files.
+// Dir returns the directory containing the database file.
 func (db *Database) Dir() string {
 	return db.dataDir
 }
 
+// Path returns the SQLite database file path.
+func (db *Database) Path() string {
+	return db.dbPath
+}
+
 // RaftAppliedIndex returns the index of the highest Raft log entry applied
-// to the shared database. Exposed for tests and support bundles.
+// to the database. Exposed for tests and support bundles.
 func (db *Database) RaftAppliedIndex() uint64 {
 	if db.raftManager == nil {
 		return 0
@@ -410,63 +400,307 @@ func (db *Database) IsLeader() bool {
 	return db.raftManager.IsLeader()
 }
 
-func (db *Database) SharedPath() string {
-	return filepath.Join(db.dataDir, SharedDBFilename)
+// NodeID returns this node's Raft node ID. Returns 0 when running standalone.
+func (db *Database) NodeID() int {
+	if db.raftManager == nil {
+		return 0
+	}
+
+	return db.raftManager.NodeID()
 }
 
-func (db *Database) LocalPath() string {
-	return filepath.Join(db.dataDir, LocalDBFilename)
+// LeaderAddress returns the Raft transport address of the current leader.
+func (db *Database) LeaderAddress() string {
+	if db.raftManager == nil {
+		return ""
+	}
+
+	return db.raftManager.LeaderAddress()
 }
 
-// NewDatabase opens (or creates) the two-database directory layout. dataPath
-// may be a directory containing shared.db and local.db, a legacy single-file
-// SQLite database (whose contents are split into shared.db and local.db
-// inside dataPath itself, with the original file preserved as
-// legacy.sqlite.bak in the new directory), or a non-existent path treated as
-// a fresh install.
-func NewDatabase(ctx context.Context, dataPath string) (*Database, error) {
-	dataDir, err := resolveDataDir(ctx, dataPath)
+// RaftState returns the current Raft state as a string (Leader, Follower, etc.).
+func (db *Database) RaftState() string {
+	if db.raftManager == nil {
+		return "Leader"
+	}
+
+	return db.raftManager.State().String()
+}
+
+// ClusterEnabled returns whether clustering is active.
+func (db *Database) ClusterEnabled() bool {
+	if db.raftManager == nil {
+		return false
+	}
+
+	return db.raftManager.ClusterEnabled()
+}
+
+// LeadershipTransfer triggers a leadership transfer to another node. During a
+// rolling upgrade the target preference is the highest advertise API address
+// lexicographically, excluding self, with a fallback to raft's default choice.
+func (db *Database) LeadershipTransfer() error {
+	if db.raftManager == nil {
+		return fmt.Errorf("clustering not enabled")
+	}
+
+	target := db.pickLeadershipTransferTarget()
+	if target == nil {
+		return db.raftManager.LeadershipTransfer()
+	}
+
+	return db.raftManager.LeadershipTransferToServer(target.NodeID, target.RaftAddress)
+}
+
+// pickLeadershipTransferTarget returns the preferred voter to transfer
+// leadership to, or nil if no suitable target is found (fall back to the
+// library's default choice). Excludes self.
+func (db *Database) pickLeadershipTransferTarget() *ClusterMember {
+	if db.raftManager == nil {
+		return nil
+	}
+
+	voterIDs := db.raftManager.VoterIDs()
+	if len(voterIDs) == 0 {
+		return nil
+	}
+
+	selfID := db.raftManager.NodeID()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	var best *ClusterMember
+
+	for _, id := range voterIDs {
+		if id == selfID {
+			continue
+		}
+
+		member, err := db.GetClusterMember(ctx, id)
+		if err != nil {
+			continue
+		}
+
+		if best == nil {
+			best = member
+			continue
+		}
+
+		if member.APIAddress > best.APIAddress ||
+			(member.APIAddress == best.APIAddress && member.NodeID < best.NodeID) {
+			best = member
+		}
+	}
+
+	return best
+}
+
+// AddVoter adds a node to the Raft cluster. Only callable on the leader.
+func (db *Database) AddVoter(nodeID int, raftAddress string) error {
+	if db.raftManager == nil {
+		return fmt.Errorf("clustering not enabled")
+	}
+
+	return db.raftManager.AddVoter(nodeID, raftAddress)
+}
+
+// AddNonvoter adds a node to the Raft cluster as a non-voting member.
+func (db *Database) AddNonvoter(nodeID int, raftAddress string) error {
+	if db.raftManager == nil {
+		return fmt.Errorf("clustering not enabled")
+	}
+
+	return db.raftManager.AddNonvoter(nodeID, raftAddress)
+}
+
+// CurrentSchemaVersion reads the schema_version singleton.
+// Returns 0 on error.
+func (db *Database) CurrentSchemaVersion(ctx context.Context) (int, error) {
+	var v int
+
+	if err := db.conn.PlainDB().QueryRowContext(ctx,
+		"SELECT version FROM schema_version WHERE id = 1").Scan(&v); err != nil {
+		return 0, fmt.Errorf("read schema_version: %w", err)
+	}
+
+	return v, nil
+}
+
+// CheckPendingMigrations proposes CmdMigrateShared entries for each
+// migration beyond the current applied version. Called on leadership
+// transitions. Only the leader proposes; followers no-op.
+func (db *Database) CheckPendingMigrations(ctx context.Context) error {
+	if db.raftManager == nil || !db.raftManager.ClusterEnabled() {
+		return nil
+	}
+
+	if !db.raftManager.IsLeader() {
+		return nil
+	}
+
+	current, err := db.CurrentSchemaVersion(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve database directory: %w", err)
+		return err
 	}
 
-	sharedPath := filepath.Join(dataDir, SharedDBFilename)
-	localPath := filepath.Join(dataDir, LocalDBFilename)
+	target := SchemaVersion()
+	if current >= target {
+		return nil
+	}
 
-	sharedConn, err := openSQLiteConnection(ctx, sharedPath, SyncFull)
+	for v := current + 1; v <= target; v++ {
+		logger.WithTrace(ctx, logger.DBLog).Info("Proposing migration over Raft",
+			zap.Int("targetVersion", v))
+
+		if _, err := db.proposeIntent(ellaraft.CmdMigrateShared, migrateSharedPayload{TargetVersion: v}); err != nil {
+			return fmt.Errorf("propose migration %d: %w", v, err)
+		}
+	}
+
+	return nil
+}
+
+// clusterCoordinator implements ellaraft.LeaderCallback to propose deferred
+// migrations on leadership transitions.
+type clusterCoordinator struct {
+	db *Database
+}
+
+func newClusterCoordinator(db *Database) *clusterCoordinator {
+	return &clusterCoordinator{db: db}
+}
+
+func (c *clusterCoordinator) OnBecameLeader() {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		if err := c.db.CheckPendingMigrations(ctx); err != nil {
+			logger.WithTrace(ctx, logger.DBLog).Warn("check pending migrations on leader change failed",
+				zap.Error(err))
+		}
+	}()
+}
+
+func (c *clusterCoordinator) OnLostLeadership() {}
+
+// RemoveServer removes a node from the Raft cluster. Only callable on the leader.
+func (db *Database) RemoveServer(nodeID int) error {
+	if db.raftManager == nil {
+		return fmt.Errorf("clustering not enabled")
+	}
+
+	return db.raftManager.RemoveServer(nodeID)
+}
+
+// RunDiscovery performs cluster formation for HA mode. Must be called after
+// the HTTP server starts so peers can reach this node's API.
+// After discovery, the leader generates a cluster ID if none exists yet.
+func (db *Database) RunDiscovery(ctx context.Context, binaryVersion string) error {
+	if db.raftManager == nil {
+		return nil
+	}
+
+	if err := db.raftManager.RunDiscovery(ctx); err != nil {
+		return err
+	}
+
+	if db.raftManager.IsLeader() {
+		op, err := db.GetOperator(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to read operator for cluster ID check: %w", err)
+		}
+
+		if op.ClusterID == "" {
+			clusterID := uuid.New().String()
+			if err := db.UpdateOperatorClusterID(ctx, clusterID); err != nil {
+				return fmt.Errorf("failed to set cluster ID: %w", err)
+			}
+
+			logger.WithTrace(ctx, logger.DBLog).Info("Generated cluster ID", zap.String("cluster_id", clusterID))
+		}
+
+		if err := db.selfUpsertClusterMember(ctx, binaryVersion); err != nil {
+			logger.WithTrace(ctx, logger.DBLog).Warn("self-upsert cluster member failed", zap.Error(err))
+		}
+	}
+
+	return nil
+}
+
+// selfUpsertClusterMember proposes this leader's own cluster_members row with
+// the running binary version. Idempotent via ON CONFLICT(nodeID). Called after
+// discovery on the leader. Followers self-register indirectly via the join
+// handshake.
+func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion string) error {
+	if db.raftManager == nil {
+		return nil
+	}
+
+	existing, err := db.GetClusterMember(ctx, db.raftManager.NodeID())
+
+	var raftAddr, apiAddr, suffrage string
+	if err == nil && existing != nil {
+		raftAddr = existing.RaftAddress
+		apiAddr = existing.APIAddress
+		suffrage = existing.Suffrage
+	}
+
+	if suffrage == "" {
+		suffrage = "voter"
+	}
+
+	member := &ClusterMember{
+		NodeID:        db.raftManager.NodeID(),
+		RaftAddress:   raftAddr,
+		APIAddress:    apiAddr,
+		BinaryVersion: binaryVersion,
+		Suffrage:      suffrage,
+	}
+
+	return db.UpsertClusterMember(ctx, member)
+}
+
+// NewDatabase opens (or creates) the SQLite database file at dbPath. The
+// parent directory is used for sibling artifacts (raft/, backup/restore
+// staging). A non-existent path is treated as a fresh install.
+func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterConfig) (*Database, error) {
+	dataDir := filepath.Dir(dbPath)
+
+	sqlConn, err := openSQLiteConnection(ctx, dbPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open shared database: %w", err)
+		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	if err := runSharedMigrations(ctx, sharedConn); err != nil {
-		_ = sharedConn.Close()
-		return nil, fmt.Errorf("shared schema migration failed: %w", err)
-	}
-
-	localConn, err := openSQLiteConnection(ctx, localPath, SyncNormal)
-	if err != nil {
-		_ = sharedConn.Close()
-		return nil, fmt.Errorf("failed to open local database: %w", err)
-	}
-
-	if err := runLocalMigrations(ctx, localConn); err != nil {
-		_ = localConn.Close()
-		_ = sharedConn.Close()
-
-		return nil, fmt.Errorf("local schema migration failed: %w", err)
+	if raftCfg.Enabled {
+		if err := runMigrationsUpTo(ctx, sqlConn, baselineVersion); err != nil {
+			_ = sqlConn.Close()
+			return nil, fmt.Errorf("schema migration failed: %w", err)
+		}
+	} else {
+		if err := runMigrations(ctx, sqlConn); err != nil {
+			_ = sqlConn.Close()
+			return nil, fmt.Errorf("schema migration failed: %w", err)
+		}
 	}
 
 	db := new(Database)
-	db.shared = sqlair.NewDB(sharedConn)
-	db.local = sqlair.NewDB(localConn)
+	db.conn = sqlair.NewDB(sqlConn)
+	db.dbPath = dbPath
 	db.dataDir = dataDir
+
+	if err := db.assertTableReplicationClassification(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed table replication classification check: %w", err)
+	}
 
 	if err := db.PrepareStatements(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to prepare statements: %w", err)
 	}
 
-	raftMgr, err := ellaraft.NewManager(ctx, ellaraft.ClusterConfig{}, db, dataDir)
+	raftMgr, err := ellaraft.NewManager(ctx, raftCfg, db, dataDir)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to start raft manager: %w", err)
@@ -475,11 +709,21 @@ func NewDatabase(ctx context.Context, dataPath string) (*Database, error) {
 	db.raftManager = raftMgr
 	db.proposeTimeout = raftMgr.ProposeTimeout()
 
+	if observer := raftMgr.LeaderObserver(); observer != nil {
+		observer.Register(newClusterCoordinator(db))
+	}
+
 	RegisterMetrics(db)
 
-	if err := db.Initialize(ctx); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("failed to initialize database: %w", err)
+	// In HA mode, defer Initialize() until RunDiscovery has formed or
+	// joined the cluster and a leader exists — otherwise every propose()
+	// here would fail with ErrNotLeader on a fresh follower. Callers must
+	// invoke Initialize explicitly after RunDiscovery.
+	if !raftCfg.Enabled {
+		if err := db.Initialize(ctx); err != nil {
+			_ = db.Close()
+			return nil, fmt.Errorf("failed to initialize database: %w", err)
+		}
 	}
 
 	logger.WithTrace(ctx, logger.DBLog).Debug("Database Initialized")
@@ -509,8 +753,10 @@ func (db *Database) PrepareStatements() error {
 		{&db.getDynamicLeaseStmt, fmt.Sprintf(getDynamicLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.getLeaseBySessionStmt, fmt.Sprintf(getLeaseBySessionStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.updateLeaseSessionStmt, fmt.Sprintf(updateLeaseSessionStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.updateLeaseNodeStmt, fmt.Sprintf(updateLeaseNodeStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.deleteLeaseStmt, fmt.Sprintf(deleteLeaseStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.deleteAllDynamicLeasesStmt, fmt.Sprintf(deleteAllDynamicLeasesStmt, IPLeasesTableName), nil},
+		{&db.deleteDynLeasesByNodeStmt, fmt.Sprintf(deleteDynLeasesByNodeStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listActiveLeasesStmt, fmt.Sprintf(listActiveLeasesStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listLeasesByPoolStmt, fmt.Sprintf(listLeasesByPoolStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listLeaseAddressesByPoolStmt, fmt.Sprintf(listLeaseAddressesByPoolStmt, IPLeasesTableName), []any{IPLease{}}},
@@ -595,6 +841,8 @@ func (db *Database) PrepareStatements() error {
 		{&db.updateOperatorCodeStmt, fmt.Sprintf(updateOperatorCodeStmt, OperatorTableName), []any{Operator{}}},
 		{&db.updateOperatorSecurityAlgorithmsStmt, fmt.Sprintf(updateOperatorSecurityAlgorithmsStmtConst, OperatorTableName), []any{Operator{}}},
 		{&db.updateOperatorSPNStmt, fmt.Sprintf(updateOperatorSPNStmtConst, OperatorTableName), []any{Operator{}}},
+		{&db.updateOperatorAMFIdentityStmt, fmt.Sprintf(updateOperatorAMFIdentityStmtConst, OperatorTableName), []any{Operator{}}},
+		{&db.updateOperatorClusterIDStmt, fmt.Sprintf(updateOperatorClusterIDStmtConst, OperatorTableName), []any{Operator{}}},
 
 		// Home Network Keys
 		{&db.listHomeNetworkKeysStmt, fmt.Sprintf(listHomeNetworkKeysStmtStr, HomeNetworkKeysTableName), []any{HomeNetworkKey{}}},
@@ -701,6 +949,13 @@ func (db *Database) PrepareStatements() error {
 		{&db.editUserPasswordStmt, fmt.Sprintf(editUserPasswordStmt, UsersTableName), []any{User{}}},
 		{&db.deleteUserStmt, fmt.Sprintf(deleteUserStmt, UsersTableName), []any{User{}}},
 		{&db.countUsersStmt, fmt.Sprintf(countUsersStmt, UsersTableName), []any{NumItems{}}},
+
+		// Cluster Members
+		{&db.listClusterMembersStmt, fmt.Sprintf(listClusterMembersStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
+		{&db.getClusterMemberStmt, fmt.Sprintf(getClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
+		{&db.upsertClusterMemberStmt, fmt.Sprintf(upsertClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
+		{&db.deleteClusterMemberStmt, fmt.Sprintf(deleteClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
+		{&db.countClusterMembersStmt, fmt.Sprintf(countClusterMembersStmtStr, ClusterMembersTableName), []any{NumItems{}}},
 	}
 
 	for _, s := range stmts {
@@ -716,29 +971,21 @@ func (db *Database) PrepareStatements() error {
 }
 
 func (db *Database) Initialize(ctx context.Context) error {
-	err := db.InitializeNATSettings(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to initialize NAT settings: %w", err)
+	initSteps := []struct {
+		name string
+		fn   func() error
+	}{
+		{"NAT settings", func() error { return db.InitializeNATSettings(ctx) }},
+		{"flow accounting settings", func() error { return db.InitializeFlowAccountingSettings(ctx) }},
+		{"BGP settings", func() error { return db.InitializeBGPSettings(ctx) }},
+		{"JWT secret", func() error { return db.InitializeJWTSecret(ctx) }},
+		{"N3 settings", func() error { return db.InitializeN3Settings(ctx) }},
 	}
 
-	err = db.InitializeFlowAccountingSettings(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to initialize flow accounting settings: %w", err)
-	}
-
-	err = db.InitializeBGPSettings(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to initialize BGP settings: %w", err)
-	}
-
-	err = db.InitializeJWTSecret(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to initialize JWT secret: %w", err)
-	}
-
-	err = db.InitializeN3Settings(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to initialize N3 settings: %w", err)
+	for _, step := range initSteps {
+		if err := step.fn(); err != nil {
+			return fmt.Errorf("failed to initialize %s: %w", step.name, err)
+		}
 	}
 
 	if !db.IsOperatorInitialized(ctx) {
@@ -905,9 +1152,9 @@ func (db *Database) Initialize(ctx context.Context) error {
 	return nil
 }
 
-// BeginTransaction starts a transaction against the shared database.
+// BeginTransaction starts a transaction against the database.
 func (db *Database) BeginTransaction(ctx context.Context) (*Transaction, error) {
-	tx, err := db.shared.Begin(ctx, nil)
+	tx, err := db.conn.Begin(ctx, nil)
 	if err != nil {
 		return nil, err
 	}

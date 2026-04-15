@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 // TestProposeApply_RoundTrip_WritesShowUpAndAdvanceAppliedIndex exercises the
@@ -22,7 +23,7 @@ func TestProposeApply_RoundTrip_WritesShowUpAndAdvanceAppliedIndex(t *testing.T)
 	ctx := context.Background()
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(ctx, filepath.Join(tempDir, "data"))
+	database, err := db.NewDatabase(ctx, filepath.Join(tempDir, "data"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("new database: %v", err)
 	}
@@ -79,7 +80,7 @@ func TestProposeApply_ApplierErrorSurfacesToCaller(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(ctx, filepath.Join(tempDir, "data"))
+	database, err := db.NewDatabase(ctx, filepath.Join(tempDir, "data"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("new database: %v", err)
 	}

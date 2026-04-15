@@ -73,6 +73,8 @@ type doer interface {
 type Config struct {
 	// BaseURL contains the base URL where Ella Core is expected to be.
 	BaseURL string
+	// BaseURLs contains multiple Ella Core URLs for HA. If set, BaseURL is ignored.
+	BaseURLs []string
 	// APIToken is the API token used for authentication.
 	APIToken string
 	// TLSConfig is an optional TLS configuration.
@@ -105,6 +107,22 @@ func New(config *Config) (*Client, error) {
 	client := &Client{}
 
 	client.token = config.APIToken
+
+	if config.BaseURLs != nil {
+		if len(config.BaseURLs) == 0 {
+			return nil, fmt.Errorf("BaseURLs must not be empty when set")
+		}
+
+		ha, err := newHARequester(client, config)
+		if err != nil {
+			return nil, err
+		}
+
+		client.Requester = ha
+		client.host = ha.host()
+
+		return client, nil
+	}
 
 	requester, err := newDefaultRequester(client, config)
 	if err != nil {

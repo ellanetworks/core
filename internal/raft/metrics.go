@@ -22,6 +22,15 @@ var (
 		Name: "ella_raft_leadership_transitions_total",
 		Help: "Number of leadership transitions observed.",
 	})
+	changesetBytesTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "app_raft_changeset_bytes_total",
+		Help: "Total number of SQLite changeset bytes applied through the Raft FSM.",
+	})
+	changesetApplyDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "app_raft_changeset_apply_duration_seconds",
+		Help:    "Latency of SQLite changeset application in the Raft FSM.",
+		Buckets: prometheus.DefBuckets,
+	})
 )
 
 // RegisterMetrics wires the hashicorp/go-metrics Prometheus sink as the
@@ -43,12 +52,20 @@ func RegisterMetrics() {
 	prometheus.MustRegister(peersTotal)
 	prometheus.MustRegister(votersTotal)
 	prometheus.MustRegister(leadershipTransitionsTotal)
+	prometheus.MustRegister(changesetBytesTotal)
+	prometheus.MustRegister(changesetApplyDuration)
 }
 
 // IncrLeadershipTransitions bumps the ella_raft_leadership_transitions_total
 // counter. Called by the LeaderObserver on each transition.
 func IncrLeadershipTransitions() {
 	leadershipTransitionsTotal.Inc()
+}
+
+// ObserveChangesetApply records the size and latency of an applied changeset.
+func ObserveChangesetApply(sizeBytes int, duration time.Duration) {
+	changesetBytesTotal.Add(float64(sizeBytes))
+	changesetApplyDuration.Observe(duration.Seconds())
 }
 
 // runMetricsLoop periodically reads Raft cluster configuration and updates

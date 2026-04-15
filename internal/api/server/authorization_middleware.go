@@ -189,6 +189,9 @@ const (
 	PermReadNetworkRule   = "network_rule:read"
 	PermUpdateNetworkRule = "network_rule:update"
 	PermDeleteNetworkRule = "network_rule:delete"
+
+	// Cluster permissions
+	PermManageCluster = "cluster:manage"
 )
 
 func Authorize(permission string, next http.Handler) http.Handler {

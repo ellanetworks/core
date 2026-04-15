@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -51,7 +50,7 @@ func (db *Database) InitializeFlowAccountingSettings(ctx context.Context) error 
 
 	flowAccountingSettings := FlowAccountingSettings{Enabled: FlowAccountingDefaultEnabled}
 
-	err := db.shared.Query(ctx, db.insertDefaultFlowAccountingSettingsStmt, flowAccountingSettings).Run()
+	err := db.conn.Query(ctx, db.insertDefaultFlowAccountingSettingsStmt, flowAccountingSettings).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -84,7 +83,7 @@ func (db *Database) IsFlowAccountingEnabled(ctx context.Context) (bool, error) {
 
 	var flowAccountingSettings FlowAccountingSettings
 
-	err := db.shared.Query(ctx, db.getFlowAccountingSettingsStmt).Get(&flowAccountingSettings)
+	err := db.conn.Query(ctx, db.getFlowAccountingSettingsStmt).Get(&flowAccountingSettings)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -115,7 +114,9 @@ func (db *Database) UpdateFlowAccountingSettings(ctx context.Context, enabled bo
 
 	DBQueriesTotal.WithLabelValues(FlowAccountingSettingsTableName, "update").Inc()
 
-	_, err := db.propose(ellaraft.CmdUpdateFlowAccountingSettings, &boolPayload{Value: enabled})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyUpdateFlowAccountingSettings(ctx, &boolPayload{Value: enabled})
+	}, "UpdateFlowAccountingSettings")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

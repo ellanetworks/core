@@ -32,7 +32,7 @@ func newTestApplier(t *testing.T) *testApplier {
 	t.Helper()
 
 	dir := t.TempDir()
-	path := filepath.Join(dir, "shared.db")
+	path := filepath.Join(dir, "ella.db")
 
 	a := &testApplier{dbPath: path}
 
@@ -67,10 +67,10 @@ func (a *testApplier) ApplyCommand(_ context.Context, cmd *Command) (any, error)
 	return nil, a.applyErr
 }
 
-func (a *testApplier) SharedPlainDB() *sql.DB { return a.db }
-func (a *testApplier) SharedPath() string     { return a.dbPath }
+func (a *testApplier) PlainDB() *sql.DB { return a.db }
+func (a *testApplier) Path() string     { return a.dbPath }
 
-func (a *testApplier) ReopenShared(_ context.Context) error {
+func (a *testApplier) Reopen(_ context.Context) error {
 	if a.db != nil {
 		_ = a.db.Close()
 	}
@@ -104,7 +104,7 @@ func TestFSM_Apply_AdvancesAppliedIndex(t *testing.T) {
 	a := newTestApplier(t)
 	fsm := NewFSM(a, t.TempDir())
 
-	cmd, err := NewCommand(CmdCreateSubscriber, map[string]string{"imsi": "001"})
+	cmd, err := NewCommand(CmdChangeset, map[string]string{"imsi": "001"})
 	if err != nil {
 		t.Fatalf("new command: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestFSM_Apply_PropagatesApplierError(t *testing.T) {
 
 	fsm := NewFSM(a, t.TempDir())
 
-	cmd, err := NewCommand(CmdDeleteSubscriber, map[string]string{"value": "x"})
+	cmd, err := NewCommand(CmdChangeset, map[string]string{"value": "x"})
 	if err != nil {
 		t.Fatalf("new command: %v", err)
 	}
@@ -260,7 +260,12 @@ func TestFSM_Snapshot_ProducesValidSQLite(t *testing.T) {
 
 	tmp := filepath.Join(t.TempDir(), "out.db")
 
-	if err := os.WriteFile(tmp, sink.buf.Bytes(), 0o600); err != nil {
+	raw := sink.buf.Bytes()
+	if len(raw) < snapshotHeaderSize || !bytes.Equal(raw[:4], []byte(snapshotMagic)) {
+		t.Fatalf("snapshot missing ELSN header: %q", raw[:min(16, len(raw))])
+	}
+
+	if err := os.WriteFile(tmp, raw[snapshotHeaderSize:], 0o600); err != nil {
 		t.Fatalf("write snapshot: %v", err)
 	}
 
@@ -288,7 +293,7 @@ func TestCommand_RoundTrip(t *testing.T) {
 		IMSI string `json:"imsi"`
 	}
 
-	cmd, err := NewCommand(CmdCreateSubscriber, payload{IMSI: "001010000000001"})
+	cmd, err := NewCommand(CmdChangeset, payload{IMSI: "001010000000001"})
 	if err != nil {
 		t.Fatalf("new command: %v", err)
 	}
@@ -303,8 +308,8 @@ func TestCommand_RoundTrip(t *testing.T) {
 		t.Fatalf("unmarshal: %v", err)
 	}
 
-	if got.Type != CmdCreateSubscriber {
-		t.Fatalf("type: want %v, got %v", CmdCreateSubscriber, got.Type)
+	if got.Type != CmdChangeset {
+		t.Fatalf("type: want %v, got %v", CmdChangeset, got.Type)
 	}
 
 	var p payload

@@ -18,11 +18,9 @@ type migration struct {
 	fn          func(ctx context.Context, tx *sql.Tx) error
 }
 
-// legacyMigrations is the FROZEN list of pre-split single-database migrations.
-// Only invoked when upgrading a legacy single-file database via resolveDataDir;
-// never run against shared.db or local.db. Append-never; entries are immutable.
-// New schema changes belong in sharedMigrations or localMigrations.
-var legacyMigrations = []migration{
+// migrations is the append-only schema migration registry. Versions are
+// sequential from 1 with no gaps; shipped entries are immutable.
+var migrations = []migration{
 	{1, "baseline schema", migrateV1},
 	{2, "add NAS security columns, home network keys table, and SPN columns", migrateV2},
 	{3, "add radio_name column to network_logs", migrateV3},
@@ -31,38 +29,32 @@ var legacyMigrations = []migration{
 	{6, "replace address TEXT with addressBin BLOB in ip_leases", migrateV6},
 	{7, "data model redesign: profiles, policies, slices", migrateV7},
 	{8, "add action to flow reports", migrateV8},
+	{9, "HA schema additions (amfRegionID, cluster_members, ip_leases.nodeID, bgp_peers.nodeID)", migrateV9},
 }
 
-// sharedMigrations is the append-only schema migration registry for shared.db.
-// v1 is the canonical end state of legacyMigrations v1..v8 for shared tables.
-// Versions are sequential from 1 with no gaps; shipped entries are immutable.
-var sharedMigrations = []migration{
-	{1, "split baseline (shared)", migrateSharedV1},
+// baselineVersion is the highest migration that runs locally during
+// cluster-mode startup. Post-baseline migrations are proposed through Raft
+// by the leader (§5.5).
+const baselineVersion = 9
+
+// SchemaVersion returns the highest migration version this binary understands.
+// Used during cluster join to reject version-skewed nodes.
+func SchemaVersion() int {
+	return migrations[len(migrations)-1].version
 }
 
-// localMigrations is the append-only schema migration registry for local.db
-// (network_logs, flow_reports).
-var localMigrations = []migration{
-	{1, "split baseline (local)", migrateLocalV1},
-}
-
-// runMigrations applies the given migration registry against sqlConn. The
-// schema_version table is local to each database file, so shared and local
-// each track their own version counter independently.
-func runMigrations(ctx context.Context, sqlConn *sql.DB, registry []migration, label string) error {
-	// Validate registry invariants.
+// runMigrationsRegistry applies the given migration registry against sqlConn.
+func runMigrationsRegistry(ctx context.Context, sqlConn *sql.DB, registry []migration) error {
 	for i, m := range registry {
 		if m.version != i+1 {
-			return fmt.Errorf("%s migration registry error: expected version %d at index %d, got %d", label, i+1, i, m.version)
+			return fmt.Errorf("migration registry error: expected version %d at index %d, got %d", i+1, i, m.version)
 		}
 
 		if m.fn == nil {
-			return fmt.Errorf("%s migration registry error: migration %d has nil function", label, m.version)
+			return fmt.Errorf("migration registry error: migration %d has nil function", m.version)
 		}
 	}
 
-	// Create the version tracking table (idempotent). The CHECK constraint
-	// enforces exactly one row (singleton).
 	_, err := sqlConn.ExecContext(ctx,
 		`CREATE TABLE IF NOT EXISTS schema_version (
 			id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -72,7 +64,6 @@ func runMigrations(ctx context.Context, sqlConn *sql.DB, registry []migration, l
 		return fmt.Errorf("failed to create schema_version table: %w", err)
 	}
 
-	// Seed version 0 if no row exists.
 	if _, err := sqlConn.ExecContext(ctx,
 		"INSERT OR IGNORE INTO schema_version (id, version) VALUES (1, 0)"); err != nil {
 		return fmt.Errorf("failed to seed schema_version: %w", err)
@@ -91,7 +82,6 @@ func runMigrations(ctx context.Context, sqlConn *sql.DB, registry []migration, l
 		}
 
 		logger.DBLog.Info("Applying migration",
-			zap.String("registry", label),
 			zap.Int("version", m.version),
 			zap.String("description", m.description),
 		)
@@ -101,35 +91,34 @@ func runMigrations(ctx context.Context, sqlConn *sql.DB, registry []migration, l
 		// This prevents DROP TABLE from cascade-deleting child rows during
 		// table rebuilds. Re-enabled after commit.
 		if _, err := sqlConn.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
-			return fmt.Errorf("failed to disable foreign keys for %s migration %d: %w", label, m.version, err)
+			return fmt.Errorf("failed to disable foreign keys for migration %d: %w", m.version, err)
 		}
 
 		tx, err := sqlConn.BeginTx(ctx, &sql.TxOptions{})
 		if err != nil {
-			return fmt.Errorf("failed to begin transaction for %s migration %d: %w", label, m.version, err)
+			return fmt.Errorf("failed to begin transaction for migration %d: %w", m.version, err)
 		}
 
 		if err := m.fn(ctx, tx); err != nil {
 			_ = tx.Rollback()
-			return fmt.Errorf("%s migration %d (%s) failed: %w", label, m.version, m.description, err)
+			return fmt.Errorf("migration %d (%s) failed: %w", m.version, m.description, err)
 		}
 
 		if _, err := tx.ExecContext(ctx,
 			"UPDATE schema_version SET version = ? WHERE id = 1", m.version); err != nil {
 			_ = tx.Rollback()
-			return fmt.Errorf("failed to update %s schema_version to %d: %w", label, m.version, err)
+			return fmt.Errorf("failed to update schema_version to %d: %w", m.version, err)
 		}
 
 		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("failed to commit %s migration %d: %w", label, m.version, err)
+			return fmt.Errorf("failed to commit migration %d: %w", m.version, err)
 		}
 
 		if _, err := sqlConn.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err != nil {
-			return fmt.Errorf("failed to re-enable foreign keys after %s migration %d: %w", label, m.version, err)
+			return fmt.Errorf("failed to re-enable foreign keys after migration %d: %w", m.version, err)
 		}
 
 		logger.DBLog.Info("Migration applied successfully",
-			zap.String("registry", label),
 			zap.Int("version", m.version),
 			zap.String("description", m.description),
 		)
@@ -138,18 +127,24 @@ func runMigrations(ctx context.Context, sqlConn *sql.DB, registry []migration, l
 	return nil
 }
 
-// runSharedMigrations brings shared.db up to the latest sharedMigrations version.
-func runSharedMigrations(ctx context.Context, sqlConn *sql.DB) error {
-	return runMigrations(ctx, sqlConn, sharedMigrations, "shared")
+// runMigrations brings the database up to the latest migrations version.
+func runMigrations(ctx context.Context, sqlConn *sql.DB) error {
+	return runMigrationsRegistry(ctx, sqlConn, migrations)
 }
 
-// runLocalMigrations brings local.db up to the latest localMigrations version.
-func runLocalMigrations(ctx context.Context, sqlConn *sql.DB) error {
-	return runMigrations(ctx, sqlConn, localMigrations, "local")
-}
+// runMigrationsUpTo applies migrations up to (and including) maxVersion.
+// In cluster mode, only the baseline runs locally; post-baseline migrations
+// are proposed through Raft by the leader.
+func runMigrationsUpTo(ctx context.Context, sqlConn *sql.DB, maxVersion int) error {
+	var capped []migration
 
-// runLegacyMigrations brings a pre-split single-file database up to the v8
-// frozen end state. Only used during one-shot legacy → split migration.
-func runLegacyMigrations(ctx context.Context, sqlConn *sql.DB) error {
-	return runMigrations(ctx, sqlConn, legacyMigrations, "legacy")
+	for _, m := range migrations {
+		if m.version > maxVersion {
+			break
+		}
+
+		capped = append(capped, m)
+	}
+
+	return runMigrationsRegistry(ctx, sqlConn, capped)
 }

@@ -182,7 +182,7 @@ func (db *Database) InsertFlowReports(ctx context.Context, flowReports []*dbwrit
 
 	DBQueriesTotal.WithLabelValues(FlowReportsTableName, "batch_insert").Inc()
 
-	tx, err := db.local.Begin(ctx, nil)
+	tx, err := db.conn.Begin(ctx, nil)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "begin transaction failed")
@@ -246,14 +246,14 @@ func (db *Database) ListFlowReports(ctx context.Context, page int, perPage int, 
 
 	var counts []NumItems
 
-	err := db.local.Query(ctx, db.listFlowReportsStmt, args, filters).GetAll(&reports, &counts)
+	err := db.conn.Query(ctx, db.listFlowReportsStmt, args, filters).GetAll(&reports, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
 
 			var fallbackCount NumItems
 
-			countErr := db.local.Query(ctx, db.countFlowReportsStmt, filters).Get(&fallbackCount)
+			countErr := db.conn.Query(ctx, db.countFlowReportsStmt, filters).Get(&fallbackCount)
 			if countErr != nil {
 				return nil, 0, nil
 			}
@@ -302,7 +302,7 @@ func (db *Database) DeleteOldFlowReports(ctx context.Context, days int) error {
 
 	args := cutoffArgs{Cutoff: cutoff}
 
-	err := db.local.Query(ctx, db.deleteOldFlowReportsStmt, args).Run()
+	err := db.conn.Query(ctx, db.deleteOldFlowReportsStmt, args).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -333,7 +333,7 @@ func (db *Database) ClearFlowReports(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(FlowReportsTableName, "delete").Inc()
 
-	err := db.local.Query(ctx, db.deleteAllFlowReportsStmt).Run()
+	err := db.conn.Query(ctx, db.deleteAllFlowReportsStmt).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -370,7 +370,7 @@ func (db *Database) ListFlowReportsByDay(ctx context.Context, filters *FlowRepor
 
 	var results []dbwriter.FlowReport
 
-	err := db.local.Query(ctx, db.listFlowReportsByDayStmt, filters).GetAll(&results)
+	err := db.conn.Query(ctx, db.listFlowReportsByDayStmt, filters).GetAll(&results)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -412,7 +412,7 @@ func (db *Database) ListFlowReportsBySubscriber(ctx context.Context, filters *Fl
 
 	var results []dbwriter.FlowReport
 
-	err := db.local.Query(ctx, db.listFlowReportsBySubscriberStmt, filters).GetAll(&results)
+	err := db.conn.Query(ctx, db.listFlowReportsBySubscriberStmt, filters).GetAll(&results)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -455,7 +455,7 @@ func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportF
 
 	var protocols []FlowReportProtocolCount
 
-	err := db.local.Query(ctx, db.flowReportProtocolCountsStmt, filters).GetAll(&protocols)
+	err := db.conn.Query(ctx, db.flowReportProtocolCountsStmt, filters).GetAll(&protocols)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "protocol counts query failed")
@@ -465,7 +465,7 @@ func (db *Database) GetFlowReportStats(ctx context.Context, filters *FlowReportF
 
 	var destinationsUplink []FlowReportIPCount
 
-	err = db.local.Query(ctx, db.flowReportTopDestinationsUplinkStmt, filters).GetAll(&destinationsUplink)
+	err = db.conn.Query(ctx, db.flowReportTopDestinationsUplinkStmt, filters).GetAll(&destinationsUplink)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "top destinations uplink query failed")

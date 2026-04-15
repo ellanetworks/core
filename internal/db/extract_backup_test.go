@@ -100,7 +100,7 @@ func TestExtractBackupArchive_NonRegularRejected(t *testing.T) {
 
 	body := buildBackupTarGz(t, []tarMember{
 		{name: manifestArchiveName, data: validManifestBytes(t, BackupManifestVersion)},
-		{name: SharedDBFilename, typeflag: tar.TypeSymlink},
+		{name: DBFilename, typeflag: tar.TypeSymlink},
 	})
 
 	if err := extractBackupArchive(bytes.NewReader(body), tmp); err == nil {
@@ -115,8 +115,8 @@ func TestExtractBackupArchive_DuplicateRejected(t *testing.T) {
 
 	body := buildBackupTarGz(t, []tarMember{
 		{name: manifestArchiveName, data: validManifestBytes(t, BackupManifestVersion)},
-		{name: SharedDBFilename, data: []byte("first")},
-		{name: SharedDBFilename, data: []byte("second")},
+		{name: DBFilename, data: []byte("first")},
+		{name: DBFilename, data: []byte("second")},
 	})
 
 	if err := extractBackupArchive(bytes.NewReader(body), tmp); err == nil {
@@ -143,8 +143,7 @@ func TestExtractBackupArchive_MissingManifest(t *testing.T) {
 	tmp := t.TempDir()
 
 	body := buildBackupTarGz(t, []tarMember{
-		{name: SharedDBFilename, data: []byte("data")},
-		{name: LocalDBFilename, data: []byte("data")},
+		{name: DBFilename, data: []byte("data")},
 	})
 
 	if err := extractBackupArchive(bytes.NewReader(body), tmp); err == nil {
@@ -159,8 +158,7 @@ func TestExtractBackupArchive_BadVersionRejected(t *testing.T) {
 
 	body := buildBackupTarGz(t, []tarMember{
 		{name: manifestArchiveName, data: validManifestBytes(t, BackupManifestVersion+99)},
-		{name: SharedDBFilename, data: []byte("data")},
-		{name: LocalDBFilename, data: []byte("data")},
+		{name: DBFilename, data: []byte("data")},
 	})
 
 	if err := extractBackupArchive(bytes.NewReader(body), tmp); err == nil {

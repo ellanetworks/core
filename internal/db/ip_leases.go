@@ -20,12 +20,14 @@ import (
 const IPLeasesTableName = "ip_leases"
 
 const (
-	createLeaseStmt              = "INSERT INTO %s (poolID, addressBin, imsi, sessionID, type, createdAt) VALUES ($IPLease.poolID, $IPLease.addressBin, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt)"
+	createLeaseStmt              = "INSERT INTO %s (poolID, addressBin, imsi, sessionID, type, createdAt, nodeID) VALUES ($IPLease.poolID, $IPLease.addressBin, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt, $IPLease.nodeID)"
 	getDynamicLeaseStmt          = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND imsi==$IPLease.imsi AND type='dynamic'"
 	getLeaseBySessionStmt        = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND sessionID==$IPLease.sessionID AND imsi==$IPLease.imsi"
 	updateLeaseSessionStmt       = "UPDATE %s SET sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
+	updateLeaseNodeStmt          = "UPDATE %s SET nodeID=$IPLease.nodeID, sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
 	deleteLeaseStmt              = "DELETE FROM %s WHERE id==$IPLease.id AND type='dynamic'"
 	deleteAllDynamicLeasesStmt   = "DELETE FROM %s WHERE type='dynamic'"
+	deleteDynLeasesByNodeStmt    = "DELETE FROM %s WHERE type='dynamic' AND nodeID==$IPLease.nodeID"
 	listActiveLeasesStmt         = "SELECT &IPLease.* FROM %s WHERE sessionID IS NOT NULL"
 	listLeasesByPoolStmt         = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID"
 	listLeaseAddressesByPoolStmt = "SELECT &IPLease.addressBin FROM %s WHERE poolID==$IPLease.poolID ORDER BY addressBin"
@@ -45,6 +47,7 @@ type IPLease struct {
 	SessionID  *int   `db:"sessionID"`
 	Type       string `db:"type"`
 	CreatedAt  int64  `db:"createdAt"`
+	NodeID     int    `db:"nodeID"`
 }
 
 // Address returns the IP address derived from AddressBin.
@@ -90,7 +93,7 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address net
 	b := address.As16()
 	lease.AddressBin = b[:]
 
-	_, err := db.propose(ellaraft.CmdCreateLease, lease)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateLease(ctx, lease) }, "CreateLease")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -124,7 +127,7 @@ func (db *Database) GetDynamicLease(ctx context.Context, poolID int, imsi string
 
 	row := IPLease{PoolID: poolID, IMSI: imsi}
 
-	err := db.shared.Query(ctx, db.getDynamicLeaseStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getDynamicLeaseStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -163,7 +166,7 @@ func (db *Database) GetLeaseBySession(ctx context.Context, poolID int, sessionID
 
 	row := IPLease{PoolID: poolID, SessionID: &sessionID, IMSI: imsi}
 
-	err := db.shared.Query(ctx, db.getLeaseBySessionStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getLeaseBySessionStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -202,7 +205,7 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID int, session
 
 	lease := &IPLease{ID: leaseID, SessionID: &sessionID}
 
-	_, err := db.propose(ellaraft.CmdUpdateLeaseSession, lease)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateLeaseSession(ctx, lease) }, "UpdateLeaseSession")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -234,7 +237,9 @@ func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID int) error {
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteDynamicLease, &intPayload{Value: leaseID})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyDeleteDynamicLease(ctx, &intPayload{Value: leaseID})
+	}, "DeleteDynamicLease")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -267,7 +272,78 @@ func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteAllDynamicLeases, nil)
+	_, err := db.proposeIntent(ellaraft.CmdDeleteAllDynamicLeases, nil)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+// DeleteDynamicLeasesByNode removes dynamic leases owned by a specific node.
+// In HA mode this scopes startup cleanup to this instance's leases only.
+func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID int) error {
+	_, span := tracer.Start(
+		ctx,
+		"DeleteDynamicLeasesByNode",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("DELETE"),
+			attribute.String("db.collection", IPLeasesTableName),
+			attribute.Int("node_id", nodeID),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "delete"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
+
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyDeleteDynamicLeasesByNode(ctx, &intPayload{Value: nodeID})
+	}, "DeleteDynamicLeasesByNode")
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+// UpdateLeaseNode updates the nodeID and sessionID on an existing lease.
+// Used during failover to transfer lease ownership to the new serving node.
+func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID int, nodeID int, sessionID int) error {
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (node)", "UPDATE", IPLeasesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPDATE"),
+			attribute.String("db.collection", IPLeasesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "update").Inc()
+
+	lease := &IPLease{ID: leaseID, NodeID: nodeID, SessionID: &sessionID}
+
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateLeaseNode(ctx, lease) }, "UpdateLeaseNode")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -301,7 +377,7 @@ func (db *Database) ListActiveLeases(ctx context.Context) ([]IPLease, error) {
 
 	var leases []IPLease
 
-	err := db.shared.Query(ctx, db.listActiveLeasesStmt).GetAll(&leases)
+	err := db.conn.Query(ctx, db.listActiveLeasesStmt).GetAll(&leases)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -323,7 +399,7 @@ func (db *Database) ListActiveLeases(ctx context.Context) ([]IPLease, error) {
 func (db *Database) listAllLeases(ctx context.Context) ([]IPLease, error) {
 	var leases []IPLease
 
-	err := db.shared.Query(ctx, db.listAllLeasesStmt).GetAll(&leases)
+	err := db.conn.Query(ctx, db.listAllLeasesStmt).GetAll(&leases)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -356,7 +432,7 @@ func (db *Database) ListLeasesByPool(ctx context.Context, poolID int) ([]IPLease
 
 	var leases []IPLease
 
-	err := db.shared.Query(ctx, db.listLeasesByPoolStmt, IPLease{PoolID: poolID}).GetAll(&leases)
+	err := db.conn.Query(ctx, db.listLeasesByPoolStmt, IPLease{PoolID: poolID}).GetAll(&leases)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -405,7 +481,7 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID int, page, 
 		Offset: (page - 1) * perPage,
 	}
 
-	err := db.shared.Query(ctx, db.listLeasesByPoolPageStmt, args, IPLease{PoolID: poolID}).GetAll(&leases, &counts)
+	err := db.conn.Query(ctx, db.listLeasesByPoolPageStmt, args, IPLease{PoolID: poolID}).GetAll(&leases, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -456,7 +532,7 @@ func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID int) ([
 
 	var leases []IPLease
 
-	err := db.shared.Query(ctx, db.listLeaseAddressesByPoolStmt, IPLease{PoolID: poolID}).GetAll(&leases)
+	err := db.conn.Query(ctx, db.listLeaseAddressesByPoolStmt, IPLease{PoolID: poolID}).GetAll(&leases)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -501,7 +577,7 @@ func (db *Database) CountLeasesByPool(ctx context.Context, poolID int) (int, err
 
 	var result NumItems
 
-	err := db.shared.Query(ctx, db.countLeasesByPoolStmt, IPLease{PoolID: poolID}).Get(&result)
+	err := db.conn.Query(ctx, db.countLeasesByPoolStmt, IPLease{PoolID: poolID}).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -535,7 +611,7 @@ func (db *Database) CountActiveLeases(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.shared.Query(ctx, db.countActiveLeasesStmt).Get(&result)
+	err := db.conn.Query(ctx, db.countActiveLeasesStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -569,7 +645,7 @@ func (db *Database) CountLeasesByIMSI(ctx context.Context, imsi string) (int, er
 
 	var result NumItems
 
-	err := db.shared.Query(ctx, db.countLeasesByIMSIStmt, IPLease{IMSI: imsi}).Get(&result)
+	err := db.conn.Query(ctx, db.countLeasesByIMSIStmt, IPLease{IMSI: imsi}).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

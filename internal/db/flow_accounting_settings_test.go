@@ -9,12 +9,13 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 func TestGetFlowAccountingSettings_Default(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -38,7 +39,7 @@ func TestGetFlowAccountingSettings_Default(t *testing.T) {
 func TestUpdateAndGetFlowAccountingSettings(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -81,7 +82,7 @@ func TestUpdateAndGetFlowAccountingSettings(t *testing.T) {
 func TestUpdateFlowAccountingSettings_RestartDatabase(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -96,7 +97,7 @@ func TestUpdateFlowAccountingSettings_RestartDatabase(t *testing.T) {
 		t.Fatalf("Couldn't complete Close: %s", err)
 	}
 
-	database, err = db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	database, err = db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}

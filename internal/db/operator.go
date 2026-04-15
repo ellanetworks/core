@@ -11,7 +11,6 @@ import (
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -29,6 +28,8 @@ const (
 	updateOperatorTrackingStmt                = "UPDATE %s SET supportedTACs=$Operator.supportedTACs WHERE id=1"
 	updateOperatorSecurityAlgorithmsStmtConst = "UPDATE %s SET ciphering=$Operator.ciphering, integrity=$Operator.integrity WHERE id=1"
 	updateOperatorSPNStmtConst                = "UPDATE %s SET spnFullName=$Operator.spnFullName, spnShortName=$Operator.spnShortName WHERE id=1"
+	updateOperatorAMFIdentityStmtConst        = "UPDATE %s SET amfRegionID=$Operator.amfRegionID, amfSetID=$Operator.amfSetID WHERE id=1"
+	updateOperatorClusterIDStmtConst          = "UPDATE %s SET clusterID=$Operator.clusterID WHERE id=1"
 	initializeOperatorStmt                    = "INSERT INTO %s (mcc, mnc, operatorCode, supportedTACs) VALUES ($Operator.mcc, $Operator.mnc, $Operator.operatorCode, $Operator.supportedTACs)"
 )
 
@@ -37,11 +38,14 @@ type Operator struct {
 	Mcc           string `db:"mcc"`
 	Mnc           string `db:"mnc"`
 	OperatorCode  string `db:"operatorCode"`
-	SupportedTACs string `db:"supportedTACs"` // JSON-encoded list of strings
+	SupportedTACs string `db:"supportedTACs"` // JSON-encoded list of TAC strings
 	Ciphering     string `db:"ciphering"`     // JSON-encoded list of algorithm names, e.g. '["NEA2","NEA1"]'
 	Integrity     string `db:"integrity"`     // JSON-encoded list of algorithm names, e.g. '["NIA2","NIA1"]'
 	SpnFullName   string `db:"spnFullName"`
 	SpnShortName  string `db:"spnShortName"`
+	AmfRegionID   int    `db:"amfRegionID"`
+	AmfSetID      int    `db:"amfSetID"`
+	ClusterID     string `db:"clusterID"`
 }
 
 func (operator *Operator) GetSupportedTacs() ([]string, error) {
@@ -157,7 +161,7 @@ func (db *Database) IsOperatorInitialized(ctx context.Context) bool {
 
 	var op Operator
 
-	err := db.shared.Query(ctx, db.getOperatorStmt).Get(&op)
+	err := db.conn.Query(ctx, db.getOperatorStmt).Get(&op)
 	if err != nil {
 		if err == sqlair.ErrNoRows {
 			span.SetStatus(codes.Ok, "operator not initialized")
@@ -194,7 +198,7 @@ func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Ope
 
 	DBQueriesTotal.WithLabelValues(OperatorTableName, "insert").Inc()
 
-	_, err := db.propose(ellaraft.CmdInitializeOperator, initialOperator)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyInitializeOperator(ctx, initialOperator) }, "InitializeOperator")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -228,7 +232,7 @@ func (db *Database) GetOperator(ctx context.Context) (*Operator, error) {
 
 	var op Operator
 
-	err := db.shared.Query(ctx, db.getOperatorStmt).Get(&op)
+	err := db.conn.Query(ctx, db.getOperatorStmt).Get(&op)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -270,7 +274,7 @@ func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []
 		return fmt.Errorf("failed to set supported TACs: %w", err)
 	}
 
-	_, err = db.propose(ellaraft.CmdUpdateOperatorTracking, op)
+	_, err = db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateOperatorTracking(ctx, op) }, "UpdateOperatorTracking")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -304,7 +308,7 @@ func (db *Database) UpdateOperatorID(ctx context.Context, mcc, mnc string) error
 
 	op := &Operator{Mcc: mcc, Mnc: mnc}
 
-	_, err := db.propose(ellaraft.CmdUpdateOperatorID, op)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateOperatorID(ctx, op) }, "UpdateOperatorID")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -338,7 +342,7 @@ func (db *Database) GetOperatorCode(ctx context.Context) (string, error) {
 
 	var op Operator
 
-	err := db.shared.Query(ctx, db.getOperatorStmt).Get(&op)
+	err := db.conn.Query(ctx, db.getOperatorStmt).Get(&op)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -372,7 +376,7 @@ func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string)
 
 	op := &Operator{OperatorCode: operatorCode}
 
-	_, err := db.propose(ellaraft.CmdUpdateOperatorCode, op)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateOperatorCode(ctx, op) }, "UpdateOperatorCode")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -422,7 +426,9 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 		return fmt.Errorf("failed to set integrity order: %w", err)
 	}
 
-	_, err = db.propose(ellaraft.CmdUpdateOperatorSecurityAlgorithms, op)
+	_, err = db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyUpdateOperatorSecurityAlgorithms(ctx, op)
+	}, "UpdateOperatorSecurityAlgorithms")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -456,7 +462,76 @@ func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFullName, spnShort
 
 	op := &Operator{SpnFullName: spnFullName, SpnShortName: spnShortName}
 
-	_, err := db.propose(ellaraft.CmdUpdateOperatorSPN, op)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateOperatorSPN(ctx, op) }, "UpdateOperatorSPN")
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+// UpdateOperatorAMFIdentity updates the AMF Region ID and Set ID used to
+// compute the 24-bit AMF ID (3GPP TS 23.003 §2.10.1).
+func (db *Database) UpdateOperatorAMFIdentity(ctx context.Context, regionID, setID int) error {
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (amf identity)", "UPDATE", OperatorTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPDATE"),
+			attribute.String("db.collection", OperatorTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
+
+	op := &Operator{AmfRegionID: regionID, AmfSetID: setID}
+
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateOperatorAMFIdentity(ctx, op) }, "UpdateOperatorAMFIdentity")
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+// UpdateOperatorClusterID sets the cluster UUID in the operator row.
+func (db *Database) UpdateOperatorClusterID(ctx context.Context, clusterID string) error {
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (cluster id)", "UPDATE", OperatorTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPDATE"),
+			attribute.String("db.collection", OperatorTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(OperatorTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(OperatorTableName, "update").Inc()
+
+	op := &Operator{ClusterID: clusterID}
+
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateOperatorClusterID(ctx, op) }, "UpdateOperatorClusterID")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

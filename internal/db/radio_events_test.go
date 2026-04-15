@@ -11,12 +11,13 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 func TestRadioEventsEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -107,7 +108,7 @@ func TestGetRadioEventByID(t *testing.T) {
 
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %v", err)
 	}
@@ -162,7 +163,7 @@ func TestRadioEventsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %v", err)
 	}
@@ -255,7 +256,7 @@ func TestListRadioEventsProtocolFilter(t *testing.T) {
 
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %v", err)
 	}
@@ -309,7 +310,7 @@ func TestListRadioEventsTimestampFilter(t *testing.T) {
 
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %v", err)
 	}
@@ -381,7 +382,7 @@ func TestListRadioEventsTimestampAndProtocolFilters(t *testing.T) {
 
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
+	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %v", err)
 	}

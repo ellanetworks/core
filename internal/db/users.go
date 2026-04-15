@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -73,7 +72,7 @@ func (db *Database) ListUsersPage(ctx context.Context, page, perPage int) ([]Use
 
 	var counts []NumItems
 
-	err := db.shared.Query(ctx, db.listUsersStmt, args).GetAll(&users, &counts)
+	err := db.conn.Query(ctx, db.listUsersStmt, args).GetAll(&users, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -123,7 +122,7 @@ func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
 
 	row := User{Email: email}
 
-	err := db.shared.Query(ctx, db.getUserStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getUserStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -162,7 +161,7 @@ func (db *Database) GetUserByID(ctx context.Context, id int64) (*User, error) {
 
 	row := User{ID: id}
 
-	err := db.shared.Query(ctx, db.getUserByIDStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.getUserByIDStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -198,7 +197,7 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (int64, error) {
 
 	DBQueriesTotal.WithLabelValues(UsersTableName, "insert").Inc()
 
-	result, err := db.propose(ellaraft.CmdCreateUser, user)
+	result, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateUser(ctx, user) }, "CreateUser")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -235,7 +234,7 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 		RoleID: roleID,
 	}
 
-	_, err := db.propose(ellaraft.CmdUpdateUser, user)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateUser(ctx, user) }, "UpdateUser")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -272,7 +271,7 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 		HashedPassword: hashedPassword,
 	}
 
-	_, err := db.propose(ellaraft.CmdUpdateUserPassword, user)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateUserPassword(ctx, user) }, "UpdateUserPassword")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -304,7 +303,7 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 
 	DBQueriesTotal.WithLabelValues(UsersTableName, "delete").Inc()
 
-	_, err := db.propose(ellaraft.CmdDeleteUser, &stringPayload{Value: email})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyDeleteUser(ctx, &stringPayload{Value: email}) }, "DeleteUser")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -338,7 +337,7 @@ func (db *Database) CountUsers(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.shared.Query(ctx, db.countUsersStmt).Get(&result)
+	err := db.conn.Query(ctx, db.countUsersStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

@@ -74,4 +74,4 @@ This design greatly simplifies the deployment and operation of the Core network,
 
 ### The database is embedded
 
-Persistent data is stored in an embedded database, eliminating the need for managing external databases. This design choice allows for a simple deployment process, backup and restore functionality, and (soon to be implemented) high availability features.
+Persistent data is stored in an embedded database, eliminating the need for managing external databases. This design choice allows for a simple deployment process, backup and restore functionality, and high availability through Raft-based clustering.

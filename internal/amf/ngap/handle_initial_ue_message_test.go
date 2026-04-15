@@ -98,8 +98,10 @@ func TestHandleInitialUEMessage_5GSTMSI_KnownUE_AttachesAmfUe(t *testing.T) {
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 	amfInstance.DBInstance = &FakeDBInstance{
 		Operator: &db.Operator{
-			Mcc: "001",
-			Mnc: "01",
+			Mcc:         "001",
+			Mnc:         "01",
+			AmfRegionID: 0xCA,
+			AmfSetID:    0x3F8,
 		},
 	}
 
@@ -164,8 +166,10 @@ func TestHandleInitialUEMessage_5GSTMSI_UnknownUE_NASStillCalled(t *testing.T) {
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 	amfInstance.DBInstance = &FakeDBInstance{
 		Operator: &db.Operator{
-			Mcc: "001",
-			Mnc: "01",
+			Mcc:         "001",
+			Mnc:         "01",
+			AmfRegionID: 0xCA,
+			AmfSetID:    0x3F8,
 		},
 	}
 
@@ -227,8 +231,10 @@ func TestHandleInitialUEMessage_RegisteredUE_DoesNotPanic(t *testing.T) {
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 	amfInstance.DBInstance = &FakeDBInstance{
 		Operator: &db.Operator{
-			Mcc: "001",
-			Mnc: "01",
+			Mcc:         "001",
+			Mnc:         "01",
+			AmfRegionID: 0xCA,
+			AmfSetID:    0x3F8,
 		},
 	}
 

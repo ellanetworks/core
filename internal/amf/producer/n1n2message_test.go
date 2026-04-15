@@ -155,6 +155,8 @@ func (f *fakeDBInstance) ListPoliciesByProfile(context.Context, int) ([]db.Polic
 	return nil, nil
 }
 
+func (f *fakeDBInstance) NodeID() int { return 0 }
+
 type fakeSmf struct{}
 
 func (f *fakeSmf) GetSession(string) *smf.SMContext      { return nil }

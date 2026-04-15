@@ -21,7 +21,7 @@ func TestNewTestManager_ElectsAndApplies(t *testing.T) {
 		t.Fatalf("expected leader, state=%v", m.State())
 	}
 
-	cmd, err := NewCommand(CmdCreateSubscriber, map[string]string{"imsi": "001"})
+	cmd, err := NewCommand(CmdChangeset, map[string]string{"imsi": "001"})
 	if err != nil {
 		t.Fatalf("new command: %v", err)
 	}

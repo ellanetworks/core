@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -63,7 +62,7 @@ func (db *Database) GetRetentionPolicy(ctx context.Context, category RetentionCa
 
 	var row RetentionPolicy
 
-	err := db.shared.Query(ctx, db.selectRetentionPolicyStmt, arg).Get(&row)
+	err := db.conn.Query(ctx, db.selectRetentionPolicyStmt, arg).Get(&row)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -98,7 +97,7 @@ func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category R
 
 	row := RetentionPolicy{Category: category}
 
-	err := db.shared.Query(ctx, db.selectRetentionPolicyStmt, row).Get(&row)
+	err := db.conn.Query(ctx, db.selectRetentionPolicyStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -137,7 +136,7 @@ func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPol
 
 	DBQueriesTotal.WithLabelValues(RetentionPolicyTableName, "insert").Inc()
 
-	_, err := db.propose(ellaraft.CmdSetRetentionPolicy, policy)
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applySetRetentionPolicy(ctx, policy) }, "SetRetentionPolicy")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

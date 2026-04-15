@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -53,7 +52,7 @@ func (db *Database) InitializeNATSettings(ctx context.Context) error {
 
 	natSettings := NATSettings{Enabled: NATDefaultEnabled}
 
-	err := db.shared.Query(ctx, db.insertDefaultNATSettingsStmt, natSettings).Run()
+	err := db.conn.Query(ctx, db.insertDefaultNATSettingsStmt, natSettings).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -86,7 +85,7 @@ func (db *Database) IsNATEnabled(ctx context.Context) (bool, error) {
 
 	var natSettings NATSettings
 
-	err := db.shared.Query(ctx, db.getNATSettingsStmt).Get(&natSettings)
+	err := db.conn.Query(ctx, db.getNATSettingsStmt).Get(&natSettings)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -117,7 +116,9 @@ func (db *Database) UpdateNATSettings(ctx context.Context, enabled bool) error {
 
 	DBQueriesTotal.WithLabelValues(NATSettingsTableName, "update").Inc()
 
-	_, err := db.propose(ellaraft.CmdUpdateNATSettings, &boolPayload{Value: enabled})
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applyUpdateNATSettings(ctx, &boolPayload{Value: enabled})
+	}, "UpdateNATSettings")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

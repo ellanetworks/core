@@ -4,6 +4,9 @@ package version
 
 import (
 	_ "embed"
+	"fmt"
+	"strconv"
+	"strings"
 )
 
 //go:embed VERSION
@@ -22,4 +25,25 @@ func GetVersion() *VersionInfo {
 		Revision: GitCommit,
 		Version:  version,
 	}
+}
+
+// ProtocolVersion returns the minor component of the embedded semver VERSION
+// string as a monotonic integer (e.g. 9 from "v1.9.1"). Any release that adds
+// a CommandType, changes a command payload shape, or alters the snapshot format
+// must bump the minor version.
+func ProtocolVersion() uint32 {
+	v := strings.TrimSpace(version)
+	v = strings.TrimPrefix(v, "v")
+
+	parts := strings.SplitN(v, ".", 3)
+	if len(parts) < 2 {
+		panic(fmt.Sprintf("version: cannot parse minor from %q", version))
+	}
+
+	minor, err := strconv.ParseUint(parts[1], 10, 32)
+	if err != nil {
+		panic(fmt.Sprintf("version: cannot parse minor from %q: %v", version, err))
+	}
+
+	return uint32(minor)
 }
