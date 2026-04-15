@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/netip"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -43,37 +45,64 @@ const (
 // In tests we can override it to disable actual reconciliation.
 var routeReconciler = ReconcileKernelRouting
 
-func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf server.UPFUpdater, sessions smf.SessionQuerier, amfInstance *amf.AMF, bgpService *bgp.BGPService, embedFS fs.FS, registerExtraRoutes func(mux *http.ServeMux)) (*http.Server, error) {
-	jwtSecretBytes, err := dbInstance.GetJWTSecret(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't load jwt secret from database: %v", err)
-	}
+// Server wraps the HTTP server and supports two-phase startup. Phase one
+// (StartDiscovery) starts the listener with only the routes needed for
+// cluster discovery. Phase two (Upgrade) swaps in the full API handler
+// after the cluster has formed and settings have been seeded.
+type Server struct {
+	httpServer *http.Server
+	handler    handlerRef
+	cfg        config.Config
+	ready      atomic.Bool
+}
 
-	jwtSecret := server.NewJWTSecret(jwtSecretBytes)
+// handlerRef is a concurrency-safe swappable HTTP handler.
+type handlerRef struct {
+	mu sync.RWMutex
+	h  http.Handler
+}
 
-	kernelInt := kernel.NewRealKernel(cfg.Interfaces.N3.Name, cfg.Interfaces.N6.Name)
+func (hr *handlerRef) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	hr.mu.RLock()
+	h := hr.h
+	hr.mu.RUnlock()
 
-	scheme := HTTPS
-	if cfg.Interfaces.API.TLS.Cert == "" || cfg.Interfaces.API.TLS.Key == "" {
-		scheme = HTTP
-	}
+	h.ServeHTTP(w, r)
+}
 
-	secureCookie := scheme == HTTPS
+func (hr *handlerRef) set(h http.Handler) {
+	hr.mu.Lock()
+	hr.h = h
+	hr.mu.Unlock()
+}
 
-	router := server.NewHandler(server.HandlerConfig{
-		DB:                  dbInstance,
-		Config:              cfg,
-		UPF:                 upf,
-		Kernel:              kernelInt,
-		JWTSecret:           jwtSecret,
-		SecureCookie:        secureCookie,
-		FrontendFS:          embedFS,
-		Sessions:            sessions,
-		AMF:                 amfInstance,
-		BGP:                 bgpService,
-		BcryptCost:          bcrypt.DefaultCost,
-		RegisterExtraRoutes: registerExtraRoutes,
+// UpgradeConfig holds the dependencies needed to upgrade the API server
+// from discovery-only routes to the full API.
+type UpgradeConfig struct {
+	DB                  *db.Database
+	UPF                 server.UPFUpdater
+	Sessions            smf.SessionQuerier
+	AMF                 *amf.AMF
+	BGP                 *bgp.BGPService
+	EmbedFS             fs.FS
+	RegisterExtraRoutes func(*http.ServeMux)
+}
+
+// StartDiscovery creates and starts the HTTP server with only the routes
+// required for cluster discovery (status, cluster membership, metrics,
+// OpenAPI spec). Call Upgrade after cluster formation to enable the full API.
+func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Config) (*Server, error) {
+	s := &Server{cfg: cfg}
+
+	discoveryHandler := server.NewDiscoveryHandler(server.DiscoveryHandlerConfig{
+		DB:     dbInstance,
+		Config: cfg,
+		Ready:  &s.ready,
 	})
+
+	s.handler.set(discoveryHandler)
+
+	scheme := resolveScheme(cfg)
 
 	httpAddr := fmt.Sprintf(":%s", strconv.Itoa(cfg.Interfaces.API.Port))
 	if cfg.Interfaces.API.Address != "" {
@@ -90,6 +119,8 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 		ReadTimeout:       1 * time.Minute,
 		WriteTimeout:      5 * time.Minute,
 	}
+
+	s.httpServer = srv
 
 	go func() {
 		var serveErr error
@@ -129,7 +160,7 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 		logger.APILog.Info("API server started", logFields...)
 
 		if scheme == HTTPS {
-			srv.Handler = router
+			srv.Handler = &s.handler
 
 			srv.TLSConfig = &tls.Config{
 				MinVersion: tls.VersionTLS12,
@@ -147,13 +178,15 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 					tls.CurveP384,
 				},
 			}
+
 			if ln != nil {
 				serveErr = srv.ServeTLS(ln, cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key)
 			} else {
 				serveErr = srv.ListenAndServeTLS(cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key)
 			}
 		} else {
-			srv.Handler = h2c.NewHandler(router, h2Server)
+			srv.Handler = h2c.NewHandler(&s.handler, h2Server)
+
 			if ln != nil {
 				serveErr = srv.Serve(ln)
 			} else {
@@ -166,12 +199,46 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 		}
 	}()
 
-	// Reconcile routes on startup and every 5 minutes.
-	reconcile := routeReconciler // capture to avoid racing with test teardown
+	return s, nil
+}
+
+// Upgrade swaps the discovery-only handler for the full API handler. It
+// must be called after cluster formation and database initialization so
+// that the JWT secret and all settings are available.
+func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
+	jwtSecretBytes, err := opts.DB.GetJWTSecret(ctx)
+	if err != nil {
+		return fmt.Errorf("couldn't load jwt secret from database: %v", err)
+	}
+
+	jwtSecret := server.NewJWTSecret(jwtSecretBytes)
+	kernelInt := kernel.NewRealKernel(s.cfg.Interfaces.N3.Name, s.cfg.Interfaces.N6.Name)
+	secureCookie := resolveScheme(s.cfg) == HTTPS
+
+	fullHandler := server.NewHandler(server.HandlerConfig{
+		DB:                  opts.DB,
+		Config:              s.cfg,
+		UPF:                 opts.UPF,
+		Kernel:              kernelInt,
+		JWTSecret:           jwtSecret,
+		SecureCookie:        secureCookie,
+		FrontendFS:          opts.EmbedFS,
+		Sessions:            opts.Sessions,
+		AMF:                 opts.AMF,
+		BGP:                 opts.BGP,
+		BcryptCost:          bcrypt.DefaultCost,
+		Ready:               &s.ready,
+		RegisterExtraRoutes: opts.RegisterExtraRoutes,
+	})
+
+	s.handler.set(fullHandler)
+	s.ready.Store(true)
+
+	reconcile := routeReconciler
 
 	go func() {
 		for {
-			err := reconcile(ctx, dbInstance, kernelInt)
+			err := reconcile(ctx, opts.DB, kernelInt)
 			if err != nil {
 				logger.APILog.Error("couldn't reconcile routes", zap.Error(err))
 			}
@@ -185,7 +252,20 @@ func Start(ctx context.Context, dbInstance *db.Database, cfg config.Config, upf 
 		}
 	}()
 
-	return srv, nil
+	return nil
+}
+
+// Shutdown gracefully shuts down the HTTP server.
+func (s *Server) Shutdown(ctx context.Context) error {
+	return s.httpServer.Shutdown(ctx)
+}
+
+func resolveScheme(cfg config.Config) Scheme {
+	if cfg.Interfaces.API.TLS.Cert == "" || cfg.Interfaces.API.TLS.Key == "" {
+		return HTTP
+	}
+
+	return HTTPS
 }
 
 func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernelInt kernel.Kernel) error {

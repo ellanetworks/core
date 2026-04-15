@@ -2,6 +2,8 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -37,41 +39,21 @@ type BGPSettings struct {
 // InitializeBGPSettings inserts the default BGP settings into the database.
 // If the settings already exist, it does nothing.
 func (db *Database) InitializeBGPSettings(ctx context.Context) error {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s", "INSERT", BGPSettingsTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", BGPSettingsTableName),
-		),
-	)
-	defer span.End()
+	_, err := db.GetBGPSettings(ctx)
+	if err == nil {
+		return nil
+	}
 
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(BGPSettingsTableName, "insert"))
-	defer timer.ObserveDuration()
+	if !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("failed to check BGP settings: %w", err)
+	}
 
-	DBQueriesTotal.WithLabelValues(BGPSettingsTableName, "insert").Inc()
-
-	bgpSettings := BGPSettings{
+	return db.UpdateBGPSettings(ctx, &BGPSettings{
 		Enabled:       BGPDefaultEnabled,
 		LocalAS:       BGPDefaultLocalAS,
 		RouterID:      "",
 		ListenAddress: ":179",
-	}
-
-	err := db.conn().Query(ctx, db.insertDefaultBGPSettingsStmt, bgpSettings).Run()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return nil
+	})
 }
 
 func (db *Database) GetBGPSettings(ctx context.Context) (*BGPSettings, error) {

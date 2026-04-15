@@ -79,18 +79,26 @@ func TestStartServerStandup(t *testing.T) {
 		},
 	}
 
-	// Start the server in a separate goroutine.
+	// Start the server in discovery mode, then upgrade to full.
 	dummyFS := dummyFS{}
 
 	cctx, cancel := context.WithCancel(t.Context())
 
-	srv, err := Start(cctx, testdb, cfg, nil, nil, nil, nil, dummyFS, nil)
+	srv, err := StartDiscovery(cctx, testdb, cfg)
 	if err != nil {
-		t.Fatalf("Start returned error: %v", err)
+		t.Fatalf("StartDiscovery returned error: %v", err)
+	}
+
+	err = srv.Upgrade(cctx, UpgradeConfig{
+		DB:      testdb,
+		EmbedFS: dummyFS,
+	})
+	if err != nil {
+		t.Fatalf("Upgrade returned error: %v", err)
 	}
 
 	defer cancel()
-	defer func() { _ = srv.Close() }()
+	defer func() { _ = srv.Shutdown(context.Background()) }()
 
 	// Poll the server until it responds or timeout occurs.
 	baseURL := "http://127.0.0.1:" + strconv.Itoa(port)

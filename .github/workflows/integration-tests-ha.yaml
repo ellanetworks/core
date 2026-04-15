@@ -1,0 +1,32 @@
+name: HA integration tests
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  ha-integration-test:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download Container image from GitHub Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-image-amd64
+
+      - name: Load container image
+        run: |
+          docker load -i ellacore_latest-amd64.tar
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Run HA integration tests
+        run: |
+          INTEGRATION=1 go test ./integration/... -run TestIntegrationHA -v -timeout 15m

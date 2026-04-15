@@ -1,0 +1,150 @@
+configs:
+  node1_config:
+    content: |
+      logging:
+        system:
+          level: "debug"
+          output: "stdout"
+        audit:
+          output: "stdout"
+      db:
+        path: "ella.db"
+      interfaces:
+        n2:
+          address: "10.100.0.11"
+          port: 38412
+        n3:
+          address: "10.100.0.11"
+        n6:
+          name: "eth0"
+        api:
+          address: "10.100.0.11"
+          port: 5002
+      xdp:
+        attach-mode: "generic"
+      cluster:
+        enabled: true
+        node-id: 1
+        bind-address: "10.100.0.11:7000"
+        advertise-api-address: "http://10.100.0.11:5002"
+        bootstrap-expect: 3
+        peers:
+          - "http://10.100.0.11:5002"
+          - "http://10.100.0.12:5002"
+          - "http://10.100.0.13:5002"
+        join-token: "integration-test-token-that-is-long-enough"
+  node2_config:
+    content: |
+      logging:
+        system:
+          level: "debug"
+          output: "stdout"
+        audit:
+          output: "stdout"
+      db:
+        path: "ella.db"
+      interfaces:
+        n2:
+          address: "10.100.0.12"
+          port: 38412
+        n3:
+          address: "10.100.0.12"
+        n6:
+          name: "eth0"
+        api:
+          address: "10.100.0.12"
+          port: 5002
+      xdp:
+        attach-mode: "generic"
+      cluster:
+        enabled: true
+        node-id: 2
+        bind-address: "10.100.0.12:7000"
+        advertise-api-address: "http://10.100.0.12:5002"
+        bootstrap-expect: 3
+        peers:
+          - "http://10.100.0.11:5002"
+          - "http://10.100.0.12:5002"
+          - "http://10.100.0.13:5002"
+        join-token: "integration-test-token-that-is-long-enough"
+  node3_config:
+    content: |
+      logging:
+        system:
+          level: "debug"
+          output: "stdout"
+        audit:
+          output: "stdout"
+      db:
+        path: "ella.db"
+      interfaces:
+        n2:
+          address: "10.100.0.13"
+          port: 38412
+        n3:
+          address: "10.100.0.13"
+        n6:
+          name: "eth0"
+        api:
+          address: "10.100.0.13"
+          port: 5002
+      xdp:
+        attach-mode: "generic"
+      cluster:
+        enabled: true
+        node-id: 3
+        bind-address: "10.100.0.13:7000"
+        advertise-api-address: "http://10.100.0.13:5002"
+        bootstrap-expect: 3
+        peers:
+          - "http://10.100.0.11:5002"
+          - "http://10.100.0.12:5002"
+          - "http://10.100.0.13:5002"
+        join-token: "integration-test-token-that-is-long-enough"
+
+services:
+  ella-core-1:
+    image: ella-core:latest
+    configs:
+      - source: node1_config
+        target: /core.yaml
+    restart: unless-stopped
+    entrypoint: /bin/core --config /core.yaml
+    privileged: true
+    ports:
+      - "5002:5002"
+    networks:
+      cluster:
+        ipv4_address: 10.100.0.11
+  ella-core-2:
+    image: ella-core:latest
+    configs:
+      - source: node2_config
+        target: /core.yaml
+    restart: unless-stopped
+    entrypoint: /bin/core --config /core.yaml
+    privileged: true
+    ports:
+      - "5003:5002"
+    networks:
+      cluster:
+        ipv4_address: 10.100.0.12
+  ella-core-3:
+    image: ella-core:latest
+    configs:
+      - source: node3_config
+        target: /core.yaml
+    restart: unless-stopped
+    entrypoint: /bin/core --config /core.yaml
+    privileged: true
+    ports:
+      - "5004:5002"
+    networks:
+      cluster:
+        ipv4_address: 10.100.0.13
+
+networks:
+  cluster:
+    ipam:
+      config:
+        - subnet: 10.100.0.0/24

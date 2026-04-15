@@ -2892,9 +2892,12 @@ components:
         initialized:
           type: boolean
           description: True if the system has at least one user.
+        ready:
+          type: boolean
+          description: True if the node has completed full startup and can serve the complete API.
         cluster:
           $ref: "#/components/schemas/ClusterStatus"
-      required: [version, revision, initialized]
+      required: [version, revision, initialized, ready]
 
     StatusResponseEnvelope:
       type: object

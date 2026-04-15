@@ -225,9 +225,9 @@ func (db *Database) runner(ctx context.Context) *sqlair.DB {
 }
 
 func (db *Database) applyWithPinnedConn(ctx context.Context, conn driver.Conn, applyFn func(context.Context) (any, error)) (any, error) {
-	// Concurrent captures are already serialised by MaxOpenConns(1) on the
-	// shared *sql.DB — the outer captureChangeset holds the only conn via
-	// conn.Raw, so no additional mutex is needed here.
+	// The caller (proposeChangeset) holds db.proposeMu, so concurrent
+	// captures are serialised at the propose level — no additional mutex
+	// is needed here.
 	pinned := sql.OpenDB(&pinnedConnector{conn: conn})
 	pinned.SetMaxOpenConns(1)
 	pinned.SetMaxIdleConns(1)

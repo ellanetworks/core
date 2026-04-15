@@ -204,3 +204,29 @@ func (dc *DockerClient) CopyFileToContainer(ctx context.Context, containerName, 
 
 	return nil
 }
+
+func (dc *DockerClient) ComposeStop(ctx context.Context, composeDir string, service string) error {
+	cmd := exec.CommandContext(ctx, "docker", "compose", "stop", service)
+	cmd.Dir = composeDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to stop service %s: %w", service, err)
+	}
+
+	return nil
+}
+
+func (dc *DockerClient) ComposeStart(ctx context.Context, composeDir string, service string) error {
+	cmd := exec.CommandContext(ctx, "docker", "compose", "start", service)
+	cmd.Dir = composeDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to start service %s: %w", service, err)
+	}
+
+	return nil
+}

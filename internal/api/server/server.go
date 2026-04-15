@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"net/netip"
+	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/bgp"
@@ -37,6 +38,7 @@ type HandlerConfig struct {
 	AMF                 *amf.AMF
 	BGP                 *bgp.BGPService
 	BcryptCost          int
+	Ready               *atomic.Bool
 	RegisterExtraRoutes func(*http.ServeMux)
 }
 
@@ -57,7 +59,13 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux := http.NewServeMux()
 
 	// Status (Unauthenticated)
-	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance).ServeHTTP)
+	ready := cfg.Ready
+	if ready == nil {
+		ready = &atomic.Bool{}
+		ready.Store(true)
+	}
+
+	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance, ready).ServeHTTP)
 
 	// OpenAPI Specification (Unauthenticated)
 	mux.HandleFunc("GET /api/v1/openapi.yaml", OpenAPISpec().ServeHTTP)
@@ -226,6 +234,54 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 
 	if registerExtraRoutes != nil {
 		registerExtraRoutes(mux)
+	}
+
+	var handler http.Handler = mux
+
+	handler = MaxBodySizeMiddleware(handler)
+	handler = AppliedIndexMiddleware(dbInstance, handler)
+	handler = LeaderProxyMiddleware(dbInstance, handler)
+	handler = SecurityHeadersMiddleware(secureCookie, handler)
+	handler = MetricsMiddleware(handler)
+
+	if appCfg.Telemetry.Enabled {
+		handler = TracingMiddleware("ella-core/api", handler)
+	}
+
+	return handler
+}
+
+// DiscoveryHandlerConfig holds the dependencies for the discovery-phase
+// HTTP handler that runs before cluster formation.
+type DiscoveryHandlerConfig struct {
+	DB     *db.Database
+	Config config.Config
+	Ready  *atomic.Bool
+}
+
+// NewDiscoveryHandler returns an HTTP handler serving only the routes
+// needed for cluster discovery: status, cluster membership, metrics,
+// and the OpenAPI spec. It requires no JWT secret or NF instances.
+func NewDiscoveryHandler(cfg DiscoveryHandlerConfig) http.Handler {
+	dbInstance := cfg.DB
+	appCfg := cfg.Config
+	secureCookie := appCfg.Interfaces.API.TLS.Cert != "" && appCfg.Interfaces.API.TLS.Key != ""
+
+	mux := http.NewServeMux()
+
+	ready := cfg.Ready
+	if ready == nil {
+		ready = &atomic.Bool{}
+		ready.Store(true)
+	}
+
+	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance, ready).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/metrics", GetMetrics().ServeHTTP)
+	mux.HandleFunc("GET /api/v1/openapi.yaml", OpenAPISpec().ServeHTTP)
+
+	if appCfg.Cluster.JoinToken != "" {
+		mux.HandleFunc("POST /api/v1/cluster/members",
+			ClusterTokenOnly(appCfg.Cluster.JoinToken, AddClusterMember(dbInstance)).ServeHTTP)
 	}
 
 	var handler http.Handler = mux

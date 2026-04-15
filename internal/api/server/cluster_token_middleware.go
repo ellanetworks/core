@@ -36,3 +36,19 @@ func ClusterTokenOrAuth(joinToken string, jwtSecret *JWTSecret, dbInstance *db.D
 		authFallback.ServeHTTP(w, r)
 	})
 }
+
+// ClusterTokenOnly accepts only a valid cluster join token via the
+// X-Ella-Cluster-Token header. Unlike ClusterTokenOrAuth it does not
+// fall back to JWT authentication, making it safe for use during
+// cluster discovery before the JWT secret has been seeded.
+func ClusterTokenOnly(joinToken string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		token := r.Header.Get(headerClusterToken)
+		if token != "" && joinToken != "" && subtle.ConstantTimeCompare([]byte(token), []byte(joinToken)) == 1 {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		writeError(r.Context(), w, http.StatusForbidden, "Invalid or missing cluster join token", nil, logger.APILog)
+	})
+}

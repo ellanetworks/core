@@ -5,6 +5,8 @@ package raft
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -24,7 +26,9 @@ const (
 // autopilotDelegate implements autopilot.ApplicationIntegration using the
 // cluster_members table as the source of known servers.
 type autopilotDelegate struct {
-	manager *Manager
+	manager          *Manager
+	mu               sync.Mutex
+	inflightRemovals map[raft.ServerID]bool
 }
 
 func (d *autopilotDelegate) AutopilotConfig() *autopilot.Config {
@@ -63,10 +67,37 @@ func (d *autopilotDelegate) FetchServerStats(_ context.Context, servers map[raft
 	result := make(map[raft.ServerID]*autopilot.ServerStats, len(servers))
 
 	leaderStats := d.manager.raft.Stats()
+	parsed := parseRaftStats(leaderStats)
+	ft := d.manager.followerTracker
 
 	for id, srv := range servers {
 		if srv.IsLeader {
-			result[id] = parseRaftStats(leaderStats)
+			result[id] = parsed
+			continue
+		}
+
+		if ft == nil {
+			result[id] = &autopilot.ServerStats{
+				LastTerm:  parsed.LastTerm,
+				LastIndex: parsed.LastIndex,
+			}
+
+			continue
+		}
+
+		lastContact, healthy := ft.peerStats(id)
+		if healthy {
+			result[id] = &autopilot.ServerStats{
+				LastContact: 0,
+				LastTerm:    parsed.LastTerm,
+				LastIndex:   parsed.LastIndex,
+			}
+		} else {
+			result[id] = &autopilot.ServerStats{
+				LastContact: lastContact,
+				LastTerm:    parsed.LastTerm,
+				LastIndex:   0,
+			}
 		}
 	}
 
@@ -80,13 +111,22 @@ func (d *autopilotDelegate) KnownServers() map[raft.ServerID]*autopilot.Server {
 		return nil
 	}
 
+	ft := d.manager.followerTracker
+	localID := raft.ServerID(strconv.Itoa(d.manager.nodeID))
+
 	servers := make(map[raft.ServerID]*autopilot.Server, len(future.Configuration().Servers))
 	for _, srv := range future.Configuration().Servers {
+		status := autopilot.NodeAlive
+
+		if ft != nil && srv.ID != localID && !ft.isHealthy(srv.ID) {
+			status = autopilot.NodeLeft
+		}
+
 		servers[srv.ID] = &autopilot.Server{
 			ID:         srv.ID,
 			Name:       string(srv.ID),
 			Address:    srv.Address,
-			NodeStatus: autopilot.NodeAlive,
+			NodeStatus: status,
 		}
 	}
 
@@ -94,10 +134,33 @@ func (d *autopilotDelegate) KnownServers() map[raft.ServerID]*autopilot.Server {
 }
 
 func (d *autopilotDelegate) RemoveFailedServer(srv *autopilot.Server) {
-	logger.RaftLog.Info("Autopilot: removing failed server",
-		zap.String("id", string(srv.ID)),
-		zap.String("address", string(srv.Address)),
-	)
+	d.mu.Lock()
+	if d.inflightRemovals[srv.ID] {
+		d.mu.Unlock()
+		return
+	}
+
+	d.inflightRemovals[srv.ID] = true
+	d.mu.Unlock()
+
+	go func() {
+		logger.RaftLog.Info("Autopilot: removing failed server",
+			zap.String("id", string(srv.ID)),
+			zap.String("address", string(srv.Address)),
+		)
+
+		future := d.manager.raft.RemoveServer(srv.ID, 0, 0)
+		if err := future.Error(); err != nil {
+			logger.RaftLog.Error("Autopilot: failed to remove server",
+				zap.String("id", string(srv.ID)),
+				zap.Error(err),
+			)
+		}
+
+		d.mu.Lock()
+		delete(d.inflightRemovals, srv.ID)
+		d.mu.Unlock()
+	}()
 }
 
 func parseRaftStats(stats map[string]string) *autopilot.ServerStats {
@@ -128,7 +191,10 @@ type autopilotRunner struct {
 }
 
 func newAutopilotRunner(r *raft.Raft, m *Manager) *autopilotRunner {
-	delegate := &autopilotDelegate{manager: m}
+	delegate := &autopilotDelegate{
+		manager:          m,
+		inflightRemovals: make(map[raft.ServerID]bool),
+	}
 
 	ap := autopilot.New(r, delegate,
 		autopilot.WithLogger(hclog.NewNullLogger()),
