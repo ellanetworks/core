@@ -221,7 +221,7 @@ func (m *Manager) probePeer(ctx context.Context, client *http.Client, peerURL st
 	clusterID := status.Result.Cluster.ClusterID
 	schemaVersion := status.Result.Cluster.SchemaVersion
 
-	if role == "Leader" || role == "Follower" {
+	if clusterID != "" && (role == "Leader" || role == "Follower") {
 		return peerFormed, nodeID, clusterID, schemaVersion
 	}
 
