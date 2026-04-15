@@ -31,7 +31,6 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
-	"time"
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/logger"
@@ -111,14 +110,10 @@ func (db *Database) assertTableReplicationClassification(ctx context.Context) er
 }
 
 func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload) (any, error) {
-	start := time.Now()
-
 	conn, err := db.conn.PlainDB().Conn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("acquire sqlite conn for apply: %w", err)
 	}
-
-	connWait := time.Since(start)
 
 	defer func() { _ = conn.Close() }()
 
@@ -142,20 +137,7 @@ func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload) (
 
 		return nil
 	}); err != nil {
-		logger.DBLog.Warn("apply changeset failed",
-			zap.Int("bytes", len(payload.Value)),
-			zap.Duration("connWait", connWait),
-			zap.Duration("total", time.Since(start)),
-			zap.Error(err))
-
 		return nil, err
-	}
-
-	if total := time.Since(start); total > 200*time.Millisecond || connWait > 100*time.Millisecond {
-		logger.DBLog.Warn("apply changeset slow",
-			zap.Int("bytes", len(payload.Value)),
-			zap.Duration("connWait", connWait),
-			zap.Duration("total", total))
 	}
 
 	return nil, nil
@@ -233,6 +215,25 @@ func (db *Database) captureChangeset(ctx context.Context, applyFn func(context.C
 	return changeset, result, nil
 }
 
+// pinnedRunnerCtxKey is the context key under which applyWithPinnedConn stores
+// the pinned *sqlair.DB for apply functions. Applier methods resolve the
+// runner via (*Database).runner so they target the pinned connection during
+// capture without mutating the shared db.conn pointer (which would race with
+// concurrent non-capture DB users and return "sql: database is closed" once
+// the pinned handle is Close'd at capture end).
+type pinnedRunnerCtxKey struct{}
+
+// runner returns the sqlair DB to use for the current operation. Inside a
+// changeset capture, applyFn receives a context carrying a pinned *sqlair.DB;
+// outside of capture, callers get the shared db.conn.
+func (db *Database) runner(ctx context.Context) *sqlair.DB {
+	if r, ok := ctx.Value(pinnedRunnerCtxKey{}).(*sqlair.DB); ok {
+		return r
+	}
+
+	return db.conn
+}
+
 func (db *Database) applyWithPinnedConn(ctx context.Context, conn driver.Conn, applyFn func(context.Context) (any, error)) (any, error) {
 	pinned := sql.OpenDB(&pinnedConnector{conn: conn})
 	pinned.SetMaxOpenConns(1)
@@ -245,10 +246,7 @@ func (db *Database) applyWithPinnedConn(ctx context.Context, conn driver.Conn, a
 	db.captureMu.Lock()
 	defer db.captureMu.Unlock()
 
-	originalConn := db.conn
-	db.conn = pinnedSQLAir
-
-	defer func() { db.conn = originalConn }()
+	ctx = context.WithValue(ctx, pinnedRunnerCtxKey{}, pinnedSQLAir)
 
 	return applyFn(ctx)
 }

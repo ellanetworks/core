@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -113,23 +112,8 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 			return 0, "", 0, err
 		}
 
-		lookupStart := time.Now()
 		tok, err := store.GetAPITokenByTokenID(ctx, tokenID)
-		lookupDur := time.Since(lookupStart)
-
-		if lookupDur > 100*time.Millisecond {
-			logger.APILog.Warn("api token lookup slow",
-				zap.String("tokenID", tokenID),
-				zap.Duration("duration", lookupDur))
-		}
-
 		if err != nil || tok == nil {
-			logger.APILog.Warn("api token lookup failed",
-				zap.String("tokenID", tokenID),
-				zap.Bool("nilToken", tok == nil),
-				zap.Duration("duration", lookupDur),
-				zap.Error(err))
-
 			err := errors.New("invalid API token")
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "invalid API token")
@@ -147,11 +131,6 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 
 		// CompareHashAndPassword uses constant time comparison, making it safer but slower
 		if err := bcrypt.CompareHashAndPassword([]byte(tok.TokenHash), []byte(token)); err != nil {
-			logger.APILog.Warn("api token bcrypt mismatch",
-				zap.String("tokenID", tokenID),
-				zap.Int64("userID", tok.UserID),
-				zap.Error(err))
-
 			err := errors.New("invalid API token")
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "invalid API token")
@@ -159,24 +138,8 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 			return 0, "", 0, err
 		}
 
-		userLookupStart := time.Now()
 		u, err := store.GetUserByID(ctx, tok.UserID)
-		userLookupDur := time.Since(userLookupStart)
-
-		if userLookupDur > 100*time.Millisecond {
-			logger.APILog.Warn("user lookup slow",
-				zap.Int64("userID", tok.UserID),
-				zap.Duration("duration", userLookupDur))
-		}
-
 		if err != nil || u == nil {
-			logger.APILog.Warn("api token user lookup failed",
-				zap.String("tokenID", tokenID),
-				zap.Int64("userID", tok.UserID),
-				zap.Bool("nilUser", u == nil),
-				zap.Duration("duration", userLookupDur),
-				zap.Error(err))
-
 			err := errors.New("user not found")
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "user not found")
