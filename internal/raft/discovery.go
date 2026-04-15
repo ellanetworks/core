@@ -204,12 +204,12 @@ func (m *Manager) probePeer(ctx context.Context, client *http.Client, peerURL st
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return peerForming, 0, "", 0
+		return peerUnreachable, 0, "", 0
 	}
 
 	var status statusResponse
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&status); err != nil {
-		return peerForming, 0, "", 0
+		return peerUnreachable, 0, "", 0
 	}
 
 	if status.Result.Cluster == nil {

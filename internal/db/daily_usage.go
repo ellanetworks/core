@@ -159,7 +159,7 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate t
 
 	var dailyUsage []UsagePerDay
 
-	err := db.conn.Query(ctx, db.getUsagePerDayStmt, dailyUsageFilters).GetAll(&dailyUsage)
+	err := db.conn().Query(ctx, db.getUsagePerDayStmt, dailyUsageFilters).GetAll(&dailyUsage)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -206,7 +206,7 @@ func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, star
 
 	var dailyUsage []UsagePerSub
 
-	err := db.conn.Query(ctx, db.getUsagePerSubscriberStmt, dailyUsageFilters).GetAll(&dailyUsage)
+	err := db.conn().Query(ctx, db.getUsagePerSubscriberStmt, dailyUsageFilters).GetAll(&dailyUsage)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")

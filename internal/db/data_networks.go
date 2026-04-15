@@ -65,7 +65,7 @@ func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int)
 		Offset: (page - 1) * perPage,
 	}
 
-	err := db.conn.Query(ctx, db.listDataNetworksStmt, args).GetAll(&dataNetworks, &counts)
+	err := db.conn().Query(ctx, db.listDataNetworksStmt, args).GetAll(&dataNetworks, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -114,7 +114,7 @@ func (db *Database) ListAllDataNetworks(ctx context.Context) ([]DataNetwork, err
 
 	var dataNetworks []DataNetwork
 
-	err := db.conn.Query(ctx, db.listAllDataNetworksStmt).GetAll(&dataNetworks)
+	err := db.conn().Query(ctx, db.listAllDataNetworksStmt).GetAll(&dataNetworks)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -153,7 +153,7 @@ func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwo
 
 	row := DataNetwork{Name: name}
 
-	err := db.conn.Query(ctx, db.getDataNetworkStmt, row).Get(&row)
+	err := db.conn().Query(ctx, db.getDataNetworkStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.RecordError(err)
@@ -193,7 +193,7 @@ func (db *Database) GetDataNetworkByID(ctx context.Context, id int) (*DataNetwor
 
 	row := DataNetwork{ID: id}
 
-	err := db.conn.Query(ctx, db.getDataNetworkByIDStmt, row).Get(&row)
+	err := db.conn().Query(ctx, db.getDataNetworkByIDStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.RecordError(err)
@@ -328,7 +328,7 @@ func (db *Database) CountDataNetworks(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.conn.Query(ctx, db.countDataNetworksStmt).Get(&result)
+	err := db.conn().Query(ctx, db.countDataNetworksStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

@@ -378,6 +378,17 @@ func (m *Manager) NodeID() int {
 	return m.nodeID
 }
 
+// RaftAddress returns the transport-local Raft address this node is reachable
+// at (post-bind, so includes any ephemeral port assigned by the kernel).
+func (m *Manager) RaftAddress() string {
+	return string(m.transport.LocalAddr())
+}
+
+// APIAddress returns the advertised API address for this node.
+func (m *Manager) APIAddress() string {
+	return m.config.AdvertiseAPIAddress
+}
+
 // ProposeTimeout returns the configured maximum wait for a Raft commit, or
 // defaultProposeTimeout when ClusterConfig left it unset.
 func (m *Manager) ProposeTimeout() time.Duration {
@@ -393,14 +404,36 @@ func (m *Manager) AppliedIndex() uint64 {
 	return m.fsm.AppliedIndex()
 }
 
+// Barrier blocks until all preceding log entries are applied to the FSM,
+// ensuring subsequent reads reflect every committed write.
+func (m *Manager) Barrier(timeout time.Duration) error {
+	return m.raft.Barrier(timeout).Error()
+}
+
 // Snapshot triggers a user-requested Raft snapshot and blocks until it
 // completes. Callers use this to force log truncation after large log
-// entries (e.g. CmdRestore, which ships the full ella.db as a blob) so
-// followers don't carry the blob in their log indefinitely.
+// entries so followers don't carry large blobs in their log indefinitely.
 func (m *Manager) Snapshot() error {
 	future := m.raft.Snapshot()
 	if err := future.Error(); err != nil {
 		return fmt.Errorf("raft snapshot: %w", err)
+	}
+
+	return nil
+}
+
+// UserRestore feeds an external snapshot (e.g. a user-uploaded backup) into
+// the Raft cluster. The leader consumes the reader as a snapshot, bumps the
+// index past commitIndex, and replicates to followers via InstallSnapshot.
+// Each node's FSM.Restore is called exactly once. Must be called on the leader.
+func (m *Manager) UserRestore(reader io.Reader, size int64, timeout time.Duration) error {
+	meta := raft.SnapshotMeta{
+		Version: raft.SnapshotVersionMax,
+		Size:    size,
+	}
+
+	if err := m.raft.Restore(&meta, reader, timeout); err != nil {
+		return fmt.Errorf("raft user restore: %w", err)
 	}
 
 	return nil

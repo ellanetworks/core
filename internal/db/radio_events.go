@@ -78,7 +78,7 @@ func (db *Database) InsertRadioEvent(ctx context.Context, radioEvent *dbwriter.R
 
 	DBQueriesTotal.WithLabelValues(RadioEventsTableName, "insert").Inc()
 
-	err := db.conn.Query(ctx, db.insertRadioEventStmt, radioEvent).Run()
+	err := db.conn().Query(ctx, db.insertRadioEventStmt, radioEvent).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -124,14 +124,14 @@ func (db *Database) ListRadioEvents(ctx context.Context, page int, perPage int, 
 
 	var counts []NumItems
 
-	err := db.conn.Query(ctx, db.listRadioEventsStmt, args, filters).GetAll(&logs, &counts)
+	err := db.conn().Query(ctx, db.listRadioEventsStmt, args, filters).GetAll(&logs, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
 
 			var fallbackCount NumItems
 
-			countErr := db.conn.Query(ctx, db.countRadioEventsStmt, filters).Get(&fallbackCount)
+			countErr := db.conn().Query(ctx, db.countRadioEventsStmt, filters).Get(&fallbackCount)
 			if countErr != nil {
 				return nil, 0, nil
 			}
@@ -180,7 +180,7 @@ func (db *Database) DeleteOldRadioEvents(ctx context.Context, days int) error {
 
 	args := cutoffArgs{Cutoff: cutoff}
 
-	err := db.conn.Query(ctx, db.deleteOldRadioEventsStmt, args).Run()
+	err := db.conn().Query(ctx, db.deleteOldRadioEventsStmt, args).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -211,7 +211,7 @@ func (db *Database) ClearRadioEvents(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(RadioEventsTableName, "delete").Inc()
 
-	err := db.conn.Query(ctx, db.deleteAllRadioEventsStmt).Run()
+	err := db.conn().Query(ctx, db.deleteAllRadioEventsStmt).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -245,7 +245,7 @@ func (db *Database) GetRadioEventByID(ctx context.Context, id int) (*dbwriter.Ra
 
 	log := dbwriter.RadioEvent{ID: id}
 
-	err := db.conn.Query(ctx, db.getRadioEventByIDStmt, log).Get(&log)
+	err := db.conn().Query(ctx, db.getRadioEventByIDStmt, log).Get(&log)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")

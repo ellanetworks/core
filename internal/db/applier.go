@@ -66,14 +66,6 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 
 		return db.applyMigrateShared(ctx, payload)
 
-	case ellaraft.CmdRestore:
-		payload, err := unmarshalPayload[bytesPayload](cmd.Payload)
-		if err != nil {
-			return nil, err
-		}
-
-		return db.applyRestore(ctx, payload)
-
 	default:
 		return nil, fmt.Errorf("unknown command type: %s", cmd.Type)
 	}
@@ -81,36 +73,44 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 
 // PlainDB returns the raw *sql.DB for the application database.
 func (db *Database) PlainDB() *sql.DB {
-	return db.conn.PlainDB()
+	return db.conn().PlainDB()
 }
 
 // Reopen closes the current database connection, opens a fresh one, runs
-// migrations, and re-prepares all sqlair statements.
+// migrations, and re-prepares all sqlair statements. Reopen is only invoked
+// from FSM.Restore which holds the FSM write lock, so concurrent applies and
+// snapshots are already serialised; the atomic swap of db.connPtr protects
+// ad-hoc read sites (API handlers) from observing a torn pointer.
 func (db *Database) Reopen(ctx context.Context) error {
-	if db.conn != nil {
-		_ = db.conn.PlainDB().Close()
-	}
+	old := db.conn()
 
 	sqlConn, err := openSQLiteConnection(ctx, db.Path())
 	if err != nil {
 		return fmt.Errorf("reopen database: %w", err)
 	}
 
-	// In cluster mode, restore/reopen must track the snapshot baseline.
-	// Post-baseline shared migrations are proposed by the leader via Raft.
+	maxVersion := 0
 	if db.raftManager != nil && db.raftManager.ClusterEnabled() {
-		if err := runMigrationsUpTo(ctx, sqlConn, baselineVersion); err != nil {
-			_ = sqlConn.Close()
-			return fmt.Errorf("migrations after reopen: %w", err)
-		}
-	} else {
-		if err := runMigrations(ctx, sqlConn); err != nil {
-			_ = sqlConn.Close()
-			return fmt.Errorf("migrations after reopen: %w", err)
-		}
+		// In cluster mode, restore/reopen must track the snapshot baseline.
+		// Post-baseline shared migrations are proposed by the leader via Raft.
+		maxVersion = baselineVersion
 	}
 
-	db.conn = sqlair.NewDB(sqlConn)
+	if err := runMigrations(ctx, sqlConn, maxVersion); err != nil {
+		_ = sqlConn.Close()
+		return fmt.Errorf("migrations after reopen: %w", err)
+	}
+
+	if err := ensureFsmStateTable(ctx, sqlConn); err != nil {
+		_ = sqlConn.Close()
+		return fmt.Errorf("ensure fsm_state after reopen: %w", err)
+	}
+
+	db.connPtr.Store(sqlair.NewDB(sqlConn))
+
+	if old != nil {
+		_ = old.PlainDB().Close()
+	}
 
 	if err := db.PrepareStatements(); err != nil {
 		return fmt.Errorf("re-prepare statements: %w", err)
@@ -220,8 +220,7 @@ func (db *Database) proposeIntent(cmdType ellaraft.CommandType, payload any) (an
 func isTransientRaftErr(err error) bool {
 	return errors.Is(err, hraft.ErrEnqueueTimeout) ||
 		errors.Is(err, hraft.ErrLeadershipLost) ||
-		errors.Is(err, hraft.ErrRaftShutdown) ||
-		errors.Is(err, hraft.ErrNotLeader)
+		errors.Is(err, hraft.ErrRaftShutdown)
 }
 
 // --- Apply functions ---
@@ -1177,11 +1176,31 @@ func (db *Database) applyMigrateShared(ctx context.Context, p *migrateSharedPayl
 		return nil, fmt.Errorf("migration registry mismatch: expected version %d at index %d, got %d", p.TargetVersion, idx, m.version)
 	}
 
-	sqlConn := db.conn.PlainDB()
+	sqlConn := db.conn().PlainDB()
+
+	var current int
+	if err := sqlConn.QueryRowContext(ctx, "SELECT version FROM schema_version WHERE id = 1").Scan(&current); err != nil {
+		return nil, fmt.Errorf("read schema_version before migration %d: %w", p.TargetVersion, err)
+	}
+
+	// Replay-safe: if this migration was already applied (e.g. via a log entry
+	// replayed after a stale snapshot), skip re-running the non-idempotent
+	// migration body.
+	if current >= p.TargetVersion {
+		return nil, nil
+	}
+
+	if current != p.TargetVersion-1 {
+		return nil, fmt.Errorf("out-of-order migration: current=%d target=%d", current, p.TargetVersion)
+	}
 
 	if _, err := sqlConn.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
 		return nil, fmt.Errorf("disable foreign keys for migration %d: %w", p.TargetVersion, err)
 	}
+
+	defer func() {
+		_, _ = sqlConn.ExecContext(context.Background(), "PRAGMA foreign_keys = ON")
+	}()
 
 	tx, err := sqlConn.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -1200,10 +1219,6 @@ func (db *Database) applyMigrateShared(ctx context.Context, p *migrateSharedPayl
 
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit migration %d: %w", p.TargetVersion, err)
-	}
-
-	if _, err := sqlConn.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err != nil {
-		return nil, fmt.Errorf("re-enable foreign keys after migration %d: %w", p.TargetVersion, err)
 	}
 
 	return nil, nil

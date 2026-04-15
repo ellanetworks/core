@@ -139,7 +139,7 @@ func TestRunMigrations_FreshDatabase(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 
-	if err := runMigrations(ctx, db); err != nil {
+	if err := runMigrations(ctx, db, 0); err != nil {
 		t.Fatalf("runMigrations failed: %v", err)
 	}
 
@@ -192,14 +192,14 @@ func TestRunMigrations_Idempotent(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 
-	if err := runMigrations(ctx, db); err != nil {
+	if err := runMigrations(ctx, db, 0); err != nil {
 		t.Fatalf("first runMigrations failed: %v", err)
 	}
 
 	tablesAfterFirst := allTableNames(t, db)
 	versionAfterFirst := schemaVersion(t, db)
 
-	if err := runMigrations(ctx, db); err != nil {
+	if err := runMigrations(ctx, db, 0); err != nil {
 		t.Fatalf("second runMigrations failed: %v", err)
 	}
 
@@ -225,7 +225,7 @@ func TestRunMigrations_FailedMigrationRollsBack(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 
-	if err := runMigrations(ctx, db); err != nil {
+	if err := runMigrations(ctx, db, 0); err != nil {
 		t.Fatalf("initial runMigrations failed: %v", err)
 	}
 
@@ -245,7 +245,7 @@ func TestRunMigrations_FailedMigrationRollsBack(t *testing.T) {
 		},
 	})
 
-	err := runMigrations(ctx, db)
+	err := runMigrations(ctx, db, 0)
 	if err == nil {
 		t.Fatal("expected runMigrations to fail, but it succeeded")
 	}
@@ -369,7 +369,7 @@ func TestMigrateV1_ExistingDatabase(t *testing.T) {
 		t.Fatalf("failed to insert test data: %v", err)
 	}
 
-	if err := runMigrations(ctx, db); err != nil {
+	if err := runMigrations(ctx, db, 0); err != nil {
 		t.Fatalf("runMigrations on existing database failed: %v", err)
 	}
 
@@ -396,7 +396,7 @@ func TestRunMigrations_Incremental(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 
-	if err := runMigrations(ctx, db); err != nil {
+	if err := runMigrations(ctx, db, 0); err != nil {
 		t.Fatalf("initial runMigrations failed: %v", err)
 	}
 
@@ -422,7 +422,7 @@ func TestRunMigrations_Incremental(t *testing.T) {
 		},
 	})
 
-	if err := runMigrations(ctx, db); err != nil {
+	if err := runMigrations(ctx, db, 0); err != nil {
 		t.Fatalf("incremental runMigrations failed: %v", err)
 	}
 
@@ -641,7 +641,7 @@ func runMigrationsUpToTest(t *testing.T, db *sql.DB, version int) {
 
 	migrations = original[:version]
 
-	if err := runMigrations(context.Background(), db); err != nil {
+	if err := runMigrations(context.Background(), db, 0); err != nil {
 		t.Fatalf("runMigrations up to v%d failed: %v", version, err)
 	}
 

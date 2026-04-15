@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/canonical/sqlair"
@@ -34,7 +35,6 @@ type Database struct {
 	dbPath         string
 	dataDir        string
 	restoreMu      sync.Mutex
-	captureMu      sync.Mutex
 	raftManager    *ellaraft.Manager
 	proposeTimeout time.Duration
 
@@ -257,8 +257,16 @@ type Database struct {
 	deleteClusterMemberStmt *sqlair.Statement
 	countClusterMembersStmt *sqlair.Statement
 
-	// conn holds the SQLite handle for the application database.
-	conn *sqlair.DB
+	// connPtr holds the SQLite handle for the application database. Reopen
+	// atomically swaps the pointer so concurrent readers (API handlers,
+	// FSM apply goroutines) never see a torn value. Readers use conn() to
+	// load the current pointer.
+	connPtr atomic.Pointer[sqlair.DB]
+}
+
+// conn returns the current *sqlair.DB handle.
+func (db *Database) conn() *sqlair.DB {
+	return db.connPtr.Load()
 }
 
 const DBFilename = "ella.db"
@@ -354,8 +362,8 @@ func (db *Database) Close() error {
 		raftErr = db.raftManager.Shutdown()
 	}
 
-	if db.conn != nil {
-		connErr = db.conn.PlainDB().Close()
+	if c := db.conn(); c != nil {
+		connErr = c.PlainDB().Close()
 	}
 
 	return errors.Join(raftErr, connErr)
@@ -519,7 +527,7 @@ func (db *Database) AddNonvoter(nodeID int, raftAddress string) error {
 func (db *Database) CurrentSchemaVersion(ctx context.Context) (int, error) {
 	var v int
 
-	if err := db.conn.PlainDB().QueryRowContext(ctx,
+	if err := db.conn().PlainDB().QueryRowContext(ctx,
 		"SELECT version FROM schema_version WHERE id = 1").Scan(&v); err != nil {
 		return 0, fmt.Errorf("read schema_version: %w", err)
 	}
@@ -633,28 +641,27 @@ func (db *Database) RunDiscovery(ctx context.Context, binaryVersion string) erro
 // the running binary version. Idempotent via ON CONFLICT(nodeID). Called after
 // discovery on the leader. Followers self-register indirectly via the join
 // handshake.
+//
+// Addresses are pulled from the raft manager (authoritative for raftAddress
+// post-bind and for the configured apiAddress) rather than from any existing
+// DB row, so first-time self-registration writes a fully populated row.
+// Existing Suffrage is preserved to avoid clobbering a non-voter entry set
+// during a rolling upgrade rejoin.
 func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion string) error {
 	if db.raftManager == nil {
 		return nil
 	}
 
-	existing, err := db.GetClusterMember(ctx, db.raftManager.NodeID())
+	suffrage := "voter"
 
-	var raftAddr, apiAddr, suffrage string
-	if err == nil && existing != nil {
-		raftAddr = existing.RaftAddress
-		apiAddr = existing.APIAddress
+	if existing, err := db.GetClusterMember(ctx, db.raftManager.NodeID()); err == nil && existing != nil && existing.Suffrage != "" {
 		suffrage = existing.Suffrage
-	}
-
-	if suffrage == "" {
-		suffrage = "voter"
 	}
 
 	member := &ClusterMember{
 		NodeID:        db.raftManager.NodeID(),
-		RaftAddress:   raftAddr,
-		APIAddress:    apiAddr,
+		RaftAddress:   db.raftManager.RaftAddress(),
+		APIAddress:    db.raftManager.APIAddress(),
 		BinaryVersion: binaryVersion,
 		Suffrage:      suffrage,
 	}
@@ -674,19 +681,24 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	}
 
 	if raftCfg.Enabled {
-		if err := runMigrationsUpTo(ctx, sqlConn, baselineVersion); err != nil {
+		if err := runMigrations(ctx, sqlConn, baselineVersion); err != nil {
 			_ = sqlConn.Close()
 			return nil, fmt.Errorf("schema migration failed: %w", err)
 		}
 	} else {
-		if err := runMigrations(ctx, sqlConn); err != nil {
+		if err := runMigrations(ctx, sqlConn, 0); err != nil {
 			_ = sqlConn.Close()
 			return nil, fmt.Errorf("schema migration failed: %w", err)
 		}
 	}
 
+	if err := ensureFsmStateTable(ctx, sqlConn); err != nil {
+		_ = sqlConn.Close()
+		return nil, fmt.Errorf("ensure fsm_state table: %w", err)
+	}
+
 	db := new(Database)
-	db.conn = sqlair.NewDB(sqlConn)
+	db.connPtr.Store(sqlair.NewDB(sqlConn))
 	db.dbPath = dbPath
 	db.dataDir = dataDir
 
@@ -1154,7 +1166,7 @@ func (db *Database) Initialize(ctx context.Context) error {
 
 // BeginTransaction starts a transaction against the database.
 func (db *Database) BeginTransaction(ctx context.Context) (*Transaction, error) {
-	tx, err := db.conn.Begin(ctx, nil)
+	tx, err := db.conn().Begin(ctx, nil)
 	if err != nil {
 		return nil, err
 	}

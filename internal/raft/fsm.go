@@ -48,6 +48,15 @@ type Applier interface {
 	// sqlair statements. Called after FSM.Restore replaces the database
 	// file on disk.
 	Reopen(ctx context.Context) error
+
+	// BackupLocalTables copies local-only tables (radio_events,
+	// flow_reports, fsm_state) from srcPath into destPath so they survive
+	// a full database file swap during restore.
+	BackupLocalTables(ctx context.Context, srcPath, destPath string) error
+
+	// RestoreLocalTables copies previously backed-up local-only tables
+	// from backupPath back into destPath after a database file swap.
+	RestoreLocalTables(ctx context.Context, backupPath, destPath string) error
 }
 
 // FSM implements raft.FSM for the application database.
@@ -65,7 +74,9 @@ type FSM struct {
 	// dataDir is the directory containing the database file and the raft/ subdirectory.
 	dataDir string
 
-	// mu serializes snapshot and restore operations against applies.
+	// mu excludes Restore (write lock) from concurrent Apply and Snapshot
+	// calls (read lock). hashicorp/raft calls Apply serially, so the RLock
+	// is not for Apply-vs-Apply serialization.
 	mu sync.RWMutex
 }
 
@@ -85,8 +96,32 @@ func (f *FSM) AppliedIndex() uint64 {
 // Apply implements raft.FSM. It is called by the Raft library on every node
 // (leader and followers) for each committed log entry.
 func (f *FSM) Apply(l *raft.Log) interface{} {
+	if l.Type != raft.LogCommand {
+		return nil
+	}
+
 	f.mu.RLock()
 	defer f.mu.RUnlock()
+
+	// Skip already-applied entries. After a crash without a recent
+	// snapshot, hashicorp/raft replays committed entries from index 0.
+	// Changesets are not idempotent, so re-applying them would hit the
+	// conflict callback and crash-loop. The durable lastApplied value
+	// (fsm_state table) lets us skip entries that were already applied
+	// before the crash.
+	lastApplied, err := f.readLastApplied()
+	if err != nil {
+		logger.RaftLog.Error("FSM: failed to read lastApplied",
+			zap.Uint64("index", l.Index),
+			zap.Error(err))
+
+		return fmt.Errorf("read lastApplied: %w", err)
+	}
+
+	if l.Index <= lastApplied {
+		f.appliedIndex.Store(l.Index)
+		return nil
+	}
 
 	cmd, err := UnmarshalCommand(l.Data)
 	if err != nil {
@@ -105,24 +140,151 @@ func (f *FSM) Apply(l *raft.Log) interface{} {
 		ObserveChangesetApply(len(cmd.Payload), time.Since(started))
 	}
 
-	// Advance appliedIndex regardless of applier outcome: hashicorp/raft
-	// considers every entry it hands to Apply as committed, and its own
-	// LastApplied bookkeeping will move forward on the next snapshot/restart
-	// whether or not the FSM reported success. Lagging this counter behind
-	// the library's view would misrepresent progress for observability
-	// callers (Manager.AppliedIndex, RaftAppliedIndex).
-	f.appliedIndex.Store(l.Index)
-
 	if err != nil {
-		logger.RaftLog.Error("FSM: command failed",
+		logger.RaftLog.Error("FSM: command failed — halting node",
 			zap.Uint64("index", l.Index),
 			zap.String("command", cmd.Type.String()),
 			zap.Error(err))
 
-		return err
+		// A committed log entry that fails to apply means this node has
+		// diverged from the cluster. Continuing would silently desync
+		// state. The SAVEPOINT inside sqlite3changeset_apply guarantees
+		// the DB is clean (fully applied or fully rolled back), so the
+		// safest response is to stop the node. Recovery: restart and
+		// replay from the latest snapshot, or rejoin the cluster.
+		panic(fmt.Sprintf("FSM.Apply: fatal apply error at index %d (cmd=%s): %v", l.Index, cmd.Type, err))
 	}
 
+	// Persist the applied index so crash-recovery replay can skip it.
+	if err := f.writeLastApplied(l.Index); err != nil {
+		logger.RaftLog.Error("FSM: failed to persist lastApplied — halting node",
+			zap.Uint64("index", l.Index),
+			zap.Error(err))
+
+		panic(fmt.Sprintf("FSM.Apply: failed to write lastApplied at index %d: %v", l.Index, err))
+	}
+
+	f.appliedIndex.Store(l.Index)
+
 	return result
+}
+
+// ApplyBatch implements raft.BatchingFSM. The Raft library calls this instead
+// of Apply when multiple committed log entries are available, passing up to
+// MaxAppendEntries logs at once. Reading lastApplied once and writing it once
+// at the end eliminates 2*(N-1) SQLite round-trips compared to per-entry Apply.
+func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	lastApplied, err := f.readLastApplied()
+	if err != nil {
+		logger.RaftLog.Error("FSM: failed to read lastApplied in batch",
+			zap.Error(err))
+
+		ret := make([]interface{}, len(logs))
+		for i := range ret {
+			ret[i] = fmt.Errorf("read lastApplied: %w", err)
+		}
+
+		return ret
+	}
+
+	results := make([]interface{}, len(logs))
+	ctx := context.Background()
+
+	var highestApplied uint64
+
+	for i, l := range logs {
+		if l.Type != raft.LogCommand {
+			continue
+		}
+
+		if l.Index <= lastApplied {
+			f.appliedIndex.Store(l.Index)
+			highestApplied = l.Index
+
+			continue
+		}
+
+		cmd, err := UnmarshalCommand(l.Data)
+		if err != nil {
+			logger.RaftLog.Error("FSM: failed to unmarshal command in batch",
+				zap.Uint64("index", l.Index),
+				zap.Error(err))
+
+			results[i] = fmt.Errorf("unmarshal command: %w", err)
+
+			continue
+		}
+
+		started := time.Now()
+
+		result, applyErr := f.applier.ApplyCommand(ctx, cmd)
+		if cmd.Type == CmdChangeset {
+			ObserveChangesetApply(len(cmd.Payload), time.Since(started))
+		}
+
+		if applyErr != nil {
+			logger.RaftLog.Error("FSM: command failed in batch — halting node",
+				zap.Uint64("index", l.Index),
+				zap.String("command", cmd.Type.String()),
+				zap.Error(applyErr))
+
+			panic(fmt.Sprintf("FSM.ApplyBatch: fatal apply error at index %d (cmd=%s): %v", l.Index, cmd.Type, applyErr))
+		}
+
+		results[i] = result
+		highestApplied = l.Index
+		f.appliedIndex.Store(l.Index)
+	}
+
+	if highestApplied > lastApplied {
+		if err := f.writeLastApplied(highestApplied); err != nil {
+			logger.RaftLog.Error("FSM: failed to persist lastApplied after batch — halting node",
+				zap.Uint64("highestApplied", highestApplied),
+				zap.Error(err))
+
+			panic(fmt.Sprintf("FSM.ApplyBatch: failed to write lastApplied at index %d: %v", highestApplied, err))
+		}
+	}
+
+	return results
+}
+
+// Compile-time check: FSM must satisfy raft.BatchingFSM.
+var _ raft.BatchingFSM = (*FSM)(nil)
+
+// readLastApplied returns the durable lastApplied Raft index from the
+// fsm_state table. Returns 0 if the table is empty or missing.
+func (f *FSM) readLastApplied() (uint64, error) {
+	var idx uint64
+
+	err := f.applier.PlainDB().QueryRowContext(
+		context.Background(),
+		"SELECT lastApplied FROM fsm_state WHERE id = 1",
+	).Scan(&idx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || strings.Contains(err.Error(), "no such table") {
+			return 0, nil
+		}
+
+		return 0, err
+	}
+
+	return idx, nil
+}
+
+// writeLastApplied persists the Raft index of the last applied log entry
+// into the fsm_state table.
+func (f *FSM) writeLastApplied(index uint64) error {
+	_, err := f.applier.PlainDB().ExecContext(
+		context.Background(),
+		"UPDATE fsm_state SET lastApplied = ? WHERE id = 1",
+		index,
+	)
+
+	return err
 }
 
 // Snapshot header format (16 bytes):
@@ -281,8 +443,24 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 
 	_ = tmpFile.Close()
 
-	// Remove WAL/SHM sidecars before the rename.
+	// Preserve local-only tables (radio_events, flow_reports, fsm_state)
+	// across the file swap. These are per-node and not part of the
+	// replicated snapshot.
 	dbPath := f.applier.Path()
+	localOnlyPath := filepath.Join(f.dataDir, "restore_snapshot_local.db")
+
+	ctx := context.Background()
+
+	if err := f.applier.BackupLocalTables(ctx, dbPath, localOnlyPath); err != nil {
+		_ = os.Remove(tmpPath)
+		_ = os.Remove(localOnlyPath)
+
+		return fmt.Errorf("backup local-only tables before restore: %w", err)
+	}
+
+	defer func() { _ = os.Remove(localOnlyPath) }()
+
+	// Remove WAL/SHM sidecars before the rename.
 	for _, suffix := range []string{"-wal", "-shm"} {
 		_ = os.Remove(dbPath + suffix)
 	}
@@ -293,13 +471,15 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 		return fmt.Errorf("rename snapshot over database: %w", err)
 	}
 
+	if err := f.applier.RestoreLocalTables(ctx, localOnlyPath, dbPath); err != nil {
+		return fmt.Errorf("restore local-only tables after snapshot restore: %w", err)
+	}
+
 	// Fsync the parent directory.
 	if dir, err := os.Open(f.dataDir); err == nil {
 		_ = dir.Sync()
 		_ = dir.Close()
 	}
-
-	ctx := context.Background()
 
 	if err := f.applier.Reopen(ctx); err != nil {
 		return fmt.Errorf("reopen database after restore: %w", err)
