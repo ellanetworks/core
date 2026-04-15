@@ -343,7 +343,7 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	_, span := tracer.Start(ctx, "db/restore", trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
-	if db.conn == nil {
+	if db.conn() == nil {
 		return fmt.Errorf("database connection is not initialized")
 	}
 
@@ -388,12 +388,26 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 
 	// CmdRestore carries the full database as a log entry. Force a snapshot
 	// so the blob doesn't linger in the Raft log and get replicated to
-	// followers that fall behind.
+	// followers that fall behind. Retry a few times before giving up — a
+	// lingering multi-GB blob in the log is an operational hazard we'd
+	// rather surface than paper over.
 	if db.raftManager != nil {
-		if err := db.raftManager.Snapshot(); err != nil {
+		var snapErr error
+
+		for attempt := 1; attempt <= 3; attempt++ {
+			snapErr = db.raftManager.Snapshot()
+			if snapErr == nil {
+				break
+			}
+
 			logger.WithTrace(ctx, logger.DBLog).Warn(
-				"Failed to snapshot after restore; log retains db blob until next scheduled snapshot",
-				zap.Error(err))
+				"Snapshot after restore failed; retrying",
+				zap.Int("attempt", attempt),
+				zap.Error(snapErr))
+		}
+
+		if snapErr != nil {
+			return fmt.Errorf("force snapshot after restore (log retains db blob): %w", snapErr)
 		}
 	}
 
@@ -426,8 +440,8 @@ func (db *Database) applyRestore(ctx context.Context, p *bytesPayload) (any, err
 		return nil, fmt.Errorf("backup local-only tables before restore: %w", err)
 	}
 
-	if db.conn != nil {
-		_ = db.conn.PlainDB().Close()
+	if c := db.conn(); c != nil {
+		_ = c.PlainDB().Close()
 	}
 
 	for _, suffix := range []string{"-wal", "-shm"} {

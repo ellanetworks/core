@@ -243,7 +243,7 @@ func TestRunMigrations_IncludesNetworkRulesTable(t *testing.T) {
 	db := openTestDB(t)
 	ctx := context.Background()
 
-	if err := runMigrations(ctx, db); err != nil {
+	if err := runMigrations(ctx, db, 0); err != nil {
 		t.Fatalf("runMigrations failed: %v", err)
 	}
 

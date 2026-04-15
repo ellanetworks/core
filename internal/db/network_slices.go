@@ -65,7 +65,7 @@ func (db *Database) ListNetworkSlicesPage(ctx context.Context, page, perPage int
 		Offset: (page - 1) * perPage,
 	}
 
-	err := db.conn.Query(ctx, db.listNetworkSlicesStmt, args).GetAll(&slices, &counts)
+	err := db.conn().Query(ctx, db.listNetworkSlicesStmt, args).GetAll(&slices, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -114,7 +114,7 @@ func (db *Database) ListAllNetworkSlices(ctx context.Context) ([]NetworkSlice, e
 
 	var slices []NetworkSlice
 
-	err := db.conn.Query(ctx, db.listAllNetworkSlicesStmt).GetAll(&slices)
+	err := db.conn().Query(ctx, db.listAllNetworkSlicesStmt).GetAll(&slices)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -152,7 +152,7 @@ func (db *Database) GetNetworkSlice(ctx context.Context, name string) (*NetworkS
 
 	row := NetworkSlice{Name: name}
 
-	err := db.conn.Query(ctx, db.getNetworkSliceStmt, row).Get(&row)
+	err := db.conn().Query(ctx, db.getNetworkSliceStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -190,7 +190,7 @@ func (db *Database) GetNetworkSliceByID(ctx context.Context, id int) (*NetworkSl
 
 	row := NetworkSlice{ID: id}
 
-	err := db.conn.Query(ctx, db.getNetworkSliceByIDStmt, row).Get(&row)
+	err := db.conn().Query(ctx, db.getNetworkSliceByIDStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -323,7 +323,7 @@ func (db *Database) CountNetworkSlices(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.conn.Query(ctx, db.countNetworkSlicesStmt).Get(&result)
+	err := db.conn().Query(ctx, db.countNetworkSlicesStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -361,7 +361,7 @@ func (db *Database) ListNetworkSlicesByIDs(ctx context.Context, ids []int) ([]Ne
 
 	var slices []NetworkSlice
 
-	err := db.conn.Query(ctx, db.listNetworkSlicesByIDsStmt, SliceIDs(ids)).GetAll(&slices)
+	err := db.conn().Query(ctx, db.listNetworkSlicesByIDsStmt, SliceIDs(ids)).GetAll(&slices)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")

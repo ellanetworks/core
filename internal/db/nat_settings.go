@@ -52,7 +52,7 @@ func (db *Database) InitializeNATSettings(ctx context.Context) error {
 
 	natSettings := NATSettings{Enabled: NATDefaultEnabled}
 
-	err := db.conn.Query(ctx, db.insertDefaultNATSettingsStmt, natSettings).Run()
+	err := db.conn().Query(ctx, db.insertDefaultNATSettingsStmt, natSettings).Run()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -85,7 +85,7 @@ func (db *Database) IsNATEnabled(ctx context.Context) (bool, error) {
 
 	var natSettings NATSettings
 
-	err := db.conn.Query(ctx, db.getNATSettingsStmt).Get(&natSettings)
+	err := db.conn().Query(ctx, db.getNATSettingsStmt).Get(&natSettings)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

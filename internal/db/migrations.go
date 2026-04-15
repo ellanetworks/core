@@ -43,9 +43,12 @@ func SchemaVersion() int {
 	return migrations[len(migrations)-1].version
 }
 
-// runMigrationsRegistry applies the given migration registry against sqlConn.
-func runMigrationsRegistry(ctx context.Context, sqlConn *sql.DB, registry []migration) error {
-	for i, m := range registry {
+// runMigrations brings the database up to the given maxVersion. Pass 0 for
+// the latest available version. In cluster mode, callers pass baselineVersion
+// so only the baseline runs locally; post-baseline migrations are proposed
+// through Raft by the leader.
+func runMigrations(ctx context.Context, sqlConn *sql.DB, maxVersion int) error {
+	for i, m := range migrations {
 		if m.version != i+1 {
 			return fmt.Errorf("migration registry error: expected version %d at index %d, got %d", i+1, i, m.version)
 		}
@@ -55,12 +58,11 @@ func runMigrationsRegistry(ctx context.Context, sqlConn *sql.DB, registry []migr
 		}
 	}
 
-	_, err := sqlConn.ExecContext(ctx,
+	if _, err := sqlConn.ExecContext(ctx,
 		`CREATE TABLE IF NOT EXISTS schema_version (
 			id INTEGER PRIMARY KEY CHECK (id = 1),
 			version INTEGER NOT NULL
-		)`)
-	if err != nil {
+		)`); err != nil {
 		return fmt.Errorf("failed to create schema_version table: %w", err)
 	}
 
@@ -69,82 +71,73 @@ func runMigrationsRegistry(ctx context.Context, sqlConn *sql.DB, registry []migr
 		return fmt.Errorf("failed to seed schema_version: %w", err)
 	}
 
-	current := 0
+	var current int
 
-	row := sqlConn.QueryRowContext(ctx, "SELECT version FROM schema_version WHERE id = 1")
-	if err := row.Scan(&current); err != nil {
+	if err := sqlConn.QueryRowContext(ctx,
+		"SELECT version FROM schema_version WHERE id = 1").Scan(&current); err != nil {
 		return fmt.Errorf("failed to read schema version: %w", err)
 	}
 
-	for _, m := range registry {
+	for _, m := range migrations {
 		if m.version <= current {
 			continue
 		}
 
-		logger.DBLog.Info("Applying migration",
-			zap.Int("version", m.version),
-			zap.String("description", m.description),
-		)
-
-		// PRAGMA foreign_keys is a no-op inside a transaction, so disable
-		// FK enforcement on the connection before starting the migration tx.
-		// This prevents DROP TABLE from cascade-deleting child rows during
-		// table rebuilds. Re-enabled after commit.
-		if _, err := sqlConn.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
-			return fmt.Errorf("failed to disable foreign keys for migration %d: %w", m.version, err)
+		if maxVersion > 0 && m.version > maxVersion {
+			break
 		}
 
-		tx, err := sqlConn.BeginTx(ctx, &sql.TxOptions{})
-		if err != nil {
-			return fmt.Errorf("failed to begin transaction for migration %d: %w", m.version, err)
+		if err := applyLocalMigration(ctx, sqlConn, m); err != nil {
+			return err
 		}
-
-		if err := m.fn(ctx, tx); err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("migration %d (%s) failed: %w", m.version, m.description, err)
-		}
-
-		if _, err := tx.ExecContext(ctx,
-			"UPDATE schema_version SET version = ? WHERE id = 1", m.version); err != nil {
-			_ = tx.Rollback()
-			return fmt.Errorf("failed to update schema_version to %d: %w", m.version, err)
-		}
-
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("failed to commit migration %d: %w", m.version, err)
-		}
-
-		if _, err := sqlConn.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err != nil {
-			return fmt.Errorf("failed to re-enable foreign keys after migration %d: %w", m.version, err)
-		}
-
-		logger.DBLog.Info("Migration applied successfully",
-			zap.Int("version", m.version),
-			zap.String("description", m.description),
-		)
 	}
 
 	return nil
 }
 
-// runMigrations brings the database up to the latest migrations version.
-func runMigrations(ctx context.Context, sqlConn *sql.DB) error {
-	return runMigrationsRegistry(ctx, sqlConn, migrations)
-}
+// applyLocalMigration runs a single migration inside a transaction with FK
+// enforcement disabled. PRAGMA foreign_keys is a no-op inside a transaction,
+// so it is disabled on the connection before the migration tx begins — this
+// prevents DROP TABLE from cascade-deleting child rows during table rebuilds.
+// FK is re-enabled unconditionally via defer.
+func applyLocalMigration(ctx context.Context, sqlConn *sql.DB, m migration) error {
+	logger.DBLog.Info("Applying migration",
+		zap.Int("version", m.version),
+		zap.String("description", m.description),
+	)
 
-// runMigrationsUpTo applies migrations up to (and including) maxVersion.
-// In cluster mode, only the baseline runs locally; post-baseline migrations
-// are proposed through Raft by the leader.
-func runMigrationsUpTo(ctx context.Context, sqlConn *sql.DB, maxVersion int) error {
-	var capped []migration
-
-	for _, m := range migrations {
-		if m.version > maxVersion {
-			break
-		}
-
-		capped = append(capped, m)
+	if _, err := sqlConn.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
+		return fmt.Errorf("failed to disable foreign keys for migration %d: %w", m.version, err)
 	}
 
-	return runMigrationsRegistry(ctx, sqlConn, capped)
+	defer func() {
+		_, _ = sqlConn.ExecContext(context.Background(), "PRAGMA foreign_keys = ON")
+	}()
+
+	tx, err := sqlConn.BeginTx(ctx, &sql.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction for migration %d: %w", m.version, err)
+	}
+
+	if err := m.fn(ctx, tx); err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("migration %d (%s) failed: %w", m.version, m.description, err)
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		"UPDATE schema_version SET version = ? WHERE id = 1", m.version); err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("failed to update schema_version to %d: %w", m.version, err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit migration %d: %w", m.version, err)
+	}
+
+	logger.DBLog.Info("Migration applied successfully",
+		zap.Int("version", m.version),
+		zap.String("description", m.description),
+	)
+
+	return nil
 }

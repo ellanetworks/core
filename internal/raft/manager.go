@@ -378,6 +378,17 @@ func (m *Manager) NodeID() int {
 	return m.nodeID
 }
 
+// RaftAddress returns the transport-local Raft address this node is reachable
+// at (post-bind, so includes any ephemeral port assigned by the kernel).
+func (m *Manager) RaftAddress() string {
+	return string(m.transport.LocalAddr())
+}
+
+// APIAddress returns the advertised API address for this node.
+func (m *Manager) APIAddress() string {
+	return m.config.AdvertiseAPIAddress
+}
+
 // ProposeTimeout returns the configured maximum wait for a Raft commit, or
 // defaultProposeTimeout when ClusterConfig left it unset.
 func (m *Manager) ProposeTimeout() time.Duration {

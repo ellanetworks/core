@@ -104,7 +104,7 @@ func (db *Database) GetNetworkRule(ctx context.Context, id int64) (*NetworkRule,
 
 	row := NetworkRule{ID: id}
 
-	err := db.conn.Query(ctx, db.getNetworkRuleStmt, row).Get(&row)
+	err := db.conn().Query(ctx, db.getNetworkRuleStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -311,7 +311,7 @@ func (db *Database) CountNetworkRules(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.conn.Query(ctx, db.countNetworkRulesStmt).Get(&result)
+	err := db.conn().Query(ctx, db.countNetworkRulesStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -347,7 +347,7 @@ func (db *Database) ListRulesForPolicy(ctx context.Context, policyID int64) ([]*
 
 	params := NetworkRule{PolicyID: policyID}
 
-	err := db.conn.Query(ctx, db.listRulesForPolicyStmt, params).GetAll(&rules)
+	err := db.conn().Query(ctx, db.listRulesForPolicyStmt, params).GetAll(&rules)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")

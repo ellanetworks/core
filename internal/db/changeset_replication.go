@@ -72,7 +72,7 @@ var localOnlyTables = []string{
 }
 
 func (db *Database) assertTableReplicationClassification(ctx context.Context) error {
-	rows, err := db.conn.PlainDB().QueryContext(ctx,
+	rows, err := db.conn().PlainDB().QueryContext(ctx,
 		"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
 	if err != nil {
 		return fmt.Errorf("list sqlite tables: %w", err)
@@ -110,7 +110,7 @@ func (db *Database) assertTableReplicationClassification(ctx context.Context) er
 }
 
 func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload) (any, error) {
-	conn, err := db.conn.PlainDB().Conn(ctx)
+	conn, err := db.conn().PlainDB().Conn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("acquire sqlite conn for apply: %w", err)
 	}
@@ -144,7 +144,7 @@ func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload) (
 }
 
 func (db *Database) captureChangeset(ctx context.Context, applyFn func(context.Context) (any, error), operation string) ([]byte, any, error) {
-	conn, err := db.conn.PlainDB().Conn(ctx)
+	conn, err := db.conn().PlainDB().Conn(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("acquire sqlite conn for capture: %w", err)
 	}
@@ -165,12 +165,12 @@ func (db *Database) captureChangeset(ctx context.Context, applyFn func(context.C
 			return fmt.Errorf("begin changeset capture transaction: %w", err)
 		}
 
-		rollback := true
-
+		// Capture always rolls back: we replicate the changeset bytes
+		// and let applyChangeset re-execute them on every node. Use
+		// context.Background so a cancelled caller context doesn't
+		// leave the connection mid-transaction.
 		defer func() {
-			if rollback {
-				_, _ = sqliteConn.ExecContext(ctx, "ROLLBACK", nil)
-			}
+			_, _ = sqliteConn.ExecContext(context.Background(), "ROLLBACK", nil)
 		}()
 
 		changeset, err = sqliteConn.CaptureChangeset(ctx, func() error {
@@ -184,10 +184,6 @@ func (db *Database) captureChangeset(ctx context.Context, applyFn func(context.C
 				return applyErr
 			}
 
-			if _, ok := applyResult.(error); ok {
-				return fmt.Errorf("unexpected error result while capturing command")
-			}
-
 			result = applyResult
 
 			return nil
@@ -195,12 +191,6 @@ func (db *Database) captureChangeset(ctx context.Context, applyFn func(context.C
 		if err != nil {
 			return fmt.Errorf("capture sqlite changeset: %w", err)
 		}
-
-		if _, err := sqliteConn.ExecContext(ctx, "ROLLBACK", nil); err != nil {
-			return fmt.Errorf("rollback capture transaction: %w", err)
-		}
-
-		rollback = false
 
 		return nil
 	})
@@ -225,16 +215,19 @@ type pinnedRunnerCtxKey struct{}
 
 // runner returns the sqlair DB to use for the current operation. Inside a
 // changeset capture, applyFn receives a context carrying a pinned *sqlair.DB;
-// outside of capture, callers get the shared db.conn.
+// outside of capture, callers get the shared db.conn().
 func (db *Database) runner(ctx context.Context) *sqlair.DB {
 	if r, ok := ctx.Value(pinnedRunnerCtxKey{}).(*sqlair.DB); ok {
 		return r
 	}
 
-	return db.conn
+	return db.conn()
 }
 
 func (db *Database) applyWithPinnedConn(ctx context.Context, conn driver.Conn, applyFn func(context.Context) (any, error)) (any, error) {
+	// Concurrent captures are already serialised by MaxOpenConns(1) on the
+	// shared *sql.DB — the outer captureChangeset holds the only conn via
+	// conn.Raw, so no additional mutex is needed here.
 	pinned := sql.OpenDB(&pinnedConnector{conn: conn})
 	pinned.SetMaxOpenConns(1)
 	pinned.SetMaxIdleConns(1)
@@ -242,9 +235,6 @@ func (db *Database) applyWithPinnedConn(ctx context.Context, conn driver.Conn, a
 	defer func() { _ = pinned.Close() }()
 
 	pinnedSQLAir := sqlair.NewDB(pinned)
-
-	db.captureMu.Lock()
-	defer db.captureMu.Unlock()
 
 	ctx = context.WithValue(ctx, pinnedRunnerCtxKey{}, pinnedSQLAir)
 

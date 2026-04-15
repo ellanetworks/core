@@ -64,7 +64,7 @@ func (db *Database) ListProfilesPage(ctx context.Context, page, perPage int) ([]
 		Offset: (page - 1) * perPage,
 	}
 
-	err := db.conn.Query(ctx, db.listProfilesStmt, args).GetAll(&profiles, &counts)
+	err := db.conn().Query(ctx, db.listProfilesStmt, args).GetAll(&profiles, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -113,7 +113,7 @@ func (db *Database) GetProfile(ctx context.Context, name string) (*Profile, erro
 
 	row := Profile{Name: name}
 
-	err := db.conn.Query(ctx, db.getProfileStmt, row).Get(&row)
+	err := db.conn().Query(ctx, db.getProfileStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -151,7 +151,7 @@ func (db *Database) GetProfileByID(ctx context.Context, id int) (*Profile, error
 
 	row := Profile{ID: id}
 
-	err := db.conn.Query(ctx, db.getProfileByIDStmt, row).Get(&row)
+	err := db.conn().Query(ctx, db.getProfileByIDStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -282,7 +282,7 @@ func (db *Database) CountProfiles(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.conn.Query(ctx, db.countProfilesStmt).Get(&result)
+	err := db.conn().Query(ctx, db.countProfilesStmt).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
@@ -318,7 +318,7 @@ func (db *Database) CountSubscribersInProfile(ctx context.Context, profileID int
 
 	subscriber := Subscriber{ProfileID: profileID}
 
-	err := db.conn.Query(ctx, db.countSubscribersByProfileStmt, subscriber).Get(&result)
+	err := db.conn().Query(ctx, db.countSubscribersByProfileStmt, subscriber).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

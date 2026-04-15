@@ -121,7 +121,7 @@ func (db *Database) ListAuditLogsPage(ctx context.Context, filters *AuditLogFilt
 
 	var counts []NumItems
 
-	err := db.conn.Query(ctx, db.listAuditLogsFilteredStmt, args, *filters).GetAll(&logs, &counts)
+	err := db.conn().Query(ctx, db.listAuditLogsFilteredStmt, args, *filters).GetAll(&logs, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -207,7 +207,7 @@ func (db *Database) CountAuditLogs(ctx context.Context) (int, error) {
 
 	var result NumItems
 
-	err := db.conn.Query(ctx, db.countAuditLogsStmt).Get(&result)
+	err := db.conn().Query(ctx, db.countAuditLogsStmt).Get(&result)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
