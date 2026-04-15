@@ -268,7 +268,7 @@ func (m *Manager) joinCluster(ctx context.Context, client *http.Client, peerURL 
 
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return fmt.Errorf("server returned %d: %s", resp.StatusCode, string(respBody))
 	}

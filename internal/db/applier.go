@@ -179,6 +179,10 @@ func (db *Database) proposeChangeset(applyFn func(context.Context) (any, error),
 		return nil, fmt.Errorf("capture changeset for %s: %w", operation, err)
 	}
 
+	if len(changeset) == 0 {
+		return applyResult, nil
+	}
+
 	changesetCmd, err := ellaraft.NewCommand(ellaraft.CmdChangeset, &bytesPayload{Value: changeset})
 	if err != nil {
 		return nil, err
