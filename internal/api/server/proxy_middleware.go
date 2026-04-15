@@ -20,6 +20,8 @@ const (
 	headerForwarded    = "X-Ella-Forwarded"
 )
 
+// Phase 6 (mTLS): configure proxyClient's TLS to use the cluster CA so
+// follower→leader proxy works with self-signed API certs.
 var proxyClient = &http.Client{
 	// Use request context deadlines instead of a fixed client timeout so
 	// long-running proxied operations (e.g. restore/backup streams) are not

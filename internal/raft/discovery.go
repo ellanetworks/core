@@ -76,6 +76,10 @@ func (m *Manager) RunDiscovery(ctx context.Context) error {
 		zap.Duration("join_timeout", timeout),
 	)
 
+	// Phase 6 (mTLS): replace InsecureSkipVerify with cluster CA
+	// pinning once the mTLS transport is wired. The join-token
+	// provides authentication during formation; mTLS will add channel
+	// integrity.
 	client := &http.Client{
 		Timeout: discoveryHTTPTimeout,
 		Transport: &http.Transport{
@@ -122,10 +126,12 @@ func (m *Manager) discoveryTick(ctx context.Context, client *http.Client) (bool,
 
 		switch state {
 		case peerFormed:
-			// Allow joining a peer whose cluster schema is <= our local
-			// schema: post-baseline migrations are proposed through Raft
-			// by the leader, so a newer binary can join and catch up.
-			// Reject only the reverse direction (we'd be downgrading).
+			// Schema handshake (follower side): allow joining a peer whose
+			// cluster schema is <= our local schema, since post-baseline
+			// migrations are proposed through Raft by the leader. Reject
+			// the reverse (we'd be downgrading). The leader side of this
+			// check lives in api_cluster.go:JoinCluster and has the
+			// complementary rule: reject joiners with schema < leader.
 			if m.config.SchemaVersion < peerSchema {
 				logger.RaftLog.Warn("Schema version lower than peer, skipping (downgrade)",
 					zap.String("peer", peerURL),

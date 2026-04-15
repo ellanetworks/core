@@ -218,8 +218,7 @@ func (db *Database) proposeIntent(cmdType ellaraft.CommandType, payload any) (an
 }
 
 // isTransientRaftErr reports whether a Raft apply error is transient —
-// the caller should retry or surface a 503. ErrNotLeader is included for
-// future HA mode; in standalone the local node is always the leader.
+// the caller should retry or surface a 503.
 func isTransientRaftErr(err error) bool {
 	return errors.Is(err, hraft.ErrEnqueueTimeout) ||
 		errors.Is(err, hraft.ErrLeadershipLost) ||

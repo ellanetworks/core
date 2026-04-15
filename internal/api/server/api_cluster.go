@@ -104,6 +104,11 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 			}
 		}
 
+		// Schema handshake (leader side): reject joiners whose schema is
+		// older than the leader's — they would miss migrations already
+		// applied. Newer joiners are accepted; the leader will eventually
+		// propose its own migrations through Raft. The follower-side
+		// counterpart lives in discovery.go:discoveryTick.
 		if req.SchemaVersion > 0 {
 			local := db.SchemaVersion()
 			if req.SchemaVersion < local {

@@ -18,7 +18,7 @@ func validClusterYaml() ClusterYaml {
 			"https://10.0.0.2:5002",
 			"https://10.0.0.3:5002",
 		},
-		JoinToken:        "my-secret-token",
+		JoinToken:        "my-secret-token-that-is-at-least-32-chars",
 		JoinTimeout:      "30s",
 		ProposeTimeout:   "5s",
 		SnapshotInterval: "2m",
@@ -70,8 +70,8 @@ func TestValidateCluster_ValidHA(t *testing.T) {
 		t.Fatalf("expected 3 peers, got %d", len(got.Peers))
 	}
 
-	if got.JoinToken != "my-secret-token" {
-		t.Fatalf("expected JoinToken=my-secret-token, got %s", got.JoinToken)
+	if got.JoinToken != "my-secret-token-that-is-at-least-32-chars" {
+		t.Fatalf("expected JoinToken=my-secret-token-that-is-at-least-32-chars, got %s", got.JoinToken)
 	}
 
 	if got.JoinTimeout != 30*time.Second {

@@ -176,11 +176,9 @@ func writeSnapshotHeader(buf []byte, schemaVersion, protocolVersion uint32) {
 // consistent, WAL-free copy of shared.db in a temp file, then returns an
 // FSMSnapshot that streams it to the Raft snapshot sink.
 //
-// The RLock here participates in Apply/Restore exclusion, but the real
-// safety against VACUUM INTO racing concurrent Applies comes from the
-// shared connection's MaxOpenConns(1) — SQLite serialises writers at the
-// driver level. The mutex is a redundant belt that would matter if that
-// connection cap ever changed.
+// The RLock participates in Apply/Restore exclusion. MaxOpenConns(1) already
+// serialises SQLite writers, but the lock guards against future changes to
+// the connection cap.
 func (f *FSM) Snapshot() (raft.FSMSnapshot, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()

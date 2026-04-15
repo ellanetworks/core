@@ -50,6 +50,8 @@ func DrainNode(dbInstance *db.Database, amfInstance *amf.AMF, bgpService *bgp.BG
 			stepTimeout = time.Duration(req.TimeoutSeconds) * time.Second
 		}
 
+		transferred := false
+
 		if dbInstance.IsLeader() && dbInstance.ClusterEnabled() {
 			if err := dbInstance.LeadershipTransfer(); err != nil {
 				logger.APILog.Warn("Leadership transfer failed during drain", zap.Error(err))
@@ -62,6 +64,8 @@ func DrainNode(dbInstance *db.Database, amfInstance *amf.AMF, bgpService *bgp.BG
 
 				return
 			}
+
+			transferred = true
 		}
 
 		ransNotified := notifyRANsUnavailable(r.Context(), amfInstance, stepTimeout)
@@ -75,8 +79,6 @@ func DrainNode(dbInstance *db.Database, amfInstance *amf.AMF, bgpService *bgp.BG
 				bgpStopped = true
 			}
 		}
-
-		transferred := dbInstance.ClusterEnabled() && dbInstance.IsLeader()
 
 		email := getEmailFromContext(r)
 
