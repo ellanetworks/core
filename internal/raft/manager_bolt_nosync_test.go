@@ -9,7 +9,7 @@ import (
 )
 
 // TestManagerBoltNoSyncStandalone asserts that a standalone manager opens the
-// raft log store with fsync disabled. Single-server nodes rely on shared.db's
+// raft log store with fsync disabled. Single-server nodes rely on ella.db's
 // own COMMIT fsync for durability; fsyncing the raft log per entry doubles
 // write latency and, on slow CI storage, pushed the batched-DELETE cleanup
 // between integration test cases past the client's 5s timeout.

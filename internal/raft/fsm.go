@@ -173,7 +173,7 @@ func writeSnapshotHeader(buf []byte, schemaVersion, protocolVersion uint32) {
 }
 
 // Snapshot implements raft.FSM. It uses SQLite's VACUUM INTO to produce a
-// consistent, WAL-free copy of shared.db in a temp file, then returns an
+// consistent, WAL-free copy of ella.db in a temp file, then returns an
 // FSMSnapshot that streams it to the Raft snapshot sink.
 //
 // The RLock participates in Apply/Restore exclusion. MaxOpenConns(1) already
@@ -310,7 +310,7 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 	return nil
 }
 
-// fsmSnapshot holds a temp-file-backed snapshot of shared.db.
+// fsmSnapshot holds a temp-file-backed snapshot of ella.db.
 type fsmSnapshot struct {
 	path   string
 	header [snapshotHeaderSize]byte

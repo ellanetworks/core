@@ -17,7 +17,7 @@ import (
 // apply handlers in the db package AST and fails if any of them references a
 // source of non-determinism. Each applyX runs once per node against the committed Raft
 // log, so two followers replaying the same log must produce byte-identical
-// shared.db state. Reading the wall clock, drawing random bytes, generating
+// ella.db state. Reading the wall clock, drawing random bytes, generating
 // UUIDs, or letting SQLite evaluate CURRENT_TIMESTAMP / RANDOM() inside an
 // apply function will silently desync the cluster.
 //

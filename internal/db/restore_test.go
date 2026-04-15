@@ -317,7 +317,7 @@ func TestRestore_RoundTripPreservesData(t *testing.T) {
 		t.Fatalf("restore failed: %v", err)
 	}
 
-	// Subscriber from shared.db should be back.
+	// Subscriber should be back after restore.
 	subs, total, err := database.ListSubscribersPage(ctx, 1, 10)
 	if err != nil {
 		t.Fatalf("list subscribers after restore failed: %v", err)
@@ -342,8 +342,8 @@ func TestRestore_RoundTripPreservesData(t *testing.T) {
 		t.Fatalf("expected local-only flow reports to remain cleared after restore, got total=%d len=%d", total, len(reports))
 	}
 
-	// Only local.db gets a safety copy; shared.db is replicated through the
-	// Raft log via CmdRestore. The local safety copy must be cleaned up
+	// Per-node tables get a safety copy during restore; replicated tables
+	// come from the backup image. The safety copy must be cleaned up
 	// after a successful restore.
 	if _, err := os.Stat(filepath.Join(database.Dir(), "restore_safety_local.db")); !os.IsNotExist(err) {
 		t.Fatalf("expected restore_safety_local.db to be removed after successful restore, got err=%v", err)

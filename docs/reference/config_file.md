@@ -19,7 +19,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
         - `output` (string): The output for the logs. Options are `stdout` and `file`.
         - `path` (string): The path to the log file. This is only used if the output is set to `file`.
 - `db` (object): The database configuration.
-    - `path` (string): The path to the directory holding the database files (`shared.db` and `local.db`).
+    - `path` (string): The path to the directory holding the database file (`ella.db`).
 - `interfaces` (object): The network interfaces configuration.
     - `n2` (object): The configuration for the n2 interface. This interface should be connected to the radios.
         - `name` (string): The name of the network interface to listen on (optional: either name or address must be provided). When set, the server listens on all addresses (`0.0.0.0`) but uses `SO_BINDTODEVICE` to restrict incoming traffic to this interface. Use this when you want to bind to a device without pinning to a specific IP address.
@@ -46,14 +46,15 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `enabled` (boolean): Whether clustering is enabled. Default is `false`.
     - `node-id` (int): Unique Raft node identifier (1–63). Must be unique across all cluster members.
     - `bind-address` (string): The `host:port` that the Raft transport listens on for inter-node communication.
-    - `advertise-api-address` (string): The `host:port` that other cluster members use to reach this node's API. Used for leader proxy forwarding.
-    - `bootstrap-expect` (int): Number of nodes expected for initial cluster bootstrap. Must equal the number of entries in `peers`.
-    - `peers` (list of strings): List of `host:port` addresses of all initial cluster members (including this node's `bind-address`).
-    - `join-token` (string): Shared secret used to authenticate nodes during cluster bootstrap.
-    - `join-timeout` (string): Maximum time to wait for peers during bootstrap (e.g. `"30s"`). Default is `"30s"`.
-    - `propose-timeout` (string): Maximum time to wait for a Raft proposal to be committed (e.g. `"10s"`). Default is `"10s"`.
-    - `snapshot-interval` (string): How often Raft takes a snapshot (e.g. `"2m"`). Default is `"2m"`.
-    - `snapshot-threshold` (int): Minimum number of log entries before a snapshot is taken. Default is `8192`.
+    - `advertise-api-address` (string): The full URL (including scheme) that other cluster members use to reach this node's API (e.g. `"https://10.0.0.1:5002"`). Used for leader proxy forwarding.
+    - `bootstrap-expect` (int): Number of nodes expected for initial cluster bootstrap. Must be ≤ the number of entries in `peers`.
+    - `peers` (list of strings): List of URLs of all initial cluster members. Each entry must be a valid URL with scheme and host, matching the `advertise-api-address` format. Must include this node's own `advertise-api-address`.
+    - `join-token` (string): Shared secret used to authenticate nodes during cluster bootstrap. Must be at least 32 characters.
+    - `join-timeout` (string): Maximum time to wait for peers during bootstrap (e.g. `"30s"`). Default is `"2m"`.
+    - `propose-timeout` (string): Maximum time to wait for a Raft proposal to be committed (e.g. `"5s"`). Default is `"5s"`.
+    - `snapshot-interval` (string): How often Raft takes a snapshot (e.g. `"2m"`). Uses the Raft library default when omitted.
+    - `snapshot-threshold` (int): Minimum number of log entries before a snapshot is taken. Uses the Raft library default when omitted.
+    - `initial-suffrage` (string): Initial suffrage state for this node when joining the cluster. Options are `"voter"` and `"nonvoter"`. Non-voters receive replicated data but do not participate in elections, useful for rolling upgrades. Default is `"voter"`.
 
 !!! note
     When you use the Ella Core snap, the configuration file is located at `/var/snap/ella-core/common/config.yaml`. After modifying the configuration file, restart Ella Core with `sudo snap restart ella-core.cored` for the changes to take effect.
@@ -100,13 +101,17 @@ cluster:
   enabled: true
   node-id: 1
   bind-address: "10.0.0.1:7000"
-  advertise-api-address: "10.0.0.1:5000"
+  advertise-api-address: "https://10.0.0.1:5002"
   bootstrap-expect: 3
   peers:
-    - "10.0.0.1:7000"
-    - "10.0.0.2:7000"
-    - "10.0.0.3:7000"
-  join-token: "my-shared-secret"
+    - "https://10.0.0.1:5002"
+    - "https://10.0.0.2:5002"
+    - "https://10.0.0.3:5002"
+  join-token: "my-secret-token-that-is-at-least-32-chars"
+  join-timeout: "30s"
+  propose-timeout: "5s"
+  snapshot-interval: "2m"
+  snapshot-threshold: 8192
 ```
 
 !!! note

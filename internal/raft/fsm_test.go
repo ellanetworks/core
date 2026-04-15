@@ -32,7 +32,7 @@ func newTestApplier(t *testing.T) *testApplier {
 	t.Helper()
 
 	dir := t.TempDir()
-	path := filepath.Join(dir, "shared.db")
+	path := filepath.Join(dir, "ella.db")
 
 	a := &testApplier{dbPath: path}
 

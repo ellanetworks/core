@@ -157,7 +157,7 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 
 	boltPath := filepath.Join(raftDir, "raft.db")
 
-	// In single-server mode the raft log is auxiliary: shared.db (fsynced on
+	// In single-server mode the raft log is auxiliary: ella.db (fsynced on
 	// COMMIT) is the canonical FSM state, there are no peers to replicate to,
 	// and losing trailing raft-log entries on crash is harmless — the FSM
 	// state on disk is already authoritative. Skipping per-entry fsync halves
@@ -395,7 +395,7 @@ func (m *Manager) AppliedIndex() uint64 {
 
 // Snapshot triggers a user-requested Raft snapshot and blocks until it
 // completes. Callers use this to force log truncation after large log
-// entries (e.g. CmdRestore, which ships the full shared.db as a blob) so
+// entries (e.g. CmdRestore, which ships the full ella.db as a blob) so
 // followers don't carry the blob in their log indefinitely.
 func (m *Manager) Snapshot() error {
 	future := m.raft.Snapshot()
@@ -476,7 +476,7 @@ func (m *Manager) ClusterEnabled() bool {
 }
 
 // BoltNoSync reports whether the raft log store was opened with fsync
-// disabled. Single-server nodes skip fsync because shared.db is the canonical
+// disabled. Single-server nodes skip fsync because ella.db is the canonical
 // FSM state and is itself fsynced on COMMIT; HA nodes keep fsync enabled
 // because the raft log is the replicated source of truth.
 func (m *Manager) BoltNoSync() bool {

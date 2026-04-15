@@ -28,7 +28,7 @@ const (
 	// Migrations — proposed by the leader to advance the shared schema
 	CmdMigrateShared CommandType = 220
 
-	// Restore — special: replaces the entire shared.db
+	// Restore — special: replaces the entire ella.db
 	CmdRestore CommandType = 255
 )
 
