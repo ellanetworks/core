@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -84,18 +85,19 @@ func closeTransport(t raft.Transport) {
 
 // Manager wraps a hashicorp/raft instance and its supporting infrastructure.
 type Manager struct {
-	raft           *raft.Raft
-	fsm            *FSM
-	transport      raft.Transport
-	logStore       raft.LogStore
-	snaps          raft.SnapshotStore
-	config         ClusterConfig
-	nodeID         int
-	dataDir        string
-	observer       *LeaderObserver
-	needsDiscovery bool
-	autopilot      *autopilotRunner
-	boltNoSync     bool
+	raft            *raft.Raft
+	fsm             *FSM
+	transport       raft.Transport
+	logStore        raft.LogStore
+	snaps           raft.SnapshotStore
+	config          ClusterConfig
+	nodeID          int
+	dataDir         string
+	observer        *LeaderObserver
+	needsDiscovery  bool
+	autopilot       *autopilotRunner
+	followerTracker *followerTracker
+	boltNoSync      bool
 }
 
 // defaultStandaloneBindAddress is the bind address used when ClusterConfig
@@ -258,7 +260,11 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 	}
 
 	if !singleServer {
+		ft := newFollowerTracker(r)
+		m.followerTracker = ft
 		m.autopilot = newAutopilotRunner(r, m)
+
+		observer.Register(ft.asLeaderCallback(raft.ServerID(strconv.Itoa(nodeID))))
 		observer.Register(m.autopilot)
 	}
 

@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -52,6 +53,7 @@ type Server struct {
 	httpServer *http.Server
 	handler    handlerRef
 	cfg        config.Config
+	ready      atomic.Bool
 }
 
 // handlerRef is a concurrency-safe swappable HTTP handler.
@@ -90,12 +92,14 @@ type UpgradeConfig struct {
 // required for cluster discovery (status, cluster membership, metrics,
 // OpenAPI spec). Call Upgrade after cluster formation to enable the full API.
 func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Config) (*Server, error) {
+	s := &Server{cfg: cfg}
+
 	discoveryHandler := server.NewDiscoveryHandler(server.DiscoveryHandlerConfig{
 		DB:     dbInstance,
 		Config: cfg,
+		Ready:  &s.ready,
 	})
 
-	s := &Server{cfg: cfg}
 	s.handler.set(discoveryHandler)
 
 	scheme := resolveScheme(cfg)
@@ -223,10 +227,12 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 		AMF:                 opts.AMF,
 		BGP:                 opts.BGP,
 		BcryptCost:          bcrypt.DefaultCost,
+		Ready:               &s.ready,
 		RegisterExtraRoutes: opts.RegisterExtraRoutes,
 	})
 
 	s.handler.set(fullHandler)
+	s.ready.Store(true)
 
 	reconcile := routeReconciler
 

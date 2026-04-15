@@ -117,6 +117,34 @@ func initializeCluster(ctx context.Context, leader *client.Client, allClients []
 	return nil
 }
 
+// waitForAllNodesReady polls GetStatus on every node until all report Ready.
+// Ready becomes true after a node completes its full startup (Phase B upgrade),
+// meaning it can serve the full API.
+func waitForAllNodesReady(ctx context.Context, clients []*client.Client) error {
+	timeout := 2 * time.Minute
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		allReady := true
+
+		for _, c := range clients {
+			status, err := c.GetStatus(ctx)
+			if err != nil || !status.Ready {
+				allReady = false
+				break
+			}
+		}
+
+		if allReady {
+			return nil
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return fmt.Errorf("not all nodes ready after %v", timeout)
+}
+
 // dumpClusterDiagnostics logs node status and cluster members from each
 // reachable node. Call from t.Cleanup to aid failure triage.
 func dumpClusterDiagnostics(ctx context.Context, dc *DockerClient, clients []*client.Client, logf func(string, ...any)) {

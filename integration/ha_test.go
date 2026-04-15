@@ -98,7 +98,14 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 		t.Fatalf("failed to initialize cluster: %v", err)
 	}
 
-	t.Log("cluster initialized, creating subscriber on leader")
+	t.Log("cluster initialized, waiting for all nodes to become ready")
+
+	err = waitForAllNodesReady(ctx, clients)
+	if err != nil {
+		t.Fatalf("not all nodes became ready: %v", err)
+	}
+
+	t.Log("all nodes ready, creating subscriber on leader")
 
 	err = leader.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
 		Imsi:           "001019756139935",

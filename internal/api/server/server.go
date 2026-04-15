@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"net/netip"
+	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/bgp"
@@ -37,6 +38,7 @@ type HandlerConfig struct {
 	AMF                 *amf.AMF
 	BGP                 *bgp.BGPService
 	BcryptCost          int
+	Ready               *atomic.Bool
 	RegisterExtraRoutes func(*http.ServeMux)
 }
 
@@ -57,7 +59,13 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux := http.NewServeMux()
 
 	// Status (Unauthenticated)
-	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance).ServeHTTP)
+	ready := cfg.Ready
+	if ready == nil {
+		ready = &atomic.Bool{}
+		ready.Store(true)
+	}
+
+	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance, ready).ServeHTTP)
 
 	// OpenAPI Specification (Unauthenticated)
 	mux.HandleFunc("GET /api/v1/openapi.yaml", OpenAPISpec().ServeHTTP)
@@ -248,6 +256,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 type DiscoveryHandlerConfig struct {
 	DB     *db.Database
 	Config config.Config
+	Ready  *atomic.Bool
 }
 
 // NewDiscoveryHandler returns an HTTP handler serving only the routes
@@ -260,7 +269,13 @@ func NewDiscoveryHandler(cfg DiscoveryHandlerConfig) http.Handler {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance).ServeHTTP)
+	ready := cfg.Ready
+	if ready == nil {
+		ready = &atomic.Bool{}
+		ready.Store(true)
+	}
+
+	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance, ready).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/metrics", GetMetrics().ServeHTTP)
 	mux.HandleFunc("GET /api/v1/openapi.yaml", OpenAPISpec().ServeHTTP)
 

@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -21,10 +22,11 @@ type StatusResponse struct {
 	Version     string                 `json:"version"`
 	Revision    string                 `json:"revision"`
 	Initialized bool                   `json:"initialized"`
+	Ready       bool                   `json:"ready"`
 	Cluster     *ClusterStatusResponse `json:"cluster,omitempty"`
 }
 
-func GetStatus(dbInstance *db.Database) http.Handler {
+func GetStatus(dbInstance *db.Database, ready *atomic.Bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -42,6 +44,7 @@ func GetStatus(dbInstance *db.Database) http.Handler {
 			Version:     ver.Version,
 			Revision:    ver.Revision,
 			Initialized: initialized,
+			Ready:       ready.Load(),
 		}
 
 		if dbInstance.ClusterEnabled() {

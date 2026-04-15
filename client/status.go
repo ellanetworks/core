@@ -12,6 +12,7 @@ type ClusterStatus struct {
 type Status struct {
 	Version     string         `json:"version"`
 	Initialized bool           `json:"initialized"`
+	Ready       bool           `json:"ready"`
 	Cluster     *ClusterStatus `json:"cluster,omitempty"`
 }
 
