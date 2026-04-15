@@ -605,7 +605,7 @@ func (db *Database) RemoveServer(nodeID int) error {
 // RunDiscovery performs cluster formation for HA mode. Must be called after
 // the HTTP server starts so peers can reach this node's API.
 // After discovery, the leader generates a cluster ID if none exists yet.
-func (db *Database) RunDiscovery(ctx context.Context, binaryVersion string) error {
+func (db *Database) RunDiscovery(ctx context.Context) error {
 	if db.raftManager == nil {
 		return nil
 	}
@@ -614,24 +614,33 @@ func (db *Database) RunDiscovery(ctx context.Context, binaryVersion string) erro
 		return err
 	}
 
-	if db.raftManager.IsLeader() {
-		op, err := db.GetOperator(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to read operator for cluster ID check: %w", err)
+	return nil
+}
+
+// PostInitClusterSetup generates the cluster ID (if absent) and upserts this
+// node's cluster_members row. Must be called on the leader after Initialize()
+// has seeded the operator row.
+func (db *Database) PostInitClusterSetup(ctx context.Context, binaryVersion string) error {
+	if db.raftManager == nil || !db.raftManager.IsLeader() {
+		return nil
+	}
+
+	op, err := db.GetOperator(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to read operator for cluster ID check: %w", err)
+	}
+
+	if op.ClusterID == "" {
+		clusterID := uuid.New().String()
+		if err := db.UpdateOperatorClusterID(ctx, clusterID); err != nil {
+			return fmt.Errorf("failed to set cluster ID: %w", err)
 		}
 
-		if op.ClusterID == "" {
-			clusterID := uuid.New().String()
-			if err := db.UpdateOperatorClusterID(ctx, clusterID); err != nil {
-				return fmt.Errorf("failed to set cluster ID: %w", err)
-			}
+		logger.WithTrace(ctx, logger.DBLog).Info("Generated cluster ID", zap.String("cluster_id", clusterID))
+	}
 
-			logger.WithTrace(ctx, logger.DBLog).Info("Generated cluster ID", zap.String("cluster_id", clusterID))
-		}
-
-		if err := db.selfUpsertClusterMember(ctx, binaryVersion); err != nil {
-			logger.WithTrace(ctx, logger.DBLog).Warn("self-upsert cluster member failed", zap.Error(err))
-		}
+	if err := db.selfUpsertClusterMember(ctx, binaryVersion); err != nil {
+		logger.WithTrace(ctx, logger.DBLog).Warn("self-upsert cluster member failed", zap.Error(err))
 	}
 
 	return nil

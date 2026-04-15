@@ -129,7 +129,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't start API (discovery): %w", err)
 	}
 
-	if err := dbInstance.RunDiscovery(ctx, ver.Version); err != nil {
+	if err := dbInstance.RunDiscovery(ctx); err != nil {
 		return fmt.Errorf("cluster discovery failed: %w", err)
 	}
 
@@ -140,6 +140,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		if dbInstance.IsLeader() {
 			if err := dbInstance.Initialize(ctx); err != nil {
 				return fmt.Errorf("couldn't initialize database: %w", err)
+			}
+
+			if err := dbInstance.PostInitClusterSetup(ctx, ver.Version); err != nil {
+				return fmt.Errorf("couldn't set up cluster: %w", err)
 			}
 
 			if err := dbInstance.DeleteAllDynamicLeases(ctx); err != nil {
