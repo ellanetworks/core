@@ -168,7 +168,13 @@ type (
 // proposeChangeset captures a local SQL mutation as a sqlite changeset and
 // replicates it through Raft as CmdChangeset. The leader's SQL writes are
 // rolled back locally and only become durable through committed apply.
+// A mutex serialises the capture-propose cycle so concurrent writers never
+// capture against the same pre-mutation state, which would produce conflicting
+// changesets.
 func (db *Database) proposeChangeset(applyFn func(context.Context) (any, error), operation string) (any, error) {
+	db.proposeMu.Lock()
+	defer db.proposeMu.Unlock()
+
 	changeset, applyResult, err := db.captureChangeset(context.Background(), applyFn, operation)
 	if err != nil {
 		if errors.Is(err, ErrAlreadyExists) {

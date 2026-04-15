@@ -2,6 +2,8 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -31,36 +33,16 @@ type FlowAccountingSettings struct {
 }
 
 func (db *Database) InitializeFlowAccountingSettings(ctx context.Context) error {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s", "INSERT", FlowAccountingSettingsTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", FlowAccountingSettingsTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(FlowAccountingSettingsTableName, "insert"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(FlowAccountingSettingsTableName, "insert").Inc()
-
-	flowAccountingSettings := FlowAccountingSettings{Enabled: FlowAccountingDefaultEnabled}
-
-	err := db.conn().Query(ctx, db.insertDefaultFlowAccountingSettingsStmt, flowAccountingSettings).Run()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
+	_, err := db.IsFlowAccountingEnabled(ctx)
+	if err == nil {
+		return nil
 	}
 
-	span.SetStatus(codes.Ok, "")
+	if !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("failed to check flow accounting settings: %w", err)
+	}
 
-	return nil
+	return db.UpdateFlowAccountingSettings(ctx, FlowAccountingDefaultEnabled)
 }
 
 func (db *Database) IsFlowAccountingEnabled(ctx context.Context) (bool, error) {

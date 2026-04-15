@@ -38,31 +38,35 @@ func newHANodeClients() ([]*client.Client, error) {
 	return clients, nil
 }
 
-// waitForClusterReady polls ListClusterMembers on every client until
-// expectedMembers nodes are visible and exactly one has the "Leader" role.
+// waitForClusterReady polls GetStatus (unauthenticated) on every client
+// until all expectedMembers nodes are reachable and exactly one is the leader.
 func waitForClusterReady(ctx context.Context, clients []*client.Client, expectedMembers int) error {
 	timeout := 3 * time.Minute
 	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {
+		reachable := 0
+		leaders := 0
+
 		for _, c := range clients {
 			status, err := c.GetStatus(ctx)
 			if err != nil {
-				continue
+				break
 			}
 
-			if status.Cluster == nil || status.Cluster.Role != "Leader" {
-				continue
+			if status.Cluster == nil {
+				break
 			}
 
-			members, err := c.ListClusterMembers(ctx)
-			if err != nil {
-				continue
-			}
+			reachable++
 
-			if len(members) == expectedMembers {
-				return nil
+			if status.Cluster.Role == "Leader" {
+				leaders++
 			}
+		}
+
+		if reachable == expectedMembers && leaders == 1 {
+			return nil
 		}
 
 		time.Sleep(2 * time.Second)

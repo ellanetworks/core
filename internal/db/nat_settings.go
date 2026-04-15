@@ -2,6 +2,8 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -33,36 +35,16 @@ type NATSettings struct {
 // InitializeNATSettings inserts the default NAT settings into the database.
 // If the settings already exist, it does nothing.
 func (db *Database) InitializeNATSettings(ctx context.Context) error {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s", "INSERT", NATSettingsTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", NATSettingsTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NATSettingsTableName, "insert"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(NATSettingsTableName, "insert").Inc()
-
-	natSettings := NATSettings{Enabled: NATDefaultEnabled}
-
-	err := db.conn().Query(ctx, db.insertDefaultNATSettingsStmt, natSettings).Run()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
+	_, err := db.IsNATEnabled(ctx)
+	if err == nil {
+		return nil
 	}
 
-	span.SetStatus(codes.Ok, "")
+	if !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("failed to check NAT settings: %w", err)
+	}
 
-	return nil
+	return db.UpdateNATSettings(ctx, NATDefaultEnabled)
 }
 
 func (db *Database) IsNATEnabled(ctx context.Context) (bool, error) {

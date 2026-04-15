@@ -100,7 +100,14 @@ func (m *Manager) RunDiscovery(ctx context.Context) error {
 
 		if joined {
 			m.needsDiscovery = false
-			return m.waitForLeader(ctx)
+
+			if err := m.waitForLeader(ctx); err != nil {
+				return err
+			}
+
+			m.restoreHATimeouts()
+
+			return nil
 		}
 
 		select {
@@ -283,6 +290,9 @@ func (m *Manager) joinCluster(ctx context.Context, client *http.Client, peerURL 
 
 // bootstrapCluster creates the initial Raft cluster with this node as the
 // sole voter. Other nodes will join via AddVoter as they discover the leader.
+// Fast self-election is guaranteed by applyTimeouts which sets standalone
+// timeouts for fresh HA nodes; restoreHATimeouts upgrades them after the
+// cluster forms.
 func (m *Manager) bootstrapCluster() error {
 	cfg := raft.Configuration{
 		Servers: []raft.Server{{

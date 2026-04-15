@@ -10,8 +10,10 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
+	"go.uber.org/zap"
 )
 
 // ClusterConfig holds the cluster-related configuration parsed from YAML.
@@ -54,11 +56,6 @@ const (
 	// applied to the library's default timeouts when running in HA mode.
 	// Matches Vault.
 	defaultPerformanceMultiplier = 5
-
-	// initialTimeoutMultiplier slows down heartbeat/election once on first
-	// boot so a newly joined HA node doesn't contest leadership before the
-	// cluster has stabilised. Also from Vault.
-	initialTimeoutMultiplier = 3
 
 	// standaloneHeartbeatTimeout and friends govern the single-server bootstrap
 	// path. Aggressive values are safe because there are no peers to time
@@ -314,7 +311,14 @@ func resolveNodeIDForMode(cfg ClusterConfig, singleServer bool, dataDir string) 
 // initialTimeoutMultiplier so a slow first election on a newly joined node
 // doesn't trigger spurious leadership contests before the cluster stabilises.
 func applyTimeouts(rc *raft.Config, cfg ClusterConfig, singleServer, freshBoot bool) {
-	if singleServer {
+	if singleServer || freshBoot {
+		// Single-server and fresh HA nodes both start with fast timeouts.
+		// For single-server the timeouts are permanent. For fresh HA nodes
+		// they allow the bootstrapper to self-elect in milliseconds;
+		// restoreHATimeouts upgrades HeartbeatTimeout and ElectionTimeout
+		// to HA values after the cluster forms. LeaderLeaseTimeout is not
+		// runtime-reloadable so it stays at the standalone value, which is
+		// always smaller than the HA HeartbeatTimeout.
 		rc.HeartbeatTimeout = standaloneHeartbeatTimeout
 		rc.ElectionTimeout = standaloneElectionTimeout
 		rc.LeaderLeaseTimeout = standaloneLeaderLeaseTimeout
@@ -331,10 +335,26 @@ func applyTimeouts(rc *raft.Config, cfg ClusterConfig, singleServer, freshBoot b
 	rc.HeartbeatTimeout *= time.Duration(multiplier)
 	rc.ElectionTimeout *= time.Duration(multiplier)
 	rc.LeaderLeaseTimeout *= time.Duration(multiplier)
+}
 
-	if freshBoot {
-		rc.HeartbeatTimeout *= initialTimeoutMultiplier
-		rc.ElectionTimeout *= initialTimeoutMultiplier
+// restoreHATimeouts reloads the steady-state HA timeouts (performance
+// multiplier only, no freshBoot inflation). Called after the bootstrapper's
+// fast self-election completes so that subsequent elections with real peers
+// use properly scaled timeouts.
+func (m *Manager) restoreHATimeouts() {
+	multiplier := m.config.PerformanceMultiplier
+	if multiplier <= 0 {
+		multiplier = defaultPerformanceMultiplier
+	}
+
+	base := raft.DefaultConfig()
+
+	rc := m.raft.ReloadableConfig()
+	rc.HeartbeatTimeout = base.HeartbeatTimeout * time.Duration(multiplier)
+	rc.ElectionTimeout = base.ElectionTimeout * time.Duration(multiplier)
+
+	if err := m.raft.ReloadConfig(rc); err != nil {
+		logger.RaftLog.Warn("Failed to restore HA timeouts", zap.Error(err))
 	}
 }
 

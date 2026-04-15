@@ -2,6 +2,8 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -34,35 +36,16 @@ type N3Settings struct {
 }
 
 func (db *Database) InitializeN3Settings(ctx context.Context) error {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s", "INSERT", N3SettingsTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", N3SettingsTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(N3SettingsTableName, "insert"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(N3SettingsTableName, "insert").Inc()
-
-	n3Settings := N3Settings{ExternalAddress: N3DefaultExternalAddress}
-
-	if err := db.conn().Query(ctx, db.insertDefaultN3SettingsStmt, n3Settings).Run(); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
+	_, err := db.GetN3Settings(ctx)
+	if err == nil {
+		return nil
 	}
 
-	span.SetStatus(codes.Ok, "")
+	if !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("failed to check N3 settings: %w", err)
+	}
 
-	return nil
+	return db.UpdateN3Settings(ctx, N3DefaultExternalAddress)
 }
 
 func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string) error {

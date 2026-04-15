@@ -35,6 +35,7 @@ type Database struct {
 	dbPath         string
 	dataDir        string
 	restoreMu      sync.Mutex
+	proposeMu      sync.Mutex
 	raftManager    *ellaraft.Manager
 	proposeTimeout time.Duration
 
@@ -989,6 +990,29 @@ func (db *Database) PrepareStatements() error {
 	}
 
 	return nil
+}
+
+// WaitForInitialization polls until the leader's Initialize data has
+// replicated to this follower (operator row exists), or ctx is cancelled.
+func (db *Database) WaitForInitialization(ctx context.Context, timeout time.Duration) error {
+	deadline := time.After(timeout)
+
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if db.IsOperatorInitialized(ctx) {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-deadline:
+			return fmt.Errorf("timed out waiting for leader initialization to replicate")
+		case <-ticker.C:
+		}
+	}
 }
 
 func (db *Database) Initialize(ctx context.Context) error {

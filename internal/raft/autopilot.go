@@ -67,6 +67,11 @@ func (d *autopilotDelegate) FetchServerStats(_ context.Context, servers map[raft
 	for id, srv := range servers {
 		if srv.IsLeader {
 			result[id] = parseRaftStats(leaderStats)
+		} else {
+			// Followers don't expose stats directly to the leader.
+			// Return a zero-valued entry so autopilot considers the
+			// server reachable (LastContact 0 = just contacted).
+			result[id] = &autopilot.ServerStats{}
 		}
 	}
 

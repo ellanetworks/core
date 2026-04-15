@@ -149,6 +149,14 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			if err := dbInstance.DeleteAllDynamicLeases(ctx); err != nil {
 				return fmt.Errorf("couldn't release all dynamic leases: %w", err)
 			}
+		} else {
+			logger.EllaLog.Info("Waiting for leader initialization to replicate")
+
+			if err := dbInstance.WaitForInitialization(ctx, 30*time.Second); err != nil {
+				return fmt.Errorf("follower couldn't sync initial settings: %w", err)
+			}
+
+			logger.EllaLog.Info("Leader initialization replicated successfully")
 		}
 	} else {
 		if err := dbInstance.DeleteAllDynamicLeases(ctx); err != nil {
