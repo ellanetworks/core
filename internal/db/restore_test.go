@@ -345,7 +345,7 @@ func TestRestore_RoundTripPreservesData(t *testing.T) {
 	// Per-node tables get a safety copy during restore; replicated tables
 	// come from the backup image. The safety copy must be cleaned up
 	// after a successful restore.
-	if _, err := os.Stat(filepath.Join(database.Dir(), "restore_safety_local.db")); !os.IsNotExist(err) {
-		t.Fatalf("expected restore_safety_local.db to be removed after successful restore, got err=%v", err)
+	if _, err := os.Stat(filepath.Join(database.Dir(), "restore_snapshot_local.db")); !os.IsNotExist(err) {
+		t.Fatalf("expected restore_snapshot_local.db to be removed after successful restore, got err=%v", err)
 	}
 }

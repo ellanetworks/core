@@ -66,14 +66,6 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 
 		return db.applyMigrateShared(ctx, payload)
 
-	case ellaraft.CmdRestore:
-		payload, err := unmarshalPayload[bytesPayload](cmd.Payload)
-		if err != nil {
-			return nil, err
-		}
-
-		return db.applyRestore(ctx, payload)
-
 	default:
 		return nil, fmt.Errorf("unknown command type: %s", cmd.Type)
 	}

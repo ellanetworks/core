@@ -15,10 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ellanetworks/core/internal/logger"
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
 
 const (
@@ -336,9 +333,22 @@ func copyTableRowsTx(ctx context.Context, src *sql.DB, dest *sql.Tx, table strin
 	return nil
 }
 
+// BackupLocalTables implements ellaraft.Applier. It copies local-only tables
+// from srcPath into destPath so they survive a full database file swap.
+func (db *Database) BackupLocalTables(ctx context.Context, srcPath, destPath string) error {
+	return backupLocalOnlyTables(ctx, srcPath, destPath)
+}
+
+// RestoreLocalTables implements ellaraft.Applier. It copies previously
+// backed-up local-only tables from backupPath back into destPath.
+func (db *Database) RestoreLocalTables(ctx context.Context, backupPath, destPath string) error {
+	return restoreLocalOnlyTables(ctx, backupPath, destPath)
+}
+
 // Restore replaces the database file with the contents of the backup tar.gz
-// in backupFile. The database is replicated via Raft through a CmdRestore log
-// entry so followers stay in sync.
+// in backupFile. In HA mode, the restored database is fed to raft as an
+// external snapshot via raft.Restore; followers receive it via InstallSnapshot.
+// In standalone mode, the file is swapped directly.
 func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 	// Concurrency guard: only one restore at a time.
 	if !db.restoreMu.TryLock() {
@@ -379,88 +389,26 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 		return fmt.Errorf("%w: %v", ErrInvalidBackupFile, err)
 	}
 
-	// The database bytes are carried through the Raft log so that followers
-	// and future replays of the log reconstruct the same state.
-	dbBytes, err := os.ReadFile(stagedDB) // #nosec: G304 — path is under stageDir
+	// Stream the validated SQLite file as an external snapshot into Raft.
+	// raft.Restore injects the snapshot, bumps the index past commitIndex,
+	// and triggers FSM.Restore on every node (which handles local-table
+	// preservation, file swap, and connection reopening). In HA mode the
+	// leader also replicates the snapshot to followers via InstallSnapshot.
+	f, err := os.Open(stagedDB) // #nosec: G304 — path is under stageDir
 	if err != nil {
-		return fmt.Errorf("failed to read staged database: %w", err)
+		return fmt.Errorf("open staged database for restore: %w", err)
 	}
 
-	// Route through Raft: applyRestore swaps the file on every node and
-	// re-opens the connection.
-	if _, err := db.proposeIntent(ellaraft.CmdRestore, &bytesPayload{Value: dbBytes}); err != nil {
-		return fmt.Errorf("propose restore: %w", err)
+	defer func() { _ = f.Close() }()
+
+	info, err := f.Stat()
+	if err != nil {
+		return fmt.Errorf("stat staged database: %w", err)
 	}
 
-	// CmdRestore carries the full database as a log entry. Force a snapshot
-	// so the blob doesn't linger in the Raft log and get replicated to
-	// followers that fall behind. Retry a few times before giving up — a
-	// lingering multi-GB blob in the log is an operational hazard we'd
-	// rather surface than paper over.
-	if db.raftManager != nil {
-		var snapErr error
-
-		for attempt := 1; attempt <= 3; attempt++ {
-			snapErr = db.raftManager.Snapshot()
-			if snapErr == nil {
-				break
-			}
-
-			logger.WithTrace(ctx, logger.DBLog).Warn(
-				"Snapshot after restore failed; retrying",
-				zap.Int("attempt", attempt),
-				zap.Error(snapErr))
-		}
-
-		if snapErr != nil {
-			return fmt.Errorf("force snapshot after restore (log retains db blob): %w", snapErr)
-		}
+	if err := db.raftManager.UserRestore(f, info.Size(), db.proposeTimeout); err != nil {
+		return fmt.Errorf("raft restore: %w", err)
 	}
 
 	return nil
-}
-
-// applyRestore is invoked by the FSM for each CmdRestore log entry (on the
-// leader after propose, and on followers/replay). It writes the carried
-// database bytes to a staged file, validates the SQLite image, atomically
-// swaps it into place, reopens the connection, and re-seeds the ID counters
-// so deterministic IDs pick up from MAX(id) in the restored state.
-func (db *Database) applyRestore(ctx context.Context, p *bytesPayload) (any, error) {
-	stagedPath := filepath.Join(db.Dir(), "restore-apply-staged.db")
-	localOnlyPath := filepath.Join(db.Dir(), "restore_safety_local.db")
-
-	if err := os.WriteFile(stagedPath, p.Value, 0o600); err != nil {
-		return nil, fmt.Errorf("write staged database: %w", err)
-	}
-
-	defer func() {
-		_ = os.Remove(stagedPath)
-		_ = os.Remove(localOnlyPath)
-	}()
-
-	if err := validateSQLiteFile(ctx, stagedPath); err != nil {
-		return nil, fmt.Errorf("validate staged database: %w", err)
-	}
-
-	if err := backupLocalOnlyTables(ctx, db.Path(), localOnlyPath); err != nil {
-		return nil, fmt.Errorf("backup local-only tables before restore: %w", err)
-	}
-
-	for _, suffix := range []string{"-wal", "-shm"} {
-		_ = os.Remove(db.Path() + suffix)
-	}
-
-	if err := os.Rename(stagedPath, db.Path()); err != nil {
-		return nil, fmt.Errorf("install new database: %w", err)
-	}
-
-	if err := restoreLocalOnlyTables(ctx, localOnlyPath, db.Path()); err != nil {
-		return nil, fmt.Errorf("restore local-only tables: %w", err)
-	}
-
-	if err := db.Reopen(ctx); err != nil {
-		return nil, fmt.Errorf("reopen database after restore apply: %w", err)
-	}
-
-	return nil, nil
 }

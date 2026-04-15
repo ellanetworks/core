@@ -48,6 +48,15 @@ type Applier interface {
 	// sqlair statements. Called after FSM.Restore replaces the database
 	// file on disk.
 	Reopen(ctx context.Context) error
+
+	// BackupLocalTables copies local-only tables (radio_events,
+	// flow_reports, fsm_state) from srcPath into destPath so they survive
+	// a full database file swap during restore.
+	BackupLocalTables(ctx context.Context, srcPath, destPath string) error
+
+	// RestoreLocalTables copies previously backed-up local-only tables
+	// from backupPath back into destPath after a database file swap.
+	RestoreLocalTables(ctx context.Context, backupPath, destPath string) error
 }
 
 // FSM implements raft.FSM for the application database.
@@ -344,8 +353,24 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 
 	_ = tmpFile.Close()
 
-	// Remove WAL/SHM sidecars before the rename.
+	// Preserve local-only tables (radio_events, flow_reports, fsm_state)
+	// across the file swap. These are per-node and not part of the
+	// replicated snapshot.
 	dbPath := f.applier.Path()
+	localOnlyPath := filepath.Join(f.dataDir, "restore_snapshot_local.db")
+
+	ctx := context.Background()
+
+	if err := f.applier.BackupLocalTables(ctx, dbPath, localOnlyPath); err != nil {
+		_ = os.Remove(tmpPath)
+		_ = os.Remove(localOnlyPath)
+
+		return fmt.Errorf("backup local-only tables before restore: %w", err)
+	}
+
+	defer func() { _ = os.Remove(localOnlyPath) }()
+
+	// Remove WAL/SHM sidecars before the rename.
 	for _, suffix := range []string{"-wal", "-shm"} {
 		_ = os.Remove(dbPath + suffix)
 	}
@@ -356,13 +381,15 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 		return fmt.Errorf("rename snapshot over database: %w", err)
 	}
 
+	if err := f.applier.RestoreLocalTables(ctx, localOnlyPath, dbPath); err != nil {
+		return fmt.Errorf("restore local-only tables after snapshot restore: %w", err)
+	}
+
 	// Fsync the parent directory.
 	if dir, err := os.Open(f.dataDir); err == nil {
 		_ = dir.Sync()
 		_ = dir.Close()
 	}
-
-	ctx := context.Background()
 
 	if err := f.applier.Reopen(ctx); err != nil {
 		return fmt.Errorf("reopen database after restore: %w", err)
