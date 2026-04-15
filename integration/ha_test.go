@@ -118,7 +118,19 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 		t.Fatalf("failed to create subscriber on leader: %v", err)
 	}
 
-	t.Log("subscriber created, reading from each follower")
+	t.Log("subscriber created, waiting for follower convergence")
+
+	idx, err := leaderAppliedIndex(ctx, leader)
+	if err != nil {
+		t.Fatalf("failed to get leader applied index: %v", err)
+	}
+
+	err = waitForFollowerConvergence(ctx, clients, idx)
+	if err != nil {
+		t.Fatalf("followers did not converge: %v", err)
+	}
+
+	t.Log("followers converged, reading subscriber from each follower")
 
 	for i, c := range clients {
 		status, err := c.GetStatus(ctx)

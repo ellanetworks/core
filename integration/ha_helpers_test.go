@@ -145,6 +145,57 @@ func waitForAllNodesReady(ctx context.Context, clients []*client.Client) error {
 	return fmt.Errorf("not all nodes ready after %v", timeout)
 }
 
+// waitForFollowerConvergence polls each follower's AppliedIndex until it
+// reaches at least minIndex. This ensures Raft replication has delivered
+// all committed entries before reading from followers.
+func waitForFollowerConvergence(ctx context.Context, clients []*client.Client, minIndex uint64) error {
+	timeout := 30 * time.Second
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		converged := true
+
+		for _, c := range clients {
+			status, err := c.GetStatus(ctx)
+			if err != nil {
+				converged = false
+				break
+			}
+
+			if status.Cluster == nil || status.Cluster.Role != "Follower" {
+				continue
+			}
+
+			if status.Cluster.AppliedIndex < minIndex {
+				converged = false
+				break
+			}
+		}
+
+		if converged {
+			return nil
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	return fmt.Errorf("followers did not converge to index %d within %v", minIndex, timeout)
+}
+
+// leaderAppliedIndex returns the current applied Raft index from the leader.
+func leaderAppliedIndex(ctx context.Context, leader *client.Client) (uint64, error) {
+	status, err := leader.GetStatus(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("get leader status: %w", err)
+	}
+
+	if status.Cluster == nil {
+		return 0, fmt.Errorf("leader has no cluster status")
+	}
+
+	return status.Cluster.AppliedIndex, nil
+}
+
 // dumpClusterDiagnostics logs node status and cluster members from each
 // reachable node. Call from t.Cleanup to aid failure triage.
 func dumpClusterDiagnostics(ctx context.Context, dc *DockerClient, clients []*client.Client, logf func(string, ...any)) {
