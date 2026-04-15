@@ -2,9 +2,17 @@ package client
 
 import "context"
 
+type ClusterStatus struct {
+	Enabled      bool   `json:"enabled"`
+	Role         string `json:"role"`
+	NodeID       int    `json:"nodeId"`
+	AppliedIndex uint64 `json:"appliedIndex"`
+}
+
 type Status struct {
-	Version     string `json:"version"`
-	Initialized bool   `json:"initialized"`
+	Version     string         `json:"version"`
+	Initialized bool           `json:"initialized"`
+	Cluster     *ClusterStatus `json:"cluster,omitempty"`
 }
 
 // GetStatus retrieves the current status of the system.

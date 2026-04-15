@@ -37,3 +37,6 @@ jobs:
   integration-tests:
     needs: [image-build]
     uses: ./.github/workflows/integration-tests.yaml
+  integration-tests-ha:
+    needs: [image-build]
+    uses: ./.github/workflows/integration-tests-ha.yaml
