@@ -331,7 +331,7 @@ func openSQLiteConnection(ctx context.Context, databasePath string) (*sql.DB, er
 	}{
 		{"PRAGMA busy_timeout = 5000;", "set busy_timeout"},
 		{"PRAGMA journal_mode = WAL;", "enable WAL journaling"},
-		{"PRAGMA synchronous = FULL;", "set synchronous to FULL"},
+		{"PRAGMA synchronous = NORMAL;", "set synchronous to NORMAL"},
 		{"PRAGMA foreign_keys = ON;", "enable foreign key support"},
 	}
 
