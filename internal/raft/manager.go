@@ -404,6 +404,12 @@ func (m *Manager) AppliedIndex() uint64 {
 	return m.fsm.AppliedIndex()
 }
 
+// Barrier blocks until all preceding log entries are applied to the FSM,
+// ensuring subsequent reads reflect every committed write.
+func (m *Manager) Barrier(timeout time.Duration) error {
+	return m.raft.Barrier(timeout).Error()
+}
+
 // Snapshot triggers a user-requested Raft snapshot and blocks until it
 // completes. Callers use this to force log truncation after large log
 // entries so followers don't carry large blobs in their log indefinitely.

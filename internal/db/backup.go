@@ -43,6 +43,12 @@ func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
+	if db.raftManager != nil {
+		if err := db.raftManager.Barrier(30 * time.Second); err != nil {
+			return fmt.Errorf("raft barrier before backup: %w", err)
+		}
+	}
+
 	dbTmp := filepath.Join(tmpDir, DBFilename)
 
 	if _, err := db.conn().PlainDB().ExecContext(ctx, "VACUUM INTO ?", dbTmp); err != nil {

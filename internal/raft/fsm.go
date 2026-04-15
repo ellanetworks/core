@@ -96,6 +96,10 @@ func (f *FSM) AppliedIndex() uint64 {
 // Apply implements raft.FSM. It is called by the Raft library on every node
 // (leader and followers) for each committed log entry.
 func (f *FSM) Apply(l *raft.Log) interface{} {
+	if l.Type != raft.LogCommand {
+		return nil
+	}
+
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -164,6 +168,92 @@ func (f *FSM) Apply(l *raft.Log) interface{} {
 
 	return result
 }
+
+// ApplyBatch implements raft.BatchingFSM. The Raft library calls this instead
+// of Apply when multiple committed log entries are available, passing up to
+// MaxAppendEntries logs at once. Reading lastApplied once and writing it once
+// at the end eliminates 2*(N-1) SQLite round-trips compared to per-entry Apply.
+func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	lastApplied, err := f.readLastApplied()
+	if err != nil {
+		logger.RaftLog.Error("FSM: failed to read lastApplied in batch",
+			zap.Error(err))
+
+		ret := make([]interface{}, len(logs))
+		for i := range ret {
+			ret[i] = fmt.Errorf("read lastApplied: %w", err)
+		}
+
+		return ret
+	}
+
+	results := make([]interface{}, len(logs))
+	ctx := context.Background()
+
+	var highestApplied uint64
+
+	for i, l := range logs {
+		if l.Type != raft.LogCommand {
+			continue
+		}
+
+		if l.Index <= lastApplied {
+			f.appliedIndex.Store(l.Index)
+			highestApplied = l.Index
+
+			continue
+		}
+
+		cmd, err := UnmarshalCommand(l.Data)
+		if err != nil {
+			logger.RaftLog.Error("FSM: failed to unmarshal command in batch",
+				zap.Uint64("index", l.Index),
+				zap.Error(err))
+
+			results[i] = fmt.Errorf("unmarshal command: %w", err)
+
+			continue
+		}
+
+		started := time.Now()
+
+		result, applyErr := f.applier.ApplyCommand(ctx, cmd)
+		if cmd.Type == CmdChangeset {
+			ObserveChangesetApply(len(cmd.Payload), time.Since(started))
+		}
+
+		if applyErr != nil {
+			logger.RaftLog.Error("FSM: command failed in batch — halting node",
+				zap.Uint64("index", l.Index),
+				zap.String("command", cmd.Type.String()),
+				zap.Error(applyErr))
+
+			panic(fmt.Sprintf("FSM.ApplyBatch: fatal apply error at index %d (cmd=%s): %v", l.Index, cmd.Type, applyErr))
+		}
+
+		results[i] = result
+		highestApplied = l.Index
+		f.appliedIndex.Store(l.Index)
+	}
+
+	if highestApplied > lastApplied {
+		if err := f.writeLastApplied(highestApplied); err != nil {
+			logger.RaftLog.Error("FSM: failed to persist lastApplied after batch — halting node",
+				zap.Uint64("highestApplied", highestApplied),
+				zap.Error(err))
+
+			panic(fmt.Sprintf("FSM.ApplyBatch: failed to write lastApplied at index %d: %v", highestApplied, err))
+		}
+	}
+
+	return results
+}
+
+// Compile-time check: FSM must satisfy raft.BatchingFSM.
+var _ raft.BatchingFSM = (*FSM)(nil)
 
 // readLastApplied returns the durable lastApplied Raft index from the
 // fsm_state table. Returns 0 if the table is empty or missing.

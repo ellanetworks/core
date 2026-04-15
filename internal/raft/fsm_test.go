@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"os"
@@ -402,6 +403,435 @@ func TestFSM_Apply_SkipsAlreadyApplied(t *testing.T) {
 
 	if got := fsm.AppliedIndex(); got != 11 {
 		t.Fatalf("applied index: want 11, got %d", got)
+	}
+}
+
+// TestFSM_ApplyBatch_Basic verifies that ApplyBatch processes multiple logs in
+// one call, advances AppliedIndex to the last entry, and writes lastApplied
+// only once (both observations confirmed by checking the applier command count
+// and the final durable index).
+func TestFSM_ApplyBatch_Basic(t *testing.T) {
+	a := newTestApplier(t)
+	fsm := NewFSM(a, t.TempDir())
+
+	logs := make([]*hraft.Log, 5)
+	for i := range logs {
+		cmd, err := NewCommand(CmdChangeset, map[string]string{"i": string(rune('a' + i))})
+		if err != nil {
+			t.Fatalf("new command %d: %v", i, err)
+		}
+
+		data, err := cmd.MarshalBinary()
+		if err != nil {
+			t.Fatalf("marshal %d: %v", i, err)
+		}
+
+		logs[i] = &hraft.Log{Index: uint64(10 + i), Data: data}
+	}
+
+	results := fsm.ApplyBatch(logs)
+	if len(results) != 5 {
+		t.Fatalf("expected 5 results, got %d", len(results))
+	}
+
+	for i, r := range results {
+		if r != nil {
+			t.Fatalf("result[%d]: expected nil, got %v", i, r)
+		}
+	}
+
+	if got := fsm.AppliedIndex(); got != 14 {
+		t.Fatalf("applied index: want 14, got %d", got)
+	}
+
+	if got := len(a.seen()); got != 5 {
+		t.Fatalf("expected 5 commands applied, got %d", got)
+	}
+
+	// Verify lastApplied was durably persisted to the highest index.
+	var idx uint64
+	if err := a.db.QueryRowContext(context.Background(),
+		"SELECT lastApplied FROM fsm_state WHERE id = 1").Scan(&idx); err != nil {
+		t.Fatalf("read lastApplied: %v", err)
+	}
+
+	if idx != 14 {
+		t.Fatalf("durable lastApplied: want 14, got %d", idx)
+	}
+}
+
+// TestFSM_ApplyBatch_SkipsAlreadyApplied confirms that entries at or below the
+// durable lastApplied are skipped within a batch.
+func TestFSM_ApplyBatch_SkipsAlreadyApplied(t *testing.T) {
+	a := newTestApplier(t)
+	fsm := NewFSM(a, t.TempDir())
+
+	cmd, err := NewCommand(CmdChangeset, map[string]string{"v": "x"})
+	if err != nil {
+		t.Fatalf("new command: %v", err)
+	}
+
+	data, err := cmd.MarshalBinary()
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	// Apply a single entry at index 10 to set lastApplied.
+	fsm.Apply(&hraft.Log{Index: 10, Data: data})
+
+	// Batch containing entries before and after lastApplied.
+	logs := []*hraft.Log{
+		{Index: 8, Data: data},
+		{Index: 10, Data: data},
+		{Index: 11, Data: data},
+		{Index: 12, Data: data},
+	}
+
+	results := fsm.ApplyBatch(logs)
+	if len(results) != 4 {
+		t.Fatalf("expected 4 results, got %d", len(results))
+	}
+
+	// Only 2 new entries (11, 12) should have been applied, plus the 1
+	// from the initial Apply call = 3 total.
+	if got := len(a.seen()); got != 3 {
+		t.Fatalf("expected 3 total commands, got %d", got)
+	}
+
+	if got := fsm.AppliedIndex(); got != 12 {
+		t.Fatalf("applied index: want 12, got %d", got)
+	}
+}
+
+// TestFSM_ApplyBatch_PanicsOnError verifies that an applier error in the
+// middle of a batch causes the FSM to panic (fail-stop).
+func TestFSM_ApplyBatch_PanicsOnError(t *testing.T) {
+	a := newTestApplier(t)
+	a.applyErr = errors.New("batch-boom")
+
+	fsm := NewFSM(a, t.TempDir())
+
+	cmd, err := NewCommand(CmdChangeset, map[string]string{"v": "y"})
+	if err != nil {
+		t.Fatalf("new command: %v", err)
+	}
+
+	data, err := cmd.MarshalBinary()
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	logs := []*hraft.Log{
+		{Index: 1, Data: data},
+		{Index: 2, Data: data},
+	}
+
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic on batch apply error, but ApplyBatch returned normally")
+		}
+
+		msg, ok := r.(string)
+		if !ok {
+			t.Fatalf("expected string panic, got %T: %v", r, r)
+		}
+
+		if !strings.Contains(msg, "batch-boom") {
+			t.Fatalf("panic message should contain applier error, got: %s", msg)
+		}
+	}()
+
+	fsm.ApplyBatch(logs)
+}
+
+// TestFSM_ApplyBatch_AllSkipped verifies that when every entry in a batch is
+// at or below lastApplied, writeLastApplied is not called (no durable write)
+// and the in-memory appliedIndex still tracks the highest skipped entry.
+func TestFSM_ApplyBatch_AllSkipped(t *testing.T) {
+	a := newTestApplier(t)
+	fsm := NewFSM(a, t.TempDir())
+
+	cmd, err := NewCommand(CmdChangeset, map[string]string{"v": "z"})
+	if err != nil {
+		t.Fatalf("new command: %v", err)
+	}
+
+	data, err := cmd.MarshalBinary()
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	// Apply at index 20 to set lastApplied.
+	fsm.Apply(&hraft.Log{Index: 20, Data: data})
+
+	// Batch entirely at or below lastApplied.
+	logs := []*hraft.Log{
+		{Index: 15, Data: data},
+		{Index: 18, Data: data},
+		{Index: 20, Data: data},
+	}
+
+	results := fsm.ApplyBatch(logs)
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+
+	for i, r := range results {
+		if r != nil {
+			t.Fatalf("result[%d]: expected nil, got %v", i, r)
+		}
+	}
+
+	// Only the original Apply call should have executed.
+	if got := len(a.seen()); got != 1 {
+		t.Fatalf("expected 1 command (from initial Apply), got %d", got)
+	}
+
+	// appliedIndex tracks the highest skipped entry.
+	if got := fsm.AppliedIndex(); got != 20 {
+		t.Fatalf("applied index: want 20, got %d", got)
+	}
+}
+
+// TestFSM_ApplyBatch_BadPayloadMidBatch verifies that an unmarshal error for
+// one entry in a batch returns an error for that slot but does not panic and
+// does not prevent subsequent entries from being applied.
+func TestFSM_ApplyBatch_BadPayloadMidBatch(t *testing.T) {
+	a := newTestApplier(t)
+	fsm := NewFSM(a, t.TempDir())
+
+	goodCmd, err := NewCommand(CmdChangeset, map[string]string{"v": "ok"})
+	if err != nil {
+		t.Fatalf("new command: %v", err)
+	}
+
+	goodData, err := goodCmd.MarshalBinary()
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	logs := []*hraft.Log{
+		{Index: 1, Data: goodData},
+		{Index: 2, Data: []byte{0xFF}}, // too short to unmarshal
+		{Index: 3, Data: goodData},
+	}
+
+	results := fsm.ApplyBatch(logs)
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+
+	if results[0] != nil {
+		t.Fatalf("result[0]: expected nil, got %v", results[0])
+	}
+
+	if results[1] == nil {
+		t.Fatal("result[1]: expected error for bad payload, got nil")
+	}
+
+	errMsg, ok := results[1].(error)
+	if !ok {
+		t.Fatalf("result[1]: expected error type, got %T", results[1])
+	}
+
+	if !strings.Contains(errMsg.Error(), "unmarshal") {
+		t.Fatalf("result[1] error should mention unmarshal, got: %v", errMsg)
+	}
+
+	if results[2] != nil {
+		t.Fatalf("result[2]: expected nil, got %v", results[2])
+	}
+
+	// Entries 1 and 3 applied; entry 2 skipped due to bad payload.
+	if got := len(a.seen()); got != 2 {
+		t.Fatalf("expected 2 commands applied, got %d", got)
+	}
+
+	if got := fsm.AppliedIndex(); got != 3 {
+		t.Fatalf("applied index: want 3, got %d", got)
+	}
+}
+
+// TestFSM_ApplyBatch_SingleEntry verifies that a batch with a single element
+// behaves identically to Apply.
+func TestFSM_ApplyBatch_SingleEntry(t *testing.T) {
+	a := newTestApplier(t)
+	fsm := NewFSM(a, t.TempDir())
+
+	cmd, err := NewCommand(CmdChangeset, map[string]string{"k": "v"})
+	if err != nil {
+		t.Fatalf("new command: %v", err)
+	}
+
+	data, err := cmd.MarshalBinary()
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	results := fsm.ApplyBatch([]*hraft.Log{{Index: 42, Data: data}})
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+
+	if results[0] != nil {
+		t.Fatalf("result[0]: expected nil, got %v", results[0])
+	}
+
+	if got := fsm.AppliedIndex(); got != 42 {
+		t.Fatalf("applied index: want 42, got %d", got)
+	}
+
+	if got := len(a.seen()); got != 1 {
+		t.Fatalf("expected 1 command, got %d", got)
+	}
+
+	var idx uint64
+	if err := a.db.QueryRowContext(context.Background(),
+		"SELECT lastApplied FROM fsm_state WHERE id = 1").Scan(&idx); err != nil {
+		t.Fatalf("read lastApplied: %v", err)
+	}
+
+	if idx != 42 {
+		t.Fatalf("durable lastApplied: want 42, got %d", idx)
+	}
+}
+
+// TestFSM_Restore_CorruptMagic verifies that Restore rejects a snapshot whose
+// first 4 bytes are neither the ELSN magic nor the SQLite file header.
+func TestFSM_Restore_CorruptMagic(t *testing.T) {
+	a := newTestApplier(t)
+	fsm := NewFSM(a, t.TempDir())
+
+	// 20 bytes of garbage.
+	rc := newReadCloser(bytes.Repeat([]byte{0xDE, 0xAD}, 10))
+
+	err := fsm.Restore(rc)
+	if err == nil {
+		t.Fatal("expected error for corrupt magic, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "unrecognized header magic") {
+		t.Fatalf("error should mention unrecognized header magic, got: %v", err)
+	}
+}
+
+// TestFSM_Restore_TruncatedHeader verifies that Restore fails gracefully when
+// the snapshot is shorter than the 16-byte header.
+func TestFSM_Restore_TruncatedHeader(t *testing.T) {
+	a := newTestApplier(t)
+	fsm := NewFSM(a, t.TempDir())
+
+	// Only 4 bytes — too short for a full header read.
+	rc := newReadCloser([]byte{0x45, 0x4C, 0x53, 0x4E})
+
+	err := fsm.Restore(rc)
+	if err == nil {
+		t.Fatal("expected error for truncated header, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "read snapshot header") {
+		t.Fatalf("error should mention read snapshot header, got: %v", err)
+	}
+}
+
+// TestFSM_Restore_UnsupportedFormatVersion verifies that Restore rejects a
+// snapshot whose format version is higher than the binary supports.
+func TestFSM_Restore_UnsupportedFormatVersion(t *testing.T) {
+	a := newTestApplier(t)
+	fsm := NewFSM(a, t.TempDir())
+
+	var header [snapshotHeaderSize]byte
+
+	copy(header[0:4], snapshotMagic)
+	binary.BigEndian.PutUint32(header[4:8], snapshotFormatVersion+99) // future format
+	binary.BigEndian.PutUint32(header[8:12], 0)
+	binary.BigEndian.PutUint32(header[12:16], 0)
+
+	// Append some dummy SQLite bytes after the header.
+	payload := append(header[:], bytes.Repeat([]byte{0x00}, 64)...)
+	rc := newReadCloser(payload)
+
+	err := fsm.Restore(rc)
+	if err == nil {
+		t.Fatal("expected error for unsupported format version, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "snapshot format version") {
+		t.Fatalf("error should mention format version, got: %v", err)
+	}
+}
+
+// TestFSM_Restore_UnsupportedProtocolVersion verifies that Restore rejects a
+// snapshot whose protocol version is higher than this binary.
+func TestFSM_Restore_UnsupportedProtocolVersion(t *testing.T) {
+	a := newTestApplier(t)
+	fsm := NewFSM(a, t.TempDir())
+
+	var header [snapshotHeaderSize]byte
+
+	copy(header[0:4], snapshotMagic)
+	binary.BigEndian.PutUint32(header[4:8], snapshotFormatVersion)
+	binary.BigEndian.PutUint32(header[8:12], 0)
+	binary.BigEndian.PutUint32(header[12:16], 99999) // far-future protocol
+
+	payload := append(header[:], bytes.Repeat([]byte{0x00}, 64)...)
+	rc := newReadCloser(payload)
+
+	err := fsm.Restore(rc)
+	if err == nil {
+		t.Fatal("expected error for unsupported protocol version, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "protocol version") {
+		t.Fatalf("error should mention protocol version, got: %v", err)
+	}
+}
+
+// TestFSM_Restore_LegacySnapshot verifies that Restore accepts a raw SQLite
+// file (no ELSN header) for backwards compatibility.
+func TestFSM_Restore_LegacySnapshot(t *testing.T) {
+	src := newTestApplier(t)
+
+	if _, err := src.db.ExecContext(context.Background(),
+		`INSERT INTO t(id, v) VALUES (1, 'legacy')`); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	// Use VACUUM INTO to get a clean SQLite file (no WAL).
+	tmpPath := filepath.Join(t.TempDir(), "legacy.db")
+
+	if _, err := src.db.ExecContext(context.Background(),
+		"VACUUM INTO ?", tmpPath); err != nil {
+		t.Fatalf("vacuum into: %v", err)
+	}
+
+	raw, err := os.ReadFile(tmpPath)
+	if err != nil {
+		t.Fatalf("read legacy snapshot: %v", err)
+	}
+
+	// Sanity: first 16 bytes should be SQLite magic, not ELSN.
+	if !bytes.Equal(raw[:len(sqliteMagic)], sqliteMagic) {
+		t.Fatalf("expected SQLite magic, got %q", raw[:16])
+	}
+
+	dst := newTestApplier(t)
+	dstFSM := NewFSM(dst, t.TempDir())
+
+	rc := newReadCloser(raw)
+	if err := dstFSM.Restore(rc); err != nil {
+		t.Fatalf("restore legacy snapshot: %v", err)
+	}
+
+	var v string
+	if err := dst.db.QueryRowContext(context.Background(),
+		`SELECT v FROM t WHERE id = 1`).Scan(&v); err != nil {
+		t.Fatalf("query after legacy restore: %v", err)
+	}
+
+	if v != "legacy" {
+		t.Fatalf("want 'legacy', got %q", v)
 	}
 }
 
