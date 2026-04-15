@@ -108,15 +108,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't initialize database: %w", err)
 	}
 
-	// DeleteAllDynamicLeases and initial seeding run via Raft propose(), so
-	// in HA mode they must wait until RunDiscovery has formed/joined the
-	// cluster and a leader exists. See the post-RunDiscovery block below.
-	if !cfg.Cluster.Enabled {
-		if err := dbInstance.DeleteAllDynamicLeases(ctx); err != nil {
-			return fmt.Errorf("couldn't release all dynamic leases: %w", err)
-		}
-	}
-
 	bufferedWriter := dbwriter.NewBufferedDBWriter(dbInstance, 1000, logger.NetworkLog)
 	logger.SetDb(bufferedWriter)
 
@@ -126,6 +117,37 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// read the file from the configured path.
 	supportbundle.ConfigProvider = func(ctx context.Context) ([]byte, error) {
 		return os.ReadFile(rc.ConfigPath)
+	}
+
+	// --- Phase A: start the HTTP server with discovery-only routes so
+	// peers can probe /api/v1/status and POST /api/v1/cluster/members
+	// during Raft cluster formation. ---
+	apiServer, err := api.StartDiscovery(ctx, dbInstance, cfg)
+	if err != nil {
+		return fmt.Errorf("couldn't start API (discovery): %w", err)
+	}
+
+	if err := dbInstance.RunDiscovery(ctx, ver.Version); err != nil {
+		return fmt.Errorf("cluster discovery failed: %w", err)
+	}
+
+	// Seed default settings and clean up stale leases. In standalone
+	// mode Initialize already ran inside NewDatabase; in HA mode only
+	// the leader proposes the writes and followers replicate them.
+	if cfg.Cluster.Enabled {
+		if dbInstance.IsLeader() {
+			if err := dbInstance.Initialize(ctx); err != nil {
+				return fmt.Errorf("couldn't initialize database: %w", err)
+			}
+
+			if err := dbInstance.DeleteAllDynamicLeases(ctx); err != nil {
+				return fmt.Errorf("couldn't release all dynamic leases: %w", err)
+			}
+		}
+	} else {
+		if err := dbInstance.DeleteAllDynamicLeases(ctx); err != nil {
+			return fmt.Errorf("couldn't release all dynamic leases: %w", err)
+		}
 	}
 
 	var wg sync.WaitGroup
@@ -149,24 +171,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	isNATEnabled, err := dbInstance.IsNATEnabled(ctx)
 	if err != nil {
-		if cfg.Cluster.Enabled {
-			logger.EllaLog.Warn("Settings not yet seeded, defaulting NAT to enabled", zap.Error(err))
-
-			isNATEnabled = db.NATDefaultEnabled
-		} else {
-			return fmt.Errorf("couldn't determine if NAT is enabled: %w", err)
-		}
+		return fmt.Errorf("couldn't determine if NAT is enabled: %w", err)
 	}
 
 	isFlowAccountingEnabled, err := dbInstance.IsFlowAccountingEnabled(ctx)
 	if err != nil {
-		if cfg.Cluster.Enabled {
-			logger.EllaLog.Warn("Settings not yet seeded, defaulting flow accounting to enabled", zap.Error(err))
-
-			isFlowAccountingEnabled = db.FlowAccountingDefaultEnabled
-		} else {
-			return fmt.Errorf("couldn't determine if flow accounting is enabled: %w", err)
-		}
+		return fmt.Errorf("couldn't determine if flow accounting is enabled: %w", err)
 	}
 
 	// Initialize BGP service
@@ -195,13 +205,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	bgpSettings, err := dbInstance.GetBGPSettings(ctx)
 	if err != nil {
-		if cfg.Cluster.Enabled {
-			logger.EllaLog.Warn("Settings not yet seeded, defaulting BGP to disabled", zap.Error(err))
-
-			bgpSettings = &db.BGPSettings{Enabled: db.BGPDefaultEnabled}
-		} else {
-			return fmt.Errorf("couldn't get BGP settings: %w", err)
-		}
+		return fmt.Errorf("couldn't get BGP settings: %w", err)
 	}
 
 	if bgpSettings.Enabled {
@@ -237,13 +241,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	n3Settings, err := dbInstance.GetN3Settings(ctx)
 	if err != nil {
-		if cfg.Cluster.Enabled {
-			logger.EllaLog.Warn("Settings not yet seeded, using config N3 address", zap.Error(err))
-
-			n3Settings = nil
-		} else {
-			return fmt.Errorf("couldn't get N3 external address: %w", err)
-		}
+		return fmt.Errorf("couldn't get N3 external address: %w", err)
 	}
 
 	advertisedN3Address := n3Address
@@ -327,35 +325,18 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	gmm.RegisterMetrics()
 	ngap.RegisterMetrics()
 
-	apiServer, err := api.Start(
-		ctx,
-		dbInstance,
-		cfg,
-		upfInstance,
-		smfInstance,
-		amfInstance,
-		bgpService,
-		rc.EmbedFS,
-		rc.RegisterExtraRoutes,
-	)
-	if err != nil {
-		return fmt.Errorf("couldn't start API: %w", err)
-	}
-
-	if err := dbInstance.RunDiscovery(ctx, ver.Version); err != nil {
-		return fmt.Errorf("cluster discovery failed: %w", err)
-	}
-
-	// HA-mode deferred startup: the leader seeds defaults and cleans up
-	// dynamic leases; followers receive the writes via Raft replication.
-	if cfg.Cluster.Enabled && dbInstance.IsLeader() {
-		if err := dbInstance.Initialize(ctx); err != nil {
-			return fmt.Errorf("couldn't initialize database: %w", err)
-		}
-
-		if err := dbInstance.DeleteAllDynamicLeases(ctx); err != nil {
-			return fmt.Errorf("couldn't release all dynamic leases: %w", err)
-		}
+	// --- Phase B: upgrade the API server to serve all routes now that
+	// the cluster is formed, settings are seeded, and NFs are running. ---
+	if err := apiServer.Upgrade(ctx, api.UpgradeConfig{
+		DB:                  dbInstance,
+		UPF:                 upfInstance,
+		Sessions:            smfInstance,
+		AMF:                 amfInstance,
+		BGP:                 bgpService,
+		EmbedFS:             rc.EmbedFS,
+		RegisterExtraRoutes: rc.RegisterExtraRoutes,
+	}); err != nil {
+		return fmt.Errorf("couldn't upgrade API: %w", err)
 	}
 
 	nasLogger.SetLogLevel(0) // Suppress free5gc NAS log output

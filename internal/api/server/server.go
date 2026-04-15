@@ -243,6 +243,47 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	return handler
 }
 
+// DiscoveryHandlerConfig holds the dependencies for the discovery-phase
+// HTTP handler that runs before cluster formation.
+type DiscoveryHandlerConfig struct {
+	DB     *db.Database
+	Config config.Config
+}
+
+// NewDiscoveryHandler returns an HTTP handler serving only the routes
+// needed for cluster discovery: status, cluster membership, metrics,
+// and the OpenAPI spec. It requires no JWT secret or NF instances.
+func NewDiscoveryHandler(cfg DiscoveryHandlerConfig) http.Handler {
+	dbInstance := cfg.DB
+	appCfg := cfg.Config
+	secureCookie := appCfg.Interfaces.API.TLS.Cert != "" && appCfg.Interfaces.API.TLS.Key != ""
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /api/v1/status", GetStatus(dbInstance).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/metrics", GetMetrics().ServeHTTP)
+	mux.HandleFunc("GET /api/v1/openapi.yaml", OpenAPISpec().ServeHTTP)
+
+	if appCfg.Cluster.JoinToken != "" {
+		mux.HandleFunc("POST /api/v1/cluster/members",
+			ClusterTokenOnly(appCfg.Cluster.JoinToken, AddClusterMember(dbInstance)).ServeHTTP)
+	}
+
+	var handler http.Handler = mux
+
+	handler = MaxBodySizeMiddleware(handler)
+	handler = AppliedIndexMiddleware(dbInstance, handler)
+	handler = LeaderProxyMiddleware(dbInstance, handler)
+	handler = SecurityHeadersMiddleware(secureCookie, handler)
+	handler = MetricsMiddleware(handler)
+
+	if appCfg.Telemetry.Enabled {
+		handler = TracingMiddleware("ella-core/api", handler)
+	}
+
+	return handler
+}
+
 func registerAuthenticatedPprof(root *http.ServeMux, jwtSecret *JWTSecret, dbInstance *db.Database) {
 	pp := http.NewServeMux()
 
