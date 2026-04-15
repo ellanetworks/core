@@ -63,15 +63,19 @@ func (d *autopilotDelegate) FetchServerStats(_ context.Context, servers map[raft
 	result := make(map[raft.ServerID]*autopilot.ServerStats, len(servers))
 
 	leaderStats := d.manager.raft.Stats()
+	parsed := parseRaftStats(leaderStats)
 
 	for id, srv := range servers {
 		if srv.IsLeader {
-			result[id] = parseRaftStats(leaderStats)
+			result[id] = parsed
 		} else {
 			// Followers don't expose stats directly to the leader.
-			// Return a zero-valued entry so autopilot considers the
-			// server reachable (LastContact 0 = just contacted).
-			result[id] = &autopilot.ServerStats{}
+			// Use the leader's term and index so autopilot's isHealthy
+			// term/index checks pass. LastContact 0 = just contacted.
+			result[id] = &autopilot.ServerStats{
+				LastTerm:  parsed.LastTerm,
+				LastIndex: parsed.LastIndex,
+			}
 		}
 	}
 
