@@ -340,7 +340,13 @@ func applyTimeouts(rc *raft.Config, cfg ClusterConfig, singleServer, freshBoot b
 
 // Propose serializes a command and applies it through Raft consensus.
 // Only the leader can propose; followers receive ErrNotLeader.
-func (m *Manager) Propose(cmd *Command, timeout time.Duration) (any, error) {
+// ProposeResult holds the FSM response and the raft log index.
+type ProposeResult struct {
+	Value any
+	Index uint64
+}
+
+func (m *Manager) Propose(cmd *Command, timeout time.Duration) (*ProposeResult, error) {
 	data, err := cmd.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("marshal command: %w", err)
@@ -358,7 +364,7 @@ func (m *Manager) Propose(cmd *Command, timeout time.Duration) (any, error) {
 		return nil, err
 	}
 
-	return resp, nil
+	return &ProposeResult{Value: resp, Index: future.Index()}, nil
 }
 
 // IsLeader returns true if this node is the current Raft leader.

@@ -92,3 +92,22 @@ func NewCommand(cmdType CommandType, payload any) (*Command, error) {
 
 	return &Command{Type: cmdType, Payload: data}, nil
 }
+
+// Label returns a human-readable label for the command including the
+// operation name embedded in changeset payloads (e.g. "Changeset(UpsertClusterMember)").
+func (c *Command) Label() string {
+	name := c.Type.String()
+	if c.Type != CmdChangeset || len(c.Payload) == 0 {
+		return name
+	}
+
+	var meta struct {
+		Operation string `json:"operation"`
+	}
+
+	if err := json.Unmarshal(c.Payload, &meta); err == nil && meta.Operation != "" {
+		return name + "(" + meta.Operation + ")"
+	}
+
+	return name
+}

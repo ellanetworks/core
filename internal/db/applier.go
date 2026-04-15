@@ -11,8 +11,10 @@ import (
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/dbwriter"
+	"github.com/ellanetworks/core/internal/logger"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	hraft "github.com/hashicorp/raft"
+	"go.uber.org/zap"
 )
 
 // Compile-time check that *Database implements ellaraft.Applier.
@@ -143,7 +145,8 @@ type (
 		Value bool `json:"value"`
 	}
 	bytesPayload struct {
-		Value []byte `json:"value"`
+		Value     []byte `json:"value"`
+		Operation string `json:"operation,omitempty"`
 	}
 	auditLogPayload struct {
 		Timestamp string `json:"timestamp"`
@@ -183,18 +186,24 @@ func (db *Database) proposeChangeset(applyFn func(context.Context) (any, error),
 		return applyResult, nil
 	}
 
-	changesetCmd, err := ellaraft.NewCommand(ellaraft.CmdChangeset, &bytesPayload{Value: changeset})
+	changesetCmd, err := ellaraft.NewCommand(ellaraft.CmdChangeset, &bytesPayload{Value: changeset, Operation: operation})
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err := db.raftManager.Propose(changesetCmd, db.proposeTimeout); err != nil {
+	index, err := db.raftManager.Propose(changesetCmd, db.proposeTimeout)
+	if err != nil {
 		if isTransientRaftErr(err) {
 			return nil, fmt.Errorf("%w: %v", ErrProposeTimeout, err)
 		}
 
 		return nil, err
 	}
+
+	logger.DBLog.Debug("proposed changeset",
+		zap.String("operation", operation),
+		zap.Uint64("index", index.Index),
+		zap.Int("bytes", len(changeset)))
 
 	return applyResult, nil
 }
@@ -216,7 +225,7 @@ func (db *Database) proposeIntent(cmdType ellaraft.CommandType, payload any) (an
 		return nil, err
 	}
 
-	return result, nil
+	return result.Value, nil
 }
 
 // isTransientRaftErr reports whether a Raft apply error is transient —

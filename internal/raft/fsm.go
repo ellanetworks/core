@@ -143,7 +143,7 @@ func (f *FSM) Apply(l *raft.Log) interface{} {
 	if err != nil {
 		logger.RaftLog.Error("FSM: command failed — halting node",
 			zap.Uint64("index", l.Index),
-			zap.String("command", cmd.Type.String()),
+			zap.String("command", cmd.Label()),
 			zap.Error(err))
 
 		// A committed log entry that fails to apply means this node has
@@ -152,7 +152,7 @@ func (f *FSM) Apply(l *raft.Log) interface{} {
 		// the DB is clean (fully applied or fully rolled back), so the
 		// safest response is to stop the node. Recovery: restart and
 		// replay from the latest snapshot, or rejoin the cluster.
-		panic(fmt.Sprintf("FSM.Apply: fatal apply error at index %d (cmd=%s): %v", l.Index, cmd.Type, err))
+		panic(fmt.Sprintf("FSM.Apply: fatal apply error at index %d (cmd=%s): %v", l.Index, cmd.Label(), err))
 	}
 
 	// Persist the applied index so crash-recovery replay can skip it.
@@ -228,10 +228,10 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 		if applyErr != nil {
 			logger.RaftLog.Error("FSM: command failed in batch — halting node",
 				zap.Uint64("index", l.Index),
-				zap.String("command", cmd.Type.String()),
+				zap.String("command", cmd.Label()),
 				zap.Error(applyErr))
 
-			panic(fmt.Sprintf("FSM.ApplyBatch: fatal apply error at index %d (cmd=%s): %v", l.Index, cmd.Type, applyErr))
+			panic(fmt.Sprintf("FSM.ApplyBatch: fatal apply error at index %d (cmd=%s): %v", l.Index, cmd.Label(), applyErr))
 		}
 
 		results[i] = result
