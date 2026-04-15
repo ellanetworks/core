@@ -182,7 +182,7 @@ func backupLocalOnlyTables(ctx context.Context, srcPath, destPath string) error 
 	for _, table := range localOnlyTables {
 		createStmt, err := readTableDDL(ctx, src, table)
 		if err != nil {
-			return err
+			continue
 		}
 
 		if _, err := dest.ExecContext(ctx, createStmt); err != nil {
@@ -224,6 +224,12 @@ func restoreLocalOnlyTables(ctx context.Context, backupPath, destPath string) er
 	}()
 
 	for _, table := range localOnlyTables {
+		var exists int
+		if err := tx.QueryRowContext(ctx,
+			"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&exists); err != nil || exists == 0 {
+			continue
+		}
+
 		if _, err := tx.ExecContext(ctx, fmt.Sprintf("DELETE FROM %s", table)); err != nil {
 			return fmt.Errorf("clear restored %s: %w", table, err)
 		}
@@ -438,10 +444,6 @@ func (db *Database) applyRestore(ctx context.Context, p *bytesPayload) (any, err
 
 	if err := backupLocalOnlyTables(ctx, db.Path(), localOnlyPath); err != nil {
 		return nil, fmt.Errorf("backup local-only tables before restore: %w", err)
-	}
-
-	if c := db.conn(); c != nil {
-		_ = c.PlainDB().Close()
 	}
 
 	for _, suffix := range []string{"-wal", "-shm"} {

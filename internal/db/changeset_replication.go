@@ -4,14 +4,13 @@
 // replicates them through the Raft log, and applies them on all nodes.
 //
 // Write path (leader only — proposeChangeset / captureChangeset):
-//   1. Acquire captureMu so only one write is in-flight at a time.
-//   2. Obtain a pinned *sql.Conn (bypasses sqlair's pool) and start a
+//   1. Obtain a pinned *sql.Conn (bypasses sqlair's pool) and start a
 //      sqlite3_session on the replicated tables.
-//   3. Execute the mutating SQL inside a transaction.
-//   4. Capture the changeset bytes from the session, then ROLLBACK the
+//   2. Execute the mutating SQL inside a transaction.
+//   3. Capture the changeset bytes from the session, then ROLLBACK the
 //      transaction — the local database is NOT yet modified.
-//   5. Propose the changeset through Raft (raft.Apply).
-//   6. Raft commits the log entry; the FSM calls applyChangeset on
+//   4. Propose the changeset through Raft (raft.Apply).
+//   5. Raft commits the log entry; the FSM calls applyChangeset on
 //      every node (including the leader) to replay the changeset.
 //
 // This capture→rollback→replicate→apply pattern doubles the write cost
@@ -69,6 +68,7 @@ var replicatedChangesetTables = []string{
 var localOnlyTables = []string{
 	RadioEventsTableName,
 	FlowReportsTableName,
+	FsmStateTableName,
 }
 
 func (db *Database) assertTableReplicationClassification(ctx context.Context) error {

@@ -109,6 +109,11 @@ func (db *Database) Reopen(ctx context.Context) error {
 		return fmt.Errorf("migrations after reopen: %w", err)
 	}
 
+	if err := ensureFsmStateTable(ctx, sqlConn); err != nil {
+		_ = sqlConn.Close()
+		return fmt.Errorf("ensure fsm_state after reopen: %w", err)
+	}
+
 	db.connPtr.Store(sqlair.NewDB(sqlConn))
 
 	if old != nil {
@@ -223,8 +228,7 @@ func (db *Database) proposeIntent(cmdType ellaraft.CommandType, payload any) (an
 func isTransientRaftErr(err error) bool {
 	return errors.Is(err, hraft.ErrEnqueueTimeout) ||
 		errors.Is(err, hraft.ErrLeadershipLost) ||
-		errors.Is(err, hraft.ErrRaftShutdown) ||
-		errors.Is(err, hraft.ErrNotLeader)
+		errors.Is(err, hraft.ErrRaftShutdown)
 }
 
 // --- Apply functions ---

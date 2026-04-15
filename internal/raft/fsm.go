@@ -65,7 +65,9 @@ type FSM struct {
 	// dataDir is the directory containing the database file and the raft/ subdirectory.
 	dataDir string
 
-	// mu serializes snapshot and restore operations against applies.
+	// mu excludes Restore (write lock) from concurrent Apply and Snapshot
+	// calls (read lock). hashicorp/raft calls Apply serially, so the RLock
+	// is not for Apply-vs-Apply serialization.
 	mu sync.RWMutex
 }
 
@@ -88,6 +90,26 @@ func (f *FSM) Apply(l *raft.Log) interface{} {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
+	// Skip already-applied entries. After a crash without a recent
+	// snapshot, hashicorp/raft replays committed entries from index 0.
+	// Changesets are not idempotent, so re-applying them would hit the
+	// conflict callback and crash-loop. The durable lastApplied value
+	// (fsm_state table) lets us skip entries that were already applied
+	// before the crash.
+	lastApplied, err := f.readLastApplied()
+	if err != nil {
+		logger.RaftLog.Error("FSM: failed to read lastApplied",
+			zap.Uint64("index", l.Index),
+			zap.Error(err))
+
+		return fmt.Errorf("read lastApplied: %w", err)
+	}
+
+	if l.Index <= lastApplied {
+		f.appliedIndex.Store(l.Index)
+		return nil
+	}
+
 	cmd, err := UnmarshalCommand(l.Data)
 	if err != nil {
 		logger.RaftLog.Error("FSM: failed to unmarshal command",
@@ -105,24 +127,65 @@ func (f *FSM) Apply(l *raft.Log) interface{} {
 		ObserveChangesetApply(len(cmd.Payload), time.Since(started))
 	}
 
-	// Advance appliedIndex regardless of applier outcome: hashicorp/raft
-	// considers every entry it hands to Apply as committed, and its own
-	// LastApplied bookkeeping will move forward on the next snapshot/restart
-	// whether or not the FSM reported success. Lagging this counter behind
-	// the library's view would misrepresent progress for observability
-	// callers (Manager.AppliedIndex, RaftAppliedIndex).
-	f.appliedIndex.Store(l.Index)
-
 	if err != nil {
-		logger.RaftLog.Error("FSM: command failed",
+		logger.RaftLog.Error("FSM: command failed — halting node",
 			zap.Uint64("index", l.Index),
 			zap.String("command", cmd.Type.String()),
 			zap.Error(err))
 
-		return err
+		// A committed log entry that fails to apply means this node has
+		// diverged from the cluster. Continuing would silently desync
+		// state. The SAVEPOINT inside sqlite3changeset_apply guarantees
+		// the DB is clean (fully applied or fully rolled back), so the
+		// safest response is to stop the node. Recovery: restart and
+		// replay from the latest snapshot, or rejoin the cluster.
+		panic(fmt.Sprintf("FSM.Apply: fatal apply error at index %d (cmd=%s): %v", l.Index, cmd.Type, err))
 	}
 
+	// Persist the applied index so crash-recovery replay can skip it.
+	if err := f.writeLastApplied(l.Index); err != nil {
+		logger.RaftLog.Error("FSM: failed to persist lastApplied — halting node",
+			zap.Uint64("index", l.Index),
+			zap.Error(err))
+
+		panic(fmt.Sprintf("FSM.Apply: failed to write lastApplied at index %d: %v", l.Index, err))
+	}
+
+	f.appliedIndex.Store(l.Index)
+
 	return result
+}
+
+// readLastApplied returns the durable lastApplied Raft index from the
+// fsm_state table. Returns 0 if the table is empty or missing.
+func (f *FSM) readLastApplied() (uint64, error) {
+	var idx uint64
+
+	err := f.applier.PlainDB().QueryRowContext(
+		context.Background(),
+		"SELECT lastApplied FROM fsm_state WHERE id = 1",
+	).Scan(&idx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || strings.Contains(err.Error(), "no such table") {
+			return 0, nil
+		}
+
+		return 0, err
+	}
+
+	return idx, nil
+}
+
+// writeLastApplied persists the Raft index of the last applied log entry
+// into the fsm_state table.
+func (f *FSM) writeLastApplied(index uint64) error {
+	_, err := f.applier.PlainDB().ExecContext(
+		context.Background(),
+		"UPDATE fsm_state SET lastApplied = ? WHERE id = 1",
+		index,
+	)
+
+	return err
 }
 
 // Snapshot header format (16 bytes):

@@ -692,6 +692,11 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 		}
 	}
 
+	if err := ensureFsmStateTable(ctx, sqlConn); err != nil {
+		_ = sqlConn.Close()
+		return nil, fmt.Errorf("ensure fsm_state table: %w", err)
+	}
+
 	db := new(Database)
 	db.connPtr.Store(sqlair.NewDB(sqlConn))
 	db.dbPath = dbPath

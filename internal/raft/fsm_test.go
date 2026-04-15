@@ -10,6 +10,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -42,6 +43,19 @@ func newTestApplier(t *testing.T) *testApplier {
 
 	if _, err := a.db.ExecContext(context.Background(), `CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT NOT NULL)`); err != nil {
 		t.Fatalf("create table: %v", err)
+	}
+
+	if _, err := a.db.ExecContext(context.Background(), `
+		CREATE TABLE IF NOT EXISTS fsm_state (
+			id INTEGER PRIMARY KEY CHECK(id = 1),
+			lastApplied INTEGER NOT NULL DEFAULT 0
+		)`); err != nil {
+		t.Fatalf("create fsm_state: %v", err)
+	}
+
+	if _, err := a.db.ExecContext(context.Background(),
+		"INSERT OR IGNORE INTO fsm_state (id, lastApplied) VALUES (1, 0)"); err != nil {
+		t.Fatalf("seed fsm_state: %v", err)
 	}
 
 	return a
@@ -150,9 +164,10 @@ func TestFSM_Apply_BadPayload(t *testing.T) {
 	}
 }
 
-// TestFSM_Apply_PropagatesApplierError surfaces the applier's error as the
-// Apply response but still advances the applied index.
-func TestFSM_Apply_PropagatesApplierError(t *testing.T) {
+// TestFSM_Apply_PanicsOnApplierError verifies that an applier error causes
+// the FSM to panic (fail-stop) rather than silently continuing with a
+// diverged state.
+func TestFSM_Apply_PanicsOnApplierError(t *testing.T) {
 	a := newTestApplier(t)
 	a.applyErr = errors.New("boom")
 
@@ -168,20 +183,23 @@ func TestFSM_Apply_PropagatesApplierError(t *testing.T) {
 		t.Fatalf("marshal: %v", err)
 	}
 
-	resp := fsm.Apply(&hraft.Log{Index: 5, Data: data})
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic on apply error, but Apply returned normally")
+		}
 
-	gotErr, ok := resp.(error)
-	if !ok {
-		t.Fatalf("expected error response, got %T: %v", resp, resp)
-	}
+		msg, ok := r.(string)
+		if !ok {
+			t.Fatalf("expected string panic, got %T: %v", r, r)
+		}
 
-	if gotErr.Error() != "boom" {
-		t.Fatalf("want boom, got %v", gotErr)
-	}
+		if !strings.Contains(msg, "boom") {
+			t.Fatalf("panic message should contain applier error, got: %s", msg)
+		}
+	}()
 
-	if got := fsm.AppliedIndex(); got != 5 {
-		t.Fatalf("applied index must advance on applier error per hashicorp/raft semantics, got %d", got)
-	}
+	fsm.Apply(&hraft.Log{Index: 5, Data: data})
 }
 
 // TestFSM_SnapshotRestoreRoundTrip writes rows to the source DB, takes a
@@ -319,6 +337,68 @@ func TestCommand_RoundTrip(t *testing.T) {
 
 	if p.IMSI != "001010000000001" {
 		t.Fatalf("imsi: want 001010000000001, got %q", p.IMSI)
+	}
+}
+
+// TestFSM_Apply_SkipsAlreadyApplied verifies that entries with an index at
+// or below the durable lastApplied are skipped. This prevents crash-recovery
+// replay from re-applying non-idempotent changesets.
+func TestFSM_Apply_SkipsAlreadyApplied(t *testing.T) {
+	a := newTestApplier(t)
+	fsm := NewFSM(a, t.TempDir())
+
+	cmd, err := NewCommand(CmdChangeset, map[string]string{"v": "1"})
+	if err != nil {
+		t.Fatalf("new command: %v", err)
+	}
+
+	data, err := cmd.MarshalBinary()
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	// Apply at index 10.
+	resp := fsm.Apply(&hraft.Log{Index: 10, Data: data})
+	if resp != nil {
+		t.Fatalf("expected nil response, got %v", resp)
+	}
+
+	if len(a.seen()) != 1 {
+		t.Fatalf("expected 1 command, got %d", len(a.seen()))
+	}
+
+	// Re-apply at index 10 (simulating crash-replay). Should be skipped.
+	resp = fsm.Apply(&hraft.Log{Index: 10, Data: data})
+	if resp != nil {
+		t.Fatalf("expected nil response for skipped entry, got %v", resp)
+	}
+
+	if len(a.seen()) != 1 {
+		t.Fatalf("expected still 1 command after skip, got %d", len(a.seen()))
+	}
+
+	// Apply at an older index. Should also be skipped.
+	resp = fsm.Apply(&hraft.Log{Index: 5, Data: data})
+	if resp != nil {
+		t.Fatalf("expected nil response for older entry, got %v", resp)
+	}
+
+	if len(a.seen()) != 1 {
+		t.Fatalf("expected still 1 command after older skip, got %d", len(a.seen()))
+	}
+
+	// Apply at a new index. Should execute.
+	resp = fsm.Apply(&hraft.Log{Index: 11, Data: data})
+	if resp != nil {
+		t.Fatalf("expected nil response, got %v", resp)
+	}
+
+	if len(a.seen()) != 2 {
+		t.Fatalf("expected 2 commands after new apply, got %d", len(a.seen()))
+	}
+
+	if got := fsm.AppliedIndex(); got != 11 {
+		t.Fatalf("applied index: want 11, got %d", got)
 	}
 }
 
