@@ -575,7 +575,7 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 	t.Log("writes continue on new leader, drain leadership test passed")
 }
 
-func TestIntegrationHAScaleUp(t *testing.T) {
+func TestIntegrationHAScaleUpDown(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
@@ -706,7 +706,74 @@ func TestIntegrationHAScaleUp(t *testing.T) {
 		t.Fatalf("node 4 returned IMSI %q, expected %q", sub.Imsi, "001019756139939")
 	}
 
-	t.Log("node 4 returned subscriber correctly, scale-up test passed")
+	t.Log("node 4 returned subscriber correctly, scaling back down to 3 nodes")
+
+	// --- Scale down: remove node 4 from the cluster (4 → 3) ---
+
+	err = leader.RemoveClusterMember(ctx, 4)
+	if err != nil {
+		t.Fatalf("failed to remove node 4 from cluster: %v", err)
+	}
+
+	t.Log("node 4 removed from Raft, verifying cluster members")
+
+	members, err := leader.ListClusterMembers(ctx)
+	if err != nil {
+		t.Fatalf("failed to list cluster members: %v", err)
+	}
+
+	for _, m := range members {
+		if m.NodeID == 4 {
+			t.Fatal("removed node 4 still present in cluster members")
+		}
+	}
+
+	if len(members) != 3 {
+		t.Fatalf("expected 3 cluster members after removal, got %d", len(members))
+	}
+
+	t.Log("cluster members verified (3 members), stopping removed node container")
+
+	err = dockerClient.ComposeStop(ctx, scaleUpComposeDir, "ella-core-4")
+	if err != nil {
+		t.Fatalf("failed to stop ella-core-4: %v", err)
+	}
+
+	t.Log("writing subscriber on 3-node cluster after scale-down")
+
+	err = leader.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
+		Imsi:           "001019756139942",
+		Key:            "0eefb0893e6f1c2855a3a244c6db1277",
+		OPc:            "98da19bbc55e2a5b53857d10557b1d26",
+		SequenceNumber: "000000000022",
+		ProfileName:    "default",
+	})
+	if err != nil {
+		t.Fatalf("failed to create subscriber after scale-down: %v", err)
+	}
+
+	idx, err = leaderAppliedIndex(ctx, leader)
+	if err != nil {
+		t.Fatalf("failed to get leader applied index: %v", err)
+	}
+
+	err = waitForFollowerConvergence(ctx, clients, idx)
+	if err != nil {
+		t.Fatalf("followers did not converge after scale-down: %v", err)
+	}
+
+	sub, err = leader.GetSubscriber(ctx, &client.GetSubscriberOptions{
+		ID: "001019756139942",
+	})
+	if err != nil {
+		t.Fatalf("failed to read subscriber after scale-down: %v", err)
+	}
+
+	if sub.Imsi != "001019756139942" {
+		t.Fatalf("leader returned IMSI %q, expected %q", sub.Imsi, "001019756139942")
+	}
+
+	t.Log("3-node cluster operational after scale-down, scale up/down test passed")
 }
 
 func TestIntegrationHAQuorumRecovery(t *testing.T) {
