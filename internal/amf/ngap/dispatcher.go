@@ -374,7 +374,7 @@ func HandleSCTPNotification(amfInstance *amf.AMF, conn *sctp.SCTPConn, notificat
 		event := notification.(*sctp.SCTPAssocChangeEvent)
 		if event.Info() != nil {
 			ran.Log.Info("SCTP assoc change info",
-				zap.Any("info", event.Info()),
+				zap.Binary("info", event.Info()),
 				zap.Uint16("error", event.Error()))
 		}
 
