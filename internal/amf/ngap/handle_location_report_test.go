@@ -16,6 +16,7 @@ import (
 func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) {
 	ran := newTestRadio()
 	amfInstance := newTestAMF()
+
 	amf.NewRanUeForTest(ran, 1, 1, logger.AmfLog)
 
 	msg := decode.LocationReport{
@@ -38,6 +39,7 @@ func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) 
 func TestHandleLocationReport_UePresenceInAreaOfInterest_NilList(t *testing.T) {
 	ran := newTestRadio()
 	amfInstance := newTestAMF()
+
 	amf.NewRanUeForTest(ran, 1, 1, logger.AmfLog)
 
 	msg := decode.LocationReport{
@@ -68,6 +70,7 @@ func TestHandleLocationReport_UePresenceInAreaOfInterest_NilList(t *testing.T) {
 func TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled(t *testing.T) {
 	ran := newTestRadio()
 	amfInstance := newTestAMF()
+
 	amf.NewRanUeForTest(ran, 1, 1, logger.AmfLog)
 
 	msg := decode.LocationReport{
@@ -98,6 +101,7 @@ func TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled(t *test
 func TestHandleLocationReport_UePresence_NilAreaOfInterestList(t *testing.T) {
 	ran := newTestRadio()
 	amfInstance := newTestAMF()
+
 	amf.NewRanUeForTest(ran, 1, 1, logger.AmfLog)
 
 	msg := decode.LocationReport{

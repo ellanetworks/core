@@ -44,7 +44,7 @@ func setupCrossRadioScenario(t *testing.T) (legitimateRan, attackerRan *amf.Radi
 // cannot claim a UE by sending a PDUSessionResourceSetupResponse with a valid
 // AMF-UE-NGAP-ID that belongs to a UE on a different radio.
 func TestCrossRadio_PDUSessionResourceSetupResponse(t *testing.T) {
-	_, attackerRan, ranUe, amfInstance := setupCrossRadioScenario(t)
+	legitimateRan, attackerRan, ranUe, amfInstance := setupCrossRadioScenario(t)
 	attackerSender := attackerRan.NGAPSender.(*FakeNGAPSender)
 
 	amfID := int64(10)
@@ -62,7 +62,7 @@ func TestCrossRadio_PDUSessionResourceSetupResponse(t *testing.T) {
 		t.Errorf("expected UnknownLocalUENGAPID cause, got %d", attackerSender.SentErrorIndications[0].Cause.RadioNetwork.Value)
 	}
 
-	if ranUe.Radio() != ranUe.Radio() {
+	if ranUe.Radio() != legitimateRan {
 		t.Error("UE radio association must not change")
 	}
 }
