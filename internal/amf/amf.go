@@ -18,6 +18,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/sctp"
+	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -25,6 +26,7 @@ import (
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/util/idgenerator"
 	"github.com/free5gc/nas/nasConvert"
+	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
@@ -300,6 +302,67 @@ func (amf *AMF) FindRadioByRanID(ranNodeID models.GlobalRanNodeID) (*Radio, bool
 	}
 
 	return nil, false
+}
+
+// ClaimRanID assigns ranNodeID to radio, evicting any other radio holding the
+// same Global RAN Node ID. Returns the evicted radio, or nil.
+func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID *ngapType.GlobalRANNodeID) *Radio {
+	newID := util.RanIDToModels(*ranNodeID)
+	present := ranNodeID.Present
+
+	amf.mu.Lock()
+
+	var evicted *Radio
+
+	for _, other := range amf.Radios {
+		if other == radio {
+			continue
+		}
+
+		if !ranIDMatches(other.RanPresent, other.RanID, present, &newID) {
+			continue
+		}
+
+		evicted = other
+		delete(amf.Radios, other.Conn)
+
+		break
+	}
+
+	radio.RanPresent = present
+	radio.RanID = &newID
+	amf.mu.Unlock()
+
+	if evicted != nil {
+		evicted.RemoveAllUeInRan()
+
+		if evicted.Conn != nil {
+			evicted.Conn.Close()
+		}
+	}
+
+	return evicted
+}
+
+func ranIDMatches(aPresent int, a *models.GlobalRanNodeID, bPresent int, b *models.GlobalRanNodeID) bool {
+	if a == nil || b == nil || aPresent != bPresent {
+		return false
+	}
+
+	switch aPresent {
+	case RanPresentGNbID:
+		if a.GNbID == nil || b.GNbID == nil {
+			return false
+		}
+
+		return a.GNbID.GNBValue == b.GNbID.GNBValue
+	case RanPresentNgeNbID:
+		return a.NgeNbID == b.NgeNbID
+	case RanPresentN3IwfID:
+		return a.N3IwfID == b.N3IwfID
+	}
+
+	return false
 }
 
 func (amf *AMF) ListRadios() []*Radio {

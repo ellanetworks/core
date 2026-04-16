@@ -104,10 +104,20 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		return
 	}
 
-	// Set RanID only after all validation passes — this gates the
-	// dispatcher guard (ran.RanID != nil) that protects all other
-	// NGAP handlers (TS 38.413 §10.4).
-	ran.SetRanID(msg.GlobalRANNodeID.Raw())
+	// Claim RanID only after validation passes; the dispatcher's
+	// ran.RanID != nil guard gates all other NGAP handlers.
+	evicted := amfInstance.ClaimRanID(ran, msg.GlobalRANNodeID.Raw())
+	if evicted != nil {
+		evictedRemote := ""
+		if evicted.Conn != nil && evicted.Conn.RemoteAddr() != nil {
+			evictedRemote = evicted.Conn.RemoteAddr().String()
+		}
+
+		logger.WithTrace(ctx, ran.Log).Warn("Evicted existing NG-C association with duplicate Global RAN Node ID",
+			zap.String("evicted_remote", evictedRemote),
+			zap.String("evicted_name", evicted.Name),
+		)
+	}
 
 	err = ran.NGAPSender.SendNGSetupResponse(ctx, operatorInfo.Guami, snssaiList, amfInstance.Name, amfInstance.RelativeCapacity)
 	if err != nil {
