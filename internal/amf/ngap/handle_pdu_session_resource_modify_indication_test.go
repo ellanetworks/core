@@ -39,13 +39,7 @@ func TestPDUSessionResourceModifyIndication_SendsModifyConfirm(t *testing.T) {
 	ran := newTestRadio()
 	sender := ran.NGAPSender.(*FakeNGAPSender)
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
-	ran.RanUEs[1] = ranUe
+	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 
 	ngap.HandlePDUSessionResourceModifyIndication(context.Background(), ran, decode.PDUSessionResourceModifyIndication{
 		RANUENGAPID: 1,

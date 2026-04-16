@@ -30,7 +30,7 @@ func newDecoderTestUE(t *testing.T) *AmfUe {
 		Log:    zap.NewNop(),
 	}
 	ranUe := &RanUe{
-		Radio:       radio,
+		radio:       radio,
 		RanUeNgapID: 1,
 		AmfUeNgapID: 1,
 		Log:         zap.NewNop(),

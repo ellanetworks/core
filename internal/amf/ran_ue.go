@@ -49,13 +49,22 @@ type RanUe struct {
 	Tai                              models.Tai
 	Location                         models.UserLocation
 	amfUe                            *AmfUe
-	Radio                            *Radio
+	radio                            *Radio
 	ReleaseAction                    RelAction
 	UeContextRequest                 bool
 	SentInitialContextSetupRequest   bool
 	RecvdInitialContextSetupResponse bool /*Received Initial context setup response or not */
 	Log                              *zap.Logger
 	freeNgapID                       func(int64) // set by AMF.NewRanUe to release the NGAP ID
+}
+
+// Radio returns the Radio this RanUe is associated with, or nil.
+func (ranUe *RanUe) Radio() *Radio {
+	if ranUe == nil {
+		return nil
+	}
+
+	return ranUe.radio
 }
 
 // AmfUe returns the currently attached AmfUe, or nil.
@@ -75,8 +84,8 @@ func (ranUe *RanUe) TouchLastSeen() {
 	}
 
 	radioName := ""
-	if ranUe.Radio != nil {
-		radioName = ranUe.Radio.Name
+	if ranUe.radio != nil {
+		radioName = ranUe.radio.Name
 	}
 
 	ranUe.amfUe.TouchLastSeen(radioName)
@@ -87,15 +96,15 @@ func (ranUe *RanUe) ngapSender() (NGAPSender, error) {
 		return nil, fmt.Errorf("ran ue is nil")
 	}
 
-	if ranUe.Radio == nil {
+	if ranUe.radio == nil {
 		return nil, fmt.Errorf("radio is nil")
 	}
 
-	if ranUe.Radio.NGAPSender == nil {
+	if ranUe.radio.NGAPSender == nil {
 		return nil, fmt.Errorf("ngap sender is nil")
 	}
 
-	return ranUe.Radio.NGAPSender, nil
+	return ranUe.radio.NGAPSender, nil
 }
 
 func (ranUe *RanUe) SendDownlinkNasTransport(ctx context.Context, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) error {
@@ -253,7 +262,7 @@ func (ranUe *RanUe) Remove() error {
 		ranUe.amfUe.DetachRanUe(ranUe)
 	}
 
-	ran := ranUe.Radio
+	ran := ranUe.radio
 	if ran == nil {
 		return fmt.Errorf("ran not found in ranUe")
 	}
@@ -283,7 +292,7 @@ func (ranUe *RanUe) SwitchToRan(newRan *Radio, ranUeNgapID int64) error {
 		return fmt.Errorf("new ran is nil")
 	}
 
-	oldRan := ranUe.Radio
+	oldRan := ranUe.radio
 
 	// remove ranUe from oldRan
 	oldRan.mu.Lock()
@@ -296,7 +305,7 @@ func (ranUe *RanUe) SwitchToRan(newRan *Radio, ranUeNgapID int64) error {
 	newRan.mu.Unlock()
 
 	// switch to newRan
-	ranUe.Radio = newRan
+	ranUe.radio = newRan
 	ranUe.RanUeNgapID = ranUeNgapID
 	ranUe.Log = newRan.Log.With(logger.AmfUeNgapID(ranUe.AmfUeNgapID))
 
@@ -432,4 +441,21 @@ func (ranUe *RanUe) UpdateLocation(ctx context.Context, amf *AMF, userLocationIn
 		}
 	case ngapType.UserLocationInformationPresentNothing:
 	}
+}
+
+// NewRanUeForTest creates a RanUe and registers it in radio.RanUEs.
+// It is intended for use in external test packages only.
+func NewRanUeForTest(radio *Radio, ranUeNgapID, amfUeNgapID int64, log *zap.Logger) *RanUe {
+	ranUe := &RanUe{
+		RanUeNgapID: ranUeNgapID,
+		AmfUeNgapID: amfUeNgapID,
+		radio:       radio,
+		Log:         log,
+	}
+
+	radio.mu.Lock()
+	radio.RanUEs[ranUeNgapID] = ranUe
+	radio.mu.Unlock()
+
+	return ranUe
 }

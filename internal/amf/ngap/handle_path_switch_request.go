@@ -26,7 +26,6 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 		return
 	}
 
-	ranUe.Radio = ran
 	ranUe.TouchLastSeen()
 	logger.WithTrace(ctx, ranUe.Log).Debug("Handle Path Switch Request", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 
@@ -137,7 +136,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			return
 		}
 
-		err = ranUe.Radio.NGAPSender.SendPathSwitchRequestAcknowledge(
+		err = ranUe.Radio().NGAPSender.SendPathSwitchRequestAcknowledge(
 			ctx,
 			ranUe.AmfUeNgapID,
 			ranUe.RanUeNgapID,

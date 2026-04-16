@@ -11,43 +11,24 @@ import (
 )
 
 func HandleUEContextModificationResponse(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.UEContextModificationResponse) {
-	var ranUe *amf.RanUe
+	ranUe, ok := resolveUE(ctx, ran, msg.RANUENGAPID, msg.AMFUENGAPID)
+	if !ok {
+		return
+	}
 
-	if msg.RANUENGAPID != nil {
-		ranUe = ran.FindUEByRanUeNgapID(*msg.RANUENGAPID)
-		if ranUe == nil {
-			if msg.AMFUENGAPID != nil {
-				logger.WithTrace(ctx, ran.Log).Warn("No UE Context", zap.Int64("RanUeNgapID", *msg.RANUENGAPID), zap.Int64("AmfUeNgapID", *msg.AMFUENGAPID))
-			} else {
-				logger.WithTrace(ctx, ran.Log).Warn("No UE Context", zap.Int64("RanUeNgapID", *msg.RANUENGAPID))
-			}
+	ranUe.TouchLastSeen()
+	logger.WithTrace(ctx, ranUe.Log).Debug("Handle UE Context Modification Response", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
+
+	if msg.RRCState != nil {
+		switch msg.RRCState.Value {
+		case ngapType.RRCStatePresentInactive:
+			logger.WithTrace(ctx, ranUe.Log).Debug("UE RRC State: Inactive")
+		case ngapType.RRCStatePresentConnected:
+			logger.WithTrace(ctx, ranUe.Log).Debug("UE RRC State: Connected")
 		}
 	}
 
-	if msg.AMFUENGAPID != nil {
-		ranUe = amfInstance.FindRanUeByAmfUeNgapID(*msg.AMFUENGAPID)
-		if ranUe == nil {
-			logger.WithTrace(ctx, ran.Log).Warn("UE Context not found", zap.Int64("AmfUeNgapID", *msg.AMFUENGAPID))
-			return
-		}
-	}
-
-	if ranUe != nil {
-		ranUe.Radio = ran
-		ranUe.TouchLastSeen()
-		logger.WithTrace(ctx, ranUe.Log).Debug("Handle UE Context Modification Response", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
-
-		if msg.RRCState != nil {
-			switch msg.RRCState.Value {
-			case ngapType.RRCStatePresentInactive:
-				logger.WithTrace(ctx, ranUe.Log).Debug("UE RRC State: Inactive")
-			case ngapType.RRCStatePresentConnected:
-				logger.WithTrace(ctx, ranUe.Log).Debug("UE RRC State: Connected")
-			}
-		}
-
-		if msg.UserLocationInformation != nil {
-			ranUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
-		}
+	if msg.UserLocationInformation != nil {
+		ranUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
 	}
 }

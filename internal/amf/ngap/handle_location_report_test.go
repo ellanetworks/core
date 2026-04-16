@@ -16,13 +16,8 @@ import (
 func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) {
 	ran := newTestRadio()
 	amfInstance := newTestAMF()
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 1,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
-	ran.RanUEs[1] = ranUe
+
+	amf.NewRanUeForTest(ran, 1, 1, logger.AmfLog)
 
 	msg := decode.LocationReport{
 		AMFUENGAPID: 1,
@@ -44,13 +39,8 @@ func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) 
 func TestHandleLocationReport_UePresenceInAreaOfInterest_NilList(t *testing.T) {
 	ran := newTestRadio()
 	amfInstance := newTestAMF()
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 1,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
-	ran.RanUEs[1] = ranUe
+
+	amf.NewRanUeForTest(ran, 1, 1, logger.AmfLog)
 
 	msg := decode.LocationReport{
 		AMFUENGAPID: 1,
@@ -80,13 +70,8 @@ func TestHandleLocationReport_UePresenceInAreaOfInterest_NilList(t *testing.T) {
 func TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled(t *testing.T) {
 	ran := newTestRadio()
 	amfInstance := newTestAMF()
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 1,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
-	ran.RanUEs[1] = ranUe
+
+	amf.NewRanUeForTest(ran, 1, 1, logger.AmfLog)
 
 	msg := decode.LocationReport{
 		AMFUENGAPID: 1,
@@ -116,13 +101,8 @@ func TestHandleLocationReport_StopUePresence_NilReferenceIDToBeCancelled(t *test
 func TestHandleLocationReport_UePresence_NilAreaOfInterestList(t *testing.T) {
 	ran := newTestRadio()
 	amfInstance := newTestAMF()
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 1,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
-	ran.RanUEs[1] = ranUe
+
+	amf.NewRanUeForTest(ran, 1, 1, logger.AmfLog)
 
 	msg := decode.LocationReport{
 		AMFUENGAPID: 1,

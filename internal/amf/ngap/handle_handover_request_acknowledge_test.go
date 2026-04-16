@@ -68,14 +68,8 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *FakeNGAPSender, *am
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	sourceUe := &amf.RanUe{
-		RanUeNgapID: 10,
-		AmfUeNgapID: 100,
-		Radio:       sourceRan,
-		Log:         logger.AmfLog,
-	}
+	sourceUe := amf.NewRanUeForTest(sourceRan, 10, 100, logger.AmfLog)
 	amfUe.AttachRanUe(sourceUe)
-	sourceRan.RanUEs[10] = sourceUe
 
 	targetNGAPSender := &FakeNGAPSender{}
 	targetRan := &amf.Radio{
@@ -85,19 +79,12 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *FakeNGAPSender, *am
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	targetUe := &amf.RanUe{
-		RanUeNgapID: 2,
-		AmfUeNgapID: 1,
-		Radio:       targetRan,
-		Log:         logger.AmfLog,
-	}
+	targetUe := amf.NewRanUeForTest(targetRan, 2, 1, logger.AmfLog)
 
 	err := amf.AttachSourceUeTargetUe(sourceUe, targetUe)
 	if err != nil {
 		t.Fatalf("failed to attach source/target: %v", err)
 	}
-
-	targetRan.RanUEs[2] = targetUe
 
 	amfInstance := amf.New(nil, nil, &FakeSmfSbi{SMF: smfInstance})
 	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
@@ -134,8 +121,8 @@ func TestHandoverRequestAcknowledge_UeNotFound(t *testing.T) {
 		t.Fatalf("expected no HandoverCommand, got %d", len(fakeNGAPSender.SentHandoverCommands))
 	}
 
-	if len(fakeNGAPSender.SentErrorIndications) != 0 {
-		t.Fatalf("expected no ErrorIndication, got %d", len(fakeNGAPSender.SentErrorIndications))
+	if len(fakeNGAPSender.SentErrorIndications) != 1 {
+		t.Fatalf("expected 1 ErrorIndication (TS 38.413 §10.6), got %d", len(fakeNGAPSender.SentErrorIndications))
 	}
 }
 
@@ -151,15 +138,9 @@ func TestHandoverRequestAcknowledge_NoSourceUe(t *testing.T) {
 	amfUe := amf.NewAmfUe()
 	amfUe.Log = logger.AmfLog
 
-	targetUe := &amf.RanUe{
-		RanUeNgapID: 2,
-		AmfUeNgapID: 1,
-		SourceUe:    nil,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
+	targetUe := amf.NewRanUeForTest(ran, 2, 1, logger.AmfLog)
+	targetUe.SourceUe = nil
 	amfUe.AttachRanUe(targetUe)
-	ran.RanUEs[2] = targetUe
 
 	amfInstance := newTestAMF()
 	amfInstance.Radios[new(sctp.SCTPConn)] = ran
@@ -226,9 +207,9 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SendsPreparationFailur
 func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceAmfUeDetached(t *testing.T) {
 	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t)
 
-	targetUe := amfInstance.FindRanUeByAmfUeNgapID(1)
+	targetUe := targetRan.FindUEByAmfUeNgapID(1)
 	if targetUe == nil {
-		t.Fatal("target UE not found")
+		t.Fatal("target UE not found on target radio")
 	}
 
 	sourceAmfUe := targetUe.SourceUe.AmfUe()

@@ -254,14 +254,8 @@ func TestHandoverRequired(t *testing.T) {
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	sourceUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 1,
-		Radio:       sourceRan,
-		Log:         logger.AmfLog,
-	}
+	sourceUe := amf.NewRanUeForTest(sourceRan, 1, 1, logger.AmfLog)
 	amfUe.AttachRanUe(sourceUe)
-	sourceRan.RanUEs[1] = sourceUe
 
 	// Set up target RAN with matching GNB ID
 	targetNGAPSender := &FakeNGAPSender{}
@@ -439,14 +433,8 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	sourceUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 1,
-		Radio:       sourceRan,
-		Log:         logger.AmfLog,
-	}
+	sourceUe := amf.NewRanUeForTest(sourceRan, 1, 1, logger.AmfLog)
 	amfUe.AttachRanUe(sourceUe)
-	sourceRan.RanUEs[1] = sourceUe
 
 	amfInstance := amf.New(nil, nil, nil)
 

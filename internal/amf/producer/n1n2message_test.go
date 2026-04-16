@@ -268,13 +268,9 @@ func TestTransferN1N2Message_InitialContextAlreadySent(t *testing.T) {
 		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
 	})
 
-	ranUe := &amf.RanUe{
-		AmfUeNgapID:                    1,
-		RanUeNgapID:                    1,
-		SentInitialContextSetupRequest: true,
-		Radio:                          &amf.Radio{NGAPSender: sender},
-		Log:                            zap.NewNop(),
-	}
+	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
+	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
+	ranUe.SentInitialContextSetupRequest = true
 	ue.AttachRanUe(ranUe)
 
 	err := producer.TransferN1N2Message(context.Background(), amfInstance, ue.Supi, newReq())
@@ -301,13 +297,9 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
 	})
 
-	ranUe := &amf.RanUe{
-		AmfUeNgapID:                    1,
-		RanUeNgapID:                    1,
-		SentInitialContextSetupRequest: false,
-		Radio:                          &amf.Radio{NGAPSender: sender},
-		Log:                            zap.NewNop(),
-	}
+	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
+	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
+	ranUe.SentInitialContextSetupRequest = false
 	ue.AttachRanUe(ranUe)
 
 	err := producer.TransferN1N2Message(context.Background(), amfInstance, ue.Supi, newReq())
@@ -389,13 +381,9 @@ func TestN2MessageTransferOrPage_ConnectedUE_InitialCtxSent(t *testing.T) {
 		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
 	})
 
-	ranUe := &amf.RanUe{
-		AmfUeNgapID:                    1,
-		RanUeNgapID:                    1,
-		SentInitialContextSetupRequest: true,
-		Radio:                          &amf.Radio{NGAPSender: sender},
-		Log:                            zap.NewNop(),
-	}
+	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
+	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
+	ranUe.SentInitialContextSetupRequest = true
 	ue.AttachRanUe(ranUe)
 
 	err := producer.N2MessageTransferOrPage(context.Background(), amfInstance, ue.Supi, newReq())
@@ -448,12 +436,8 @@ func TestTransferN1Msg_Success(t *testing.T) {
 
 	ue := addUE(t, amfInstance, "001010000000013", nil)
 
-	ranUe := &amf.RanUe{
-		AmfUeNgapID: 1,
-		RanUeNgapID: 1,
-		Radio:       &amf.Radio{NGAPSender: sender},
-		Log:         zap.NewNop(),
-	}
+	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
+	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
 	ue.AttachRanUe(ranUe)
 
 	err := producer.TransferN1Msg(context.Background(), amfInstance, ue.Supi, []byte{0x01}, 1)
