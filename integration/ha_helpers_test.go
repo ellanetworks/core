@@ -204,11 +204,16 @@ func waitForFollowerConvergence(ctx context.Context, clients []*client.Client, m
 				break
 			}
 
-			if status.Cluster == nil || status.Cluster.Role != "Follower" {
+			if status.Cluster == nil {
+				converged = false
+				break
+			}
+
+			if status.Cluster.Role == "Leader" {
 				continue
 			}
 
-			if status.Cluster.AppliedIndex < minIndex {
+			if status.Cluster.Role != "Follower" || status.Cluster.AppliedIndex < minIndex {
 				converged = false
 				break
 			}
