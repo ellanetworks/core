@@ -2,7 +2,9 @@ package integration_test
 
 import (
 	"context"
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
@@ -705,4 +707,191 @@ func TestIntegrationHAScaleUp(t *testing.T) {
 	}
 
 	t.Log("node 4 returned subscriber correctly, scale-up test passed")
+}
+
+func TestIntegrationHAQuorumRecovery(t *testing.T) {
+	if os.Getenv("INTEGRATION") == "" {
+		t.Skip("skipping integration tests, set environment variable INTEGRATION")
+	}
+
+	ctx := context.Background()
+
+	dockerClient, err := NewDockerClient()
+	if err != nil {
+		t.Fatalf("failed to create docker client: %v", err)
+	}
+
+	defer func() {
+		if err := dockerClient.Close(); err != nil {
+			t.Logf("failed to close docker client: %v", err)
+		}
+	}()
+
+	dockerClient.ComposeDown(ctx, haComposeDir)
+
+	err = dockerClient.ComposeUp(ctx, haComposeDir)
+	if err != nil {
+		t.Fatalf("failed to bring up HA compose: %v", err)
+	}
+
+	t.Cleanup(func() {
+		dockerClient.ComposeDown(ctx, haComposeDir)
+	})
+
+	clients, err := newHANodeClients()
+	if err != nil {
+		t.Fatalf("failed to create HA node clients: %v", err)
+	}
+
+	t.Cleanup(func() {
+		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
+	})
+
+	t.Log("waiting for cluster to become ready")
+
+	err = waitForClusterReady(ctx, clients)
+	if err != nil {
+		t.Fatalf("cluster not ready: %v", err)
+	}
+
+	_, leader, err := findLeader(ctx, clients)
+	if err != nil {
+		t.Fatalf("failed to find leader: %v", err)
+	}
+
+	err = initializeCluster(ctx, leader, clients)
+	if err != nil {
+		t.Fatalf("failed to initialize cluster: %v", err)
+	}
+
+	err = waitForAllNodesReady(ctx, clients)
+	if err != nil {
+		t.Fatalf("not all nodes became ready: %v", err)
+	}
+
+	t.Log("cluster ready, writing subscriber before total shutdown")
+
+	err = leader.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
+		Imsi:           "001019756139940",
+		Key:            "0eefb0893e6f1c2855a3a244c6db1277",
+		OPc:            "98da19bbc55e2a5b53857d10557b1d26",
+		SequenceNumber: "000000000022",
+		ProfileName:    "default",
+	})
+	if err != nil {
+		t.Fatalf("failed to create subscriber: %v", err)
+	}
+
+	idx, err := leaderAppliedIndex(ctx, leader)
+	if err != nil {
+		t.Fatalf("failed to get leader applied index: %v", err)
+	}
+
+	err = waitForFollowerConvergence(ctx, clients, idx)
+	if err != nil {
+		t.Fatalf("followers did not converge: %v", err)
+	}
+
+	container1, err := dockerClient.ResolveComposeContainer(ctx, "ha", "ella-core-1")
+	if err != nil {
+		t.Fatalf("failed to resolve container for ella-core-1: %v", err)
+	}
+
+	container2, err := dockerClient.ResolveComposeContainer(ctx, "ha", "ella-core-2")
+	if err != nil {
+		t.Fatalf("failed to resolve container for ella-core-2: %v", err)
+	}
+
+	// The raft directory is derived from db.path in the node config.
+	// db.path is "ella.db" (relative), so dataDir = "." and raftDir = "./raft/".
+	// The container's working directory is "/" (Rockcraft bare base), so the
+	// absolute path is /raft/.
+	const containerRaftDir = "/raft"
+
+	t.Log("stopping all 3 nodes (total quorum loss)")
+
+	for _, svc := range haNodeServices {
+		if err := dockerClient.ComposeStop(ctx, haComposeDir, svc); err != nil {
+			t.Fatalf("failed to stop %s: %v", svc, err)
+		}
+	}
+
+	// Build peers.json listing only nodes 1 and 2.
+	// Format expected by hashicorp/raft ReadConfigJSON:
+	//   [{"id": "<serverID>", "address": "<raft bind addr>"}]
+	type recoveryPeer struct {
+		ID      string `json:"id"`
+		Address string `json:"address"`
+	}
+
+	peers := []recoveryPeer{
+		{ID: "1", Address: "10.100.0.11:7000"},
+		{ID: "2", Address: "10.100.0.12:7000"},
+	}
+
+	peersJSON, err := json.MarshalIndent(peers, "", "  ")
+	if err != nil {
+		t.Fatalf("failed to marshal peers.json: %v", err)
+	}
+
+	tmpDir := t.TempDir()
+	peersPath := filepath.Join(tmpDir, "peers.json")
+
+	err = os.WriteFile(peersPath, peersJSON, 0o644)
+	if err != nil {
+		t.Fatalf("failed to write peers.json: %v", err)
+	}
+
+	destPath := filepath.Join(containerRaftDir, "peers.json")
+	t.Logf("copying peers.json to %s in containers for nodes 1 and 2", destPath)
+
+	err = dockerClient.CopyFileToContainer(ctx, container1, peersPath, destPath)
+	if err != nil {
+		t.Fatalf("failed to copy peers.json to node 1: %v", err)
+	}
+
+	err = dockerClient.CopyFileToContainer(ctx, container2, peersPath, destPath)
+	if err != nil {
+		t.Fatalf("failed to copy peers.json to node 2: %v", err)
+	}
+
+	t.Log("starting nodes 1 and 2 (node 3 stays down)")
+
+	err = dockerClient.ComposeStart(ctx, haComposeDir, "ella-core-1")
+	if err != nil {
+		t.Fatalf("failed to start ella-core-1: %v", err)
+	}
+
+	err = dockerClient.ComposeStart(ctx, haComposeDir, "ella-core-2")
+	if err != nil {
+		t.Fatalf("failed to start ella-core-2: %v", err)
+	}
+
+	// Wait for the 2-node cluster to elect a leader.
+	recoveredClients := []*client.Client{clients[0], clients[1]}
+
+	err = waitForClusterReady(ctx, recoveredClients)
+	if err != nil {
+		t.Fatalf("recovered cluster not ready: %v", err)
+	}
+
+	_, recoveredLeader, err := findLeader(ctx, recoveredClients)
+	if err != nil {
+		t.Fatalf("no leader in recovered cluster: %v", err)
+	}
+
+	t.Log("recovered cluster has a leader, verifying data survived")
+
+	sub, err := recoveredLeader.GetSubscriber(ctx, &client.GetSubscriberOptions{
+		ID: "001019756139940",
+	})
+	if err != nil {
+		t.Fatalf("failed to read subscriber from recovered leader: %v", err)
+	}
+
+	if sub.Imsi != "001019756139940" {
+		t.Fatalf("recovered leader returned IMSI %q, expected %q", sub.Imsi, "001019756139940")
+	}
+
+	t.Log("data survived quorum-loss recovery, test passed")
 }
