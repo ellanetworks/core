@@ -26,17 +26,13 @@ func TestHandleNGReset_ResetNGInterface(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: fakeNGAPSender,
-		RanUEs: map[int64]*amf.RanUe{
-			0: {RanUeNgapID: 0, AmfUeNgapID: 0, Radio: &amf.Radio{}},
-			1: {RanUeNgapID: 1, AmfUeNgapID: 1, Radio: &amf.Radio{}},
-		},
+		Log:           logger.AmfLog,
+		NGAPSender:    fakeNGAPSender,
+		RanUEs:        make(map[int64]*amf.RanUe),
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
-
-	ran.RanUEs[0].Radio = ran
-	ran.RanUEs[1].Radio = ran
+	amf.NewRanUeForTest(ran, 0, 0, logger.AmfLog)
+	amf.NewRanUeForTest(ran, 1, 1, logger.AmfLog)
 
 	msg := decode.NGReset{
 		Cause: miscCause(),
@@ -65,17 +61,13 @@ func TestHandleNGReset_PartOfNGInterface(t *testing.T) {
 	fakeNGAPSender := &FakeNGAPSender{}
 
 	ran := &amf.Radio{
-		Log:        logger.AmfLog,
-		NGAPSender: fakeNGAPSender,
-		RanUEs: map[int64]*amf.RanUe{
-			0: {RanUeNgapID: 0, AmfUeNgapID: 0, Radio: &amf.Radio{}},
-			1: {RanUeNgapID: 1, AmfUeNgapID: 1, Radio: &amf.Radio{}},
-		},
+		Log:           logger.AmfLog,
+		NGAPSender:    fakeNGAPSender,
+		RanUEs:        make(map[int64]*amf.RanUe),
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
-
-	ran.RanUEs[0].Radio = ran
-	ran.RanUEs[1].Radio = ran
+	amf.NewRanUeForTest(ran, 0, 0, logger.AmfLog)
+	amf.NewRanUeForTest(ran, 1, 1, logger.AmfLog)
 
 	partOfNG := &ngapType.UEAssociatedLogicalNGConnectionList{
 		List: []ngapType.UEAssociatedLogicalNGConnectionItem{

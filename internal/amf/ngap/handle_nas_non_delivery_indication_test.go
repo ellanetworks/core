@@ -29,14 +29,8 @@ func TestNasNonDeliveryIndication_UEFoundDispatchesNAS(t *testing.T) {
 	amfUe := amf.NewAmfUe()
 	amfUe.Log = logger.AmfLog
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	ran.RanUEs[1] = ranUe
 
 	amfInstance := newTestAMF()
 
@@ -61,14 +55,8 @@ func TestNasNonDeliveryIndication_VerifyNASCalledWithPDU(t *testing.T) {
 	amfUe := amf.NewAmfUe()
 	amfUe.Log = logger.AmfLog
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	ran.RanUEs[1] = ranUe
 
 	nasPDU := []byte{0xDE, 0xAD}
 
@@ -103,14 +91,8 @@ func TestNasNonDeliveryIndication_NilPDU_PropagatesCorrectly(t *testing.T) {
 	amfUe := amf.NewAmfUe()
 	amfUe.Log = logger.AmfLog
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	ran.RanUEs[1] = ranUe
 
 	ngap.HandleNasNonDeliveryIndication(context.Background(), amfInstance, ran, decode.NASNonDeliveryIndication{
 		RANUENGAPID: 1,

@@ -490,7 +490,7 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *amf.AMF, a
 				return
 			}
 
-			if retryRanUe.Radio == nil {
+			if retryRanUe.Radio() == nil {
 				amfUe.Log.Warn("Radio is nil, abort retransmission of Configuration Update Command")
 				return
 			}

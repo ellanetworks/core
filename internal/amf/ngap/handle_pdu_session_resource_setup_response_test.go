@@ -43,8 +43,8 @@ func TestHandlePDUSessionResourceSetupResponse_UnknownAMFUENGAPID(t *testing.T) 
 	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
 
 	sender := ran.NGAPSender.(*FakeNGAPSender)
-	if len(sender.SentErrorIndications) != 0 {
-		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	if len(sender.SentErrorIndications) != 1 {
+		t.Fatalf("expected 1 ErrorIndication (TS 38.413 §10.6), got %d", len(sender.SentErrorIndications))
 	}
 }
 
@@ -60,8 +60,8 @@ func TestHandlePDUSessionResourceSetupResponse_OnlyUnknownRANUENGAPID(t *testing
 	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, ran, msg)
 
 	sender := ran.NGAPSender.(*FakeNGAPSender)
-	if len(sender.SentErrorIndications) != 0 {
-		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	if len(sender.SentErrorIndications) != 1 {
+		t.Fatalf("expected 1 ErrorIndication (TS 38.413 §10.6), got %d", len(sender.SentErrorIndications))
 	}
 }
 
@@ -78,14 +78,8 @@ func TestHandlePDUSessionResourceSetupResponse_HappyPath(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	ran.RanUEs[1] = ranUe
 
 	transfer := []byte{0xAA, 0xBB}
 	amfUeNgapID := int64(10)
@@ -126,14 +120,8 @@ func TestHandlePDUSessionResourceSetupResponse_FailedItemForwardedToSmf(t *testi
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	ran.RanUEs[1] = ranUe
 
 	transfer := []byte{0xCC, 0xDD}
 	amfUeNgapID := int64(10)

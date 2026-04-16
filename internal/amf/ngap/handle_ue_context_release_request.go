@@ -11,31 +11,11 @@ import (
 )
 
 func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.UEContextReleaseRequest) {
-	ranUe := amfInstance.FindRanUeByAmfUeNgapID(msg.AMFUENGAPID)
-	if ranUe == nil {
-		ranUe = ran.FindUEByRanUeNgapID(msg.RANUENGAPID)
-	}
-
-	if ranUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No RanUe Context", zap.Int64("AmfUeNgapID", msg.AMFUENGAPID), zap.Int64("RanUeNgapID", msg.RANUENGAPID))
-
-		cause := &ngapType.Cause{
-			Present: ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{
-				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
-			},
-		}
-
-		err := ran.NGAPSender.SendErrorIndication(ctx, cause, nil)
-		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
-			return
-		}
-
+	ranUe, ok := resolveUE(ctx, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+	if !ok {
 		return
 	}
 
-	ranUe.Radio = ran
 	ranUe.TouchLastSeen()
 	logger.WithTrace(ctx, ranUe.Log).Debug("Handle UE Context Release Request", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", ranUe.RanUeNgapID))
 

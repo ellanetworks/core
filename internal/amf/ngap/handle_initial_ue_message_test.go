@@ -62,13 +62,7 @@ func TestHandleInitialUEMessage_ReusedRanUeNgapID_EvictsStale(t *testing.T) {
 	ran := newTestRadio()
 	ran.RanID = &models.GlobalRanNodeID{GNbID: &models.GNbID{GNBValue: "001"}}
 
-	oldRanUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 99,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
-	ran.RanUEs[1] = oldRanUe
+	amf.NewRanUeForTest(ran, 1, 99, logger.AmfLog)
 
 	ngap.HandleInitialUEMessage(context.Background(), amfInstance, ran, decode.InitialUEMessage{
 		RANUENGAPID: 1,

@@ -6,7 +6,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
 
@@ -21,23 +20,8 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 		return
 	}
 
-	ranUe := amfInstance.FindRanUeByAmfUeNgapID(*msg.AMFUENGAPID)
-	if ranUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No RanUe Context", zap.Int64("AmfUeNgapID", *msg.AMFUENGAPID), zap.Int64("RanUeNgapID", *msg.RANUENGAPID))
-
-		cause := ngapType.Cause{
-			Present: ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{
-				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
-			},
-		}
-
-		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
-		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
-			return
-		}
-
+	ranUe, ok := resolveUE(ctx, ran, msg.RANUENGAPID, msg.AMFUENGAPID)
+	if !ok {
 		return
 	}
 
@@ -45,7 +29,6 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 		ranUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation)
 	}
 
-	ranUe.Radio = ran
 	ranUe.TouchLastSeen()
 
 	amfUe := ranUe.AmfUe()
@@ -148,15 +131,9 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 		if ranUe.TargetUe != nil {
 			// Success path: ranUe is the SOURCE being released after a
 			// completed handover (HandoverNotify). Transfer the AMF UE
-			// association to the target.
-			targetRanUe := amfInstance.FindRanUeByAmfUeNgapID(ranUe.TargetUe.AmfUeNgapID)
-			if targetRanUe == nil {
-				logger.WithTrace(ctx, ranUe.Log).Error("target RAN UE not found during handover release",
-					zap.Int64("targetAmfUeNgapID", ranUe.TargetUe.AmfUeNgapID))
-			} else {
-				targetRanUe.Radio = ran
-				amfUe.AttachRanUe(targetRanUe)
-			}
+			// association to the target. The target UE is already on
+			// the correct radio (set during HandoverRequired/SwitchToRan).
+			amfUe.AttachRanUe(ranUe.TargetUe)
 		} else {
 			// Failure/cancel path: ranUe is the TARGET being released
 			// after a failed or cancelled handover. The source UE

@@ -51,13 +51,7 @@ func TestHandleInitialContextSetupFailure_NilAmfUe(t *testing.T) {
 	ran := newTestRadio()
 	amfInstance := newTestAMF()
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
-	ran.RanUEs[1] = ranUe
+	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 
 	msg := decode.InitialContextSetupFailure{
 		AMFUENGAPID: 10,
@@ -81,14 +75,8 @@ func TestHandleInitialContextSetupFailure_T3550Running(t *testing.T) {
 	amfUe.ForceState(amf.ContextSetup)
 	amfUe.T3550 = amf.NewTimer(time.Hour, 4, func(int32) {}, func() {})
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	ran.RanUEs[1] = ranUe
 
 	msg := decode.InitialContextSetupFailure{
 		AMFUENGAPID: 10,
@@ -122,14 +110,8 @@ func TestHandleInitialContextSetupFailure_PDUSessionFailureForwardedToSmf(t *tes
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	ran.RanUEs[1] = ranUe
 
 	transfer := []byte{0xEE, 0xFF}
 

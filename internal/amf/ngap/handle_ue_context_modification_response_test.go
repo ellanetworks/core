@@ -13,7 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 )
 
-func TestHandleUEContextModificationResponse_MissingAMFUENGAPID(t *testing.T) {
+func TestHandleUEContextModificationResponse_UnknownRanUeNgapID(t *testing.T) {
 	ran := newTestRadio()
 	sender := ran.NGAPSender.(*FakeNGAPSender)
 	amfInstance := newTestAMF()
@@ -25,8 +25,8 @@ func TestHandleUEContextModificationResponse_MissingAMFUENGAPID(t *testing.T) {
 
 	ngap.HandleUEContextModificationResponse(context.Background(), amfInstance, ran, msg)
 
-	if len(sender.SentErrorIndications) != 0 {
-		t.Fatalf("expected no ErrorIndication, got %d", len(sender.SentErrorIndications))
+	if len(sender.SentErrorIndications) != 1 {
+		t.Fatalf("expected 1 ErrorIndication (TS 38.413 §10.6), got %d", len(sender.SentErrorIndications))
 	}
 }
 
@@ -35,13 +35,7 @@ func TestHandleUEContextModificationResponse_UEFound(t *testing.T) {
 	amfInstance := newTestAMF()
 	amfInstance.Radios[new(sctp.SCTPConn)] = ran
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
-	ran.RanUEs[1] = ranUe
+	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 
 	amfUeNgapID := int64(10)
 	msg := decode.UEContextModificationResponse{
@@ -50,7 +44,8 @@ func TestHandleUEContextModificationResponse_UEFound(t *testing.T) {
 
 	ngap.HandleUEContextModificationResponse(context.Background(), amfInstance, ran, msg)
 
-	if ranUe.Radio != ran {
-		t.Error("expected ranUe.Radio to be set to ran")
+	// ranUe was already created on 'ran', so Radio() should still be 'ran'.
+	if ranUe.Radio() != ran {
+		t.Error("expected ranUe.Radio to still be ran")
 	}
 }
