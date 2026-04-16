@@ -91,6 +91,47 @@ func findLeader(ctx context.Context, clients []*client.Client) (int, *client.Cli
 	return -1, nil, fmt.Errorf("no leader found")
 }
 
+// waitForNewLeader polls the given clients until exactly one reports itself as
+// leader. It is used after stopping the old leader to wait for re-election.
+func waitForNewLeader(ctx context.Context, clients []*client.Client) (*client.Client, error) {
+	timeout := 90 * time.Second
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		for _, c := range clients {
+			status, err := c.GetStatus(ctx)
+			if err != nil {
+				continue
+			}
+
+			if status.Cluster != nil && status.Cluster.Role == "Leader" {
+				return c, nil
+			}
+		}
+
+		time.Sleep(2 * time.Second)
+	}
+
+	return nil, fmt.Errorf("no new leader elected within %v", timeout)
+}
+
+// waitForNodeReady polls a single node until it is reachable and reports Ready.
+func waitForNodeReady(ctx context.Context, c *client.Client) error {
+	timeout := 2 * time.Minute
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		status, err := c.GetStatus(ctx)
+		if err == nil && status.Ready {
+			return nil
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return fmt.Errorf("node not ready after %v", timeout)
+}
+
 // initializeCluster creates the admin user and API token on the leader,
 // then sets the token on all clients.
 func initializeCluster(ctx context.Context, leader *client.Client, allClients []*client.Client) error {
