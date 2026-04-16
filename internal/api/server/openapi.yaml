@@ -105,7 +105,17 @@ paths:
       security: []
       responses:
         "200":
-          description: System status.
+          description: |
+            System status. When clustering is enabled, the response includes an
+            `X-Ella-Role` header (`Leader`, `Follower`, or `Candidate`) that
+            load balancers can use to direct write traffic to the leader node.
+          headers:
+            X-Ella-Role:
+              description: Raft role of the responding node. Only present when clustering is enabled.
+              required: false
+              schema:
+                type: string
+                enum: [Leader, Follower, Candidate]
           content:
             application/json:
               schema:
@@ -2706,6 +2716,62 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/v1/cluster/members/{id}/promote:
+    post:
+      operationId: promoteClusterMember
+      tags: [Cluster]
+      summary: Promote a nonvoter to voter
+      description: >-
+        Promotes a nonvoter cluster member to a full voter in the Raft cluster.
+        Requires admin privileges.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Node ID of the cluster member to promote.
+      responses:
+        "200":
+          $ref: "#/components/responses/Success"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/cluster/drain:
+    post:
+      operationId: drainNode
+      tags: [Cluster]
+      summary: Drain this node
+      description: >-
+        Gracefully prepares this node for removal. Signals RANs to redirect new
+        UE registrations elsewhere, withdraws BGP advertisements so upstream
+        routers reroute user-plane traffic, and transfers Raft leadership if this
+        node is the leader. The node continues serving existing flows until it is
+        shut down. Requires admin privileges.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DrainParams"
+      responses:
+        "200":
+          description: Drain result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DrainResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
 components:
   securitySchemes:
     BearerAuth:
@@ -4793,6 +4859,9 @@ components:
           type: integer
           format: uint64
           description: Last applied Raft log index.
+        leaderAddress:
+          type: string
+          description: API address of the current Raft leader. Empty when the leader is unknown.
       required: [enabled, role, nodeId, appliedIndex]
 
     ClusterMember:
@@ -4831,3 +4900,33 @@ components:
         apiAddress:
           type: string
           description: "API address of the new member (host:port)."
+
+    DrainParams:
+      type: object
+      properties:
+        timeoutSeconds:
+          type: integer
+          minimum: 1
+          description: Maximum time in seconds for each drain step. Defaults to 5.
+
+    DrainResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        transferredLeadership:
+          type: boolean
+          description: Whether Raft leadership was transferred to another node.
+        ransNotified:
+          type: integer
+          description: Number of RANs notified to redirect UE registrations.
+        bgpStopped:
+          type: boolean
+          description: Whether BGP advertisements were withdrawn.
+      required: [message, transferredLeadership, ransNotified, bgpStopped]
+
+    DrainResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/DrainResponse"
