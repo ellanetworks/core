@@ -22,7 +22,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `path` (string): The path to the directory holding the database file (`ella.db`).
 - `interfaces` (object): The network interfaces configuration.
     - `n2` (object): The configuration for the n2 interface. This interface should be connected to the radios.
-        - `name` (string): The name of the network interface to listen on (optional: either name or address must be provided). When set, the server listens on all addresses (`0.0.0.0`) but uses `SO_BINDTODEVICE` to restrict incoming traffic to this interface. Use this when you want to bind to a device without pinning to a specific IP address.
+        - `name` (string): The name of the network interface to listen on (optional: either name or address must be provided). When set, the server binds to all IP addresses configured on this interface. Link-local addresses (IPv6 link-local and IPv4 link-local) are automatically excluded.
         - `address` (string): The IP address to listen on. Supports both IPv4 and IPv6 addresses (optional: either name or address must be provided). When set, the server binds to this specific address.
         - `port` (int): The port to listen on.
     - `n3` (object): The configuration for the n3 interface. This interface should be connected to the radios.

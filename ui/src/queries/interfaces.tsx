@@ -9,7 +9,7 @@ export type InterfacesInfo = {
   n2?: { addresses?: string[]; port?: number; interface?: string };
   n3?: {
     name?: string;
-    address?: string;
+    addresses?: string[];
     external_address?: string;
     vlan?: VlanInfo;
   };

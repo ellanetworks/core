@@ -372,6 +372,12 @@ func HandleSCTPNotification(amfInstance *amf.AMF, conn *sctp.SCTPConn, notificat
 		ran.Log.Info("SCTPAssocChange notification")
 
 		event := notification.(*sctp.SCTPAssocChangeEvent)
+		if event.Info() != nil {
+			ran.Log.Info("SCTP assoc change info",
+				zap.Binary("info", event.Info()),
+				zap.Uint16("error", event.Error()))
+		}
+
 		switch event.State() {
 		case sctp.SCTPCommLost:
 			amfInstance.RemoveRadio(ran)
