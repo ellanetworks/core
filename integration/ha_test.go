@@ -48,7 +48,7 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 
 	t.Log("waiting for cluster to become ready")
 
-	err = waitForClusterReady(ctx, clients, 3)
+	err = waitForClusterReady(ctx, clients)
 	if err != nil {
 		t.Fatalf("cluster not ready: %v", err)
 	}
@@ -198,7 +198,7 @@ func TestIntegrationHAFollowerProxy(t *testing.T) {
 
 	t.Log("waiting for cluster to become ready")
 
-	err = waitForClusterReady(ctx, clients, 3)
+	err = waitForClusterReady(ctx, clients)
 	if err != nil {
 		t.Fatalf("cluster not ready: %v", err)
 	}
@@ -331,7 +331,7 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 
 	t.Log("waiting for cluster to become ready")
 
-	err = waitForClusterReady(ctx, clients, 3)
+	err = waitForClusterReady(ctx, clients)
 	if err != nil {
 		t.Fatalf("cluster not ready: %v", err)
 	}
@@ -450,4 +450,125 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 	}
 
 	t.Log("restarted node returned subscriber correctly, leader failure test passed")
+}
+
+func TestIntegrationHADrainLeadership(t *testing.T) {
+	if os.Getenv("INTEGRATION") == "" {
+		t.Skip("skipping integration tests, set environment variable INTEGRATION")
+	}
+
+	ctx := context.Background()
+
+	dockerClient, err := NewDockerClient()
+	if err != nil {
+		t.Fatalf("failed to create docker client: %v", err)
+	}
+
+	defer func() {
+		if err := dockerClient.Close(); err != nil {
+			t.Logf("failed to close docker client: %v", err)
+		}
+	}()
+
+	dockerClient.ComposeDown(ctx, haComposeDir)
+
+	err = dockerClient.ComposeUp(ctx, haComposeDir)
+	if err != nil {
+		t.Fatalf("failed to bring up HA compose: %v", err)
+	}
+
+	t.Cleanup(func() {
+		dockerClient.ComposeDown(ctx, haComposeDir)
+	})
+
+	clients, err := newHANodeClients()
+	if err != nil {
+		t.Fatalf("failed to create HA node clients: %v", err)
+	}
+
+	t.Cleanup(func() {
+		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
+	})
+
+	t.Log("waiting for cluster to become ready")
+
+	err = waitForClusterReady(ctx, clients)
+	if err != nil {
+		t.Fatalf("cluster not ready: %v", err)
+	}
+
+	_, leader, err := findLeader(ctx, clients)
+	if err != nil {
+		t.Fatalf("failed to find leader: %v", err)
+	}
+
+	err = initializeCluster(ctx, leader, clients)
+	if err != nil {
+		t.Fatalf("failed to initialize cluster: %v", err)
+	}
+
+	err = waitForAllNodesReady(ctx, clients)
+	if err != nil {
+		t.Fatalf("not all nodes became ready: %v", err)
+	}
+
+	t.Log("draining the current leader")
+
+	drainResp, err := leader.DrainNode(ctx, &client.DrainOptions{TimeoutSeconds: 30})
+	if err != nil {
+		t.Fatalf("DrainNode failed: %v", err)
+	}
+
+	if !drainResp.TransferredLeadership {
+		t.Fatalf("expected transferredLeadership=true, got false")
+	}
+
+	t.Log("leadership transferred, waiting for new leader")
+
+	// The other two nodes should elect a new leader.
+	newLeader, err := waitForNewLeader(ctx, clients)
+	if err != nil {
+		t.Fatalf("no new leader after drain: %v", err)
+	}
+
+	// The drained node must no longer be the leader.
+	if newLeader == leader {
+		t.Fatal("new leader is the same client as the drained node")
+	}
+
+	t.Log("new leader confirmed, writing subscriber via new leader")
+
+	err = newLeader.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
+		Imsi:           "001019756139938",
+		Key:            "0eefb0893e6f1c2855a3a244c6db1277",
+		OPc:            "98da19bbc55e2a5b53857d10557b1d26",
+		SequenceNumber: "000000000022",
+		ProfileName:    "default",
+	})
+	if err != nil {
+		t.Fatalf("failed to create subscriber on new leader: %v", err)
+	}
+
+	idx, err := leaderAppliedIndex(ctx, newLeader)
+	if err != nil {
+		t.Fatalf("failed to get leader applied index: %v", err)
+	}
+
+	err = waitForFollowerConvergence(ctx, clients, idx)
+	if err != nil {
+		t.Fatalf("followers did not converge: %v", err)
+	}
+
+	sub, err := newLeader.GetSubscriber(ctx, &client.GetSubscriberOptions{
+		ID: "001019756139938",
+	})
+	if err != nil {
+		t.Fatalf("failed to read subscriber from new leader: %v", err)
+	}
+
+	if sub.Imsi != "001019756139938" {
+		t.Fatalf("new leader returned IMSI %q, expected %q", sub.Imsi, "001019756139938")
+	}
+
+	t.Log("writes continue on new leader, drain leadership test passed")
 }

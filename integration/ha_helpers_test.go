@@ -39,10 +39,11 @@ func newHANodeClients() ([]*client.Client, error) {
 }
 
 // waitForClusterReady polls GetStatus (unauthenticated) on every client
-// until all expectedMembers nodes are reachable and exactly one is the leader.
-func waitForClusterReady(ctx context.Context, clients []*client.Client, expectedMembers int) error {
+// until all nodes are reachable and exactly one is the leader.
+func waitForClusterReady(ctx context.Context, clients []*client.Client) error {
 	timeout := 3 * time.Minute
 	deadline := time.Now().Add(timeout)
+	expected := len(clients)
 
 	for time.Now().Before(deadline) {
 		reachable := 0
@@ -65,14 +66,14 @@ func waitForClusterReady(ctx context.Context, clients []*client.Client, expected
 			}
 		}
 
-		if reachable == expectedMembers && leaders == 1 {
+		if reachable == expected && leaders == 1 {
 			return nil
 		}
 
 		time.Sleep(2 * time.Second)
 	}
 
-	return fmt.Errorf("cluster not ready after %v: expected %d members with a leader", timeout, expectedMembers)
+	return fmt.Errorf("cluster not ready after %v: expected %d members with a leader", timeout, expected)
 }
 
 // findLeader returns the index and client of the current leader node.
