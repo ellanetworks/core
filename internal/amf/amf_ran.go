@@ -15,7 +15,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/sctp"
-	"github.com/ellanetworks/core/internal/amf/util"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/aper"
@@ -119,12 +118,6 @@ func (r *Radio) FindUEByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 	}
 
 	return nil
-}
-
-func (r *Radio) SetRanID(ranNodeID *ngapType.GlobalRANNodeID) {
-	ranID := util.RanIDToModels(*ranNodeID)
-	r.RanPresent = ranNodeID.Present
-	r.RanID = &ranID
 }
 
 func (r *Radio) TouchLastSeen() {
