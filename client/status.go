@@ -3,10 +3,11 @@ package client
 import "context"
 
 type ClusterStatus struct {
-	Enabled      bool   `json:"enabled"`
-	Role         string `json:"role"`
-	NodeID       int    `json:"nodeId"`
-	AppliedIndex uint64 `json:"appliedIndex"`
+	Enabled       bool   `json:"enabled"`
+	Role          string `json:"role"`
+	NodeID        int    `json:"nodeId"`
+	AppliedIndex  uint64 `json:"appliedIndex"`
+	LeaderAddress string `json:"leaderAddress,omitempty"`
 }
 
 type Status struct {
