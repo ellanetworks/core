@@ -572,3 +572,137 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 
 	t.Log("writes continue on new leader, drain leadership test passed")
 }
+
+func TestIntegrationHAScaleUp(t *testing.T) {
+	if os.Getenv("INTEGRATION") == "" {
+		t.Skip("skipping integration tests, set environment variable INTEGRATION")
+	}
+
+	const scaleUpComposeDir = "compose/ha-scaleup/"
+
+	ctx := context.Background()
+
+	dockerClient, err := NewDockerClient()
+	if err != nil {
+		t.Fatalf("failed to create docker client: %v", err)
+	}
+
+	defer func() {
+		if err := dockerClient.Close(); err != nil {
+			t.Logf("failed to close docker client: %v", err)
+		}
+	}()
+
+	dockerClient.ComposeDown(ctx, scaleUpComposeDir)
+
+	// Start only the initial 3 nodes.
+	err = dockerClient.ComposeUpServices(ctx, scaleUpComposeDir,
+		"ella-core-1", "ella-core-2", "ella-core-3")
+	if err != nil {
+		t.Fatalf("failed to bring up initial 3 nodes: %v", err)
+	}
+
+	t.Cleanup(func() {
+		dockerClient.ComposeDown(ctx, scaleUpComposeDir)
+	})
+
+	clients, err := newHANodeClients()
+	if err != nil {
+		t.Fatalf("failed to create HA node clients: %v", err)
+	}
+
+	t.Log("waiting for 3-node cluster to become ready")
+
+	err = waitForClusterReady(ctx, clients)
+	if err != nil {
+		t.Fatalf("cluster not ready: %v", err)
+	}
+
+	_, leader, err := findLeader(ctx, clients)
+	if err != nil {
+		t.Fatalf("failed to find leader: %v", err)
+	}
+
+	err = initializeCluster(ctx, leader, clients)
+	if err != nil {
+		t.Fatalf("failed to initialize cluster: %v", err)
+	}
+
+	err = waitForAllNodesReady(ctx, clients)
+	if err != nil {
+		t.Fatalf("not all nodes became ready: %v", err)
+	}
+
+	t.Log("3-node cluster ready, starting 4th node as nonvoter")
+
+	err = dockerClient.ComposeUpServices(ctx, scaleUpComposeDir, "ella-core-4")
+	if err != nil {
+		t.Fatalf("failed to start 4th node: %v", err)
+	}
+
+	node4URL := "http://10.100.0.14:5002"
+
+	node4Client, err := newInsecureClient(node4URL)
+	if err != nil {
+		t.Fatalf("failed to create client for node 4: %v", err)
+	}
+
+	node4Client.SetToken(clients[0].GetToken())
+
+	t.Log("waiting for node 4 to appear as nonvoter")
+
+	err = waitForMemberSuffrage(ctx, leader, 4, "nonvoter")
+	if err != nil {
+		t.Fatalf("node 4 did not join as nonvoter: %v", err)
+	}
+
+	t.Log("node 4 joined as nonvoter, promoting to voter")
+
+	err = leader.PromoteClusterMember(ctx, 4)
+	if err != nil {
+		t.Fatalf("failed to promote node 4: %v", err)
+	}
+
+	err = waitForMemberSuffrage(ctx, leader, 4, "voter")
+	if err != nil {
+		t.Fatalf("node 4 did not become voter: %v", err)
+	}
+
+	t.Log("node 4 promoted to voter, writing subscriber on leader")
+
+	err = leader.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
+		Imsi:           "001019756139939",
+		Key:            "0eefb0893e6f1c2855a3a244c6db1277",
+		OPc:            "98da19bbc55e2a5b53857d10557b1d26",
+		SequenceNumber: "000000000022",
+		ProfileName:    "default",
+	})
+	if err != nil {
+		t.Fatalf("failed to create subscriber on leader: %v", err)
+	}
+
+	t.Log("subscriber created, waiting for node 4 to converge")
+
+	idx, err := leaderAppliedIndex(ctx, leader)
+	if err != nil {
+		t.Fatalf("failed to get leader applied index: %v", err)
+	}
+
+	err = waitForFollowerConvergence(ctx, []*client.Client{node4Client}, idx)
+	if err != nil {
+		t.Fatalf("node 4 did not converge: %v", err)
+	}
+
+	sub, err := node4Client.GetSubscriber(ctx, &client.GetSubscriberOptions{
+		ID: "001019756139939",
+	})
+	if err != nil {
+		t.Fatalf("failed to read subscriber from node 4: %v", err)
+	}
+
+	if sub.Imsi != "001019756139939" {
+		t.Fatalf("node 4 returned IMSI %q, expected %q", sub.Imsi, "001019756139939")
+	}
+
+	t.Log("node 4 returned subscriber correctly, scale-up test passed")
+}

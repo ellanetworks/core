@@ -238,6 +238,28 @@ func leaderAppliedIndex(ctx context.Context, leader *client.Client) (uint64, err
 	return status.Cluster.AppliedIndex, nil
 }
 
+// waitForMemberSuffrage polls ListClusterMembers until the given nodeID
+// appears with the expected suffrage value (e.g. "nonvoter" or "voter").
+func waitForMemberSuffrage(ctx context.Context, c *client.Client, nodeID int, wantSuffrage string) error {
+	timeout := 2 * time.Minute
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		members, err := c.ListClusterMembers(ctx)
+		if err == nil {
+			for _, m := range members {
+				if m.NodeID == nodeID && m.Suffrage == wantSuffrage {
+					return nil
+				}
+			}
+		}
+
+		time.Sleep(2 * time.Second)
+	}
+
+	return fmt.Errorf("node %d did not reach suffrage %q within %v", nodeID, wantSuffrage, timeout)
+}
+
 // dumpClusterDiagnostics logs node status and cluster members from each
 // reachable node. Call from t.Cleanup to aid failure triage.
 func dumpClusterDiagnostics(ctx context.Context, dc *DockerClient, clients []*client.Client, logf func(string, ...any)) {

@@ -230,3 +230,20 @@ func (dc *DockerClient) ComposeStart(ctx context.Context, composeDir string, ser
 
 	return nil
 }
+
+// ComposeUpServices creates and starts only the named services from a compose
+// file. Use this when a compose file defines more services than should run
+// initially (e.g. scale-up tests that add nodes later).
+func (dc *DockerClient) ComposeUpServices(ctx context.Context, composeDir string, services ...string) error {
+	args := append([]string{"compose", "up", "-d"}, services...)
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd.Dir = composeDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to run docker compose up %v: %w", services, err)
+	}
+
+	return nil
+}
