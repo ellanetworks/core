@@ -337,7 +337,7 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID *ngapType.GlobalRANNodeID) *R
 		evicted.RemoveAllUeInRan()
 
 		if evicted.Conn != nil {
-			evicted.Conn.Close()
+			_ = evicted.Conn.Close()
 		}
 	}
 
