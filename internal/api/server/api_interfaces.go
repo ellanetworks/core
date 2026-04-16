@@ -18,10 +18,10 @@ type N2Interface struct {
 }
 
 type N3Interface struct {
-	Name            string `json:"name"`
-	Address         string `json:"address"`
-	ExternalAddress string `json:"external_address"`
-	Vlan            *Vlan  `json:"vlan,omitempty"`
+	Name            string   `json:"name"`
+	Addresses       []string `json:"addresses"`
+	ExternalAddress string   `json:"external_address"`
+	Vlan            *Vlan    `json:"vlan,omitempty"`
 }
 
 type Vlan struct {
@@ -90,6 +90,20 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 			n2Addresses = []string{cfg.Interfaces.N2.Address}
 		}
 
+		var n3Addresses []string
+
+		if cfg.Interfaces.N3.Name != "" {
+			ips, err := config.GetInterfaceIPs(cfg.Interfaces.N3.Name)
+			if err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get N3 interface IPs", err, logger.APILog)
+				return
+			}
+
+			n3Addresses = ips
+		} else if cfg.Interfaces.N3.Address != "" {
+			n3Addresses = []string{cfg.Interfaces.N3.Address}
+		}
+
 		resp := &NetworkInterfaces{
 			N2: N2Interface{
 				Addresses: n2Addresses,
@@ -98,7 +112,7 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 			},
 			N3: N3Interface{
 				Name:            cfg.Interfaces.N3.Name,
-				Address:         cfg.Interfaces.N3.Address,
+				Addresses:       n3Addresses,
 				ExternalAddress: n3Settings.ExternalAddress,
 			},
 			N6: N6Interface{

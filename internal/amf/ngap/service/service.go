@@ -14,7 +14,6 @@ import (
 	"io"
 	"net"
 	"sync"
-	"syscall"
 
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
@@ -62,10 +61,45 @@ func (s *Server) ListenAndServe(ctx context.Context, address string, port int, i
 	)
 
 	if interfaceName != "" {
-		laddr = &sctp.SCTPAddr{
-			Port: port,
+		iface, err := net.InterfaceByName(interfaceName)
+		if err != nil {
+			return fmt.Errorf("failed to get interface %s: %w", interfaceName, err)
 		}
-		addrStr = fmt.Sprintf(":%d", port)
+
+		addrs, err := iface.Addrs()
+		if err != nil {
+			return fmt.Errorf("failed to get interface addresses: %w", err)
+		}
+
+		var ipAddrs []net.IPAddr
+
+		for _, addr := range addrs {
+			ipNet, ok := addr.(*net.IPNet)
+			if !ok {
+				continue
+			}
+
+			ip := ipNet.IP
+			if ip.IsLoopback() {
+				continue
+			}
+
+			if ip.IsLinkLocalUnicast() {
+				continue
+			}
+
+			ipAddrs = append(ipAddrs, net.IPAddr{IP: ip})
+		}
+
+		if len(ipAddrs) == 0 {
+			return fmt.Errorf("no IP addresses found on interface %s", interfaceName)
+		}
+
+		laddr = &sctp.SCTPAddr{
+			IPAddrs: ipAddrs,
+			Port:    port,
+		}
+		addrStr = laddr.String()
 	} else {
 		netAddr, err := net.ResolveIPAddr("ip", address)
 		if err != nil {
@@ -78,23 +112,6 @@ func (s *Server) ListenAndServe(ctx context.Context, address string, port int, i
 		}
 		addrStr = laddr.String()
 	}
-
-	var control func(network, address string, c syscall.RawConn) error
-	if interfaceName != "" {
-		control = func(network, address string, c syscall.RawConn) error {
-			var setSockOptErr error
-
-			if err := c.Control(func(fd uintptr) {
-				setSockOptErr = syscall.SetsockoptString(int(fd), syscall.SOL_SOCKET, syscall.SO_BINDTODEVICE, interfaceName)
-			}); err != nil {
-				return err
-			}
-
-			return setSockOptErr
-		}
-	}
-
-	sctpConfig.Control = control
 
 	listener, err := sctpConfig.Listen("sctp", laddr)
 	if err != nil {

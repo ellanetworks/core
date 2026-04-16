@@ -55,6 +55,10 @@ func (s *SCTPAssocChangeEvent) AssocID() SCTPAssocID {
 	return s.sacAssocID
 }
 
+func (s *SCTPAssocChangeEvent) Error() uint16 {
+	return s.sacError
+}
+
 func (s *SCTPAssocChangeEvent) Info() []uint8 {
 	return s.sacInfo
 }
