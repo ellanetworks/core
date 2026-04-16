@@ -60,6 +60,8 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 	leaderCount := 0
 	followerCount := 0
 
+	var leaderAddress string
+
 	for i, c := range clients {
 		status, err := c.GetStatus(ctx)
 		if err != nil {
@@ -68,6 +70,17 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 
 		if status.Cluster == nil {
 			t.Fatalf("node %d has no cluster status", i+1)
+		}
+
+		if status.Cluster.LeaderAddress == "" {
+			t.Fatalf("node %d reports empty leader address", i+1)
+		}
+
+		if leaderAddress == "" {
+			leaderAddress = status.Cluster.LeaderAddress
+		} else if status.Cluster.LeaderAddress != leaderAddress {
+			t.Fatalf("node %d reports leader address %q, expected %q",
+				i+1, status.Cluster.LeaderAddress, leaderAddress)
 		}
 
 		switch status.Cluster.Role {

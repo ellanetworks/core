@@ -16,6 +16,7 @@ type ClusterStatusResponse struct {
 	AppliedIndex  uint64 `json:"appliedIndex"`
 	ClusterID     string `json:"clusterId,omitempty"`
 	SchemaVersion int    `json:"schemaVersion"`
+	LeaderAddress string `json:"leaderAddress,omitempty"`
 }
 
 type StatusResponse struct {
@@ -48,9 +49,10 @@ func GetStatus(dbInstance *db.Database, ready *atomic.Bool) http.Handler {
 		}
 
 		if dbInstance.ClusterEnabled() {
+			role := dbInstance.RaftState()
 			clusterStatus := &ClusterStatusResponse{
 				Enabled:       true,
-				Role:          dbInstance.RaftState(),
+				Role:          role,
 				NodeID:        dbInstance.NodeID(),
 				AppliedIndex:  dbInstance.RaftAppliedIndex(),
 				SchemaVersion: db.SchemaVersion(),
@@ -62,6 +64,9 @@ func GetStatus(dbInstance *db.Database, ready *atomic.Bool) http.Handler {
 			}
 
 			statusResponse.Cluster = clusterStatus
+			clusterStatus.LeaderAddress = resolveLeaderAPI(dbInstance)
+
+			w.Header().Set("X-Ella-Role", role)
 		}
 
 		writeResponse(r.Context(), w, statusResponse, http.StatusOK, logger.APILog)

@@ -22,12 +22,16 @@ Returns all registered cluster members.
         {
             "nodeId": 1,
             "raftAddress": "10.0.0.1:7000",
-            "apiAddress": "10.0.0.1:5000"
+            "apiAddress": "https://10.0.0.1:5000",
+            "binaryVersion": "v1.9.1",
+            "suffrage": "voter"
         },
         {
             "nodeId": 2,
             "raftAddress": "10.0.0.2:7000",
-            "apiAddress": "10.0.0.2:5000"
+            "apiAddress": "https://10.0.0.2:5000",
+            "binaryVersion": "v1.9.1",
+            "suffrage": "voter"
         }
     ]
 }
@@ -35,7 +39,7 @@ Returns all registered cluster members.
 
 ## Add a Cluster Member
 
-Adds a new node to the Raft cluster and registers it in the cluster members table. Requires admin privileges.
+Adds a new node to the Raft cluster and registers it in the cluster members table. This endpoint accepts either admin credentials or the cluster join token for authentication.
 
 | Method | Path                       |
 | ------ | -------------------------- |
@@ -43,9 +47,12 @@ Adds a new node to the Raft cluster and registers it in the cluster members tabl
 
 ### Parameters
 
-- `nodeId` (integer): Raft node ID for the new member. Must be a positive integer.
-- `raftAddress` (string): The `host:port` used for Raft consensus communication.
-- `apiAddress` (string): The `host:port` used for the REST API.
+- `nodeId` (integer, required): Raft node ID for the new member. Must be a positive integer.
+- `raftAddress` (string, required): The `host:port` used for Raft consensus communication.
+- `apiAddress` (string, required): The URL used for the REST API.
+- `suffrage` (string, optional): Either `"voter"` or `"nonvoter"`. Defaults to `"voter"`.
+- `clusterId` (string, optional): Cluster ID to validate against the operator configuration.
+- `schemaVersion` (integer, optional): Schema version of the joining node. Rejected if lower than the leader's schema.
 
 ### Sample Response
 
@@ -75,6 +82,53 @@ Removes a node from the Raft cluster and deletes its record. Requires admin priv
 {
     "result": {
         "message": "Cluster member removed"
+    }
+}
+```
+
+## Promote a Cluster Member
+
+Promotes a nonvoter node to a full voter in the Raft cluster. Requires admin privileges.
+
+| Method | Path                                    |
+| ------ | --------------------------------------- |
+| POST   | `/api/v1/cluster/members/{id}/promote`  |
+
+### Parameters
+
+- `id` (integer, path): Node ID of the cluster member to promote.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "Cluster member promoted to voter"
+    }
+}
+```
+
+## Drain Node
+
+Gracefully prepares this node for removal. Signals RANs to redirect new UE registrations elsewhere, withdraws BGP advertisements so upstream routers reroute user‑plane traffic, and transfers Raft leadership if this node is the leader. The node continues serving existing flows until it is shut down. Requires admin privileges.
+
+| Method | Path                     |
+| ------ | ------------------------ |
+| POST   | `/api/v1/cluster/drain`  |
+
+### Parameters
+
+- `timeoutSeconds` (integer, optional): Maximum time in seconds for each drain step. Defaults to 5.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "draining",
+        "transferredLeadership": true,
+        "ransNotified": 2,
+        "bgpStopped": true
     }
 }
 ```

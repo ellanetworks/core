@@ -48,6 +48,7 @@ func waitForClusterReady(ctx context.Context, clients []*client.Client) error {
 	for time.Now().Before(deadline) {
 		reachable := 0
 		leaders := 0
+		withLeaderAddr := 0
 
 		for _, c := range clients {
 			status, err := c.GetStatus(ctx)
@@ -64,9 +65,13 @@ func waitForClusterReady(ctx context.Context, clients []*client.Client) error {
 			if status.Cluster.Role == "Leader" {
 				leaders++
 			}
+
+			if status.Cluster.LeaderAddress != "" {
+				withLeaderAddr++
+			}
 		}
 
-		if reachable == expected && leaders == 1 {
+		if reachable == expected && leaders == 1 && withLeaderAddr == expected {
 			return nil
 		}
 
