@@ -589,7 +589,7 @@ func resolveFromRawAddr(ptr unsafe.Pointer, n int) (*SCTPAddr, error) {
 			addr.IPAddrs[i] = net.IPAddr{IP: a.Addr[:]}
 		}
 	case syscall.AF_INET6:
-		addr.Port = int(ntohs((*(*syscall.RawSockaddrInet4)(ptr)).Port))
+		addr.Port = int(ntohs((*(*syscall.RawSockaddrInet6)(ptr)).Port))
 
 		size := unsafe.Sizeof(syscall.RawSockaddrInet6{})
 		for i := 0; i < n; i++ {
