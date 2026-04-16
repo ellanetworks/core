@@ -31,28 +31,23 @@ func TestPDUSessionResourceModifyResponse_RanUeNgapIDNotFound(t *testing.T) {
 	})
 }
 
-func TestPDUSessionResourceModifyResponse_AmfUeNgapIDLookup(t *testing.T) {
+func TestPDUSessionResourceModifyResponse_CrossRadioRejected(t *testing.T) {
 	ran := newTestRadio()
-
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
-	ran.RanUEs[1] = ranUe
+	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 
 	amfInstance := newTestAMFWithSmf(&FakeSmfSbi{})
 	amfInstance.Radios[new(sctp.SCTPConn)] = ran
 
-	targetRan := newTestRadio()
+	// A different radio claims the same AMF-UE-NGAP-ID — must be rejected.
+	attackerRan := newTestRadio()
+	attackerSender := attackerRan.NGAPSender.(*FakeNGAPSender)
 	amfID := int64(10)
 
-	ngap.HandlePDUSessionResourceModifyResponse(context.Background(), amfInstance, targetRan, decode.PDUSessionResourceModifyResponse{
+	ngap.HandlePDUSessionResourceModifyResponse(context.Background(), amfInstance, attackerRan, decode.PDUSessionResourceModifyResponse{
 		AMFUENGAPID: &amfID,
 	})
 
-	if ranUe.Radio != targetRan {
-		t.Error("expected ranUe.Radio to be updated to targetRan")
+	if len(attackerSender.SentErrorIndications) != 1 {
+		t.Fatalf("expected 1 ErrorIndication for cross-radio AMF-UE-NGAP-ID, got %d", len(attackerSender.SentErrorIndications))
 	}
 }

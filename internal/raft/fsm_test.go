@@ -21,6 +21,8 @@ import (
 
 // testApplier is a minimal Applier backed by a real SQLite file. Apply records
 // commands in the order they arrive so tests can assert on replay behaviour.
+// When writeRows is true, ApplyCommand also inserts each payload into the t
+// table so that multi-node tests can compare SQLite state across nodes.
 type testApplier struct {
 	mu         sync.Mutex
 	dbPath     string
@@ -28,6 +30,7 @@ type testApplier struct {
 	commands   []*Command
 	applyErr   error
 	reopenHook func()
+	writeRows  bool
 }
 
 func newTestApplier(t *testing.T) *testApplier {
@@ -74,12 +77,25 @@ func (a *testApplier) open() error {
 	return nil
 }
 
-func (a *testApplier) ApplyCommand(_ context.Context, cmd *Command) (any, error) {
+func (a *testApplier) ApplyCommand(ctx context.Context, cmd *Command) (any, error) {
 	a.mu.Lock()
 	a.commands = append(a.commands, cmd)
 	a.mu.Unlock()
 
-	return nil, a.applyErr
+	if a.applyErr != nil {
+		return nil, a.applyErr
+	}
+
+	// Write the command payload to SQLite so multi-node tests can compare
+	// database state across nodes after Raft replication. Only enabled when
+	// each node has its own applier (writeRows=true); shared-applier tests
+	// leave this off to avoid SQLite lock contention during elections.
+	if a.writeRows && a.db != nil {
+		_, _ = a.db.ExecContext(ctx,
+			"INSERT INTO t(v) VALUES (?)", string(cmd.Payload))
+	}
+
+	return nil, nil
 }
 
 func (a *testApplier) PlainDB() *sql.DB { return a.db }

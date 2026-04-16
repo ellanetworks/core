@@ -203,13 +203,7 @@ func TestPathSwitchRequest_NilAmfUe(t *testing.T) {
 	}
 
 	// RanUe exists but AmfUe is nil
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       sourceRan,
-		Log:         logger.AmfLog,
-	}
-	sourceRan.RanUEs[1] = ranUe
+	amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
 
 	targetNGAPSender := &FakeNGAPSender{}
 	targetRan := &amf.Radio{
@@ -262,14 +256,8 @@ func TestPathSwitchRequest_InvalidSecurityContext(t *testing.T) {
 	amfUe.NgKsi.Ksi = nasMessage.NasKeySetIdentifierNoKeyIsAvailable
 	amfUe.Log = logger.AmfLog
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       sourceRan,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
 	targetRan := &amf.Radio{
@@ -320,14 +308,8 @@ func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 	amfUe := newValidAmfUe()
 	// SmContextList is empty — no PDU session ID 1
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       sourceRan,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
 	targetRan := &amf.Radio{
@@ -386,14 +368,8 @@ func TestPathSwitchRequest_SmfReturnsError(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       sourceRan,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
 	targetRan := &amf.Radio{
@@ -472,14 +448,8 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	sourceUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: sourceAmfUeNgapID,
-		Radio:       sourceRan,
-		Log:         logger.AmfLog,
-	}
+	sourceUe := amf.NewRanUeForTest(sourceRan, 1, sourceAmfUeNgapID, logger.AmfLog)
 	amfUe.AttachRanUe(sourceUe)
-	sourceRan.RanUEs[1] = sourceUe
 
 	targetNGAPSender := &FakeNGAPSender{}
 	targetRan := &amf.Radio{
@@ -556,7 +526,7 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 	}
 
 	// Verify the RAN UE was switched to the new RAN
-	if sourceUe.Radio != targetRan {
+	if sourceUe.Radio() != targetRan {
 		t.Error("expected RanUe to be switched to targetRan")
 	}
 
@@ -586,14 +556,8 @@ func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       sourceRan,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
 	targetRan := &amf.Radio{
@@ -679,14 +643,8 @@ func TestPathSwitchRequest_FailedPDUSessionsReportedToSmf(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       sourceRan,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
 	targetRan := &amf.Radio{
@@ -791,14 +749,8 @@ func TestPathSwitchRequest_UESecurityCapabilitiesNotOverwritten(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       sourceRan,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
 	targetRan := &amf.Radio{
@@ -918,14 +870,8 @@ func TestPathSwitchRequest_UESecurityCapabilitiesMatching(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       sourceRan,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
 	targetRan := &amf.Radio{
@@ -1029,14 +975,8 @@ func TestPathSwitchRequest_EmptySecurityCapabilityBytes(t *testing.T) {
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       sourceRan,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	sourceRan.RanUEs[1] = ranUe
 
 	targetNGAPSender := &FakeNGAPSender{}
 	targetRan := &amf.Radio{

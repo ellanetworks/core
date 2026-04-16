@@ -218,13 +218,8 @@ func TestExportJSON_FullyPopulatedUE(t *testing.T) {
 			Snssai: &models.Snssai{Sst: 1, Sd: "000001"},
 		}
 		radio := &amf.Radio{Name: "gNB-001", RanUEs: make(map[int64]*amf.RanUe), Log: zap.NewNop()}
-		ranUe := &amf.RanUe{
-			RanUeNgapID: 42,
-			AmfUeNgapID: 100,
-			Tai:         models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
-			Radio:       radio,
-			Log:         zap.NewNop(),
-		}
+		ranUe := amf.NewRanUeForTest(radio, 42, 100, zap.NewNop())
+		ranUe.Tai = models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}
 		ue.AttachRanUe(ranUe)
 		ue.T3513 = amf.NewTimer(1*time.Hour, 3, func(_ int32) {}, func() {})
 		ue.T3512Value = 3600 * time.Second

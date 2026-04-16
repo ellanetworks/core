@@ -59,7 +59,7 @@ func HandleLocationReport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 		}
 
 	case ngapType.EventTypePresentStopChangeOfServeCell:
-		err := ranUe.Radio.NGAPSender.SendLocationReportingControl(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, msg.LocationReportingRequestType.EventType)
+		err := ranUe.Radio().NGAPSender.SendLocationReportingControl(ctx, ranUe.AmfUeNgapID, ranUe.RanUeNgapID, msg.LocationReportingRequestType.EventType)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error("error sending location reporting control", zap.Error(err))
 		}

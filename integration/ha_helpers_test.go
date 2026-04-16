@@ -39,10 +39,11 @@ func newHANodeClients() ([]*client.Client, error) {
 }
 
 // waitForClusterReady polls GetStatus (unauthenticated) on every client
-// until all expectedMembers nodes are reachable and exactly one is the leader.
-func waitForClusterReady(ctx context.Context, clients []*client.Client, expectedMembers int) error {
+// until all nodes are reachable and exactly one is the leader.
+func waitForClusterReady(ctx context.Context, clients []*client.Client) error {
 	timeout := 3 * time.Minute
 	deadline := time.Now().Add(timeout)
+	expected := len(clients)
 
 	for time.Now().Before(deadline) {
 		reachable := 0
@@ -65,14 +66,14 @@ func waitForClusterReady(ctx context.Context, clients []*client.Client, expected
 			}
 		}
 
-		if reachable == expectedMembers && leaders == 1 {
+		if reachable == expected && leaders == 1 {
 			return nil
 		}
 
 		time.Sleep(2 * time.Second)
 	}
 
-	return fmt.Errorf("cluster not ready after %v: expected %d members with a leader", timeout, expectedMembers)
+	return fmt.Errorf("cluster not ready after %v: expected %d members with a leader", timeout, expected)
 }
 
 // findLeader returns the index and client of the current leader node.
@@ -89,6 +90,47 @@ func findLeader(ctx context.Context, clients []*client.Client) (int, *client.Cli
 	}
 
 	return -1, nil, fmt.Errorf("no leader found")
+}
+
+// waitForNewLeader polls the given clients until exactly one reports itself as
+// leader. It is used after stopping the old leader to wait for re-election.
+func waitForNewLeader(ctx context.Context, clients []*client.Client) (*client.Client, error) {
+	timeout := 90 * time.Second
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		for _, c := range clients {
+			status, err := c.GetStatus(ctx)
+			if err != nil {
+				continue
+			}
+
+			if status.Cluster != nil && status.Cluster.Role == "Leader" {
+				return c, nil
+			}
+		}
+
+		time.Sleep(2 * time.Second)
+	}
+
+	return nil, fmt.Errorf("no new leader elected within %v", timeout)
+}
+
+// waitForNodeReady polls a single node until it is reachable and reports Ready.
+func waitForNodeReady(ctx context.Context, c *client.Client) error {
+	timeout := 2 * time.Minute
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		status, err := c.GetStatus(ctx)
+		if err == nil && status.Ready {
+			return nil
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return fmt.Errorf("node not ready after %v", timeout)
 }
 
 // initializeCluster creates the admin user and API token on the leader,
@@ -162,11 +204,16 @@ func waitForFollowerConvergence(ctx context.Context, clients []*client.Client, m
 				break
 			}
 
-			if status.Cluster == nil || status.Cluster.Role != "Follower" {
+			if status.Cluster == nil {
+				converged = false
+				break
+			}
+
+			if status.Cluster.Role == "Leader" {
 				continue
 			}
 
-			if status.Cluster.AppliedIndex < minIndex {
+			if status.Cluster.Role != "Follower" || status.Cluster.AppliedIndex < minIndex || !status.Ready {
 				converged = false
 				break
 			}
@@ -194,6 +241,28 @@ func leaderAppliedIndex(ctx context.Context, leader *client.Client) (uint64, err
 	}
 
 	return status.Cluster.AppliedIndex, nil
+}
+
+// waitForMemberSuffrage polls ListClusterMembers until the given nodeID
+// appears with the expected suffrage value (e.g. "nonvoter" or "voter").
+func waitForMemberSuffrage(ctx context.Context, c *client.Client, nodeID int, wantSuffrage string) error {
+	timeout := 2 * time.Minute
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		members, err := c.ListClusterMembers(ctx)
+		if err == nil {
+			for _, m := range members {
+				if m.NodeID == nodeID && m.Suffrage == wantSuffrage {
+					return nil
+				}
+			}
+		}
+
+		time.Sleep(2 * time.Second)
+	}
+
+	return fmt.Errorf("node %d did not reach suffrage %q within %v", nodeID, wantSuffrage, timeout)
 }
 
 // dumpClusterDiagnostics logs node status and cluster members from each
