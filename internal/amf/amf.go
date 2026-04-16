@@ -438,7 +438,7 @@ func (a *AMF) NewRanUe(radio *Radio, ranUeNgapID int64) (*RanUe, error) {
 	ranUe := &RanUe{
 		AmfUeNgapID: amfUeNgapID,
 		RanUeNgapID: ranUeNgapID,
-		Radio:       radio,
+		radio:       radio,
 		Log:         radio.Log.With(logger.AmfUeNgapID(amfUeNgapID)),
 		freeNgapID:  a.ngapIDs.FreeID,
 	}

@@ -53,23 +53,11 @@ func TestHandleHandoverCancel_HappyPath(t *testing.T) {
 	targetRan := newTestRadio()
 	targetSender := targetRan.NGAPSender.(*FakeNGAPSender)
 
-	sourceUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       sourceRan,
-		Log:         logger.AmfLog,
-	}
-
-	targetUe := &amf.RanUe{
-		RanUeNgapID: 2,
-		AmfUeNgapID: 20,
-		Radio:       targetRan,
-		Log:         logger.AmfLog,
-	}
+	sourceUe := amf.NewRanUeForTest(sourceRan, 1, 10, logger.AmfLog)
+	targetUe := amf.NewRanUeForTest(targetRan, 2, 20, logger.AmfLog)
 
 	sourceUe.TargetUe = targetUe
 	targetUe.SourceUe = sourceUe
-	sourceRan.RanUEs[1] = sourceUe
 
 	msg := decode.HandoverCancel{
 		AMFUENGAPID: 10,

@@ -40,14 +40,8 @@ func TestHandlePDUSessionResourceReleaseResponse_UEFoundWithReleasedSessions(t *
 		Snssai: &models.Snssai{Sst: 1},
 	}
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	ran.RanUEs[1] = ranUe
 
 	amfUeNgapID := int64(10)
 	ranUeNgapID := int64(1)

@@ -17,9 +17,10 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	targetUe := amfInstance.FindRanUeByAmfUeNgapID(*msg.AMFUENGAPID)
+	targetUe := ran.FindUEByAmfUeNgapID(*msg.AMFUENGAPID)
 	if targetUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("AmfUeNgapID", *msg.AMFUENGAPID))
+		logger.WithTrace(ctx, ran.Log).Error("No UE Context on this radio", zap.Int64("AmfUeNgapID", *msg.AMFUENGAPID))
+		sendUnknownLocalUEError(ctx, ran)
 		return
 	}
 
@@ -27,7 +28,6 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		targetUe.RanUeNgapID = *msg.RANUENGAPID
 	}
 
-	targetUe.Radio = ran
 	targetUe.TouchLastSeen()
 	logger.WithTrace(ctx, targetUe.Log).Debug("Handle Handover Request Acknowledge", zap.Any("RanUeNgapID", targetUe.RanUeNgapID), zap.Any("AmfUeNgapID", targetUe.AmfUeNgapID))
 
@@ -105,12 +105,12 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 			sourceAmfUe.Procedures.End(procedure.N2Handover)
 		}
 
-		if sourceUe.Radio == nil {
+		if sourceUe.Radio() == nil {
 			logger.WithTrace(ctx, targetUe.Log).Error("source UE radio is nil, cannot send handover preparation failure")
 			return
 		}
 
-		err := sourceUe.Radio.NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
+		err := sourceUe.Radio().NGAPSender.SendHandoverPreparationFailure(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, *cause, nil)
 		if err != nil {
 			logger.WithTrace(ctx, targetUe.Log).Error("error sending handover preparation failure", zap.Error(err))
 		}
@@ -118,7 +118,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	err := sourceUe.Radio.NGAPSender.SendHandoverCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, sourceUe.HandOverType, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, msg.TargetToSourceTransparentContainer)
+	err := sourceUe.Radio().NGAPSender.SendHandoverCommand(ctx, sourceUe.AmfUeNgapID, sourceUe.RanUeNgapID, sourceUe.HandOverType, pduSessionResourceHandoverList, pduSessionResourceToReleaseList, msg.TargetToSourceTransparentContainer)
 	if err != nil {
 		logger.WithTrace(ctx, targetUe.Log).Error("error sending handover command to source UE", zap.Error(err))
 	}

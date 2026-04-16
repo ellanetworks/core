@@ -56,14 +56,8 @@ func TestHandleUEContextReleaseRequest_UEFoundRegistered(t *testing.T) {
 	amfUe.Log = logger.AmfLog
 	amfUe.ForceState(amf.Registered)
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	ran.RanUEs[1] = ranUe
 
 	msg := decode.UEContextReleaseRequest{
 		AMFUENGAPID: 10,

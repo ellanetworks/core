@@ -25,22 +25,10 @@ func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) 
 	amfUe.ForceState(amf.Registered)
 	amfUe.Log = logger.AmfLog
 
-	sourceRanUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 100,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
+	sourceRanUe := amf.NewRanUeForTest(ran, 1, 100, logger.AmfLog)
 	amfUe.AttachRanUe(sourceRanUe)
-	ran.RanUEs[sourceRanUe.RanUeNgapID] = sourceRanUe
 
-	targetRanUe := &amf.RanUe{
-		RanUeNgapID: 2,
-		AmfUeNgapID: 200,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
-	ran.RanUEs[targetRanUe.RanUeNgapID] = targetRanUe
+	targetRanUe := amf.NewRanUeForTest(ran, 2, 200, logger.AmfLog)
 
 	err := amf.AttachSourceUeTargetUe(sourceRanUe, targetRanUe)
 	if err != nil {
@@ -76,14 +64,8 @@ func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
 	amfUe.ForceState(amf.Registered)
 	amfUe.Log = logger.AmfLog
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 100,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(ran, 1, 100, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	ran.RanUEs[1] = ranUe
 
 	amfInstance.Radios = map[*sctp.SCTPConn]*amf.Radio{new(sctp.SCTPConn): ran}
 

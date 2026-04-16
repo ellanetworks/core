@@ -236,8 +236,8 @@ func (ue *AmfUe) AttachRanUe(ranUe *RanUe) {
 	}
 
 	ue.LastSeenAt = time.Now()
-	if ranUe.Radio != nil {
-		ue.LastSeenRadio = ranUe.Radio.Name
+	if ranUe.radio != nil {
+		ue.LastSeenRadio = ranUe.radio.Name
 	}
 
 	ue.Log = logger.AmfLog.With(logger.AmfUeNgapID(ranUe.AmfUeNgapID))

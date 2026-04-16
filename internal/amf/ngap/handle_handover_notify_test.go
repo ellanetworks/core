@@ -58,13 +58,7 @@ func TestHandoverNotify_NilAmfUe(t *testing.T) {
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	targetUe := &amf.RanUe{
-		RanUeNgapID: 2,
-		AmfUeNgapID: 1,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
-	ran.RanUEs[2] = targetUe
+	amf.NewRanUeForTest(ran, 2, 1, logger.AmfLog)
 
 	amfInstance := amf.New(nil, nil, nil)
 
@@ -89,15 +83,9 @@ func TestHandoverNotify_NoSourceUe(t *testing.T) {
 	amfUe := amf.NewAmfUe()
 	amfUe.Log = logger.AmfLog
 
-	targetUe := &amf.RanUe{
-		RanUeNgapID: 2,
-		AmfUeNgapID: 1,
-		SourceUe:    nil,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
+	targetUe := amf.NewRanUeForTest(ran, 2, 1, logger.AmfLog)
+	targetUe.SourceUe = nil
 	amfUe.AttachRanUe(targetUe)
-	ran.RanUEs[2] = targetUe
 
 	amfInstance := amf.New(nil, nil, nil)
 
@@ -122,14 +110,8 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 	amfUe := amf.NewAmfUe()
 	amfUe.Log = logger.AmfLog
 
-	sourceUe := &amf.RanUe{
-		RanUeNgapID: 10,
-		AmfUeNgapID: 100,
-		Radio:       sourceRan,
-		Log:         logger.AmfLog,
-	}
+	sourceUe := amf.NewRanUeForTest(sourceRan, 10, 100, logger.AmfLog)
 	amfUe.AttachRanUe(sourceUe)
-	sourceRan.RanUEs[10] = sourceUe
 
 	targetNGAPSender := &FakeNGAPSender{}
 	targetRan := &amf.Radio{
@@ -139,19 +121,12 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 		SupportedTAIs: make([]amf.SupportedTAI, 0),
 	}
 
-	targetUe := &amf.RanUe{
-		RanUeNgapID: 2,
-		AmfUeNgapID: 1,
-		Radio:       targetRan,
-		Log:         logger.AmfLog,
-	}
+	targetUe := amf.NewRanUeForTest(targetRan, 2, 1, logger.AmfLog)
 
 	err := amf.AttachSourceUeTargetUe(sourceUe, targetUe)
 	if err != nil {
 		t.Fatalf("failed to attach source/target: %v", err)
 	}
-
-	targetRan.RanUEs[2] = targetUe
 
 	amfInstance := amf.New(nil, nil, nil)
 

@@ -32,11 +32,11 @@ func (amf *AMF) RadioNameForSubscriber(supi etsi.SUPI) string {
 	ue.Mutex.Lock()
 	defer ue.Mutex.Unlock()
 
-	if ue.state != Registered || ue.ranUe == nil || ue.ranUe.Radio == nil {
+	if ue.state != Registered || ue.ranUe == nil || ue.ranUe.radio == nil {
 		return ""
 	}
 
-	return ue.ranUe.Radio.Name
+	return ue.ranUe.radio.Name
 }
 
 // LastSeenAtForSubscriber returns the last-seen timestamp for a registered
@@ -73,7 +73,7 @@ func (amf *AMF) RegisteredSubscribersForRadio(radioName string) []string {
 
 	for _, ue := range amf.UEs {
 		ue.Mutex.Lock()
-		match := ue.state == Registered && ue.ranUe != nil && ue.ranUe.Radio != nil && ue.ranUe.Radio.Name == radioName
+		match := ue.state == Registered && ue.ranUe != nil && ue.ranUe.radio != nil && ue.ranUe.radio.Name == radioName
 		ue.Mutex.Unlock()
 
 		if match && ue.Supi.IsValid() && ue.Supi.IsIMSI() {

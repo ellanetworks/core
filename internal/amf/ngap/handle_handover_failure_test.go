@@ -40,21 +40,10 @@ func TestHandleHandoverFailure_SourceAmfUeDetached(t *testing.T) {
 	amfUe := amf.NewAmfUe()
 	amfUe.Log = logger.AmfLog
 
-	sourceUe := &amf.RanUe{
-		RanUeNgapID: 10,
-		AmfUeNgapID: 100,
-		Radio:       sourceRan,
-		Log:         logger.AmfLog,
-	}
+	sourceUe := amf.NewRanUeForTest(sourceRan, 10, 100, logger.AmfLog)
 	amfUe.AttachRanUe(sourceUe)
-	sourceRan.RanUEs[10] = sourceUe
 
-	targetUe := &amf.RanUe{
-		RanUeNgapID: 2,
-		AmfUeNgapID: 200,
-		Radio:       targetRan,
-		Log:         logger.AmfLog,
-	}
+	targetUe := amf.NewRanUeForTest(targetRan, 2, 200, logger.AmfLog)
 
 	err := amf.AttachSourceUeTargetUe(sourceUe, targetUe)
 	if err != nil {

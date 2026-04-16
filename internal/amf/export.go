@@ -378,8 +378,8 @@ func (amf *AMF) exportAmfUe(ue *AmfUe) AmfUeExport {
 			AmfUeNgapID: ue.ranUe.AmfUeNgapID,
 			RanTai:      ue.ranUe.Tai,
 		}
-		if ue.ranUe.Radio != nil {
-			rc.RadioName = ue.ranUe.Radio.Name
+		if ue.ranUe.radio != nil {
+			rc.RadioName = ue.ranUe.radio.Name
 		}
 
 		export.RANConnection = rc

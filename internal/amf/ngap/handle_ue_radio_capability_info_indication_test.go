@@ -23,13 +23,7 @@ func TestUERadioCapabilityInfoIndication_UnknownRanUeNgapID(t *testing.T) {
 
 func TestUERadioCapabilityInfoIndication_NilAmfUe(t *testing.T) {
 	ran := newTestRadio()
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
-	ran.RanUEs[1] = ranUe
+	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 
 	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), ran, decode.UERadioCapabilityInfoIndication{
 		RANUENGAPID: 1,
@@ -41,14 +35,8 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapability(t *testing.T) {
 	amfUe := amf.NewAmfUe()
 	amfUe.Log = logger.AmfLog
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	ran.RanUEs[1] = ranUe
 
 	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), ran, decode.UERadioCapabilityInfoIndication{
 		RANUENGAPID:       1,
@@ -65,14 +53,8 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapabilityForPaging(t *testing
 	amfUe := amf.NewAmfUe()
 	amfUe.Log = logger.AmfLog
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	ran.RanUEs[1] = ranUe
 
 	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), ran, decode.UERadioCapabilityInfoIndication{
 		RANUENGAPID: 1,
@@ -104,14 +86,8 @@ func TestUERadioCapabilityInfoIndication_NilCapabilityFieldsNoOp(t *testing.T) {
 	amfUe := amf.NewAmfUe()
 	amfUe.Log = logger.AmfLog
 
-	ranUe := &amf.RanUe{
-		RanUeNgapID: 1,
-		AmfUeNgapID: 10,
-		Radio:       ran,
-		Log:         logger.AmfLog,
-	}
+	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
-	ran.RanUEs[1] = ranUe
 
 	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), ran, decode.UERadioCapabilityInfoIndication{
 		RANUENGAPID: 1,
