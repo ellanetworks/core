@@ -399,8 +399,8 @@ func validatePeerParams(address string, remoteAS int, holdTime *int, importPrefi
 		return fmt.Errorf("address is required")
 	}
 
-	if addr, err := netip.ParseAddr(address); err != nil || !addr.Is4() {
-		return fmt.Errorf("address must be a valid IPv4 address")
+	if addr, err := netip.ParseAddr(address); err != nil || (!addr.Is4() && !addr.Is6()) {
+		return fmt.Errorf("address is not valid")
 	}
 
 	if remoteAS < 1 || remoteAS > 4294967295 {
