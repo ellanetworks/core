@@ -154,6 +154,19 @@ func proxyToLeaderCluster(w http.ResponseWriter, r *http.Request, client *http.C
 
 	defer func() { _ = resp.Body.Close() }()
 
+	// 410 Gone from the leader means this node has been removed from
+	// cluster_members (removedNodeFence). The end-user caller did not
+	// remove anything, so surface 502 Bad Gateway rather than forwarding
+	// the 410 verbatim.
+	if resp.StatusCode == http.StatusGone {
+		logger.APILog.Error("proxy: this node has been removed from the cluster; operator must shut it down",
+			zap.Int("nodeId", dbInstance.NodeID()))
+		writeError(r.Context(), w, http.StatusBadGateway,
+			"this node is no longer a cluster member", nil, logger.APILog)
+
+		return
+	}
+
 	copyProxyResponse(w, resp, dbInstance)
 }
 

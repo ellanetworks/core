@@ -5,12 +5,14 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 // maxClusterJoinBodyBytes caps the self-registration POST body. The real
@@ -33,10 +35,47 @@ func newClusterMux(dbInstance *db.Database, operatorHandler http.Handler) *http.
 	mux.Handle("POST /cluster/members/self", selfRegistrationGuard(SelfAnnounceClusterMember(dbInstance)))
 
 	if operatorHandler != nil {
-		mux.Handle("/cluster/proxy/", http.StripPrefix("/cluster/proxy", operatorHandler))
+		mux.Handle("/cluster/proxy/", removedNodeFence(dbInstance, http.StripPrefix("/cluster/proxy", operatorHandler)))
 	}
 
 	return mux
+}
+
+// removedNodeFence rejects proxied writes from peers whose nodeID is no
+// longer present in cluster_members. Membership is the authoritative ACL:
+// a node removed via RemoveClusterMember must not continue pushing writes
+// through the proxy path, even if its mTLS cert is still valid (cert
+// revocation lag is a real operational window). Returns 410 Gone so the
+// client can surface the condition distinctly from 401/403/503.
+func removedNodeFence(dbInstance *db.Database, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		peerID, ok := peerNodeIDFromContext(r.Context())
+		if !ok {
+			writeError(r.Context(), w, http.StatusForbidden, "peer identity unavailable", nil, logger.APILog)
+			return
+		}
+
+		_, err := dbInstance.GetClusterMember(r.Context(), peerID)
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				logger.APILog.Warn("proxy: rejected write from removed cluster member",
+					zap.Int("peerNodeId", peerID),
+					zap.String("method", r.Method),
+					zap.String("path", r.URL.Path))
+				writeError(r.Context(), w, http.StatusGone,
+					fmt.Sprintf("node-id %d is not a current cluster member", peerID), nil, logger.APILog)
+
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError,
+				"failed to verify cluster membership", err, logger.APILog)
+
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 // selfRegistrationGuard restricts POST /cluster/members on the cluster
