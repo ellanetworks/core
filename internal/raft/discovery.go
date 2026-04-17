@@ -123,6 +123,20 @@ func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 
 		state, nodeID, clusterID, peerSchema := m.probePeer(ctx, peerAddr)
 
+		if state == peerUnreachable {
+			continue
+		}
+
+		// Duplicate node-id is a hard misconfiguration: two nodes can't share
+		// an ID without risking split-brain during bootstrap (both would see
+		// themselves as the lowest reachable node-id) or clobbering an
+		// existing cluster member at join time. Fail loud so the operator
+		// fixes cluster.node-id rather than letting the cluster form
+		// silently wrong.
+		if nodeID > 0 && nodeID == m.nodeID {
+			return false, fmt.Errorf("peer %s advertises the same node-id (%d) as this node; check cluster.node-id configuration", peerAddr, nodeID)
+		}
+
 		switch state {
 		case peerFormed:
 			// Schema handshake (follower side): allow joining a peer whose
@@ -154,13 +168,6 @@ func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 
 		case peerForming:
 			reachableCount++
-
-			if nodeID == m.nodeID {
-				logger.RaftLog.Warn("Peer reports duplicate node-id during discovery",
-					zap.String("peer", peerAddr),
-					zap.Int("node_id", nodeID),
-				)
-			}
 
 			if nodeID > 0 && nodeID < lowestReachableNodeID {
 				lowestReachableNodeID = nodeID
@@ -272,22 +279,56 @@ func (m *Manager) probePeer(ctx context.Context, peerAddr string) (peerState, in
 	return peerForming, nodeID, clusterID, schemaVersion
 }
 
+// SelfAnnounce POSTs this node's capability record (node-id, addresses,
+// binary version, max schema version, suffrage) to the current leader's
+// cluster port. Callers invoke this on startup after Raft is up so
+// follower rows in `cluster_members` reflect the running binary. When
+// this node is the leader, callers should write directly via
+// db.UpsertClusterMember rather than calling this method.
+func (m *Manager) SelfAnnounce(ctx context.Context, payload any) error {
+	leader := m.LeaderAddress()
+	if leader == "" {
+		return fmt.Errorf("no known leader")
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal self-announce: %w", err)
+	}
+
+	resp, err := m.clusterHTTPDo(ctx, http.MethodPost, leader, "/cluster/members/self", bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("dial leader %s: %w", leader, err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return fmt.Errorf("leader returned %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
 // joinCluster POSTs our membership to a peer's cluster port.
 func (m *Manager) joinCluster(ctx context.Context, peerAddr string, clusterID string) error {
 	payload := struct {
-		NodeID        int    `json:"nodeId"`
-		RaftAddress   string `json:"raftAddress"`
-		APIAddress    string `json:"apiAddress"`
-		ClusterID     string `json:"clusterId"`
-		SchemaVersion int    `json:"schemaVersion"`
-		Suffrage      string `json:"suffrage,omitempty"`
+		NodeID           int    `json:"nodeId"`
+		RaftAddress      string `json:"raftAddress"`
+		APIAddress       string `json:"apiAddress"`
+		ClusterID        string `json:"clusterId"`
+		SchemaVersion    int    `json:"schemaVersion"`
+		MaxSchemaVersion int    `json:"maxSchemaVersion"`
+		Suffrage         string `json:"suffrage,omitempty"`
 	}{
-		NodeID:        m.nodeID,
-		RaftAddress:   string(m.transport.LocalAddr()),
-		APIAddress:    m.config.APIAddress,
-		ClusterID:     clusterID,
-		SchemaVersion: m.config.SchemaVersion,
-		Suffrage:      m.config.InitialSuffrage,
+		NodeID:           m.nodeID,
+		RaftAddress:      string(m.transport.LocalAddr()),
+		APIAddress:       m.config.APIAddress,
+		ClusterID:        clusterID,
+		SchemaVersion:    m.config.SchemaVersion,
+		MaxSchemaVersion: m.config.SchemaVersion,
+		Suffrage:         m.config.InitialSuffrage,
 	}
 
 	body, err := json.Marshal(payload)

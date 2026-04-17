@@ -20,11 +20,12 @@ import (
 
 const v9CreateClusterMembers = `
 	CREATE TABLE IF NOT EXISTS %s (
-		nodeID          INTEGER PRIMARY KEY,
-		raftAddress     TEXT NOT NULL,
-		apiAddress      TEXT NOT NULL,
-		binaryVersion   TEXT NOT NULL DEFAULT '',
-		suffrage        TEXT NOT NULL DEFAULT 'voter'
+		nodeID            INTEGER PRIMARY KEY,
+		raftAddress       TEXT NOT NULL,
+		apiAddress        TEXT NOT NULL,
+		binaryVersion     TEXT NOT NULL DEFAULT '',
+		suffrage          TEXT NOT NULL DEFAULT 'voter',
+		maxSchemaVersion  INTEGER NOT NULL DEFAULT 0
 )`
 
 func migrateV9(ctx context.Context, tx *sql.Tx) error {

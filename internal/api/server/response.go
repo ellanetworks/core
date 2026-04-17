@@ -61,6 +61,13 @@ func writeError(ctx context.Context, w http.ResponseWriter, status int, message 
 		message = "raft commit timeout"
 	}
 
+	if errors.Is(err, db.ErrMigrationPending) {
+		status = http.StatusServiceUnavailable
+		message = "cluster is upgrading; feature unavailable until schema migration completes"
+
+		w.Header().Set("Retry-After", "10")
+	}
+
 	log := logger.WithTrace(ctx, l)
 	if status >= 500 {
 		log.Error(message, zap.Error(err))

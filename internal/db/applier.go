@@ -31,7 +31,12 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 			return nil, err
 		}
 
-		return db.applyChangeset(ctx, payload)
+		result, applyErr := db.applyChangeset(ctx, payload)
+		if applyErr == nil && payload.Operation == "UpsertClusterMember" {
+			db.signalMigrationCheck()
+		}
+
+		return result, applyErr
 
 	case ellaraft.CmdDeleteOldAuditLogs:
 		payload, err := unmarshalPayload[stringPayload](cmd.Payload)
@@ -66,7 +71,12 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 			return nil, err
 		}
 
-		return db.applyMigrateShared(ctx, payload)
+		result, applyErr := db.applyMigrateShared(ctx, payload)
+		if applyErr == nil {
+			db.signalMigrationCheck()
+		}
+
+		return result, applyErr
 
 	default:
 		return nil, fmt.Errorf("unknown command type: %s", cmd.Type)
@@ -1187,7 +1197,14 @@ func (db *Database) applyDeleteClusterMember(ctx context.Context, p *intPayload)
 func (db *Database) applyMigrateShared(ctx context.Context, p *migrateSharedPayload) (any, error) {
 	idx := p.TargetVersion - 1
 	if idx < 0 || idx >= len(migrations) {
-		return nil, fmt.Errorf("unknown shared migration version %d", p.TargetVersion)
+		// The leader's proposal gate (CheckPendingMigrations) normally
+		// prevents this path. Reaching it means a laggard voter is being
+		// asked to apply a migration beyond its binary — the fail-stop
+		// FSM will panic. Keep the message informative: it's likely to
+		// be the last thing the operator sees before a node restart.
+		return nil, fmt.Errorf(
+			"refusing to apply migration v%d: this binary supports up to v%d (rolling upgrade skew)",
+			p.TargetVersion, SchemaVersion())
 	}
 
 	m := migrations[idx]

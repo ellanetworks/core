@@ -16,20 +16,22 @@ const (
 )
 
 type ClusterMemberResponse struct {
-	NodeID        int    `json:"nodeId"`
-	RaftAddress   string `json:"raftAddress"`
-	APIAddress    string `json:"apiAddress"`
-	BinaryVersion string `json:"binaryVersion"`
-	Suffrage      string `json:"suffrage"`
+	NodeID           int    `json:"nodeId"`
+	RaftAddress      string `json:"raftAddress"`
+	APIAddress       string `json:"apiAddress"`
+	BinaryVersion    string `json:"binaryVersion"`
+	Suffrage         string `json:"suffrage"`
+	MaxSchemaVersion int    `json:"maxSchemaVersion"`
 }
 
 type AddClusterMemberRequest struct {
-	NodeID        int    `json:"nodeId"`
-	RaftAddress   string `json:"raftAddress"`
-	APIAddress    string `json:"apiAddress"`
-	ClusterID     string `json:"clusterId,omitempty"`
-	SchemaVersion int    `json:"schemaVersion,omitempty"`
-	Suffrage      string `json:"suffrage,omitempty"`
+	NodeID           int    `json:"nodeId"`
+	RaftAddress      string `json:"raftAddress"`
+	APIAddress       string `json:"apiAddress"`
+	ClusterID        string `json:"clusterId,omitempty"`
+	SchemaVersion    int    `json:"schemaVersion,omitempty"`
+	MaxSchemaVersion int    `json:"maxSchemaVersion,omitempty"`
+	Suffrage         string `json:"suffrage,omitempty"`
 }
 
 func ListClusterMembers(dbInstance *db.Database) http.Handler {
@@ -43,11 +45,12 @@ func ListClusterMembers(dbInstance *db.Database) http.Handler {
 		result := make([]ClusterMemberResponse, 0, len(members))
 		for _, m := range members {
 			result = append(result, ClusterMemberResponse{
-				NodeID:        m.NodeID,
-				RaftAddress:   m.RaftAddress,
-				APIAddress:    m.APIAddress,
-				BinaryVersion: m.BinaryVersion,
-				Suffrage:      m.Suffrage,
+				NodeID:           m.NodeID,
+				RaftAddress:      m.RaftAddress,
+				APIAddress:       m.APIAddress,
+				BinaryVersion:    m.BinaryVersion,
+				Suffrage:         m.Suffrage,
+				MaxSchemaVersion: m.MaxSchemaVersion,
 			})
 		}
 
@@ -133,11 +136,12 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 		}
 
 		member := &db.ClusterMember{
-			NodeID:        req.NodeID,
-			RaftAddress:   req.RaftAddress,
-			APIAddress:    req.APIAddress,
-			BinaryVersion: "", // populated by the joining node during startup registration
-			Suffrage:      suffrage,
+			NodeID:           req.NodeID,
+			RaftAddress:      req.RaftAddress,
+			APIAddress:       req.APIAddress,
+			BinaryVersion:    "", // populated by the joining node's self-announce
+			Suffrage:         suffrage,
+			MaxSchemaVersion: req.MaxSchemaVersion,
 		}
 
 		if err := dbInstance.UpsertClusterMember(r.Context(), member); err != nil {

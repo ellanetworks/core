@@ -16,6 +16,11 @@ var (
 	// (queue full, leader lost mid-commit, or Raft shutting down). Callers
 	// should treat it as a transient 503 condition.
 	ErrProposeTimeout = errors.New("raft commit timeout")
+	// ErrMigrationPending is returned when a handler depends on a schema
+	// version the cluster has not yet rolled forward to. Surfaces as 503
+	// with Retry-After so clients back off until the slowest voter
+	// catches up and the leader proposes the migration.
+	ErrMigrationPending = errors.New("schema migration pending")
 )
 
 func isUniqueNameError(err error) bool {
