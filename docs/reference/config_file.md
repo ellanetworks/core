@@ -119,7 +119,7 @@ cluster:
 
 ## IPv6 Support
 
-Ella Core supports IPv6 addresses for the management interface (`api`) and the radio interface (`n2`).
+Ella Core supports IPv6 addresses for the management interface (`api`), the radio interface (`n2`) and the GTPU interface (`n3`).
 
 The following example demonstrates using an IPv6 address for those interfaces:
 
@@ -129,8 +129,7 @@ interfaces:
     address: "2001:db8::1"
     port: 38412
   n3:
-    address: "22.22.22.2"
-    port: 38412
+    address: "2001:dba::1"
   n6:
     name: "ens3"
   api:
@@ -138,7 +137,7 @@ interfaces:
     port: 5002
 ```
 
-The following example demonstrates using `SO_BINDTODEVICE` for those interfaces:
+The following example demonstrates using all non link-local addresses for those interfaces:
 
 ```yaml
 interfaces:
@@ -146,8 +145,7 @@ interfaces:
     name: "ens5"
     port: 38412
   n3:
-    address: "22.22.22.2"
-    port: 38412
+    address: "ens4"
   n6:
     name: "ens3"
   api:
@@ -156,10 +154,10 @@ interfaces:
 ```
 
 !!! note
-    IPv6 support is currently available for the management interface (`api`) and radio interface (`n2`). The subscriber data interfaces (`n3` and `n6`) currently only support IPv4 addresses.
+    IPv6 support is currently available for the management interface (`api`), radio interface (`n2`) and GTPU interface (`n3`). Only IPv4 is currently supported for the UE traffic and the data network interface (`n6`).
 
 ## GTP-U Transport over IPv6
 
 Ella Core supports GTP-U tunnels over IPv6 for the N3 interface (between the core and the gNB). When a gNB advertises a dual-stack transport address (both IPv4 and IPv6) in the N2 signaling and Ella Core is configured for dual-stack, Ella Core always prefers IPv6 for the GTP-U data path.
 
-If the configuration specifies an address for N2, this address will be used. However, if an interface is specified, Ella Core will try to use all non link-local addresses on that interface; if that interface is dual-stack, Ella Core will advertise dual-stack support, prefering IPv6.
+To ensure Ella Core always uses IPv4 or IPv6 for GTP-U, specify an address of that family in the configuration file, or ensure only IPs of that family are configured on the interface.

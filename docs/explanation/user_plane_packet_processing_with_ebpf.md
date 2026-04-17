@@ -61,12 +61,6 @@ The solution is to attach a minimal XDP program that returns `XDP_PASS` to the p
 
 ### IPv6 GTP-U transport
 
-Ella Core supports GTP-U encapsulation with either an IPv4 or IPv6 outer header on the N3 interface (dual-stack transport). The UE payload remains IPv4 or IPv6 regardless of the transport address family.
-
-**Downlink (N6 → N3):** When a Forwarding Action Rule (FAR) specifies `OHC_GTP_U_UDP_IPv6`, the XDP program builds an IPv6 outer header and routes the packet via `route_ipv6()`. For IPv4 outer headers the existing `OHC_GTP_U_UDP_IPv4` path is used unchanged.
-
-**Uplink (N3 → N6):** `handle_ip6()` detects GTP-U packets arriving on the N3 interface by checking for UDP destination port 2152. The outer IPv6 header is stripped by `remove_gtp_header()`, which accounts for the larger IPv6 header (40 bytes vs 20 bytes for IPv4).
-
-**MTU handling:** The encapsulation overhead constants `GTP_ENCAP_SIZE_IPV4` (44 bytes) and `GTP_ENCAP_SIZE_IPV6` (64 bytes) are used for MTU checks. If a downlink packet exceeds the path MTU on an IPv6 transport path, an ICMPv6 Packet Too Big message is generated and returned to the sender.
+Ella Core supports GTP-U encapsulation with either an IPv4 or IPv6 outer header on the N3 interface. The UE payload remains IPv4 regardless of the transport address family. The chosen address family depends on how the N3 interface is configured, and what the gNodeB advertises. If both sides are dual-stack, Ella Core prefers IPv6.
 
 **GTP echo:** Echo Request/Response messages are handled for both IPv4 and IPv6 transport, as required for GTP-U path management.
