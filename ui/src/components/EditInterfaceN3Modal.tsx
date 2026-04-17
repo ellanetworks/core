@@ -24,21 +24,25 @@ interface EditInterfaceN3ModalProps {
   };
 }
 
-// Strict-ish IPv4 regex (0–255 per octet)
+// IPv4 regex (0–255 per octet)
 const ipv4Regex =
   /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+
+// IPv6 regex (simplified, covers most common cases)
+const ipv6Regex =
+  /^((([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4})|(([0-9a-fA-F]{1,4}:){1,7}:)|(([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4})|(([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2})|(([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3})|(([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4})|(([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5})|([0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6}))|(:((:[0-9a-fA-F]{1,4}){1,7}|:))|fe80:(:[0-9a-fA-F]{0,4}){0,4}:%?[0-9a-fA-F]{0,4}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/;
 
 const schema = yup.object().shape({
   externalAddress: yup
     .string()
     .trim()
     .test(
-      "empty-or-ipv4",
-      "External address must be a valid IPv4 address (e.g., 192.168.1.10)",
+      "empty-or-ipv4-or-ipv6",
+      "External address must be a valid IPv4 or IPv6 address",
       (value) => {
         // Allow empty string / undefined (means "unset → use config value")
         if (!value) return true;
-        return ipv4Regex.test(value);
+        return ipv4Regex.test(value) || ipv6Regex.test(value);
       },
     ),
 });
@@ -147,20 +151,21 @@ const EditInterfaceN3Modal: React.FC<EditInterfaceN3ModalProps> = ({
           id="edit-interface-n3-modal-description"
           sx={{ marginBottom: 3 }}
         >
-          Configure an external IPv4 address for N3. Ella Core will advertise
-          this address to radios which will use it to establish GTP tunnels. Use
-          this if Ella Core is behind a proxy or NAT. If not set, Ella Core will
-          use N3&apos;s address as defined in the config file.
+          Configure an external address (IPv4 or IPv6) for N3. Ella Core will
+          advertise this address to radios which will use it to establish GTP
+          tunnels. Use this if Ella Core is behind a proxy, NAT, or
+          load-balancer. If not set, Ella Core will use N3&apos;s address as
+          defined in the config file.
         </DialogContentText>
         <TextField
           fullWidth
-          label="External IP Address"
+          label="External Address"
           value={formValues.externalAddress}
           onChange={handleExternalAddressChange}
           error={!!errors.externalAddress}
           helperText={
             errors.externalAddress ||
-            "Leave empty to use N3's configured address."
+            "Leave empty to use N3's configured address. Supports both IPv4 and IPv6."
           }
           margin="normal"
           autoFocus
