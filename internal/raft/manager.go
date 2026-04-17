@@ -558,21 +558,6 @@ func (m *Manager) LeadershipTransfer() error {
 	return m.raft.LeadershipTransfer().Error()
 }
 
-// LeadershipTransferToServer triggers a leadership transfer to a specific
-// target node. Returns an error if the target is not a voter or the transfer
-// fails.
-func (m *Manager) LeadershipTransferToServer(nodeID int, raftAddress string) error {
-	serverID := raft.ServerID(fmt.Sprintf("%d", nodeID))
-	serverAddr := raft.ServerAddress(raftAddress)
-
-	future := m.raft.LeadershipTransferToServer(serverID, serverAddr)
-	if err := future.Error(); err != nil {
-		return fmt.Errorf("leadership transfer to %d: %w", nodeID, err)
-	}
-
-	return nil
-}
-
 // VoterIDs returns the server IDs of all voting members in the current Raft
 // configuration. Returns nil on error (e.g. no quorum).
 func (m *Manager) VoterIDs() []int {

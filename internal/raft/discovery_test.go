@@ -288,6 +288,91 @@ func TestProbePeer_FormingNode(t *testing.T) {
 	}
 }
 
+// TestDiscoveryTick_DuplicateNodeIDFails verifies that discoveryTick fails
+// hard when a reachable peer advertises the same node-id as this node.
+// Warning and continuing would risk silent split-brain at bootstrap or a
+// join request that clobbers an existing cluster member.
+func TestDiscoveryTick_DuplicateNodeIDFails(t *testing.T) {
+	cases := []struct {
+		name string
+		role string // "" means forming (no clusterId), "Leader"/"Follower" means formed
+	}{
+		{name: "forming_peer", role: ""},
+		{name: "formed_peer", role: "Leader"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pki := testutil.GenTestPKI(t, []int{1, 2})
+
+			serverPort := discoveryFreePort(t)
+			serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
+
+			serverLn := listener.New(listener.Config{
+				BindAddress:      serverAddr,
+				AdvertiseAddress: serverAddr,
+				NodeID:           1,
+				CAPool:           pki.CAPool,
+				LeafCert:         pki.Nodes[1].TLSCert,
+			})
+
+			cluster := &statusClusterBlock{
+				Role:          tc.role,
+				NodeID:        2, // same as probing node
+				SchemaVersion: 9,
+			}
+
+			if tc.role != "" {
+				cluster.ClusterID = "cluster-1"
+			}
+
+			startTestClusterHTTP(t, serverLn, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(statusResponse{
+					Result: statusResult{Cluster: cluster},
+				})
+			}))
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			if err := serverLn.Start(ctx); err != nil {
+				t.Fatalf("start listener: %v", err)
+			}
+
+			defer serverLn.Stop()
+
+			clientLn := listener.New(listener.Config{
+				BindAddress:      "127.0.0.1:0",
+				AdvertiseAddress: "127.0.0.1:0",
+				NodeID:           2,
+				CAPool:           pki.CAPool,
+				LeafCert:         pki.Nodes[2].TLSCert,
+			})
+
+			m := &Manager{
+				nodeID:          2,
+				clusterListener: clientLn,
+				config: ClusterConfig{
+					Peers:            []string{serverAddr},
+					AdvertiseAddress: "127.0.0.1:9999",
+					BootstrapExpect:  2,
+					SchemaVersion:    9,
+				},
+			}
+
+			joined, err := m.discoveryTick(ctx)
+			if err == nil {
+				t.Fatalf("expected error on duplicate node-id, got nil (joined=%v)", joined)
+			}
+
+			if joined {
+				t.Fatalf("joined should be false when duplicate node-id is detected")
+			}
+		})
+	}
+}
+
 func TestProbePeer_503IsUnreachable(t *testing.T) {
 	pki := testutil.GenTestPKI(t, []int{1, 2})
 

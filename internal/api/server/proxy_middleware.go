@@ -154,6 +154,19 @@ func proxyToLeaderCluster(w http.ResponseWriter, r *http.Request, client *http.C
 
 	defer func() { _ = resp.Body.Close() }()
 
+	// 410 Gone from the leader means this node has been removed from
+	// cluster_members (removedNodeFence). The end-user caller did not
+	// remove anything, so surface 502 Bad Gateway rather than forwarding
+	// the 410 verbatim.
+	if resp.StatusCode == http.StatusGone {
+		logger.APILog.Error("proxy: this node has been removed from the cluster; operator must shut it down",
+			zap.Int("nodeId", dbInstance.NodeID()))
+		writeError(r.Context(), w, http.StatusBadGateway,
+			"this node is no longer a cluster member", nil, logger.APILog)
+
+		return
+	}
+
 	copyProxyResponse(w, resp, dbInstance)
 }
 
@@ -174,7 +187,17 @@ func copyProxyResponse(w http.ResponseWriter, resp *http.Response, dbInstance *d
 	if idxStr := resp.Header.Get(headerAppliedIndex); idxStr != "" {
 		targetIdx, parseErr := strconv.ParseUint(idxStr, 10, 64)
 		if parseErr == nil {
-			waitForLocalIndex(dbInstance, targetIdx)
+			start := time.Now()
+
+			localIdx, caughtUp := waitForLocalIndex(dbInstance, targetIdx)
+			if !caughtUp {
+				logger.APILog.Warn(
+					"proxy: follower did not catch up to leader applied index before response; read-your-writes may be violated for an immediate subsequent read on this node",
+					zap.Uint64("targetIdx", targetIdx),
+					zap.Uint64("localIdx", localIdx),
+					zap.Duration("waited", time.Since(start)),
+				)
+			}
 		}
 	}
 
@@ -185,21 +208,31 @@ func copyProxyResponse(w http.ResponseWriter, resp *http.Response, dbInstance *d
 	}
 }
 
-// waitForLocalIndex blocks briefly until the local Raft applied index catches
-// up, implementing read-your-writes consistency for proxied requests.
-func waitForLocalIndex(dbInstance *db.Database, targetIdx uint64) {
-	const (
-		pollInterval = 5 * time.Millisecond
-		maxWait      = 2 * time.Second
-	)
+const (
+	proxyReadYourWritesMaxWait      = 2 * time.Second
+	proxyReadYourWritesPollInterval = 5 * time.Millisecond
+)
 
+// waitForLocalIndex blocks until the local Raft applied index reaches
+// targetIdx or the deadline elapses. Returns the last-observed local index
+// and whether it caught up.
+func waitForLocalIndex(dbInstance *db.Database, targetIdx uint64) (uint64, bool) {
+	return waitForIndex(targetIdx, dbInstance.RaftAppliedIndex, proxyReadYourWritesMaxWait, proxyReadYourWritesPollInterval)
+}
+
+func waitForIndex(targetIdx uint64, get func() uint64, maxWait, poll time.Duration) (uint64, bool) {
 	deadline := time.Now().Add(maxWait)
 
-	for time.Now().Before(deadline) {
-		if dbInstance.RaftAppliedIndex() >= targetIdx {
-			return
+	for {
+		local := get()
+		if local >= targetIdx {
+			return local, true
 		}
 
-		time.Sleep(pollInterval)
+		if !time.Now().Before(deadline) {
+			return local, false
+		}
+
+		time.Sleep(poll)
 	}
 }

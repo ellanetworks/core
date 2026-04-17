@@ -18,17 +18,18 @@ const ClusterMembersTableName = "cluster_members"
 const (
 	listClusterMembersStmtStr  = "SELECT &ClusterMember.* FROM %s ORDER BY nodeID ASC"
 	getClusterMemberStmtStr    = "SELECT &ClusterMember.* FROM %s WHERE nodeID==$ClusterMember.nodeID"
-	upsertClusterMemberStmtStr = "INSERT INTO %s (nodeID, raftAddress, apiAddress, binaryVersion, suffrage) VALUES ($ClusterMember.nodeID, $ClusterMember.raftAddress, $ClusterMember.apiAddress, $ClusterMember.binaryVersion, $ClusterMember.suffrage) ON CONFLICT(nodeID) DO UPDATE SET raftAddress=$ClusterMember.raftAddress, apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion, suffrage=$ClusterMember.suffrage"
+	upsertClusterMemberStmtStr = "INSERT INTO %s (nodeID, raftAddress, apiAddress, binaryVersion, suffrage, maxSchemaVersion) VALUES ($ClusterMember.nodeID, $ClusterMember.raftAddress, $ClusterMember.apiAddress, $ClusterMember.binaryVersion, $ClusterMember.suffrage, $ClusterMember.maxSchemaVersion) ON CONFLICT(nodeID) DO UPDATE SET raftAddress=$ClusterMember.raftAddress, apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion, suffrage=$ClusterMember.suffrage, maxSchemaVersion=$ClusterMember.maxSchemaVersion"
 	deleteClusterMemberStmtStr = "DELETE FROM %s WHERE nodeID==$ClusterMember.nodeID"
 	countClusterMembersStmtStr = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
 type ClusterMember struct {
-	NodeID        int    `db:"nodeID"`
-	RaftAddress   string `db:"raftAddress"`
-	APIAddress    string `db:"apiAddress"`
-	BinaryVersion string `db:"binaryVersion"`
-	Suffrage      string `db:"suffrage"`
+	NodeID           int    `db:"nodeID"`
+	RaftAddress      string `db:"raftAddress"`
+	APIAddress       string `db:"apiAddress"`
+	BinaryVersion    string `db:"binaryVersion"`
+	Suffrage         string `db:"suffrage"`
+	MaxSchemaVersion int    `db:"maxSchemaVersion"`
 }
 
 func (db *Database) ListClusterMembers(ctx context.Context) ([]ClusterMember, error) {

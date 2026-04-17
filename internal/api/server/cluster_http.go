@@ -3,6 +3,8 @@
 package server
 
 import (
+	"context"
+	"crypto/tls"
 	"net"
 	"net/http"
 	"sync"
@@ -84,6 +86,7 @@ func StartClusterHTTP(dbInstance *db.Database, ln *listener.Listener, operatorHa
 	srv := &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
+		ConnContext:       peerNodeIDConnContext,
 	}
 
 	go func() {
@@ -96,4 +99,41 @@ func StartClusterHTTP(dbInstance *db.Database, ln *listener.Listener, operatorHa
 		_ = cl.Close()
 		_ = srv.Close()
 	}
+}
+
+// peerNodeIDCtxKey is the context key used to carry the peer certificate's
+// CN-derived node-id through cluster-port requests. It is set by
+// peerNodeIDConnContext at TLS handshake time and consumed by handlers
+// that need peer identity (e.g. self-registration on POST /cluster/members).
+type peerNodeIDCtxKey struct{}
+
+// peerNodeIDConnContext extracts the peer node-id from the cluster TLS
+// connection and stashes it in the request context. Returns the context
+// unchanged when the connection is not a cluster TLS connection (should
+// not happen in production — guarded defensively).
+func peerNodeIDConnContext(ctx context.Context, c net.Conn) context.Context {
+	oc, ok := c.(*opaqueConn)
+	if !ok {
+		return ctx
+	}
+
+	tc, ok := oc.Conn.(*tls.Conn)
+	if !ok {
+		return ctx
+	}
+
+	id, err := listener.PeerNodeID(tc)
+	if err != nil {
+		return ctx
+	}
+
+	return context.WithValue(ctx, peerNodeIDCtxKey{}, id)
+}
+
+// peerNodeIDFromContext returns the peer node-id set by
+// peerNodeIDConnContext. The boolean is false when the request did not
+// originate on the cluster port.
+func peerNodeIDFromContext(ctx context.Context) (int, bool) {
+	v, ok := ctx.Value(peerNodeIDCtxKey{}).(int)
+	return v, ok
 }

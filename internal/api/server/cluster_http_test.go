@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -125,4 +126,163 @@ func TestClusterHTTP_Status(t *testing.T) {
 	}
 
 	serverLn.Stop()
+}
+
+// clusterTestServer spins up a cluster HTTP server under a listener and
+// returns the server's advertise address and a per-peer-node-id client
+// factory. Callers close the returned cleanup func.
+func clusterTestServer(t *testing.T, pki *testutil.PKI, serverNodeID int, peerNodeIDs []int) (serverAddr string, clients map[int]*http.Client, cleanup func()) {
+	t.Helper()
+
+	port := clusterFreePort(t)
+	serverAddr = fmt.Sprintf("127.0.0.1:%d", port)
+
+	serverLn := listener.New(listener.Config{
+		BindAddress:      serverAddr,
+		AdvertiseAddress: serverAddr,
+		NodeID:           serverNodeID,
+		CAPool:           pki.CAPool,
+		LeafCert:         pki.Nodes[serverNodeID].TLSCert,
+	})
+
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+
+	testDB, err := db.NewDatabase(context.Background(), dbPath, ellaraft.ClusterConfig{})
+	if err != nil {
+		t.Fatalf("create test db: %v", err)
+	}
+
+	stopCluster := server.StartClusterHTTP(testDB, serverLn, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	if err := serverLn.Start(ctx); err != nil {
+		cancel()
+		stopCluster()
+		t.Fatalf("start listener: %v", err)
+	}
+
+	clients = make(map[int]*http.Client, len(peerNodeIDs))
+
+	for _, id := range peerNodeIDs {
+		clientLn := listener.New(listener.Config{
+			BindAddress:      "127.0.0.1:0",
+			AdvertiseAddress: "127.0.0.1:0",
+			NodeID:           id,
+			CAPool:           pki.CAPool,
+			LeafCert:         pki.Nodes[id].TLSCert,
+		})
+
+		clients[id] = &http.Client{
+			Transport: &http.Transport{
+				DialTLSContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
+					return clientLn.Dial(ctx, addr, listener.ALPNHTTP, 5*time.Second)
+				},
+			},
+			Timeout: 5 * time.Second,
+		}
+	}
+
+	cleanup = func() {
+		cancel()
+		stopCluster()
+		serverLn.Stop()
+	}
+
+	return serverAddr, clients, cleanup
+}
+
+// TestClusterHTTP_SelfRegistrationMismatch verifies that a peer whose
+// cert CN encodes node-id 5 cannot register as node-id 3 via
+// POST /cluster/members on the cluster port.
+func TestClusterHTTP_SelfRegistrationMismatch(t *testing.T) {
+	pki := testutil.GenTestPKI(t, []int{1, 5})
+
+	serverAddr, clients, cleanup := clusterTestServer(t, pki, 1, []int{5})
+	defer cleanup()
+
+	body := `{"nodeId":3,"raftAddress":"127.0.0.1:9000","apiAddress":"127.0.0.1:9001"}`
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
+		fmt.Sprintf("https://%s/cluster/members", serverAddr), strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("create request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := clients[5].Do(req)
+	if err != nil {
+		t.Fatalf("POST /cluster/members: %v", err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected 403 for nodeId mismatch, got %d", resp.StatusCode)
+	}
+}
+
+// TestClusterHTTP_SelfAnnounceAccepted verifies the happy path: a peer with
+// matching CN successfully refreshes its row via POST /cluster/members/self
+// against a standalone DB (db.IsLeader returns true when no raft manager is
+// attached).
+func TestClusterHTTP_SelfAnnounceAccepted(t *testing.T) {
+	pki := testutil.GenTestPKI(t, []int{1, 5})
+
+	serverAddr, clients, cleanup := clusterTestServer(t, pki, 1, []int{5})
+	defer cleanup()
+
+	body := `{"nodeId":5,"raftAddress":"127.0.0.1:9000","apiAddress":"127.0.0.1:9001","binaryVersion":"abc","maxSchemaVersion":9}`
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
+		fmt.Sprintf("https://%s/cluster/members/self", serverAddr), strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("create request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := clients[5].Do(req)
+	if err != nil {
+		t.Fatalf("POST /cluster/members/self: %v", err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 for valid self-announce, got %d", resp.StatusCode)
+	}
+}
+
+// TestClusterHTTP_SelfAnnounceCNMismatch verifies that the selfRegistrationGuard
+// wrapping POST /cluster/members/self rejects a peer announcing a nodeId that
+// doesn't match its cert CN, even though the underlying handler (which would
+// otherwise upsert on the leader) never runs.
+func TestClusterHTTP_SelfAnnounceCNMismatch(t *testing.T) {
+	pki := testutil.GenTestPKI(t, []int{1, 5})
+
+	serverAddr, clients, cleanup := clusterTestServer(t, pki, 1, []int{5})
+	defer cleanup()
+
+	body := `{"nodeId":3,"raftAddress":"127.0.0.1:9000","apiAddress":"127.0.0.1:9001","binaryVersion":"abc","maxSchemaVersion":10}`
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
+		fmt.Sprintf("https://%s/cluster/members/self", serverAddr), strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("create request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := clients[5].Do(req)
+	if err != nil {
+		t.Fatalf("POST /cluster/members/self: %v", err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected 403 for CN mismatch, got %d", resp.StatusCode)
+	}
 }

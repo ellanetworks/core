@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -12,6 +13,18 @@ func getEmailFromContext(r *http.Request) string {
 	}
 
 	return ""
+}
+
+// getActorFromContext resolves the audit-log actor for a request. Requests
+// arriving on the cluster mTLS port carry a peer node-id (set by
+// peerNodeIDConnContext) and have no JWT email; attribute them to
+// ella-node-<n>. Requests on the public API port fall back to the JWT email.
+func getActorFromContext(r *http.Request) string {
+	if nodeID, ok := peerNodeIDFromContext(r.Context()); ok {
+		return fmt.Sprintf("ella-node-%d", nodeID)
+	}
+
+	return getEmailFromContext(r)
 }
 
 // getClientIP extracts the client IP address from the direct connection.

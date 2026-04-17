@@ -195,6 +195,14 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 			logger.EllaLog.Info("Leader initialization replicated successfully")
 		}
+
+		// Every node (leader and follower) refreshes its cluster_members
+		// row so the migration gate sees an accurate maxSchemaVersion.
+		// Best effort: a transient leader miss just defers the gate until
+		// the next leadership change or peer self-announce.
+		if err := dbInstance.SelfAnnounce(ctx, ver.Version); err != nil {
+			logger.EllaLog.Warn("self-announce to leader failed", zap.Error(err))
+		}
 	} else {
 		if err := dbInstance.DeleteAllDynamicLeases(ctx); err != nil {
 			return fmt.Errorf("couldn't release all dynamic leases: %w", err)
