@@ -111,3 +111,47 @@ func TestMinVoterSchemaSupport_IgnoresLearners(t *testing.T) {
 		t.Fatalf("laggard: want 1, got %d", laggard)
 	}
 }
+
+func TestRequireSchema(t *testing.T) {
+	database := newStandaloneDB(t)
+	ctx := context.Background()
+
+	applied, err := database.CurrentSchemaVersion(ctx)
+	if err != nil {
+		t.Fatalf("CurrentSchemaVersion: %v", err)
+	}
+
+	if err := database.RequireSchema(ctx, applied); err != nil {
+		t.Fatalf("RequireSchema(current) unexpected error: %v", err)
+	}
+
+	if err := database.RequireSchema(ctx, applied+1); err != ErrMigrationPending {
+		t.Fatalf("RequireSchema(current+1): want ErrMigrationPending, got %v", err)
+	}
+}
+
+func TestClusterMember_MaxSchemaVersionRoundtrip(t *testing.T) {
+	database := newStandaloneDB(t)
+	ctx := context.Background()
+
+	m := &ClusterMember{
+		NodeID:           7,
+		RaftAddress:      "10.0.0.7:8300",
+		APIAddress:       "10.0.0.7:8443",
+		Suffrage:         "voter",
+		MaxSchemaVersion: 42,
+	}
+
+	if err := database.UpsertClusterMember(ctx, m); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	got, err := database.GetClusterMember(ctx, 7)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+
+	if got.MaxSchemaVersion != 42 {
+		t.Fatalf("MaxSchemaVersion: want 42, got %d", got.MaxSchemaVersion)
+	}
+}

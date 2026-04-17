@@ -222,3 +222,67 @@ func TestClusterHTTP_SelfRegistrationMismatch(t *testing.T) {
 		t.Fatalf("expected 403 for nodeId mismatch, got %d", resp.StatusCode)
 	}
 }
+
+// TestClusterHTTP_SelfAnnounceAccepted verifies the happy path: a peer with
+// matching CN successfully refreshes its row via POST /cluster/members/self
+// against a standalone DB (db.IsLeader returns true when no raft manager is
+// attached).
+func TestClusterHTTP_SelfAnnounceAccepted(t *testing.T) {
+	pki := testutil.GenTestPKI(t, []int{1, 5})
+
+	serverAddr, clients, cleanup := clusterTestServer(t, pki, 1, []int{5})
+	defer cleanup()
+
+	body := `{"nodeId":5,"raftAddress":"127.0.0.1:9000","apiAddress":"127.0.0.1:9001","binaryVersion":"abc","maxSchemaVersion":9}`
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
+		fmt.Sprintf("https://%s/cluster/members/self", serverAddr), strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("create request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := clients[5].Do(req)
+	if err != nil {
+		t.Fatalf("POST /cluster/members/self: %v", err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 for valid self-announce, got %d", resp.StatusCode)
+	}
+}
+
+// TestClusterHTTP_SelfAnnounceCNMismatch verifies that the selfRegistrationGuard
+// wrapping POST /cluster/members/self rejects a peer announcing a nodeId that
+// doesn't match its cert CN, even though the underlying handler (which would
+// otherwise upsert on the leader) never runs.
+func TestClusterHTTP_SelfAnnounceCNMismatch(t *testing.T) {
+	pki := testutil.GenTestPKI(t, []int{1, 5})
+
+	serverAddr, clients, cleanup := clusterTestServer(t, pki, 1, []int{5})
+	defer cleanup()
+
+	body := `{"nodeId":3,"raftAddress":"127.0.0.1:9000","apiAddress":"127.0.0.1:9001","binaryVersion":"abc","maxSchemaVersion":10}`
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
+		fmt.Sprintf("https://%s/cluster/members/self", serverAddr), strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("create request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := clients[5].Do(req)
+	if err != nil {
+		t.Fatalf("POST /cluster/members/self: %v", err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("expected 403 for CN mismatch, got %d", resp.StatusCode)
+	}
+}
