@@ -23,7 +23,7 @@ type PFCPSessionContext struct {
 type UPTunnel struct {
 	DataPath      *DataPath
 	ANInformation struct {
-		IPAddress   net.IP
+		IPv4Address net.IP
 		IPv6Address net.IP
 		TEID        uint32
 	}

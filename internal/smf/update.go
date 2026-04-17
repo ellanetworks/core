@@ -245,7 +245,7 @@ func handlePDUSessionResourceSetupResponseTransfer(b []byte, smContext *SMContex
 	teid := binary.BigEndian.Uint32(gtpTunnel.GTPTEID.Value)
 
 	anIPv4, anIPv6 := parseTransportLayerAddress(gtpTunnel.TransportLayerAddress.Value)
-	smContext.Tunnel.ANInformation.IPAddress = anIPv4
+	smContext.Tunnel.ANInformation.IPv4Address = anIPv4
 	smContext.Tunnel.ANInformation.IPv6Address = anIPv6
 	smContext.Tunnel.ANInformation.TEID = teid
 
@@ -515,7 +515,7 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 	teid := binary.BigEndian.Uint32(GTPTunnel.GTPTEID.Value)
 
 	anIPv4, anIPv6 := parseTransportLayerAddress(GTPTunnel.TransportLayerAddress.Value)
-	smContext.Tunnel.ANInformation.IPAddress = anIPv4
+	smContext.Tunnel.ANInformation.IPv4Address = anIPv4
 	smContext.Tunnel.ANInformation.IPv6Address = anIPv6
 	smContext.Tunnel.ANInformation.TEID = teid
 
@@ -630,7 +630,7 @@ func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
 	teid := binary.BigEndian.Uint32(gtpTunnel.GTPTEID.Value)
 
 	anIPv4, anIPv6 := parseTransportLayerAddress(gtpTunnel.TransportLayerAddress.Value)
-	smContext.Tunnel.ANInformation.IPAddress = anIPv4
+	smContext.Tunnel.ANInformation.IPv4Address = anIPv4
 	smContext.Tunnel.ANInformation.IPv6Address = anIPv6
 
 	smContext.Tunnel.ANInformation.TEID = teid

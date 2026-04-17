@@ -159,9 +159,9 @@ func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, policy 
 		return fmt.Errorf("could not create downlink URR: %v", err)
 	}
 
-	dp.ActivateUpLinkPdr(pduAddress, smContext.Tunnel.ANInformation.IPAddress, defQER, defULURR)
+	dp.ActivateUpLinkPdr(pduAddress, smContext.Tunnel.ANInformation.IPv4Address, defQER, defULURR)
 
-	dp.ActivateDlLinkPdr(smContext.Tunnel.ANInformation.IPAddress, smContext.Tunnel.ANInformation.IPv6Address, smContext.Tunnel.ANInformation.TEID, pduAddress, defQER, defDLURR)
+	dp.ActivateDlLinkPdr(smContext.Tunnel.ANInformation.IPv4Address, smContext.Tunnel.ANInformation.IPv6Address, smContext.Tunnel.ANInformation.TEID, pduAddress, defQER, defDLURR)
 
 	dp.Activated = true
 

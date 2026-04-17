@@ -136,7 +136,7 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 			Activated: true,
 		},
 	}
-	smCtx.Tunnel.ANInformation.IPAddress = net.ParseIP("10.0.0.100").To4()
+	smCtx.Tunnel.ANInformation.IPv4Address = net.ParseIP("10.0.0.100").To4()
 	smCtx.Tunnel.ANInformation.TEID = 6000
 	smCtx.PDUAddress = net.ParseIP("10.0.0.1").To4()
 
@@ -1338,8 +1338,8 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_HappyPath(t *testing.T) {
 	}
 
 	// Verify the session's ANInformation was updated.
-	if !smCtx.Tunnel.ANInformation.IPAddress.Equal(gnbIP) {
-		t.Fatalf("expected AN IP %s, got %s", gnbIP, smCtx.Tunnel.ANInformation.IPAddress)
+	if !smCtx.Tunnel.ANInformation.IPv4Address.Equal(gnbIP) {
+		t.Fatalf("expected AN IP %s, got %s", gnbIP, smCtx.Tunnel.ANInformation.IPv4Address)
 	}
 
 	if smCtx.Tunnel.ANInformation.TEID != gnbTEID {
@@ -1400,8 +1400,8 @@ func TestUpdateSmContextXnHandoverPathSwitchReq_HappyPath(t *testing.T) {
 	}
 
 	// Verify the session's ANInformation was updated to the target gNB.
-	if !smCtx.Tunnel.ANInformation.IPAddress.Equal(targetGnbIP) {
-		t.Fatalf("expected AN IP %s, got %s", targetGnbIP, smCtx.Tunnel.ANInformation.IPAddress)
+	if !smCtx.Tunnel.ANInformation.IPv4Address.Equal(targetGnbIP) {
+		t.Fatalf("expected AN IP %s, got %s", targetGnbIP, smCtx.Tunnel.ANInformation.IPv4Address)
 	}
 
 	if smCtx.Tunnel.ANInformation.TEID != targetTEID {
