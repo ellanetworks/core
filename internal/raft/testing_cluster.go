@@ -3,29 +3,37 @@
 package raft
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/hashicorp/raft"
+	"github.com/ellanetworks/core/internal/cluster/listener"
+	"github.com/ellanetworks/core/internal/cluster/listener/testutil"
+	hraft "github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 )
 
-// TestCluster is a multi-node in-memory Raft cluster for HA unit tests.
+// TestCluster is a multi-node mTLS Raft cluster for HA unit tests.
 type TestCluster struct {
-	Nodes    []*Manager
-	Appliers []Applier
-	t        testing.TB
-	cleanup  sync.Once
+	Nodes     []*Manager
+	Listeners []*listener.Listener
+	Appliers  []Applier
+	t         testing.TB
+	cancel    context.CancelFunc
+	cleanup   sync.Once
 }
 
-// SetupTestCluster starts n Raft nodes over in-memory transports and bootstraps
-// them into a single cluster. The first node bootstraps; subsequent nodes join
-// via AddVoter. Returns a cluster whose Nodes[0] is the initial leader.
+// SetupTestCluster starts n Raft nodes over mTLS transports and bootstraps
+// them into a single cluster. Each node gets its own cluster listener with
+// a shared test CA. The first node bootstraps; the full server list is
+// committed in a single configuration. Returns a cluster whose Nodes[0]
+// is the initial leader.
 func SetupTestCluster(t testing.TB, n int, applier Applier) *TestCluster {
 	return SetupTestClusterWithAppliers(t, n, func() Applier { return applier })
 }
@@ -40,47 +48,56 @@ func SetupTestClusterWithAppliers(t testing.TB, n int, newApplier func() Applier
 		t.Fatal("cluster size must be >= 1")
 	}
 
+	nodeIDs := make([]int, n)
+	for i := range n {
+		nodeIDs[i] = i + 1
+	}
+
+	pki := testutil.GenTestPKI(t, nodeIDs)
+
 	type nodeInfo struct {
-		mgr       *Manager
-		addr      raft.ServerAddress
-		transport *raft.InmemTransport
+		mgr *Manager
+		ln  *listener.Listener
 	}
 
 	nodes := make([]nodeInfo, 0, n)
 	appliers := make([]Applier, 0, n)
 
-	// Create all nodes first.
 	for i := range n {
 		nodeID := i + 1
 		a := newApplier()
 		appliers = append(appliers, a)
 
-		m, addr, transport := createTestNode(t, nodeID, a)
-		nodes = append(nodes, nodeInfo{mgr: m, addr: addr, transport: transport})
+		m, ln := createTestNode(t, nodeID, pki, a)
+		nodes = append(nodes, nodeInfo{mgr: m, ln: ln})
 	}
 
-	// Wire up all transports so they can talk to each other.
-	for i := range nodes {
-		for j := range nodes {
-			if i != j {
-				nodes[i].transport.Connect(nodes[j].addr, nodes[j].transport)
-			}
+	// Start all cluster listeners so nodes can communicate.
+	ctx, cancel := context.WithCancel(context.Background())
+
+	for _, ni := range nodes {
+		if err := ni.ln.Start(ctx); err != nil {
+			t.Fatalf("start cluster listener: %v", err)
 		}
 	}
 
 	// Bootstrap node 0 with the full server list.
-	servers := make([]raft.Server, 0, n)
+	servers := make([]hraft.Server, 0, n)
+
 	for _, ni := range nodes {
-		servers = append(servers, raft.Server{
-			ID:      raft.ServerID(fmt.Sprintf("%d", ni.mgr.nodeID)),
-			Address: ni.addr,
+		servers = append(servers, hraft.Server{
+			ID:      hraft.ServerID(fmt.Sprintf("%d", ni.mgr.nodeID)),
+			Address: ni.mgr.transport.LocalAddr(),
 		})
 	}
 
-	bootCfg := raft.Configuration{Servers: servers}
+	bootCfg := hraft.Configuration{Servers: servers}
 	if err := nodes[0].mgr.raft.BootstrapCluster(bootCfg).Error(); err != nil {
+		cancel()
+
 		for _, ni := range nodes {
 			_ = ni.mgr.Shutdown()
+			ni.ln.Stop()
 		}
 
 		t.Fatalf("bootstrap: %v", err)
@@ -88,8 +105,11 @@ func SetupTestClusterWithAppliers(t testing.TB, n int, newApplier func() Applier
 
 	// Wait for node 0 to become leader.
 	if err := waitForLeaderTest(t, nodes[0].mgr); err != nil {
+		cancel()
+
 		for _, ni := range nodes {
 			_ = ni.mgr.Shutdown()
+			ni.ln.Stop()
 		}
 
 		t.Fatalf("wait for leader: %v", err)
@@ -99,23 +119,34 @@ func SetupTestClusterWithAppliers(t testing.TB, n int, newApplier func() Applier
 	// before returning. Without this, followers may not yet know the cluster
 	// membership and would never start elections if the leader is partitioned.
 	if err := nodes[0].mgr.raft.Barrier(5 * time.Second).Error(); err != nil {
+		cancel()
+
 		for _, ni := range nodes {
 			_ = ni.mgr.Shutdown()
+			ni.ln.Stop()
 		}
 
 		t.Fatalf("barrier: %v", err)
 	}
 
-	// Start observers.
 	managers := make([]*Manager, 0, n)
+	listeners := make([]*listener.Listener, 0, n)
 
 	for _, ni := range nodes {
 		go ni.mgr.observer.Run(ni.mgr.raft)
 
 		managers = append(managers, ni.mgr)
+		listeners = append(listeners, ni.ln)
 	}
 
-	tc := &TestCluster{Nodes: managers, Appliers: appliers, t: t}
+	tc := &TestCluster{
+		Nodes:     managers,
+		Listeners: listeners,
+		Appliers:  appliers,
+		t:         t,
+		cancel:    cancel,
+	}
+
 	t.Cleanup(tc.Close)
 
 	return tc
@@ -157,18 +188,26 @@ func (tc *TestCluster) WaitForConvergence(minIndex uint64, timeout time.Duration
 	return fmt.Errorf("not all nodes converged to index %d within %v", minIndex, timeout)
 }
 
-// Close shuts down all nodes in the cluster.
+// Close shuts down all nodes and listeners in the cluster.
 func (tc *TestCluster) Close() {
 	tc.cleanup.Do(func() {
 		for _, m := range tc.Nodes {
-			if err := m.Shutdown(); err != nil && !errors.Is(err, raft.ErrRaftShutdown) {
+			if err := m.Shutdown(); err != nil && !errors.Is(err, hraft.ErrRaftShutdown) {
 				tc.t.Errorf("shutdown node %d: %v", m.nodeID, err)
 			}
+		}
+
+		for _, ln := range tc.Listeners {
+			ln.Stop()
+		}
+
+		if tc.cancel != nil {
+			tc.cancel()
 		}
 	})
 }
 
-func createTestNode(t testing.TB, nodeID int, applier Applier) (*Manager, raft.ServerAddress, *raft.InmemTransport) {
+func createTestNode(t testing.TB, nodeID int, pki *testutil.PKI, applier Applier) (*Manager, *listener.Listener) {
 	t.Helper()
 
 	dataDir := t.TempDir()
@@ -180,8 +219,26 @@ func createTestNode(t testing.TB, nodeID int, applier Applier) (*Manager, raft.S
 
 	fsm := NewFSM(applier, dataDir)
 
-	cfg := raft.DefaultConfig()
-	cfg.LocalID = raft.ServerID(fmt.Sprintf("%d", nodeID))
+	port := freePort(t)
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+
+	ln := listener.New(listener.Config{
+		BindAddress:      addr,
+		AdvertiseAddress: addr,
+		NodeID:           nodeID,
+		CAPool:           pki.CAPool,
+		LeafCert:         pki.Nodes[nodeID].TLSCert,
+	})
+
+	sl, err := newRaftStreamLayer(ln, addr)
+	if err != nil {
+		t.Fatalf("create stream layer for node %d: %v", nodeID, err)
+	}
+
+	transport := hraft.NewNetworkTransport(sl, 3, 10*time.Second, newZapIOWriter("transport"))
+
+	cfg := hraft.DefaultConfig()
+	cfg.LocalID = hraft.ServerID(fmt.Sprintf("%d", nodeID))
 	cfg.Logger = newZapRaftLogger()
 	cfg.HeartbeatTimeout = 50 * time.Millisecond
 	cfg.ElectionTimeout = 50 * time.Millisecond
@@ -198,23 +255,21 @@ func createTestNode(t testing.TB, nodeID int, applier Applier) (*Manager, raft.S
 		t.Fatalf("create bolt store for node %d: %v", nodeID, err)
 	}
 
-	snapshots, err := raft.NewFileSnapshotStore(raftDir, 3, newZapIOWriter("snapshot"))
+	snapshots, err := hraft.NewFileSnapshotStore(raftDir, 3, newZapIOWriter("snapshot"))
 	if err != nil {
 		_ = boltStore.Close()
 
 		t.Fatalf("create snapshot store for node %d: %v", nodeID, err)
 	}
 
-	logCache, err := raft.NewLogCache(raftLogCacheSize, boltStore)
+	logCache, err := hraft.NewLogCache(raftLogCacheSize, boltStore)
 	if err != nil {
 		_ = boltStore.Close()
 
 		t.Fatalf("create log cache for node %d: %v", nodeID, err)
 	}
 
-	addr, transport := raft.NewInmemTransport("")
-
-	r, err := raft.NewRaft(cfg, fsm, logCache, boltStore, snapshots, transport)
+	r, err := hraft.NewRaft(cfg, fsm, logCache, boltStore, snapshots, transport)
 	if err != nil {
 		_ = boltStore.Close()
 
@@ -229,11 +284,27 @@ func createTestNode(t testing.TB, nodeID int, applier Applier) (*Manager, raft.S
 		transport: transport,
 		logStore:  boltStore,
 		snaps:     snapshots,
-		config:    ClusterConfig{Enabled: true, BindAddress: string(addr)},
+		config:    ClusterConfig{Enabled: true, BindAddress: addr, AdvertiseAddress: addr},
 		nodeID:    nodeID,
 		dataDir:   dataDir,
 		observer:  observer,
 	}
 
-	return m, addr, transport
+	return m, ln
+}
+
+func freePort(t testing.TB) int {
+	t.Helper()
+
+	lc := net.ListenConfig{}
+
+	l, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("find free port: %v", err)
+	}
+
+	port := l.Addr().(*net.TCPAddr).Port
+	_ = l.Close()
+
+	return port
 }

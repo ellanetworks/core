@@ -3,15 +3,16 @@
 package raft
 
 import (
+	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
-	"strings"
 	"time"
 
+	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/hashicorp/raft"
 	"go.uber.org/zap"
@@ -54,11 +55,15 @@ func (m *Manager) NeedsDiscovery() bool {
 }
 
 // RunDiscovery performs cluster formation for HA mode. It must be called after
-// the HTTP server starts so peers can reach this node's API. In standalone
-// mode or when resuming existing Raft state, it returns immediately.
+// the cluster listener starts so peers can reach this node's cluster port. In
+// standalone mode or when resuming existing Raft state, it returns immediately.
 func (m *Manager) RunDiscovery(ctx context.Context) error {
 	if !m.needsDiscovery {
 		return nil
+	}
+
+	if m.clusterListener == nil {
+		return fmt.Errorf("cluster discovery requires a cluster listener (mTLS)")
 	}
 
 	timeout := m.config.JoinTimeout
@@ -76,24 +81,11 @@ func (m *Manager) RunDiscovery(ctx context.Context) error {
 		zap.Duration("join_timeout", timeout),
 	)
 
-	// Phase 6 (mTLS): replace InsecureSkipVerify with cluster CA
-	// pinning once the mTLS transport is wired. The join-token
-	// provides authentication during formation; mTLS will add channel
-	// integrity.
-	client := &http.Client{
-		Timeout: discoveryHTTPTimeout,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true, // #nosec G402 — peers use self-signed certs during cluster formation
-			},
-		},
-	}
-
 	ticker := time.NewTicker(discoveryPollInterval)
 	defer ticker.Stop()
 
 	for {
-		joined, err := m.discoveryTick(ctx, client)
+		joined, err := m.discoveryTick(ctx)
 		if err != nil {
 			return err
 		}
@@ -120,16 +112,16 @@ func (m *Manager) RunDiscovery(ctx context.Context) error {
 
 // discoveryTick runs one iteration of the discovery poll. Returns true when
 // the cluster has been joined or bootstrapped.
-func (m *Manager) discoveryTick(ctx context.Context, client *http.Client) (bool, error) {
+func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 	reachableCount := 1 // count ourselves
 	lowestReachableNodeID := m.nodeID
 
-	for _, peerURL := range m.config.Peers {
-		if peerURL == m.config.AdvertiseAPIAddress {
+	for _, peerAddr := range m.config.Peers {
+		if peerAddr == m.config.AdvertiseAddress {
 			continue
 		}
 
-		state, nodeID, clusterID, peerSchema := m.probePeer(ctx, client, peerURL)
+		state, nodeID, clusterID, peerSchema := m.probePeer(ctx, peerAddr)
 
 		switch state {
 		case peerFormed:
@@ -137,11 +129,11 @@ func (m *Manager) discoveryTick(ctx context.Context, client *http.Client) (bool,
 			// cluster schema is <= our local schema, since post-baseline
 			// migrations are proposed through Raft by the leader. Reject
 			// the reverse (we'd be downgrading). The leader side of this
-			// check lives in api_cluster.go:JoinCluster and has the
+			// check lives in api_cluster.go:AddClusterMember and has the
 			// complementary rule: reject joiners with schema < leader.
 			if m.config.SchemaVersion < peerSchema {
 				logger.RaftLog.Warn("Schema version lower than peer, skipping (downgrade)",
-					zap.String("peer", peerURL),
+					zap.String("peer", peerAddr),
 					zap.Int("local", m.config.SchemaVersion),
 					zap.Int("remote", peerSchema),
 				)
@@ -149,9 +141,9 @@ func (m *Manager) discoveryTick(ctx context.Context, client *http.Client) (bool,
 				continue
 			}
 
-			if err := m.joinCluster(ctx, client, peerURL, clusterID); err != nil {
+			if err := m.joinCluster(ctx, peerAddr, clusterID); err != nil {
 				logger.RaftLog.Warn("Failed to join cluster via peer",
-					zap.String("peer", peerURL),
+					zap.String("peer", peerAddr),
 					zap.Error(err),
 				)
 
@@ -165,7 +157,7 @@ func (m *Manager) discoveryTick(ctx context.Context, client *http.Client) (bool,
 
 			if nodeID == m.nodeID {
 				logger.RaftLog.Warn("Peer reports duplicate node-id during discovery",
-					zap.String("peer", peerURL),
+					zap.String("peer", peerAddr),
 					zap.Int("node_id", nodeID),
 				)
 			}
@@ -195,15 +187,60 @@ func (m *Manager) discoveryTick(ctx context.Context, client *http.Client) (bool,
 	return false, nil
 }
 
-// probePeer queries a peer's status endpoint and returns its state, node ID,
-// cluster ID, and schema version.
-func (m *Manager) probePeer(ctx context.Context, client *http.Client, peerURL string) (peerState, int, string, int) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, peerURL+"/api/v1/status", nil)
+// clusterHTTPDo dials a peer's cluster port over mTLS and performs a
+// single HTTP request. Pass nil body for GET-style requests.
+func (m *Manager) clusterHTTPDo(ctx context.Context, method, peerAddr, path string, body io.Reader) (*http.Response, error) {
+	conn, err := m.clusterListener.Dial(ctx, peerAddr, listener.ALPNHTTP, discoveryHTTPTimeout)
 	if err != nil {
-		return peerUnreachable, 0, "", 0
+		return nil, err
 	}
 
-	resp, err := client.Do(req)
+	// conn ownership: we close it on any error path. On success the
+	// response body holds the conn via the transport; the caller closes
+	// it by closing resp.Body.
+	connUsed := false
+
+	defer func() {
+		if !connUsed {
+			_ = conn.Close()
+		}
+	}()
+
+	transport := &http.Transport{
+		DialTLSContext: func(context.Context, string, string) (net.Conn, error) {
+			if connUsed {
+				return nil, fmt.Errorf("cluster HTTP transport: connection already consumed")
+			}
+
+			connUsed = true
+
+			return conn, nil
+		},
+	}
+
+	client := &http.Client{Transport: transport, Timeout: discoveryHTTPTimeout}
+
+	req, err := http.NewRequestWithContext(ctx, method, "https://"+peerAddr+path, body)
+	if err != nil {
+		return nil, err
+	}
+
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	resp, err := client.Do(req) // #nosec G107 -- peerAddr comes from the operator-configured cluster.peers list
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+// probePeer queries a peer's cluster status endpoint and returns its state,
+// node ID, cluster ID, and schema version.
+func (m *Manager) probePeer(ctx context.Context, peerAddr string) (peerState, int, string, int) {
+	resp, err := m.clusterHTTPDo(ctx, http.MethodGet, peerAddr, "/cluster/status", nil)
 	if err != nil {
 		return peerUnreachable, 0, "", 0
 	}
@@ -235,9 +272,8 @@ func (m *Manager) probePeer(ctx context.Context, client *http.Client, peerURL st
 	return peerForming, nodeID, clusterID, schemaVersion
 }
 
-// joinCluster POSTs our membership to a peer (proxied to leader via the
-// LeaderProxyMiddleware).
-func (m *Manager) joinCluster(ctx context.Context, client *http.Client, peerURL string, clusterID string) error {
+// joinCluster POSTs our membership to a peer's cluster port.
+func (m *Manager) joinCluster(ctx context.Context, peerAddr string, clusterID string) error {
 	payload := struct {
 		NodeID        int    `json:"nodeId"`
 		RaftAddress   string `json:"raftAddress"`
@@ -248,7 +284,7 @@ func (m *Manager) joinCluster(ctx context.Context, client *http.Client, peerURL 
 	}{
 		NodeID:        m.nodeID,
 		RaftAddress:   string(m.transport.LocalAddr()),
-		APIAddress:    m.config.AdvertiseAPIAddress,
+		APIAddress:    m.config.APIAddress,
 		ClusterID:     clusterID,
 		SchemaVersion: m.config.SchemaVersion,
 		Suffrage:      m.config.InitialSuffrage,
@@ -259,16 +295,7 @@ func (m *Manager) joinCluster(ctx context.Context, client *http.Client, peerURL 
 		return fmt.Errorf("marshal join request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		peerURL+"/api/v1/cluster/members", strings.NewReader(string(body)))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Ella-Cluster-Token", m.config.JoinToken)
-
-	resp, err := client.Do(req)
+	resp, err := m.clusterHTTPDo(ctx, http.MethodPost, peerAddr, "/cluster/members", bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
@@ -281,7 +308,7 @@ func (m *Manager) joinCluster(ctx context.Context, client *http.Client, peerURL 
 	}
 
 	logger.RaftLog.Info("Joined existing cluster via peer",
-		zap.String("peer", peerURL),
+		zap.String("peer", peerAddr),
 		zap.Int("node_id", m.nodeID),
 	)
 

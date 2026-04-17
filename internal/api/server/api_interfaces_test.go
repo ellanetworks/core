@@ -276,4 +276,42 @@ func TestNetworkInteraces_EndToEnd(t *testing.T) {
 			t.Fatalf("unexpected N3 interface external address: %s", resp.Result.N3.ExternalAddress)
 		}
 	})
+
+	t.Run("7. Update N3 external address to IPv6", func(t *testing.T) {
+		statusCode, updateResponse, err := updateN3Info(env.Server.URL, client, token, "2001:db8::1")
+		if err != nil {
+			t.Fatalf("couldn't update N3 info: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if updateResponse.Error != "" {
+			t.Fatalf("expected no error, got %s", updateResponse.Error)
+		}
+
+		if updateResponse.Result.Message != "N3 interface updated" {
+			t.Fatalf("unexpected message: %s", updateResponse.Result.Message)
+		}
+	})
+
+	t.Run("8. Validate that N3 external IPv6 address is updated", func(t *testing.T) {
+		statusCode, resp, err := listNetworkInterfaces(env.Server.URL, client, token)
+		if err != nil {
+			t.Fatalf("couldn't list network interfaces: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if resp.Error != "" {
+			t.Fatalf("expected no error, got %s", resp.Error)
+		}
+
+		if resp.Result.N3.ExternalAddress != "2001:db8::1" {
+			t.Fatalf("unexpected N3 interface external address: %s", resp.Result.N3.ExternalAddress)
+		}
+	})
 }

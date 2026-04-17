@@ -94,32 +94,43 @@ telemetry:
 
 ## Clustering
 
-To deploy Ella Core in a high-availability configuration, enable clustering on each node. All nodes must share the same `join-token` and list each other in `peers`.
+To deploy Ella Core in a high-availability configuration, enable clustering on each node. All nodes must list each other in `peers` and use mTLS certificates signed by a shared cluster CA for peer authentication.
 
 ```yaml
 cluster:
   enabled: true
   node-id: 1
   bind-address: "10.0.0.1:7000"
-  advertise-api-address: "https://10.0.0.1:5002"
+  advertise-address: "10.0.0.1:7000"
   bootstrap-expect: 3
   peers:
-    - "https://10.0.0.1:5002"
-    - "https://10.0.0.2:5002"
-    - "https://10.0.0.3:5002"
-  join-token: "my-secret-token-that-is-at-least-32-chars"
+    - "10.0.0.1:7000"
+    - "10.0.0.2:7000"
+    - "10.0.0.3:7000"
+  tls:
+    ca: "/etc/ella/cluster-ca.pem"
+    cert: "/etc/ella/node-1.pem"
+    key: "/etc/ella/node-1-key.pem"
   join-timeout: "30s"
   propose-timeout: "5s"
   snapshot-interval: "2m"
   snapshot-threshold: 8192
 ```
 
+- `bind-address` (string): The `host:port` address the cluster listener binds to. Carries all intra-cluster traffic (Raft consensus and cluster HTTP).
+- `advertise-address` (string, optional): The `host:port` address peers use to reach this node. Defaults to `bind-address`. Must appear in the `peers` list.
+- `peers` (list of strings): `host:port` cluster addresses of all nodes. Every node's `advertise-address` must appear in this list.
+- `tls` (object): mTLS configuration for cluster communication. Required when clustering is enabled.
+    - `ca` (string): Path to the CA bundle (PEM) trusted for peer certificates.
+    - `cert` (string): Path to this node's leaf certificate (PEM). The leaf CN must be `ella-node-<node-id>`.
+    - `key` (string): Path to the private key for the leaf certificate (PEM).
+
 !!! note
     When clustering is enabled, write requests (POST, PUT, PATCH, DELETE) are automatically forwarded to the current Raft leader. Read requests are served by any node.
 
 ## IPv6 Support
 
-Ella Core supports IPv6 addresses for the management interface (`api`) and the radio interface (`n2`).
+Ella Core supports IPv6 addresses for the management interface (`api`), the radio interface (`n2`) and the GTPU interface (`n3`).
 
 The following example demonstrates using an IPv6 address for those interfaces:
 
@@ -129,8 +140,7 @@ interfaces:
     address: "2001:db8::1"
     port: 38412
   n3:
-    address: "22.22.22.2"
-    port: 38412
+    address: "2001:dba::1"
   n6:
     name: "ens3"
   api:
@@ -138,7 +148,7 @@ interfaces:
     port: 5002
 ```
 
-The following example demonstrates using `SO_BINDTODEVICE` for those interfaces:
+The following example demonstrates using all non link-local addresses for those interfaces:
 
 ```yaml
 interfaces:
@@ -146,8 +156,7 @@ interfaces:
     name: "ens5"
     port: 38412
   n3:
-    address: "22.22.22.2"
-    port: 38412
+    address: "ens4"
   n6:
     name: "ens3"
   api:
@@ -156,4 +165,10 @@ interfaces:
 ```
 
 !!! note
-    IPv6 support is currently available for the management interface (`api`) and radio interface (`n2`). The subscriber data interfaces (`n3` and `n6`) currently only support IPv4 addresses.
+    IPv6 support is currently available for the management interface (`api`), radio interface (`n2`) and GTPU interface (`n3`). Only IPv4 is currently supported for the UE traffic and the data network interface (`n6`).
+
+## GTP-U Transport over IPv6
+
+Ella Core supports GTP-U tunnels over IPv6 for the N3 interface (between the core and the gNB). When a gNB advertises a dual-stack transport address (both IPv4 and IPv6) in the N2 signaling and Ella Core is configured for dual-stack, Ella Core always prefers IPv6 for the GTP-U data path.
+
+To ensure Ella Core always uses IPv4 or IPv6 for GTP-U, specify an address of that family in the configuration file, or ensure only IPs of that family are configured on the interface.

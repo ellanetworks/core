@@ -1,0 +1,99 @@
+// Copyright 2026 Ella Networks
+
+package server
+
+import (
+	"net"
+	"net/http"
+	"sync"
+	"time"
+
+	"github.com/ellanetworks/core/internal/cluster/listener"
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
+)
+
+// connListener is a net.Listener backed by a channel of connections.
+// The cluster listener's ALPNHTTP handler pushes accepted connections
+// into the channel; http.Server.Serve consumes them via Accept.
+type connListener struct {
+	ch     chan net.Conn
+	closed chan struct{}
+	addr   net.Addr
+	once   sync.Once
+}
+
+func newConnListener(addr net.Addr) *connListener {
+	return &connListener{
+		ch:     make(chan net.Conn, 16),
+		closed: make(chan struct{}),
+		addr:   addr,
+	}
+}
+
+func (cl *connListener) Accept() (net.Conn, error) {
+	select {
+	case conn, ok := <-cl.ch:
+		if !ok {
+			return nil, net.ErrClosed
+		}
+
+		return conn, nil
+	case <-cl.closed:
+		return nil, net.ErrClosed
+	}
+}
+
+func (cl *connListener) Close() error {
+	cl.once.Do(func() { close(cl.closed) })
+	return nil
+}
+
+func (cl *connListener) Addr() net.Addr {
+	return cl.addr
+}
+
+// opaqueConn wraps a net.Conn so that http.Server.Serve does not type-
+// assert it to *tls.Conn. Without this wrapper the server sees the
+// custom ALPN ("ella-http-v1"), finds no TLSNextProto handler, and
+// drops the connection. The TLS layer is already terminated by the
+// cluster listener; the HTTP server reads plaintext from Read/Write.
+type opaqueConn struct {
+	net.Conn
+}
+
+// StartClusterHTTP registers the ALPNHTTP handler on the cluster
+// listener and starts an HTTP server serving the cluster-internal mux.
+// The operatorHandler, when non-nil, is mounted at /cluster/proxy/ so
+// followers can forward writes to the leader over the cluster port.
+// The returned function shuts down the server.
+func StartClusterHTTP(dbInstance *db.Database, ln *listener.Listener, operatorHandler http.Handler) func() {
+	addr, _ := net.ResolveTCPAddr("tcp", ln.AdvertiseAddress())
+	cl := newConnListener(addr)
+
+	ln.Register(listener.ALPNHTTP, func(conn net.Conn) {
+		select {
+		case cl.ch <- &opaqueConn{conn}:
+		case <-cl.closed:
+			_ = conn.Close()
+		}
+	})
+
+	mux := newClusterMux(dbInstance, operatorHandler)
+	srv := &http.Server{
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	go func() {
+		if err := srv.Serve(cl); err != nil && err != http.ErrServerClosed {
+			logger.APILog.Error("Cluster HTTP server error", zap.Error(err))
+		}
+	}()
+
+	return func() {
+		_ = cl.Close()
+		_ = srv.Close()
+	}
+}

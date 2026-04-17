@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/bgp"
+	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
@@ -86,6 +87,7 @@ type UpgradeConfig struct {
 	BGP                 *bgp.BGPService
 	EmbedFS             fs.FS
 	RegisterExtraRoutes func(*http.ServeMux)
+	ClusterListener     *listener.Listener
 }
 
 // StartDiscovery creates and starts the HTTP server with only the routes
@@ -229,6 +231,7 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 		BcryptCost:          bcrypt.DefaultCost,
 		Ready:               &s.ready,
 		RegisterExtraRoutes: opts.RegisterExtraRoutes,
+		ClusterListener:     opts.ClusterListener,
 	})
 
 	s.handler.set(fullHandler)
@@ -253,6 +256,14 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 	}()
 
 	return nil
+}
+
+// Handler returns the swappable HTTP handler backing the API server.
+// The returned handler follows the server through Phase A (discovery)
+// and Phase B (full API) automatically, so callers such as the cluster
+// proxy mux always see the current handler without re-wiring.
+func (s *Server) Handler() http.Handler {
+	return &s.handler
 }
 
 // Shutdown gracefully shuts down the HTTP server.

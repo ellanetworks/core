@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"reflect"
 	"strings"
 	"time"
@@ -608,6 +609,24 @@ func miscCauseToEnum(cause ngapType.CauseMisc) utils.EnumField[uint64] {
 		return utils.MakeEnum(uint64(cause.Value), "Unspecified", false)
 	default:
 		return utils.MakeEnum(uint64(cause.Value), "", true)
+	}
+}
+
+// transportLayerAddressToString formats a NGAP TransportLayerAddress byte slice
+// as a human-readable string per 3GPP TS 38.414 Section 5.1:
+//   - 4 bytes  → IPv4 dotted-decimal
+//   - 16 bytes → IPv6 colon-notation
+//   - 20 bytes → "IPv4+IPv6" dual-stack
+func transportLayerAddressToString(addr []byte) string {
+	switch len(addr) {
+	case 4:
+		return fmt.Sprintf("%d.%d.%d.%d", addr[0], addr[1], addr[2], addr[3])
+	case 16:
+		return net.IP(addr).String()
+	case 20:
+		return fmt.Sprintf("%s+%s", net.IP(addr[0:4]).String(), net.IP(addr[4:20]).String())
+	default:
+		return ""
 	}
 }
 

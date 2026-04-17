@@ -30,7 +30,7 @@
 /* One entry per profiling index, stored in a per-CPU array map. */
 struct profile_entry {
 	__u64 total_ns; /* accumulated nanoseconds */
-	__u64 count;    /* number of samples */
+	__u64 count; /* number of samples */
 };
 
 /*
@@ -38,23 +38,24 @@ struct profile_entry {
  * Keep this enum in sync with PROF_NUM_ENTRIES below.
  */
 enum profile_index {
-	PROF_N3_TOTAL        = 0,  /* N3 (uplink) full pipeline */
-	PROF_N6_TOTAL        = 1,  /* N6 (downlink) full pipeline */
-	PROF_N3_PDR_LOOKUP   = 2,  /* uplink TEID → PDR map lookup */
-	PROF_N6_PDR_LOOKUP   = 3,  /* downlink DIP → PDR map lookup */
-	PROF_N3_MTU_CHECK    = 4,  /* uplink bpf_check_mtu */
-	PROF_N6_MTU_CHECK    = 5,  /* downlink bpf_check_mtu */
+	PROF_N3_TOTAL = 0, /* N3 (uplink) full pipeline */
+	PROF_N6_TOTAL = 1, /* N6 (downlink) full pipeline */
+	PROF_N3_PDR_LOOKUP = 2, /* uplink TEID → PDR map lookup */
+	PROF_N6_PDR_LOOKUP = 3, /* downlink DIP → PDR map lookup */
+	PROF_N3_MTU_CHECK = 4, /* uplink bpf_check_mtu */
+	PROF_N6_MTU_CHECK = 5, /* downlink bpf_check_mtu */
 	PROF_N3_QER_RATELIMIT = 6, /* uplink gate + sliding-window rate limit */
-	PROF_N6_QER_RATELIMIT = 7, /* downlink gate + sliding-window rate limit */
-	PROF_N3_GTP_MANIP    = 8,  /* uplink GTP header update/removal */
-	PROF_N6_GTP_MANIP    = 9,  /* downlink GTP header encapsulation */
-	PROF_N3_SDF_FILTER   = 10, /* uplink SDF filter match */
-	PROF_N6_SDF_FILTER   = 11, /* downlink SDF filter match */
-	PROF_N3_NAT          = 12, /* uplink source NAT (masquerade) */
-	PROF_N6_NAT          = 13, /* downlink destination NAT (masquerade) */
-	PROF_N3_FIB_ROUTING  = 14, /* uplink FIB lookup + redirect */
-	PROF_N6_FIB_ROUTING  = 15, /* downlink FIB lookup + redirect */
-	PROF_NUM_ENTRIES     = 16,
+	PROF_N6_QER_RATELIMIT =
+		7, /* downlink gate + sliding-window rate limit */
+	PROF_N3_GTP_MANIP = 8, /* uplink GTP header update/removal */
+	PROF_N6_GTP_MANIP = 9, /* downlink GTP header encapsulation */
+	PROF_N3_SDF_FILTER = 10, /* uplink SDF filter match */
+	PROF_N6_SDF_FILTER = 11, /* downlink SDF filter match */
+	PROF_N3_NAT = 12, /* uplink source NAT (masquerade) */
+	PROF_N6_NAT = 13, /* downlink destination NAT (masquerade) */
+	PROF_N3_FIB_ROUTING = 14, /* uplink FIB lookup + redirect */
+	PROF_N6_FIB_ROUTING = 15, /* downlink FIB lookup + redirect */
+	PROF_NUM_ENTRIES = 16,
 };
 
 #ifdef ENABLE_PROFILING
@@ -70,29 +71,33 @@ struct {
  * PROFILE_START(idx) — record the start timestamp into a local variable.
  * The variable name encodes the index to allow nesting without collisions.
  */
-#define PROFILE_START(idx) \
-	__u64 _prof_start_##idx = bpf_ktime_get_ns()
+#define PROFILE_START(idx) __u64 _prof_start_##idx = bpf_ktime_get_ns()
 
 /*
  * PROFILE_END(idx) — compute elapsed ns and accumulate into the per-CPU map.
  * Silently skips the update if the map lookup fails (should never happen for
  * a PERCPU_ARRAY with a valid key, but the BPF verifier requires the check).
  */
-#define PROFILE_END(idx) \
-	do { \
-		__u64 _prof_end_##idx = bpf_ktime_get_ns(); \
-		__u32 _prof_key_##idx = (idx); \
-		struct profile_entry *_prof_e_##idx = \
+#define PROFILE_END(idx)                                                       \
+	do {                                                                   \
+		__u64 _prof_end_##idx = bpf_ktime_get_ns();                    \
+		__u32 _prof_key_##idx = (idx);                                 \
+		struct profile_entry *_prof_e_##idx =                          \
 			bpf_map_lookup_elem(&profiling_map, &_prof_key_##idx); \
-		if (_prof_e_##idx) { \
-			_prof_e_##idx->total_ns += _prof_end_##idx - _prof_start_##idx; \
-			_prof_e_##idx->count += 1; \
-		} \
+		if (_prof_e_##idx) {                                           \
+			_prof_e_##idx->total_ns +=                             \
+				_prof_end_##idx - _prof_start_##idx;           \
+			_prof_e_##idx->count += 1;                             \
+		}                                                              \
 	} while (0)
 
 #else /* !ENABLE_PROFILING */
 
-#define PROFILE_START(idx) do {} while (0)
-#define PROFILE_END(idx)   do {} while (0)
+#define PROFILE_START(idx) \
+	do {               \
+	} while (0)
+#define PROFILE_END(idx) \
+	do {             \
+	} while (0)
 
 #endif /* ENABLE_PROFILING */

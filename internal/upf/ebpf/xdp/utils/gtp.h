@@ -19,7 +19,9 @@
 #include <linux/bpf.h>
 #include <linux/if_ether.h>
 #include <linux/in.h>
+#include <linux/in6.h>
 #include <linux/ip.h>
+#include <linux/ipv6.h>
 #include <linux/types.h>
 #include <linux/udp.h>
 #include <linux/icmp.h>
@@ -28,7 +30,52 @@
 #include "xdp/utils/gtpu.h"
 #include "xdp/utils/packet_context.h"
 #include "xdp/utils/parsers.h"
+#include "xdp/utils/pdr.h"
 #include "xdp/utils/trace.h"
+
+/*
+ * GTP-U encapsulation overhead constants.
+ *
+ * IPv4 outer: IPv4 header (20) + UDP (8) + GTP-U (8) + PDU session ext (8) = 44
+ * IPv6 outer: IPv6 header (40) + UDP (8) + GTP-U (8) + PDU session ext (8) = 64
+ */
+#define GTP_ENCAP_SIZE_IPV4                             \
+	(sizeof(struct iphdr) + sizeof(struct udphdr) + \
+	 sizeof(struct gtpuhdr) + 8)
+#define GTP_ENCAP_SIZE_IPV6                               \
+	(sizeof(struct ipv6hdr) + sizeof(struct udphdr) + \
+	 sizeof(struct gtpuhdr) + 8)
+
+/* ---------------------------------------------------------------------------
+ * IPv4-mapped IPv6 address helpers
+ *
+ * IPv4 addresses are stored in in6_addr as ::ffff:x.x.x.x
+ * (bytes 10-11 = 0xff, bytes 12-15 = IPv4 address in network order).
+ * ---------------------------------------------------------------------------
+ */
+
+static __always_inline int is_ipv4_mapped_ipv6(const struct in6_addr *addr)
+{
+	/* Check bytes 0-9 are zero and bytes 10-11 are 0xff */
+	const __u8 *b = addr->in6_u.u6_addr8;
+	return (b[0] == 0 && b[1] == 0 && b[2] == 0 && b[3] == 0 && b[4] == 0 &&
+		b[5] == 0 && b[6] == 0 && b[7] == 0 && b[8] == 0 && b[9] == 0 &&
+		b[10] == 0xff && b[11] == 0xff);
+}
+
+static __always_inline __u32 ipv4_from_mapped(const struct in6_addr *addr)
+{
+	/* bytes 12-15 hold the IPv4 address in network byte order */
+	return *(__u32 *)(&addr->in6_u.u6_addr8[12]);
+}
+
+static __always_inline void ipv4_to_mapped(struct in6_addr *addr, __u32 ip4_be)
+{
+	__builtin_memset(addr, 0, sizeof(*addr));
+	addr->in6_u.u6_addr8[10] = 0xff;
+	addr->in6_u.u6_addr8[11] = 0xff;
+	*(__u32 *)(&addr->in6_u.u6_addr8[12]) = ip4_be;
+}
 
 volatile const int n3_vlan;
 volatile const int n3_vlan = 0;
@@ -48,21 +95,31 @@ static __always_inline __u32 parse_gtp(struct packet_context *ctx)
 	return gtp->message_type;
 }
 
+static __always_inline void swap_ip6(struct ipv6hdr *ip6)
+{
+	struct in6_addr tmp;
+	__builtin_memcpy(&tmp, &ip6->saddr, sizeof(struct in6_addr));
+	__builtin_memcpy(&ip6->saddr, &ip6->daddr, sizeof(struct in6_addr));
+	__builtin_memcpy(&ip6->daddr, &tmp, sizeof(struct in6_addr));
+}
+
 static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 {
 	struct ethhdr *eth = ctx->eth;
-	struct iphdr *iph = ctx->ip4;
 	struct udphdr *udp = ctx->udp;
 	struct gtpuhdr *gtp = ctx->gtp;
 
 	gtp->message_type = GTPU_ECHO_RESPONSE;
 
-	/* TODO: add support GTP over IPv6 */
-	swap_ip(iph);
+	if (ctx->ip4) {
+		swap_ip(ctx->ip4);
+		upf_printk("upf: send gtp echo response [ %pI4 -> %pI4 ]",
+			   &ctx->ip4->saddr, &ctx->ip4->daddr);
+	} else if (ctx->ip6) {
+		swap_ip6(ctx->ip6);
+	}
 	swap_port(udp);
 	swap_mac(eth);
-	upf_printk("upf: send gtp echo response [ %pI4 -> %pI4 ]", &iph->saddr,
-		   &iph->daddr);
 	return XDP_TX;
 }
 
@@ -83,7 +140,8 @@ static __always_inline int guess_eth_protocol(const void *data)
 	}
 }
 
-static __always_inline long remove_gtp_header(struct packet_context *ctx)
+static __always_inline long remove_gtp_header(struct packet_context *ctx,
+					      __u8 outer_header_removal)
 {
 	if (!ctx->gtp) {
 		upf_printk("upf: remove_gtp_header: not a gtp packet");
@@ -95,9 +153,13 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx)
 	if (gtp->e || gtp->s || gtp->pn)
 		ext_gtp_header_size += sizeof(struct gtp_hdr_ext) + 4;
 
+	size_t outer_ip_size = (outer_header_removal == OHR_GTP_U_UDP_IPv6) ?
+				       sizeof(struct ipv6hdr) :
+				       sizeof(struct iphdr);
+
 	const size_t gtp_encap_size_no_vlan =
-		sizeof(struct iphdr) + sizeof(struct udphdr) +
-		sizeof(struct gtpuhdr) + ext_gtp_header_size;
+		outer_ip_size + sizeof(struct udphdr) + sizeof(struct gtpuhdr) +
+		ext_gtp_header_size;
 
 	void *data = (void *)(long)ctx->xdp_ctx->data;
 	const void *data_end = (const void *)(long)ctx->xdp_ctx->data_end;
@@ -180,6 +242,23 @@ static __always_inline void fill_ip_header(struct iphdr *ip, int saddr,
 	ip->check = 0;
 	ip->saddr = saddr;
 	ip->daddr = daddr;
+}
+
+static __always_inline void fill_ip6_header(struct ipv6hdr *ip6,
+					    const struct in6_addr *saddr,
+					    const struct in6_addr *daddr,
+					    __u8 traffic_class, int payload_len)
+{
+	ip6->version = 6;
+	ip6->priority = traffic_class >> 4;
+	ip6->flow_lbl[0] = (traffic_class & 0x0f) << 4;
+	ip6->flow_lbl[1] = 0;
+	ip6->flow_lbl[2] = 0;
+	ip6->payload_len = bpf_htons(payload_len);
+	ip6->nexthdr = IPPROTO_UDP;
+	ip6->hop_limit = 64;
+	__builtin_memcpy(&ip6->saddr, saddr, sizeof(struct in6_addr));
+	__builtin_memcpy(&ip6->daddr, daddr, sizeof(struct in6_addr));
 }
 
 static __always_inline void fill_udp_header(struct udphdr *udp, int port,
@@ -326,12 +405,9 @@ add_gtp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr,
 
 	ip->check = ipv4_csum(ip, sizeof(*ip));
 
-	/* TODO: implement UDP csum which pass ebpf verifier checks successfully */
-	// cs = 0;
-	// const void* udp_start = (void*)udp;
-	// const __u16 udp_len = bpf_htons(udp->len);
-	// ipv4_l4_csum(udp, udp_len, &cs, ip);
-	// udp->check = cs;
+	/* GTP-U tunnel: UDP checksum is optional for IPv4 (RFC 768) and
+	 * 3GPP TS 29.281 recommends setting it to zero for GTP-U. */
+	udp->check = 0;
 
 	/* Update packet pointers */
 	context_set_ip4(ctx, (void *)(long)ctx->xdp_ctx->data,
@@ -341,12 +417,142 @@ add_gtp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr,
 }
 
 static __always_inline void update_gtp_tunnel(struct packet_context *ctx,
-					      int srcip, int dstip, __u8 tos,
-					      int teid)
+					      struct iphdr *ip4, int srcip,
+					      int dstip, __u8 tos, int teid)
 {
 	ctx->gtp->teid = bpf_htonl(teid);
-	ctx->ip4->saddr = srcip;
-	ctx->ip4->daddr = dstip;
-	ctx->ip4->check = 0;
-	ctx->ip4->check = ipv4_csum(ctx->ip4, sizeof(*ctx->ip4));
+	ip4->saddr = srcip;
+	ip4->daddr = dstip;
+	ip4->check = 0;
+	ip4->check = ipv4_csum(ip4, sizeof(*ip4));
+}
+
+static __always_inline void update_gtp_tunnel_ipv6(struct packet_context *ctx,
+						   struct ipv6hdr *ip6,
+						   const struct in6_addr *srcip,
+						   const struct in6_addr *dstip,
+						   int teid)
+{
+	ctx->gtp->teid = bpf_htonl(teid);
+	__builtin_memcpy(&ip6->saddr, srcip, sizeof(struct in6_addr));
+	__builtin_memcpy(&ip6->daddr, dstip, sizeof(struct in6_addr));
+	/* IPv6 has no header checksum */
+}
+
+static __always_inline __u32 add_gtp_over_ip6_headers(
+	struct packet_context *ctx, const struct in6_addr *saddr,
+	const struct in6_addr *daddr, __u8 traffic_class, __u8 qfi, int teid)
+{
+	static const size_t gtp_ext_hdr_size =
+		sizeof(struct gtp_hdr_ext) +
+		sizeof(struct gtp_hdr_ext_pdu_session_container);
+	static const size_t gtp_full_hdr_size =
+		sizeof(struct gtpuhdr) + gtp_ext_hdr_size;
+	static const size_t gtp_encap_size_no_vlan = sizeof(struct ipv6hdr) +
+						     sizeof(struct udphdr) +
+						     gtp_full_hdr_size;
+	size_t n3_vlan_hdr_size = 0;
+	if (n3_vlan) {
+		n3_vlan_hdr_size += sizeof(struct vlan_hdr);
+	}
+	size_t n6_vlan_hdr_size = 0;
+	if (ctx->vlan) {
+		n6_vlan_hdr_size += sizeof(struct vlan_hdr);
+	}
+	const size_t gtp_encap_size =
+		n3_vlan_hdr_size - n6_vlan_hdr_size + gtp_encap_size_no_vlan;
+
+	int ip_packet_len = 0;
+	if (ctx->ip4) {
+		ip_packet_len = bpf_ntohs(ctx->ip4->tot_len);
+	} else if (ctx->ip6) {
+		ip_packet_len = bpf_ntohs(ctx->ip6->payload_len) +
+				sizeof(struct ipv6hdr);
+	} else {
+		return -1;
+	}
+
+	int result = bpf_xdp_adjust_head(ctx->xdp_ctx, (__s32)-gtp_encap_size);
+	if (result) {
+		return -1;
+	}
+
+	void *data = (void *)(long)ctx->xdp_ctx->data;
+	const void *data_end = (const void *)(long)ctx->xdp_ctx->data_end;
+
+	struct ethhdr *orig_eth = (struct ethhdr *)(data + gtp_encap_size);
+	if ((const void *)(orig_eth + 1) > data_end) {
+		return -1;
+	}
+
+	struct ethhdr *eth = (struct ethhdr *)data;
+	__builtin_memcpy(eth, orig_eth, sizeof(*eth));
+	eth->h_proto = bpf_htons(ETH_P_IPV6);
+
+	struct ipv6hdr *ip6 = (struct ipv6hdr *)(eth + 1);
+	if ((const void *)(ip6 + 1) > data_end) {
+		return -1;
+	}
+
+	struct vlan_hdr *vlan = NULL;
+	if (n3_vlan) {
+		eth->h_proto = bpf_htons(ETH_P_8021Q);
+		vlan = (struct vlan_hdr *)ip6;
+		vlan->h_vlan_TCI = bpf_htons(n3_vlan & 0x0FFF);
+		vlan->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IPV6);
+		ip6 = (struct ipv6hdr *)((void *)ip6 + sizeof(struct vlan_hdr));
+		if ((const void *)(ip6 + 1) > data_end) {
+			return -1;
+		}
+	}
+
+	/* IPv6 payload_len = everything after the IPv6 header */
+	int ipv6_payload_len =
+		ip_packet_len + sizeof(struct udphdr) + gtp_full_hdr_size;
+	fill_ip6_header(ip6, saddr, daddr, traffic_class, ipv6_payload_len);
+
+	/* Add the UDP header */
+	struct udphdr *udp = (struct udphdr *)(ip6 + 1);
+	if ((const void *)(udp + 1) > data_end)
+		return -1;
+
+	fill_udp_header(udp, GTP_UDP_PORT,
+			ip_packet_len + sizeof(*udp) + gtp_full_hdr_size);
+
+	/* Add the GTP header */
+	struct gtpuhdr *gtp = (struct gtpuhdr *)(udp + 1);
+	if ((const void *)(gtp + 1) > data_end)
+		return -1;
+
+	fill_gtp_header(gtp, teid, gtp_ext_hdr_size + ip_packet_len);
+
+	/* Add the GTP ext header */
+	struct gtp_hdr_ext *gtp_ext = (struct gtp_hdr_ext *)(gtp + 1);
+	if ((const void *)(gtp_ext + 1) > data_end)
+		return -1;
+
+	fill_gtp_ext_header(gtp_ext);
+
+	/* Add the GTP PDU session container header */
+	struct gtp_hdr_ext_pdu_session_container *gtp_psc =
+		(struct gtp_hdr_ext_pdu_session_container *)(gtp_ext + 1);
+	if ((const void *)(gtp_psc + 1) > data_end)
+		return -1;
+
+	fill_gtp_ext_header_psc(gtp_psc, qfi,
+				PDU_SESSION_CONTAINER_PDU_TYPE_DL_PSU);
+
+	/* GTP-U over IPv6 requires UDP checksum (RFC 6936) */
+	if (ip6) {
+		__u32 udp_off = (__u32)((__u8 *)udp -
+					(__u8 *)(long)ctx->xdp_ctx->data);
+		udp->check = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off,
+					bpf_ntohs(udp->len), ctx->xdp_ctx);
+	}
+
+	/* Update packet pointers */
+	context_set_ip6(ctx, (void *)(long)ctx->xdp_ctx->data,
+			(const void *)(long)ctx->xdp_ctx->data_end, eth, vlan,
+			ip6, udp, gtp);
+	return 0;
 }

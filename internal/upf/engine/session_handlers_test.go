@@ -13,7 +13,9 @@ func TestModifySessionSessionNotFound(t *testing.T) {
 		"1.2.3.4",
 		"nodeId",
 		"2.3.4.5",
+		"",
 		"2.3.4.5",
+		"",
 		nil,
 		nil,
 	)
@@ -34,7 +36,9 @@ func TestDeleteSessionAccepted(t *testing.T) {
 		"1.2.3.4",
 		"nodeId",
 		"2.3.4.5",
+		"",
 		"2.3.4.5",
+		"",
 		nil,
 		nil,
 	)
@@ -56,7 +60,9 @@ func TestDeleteSessionNotFound(t *testing.T) {
 		"1.2.3.4",
 		"nodeId",
 		"2.3.4.5",
+		"",
 		"2.3.4.5",
+		"",
 		nil,
 		nil,
 	)
@@ -75,7 +81,9 @@ func TestModifySessionAccepted(t *testing.T) {
 		"1.2.3.4",
 		"nodeId",
 		"2.3.4.5",
+		"",
 		"2.3.4.5",
+		"",
 		nil,
 		nil,
 	)

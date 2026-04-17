@@ -58,12 +58,24 @@ handle_gtp_packet(struct packet_context *ctx)
 		return DEFAULT_XDP_ACTION;
 	}
 
+	__u32 urr_id = pdr->urr_id;
+	__u8 outer_header_removal = pdr->outer_header_removal;
+
+	struct far_info *far = &pdr->far;
+	struct qer_info *qer = &pdr->qer;
+
 	PROFILE_START(PROF_N3_MTU_CHECK);
 	__u32 mtu_len = 0;
-	long ret = bpf_check_mtu(ctx->xdp_ctx, n6_ifindex, &mtu_len, -GTP_ENCAP_SIZE, 0);
+	int decap_size = (outer_header_removal == OHR_GTP_U_UDP_IPv6) ?
+				 GTP_ENCAP_SIZE_IPV6 :
+				 GTP_ENCAP_SIZE_IPV4;
+	long ret = bpf_check_mtu(ctx->xdp_ctx, n6_ifindex, &mtu_len,
+				 -decap_size, 0);
 	PROFILE_END(PROF_N3_MTU_CHECK);
 	if (ret < 0) {
-		ctx->statistics->xdp_actions[XDP_ABORTED & EUPF_MAX_XDP_ACTION_MASK] += 1;
+		ctx->statistics
+			->xdp_actions[XDP_ABORTED & EUPF_MAX_XDP_ACTION_MASK] +=
+			1;
 		return XDP_ABORTED;
 	}
 	if (ret > 0) {
@@ -73,19 +85,15 @@ handle_gtp_packet(struct packet_context *ctx)
 
 	ctx->interface = INTERFACE_N3;
 
-	__u32 urr_id = pdr->urr_id;
-	__u8 outer_header_removal = pdr->outer_header_removal;
-
-	struct far_info *far = &pdr->far;
-	struct qer_info *qer = &pdr->qer;
-
-	upf_printk("upf: far action:%d outer_header_creation:%d", far->action, far->outer_header_creation);
+	upf_printk("upf: far action:%d outer_header_creation:%d", far->action,
+		   far->outer_header_creation);
 	if (!(far->action & FAR_FORW)) {
 		return XDP_DROP;
 	}
 
 	PROFILE_START(PROF_N3_QER_RATELIMIT);
-	upf_printk("upf: qer gate_status:%d mbr:%d", qer->ul_gate_status, qer->ul_maximum_bitrate);
+	upf_printk("upf: qer gate_status:%d mbr:%d", qer->ul_gate_status,
+		   qer->ul_maximum_bitrate);
 	if (qer->ul_gate_status != GATE_STATUS_OPEN) {
 		PROFILE_END(PROF_N3_QER_RATELIMIT);
 		return XDP_DROP;
@@ -99,15 +107,48 @@ handle_gtp_packet(struct packet_context *ctx)
 	}
 	PROFILE_END(PROF_N3_QER_RATELIMIT);
 
-	upf_printk("upf: session for teid:%d outer_header_removal:%d", teid, outer_header_removal);
+	upf_printk("upf: session for teid:%d outer_header_removal:%d", teid,
+		   outer_header_removal);
 	PROFILE_START(PROF_N3_GTP_MANIP);
 	if (far->outer_header_creation & OHC_GTP_U_UDP_IPv4) {
+		void *pkt_data4 = (void *)(long)ctx->xdp_ctx->data;
+		const void *pkt_end4 =
+			(const void *)(long)ctx->xdp_ctx->data_end;
+		size_t ip4_offset = sizeof(struct ethhdr);
+		if (ctx->vlan)
+			ip4_offset += sizeof(struct vlan_hdr);
+		struct iphdr *outer_ip4 =
+			(struct iphdr *)(pkt_data4 + ip4_offset);
+		if ((const void *)(outer_ip4 + 1) > pkt_end4) {
+			PROFILE_END(PROF_N3_GTP_MANIP);
+			return XDP_ABORTED;
+		}
+		__u32 remoteip_v4 = ipv4_from_mapped(&far->remoteip);
 		upf_printk("upf: session for teid:%d -> %d remote:%pI4", teid,
-			   far->teid, &far->remoteip);
-		update_gtp_tunnel(ctx, far->localip, far->remoteip, 0,
-				  far->teid);
-	} else if (outer_header_removal == OHR_GTP_U_UDP_IPv4) {
-		long result = remove_gtp_header(ctx);
+			   far->teid, &remoteip_v4);
+		update_gtp_tunnel(ctx, outer_ip4,
+				  ipv4_from_mapped(&far->localip), remoteip_v4,
+				  0, far->teid);
+	} else if (far->outer_header_creation & OHC_GTP_U_UDP_IPv6) {
+		void *pkt_data = (void *)(long)ctx->xdp_ctx->data;
+		const void *pkt_end =
+			(const void *)(long)ctx->xdp_ctx->data_end;
+		size_t ip6_offset = sizeof(struct ethhdr);
+		if (ctx->vlan)
+			ip6_offset += sizeof(struct vlan_hdr);
+		struct ipv6hdr *outer_ip6 =
+			(struct ipv6hdr *)(pkt_data + ip6_offset);
+		if ((const void *)(outer_ip6 + 1) > pkt_end) {
+			PROFILE_END(PROF_N3_GTP_MANIP);
+			return XDP_ABORTED;
+		}
+		upf_printk("upf: session for teid:%d -> %d remote:IPv6", teid,
+			   far->teid);
+		update_gtp_tunnel_ipv6(ctx, outer_ip6, &far->localip,
+				       &far->remoteip, far->teid);
+	} else if (outer_header_removal == OHR_GTP_U_UDP_IPv4 ||
+		   outer_header_removal == OHR_GTP_U_UDP_IPv6) {
+		long result = remove_gtp_header(ctx, outer_header_removal);
 		if (result) {
 			PROFILE_END(PROF_N3_GTP_MANIP);
 			upf_printk(
@@ -125,11 +166,14 @@ handle_gtp_packet(struct packet_context *ctx)
 	/* SDF filter enforcement (uplink) – evaluated on the inner packet */
 	{
 		PROFILE_START(PROF_N3_SDF_FILTER);
-		enum xdp_action sdf_verdict = match_sdf_filters(ctx, pdr->filter_map_index);
+		enum xdp_action sdf_verdict =
+			match_sdf_filters(ctx, pdr->filter_map_index);
 		PROFILE_END(PROF_N3_SDF_FILTER);
 		if (sdf_verdict == XDP_DROP) {
 			upf_printk("upf: uplink SDF drop teid:%d", teid);
-			ctx->statistics->xdp_actions[XDP_DROP & EUPF_MAX_XDP_ACTION_MASK] += 1;
+			ctx->statistics->xdp_actions[XDP_DROP &
+						     EUPF_MAX_XDP_ACTION_MASK] +=
+				1;
 			account_flow(ctx, n6_ifindex, pdr->imsi, DROP);
 			return XDP_DROP;
 		}
@@ -172,8 +216,9 @@ static __always_inline enum xdp_action handle_gtpu(struct packet_context *ctx)
 	case GTPU_G_PDU:
 		return handle_gtp_packet(ctx);
 	case GTPU_ECHO_REQUEST:
-		upf_printk("upf: gtp echo request [ %pI4 -> %pI4 ]",
-			   &ctx->ip4->saddr, &ctx->ip4->daddr);
+		if (ctx->ip4)
+			upf_printk("upf: gtp echo request [ %pI4 -> %pI4 ]",
+				   &ctx->ip4->saddr, &ctx->ip4->daddr);
 		return handle_echo_request(ctx);
 	case GTPU_ECHO_RESPONSE:
 		return XDP_PASS;

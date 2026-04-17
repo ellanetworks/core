@@ -29,9 +29,10 @@ type EstablishResponse struct {
 // CreatedPDR describes a PDR created by the UPF with any allocated
 // resources (TEID for GTP uplink, or UE IP confirmation for downlink).
 type CreatedPDR struct {
-	PDRID uint16
-	TEID  uint32
-	N3IP  netip.Addr
+	PDRID  uint16
+	TEID   uint32
+	N3IPv4 netip.Addr // may be zero if not available
+	N3IPv6 netip.Addr // may be zero if not available
 }
 
 // PDR describes a Packet Detection Rule for the UPF session API.
@@ -81,12 +82,15 @@ type OuterHeaderCreation struct {
 	Description uint16
 	TEID        uint32
 	IPv4Address net.IP
+	IPv6Address net.IP // new field for IPv6 transport
 }
 
 // PFCP outer header constants.
 const (
 	OuterHeaderCreationGtpUUdpIpv4 uint16 = 256
+	OuterHeaderCreationGtpUUdpIpv6 uint16 = 512
 	OuterHeaderRemovalGtpUUdpIpv4  uint8  = 0
+	OuterHeaderRemovalGtpUUdpIpv6  uint8  = 1
 )
 
 // QER describes a QoS Enforcement Rule for the UPF session API.

@@ -227,7 +227,7 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 						  struct route_stat *statistic)
 {
 	struct bpf_fib_lookup fib_params = {};
-	fib_params.family = AF_INET;
+	fib_params.family = AF_INET6;
 	// fib_params.tos = ip6->flow_lbl;
 	fib_params.l4_protocol = ctx->ip6->nexthdr;
 	fib_params.sport = 0;

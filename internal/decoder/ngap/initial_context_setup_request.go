@@ -485,8 +485,7 @@ func buildPDUSessionInfoFromSetupRequestTransfer(transfer aper.OctetString) (*PD
 		case ngapType.ProtocolIEIDULNGUUPTNLInformation:
 			ulTeid := binary.BigEndian.Uint32(ies.Value.ULNGUUPTNLInformation.GTPTunnel.GTPTEID.Value)
 			upfAddress := ies.Value.ULNGUUPTNLInformation.GTPTunnel.TransportLayerAddress.Value.Bytes
-
-			upfIp := fmt.Sprintf("%d.%d.%d.%d", upfAddress[0], upfAddress[1], upfAddress[2], upfAddress[3])
+			upfIp := transportLayerAddressToString(upfAddress)
 
 			pduTransfer.ULNGUUPTNLInformation = &ULNGUUPTNLInformation{
 				GTPTunnel: GTPTunnel{

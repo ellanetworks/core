@@ -1,4 +1,22 @@
 configs:
+  cluster_ca:
+    file: ../pki/ca.pem
+  node1_cert:
+    file: ../pki/node1-cert.pem
+  node1_key:
+    file: ../pki/node1-key.pem
+  node2_cert:
+    file: ../pki/node2-cert.pem
+  node2_key:
+    file: ../pki/node2-key.pem
+  node3_cert:
+    file: ../pki/node3-cert.pem
+  node3_key:
+    file: ../pki/node3-key.pem
+  node4_cert:
+    file: ../pki/node4-cert.pem
+  node4_key:
+    file: ../pki/node4-key.pem
   node1_config:
     content: |
       logging:
@@ -26,13 +44,15 @@ configs:
         enabled: true
         node-id: 1
         bind-address: "10.100.0.11:7000"
-        advertise-api-address: "http://10.100.0.11:5002"
         bootstrap-expect: 3
         peers:
-          - "http://10.100.0.11:5002"
-          - "http://10.100.0.12:5002"
-          - "http://10.100.0.13:5002"
-        join-token: "integration-test-token-that-is-long-enough"
+          - "10.100.0.11:7000"
+          - "10.100.0.12:7000"
+          - "10.100.0.13:7000"
+        tls:
+          ca: /pki/ca.pem
+          cert: /pki/cert.pem
+          key: /pki/key.pem
   node2_config:
     content: |
       logging:
@@ -60,13 +80,15 @@ configs:
         enabled: true
         node-id: 2
         bind-address: "10.100.0.12:7000"
-        advertise-api-address: "http://10.100.0.12:5002"
         bootstrap-expect: 3
         peers:
-          - "http://10.100.0.11:5002"
-          - "http://10.100.0.12:5002"
-          - "http://10.100.0.13:5002"
-        join-token: "integration-test-token-that-is-long-enough"
+          - "10.100.0.11:7000"
+          - "10.100.0.12:7000"
+          - "10.100.0.13:7000"
+        tls:
+          ca: /pki/ca.pem
+          cert: /pki/cert.pem
+          key: /pki/key.pem
   node3_config:
     content: |
       logging:
@@ -94,13 +116,15 @@ configs:
         enabled: true
         node-id: 3
         bind-address: "10.100.0.13:7000"
-        advertise-api-address: "http://10.100.0.13:5002"
         bootstrap-expect: 3
         peers:
-          - "http://10.100.0.11:5002"
-          - "http://10.100.0.12:5002"
-          - "http://10.100.0.13:5002"
-        join-token: "integration-test-token-that-is-long-enough"
+          - "10.100.0.11:7000"
+          - "10.100.0.12:7000"
+          - "10.100.0.13:7000"
+        tls:
+          ca: /pki/ca.pem
+          cert: /pki/cert.pem
+          key: /pki/key.pem
   node4_config:
     content: |
       logging:
@@ -128,15 +152,17 @@ configs:
         enabled: true
         node-id: 4
         bind-address: "10.100.0.14:7000"
-        advertise-api-address: "http://10.100.0.14:5002"
         bootstrap-expect: 3
         initial-suffrage: nonvoter
         peers:
-          - "http://10.100.0.11:5002"
-          - "http://10.100.0.12:5002"
-          - "http://10.100.0.13:5002"
-          - "http://10.100.0.14:5002"
-        join-token: "integration-test-token-that-is-long-enough"
+          - "10.100.0.11:7000"
+          - "10.100.0.12:7000"
+          - "10.100.0.13:7000"
+          - "10.100.0.14:7000"
+        tls:
+          ca: /pki/ca.pem
+          cert: /pki/cert.pem
+          key: /pki/key.pem
 
 services:
   ella-core-1:
@@ -144,6 +170,12 @@ services:
     configs:
       - source: node1_config
         target: /core.yaml
+      - source: cluster_ca
+        target: /pki/ca.pem
+      - source: node1_cert
+        target: /pki/cert.pem
+      - source: node1_key
+        target: /pki/key.pem
     restart: unless-stopped
     entrypoint: /bin/core --config /core.yaml
     privileged: true
@@ -157,6 +189,12 @@ services:
     configs:
       - source: node2_config
         target: /core.yaml
+      - source: cluster_ca
+        target: /pki/ca.pem
+      - source: node2_cert
+        target: /pki/cert.pem
+      - source: node2_key
+        target: /pki/key.pem
     restart: unless-stopped
     entrypoint: /bin/core --config /core.yaml
     privileged: true
@@ -170,6 +208,12 @@ services:
     configs:
       - source: node3_config
         target: /core.yaml
+      - source: cluster_ca
+        target: /pki/ca.pem
+      - source: node3_cert
+        target: /pki/cert.pem
+      - source: node3_key
+        target: /pki/key.pem
     restart: unless-stopped
     entrypoint: /bin/core --config /core.yaml
     privileged: true
@@ -183,6 +227,12 @@ services:
     configs:
       - source: node4_config
         target: /core.yaml
+      - source: cluster_ca
+        target: /pki/ca.pem
+      - source: node4_cert
+        target: /pki/cert.pem
+      - source: node4_key
+        target: /pki/key.pem
     restart: unless-stopped
     entrypoint: /bin/core --config /core.yaml
     privileged: true

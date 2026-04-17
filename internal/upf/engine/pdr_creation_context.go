@@ -79,13 +79,19 @@ func (pdrContext *PDRCreationContext) ExtractPDR(pdr models.PDR, spdrInfo *SPDRI
 	spdrInfo.PdrInfo.UrrID = pdr.URRID
 
 	if pdr.PDI.LocalFTEID != nil {
-		teid, err := pdrContext.allocateTEID()
-		if err != nil {
-			return fmt.Errorf("can't allocate TEID: %w", err)
-		}
+		// If the spdrInfo already carries a TEID (i.e. this is an update of an existing
+		// uplink PDR), keep that TEID instead of allocating a new one. Allocating a new
+		// TEID on update would create a stale BPF map entry under the old TEID while
+		// the gNB continues to send traffic to the original TEID.
+		if spdrInfo.TeID == 0 {
+			teid, err := pdrContext.allocateTEID()
+			if err != nil {
+				return fmt.Errorf("can't allocate TEID: %w", err)
+			}
 
-		spdrInfo.Allocated = true
-		spdrInfo.TeID = teid
+			spdrInfo.Allocated = true
+			spdrInfo.TeID = teid
+		}
 
 		return nil
 	}

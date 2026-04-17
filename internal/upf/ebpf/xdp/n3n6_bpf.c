@@ -67,23 +67,42 @@ static __always_inline enum xdp_action handle_ip4(struct packet_context *ctx)
 }
 
 /*
- * IPv6 handler.
+ * IPv6 handler — mirrors handle_ip4() structure.
+ * Checks for GTP-U on UDP port 2152 before falling through to N6 downlink.
  */
 static __always_inline enum xdp_action handle_ip6(struct packet_context *ctx)
 {
+	enum xdp_action action;
 	int l4_protocol = parse_ip6(ctx);
 	switch (l4_protocol) {
 	case IPPROTO_ICMPV6:
-		upf_printk("upf: icmp received. passing to kernel");
+		upf_printk("upf: icmpv6 received. passing to kernel");
 		return XDP_PASS;
-	case IPPROTO_UDP:
+	case IPPROTO_UDP: {
+		struct udphdr *udp = detect_udp_header(ctx, 0);
+		if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT) {
+			parse_udp(ctx);
+			upf_printk("upf: gtp-u received (IPv6 outer)");
+			action = handle_gtpu(ctx);
+			ctx->statistics->xdp_actions[action &
+						     EUPF_MAX_XDP_ACTION_MASK] +=
+				1;
+			return action;
+		}
 		break;
+	}
 	case IPPROTO_TCP:
 		break;
 	default:
-		return DEFAULT_XDP_ACTION;
+		action = DEFAULT_XDP_ACTION;
+		ctx->statistics
+			->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
+		return action;
 	}
-	return handle_n6_packet_ipv6(ctx);
+	ctx->statistics->packet_counters.rx++;
+	action = handle_n6_packet_ipv6(ctx);
+	ctx->statistics->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;
+	return action;
 }
 
 static __always_inline enum xdp_action
@@ -139,6 +158,9 @@ int upf_n3_n6_entrypoint_func(struct xdp_md *ctx)
 		.data_end = (const void *)(long)ctx->data_end,
 		.xdp_ctx = ctx,
 		.statistics = statistics,
+		.interface = (ctx->ingress_ifindex == n6_ifindex) ?
+				     INTERFACE_N6 :
+				     INTERFACE_N3,
 	};
 
 	if (ctx->ingress_ifindex == n3_ifindex) {

@@ -682,7 +682,7 @@ func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion s
 // NewDatabase opens (or creates) the SQLite database file at dbPath. The
 // parent directory is used for sibling artifacts (raft/, backup/restore
 // staging). A non-existent path is treated as a fresh install.
-func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterConfig) (*Database, error) {
+func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterConfig, raftOpts ...ellaraft.ManagerOption) (*Database, error) {
 	dataDir := filepath.Dir(dbPath)
 
 	sqlConn, err := openSQLiteConnection(ctx, dbPath)
@@ -722,7 +722,7 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 		return nil, fmt.Errorf("failed to prepare statements: %w", err)
 	}
 
-	raftMgr, err := ellaraft.NewManager(ctx, raftCfg, db, dataDir)
+	raftMgr, err := ellaraft.NewManager(ctx, raftCfg, db, dataDir, raftOpts...)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to start raft manager: %w", err)

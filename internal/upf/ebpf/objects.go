@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"reflect"
+	"runtime"
 	"sync"
 
 	"github.com/cilium/ebpf"
@@ -71,12 +72,20 @@ func (bpfObjects *BpfObjects) Load() error {
 		return err
 	}
 
+	// The csum_scratch map is a regular BPF_MAP_TYPE_ARRAY indexed by CPU
+	// ID (not a per-CPU map, because the per-CPU allocator rejects values
+	// larger than ~32 KB).  Set max_entries to the number of CPUs so every
+	// CPU gets its own slot.
+	if m, ok := n3n6Spec.Maps["csum_scratch"]; ok {
+		m.MaxEntries = uint32(runtime.NumCPU())
+	}
+
 	if err := bpfObjects.loadAndAssignFromSpec(n3n6Spec, &bpfObjects.N3N6EntrypointObjects, nil); err != nil {
 		logger.UpfLog.Error("failed to load N3/N6 program", zap.Error(err))
 
 		var ve *ebpf.VerifierError
 		if errors.As(err, &ve) {
-			logger.UpfLog.Debug("verifier logs", zap.Error(ve))
+			logger.UpfLog.Error("verifier logs", zap.String("verifier", ve.Error()))
 		}
 
 		return err
@@ -121,6 +130,10 @@ func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, t
 		return err
 	}
 
+	if opts == nil {
+		opts = &ebpf.CollectionOptions{}
+	}
+
 	if err := spec.LoadAndAssign(to, opts); err != nil {
 		logger.UpfLog.Error("failed to load eBPF program", zap.Error(err))
 		return err
@@ -143,7 +156,15 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 		return err
 	}
 
+	// Match the csum_scratch max_entries to the actual CPU count, same as
+	// in Load().  Without this the spec still has the placeholder value 1,
+	// which conflicts with the existing map that was created with NumCPU().
+	if m, ok := spec.Maps["csum_scratch"]; ok {
+		m.MaxEntries = uint32(runtime.NumCPU())
+	}
+
 	replacements := map[string]*ebpf.Map{
+		"csum_scratch":         bpfObjects.CsumScratch,
 		"downlink_route_stats": bpfObjects.DownlinkRouteStats,
 		"downlink_statistics":  bpfObjects.DownlinkStatistics,
 		"flow_stats":           bpfObjects.FlowStats,
@@ -175,7 +196,7 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 
 		var ve *ebpf.VerifierError
 		if errors.As(err, &ve) {
-			logger.UpfLog.Debug("verifier logs", zap.Error(ve))
+			logger.UpfLog.Error("verifier logs", zap.String("verifier", ve.Error()))
 		}
 
 		return err

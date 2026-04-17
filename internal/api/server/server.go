@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/bgp"
+	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
@@ -40,6 +41,7 @@ type HandlerConfig struct {
 	BcryptCost          int
 	Ready               *atomic.Bool
 	RegisterExtraRoutes func(*http.ServeMux)
+	ClusterListener     *listener.Listener
 }
 
 func NewHandler(cfg HandlerConfig) http.Handler {
@@ -218,9 +220,10 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 
 	// Cluster (Authenticated, admin only)
 	mux.HandleFunc("GET /api/v1/cluster/members", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, ListClusterMembers(dbInstance))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/cluster/members", ClusterTokenOrAuth(appCfg.Cluster.JoinToken, jwtSecret, dbInstance, AddClusterMember(dbInstance)).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/cluster/members", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, AddClusterMember(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/cluster/members/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, RemoveClusterMember(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/cluster/members/{id}/promote", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, PromoteClusterMember(dbInstance))).ServeHTTP)
+
 	mux.HandleFunc("POST /api/v1/cluster/drain", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, DrainNode(dbInstance, amfInstance, bgpService))).ServeHTTP)
 
 	// Fallback to UI
@@ -240,7 +243,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 
 	handler = MaxBodySizeMiddleware(handler)
 	handler = AppliedIndexMiddleware(dbInstance, handler)
-	handler = LeaderProxyMiddleware(dbInstance, handler)
+	handler = LeaderProxyMiddleware(dbInstance, cfg.ClusterListener, handler)
 	handler = SecurityHeadersMiddleware(secureCookie, handler)
 	handler = MetricsMiddleware(handler)
 
@@ -279,16 +282,14 @@ func NewDiscoveryHandler(cfg DiscoveryHandlerConfig) http.Handler {
 	mux.HandleFunc("GET /api/v1/metrics", GetMetrics().ServeHTTP)
 	mux.HandleFunc("GET /api/v1/openapi.yaml", OpenAPISpec().ServeHTTP)
 
-	if appCfg.Cluster.JoinToken != "" {
-		mux.HandleFunc("POST /api/v1/cluster/members",
-			ClusterTokenOnly(appCfg.Cluster.JoinToken, AddClusterMember(dbInstance)).ServeHTTP)
-	}
+	// POST /api/v1/cluster/members is not served during discovery; in mTLS
+	// mode, join requests arrive on the cluster port (wired in a later step).
 
 	var handler http.Handler = mux
 
 	handler = MaxBodySizeMiddleware(handler)
 	handler = AppliedIndexMiddleware(dbInstance, handler)
-	handler = LeaderProxyMiddleware(dbInstance, handler)
+	handler = LeaderProxyMiddleware(dbInstance, nil, handler)
 	handler = SecurityHeadersMiddleware(secureCookie, handler)
 	handler = MetricsMiddleware(handler)
 

@@ -22,6 +22,7 @@ import (
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/bgp"
+	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
@@ -87,23 +88,50 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	ellaraft.RegisterMetrics()
 
-	raftCfg := ellaraft.ClusterConfig{
-		Enabled:             cfg.Cluster.Enabled,
-		NodeID:              cfg.Cluster.NodeID,
-		BindAddress:         cfg.Cluster.BindAddress,
-		AdvertiseAPIAddress: cfg.Cluster.AdvertiseAPIAddress,
-		BootstrapExpect:     cfg.Cluster.BootstrapExpect,
-		Peers:               cfg.Cluster.Peers,
-		JoinToken:           cfg.Cluster.JoinToken,
-		JoinTimeout:         cfg.Cluster.JoinTimeout,
-		ProposeTimeout:      cfg.Cluster.ProposeTimeout,
-		SnapshotInterval:    cfg.Cluster.SnapshotInterval,
-		SnapshotThreshold:   cfg.Cluster.SnapshotThreshold,
-		SchemaVersion:       db.SchemaVersion(),
-		InitialSuffrage:     cfg.Cluster.InitialSuffrage,
+	apiScheme := "http"
+	if cfg.Interfaces.API.TLS.Cert != "" && cfg.Interfaces.API.TLS.Key != "" {
+		apiScheme = "https"
 	}
 
-	dbInstance, err := db.NewDatabase(ctx, cfg.DB.Path, raftCfg)
+	apiAddress := fmt.Sprintf("%s://%s:%d", apiScheme, cfg.Interfaces.API.Address, cfg.Interfaces.API.Port)
+
+	raftCfg := ellaraft.ClusterConfig{
+		Enabled:          cfg.Cluster.Enabled,
+		NodeID:           cfg.Cluster.NodeID,
+		BindAddress:      cfg.Cluster.BindAddress,
+		AdvertiseAddress: cfg.Cluster.AdvertiseAddress,
+		APIAddress:       apiAddress,
+		BootstrapExpect:  cfg.Cluster.BootstrapExpect,
+		Peers:            cfg.Cluster.Peers,
+		TLS: ellaraft.ClusterTLSConfig{
+			CA:   cfg.Cluster.TLS.CA,
+			Cert: cfg.Cluster.TLS.Cert,
+			Key:  cfg.Cluster.TLS.Key,
+		},
+		JoinTimeout:       cfg.Cluster.JoinTimeout,
+		ProposeTimeout:    cfg.Cluster.ProposeTimeout,
+		SnapshotInterval:  cfg.Cluster.SnapshotInterval,
+		SnapshotThreshold: cfg.Cluster.SnapshotThreshold,
+		SchemaVersion:     db.SchemaVersion(),
+		InitialSuffrage:   cfg.Cluster.InitialSuffrage,
+	}
+
+	var clusterLn *listener.Listener
+
+	var raftOpts []ellaraft.ManagerOption
+
+	if cfg.Cluster.Enabled {
+		clusterLn = listener.New(listener.Config{
+			BindAddress:      cfg.Cluster.BindAddress,
+			AdvertiseAddress: cfg.Cluster.AdvertiseAddress,
+			NodeID:           cfg.Cluster.NodeID,
+			CAPool:           cfg.Cluster.TLS.CAPool,
+			LeafCert:         cfg.Cluster.TLS.LeafCert,
+		})
+		raftOpts = append(raftOpts, ellaraft.WithClusterListener(clusterLn))
+	}
+
+	dbInstance, err := db.NewDatabase(ctx, cfg.DB.Path, raftCfg, raftOpts...)
 	if err != nil {
 		return fmt.Errorf("couldn't initialize database: %w", err)
 	}
@@ -127,6 +155,15 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	apiServer, err := api.StartDiscovery(ctx, dbInstance, cfg)
 	if err != nil {
 		return fmt.Errorf("couldn't start API (discovery): %w", err)
+	}
+
+	if clusterLn != nil {
+		stopClusterHTTP := server.StartClusterHTTP(dbInstance, clusterLn, apiServer.Handler())
+		defer stopClusterHTTP()
+
+		if err := clusterLn.Start(ctx); err != nil {
+			return fmt.Errorf("cluster listener: %w", err)
+		}
 	}
 
 	if err := dbInstance.RunDiscovery(ctx); err != nil {
@@ -251,17 +288,27 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}
 	}
 
-	n3Address := cfg.Interfaces.N3.Address
-
 	n3Settings, err := dbInstance.GetN3Settings(ctx)
 	if err != nil {
 		return fmt.Errorf("couldn't get N3 external address: %w", err)
 	}
 
-	advertisedN3Address := n3Address
+	n3IPv4, n3IPv6 := resolveN3Addresses(cfg.Interfaces.N3)
+
+	advertisedN3IPv4 := n3IPv4
+	advertisedN3IPv6 := n3IPv6
+
 	if n3Settings != nil && n3Settings.ExternalAddress != "" {
-		advertisedN3Address = n3Settings.ExternalAddress
-		logger.EllaLog.Debug("Using N3 external address from N3 settings", zap.String("n3_external_address", advertisedN3Address))
+		externalAddr, err := netip.ParseAddr(n3Settings.ExternalAddress)
+		if err == nil {
+			if externalAddr.Is4() {
+				advertisedN3IPv4 = n3Settings.ExternalAddress
+				logger.EllaLog.Debug("Using N3 external IPv4 address from N3 settings", zap.String("n3_external_address", advertisedN3IPv4))
+			} else {
+				advertisedN3IPv6 = n3Settings.ExternalAddress
+				logger.EllaLog.Debug("Using N3 external IPv6 address from N3 settings", zap.String("n3_external_address", advertisedN3IPv6))
+			}
+		}
 	}
 
 	// Create SMF with dependency-injected adapters.
@@ -271,7 +318,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	smfInstance := smf.New(smfPCF, smfStore, nil, smfAMF, smf.WithBGP(bgpService))
 
-	upfInstance, err := upf.Start(ctx, smfInstance, cfg.Interfaces.N3, n3Address, advertisedN3Address, cfg.Interfaces.N6, cfg.XDP.AttachMode, isNATEnabled, isFlowAccountingEnabled)
+	upfInstance, err := upf.Start(ctx, smfInstance, cfg.Interfaces.N3, n3IPv4, n3IPv6, advertisedN3IPv4, advertisedN3IPv6, cfg.Interfaces.N6, cfg.XDP.AttachMode, isNATEnabled, isFlowAccountingEnabled)
 	if err != nil {
 		return fmt.Errorf("couldn't start UPF: %w", err)
 	}
@@ -348,6 +395,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		BGP:                 bgpService,
 		EmbedFS:             rc.EmbedFS,
 		RegisterExtraRoutes: rc.RegisterExtraRoutes,
+		ClusterListener:     clusterLn,
 	}); err != nil {
 		return fmt.Errorf("couldn't upgrade API: %w", err)
 	}
@@ -550,6 +598,47 @@ func (a *bgpImportPrefixAdapter) ListImportPrefixes(ctx context.Context, peerID 
 	}
 
 	return entries, nil
+}
+
+// resolveN3Addresses scans the N3 interface and returns the first non-link-local
+// IPv4 and IPv6 addresses found. The configured address (cfg.Interfaces.N3.Address)
+// is used as the primary address for its family; the interface is then scanned
+// for an address of the other family.
+func resolveN3Addresses(n3Interface config.N3Interface) (n3IPv4, n3IPv6 string) {
+	if n3Interface.Address != "" {
+		if addr, err := netip.ParseAddr(n3Interface.Address); err == nil {
+			if addr.Is4() {
+				n3IPv4 = n3Interface.Address
+			} else {
+				n3IPv6 = n3Interface.Address
+			}
+		}
+	}
+
+	ifaceName := n3Interface.Name
+	if n3Interface.VlanConfig != nil {
+		ifaceName = n3Interface.VlanConfig.MasterInterface
+	}
+
+	ips, err := config.GetInterfaceIPs(ifaceName)
+	if err != nil {
+		return n3IPv4, n3IPv6
+	}
+
+	for _, ipStr := range ips {
+		addr, err := netip.ParseAddr(ipStr)
+		if err != nil {
+			continue
+		}
+
+		if addr.Is4() && n3IPv4 == "" {
+			n3IPv4 = ipStr
+		} else if addr.Is6() && n3IPv6 == "" {
+			n3IPv6 = ipStr
+		}
+	}
+
+	return n3IPv4, n3IPv6
 }
 
 // collectUEPools returns the UE IP pool CIDRs from all data networks.

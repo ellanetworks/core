@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
@@ -20,16 +21,20 @@ const (
 	headerForwarded    = "X-Ella-Forwarded"
 )
 
-// Phase 6 (mTLS): configure proxyClient's TLS to use the cluster CA so
-// follower→leader proxy works with self-signed API certs.
-var proxyClient = &http.Client{
-	// Use request context deadlines instead of a fixed client timeout so
-	// long-running proxied operations (e.g. restore/backup streams) are not
-	// truncated at an arbitrary wall-clock limit.
-	Timeout: 0,
-	CheckRedirect: func(*http.Request, []*http.Request) error {
-		return http.ErrUseLastResponse
-	},
+// newClusterProxyClient returns an HTTP client that dials the leader's
+// cluster port via the mTLS listener.
+func newClusterProxyClient(ln *listener.Listener) *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			DialTLSContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
+				return ln.Dial(ctx, addr, listener.ALPNHTTP, 10*time.Second)
+			},
+		},
+		Timeout: 0,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 }
 
 func isWriteMethod(method string) bool {
@@ -45,11 +50,17 @@ func isWriteMethod(method string) bool {
 // node is a follower. Read requests are served locally. The middleware runs
 // before authentication so the leader handles auth for proxied writes.
 //
+// Writes are forwarded over the cluster mTLS port to /cluster/proxy<requestURI>.
 // Requests that already carry X-Ella-Forwarded are never proxied again,
 // preventing infinite loops.
-func LeaderProxyMiddleware(dbInstance *db.Database, next http.Handler) http.Handler {
+func LeaderProxyMiddleware(dbInstance *db.Database, ln *listener.Listener, next http.Handler) http.Handler {
 	if dbInstance == nil || !dbInstance.ClusterEnabled() {
 		return next
+	}
+
+	var clusterClient *http.Client
+	if ln != nil {
+		clusterClient = newClusterProxyClient(ln)
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -63,13 +74,12 @@ func LeaderProxyMiddleware(dbInstance *db.Database, next http.Handler) http.Hand
 			return
 		}
 
-		leaderAPI := resolveLeaderAPI(dbInstance)
-		if leaderAPI == "" {
+		if clusterClient == nil {
 			writeError(r.Context(), w, http.StatusServiceUnavailable, "no leader available", nil, logger.APILog)
 			return
 		}
 
-		proxyToLeader(w, r, leaderAPI, dbInstance)
+		proxyToLeaderCluster(w, r, clusterClient, dbInstance)
 	})
 }
 
@@ -105,16 +115,18 @@ func isHopByHopHeader(h string) bool {
 	return false
 }
 
-func proxyToLeader(w http.ResponseWriter, r *http.Request, leaderAPI string, dbInstance *db.Database) {
-	leaderURL, err := url.Parse(leaderAPI)
-	if err != nil || leaderURL.Scheme == "" || leaderURL.Host == "" {
-		writeError(r.Context(), w, http.StatusBadGateway, "invalid leader API address", err, logger.APILog)
+// proxyToLeaderCluster forwards a write request to the Raft leader's
+// cluster HTTP port over mTLS.
+func proxyToLeaderCluster(w http.ResponseWriter, r *http.Request, client *http.Client, dbInstance *db.Database) {
+	leaderAddr := dbInstance.LeaderAddress()
+	if leaderAddr == "" {
+		writeError(r.Context(), w, http.StatusServiceUnavailable, "no leader available", nil, logger.APILog)
 		return
 	}
 
-	targetURL := fmt.Sprintf("%s%s", strings.TrimRight(leaderAPI, "/"), r.RequestURI)
+	targetURL := fmt.Sprintf("https://%s/cluster/proxy%s", leaderAddr, r.RequestURI)
 
-	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, r.Body) // #nosec: G704 -- targetURL is built from the trusted Raft leader's cluster-member API address
+	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, r.Body) // #nosec G704 -- targetURL is built from the trusted Raft leader address, not user input
 	if err != nil {
 		writeError(r.Context(), w, http.StatusBadGateway, "failed to create proxy request", err, logger.APILog)
 		return
@@ -132,9 +144,9 @@ func proxyToLeader(w http.ResponseWriter, r *http.Request, leaderAPI string, dbI
 
 	proxyReq.Header.Set(headerForwarded, "true")
 
-	resp, err := proxyClient.Do(proxyReq) // #nosec: G704 -- proxyReq targets the trusted Raft leader's cluster-member API address
+	resp, err := client.Do(proxyReq) // #nosec G704 -- targetURL is built from the trusted Raft leader address, not user input
 	if err != nil {
-		logger.APILog.Warn("Leader proxy failed", zap.Error(err))
+		logger.APILog.Warn("Leader cluster proxy failed", zap.Error(err))
 		writeError(r.Context(), w, http.StatusBadGateway, "leader unreachable", err, logger.APILog)
 
 		return
@@ -142,6 +154,13 @@ func proxyToLeader(w http.ResponseWriter, r *http.Request, leaderAPI string, dbI
 
 	defer func() { _ = resp.Body.Close() }()
 
+	copyProxyResponse(w, resp, dbInstance)
+}
+
+// copyProxyResponse writes the proxied response back to the original
+// client, applying read-your-writes consistency when the leader includes
+// an applied-index header.
+func copyProxyResponse(w http.ResponseWriter, resp *http.Response, dbInstance *db.Database) {
 	for key, values := range resp.Header {
 		if isHopByHopHeader(key) {
 			continue

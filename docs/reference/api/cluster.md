@@ -39,7 +39,7 @@ Returns all registered cluster members.
 
 ## Add a Cluster Member
 
-Adds a new node to the Raft cluster and registers it in the cluster members table. This endpoint accepts either admin credentials or the cluster join token for authentication.
+Adds a new node to the Raft cluster and registers it in the cluster members table. In HA mode, follower nodes automatically forward this request to the current leader.
 
 | Method | Path                       |
 | ------ | -------------------------- |

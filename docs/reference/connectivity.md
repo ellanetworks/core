@@ -64,3 +64,17 @@ using the same interface name in the configuration file, or by using VLANs.
 It is possible to use VLAN interfaces, with or without combining interfaces
 as described previously. In this case, the configuration file should contain
 the name of the VLAN interface, not the parent interface.
+
+# IPv6 and dual-stack support
+
+Ella Core supports IPv6 and dual-stack on the following interfaces:
+
+- api
+- n2
+- n3
+
+They can be configured specifically with an IPv6 address to use IPv6. When specifying an interface, Ella Core will use all the non link-local addresses on the interface; if the interface is configured for dual-stack, Ella Core will use dual-stack on that interface.
+
+## Dual-stack N3 transport
+
+The N3 interface (between the UPF and the gNB) supports both IPv4 and IPv6 transport for GTP-U tunnels. At startup Ella Core automatically resolves both IPv4 and IPv6 addresses from the configured N3 interface and advertises them to the gNB via a 160-bit NGAP `TransportLayerAddress` (per 3GPP TS 38.414 Section 5.1). The gNB selects its preferred address family when it responds; subsequent GTP-U encapsulation and decapsulation use the matching outer header type. IPv4-only and IPv6-only N3 configurations are also supported.

@@ -7,28 +7,16 @@ import (
 	"net"
 	"time"
 
-	"github.com/hashicorp/raft"
+	"github.com/ellanetworks/core/internal/cluster/listener"
+	hraft "github.com/hashicorp/raft"
 )
 
-// TransportFactory builds the Raft network transport for a Manager. It is
-// called once during NewManager with the full cluster configuration.
-//
-// The factory must return a transport whose LocalAddr() reflects the actual
-// bound address — that address is used as the server entry in single-server
-// bootstrap configurations, and binding to an ephemeral port (the standalone
-// default) relies on this invariant.
-//
-// The default tcpTransportFactory produces a plain TCP transport. HA
-// deployments plug in an mTLS-backed factory via WithTransportFactory
-// without modifying NewManager.
-type TransportFactory func(cfg ClusterConfig) (raft.Transport, error)
-
-// tcpTransportFactory is the default plain-TCP builder. It applies the
-// standalone bind-address default (127.0.0.1:0), validates that HA mode
-// supplies an explicit bind address, and leaves the advertise address nil
-// when binding to an ephemeral port so TCPStreamLayer falls back to the
-// listener's concrete address.
-func tcpTransportFactory(cfg ClusterConfig) (raft.Transport, error) {
+// tcpTransportFactory is the plain-TCP builder used in standalone mode.
+// It applies the standalone bind-address default (127.0.0.1:0), validates
+// that HA mode supplies an explicit bind address, and leaves the advertise
+// address nil when binding to an ephemeral port so TCPStreamLayer falls
+// back to the listener's concrete address.
+func tcpTransportFactory(cfg ClusterConfig) (hraft.Transport, error) {
 	singleServer := !cfg.Enabled
 
 	bindAddress := cfg.BindAddress
@@ -51,7 +39,7 @@ func tcpTransportFactory(cfg ClusterConfig) (raft.Transport, error) {
 		advertise = resolved
 	}
 
-	transport, err := raft.NewTCPTransport(bindAddress, advertise, 3, 10*time.Second, newZapIOWriter("transport"))
+	transport, err := hraft.NewTCPTransport(bindAddress, advertise, 3, 10*time.Second, newZapIOWriter("transport"))
 	if err != nil {
 		return nil, fmt.Errorf("create TCP transport on %s: %w", bindAddress, err)
 	}
@@ -59,16 +47,28 @@ func tcpTransportFactory(cfg ClusterConfig) (raft.Transport, error) {
 	return transport, nil
 }
 
+// clusterTransportFactory builds a Raft transport backed by the cluster
+// listener's ALPNRaft handler. Used in HA mode where all Raft traffic
+// rides the mTLS-protected cluster port.
+func clusterTransportFactory(ln *listener.Listener, cfg ClusterConfig) (hraft.Transport, error) {
+	sl, err := newRaftStreamLayer(ln, cfg.AdvertiseAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	return hraft.NewNetworkTransport(sl, 3, 10*time.Second, newZapIOWriter("transport")), nil
+}
+
 // ManagerOption configures optional behaviour of NewManager.
 type ManagerOption func(*managerOptions)
 
 type managerOptions struct {
-	transportFactory TransportFactory
+	clusterListener *listener.Listener
 }
 
-// WithTransportFactory overrides the default TCP transport builder. HA
-// deployments use this to plug in an mTLS-backed transport without
-// modifying NewManager.
-func WithTransportFactory(tf TransportFactory) ManagerOption {
-	return func(o *managerOptions) { o.transportFactory = tf }
+// WithClusterListener provides the cluster listener for HA mode. The
+// Raft stream layer registers ALPNRaft on this listener. Standalone
+// mode ignores the option.
+func WithClusterListener(ln *listener.Listener) ManagerOption {
+	return func(o *managerOptions) { o.clusterListener = ln }
 }

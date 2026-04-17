@@ -424,8 +424,8 @@ func (amf *AMF) buildPDUSessions(copies []smContextCopy) map[string]PDUSessionEx
 			pdu.PolicyData = policyDataFromSMF(smCtx.PolicyData)
 			if smCtx.Tunnel != nil {
 				ipStr := ""
-				if smCtx.Tunnel.ANInformation.IPAddress != nil {
-					ipStr = smCtx.Tunnel.ANInformation.IPAddress.String()
+				if smCtx.Tunnel.ANInformation.IPv4Address != nil {
+					ipStr = smCtx.Tunnel.ANInformation.IPv4Address.String()
 				}
 
 				pdu.Tunnel = &TunnelExport{

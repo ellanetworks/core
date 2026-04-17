@@ -17,8 +17,7 @@ import (
 )
 
 // NewTestManager spins up a single-node Raft cluster over an in-memory
-// transport, tuned for fast unit tests. Mirrors physical/raft/testing.go
-// from Vault: no TCP bind, small trailing-log window, low snapshot
+// transport, tuned for fast unit tests. No TCP bind, small trailing-log window, low snapshot
 // threshold. Tests reach leader in milliseconds and don't compete for ports.
 //
 // Kept separate from NewStandaloneManager so production can move to a real
