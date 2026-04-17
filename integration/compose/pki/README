@@ -1,0 +1,8 @@
+TEST-ONLY PKI — NOT FOR PRODUCTION
+
+These certificates and keys are pre-generated fixtures for HA integration
+tests. They are checked into the repository for deterministic test runs.
+
+Do not use these in any production or internet-facing deployment.
+
+Regenerate with: go run gen.go

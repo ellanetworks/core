@@ -38,7 +38,7 @@ func TestLeaderProxyMiddleware_NilDB(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := LeaderProxyMiddleware(nil, next)
+	handler := LeaderProxyMiddleware(nil, nil, next)
 
 	req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/subscribers", nil)
 	w := httptest.NewRecorder()

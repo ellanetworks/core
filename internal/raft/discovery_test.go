@@ -5,47 +5,149 @@ package raft
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
-	"net/http/httptest"
+	"sync"
 	"testing"
+
+	"github.com/ellanetworks/core/internal/cluster/listener"
+	"github.com/ellanetworks/core/internal/cluster/listener/testutil"
 )
 
-func newProbePeerServer(t *testing.T, statusCode int, body statusResponse) *httptest.Server {
+// testConnListener is a channel-backed net.Listener for feeding accepted
+// connections into an http.Server in tests. Mirrors the connListener in
+// cluster_http.go but lives in the test file to avoid cross-package deps.
+type testConnListener struct {
+	ch     chan net.Conn
+	closed chan struct{}
+	once   sync.Once
+}
+
+func newTestConnListener() *testConnListener {
+	return &testConnListener{
+		ch:     make(chan net.Conn, 16),
+		closed: make(chan struct{}),
+	}
+}
+
+func (l *testConnListener) Accept() (net.Conn, error) {
+	select {
+	case conn, ok := <-l.ch:
+		if !ok {
+			return nil, net.ErrClosed
+		}
+
+		return conn, nil
+	case <-l.closed:
+		return nil, net.ErrClosed
+	}
+}
+
+func (l *testConnListener) Close() error {
+	l.once.Do(func() { close(l.closed) })
+	return nil
+}
+
+func (l *testConnListener) Addr() net.Addr {
+	return &net.TCPAddr{}
+}
+
+// testOpaqueConn hides *tls.Conn from http.Server so it does not
+// inspect the ALPN protocol and drop the connection.
+type testOpaqueConn struct{ net.Conn }
+
+func (l *testConnListener) enqueue(conn net.Conn) {
+	select {
+	case l.ch <- &testOpaqueConn{conn}:
+	case <-l.closed:
+		_ = conn.Close()
+	}
+}
+
+func discoveryFreePort(t *testing.T) int {
 	t.Helper()
 
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/status" {
-			http.NotFound(w, r)
-			return
-		}
+	lc := net.ListenConfig{}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(statusCode)
+	l, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("find free port: %v", err)
+	}
 
-		if err := json.NewEncoder(w).Encode(body); err != nil {
-			t.Fatalf("encode: %v", err)
-		}
-	}))
+	port := l.Addr().(*net.TCPAddr).Port
+	_ = l.Close()
 
-	t.Cleanup(ts.Close)
+	return port
+}
 
-	return ts
+// startTestClusterHTTP registers an ALPN HTTP handler on the given listener
+// and starts an http.Server that serves the provided handler. Returns a
+// cleanup function.
+func startTestClusterHTTP(t *testing.T, ln *listener.Listener, handler http.Handler) {
+	t.Helper()
+
+	cl := newTestConnListener()
+	srv := &http.Server{Handler: handler}
+
+	ln.Register(listener.ALPNHTTP, cl.enqueue)
+
+	go func() { _ = srv.Serve(cl) }()
+
+	t.Cleanup(func() {
+		_ = cl.Close()
+		_ = srv.Close()
+	})
 }
 
 func TestProbePeer_LeaderReturns200(t *testing.T) {
-	ts := newProbePeerServer(t, http.StatusOK, statusResponse{
-		Result: statusResult{
-			Cluster: &statusClusterBlock{
-				Role:          "Leader",
-				NodeID:        1,
-				ClusterID:     "cluster-1",
-				SchemaVersion: 9,
-			},
-		},
+	pki := testutil.GenTestPKI(t, []int{1, 2})
+
+	serverPort := discoveryFreePort(t)
+	serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
+
+	serverLn := listener.New(listener.Config{
+		BindAddress:      serverAddr,
+		AdvertiseAddress: serverAddr,
+		NodeID:           1,
+		CAPool:           pki.CAPool,
+		LeafCert:         pki.Nodes[1].TLSCert,
 	})
 
-	m := &Manager{}
-	state, nodeID, clusterID, schema := m.probePeer(context.Background(), ts.Client(), ts.URL)
+	startTestClusterHTTP(t, serverLn, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(statusResponse{
+			Result: statusResult{
+				Cluster: &statusClusterBlock{
+					Role:          "Leader",
+					NodeID:        1,
+					ClusterID:     "cluster-1",
+					SchemaVersion: 9,
+				},
+			},
+		})
+	}))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := serverLn.Start(ctx); err != nil {
+		t.Fatalf("start listener: %v", err)
+	}
+
+	defer serverLn.Stop()
+
+	clientLn := listener.New(listener.Config{
+		BindAddress:      "127.0.0.1:0",
+		AdvertiseAddress: "127.0.0.1:0",
+		NodeID:           2,
+		CAPool:           pki.CAPool,
+		LeafCert:         pki.Nodes[2].TLSCert,
+	})
+
+	m := &Manager{clusterListener: clientLn}
+
+	state, nodeID, clusterID, schema := m.probePeer(ctx, serverAddr)
 
 	if state != peerFormed {
 		t.Fatalf("expected peerFormed, got %d", state)
@@ -65,19 +167,53 @@ func TestProbePeer_LeaderReturns200(t *testing.T) {
 }
 
 func TestProbePeer_FollowerReturns200(t *testing.T) {
-	ts := newProbePeerServer(t, http.StatusOK, statusResponse{
-		Result: statusResult{
-			Cluster: &statusClusterBlock{
-				Role:          "Follower",
-				NodeID:        2,
-				ClusterID:     "cluster-1",
-				SchemaVersion: 9,
-			},
-		},
+	pki := testutil.GenTestPKI(t, []int{1, 2})
+
+	serverPort := discoveryFreePort(t)
+	serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
+
+	serverLn := listener.New(listener.Config{
+		BindAddress:      serverAddr,
+		AdvertiseAddress: serverAddr,
+		NodeID:           1,
+		CAPool:           pki.CAPool,
+		LeafCert:         pki.Nodes[1].TLSCert,
 	})
 
-	m := &Manager{}
-	state, nodeID, clusterID, schema := m.probePeer(context.Background(), ts.Client(), ts.URL)
+	startTestClusterHTTP(t, serverLn, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(statusResponse{
+			Result: statusResult{
+				Cluster: &statusClusterBlock{
+					Role:          "Follower",
+					NodeID:        2,
+					ClusterID:     "cluster-1",
+					SchemaVersion: 9,
+				},
+			},
+		})
+	}))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := serverLn.Start(ctx); err != nil {
+		t.Fatalf("start listener: %v", err)
+	}
+
+	defer serverLn.Stop()
+
+	clientLn := listener.New(listener.Config{
+		BindAddress:      "127.0.0.1:0",
+		AdvertiseAddress: "127.0.0.1:0",
+		NodeID:           3,
+		CAPool:           pki.CAPool,
+		LeafCert:         pki.Nodes[2].TLSCert,
+	})
+
+	m := &Manager{clusterListener: clientLn}
+
+	state, nodeID, clusterID, schema := m.probePeer(ctx, serverAddr)
 
 	if state != peerFormed {
 		t.Fatalf("expected peerFormed, got %d", state)
@@ -97,17 +233,51 @@ func TestProbePeer_FollowerReturns200(t *testing.T) {
 }
 
 func TestProbePeer_FormingNode(t *testing.T) {
-	ts := newProbePeerServer(t, http.StatusOK, statusResponse{
-		Result: statusResult{
-			Cluster: &statusClusterBlock{
-				Role:   "Follower",
-				NodeID: 3,
-			},
-		},
+	pki := testutil.GenTestPKI(t, []int{1, 2})
+
+	serverPort := discoveryFreePort(t)
+	serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
+
+	serverLn := listener.New(listener.Config{
+		BindAddress:      serverAddr,
+		AdvertiseAddress: serverAddr,
+		NodeID:           1,
+		CAPool:           pki.CAPool,
+		LeafCert:         pki.Nodes[1].TLSCert,
 	})
 
-	m := &Manager{}
-	state, nodeID, _, _ := m.probePeer(context.Background(), ts.Client(), ts.URL)
+	startTestClusterHTTP(t, serverLn, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(statusResponse{
+			Result: statusResult{
+				Cluster: &statusClusterBlock{
+					Role:   "Follower",
+					NodeID: 3,
+				},
+			},
+		})
+	}))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := serverLn.Start(ctx); err != nil {
+		t.Fatalf("start listener: %v", err)
+	}
+
+	defer serverLn.Stop()
+
+	clientLn := listener.New(listener.Config{
+		BindAddress:      "127.0.0.1:0",
+		AdvertiseAddress: "127.0.0.1:0",
+		NodeID:           2,
+		CAPool:           pki.CAPool,
+		LeafCert:         pki.Nodes[2].TLSCert,
+	})
+
+	m := &Manager{clusterListener: clientLn}
+
+	state, nodeID, _, _ := m.probePeer(ctx, serverAddr)
 
 	if state != peerForming {
 		t.Fatalf("expected peerForming, got %d", state)
@@ -119,10 +289,43 @@ func TestProbePeer_FormingNode(t *testing.T) {
 }
 
 func TestProbePeer_503IsUnreachable(t *testing.T) {
-	ts := newProbePeerServer(t, http.StatusServiceUnavailable, statusResponse{})
+	pki := testutil.GenTestPKI(t, []int{1, 2})
 
-	m := &Manager{}
-	state, nodeID, clusterID, schema := m.probePeer(context.Background(), ts.Client(), ts.URL)
+	serverPort := discoveryFreePort(t)
+	serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
+
+	serverLn := listener.New(listener.Config{
+		BindAddress:      serverAddr,
+		AdvertiseAddress: serverAddr,
+		NodeID:           1,
+		CAPool:           pki.CAPool,
+		LeafCert:         pki.Nodes[1].TLSCert,
+	})
+
+	startTestClusterHTTP(t, serverLn, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := serverLn.Start(ctx); err != nil {
+		t.Fatalf("start listener: %v", err)
+	}
+
+	defer serverLn.Stop()
+
+	clientLn := listener.New(listener.Config{
+		BindAddress:      "127.0.0.1:0",
+		AdvertiseAddress: "127.0.0.1:0",
+		NodeID:           2,
+		CAPool:           pki.CAPool,
+		LeafCert:         pki.Nodes[2].TLSCert,
+	})
+
+	m := &Manager{clusterListener: clientLn}
+
+	state, nodeID, clusterID, schema := m.probePeer(ctx, serverAddr)
 
 	if state != peerUnreachable {
 		t.Fatalf("expected peerUnreachable, got %d", state)

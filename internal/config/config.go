@@ -3,10 +3,11 @@
 package config
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -116,19 +117,25 @@ type TelemetryYaml struct {
 	OTLPEndpoint string `yaml:"otlp-endpoint"`
 }
 
+type ClusterTLSYaml struct {
+	CA   string `yaml:"ca"`
+	Cert string `yaml:"cert"`
+	Key  string `yaml:"key"`
+}
+
 type ClusterYaml struct {
-	Enabled             bool     `yaml:"enabled"`
-	NodeID              int      `yaml:"node-id"`
-	BindAddress         string   `yaml:"bind-address"`
-	AdvertiseAPIAddress string   `yaml:"advertise-api-address"`
-	BootstrapExpect     int      `yaml:"bootstrap-expect"`
-	Peers               []string `yaml:"peers"`
-	JoinToken           string   `yaml:"join-token"`
-	JoinTimeout         string   `yaml:"join-timeout"`
-	ProposeTimeout      string   `yaml:"propose-timeout"`
-	SnapshotInterval    string   `yaml:"snapshot-interval"`
-	SnapshotThreshold   uint64   `yaml:"snapshot-threshold"`
-	InitialSuffrage     string   `yaml:"initial-suffrage"`
+	Enabled           bool           `yaml:"enabled"`
+	NodeID            int            `yaml:"node-id"`
+	BindAddress       string         `yaml:"bind-address"`
+	AdvertiseAddress  string         `yaml:"advertise-address"`
+	BootstrapExpect   int            `yaml:"bootstrap-expect"`
+	Peers             []string       `yaml:"peers"`
+	TLS               ClusterTLSYaml `yaml:"tls"`
+	JoinTimeout       string         `yaml:"join-timeout"`
+	ProposeTimeout    string         `yaml:"propose-timeout"`
+	SnapshotInterval  string         `yaml:"snapshot-interval"`
+	SnapshotThreshold uint64         `yaml:"snapshot-threshold"`
+	InitialSuffrage   string         `yaml:"initial-suffrage"`
 }
 
 type ConfigYAML struct {
@@ -196,21 +203,30 @@ type Telemetry struct {
 	OTLPEndpoint string // e.g., "otel-collector.default.svc:4317"
 }
 
+type ClusterTLS struct {
+	CA   string
+	Cert string
+	Key  string
+
+	CAPool   *x509.CertPool
+	LeafCert tls.Certificate
+}
+
 // Cluster holds the resolved cluster configuration. When Enabled is false the
 // binary runs as a standalone single-server instance.
 type Cluster struct {
-	Enabled             bool
-	NodeID              int
-	BindAddress         string
-	AdvertiseAPIAddress string
-	BootstrapExpect     int
-	Peers               []string
-	JoinToken           string
-	JoinTimeout         time.Duration
-	ProposeTimeout      time.Duration
-	SnapshotInterval    time.Duration
-	SnapshotThreshold   uint64
-	InitialSuffrage     string
+	Enabled           bool
+	NodeID            int
+	BindAddress       string
+	AdvertiseAddress  string
+	BootstrapExpect   int
+	Peers             []string
+	TLS               ClusterTLS
+	JoinTimeout       time.Duration
+	ProposeTimeout    time.Duration
+	SnapshotInterval  time.Duration
+	SnapshotThreshold uint64
+	InitialSuffrage   string
 }
 
 type Config struct {
@@ -615,13 +631,18 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 		return Cluster{}, fmt.Errorf("cluster.bind-address %q is not a valid host:port: %w", c.BindAddress, err)
 	}
 
-	if c.AdvertiseAPIAddress == "" {
-		return Cluster{}, errors.New("cluster.advertise-api-address is required when cluster is enabled")
+	advertiseAddress := c.AdvertiseAddress
+	if advertiseAddress == "" {
+		advertiseAddress = c.BindAddress
 	}
 
-	selfURL, err := url.Parse(c.AdvertiseAPIAddress)
-	if err != nil || selfURL.Scheme == "" || selfURL.Host == "" {
-		return Cluster{}, fmt.Errorf("cluster.advertise-api-address %q is not a valid URL", c.AdvertiseAPIAddress)
+	if _, _, err := net.SplitHostPort(advertiseAddress); err != nil {
+		return Cluster{}, fmt.Errorf("cluster.advertise-address %q is not a valid host:port: %w", advertiseAddress, err)
+	}
+
+	advHost, _, _ := net.SplitHostPort(advertiseAddress)
+	if ip := net.ParseIP(advHost); ip != nil && ip.IsUnspecified() {
+		return Cluster{}, fmt.Errorf("cluster.advertise-address %q must not use an unspecified IP (0.0.0.0 / ::)", advertiseAddress)
 	}
 
 	if c.BootstrapExpect < 1 {
@@ -638,29 +659,80 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 
 	selfFound := false
 
-	normalizedSelf := strings.TrimRight(c.AdvertiseAPIAddress, "/")
-
 	for i, peer := range c.Peers {
-		peerURL, pErr := url.Parse(peer)
-		if pErr != nil || peerURL.Scheme == "" || peerURL.Host == "" {
-			return Cluster{}, fmt.Errorf("cluster.peers[%d] %q is not a valid URL", i, peer)
+		if _, _, err := net.SplitHostPort(peer); err != nil {
+			if strings.Contains(peer, "://") {
+				return Cluster{}, fmt.Errorf("cluster.peers[%d] %q looks like a URL; peers must be host:port (e.g. 10.0.0.1:7000), not a URL", i, peer)
+			}
+
+			return Cluster{}, fmt.Errorf("cluster.peers[%d] %q is not a valid host:port: %w", i, peer, err)
 		}
 
-		if strings.TrimRight(peer, "/") == normalizedSelf {
+		if peer == advertiseAddress {
 			selfFound = true
 		}
 	}
 
 	if !selfFound {
-		return Cluster{}, fmt.Errorf("cluster.peers must include this node's advertise-api-address %q", c.AdvertiseAPIAddress)
+		return Cluster{}, fmt.Errorf("cluster.peers must include this node's advertise-address %q", advertiseAddress)
 	}
 
-	if c.JoinToken == "" {
-		return Cluster{}, errors.New("cluster.join-token is required when cluster is enabled")
+	// TLS is mandatory when clustering is enabled.
+	if c.TLS.CA == "" {
+		return Cluster{}, errors.New("cluster.tls.ca is required when cluster is enabled")
 	}
 
-	if len(c.JoinToken) < 32 {
-		return Cluster{}, fmt.Errorf("cluster.join-token must be at least 32 characters, got %d", len(c.JoinToken))
+	if c.TLS.Cert == "" {
+		return Cluster{}, errors.New("cluster.tls.cert is required when cluster is enabled")
+	}
+
+	if c.TLS.Key == "" {
+		return Cluster{}, errors.New("cluster.tls.key is required when cluster is enabled")
+	}
+
+	for _, f := range []struct{ field, path string }{
+		{"cluster.tls.ca", c.TLS.CA},
+		{"cluster.tls.cert", c.TLS.Cert},
+		{"cluster.tls.key", c.TLS.Key},
+	} {
+		if _, err := os.Stat(f.path); os.IsNotExist(err) {
+			return Cluster{}, fmt.Errorf("%s file %s does not exist", f.field, f.path)
+		}
+	}
+
+	certPEM, err := os.ReadFile(c.TLS.Cert)
+	if err != nil {
+		return Cluster{}, fmt.Errorf("cluster.tls.cert: %w", err)
+	}
+
+	keyPEM, err := os.ReadFile(c.TLS.Key)
+	if err != nil {
+		return Cluster{}, fmt.Errorf("cluster.tls.key: %w", err)
+	}
+
+	tlsCert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return Cluster{}, fmt.Errorf("cluster.tls: cert/key pair invalid: %w", err)
+	}
+
+	leaf, err := x509.ParseCertificate(tlsCert.Certificate[0])
+	if err != nil {
+		return Cluster{}, fmt.Errorf("cluster.tls.cert: failed to parse leaf certificate: %w", err)
+	}
+
+	expectedCN := fmt.Sprintf("ella-node-%d", c.NodeID)
+	if leaf.Subject.CommonName != expectedCN {
+		return Cluster{}, fmt.Errorf("cluster.tls.cert: leaf CN is %q but must be %q for node-id %d", leaf.Subject.CommonName, expectedCN, c.NodeID)
+	}
+
+	caPEM, err := os.ReadFile(c.TLS.CA)
+	if err != nil {
+		return Cluster{}, fmt.Errorf("cluster.tls.ca: %w", err)
+	}
+
+	caPool := x509.NewCertPool()
+	if !caPool.AppendCertsFromPEM(caPEM) {
+		return Cluster{}, errors.New("cluster.tls.ca: no valid certificates found in CA bundle")
 	}
 
 	var joinTimeout time.Duration
@@ -700,17 +772,23 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 	}
 
 	return Cluster{
-		Enabled:             true,
-		NodeID:              c.NodeID,
-		BindAddress:         c.BindAddress,
-		AdvertiseAPIAddress: c.AdvertiseAPIAddress,
-		BootstrapExpect:     c.BootstrapExpect,
-		Peers:               c.Peers,
-		JoinToken:           c.JoinToken,
-		JoinTimeout:         joinTimeout,
-		ProposeTimeout:      proposeTimeout,
-		SnapshotInterval:    snapshotInterval,
-		SnapshotThreshold:   c.SnapshotThreshold,
-		InitialSuffrage:     initialSuffrage,
+		Enabled:          true,
+		NodeID:           c.NodeID,
+		BindAddress:      c.BindAddress,
+		AdvertiseAddress: advertiseAddress,
+		BootstrapExpect:  c.BootstrapExpect,
+		Peers:            c.Peers,
+		TLS: ClusterTLS{
+			CA:       c.TLS.CA,
+			Cert:     c.TLS.Cert,
+			Key:      c.TLS.Key,
+			CAPool:   caPool,
+			LeafCert: tlsCert,
+		},
+		JoinTimeout:       joinTimeout,
+		ProposeTimeout:    proposeTimeout,
+		SnapshotInterval:  snapshotInterval,
+		SnapshotThreshold: c.SnapshotThreshold,
+		InitialSuffrage:   initialSuffrage,
 	}, nil
 }

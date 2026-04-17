@@ -94,25 +94,36 @@ telemetry:
 
 ## Clustering
 
-To deploy Ella Core in a high-availability configuration, enable clustering on each node. All nodes must share the same `join-token` and list each other in `peers`.
+To deploy Ella Core in a high-availability configuration, enable clustering on each node. All nodes must list each other in `peers` and use mTLS certificates signed by a shared cluster CA for peer authentication.
 
 ```yaml
 cluster:
   enabled: true
   node-id: 1
   bind-address: "10.0.0.1:7000"
-  advertise-api-address: "https://10.0.0.1:5002"
+  advertise-address: "10.0.0.1:7000"
   bootstrap-expect: 3
   peers:
-    - "https://10.0.0.1:5002"
-    - "https://10.0.0.2:5002"
-    - "https://10.0.0.3:5002"
-  join-token: "my-secret-token-that-is-at-least-32-chars"
+    - "10.0.0.1:7000"
+    - "10.0.0.2:7000"
+    - "10.0.0.3:7000"
+  tls:
+    ca: "/etc/ella/cluster-ca.pem"
+    cert: "/etc/ella/node-1.pem"
+    key: "/etc/ella/node-1-key.pem"
   join-timeout: "30s"
   propose-timeout: "5s"
   snapshot-interval: "2m"
   snapshot-threshold: 8192
 ```
+
+- `bind-address` (string): The `host:port` address the cluster listener binds to. Carries all intra-cluster traffic (Raft consensus and cluster HTTP).
+- `advertise-address` (string, optional): The `host:port` address peers use to reach this node. Defaults to `bind-address`. Must appear in the `peers` list.
+- `peers` (list of strings): `host:port` cluster addresses of all nodes. Every node's `advertise-address` must appear in this list.
+- `tls` (object): mTLS configuration for cluster communication. Required when clustering is enabled.
+    - `ca` (string): Path to the CA bundle (PEM) trusted for peer certificates.
+    - `cert` (string): Path to this node's leaf certificate (PEM). The leaf CN must be `ella-node-<node-id>`.
+    - `key` (string): Path to the private key for the leaf certificate (PEM).
 
 !!! note
     When clustering is enabled, write requests (POST, PUT, PATCH, DELETE) are automatically forwarded to the current Raft leader. Read requests are served by any node.

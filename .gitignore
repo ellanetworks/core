@@ -13,6 +13,7 @@ ui/.env*.local
 
 # Certificates
 *.pem
+!integration/compose/pki/*.pem
 
 # DB
 *.db

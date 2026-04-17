@@ -11,28 +11,37 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 	"go.uber.org/zap"
 )
 
+// ClusterTLSConfig holds the file paths for the cluster mTLS PKI material.
+type ClusterTLSConfig struct {
+	CA   string
+	Cert string
+	Key  string
+}
+
 // ClusterConfig holds the cluster-related configuration parsed from YAML.
 type ClusterConfig struct {
-	Enabled             bool
-	NodeID              int
-	BindAddress         string
-	AdvertiseAPIAddress string
-	BootstrapExpect     int
-	Peers               []string
-	JoinToken           string
-	JoinTimeout         time.Duration
-	ProposeTimeout      time.Duration
-	SnapshotInterval    time.Duration
-	SnapshotThreshold   uint64
+	Enabled           bool
+	NodeID            int
+	BindAddress       string
+	AdvertiseAddress  string
+	APIAddress        string
+	BootstrapExpect   int
+	Peers             []string
+	TLS               ClusterTLSConfig
+	JoinTimeout       time.Duration
+	ProposeTimeout    time.Duration
+	SnapshotInterval  time.Duration
+	SnapshotThreshold uint64
 
 	// PerformanceMultiplier scales heartbeat/election/leader-lease timeouts
-	// in HA mode. Default 5 matches Vault's integrated storage, trading a
+	// in HA mode. Trading a
 	// slower election for tolerance of real-network jitter. Ignored in
 	// single-server mode, which uses fixed fast timeouts.
 	PerformanceMultiplier int
@@ -55,7 +64,6 @@ type ClusterConfig struct {
 const (
 	// defaultPerformanceMultiplier is the per-operator scaling factor
 	// applied to the library's default timeouts when running in HA mode.
-	// Matches Vault.
 	defaultPerformanceMultiplier = 5
 
 	// standaloneHeartbeatTimeout and friends govern the single-server bootstrap
@@ -98,6 +106,7 @@ type Manager struct {
 	autopilot       *autopilotRunner
 	followerTracker *followerTracker
 	boltNoSync      bool
+	clusterListener *listener.Listener
 }
 
 // defaultStandaloneBindAddress is the bind address used when ClusterConfig
@@ -119,7 +128,7 @@ const defaultStandaloneBindAddress = "127.0.0.1:0"
 // timeouts scaled by PerformanceMultiplier, and no auto-bootstrap (operators
 // drive cluster formation explicitly).
 func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir string, opts ...ManagerOption) (*Manager, error) {
-	options := managerOptions{transportFactory: tcpTransportFactory}
+	options := managerOptions{}
 	for _, opt := range opts {
 		opt(&options)
 	}
@@ -183,7 +192,14 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 		return nil, fmt.Errorf("create log cache: %w", err)
 	}
 
-	transport, err := options.transportFactory(cfg)
+	var transport raft.Transport
+
+	if !singleServer && options.clusterListener != nil {
+		transport, err = clusterTransportFactory(options.clusterListener, cfg)
+	} else {
+		transport, err = tcpTransportFactory(cfg)
+	}
+
 	if err != nil {
 		_ = boltStore.Close()
 		return nil, err
@@ -246,17 +262,18 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 	observer := NewLeaderObserver()
 
 	m := &Manager{
-		raft:           r,
-		fsm:            fsm,
-		transport:      transport,
-		logStore:       boltStore,
-		snaps:          snapshotStore,
-		config:         cfg,
-		nodeID:         nodeID,
-		dataDir:        dataDir,
-		observer:       observer,
-		needsDiscovery: !singleServer && !hasState && !recovered,
-		boltNoSync:     singleServer,
+		raft:            r,
+		fsm:             fsm,
+		transport:       transport,
+		logStore:        boltStore,
+		snaps:           snapshotStore,
+		config:          cfg,
+		nodeID:          nodeID,
+		dataDir:         dataDir,
+		observer:        observer,
+		needsDiscovery:  !singleServer && !hasState && !recovered,
+		boltNoSync:      singleServer,
+		clusterListener: options.clusterListener,
 	}
 
 	if !singleServer {
@@ -311,8 +328,8 @@ func resolveNodeIDForMode(cfg ClusterConfig, singleServer bool, dataDir string) 
 // Single-server mode uses fixed 50 ms timeouts: with no peers to negotiate
 // with the library defaults are pure dead time during bootstrap.
 //
-// HA mode scales the library defaults by PerformanceMultiplier (default 5,
-// matching Vault) to tolerate real-network jitter. On a fresh boot the
+// HA mode scales the library defaults by PerformanceMultiplier (default 5)
+// to tolerate real-network jitter. On a fresh boot the
 // heartbeat and election timeouts are further multiplied by
 // initialTimeoutMultiplier so a slow first election on a newly joined node
 // doesn't trigger spurious leadership contests before the cluster stabilises.
@@ -416,9 +433,14 @@ func (m *Manager) RaftAddress() string {
 	return string(m.transport.LocalAddr())
 }
 
-// APIAddress returns the advertised API address for this node.
+// AdvertiseAddress returns the cluster address peers use to reach this node.
+func (m *Manager) AdvertiseAddress() string {
+	return m.config.AdvertiseAddress
+}
+
+// APIAddress returns the operator-facing API URL for this node.
 func (m *Manager) APIAddress() string {
-	return m.config.AdvertiseAPIAddress
+	return m.config.APIAddress
 }
 
 // ProposeTimeout returns the configured maximum wait for a Raft commit, or
@@ -516,23 +538,6 @@ func (m *Manager) RemoveServer(nodeID int) error {
 	}
 
 	return nil
-}
-
-// LeaderAPIAddress returns the advertise-api-address of the current leader by
-// looking up the leader's Raft transport address in the cluster members table
-// via the provided resolver function. Returns empty string if this node is the
-// leader or if the leader is unknown.
-func (m *Manager) LeaderAPIAddress(resolver func(raftAddr string) string) string {
-	if m.IsLeader() {
-		return ""
-	}
-
-	addr := m.LeaderAddress()
-	if addr == "" {
-		return ""
-	}
-
-	return resolver(addr)
 }
 
 // ClusterEnabled returns whether the manager was started in HA mode.

@@ -4859,10 +4859,16 @@ components:
           type: integer
           format: uint64
           description: Last applied Raft log index.
+        clusterId:
+          type: string
+          description: Cluster ID from the operator configuration. Omitted when not set.
+        schemaVersion:
+          type: integer
+          description: Database schema version of this node.
         leaderAddress:
           type: string
           description: API address of the current Raft leader. Empty when the leader is unknown.
-      required: [enabled, role, nodeId, appliedIndex]
+      required: [enabled, role, nodeId, appliedIndex, schemaVersion]
 
     ClusterMember:
       type: object
@@ -4876,7 +4882,14 @@ components:
         apiAddress:
           type: string
           description: "API address for proxying requests (host:port)."
-      required: [nodeId, raftAddress, apiAddress]
+        binaryVersion:
+          type: string
+          description: Software version reported by this member.
+        suffrage:
+          type: string
+          enum: [voter, nonvoter]
+          description: Whether this member participates in leader election.
+      required: [nodeId, raftAddress, apiAddress, binaryVersion, suffrage]
 
     ListClusterMembersResponseEnvelope:
       type: object
@@ -4900,6 +4913,16 @@ components:
         apiAddress:
           type: string
           description: "API address of the new member (host:port)."
+        suffrage:
+          type: string
+          enum: [voter, nonvoter]
+          description: "Whether the new member is a voter or nonvoter. Defaults to voter."
+        clusterId:
+          type: string
+          description: Cluster ID to validate against the operator configuration.
+        schemaVersion:
+          type: integer
+          description: Schema version of the joining node. Rejected if lower than the leader's schema.
 
     DrainParams:
       type: object

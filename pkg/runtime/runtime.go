@@ -22,6 +22,7 @@ import (
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/bgp"
+	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
@@ -87,23 +88,50 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	ellaraft.RegisterMetrics()
 
-	raftCfg := ellaraft.ClusterConfig{
-		Enabled:             cfg.Cluster.Enabled,
-		NodeID:              cfg.Cluster.NodeID,
-		BindAddress:         cfg.Cluster.BindAddress,
-		AdvertiseAPIAddress: cfg.Cluster.AdvertiseAPIAddress,
-		BootstrapExpect:     cfg.Cluster.BootstrapExpect,
-		Peers:               cfg.Cluster.Peers,
-		JoinToken:           cfg.Cluster.JoinToken,
-		JoinTimeout:         cfg.Cluster.JoinTimeout,
-		ProposeTimeout:      cfg.Cluster.ProposeTimeout,
-		SnapshotInterval:    cfg.Cluster.SnapshotInterval,
-		SnapshotThreshold:   cfg.Cluster.SnapshotThreshold,
-		SchemaVersion:       db.SchemaVersion(),
-		InitialSuffrage:     cfg.Cluster.InitialSuffrage,
+	apiScheme := "http"
+	if cfg.Interfaces.API.TLS.Cert != "" && cfg.Interfaces.API.TLS.Key != "" {
+		apiScheme = "https"
 	}
 
-	dbInstance, err := db.NewDatabase(ctx, cfg.DB.Path, raftCfg)
+	apiAddress := fmt.Sprintf("%s://%s:%d", apiScheme, cfg.Interfaces.API.Address, cfg.Interfaces.API.Port)
+
+	raftCfg := ellaraft.ClusterConfig{
+		Enabled:          cfg.Cluster.Enabled,
+		NodeID:           cfg.Cluster.NodeID,
+		BindAddress:      cfg.Cluster.BindAddress,
+		AdvertiseAddress: cfg.Cluster.AdvertiseAddress,
+		APIAddress:       apiAddress,
+		BootstrapExpect:  cfg.Cluster.BootstrapExpect,
+		Peers:            cfg.Cluster.Peers,
+		TLS: ellaraft.ClusterTLSConfig{
+			CA:   cfg.Cluster.TLS.CA,
+			Cert: cfg.Cluster.TLS.Cert,
+			Key:  cfg.Cluster.TLS.Key,
+		},
+		JoinTimeout:       cfg.Cluster.JoinTimeout,
+		ProposeTimeout:    cfg.Cluster.ProposeTimeout,
+		SnapshotInterval:  cfg.Cluster.SnapshotInterval,
+		SnapshotThreshold: cfg.Cluster.SnapshotThreshold,
+		SchemaVersion:     db.SchemaVersion(),
+		InitialSuffrage:   cfg.Cluster.InitialSuffrage,
+	}
+
+	var clusterLn *listener.Listener
+
+	var raftOpts []ellaraft.ManagerOption
+
+	if cfg.Cluster.Enabled {
+		clusterLn = listener.New(listener.Config{
+			BindAddress:      cfg.Cluster.BindAddress,
+			AdvertiseAddress: cfg.Cluster.AdvertiseAddress,
+			NodeID:           cfg.Cluster.NodeID,
+			CAPool:           cfg.Cluster.TLS.CAPool,
+			LeafCert:         cfg.Cluster.TLS.LeafCert,
+		})
+		raftOpts = append(raftOpts, ellaraft.WithClusterListener(clusterLn))
+	}
+
+	dbInstance, err := db.NewDatabase(ctx, cfg.DB.Path, raftCfg, raftOpts...)
 	if err != nil {
 		return fmt.Errorf("couldn't initialize database: %w", err)
 	}
@@ -127,6 +155,15 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	apiServer, err := api.StartDiscovery(ctx, dbInstance, cfg)
 	if err != nil {
 		return fmt.Errorf("couldn't start API (discovery): %w", err)
+	}
+
+	if clusterLn != nil {
+		stopClusterHTTP := server.StartClusterHTTP(dbInstance, clusterLn, apiServer.Handler())
+		defer stopClusterHTTP()
+
+		if err := clusterLn.Start(ctx); err != nil {
+			return fmt.Errorf("cluster listener: %w", err)
+		}
 	}
 
 	if err := dbInstance.RunDiscovery(ctx); err != nil {
@@ -358,6 +395,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		BGP:                 bgpService,
 		EmbedFS:             rc.EmbedFS,
 		RegisterExtraRoutes: rc.RegisterExtraRoutes,
+		ClusterListener:     clusterLn,
 	}); err != nil {
 		return fmt.Errorf("couldn't upgrade API: %w", err)
 	}

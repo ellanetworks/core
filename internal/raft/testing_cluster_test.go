@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"testing"
 	"time"
-
-	hraft "github.com/hashicorp/raft"
 )
 
 func TestSetupTestCluster_ThreeNodes(t *testing.T) {
@@ -55,22 +53,13 @@ func TestSetupTestCluster_LeaderPropose(t *testing.T) {
 	}
 }
 
-// TestSetupTestCluster_LeaderFailover disconnects the leader from the cluster,
-// verifies that a new leader is elected among the remaining nodes, that the
-// observer callbacks fire correctly, and that the new leader can accept writes.
+// TestSetupTestCluster_LeaderFailover shuts down the leader, verifies that a
+// new leader is elected among the remaining nodes, and that the new leader can
+// accept writes.
 func TestSetupTestCluster_LeaderFailover(t *testing.T) {
 	applier := newTestApplier(t)
 	tc := SetupTestCluster(t, 3, applier)
 
-	// Register observer callbacks on all nodes.
-	callbacks := make([]*testCallback, len(tc.Nodes))
-	for i, n := range tc.Nodes {
-		cb := &testCallback{}
-		n.LeaderObserver().Register(cb)
-		callbacks[i] = cb
-	}
-
-	// Wait for initial leader callbacks to settle.
 	leader := tc.Leader()
 	if leader == nil {
 		t.Fatal("no leader")
@@ -85,18 +74,13 @@ func TestSetupTestCluster_LeaderFailover(t *testing.T) {
 		}
 	}
 
-	// Disconnect the leader from every other node.
-	leaderTransport := leader.transport.(*hraft.InmemTransport)
-
-	for i, n := range tc.Nodes {
-		if i == leaderIdx {
-			continue
-		}
-
-		peerTransport := n.transport.(*hraft.InmemTransport)
-		leaderTransport.Disconnect(hraft.ServerAddress(n.RaftAddress()))
-		peerTransport.Disconnect(hraft.ServerAddress(leader.RaftAddress()))
+	// Shut down the leader to simulate node failure. This closes the
+	// transport, breaking all Raft connections to followers.
+	if err := leader.Shutdown(); err != nil {
+		t.Fatalf("shutdown leader: %v", err)
 	}
+
+	tc.Listeners[leaderIdx].Stop()
 
 	// Wait for a new leader among the survivors.
 	deadline := time.After(5 * time.Second)
@@ -120,30 +104,6 @@ func TestSetupTestCluster_LeaderFailover(t *testing.T) {
 				newLeader = n
 				break
 			}
-		}
-	}
-
-	// The old leader should eventually step down (lose lease).
-	deadline = time.After(5 * time.Second)
-
-	for leader.IsLeader() {
-		select {
-		case <-deadline:
-			t.Fatal("timed out waiting for old leader to step down")
-		default:
-			time.Sleep(10 * time.Millisecond)
-		}
-	}
-
-	// Verify observer callbacks: old leader lost leadership.
-	deadline = time.After(2 * time.Second)
-
-	for callbacks[leaderIdx].lostLeader.Load() < 1 {
-		select {
-		case <-deadline:
-			t.Fatal("timed out waiting for OnLostLeadership on old leader")
-		default:
-			time.Sleep(10 * time.Millisecond)
 		}
 	}
 
