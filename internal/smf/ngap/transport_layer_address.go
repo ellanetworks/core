@@ -5,6 +5,7 @@ package ngap
 
 import (
 	"fmt"
+	"net"
 	"net/netip"
 
 	"github.com/free5gc/aper"
@@ -47,4 +48,20 @@ func encodeTransportLayerAddress(ipv4, ipv6 netip.Addr) (aper.BitString, error) 
 	default:
 		return aper.BitString{}, fmt.Errorf("encodeTransportLayerAddress: both IPv4 and IPv6 addresses are invalid")
 	}
+}
+
+// ParseTransportLayerAddress extracts IPv4 and/or IPv6 from a NGAP TransportLayerAddress
+// per 3GPP TS 38.414 Section 5.1.
+func ParseTransportLayerAddress(bs aper.BitString) (ipv4 net.IP, ipv6 net.IP) {
+	switch {
+	case bs.BitLength == 32 && len(bs.Bytes) >= 4:
+		ipv4 = net.IP(bs.Bytes[0:4])
+	case bs.BitLength == 128 && len(bs.Bytes) >= 16:
+		ipv6 = net.IP(bs.Bytes[0:16])
+	case bs.BitLength == 160 && len(bs.Bytes) >= 20:
+		ipv4 = net.IP(bs.Bytes[0:4])
+		ipv6 = net.IP(bs.Bytes[4:20])
+	}
+
+	return
 }

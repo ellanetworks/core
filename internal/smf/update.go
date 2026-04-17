@@ -8,7 +8,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"net"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -28,22 +27,6 @@ type UpdateResult struct {
 	ReleaseN2 bool   // true when N2 info signals PDU session resource release
 	N1Msg     []byte // NAS message for the UE (may be nil)
 	N2Msg     []byte // NGAP transfer for the RAN (may be nil)
-}
-
-// parseTransportLayerAddress extracts IPv4 and/or IPv6 from a NGAP TransportLayerAddress
-// per 3GPP TS 38.414 Section 5.1.
-func parseTransportLayerAddress(bs aper.BitString) (ipv4 net.IP, ipv6 net.IP) {
-	switch {
-	case bs.BitLength == 32 && len(bs.Bytes) >= 4:
-		ipv4 = net.IP(bs.Bytes[0:4])
-	case bs.BitLength == 128 && len(bs.Bytes) >= 16:
-		ipv6 = net.IP(bs.Bytes[0:16])
-	case bs.BitLength == 160 && len(bs.Bytes) >= 20:
-		ipv4 = net.IP(bs.Bytes[0:4])
-		ipv6 = net.IP(bs.Bytes[4:20])
-	}
-
-	return
 }
 
 // UpdateSmContextN1Msg handles a NAS N1 message update (e.g. PDU session release request).
@@ -244,7 +227,7 @@ func handlePDUSessionResourceSetupResponseTransfer(b []byte, smContext *SMContex
 
 	teid := binary.BigEndian.Uint32(gtpTunnel.GTPTEID.Value)
 
-	anIPv4, anIPv6 := parseTransportLayerAddress(gtpTunnel.TransportLayerAddress.Value)
+	anIPv4, anIPv6 := ngap.ParseTransportLayerAddress(gtpTunnel.TransportLayerAddress.Value)
 	smContext.Tunnel.ANInformation.IPv4Address = anIPv4
 	smContext.Tunnel.ANInformation.IPv6Address = anIPv6
 	smContext.Tunnel.ANInformation.TEID = teid
@@ -514,7 +497,7 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 
 	teid := binary.BigEndian.Uint32(GTPTunnel.GTPTEID.Value)
 
-	anIPv4, anIPv6 := parseTransportLayerAddress(GTPTunnel.TransportLayerAddress.Value)
+	anIPv4, anIPv6 := ngap.ParseTransportLayerAddress(GTPTunnel.TransportLayerAddress.Value)
 	smContext.Tunnel.ANInformation.IPv4Address = anIPv4
 	smContext.Tunnel.ANInformation.IPv6Address = anIPv6
 	smContext.Tunnel.ANInformation.TEID = teid
@@ -629,7 +612,7 @@ func handlePathSwitchRequestTransfer(b []byte, smContext *SMContext) error {
 
 	teid := binary.BigEndian.Uint32(gtpTunnel.GTPTEID.Value)
 
-	anIPv4, anIPv6 := parseTransportLayerAddress(gtpTunnel.TransportLayerAddress.Value)
+	anIPv4, anIPv6 := ngap.ParseTransportLayerAddress(gtpTunnel.TransportLayerAddress.Value)
 	smContext.Tunnel.ANInformation.IPv4Address = anIPv4
 	smContext.Tunnel.ANInformation.IPv6Address = anIPv6
 
