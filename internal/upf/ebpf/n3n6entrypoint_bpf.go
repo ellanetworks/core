@@ -73,8 +73,8 @@ type N3N6EntrypointPdrInfo struct {
 		OuterHeaderCreation   uint8
 		_                     [2]byte
 		Teid                  uint32
-		Remoteip              uint32
-		Localip               uint32
+		Remoteip              N3N6EntrypointIn6Addr
+		Localip               N3N6EntrypointIn6Addr
 		TransportLevelMarking uint16
 		_                     [2]byte
 	}
@@ -200,6 +200,7 @@ type N3N6EntrypointProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type N3N6EntrypointMapSpecs struct {
+	CsumScratch        *ebpf.MapSpec `ebpf:"csum_scratch"`
 	DownlinkRouteStats *ebpf.MapSpec `ebpf:"downlink_route_stats"`
 	DownlinkStatistics *ebpf.MapSpec `ebpf:"downlink_statistics"`
 	FlowStats          *ebpf.MapSpec `ebpf:"flow_stats"`
@@ -247,6 +248,7 @@ func (o *N3N6EntrypointObjects) Close() error {
 //
 // It can be passed to LoadN3N6EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N3N6EntrypointMaps struct {
+	CsumScratch        *ebpf.Map `ebpf:"csum_scratch"`
 	DownlinkRouteStats *ebpf.Map `ebpf:"downlink_route_stats"`
 	DownlinkStatistics *ebpf.Map `ebpf:"downlink_statistics"`
 	FlowStats          *ebpf.Map `ebpf:"flow_stats"`
@@ -264,6 +266,7 @@ type N3N6EntrypointMaps struct {
 
 func (m *N3N6EntrypointMaps) Close() error {
 	return _N3N6EntrypointClose(
+		m.CsumScratch,
 		m.DownlinkRouteStats,
 		m.DownlinkStatistics,
 		m.FlowStats,

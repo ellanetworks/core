@@ -365,7 +365,8 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 		for _, cp := range resp.CreatedPDRs {
 			if cp.TEID != 0 {
 				smContext.Tunnel.DataPath.UpLinkTunnel.TEID = cp.TEID
-				smContext.Tunnel.DataPath.UpLinkTunnel.N3IP = cp.N3IP
+				smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4 = cp.N3IPv4
+				smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6 = cp.N3IPv6
 
 				break
 			}
@@ -443,7 +444,7 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 		return fmt.Errorf("build GSM PDUSessionEstablishmentAccept failed: %v", err)
 	}
 
-	n2Msg, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&policy.Ambr, &policy.QosData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IP)
+	n2Msg, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&policy.Ambr, &policy.QosData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build PDU session resource setup request transfer")

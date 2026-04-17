@@ -58,3 +58,9 @@ When Ella Core's N3 interface is a veth pair (e.g. in [co-hosted deployments](..
 Without an XDP program on the receiving peer, the veth driver will not deliver redirected frames through the native path and the frames will be dropped.
 
 The solution is to attach a minimal XDP program that returns `XDP_PASS` to the peer veth. This satisfies the kernel's requirement and keeps packets on the fast native XDP path. See [Use native XDP with veth interfaces](../how_to/native_xdp_veth.md) for setup instructions.
+
+### IPv6 GTP-U transport
+
+Ella Core supports GTP-U encapsulation with either an IPv4 or IPv6 outer header on the N3 interface. The UE payload remains IPv4 regardless of the transport address family. The chosen address family depends on how the N3 interface is configured, and what the gNodeB advertises. If both sides are dual-stack, Ella Core prefers IPv6.
+
+**GTP echo:** Echo Request/Response messages are handled for both IPv4 and IPv6 transport, as required for GTP-U path management.

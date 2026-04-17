@@ -239,7 +239,7 @@ func defaultFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 		establishResult: &models.EstablishResponse{
 			RemoteSEID: 100,
 			CreatedPDRs: []models.CreatedPDR{
-				{PDRID: 1, TEID: 5000, N3IP: netip.MustParseAddr("192.168.1.1")},
+				{PDRID: 1, TEID: 5000, N3IPv4: netip.MustParseAddr("192.168.1.1")},
 			},
 		},
 	}

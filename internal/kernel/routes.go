@@ -1,6 +1,7 @@
 package kernel
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
@@ -298,6 +299,11 @@ func (rk *RealKernel) EnableIPForwarding() error {
 		return fmt.Errorf("failed to enable ip_forward: %v", err)
 	}
 
+	err = os.WriteFile("/proc/sys/net/ipv6/conf/all/forwarding", []byte("1"), 0o600)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("failed to enable ipv6 forwarding: %v", err)
+	}
+
 	logger.EllaLog.Debug("Enabled IP forwarding")
 
 	return nil
@@ -310,7 +316,21 @@ func (rk *RealKernel) IsIPForwardingEnabled() (bool, error) {
 		return false, fmt.Errorf("failed to read ip_forward: %v", err)
 	}
 
-	return string(data) == "1", nil
+	ipv4Enabled := string(data) == "1"
+
+	data, err = os.ReadFile("/proc/sys/net/ipv6/conf/all/forwarding")
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// IPv6 is disabled at the kernel level; treat as not enabled.
+			return ipv4Enabled, nil
+		}
+
+		return false, fmt.Errorf("failed to read ipv6 forwarding: %v", err)
+	}
+
+	ipv6Enabled := string(data) == "1"
+
+	return ipv4Enabled && ipv6Enabled, nil
 }
 
 func (rk *RealKernel) EnsureGatewaysOnInterfaceInNeighTable(ifKey NetworkInterface) error {

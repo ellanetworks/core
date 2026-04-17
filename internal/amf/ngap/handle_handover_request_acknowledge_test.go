@@ -46,8 +46,8 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *FakeNGAPSender, *am
 	smCtx.Tunnel = &smf.UPTunnel{
 		DataPath: &smf.DataPath{
 			UpLinkTunnel: &smf.GTPTunnel{
-				TEID: 1234,
-				N3IP: netip.MustParseAddr("10.0.0.1"),
+				TEID:   1234,
+				N3IPv4: netip.MustParseAddr("10.0.0.1"),
 			},
 		},
 	}

@@ -81,10 +81,12 @@ struct sdf_filter_list {
 
 struct far_info {
 	__u8 action;
-	__u8 outer_header_creation;
+	__u8 outer_header_creation; /* OHC_GTP_U_UDP_IPv4 or OHC_GTP_U_UDP_IPv6 */
 	__u32 teid;
-	__u32 remoteip;
-	__u32 localip;
+	struct in6_addr
+		remoteip; /* IPv6 native or IPv4 stored as ::ffff:x.x.x.x */
+	struct in6_addr
+		localip; /* IPv6 native or IPv4 stored as ::ffff:x.x.x.x */
 	/* first octet DSCP value in the Type-of-Service, second octet shall contain the ToS/Traffic Class mask field, which shall be set to "0xFC". */
 	__u16 transport_level_marking;
 };
