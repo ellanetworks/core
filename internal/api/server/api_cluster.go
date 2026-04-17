@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	ClusterMemberAddAction    = "cluster_member_add"
-	ClusterMemberRemoveAction = "cluster_member_remove"
+	ClusterMemberAddAction          = "cluster_member_add"
+	ClusterMemberRemoveAction       = "cluster_member_remove"
+	ClusterMemberSelfAnnounceAction = "cluster_member_self_announce"
 )
 
 type ClusterMemberResponse struct {
@@ -149,12 +150,12 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		email := getEmailFromContext(r)
+		actor := getActorFromContext(r)
 
 		logger.LogAuditEvent(
 			r.Context(),
 			ClusterMemberAddAction,
-			email,
+			actor,
 			getClientIP(r),
 			fmt.Sprintf("Added cluster member node %d at %s (suffrage: %s)", req.NodeID, req.RaftAddress, suffrage),
 		)

@@ -230,6 +230,14 @@ func SelfAnnounceClusterMember(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		logger.LogAuditEvent(
+			r.Context(),
+			ClusterMemberSelfAnnounceAction,
+			getActorFromContext(r),
+			getClientIP(r),
+			fmt.Sprintf("Self-announced cluster member node %d at %s", req.NodeID, req.RaftAddress),
+		)
+
 		writeResponse(r.Context(), w, SuccessResponse{Message: "self-announce accepted"}, http.StatusOK, logger.APILog)
 	})
 }
