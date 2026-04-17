@@ -43,8 +43,8 @@ type Database struct {
 	// (after UpsertClusterMember or CmdMigrateShared commits) so the
 	// leader re-runs CheckPendingMigrations without waiting for the
 	// next leadership change. Debounced by the worker.
-	migrationCheckCh   chan struct{}
-	migrationCheckStop chan struct{}
+	migrationCheckCh     chan struct{}
+	migrationCheckCancel context.CancelFunc
 
 	// Subscriber statements
 	listSubscribersStmt         *sqlair.Statement
@@ -366,12 +366,8 @@ func openSQLiteConnection(ctx context.Context, databasePath string) (*sql.DB, er
 func (db *Database) Close() error {
 	var raftErr, connErr error
 
-	if db.migrationCheckStop != nil {
-		select {
-		case <-db.migrationCheckStop:
-		default:
-			close(db.migrationCheckStop)
-		}
+	if db.migrationCheckCancel != nil {
+		db.migrationCheckCancel()
 	}
 
 	if db.raftManager != nil {
@@ -403,12 +399,12 @@ func (db *Database) signalMigrationCheck() {
 // to coalesce bursts, and calls CheckPendingMigrations. The check itself
 // no-ops on followers; running it on every node is harmless because
 // leader-state is checked inside.
-func (db *Database) runMigrationCheckWorker() {
+func (db *Database) runMigrationCheckWorker(ctx context.Context) {
 	const debounce = 100 * time.Millisecond
 
 	for {
 		select {
-		case <-db.migrationCheckStop:
+		case <-ctx.Done():
 			return
 		case <-db.migrationCheckCh:
 		}
@@ -421,16 +417,16 @@ func (db *Database) runMigrationCheckWorker() {
 			case <-db.migrationCheckCh:
 			case <-timer.C:
 				break drain
-			case <-db.migrationCheckStop:
+			case <-ctx.Done():
 				timer.Stop()
 				return
 			}
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		checkCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 
-		if err := db.CheckPendingMigrations(ctx); err != nil {
-			logger.WithTrace(ctx, logger.DBLog).Warn("pending migration check (re-trigger) failed",
+		if err := db.CheckPendingMigrations(checkCtx); err != nil {
+			logger.WithTrace(checkCtx, logger.DBLog).Warn("pending migration check (re-trigger) failed",
 				zap.Error(err))
 		}
 
@@ -921,9 +917,10 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	db.proposeTimeout = raftMgr.ProposeTimeout()
 
 	db.migrationCheckCh = make(chan struct{}, 1)
-	db.migrationCheckStop = make(chan struct{})
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	db.migrationCheckCancel = workerCancel
 
-	go db.runMigrationCheckWorker()
+	go db.runMigrationCheckWorker(workerCtx)
 
 	if observer := raftMgr.LeaderObserver(); observer != nil {
 		observer.Register(newClusterCoordinator(db))
