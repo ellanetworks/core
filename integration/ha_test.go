@@ -975,3 +975,207 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 
 	t.Log("data survived quorum-loss recovery, test passed")
 }
+
+// TestIntegrationHARestoreWhileLeader verifies that a backup taken on the
+// leader can be restored on the leader of a live 3-node cluster, followers
+// converge on the restored replicated state via InstallSnapshot, subscribers
+// committed after the backup are gone, and writes resume afterwards.
+func TestIntegrationHARestoreWhileLeader(t *testing.T) {
+	if os.Getenv("INTEGRATION") == "" {
+		t.Skip("skipping integration tests, set environment variable INTEGRATION")
+	}
+
+	ctx := context.Background()
+
+	dockerClient, err := NewDockerClient()
+	if err != nil {
+		t.Fatalf("failed to create docker client: %v", err)
+	}
+
+	defer func() {
+		if err := dockerClient.Close(); err != nil {
+			t.Logf("failed to close docker client: %v", err)
+		}
+	}()
+
+	dockerClient.ComposeDown(ctx, haComposeDir)
+
+	err = dockerClient.ComposeUp(ctx, haComposeDir)
+	if err != nil {
+		t.Fatalf("failed to bring up HA compose: %v", err)
+	}
+
+	t.Cleanup(func() {
+		dockerClient.ComposeDown(ctx, haComposeDir)
+	})
+
+	clients, err := newHANodeClients()
+	if err != nil {
+		t.Fatalf("failed to create HA node clients: %v", err)
+	}
+
+	t.Cleanup(func() {
+		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
+	})
+
+	if err := waitForClusterReady(ctx, clients); err != nil {
+		t.Fatalf("cluster not ready: %v", err)
+	}
+
+	_, leader, err := findLeader(ctx, clients)
+	if err != nil {
+		t.Fatalf("failed to find leader: %v", err)
+	}
+
+	if err := initializeCluster(ctx, leader, clients); err != nil {
+		t.Fatalf("failed to initialize cluster: %v", err)
+	}
+
+	if err := waitForAllNodesReady(ctx, clients); err != nil {
+		t.Fatalf("not all nodes became ready: %v", err)
+	}
+
+	const (
+		imsiPreBackup   = "001019756139960"
+		imsiPostBackup  = "001019756139961"
+		imsiPostRestore = "001019756139962"
+	)
+
+	createSub := func(c *client.Client, imsi string) error {
+		return c.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
+			Imsi:           imsi,
+			Key:            "0eefb0893e6f1c2855a3a244c6db1277",
+			OPc:            "98da19bbc55e2a5b53857d10557b1d26",
+			SequenceNumber: "000000000022",
+			ProfileName:    "default",
+		})
+	}
+
+	t.Log("creating subscriber that must survive the restore")
+
+	if err := createSub(leader, imsiPreBackup); err != nil {
+		t.Fatalf("failed to create pre-backup subscriber: %v", err)
+	}
+
+	idx, err := leaderAppliedIndex(ctx, leader)
+	if err != nil {
+		t.Fatalf("failed to get leader applied index: %v", err)
+	}
+
+	if err := waitForFollowerConvergence(ctx, clients, idx); err != nil {
+		t.Fatalf("followers did not converge before backup: %v", err)
+	}
+
+	backupPath := filepath.Join(t.TempDir(), "backup.tar.gz")
+	t.Logf("creating backup on leader at %s", backupPath)
+
+	if err := leader.CreateBackup(ctx, &client.CreateBackupParams{Path: backupPath}); err != nil {
+		t.Fatalf("failed to create backup: %v", err)
+	}
+
+	t.Log("creating subscriber that must NOT exist after restore")
+
+	if err := createSub(leader, imsiPostBackup); err != nil {
+		t.Fatalf("failed to create post-backup subscriber: %v", err)
+	}
+
+	idx, err = leaderAppliedIndex(ctx, leader)
+	if err != nil {
+		t.Fatalf("failed to get leader applied index: %v", err)
+	}
+
+	if err := waitForFollowerConvergence(ctx, clients, idx); err != nil {
+		t.Fatalf("followers did not converge after post-backup write: %v", err)
+	}
+
+	// Sanity: post-backup subscriber visible on every node before restore.
+	for i, c := range clients {
+		sub, err := c.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: imsiPostBackup})
+		if err != nil {
+			t.Fatalf("pre-restore: failed to read post-backup subscriber from node %d: %v", i+1, err)
+		}
+
+		if sub.Imsi != imsiPostBackup {
+			t.Fatalf("pre-restore: node %d returned IMSI %q, expected %q", i+1, sub.Imsi, imsiPostBackup)
+		}
+	}
+
+	t.Log("triggering restore on leader")
+
+	if err := leader.RestoreBackup(ctx, &client.RestoreBackupParams{Path: backupPath}); err != nil {
+		t.Fatalf("restore on leader: %v", err)
+	}
+
+	// The leader briefly stops serving the status endpoint while it reopens
+	// its DB connection and replaces the on-disk file. Wait for the cluster
+	// to stabilize before reading leader state.
+	if err := waitForClusterReady(ctx, clients); err != nil {
+		t.Fatalf("cluster not ready after restore: %v", err)
+	}
+
+	// Raft.Restore advances the leader's applied index past the old commit
+	// index and triggers InstallSnapshot for followers. Use the post-restore
+	// leader applied index as the convergence target.
+	_, postRestoreLeader, err := findLeader(ctx, clients)
+	if err != nil {
+		t.Fatalf("post-restore: failed to find leader: %v", err)
+	}
+
+	idx, err = leaderAppliedIndex(ctx, postRestoreLeader)
+	if err != nil {
+		t.Fatalf("failed to get leader applied index after restore: %v", err)
+	}
+
+	if err := waitForFollowerConvergence(ctx, clients, idx); err != nil {
+		t.Fatalf("followers did not converge after restore: %v", err)
+	}
+
+	if err := waitForAllNodesReady(ctx, clients); err != nil {
+		t.Fatalf("not all nodes ready after restore: %v", err)
+	}
+
+	t.Log("verifying replicated state rolled back to backup snapshot on every node")
+
+	for i, c := range clients {
+		sub, err := c.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: imsiPreBackup})
+		if err != nil {
+			t.Fatalf("post-restore: pre-backup subscriber missing from node %d: %v", i+1, err)
+		}
+
+		if sub.Imsi != imsiPreBackup {
+			t.Fatalf("post-restore: node %d returned IMSI %q, expected %q", i+1, sub.Imsi, imsiPreBackup)
+		}
+
+		if _, err := c.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: imsiPostBackup}); err == nil {
+			t.Fatalf("post-restore: node %d still has post-backup subscriber; restore did not roll back state", i+1)
+		}
+	}
+
+	t.Log("verifying writes resume after restore")
+
+	if err := createSub(postRestoreLeader, imsiPostRestore); err != nil {
+		t.Fatalf("post-restore write failed: %v", err)
+	}
+
+	idx, err = leaderAppliedIndex(ctx, postRestoreLeader)
+	if err != nil {
+		t.Fatalf("failed to get leader applied index after post-restore write: %v", err)
+	}
+
+	if err := waitForFollowerConvergence(ctx, clients, idx); err != nil {
+		t.Fatalf("followers did not converge after post-restore write: %v", err)
+	}
+
+	for i, c := range clients {
+		sub, err := c.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: imsiPostRestore})
+		if err != nil {
+			t.Fatalf("post-restore write: failed to read on node %d: %v", i+1, err)
+		}
+
+		if sub.Imsi != imsiPostRestore {
+			t.Fatalf("post-restore write: node %d returned IMSI %q, expected %q", i+1, sub.Imsi, imsiPostRestore)
+		}
+	}
+
+	t.Log("restore-while-leader test passed")
+}

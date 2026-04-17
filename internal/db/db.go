@@ -509,64 +509,15 @@ func (db *Database) ClusterEnabled() bool {
 	return db.raftManager.ClusterEnabled()
 }
 
-// LeadershipTransfer triggers a leadership transfer to another node. During a
-// rolling upgrade the target preference is the highest advertise API address
-// lexicographically, excluding self, with a fallback to raft's default choice.
+// LeadershipTransfer triggers a leadership transfer to another voter. The raft
+// library picks the most up-to-date follower (highest replicated nextIndex)
+// excluding self.
 func (db *Database) LeadershipTransfer() error {
 	if db.raftManager == nil {
 		return fmt.Errorf("clustering not enabled")
 	}
 
-	target := db.pickLeadershipTransferTarget()
-	if target == nil {
-		return db.raftManager.LeadershipTransfer()
-	}
-
-	return db.raftManager.LeadershipTransferToServer(target.NodeID, target.RaftAddress)
-}
-
-// pickLeadershipTransferTarget returns the preferred voter to transfer
-// leadership to, or nil if no suitable target is found (fall back to the
-// library's default choice). Excludes self.
-func (db *Database) pickLeadershipTransferTarget() *ClusterMember {
-	if db.raftManager == nil {
-		return nil
-	}
-
-	voterIDs := db.raftManager.VoterIDs()
-	if len(voterIDs) == 0 {
-		return nil
-	}
-
-	selfID := db.raftManager.NodeID()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	var best *ClusterMember
-
-	for _, id := range voterIDs {
-		if id == selfID {
-			continue
-		}
-
-		member, err := db.GetClusterMember(ctx, id)
-		if err != nil {
-			continue
-		}
-
-		if best == nil {
-			best = member
-			continue
-		}
-
-		if member.APIAddress > best.APIAddress ||
-			(member.APIAddress == best.APIAddress && member.NodeID < best.NodeID) {
-			best = member
-		}
-	}
-
-	return best
+	return db.raftManager.LeadershipTransfer()
 }
 
 // AddVoter adds a node to the Raft cluster. Only callable on the leader.
