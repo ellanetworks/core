@@ -106,6 +106,7 @@ nav:
   - Explanation:
     - explanation/index.md
     - Architecture: explanation/architecture.md
+    - High Availability (beta): explanation/high_availability.md
     - Platform Security: explanation/platform_security.md
     - Subscriber Security: explanation/subscriber_security.md
     - User Plane Packet processing with eBPF: explanation/user_plane_packet_processing_with_ebpf.md

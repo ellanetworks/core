@@ -66,6 +66,7 @@ type Database struct {
 	deleteAllDynamicLeasesStmt   *sqlair.Statement
 	deleteDynLeasesByNodeStmt    *sqlair.Statement
 	listActiveLeasesStmt         *sqlair.Statement
+	listActiveLeasesByNodeStmt   *sqlair.Statement
 	listLeasesByPoolStmt         *sqlair.Statement
 	listLeaseAddressesByPoolStmt *sqlair.Statement
 	countLeasesByPoolStmt        *sqlair.Statement
@@ -935,6 +936,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.deleteAllDynamicLeasesStmt, fmt.Sprintf(deleteAllDynamicLeasesStmt, IPLeasesTableName), nil},
 		{&db.deleteDynLeasesByNodeStmt, fmt.Sprintf(deleteDynLeasesByNodeStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listActiveLeasesStmt, fmt.Sprintf(listActiveLeasesStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.listActiveLeasesByNodeStmt, fmt.Sprintf(listActiveLeasesByNodeStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listLeasesByPoolStmt, fmt.Sprintf(listLeasesByPoolStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listLeaseAddressesByPoolStmt, fmt.Sprintf(listLeaseAddressesByPoolStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.countLeasesByPoolStmt, fmt.Sprintf(countLeasesByPoolStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
