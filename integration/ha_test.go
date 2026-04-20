@@ -72,15 +72,15 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 			t.Fatalf("node %d has no cluster status", i+1)
 		}
 
-		if status.Cluster.LeaderAddress == "" {
+		if status.Cluster.LeaderAPIAddress == "" {
 			t.Fatalf("node %d reports empty leader address", i+1)
 		}
 
 		if leaderAddress == "" {
-			leaderAddress = status.Cluster.LeaderAddress
-		} else if status.Cluster.LeaderAddress != leaderAddress {
+			leaderAddress = status.Cluster.LeaderAPIAddress
+		} else if status.Cluster.LeaderAPIAddress != leaderAddress {
 			t.Fatalf("node %d reports leader address %q, expected %q",
-				i+1, status.Cluster.LeaderAddress, leaderAddress)
+				i+1, status.Cluster.LeaderAPIAddress, leaderAddress)
 		}
 
 		switch status.Cluster.Role {
@@ -120,7 +120,21 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 		t.Fatalf("not all nodes became ready: %v", err)
 	}
 
-	t.Log("all nodes ready, creating subscriber on leader")
+	t.Log("all nodes ready, verifying autopilot reports cluster healthy")
+
+	apState, err := waitForAutopilotHealthy(ctx, leader, 1, 3)
+	if err != nil {
+		t.Fatalf("autopilot did not report healthy: %v", err)
+	}
+
+	if apState.LeaderNodeID == 0 {
+		t.Fatalf("autopilot reports unknown leader: %+v", apState)
+	}
+
+	t.Logf("autopilot healthy: leaderNodeId=%d failureTolerance=%d voters=%v",
+		apState.LeaderNodeID, apState.FailureTolerance, apState.Voters)
+
+	t.Log("creating subscriber on leader")
 
 	err = leader.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
 		Imsi:           "001019756139935",
@@ -366,6 +380,15 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 		t.Fatalf("not all nodes became ready: %v", err)
 	}
 
+	// Record the leader's node ID before stopping it, so we can match it in
+	// the autopilot report afterward.
+	leaderStatus, err := leader.GetStatus(ctx)
+	if err != nil || leaderStatus.Cluster == nil {
+		t.Fatalf("failed to read leader status pre-stop: %v", err)
+	}
+
+	stoppedNodeID := leaderStatus.Cluster.NodeID
+
 	// Build the survivor list (all nodes except the current leader).
 	survivors := make([]*client.Client, 0, 2)
 
@@ -376,7 +399,7 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 	}
 
 	leaderService := haNodeServices[leaderIdx]
-	t.Logf("stopping leader %s (node %d)", leaderService, leaderIdx+1)
+	t.Logf("stopping leader %s (node %d)", leaderService, stoppedNodeID)
 
 	err = dockerClient.ComposeStop(ctx, haComposeDir, leaderService)
 	if err != nil {
@@ -390,7 +413,19 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 		t.Fatalf("re-election failed: %v", err)
 	}
 
-	t.Log("new leader elected, writing subscriber via new leader")
+	t.Log("new leader elected, verifying autopilot reports stopped node unhealthy")
+
+	apAfterKill, err := waitForAutopilotReportsUnhealthy(ctx, newLeader, stoppedNodeID)
+	if err != nil {
+		t.Fatalf("autopilot did not flag stopped node unhealthy: %v", err)
+	}
+
+	if apAfterKill.FailureTolerance != 0 {
+		t.Fatalf("expected failureTolerance=0 after losing one voter, got %d (state=%+v)",
+			apAfterKill.FailureTolerance, apAfterKill)
+	}
+
+	t.Log("autopilot reflects the outage; writing subscriber via new leader")
 
 	err = newLeader.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
 		Imsi:           "001019756139937",
@@ -464,7 +499,15 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 		t.Fatalf("restarted node returned IMSI %q, expected %q", sub.Imsi, "001019756139937")
 	}
 
-	t.Log("restarted node returned subscriber correctly, leader failure test passed")
+	t.Log("restarted node returned subscriber correctly; verifying autopilot recovered")
+
+	apRecovered, err := waitForAutopilotHealthy(ctx, newLeader, 1, 3)
+	if err != nil {
+		t.Fatalf("autopilot did not recover after node restart: %v", err)
+	}
+
+	t.Logf("autopilot recovered: failureTolerance=%d voters=%v",
+		apRecovered.FailureTolerance, apRecovered.Voters)
 }
 
 func TestIntegrationHADrainLeadership(t *testing.T) {

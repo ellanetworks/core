@@ -66,7 +66,7 @@ func waitForClusterReady(ctx context.Context, clients []*client.Client) error {
 				leaders++
 			}
 
-			if status.Cluster.LeaderAddress != "" {
+			if status.Cluster.LeaderAPIAddress != "" {
 				withLeaderAddr++
 			}
 		}
@@ -268,6 +268,71 @@ func waitForMemberSuffrage(ctx context.Context, c *client.Client, nodeID int, wa
 	}
 
 	return fmt.Errorf("node %d did not reach suffrage %q within %v", nodeID, wantSuffrage, timeout)
+}
+
+// waitForAutopilotHealthy polls GetAutopilotState on the given client until
+// the cluster reports healthy with the expected failure tolerance, and every
+// listed peer is individually healthy. Used to confirm raft-autopilot has
+// caught up after formation or leadership changes.
+func waitForAutopilotHealthy(ctx context.Context, c *client.Client, wantFailureTolerance, wantServers int) (*client.AutopilotState, error) {
+	timeout := 30 * time.Second
+	deadline := time.Now().Add(timeout)
+
+	var last *client.AutopilotState
+
+	for time.Now().Before(deadline) {
+		state, err := c.GetAutopilotState(ctx)
+		if err == nil {
+			last = state
+			if state.Healthy && state.FailureTolerance == wantFailureTolerance && len(state.Servers) == wantServers {
+				allHealthy := true
+
+				for _, s := range state.Servers {
+					if !s.Healthy {
+						allHealthy = false
+						break
+					}
+				}
+
+				if allHealthy {
+					return state, nil
+				}
+			}
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return last, fmt.Errorf("autopilot did not report healthy (failureTolerance=%d, servers=%d) within %v; last=%+v",
+		wantFailureTolerance, wantServers, timeout, last)
+}
+
+// waitForAutopilotReportsUnhealthy polls autopilot on leader until the given
+// node is reported unhealthy. Autopilot flips a peer unhealthy once
+// LastContactThreshold (10s) elapses without heartbeats.
+func waitForAutopilotReportsUnhealthy(ctx context.Context, leader *client.Client, nodeID int) (*client.AutopilotState, error) {
+	timeout := 30 * time.Second
+	deadline := time.Now().Add(timeout)
+
+	var last *client.AutopilotState
+
+	for time.Now().Before(deadline) {
+		state, err := leader.GetAutopilotState(ctx)
+		if err == nil {
+			last = state
+
+			for _, s := range state.Servers {
+				if s.NodeID == nodeID && !s.Healthy {
+					return state, nil
+				}
+			}
+		}
+
+		time.Sleep(1 * time.Second)
+	}
+
+	return last, fmt.Errorf("autopilot did not flag node %d unhealthy within %v; last=%+v",
+		nodeID, timeout, last)
 }
 
 // dumpClusterDiagnostics logs node status and cluster members from each

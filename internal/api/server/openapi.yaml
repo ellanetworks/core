@@ -2659,7 +2659,9 @@ paths:
       operationId: listClusterMembers
       tags: [Cluster]
       summary: List cluster members
-      description: Returns all registered cluster members. Only available when clustering is enabled.
+      description: >-
+        Returns all registered cluster members. Returns an empty array
+        when clustering is disabled. Requires admin privileges.
       responses:
         "200":
           description: List of cluster members.
@@ -2692,6 +2694,31 @@ paths:
           $ref: "#/components/responses/Unauthorized"
 
   /api/v1/cluster/members/{id}:
+    get:
+      operationId: getClusterMember
+      tags: [Cluster]
+      summary: Get a cluster member
+      description: Returns a single cluster member by node ID. Requires admin privileges.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Node ID of the cluster member.
+      responses:
+        "200":
+          description: Cluster member.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetClusterMemberResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
     delete:
       operationId: removeClusterMember
       tags: [Cluster]
@@ -2743,6 +2770,34 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
+  /api/v1/cluster/autopilot:
+    get:
+      operationId: getAutopilotState
+      tags: [Cluster]
+      summary: Get the current autopilot state
+      description: >-
+        Returns the live autopilot view of the cluster: per-peer health and
+        replication lag, voter/nonvoter roster, and cluster-wide
+        `failureTolerance`. Autopilot runs only on the leader, so requests
+        on a follower are proxied to the leader over the cluster port.
+        Immediately after a leadership change, the leader may return an
+        empty state for a short window (typically under one second) until
+        its first autopilot tick publishes a state. Requires admin
+        privileges.
+      responses:
+        "200":
+          description: Autopilot state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutopilotStateResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          description: Proxy to leader failed; try again.
+        "503":
+          description: No leader is currently available; try again.
+
   /api/v1/cluster/drain:
     post:
       operationId: drainNode
@@ -2751,9 +2806,17 @@ paths:
       description: >-
         Gracefully prepares this node for removal. Signals RANs to redirect new
         UE registrations elsewhere, withdraws BGP advertisements so upstream
-        routers reroute user-plane traffic, and transfers Raft leadership if this
-        node is the leader. The node continues serving existing flows until it is
+        routers reroute user-plane traffic, and — in HA mode only — transfers
+        Raft leadership when this node is the leader. In single-node mode the
+        Raft step is a no-op (no peer to receive leadership); the RAN and BGP
+        steps still run, which makes drain useful as a pre-shutdown hook even
+        in standalone. The node continues serving existing flows until it is
         shut down. Requires admin privileges.
+
+        Unlike other mutating cluster endpoints, this request is **not**
+        proxied to the leader — it acts on per-node runtime state (local
+        BGP, local RANs, local Raft participation). The caller must send
+        the request to the specific node they wish to drain.
       requestBody:
         required: false
         content:
@@ -2961,9 +3024,14 @@ components:
         ready:
           type: boolean
           description: True if the node has completed full startup and can serve the complete API.
+        schemaVersion:
+          type: integer
+          description: >-
+            Shared-database schema version this node's binary expects.
+            Reported in both standalone and HA modes.
         cluster:
           $ref: "#/components/schemas/ClusterStatus"
-      required: [version, revision, initialized, ready]
+      required: [version, revision, initialized, ready, schemaVersion]
 
     StatusResponseEnvelope:
       type: object
@@ -4855,6 +4923,12 @@ components:
         nodeId:
           type: integer
           description: Raft node ID of this instance.
+        isLeader:
+          type: boolean
+          description: True when this node is the current Raft leader.
+        leaderNodeId:
+          type: integer
+          description: Raft node ID of the current leader. Zero when the leader is unknown or its cluster_members row is not yet present.
         appliedIndex:
           type: integer
           format: uint64
@@ -4862,13 +4936,14 @@ components:
         clusterId:
           type: string
           description: Cluster ID from the operator configuration. Omitted when not set.
-        schemaVersion:
-          type: integer
-          description: Database schema version of this node.
-        leaderAddress:
+        leaderAPIAddress:
           type: string
-          description: API address of the current Raft leader. Empty when the leader is unknown.
-      required: [enabled, role, nodeId, appliedIndex, schemaVersion]
+          description: >-
+            HTTP API URL of the current Raft leader (e.g.
+            `https://10.0.0.1:5000`). Empty when the leader is unknown.
+            The Raft transport address is available on
+            `/api/v1/cluster/members` as `raftAddress`.
+      required: [enabled, role, nodeId, isLeader, leaderNodeId, appliedIndex]
 
     ClusterMember:
       type: object
@@ -4889,7 +4964,16 @@ components:
           type: string
           enum: [voter, nonvoter]
           description: Whether this member participates in leader election.
-      required: [nodeId, raftAddress, apiAddress, binaryVersion, suffrage]
+        maxSchemaVersion:
+          type: integer
+          description: >-
+            Highest shared-DB schema version this member's binary can
+            apply. Compared against the cluster's applied schema during
+            rolling upgrades to gate migrations behind quorum support.
+        isLeader:
+          type: boolean
+          description: True when this member is the current Raft leader.
+      required: [nodeId, raftAddress, apiAddress, binaryVersion, suffrage, maxSchemaVersion, isLeader]
 
     ListClusterMembersResponseEnvelope:
       type: object
@@ -4898,6 +4982,103 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ClusterMember"
+
+    GetClusterMemberResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ClusterMember"
+
+    AutopilotServer:
+      type: object
+      description: Live autopilot view of a single cluster peer.
+      properties:
+        nodeId:
+          type: integer
+          description: Raft node ID.
+        raftAddress:
+          type: string
+          description: "Raft transport address of this peer (host:port)."
+        nodeStatus:
+          type: string
+          description: >-
+            Autopilot lifecycle state for this peer (e.g. `alive`, `left`,
+            `failed`). A node goes `left` once it has missed heartbeats for
+            longer than the configured LastContactThreshold.
+        healthy:
+          type: boolean
+          description: >-
+            Autopilot's health verdict for this peer, combining
+            last-contact, last-term, and log-lag checks against the
+            autopilot configuration.
+        isLeader:
+          type: boolean
+          description: True when this peer is the current Raft leader.
+        hasVotingRights:
+          type: boolean
+          description: True when this peer is a voter or leader (not a nonvoter).
+        lastContactMs:
+          type: integer
+          format: int64
+          description: >-
+            Milliseconds since this peer last heartbeated with the leader.
+            Zero for the leader's own row.
+        lastTerm:
+          type: integer
+          format: uint64
+          description: Highest Raft term this peer has a record of.
+        lastIndex:
+          type: integer
+          format: uint64
+          description: >-
+            Last log index this peer has acknowledged. Compare to the
+            leader's row to read replication lag.
+        stableSince:
+          type: string
+          format: date-time
+          description: >-
+            UTC timestamp of the last time this peer's `healthy` value
+            changed. Used by autopilot's promotion logic and surfaced as a
+            signal of churn. Omitted when unknown.
+      required: [nodeId, raftAddress, nodeStatus, healthy, isLeader, hasVotingRights, lastContactMs, lastTerm, lastIndex]
+
+    AutopilotState:
+      type: object
+      description: >-
+        Live cluster health produced by raft-autopilot on the leader.
+        Complements `/api/v1/cluster/members` (static configuration) by
+        answering operational questions like "is the cluster actually
+        healthy" and "how many more failures can it survive."
+      properties:
+        healthy:
+          type: boolean
+          description: True when every voter is healthy.
+        failureTolerance:
+          type: integer
+          description: >-
+            Number of voter failures the cluster can currently absorb
+            without losing quorum. Zero means any additional failure
+            stalls writes.
+        leaderNodeId:
+          type: integer
+          description: Raft node ID of the current leader; zero when unknown.
+        voters:
+          type: array
+          items:
+            type: integer
+          description: Node IDs of voting members, ascending.
+        servers:
+          type: array
+          items:
+            $ref: "#/components/schemas/AutopilotServer"
+          description: Per-peer state, sorted by nodeId.
+      required: [healthy, failureTolerance, leaderNodeId, voters, servers]
+
+    AutopilotStateResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/AutopilotState"
 
     AddClusterMemberParams:
       type: object
@@ -4923,6 +5104,12 @@ components:
         schemaVersion:
           type: integer
           description: Schema version of the joining node. Rejected if lower than the leader's schema.
+        maxSchemaVersion:
+          type: integer
+          description: >-
+            Highest shared-DB schema version the joining node's binary can
+            apply. Recorded on the cluster member row so the cluster can
+            gate migrations on quorum support during rolling upgrades.
 
     DrainParams:
       type: object

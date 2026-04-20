@@ -33,8 +33,16 @@ type DrainResponse struct {
 // DrainNode gracefully prepares this node for removal: it signals RANs to
 // redirect new UE registrations elsewhere via AMF Status Indication,
 // withdraws BGP advertisements so upstream routers reroute user plane
-// traffic, and transfers Raft leadership if this node is the leader.
-// The node continues serving existing flows until it is shut down.
+// traffic, and — in HA mode only — transfers Raft leadership when this
+// node is the leader. In single-node mode there is nothing to transfer
+// leadership to, so the Raft step is a no-op; the RAN and BGP steps
+// still run because drain is also useful as a pre-shutdown hook in
+// standalone.
+//
+// Drain acts on per-node runtime state (local BGP, local RANs, local Raft
+// participation), so the request must be served by the target node and
+// must NOT be forwarded to the leader. LeaderProxyMiddleware's
+// localOnlyWritePaths list enforces this.
 func DrainNode(dbInstance *db.Database, amfInstance *amf.AMF, bgpService *bgp.BGPService) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req DrainRequest
@@ -54,13 +62,8 @@ func DrainNode(dbInstance *db.Database, amfInstance *amf.AMF, bgpService *bgp.BG
 
 		if dbInstance.IsLeader() && dbInstance.ClusterEnabled() {
 			if err := dbInstance.LeadershipTransfer(); err != nil {
-				logger.APILog.Warn("Leadership transfer failed during drain", zap.Error(err))
-				writeResponse(r.Context(), w, DrainResponse{
-					Message:               "drain aborted: leadership transfer failed",
-					TransferredLeadership: false,
-					RANsNotified:          0,
-					BGPStopped:            false,
-				}, http.StatusInternalServerError, logger.APILog)
+				writeError(r.Context(), w, http.StatusInternalServerError,
+					"drain aborted: leadership transfer failed", err, logger.APILog)
 
 				return
 			}
@@ -80,12 +83,12 @@ func DrainNode(dbInstance *db.Database, amfInstance *amf.AMF, bgpService *bgp.BG
 			}
 		}
 
-		email := getEmailFromContext(r)
+		actor := getActorFromContext(r)
 
 		logger.LogAuditEvent(
 			r.Context(),
 			DrainAction,
-			email,
+			actor,
 			getClientIP(r),
 			fmt.Sprintf("Node %d draining, leadership_transferred=%v, rans_notified=%d, bgp_stopped=%v",
 				dbInstance.NodeID(), transferred, ransNotified, bgpStopped),

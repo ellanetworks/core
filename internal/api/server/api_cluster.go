@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -23,6 +24,7 @@ type ClusterMemberResponse struct {
 	BinaryVersion    string `json:"binaryVersion"`
 	Suffrage         string `json:"suffrage"`
 	MaxSchemaVersion int    `json:"maxSchemaVersion"`
+	IsLeader         bool   `json:"isLeader"`
 }
 
 type AddClusterMemberRequest struct {
@@ -35,6 +37,44 @@ type AddClusterMemberRequest struct {
 	Suffrage         string `json:"suffrage,omitempty"`
 }
 
+func GetClusterMember(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nodeIDStr := r.PathValue("id")
+
+		nodeID, err := strconv.Atoi(nodeIDStr)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid node ID", err, logger.APILog)
+			return
+		}
+
+		member, err := dbInstance.GetClusterMember(r.Context(), nodeID)
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "Cluster member not found", nil, logger.APILog)
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to look up cluster member", err, logger.APILog)
+
+			return
+		}
+
+		leaderAddr := dbInstance.LeaderAddress()
+
+		resp := ClusterMemberResponse{
+			NodeID:           member.NodeID,
+			RaftAddress:      member.RaftAddress,
+			APIAddress:       member.APIAddress,
+			BinaryVersion:    member.BinaryVersion,
+			Suffrage:         member.Suffrage,
+			MaxSchemaVersion: member.MaxSchemaVersion,
+			IsLeader:         leaderAddr != "" && member.RaftAddress == leaderAddr,
+		}
+
+		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
+	})
+}
+
 func ListClusterMembers(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		members, err := dbInstance.ListClusterMembers(r.Context())
@@ -42,6 +82,8 @@ func ListClusterMembers(dbInstance *db.Database) http.Handler {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list cluster members", err, logger.APILog)
 			return
 		}
+
+		leaderAddr := dbInstance.LeaderAddress()
 
 		result := make([]ClusterMemberResponse, 0, len(members))
 		for _, m := range members {
@@ -52,6 +94,7 @@ func ListClusterMembers(dbInstance *db.Database) http.Handler {
 				BinaryVersion:    m.BinaryVersion,
 				Suffrage:         m.Suffrage,
 				MaxSchemaVersion: m.MaxSchemaVersion,
+				IsLeader:         leaderAddr != "" && m.RaftAddress == leaderAddr,
 			})
 		}
 
@@ -79,6 +122,18 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 
 		if req.APIAddress == "" {
 			writeError(r.Context(), w, http.StatusBadRequest, "apiAddress is required", nil, logger.APILog)
+			return
+		}
+
+		// Zero means "not provided" by convention; negative is always a
+		// client bug and must not pass through silently.
+		if req.SchemaVersion < 0 {
+			writeError(r.Context(), w, http.StatusBadRequest, "schemaVersion must be non-negative", nil, logger.APILog)
+			return
+		}
+
+		if req.MaxSchemaVersion < 0 {
+			writeError(r.Context(), w, http.StatusBadRequest, "maxSchemaVersion must be non-negative", nil, logger.APILog)
 			return
 		}
 
@@ -174,6 +229,29 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		member, err := dbInstance.GetClusterMember(r.Context(), nodeID)
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "Cluster member not found", nil, logger.APILog)
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to look up cluster member", err, logger.APILog)
+
+			return
+		}
+
+		// Refuse to remove the current leader. The operator must drain and
+		// transfer leadership first; otherwise we disrupt writes and risk
+		// proxied callers losing the session mid-remove.
+		if leaderAddr := dbInstance.LeaderAddress(); leaderAddr != "" && member.RaftAddress == leaderAddr {
+			writeError(r.Context(), w, http.StatusConflict,
+				"Cannot remove the current leader; drain this node first so leadership transfers, then retry",
+				nil, logger.APILog)
+
+			return
+		}
+
 		if err := dbInstance.RemoveServer(nodeID); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to remove server from Raft cluster", err, logger.APILog)
 			return
@@ -184,12 +262,12 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		email := getEmailFromContext(r)
+		actor := getActorFromContext(r)
 
 		logger.LogAuditEvent(
 			r.Context(),
 			ClusterMemberRemoveAction,
-			email,
+			actor,
 			getClientIP(r),
 			fmt.Sprintf("Removed cluster member node %d", nodeID),
 		)
@@ -233,12 +311,12 @@ func PromoteClusterMember(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		email := getEmailFromContext(r)
+		actor := getActorFromContext(r)
 
 		logger.LogAuditEvent(
 			r.Context(),
 			ClusterMemberPromoteAction,
-			email,
+			actor,
 			getClientIP(r),
 			fmt.Sprintf("Promoted cluster member node %d to voter", nodeID),
 		)

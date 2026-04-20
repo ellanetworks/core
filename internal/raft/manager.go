@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/hashicorp/raft"
+	autopilot "github.com/hashicorp/raft-autopilot"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 	"go.uber.org/zap"
 )
@@ -413,6 +414,20 @@ func (m *Manager) Propose(cmd *Command, timeout time.Duration) (*ProposeResult, 
 // IsLeader returns true if this node is the current Raft leader.
 func (m *Manager) IsLeader() bool {
 	return m.raft.State() == raft.Leader
+}
+
+// AutopilotState returns the current autopilot state snapshot.
+//
+// Autopilot only runs on the leader, so this returns nil on followers and
+// in single-server mode. On the leader, it may still return nil during
+// the cold-start window immediately after leadership acquisition, before
+// the first autopilot tick has completed.
+func (m *Manager) AutopilotState() *autopilot.State {
+	if m.autopilot == nil {
+		return nil
+	}
+
+	return m.autopilot.State()
 }
 
 // LeaderAddress returns the Raft transport address of the current leader.

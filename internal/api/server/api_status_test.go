@@ -8,8 +8,19 @@ import (
 	"testing"
 )
 
+type ClusterStatusBody struct {
+	Enabled          bool   `json:"enabled"`
+	Role             string `json:"role"`
+	NodeID           int    `json:"nodeId"`
+	IsLeader         bool   `json:"isLeader"`
+	LeaderNodeID     int    `json:"leaderNodeId"`
+	LeaderAPIAddress string `json:"leaderAPIAddress,omitempty"`
+}
+
 type GetStatusResponseResult struct {
-	Version string `json:"version"`
+	Version       string             `json:"version"`
+	SchemaVersion int                `json:"schemaVersion"`
+	Cluster       *ClusterStatusBody `json:"cluster,omitempty"`
 }
 
 type GetStatusResponse struct {
@@ -69,6 +80,17 @@ func TestStatusEndToEnd(t *testing.T) {
 
 		if response.Result.Version == "" {
 			t.Fatalf("expected version to be non-empty")
+		}
+
+		// schemaVersion is per-binary and must be reported at the top
+		// level regardless of whether HA is enabled.
+		if response.Result.SchemaVersion <= 0 {
+			t.Fatalf("expected positive schemaVersion, got %d", response.Result.SchemaVersion)
+		}
+
+		// Test server runs without Raft, so the cluster sub-object is omitted.
+		if response.Result.Cluster != nil {
+			t.Fatalf("expected cluster to be nil with clustering disabled, got %+v", response.Result.Cluster)
 		}
 	})
 }

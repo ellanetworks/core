@@ -46,6 +46,44 @@ func isWriteMethod(method string) bool {
 	return false
 }
 
+// leaderOnlyReadPaths enumerates the GET paths that must be served by the
+// leader even though they do not mutate state. Autopilot state only
+// exists on the leader; a follower has nothing useful to return, so the
+// middleware proxies these requests the same way it proxies writes.
+var leaderOnlyReadPaths = map[string]struct{}{
+	"/api/v1/cluster/autopilot": {},
+}
+
+func isLeaderOnlyRead(r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+
+	_, ok := leaderOnlyReadPaths[r.URL.Path]
+
+	return ok
+}
+
+// localOnlyWritePaths enumerates write endpoints that MUST run on the node
+// that received the request, not on the leader. Drain mutates per-node
+// runtime state (BGP daemon, connected RANs, local Raft participation) and
+// has no meaning if silently redirected — a drain issued against node N
+// must drain node N. Proxying to the leader would drain the wrong node
+// and corrupt operator intent.
+var localOnlyWritePaths = map[string]struct{}{
+	"/api/v1/cluster/drain": {},
+}
+
+func isLocalOnlyWrite(r *http.Request) bool {
+	if !isWriteMethod(r.Method) {
+		return false
+	}
+
+	_, ok := localOnlyWritePaths[r.URL.Path]
+
+	return ok
+}
+
 // LeaderProxyMiddleware forwards write requests to the Raft leader when this
 // node is a follower. Read requests are served locally. The middleware runs
 // before authentication so the leader handles auth for proxied writes.
@@ -64,7 +102,13 @@ func LeaderProxyMiddleware(dbInstance *db.Database, ln *listener.Listener, next 
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if dbInstance.IsLeader() || !isWriteMethod(r.Method) {
+		if isLocalOnlyWrite(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		mustProxy := isWriteMethod(r.Method) || isLeaderOnlyRead(r)
+		if dbInstance.IsLeader() || !mustProxy {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -83,24 +127,27 @@ func LeaderProxyMiddleware(dbInstance *db.Database, ln *listener.Listener, next 
 	})
 }
 
-func resolveLeaderAPI(dbInstance *db.Database) string {
+// resolveLeader looks up the current leader in the cluster_members table
+// and returns the leader's API address and node-id. Either field is zero
+// when no leader is known or the leader's row is not yet present.
+func resolveLeader(dbInstance *db.Database) (apiAddress string, nodeID int) {
 	raftAddr := dbInstance.LeaderAddress()
 	if raftAddr == "" {
-		return ""
+		return "", 0
 	}
 
 	members, err := dbInstance.ListClusterMembers(context.Background())
 	if err != nil {
-		return ""
+		return "", 0
 	}
 
 	for _, m := range members {
 		if m.RaftAddress == raftAddr {
-			return m.APIAddress
+			return m.APIAddress, m.NodeID
 		}
 	}
 
-	return ""
+	return "", 0
 }
 
 // isHopByHopHeader returns true for headers that must not be forwarded by
