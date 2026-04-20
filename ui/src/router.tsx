@@ -29,6 +29,7 @@ import UserDetail from "./pages/UserDetail";
 import Profile from "./pages/Profile";
 import AuditLogs from "./pages/AuditLogs";
 import BackupRestore from "./pages/BackupRestore";
+import Cluster from "./pages/Cluster";
 import Traffic from "./pages/Traffic";
 import RequireAdmin from "./components/RequireAdmin";
 
@@ -85,6 +86,7 @@ export default function AppRouter() {
           <Route path="users/:email" element={<UserDetail />} />
           <Route path="audit-logs" element={<AuditLogs />} />
           <Route path="backup-restore" element={<BackupRestore />} />
+          <Route path="cluster" element={<Cluster />} />
         </Route>
         <Route path="profile" element={<Profile />} />
         <Route path="traffic/usage" element={<Traffic />} />

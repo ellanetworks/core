@@ -27,6 +27,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { getStatus, type APIStatus } from "@/queries/status";
+import ClusterSummaryCard from "@/components/ClusterSummaryCard";
 import { getMetrics } from "@/queries/metrics";
 import {
   listSubscribers,
@@ -413,6 +414,12 @@ const Dashboard = () => {
           )}
         </Typography>
       </Box>
+
+      {statusQuery.data?.cluster?.enabled && (
+        <Box sx={{ mb: 4 }}>
+          <ClusterSummaryCard />
+        </Box>
+      )}
 
       {/* ─── 1. Network Status ──────────────────────── */}
       <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
