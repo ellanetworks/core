@@ -7,7 +7,7 @@ description: Explanation of how high availability works in Ella Core.
 !!! info "Beta feature"
     High availability is currently in beta. It is available for testing and feedback in the `main` branch but not recommended for production use yet. Expect breaking changes as we iterate on the design and implementation.
 
-High availability (HA) lets you run an Ella Core cluster so that the network keeps working when one node fails. Set `cluster.enabled: true` to opt in.
+High availability (HA) lets you run an Ella Core cluster so that the network keeps working when one node fails.
 
 HA in Ella Core rests on two pillars. Consensus is handled by the [Raft algorithm](https://raft.github.io/): at any time one node is the leader, it is the only node that accepts writes, and every write replicates to a majority of nodes before it is considered committed. Inter-node traffic — Raft replication and the cluster HTTP port that carries the follower proxy — is mutually authenticated over TLS, with a shared CA and a per-node leaf certificate provisioned by the operator out of band.
 
@@ -67,6 +67,16 @@ Useful for site- or tenant-partitioned deployments. The cluster still replicates
   ![Radios Pinned to Specific Nodes](../images/ha_scenario_2.svg){ width="700" }
   <figcaption>Radios Pinned to Specific Nodes</figcaption>
 </figure>
+
+## Draining a node
+
+Draining prepares a node for removal without disrupting ongoing traffic on its peers. It is a persisted, reversible state on the cluster_members row (`active → draining → drained`) that every node can see. The transitions are driven by three endpoints — `POST /api/v1/cluster/members/{id}/drain`, `POST /api/v1/cluster/members/{id}/resume`, and `DELETE /api/v1/cluster/members/{id}` — and the proxy routes each request to the target node itself (not the leader) so the side-effects happen in the right place.
+
+At drain start, the target transfers Raft leadership if it held it, sends AMF Status Indication to its connected RANs so new UEs are redirected to sibling AMFs in the Set, and stops its local BGP speaker so upstream routing drains onto the survivors. Existing flows continue until the node is removed or shut down. With a non-zero deadline, the call returns immediately and a background poller flips the state to `drained` once the node's active-lease count reaches zero or the deadline expires.
+
+Resume reverses the drain — restarts the local BGP speaker (if BGP is enabled) and clears drain state. It does not reverse the AMF Status Indication (no NGAP message does that; RANs re-register the GUAMI on their next NG Setup) and it does not reclaim leadership that was transferred during drain.
+
+Removal requires `drainState == "drained"`; the leader rejects a premature `DELETE` with 409. Passing `?force=true` skips the precondition for cases where the node is already down and drain is impossible.
 
 ## Rolling upgrades
 

@@ -1,5 +1,7 @@
 import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
+export type DrainState = "active" | "draining" | "drained";
+
 export type ClusterMember = {
   nodeId: number;
   raftAddress: string;
@@ -8,6 +10,8 @@ export type ClusterMember = {
   suffrage: "voter" | "nonvoter";
   maxSchemaVersion: number;
   isLeader: boolean;
+  drainState: DrainState;
+  drainUpdatedAt?: string;
 };
 
 export type AutopilotServer = {
@@ -39,14 +43,22 @@ export type AddClusterMemberParams = {
 };
 
 export type DrainOptions = {
-  timeoutSeconds?: number;
+  deadlineSeconds?: number;
 };
 
 export type DrainResponse = {
   message: string;
+  state: DrainState;
   transferredLeadership: boolean;
   ransNotified: number;
   bgpStopped: boolean;
+  sessionsRemaining: number;
+};
+
+export type ResumeResponse = {
+  message: string;
+  state: DrainState;
+  bgpStarted: boolean;
 };
 
 export async function listClusterMembers(
@@ -78,8 +90,10 @@ export async function addClusterMember(
 export async function removeClusterMember(
   authToken: string,
   nodeId: number,
+  force = false,
 ): Promise<void> {
-  await apiFetchVoid(`/api/v1/cluster/members/${nodeId}`, {
+  const query = force ? "?force=true" : "";
+  await apiFetchVoid(`/api/v1/cluster/members/${nodeId}${query}`, {
     method: "DELETE",
     authToken,
   });
@@ -95,14 +109,25 @@ export async function promoteClusterMember(
   });
 }
 
-export async function drainNode(
+export async function drainClusterMember(
   authToken: string,
+  nodeId: number,
   opts: DrainOptions = {},
 ): Promise<DrainResponse> {
-  return apiFetch<DrainResponse>("/api/v1/cluster/drain", {
+  return apiFetch<DrainResponse>(`/api/v1/cluster/members/${nodeId}/drain`, {
     method: "POST",
     authToken,
     body: opts,
+  });
+}
+
+export async function resumeClusterMember(
+  authToken: string,
+  nodeId: number,
+): Promise<ResumeResponse> {
+  return apiFetch<ResumeResponse>(`/api/v1/cluster/members/${nodeId}/resume`, {
+    method: "POST",
+    authToken,
   });
 }
 

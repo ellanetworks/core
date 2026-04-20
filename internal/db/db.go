@@ -266,6 +266,7 @@ type Database struct {
 	upsertClusterMemberStmt *sqlair.Statement
 	deleteClusterMemberStmt *sqlair.Statement
 	countClusterMembersStmt *sqlair.Statement
+	setDrainStateStmt       *sqlair.Statement
 
 	// connPtr holds the SQLite handle for the application database. Reopen
 	// atomically swaps the pointer so concurrent readers (API handlers,
@@ -1135,6 +1136,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.upsertClusterMemberStmt, fmt.Sprintf(upsertClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 		{&db.deleteClusterMemberStmt, fmt.Sprintf(deleteClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 		{&db.countClusterMembersStmt, fmt.Sprintf(countClusterMembersStmtStr, ClusterMembersTableName), []any{NumItems{}}},
+		{&db.setDrainStateStmt, fmt.Sprintf(setDrainStateStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 	}
 
 	for _, s := range stmts {

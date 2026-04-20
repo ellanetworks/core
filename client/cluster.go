@@ -15,17 +15,27 @@ type ClusterMember struct {
 	Suffrage         string `json:"suffrage"`
 	MaxSchemaVersion int    `json:"maxSchemaVersion"`
 	IsLeader         bool   `json:"isLeader"`
+	DrainState       string `json:"drainState"`
+	DrainUpdatedAt   string `json:"drainUpdatedAt,omitempty"`
 }
 
 type DrainOptions struct {
-	TimeoutSeconds int `json:"timeoutSeconds,omitempty"`
+	DeadlineSeconds int `json:"deadlineSeconds,omitempty"`
 }
 
 type DrainResponse struct {
 	Message               string `json:"message"`
+	State                 string `json:"state"`
 	TransferredLeadership bool   `json:"transferredLeadership"`
 	RANsNotified          int    `json:"ransNotified"`
 	BGPStopped            bool   `json:"bgpStopped"`
+	SessionsRemaining     int    `json:"sessionsRemaining"`
+}
+
+type ResumeResponse struct {
+	Message    string `json:"message"`
+	State      string `json:"state"`
+	BGPStarted bool   `json:"bgpStarted"`
 }
 
 // AutopilotServer is the live per-peer health reported by raft-autopilot.
@@ -114,7 +124,12 @@ func (c *Client) GetAutopilotState(ctx context.Context) (*AutopilotState, error)
 	return &state, nil
 }
 
-func (c *Client) DrainNode(ctx context.Context, opts *DrainOptions) (*DrainResponse, error) {
+// DrainClusterMember drains the given node. When opts.DeadlineSeconds > 0 the
+// server returns as soon as the drain starts (state "draining") and finalises
+// asynchronously when the node's last active lease clears or the deadline
+// elapses. When opts.DeadlineSeconds == 0 (default), the drain is synchronous
+// and the response state is "drained".
+func (c *Client) DrainClusterMember(ctx context.Context, nodeID int, opts *DrainOptions) (*DrainResponse, error) {
 	var body bytes.Buffer
 
 	if opts != nil {
@@ -127,7 +142,7 @@ func (c *Client) DrainNode(ctx context.Context, opts *DrainOptions) (*DrainRespo
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
-		Path:   "api/v1/cluster/drain",
+		Path:   fmt.Sprintf("api/v1/cluster/members/%d/drain", nodeID),
 		Body:   &body,
 	})
 	if err != nil {
@@ -144,6 +159,29 @@ func (c *Client) DrainNode(ctx context.Context, opts *DrainOptions) (*DrainRespo
 	return &drainResp, nil
 }
 
+// ResumeClusterMember reverses a prior drain: restarts the BGP speaker
+// (if BGP is enabled) and clears drain state. AMF Status Indication and
+// transferred Raft leadership are not reversed.
+func (c *Client) ResumeClusterMember(ctx context.Context, nodeID int) (*ResumeResponse, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "POST",
+		Path:   fmt.Sprintf("api/v1/cluster/members/%d/resume", nodeID),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var out ResumeResponse
+
+	err = resp.DecodeResult(&out)
+	if err != nil {
+		return nil, err
+	}
+
+	return &out, nil
+}
+
 func (c *Client) PromoteClusterMember(ctx context.Context, nodeID int) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -157,11 +195,21 @@ func (c *Client) PromoteClusterMember(ctx context.Context, nodeID int) error {
 	return nil
 }
 
-func (c *Client) RemoveClusterMember(ctx context.Context, nodeID int) error {
+// RemoveClusterMember removes a node. The server requires the node's
+// drainState to be "drained" first; pass force=true to skip that check
+// (use sparingly — skipping drain leaves the node's dynamic IP leases and
+// RAN connections uncleaned until the removal itself triggers the usual
+// post-remove purge).
+func (c *Client) RemoveClusterMember(ctx context.Context, nodeID int, force bool) error {
+	path := fmt.Sprintf("api/v1/cluster/members/%d", nodeID)
+	if force {
+		path += "?force=true"
+	}
+
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   fmt.Sprintf("api/v1/cluster/members/%d", nodeID),
+		Path:   path,
 	})
 	if err != nil {
 		return err

@@ -57,17 +57,17 @@ func TestListClusterMembers_Failure(t *testing.T) {
 	}
 }
 
-func TestDrainNode_Success(t *testing.T) {
+func TestDrainClusterMember_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message":"draining","transferredLeadership":true,"ransNotified":2,"bgpStopped":true}`),
+			Result:     []byte(`{"message":"draining","state":"drained","transferredLeadership":true,"ransNotified":2,"bgpStopped":true,"sessionsRemaining":0}`),
 		},
 	}
 	c := &client.Client{Requester: fake}
 
-	resp, err := c.DrainNode(context.Background(), &client.DrainOptions{TimeoutSeconds: 10})
+	resp, err := c.DrainClusterMember(context.Background(), 3, &client.DrainOptions{DeadlineSeconds: 10})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -84,26 +84,30 @@ func TestDrainNode_Success(t *testing.T) {
 		t.Error("expected bgpStopped true")
 	}
 
+	if resp.State != "drained" {
+		t.Errorf("expected state drained, got %s", resp.State)
+	}
+
 	if fake.lastOpts.Method != "POST" {
 		t.Errorf("expected POST, got %s", fake.lastOpts.Method)
 	}
 
-	if fake.lastOpts.Path != "api/v1/cluster/drain" {
-		t.Errorf("expected api/v1/cluster/drain, got %s", fake.lastOpts.Path)
+	if fake.lastOpts.Path != "api/v1/cluster/members/3/drain" {
+		t.Errorf("expected api/v1/cluster/members/3/drain, got %s", fake.lastOpts.Path)
 	}
 }
 
-func TestDrainNode_NilOpts(t *testing.T) {
+func TestDrainClusterMember_NilOpts(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message":"draining","transferredLeadership":false,"ransNotified":0,"bgpStopped":false}`),
+			Result:     []byte(`{"message":"draining","state":"drained","transferredLeadership":false,"ransNotified":0,"bgpStopped":false,"sessionsRemaining":0}`),
 		},
 	}
 	c := &client.Client{Requester: fake}
 
-	resp, err := c.DrainNode(context.Background(), nil)
+	resp, err := c.DrainClusterMember(context.Background(), 1, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -113,15 +117,43 @@ func TestDrainNode_NilOpts(t *testing.T) {
 	}
 }
 
-func TestDrainNode_Failure(t *testing.T) {
+func TestDrainClusterMember_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		err: errors.New("leader unavailable"),
 	}
 	c := &client.Client{Requester: fake}
 
-	_, err := c.DrainNode(context.Background(), nil)
+	_, err := c.DrainClusterMember(context.Background(), 1, nil)
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestResumeClusterMember_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message":"resumed","state":"active","bgpStarted":true}`),
+		},
+	}
+	c := &client.Client{Requester: fake}
+
+	resp, err := c.ResumeClusterMember(context.Background(), 3)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if resp.State != "active" {
+		t.Errorf("expected state active, got %s", resp.State)
+	}
+
+	if !resp.BGPStarted {
+		t.Error("expected bgpStarted true")
+	}
+
+	if fake.lastOpts.Path != "api/v1/cluster/members/3/resume" {
+		t.Errorf("expected api/v1/cluster/members/3/resume, got %s", fake.lastOpts.Path)
 	}
 }
 
@@ -171,7 +203,7 @@ func TestRemoveClusterMember_Success(t *testing.T) {
 	}
 	c := &client.Client{Requester: fake}
 
-	err := c.RemoveClusterMember(context.Background(), 2)
+	err := c.RemoveClusterMember(context.Background(), 2, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -185,13 +217,32 @@ func TestRemoveClusterMember_Success(t *testing.T) {
 	}
 }
 
+func TestRemoveClusterMember_Force(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message":"Cluster member removed"}`),
+		},
+	}
+	c := &client.Client{Requester: fake}
+
+	if err := c.RemoveClusterMember(context.Background(), 2, true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if fake.lastOpts.Path != "api/v1/cluster/members/2?force=true" {
+		t.Errorf("expected force query string, got %s", fake.lastOpts.Path)
+	}
+}
+
 func TestRemoveClusterMember_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		err: errors.New("server error"),
 	}
 	c := &client.Client{Requester: fake}
 
-	err := c.RemoveClusterMember(context.Background(), 2)
+	err := c.RemoveClusterMember(context.Background(), 2, false)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}

@@ -14,8 +14,16 @@ import (
 )
 
 func removeClusterMember(url string, client *http.Client, token string, nodeID int) (int, string, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "DELETE",
-		fmt.Sprintf("%s/api/v1/cluster/members/%d", url, nodeID), nil)
+	return removeClusterMemberWithForce(url, client, token, nodeID, false)
+}
+
+func removeClusterMemberWithForce(url string, client *http.Client, token string, nodeID int, force bool) (int, string, error) {
+	target := fmt.Sprintf("%s/api/v1/cluster/members/%d", url, nodeID)
+	if force {
+		target += "?force=true"
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), "DELETE", target, nil)
 	if err != nil {
 		return 0, "", err
 	}
@@ -496,6 +504,11 @@ func TestRemoveClusterMember_PurgesDynamicLeases(t *testing.T) {
 	seedLease("10.45.0.11", "001010000000002", "dynamic")
 	seedLease("10.45.0.12", "001010000000003", "static")
 
+	// Mark the node drained so the remove precondition is satisfied.
+	if err := env.DB.SetDrainState(ctx, removedNodeID, db.DrainStateDrained); err != nil {
+		t.Fatalf("set drain state: %s", err)
+	}
+
 	// Call DELETE /api/v1/cluster/members/42.
 	status, msg, err := removeClusterMember(env.Server.URL, client, token, removedNodeID)
 	if err != nil {
@@ -531,6 +544,180 @@ func TestRemoveClusterMember_PurgesDynamicLeases(t *testing.T) {
 	if stat != 1 {
 		t.Errorf("expected 1 surviving static lease, got %d", stat)
 	}
+}
+
+// TestRemoveClusterMember_RefusesUndrained verifies that removing a non-
+// leader, non-drained node returns 409 and the error points at the drain
+// endpoint. force=true bypasses the precondition and succeeds.
+func TestRemoveClusterMember_RefusesUndrained(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	c := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, c)
+	if err != nil {
+		t.Fatalf("couldn't initialize: %s", err)
+	}
+
+	const targetID = 77
+
+	if err := env.DB.UpsertClusterMember(context.Background(), &db.ClusterMember{
+		NodeID:        targetID,
+		RaftAddress:   "10.0.0.77:7000",
+		APIAddress:    "http://10.0.0.77:5000",
+		BinaryVersion: "test",
+		Suffrage:      "voter",
+	}); err != nil {
+		t.Fatalf("upsert cluster member: %s", err)
+	}
+
+	status, msg, err := removeClusterMember(env.Server.URL, c, token, targetID)
+	if err != nil {
+		t.Fatalf("request failed: %s", err)
+	}
+
+	if status != http.StatusConflict {
+		t.Fatalf("expected 409 on undrained remove, got %d (body: %s)", status, msg)
+	}
+
+	if !strings.Contains(strings.ToLower(msg), "drain") {
+		t.Errorf("expected drain guidance in error, got %q", msg)
+	}
+
+	status, msg, err = removeClusterMemberWithForce(env.Server.URL, c, token, targetID, true)
+	if err != nil {
+		t.Fatalf("force remove request failed: %s", err)
+	}
+
+	if status != http.StatusOK {
+		t.Fatalf("expected 200 on force remove, got %d (body: %s)", status, msg)
+	}
+}
+
+// TestDrainClusterMember_PersistsDrainedState verifies drain on self runs
+// side-effects and transitions the state to "drained" synchronously when
+// deadlineSeconds=0.
+func TestDrainClusterMember_PersistsDrainedState(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	c := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, c)
+	if err != nil {
+		t.Fatalf("couldn't initialize: %s", err)
+	}
+
+	ctx := context.Background()
+
+	self := env.DB.NodeID()
+
+	if err := env.DB.UpsertClusterMember(ctx, &db.ClusterMember{
+		NodeID:        self,
+		RaftAddress:   env.DB.LeaderAddress(),
+		APIAddress:    "http://127.0.0.1:0",
+		BinaryVersion: "test",
+		Suffrage:      "voter",
+	}); err != nil {
+		t.Fatalf("upsert self: %s", err)
+	}
+
+	status, body, err := postDrain(env.Server.URL, c, token, self, 0)
+	if err != nil {
+		t.Fatalf("drain request failed: %s", err)
+	}
+
+	if status != http.StatusOK {
+		t.Fatalf("expected 200 on drain, got %d (body: %s)", status, body)
+	}
+
+	member, err := env.DB.GetClusterMember(ctx, self)
+	if err != nil {
+		t.Fatalf("get member: %s", err)
+	}
+
+	if member.DrainState != db.DrainStateDrained {
+		t.Errorf("expected drainState=%s, got %s", db.DrainStateDrained, member.DrainState)
+	}
+
+	// Resume clears the state back to active.
+	status, body, err = postResume(env.Server.URL, c, token, self)
+	if err != nil {
+		t.Fatalf("resume request failed: %s", err)
+	}
+
+	if status != http.StatusOK {
+		t.Fatalf("expected 200 on resume, got %d (body: %s)", status, body)
+	}
+
+	member, err = env.DB.GetClusterMember(ctx, self)
+	if err != nil {
+		t.Fatalf("get member: %s", err)
+	}
+
+	if member.DrainState != db.DrainStateActive {
+		t.Errorf("expected drainState=%s after resume, got %s", db.DrainStateActive, member.DrainState)
+	}
+}
+
+func postDrain(url string, client *http.Client, token string, nodeID int, deadlineSeconds int) (int, string, error) {
+	body := fmt.Sprintf(`{"deadlineSeconds":%d}`, deadlineSeconds)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
+		fmt.Sprintf("%s/api/v1/cluster/members/%d/drain", url, nodeID), strings.NewReader(body))
+	if err != nil {
+		return 0, "", err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, "", err
+	}
+
+	defer func() { _ = res.Body.Close() }()
+
+	buf := make([]byte, 4096)
+	n, _ := res.Body.Read(buf)
+
+	return res.StatusCode, string(buf[:n]), nil
+}
+
+func postResume(url string, client *http.Client, token string, nodeID int) (int, string, error) {
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
+		fmt.Sprintf("%s/api/v1/cluster/members/%d/resume", url, nodeID), nil)
+	if err != nil {
+		return 0, "", err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, "", err
+	}
+
+	defer func() { _ = res.Body.Close() }()
+
+	buf := make([]byte, 4096)
+	n, _ := res.Body.Read(buf)
+
+	return res.StatusCode, string(buf[:n]), nil
 }
 
 func TestClusterStatusIncluded(t *testing.T) {

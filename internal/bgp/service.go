@@ -356,6 +356,31 @@ func (b *BGPService) Stop() error {
 	return b.stopLocked()
 }
 
+// Restart starts the BGP speaker again after a prior Stop, reusing the last
+// settings and peers captured by Start. The RIB is cleared before restart so
+// the reconciler's next tick is the authoritative source of advertised /32s —
+// leases may have shifted to other nodes while this node was stopped, and
+// replaying stale paths would briefly mis-advertise.
+//
+// Idempotent: a no-op if the speaker is already running. Returns an error if
+// Start was never called successfully before (no captured settings).
+func (b *BGPService) Restart(ctx context.Context) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.running {
+		return nil
+	}
+
+	if b.settings.LocalAS == 0 {
+		return fmt.Errorf("BGP service has no prior configuration; start it via settings first")
+	}
+
+	b.paths = make(map[string]ownedPath)
+
+	return b.startLocked(ctx, b.settings, b.peers)
+}
+
 // Announce adds a /32 route for the given IP to the BGP RIB.
 // It is a no-op if the service is not running or not advertising (NAT enabled).
 func (b *BGPService) Announce(ip netip.Addr, owner string) error {
