@@ -182,6 +182,10 @@ func (c *Client) ResumeClusterMember(ctx context.Context, nodeID int) (*ResumeRe
 	return &out, nil
 }
 
+// PromoteClusterMember promotes a non-voter to a voter immediately.
+// Autopilot also promotes stable non-voters automatically after a short
+// stabilization window; use this call when you need promotion without
+// waiting.
 func (c *Client) PromoteClusterMember(ctx context.Context, nodeID int) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,

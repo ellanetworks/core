@@ -121,6 +121,8 @@ Removes a node from the Raft cluster and deletes its record. The node must be dr
 
 Promotes a nonvoter node to a full voter in the Raft cluster. Requires admin privileges.
 
+Autopilot also promotes non-voters automatically once they have been healthy and up-to-date for the server stabilization window (10 seconds). This endpoint is intended for operators who need to promote a node immediately without waiting, for example during a rolling upgrade.
+
 | Method | Path                                    |
 | ------ | --------------------------------------- |
 | POST   | `/api/v1/cluster/members/{id}/promote`  |
@@ -228,9 +230,9 @@ Marks the target node as draining and runs the local drain side-effects on it: t
 
 Drain persists a three-state machine on the cluster_members row (`active` → `draining` → `drained`) that every node can read. A node must be `drained` before it can be removed (see Remove Cluster Member), or the caller must pass `?force=true`.
 
-When `deadlineSeconds` is 0 (default), drain is synchronous: the call returns once side-effects complete and `state` is `drained`. When `deadlineSeconds > 0`, the call returns `state: draining` immediately; a background poller on the target flips the state to `drained` once its local active-lease count reaches zero or the deadline elapses.
+When `deadlineSeconds` is 0 (default), drain is synchronous: the call returns once side-effects complete and `state` is `drained`. When `deadlineSeconds > 0`, the call returns `state: draining` immediately; a background watcher on the leader flips the state to `drained` once the target's active-lease count reaches zero or the deadline elapses.
 
-The proxy middleware routes drain/resume directly to the target node (bypassing the leader), so you can issue the request against any node in the cluster.
+In HA mode, drain runs on the leader (followers forward the request automatically). The leader persists drain state through Raft and dispatches the node-local side-effects to the target node over the cluster mTLS port; when the target is the leader itself, the side-effects run inline.
 
 | Method | Path                                            |
 | ------ | ----------------------------------------------- |

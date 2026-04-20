@@ -365,7 +365,7 @@ func postClusterInternal(ctx context.Context, ln *listener.Listener, targetRaftA
 
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode/100 != 2 {
+	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("target returned %s", resp.Status)
 	}
 
@@ -446,6 +446,55 @@ func watchDrainDeadline(ctx context.Context, dbInstance *db.Database, nodeID int
 		logger.APILog.Warn("failed to finalise drain state after sessions reached zero",
 			zap.Int("nodeId", nodeID), zap.Error(err))
 	}
+}
+
+// SignalShutdownDrain marks this node as drained in the replicated
+// cluster_members table so surviving nodes see a clean "active → drained"
+// transition on operator-initiated shutdown, instead of waiting for
+// autopilot to remove a dead voter after LastContactThreshold. On the
+// leader the write is proposed locally; on a follower it is sent to the
+// current leader's cluster mTLS port. Best-effort: errors are logged and
+// do not block the rest of the shutdown sequence.
+func SignalShutdownDrain(ctx context.Context, dbInstance *db.Database, ln *listener.Listener) error {
+	if dbInstance == nil || !dbInstance.ClusterEnabled() {
+		return nil
+	}
+
+	if dbInstance.IsLeader() {
+		return dbInstance.SetDrainState(ctx, dbInstance.NodeID(), db.DrainStateDrained)
+	}
+
+	leaderAddr := dbInstance.LeaderAddress()
+	if leaderAddr == "" {
+		return fmt.Errorf("no leader available")
+	}
+
+	if ln == nil {
+		return fmt.Errorf("cluster listener unavailable")
+	}
+
+	client := newClusterProxyClient(ln)
+	defer client.CloseIdleConnections()
+
+	url := fmt.Sprintf("https://%s/cluster/internal/drain-self", leaderAddr)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(nil)) // #nosec G107,G704 -- URL built from Raft-replicated leader address, not user input
+	if err != nil {
+		return fmt.Errorf("new request: %w", err)
+	}
+
+	resp, err := client.Do(req) // #nosec G704 -- URL built from Raft-replicated leader address, not user input
+	if err != nil {
+		return fmt.Errorf("post to leader: %w", err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("leader returned %s", resp.Status)
+	}
+
+	return nil
 }
 
 // notifyRANsUnavailable signals every connected RAN that this AMF's GUAMI is
