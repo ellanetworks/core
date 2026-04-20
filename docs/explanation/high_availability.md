@@ -24,7 +24,9 @@ Deploy three or five nodes. A quorum is a majority of voters: 2 of 3, or 3 of 5.
 
 All persistent resources are replicated across the cluster, so if a node dies, the others have the same subscribers, policies, and operator configuration. The cluster automatically elects a new leader and keeps accepting operator changes with no manual intervention.
 
-Runtime state tied to a specific connection or session does not replicate. This includes SCTP associations with gNBs, UE contexts, active PDU sessions and their User Plane state, GTP-U tunnels, BGP peerings, and IP leases.
+Runtime state tied to a specific connection or session does not replicate. This includes SCTP associations with gNBs, UE contexts, active PDU sessions and their User Plane state, GTP-U tunnels, and active BGP adjacencies.
+
+Observability is also per-node. Each Ella Core instance exposes its own Prometheus endpoint at `/api/v1/metrics` and keeps its own `radio_events` and `flow_reports` tables. Operators scrape each node individually for a cluster-wide view. Audit logs are the exception: they replicate like other operator data.
 
 If a node dies, UEs re-register on surviving nodes.
 
@@ -73,7 +75,7 @@ To keep a mixed-version cluster consistent, the leader applies a schema migratio
 HA is not a seamless-continuation system. Decisions with product impact:
 
 - **UE context is not replicated.** UEs re-register on failover; existing NAS security state and PDU sessions are lost.
-- **Active PDU sessions do not persist across nodes.** The replacement session starts fresh, with a new IP from the surviving node's pool.
+- **Active PDU sessions do not persist across nodes.** A fresh session is set up on the surviving node: new GTP tunnels, new User Plane state, new NAS security context. The UE's IP is preserved.
 - **NAT conntrack is not mirrored.** Outbound flows for existing sessions reset when their node fails.
 - **Cluster TLS certificates are not hot-reloaded.** Rotation requires a node restart; PKI is operator-managed out of band.
 
