@@ -70,13 +70,11 @@ Useful for site- or tenant-partitioned deployments. The cluster still replicates
 
 ## Draining a node
 
-Draining prepares a node for removal without disrupting ongoing traffic on its peers. It is a persisted, reversible state on the cluster_members row (`active → draining → drained`) that every node can see. The transitions are driven by three endpoints — `POST /api/v1/cluster/members/{id}/drain`, `POST /api/v1/cluster/members/{id}/resume`, and `DELETE /api/v1/cluster/members/{id}` — and the proxy routes each request to the target node itself (not the leader) so the side-effects happen in the right place.
+Draining prepares a node for removal without disrupting traffic on its peers. A drained node hands Raft leadership to another voter if it held it, signals connected radios that it is unavailable so new UEs attach elsewhere, and stops advertising user-plane routes so upstream routing shifts to the survivors. Existing flows keep running until the node is removed or shut down.
 
-At drain start, the target transfers Raft leadership if it held it, sends AMF Status Indication to its connected RANs so new UEs are redirected to sibling AMFs in the Set, and stops its local BGP speaker so upstream routing drains onto the survivors. Existing flows continue until the node is removed or shut down. With a non-zero deadline, the call returns immediately and a background poller flips the state to `drained` once the node's active-lease count reaches zero or the deadline expires.
+Drain is a reversible state: a node moves through `active → draining → drained` and back. Resume clears the drain and restarts route advertisement. It does not reclaim Raft leadership, and radios only treat the node as available again on their next reconnection.
 
-Resume reverses the drain — restarts the local BGP speaker (if BGP is enabled) and clears drain state. It does not reverse the AMF Status Indication (no NGAP message does that; RANs re-register the GUAMI on their next NG Setup) and it does not reclaim leadership that was transferred during drain.
-
-Removal requires `drainState == "drained"`; the leader rejects a premature `DELETE` with 409. Passing `?force=true` skips the precondition for cases where the node is already down and drain is impossible.
+Removal requires a drained node; the cluster rejects removing an undrained one.
 
 ## Rolling upgrades
 
