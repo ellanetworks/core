@@ -226,6 +226,8 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 
 	mux.HandleFunc("POST /api/v1/cluster/drain", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, DrainNode(dbInstance, amfInstance, bgpService))).ServeHTTP)
 
+	mux.HandleFunc("GET /api/v1/cluster/autopilot", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, GetAutopilotState(dbInstance))).ServeHTTP)
+
 	// Fallback to UI
 	frontendHandler, err := newFrontendFileServer(embedFS)
 	if err != nil {

@@ -20,6 +20,7 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/google/uuid"
+	autopilot "github.com/hashicorp/raft-autopilot"
 	_ "github.com/mattn/go-sqlite3"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
@@ -498,6 +499,18 @@ func (db *Database) RaftState() string {
 	}
 
 	return db.raftManager.State().String()
+}
+
+// AutopilotState returns the current autopilot state snapshot, or nil
+// when this node is not the leader (autopilot runs leader-only) or when
+// autopilot has not yet produced a first tick. Never returns non-nil on
+// a follower or in single-server mode.
+func (db *Database) AutopilotState() *autopilot.State {
+	if db.raftManager == nil {
+		return nil
+	}
+
+	return db.raftManager.AutopilotState()
 }
 
 // ClusterEnabled returns whether clustering is active.

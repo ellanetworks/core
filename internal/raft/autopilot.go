@@ -211,3 +211,16 @@ func (a *autopilotRunner) OnBecameLeader() {
 func (a *autopilotRunner) OnLostLeadership() {
 	a.ap.Stop()
 }
+
+// State returns the current autopilot state snapshot. The state is only
+// continuously updated while this node is leader; callers should check
+// Manager.IsLeader() to decide whether to trust it. Returns nil when
+// autopilot has not yet produced a first state (cold start window
+// immediately after becoming leader).
+func (a *autopilotRunner) State() *autopilot.State {
+	if a == nil {
+		return nil
+	}
+
+	return a.ap.GetState()
+}
