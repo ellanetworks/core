@@ -74,11 +74,19 @@ Draining prepares a node for removal without disrupting traffic on its peers. A 
 
 Drain is a reversible state: a node moves through `active → draining → drained` and back. Resume clears the drain and restarts route advertisement. It does not reclaim Raft leadership, and radios only treat the node as available again on their next reconnection.
 
+A node receiving a shutdown signal (SIGTERM) also marks itself `drained` as part of a clean shutdown, so operators see an explicit state change instead of a brief window of apparent unresponsiveness before the cluster removes the dead member.
+
 Removal requires a drained node; the cluster rejects removing an undrained one.
+
+## Scaling the cluster
+
+New voters join in two steps. The operator registers the node as a non-voter, which lets it catch up on the Raft log without counting toward quorum; once the node has been healthy and up-to-date for a short stabilization window, the cluster automatically promotes it to a voter. Operators who want to promote immediately can call the promote endpoint by hand.
+
+Shrinking is symmetric. Drain the node, then remove it; the remaining voters continue serving writes while the configuration change commits.
 
 ## Rolling upgrades
 
-Upgrades proceed one node at a time: drain, remove, upgrade, rejoin as non-voter, promote. Writes continue throughout; the cluster is briefly mixed-version during each swap.
+Upgrades proceed one node at a time: drain, remove, upgrade, rejoin as non-voter, wait for auto-promotion (or promote manually). Writes continue throughout; the cluster is briefly mixed-version during each swap.
 
 To keep a mixed-version cluster consistent, the leader applies a schema migration only once every voter's binary supports it, and refuses to admit a new voter whose schema trails what the cluster has already applied. Skip-version upgrades (`vN → vN+2`) and downgrades are not supported.
 

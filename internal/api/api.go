@@ -237,6 +237,15 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 	s.handler.set(fullHandler)
 	s.ready.Store(true)
 
+	// Install the AMF/BGP references used by the cluster-port drain and
+	// resume side-effect endpoints. The cluster HTTP mux starts before
+	// these services exist (cluster formation needs the port up early),
+	// so the endpoints late-bind dependencies from this atomic pointer.
+	server.SetClusterSideEffectDeps(server.ClusterSideEffectDeps{
+		AMF: opts.AMF,
+		BGP: opts.BGP,
+	})
+
 	reconcile := routeReconciler
 
 	go func() {

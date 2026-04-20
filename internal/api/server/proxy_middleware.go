@@ -64,41 +64,6 @@ func isLeaderOnlyRead(r *http.Request) bool {
 	return ok
 }
 
-// targetedEndpointNodeID returns the node-id when r targets a per-member
-// endpoint that must execute on the target node itself (not the leader).
-// Currently this covers drain and resume. The proxy forwards such requests
-// directly to the target's cluster port, bypassing the leader, because the
-// side-effects are local runtime state (BGP speaker, connected RANs).
-func targetedEndpointNodeID(r *http.Request) (int, bool) {
-	if !isWriteMethod(r.Method) {
-		return 0, false
-	}
-
-	const prefix = "/api/v1/cluster/members/"
-	if !strings.HasPrefix(r.URL.Path, prefix) {
-		return 0, false
-	}
-
-	rest := r.URL.Path[len(prefix):]
-
-	slash := strings.IndexByte(rest, '/')
-	if slash <= 0 {
-		return 0, false
-	}
-
-	idStr, tail := rest[:slash], rest[slash+1:]
-	if tail != "drain" && tail != "resume" {
-		return 0, false
-	}
-
-	id, err := strconv.Atoi(idStr)
-	if err != nil || id <= 0 {
-		return 0, false
-	}
-
-	return id, true
-}
-
 // isSelfRemoval reports whether r is a `DELETE /api/v1/cluster/members/{n}`
 // where n matches the node id evaluating the request. Used to reject
 // the request before proxying so an operator cannot delete the cluster
@@ -148,36 +113,6 @@ func LeaderProxyMiddleware(dbInstance *db.Database, ln *listener.Listener, next 
 			writeError(r.Context(), w, http.StatusConflict,
 				"Cannot remove the node you are currently connected to; issue the request against another node",
 				nil, logger.APILog)
-
-			return
-		}
-
-		// Per-member drain/resume must execute on the target node itself;
-		// forward directly to that node's cluster port (bypassing the
-		// leader). If we are already the target, serve locally. An
-		// already-forwarded request on the wrong node is a routing bug
-		// rather than something to silently loop on.
-		if targetID, ok := targetedEndpointNodeID(r); ok {
-			if targetID == dbInstance.NodeID() {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			if r.Header.Get(headerForwarded) != "" {
-				writeError(r.Context(), w, http.StatusBadGateway,
-					"per-member request forwarded to wrong node", nil, logger.APILog)
-
-				return
-			}
-
-			if clusterClient == nil {
-				writeError(r.Context(), w, http.StatusServiceUnavailable,
-					"cluster client unavailable", nil, logger.APILog)
-
-				return
-			}
-
-			proxyToMemberCluster(w, r, clusterClient, dbInstance, targetID)
 
 			return
 		}
@@ -288,57 +223,6 @@ func proxyToLeaderCluster(w http.ResponseWriter, r *http.Request, client *http.C
 
 		return
 	}
-
-	copyProxyResponse(w, resp, dbInstance)
-}
-
-// proxyToMemberCluster forwards r to a specific cluster member's HTTP cluster
-// port over mTLS. Used for per-member endpoints (drain, resume) whose
-// side-effects must execute on the target node itself.
-func proxyToMemberCluster(w http.ResponseWriter, r *http.Request, client *http.Client, dbInstance *db.Database, targetNodeID int) {
-	target, err := dbInstance.GetClusterMember(r.Context(), targetNodeID)
-	if err != nil {
-		writeError(r.Context(), w, http.StatusNotFound, "target cluster member not found", err, logger.APILog)
-		return
-	}
-
-	if target.RaftAddress == "" {
-		writeError(r.Context(), w, http.StatusServiceUnavailable,
-			"target cluster member has no raft address", nil, logger.APILog)
-
-		return
-	}
-
-	targetURL := fmt.Sprintf("https://%s/cluster/proxy%s", target.RaftAddress, r.RequestURI)
-
-	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, r.Body) // #nosec G704 -- built from cluster_members row (Raft-replicated)
-	if err != nil {
-		writeError(r.Context(), w, http.StatusBadGateway, "failed to create proxy request", err, logger.APILog)
-		return
-	}
-
-	for key, values := range r.Header {
-		if isHopByHopHeader(key) {
-			continue
-		}
-
-		for _, v := range values {
-			proxyReq.Header.Add(key, v)
-		}
-	}
-
-	proxyReq.Header.Set(headerForwarded, "true")
-
-	resp, err := client.Do(proxyReq) // #nosec G704 -- built from cluster_members row (Raft-replicated)
-	if err != nil {
-		logger.APILog.Warn("Member cluster proxy failed",
-			zap.Int("targetNodeId", targetNodeID), zap.Error(err))
-		writeError(r.Context(), w, http.StatusBadGateway, "target node unreachable", err, logger.APILog)
-
-		return
-	}
-
-	defer func() { _ = resp.Body.Close() }()
 
 	copyProxyResponse(w, resp, dbInstance)
 }

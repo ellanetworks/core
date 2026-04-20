@@ -443,8 +443,23 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// does not starve subsequent ones.
 		stepTimeout := 5 * time.Second
 
-		// 0. Transfer leadership (HA only) so the cluster can continue
-		//    serving writes while this node tears down.
+		// 0a. Signal the replicated cluster_members row that this node
+		//     is draining out. Must happen before the leadership transfer
+		//     so the write lands while we are still leader (if we are);
+		//     a follower sends the write to the current leader over the
+		//     cluster mTLS port.
+		if dbInstance.ClusterEnabled() {
+			sdCtx, sdCancel := context.WithTimeout(context.Background(), stepTimeout)
+
+			if err := server.SignalShutdownDrain(sdCtx, dbInstance, clusterLn); err != nil {
+				logger.EllaLog.Warn("Shutdown-drain state write failed", zap.Error(err))
+			}
+
+			sdCancel()
+		}
+
+		// 0b. Transfer leadership (HA only) so the cluster can continue
+		//     serving writes while this node tears down.
 		if dbInstance.ClusterEnabled() && dbInstance.IsLeader() {
 			logger.EllaLog.Info("Transferring Raft leadership before shutdown")
 

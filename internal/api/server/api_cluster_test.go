@@ -720,6 +720,300 @@ func postResume(url string, client *http.Client, token string, nodeID int) (int,
 	return res.StatusCode, string(buf[:n]), nil
 }
 
+// TestDrainClusterMember_Idempotent verifies that re-draining a node
+// already in draining or drained state returns the current state and does
+// not re-run side-effects.
+func TestDrainClusterMember_Idempotent(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	c := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, c)
+	if err != nil {
+		t.Fatalf("couldn't initialize: %s", err)
+	}
+
+	ctx := context.Background()
+	self := env.DB.NodeID()
+
+	if err := env.DB.UpsertClusterMember(ctx, &db.ClusterMember{
+		NodeID:      self,
+		RaftAddress: env.DB.LeaderAddress(),
+		APIAddress:  "http://127.0.0.1:0",
+		Suffrage:    "voter",
+	}); err != nil {
+		t.Fatalf("upsert self: %s", err)
+	}
+
+	if err := env.DB.SetDrainState(ctx, self, db.DrainStateDrained); err != nil {
+		t.Fatalf("seed drained state: %s", err)
+	}
+
+	status, body, err := postDrain(env.Server.URL, c, token, self, 0)
+	if err != nil {
+		t.Fatalf("drain request failed: %s", err)
+	}
+
+	if status != http.StatusOK {
+		t.Fatalf("expected 200 on idempotent drain, got %d (body: %s)", status, body)
+	}
+
+	if !strings.Contains(body, `"state":"drained"`) {
+		t.Errorf("expected state=drained in body, got %s", body)
+	}
+
+	if !strings.Contains(body, "drain already in effect") {
+		t.Errorf("expected idempotent message, got %s", body)
+	}
+}
+
+// TestDrainClusterMember_InvalidDeadline covers the bounds check on
+// deadlineSeconds.
+func TestDrainClusterMember_InvalidDeadline(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	c := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, c)
+	if err != nil {
+		t.Fatalf("couldn't initialize: %s", err)
+	}
+
+	self := env.DB.NodeID()
+
+	if err := env.DB.UpsertClusterMember(context.Background(), &db.ClusterMember{
+		NodeID:      self,
+		RaftAddress: env.DB.LeaderAddress(),
+		APIAddress:  "http://127.0.0.1:0",
+		Suffrage:    "voter",
+	}); err != nil {
+		t.Fatalf("upsert self: %s", err)
+	}
+
+	for _, tc := range []struct {
+		name     string
+		deadline int
+	}{
+		{"negative", -1},
+		{"over-max", 3601},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			status, body, err := postDrain(env.Server.URL, c, token, self, tc.deadline)
+			if err != nil {
+				t.Fatalf("drain request failed: %s", err)
+			}
+
+			if status != http.StatusBadRequest {
+				t.Fatalf("expected 400, got %d (body: %s)", status, body)
+			}
+		})
+	}
+}
+
+// TestDrainClusterMember_NotFound verifies 404 for an unknown node.
+func TestDrainClusterMember_NotFound(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	c := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, c)
+	if err != nil {
+		t.Fatalf("couldn't initialize: %s", err)
+	}
+
+	status, body, err := postDrain(env.Server.URL, c, token, 999, 0)
+	if err != nil {
+		t.Fatalf("drain request failed: %s", err)
+	}
+
+	if status != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d (body: %s)", status, body)
+	}
+}
+
+// TestResumeClusterMember_AlreadyActive covers the no-op response when the
+// target is already in the active state.
+func TestResumeClusterMember_AlreadyActive(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	c := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, c)
+	if err != nil {
+		t.Fatalf("couldn't initialize: %s", err)
+	}
+
+	self := env.DB.NodeID()
+
+	if err := env.DB.UpsertClusterMember(context.Background(), &db.ClusterMember{
+		NodeID:      self,
+		RaftAddress: env.DB.LeaderAddress(),
+		APIAddress:  "http://127.0.0.1:0",
+		Suffrage:    "voter",
+	}); err != nil {
+		t.Fatalf("upsert self: %s", err)
+	}
+
+	status, body, err := postResume(env.Server.URL, c, token, self)
+	if err != nil {
+		t.Fatalf("resume request failed: %s", err)
+	}
+
+	if status != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body: %s)", status, body)
+	}
+
+	if !strings.Contains(body, "already active") {
+		t.Errorf("expected already-active message, got %s", body)
+	}
+}
+
+// TestResumeClusterMember_NotFound verifies 404 for an unknown node.
+func TestResumeClusterMember_NotFound(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	c := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, c)
+	if err != nil {
+		t.Fatalf("couldn't initialize: %s", err)
+	}
+
+	status, body, err := postResume(env.Server.URL, c, token, 999)
+	if err != nil {
+		t.Fatalf("resume request failed: %s", err)
+	}
+
+	if status != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d (body: %s)", status, body)
+	}
+}
+
+// TestPromoteClusterMember_AlreadyVoter verifies the 409 response when the
+// target is already a voter.
+func TestPromoteClusterMember_AlreadyVoter(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	c := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, c)
+	if err != nil {
+		t.Fatalf("couldn't initialize: %s", err)
+	}
+
+	const voterID = 6
+
+	if err := env.DB.UpsertClusterMember(context.Background(), &db.ClusterMember{
+		NodeID:      voterID,
+		RaftAddress: "10.0.0.6:7000",
+		APIAddress:  "http://10.0.0.6:5000",
+		Suffrage:    "voter",
+	}); err != nil {
+		t.Fatalf("upsert voter: %s", err)
+	}
+
+	status, body, err := postPromote(env.Server.URL, c, token, voterID)
+	if err != nil {
+		t.Fatalf("promote request failed: %s", err)
+	}
+
+	if status != http.StatusConflict {
+		t.Fatalf("expected 409 on already-voter, got %d (body: %s)", status, body)
+	}
+}
+
+// TestPromoteClusterMember_NotFound verifies 404 for an unknown node.
+func TestPromoteClusterMember_NotFound(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	c := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, c)
+	if err != nil {
+		t.Fatalf("couldn't initialize: %s", err)
+	}
+
+	status, body, err := postPromote(env.Server.URL, c, token, 999)
+	if err != nil {
+		t.Fatalf("promote request failed: %s", err)
+	}
+
+	if status != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d (body: %s)", status, body)
+	}
+}
+
+func postPromote(url string, client *http.Client, token string, nodeID int) (int, string, error) {
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
+		fmt.Sprintf("%s/api/v1/cluster/members/%d/promote", url, nodeID), nil)
+	if err != nil {
+		return 0, "", err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, "", err
+	}
+
+	defer func() { _ = res.Body.Close() }()
+
+	buf := make([]byte, 4096)
+	n, _ := res.Body.Read(buf)
+
+	return res.StatusCode, string(buf[:n]), nil
+}
+
 func TestClusterStatusIncluded(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
