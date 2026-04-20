@@ -171,12 +171,13 @@ func (b *BGPService) InjectLearnedRouteForTest(prefix netip.Prefix, gateway neti
 	}
 }
 
-// Start initializes the GoBGP server with the given settings and peers,
-// and announces /32 routes for all currently allocated IPs.
-// allocatedIPs maps IP strings (e.g. "10.45.0.1") to subscriber IMSIs.
-// When advertising is false (NAT enabled), the BGP speaker starts but does not
-// announce subscriber /32 routes.
-func (b *BGPService) Start(ctx context.Context, settings BGPSettings, peers []BGPPeer, allocatedIPs map[string]string, advertising bool) error {
+// Start initializes the GoBGP server with the given settings and peers.
+// The RIB starts empty; subscriber /32 routes are populated by the
+// Reconciler (see reconciler.go), which is the single authority on
+// which leases this node advertises. When advertising is false (NAT
+// enabled), the BGP speaker starts but subsequent Announce calls are
+// no-ops.
+func (b *BGPService) Start(ctx context.Context, settings BGPSettings, peers []BGPPeer, advertising bool) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -186,7 +187,7 @@ func (b *BGPService) Start(ctx context.Context, settings BGPSettings, peers []BG
 
 	b.advertising = advertising
 
-	return b.startLocked(ctx, settings, peers, allocatedIPs)
+	return b.startLocked(ctx, settings, peers)
 }
 
 // resolveListenPort returns the TCP port for the BGP speaker.
@@ -217,8 +218,9 @@ func (b *BGPService) routeLearningEnabled() bool {
 }
 
 // startLocked starts the GoBGP server. Must be called with mu held.
-// If allocatedIPs is nil, existing paths from the in-memory map are replayed.
-func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peers []BGPPeer, allocatedIPs map[string]string) error {
+// The RIB starts empty (or replays the existing in-memory paths map on a
+// reconfigure-restart). Subscriber routes are populated by the Reconciler.
+func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peers []BGPPeer) error {
 	routerID := settings.RouterID
 	if routerID == "" {
 		routerID = b.n6Addr.String()
@@ -261,27 +263,11 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 		}
 	}
 
-	if allocatedIPs != nil {
-		if b.advertising {
-			// Fresh start with advertising: populate paths and announce.
-			b.paths = make(map[string]ownedPath, len(allocatedIPs))
+	if b.paths == nil {
+		// Fresh start: the reconciler will populate the RIB on its next tick.
+		b.paths = make(map[string]ownedPath)
 
-			for ipStr, subscriber := range allocatedIPs {
-				ip, err := netip.ParseAddr(ipStr)
-				if err != nil {
-					continue
-				}
-
-				if err := b.announcePath(s, ip); err != nil {
-					b.logger.Warn("failed to announce initial BGP route",
-						zap.String("ip", ipStr), zap.Error(err))
-				}
-
-				b.paths[ipStr] = ownedPath{ip: ip, owner: subscriber}
-			}
-		} else {
-			// Fresh start without advertising: paths map stays empty.
-			b.paths = make(map[string]ownedPath)
+		if !b.advertising {
 			b.logger.Info("Route advertisement suppressed (NAT is enabled)")
 		}
 	} else if b.advertising {
@@ -370,6 +356,31 @@ func (b *BGPService) Stop() error {
 	return b.stopLocked()
 }
 
+// Restart starts the BGP speaker again after a prior Stop, reusing the last
+// settings and peers captured by Start. The RIB is cleared before restart so
+// the reconciler's next tick is the authoritative source of advertised /32s —
+// leases may have shifted to other nodes while this node was stopped, and
+// replaying stale paths would briefly mis-advertise.
+//
+// Idempotent: a no-op if the speaker is already running. Returns an error if
+// Start was never called successfully before (no captured settings).
+func (b *BGPService) Restart(ctx context.Context) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.running {
+		return nil
+	}
+
+	if b.settings.LocalAS == 0 {
+		return fmt.Errorf("BGP service has no prior configuration; start it via settings first")
+	}
+
+	b.paths = make(map[string]ownedPath)
+
+	return b.startLocked(ctx, b.settings, b.peers)
+}
+
 // Announce adds a /32 route for the given IP to the BGP RIB.
 // It is a no-op if the service is not running or not advertising (NAT enabled).
 func (b *BGPService) Announce(ip netip.Addr, owner string) error {
@@ -432,10 +443,10 @@ func (b *BGPService) Reconfigure(ctx context.Context, settings BGPSettings, peer
 		}
 
 		// Try starting with new settings (replays paths from in-memory map).
-		err := b.startLocked(ctx, settings, peers, nil)
+		err := b.startLocked(ctx, settings, peers)
 		if err != nil {
 			// Rollback: restore previous working config.
-			rollbackErr := b.startLocked(ctx, oldSettings, oldPeers, nil)
+			rollbackErr := b.startLocked(ctx, oldSettings, oldPeers)
 			if rollbackErr != nil {
 				return fmt.Errorf("reconfigure failed: %w; rollback also failed: %w", err, rollbackErr)
 			}
@@ -578,10 +589,11 @@ func (b *BGPService) IsAdvertising() bool {
 }
 
 // SetAdvertising toggles whether the BGP speaker advertises subscriber /32
-// routes. When enabling, allocatedIPs (from the database) is used to rebuild
-// the paths map and announce all routes. When disabling, all paths are
-// withdrawn and the map is cleared. It is a no-op if the service is not running.
-func (b *BGPService) SetAdvertising(advertising bool, allocatedIPs map[string]string) {
+// routes. On disable, all paths are withdrawn immediately and the map is
+// cleared (no waiting for the reconciler). On enable, the flag flips and
+// the reconciler's next tick populates the RIB from the lease table. It
+// is a no-op if the service is not running or the flag is unchanged.
+func (b *BGPService) SetAdvertising(advertising bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -592,35 +604,35 @@ func (b *BGPService) SetAdvertising(advertising bool, allocatedIPs map[string]st
 	b.advertising = advertising
 
 	if advertising {
-		b.paths = make(map[string]ownedPath, len(allocatedIPs))
-
-		for ipStr, subscriber := range allocatedIPs {
-			ip, err := netip.ParseAddr(ipStr)
-			if err != nil {
-				continue
-			}
-
-			if err := b.announcePath(b.server, ip); err != nil {
-				b.logger.Warn("failed to announce route after enabling advertising",
-					zap.String("ip", ipStr), zap.Error(err))
-			}
-
-			b.paths[ipStr] = ownedPath{ip: ip, owner: subscriber}
-		}
-
-		b.logger.Info("BGP route advertising enabled", zap.Int("routes", len(b.paths)))
-	} else {
-		for _, op := range b.paths {
-			if err := b.withdrawPath(b.server, op.ip); err != nil {
-				b.logger.Warn("failed to withdraw route after disabling advertising",
-					zap.String("ip", op.ip.String()), zap.Error(err))
-			}
-		}
-
-		b.paths = make(map[string]ownedPath)
-
-		b.logger.Info("BGP route advertising suppressed (NAT enabled)")
+		b.logger.Info("BGP route advertising enabled; reconciler will repopulate RIB")
+		return
 	}
+
+	for _, op := range b.paths {
+		if err := b.withdrawPath(b.server, op.ip); err != nil {
+			b.logger.Warn("failed to withdraw route after disabling advertising",
+				zap.String("ip", op.ip.String()), zap.Error(err))
+		}
+	}
+
+	b.paths = make(map[string]ownedPath)
+
+	b.logger.Info("BGP route advertising suppressed (NAT enabled)")
+}
+
+// Paths returns a snapshot of the current BGP RIB keyed by IP string.
+// Each value is the subscriber IMSI that owns that /32. Used by the
+// Reconciler to diff against the desired lease set.
+func (b *BGPService) Paths() map[string]string {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	out := make(map[string]string, len(b.paths))
+	for ip, op := range b.paths {
+		out[ip] = op.owner
+	}
+
+	return out
 }
 
 // addPeer adds a single peer to the GoBGP server.

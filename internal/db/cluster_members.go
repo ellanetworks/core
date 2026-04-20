@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
@@ -16,11 +17,18 @@ import (
 const ClusterMembersTableName = "cluster_members"
 
 const (
+	DrainStateActive   = "active"
+	DrainStateDraining = "draining"
+	DrainStateDrained  = "drained"
+)
+
+const (
 	listClusterMembersStmtStr  = "SELECT &ClusterMember.* FROM %s ORDER BY nodeID ASC"
 	getClusterMemberStmtStr    = "SELECT &ClusterMember.* FROM %s WHERE nodeID==$ClusterMember.nodeID"
 	upsertClusterMemberStmtStr = "INSERT INTO %s (nodeID, raftAddress, apiAddress, binaryVersion, suffrage, maxSchemaVersion) VALUES ($ClusterMember.nodeID, $ClusterMember.raftAddress, $ClusterMember.apiAddress, $ClusterMember.binaryVersion, $ClusterMember.suffrage, $ClusterMember.maxSchemaVersion) ON CONFLICT(nodeID) DO UPDATE SET raftAddress=$ClusterMember.raftAddress, apiAddress=$ClusterMember.apiAddress, binaryVersion=$ClusterMember.binaryVersion, suffrage=$ClusterMember.suffrage, maxSchemaVersion=$ClusterMember.maxSchemaVersion"
 	deleteClusterMemberStmtStr = "DELETE FROM %s WHERE nodeID==$ClusterMember.nodeID"
 	countClusterMembersStmtStr = "SELECT COUNT(*) AS &NumItems.count FROM %s"
+	setDrainStateStmtStr       = "UPDATE %s SET drainState=$ClusterMember.drainState, drainUpdatedAt=$ClusterMember.drainUpdatedAt WHERE nodeID==$ClusterMember.nodeID"
 )
 
 type ClusterMember struct {
@@ -30,6 +38,17 @@ type ClusterMember struct {
 	BinaryVersion    string `db:"binaryVersion"`
 	Suffrage         string `db:"suffrage"`
 	MaxSchemaVersion int    `db:"maxSchemaVersion"`
+	DrainState       string `db:"drainState"`
+	DrainUpdatedAt   int64  `db:"drainUpdatedAt"`
+}
+
+func IsValidDrainState(s string) bool {
+	switch s {
+	case DrainStateActive, DrainStateDraining, DrainStateDrained:
+		return true
+	}
+
+	return false
 }
 
 func (db *Database) ListClusterMembers(ctx context.Context) ([]ClusterMember, error) {
@@ -163,6 +182,53 @@ func (db *Database) DeleteClusterMember(ctx context.Context, nodeID int) error {
 	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
 		return db.applyDeleteClusterMember(ctx, &intPayload{Value: nodeID})
 	}, "DeleteClusterMember")
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+// SetDrainState persists the drain state for a cluster member. The
+// `drainUpdatedAt` column is set to the current unix timestamp. Returns
+// ErrNotFound if no row exists for nodeID. The update is replicated
+// through the Raft log like any other cluster_members mutation.
+func (db *Database) SetDrainState(ctx context.Context, nodeID int, state string) error {
+	if !IsValidDrainState(state) {
+		return fmt.Errorf("invalid drain state %q", state)
+	}
+
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "UPDATE", ClusterMembersTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPDATE"),
+			attribute.String("db.collection", ClusterMembersTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(ClusterMembersTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "update").Inc()
+
+	member := &ClusterMember{
+		NodeID:         nodeID,
+		DrainState:     state,
+		DrainUpdatedAt: time.Now().Unix(),
+	}
+
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		return db.applySetDrainState(ctx, member)
+	}, "SetDrainState")
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

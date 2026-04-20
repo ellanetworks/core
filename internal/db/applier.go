@@ -1194,6 +1194,26 @@ func (db *Database) applyDeleteClusterMember(ctx context.Context, p *intPayload)
 	return nil, nil
 }
 
+func (db *Database) applySetDrainState(ctx context.Context, m *ClusterMember) (any, error) {
+	var outcome sqlair.Outcome
+
+	err := db.runner(ctx).Query(ctx, db.setDrainStateStmt, m).Get(&outcome)
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return nil, ErrNotFound
+	}
+
+	return nil, nil
+}
+
 func (db *Database) applyMigrateShared(ctx context.Context, p *migrateSharedPayload) (any, error) {
 	idx := p.TargetVersion - 1
 	if idx < 0 || idx >= len(migrations) {

@@ -66,6 +66,7 @@ type Database struct {
 	deleteAllDynamicLeasesStmt   *sqlair.Statement
 	deleteDynLeasesByNodeStmt    *sqlair.Statement
 	listActiveLeasesStmt         *sqlair.Statement
+	listActiveLeasesByNodeStmt   *sqlair.Statement
 	listLeasesByPoolStmt         *sqlair.Statement
 	listLeaseAddressesByPoolStmt *sqlair.Statement
 	countLeasesByPoolStmt        *sqlair.Statement
@@ -265,6 +266,7 @@ type Database struct {
 	upsertClusterMemberStmt *sqlair.Statement
 	deleteClusterMemberStmt *sqlair.Statement
 	countClusterMembersStmt *sqlair.Statement
+	setDrainStateStmt       *sqlair.Statement
 
 	// connPtr holds the SQLite handle for the application database. Reopen
 	// atomically swaps the pointer so concurrent readers (API handlers,
@@ -935,6 +937,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.deleteAllDynamicLeasesStmt, fmt.Sprintf(deleteAllDynamicLeasesStmt, IPLeasesTableName), nil},
 		{&db.deleteDynLeasesByNodeStmt, fmt.Sprintf(deleteDynLeasesByNodeStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listActiveLeasesStmt, fmt.Sprintf(listActiveLeasesStmt, IPLeasesTableName), []any{IPLease{}}},
+		{&db.listActiveLeasesByNodeStmt, fmt.Sprintf(listActiveLeasesByNodeStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listLeasesByPoolStmt, fmt.Sprintf(listLeasesByPoolStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listLeaseAddressesByPoolStmt, fmt.Sprintf(listLeaseAddressesByPoolStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.countLeasesByPoolStmt, fmt.Sprintf(countLeasesByPoolStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
@@ -1133,6 +1136,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.upsertClusterMemberStmt, fmt.Sprintf(upsertClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 		{&db.deleteClusterMemberStmt, fmt.Sprintf(deleteClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 		{&db.countClusterMembersStmt, fmt.Sprintf(countClusterMembersStmtStr, ClusterMembersTableName), []any{NumItems{}}},
+		{&db.setDrainStateStmt, fmt.Sprintf(setDrainStateStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 	}
 
 	for _, s := range stmts {

@@ -608,63 +608,9 @@ func TestCreateSmContext_ReplacesExistingSession(t *testing.T) {
 	}
 }
 
-func TestCreateSmContext_AnnouncesBGPRoute(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	bgpFake := &fakeBGP{running: true, advertising: true}
-	s := smf.New(pcf, store, upf, amfCb, smf.WithBGP(bgpFake))
-	ctx := context.Background()
-	supi := testSUPI()
-	n1Msg := buildPDUSessionEstRequest()
-
-	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
-	if err != nil {
-		t.Fatalf("CreateSmContext failed: %v", err)
-	}
-
-	if rejectN1 != nil {
-		t.Fatalf("expected no reject, got %d bytes", len(rejectN1))
-	}
-
-	bgpFake.mu.Lock()
-	defer bgpFake.mu.Unlock()
-
-	if len(bgpFake.announced) != 1 {
-		t.Fatalf("expected 1 BGP announce, got %d", len(bgpFake.announced))
-	}
-
-	if bgpFake.announced[0] != "10.0.0.1" {
-		t.Fatalf("expected announce for 10.0.0.1, got %s", bgpFake.announced[0])
-	}
-
-	if bgpFake.owners[0] != testIMSI {
-		t.Fatalf("expected owner %s, got %s", testIMSI, bgpFake.owners[0])
-	}
-}
-
-func TestCreateSmContext_BGPNotRunning_NoAnnounce(t *testing.T) {
-	pcf, store, upf, amfCb := defaultFakes()
-	bgpFake := &fakeBGP{running: false, advertising: false}
-	s := smf.New(pcf, store, upf, amfCb, smf.WithBGP(bgpFake))
-	ctx := context.Background()
-	supi := testSUPI()
-	n1Msg := buildPDUSessionEstRequest()
-
-	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
-	if err != nil {
-		t.Fatalf("CreateSmContext failed: %v", err)
-	}
-
-	if rejectN1 != nil {
-		t.Fatalf("expected no reject, got %d bytes", len(rejectN1))
-	}
-
-	bgpFake.mu.Lock()
-	defer bgpFake.mu.Unlock()
-
-	if len(bgpFake.announced) != 0 {
-		t.Fatalf("expected 0 BGP announces when not running, got %d", len(bgpFake.announced))
-	}
-}
+// CreateSmContext/ReleaseSmContext BGP-announcement tests were removed
+// when the SMF→BGP coupling was deleted. Route announce/withdraw is now
+// driven by the BGP reconciler reading the replicated ip_leases table.
 
 func TestReleaseSmContext_NilPDUAddress_SkipsIPRelease(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()

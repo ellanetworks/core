@@ -9,9 +9,11 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  FormControlLabel,
+  Switch,
   TextField,
 } from "@mui/material";
-import { drainNode, type DrainResponse } from "@/queries/cluster";
+import { drainClusterMember, type DrainResponse } from "@/queries/cluster";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
@@ -22,6 +24,8 @@ interface Props {
   onSuccess: (result: DrainResponse) => void;
 }
 
+const DEFAULT_DEADLINE = 30;
+
 const DrainNodeModal: React.FC<Props> = ({
   open,
   nodeId,
@@ -30,7 +34,9 @@ const DrainNodeModal: React.FC<Props> = ({
   onSuccess,
 }) => {
   const { accessToken } = useAuth();
-  const [timeoutSeconds, setTimeoutSeconds] = useState<number>(5);
+  const [immediate, setImmediate] = useState<boolean>(false);
+  const [deadlineSeconds, setDeadlineSeconds] =
+    useState<number>(DEFAULT_DEADLINE);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState("");
 
@@ -39,7 +45,9 @@ const DrainNodeModal: React.FC<Props> = ({
     setLoading(true);
     setAlert("");
     try {
-      const result = await drainNode(accessToken, { timeoutSeconds });
+      const result = await drainClusterMember(accessToken, nodeId, {
+        deadlineSeconds: immediate ? 0 : deadlineSeconds,
+      });
       onSuccess(result);
       onClose();
     } catch (err) {
@@ -64,29 +72,34 @@ const DrainNodeModal: React.FC<Props> = ({
           </Alert>
         </Collapse>
         <DialogContentText>
-          This request targets <strong>node {nodeId}</strong> specifically — it
-          is not forwarded to the leader. Drain notifies connected RANs to
-          redirect new UE registrations elsewhere and withdraws BGP
-          advertisements so upstream routers reroute user-plane traffic.
-          {isLeader ? (
-            <>
-              {" "}
-              Because this node is currently the leader, Raft leadership will
-              transfer to another voter before the other steps run.
-            </>
-          ) : null}{" "}
-          Existing flows continue until the node is shut down. Other API traffic
-          is unaffected.
+          Drain marks <strong>node {nodeId}</strong> as draining and runs the
+          drain side-effects on it: connected RANs are told the AMF is
+          unavailable, the local BGP speaker stops advertising routes
+          {isLeader ? ", and Raft leadership transfers to another voter" : ""}.
+          Existing flows continue to be served. The node becomes eligible for
+          removal once its drain state reaches <em>drained</em>. Use Resume to
+          reverse.
         </DialogContentText>
+        <FormControlLabel
+          sx={{ mt: 2 }}
+          control={
+            <Switch
+              checked={immediate}
+              onChange={(e) => setImmediate(e.target.checked)}
+            />
+          }
+          label="Immediate (don't wait for active sessions to drain)"
+        />
         <TextField
           fullWidth
           type="number"
-          label="Step timeout (seconds)"
-          value={timeoutSeconds}
-          onChange={(e) => setTimeoutSeconds(Number(e.target.value))}
-          helperText="Maximum time for each step (leadership transfer, RAN notifications, BGP shutdown)."
+          label="Deadline (seconds)"
+          value={deadlineSeconds}
+          onChange={(e) => setDeadlineSeconds(Number(e.target.value))}
+          helperText="Wait up to this many seconds for the node's active sessions to clear before marking it drained."
           margin="normal"
-          slotProps={{ htmlInput: { min: 1 } }}
+          disabled={immediate}
+          slotProps={{ htmlInput: { min: 0, max: 3600 } }}
         />
       </DialogContent>
       <DialogActions>

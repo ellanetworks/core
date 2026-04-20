@@ -113,7 +113,7 @@ func TestCleanStaleRoutes(t *testing.T) {
 		LocalAS: 65000,
 	}
 
-	err := svc.Start(ctx, settings, nil, nil, true)
+	err := svc.Start(ctx, settings, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestStopRemovesLearnedRoutes(t *testing.T) {
 		LocalAS: 65000,
 	}
 
-	err := svc.Start(ctx, settings, nil, nil, true)
+	err := svc.Start(ctx, settings, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -173,7 +173,7 @@ func TestRouteLearningDisabledWithoutDeps(t *testing.T) {
 		LocalAS: 65000,
 	}
 
-	err := svc.Start(ctx, settings, nil, nil, true)
+	err := svc.Start(ctx, settings, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -225,7 +225,7 @@ func TestReconfigurePeerRemovalCleansLearnedRoutes(t *testing.T) {
 		{ID: 2, Address: "192.168.1.2", RemoteAS: 65002, HoldTime: 90},
 	}
 
-	err := svc.Start(ctx, settings, peers, nil, true)
+	err := svc.Start(ctx, settings, peers, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -291,7 +291,7 @@ func TestReconfigureImportPolicyChangeRemovesRoutes(t *testing.T) {
 		{ID: 1, Address: "192.168.1.1", RemoteAS: 65001, HoldTime: 90},
 	}
 
-	err := svc.Start(ctx, settings, peers, nil, true)
+	err := svc.Start(ctx, settings, peers, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -327,14 +327,20 @@ func TestSetAdvertisingToggle(t *testing.T) {
 
 	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
 
-	ips := map[string]string{"10.1.1.1": "imsi-001010000000001", "10.1.1.2": "imsi-001010000000002"}
-
-	err := svc.Start(ctx, settings, nil, ips, true)
+	err := svc.Start(ctx, settings, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
 
 	defer func() { _ = svc.Stop() }()
+
+	// Reconciler-style: populate the RIB via Announce.
+	for _, ipStr := range []string{"10.1.1.1", "10.1.1.2"} {
+		ip := netip.MustParseAddr(ipStr)
+		if err := svc.Announce(ip, "imsi"); err != nil {
+			t.Fatalf("Announce(%s) failed: %v", ipStr, err)
+		}
+	}
 
 	if !svc.IsAdvertising() {
 		t.Fatal("expected advertising=true after start")
@@ -345,8 +351,8 @@ func TestSetAdvertisingToggle(t *testing.T) {
 		t.Fatalf("expected 2 routes, got %d", len(routes))
 	}
 
-	// Disable advertising (simulate NAT enabled).
-	svc.SetAdvertising(false, nil)
+	// Disable advertising (simulate NAT enabled): immediate withdraw, map cleared.
+	svc.SetAdvertising(false)
 
 	if svc.IsAdvertising() {
 		t.Fatal("expected advertising=false after SetAdvertising(false)")
@@ -357,16 +363,28 @@ func TestSetAdvertisingToggle(t *testing.T) {
 		t.Fatalf("expected 0 advertised routes after disabling, got %d", len(routes))
 	}
 
-	// Re-enable advertising (simulate NAT disabled — pass allocated IPs from DB).
-	svc.SetAdvertising(true, ips)
+	// Re-enable: flag flips but RIB stays empty. Reconciler repopulates
+	// on its next tick (emulated here by explicit Announce calls).
+	svc.SetAdvertising(true)
 
 	if !svc.IsAdvertising() {
 		t.Fatal("expected advertising=true after SetAdvertising(true)")
 	}
 
+	if got := len(svc.Paths()); got != 0 {
+		t.Fatalf("expected empty RIB immediately after re-enable (reconciler fills it), got %d paths", got)
+	}
+
+	for _, ipStr := range []string{"10.1.1.1", "10.1.1.2"} {
+		ip := netip.MustParseAddr(ipStr)
+		if err := svc.Announce(ip, "imsi"); err != nil {
+			t.Fatalf("Announce(%s) failed: %v", ipStr, err)
+		}
+	}
+
 	routes, _ = svc.GetRoutes()
 	if len(routes) != 2 {
-		t.Fatalf("expected 2 routes after re-enabling, got %d", len(routes))
+		t.Fatalf("expected 2 routes after re-enabling and reconcile, got %d", len(routes))
 	}
 }
 
@@ -374,8 +392,8 @@ func TestSetAdvertisingNoOpWhenNotRunning(t *testing.T) {
 	svc := newTestService(t)
 
 	// Should not panic or error.
-	svc.SetAdvertising(true, nil)
-	svc.SetAdvertising(false, nil)
+	svc.SetAdvertising(true)
+	svc.SetAdvertising(false)
 }
 
 func TestUpdateFilterRemovesNewlyRejectedRoutes(t *testing.T) {
@@ -395,7 +413,7 @@ func TestUpdateFilterRemovesNewlyRejectedRoutes(t *testing.T) {
 		{ID: 1, Address: "192.168.1.1", RemoteAS: 65001, HoldTime: 90},
 	}
 
-	err := svc.Start(ctx, settings, peers, nil, true)
+	err := svc.Start(ctx, settings, peers, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -440,7 +458,7 @@ func TestStopWithPollerDoesNotDeadlock(t *testing.T) {
 
 	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
 
-	err := svc.Start(ctx, settings, nil, nil, true)
+	err := svc.Start(ctx, settings, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}
@@ -472,7 +490,7 @@ func TestStartStopCyclesWithPoller(t *testing.T) {
 	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
 
 	for i := range 10 {
-		err := svc.Start(ctx, settings, nil, nil, true)
+		err := svc.Start(ctx, settings, nil, true)
 		if err != nil {
 			t.Fatalf("Start cycle %d failed: %v", i, err)
 		}
@@ -494,7 +512,7 @@ func TestReconfigureRestartWithPollerDoesNotDeadlock(t *testing.T) {
 
 	settings := bgp.BGPSettings{Enabled: true, LocalAS: 65000}
 
-	err := svc.Start(ctx, settings, nil, nil, true)
+	err := svc.Start(ctx, settings, nil, true)
 	if err != nil {
 		t.Fatalf("Start failed: %v", err)
 	}

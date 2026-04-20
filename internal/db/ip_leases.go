@@ -29,6 +29,7 @@ const (
 	deleteAllDynamicLeasesStmt   = "DELETE FROM %s WHERE type='dynamic'"
 	deleteDynLeasesByNodeStmt    = "DELETE FROM %s WHERE type='dynamic' AND nodeID==$IPLease.nodeID"
 	listActiveLeasesStmt         = "SELECT &IPLease.* FROM %s WHERE sessionID IS NOT NULL"
+	listActiveLeasesByNodeStmt   = "SELECT &IPLease.* FROM %s WHERE sessionID IS NOT NULL AND nodeID==$IPLease.nodeID"
 	listLeasesByPoolStmt         = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID"
 	listLeaseAddressesByPoolStmt = "SELECT &IPLease.addressBin FROM %s WHERE poolID==$IPLease.poolID ORDER BY addressBin"
 	countLeasesByPoolStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID"
@@ -285,8 +286,9 @@ func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 	return nil
 }
 
-// DeleteDynamicLeasesByNode removes dynamic leases owned by a specific node.
-// In HA mode this scopes startup cleanup to this instance's leases only.
+// DeleteDynamicLeasesByNode removes dynamic leases tagged with the
+// given nodeID. Static leases are preserved: an admin-pinned IP stays
+// bound to its IMSI regardless of which node previously served it.
 func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID int) error {
 	_, span := tracer.Start(
 		ctx,
@@ -378,6 +380,50 @@ func (db *Database) ListActiveLeases(ctx context.Context) ([]IPLease, error) {
 	var leases []IPLease
 
 	err := db.conn().Query(ctx, db.listActiveLeasesStmt).GetAll(&leases)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetStatus(codes.Ok, "no rows")
+			return nil, nil
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return leases, nil
+}
+
+// ListActiveLeasesByNode returns all active leases (sessionID non-NULL)
+// owned by the given cluster node. Used by the BGP reconciler on each
+// node to derive its local advertisement set: BGP routes are advertised
+// from the node that hosts the PDU session, not by every node in the
+// cluster.
+func (db *Database) ListActiveLeasesByNode(ctx context.Context, nodeID int) ([]IPLease, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (active,by_node)", "SELECT", IPLeasesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			attribute.String("db.collection", IPLeasesTableName),
+			attribute.Int("node_id", nodeID),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
+
+	var leases []IPLease
+
+	err := db.conn().Query(ctx, db.listActiveLeasesByNodeStmt, IPLease{NodeID: nodeID}).GetAll(&leases)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")

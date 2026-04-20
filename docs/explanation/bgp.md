@@ -24,3 +24,7 @@ This means routing state always reflects the set of currently connected subscrib
 ### Receive routes from BGP peers
 
 Ella Core receives routes from BGP peers and installs them into the kernel routing table. This allows operators to manage routes (e.g., a default route via an upstream router) through BGP instead of static routes.
+
+### In an HA cluster
+
+Each node runs its own BGP speaker and advertises `/32` subnets for the sessions it currently hosts.See [High Availability](high_availability.md) for the broader cluster model.

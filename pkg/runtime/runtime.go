@@ -273,19 +273,9 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			return fmt.Errorf("couldn't list BGP peers: %w", err)
 		}
 
-		activeLeases, err := dbInstance.ListActiveLeases(ctx)
-		if err != nil {
-			return fmt.Errorf("couldn't list active leases: %w", err)
-		}
-
-		allocatedIPs := make(map[string]string, len(activeLeases))
-		for _, l := range activeLeases {
-			allocatedIPs[l.Address().String()] = l.IMSI
-		}
-
 		servicePeers := server.DBPeersToBGPPeers(bgpPeers)
 
-		err = bgpService.Start(ctx, server.DBSettingsToBGPSettings(bgpSettings), servicePeers, allocatedIPs, !isNATEnabled)
+		err = bgpService.Start(ctx, server.DBSettingsToBGPSettings(bgpSettings), servicePeers, !isNATEnabled)
 		if err != nil {
 			listenAddr := bgpSettings.ListenAddress
 			if listenAddr == "" {
@@ -295,6 +285,15 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			logger.EllaLog.Error("BGP failed to start: address may be in use. Stop any external BGP daemon (FRR, BIRD) before enabling integrated BGP.", zap.String("address", listenAddr), zap.Error(err))
 		}
 	}
+
+	// BGP reconciler: the single driver of BGP advertisements. Watches
+	// the replicated ip_leases table and keeps the BGP RIB aligned with
+	// the leases owned by this cluster node. Runs even when BGP is
+	// disabled — the reconciler's calls are no-ops against a stopped
+	// service, and starting here means re-enabling BGP via the API does
+	// not need separate reconciler wiring.
+	bgpReconciler := bgp.NewReconciler(bgpService, &bgpLeaseStoreAdapter{db: dbInstance}, dbInstance.NodeID())
+	bgpReconciler.Start()
 
 	n3Settings, err := dbInstance.GetN3Settings(ctx)
 	if err != nil {
@@ -324,7 +323,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	smfStore := &smfDBAdapter{db: dbInstance, allocator: ipam.NewSequentialAllocator(&leaseStoreAdapter{db: dbInstance})}
 	smfAMF := &smfAMFAdapter{}
 
-	smfInstance := smf.New(smfPCF, smfStore, nil, smfAMF, smf.WithBGP(bgpService))
+	smfInstance := smf.New(smfPCF, smfStore, nil, smfAMF)
 
 	upfInstance, err := upf.Start(ctx, smfInstance, cfg.Interfaces.N3, n3IPv4, n3IPv6, advertisedN3IPv4, advertisedN3IPv6, cfg.Interfaces.N6, cfg.XDP.AttachMode, isNATEnabled, isFlowAccountingEnabled)
 	if err != nil {
@@ -478,7 +477,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		closeAMF(amfCtx, amfInstance, sctpServer)
 		amfCancel()
 
-		// 4. Stop BGP (no context needed, returns synchronously).
+		// 4. Stop the BGP reconciler, then the BGP speaker. The reconciler
+		// stops first so no more Announce/Withdraw calls land on a
+		// shutting-down service.
+		logger.EllaLog.Info("Shutting down BGP reconciler")
+		bgpReconciler.Stop()
+
 		logger.EllaLog.Info("Shutting down BGP")
 
 		if err := bgpService.Stop(); err != nil {
@@ -606,6 +610,33 @@ func (a *bgpImportPrefixAdapter) ListImportPrefixes(ctx context.Context, peerID 
 	}
 
 	return entries, nil
+}
+
+// bgpLeaseStoreAdapter adapts *db.Database to the bgp.LeaseStore
+// interface the reconciler consumes. Keeps the bgp package decoupled
+// from the full db surface.
+type bgpLeaseStoreAdapter struct {
+	db *db.Database
+}
+
+func (a *bgpLeaseStoreAdapter) ListActiveLeasesByNode(ctx context.Context, nodeID int) ([]bgp.Lease, error) {
+	dbLeases, err := a.db.ListActiveLeasesByNode(ctx, nodeID)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]bgp.Lease, 0, len(dbLeases))
+
+	for _, l := range dbLeases {
+		addr := l.Address()
+		if !addr.IsValid() {
+			continue
+		}
+
+		out = append(out, bgp.Lease{Address: addr, IMSI: l.IMSI})
+	}
+
+	return out, nil
 }
 
 // resolveN3Addresses scans the N3 interface and returns the first non-link-local

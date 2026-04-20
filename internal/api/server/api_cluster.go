@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 const (
@@ -25,6 +27,32 @@ type ClusterMemberResponse struct {
 	Suffrage         string `json:"suffrage"`
 	MaxSchemaVersion int    `json:"maxSchemaVersion"`
 	IsLeader         bool   `json:"isLeader"`
+	DrainState       string `json:"drainState"`
+	DrainUpdatedAt   string `json:"drainUpdatedAt,omitempty"`
+}
+
+func toClusterMemberResponse(m db.ClusterMember, leaderAddr string) ClusterMemberResponse {
+	state := m.DrainState
+	if state == "" {
+		state = db.DrainStateActive
+	}
+
+	updated := ""
+	if m.DrainUpdatedAt > 0 {
+		updated = time.Unix(m.DrainUpdatedAt, 0).UTC().Format(time.RFC3339)
+	}
+
+	return ClusterMemberResponse{
+		NodeID:           m.NodeID,
+		RaftAddress:      m.RaftAddress,
+		APIAddress:       m.APIAddress,
+		BinaryVersion:    m.BinaryVersion,
+		Suffrage:         m.Suffrage,
+		MaxSchemaVersion: m.MaxSchemaVersion,
+		IsLeader:         leaderAddr != "" && m.RaftAddress == leaderAddr,
+		DrainState:       state,
+		DrainUpdatedAt:   updated,
+	}
 }
 
 type AddClusterMemberRequest struct {
@@ -61,17 +89,7 @@ func GetClusterMember(dbInstance *db.Database) http.Handler {
 
 		leaderAddr := dbInstance.LeaderAddress()
 
-		resp := ClusterMemberResponse{
-			NodeID:           member.NodeID,
-			RaftAddress:      member.RaftAddress,
-			APIAddress:       member.APIAddress,
-			BinaryVersion:    member.BinaryVersion,
-			Suffrage:         member.Suffrage,
-			MaxSchemaVersion: member.MaxSchemaVersion,
-			IsLeader:         leaderAddr != "" && member.RaftAddress == leaderAddr,
-		}
-
-		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, toClusterMemberResponse(*member, leaderAddr), http.StatusOK, logger.APILog)
 	})
 }
 
@@ -87,15 +105,7 @@ func ListClusterMembers(dbInstance *db.Database) http.Handler {
 
 		result := make([]ClusterMemberResponse, 0, len(members))
 		for _, m := range members {
-			result = append(result, ClusterMemberResponse{
-				NodeID:           m.NodeID,
-				RaftAddress:      m.RaftAddress,
-				APIAddress:       m.APIAddress,
-				BinaryVersion:    m.BinaryVersion,
-				Suffrage:         m.Suffrage,
-				MaxSchemaVersion: m.MaxSchemaVersion,
-				IsLeader:         leaderAddr != "" && m.RaftAddress == leaderAddr,
-			})
+			result = append(result, toClusterMemberResponse(m, leaderAddr))
 		}
 
 		writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)
@@ -252,6 +262,19 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		// Drain precondition: refuse removal unless the node has been
+		// drained or the caller explicitly opts into force-remove.
+		// force=true skips the drain check but not the leader check.
+		force := r.URL.Query().Get("force") == "true"
+		if !force && member.DrainState != db.DrainStateDrained {
+			writeError(r.Context(), w, http.StatusConflict,
+				fmt.Sprintf("Node is not drained (state=%s); drain it first via POST /api/v1/cluster/members/%d/drain, or pass ?force=true to skip",
+					member.DrainState, nodeID),
+				nil, logger.APILog)
+
+			return
+		}
+
 		if err := dbInstance.RemoveServer(nodeID); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to remove server from Raft cluster", err, logger.APILog)
 			return
@@ -260,6 +283,17 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 		if err := dbInstance.DeleteClusterMember(r.Context(), nodeID); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to remove cluster member record", err, logger.APILog)
 			return
+		}
+
+		// Purge the removed node's dynamic IP leases so the addresses
+		// they occupy are returned to the cluster-wide pool. Static
+		// leases are preserved by the underlying DELETE (it filters
+		// by type='dynamic'). Failure here is logged but non-fatal:
+		// the membership change has already succeeded and an operator
+		// can re-run cleanup later via a direct DB operation if needed.
+		if err := dbInstance.DeleteDynamicLeasesByNode(r.Context(), nodeID); err != nil {
+			logger.APILog.Warn("Failed to purge dynamic IP leases for removed cluster member; leases will linger until manually cleaned",
+				zap.Int("nodeId", nodeID), zap.Error(err))
 		}
 
 		actor := getActorFromContext(r)

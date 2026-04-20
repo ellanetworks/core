@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,8 +14,16 @@ import (
 )
 
 func removeClusterMember(url string, client *http.Client, token string, nodeID int) (int, string, error) {
-	req, err := http.NewRequestWithContext(context.Background(), "DELETE",
-		fmt.Sprintf("%s/api/v1/cluster/members/%d", url, nodeID), nil)
+	return removeClusterMemberWithForce(url, client, token, nodeID, false)
+}
+
+func removeClusterMemberWithForce(url string, client *http.Client, token string, nodeID int, force bool) (int, string, error) {
+	target := fmt.Sprintf("%s/api/v1/cluster/members/%d", url, nodeID)
+	if force {
+		target += "?force=true"
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), "DELETE", target, nil)
 	if err != nil {
 		return 0, "", err
 	}
@@ -402,6 +411,313 @@ func TestRemoveClusterMember_RefusesLeader(t *testing.T) {
 	if !strings.Contains(strings.ToLower(msg), "leader") {
 		t.Errorf("expected body to mention leader, got %q", msg)
 	}
+}
+
+// TestRemoveClusterMember_PurgesDynamicLeases verifies that removing a
+// cluster member also purges the dynamic IP leases owned by that node.
+// Without this, the removed node's addresses would remain marked "in
+// use" in the replicated lease table forever, slowly draining the pool.
+// Static leases (admin-pinned) must be preserved.
+func TestRemoveClusterMember_PurgesDynamicLeases(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't initialize: %s", err)
+	}
+
+	ctx := context.Background()
+
+	// Look up the default data network's pool + default profile so we
+	// have valid foreign-key targets for the seeded subscribers and
+	// leases.
+	dn, err := env.DB.GetDataNetwork(ctx, db.InitialDataNetworkName)
+	if err != nil {
+		t.Fatalf("get default data network: %s", err)
+	}
+
+	profile, err := env.DB.GetProfile(ctx, db.InitialProfileName)
+	if err != nil {
+		t.Fatalf("get default profile: %s", err)
+	}
+
+	const removedNodeID = 42
+
+	// Seed a cluster_members row for the node we're about to remove.
+	// Using a distinct IP so the leader-removal guard doesn't fire.
+	if err := env.DB.UpsertClusterMember(ctx, &db.ClusterMember{
+		NodeID:        removedNodeID,
+		RaftAddress:   "10.0.0.42:7000",
+		APIAddress:    "http://10.0.0.42:5000",
+		BinaryVersion: "test",
+		Suffrage:      "voter",
+	}); err != nil {
+		t.Fatalf("upsert cluster member: %s", err)
+	}
+
+	// Seed two dynamic leases owned by the node being removed (these
+	// must be purged) and one static lease (which must survive).
+	// Leases reference subscribers via a FK on IMSI, so the subscriber
+	// rows are created first.
+	seedLease := func(addr string, imsi string, leaseType string) {
+		t.Helper()
+
+		if err := env.DB.CreateSubscriber(ctx, &db.Subscriber{
+			Imsi:           imsi,
+			SequenceNumber: "000000000001",
+			PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+			Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+			ProfileID:      profile.ID,
+		}); err != nil {
+			t.Fatalf("create subscriber %s: %s", imsi, err)
+		}
+
+		parsed, parseErr := netip.ParseAddr(addr)
+		if parseErr != nil {
+			t.Fatalf("parse %s: %s", addr, parseErr)
+		}
+
+		sessionID := 1
+
+		if err := env.DB.CreateLease(ctx, &db.IPLease{
+			PoolID:    dn.ID,
+			IMSI:      imsi,
+			SessionID: &sessionID,
+			Type:      leaseType,
+			CreatedAt: 1,
+			NodeID:    removedNodeID,
+		}, parsed); err != nil {
+			t.Fatalf("create lease %s: %s", addr, err)
+		}
+	}
+
+	seedLease("10.45.0.10", "001010000000001", "dynamic")
+	seedLease("10.45.0.11", "001010000000002", "dynamic")
+	seedLease("10.45.0.12", "001010000000003", "static")
+
+	// Mark the node drained so the remove precondition is satisfied.
+	if err := env.DB.SetDrainState(ctx, removedNodeID, db.DrainStateDrained); err != nil {
+		t.Fatalf("set drain state: %s", err)
+	}
+
+	// Call DELETE /api/v1/cluster/members/42.
+	status, msg, err := removeClusterMember(env.Server.URL, client, token, removedNodeID)
+	if err != nil {
+		t.Fatalf("request failed: %s", err)
+	}
+
+	if status != http.StatusOK {
+		t.Fatalf("expected 200 on remove, got %d (body: %s)", status, msg)
+	}
+
+	// Dynamic leases for node 42 must be gone; the static lease must
+	// still be present.
+	leases, err := env.DB.ListActiveLeasesByNode(ctx, removedNodeID)
+	if err != nil {
+		t.Fatalf("list leases: %s", err)
+	}
+
+	var dyn, stat int
+
+	for _, l := range leases {
+		switch l.Type {
+		case "dynamic":
+			dyn++
+		case "static":
+			stat++
+		}
+	}
+
+	if dyn != 0 {
+		t.Errorf("expected 0 dynamic leases after remove, got %d", dyn)
+	}
+
+	if stat != 1 {
+		t.Errorf("expected 1 surviving static lease, got %d", stat)
+	}
+}
+
+// TestRemoveClusterMember_RefusesUndrained verifies that removing a non-
+// leader, non-drained node returns 409 and the error points at the drain
+// endpoint. force=true bypasses the precondition and succeeds.
+func TestRemoveClusterMember_RefusesUndrained(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	c := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, c)
+	if err != nil {
+		t.Fatalf("couldn't initialize: %s", err)
+	}
+
+	const targetID = 77
+
+	if err := env.DB.UpsertClusterMember(context.Background(), &db.ClusterMember{
+		NodeID:        targetID,
+		RaftAddress:   "10.0.0.77:7000",
+		APIAddress:    "http://10.0.0.77:5000",
+		BinaryVersion: "test",
+		Suffrage:      "voter",
+	}); err != nil {
+		t.Fatalf("upsert cluster member: %s", err)
+	}
+
+	status, msg, err := removeClusterMember(env.Server.URL, c, token, targetID)
+	if err != nil {
+		t.Fatalf("request failed: %s", err)
+	}
+
+	if status != http.StatusConflict {
+		t.Fatalf("expected 409 on undrained remove, got %d (body: %s)", status, msg)
+	}
+
+	if !strings.Contains(strings.ToLower(msg), "drain") {
+		t.Errorf("expected drain guidance in error, got %q", msg)
+	}
+
+	status, msg, err = removeClusterMemberWithForce(env.Server.URL, c, token, targetID, true)
+	if err != nil {
+		t.Fatalf("force remove request failed: %s", err)
+	}
+
+	if status != http.StatusOK {
+		t.Fatalf("expected 200 on force remove, got %d (body: %s)", status, msg)
+	}
+}
+
+// TestDrainClusterMember_PersistsDrainedState verifies drain on self runs
+// side-effects and transitions the state to "drained" synchronously when
+// deadlineSeconds=0.
+func TestDrainClusterMember_PersistsDrainedState(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	c := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, c)
+	if err != nil {
+		t.Fatalf("couldn't initialize: %s", err)
+	}
+
+	ctx := context.Background()
+
+	self := env.DB.NodeID()
+
+	if err := env.DB.UpsertClusterMember(ctx, &db.ClusterMember{
+		NodeID:        self,
+		RaftAddress:   env.DB.LeaderAddress(),
+		APIAddress:    "http://127.0.0.1:0",
+		BinaryVersion: "test",
+		Suffrage:      "voter",
+	}); err != nil {
+		t.Fatalf("upsert self: %s", err)
+	}
+
+	status, body, err := postDrain(env.Server.URL, c, token, self, 0)
+	if err != nil {
+		t.Fatalf("drain request failed: %s", err)
+	}
+
+	if status != http.StatusOK {
+		t.Fatalf("expected 200 on drain, got %d (body: %s)", status, body)
+	}
+
+	member, err := env.DB.GetClusterMember(ctx, self)
+	if err != nil {
+		t.Fatalf("get member: %s", err)
+	}
+
+	if member.DrainState != db.DrainStateDrained {
+		t.Errorf("expected drainState=%s, got %s", db.DrainStateDrained, member.DrainState)
+	}
+
+	// Resume clears the state back to active.
+	status, body, err = postResume(env.Server.URL, c, token, self)
+	if err != nil {
+		t.Fatalf("resume request failed: %s", err)
+	}
+
+	if status != http.StatusOK {
+		t.Fatalf("expected 200 on resume, got %d (body: %s)", status, body)
+	}
+
+	member, err = env.DB.GetClusterMember(ctx, self)
+	if err != nil {
+		t.Fatalf("get member: %s", err)
+	}
+
+	if member.DrainState != db.DrainStateActive {
+		t.Errorf("expected drainState=%s after resume, got %s", db.DrainStateActive, member.DrainState)
+	}
+}
+
+func postDrain(url string, client *http.Client, token string, nodeID int, deadlineSeconds int) (int, string, error) {
+	body := fmt.Sprintf(`{"deadlineSeconds":%d}`, deadlineSeconds)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
+		fmt.Sprintf("%s/api/v1/cluster/members/%d/drain", url, nodeID), strings.NewReader(body))
+	if err != nil {
+		return 0, "", err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, "", err
+	}
+
+	defer func() { _ = res.Body.Close() }()
+
+	buf := make([]byte, 4096)
+	n, _ := res.Body.Read(buf)
+
+	return res.StatusCode, string(buf[:n]), nil
+}
+
+func postResume(url string, client *http.Client, token string, nodeID int) (int, string, error) {
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
+		fmt.Sprintf("%s/api/v1/cluster/members/%d/resume", url, nodeID), nil)
+	if err != nil {
+		return 0, "", err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	res, err := client.Do(req)
+	if err != nil {
+		return 0, "", err
+	}
+
+	defer func() { _ = res.Body.Close() }()
+
+	buf := make([]byte, 4096)
+	n, _ := res.Body.Read(buf)
+
+	return res.StatusCode, string(buf[:n]), nil
 }
 
 func TestClusterStatusIncluded(t *testing.T) {

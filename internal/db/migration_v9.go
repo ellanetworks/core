@@ -25,7 +25,10 @@ const v9CreateClusterMembers = `
 		apiAddress        TEXT NOT NULL,
 		binaryVersion     TEXT NOT NULL DEFAULT '',
 		suffrage          TEXT NOT NULL DEFAULT 'voter',
-		maxSchemaVersion  INTEGER NOT NULL DEFAULT 0
+		maxSchemaVersion  INTEGER NOT NULL DEFAULT 0,
+		drainState        TEXT NOT NULL DEFAULT 'active'
+			CHECK (drainState IN ('active','draining','drained')),
+		drainUpdatedAt    INTEGER NOT NULL DEFAULT 0
 )`
 
 func migrateV9(ctx context.Context, tx *sql.Tx) error {

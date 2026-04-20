@@ -193,63 +193,66 @@ func TestProxyToLeaderCluster_PassesNon410Through(t *testing.T) {
 	}
 }
 
-func TestIsLocalOnlyWrite(t *testing.T) {
+func TestIsSelfRemoval(t *testing.T) {
 	tests := []struct {
-		name   string
-		method string
-		path   string
-		want   bool
+		name        string
+		method      string
+		path        string
+		localNodeID int
+		want        bool
 	}{
-		{"drain POST", http.MethodPost, "/api/v1/cluster/drain", true},
-		{"drain GET is not a write", http.MethodGet, "/api/v1/cluster/drain", false},
-		{"drain DELETE matches path even though route is POST-only", http.MethodDelete, "/api/v1/cluster/drain", true},
-		{"subscriber write is not local-only", http.MethodPost, "/api/v1/subscribers", false},
-		{"cluster member write is not local-only", http.MethodDelete, "/api/v1/cluster/members/3", false},
-		{"drain with trailing slash is not matched", http.MethodPost, "/api/v1/cluster/drain/", false},
+		{"self DELETE", http.MethodDelete, "/api/v1/cluster/members/3", 3, true},
+		{"other DELETE", http.MethodDelete, "/api/v1/cluster/members/3", 1, false},
+		{"self GET is not a write", http.MethodGet, "/api/v1/cluster/members/3", 3, false},
+		{"self POST promote is not a remove", http.MethodPost, "/api/v1/cluster/members/3/promote", 3, false},
+		{"self DELETE with trailing slash is not matched", http.MethodDelete, "/api/v1/cluster/members/3/", 3, false},
+		{"unrelated DELETE", http.MethodDelete, "/api/v1/subscribers/001010", 3, false},
+		{"members list DELETE (no id)", http.MethodDelete, "/api/v1/cluster/members/", 3, false},
+		{"non-numeric id", http.MethodDelete, "/api/v1/cluster/members/abc", 3, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequestWithContext(context.Background(), tt.method, tt.path, nil)
-			if got := isLocalOnlyWrite(req); got != tt.want {
-				t.Errorf("isLocalOnlyWrite(%s %s) = %v, want %v", tt.method, tt.path, got, tt.want)
+			if got := isSelfRemoval(req, tt.localNodeID); got != tt.want {
+				t.Errorf("isSelfRemoval(%s %s, local=%d) = %v, want %v", tt.method, tt.path, tt.localNodeID, got, tt.want)
 			}
 		})
 	}
 }
 
-// TestLeaderProxyMiddleware_DrainNotProxied verifies that drain is served
-// locally even when this node is a follower. Regression test for the bug
-// where `POST /api/v1/cluster/drain` on a follower was being forwarded to
-// the leader, which then drained *itself* instead of the follower the
-// operator targeted.
-func TestLeaderProxyMiddleware_DrainNotProxied(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "test.db")
-
-	testDB, err := db.NewDatabase(context.Background(), dbPath, ellaraft.ClusterConfig{})
-	if err != nil {
-		t.Fatalf("create test db: %v", err)
+func TestTargetedEndpointNodeID(t *testing.T) {
+	tests := []struct {
+		name      string
+		method    string
+		path      string
+		wantID    int
+		wantMatch bool
+	}{
+		{"drain POST", http.MethodPost, "/api/v1/cluster/members/3/drain", 3, true},
+		{"resume POST", http.MethodPost, "/api/v1/cluster/members/7/resume", 7, true},
+		{"drain GET is not a write", http.MethodGet, "/api/v1/cluster/members/3/drain", 0, false},
+		{"promote is not targeted", http.MethodPost, "/api/v1/cluster/members/3/promote", 0, false},
+		{"delete member is not targeted", http.MethodDelete, "/api/v1/cluster/members/3", 0, false},
+		{"unrelated write", http.MethodPost, "/api/v1/subscribers", 0, false},
+		{"non-numeric id", http.MethodPost, "/api/v1/cluster/members/abc/drain", 0, false},
+		{"negative id", http.MethodPost, "/api/v1/cluster/members/-1/drain", 0, false},
+		{"missing verb", http.MethodPost, "/api/v1/cluster/members/3", 0, false},
 	}
 
-	t.Cleanup(func() { _ = testDB.Close() })
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(context.Background(), tt.method, tt.path, nil)
+			id, ok := targetedEndpointNodeID(req)
 
-	// The single-server DB auto-elects as leader; isLeader() == true would
-	// short-circuit the middleware to `next` regardless, bypassing the
-	// check we care about. Instead, test the decision function directly:
-	// isLocalOnlyWrite must return true for drain, which is what the
-	// middleware uses to skip proxy on a follower.
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost,
-		"/api/v1/cluster/drain", nil)
+			if ok != tt.wantMatch {
+				t.Errorf("targetedEndpointNodeID(%s %s).ok = %v, want %v", tt.method, tt.path, ok, tt.wantMatch)
+			}
 
-	if !isLocalOnlyWrite(req) {
-		t.Fatal("drain must be flagged as local-only so the proxy middleware never forwards it")
-	}
-
-	// Also sanity-check that drain does NOT match the leader-only read
-	// path (it's a POST, not a GET) — otherwise we'd also be proxying it
-	// through that branch.
-	if isLeaderOnlyRead(req) {
-		t.Fatal("drain is a POST and must not be matched by isLeaderOnlyRead")
+			if id != tt.wantID {
+				t.Errorf("targetedEndpointNodeID(%s %s).id = %d, want %d", tt.method, tt.path, id, tt.wantID)
+			}
+		})
 	}
 }
 

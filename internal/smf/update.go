@@ -86,12 +86,10 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Request received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 		if smContext.PDUAddress != nil {
-			released, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
+			_, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
 			if releaseErr != nil {
 				logger.WithTrace(ctx, logger.SmfLog).Warn("release UE IP address failed during PDU session release, continuing teardown",
 					zap.Error(releaseErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID), logger.DNN(smContext.Dnn))
-			} else if released.IsValid() {
-				s.withdrawRoute(released)
 			}
 		}
 

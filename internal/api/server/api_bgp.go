@@ -245,11 +245,6 @@ func applyBGPSettingsChange(ctx context.Context, dbInstance *db.Database, bgpSer
 			return fmt.Errorf("failed to list BGP peers: %w", err)
 		}
 
-		allocatedIPs, err := activeLeaseIPMappings(ctx, dbInstance)
-		if err != nil {
-			return fmt.Errorf("failed to list allocated IPs: %w", err)
-		}
-
 		natEnabled, err := dbInstance.IsNATEnabled(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to check NAT settings: %w", err)
@@ -257,7 +252,7 @@ func applyBGPSettingsChange(ctx context.Context, dbInstance *db.Database, bgpSer
 
 		bgpPeers := DBPeersToBGPPeers(dbPeers)
 
-		return bgpService.Start(ctx, DBSettingsToBGPSettings(settings), bgpPeers, allocatedIPs, !natEnabled)
+		return bgpService.Start(ctx, DBSettingsToBGPSettings(settings), bgpPeers, !natEnabled)
 
 	case wasEnabled && !nowEnabled:
 		// Stop the BGP speaker

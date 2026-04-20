@@ -76,14 +76,6 @@ type UPFClient interface {
 	UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error
 }
 
-// BGPAnnouncer is the interface used by the SMF to announce/withdraw subscriber routes.
-type BGPAnnouncer interface {
-	Announce(ip netip.Addr, owner string) error
-	Withdraw(ip netip.Addr) error
-	IsRunning() bool
-	IsAdvertising() bool
-}
-
 // AMFCallback abstracts the SMF → AMF communication.
 // This breaks the circular dependency between the SMF and AMF packages.
 type AMFCallback interface {
@@ -130,7 +122,6 @@ type SMF struct {
 	store SessionStore
 	upf   UPFClient
 	amf   AMFCallback
-	bgp   BGPAnnouncer
 	clock func() time.Time
 
 	seidCounter uint64 // atomic; local SEID allocation
@@ -146,9 +137,6 @@ type Option func(*SMF)
 
 // WithClock overrides the time source (useful for testing).
 func WithClock(fn func() time.Time) Option { return func(s *SMF) { s.clock = fn } }
-
-// WithBGP sets the BGP announcer for advertising subscriber routes.
-func WithBGP(bgp BGPAnnouncer) Option { return func(s *SMF) { s.bgp = bgp } }
 
 // New creates a new SMF.
 func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Option) *SMF {
@@ -239,11 +227,9 @@ func (s *SMF) RemoveSession(ctx context.Context, ref string) {
 	s.mu.Unlock()
 
 	if smCtx.PDUAddress != nil {
-		released, err := s.store.ReleaseIP(ctx, smCtx.Supi.IMSI(), smCtx.Dnn, smCtx.PDUSessionID)
+		_, err := s.store.ReleaseIP(ctx, smCtx.Supi.IMSI(), smCtx.Dnn, smCtx.PDUSessionID)
 		if err != nil {
 			logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
-		} else if released.IsValid() {
-			s.withdrawRoute(released)
 		}
 	}
 
@@ -348,32 +334,6 @@ func (s *SMF) NewURR() (*URR, error) {
 	return &URR{
 		URRID: uint32(urrID),
 	}, nil
-}
-
-// announceRoute advertises a /32 route for the given UE IP via BGP.
-// It is a no-op if no BGP announcer is configured or it is not advertising
-// (BGP not running, or NAT enabled).
-func (s *SMF) announceRoute(ip netip.Addr, owner string) {
-	if s.bgp == nil || !s.bgp.IsAdvertising() {
-		return
-	}
-
-	if err := s.bgp.Announce(ip, owner); err != nil {
-		logger.SmfLog.Warn("failed to announce BGP route", zap.String("ip", ip.String()), zap.Error(err))
-	}
-}
-
-// withdrawRoute removes a /32 route for the given UE IP from BGP.
-// It is a no-op if no BGP announcer is configured or it is not advertising
-// (BGP not running, or NAT enabled).
-func (s *SMF) withdrawRoute(ip netip.Addr) {
-	if s.bgp == nil || !s.bgp.IsAdvertising() {
-		return
-	}
-
-	if err := s.bgp.Withdraw(ip); err != nil {
-		logger.SmfLog.Warn("failed to withdraw BGP route", zap.String("ip", ip.String()), zap.Error(err))
-	}
 }
 
 // RemovePDR frees a PDR ID.

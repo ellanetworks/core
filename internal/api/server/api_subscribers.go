@@ -17,22 +17,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// activeLeaseIPMappings returns a map of IP → IMSI for all active leases
-// (leases with a sessionID set).
-func activeLeaseIPMappings(ctx context.Context, dbInstance *db.Database) (map[string]string, error) {
-	leases, err := dbInstance.ListActiveLeases(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make(map[string]string, len(leases))
-	for _, l := range leases {
-		out[l.Address().String()] = l.IMSI
-	}
-
-	return out, nil
-}
-
 type CreateSubscriberParams struct {
 	Imsi           string `json:"imsi"`
 	Key            string `json:"key"`

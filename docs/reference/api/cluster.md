@@ -96,7 +96,7 @@ Adds a new node to the Raft cluster and registers it in the cluster members tabl
 
 ## Remove a Cluster Member
 
-Removes a node from the Raft cluster and deletes its record. Requires admin privileges.
+Removes a node from the Raft cluster and deletes its record. The node must be drained first (`drainState == "drained"`) or the caller must pass `?force=true`. Requires admin privileges.
 
 | Method | Path                            |
 | ------ | ------------------------------- |
@@ -105,6 +105,7 @@ Removes a node from the Raft cluster and deletes its record. Requires admin priv
 ### Parameters
 
 - `id` (integer, path): Node ID of the cluster member to remove.
+- `force` (boolean, query, optional): Bypass the drain precondition. Use only when the drain endpoint cannot reach the target (for example, the node has already been terminated).
 
 ### Sample Response
 
@@ -221,21 +222,24 @@ Autopilot runs only on the leader, so only the leader can produce state. Followe
 }
 ```
 
-## Drain Node
+## Drain Cluster Member
 
-Gracefully prepares this node for removal. Signals RANs to redirect new UE registrations elsewhere, withdraws BGP advertisements so upstream routers reroute user‑plane traffic, and — in HA mode only — transfers Raft leadership when this node is the leader. The node continues serving existing flows until it is shut down. Requires admin privileges.
+Marks the target node as draining and runs the local drain side-effects on it: transfers Raft leadership if the target is the leader, signals connected RANs that this AMF's GUAMI is unavailable (AMF Status Indication, TS 38.413), and stops the local BGP speaker. The target continues serving existing flows. Requires admin privileges.
 
-In **single‑node mode** the Raft step is a no‑op (no peer to receive leadership); the RAN and BGP steps still run, which makes drain useful as a pre‑shutdown hook.
+Drain persists a three-state machine on the cluster_members row (`active` → `draining` → `drained`) that every node can read. A node must be `drained` before it can be removed (see Remove Cluster Member), or the caller must pass `?force=true`.
 
-Unlike other mutating cluster endpoints, this request is **not** proxied to the leader — it acts on per‑node runtime state (local BGP, local RANs, local Raft participation). You must send it to the specific node you want to drain.
+When `deadlineSeconds` is 0 (default), drain is synchronous: the call returns once side-effects complete and `state` is `drained`. When `deadlineSeconds > 0`, the call returns `state: draining` immediately; a background poller on the target flips the state to `drained` once its local active-lease count reaches zero or the deadline elapses.
 
-| Method | Path                     |
-| ------ | ------------------------ |
-| POST   | `/api/v1/cluster/drain`  |
+The proxy middleware routes drain/resume directly to the target node (bypassing the leader), so you can issue the request against any node in the cluster.
+
+| Method | Path                                            |
+| ------ | ----------------------------------------------- |
+| POST   | `/api/v1/cluster/members/{id}/drain`            |
 
 ### Parameters
 
-- `timeoutSeconds` (integer, optional): Maximum time in seconds for each drain step. Defaults to 5.
+- `id` (path, integer, required): Node ID of the cluster member to drain.
+- `deadlineSeconds` (body, integer, optional): Seconds to wait for the node's active-lease count to reach zero. 0 = synchronous (default).
 
 ### Sample Response
 
@@ -243,9 +247,42 @@ Unlike other mutating cluster endpoints, this request is **not** proxied to the 
 {
     "result": {
         "message": "draining",
+        "state": "drained",
         "transferredLeadership": true,
         "ransNotified": 2,
-        "bgpStopped": true
+        "bgpStopped": true,
+        "sessionsRemaining": 0
+    }
+}
+```
+
+## Resume Cluster Member
+
+Reverses drain on the target node: restarts the local BGP speaker (if BGP is globally enabled) and clears `drainState` back to `active`. Requires admin privileges.
+
+Not reversed by resume:
+
+- **RAN unavailability.** No NGAP message revokes AMF Status Indication; the RAN's next NG Setup re-establishes the GUAMI.
+- **Raft leadership.** Leadership transferred during drain stays with the new leader.
+
+Idempotent: resuming an already-active node is a no-op.
+
+| Method | Path                                            |
+| ------ | ----------------------------------------------- |
+| POST   | `/api/v1/cluster/members/{id}/resume`           |
+
+### Parameters
+
+- `id` (path, integer, required): Node ID of the cluster member to resume.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "message": "resumed",
+        "state": "active",
+        "bgpStarted": true
     }
 }
 ```
