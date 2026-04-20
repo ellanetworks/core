@@ -37,6 +37,44 @@ type AddClusterMemberRequest struct {
 	Suffrage         string `json:"suffrage,omitempty"`
 }
 
+func GetClusterMember(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nodeIDStr := r.PathValue("id")
+
+		nodeID, err := strconv.Atoi(nodeIDStr)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "Invalid node ID", err, logger.APILog)
+			return
+		}
+
+		member, err := dbInstance.GetClusterMember(r.Context(), nodeID)
+		if err != nil {
+			if errors.Is(err, db.ErrNotFound) {
+				writeError(r.Context(), w, http.StatusNotFound, "Cluster member not found", nil, logger.APILog)
+				return
+			}
+
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to look up cluster member", err, logger.APILog)
+
+			return
+		}
+
+		leaderAddr := dbInstance.LeaderAddress()
+
+		resp := ClusterMemberResponse{
+			NodeID:           member.NodeID,
+			RaftAddress:      member.RaftAddress,
+			APIAddress:       member.APIAddress,
+			BinaryVersion:    member.BinaryVersion,
+			Suffrage:         member.Suffrage,
+			MaxSchemaVersion: member.MaxSchemaVersion,
+			IsLeader:         leaderAddr != "" && member.RaftAddress == leaderAddr,
+		}
+
+		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
+	})
+}
+
 func ListClusterMembers(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		members, err := dbInstance.ListClusterMembers(r.Context())
@@ -84,6 +122,18 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 
 		if req.APIAddress == "" {
 			writeError(r.Context(), w, http.StatusBadRequest, "apiAddress is required", nil, logger.APILog)
+			return
+		}
+
+		// Zero means "not provided" by convention; negative is always a
+		// client bug and must not pass through silently.
+		if req.SchemaVersion < 0 {
+			writeError(r.Context(), w, http.StatusBadRequest, "schemaVersion must be non-negative", nil, logger.APILog)
+			return
+		}
+
+		if req.MaxSchemaVersion < 0 {
+			writeError(r.Context(), w, http.StatusBadRequest, "maxSchemaVersion must be non-negative", nil, logger.APILog)
 			return
 		}
 

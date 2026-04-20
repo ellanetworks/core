@@ -39,6 +39,34 @@ Returns all registered cluster members. This is the static configuration view â€
 }
 ```
 
+## Get a Cluster Member
+
+Returns a single cluster member by node ID.
+
+| Method | Path                            |
+| ------ | ------------------------------- |
+| GET    | `/api/v1/cluster/members/{id}`  |
+
+### Parameters
+
+- `id` (integer, path): Node ID of the cluster member.
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "nodeId": 1,
+        "raftAddress": "10.0.0.1:7000",
+        "apiAddress": "https://10.0.0.1:5000",
+        "binaryVersion": "v1.9.1",
+        "suffrage": "voter",
+        "maxSchemaVersion": 9,
+        "isLeader": true
+    }
+}
+```
+
 ## Add a Cluster Member
 
 Adds a new node to the Raft cluster and registers it in the cluster members table. In HA mode, follower nodes automatically forward this request to the current leader.

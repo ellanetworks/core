@@ -2659,7 +2659,9 @@ paths:
       operationId: listClusterMembers
       tags: [Cluster]
       summary: List cluster members
-      description: Returns all registered cluster members. Only available when clustering is enabled.
+      description: >-
+        Returns all registered cluster members. Returns an empty array
+        when clustering is disabled. Requires admin privileges.
       responses:
         "200":
           description: List of cluster members.
@@ -2692,6 +2694,31 @@ paths:
           $ref: "#/components/responses/Unauthorized"
 
   /api/v1/cluster/members/{id}:
+    get:
+      operationId: getClusterMember
+      tags: [Cluster]
+      summary: Get a cluster member
+      description: Returns a single cluster member by node ID. Requires admin privileges.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Node ID of the cluster member.
+      responses:
+        "200":
+          description: Cluster member.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetClusterMemberResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
     delete:
       operationId: removeClusterMember
       tags: [Cluster]
@@ -4955,6 +4982,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ClusterMember"
+
+    GetClusterMemberResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/ClusterMember"
 
     AutopilotServer:
       type: object
