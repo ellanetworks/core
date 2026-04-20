@@ -9,11 +9,42 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync/atomic"
 
+	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
 )
+
+// ClusterSideEffectDeps carries the AMF and BGP services the drain/resume
+// side-effect endpoints need. The cluster HTTP mux starts before these
+// services exist (discovery needs the cluster port up while Raft forms), so
+// the deps are populated by `SetClusterSideEffectDeps` after the public API
+// `Upgrade` call. Until then, side-effect endpoints return 503.
+type ClusterSideEffectDeps struct {
+	AMF *amf.AMF
+	BGP *bgp.BGPService
+}
+
+var clusterSideEffectDeps atomic.Pointer[ClusterSideEffectDeps]
+
+// SetClusterSideEffectDeps installs the AMF and BGP references used by the
+// /cluster/internal/*-side-effects endpoints. Intended to be called once,
+// from the same place that wires the full operator API (api.Server.Upgrade).
+func SetClusterSideEffectDeps(deps ClusterSideEffectDeps) {
+	clusterSideEffectDeps.Store(&deps)
+}
+
+func loadClusterSideEffectDeps() (*amf.AMF, *bgp.BGPService, bool) {
+	deps := clusterSideEffectDeps.Load()
+	if deps == nil {
+		return nil, nil, false
+	}
+
+	return deps.AMF, deps.BGP, true
+}
 
 // maxClusterJoinBodyBytes caps the self-registration POST body. The real
 // payload (AddClusterMemberRequest) is a handful of short fields; 4 KiB
@@ -33,12 +64,89 @@ func newClusterMux(dbInstance *db.Database, operatorHandler http.Handler) *http.
 	mux.HandleFunc("GET /cluster/status", ClusterStatus(dbInstance).ServeHTTP)
 	mux.Handle("POST /cluster/members", selfRegistrationGuard(AddClusterMember(dbInstance)))
 	mux.Handle("POST /cluster/members/self", selfRegistrationGuard(SelfAnnounceClusterMember(dbInstance)))
+	mux.Handle("POST /cluster/internal/drain-side-effects", removedNodeFence(dbInstance, DrainLocalSideEffects()))
+	mux.Handle("POST /cluster/internal/resume-side-effects", removedNodeFence(dbInstance, ResumeLocalSideEffects()))
 
 	if operatorHandler != nil {
 		mux.Handle("/cluster/proxy/", removedNodeFence(dbInstance, http.StripPrefix("/cluster/proxy", operatorHandler)))
 	}
 
 	return mux
+}
+
+// DrainSideEffectsResponse reports which node-local drain side-effects ran.
+type DrainSideEffectsResponse struct {
+	RANsNotified int  `json:"ransNotified"`
+	BGPStopped   bool `json:"bgpStopped"`
+}
+
+// DrainLocalSideEffects runs the node-local drain side-effects on the
+// receiving node (AMF Status Indication + BGP stop). The leader calls this
+// endpoint over mTLS when the drain target is a different node; when the
+// target is the leader itself, the leader runs these steps inline without
+// the RPC. Returns 503 if dependencies are not yet installed, which happens
+// only during the brief window between cluster HTTP startup and the public
+// API `Upgrade` call.
+func DrainLocalSideEffects() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		amfInstance, bgpService, ok := loadClusterSideEffectDeps()
+		if !ok {
+			writeError(r.Context(), w, http.StatusServiceUnavailable,
+				"cluster side-effect dependencies not yet installed", nil, logger.APILog)
+
+			return
+		}
+
+		ransNotified := notifyRANsUnavailable(r.Context(), amfInstance, defaultDrainStepTimeout)
+
+		bgpStopped := false
+
+		if bgpService != nil {
+			if err := bgpService.Stop(); err != nil {
+				logger.APILog.Warn("BGP stop during drain failed", zap.Error(err))
+			} else {
+				bgpStopped = true
+			}
+		}
+
+		writeResponse(r.Context(), w, DrainSideEffectsResponse{
+			RANsNotified: ransNotified,
+			BGPStopped:   bgpStopped,
+		}, http.StatusOK, logger.APILog)
+	})
+}
+
+// ResumeSideEffectsResponse reports which node-local resume side-effects ran.
+type ResumeSideEffectsResponse struct {
+	BGPStarted bool `json:"bgpStarted"`
+}
+
+// ResumeLocalSideEffects restarts the local BGP speaker on the receiving
+// node. The leader calls this endpoint over mTLS when the resume target is a
+// different node; when the target is the leader itself, the leader runs this
+// step inline.
+func ResumeLocalSideEffects() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, bgpService, ok := loadClusterSideEffectDeps()
+		if !ok {
+			writeError(r.Context(), w, http.StatusServiceUnavailable,
+				"cluster side-effect dependencies not yet installed", nil, logger.APILog)
+
+			return
+		}
+
+		bgpStarted := false
+
+		if bgpService != nil && !bgpService.IsRunning() {
+			if err := bgpService.Restart(r.Context()); err != nil {
+				logger.APILog.Warn("resume: failed to restart BGP speaker", zap.Error(err))
+			} else {
+				bgpStarted = true
+			}
+		}
+
+		writeResponse(r.Context(), w, ResumeSideEffectsResponse{BGPStarted: bgpStarted}, http.StatusOK, logger.APILog)
+	})
 }
 
 // removedNodeFence rejects proxied writes from peers whose nodeID is no

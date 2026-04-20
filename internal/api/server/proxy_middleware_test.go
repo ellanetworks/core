@@ -221,41 +221,6 @@ func TestIsSelfRemoval(t *testing.T) {
 	}
 }
 
-func TestTargetedEndpointNodeID(t *testing.T) {
-	tests := []struct {
-		name      string
-		method    string
-		path      string
-		wantID    int
-		wantMatch bool
-	}{
-		{"drain POST", http.MethodPost, "/api/v1/cluster/members/3/drain", 3, true},
-		{"resume POST", http.MethodPost, "/api/v1/cluster/members/7/resume", 7, true},
-		{"drain GET is not a write", http.MethodGet, "/api/v1/cluster/members/3/drain", 0, false},
-		{"promote is not targeted", http.MethodPost, "/api/v1/cluster/members/3/promote", 0, false},
-		{"delete member is not targeted", http.MethodDelete, "/api/v1/cluster/members/3", 0, false},
-		{"unrelated write", http.MethodPost, "/api/v1/subscribers", 0, false},
-		{"non-numeric id", http.MethodPost, "/api/v1/cluster/members/abc/drain", 0, false},
-		{"negative id", http.MethodPost, "/api/v1/cluster/members/-1/drain", 0, false},
-		{"missing verb", http.MethodPost, "/api/v1/cluster/members/3", 0, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequestWithContext(context.Background(), tt.method, tt.path, nil)
-			id, ok := targetedEndpointNodeID(req)
-
-			if ok != tt.wantMatch {
-				t.Errorf("targetedEndpointNodeID(%s %s).ok = %v, want %v", tt.method, tt.path, ok, tt.wantMatch)
-			}
-
-			if id != tt.wantID {
-				t.Errorf("targetedEndpointNodeID(%s %s).id = %d, want %d", tt.method, tt.path, id, tt.wantID)
-			}
-		})
-	}
-}
-
 func TestLeaderProxyMiddleware_NilDB(t *testing.T) {
 	called := false
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
