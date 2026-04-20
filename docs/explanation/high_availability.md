@@ -9,16 +9,20 @@ description: Explanation of how high availability works in Ella Core.
 
 High availability (HA) lets you run an Ella Core cluster so that the network keeps working when one node fails. Set `cluster.enabled: true` to opt in.
 
-HA in Ella Core is built on the [Raft consensus algorithm](https://raft.github.io/). At any time one node is the leader; it is the only node that accepts writes. Every write replicates to a majority of nodes before it is considered committed. A follower that receives a write request forwards it to the leader transparently.
+HA in Ella Core rests on two pillars. Consensus is handled by the [Raft algorithm](https://raft.github.io/): at any time one node is the leader, it is the only node that accepts writes, and every write replicates to a majority of nodes before it is considered committed. Inter-node traffic — Raft replication and the cluster HTTP port that carries the follower proxy — is mutually authenticated over TLS, with a shared CA and a per-node leaf certificate provisioned by the operator out of band.
+
+A follower that receives a write request forwards it to the leader transparently, and waits until its own database has applied the commit before returning — so a subsequent read on the same follower sees its own write.
 
 <figure markdown="span">
   ![Ella Core HA cluster](../images/ha_raft.svg){ width="700" }
   <figcaption>High Availability in Ella Core</figcaption>
 </figure>
 
-## Cluster size
+## Cluster size and quorum
 
 Deploy three or five nodes. A quorum is a majority of voters: 2 of 3, or 3 of 5. Three nodes tolerate one failure; five nodes tolerate two. Even-sized clusters offer no additional fault tolerance over N−1 and should be avoided.
+
+If the cluster loses quorum — for example, two of three nodes down simultaneously — writes on the survivor stall and return `503 Service Unavailable`; reads continue. Once enough nodes return to restore a majority, writes resume automatically; no operator intervention is needed.
 
 ## What replicates, and what does not
 
@@ -28,7 +32,7 @@ Runtime state tied to a specific connection or session does not replicate. This 
 
 Observability is also per-node. Each Ella Core instance exposes its own Prometheus endpoint at `/api/v1/metrics` and keeps its own `radio_events` and `flow_reports` tables. Operators scrape each node individually for a cluster-wide view. Audit logs are the exception: they replicate like other operator data.
 
-If a node dies, UEs re-register on surviving nodes.
+Cluster health itself is not per-node. The leader continuously assesses every peer — reachability, applied-index lag, overall state, failure tolerance — and exposes the result at `/api/v1/cluster/autopilot`. The Cluster page in the UI renders this.
 
 ## User plane and routing
 
@@ -69,15 +73,6 @@ Useful for site- or tenant-partitioned deployments. The cluster still replicates
 Upgrades proceed one node at a time: drain, remove, upgrade, rejoin as non-voter, promote. Writes continue throughout; the cluster is briefly mixed-version during each swap.
 
 To keep a mixed-version cluster consistent, the leader applies a schema migration only once every voter's binary supports it, and refuses to admit a new voter whose schema trails what the cluster has already applied. Skip-version upgrades (`vN → vN+2`) and downgrades are not supported.
-
-## Non-goals
-
-HA is not a seamless-continuation system. Decisions with product impact:
-
-- **UE context is not replicated.** UEs re-register on failover; existing NAS security state and PDU sessions are lost.
-- **Active PDU sessions do not persist across nodes.** A fresh session is set up on the surviving node: new GTP tunnels, new User Plane state, new NAS security context. The UE's IP is preserved.
-- **NAT conntrack is not mirrored.** Outbound flows for existing sessions reset when their node fails.
-- **Cluster TLS certificates are not hot-reloaded.** Rotation requires a node restart; PKI is operator-managed out of band.
 
 ## Further reading
 
