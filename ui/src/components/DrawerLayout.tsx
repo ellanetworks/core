@@ -26,6 +26,7 @@ import {
   Groups as GroupsIcon,
   Dashboard as DashboardIcon,
   Feed as FeedIcon,
+  Hub as HubIcon,
   Router as RouterIcon,
   Logout as LogoutIcon,
   AccountCircle as AccountCircleIcon,
@@ -395,6 +396,21 @@ export default function DrawerLayout({
                       <StorageIcon color="primary" />
                     </ListItemIcon>
                     <ListItemText primary="Backup and Restore" />
+                  </ListItemButton>
+                </ListItem>
+
+                <ListItem disablePadding>
+                  <ListItemButton
+                    component={Link}
+                    to="/cluster"
+                    selected={pathname === "/cluster"}
+                    onClick={handleNavClick}
+                    sx={drawerSelectedSx}
+                  >
+                    <ListItemIcon>
+                      <HubIcon color="primary" />
+                    </ListItemIcon>
+                    <ListItemText primary="Cluster" />
                   </ListItemButton>
                 </ListItem>
               </>
