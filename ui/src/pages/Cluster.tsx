@@ -47,6 +47,25 @@ type JoinedRow = ClusterMember & {
   autopilot?: AutopilotServer;
 };
 
+// CenteredCell wraps renderCell content so it vertically centers within
+// the DataGrid row. MUI's default cell rendering centers text, but
+// renderCell output is top-aligned unless the returned element provides
+// its own full-height flex container.
+const CenteredCell: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => (
+  <Box
+    sx={{
+      display: "flex",
+      alignItems: "center",
+      height: "100%",
+      width: "100%",
+    }}
+  >
+    {children}
+  </Box>
+);
+
 function formatLastContact(ms: number): string {
   if (ms < 0) return "—";
   if (ms < 1000) return `${ms} ms`;
@@ -77,7 +96,13 @@ async function copyToClipboard(
 
 const CopyableText: React.FC<{ value: string }> = ({ value }) => {
   const { showSnackbar } = useSnackbar();
-  if (!value) return <Typography variant="body2">—</Typography>;
+  if (!value) {
+    return (
+      <CenteredCell>
+        <Typography variant="body2">—</Typography>
+      </CenteredCell>
+    );
+  }
   return (
     <Box
       sx={{
@@ -86,6 +111,7 @@ const CopyableText: React.FC<{ value: string }> = ({ value }) => {
         gap: 0.5,
         minWidth: 0,
         width: "100%",
+        height: "100%",
       }}
     >
       <Typography
@@ -280,7 +306,7 @@ const ClusterPage: React.FC = () => {
       {
         field: "nodeId",
         headerName: "Node ID",
-        width: 120,
+        width: 240,
         renderCell: (p: GridRenderCellParams<JoinedRow>) => (
           <Stack
             direction="row"
@@ -303,15 +329,6 @@ const ClusterPage: React.FC = () => {
         ),
       },
       {
-        field: "raftAddress",
-        headerName: "Cluster Address",
-        flex: 1,
-        minWidth: 200,
-        renderCell: (p: GridRenderCellParams<JoinedRow>) => (
-          <CopyableText value={p.row.raftAddress} />
-        ),
-      },
-      {
         field: "apiAddress",
         headerName: "API Address",
         flex: 1,
@@ -325,12 +342,14 @@ const ClusterPage: React.FC = () => {
         headerName: "Suffrage",
         width: 110,
         renderCell: (p: GridRenderCellParams<JoinedRow>) => (
-          <Chip
-            label={p.row.suffrage}
-            size="small"
-            color={p.row.suffrage === "voter" ? "primary" : "warning"}
-            variant={p.row.suffrage === "voter" ? "filled" : "outlined"}
-          />
+          <CenteredCell>
+            <Chip
+              label={p.row.suffrage}
+              size="small"
+              color={p.row.suffrage === "voter" ? "primary" : "warning"}
+              variant={p.row.suffrage === "voter" ? "filled" : "outlined"}
+            />
+          </CenteredCell>
         ),
       },
       {
@@ -339,15 +358,21 @@ const ClusterPage: React.FC = () => {
         width: 130,
         renderCell: (p: GridRenderCellParams<JoinedRow>) => {
           if (!p.row.binaryVersion)
-            return <Typography variant="body2">—</Typography>;
+            return (
+              <CenteredCell>
+                <Typography variant="body2">—</Typography>
+              </CenteredCell>
+            );
           const skewed = versionsDiffer;
           return (
-            <Chip
-              label={p.row.binaryVersion}
-              size="small"
-              color={skewed ? "warning" : "default"}
-              variant="outlined"
-            />
+            <CenteredCell>
+              <Chip
+                label={p.row.binaryVersion}
+                size="small"
+                color={skewed ? "warning" : "default"}
+                variant="outlined"
+              />
+            </CenteredCell>
           );
         },
       },
@@ -359,19 +384,23 @@ const ClusterPage: React.FC = () => {
           const ap = p.row.autopilot;
           if (!ap) {
             return (
-              <Tooltip title="Autopilot has not reported this node yet (e.g. during post-failover cold-start).">
-                <Chip label="—" size="small" variant="outlined" />
-              </Tooltip>
+              <CenteredCell>
+                <Tooltip title="Autopilot has not reported this node yet (e.g. during post-failover cold-start).">
+                  <Chip label="—" size="small" variant="outlined" />
+                </Tooltip>
+              </CenteredCell>
             );
           }
           return (
-            <Tooltip title={`nodeStatus=${ap.nodeStatus}`}>
-              <Chip
-                label={ap.healthy ? "healthy" : "unhealthy"}
-                size="small"
-                color={ap.healthy ? "success" : "error"}
-              />
-            </Tooltip>
+            <CenteredCell>
+              <Tooltip title={`nodeStatus=${ap.nodeStatus}`}>
+                <Chip
+                  label={ap.healthy ? "healthy" : "unhealthy"}
+                  size="small"
+                  color={ap.healthy ? "success" : "error"}
+                />
+              </Tooltip>
+            </CenteredCell>
           );
         },
       },
@@ -382,13 +411,25 @@ const ClusterPage: React.FC = () => {
         valueGetter: (_v: unknown, row: JoinedRow) =>
           row.isLeader ? -1 : (row.autopilot?.lastContactMs ?? -1),
         renderCell: (p: GridRenderCellParams<JoinedRow>) => {
-          if (p.row.isLeader) return <Typography variant="body2">—</Typography>;
+          if (p.row.isLeader)
+            return (
+              <CenteredCell>
+                <Typography variant="body2">—</Typography>
+              </CenteredCell>
+            );
           const ap = p.row.autopilot;
-          if (!ap) return <Typography variant="body2">—</Typography>;
+          if (!ap)
+            return (
+              <CenteredCell>
+                <Typography variant="body2">—</Typography>
+              </CenteredCell>
+            );
           return (
-            <Typography variant="body2">
-              {formatLastContact(ap.lastContactMs)}
-            </Typography>
+            <CenteredCell>
+              <Typography variant="body2">
+                {formatLastContact(ap.lastContactMs)}
+              </Typography>
+            </CenteredCell>
           );
         },
       },
@@ -401,23 +442,35 @@ const ClusterPage: React.FC = () => {
           return Math.max(0, leaderIndex - row.autopilot.lastIndex);
         },
         renderCell: (p: GridRenderCellParams<JoinedRow>) => {
-          if (p.row.isLeader) return <Typography variant="body2">—</Typography>;
+          if (p.row.isLeader)
+            return (
+              <CenteredCell>
+                <Typography variant="body2">—</Typography>
+              </CenteredCell>
+            );
           const ap = p.row.autopilot;
-          if (!ap) return <Typography variant="body2">—</Typography>;
+          if (!ap)
+            return (
+              <CenteredCell>
+                <Typography variant="body2">—</Typography>
+              </CenteredCell>
+            );
           const lag = Math.max(0, leaderIndex - ap.lastIndex);
           const MAX_TRAILING_LOGS = 500;
           const color = lag >= MAX_TRAILING_LOGS ? "warning" : "default";
           return (
-            <Tooltip
-              title={`Leader at index ${leaderIndex}; this peer at ${ap.lastIndex}`}
-            >
-              <Chip
-                label={`${lag}`}
-                size="small"
-                color={color}
-                variant="outlined"
-              />
-            </Tooltip>
+            <CenteredCell>
+              <Tooltip
+                title={`Leader at index ${leaderIndex}; this peer at ${ap.lastIndex}`}
+              >
+                <Chip
+                  label={`${lag}`}
+                  size="small"
+                  color={color}
+                  variant="outlined"
+                />
+              </Tooltip>
+            </CenteredCell>
           );
         },
       },
@@ -429,39 +482,68 @@ const ClusterPage: React.FC = () => {
         sortable: false,
         disableColumnMenu: true,
         getActions: (p: { row: JoinedRow }) => {
-          const items = [];
-          if (p.row.suffrage === "nonvoter") {
-            items.push(
-              <GridActionsCellItem
-                key="promote"
-                icon={<ArrowUpwardIcon color="primary" />}
-                label="Promote to Voter"
-                onClick={() => handlePromote(p.row)}
-              />,
-            );
-          }
-          if (p.row.nodeId === selfNodeId) {
-            items.push(
-              <GridActionsCellItem
-                key="drain"
-                icon={<PowerSettingsNewIcon color="warning" />}
-                label="Drain this node"
-                onClick={() => setDrainTarget(p.row)}
-              />,
-            );
-          }
-          const canRemove =
-            p.row.nodeId !== selfNodeId && p.row.nodeId !== currentLeaderNodeId;
-          items.push(
-            <GridActionsCellItem
-              key="remove"
-              icon={<DeleteIcon color={canRemove ? "primary" : "disabled"} />}
-              label="Remove from Cluster"
-              disabled={!canRemove}
-              onClick={() => setRemoveTarget(p.row)}
-            />,
-          );
-          return items;
+          const isSelf = p.row.nodeId === selfNodeId;
+          const isCurrentLeader = p.row.nodeId === currentLeaderNodeId;
+          const canDrain = isSelf;
+          const canRemove = !isSelf && !isCurrentLeader;
+          const canPromote = p.row.suffrage === "nonvoter";
+
+          const promoteTitle = canPromote
+            ? "Promote this non-voter to a full voting member."
+            : "Already a voter.";
+
+          const drainTitle = canDrain
+            ? "Drain this node: transfer leadership, notify RANs, stop BGP."
+            : "Drain only acts on the node you are currently connected to. Open the UI from the node you want to drain.";
+
+          const removeTitle = isSelf
+            ? "Cannot remove the node you are currently connected to."
+            : isCurrentLeader
+              ? "Cannot remove the current leader. Drain it first so leadership transfers, then retry."
+              : "Remove this node from the Raft cluster.";
+
+          return [
+            <Tooltip key="promote" title={promoteTitle}>
+              <span>
+                <GridActionsCellItem
+                  icon={
+                    <ArrowUpwardIcon
+                      color={canPromote ? "primary" : "disabled"}
+                    />
+                  }
+                  label="Promote to Voter"
+                  disabled={!canPromote}
+                  onClick={() => handlePromote(p.row)}
+                />
+              </span>
+            </Tooltip>,
+            <Tooltip key="drain" title={drainTitle}>
+              <span>
+                <GridActionsCellItem
+                  icon={
+                    <PowerSettingsNewIcon
+                      color={canDrain ? "warning" : "disabled"}
+                    />
+                  }
+                  label="Drain this node"
+                  disabled={!canDrain}
+                  onClick={() => setDrainTarget(p.row)}
+                />
+              </span>
+            </Tooltip>,
+            <Tooltip key="remove" title={removeTitle}>
+              <span>
+                <GridActionsCellItem
+                  icon={
+                    <DeleteIcon color={canRemove ? "primary" : "disabled"} />
+                  }
+                  label="Remove from Cluster"
+                  disabled={!canRemove}
+                  onClick={() => setRemoveTarget(p.row)}
+                />
+              </span>
+            </Tooltip>,
+          ];
         },
       } as GridColDef<JoinedRow>,
     ],
