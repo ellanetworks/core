@@ -351,14 +351,14 @@ func postClusterInternal(ctx context.Context, ln *listener.Listener, targetRaftA
 
 	url := fmt.Sprintf("https://%s%s", targetRaftAddr, path)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(nil)) // #nosec G107 -- built from Raft-replicated raft address, not user input
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(nil)) // #nosec G107,G704 -- built from Raft-replicated raft address, not user input
 	if err != nil {
 		return fmt.Errorf("new request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := client.Do(req)
+	resp, err := client.Do(req) // #nosec G704 -- URL built from Raft-replicated raft address, not user input
 	if err != nil {
 		return fmt.Errorf("post to %s: %w", targetRaftAddr, err)
 	}
