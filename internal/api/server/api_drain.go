@@ -168,6 +168,10 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, bgpServic
 
 			state = db.DrainStateDrained
 		} else {
+			// #nosec G118 -- the deadline watcher must outlive r.Context(),
+			// which is cancelled as soon as this handler returns; the
+			// goroutine polls for up to deadlineSeconds and then finalises
+			// drain_state, so it deliberately uses a detached context.
 			go watchDrainDeadline(context.Background(), dbInstance, nodeID, time.Duration(req.DeadlineSeconds)*time.Second)
 		}
 
