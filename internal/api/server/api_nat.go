@@ -65,19 +65,12 @@ func UpdateNATInfo(dbInstance *db.Database, upf UPFUpdater, bgpService *bgp.BGPS
 			return
 		}
 
-		// NAT enabled → suppress BGP route advertising; NAT disabled → resume advertising.
+		// NAT enabled → suppress BGP route advertising; NAT disabled → resume.
+		// When re-enabling advertising, the BGP reconciler's next tick
+		// rebuilds the RIB from the replicated lease table — no allocated-
+		// IP list is needed here.
 		if bgpService != nil {
-			if !params.Enabled {
-				allocatedIPs, err := activeLeaseIPMappings(r.Context(), dbInstance)
-				if err != nil {
-					writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list allocated IPs for BGP", err, logger.APILog)
-					return
-				}
-
-				bgpService.SetAdvertising(true, allocatedIPs)
-			} else {
-				bgpService.SetAdvertising(false, nil)
-			}
+			bgpService.SetAdvertising(!params.Enabled)
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "NAT settings updated successfully"}, http.StatusOK, logger.APILog)
