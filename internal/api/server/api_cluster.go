@@ -9,6 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 const (
@@ -260,6 +261,17 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 		if err := dbInstance.DeleteClusterMember(r.Context(), nodeID); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to remove cluster member record", err, logger.APILog)
 			return
+		}
+
+		// Purge the removed node's dynamic IP leases so the addresses
+		// they occupy are returned to the cluster-wide pool. Static
+		// leases are preserved by the underlying DELETE (it filters
+		// by type='dynamic'). Failure here is logged but non-fatal:
+		// the membership change has already succeeded and an operator
+		// can re-run cleanup later via a direct DB operation if needed.
+		if err := dbInstance.DeleteDynamicLeasesByNode(r.Context(), nodeID); err != nil {
+			logger.APILog.Warn("Failed to purge dynamic IP leases for removed cluster member; leases will linger until manually cleaned",
+				zap.Int("nodeId", nodeID), zap.Error(err))
 		}
 
 		actor := getActorFromContext(r)

@@ -286,8 +286,9 @@ func (db *Database) DeleteAllDynamicLeases(ctx context.Context) error {
 	return nil
 }
 
-// DeleteDynamicLeasesByNode removes dynamic leases owned by a specific node.
-// In HA mode this scopes startup cleanup to this instance's leases only.
+// DeleteDynamicLeasesByNode removes dynamic leases tagged with the
+// given nodeID. Static leases are preserved: an admin-pinned IP stays
+// bound to its IMSI regardless of which node previously served it.
 func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID int) error {
 	_, span := tracer.Start(
 		ctx,

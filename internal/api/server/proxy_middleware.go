@@ -84,6 +84,33 @@ func isLocalOnlyWrite(r *http.Request) bool {
 	return ok
 }
 
+// isSelfRemoval reports whether r is a `DELETE /api/v1/cluster/members/{n}`
+// where n matches the node id evaluating the request. Used to reject
+// the request before proxying so an operator cannot delete the cluster
+// member for the node they are currently connected to.
+func isSelfRemoval(r *http.Request, localNodeID int) bool {
+	if r.Method != http.MethodDelete {
+		return false
+	}
+
+	const prefix = "/api/v1/cluster/members/"
+	if !strings.HasPrefix(r.URL.Path, prefix) {
+		return false
+	}
+
+	rest := r.URL.Path[len(prefix):]
+	if rest == "" || strings.ContainsRune(rest, '/') {
+		return false
+	}
+
+	id, err := strconv.Atoi(rest)
+	if err != nil {
+		return false
+	}
+
+	return id == localNodeID
+}
+
 // LeaderProxyMiddleware forwards write requests to the Raft leader when this
 // node is a follower. Read requests are served locally. The middleware runs
 // before authentication so the leader handles auth for proxied writes.
@@ -102,6 +129,14 @@ func LeaderProxyMiddleware(dbInstance *db.Database, ln *listener.Listener, next 
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isSelfRemoval(r, dbInstance.NodeID()) {
+			writeError(r.Context(), w, http.StatusConflict,
+				"Cannot remove the node you are currently connected to; issue the request against another node",
+				nil, logger.APILog)
+
+			return
+		}
+
 		if isLocalOnlyWrite(r) {
 			next.ServeHTTP(w, r)
 			return

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/netip"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -401,6 +402,134 @@ func TestRemoveClusterMember_RefusesLeader(t *testing.T) {
 
 	if !strings.Contains(strings.ToLower(msg), "leader") {
 		t.Errorf("expected body to mention leader, got %q", msg)
+	}
+}
+
+// TestRemoveClusterMember_PurgesDynamicLeases verifies that removing a
+// cluster member also purges the dynamic IP leases owned by that node.
+// Without this, the removed node's addresses would remain marked "in
+// use" in the replicated lease table forever, slowly draining the pool.
+// Static leases (admin-pinned) must be preserved.
+func TestRemoveClusterMember_PurgesDynamicLeases(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't initialize: %s", err)
+	}
+
+	ctx := context.Background()
+
+	// Look up the default data network's pool + default profile so we
+	// have valid foreign-key targets for the seeded subscribers and
+	// leases.
+	dn, err := env.DB.GetDataNetwork(ctx, db.InitialDataNetworkName)
+	if err != nil {
+		t.Fatalf("get default data network: %s", err)
+	}
+
+	profile, err := env.DB.GetProfile(ctx, db.InitialProfileName)
+	if err != nil {
+		t.Fatalf("get default profile: %s", err)
+	}
+
+	const removedNodeID = 42
+
+	// Seed a cluster_members row for the node we're about to remove.
+	// Using a distinct IP so the leader-removal guard doesn't fire.
+	if err := env.DB.UpsertClusterMember(ctx, &db.ClusterMember{
+		NodeID:        removedNodeID,
+		RaftAddress:   "10.0.0.42:7000",
+		APIAddress:    "http://10.0.0.42:5000",
+		BinaryVersion: "test",
+		Suffrage:      "voter",
+	}); err != nil {
+		t.Fatalf("upsert cluster member: %s", err)
+	}
+
+	// Seed two dynamic leases owned by the node being removed (these
+	// must be purged) and one static lease (which must survive).
+	// Leases reference subscribers via a FK on IMSI, so the subscriber
+	// rows are created first.
+	seedLease := func(addr string, imsi string, leaseType string) {
+		t.Helper()
+
+		if err := env.DB.CreateSubscriber(ctx, &db.Subscriber{
+			Imsi:           imsi,
+			SequenceNumber: "000000000001",
+			PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
+			Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
+			ProfileID:      profile.ID,
+		}); err != nil {
+			t.Fatalf("create subscriber %s: %s", imsi, err)
+		}
+
+		parsed, parseErr := netip.ParseAddr(addr)
+		if parseErr != nil {
+			t.Fatalf("parse %s: %s", addr, parseErr)
+		}
+
+		sessionID := 1
+
+		if err := env.DB.CreateLease(ctx, &db.IPLease{
+			PoolID:    dn.ID,
+			IMSI:      imsi,
+			SessionID: &sessionID,
+			Type:      leaseType,
+			CreatedAt: 1,
+			NodeID:    removedNodeID,
+		}, parsed); err != nil {
+			t.Fatalf("create lease %s: %s", addr, err)
+		}
+	}
+
+	seedLease("10.45.0.10", "001010000000001", "dynamic")
+	seedLease("10.45.0.11", "001010000000002", "dynamic")
+	seedLease("10.45.0.12", "001010000000003", "static")
+
+	// Call DELETE /api/v1/cluster/members/42.
+	status, msg, err := removeClusterMember(env.Server.URL, client, token, removedNodeID)
+	if err != nil {
+		t.Fatalf("request failed: %s", err)
+	}
+
+	if status != http.StatusOK {
+		t.Fatalf("expected 200 on remove, got %d (body: %s)", status, msg)
+	}
+
+	// Dynamic leases for node 42 must be gone; the static lease must
+	// still be present.
+	leases, err := env.DB.ListActiveLeasesByNode(ctx, removedNodeID)
+	if err != nil {
+		t.Fatalf("list leases: %s", err)
+	}
+
+	var dyn, stat int
+
+	for _, l := range leases {
+		switch l.Type {
+		case "dynamic":
+			dyn++
+		case "static":
+			stat++
+		}
+	}
+
+	if dyn != 0 {
+		t.Errorf("expected 0 dynamic leases after remove, got %d", dyn)
+	}
+
+	if stat != 1 {
+		t.Errorf("expected 1 surviving static lease, got %d", stat)
 	}
 }
 

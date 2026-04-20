@@ -27,4 +27,4 @@ Ella Core receives routes from BGP peers and installs them into the kernel routi
 
 ### In an HA cluster
 
-Each node runs its own BGP speaker. A `/32` is advertised only from the node currently hosting the PDU session, with that node's N6 as next-hop. In a multi-node cluster this means upstream peers see different UEs' `/32`s arriving from different next-hops — each node advertises only the subset of sessions it hosts, and those subsets are disjoint. When a UE re-registers on a different node after failover, the new node's speaker begins advertising the same `/32` from its own N6. See [High Availability](high_availability.md) for the broader cluster model.
+Each node runs its own BGP speaker and advertises `/32` subnets for the sessions it currently hosts.See [High Availability](high_availability.md) for the broader cluster model.

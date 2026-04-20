@@ -193,6 +193,34 @@ func TestProxyToLeaderCluster_PassesNon410Through(t *testing.T) {
 	}
 }
 
+func TestIsSelfRemoval(t *testing.T) {
+	tests := []struct {
+		name        string
+		method      string
+		path        string
+		localNodeID int
+		want        bool
+	}{
+		{"self DELETE", http.MethodDelete, "/api/v1/cluster/members/3", 3, true},
+		{"other DELETE", http.MethodDelete, "/api/v1/cluster/members/3", 1, false},
+		{"self GET is not a write", http.MethodGet, "/api/v1/cluster/members/3", 3, false},
+		{"self POST promote is not a remove", http.MethodPost, "/api/v1/cluster/members/3/promote", 3, false},
+		{"self DELETE with trailing slash is not matched", http.MethodDelete, "/api/v1/cluster/members/3/", 3, false},
+		{"unrelated DELETE", http.MethodDelete, "/api/v1/subscribers/001010", 3, false},
+		{"members list DELETE (no id)", http.MethodDelete, "/api/v1/cluster/members/", 3, false},
+		{"non-numeric id", http.MethodDelete, "/api/v1/cluster/members/abc", 3, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(context.Background(), tt.method, tt.path, nil)
+			if got := isSelfRemoval(req, tt.localNodeID); got != tt.want {
+				t.Errorf("isSelfRemoval(%s %s, local=%d) = %v, want %v", tt.method, tt.path, tt.localNodeID, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestIsLocalOnlyWrite(t *testing.T) {
 	tests := []struct {
 		name   string
