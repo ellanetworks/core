@@ -66,7 +66,10 @@ func (p *pkiState) BundleFunc() func() *ellapki.TrustBundle {
 }
 
 // RefreshBundle reads the current bundle from the DB and stores it in
-// the cache. Safe to call concurrently.
+// the cache. Safe to call concurrently. If CurrentBundle returns an
+// error (including the "no active roots yet" race during bootstrap),
+// the previous cache entry is left intact so an earlier disk-seeded
+// bundle is not overwritten with an empty one.
 func (p *pkiState) RefreshBundle(ctx context.Context) error {
 	p.bundleRefreshMu.Lock()
 	defer p.bundleRefreshMu.Unlock()
@@ -80,9 +83,50 @@ func (p *pkiState) RefreshBundle(ctx context.Context) error {
 		return err
 	}
 
+	prev := p.bundleCached.Load()
 	p.bundleCached.Store(b)
 
+	// One-shot breadcrumb when the DB-backed bundle first becomes
+	// usable on this node. Helps diagnose mTLS-handshake failures on
+	// followers that raced the leader's PKI bootstrap: if this line
+	// is missing from a node's logs but the node is serving cluster
+	// traffic, the listener is running on a seed-only bundle.
+	if prev == nil || len(prev.Roots) == 0 {
+		logger.EllaLog.Info("cluster PKI trust bundle populated from DB",
+			zap.Int("roots", len(b.Roots)),
+			zap.Int("intermediates", len(b.Intermediates)))
+	}
+
 	return nil
+}
+
+// refreshFollowerBundleWithRetry polls RefreshBundle until it populates
+// (or errors other than the bootstrap race) or the timeout elapses.
+// Handles the window where a joiner's WaitForInitialization returns as
+// soon as the operator row replicates but before the pki_roots rows do.
+func refreshFollowerBundleWithRetry(ctx context.Context, pki *pkiState, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+
+	const interval = 200 * time.Millisecond
+
+	var lastErr error
+
+	for {
+		lastErr = pki.RefreshBundle(ctx)
+		if lastErr == nil {
+			return nil
+		}
+
+		if time.Now().After(deadline) {
+			return lastErr
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(interval):
+		}
+	}
 }
 
 // SeedBundleFromAgentDisk parses the bundle PEM the agent wrote during
