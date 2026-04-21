@@ -2901,6 +2901,56 @@ paths:
         "502":
           description: Target node unreachable (proxy failure).
 
+  /api/v1/cluster/pki/join-tokens:
+    post:
+      operationId: mintClusterJoinToken
+      tags: [Cluster]
+      summary: Mint a cluster join token
+      description: >-
+        Mints a single-use HMAC-signed token authorising `nodeID` to
+        request its first cluster leaf. The joining node puts the
+        token in its `cluster.join-token` config field before starting
+        the daemon; the root CA fingerprint is embedded in the token.
+        Requires admin privileges.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MintJoinTokenRequest"
+      responses:
+        "201":
+          description: Token minted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MintJoinTokenResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          description: PKI issuer not yet available (pre-bootstrap).
+
+  /api/v1/cluster/pki/state:
+    get:
+      operationId: getClusterPKIState
+      tags: [Cluster]
+      summary: Get cluster PKI state
+      description: >-
+        Returns the cluster's trust bundle summary: roots,
+        intermediates, and revoked-serial counts. Requires admin
+        privileges.
+      responses:
+        "200":
+          description: Cluster PKI state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PKIStateResponseEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
 components:
   securitySchemes:
     BearerAuth:
@@ -5251,3 +5301,76 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/ResumeResponse"
+
+    MintJoinTokenRequest:
+      type: object
+      properties:
+        nodeID:
+          type: integer
+          minimum: 1
+          maximum: 63
+          description: Node-id the token authorises.
+        ttlSeconds:
+          type: integer
+          description: Token lifetime in seconds. Defaults to 1800.
+      required: [nodeID]
+
+    MintJoinTokenResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: >-
+            Opaque HMAC-signed token. Carries the cluster root
+            fingerprint embedded in its claims; the joining node
+            extracts it to pin the TLS handshake.
+        expiresAt:
+          type: integer
+          format: int64
+          description: Unix seconds at which the token expires.
+      required: [token, expiresAt]
+
+    MintJoinTokenResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/MintJoinTokenResponse"
+
+    PKICertSummary:
+      type: object
+      properties:
+        fingerprint:
+          type: string
+        status:
+          type: string
+          enum: [active, verify-only, retired]
+        notAfter:
+          type: integer
+          format: int64
+          description: Unix seconds. Omitted for roots.
+        hasCrossSigned:
+          type: boolean
+      required: [fingerprint, status, hasCrossSigned]
+
+    PKIStateResponse:
+      type: object
+      properties:
+        clusterID:
+          type: string
+        roots:
+          type: array
+          items:
+            $ref: "#/components/schemas/PKICertSummary"
+        intermediates:
+          type: array
+          items:
+            $ref: "#/components/schemas/PKICertSummary"
+        revokedSerialCount:
+          type: integer
+      required: [clusterID, revokedSerialCount]
+
+    PKIStateResponseEnvelope:
+      type: object
+      properties:
+        result:
+          $ref: "#/components/schemas/PKIStateResponse"

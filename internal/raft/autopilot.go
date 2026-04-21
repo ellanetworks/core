@@ -32,7 +32,10 @@ type autopilotDelegate struct {
 }
 
 func (d *autopilotDelegate) AutopilotConfig() *autopilot.Config {
-	minQuorum := uint((d.manager.config.BootstrapExpect + 1) / 2)
+	// Derive the floor on cluster size from the configured peers list
+	// (ceil(N/2)). Autopilot refuses to auto-remove dead servers below
+	// this count, protecting against quorum loss from over-eager cleanup.
+	minQuorum := uint((len(d.manager.config.Peers) + 1) / 2)
 	if minQuorum < 1 {
 		minQuorum = 1
 	}

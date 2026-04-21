@@ -5,6 +5,7 @@ package raft
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"testing"
 	"time"
 
@@ -23,8 +24,11 @@ func newTestStreamLayer(t *testing.T, pki *testutil.PKI, nodeID int) (*raftStrea
 		BindAddress:      addr,
 		AdvertiseAddress: addr,
 		NodeID:           nodeID,
-		CAPool:           pki.CAPool,
-		LeafCert:         pki.Nodes[nodeID].TLSCert,
+		TrustBundle:      pki.BundleFunc(),
+
+		Leaf: pki.LeafFunc(nodeID),
+
+		Revoked: func(*big.Int) bool { return false },
 	})
 
 	sl, err := newRaftStreamLayer(ln, addr)

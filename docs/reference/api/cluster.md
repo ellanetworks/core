@@ -288,3 +288,52 @@ Idempotent: resuming an already-active node is a no-op.
     }
 }
 ```
+
+## Mint Join Token
+
+Mints a single-use HMAC token authorising `nodeID` to request its
+first cluster leaf. Requires admin privileges.
+
+| Method | Path                               |
+| ------ | ---------------------------------- |
+| POST   | `/api/v1/cluster/pki/join-tokens`  |
+
+Request:
+
+```json
+{ "nodeID": 2, "ttlSeconds": 1800 }
+```
+
+- `nodeID` (int, required): Node-id of the joining host.
+- `ttlSeconds` (int, optional): Token lifetime; defaults to 1800.
+
+Response:
+
+```json
+{
+    "result": {
+        "token": "AQAAAPx...",
+        "expiresAt": 1714233600
+    }
+}
+```
+
+Put `token` in the joining host's `cluster.join-token` config field
+before starting the daemon. The cluster root fingerprint is embedded
+in the token.
+
+## Get PKI State
+
+Returns the current cluster PKI state. Requires admin privileges.
+
+| Method | Path                         |
+| ------ | ---------------------------- |
+| GET    | `/api/v1/cluster/pki/state`  |
+
+Response fields:
+
+- `clusterID` (string): Cluster UUID embedded in every leaf's URI SAN.
+- `roots` (array): Trusted root CAs. Each entry has `fingerprint`,
+  `status` (`active` / `verify-only` / `retired`), and `hasCrossSigned`.
+- `intermediates` (array): Same shape as `roots`, plus `notAfter`.
+- `revokedSerialCount` (int): Leaf serials currently revoked.

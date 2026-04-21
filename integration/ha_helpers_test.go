@@ -3,6 +3,9 @@ package integration_test
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/ellanetworks/core/client"
@@ -16,6 +19,172 @@ var haNodeURLs = []string{
 	"http://10.100.0.11:5002",
 	"http://10.100.0.12:5002",
 	"http://10.100.0.13:5002",
+}
+
+// bringUpHACluster stages a 3-node HA cluster from scratch against the
+// default haComposeDir.
+func bringUpHACluster(ctx context.Context, dc *DockerClient) ([]*client.Client, error) {
+	return bringUpHAClusterAt(ctx, dc, haComposeDir, haNodeServices, nil)
+}
+
+// bringUpHAClusterAt brings up a 3-node HA cluster against composeDir.
+// The compose file is expected to bind-mount `./cfg/node<n>/core.yaml`
+// into each service as /cfg/core.yaml. This helper writes those files.
+// extraPeers lets callers with a larger peers list (scaleup) include
+// more addresses than the starting set of services.
+func bringUpHAClusterAt(ctx context.Context, dc *DockerClient, composeDir string, services []string, extraPeers []string) ([]*client.Client, error) {
+	peers := []string{"10.100.0.11:7000", "10.100.0.12:7000", "10.100.0.13:7000"}
+	peers = append(peers, extraPeers...)
+
+	// Write node 1's config (no join-token, default voter suffrage).
+	if err := writeNodeConfig(composeDir, 1, peers, "", ""); err != nil {
+		return nil, err
+	}
+
+	if err := dc.ComposeStart(ctx, composeDir, services[0]); err != nil {
+		// Service may not exist yet — create and start.
+		if err2 := dc.ComposeUpServices(ctx, composeDir, services[0]); err2 != nil {
+			return nil, fmt.Errorf("start node 1: %w (create: %v)", err, err2)
+		}
+	}
+
+	node1, err := newInsecureClient(haNodeURLs[0])
+	if err != nil {
+		return nil, err
+	}
+
+	if err := waitForNodeReady(ctx, node1); err != nil {
+		return nil, fmt.Errorf("node 1 never became ready: %w", err)
+	}
+
+	adminToken, err := initializeAndGetAdminToken(ctx, node1)
+	if err != nil {
+		return nil, err
+	}
+
+	node1.SetToken(adminToken)
+
+	// For each additional node: mint token, write config, start.
+	for i := 1; i < len(services); i++ {
+		nodeID := i + 1
+
+		if err := stageAndStartJoiner(ctx, dc, node1, composeDir, services[i], nodeID, peers, ""); err != nil {
+			return nil, err
+		}
+	}
+
+	clients, err := newHANodeClients()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, c := range clients {
+		c.SetToken(adminToken)
+	}
+
+	if err := waitForClusterReady(ctx, clients); err != nil {
+		return nil, fmt.Errorf("cluster not ready: %w", err)
+	}
+
+	return clients, nil
+}
+
+// initializeAndGetAdminToken creates the first admin user on the leader
+// and mints a long-lived API token for driving the test.
+func initializeAndGetAdminToken(ctx context.Context, leader *client.Client) (string, error) {
+	if err := leader.Initialize(ctx, &client.InitializeOptions{
+		Email:    "admin@ellanetworks.com",
+		Password: "admin",
+	}); err != nil {
+		return "", fmt.Errorf("initialize: %w", err)
+	}
+
+	resp, err := leader.CreateMyAPIToken(ctx, &client.CreateAPITokenOptions{
+		Name:   "ha-integration-test",
+		Expiry: "",
+	})
+	if err != nil {
+		return "", fmt.Errorf("create API token: %w", err)
+	}
+
+	return resp.Token, nil
+}
+
+// stageAndStartJoiner mints a join token for nodeID, writes the node's
+// core.yaml with the token embedded, and brings the service up. Pass an
+// empty initialSuffrage to accept the daemon default ("voter").
+func stageAndStartJoiner(ctx context.Context, dc *DockerClient, leader *client.Client, composeDir, service string, nodeID int, peers []string, initialSuffrage string) error {
+	tok, err := leader.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{
+		NodeID:     nodeID,
+		TTLSeconds: 600,
+	})
+	if err != nil {
+		return fmt.Errorf("mint join token for node %d: %w", nodeID, err)
+	}
+
+	if err := writeNodeConfig(composeDir, nodeID, peers, tok.Token, initialSuffrage); err != nil {
+		return err
+	}
+
+	return dc.ComposeUpServices(ctx, composeDir, service)
+}
+
+// writeNodeConfig renders the node's core.yaml into the compose dir's
+// bind-mount path (./cfg/node<n>/core.yaml). Pass an empty
+// initialSuffrage to omit the cluster.initial-suffrage field.
+func writeNodeConfig(composeDir string, nodeID int, peers []string, joinToken, initialSuffrage string) error {
+	cfgDir := filepath.Join(composeDir, "cfg", fmt.Sprintf("node%d", nodeID))
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		return fmt.Errorf("mkdir %s: %w", cfgDir, err)
+	}
+
+	addr := fmt.Sprintf("10.100.0.%d", 10+nodeID)
+
+	var peersYAML strings.Builder
+
+	for _, p := range peers {
+		fmt.Fprintf(&peersYAML, "      - %q\n", p)
+	}
+
+	joinTokenLine := ""
+	if joinToken != "" {
+		joinTokenLine = fmt.Sprintf("  join-token: %q\n", joinToken)
+	}
+
+	suffrageLine := ""
+	if initialSuffrage != "" {
+		suffrageLine = fmt.Sprintf("  initial-suffrage: %q\n", initialSuffrage)
+	}
+
+	body := fmt.Sprintf(`logging:
+  system:
+    level: "debug"
+    output: "stdout"
+  audit:
+    output: "stdout"
+db:
+  path: "/data/ella.db"
+interfaces:
+  n2:
+    address: %q
+    port: 38412
+  n3:
+    address: %q
+  n6:
+    name: "eth0"
+  api:
+    address: %q
+    port: 5002
+xdp:
+  attach-mode: "generic"
+cluster:
+  enabled: true
+  node-id: %d
+  bind-address: "%s:7000"
+  peers:
+%s%s%s`, addr, addr, addr, nodeID, addr, peersYAML.String(), joinTokenLine, suffrageLine)
+
+	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }
 
 func newInsecureClient(baseURL string) (*client.Client, error) {
@@ -136,32 +305,6 @@ func waitForNodeReady(ctx context.Context, c *client.Client) error {
 	}
 
 	return fmt.Errorf("node not ready after %v", timeout)
-}
-
-// initializeCluster creates the admin user and API token on the leader,
-// then sets the token on all clients.
-func initializeCluster(ctx context.Context, leader *client.Client, allClients []*client.Client) error {
-	err := leader.Initialize(ctx, &client.InitializeOptions{
-		Email:    "admin@ellanetworks.com",
-		Password: "admin",
-	})
-	if err != nil {
-		return fmt.Errorf("initialize: %w", err)
-	}
-
-	resp, err := leader.CreateMyAPIToken(ctx, &client.CreateAPITokenOptions{
-		Name:   "ha-integration-test",
-		Expiry: "",
-	})
-	if err != nil {
-		return fmt.Errorf("create API token: %w", err)
-	}
-
-	for _, c := range allClients {
-		c.SetToken(resp.Token)
-	}
-
-	return nil
 }
 
 // waitForAllNodesReady polls GetStatus on every node until all report Ready.

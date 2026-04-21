@@ -17,7 +17,21 @@ import (
 )
 
 // BackupManifestVersion is the on-disk version of the backup tar.gz format.
-const BackupManifestVersion = 1
+// v2 adds the optional cluster-tls/root.key and cluster-tls/intermediate.key
+// entries needed for disaster-recovery of a PKI-destroyed cluster.
+const BackupManifestVersion = 2
+
+// ClusterTLSDir is the subdirectory under <dataDir> that holds the
+// issuer's private key material. Backup and restore know this name so a
+// bundle can carry the keys across a total voter filesystem loss.
+const ClusterTLSDir = "cluster-tls"
+
+// Tar entry names for the CA private keys. Paired with ClusterTLSDir on
+// the filesystem side.
+const (
+	backupRootKeyName         = "cluster-tls/root.key"
+	backupIntermediateKeyName = "cluster-tls/intermediate.key"
+)
 
 // BackupManifest is the JSON document embedded as manifest.json inside every
 // backup tar.gz.
@@ -84,6 +98,31 @@ func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 
 	if err := writeTarFromDisk(tarWriter, dbTmp, DBFilename); err != nil {
 		return fmt.Errorf("failed to write %s: %w", DBFilename, err)
+	}
+
+	// Include the issuer's private keys when present. Their absence on
+	// a pre-PKI node is non-fatal; the bundle just can't be used for
+	// DR of a PKI-destroyed cluster in that case.
+	clusterTLS := filepath.Join(db.dataDir, ClusterTLSDir)
+
+	for _, entry := range []struct {
+		diskName, archiveName string
+	}{
+		{"root.key", backupRootKeyName},
+		{"intermediate.key", backupIntermediateKeyName},
+	} {
+		p := filepath.Join(clusterTLS, entry.diskName)
+		if _, err := os.Stat(p); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+
+			return fmt.Errorf("stat %s: %w", p, err)
+		}
+
+		if err := writeTarFromDisk(tarWriter, p, entry.archiveName); err != nil {
+			return fmt.Errorf("failed to write %s: %w", entry.archiveName, err)
+		}
 	}
 
 	if err := tarWriter.Close(); err != nil {

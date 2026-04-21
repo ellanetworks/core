@@ -199,6 +199,10 @@ func (db *Database) proposeChangeset(applyFn func(context.Context) (any, error),
 			return nil, ErrNotFound
 		}
 
+		if errors.Is(err, ErrJoinTokenAlreadyConsumed) {
+			return nil, ErrJoinTokenAlreadyConsumed
+		}
+
 		return nil, fmt.Errorf("capture changeset for %s: %w", operation, err)
 	}
 

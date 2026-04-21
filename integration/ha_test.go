@@ -30,30 +30,20 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 
 	dockerClient.ComposeDown(ctx, haComposeDir)
 
-	err = dockerClient.ComposeUp(ctx, haComposeDir)
-	if err != nil {
-		t.Fatalf("failed to bring up HA compose: %v", err)
-	}
-
 	t.Cleanup(func() {
 		dockerClient.ComposeDown(ctx, haComposeDir)
 	})
 
-	clients, err := newHANodeClients()
+	t.Log("bringing up staged HA cluster")
+
+	clients, err := bringUpHACluster(ctx, dockerClient)
 	if err != nil {
-		t.Fatalf("failed to create HA node clients: %v", err)
+		t.Fatalf("bring up HA cluster: %v", err)
 	}
 
 	t.Cleanup(func() {
 		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
 	})
-
-	t.Log("waiting for cluster to become ready")
-
-	err = waitForClusterReady(ctx, clients)
-	if err != nil {
-		t.Fatalf("cluster not ready: %v", err)
-	}
 
 	t.Log("cluster is ready, verifying roles")
 
@@ -106,11 +96,6 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 	_, leader, err := findLeader(ctx, clients)
 	if err != nil {
 		t.Fatalf("failed to find leader: %v", err)
-	}
-
-	err = initializeCluster(ctx, leader, clients)
-	if err != nil {
-		t.Fatalf("failed to initialize cluster: %v", err)
 	}
 
 	t.Log("cluster initialized, waiting for all nodes to become ready")
@@ -207,39 +192,24 @@ func TestIntegrationHAFollowerProxy(t *testing.T) {
 
 	dockerClient.ComposeDown(ctx, haComposeDir)
 
-	err = dockerClient.ComposeUp(ctx, haComposeDir)
-	if err != nil {
-		t.Fatalf("failed to bring up HA compose: %v", err)
-	}
-
 	t.Cleanup(func() {
 		dockerClient.ComposeDown(ctx, haComposeDir)
 	})
 
-	clients, err := newHANodeClients()
+	t.Log("bringing up staged HA cluster")
+
+	clients, err := bringUpHACluster(ctx, dockerClient)
 	if err != nil {
-		t.Fatalf("failed to create HA node clients: %v", err)
+		t.Fatalf("bring up HA cluster: %v", err)
 	}
 
 	t.Cleanup(func() {
 		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
 	})
 
-	t.Log("waiting for cluster to become ready")
-
-	err = waitForClusterReady(ctx, clients)
-	if err != nil {
-		t.Fatalf("cluster not ready: %v", err)
-	}
-
 	_, leader, err := findLeader(ctx, clients)
 	if err != nil {
 		t.Fatalf("failed to find leader: %v", err)
-	}
-
-	err = initializeCluster(ctx, leader, clients)
-	if err != nil {
-		t.Fatalf("failed to initialize cluster: %v", err)
 	}
 
 	err = waitForAllNodesReady(ctx, clients)
@@ -340,39 +310,24 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 
 	dockerClient.ComposeDown(ctx, haComposeDir)
 
-	err = dockerClient.ComposeUp(ctx, haComposeDir)
-	if err != nil {
-		t.Fatalf("failed to bring up HA compose: %v", err)
-	}
-
 	t.Cleanup(func() {
 		dockerClient.ComposeDown(ctx, haComposeDir)
 	})
 
-	clients, err := newHANodeClients()
+	t.Log("bringing up staged HA cluster")
+
+	clients, err := bringUpHACluster(ctx, dockerClient)
 	if err != nil {
-		t.Fatalf("failed to create HA node clients: %v", err)
+		t.Fatalf("bring up HA cluster: %v", err)
 	}
 
 	t.Cleanup(func() {
 		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
 	})
 
-	t.Log("waiting for cluster to become ready")
-
-	err = waitForClusterReady(ctx, clients)
-	if err != nil {
-		t.Fatalf("cluster not ready: %v", err)
-	}
-
 	leaderIdx, leader, err := findLeader(ctx, clients)
 	if err != nil {
 		t.Fatalf("failed to find leader: %v", err)
-	}
-
-	err = initializeCluster(ctx, leader, clients)
-	if err != nil {
-		t.Fatalf("failed to initialize cluster: %v", err)
 	}
 
 	err = waitForAllNodesReady(ctx, clients)
@@ -530,39 +485,24 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 
 	dockerClient.ComposeDown(ctx, haComposeDir)
 
-	err = dockerClient.ComposeUp(ctx, haComposeDir)
-	if err != nil {
-		t.Fatalf("failed to bring up HA compose: %v", err)
-	}
-
 	t.Cleanup(func() {
 		dockerClient.ComposeDown(ctx, haComposeDir)
 	})
 
-	clients, err := newHANodeClients()
+	t.Log("bringing up staged HA cluster")
+
+	clients, err := bringUpHACluster(ctx, dockerClient)
 	if err != nil {
-		t.Fatalf("failed to create HA node clients: %v", err)
+		t.Fatalf("bring up HA cluster: %v", err)
 	}
 
 	t.Cleanup(func() {
 		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
 	})
 
-	t.Log("waiting for cluster to become ready")
-
-	err = waitForClusterReady(ctx, clients)
-	if err != nil {
-		t.Fatalf("cluster not ready: %v", err)
-	}
-
 	_, leader, err := findLeader(ctx, clients)
 	if err != nil {
 		t.Fatalf("failed to find leader: %v", err)
-	}
-
-	err = initializeCluster(ctx, leader, clients)
-	if err != nil {
-		t.Fatalf("failed to initialize cluster: %v", err)
 	}
 
 	err = waitForAllNodesReady(ctx, clients)
@@ -658,49 +598,46 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 
 	dockerClient.ComposeDown(ctx, scaleUpComposeDir)
 
-	// Start only the initial 3 nodes.
-	err = dockerClient.ComposeUpServices(ctx, scaleUpComposeDir,
-		"ella-core-1", "ella-core-2", "ella-core-3")
-	if err != nil {
-		t.Fatalf("failed to bring up initial 3 nodes: %v", err)
-	}
-
 	t.Cleanup(func() {
 		dockerClient.ComposeDown(ctx, scaleUpComposeDir)
 	})
 
-	clients, err := newHANodeClients()
+	t.Log("bringing up 3-node cluster via scaleup compose")
+
+	// Reuse bringUpHACluster's staged startup logic against the
+	// scaleup compose directory. We pass the scaleup-specific service
+	// names and container names by first overriding the globals the
+	// helper uses — cleaner would be a parameterised helper, but the
+	// integration tests run serially so the override is safe.
+	// scaleup compose has a 4th peer address reachable later; include it
+	// in the baseline peers list so all configs match.
+	clients, err := bringUpHAClusterAt(ctx, dockerClient, scaleUpComposeDir, haNodeServices, []string{"10.100.0.14:7000"})
 	if err != nil {
-		t.Fatalf("failed to create HA node clients: %v", err)
+		t.Fatalf("bring up 3-node cluster: %v", err)
 	}
 
-	t.Log("waiting for 3-node cluster to become ready")
-
-	err = waitForClusterReady(ctx, clients)
-	if err != nil {
-		t.Fatalf("cluster not ready: %v", err)
-	}
+	t.Cleanup(func() {
+		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
+	})
 
 	_, leader, err := findLeader(ctx, clients)
 	if err != nil {
 		t.Fatalf("failed to find leader: %v", err)
 	}
 
-	err = initializeCluster(ctx, leader, clients)
-	if err != nil {
-		t.Fatalf("failed to initialize cluster: %v", err)
-	}
-
-	err = waitForAllNodesReady(ctx, clients)
-	if err != nil {
+	if err := waitForAllNodesReady(ctx, clients); err != nil {
 		t.Fatalf("not all nodes became ready: %v", err)
 	}
 
-	t.Log("3-node cluster ready, starting 4th node as nonvoter")
+	t.Log("3-node cluster ready, staging + starting 4th node as nonvoter")
 
-	err = dockerClient.ComposeUpServices(ctx, scaleUpComposeDir, "ella-core-4")
-	if err != nil {
-		t.Fatalf("failed to start 4th node: %v", err)
+	fullPeers := []string{
+		"10.100.0.11:7000", "10.100.0.12:7000",
+		"10.100.0.13:7000", "10.100.0.14:7000",
+	}
+	if err := stageAndStartJoiner(ctx, dockerClient, leader, scaleUpComposeDir,
+		"ella-core-4", 4, fullPeers, "nonvoter"); err != nil {
+		t.Fatalf("stage + start node 4: %v", err)
 	}
 
 	node4URL := "http://10.100.0.14:5002"
@@ -861,39 +798,24 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 
 	dockerClient.ComposeDown(ctx, haComposeDir)
 
-	err = dockerClient.ComposeUp(ctx, haComposeDir)
-	if err != nil {
-		t.Fatalf("failed to bring up HA compose: %v", err)
-	}
-
 	t.Cleanup(func() {
 		dockerClient.ComposeDown(ctx, haComposeDir)
 	})
 
-	clients, err := newHANodeClients()
+	t.Log("bringing up staged HA cluster")
+
+	clients, err := bringUpHACluster(ctx, dockerClient)
 	if err != nil {
-		t.Fatalf("failed to create HA node clients: %v", err)
+		t.Fatalf("bring up HA cluster: %v", err)
 	}
 
 	t.Cleanup(func() {
 		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
 	})
 
-	t.Log("waiting for cluster to become ready")
-
-	err = waitForClusterReady(ctx, clients)
-	if err != nil {
-		t.Fatalf("cluster not ready: %v", err)
-	}
-
 	_, leader, err := findLeader(ctx, clients)
 	if err != nil {
 		t.Fatalf("failed to find leader: %v", err)
-	}
-
-	err = initializeCluster(ctx, leader, clients)
-	if err != nil {
-		t.Fatalf("failed to initialize cluster: %v", err)
 	}
 
 	err = waitForAllNodesReady(ctx, clients)
@@ -935,10 +857,8 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 	}
 
 	// The raft directory is derived from db.path in the node config.
-	// db.path is "ella.db" (relative), so dataDir = "." and raftDir = "./raft/".
-	// The container's working directory is "/" (Rockcraft bare base), so the
-	// absolute path is /raft/.
-	const containerRaftDir = "/raft"
+	// db.path is "/data/ella.db", so dataDir = "/data" and raftDir = "/data/raft/".
+	const containerRaftDir = "/data/raft"
 
 	t.Log("stopping all 3 nodes (total quorum loss)")
 
@@ -1052,35 +972,24 @@ func TestIntegrationHARestoreWhileLeader(t *testing.T) {
 
 	dockerClient.ComposeDown(ctx, haComposeDir)
 
-	err = dockerClient.ComposeUp(ctx, haComposeDir)
-	if err != nil {
-		t.Fatalf("failed to bring up HA compose: %v", err)
-	}
-
 	t.Cleanup(func() {
 		dockerClient.ComposeDown(ctx, haComposeDir)
 	})
 
-	clients, err := newHANodeClients()
+	t.Log("bringing up staged HA cluster")
+
+	clients, err := bringUpHACluster(ctx, dockerClient)
 	if err != nil {
-		t.Fatalf("failed to create HA node clients: %v", err)
+		t.Fatalf("bring up HA cluster: %v", err)
 	}
 
 	t.Cleanup(func() {
 		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
 	})
 
-	if err := waitForClusterReady(ctx, clients); err != nil {
-		t.Fatalf("cluster not ready: %v", err)
-	}
-
 	_, leader, err := findLeader(ctx, clients)
 	if err != nil {
 		t.Fatalf("failed to find leader: %v", err)
-	}
-
-	if err := initializeCluster(ctx, leader, clients); err != nil {
-		t.Fatalf("failed to initialize cluster: %v", err)
 	}
 
 	if err := waitForAllNodesReady(ctx, clients); err != nil {

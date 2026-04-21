@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"math/big"
 	"net"
 	"strings"
 	"sync"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/cluster/listener/testutil"
+	"github.com/ellanetworks/core/internal/pki"
 )
 
 // freePort returns an available TCP port on localhost.
@@ -34,18 +36,22 @@ func freePort(t *testing.T) int {
 	return port
 }
 
-func newTestListener(t *testing.T, pki *testutil.PKI, nodeID int) (*listener.Listener, string) {
+func newTestListener(t *testing.T, p *testutil.PKI, nodeID int) (*listener.Listener, string) {
 	t.Helper()
 
 	port := freePort(t)
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 
+	bundle := p.Bundle()
+	leafCert := p.Nodes[nodeID].TLSCert
+
 	ln := listener.New(listener.Config{
 		BindAddress:      addr,
 		AdvertiseAddress: addr,
 		NodeID:           nodeID,
-		CAPool:           pki.CAPool,
-		LeafCert:         pki.Nodes[nodeID].TLSCert,
+		TrustBundle:      func() *pki.TrustBundle { return bundle },
+		Leaf:             func() *tls.Certificate { return &leafCert },
+		Revoked:          func(*big.Int) bool { return false },
 	})
 
 	return ln, addr
@@ -254,12 +260,16 @@ func TestListener_WrongCA_Rejected(t *testing.T) {
 	}
 
 	// Node 2 uses pki2's CA — different from pki1.
+	bundle2 := pki2.Bundle()
+	leaf2 := pki2.Nodes[2].TLSCert
+
 	ln2 := listener.New(listener.Config{
 		BindAddress:      "127.0.0.1:0",
 		AdvertiseAddress: "127.0.0.1:0",
 		NodeID:           2,
-		CAPool:           pki2.CAPool,
-		LeafCert:         pki2.Nodes[2].TLSCert,
+		TrustBundle:      func() *pki.TrustBundle { return bundle2 },
+		Leaf:             func() *tls.Certificate { return &leaf2 },
+		Revoked:          func(*big.Int) bool { return false },
 	})
 	defer ln2.Stop()
 
@@ -287,7 +297,7 @@ func TestListener_PeerNodeID(t *testing.T) {
 		defer wg.Done()
 
 		// The accepted conn should reveal node 2's identity.
-		nodeID, err := listener.PeerNodeID(conn.(*tls.Conn))
+		nodeID, err := ln1.PeerNodeID(conn.(*tls.Conn))
 		if err != nil {
 			t.Errorf("PeerNodeID: %v", err)
 			return
@@ -419,14 +429,17 @@ func TestListener_Stop_Completes(t *testing.T) {
 }
 
 func TestListener_AdvertiseAddress(t *testing.T) {
-	pki := testutil.GenTestPKI(t, []int{1})
+	p := testutil.GenTestPKI(t, []int{1})
 
+	bundle := p.Bundle()
+	leaf := p.Nodes[1].TLSCert
 	ln := listener.New(listener.Config{
 		BindAddress:      "127.0.0.1:9999",
 		AdvertiseAddress: "10.0.0.1:7000",
 		NodeID:           1,
-		CAPool:           pki.CAPool,
-		LeafCert:         pki.Nodes[1].TLSCert,
+		TrustBundle:      func() *pki.TrustBundle { return bundle },
+		Leaf:             func() *tls.Certificate { return &leaf },
+		Revoked:          func(*big.Int) bool { return false },
 	})
 
 	if ln.AdvertiseAddress() != "10.0.0.1:7000" {

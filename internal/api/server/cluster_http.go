@@ -65,6 +65,11 @@ type opaqueConn struct {
 	net.Conn
 }
 
+// clusterListenerForPeerLookup captures the listener so
+// peerNodeIDConnContext can resolve peer identity via the current trust
+// bundle. Swapped in by StartClusterHTTP before the server starts.
+var clusterListenerForPeerLookup *listener.Listener
+
 // StartClusterHTTP registers the ALPNHTTP handler on the cluster
 // listener and starts an HTTP server serving the cluster-internal mux.
 // The operatorHandler, when non-nil, is mounted at /cluster/proxy/ so
@@ -81,6 +86,8 @@ func StartClusterHTTP(dbInstance *db.Database, ln *listener.Listener, operatorHa
 			_ = conn.Close()
 		}
 	})
+
+	clusterListenerForPeerLookup = ln
 
 	mux := newClusterMux(dbInstance, operatorHandler)
 	srv := &http.Server{
@@ -122,7 +129,11 @@ func peerNodeIDConnContext(ctx context.Context, c net.Conn) context.Context {
 		return ctx
 	}
 
-	id, err := listener.PeerNodeID(tc)
+	if clusterListenerForPeerLookup == nil {
+		return ctx
+	}
+
+	id, err := clusterListenerForPeerLookup.PeerNodeID(tc)
 	if err != nil {
 		return ctx
 	}

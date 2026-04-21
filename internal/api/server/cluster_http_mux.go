@@ -4,6 +4,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/bgp"
+	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
@@ -26,6 +28,47 @@ import (
 type ClusterSideEffectDeps struct {
 	AMF *amf.AMF
 	BGP *bgp.BGPService
+}
+
+// pkiIssuerService is the global issuer handle used by /cluster/pki/*
+// handlers on the cluster HTTP port. Set by SetPKIIssuer after the
+// issuer service is instantiated in runtime.go.
+var pkiIssuerService atomic.Pointer[pkiissuer.Service]
+
+// SetPKIIssuer installs the issuer service used by the cluster-port
+// PKI handlers. Safe to call before or after StartClusterHTTP.
+func SetPKIIssuer(svc *pkiissuer.Service) {
+	pkiIssuerService.Store(svc)
+}
+
+func loadPKIIssuer() *pkiissuer.Service {
+	return pkiIssuerService.Load()
+}
+
+// revocationRefresherFn is the callback invoked after a leader-side
+// batch of revocations has been committed, so the local in-memory
+// revocation cache picks up the new serials without waiting for the
+// 30 s periodic refresher. Installed by runtime via
+// SetRevocationRefresher; nil is a no-op.
+var revocationRefresherFn atomic.Pointer[func(context.Context)]
+
+// SetRevocationRefresher installs a callback the leader invokes after
+// writing revocation rows so its own revocation cache stays in sync
+// with the replicated state. Pass nil to uninstall.
+func SetRevocationRefresher(fn func(context.Context)) {
+	if fn == nil {
+		revocationRefresherFn.Store(nil)
+
+		return
+	}
+
+	revocationRefresherFn.Store(&fn)
+}
+
+func refreshLocalRevocations(ctx context.Context) {
+	if fn := revocationRefresherFn.Load(); fn != nil {
+		(*fn)(ctx)
+	}
 }
 
 var clusterSideEffectDeps atomic.Pointer[ClusterSideEffectDeps]
@@ -68,11 +111,44 @@ func newClusterMux(dbInstance *db.Database, operatorHandler http.Handler) *http.
 	mux.Handle("POST /cluster/internal/resume-side-effects", removedNodeFence(dbInstance, ResumeLocalSideEffects()))
 	mux.Handle("POST /cluster/internal/drain-self", removedNodeFence(dbInstance, DrainSelfOnLeader(dbInstance)))
 
+	// PKI endpoints on the cluster HTTP ALPN. The issuer service is
+	// not available until the first leader election has populated it;
+	// handlers look up pkiIssuerService at request time.
+	mux.Handle("POST /cluster/pki/issue", pkiEndpoint(func(svc *pkiissuer.Service) http.Handler {
+		return ClusterPKIIssue(svc)
+	}))
+	mux.Handle("POST /cluster/pki/renew", pkiEndpoint(func(svc *pkiissuer.Service) http.Handler {
+		return ClusterPKIRenew(dbInstance, svc)
+	}))
+	// Key transfer to voters that lack the signing material on disk.
+	// The server-side gate is "mTLS peer is a voter member"; the issuer
+	// service just needs to have been installed (the caller does not
+	// need to be the leader — any voter with keys on disk can serve).
+	mux.Handle("GET /cluster/pki/keys", pkiEndpoint(func(svc *pkiissuer.Service) http.Handler {
+		return ClusterPKIKeysGet(dbInstance, svc)
+	}))
+
 	if operatorHandler != nil {
 		mux.Handle("/cluster/proxy/", removedNodeFence(dbInstance, http.StripPrefix("/cluster/proxy", operatorHandler)))
 	}
 
 	return mux
+}
+
+// pkiEndpoint resolves the current pkiissuer.Service at request time
+// and dispatches. Returns 503 if the service is not yet installed.
+func pkiEndpoint(build func(*pkiissuer.Service) http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		svc := loadPKIIssuer()
+		if svc == nil {
+			writeError(r.Context(), w, http.StatusServiceUnavailable,
+				"pki issuer not yet installed", nil, logger.APILog)
+
+			return
+		}
+
+		build(svc).ServeHTTP(w, r)
+	})
 }
 
 // DrainSideEffectsResponse reports which node-local drain side-effects ran.

@@ -21,6 +21,10 @@ var (
 	// with Retry-After so clients back off until the slowest voter
 	// catches up and the leader proposes the migration.
 	ErrMigrationPending = errors.New("schema migration pending")
+	// ErrJoinTokenAlreadyConsumed is returned by ConsumeJoinToken when the
+	// conditional UPDATE affected zero rows — either the id is unknown or
+	// the token has already been consumed by a prior (racing) caller.
+	ErrJoinTokenAlreadyConsumed = errors.New("join token already consumed")
 )
 
 func isUniqueNameError(err error) bool {

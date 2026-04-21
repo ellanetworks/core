@@ -9,7 +9,7 @@ description: Explanation of how high availability works in Ella Core.
 
 High availability (HA) lets you run an Ella Core cluster so that the network keeps working when one node fails.
 
-HA in Ella Core rests on two pillars. Consensus is handled by the [Raft algorithm](https://raft.github.io/): at any time one node is the leader, it is the only node that accepts writes, and every write replicates to a majority of nodes before it is considered committed. Inter-node traffic — Raft replication and the cluster HTTP port that carries the follower proxy — is mutually authenticated over TLS, with a shared CA and a per-node leaf certificate provisioned by the operator out of band.
+HA in Ella Core rests on two pillars. Consensus is handled by the [Raft algorithm](https://raft.github.io/): at any time one node is the leader, it is the only node that accepts writes, and every write replicates to a majority of nodes before it is considered committed. Inter-node traffic — Raft replication and the cluster HTTP port that carries the follower proxy — is mutually authenticated over TLS using certificates issued by a cluster CA that Ella Core generates itself on first-leader election.
 
 A follower that receives a write request forwards it to the leader transparently, and waits until its own database has applied the commit before returning — so a subsequent read on the same follower sees its own write.
 
@@ -77,6 +77,34 @@ Draining prepares a node for removal without disrupting traffic on its peers. A 
 New voters join in two steps. The operator registers the node as a non-voter, which lets it catch up on the Raft log without counting toward quorum; once the node has been healthy and up-to-date for a short stabilization window, the cluster automatically promotes it to a voter. Operators who want to promote immediately can call the promote endpoint by hand.
 
 Shrinking is symmetric. Drain the node, then remove it; the remaining voters continue serving writes while the configuration change commits.
+
+## Cluster PKI
+
+Every inter-node connection is mutually authenticated over TLS 1.3.
+
+On first-leader election, the cluster generates its own root CA and
+an intermediate, and signs itself a leaf. Private keys live on each
+voter's disk; public certs and a join-token HMAC key are replicated
+through Raft so every voter can validate chains.
+
+Additional nodes join via a single-use HMAC token. An admin mints one
+through the Cluster page; the joining node puts it in its
+`cluster.join-token` config field and exchanges it for a leaf over a
+dedicated bootstrap ALPN. The cluster root fingerprint is embedded in
+the token so the joining node can pin the TLS handshake without any
+separate fingerprint input.
+
+Leaves are short-lived (24 hours). Each node renews its own leaf
+automatically at 60–90 % of the TTL, jittered. Removing a cluster
+member revokes every leaf it holds; the in-memory revocation cache on
+every voter stops accepting those certs within seconds.
+
+Every leaf's URI SAN is `spiffe://cluster.ella/<cluster-id>/node/<n>`;
+the local cluster ID is checked at every handshake, so a leaf from
+one cluster cannot authenticate into another.
+
+The CA private keys are part of the data directory. Back them up —
+see [Backup and Restore](../how_to/backup_and_restore.md).
 
 ## Rolling upgrades
 

@@ -44,9 +44,12 @@ func (dc *DockerClient) ComposeUp(ctx context.Context, composeDir string) error 
 }
 
 // ComposeDown stops and removes containers defined in a docker-compose file located in composeDir
-// Note: `compose` is not part of the moby client, so we use exec.Command to call the CLI
+// Note: `compose` is not part of the moby client, so we use exec.Command to call the CLI.
+// Volumes are removed so test runs start from fresh state; HA tests rely on this
+// because a stale ella.db or raft log from a previous run would make a node think
+// it has already bootstrapped and skip the discovery/join path.
 func (dc *DockerClient) ComposeDown(ctx context.Context, composeDir string) {
-	cmd := exec.CommandContext(ctx, "docker", "compose", "down")
+	cmd := exec.CommandContext(ctx, "docker", "compose", "down", "-v")
 	cmd.Dir = composeDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -243,6 +246,62 @@ func (dc *DockerClient) ComposeUpServices(ctx context.Context, composeDir string
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to run docker compose up %v: %w", services, err)
+	}
+
+	return nil
+}
+
+// ComposeCreate creates containers for the named services without starting
+// them. Used by HA tests that need to seed join-token files into a
+// follower's data dir before the daemon comes up.
+func (dc *DockerClient) ComposeCreate(ctx context.Context, composeDir string, services ...string) error {
+	args := append([]string{"compose", "create"}, services...)
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd.Dir = composeDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to run docker compose create %v: %w", services, err)
+	}
+
+	return nil
+}
+
+// CopyBytesToContainer writes data to destPath inside containerName.
+// destPath must include the filename; its parent directory must already
+// exist in the container.
+func (dc *DockerClient) CopyBytesToContainer(ctx context.Context, containerName string, data []byte, destPath string, mode int64) error {
+	var buf bytes.Buffer
+
+	tw := tar.NewWriter(&buf)
+
+	hdr := &tar.Header{
+		Name:    path.Base(destPath),
+		Mode:    mode,
+		Size:    int64(len(data)),
+		ModTime: time.Now(),
+	}
+
+	if err := tw.WriteHeader(hdr); err != nil {
+		return fmt.Errorf("tar header: %w", err)
+	}
+
+	if _, err := tw.Write(data); err != nil {
+		return fmt.Errorf("tar write: %w", err)
+	}
+
+	if err := tw.Close(); err != nil {
+		return fmt.Errorf("tar close: %w", err)
+	}
+
+	_, err := dc.CopyToContainer(ctx, containerName, client.CopyToContainerOptions{
+		DestinationPath:           path.Dir(destPath),
+		Content:                   &buf,
+		AllowOverwriteDirWithFile: true,
+	})
+	if err != nil {
+		return fmt.Errorf("copy to container: %w", err)
 	}
 
 	return nil
