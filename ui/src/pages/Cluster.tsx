@@ -40,8 +40,7 @@ import {
   type DrainState,
   type ResumeResponse,
 } from "@/queries/cluster";
-import AddClusterMemberModal from "@/components/AddClusterMemberModal";
-import MintJoinTokenModal from "@/components/MintJoinTokenModal";
+import AddNodeModal from "@/components/AddNodeModal";
 import DrainNodeModal from "@/components/DrainNodeModal";
 import ResumeNodeModal from "@/components/ResumeNodeModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
@@ -174,8 +173,8 @@ const HealthBanner: React.FC<{
   if (autopilotError && !autopilot) {
     return (
       <Alert severity="warning" sx={{ mb: 2 }}>
-        Live cluster health is unavailable (no leader reachable, or autopilot is
-        still converging after a recent leadership change).
+        Live cluster health is unavailable. Autopilot typically takes a moment
+        to converge after a leadership change.
       </Alert>
     );
   }
@@ -188,10 +187,10 @@ const HealthBanner: React.FC<{
 
   const ftText =
     ft < 0
-      ? "Quorum is at risk — an additional failure will stall writes."
+      ? "Quorum lost — the cluster cannot accept writes until a voter recovers."
       : ft === 0
-        ? "Can lose 0 more nodes before writes stall."
-        : `Can lose ${ft} more node${ft === 1 ? "" : "s"} before writes stall.`;
+        ? "At quorum limit — one more voter failure would stop writes."
+        : `Failure tolerance: ${ft} voter${ft === 1 ? "" : "s"}.`;
 
   return (
     <Stack spacing={1} sx={{ mb: 2 }}>
@@ -225,7 +224,6 @@ const ClusterPage: React.FC = () => {
     [theme],
   );
 
-  const [isAddOpen, setAddOpen] = useState(false);
   const [isMintOpen, setMintOpen] = useState(false);
   const [drainTarget, setDrainTarget] = useState<ClusterMember | null>(null);
   const [resumeTarget, setResumeTarget] = useState<ClusterMember | null>(null);
@@ -438,7 +436,7 @@ const ClusterPage: React.FC = () => {
           }
           return (
             <CenteredCell>
-              <Tooltip title={`nodeStatus=${ap.nodeStatus}`}>
+              <Tooltip title={`Autopilot nodeStatus: ${ap.nodeStatus}`}>
                 <Chip
                   label={ap.healthy ? "healthy" : "unhealthy"}
                   size="small"
@@ -642,20 +640,9 @@ const ClusterPage: React.FC = () => {
           Cluster
         </Typography>
         <Paper sx={{ p: 3 }}>
-          <Typography variant="body1" sx={{ mb: 2 }}>
+          <Typography variant="body1">
             This node is running in single-node mode. High availability is not
             enabled.
-          </Typography>
-          <Typography variant="body2" color="textSecondary">
-            To enable HA, see the{" "}
-            <a
-              href="https://docs.ellanetworks.com"
-              target="_blank"
-              rel="noreferrer"
-            >
-              deployment guide
-            </a>
-            .
           </Typography>
         </Paper>
       </Box>
@@ -670,7 +657,7 @@ const ClusterPage: React.FC = () => {
         <Grid size={{ xs: 12, md: 8 }}>
           <Typography variant="h4">Cluster</Typography>
           <Typography variant="body1" color="textSecondary">
-            Manage Raft cluster membership and observe live health.
+            High-availability cluster members and health.
           </Typography>
         </Grid>
         <Grid
@@ -687,14 +674,7 @@ const ClusterPage: React.FC = () => {
             color="success"
             onClick={() => setMintOpen(true)}
           >
-            Mint Join Token
-          </Button>
-          <Button
-            variant="outlined"
-            color="success"
-            onClick={() => setAddOpen(true)}
-          >
-            Add Cluster Member
+            Add Node
           </Button>
         </Grid>
       </Grid>
@@ -729,21 +709,7 @@ const ClusterPage: React.FC = () => {
         />
       </ThemeProvider>
 
-      {isAddOpen && (
-        <AddClusterMemberModal
-          open
-          onClose={() => setAddOpen(false)}
-          onSuccess={() => {
-            showSnackbar("Cluster member added.", "success");
-            queryClient.invalidateQueries({ queryKey: ["cluster-members"] });
-            queryClient.invalidateQueries({ queryKey: ["cluster-autopilot"] });
-          }}
-        />
-      )}
-
-      {isMintOpen && (
-        <MintJoinTokenModal open onClose={() => setMintOpen(false)} />
-      )}
+      {isMintOpen && <AddNodeModal open onClose={() => setMintOpen(false)} />}
 
       {drainTarget && (
         <DrainNodeModal

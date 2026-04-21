@@ -282,31 +282,3 @@ func TestMintClusterJoinToken_NilOpts(t *testing.T) {
 		t.Fatal("expected error on nil opts")
 	}
 }
-
-func TestGetClusterPKIState_Success(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 200,
-			Headers:    http.Header{},
-			Result:     []byte(`{"clusterID":"abc","roots":[{"fingerprint":"sha256:r","status":"active","hasCrossSigned":false}],"intermediates":[{"fingerprint":"sha256:i","status":"active","notAfter":1234,"hasCrossSigned":false}],"revokedSerialCount":0}`),
-		},
-	}
-	c := &client.Client{Requester: fake}
-
-	state, err := c.GetClusterPKIState(context.Background())
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if state.ClusterID != "abc" {
-		t.Errorf("clusterID = %q", state.ClusterID)
-	}
-
-	if len(state.Roots) != 1 || state.Roots[0].Fingerprint != "sha256:r" {
-		t.Errorf("roots = %+v", state.Roots)
-	}
-
-	if len(state.Intermediates) != 1 || state.Intermediates[0].NotAfter != 1234 {
-		t.Errorf("intermediates = %+v", state.Intermediates)
-	}
-}

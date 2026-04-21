@@ -39,61 +39,6 @@ Returns all registered cluster members. This is the static configuration view â€
 }
 ```
 
-## Get a Cluster Member
-
-Returns a single cluster member by node ID.
-
-| Method | Path                            |
-| ------ | ------------------------------- |
-| GET    | `/api/v1/cluster/members/{id}`  |
-
-### Parameters
-
-- `id` (integer, path): Node ID of the cluster member.
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "nodeId": 1,
-        "raftAddress": "10.0.0.1:7000",
-        "apiAddress": "https://10.0.0.1:5000",
-        "binaryVersion": "v1.9.1",
-        "suffrage": "voter",
-        "maxSchemaVersion": 9,
-        "isLeader": true
-    }
-}
-```
-
-## Add a Cluster Member
-
-Adds a new node to the Raft cluster and registers it in the cluster members table. In HA mode, follower nodes automatically forward this request to the current leader.
-
-| Method | Path                       |
-| ------ | -------------------------- |
-| POST   | `/api/v1/cluster/members`  |
-
-### Parameters
-
-- `nodeId` (integer, required): Raft node ID for the new member. Must be a positive integer.
-- `raftAddress` (string, required): The `host:port` used for Raft consensus communication.
-- `apiAddress` (string, required): The URL used for the REST API.
-- `suffrage` (string, optional): Either `"voter"` or `"nonvoter"`. Defaults to `"voter"`.
-- `clusterId` (string, optional): Cluster ID to validate against the operator configuration.
-- `schemaVersion` (integer, optional): Schema version of the joining node. Rejected if lower than the leader's schema.
-
-### Sample Response
-
-```json
-{
-    "result": {
-        "message": "Cluster member added"
-    }
-}
-```
-
 ## Remove a Cluster Member
 
 Removes a node from the Raft cluster and deletes its record. The node must be drained first (`drainState == "drained"`) or the caller must pass `?force=true`. Requires admin privileges.
@@ -321,19 +266,3 @@ Response:
 Put `token` in the joining host's `cluster.join-token` config field
 before starting the daemon. The cluster root fingerprint is embedded
 in the token.
-
-## Get PKI State
-
-Returns the current cluster PKI state. Requires admin privileges.
-
-| Method | Path                         |
-| ------ | ---------------------------- |
-| GET    | `/api/v1/cluster/pki/state`  |
-
-Response fields:
-
-- `clusterID` (string): Cluster UUID embedded in every leaf's URI SAN.
-- `roots` (array): Trusted root CAs. Each entry has `fingerprint`,
-  `status` (`active` / `verify-only` / `retired`), and `hasCrossSigned`.
-- `intermediates` (array): Same shape as `roots`, plus `notAfter`.
-- `revokedSerialCount` (int): Leaf serials currently revoked.

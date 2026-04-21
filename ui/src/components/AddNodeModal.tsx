@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -15,7 +15,8 @@ import {
   Typography,
 } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import { mintClusterJoinToken } from "@/queries/cluster";
+import { useQuery } from "@tanstack/react-query";
+import { listClusterMembers, mintClusterJoinToken } from "@/queries/cluster";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 
@@ -26,34 +27,58 @@ interface Props {
 
 const TTL_OPTIONS: { label: string; seconds: number }[] = [
   { label: "15 minutes", seconds: 15 * 60 },
-  { label: "30 minutes (default)", seconds: 30 * 60 },
+  { label: "30 minutes", seconds: 30 * 60 },
   { label: "1 hour", seconds: 60 * 60 },
   { label: "4 hours", seconds: 4 * 60 * 60 },
   { label: "24 hours", seconds: 24 * 60 * 60 },
 ];
 
-const MintJoinTokenModal: React.FC<Props> = ({ open, onClose }) => {
+const DEFAULT_TTL = 30 * 60;
+const MIN_NODE_ID = 1;
+const MAX_NODE_ID = 63;
+
+const AddNodeModal: React.FC<Props> = ({ open, onClose }) => {
   const { accessToken } = useAuth();
   const { showSnackbar } = useSnackbar();
 
-  const [nodeId, setNodeId] = useState<number>(2);
-  const [ttlSeconds, setTtlSeconds] = useState<number>(30 * 60);
+  const { data: members } = useQuery({
+    queryKey: ["cluster", "members"],
+    queryFn: () => listClusterMembers(accessToken!),
+    enabled: open && !!accessToken,
+  });
+
+  const suggestedNodeId = useMemo(() => {
+    const used = new Set((members ?? []).map((m) => m.nodeId));
+    for (let id = MIN_NODE_ID; id <= MAX_NODE_ID; id++) {
+      if (!used.has(id)) return id;
+    }
+    return MIN_NODE_ID;
+  }, [members]);
+
+  const [nodeId, setNodeId] = useState<number>(suggestedNodeId);
+  const [ttlSeconds, setTtlSeconds] = useState<number>(DEFAULT_TTL);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState("");
   const [token, setToken] = useState<string>("");
   const [expiresAt, setExpiresAt] = useState<number>(0);
 
-  const nodeIdValid = nodeId >= 1 && nodeId <= 63;
+  useEffect(() => {
+    if (open && !token) setNodeId(suggestedNodeId);
+  }, [open, suggestedNodeId, token]);
+
+  const nodeIdValid = nodeId >= MIN_NODE_ID && nodeId <= MAX_NODE_ID;
+  const nodeIdTaken = (members ?? []).some((m) => m.nodeId === nodeId);
 
   const handleClose = () => {
     setToken("");
     setExpiresAt(0);
     setAlert("");
+    setTtlSeconds(DEFAULT_TTL);
     onClose();
   };
 
   const handleSubmit = async () => {
-    if (!accessToken || !nodeIdValid) return;
+    if (!accessToken || !nodeIdValid || nodeIdTaken) return;
     setLoading(true);
     setAlert("");
     try {
@@ -70,7 +95,12 @@ const MintJoinTokenModal: React.FC<Props> = ({ open, onClose }) => {
     }
   };
 
-  const handleCopy = async () => {
+  const configSnippet = useMemo(
+    () => `cluster:\n  node-id: ${nodeId}\n  join-token: ${token}`,
+    [nodeId, token],
+  );
+
+  const copy = async (text: string, label: string) => {
     if (!navigator.clipboard) {
       showSnackbar(
         "Clipboard API not available. Please use HTTPS or try a different browser.",
@@ -79,16 +109,19 @@ const MintJoinTokenModal: React.FC<Props> = ({ open, onClose }) => {
       return;
     }
     try {
-      await navigator.clipboard.writeText(token);
-      showSnackbar("Join token copied to clipboard.", "success");
+      await navigator.clipboard.writeText(text);
+      showSnackbar(`${label} copied to clipboard.`, "success");
     } catch {
       showSnackbar("Failed to copy.", "error");
     }
   };
 
+  const ttlLabel =
+    TTL_OPTIONS.find((o) => o.seconds === ttlSeconds)?.label ?? "30 minutes";
+
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Mint Cluster Join Token</DialogTitle>
+      <DialogTitle>Add a Node to the Cluster</DialogTitle>
       <DialogContent dividers>
         <Collapse in={!!alert}>
           <Alert severity="error" onClose={() => setAlert("")} sx={{ mb: 2 }}>
@@ -99,11 +132,8 @@ const MintJoinTokenModal: React.FC<Props> = ({ open, onClose }) => {
         {!token && (
           <>
             <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-              Mints a single-use HMAC-signed token authorising the given node ID
-              to request its first cluster certificate. Paste the token into the
-              new node&apos;s <code>cluster.join-token</code> config field
-              before starting it — the node will self-register once it obtains
-              its leaf.
+              Mint a single-use join token for the new node. The token expires
+              in {ttlLabel.toLowerCase()}.
             </Typography>
 
             <TextField
@@ -113,11 +143,13 @@ const MintJoinTokenModal: React.FC<Props> = ({ open, onClose }) => {
               type="number"
               value={nodeId}
               onChange={(e) => setNodeId(Number(e.target.value))}
-              error={!nodeIdValid}
+              error={!nodeIdValid || nodeIdTaken}
               helperText={
                 !nodeIdValid
-                  ? "Node ID must be between 1 and 63"
-                  : "Integer from 1 to 63. The issued certificate will carry the SAN spiffe://<cluster-id>/node/<id>."
+                  ? `Must be between ${MIN_NODE_ID} and ${MAX_NODE_ID}.`
+                  : nodeIdTaken
+                    ? "This ID is already in use by another node."
+                    : "A unique number identifying the new node in the cluster."
               }
               margin="normal"
             />
@@ -128,7 +160,7 @@ const MintJoinTokenModal: React.FC<Props> = ({ open, onClose }) => {
               label="Token lifetime"
               value={ttlSeconds}
               onChange={(e) => setTtlSeconds(Number(e.target.value))}
-              helperText="The token can be used once within this window. After it expires, mint a new one."
+              helperText="The token can be used once within this window."
               margin="normal"
             >
               {TTL_OPTIONS.map((opt) => (
@@ -143,20 +175,20 @@ const MintJoinTokenModal: React.FC<Props> = ({ open, onClose }) => {
         {token && (
           <>
             <Alert severity="success" sx={{ mb: 2 }}>
-              Token minted for node {nodeId}. Copy it now — it is shown only
-              once.
+              Token minted. Copy it now — it is shown only once and expires at{" "}
+              {new Date(expiresAt * 1000).toLocaleString()}.
             </Alert>
 
-            <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
-              Expires at {new Date(expiresAt * 1000).toLocaleString()}.
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              Add the following to the new node&apos;s configuration file, then
+              start it:
             </Typography>
 
             <Box
               sx={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 1,
+                position: "relative",
                 p: 1.5,
+                pr: 5,
                 border: 1,
                 borderColor: "divider",
                 borderRadius: 1,
@@ -164,21 +196,35 @@ const MintJoinTokenModal: React.FC<Props> = ({ open, onClose }) => {
               }}
             >
               <Typography
+                component="pre"
                 variant="body2"
                 sx={{
                   fontFamily: "monospace",
+                  whiteSpace: "pre-wrap",
                   wordBreak: "break-all",
-                  flex: 1,
+                  m: 0,
                 }}
               >
-                {token}
+                {configSnippet}
               </Typography>
-              <Tooltip title="Copy token">
-                <IconButton size="small" onClick={handleCopy}>
+              <Tooltip title="Copy configuration">
+                <IconButton
+                  size="small"
+                  onClick={() => copy(configSnippet, "Configuration")}
+                  sx={{ position: "absolute", top: 4, right: 4 }}
+                >
                   <ContentCopyIcon fontSize="inherit" />
                 </IconButton>
               </Tooltip>
             </Box>
+
+            <Button
+              size="small"
+              onClick={() => copy(token, "Join token")}
+              sx={{ mt: 1 }}
+            >
+              Copy token only
+            </Button>
           </>
         )}
       </DialogContent>
@@ -191,7 +237,7 @@ const MintJoinTokenModal: React.FC<Props> = ({ open, onClose }) => {
             variant="contained"
             color="success"
             onClick={handleSubmit}
-            disabled={!nodeIdValid || loading}
+            disabled={!nodeIdValid || nodeIdTaken || loading}
           >
             {loading ? "Minting…" : "Mint Token"}
           </Button>
@@ -201,4 +247,4 @@ const MintJoinTokenModal: React.FC<Props> = ({ open, onClose }) => {
   );
 };
 
-export default MintJoinTokenModal;
+export default AddNodeModal;

@@ -82,26 +82,6 @@ func (c *Client) ListClusterMembers(ctx context.Context) ([]ClusterMember, error
 	return members, nil
 }
 
-func (c *Client) GetClusterMember(ctx context.Context, nodeID int) (*ClusterMember, error) {
-	resp, err := c.Requester.Do(ctx, &RequestOptions{
-		Type:   SyncRequest,
-		Method: "GET",
-		Path:   fmt.Sprintf("api/v1/cluster/members/%d", nodeID),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	var member ClusterMember
-
-	err = resp.DecodeResult(&member)
-	if err != nil {
-		return nil, err
-	}
-
-	return &member, nil
-}
-
 // GetAutopilotState returns the live autopilot view. Safe to call from
 // any node — the server proxies to the leader when needed.
 func (c *Client) GetAutopilotState(ctx context.Context) (*AutopilotState, error) {
@@ -260,41 +240,6 @@ func (c *Client) MintClusterJoinToken(ctx context.Context, opts *MintJoinTokenOp
 	}
 
 	var out MintJoinTokenResponse
-	if err := json.Unmarshal(resp.Result, &out); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
-	}
-
-	return &out, nil
-}
-
-// PKICertSummary mirrors the server-side summary of a PKI cert row.
-type PKICertSummary struct {
-	Fingerprint    string `json:"fingerprint"`
-	Status         string `json:"status"`
-	NotAfter       int64  `json:"notAfter,omitempty"`
-	HasCrossSigned bool   `json:"hasCrossSigned"`
-}
-
-// PKIState is the parsed payload of GET /api/v1/cluster/pki/state.
-type PKIState struct {
-	ClusterID          string           `json:"clusterID"`
-	Roots              []PKICertSummary `json:"roots"`
-	Intermediates      []PKICertSummary `json:"intermediates"`
-	RevokedSerialCount int              `json:"revokedSerialCount"`
-}
-
-// GetClusterPKIState returns the cluster's PKI trust bundle summary.
-func (c *Client) GetClusterPKIState(ctx context.Context) (*PKIState, error) {
-	resp, err := c.Requester.Do(ctx, &RequestOptions{
-		Type:   SyncRequest,
-		Method: "GET",
-		Path:   "api/v1/cluster/pki/state",
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	var out PKIState
 	if err := json.Unmarshal(resp.Result, &out); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}

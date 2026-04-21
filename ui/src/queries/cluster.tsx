@@ -35,13 +35,6 @@ export type AutopilotState = {
   servers: AutopilotServer[];
 };
 
-export type AddClusterMemberParams = {
-  nodeId: number;
-  raftAddress: string;
-  apiAddress: string;
-  suffrage?: "voter" | "nonvoter";
-};
-
 export type DrainOptions = {
   deadlineSeconds?: number;
 };
@@ -65,26 +58,6 @@ export async function listClusterMembers(
   authToken: string,
 ): Promise<ClusterMember[]> {
   return apiFetch<ClusterMember[]>("/api/v1/cluster/members", { authToken });
-}
-
-export async function getClusterMember(
-  authToken: string,
-  nodeId: number,
-): Promise<ClusterMember> {
-  return apiFetch<ClusterMember>(`/api/v1/cluster/members/${nodeId}`, {
-    authToken,
-  });
-}
-
-export async function addClusterMember(
-  authToken: string,
-  params: AddClusterMemberParams,
-): Promise<void> {
-  await apiFetchVoid("/api/v1/cluster/members", {
-    method: "POST",
-    authToken,
-    body: params,
-  });
 }
 
 export async function removeClusterMember(
