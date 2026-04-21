@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 // setupLeaseTestDB creates a new database with a data network, policy, and
@@ -21,7 +20,7 @@ func setupLeaseTestDB(t *testing.T) (*db.Database, int, string) {
 
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("NewDatabase: %s", err)
 	}

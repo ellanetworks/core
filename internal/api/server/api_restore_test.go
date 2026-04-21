@@ -83,7 +83,7 @@ func TestRestoreEndpoint(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	env, err := setupServer(dbPath)
+	env, err := setupServerWithRaft(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

@@ -12,13 +12,12 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 func TestFlowReportsInsertAndRetrieve(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -100,7 +99,7 @@ func TestFlowReportsInsertAndRetrieve(t *testing.T) {
 func TestFlowReportsMultipleInsert(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -158,7 +157,7 @@ func TestFlowReportsMultipleInsert(t *testing.T) {
 func TestFlowReportsBatchInsert(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -221,7 +220,7 @@ func TestFlowReportsBatchInsert(t *testing.T) {
 func TestFlowReportsBatchInsertEmpty(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -246,7 +245,7 @@ func TestFlowReportsBatchInsertEmpty(t *testing.T) {
 func TestFlowReportsPagination(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -318,7 +317,7 @@ func TestFlowReportsPagination(t *testing.T) {
 func TestFlowReportsFilterBySubscriber(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -407,7 +406,7 @@ func TestFlowReportsFilterBySubscriber(t *testing.T) {
 func TestFlowReportsFilterByProtocol(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -480,7 +479,7 @@ func TestFlowReportsFilterByProtocol(t *testing.T) {
 func TestGetFlowReportStats_Empty(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -510,7 +509,7 @@ func TestGetFlowReportStats_Empty(t *testing.T) {
 func TestGetFlowReportStats_ProtocolCounts(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -601,7 +600,7 @@ func TestGetFlowReportStats_ProtocolCounts(t *testing.T) {
 func TestGetFlowReportStats_TopDestinationsUplink(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -684,7 +683,7 @@ func TestGetFlowReportStats_TopDestinationsUplink(t *testing.T) {
 func TestGetFlowReportStats_WithSubscriberFilter(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -778,7 +777,7 @@ func TestGetFlowReportStats_WithSubscriberFilter(t *testing.T) {
 func TestGetFlowReportStats_WithProtocolFilter(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -861,7 +860,7 @@ func TestGetFlowReportStats_WithProtocolFilter(t *testing.T) {
 func TestGetFlowReportStats_WithDateFilter(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -950,7 +949,7 @@ func TestGetFlowReportStats_WithDateFilter(t *testing.T) {
 func TestFlowReportsFilterByAction(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -1074,7 +1073,7 @@ func TestFlowReportsFilterByAction(t *testing.T) {
 func TestFlowReportsRetention(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
