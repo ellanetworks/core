@@ -63,12 +63,9 @@ Open `https://10.0.0.1:5002` in a browser, create the admin, and log in.
 
 ## 4. Add node 2
 
-On node 1, open the **Cluster** page and click **Mint join token**
-with `nodeID: 2`. Copy the returned token string.
+On node 1, open the **Cluster** page and click **Mint Join Token** with `nodeID: 2`. Copy the returned token string.
 
-Configure node 2 with its own `core.yaml`, using the same shape as
-node 1, with `node-id: 2` and `bind-address: "10.0.0.2:7000"`. Add
-`join-token` under `cluster`:
+Configure node 2 with its own `core.yaml`, using the same shape as node 1, with `node-id: 2` and `bind-address: "10.0.0.2:7000"`. Add `join-token` under `cluster`:
 
 ```yaml title="core.yaml (node 2, cluster block)"
 cluster:
@@ -88,13 +85,11 @@ Start node 2:
 sudo snap start --enable ella-core.cored
 ```
 
-The daemon consumes the token on first boot, joins the cluster, and
-ignores the field on subsequent starts.
+The daemon consumes the token on first boot, joins the cluster, and ignores the field on subsequent starts.
 
 ## 5. Add node 3
 
-Repeat step 4 with `node-id: 3` and a freshly-minted token for that
-node-id.
+Repeat step 4 with `node-id: 3` and a freshly-minted token for that node-id.
 
 ## 6. Verify
 

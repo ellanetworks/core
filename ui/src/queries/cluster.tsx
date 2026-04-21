@@ -158,23 +158,3 @@ export async function mintClusterJoinToken(
   });
 }
 
-export type PKICertSummary = {
-  fingerprint: string;
-  status: string;
-  notAfter?: number;
-  hasCrossSigned: boolean;
-};
-
-export type ClusterPKIState = {
-  clusterID: string;
-  roots: PKICertSummary[];
-  intermediates: PKICertSummary[];
-  issuedCertSerialsByNode: Record<string, number[]>;
-  revokedSerialCount: number;
-};
-
-export async function getClusterPKIState(
-  authToken: string,
-): Promise<ClusterPKIState> {
-  return apiFetch<ClusterPKIState>("/api/v1/cluster/pki/state", { authToken });
-}
