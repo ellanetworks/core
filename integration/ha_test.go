@@ -857,10 +857,8 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 	}
 
 	// The raft directory is derived from db.path in the node config.
-	// db.path is "ella.db" (relative), so dataDir = "." and raftDir = "./raft/".
-	// The container's working directory is "/" (Rockcraft bare base), so the
-	// absolute path is /raft/.
-	const containerRaftDir = "/raft"
+	// db.path is "/data/ella.db", so dataDir = "/data" and raftDir = "/data/raft/".
+	const containerRaftDir = "/data/raft"
 
 	t.Log("stopping all 3 nodes (total quorum loss)")
 
