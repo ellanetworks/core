@@ -49,11 +49,30 @@ func validateSQLiteFile(ctx context.Context, path string) error {
 	return nil
 }
 
+// extractMode controls how extractBackupArchive handles the PKI key
+// entries introduced in manifest v2.
+type extractMode int
+
+const (
+	// extractModeOnline is used by the running-cluster restore path.
+	// The cluster already has PKI material on disk; key entries in the
+	// bundle are read and discarded. This supports restoring from a DR
+	// bundle into a cluster with existing PKI without clobbering it.
+	extractModeOnline extractMode = iota
+
+	// extractModeDR is used by the offline first-boot recovery path.
+	// Key entries are written to destDir/cluster-tls/. A DR restore
+	// against a v1 bundle (no keys) fails because the cluster cannot
+	// be reconstructed without them.
+	extractModeDR
+)
+
 // extractBackupArchive reads a backup tar.gz from r and writes the database
-// file into destDir. The manifest is parsed and validated but not returned.
-// Unknown members, missing required members, oversize files, duplicate
-// entries, and path traversal attempts are rejected.
-func extractBackupArchive(r io.Reader, destDir string) error {
+// file into destDir. When mode is extractModeDR, the cluster-tls/*.key
+// entries are also extracted to destDir/cluster-tls/. Unknown members,
+// missing required members, oversize files, duplicate entries, and path
+// traversal attempts are rejected.
+func extractBackupArchive(r io.Reader, destDir string, mode extractMode) error {
 	gzReader, err := gzip.NewReader(r)
 	if err != nil {
 		return fmt.Errorf("failed to open gzip stream: %w", err)
@@ -66,8 +85,19 @@ func extractBackupArchive(r io.Reader, destDir string) error {
 	var (
 		sawManifest    bool
 		sawDB          bool
+		sawRootKey     bool
+		sawIntKey      bool
+		manifestVer    int
 		totalExtracted int64
 	)
+
+	// Pre-create cluster-tls/ when extracting in DR mode so we can stream
+	// key entries straight to their final path.
+	if mode == extractModeDR {
+		if err := os.MkdirAll(filepath.Join(destDir, ClusterTLSDir), 0o700); err != nil {
+			return fmt.Errorf("create %s: %w", ClusterTLSDir, err)
+		}
+	}
 
 	for {
 		hdr, err := tarReader.Next()
@@ -83,8 +113,8 @@ func extractBackupArchive(r io.Reader, destDir string) error {
 			return fmt.Errorf("unexpected tar entry type %d for %q", hdr.Typeflag, hdr.Name)
 		}
 
-		// Reject path traversal: only bare filenames are allowed.
-		if filepath.Base(hdr.Name) != hdr.Name || hdr.Name == "" || hdr.Name == "." || hdr.Name == ".." {
+		// Reject path traversal.
+		if strings.Contains(hdr.Name, "..") || strings.HasPrefix(hdr.Name, "/") {
 			return fmt.Errorf("invalid tar entry name %q", hdr.Name)
 		}
 
@@ -114,10 +144,14 @@ func extractBackupArchive(r io.Reader, destDir string) error {
 				return fmt.Errorf("failed to decode manifest: %w", err)
 			}
 
-			if m.Version != BackupManifestVersion {
-				return fmt.Errorf("unsupported backup manifest version %d (expected %d)", m.Version, BackupManifestVersion)
+			// Accept the current version; reject anything newer.
+			// v1 bundles (pre-PKI) are rejected in DR mode after the
+			// loop so we can produce a clearer error.
+			if m.Version < 1 || m.Version > BackupManifestVersion {
+				return fmt.Errorf("unsupported backup manifest version %d", m.Version)
 			}
 
+			manifestVer = m.Version
 			sawManifest = true
 
 		case DBFilename:
@@ -130,6 +164,40 @@ func extractBackupArchive(r io.Reader, destDir string) error {
 			}
 
 			sawDB = true
+
+		case backupRootKeyName:
+			if sawRootKey {
+				return fmt.Errorf("duplicate tar entry %q", hdr.Name)
+			}
+
+			if mode == extractModeDR {
+				if err := writeArchiveMember(filepath.Join(destDir, ClusterTLSDir, "root.key"), tarReader, hdr.Size); err != nil {
+					return fmt.Errorf("failed to write %s: %w", backupRootKeyName, err)
+				}
+			} else {
+				if _, err := io.CopyN(io.Discard, tarReader, hdr.Size); err != nil {
+					return fmt.Errorf("drain %s: %w", backupRootKeyName, err)
+				}
+			}
+
+			sawRootKey = true
+
+		case backupIntermediateKeyName:
+			if sawIntKey {
+				return fmt.Errorf("duplicate tar entry %q", hdr.Name)
+			}
+
+			if mode == extractModeDR {
+				if err := writeArchiveMember(filepath.Join(destDir, ClusterTLSDir, "intermediate.key"), tarReader, hdr.Size); err != nil {
+					return fmt.Errorf("failed to write %s: %w", backupIntermediateKeyName, err)
+				}
+			} else {
+				if _, err := io.CopyN(io.Discard, tarReader, hdr.Size); err != nil {
+					return fmt.Errorf("drain %s: %w", backupIntermediateKeyName, err)
+				}
+			}
+
+			sawIntKey = true
 
 		default:
 			return fmt.Errorf("unexpected backup member %q", hdr.Name)
@@ -144,7 +212,34 @@ func extractBackupArchive(r io.Reader, destDir string) error {
 		return fmt.Errorf("backup is missing %s", DBFilename)
 	}
 
+	if mode == extractModeDR && (manifestVer < 2 || !sawRootKey || !sawIntKey) {
+		return fmt.Errorf("backup manifest v%d lacks PKI key material; DR restore needs a v%d bundle with root and intermediate keys", manifestVer, BackupManifestVersion)
+	}
+
 	return nil
+}
+
+// ExtractForDR extracts a backup bundle into destDir for the offline
+// first-boot recovery path: ella.db plus the issuer's private key files
+// under cluster-tls/. Caller is responsible for running this only when
+// destDir has no prior Raft state.
+//
+// This is not a method on *Database because at DR time there is no
+// initialised database yet; it is a free function the runtime calls
+// before db.NewDatabase.
+func ExtractForDR(bundlePath, destDir string) error {
+	f, err := os.Open(bundlePath) // #nosec: G304 -- path comes from the operator via fixed-path convention
+	if err != nil {
+		return fmt.Errorf("open bundle: %w", err)
+	}
+
+	defer func() { _ = f.Close() }()
+
+	if err := os.MkdirAll(destDir, 0o700); err != nil {
+		return fmt.Errorf("mkdir %s: %w", destDir, err)
+	}
+
+	return extractBackupArchive(f, destDir, extractModeDR)
 }
 
 func writeArchiveMember(destPath string, src io.Reader, size int64) error {
@@ -379,7 +474,7 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 
 	defer func() { _ = os.RemoveAll(stageDir) }()
 
-	if err := extractBackupArchive(backupFile, stageDir); err != nil {
+	if err := extractBackupArchive(backupFile, stageDir, extractModeOnline); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidBackupFile, err)
 	}
 

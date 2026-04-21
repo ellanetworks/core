@@ -76,7 +76,7 @@ func (m *Manager) RunDiscovery(ctx context.Context) error {
 
 	logger.RaftLog.Info("Starting cluster discovery",
 		zap.Int("node_id", m.nodeID),
-		zap.Int("bootstrap_expect", m.config.BootstrapExpect),
+		zap.Bool("has_join_token", m.config.HasJoinToken),
 		zap.Int("peers", len(m.config.Peers)),
 		zap.Duration("join_timeout", timeout),
 	)
@@ -112,9 +112,25 @@ func (m *Manager) RunDiscovery(ctx context.Context) error {
 
 // discoveryTick runs one iteration of the discovery poll. Returns true when
 // the cluster has been joined or bootstrapped.
+//
+// The tick has two modes, selected by the join-token:
+//
+//   - A node with a join-token is a joiner. It only returns success when it
+//     finds a formed peer and POSTs its membership to it. Solo-bootstrap is
+//     never taken, even if no peers are reachable.
+//   - A node without a join-token is the founder. It bootstraps immediately
+//     on the first tick, without probing peers — the founder has nothing
+//     to learn from them and the probe cost (5 s × non-self peers) would
+//     otherwise delay startup. PostInitClusterSetup on the first leader
+//     mints the CA and issues this node's leaf so joiners can connect.
 func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
-	reachableCount := 1 // count ourselves
-	lowestReachableNodeID := m.nodeID
+	if !m.config.HasJoinToken {
+		logger.RaftLog.Info("Bootstrapping new cluster (no join-token configured)",
+			zap.Int("node_id", m.nodeID),
+		)
+
+		return true, m.bootstrapCluster()
+	}
 
 	for _, peerAddr := range m.config.Peers {
 		if peerAddr == m.config.AdvertiseAddress {
@@ -127,70 +143,48 @@ func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 			continue
 		}
 
-		// Duplicate node-id is a hard misconfiguration: two nodes can't share
-		// an ID without risking split-brain during bootstrap (both would see
-		// themselves as the lowest reachable node-id) or clobbering an
-		// existing cluster member at join time. Fail loud so the operator
-		// fixes cluster.node-id rather than letting the cluster form
-		// silently wrong.
+		// Duplicate node-id is a hard misconfiguration: two nodes can't
+		// share an ID without risking split-brain during bootstrap or
+		// clobbering an existing cluster member at join time. Fail loud
+		// so the operator fixes cluster.node-id rather than letting the
+		// cluster form silently wrong.
 		if nodeID > 0 && nodeID == m.nodeID {
 			return false, fmt.Errorf("peer %s advertises the same node-id (%d) as this node; check cluster.node-id configuration", peerAddr, nodeID)
 		}
 
-		switch state {
-		case peerFormed:
-			// Schema handshake (follower side): allow joining a peer whose
-			// cluster schema is <= our local schema, since post-baseline
-			// migrations are proposed through Raft by the leader. Reject
-			// the reverse (we'd be downgrading). The leader side of this
-			// check lives in api_cluster.go:AddClusterMember and has the
-			// complementary rule: reject joiners with schema < leader.
-			if m.config.SchemaVersion < peerSchema {
-				logger.RaftLog.Warn("Schema version lower than peer, skipping (downgrade)",
-					zap.String("peer", peerAddr),
-					zap.Int("local", m.config.SchemaVersion),
-					zap.Int("remote", peerSchema),
-				)
-
-				continue
-			}
-
-			if err := m.joinCluster(ctx, peerAddr, nodeID, clusterID); err != nil {
-				logger.RaftLog.Warn("Failed to join cluster via peer",
-					zap.String("peer", peerAddr),
-					zap.Error(err),
-				)
-
-				continue
-			}
-
-			return true, nil
-
-		case peerForming:
-			reachableCount++
-
-			if nodeID > 0 && nodeID < lowestReachableNodeID {
-				lowestReachableNodeID = nodeID
-			}
+		if state != peerFormed {
+			continue
 		}
+
+		// Schema handshake (follower side): allow joining a peer whose
+		// cluster schema is <= our local schema, since post-baseline
+		// migrations are proposed through Raft by the leader. Reject the
+		// reverse (we'd be downgrading). The leader side of this check
+		// lives in api_cluster.go:AddClusterMember and has the complementary
+		// rule: reject joiners with schema < leader.
+		if m.config.SchemaVersion < peerSchema {
+			logger.RaftLog.Warn("Schema version lower than peer, skipping (downgrade)",
+				zap.String("peer", peerAddr),
+				zap.Int("local", m.config.SchemaVersion),
+				zap.Int("remote", peerSchema),
+			)
+
+			continue
+		}
+
+		if err := m.joinCluster(ctx, peerAddr, nodeID, clusterID); err != nil {
+			logger.RaftLog.Warn("Failed to join cluster via peer",
+				zap.String("peer", peerAddr),
+				zap.Error(err),
+			)
+
+			continue
+		}
+
+		return true, nil
 	}
 
-	if reachableCount >= m.config.BootstrapExpect && m.nodeID == lowestReachableNodeID {
-		logger.RaftLog.Info("Bootstrapping new cluster",
-			zap.Int("reachable", reachableCount),
-			zap.Int("bootstrap_expect", m.config.BootstrapExpect),
-		)
-
-		return true, m.bootstrapCluster()
-	}
-
-	if reachableCount >= m.config.BootstrapExpect {
-		logger.RaftLog.Debug("Waiting for lowest node-id to bootstrap",
-			zap.Int("reachable", reachableCount),
-			zap.Int("lowest_node_id", lowestReachableNodeID),
-		)
-	}
-
+	// No formed peer found this tick. The joiner keeps polling.
 	return false, nil
 }
 

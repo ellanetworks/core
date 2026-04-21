@@ -16,6 +16,8 @@ import (
 //   * ip_leases.nodeID + idx_leases_node
 //   * bgp_peers.nodeID
 //   * cluster_members table
+//   * cluster PKI tables (roots, intermediates, issued certs, revoked
+//     certs, join tokens, pki state singleton)
 // ---------------------------------------------------------------------------
 
 const v9CreateClusterMembers = `
@@ -31,6 +33,62 @@ const v9CreateClusterMembers = `
 		drainUpdatedAt    INTEGER NOT NULL DEFAULT 0
 )`
 
+const v9CreateClusterPKIRoots = `
+	CREATE TABLE IF NOT EXISTS %s (
+		fingerprint    TEXT PRIMARY KEY,
+		certPEM        TEXT NOT NULL,
+		crossSignedPEM TEXT NOT NULL DEFAULT '',
+		addedAt        INTEGER NOT NULL,
+		status         TEXT NOT NULL DEFAULT 'active'
+			CHECK (status IN ('active','verify-only','retired'))
+)`
+
+const v9CreateClusterPKIIntermediates = `
+	CREATE TABLE IF NOT EXISTS %s (
+		fingerprint     TEXT PRIMARY KEY,
+		certPEM         TEXT NOT NULL,
+		crossSignedPEM  TEXT NOT NULL DEFAULT '',
+		rootFingerprint TEXT NOT NULL,
+		notAfter        INTEGER NOT NULL,
+		status          TEXT NOT NULL DEFAULT 'active'
+			CHECK (status IN ('active','verify-only','retired'))
+)`
+
+const v9CreateClusterIssuedCerts = `
+	CREATE TABLE IF NOT EXISTS %s (
+		serial                  INTEGER PRIMARY KEY,
+		nodeID                  INTEGER NOT NULL,
+		notAfter                INTEGER NOT NULL,
+		intermediateFingerprint TEXT NOT NULL,
+		issuedAt                INTEGER NOT NULL
+)`
+
+const v9CreateClusterRevokedCerts = `
+	CREATE TABLE IF NOT EXISTS %s (
+		serial      INTEGER PRIMARY KEY,
+		nodeID      INTEGER NOT NULL,
+		revokedAt   INTEGER NOT NULL,
+		reason      TEXT NOT NULL DEFAULT '',
+		purgeAfter  INTEGER NOT NULL
+)`
+
+const v9CreateClusterJoinTokens = `
+	CREATE TABLE IF NOT EXISTS %s (
+		id           TEXT PRIMARY KEY,
+		nodeID       INTEGER NOT NULL,
+		claimsJSON   TEXT NOT NULL,
+		expiresAt    INTEGER NOT NULL,
+		consumedAt   INTEGER NOT NULL DEFAULT 0,
+		consumedBy   INTEGER NOT NULL DEFAULT 0
+)`
+
+const v9CreateClusterPKIState = `
+	CREATE TABLE IF NOT EXISTS %s (
+		id             INTEGER PRIMARY KEY CHECK (id = 1),
+		hmacKey        BLOB    NOT NULL,
+		serialCounter  INTEGER NOT NULL DEFAULT 0
+)`
+
 func migrateV9(ctx context.Context, tx *sql.Tx) error {
 	stmts := []string{
 		fmt.Sprintf("ALTER TABLE %s ADD COLUMN amfRegionID INTEGER NOT NULL DEFAULT 1", OperatorTableName),
@@ -40,6 +98,16 @@ func migrateV9(ctx context.Context, tx *sql.Tx) error {
 		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_leases_node ON %s(nodeID)", IPLeasesTableName),
 		fmt.Sprintf("ALTER TABLE %s ADD COLUMN nodeID INTEGER", BGPPeersTableName),
 		fmt.Sprintf(v9CreateClusterMembers, ClusterMembersTableName),
+		fmt.Sprintf(v9CreateClusterPKIRoots, ClusterPKIRootsTableName),
+		fmt.Sprintf(v9CreateClusterPKIIntermediates, ClusterPKIIntermediatesTableName),
+		fmt.Sprintf(v9CreateClusterIssuedCerts, ClusterIssuedCertsTableName),
+		fmt.Sprintf(v9CreateClusterRevokedCerts, ClusterRevokedCertsTableName),
+		fmt.Sprintf(v9CreateClusterJoinTokens, ClusterJoinTokensTableName),
+		fmt.Sprintf(v9CreateClusterPKIState, ClusterPKIStateTableName),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_issued_certs_nodeID ON %s(nodeID)", ClusterIssuedCertsTableName),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_issued_certs_notAfter ON %s(notAfter)", ClusterIssuedCertsTableName),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_revoked_certs_purgeAfter ON %s(purgeAfter)", ClusterRevokedCertsTableName),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_join_tokens_expiresAt ON %s(expiresAt)", ClusterJoinTokensTableName),
 	}
 
 	for _, stmt := range stmts {

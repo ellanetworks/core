@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	"github.com/ellanetworks/core/internal/ausf"
 	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/cluster/listener"
+	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
@@ -96,18 +98,13 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	apiAddress := fmt.Sprintf("%s://%s:%d", apiScheme, cfg.Interfaces.API.Address, cfg.Interfaces.API.Port)
 
 	raftCfg := ellaraft.ClusterConfig{
-		Enabled:          cfg.Cluster.Enabled,
-		NodeID:           cfg.Cluster.NodeID,
-		BindAddress:      cfg.Cluster.BindAddress,
-		AdvertiseAddress: cfg.Cluster.AdvertiseAddress,
-		APIAddress:       apiAddress,
-		BootstrapExpect:  cfg.Cluster.BootstrapExpect,
-		Peers:            cfg.Cluster.Peers,
-		TLS: ellaraft.ClusterTLSConfig{
-			CA:   cfg.Cluster.TLS.CA,
-			Cert: cfg.Cluster.TLS.Cert,
-			Key:  cfg.Cluster.TLS.Key,
-		},
+		Enabled:           cfg.Cluster.Enabled,
+		NodeID:            cfg.Cluster.NodeID,
+		BindAddress:       cfg.Cluster.BindAddress,
+		AdvertiseAddress:  cfg.Cluster.AdvertiseAddress,
+		APIAddress:        apiAddress,
+		Peers:             cfg.Cluster.Peers,
+		HasJoinToken:      cfg.Cluster.JoinToken != "",
 		JoinTimeout:       cfg.Cluster.JoinTimeout,
 		ProposeTimeout:    cfg.Cluster.ProposeTimeout,
 		SnapshotInterval:  cfg.Cluster.SnapshotInterval,
@@ -120,13 +117,58 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	var raftOpts []ellaraft.ManagerOption
 
+	var pki *pkiState
+
 	if cfg.Cluster.Enabled {
+		dataDir := filepath.Dir(cfg.DB.Path)
+
+		if _, err := maybeRestoreFromBundle(dataDir); err != nil {
+			return fmt.Errorf("restore bundle: %w", err)
+		}
+
+		// The cluster-id is not known until PostInitClusterSetup; the
+		// agent re-reads it from the operator row via the DB before
+		// signing CSRs. An empty string here means "not yet known" —
+		// the agent uses it only for CSR generation, which happens
+		// after the DB is up.
+		pki = newPKIState(cfg.Cluster.NodeID, "", dataDir)
+
+		// If cluster.join-token is set and we have no leaf yet, run the
+		// join flow now (before the listener starts) so Raft can mTLS-
+		// handshake as soon as it forms.
+		if !pki.agent.HaveLeafOnDisk() {
+			if err := runJoinFlow(ctx, pki.agent, cfg.Cluster.Peers, cfg.Cluster.JoinToken); err != nil {
+				return fmt.Errorf("join flow: %w", err)
+			}
+		}
+
+		// Load whatever leaf is now on disk. Absent leaf is OK for the
+		// first-node case — the listener's Leaf() accessor will return
+		// nil until first-leader bootstrap fills it in, so only the
+		// bootstrap ALPN will accept connections until then.
+		if pki.agent.HaveLeafOnDisk() {
+			if err := pki.agent.Load(); err != nil {
+				return fmt.Errorf("load leaf: %w", err)
+			}
+
+			// Seed the listener's trust bundle from disk. Without this,
+			// the joiner's listener would reject incoming mTLS until
+			// RefreshBundle fires — which doesn't happen until after
+			// Raft replicates, which itself requires working mTLS.
+			if pki.agent.ClusterID != "" {
+				if err := pki.SeedBundleFromAgentDisk(pki.agent.ClusterID); err != nil {
+					return fmt.Errorf("seed trust bundle: %w", err)
+				}
+			}
+		}
+
 		clusterLn = listener.New(listener.Config{
 			BindAddress:      cfg.Cluster.BindAddress,
 			AdvertiseAddress: cfg.Cluster.AdvertiseAddress,
 			NodeID:           cfg.Cluster.NodeID,
-			CAPool:           cfg.Cluster.TLS.CAPool,
-			LeafCert:         cfg.Cluster.TLS.LeafCert,
+			TrustBundle:      pki.BundleFunc(),
+			Leaf:             pki.LeafFunc(),
+			Revoked:          pki.RevokedFunc(),
 		})
 		raftOpts = append(raftOpts, ellaraft.WithClusterListener(clusterLn))
 	}
@@ -194,6 +236,24 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			}
 
 			logger.EllaLog.Info("Leader initialization replicated successfully")
+
+			// Follower: build a local issuer handle (can't issue — we're
+			// not the leader — but can serve /cluster/pki/bundle), and
+			// install it for HTTP handlers. The bundle accessor is
+			// refreshed here and again on every leadership transition.
+			if pki != nil {
+				pki.issuer = pkiissuer.New(dbInstance, dbInstance.Dir())
+
+				if err := pki.RefreshBundle(ctx); err != nil {
+					logger.EllaLog.Warn("follower refresh bundle", zap.Error(err))
+				}
+
+				if err := pki.RefreshRevocations(ctx, dbInstance); err != nil {
+					logger.EllaLog.Warn("follower refresh revocations", zap.Error(err))
+				}
+
+				server.SetPKIIssuer(pki.issuer)
+			}
 		}
 
 		// Every node (leader and follower) refreshes its cluster_members
@@ -218,10 +278,21 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		observer.Register(sessionsGuard)
 		observer.Register(jobsGuard)
 		observer.Register(server.NewLeadershipAuditCallback(dbInstance.NodeID()))
+
+		// Wire PKI setup to every leader transition so a follower that
+		// later becomes leader loads its keys (if present) and publishes
+		// the issuer service.
+		if pki != nil {
+			observer.Register(newPKILeaderCallback(ctx, pki, dbInstance, clusterLn, cfg.Cluster.NodeID))
+		}
 	}
 
 	wg.Go(func() {
 		jobs.RunDataRetentionWorker(ctx, dbInstance, jobsGuard)
+	})
+
+	wg.Go(func() {
+		jobs.RunPKITidyWorker(ctx, dbInstance, jobsGuard)
 	})
 
 	wg.Go(func() {

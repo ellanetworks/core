@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"net"
 	"net/http"
 	"path/filepath"
@@ -46,8 +47,11 @@ func TestClusterHTTP_Status(t *testing.T) {
 		BindAddress:      serverAddr,
 		AdvertiseAddress: serverAddr,
 		NodeID:           1,
-		CAPool:           pki.CAPool,
-		LeafCert:         pki.Nodes[1].TLSCert,
+		TrustBundle:      pki.BundleFunc(),
+
+		Leaf: pki.LeafFunc(1),
+
+		Revoked: func(*big.Int) bool { return false },
 	})
 
 	dbPath := filepath.Join(t.TempDir(), "test.db")
@@ -72,8 +76,11 @@ func TestClusterHTTP_Status(t *testing.T) {
 		BindAddress:      "127.0.0.1:0",
 		AdvertiseAddress: "127.0.0.1:0",
 		NodeID:           2,
-		CAPool:           pki.CAPool,
-		LeafCert:         pki.Nodes[2].TLSCert,
+		TrustBundle:      pki.BundleFunc(),
+
+		Leaf: pki.LeafFunc(2),
+
+		Revoked: func(*big.Int) bool { return false },
 	})
 
 	client := &http.Client{
@@ -141,8 +148,11 @@ func clusterTestServer(t *testing.T, pki *testutil.PKI, serverNodeID int, peerNo
 		BindAddress:      serverAddr,
 		AdvertiseAddress: serverAddr,
 		NodeID:           serverNodeID,
-		CAPool:           pki.CAPool,
-		LeafCert:         pki.Nodes[serverNodeID].TLSCert,
+		TrustBundle:      pki.BundleFunc(),
+
+		Leaf: pki.LeafFunc(serverNodeID),
+
+		Revoked: func(*big.Int) bool { return false },
 	})
 
 	dbPath := filepath.Join(t.TempDir(), "test.db")
@@ -169,8 +179,11 @@ func clusterTestServer(t *testing.T, pki *testutil.PKI, serverNodeID int, peerNo
 			BindAddress:      "127.0.0.1:0",
 			AdvertiseAddress: "127.0.0.1:0",
 			NodeID:           id,
-			CAPool:           pki.CAPool,
-			LeafCert:         pki.Nodes[id].TLSCert,
+			TrustBundle:      pki.BundleFunc(),
+
+			Leaf: pki.LeafFunc(id),
+
+			Revoked: func(*big.Int) bool { return false },
 		})
 
 		clients[id] = &http.Client{

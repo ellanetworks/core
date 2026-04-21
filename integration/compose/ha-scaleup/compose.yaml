@@ -1,184 +1,12 @@
-configs:
-  cluster_ca:
-    file: ../pki/ca.pem
-  node1_cert:
-    file: ../pki/node1-cert.pem
-  node1_key:
-    file: ../pki/node1-key.pem
-  node2_cert:
-    file: ../pki/node2-cert.pem
-  node2_key:
-    file: ../pki/node2-key.pem
-  node3_cert:
-    file: ../pki/node3-cert.pem
-  node3_key:
-    file: ../pki/node3-key.pem
-  node4_cert:
-    file: ../pki/node4-cert.pem
-  node4_key:
-    file: ../pki/node4-key.pem
-  node1_config:
-    content: |
-      logging:
-        system:
-          level: "debug"
-          output: "stdout"
-        audit:
-          output: "stdout"
-      db:
-        path: "ella.db"
-      interfaces:
-        n2:
-          address: "10.100.0.11"
-          port: 38412
-        n3:
-          address: "10.100.0.11"
-        n6:
-          name: "eth0"
-        api:
-          address: "10.100.0.11"
-          port: 5002
-      xdp:
-        attach-mode: "generic"
-      cluster:
-        enabled: true
-        node-id: 1
-        bind-address: "10.100.0.11:7000"
-        bootstrap-expect: 3
-        peers:
-          - "10.100.0.11:7000"
-          - "10.100.0.12:7000"
-          - "10.100.0.13:7000"
-        tls:
-          ca: /pki/ca.pem
-          cert: /pki/cert.pem
-          key: /pki/key.pem
-  node2_config:
-    content: |
-      logging:
-        system:
-          level: "debug"
-          output: "stdout"
-        audit:
-          output: "stdout"
-      db:
-        path: "ella.db"
-      interfaces:
-        n2:
-          address: "10.100.0.12"
-          port: 38412
-        n3:
-          address: "10.100.0.12"
-        n6:
-          name: "eth0"
-        api:
-          address: "10.100.0.12"
-          port: 5002
-      xdp:
-        attach-mode: "generic"
-      cluster:
-        enabled: true
-        node-id: 2
-        bind-address: "10.100.0.12:7000"
-        bootstrap-expect: 3
-        peers:
-          - "10.100.0.11:7000"
-          - "10.100.0.12:7000"
-          - "10.100.0.13:7000"
-        tls:
-          ca: /pki/ca.pem
-          cert: /pki/cert.pem
-          key: /pki/key.pem
-  node3_config:
-    content: |
-      logging:
-        system:
-          level: "debug"
-          output: "stdout"
-        audit:
-          output: "stdout"
-      db:
-        path: "ella.db"
-      interfaces:
-        n2:
-          address: "10.100.0.13"
-          port: 38412
-        n3:
-          address: "10.100.0.13"
-        n6:
-          name: "eth0"
-        api:
-          address: "10.100.0.13"
-          port: 5002
-      xdp:
-        attach-mode: "generic"
-      cluster:
-        enabled: true
-        node-id: 3
-        bind-address: "10.100.0.13:7000"
-        bootstrap-expect: 3
-        peers:
-          - "10.100.0.11:7000"
-          - "10.100.0.12:7000"
-          - "10.100.0.13:7000"
-        tls:
-          ca: /pki/ca.pem
-          cert: /pki/cert.pem
-          key: /pki/key.pem
-  node4_config:
-    content: |
-      logging:
-        system:
-          level: "debug"
-          output: "stdout"
-        audit:
-          output: "stdout"
-      db:
-        path: "ella.db"
-      interfaces:
-        n2:
-          address: "10.100.0.14"
-          port: 38412
-        n3:
-          address: "10.100.0.14"
-        n6:
-          name: "eth0"
-        api:
-          address: "10.100.0.14"
-          port: 5002
-      xdp:
-        attach-mode: "generic"
-      cluster:
-        enabled: true
-        node-id: 4
-        bind-address: "10.100.0.14:7000"
-        bootstrap-expect: 3
-        initial-suffrage: nonvoter
-        peers:
-          - "10.100.0.11:7000"
-          - "10.100.0.12:7000"
-          - "10.100.0.13:7000"
-          - "10.100.0.14:7000"
-        tls:
-          ca: /pki/ca.pem
-          cert: /pki/cert.pem
-          key: /pki/key.pem
-
 services:
   ella-core-1:
     image: ella-core:latest
-    configs:
-      - source: node1_config
-        target: /core.yaml
-      - source: cluster_ca
-        target: /pki/ca.pem
-      - source: node1_cert
-        target: /pki/cert.pem
-      - source: node1_key
-        target: /pki/key.pem
     restart: unless-stopped
-    entrypoint: /bin/core --config /core.yaml
+    entrypoint: /bin/core --config /cfg/core.yaml
     privileged: true
+    volumes:
+      - ./cfg/node1:/cfg:ro
+      - data1:/data
     ports:
       - "5002:5002"
     networks:
@@ -186,18 +14,12 @@ services:
         ipv4_address: 10.100.0.11
   ella-core-2:
     image: ella-core:latest
-    configs:
-      - source: node2_config
-        target: /core.yaml
-      - source: cluster_ca
-        target: /pki/ca.pem
-      - source: node2_cert
-        target: /pki/cert.pem
-      - source: node2_key
-        target: /pki/key.pem
     restart: unless-stopped
-    entrypoint: /bin/core --config /core.yaml
+    entrypoint: /bin/core --config /cfg/core.yaml
     privileged: true
+    volumes:
+      - ./cfg/node2:/cfg:ro
+      - data2:/data
     ports:
       - "5003:5002"
     networks:
@@ -205,18 +27,12 @@ services:
         ipv4_address: 10.100.0.12
   ella-core-3:
     image: ella-core:latest
-    configs:
-      - source: node3_config
-        target: /core.yaml
-      - source: cluster_ca
-        target: /pki/ca.pem
-      - source: node3_cert
-        target: /pki/cert.pem
-      - source: node3_key
-        target: /pki/key.pem
     restart: unless-stopped
-    entrypoint: /bin/core --config /core.yaml
+    entrypoint: /bin/core --config /cfg/core.yaml
     privileged: true
+    volumes:
+      - ./cfg/node3:/cfg:ro
+      - data3:/data
     ports:
       - "5004:5002"
     networks:
@@ -224,23 +40,23 @@ services:
         ipv4_address: 10.100.0.13
   ella-core-4:
     image: ella-core:latest
-    configs:
-      - source: node4_config
-        target: /core.yaml
-      - source: cluster_ca
-        target: /pki/ca.pem
-      - source: node4_cert
-        target: /pki/cert.pem
-      - source: node4_key
-        target: /pki/key.pem
     restart: unless-stopped
-    entrypoint: /bin/core --config /core.yaml
+    entrypoint: /bin/core --config /cfg/core.yaml
     privileged: true
+    volumes:
+      - ./cfg/node4:/cfg:ro
+      - data4:/data
     ports:
       - "5005:5002"
     networks:
       cluster:
         ipv4_address: 10.100.0.14
+
+volumes:
+  data1:
+  data2:
+  data3:
+  data4:
 
 networks:
   cluster:

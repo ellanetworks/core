@@ -4,50 +4,45 @@ package listener
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"strconv"
-	"strings"
+	"time"
+
+	"github.com/ellanetworks/core/internal/pki"
 )
 
-const (
-	cnPrefix  = "ella-node-"
-	minNodeID = 1
-	maxNodeID = 63
-)
-
-// verifyConnection returns a tls.Config.VerifyConnection callback that
-// enforces the cluster verification rules (spec §7):
+// verifyConnection returns a tls.Config.VerifyConnection callback that:
 //
-//  1. Chain validates against caPool.
-//  2. Leaf NotBefore <= now <= NotAfter (handled by x509.Verify).
-//  3. Leaf CN = "ella-node-<n>" with n in [1, 63].
+//  1. On the bootstrap ALPN (ella-pki-bootstrap-v1): allows the
+//     connection even without a peer cert. Auth is the caller's
+//     responsibility (HMAC token in request body).
+//  2. On every other ALPN: requires a peer cert, chain-verifies it
+//     against the current trust bundle, enforces cluster-id match via
+//     the leaf's URI SAN, and rejects revoked serials.
 //
-// VerifyConnection runs for both fresh and resumed TLS sessions,
-// unlike VerifyPeerCertificate which is skipped on resumption.
-func verifyConnection(caPool *x509.CertPool) func(tls.ConnectionState) error {
+// The callback runs for both fresh and resumed TLS sessions.
+func verifyConnection(bundleFn TrustBundleFunc, revokedFn RevokedFunc) func(tls.ConnectionState) error {
 	return func(cs tls.ConnectionState) error {
+		if !RequiresClientCert(cs.NegotiatedProtocol) {
+			return nil
+		}
+
 		if len(cs.PeerCertificates) == 0 {
-			return fmt.Errorf("cluster TLS: peer presented no certificates")
+			return fmt.Errorf("cluster TLS: peer presented no certificate for ALPN %q", cs.NegotiatedProtocol)
+		}
+
+		bundle := bundleFn()
+		if bundle == nil {
+			return fmt.Errorf("cluster TLS: trust bundle not yet available")
 		}
 
 		leaf := cs.PeerCertificates[0]
 
-		intermediates := x509.NewCertPool()
-		for _, c := range cs.PeerCertificates[1:] {
-			intermediates.AddCert(c)
-		}
-
-		if _, err := leaf.Verify(x509.VerifyOptions{
-			Roots:         caPool,
-			Intermediates: intermediates,
-			KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
-		}); err != nil {
-			return fmt.Errorf("cluster TLS: peer certificate chain verification failed: %w", err)
-		}
-
-		if _, err := parseNodeCN(leaf.Subject.CommonName); err != nil {
+		if _, err := bundle.Verify(leaf, time.Now()); err != nil {
 			return fmt.Errorf("cluster TLS: %w", err)
+		}
+
+		if revokedFn(leaf.SerialNumber) {
+			return fmt.Errorf("cluster TLS: peer leaf serial %s has been revoked", leaf.SerialNumber)
 		}
 
 		return nil
@@ -55,35 +50,26 @@ func verifyConnection(caPool *x509.CertPool) func(tls.ConnectionState) error {
 }
 
 // PeerNodeID extracts the node-id from the peer certificate of an
-// established TLS connection. Returns an error if the connection has
-// no peer certificates or the CN is malformed.
-func PeerNodeID(conn *tls.Conn) (int, error) {
+// established TLS connection by re-running the trust bundle's identity
+// extraction. Returns an error if the connection has no peer certificates
+// or the URI SAN is malformed for the bundle's cluster-id.
+func PeerNodeID(conn *tls.Conn, bundle *pki.TrustBundle) (int, error) {
 	state := conn.ConnectionState()
 	if len(state.PeerCertificates) == 0 {
 		return 0, fmt.Errorf("cluster TLS: no peer certificates after handshake")
 	}
 
-	return parseNodeCN(state.PeerCertificates[0].Subject.CommonName)
+	if bundle == nil {
+		return 0, fmt.Errorf("cluster TLS: trust bundle unavailable")
+	}
+
+	return bundle.Verify(state.PeerCertificates[0], time.Now())
 }
 
-// parseNodeCN extracts the integer node-id from a CN of the form
-// "ella-node-<n>" where n is in [1, 63]. Returns an error if the CN
-// is malformed or out of range.
-func parseNodeCN(cn string) (int, error) {
-	if !strings.HasPrefix(cn, cnPrefix) {
-		return 0, fmt.Errorf("peer CN %q does not start with %q", cn, cnPrefix)
-	}
-
-	numStr := cn[len(cnPrefix):]
-
-	n, err := strconv.Atoi(numStr)
-	if err != nil {
-		return 0, fmt.Errorf("peer CN %q has non-integer node-id suffix", cn)
-	}
-
-	if n < minNodeID || n > maxNodeID {
-		return 0, fmt.Errorf("peer CN %q has node-id %d outside valid range [%d, %d]", cn, n, minNodeID, maxNodeID)
-	}
-
-	return n, nil
+// PeerNodeID resolves the node-id of the peer cert on conn using the
+// listener's current trust bundle. Used by cluster HTTP handlers that
+// need peer identity without threading the bundle through every call
+// site.
+func (l *Listener) PeerNodeID(conn *tls.Conn) (int, error) {
+	return PeerNodeID(conn, l.cfg.TrustBundle())
 }

@@ -42,19 +42,18 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
 - `telemetry` (object): The telemetry configuration.
     - `enabled` (boolean): Whether telemetry is enabled or not. Default is `false`.
     - `otlp-endpoint` (string): The endpoint for the OpenTelemetry Protocol (OTLP) collector.
-- `cluster` (object): The clustering configuration for high-availability deployments. When enabled, multiple Ella Core instances form a Raft consensus cluster.
-    - `enabled` (boolean): Whether clustering is enabled. Default is `false`.
-    - `node-id` (int): Unique Raft node identifier (1–63). Must be unique across all cluster members.
-    - `bind-address` (string): The `host:port` that the Raft transport listens on for inter-node communication.
-    - `advertise-api-address` (string): The full URL (including scheme) that other cluster members use to reach this node's API (e.g. `"https://10.0.0.1:5002"`). Used for leader proxy forwarding.
-    - `bootstrap-expect` (int): Number of nodes expected for initial cluster bootstrap. Must be ≤ the number of entries in `peers`.
-    - `peers` (list of strings): List of URLs of all initial cluster members. Each entry must be a valid URL with scheme and host, matching the `advertise-api-address` format. Must include this node's own `advertise-api-address`.
-    - `join-token` (string): Shared secret used to authenticate nodes during cluster bootstrap. Must be at least 32 characters.
-    - `join-timeout` (string): Maximum time to wait for peers during bootstrap (e.g. `"30s"`). Default is `"2m"`.
-    - `propose-timeout` (string): Maximum time to wait for a Raft proposal to be committed (e.g. `"5s"`). Default is `"5s"`.
-    - `snapshot-interval` (string): How often Raft takes a snapshot (e.g. `"2m"`). Uses the Raft library default when omitted.
-    - `snapshot-threshold` (int): Minimum number of log entries before a snapshot is taken. Uses the Raft library default when omitted.
-    - `initial-suffrage` (string): Initial suffrage state for this node when joining the cluster. Options are `"voter"` and `"nonvoter"`. Non-voters receive replicated data but do not participate in elections, useful for rolling upgrades. Default is `"voter"`.
+- `cluster` (object): Clustering configuration for high-availability deployments. See [Clustering](#clustering) for the walkthrough.
+    - `enabled` (boolean): Enables HA mode. When `false`, Ella Core runs as a standalone single-server instance.
+    - `node-id` (int, 1–63): Unique per node. Baked into this node's leaf certificate and 5G-GUTIs.
+    - `bind-address` (string): `host:port` the cluster listener binds to. Carries Raft consensus and cluster HTTP over mTLS.
+    - `advertise-address` (string, optional): `host:port` peers use to reach this node. Defaults to `bind-address`. Must appear in `peers` and must not use an unspecified IP.
+    - `peers` (list of strings): `host:port` of every node in the cluster. Must include this node's own `advertise-address`.
+    - `join-token` (string, optional): Single-use token minted on an existing voter via `POST /api/v1/cluster/pki/join-tokens`. Required on the first boot of a node joining an existing cluster; consumed and ignored on subsequent starts. Its presence also tells the daemon that this node is a joiner, not the founder.
+    - `initial-suffrage` (string, optional): `voter` or `nonvoter`. Defaults to `voter`.
+    - `join-timeout` (duration string, optional): Maximum wait for cluster formation during discovery.
+    - `propose-timeout` (duration string, optional): Maximum wait for a Raft commit before the API returns 503.
+    - `snapshot-interval` (duration string, optional): Minimum interval between automatic Raft snapshots.
+    - `snapshot-threshold` (int, optional): Minimum number of applied log entries between automatic snapshots.
 
 !!! note
     When you use the Ella Core snap, the configuration file is located at `/var/snap/ella-core/common/config.yaml`. After modifying the configuration file, restart Ella Core with `sudo snap restart ella-core.cored` for the changes to take effect.
@@ -94,39 +93,21 @@ telemetry:
 
 ## Clustering
 
-To deploy Ella Core in a high-availability configuration, enable clustering on each node. All nodes must list each other in `peers` and use mTLS certificates signed by a shared cluster CA for peer authentication.
+Enable clustering on each node to deploy Ella Core in a high-availability configuration. See [Deploy a High Availability Cluster](../how_to/deploy_ha_cluster.md) for the walkthrough.
 
 ```yaml
 cluster:
   enabled: true
   node-id: 1
   bind-address: "10.0.0.1:7000"
-  advertise-address: "10.0.0.1:7000"
-  bootstrap-expect: 3
   peers:
     - "10.0.0.1:7000"
     - "10.0.0.2:7000"
     - "10.0.0.3:7000"
-  tls:
-    ca: "/etc/ella/cluster-ca.pem"
-    cert: "/etc/ella/node-1.pem"
-    key: "/etc/ella/node-1-key.pem"
-  join-timeout: "30s"
-  propose-timeout: "5s"
-  snapshot-interval: "2m"
-  snapshot-threshold: 8192
 ```
 
-- `bind-address` (string): The `host:port` address the cluster listener binds to. Carries all intra-cluster traffic (Raft consensus and cluster HTTP).
-- `advertise-address` (string, optional): The `host:port` address peers use to reach this node. Defaults to `bind-address`. Must appear in the `peers` list.
-- `peers` (list of strings): `host:port` cluster addresses of all nodes. Every node's `advertise-address` must appear in this list.
-- `tls` (object): mTLS configuration for cluster communication. Required when clustering is enabled.
-    - `ca` (string): Path to the CA bundle (PEM) trusted for peer certificates.
-    - `cert` (string): Path to this node's leaf certificate (PEM). The leaf CN must be `ella-node-<node-id>`.
-    - `key` (string): Path to the private key for the leaf certificate (PEM).
-
 !!! note
-    When clustering is enabled, write requests (POST, PUT, PATCH, DELETE) are automatically forwarded to the current Raft leader. Read requests are served by any node.
+    Write requests (POST, PUT, PATCH, DELETE) are automatically forwarded to the current Raft leader; reads are served by any node.
 
 ## IPv6 Support
 

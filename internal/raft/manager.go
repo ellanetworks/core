@@ -19,23 +19,21 @@ import (
 	"go.uber.org/zap"
 )
 
-// ClusterTLSConfig holds the file paths for the cluster mTLS PKI material.
-type ClusterTLSConfig struct {
-	CA   string
-	Cert string
-	Key  string
-}
-
 // ClusterConfig holds the cluster-related configuration parsed from YAML.
 type ClusterConfig struct {
-	Enabled           bool
-	NodeID            int
-	BindAddress       string
-	AdvertiseAddress  string
-	APIAddress        string
-	BootstrapExpect   int
-	Peers             []string
-	TLS               ClusterTLSConfig
+	Enabled          bool
+	NodeID           int
+	BindAddress      string
+	AdvertiseAddress string
+	APIAddress       string
+	Peers            []string
+
+	// HasJoinToken signals that a join-token was provided in config. A node
+	// with a join-token is a joiner and must never solo-bootstrap; a node
+	// without one is the founder and solo-bootstraps immediately when no
+	// formed peer is reachable.
+	HasJoinToken bool
+
 	JoinTimeout       time.Duration
 	ProposeTimeout    time.Duration
 	SnapshotInterval  time.Duration

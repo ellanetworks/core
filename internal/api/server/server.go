@@ -11,6 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/cluster/listener"
+	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
@@ -228,6 +229,16 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("POST /api/v1/cluster/members/{id}/resume", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, ResumeClusterMember(dbInstance, bgpService, cfg.ClusterListener))).ServeHTTP)
 
 	mux.HandleFunc("GET /api/v1/cluster/autopilot", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, GetAutopilotState(dbInstance))).ServeHTTP)
+
+	// PKI admin endpoints. Handlers resolve the issuer service at
+	// request time (set by runtime after first-leader bootstrap), so
+	// these routes can be registered before the issuer is ready.
+	mux.HandleFunc("POST /api/v1/cluster/pki/join-tokens", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, pkiAdminEndpoint(func(svc *pkiissuer.Service) http.Handler {
+		return PKIMintJoinToken(dbInstance, svc)
+	}))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/cluster/pki/state", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, pkiAdminEndpoint(func(svc *pkiissuer.Service) http.Handler {
+		return PKIGetState(dbInstance, svc)
+	}))).ServeHTTP)
 
 	// Fallback to UI
 	frontendHandler, err := newFrontendFileServer(embedFS)

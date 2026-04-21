@@ -221,3 +221,83 @@ func (c *Client) RemoveClusterMember(ctx context.Context, nodeID int, force bool
 
 	return nil
 }
+
+// MintJoinTokenOptions is the body for MintClusterJoinToken.
+type MintJoinTokenOptions struct {
+	NodeID     int `json:"nodeID"`
+	TTLSeconds int `json:"ttlSeconds,omitempty"`
+}
+
+// MintJoinTokenResponse is the parsed payload of
+// POST /api/v1/cluster/pki/join-tokens.
+type MintJoinTokenResponse struct {
+	Token     string `json:"token"`
+	ExpiresAt int64  `json:"expiresAt"`
+}
+
+// MintClusterJoinToken mints a single-use HMAC-signed token a joining
+// node uses to get its first cluster leaf. The joining node puts the
+// token in its `cluster.join-token` config field; the cluster root
+// fingerprint is embedded in the token itself.
+func (c *Client) MintClusterJoinToken(ctx context.Context, opts *MintJoinTokenOptions) (*MintJoinTokenResponse, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("MintClusterJoinToken: opts must not be nil")
+	}
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(opts); err != nil {
+		return nil, fmt.Errorf("marshal opts: %w", err)
+	}
+
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "POST",
+		Path:   "api/v1/cluster/pki/join-tokens",
+		Body:   &body,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var out MintJoinTokenResponse
+	if err := json.Unmarshal(resp.Result, &out); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return &out, nil
+}
+
+// PKICertSummary mirrors the server-side summary of a PKI cert row.
+type PKICertSummary struct {
+	Fingerprint    string `json:"fingerprint"`
+	Status         string `json:"status"`
+	NotAfter       int64  `json:"notAfter,omitempty"`
+	HasCrossSigned bool   `json:"hasCrossSigned"`
+}
+
+// PKIState is the parsed payload of GET /api/v1/cluster/pki/state.
+type PKIState struct {
+	ClusterID          string           `json:"clusterID"`
+	Roots              []PKICertSummary `json:"roots"`
+	Intermediates      []PKICertSummary `json:"intermediates"`
+	RevokedSerialCount int              `json:"revokedSerialCount"`
+}
+
+// GetClusterPKIState returns the cluster's PKI trust bundle summary.
+func (c *Client) GetClusterPKIState(ctx context.Context) (*PKIState, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   "api/v1/cluster/pki/state",
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var out PKIState
+	if err := json.Unmarshal(resp.Result, &out); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return &out, nil
+}

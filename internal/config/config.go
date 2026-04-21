@@ -3,8 +3,6 @@
 package config
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
@@ -117,25 +115,18 @@ type TelemetryYaml struct {
 	OTLPEndpoint string `yaml:"otlp-endpoint"`
 }
 
-type ClusterTLSYaml struct {
-	CA   string `yaml:"ca"`
-	Cert string `yaml:"cert"`
-	Key  string `yaml:"key"`
-}
-
 type ClusterYaml struct {
-	Enabled           bool           `yaml:"enabled"`
-	NodeID            int            `yaml:"node-id"`
-	BindAddress       string         `yaml:"bind-address"`
-	AdvertiseAddress  string         `yaml:"advertise-address"`
-	BootstrapExpect   int            `yaml:"bootstrap-expect"`
-	Peers             []string       `yaml:"peers"`
-	TLS               ClusterTLSYaml `yaml:"tls"`
-	JoinTimeout       string         `yaml:"join-timeout"`
-	ProposeTimeout    string         `yaml:"propose-timeout"`
-	SnapshotInterval  string         `yaml:"snapshot-interval"`
-	SnapshotThreshold uint64         `yaml:"snapshot-threshold"`
-	InitialSuffrage   string         `yaml:"initial-suffrage"`
+	Enabled           bool     `yaml:"enabled"`
+	NodeID            int      `yaml:"node-id"`
+	BindAddress       string   `yaml:"bind-address"`
+	AdvertiseAddress  string   `yaml:"advertise-address"`
+	Peers             []string `yaml:"peers"`
+	JoinToken         string   `yaml:"join-token"`
+	JoinTimeout       string   `yaml:"join-timeout"`
+	ProposeTimeout    string   `yaml:"propose-timeout"`
+	SnapshotInterval  string   `yaml:"snapshot-interval"`
+	SnapshotThreshold uint64   `yaml:"snapshot-threshold"`
+	InitialSuffrage   string   `yaml:"initial-suffrage"`
 }
 
 type ConfigYAML struct {
@@ -203,15 +194,6 @@ type Telemetry struct {
 	OTLPEndpoint string // e.g., "otel-collector.default.svc:4317"
 }
 
-type ClusterTLS struct {
-	CA   string
-	Cert string
-	Key  string
-
-	CAPool   *x509.CertPool
-	LeafCert tls.Certificate
-}
-
 // Cluster holds the resolved cluster configuration. When Enabled is false the
 // binary runs as a standalone single-server instance.
 type Cluster struct {
@@ -219,9 +201,8 @@ type Cluster struct {
 	NodeID            int
 	BindAddress       string
 	AdvertiseAddress  string
-	BootstrapExpect   int
 	Peers             []string
-	TLS               ClusterTLS
+	JoinToken         string
 	JoinTimeout       time.Duration
 	ProposeTimeout    time.Duration
 	SnapshotInterval  time.Duration
@@ -645,16 +626,8 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 		return Cluster{}, fmt.Errorf("cluster.advertise-address %q must not use an unspecified IP (0.0.0.0 / ::)", advertiseAddress)
 	}
 
-	if c.BootstrapExpect < 1 {
-		return Cluster{}, fmt.Errorf("cluster.bootstrap-expect must be >= 1, got %d", c.BootstrapExpect)
-	}
-
 	if len(c.Peers) == 0 {
 		return Cluster{}, errors.New("cluster.peers must not be empty when cluster is enabled")
-	}
-
-	if len(c.Peers) < c.BootstrapExpect {
-		return Cluster{}, fmt.Errorf("cluster.peers has %d entries but cluster.bootstrap-expect is %d; peers must be >= bootstrap-expect", len(c.Peers), c.BootstrapExpect)
 	}
 
 	selfFound := false
@@ -677,65 +650,13 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 		return Cluster{}, fmt.Errorf("cluster.peers must include this node's advertise-address %q", advertiseAddress)
 	}
 
-	// TLS is mandatory when clustering is enabled.
-	if c.TLS.CA == "" {
-		return Cluster{}, errors.New("cluster.tls.ca is required when cluster is enabled")
-	}
+	// Cluster TLS is bootstrapped in-band (see internal/cluster/pkiissuer);
+	// there are no longer any operator-provided cert paths to validate.
 
-	if c.TLS.Cert == "" {
-		return Cluster{}, errors.New("cluster.tls.cert is required when cluster is enabled")
-	}
-
-	if c.TLS.Key == "" {
-		return Cluster{}, errors.New("cluster.tls.key is required when cluster is enabled")
-	}
-
-	for _, f := range []struct{ field, path string }{
-		{"cluster.tls.ca", c.TLS.CA},
-		{"cluster.tls.cert", c.TLS.Cert},
-		{"cluster.tls.key", c.TLS.Key},
-	} {
-		if _, err := os.Stat(f.path); os.IsNotExist(err) {
-			return Cluster{}, fmt.Errorf("%s file %s does not exist", f.field, f.path)
-		}
-	}
-
-	certPEM, err := os.ReadFile(c.TLS.Cert)
-	if err != nil {
-		return Cluster{}, fmt.Errorf("cluster.tls.cert: %w", err)
-	}
-
-	keyPEM, err := os.ReadFile(c.TLS.Key)
-	if err != nil {
-		return Cluster{}, fmt.Errorf("cluster.tls.key: %w", err)
-	}
-
-	tlsCert, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		return Cluster{}, fmt.Errorf("cluster.tls: cert/key pair invalid: %w", err)
-	}
-
-	leaf, err := x509.ParseCertificate(tlsCert.Certificate[0])
-	if err != nil {
-		return Cluster{}, fmt.Errorf("cluster.tls.cert: failed to parse leaf certificate: %w", err)
-	}
-
-	expectedCN := fmt.Sprintf("ella-node-%d", c.NodeID)
-	if leaf.Subject.CommonName != expectedCN {
-		return Cluster{}, fmt.Errorf("cluster.tls.cert: leaf CN is %q but must be %q for node-id %d", leaf.Subject.CommonName, expectedCN, c.NodeID)
-	}
-
-	caPEM, err := os.ReadFile(c.TLS.CA)
-	if err != nil {
-		return Cluster{}, fmt.Errorf("cluster.tls.ca: %w", err)
-	}
-
-	caPool := x509.NewCertPool()
-	if !caPool.AppendCertsFromPEM(caPEM) {
-		return Cluster{}, errors.New("cluster.tls.ca: no valid certificates found in CA bundle")
-	}
-
-	var joinTimeout time.Duration
+	var (
+		joinTimeout time.Duration
+		err         error
+	)
 
 	if c.JoinTimeout != "" {
 		joinTimeout, err = time.ParseDuration(c.JoinTimeout)
@@ -772,19 +693,12 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 	}
 
 	return Cluster{
-		Enabled:          true,
-		NodeID:           c.NodeID,
-		BindAddress:      c.BindAddress,
-		AdvertiseAddress: advertiseAddress,
-		BootstrapExpect:  c.BootstrapExpect,
-		Peers:            c.Peers,
-		TLS: ClusterTLS{
-			CA:       c.TLS.CA,
-			Cert:     c.TLS.Cert,
-			Key:      c.TLS.Key,
-			CAPool:   caPool,
-			LeafCert: tlsCert,
-		},
+		Enabled:           true,
+		NodeID:            c.NodeID,
+		BindAddress:       c.BindAddress,
+		AdvertiseAddress:  advertiseAddress,
+		Peers:             c.Peers,
+		JoinToken:         c.JoinToken,
 		JoinTimeout:       joinTimeout,
 		ProposeTimeout:    proposeTimeout,
 		SnapshotInterval:  snapshotInterval,

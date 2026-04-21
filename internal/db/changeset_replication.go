@@ -61,6 +61,12 @@ var replicatedChangesetTables = []string{
 	JWTSecretTableName,
 	RoutesTableName,
 	ClusterMembersTableName,
+	ClusterPKIRootsTableName,
+	ClusterPKIIntermediatesTableName,
+	ClusterIssuedCertsTableName,
+	ClusterRevokedCertsTableName,
+	ClusterJoinTokensTableName,
+	ClusterPKIStateTableName,
 	DailyUsageTableName,
 	"schema_version",
 }
