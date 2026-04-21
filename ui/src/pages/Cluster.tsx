@@ -31,16 +31,19 @@ import { getStatus, type APIStatus } from "@/queries/status";
 import {
   listClusterMembers,
   getAutopilotState,
+  getClusterPKIState,
   promoteClusterMember,
   removeClusterMember,
   type ClusterMember,
   type AutopilotServer,
   type AutopilotState,
+  type ClusterPKIState,
   type DrainResponse,
   type DrainState,
   type ResumeResponse,
 } from "@/queries/cluster";
 import AddClusterMemberModal from "@/components/AddClusterMemberModal";
+import MintJoinTokenModal from "@/components/MintJoinTokenModal";
 import DrainNodeModal from "@/components/DrainNodeModal";
 import ResumeNodeModal from "@/components/ResumeNodeModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
@@ -210,6 +213,85 @@ const HealthBanner: React.FC<{
   );
 };
 
+const ClusterPKIPanel: React.FC<{
+  pki: ClusterPKIState | undefined;
+  error: boolean;
+}> = ({ pki, error }) => {
+  if (error && !pki) return null;
+  if (!pki) return null;
+
+  const activeInt = pki.intermediates.find((i) => i.status === "active");
+  const now = Math.floor(Date.now() / 1000);
+  const daysUntilExpiry = activeInt?.notAfter
+    ? Math.floor((activeInt.notAfter - now) / 86400)
+    : null;
+
+  const expirySeverity: "success" | "warning" | "error" | null =
+    daysUntilExpiry === null
+      ? null
+      : daysUntilExpiry < 7
+        ? "error"
+        : daysUntilExpiry < 30
+          ? "warning"
+          : "success";
+
+  return (
+    <Paper variant="outlined" sx={{ p: 2, mt: 2 }}>
+      <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 600 }}>
+        Cluster PKI
+      </Typography>
+      <Stack direction="row" spacing={3} sx={{ flexWrap: "wrap", rowGap: 1 }}>
+        <Box>
+          <Typography variant="caption" color="textSecondary">
+            Cluster ID
+          </Typography>
+          <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
+            {pki.clusterID || "—"}
+          </Typography>
+        </Box>
+        <Box>
+          <Typography variant="caption" color="textSecondary">
+            Roots
+          </Typography>
+          <Typography variant="body2">{pki.roots.length}</Typography>
+        </Box>
+        <Box>
+          <Typography variant="caption" color="textSecondary">
+            Intermediates
+          </Typography>
+          <Typography variant="body2">{pki.intermediates.length}</Typography>
+        </Box>
+        <Box>
+          <Typography variant="caption" color="textSecondary">
+            Revoked serials
+          </Typography>
+          <Typography variant="body2">{pki.revokedSerialCount}</Typography>
+        </Box>
+        {activeInt?.notAfter && expirySeverity && (
+          <Box>
+            <Typography variant="caption" color="textSecondary">
+              Active intermediate expires
+            </Typography>
+            <Typography
+              variant="body2"
+              color={
+                expirySeverity === "error"
+                  ? "error.main"
+                  : expirySeverity === "warning"
+                    ? "warning.main"
+                    : "text.primary"
+              }
+            >
+              {new Date(activeInt.notAfter * 1000).toLocaleDateString()}
+              {daysUntilExpiry !== null && ` (${daysUntilExpiry}d)`}
+            </Typography>
+          </Box>
+        )}
+      </Stack>
+    </Paper>
+  );
+};
+
 const ClusterPage: React.FC = () => {
   const { accessToken, authReady } = useAuth();
   const { showSnackbar } = useSnackbar();
@@ -225,6 +307,7 @@ const ClusterPage: React.FC = () => {
   );
 
   const [isAddOpen, setAddOpen] = useState(false);
+  const [isMintOpen, setMintOpen] = useState(false);
   const [drainTarget, setDrainTarget] = useState<ClusterMember | null>(null);
   const [resumeTarget, setResumeTarget] = useState<ClusterMember | null>(null);
   const [removeTarget, setRemoveTarget] = useState<ClusterMember | null>(null);
@@ -249,6 +332,14 @@ const ClusterPage: React.FC = () => {
     queryFn: () => getAutopilotState(accessToken || ""),
     enabled: authReady && !!accessToken && clusterEnabled,
     refetchInterval: 2000,
+    retry: false,
+  });
+
+  const pkiQuery = useQuery<ClusterPKIState>({
+    queryKey: ["cluster-pki-state"],
+    queryFn: () => getClusterPKIState(accessToken || ""),
+    enabled: authReady && !!accessToken && clusterEnabled,
+    refetchInterval: 30000,
     retry: false,
   });
 
@@ -673,10 +764,22 @@ const ClusterPage: React.FC = () => {
         </Grid>
         <Grid
           size={{ xs: 12, md: 4 }}
-          sx={{ display: "flex", justifyContent: { md: "flex-end" } }}
+          sx={{
+            display: "flex",
+            justifyContent: { md: "flex-end" },
+            gap: 1,
+            flexWrap: "wrap",
+          }}
         >
           <Button
             variant="contained"
+            color="success"
+            onClick={() => setMintOpen(true)}
+          >
+            Mint Join Token
+          </Button>
+          <Button
+            variant="outlined"
             color="success"
             onClick={() => setAddOpen(true)}
           >
@@ -715,6 +818,8 @@ const ClusterPage: React.FC = () => {
         />
       </ThemeProvider>
 
+      <ClusterPKIPanel pki={pkiQuery.data} error={pkiQuery.isError} />
+
       {isAddOpen && (
         <AddClusterMemberModal
           open
@@ -725,6 +830,10 @@ const ClusterPage: React.FC = () => {
             queryClient.invalidateQueries({ queryKey: ["cluster-autopilot"] });
           }}
         />
+      )}
+
+      {isMintOpen && (
+        <MintJoinTokenModal open onClose={() => setMintOpen(false)} />
       )}
 
       {drainTarget && (
