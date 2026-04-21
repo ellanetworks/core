@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -28,10 +29,10 @@ func NewDockerClient() (*DockerClient, error) {
 	return &DockerClient{Client: cli}, nil
 }
 
-// ComposeUp starts containers defined in a docker-compose file located in composeDir
+// ComposeUpWithFile starts containers defined in a specific docker-compose file
 // Note: `compose` is not part of the moby client, so we use exec.Command to call the CLI
-func (dc *DockerClient) ComposeUp(ctx context.Context, composeDir string) error {
-	cmd := exec.CommandContext(ctx, "docker", "compose", "up", "-d")
+func (dc *DockerClient) ComposeUpWithFile(ctx context.Context, composeDir, composeFile string) error {
+	cmd := exec.CommandContext(ctx, "docker", "compose", "-f", composeFile, "up", "-d")
 	cmd.Dir = composeDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -43,18 +44,68 @@ func (dc *DockerClient) ComposeUp(ctx context.Context, composeDir string) error 
 	return nil
 }
 
-// ComposeDown stops and removes containers defined in a docker-compose file located in composeDir
-// Note: `compose` is not part of the moby client, so we use exec.Command to call the CLI.
+// ComposeDownWithFile stops and removes containers defined in a specific docker-compose file
+// Note: `compose` is not part of the moby client, so we use exec.Command to call the CLI
 // Volumes are removed so test runs start from fresh state; HA tests rely on this
 // because a stale ella.db or raft log from a previous run would make a node think
 // it has already bootstrapped and skip the discovery/join path.
-func (dc *DockerClient) ComposeDown(ctx context.Context, composeDir string) {
-	cmd := exec.CommandContext(ctx, "docker", "compose", "down", "-v")
+func (dc *DockerClient) ComposeDownWithFile(ctx context.Context, composeDir, composeFile string) {
+	cmd := exec.CommandContext(ctx, "docker", "compose", "-f", composeFile, "down", "-v")
 	cmd.Dir = composeDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	_ = cmd.Run()
+}
+
+// ComposeCleanup iterates the local "compose" directory and calls
+// ComposeDownWithFile for every compose file it finds. This is a best-effort
+// cleanup helper used by integration tests so they don't need to hard-code
+// every compose directory / filename. Errors are ignored to match
+// ComposeDownWithFile's behaviour.
+func (dc *DockerClient) ComposeCleanup(ctx context.Context) {
+	// List the top-level compose directory. If it doesn't exist just return.
+	entries, err := os.ReadDir("compose")
+	if err != nil {
+		return
+	}
+
+	// First, handle any compose files in the top-level compose directory.
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+
+		name := e.Name()
+		if strings.HasPrefix(name, "compose") && (strings.HasSuffix(name, ".yaml") || strings.HasSuffix(name, ".yml")) {
+			dc.ComposeDownWithFile(ctx, "compose", name)
+		}
+	}
+
+	// Then iterate each subdirectory and look for compose files there.
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+
+		compDir := filepath.Join("compose", e.Name())
+
+		files, err := os.ReadDir(compDir)
+		if err != nil {
+			continue
+		}
+
+		for _, f := range files {
+			if f.IsDir() {
+				continue
+			}
+
+			fname := f.Name()
+			if strings.HasPrefix(fname, "compose") && (strings.HasSuffix(fname, ".yaml") || strings.HasSuffix(fname, ".yml")) {
+				dc.ComposeDownWithFile(ctx, compDir, fname)
+			}
+		}
+	}
 }
 
 func (dc *DockerClient) ResolveComposeContainer(ctx context.Context, project, service string) (string, error) {
@@ -208,54 +259,53 @@ func (dc *DockerClient) CopyFileToContainer(ctx context.Context, containerName, 
 	return nil
 }
 
-func (dc *DockerClient) ComposeStop(ctx context.Context, composeDir string, service string) error {
-	cmd := exec.CommandContext(ctx, "docker", "compose", "stop", service)
+func (dc *DockerClient) ComposeStopWithFile(ctx context.Context, composeDir, composeFile string, service string) error {
+	cmd := exec.CommandContext(ctx, "docker", "compose", "-f", composeFile, "stop", service)
 	cmd.Dir = composeDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to stop service %s: %w", service, err)
+		return fmt.Errorf("failed to stop service %s with compose file %s: %w", service, composeFile, err)
 	}
 
 	return nil
 }
 
-func (dc *DockerClient) ComposeStart(ctx context.Context, composeDir string, service string) error {
-	cmd := exec.CommandContext(ctx, "docker", "compose", "start", service)
+func (dc *DockerClient) ComposeStartWithFile(ctx context.Context, composeDir, composeFile string, service string) error {
+	cmd := exec.CommandContext(ctx, "docker", "compose", "-f", composeFile, "start", service)
 	cmd.Dir = composeDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to start service %s: %w", service, err)
+		return fmt.Errorf("failed to start service %s with compose file %s: %w", service, composeFile, err)
 	}
 
 	return nil
 }
 
-// ComposeUpServices creates and starts only the named services from a compose
-// file. Use this when a compose file defines more services than should run
-// initially (e.g. scale-up tests that add nodes later).
-func (dc *DockerClient) ComposeUpServices(ctx context.Context, composeDir string, services ...string) error {
-	args := append([]string{"compose", "up", "-d"}, services...)
+// ComposeUpServicesWithFile creates and starts only the named services from a specific compose file.
+// Use this when a compose file defines more services than should run initially (e.g. scale-up tests that add nodes later).
+func (dc *DockerClient) ComposeUpServicesWithFile(ctx context.Context, composeDir, composeFile string, services ...string) error {
+	args := append([]string{"compose", "-f", composeFile, "up", "-d"}, services...)
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	cmd.Dir = composeDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to run docker compose up %v: %w", services, err)
+		return fmt.Errorf("failed to run docker compose -f %s up %v: %w", composeFile, services, err)
 	}
 
 	return nil
 }
 
-// ComposeCreate creates containers for the named services without starting
+// ComposeCreateWithFile creates containers for the named services from a specific compose file without starting
 // them. Used by HA tests that need to seed join-token files into a
 // follower's data dir before the daemon comes up.
-func (dc *DockerClient) ComposeCreate(ctx context.Context, composeDir string, services ...string) error {
-	args := append([]string{"compose", "create"}, services...)
+func (dc *DockerClient) ComposeCreateWithFile(ctx context.Context, composeDir string, composeFile string, services ...string) error {
+	args := append([]string{"compose", "-f", composeFile, "create"}, services...)
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	cmd.Dir = composeDir
 	cmd.Stdout = os.Stdout

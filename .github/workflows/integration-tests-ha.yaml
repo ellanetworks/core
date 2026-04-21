@@ -8,6 +8,10 @@ on:
 
 jobs:
   ha-integration-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        ip_version: [ipv4, ipv6, dualstack]
     runs-on: ubuntu-24.04
 
     steps:
@@ -29,4 +33,4 @@ jobs:
 
       - name: Run HA integration tests
         run: |
-          INTEGRATION=1 go test ./integration/... -run TestIntegrationHA -v -timeout 15m
+          INTEGRATION=1 IP_VERSION=${{ matrix.ip_version }} go test ./integration/... -run TestIntegrationHA -v -timeout 15m

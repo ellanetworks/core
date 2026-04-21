@@ -15,6 +15,12 @@ func TestIntegrationUERANSIM(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	// UERANSIM does not correctly handle dual-stack NGAP TransportLayerAddress,
+	// so skip this integration until upstream dual-stack support is fixed.
+	if DetectIPFamily() == DualStack {
+		t.Skip("skipping UERANSIM integration in dual-stack mode")
+	}
+
 	testCases := []struct {
 		name string
 		nat  bool
@@ -45,10 +51,9 @@ func TestIntegrationUERANSIM(t *testing.T) {
 				}
 			}()
 
-			dockerClient.ComposeDown(ctx, "compose/ueransim/")
-			dockerClient.ComposeDown(ctx, "compose/core-tester/")
+			dockerClient.ComposeCleanup(ctx)
 
-			err = dockerClient.ComposeUp(ctx, "compose/ueransim/")
+			err = dockerClient.ComposeUpWithFile(ctx, "compose/ueransim/", ComposeFile())
 			if err != nil {
 				t.Fatalf("failed to bring up compose: %v", err)
 			}
@@ -56,7 +61,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 			t.Log("deployed ella core")
 
 			clientConfig := &client.Config{
-				BaseURL: "http://127.0.0.1:5002",
+				BaseURL: APIAddress(),
 			}
 
 			ellaClient, err := client.New(clientConfig)
@@ -77,7 +82,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 					Routes: []RouteConfig{
 						{
 							Destination: "8.8.8.8/32",
-							Gateway:     "10.6.0.3",
+							Gateway:     N6Address(),
 							Interface:   "n6",
 							Metric:      0,
 						},
@@ -163,7 +168,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			t.Logf("Verified that 'uesimtun0' is in the result")
 
-			result, err = dockerClient.Exec(ctx, ueransimContainerName, []string{"ping", "-I", "uesimtun0", "10.6.0.3", "-c", "3"}, false, 10*time.Second, logWriter{t})
+			result, err = dockerClient.Exec(ctx, ueransimContainerName, []string{"ping", "-I", "uesimtun0", N6Address(), "-c", "3"}, false, 10*time.Second, logWriter{t})
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
@@ -190,7 +195,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 			result, err = dockerClient.Exec(
 				ctx,
 				ueransimContainerName,
-				[]string{"python3", "/network_test.py", "--dev", "uesimtun0", "--dest", "10.6.0.3"},
+				[]string{"python3", "/network_test.py", "--dev", "uesimtun0", "--dest", N6Address()},
 				false,
 				5*time.Second,
 				logWriter{t},
@@ -201,7 +206,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			t.Logf("Network tester results: %s", result)
 
-			dockerClient.ComposeDown(ctx, "compose/ueransim/compose.yaml")
+			dockerClient.ComposeDownWithFile(ctx, "compose/ueransim", ComposeFile())
 		})
 	}
 }
