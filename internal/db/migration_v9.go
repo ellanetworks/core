@@ -72,6 +72,7 @@ const v9CreateClusterRevokedCerts = `
 		purgeAfter  INTEGER NOT NULL
 )`
 
+// #nosec G101 -- DDL statement, not a credential
 const v9CreateClusterJoinTokens = `
 	CREATE TABLE IF NOT EXISTS %s (
 		id           TEXT PRIMARY KEY,

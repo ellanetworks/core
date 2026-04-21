@@ -56,10 +56,10 @@ const (
 	deleteRevokedCertsPurgedStmtStr = "DELETE FROM %s WHERE purgeAfter<$ClusterRevokedCert.purgeAfter"
 
 	// Join tokens
-	insertJoinTokenStmtStr       = "INSERT INTO %s (id, nodeID, claimsJSON, expiresAt, consumedAt, consumedBy) VALUES ($ClusterJoinToken.id, $ClusterJoinToken.nodeID, $ClusterJoinToken.claimsJSON, $ClusterJoinToken.expiresAt, 0, 0)"
+	insertJoinTokenStmtStr       = "INSERT INTO %s (id, nodeID, claimsJSON, expiresAt, consumedAt, consumedBy) VALUES ($ClusterJoinToken.id, $ClusterJoinToken.nodeID, $ClusterJoinToken.claimsJSON, $ClusterJoinToken.expiresAt, 0, 0)" // #nosec G101 -- SQL statement, not a credential
 	getJoinTokenStmtStr          = "SELECT &ClusterJoinToken.* FROM %s WHERE id=$ClusterJoinToken.id"
-	consumeJoinTokenStmtStr      = "UPDATE %s SET consumedAt=$ClusterJoinToken.consumedAt, consumedBy=$ClusterJoinToken.consumedBy WHERE id=$ClusterJoinToken.id AND consumedAt=0"
-	deleteJoinTokensStaleStmtStr = "DELETE FROM %s WHERE expiresAt<$ClusterJoinToken.expiresAt OR (consumedAt>0 AND consumedAt<$ClusterJoinToken.consumedAt)"
+	consumeJoinTokenStmtStr      = "UPDATE %s SET consumedAt=$ClusterJoinToken.consumedAt, consumedBy=$ClusterJoinToken.consumedBy WHERE id=$ClusterJoinToken.id AND consumedAt=0" // #nosec G101 -- SQL statement, not a credential
+	deleteJoinTokensStaleStmtStr = "DELETE FROM %s WHERE expiresAt<$ClusterJoinToken.expiresAt OR (consumedAt>0 AND consumedAt<$ClusterJoinToken.consumedAt)"                      // #nosec G101 -- SQL statement, not a credential
 
 	// PKI state singleton
 	initPKIStateStmtStr   = "INSERT INTO %s (id, hmacKey, serialCounter) VALUES (1, $ClusterPKIState.hmacKey, 0) ON CONFLICT(id) DO NOTHING"

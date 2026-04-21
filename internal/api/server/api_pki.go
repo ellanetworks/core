@@ -19,7 +19,7 @@ import (
 
 // Audit action strings.
 const (
-	PKIMintJoinTokenAction = "pki_mint_join_token"
+	PKIMintJoinTokenAction = "pki_mint_join_token" // #nosec G101 -- audit action name, not a credential
 )
 
 // pkiAdminEndpoint resolves the pkiissuer.Service at request time and
