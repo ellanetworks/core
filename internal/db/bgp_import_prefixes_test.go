@@ -6,13 +6,12 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 func TestImportPrefixes_EmptyByDefault(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -47,7 +46,7 @@ func TestImportPrefixes_EmptyByDefault(t *testing.T) {
 func TestImportPrefixes_SetAndList(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -112,7 +111,7 @@ func TestImportPrefixes_SetAndList(t *testing.T) {
 func TestImportPrefixes_ReplaceOnSet(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -168,7 +167,7 @@ func TestImportPrefixes_ReplaceOnSet(t *testing.T) {
 func TestImportPrefixes_ClearWithEmptySlice(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -216,7 +215,7 @@ func TestImportPrefixes_ClearWithEmptySlice(t *testing.T) {
 func TestImportPrefixes_CascadeDeleteOnPeerRemoval(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -264,7 +263,7 @@ func TestImportPrefixes_CascadeDeleteOnPeerRemoval(t *testing.T) {
 func TestImportPrefixes_IsolatedBetweenPeers(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}

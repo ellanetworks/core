@@ -8,13 +8,12 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 func TestConnect(t *testing.T) {
 	tempDir := t.TempDir()
 
-	db, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	db, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Can't connect to SQLite: %s", err)
 	}

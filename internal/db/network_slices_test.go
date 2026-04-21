@@ -8,13 +8,12 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 func TestNetworkSlicesEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -161,7 +160,7 @@ func TestNetworkSlicesEndToEnd(t *testing.T) {
 func TestNetworkSliceGetNotFound(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -181,7 +180,7 @@ func TestNetworkSliceGetNotFound(t *testing.T) {
 func TestNetworkSliceDuplicateName(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -211,7 +210,7 @@ func TestNetworkSliceDuplicateName(t *testing.T) {
 func TestNetworkSliceNilSD(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -246,7 +245,7 @@ func TestNetworkSliceNilSD(t *testing.T) {
 func TestListNetworkSlicesByIDs(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -341,7 +340,7 @@ func TestListNetworkSlicesByIDs(t *testing.T) {
 func TestListAllNetworkSlices(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}

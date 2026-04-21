@@ -6,13 +6,12 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 func TestGetBGPSettings_Default(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -44,7 +43,7 @@ func TestGetBGPSettings_Default(t *testing.T) {
 func TestIsBGPEnabled_Default(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -68,7 +67,7 @@ func TestIsBGPEnabled_Default(t *testing.T) {
 func TestUpdateAndGetBGPSettings(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -136,7 +135,7 @@ func TestUpdateAndGetBGPSettings(t *testing.T) {
 func TestUpdateBGPSettings_RestartDatabase(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -157,7 +156,7 @@ func TestUpdateBGPSettings_RestartDatabase(t *testing.T) {
 		t.Fatalf("Couldn't complete Close: %s", err)
 	}
 
-	database, err = db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err = db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}

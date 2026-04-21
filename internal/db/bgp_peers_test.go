@@ -6,13 +6,12 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 func TestDBBGPPeersEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -140,7 +139,7 @@ func TestDBBGPPeersEndToEnd(t *testing.T) {
 func TestCreateBGPPeer_DuplicateAddress(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -178,7 +177,7 @@ func TestCreateBGPPeer_DuplicateAddress(t *testing.T) {
 func TestGetBGPPeer_NotFound(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -198,7 +197,7 @@ func TestGetBGPPeer_NotFound(t *testing.T) {
 func TestDeleteBGPPeer_NotFound(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -218,7 +217,7 @@ func TestDeleteBGPPeer_NotFound(t *testing.T) {
 func TestListAllBGPPeers(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
@@ -267,7 +266,7 @@ func TestListAllBGPPeers(t *testing.T) {
 func TestCreateMultipleBGPPeers(t *testing.T) {
 	tempDir := t.TempDir()
 
-	database, err := db.NewDatabase(context.Background(), filepath.Join(tempDir, "db.sqlite3"), ellaraft.ClusterConfig{})
+	database, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "db.sqlite3"))
 	if err != nil {
 		t.Fatalf("Couldn't complete NewDatabase: %s", err)
 	}
