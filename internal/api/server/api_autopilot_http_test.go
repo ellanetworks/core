@@ -15,9 +15,6 @@ type autopilotServerItem struct {
 	Healthy         bool   `json:"healthy"`
 	IsLeader        bool   `json:"isLeader"`
 	HasVotingRights bool   `json:"hasVotingRights"`
-	LastContactMs   int64  `json:"lastContactMs"`
-	LastTerm        uint64 `json:"lastTerm"`
-	LastIndex       uint64 `json:"lastIndex"`
 	StableSince     string `json:"stableSince,omitempty"`
 }
 

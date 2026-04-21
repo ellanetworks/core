@@ -131,10 +131,6 @@ func TestMapAutopilotState_Populated(t *testing.T) {
 		t.Errorf("leader row should be leader+healthy+voting, got %+v", leader)
 	}
 
-	if leader.LastContactMs != 0 {
-		t.Errorf("expected leader LastContactMs=0, got %d", leader.LastContactMs)
-	}
-
 	departed := resp.Servers[2]
 	if departed.Healthy {
 		t.Errorf("expected node 3 unhealthy")
@@ -142,10 +138,6 @@ func TestMapAutopilotState_Populated(t *testing.T) {
 
 	if departed.NodeStatus != string(autopilot.NodeLeft) {
 		t.Errorf("expected node 3 nodeStatus=%q, got %q", autopilot.NodeLeft, departed.NodeStatus)
-	}
-
-	if departed.LastContactMs != 30_000 {
-		t.Errorf("expected node 3 LastContactMs=30000, got %d", departed.LastContactMs)
 	}
 
 	if leader.StableSince != "2026-04-20T08:15:02Z" {

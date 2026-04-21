@@ -2671,54 +2671,8 @@ paths:
                 $ref: "#/components/schemas/ListClusterMembersResponseEnvelope"
         "401":
           $ref: "#/components/responses/Unauthorized"
-    post:
-      operationId: addClusterMember
-      tags: [Cluster]
-      summary: Add a cluster member
-      description: >-
-        Adds a new node to the Raft cluster and registers it in the cluster
-        members table. The node must already be running and reachable at the
-        given raft address. Requires admin privileges.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AddClusterMemberParams"
-      responses:
-        "201":
-          $ref: "#/components/responses/Success"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
 
   /api/v1/cluster/members/{id}:
-    get:
-      operationId: getClusterMember
-      tags: [Cluster]
-      summary: Get a cluster member
-      description: Returns a single cluster member by node ID. Requires admin privileges.
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-          description: Node ID of the cluster member.
-      responses:
-        "200":
-          description: Cluster member.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GetClusterMemberResponseEnvelope"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
     delete:
       operationId: removeClusterMember
       tags: [Cluster]
@@ -2889,11 +2843,7 @@ paths:
           description: Node ID of the cluster member to resume.
       responses:
         "200":
-          description: Resume result.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ResumeResponseEnvelope"
+          $ref: "#/components/responses/Success"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -2931,25 +2881,6 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "503":
           description: PKI issuer not yet available (pre-bootstrap).
-
-  /api/v1/cluster/pki/state:
-    get:
-      operationId: getClusterPKIState
-      tags: [Cluster]
-      summary: Get cluster PKI state
-      description: >-
-        Returns the cluster's trust bundle summary: roots,
-        intermediates, and revoked-serial counts. Requires admin
-        privileges.
-      responses:
-        "200":
-          description: Cluster PKI state.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PKIStateResponseEnvelope"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
 
 components:
   securitySchemes:
@@ -5080,12 +5011,6 @@ components:
           type: string
           enum: [voter, nonvoter]
           description: Whether this member participates in leader election.
-        maxSchemaVersion:
-          type: integer
-          description: >-
-            Highest shared-DB schema version this member's binary can
-            apply. Compared against the cluster's applied schema during
-            rolling upgrades to gate migrations behind quorum support.
         isLeader:
           type: boolean
           description: True when this member is the current Raft leader.
@@ -5103,7 +5028,7 @@ components:
           description: >-
             RFC 3339 timestamp of the last drainState change. Empty when the
             node has never been drained.
-      required: [nodeId, raftAddress, apiAddress, binaryVersion, suffrage, maxSchemaVersion, isLeader, drainState]
+      required: [nodeId, raftAddress, apiAddress, binaryVersion, suffrage, isLeader, drainState]
 
     ListClusterMembersResponseEnvelope:
       type: object
@@ -5112,12 +5037,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ClusterMember"
-
-    GetClusterMemberResponseEnvelope:
-      type: object
-      properties:
-        result:
-          $ref: "#/components/schemas/ClusterMember"
 
     AutopilotServer:
       type: object
@@ -5147,30 +5066,14 @@ components:
         hasVotingRights:
           type: boolean
           description: True when this peer is a voter or leader (not a nonvoter).
-        lastContactMs:
-          type: integer
-          format: int64
-          description: >-
-            Milliseconds since this peer last heartbeated with the leader.
-            Zero for the leader's own row.
-        lastTerm:
-          type: integer
-          format: uint64
-          description: Highest Raft term this peer has a record of.
-        lastIndex:
-          type: integer
-          format: uint64
-          description: >-
-            Last log index this peer has acknowledged. Compare to the
-            leader's row to read replication lag.
         stableSince:
           type: string
           format: date-time
           description: >-
             UTC timestamp of the last time this peer's `healthy` value
-            changed. Used by autopilot's promotion logic and surfaced as a
-            signal of churn. Omitted when unknown.
-      required: [nodeId, raftAddress, nodeStatus, healthy, isLeader, hasVotingRights, lastContactMs, lastTerm, lastIndex]
+            changed. For an unhealthy peer this is when contact was lost.
+            Omitted when unknown.
+      required: [nodeId, raftAddress, nodeStatus, healthy, isLeader, hasVotingRights]
 
     AutopilotState:
       type: object
@@ -5210,37 +5113,6 @@ components:
         result:
           $ref: "#/components/schemas/AutopilotState"
 
-    AddClusterMemberParams:
-      type: object
-      required: [nodeId, raftAddress, apiAddress]
-      properties:
-        nodeId:
-          type: integer
-          minimum: 1
-          description: Raft node ID for the new member.
-        raftAddress:
-          type: string
-          description: "Raft consensus address of the new member (host:port)."
-        apiAddress:
-          type: string
-          description: "API address of the new member (host:port)."
-        suffrage:
-          type: string
-          enum: [voter, nonvoter]
-          description: "Whether the new member is a voter or nonvoter. Defaults to voter."
-        clusterId:
-          type: string
-          description: Cluster ID to validate against the operator configuration.
-        schemaVersion:
-          type: integer
-          description: Schema version of the joining node. Rejected if lower than the leader's schema.
-        maxSchemaVersion:
-          type: integer
-          description: >-
-            Highest shared-DB schema version the joining node's binary can
-            apply. Recorded on the cluster member row so the cluster can
-            gate migrations on quorum support during rolling upgrades.
-
     DrainParams:
       type: object
       properties:
@@ -5257,50 +5129,17 @@ components:
     DrainResponse:
       type: object
       properties:
-        message:
-          type: string
-        state:
+        drainState:
           type: string
           enum: [active, draining, drained]
           description: Drain state of the target node after the call.
-        transferredLeadership:
-          type: boolean
-          description: Whether Raft leadership was transferred to another node.
-        ransNotified:
-          type: integer
-          description: Number of RANs notified to redirect UE registrations.
-        bgpStopped:
-          type: boolean
-          description: Whether BGP advertisements were withdrawn.
-        sessionsRemaining:
-          type: integer
-          description: Active leases still on the target when the response was built.
-      required: [message, state, transferredLeadership, ransNotified, bgpStopped, sessionsRemaining]
+      required: [drainState]
 
     DrainResponseEnvelope:
       type: object
       properties:
         result:
           $ref: "#/components/schemas/DrainResponse"
-
-    ResumeResponse:
-      type: object
-      properties:
-        message:
-          type: string
-        state:
-          type: string
-          enum: [active]
-        bgpStarted:
-          type: boolean
-          description: Whether the local BGP speaker was restarted.
-      required: [message, state, bgpStarted]
-
-    ResumeResponseEnvelope:
-      type: object
-      properties:
-        result:
-          $ref: "#/components/schemas/ResumeResponse"
 
     MintJoinTokenRequest:
       type: object
@@ -5335,42 +5174,3 @@ components:
       properties:
         result:
           $ref: "#/components/schemas/MintJoinTokenResponse"
-
-    PKICertSummary:
-      type: object
-      properties:
-        fingerprint:
-          type: string
-        status:
-          type: string
-          enum: [active, verify-only, retired]
-        notAfter:
-          type: integer
-          format: int64
-          description: Unix seconds. Omitted for roots.
-        hasCrossSigned:
-          type: boolean
-      required: [fingerprint, status, hasCrossSigned]
-
-    PKIStateResponse:
-      type: object
-      properties:
-        clusterID:
-          type: string
-        roots:
-          type: array
-          items:
-            $ref: "#/components/schemas/PKICertSummary"
-        intermediates:
-          type: array
-          items:
-            $ref: "#/components/schemas/PKICertSummary"
-        revokedSerialCount:
-          type: integer
-      required: [clusterID, revokedSerialCount]
-
-    PKIStateResponseEnvelope:
-      type: object
-      properties:
-        result:
-          $ref: "#/components/schemas/PKIStateResponse"

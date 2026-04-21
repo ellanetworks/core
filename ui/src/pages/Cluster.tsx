@@ -36,12 +36,10 @@ import {
   type ClusterMember,
   type AutopilotServer,
   type AutopilotState,
-  type DrainResponse,
   type DrainState,
-  type ResumeResponse,
+  type DrainResponse,
 } from "@/queries/cluster";
-import AddClusterMemberModal from "@/components/AddClusterMemberModal";
-import MintJoinTokenModal from "@/components/MintJoinTokenModal";
+import AddNodeModal from "@/components/AddNodeModal";
 import DrainNodeModal from "@/components/DrainNodeModal";
 import ResumeNodeModal from "@/components/ResumeNodeModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
@@ -70,15 +68,6 @@ const CenteredCell: React.FC<{ children: React.ReactNode }> = ({
     {children}
   </Box>
 );
-
-function formatLastContact(ms: number): string {
-  if (ms < 0) return "—";
-  if (ms < 1000) return `${ms} ms`;
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  return `${m}m ${s % 60}s`;
-}
 
 function drainStateChip(state: DrainState, updatedAt?: string) {
   if (state === "drained") {
@@ -174,8 +163,8 @@ const HealthBanner: React.FC<{
   if (autopilotError && !autopilot) {
     return (
       <Alert severity="warning" sx={{ mb: 2 }}>
-        Live cluster health is unavailable (no leader reachable, or autopilot is
-        still converging after a recent leadership change).
+        Live cluster health is unavailable. Autopilot typically takes a moment
+        to converge after a leadership change.
       </Alert>
     );
   }
@@ -188,10 +177,10 @@ const HealthBanner: React.FC<{
 
   const ftText =
     ft < 0
-      ? "Quorum is at risk — an additional failure will stall writes."
+      ? "Quorum lost — the cluster cannot accept writes until a voter recovers."
       : ft === 0
-        ? "Can lose 0 more nodes before writes stall."
-        : `Can lose ${ft} more node${ft === 1 ? "" : "s"} before writes stall.`;
+        ? "At quorum limit — one more voter failure would stop writes."
+        : `Failure tolerance: ${ft} voter${ft === 1 ? "" : "s"}.`;
 
   return (
     <Stack spacing={1} sx={{ mb: 2 }}>
@@ -225,7 +214,6 @@ const ClusterPage: React.FC = () => {
     [theme],
   );
 
-  const [isAddOpen, setAddOpen] = useState(false);
   const [isMintOpen, setMintOpen] = useState(false);
   const [drainTarget, setDrainTarget] = useState<ClusterMember | null>(null);
   const [resumeTarget, setResumeTarget] = useState<ClusterMember | null>(null);
@@ -269,11 +257,6 @@ const ClusterPage: React.FC = () => {
     }));
   }, [members, autopilot]);
 
-  const leaderIndex = useMemo(
-    () => autopilot?.servers.find((s) => s.isLeader)?.lastIndex ?? 0,
-    [autopilot],
-  );
-
   const versionsDiffer = useMemo(() => {
     const versions = new Set(
       members.map((m) => m.binaryVersion).filter((v) => v !== ""),
@@ -314,21 +297,14 @@ const ClusterPage: React.FC = () => {
   };
 
   const handleDrainSuccess = (result: DrainResponse) => {
-    const parts: string[] = [];
-    if (result.transferredLeadership) parts.push("leadership transferred");
-    if (result.ransNotified > 0)
-      parts.push(`${result.ransNotified} RAN(s) notified`);
-    if (result.bgpStopped) parts.push("BGP stopped");
-    const detail = parts.length > 0 ? ` (${parts.join(", ")})` : "";
-    showSnackbar(`Drain ${result.state}${detail}.`, "success");
+    showSnackbar(`Drain ${result.drainState}.`, "success");
     queryClient.invalidateQueries({ queryKey: ["status"] });
     queryClient.invalidateQueries({ queryKey: ["cluster-members"] });
     queryClient.invalidateQueries({ queryKey: ["cluster-autopilot"] });
   };
 
-  const handleResumeSuccess = (result: ResumeResponse) => {
-    const suffix = result.bgpStarted ? " (BGP restarted)" : "";
-    showSnackbar(`Node resumed${suffix}.`, "success");
+  const handleResumeSuccess = () => {
+    showSnackbar("Node resumed.", "success");
     queryClient.invalidateQueries({ queryKey: ["cluster-members"] });
     queryClient.invalidateQueries({ queryKey: ["cluster-autopilot"] });
   };
@@ -438,81 +414,11 @@ const ClusterPage: React.FC = () => {
           }
           return (
             <CenteredCell>
-              <Tooltip title={`nodeStatus=${ap.nodeStatus}`}>
+              <Tooltip title={`Autopilot nodeStatus: ${ap.nodeStatus}`}>
                 <Chip
                   label={ap.healthy ? "healthy" : "unhealthy"}
                   size="small"
                   color={ap.healthy ? "success" : "error"}
-                />
-              </Tooltip>
-            </CenteredCell>
-          );
-        },
-      },
-      {
-        field: "lastContact",
-        headerName: "Last Contact",
-        width: 130,
-        valueGetter: (_v: unknown, row: JoinedRow) =>
-          row.isLeader ? -1 : (row.autopilot?.lastContactMs ?? -1),
-        renderCell: (p: GridRenderCellParams<JoinedRow>) => {
-          if (p.row.isLeader)
-            return (
-              <CenteredCell>
-                <Typography variant="body2">—</Typography>
-              </CenteredCell>
-            );
-          const ap = p.row.autopilot;
-          if (!ap)
-            return (
-              <CenteredCell>
-                <Typography variant="body2">—</Typography>
-              </CenteredCell>
-            );
-          return (
-            <CenteredCell>
-              <Typography variant="body2">
-                {formatLastContact(ap.lastContactMs)}
-              </Typography>
-            </CenteredCell>
-          );
-        },
-      },
-      {
-        field: "lag",
-        headerName: "Lag",
-        width: 110,
-        valueGetter: (_v: unknown, row: JoinedRow) => {
-          if (row.isLeader || !row.autopilot) return 0;
-          return Math.max(0, leaderIndex - row.autopilot.lastIndex);
-        },
-        renderCell: (p: GridRenderCellParams<JoinedRow>) => {
-          if (p.row.isLeader)
-            return (
-              <CenteredCell>
-                <Typography variant="body2">—</Typography>
-              </CenteredCell>
-            );
-          const ap = p.row.autopilot;
-          if (!ap)
-            return (
-              <CenteredCell>
-                <Typography variant="body2">—</Typography>
-              </CenteredCell>
-            );
-          const lag = Math.max(0, leaderIndex - ap.lastIndex);
-          const MAX_TRAILING_LOGS = 500;
-          const color = lag >= MAX_TRAILING_LOGS ? "warning" : "default";
-          return (
-            <CenteredCell>
-              <Tooltip
-                title={`Leader at index ${leaderIndex}; this peer at ${ap.lastIndex}`}
-              >
-                <Chip
-                  label={`${lag}`}
-                  size="small"
-                  color={color}
-                  variant="outlined"
                 />
               </Tooltip>
             </CenteredCell>
@@ -614,7 +520,7 @@ const ClusterPage: React.FC = () => {
         },
       } as GridColDef<JoinedRow>,
     ],
-    [versionsDiffer, leaderIndex, selfNodeId, currentLeaderNodeId],
+    [versionsDiffer, selfNodeId, currentLeaderNodeId],
   );
 
   const statusLoaded = !statusQuery.isLoading;
@@ -642,20 +548,9 @@ const ClusterPage: React.FC = () => {
           Cluster
         </Typography>
         <Paper sx={{ p: 3 }}>
-          <Typography variant="body1" sx={{ mb: 2 }}>
+          <Typography variant="body1">
             This node is running in single-node mode. High availability is not
             enabled.
-          </Typography>
-          <Typography variant="body2" color="textSecondary">
-            To enable HA, see the{" "}
-            <a
-              href="https://docs.ellanetworks.com"
-              target="_blank"
-              rel="noreferrer"
-            >
-              deployment guide
-            </a>
-            .
           </Typography>
         </Paper>
       </Box>
@@ -670,7 +565,7 @@ const ClusterPage: React.FC = () => {
         <Grid size={{ xs: 12, md: 8 }}>
           <Typography variant="h4">Cluster</Typography>
           <Typography variant="body1" color="textSecondary">
-            Manage Raft cluster membership and observe live health.
+            High-availability cluster members and health.
           </Typography>
         </Grid>
         <Grid
@@ -687,14 +582,7 @@ const ClusterPage: React.FC = () => {
             color="success"
             onClick={() => setMintOpen(true)}
           >
-            Mint Join Token
-          </Button>
-          <Button
-            variant="outlined"
-            color="success"
-            onClick={() => setAddOpen(true)}
-          >
-            Add Cluster Member
+            Add Node
           </Button>
         </Grid>
       </Grid>
@@ -729,21 +617,7 @@ const ClusterPage: React.FC = () => {
         />
       </ThemeProvider>
 
-      {isAddOpen && (
-        <AddClusterMemberModal
-          open
-          onClose={() => setAddOpen(false)}
-          onSuccess={() => {
-            showSnackbar("Cluster member added.", "success");
-            queryClient.invalidateQueries({ queryKey: ["cluster-members"] });
-            queryClient.invalidateQueries({ queryKey: ["cluster-autopilot"] });
-          }}
-        />
-      )}
-
-      {isMintOpen && (
-        <MintJoinTokenModal open onClose={() => setMintOpen(false)} />
-      )}
+      {isMintOpen && <AddNodeModal open onClose={() => setMintOpen(false)} />}
 
       {drainTarget && (
         <DrainNodeModal

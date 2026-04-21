@@ -8,15 +8,14 @@ import (
 )
 
 type ClusterMember struct {
-	NodeID           int    `json:"nodeId"`
-	RaftAddress      string `json:"raftAddress"`
-	APIAddress       string `json:"apiAddress"`
-	BinaryVersion    string `json:"binaryVersion"`
-	Suffrage         string `json:"suffrage"`
-	MaxSchemaVersion int    `json:"maxSchemaVersion"`
-	IsLeader         bool   `json:"isLeader"`
-	DrainState       string `json:"drainState"`
-	DrainUpdatedAt   string `json:"drainUpdatedAt,omitempty"`
+	NodeID         int    `json:"nodeId"`
+	RaftAddress    string `json:"raftAddress"`
+	APIAddress     string `json:"apiAddress"`
+	BinaryVersion  string `json:"binaryVersion"`
+	Suffrage       string `json:"suffrage"`
+	IsLeader       bool   `json:"isLeader"`
+	DrainState     string `json:"drainState"`
+	DrainUpdatedAt string `json:"drainUpdatedAt,omitempty"`
 }
 
 type DrainOptions struct {
@@ -24,18 +23,7 @@ type DrainOptions struct {
 }
 
 type DrainResponse struct {
-	Message               string `json:"message"`
-	State                 string `json:"state"`
-	TransferredLeadership bool   `json:"transferredLeadership"`
-	RANsNotified          int    `json:"ransNotified"`
-	BGPStopped            bool   `json:"bgpStopped"`
-	SessionsRemaining     int    `json:"sessionsRemaining"`
-}
-
-type ResumeResponse struct {
-	Message    string `json:"message"`
-	State      string `json:"state"`
-	BGPStarted bool   `json:"bgpStarted"`
+	DrainState string `json:"drainState"`
 }
 
 // AutopilotServer is the live per-peer health reported by raft-autopilot.
@@ -46,9 +34,6 @@ type AutopilotServer struct {
 	Healthy         bool   `json:"healthy"`
 	IsLeader        bool   `json:"isLeader"`
 	HasVotingRights bool   `json:"hasVotingRights"`
-	LastContactMs   int64  `json:"lastContactMs"`
-	LastTerm        uint64 `json:"lastTerm"`
-	LastIndex       uint64 `json:"lastIndex"`
 	StableSince     string `json:"stableSince,omitempty"`
 }
 
@@ -82,26 +67,6 @@ func (c *Client) ListClusterMembers(ctx context.Context) ([]ClusterMember, error
 	return members, nil
 }
 
-func (c *Client) GetClusterMember(ctx context.Context, nodeID int) (*ClusterMember, error) {
-	resp, err := c.Requester.Do(ctx, &RequestOptions{
-		Type:   SyncRequest,
-		Method: "GET",
-		Path:   fmt.Sprintf("api/v1/cluster/members/%d", nodeID),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	var member ClusterMember
-
-	err = resp.DecodeResult(&member)
-	if err != nil {
-		return nil, err
-	}
-
-	return &member, nil
-}
-
 // GetAutopilotState returns the live autopilot view. Safe to call from
 // any node — the server proxies to the leader when needed.
 func (c *Client) GetAutopilotState(ctx context.Context) (*AutopilotState, error) {
@@ -125,10 +90,10 @@ func (c *Client) GetAutopilotState(ctx context.Context) (*AutopilotState, error)
 }
 
 // DrainClusterMember drains the given node. When opts.DeadlineSeconds > 0 the
-// server returns as soon as the drain starts (state "draining") and finalises
-// asynchronously when the node's last active lease clears or the deadline
-// elapses. When opts.DeadlineSeconds == 0 (default), the drain is synchronous
-// and the response state is "drained".
+// server returns as soon as the drain starts (drainState "draining") and
+// finalises asynchronously when the node's last active lease clears or the
+// deadline elapses. When opts.DeadlineSeconds == 0 (default), the drain is
+// synchronous and the response drainState is "drained".
 func (c *Client) DrainClusterMember(ctx context.Context, nodeID int, opts *DrainOptions) (*DrainResponse, error) {
 	var body bytes.Buffer
 
@@ -162,24 +127,14 @@ func (c *Client) DrainClusterMember(ctx context.Context, nodeID int, opts *Drain
 // ResumeClusterMember reverses a prior drain: restarts the BGP speaker
 // (if BGP is enabled) and clears drain state. AMF Status Indication and
 // transferred Raft leadership are not reversed.
-func (c *Client) ResumeClusterMember(ctx context.Context, nodeID int) (*ResumeResponse, error) {
-	resp, err := c.Requester.Do(ctx, &RequestOptions{
+func (c *Client) ResumeClusterMember(ctx context.Context, nodeID int) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
 		Path:   fmt.Sprintf("api/v1/cluster/members/%d/resume", nodeID),
 	})
-	if err != nil {
-		return nil, err
-	}
 
-	var out ResumeResponse
-
-	err = resp.DecodeResult(&out)
-	if err != nil {
-		return nil, err
-	}
-
-	return &out, nil
+	return err
 }
 
 // PromoteClusterMember promotes a non-voter to a voter immediately.
@@ -260,41 +215,6 @@ func (c *Client) MintClusterJoinToken(ctx context.Context, opts *MintJoinTokenOp
 	}
 
 	var out MintJoinTokenResponse
-	if err := json.Unmarshal(resp.Result, &out); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
-	}
-
-	return &out, nil
-}
-
-// PKICertSummary mirrors the server-side summary of a PKI cert row.
-type PKICertSummary struct {
-	Fingerprint    string `json:"fingerprint"`
-	Status         string `json:"status"`
-	NotAfter       int64  `json:"notAfter,omitempty"`
-	HasCrossSigned bool   `json:"hasCrossSigned"`
-}
-
-// PKIState is the parsed payload of GET /api/v1/cluster/pki/state.
-type PKIState struct {
-	ClusterID          string           `json:"clusterID"`
-	Roots              []PKICertSummary `json:"roots"`
-	Intermediates      []PKICertSummary `json:"intermediates"`
-	RevokedSerialCount int              `json:"revokedSerialCount"`
-}
-
-// GetClusterPKIState returns the cluster's PKI trust bundle summary.
-func (c *Client) GetClusterPKIState(ctx context.Context) (*PKIState, error) {
-	resp, err := c.Requester.Do(ctx, &RequestOptions{
-		Type:   SyncRequest,
-		Method: "GET",
-		Path:   "api/v1/cluster/pki/state",
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	var out PKIState
 	if err := json.Unmarshal(resp.Result, &out); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}

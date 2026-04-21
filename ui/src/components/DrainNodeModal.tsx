@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   Alert,
+  Box,
   Button,
   CircularProgress,
   Collapse,
@@ -10,9 +11,14 @@ import {
   DialogContentText,
   DialogTitle,
   FormControlLabel,
+  Link,
+  MenuItem,
   Switch,
   TextField,
+  Typography,
 } from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import { drainClusterMember, type DrainResponse } from "@/queries/cluster";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -23,6 +29,13 @@ interface Props {
   onClose: () => void;
   onSuccess: (result: DrainResponse) => void;
 }
+
+const DEADLINE_OPTIONS: { label: string; seconds: number }[] = [
+  { label: "30 seconds", seconds: 30 },
+  { label: "2 minutes", seconds: 120 },
+  { label: "10 minutes", seconds: 600 },
+  { label: "1 hour", seconds: 3600 },
+];
 
 const DEFAULT_DEADLINE = 30;
 
@@ -37,6 +50,7 @@ const DrainNodeModal: React.FC<Props> = ({
   const [immediate, setImmediate] = useState<boolean>(false);
   const [deadlineSeconds, setDeadlineSeconds] =
     useState<number>(DEFAULT_DEADLINE);
+  const [showDetails, setShowDetails] = useState(false);
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState("");
 
@@ -72,14 +86,41 @@ const DrainNodeModal: React.FC<Props> = ({
           </Alert>
         </Collapse>
         <DialogContentText>
-          Drain marks <strong>node {nodeId}</strong> as draining and runs the
-          drain side-effects on it: connected RANs are told the AMF is
-          unavailable, the local BGP speaker stops advertising routes
-          {isLeader ? ", and Raft leadership transfers to another voter" : ""}.
-          Existing flows continue to be served. The node becomes eligible for
-          removal once its drain state reaches <em>drained</em>. Use Resume to
-          reverse.
+          Safely stops new traffic on <strong>node {nodeId}</strong> so it can
+          be restarted, upgraded, or removed. Existing flows continue. Use
+          Resume to reverse.
         </DialogContentText>
+
+        <Box sx={{ mt: 1 }}>
+          <Link
+            component="button"
+            type="button"
+            variant="body2"
+            underline="hover"
+            onClick={() => setShowDetails((v) => !v)}
+            sx={{ display: "inline-flex", alignItems: "center" }}
+          >
+            {showDetails ? (
+              <ExpandLessIcon fontSize="small" />
+            ) : (
+              <ExpandMoreIcon fontSize="small" />
+            )}
+            What this does
+          </Link>
+          <Collapse in={showDetails}>
+            <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+              Sets <code>drainState</code> to <em>draining</em>. Sends AMF
+              Status Indication so connected RANs treat this node&apos;s GUAMI
+              as unavailable. Stops the local BGP speaker.
+              {isLeader
+                ? " Transfers Raft leadership to another voter before the side-effects run."
+                : ""}{" "}
+              The node becomes removable once <code>drainState</code> reaches{" "}
+              <em>drained</em>.
+            </Typography>
+          </Collapse>
+        </Box>
+
         <FormControlLabel
           sx={{ mt: 2 }}
           control={
@@ -92,15 +133,20 @@ const DrainNodeModal: React.FC<Props> = ({
         />
         <TextField
           fullWidth
-          type="number"
-          label="Deadline (seconds)"
+          select
+          label="Deadline"
           value={deadlineSeconds}
           onChange={(e) => setDeadlineSeconds(Number(e.target.value))}
-          helperText="Wait up to this many seconds for the node's active sessions to clear before marking it drained."
+          helperText="Wait up to this long for active sessions to clear before marking the node drained."
           margin="normal"
           disabled={immediate}
-          slotProps={{ htmlInput: { min: 0, max: 3600 } }}
-        />
+        >
+          {DEADLINE_OPTIONS.map((opt) => (
+            <MenuItem key={opt.seconds} value={opt.seconds}>
+              {opt.label}
+            </MenuItem>
+          ))}
+        </TextField>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={loading}>

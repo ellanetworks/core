@@ -20,15 +20,14 @@ const (
 )
 
 type ClusterMemberResponse struct {
-	NodeID           int    `json:"nodeId"`
-	RaftAddress      string `json:"raftAddress"`
-	APIAddress       string `json:"apiAddress"`
-	BinaryVersion    string `json:"binaryVersion"`
-	Suffrage         string `json:"suffrage"`
-	MaxSchemaVersion int    `json:"maxSchemaVersion"`
-	IsLeader         bool   `json:"isLeader"`
-	DrainState       string `json:"drainState"`
-	DrainUpdatedAt   string `json:"drainUpdatedAt,omitempty"`
+	NodeID         int    `json:"nodeId"`
+	RaftAddress    string `json:"raftAddress"`
+	APIAddress     string `json:"apiAddress"`
+	BinaryVersion  string `json:"binaryVersion"`
+	Suffrage       string `json:"suffrage"`
+	IsLeader       bool   `json:"isLeader"`
+	DrainState     string `json:"drainState"`
+	DrainUpdatedAt string `json:"drainUpdatedAt,omitempty"`
 }
 
 func toClusterMemberResponse(m db.ClusterMember, leaderAddr string) ClusterMemberResponse {
@@ -43,15 +42,14 @@ func toClusterMemberResponse(m db.ClusterMember, leaderAddr string) ClusterMembe
 	}
 
 	return ClusterMemberResponse{
-		NodeID:           m.NodeID,
-		RaftAddress:      m.RaftAddress,
-		APIAddress:       m.APIAddress,
-		BinaryVersion:    m.BinaryVersion,
-		Suffrage:         m.Suffrage,
-		MaxSchemaVersion: m.MaxSchemaVersion,
-		IsLeader:         leaderAddr != "" && m.RaftAddress == leaderAddr,
-		DrainState:       state,
-		DrainUpdatedAt:   updated,
+		NodeID:         m.NodeID,
+		RaftAddress:    m.RaftAddress,
+		APIAddress:     m.APIAddress,
+		BinaryVersion:  m.BinaryVersion,
+		Suffrage:       m.Suffrage,
+		IsLeader:       leaderAddr != "" && m.RaftAddress == leaderAddr,
+		DrainState:     state,
+		DrainUpdatedAt: updated,
 	}
 }
 
@@ -63,34 +61,6 @@ type AddClusterMemberRequest struct {
 	SchemaVersion    int    `json:"schemaVersion,omitempty"`
 	MaxSchemaVersion int    `json:"maxSchemaVersion,omitempty"`
 	Suffrage         string `json:"suffrage,omitempty"`
-}
-
-func GetClusterMember(dbInstance *db.Database) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		nodeIDStr := r.PathValue("id")
-
-		nodeID, err := strconv.Atoi(nodeIDStr)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid node ID", err, logger.APILog)
-			return
-		}
-
-		member, err := dbInstance.GetClusterMember(r.Context(), nodeID)
-		if err != nil {
-			if errors.Is(err, db.ErrNotFound) {
-				writeError(r.Context(), w, http.StatusNotFound, "Cluster member not found", nil, logger.APILog)
-				return
-			}
-
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to look up cluster member", err, logger.APILog)
-
-			return
-		}
-
-		leaderAddr := dbInstance.LeaderAddress()
-
-		writeResponse(r.Context(), w, toClusterMemberResponse(*member, leaderAddr), http.StatusOK, logger.APILog)
-	})
 }
 
 func ListClusterMembers(dbInstance *db.Database) http.Handler {

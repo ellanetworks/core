@@ -22,9 +22,6 @@ type AutopilotServerResponse struct {
 	Healthy         bool   `json:"healthy"`
 	IsLeader        bool   `json:"isLeader"`
 	HasVotingRights bool   `json:"hasVotingRights"`
-	LastContactMs   int64  `json:"lastContactMs"`
-	LastTerm        uint64 `json:"lastTerm"`
-	LastIndex       uint64 `json:"lastIndex"`
 	StableSince     string `json:"stableSince,omitempty"`
 }
 
@@ -82,11 +79,8 @@ func mapAutopilotState(state *autopilot.State) AutopilotStateResponse {
 			RaftAddress:     string(srv.Server.Address),
 			NodeStatus:      string(srv.Server.NodeStatus),
 			Healthy:         srv.Health.Healthy,
-			IsLeader:        srv.Server.IsLeader,
+			IsLeader:        nodeID == leaderID,
 			HasVotingRights: srv.HasVotingRights(),
-			LastContactMs:   srv.Stats.LastContact.Milliseconds(),
-			LastTerm:        srv.Stats.LastTerm,
-			LastIndex:       srv.Stats.LastIndex,
 		}
 
 		if !srv.Health.StableSince.IsZero() {

@@ -8,7 +8,6 @@ export type ClusterMember = {
   apiAddress: string;
   binaryVersion: string;
   suffrage: "voter" | "nonvoter";
-  maxSchemaVersion: number;
   isLeader: boolean;
   drainState: DrainState;
   drainUpdatedAt?: string;
@@ -21,9 +20,6 @@ export type AutopilotServer = {
   healthy: boolean;
   isLeader: boolean;
   hasVotingRights: boolean;
-  lastContactMs: number;
-  lastTerm: number;
-  lastIndex: number;
   stableSince?: string;
 };
 
@@ -35,56 +31,18 @@ export type AutopilotState = {
   servers: AutopilotServer[];
 };
 
-export type AddClusterMemberParams = {
-  nodeId: number;
-  raftAddress: string;
-  apiAddress: string;
-  suffrage?: "voter" | "nonvoter";
-};
-
 export type DrainOptions = {
   deadlineSeconds?: number;
 };
 
 export type DrainResponse = {
-  message: string;
-  state: DrainState;
-  transferredLeadership: boolean;
-  ransNotified: number;
-  bgpStopped: boolean;
-  sessionsRemaining: number;
-};
-
-export type ResumeResponse = {
-  message: string;
-  state: DrainState;
-  bgpStarted: boolean;
+  drainState: DrainState;
 };
 
 export async function listClusterMembers(
   authToken: string,
 ): Promise<ClusterMember[]> {
   return apiFetch<ClusterMember[]>("/api/v1/cluster/members", { authToken });
-}
-
-export async function getClusterMember(
-  authToken: string,
-  nodeId: number,
-): Promise<ClusterMember> {
-  return apiFetch<ClusterMember>(`/api/v1/cluster/members/${nodeId}`, {
-    authToken,
-  });
-}
-
-export async function addClusterMember(
-  authToken: string,
-  params: AddClusterMemberParams,
-): Promise<void> {
-  await apiFetchVoid("/api/v1/cluster/members", {
-    method: "POST",
-    authToken,
-    body: params,
-  });
 }
 
 export async function removeClusterMember(
@@ -124,8 +82,8 @@ export async function drainClusterMember(
 export async function resumeClusterMember(
   authToken: string,
   nodeId: number,
-): Promise<ResumeResponse> {
-  return apiFetch<ResumeResponse>(`/api/v1/cluster/members/${nodeId}/resume`, {
+): Promise<void> {
+  await apiFetchVoid(`/api/v1/cluster/members/${nodeId}/resume`, {
     method: "POST",
     authToken,
   });

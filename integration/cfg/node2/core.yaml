@@ -1,0 +1,14 @@
+logging: {system: {level: debug, output: stdout}, audit: {output: stdout}}
+db: {path: /data/ella.db}
+interfaces:
+  n2: {address: "10.100.0.12", port: 38412}
+  n3: {address: "10.100.0.12"}
+  n6: {name: eth0}
+  api: {address: "10.100.0.12", port: 5002}
+xdp: {attach-mode: generic}
+cluster:
+  enabled: true
+  node-id: 2
+  bind-address: "10.100.0.12:7000"
+  peers: ["10.100.0.11:7000","10.100.0.12:7000","10.100.0.13:7000"]
+  join-token: "AQAAANR7ImlkIjoiODcwMGYzMTNkMzdiM2FlNWMyNjliNmQ4MzJjNTM2NzAiLCJub2RlX2lkIjoyLCJpYXQiOjE3NzY3OTgzNjMsImV4cCI6MTc3NjgwMDE2MywiY2FmIjoic2hhMjU2OmQxYzJmYmJmOGI0YjdiODY3OTExY2I4MDUwNTNjNzUyYmY4MWMxOGJjOGYwYzY1NGQ4YzZlNjA1NjY0NDk3OWYiLCJjaWQiOiI5YWM1ZmJmYi03YTMzLTQ1ZDktYWUwMC01NTkzYjIyMjUyYjYifUqlyhEUavVG6PeoEyF8zgBpGSfa4yfwhib3mLg54_Pm"

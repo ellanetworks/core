@@ -221,8 +221,6 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 
 	// Cluster (Authenticated, admin only)
 	mux.HandleFunc("GET /api/v1/cluster/members", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, ListClusterMembers(dbInstance))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/cluster/members", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, AddClusterMember(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/cluster/members/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, GetClusterMember(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/cluster/members/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, RemoveClusterMember(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/cluster/members/{id}/promote", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, PromoteClusterMember(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/cluster/members/{id}/drain", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, DrainClusterMember(dbInstance, amfInstance, bgpService, cfg.ClusterListener))).ServeHTTP)
@@ -235,9 +233,6 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	// these routes can be registered before the issuer is ready.
 	mux.HandleFunc("POST /api/v1/cluster/pki/join-tokens", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, pkiAdminEndpoint(func(svc *pkiissuer.Service) http.Handler {
 		return PKIMintJoinToken(dbInstance, svc)
-	}))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/cluster/pki/state", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, pkiAdminEndpoint(func(svc *pkiissuer.Service) http.Handler {
-		return PKIGetState(dbInstance, svc)
 	}))).ServeHTTP)
 
 	// Fallback to UI

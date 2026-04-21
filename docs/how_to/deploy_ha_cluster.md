@@ -63,9 +63,9 @@ Open `https://10.0.0.1:5002` in a browser, create the admin, and log in.
 
 ## 4. Add node 2
 
-On node 1, open the **Cluster** page and click **Mint Join Token** with `nodeID: 2`. Copy the returned token string.
+On node 1, open the **Cluster** page and click **Add Node**. Select node ID `2`, click **Mint Token**, then copy the generated `cluster:` snippet.
 
-Configure node 2 with its own `core.yaml`, using the same shape as node 1, with `node-id: 2` and `bind-address: "10.0.0.2:7000"`. Add `join-token` under `cluster`:
+Create `core.yaml` on node 2 using the same shape as node 1, with `bind-address: "10.0.0.2:7000"`. Paste the copied `cluster:` block over the placeholder — it already contains `node-id` and `join-token`. Make sure `enabled: true` and `peers` are set:
 
 ```yaml title="core.yaml (node 2, cluster block)"
 cluster:
@@ -89,7 +89,7 @@ The daemon consumes the token on first boot, joins the cluster, and ignores the 
 
 ## 5. Add node 3
 
-Repeat step 4 with `node-id: 3` and a freshly-minted token for that node-id.
+Repeat step 4 on node 3.
 
 ## 6. Verify
 

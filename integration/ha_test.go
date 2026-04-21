@@ -522,11 +522,11 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 		t.Fatalf("DrainClusterMember failed: %v", err)
 	}
 
-	if !drainResp.TransferredLeadership {
-		t.Fatalf("expected transferredLeadership=true, got false")
+	if drainResp.DrainState != "draining" && drainResp.DrainState != "drained" {
+		t.Fatalf("expected drainState draining or drained, got %q", drainResp.DrainState)
 	}
 
-	t.Log("leadership transferred, waiting for new leader")
+	t.Log("drain accepted, waiting for new leader")
 
 	// The other two nodes should elect a new leader.
 	newLeader, err := waitForNewLeader(ctx, clients)
