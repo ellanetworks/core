@@ -115,11 +115,26 @@ type testEnv struct {
 }
 
 func setupServer(filepath string) (testEnv, error) {
+	testdb, err := db.NewDatabaseWithoutRaft(context.Background(), filepath)
+	if err != nil {
+		return testEnv{}, err
+	}
+
+	return buildTestEnv(testdb)
+}
+
+// setupServerWithRaft is the slow path for tests that exercise cluster /
+// restore behavior and therefore need a live Raft manager.
+func setupServerWithRaft(filepath string) (testEnv, error) {
 	testdb, err := db.NewDatabase(context.Background(), filepath, ellaraft.ClusterConfig{})
 	if err != nil {
 		return testEnv{}, err
 	}
 
+	return buildTestEnv(testdb)
+}
+
+func buildTestEnv(testdb *db.Database) (testEnv, error) {
 	logger.SetDb(testdb)
 
 	// Initialize SMF context with test stubs
@@ -176,7 +191,7 @@ func setupServer(filepath string) (testEnv, error) {
 }
 
 func setupServerWithUPF(filepath string, upf server.UPFUpdater) (testEnv, error) {
-	testdb, err := db.NewDatabase(context.Background(), filepath, ellaraft.ClusterConfig{})
+	testdb, err := db.NewDatabaseWithoutRaft(context.Background(), filepath)
 	if err != nil {
 		return testEnv{}, err
 	}

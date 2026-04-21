@@ -185,6 +185,10 @@ func (db *Database) proposeChangeset(applyFn func(context.Context) (any, error),
 	db.proposeMu.Lock()
 	defer db.proposeMu.Unlock()
 
+	if db.raftManager == nil {
+		return applyFn(context.Background())
+	}
+
 	changeset, applyResult, err := db.captureChangeset(context.Background(), applyFn, operation)
 	if err != nil {
 		if errors.Is(err, ErrAlreadyExists) {
@@ -230,6 +234,10 @@ func (db *Database) proposeIntent(cmdType ellaraft.CommandType, payload any) (an
 	cmd, err := ellaraft.NewCommand(cmdType, payload)
 	if err != nil {
 		return nil, err
+	}
+
+	if db.raftManager == nil {
+		return db.ApplyCommand(context.Background(), cmd)
 	}
 
 	result, err := db.raftManager.Propose(cmd, db.proposeTimeout)
