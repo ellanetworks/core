@@ -636,7 +636,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 		"10.100.0.13:7000", "10.100.0.14:7000",
 	}
 	if err := stageAndStartJoiner(ctx, dockerClient, leader, scaleUpComposeDir,
-		"ella-core-4", 4, fullPeers); err != nil {
+		"ella-core-4", 4, fullPeers, "nonvoter"); err != nil {
 		t.Fatalf("stage + start node 4: %v", err)
 	}
 

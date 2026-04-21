@@ -36,8 +36,8 @@ func bringUpHAClusterAt(ctx context.Context, dc *DockerClient, composeDir string
 	peers := []string{"10.100.0.11:7000", "10.100.0.12:7000", "10.100.0.13:7000"}
 	peers = append(peers, extraPeers...)
 
-	// Write node 1's config (no join-token).
-	if err := writeNodeConfig(composeDir, 1, peers, ""); err != nil {
+	// Write node 1's config (no join-token, default voter suffrage).
+	if err := writeNodeConfig(composeDir, 1, peers, "", ""); err != nil {
 		return nil, err
 	}
 
@@ -68,7 +68,7 @@ func bringUpHAClusterAt(ctx context.Context, dc *DockerClient, composeDir string
 	for i := 1; i < len(services); i++ {
 		nodeID := i + 1
 
-		if err := stageAndStartJoiner(ctx, dc, node1, composeDir, services[i], nodeID, peers); err != nil {
+		if err := stageAndStartJoiner(ctx, dc, node1, composeDir, services[i], nodeID, peers, ""); err != nil {
 			return nil, err
 		}
 	}
@@ -111,8 +111,9 @@ func initializeAndGetAdminToken(ctx context.Context, leader *client.Client) (str
 }
 
 // stageAndStartJoiner mints a join token for nodeID, writes the node's
-// core.yaml with the token embedded, and brings the service up.
-func stageAndStartJoiner(ctx context.Context, dc *DockerClient, leader *client.Client, composeDir, service string, nodeID int, peers []string) error {
+// core.yaml with the token embedded, and brings the service up. Pass an
+// empty initialSuffrage to accept the daemon default ("voter").
+func stageAndStartJoiner(ctx context.Context, dc *DockerClient, leader *client.Client, composeDir, service string, nodeID int, peers []string, initialSuffrage string) error {
 	tok, err := leader.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{
 		NodeID:     nodeID,
 		TTLSeconds: 600,
@@ -121,7 +122,7 @@ func stageAndStartJoiner(ctx context.Context, dc *DockerClient, leader *client.C
 		return fmt.Errorf("mint join token for node %d: %w", nodeID, err)
 	}
 
-	if err := writeNodeConfig(composeDir, nodeID, peers, tok.Token); err != nil {
+	if err := writeNodeConfig(composeDir, nodeID, peers, tok.Token, initialSuffrage); err != nil {
 		return err
 	}
 
@@ -129,8 +130,9 @@ func stageAndStartJoiner(ctx context.Context, dc *DockerClient, leader *client.C
 }
 
 // writeNodeConfig renders the node's core.yaml into the compose dir's
-// bind-mount path (./cfg/node<n>/core.yaml).
-func writeNodeConfig(composeDir string, nodeID int, peers []string, joinToken string) error {
+// bind-mount path (./cfg/node<n>/core.yaml). Pass an empty
+// initialSuffrage to omit the cluster.initial-suffrage field.
+func writeNodeConfig(composeDir string, nodeID int, peers []string, joinToken, initialSuffrage string) error {
 	cfgDir := filepath.Join(composeDir, "cfg", fmt.Sprintf("node%d", nodeID))
 	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", cfgDir, err)
@@ -147,6 +149,11 @@ func writeNodeConfig(composeDir string, nodeID int, peers []string, joinToken st
 	joinTokenLine := ""
 	if joinToken != "" {
 		joinTokenLine = fmt.Sprintf("  join-token: %q\n", joinToken)
+	}
+
+	suffrageLine := ""
+	if initialSuffrage != "" {
+		suffrageLine = fmt.Sprintf("  initial-suffrage: %q\n", initialSuffrage)
 	}
 
 	body := fmt.Sprintf(`logging:
@@ -175,7 +182,7 @@ cluster:
   node-id: %d
   bind-address: "%s:7000"
   peers:
-%s%s`, addr, addr, addr, nodeID, addr, peersYAML.String(), joinTokenLine)
+%s%s%s`, addr, addr, addr, nodeID, addr, peersYAML.String(), joinTokenLine, suffrageLine)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }
