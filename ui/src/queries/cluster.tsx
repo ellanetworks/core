@@ -157,4 +157,3 @@ export async function mintClusterJoinToken(
     body: params,
   });
 }
-
