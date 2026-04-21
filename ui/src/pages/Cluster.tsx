@@ -36,9 +36,8 @@ import {
   type ClusterMember,
   type AutopilotServer,
   type AutopilotState,
-  type DrainResponse,
   type DrainState,
-  type ResumeResponse,
+  type DrainResponse,
 } from "@/queries/cluster";
 import AddNodeModal from "@/components/AddNodeModal";
 import DrainNodeModal from "@/components/DrainNodeModal";
@@ -298,21 +297,14 @@ const ClusterPage: React.FC = () => {
   };
 
   const handleDrainSuccess = (result: DrainResponse) => {
-    const parts: string[] = [];
-    if (result.transferredLeadership) parts.push("leadership transferred");
-    if (result.ransNotified > 0)
-      parts.push(`${result.ransNotified} RAN(s) notified`);
-    if (result.bgpStopped) parts.push("BGP stopped");
-    const detail = parts.length > 0 ? ` (${parts.join(", ")})` : "";
-    showSnackbar(`Drain ${result.state}${detail}.`, "success");
+    showSnackbar(`Drain ${result.drainState}.`, "success");
     queryClient.invalidateQueries({ queryKey: ["status"] });
     queryClient.invalidateQueries({ queryKey: ["cluster-members"] });
     queryClient.invalidateQueries({ queryKey: ["cluster-autopilot"] });
   };
 
-  const handleResumeSuccess = (result: ResumeResponse) => {
-    const suffix = result.bgpStarted ? " (BGP restarted)" : "";
-    showSnackbar(`Node resumed${suffix}.`, "success");
+  const handleResumeSuccess = () => {
+    showSnackbar("Node resumed.", "success");
     queryClient.invalidateQueries({ queryKey: ["cluster-members"] });
     queryClient.invalidateQueries({ queryKey: ["cluster-autopilot"] });
   };

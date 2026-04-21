@@ -604,12 +604,8 @@ func TestDrainClusterMember_Idempotent(t *testing.T) {
 		t.Fatalf("expected 200 on idempotent drain, got %d (body: %s)", status, body)
 	}
 
-	if !strings.Contains(body, `"state":"drained"`) {
-		t.Errorf("expected state=drained in body, got %s", body)
-	}
-
-	if !strings.Contains(body, "drain already in effect") {
-		t.Errorf("expected idempotent message, got %s", body)
+	if !strings.Contains(body, `"drainState":"drained"`) {
+		t.Errorf("expected drainState=drained in body, got %s", body)
 	}
 }
 
@@ -730,8 +726,8 @@ func TestResumeClusterMember_AlreadyActive(t *testing.T) {
 		t.Fatalf("expected 200, got %d (body: %s)", status, body)
 	}
 
-	if !strings.Contains(body, `"bgpStarted":false`) {
-		t.Errorf("expected bgpStarted=false for idempotent resume, got %s", body)
+	if !strings.Contains(body, `"Cluster member resumed"`) {
+		t.Errorf("expected success message, got %s", body)
 	}
 }
 

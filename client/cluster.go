@@ -23,15 +23,7 @@ type DrainOptions struct {
 }
 
 type DrainResponse struct {
-	Message               string `json:"message"`
-	State                 string `json:"state"`
-	TransferredLeadership bool   `json:"transferredLeadership"`
-	RANsNotified          int    `json:"ransNotified"`
-	BGPStopped            bool   `json:"bgpStopped"`
-}
-
-type ResumeResponse struct {
-	BGPStarted bool `json:"bgpStarted"`
+	DrainState string `json:"drainState"`
 }
 
 // AutopilotServer is the live per-peer health reported by raft-autopilot.
@@ -98,10 +90,10 @@ func (c *Client) GetAutopilotState(ctx context.Context) (*AutopilotState, error)
 }
 
 // DrainClusterMember drains the given node. When opts.DeadlineSeconds > 0 the
-// server returns as soon as the drain starts (state "draining") and finalises
-// asynchronously when the node's last active lease clears or the deadline
-// elapses. When opts.DeadlineSeconds == 0 (default), the drain is synchronous
-// and the response state is "drained".
+// server returns as soon as the drain starts (drainState "draining") and
+// finalises asynchronously when the node's last active lease clears or the
+// deadline elapses. When opts.DeadlineSeconds == 0 (default), the drain is
+// synchronous and the response drainState is "drained".
 func (c *Client) DrainClusterMember(ctx context.Context, nodeID int, opts *DrainOptions) (*DrainResponse, error) {
 	var body bytes.Buffer
 
@@ -135,24 +127,14 @@ func (c *Client) DrainClusterMember(ctx context.Context, nodeID int, opts *Drain
 // ResumeClusterMember reverses a prior drain: restarts the BGP speaker
 // (if BGP is enabled) and clears drain state. AMF Status Indication and
 // transferred Raft leadership are not reversed.
-func (c *Client) ResumeClusterMember(ctx context.Context, nodeID int) (*ResumeResponse, error) {
-	resp, err := c.Requester.Do(ctx, &RequestOptions{
+func (c *Client) ResumeClusterMember(ctx context.Context, nodeID int) error {
+	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
 		Path:   fmt.Sprintf("api/v1/cluster/members/%d/resume", nodeID),
 	})
-	if err != nil {
-		return nil, err
-	}
 
-	var out ResumeResponse
-
-	err = resp.DecodeResult(&out)
-	if err != nil {
-		return nil, err
-	}
-
-	return &out, nil
+	return err
 }
 
 // PromoteClusterMember promotes a non-voter to a voter immediately.

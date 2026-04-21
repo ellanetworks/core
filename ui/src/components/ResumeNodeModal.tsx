@@ -15,14 +15,14 @@ import {
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import { resumeClusterMember, type ResumeResponse } from "@/queries/cluster";
+import { resumeClusterMember } from "@/queries/cluster";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface Props {
   open: boolean;
   nodeId: number;
   onClose: () => void;
-  onSuccess: (result: ResumeResponse) => void;
+  onSuccess: () => void;
 }
 
 const ResumeNodeModal: React.FC<Props> = ({
@@ -41,8 +41,8 @@ const ResumeNodeModal: React.FC<Props> = ({
     setLoading(true);
     setAlert("");
     try {
-      const result = await resumeClusterMember(accessToken, nodeId);
-      onSuccess(result);
+      await resumeClusterMember(accessToken, nodeId);
+      onSuccess();
       onClose();
     } catch (err) {
       setAlert(err instanceof Error ? err.message : "Unknown error");

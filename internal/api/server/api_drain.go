@@ -36,15 +36,7 @@ type DrainRequest struct {
 }
 
 type DrainResponse struct {
-	Message               string `json:"message"`
-	State                 string `json:"state"`
-	TransferredLeadership bool   `json:"transferredLeadership"`
-	RANsNotified          int    `json:"ransNotified"`
-	BGPStopped            bool   `json:"bgpStopped"`
-}
-
-type ResumeResponse struct {
-	BGPStarted bool `json:"bgpStarted"`
+	DrainState string `json:"drainState"`
 }
 
 // DrainClusterMember handles POST /api/v1/cluster/members/{id}/drain.
@@ -109,8 +101,7 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, bgpServic
 		// current state and skips side-effects.
 		if member.DrainState == db.DrainStateDraining || member.DrainState == db.DrainStateDrained {
 			writeResponse(r.Context(), w, DrainResponse{
-				Message: "drain already in effect",
-				State:   member.DrainState,
+				DrainState: member.DrainState,
 			}, http.StatusOK, logger.APILog)
 
 			return
@@ -181,11 +172,7 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, bgpServic
 		)
 
 		writeResponse(r.Context(), w, DrainResponse{
-			Message:               "draining",
-			State:                 state,
-			TransferredLeadership: transferred,
-			RANsNotified:          sideEffects.RANsNotified,
-			BGPStopped:            sideEffects.BGPStopped,
+			DrainState: state,
 		}, http.StatusOK, logger.APILog)
 	})
 }
@@ -224,7 +211,7 @@ func ResumeClusterMember(dbInstance *db.Database, bgpService *bgp.BGPService, ln
 		}
 
 		if member.DrainState == db.DrainStateActive {
-			writeResponse(r.Context(), w, ResumeResponse{}, http.StatusOK, logger.APILog)
+			writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member resumed"}, http.StatusOK, logger.APILog)
 			return
 		}
 
@@ -253,9 +240,7 @@ func ResumeClusterMember(dbInstance *db.Database, bgpService *bgp.BGPService, ln
 			fmt.Sprintf("Node %d resumed, bgp_started=%v", nodeID, bgpStarted),
 		)
 
-		writeResponse(r.Context(), w, ResumeResponse{
-			BGPStarted: bgpStarted,
-		}, http.StatusOK, logger.APILog)
+		writeResponse(r.Context(), w, SuccessResponse{Message: "Cluster member resumed"}, http.StatusOK, logger.APILog)
 	})
 }
 

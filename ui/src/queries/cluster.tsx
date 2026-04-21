@@ -36,15 +36,7 @@ export type DrainOptions = {
 };
 
 export type DrainResponse = {
-  message: string;
-  state: DrainState;
-  transferredLeadership: boolean;
-  ransNotified: number;
-  bgpStopped: boolean;
-};
-
-export type ResumeResponse = {
-  bgpStarted: boolean;
+  drainState: DrainState;
 };
 
 export async function listClusterMembers(
@@ -90,8 +82,8 @@ export async function drainClusterMember(
 export async function resumeClusterMember(
   authToken: string,
   nodeId: number,
-): Promise<ResumeResponse> {
-  return apiFetch<ResumeResponse>(`/api/v1/cluster/members/${nodeId}/resume`, {
+): Promise<void> {
+  await apiFetchVoid(`/api/v1/cluster/members/${nodeId}/resume`, {
     method: "POST",
     authToken,
   });

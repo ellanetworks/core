@@ -181,14 +181,12 @@ In HA mode, drain runs on the leader (followers forward the request automaticall
 ```json
 {
     "result": {
-        "message": "draining",
-        "state": "drained",
-        "transferredLeadership": true,
-        "ransNotified": 2,
-        "bgpStopped": true
+        "drainState": "drained"
     }
 }
 ```
+
+After a drain returns, poll [`GET /api/v1/cluster/members`](#list-cluster-members) to observe the node's current `drainState`. Side-effects (leadership transfer, RAN notifications, BGP stop) are recorded in the audit log.
 
 ## Resume Cluster Member
 
@@ -214,7 +212,7 @@ Idempotent: resuming an already-active node is a no-op.
 ```json
 {
     "result": {
-        "bgpStarted": true
+        "message": "Cluster member resumed"
     }
 }
 ```

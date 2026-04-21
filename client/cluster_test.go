@@ -62,7 +62,7 @@ func TestDrainClusterMember_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message":"draining","state":"drained","transferredLeadership":true,"ransNotified":2,"bgpStopped":true}`),
+			Result:     []byte(`{"drainState":"drained"}`),
 		},
 	}
 	c := &client.Client{Requester: fake}
@@ -72,20 +72,8 @@ func TestDrainClusterMember_Success(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !resp.TransferredLeadership {
-		t.Error("expected transferredLeadership true")
-	}
-
-	if resp.RANsNotified != 2 {
-		t.Errorf("expected 2 RANs notified, got %d", resp.RANsNotified)
-	}
-
-	if !resp.BGPStopped {
-		t.Error("expected bgpStopped true")
-	}
-
-	if resp.State != "drained" {
-		t.Errorf("expected state drained, got %s", resp.State)
+	if resp.DrainState != "drained" {
+		t.Errorf("expected drainState drained, got %s", resp.DrainState)
 	}
 
 	if fake.lastOpts.Method != "POST" {
@@ -102,7 +90,7 @@ func TestDrainClusterMember_NilOpts(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message":"draining","state":"drained","transferredLeadership":false,"ransNotified":0,"bgpStopped":false}`),
+			Result:     []byte(`{"drainState":"draining"}`),
 		},
 	}
 	c := &client.Client{Requester: fake}
@@ -112,8 +100,8 @@ func TestDrainClusterMember_NilOpts(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if resp.Message != "draining" {
-		t.Errorf("expected message 'draining', got %s", resp.Message)
+	if resp.DrainState != "draining" {
+		t.Errorf("expected drainState 'draining', got %s", resp.DrainState)
 	}
 }
 
@@ -134,18 +122,17 @@ func TestResumeClusterMember_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"bgpStarted":true}`),
+			Result:     []byte(`{"message":"Cluster member resumed"}`),
 		},
 	}
 	c := &client.Client{Requester: fake}
 
-	resp, err := c.ResumeClusterMember(context.Background(), 3)
-	if err != nil {
+	if err := c.ResumeClusterMember(context.Background(), 3); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !resp.BGPStarted {
-		t.Error("expected bgpStarted true")
+	if fake.lastOpts.Method != "POST" {
+		t.Errorf("expected POST, got %s", fake.lastOpts.Method)
 	}
 
 	if fake.lastOpts.Path != "api/v1/cluster/members/3/resume" {

@@ -2843,11 +2843,7 @@ paths:
           description: Node ID of the cluster member to resume.
       responses:
         "200":
-          description: Resume result.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ResumeResponseEnvelope"
+          $ref: "#/components/responses/Success"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -5133,42 +5129,17 @@ components:
     DrainResponse:
       type: object
       properties:
-        message:
-          type: string
-        state:
+        drainState:
           type: string
           enum: [active, draining, drained]
           description: Drain state of the target node after the call.
-        transferredLeadership:
-          type: boolean
-          description: Whether Raft leadership was transferred to another node.
-        ransNotified:
-          type: integer
-          description: Number of RANs notified to redirect UE registrations.
-        bgpStopped:
-          type: boolean
-          description: Whether BGP advertisements were withdrawn.
-      required: [message, state, transferredLeadership, ransNotified, bgpStopped]
+      required: [drainState]
 
     DrainResponseEnvelope:
       type: object
       properties:
         result:
           $ref: "#/components/schemas/DrainResponse"
-
-    ResumeResponse:
-      type: object
-      properties:
-        bgpStarted:
-          type: boolean
-          description: Whether the local BGP speaker was restarted.
-      required: [bgpStarted]
-
-    ResumeResponseEnvelope:
-      type: object
-      properties:
-        result:
-          $ref: "#/components/schemas/ResumeResponse"
 
     MintJoinTokenRequest:
       type: object
