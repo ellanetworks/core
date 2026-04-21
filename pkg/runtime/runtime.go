@@ -255,7 +255,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			if pki != nil {
 				pki.issuer = pkiissuer.New(dbInstance, dbInstance.Dir())
 
-				if err := pki.RefreshBundle(ctx); err != nil {
+				if err := refreshFollowerBundleWithRetry(ctx, pki, 30*time.Second); err != nil {
 					logger.EllaLog.Warn("follower refresh bundle", zap.Error(err))
 				}
 

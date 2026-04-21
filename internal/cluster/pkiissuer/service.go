@@ -508,6 +508,15 @@ func (s *Service) CurrentBundle(ctx context.Context) (*pki.TrustBundle, error) {
 		bundle.Intermediates = append(bundle.Intermediates, c)
 	}
 
+	// Fail closed while PKI bootstrap hasn't replicated yet. Without
+	// this, a follower that sees the operator row (ClusterID set) but
+	// not yet the pki_roots rows would silently cache an empty bundle
+	// and reject every incoming mTLS handshake with "trust bundle has
+	// no roots" until the next leadership transition.
+	if len(bundle.Roots) == 0 {
+		return nil, fmt.Errorf("trust bundle has no active roots yet")
+	}
+
 	return bundle, nil
 }
 

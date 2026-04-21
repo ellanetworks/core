@@ -128,6 +128,13 @@ const AddClusterMemberModal: React.FC<Props> = ({
           </Alert>
         </Collapse>
 
+        <Alert severity="info" sx={{ mb: 2 }}>
+          In most cases you don&apos;t need this form: start the new node with a{" "}
+          <code>cluster.join-token</code> minted from the Cluster page and it
+          will self-register after obtaining its certificate. Use this form only
+          to pre-seed the member row when self-registration isn&apos;t possible.
+        </Alert>
+
         <TextField
           fullWidth
           autoFocus
@@ -140,7 +147,7 @@ const AddClusterMemberModal: React.FC<Props> = ({
           helperText={
             touched.nodeId && errors.nodeId
               ? errors.nodeId
-              : "Integer from 1 to 63. Must match the node's cluster certificate CN (ella-node-<n>)."
+              : "Integer from 1 to 63. Embedded in the node's auto-issued certificate as SAN spiffe://<cluster-id>/node/<id>."
           }
           margin="normal"
         />

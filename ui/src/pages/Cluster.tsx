@@ -41,6 +41,7 @@ import {
   type ResumeResponse,
 } from "@/queries/cluster";
 import AddClusterMemberModal from "@/components/AddClusterMemberModal";
+import MintJoinTokenModal from "@/components/MintJoinTokenModal";
 import DrainNodeModal from "@/components/DrainNodeModal";
 import ResumeNodeModal from "@/components/ResumeNodeModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
@@ -225,6 +226,7 @@ const ClusterPage: React.FC = () => {
   );
 
   const [isAddOpen, setAddOpen] = useState(false);
+  const [isMintOpen, setMintOpen] = useState(false);
   const [drainTarget, setDrainTarget] = useState<ClusterMember | null>(null);
   const [resumeTarget, setResumeTarget] = useState<ClusterMember | null>(null);
   const [removeTarget, setRemoveTarget] = useState<ClusterMember | null>(null);
@@ -673,10 +675,22 @@ const ClusterPage: React.FC = () => {
         </Grid>
         <Grid
           size={{ xs: 12, md: 4 }}
-          sx={{ display: "flex", justifyContent: { md: "flex-end" } }}
+          sx={{
+            display: "flex",
+            justifyContent: { md: "flex-end" },
+            gap: 1,
+            flexWrap: "wrap",
+          }}
         >
           <Button
             variant="contained"
+            color="success"
+            onClick={() => setMintOpen(true)}
+          >
+            Mint Join Token
+          </Button>
+          <Button
+            variant="outlined"
             color="success"
             onClick={() => setAddOpen(true)}
           >
@@ -725,6 +739,10 @@ const ClusterPage: React.FC = () => {
             queryClient.invalidateQueries({ queryKey: ["cluster-autopilot"] });
           }}
         />
+      )}
+
+      {isMintOpen && (
+        <MintJoinTokenModal open onClose={() => setMintOpen(false)} />
       )}
 
       {drainTarget && (
