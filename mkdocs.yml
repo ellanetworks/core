@@ -71,6 +71,7 @@ nav:
     - Co-host with OCUDU: how_to/co_host_with_ocudu.md
     - Use native XDP with veth: how_to/native_xdp_veth.md
     - Advertise subscriber routes with BGP: how_to/bgp.md
+    - Deploy a High Availability Cluster: how_to/deploy_ha_cluster.md
     - Manage Your Network with AI Agents: how_to/ai_agents.md
   - Reference:
     - reference/index.md

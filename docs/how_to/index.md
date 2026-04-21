@@ -10,4 +10,5 @@ These how-to guides cover key operations and common tasks in Ella Core.
 - [Co-host with OCUDU](co_host_with_ocudu.md)
 - [Use native XDP with veth interfaces](native_xdp_veth.md)
 - [Advertise Subscriber Routes with BGP](bgp.md)
+- [Deploy a High Availability Cluster](deploy_ha_cluster.md)
 - [Manage Your Network with AI Agents](ai_agents.md)

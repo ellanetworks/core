@@ -437,6 +437,26 @@ func (m *Manager) LeaderAddress() string {
 	return string(addr)
 }
 
+// LeaderAddressAndID returns the leader's Raft transport address together
+// with the integer node-id parsed from the leader's Raft ServerID.
+// Callers dialing the leader over mTLS use the ID to enforce the
+// expected-peer check. A zero ID indicates the server-id did not parse
+// as an integer (should not happen given bootstrap writes node-id as a
+// decimal string, but the caller should still guard).
+func (m *Manager) LeaderAddressAndID() (string, int) {
+	addr, id := m.raft.LeaderWithID()
+	if addr == "" {
+		return "", 0
+	}
+
+	n, err := strconv.Atoi(string(id))
+	if err != nil {
+		return string(addr), 0
+	}
+
+	return string(addr), n
+}
+
 // NodeID returns this node's cluster ID.
 func (m *Manager) NodeID() int {
 	return m.nodeID

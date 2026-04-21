@@ -21,13 +21,16 @@ const (
 	headerForwarded    = "X-Ella-Forwarded"
 )
 
-// newClusterProxyClient returns an HTTP client that dials the leader's
-// cluster port via the mTLS listener.
-func newClusterProxyClient(ln *listener.Listener) *http.Client {
+// newClusterProxyClient returns an HTTP client that dials the specified
+// leader via the mTLS listener, enforcing that the peer's certificate
+// CN resolves to expectedLeaderID. The client is built per request
+// because the expected leader node-id is part of the TLS dial contract
+// and leadership can change between requests.
+func newClusterProxyClient(ln *listener.Listener, expectedLeaderID int) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			DialTLSContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
-				return ln.Dial(ctx, addr, listener.ALPNHTTP, 10*time.Second)
+				return ln.Dial(ctx, addr, expectedLeaderID, listener.ALPNHTTP, 10*time.Second)
 			},
 		},
 		Timeout: 0,
@@ -103,11 +106,6 @@ func LeaderProxyMiddleware(dbInstance *db.Database, ln *listener.Listener, next 
 		return next
 	}
 
-	var clusterClient *http.Client
-	if ln != nil {
-		clusterClient = newClusterProxyClient(ln)
-	}
-
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if isSelfRemoval(r, dbInstance.NodeID()) {
 			writeError(r.Context(), w, http.StatusConflict,
@@ -128,12 +126,12 @@ func LeaderProxyMiddleware(dbInstance *db.Database, ln *listener.Listener, next 
 			return
 		}
 
-		if clusterClient == nil {
+		if ln == nil {
 			writeError(r.Context(), w, http.StatusServiceUnavailable, "no leader available", nil, logger.APILog)
 			return
 		}
 
-		proxyToLeaderCluster(w, r, clusterClient, dbInstance)
+		proxyToLeaderCluster(w, r, ln, dbInstance)
 	})
 }
 
@@ -173,14 +171,31 @@ func isHopByHopHeader(h string) bool {
 }
 
 // proxyToLeaderCluster forwards a write request to the Raft leader's
-// cluster HTTP port over mTLS.
-func proxyToLeaderCluster(w http.ResponseWriter, r *http.Request, client *http.Client, dbInstance *db.Database) {
-	leaderAddr := dbInstance.LeaderAddress()
+// cluster HTTP port over mTLS. The http.Client is built per request
+// so its DialTLSContext can pin the expected leader node-id — leadership
+// can change between requests, and an impersonator presenting a valid
+// cluster leaf under a different node-id must not be able to terminate
+// writes meant for the leader.
+func proxyToLeaderCluster(w http.ResponseWriter, r *http.Request, ln *listener.Listener, dbInstance *db.Database) {
+	leaderAddr, leaderID := dbInstance.LeaderAddressAndID()
 	if leaderAddr == "" {
 		writeError(r.Context(), w, http.StatusServiceUnavailable, "no leader available", nil, logger.APILog)
 		return
 	}
 
+	if leaderID == 0 {
+		writeError(r.Context(), w, http.StatusServiceUnavailable, "leader identity not yet established", nil, logger.APILog)
+		return
+	}
+
+	client := newClusterProxyClient(ln, leaderID)
+	doProxyToLeader(w, r, client, leaderAddr, dbInstance)
+}
+
+// doProxyToLeader performs the actual HTTP round-trip against the leader
+// using the supplied client. Split from proxyToLeaderCluster so tests can
+// inject a stub transport.
+func doProxyToLeader(w http.ResponseWriter, r *http.Request, client *http.Client, leaderAddr string, dbInstance *db.Database) {
 	targetURL := fmt.Sprintf("https://%s/cluster/proxy%s", leaderAddr, r.RequestURI)
 
 	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, r.Body) // #nosec G704 -- targetURL is built from the trusted Raft leader address, not user input

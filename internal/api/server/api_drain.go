@@ -291,7 +291,7 @@ func runDrainSideEffects(ctx context.Context, dbInstance *db.Database, amfInstan
 
 	var out DrainSideEffectsResponse
 
-	if err := postClusterInternal(ctx, ln, member.RaftAddress, "/cluster/internal/drain-side-effects", &out); err != nil {
+	if err := postClusterInternal(ctx, ln, member.RaftAddress, member.NodeID, "/cluster/internal/drain-side-effects", &out); err != nil {
 		return DrainSideEffectsResponse{}, err
 	}
 
@@ -326,7 +326,7 @@ func runResumeSideEffects(ctx context.Context, dbInstance *db.Database, bgpServi
 
 	var out ResumeSideEffectsResponse
 
-	if err := postClusterInternal(ctx, ln, member.RaftAddress, "/cluster/internal/resume-side-effects", &out); err != nil {
+	if err := postClusterInternal(ctx, ln, member.RaftAddress, member.NodeID, "/cluster/internal/resume-side-effects", &out); err != nil {
 		return false, err
 	}
 
@@ -335,9 +335,10 @@ func runResumeSideEffects(ctx context.Context, dbInstance *db.Database, bgpServi
 
 // postClusterInternal issues a JSON-body-less POST to the target node's
 // cluster mTLS port and decodes the 2xx response JSON into out. The caller
-// supplies the target's Raft address and the path (including leading
-// slash). Used for the drain/resume side-effect RPCs.
-func postClusterInternal(ctx context.Context, ln *listener.Listener, targetRaftAddr, path string, out any) error {
+// supplies the target's Raft address, its node-id (enforced on the mTLS
+// dial), and the path (including leading slash). Used for the drain/resume
+// side-effect RPCs.
+func postClusterInternal(ctx context.Context, ln *listener.Listener, targetRaftAddr string, targetNodeID int, path string, out any) error {
 	if ln == nil {
 		return fmt.Errorf("cluster listener unavailable")
 	}
@@ -346,7 +347,11 @@ func postClusterInternal(ctx context.Context, ln *listener.Listener, targetRaftA
 		return fmt.Errorf("target node has no raft address")
 	}
 
-	client := newClusterProxyClient(ln)
+	if targetNodeID == 0 {
+		return fmt.Errorf("target node has no node-id")
+	}
+
+	client := newClusterProxyClient(ln, targetNodeID)
 	defer client.CloseIdleConnections()
 
 	url := fmt.Sprintf("https://%s%s", targetRaftAddr, path)
@@ -464,16 +469,20 @@ func SignalShutdownDrain(ctx context.Context, dbInstance *db.Database, ln *liste
 		return dbInstance.SetDrainState(ctx, dbInstance.NodeID(), db.DrainStateDrained)
 	}
 
-	leaderAddr := dbInstance.LeaderAddress()
+	leaderAddr, leaderID := dbInstance.LeaderAddressAndID()
 	if leaderAddr == "" {
 		return fmt.Errorf("no leader available")
+	}
+
+	if leaderID == 0 {
+		return fmt.Errorf("leader identity not yet established")
 	}
 
 	if ln == nil {
 		return fmt.Errorf("cluster listener unavailable")
 	}
 
-	client := newClusterProxyClient(ln)
+	client := newClusterProxyClient(ln, leaderID)
 	defer client.CloseIdleConnections()
 
 	url := fmt.Sprintf("https://%s/cluster/internal/drain-self", leaderAddr)

@@ -86,7 +86,7 @@ func TestListener_RoundtripRaft(t *testing.T) {
 	ln2, _ := newTestListener(t, pki, 2)
 	defer ln2.Stop()
 
-	conn, err := ln2.Dial(ctx, addr1, listener.ALPNRaft, 2*time.Second)
+	conn, err := ln2.Dial(ctx, addr1, 1, listener.ALPNRaft, 2*time.Second)
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestListener_RoundtripHTTP(t *testing.T) {
 	ln2, _ := newTestListener(t, pki, 2)
 	defer ln2.Stop()
 
-	conn, err := ln2.Dial(ctx, addr1, listener.ALPNHTTP, 2*time.Second)
+	conn, err := ln2.Dial(ctx, addr1, 1, listener.ALPNHTTP, 2*time.Second)
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -200,7 +200,7 @@ func TestListener_ALPNDispatch(t *testing.T) {
 	defer ln2.Stop()
 
 	// Dial with Raft ALPN.
-	connR, err := ln2.Dial(ctx, addr1, listener.ALPNRaft, 2*time.Second)
+	connR, err := ln2.Dial(ctx, addr1, 1, listener.ALPNRaft, 2*time.Second)
 	if err != nil {
 		t.Fatalf("dial raft: %v", err)
 	}
@@ -215,7 +215,7 @@ func TestListener_ALPNDispatch(t *testing.T) {
 	_ = connR.Close()
 
 	// Dial with HTTP ALPN.
-	connH, err := ln2.Dial(ctx, addr1, listener.ALPNHTTP, 2*time.Second)
+	connH, err := ln2.Dial(ctx, addr1, 1, listener.ALPNHTTP, 2*time.Second)
 	if err != nil {
 		t.Fatalf("dial http: %v", err)
 	}
@@ -263,7 +263,7 @@ func TestListener_WrongCA_Rejected(t *testing.T) {
 	})
 	defer ln2.Stop()
 
-	_, err := ln2.Dial(ctx, addr1, listener.ALPNRaft, 2*time.Second)
+	_, err := ln2.Dial(ctx, addr1, 1, listener.ALPNRaft, 2*time.Second)
 	if err == nil {
 		t.Fatal("expected dial to fail with wrong CA")
 	}
@@ -306,7 +306,7 @@ func TestListener_PeerNodeID(t *testing.T) {
 	ln2, _ := newTestListener(t, pki, 2)
 	defer ln2.Stop()
 
-	conn, err := ln2.Dial(ctx, addr1, listener.ALPNRaft, 2*time.Second)
+	conn, err := ln2.Dial(ctx, addr1, 1, listener.ALPNRaft, 2*time.Second)
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
@@ -320,6 +320,75 @@ func TestListener_PeerNodeID(t *testing.T) {
 	}
 
 	ln1.Stop()
+}
+
+// TestListener_Dial_ExpectedPeerMismatch covers the case where a caller
+// dials an address expecting node X but reaches a peer whose cluster
+// leaf resolves to node Y. The chain and CN shape still verify, but Dial
+// must tear down the connection to prevent acting on data from the wrong
+// peer (e.g. an offboarded node's key answering on a current peer's IP).
+func TestListener_Dial_ExpectedPeerMismatch(t *testing.T) {
+	pki := testutil.GenTestPKI(t, []int{1, 2})
+
+	ln1, addr1 := newTestListener(t, pki, 1)
+
+	ln1.Register(listener.ALPNRaft, func(conn net.Conn) {
+		_ = conn.Close()
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := ln1.Start(ctx); err != nil {
+		t.Fatalf("start listener: %v", err)
+	}
+
+	defer ln1.Stop()
+
+	ln2, _ := newTestListener(t, pki, 2)
+	defer ln2.Stop()
+
+	// ln1 answers as node-id 1; dialing with expectedPeerID=7 must be rejected.
+	_, err := ln2.Dial(ctx, addr1, 7, listener.ALPNRaft, 2*time.Second)
+	if err == nil {
+		t.Fatal("expected dial to fail when peer CN does not match expectedPeerID")
+	}
+
+	if !strings.Contains(err.Error(), "expected peer node-id 7") {
+		t.Fatalf("expected mismatch error referencing expectedPeerID, got: %v", err)
+	}
+}
+
+// TestListener_DialAnyPeer accepts any valid cluster peer without pinning
+// a specific node-id. Used by discovery; verifies chain + CN shape are
+// still enforced but the identity check is relaxed.
+func TestListener_DialAnyPeer(t *testing.T) {
+	pki := testutil.GenTestPKI(t, []int{1, 2})
+
+	ln1, addr1 := newTestListener(t, pki, 1)
+
+	ln1.Register(listener.ALPNRaft, func(conn net.Conn) {
+		_ = conn.Close()
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := ln1.Start(ctx); err != nil {
+		t.Fatalf("start listener: %v", err)
+	}
+
+	defer ln1.Stop()
+
+	ln2, _ := newTestListener(t, pki, 2)
+	defer ln2.Stop()
+
+	conn, err := ln2.DialAnyPeer(ctx, addr1, listener.ALPNRaft, 2*time.Second)
+	if err != nil {
+		t.Fatalf("DialAnyPeer: %v", err)
+	}
+
+	_ = conn.Close()
 }
 
 func TestListener_Stop_Completes(t *testing.T) {
@@ -386,7 +455,7 @@ func TestListener_UnknownALPN_Closed(t *testing.T) {
 	defer ln2.Stop()
 
 	// Dial with HTTP ALPN which is not registered on ln1.
-	conn, err := ln2.Dial(ctx, addr1, listener.ALPNHTTP, 2*time.Second)
+	conn, err := ln2.Dial(ctx, addr1, 1, listener.ALPNHTTP, 2*time.Second)
 	if err != nil {
 		// Server may reject during handshake since ALPNHTTP is still
 		// in NextProtos — the conn is accepted but dispatch closes it.

@@ -79,7 +79,7 @@ func TestClusterHTTP_Status(t *testing.T) {
 	client := &http.Client{
 		Transport: &http.Transport{
 			DialTLSContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
-				return clientLn.Dial(ctx, addr, listener.ALPNHTTP, 5*time.Second)
+				return clientLn.Dial(ctx, addr, 1, listener.ALPNHTTP, 5*time.Second)
 			},
 		},
 		Timeout: 5 * time.Second,
@@ -176,7 +176,7 @@ func clusterTestServer(t *testing.T, pki *testutil.PKI, serverNodeID int, peerNo
 		clients[id] = &http.Client{
 			Transport: &http.Transport{
 				DialTLSContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
-					return clientLn.Dial(ctx, addr, listener.ALPNHTTP, 5*time.Second)
+					return clientLn.Dial(ctx, addr, serverNodeID, listener.ALPNHTTP, 5*time.Second)
 				},
 			},
 			Timeout: 5 * time.Second,
