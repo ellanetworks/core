@@ -107,7 +107,7 @@ func NewTokenID() (string, error) {
 // now. Single-use enforcement is the caller's job.
 func VerifyJoinToken(hmacKey []byte, now time.Time, token string) (*JoinClaims, error) {
 	if len(hmacKey) < 16 {
-		return nil, fmt.Errorf("hmac key too short")
+		return nil, fmt.Errorf("hmac key too short (need \u226516 bytes, got %d)", len(hmacKey))
 	}
 
 	raw, err := base64.RawURLEncoding.DecodeString(token)

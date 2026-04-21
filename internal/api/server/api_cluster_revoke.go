@@ -53,6 +53,12 @@ func revokeIssuedCertsForRemovedNode(ctx context.Context, dbInstance *db.Databas
 		}
 	}
 
+	// After replicating revocation rows, refresh our own revocation
+	// cache immediately so new handshakes on this leader reject the
+	// stale leaves without waiting for the 30 s periodic refresher.
+	// Follower caches still lag by up to that interval.
+	refreshLocalRevocations(ctx)
+
 	if ln == nil {
 		return
 	}

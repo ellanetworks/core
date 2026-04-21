@@ -72,16 +72,11 @@ func New(store Store, dataDir string) *Service {
 }
 
 // Bootstrap generates root + intermediate + hmac key on the first leader
-// to run against a fresh cluster. Idempotent: returns nil immediately if
-// cluster_pki_state already exists.
+// to run against a fresh cluster. Idempotent and self-healing: if a
+// previous invocation crashed between writes (e.g. hmacKey landed but
+// root did not), a retry completes the missing steps against the
+// existing pki state instead of returning early.
 func (s *Service) Bootstrap(ctx context.Context) error {
-	if _, err := s.store.GetPKIState(ctx); err == nil {
-		// Already initialised.
-		return nil
-	} else if !errors.Is(err, db.ErrNotFound) {
-		return fmt.Errorf("check pki state: %w", err)
-	}
-
 	op, err := s.store.GetOperator(ctx)
 	if err != nil {
 		return fmt.Errorf("get operator: %w", err)
@@ -89,6 +84,44 @@ func (s *Service) Bootstrap(ctx context.Context) error {
 
 	if op.ClusterID == "" {
 		return fmt.Errorf("cluster id not yet populated; run PostInitClusterSetup first")
+	}
+
+	state, err := s.store.GetPKIState(ctx)
+
+	switch {
+	case err == nil:
+		// State row present — this may be a complete bootstrap (happy
+		// path, return early) or a partial one (hmacKey persisted,
+		// root/intermediate missing). Fall through to the activity
+		// checks below.
+	case errors.Is(err, db.ErrNotFound):
+		hmacKey, hmacErr := pki.NewHMACKey()
+		if hmacErr != nil {
+			return fmt.Errorf("hmac key: %w", hmacErr)
+		}
+
+		if err := s.store.InitializePKIState(ctx, hmacKey); err != nil {
+			return fmt.Errorf("init pki state: %w", err)
+		}
+
+		state = &db.ClusterPKIState{HMACKey: hmacKey}
+	default:
+		return fmt.Errorf("check pki state: %w", err)
+	}
+
+	roots, err := s.store.ListPKIRoots(ctx)
+	if err != nil {
+		return fmt.Errorf("list roots: %w", err)
+	}
+
+	ints, err := s.store.ListPKIIntermediates(ctx)
+	if err != nil {
+		return fmt.Errorf("list intermediates: %w", err)
+	}
+
+	if hasActive(statusesFromRoots(roots)) && hasActive(statusesFromIntermediates(ints)) {
+		// Fully bootstrapped already.
+		return nil
 	}
 
 	rootCert, rootKey, err := pki.GenerateRoot(op.ClusterID, pki.DefaultRootTTL)
@@ -99,18 +132,6 @@ func (s *Service) Bootstrap(ctx context.Context) error {
 	intCert, intKey, err := pki.GenerateIntermediate(op.ClusterID, rootCert, rootKey, pki.DefaultIntermediateTTL)
 	if err != nil {
 		return fmt.Errorf("generate intermediate: %w", err)
-	}
-
-	hmacKey, err := pki.NewHMACKey()
-	if err != nil {
-		return fmt.Errorf("hmac key: %w", err)
-	}
-
-	// Insert replicated state first; only persist the private keys to
-	// disk after every Raft write has succeeded. A mid-sequence failure
-	// leaves no orphan keys on disk for the retry to overwrite.
-	if err := s.store.InitializePKIState(ctx, hmacKey); err != nil {
-		return fmt.Errorf("init pki state: %w", err)
 	}
 
 	now := time.Now().Unix()
@@ -152,9 +173,38 @@ func (s *Service) Bootstrap(ctx context.Context) error {
 	logger.RaftLog.Info("PKI issuer bootstrapped",
 		zap.String("clusterID", op.ClusterID),
 		zap.String("rootFingerprint", pki.Fingerprint(rootCert)),
-		zap.String("intermediateFingerprint", pki.Fingerprint(intCert)))
+		zap.String("intermediateFingerprint", pki.Fingerprint(intCert)),
+		zap.Int("hmacKeyBytes", len(state.HMACKey)))
 
 	return nil
+}
+
+func statusesFromRoots(rs []db.ClusterPKIRoot) []string {
+	out := make([]string, len(rs))
+	for i, r := range rs {
+		out[i] = r.Status
+	}
+
+	return out
+}
+
+func statusesFromIntermediates(is []db.ClusterPKIIntermediate) []string {
+	out := make([]string, len(is))
+	for i, it := range is {
+		out[i] = it.Status
+	}
+
+	return out
+}
+
+func hasActive(statuses []string) bool {
+	for _, s := range statuses {
+		if s == db.PKIStatusActive {
+			return true
+		}
+	}
+
+	return false
 }
 
 // LoadKeys reads root.key + intermediate.key from disk and prepares the
@@ -240,6 +290,22 @@ func (s *Service) Ready() bool {
 	defer s.mu.RUnlock()
 
 	return s.intermediateKey != nil && s.intermediateCert != nil
+}
+
+// ValidateCSR checks the CSR's shape against this cluster's ID and the
+// caller-asserted nodeID without touching state. Exposed for handlers
+// that want a 4xx surface before invoking Issue (which returns 500 on
+// the same validation failure via SignLeaf).
+func (s *Service) ValidateCSR(csr *x509.CertificateRequest, nodeID int) error {
+	s.mu.RLock()
+	clusterID := s.clusterID
+	s.mu.RUnlock()
+
+	if clusterID == "" {
+		return fmt.Errorf("issuer not ready")
+	}
+
+	return pki.ValidateLeafCSR(csr, nodeID, clusterID)
 }
 
 // Issue validates csr, allocates a serial, signs a leaf, and records the
@@ -382,6 +448,10 @@ func (s *Service) VerifyAndConsumeJoinToken(ctx context.Context, tokenStr string
 	}
 
 	if err := s.store.ConsumeJoinToken(ctx, claims.TokenID, claims.NodeID); err != nil {
+		if errors.Is(err, db.ErrJoinTokenAlreadyConsumed) {
+			return nil, fmt.Errorf("token already consumed")
+		}
+
 		return nil, fmt.Errorf("consume join token: %w", err)
 	}
 
@@ -459,8 +529,10 @@ func (s *Service) ActiveRootFingerprint(ctx context.Context) (string, error) {
 }
 
 // writeKeyToDisk PEM-encodes a private key and writes it under the
-// cluster-tls subdirectory with 0600 perms. Existing content is atomically
-// replaced.
+// cluster-tls subdirectory with 0600 perms. The temp file is fsync'd
+// before rename and the parent directory is fsync'd after, so a crash
+// between signalling success and the OS flushing buffers leaves either
+// the old key or the new key in place — never a truncated file.
 func (s *Service) writeKeyToDisk(name string, key crypto.Signer) error {
 	dir := filepath.Join(s.dataDir, db.ClusterTLSDir)
 
@@ -478,7 +550,7 @@ func (s *Service) writeKeyToDisk(name string, key crypto.Signer) error {
 	tmpPath := filepath.Join(dir, name+".tmp")
 	finalPath := filepath.Join(dir, name)
 
-	if err := os.WriteFile(tmpPath, pemBytes, 0o600); err != nil {
+	if err := writeFileSync(tmpPath, pemBytes, 0o600); err != nil {
 		return fmt.Errorf("write %s: %w", tmpPath, err)
 	}
 
@@ -487,7 +559,47 @@ func (s *Service) writeKeyToDisk(name string, key crypto.Signer) error {
 		return fmt.Errorf("rename %s: %w", finalPath, err)
 	}
 
+	if err := syncDir(dir); err != nil {
+		return fmt.Errorf("sync dir %s: %w", dir, err)
+	}
+
 	return nil
+}
+
+// writeFileSync writes data to path with perm, fsync'ing before close so
+// the content is durable when the file descriptor is released. Callers
+// still need to sync the parent directory to make the rename durable.
+func writeFileSync(path string, data []byte, perm os.FileMode) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm) // #nosec G304 -- caller-controlled path under data dir
+	if err != nil {
+		return err
+	}
+
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		return err
+	}
+
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return err
+	}
+
+	return f.Close()
+}
+
+func syncDir(dir string) error {
+	d, err := os.Open(dir) // #nosec G304 -- caller-controlled path under data dir
+	if err != nil {
+		return err
+	}
+
+	if err := d.Sync(); err != nil {
+		_ = d.Close()
+		return err
+	}
+
+	return d.Close()
 }
 
 func (s *Service) readKeyFromDisk(name string) (crypto.Signer, error) {
@@ -588,13 +700,17 @@ func (s *Service) writeKeyPEMToDisk(name string, pemBytes []byte) error {
 	tmpPath := filepath.Join(dir, name+".tmp")
 	finalPath := filepath.Join(dir, name)
 
-	if err := os.WriteFile(tmpPath, pemBytes, 0o600); err != nil {
+	if err := writeFileSync(tmpPath, pemBytes, 0o600); err != nil {
 		return fmt.Errorf("write %s: %w", tmpPath, err)
 	}
 
 	if err := os.Rename(tmpPath, finalPath); err != nil {
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("rename %s: %w", finalPath, err)
+	}
+
+	if err := syncDir(dir); err != nil {
+		return fmt.Errorf("sync dir %s: %w", dir, err)
 	}
 
 	return nil

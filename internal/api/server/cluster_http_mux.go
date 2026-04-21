@@ -4,6 +4,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,6 +43,32 @@ func SetPKIIssuer(svc *pkiissuer.Service) {
 
 func loadPKIIssuer() *pkiissuer.Service {
 	return pkiIssuerService.Load()
+}
+
+// revocationRefresherFn is the callback invoked after a leader-side
+// batch of revocations has been committed, so the local in-memory
+// revocation cache picks up the new serials without waiting for the
+// 30 s periodic refresher. Installed by runtime via
+// SetRevocationRefresher; nil is a no-op.
+var revocationRefresherFn atomic.Pointer[func(context.Context)]
+
+// SetRevocationRefresher installs a callback the leader invokes after
+// writing revocation rows so its own revocation cache stays in sync
+// with the replicated state. Pass nil to uninstall.
+func SetRevocationRefresher(fn func(context.Context)) {
+	if fn == nil {
+		revocationRefresherFn.Store(nil)
+
+		return
+	}
+
+	revocationRefresherFn.Store(&fn)
+}
+
+func refreshLocalRevocations(ctx context.Context) {
+	if fn := revocationRefresherFn.Load(); fn != nil {
+		(*fn)(ctx)
+	}
 }
 
 var clusterSideEffectDeps atomic.Pointer[ClusterSideEffectDeps]

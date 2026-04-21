@@ -4,6 +4,7 @@ package db_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -255,13 +256,16 @@ func TestJoinToken_SingleUse(t *testing.T) {
 		t.Fatalf("token should be consumed by 2, got %+v", got)
 	}
 
-	// Second consume is a no-op; consumedAt must not change.
+	// Second consume surfaces ErrJoinTokenAlreadyConsumed so the caller
+	// can distinguish a lost race from a successful single-use.
+	// consumedAt/consumedBy must not change.
 	firstConsumedAt := got.ConsumedAt
 
 	time.Sleep(1 * time.Second)
 
-	if err := database.ConsumeJoinToken(ctx, "token-abc", 9); err != nil {
-		t.Fatalf("second Consume should not error: %v", err)
+	err = database.ConsumeJoinToken(ctx, "token-abc", 9)
+	if !errors.Is(err, db.ErrJoinTokenAlreadyConsumed) {
+		t.Fatalf("second Consume: want ErrJoinTokenAlreadyConsumed, got %v", err)
 	}
 
 	got, _ = database.GetJoinToken(ctx, "token-abc")

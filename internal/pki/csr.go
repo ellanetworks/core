@@ -84,10 +84,20 @@ func ParseCertPEM(certPEM []byte) (*x509.Certificate, error) {
 		return nil, fmt.Errorf("not a CERTIFICATE PEM block")
 	}
 
-	return x509.ParseCertificate(block.Bytes)
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse certificate: %w", err)
+	}
+
+	return cert, nil
 }
 
-// EncodeCertPEM returns the PEM encoding of cert.
+// EncodeCertPEM returns the PEM encoding of cert. Returns nil for a nil
+// cert rather than panicking; callers treat a nil return as "no cert".
 func EncodeCertPEM(cert *x509.Certificate) []byte {
+	if cert == nil {
+		return nil
+	}
+
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})
 }

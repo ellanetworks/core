@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/canonical/sqlair"
 )
 
 // Table names. Kept short so the schema grep'd in migration tests stays
@@ -173,7 +175,22 @@ func (db *Database) applyInsertJoinToken(ctx context.Context, r *ClusterJoinToke
 }
 
 func (db *Database) applyConsumeJoinToken(ctx context.Context, r *ClusterJoinToken) (any, error) {
-	return nil, db.runner(ctx).Query(ctx, db.consumeJoinTokenStmt, r).Run()
+	var outcome sqlair.Outcome
+
+	if err := db.runner(ctx).Query(ctx, db.consumeJoinTokenStmt, r).Get(&outcome); err != nil {
+		return nil, err
+	}
+
+	rows, err := outcome.Result().RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("rows affected: %w", err)
+	}
+
+	if rows == 0 {
+		return nil, ErrJoinTokenAlreadyConsumed
+	}
+
+	return nil, nil
 }
 
 func (db *Database) applyDeleteJoinTokensStale(ctx context.Context, cutoff *ClusterJoinToken) (any, error) {

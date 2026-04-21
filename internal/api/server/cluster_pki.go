@@ -15,6 +15,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/cluster/pkiagent"
@@ -61,6 +62,11 @@ func ClusterPKIIssue(svc *pkiissuer.Service) http.Handler {
 		csr, err := pki.ParseCSRPEM([]byte(req.CSRPEM))
 		if err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "parse csr", err, logger.APILog)
+			return
+		}
+
+		if err := svc.ValidateCSR(csr, req.NodeID); err != nil {
+			writeError(r.Context(), w, http.StatusBadRequest, "invalid csr", err, logger.APILog)
 			return
 		}
 
@@ -171,6 +177,11 @@ func RegisterBootstrapALPN(ln *listener.Listener, svc *pkiissuer.Service) {
 
 	ln.Register(listener.ALPNPKIBootstrap, func(conn net.Conn) {
 		defer func() { _ = conn.Close() }()
+
+		// Cap the whole exchange: a slow or silent client must not tie
+		// up the bootstrap handler indefinitely. 30s is generous for a
+		// single ReadRequest + sign + write over a healthy network.
+		_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
 
 		br := bufio.NewReader(conn)
 

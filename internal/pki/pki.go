@@ -14,6 +14,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha1" // #nosec G505 -- only used for RFC 5280 SubjectKeyId
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -108,6 +109,11 @@ func (i *Issuer) SignLeaf(csr *x509.CertificateRequest, nodeID int, serial uint6
 	notBefore := time.Now().Add(-LeafBackdate)
 	notAfter := notBefore.Add(ttl + LeafBackdate)
 
+	skid, err := subjectKeyID(csr.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
 	tmpl := &x509.Certificate{
 		SerialNumber:          new(big.Int).SetUint64(serial),
 		Subject:               pkix.Name{CommonName: csr.Subject.CommonName},
@@ -118,6 +124,8 @@ func (i *Issuer) SignLeaf(csr *x509.CertificateRequest, nodeID int, serial uint6
 		ExtKeyUsage:           leafExtKeyUsage,
 		BasicConstraintsValid: true,
 		IsCA:                  false,
+		SubjectKeyId:          skid,
+		AuthorityKeyId:        i.intermediateCert.SubjectKeyId,
 	}
 
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, i.intermediateCert, csr.PublicKey, i.intermediateKey)
@@ -218,6 +226,10 @@ func GenerateIntermediate(clusterID string, root *x509.Certificate, rootKey cryp
 // so leaves chaining through the old intermediate/root remain valid under
 // a bundle that also contains the new one.
 func CrossSign(subject *x509.Certificate, signerCert *x509.Certificate, signerKey crypto.Signer) (*x509.Certificate, error) {
+	if subject == nil || signerCert == nil || signerKey == nil {
+		return nil, fmt.Errorf("cross-sign: subject, signer cert, and signer key must all be non-nil")
+	}
+
 	serial, err := randomSerial()
 	if err != nil {
 		return nil, err
@@ -245,9 +257,14 @@ func CrossSign(subject *x509.Certificate, signerCert *x509.Certificate, signerKe
 }
 
 // Fingerprint returns the SHA-256 fingerprint of cert's DER bytes, prefixed
-// with "sha256:". Used to pin roots by hash.
+// with "sha256:". Returns "" for a nil cert. Used to pin roots by hash.
 func Fingerprint(cert *x509.Certificate) string {
+	if cert == nil {
+		return ""
+	}
+
 	sum := sha256.Sum256(cert.Raw)
+
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
@@ -304,4 +321,20 @@ func randomSerial() (*big.Int, error) {
 	}
 
 	return n, nil
+}
+
+// subjectKeyID computes the SubjectKeyId for a public key using the
+// RFC 5280 §4.2.1.2 method 1 recipe (SHA-1 of SubjectPublicKeyInfo).
+// crypto/x509 does this automatically for CA certs but not for leaves,
+// so we set it explicitly on leaves for introspection tools that rely
+// on SKID/AKID pairing (e.g. openssl verify -verbose).
+func subjectKeyID(pub any) ([]byte, error) {
+	spki, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		return nil, fmt.Errorf("marshal public key: %w", err)
+	}
+
+	sum := sha1.Sum(spki) // #nosec G401 -- RFC 5280 mandates SHA-1 for SKID
+
+	return sum[:], nil
 }

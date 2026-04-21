@@ -653,6 +653,23 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 		return Cluster{}, fmt.Errorf("cluster.peers must include this node's advertise-address %q", advertiseAddress)
 	}
 
+	joinToken := strings.TrimSpace(c.JoinToken)
+
+	if joinToken != "" {
+		if strings.ContainsAny(joinToken, " \t\r\n") {
+			return Cluster{}, errors.New("cluster.join-token must not contain whitespace")
+		}
+
+		// The on-wire token is base64url(1 + 4 + JSON(claims) + 32) and
+		// in practice never under ~100 bytes. Anything shorter indicates
+		// a truncated paste rather than a real token; reject early with
+		// a clear error instead of waiting for the issuer to fail.
+		const minJoinTokenLen = 64
+		if len(joinToken) < minJoinTokenLen {
+			return Cluster{}, fmt.Errorf("cluster.join-token is too short (%d chars, expected \u2265%d); looks truncated", len(joinToken), minJoinTokenLen)
+		}
+	}
+
 	// Cluster TLS is bootstrapped in-band (see internal/cluster/pkiissuer);
 	// there are no longer any operator-provided cert paths to validate.
 
@@ -701,7 +718,7 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 		BindAddress:       c.BindAddress,
 		AdvertiseAddress:  advertiseAddress,
 		Peers:             c.Peers,
-		JoinToken:         c.JoinToken,
+		JoinToken:         joinToken,
 		JoinTimeout:       joinTimeout,
 		ProposeTimeout:    proposeTimeout,
 		SnapshotInterval:  snapshotInterval,

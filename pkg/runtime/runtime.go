@@ -181,6 +181,17 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	bufferedWriter := dbwriter.NewBufferedDBWriter(dbInstance, 1000, logger.NetworkLog)
 	logger.SetDb(bufferedWriter)
 
+	if pki != nil {
+		// Let the leader-side revocation handler nudge our local cache
+		// as soon as revocation rows are written, so new handshakes on
+		// this node see them without waiting for the 30 s refresher.
+		server.SetRevocationRefresher(func(ctx context.Context) {
+			if err := pki.RefreshRevocations(ctx, dbInstance); err != nil {
+				logger.EllaLog.Warn("immediate revocation refresh failed", zap.Error(err))
+			}
+		})
+	}
+
 	// Provide the runtime config file contents to the supportbundle generator
 	// so support bundles include the exact YAML used at startup. This is safe
 	// because main controls what is exposed via the provider; here we simply
