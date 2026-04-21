@@ -8,15 +8,14 @@ import (
 )
 
 type ClusterMember struct {
-	NodeID           int    `json:"nodeId"`
-	RaftAddress      string `json:"raftAddress"`
-	APIAddress       string `json:"apiAddress"`
-	BinaryVersion    string `json:"binaryVersion"`
-	Suffrage         string `json:"suffrage"`
-	MaxSchemaVersion int    `json:"maxSchemaVersion"`
-	IsLeader         bool   `json:"isLeader"`
-	DrainState       string `json:"drainState"`
-	DrainUpdatedAt   string `json:"drainUpdatedAt,omitempty"`
+	NodeID         int    `json:"nodeId"`
+	RaftAddress    string `json:"raftAddress"`
+	APIAddress     string `json:"apiAddress"`
+	BinaryVersion  string `json:"binaryVersion"`
+	Suffrage       string `json:"suffrage"`
+	IsLeader       bool   `json:"isLeader"`
+	DrainState     string `json:"drainState"`
+	DrainUpdatedAt string `json:"drainUpdatedAt,omitempty"`
 }
 
 type DrainOptions struct {
@@ -29,13 +28,10 @@ type DrainResponse struct {
 	TransferredLeadership bool   `json:"transferredLeadership"`
 	RANsNotified          int    `json:"ransNotified"`
 	BGPStopped            bool   `json:"bgpStopped"`
-	SessionsRemaining     int    `json:"sessionsRemaining"`
 }
 
 type ResumeResponse struct {
-	Message    string `json:"message"`
-	State      string `json:"state"`
-	BGPStarted bool   `json:"bgpStarted"`
+	BGPStarted bool `json:"bgpStarted"`
 }
 
 // AutopilotServer is the live per-peer health reported by raft-autopilot.
@@ -46,9 +42,6 @@ type AutopilotServer struct {
 	Healthy         bool   `json:"healthy"`
 	IsLeader        bool   `json:"isLeader"`
 	HasVotingRights bool   `json:"hasVotingRights"`
-	LastContactMs   int64  `json:"lastContactMs"`
-	LastTerm        uint64 `json:"lastTerm"`
-	LastIndex       uint64 `json:"lastIndex"`
 	StableSince     string `json:"stableSince,omitempty"`
 }
 

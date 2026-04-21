@@ -70,15 +70,6 @@ const CenteredCell: React.FC<{ children: React.ReactNode }> = ({
   </Box>
 );
 
-function formatLastContact(ms: number): string {
-  if (ms < 0) return "—";
-  if (ms < 1000) return `${ms} ms`;
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  return `${m}m ${s % 60}s`;
-}
-
 function drainStateChip(state: DrainState, updatedAt?: string) {
   if (state === "drained") {
     const title = updatedAt
@@ -267,11 +258,6 @@ const ClusterPage: React.FC = () => {
     }));
   }, [members, autopilot]);
 
-  const leaderIndex = useMemo(
-    () => autopilot?.servers.find((s) => s.isLeader)?.lastIndex ?? 0,
-    [autopilot],
-  );
-
   const versionsDiffer = useMemo(() => {
     const versions = new Set(
       members.map((m) => m.binaryVersion).filter((v) => v !== ""),
@@ -448,76 +434,6 @@ const ClusterPage: React.FC = () => {
         },
       },
       {
-        field: "lastContact",
-        headerName: "Last Contact",
-        width: 130,
-        valueGetter: (_v: unknown, row: JoinedRow) =>
-          row.isLeader ? -1 : (row.autopilot?.lastContactMs ?? -1),
-        renderCell: (p: GridRenderCellParams<JoinedRow>) => {
-          if (p.row.isLeader)
-            return (
-              <CenteredCell>
-                <Typography variant="body2">—</Typography>
-              </CenteredCell>
-            );
-          const ap = p.row.autopilot;
-          if (!ap)
-            return (
-              <CenteredCell>
-                <Typography variant="body2">—</Typography>
-              </CenteredCell>
-            );
-          return (
-            <CenteredCell>
-              <Typography variant="body2">
-                {formatLastContact(ap.lastContactMs)}
-              </Typography>
-            </CenteredCell>
-          );
-        },
-      },
-      {
-        field: "lag",
-        headerName: "Lag",
-        width: 110,
-        valueGetter: (_v: unknown, row: JoinedRow) => {
-          if (row.isLeader || !row.autopilot) return 0;
-          return Math.max(0, leaderIndex - row.autopilot.lastIndex);
-        },
-        renderCell: (p: GridRenderCellParams<JoinedRow>) => {
-          if (p.row.isLeader)
-            return (
-              <CenteredCell>
-                <Typography variant="body2">—</Typography>
-              </CenteredCell>
-            );
-          const ap = p.row.autopilot;
-          if (!ap)
-            return (
-              <CenteredCell>
-                <Typography variant="body2">—</Typography>
-              </CenteredCell>
-            );
-          const lag = Math.max(0, leaderIndex - ap.lastIndex);
-          const MAX_TRAILING_LOGS = 500;
-          const color = lag >= MAX_TRAILING_LOGS ? "warning" : "default";
-          return (
-            <CenteredCell>
-              <Tooltip
-                title={`Leader at index ${leaderIndex}; this peer at ${ap.lastIndex}`}
-              >
-                <Chip
-                  label={`${lag}`}
-                  size="small"
-                  color={color}
-                  variant="outlined"
-                />
-              </Tooltip>
-            </CenteredCell>
-          );
-        },
-      },
-      {
         field: "actions",
         headerName: "Actions",
         type: "actions",
@@ -612,7 +528,7 @@ const ClusterPage: React.FC = () => {
         },
       } as GridColDef<JoinedRow>,
     ],
-    [versionsDiffer, leaderIndex, selfNodeId, currentLeaderNodeId],
+    [versionsDiffer, selfNodeId, currentLeaderNodeId],
   );
 
   const statusLoaded = !statusQuery.isLoading;

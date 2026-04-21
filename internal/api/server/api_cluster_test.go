@@ -730,8 +730,8 @@ func TestResumeClusterMember_AlreadyActive(t *testing.T) {
 		t.Fatalf("expected 200, got %d (body: %s)", status, body)
 	}
 
-	if !strings.Contains(body, "already active") {
-		t.Errorf("expected already-active message, got %s", body)
+	if !strings.Contains(body, `"bgpStarted":false`) {
+		t.Errorf("expected bgpStarted=false for idempotent resume, got %s", body)
 	}
 }
 

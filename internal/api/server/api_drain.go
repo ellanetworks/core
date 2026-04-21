@@ -41,13 +41,10 @@ type DrainResponse struct {
 	TransferredLeadership bool   `json:"transferredLeadership"`
 	RANsNotified          int    `json:"ransNotified"`
 	BGPStopped            bool   `json:"bgpStopped"`
-	SessionsRemaining     int    `json:"sessionsRemaining"`
 }
 
 type ResumeResponse struct {
-	Message    string `json:"message"`
-	State      string `json:"state"`
-	BGPStarted bool   `json:"bgpStarted"`
+	BGPStarted bool `json:"bgpStarted"`
 }
 
 // DrainClusterMember handles POST /api/v1/cluster/members/{id}/drain.
@@ -189,7 +186,6 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, bgpServic
 			TransferredLeadership: transferred,
 			RANsNotified:          sideEffects.RANsNotified,
 			BGPStopped:            sideEffects.BGPStopped,
-			SessionsRemaining:     countLocalActiveLeases(r.Context(), dbInstance, nodeID),
 		}, http.StatusOK, logger.APILog)
 	})
 }
@@ -228,11 +224,7 @@ func ResumeClusterMember(dbInstance *db.Database, bgpService *bgp.BGPService, ln
 		}
 
 		if member.DrainState == db.DrainStateActive {
-			writeResponse(r.Context(), w, ResumeResponse{
-				Message: "already active",
-				State:   db.DrainStateActive,
-			}, http.StatusOK, logger.APILog)
-
+			writeResponse(r.Context(), w, ResumeResponse{}, http.StatusOK, logger.APILog)
 			return
 		}
 
@@ -262,8 +254,6 @@ func ResumeClusterMember(dbInstance *db.Database, bgpService *bgp.BGPService, ln
 		)
 
 		writeResponse(r.Context(), w, ResumeResponse{
-			Message:    "resumed",
-			State:      db.DrainStateActive,
 			BGPStarted: bgpStarted,
 		}, http.StatusOK, logger.APILog)
 	})

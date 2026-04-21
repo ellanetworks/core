@@ -20,15 +20,14 @@ const (
 )
 
 type ClusterMemberResponse struct {
-	NodeID           int    `json:"nodeId"`
-	RaftAddress      string `json:"raftAddress"`
-	APIAddress       string `json:"apiAddress"`
-	BinaryVersion    string `json:"binaryVersion"`
-	Suffrage         string `json:"suffrage"`
-	MaxSchemaVersion int    `json:"maxSchemaVersion"`
-	IsLeader         bool   `json:"isLeader"`
-	DrainState       string `json:"drainState"`
-	DrainUpdatedAt   string `json:"drainUpdatedAt,omitempty"`
+	NodeID         int    `json:"nodeId"`
+	RaftAddress    string `json:"raftAddress"`
+	APIAddress     string `json:"apiAddress"`
+	BinaryVersion  string `json:"binaryVersion"`
+	Suffrage       string `json:"suffrage"`
+	IsLeader       bool   `json:"isLeader"`
+	DrainState     string `json:"drainState"`
+	DrainUpdatedAt string `json:"drainUpdatedAt,omitempty"`
 }
 
 func toClusterMemberResponse(m db.ClusterMember, leaderAddr string) ClusterMemberResponse {
@@ -43,15 +42,14 @@ func toClusterMemberResponse(m db.ClusterMember, leaderAddr string) ClusterMembe
 	}
 
 	return ClusterMemberResponse{
-		NodeID:           m.NodeID,
-		RaftAddress:      m.RaftAddress,
-		APIAddress:       m.APIAddress,
-		BinaryVersion:    m.BinaryVersion,
-		Suffrage:         m.Suffrage,
-		MaxSchemaVersion: m.MaxSchemaVersion,
-		IsLeader:         leaderAddr != "" && m.RaftAddress == leaderAddr,
-		DrainState:       state,
-		DrainUpdatedAt:   updated,
+		NodeID:         m.NodeID,
+		RaftAddress:    m.RaftAddress,
+		APIAddress:     m.APIAddress,
+		BinaryVersion:  m.BinaryVersion,
+		Suffrage:       m.Suffrage,
+		IsLeader:       leaderAddr != "" && m.RaftAddress == leaderAddr,
+		DrainState:     state,
+		DrainUpdatedAt: updated,
 	}
 }
 

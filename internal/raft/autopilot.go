@@ -69,39 +69,39 @@ func (d *autopilotDelegate) NotifyState(state *autopilot.State) {
 func (d *autopilotDelegate) FetchServerStats(_ context.Context, servers map[raft.ServerID]*autopilot.Server) map[raft.ServerID]*autopilot.ServerStats {
 	result := make(map[raft.ServerID]*autopilot.ServerStats, len(servers))
 
-	leaderStats := d.manager.raft.Stats()
-	parsed := parseRaftStats(leaderStats)
+	parsed := parseRaftStats(d.manager.raft.Stats())
 	ft := d.manager.followerTracker
+	localID := raft.ServerID(strconv.Itoa(d.manager.nodeID))
+	isLocalLeader := d.manager.raft.State() == raft.Leader
 
-	for id, srv := range servers {
-		if srv.IsLeader {
-			result[id] = parsed
-			continue
-		}
-
-		if ft == nil {
+	for id := range servers {
+		if isLocalLeader && id == localID {
 			result[id] = &autopilot.ServerStats{
-				LastTerm:  parsed.LastTerm,
-				LastIndex: parsed.LastIndex,
-			}
-
-			continue
-		}
-
-		lastContact, healthy := ft.peerStats(id)
-		if healthy {
-			result[id] = &autopilot.ServerStats{
-				LastContact: 0,
+				LastContact: parsed.LastContact,
 				LastTerm:    parsed.LastTerm,
 				LastIndex:   parsed.LastIndex,
 			}
-		} else {
-			result[id] = &autopilot.ServerStats{
-				LastContact: lastContact,
-				LastTerm:    parsed.LastTerm,
-				LastIndex:   0,
+
+			continue
+		}
+
+		// Follower rows mirror the leader's LastTerm/LastIndex because we
+		// don't track per-peer log progression here. This makes autopilot's
+		// internal log-lag check a no-op; the effective liveness signal
+		// comes from the follower tracker, which flips NodeStatus to "left"
+		// in KnownServers when heartbeats stop.
+		stats := &autopilot.ServerStats{
+			LastTerm:  parsed.LastTerm,
+			LastIndex: parsed.LastIndex,
+		}
+
+		if ft != nil {
+			if lastContact, healthy := ft.peerStats(id); !healthy {
+				stats.LastContact = lastContact
 			}
 		}
+
+		result[id] = stats
 	}
 
 	return result

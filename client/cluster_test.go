@@ -62,7 +62,7 @@ func TestDrainClusterMember_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message":"draining","state":"drained","transferredLeadership":true,"ransNotified":2,"bgpStopped":true,"sessionsRemaining":0}`),
+			Result:     []byte(`{"message":"draining","state":"drained","transferredLeadership":true,"ransNotified":2,"bgpStopped":true}`),
 		},
 	}
 	c := &client.Client{Requester: fake}
@@ -102,7 +102,7 @@ func TestDrainClusterMember_NilOpts(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message":"draining","state":"drained","transferredLeadership":false,"ransNotified":0,"bgpStopped":false,"sessionsRemaining":0}`),
+			Result:     []byte(`{"message":"draining","state":"drained","transferredLeadership":false,"ransNotified":0,"bgpStopped":false}`),
 		},
 	}
 	c := &client.Client{Requester: fake}
@@ -134,7 +134,7 @@ func TestResumeClusterMember_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"message":"resumed","state":"active","bgpStarted":true}`),
+			Result:     []byte(`{"bgpStarted":true}`),
 		},
 	}
 	c := &client.Client{Requester: fake}
@@ -142,10 +142,6 @@ func TestResumeClusterMember_Success(t *testing.T) {
 	resp, err := c.ResumeClusterMember(context.Background(), 3)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if resp.State != "active" {
-		t.Errorf("expected state active, got %s", resp.State)
 	}
 
 	if !resp.BGPStarted {

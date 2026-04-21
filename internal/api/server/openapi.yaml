@@ -5015,12 +5015,6 @@ components:
           type: string
           enum: [voter, nonvoter]
           description: Whether this member participates in leader election.
-        maxSchemaVersion:
-          type: integer
-          description: >-
-            Highest shared-DB schema version this member's binary can
-            apply. Compared against the cluster's applied schema during
-            rolling upgrades to gate migrations behind quorum support.
         isLeader:
           type: boolean
           description: True when this member is the current Raft leader.
@@ -5038,7 +5032,7 @@ components:
           description: >-
             RFC 3339 timestamp of the last drainState change. Empty when the
             node has never been drained.
-      required: [nodeId, raftAddress, apiAddress, binaryVersion, suffrage, maxSchemaVersion, isLeader, drainState]
+      required: [nodeId, raftAddress, apiAddress, binaryVersion, suffrage, isLeader, drainState]
 
     ListClusterMembersResponseEnvelope:
       type: object
@@ -5076,30 +5070,14 @@ components:
         hasVotingRights:
           type: boolean
           description: True when this peer is a voter or leader (not a nonvoter).
-        lastContactMs:
-          type: integer
-          format: int64
-          description: >-
-            Milliseconds since this peer last heartbeated with the leader.
-            Zero for the leader's own row.
-        lastTerm:
-          type: integer
-          format: uint64
-          description: Highest Raft term this peer has a record of.
-        lastIndex:
-          type: integer
-          format: uint64
-          description: >-
-            Last log index this peer has acknowledged. Compare to the
-            leader's row to read replication lag.
         stableSince:
           type: string
           format: date-time
           description: >-
             UTC timestamp of the last time this peer's `healthy` value
-            changed. Used by autopilot's promotion logic and surfaced as a
-            signal of churn. Omitted when unknown.
-      required: [nodeId, raftAddress, nodeStatus, healthy, isLeader, hasVotingRights, lastContactMs, lastTerm, lastIndex]
+            changed. For an unhealthy peer this is when contact was lost.
+            Omitted when unknown.
+      required: [nodeId, raftAddress, nodeStatus, healthy, isLeader, hasVotingRights]
 
     AutopilotState:
       type: object
@@ -5170,10 +5148,7 @@ components:
         bgpStopped:
           type: boolean
           description: Whether BGP advertisements were withdrawn.
-        sessionsRemaining:
-          type: integer
-          description: Active leases still on the target when the response was built.
-      required: [message, state, transferredLeadership, ransNotified, bgpStopped, sessionsRemaining]
+      required: [message, state, transferredLeadership, ransNotified, bgpStopped]
 
     DrainResponseEnvelope:
       type: object
@@ -5184,15 +5159,10 @@ components:
     ResumeResponse:
       type: object
       properties:
-        message:
-          type: string
-        state:
-          type: string
-          enum: [active]
         bgpStarted:
           type: boolean
           description: Whether the local BGP speaker was restarted.
-      required: [message, state, bgpStarted]
+      required: [bgpStarted]
 
     ResumeResponseEnvelope:
       type: object

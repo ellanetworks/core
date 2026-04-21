@@ -110,13 +110,10 @@ Autopilot runs only on the leader, so only the leader can produce state. Followe
     - `nodeId` (integer): Raft node ID.
     - `raftAddress` (string): Raft transport address (`host:port`). Matches the field of the same name on `/api/v1/cluster/members`.
     - `nodeStatus` (string): Autopilot lifecycle state — `alive`, `left`, `failed`.
-    - `healthy` (boolean): Autopilot's verdict combining last‑contact, last‑term, and log‑lag checks.
+    - `healthy` (boolean): Autopilot's verdict for this peer. Followers flip to unhealthy when their heartbeats stop.
     - `isLeader` (boolean): True when this peer is the current Raft leader.
     - `hasVotingRights` (boolean): True for voters and the leader; false for nonvoters.
-    - `lastContactMs` (integer): Milliseconds since this peer last heartbeated with the leader. Zero for the leader's own row.
-    - `lastTerm` (integer): Highest Raft term this peer has a record of.
-    - `lastIndex` (integer): Last Raft log index this peer has acknowledged. Compare against the leader's row to read replication lag.
-    - `stableSince` (string, RFC 3339, optional): Last time this peer's `healthy` value changed. Omitted when unknown.
+    - `stableSince` (string, RFC 3339, optional): Last time this peer's `healthy` value changed. For an unhealthy peer this is when contact was lost. Omitted when unknown.
 
 ### Sample Response
 
@@ -135,9 +132,6 @@ Autopilot runs only on the leader, so only the leader can produce state. Followe
                 "healthy": true,
                 "isLeader": true,
                 "hasVotingRights": true,
-                "lastContactMs": 0,
-                "lastTerm": 7,
-                "lastIndex": 18234,
                 "stableSince": "2026-04-20T08:15:02Z"
             },
             {
@@ -147,9 +141,6 @@ Autopilot runs only on the leader, so only the leader can produce state. Followe
                 "healthy": true,
                 "isLeader": false,
                 "hasVotingRights": true,
-                "lastContactMs": 12,
-                "lastTerm": 7,
-                "lastIndex": 18233,
                 "stableSince": "2026-04-20T08:15:02Z"
             },
             {
@@ -159,9 +150,6 @@ Autopilot runs only on the leader, so only the leader can produce state. Followe
                 "healthy": false,
                 "isLeader": false,
                 "hasVotingRights": true,
-                "lastContactMs": 30000,
-                "lastTerm": 7,
-                "lastIndex": 17500,
                 "stableSince": "2026-04-20T08:15:02Z"
             }
         ]
@@ -197,8 +185,7 @@ In HA mode, drain runs on the leader (followers forward the request automaticall
         "state": "drained",
         "transferredLeadership": true,
         "ransNotified": 2,
-        "bgpStopped": true,
-        "sessionsRemaining": 0
+        "bgpStopped": true
     }
 }
 ```
@@ -227,8 +214,6 @@ Idempotent: resuming an already-active node is a no-op.
 ```json
 {
     "result": {
-        "message": "resumed",
-        "state": "active",
         "bgpStarted": true
     }
 }

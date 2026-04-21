@@ -8,7 +8,6 @@ export type ClusterMember = {
   apiAddress: string;
   binaryVersion: string;
   suffrage: "voter" | "nonvoter";
-  maxSchemaVersion: number;
   isLeader: boolean;
   drainState: DrainState;
   drainUpdatedAt?: string;
@@ -21,9 +20,6 @@ export type AutopilotServer = {
   healthy: boolean;
   isLeader: boolean;
   hasVotingRights: boolean;
-  lastContactMs: number;
-  lastTerm: number;
-  lastIndex: number;
   stableSince?: string;
 };
 
@@ -45,12 +41,9 @@ export type DrainResponse = {
   transferredLeadership: boolean;
   ransNotified: number;
   bgpStopped: boolean;
-  sessionsRemaining: number;
 };
 
 export type ResumeResponse = {
-  message: string;
-  state: DrainState;
   bgpStarted: boolean;
 };
 
