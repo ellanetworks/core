@@ -369,7 +369,7 @@ func TestRemoveClusterMember_RefusesLeader(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	env, err := setupServer(dbPath)
+	env, err := setupServerWithRaft(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -422,7 +422,7 @@ func TestRemoveClusterMember_PurgesDynamicLeases(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	env, err := setupServer(dbPath)
+	env, err := setupServerWithRaft(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -553,7 +553,7 @@ func TestRemoveClusterMember_RefusesUndrained(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	env, err := setupServer(dbPath)
+	env, err := setupServerWithRaft(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -608,7 +608,7 @@ func TestDrainClusterMember_PersistsDrainedState(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	env, err := setupServer(dbPath)
+	env, err := setupServerWithRaft(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -727,7 +727,7 @@ func TestDrainClusterMember_Idempotent(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	env, err := setupServer(dbPath)
+	env, err := setupServerWithRaft(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}
@@ -858,7 +858,7 @@ func TestResumeClusterMember_AlreadyActive(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
-	env, err := setupServer(dbPath)
+	env, err := setupServerWithRaft(dbPath)
 	if err != nil {
 		t.Fatalf("couldn't create test server: %s", err)
 	}

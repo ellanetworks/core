@@ -921,6 +921,54 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	return db, nil
 }
 
+// NewDatabaseWithoutRaft opens a Database backed by SQLite with no Raft
+// manager attached. Writes are applied directly to the local database
+// instead of going through propose/capture/replicate, so there is no
+// leader election or bolt store startup cost. Intended for unit tests
+// whose subject is not replication; production code must use NewDatabase.
+func NewDatabaseWithoutRaft(ctx context.Context, dbPath string) (*Database, error) {
+	dataDir := filepath.Dir(dbPath)
+
+	sqlConn, err := openSQLiteConnection(ctx, dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	if err := runMigrations(ctx, sqlConn, 0); err != nil {
+		_ = sqlConn.Close()
+		return nil, fmt.Errorf("schema migration failed: %w", err)
+	}
+
+	if err := ensureFsmStateTable(ctx, sqlConn); err != nil {
+		_ = sqlConn.Close()
+		return nil, fmt.Errorf("ensure fsm_state table: %w", err)
+	}
+
+	db := new(Database)
+	db.connPtr.Store(sqlair.NewDB(sqlConn))
+	db.dbPath = dbPath
+	db.dataDir = dataDir
+
+	if err := db.assertTableReplicationClassification(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed table replication classification check: %w", err)
+	}
+
+	if err := db.PrepareStatements(); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to prepare statements: %w", err)
+	}
+
+	RegisterMetrics(db)
+
+	if err := db.Initialize(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to initialize database: %w", err)
+	}
+
+	return db, nil
+}
+
 func (db *Database) PrepareStatements() error {
 	type stmtDef struct {
 		dest  **sqlair.Statement
