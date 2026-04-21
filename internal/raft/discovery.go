@@ -155,7 +155,7 @@ func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 				continue
 			}
 
-			if err := m.joinCluster(ctx, peerAddr, clusterID); err != nil {
+			if err := m.joinCluster(ctx, peerAddr, nodeID, clusterID); err != nil {
 				logger.RaftLog.Warn("Failed to join cluster via peer",
 					zap.String("peer", peerAddr),
 					zap.Error(err),
@@ -195,9 +195,22 @@ func (m *Manager) discoveryTick(ctx context.Context) (bool, error) {
 }
 
 // clusterHTTPDo dials a peer's cluster port over mTLS and performs a
-// single HTTP request. Pass nil body for GET-style requests.
-func (m *Manager) clusterHTTPDo(ctx context.Context, method, peerAddr, path string, body io.Reader) (*http.Response, error) {
-	conn, err := m.clusterListener.Dial(ctx, peerAddr, listener.ALPNHTTP, discoveryHTTPTimeout)
+// single HTTP request. Pass nil body for GET-style requests. When
+// expectedPeerID is non-zero the dial verifies the peer's leaf CN
+// resolves to that node-id; pass 0 only from discovery paths that are
+// still learning the peer's identity.
+func (m *Manager) clusterHTTPDo(ctx context.Context, method, peerAddr string, expectedPeerID int, path string, body io.Reader) (*http.Response, error) {
+	var (
+		conn net.Conn
+		err  error
+	)
+
+	if expectedPeerID == 0 {
+		conn, err = m.clusterListener.DialAnyPeer(ctx, peerAddr, listener.ALPNHTTP, discoveryHTTPTimeout)
+	} else {
+		conn, err = m.clusterListener.Dial(ctx, peerAddr, expectedPeerID, listener.ALPNHTTP, discoveryHTTPTimeout)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -245,9 +258,11 @@ func (m *Manager) clusterHTTPDo(ctx context.Context, method, peerAddr, path stri
 }
 
 // probePeer queries a peer's cluster status endpoint and returns its state,
-// node ID, cluster ID, and schema version.
+// node ID, cluster ID, and schema version. This is the one discovery path
+// that cannot pin an expected peer-id — learning the peer's identity is
+// the purpose of the probe.
 func (m *Manager) probePeer(ctx context.Context, peerAddr string) (peerState, int, string, int) {
-	resp, err := m.clusterHTTPDo(ctx, http.MethodGet, peerAddr, "/cluster/status", nil)
+	resp, err := m.clusterHTTPDo(ctx, http.MethodGet, peerAddr, 0, "/cluster/status", nil)
 	if err != nil {
 		return peerUnreachable, 0, "", 0
 	}
@@ -286,9 +301,13 @@ func (m *Manager) probePeer(ctx context.Context, peerAddr string) (peerState, in
 // this node is the leader, callers should write directly via
 // db.UpsertClusterMember rather than calling this method.
 func (m *Manager) SelfAnnounce(ctx context.Context, payload any) error {
-	leader := m.LeaderAddress()
-	if leader == "" {
+	leaderAddr, leaderID := m.LeaderAddressAndID()
+	if leaderAddr == "" {
 		return fmt.Errorf("no known leader")
+	}
+
+	if leaderID == 0 {
+		return fmt.Errorf("leader at %s has unrecognized server id; refusing to self-announce", leaderAddr)
 	}
 
 	body, err := json.Marshal(payload)
@@ -296,9 +315,9 @@ func (m *Manager) SelfAnnounce(ctx context.Context, payload any) error {
 		return fmt.Errorf("marshal self-announce: %w", err)
 	}
 
-	resp, err := m.clusterHTTPDo(ctx, http.MethodPost, leader, "/cluster/members/self", bytes.NewReader(body))
+	resp, err := m.clusterHTTPDo(ctx, http.MethodPost, leaderAddr, leaderID, "/cluster/members/self", bytes.NewReader(body))
 	if err != nil {
-		return fmt.Errorf("dial leader %s: %w", leader, err)
+		return fmt.Errorf("dial leader %s: %w", leaderAddr, err)
 	}
 
 	defer func() { _ = resp.Body.Close() }()
@@ -311,8 +330,10 @@ func (m *Manager) SelfAnnounce(ctx context.Context, payload any) error {
 	return nil
 }
 
-// joinCluster POSTs our membership to a peer's cluster port.
-func (m *Manager) joinCluster(ctx context.Context, peerAddr string, clusterID string) error {
+// joinCluster POSTs our membership to a peer's cluster port. peerNodeID
+// is the node-id learned from the prior probePeer call; it pins the mTLS
+// dial so we only send the join payload to the node we intended.
+func (m *Manager) joinCluster(ctx context.Context, peerAddr string, peerNodeID int, clusterID string) error {
 	payload := struct {
 		NodeID           int    `json:"nodeId"`
 		RaftAddress      string `json:"raftAddress"`
@@ -336,7 +357,7 @@ func (m *Manager) joinCluster(ctx context.Context, peerAddr string, clusterID st
 		return fmt.Errorf("marshal join request: %w", err)
 	}
 
-	resp, err := m.clusterHTTPDo(ctx, http.MethodPost, peerAddr, "/cluster/members", bytes.NewReader(body))
+	resp, err := m.clusterHTTPDo(ctx, http.MethodPost, peerAddr, peerNodeID, "/cluster/members", bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}

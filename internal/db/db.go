@@ -494,6 +494,17 @@ func (db *Database) LeaderAddress() string {
 	return db.raftManager.LeaderAddress()
 }
 
+// LeaderAddressAndID returns the leader's Raft transport address together
+// with its integer node-id. Either value is zero when there is no leader
+// or when the leader's ServerID cannot be parsed as an integer.
+func (db *Database) LeaderAddressAndID() (string, int) {
+	if db.raftManager == nil {
+		return "", 0
+	}
+
+	return db.raftManager.LeaderAddressAndID()
+}
+
 // RaftState returns the current Raft state as a string (Leader, Follower, etc.).
 func (db *Database) RaftState() string {
 	if db.raftManager == nil {

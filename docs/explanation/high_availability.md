@@ -2,7 +2,7 @@
 description: Explanation of how high availability works in Ella Core.
 ---
 
-# High Availability
+# High Availability (beta)
 
 !!! info "Beta feature"
     High availability is currently in beta. It is available for testing and feedback in the `main` branch but not recommended for production use yet. Expect breaking changes as we iterate on the design and implementation.
@@ -42,9 +42,9 @@ When BGP is enabled, each node advertises a `/32` route for every UE session it 
 
 ## Failover and timing
 
-Leader re-election completes within a few seconds; surviving nodes continue accepting API calls the whole time.
+Leader re-election completes within a few seconds; surviving nodes continue accepting NGAP and API calls the whole time.
 
-On the 5G side, each Ella Core node presents as a distinct AMF in the same AMF Set. A UE's 5G-GUTI pins it to the AMF that handled its registration, and new UEs distribute across the Set. When a node dies, gNBs detect the loss via SCTP heartbeat timeout — typically 15–30 seconds, governed by gNB configuration — and reselect a surviving AMF. UEs that were attached to the dead node then re-register from scratch, including a fresh authentication and a new PDU session.
+Each Ella Core node presents as a distinct AMF in the same AMF Set. A UE's 5G-GUTI pins it to the AMF that handled its registration, and new UEs distribute across the Set. When a node dies, gNBs detect the loss via SCTP heartbeat timeout and reselect a surviving AMF. UEs that were attached to the dead node then re-register from scratch, including a fresh authentication and a new PDU session.
 
 ## Deployment scenarios
 
@@ -70,13 +70,7 @@ Useful for site- or tenant-partitioned deployments. The cluster still replicates
 
 ## Draining a node
 
-Draining prepares a node for removal without disrupting traffic on its peers. A drained node hands Raft leadership to another voter if it held it, signals connected radios that it is unavailable so new UEs attach elsewhere, and stops advertising user-plane routes so upstream routing shifts to the survivors. Existing flows keep running until the node is removed or shut down.
-
-Drain is a reversible state: a node moves through `active → draining → drained` and back. Resume clears the drain and restarts route advertisement. It does not reclaim Raft leadership, and radios only treat the node as available again on their next reconnection.
-
-A node receiving a shutdown signal (SIGTERM) also marks itself `drained` as part of a clean shutdown, so operators see an explicit state change instead of a brief window of apparent unresponsiveness before the cluster removes the dead member.
-
-Removal requires a drained node; the cluster rejects removing an undrained one.
+Draining prepares a node for removal without disrupting traffic on its peers. A drained node hands Raft leadership to another voter if it held it, signals connected radios that it is unavailable so new UEs attach elsewhere, and stops advertising user-plane routes so upstream routing shifts to the survivors. Existing flows keep running until the node is removed or shut down. A node receiving a shutdown signal (SIGTERM) also marks itself `drained` as part of a clean shutdown. Removal requires a drained node.
 
 ## Scaling the cluster
 
@@ -92,4 +86,5 @@ To keep a mixed-version cluster consistent, the leader applies a schema migratio
 
 ## Further reading
 
+- [Deploy a High Availability Cluster](../how_to/deploy_ha_cluster.md) — step-by-step guide to bring up a cluster.
 - [Cluster API reference](../reference/api/cluster.md) — cluster management endpoints.

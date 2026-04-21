@@ -9,6 +9,12 @@
 // certificate signed by the shared cluster CA, with CN = "ella-node-<n>"
 // where n is a valid node-id in [1, 63]. Connections without a verified
 // peer cert are rejected at handshake.
+//
+// Outbound dials use Dial when the caller knows which peer they intend
+// to reach; Dial refuses the connection if the peer's CN resolves to a
+// different node-id. DialAnyPeer relaxes only that last check and is
+// used exclusively by discovery paths that need to learn the peer's
+// identity from the connection itself.
 
 package listener
 

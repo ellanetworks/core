@@ -79,8 +79,19 @@ func (s *raftStreamLayer) Addr() net.Addr {
 // Dial opens an mTLS connection to a peer's Raft stream layer via the
 // cluster listener. context.Background is used because raft.StreamLayer
 // does not accept a context; the timeout parameter provides the deadline.
+//
+// The expected-peer check is intentionally skipped on the Raft channel:
+// hashicorp/raft.StreamLayer.Dial hands us only a server address, not
+// the target ServerID, and the raft instance that could resolve the ID
+// from configuration is constructed *after* this stream layer. The Raft
+// protocol itself bounds the impact of a misrouted connection — an
+// endpoint that cannot forge valid log state cannot make meaningful
+// replies, and an on-path actor that merely drops traffic is already
+// within the attacker model of the transport layer. Callers that need
+// stronger per-peer binding (leader proxy, discovery joins) use the
+// cluster HTTP ALPN and pass an explicit expectedPeerID to Dial.
 func (s *raftStreamLayer) Dial(address hraft.ServerAddress, timeout time.Duration) (net.Conn, error) {
-	conn, err := s.ln.Dial(context.Background(), string(address), listener.ALPNRaft, timeout)
+	conn, err := s.ln.DialAnyPeer(context.Background(), string(address), listener.ALPNRaft, timeout)
 	if err != nil {
 		return nil, err
 	}

@@ -143,7 +143,7 @@ func TestProxyToLeaderCluster_410TranslatesTo502(t *testing.T) {
 		"/api/v1/subscribers", bytes.NewReader(nil))
 	w := httptest.NewRecorder()
 
-	proxyToLeaderCluster(w, req, client, testDB)
+	doProxyToLeader(w, req, client, testDB.LeaderAddress(), testDB)
 
 	if w.Code != http.StatusBadGateway {
 		t.Fatalf("expected 410 from leader to translate to 502, got %d", w.Code)
@@ -186,7 +186,7 @@ func TestProxyToLeaderCluster_PassesNon410Through(t *testing.T) {
 		"/api/v1/subscribers", bytes.NewReader(nil))
 	w := httptest.NewRecorder()
 
-	proxyToLeaderCluster(w, req, client, testDB)
+	doProxyToLeader(w, req, client, testDB.LeaderAddress(), testDB)
 
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected non-410 response to pass through, got %d", w.Code)
