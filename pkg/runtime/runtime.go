@@ -238,9 +238,9 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			logger.EllaLog.Info("Leader initialization replicated successfully")
 
 			// Follower: build a local issuer handle (can't issue — we're
-			// not the leader — but can serve /cluster/pki/bundle), and
-			// install it for HTTP handlers. The bundle accessor is
-			// refreshed here and again on every leadership transition.
+			// not the leader), and install it for HTTP handlers. The bundle
+			// accessor is refreshed here and again on every leadership
+			// transition.
 			if pki != nil {
 				pki.issuer = pkiissuer.New(dbInstance, dbInstance.Dir())
 
@@ -298,6 +298,32 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	wg.Go(func() {
 		sessions.CleanUp(ctx, dbInstance, sessionsGuard)
 	})
+
+	// Revocation cache refresher: every node (leader and follower) polls
+	// the replicated cluster_revoked_certs table on a short interval so
+	// the in-memory revocation set — consulted on every cluster-listener
+	// handshake — never drifts more than revocationRefreshInterval from
+	// the committed Raft state. A leader-side immediate refresh still
+	// happens inside RemoveClusterMember for the common case; this tick
+	// is the backstop for followers and for the brief window between
+	// leader action and follower apply.
+	if pki != nil {
+		wg.Go(func() {
+			runRevocationRefresher(ctx, pki, dbInstance)
+		})
+
+		if clusterLn != nil {
+			wg.Go(func() {
+				runLeafRenewer(ctx, pki, clusterLn, dbInstance)
+			})
+
+			if keyTransferEnabled(cfg.Cluster.InitialSuffrage) {
+				wg.Go(func() {
+					runKeyTransferWorker(ctx, pki, clusterLn, dbInstance, cfg.Cluster.NodeID)
+				})
+			}
+		}
+	}
 
 	isNATEnabled, err := dbInstance.IsNATEnabled(ctx)
 	if err != nil {

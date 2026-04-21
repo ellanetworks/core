@@ -234,8 +234,11 @@ func Validate(filePath string) (Config, error) {
 
 	c := ConfigYAML{}
 
-	if err := yaml.Unmarshal(configYaml, &c); err != nil {
-		return Config{}, fmt.Errorf("cannot unmarshal config file")
+	// Strict unmarshalling: unknown keys must fail loudly so an operator
+	// upgrading from an older layout is not left with silently-ignored
+	// settings (e.g. the pre-auto-PKI cluster.tls / bootstrap-expect keys).
+	if err := yaml.UnmarshalStrict(configYaml, &c); err != nil {
+		return Config{}, fmt.Errorf("cannot unmarshal config file: %w", err)
 	}
 
 	if c.Logging == (LoggingYaml{}) {

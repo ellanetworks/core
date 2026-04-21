@@ -34,6 +34,11 @@ type JoinClaims struct {
 // the format ever changes.
 const joinTokenVersion byte = 1
 
+// joinTokenMaxPayload caps the JSON claims payload to defend the parser
+// against crafted headers claiming a huge length (the wire-encoded claims
+// are a few hundred bytes; 64 KiB is generous).
+const joinTokenMaxPayload uint32 = 64 * 1024
+
 // MintJoinToken returns an opaque bearer string binding claims to
 // hmacKey. The token encodes claims as JSON followed by an HMAC-SHA256,
 // base64url-encoded. Single-use tracking is the caller's responsibility
@@ -119,7 +124,12 @@ func VerifyJoinToken(hmacKey []byte, now time.Time, token string) (*JoinClaims, 
 		return nil, fmt.Errorf("unknown token version %d", raw[0])
 	}
 
-	payloadLen := int(binary.BigEndian.Uint32(raw[1:5]))
+	payloadLen32 := binary.BigEndian.Uint32(raw[1:5])
+	if payloadLen32 > joinTokenMaxPayload {
+		return nil, fmt.Errorf("token payload length %d exceeds max %d", payloadLen32, joinTokenMaxPayload)
+	}
+
+	payloadLen := int(payloadLen32)
 	if 1+4+payloadLen+32 != len(raw) {
 		return nil, fmt.Errorf("token length mismatch: header says %d, got %d", 1+4+payloadLen+32, len(raw))
 	}
@@ -183,7 +193,12 @@ func ExtractClaimsUnverified(token string) (*JoinClaims, error) {
 		return nil, fmt.Errorf("unknown token version %d", raw[0])
 	}
 
-	payloadLen := int(binary.BigEndian.Uint32(raw[1:5]))
+	payloadLen32 := binary.BigEndian.Uint32(raw[1:5])
+	if payloadLen32 > joinTokenMaxPayload {
+		return nil, fmt.Errorf("token payload length %d exceeds max %d", payloadLen32, joinTokenMaxPayload)
+	}
+
+	payloadLen := int(payloadLen32)
 	if 1+4+payloadLen+32 != len(raw) {
 		return nil, fmt.Errorf("token length mismatch")
 	}

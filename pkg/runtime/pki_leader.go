@@ -60,8 +60,8 @@ func (c *pkiLeaderCallback) OnBecameLeader() {
 }
 
 // OnLostLeadership zeroes the in-memory keys. The issuer stays
-// registered with the HTTP handlers so /cluster/pki/bundle still
-// serves, but Issue / MintJoinToken return "not leader" until we
+// registered with the HTTP handlers so follower-side bundle accessors
+// still work, but Issue / MintJoinToken return "not leader" until we
 // regain leadership.
 func (c *pkiLeaderCallback) OnLostLeadership() {
 	if c.state.issuer != nil {
@@ -84,9 +84,14 @@ func setupLeaderPKI(ctx context.Context, pki *pkiState, dbInstance *db.Database,
 		return fmt.Errorf("issuer bootstrap: %w", err)
 	}
 
-	// Reload keys from disk every time leadership is acquired (our own
-	// bootstrap persisted them; a previous leader may have transferred
-	// them on promotion — not yet implemented).
+	// Reload keys from disk every time leadership is acquired. A
+	// non-founding voter may only now have the keys via the key-
+	// transfer worker; a voter that was promoted before the transfer
+	// completed will leave LoadKeys in a degraded state and recover
+	// at the next election after the worker finishes. LoadKeys is
+	// non-fatal on missing files so Ready() stays false without
+	// crashing — Issue / MintJoinToken will return 503 until a
+	// subsequent promotion succeeds.
 	if err := pki.issuer.LoadKeys(ctx); err != nil {
 		return fmt.Errorf("issuer load keys: %w", err)
 	}
@@ -99,9 +104,11 @@ func setupLeaderPKI(ctx context.Context, pki *pkiState, dbInstance *db.Database,
 		logger.EllaLog.Warn("refresh revocations", zap.Error(err))
 	}
 
-	// If this node has no leaf yet (first-boot-first-leader),
-	// self-issue one.
-	if pki.agent.Leaf() == nil {
+	// If this node has no leaf yet (first-boot-first-leader) AND we
+	// are able to issue (Ready), self-issue one. If keys are missing
+	// we can't self-issue; the key-transfer worker will keep trying
+	// and subsequent leadership events will re-run this path.
+	if pki.agent.Leaf() == nil && pki.issuer.Ready() {
 		if err := selfIssueLeaf(ctx, pki, nodeID); err != nil {
 			return fmt.Errorf("self-issue leaf: %w", err)
 		}

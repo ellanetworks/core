@@ -3,6 +3,7 @@
 package runtime
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -122,7 +123,7 @@ func (p *pkiState) SeedBundleFromAgentDisk(clusterID string) error {
 			return fmt.Errorf("parse bundle cert: %w", err)
 		}
 
-		if bytesEqual(cert.RawIssuer, cert.RawSubject) {
+		if bytes.Equal(cert.RawIssuer, cert.RawSubject) {
 			b.Roots = append(b.Roots, cert)
 		} else {
 			b.Intermediates = append(b.Intermediates, cert)
@@ -136,20 +137,6 @@ func (p *pkiState) SeedBundleFromAgentDisk(clusterID string) error {
 	p.bundleCached.Store(b)
 
 	return nil
-}
-
-func bytesEqual(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-
-	return true
 }
 
 // RefreshRevocations rebuilds the revocation cache from the DB.
@@ -169,6 +156,31 @@ func (p *pkiState) RefreshRevocations(ctx context.Context, dbInstance *db.Databa
 	p.revocation.Replace(serials)
 
 	return nil
+}
+
+// revocationRefreshInterval is the upper bound on how long the in-memory
+// revocation cache can lag the replicated state. Revocations are rare
+// (only on cluster-member removal), so polling is cheap and the bound
+// does not need to be tight.
+const revocationRefreshInterval = 30 * time.Second
+
+// runRevocationRefresher periodically rebuilds the revocation cache from
+// the DB so followers pick up new revocations applied via Raft. Blocks
+// until ctx is cancelled.
+func runRevocationRefresher(ctx context.Context, pki *pkiState, dbInstance *db.Database) {
+	t := time.NewTicker(revocationRefreshInterval)
+	defer t.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if err := pki.RefreshRevocations(ctx, dbInstance); err != nil {
+				logger.EllaLog.Warn("periodic revocation refresh failed", zap.Error(err))
+			}
+		}
+	}
 }
 
 // maybeRestoreFromBundle checks for a restore.bundle file under dataDir.

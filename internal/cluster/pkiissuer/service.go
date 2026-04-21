@@ -101,19 +101,14 @@ func (s *Service) Bootstrap(ctx context.Context) error {
 		return fmt.Errorf("generate intermediate: %w", err)
 	}
 
-	if err := s.writeKeyToDisk("root.key", rootKey); err != nil {
-		return err
-	}
-
-	if err := s.writeKeyToDisk("intermediate.key", intKey); err != nil {
-		return err
-	}
-
 	hmacKey, err := pki.NewHMACKey()
 	if err != nil {
 		return fmt.Errorf("hmac key: %w", err)
 	}
 
+	// Insert replicated state first; only persist the private keys to
+	// disk after every Raft write has succeeded. A mid-sequence failure
+	// leaves no orphan keys on disk for the retry to overwrite.
 	if err := s.store.InitializePKIState(ctx, hmacKey); err != nil {
 		return fmt.Errorf("init pki state: %w", err)
 	}
@@ -137,6 +132,14 @@ func (s *Service) Bootstrap(ctx context.Context) error {
 		Status:          db.PKIStatusActive,
 	}); err != nil {
 		return fmt.Errorf("insert intermediate: %w", err)
+	}
+
+	if err := s.writeKeyToDisk("root.key", rootKey); err != nil {
+		return err
+	}
+
+	if err := s.writeKeyToDisk("intermediate.key", intKey); err != nil {
+		return err
 	}
 
 	s.mu.Lock()
@@ -511,6 +514,90 @@ func (s *Service) readKeyFromDisk(name string) (crypto.Signer, error) {
 	}
 
 	return signer, nil
+}
+
+// ExportKeys reads root.key and intermediate.key from disk and returns
+// their PEM bytes. Used by the /cluster/pki/keys handler to transfer
+// signing material to newly-promoted voters that lack it. Returns
+// os.ErrNotExist wrapped in the error if this node has no keys on
+// disk (i.e. it was not the bootstrap voter and has not yet received
+// a transfer).
+func (s *Service) ExportKeys() (rootKeyPEM, intermediateKeyPEM []byte, err error) {
+	rootKeyPEM, err = s.readKeyPEMFromDisk("root.key")
+	if err != nil {
+		return nil, nil, fmt.Errorf("read root.key: %w", err)
+	}
+
+	intermediateKeyPEM, err = s.readKeyPEMFromDisk("intermediate.key")
+	if err != nil {
+		return nil, nil, fmt.Errorf("read intermediate.key: %w", err)
+	}
+
+	return rootKeyPEM, intermediateKeyPEM, nil
+}
+
+// ImportKeys writes rootKeyPEM and intermediateKeyPEM atomically to disk.
+// The caller is responsible for validating the PEM contents parse as
+// keys and chain-match the replicated root+intermediate certs before
+// invoking Import; this method is the raw persistence primitive.
+func (s *Service) ImportKeys(rootKeyPEM, intermediateKeyPEM []byte) error {
+	if err := s.writeKeyPEMToDisk("root.key", rootKeyPEM); err != nil {
+		return err
+	}
+
+	return s.writeKeyPEMToDisk("intermediate.key", intermediateKeyPEM)
+}
+
+// HaveKeysOnDisk reports whether root.key and intermediate.key both
+// exist under the cluster-tls directory. Used by the key-transfer
+// worker to short-circuit once a transfer has completed.
+func (s *Service) HaveKeysOnDisk() bool {
+	for _, name := range []string{"root.key", "intermediate.key"} {
+		if _, err := os.Stat(filepath.Join(s.dataDir, db.ClusterTLSDir, name)); err != nil {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (s *Service) readKeyPEMFromDisk(name string) ([]byte, error) {
+	path := filepath.Join(s.dataDir, db.ClusterTLSDir, name)
+
+	return os.ReadFile(path) // #nosec: G304 -- path is under our data directory
+}
+
+func (s *Service) writeKeyPEMToDisk(name string, pemBytes []byte) error {
+	dir := filepath.Join(s.dataDir, db.ClusterTLSDir)
+
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("mkdir %s: %w", dir, err)
+	}
+
+	// Validate it is a PKCS#8 PRIVATE KEY PEM before committing to disk,
+	// so a peer returning garbage cannot corrupt our on-disk state.
+	block, _ := pem.Decode(pemBytes)
+	if block == nil || block.Type != "PRIVATE KEY" {
+		return fmt.Errorf("%s: not a PRIVATE KEY PEM", name)
+	}
+
+	if _, err := x509.ParsePKCS8PrivateKey(block.Bytes); err != nil {
+		return fmt.Errorf("%s: parse key: %w", name, err)
+	}
+
+	tmpPath := filepath.Join(dir, name+".tmp")
+	finalPath := filepath.Join(dir, name)
+
+	if err := os.WriteFile(tmpPath, pemBytes, 0o600); err != nil {
+		return fmt.Errorf("write %s: %w", tmpPath, err)
+	}
+
+	if err := os.Rename(tmpPath, finalPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("rename %s: %w", finalPath, err)
+	}
+
+	return nil
 }
 
 func claimsJSON(c pki.JoinClaims) (string, error) {

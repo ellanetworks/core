@@ -93,8 +93,12 @@ func newClusterMux(dbInstance *db.Database, operatorHandler http.Handler) *http.
 	mux.Handle("POST /cluster/pki/renew", pkiEndpoint(func(svc *pkiissuer.Service) http.Handler {
 		return ClusterPKIRenew(dbInstance, svc)
 	}))
-	mux.Handle("GET /cluster/pki/bundle", pkiEndpoint(func(svc *pkiissuer.Service) http.Handler {
-		return ClusterPKIBundle(svc)
+	// Key transfer to voters that lack the signing material on disk.
+	// The server-side gate is "mTLS peer is a voter member"; the issuer
+	// service just needs to have been installed (the caller does not
+	// need to be the leader — any voter with keys on disk can serve).
+	mux.Handle("GET /cluster/pki/keys", pkiEndpoint(func(svc *pkiissuer.Service) http.Handler {
+		return ClusterPKIKeysGet(dbInstance, svc)
 	}))
 
 	if operatorHandler != nil {

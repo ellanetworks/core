@@ -4,7 +4,6 @@
 //
 //	POST /cluster/pki/issue  — join-token OR mTLS leaf. Sign a CSR.
 //	POST /cluster/pki/renew  — mTLS leaf. Renew the presenting node's leaf.
-//	GET  /cluster/pki/bundle — mTLS leaf. Return the current trust bundle.
 
 package server
 
@@ -143,24 +142,6 @@ func ClusterPKIRenew(dbInstance *db.Database, svc *pkiissuer.Service) http.Handl
 	})
 }
 
-// ClusterPKIBundle handles GET /cluster/pki/bundle (mTLS only).
-func ClusterPKIBundle(svc *pkiissuer.Service) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := peerNodeIDFromContext(r.Context()); !ok {
-			writeError(r.Context(), w, http.StatusUnauthorized, "mTLS required", nil, logger.APILog)
-			return
-		}
-
-		bundle, err := svc.CurrentBundle(r.Context())
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "get bundle", err, logger.APILog)
-			return
-		}
-
-		writeBundleResponse(w, bundle)
-	})
-}
-
 func writeIssueResponse(w http.ResponseWriter, leafPEM []byte, bundle *pki.TrustBundle) {
 	var bundlePEM []byte
 
@@ -179,27 +160,6 @@ func writeIssueResponse(w http.ResponseWriter, leafPEM []byte, bundle *pki.Trust
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
-}
-
-type bundleJSON struct {
-	ClusterID        string   `json:"clusterID"`
-	RootPEMs         []string `json:"rootPEMs"`
-	IntermediatePEMs []string `json:"intermediatePEMs"`
-}
-
-func writeBundleResponse(w http.ResponseWriter, bundle *pki.TrustBundle) {
-	out := bundleJSON{ClusterID: bundle.ClusterID}
-
-	for _, r := range bundle.Roots {
-		out.RootPEMs = append(out.RootPEMs, string(pki.EncodeCertPEM(r)))
-	}
-
-	for _, i := range bundle.Intermediates {
-		out.IntermediatePEMs = append(out.IntermediatePEMs, string(pki.EncodeCertPEM(i)))
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(out)
 }
 
 // RegisterBootstrapALPN registers a listener handler for the bootstrap

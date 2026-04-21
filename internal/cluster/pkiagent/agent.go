@@ -388,7 +388,7 @@ func bootstrapHTTPClient(expectedFingerprint string) (*http.Client, error) {
 			}
 
 			for _, c := range cs.PeerCertificates {
-				if byteEqual(certFingerprint(c), raw) {
+				if bytes.Equal(certFingerprint(c), raw) {
 					return nil
 				}
 			}
@@ -415,18 +415,4 @@ func bootstrapHTTPClient(expectedFingerprint string) (*http.Client, error) {
 func certFingerprint(c *x509.Certificate) []byte {
 	sum := sha256.Sum256(c.Raw)
 	return sum[:]
-}
-
-func byteEqual(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-
-	return true
 }

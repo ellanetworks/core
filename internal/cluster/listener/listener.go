@@ -132,7 +132,7 @@ func New(cfg Config) *Listener {
 
 			return leaf, nil
 		},
-		NextProtos:         []string{ALPNRaft, ALPNHTTP, ALPNPKIKeyTransfer, ALPNPKIBootstrap},
+		NextProtos:         []string{ALPNRaft, ALPNHTTP, ALPNPKIBootstrap},
 		VerifyConnection:   verifyConnection(cfg.TrustBundle, cfg.Revoked),
 		InsecureSkipVerify: true, // #nosec G402 -- verifyConnection + VerifyPeerCertificate own cert validation.
 	}

@@ -5,7 +5,7 @@ package pki
 import (
 	"crypto/x509"
 	"fmt"
-	"math/big"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -101,17 +101,20 @@ func identityFromURISAN(cert *x509.Certificate, clusterID string) (int, error) {
 		return 0, fmt.Errorf("leaf URI SAN path %q has empty node segment", u.Path)
 	}
 
-	// Parse the node-id segment as an integer.
-	n := new(big.Int)
-	if _, ok := n.SetString(suffix, 10); !ok {
-		return 0, fmt.Errorf("leaf URI SAN node segment %q is not an integer", suffix)
+	// Parse the node-id segment as a canonical unsigned decimal. Reject
+	// signs and leading zeroes so "+5", "-5", "05" do not all alias
+	// node-id 5 — attackers cannot mint such a leaf today, but a strict
+	// parser makes the invariant obvious and cheap to audit.
+	n, err := strconv.ParseUint(suffix, 10, 31)
+	if err != nil {
+		return 0, fmt.Errorf("leaf URI SAN node segment %q is not a canonical unsigned decimal: %w", suffix, err)
 	}
 
-	if !n.IsInt64() {
-		return 0, fmt.Errorf("leaf URI SAN node segment %q out of range", suffix)
+	if strconv.FormatUint(n, 10) != suffix {
+		return 0, fmt.Errorf("leaf URI SAN node segment %q is not in canonical form", suffix)
 	}
 
-	id := int(n.Int64())
+	id := int(n)
 	if id < MinNodeID || id > MaxNodeID {
 		return 0, fmt.Errorf("leaf URI SAN node-id %d outside [%d, %d]", id, MinNodeID, MaxNodeID)
 	}

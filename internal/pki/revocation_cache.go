@@ -10,11 +10,11 @@ import (
 // RevocationCache is an in-memory set of revoked leaf serial numbers,
 // consulted per handshake by the cluster listener.
 //
-// The cache is fed by the Raft observer that watches the
-// cluster_revoked_certs table; on every applied command that inserts a
-// revocation row, the observer calls Add; on every delete (tidy worker),
-// it calls Remove; on leader change or snapshot restore, the observer
-// rebuilds the cache via Replace.
+// The cache is repopulated from the replicated cluster_revoked_certs
+// table by a periodic refresher running on every node (see
+// pkg/runtime's revocationRefreshInterval). Leader-initiated revocation
+// paths also call Replace immediately after proposing the Raft write so
+// their local cache reflects the change before the next handshake.
 type RevocationCache struct {
 	mu      sync.RWMutex
 	serials map[uint64]struct{}

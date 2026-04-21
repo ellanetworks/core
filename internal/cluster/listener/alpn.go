@@ -6,9 +6,8 @@ package listener
 // cluster port. Every intra-cluster connection must negotiate one of these;
 // connections with an unknown or empty NegotiatedProtocol are closed.
 const (
-	ALPNRaft           = "ella-raft-v1"
-	ALPNHTTP           = "ella-http-v1"
-	ALPNPKIKeyTransfer = "ella-pki-keytransfer-v1"
+	ALPNRaft = "ella-raft-v1"
+	ALPNHTTP = "ella-http-v1"
 	// ALPNPKIBootstrap is the join-flow ALPN. Unlike every other
 	// protocol on this port it does not require a client certificate;
 	// the caller authenticates via a join-token HMAC carried in the
