@@ -11,7 +11,7 @@ This guide walks through bringing up a three-node Ella Core cluster from scratch
 
 ## Pre-requisites
 
-- Three (or five) hosts that each meet the standard [system requirements](../reference/system_reqs.md).
+- Three hosts that each meet the standard [system requirements](../reference/system_reqs.md).
 - Ella Core installed on each host following the [Install](install.md) guide. Do **not** start the service yet.
 - A reachable TCP port on each host for inter-node traffic (this guide uses `7000`).
 
@@ -38,7 +38,7 @@ openssl x509 -req -in node-${NODE_ID}.csr \
     -extfile <(printf "extendedKeyUsage=serverAuth,clientAuth")
 ```
 
-Copy `cluster-ca.pem`, the node's own `node-N-cert.pem`, and `node-N-key.pem` to each host (for example, under `/etc/ella/`). Never distribute the CA private key or a leaf key meant for a different node.
+Copy `cluster-ca.pem`, the node's own `node-N-cert.pem`, and `node-N-key.pem` to each host (for example, under `/etc/ella/`).
 
 ## 2. Configure each node
 
@@ -73,66 +73,27 @@ cluster:
     key: "/etc/ella/node-1-key.pem"
 ```
 
-Key points validated by the config loader:
-
-- `peers` entries are `host:port` (not URLs) and must include this node's own `bind-address` (or `advertise-address` if set).
-- The leaf certificate's CN must match `ella-node-<node-id>`.
-- `bootstrap-expect` must be ≤ `len(peers)`.
-
 See the [Configuration File](../reference/config_file.md#clustering) reference for every available field.
 
 ## 3. Start the nodes
 
-Start the Ella Core daemon on all three hosts. Order does not matter — each node probes its peers and waits until `bootstrap-expect` peers are reachable. The node with the lowest `node-id` then bootstraps Raft; the other two automatically join as voters.
+Start Ella Core on all three hosts, order does not matter.
 
-=== "Snap"
-
-    ```shell
-    sudo snap start --enable ella-core.cored
-    ```
-
-=== "Source"
-
-    ```shell
-    sudo ./main -config core.yaml
-    ```
+ ```shell
+sudo snap start --enable ella-core.cored
+```
 
 ## 4. Initialize the cluster
 
 Open any node's UI in a browser (for example `https://10.0.0.1:5002`) and create the first admin user when prompted. The write is replicated through Raft to the other members, so you only do this once.
 
-Log in. Writes issued to a follower are transparently forwarded to the leader.
+Log in.
 
 ## 5. Verify the cluster
 
-Navigate to the **Cluster** page. All three nodes should appear with suffrage **Voter** and one should be flagged as **Leader**. The page combines the static membership view with live autopilot data — `failureTolerance` should equal `1` for a three-node cluster, and every node should report **Alive** and **Healthy**.
+Navigate to the **Cluster** page. All three nodes should appear with suffrage **Voter**, one should be flagged as **Leader**, and every node should report **Healthy**.
 
-## Add a node
-
-To grow the cluster (for example, from three to five), configure the new node as described in steps 1–3, but set `initial-suffrage: nonvoter` so it catches up without affecting quorum, and include its address in every other node's `peers` list on the next restart.
-
-In the UI:
-
-1. Open the **Cluster** page and click **Add Member**.
-2. Fill in the new node's details:
-     - **Node ID**: The `cluster.node-id` configured on the new node (1–63).
-     - **Cluster Address**: The new node's `bind-address` (e.g. `10.0.0.4:7000`).
-     - **API Address**: The new node's API URL (e.g. `https://10.0.0.4:5002`).
-     - **Suffrage**: Leave on **Non-voter**.
-3. Click **Add**.
-
-Autopilot promotes the non-voter to a full voter automatically once it has been healthy and up-to-date for ten seconds. To promote immediately, click the promote action in the row. See [Scaling the cluster](../explanation/high_availability.md#scaling-the-cluster).
-
-## Remove a node
-
-A node must be drained before it can be removed. See [Draining a node](../explanation/high_availability.md#draining-a-node) for what drain does.
-
-On the **Cluster** page:
-
-1. Click the drain action on the target row and confirm. Wait for the row's drain state to reach **Drained**.
-2. Click the delete action on the same row and confirm.
-
-If the target node is already unreachable and cannot be drained, the delete action offers a force option.
-
-!!! note
-    Every action in this guide can also be performed via the REST API. See the [Cluster API reference](../reference/api/cluster.md) for the full surface.
+<figure markdown="span">
+  ![Ella Core HA Cluster](../images/ha_cluster.png){ width="800" }
+  <figcaption>Cluster page showing three nodes with one leader</figcaption>
+</figure>

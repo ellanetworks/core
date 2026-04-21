@@ -64,14 +64,14 @@ nav:
   - How-to Guides:
     - how_to/index.md
     - Install: how_to/install.md
+    - Deploy a High Availability Cluster (beta): how_to/deploy_ha_cluster.md
+    - Co-host with OCUDU: how_to/co_host_with_ocudu.md
+    - Use VLANs: how_to/vlan.md
+    - Use native XDP with veth: how_to/native_xdp_veth.md
     - Integrate with a Radio: how_to/integrate_with_radio.md
     - Backup and Restore: how_to/backup_and_restore.md
-    - Use VLANs: how_to/vlan.md
     - Tune Network Performance: how_to/performance_tuning.md
-    - Co-host with OCUDU: how_to/co_host_with_ocudu.md
-    - Use native XDP with veth: how_to/native_xdp_veth.md
     - Advertise subscriber routes with BGP: how_to/bgp.md
-    - Deploy a High Availability Cluster: how_to/deploy_ha_cluster.md
     - Manage Your Network with AI Agents: how_to/ai_agents.md
   - Reference:
     - reference/index.md
