@@ -88,11 +88,6 @@ func NewIssuer(intermediateCert *x509.Certificate, intermediateKey crypto.Signer
 	}
 }
 
-// IntermediateCert returns the active intermediate certificate.
-func (i *Issuer) IntermediateCert() *x509.Certificate {
-	return i.intermediateCert
-}
-
 // SignLeaf validates csr and emits a PEM-encoded cluster leaf signed by the
 // issuer's intermediate. nodeID must match the CN and URI-SAN node segment
 // in csr. serial is allocated by the caller (monotonic through Raft; see
@@ -219,41 +214,6 @@ func GenerateIntermediate(clusterID string, root *x509.Certificate, rootKey cryp
 	}
 
 	return cert, key, nil
-}
-
-// CrossSign signs subject with signerCert/signerKey's private material,
-// preserving subject's public key and subject DN. Used during CA rotation
-// so leaves chaining through the old intermediate/root remain valid under
-// a bundle that also contains the new one.
-func CrossSign(subject *x509.Certificate, signerCert *x509.Certificate, signerKey crypto.Signer) (*x509.Certificate, error) {
-	if subject == nil || signerCert == nil || signerKey == nil {
-		return nil, fmt.Errorf("cross-sign: subject, signer cert, and signer key must all be non-nil")
-	}
-
-	serial, err := randomSerial()
-	if err != nil {
-		return nil, err
-	}
-
-	tmpl := &x509.Certificate{
-		SerialNumber:          serial,
-		Subject:               subject.Subject,
-		NotBefore:             subject.NotBefore,
-		NotAfter:              subject.NotAfter,
-		KeyUsage:              subject.KeyUsage,
-		ExtKeyUsage:           subject.ExtKeyUsage,
-		BasicConstraintsValid: true,
-		IsCA:                  subject.IsCA,
-		MaxPathLen:            subject.MaxPathLen,
-		MaxPathLenZero:        subject.MaxPathLenZero,
-	}
-
-	der, err := x509.CreateCertificate(rand.Reader, tmpl, signerCert, subject.PublicKey, signerKey)
-	if err != nil {
-		return nil, fmt.Errorf("cross-sign: %w", err)
-	}
-
-	return x509.ParseCertificate(der)
 }
 
 // Fingerprint returns the SHA-256 fingerprint of cert's DER bytes, prefixed

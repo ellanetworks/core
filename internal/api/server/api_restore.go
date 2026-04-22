@@ -11,10 +11,18 @@ import (
 	"go.uber.org/zap"
 )
 
-const RestoreAction = "restore_database"
+const (
+	RestoreAction              = "restore_database"
+	RestoreDisabledInHAMessage = "Online restore is disabled in HA mode; use the restore.bundle drop-in path."
+)
 
 func Restore(dbInstance *db.Database) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if dbInstance.ClusterEnabled() {
+			writeError(r.Context(), w, http.StatusConflict, RestoreDisabledInHAMessage, nil, logger.APILog)
+			return
+		}
+
 		email := r.Context().Value(contextKeyEmail)
 
 		emailStr, ok := email.(string)

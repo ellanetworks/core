@@ -35,12 +35,12 @@ const (
 // PrepareStatements for the bindings.
 const (
 	listPKIRootsStmtStr     = "SELECT &ClusterPKIRoot.* FROM %s ORDER BY addedAt ASC"
-	insertPKIRootStmtStr    = "INSERT INTO %s (fingerprint, certPEM, crossSignedPEM, keyPEM, addedAt, status) VALUES ($ClusterPKIRoot.fingerprint, $ClusterPKIRoot.certPEM, $ClusterPKIRoot.crossSignedPEM, $ClusterPKIRoot.keyPEM, $ClusterPKIRoot.addedAt, $ClusterPKIRoot.status)"
+	insertPKIRootStmtStr    = "INSERT INTO %s (fingerprint, certPEM, keyPEM, addedAt, status) VALUES ($ClusterPKIRoot.fingerprint, $ClusterPKIRoot.certPEM, $ClusterPKIRoot.keyPEM, $ClusterPKIRoot.addedAt, $ClusterPKIRoot.status)"
 	setPKIRootStatusStmtStr = "UPDATE %s SET status=$ClusterPKIRoot.status, keyPEM=$ClusterPKIRoot.keyPEM WHERE fingerprint=$ClusterPKIRoot.fingerprint"
 	deletePKIRootStmtStr    = "DELETE FROM %s WHERE fingerprint=$ClusterPKIRoot.fingerprint"
 
 	listPKIIntermediatesStmtStr     = "SELECT &ClusterPKIIntermediate.* FROM %s ORDER BY notAfter ASC"
-	insertPKIIntermediateStmtStr    = "INSERT INTO %s (fingerprint, certPEM, crossSignedPEM, keyPEM, rootFingerprint, notAfter, status) VALUES ($ClusterPKIIntermediate.fingerprint, $ClusterPKIIntermediate.certPEM, $ClusterPKIIntermediate.crossSignedPEM, $ClusterPKIIntermediate.keyPEM, $ClusterPKIIntermediate.rootFingerprint, $ClusterPKIIntermediate.notAfter, $ClusterPKIIntermediate.status)"
+	insertPKIIntermediateStmtStr    = "INSERT INTO %s (fingerprint, certPEM, keyPEM, rootFingerprint, notAfter, status) VALUES ($ClusterPKIIntermediate.fingerprint, $ClusterPKIIntermediate.certPEM, $ClusterPKIIntermediate.keyPEM, $ClusterPKIIntermediate.rootFingerprint, $ClusterPKIIntermediate.notAfter, $ClusterPKIIntermediate.status)"
 	setPKIIntermediateStatusStmtStr = "UPDATE %s SET status=$ClusterPKIIntermediate.status, keyPEM=$ClusterPKIIntermediate.keyPEM WHERE fingerprint=$ClusterPKIIntermediate.fingerprint"
 	deletePKIIntermediateStmtStr    = "DELETE FROM %s WHERE fingerprint=$ClusterPKIIntermediate.fingerprint"
 
@@ -67,12 +67,11 @@ const (
 // private-key PEM; a CHECK constraint enforces that it is populated iff
 // status='active'.
 type ClusterPKIRoot struct {
-	Fingerprint    string `db:"fingerprint"`
-	CertPEM        string `db:"certPEM"`
-	CrossSignedPEM string `db:"crossSignedPEM"`
-	KeyPEM         []byte `db:"keyPEM"`
-	AddedAt        int64  `db:"addedAt"`
-	Status         string `db:"status"`
+	Fingerprint string `db:"fingerprint"`
+	CertPEM     string `db:"certPEM"`
+	KeyPEM      []byte `db:"keyPEM"`
+	AddedAt     int64  `db:"addedAt"`
+	Status      string `db:"status"`
 }
 
 // ClusterPKIIntermediate is a row in cluster_pki_intermediates. See
@@ -80,7 +79,6 @@ type ClusterPKIRoot struct {
 type ClusterPKIIntermediate struct {
 	Fingerprint     string `db:"fingerprint"`
 	CertPEM         string `db:"certPEM"`
-	CrossSignedPEM  string `db:"crossSignedPEM"`
 	KeyPEM          []byte `db:"keyPEM"`
 	RootFingerprint string `db:"rootFingerprint"`
 	NotAfter        int64  `db:"notAfter"`

@@ -86,11 +86,15 @@ On first-leader election, the cluster generates its own root CA and an intermedi
 
 Additional nodes join via a single-use HMAC token. An admin mints one through the Cluster page; the joining node puts it in its `cluster.join-token` config field and exchanges it for a leaf over a dedicated bootstrap ALPN.
 
-Leaves are short-lived (24 hours). Each node renews its own leaf automatically at 60–90 % of the TTL, jittered. Removing a cluster member revokes every leaf it holds; the in-memory revocation cache on every voter stops accepting those certs within seconds.
+Leaves are short-lived (24 hours). Each node renews its own leaf automatically at 60–90 % of the TTL, jittered. Removing a cluster member revokes every leaf it holds; the in-memory revocation cache on every voter refreshes every 30 seconds, so revoked leaves stop authenticating within tens of seconds of removal.
 
 Every leaf's URI SAN is `spiffe://cluster.ella/<cluster-id>/node/<n>`; the local cluster ID is checked at every handshake, so a leaf from one cluster cannot authenticate into another.
 
 The CA private keys live in the replicated database; backup archives carry them inside `ella.db`. See [Backup and Restore](../how_to/backup_and_restore.md).
+
+## Disaster recovery
+
+HA clusters recover from total loss through an offline, backup-driven path. An operator stops every node, drops the backup archive as `restore.bundle` in a fresh data directory on one node, and starts that node — it comes up as a single-voter cluster carrying the restored state. The remaining voters then rejoin with fresh join tokens. Because the backup archive carries the cluster CA signing material, the restored cluster keeps its original identity and previously-issued leaves stay valid until renewal. The step-by-step procedure lives in [Backup and Restore](../how_to/backup_and_restore.md).
 
 ## Rolling upgrades
 

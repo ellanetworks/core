@@ -16,10 +16,10 @@ Ella Core stores all persistent data in an embedded database. You can create bac
     !!! note
         This operation can also be done using the API. Please see the [backup API documentation](../reference/api/backup.md) for more information.
 
-=== "Restore"
+=== "Restore (standalone only)"
 
     !!! warning
-        Restoring a backup will overwrite all existing data in your Ella Core installation.
+        Restoring a backup will overwrite all existing data in your Ella Core installation. This path is **disabled in HA mode**. Clustered deployments use the disaster-recovery flow described below.
 
     On a new installation of Ella Core, you can restore a backup to recover your data.
 
@@ -33,19 +33,18 @@ Ella Core stores all persistent data in an embedded database. You can create bac
 
 ## Disaster recovery for HA clusters
 
-HA backup archives carry the cluster CA signing keys inside `ella.db`.
-If every voter is lost, reconstruct the cluster by dropping the bundle
-under a fresh data directory before starting the daemon:
+1. Stop every voter in the cluster.
+2. On one node, drop the backup archive into the data directory as `restore.bundle`:
 
-```shell
-sudo mv backup.tar.gz /var/snap/ella-core/common/restore.bundle
-sudo chmod 600 /var/snap/ella-core/common/restore.bundle
-sudo snap start --enable ella-core.cored
-```
+    ```shell
+    sudo mv backup.tar.gz /var/snap/ella-core/common/restore.bundle
+    sudo chmod 600 /var/snap/ella-core/common/restore.bundle
+    ```
 
-The daemon extracts the bundle on first start, deletes it, and comes
-up as a single-node cluster. Add the remaining nodes via the usual
-[join-token flow](deploy_ha_cluster.md).
+3. Start the daemon on that node:
 
-Backup bundles carry signing material — protect them at rest like the
-data directory itself.
+    ```shell
+    sudo snap start --enable ella-core.cored
+    ```
+
+4. Add the remaining nodes via the [join-token flow](deploy_ha_cluster.md).

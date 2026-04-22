@@ -6,6 +6,9 @@ description: RESTful API reference for managing database restores.
 
 This path restores the database from a provided backup file. The backup file must be uploaded as part of the request.
 
+!!! warning "Standalone only"
+    Online restore is available in standalone deployments only. Clustered deployments reject this endpoint with `409 Conflict`; use the offline `restore.bundle` disaster-recovery flow instead. See [Backup and Restore](../../how_to/backup_and_restore.md).
+
 ## Restore a Backup
 
 | Method | Path              |
@@ -23,5 +26,15 @@ This path restores the database from a provided backup file. The backup file mus
     "result": {
         "message": "Database restored successfully"
     }
+}
+```
+
+### Error Responses
+
+- `409 Conflict` — returned in HA mode. Body:
+
+```json
+{
+    "error": "Online restore is disabled in HA mode. Stop the cluster and seed a fresh node from the backup archive via the restore.bundle drop-in path; see the backup and restore docs."
 }
 ```
