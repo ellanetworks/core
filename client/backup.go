@@ -57,6 +57,9 @@ func (c *Client) CreateBackup(ctx context.Context, p *CreateBackupParams) error 
 	return nil
 }
 
+// RestoreBackup uploads a backup archive and overwrites the server's
+// database. HA servers reject this with 409; use the restore.bundle
+// drop-in flow instead.
 func (c *Client) RestoreBackup(ctx context.Context, p *RestoreBackupParams) error {
 	if p == nil || p.Path == "" {
 		return fmt.Errorf("path is required")

@@ -559,16 +559,6 @@ func (db *Database) ClusterEnabled() bool {
 	return db.raftManager.ClusterEnabled()
 }
 
-// Snapshot triggers a user-requested raft snapshot and blocks until it
-// completes. No-op when clustering is disabled.
-func (db *Database) Snapshot() error {
-	if db.raftManager == nil {
-		return nil
-	}
-
-	return db.raftManager.Snapshot()
-}
-
 // LeadershipTransfer triggers a leadership transfer to another voter. The raft
 // library picks the most up-to-date follower (highest replicated nextIndex)
 // excluding self.

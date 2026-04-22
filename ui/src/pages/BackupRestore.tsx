@@ -15,7 +15,9 @@ import {
   DialogContentText,
   DialogActions,
 } from "@mui/material";
+import { useQuery } from "@tanstack/react-query";
 import { backup, restore } from "@/queries/backup";
+import { getStatus, type APIStatus } from "@/queries/status";
 import Grid from "@mui/material/Grid";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
@@ -39,6 +41,14 @@ const BackupRestore = () => {
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const statusQuery = useQuery<APIStatus>({
+    queryKey: ["status"],
+    queryFn: getStatus,
+    enabled: authReady && !!accessToken,
+  });
+
+  const clusterEnabled = statusQuery.data?.cluster?.enabled ?? false;
 
   const pageDescription =
     "Create and download a full backup of Ella Core, or restore from a .backup file. Take regular backups to ensure you can recover your data in case of a hardware failure or data loss.";
@@ -244,31 +254,49 @@ const BackupRestore = () => {
                   flexGrow: 1,
                 }}
               >
-                <Typography variant="body2" color="textSecondary">
-                  Upload a previously created backup file to restore Ella Core
-                  to a previous state. This will overwrite your current
-                  configuration and data.
-                </Typography>
+                {clusterEnabled ? (
+                  <>
+                    <Alert severity="info">
+                      Online restore is disabled in HA mode. Clustered
+                      deployments recover by seeding a fresh node from the
+                      backup archive via the <code>restore.bundle</code> drop-in
+                      path.
+                    </Alert>
+                    <Typography variant="body2" color="textSecondary">
+                      See the backup and restore documentation for the
+                      step-by-step disaster-recovery procedure.
+                    </Typography>
+                    <Box sx={{ flexGrow: 1 }} />
+                  </>
+                ) : (
+                  <>
+                    <Typography variant="body2" color="textSecondary">
+                      Upload a previously created backup file to restore Ella
+                      Core to a previous state. This will overwrite your current
+                      configuration and data.
+                    </Typography>
 
-                <Box sx={{ flexGrow: 1 }} />
+                    <Box sx={{ flexGrow: 1 }} />
 
-                <Box sx={{ display: "flex", justifyContent: "center" }}>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={actionsDisabled}
-                  >
-                    {isRestoring ? "Restoring…" : "Upload File"}
-                  </Button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    hidden
-                    accept=".backup"
-                    onChange={handleRestore}
-                  />
-                </Box>
+                    <Box sx={{ display: "flex", justifyContent: "center" }}>
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={actionsDisabled}
+                      >
+                        {isRestoring ? "Restoring…" : "Upload File"}
+                      </Button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        hidden
+                        accept=".backup"
+                        onChange={handleRestore}
+                      />
+                    </Box>
+                  </>
+                )}
               </CardContent>
             </Card>
           </Grid>

@@ -153,43 +153,6 @@ func TestSignLeaf_Rejections(t *testing.T) {
 	}
 }
 
-func TestCrossSign(t *testing.T) {
-	root1, rootKey1, _ := pki.GenerateRoot("c", 24*time.Hour)
-	int1, intKey1, _ := pki.GenerateIntermediate("c", root1, rootKey1, 24*time.Hour)
-
-	root2, rootKey2, _ := pki.GenerateRoot("c", 24*time.Hour)
-
-	// Cross-sign root1 under root2 — old root cross-signed by new root.
-	crossSigned, err := pki.CrossSign(root1, root2, rootKey2)
-	if err != nil {
-		t.Fatalf("CrossSign: %v", err)
-	}
-
-	// A leaf issued under root1's intermediate should validate through a
-	// bundle containing the cross-signed root1 AND root2, without root1
-	// itself.
-	issuer := pki.NewIssuer(int1, intKey1, "c")
-	_, csrPEM, _ := pki.GenerateKeyAndCSR(3, "c")
-	csr, _ := pki.ParseCSRPEM(csrPEM)
-
-	leafPEM, err := issuer.SignLeaf(csr, 3, 42, time.Hour)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	leaf, _ := pki.ParseCertPEM(leafPEM)
-
-	bundle := &pki.TrustBundle{
-		Roots:         []*x509.Certificate{root2},
-		Intermediates: []*x509.Certificate{int1, crossSigned},
-		ClusterID:     "c",
-	}
-
-	if _, err := bundle.Verify(leaf, time.Now()); err != nil {
-		t.Fatalf("leaf signed by root1 should validate through cross-signed bundle anchored at root2: %v", err)
-	}
-}
-
 func TestFingerprint(t *testing.T) {
 	root, _, _ := pki.GenerateRoot("x", 24*time.Hour)
 

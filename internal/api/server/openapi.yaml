@@ -2608,13 +2608,18 @@ paths:
     post:
       operationId: restoreBackup
       tags: [Backup & Restore]
-      summary: Restore from backup
+      summary: Restore from backup (standalone only)
       description: |
         Restores the Ella Core database from an uploaded `.tar.gz` archive
         produced by `POST /api/v1/backup`. The archive must contain `ella.db`
         and `manifest.json`. The database is swapped atomically: a safety
         copy of the live database is taken before the swap, and a failure
         at any step rolls the file back. Maximum upload size: 256 MB.
+
+        Only available in standalone deployments. Clustered deployments
+        reject this endpoint with `409 Conflict`; operators recover via
+        the offline `restore.bundle` drop-in path described in the
+        backup and restore documentation.
       requestBody:
         required: true
         content:
@@ -2634,6 +2639,12 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Online restore is disabled in HA mode. Use the offline `restore.bundle` flow.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   # ── Support Bundle ──────────────────────────────────────────────────────
   /api/v1/support-bundle:
