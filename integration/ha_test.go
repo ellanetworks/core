@@ -1140,3 +1140,257 @@ func TestIntegrationHARestoreWhileLeader(t *testing.T) {
 
 	t.Log("restore-while-leader test passed")
 }
+
+// TestIntegrationHADisasterRecovery simulates the worst-case DR
+// scenario: take a backup on a healthy 3-node cluster, destroy every
+// voter (stop containers + drop volumes), then reconstruct the cluster
+// from the archive on a fresh host.
+//
+// This end-to-end exercises:
+//   - backup archive shape (ella.db carrying CA signing keys)
+//   - maybeRestoreFromBundle + ExtractForRestore on first boot
+//   - the DR self-issue path: no leaf on disk + active CA in DB ⇒
+//     in-process issuer signs a fresh leaf for the restored node
+//   - trust bundle seeded from the on-disk DB at startup
+//   - fresh joiners authenticating against the restored cluster
+func TestIntegrationHADisasterRecovery(t *testing.T) {
+	if os.Getenv("INTEGRATION") == "" {
+		t.Skip("skipping integration tests, set environment variable INTEGRATION")
+	}
+
+	ctx := context.Background()
+
+	dockerClient, err := NewDockerClient()
+	if err != nil {
+		t.Fatalf("failed to create docker client: %v", err)
+	}
+
+	defer func() {
+		if err := dockerClient.Close(); err != nil {
+			t.Logf("failed to close docker client: %v", err)
+		}
+	}()
+
+	dockerClient.ComposeDown(ctx, haComposeDir)
+
+	t.Cleanup(func() {
+		dockerClient.ComposeDown(ctx, haComposeDir)
+	})
+
+	t.Log("bringing up staged HA cluster")
+
+	clients, err := bringUpHACluster(ctx, dockerClient)
+	if err != nil {
+		t.Fatalf("bring up HA cluster: %v", err)
+	}
+
+	t.Cleanup(func() {
+		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
+	})
+
+	_, leader, err := findLeader(ctx, clients)
+	if err != nil {
+		t.Fatalf("failed to find leader: %v", err)
+	}
+
+	if err := waitForAllNodesReady(ctx, clients); err != nil {
+		t.Fatalf("not all nodes became ready: %v", err)
+	}
+
+	// Capture the admin token before teardown — it's valid after DR
+	// because api_tokens rows come back with the rest of the
+	// replicated state.
+	adminToken := leader.GetToken()
+	if adminToken == "" {
+		t.Fatal("leader client has no token; initialize flow did not wire it")
+	}
+
+	const (
+		imsiPreDR  = "001019756139970"
+		imsiPostDR = "001019756139971"
+	)
+
+	createSub := func(c *client.Client, imsi string) error {
+		return c.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
+			Imsi:           imsi,
+			Key:            "0eefb0893e6f1c2855a3a244c6db1277",
+			OPc:            "98da19bbc55e2a5b53857d10557b1d26",
+			SequenceNumber: "000000000022",
+			ProfileName:    "default",
+		})
+	}
+
+	t.Log("creating pre-DR subscriber")
+
+	if err := createSub(leader, imsiPreDR); err != nil {
+		t.Fatalf("create pre-DR subscriber: %v", err)
+	}
+
+	idx, err := leaderAppliedIndex(ctx, leader)
+	if err != nil {
+		t.Fatalf("leader applied index: %v", err)
+	}
+
+	if err := waitForFollowerConvergence(ctx, clients, idx); err != nil {
+		t.Fatalf("followers did not converge before backup: %v", err)
+	}
+
+	backupPath := filepath.Join(t.TempDir(), "backup.tar.gz")
+
+	t.Logf("creating backup on leader at %s", backupPath)
+
+	if err := leader.CreateBackup(ctx, &client.CreateBackupParams{Path: backupPath}); err != nil {
+		t.Fatalf("create backup: %v", err)
+	}
+
+	if info, err := os.Stat(backupPath); err != nil {
+		t.Fatalf("stat backup: %v", err)
+	} else if info.Size() == 0 {
+		t.Fatal("backup file is empty")
+	}
+
+	t.Log("tearing down entire cluster (all volumes dropped)")
+
+	dockerClient.ComposeDown(ctx, haComposeDir)
+
+	// Fresh cluster config: node 1 as founder, no join-token, same
+	// peers list so joiners can later use the same address set.
+	peers := []string{"10.100.0.11:7000", "10.100.0.12:7000", "10.100.0.13:7000"}
+
+	if err := writeNodeConfig(haComposeDir, 1, peers, "", ""); err != nil {
+		t.Fatalf("write node 1 config: %v", err)
+	}
+
+	t.Log("creating node 1 container (not started) so we can stage restore.bundle")
+
+	if err := dockerClient.ComposeCreate(ctx, haComposeDir, haNodeServices[0]); err != nil {
+		t.Fatalf("compose create node 1: %v", err)
+	}
+
+	container1, err := dockerClient.ResolveComposeContainer(ctx, "ha", haNodeServices[0])
+	if err != nil {
+		t.Fatalf("resolve node 1 container: %v", err)
+	}
+
+	t.Logf("copying backup into %s:/data/restore.bundle", container1)
+
+	if err := dockerClient.CopyFileToContainer(ctx, container1, backupPath, "/data/restore.bundle"); err != nil {
+		t.Fatalf("copy restore.bundle to node 1: %v", err)
+	}
+
+	t.Log("starting node 1 — runtime should extract restore.bundle and self-issue a leaf")
+
+	if err := dockerClient.ComposeStart(ctx, haComposeDir, haNodeServices[0]); err != nil {
+		t.Fatalf("start node 1: %v", err)
+	}
+
+	restoredNode1, err := newInsecureClient(haNodeURLs[0])
+	if err != nil {
+		t.Fatalf("node 1 client: %v", err)
+	}
+
+	if err := waitForNodeReady(ctx, restoredNode1); err != nil {
+		t.Fatalf("restored node 1 never became ready: %v", err)
+	}
+
+	// The admin token from the backup is still valid — api_tokens rows
+	// come back with the rest of the replicated state.
+	restoredNode1.SetToken(adminToken)
+
+	t.Log("verifying pre-DR subscriber survived on the restored node")
+
+	sub, err := restoredNode1.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: imsiPreDR})
+	if err != nil {
+		t.Fatalf("read pre-DR subscriber from restored node 1: %v", err)
+	}
+
+	if sub.Imsi != imsiPreDR {
+		t.Fatalf("restored node returned IMSI %q, want %q", sub.Imsi, imsiPreDR)
+	}
+
+	t.Log("verifying restored node is a functional leader (can mint join tokens)")
+
+	status, err := restoredNode1.GetStatus(ctx)
+	if err != nil {
+		t.Fatalf("status on restored node: %v", err)
+	}
+
+	if status.Cluster == nil || status.Cluster.Role != "Leader" {
+		t.Fatalf("restored node role = %v, want Leader", status.Cluster)
+	}
+
+	t.Log("staging fresh joiners for nodes 2 and 3")
+
+	for _, i := range []int{2, 3} {
+		if err := stageAndStartJoiner(ctx, dockerClient, restoredNode1, haComposeDir, haNodeServices[i-1], i, peers, ""); err != nil {
+			t.Fatalf("stage joiner node %d: %v", i, err)
+		}
+	}
+
+	clientsAfterDR, err := newHANodeClients()
+	if err != nil {
+		t.Fatalf("ha node clients after DR: %v", err)
+	}
+
+	for _, c := range clientsAfterDR {
+		c.SetToken(adminToken)
+	}
+
+	if err := waitForClusterReady(ctx, clientsAfterDR); err != nil {
+		t.Fatalf("cluster not ready after DR: %v", err)
+	}
+
+	if err := waitForAllNodesReady(ctx, clientsAfterDR); err != nil {
+		t.Fatalf("not all nodes ready after DR: %v", err)
+	}
+
+	idx, err = leaderAppliedIndex(ctx, restoredNode1)
+	if err != nil {
+		t.Fatalf("leader applied index after DR: %v", err)
+	}
+
+	if err := waitForFollowerConvergence(ctx, clientsAfterDR, idx); err != nil {
+		t.Fatalf("followers did not converge after DR: %v", err)
+	}
+
+	t.Log("verifying pre-DR subscriber is visible on every node")
+
+	for i, c := range clientsAfterDR {
+		got, err := c.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: imsiPreDR})
+		if err != nil {
+			t.Fatalf("read pre-DR subscriber from node %d: %v", i+1, err)
+		}
+
+		if got.Imsi != imsiPreDR {
+			t.Fatalf("node %d returned IMSI %q, want %q", i+1, got.Imsi, imsiPreDR)
+		}
+	}
+
+	t.Log("verifying writes resume after DR")
+
+	if err := createSub(restoredNode1, imsiPostDR); err != nil {
+		t.Fatalf("post-DR write: %v", err)
+	}
+
+	idx, err = leaderAppliedIndex(ctx, restoredNode1)
+	if err != nil {
+		t.Fatalf("leader applied index after post-DR write: %v", err)
+	}
+
+	if err := waitForFollowerConvergence(ctx, clientsAfterDR, idx); err != nil {
+		t.Fatalf("followers did not converge after post-DR write: %v", err)
+	}
+
+	for i, c := range clientsAfterDR {
+		got, err := c.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: imsiPostDR})
+		if err != nil {
+			t.Fatalf("read post-DR subscriber from node %d: %v", i+1, err)
+		}
+
+		if got.Imsi != imsiPostDR {
+			t.Fatalf("node %d returned IMSI %q, want %q", i+1, got.Imsi, imsiPostDR)
+		}
+	}
+
+	t.Log("disaster-recovery test passed")
+}

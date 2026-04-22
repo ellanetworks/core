@@ -60,7 +60,7 @@ func TestAgent_StoreAndLoad(t *testing.T) {
 		t.Fatal("HaveLeafOnDisk should be true after StoreLeaf")
 	}
 
-	if err := agent2.Load(bundlePEM); err != nil {
+	if err := agent2.Load(); err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 

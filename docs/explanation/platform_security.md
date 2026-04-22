@@ -32,7 +32,7 @@ Every request is authorized against a role-based permission system with three bu
 - **API token secrets** are stored as one-way hashes. The raw token is returned only once at creation time and is never retrievable afterward.
 - **Session tokens** are cryptographically random values. Only a one-way hash is persisted.
 - **JWT signing secret** is generated randomly at startup and held only in memory. It is never written to disk or exposed through the API. A service restart invalidates all previously issued tokens.
-- **Cluster PKI signing keys** (root and intermediate) are stored in the replicated database. Per-node leaf keys are stored on disk under the data directory with 0600 permissions. Treat both the data directory and backup archives as secret-bearing.
+- **Cluster PKI signing keys** (root and intermediate) are stored in the replicated database. Each node caches its own leaf key (0600) and leaf certificate and trust bundle (0644) on disk under the data directory. Treat the data directory and backup archives as secret-bearing.
 
 ## Transport Security
 

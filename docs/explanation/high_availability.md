@@ -82,7 +82,7 @@ Shrinking is symmetric. Drain the node, then remove it; the remaining voters con
 
 Every inter-node connection is mutually authenticated over TLS 1.3.
 
-On first-leader election, the cluster generates its own root CA and an intermediate, and signs itself a leaf. Per-node leaf keys live on each voter's disk. Root and intermediate signing keys, public certs, and a join-token HMAC key are all replicated through Raft, so every voter holds the material to sign new leaves as soon as it becomes leader.
+On first-leader election, the cluster generates its own root CA and an intermediate, and signs itself a leaf. Per-node leaf keys and public trust material are cached on each voter's disk so the listener can come up before raft has finished catching up. Root and intermediate signing keys, public certs, and a join-token HMAC key are all replicated through Raft, so every voter holds the material to sign new leaves as soon as it becomes leader.
 
 Additional nodes join via a single-use HMAC token. An admin mints one through the Cluster page; the joining node puts it in its `cluster.join-token` config field and exchanges it for a leaf over a dedicated bootstrap ALPN.
 

@@ -3,7 +3,6 @@ package runtime
 import (
 	"archive/tar"
 	"context"
-	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -120,23 +119,21 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	var pki *pkiState
 
+	var restoredFromBundle bool
+
 	if cfg.Cluster.Enabled {
 		dataDir := filepath.Dir(cfg.DB.Path)
 
-		if _, err := maybeRestoreFromBundle(dataDir); err != nil {
+		restored, err := maybeRestoreFromBundle(dataDir)
+		if err != nil {
 			return fmt.Errorf("restore bundle: %w", err)
 		}
+
+		restoredFromBundle = restored
 
 		// cluster-id is unknown until PostInitClusterSetup populates
 		// the operator row; the agent re-reads it before signing CSRs.
 		pki = newPKIState(cfg.Cluster.NodeID, "", dataDir)
-
-		pki.agent.SetOnBundle(func(bundlePEM []byte) {
-			if err := pki.seedBundleFromPEM(pki.agent.ClusterID, bundlePEM); err != nil {
-				logger.EllaLog.Warn("seed trust bundle from join response",
-					zap.Error(err))
-			}
-		})
 
 		// Join-token path runs before the listener comes up so raft
 		// can mTLS-handshake as soon as it forms.
@@ -147,24 +144,18 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		}
 
 		if pki.agent.HaveLeafOnDisk() {
-			// Read the bundle from the local SQLite file so the
-			// listener can validate peers before raft has caught up.
-			// Empty PEM is tolerated: first-node boot, pre-bootstrap
-			// — only the bootstrap ALPN serves traffic until the
-			// first leader lands the PKI state.
-			bundlePEM, err := db.ReadClusterTrustBundlePEM(ctx, cfg.DB.Path)
-			if err != nil {
-				return fmt.Errorf("read trust bundle from db: %w", err)
+			if err := pki.agent.Load(); err != nil {
+				return fmt.Errorf("load leaf: %w", err)
 			}
 
-			if len(bundlePEM) > 0 {
-				if err := pki.seedBundleFromPEM(pki.agent.ClusterID, bundlePEM); err != nil && !errors.Is(err, ErrNoTrustBundleYet) {
+			// Seed the listener's trust bundle from bundle.crt.
+			// Without this, incoming mTLS would be rejected until
+			// RefreshBundle fires — which requires raft to replicate,
+			// which itself requires working mTLS.
+			if pki.agent.ClusterID != "" {
+				if err := pki.SeedBundleFromAgentDisk(pki.agent.ClusterID); err != nil {
 					return fmt.Errorf("seed trust bundle: %w", err)
 				}
-			}
-
-			if err := pki.agent.Load(bundlePEM); err != nil {
-				return fmt.Errorf("load leaf: %w", err)
 			}
 		}
 
@@ -300,7 +291,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// later becomes leader loads its keys (if present) and publishes
 		// the issuer service.
 		if pki != nil {
-			observer.Register(newPKILeaderCallback(ctx, pki, dbInstance, clusterLn, cfg.Cluster.NodeID))
+			observer.Register(newPKILeaderCallback(ctx, pki, dbInstance, clusterLn, cfg.Cluster.NodeID, restoredFromBundle))
 		}
 	}
 

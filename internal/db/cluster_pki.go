@@ -517,58 +517,6 @@ func (db *Database) GetPKIState(ctx context.Context) (*ClusterPKIState, error) {
 	return &row, nil
 }
 
-// ReadClusterTrustBundlePEM opens the SQLite file at dbPath with a
-// short-lived read-only connection and concatenates the cert PEMs of
-// all non-retired roots and intermediates (roots first). Used at
-// startup to seed the listener's trust cache before the full Database
-// + raft manager is constructed (which itself requires the listener).
-func ReadClusterTrustBundlePEM(ctx context.Context, dbPath string) ([]byte, error) {
-	conn, err := sql.Open("sqlite3", "file:"+dbPath+"?mode=ro")
-	if err != nil {
-		return nil, fmt.Errorf("open db read-only: %w", err)
-	}
-
-	defer func() { _ = conn.Close() }()
-
-	if err := conn.PingContext(ctx); err != nil {
-		return nil, fmt.Errorf("ping: %w", err)
-	}
-
-	var out []byte
-
-	for _, q := range []struct {
-		table string
-		stmt  string
-	}{
-		{ClusterPKIRootsTableName, "SELECT certPEM FROM " + ClusterPKIRootsTableName + " WHERE status != 'retired' ORDER BY addedAt ASC"},
-		{ClusterPKIIntermediatesTableName, "SELECT certPEM FROM " + ClusterPKIIntermediatesTableName + " WHERE status != 'retired' ORDER BY notAfter ASC"},
-	} {
-		rows, err := conn.QueryContext(ctx, q.stmt)
-		if err != nil {
-			return nil, fmt.Errorf("query %s: %w", q.table, err)
-		}
-
-		for rows.Next() {
-			var pem string
-			if err := rows.Scan(&pem); err != nil {
-				_ = rows.Close()
-				return nil, fmt.Errorf("scan %s: %w", q.table, err)
-			}
-
-			out = append(out, []byte(pem)...)
-		}
-
-		if err := rows.Err(); err != nil {
-			_ = rows.Close()
-			return nil, fmt.Errorf("iterate %s: %w", q.table, err)
-		}
-
-		_ = rows.Close()
-	}
-
-	return out, nil
-}
-
 // AllocatePKISerial atomically bumps the replicated counter and returns
 // the new value. Must be called on the leader; followers return an error
 // from the Propose path.

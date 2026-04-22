@@ -26,16 +26,29 @@ type pkiLeaderCallback struct {
 	clusterLn  *listener.Listener
 	nodeID     int
 
+	// needsDRSnapshot is true when this node was bootstrapped from a
+	// restore bundle. Its FSM carries state that wasn't built up by
+	// replicated log entries, so a fresh joiner replaying the log
+	// from index 1 would hit changeset conflicts on the UPDATE
+	// changesets produced by the leader's post-bootstrap work (PKI
+	// mint etc). On the first leader transition we re-inject the
+	// current DB as a raft user snapshot, which truncates the log
+	// and forces joiners through InstallSnapshot. Cleared after a
+	// successful SelfRestore; OnBecameLeader is single-threaded from
+	// the observer so no mutex is needed.
+	needsDRSnapshot bool
+
 	bootstrapRegistered sync.Once
 }
 
-func newPKILeaderCallback(ctx context.Context, state *pkiState, dbInstance *db.Database, ln *listener.Listener, nodeID int) *pkiLeaderCallback {
+func newPKILeaderCallback(ctx context.Context, state *pkiState, dbInstance *db.Database, ln *listener.Listener, nodeID int, needsDRSnapshot bool) *pkiLeaderCallback {
 	return &pkiLeaderCallback{
-		ctx:        ctx,
-		state:      state,
-		dbInstance: dbInstance,
-		clusterLn:  ln,
-		nodeID:     nodeID,
+		ctx:             ctx,
+		state:           state,
+		dbInstance:      dbInstance,
+		clusterLn:       ln,
+		nodeID:          nodeID,
+		needsDRSnapshot: needsDRSnapshot,
 	}
 }
 
@@ -44,6 +57,17 @@ func newPKILeaderCallback(ctx context.Context, state *pkiState, dbInstance *db.D
 // failure logs but does not panic; issuance requests return 503 until
 // the next leadership transition retries.
 func (c *pkiLeaderCallback) OnBecameLeader() {
+	if c.needsDRSnapshot {
+		if err := c.dbInstance.SelfRestore(c.ctx); err != nil {
+			logger.EllaLog.Warn("post-DR self-restore failed", zap.Error(err))
+			// Skip the rest for this transition; the next leader
+			// callback fires a retry.
+			return
+		}
+
+		c.needsDRSnapshot = false
+	}
+
 	if err := setupLeaderPKI(c.ctx, c.state, c.dbInstance, c.nodeID); err != nil {
 		logger.EllaLog.Warn("setupLeaderPKI on leader transition failed", zap.Error(err))
 		return

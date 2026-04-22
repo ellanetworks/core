@@ -150,6 +150,12 @@ func extractBackupArchive(r io.Reader, destDir string) error {
 
 // ExtractForRestore extracts a backup bundle into destDir. Used by the
 // offline first-boot recovery path before db.NewDatabase has run.
+//
+// After extraction, fsm_state.lastApplied is reset to 0 in the
+// extracted database. The backup captures the source leader's
+// lastApplied, but the DR-restored node bootstraps raft fresh at
+// index 0 — without the reset, FSM.Apply would skip the first writes
+// as "already applied" until raft caught up to the source's index.
 func ExtractForRestore(bundlePath, destDir string) error {
 	f, err := os.Open(bundlePath) // #nosec: G304 -- path comes from the operator via fixed-path convention
 	if err != nil {
@@ -162,7 +168,32 @@ func ExtractForRestore(bundlePath, destDir string) error {
 		return fmt.Errorf("mkdir %s: %w", destDir, err)
 	}
 
-	return extractBackupArchive(f, destDir)
+	if err := extractBackupArchive(f, destDir); err != nil {
+		return err
+	}
+
+	return resetFSMStateInRestoredDB(filepath.Join(destDir, DBFilename))
+}
+
+// resetFSMStateInRestoredDB opens the extracted ella.db with a
+// short-lived connection and sets fsm_state.lastApplied to 0. The
+// source node's fsm_state row comes through the archive; the restored
+// node starts raft fresh at index 0, so it must not inherit the
+// source's applied index.
+func resetFSMStateInRestoredDB(dbPath string) error {
+	conn, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		return fmt.Errorf("open extracted db: %w", err)
+	}
+
+	defer func() { _ = conn.Close() }()
+
+	if _, err := conn.ExecContext(context.Background(),
+		"UPDATE fsm_state SET lastApplied = 0 WHERE id = 1"); err != nil {
+		return fmt.Errorf("reset fsm_state.lastApplied: %w", err)
+	}
+
+	return nil
 }
 
 func writeArchiveMember(destPath string, src io.Reader, size int64) error {
@@ -426,6 +457,68 @@ func (db *Database) Restore(ctx context.Context, backupFile *os.File) error {
 
 	if err := db.raftManager.UserRestore(f, info.Size(), db.proposeTimeout); err != nil {
 		return fmt.Errorf("raft restore: %w", err)
+	}
+
+	return nil
+}
+
+// SelfRestore re-injects this node's current database state as a raft user
+// snapshot. It is used on the first leader transition of a node that booted
+// from a restore bundle.
+//
+// Background: when a node bootstraps from an ella.db extracted from a backup
+// bundle, raft starts with an empty log. Any log entries the new leader then
+// produces (PKI mint, join-token issue, etc.) are UPDATE changesets whose
+// pre-image assumes the restored DB state. A fresh joiner replaying those
+// entries from index 1 against a just-migrated empty DB hits conflict errors
+// because the pre-image rows don't exist yet.
+//
+// raft.Restore fixes this by installing a user-provided snapshot as the
+// authoritative baseline: it bumps the log past the snapshot's index, removes
+// old monotonic log entries, and forces new joiners through InstallSnapshot
+// rather than log replay. Must be called on the leader, before any FSM work
+// (setupLeaderPKI, etc.) that would otherwise pollute the log.
+func (db *Database) SelfRestore(ctx context.Context) error {
+	if !db.restoreMu.TryLock() {
+		return ErrRestoreInProgress
+	}
+	defer db.restoreMu.Unlock()
+
+	if db.conn() == nil {
+		return fmt.Errorf("database connection is not initialized")
+	}
+
+	if db.raftManager == nil {
+		return fmt.Errorf("clustering not enabled")
+	}
+
+	stageDir, err := os.MkdirTemp(db.Dir(), "self-restore-*")
+	if err != nil {
+		return fmt.Errorf("create self-restore stage dir: %w", err)
+	}
+
+	defer func() { _ = os.RemoveAll(stageDir) }()
+
+	stagedDB := filepath.Join(stageDir, DBFilename)
+
+	if _, err := db.PlainDB().ExecContext(ctx, "VACUUM INTO ?", stagedDB); err != nil {
+		return fmt.Errorf("VACUUM INTO self-restore stage: %w", err)
+	}
+
+	f, err := os.Open(stagedDB) // #nosec: G304 — path is under stageDir
+	if err != nil {
+		return fmt.Errorf("open self-restore stage: %w", err)
+	}
+
+	defer func() { _ = f.Close() }()
+
+	info, err := f.Stat()
+	if err != nil {
+		return fmt.Errorf("stat self-restore stage: %w", err)
+	}
+
+	if err := db.raftManager.UserRestore(f, info.Size(), db.proposeTimeout); err != nil {
+		return fmt.Errorf("raft self-restore: %w", err)
 	}
 
 	return nil

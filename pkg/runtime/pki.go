@@ -25,11 +25,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// ErrNoTrustBundleYet signals that no PEM material was available at
-// seed time; the runtime treats this as "populate later once raft has
-// caught up," not as a hard failure.
-var ErrNoTrustBundleYet = errors.New("no trust bundle material available yet")
-
 // pkiState collects the runtime-wide PKI plumbing.
 type pkiState struct {
 	agent      *pkiagent.Agent
@@ -126,18 +121,21 @@ func refreshFollowerBundleWithRetry(ctx context.Context, pki *pkiState, timeout 
 	}
 }
 
-// seedBundleFromPEM parses bundlePEM (concatenated CERTIFICATE blocks)
-// into a TrustBundle and installs it in the cache. Returns
-// ErrNoTrustBundleYet if bundlePEM is empty — the caller decides
-// whether that's fatal or tolerable.
-func (p *pkiState) seedBundleFromPEM(clusterID string, bundlePEM []byte) error {
-	if len(bundlePEM) == 0 {
-		return ErrNoTrustBundleYet
+// SeedBundleFromAgentDisk parses bundle.crt into a TrustBundle and
+// installs it in the cache. Runs at startup after the agent has
+// leaf files on disk, so the listener has a usable trust bundle
+// before raft replication makes the CA tables locally queryable.
+func (p *pkiState) SeedBundleFromAgentDisk(clusterID string) error {
+	bundlePath := p.agent.BundlePath()
+
+	pemBytes, err := os.ReadFile(bundlePath) // #nosec: G304 -- under dataDir
+	if err != nil {
+		return fmt.Errorf("read bundle %s: %w", bundlePath, err)
 	}
 
 	b := &ellapki.TrustBundle{ClusterID: clusterID}
 
-	rest := bundlePEM
+	rest := pemBytes
 
 	for {
 		var block *pem.Block
@@ -164,7 +162,7 @@ func (p *pkiState) seedBundleFromPEM(clusterID string, bundlePEM []byte) error {
 	}
 
 	if len(b.Roots) == 0 {
-		return fmt.Errorf("bundle has no root certs")
+		return fmt.Errorf("bundle %s has no root certs", bundlePath)
 	}
 
 	p.bundleCached.Store(b)
