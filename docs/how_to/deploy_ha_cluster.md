@@ -4,7 +4,7 @@ description: Step-by-step instructions to deploy Ella Core as a high-availabilit
 
 # Deploy a High Availability Cluster (beta)
 
-See [High Availability](../explanation/high_availability.md) for how the cluster works.
+Ella Core can be deployed as a high-availability cluster to provide redundancy and failover capabilities. See [High Availability](../explanation/high_availability.md) for more information.
 
 !!! info "Beta feature"
     High availability is currently in beta. It is available for testing and feedback in the `main` branch but not recommended for production use yet. Expect breaking changes as we iterate on the design and implementation.
@@ -63,9 +63,9 @@ Open `https://10.0.0.1:5002` in a browser, create the admin, and log in.
 
 ## 4. Add node 2
 
-On node 1, open the **Cluster** page and click **Add Node**. Select node ID `2`, click **Mint Token**, then copy the generated `cluster:` snippet.
+On node 1, open the **Cluster** page and click **Add Node**. Select node ID `2`, click **Mint Token**, then copy the token.
 
-Create `core.yaml` on node 2 using the same shape as node 1, with `bind-address: "10.0.0.2:7000"`. Paste the copied `cluster:` block over the placeholder — it already contains `node-id` and `join-token`. Make sure `enabled: true` and `peers` are set:
+Create `core.yaml` on node 2 using the same shape as node 1, with `bind-address: "10.0.0.2:7000"`. Paste the copied token block over the placeholder:
 
 ```yaml title="core.yaml (node 2, cluster block)"
 cluster:
@@ -85,16 +85,13 @@ Start node 2:
 sudo snap start --enable ella-core.cored
 ```
 
-The daemon consumes the token on first boot, joins the cluster, and ignores the field on subsequent starts.
-
 ## 5. Add node 3
 
 Repeat step 4 on node 3.
 
 ## 6. Verify
 
-On the **Cluster** page, all three nodes appear as **Voter**, one as
-**Leader**, all **Healthy**.
+On the **Cluster** page, all three nodes appear as **Voter**, one as **Leader**, all **Healthy**.
 
 <figure markdown="span">
   ![Ella Core HA Cluster](../images/ha_cluster.png){ width="800" }
