@@ -33,6 +33,7 @@ import {
   type APIIPAllocation,
 } from "@/queries/data_networks";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import EditDataNetworkModal from "@/components/EditDataNetworkModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
@@ -53,9 +54,11 @@ const DataNetworkDetail: React.FC = () => {
   const { name } = useParams<{ name: string }>();
   const navigate = useNavigate();
   const { role, accessToken, authReady } = useAuth();
+  const { isFleetManaged } = useFleet();
   const { showSnackbar } = useSnackbar();
   const theme = useTheme();
-  const canEdit = role === "Admin" || role === "Network Manager";
+  const canEdit =
+    (role === "Admin" || role === "Network Manager") && !isFleetManaged;
 
   const gridTheme = useMemo(
     () =>

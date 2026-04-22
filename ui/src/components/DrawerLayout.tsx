@@ -40,11 +40,13 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import Logo from "@/components/Logo";
 import SupportModal from "@/components/SupportModal";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme } from "@mui/material/styles";
 import IconButton from "@mui/material/IconButton";
 import MenuIcon from "@mui/icons-material/Menu";
 import Footer from "@/components/Footer";
+import FleetBanner from "@/components/FleetBanner";
 import { logout } from "@/queries/auth";
 
 const drawerWidth = 250;
@@ -83,6 +85,7 @@ export default function DrawerLayout({
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("lg"));
   const { role, setAuthData } = useAuth();
+  const { isFleetManaged } = useFleet();
 
   const isFirstRender = useRef(true);
   useEffect(() => {
@@ -182,15 +185,27 @@ export default function DrawerLayout({
             Ella Core
           </Typography>
 
-          <Chip
-            label="free"
-            variant="filled"
-            sx={{
-              ml: 2,
-              color: "text.primary",
-              backgroundColor: "backgroundSubtle",
-            }}
-          />
+          {isFleetManaged ? (
+            <Chip
+              label="Fleet managed"
+              variant="filled"
+              sx={{
+                ml: 2,
+                color: "text.primary",
+                backgroundColor: "#FFD21F",
+              }}
+            />
+          ) : (
+            <Chip
+              label="Free"
+              variant="filled"
+              sx={{
+                ml: 2,
+                color: "text.primary",
+                backgroundColor: "backgroundSubtle",
+              }}
+            />
+          )}
 
           <Box sx={{ flexGrow: 1 }} />
 
@@ -494,6 +509,7 @@ export default function DrawerLayout({
         }}
       >
         <Toolbar />
+        <FleetBanner />
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>{children}</Box>
         <Footer />
       </Box>

@@ -30,6 +30,7 @@ var migrations = []migration{
 	{7, "data model redesign: profiles, policies, slices", migrateV7},
 	{8, "add action to flow reports", migrateV8},
 	{9, "HA schema additions (amfRegionID, cluster_members, ip_leases.nodeID, bgp_peers.nodeID)", migrateV9},
+	{10, "add fleet registration table", migrateV10},
 }
 
 // baselineVersion is the highest migration that runs locally during

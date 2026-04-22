@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/fleet"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm"
@@ -491,6 +492,8 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	gmm.RegisterMetrics()
 	ngap.RegisterMetrics()
 
+	fleetBuffer := fleet.NewFleetBuffer(0)
+
 	// --- Phase B: upgrade the API server to serve all routes now that
 	// the cluster is formed, settings are seeded, and NFs are running. ---
 	if err := apiServer.Upgrade(ctx, api.UpgradeConfig{
@@ -505,6 +508,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}); err != nil {
 		return fmt.Errorf("couldn't upgrade API: %w", err)
 	}
+
+	wg.Go(func() {
+		runFleetSupervisor(ctx, dbInstance, cfg, amfInstance, upfInstance, fleetBuffer)
+	})
 
 	nasLogger.SetLogLevel(0) // Suppress free5gc NAS log output
 
