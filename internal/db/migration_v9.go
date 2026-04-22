@@ -8,17 +8,9 @@ import (
 	"fmt"
 )
 
-// ---------------------------------------------------------------------------
-// V9 migration — HA schema additions
-//
-// Adds the columns and tables introduced alongside Raft-based HA:
-//   * operator.amfRegionID, amfSetID, clusterID
-//   * ip_leases.nodeID + idx_leases_node
-//   * bgp_peers.nodeID
-//   * cluster_members table
-//   * cluster PKI tables (roots, intermediates, issued certs, revoked
-//     certs, join tokens, pki state singleton)
-// ---------------------------------------------------------------------------
+// V9 introduces the HA-related schema: node-identity columns, the
+// cluster_members table, and the cluster PKI tables (roots,
+// intermediates, issued certs, revoked certs, join tokens, pki state).
 
 const v9CreateClusterMembers = `
 	CREATE TABLE IF NOT EXISTS %s (
@@ -38,9 +30,14 @@ const v9CreateClusterPKIRoots = `
 		fingerprint    TEXT PRIMARY KEY,
 		certPEM        TEXT NOT NULL,
 		crossSignedPEM TEXT NOT NULL DEFAULT '',
+		keyPEM         BLOB,
 		addedAt        INTEGER NOT NULL,
 		status         TEXT NOT NULL DEFAULT 'active'
-			CHECK (status IN ('active','verify-only','retired'))
+			CHECK (status IN ('active','verify-only','retired')),
+		CHECK (
+			(status = 'active'      AND keyPEM IS NOT NULL) OR
+			(status IN ('verify-only','retired') AND keyPEM IS NULL)
+		)
 )`
 
 const v9CreateClusterPKIIntermediates = `
@@ -48,10 +45,15 @@ const v9CreateClusterPKIIntermediates = `
 		fingerprint     TEXT PRIMARY KEY,
 		certPEM         TEXT NOT NULL,
 		crossSignedPEM  TEXT NOT NULL DEFAULT '',
+		keyPEM          BLOB,
 		rootFingerprint TEXT NOT NULL,
 		notAfter        INTEGER NOT NULL,
 		status          TEXT NOT NULL DEFAULT 'active'
-			CHECK (status IN ('active','verify-only','retired'))
+			CHECK (status IN ('active','verify-only','retired')),
+		CHECK (
+			(status = 'active'      AND keyPEM IS NOT NULL) OR
+			(status IN ('verify-only','retired') AND keyPEM IS NULL)
+		)
 )`
 
 const v9CreateClusterIssuedCerts = `

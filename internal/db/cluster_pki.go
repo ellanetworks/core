@@ -34,55 +34,54 @@ const (
 // Prepared-statement templates. `%s` takes the table name; see
 // PrepareStatements for the bindings.
 const (
-	// Roots
 	listPKIRootsStmtStr     = "SELECT &ClusterPKIRoot.* FROM %s ORDER BY addedAt ASC"
-	insertPKIRootStmtStr    = "INSERT INTO %s (fingerprint, certPEM, crossSignedPEM, addedAt, status) VALUES ($ClusterPKIRoot.fingerprint, $ClusterPKIRoot.certPEM, $ClusterPKIRoot.crossSignedPEM, $ClusterPKIRoot.addedAt, $ClusterPKIRoot.status)"
-	setPKIRootStatusStmtStr = "UPDATE %s SET status=$ClusterPKIRoot.status WHERE fingerprint=$ClusterPKIRoot.fingerprint"
+	insertPKIRootStmtStr    = "INSERT INTO %s (fingerprint, certPEM, crossSignedPEM, keyPEM, addedAt, status) VALUES ($ClusterPKIRoot.fingerprint, $ClusterPKIRoot.certPEM, $ClusterPKIRoot.crossSignedPEM, $ClusterPKIRoot.keyPEM, $ClusterPKIRoot.addedAt, $ClusterPKIRoot.status)"
+	setPKIRootStatusStmtStr = "UPDATE %s SET status=$ClusterPKIRoot.status, keyPEM=$ClusterPKIRoot.keyPEM WHERE fingerprint=$ClusterPKIRoot.fingerprint"
 	deletePKIRootStmtStr    = "DELETE FROM %s WHERE fingerprint=$ClusterPKIRoot.fingerprint"
 
-	// Intermediates
 	listPKIIntermediatesStmtStr     = "SELECT &ClusterPKIIntermediate.* FROM %s ORDER BY notAfter ASC"
-	insertPKIIntermediateStmtStr    = "INSERT INTO %s (fingerprint, certPEM, crossSignedPEM, rootFingerprint, notAfter, status) VALUES ($ClusterPKIIntermediate.fingerprint, $ClusterPKIIntermediate.certPEM, $ClusterPKIIntermediate.crossSignedPEM, $ClusterPKIIntermediate.rootFingerprint, $ClusterPKIIntermediate.notAfter, $ClusterPKIIntermediate.status)"
-	setPKIIntermediateStatusStmtStr = "UPDATE %s SET status=$ClusterPKIIntermediate.status WHERE fingerprint=$ClusterPKIIntermediate.fingerprint"
+	insertPKIIntermediateStmtStr    = "INSERT INTO %s (fingerprint, certPEM, crossSignedPEM, keyPEM, rootFingerprint, notAfter, status) VALUES ($ClusterPKIIntermediate.fingerprint, $ClusterPKIIntermediate.certPEM, $ClusterPKIIntermediate.crossSignedPEM, $ClusterPKIIntermediate.keyPEM, $ClusterPKIIntermediate.rootFingerprint, $ClusterPKIIntermediate.notAfter, $ClusterPKIIntermediate.status)"
+	setPKIIntermediateStatusStmtStr = "UPDATE %s SET status=$ClusterPKIIntermediate.status, keyPEM=$ClusterPKIIntermediate.keyPEM WHERE fingerprint=$ClusterPKIIntermediate.fingerprint"
 	deletePKIIntermediateStmtStr    = "DELETE FROM %s WHERE fingerprint=$ClusterPKIIntermediate.fingerprint"
 
-	// Issued certs
 	insertIssuedCertStmtStr         = "INSERT INTO %s (serial, nodeID, notAfter, intermediateFingerprint, issuedAt) VALUES ($ClusterIssuedCert.serial, $ClusterIssuedCert.nodeID, $ClusterIssuedCert.notAfter, $ClusterIssuedCert.intermediateFingerprint, $ClusterIssuedCert.issuedAt)"
 	listIssuedCertsByNodeStmtStr    = "SELECT &ClusterIssuedCert.* FROM %s WHERE nodeID=$ClusterIssuedCert.nodeID AND notAfter>$ClusterIssuedCert.notAfter"
 	listIssuedCertsActiveStmtStr    = "SELECT &ClusterIssuedCert.* FROM %s WHERE notAfter>$ClusterIssuedCert.notAfter"
 	deleteIssuedCertsExpiredStmtStr = "DELETE FROM %s WHERE notAfter<$ClusterIssuedCert.notAfter"
 
-	// Revoked certs
 	insertRevokedCertStmtStr        = "INSERT INTO %s (serial, nodeID, revokedAt, reason, purgeAfter) VALUES ($ClusterRevokedCert.serial, $ClusterRevokedCert.nodeID, $ClusterRevokedCert.revokedAt, $ClusterRevokedCert.reason, $ClusterRevokedCert.purgeAfter) ON CONFLICT(serial) DO NOTHING"
 	listRevokedCertsStmtStr         = "SELECT &ClusterRevokedCert.* FROM %s"
 	deleteRevokedCertsPurgedStmtStr = "DELETE FROM %s WHERE purgeAfter<$ClusterRevokedCert.purgeAfter"
 
-	// Join tokens
 	insertJoinTokenStmtStr       = "INSERT INTO %s (id, nodeID, claimsJSON, expiresAt, consumedAt, consumedBy) VALUES ($ClusterJoinToken.id, $ClusterJoinToken.nodeID, $ClusterJoinToken.claimsJSON, $ClusterJoinToken.expiresAt, 0, 0)" // #nosec G101 -- SQL statement, not a credential
 	getJoinTokenStmtStr          = "SELECT &ClusterJoinToken.* FROM %s WHERE id=$ClusterJoinToken.id"
 	consumeJoinTokenStmtStr      = "UPDATE %s SET consumedAt=$ClusterJoinToken.consumedAt, consumedBy=$ClusterJoinToken.consumedBy WHERE id=$ClusterJoinToken.id AND consumedAt=0" // #nosec G101 -- SQL statement, not a credential
 	deleteJoinTokensStaleStmtStr = "DELETE FROM %s WHERE expiresAt<$ClusterJoinToken.expiresAt OR (consumedAt>0 AND consumedAt<$ClusterJoinToken.consumedAt)"                      // #nosec G101 -- SQL statement, not a credential
 
-	// PKI state singleton
 	initPKIStateStmtStr   = "INSERT INTO %s (id, hmacKey, serialCounter) VALUES (1, $ClusterPKIState.hmacKey, 0) ON CONFLICT(id) DO NOTHING"
 	getPKIStateStmtStr    = "SELECT &ClusterPKIState.* FROM %s WHERE id=1"
 	allocateSerialStmtStr = "UPDATE %s SET serialCounter=serialCounter+1 WHERE id=1 RETURNING serialCounter AS &ClusterPKIState.serialCounter"
 )
 
-// ClusterPKIRoot is a row in cluster_pki_roots.
+// ClusterPKIRoot is a row in cluster_pki_roots. KeyPEM holds the PKCS#8
+// private-key PEM; a CHECK constraint enforces that it is populated iff
+// status='active'.
 type ClusterPKIRoot struct {
 	Fingerprint    string `db:"fingerprint"`
 	CertPEM        string `db:"certPEM"`
 	CrossSignedPEM string `db:"crossSignedPEM"`
+	KeyPEM         []byte `db:"keyPEM"`
 	AddedAt        int64  `db:"addedAt"`
 	Status         string `db:"status"`
 }
 
-// ClusterPKIIntermediate is a row in cluster_pki_intermediates.
+// ClusterPKIIntermediate is a row in cluster_pki_intermediates. See
+// ClusterPKIRoot for the KeyPEM / status invariant.
 type ClusterPKIIntermediate struct {
 	Fingerprint     string `db:"fingerprint"`
 	CertPEM         string `db:"certPEM"`
 	CrossSignedPEM  string `db:"crossSignedPEM"`
+	KeyPEM          []byte `db:"keyPEM"`
 	RootFingerprint string `db:"rootFingerprint"`
 	NotAfter        int64  `db:"notAfter"`
 	Status          string `db:"status"`
@@ -241,10 +240,17 @@ func (db *Database) InsertPKIRoot(ctx context.Context, r *ClusterPKIRoot) error 
 	return err
 }
 
-// SetPKIRootStatus transitions a root between active/verify-only/retired.
+// SetPKIRootStatus transitions a root to verify-only or retired and
+// NULLs its keyPEM in the same changeset, so the old signing key is
+// compacted out of the raft log at the next snapshot. Introducing a
+// new active row is done via InsertPKIRoot, not this path.
 func (db *Database) SetPKIRootStatus(ctx context.Context, fingerprint, status string) error {
 	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applySetPKIRootStatus(ctx, &ClusterPKIRoot{Fingerprint: fingerprint, Status: status})
+		return db.applySetPKIRootStatus(ctx, &ClusterPKIRoot{
+			Fingerprint: fingerprint,
+			Status:      status,
+			KeyPEM:      nil,
+		})
 	}, "SetPKIRootStatus")
 
 	return err
@@ -285,11 +291,15 @@ func (db *Database) InsertPKIIntermediate(ctx context.Context, r *ClusterPKIInte
 	return err
 }
 
-// SetPKIIntermediateStatus transitions an intermediate between
-// active/verify-only/retired.
+// SetPKIIntermediateStatus is the intermediate counterpart of
+// SetPKIRootStatus.
 func (db *Database) SetPKIIntermediateStatus(ctx context.Context, fingerprint, status string) error {
 	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applySetPKIIntermediateStatus(ctx, &ClusterPKIIntermediate{Fingerprint: fingerprint, Status: status})
+		return db.applySetPKIIntermediateStatus(ctx, &ClusterPKIIntermediate{
+			Fingerprint: fingerprint,
+			Status:      status,
+			KeyPEM:      nil,
+		})
 	}, "SetPKIIntermediateStatus")
 
 	return err
@@ -456,6 +466,36 @@ func (db *Database) InitializePKIState(ctx context.Context, hmacKey []byte) erro
 	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
 		return db.applyInitPKIState(ctx, &ClusterPKIState{HMACKey: hmacKey})
 	}, "InitializePKIState")
+
+	return err
+}
+
+// PKIBootstrap carries the three rows written by BootstrapPKI.
+type PKIBootstrap struct {
+	HMACKey      []byte
+	Root         *ClusterPKIRoot
+	Intermediate *ClusterPKIIntermediate
+}
+
+// BootstrapPKI writes the PKI state row, the root, and the intermediate
+// inside a single raft-replicated changeset: either all three persist
+// or none do.
+func (db *Database) BootstrapPKI(ctx context.Context, payload *PKIBootstrap) error {
+	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
+		if _, err := db.applyInitPKIState(ctx, &ClusterPKIState{HMACKey: payload.HMACKey}); err != nil {
+			return nil, fmt.Errorf("init pki state: %w", err)
+		}
+
+		if _, err := db.applyInsertPKIRoot(ctx, payload.Root); err != nil {
+			return nil, fmt.Errorf("insert pki root: %w", err)
+		}
+
+		if _, err := db.applyInsertPKIIntermediate(ctx, payload.Intermediate); err != nil {
+			return nil, fmt.Errorf("insert pki intermediate: %w", err)
+		}
+
+		return nil, nil
+	}, "BootstrapPKI")
 
 	return err
 }

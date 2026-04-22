@@ -67,7 +67,7 @@ func TestPKIAdminEndpoints_MintToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	issuer := pkiissuer.New(env.DB, t.TempDir())
+	issuer := pkiissuer.New(env.DB)
 	if err := issuer.Bootstrap(context.Background()); err != nil {
 		t.Fatalf("Bootstrap: %v", err)
 	}

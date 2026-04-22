@@ -2,9 +2,8 @@
 
 // Package listener provides a multiplexed TLS listener for intra-cluster
 // communication. A single TCP socket carries all cluster traffic — Raft
-// consensus, cluster-internal HTTP, PKI key transfer, and the join-flow
-// bootstrap path — distinguished by ALPN protocol negotiation during the
-// TLS handshake.
+// consensus, cluster-internal HTTP, and the join-flow bootstrap path —
+// distinguished by ALPN protocol negotiation during the TLS handshake.
 //
 // Every non-bootstrap connection is mutually authenticated: both sides
 // present a leaf certificate signed by the cluster CA, with a URI SAN

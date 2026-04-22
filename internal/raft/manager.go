@@ -9,15 +9,34 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/ellanetworks/core/internal/cluster/listener"
-	"github.com/ellanetworks/core/internal/logger"
 	"github.com/hashicorp/raft"
 	autopilot "github.com/hashicorp/raft-autopilot"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
-	"go.uber.org/zap"
 )
+
+// umaskMu serialises the process-wide umask window used by
+// withTightUmask.
+var umaskMu sync.Mutex
+
+// withTightUmask runs fn with umask 0o077 so the raft bolt file,
+// snapshot files, and snapshot subdirectories land at 0o600/0o700 —
+// the raft library uses os.Create and MkdirAll with default perms, and
+// snapshots and the raft log contain CA signing keys until the next
+// compaction.
+func withTightUmask(fn func() error) error {
+	umaskMu.Lock()
+	defer umaskMu.Unlock()
+
+	prev := syscall.Umask(0o077)
+	defer syscall.Umask(prev)
+
+	return fn()
+}
 
 // ClusterConfig holds the cluster-related configuration parsed from YAML.
 type ClusterConfig struct {
@@ -164,25 +183,41 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 
 	boltPath := filepath.Join(raftDir, "raft.db")
 
-	// In single-server mode the raft log is auxiliary: ella.db (fsynced on
-	// COMMIT) is the canonical FSM state, there are no peers to replicate to,
-	// and losing trailing raft-log entries on crash is harmless — the FSM
-	// state on disk is already authoritative. Skipping per-entry fsync halves
-	// write latency (one fsync per COMMIT instead of two) and restores the
-	// pre-HA throughput the API layer depends on for batched mutations.
-	// HA mode keeps fsync enabled: replicas derive truth from the log.
-	boltStore, err := raftboltdb.New(raftboltdb.Options{
-		Path:   boltPath,
-		NoSync: singleServer,
+	var (
+		boltStore     *raftboltdb.BoltStore
+		snapshotStore raft.SnapshotStore
+	)
+
+	// In single-server mode the raft log is auxiliary: ella.db (fsynced
+	// on COMMIT) is the canonical FSM state, there are no peers to
+	// replicate to, and losing trailing raft-log entries on crash is
+	// harmless — the FSM state on disk is already authoritative.
+	// Skipping per-entry fsync halves write latency (one fsync per
+	// COMMIT instead of two). HA mode keeps fsync enabled: replicas
+	// derive truth from the log.
+	err = withTightUmask(func() error {
+		var bsErr error
+
+		boltStore, bsErr = raftboltdb.New(raftboltdb.Options{
+			Path:   boltPath,
+			NoSync: singleServer,
+		})
+		if bsErr != nil {
+			return fmt.Errorf("create bolt store at %s: %w", boltPath, bsErr)
+		}
+
+		var ssErr error
+
+		snapshotStore, ssErr = raft.NewFileSnapshotStore(raftDir, 3, newZapIOWriter("snapshot"))
+		if ssErr != nil {
+			_ = boltStore.Close()
+			return fmt.Errorf("create snapshot store: %w", ssErr)
+		}
+
+		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("create bolt store at %s: %w", boltPath, err)
-	}
-
-	snapshotStore, err := raft.NewFileSnapshotStore(raftDir, 3, newZapIOWriter("snapshot"))
-	if err != nil {
-		_ = boltStore.Close()
-		return nil, fmt.Errorf("create snapshot store: %w", err)
+		return nil, err
 	}
 
 	logCache, err := raft.NewLogCache(raftLogCacheSize, boltStore)
@@ -228,7 +263,7 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 	// known, but before NewRaft spins up the internal loop that consumes them.
 	// RecoverCluster above only uses LocalID from raftConfig, so the order is
 	// safe.
-	applyTimeouts(raftConfig, cfg, singleServer, !hasState && !recovered)
+	applyTimeouts(raftConfig, cfg, singleServer)
 
 	r, err := raft.NewRaft(raftConfig, fsm, logCache, boltStore, snapshotStore, transport)
 	if err != nil {
@@ -320,26 +355,22 @@ func resolveNodeIDForMode(cfg ClusterConfig, singleServer bool, dataDir string) 
 }
 
 // applyTimeouts configures heartbeat / election / leader-lease / commit
-// timeouts based on whether the manager is single-server or HA, and whether
-// this is a fresh boot with no prior state.
+// timeouts based on whether the manager is single-server or HA.
 //
 // Single-server mode uses fixed 50 ms timeouts: with no peers to negotiate
 // with the library defaults are pure dead time during bootstrap.
 //
 // HA mode scales the library defaults by PerformanceMultiplier (default 5)
-// to tolerate real-network jitter. On a fresh boot the
-// heartbeat and election timeouts are further multiplied by
-// initialTimeoutMultiplier so a slow first election on a newly joined node
-// doesn't trigger spurious leadership contests before the cluster stabilises.
-func applyTimeouts(rc *raft.Config, cfg ClusterConfig, singleServer, freshBoot bool) {
-	if singleServer || freshBoot {
-		// Single-server and fresh HA nodes both start with fast timeouts.
-		// For single-server the timeouts are permanent. For fresh HA nodes
-		// they allow the bootstrapper to self-elect in milliseconds;
-		// restoreHATimeouts upgrades HeartbeatTimeout and ElectionTimeout
-		// to HA values after the cluster forms. LeaderLeaseTimeout is not
-		// runtime-reloadable so it stays at the standalone value, which is
-		// always smaller than the HA HeartbeatTimeout.
+// from day one — including on fresh boot. We used to override freshBoot
+// nodes with the 50 ms standalone values to accelerate the first election,
+// but LeaderLeaseTimeout is not runtime-reloadable, so it then stayed at
+// 50 ms forever. Any operation that stalled a follower's FSM for longer
+// than 50 ms (snapshot install, raft.Restore, a slow Apply) caused the
+// leader to drop its lease and step down, triggering a leadership
+// oscillation that could not recover. Paying the one-time 1–5 s first
+// election cost is the correct tradeoff for a multi-node cluster.
+func applyTimeouts(rc *raft.Config, cfg ClusterConfig, singleServer bool) {
+	if singleServer {
 		rc.HeartbeatTimeout = standaloneHeartbeatTimeout
 		rc.ElectionTimeout = standaloneElectionTimeout
 		rc.LeaderLeaseTimeout = standaloneLeaderLeaseTimeout
@@ -356,27 +387,6 @@ func applyTimeouts(rc *raft.Config, cfg ClusterConfig, singleServer, freshBoot b
 	rc.HeartbeatTimeout *= time.Duration(multiplier)
 	rc.ElectionTimeout *= time.Duration(multiplier)
 	rc.LeaderLeaseTimeout *= time.Duration(multiplier)
-}
-
-// restoreHATimeouts reloads the steady-state HA timeouts (performance
-// multiplier only, no freshBoot inflation). Called after the bootstrapper's
-// fast self-election completes so that subsequent elections with real peers
-// use properly scaled timeouts.
-func (m *Manager) restoreHATimeouts() {
-	multiplier := m.config.PerformanceMultiplier
-	if multiplier <= 0 {
-		multiplier = defaultPerformanceMultiplier
-	}
-
-	base := raft.DefaultConfig()
-
-	rc := m.raft.ReloadableConfig()
-	rc.HeartbeatTimeout = base.HeartbeatTimeout * time.Duration(multiplier)
-	rc.ElectionTimeout = base.ElectionTimeout * time.Duration(multiplier)
-
-	if err := m.raft.ReloadConfig(rc); err != nil {
-		logger.RaftLog.Warn("Failed to restore HA timeouts", zap.Error(err))
-	}
 }
 
 // Propose serializes a command and applies it through Raft consensus.

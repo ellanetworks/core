@@ -26,16 +26,29 @@ type pkiLeaderCallback struct {
 	clusterLn  *listener.Listener
 	nodeID     int
 
+	// needsDRSnapshot is true when this node was bootstrapped from a
+	// restore bundle. Its FSM carries state that wasn't built up by
+	// replicated log entries, so a fresh joiner replaying the log
+	// from index 1 would hit changeset conflicts on the UPDATE
+	// changesets produced by the leader's post-bootstrap work (PKI
+	// mint etc). On the first leader transition we re-inject the
+	// current DB as a raft user snapshot, which truncates the log
+	// and forces joiners through InstallSnapshot. Cleared after a
+	// successful SelfRestore; OnBecameLeader is single-threaded from
+	// the observer so no mutex is needed.
+	needsDRSnapshot bool
+
 	bootstrapRegistered sync.Once
 }
 
-func newPKILeaderCallback(ctx context.Context, state *pkiState, dbInstance *db.Database, ln *listener.Listener, nodeID int) *pkiLeaderCallback {
+func newPKILeaderCallback(ctx context.Context, state *pkiState, dbInstance *db.Database, ln *listener.Listener, nodeID int, needsDRSnapshot bool) *pkiLeaderCallback {
 	return &pkiLeaderCallback{
-		ctx:        ctx,
-		state:      state,
-		dbInstance: dbInstance,
-		clusterLn:  ln,
-		nodeID:     nodeID,
+		ctx:             ctx,
+		state:           state,
+		dbInstance:      dbInstance,
+		clusterLn:       ln,
+		nodeID:          nodeID,
+		needsDRSnapshot: needsDRSnapshot,
 	}
 }
 
@@ -44,6 +57,17 @@ func newPKILeaderCallback(ctx context.Context, state *pkiState, dbInstance *db.D
 // failure logs but does not panic; issuance requests return 503 until
 // the next leadership transition retries.
 func (c *pkiLeaderCallback) OnBecameLeader() {
+	if c.needsDRSnapshot {
+		if err := c.dbInstance.SelfRestore(c.ctx); err != nil {
+			logger.EllaLog.Warn("post-DR self-restore failed", zap.Error(err))
+			// Skip the rest for this transition; the next leader
+			// callback fires a retry.
+			return
+		}
+
+		c.needsDRSnapshot = false
+	}
+
 	if err := setupLeaderPKI(c.ctx, c.state, c.dbInstance, c.nodeID); err != nil {
 		logger.EllaLog.Warn("setupLeaderPKI on leader transition failed", zap.Error(err))
 		return
@@ -69,29 +93,23 @@ func (c *pkiLeaderCallback) OnLostLeadership() {
 	}
 }
 
-// setupLeaderPKI runs on the leader after PostInitClusterSetup. It
-// bootstraps the issuer (first leader) or loads keys (subsequent
-// elections), issues a leaf for this node if we don't have one yet, and
-// publishes the issuer + revocation cache so HTTP handlers can reach
-// them.
+// setupLeaderPKI runs after PostInitClusterSetup. It bootstraps the
+// issuer on the first leader, loads signing keys from the replicated
+// DB on every leadership transition, self-issues a leaf if this node
+// doesn't have one, and publishes the issuer so HTTP handlers can
+// reach it.
 func setupLeaderPKI(ctx context.Context, pki *pkiState, dbInstance *db.Database, nodeID int) error {
 	if pki.issuer == nil {
-		pki.issuer = pkiissuer.New(dbInstance, dbInstance.Dir())
+		pki.issuer = pkiissuer.New(dbInstance)
 	}
 
-	// First-leader bootstrap (idempotent).
 	if err := pki.issuer.Bootstrap(ctx); err != nil {
 		return fmt.Errorf("issuer bootstrap: %w", err)
 	}
 
-	// Reload keys from disk every time leadership is acquired. A
-	// non-founding voter may only now have the keys via the key-
-	// transfer worker; a voter that was promoted before the transfer
-	// completed will leave LoadKeys in a degraded state and recover
-	// at the next election after the worker finishes. LoadKeys is
-	// non-fatal on missing files so Ready() stays false without
-	// crashing — Issue / MintJoinToken will return 503 until a
-	// subsequent promotion succeeds.
+	// A voter promoted before raft replicated the CA tables will leave
+	// LoadKeys with no active rows to load; Ready stays false and the
+	// next election re-runs this path.
 	if err := pki.issuer.LoadKeys(ctx); err != nil {
 		return fmt.Errorf("issuer load keys: %w", err)
 	}
@@ -104,10 +122,6 @@ func setupLeaderPKI(ctx context.Context, pki *pkiState, dbInstance *db.Database,
 		logger.EllaLog.Warn("refresh revocations", zap.Error(err))
 	}
 
-	// If this node has no leaf yet (first-boot-first-leader) AND we
-	// are able to issue (Ready), self-issue one. If keys are missing
-	// we can't self-issue; the key-transfer worker will keep trying
-	// and subsequent leadership events will re-run this path.
 	if pki.agent.Leaf() == nil && pki.issuer.Ready() {
 		if err := selfIssueLeaf(ctx, pki, nodeID); err != nil {
 			return fmt.Errorf("self-issue leaf: %w", err)

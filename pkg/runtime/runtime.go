@@ -119,42 +119,39 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	var pki *pkiState
 
+	var restoredFromBundle bool
+
 	if cfg.Cluster.Enabled {
 		dataDir := filepath.Dir(cfg.DB.Path)
 
-		if _, err := maybeRestoreFromBundle(dataDir); err != nil {
+		restored, err := maybeRestoreFromBundle(dataDir)
+		if err != nil {
 			return fmt.Errorf("restore bundle: %w", err)
 		}
 
-		// The cluster-id is not known until PostInitClusterSetup; the
-		// agent re-reads it from the operator row via the DB before
-		// signing CSRs. An empty string here means "not yet known" —
-		// the agent uses it only for CSR generation, which happens
-		// after the DB is up.
+		restoredFromBundle = restored
+
+		// cluster-id is unknown until PostInitClusterSetup populates
+		// the operator row; the agent re-reads it before signing CSRs.
 		pki = newPKIState(cfg.Cluster.NodeID, "", dataDir)
 
-		// If cluster.join-token is set and we have no leaf yet, run the
-		// join flow now (before the listener starts) so Raft can mTLS-
-		// handshake as soon as it forms.
+		// Join-token path runs before the listener comes up so raft
+		// can mTLS-handshake as soon as it forms.
 		if !pki.agent.HaveLeafOnDisk() {
 			if err := runJoinFlow(ctx, pki.agent, cfg.Cluster.Peers, cfg.Cluster.JoinToken); err != nil {
 				return fmt.Errorf("join flow: %w", err)
 			}
 		}
 
-		// Load whatever leaf is now on disk. Absent leaf is OK for the
-		// first-node case — the listener's Leaf() accessor will return
-		// nil until first-leader bootstrap fills it in, so only the
-		// bootstrap ALPN will accept connections until then.
 		if pki.agent.HaveLeafOnDisk() {
 			if err := pki.agent.Load(); err != nil {
 				return fmt.Errorf("load leaf: %w", err)
 			}
 
-			// Seed the listener's trust bundle from disk. Without this,
-			// the joiner's listener would reject incoming mTLS until
-			// RefreshBundle fires — which doesn't happen until after
-			// Raft replicates, which itself requires working mTLS.
+			// Seed the listener's trust bundle from bundle.crt.
+			// Without this, incoming mTLS would be rejected until
+			// RefreshBundle fires — which requires raft to replicate,
+			// which itself requires working mTLS.
 			if pki.agent.ClusterID != "" {
 				if err := pki.SeedBundleFromAgentDisk(pki.agent.ClusterID); err != nil {
 					return fmt.Errorf("seed trust bundle: %w", err)
@@ -253,7 +250,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			// accessor is refreshed here and again on every leadership
 			// transition.
 			if pki != nil {
-				pki.issuer = pkiissuer.New(dbInstance, dbInstance.Dir())
+				pki.issuer = pkiissuer.New(dbInstance)
 
 				if err := refreshFollowerBundleWithRetry(ctx, pki, 30*time.Second); err != nil {
 					logger.EllaLog.Warn("follower refresh bundle", zap.Error(err))
@@ -294,7 +291,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// later becomes leader loads its keys (if present) and publishes
 		// the issuer service.
 		if pki != nil {
-			observer.Register(newPKILeaderCallback(ctx, pki, dbInstance, clusterLn, cfg.Cluster.NodeID))
+			observer.Register(newPKILeaderCallback(ctx, pki, dbInstance, clusterLn, cfg.Cluster.NodeID, restoredFromBundle))
 		}
 	}
 
@@ -327,12 +324,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			wg.Go(func() {
 				runLeafRenewer(ctx, pki, clusterLn, dbInstance)
 			})
-
-			if keyTransferEnabled(cfg.Cluster.InitialSuffrage) {
-				wg.Go(func() {
-					runKeyTransferWorker(ctx, pki, clusterLn, dbInstance, cfg.Cluster.NodeID)
-				})
-			}
 		}
 	}
 

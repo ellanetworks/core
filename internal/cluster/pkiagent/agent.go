@@ -2,8 +2,8 @@
 
 // Package pkiagent runs on every cluster node. It owns the local leaf
 // key, fetches a leaf at first boot (via the join flow on a joining
-// node, or via the issuer service on the first node), persists the leaf
-// and trust bundle to disk, and renews on a jittered schedule.
+// node, or via the issuer service on the first node), persists the
+// leaf to disk, and renews on a jittered schedule.
 package pkiagent
 
 import (
@@ -30,7 +30,10 @@ import (
 	"github.com/ellanetworks/core/internal/pki"
 )
 
-// Filenames under <dataDir>/cluster-tls/.
+// Filenames under <dataDir>/cluster-tls/. All three are per-node
+// caches: leaf.crt and bundle.crt carry public material reassemble-able
+// from the replicated DB; leaf.key is the per-node private key that
+// must not be replicated.
 const (
 	leafCertFile   = "leaf.crt"
 	leafKeyFile    = "leaf.key"
@@ -46,8 +49,8 @@ type Agent struct {
 	current atomic.Pointer[tls.Certificate]
 }
 
-// NewAgent returns an unloaded agent. Callers should call Load or
-// perform an initial JoinFlow / SelfIssue before relying on Leaf().
+// NewAgent returns an unloaded agent. Callers should invoke Load,
+// JoinFlow, or the issuer's self-issue path before relying on Leaf.
 func NewAgent(nodeID int, clusterID, dataDir string) *Agent {
 	return &Agent{
 		NodeID:    nodeID,
@@ -56,14 +59,12 @@ func NewAgent(nodeID int, clusterID, dataDir string) *Agent {
 	}
 }
 
-// Leaf returns the current leaf certificate, or nil if none has been
-// loaded. Safe for use as listener.Config.Leaf.
+// Leaf is a listener.Config.Leaf accessor.
 func (a *Agent) Leaf() *tls.Certificate {
 	return a.current.Load()
 }
 
-// HaveLeafOnDisk reports whether leaf.crt and leaf.key exist in the
-// cluster-tls directory.
+// HaveLeafOnDisk reports whether leaf.crt and leaf.key both exist.
 func (a *Agent) HaveLeafOnDisk() bool {
 	certPath := a.path(leafCertFile)
 	keyPath := a.path(leafKeyFile)
@@ -79,11 +80,11 @@ func (a *Agent) HaveLeafOnDisk() bool {
 	return true
 }
 
-// Load reads leaf.crt, leaf.key, and bundle.crt from disk and makes them
-// the current leaf. The bundle is appended to the leaf so the resulting
-// tls.Certificate carries the full chain on the wire — see StoreLeaf for
-// why. A missing bundle file is tolerated so upgrades from layouts that
-// only wrote leaf.crt still work.
+// Load reads leaf.crt, leaf.key, and bundle.crt from disk and installs
+// the in-memory tls.Certificate used by the listener. A missing
+// bundle.crt is tolerated (the resulting certificate carries only the
+// leaf) so first-boot listener startup can complete before the bundle
+// has been written.
 func (a *Agent) Load() error {
 	certPEM, err := os.ReadFile(a.path(leafCertFile)) // #nosec: G304 -- under dataDir
 	if err != nil {
@@ -108,9 +109,18 @@ func (a *Agent) Load() error {
 		return fmt.Errorf("load leaf+key: %w", err)
 	}
 
-	// Compute Leaf (parsed cert) so downstream consumers don't re-parse.
+	// Compute Leaf (parsed cert) so downstream consumers don't re-parse,
+	// and re-derive ClusterID from its SPIFFE URI. ClusterID is needed
+	// by SeedBundleFromAgentDisk and CSR generation; on a restart boot
+	// the runtime's pkiState starts with an empty ClusterID, so pulling
+	// it from the leaf here is what keeps the listener's trust bundle
+	// accessor honest before raft replication kicks in.
 	if leaf, err := x509.ParseCertificate(c.Certificate[0]); err == nil {
 		c.Leaf = leaf
+
+		if cid, err := pki.ClusterIDFromLeaf(leaf); err == nil {
+			a.ClusterID = cid
+		}
 	}
 
 	a.current.Store(&c)
@@ -118,15 +128,9 @@ func (a *Agent) Load() error {
 	return nil
 }
 
-// StoreLeaf persists leafPEM+keyPEM and the bundlePEM to disk, atomically
-// for each file, then sets the in-memory leaf. The cluster-tls directory
-// is created with 0700 permissions if absent.
-//
-// The in-memory tls.Certificate bundles the full chain (leaf + intermediates
-// + roots) so the server can present it in one TLS handshake. This lets
-// the bootstrap-ALPN client pin against the root fingerprint embedded in
-// the join token without needing a separate chain-discovery round-trip;
-// sending the root to peers that already have the bundle is harmless.
+// StoreLeaf writes leafPEM, keyPEM, and bundlePEM to disk atomically
+// and builds the in-memory tls.Certificate (leaf + bundle + key) used
+// by the listener.
 func (a *Agent) StoreLeaf(leafPEM, keyPEM, bundlePEM []byte) error {
 	if err := os.MkdirAll(filepath.Dir(a.path(leafCertFile)), 0o700); err != nil {
 		return fmt.Errorf("mkdir cluster-tls: %w", err)
@@ -339,10 +343,9 @@ func (a *Agent) path(name string) string {
 	return filepath.Join(a.DataDir, "cluster-tls", name)
 }
 
-// BundlePath returns the absolute path where the agent persists the
-// trust bundle (roots + intermediates) it received from the issuer.
-// Callers use this to seed the listener's trust accessor before the
-// DB-backed bundle refresh is available.
+// BundlePath returns the filesystem path of bundle.crt. The runtime
+// reads it at startup to seed the listener's trust cache before raft
+// replication makes the CA tables locally queryable.
 func (a *Agent) BundlePath() string {
 	return a.path(bundleCertFile)
 }

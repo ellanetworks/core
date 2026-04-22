@@ -74,6 +74,30 @@ func (b *TrustBundle) Verify(cert *x509.Certificate, now time.Time) (int, error)
 	return nodeID, nil
 }
 
+// ClusterIDFromLeaf extracts the cluster-id segment from a leaf's
+// SPIFFE URI SAN (path "/<clusterID>/node/<n>"). Returns an error if
+// the URI is missing or malformed.
+func ClusterIDFromLeaf(cert *x509.Certificate) (string, error) {
+	if len(cert.URIs) != 1 {
+		return "", fmt.Errorf("leaf must carry exactly one URI SAN, got %d", len(cert.URIs))
+	}
+
+	u := cert.URIs[0]
+	if u.Scheme != "spiffe" || u.Host != SpiffeTrustDomain {
+		return "", fmt.Errorf("leaf URI SAN %q is not a valid SPIFFE URI for %s", u, SpiffeTrustDomain)
+	}
+
+	// Path: "/<clusterID>/node/<n>" — ClusterID is the first segment.
+	path := strings.TrimPrefix(u.Path, "/")
+
+	clusterID, rest, ok := strings.Cut(path, "/")
+	if !ok || clusterID == "" || !strings.HasPrefix(rest, "node/") {
+		return "", fmt.Errorf("leaf URI SAN path %q is not in the form /<clusterID>/node/<n>", u.Path)
+	}
+
+	return clusterID, nil
+}
+
 // identityFromURISAN enforces the spiffe URI shape and returns the nodeID.
 func identityFromURISAN(cert *x509.Certificate, clusterID string) (int, error) {
 	if len(cert.URIs) != 1 {

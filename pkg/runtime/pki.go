@@ -25,19 +25,17 @@ import (
 	"go.uber.org/zap"
 )
 
-// pkiState collects the runtime-wide PKI plumbing so the rest of the
-// bootstrap sequence can reach it by name.
+// pkiState collects the runtime-wide PKI plumbing.
 type pkiState struct {
 	agent      *pkiagent.Agent
 	issuer     *pkiissuer.Service
 	revocation *ellapki.RevocationCache
 
-	// bundleCached caches the last-read trust bundle so per-handshake
-	// accessor calls don't hit the DB on every hit. Refreshed lazily.
+	// bundleCached serves the listener's trust accessor from memory so
+	// per-handshake calls don't hit the DB.
 	bundleCached atomic.Pointer[ellapki.TrustBundle]
 
-	// bundleRefreshMu serialises concurrent refreshes so only one DB
-	// read is in flight at a time.
+	// bundleRefreshMu serialises concurrent refreshes.
 	bundleRefreshMu sync.Mutex
 }
 
@@ -48,28 +46,24 @@ func newPKIState(nodeID int, clusterID, dataDir string) *pkiState {
 	}
 }
 
-// LeafFunc returns a listener.LeafFunc-compatible accessor.
 func (p *pkiState) LeafFunc() func() *tls.Certificate {
 	return func() *tls.Certificate { return p.agent.Leaf() }
 }
 
-// RevokedFunc returns a listener.RevokedFunc-compatible accessor.
 func (p *pkiState) RevokedFunc() func(*big.Int) bool {
 	return p.revocation.IsRevoked
 }
 
-// BundleFunc returns a listener.TrustBundleFunc-compatible accessor.
-// Reads through a cached pointer; the cache is refreshed by
-// RefreshBundle (called after leadership transitions and bootstrap).
+// BundleFunc reads through bundleCached. RefreshBundle is responsible
+// for keeping that cache current.
 func (p *pkiState) BundleFunc() func() *ellapki.TrustBundle {
 	return func() *ellapki.TrustBundle { return p.bundleCached.Load() }
 }
 
 // RefreshBundle reads the current bundle from the DB and stores it in
-// the cache. Safe to call concurrently. If CurrentBundle returns an
-// error (including the "no active roots yet" race during bootstrap),
-// the previous cache entry is left intact so an earlier disk-seeded
-// bundle is not overwritten with an empty one.
+// the cache. Safe to call concurrently. On error — including the "no
+// active roots yet" race during bootstrap — the previous cache entry
+// is preserved.
 func (p *pkiState) RefreshBundle(ctx context.Context) error {
 	p.bundleRefreshMu.Lock()
 	defer p.bundleRefreshMu.Unlock()
@@ -87,9 +81,7 @@ func (p *pkiState) RefreshBundle(ctx context.Context) error {
 	p.bundleCached.Store(b)
 
 	// One-shot breadcrumb when the DB-backed bundle first becomes
-	// usable on this node. Helps diagnose mTLS-handshake failures on
-	// followers that raced the leader's PKI bootstrap: if this line
-	// is missing from a node's logs but the node is serving cluster
+	// usable. If this line is absent from a node serving cluster
 	// traffic, the listener is running on a seed-only bundle.
 	if prev == nil || len(prev.Roots) == 0 {
 		logger.EllaLog.Info("cluster PKI trust bundle populated from DB",
@@ -100,10 +92,10 @@ func (p *pkiState) RefreshBundle(ctx context.Context) error {
 	return nil
 }
 
-// refreshFollowerBundleWithRetry polls RefreshBundle until it populates
-// (or errors other than the bootstrap race) or the timeout elapses.
-// Handles the window where a joiner's WaitForInitialization returns as
-// soon as the operator row replicates but before the pki_roots rows do.
+// refreshFollowerBundleWithRetry polls RefreshBundle until it succeeds
+// or timeout elapses. Covers the window where a joiner's
+// WaitForInitialization returns on the operator row before the
+// pki_roots rows have replicated.
 func refreshFollowerBundleWithRetry(ctx context.Context, pki *pkiState, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 
@@ -129,14 +121,10 @@ func refreshFollowerBundleWithRetry(ctx context.Context, pki *pkiState, timeout 
 	}
 }
 
-// SeedBundleFromAgentDisk parses the bundle PEM the agent wrote during
-// the join flow and installs it in the cache. Needed because the
-// listener's trust accessor reads from the cache, but the DB-backed
-// RefreshBundle only works after the joiner's Raft log has replicated
-// the PKI state — and replication can't happen until the listener can
-// mTLS-verify peers. The on-disk bundle carries the same roots and
-// intermediates the leader handed us in the join response, so using it
-// as the initial trust set is safe.
+// SeedBundleFromAgentDisk parses bundle.crt into a TrustBundle and
+// installs it in the cache. Runs at startup after the agent has
+// leaf files on disk, so the listener has a usable trust bundle
+// before raft replication makes the CA tables locally queryable.
 func (p *pkiState) SeedBundleFromAgentDisk(clusterID string) error {
 	bundlePath := p.agent.BundlePath()
 
@@ -153,7 +141,6 @@ func (p *pkiState) SeedBundleFromAgentDisk(clusterID string) error {
 		var block *pem.Block
 
 		block, rest = pem.Decode(rest)
-
 		if block == nil {
 			break
 		}
@@ -227,10 +214,9 @@ func runRevocationRefresher(ctx context.Context, pki *pkiState, dbInstance *db.D
 	}
 }
 
-// maybeRestoreFromBundle checks for a restore.bundle file under dataDir.
-// If present AND there is no existing ella.db, extracts the bundle in
-// place and deletes the input bundle. Returns true if a restore
-// happened.
+// maybeRestoreFromBundle extracts restore.bundle under dataDir when
+// present and ella.db does not yet exist. Returns true if a restore
+// happened. No-op otherwise.
 func maybeRestoreFromBundle(dataDir string) (bool, error) {
 	bundlePath := filepath.Join(dataDir, "restore.bundle")
 
@@ -250,7 +236,7 @@ func maybeRestoreFromBundle(dataDir string) (bool, error) {
 		return false, nil
 	}
 
-	if err := db.ExtractForDR(bundlePath, dataDir); err != nil {
+	if err := db.ExtractForRestore(bundlePath, dataDir); err != nil {
 		return false, fmt.Errorf("extract restore bundle: %w", err)
 	}
 

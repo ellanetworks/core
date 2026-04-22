@@ -33,7 +33,7 @@ Ella Core stores all persistent data in an embedded database. You can create bac
 
 ## Disaster recovery for HA clusters
 
-HA backups include the cluster CA private keys alongside the database.
+HA backup archives carry the cluster CA signing keys inside `ella.db`.
 If every voter is lost, reconstruct the cluster by dropping the bundle
 under a fresh data directory before starting the daemon:
 

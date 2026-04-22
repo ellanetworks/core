@@ -256,16 +256,30 @@ func createTestNode(t testing.TB, nodeID int, pki *testutil.PKI, applier Applier
 
 	boltPath := filepath.Join(raftDir, "raft.db")
 
-	boltStore, err := raftboltdb.NewBoltStore(boltPath)
-	if err != nil {
-		t.Fatalf("create bolt store for node %d: %v", nodeID, err)
-	}
+	var (
+		boltStore *raftboltdb.BoltStore
+		snapshots hraft.SnapshotStore
+	)
 
-	snapshots, err := hraft.NewFileSnapshotStore(raftDir, 3, newZapIOWriter("snapshot"))
-	if err != nil {
-		_ = boltStore.Close()
+	if err := withTightUmask(func() error {
+		var bsErr error
 
-		t.Fatalf("create snapshot store for node %d: %v", nodeID, err)
+		boltStore, bsErr = raftboltdb.NewBoltStore(boltPath)
+		if bsErr != nil {
+			return fmt.Errorf("create bolt store for node %d: %w", nodeID, bsErr)
+		}
+
+		var ssErr error
+
+		snapshots, ssErr = hraft.NewFileSnapshotStore(raftDir, 3, newZapIOWriter("snapshot"))
+		if ssErr != nil {
+			_ = boltStore.Close()
+			return fmt.Errorf("create snapshot store for node %d: %w", nodeID, ssErr)
+		}
+
+		return nil
+	}); err != nil {
+		t.Fatalf("%v", err)
 	}
 
 	logCache, err := hraft.NewLogCache(raftLogCacheSize, boltStore)
