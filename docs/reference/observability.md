@@ -41,6 +41,19 @@ These metrics are used to monitor the health of the system and the performance o
 | app_database_storage_bytes | The total storage used by the database in bytes. This is the size of the database file on disk. | Gauge |
 | app_database_queries_total | Total number of database queries by table and operation | Counter |
 | app_database_query_duration_seconds | Duration of database queries | Histogram |
+| app_raft_changeset_bytes_total | SQLite changeset bytes applied through the Raft FSM. Emitted only when clustering is enabled. | Counter |
+
+!!! note
+    When clustering is enabled, Ella Core also exports the full upstream [hashicorp/raft](https://github.com/hashicorp/raft) metrics suite (prefix `raft_`). These cover cluster state, leadership, replication, FSM apply latency, and snapshotting. The most useful ones for HA monitoring are:
+
+    - `raft_state_leader`, `raft_state_follower`, `raft_state_candidate` — counters incremented on each state transition. Rate indicates leadership flapping.
+    - `raft_leader_lastContact` — time since the leader last heard from a majority of peers (leader-only). Stale values indicate leader isolation.
+    - `raft_peers` — number of servers in the cluster configuration.
+    - `raft_fsm_apply` — FSM apply latency histogram. Covers the changeset apply path.
+    - `raft_replication_appendEntries_rpc`, `raft_replication_heartbeat` — per-peer replication latency, labeled by `peer_id`. Slow or absent values indicate an unhealthy follower.
+    - `raft_transition_heartbeat_timeout`, `raft_transition_leader_lease_timeout` — counters for failure-driven transitions.
+    - `raft_oldestLogAge` — age of the oldest retained log entry. Growing unbounded indicates snapshot/compaction is stuck.
+    - `raft_commitTime`, `raft_commitNumLogs` — commit latency and batch size on the leader.
 
 ## 2. Logs
 

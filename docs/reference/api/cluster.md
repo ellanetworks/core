@@ -4,15 +4,19 @@ description: RESTful API reference for managing cluster membership.
 
 # Cluster
 
-These endpoints are only available when clustering is enabled in the configuration file.
+This section describes the RESTful API for managing cluster membership. These endpoints are only available when clustering is enabled in the configuration file.
 
 ## List Cluster Members
 
-Returns all registered cluster members. This is the static configuration view — who the cluster is configured to be. For the live operational view (who is healthy, how much replication lag, how many failures the cluster can absorb) use [Get Autopilot State](#get-autopilot-state) instead.
+This path returns the list of cluster members.
 
 | Method | Path                       |
 | ------ | -------------------------- |
 | GET    | `/api/v1/cluster/members`  |
+
+### Parameters
+
+None
 
 ### Sample Response
 
@@ -41,16 +45,17 @@ Returns all registered cluster members. This is the static configuration view �
 
 ## Remove a Cluster Member
 
-Removes a node from the Raft cluster and deletes its record. The node must be drained first (`drainState == "drained"`) or the caller must pass `?force=true`. Requires admin privileges.
+This path removes a node from the Raft cluster. The node must be drained first (`drainState == "drained"`) unless `force=true` is set. Requires admin privileges.
 
 | Method | Path                            |
 | ------ | ------------------------------- |
 | DELETE | `/api/v1/cluster/members/{id}`  |
 
-### Parameters
+### Query Parameters
 
-- `id` (integer, path): Node ID of the cluster member to remove.
-- `force` (boolean, query, optional): Bypass the drain precondition. Use only when the drain endpoint cannot reach the target (for example, the node has already been terminated).
+| Name    | In    | Type | Default | Description                                     |
+| ------- | ----- | ---- | ------- | ----------------------------------------------- |
+| `force` | query | bool | `false` | Bypass the drain precondition.                  |
 
 ### Sample Response
 
@@ -64,9 +69,7 @@ Removes a node from the Raft cluster and deletes its record. The node must be dr
 
 ## Promote a Cluster Member
 
-Promotes a nonvoter node to a full voter in the Raft cluster. Requires admin privileges.
-
-Autopilot also promotes non-voters automatically once they have been healthy and up-to-date for the server stabilization window (10 seconds). This endpoint is intended for operators who need to promote a node immediately without waiting, for example during a rolling upgrade.
+This path promotes a nonvoter node to a voter in the Raft cluster. Autopilot promotes healthy nonvoters automatically; use this endpoint to promote immediately. Requires admin privileges.
 
 | Method | Path                                    |
 | ------ | --------------------------------------- |
@@ -74,7 +77,7 @@ Autopilot also promotes non-voters automatically once they have been healthy and
 
 ### Parameters
 
-- `id` (integer, path): Node ID of the cluster member to promote.
+None
 
 ### Sample Response
 
@@ -88,32 +91,15 @@ Autopilot also promotes non-voters automatically once they have been healthy and
 
 ## Get Autopilot State
 
-Returns the live autopilot view of the cluster: per‑peer health and replication lag, voter/nonvoter roster, and cluster‑wide `failureTolerance`. Requires admin privileges.
-
-`cluster/members` answers *what the cluster is configured to be*. `cluster/autopilot` answers *how the cluster is actually doing right now*. The two complement each other — the UI polls both.
+This path returns the live autopilot view of the cluster: per-peer health, voter roster, and failure tolerance. Only the leader can produce this state; followers proxy the request to the leader automatically. Requires admin privileges.
 
 | Method | Path                         |
 | ------ | ---------------------------- |
 | GET    | `/api/v1/cluster/autopilot`  |
 
-### Leader‑only; automatic proxy
+### Parameters
 
-Autopilot runs only on the leader, so only the leader can produce state. Followers proxy this GET to the leader over the cluster port; the response is returned to the original caller verbatim. Immediately after a leadership change the new leader may return an empty state for a short window (typically under one second) until its first autopilot tick publishes a state.
-
-### Fields
-
-- `healthy` (boolean): True when every voter is healthy according to autopilot's current config.
-- `failureTolerance` (integer): How many voter failures the cluster can currently absorb without losing quorum. Zero means any additional failure will stall writes.
-- `leaderNodeId` (integer): Raft node ID of the current leader; zero when unknown. Matches the field of the same name on `GET /api/v1/status`.
-- `voters` (array of integers): Node IDs of voting members, ascending.
-- `servers` (array): Per‑peer state, sorted by `nodeId`.
-    - `nodeId` (integer): Raft node ID.
-    - `raftAddress` (string): Raft transport address (`host:port`). Matches the field of the same name on `/api/v1/cluster/members`.
-    - `nodeStatus` (string): Autopilot lifecycle state — `alive`, `left`, `failed`.
-    - `healthy` (boolean): Autopilot's verdict for this peer. Followers flip to unhealthy when their heartbeats stop.
-    - `isLeader` (boolean): True when this peer is the current Raft leader.
-    - `hasVotingRights` (boolean): True for voters and the leader; false for nonvoters.
-    - `stableSince` (string, RFC 3339, optional): Last time this peer's `healthy` value changed. For an unhealthy peer this is when contact was lost. Omitted when unknown.
+None
 
 ### Sample Response
 
@@ -142,15 +128,6 @@ Autopilot runs only on the leader, so only the leader can produce state. Followe
                 "isLeader": false,
                 "hasVotingRights": true,
                 "stableSince": "2026-04-20T08:15:02Z"
-            },
-            {
-                "nodeId": 3,
-                "raftAddress": "10.0.0.3:7000",
-                "nodeStatus": "left",
-                "healthy": false,
-                "isLeader": false,
-                "hasVotingRights": true,
-                "stableSince": "2026-04-20T08:15:02Z"
             }
         ]
     }
@@ -159,13 +136,9 @@ Autopilot runs only on the leader, so only the leader can produce state. Followe
 
 ## Drain Cluster Member
 
-Marks the target node as draining and runs the local drain side-effects on it: transfers Raft leadership if the target is the leader, signals connected RANs that this AMF's GUAMI is unavailable (AMF Status Indication, TS 38.413), and stops the local BGP speaker. The target continues serving existing flows. Requires admin privileges.
+This path marks a node as draining and runs the local drain side-effects: transfers Raft leadership if the target is the leader, signals connected RANs that this AMF's GUAMI is unavailable, and stops the local BGP speaker. A node must be drained before it can be removed. Requires admin privileges.
 
-Drain persists a three-state machine on the cluster_members row (`active` → `draining` → `drained`) that every node can read. A node must be `drained` before it can be removed (see Remove Cluster Member), or the caller must pass `?force=true`.
-
-When `deadlineSeconds` is 0 (default), drain is synchronous: the call returns once side-effects complete and `state` is `drained`. When `deadlineSeconds > 0`, the call returns `state: draining` immediately; a background watcher on the leader flips the state to `drained` once the target's active-lease count reaches zero or the deadline elapses.
-
-In HA mode, drain runs on the leader (followers forward the request automatically). The leader persists drain state through Raft and dispatches the node-local side-effects to the target node over the cluster mTLS port; when the target is the leader itself, the side-effects run inline.
+When `deadlineSeconds` is 0 (default), drain is synchronous and returns once `state` is `drained`. When `deadlineSeconds > 0`, the call returns `state: draining` immediately; a background watcher flips the state to `drained` once the target's active-lease count reaches zero or the deadline elapses.
 
 | Method | Path                                            |
 | ------ | ----------------------------------------------- |
@@ -173,8 +146,7 @@ In HA mode, drain runs on the leader (followers forward the request automaticall
 
 ### Parameters
 
-- `id` (path, integer, required): Node ID of the cluster member to drain.
-- `deadlineSeconds` (body, integer, optional): Seconds to wait for the node's active-lease count to reach zero. 0 = synchronous (default).
+- `deadlineSeconds` (integer, optional): Seconds to wait for the node's active-lease count to reach zero. 0 = synchronous (default).
 
 ### Sample Response
 
@@ -186,18 +158,9 @@ In HA mode, drain runs on the leader (followers forward the request automaticall
 }
 ```
 
-After a drain returns, poll [`GET /api/v1/cluster/members`](#list-cluster-members) to observe the node's current `drainState`. Side-effects (leadership transfer, RAN notifications, BGP stop) are recorded in the audit log.
-
 ## Resume Cluster Member
 
-Reverses drain on the target node: restarts the local BGP speaker (if BGP is globally enabled) and clears `drainState` back to `active`. Requires admin privileges.
-
-Not reversed by resume:
-
-- **RAN unavailability.** No NGAP message revokes AMF Status Indication; the RAN's next NG Setup re-establishes the GUAMI.
-- **Raft leadership.** Leadership transferred during drain stays with the new leader.
-
-Idempotent: resuming an already-active node is a no-op.
+This path reverses drain on a node: restarts the local BGP speaker (if BGP is enabled) and clears `drainState` back to `active`. RAN unavailability and transferred leadership are not reversed. Idempotent. Requires admin privileges.
 
 | Method | Path                                            |
 | ------ | ----------------------------------------------- |
@@ -205,7 +168,7 @@ Idempotent: resuming an already-active node is a no-op.
 
 ### Parameters
 
-- `id` (path, integer, required): Node ID of the cluster member to resume.
+None
 
 ### Sample Response
 
@@ -219,23 +182,18 @@ Idempotent: resuming an already-active node is a no-op.
 
 ## Mint Join Token
 
-Mints a single-use HMAC token authorising `nodeID` to request its
-first cluster leaf. Requires admin privileges.
+This path mints a single-use HMAC token authorising `nodeID` to request its first cluster leaf certificate. The cluster root fingerprint is embedded in the token. Requires admin privileges.
 
 | Method | Path                               |
 | ------ | ---------------------------------- |
 | POST   | `/api/v1/cluster/pki/join-tokens`  |
 
-Request:
+### Parameters
 
-```json
-{ "nodeID": 2, "ttlSeconds": 1800 }
-```
+- `nodeID` (integer): Node ID of the joining host.
+- `ttlSeconds` (integer, optional): Token lifetime in seconds. Defaults to `1800`.
 
-- `nodeID` (int, required): Node-id of the joining host.
-- `ttlSeconds` (int, optional): Token lifetime; defaults to 1800.
-
-Response:
+### Sample Response
 
 ```json
 {
@@ -245,7 +203,3 @@ Response:
     }
 }
 ```
-
-Put `token` in the joining host's `cluster.join-token` config field
-before starting the daemon. The cluster root fingerprint is embedded
-in the token.

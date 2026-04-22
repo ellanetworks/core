@@ -15,7 +15,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/version"
@@ -133,11 +132,10 @@ func (f *FSM) Apply(l *raft.Log) interface{} {
 	}
 
 	ctx := context.Background()
-	started := time.Now()
 
 	result, err := f.applier.ApplyCommand(ctx, cmd)
 	if cmd.Type == CmdChangeset {
-		ObserveChangesetApply(len(cmd.Payload), time.Since(started))
+		ObserveChangesetBytes(len(cmd.Payload))
 	}
 
 	if err != nil {
@@ -218,11 +216,9 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 			continue
 		}
 
-		started := time.Now()
-
 		result, applyErr := f.applier.ApplyCommand(ctx, cmd)
 		if cmd.Type == CmdChangeset {
-			ObserveChangesetApply(len(cmd.Payload), time.Since(started))
+			ObserveChangesetBytes(len(cmd.Payload))
 		}
 
 		if applyErr != nil {

@@ -18,6 +18,7 @@ Initial setup and configuration of Ella Core.
 Ongoing management and maintenance of a running Ella Core deployment.
 
 - [Backup and Restore](backup_and_restore.md)
+- [Scale Up a High Availability Cluster (beta)](scale_up_ha_cluster.md)
 - [Tune Network Performance](performance_tuning.md)
 - [Advertise Subscriber Routes with BGP](bgp.md)
 - [Manage Your Network with AI Agents](ai_agents.md)

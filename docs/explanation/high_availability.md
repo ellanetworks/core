@@ -78,33 +78,19 @@ New voters join in two steps. The operator registers the node as a non-voter, wh
 
 Shrinking is symmetric. Drain the node, then remove it; the remaining voters continue serving writes while the configuration change commits.
 
-## Cluster PKI
+## Inter-node communication using mTLS
 
 Every inter-node connection is mutually authenticated over TLS 1.3.
 
-On first-leader election, the cluster generates its own root CA and
-an intermediate, and signs itself a leaf. Private keys live on each
-voter's disk; public certs and a join-token HMAC key are replicated
-through Raft so every voter can validate chains.
+On first-leader election, the cluster generates its own root CA and an intermediate, and signs itself a leaf. Private keys live on each voter's disk; public certs and a join-token HMAC key are replicated through Raft so every voter can validate chains.
 
-Additional nodes join via a single-use HMAC token. An admin mints one
-through the Cluster page; the joining node puts it in its
-`cluster.join-token` config field and exchanges it for a leaf over a
-dedicated bootstrap ALPN. The cluster root fingerprint is embedded in
-the token so the joining node can pin the TLS handshake without any
-separate fingerprint input.
+Additional nodes join via a single-use HMAC token. An admin mints one through the Cluster page; the joining node puts it in its `cluster.join-token` config field and exchanges it for a leaf over a dedicated bootstrap ALPN.
 
-Leaves are short-lived (24 hours). Each node renews its own leaf
-automatically at 60–90 % of the TTL, jittered. Removing a cluster
-member revokes every leaf it holds; the in-memory revocation cache on
-every voter stops accepting those certs within seconds.
+Leaves are short-lived (24 hours). Each node renews its own leaf automatically at 60–90 % of the TTL, jittered. Removing a cluster member revokes every leaf it holds; the in-memory revocation cache on every voter stops accepting those certs within seconds.
 
-Every leaf's URI SAN is `spiffe://cluster.ella/<cluster-id>/node/<n>`;
-the local cluster ID is checked at every handshake, so a leaf from
-one cluster cannot authenticate into another.
+Every leaf's URI SAN is `spiffe://cluster.ella/<cluster-id>/node/<n>`; the local cluster ID is checked at every handshake, so a leaf from one cluster cannot authenticate into another.
 
-The CA private keys are part of the data directory. Back them up —
-see [Backup and Restore](../how_to/backup_and_restore.md).
+The CA private keys are part of the data directory. Back them up — see [Backup and Restore](../how_to/backup_and_restore.md).
 
 ## Rolling upgrades
 
@@ -115,4 +101,5 @@ To keep a mixed-version cluster consistent, the leader applies a schema migratio
 ## Further reading
 
 - [Deploy a High Availability Cluster](../how_to/deploy_ha_cluster.md) — step-by-step guide to bring up a cluster.
+- [Scale Up a High Availability Cluster (beta)](../how_to/scale_up_ha_cluster.md) — add nodes to an existing cluster.
 - [Cluster API reference](../reference/api/cluster.md) — cluster management endpoints.
