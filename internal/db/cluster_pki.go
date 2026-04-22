@@ -538,14 +538,12 @@ func ReadClusterTrustBundlePEM(ctx context.Context, dbPath string) ([]byte, erro
 
 	for _, q := range []struct {
 		table string
-		order string
+		stmt  string
 	}{
-		{ClusterPKIRootsTableName, "addedAt ASC"},
-		{ClusterPKIIntermediatesTableName, "notAfter ASC"},
+		{ClusterPKIRootsTableName, "SELECT certPEM FROM " + ClusterPKIRootsTableName + " WHERE status != 'retired' ORDER BY addedAt ASC"},
+		{ClusterPKIIntermediatesTableName, "SELECT certPEM FROM " + ClusterPKIIntermediatesTableName + " WHERE status != 'retired' ORDER BY notAfter ASC"},
 	} {
-		stmt := fmt.Sprintf("SELECT certPEM FROM %s WHERE status != 'retired' ORDER BY %s", q.table, q.order)
-
-		rows, err := conn.QueryContext(ctx, stmt)
+		rows, err := conn.QueryContext(ctx, q.stmt)
 		if err != nil {
 			return nil, fmt.Errorf("query %s: %w", q.table, err)
 		}
