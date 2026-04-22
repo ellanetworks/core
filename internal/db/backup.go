@@ -17,9 +17,8 @@ import (
 )
 
 // BackupManifestVersion is the on-disk version of the backup tar.gz
-// format. Version 1 carries manifest.json and ella.db only. The CA
-// signing keys now live in the replicated DB, so the archive captures
-// them automatically without special-case tar entries.
+// format. Archives carry manifest.json and ella.db; all replicated
+// state (including CA signing keys) is inside ella.db.
 const BackupManifestVersion = 1
 
 // BackupManifest is the JSON document embedded as manifest.json inside every
@@ -89,10 +88,8 @@ func (db *Database) Backup(ctx context.Context, dst io.Writer) error {
 		return fmt.Errorf("failed to write %s: %w", DBFilename, err)
 	}
 
-	// The archive now carries all cluster secrets (CA signing keys,
-	// HMAC key, operator secrets) inside ella.db. Warn on every
-	// invocation so operators who don't read the docs don't ship
-	// unencrypted archives to cloud storage.
+	// The archive carries all cluster secrets inside ella.db (CA
+	// signing keys, HMAC key, operator secrets).
 	fmt.Fprintln(os.Stderr, "warning: backup archive contains cluster signing keys; store and transfer encrypted")
 
 	if err := tarWriter.Close(); err != nil {

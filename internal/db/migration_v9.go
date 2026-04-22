@@ -8,17 +8,9 @@ import (
 	"fmt"
 )
 
-// ---------------------------------------------------------------------------
-// V9 migration — HA schema additions
-//
-// Adds the columns and tables introduced alongside Raft-based HA:
-//   * operator.amfRegionID, amfSetID, clusterID
-//   * ip_leases.nodeID + idx_leases_node
-//   * bgp_peers.nodeID
-//   * cluster_members table
-//   * cluster PKI tables (roots, intermediates, issued certs, revoked
-//     certs, join tokens, pki state singleton)
-// ---------------------------------------------------------------------------
+// V9 introduces the HA-related schema: node-identity columns, the
+// cluster_members table, and the cluster PKI tables (roots,
+// intermediates, issued certs, revoked certs, join tokens, pki state).
 
 const v9CreateClusterMembers = `
 	CREATE TABLE IF NOT EXISTS %s (

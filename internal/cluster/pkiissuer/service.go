@@ -3,13 +3,9 @@
 // Package pkiissuer is the cluster's PKI issuer service. It runs on the
 // Raft leader: generates root+intermediate on first boot, signs leaves
 // requested by joining or renewing nodes, mints and verifies join
-// tokens, and drives CA rotation.
-//
-// All PKI material — including the root and intermediate signing keys —
-// lives in the replicated DB (cluster_pki_roots.keyPEM and
-// cluster_pki_intermediates.keyPEM on active rows). Every voter
-// receives the signing keys through ordinary raft replication; there
-// is no separate key-transfer protocol.
+// tokens, and drives CA rotation. All signing material (roots,
+// intermediates, HMAC key) lives in the replicated DB and is carried
+// to new voters by ordinary raft replication.
 package pkiissuer
 
 import (
@@ -67,13 +63,9 @@ func New(store Store) *Service {
 	return &Service{store: store}
 }
 
-// Bootstrap generates root + intermediate + HMAC key on the first leader
-// to run against a fresh cluster. Idempotent: if an active root and
-// intermediate already exist, returns nil without touching state.
-//
-// The three DB writes (pki_state, root, intermediate) land as one raft
-// changeset via BootstrapPKI — either all three persist or none do, so
-// there is no partial-state window and no self-healing retry branch.
+// Bootstrap generates root + intermediate + HMAC key and persists them
+// via a single atomic changeset. Idempotent: returns nil without
+// touching state if an active root and intermediate already exist.
 func (s *Service) Bootstrap(ctx context.Context) error {
 	op, err := s.store.GetOperator(ctx)
 	if err != nil {
@@ -187,10 +179,10 @@ func hasActive(statuses []string) bool {
 	return false
 }
 
-// LoadKeys parses the active root and intermediate signing keys from the
-// replicated DB and prepares the in-memory issuer. Called on every
-// OnBecameLeader. Returns nil (not an error) if no active rows exist —
-// that is the pre-bootstrap state on a fresh leader.
+// LoadKeys parses the active root and intermediate signing keys from
+// the replicated DB into the in-memory issuer. Returns nil (not an
+// error) when there are no active rows — the pre-bootstrap state on a
+// fresh leader.
 func (s *Service) LoadKeys(ctx context.Context) error {
 	roots, err := s.store.ListPKIRoots(ctx)
 	if err != nil {
@@ -260,7 +252,7 @@ func pickActiveIntermediate(is []db.ClusterPKIIntermediate) *db.ClusterPKIInterm
 	return nil
 }
 
-// UnloadKeys zeros the in-memory keys. Called on OnLostLeadership.
+// UnloadKeys is called on OnLostLeadership.
 func (s *Service) UnloadKeys() {
 	s.mu.Lock()
 	s.rootKey = nil
@@ -269,8 +261,7 @@ func (s *Service) UnloadKeys() {
 	s.mu.Unlock()
 }
 
-// Ready reports whether the issuer holds a signing intermediate and can
-// service Issue requests.
+// Ready reports whether the issuer can service Issue requests.
 func (s *Service) Ready() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -522,9 +513,8 @@ func (s *Service) ActiveRootFingerprint(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("no active root")
 }
 
-// encodePrivateKeyPEM returns the PKCS#8 PEM encoding of a private key.
-// Used only for writes into the replicated DB — callers must not log or
-// otherwise emit the returned bytes.
+// encodePrivateKeyPEM returns the PKCS#8 PEM encoding of a private
+// key. Callers must not log or otherwise emit the returned bytes.
 func encodePrivateKeyPEM(key crypto.Signer) ([]byte, error) {
 	der, err := x509.MarshalPKCS8PrivateKey(key)
 	if err != nil {
@@ -534,8 +524,7 @@ func encodePrivateKeyPEM(key crypto.Signer) ([]byte, error) {
 	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), nil
 }
 
-// parsePrivateKeyPEM parses a PKCS#8 PEM private key and asserts the
-// resulting key satisfies crypto.Signer.
+// parsePrivateKeyPEM parses a PKCS#8 PEM private key as a crypto.Signer.
 func parsePrivateKeyPEM(keyPEM []byte) (crypto.Signer, error) {
 	if len(keyPEM) == 0 {
 		return nil, fmt.Errorf("empty private key PEM")

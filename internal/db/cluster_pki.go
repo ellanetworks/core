@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/canonical/sqlair"
@@ -35,46 +34,38 @@ const (
 // Prepared-statement templates. `%s` takes the table name; see
 // PrepareStatements for the bindings.
 const (
-	// Roots. setPKIRootStatus always sets keyPEM alongside status so the
-	// CHECK constraint (active⇔keyPEM, verify-only/retired⇒NULL) holds.
 	listPKIRootsStmtStr     = "SELECT &ClusterPKIRoot.* FROM %s ORDER BY addedAt ASC"
 	insertPKIRootStmtStr    = "INSERT INTO %s (fingerprint, certPEM, crossSignedPEM, keyPEM, addedAt, status) VALUES ($ClusterPKIRoot.fingerprint, $ClusterPKIRoot.certPEM, $ClusterPKIRoot.crossSignedPEM, $ClusterPKIRoot.keyPEM, $ClusterPKIRoot.addedAt, $ClusterPKIRoot.status)"
 	setPKIRootStatusStmtStr = "UPDATE %s SET status=$ClusterPKIRoot.status, keyPEM=$ClusterPKIRoot.keyPEM WHERE fingerprint=$ClusterPKIRoot.fingerprint"
 	deletePKIRootStmtStr    = "DELETE FROM %s WHERE fingerprint=$ClusterPKIRoot.fingerprint"
 
-	// Intermediates. See note on roots regarding status/keyPEM coupling.
 	listPKIIntermediatesStmtStr     = "SELECT &ClusterPKIIntermediate.* FROM %s ORDER BY notAfter ASC"
 	insertPKIIntermediateStmtStr    = "INSERT INTO %s (fingerprint, certPEM, crossSignedPEM, keyPEM, rootFingerprint, notAfter, status) VALUES ($ClusterPKIIntermediate.fingerprint, $ClusterPKIIntermediate.certPEM, $ClusterPKIIntermediate.crossSignedPEM, $ClusterPKIIntermediate.keyPEM, $ClusterPKIIntermediate.rootFingerprint, $ClusterPKIIntermediate.notAfter, $ClusterPKIIntermediate.status)"
 	setPKIIntermediateStatusStmtStr = "UPDATE %s SET status=$ClusterPKIIntermediate.status, keyPEM=$ClusterPKIIntermediate.keyPEM WHERE fingerprint=$ClusterPKIIntermediate.fingerprint"
 	deletePKIIntermediateStmtStr    = "DELETE FROM %s WHERE fingerprint=$ClusterPKIIntermediate.fingerprint"
 
-	// Issued certs
 	insertIssuedCertStmtStr         = "INSERT INTO %s (serial, nodeID, notAfter, intermediateFingerprint, issuedAt) VALUES ($ClusterIssuedCert.serial, $ClusterIssuedCert.nodeID, $ClusterIssuedCert.notAfter, $ClusterIssuedCert.intermediateFingerprint, $ClusterIssuedCert.issuedAt)"
 	listIssuedCertsByNodeStmtStr    = "SELECT &ClusterIssuedCert.* FROM %s WHERE nodeID=$ClusterIssuedCert.nodeID AND notAfter>$ClusterIssuedCert.notAfter"
 	listIssuedCertsActiveStmtStr    = "SELECT &ClusterIssuedCert.* FROM %s WHERE notAfter>$ClusterIssuedCert.notAfter"
 	deleteIssuedCertsExpiredStmtStr = "DELETE FROM %s WHERE notAfter<$ClusterIssuedCert.notAfter"
 
-	// Revoked certs
 	insertRevokedCertStmtStr        = "INSERT INTO %s (serial, nodeID, revokedAt, reason, purgeAfter) VALUES ($ClusterRevokedCert.serial, $ClusterRevokedCert.nodeID, $ClusterRevokedCert.revokedAt, $ClusterRevokedCert.reason, $ClusterRevokedCert.purgeAfter) ON CONFLICT(serial) DO NOTHING"
 	listRevokedCertsStmtStr         = "SELECT &ClusterRevokedCert.* FROM %s"
 	deleteRevokedCertsPurgedStmtStr = "DELETE FROM %s WHERE purgeAfter<$ClusterRevokedCert.purgeAfter"
 
-	// Join tokens
 	insertJoinTokenStmtStr       = "INSERT INTO %s (id, nodeID, claimsJSON, expiresAt, consumedAt, consumedBy) VALUES ($ClusterJoinToken.id, $ClusterJoinToken.nodeID, $ClusterJoinToken.claimsJSON, $ClusterJoinToken.expiresAt, 0, 0)" // #nosec G101 -- SQL statement, not a credential
 	getJoinTokenStmtStr          = "SELECT &ClusterJoinToken.* FROM %s WHERE id=$ClusterJoinToken.id"
 	consumeJoinTokenStmtStr      = "UPDATE %s SET consumedAt=$ClusterJoinToken.consumedAt, consumedBy=$ClusterJoinToken.consumedBy WHERE id=$ClusterJoinToken.id AND consumedAt=0" // #nosec G101 -- SQL statement, not a credential
 	deleteJoinTokensStaleStmtStr = "DELETE FROM %s WHERE expiresAt<$ClusterJoinToken.expiresAt OR (consumedAt>0 AND consumedAt<$ClusterJoinToken.consumedAt)"                      // #nosec G101 -- SQL statement, not a credential
 
-	// PKI state singleton
 	initPKIStateStmtStr   = "INSERT INTO %s (id, hmacKey, serialCounter) VALUES (1, $ClusterPKIState.hmacKey, 0) ON CONFLICT(id) DO NOTHING"
 	getPKIStateStmtStr    = "SELECT &ClusterPKIState.* FROM %s WHERE id=1"
 	allocateSerialStmtStr = "UPDATE %s SET serialCounter=serialCounter+1 WHERE id=1 RETURNING serialCounter AS &ClusterPKIState.serialCounter"
 )
 
-// ClusterPKIRoot is a row in cluster_pki_roots. KeyPEM carries the PKCS#8
-// private-key PEM and is only populated for rows with status='active';
-// verify-only and retired rows have KeyPEM nil to bound the raft-log
-// exposure window of a rotated-out signing key.
+// ClusterPKIRoot is a row in cluster_pki_roots. KeyPEM holds the PKCS#8
+// private-key PEM; a CHECK constraint enforces that it is populated iff
+// status='active'.
 type ClusterPKIRoot struct {
 	Fingerprint    string `db:"fingerprint"`
 	CertPEM        string `db:"certPEM"`
@@ -85,7 +76,7 @@ type ClusterPKIRoot struct {
 }
 
 // ClusterPKIIntermediate is a row in cluster_pki_intermediates. See
-// ClusterPKIRoot regarding KeyPEM.
+// ClusterPKIRoot for the KeyPEM / status invariant.
 type ClusterPKIIntermediate struct {
 	Fingerprint     string `db:"fingerprint"`
 	CertPEM         string `db:"certPEM"`
@@ -249,12 +240,10 @@ func (db *Database) InsertPKIRoot(ctx context.Context, r *ClusterPKIRoot) error 
 	return err
 }
 
-// SetPKIRootStatus transitions a root from active to verify-only or
-// retired. The UPDATE always NULLs keyPEM in the same changeset so the
-// rotated-out signing key is compacted out of the raft log at the next
-// snapshot. The CHECK constraint rejects status='active' from this path
-// (active requires keyPEM non-NULL, which this method always sets to
-// NULL) — use InsertPKIRoot to introduce a new active row instead.
+// SetPKIRootStatus transitions a root to verify-only or retired and
+// NULLs its keyPEM in the same changeset, so the old signing key is
+// compacted out of the raft log at the next snapshot. Introducing a
+// new active row is done via InsertPKIRoot, not this path.
 func (db *Database) SetPKIRootStatus(ctx context.Context, fingerprint, status string) error {
 	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
 		return db.applySetPKIRootStatus(ctx, &ClusterPKIRoot{
@@ -302,9 +291,8 @@ func (db *Database) InsertPKIIntermediate(ctx context.Context, r *ClusterPKIInte
 	return err
 }
 
-// SetPKIIntermediateStatus transitions an intermediate from active to
-// verify-only or retired. See SetPKIRootStatus for the keyPEM-NULL
-// invariant this enforces.
+// SetPKIIntermediateStatus is the intermediate counterpart of
+// SetPKIRootStatus.
 func (db *Database) SetPKIIntermediateStatus(ctx context.Context, fingerprint, status string) error {
 	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
 		return db.applySetPKIIntermediateStatus(ctx, &ClusterPKIIntermediate{
@@ -482,9 +470,7 @@ func (db *Database) InitializePKIState(ctx context.Context, hmacKey []byte) erro
 	return err
 }
 
-// PKIBootstrap carries the three rows written by BootstrapPKI. KeyPEM on
-// both root and intermediate must be populated (CHECK constraint enforces
-// active⇔keyPEM-non-NULL).
+// PKIBootstrap carries the three rows written by BootstrapPKI.
 type PKIBootstrap struct {
 	HMACKey      []byte
 	Root         *ClusterPKIRoot
@@ -492,9 +478,8 @@ type PKIBootstrap struct {
 }
 
 // BootstrapPKI writes the PKI state row, the root, and the intermediate
-// inside a single raft-replicated changeset. Either all three rows
-// persist or none do — there is no partial-state window, so callers do
-// not need a self-healing retry branch.
+// inside a single raft-replicated changeset: either all three persist
+// or none do.
 func (db *Database) BootstrapPKI(ctx context.Context, payload *PKIBootstrap) error {
 	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
 		if _, err := db.applyInitPKIState(ctx, &ClusterPKIState{HMACKey: payload.HMACKey}); err != nil {
@@ -533,16 +518,10 @@ func (db *Database) GetPKIState(ctx context.Context) (*ClusterPKIState, error) {
 }
 
 // ReadClusterTrustBundlePEM opens the SQLite file at dbPath with a
-// short-lived connection and reads the cert PEMs of all non-retired
-// roots and intermediates, concatenating them into a single PEM
-// bundle (roots first, intermediates second). Used at process startup
-// to seed the listener's trust cache on restart, before the full
-// Database + raft manager is constructed (which itself requires the
-// listener to exist).
-//
-// Returns empty bytes and nil error when the tables exist but contain
-// no non-retired rows, or when the tables don't exist yet (pre-v9
-// schema). Returns an error only for genuine I/O or query failures.
+// short-lived read-only connection and concatenates the cert PEMs of
+// all non-retired roots and intermediates (roots first). Used at
+// startup to seed the listener's trust cache before the full Database
+// + raft manager is constructed (which itself requires the listener).
 func ReadClusterTrustBundlePEM(ctx context.Context, dbPath string) ([]byte, error) {
 	conn, err := sql.Open("sqlite3", "file:"+dbPath+"?mode=ro")
 	if err != nil {
@@ -568,11 +547,6 @@ func ReadClusterTrustBundlePEM(ctx context.Context, dbPath string) ([]byte, erro
 
 		rows, err := conn.QueryContext(ctx, stmt)
 		if err != nil {
-			// Missing table = pre-bootstrap schema; not an error.
-			if isMissingTable(err) {
-				continue
-			}
-
 			return nil, fmt.Errorf("query %s: %w", q.table, err)
 		}
 
@@ -595,10 +569,6 @@ func ReadClusterTrustBundlePEM(ctx context.Context, dbPath string) ([]byte, erro
 	}
 
 	return out, nil
-}
-
-func isMissingTable(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "no such table")
 }
 
 // AllocatePKISerial atomically bumps the replicated counter and returns

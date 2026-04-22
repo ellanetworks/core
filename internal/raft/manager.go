@@ -21,17 +21,15 @@ import (
 	"go.uber.org/zap"
 )
 
-// umaskMu serialises the narrow umask window in which the raft bolt and
-// snapshot stores are created. The raft library uses os.Create / MkdirAll
-// with default permissions; after this change the replicated DB (and
-// hence the raft log and snapshots) carries CA signing keys, so we
-// tighten to 0o077 around store setup. Serialised because umask is a
-// process-wide setting.
+// umaskMu serialises the process-wide umask window used by
+// withTightUmask.
 var umaskMu sync.Mutex
 
-// withTightUmask runs fn with the process umask set to 0o077 so files
-// created inside fn land at 0o600 (or tighter) and directories at 0o700.
-// The previous umask is restored before returning.
+// withTightUmask runs fn with umask 0o077 so the raft bolt file,
+// snapshot files, and snapshot subdirectories land at 0o600/0o700 —
+// the raft library uses os.Create and MkdirAll with default perms, and
+// snapshots and the raft log contain CA signing keys until the next
+// compaction.
 func withTightUmask(fn func() error) error {
 	umaskMu.Lock()
 	defer umaskMu.Unlock()
@@ -192,19 +190,13 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 		snapshotStore raft.SnapshotStore
 	)
 
-	// In single-server mode the raft log is auxiliary: ella.db (fsynced on
-	// COMMIT) is the canonical FSM state, there are no peers to replicate to,
-	// and losing trailing raft-log entries on crash is harmless — the FSM
-	// state on disk is already authoritative. Skipping per-entry fsync halves
-	// write latency (one fsync per COMMIT instead of two) and restores the
-	// pre-HA throughput the API layer depends on for batched mutations.
-	// HA mode keeps fsync enabled: replicas derive truth from the log.
-	//
-	// Wrap the store creation in a tightened umask so the bolt file,
-	// snapshot files, and snapshot subdirectories are 0o600/0o700. After
-	// the CA-keys-in-DB change, snapshots and the raft log carry signing
-	// keys until the next compaction; default umask (0o022) would leave
-	// those files world-readable under a permissive dataDir.
+	// In single-server mode the raft log is auxiliary: ella.db (fsynced
+	// on COMMIT) is the canonical FSM state, there are no peers to
+	// replicate to, and losing trailing raft-log entries on crash is
+	// harmless — the FSM state on disk is already authoritative.
+	// Skipping per-entry fsync halves write latency (one fsync per
+	// COMMIT instead of two). HA mode keeps fsync enabled: replicas
+	// derive truth from the log.
 	err = withTightUmask(func() error {
 		var bsErr error
 

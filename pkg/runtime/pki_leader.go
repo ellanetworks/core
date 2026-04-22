@@ -69,29 +69,23 @@ func (c *pkiLeaderCallback) OnLostLeadership() {
 	}
 }
 
-// setupLeaderPKI runs on the leader after PostInitClusterSetup. It
-// bootstraps the issuer (first leader) or loads keys (subsequent
-// elections), issues a leaf for this node if we don't have one yet, and
-// publishes the issuer + revocation cache so HTTP handlers can reach
-// them.
+// setupLeaderPKI runs after PostInitClusterSetup. It bootstraps the
+// issuer on the first leader, loads signing keys from the replicated
+// DB on every leadership transition, self-issues a leaf if this node
+// doesn't have one, and publishes the issuer so HTTP handlers can
+// reach it.
 func setupLeaderPKI(ctx context.Context, pki *pkiState, dbInstance *db.Database, nodeID int) error {
 	if pki.issuer == nil {
 		pki.issuer = pkiissuer.New(dbInstance)
 	}
 
-	// First-leader bootstrap (idempotent).
 	if err := pki.issuer.Bootstrap(ctx); err != nil {
 		return fmt.Errorf("issuer bootstrap: %w", err)
 	}
 
-	// Reload keys from the replicated DB every time leadership is
-	// acquired. A non-founding voter may only now have the keys via raft
-	// replication; a voter that was promoted before replication
-	// completed will leave LoadKeys in a degraded state and recover
-	// at the next election after the worker finishes. LoadKeys is
-	// non-fatal on missing files so Ready() stays false without
-	// crashing — Issue / MintJoinToken will return 503 until a
-	// subsequent promotion succeeds.
+	// A voter promoted before raft replicated the CA tables will leave
+	// LoadKeys with no active rows to load; Ready stays false and the
+	// next election re-runs this path.
 	if err := pki.issuer.LoadKeys(ctx); err != nil {
 		return fmt.Errorf("issuer load keys: %w", err)
 	}
@@ -104,10 +98,6 @@ func setupLeaderPKI(ctx context.Context, pki *pkiState, dbInstance *db.Database,
 		logger.EllaLog.Warn("refresh revocations", zap.Error(err))
 	}
 
-	// If this node has no leaf yet (first-boot-first-leader) AND we
-	// are able to issue (Ready), self-issue one. If keys are missing
-	// we can't self-issue; the key-transfer worker will keep trying
-	// and subsequent leadership events will re-run this path.
 	if pki.agent.Leaf() == nil && pki.issuer.Ready() {
 		if err := selfIssueLeaf(ctx, pki, nodeID); err != nil {
 			return fmt.Errorf("self-issue leaf: %w", err)

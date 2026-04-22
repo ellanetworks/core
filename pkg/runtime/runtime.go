@@ -127,16 +127,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			return fmt.Errorf("restore bundle: %w", err)
 		}
 
-		// The cluster-id is not known until PostInitClusterSetup; the
-		// agent re-reads it from the operator row via the DB before
-		// signing CSRs. An empty string here means "not yet known" —
-		// the agent uses it only for CSR generation, which happens
-		// after the DB is up.
+		// cluster-id is unknown until PostInitClusterSetup populates
+		// the operator row; the agent re-reads it before signing CSRs.
 		pki = newPKIState(cfg.Cluster.NodeID, "", dataDir)
 
-		// Register a callback so JoinFlow's in-memory trust bundle
-		// seeds the listener's trust cache during a join, before raft
-		// replication has made the CA tables locally readable.
 		pki.agent.SetOnBundle(func(bundlePEM []byte) {
 			if err := pki.seedBundleFromPEM(pki.agent.ClusterID, bundlePEM); err != nil {
 				logger.EllaLog.Warn("seed trust bundle from join response",
@@ -144,27 +138,20 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			}
 		})
 
-		// If cluster.join-token is set and we have no leaf yet, run the
-		// join flow now (before the listener starts) so Raft can mTLS-
-		// handshake as soon as it forms.
+		// Join-token path runs before the listener comes up so raft
+		// can mTLS-handshake as soon as it forms.
 		if !pki.agent.HaveLeafOnDisk() {
 			if err := runJoinFlow(ctx, pki.agent, cfg.Cluster.Peers, cfg.Cluster.JoinToken); err != nil {
 				return fmt.Errorf("join flow: %w", err)
 			}
 		}
 
-		// Load whatever leaf is now on disk. Absent leaf is OK for the
-		// first-node case — the listener's Leaf() accessor will return
-		// nil until first-leader bootstrap fills it in, so only the
-		// bootstrap ALPN will accept connections until then.
 		if pki.agent.HaveLeafOnDisk() {
-			// Assemble the trust bundle from the local SQLite file so
-			// the listener can validate peers as soon as it comes up.
-			// On a fresh join this was already seeded via onBundle;
-			// here we also populate on plain restart when the join
-			// path didn't fire. Empty PEM is tolerated — it means the
-			// DB hasn't bootstrapped PKI yet (fresh first-node boot),
-			// and the listener is only serving bootstrap-ALPN anyway.
+			// Read the bundle from the local SQLite file so the
+			// listener can validate peers before raft has caught up.
+			// Empty PEM is tolerated: first-node boot, pre-bootstrap
+			// — only the bootstrap ALPN serves traffic until the
+			// first leader lands the PKI state.
 			bundlePEM, err := db.ReadClusterTrustBundlePEM(ctx, cfg.DB.Path)
 			if err != nil {
 				return fmt.Errorf("read trust bundle from db: %w", err)

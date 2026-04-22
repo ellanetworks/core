@@ -14,10 +14,8 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
-// TestBackup_ArchiveHasExactlyTwoMembers asserts the minimal archive
-// shape: manifest.json + ella.db only. CA signing keys ride along
-// inside ella.db now; the archive no longer carries cluster-tls tar
-// entries.
+// TestBackup_ArchiveHasExactlyTwoMembers asserts the archive shape:
+// manifest.json + ella.db.
 func TestBackup_ArchiveHasExactlyTwoMembers(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
