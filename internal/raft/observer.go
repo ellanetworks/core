@@ -95,8 +95,6 @@ func (o *LeaderObserver) setLeader(isLeader bool) {
 		return
 	}
 
-	IncrLeadershipTransitions()
-
 	if isLeader {
 		logger.RaftLog.Info("Leadership acquired, notifying subscribers",
 			zap.Int("subscribers", len(cbs)))

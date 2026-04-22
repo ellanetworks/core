@@ -297,7 +297,6 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 	}
 
 	go observer.Run(r)
-	go runMetricsLoop(r, observer.stopCh)
 
 	return m, nil
 }

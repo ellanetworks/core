@@ -113,7 +113,6 @@ func NewTestManager(t testing.TB, applier Applier) (*Manager, func()) {
 	}
 
 	go observer.Run(r)
-	go runMetricsLoop(r, observer.stopCh)
 
 	var (
 		once        sync.Once
