@@ -3,6 +3,7 @@ package runtime
 import (
 	"archive/tar"
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -133,6 +134,16 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// after the DB is up.
 		pki = newPKIState(cfg.Cluster.NodeID, "", dataDir)
 
+		// Register a callback so JoinFlow's in-memory trust bundle
+		// seeds the listener's trust cache during a join, before raft
+		// replication has made the CA tables locally readable.
+		pki.agent.SetOnBundle(func(bundlePEM []byte) {
+			if err := pki.seedBundleFromPEM(pki.agent.ClusterID, bundlePEM); err != nil {
+				logger.EllaLog.Warn("seed trust bundle from join response",
+					zap.Error(err))
+			}
+		})
+
 		// If cluster.join-token is set and we have no leaf yet, run the
 		// join flow now (before the listener starts) so Raft can mTLS-
 		// handshake as soon as it forms.
@@ -147,18 +158,26 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// nil until first-leader bootstrap fills it in, so only the
 		// bootstrap ALPN will accept connections until then.
 		if pki.agent.HaveLeafOnDisk() {
-			if err := pki.agent.Load(); err != nil {
-				return fmt.Errorf("load leaf: %w", err)
+			// Assemble the trust bundle from the local SQLite file so
+			// the listener can validate peers as soon as it comes up.
+			// On a fresh join this was already seeded via onBundle;
+			// here we also populate on plain restart when the join
+			// path didn't fire. Empty PEM is tolerated — it means the
+			// DB hasn't bootstrapped PKI yet (fresh first-node boot),
+			// and the listener is only serving bootstrap-ALPN anyway.
+			bundlePEM, err := db.ReadClusterTrustBundlePEM(ctx, cfg.DB.Path)
+			if err != nil {
+				return fmt.Errorf("read trust bundle from db: %w", err)
 			}
 
-			// Seed the listener's trust bundle from disk. Without this,
-			// the joiner's listener would reject incoming mTLS until
-			// RefreshBundle fires — which doesn't happen until after
-			// Raft replicates, which itself requires working mTLS.
-			if pki.agent.ClusterID != "" {
-				if err := pki.SeedBundleFromAgentDisk(pki.agent.ClusterID); err != nil {
+			if len(bundlePEM) > 0 {
+				if err := pki.seedBundleFromPEM(pki.agent.ClusterID, bundlePEM); err != nil && !errors.Is(err, ErrNoTrustBundleYet) {
 					return fmt.Errorf("seed trust bundle: %w", err)
 				}
+			}
+
+			if err := pki.agent.Load(bundlePEM); err != nil {
+				return fmt.Errorf("load leaf: %w", err)
 			}
 		}
 
@@ -253,7 +272,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			// accessor is refreshed here and again on every leadership
 			// transition.
 			if pki != nil {
-				pki.issuer = pkiissuer.New(dbInstance, dbInstance.Dir())
+				pki.issuer = pkiissuer.New(dbInstance)
 
 				if err := refreshFollowerBundleWithRetry(ctx, pki, 30*time.Second); err != nil {
 					logger.EllaLog.Warn("follower refresh bundle", zap.Error(err))
@@ -327,12 +346,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 			wg.Go(func() {
 				runLeafRenewer(ctx, pki, clusterLn, dbInstance)
 			})
-
-			if keyTransferEnabled(cfg.Cluster.InitialSuffrage) {
-				wg.Go(func() {
-					runKeyTransferWorker(ctx, pki, clusterLn, dbInstance, cfg.Cluster.NodeID)
-				})
-			}
 		}
 	}
 

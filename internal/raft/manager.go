@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
+	"syscall"
 	"time"
 
 	"github.com/ellanetworks/core/internal/cluster/listener"
@@ -18,6 +20,27 @@ import (
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 	"go.uber.org/zap"
 )
+
+// umaskMu serialises the narrow umask window in which the raft bolt and
+// snapshot stores are created. The raft library uses os.Create / MkdirAll
+// with default permissions; after this change the replicated DB (and
+// hence the raft log and snapshots) carries CA signing keys, so we
+// tighten to 0o077 around store setup. Serialised because umask is a
+// process-wide setting.
+var umaskMu sync.Mutex
+
+// withTightUmask runs fn with the process umask set to 0o077 so files
+// created inside fn land at 0o600 (or tighter) and directories at 0o700.
+// The previous umask is restored before returning.
+func withTightUmask(fn func() error) error {
+	umaskMu.Lock()
+	defer umaskMu.Unlock()
+
+	prev := syscall.Umask(0o077)
+	defer syscall.Umask(prev)
+
+	return fn()
+}
 
 // ClusterConfig holds the cluster-related configuration parsed from YAML.
 type ClusterConfig struct {
@@ -164,6 +187,11 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 
 	boltPath := filepath.Join(raftDir, "raft.db")
 
+	var (
+		boltStore     *raftboltdb.BoltStore
+		snapshotStore raft.SnapshotStore
+	)
+
 	// In single-server mode the raft log is auxiliary: ella.db (fsynced on
 	// COMMIT) is the canonical FSM state, there are no peers to replicate to,
 	// and losing trailing raft-log entries on crash is harmless — the FSM
@@ -171,18 +199,35 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 	// write latency (one fsync per COMMIT instead of two) and restores the
 	// pre-HA throughput the API layer depends on for batched mutations.
 	// HA mode keeps fsync enabled: replicas derive truth from the log.
-	boltStore, err := raftboltdb.New(raftboltdb.Options{
-		Path:   boltPath,
-		NoSync: singleServer,
+	//
+	// Wrap the store creation in a tightened umask so the bolt file,
+	// snapshot files, and snapshot subdirectories are 0o600/0o700. After
+	// the CA-keys-in-DB change, snapshots and the raft log carry signing
+	// keys until the next compaction; default umask (0o022) would leave
+	// those files world-readable under a permissive dataDir.
+	err = withTightUmask(func() error {
+		var bsErr error
+
+		boltStore, bsErr = raftboltdb.New(raftboltdb.Options{
+			Path:   boltPath,
+			NoSync: singleServer,
+		})
+		if bsErr != nil {
+			return fmt.Errorf("create bolt store at %s: %w", boltPath, bsErr)
+		}
+
+		var ssErr error
+
+		snapshotStore, ssErr = raft.NewFileSnapshotStore(raftDir, 3, newZapIOWriter("snapshot"))
+		if ssErr != nil {
+			_ = boltStore.Close()
+			return fmt.Errorf("create snapshot store: %w", ssErr)
+		}
+
+		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("create bolt store at %s: %w", boltPath, err)
-	}
-
-	snapshotStore, err := raft.NewFileSnapshotStore(raftDir, 3, newZapIOWriter("snapshot"))
-	if err != nil {
-		_ = boltStore.Close()
-		return nil, fmt.Errorf("create snapshot store: %w", err)
+		return nil, err
 	}
 
 	logCache, err := raft.NewLogCache(raftLogCacheSize, boltStore)

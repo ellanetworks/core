@@ -3,6 +3,7 @@
 package db_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"path/filepath"
@@ -82,9 +83,12 @@ func TestPKIRoots_CRUD(t *testing.T) {
 	database := setupPKIDB(t)
 	ctx := context.Background()
 
+	fakeKey := []byte("-----BEGIN PRIVATE KEY-----\nA\n-----END PRIVATE KEY-----\n")
+
 	if err := database.InsertPKIRoot(ctx, &db.ClusterPKIRoot{
 		Fingerprint: "sha256:aaaa",
 		CertPEM:     "-----BEGIN CERTIFICATE-----\nA\n-----END CERTIFICATE-----",
+		KeyPEM:      fakeKey,
 		AddedAt:     time.Now().Unix(),
 		Status:      db.PKIStatusActive,
 	}); err != nil {
@@ -100,6 +104,10 @@ func TestPKIRoots_CRUD(t *testing.T) {
 		t.Fatalf("got roots %+v", roots)
 	}
 
+	if !bytes.Equal(roots[0].KeyPEM, fakeKey) {
+		t.Fatalf("KeyPEM did not round-trip; got %q", roots[0].KeyPEM)
+	}
+
 	if err := database.SetPKIRootStatus(ctx, "sha256:aaaa", db.PKIStatusVerifyOnly); err != nil {
 		t.Fatalf("SetPKIRootStatus: %v", err)
 	}
@@ -109,6 +117,11 @@ func TestPKIRoots_CRUD(t *testing.T) {
 		t.Fatalf("status = %q", roots[0].Status)
 	}
 
+	// Per CHECK constraint: non-active rows must have NULL keyPEM.
+	if roots[0].KeyPEM != nil {
+		t.Fatalf("KeyPEM should be cleared on status transition; got %q", roots[0].KeyPEM)
+	}
+
 	if err := database.DeletePKIRoot(ctx, "sha256:aaaa"); err != nil {
 		t.Fatalf("DeletePKIRoot: %v", err)
 	}
@@ -116,6 +129,42 @@ func TestPKIRoots_CRUD(t *testing.T) {
 	roots, _ = database.ListPKIRoots(ctx)
 	if len(roots) != 0 {
 		t.Fatalf("expected empty, got %d", len(roots))
+	}
+}
+
+// TestPKIRoots_CHECKConstraintRejectsActiveWithoutKey asserts the DDL
+// CHECK constraint: an active row must carry a non-NULL keyPEM.
+func TestPKIRoots_CHECKConstraintRejectsActiveWithoutKey(t *testing.T) {
+	database := setupPKIDB(t)
+	ctx := context.Background()
+
+	err := database.InsertPKIRoot(ctx, &db.ClusterPKIRoot{
+		Fingerprint: "sha256:bbbb",
+		CertPEM:     "x",
+		KeyPEM:      nil,
+		AddedAt:     time.Now().Unix(),
+		Status:      db.PKIStatusActive,
+	})
+	if err == nil {
+		t.Fatal("InsertPKIRoot(active, keyPEM=nil) must be rejected by CHECK constraint")
+	}
+}
+
+// TestPKIRoots_CHECKConstraintRejectsRetiredWithKey asserts the other
+// half of the constraint: non-active rows must have NULL keyPEM.
+func TestPKIRoots_CHECKConstraintRejectsRetiredWithKey(t *testing.T) {
+	database := setupPKIDB(t)
+	ctx := context.Background()
+
+	err := database.InsertPKIRoot(ctx, &db.ClusterPKIRoot{
+		Fingerprint: "sha256:cccc",
+		CertPEM:     "x",
+		KeyPEM:      []byte("should-not-be-here"),
+		AddedAt:     time.Now().Unix(),
+		Status:      db.PKIStatusRetired,
+	})
+	if err == nil {
+		t.Fatal("InsertPKIRoot(retired, keyPEM=set) must be rejected by CHECK constraint")
 	}
 }
 

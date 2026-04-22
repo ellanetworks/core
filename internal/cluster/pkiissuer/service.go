@@ -5,10 +5,11 @@
 // requested by joining or renewing nodes, mints and verifies join
 // tokens, and drives CA rotation.
 //
-// Private keys live only on voter disks under <dataDir>/cluster-tls/.
-// Public material (root cert, active intermediate cert, issued-cert
-// tracking, revocation rows, join-token rows, and the hmacKey used to
-// authenticate tokens) is replicated through Raft via internal/db.
+// All PKI material — including the root and intermediate signing keys —
+// lives in the replicated DB (cluster_pki_roots.keyPEM and
+// cluster_pki_intermediates.keyPEM on active rows). Every voter
+// receives the signing keys through ordinary raft replication; there
+// is no separate key-transfer protocol.
 package pkiissuer
 
 import (
@@ -19,8 +20,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -35,13 +34,11 @@ import (
 type Store interface {
 	GetOperator(ctx context.Context) (*db.Operator, error)
 	GetPKIState(ctx context.Context) (*db.ClusterPKIState, error)
-	InitializePKIState(ctx context.Context, hmacKey []byte) error
+	BootstrapPKI(ctx context.Context, payload *db.PKIBootstrap) error
 	AllocatePKISerial(ctx context.Context) (int64, error)
 
 	ListPKIRoots(ctx context.Context) ([]db.ClusterPKIRoot, error)
-	InsertPKIRoot(ctx context.Context, r *db.ClusterPKIRoot) error
 	ListPKIIntermediates(ctx context.Context) ([]db.ClusterPKIIntermediate, error)
-	InsertPKIIntermediate(ctx context.Context, r *db.ClusterPKIIntermediate) error
 
 	RecordIssuedCert(ctx context.Context, r *db.ClusterIssuedCert) error
 	ListRevokedCerts(ctx context.Context) ([]db.ClusterRevokedCert, error)
@@ -55,8 +52,7 @@ type Store interface {
 
 // Service is the leader-side PKI issuer.
 type Service struct {
-	store   Store
-	dataDir string
+	store Store
 
 	mu               sync.RWMutex
 	rootKey          crypto.Signer
@@ -67,15 +63,17 @@ type Service struct {
 
 // New returns an unloaded Service. Call Bootstrap on first-leader boot
 // (from PostInitClusterSetup) and LoadKeys on every OnBecameLeader.
-func New(store Store, dataDir string) *Service {
-	return &Service{store: store, dataDir: dataDir}
+func New(store Store) *Service {
+	return &Service{store: store}
 }
 
-// Bootstrap generates root + intermediate + hmac key on the first leader
-// to run against a fresh cluster. Idempotent and self-healing: if a
-// previous invocation crashed between writes (e.g. hmacKey landed but
-// root did not), a retry completes the missing steps against the
-// existing pki state instead of returning early.
+// Bootstrap generates root + intermediate + HMAC key on the first leader
+// to run against a fresh cluster. Idempotent: if an active root and
+// intermediate already exist, returns nil without touching state.
+//
+// The three DB writes (pki_state, root, intermediate) land as one raft
+// changeset via BootstrapPKI — either all three persist or none do, so
+// there is no partial-state window and no self-healing retry branch.
 func (s *Service) Bootstrap(ctx context.Context) error {
 	op, err := s.store.GetOperator(ctx)
 	if err != nil {
@@ -84,29 +82,6 @@ func (s *Service) Bootstrap(ctx context.Context) error {
 
 	if op.ClusterID == "" {
 		return fmt.Errorf("cluster id not yet populated; run PostInitClusterSetup first")
-	}
-
-	state, err := s.store.GetPKIState(ctx)
-
-	switch {
-	case err == nil:
-		// State row present — this may be a complete bootstrap (happy
-		// path, return early) or a partial one (hmacKey persisted,
-		// root/intermediate missing). Fall through to the activity
-		// checks below.
-	case errors.Is(err, db.ErrNotFound):
-		hmacKey, hmacErr := pki.NewHMACKey()
-		if hmacErr != nil {
-			return fmt.Errorf("hmac key: %w", hmacErr)
-		}
-
-		if err := s.store.InitializePKIState(ctx, hmacKey); err != nil {
-			return fmt.Errorf("init pki state: %w", err)
-		}
-
-		state = &db.ClusterPKIState{HMACKey: hmacKey}
-	default:
-		return fmt.Errorf("check pki state: %w", err)
 	}
 
 	roots, err := s.store.ListPKIRoots(ctx)
@@ -120,8 +95,12 @@ func (s *Service) Bootstrap(ctx context.Context) error {
 	}
 
 	if hasActive(statusesFromRoots(roots)) && hasActive(statusesFromIntermediates(ints)) {
-		// Fully bootstrapped already.
 		return nil
+	}
+
+	hmacKey, err := pki.NewHMACKey()
+	if err != nil {
+		return fmt.Errorf("hmac key: %w", err)
 	}
 
 	rootCert, rootKey, err := pki.GenerateRoot(op.ClusterID, pki.DefaultRootTTL)
@@ -134,33 +113,35 @@ func (s *Service) Bootstrap(ctx context.Context) error {
 		return fmt.Errorf("generate intermediate: %w", err)
 	}
 
-	now := time.Now().Unix()
+	rootKeyPEM, err := encodePrivateKeyPEM(rootKey)
+	if err != nil {
+		return fmt.Errorf("encode root key: %w", err)
+	}
 
-	if err := s.store.InsertPKIRoot(ctx, &db.ClusterPKIRoot{
-		Fingerprint: pki.Fingerprint(rootCert),
-		CertPEM:     string(pki.EncodeCertPEM(rootCert)),
-		AddedAt:     now,
-		Status:      db.PKIStatusActive,
+	intKeyPEM, err := encodePrivateKeyPEM(intKey)
+	if err != nil {
+		return fmt.Errorf("encode intermediate key: %w", err)
+	}
+
+	if err := s.store.BootstrapPKI(ctx, &db.PKIBootstrap{
+		HMACKey: hmacKey,
+		Root: &db.ClusterPKIRoot{
+			Fingerprint: pki.Fingerprint(rootCert),
+			CertPEM:     string(pki.EncodeCertPEM(rootCert)),
+			KeyPEM:      rootKeyPEM,
+			AddedAt:     time.Now().Unix(),
+			Status:      db.PKIStatusActive,
+		},
+		Intermediate: &db.ClusterPKIIntermediate{
+			Fingerprint:     pki.Fingerprint(intCert),
+			CertPEM:         string(pki.EncodeCertPEM(intCert)),
+			KeyPEM:          intKeyPEM,
+			RootFingerprint: pki.Fingerprint(rootCert),
+			NotAfter:        intCert.NotAfter.Unix(),
+			Status:          db.PKIStatusActive,
+		},
 	}); err != nil {
-		return fmt.Errorf("insert root: %w", err)
-	}
-
-	if err := s.store.InsertPKIIntermediate(ctx, &db.ClusterPKIIntermediate{
-		Fingerprint:     pki.Fingerprint(intCert),
-		CertPEM:         string(pki.EncodeCertPEM(intCert)),
-		RootFingerprint: pki.Fingerprint(rootCert),
-		NotAfter:        intCert.NotAfter.Unix(),
-		Status:          db.PKIStatusActive,
-	}); err != nil {
-		return fmt.Errorf("insert intermediate: %w", err)
-	}
-
-	if err := s.writeKeyToDisk("root.key", rootKey); err != nil {
-		return err
-	}
-
-	if err := s.writeKeyToDisk("intermediate.key", intKey); err != nil {
-		return err
+		return fmt.Errorf("bootstrap pki: %w", err)
 	}
 
 	s.mu.Lock()
@@ -173,8 +154,7 @@ func (s *Service) Bootstrap(ctx context.Context) error {
 	logger.RaftLog.Info("PKI issuer bootstrapped",
 		zap.String("clusterID", op.ClusterID),
 		zap.String("rootFingerprint", pki.Fingerprint(rootCert)),
-		zap.String("intermediateFingerprint", pki.Fingerprint(intCert)),
-		zap.Int("hmacKeyBytes", len(state.HMACKey)))
+		zap.String("intermediateFingerprint", pki.Fingerprint(intCert)))
 
 	return nil
 }
@@ -207,69 +187,75 @@ func hasActive(statuses []string) bool {
 	return false
 }
 
-// LoadKeys reads root.key + intermediate.key from disk and prepares the
-// in-memory issuer. Called on every OnBecameLeader. Returns nil without
-// loading if the key files are absent (first-boot pre-bootstrap or
-// promoted voter awaiting key transfer).
+// LoadKeys parses the active root and intermediate signing keys from the
+// replicated DB and prepares the in-memory issuer. Called on every
+// OnBecameLeader. Returns nil (not an error) if no active rows exist —
+// that is the pre-bootstrap state on a fresh leader.
 func (s *Service) LoadKeys(ctx context.Context) error {
-	rootKey, err := s.readKeyFromDisk("root.key")
+	roots, err := s.store.ListPKIRoots(ctx)
 	if err != nil {
-		if os.IsNotExist(err) {
-			logger.RaftLog.Info("PKI issuer: root.key absent, issuer degraded until bootstrap or key transfer")
-			return nil
-		}
-
-		return fmt.Errorf("read root.key: %w", err)
+		return fmt.Errorf("list roots: %w", err)
 	}
 
-	intKey, err := s.readKeyFromDisk("intermediate.key")
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-
-		return fmt.Errorf("read intermediate.key: %w", err)
-	}
-
-	// Resolve the active intermediate cert from replicated state.
-	intCerts, err := s.store.ListPKIIntermediates(ctx)
+	ints, err := s.store.ListPKIIntermediates(ctx)
 	if err != nil {
 		return fmt.Errorf("list intermediates: %w", err)
 	}
 
-	var active *x509.Certificate
+	activeRoot := pickActiveRoot(roots)
+	activeInt := pickActiveIntermediate(ints)
 
-	for _, r := range intCerts {
-		if r.Status != db.PKIStatusActive {
-			continue
-		}
-
-		c, err := pki.ParseCertPEM([]byte(r.CertPEM))
-		if err != nil {
-			return fmt.Errorf("parse intermediate %s: %w", r.Fingerprint, err)
-		}
-
-		active = c
-
-		break
+	if activeRoot == nil || activeInt == nil {
+		logger.RaftLog.Info("PKI issuer: no active root or intermediate in DB, issuer will stay idle until bootstrap")
+		return nil
 	}
 
-	if active == nil {
-		logger.RaftLog.Warn("PKI issuer: no active intermediate in replicated state despite having key on disk")
-		return nil
+	rootKey, err := parsePrivateKeyPEM(activeRoot.KeyPEM)
+	if err != nil {
+		return fmt.Errorf("parse root key: %w", err)
+	}
+
+	intKey, err := parsePrivateKeyPEM(activeInt.KeyPEM)
+	if err != nil {
+		return fmt.Errorf("parse intermediate key: %w", err)
+	}
+
+	intCert, err := pki.ParseCertPEM([]byte(activeInt.CertPEM))
+	if err != nil {
+		return fmt.Errorf("parse intermediate cert: %w", err)
 	}
 
 	op, err := s.store.GetOperator(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("get operator: %w", err)
 	}
 
 	s.mu.Lock()
 	s.rootKey = rootKey
 	s.intermediateKey = intKey
-	s.intermediateCert = active
+	s.intermediateCert = intCert
 	s.clusterID = op.ClusterID
 	s.mu.Unlock()
+
+	return nil
+}
+
+func pickActiveRoot(rs []db.ClusterPKIRoot) *db.ClusterPKIRoot {
+	for i := range rs {
+		if rs[i].Status == db.PKIStatusActive {
+			return &rs[i]
+		}
+	}
+
+	return nil
+}
+
+func pickActiveIntermediate(is []db.ClusterPKIIntermediate) *db.ClusterPKIIntermediate {
+	for i := range is {
+		if is[i].Status == db.PKIStatusActive {
+			return &is[i]
+		}
+	}
 
 	return nil
 }
@@ -437,7 +423,6 @@ func (s *Service) VerifyAndConsumeJoinToken(ctx context.Context, tokenStr string
 		return nil, err
 	}
 
-	// Check the replicated record: already consumed ⇒ reject.
 	row, err := s.store.GetJoinToken(ctx, claims.TokenID)
 	if err != nil {
 		return nil, fmt.Errorf("lookup join token: %w", err)
@@ -537,192 +522,41 @@ func (s *Service) ActiveRootFingerprint(ctx context.Context) (string, error) {
 	return "", fmt.Errorf("no active root")
 }
 
-// writeKeyToDisk PEM-encodes a private key and writes it under the
-// cluster-tls subdirectory with 0600 perms. The temp file is fsync'd
-// before rename and the parent directory is fsync'd after, so a crash
-// between signalling success and the OS flushing buffers leaves either
-// the old key or the new key in place — never a truncated file.
-func (s *Service) writeKeyToDisk(name string, key crypto.Signer) error {
-	dir := filepath.Join(s.dataDir, db.ClusterTLSDir)
-
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("mkdir %s: %w", dir, err)
-	}
-
+// encodePrivateKeyPEM returns the PKCS#8 PEM encoding of a private key.
+// Used only for writes into the replicated DB — callers must not log or
+// otherwise emit the returned bytes.
+func encodePrivateKeyPEM(key crypto.Signer) ([]byte, error) {
 	der, err := x509.MarshalPKCS8PrivateKey(key)
 	if err != nil {
-		return fmt.Errorf("marshal key: %w", err)
+		return nil, fmt.Errorf("marshal key: %w", err)
 	}
 
-	pemBytes := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der})
-
-	tmpPath := filepath.Join(dir, name+".tmp")
-	finalPath := filepath.Join(dir, name)
-
-	if err := writeFileSync(tmpPath, pemBytes, 0o600); err != nil {
-		return fmt.Errorf("write %s: %w", tmpPath, err)
-	}
-
-	if err := os.Rename(tmpPath, finalPath); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("rename %s: %w", finalPath, err)
-	}
-
-	if err := syncDir(dir); err != nil {
-		return fmt.Errorf("sync dir %s: %w", dir, err)
-	}
-
-	return nil
+	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), nil
 }
 
-// writeFileSync writes data to path with perm, fsync'ing before close so
-// the content is durable when the file descriptor is released. Callers
-// still need to sync the parent directory to make the rename durable.
-func writeFileSync(path string, data []byte, perm os.FileMode) error {
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm) // #nosec G304 -- caller-controlled path under data dir
-	if err != nil {
-		return err
+// parsePrivateKeyPEM parses a PKCS#8 PEM private key and asserts the
+// resulting key satisfies crypto.Signer.
+func parsePrivateKeyPEM(keyPEM []byte) (crypto.Signer, error) {
+	if len(keyPEM) == 0 {
+		return nil, fmt.Errorf("empty private key PEM")
 	}
 
-	if _, err := f.Write(data); err != nil {
-		_ = f.Close()
-		return err
-	}
-
-	if err := f.Sync(); err != nil {
-		_ = f.Close()
-		return err
-	}
-
-	return f.Close()
-}
-
-func syncDir(dir string) error {
-	d, err := os.Open(dir) // #nosec G304 -- caller-controlled path under data dir
-	if err != nil {
-		return err
-	}
-
-	if err := d.Sync(); err != nil {
-		_ = d.Close()
-		return err
-	}
-
-	return d.Close()
-}
-
-func (s *Service) readKeyFromDisk(name string) (crypto.Signer, error) {
-	path := filepath.Join(s.dataDir, db.ClusterTLSDir, name)
-
-	raw, err := os.ReadFile(path) // #nosec: G304 -- path is under our data directory
-	if err != nil {
-		return nil, err
-	}
-
-	block, _ := pem.Decode(raw)
+	block, _ := pem.Decode(keyPEM)
 	if block == nil || block.Type != "PRIVATE KEY" {
-		return nil, fmt.Errorf("%s: not a PRIVATE KEY PEM", path)
+		return nil, fmt.Errorf("not a PRIVATE KEY PEM")
 	}
 
 	k, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("%s: parse key: %w", path, err)
+		return nil, fmt.Errorf("parse PKCS#8: %w", err)
 	}
 
 	signer, ok := k.(crypto.Signer)
 	if !ok {
-		return nil, fmt.Errorf("%s: key is not a crypto.Signer", path)
+		return nil, fmt.Errorf("key is not a crypto.Signer")
 	}
 
 	return signer, nil
-}
-
-// ExportKeys reads root.key and intermediate.key from disk and returns
-// their PEM bytes. Used by the /cluster/pki/keys handler to transfer
-// signing material to newly-promoted voters that lack it. Returns
-// os.ErrNotExist wrapped in the error if this node has no keys on
-// disk (i.e. it was not the bootstrap voter and has not yet received
-// a transfer).
-func (s *Service) ExportKeys() (rootKeyPEM, intermediateKeyPEM []byte, err error) {
-	rootKeyPEM, err = s.readKeyPEMFromDisk("root.key")
-	if err != nil {
-		return nil, nil, fmt.Errorf("read root.key: %w", err)
-	}
-
-	intermediateKeyPEM, err = s.readKeyPEMFromDisk("intermediate.key")
-	if err != nil {
-		return nil, nil, fmt.Errorf("read intermediate.key: %w", err)
-	}
-
-	return rootKeyPEM, intermediateKeyPEM, nil
-}
-
-// ImportKeys writes rootKeyPEM and intermediateKeyPEM atomically to disk.
-// The caller is responsible for validating the PEM contents parse as
-// keys and chain-match the replicated root+intermediate certs before
-// invoking Import; this method is the raw persistence primitive.
-func (s *Service) ImportKeys(rootKeyPEM, intermediateKeyPEM []byte) error {
-	if err := s.writeKeyPEMToDisk("root.key", rootKeyPEM); err != nil {
-		return err
-	}
-
-	return s.writeKeyPEMToDisk("intermediate.key", intermediateKeyPEM)
-}
-
-// HaveKeysOnDisk reports whether root.key and intermediate.key both
-// exist under the cluster-tls directory. Used by the key-transfer
-// worker to short-circuit once a transfer has completed.
-func (s *Service) HaveKeysOnDisk() bool {
-	for _, name := range []string{"root.key", "intermediate.key"} {
-		if _, err := os.Stat(filepath.Join(s.dataDir, db.ClusterTLSDir, name)); err != nil {
-			return false
-		}
-	}
-
-	return true
-}
-
-func (s *Service) readKeyPEMFromDisk(name string) ([]byte, error) {
-	path := filepath.Join(s.dataDir, db.ClusterTLSDir, name)
-
-	return os.ReadFile(path) // #nosec: G304 -- path is under our data directory
-}
-
-func (s *Service) writeKeyPEMToDisk(name string, pemBytes []byte) error {
-	dir := filepath.Join(s.dataDir, db.ClusterTLSDir)
-
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("mkdir %s: %w", dir, err)
-	}
-
-	// Validate it is a PKCS#8 PRIVATE KEY PEM before committing to disk,
-	// so a peer returning garbage cannot corrupt our on-disk state.
-	block, _ := pem.Decode(pemBytes)
-	if block == nil || block.Type != "PRIVATE KEY" {
-		return fmt.Errorf("%s: not a PRIVATE KEY PEM", name)
-	}
-
-	if _, err := x509.ParsePKCS8PrivateKey(block.Bytes); err != nil {
-		return fmt.Errorf("%s: parse key: %w", name, err)
-	}
-
-	tmpPath := filepath.Join(dir, name+".tmp")
-	finalPath := filepath.Join(dir, name)
-
-	if err := writeFileSync(tmpPath, pemBytes, 0o600); err != nil {
-		return fmt.Errorf("write %s: %w", tmpPath, err)
-	}
-
-	if err := os.Rename(tmpPath, finalPath); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("rename %s: %w", finalPath, err)
-	}
-
-	if err := syncDir(dir); err != nil {
-		return fmt.Errorf("sync dir %s: %w", dir, err)
-	}
-
-	return nil
 }
 
 func claimsJSON(c pki.JoinClaims) (string, error) {

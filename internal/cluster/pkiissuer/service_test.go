@@ -69,15 +69,20 @@ func (f *fakeStore) GetPKIState(ctx context.Context) (*db.ClusterPKIState, error
 	return &cp, nil
 }
 
-func (f *fakeStore) InitializePKIState(ctx context.Context, hmacKey []byte) error {
+func (f *fakeStore) BootstrapPKI(ctx context.Context, p *db.PKIBootstrap) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if f.state != nil {
-		return nil // idempotent
-	}
+	// Matches the atomic semantics of the real BootstrapPKI: either
+	// all three rows persist or none. For the fake we just write them
+	// sequentially under the mutex; tests never interleave a retry.
+	f.state = &db.ClusterPKIState{HMACKey: p.HMACKey}
 
-	f.state = &db.ClusterPKIState{HMACKey: hmacKey}
+	rootCopy := *p.Root
+	f.roots[p.Root.Fingerprint] = &rootCopy
+
+	intCopy := *p.Intermediate
+	f.intermediates[p.Intermediate.Fingerprint] = &intCopy
 
 	return nil
 }
@@ -103,16 +108,6 @@ func (f *fakeStore) ListPKIRoots(ctx context.Context) ([]db.ClusterPKIRoot, erro
 	return out, nil
 }
 
-func (f *fakeStore) InsertPKIRoot(ctx context.Context, r *db.ClusterPKIRoot) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	cp := *r
-	f.roots[r.Fingerprint] = &cp
-
-	return nil
-}
-
 func (f *fakeStore) ListPKIIntermediates(ctx context.Context) ([]db.ClusterPKIIntermediate, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -123,16 +118,6 @@ func (f *fakeStore) ListPKIIntermediates(ctx context.Context) ([]db.ClusterPKIIn
 	}
 
 	return out, nil
-}
-
-func (f *fakeStore) InsertPKIIntermediate(ctx context.Context, r *db.ClusterPKIIntermediate) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	cp := *r
-	f.intermediates[r.Fingerprint] = &cp
-
-	return nil
 }
 
 func (f *fakeStore) RecordIssuedCert(ctx context.Context, r *db.ClusterIssuedCert) error {
@@ -203,9 +188,8 @@ func (f *fakeStore) IsLeader() bool { return f.leader }
 
 func TestBootstrap_PopulatesKeysAndState(t *testing.T) {
 	store := newFakeStore("cluster-xyz")
-	dataDir := t.TempDir()
 
-	svc := pkiissuer.New(store, dataDir)
+	svc := pkiissuer.New(store)
 	ctx := context.Background()
 
 	if err := svc.Bootstrap(ctx); err != nil {
@@ -240,9 +224,8 @@ func TestBootstrap_PopulatesKeysAndState(t *testing.T) {
 
 func TestIssue_HappyPath(t *testing.T) {
 	store := newFakeStore("c")
-	dataDir := t.TempDir()
 
-	svc := pkiissuer.New(store, dataDir)
+	svc := pkiissuer.New(store)
 	ctx := context.Background()
 
 	if err := svc.Bootstrap(ctx); err != nil {
@@ -291,9 +274,8 @@ func TestIssue_HappyPath(t *testing.T) {
 
 func TestIssue_NotReady(t *testing.T) {
 	store := newFakeStore("c")
-	dataDir := t.TempDir()
 
-	svc := pkiissuer.New(store, dataDir)
+	svc := pkiissuer.New(store)
 	ctx := context.Background()
 
 	_, csrPEM, _ := pki.GenerateKeyAndCSR(1, "c")
@@ -306,9 +288,8 @@ func TestIssue_NotReady(t *testing.T) {
 
 func TestIssue_NotLeader(t *testing.T) {
 	store := newFakeStore("c")
-	dataDir := t.TempDir()
 
-	svc := pkiissuer.New(store, dataDir)
+	svc := pkiissuer.New(store)
 	ctx := context.Background()
 
 	_ = svc.Bootstrap(ctx)
@@ -325,7 +306,7 @@ func TestIssue_NotLeader(t *testing.T) {
 
 func TestJoinToken_MintVerifyConsume(t *testing.T) {
 	store := newFakeStore("c")
-	svc := pkiissuer.New(store, t.TempDir())
+	svc := pkiissuer.New(store)
 	ctx := context.Background()
 
 	_ = svc.Bootstrap(ctx)
@@ -352,7 +333,7 @@ func TestJoinToken_MintVerifyConsume(t *testing.T) {
 
 func TestJoinToken_TTLBounds(t *testing.T) {
 	store := newFakeStore("c")
-	svc := pkiissuer.New(store, t.TempDir())
+	svc := pkiissuer.New(store)
 	ctx := context.Background()
 
 	_ = svc.Bootstrap(ctx)
@@ -368,9 +349,8 @@ func TestJoinToken_TTLBounds(t *testing.T) {
 
 func TestLoadKeys_ReloadsAfterLeadership(t *testing.T) {
 	store := newFakeStore("c")
-	dataDir := t.TempDir()
 
-	svc := pkiissuer.New(store, dataDir)
+	svc := pkiissuer.New(store)
 	ctx := context.Background()
 
 	_ = svc.Bootstrap(ctx)
@@ -400,7 +380,7 @@ func TestLoadKeys_ReloadsAfterLeadership(t *testing.T) {
 
 func TestLoadKeys_MissingFilesIsNoop(t *testing.T) {
 	// Fresh dataDir with no keys on disk; LoadKeys should not error.
-	svc := pkiissuer.New(newFakeStore("c"), t.TempDir())
+	svc := pkiissuer.New(newFakeStore("c"))
 
 	if err := svc.LoadKeys(context.Background()); err != nil {
 		t.Fatalf("LoadKeys on empty dir: %v", err)
@@ -413,7 +393,7 @@ func TestLoadKeys_MissingFilesIsNoop(t *testing.T) {
 
 func TestActiveRootFingerprint(t *testing.T) {
 	store := newFakeStore("c")
-	svc := pkiissuer.New(store, t.TempDir())
+	svc := pkiissuer.New(store)
 	ctx := context.Background()
 
 	_ = svc.Bootstrap(ctx)

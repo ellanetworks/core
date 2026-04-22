@@ -76,7 +76,7 @@ func (c *pkiLeaderCallback) OnLostLeadership() {
 // them.
 func setupLeaderPKI(ctx context.Context, pki *pkiState, dbInstance *db.Database, nodeID int) error {
 	if pki.issuer == nil {
-		pki.issuer = pkiissuer.New(dbInstance, dbInstance.Dir())
+		pki.issuer = pkiissuer.New(dbInstance)
 	}
 
 	// First-leader bootstrap (idempotent).
@@ -84,9 +84,9 @@ func setupLeaderPKI(ctx context.Context, pki *pkiState, dbInstance *db.Database,
 		return fmt.Errorf("issuer bootstrap: %w", err)
 	}
 
-	// Reload keys from disk every time leadership is acquired. A
-	// non-founding voter may only now have the keys via the key-
-	// transfer worker; a voter that was promoted before the transfer
+	// Reload keys from the replicated DB every time leadership is
+	// acquired. A non-founding voter may only now have the keys via raft
+	// replication; a voter that was promoted before replication
 	// completed will leave LoadKeys in a degraded state and recover
 	// at the next election after the worker finishes. LoadKeys is
 	// non-fatal on missing files so Ready() stays false without

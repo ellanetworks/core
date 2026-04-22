@@ -25,6 +25,11 @@ import (
 	"go.uber.org/zap"
 )
 
+// ErrNoTrustBundleYet is returned by seedBundleFromPEM when the caller
+// handed over empty PEM bytes. Not fatal; treated by the runtime as
+// "bundle not yet available, will be populated after raft catches up."
+var ErrNoTrustBundleYet = errors.New("no trust bundle material available yet")
+
 // pkiState collects the runtime-wide PKI plumbing so the rest of the
 // bootstrap sequence can reach it by name.
 type pkiState struct {
@@ -129,31 +134,30 @@ func refreshFollowerBundleWithRetry(ctx context.Context, pki *pkiState, timeout 
 	}
 }
 
-// SeedBundleFromAgentDisk parses the bundle PEM the agent wrote during
-// the join flow and installs it in the cache. Needed because the
-// listener's trust accessor reads from the cache, but the DB-backed
-// RefreshBundle only works after the joiner's Raft log has replicated
-// the PKI state — and replication can't happen until the listener can
-// mTLS-verify peers. The on-disk bundle carries the same roots and
-// intermediates the leader handed us in the join response, so using it
-// as the initial trust set is safe.
-func (p *pkiState) SeedBundleFromAgentDisk(clusterID string) error {
-	bundlePath := p.agent.BundlePath()
-
-	pemBytes, err := os.ReadFile(bundlePath) // #nosec: G304 -- under dataDir
-	if err != nil {
-		return fmt.Errorf("read bundle %s: %w", bundlePath, err)
+// seedBundleFromPEM parses bundlePEM (concatenated root + intermediate
+// CERTIFICATE blocks) and installs the resulting TrustBundle in the
+// cache. Used to bring the listener's trust cache online before raft
+// replication has populated the cluster_pki_* tables on this node —
+// either after a JoinFlow response (bundlePEM comes from the leader),
+// or on restart (bundlePEM comes from the local on-disk DB via
+// db.ReadClusterTrustBundlePEM).
+//
+// Returns ErrNoTrustBundleYet if bundlePEM is empty. The caller must
+// decide whether that's fatal (fresh node needing a join token) or
+// tolerable (restart where raft will catch up momentarily).
+func (p *pkiState) seedBundleFromPEM(clusterID string, bundlePEM []byte) error {
+	if len(bundlePEM) == 0 {
+		return ErrNoTrustBundleYet
 	}
 
 	b := &ellapki.TrustBundle{ClusterID: clusterID}
 
-	rest := pemBytes
+	rest := bundlePEM
 
 	for {
 		var block *pem.Block
 
 		block, rest = pem.Decode(rest)
-
 		if block == nil {
 			break
 		}
@@ -175,7 +179,7 @@ func (p *pkiState) SeedBundleFromAgentDisk(clusterID string) error {
 	}
 
 	if len(b.Roots) == 0 {
-		return fmt.Errorf("bundle %s has no root certs", bundlePath)
+		return fmt.Errorf("bundle has no root certs")
 	}
 
 	p.bundleCached.Store(b)
@@ -250,7 +254,7 @@ func maybeRestoreFromBundle(dataDir string) (bool, error) {
 		return false, nil
 	}
 
-	if err := db.ExtractForDR(bundlePath, dataDir); err != nil {
+	if err := db.ExtractForRestore(bundlePath, dataDir); err != nil {
 		return false, fmt.Errorf("extract restore bundle: %w", err)
 	}
 

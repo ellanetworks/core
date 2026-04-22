@@ -38,9 +38,14 @@ const v9CreateClusterPKIRoots = `
 		fingerprint    TEXT PRIMARY KEY,
 		certPEM        TEXT NOT NULL,
 		crossSignedPEM TEXT NOT NULL DEFAULT '',
+		keyPEM         BLOB,
 		addedAt        INTEGER NOT NULL,
 		status         TEXT NOT NULL DEFAULT 'active'
-			CHECK (status IN ('active','verify-only','retired'))
+			CHECK (status IN ('active','verify-only','retired')),
+		CHECK (
+			(status = 'active'      AND keyPEM IS NOT NULL) OR
+			(status IN ('verify-only','retired') AND keyPEM IS NULL)
+		)
 )`
 
 const v9CreateClusterPKIIntermediates = `
@@ -48,10 +53,15 @@ const v9CreateClusterPKIIntermediates = `
 		fingerprint     TEXT PRIMARY KEY,
 		certPEM         TEXT NOT NULL,
 		crossSignedPEM  TEXT NOT NULL DEFAULT '',
+		keyPEM          BLOB,
 		rootFingerprint TEXT NOT NULL,
 		notAfter        INTEGER NOT NULL,
 		status          TEXT NOT NULL DEFAULT 'active'
-			CHECK (status IN ('active','verify-only','retired'))
+			CHECK (status IN ('active','verify-only','retired')),
+		CHECK (
+			(status = 'active'      AND keyPEM IS NOT NULL) OR
+			(status IN ('verify-only','retired') AND keyPEM IS NULL)
+		)
 )`
 
 const v9CreateClusterIssuedCerts = `
