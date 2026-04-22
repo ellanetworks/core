@@ -376,26 +376,32 @@ func (f *FSM) Snapshot() (raft.FSMSnapshot, error) {
 	return &fsmSnapshot{path: tmpPath, header: header}, nil
 }
 
-// Restore implements raft.FSM. It replaces the database file with the snapshot
-// contents, then reopens the database connection and re-prepares statements.
-// Detects both legacy (raw SQLite) and new (ELSN-prefixed) snapshot formats.
+// Restore implements raft.FSM. It replaces the database file with the
+// payload bytes, then reopens the database connection and re-prepares
+// statements. Two input shapes are accepted:
+//
+//  1. ELSN-prefixed snapshots produced by FSM.Snapshot and delivered
+//     via the standard raft snapshot pipeline.
+//  2. Raw SQLite files delivered via raft.UserRestore — the db.Restore
+//     path hands the ella.db bytes extracted from a backup archive
+//     directly to raft, which invokes FSM.Restore without the ELSN
+//     wrapper.
 func (f *FSM) Restore(rc io.ReadCloser) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	defer func() { _ = rc.Close() }()
 
-	// Read the first 16 bytes to detect format.
 	var peek [snapshotHeaderSize]byte
 
 	if _, err := io.ReadFull(rc, peek[:]); err != nil {
 		return fmt.Errorf("read snapshot header: %w", err)
 	}
 
-	// Determine format and build a reader for the SQLite payload.
 	var sqliteReader io.Reader
 
-	if bytes.Equal(peek[:4], []byte(snapshotMagic)) {
+	switch {
+	case bytes.Equal(peek[:4], []byte(snapshotMagic)):
 		fmtVer := binary.BigEndian.Uint32(peek[4:8])
 		if fmtVer > snapshotFormatVersion {
 			return fmt.Errorf("snapshot format version %d exceeds supported version %d", fmtVer, snapshotFormatVersion)
@@ -406,12 +412,10 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 			return fmt.Errorf("snapshot protocol version %d exceeds this binary's protocol version %d", protoVer, version.ProtocolVersion())
 		}
 
-		// SQLite payload follows the header.
 		sqliteReader = rc
-	} else if bytes.Equal(peek[:], sqliteMagic) {
-		// Legacy headerless snapshot — prepend the already-read 16 bytes.
+	case bytes.Equal(peek[:], sqliteMagic):
 		sqliteReader = io.MultiReader(bytes.NewReader(peek[:]), rc)
-	} else {
+	default:
 		return fmt.Errorf("corrupt snapshot: unrecognized header magic %q", peek[:4])
 	}
 

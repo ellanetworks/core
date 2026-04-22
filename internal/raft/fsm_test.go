@@ -804,18 +804,18 @@ func TestFSM_Restore_UnsupportedProtocolVersion(t *testing.T) {
 	}
 }
 
-// TestFSM_Restore_LegacySnapshot verifies that Restore accepts a raw SQLite
-// file (no ELSN header) for backwards compatibility.
-func TestFSM_Restore_LegacySnapshot(t *testing.T) {
+// TestFSM_Restore_RawSQLite verifies that Restore accepts a raw SQLite
+// file (no ELSN header) — the shape that raft.UserRestore delivers
+// from db.Restore.
+func TestFSM_Restore_RawSQLite(t *testing.T) {
 	src := newTestApplier(t)
 
 	if _, err := src.db.ExecContext(context.Background(),
-		`INSERT INTO t(id, v) VALUES (1, 'legacy')`); err != nil {
+		`INSERT INTO t(id, v) VALUES (1, 'raw')`); err != nil {
 		t.Fatalf("insert: %v", err)
 	}
 
-	// Use VACUUM INTO to get a clean SQLite file (no WAL).
-	tmpPath := filepath.Join(t.TempDir(), "legacy.db")
+	tmpPath := filepath.Join(t.TempDir(), "raw.db")
 
 	if _, err := src.db.ExecContext(context.Background(),
 		"VACUUM INTO ?", tmpPath); err != nil {
@@ -824,12 +824,7 @@ func TestFSM_Restore_LegacySnapshot(t *testing.T) {
 
 	raw, err := os.ReadFile(tmpPath)
 	if err != nil {
-		t.Fatalf("read legacy snapshot: %v", err)
-	}
-
-	// Sanity: first 16 bytes should be SQLite magic, not ELSN.
-	if !bytes.Equal(raw[:len(sqliteMagic)], sqliteMagic) {
-		t.Fatalf("expected SQLite magic, got %q", raw[:16])
+		t.Fatalf("read raw snapshot: %v", err)
 	}
 
 	dst := newTestApplier(t)
@@ -837,17 +832,17 @@ func TestFSM_Restore_LegacySnapshot(t *testing.T) {
 
 	rc := newReadCloser(raw)
 	if err := dstFSM.Restore(rc); err != nil {
-		t.Fatalf("restore legacy snapshot: %v", err)
+		t.Fatalf("restore raw snapshot: %v", err)
 	}
 
 	var v string
 	if err := dst.db.QueryRowContext(context.Background(),
 		`SELECT v FROM t WHERE id = 1`).Scan(&v); err != nil {
-		t.Fatalf("query after legacy restore: %v", err)
+		t.Fatalf("query after raw restore: %v", err)
 	}
 
-	if v != "legacy" {
-		t.Fatalf("want 'legacy', got %q", v)
+	if v != "raw" {
+		t.Fatalf("want 'raw', got %q", v)
 	}
 }
 
