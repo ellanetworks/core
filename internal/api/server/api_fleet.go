@@ -475,6 +475,7 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.El
 	}
 
 	policyCfg := make([]client.Policy, 0, len(policies))
+	ruleCfg := make([]client.NetworkRule, 0, len(policies)*4)
 
 	for _, p := range policies {
 		policyCfg = append(policyCfg, client.Policy{
@@ -487,6 +488,25 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.El
 			SessionAmbrUplink:   p.SessionAmbrUplink,
 			SessionAmbrDownlink: p.SessionAmbrDownlink,
 		})
+
+		rules, err := dbInstance.ListRulesForPolicy(ctx, int64(p.ID))
+		if err != nil {
+			return client.EllaCoreConfig{}, fmt.Errorf("couldn't list rules for policy %q: %w", p.Name, err)
+		}
+
+		for _, r := range rules {
+			ruleCfg = append(ruleCfg, client.NetworkRule{
+				PolicyName:   p.Name,
+				Direction:    r.Direction,
+				Precedence:   r.Precedence,
+				Description:  r.Description,
+				RemotePrefix: r.RemotePrefix,
+				Protocol:     r.Protocol,
+				PortLow:      r.PortLow,
+				PortHigh:     r.PortHigh,
+				Action:       r.Action,
+			})
+		}
 	}
 
 	subscribers, _, err := dbInstance.ListSubscribersPage(ctx, 1, 1000)
@@ -519,6 +539,16 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.El
 		}
 	}
 
+	bgpCfg, bgpPeersCfg, bgpImportCfg, err := collectBGPConfig(ctx, dbInstance)
+	if err != nil {
+		return client.EllaCoreConfig{}, err
+	}
+
+	retentionCfg, err := collectRetentionPolicies(ctx, dbInstance)
+	if err != nil {
+		return client.EllaCoreConfig{}, err
+	}
+
 	return client.EllaCoreConfig{
 		Operator: client.Operator{
 			ID:           client.OperatorID{Mcc: op.Mcc, Mnc: op.Mnc},
@@ -535,12 +565,97 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.El
 			NAT:               natEnabled,
 			FlowAccounting:    flowAccEnabled,
 			N3ExternalAddress: n3Settings.ExternalAddress,
+			BGP:               bgpCfg,
+			BGPPeers:          bgpPeersCfg,
+			BGPImportPrefixes: bgpImportCfg,
 		},
-		Profiles:    profileCfg,
-		Slices:      sliceCfg,
-		Policies:    policyCfg,
-		Subscribers: subCfg,
+		Profiles:          profileCfg,
+		Slices:            sliceCfg,
+		Policies:          policyCfg,
+		NetworkRules:      ruleCfg,
+		Subscribers:       subCfg,
+		RetentionPolicies: retentionCfg,
 	}, nil
+}
+
+// collectBGPConfig returns the BGP settings, cluster-wide peers (nodeID
+// NULL), and their import prefixes. Node-local BGP peers (non-NULL
+// nodeID) are excluded — Fleet does not manage per-node BGP state.
+func collectBGPConfig(ctx context.Context, dbInstance *db.Database) (client.BGPSettings, []client.BGPPeer, []client.BGPImportPrefix, error) {
+	settings, err := dbInstance.GetBGPSettings(ctx)
+	if err != nil {
+		return client.BGPSettings{}, nil, nil, fmt.Errorf("couldn't get BGP settings: %w", err)
+	}
+
+	bgpCfg := client.BGPSettings{
+		Enabled:       settings.Enabled,
+		LocalAS:       settings.LocalAS,
+		RouterID:      settings.RouterID,
+		ListenAddress: settings.ListenAddress,
+	}
+
+	peers, err := dbInstance.ListAllBGPPeers(ctx)
+	if err != nil {
+		return client.BGPSettings{}, nil, nil, fmt.Errorf("couldn't list BGP peers: %w", err)
+	}
+
+	peerCfg := make([]client.BGPPeer, 0, len(peers))
+
+	var prefixCfg []client.BGPImportPrefix
+
+	for _, p := range peers {
+		if p.NodeID != nil {
+			continue
+		}
+
+		peerCfg = append(peerCfg, client.BGPPeer{
+			Address:     p.Address,
+			RemoteAS:    p.RemoteAS,
+			HoldTime:    p.HoldTime,
+			Password:    p.Password,
+			Description: p.Description,
+		})
+
+		prefixes, err := dbInstance.ListImportPrefixesByPeer(ctx, p.ID)
+		if err != nil {
+			return client.BGPSettings{}, nil, nil, fmt.Errorf("couldn't list import prefixes for peer %s: %w", p.Address, err)
+		}
+
+		for _, pr := range prefixes {
+			prefixCfg = append(prefixCfg, client.BGPImportPrefix{
+				PeerAddress: p.Address,
+				Prefix:      pr.Prefix,
+				MaxLength:   pr.MaxLength,
+			})
+		}
+	}
+
+	return bgpCfg, peerCfg, prefixCfg, nil
+}
+
+func collectRetentionPolicies(ctx context.Context, dbInstance *db.Database) ([]client.RetentionPolicy, error) {
+	categories := []db.RetentionCategory{
+		db.CategoryAuditLogs,
+		db.CategoryRadioLogs,
+		db.CategorySubscriberUsage,
+		db.CategoryFlowReports,
+	}
+
+	out := make([]client.RetentionPolicy, 0, len(categories))
+
+	for _, cat := range categories {
+		days, err := dbInstance.GetRetentionPolicy(ctx, cat)
+		if err != nil {
+			return nil, fmt.Errorf("couldn't get retention policy %s: %w", cat, err)
+		}
+
+		out = append(out, client.RetentionPolicy{
+			Category: string(cat),
+			Days:     days,
+		})
+	}
+
+	return out, nil
 }
 
 func UnregisterFleet(dbInstance *db.Database) http.HandlerFunc {

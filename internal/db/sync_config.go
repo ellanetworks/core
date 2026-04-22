@@ -100,6 +100,22 @@ func (db *Database) applySyncConfig(ctx context.Context, cfg *client.SyncConfig)
 		return fmt.Errorf("sync routes: %w", err)
 	}
 
+	if err := db.syncNetworkRules(ctx, cfg.NetworkRules); err != nil {
+		return fmt.Errorf("sync network rules: %w", err)
+	}
+
+	if err := db.syncBGPSettings(ctx, cfg.Networking.BGP); err != nil {
+		return fmt.Errorf("sync BGP settings: %w", err)
+	}
+
+	if err := db.syncBGPPeersAndPrefixes(ctx, cfg.Networking.BGPPeers, cfg.Networking.BGPImportPrefixes); err != nil {
+		return fmt.Errorf("sync BGP peers: %w", err)
+	}
+
+	if err := db.syncRetentionPolicies(ctx, cfg.RetentionPolicies); err != nil {
+		return fmt.Errorf("sync retention policies: %w", err)
+	}
+
 	if _, err := db.applyUpdateNATSettings(ctx, &boolPayload{Value: cfg.Networking.NAT}); err != nil {
 		return fmt.Errorf("sync NAT: %w", err)
 	}
@@ -814,4 +830,253 @@ func (db *Database) listHomeNetworkKeysPinned(ctx context.Context) ([]HomeNetwor
 	}
 
 	return rows, nil
+}
+
+func (db *Database) listAllBGPPeersPinned(ctx context.Context) ([]BGPPeer, error) {
+	var rows []BGPPeer
+
+	err := db.runner(ctx).Query(ctx, db.listAllBGPPeersStmt).GetAll(&rows)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("list BGP peers: %w", err)
+	}
+
+	return rows, nil
+}
+
+func (db *Database) listImportPrefixesByPeerPinned(ctx context.Context, peerID int) ([]BGPImportPrefix, error) {
+	var rows []BGPImportPrefix
+
+	err := db.runner(ctx).Query(ctx, db.listImportPrefixesByPeerStmt, BGPImportPrefix{PeerID: peerID}).GetAll(&rows)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("list import prefixes for peer %d: %w", peerID, err)
+	}
+
+	return rows, nil
+}
+
+// syncNetworkRules reconciles per-policy filter rules. For each policy in
+// the local DB we delete every existing rule, then re-create the desired
+// rules in precedence order — matching the API's delete-all-then-create
+// semantics so there is one consistent apply path.
+func (db *Database) syncNetworkRules(ctx context.Context, desired []client.NetworkRule) error {
+	policies, err := db.listAllPoliciesPinned(ctx)
+	if err != nil {
+		return err
+	}
+
+	policyIDByName := make(map[string]int64, len(policies))
+	for _, p := range policies {
+		policyIDByName[p.Name] = int64(p.ID)
+	}
+
+	byPolicy := make(map[string][]client.NetworkRule, len(desired))
+
+	for _, r := range desired {
+		byPolicy[r.PolicyName] = append(byPolicy[r.PolicyName], r)
+	}
+
+	for _, p := range policies {
+		if _, err := db.applyDeleteNetworkRulesByPolicy(ctx, &int64Payload{Value: int64(p.ID)}); err != nil {
+			return fmt.Errorf("delete rules for policy %q: %w", p.Name, err)
+		}
+	}
+
+	for policyName, rules := range byPolicy {
+		policyID, ok := policyIDByName[policyName]
+		if !ok {
+			return fmt.Errorf("network rule references unknown policy %q", policyName)
+		}
+
+		for _, r := range rules {
+			dbRule := &NetworkRule{
+				PolicyID:     policyID,
+				Description:  r.Description,
+				Direction:    r.Direction,
+				RemotePrefix: r.RemotePrefix,
+				Protocol:     r.Protocol,
+				PortLow:      r.PortLow,
+				PortHigh:     r.PortHigh,
+				Action:       r.Action,
+				Precedence:   r.Precedence,
+			}
+
+			if _, err := db.applyCreateNetworkRule(ctx, dbRule); err != nil {
+				return fmt.Errorf("create rule for policy %q (precedence %d): %w", policyName, r.Precedence, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (db *Database) syncBGPSettings(ctx context.Context, desired client.BGPSettings) error {
+	s := &BGPSettings{
+		Enabled:       desired.Enabled,
+		LocalAS:       desired.LocalAS,
+		RouterID:      desired.RouterID,
+		ListenAddress: desired.ListenAddress,
+	}
+
+	if _, err := db.applyUpdateBGPSettings(ctx, s); err != nil {
+		return fmt.Errorf("update BGP settings: %w", err)
+	}
+
+	return nil
+}
+
+// syncBGPPeersAndPrefixes reconciles cluster-wide BGP peers (nodeID NULL)
+// against the desired set. Node-local peers are left untouched — Fleet
+// does not manage per-node BGP state. Import prefixes are grouped by
+// peer address and replaced atomically per peer.
+func (db *Database) syncBGPPeersAndPrefixes(ctx context.Context, desiredPeers []client.BGPPeer, desiredPrefixes []client.BGPImportPrefix) error {
+	existing, err := db.listAllBGPPeersPinned(ctx)
+	if err != nil {
+		return err
+	}
+
+	have := make(map[string]BGPPeer, len(existing))
+	for _, p := range existing {
+		if p.NodeID != nil {
+			continue
+		}
+
+		have[p.Address] = p
+	}
+
+	want := make(map[string]client.BGPPeer, len(desiredPeers))
+	for _, p := range desiredPeers {
+		want[p.Address] = p
+	}
+
+	for addr, cur := range have {
+		if _, ok := want[addr]; ok {
+			continue
+		}
+
+		if _, err := db.applyDeleteBGPPeer(ctx, &intPayload{Value: cur.ID}); err != nil {
+			return fmt.Errorf("delete BGP peer %s: %w", addr, err)
+		}
+	}
+
+	for _, d := range desiredPeers {
+		cur, ok := have[d.Address]
+		if !ok {
+			newPeer := &BGPPeer{
+				Address:     d.Address,
+				RemoteAS:    d.RemoteAS,
+				HoldTime:    d.HoldTime,
+				Password:    d.Password,
+				Description: d.Description,
+			}
+
+			if _, err := db.applyCreateBGPPeer(ctx, newPeer); err != nil {
+				return fmt.Errorf("create BGP peer %s: %w", d.Address, err)
+			}
+
+			continue
+		}
+
+		if bgpPeerEqual(cur, d) {
+			continue
+		}
+
+		upd := &BGPPeer{
+			ID:          cur.ID,
+			Address:     d.Address,
+			RemoteAS:    d.RemoteAS,
+			HoldTime:    d.HoldTime,
+			Password:    d.Password,
+			Description: d.Description,
+		}
+
+		if _, err := db.applyUpdateBGPPeer(ctx, upd); err != nil {
+			return fmt.Errorf("update BGP peer %s: %w", d.Address, err)
+		}
+	}
+
+	// Re-read peers so newly-created rows have their assigned IDs.
+	refreshed, err := db.listAllBGPPeersPinned(ctx)
+	if err != nil {
+		return err
+	}
+
+	peerIDByAddress := make(map[string]int, len(refreshed))
+
+	for _, p := range refreshed {
+		if p.NodeID != nil {
+			continue
+		}
+
+		peerIDByAddress[p.Address] = p.ID
+	}
+
+	prefixesByPeer := make(map[string][]BGPImportPrefix, len(desiredPrefixes))
+	for _, pr := range desiredPrefixes {
+		prefixesByPeer[pr.PeerAddress] = append(prefixesByPeer[pr.PeerAddress], BGPImportPrefix{
+			Prefix:    pr.Prefix,
+			MaxLength: pr.MaxLength,
+		})
+	}
+
+	// Replace prefixes for every cluster-wide peer (desired ones get the
+	// new list; peers with no entries get an empty list, clearing stale
+	// prefixes).
+	for addr, peerID := range peerIDByAddress {
+		if err := db.replacePeerImportPrefixes(ctx, peerID, prefixesByPeer[addr]); err != nil {
+			return fmt.Errorf("replace import prefixes for peer %s: %w", addr, err)
+		}
+	}
+
+	for addr := range prefixesByPeer {
+		if _, ok := peerIDByAddress[addr]; !ok {
+			return fmt.Errorf("import prefix references unknown BGP peer %q", addr)
+		}
+	}
+
+	return nil
+}
+
+// replacePeerImportPrefixes re-uses the existing delete-then-insert
+// apply pattern (applySetImportPrefixesForPeer) to atomically swap a
+// peer's import prefixes.
+func (db *Database) replacePeerImportPrefixes(ctx context.Context, peerID int, prefixes []BGPImportPrefix) error {
+	// Short-circuit when neither the DB nor the desired list has any
+	// prefixes for this peer; avoids a pointless DELETE.
+	current, err := db.listImportPrefixesByPeerPinned(ctx, peerID)
+	if err != nil {
+		return err
+	}
+
+	if len(current) == 0 && len(prefixes) == 0 {
+		return nil
+	}
+
+	_, err = db.applySetImportPrefixesForPeer(ctx, &importPrefixesPayload{
+		PeerID:   peerID,
+		Prefixes: prefixes,
+	})
+
+	return err
+}
+
+func bgpPeerEqual(cur BGPPeer, want client.BGPPeer) bool {
+	return cur.RemoteAS == want.RemoteAS &&
+		cur.HoldTime == want.HoldTime &&
+		cur.Password == want.Password &&
+		cur.Description == want.Description
+}
+
+func (db *Database) syncRetentionPolicies(ctx context.Context, desired []client.RetentionPolicy) error {
+	for _, rp := range desired {
+		policy := &RetentionPolicy{
+			Category: RetentionCategory(rp.Category),
+			Days:     rp.Days,
+		}
+
+		if _, err := db.applySetRetentionPolicy(ctx, policy); err != nil {
+			return fmt.Errorf("set retention policy %s: %w", rp.Category, err)
+		}
+	}
+
+	return nil
 }

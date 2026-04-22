@@ -94,12 +94,59 @@ type Subscriber struct {
 	Opc            string `json:"opc"`
 }
 
+// NetworkRule is a per-policy filter rule. Identified by
+// (policy_name, direction, precedence); precedence is 1-indexed and
+// unique within (policy_name, direction).
+type NetworkRule struct {
+	PolicyName   string  `json:"policy_name"`
+	Direction    string  `json:"direction"` // "uplink" or "downlink"
+	Precedence   int32   `json:"precedence"`
+	Description  string  `json:"description"`
+	RemotePrefix *string `json:"remote_prefix,omitempty"`
+	Protocol     int32   `json:"protocol"`
+	PortLow      int32   `json:"port_low"`
+	PortHigh     int32   `json:"port_high"`
+	Action       string  `json:"action"` // "allow" or "deny"
+}
+
 type Route struct {
 	ID          int64  `json:"id"`
 	Destination string `json:"destination"`
 	Gateway     string `json:"gateway"`
 	Interface   string `json:"interface"`
 	Metric      int    `json:"metric"`
+}
+
+type BGPSettings struct {
+	Enabled       bool   `json:"enabled"`
+	LocalAS       int    `json:"local_as"`
+	RouterID      string `json:"router_id"`
+	ListenAddress string `json:"listen_address"`
+}
+
+// BGPPeer is keyed by Address (unique per cluster). Fleet-pushed peers
+// land with cluster-wide scope (nodeID=NULL on the Core); node-local
+// BGP peers are not managed by Fleet.
+type BGPPeer struct {
+	Address     string `json:"address"`
+	RemoteAS    int    `json:"remote_as"`
+	HoldTime    int    `json:"hold_time"`
+	Password    string `json:"password,omitempty"`
+	Description string `json:"description"`
+}
+
+// BGPImportPrefix references a peer by its Address (natural key).
+type BGPImportPrefix struct {
+	PeerAddress string `json:"peer_address"`
+	Prefix      string `json:"prefix"`
+	MaxLength   int    `json:"max_length"`
+}
+
+// RetentionPolicy holds the retention days for a single category:
+// "audit", "radio", "usage", or "flow_reports".
+type RetentionPolicy struct {
+	Category string `json:"category"`
+	Days     int    `json:"days"`
 }
 
 type N2Interface struct {
@@ -137,21 +184,26 @@ type StatusNetworkInterfaces struct {
 }
 
 type Networking struct {
-	DataNetworks      []DataNetwork `json:"data_networks"`
-	Routes            []Route       `json:"routes"`
-	NAT               bool          `json:"nat"`
-	FlowAccounting    bool          `json:"flow_accounting"`
-	N3ExternalAddress string        `json:"n3_external_address"`
+	DataNetworks      []DataNetwork     `json:"data_networks"`
+	Routes            []Route           `json:"routes"`
+	NAT               bool              `json:"nat"`
+	FlowAccounting    bool              `json:"flow_accounting"`
+	N3ExternalAddress string            `json:"n3_external_address"`
+	BGP               BGPSettings       `json:"bgp"`
+	BGPPeers          []BGPPeer         `json:"bgp_peers"`
+	BGPImportPrefixes []BGPImportPrefix `json:"bgp_import_prefixes"`
 }
 
 type EllaCoreConfig struct {
-	Operator        Operator         `json:"operator"`
-	HomeNetworkKeys []HomeNetworkKey `json:"home_network_keys"`
-	Networking      Networking       `json:"networking"`
-	Profiles        []Profile        `json:"profiles"`
-	Slices          []Slice          `json:"slices"`
-	Policies        []Policy         `json:"policies"`
-	Subscribers     []Subscriber     `json:"subscribers"`
+	Operator          Operator          `json:"operator"`
+	HomeNetworkKeys   []HomeNetworkKey  `json:"home_network_keys"`
+	Networking        Networking        `json:"networking"`
+	Profiles          []Profile         `json:"profiles"`
+	Slices            []Slice           `json:"slices"`
+	Policies          []Policy          `json:"policies"`
+	NetworkRules      []NetworkRule     `json:"network_rules"`
+	Subscribers       []Subscriber      `json:"subscribers"`
+	RetentionPolicies []RetentionPolicy `json:"retention_policies"`
 }
 
 type PlmnID struct {

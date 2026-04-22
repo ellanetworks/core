@@ -55,16 +55,21 @@ type SyncNetworking struct {
 	NAT               bool                  `json:"nat"`
 	FlowAccounting    bool                  `json:"flow_accounting"`
 	NetworkInterfaces SyncNetworkInterfaces `json:"network_interfaces"`
+	BGP               BGPSettings           `json:"bgp"`
+	BGPPeers          []BGPPeer             `json:"bgp_peers"`
+	BGPImportPrefixes []BGPImportPrefix     `json:"bgp_import_prefixes"`
 }
 
 type SyncConfig struct {
-	Operator        Operator         `json:"operator"`
-	HomeNetworkKeys []HomeNetworkKey `json:"home_network_keys"`
-	Networking      SyncNetworking   `json:"networking"`
-	Profiles        []Profile        `json:"profiles"`
-	Slices          []Slice          `json:"slices"`
-	Policies        []Policy         `json:"policies"`
-	Subscribers     []Subscriber     `json:"subscribers"`
+	Operator          Operator          `json:"operator"`
+	HomeNetworkKeys   []HomeNetworkKey  `json:"home_network_keys"`
+	Networking        SyncNetworking    `json:"networking"`
+	Profiles          []Profile         `json:"profiles"`
+	Slices            []Slice           `json:"slices"`
+	Policies          []Policy          `json:"policies"`
+	NetworkRules      []NetworkRule     `json:"network_rules"`
+	Subscribers       []Subscriber      `json:"subscribers"`
+	RetentionPolicies []RetentionPolicy `json:"retention_policies"`
 }
 
 type SyncResponse struct {
