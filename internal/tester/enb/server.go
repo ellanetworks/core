@@ -96,8 +96,6 @@ func Start(
 		go gnodeB.GTPReader()
 	}
 
-	gnodeB.ListenAndServe(n2Conn)
-
 	ngeNB := &NgeNB{
 		GnodeB: gnodeB,
 		EnbID:  EnbID,

@@ -38,17 +38,17 @@ func runAuthenticationWrongKey(_ context.Context, env scenarios.Env, _ any) erro
 	g := env.FirstGNB()
 
 	gNodeB, err := gnb.Start(&gnb.StartOpts{
-		GnbID:         scenarios.DefaultGNBID,
-		MCC:           scenarios.DefaultMCC,
-		MNC:           scenarios.DefaultMNC,
-		SST:           scenarios.DefaultSST,
-		SD:            scenarios.DefaultSD,
-		DNN:           scenarios.DefaultDNN,
-		TAC:           scenarios.DefaultTAC,
-		Name:          "Ella-Core-Tester",
-		CoreN2Address: env.FirstCore(),
-		GnbN2Address:  g.N2Address,
-		GnbN3Address:  "0.0.0.0",
+		GnbID:           scenarios.DefaultGNBID,
+		MCC:             scenarios.DefaultMCC,
+		MNC:             scenarios.DefaultMNC,
+		SST:             scenarios.DefaultSST,
+		SD:              scenarios.DefaultSD,
+		DNN:             scenarios.DefaultDNN,
+		TAC:             scenarios.DefaultTAC,
+		Name:            "Ella-Core-Tester",
+		CoreN2Addresses: env.CoreN2Addresses,
+		GnbN2Address:    g.N2Address,
+		GnbN3Address:    "0.0.0.0",
 	})
 	if err != nil {
 		return fmt.Errorf("error starting gNB: %v", err)
