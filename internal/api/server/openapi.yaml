@@ -95,7 +95,7 @@ tags:
     description: Generate a diagnostic support bundle for troubleshooting.
 
 paths:
-  # ── Status ──────────────────────────────────────────────────────────────
+  # -- Status --------------------------------------------------------------
   /api/v1/status:
     get:
       operationId: getStatus
@@ -121,7 +121,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/StatusResponseEnvelope"
 
-  # ── Metrics ─────────────────────────────────────────────────────────────
+  # -- Metrics -------------------------------------------------------------
   /api/v1/metrics:
     get:
       operationId: getMetrics
@@ -137,7 +137,7 @@ paths:
               schema:
                 type: string
 
-  # ── Profiling (Pprof) ───────────────────────────────────────────────────
+  # -- Profiling (Pprof) ---------------------------------------------------
   /api/v1/pprof/:
     get:
       operationId: getPprofIndex
@@ -446,7 +446,7 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
-  # ── Initialization ──────────────────────────────────────────────────────
+  # -- Initialization ------------------------------------------------------
   /api/v1/init:
     post:
       operationId: initialize
@@ -477,7 +477,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  # ── Authentication ──────────────────────────────────────────────────────
+  # -- Authentication ------------------------------------------------------
   /api/v1/auth/login:
     post:
       operationId: login
@@ -558,7 +558,7 @@ paths:
       summary: Rotate the JWT secret
       description: |
         Generates a new JWT signing secret. All existing user sessions are
-        immediately invalidated — users must re-authenticate. API tokens
+        immediately invalidated - users must re-authenticate. API tokens
         (prefixed `ellacore_`) are not affected. Requires admin role.
       responses:
         "200":
@@ -572,7 +572,7 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
-  # ── Users ───────────────────────────────────────────────────────────────
+  # -- Users ---------------------------------------------------------------
   /api/v1/users/me:
     get:
       operationId: getLoggedInUser
@@ -645,7 +645,7 @@ paths:
               $ref: "#/components/schemas/CreateAPITokenParams"
       responses:
         "201":
-          description: Token created. The full token is in the response — store it securely.
+          description: Token created. The full token is in the response - store it securely.
           content:
             application/json:
               schema:
@@ -838,7 +838,7 @@ paths:
               $ref: "#/components/schemas/CreateAPITokenParams"
       responses:
         "201":
-          description: Token created. The full token is in the response — store it securely.
+          description: Token created. The full token is in the response - store it securely.
           content:
             application/json:
               schema:
@@ -874,7 +874,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  # ── Subscribers ─────────────────────────────────────────────────────────
+  # -- Subscribers ---------------------------------------------------------
   /api/v1/subscribers:
     get:
       operationId: listSubscribers
@@ -908,7 +908,7 @@ paths:
       description: |
         Registers a new 5G subscriber on the network. Requires the IMSI, permanent key (K),
         sequence number, and an existing profile name. Optionally provide the OPc
-        value — if omitted, it is derived from the operator code.
+        value - if omitted, it is derived from the operator code.
         Maximum 1000 subscribers.
       requestBody:
         required: true
@@ -1012,7 +1012,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  # ── Subscriber Usage ────────────────────────────────────────────────────
+  # -- Subscriber Usage ----------------------------------------------------
   /api/v1/subscriber-usage:
     get:
       operationId: getSubscriberUsage
@@ -1102,7 +1102,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  # ── Profiles ────────────────────────────────────────────────────────────
+  # -- Profiles ------------------------------------------------------------
   /api/v1/profiles:
     get:
       operationId: listProfiles
@@ -1202,7 +1202,7 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
-  # ── Slices ──────────────────────────────────────────────────────────────
+  # -- Slices --------------------------------------------------------------
   /api/v1/slices:
     get:
       operationId: listSlices
@@ -1302,7 +1302,7 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
-  # ── Policies ────────────────────────────────────────────────────────────
+  # -- Policies ------------------------------------------------------------
   /api/v1/policies:
     get:
       operationId: listPolicies
@@ -1414,7 +1414,7 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
-  # ── Operator ────────────────────────────────────────────────────────────
+  # -- Operator ------------------------------------------------------------
   /api/v1/operator:
     get:
       operationId: getOperator
@@ -1438,7 +1438,7 @@ paths:
       summary: Get tracking areas
       deprecated: true
       description: |
-        **Deprecated** — use `GET /api/v1/operator` instead, which returns the full operator configuration including tracking data.
+        **Deprecated** - use `GET /api/v1/operator` instead, which returns the full operator configuration including tracking data.
         This endpoint will be removed after 2026-04-01.
       responses:
         "200":
@@ -1475,7 +1475,7 @@ paths:
       summary: Get PLMN ID
       deprecated: true
       description: |
-        **Deprecated** — use `GET /api/v1/operator` instead, which returns the full operator configuration including the PLMN ID.
+        **Deprecated** - use `GET /api/v1/operator` instead, which returns the full operator configuration including the PLMN ID.
         This endpoint will be removed after 2026-04-01.
       responses:
         "200":
@@ -1490,7 +1490,7 @@ paths:
       operationId: updateOperatorId
       tags: [Operator]
       summary: Update PLMN ID
-      description: Changes the MCC and MNC. Cannot be changed while subscribers exist — delete all subscribers first.
+      description: Changes the MCC and MNC. Cannot be changed while subscribers exist - delete all subscribers first.
       requestBody:
         required: true
         content:
@@ -1652,7 +1652,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  # ── Data Networks ───────────────────────────────────────────────────────
+  # -- Data Networks -------------------------------------------------------
   /api/v1/networking/data-networks:
     get:
       operationId: listDataNetworks
@@ -1776,7 +1776,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  # ── Routes ──────────────────────────────────────────────────────────────
+  # -- Routes --------------------------------------------------------------
   /api/v1/networking/routes:
     get:
       operationId: listRoutes
@@ -1854,7 +1854,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  # ── NAT ─────────────────────────────────────────────────────────────────
+  # -- NAT -----------------------------------------------------------------
   /api/v1/networking/nat:
     get:
       operationId: getNATInfo
@@ -1889,7 +1889,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  # ── BGP ─────────────────────────────────────────────────────────────────
+  # -- BGP -----------------------------------------------------------------
   /api/v1/networking/bgp:
     get:
       operationId: getBGPSettings
@@ -1913,7 +1913,7 @@ paths:
         Updates the BGP configuration. Enabling BGP starts the embedded BGP
         speaker; disabling it stops the speaker and withdraws all routes.
         Changing the local AS or router ID triggers a full restart. BGP and NAT
-        can coexist — when NAT is enabled, the speaker runs but does not
+        can coexist - when NAT is enabled, the speaker runs but does not
         advertise subscriber routes.
       requestBody:
         required: true
@@ -2087,7 +2087,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  # ── Flow Accounting ─────────────────────────────────────────────────────
+  # -- Flow Accounting -----------------------------------------------------
   /api/v1/networking/flow-accounting:
     get:
       operationId: getFlowAccountingInfo
@@ -2122,7 +2122,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  # ── Interfaces ──────────────────────────────────────────────────────────
+  # -- Interfaces ----------------------------------------------------------
   /api/v1/networking/interfaces:
     get:
       operationId: listNetworkInterfaces
@@ -2159,7 +2159,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  # ── Radios ──────────────────────────────────────────────────────────────
+  # -- Radios --------------------------------------------------------------
   /api/v1/ran/radios:
     get:
       operationId: listRadios
@@ -2204,7 +2204,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  # ── Radio Events ────────────────────────────────────────────────────────
+  # -- Radio Events --------------------------------------------------------
   /api/v1/ran/events:
     get:
       operationId: listRadioEvents
@@ -2326,7 +2326,7 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  # ── Flow Reports ────────────────────────────────────────────────────────
+  # -- Flow Reports --------------------------------------------------------
   /api/v1/flow-reports:
     get:
       operationId: listFlowReports
@@ -2505,7 +2505,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  # ── Audit Logs ──────────────────────────────────────────────────────────
+  # -- Audit Logs ----------------------------------------------------------
   /api/v1/logs/audit:
     get:
       operationId: listAuditLogs
@@ -2583,7 +2583,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  # ── Backup & Restore ────────────────────────────────────────────────────
+  # -- Backup & Restore ----------------------------------------------------
   /api/v1/backup:
     post:
       operationId: createBackup
@@ -2646,7 +2646,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  # ── Support Bundle ──────────────────────────────────────────────────────
+  # -- Support Bundle ------------------------------------------------------
   /api/v1/support-bundle:
     post:
       operationId: createSupportBundle
@@ -2664,7 +2664,7 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  # ── Cluster ───────────────────────────────────────────────────────────
+  # -- Cluster -----------------------------------------------------------
   /api/v1/cluster/members:
     get:
       operationId: listClusterMembers
@@ -3019,7 +3019,7 @@ components:
             $ref: "#/components/schemas/ErrorResponse"
 
   schemas:
-    # ── Common ──────────────────────────────────────────────────────────
+    # -- Common ----------------------------------------------------------
     ErrorResponse:
       type: object
       properties:
@@ -3066,7 +3066,7 @@ components:
         result:
           $ref: "#/components/schemas/RetentionPolicy"
 
-    # ── Status ──────────────────────────────────────────────────────────
+    # -- Status ----------------------------------------------------------
     StatusResponse:
       type: object
       properties:
@@ -3097,7 +3097,7 @@ components:
         result:
           $ref: "#/components/schemas/StatusResponse"
 
-    # ── Initialization ──────────────────────────────────────────────────
+    # -- Initialization --------------------------------------------------
     InitializeParams:
       type: object
       required: [email, password]
@@ -3124,7 +3124,7 @@ components:
         result:
           $ref: "#/components/schemas/InitializeResponse"
 
-    # ── Authentication ──────────────────────────────────────────────────
+    # -- Authentication --------------------------------------------------
     LoginParams:
       type: object
       required: [email, password]
@@ -3190,7 +3190,7 @@ components:
         result:
           $ref: "#/components/schemas/RotateSecretResponse"
 
-    # ── Users ───────────────────────────────────────────────────────────
+    # -- Users -----------------------------------------------------------
     User:
       type: object
       properties:
@@ -3323,7 +3323,7 @@ components:
       properties:
         token:
           type: string
-          description: "Full API token string (prefixed `ellacore_`). Store securely — it cannot be retrieved again."
+          description: "Full API token string (prefixed `ellacore_`). Store securely - it cannot be retrieved again."
       required: [token]
 
     CreateAPITokenResponseEnvelope:
@@ -3332,7 +3332,7 @@ components:
         result:
           $ref: "#/components/schemas/CreateAPITokenResponse"
 
-    # ── Subscribers ─────────────────────────────────────────────────────
+    # -- Subscribers -----------------------------------------------------
     SubscriberStatus:
       type: object
       properties:
@@ -3510,7 +3510,7 @@ components:
           type: string
           description: Name of an existing profile.
 
-    # ── Subscriber Usage ────────────────────────────────────────────────
+    # -- Subscriber Usage ------------------------------------------------
     SubscriberUsage:
       type: object
       properties:
@@ -3536,7 +3536,7 @@ components:
             additionalProperties:
               $ref: "#/components/schemas/SubscriberUsage"
 
-    # ── Policies ────────────────────────────────────────────────────────
+    # -- Policies --------------------------------------------------------
     PolicyRule:
       type: object
       properties:
@@ -3597,7 +3597,7 @@ components:
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
-          description: "Allocation and Retention Priority (1–15). Used by the radio at session setup for admission control and pre-emption decisions. Has no effect on traffic once admitted."
+          description: "Allocation and Retention Priority (1-15). Used by the radio at session setup for admission control and pre-emption decisions. Has no effect on traffic once admitted."
           minimum: 1
           maximum: 15
         data_network_name:
@@ -3664,7 +3664,7 @@ components:
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
-          description: "Allocation and Retention Priority (1–15). Admission control at session setup."
+          description: "Allocation and Retention Priority (1-15). Admission control at session setup."
           minimum: 1
           maximum: 15
         rules:
@@ -3696,7 +3696,7 @@ components:
           enum: [5, 6, 7, 8, 9, 69, 70, 79, 80]
         arp:
           type: integer
-          description: "Allocation and Retention Priority (1–15). Admission control at session setup."
+          description: "Allocation and Retention Priority (1-15). Admission control at session setup."
           minimum: 1
           maximum: 15
         rules:
@@ -3706,7 +3706,7 @@ components:
             If this field is omitted, all existing rules are deleted.
             To keep existing rules, you must re-supply them in every update request.
 
-    # ── Profiles ────────────────────────────────────────────────────────
+    # -- Profiles --------------------------------------------------------
     Profile:
       type: object
       properties:
@@ -3772,7 +3772,7 @@ components:
           type: string
           description: "e.g. \"1 Gbps\""
 
-    # ── Slices ──────────────────────────────────────────────────────────
+    # -- Slices ----------------------------------------------------------
     Slice:
       type: object
       properties:
@@ -3844,7 +3844,7 @@ components:
           maxLength: 6
           description: "Optional Slice Differentiator (hex)."
 
-    # ── Operator ────────────────────────────────────────────────────────
+    # -- Operator --------------------------------------------------------
     OperatorID:
       type: object
       properties:
@@ -4039,7 +4039,7 @@ components:
           maxLength: 50
           description: "Abbreviated network name. Must be printable ASCII (GSM 7-bit compatible)."
 
-    # ── Data Networks ───────────────────────────────────────────────────
+    # -- Data Networks ---------------------------------------------------
     DataNetworkStatus:
       type: object
       properties:
@@ -4182,7 +4182,7 @@ components:
         result:
           $ref: "#/components/schemas/ListIPAllocationsResponse"
 
-    # ── Routes ──────────────────────────────────────────────────────────
+    # -- Routes ----------------------------------------------------------
     Route:
       type: object
       properties:
@@ -4258,7 +4258,7 @@ components:
         result:
           $ref: "#/components/schemas/CreateSuccessResponse"
 
-    # ── NAT ─────────────────────────────────────────────────────────────
+    # -- NAT -------------------------------------------------------------
     NATInfo:
       type: object
       properties:
@@ -4279,7 +4279,7 @@ components:
         enabled:
           type: boolean
 
-    # ── BGP ──────────────────────────────────────────────────────────────
+    # -- BGP --------------------------------------------------------------
     BGPSettings:
       type: object
       properties:
@@ -4517,7 +4517,7 @@ components:
           description: Human-readable explanation of the filter.
       required: [prefix, source, description]
 
-    # ── Flow Accounting ─────────────────────────────────────────────────
+    # -- Flow Accounting -------------------------------------------------
     FlowAccountingInfo:
       type: object
       properties:
@@ -4538,7 +4538,7 @@ components:
         enabled:
           type: boolean
 
-    # ── Interfaces ──────────────────────────────────────────────────────
+    # -- Interfaces ------------------------------------------------------
     Vlan:
       type: object
       properties:
@@ -4614,7 +4614,7 @@ components:
           type: string
           description: "External/advertised IP address. Empty string to use default."
 
-    # ── Radios ──────────────────────────────────────────────────────────
+    # -- Radios ----------------------------------------------------------
     PlmnID:
       type: object
       properties:
@@ -4729,7 +4729,7 @@ components:
         result:
           $ref: "#/components/schemas/ListRadiosResponse"
 
-    # ── Radio Events ────────────────────────────────────────────────────
+    # -- Radio Events ----------------------------------------------------
     RadioEvent:
       type: object
       properties:
@@ -4832,7 +4832,7 @@ components:
         result:
           $ref: "#/components/schemas/RadioEventDetail"
 
-    # ── Flow Reports ────────────────────────────────────────────────────
+    # -- Flow Reports ----------------------------------------------------
     FlowReport:
       type: object
       properties:
@@ -4866,7 +4866,7 @@ components:
         action:
           type: string
           enum: [allow, drop]
-          description: Flow action — whether the flow was accepted or dropped by the UPF.
+          description: Flow action - whether the flow was accepted or dropped by the UPF.
       required: [id, subscriber_id, source_ip, destination_ip, source_port, destination_port, protocol, packets, bytes, start_time, end_time, direction, action]
 
     ListFlowReportsResponse:
@@ -4924,7 +4924,7 @@ components:
         result:
           $ref: "#/components/schemas/FlowReportStats"
 
-    # ── Audit Logs ──────────────────────────────────────────────────────
+    # -- Audit Logs ------------------------------------------------------
     AuditLog:
       type: object
       properties:
@@ -4968,7 +4968,7 @@ components:
         result:
           $ref: "#/components/schemas/ListAuditLogsResponse"
 
-    # ── Cluster ─────────────────────────────────────────────────────────
+    # -- Cluster ---------------------------------------------------------
     ClusterStatus:
       type: object
       description: Cluster information. Only present when clustering is enabled.
