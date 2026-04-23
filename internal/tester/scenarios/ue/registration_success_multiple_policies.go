@@ -37,7 +37,7 @@ func fixtureRegistrationSuccessMultiplePolicies() scenarios.FixtureSpec {
 	for i := 0; i <= 4; i++ {
 		profileName := fmt.Sprintf("profile%d", i)
 		policyName := fmt.Sprintf("policy%d", i)
-		imsi := fmt.Sprintf("00101727124654%d", 6+i)
+		imsi := fmt.Sprintf("0010172712465%02d", 46+i)
 
 		profiles = append(profiles, scenarios.ProfileSpec{
 			Name:           profileName,

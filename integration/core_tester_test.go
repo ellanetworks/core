@@ -8,27 +8,24 @@ import (
 
 	"github.com/ellanetworks/core/integration/fixture"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	// Side-effect import to register every scenario via its init()
-	// function.
+	// Side-effect import to register every scenario.
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
 
-// scenariosSkipped lists scenario names the current integration suite
-// does not exercise. These are NOT regressions — they are explicitly out
-// of scope per spec_tester_v2.md (multi-gNB and paging are deferred to
-// later tiers).
+// scenariosSkipped lists scenarios the integration suite does not
+// exercise (multi-gNB and paging are out of scope).
 var scenariosSkipped = map[string]string{
 	"gnb/ngap/xn_handover":        "multi-gNB, out of scope",
 	"ue/xn_handover_connectivity": "multi-gNB, out of scope",
 	"ue/paging/downlink_data":     "paging, out of scope",
 }
 
-// TestIntegrationTester brings the core-tester compose up once, bootstraps
-// Ella Core with the baseline operator + default profile/slice/DN/policy,
-// then runs one subtest per registered scenario. The scenario's Fixture()
-// declares any per-scenario resources; the subtest applies that fixture,
-// invokes env.RunScenario, and (if declared) polls the usage API
-// post-run.
+// TestIntegrationTester brings the core-tester compose up once,
+// bootstraps Ella Core with the baseline operator, default profile,
+// slice, data network, and policy, then runs one subtest per registered
+// scenario. Each subtest applies the scenario's FixtureSpec (with
+// t.Cleanup teardown), invokes env.RunScenario, and polls the usage API
+// when AssertUsageForIMSIs is set.
 func TestIntegrationTester(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
@@ -39,10 +36,7 @@ func TestIntegrationTester(t *testing.T) {
 
 	t.Logf("core-tester compose up in %s mode", DetectIPFamily())
 
-	// Baseline: operator, default profile, default slice, default data
-	// network, default policy. All scenarios share these via
-	// scenarios.Default* constants. Idempotent — the fixture helpers
-	// verify match if a resource already exists.
+	// Baseline resources shared across all subtests.
 	baseline := fixture.New(t, ctx, env.Client)
 	baseline.OperatorDefault()
 	baseline.Profile(fixture.DefaultProfileSpec())

@@ -305,7 +305,7 @@ func (ue *UE) GetMccAndMncInOctets() ([]byte, error) {
 // responsibility of home network operator but BCD coding shall be used. If a network
 // operator decides to assign less than 4 digits to Routing Indicator, the remaining digits
 // shall be coded as "1111" to fill the 4 digits coding of Routing Indicator (see NOTE 2). If
-// no Routing Indicator is configured in the USIM, the UE shall coxde bits 1 to 4 of octet 8
+// no Routing Indicator is configured in the USIM, the UE shall code bits 1 to 4 of octet 8
 // of the Routing Indicator as "0000" and the remaining digits as “1111".
 func (ue *UE) GetRoutingIndicatorInOctets() ([]byte, error) {
 	if len(ue.UeSecurity.RoutingIndicator) == 0 {

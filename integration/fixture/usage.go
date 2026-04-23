@@ -9,13 +9,9 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// AssertUsagePositive polls the Ella Core usage API for every IMSI until
-// uplink + downlink bytes are both > 0, or the deadline passes. Fails the
-// subtest on timeout.
-//
-// Used after data-plane scenarios (connectivity / multi-PDU / etc.) to
-// confirm Core observed the traffic, replacing the in-scenario
-// core.WaitForUsage calls dropped when porting.
+// AssertUsagePositive polls Core until uplink and downlink bytes are both
+// > 0 for every IMSI, or the deadline passes. Fails the subtest on
+// timeout.
 func AssertUsagePositive(ctx context.Context, t *testing.T, c *client.Client, imsis []string, timeout time.Duration) {
 	t.Helper()
 

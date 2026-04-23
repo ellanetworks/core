@@ -12,7 +12,6 @@ type SliceSpec struct {
 	SD   string
 }
 
-// DefaultSliceSpec returns the scenarios-package default slice.
 func DefaultSliceSpec() SliceSpec {
 	return SliceSpec{
 		Name: scenarios.DefaultSliceName,
@@ -21,8 +20,8 @@ func DefaultSliceSpec() SliceSpec {
 	}
 }
 
-// Slice upserts the slice: when a slice with the same name exists, its
-// SST/SD are overwritten to match spec; otherwise the slice is created.
+// Slice upserts the baseline slice: when it already exists, its SST/SD
+// are overwritten to match spec.
 func (f *F) Slice(spec SliceSpec) {
 	f.t.Helper()
 

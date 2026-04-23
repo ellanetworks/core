@@ -12,7 +12,6 @@ type ProfileSpec struct {
 	UeAmbrDownlink string
 }
 
-// DefaultProfileSpec returns the scenarios-package default profile.
 func DefaultProfileSpec() ProfileSpec {
 	return ProfileSpec{
 		Name:           scenarios.DefaultProfileName,
@@ -21,9 +20,8 @@ func DefaultProfileSpec() ProfileSpec {
 	}
 }
 
-// Profile upserts the profile: when a profile with the same name exists
-// (e.g. Core's seeded "default"), its UE-AMBR is overwritten to match
-// spec; otherwise the profile is created.
+// Profile upserts the baseline profile: when it already exists (e.g.
+// Core's seeded "default"), its UE-AMBR is overwritten to match spec.
 func (f *F) Profile(spec ProfileSpec) {
 	f.t.Helper()
 

@@ -5,23 +5,22 @@ import (
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 )
 
-// Apply provisions every scenario-owned resource in spec and registers a
-// t.Cleanup that deletes it when the subtest ends. Cleanups run in LIFO
-// order, which matches the reverse-dependency teardown order: subscribers
-// first, then policies, data networks, slices, and finally profiles.
+// Apply provisions every scenario-owned resource in spec and registers
+// t.Cleanup handlers to delete them when the subtest ends. LIFO cleanup
+// order gives the correct reverse-dependency teardown: subscribers,
+// policies, data networks, slices, profiles.
 //
-// Scoped resources are created with strict semantics — if one already
-// exists under the same name, the test fails loudly. That's intentional:
-// it surfaces teardown bugs instead of silently mutating shared state.
+// Scoped resources use strict-create semantics — a name collision fails
+// the test so that stray state from a prior run surfaces immediately
+// instead of silently mutating shared state.
 //
-// Non-scoped resources (operator singleton, home network keys) are applied
-// idempotently and are not cleaned up; they are expected to be established
-// once by the baseline and shared across all subtests.
+// Non-scoped resources (operator singleton, home network keys) are
+// applied idempotently and are not cleaned up; they belong to the
+// baseline shared across all subtests.
 //
-// Rule for scenario authors: a scenario may reference baseline names
-// (default profile/slice/DN/policy) only when its assertions match
-// baseline values. Anything else must be declared under a scoped name in
-// the scenario's fixture — never mutate the baseline.
+// Rule for scenario authors: reference baseline names (default
+// profile/slice/DN/policy) only when assertions match baseline values.
+// Anything else must be declared under a scoped name.
 func (f *F) Apply(spec scenarios.FixtureSpec) {
 	f.t.Helper()
 

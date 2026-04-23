@@ -18,7 +18,6 @@ type PolicySpec struct {
 	Arp                 int32
 }
 
-// DefaultPolicySpec returns the scenarios-package default policy.
 func DefaultPolicySpec() PolicySpec {
 	return PolicySpec{
 		Name:                scenarios.DefaultPolicyName,
@@ -32,9 +31,8 @@ func DefaultPolicySpec() PolicySpec {
 	}
 }
 
-// Policy upserts the policy: when a policy with the same name exists
-// (e.g. Core's seeded "default"), its full config is overwritten to
-// match spec; otherwise the policy is created.
+// Policy upserts the baseline policy: when it already exists (e.g.
+// Core's seeded "default"), its config is overwritten to match spec.
 func (f *F) Policy(spec PolicySpec) {
 	f.t.Helper()
 

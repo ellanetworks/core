@@ -13,8 +13,6 @@ type DataNetworkSpec struct {
 	MTU    int32
 }
 
-// DefaultDataNetworkSpec returns the scenarios-package default data
-// network.
 func DefaultDataNetworkSpec() DataNetworkSpec {
 	return DataNetworkSpec{
 		Name:   scenarios.DefaultDNN,
@@ -24,12 +22,9 @@ func DefaultDataNetworkSpec() DataNetworkSpec {
 	}
 }
 
-// DataNetwork creates a data network when none exists with the given
-// name. When a data network with the same name already exists (e.g.
-// Core's seeded "internet"), it is left untouched — matching the old
-// core-tester behaviour, which tolerates drift on the seeded DN's IP
-// pool and MTU. Scenarios that need specific DN parameters must use a
-// distinct name.
+// DataNetwork creates the baseline data network if none with the given
+// name exists. A pre-existing DN is left untouched; scenarios needing
+// specific DN parameters must use a distinct name.
 func (f *F) DataNetwork(spec DataNetworkSpec) {
 	f.t.Helper()
 

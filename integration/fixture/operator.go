@@ -9,17 +9,14 @@ import (
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 )
 
-// OperatorSpec captures the singleton operator settings. Because the
-// operator is a singleton in Ella Core, subtests that provision different
-// values will overwrite each other; the top-level fixture invocation sets
-// these once for the compose lifetime via OperatorDefault.
+// OperatorSpec captures the singleton operator settings.
 type OperatorSpec struct {
 	MCC           string
 	MNC           string
 	SupportedTACs []string
 }
 
-// Operator writes the operator ID + tracking TACs.
+// Operator writes the operator ID and tracking TACs.
 func (f *F) Operator(spec OperatorSpec) {
 	f.t.Helper()
 
@@ -48,16 +45,16 @@ func (f *F) OperatorDefault() {
 	})
 }
 
-// HomeNetworkKeySpec carries a hex-encoded X25519 private key and a
-// key identifier. When PrivateKey is empty, a key is auto-generated.
+// HomeNetworkKeySpec carries a hex-encoded X25519 private key and a key
+// identifier.
 type HomeNetworkKeySpec struct {
 	KeyIdentifier int
 	Scheme        string
 	PrivateKey    string
 }
 
-// HomeNetworkKey creates a home network key if the operator does not
-// already serve one with the matching public key. Idempotent.
+// HomeNetworkKey creates a home network key unless the operator already
+// serves one with the matching public key.
 func (f *F) HomeNetworkKey(spec HomeNetworkKeySpec) {
 	f.t.Helper()
 
