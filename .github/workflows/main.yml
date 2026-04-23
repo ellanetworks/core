@@ -43,6 +43,6 @@ jobs:
   integration-tests-ha:
     needs: [image-build]
     uses: ./.github/workflows/integration-tests-ha.yaml
-  integration-tests-ha5g:
+  integration-tests-ha3gpp:
     needs: [image-build, image-build-tester]
-    uses: ./.github/workflows/integration-tests-ha5g.yaml
+    uses: ./.github/workflows/integration-tests-ha3gpp.yaml
