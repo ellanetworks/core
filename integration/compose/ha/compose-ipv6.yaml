@@ -13,7 +13,7 @@ services:
       cluster:
         driver_opts:
               com.docker.network.endpoint.ifname: eth0
-        ipv4_address: 10.100.0.11
+        ipv6_address: 2001:db8:2::11
       n6:
         driver_opts:
               com.docker.network.endpoint.ifname: n6
@@ -32,7 +32,7 @@ services:
       cluster:
         driver_opts:
               com.docker.network.endpoint.ifname: eth0
-        ipv4_address: 10.100.0.12
+        ipv6_address: 2001:db8:2::12
       n6:
         driver_opts:
               com.docker.network.endpoint.ifname: n6
@@ -51,7 +51,7 @@ services:
       cluster:
         driver_opts:
               com.docker.network.endpoint.ifname: eth0
-        ipv4_address: 10.100.0.13
+        ipv6_address: 2001:db8:2::13
       n6:
         driver_opts:
               com.docker.network.endpoint.ifname: n6
@@ -64,9 +64,11 @@ volumes:
 
 networks:
   cluster:
+    driver: bridge
+    enable_ipv6: true
     ipam:
       config:
-        - subnet: 10.100.0.0/24
+        - subnet: 2001:db8:2::/64
   n6:
     ipam:
       config:

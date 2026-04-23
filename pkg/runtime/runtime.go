@@ -765,6 +765,8 @@ func resolveN3Addresses(n3Interface config.N3Interface) (n3IPv4, n3IPv6 string) 
 			} else {
 				n3IPv6 = n3Interface.Address
 			}
+
+			return n3IPv4, n3IPv6
 		}
 	}
 

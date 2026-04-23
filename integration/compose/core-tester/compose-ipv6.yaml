@@ -3,7 +3,7 @@ configs:
     content: |
       logging:
         system:
-          level: "debug"
+          level: "info"
           output: "stdout"
         audit:
           output: "stdout"
@@ -11,14 +11,14 @@ configs:
         path: "core.db"
       interfaces:
         n2:
-          address: "10.3.0.2"
+          address: "2001:db8:1::10"
           port: 38412
         n3:
           name: "n3"
         n6:
           name: "n6"
         api:
-          address: "10.3.0.2"
+          address: "2001:db8:1::10"
           port: 5002
       xdp:
         attach-mode: "generic"
@@ -38,10 +38,11 @@ services:
       default:
         driver_opts:
               com.docker.network.endpoint.ifname: eth0
+        ipv6_address: 2001:db8:1::10
       n3:
         driver_opts:
               com.docker.network.endpoint.ifname: n3
-        ipv4_address: 10.3.0.2
+        ipv6_address: 2001:db8:3::10
       n6:
         driver_opts:
               com.docker.network.endpoint.ifname: n6
@@ -51,17 +52,18 @@ services:
     entrypoint:
       - /bin/sh
       - -c
-      - "ip addr add 10.3.0.4/24 dev n3 || true; sleep infinity"
+      - "ip addr add 2001:db8:3::13/64 dev n3 || true; sleep infinity"
     restart: unless-stopped
     privileged: true
     networks:
       default:
         driver_opts:
               com.docker.network.endpoint.ifname: eth0
+        ipv6_address: 2001:db8:1::11
       n3:
         driver_opts:
               com.docker.network.endpoint.ifname: n3
-        ipv4_address: 10.3.0.3
+        ipv6_address: 2001:db8:3::11
   router:
     image: ghcr.io/ellanetworks/ubuntu-router:0.1
     command:
@@ -81,11 +83,18 @@ services:
         ipv4_address: 10.6.0.3
 
 networks:
-  n3:
-    internal: true
+  default:
+    driver: bridge
+    enable_ipv6: true
     ipam:
       config:
-        - subnet: 10.3.0.0/24
+        - subnet: 2001:db8:1::/64
+  n3:
+    internal: true
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: 2001:db8:3::/64
   n6:
     ipam:
       config:
