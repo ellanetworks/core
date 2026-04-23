@@ -529,50 +529,72 @@ func (u *UPF) pollUsageAndResetCounters() error {
 	}
 
 	for localSeid, session := range u.se.ListSessions() {
-		for _, pdr := range session.ListPDRs() {
-			urrID := pdr.PdrInfo.UrrID
-			if urrID == 0 {
-				logger.UpfLog.Debug("URR ID is 0, skipping usage report", logger.SEID(localSeid), logger.PDRID(pdr.PdrInfo.PdrID))
-				continue
-			}
-
-			uvol := uint64(0)
-			dvol := uint64(0)
-
-			var err error
-
-			// Downlink PDR
-			if pdr.UEIP.IsValid() {
-				dvol, err = u.getAndResetUsageForURR(urrID)
-				if err != nil {
-					logger.UpfLog.Warn("could not get usage for URR - downlink", logger.URRID(urrID), zap.Error(err), logger.SEID(localSeid), logger.PDRID(pdr.PdrInfo.PdrID))
-					continue
-				}
-			} else { // Uplink PDR
-				uvol, err = u.getAndResetUsageForURR(urrID)
-				if err != nil {
-					logger.UpfLog.Warn("could not get usage for URR - uplink", logger.URRID(urrID), zap.Error(err), logger.SEID(localSeid))
-					continue
-				}
-			}
-
-			err = u.se.SendUsageReport(u.ctx, u.smf, localSeid, uvol, dvol)
-			if err != nil {
-				logger.UpfLog.Warn("could not send PFCP session report request for usage", zap.Error(err), logger.SEID(localSeid), logger.URRID(urrID))
-				continue
-			}
-
-			logger.UpfLog.Debug(
-				"Sent usage report",
-				logger.SEID(localSeid),
-				logger.URRID(urrID),
-				logger.UplinkVolume(uvol),
-				logger.DownlinkVolume(dvol),
-			)
-		}
+		u.flushUsageForSession(u.ctx, localSeid, session)
 	}
 
 	return nil
+}
+
+// FlushUsage drains and reports any pending URR counters for the given SEID.
+// Called by the SMF immediately before session deletion so that traffic
+// accounted since the last periodic poll is reported to the subscriber-usage
+// store and not dropped when the session is removed from the engine
+// (3GPP TS 29.244 §5.2.2.4 termination reporting trigger).
+func (u *UPF) FlushUsage(ctx context.Context, seid uint64) {
+	if u.se == nil {
+		return
+	}
+
+	session := u.se.GetSession(seid)
+	if session == nil {
+		return
+	}
+
+	u.flushUsageForSession(ctx, seid, session)
+}
+
+func (u *UPF) flushUsageForSession(ctx context.Context, localSeid uint64, session *engine.Session) {
+	for _, pdr := range session.ListPDRs() {
+		urrID := pdr.PdrInfo.UrrID
+		if urrID == 0 {
+			logger.UpfLog.Debug("URR ID is 0, skipping usage report", logger.SEID(localSeid), logger.PDRID(pdr.PdrInfo.PdrID))
+			continue
+		}
+
+		uvol := uint64(0)
+		dvol := uint64(0)
+
+		var err error
+
+		// Downlink PDR
+		if pdr.UEIP.IsValid() {
+			dvol, err = u.getAndResetUsageForURR(urrID)
+			if err != nil {
+				logger.UpfLog.Warn("could not get usage for URR - downlink", logger.URRID(urrID), zap.Error(err), logger.SEID(localSeid), logger.PDRID(pdr.PdrInfo.PdrID))
+				continue
+			}
+		} else { // Uplink PDR
+			uvol, err = u.getAndResetUsageForURR(urrID)
+			if err != nil {
+				logger.UpfLog.Warn("could not get usage for URR - uplink", logger.URRID(urrID), zap.Error(err), logger.SEID(localSeid))
+				continue
+			}
+		}
+
+		err = u.se.SendUsageReport(ctx, u.smf, localSeid, uvol, dvol)
+		if err != nil {
+			logger.UpfLog.Warn("could not send PFCP session report request for usage", zap.Error(err), logger.SEID(localSeid), logger.URRID(urrID))
+			continue
+		}
+
+		logger.UpfLog.Debug(
+			"Sent usage report",
+			logger.SEID(localSeid),
+			logger.URRID(urrID),
+			logger.UplinkVolume(uvol),
+			logger.DownlinkVolume(dvol),
+		)
+	}
 }
 
 func (u *UPF) listenForMissingNeighbours() {

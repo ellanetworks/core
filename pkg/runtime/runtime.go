@@ -431,7 +431,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	eng := upfInstance.Engine()
 
-	smfUPF := &smfUPFAdapter{engine: eng}
+	smfUPF := &smfUPFAdapter{engine: eng, upf: upfInstance}
 	smfInstance.SetUPF(smfUPF)
 
 	// Initialize SDF filters from database
