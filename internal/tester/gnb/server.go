@@ -29,6 +29,11 @@ const (
 // SendToRan when every configured peer has failed.
 var ErrNoActivePeer = errors.New("gnb: no active N2 peer")
 
+// ErrNoRotationCandidate indicates RotateToNextPeer was called but no other
+// peer in the configured list is eligible (every other peer is marked
+// n2StateFailed, or there is only one peer configured).
+var ErrNoRotationCandidate = errors.New("gnb: no rotation candidate available")
+
 type GnodeB struct {
 	GnbID             string
 	MCC               string
@@ -542,11 +547,21 @@ func (g *GnodeB) promoteNextFromReceiver(failedIdx int, failedConn *sctp.SCTPCon
 	peer.conn = nil
 	g.n2Active = -1
 
-	for idx := failedIdx + 1; idx < len(g.n2Peers); idx++ {
-		if err := g.n2DialAndActivateLocked(idx); err != nil {
+	// Scan the remaining peers in wrap order, skipping anything already
+	// marked failed. Wrapping matters after a rotation has moved us off
+	// the head of the list: if the current peer then truly dies (SCTP
+	// ABORT), we still want to try the earlier (non-failed) peers.
+	n := len(g.n2Peers)
+	for step := 1; step < n; step++ {
+		cand := (failedIdx + step) % n
+		if g.n2Peers[cand].state == n2StateFailed {
+			continue
+		}
+
+		if err := g.n2DialAndActivateLocked(cand); err != nil {
 			logger.GnbLogger.Warn(
 				"gnb failover: peer unreachable",
-				zap.String("address", g.n2Peers[idx].address),
+				zap.String("address", g.n2Peers[cand].address),
 				zap.Error(err),
 			)
 
@@ -608,6 +623,97 @@ func (g *GnodeB) TriggerFailover() {
 	if conn != nil {
 		_ = conn.Close()
 	}
+}
+
+// RotateToNextPeer deliberately moves the active SCTP association to the
+// next non-failed peer in the configured list, wrapping around if needed.
+//
+// Unlike TriggerFailover (which relies on the receiver goroutine detecting
+// an SCTP close and calling promoteNextFromReceiver — a path that marks the
+// peer n2StateFailed and does not wrap), this method owns the transition
+// synchronously under n2Mu and leaves the previous peer in n2StatePending.
+// The previous peer remains a valid candidate for future rotations: a
+// follower that rejected our writes today may become the Raft leader
+// tomorrow, and we want to come back to it.
+//
+// Returns ErrNoRotationCandidate when no other non-failed peer exists. In
+// that case the current active peer is left untouched. If every candidate
+// dial fails, the gNB ends up with no active peer (same state as complete
+// failover exhaustion) and the error describes the last dial failure.
+//
+// The receiver goroutine for the previous peer will still fire on the
+// conn close, but by the time it acquires n2Mu the active index has moved
+// and its existing `g.n2Active != failedIdx` guard makes it a no-op.
+func (g *GnodeB) RotateToNextPeer() error {
+	g.n2Mu.Lock()
+	defer g.n2Mu.Unlock()
+
+	if g.n2Shutdown {
+		return errors.New("gnb: shutdown")
+	}
+
+	oldActive := g.n2Active
+	if oldActive < 0 || oldActive >= len(g.n2Peers) {
+		return fmt.Errorf("%w: no current active peer", ErrNoRotationCandidate)
+	}
+
+	n := len(g.n2Peers)
+
+	haveCandidate := false
+
+	for step := 1; step < n; step++ {
+		if g.n2Peers[(oldActive+step)%n].state != n2StateFailed {
+			haveCandidate = true
+			break
+		}
+	}
+
+	if !haveCandidate {
+		return ErrNoRotationCandidate
+	}
+
+	// Tear down the current active peer. Leave it in n2StatePending (not
+	// failed) so later rotations can return to it.
+	oldPeer := g.n2Peers[oldActive]
+	if oldPeer.conn != nil {
+		_ = oldPeer.conn.Close()
+	}
+
+	oldPeer.conn = nil
+	oldPeer.state = n2StatePending
+	g.n2Active = -1
+
+	var lastDialErr error
+
+	for step := 1; step < n; step++ {
+		cand := (oldActive + step) % n
+		if g.n2Peers[cand].state == n2StateFailed {
+			continue
+		}
+
+		if err := g.n2DialAndActivateLocked(cand); err != nil {
+			logger.GnbLogger.Warn(
+				"gnb rotate: candidate unreachable",
+				zap.String("address", g.n2Peers[cand].address),
+				zap.Error(err),
+			)
+
+			lastDialErr = err
+
+			continue
+		}
+
+		return nil
+	}
+
+	close(g.n2Change)
+	g.n2Change = make(chan struct{})
+
+	if lastDialErr != nil {
+		return fmt.Errorf("gnb rotate: all candidates failed; last error: %w", lastDialErr)
+	}
+
+	return fmt.Errorf("gnb rotate: all candidates failed")
 }
 
 func (g *GnodeB) GenerateTEID() uint32 {
