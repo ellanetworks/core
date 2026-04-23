@@ -231,7 +231,7 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 
 	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "insert").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateDataNetwork(ctx, dataNetwork) }, "CreateDataNetwork")
+	_, err := opCreateDataNetwork.Invoke(db, dataNetwork)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -262,7 +262,7 @@ func (db *Database) UpdateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 
 	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "update").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateDataNetwork(ctx, dataNetwork) }, "UpdateDataNetwork")
+	_, err := opUpdateDataNetwork.Invoke(db, dataNetwork)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -293,9 +293,7 @@ func (db *Database) DeleteDataNetwork(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "delete").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyDeleteDataNetwork(ctx, &stringPayload{Value: name})
-	}, "DeleteDataNetwork")
+	_, err := opDeleteDataNetwork.Invoke(db, &stringPayload{Value: name})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

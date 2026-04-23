@@ -4,7 +4,6 @@ package raft
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -398,38 +397,17 @@ type ProposeResult struct {
 	Index uint64
 }
 
+// Propose marshals and applies a command through Raft. Callers must be
+// the leader; followers receive raft.ErrNotLeader. Follower-side
+// forwarding is handled by the typed-op dispatch layer (internal/db)
+// through Manager.ForwardOperation.
 func (m *Manager) Propose(cmd *Command, timeout time.Duration) (*ProposeResult, error) {
 	data, err := cmd.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("marshal command: %w", err)
 	}
 
-	// Fast path: this node is the leader, apply locally.
-	if m.IsLeader() {
-		result, err := m.ApplyBytes(data, timeout)
-		if err == nil {
-			return result, nil
-		}
-
-		// ErrNotLeader / ErrLeadershipLost between IsLeader() and Apply() —
-		// fall through to the forward path. Any other error is terminal.
-		if !errors.Is(err, raft.ErrNotLeader) && !errors.Is(err, raft.ErrLeadershipLost) {
-			return nil, err
-		}
-	}
-
-	// Follower (or ex-leader mid-transition): forward to the current leader.
-	if m.clusterListener == nil {
-		// Single-server mode, but this node is not leader. Shouldn't happen
-		// — standalone bootstrap makes the single node leader — but surface
-		// a clear error rather than NPE.
-		return nil, raft.ErrNotLeader
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	return m.forwardPropose(ctx, data, timeout)
+	return m.ApplyBytes(data, timeout)
 }
 
 // ApplyBytes applies pre-marshalled Command bytes through Raft. Unlike

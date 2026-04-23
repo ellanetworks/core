@@ -148,7 +148,7 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, bgpServic
 		}
 
 		// Leadership transfer is the last local step: transferring earlier
-		// would strand subsequent proposeChangeset writes on a now-follower.
+		// would strand subsequent replicated writes on a now-follower.
 		transferred := false
 
 		if nodeID == dbInstance.NodeID() && dbInstance.ClusterEnabled() && dbInstance.IsLeader() {

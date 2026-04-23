@@ -500,18 +500,9 @@ func (db *Database) IsLeader() bool {
 	return db.raftManager.IsLeader()
 }
 
-// ApplyForwardedCommand applies pre-marshalled Command bytes through
-// Raft on behalf of the /cluster/internal/propose handler. Callers are
-// expected to be the current leader; raft.ErrNotLeader is returned
-// otherwise. In standalone mode (no cluster) the call fails with a
-// clear sentinel — the handler should reject earlier.
-func (db *Database) ApplyForwardedCommand(data []byte, timeout time.Duration) (*ellaraft.ProposeResult, error) {
-	if db.raftManager == nil {
-		return nil, fmt.Errorf("cluster not enabled")
-	}
-
-	return db.raftManager.ApplyBytes(data, timeout)
-}
+// ApplyForwardedOperation is the leader-side entry point for a forwarded
+// typed operation posted to /cluster/internal/propose. See
+// operations.go for the full flow.
 
 // ProposeTimeout exposes the Raft manager's configured propose timeout
 // so handlers can apply the same bound to forwarded commands they
@@ -699,7 +690,7 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 		logger.WithTrace(ctx, logger.DBLog).Info("Proposing migration over Raft",
 			zap.Int("targetVersion", v))
 
-		if _, err := db.proposeIntent(ellaraft.CmdMigrateShared, migrateSharedPayload{TargetVersion: v}); err != nil {
+		if _, err := opMigrateShared.Invoke(db, migrateSharedPayload{TargetVersion: v}); err != nil {
 			return fmt.Errorf("propose migration %d: %w", v, err)
 		}
 	}

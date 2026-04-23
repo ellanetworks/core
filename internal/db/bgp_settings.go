@@ -116,7 +116,7 @@ func (db *Database) UpdateBGPSettings(ctx context.Context, settings *BGPSettings
 
 	DBQueriesTotal.WithLabelValues(BGPSettingsTableName, "update").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateBGPSettings(ctx, settings) }, "UpdateBGPSettings")
+	_, err := opUpdateBGPSettings.Invoke(db, settings)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

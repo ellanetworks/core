@@ -296,18 +296,19 @@ func TestDecodeForwardError_EmptyMessage(t *testing.T) {
 	}
 }
 
-func TestForwardPropose_SingleServerReturnsNotLeader(t *testing.T) {
+func TestForwardOperation_SingleServerReturnsNotLeader(t *testing.T) {
 	// In standalone mode (no clusterListener) forwarding is not
-	// possible. Propose falls through to forwardPropose only after
-	// leader-side apply failed, which in single-server mode means
-	// something is very wrong; surface ErrNotLeader rather than NPE.
+	// possible. ForwardOperation is called from the typed-op dispatch
+	// layer only when leader-side apply failed, which in single-server
+	// mode means something is very wrong; surface ErrNotLeader rather
+	// than NPE.
 	m, _ := NewTestManager(t, newTestApplier(t))
 
 	if m.clusterListener != nil {
 		t.Fatal("NewTestManager unexpectedly wired a clusterListener")
 	}
 
-	_, err := m.forwardPropose(context.Background(), []byte("x"), time.Second)
+	_, err := m.ForwardOperation(context.Background(), "TestOp", []byte(`{}`), time.Second)
 	if !errors.Is(err, hraft.ErrNotLeader) {
 		t.Fatalf("want ErrNotLeader, got %v", err)
 	}

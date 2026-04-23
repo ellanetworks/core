@@ -87,9 +87,7 @@ func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, pr
 
 	DBQueriesTotal.WithLabelValues(BGPImportPrefixesTableName, "replace").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applySetImportPrefixesForPeer(ctx, &importPrefixesPayload{PeerID: peerID, Prefixes: prefixes})
-	}, "SetImportPrefixesForPeer")
+	_, err := opSetImportPrefixesForPeer.Invoke(db, &importPrefixesPayload{PeerID: peerID, Prefixes: prefixes})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

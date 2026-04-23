@@ -20,18 +20,21 @@ import (
 func TestClusterPropose_HappyPath(t *testing.T) {
 	testDB := newLeaderTestDB(t)
 
-	cmd, err := ellaraft.NewCommand(ellaraft.CmdDeleteOldAuditLogs, map[string]string{"value": "1970-01-01"})
+	payload, err := json.Marshal(map[string]string{"value": "1970-01-01"})
 	if err != nil {
-		t.Fatalf("new command: %v", err)
+		t.Fatalf("marshal payload: %v", err)
 	}
 
-	data, err := cmd.MarshalBinary()
+	envelope, err := json.Marshal(ellaraft.ProposeForwardRequest{
+		Operation: "DeleteOldAuditLogs",
+		Payload:   payload,
+	})
 	if err != nil {
-		t.Fatalf("marshal: %v", err)
+		t.Fatalf("marshal envelope: %v", err)
 	}
 
 	req := httptest.NewRequestWithContext(context.Background(),
-		http.MethodPost, ellaraft.ProposeForwardPath, bytes.NewReader(data))
+		http.MethodPost, ellaraft.ProposeForwardPath, bytes.NewReader(envelope))
 	req.Header.Set("Content-Type", ellaraft.ProposeForwardContentType)
 
 	w := httptest.NewRecorder()
@@ -104,7 +107,8 @@ func TestClusterPropose_EmptyBody(t *testing.T) {
 func TestClusterPropose_ShortBody(t *testing.T) {
 	testDB := newLeaderTestDB(t)
 
-	// One byte is below the minimum Command header (2-byte CommandType).
+	// One byte is below the minimum valid envelope JSON ({}). Handler
+	// must reject at JSON parse rather than pass garbage to dispatch.
 	req := httptest.NewRequestWithContext(context.Background(),
 		http.MethodPost, ellaraft.ProposeForwardPath, bytes.NewReader([]byte{0}))
 
@@ -137,20 +141,21 @@ func TestClusterPropose_BodyTooLarge(t *testing.T) {
 func TestClusterPropose_MalformedPayloadRejected(t *testing.T) {
 	testDB := newLeaderTestDB(t)
 
-	// The FSM is fail-stop on apply errors — any command whose payload
+	// The FSM is fail-stop on apply errors — any op whose payload
 	// fails to unmarshal in applyCommand panics the node. Validation
-	// in the handler must reject the garbage before raft.Apply so a
-	// buggy (or malicious) follower can't crash the leader.
-	badCmd := []byte{0x00, 0x00, 0x7b, 0x2f, 0x2f} // type=Changeset, payload="{//"
+	// in the handler must reject malformed envelopes before dispatch
+	// so a buggy (or malicious) follower can't crash the leader.
+	// An envelope with truncated JSON fails at envelope parse time.
+	badBody := []byte(`{"operation":"DeleteOldAuditLogs","payload":`)
 
 	req := httptest.NewRequestWithContext(context.Background(),
-		http.MethodPost, ellaraft.ProposeForwardPath, bytes.NewReader(badCmd))
+		http.MethodPost, ellaraft.ProposeForwardPath, bytes.NewReader(badBody))
 
 	w := httptest.NewRecorder()
 	ClusterPropose(testDB).ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for malformed payload, got %d body=%s", w.Code, w.Body.String())
+		t.Fatalf("expected 400 for malformed envelope, got %d body=%s", w.Code, w.Body.String())
 	}
 
 	var env ellaraft.ProposeForwardErrorBody
@@ -158,26 +163,33 @@ func TestClusterPropose_MalformedPayloadRejected(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 
-	if !strings.Contains(env.Message, "JSON") {
-		t.Fatalf("error message should mention JSON validation failure, got %q", env.Message)
+	if !strings.Contains(env.Message, "envelope") {
+		t.Fatalf("error message should mention envelope validation failure, got %q", env.Message)
 	}
 }
 
 func TestClusterPropose_UnknownCommandTypeRejected(t *testing.T) {
 	testDB := newLeaderTestDB(t)
 
-	// Type 0xFFFF is not in the registered command set; reject at
-	// validation rather than letting the FSM return "unknown command
-	// type" which fail-stops the node.
-	unknown := []byte{0xFF, 0xFF, 0x7b, 0x7d} // type=65535, payload="{}"
+	// An operation name not in the registered dispatch table must
+	// surface as 400 — the follower sent something this leader does
+	// not understand. Letting it reach the FSM as a raw command would
+	// fail-stop the node on "unknown command type".
+	envelope, err := json.Marshal(ellaraft.ProposeForwardRequest{
+		Operation: "DefinitelyNotARegisteredOp",
+		Payload:   []byte(`{}`),
+	})
+	if err != nil {
+		t.Fatalf("marshal envelope: %v", err)
+	}
 
 	req := httptest.NewRequestWithContext(context.Background(),
-		http.MethodPost, ellaraft.ProposeForwardPath, bytes.NewReader(unknown))
+		http.MethodPost, ellaraft.ProposeForwardPath, bytes.NewReader(envelope))
 
 	w := httptest.NewRecorder()
 	ClusterPropose(testDB).ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400 for unknown command type, got %d", w.Code)
+		t.Fatalf("expected 400 for unknown operation, got %d body=%s", w.Code, w.Body.String())
 	}
 }

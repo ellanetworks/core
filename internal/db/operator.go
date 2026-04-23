@@ -198,7 +198,7 @@ func (db *Database) InitializeOperator(ctx context.Context, initialOperator *Ope
 
 	DBQueriesTotal.WithLabelValues(OperatorTableName, "insert").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyInitializeOperator(ctx, initialOperator) }, "InitializeOperator")
+	_, err := opInitializeOperator.Invoke(db, initialOperator)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -274,7 +274,7 @@ func (db *Database) UpdateOperatorTracking(ctx context.Context, supportedTACs []
 		return fmt.Errorf("failed to set supported TACs: %w", err)
 	}
 
-	_, err = db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateOperatorTracking(ctx, op) }, "UpdateOperatorTracking")
+	_, err = opUpdateOperatorTracking.Invoke(db, op)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -308,7 +308,7 @@ func (db *Database) UpdateOperatorID(ctx context.Context, mcc, mnc string) error
 
 	op := &Operator{Mcc: mcc, Mnc: mnc}
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateOperatorID(ctx, op) }, "UpdateOperatorID")
+	_, err := opUpdateOperatorID.Invoke(db, op)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -376,7 +376,7 @@ func (db *Database) UpdateOperatorCode(ctx context.Context, operatorCode string)
 
 	op := &Operator{OperatorCode: operatorCode}
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateOperatorCode(ctx, op) }, "UpdateOperatorCode")
+	_, err := opUpdateOperatorCode.Invoke(db, op)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -426,9 +426,7 @@ func (db *Database) UpdateOperatorSecurityAlgorithms(ctx context.Context, cipher
 		return fmt.Errorf("failed to set integrity order: %w", err)
 	}
 
-	_, err = db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyUpdateOperatorSecurityAlgorithms(ctx, op)
-	}, "UpdateOperatorSecurityAlgorithms")
+	_, err = opUpdateOperatorSecurityAlgorithms.Invoke(db, op)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -462,7 +460,7 @@ func (db *Database) UpdateOperatorSPN(ctx context.Context, spnFullName, spnShort
 
 	op := &Operator{SpnFullName: spnFullName, SpnShortName: spnShortName}
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateOperatorSPN(ctx, op) }, "UpdateOperatorSPN")
+	_, err := opUpdateOperatorSPN.Invoke(db, op)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -497,7 +495,7 @@ func (db *Database) UpdateOperatorAMFIdentity(ctx context.Context, regionID, set
 
 	op := &Operator{AmfRegionID: regionID, AmfSetID: setID}
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateOperatorAMFIdentity(ctx, op) }, "UpdateOperatorAMFIdentity")
+	_, err := opUpdateOperatorAMFIdentity.Invoke(db, op)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -531,7 +529,7 @@ func (db *Database) UpdateOperatorClusterID(ctx context.Context, clusterID strin
 
 	op := &Operator{ClusterID: clusterID}
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateOperatorClusterID(ctx, op) }, "UpdateOperatorClusterID")
+	_, err := opUpdateOperatorClusterID.Invoke(db, op)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

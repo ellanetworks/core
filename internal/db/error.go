@@ -25,6 +25,11 @@ var (
 	// conditional UPDATE affected zero rows — either the id is unknown or
 	// the token has already been consumed by a prior (racing) caller.
 	ErrJoinTokenAlreadyConsumed = errors.New("join token already consumed")
+	// ErrUnknownOperation is returned by ApplyForwardedOperation when the
+	// operation name is not in the registered dispatch table. The HTTP
+	// handler maps it to 400 so a buggy follower surfaces as a client
+	// error rather than fail-stopping the leader.
+	ErrUnknownOperation = errors.New("unknown forwarded operation")
 )
 
 func isUniqueNameError(err error) bool {

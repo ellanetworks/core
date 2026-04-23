@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 
@@ -17,16 +16,19 @@ import (
 	"go.uber.org/zap"
 )
 
-// ClusterPropose is the leader side of follower→leader Propose forwarding.
+// ClusterPropose is the leader side of follower→leader op forwarding.
 //
-// A follower POSTs pre-marshalled Command bytes here. This handler
-// validates leadership, applies the command through Raft, and returns
-// the committed index + FSM response so the follower can reconstruct a
-// ProposeResult identical to what a local commit would have produced.
+// A follower POSTs a ProposeForwardRequest JSON envelope (operation
+// name + payload). This handler validates leadership, dispatches the
+// operation against the leader's own state (for changeset ops: apply
+// + capture + raft.Apply; for intent ops: raft.Apply directly), and
+// returns the committed index + FSM response so the follower can
+// reconstruct a ProposeResult identical to what a local commit would
+// have produced.
 //
 // Counterparts:
 //
-//   - follower side: (*raft.Manager).forwardPropose in
+//   - follower side: (*raft.Manager).ForwardOperation in
 //     internal/raft/forward.go
 //   - HTTP route registration: newClusterMux in cluster_http_mux.go
 //     wraps this handler with removedNodeFence so a node removed from
@@ -60,22 +62,23 @@ func ClusterPropose(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		// Validate the command envelope BEFORE reaching raft.Apply.
-		// The FSM is fail-stop: any error returned by applyCommand
-		// panics the node. A peer with a valid mTLS cert but buggy
-		// (or malicious) code could otherwise crash the leader by
-		// forwarding a syntactically invalid Command. We reject obvious
-		// garbage here; deeper schema errors still reach the FSM and
-		// are surfaced to the forwarder as 500 rather than panics
-		// (see raft.FSM.ApplyBatch for the fail-stop policy).
-		if err := validateForwardedCommand(data); err != nil {
-			writeProposeForwardError(ctx, w, http.StatusBadRequest, "invalid command", err)
+		var envelope ellaraft.ProposeForwardRequest
+		if err := json.Unmarshal(data, &envelope); err != nil {
+			writeProposeForwardError(ctx, w, http.StatusBadRequest, "invalid envelope", err)
 			return
 		}
 
-		timeout := dbInstance.ProposeTimeout()
+		if envelope.Operation == "" {
+			writeProposeForwardError(ctx, w, http.StatusBadRequest, "empty operation", nil)
+			return
+		}
 
-		result, err := dbInstance.ApplyForwardedCommand(data, timeout)
+		if len(envelope.Payload) > 0 && !json.Valid(envelope.Payload) {
+			writeProposeForwardError(ctx, w, http.StatusBadRequest, "invalid payload", nil)
+			return
+		}
+
+		result, err := dbInstance.ApplyForwardedOperation(envelope.Operation, envelope.Payload)
 		if err != nil {
 			mapApplyErrorToHTTP(ctx, w, err)
 			return
@@ -87,45 +90,17 @@ func ClusterPropose(dbInstance *db.Database) http.Handler {
 	})
 }
 
-// validateForwardedCommand checks that the POST body is a well-formed
-// Command envelope. Payload fields that deserialise according to the
-// per-type schema are not validated here; those errors reach the FSM
-// and surface as 500. The goal is to reject garbage (non-JSON payload,
-// unknown command type) before raft.Apply would panic the node.
-func validateForwardedCommand(data []byte) error {
-	if len(data) < 2 {
-		return errors.New("command too short")
-	}
-
-	cmd, err := ellaraft.UnmarshalCommand(data)
-	if err != nil {
-		return err
-	}
-
-	if !cmd.Type.IsKnown() {
-		return fmt.Errorf("unknown command type: %s", cmd.Type)
-	}
-
-	if len(cmd.Payload) > 0 && !json.Valid(cmd.Payload) {
-		return errors.New("command payload is not valid JSON")
-	}
-
-	return nil
-}
-
-// mapApplyErrorToHTTP classifies a raft Apply error into the status
-// codes the forwarder's retry logic expects:
-//
-//   - ErrNotLeader / ErrLeadershipLost → 421 Misdirected Request (retry
-//     against the new leader).
-//   - ErrEnqueueTimeout / ErrRaftShutdown → 503 Service Unavailable
-//     (retry after back-off — receiver may be busy or shutting down).
-//   - anything else → 500 Internal Server Error, with the message in the
-//     body so the forwarder can reconstruct the error for its caller.
-//     The caller will decide whether to retry; we must not silently
-//     retry here because the log entry may already be committed.
+// mapApplyErrorToHTTP classifies a raft Apply error into status codes
+// the forwarder's retry logic expects: 421 on leadership change, 503 on
+// raft busy/shutdown, 500 for anything else (the caller decides whether
+// to retry the whole op — we must not silently retry here because the
+// log entry may already be committed).
 func mapApplyErrorToHTTP(ctx context.Context, w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, db.ErrUnknownOperation):
+		writeProposeForwardError(ctx, w, http.StatusBadRequest,
+			"unknown operation", err)
+
 	case errors.Is(err, hraft.ErrNotLeader), errors.Is(err, hraft.ErrLeadershipLost):
 		writeProposeForwardError(ctx, w, http.StatusMisdirectedRequest,
 			"leadership changed during apply; retry", err)
@@ -140,10 +115,6 @@ func mapApplyErrorToHTTP(ctx context.Context, w http.ResponseWriter, err error) 
 	}
 }
 
-// writeProposeForwardError writes a small {error: string} JSON body
-// that the forwarder's decodeForwardError knows how to parse. Kept
-// deliberately minimal — the operator-API writeError envelope pulls in
-// tracing/span context that is irrelevant on the cluster port.
 func writeProposeForwardError(ctx context.Context, w http.ResponseWriter, status int, message string, cause error) {
 	if cause != nil {
 		logger.APILog.Warn("cluster propose forward error",

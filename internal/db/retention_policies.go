@@ -136,7 +136,7 @@ func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPol
 
 	DBQueriesTotal.WithLabelValues(RetentionPolicyTableName, "insert").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applySetRetentionPolicy(ctx, policy) }, "SetRetentionPolicy")
+	_, err := opSetRetentionPolicy.Invoke(db, policy)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

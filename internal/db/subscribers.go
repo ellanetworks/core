@@ -150,7 +150,7 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "insert").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateSubscriber(ctx, subscriber) }, "CreateSubscriber")
+	_, err := opCreateSubscriber.Invoke(db, subscriber)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -181,7 +181,7 @@ func (db *Database) UpdateSubscriberProfile(ctx context.Context, subscriber *Sub
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "update").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateSubscriberProfile(ctx, subscriber) }, "UpdateSubscriberProfile")
+	_, err := opUpdateSubscriberProfile.Invoke(db, subscriber)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -217,7 +217,7 @@ func (db *Database) EditSubscriberSequenceNumber(ctx context.Context, imsi strin
 		SequenceNumber: sequenceNumber,
 	}
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyEditSubscriberSeqNum(ctx, subscriber) }, "EditSubscriberSeqNum")
+	_, err := opEditSubscriberSeqNum.Invoke(db, subscriber)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -248,9 +248,7 @@ func (db *Database) DeleteSubscriber(ctx context.Context, imsi string) error {
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "delete").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyDeleteSubscriber(ctx, &stringPayload{Value: imsi})
-	}, "DeleteSubscriber")
+	_, err := opDeleteSubscriber.Invoke(db, &stringPayload{Value: imsi})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

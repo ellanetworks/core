@@ -187,7 +187,7 @@ func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 
 	DBQueriesTotal.WithLabelValues(ProfilesTableName, "insert").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateProfile(ctx, profile) }, "CreateProfile")
+	_, err := opCreateProfile.Invoke(db, profile)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -218,7 +218,7 @@ func (db *Database) UpdateProfile(ctx context.Context, profile *Profile) error {
 
 	DBQueriesTotal.WithLabelValues(ProfilesTableName, "update").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateProfile(ctx, profile) }, "UpdateProfile")
+	_, err := opUpdateProfile.Invoke(db, profile)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -249,7 +249,7 @@ func (db *Database) DeleteProfile(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(ProfilesTableName, "delete").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyDeleteProfile(ctx, &stringPayload{Value: name}) }, "DeleteProfile")
+	_, err := opDeleteProfile.Invoke(db, &stringPayload{Value: name})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

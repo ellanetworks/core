@@ -217,7 +217,7 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 
 	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "insert").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateHomeNetworkKey(ctx, key) }, "CreateHomeNetworkKey")
+	_, err := opCreateHomeNetworkKey.Invoke(db, key)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -249,9 +249,7 @@ func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id int) error {
 
 	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "delete").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyDeleteHomeNetworkKey(ctx, &intPayload{Value: id})
-	}, "DeleteHomeNetworkKey")
+	_, err := opDeleteHomeNetworkKey.Invoke(db, &intPayload{Value: id})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

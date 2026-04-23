@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"time"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -67,7 +66,7 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) (int64,
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "insert").Inc()
 
-	result, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateSession(ctx, session) }, "CreateSession")
+	result, err := opCreateSession.Invoke(db, session)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -136,9 +135,7 @@ func (db *Database) DeleteSessionByTokenHash(ctx context.Context, tokenHash []by
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyDeleteSessionByTokenHash(ctx, &bytesPayload{Value: tokenHash})
-	}, "DeleteSessionByTokenHash")
+	_, err := opDeleteSessionByTokenHash.Invoke(db, &bytesPayload{Value: tokenHash})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -171,7 +168,7 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 
 	nowUnix := time.Now().Unix()
 
-	result, err := db.proposeIntent(ellaraft.CmdDeleteExpiredSessions, &int64Payload{Value: nowUnix})
+	result, err := opDeleteExpiredSessions.Invoke(db, &int64Payload{Value: nowUnix})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -237,9 +234,7 @@ func (db *Database) DeleteOldestSessions(ctx context.Context, userID int64, limi
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyDeleteOldestSessions(ctx, &DeleteOldestArgs{UserID: userID, Limit: limit})
-	}, "DeleteOldestSessions")
+	_, err := opDeleteOldestSessions.Invoke(db, &DeleteOldestArgs{UserID: userID, Limit: limit})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -270,9 +265,7 @@ func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID int64) 
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyDeleteAllSessionsForUser(ctx, &int64Payload{Value: userID})
-	}, "DeleteAllSessionsForUser")
+	_, err := opDeleteAllSessionsForUser.Invoke(db, &int64Payload{Value: userID})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -303,7 +296,7 @@ func (db *Database) DeleteAllSessions(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return nil, db.applyDeleteAllSessions(ctx) }, "DeleteAllSessions")
+	_, err := opDeleteAllSessions.Invoke(db, &emptyPayload{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

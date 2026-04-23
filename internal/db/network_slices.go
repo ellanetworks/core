@@ -226,7 +226,7 @@ func (db *Database) CreateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 
 	DBQueriesTotal.WithLabelValues(NetworkSlicesTableName, "insert").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateNetworkSlice(ctx, slice) }, "CreateNetworkSlice")
+	_, err := opCreateNetworkSlice.Invoke(db, slice)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -257,7 +257,7 @@ func (db *Database) UpdateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 
 	DBQueriesTotal.WithLabelValues(NetworkSlicesTableName, "update").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateNetworkSlice(ctx, slice) }, "UpdateNetworkSlice")
+	_, err := opUpdateNetworkSlice.Invoke(db, slice)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -288,9 +288,7 @@ func (db *Database) DeleteNetworkSlice(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(NetworkSlicesTableName, "delete").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyDeleteNetworkSlice(ctx, &stringPayload{Value: name})
-	}, "DeleteNetworkSlice")
+	_, err := opDeleteNetworkSlice.Invoke(db, &stringPayload{Value: name})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

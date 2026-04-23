@@ -20,6 +20,11 @@ import (
 // /cluster/internal/propose handler (internal/api/server/cluster_http_forward.go)
 // used only by this end-to-end test. Kept inline so the raft package
 // doesn't need to import api/server (which would be a cycle).
+//
+// The test mini-dispatcher doesn't look up a typed-op registry (that
+// lives in internal/db); instead it treats every forwarded envelope as
+// a CmdChangeset carrying the raw payload. That's enough to exercise
+// the transport + retry + convergence paths the raft package owns.
 func miniProposeHandler(m *Manager) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !m.IsLeader() {
@@ -27,9 +32,23 @@ func miniProposeHandler(m *Manager) http.Handler {
 			return
 		}
 
-		data, err := io.ReadAll(io.LimitReader(r.Body, MaxProposeForwardBodyBytes+1))
+		body, err := io.ReadAll(io.LimitReader(r.Body, MaxProposeForwardBodyBytes+1))
 		if err != nil {
 			writeMiniError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		var envelope ProposeForwardRequest
+		if err := json.Unmarshal(body, &envelope); err != nil {
+			writeMiniError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		cmd := &Command{Type: CmdChangeset, Payload: envelope.Payload}
+
+		data, err := cmd.MarshalBinary()
+		if err != nil {
+			writeMiniError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
@@ -98,14 +117,14 @@ func TestForwardPropose_EndToEnd(t *testing.T) {
 		t.Fatal("no follower")
 	}
 
-	cmd, err := NewCommand(CmdChangeset, map[string]string{"via": "follower"})
+	payload, err := json.Marshal(map[string]string{"via": "follower"})
 	if err != nil {
-		t.Fatalf("new command: %v", err)
+		t.Fatalf("marshal payload: %v", err)
 	}
 
-	result, err := follower.Propose(cmd, 5*time.Second)
+	result, err := follower.ForwardOperation(context.Background(), "TestOp", payload, 5*time.Second)
 	if err != nil {
-		t.Fatalf("follower.Propose: %v", err)
+		t.Fatalf("follower.ForwardOperation: %v", err)
 	}
 
 	if result.Index == 0 {
@@ -227,14 +246,14 @@ func TestForwardPropose_FollowerRetriesOnLeaderChange(t *testing.T) {
 
 	// Propose from the follower. The first attempt may hit the dead
 	// old leader or fail with no-leader; retry logic must recover.
-	cmd, err := NewCommand(CmdChangeset, map[string]string{"after": "leader-change"})
+	payload, err := json.Marshal(map[string]string{"after": "leader-change"})
 	if err != nil {
-		t.Fatalf("new command: %v", err)
+		t.Fatalf("marshal payload: %v", err)
 	}
 
-	result, err := follower.Propose(cmd, 10*time.Second)
+	result, err := follower.ForwardOperation(context.Background(), "TestOp", payload, 10*time.Second)
 	if err != nil {
-		t.Fatalf("follower.Propose after leader change: %v", err)
+		t.Fatalf("follower.ForwardOperation after leader change: %v", err)
 	}
 
 	if result.Index == 0 {

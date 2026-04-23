@@ -11,10 +11,8 @@ import (
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/dbwriter"
-	"github.com/ellanetworks/core/internal/logger"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	hraft "github.com/hashicorp/raft"
-	"go.uber.org/zap"
 )
 
 // Compile-time check that *Database implements ellaraft.Applier.
@@ -175,86 +173,10 @@ type (
 	}
 )
 
-// proposeChangeset captures a local SQL mutation as a sqlite changeset and
-// replicates it through Raft as CmdChangeset. The leader's SQL writes are
-// rolled back locally and only become durable through committed apply.
-// A mutex serialises the capture-propose cycle so concurrent writers never
-// capture against the same pre-mutation state, which would produce conflicting
-// changesets.
-func (db *Database) proposeChangeset(applyFn func(context.Context) (any, error), operation string) (any, error) {
-	db.proposeMu.Lock()
-	defer db.proposeMu.Unlock()
-
-	if db.raftManager == nil {
-		return applyFn(context.Background())
-	}
-
-	changeset, applyResult, err := db.captureChangeset(context.Background(), applyFn, operation)
-	if err != nil {
-		if errors.Is(err, ErrAlreadyExists) {
-			return nil, ErrAlreadyExists
-		}
-
-		if errors.Is(err, ErrNotFound) {
-			return nil, ErrNotFound
-		}
-
-		if errors.Is(err, ErrJoinTokenAlreadyConsumed) {
-			return nil, ErrJoinTokenAlreadyConsumed
-		}
-
-		return nil, fmt.Errorf("capture changeset for %s: %w", operation, err)
-	}
-
-	if len(changeset) == 0 {
-		return applyResult, nil
-	}
-
-	changesetCmd, err := ellaraft.NewCommand(ellaraft.CmdChangeset, &bytesPayload{Value: changeset, Operation: operation})
-	if err != nil {
-		return nil, err
-	}
-
-	index, err := db.raftManager.Propose(changesetCmd, db.proposeTimeout)
-	if err != nil {
-		if isTransientRaftErr(err) {
-			return nil, fmt.Errorf("%w: %v", ErrProposeTimeout, err)
-		}
-
-		return nil, err
-	}
-
-	logger.DBLog.Debug("proposed changeset",
-		zap.String("operation", operation),
-		zap.Uint64("index", index.Index),
-		zap.Int("bytes", len(changeset)))
-
-	return applyResult, nil
-}
-
-// proposeIntent proposes non-changeset commands that intentionally remain
-// explicit in the Raft log (bulk retention deletes, migrations, restore).
-func (db *Database) proposeIntent(cmdType ellaraft.CommandType, payload any) (any, error) {
-	cmd, err := ellaraft.NewCommand(cmdType, payload)
-	if err != nil {
-		return nil, err
-	}
-
-	if db.raftManager == nil {
-		return db.ApplyCommand(context.Background(), cmd)
-	}
-
-	result, err := db.raftManager.Propose(cmd, db.proposeTimeout)
-	if err != nil {
-		if isTransientRaftErr(err) {
-			return nil, fmt.Errorf("%w: %v", ErrProposeTimeout, err)
-		}
-
-		return nil, err
-	}
-
-	return result.Value, nil
-}
+// proposeChangeset and proposeIntent were removed in favour of the typed-op
+// dispatch layer (internal/db/operations.go, operations_register.go). Every
+// replicated write now goes through a registered ChangesetOp or intentOp,
+// which handles leader capture + propose or follower forwarding.
 
 // isTransientRaftErr reports whether a Raft apply error is transient —
 // the caller should retry or surface a 503.

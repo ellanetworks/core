@@ -3,7 +3,7 @@
 // Changeset replication: captures SQLite session changesets on the leader,
 // replicates them through the Raft log, and applies them on all nodes.
 //
-// Write path (leader only — proposeChangeset / captureChangeset):
+// Write path (leader only — ChangesetOp.Invoke / captureChangeset):
 //   1. Obtain a pinned *sql.Conn (bypasses sqlair's pool) and start a
 //      sqlite3_session on the replicated tables.
 //   2. Execute the mutating SQL inside a transaction.
@@ -231,7 +231,7 @@ func (db *Database) runner(ctx context.Context) *sqlair.DB {
 }
 
 func (db *Database) applyWithPinnedConn(ctx context.Context, conn driver.Conn, applyFn func(context.Context) (any, error)) (any, error) {
-	// The caller (proposeChangeset) holds db.proposeMu, so concurrent
+	// The caller (leaderCaptureAndPropose) holds db.proposeMu, so concurrent
 	// captures are serialised at the propose level — no additional mutex
 	// is needed here.
 	pinned := sql.OpenDB(&pinnedConnector{conn: conn})

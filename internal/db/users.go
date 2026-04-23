@@ -197,7 +197,7 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (int64, error) {
 
 	DBQueriesTotal.WithLabelValues(UsersTableName, "insert").Inc()
 
-	result, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateUser(ctx, user) }, "CreateUser")
+	result, err := opCreateUser.Invoke(db, user)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -234,7 +234,7 @@ func (db *Database) UpdateUser(ctx context.Context, email string, roleID RoleID)
 		RoleID: roleID,
 	}
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateUser(ctx, user) }, "UpdateUser")
+	_, err := opUpdateUser.Invoke(db, user)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -271,7 +271,7 @@ func (db *Database) UpdateUserPassword(ctx context.Context, email string, hashed
 		HashedPassword: hashedPassword,
 	}
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateUserPassword(ctx, user) }, "UpdateUserPassword")
+	_, err := opUpdateUserPassword.Invoke(db, user)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -303,7 +303,7 @@ func (db *Database) DeleteUser(ctx context.Context, email string) error {
 
 	DBQueriesTotal.WithLabelValues(UsersTableName, "delete").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyDeleteUser(ctx, &stringPayload{Value: email}) }, "DeleteUser")
+	_, err := opDeleteUser.Invoke(db, &stringPayload{Value: email})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
