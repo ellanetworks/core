@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -75,13 +77,55 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		for _, svc := range nodeServices {
-			if logs, logErr := dc.ComposeLogs(ctx, composeDir, svc); logErr == nil {
+		// Use a fresh context that outlives the test body. The test's
+		// `ctx` is cancelled by `defer cancel()` when the test function
+		// unwinds (including on t.Fatalf), which would otherwise make
+		// every ComposeLogs call fail immediately with context.Canceled
+		// and silently skip log collection.
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cleanupCancel()
+
+		for i, svc := range nodeServices {
+			logs, logErr := dc.ComposeLogs(cleanupCtx, composeDir, svc)
+			if logErr != nil {
+				t.Logf("=== %s logs: collection failed: %v ===", svc, logErr)
+			} else {
 				t.Logf("=== %s logs ===\n%s", svc, logs)
+			}
+
+			if i < len(nodeClients) {
+				status, statusErr := nodeClients[i].GetStatus(cleanupCtx)
+				if statusErr != nil {
+					t.Logf("%s status: unreachable (%v)", svc, statusErr)
+				} else {
+					role := "standalone"
+					if status.Cluster != nil {
+						role = status.Cluster.Role
+					}
+
+					t.Logf("%s status: role=%s initialized=%v ready=%v",
+						svc, role, status.Initialized, status.Ready)
+				}
 			}
 		}
 
-		dc.ComposeDownWithFile(context.Background(), composeDir, composeFile)
+		for i, c := range nodeClients {
+			members, err := c.ListClusterMembers(cleanupCtx)
+			if err != nil {
+				continue
+			}
+
+			t.Logf("cluster members (from node %d):", i+1)
+
+			for _, m := range members {
+				t.Logf("  node=%d raft=%s api=%s suffrage=%s isLeader=%v",
+					m.NodeID, m.RaftAddress, m.APIAddress, m.Suffrage, m.IsLeader)
+			}
+
+			break
+		}
+
+		dc.ComposeDownWithFile(cleanupCtx, composeDir, composeFile)
 	})
 
 	haClient, err := client.New(&client.Config{
@@ -165,12 +209,14 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 		t.Fatalf("scenario exited before phase-1 marker: %v", runErr)
 	}
 
-	// Stop the leader. Docker sends SIGTERM with a grace period; the
-	// SCTP association closes cleanly, the gNB's receiver sees EOF, and
-	// the gNB promotes the next peer in its ordered list. NAT is enabled
-	// on Ella Core, so N6 return traffic to the new UPF is unicast-routed
-	// via the existing NAT flow — no router-route update needed.
-	if err := dc.ComposeStopWithFile(ctx, composeDir, composeFile, leaderService); err != nil {
+	// Stop the leader. `docker compose stop` default grace is 10 s, which
+	// is too short for Ella Core's graceful shutdown sequence (leadership
+	// transfer + API drain + AMF SCTP close + UPF flush). If Core gets
+	// SIGKILLed mid-shutdown, `conn.Close()` in internal/amf/ngap/service
+	// never runs and the gNB's kernel SCTP stack waits for heartbeat
+	// timeout (minutes). Bump the grace to 60 s so Core has time to send
+	// the SCTP SHUTDOWN chunk that trips the gNB receiver's EOF path.
+	if err := composeStopWithGrace(ctx, composeDir, composeFile, leaderService, 60); err != nil {
 		t.Fatalf("stop %s: %v", leaderService, err)
 	}
 
@@ -306,6 +352,28 @@ func orderLeaderFirst(addrs []string, leaderIdx int) []string {
 	}
 
 	return out
+}
+
+// composeStopWithGrace runs `docker compose stop --timeout <graceSeconds>`
+// so Ella Core can complete its graceful shutdown sequence. The shared
+// `ComposeStopWithFile` helper uses docker's default 10 s grace, which
+// is shorter than Core's per-step shutdown budget.
+func composeStopWithGrace(ctx context.Context, composeDir, composeFile, service string, graceSeconds int) error {
+	cmd := exec.CommandContext(ctx, "docker", "compose",
+		"-f", composeFile,
+		"stop",
+		"--timeout", strconv.Itoa(graceSeconds),
+		service,
+	)
+	cmd.Dir = composeDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("docker compose stop %s (grace=%ds): %w", service, graceSeconds, err)
+	}
+
+	return nil
 }
 
 // writeHA3GPPNodeConfig renders a per-node core.yaml with the ha-5g
