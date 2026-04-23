@@ -34,7 +34,24 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runRegistrationSuccessProfileA(ctx, env, params.(*profileAParams))
 		},
+		Fixture: fixtureRegistrationSuccessProfileA,
 	})
+}
+
+const profileAHomeNetworkPrivateKeyHex = "c53c22208b61860b06c62e5406a7b330c2b577aab3cd7cd2d3fa33ef6b3df3f6"
+
+func fixtureRegistrationSuccessProfileA() scenarios.FixtureSpec {
+	return scenarios.FixtureSpec{
+		HomeNetworkKeys: []scenarios.HomeNetworkKeySpec{
+			{
+				KeyIdentifier: 4,
+				Scheme:        "A",
+				PrivateKey:    profileAHomeNetworkPrivateKeyHex,
+			},
+		},
+		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
+		ExtraArgs:   []string{"--home-network-private-key", profileAHomeNetworkPrivateKeyHex},
+	}
 }
 
 func runRegistrationSuccessProfileA(_ context.Context, env scenarios.Env, params *profileAParams) error {

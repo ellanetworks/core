@@ -28,7 +28,14 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runRegistrationIncorrectGUTI(ctx, env, params)
 		},
+		Fixture: fixtureRegistrationIncorrectGUTI,
 	})
+}
+
+func fixtureRegistrationIncorrectGUTI() scenarios.FixtureSpec {
+	return scenarios.FixtureSpec{
+		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
+	}
 }
 
 func runRegistrationIncorrectGUTI(_ context.Context, env scenarios.Env, _ any) error {

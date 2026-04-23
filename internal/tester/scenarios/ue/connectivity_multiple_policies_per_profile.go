@@ -24,7 +24,33 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runConnectivityMultiplePoliciesPerProfile(ctx, env, params)
 		},
+		Fixture: fixtureConnectivityMultiplePoliciesPerProfile,
 	})
+}
+
+func fixtureConnectivityMultiplePoliciesPerProfile() scenarios.FixtureSpec {
+	return scenarios.FixtureSpec{
+		DataNetworks: []scenarios.DataNetworkSpec{
+			{Name: "enterprise", IPPool: "10.46.0.0/16", DNS: "8.8.4.4", MTU: scenarios.DefaultMTU},
+		},
+		Policies: []scenarios.PolicySpec{
+			{
+				Name:                "enterprise",
+				ProfileName:         scenarios.DefaultProfileName,
+				SliceName:           scenarios.DefaultSliceName,
+				DataNetworkName:     "enterprise",
+				SessionAmbrUplink:   "30 Mbps",
+				SessionAmbrDownlink: "60 Mbps",
+				Var5qi:              7,
+				Arp:                 15,
+			},
+		},
+		Subscribers: []scenarios.SubscriberSpec{
+			scenarios.DefaultSubscriberWith("001017271246546", ""),
+			scenarios.DefaultSubscriberWith("001017271246547", ""),
+		},
+		AssertUsageForIMSIs: []string{"001017271246546", "001017271246547"},
+	}
 }
 
 func runConnectivityMultiplePoliciesPerProfile(ctx context.Context, env scenarios.Env, _ any) error {

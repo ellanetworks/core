@@ -28,7 +28,17 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runEnbMultiUERegistration(ctx, env, params)
 		},
+		Fixture: fixtureEnbMultiUERegistration,
 	})
+}
+
+func fixtureEnbMultiUERegistration() scenarios.FixtureSpec {
+	subs := make([]scenarios.SubscriberSpec, enbNumMultiUERegistration)
+	for i := range enbNumMultiUERegistration {
+		subs[i] = scenarios.DefaultSubscriberWith(enbIncrementIMSI(enbTestStartIMSI, i), "")
+	}
+
+	return scenarios.FixtureSpec{Subscribers: subs}
 }
 
 func runEnbMultiUERegistration(_ context.Context, env scenarios.Env, _ any) error {

@@ -26,7 +26,17 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runRegistrationSuccess150Parallel(ctx, env, params)
 		},
+		Fixture: fixtureRegistrationSuccess150Parallel,
 	})
+}
+
+func fixtureRegistrationSuccess150Parallel() scenarios.FixtureSpec {
+	subs := make([]scenarios.SubscriberSpec, numSubscribersParallel)
+	for i := range numSubscribersParallel {
+		subs[i] = scenarios.DefaultSubscriberWith(incrementIMSI(parallelStartIMSI, i), "")
+	}
+
+	return scenarios.FixtureSpec{Subscribers: subs}
 }
 
 func runRegistrationSuccess150Parallel(_ context.Context, env scenarios.Env, _ any) error {

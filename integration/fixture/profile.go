@@ -21,17 +21,29 @@ func DefaultProfileSpec() ProfileSpec {
 	}
 }
 
-// Profile creates a profile. Idempotent: no-op if a profile with the same
-// name already exists.
+// Profile creates a profile, or verifies an existing one with the same
+// name matches the spec. Fails the test on mismatch so earlier fixture
+// calls cannot silently shadow a later scenario's requirements.
 func (f *F) Profile(spec ProfileSpec) {
 	f.t.Helper()
 
-	err := f.c.CreateProfile(f.ctx, &client.CreateProfileOptions{
+	existing, err := f.c.GetProfile(f.ctx, &client.GetProfileOptions{Name: spec.Name})
+	if err == nil {
+		if existing.UeAmbrUplink != spec.UeAmbrUplink || existing.UeAmbrDownlink != spec.UeAmbrDownlink {
+			f.fatalf("profile %q exists with different AMBR: have (up=%q down=%q), want (up=%q down=%q)",
+				spec.Name,
+				existing.UeAmbrUplink, existing.UeAmbrDownlink,
+				spec.UeAmbrUplink, spec.UeAmbrDownlink)
+		}
+
+		return
+	}
+
+	if err := f.c.CreateProfile(f.ctx, &client.CreateProfileOptions{
 		Name:           spec.Name,
 		UeAmbrUplink:   spec.UeAmbrUplink,
 		UeAmbrDownlink: spec.UeAmbrDownlink,
-	})
-	if err != nil && !isAlreadyExists(err) {
+	}); err != nil {
 		f.fatalf("create profile %q: %v", spec.Name, err)
 	}
 }

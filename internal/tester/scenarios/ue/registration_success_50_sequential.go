@@ -25,7 +25,17 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runRegistrationSuccess50Sequential(ctx, env, params)
 		},
+		Fixture: fixtureRegistrationSuccess50Sequential,
 	})
+}
+
+func fixtureRegistrationSuccess50Sequential() scenarios.FixtureSpec {
+	subs := make([]scenarios.SubscriberSpec, numSubscribersSequential)
+	for i := range numSubscribersSequential {
+		subs[i] = scenarios.DefaultSubscriberWith(incrementIMSI(sequentialStartIMSI, i), "")
+	}
+
+	return scenarios.FixtureSpec{Subscribers: subs}
 }
 
 func runRegistrationSuccess50Sequential(_ context.Context, env scenarios.Env, _ any) error {

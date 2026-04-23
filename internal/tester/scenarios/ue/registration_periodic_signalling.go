@@ -22,7 +22,14 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runRegistrationPeriodicSignalling(ctx, env, params)
 		},
+		Fixture: fixtureRegistrationPeriodicSignalling,
 	})
+}
+
+func fixtureRegistrationPeriodicSignalling() scenarios.FixtureSpec {
+	return scenarios.FixtureSpec{
+		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
+	}
 }
 
 func runRegistrationPeriodicSignalling(_ context.Context, env scenarios.Env, _ any) error {

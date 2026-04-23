@@ -23,7 +23,12 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runRegistrationRejectUnknownUE(ctx, env, params)
 		},
+		Fixture: fixtureRegistrationRejectUnknownUE,
 	})
+}
+
+func fixtureRegistrationRejectUnknownUE() scenarios.FixtureSpec {
+	return scenarios.FixtureSpec{}
 }
 
 func runRegistrationRejectUnknownUE(_ context.Context, env scenarios.Env, _ any) error {

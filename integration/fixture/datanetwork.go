@@ -24,11 +24,20 @@ func DefaultDataNetworkSpec() DataNetworkSpec {
 	}
 }
 
-// DataNetwork creates a data network. Idempotent.
+// DataNetwork creates a data network, or verifies an existing one with
+// the same name matches the spec.
 func (f *F) DataNetwork(spec DataNetworkSpec) {
 	f.t.Helper()
 
-	if _, err := f.c.GetDataNetwork(f.ctx, &client.GetDataNetworkOptions{Name: spec.Name}); err == nil {
+	existing, err := f.c.GetDataNetwork(f.ctx, &client.GetDataNetworkOptions{Name: spec.Name})
+	if err == nil {
+		if existing.IPPool != spec.IPPool || existing.DNS != spec.DNS || existing.Mtu != spec.MTU {
+			f.fatalf("data network %q exists with different config: have (pool=%q dns=%q mtu=%d), want (pool=%q dns=%q mtu=%d)",
+				spec.Name,
+				existing.IPPool, existing.DNS, existing.Mtu,
+				spec.IPPool, spec.DNS, spec.MTU)
+		}
+
 		return
 	}
 
@@ -37,7 +46,7 @@ func (f *F) DataNetwork(spec DataNetworkSpec) {
 		IPPool: spec.IPPool,
 		DNS:    spec.DNS,
 		Mtu:    spec.MTU,
-	}); err != nil && !isAlreadyExists(err) {
+	}); err != nil {
 		f.fatalf("create data network %q: %v", spec.Name, err)
 	}
 }

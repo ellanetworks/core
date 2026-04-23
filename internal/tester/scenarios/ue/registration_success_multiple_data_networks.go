@@ -21,7 +21,46 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runRegistrationSuccessMultipleDataNetworks(ctx, env, params)
 		},
+		Fixture: fixtureRegistrationSuccessMultipleDataNetworks,
 	})
+}
+
+func fixtureRegistrationSuccessMultipleDataNetworks() scenarios.FixtureSpec {
+	profiles := []scenarios.ProfileSpec{
+		{Name: "profile1", UeAmbrUplink: scenarios.DefaultProfileUeAmbrUplink, UeAmbrDownlink: scenarios.DefaultProfileUeAmbrDownlink},
+		{Name: "profile2", UeAmbrUplink: scenarios.DefaultProfileUeAmbrUplink, UeAmbrDownlink: scenarios.DefaultProfileUeAmbrDownlink},
+		{Name: "profile3", UeAmbrUplink: scenarios.DefaultProfileUeAmbrUplink, UeAmbrDownlink: scenarios.DefaultProfileUeAmbrDownlink},
+		{Name: "profile4", UeAmbrUplink: scenarios.DefaultProfileUeAmbrUplink, UeAmbrDownlink: scenarios.DefaultProfileUeAmbrDownlink},
+	}
+
+	dns := []scenarios.DataNetworkSpec{
+		{Name: "dnn1", IPPool: "10.46.0.0/16", DNS: scenarios.DefaultDNS, MTU: scenarios.DefaultMTU},
+		{Name: "dnn2", IPPool: "10.47.0.0/16", DNS: scenarios.DefaultDNS, MTU: scenarios.DefaultMTU},
+		{Name: "dnn3", IPPool: "10.48.0.0/16", DNS: scenarios.DefaultDNS, MTU: scenarios.DefaultMTU},
+		{Name: "dnn4", IPPool: "10.49.0.0/16", DNS: scenarios.DefaultDNS, MTU: scenarios.DefaultMTU},
+	}
+
+	policies := []scenarios.PolicySpec{
+		{Name: "policy1", ProfileName: "profile1", SliceName: scenarios.DefaultSliceName, DataNetworkName: "dnn1", SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "100 Mbps", Var5qi: 9, Arp: 15},
+		{Name: "policy2", ProfileName: "profile2", SliceName: scenarios.DefaultSliceName, DataNetworkName: "dnn2", SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "100 Mbps", Var5qi: 9, Arp: 15},
+		{Name: "policy3", ProfileName: "profile3", SliceName: scenarios.DefaultSliceName, DataNetworkName: "dnn3", SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "100 Mbps", Var5qi: 9, Arp: 15},
+		{Name: "policy4", ProfileName: "profile4", SliceName: scenarios.DefaultSliceName, DataNetworkName: "dnn4", SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "100 Mbps", Var5qi: 9, Arp: 15},
+	}
+
+	subs := []scenarios.SubscriberSpec{
+		scenarios.DefaultSubscriberWith("001017271246546", ""),
+		scenarios.DefaultSubscriberWith("001017271246547", "profile1"),
+		scenarios.DefaultSubscriberWith("001017271246548", "profile2"),
+		scenarios.DefaultSubscriberWith("001017271246549", "profile3"),
+		scenarios.DefaultSubscriberWith("001017271246550", "profile4"),
+	}
+
+	return scenarios.FixtureSpec{
+		Profiles:     profiles,
+		DataNetworks: dns,
+		Policies:     policies,
+		Subscribers:  subs,
+	}
 }
 
 func runRegistrationSuccessMultipleDataNetworks(_ context.Context, env scenarios.Env, _ any) error {

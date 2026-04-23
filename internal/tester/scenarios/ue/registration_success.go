@@ -19,7 +19,14 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runRegistrationSuccess(ctx, env, params)
 		},
+		Fixture: fixtureRegistrationSuccess,
 	})
+}
+
+func fixtureRegistrationSuccess() scenarios.FixtureSpec {
+	return scenarios.FixtureSpec{
+		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
+	}
 }
 
 func runRegistrationSuccess(_ context.Context, env scenarios.Env, _ any) error {

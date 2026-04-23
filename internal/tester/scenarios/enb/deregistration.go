@@ -23,7 +23,14 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runEnbDeregistration(ctx, env, params)
 		},
+		Fixture: fixtureEnbDeregistration,
 	})
+}
+
+func fixtureEnbDeregistration() scenarios.FixtureSpec {
+	return scenarios.FixtureSpec{
+		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
+	}
 }
 
 func runEnbDeregistration(_ context.Context, env scenarios.Env, _ any) error {

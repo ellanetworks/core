@@ -29,7 +29,39 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runConnectivityMultiPDUSession(ctx, env, params)
 		},
+		Fixture: fixtureConnectivityMultiPDUSession,
 	})
+}
+
+func fixtureConnectivityMultiPDUSession() scenarios.FixtureSpec {
+	// Scenario validates UE-AMBR at 500 Mbps on the default profile. The
+	// baseline default profile is 100/100 Mbps and cannot be safely overridden
+	// without breaking other scenarios; this fixture provisions only the
+	// additional slice/DN/policy for the second PDU session.
+	return scenarios.FixtureSpec{
+		Slices: []scenarios.SliceSpec{
+			{Name: "enterprise-slice", SST: 1, SD: "204060"},
+		},
+		DataNetworks: []scenarios.DataNetworkSpec{
+			{Name: "enterprise", IPPool: "10.46.0.0/16", DNS: "8.8.4.4", MTU: scenarios.DefaultMTU},
+		},
+		Policies: []scenarios.PolicySpec{
+			{
+				Name:                "enterprise",
+				ProfileName:         scenarios.DefaultProfileName,
+				SliceName:           "enterprise-slice",
+				DataNetworkName:     "enterprise",
+				SessionAmbrUplink:   "30 Mbps",
+				SessionAmbrDownlink: "60 Mbps",
+				Var5qi:              7,
+				Arp:                 15,
+			},
+		},
+		Subscribers: []scenarios.SubscriberSpec{
+			scenarios.DefaultSubscriberWith("001017271246546", ""),
+		},
+		AssertUsageForIMSIs: []string{"001017271246546"},
+	}
 }
 
 func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ any) error {

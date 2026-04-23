@@ -26,6 +26,11 @@ type Scenario struct {
 	// Run executes the scenario. params is whatever BindFlags returned;
 	// env carries the common flag values (core N2 addresses, gNB specs).
 	Run func(ctx context.Context, env Env, params any) error
+
+	// Fixture (optional) returns the Ella Core fixture this scenario needs
+	// provisioned before it runs. The integration test applies this via
+	// the fixture package. When nil, only the baseline fixture applies.
+	Fixture func() FixtureSpec
 }
 
 var (

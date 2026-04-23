@@ -22,7 +22,14 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runRegistrationSuccessNoSD(ctx, env, params)
 		},
+		Fixture: fixtureRegistrationSuccessNoSD,
 	})
+}
+
+func fixtureRegistrationSuccessNoSD() scenarios.FixtureSpec {
+	return scenarios.FixtureSpec{
+		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
+	}
 }
 
 func runRegistrationSuccessNoSD(_ context.Context, env scenarios.Env, _ any) error {

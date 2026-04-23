@@ -23,7 +23,14 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runEnbRegistrationSuccess(ctx, env, params)
 		},
+		Fixture: fixtureEnbRegistrationSuccess,
 	})
+}
+
+func fixtureEnbRegistrationSuccess() scenarios.FixtureSpec {
+	return scenarios.FixtureSpec{
+		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
+	}
 }
 
 func runEnbRegistrationSuccess(_ context.Context, env scenarios.Env, _ any) error {

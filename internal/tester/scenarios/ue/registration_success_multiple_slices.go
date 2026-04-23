@@ -26,7 +26,39 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runRegistrationSuccessMultipleSlices(ctx, env, params)
 		},
+		Fixture: fixtureRegistrationSuccessMultipleSlices,
 	})
+}
+
+func fixtureRegistrationSuccessMultipleSlices() scenarios.FixtureSpec {
+	return scenarios.FixtureSpec{
+		Profiles: []scenarios.ProfileSpec{
+			{
+				Name:           "enterprise-profile",
+				UeAmbrUplink:   scenarios.DefaultProfileUeAmbrUplink,
+				UeAmbrDownlink: scenarios.DefaultProfileUeAmbrDownlink,
+			},
+		},
+		Slices: []scenarios.SliceSpec{
+			{Name: "enterprise-slice", SST: 1, SD: "204060"},
+		},
+		Policies: []scenarios.PolicySpec{
+			{
+				Name:                "enterprise",
+				ProfileName:         "enterprise-profile",
+				SliceName:           "enterprise-slice",
+				DataNetworkName:     scenarios.DefaultDNN,
+				SessionAmbrUplink:   "50 Mbps",
+				SessionAmbrDownlink: "50 Mbps",
+				Var5qi:              7,
+				Arp:                 15,
+			},
+		},
+		Subscribers: []scenarios.SubscriberSpec{
+			scenarios.DefaultSubscriberWith("001017271246546", ""),
+			scenarios.DefaultSubscriberWith("001017271246547", "enterprise-profile"),
+		},
+	}
 }
 
 func runRegistrationSuccessMultipleSlices(_ context.Context, env scenarios.Env, _ any) error {

@@ -25,7 +25,14 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runRegistrationRejectInvalidHomeNetworkPublicKey(ctx, env, params)
 		},
+		Fixture: fixtureRegistrationRejectInvalidHomeNetworkPublicKey,
 	})
+}
+
+func fixtureRegistrationRejectInvalidHomeNetworkPublicKey() scenarios.FixtureSpec {
+	return scenarios.FixtureSpec{
+		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
+	}
 }
 
 func runRegistrationRejectInvalidHomeNetworkPublicKey(_ context.Context, env scenarios.Env, _ any) error {

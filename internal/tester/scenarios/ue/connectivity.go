@@ -30,7 +30,24 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runConnectivity(ctx, env, params)
 		},
+		Fixture: fixtureConnectivity,
 	})
+}
+
+func fixtureConnectivity() scenarios.FixtureSpec {
+	subs := make([]scenarios.SubscriberSpec, numConnectivityParallel)
+	imsis := make([]string, numConnectivityParallel)
+
+	for i := range numConnectivityParallel {
+		imsi := incrementIMSI(connectivityStartIMSI, i)
+		subs[i] = scenarios.DefaultSubscriberWith(imsi, "")
+		imsis[i] = imsi
+	}
+
+	return scenarios.FixtureSpec{
+		Subscribers:         subs,
+		AssertUsageForIMSIs: imsis,
+	}
 }
 
 func runConnectivity(ctx context.Context, env scenarios.Env, _ any) error {

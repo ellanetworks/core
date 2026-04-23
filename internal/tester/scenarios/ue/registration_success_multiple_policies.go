@@ -21,7 +21,53 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runRegistrationSuccessMultiplePolicies(ctx, env, params)
 		},
+		Fixture: fixtureRegistrationSuccessMultiplePolicies,
 	})
+}
+
+func fixtureRegistrationSuccessMultiplePolicies() scenarios.FixtureSpec {
+	// Scenario expects UE i to see Session AMBR = (10*(i+1), 50*(i+1)) Mbps
+	// with 5qi = 5+i. i=0 uses the default profile/slice/DNN, so its expected
+	// values (10/50, 5qi=5) must come from the baseline default policy — which
+	// currently ships with 100/100 Mbps, 5qi=9. The integration test therefore
+	// cannot fully satisfy this scenario without overriding the baseline default
+	// policy, which would break other scenarios. This fixture provisions the
+	// four extra profiles and matching policies for i=1..4; i=0 is expected to
+	// be served by the baseline default policy.
+	profiles := make([]scenarios.ProfileSpec, 0, 4)
+	policies := make([]scenarios.PolicySpec, 0, 4)
+	subs := make([]scenarios.SubscriberSpec, 0, 5)
+
+	subs = append(subs, scenarios.DefaultSubscriberWith("001017271246546", ""))
+
+	for i := 1; i <= 4; i++ {
+		profileName := fmt.Sprintf("profile%d", i)
+		policyName := fmt.Sprintf("policy%d", i)
+		imsi := fmt.Sprintf("00101727124654%d", 6+i)
+
+		profiles = append(profiles, scenarios.ProfileSpec{
+			Name:           profileName,
+			UeAmbrUplink:   scenarios.DefaultProfileUeAmbrUplink,
+			UeAmbrDownlink: scenarios.DefaultProfileUeAmbrDownlink,
+		})
+		policies = append(policies, scenarios.PolicySpec{
+			Name:                policyName,
+			ProfileName:         profileName,
+			SliceName:           scenarios.DefaultSliceName,
+			DataNetworkName:     scenarios.DefaultDNN,
+			SessionAmbrUplink:   fmt.Sprintf("%d Mbps", 10*(i+1)),
+			SessionAmbrDownlink: fmt.Sprintf("%d Mbps", 50*(i+1)),
+			Var5qi:              int32(5 + i),
+			Arp:                 15,
+		})
+		subs = append(subs, scenarios.DefaultSubscriberWith(imsi, profileName))
+	}
+
+	return scenarios.FixtureSpec{
+		Profiles:    profiles,
+		Policies:    policies,
+		Subscribers: subs,
+	}
 }
 
 func runRegistrationSuccessMultiplePolicies(_ context.Context, env scenarios.Env, _ any) error {

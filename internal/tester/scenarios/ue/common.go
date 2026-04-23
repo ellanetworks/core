@@ -31,6 +31,34 @@ type subscriber struct {
 	ProfileName    string
 }
 
+// incrementIMSI returns base's numeric value incremented by offset, formatted
+// as a 15-digit IMSI. Panics if base is not 15 numeric digits.
+func incrementIMSI(base string, offset int) string {
+	if len(base) != 15 {
+		panic("incrementIMSI: base must be 15 digits")
+	}
+
+	var n uint64
+
+	for _, ch := range base {
+		if ch < '0' || ch > '9' {
+			panic("incrementIMSI: base must be numeric")
+		}
+
+		n = n*10 + uint64(ch-'0')
+	}
+
+	n += uint64(offset)
+
+	out := make([]byte, 15)
+	for i := 14; i >= 0; i-- {
+		out[i] = byte('0' + n%10)
+		n /= 10
+	}
+
+	return string(out)
+}
+
 func buildSubscribers(numSubscribers int, startIMSI string) ([]subscriber, error) {
 	subs := make([]subscriber, 0, numSubscribers)
 

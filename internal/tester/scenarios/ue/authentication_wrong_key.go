@@ -24,7 +24,14 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runAuthenticationWrongKey(ctx, env, params)
 		},
+		Fixture: fixtureAuthenticationWrongKey,
 	})
+}
+
+func fixtureAuthenticationWrongKey() scenarios.FixtureSpec {
+	return scenarios.FixtureSpec{
+		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
+	}
 }
 
 func runAuthenticationWrongKey(_ context.Context, env scenarios.Env, _ any) error {

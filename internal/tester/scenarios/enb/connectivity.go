@@ -68,7 +68,43 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runEnbConnectivity(ctx, env, params)
 		},
+		Fixture: fixtureEnbConnectivity,
 	})
+}
+
+func fixtureEnbConnectivity() scenarios.FixtureSpec {
+	subs := make([]scenarios.SubscriberSpec, enbNumConnectivityParallel)
+	imsis := make([]string, enbNumConnectivityParallel)
+
+	for i := range enbNumConnectivityParallel {
+		imsi := enbIncrementIMSI(enbTestStartIMSI, i)
+		subs[i] = scenarios.DefaultSubscriberWith(imsi, "")
+		imsis[i] = imsi
+	}
+
+	return scenarios.FixtureSpec{
+		Subscribers:         subs,
+		AssertUsageForIMSIs: imsis,
+	}
+}
+
+// enbIncrementIMSI returns base's numeric value incremented by offset, as a
+// 15-digit IMSI.
+func enbIncrementIMSI(base string, offset int) string {
+	var n uint64
+	for _, ch := range base {
+		n = n*10 + uint64(ch-'0')
+	}
+
+	n += uint64(offset)
+
+	out := make([]byte, 15)
+	for i := 14; i >= 0; i-- {
+		out[i] = byte('0' + n%10)
+		n /= 10
+	}
+
+	return string(out)
 }
 
 func runEnbConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
