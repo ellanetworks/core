@@ -35,5 +35,5 @@ const (
 	DefaultRoutingIndicator = "0000"
 	DefaultIMEISV           = "3569380356438091"
 
-	DefaultPingDestination = "8.8.8.8"
+	DefaultPingDestination = "10.6.0.3"
 )
