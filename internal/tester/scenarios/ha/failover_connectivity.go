@@ -4,7 +4,6 @@ package ha
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -159,28 +158,21 @@ func runFailoverConnectivity(ctx context.Context, env scenarios.Env) error {
 	}
 
 	// Phase 2 triggers AUSF to bump the subscriber's sequenceNumber, a
-	// Raft-replicated write that only the current leader can commit.
-	// Killing the previous leader (core-1) causes the surviving nodes to
-	// run a heartbeat-timeout → election cycle (5-8 s). Two distinct
-	// hazards can make an attempt fail:
+	// Raft-replicated write. Since Core now forwards Propose calls
+	// follower→leader in-process, ANY surviving peer can service the
+	// Registration Request: writes issued against a follower land on
+	// the current leader via /cluster/internal/propose.
 	//
-	//  1. Election still in progress — no leader yet; retry against the
-	//     same peer eventually works.
-	//  2. Election resolved elsewhere — e.g. gNB is attached to core-2
-	//     but core-3 won the vote. Core-2 permanently rejects writes
-	//     until a new election; retrying core-2 will never succeed. We
-	//     must rotate the gNB's active SCTP association to core-3.
+	// What we still need to wait for: the election itself. Killing the
+	// previous leader starts a heartbeat-timeout → election cycle (a
+	// few seconds). Until a new leader is elected, forwarded writes
+	// return ErrLeadershipLost and the NAS layer sends Registration
+	// Reject. We retry against the same peer with a small backoff
+	// until the leader settles.
 	//
-	// Strategy: on each failure, rotate to the next peer AND back off.
-	// Rotation is wrapping, so we cycle through the remaining cores until
-	// one (the leader) accepts the registration. Each attempt uses a
-	// fresh RAN-UE-NGAP-ID and tunnel name so stale gNB-local context
-	// from a failed attempt doesn't collide with the retry.
-	//
-	// NOTE: this is a workaround for an Ella Core architectural gap —
-	// in-process NF writes on followers do NOT forward to the leader
-	// (only HTTP API writes do, via LeaderProxyMiddleware). When Core
-	// forwards NF writes too, this rotation loop becomes unnecessary.
+	// Each attempt uses a fresh RAN-UE-NGAP-ID and tunnel name so stale
+	// gNB-local context from a failed attempt doesn't collide with the
+	// retry.
 	const (
 		phase2Deadline = 30 * time.Second
 		phase2Backoff  = 2 * time.Second
@@ -201,43 +193,12 @@ func runFailoverConnectivity(ctx context.Context, env scenarios.Env) error {
 			break
 		}
 
-		activePeer := gNodeB.ActivePeerAddress()
 		logger.Logger.Warn(
-			"phase2 attempt failed",
+			"phase2 attempt failed; waiting for leadership to settle",
 			zap.Int("attempt", attempt),
-			zap.String("peer", activePeer),
+			zap.String("peer", gNodeB.ActivePeerAddress()),
 			zap.Error(phase2Err),
 		)
-
-		if rotErr := gNodeB.RotateToNextPeer(); rotErr != nil {
-			if errors.Is(rotErr, gnb.ErrNoRotationCandidate) {
-				logger.Logger.Warn(
-					"no rotation candidate; backing off on current peer",
-					zap.String("peer", activePeer),
-				)
-			} else {
-				logger.Logger.Warn("rotate failed", zap.Error(rotErr))
-			}
-		} else {
-			newActive := gNodeB.ActivePeerAddress()
-			logger.Logger.Info(
-				"phase2: rotated to next peer",
-				zap.String("from", activePeer),
-				zap.String("to", newActive),
-			)
-
-			if _, err := gNodeB.WaitForMessage(
-				ngapType.NGAPPDUPresentSuccessfulOutcome,
-				ngapType.SuccessfulOutcomePresentNGSetupResponse,
-				10*time.Second,
-			); err != nil {
-				logger.Logger.Warn(
-					"NG Setup Response after rotation",
-					zap.String("peer", newActive),
-					zap.Error(err),
-				)
-			}
-		}
 
 		select {
 		case <-time.After(phase2Backoff):

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"time"
 
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -117,7 +116,7 @@ func (db *Database) IncrementDailyUsage(ctx context.Context, usage DailyUsage) e
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "insert").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyIncrementDailyUsage(ctx, &usage) }, "IncrementDailyUsage")
+	_, err := opIncrementDailyUsage.Invoke(db, &usage)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -242,7 +241,7 @@ func (db *Database) ClearDailyUsage(ctx context.Context) error {
 
 	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "delete").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return nil, db.applyClearDailyUsage(ctx) }, "ClearDailyUsage")
+	_, err := opClearDailyUsage.Invoke(db, &emptyPayload{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -279,7 +278,7 @@ func (db *Database) DeleteOldDailyUsage(ctx context.Context, days int) error {
 	// desync replicas.
 	cutoffDay := time.Now().UTC().AddDate(0, 0, -days).Unix() / 86400
 
-	_, err := db.proposeIntent(ellaraft.CmdDeleteOldDailyUsage, &int64Payload{Value: cutoffDay})
+	_, err := opDeleteOldDailyUsage.Invoke(db, &int64Payload{Value: cutoffDay})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

@@ -113,7 +113,7 @@ func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) erro
 
 	DBQueriesTotal.WithLabelValues(APITokensTableName, "insert").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateAPIToken(ctx, apiToken) }, "CreateAPIToken")
+	_, err := opCreateAPIToken.Invoke(db, apiToken)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -220,7 +220,7 @@ func (db *Database) DeleteAPIToken(ctx context.Context, id int) error {
 
 	DBQueriesTotal.WithLabelValues(APITokensTableName, "delete").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyDeleteAPIToken(ctx, &intPayload{Value: id}) }, "DeleteAPIToken")
+	_, err := opDeleteAPIToken.Invoke(db, &intPayload{Value: id})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

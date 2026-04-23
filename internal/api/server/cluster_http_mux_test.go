@@ -106,7 +106,7 @@ func TestRemovedNodeFence_AllowsCurrentMember(t *testing.T) {
 
 // newLeaderTestDB creates a real SQLite-backed DB and waits up to 3s for
 // the embedded single-node Raft cluster to elect itself leader, so the
-// returned DB is guaranteed to accept proposeChangeset calls.
+// returned DB is guaranteed to accept replicated write calls.
 func newLeaderTestDB(t *testing.T) *db.Database {
 	t.Helper()
 

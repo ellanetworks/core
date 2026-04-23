@@ -397,12 +397,26 @@ type ProposeResult struct {
 	Index uint64
 }
 
+// Propose marshals and applies a command through Raft. Callers must be
+// the leader; followers receive raft.ErrNotLeader. Follower-side
+// forwarding is handled by the typed-op dispatch layer (internal/db)
+// through Manager.ForwardOperation.
 func (m *Manager) Propose(cmd *Command, timeout time.Duration) (*ProposeResult, error) {
 	data, err := cmd.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("marshal command: %w", err)
 	}
 
+	return m.ApplyBytes(data, timeout)
+}
+
+// ApplyBytes applies pre-marshalled Command bytes through Raft. Unlike
+// Propose it does not branch on leadership: the caller must already be
+// the leader, and receives raft.ErrNotLeader / raft.ErrLeadershipLost on
+// the failure paths. Used by the /cluster/internal/propose handler to
+// commit a command forwarded from a follower, and by Propose itself as
+// the local fast path on the leader.
+func (m *Manager) ApplyBytes(data []byte, timeout time.Duration) (*ProposeResult, error) {
 	future := m.raft.Apply(data, timeout)
 	if err := future.Error(); err != nil {
 		return nil, err

@@ -98,9 +98,7 @@ func (db *Database) UpdateNATSettings(ctx context.Context, enabled bool) error {
 
 	DBQueriesTotal.WithLabelValues(NATSettingsTableName, "update").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyUpdateNATSettings(ctx, &boolPayload{Value: enabled})
-	}, "UpdateNATSettings")
+	_, err := opUpdateNATSettings.Invoke(db, &boolPayload{Value: enabled})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

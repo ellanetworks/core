@@ -70,7 +70,7 @@ func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (int
 	nr.CreatedAt = now
 	nr.UpdatedAt = now
 
-	result, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateNetworkRule(ctx, nr) }, "CreateNetworkRule")
+	result, err := opCreateNetworkRule.Invoke(db, nr)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -143,7 +143,7 @@ func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) erro
 
 	nr.UpdatedAt = time.Now().UTC()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateNetworkRule(ctx, nr) }, "UpdateNetworkRule")
+	_, err := opUpdateNetworkRule.Invoke(db, nr)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -275,9 +275,7 @@ func (db *Database) DeleteNetworkRule(ctx context.Context, id int64) error {
 
 	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "delete").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyDeleteNetworkRule(ctx, &int64Payload{Value: id})
-	}, "DeleteNetworkRule")
+	_, err := opDeleteNetworkRule.Invoke(db, &int64Payload{Value: id})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -471,9 +469,7 @@ func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID i
 
 	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "delete").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyDeleteNetworkRulesByPolicy(ctx, &int64Payload{Value: policyID})
-	}, "DeleteNetworkRulesByPolicy")
+	_, err := opDeleteNetworkRulesByPolicy.Invoke(db, &int64Payload{Value: policyID})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

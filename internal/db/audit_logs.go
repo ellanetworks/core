@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/dbwriter"
-	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -75,7 +74,7 @@ func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.Audit
 		Details:   auditLog.Details,
 	}
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyInsertAuditLog(ctx, payload) }, "InsertAuditLog")
+	_, err := opInsertAuditLog.Invoke(db, payload)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -168,7 +167,7 @@ func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
 	// Compute cutoff entirely in UTC so the boundary is timezone/DST-independent.
 	cutoff := time.Now().UTC().AddDate(0, 0, -days).Format(time.RFC3339)
 
-	_, err := db.proposeIntent(ellaraft.CmdDeleteOldAuditLogs, &stringPayload{Value: cutoff})
+	_, err := opDeleteOldAuditLogs.Invoke(db, &stringPayload{Value: cutoff})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

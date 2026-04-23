@@ -500,6 +500,21 @@ func (db *Database) IsLeader() bool {
 	return db.raftManager.IsLeader()
 }
 
+// ApplyForwardedOperation is the leader-side entry point for a forwarded
+// typed operation posted to /cluster/internal/propose. See
+// operations.go for the full flow.
+
+// ProposeTimeout exposes the Raft manager's configured propose timeout
+// so handlers can apply the same bound to forwarded commands they
+// commit on behalf of a follower.
+func (db *Database) ProposeTimeout() time.Duration {
+	if db.raftManager == nil {
+		return 0
+	}
+
+	return db.raftManager.ProposeTimeout()
+}
+
 // NodeID returns this node's Raft node ID. Returns 0 when running standalone.
 func (db *Database) NodeID() int {
 	if db.raftManager == nil {
@@ -675,7 +690,7 @@ func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 		logger.WithTrace(ctx, logger.DBLog).Info("Proposing migration over Raft",
 			zap.Int("targetVersion", v))
 
-		if _, err := db.proposeIntent(ellaraft.CmdMigrateShared, migrateSharedPayload{TargetVersion: v}); err != nil {
+		if _, err := opMigrateShared.Invoke(db, migrateSharedPayload{TargetVersion: v}); err != nil {
 			return fmt.Errorf("propose migration %d: %w", v, err)
 		}
 	}

@@ -148,7 +148,7 @@ func (db *Database) UpsertClusterMember(ctx context.Context, member *ClusterMemb
 
 	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "upsert").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpsertClusterMember(ctx, member) }, "UpsertClusterMember")
+	_, err := opUpsertClusterMember.Invoke(db, member)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -179,9 +179,7 @@ func (db *Database) DeleteClusterMember(ctx context.Context, nodeID int) error {
 
 	DBQueriesTotal.WithLabelValues(ClusterMembersTableName, "delete").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyDeleteClusterMember(ctx, &intPayload{Value: nodeID})
-	}, "DeleteClusterMember")
+	_, err := opDeleteClusterMember.Invoke(db, &intPayload{Value: nodeID})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -226,9 +224,7 @@ func (db *Database) SetDrainState(ctx context.Context, nodeID int, state string)
 		DrainUpdatedAt: time.Now().Unix(),
 	}
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applySetDrainState(ctx, member)
-	}, "SetDrainState")
+	_, err := opSetDrainState.Invoke(db, member)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

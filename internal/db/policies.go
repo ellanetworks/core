@@ -445,7 +445,7 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 
 	DBQueriesTotal.WithLabelValues(PoliciesTableName, "insert").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreatePolicy(ctx, policy) }, "CreatePolicy")
+	_, err := opCreatePolicy.Invoke(db, policy)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -476,7 +476,7 @@ func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
 
 	DBQueriesTotal.WithLabelValues(PoliciesTableName, "update").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdatePolicy(ctx, policy) }, "UpdatePolicy")
+	_, err := opUpdatePolicy.Invoke(db, policy)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -603,7 +603,7 @@ func (db *Database) DeletePolicy(ctx context.Context, name string) error {
 
 	DBQueriesTotal.WithLabelValues(PoliciesTableName, "delete").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyDeletePolicy(ctx, &stringPayload{Value: name}) }, "DeletePolicy")
+	_, err := opDeletePolicy.Invoke(db, &stringPayload{Value: name})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

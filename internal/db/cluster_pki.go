@@ -124,7 +124,7 @@ type ClusterPKIState struct {
 }
 
 // ---------------------------------------------------------------------------
-// Apply methods — invoked from proposeChangeset; capture SQL mutations.
+// Apply methods — invoked from the typed-op dispatch layer; capture SQL mutations.
 // ---------------------------------------------------------------------------
 
 func (db *Database) applyInsertPKIRoot(ctx context.Context, r *ClusterPKIRoot) (any, error) {
@@ -210,8 +210,9 @@ func (db *Database) applyAllocateSerial(ctx context.Context) (any, error) {
 }
 
 // ---------------------------------------------------------------------------
-// Public methods — all mutations go through proposeChangeset so followers
-// replicate via the standard sqlite changeset path.
+// Public methods — all mutations go through a registered ChangesetOp so
+// followers forward to the leader and replicate via the standard sqlite
+// changeset path.
 // ---------------------------------------------------------------------------
 
 // ListPKIRoots returns every root in the bundle, regardless of status.
@@ -231,9 +232,7 @@ func (db *Database) ListPKIRoots(ctx context.Context) ([]ClusterPKIRoot, error) 
 
 // InsertPKIRoot persists a root. Used at bootstrap and root rotation.
 func (db *Database) InsertPKIRoot(ctx context.Context, r *ClusterPKIRoot) error {
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyInsertPKIRoot(ctx, r)
-	}, "InsertPKIRoot")
+	_, err := opInsertPKIRoot.Invoke(db, r)
 
 	return err
 }
@@ -243,13 +242,11 @@ func (db *Database) InsertPKIRoot(ctx context.Context, r *ClusterPKIRoot) error 
 // compacted out of the raft log at the next snapshot. Introducing a
 // new active row is done via InsertPKIRoot, not this path.
 func (db *Database) SetPKIRootStatus(ctx context.Context, fingerprint, status string) error {
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applySetPKIRootStatus(ctx, &ClusterPKIRoot{
-			Fingerprint: fingerprint,
-			Status:      status,
-			KeyPEM:      nil,
-		})
-	}, "SetPKIRootStatus")
+	_, err := opSetPKIRootStatus.Invoke(db, &ClusterPKIRoot{
+		Fingerprint: fingerprint,
+		Status:      status,
+		KeyPEM:      nil,
+	})
 
 	return err
 }
@@ -257,9 +254,7 @@ func (db *Database) SetPKIRootStatus(ctx context.Context, fingerprint, status st
 // DeletePKIRoot drops a root from the bundle. Caller must verify no live
 // issued certs chain through it.
 func (db *Database) DeletePKIRoot(ctx context.Context, fingerprint string) error {
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyDeletePKIRoot(ctx, &ClusterPKIRoot{Fingerprint: fingerprint})
-	}, "DeletePKIRoot")
+	_, err := opDeletePKIRoot.Invoke(db, &ClusterPKIRoot{Fingerprint: fingerprint})
 
 	return err
 }
@@ -282,9 +277,7 @@ func (db *Database) ListPKIIntermediates(ctx context.Context) ([]ClusterPKIInter
 // InsertPKIIntermediate persists an intermediate. Used at bootstrap and
 // intermediate rotation.
 func (db *Database) InsertPKIIntermediate(ctx context.Context, r *ClusterPKIIntermediate) error {
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyInsertPKIIntermediate(ctx, r)
-	}, "InsertPKIIntermediate")
+	_, err := opInsertPKIIntermediate.Invoke(db, r)
 
 	return err
 }
@@ -292,22 +285,18 @@ func (db *Database) InsertPKIIntermediate(ctx context.Context, r *ClusterPKIInte
 // SetPKIIntermediateStatus is the intermediate counterpart of
 // SetPKIRootStatus.
 func (db *Database) SetPKIIntermediateStatus(ctx context.Context, fingerprint, status string) error {
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applySetPKIIntermediateStatus(ctx, &ClusterPKIIntermediate{
-			Fingerprint: fingerprint,
-			Status:      status,
-			KeyPEM:      nil,
-		})
-	}, "SetPKIIntermediateStatus")
+	_, err := opSetPKIIntermediateStatus.Invoke(db, &ClusterPKIIntermediate{
+		Fingerprint: fingerprint,
+		Status:      status,
+		KeyPEM:      nil,
+	})
 
 	return err
 }
 
 // DeletePKIIntermediate drops an intermediate.
 func (db *Database) DeletePKIIntermediate(ctx context.Context, fingerprint string) error {
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyDeletePKIIntermediate(ctx, &ClusterPKIIntermediate{Fingerprint: fingerprint})
-	}, "DeletePKIIntermediate")
+	_, err := opDeletePKIIntermediate.Invoke(db, &ClusterPKIIntermediate{Fingerprint: fingerprint})
 
 	return err
 }
@@ -315,9 +304,7 @@ func (db *Database) DeletePKIIntermediate(ctx context.Context, fingerprint strin
 // RecordIssuedCert registers a newly issued leaf so it can be revoked on
 // node removal and tidied after expiry.
 func (db *Database) RecordIssuedCert(ctx context.Context, r *ClusterIssuedCert) error {
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyInsertIssuedCert(ctx, r)
-	}, "RecordIssuedCert")
+	_, err := opRecordIssuedCert.Invoke(db, r)
 
 	return err
 }
@@ -361,18 +348,14 @@ func (db *Database) CountActiveIssuedCerts(ctx context.Context) (int, error) {
 // DeleteExpiredIssuedCerts removes rows where notAfter < now − 1h. Called
 // by the tidy worker.
 func (db *Database) DeleteExpiredIssuedCerts(ctx context.Context, cutoff time.Time) error {
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyDeleteIssuedCertsExpired(ctx, &ClusterIssuedCert{NotAfter: cutoff.Unix()})
-	}, "DeleteExpiredIssuedCerts")
+	_, err := opDeleteExpiredIssuedCerts.Invoke(db, &ClusterIssuedCert{NotAfter: cutoff.Unix()})
 
 	return err
 }
 
 // InsertRevokedCert records a revocation. Idempotent on serial.
 func (db *Database) InsertRevokedCert(ctx context.Context, r *ClusterRevokedCert) error {
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyInsertRevokedCert(ctx, r)
-	}, "InsertRevokedCert")
+	_, err := opInsertRevokedCert.Invoke(db, r)
 
 	return err
 }
@@ -395,9 +378,7 @@ func (db *Database) ListRevokedCerts(ctx context.Context) ([]ClusterRevokedCert,
 
 // DeletePurgedRevocations drops rows where purgeAfter < now. Tidy worker.
 func (db *Database) DeletePurgedRevocations(ctx context.Context, cutoff time.Time) error {
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyDeleteRevokedCertsPurged(ctx, &ClusterRevokedCert{PurgeAfter: cutoff.Unix()})
-	}, "DeletePurgedRevocations")
+	_, err := opDeletePurgedRevocations.Invoke(db, &ClusterRevokedCert{PurgeAfter: cutoff.Unix()})
 
 	return err
 }
@@ -406,9 +387,7 @@ func (db *Database) DeletePurgedRevocations(ctx context.Context, cutoff time.Tim
 // token can be checked for single-use. The token string itself is emitted
 // by pki.MintJoinToken; this row only carries metadata.
 func (db *Database) MintJoinTokenRecord(ctx context.Context, r *ClusterJoinToken) error {
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyInsertJoinToken(ctx, r)
-	}, "MintJoinToken")
+	_, err := opMintJoinToken.Invoke(db, r)
 
 	return err
 }
@@ -433,13 +412,11 @@ func (db *Database) GetJoinToken(ctx context.Context, id string) (*ClusterJoinTo
 // UPDATE only matches unconsumed rows, so a second caller on a different
 // voter (post-replication) finds nothing to update.
 func (db *Database) ConsumeJoinToken(ctx context.Context, id string, nodeID int) error {
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyConsumeJoinToken(ctx, &ClusterJoinToken{
-			ID:         id,
-			ConsumedAt: time.Now().Unix(),
-			ConsumedBy: nodeID,
-		})
-	}, "ConsumeJoinToken")
+	_, err := opConsumeJoinToken.Invoke(db, &ClusterJoinToken{
+		ID:         id,
+		ConsumedAt: time.Now().Unix(),
+		ConsumedBy: nodeID,
+	})
 
 	return err
 }
@@ -448,12 +425,10 @@ func (db *Database) ConsumeJoinToken(ctx context.Context, id string, nodeID int)
 func (db *Database) DeleteStaleJoinTokens(ctx context.Context, now time.Time) error {
 	cutoffConsumed := now.Add(-time.Hour).Unix()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyDeleteJoinTokensStale(ctx, &ClusterJoinToken{
-			ExpiresAt:  now.Unix(),
-			ConsumedAt: cutoffConsumed,
-		})
-	}, "DeleteStaleJoinTokens")
+	_, err := opDeleteStaleJoinTokens.Invoke(db, &ClusterJoinToken{
+		ExpiresAt:  now.Unix(),
+		ConsumedAt: cutoffConsumed,
+	})
 
 	return err
 }
@@ -461,9 +436,7 @@ func (db *Database) DeleteStaleJoinTokens(ctx context.Context, now time.Time) er
 // InitializePKIState seeds the cluster_pki_state singleton if absent.
 // Called from the first-leader bootstrap path exactly once.
 func (db *Database) InitializePKIState(ctx context.Context, hmacKey []byte) error {
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyInitPKIState(ctx, &ClusterPKIState{HMACKey: hmacKey})
-	}, "InitializePKIState")
+	_, err := opInitializePKIState.Invoke(db, &ClusterPKIState{HMACKey: hmacKey})
 
 	return err
 }
@@ -479,21 +452,7 @@ type PKIBootstrap struct {
 // inside a single raft-replicated changeset: either all three persist
 // or none do.
 func (db *Database) BootstrapPKI(ctx context.Context, payload *PKIBootstrap) error {
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		if _, err := db.applyInitPKIState(ctx, &ClusterPKIState{HMACKey: payload.HMACKey}); err != nil {
-			return nil, fmt.Errorf("init pki state: %w", err)
-		}
-
-		if _, err := db.applyInsertPKIRoot(ctx, payload.Root); err != nil {
-			return nil, fmt.Errorf("insert pki root: %w", err)
-		}
-
-		if _, err := db.applyInsertPKIIntermediate(ctx, payload.Intermediate); err != nil {
-			return nil, fmt.Errorf("insert pki intermediate: %w", err)
-		}
-
-		return nil, nil
-	}, "BootstrapPKI")
+	_, err := opBootstrapPKI.Invoke(db, payload)
 
 	return err
 }
@@ -519,9 +478,7 @@ func (db *Database) GetPKIState(ctx context.Context) (*ClusterPKIState, error) {
 // the new value. Must be called on the leader; followers return an error
 // from the Propose path.
 func (db *Database) AllocatePKISerial(ctx context.Context) (int64, error) {
-	v, err := db.proposeChangeset(func(ctx context.Context) (any, error) {
-		return db.applyAllocateSerial(ctx)
-	}, "AllocatePKISerial")
+	v, err := opAllocatePKISerial.Invoke(db, &emptyPayload{})
 	if err != nil {
 		return 0, err
 	}

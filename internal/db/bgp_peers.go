@@ -190,7 +190,7 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "insert").Inc()
 
-	result, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyCreateBGPPeer(ctx, peer) }, "CreateBGPPeer")
+	result, err := opCreateBGPPeer.Invoke(db, peer)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -223,7 +223,7 @@ func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "update").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyUpdateBGPPeer(ctx, peer) }, "UpdateBGPPeer")
+	_, err := opUpdateBGPPeer.Invoke(db, peer)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -254,7 +254,7 @@ func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "delete").Inc()
 
-	_, err := db.proposeChangeset(func(ctx context.Context) (any, error) { return db.applyDeleteBGPPeer(ctx, &intPayload{Value: id}) }, "DeleteBGPPeer")
+	_, err := opDeleteBGPPeer.Invoke(db, &intPayload{Value: id})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
