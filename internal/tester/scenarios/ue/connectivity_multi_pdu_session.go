@@ -34,11 +34,15 @@ func init() {
 }
 
 func fixtureConnectivityMultiPDUSession() scenarios.FixtureSpec {
-	// Scenario validates UE-AMBR at 500 Mbps on the default profile. The
-	// baseline default profile is 100/100 Mbps and cannot be safely overridden
-	// without breaking other scenarios; this fixture provisions only the
-	// additional slice/DN/policy for the second PDU session.
+	// Scenario validates UE-AMBR at 500 Mbps, distinct from the baseline
+	// default profile (100 Mbps). The fixture declares its own profile
+	// "multi-pdu-profile" (500 Mbps) and two policies pinning that profile
+	// to (default slice, default DN) for PDU session 1 and to
+	// (enterprise slice, enterprise DN) for PDU session 2.
 	return scenarios.FixtureSpec{
+		Profiles: []scenarios.ProfileSpec{
+			{Name: "multi-pdu-profile", UeAmbrUplink: "500 Mbps", UeAmbrDownlink: "500 Mbps"},
+		},
 		Slices: []scenarios.SliceSpec{
 			{Name: "enterprise-slice", SST: 1, SD: "204060"},
 		},
@@ -47,8 +51,18 @@ func fixtureConnectivityMultiPDUSession() scenarios.FixtureSpec {
 		},
 		Policies: []scenarios.PolicySpec{
 			{
-				Name:                "enterprise",
-				ProfileName:         scenarios.DefaultProfileName,
+				Name:                "multi-pdu-default",
+				ProfileName:         "multi-pdu-profile",
+				SliceName:           scenarios.DefaultSliceName,
+				DataNetworkName:     scenarios.DefaultDNN,
+				SessionAmbrUplink:   "100 Mbps",
+				SessionAmbrDownlink: "100 Mbps",
+				Var5qi:              9,
+				Arp:                 15,
+			},
+			{
+				Name:                "multi-pdu-enterprise",
+				ProfileName:         "multi-pdu-profile",
 				SliceName:           "enterprise-slice",
 				DataNetworkName:     "enterprise",
 				SessionAmbrUplink:   "30 Mbps",
@@ -58,7 +72,7 @@ func fixtureConnectivityMultiPDUSession() scenarios.FixtureSpec {
 			},
 		},
 		Subscribers: []scenarios.SubscriberSpec{
-			scenarios.DefaultSubscriberWith("001017271246546", ""),
+			scenarios.DefaultSubscriberWith("001017271246546", "multi-pdu-profile"),
 		},
 		AssertUsageForIMSIs: []string{"001017271246546"},
 	}

@@ -1,16 +1,22 @@
 package fixture
 
 import (
+	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 )
 
-// Apply provisions everything in spec against the Ella Core client bound
-// to f. It is idempotent: resources that already match the spec are left
-// in place; mismatches fail the test via f.t.Fatalf.
+// Apply provisions every scenario-owned resource in spec and registers a
+// t.Cleanup that deletes it when the subtest ends. Cleanups run in LIFO
+// order, which matches the reverse-dependency teardown order: subscribers
+// first, then policies, data networks, slices, and finally profiles.
 //
-// The order follows dependencies: operator → profiles → slices → data
-// networks → policies → subscribers, so each resource's dependencies
-// exist before it is referenced.
+// Scoped resources are created with strict semantics — if one already
+// exists under the same name, the test fails loudly. That's intentional:
+// it surfaces teardown bugs instead of silently mutating shared state.
+//
+// Non-scoped resources (operator singleton, home network keys) are applied
+// idempotently and are not cleaned up; they are expected to be established
+// once by the baseline and shared across all subtests.
 func (f *F) Apply(spec scenarios.FixtureSpec) {
 	f.t.Helper()
 
@@ -31,50 +37,130 @@ func (f *F) Apply(spec scenarios.FixtureSpec) {
 	}
 
 	for _, p := range spec.Profiles {
-		f.Profile(ProfileSpec{
-			Name:           p.Name,
-			UeAmbrUplink:   p.UeAmbrUplink,
-			UeAmbrDownlink: p.UeAmbrDownlink,
-		})
+		f.scopedProfile(p)
 	}
 
 	for _, s := range spec.Slices {
-		f.Slice(SliceSpec{
-			Name: s.Name,
-			SST:  s.SST,
-			SD:   s.SD,
-		})
+		f.scopedSlice(s)
 	}
 
 	for _, dn := range spec.DataNetworks {
-		f.DataNetwork(DataNetworkSpec{
-			Name:   dn.Name,
-			IPPool: dn.IPPool,
-			DNS:    dn.DNS,
-			MTU:    dn.MTU,
-		})
+		f.scopedDataNetwork(dn)
 	}
 
 	for _, p := range spec.Policies {
-		f.Policy(PolicySpec{
-			Name:                p.Name,
-			ProfileName:         p.ProfileName,
-			SliceName:           p.SliceName,
-			DataNetworkName:     p.DataNetworkName,
-			SessionAmbrUplink:   p.SessionAmbrUplink,
-			SessionAmbrDownlink: p.SessionAmbrDownlink,
-			Var5qi:              p.Var5qi,
-			Arp:                 p.Arp,
-		})
+		f.scopedPolicy(p)
 	}
 
 	for _, s := range spec.Subscribers {
-		f.Subscriber(SubscriberSpec{
-			IMSI:           s.IMSI,
-			Key:            s.Key,
-			OPc:            s.OPc,
-			SequenceNumber: s.SequenceNumber,
-			ProfileName:    s.ProfileName,
-		})
+		f.scopedSubscriber(s)
 	}
+}
+
+func (f *F) scopedProfile(spec scenarios.ProfileSpec) {
+	f.t.Helper()
+
+	if err := f.c.CreateProfile(f.ctx, &client.CreateProfileOptions{
+		Name:           spec.Name,
+		UeAmbrUplink:   spec.UeAmbrUplink,
+		UeAmbrDownlink: spec.UeAmbrDownlink,
+	}); err != nil {
+		f.fatalf("create scoped profile %q: %v", spec.Name, err)
+	}
+
+	name := spec.Name
+
+	f.t.Cleanup(func() {
+		if err := f.c.DeleteProfile(f.ctx, &client.DeleteProfileOptions{Name: name}); err != nil {
+			f.t.Logf("cleanup: delete profile %q: %v", name, err)
+		}
+	})
+}
+
+func (f *F) scopedSlice(spec scenarios.SliceSpec) {
+	f.t.Helper()
+
+	if err := f.c.CreateSlice(f.ctx, &client.CreateSliceOptions{
+		Name: spec.Name,
+		Sst:  spec.SST,
+		Sd:   spec.SD,
+	}); err != nil {
+		f.fatalf("create scoped slice %q: %v", spec.Name, err)
+	}
+
+	name := spec.Name
+
+	f.t.Cleanup(func() {
+		if err := f.c.DeleteSlice(f.ctx, &client.DeleteSliceOptions{Name: name}); err != nil {
+			f.t.Logf("cleanup: delete slice %q: %v", name, err)
+		}
+	})
+}
+
+func (f *F) scopedDataNetwork(spec scenarios.DataNetworkSpec) {
+	f.t.Helper()
+
+	if err := f.c.CreateDataNetwork(f.ctx, &client.CreateDataNetworkOptions{
+		Name:   spec.Name,
+		IPPool: spec.IPPool,
+		DNS:    spec.DNS,
+		Mtu:    spec.MTU,
+	}); err != nil {
+		f.fatalf("create scoped data network %q: %v", spec.Name, err)
+	}
+
+	name := spec.Name
+
+	f.t.Cleanup(func() {
+		if err := f.c.DeleteDataNetwork(f.ctx, &client.DeleteDataNetworkOptions{Name: name}); err != nil {
+			f.t.Logf("cleanup: delete data network %q: %v", name, err)
+		}
+	})
+}
+
+func (f *F) scopedPolicy(spec scenarios.PolicySpec) {
+	f.t.Helper()
+
+	if err := f.c.CreatePolicy(f.ctx, &client.CreatePolicyOptions{
+		Name:                spec.Name,
+		ProfileName:         spec.ProfileName,
+		SliceName:           spec.SliceName,
+		DataNetworkName:     spec.DataNetworkName,
+		SessionAmbrUplink:   spec.SessionAmbrUplink,
+		SessionAmbrDownlink: spec.SessionAmbrDownlink,
+		Var5qi:              spec.Var5qi,
+		Arp:                 spec.Arp,
+	}); err != nil {
+		f.fatalf("create scoped policy %q: %v", spec.Name, err)
+	}
+
+	name := spec.Name
+
+	f.t.Cleanup(func() {
+		if err := f.c.DeletePolicy(f.ctx, &client.DeletePolicyOptions{Name: name}); err != nil {
+			f.t.Logf("cleanup: delete policy %q: %v", name, err)
+		}
+	})
+}
+
+func (f *F) scopedSubscriber(spec scenarios.SubscriberSpec) {
+	f.t.Helper()
+
+	if err := f.c.CreateSubscriber(f.ctx, &client.CreateSubscriberOptions{
+		Imsi:           spec.IMSI,
+		Key:            spec.Key,
+		SequenceNumber: spec.SequenceNumber,
+		ProfileName:    spec.ProfileName,
+		OPc:            spec.OPc,
+	}); err != nil {
+		f.fatalf("create scoped subscriber %q: %v", spec.IMSI, err)
+	}
+
+	imsi := spec.IMSI
+
+	f.t.Cleanup(func() {
+		if err := f.c.DeleteSubscriber(f.ctx, &client.DeleteSubscriberOptions{ID: imsi}); err != nil {
+			f.t.Logf("cleanup: delete subscriber %q: %v", imsi, err)
+		}
+	})
 }
