@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
+
 	// Register all scenarios.
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 	"github.com/spf13/cobra"
@@ -74,9 +75,9 @@ func runCmd() *cobra.Command {
 
 	run.PersistentFlags().StringSliceVar(&coreN2Addresses, "ella-core-n2-address", nil,
 		"Ella Core N2 SCTP address (repeatable)")
-	run.PersistentFlags().StringSliceVar(&gnbSpecs, "gnb", nil,
+	run.PersistentFlags().StringArrayVar(&gnbSpecs, "gnb", nil,
 		"gNB spec: <name>,n2=<addr>,n3=<addr>[,n3-secondary=<addr>] (repeatable)")
-	run.PersistentFlags().StringSliceVar(&gnbCoreTargets, "gnb-core-target", nil,
+	run.PersistentFlags().StringArrayVar(&gnbCoreTargets, "gnb-core-target", nil,
 		"pair <gnb-name>=<core-n2-addr> (repeatable)")
 	run.PersistentFlags().BoolVar(&verbose, "verbose", false, "verbose logging")
 

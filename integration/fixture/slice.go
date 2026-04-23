@@ -21,16 +21,17 @@ func DefaultSliceSpec() SliceSpec {
 	}
 }
 
-// Slice creates a slice, or verifies an existing one with the same name
-// matches SST/SD. Fails the test on mismatch.
+// Slice upserts the slice: when a slice with the same name exists, its
+// SST/SD are overwritten to match spec; otherwise the slice is created.
 func (f *F) Slice(spec SliceSpec) {
 	f.t.Helper()
 
-	existing, err := f.c.GetSlice(f.ctx, &client.GetSliceOptions{Name: spec.Name})
-	if err == nil {
-		if existing.Sst != spec.SST || existing.Sd != spec.SD {
-			f.fatalf("slice %q exists with different (SST, SD): have (%d, %q), want (%d, %q)",
-				spec.Name, existing.Sst, existing.Sd, spec.SST, spec.SD)
+	if _, err := f.c.GetSlice(f.ctx, &client.GetSliceOptions{Name: spec.Name}); err == nil {
+		if err := f.c.UpdateSlice(f.ctx, spec.Name, &client.UpdateSliceOptions{
+			Sst: spec.SST,
+			Sd:  spec.SD,
+		}); err != nil {
+			f.fatalf("update slice %q: %v", spec.Name, err)
 		}
 
 		return

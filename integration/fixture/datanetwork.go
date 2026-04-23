@@ -24,20 +24,16 @@ func DefaultDataNetworkSpec() DataNetworkSpec {
 	}
 }
 
-// DataNetwork creates a data network, or verifies an existing one with
-// the same name matches the spec.
+// DataNetwork creates a data network when none exists with the given
+// name. When a data network with the same name already exists (e.g.
+// Core's seeded "internet"), it is left untouched — matching the old
+// core-tester behaviour, which tolerates drift on the seeded DN's IP
+// pool and MTU. Scenarios that need specific DN parameters must use a
+// distinct name.
 func (f *F) DataNetwork(spec DataNetworkSpec) {
 	f.t.Helper()
 
-	existing, err := f.c.GetDataNetwork(f.ctx, &client.GetDataNetworkOptions{Name: spec.Name})
-	if err == nil {
-		if existing.IPPool != spec.IPPool || existing.DNS != spec.DNS || existing.Mtu != spec.MTU {
-			f.fatalf("data network %q exists with different config: have (pool=%q dns=%q mtu=%d), want (pool=%q dns=%q mtu=%d)",
-				spec.Name,
-				existing.IPPool, existing.DNS, existing.Mtu,
-				spec.IPPool, spec.DNS, spec.MTU)
-		}
-
+	if _, err := f.c.GetDataNetwork(f.ctx, &client.GetDataNetworkOptions{Name: spec.Name}); err == nil {
 		return
 	}
 

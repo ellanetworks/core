@@ -21,19 +21,18 @@ func DefaultProfileSpec() ProfileSpec {
 	}
 }
 
-// Profile creates a profile, or verifies an existing one with the same
-// name matches the spec. Fails the test on mismatch so earlier fixture
-// calls cannot silently shadow a later scenario's requirements.
+// Profile upserts the profile: when a profile with the same name exists
+// (e.g. Core's seeded "default"), its UE-AMBR is overwritten to match
+// spec; otherwise the profile is created.
 func (f *F) Profile(spec ProfileSpec) {
 	f.t.Helper()
 
-	existing, err := f.c.GetProfile(f.ctx, &client.GetProfileOptions{Name: spec.Name})
-	if err == nil {
-		if existing.UeAmbrUplink != spec.UeAmbrUplink || existing.UeAmbrDownlink != spec.UeAmbrDownlink {
-			f.fatalf("profile %q exists with different AMBR: have (up=%q down=%q), want (up=%q down=%q)",
-				spec.Name,
-				existing.UeAmbrUplink, existing.UeAmbrDownlink,
-				spec.UeAmbrUplink, spec.UeAmbrDownlink)
+	if _, err := f.c.GetProfile(f.ctx, &client.GetProfileOptions{Name: spec.Name}); err == nil {
+		if err := f.c.UpdateProfile(f.ctx, spec.Name, &client.UpdateProfileOptions{
+			UeAmbrUplink:   spec.UeAmbrUplink,
+			UeAmbrDownlink: spec.UeAmbrDownlink,
+		}); err != nil {
+			f.fatalf("update profile %q: %v", spec.Name, err)
 		}
 
 		return

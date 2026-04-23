@@ -32,28 +32,23 @@ func DefaultPolicySpec() PolicySpec {
 	}
 }
 
-// Policy creates a policy, or verifies an existing one with the same
-// name matches the full spec. Fails the test on mismatch.
+// Policy upserts the policy: when a policy with the same name exists
+// (e.g. Core's seeded "default"), its full config is overwritten to
+// match spec; otherwise the policy is created.
 func (f *F) Policy(spec PolicySpec) {
 	f.t.Helper()
 
-	existing, err := f.c.GetPolicy(f.ctx, &client.GetPolicyOptions{Name: spec.Name})
-	if err == nil {
-		if existing.ProfileName != spec.ProfileName ||
-			existing.SliceName != spec.SliceName ||
-			existing.DataNetworkName != spec.DataNetworkName ||
-			existing.SessionAmbrUplink != spec.SessionAmbrUplink ||
-			existing.SessionAmbrDownlink != spec.SessionAmbrDownlink ||
-			existing.Var5qi != spec.Var5qi ||
-			existing.Arp != spec.Arp {
-			f.fatalf("policy %q exists with different config (profile=%q slice=%q dn=%q up=%q down=%q 5qi=%d arp=%d), want (profile=%q slice=%q dn=%q up=%q down=%q 5qi=%d arp=%d)",
-				spec.Name,
-				existing.ProfileName, existing.SliceName, existing.DataNetworkName,
-				existing.SessionAmbrUplink, existing.SessionAmbrDownlink,
-				existing.Var5qi, existing.Arp,
-				spec.ProfileName, spec.SliceName, spec.DataNetworkName,
-				spec.SessionAmbrUplink, spec.SessionAmbrDownlink,
-				spec.Var5qi, spec.Arp)
+	if _, err := f.c.GetPolicy(f.ctx, &client.GetPolicyOptions{Name: spec.Name}); err == nil {
+		if err := f.c.UpdatePolicy(f.ctx, spec.Name, &client.UpdatePolicyOptions{
+			ProfileName:         spec.ProfileName,
+			SliceName:           spec.SliceName,
+			DataNetworkName:     spec.DataNetworkName,
+			SessionAmbrUplink:   spec.SessionAmbrUplink,
+			SessionAmbrDownlink: spec.SessionAmbrDownlink,
+			Var5qi:              spec.Var5qi,
+			Arp:                 spec.Arp,
+		}); err != nil {
+			f.fatalf("update policy %q: %v", spec.Name, err)
 		}
 
 		return
