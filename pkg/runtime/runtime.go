@@ -432,7 +432,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	eng := upfInstance.Engine()
 
-	smfUPF := &smfUPFAdapter{engine: eng}
+	smfUPF := &smfUPFAdapter{engine: eng, upf: upfInstance}
 	smfInstance.SetUPF(smfUPF)
 
 	// Initialize SDF filters from database
@@ -772,6 +772,8 @@ func resolveN3Addresses(n3Interface config.N3Interface) (n3IPv4, n3IPv6 string) 
 			} else {
 				n3IPv6 = n3Interface.Address
 			}
+
+			return n3IPv4, n3IPv6
 		}
 	}
 

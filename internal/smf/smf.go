@@ -71,6 +71,10 @@ type SessionStore interface {
 type UPFClient interface {
 	EstablishSession(ctx context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error)
 	ModifySession(ctx context.Context, req *models.ModifyRequest) error
+	// FlushUsage delivers a final URR usage report for the given SEID before
+	// the session is deleted, preventing loss of bytes accounted since the
+	// last periodic poll.
+	FlushUsage(ctx context.Context, remoteSEID uint64)
 	DeleteSession(ctx context.Context, remoteSEID uint64) error
 
 	UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error

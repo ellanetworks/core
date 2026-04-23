@@ -11,7 +11,13 @@ services:
       - "5002:5002"
     networks:
       cluster:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
         ipv4_address: 10.100.0.11
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.11
   ella-core-2:
     image: ella-core:latest
     restart: unless-stopped
@@ -24,7 +30,13 @@ services:
       - "5003:5002"
     networks:
       cluster:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
         ipv4_address: 10.100.0.12
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.12
   ella-core-3:
     image: ella-core:latest
     restart: unless-stopped
@@ -37,7 +49,13 @@ services:
       - "5004:5002"
     networks:
       cluster:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
         ipv4_address: 10.100.0.13
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.13
 
 volumes:
   data1:
@@ -49,3 +67,7 @@ networks:
     ipam:
       config:
         - subnet: 10.100.0.0/24
+  n6:
+    ipam:
+      config:
+        - subnet: 10.6.0.0/24

@@ -1,0 +1,101 @@
+configs:
+  ella_config:
+    content: |
+      logging:
+        system:
+          level: "info"
+          output: "stdout"
+        audit:
+          output: "stdout"
+      db:
+        path: "core.db"
+      interfaces:
+        n2:
+          address: "2001:db8:1::10"
+          port: 38412
+        n3:
+          name: "n3"
+        n6:
+          name: "n6"
+        api:
+          address: "2001:db8:1::10"
+          port: 5002
+      xdp:
+        attach-mode: "generic"
+
+services:
+  ella-core:
+    image: ella-core:latest
+    configs:
+      - source: ella_config
+        target: /core.yaml
+    restart: unless-stopped
+    entrypoint: /bin/core --config /core.yaml
+    privileged: true
+    ports:
+      - "5002:5002"
+    networks:
+      default:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
+        ipv6_address: 2001:db8:1::10
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv6_address: 2001:db8:3::10
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.2
+  ella-core-tester:
+    image: ella-core-tester:latest
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "ip addr add 2001:db8:3::13/64 dev n3 || true; sleep infinity"
+    restart: unless-stopped
+    privileged: true
+    networks:
+      default:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
+        ipv6_address: 2001:db8:1::11
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv6_address: 2001:db8:3::11
+  router:
+    image: ghcr.io/ellanetworks/ubuntu-router:0.1
+    command:
+      - exec
+      - /bin/bash
+      - -lc
+      - >
+        ip route add 10.45.0.0/22 dev n6 via 10.6.0.2;
+        trap : TERM INT;
+        python3 /responder.py 34242 & wait
+    restart: unless-stopped
+    privileged: true
+    networks:
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.3
+
+networks:
+  default:
+    driver: bridge
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: 2001:db8:1::/64
+  n3:
+    internal: true
+    enable_ipv6: true
+    ipam:
+      config:
+        - subnet: 2001:db8:3::/64
+  n6:
+    ipam:
+      config:
+        - subnet: 10.6.0.0/24

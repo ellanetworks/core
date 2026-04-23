@@ -80,27 +80,21 @@ Shrinking is symmetric. Drain the node, then remove it; the remaining voters con
 
 ## Inter-node communication using mTLS
 
-Every inter-node connection is mutually authenticated over TLS 1.3.
+Every inter-node connection is mutually authenticated over TLS. On first-leader election, the cluster generates its own CA, and the signing material is replicated through Raft so any voter can issue certificates once it becomes leader.
 
-On first-leader election, the cluster generates its own root CA and an intermediate, and signs itself a leaf. Per-node leaf keys and public trust material are cached on each voter's disk so the listener can come up before raft has finished catching up. Root and intermediate signing keys, public certs, and a join-token HMAC key are all replicated through Raft, so every voter holds the material to sign new leaves as soon as it becomes leader.
+Additional nodes join via a single-use token. An admin mints one through the Cluster page; the joining node puts it in its `cluster.join-token` config field and exchanges it for a certificate at startup.
 
-Additional nodes join via a single-use HMAC token. An admin mints one through the Cluster page; the joining node puts it in its `cluster.join-token` config field and exchanges it for a leaf over a dedicated bootstrap ALPN.
-
-Leaves are short-lived (24 hours). Each node renews its own leaf automatically at 60–90 % of the TTL, jittered. Removing a cluster member revokes every leaf it holds; the in-memory revocation cache on every voter refreshes every 30 seconds, so revoked leaves stop authenticating within tens of seconds of removal.
-
-Every leaf's URI SAN is `spiffe://cluster.ella/<cluster-id>/node/<n>`; the local cluster ID is checked at every handshake, so a leaf from one cluster cannot authenticate into another.
-
-The CA private keys live in the replicated database; backup archives carry them inside `ella.db`. See [Backup and Restore](../how_to/backup_and_restore.md).
+Node certificates are short-lived and renewed automatically well before expiry. Removing a cluster member revokes every certificate it holds, and revoked certificates stop authenticating within tens of seconds. Each certificate is bound to a specific cluster identity, so a certificate from one cluster cannot authenticate into another.
 
 ## Disaster recovery
 
-HA clusters recover from total loss through an offline, backup-driven path. An operator stops every node, drops the backup archive as `restore.bundle` in a fresh data directory on one node, and starts that node — it comes up as a single-voter cluster carrying the restored state. The remaining voters then rejoin with fresh join tokens. Because the backup archive carries the cluster CA signing material, the restored cluster keeps its original identity and previously-issued leaves stay valid until renewal. The step-by-step procedure lives in [Backup and Restore](../how_to/backup_and_restore.md).
+HA clusters recover from total loss through an offline, backup-driven path. An operator stops every node, seeds one node from a backup archive, and starts it — it comes up as a single-voter cluster carrying the restored state. The remaining voters then rejoin with fresh join tokens. Because the backup archive carries the cluster CA signing material, the restored cluster keeps its original identity. The step-by-step procedure lives in [Backup and Restore](../how_to/backup_and_restore.md).
 
 ## Rolling upgrades
 
 Upgrades proceed one node at a time: drain, remove, upgrade, rejoin as non-voter, wait for auto-promotion (or promote manually). Writes continue throughout; the cluster is briefly mixed-version during each swap.
 
-To keep a mixed-version cluster consistent, the leader applies a schema migration only once every voter's binary supports it, and refuses to admit a new voter whose schema trails what the cluster has already applied. Skip-version upgrades (`vN → vN+2`) and downgrades are not supported.
+The cluster coordinates schema changes so a mixed-version cluster stays consistent during an upgrade. Skip-version upgrades (`vN → vN+2`) and downgrades are not supported.
 
 ## Further reading
 

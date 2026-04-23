@@ -12,6 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         arch: [amd64, arm64]
+        ip_version: [ipv4, ipv6, dualstack]
     runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-24.04-arm') || 'ubuntu-24.04' }}
 
     steps:
@@ -22,16 +23,22 @@ jobs:
         run: |
           docker run -d -p 5000:5000 --name registry registry:2
 
-      - name: Download Container image from GitHub Artifact
+      - name: Download Ella Core image from GitHub Artifact
         uses: actions/download-artifact@v8
         with:
           name: ellacore-image-${{ matrix.arch }}
 
-      - name: Push container image to local registry
+      - name: Download Ella Core Tester image from GitHub Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-tester-image-${{ matrix.arch }}
+
+      - name: Load images into Docker
         run: |
           docker load -i ellacore_latest-${{ matrix.arch }}.tar
           docker tag ella-core:latest localhost:5000/ella-core:latest
           docker push localhost:5000/ella-core:latest
+          docker load -i ellacore_tester_latest-${{ matrix.arch }}.tar
 
       - uses: actions/setup-go@v6
         with:
@@ -39,4 +46,4 @@ jobs:
 
       - name: Run integration tests
         run: |
-          INTEGRATION=1 go test ./integration/... -skip TestIntegrationHA -v
+          INTEGRATION=1 IP_VERSION=${{ matrix.ip_version }} go test ./integration/... -skip TestIntegrationHA -v
