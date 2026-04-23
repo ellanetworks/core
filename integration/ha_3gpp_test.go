@@ -43,18 +43,23 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 		composeDir  = "compose/ha-5g/"
 		composeFile = "compose.yaml"
 
-		primaryService = "ella-core-1"
-
-		primaryAPIURL   = "http://10.100.0.11:5002"
-		secondaryAPIURL = "http://10.100.0.12:5002"
-		tertiaryAPIURL  = "http://10.100.0.13:5002"
-
-		primaryN2   = "10.100.0.11:38412"
-		secondaryN2 = "10.100.0.12:38412"
-		tertiaryN2  = "10.100.0.13:38412"
-
 		gnbN2 = "10.100.0.20"
 		gnbN3 = "10.3.0.20"
+	)
+
+	// Per-node addresses, 0-indexed (nodeX = index X-1).
+	var (
+		nodeServices = [3]string{"ella-core-1", "ella-core-2", "ella-core-3"}
+		nodeAPIURLs  = [3]string{
+			"http://10.100.0.11:5002",
+			"http://10.100.0.12:5002",
+			"http://10.100.0.13:5002",
+		}
+		nodeN2Addrs = [3]string{
+			"10.100.0.11:38412",
+			"10.100.0.12:38412",
+			"10.100.0.13:38412",
+		}
 	)
 
 	dc, err := NewDockerClient()
@@ -64,13 +69,13 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 
 	t.Cleanup(func() { _ = dc.Close() })
 
-	adminToken, err := bringUpHA3GPPCluster(ctx, dc, composeDir, composeFile)
+	adminToken, nodeClients, err := bringUpHA3GPPCluster(ctx, dc, composeDir, composeFile)
 	if err != nil {
 		t.Fatalf("bring up cluster: %v", err)
 	}
 
 	t.Cleanup(func() {
-		for _, svc := range []string{"ella-core-1", "ella-core-2", "ella-core-3"} {
+		for _, svc := range nodeServices {
 			if logs, logErr := dc.ComposeLogs(ctx, composeDir, svc); logErr == nil {
 				t.Logf("=== %s logs ===\n%s", svc, logs)
 			}
@@ -80,7 +85,7 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 	})
 
 	haClient, err := client.New(&client.Config{
-		BaseURLs: []string{primaryAPIURL, secondaryAPIURL, tertiaryAPIURL},
+		BaseURLs: nodeAPIURLs[:],
 	})
 	if err != nil {
 		t.Fatalf("ella HA client: %v", err)
@@ -115,20 +120,34 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 		t.Fatalf("resolve tester container: %v", err)
 	}
 
+	// Order the gNB's core list so the current raft leader is the primary.
+	// Killing the leader then is the interesting HA signal — it exercises
+	// both raft re-election AND gNB SCTP failover in one pass.
+	leaderIdx, _, err := findLeader(ctx, nodeClients)
+	if err != nil {
+		t.Fatalf("find leader: %v", err)
+	}
+
+	leaderService := nodeServices[leaderIdx]
+	orderedN2 := orderLeaderFirst(nodeN2Addrs[:], leaderIdx)
+
+	t.Logf("leader is %s; gNB primary N2 = %s", leaderService, orderedN2[0])
+
 	// Kick off the scenario. Stdout is mirrored to the test log AND
 	// scanned for the PHASE1_DONE marker so we can synchronise the kill.
 	markerCh := make(chan struct{})
 
 	writer := newMarkerWriter(t, "PHASE1_DONE", markerCh)
 
-	argv := []string{
-		"core-tester", "run", "ha/failover_connectivity",
-		"--ella-core-n2-address", primaryN2,
-		"--ella-core-n2-address", secondaryN2,
-		"--ella-core-n2-address", tertiaryN2,
+	argv := []string{"core-tester", "run", "ha/failover_connectivity"}
+	for _, addr := range orderedN2 {
+		argv = append(argv, "--ella-core-n2-address", addr)
+	}
+
+	argv = append(argv,
 		"--gnb", fmt.Sprintf("gnb1,n2=%s,n3=%s", gnbN2, gnbN3),
 		"--verbose",
-	}
+	)
 
 	scenarioErr := make(chan error, 1)
 
@@ -139,20 +158,20 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 
 	select {
 	case <-markerCh:
-		t.Logf("phase 1 complete; killing %s", primaryService)
+		t.Logf("phase 1 complete; killing leader %s", leaderService)
 	case <-ctx.Done():
 		t.Fatalf("timed out waiting for phase-1 marker: %v", ctx.Err())
 	case runErr := <-scenarioErr:
 		t.Fatalf("scenario exited before phase-1 marker: %v", runErr)
 	}
 
-	// Stop the primary core. Docker sends SIGTERM with a grace period;
-	// the SCTP association closes cleanly, the gNB's receiver sees EOF,
-	// and the gNB promotes peer[1] (secondaryN2). NAT is enabled on
-	// Ella Core, so N6 return traffic to the new UPF is unicast-routed
+	// Stop the leader. Docker sends SIGTERM with a grace period; the
+	// SCTP association closes cleanly, the gNB's receiver sees EOF, and
+	// the gNB promotes the next peer in its ordered list. NAT is enabled
+	// on Ella Core, so N6 return traffic to the new UPF is unicast-routed
 	// via the existing NAT flow — no router-route update needed.
-	if err := dc.ComposeStopWithFile(ctx, composeDir, composeFile, primaryService); err != nil {
-		t.Fatalf("stop %s: %v", primaryService, err)
+	if err := dc.ComposeStopWithFile(ctx, composeDir, composeFile, leaderService); err != nil {
+		t.Fatalf("stop %s: %v", leaderService, err)
 	}
 
 	select {
@@ -175,12 +194,16 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 //  3. Initialize the admin user; mint an API token.
 //  4. For nodes 2 and 3: mint a cluster join token via node 1, write
 //     the node's config with the token embedded, start the service.
-//  5. Wait for the full cluster to converge (1 leader + N-1 followers).
+//  5. Wait for the full cluster to converge (1 leader + N-1 followers)
+//     AND every node to report Ready — the API is not fully usable
+//     until Phase B startup completes.
 //  6. Start the tester sidecar and the N6 router (no cluster
 //     dependency on either).
 //
-// Returns the admin token so callers can set it on an HA-mode client.
-func bringUpHA3GPPCluster(ctx context.Context, dc *DockerClient, composeDir, composeFile string) (string, error) {
+// Returns the admin token plus a per-node client slice (with the admin
+// token set on each) so callers can use findLeader / waitForAutopilotHealthy
+// etc.
+func bringUpHA3GPPCluster(ctx context.Context, dc *DockerClient, composeDir, composeFile string) (string, []*client.Client, error) {
 	nodeServices := []string{"ella-core-1", "ella-core-2", "ella-core-3"}
 
 	peers := []string{
@@ -192,27 +215,27 @@ func bringUpHA3GPPCluster(ctx context.Context, dc *DockerClient, composeDir, com
 	dc.ComposeCleanup(ctx)
 
 	if err := writeHA3GPPNodeConfig(composeDir, 1, peers, ""); err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	if err := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, nodeServices[0]); err != nil {
-		return "", fmt.Errorf("start node 1: %w", err)
+		return "", nil, fmt.Errorf("start node 1: %w", err)
 	}
 
 	node1URL := "http://10.100.0.11:5002"
 
 	node1, err := client.New(&client.Config{BaseURL: node1URL})
 	if err != nil {
-		return "", fmt.Errorf("node 1 client: %w", err)
+		return "", nil, fmt.Errorf("node 1 client: %w", err)
 	}
 
 	if err := waitForNodeReady(ctx, node1); err != nil {
-		return "", fmt.Errorf("node 1 never became ready: %w", err)
+		return "", nil, fmt.Errorf("node 1 never became ready: %w", err)
 	}
 
 	adminToken, err := initializeAndGetAdminToken(ctx, node1)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	node1.SetToken(adminToken)
@@ -225,15 +248,15 @@ func bringUpHA3GPPCluster(ctx context.Context, dc *DockerClient, composeDir, com
 			TTLSeconds: 600,
 		})
 		if err != nil {
-			return "", fmt.Errorf("mint join token for node %d: %w", nodeID, err)
+			return "", nil, fmt.Errorf("mint join token for node %d: %w", nodeID, err)
 		}
 
 		if err := writeHA3GPPNodeConfig(composeDir, nodeID, peers, tok.Token); err != nil {
-			return "", err
+			return "", nil, err
 		}
 
 		if err := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, nodeServices[i]); err != nil {
-			return "", fmt.Errorf("start node %d: %w", nodeID, err)
+			return "", nil, fmt.Errorf("start node %d: %w", nodeID, err)
 		}
 	}
 
@@ -242,7 +265,7 @@ func bringUpHA3GPPCluster(ctx context.Context, dc *DockerClient, composeDir, com
 	for _, url := range []string{"http://10.100.0.12:5002", "http://10.100.0.13:5002"} {
 		c, err := client.New(&client.Config{BaseURL: url})
 		if err != nil {
-			return "", fmt.Errorf("client for %s: %w", url, err)
+			return "", nil, fmt.Errorf("client for %s: %w", url, err)
 		}
 
 		c.SetToken(adminToken)
@@ -250,15 +273,39 @@ func bringUpHA3GPPCluster(ctx context.Context, dc *DockerClient, composeDir, com
 	}
 
 	if err := waitForClusterReady(ctx, clients); err != nil {
-		return "", fmt.Errorf("cluster not ready: %w", err)
+		return "", nil, fmt.Errorf("cluster not ready: %w", err)
+	}
+
+	// waitForClusterReady only asserts "reachable + 1 leader elected". The
+	// full API (everything behind Phase B startup) requires status.Ready
+	// on every node. Without this, the first post-up write — fixture +
+	// NAT + route — can race against node startup and silently incur
+	// retry-on-503 stalls via the haRequester.
+	if err := waitForAllNodesReady(ctx, clients); err != nil {
+		return "", nil, fmt.Errorf("nodes not ready: %w", err)
 	}
 
 	// Start the tester and router last; they don't affect cluster formation.
 	if err := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, "ella-core-tester", "router"); err != nil {
-		return "", fmt.Errorf("start tester + router: %w", err)
+		return "", nil, fmt.Errorf("start tester + router: %w", err)
 	}
 
-	return adminToken, nil
+	return adminToken, clients, nil
+}
+
+// orderLeaderFirst returns a slice of addresses with leaderIdx moved to
+// position 0, preserving the relative order of the rest.
+func orderLeaderFirst(addrs []string, leaderIdx int) []string {
+	out := make([]string, 0, len(addrs))
+	out = append(out, addrs[leaderIdx])
+
+	for i, a := range addrs {
+		if i != leaderIdx {
+			out = append(out, a)
+		}
+	}
+
+	return out
 }
 
 // writeHA3GPPNodeConfig renders a per-node core.yaml with the ha-5g
