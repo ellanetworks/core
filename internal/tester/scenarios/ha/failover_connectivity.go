@@ -157,16 +157,50 @@ func runFailoverConnectivity(ctx context.Context, env scenarios.Env) error {
 		return fmt.Errorf("phase2: wait for NG Setup Response on new peer: %w", err)
 	}
 
-	// Phase 2: register a fresh UE on the new peer, verify connectivity.
-	// Using a new RAN-UE-NGAP-ID avoids collision with stale context on
-	// the gNB-local UE table.
-	if err := registerAndPing(
-		ctx,
-		gNodeB,
-		int64(scenarios.DefaultRANUENGAPID)+1,
-		"ellaha1",
-	); err != nil {
-		return fmt.Errorf("phase2: %w", err)
+	// Phase 2 will trigger AUSF to bump the subscriber's sequenceNumber,
+	// which is a Raft-replicated write and therefore must land on the
+	// current leader. When we killed the previous leader (core-1), the
+	// surviving nodes need to run a heartbeat-timeout → election cycle
+	// before any write can succeed. Typical election time under 3-node
+	// compose is 5-8 s. Retry the full register-and-ping cycle until the
+	// cluster settles; each attempt uses a fresh RAN-UE-NGAP-ID and
+	// tunnel name so stale gNB-local context from a failed attempt
+	// doesn't collide with the retry.
+	const (
+		phase2Deadline = 30 * time.Second
+		phase2Backoff  = 2 * time.Second
+	)
+
+	phase2Start := time.Now()
+
+	var phase2Err error
+
+	for attempt := 0; time.Since(phase2Start) < phase2Deadline; attempt++ {
+		phase2Err = registerAndPing(
+			ctx,
+			gNodeB,
+			int64(scenarios.DefaultRANUENGAPID)+int64(1+attempt),
+			fmt.Sprintf("ellaha%d", 1+attempt),
+		)
+		if phase2Err == nil {
+			break
+		}
+
+		logger.Logger.Warn(
+			"phase2 attempt failed; will retry until raft settles",
+			zap.Int("attempt", attempt),
+			zap.Error(phase2Err),
+		)
+
+		select {
+		case <-time.After(phase2Backoff):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	if phase2Err != nil {
+		return fmt.Errorf("phase2 after %s: %w", phase2Deadline, phase2Err)
 	}
 
 	logger.Logger.Info("phase2: connectivity verified on new peer", zap.String("peer", newPeer))

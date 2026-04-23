@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -209,15 +208,19 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 		t.Fatalf("scenario exited before phase-1 marker: %v", runErr)
 	}
 
-	// Stop the leader. `docker compose stop` default grace is 10 s, which
-	// is too short for Ella Core's graceful shutdown sequence (leadership
-	// transfer + API drain + AMF SCTP close + UPF flush). If Core gets
-	// SIGKILLed mid-shutdown, `conn.Close()` in internal/amf/ngap/service
-	// never runs and the gNB's kernel SCTP stack waits for heartbeat
-	// timeout (minutes). Bump the grace to 60 s so Core has time to send
-	// the SCTP SHUTDOWN chunk that trips the gNB receiver's EOF path.
-	if err := composeStopWithGrace(ctx, composeDir, composeFile, leaderService, 60); err != nil {
-		t.Fatalf("stop %s: %v", leaderService, err)
+	// Kill the leader with SIGKILL instead of a graceful SIGTERM. A
+	// graceful `docker compose stop` relies on Core finishing its
+	// shutdown sequence (conn.Close on every SCTP association) before
+	// the process exits and docker reaps the container's network
+	// namespace. In practice the SCTP SHUTDOWN handshake doesn't
+	// complete before Core exits — the tester is stuck in
+	// SHUTDOWN_RECEIVED until kernel heartbeat timeouts fire (minutes).
+	// `docker kill` sends SIGKILL directly, which makes the kernel emit
+	// an SCTP ABORT (no handshake needed) as it reaps Core's sockets.
+	// The tester's blocked SCTPRead unblocks with io.EOF within ms,
+	// which drives the failover path.
+	if err := composeKill(ctx, composeDir, composeFile, leaderService); err != nil {
+		t.Fatalf("kill %s: %v", leaderService, err)
 	}
 
 	select {
@@ -354,15 +357,14 @@ func orderLeaderFirst(addrs []string, leaderIdx int) []string {
 	return out
 }
 
-// composeStopWithGrace runs `docker compose stop --timeout <graceSeconds>`
-// so Ella Core can complete its graceful shutdown sequence. The shared
-// `ComposeStopWithFile` helper uses docker's default 10 s grace, which
-// is shorter than Core's per-step shutdown budget.
-func composeStopWithGrace(ctx context.Context, composeDir, composeFile, service string, graceSeconds int) error {
+// composeKill sends SIGKILL to the named service via `docker compose kill`.
+// Used by the failover test instead of a graceful stop so the kernel
+// emits an SCTP ABORT on Core's sockets (rather than an incomplete
+// graceful SHUTDOWN), which reliably wakes the gNB's blocked receiver.
+func composeKill(ctx context.Context, composeDir, composeFile, service string) error {
 	cmd := exec.CommandContext(ctx, "docker", "compose",
 		"-f", composeFile,
-		"stop",
-		"--timeout", strconv.Itoa(graceSeconds),
+		"kill",
 		service,
 	)
 	cmd.Dir = composeDir
@@ -370,7 +372,7 @@ func composeStopWithGrace(ctx context.Context, composeDir, composeFile, service 
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("docker compose stop %s (grace=%ds): %w", service, graceSeconds, err)
+		return fmt.Errorf("docker compose kill %s: %w", service, err)
 	}
 
 	return nil
