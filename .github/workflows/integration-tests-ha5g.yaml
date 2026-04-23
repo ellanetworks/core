@@ -1,0 +1,41 @@
+name: HA+5G integration tests
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  ha5g-integration-test:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download Ella Core image from GitHub Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-image-amd64
+
+      - name: Download Ella Core Tester image from GitHub Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-tester-image-amd64
+
+      - name: Load images into Docker
+        run: |
+          docker load -i ellacore_latest-amd64.tar
+          docker load -i ellacore_tester_latest-amd64.tar
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Install libpcap headers
+        run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+
+      - name: Run HA+5G integration tests
+        run: |
+          INTEGRATION=1 go test ./integration/... -run TestIntegration5GHAFailover -v -timeout 15m

@@ -46,4 +46,4 @@ jobs:
 
       - name: Run integration tests
         run: |
-          INTEGRATION=1 IP_VERSION=${{ matrix.ip_version }} go test ./integration/... -skip TestIntegrationHA -v
+          INTEGRATION=1 IP_VERSION=${{ matrix.ip_version }} go test ./integration/... -skip 'TestIntegrationHA|TestIntegration5GHAFailover' -v
