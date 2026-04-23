@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"net"
 	"os"
 	"testing"
 	"time"
@@ -13,6 +14,9 @@ func TestIntegrationEllaCoreTester(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
+
+	ipFamily := DetectIPFamily()
+	t.Logf("Running core-tester test in %s mode", ipFamily)
 
 	ctx := context.Background()
 
@@ -28,12 +32,13 @@ func TestIntegrationEllaCoreTester(t *testing.T) {
 		}
 	}()
 
-	dockerClient.ComposeDown(ctx, "compose/ueransim/")
-	dockerClient.ComposeDown(ctx, "compose/core-tester/")
+	dockerClient.ComposeCleanup(ctx)
 
-	err = dockerClient.ComposeUp(ctx, "compose/core-tester/")
+	composeFile := ComposeFile()
+
+	err = dockerClient.ComposeUpWithFile(ctx, "compose/core-tester/", composeFile)
 	if err != nil {
-		t.Fatalf("failed to bring up compose: %v", err)
+		t.Fatalf("failed to bring up compose with %s: %v", composeFile, err)
 	}
 
 	t.Cleanup(func() {
@@ -48,7 +53,7 @@ func TestIntegrationEllaCoreTester(t *testing.T) {
 	t.Log("deployed ella core")
 
 	clientConfig := &client.Config{
-		BaseURL: "http://10.3.0.2:5002",
+		BaseURL: APIAddress(),
 	}
 
 	ellaClient, err := client.New(clientConfig)
@@ -69,7 +74,7 @@ func TestIntegrationEllaCoreTester(t *testing.T) {
 			Routes: []RouteConfig{
 				{
 					Destination: "8.8.8.8/32",
-					Gateway:     "10.6.0.3",
+					Gateway:     N6Address(),
 					Interface:   "n6",
 					Metric:      0,
 				},
@@ -91,12 +96,12 @@ func TestIntegrationEllaCoreTester(t *testing.T) {
 
 	_, err = dockerClient.Exec(ctx, coreTesterContainerName, []string{
 		"core-tester", "test",
-		"--ella-core-api-address", "http://10.3.0.2:5002",
+		"--ella-core-api-address", APIAddress(),
 		"--ella-core-api-token", ellaClient.GetToken(),
-		"--ella-core-n2-address", "10.3.0.2:38412",
-		"--gnb-n2-address", "10.3.0.3",
-		"--gnb-n3-address", "10.3.0.3",
-		"--gnb-n3-address-secondary", "10.3.0.4",
+		"--ella-core-n2-address", net.JoinHostPort(N2Address(0), "38412"),
+		"--gnb-n2-address", CoreTesterDefaultAddress(),
+		"--gnb-n3-address", CoreTesterN3Address(),
+		"--gnb-n3-address-secondary", CoreTesterN3AddressSecondary(),
 		"--exclude", "ue/paging/downlink_data",
 		"--verbose",
 	}, false, 5*time.Minute, logWriter{t})

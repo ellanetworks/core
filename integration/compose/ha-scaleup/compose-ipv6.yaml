@@ -13,7 +13,7 @@ services:
       cluster:
         driver_opts:
               com.docker.network.endpoint.ifname: eth0
-        ipv4_address: 10.100.0.11
+        ipv6_address: 2001:db8:2::11
       n6:
         driver_opts:
               com.docker.network.endpoint.ifname: n6
@@ -32,7 +32,7 @@ services:
       cluster:
         driver_opts:
               com.docker.network.endpoint.ifname: eth0
-        ipv4_address: 10.100.0.12
+        ipv6_address: 2001:db8:2::12
       n6:
         driver_opts:
               com.docker.network.endpoint.ifname: n6
@@ -51,22 +51,43 @@ services:
       cluster:
         driver_opts:
               com.docker.network.endpoint.ifname: eth0
-        ipv4_address: 10.100.0.13
+        ipv6_address: 2001:db8:2::13
       n6:
         driver_opts:
               com.docker.network.endpoint.ifname: n6
         ipv4_address: 10.6.0.13
+  ella-core-4:
+    image: ella-core:latest
+    restart: unless-stopped
+    entrypoint: /bin/core --config /cfg/core.yaml
+    privileged: true
+    volumes:
+      - ./cfg/node4:/cfg:ro
+      - data4:/data
+    ports:
+      - "5005:5002"
+    networks:
+      cluster:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
+        ipv6_address: 2001:db8:2::14
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.14
 
 volumes:
   data1:
   data2:
   data3:
+  data4:
 
 networks:
   cluster:
+    enable_ipv6: true
     ipam:
       config:
-        - subnet: 10.100.0.0/24
+        - subnet: 2001:db8:2::/64
   n6:
     ipam:
       config:

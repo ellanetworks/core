@@ -12,6 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         arch: [amd64, arm64]
+        ip_version: [ipv4, ipv6, dualstack]
     runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-24.04-arm') || 'ubuntu-24.04' }}
 
     steps:
@@ -39,4 +40,4 @@ jobs:
 
       - name: Run integration tests
         run: |
-          INTEGRATION=1 go test ./integration/... -skip TestIntegrationHA -v
+          INTEGRATION=1 IP_VERSION=${{ matrix.ip_version }} go test ./integration/... -skip TestIntegrationHA -v

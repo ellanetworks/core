@@ -15,10 +15,14 @@ const haComposeDir = "compose/ha/"
 
 var haNodeServices = []string{"ella-core-1", "ella-core-2", "ella-core-3"}
 
-var haNodeURLs = []string{
-	"http://10.100.0.11:5002",
-	"http://10.100.0.12:5002",
-	"http://10.100.0.13:5002",
+// getHANodeURLs returns the API URLs for HA nodes based on the current IP family
+func getHANodeURLs() []string {
+	urls := make([]string, 3)
+	for i := 1; i <= 3; i++ {
+		urls[i-1] = APIAddressForCluster(i)
+	}
+
+	return urls
 }
 
 // bringUpHACluster stages a 3-node HA cluster from scratch against the
@@ -33,7 +37,9 @@ func bringUpHACluster(ctx context.Context, dc *DockerClient) ([]*client.Client, 
 // extraPeers lets callers with a larger peers list (scaleup) include
 // more addresses than the starting set of services.
 func bringUpHAClusterAt(ctx context.Context, dc *DockerClient, composeDir string, services []string, extraPeers []string) ([]*client.Client, error) {
-	peers := []string{"10.100.0.11:7000", "10.100.0.12:7000", "10.100.0.13:7000"}
+	dc.ComposeCleanup(ctx)
+
+	peers := []string{ClusterAddressWithPort(1, 7000), ClusterAddressWithPort(2, 7000), ClusterAddressWithPort(3, 7000)}
 	peers = append(peers, extraPeers...)
 
 	// Write node 1's config (no join-token, default voter suffrage).
@@ -41,14 +47,16 @@ func bringUpHAClusterAt(ctx context.Context, dc *DockerClient, composeDir string
 		return nil, err
 	}
 
-	if err := dc.ComposeStart(ctx, composeDir, services[0]); err != nil {
+	composeFile := ComposeFile()
+
+	if err := dc.ComposeStartWithFile(ctx, composeDir, services[0], composeFile); err != nil {
 		// Service may not exist yet — create and start.
-		if err2 := dc.ComposeUpServices(ctx, composeDir, services[0]); err2 != nil {
+		if err2 := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, services[0]); err2 != nil {
 			return nil, fmt.Errorf("start node 1: %w (create: %v)", err, err2)
 		}
 	}
 
-	node1, err := newInsecureClient(haNodeURLs[0])
+	node1, err := newInsecureClient(getHANodeURLs()[0])
 	if err != nil {
 		return nil, err
 	}
@@ -126,19 +134,27 @@ func stageAndStartJoiner(ctx context.Context, dc *DockerClient, leader *client.C
 		return err
 	}
 
-	return dc.ComposeUpServices(ctx, composeDir, service)
+	return dc.ComposeUpServicesWithFile(ctx, composeDir, ComposeFile(), service)
 }
 
 // writeNodeConfig renders the node's core.yaml into the compose dir's
 // bind-mount path (./cfg/node<n>/core.yaml). Pass an empty
 // initialSuffrage to omit the cluster.initial-suffrage field.
 func writeNodeConfig(composeDir string, nodeID int, peers []string, joinToken, initialSuffrage string) error {
-	cfgDir := filepath.Join(composeDir, "cfg", fmt.Sprintf("node%d", nodeID))
-	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+	cfgDir, err := filepath.Abs(filepath.Join(composeDir, "cfg", fmt.Sprintf("node%d", nodeID)))
+	if err != nil {
+		return fmt.Errorf("abs path %s: %w", composeDir, err)
+	}
+
+	if err := os.MkdirAll(cfgDir, 0o777); err != nil {
 		return fmt.Errorf("mkdir %s: %w", cfgDir, err)
 	}
 
-	addr := fmt.Sprintf("10.100.0.%d", 10+nodeID)
+	if err := os.Chmod(cfgDir, 0o777); err != nil {
+		return fmt.Errorf("chmod %s: %w", cfgDir, err)
+	}
+
+	addr := ClusterAddress(nodeID)
 
 	var peersYAML strings.Builder
 
@@ -169,9 +185,9 @@ interfaces:
     address: %q
     port: 38412
   n3:
-    address: %q
-  n6:
     name: "eth0"
+  n6:
+    name: "n6"
   api:
     address: %q
     port: 5002
@@ -180,9 +196,9 @@ xdp:
 cluster:
   enabled: true
   node-id: %d
-  bind-address: "%s:7000"
+  bind-address: "%s"
   peers:
-%s%s%s`, addr, addr, addr, nodeID, addr, peersYAML.String(), joinTokenLine, suffrageLine)
+%s%s%s`, addr, addr, nodeID, ClusterAddressWithPort(nodeID, 7000), peersYAML.String(), joinTokenLine, suffrageLine)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }
@@ -194,8 +210,10 @@ func newInsecureClient(baseURL string) (*client.Client, error) {
 }
 
 func newHANodeClients() ([]*client.Client, error) {
-	clients := make([]*client.Client, 0, len(haNodeURLs))
-	for _, u := range haNodeURLs {
+	urls := getHANodeURLs()
+
+	clients := make([]*client.Client, 0, len(urls))
+	for _, u := range urls {
 		c, err := newInsecureClient(u)
 		if err != nil {
 			return nil, fmt.Errorf("client for %s: %w", u, err)

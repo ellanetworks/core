@@ -28,12 +28,6 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 		}
 	}()
 
-	dockerClient.ComposeDown(ctx, haComposeDir)
-
-	t.Cleanup(func() {
-		dockerClient.ComposeDown(ctx, haComposeDir)
-	})
-
 	t.Log("bringing up staged HA cluster")
 
 	clients, err := bringUpHACluster(ctx, dockerClient)
@@ -190,12 +184,6 @@ func TestIntegrationHAFollowerProxy(t *testing.T) {
 		}
 	}()
 
-	dockerClient.ComposeDown(ctx, haComposeDir)
-
-	t.Cleanup(func() {
-		dockerClient.ComposeDown(ctx, haComposeDir)
-	})
-
 	t.Log("bringing up staged HA cluster")
 
 	clients, err := bringUpHACluster(ctx, dockerClient)
@@ -296,6 +284,7 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 	}
 
 	ctx := context.Background()
+	composeFile := ComposeFile()
 
 	dockerClient, err := NewDockerClient()
 	if err != nil {
@@ -307,12 +296,6 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 			t.Logf("failed to close docker client: %v", err)
 		}
 	}()
-
-	dockerClient.ComposeDown(ctx, haComposeDir)
-
-	t.Cleanup(func() {
-		dockerClient.ComposeDown(ctx, haComposeDir)
-	})
 
 	t.Log("bringing up staged HA cluster")
 
@@ -356,7 +339,7 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 	leaderService := haNodeServices[leaderIdx]
 	t.Logf("stopping leader %s (node %d)", leaderService, stoppedNodeID)
 
-	err = dockerClient.ComposeStop(ctx, haComposeDir, leaderService)
+	err = dockerClient.ComposeStopWithFile(ctx, haComposeDir, composeFile, leaderService)
 	if err != nil {
 		t.Fatalf("failed to stop leader: %v", err)
 	}
@@ -422,7 +405,7 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 
 	t.Logf("restarting stopped node %s", leaderService)
 
-	err = dockerClient.ComposeStart(ctx, haComposeDir, leaderService)
+	err = dockerClient.ComposeStartWithFile(ctx, haComposeDir, composeFile, leaderService)
 	if err != nil {
 		t.Fatalf("failed to restart node: %v", err)
 	}
@@ -482,12 +465,6 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 			t.Logf("failed to close docker client: %v", err)
 		}
 	}()
-
-	dockerClient.ComposeDown(ctx, haComposeDir)
-
-	t.Cleanup(func() {
-		dockerClient.ComposeDown(ctx, haComposeDir)
-	})
 
 	t.Log("bringing up staged HA cluster")
 
@@ -583,6 +560,9 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 
 	const scaleUpComposeDir = "compose/ha-scaleup/"
 
+	ipFamily := DetectIPFamily()
+	t.Logf("Running HA scale-up test in %s mode", ipFamily)
+
 	ctx := context.Background()
 
 	dockerClient, err := NewDockerClient()
@@ -596,10 +576,11 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 		}
 	}()
 
-	dockerClient.ComposeDown(ctx, scaleUpComposeDir)
+	composeFile := ComposeFile()
 
+	dockerClient.ComposeCleanup(ctx)
 	t.Cleanup(func() {
-		dockerClient.ComposeDown(ctx, scaleUpComposeDir)
+		dockerClient.ComposeDownWithFile(ctx, scaleUpComposeDir, composeFile)
 	})
 
 	t.Log("bringing up 3-node cluster via scaleup compose")
@@ -611,7 +592,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 	// integration tests run serially so the override is safe.
 	// scaleup compose has a 4th peer address reachable later; include it
 	// in the baseline peers list so all configs match.
-	clients, err := bringUpHAClusterAt(ctx, dockerClient, scaleUpComposeDir, haNodeServices, []string{"10.100.0.14:7000"})
+	clients, err := bringUpHAClusterAt(ctx, dockerClient, scaleUpComposeDir, haNodeServices, []string{ClusterAddressWithPort(4, 7000)})
 	if err != nil {
 		t.Fatalf("bring up 3-node cluster: %v", err)
 	}
@@ -632,15 +613,17 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 	t.Log("3-node cluster ready, staging + starting 4th node as nonvoter")
 
 	fullPeers := []string{
-		"10.100.0.11:7000", "10.100.0.12:7000",
-		"10.100.0.13:7000", "10.100.0.14:7000",
+		ClusterAddressWithPort(1, 7000),
+		ClusterAddressWithPort(2, 7000),
+		ClusterAddressWithPort(3, 7000),
+		ClusterAddressWithPort(4, 7000),
 	}
 	if err := stageAndStartJoiner(ctx, dockerClient, leader, scaleUpComposeDir,
 		"ella-core-4", 4, fullPeers, "nonvoter"); err != nil {
 		t.Fatalf("stage + start node 4: %v", err)
 	}
 
-	node4URL := "http://10.100.0.14:5002"
+	node4URL := APIAddressForCluster(4)
 
 	node4Client, err := newInsecureClient(node4URL)
 	if err != nil {
@@ -736,7 +719,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 
 	t.Log("cluster members verified (3 members), stopping removed node container")
 
-	err = dockerClient.ComposeStop(ctx, scaleUpComposeDir, "ella-core-4")
+	err = dockerClient.ComposeStopWithFile(ctx, scaleUpComposeDir, composeFile, "ella-core-4")
 	if err != nil {
 		t.Fatalf("failed to stop ella-core-4: %v", err)
 	}
@@ -784,6 +767,7 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 	}
 
 	ctx := context.Background()
+	composeFile := ComposeFile()
 
 	dockerClient, err := NewDockerClient()
 	if err != nil {
@@ -795,12 +779,6 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 			t.Logf("failed to close docker client: %v", err)
 		}
 	}()
-
-	dockerClient.ComposeDown(ctx, haComposeDir)
-
-	t.Cleanup(func() {
-		dockerClient.ComposeDown(ctx, haComposeDir)
-	})
 
 	t.Log("bringing up staged HA cluster")
 
@@ -863,7 +841,7 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 	t.Log("stopping all 3 nodes (total quorum loss)")
 
 	for _, svc := range haNodeServices {
-		if err := dockerClient.ComposeStop(ctx, haComposeDir, svc); err != nil {
+		if err := dockerClient.ComposeStopWithFile(ctx, haComposeDir, composeFile, svc); err != nil {
 			t.Fatalf("failed to stop %s: %v", svc, err)
 		}
 	}
@@ -877,8 +855,8 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 	}
 
 	peers := []recoveryPeer{
-		{ID: "1", Address: "10.100.0.11:7000"},
-		{ID: "2", Address: "10.100.0.12:7000"},
+		{ID: "1", Address: ClusterAddressWithPort(1, 7000)},
+		{ID: "2", Address: ClusterAddressWithPort(2, 7000)},
 	}
 
 	peersJSON, err := json.MarshalIndent(peers, "", "  ")
@@ -909,12 +887,12 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 
 	t.Log("starting nodes 1 and 2 (node 3 stays down)")
 
-	err = dockerClient.ComposeStart(ctx, haComposeDir, "ella-core-1")
+	err = dockerClient.ComposeStartWithFile(ctx, haComposeDir, composeFile, "ella-core-1")
 	if err != nil {
 		t.Fatalf("failed to start ella-core-1: %v", err)
 	}
 
-	err = dockerClient.ComposeStart(ctx, haComposeDir, "ella-core-2")
+	err = dockerClient.ComposeStartWithFile(ctx, haComposeDir, composeFile, "ella-core-2")
 	if err != nil {
 		t.Fatalf("failed to start ella-core-2: %v", err)
 	}
@@ -978,10 +956,10 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 		}
 	}()
 
-	dockerClient.ComposeDown(ctx, haComposeDir)
+	dockerClient.ComposeCleanup(ctx)
 
 	t.Cleanup(func() {
-		dockerClient.ComposeDown(ctx, haComposeDir)
+		dockerClient.ComposeDownWithFile(ctx, haComposeDir, ComposeFile())
 	})
 
 	t.Log("bringing up staged HA cluster")
@@ -1058,11 +1036,15 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 
 	t.Log("tearing down entire cluster (all volumes dropped)")
 
-	dockerClient.ComposeDown(ctx, haComposeDir)
+	dockerClient.ComposeDownWithFile(ctx, haComposeDir, ComposeFile())
 
 	// Fresh cluster config: node 1 as founder, no join-token, same
 	// peers list so joiners can later use the same address set.
-	peers := []string{"10.100.0.11:7000", "10.100.0.12:7000", "10.100.0.13:7000"}
+	peers := []string{
+		ClusterAddressWithPort(1, 7000),
+		ClusterAddressWithPort(2, 7000),
+		ClusterAddressWithPort(3, 7000),
+	}
 
 	if err := writeNodeConfig(haComposeDir, 1, peers, "", ""); err != nil {
 		t.Fatalf("write node 1 config: %v", err)
@@ -1070,7 +1052,7 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 
 	t.Log("creating node 1 container (not started) so we can stage restore.bundle")
 
-	if err := dockerClient.ComposeCreate(ctx, haComposeDir, haNodeServices[0]); err != nil {
+	if err := dockerClient.ComposeCreateWithFile(ctx, haComposeDir, ComposeFile(), haNodeServices[0]); err != nil {
 		t.Fatalf("compose create node 1: %v", err)
 	}
 
@@ -1087,11 +1069,11 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 
 	t.Log("starting node 1 — runtime should extract restore.bundle and self-issue a leaf")
 
-	if err := dockerClient.ComposeStart(ctx, haComposeDir, haNodeServices[0]); err != nil {
+	if err := dockerClient.ComposeStartWithFile(ctx, haComposeDir, ComposeFile(), haNodeServices[0]); err != nil {
 		t.Fatalf("start node 1: %v", err)
 	}
 
-	restoredNode1, err := newInsecureClient(haNodeURLs[0])
+	restoredNode1, err := newInsecureClient(APIAddressForCluster(1))
 	if err != nil {
 		t.Fatalf("node 1 client: %v", err)
 	}
