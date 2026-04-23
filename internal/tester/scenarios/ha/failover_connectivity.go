@@ -36,12 +36,6 @@ const failoverMarker = "PHASE1_DONE"
 // on a killed container is typically sub-second; 60s is a generous bound.
 const failoverTimeout = 60 * time.Second
 
-// phase2Settle gives external orchestration (e.g. router route update on
-// the integration test side) a brief window to catch up after the gNB
-// reports a peer change but before phase-2 traffic starts. Keeps phase-2
-// deterministic without needing a second stdin-based sync point.
-const phase2Settle = 3 * time.Second
-
 func init() {
 	scenarios.Register(scenarios.Scenario{
 		Name: "ha/failover_connectivity",
@@ -151,13 +145,16 @@ func runFailoverConnectivity(ctx context.Context, env scenarios.Env) error {
 		zap.String("to", newPeer),
 	)
 
-	// Give external orchestration a brief moment to update whatever
-	// needs updating (e.g. router route to the new UPF) before we
-	// start phase-2 data plane traffic.
-	select {
-	case <-time.After(phase2Settle):
-	case <-ctx.Done():
-		return ctx.Err()
+	// Wait for the new peer's NG Setup Response. gNB promotes by dialing
+	// + sending NGSetupRequest; the response lands in receivedFrames via
+	// the new receiver goroutine. Consuming it here ensures the new AMF
+	// is handshaken and ready to accept UE signalling.
+	if _, err := gNodeB.WaitForMessage(
+		ngapType.NGAPPDUPresentSuccessfulOutcome,
+		ngapType.SuccessfulOutcomePresentNGSetupResponse,
+		10*time.Second,
+	); err != nil {
+		return fmt.Errorf("phase2: wait for NG Setup Response on new peer: %w", err)
 	}
 
 	// Phase 2: register a fresh UE on the new peer, verify connectivity.

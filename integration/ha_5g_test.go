@@ -18,15 +18,19 @@ import (
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
 
-// TestIntegrationHA5GFailover brings up a 3-node Raft cluster plus a
+// TestIntegration5GHAFailover brings up a 3-node Raft cluster plus a
 // core-tester sidecar, exercises registration + connectivity against the
-// primary core, kills the primary, re-points the N6 router to the new
-// active UPF, and exercises registration + connectivity against the
-// surviving cluster.
+// primary core, kills the primary, and exercises registration +
+// connectivity against the surviving cluster.
 //
-// Passes only if the whole ha/failover_connectivity scenario (inside the
-// sidecar) exits 0.
-func TestIntegrationHA5GFailover(t *testing.T) {
+// Lives in its own workflow (integration-tests-ha5g.yaml) because it
+// needs both the ella-core and ella-core-tester images; the
+// integration-tests-ha.yaml workflow loads only ella-core. The test
+// function is named so it does NOT match the `-run TestIntegrationHA`
+// filter used by integration-tests-ha.yaml.
+//
+// Passes only if the ha/failover_connectivity scenario exits 0.
+func TestIntegration5GHAFailover(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
@@ -46,20 +50,12 @@ func TestIntegrationHA5GFailover(t *testing.T) {
 		secondaryAPIURL = "http://10.100.0.12:5002"
 		tertiaryAPIURL  = "http://10.100.0.13:5002"
 
-		// Router route target after failover — core 2's N6 IP. We expect
-		// the gNB to fail over to peer[1] = secondaryN2 after the primary
-		// dies.
-		secondaryN6UPF = "10.6.0.12"
-
 		primaryN2   = "10.100.0.11:38412"
 		secondaryN2 = "10.100.0.12:38412"
 		tertiaryN2  = "10.100.0.13:38412"
 
 		gnbN2 = "10.100.0.20"
 		gnbN3 = "10.3.0.20"
-
-		routerService = "router"
-		ueIPPool      = "10.45.0.0/22"
 	)
 
 	dc, err := NewDockerClient()
@@ -123,11 +119,6 @@ func TestIntegrationHA5GFailover(t *testing.T) {
 		t.Fatalf("resolve tester container: %v", err)
 	}
 
-	routerContainer, err := dc.ResolveComposeContainer(ctx, "ha-5g", routerService)
-	if err != nil {
-		t.Fatalf("resolve router container: %v", err)
-	}
-
 	// Kick off the scenario. Stdout is mirrored to the test log AND scanned
 	// for the PHASE1_DONE marker so we can synchronise the kill.
 	markerCh := make(chan struct{})
@@ -152,7 +143,7 @@ func TestIntegrationHA5GFailover(t *testing.T) {
 
 	select {
 	case <-markerCh:
-		t.Logf("phase 1 complete; killing %s and re-pointing router", primaryService)
+		t.Logf("phase 1 complete; killing %s", primaryService)
 	case <-ctx.Done():
 		t.Fatalf("timed out waiting for phase-1 marker: %v", ctx.Err())
 	case err := <-scenarioErr:
@@ -161,21 +152,12 @@ func TestIntegrationHA5GFailover(t *testing.T) {
 
 	// Stop the primary core. Docker sends SIGTERM with a grace period;
 	// the SCTP association closes cleanly, the gNB's receiver sees EOF,
-	// and the gNB promotes peer[1] (secondaryN2).
+	// and the gNB promotes peer[1] (secondaryN2). NAT is enabled on Ella
+	// Core, so N6 return traffic to the new UPF is unicast-routed via
+	// the existing NAT flow — no router-route update needed.
 	if err := dc.ComposeStopWithFile(ctx, composeDir, composeFile, primaryService); err != nil {
 		t.Fatalf("stop %s: %v", primaryService, err)
 	}
-
-	// Re-point the router's UE-pool route at the surviving UPF that the
-	// gNB will fail over to. Scenario's phase2Settle gives us a 3-second
-	// window after peer-change to finish this before phase-2 pings fire.
-	if _, err := dc.Exec(ctx, routerContainer, []string{
-		"ip", "route", "replace", ueIPPool, "via", secondaryN6UPF,
-	}, false, 30*time.Second, logWriter{t}); err != nil {
-		t.Fatalf("update router route to %s: %v", secondaryN6UPF, err)
-	}
-
-	t.Logf("router route updated to via %s", secondaryN6UPF)
 
 	select {
 	case err := <-scenarioErr:
