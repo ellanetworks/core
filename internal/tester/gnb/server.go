@@ -497,7 +497,17 @@ func (g *GnodeB) runReceiver(idx int, conn *sctp.SCTPConn) {
 		}
 
 		if n == 0 {
-			continue
+			// On Linux, SCTPRead returning n=0 with no error is the kernel's
+			// signal that the peer has shut down the association (SHUTDOWN
+			// chunk received and drained). Treat it the same as io.EOF:
+			// promote the next peer and exit the receive loop. Dropping this
+			// into the error path — rather than continuing — is what makes
+			// graceful peer close drive failover sub-second, instead of
+			// waiting for kernel SCTP heartbeat timeouts (minutes).
+			logger.GnbLogger.Debug("SCTP peer shutdown (zero-byte read)", zap.Int("peer", idx))
+			g.promoteNextFromReceiver(idx, conn)
+
+			return
 		}
 
 		cp := append([]byte(nil), buf[:n]...) // copy to isolate from buffer reuse
