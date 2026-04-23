@@ -27,20 +27,14 @@ func init() {
 
 func fixtureRegistrationSuccessMultiplePolicies() scenarios.FixtureSpec {
 	// Scenario expects UE i to see Session AMBR = (10*(i+1), 50*(i+1)) Mbps
-	// with 5qi = 5+i. i=0 uses the default profile/slice/DNN, so its expected
-	// values (10/50, 5qi=5) must come from the baseline default policy — which
-	// currently ships with 100/100 Mbps, 5qi=9. The integration test therefore
-	// cannot fully satisfy this scenario without overriding the baseline default
-	// policy, which would break other scenarios. This fixture provisions the
-	// four extra profiles and matching policies for i=1..4; i=0 is expected to
-	// be served by the baseline default policy.
-	profiles := make([]scenarios.ProfileSpec, 0, 4)
-	policies := make([]scenarios.PolicySpec, 0, 4)
+	// with 5qi = 5+i, for i=0..4. All 5 UEs are fixture-scoped: each has its
+	// own profile/policy pair (profile0/policy0 .. profile4/policy4) bound to
+	// the baseline default slice and DN.
+	profiles := make([]scenarios.ProfileSpec, 0, 5)
+	policies := make([]scenarios.PolicySpec, 0, 5)
 	subs := make([]scenarios.SubscriberSpec, 0, 5)
 
-	subs = append(subs, scenarios.DefaultSubscriberWith("001017271246546", ""))
-
-	for i := 1; i <= 4; i++ {
+	for i := 0; i <= 4; i++ {
 		profileName := fmt.Sprintf("profile%d", i)
 		policyName := fmt.Sprintf("policy%d", i)
 		imsi := fmt.Sprintf("00101727124654%d", 6+i)

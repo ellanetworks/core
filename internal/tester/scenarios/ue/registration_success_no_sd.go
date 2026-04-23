@@ -27,8 +27,36 @@ func init() {
 }
 
 func fixtureRegistrationSuccessNoSD() scenarios.FixtureSpec {
+	// Scenario registers a UE with SD="". Slice selection requires an
+	// exact SST+SD match, so the baseline slice (SD=DefaultSD) won't
+	// match. Fixture declares a scoped slice with SD="" and a scoped
+	// profile+policy pair binding it to the baseline default DN.
 	return scenarios.FixtureSpec{
-		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
+		Profiles: []scenarios.ProfileSpec{
+			{
+				Name:           "no-sd-profile",
+				UeAmbrUplink:   scenarios.DefaultProfileUeAmbrUplink,
+				UeAmbrDownlink: scenarios.DefaultProfileUeAmbrDownlink,
+			},
+		},
+		Slices: []scenarios.SliceSpec{
+			{Name: "no-sd-slice", SST: scenarios.DefaultSST, SD: ""},
+		},
+		Policies: []scenarios.PolicySpec{
+			{
+				Name:                "no-sd-policy",
+				ProfileName:         "no-sd-profile",
+				SliceName:           "no-sd-slice",
+				DataNetworkName:     scenarios.DefaultDNN,
+				SessionAmbrUplink:   scenarios.DefaultPolicySessionAmbrUplink,
+				SessionAmbrDownlink: scenarios.DefaultPolicySessionAmbrDownlink,
+				Var5qi:              9,
+				Arp:                 15,
+			},
+		},
+		Subscribers: []scenarios.SubscriberSpec{
+			scenarios.DefaultSubscriberWith(scenarios.DefaultIMSI, "no-sd-profile"),
+		},
 	}
 }
 

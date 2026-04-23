@@ -17,6 +17,11 @@ import (
 // Non-scoped resources (operator singleton, home network keys) are applied
 // idempotently and are not cleaned up; they are expected to be established
 // once by the baseline and shared across all subtests.
+//
+// Rule for scenario authors: a scenario may reference baseline names
+// (default profile/slice/DN/policy) only when its assertions match
+// baseline values. Anything else must be declared under a scoped name in
+// the scenario's fixture — never mutate the baseline.
 func (f *F) Apply(spec scenarios.FixtureSpec) {
 	f.t.Helper()
 
