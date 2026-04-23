@@ -4,25 +4,25 @@ import (
 	"fmt"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
-	"github.com/ellanetworks/core/internal/tester/tests/tests/utils"
+	"github.com/ellanetworks/core/internal/tester/testutil"
 	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
 )
 
 func handlePDUSessionEstablishmentAccept(ue *UE, msg *nasMessage.PDUSessionEstablishmentAccept) error {
-	ueIP, err := utils.UEIPFromNAS(msg.GetPDUAddressInformation())
+	ueIP, err := testutil.UEIPFromNAS(msg.GetPDUAddressInformation())
 	if err != nil {
 		return fmt.Errorf("could not get UE IP from NAS PDU Address Information: %v", err)
 	}
 
-	mtu, err := utils.MTUFromExtendProtocolConfigurationOptionsContents(
+	mtu, err := testutil.MTUFromExtendProtocolConfigurationOptionsContents(
 		msg.GetExtendedProtocolConfigurationOptionsContents(),
 	)
 	if err != nil {
 		return fmt.Errorf("could not get MTU from Extended Protocol Configuration Options: %v", err)
 	}
 
-	qosFlowDescs, err := utils.ParseAuthorizedQosFlowDescriptions(
+	qosFlowDescs, err := testutil.ParseAuthorizedQosFlowDescriptions(
 		msg.GetQoSFlowDescriptions(),
 	)
 	if err != nil {
