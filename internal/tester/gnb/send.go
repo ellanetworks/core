@@ -161,11 +161,33 @@ func (g *GnodeB) SendMessage(pdu ngapType.NGAPPDU, procedure NGAPProcedure) erro
 }
 
 func (g *GnodeB) SendToRan(packet []byte, msgType NGAPProcedure) error {
-	if g.N2Conn == nil {
+	g.n2Mu.RLock()
+
+	var conn *sctp.SCTPConn
+
+	if g.n2Active >= 0 && g.n2Active < len(g.n2Peers) {
+		conn = g.n2Peers[g.n2Active].conn
+	}
+
+	g.n2Mu.RUnlock()
+
+	if conn == nil {
+		return ErrNoActivePeer
+	}
+
+	return writeToConn(conn, packet, msgType)
+}
+
+// writeToConn writes packet to conn on the SCTP stream for msgType. Used by
+// both SendToRan (for post-setup traffic) and n2DialAndActivateLocked (for
+// the initial NG Setup Request). The latter holds g.n2Mu write-locked and
+// cannot reach back through SendToRan.
+func writeToConn(conn *sctp.SCTPConn, packet []byte, msgType NGAPProcedure) error {
+	if conn == nil {
 		return fmt.Errorf("ran conn is nil")
 	}
 
-	if g.N2Conn.RemoteAddr() == nil {
+	if conn.RemoteAddr() == nil {
 		return fmt.Errorf("ran address is nil")
 	}
 
@@ -182,7 +204,8 @@ func (g *GnodeB) SendToRan(packet []byte, msgType NGAPProcedure) error {
 		Stream: sid,
 		PPID:   ngap.PPID,
 	}
-	if _, err := g.N2Conn.SCTPWrite(packet, &info); err != nil {
+
+	if _, err := conn.SCTPWrite(packet, &info); err != nil {
 		return fmt.Errorf("send write to sctp connection: %s", err.Error())
 	}
 

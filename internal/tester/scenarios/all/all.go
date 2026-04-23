@@ -8,5 +8,6 @@ import (
 	// Individual scenario packages:
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/enb"
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/gnb"
+	_ "github.com/ellanetworks/core/internal/tester/scenarios/ha"
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/ue"
 )

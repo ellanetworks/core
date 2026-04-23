@@ -35,17 +35,17 @@ func runRegistrationRejectUnknownUE(_ context.Context, env scenarios.Env, _ any)
 	g := env.FirstGNB()
 
 	gNodeB, err := gnb.Start(&gnb.StartOpts{
-		GnbID:         scenarios.DefaultGNBID,
-		MCC:           scenarios.DefaultMCC,
-		MNC:           scenarios.DefaultMNC,
-		SST:           scenarios.DefaultSST,
-		SD:            scenarios.DefaultSD,
-		DNN:           scenarios.DefaultDNN,
-		TAC:           scenarios.DefaultTAC,
-		Name:          "Ella-Core-Tester",
-		CoreN2Address: env.FirstCore(),
-		GnbN2Address:  g.N2Address,
-		GnbN3Address:  g.N3Address,
+		GnbID:           scenarios.DefaultGNBID,
+		MCC:             scenarios.DefaultMCC,
+		MNC:             scenarios.DefaultMNC,
+		SST:             scenarios.DefaultSST,
+		SD:              scenarios.DefaultSD,
+		DNN:             scenarios.DefaultDNN,
+		TAC:             scenarios.DefaultTAC,
+		Name:            "Ella-Core-Tester",
+		CoreN2Addresses: env.CoreN2Addresses,
+		GnbN2Address:    g.N2Address,
+		GnbN3Address:    g.N3Address,
 	})
 	if err != nil {
 		return fmt.Errorf("error starting gNB: %v", err)

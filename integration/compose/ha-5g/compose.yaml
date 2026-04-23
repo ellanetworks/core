@@ -1,0 +1,124 @@
+services:
+  ella-core-1:
+    image: ella-core:latest
+    restart: unless-stopped
+    entrypoint: /bin/core --config /cfg/core.yaml
+    privileged: true
+    volumes:
+      - ./cfg/node1:/cfg:ro
+      - data1:/data
+    ports:
+      - "5002:5002"
+    networks:
+      cluster:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
+        ipv4_address: 10.100.0.11
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.11
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.11
+  ella-core-2:
+    image: ella-core:latest
+    restart: unless-stopped
+    entrypoint: /bin/core --config /cfg/core.yaml
+    privileged: true
+    volumes:
+      - ./cfg/node2:/cfg:ro
+      - data2:/data
+    ports:
+      - "5003:5002"
+    networks:
+      cluster:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
+        ipv4_address: 10.100.0.12
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.12
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.12
+  ella-core-3:
+    image: ella-core:latest
+    restart: unless-stopped
+    entrypoint: /bin/core --config /cfg/core.yaml
+    privileged: true
+    volumes:
+      - ./cfg/node3:/cfg:ro
+      - data3:/data
+    ports:
+      - "5004:5002"
+    networks:
+      cluster:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
+        ipv4_address: 10.100.0.13
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.13
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.13
+  ella-core-tester:
+    image: ella-core-tester:latest
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "sleep infinity"
+    restart: unless-stopped
+    privileged: true
+    networks:
+      cluster:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
+        ipv4_address: 10.100.0.20
+      n3:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.20
+  router:
+    image: ghcr.io/ellanetworks/ubuntu-router:0.1
+    command:
+      - exec
+      - /bin/bash
+      - -lc
+      - >
+        ip route add 10.45.0.0/22 dev n6 via 10.6.0.11;
+        trap : TERM INT;
+        python3 /responder.py 34242 & wait
+    restart: unless-stopped
+    privileged: true
+    networks:
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.3
+
+volumes:
+  data1:
+  data2:
+  data3:
+
+networks:
+  cluster:
+    ipam:
+      config:
+        - subnet: 10.100.0.0/24
+  n3:
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.3.0.0/24
+  n6:
+    ipam:
+      config:
+        - subnet: 10.6.0.0/24

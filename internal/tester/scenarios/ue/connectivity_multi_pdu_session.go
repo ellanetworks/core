@@ -105,17 +105,17 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 	g := env.FirstGNB()
 
 	gNodeB, err := gnb.Start(&gnb.StartOpts{
-		GnbID:         scenarios.DefaultGNBID,
-		MCC:           scenarios.DefaultMCC,
-		MNC:           scenarios.DefaultMNC,
-		SST:           scenarios.DefaultSST,
-		SD:            scenarios.DefaultSD,
-		DNN:           dnn1,
-		TAC:           scenarios.DefaultTAC,
-		Name:          "Ella-Core-Tester",
-		CoreN2Address: env.FirstCore(),
-		GnbN2Address:  g.N2Address,
-		GnbN3Address:  g.N3Address,
+		GnbID:           scenarios.DefaultGNBID,
+		MCC:             scenarios.DefaultMCC,
+		MNC:             scenarios.DefaultMNC,
+		SST:             scenarios.DefaultSST,
+		SD:              scenarios.DefaultSD,
+		DNN:             dnn1,
+		TAC:             scenarios.DefaultTAC,
+		Name:            "Ella-Core-Tester",
+		CoreN2Addresses: env.CoreN2Addresses,
+		GnbN2Address:    g.N2Address,
+		GnbN3Address:    g.N3Address,
 		Slices: []gnb.SliceOpt{
 			{Sst: scenarios.DefaultSST, Sd: scenarios.DefaultSD},
 			{Sst: slice2SST, Sd: slice2SD},
