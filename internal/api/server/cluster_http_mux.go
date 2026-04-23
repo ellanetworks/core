@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/raft"
 	"go.uber.org/zap"
 )
 
@@ -110,6 +111,7 @@ func newClusterMux(dbInstance *db.Database, operatorHandler http.Handler) *http.
 	mux.Handle("POST /cluster/internal/drain-side-effects", removedNodeFence(dbInstance, DrainLocalSideEffects()))
 	mux.Handle("POST /cluster/internal/resume-side-effects", removedNodeFence(dbInstance, ResumeLocalSideEffects()))
 	mux.Handle("POST /cluster/internal/drain-self", removedNodeFence(dbInstance, DrainSelfOnLeader(dbInstance)))
+	mux.Handle("POST "+raft.ProposeForwardPath, removedNodeFence(dbInstance, ClusterPropose(dbInstance)))
 
 	// PKI endpoints on the cluster HTTP ALPN. The issuer service is
 	// not available until the first leader election has populated it;

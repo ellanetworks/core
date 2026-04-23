@@ -4,6 +4,7 @@ package raft
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -403,6 +404,41 @@ func (m *Manager) Propose(cmd *Command, timeout time.Duration) (*ProposeResult, 
 		return nil, fmt.Errorf("marshal command: %w", err)
 	}
 
+	// Fast path: this node is the leader, apply locally.
+	if m.IsLeader() {
+		result, err := m.ApplyBytes(data, timeout)
+		if err == nil {
+			return result, nil
+		}
+
+		// ErrNotLeader / ErrLeadershipLost between IsLeader() and Apply() —
+		// fall through to the forward path. Any other error is terminal.
+		if !errors.Is(err, raft.ErrNotLeader) && !errors.Is(err, raft.ErrLeadershipLost) {
+			return nil, err
+		}
+	}
+
+	// Follower (or ex-leader mid-transition): forward to the current leader.
+	if m.clusterListener == nil {
+		// Single-server mode, but this node is not leader. Shouldn't happen
+		// — standalone bootstrap makes the single node leader — but surface
+		// a clear error rather than NPE.
+		return nil, raft.ErrNotLeader
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	return m.forwardPropose(ctx, data, timeout)
+}
+
+// ApplyBytes applies pre-marshalled Command bytes through Raft. Unlike
+// Propose it does not branch on leadership: the caller must already be
+// the leader, and receives raft.ErrNotLeader / raft.ErrLeadershipLost on
+// the failure paths. Used by the /cluster/internal/propose handler to
+// commit a command forwarded from a follower, and by Propose itself as
+// the local fast path on the leader.
+func (m *Manager) ApplyBytes(data []byte, timeout time.Duration) (*ProposeResult, error) {
 	future := m.raft.Apply(data, timeout)
 	if err := future.Error(); err != nil {
 		return nil, err

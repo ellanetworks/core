@@ -500,6 +500,30 @@ func (db *Database) IsLeader() bool {
 	return db.raftManager.IsLeader()
 }
 
+// ApplyForwardedCommand applies pre-marshalled Command bytes through
+// Raft on behalf of the /cluster/internal/propose handler. Callers are
+// expected to be the current leader; raft.ErrNotLeader is returned
+// otherwise. In standalone mode (no cluster) the call fails with a
+// clear sentinel — the handler should reject earlier.
+func (db *Database) ApplyForwardedCommand(data []byte, timeout time.Duration) (*ellaraft.ProposeResult, error) {
+	if db.raftManager == nil {
+		return nil, fmt.Errorf("cluster not enabled")
+	}
+
+	return db.raftManager.ApplyBytes(data, timeout)
+}
+
+// ProposeTimeout exposes the Raft manager's configured propose timeout
+// so handlers can apply the same bound to forwarded commands they
+// commit on behalf of a follower.
+func (db *Database) ProposeTimeout() time.Duration {
+	if db.raftManager == nil {
+		return 0
+	}
+
+	return db.raftManager.ProposeTimeout()
+}
+
 // NodeID returns this node's Raft node ID. Returns 0 when running standalone.
 func (db *Database) NodeID() int {
 	if db.raftManager == nil {

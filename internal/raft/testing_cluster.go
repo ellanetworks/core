@@ -299,15 +299,16 @@ func createTestNode(t testing.TB, nodeID int, pki *testutil.PKI, applier Applier
 	observer := NewLeaderObserver()
 
 	m := &Manager{
-		raft:      r,
-		fsm:       fsm,
-		transport: transport,
-		logStore:  boltStore,
-		snaps:     snapshots,
-		config:    ClusterConfig{Enabled: true, BindAddress: addr, AdvertiseAddress: addr},
-		nodeID:    nodeID,
-		dataDir:   dataDir,
-		observer:  observer,
+		raft:            r,
+		fsm:             fsm,
+		transport:       transport,
+		logStore:        boltStore,
+		snaps:           snapshots,
+		config:          ClusterConfig{Enabled: true, BindAddress: addr, AdvertiseAddress: addr},
+		nodeID:          nodeID,
+		dataDir:         dataDir,
+		observer:        observer,
+		clusterListener: ln,
 	}
 
 	return m, ln

@@ -47,6 +47,15 @@ func (c CommandType) String() string {
 	return fmt.Sprintf("CommandType(%d)", c)
 }
 
+// IsKnown reports whether this CommandType is in the registered command set.
+// Used by the /cluster/internal/propose handler to reject forwarded bytes
+// carrying an unknown type before they reach the fail-stop FSM.
+func (c CommandType) IsKnown() bool {
+	_, ok := commandNames[c]
+
+	return ok
+}
+
 // Command is the Raft log entry for shared-DB writes.
 //
 // Wire format:
