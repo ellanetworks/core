@@ -70,6 +70,8 @@ func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
 		return nil
 	}
 
+	s.upf.FlushUsage(ctx, smContext.PFCPContext.RemoteSEID)
+
 	if err := s.upf.DeleteSession(ctx, smContext.PFCPContext.RemoteSEID); err != nil {
 		return fmt.Errorf("send PFCP session deletion request failed: %v", err)
 	}

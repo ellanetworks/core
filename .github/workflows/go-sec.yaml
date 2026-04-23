@@ -16,6 +16,9 @@ jobs:
         with:
           go-version-file: "go.mod"
 
+      - name: Install libpcap headers
+        run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+
       - name: Install Gosec
         run: go install github.com/securego/gosec/v2/cmd/gosec@v2.24.7
 

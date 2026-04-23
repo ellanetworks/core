@@ -19,6 +19,7 @@ import (
 	"github.com/ellanetworks/core/internal/ipam"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
+	"github.com/ellanetworks/core/internal/upf"
 	upfengine "github.com/ellanetworks/core/internal/upf/engine"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -308,6 +309,7 @@ func (a *smfDBAdapter) InsertFlowReports(ctx context.Context, reports []*models.
 
 type smfUPFAdapter struct {
 	engine *upfengine.SessionEngine
+	upf    *upf.UPF
 }
 
 func (a *smfUPFAdapter) EstablishSession(ctx context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error) {
@@ -316,6 +318,12 @@ func (a *smfUPFAdapter) EstablishSession(ctx context.Context, req *models.Establ
 
 func (a *smfUPFAdapter) ModifySession(ctx context.Context, req *models.ModifyRequest) error {
 	return a.engine.ModifySession(ctx, req)
+}
+
+func (a *smfUPFAdapter) FlushUsage(ctx context.Context, remoteSEID uint64) {
+	if a.upf != nil {
+		a.upf.FlushUsage(ctx, remoteSEID)
+	}
 }
 
 func (a *smfUPFAdapter) DeleteSession(ctx context.Context, remoteSEID uint64) error {

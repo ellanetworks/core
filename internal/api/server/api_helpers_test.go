@@ -361,6 +361,8 @@ func (f *fakeUPFClient) DeleteSession(ctx context.Context, remoteSEID uint64) er
 	return nil
 }
 
+func (f *fakeUPFClient) FlushUsage(ctx context.Context, remoteSEID uint64) {}
+
 func (f *fakeUPFClient) UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {
 	return nil
 }

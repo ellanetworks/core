@@ -2,110 +2,72 @@ package integration_test
 
 import (
 	"context"
-	"net"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/integration/fixture"
+	"github.com/ellanetworks/core/internal/tester/scenarios"
+	// Side-effect import to register every scenario.
+	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
 
-func TestIntegrationEllaCoreTester(t *testing.T) {
+// scenariosSkipped lists scenarios the integration suite does not
+// exercise (multi-gNB and paging are out of scope).
+var scenariosSkipped = map[string]string{
+	"gnb/ngap/xn_handover":        "multi-gNB, out of scope",
+	"ue/xn_handover_connectivity": "multi-gNB, out of scope",
+	"ue/paging/downlink_data":     "paging, out of scope",
+}
+
+// TestIntegrationTester brings the core-tester compose up once,
+// bootstraps Ella Core with the baseline operator, default profile,
+// slice, data network, and policy, then runs one subtest per registered
+// scenario. Each subtest applies the scenario's FixtureSpec (with
+// t.Cleanup teardown), invokes env.RunScenario, and polls the usage API
+// when AssertUsageForIMSIs is set.
+func TestIntegrationTester(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
-	ipFamily := DetectIPFamily()
-	t.Logf("Running core-tester test in %s mode", ipFamily)
-
 	ctx := context.Background()
+	env := setupTesterEnv(ctx, t)
 
-	dockerClient, err := NewDockerClient()
-	if err != nil {
-		t.Fatalf("failed to create docker client: %v", err)
-	}
+	t.Logf("core-tester compose up in %s mode", DetectIPFamily())
 
-	defer func() {
-		err := dockerClient.Close()
-		if err != nil {
-			t.Fatalf("failed to close docker client: %v", err)
+	// Baseline resources shared across all subtests.
+	baseline := fixture.New(t, ctx, env.Client)
+	baseline.OperatorDefault()
+	baseline.Profile(fixture.DefaultProfileSpec())
+	baseline.Slice(fixture.DefaultSliceSpec())
+	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
+	baseline.Policy(fixture.DefaultPolicySpec())
+
+	for _, name := range scenarios.List() {
+		name := name
+
+		if reason, skip := scenariosSkipped[name]; skip {
+			t.Run(name, func(t *testing.T) { t.Skipf("%s: %s", name, reason) })
+			continue
 		}
-	}()
 
-	dockerClient.ComposeCleanup(ctx)
+		sc, _ := scenarios.Get(name)
 
-	composeFile := ComposeFile()
-
-	err = dockerClient.ComposeUpWithFile(ctx, "compose/core-tester/", composeFile)
-	if err != nil {
-		t.Fatalf("failed to bring up compose with %s: %v", composeFile, err)
-	}
-
-	t.Cleanup(func() {
-		logs, err := dockerClient.ComposeLogs(ctx, "compose/core-tester/", "ella-core")
-		if err != nil {
-			t.Logf("failed to collect ella-core logs: %v", err)
-		} else {
-			t.Logf("=== ella-core container logs ===\n%s", logs)
+		var spec scenarios.FixtureSpec
+		if sc.Fixture != nil {
+			spec = sc.Fixture()
 		}
-	})
 
-	t.Log("deployed ella core")
+		t.Run(name, func(t *testing.T) {
+			fx := fixture.New(t, ctx, env.Client)
+			fx.Apply(spec)
 
-	clientConfig := &client.Config{
-		BaseURL: APIAddress(),
-	}
+			env.RunScenario(ctx, t, name, spec.ExtraArgs...)
 
-	ellaClient, err := client.New(clientConfig)
-	if err != nil {
-		t.Fatalf("failed to create ella client: %v", err)
-	}
-
-	err = waitForEllaCoreReady(ctx, ellaClient)
-	if err != nil {
-		t.Fatalf("failed to wait for ella core to be ready: %v", err)
-	}
-
-	t.Log("ella core is ready")
-
-	err = configureEllaCore(ctx, ellaClient, EllaCoreConfig{
-		Networking: NetworkingConfig{
-			NAT: true,
-			Routes: []RouteConfig{
-				{
-					Destination: "8.8.8.8/32",
-					Gateway:     N6Address(),
-					Interface:   "n6",
-					Metric:      0,
-				},
-			},
-		},
-	})
-	if err != nil {
-		t.Fatalf("failed to configure Ella Core: %v", err)
-	}
-
-	t.Log("configured Ella Core")
-
-	coreTesterContainerName, err := dockerClient.ResolveComposeContainer(ctx, "core-tester", "ella-core-tester")
-	if err != nil {
-		t.Fatalf("failed to resolve ella-core-tester container: %v", err)
-	}
-
-	t.Log("running Ella Core Tester `test` command")
-
-	_, err = dockerClient.Exec(ctx, coreTesterContainerName, []string{
-		"core-tester", "test",
-		"--ella-core-api-address", APIAddress(),
-		"--ella-core-api-token", ellaClient.GetToken(),
-		"--ella-core-n2-address", net.JoinHostPort(N2Address(0), "38412"),
-		"--gnb-n2-address", CoreTesterDefaultAddress(),
-		"--gnb-n3-address", CoreTesterN3Address(),
-		"--gnb-n3-address-secondary", CoreTesterN3AddressSecondary(),
-		"--exclude", "ue/paging/downlink_data",
-		"--verbose",
-	}, false, 5*time.Minute, logWriter{t})
-	if err != nil {
-		t.Fatalf("failed to exec command in pod: %v", err)
+			if len(spec.AssertUsageForIMSIs) > 0 {
+				fixture.AssertUsagePositive(ctx, t, env.Client, spec.AssertUsageForIMSIs, 30*time.Second)
+			}
+		})
 	}
 }

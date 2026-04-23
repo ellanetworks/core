@@ -34,8 +34,11 @@ jobs:
   image-build:
     needs: [go-unit-test, go-vet, go-lint]
     uses: ./.github/workflows/image-build.yaml
+  image-build-tester:
+    needs: [go-unit-test, go-vet, go-lint]
+    uses: ./.github/workflows/image-build-tester.yaml
   integration-tests:
-    needs: [image-build]
+    needs: [image-build, image-build-tester]
     uses: ./.github/workflows/integration-tests.yaml
   integration-tests-ha:
     needs: [image-build]
