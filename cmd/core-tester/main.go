@@ -10,7 +10,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-
 	// Register all scenarios.
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 	"github.com/spf13/cobra"
