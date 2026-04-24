@@ -7,18 +7,20 @@ import (
 
 // DataNetworkSpec describes a PDU session anchor (DNN + IP pool).
 type DataNetworkSpec struct {
-	Name   string
-	IPPool string
-	DNS    string
-	MTU    int32
+	Name     string
+	IPPool   string
+	IPv6Pool string
+	DNS      string
+	MTU      int32
 }
 
 func DefaultDataNetworkSpec() DataNetworkSpec {
 	return DataNetworkSpec{
-		Name:   scenarios.DefaultDNN,
-		IPPool: scenarios.DefaultUEIPPool,
-		DNS:    scenarios.DefaultDNS,
-		MTU:    scenarios.DefaultMTU,
+		Name:     scenarios.DefaultDNN,
+		IPPool:   scenarios.DefaultUEIPPool,
+		IPv6Pool: scenarios.DefaultUEIPv6Pool,
+		DNS:      scenarios.DefaultDNS,
+		MTU:      scenarios.DefaultMTU,
 	}
 }
 
@@ -33,10 +35,11 @@ func (f *F) DataNetwork(spec DataNetworkSpec) {
 	}
 
 	if err := f.c.CreateDataNetwork(f.ctx, &client.CreateDataNetworkOptions{
-		Name:   spec.Name,
-		IPPool: spec.IPPool,
-		DNS:    spec.DNS,
-		Mtu:    spec.MTU,
+		Name:     spec.Name,
+		IPPool:   spec.IPPool,
+		IPv6Pool: spec.IPv6Pool,
+		DNS:      spec.DNS,
+		Mtu:      spec.MTU,
 	}); err != nil {
 		f.fatalf("create data network %q: %v", spec.Name, err)
 	}

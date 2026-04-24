@@ -9,10 +9,11 @@ import (
 )
 
 type CreateDataNetworkOptions struct {
-	Name   string `json:"name"`
-	IPPool string `json:"ip_pool"`
-	DNS    string `json:"dns"`
-	Mtu    int32  `json:"mtu"`
+	Name     string `json:"name"`
+	IPPool   string `json:"ip_pool"`
+	IPv6Pool string `json:"ipv6_pool,omitempty"`
+	DNS      string `json:"dns"`
+	Mtu      int32  `json:"mtu"`
 }
 
 type GetDataNetworkOptions struct {
@@ -40,6 +41,7 @@ type DataNetworkIPAllocation struct {
 type DataNetwork struct {
 	Name         string                   `json:"name"`
 	IPPool       string                   `json:"ip_pool"`
+	IPv6Pool     string                   `json:"ipv6_pool,omitempty"`
 	DNS          string                   `json:"dns"`
 	Mtu          int32                    `json:"mtu"`
 	Status       DataNetworkStatus        `json:"status"`
@@ -70,15 +72,17 @@ type ListDataNetworksResponse struct {
 // CreateDataNetwork creates a new data network with the provided options.
 func (c *Client) CreateDataNetwork(ctx context.Context, opts *CreateDataNetworkOptions) error {
 	payload := struct {
-		Name   string `json:"name"`
-		IPPool string `json:"ip_pool"`
-		DNS    string `json:"dns"`
-		Mtu    int32  `json:"mtu"`
+		Name     string `json:"name"`
+		IPPool   string `json:"ip_pool"`
+		IPv6Pool string `json:"ipv6_pool,omitempty"`
+		DNS      string `json:"dns"`
+		Mtu      int32  `json:"mtu"`
 	}{
-		Name:   opts.Name,
-		IPPool: opts.IPPool,
-		DNS:    opts.DNS,
-		Mtu:    opts.Mtu,
+		Name:     opts.Name,
+		IPPool:   opts.IPPool,
+		IPv6Pool: opts.IPv6Pool,
+		DNS:      opts.DNS,
+		Mtu:      opts.Mtu,
 	}
 
 	var body bytes.Buffer

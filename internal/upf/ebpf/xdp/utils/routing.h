@@ -84,7 +84,8 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 		expected_ifindex = n3_ifindex;
 	}
 
-	if (fib_params->ifindex != expected_ifindex) {
+	if (n3_ifindex != 0 && n6_ifindex != 0 &&
+	    fib_params->ifindex != expected_ifindex) {
 		upf_printk("upf: ifindex mismatch: fib=%d expected=%d",
 			   fib_params->ifindex, expected_ifindex);
 		statistic->ip4_ifindex_mismatch += 1;
@@ -122,7 +123,8 @@ do_route_ipv6(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 		expected_ifindex = n3_ifindex;
 	}
 
-	if (fib_params->ifindex != expected_ifindex) {
+	if (n3_ifindex != 0 && n6_ifindex != 0 &&
+	    fib_params->ifindex != expected_ifindex) {
 		upf_printk("upf: ifindex mismatch: fib=%d expected=%d",
 			   fib_params->ifindex, expected_ifindex);
 		statistic->ip6_ifindex_mismatch += 1;
@@ -135,9 +137,12 @@ do_route_ipv6(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 	upf_printk("upf: bpf_redirect: if=%d %lu -> %lu", fib_params->ifindex,
 		   fib_params->smac, fib_params->dmac);
 
-	if (expected_ifindex == ctx->xdp_ctx->ingress_ifindex)
+	if (expected_ifindex == ctx->xdp_ctx->ingress_ifindex &&
+	    expected_ifindex != 0)
 		return XDP_TX;
-	return bpf_redirect(expected_ifindex, 0);
+	upf_printk("upf: bpf_redirect: if=%d %lu -> %lu", fib_params->ifindex,
+		   fib_params->smac, fib_params->dmac);
+	return bpf_redirect(fib_params->ifindex, 0);
 }
 
 static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
@@ -250,9 +255,9 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 		statistic->fib_lookup_ip6_no_neigh += 1;
 		// The fall-through is voluntary here
 	case BPF_FIB_LKUP_RET_SUCCESS:
-		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: nexthop: %pI4",
+		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: nexthop: %pI6c",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr,
-			   fib_params.ipv4_dst);
+			   fib_params.ipv6_dst);
 		if (rc == BPF_FIB_LKUP_RET_SUCCESS)
 			statistic->fib_lookup_ip6_success += 1;
 		//_decr_ttl(ether_proto, l3hdr);

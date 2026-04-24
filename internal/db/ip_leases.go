@@ -19,9 +19,9 @@ import (
 const IPLeasesTableName = "ip_leases"
 
 const (
-	createLeaseStmt              = "INSERT INTO %s (id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID) VALUES ($IPLease.id, $IPLease.poolID, $IPLease.addressBin, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt, $IPLease.nodeID)"
-	getDynamicLeaseStmt          = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND imsi==$IPLease.imsi AND type='dynamic'"
-	getLeaseBySessionStmt        = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND sessionID==$IPLease.sessionID AND imsi==$IPLease.imsi"
+	createLeaseStmt              = "INSERT INTO %s (id, poolID, poolType, addressBin, imsi, sessionID, type, createdAt, nodeID) VALUES ($IPLease.id, $IPLease.poolID, $IPLease.poolType, $IPLease.addressBin, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt, $IPLease.nodeID)"
+	getDynamicLeaseStmt          = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND imsi==$IPLease.imsi AND type='dynamic'"
+	getLeaseBySessionStmt        = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND sessionID==$IPLease.sessionID AND imsi==$IPLease.imsi"
 	updateLeaseSessionStmt       = "UPDATE %s SET sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
 	updateLeaseNodeStmt          = "UPDATE %s SET nodeID=$IPLease.nodeID, sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
 	deleteLeaseStmt              = "DELETE FROM %s WHERE id==$IPLease.id AND type='dynamic'"
@@ -29,12 +29,14 @@ const (
 	deleteDynLeasesByNodeStmt    = "DELETE FROM %s WHERE type='dynamic' AND nodeID==$IPLease.nodeID"
 	listActiveLeasesStmt         = "SELECT &IPLease.* FROM %s WHERE sessionID IS NOT NULL"
 	listActiveLeasesByNodeStmt   = "SELECT &IPLease.* FROM %s WHERE sessionID IS NOT NULL AND nodeID==$IPLease.nodeID"
-	listLeasesByPoolStmt         = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID"
-	listLeaseAddressesByPoolStmt = "SELECT &IPLease.addressBin FROM %s WHERE poolID==$IPLease.poolID ORDER BY addressBin"
-	countLeasesByPoolStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID"
+	listLeasesByPoolStmt         = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType"
+	listLeaseAddressesByPoolStmt = "SELECT &IPLease.addressBin FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType ORDER BY addressBin"
+	countLeasesByPoolStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType"
+	countIPv4LeasesByPoolStmt    = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND substr(addressBin, 1, 12) = X'00000000000000000000FFFF'"
+	countIPv6LeasesByPoolStmt    = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType AND substr(addressBin, 1, 12) != X'00000000000000000000FFFF'"
 	countActiveLeasesStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE sessionID IS NOT NULL"
 	countLeasesByIMSIStmt        = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE imsi==$IPLease.imsi"
-	listLeasesByPoolPageStmt     = "SELECT &IPLease.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID ORDER BY addressBin LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
+	listLeasesByPoolPageStmt     = "SELECT &IPLease.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE poolID==$IPLease.poolID AND poolType==$IPLease.poolType ORDER BY addressBin LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	listAllLeasesStmt            = "SELECT &IPLease.* FROM %s"
 )
 
@@ -48,6 +50,7 @@ type IPLease struct {
 	Type       string `db:"type"`
 	CreatedAt  int64  `db:"createdAt"`
 	NodeID     int    `db:"nodeID"`
+	PoolType   string `db:"poolType"`
 }
 
 // Address returns the IP address derived from AddressBin.
@@ -75,7 +78,7 @@ func (l *IPLease) Address() netip.Addr {
 // follower, the call is forwarded to the leader through the existing
 // /cluster/internal/propose path, so the allocation is serialised
 // regardless of which node initiated it. Returns the chosen address.
-func (db *Database) AllocateIPLease(ctx context.Context, poolID string, imsi string, sessionID int, nodeID int) (netip.Addr, error) {
+func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID int) (netip.Addr, error) {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (allocate)", "INSERT", IPLeasesTableName),
@@ -95,6 +98,7 @@ func (db *Database) AllocateIPLease(ctx context.Context, poolID string, imsi str
 
 	raw, err := opAllocateIPLease.Invoke(db, &allocateIPLeasePayload{
 		PoolID:    poolID,
+		PoolType:  poolType,
 		IMSI:      imsi,
 		SessionID: sessionID,
 		NodeID:    nodeID,
@@ -124,6 +128,66 @@ func (db *Database) AllocateIPLease(ctx context.Context, poolID string, imsi str
 	}
 
 	span.SetAttributes(attribute.String("ip", addr.String()))
+	span.SetStatus(codes.Ok, "")
+
+	return addr, nil
+}
+
+// AllocateIPv6Lease atomically resolves and inserts a dynamic IPv6 lease for
+// (poolID, poolType, IMSI, sessionID, nodeID). Like AllocateIPLease, it
+// forwards intent to the leader through the replication mechanism so that
+// concurrent allocations from any node serialise correctly under proposeMu.
+// Each allocated unit is a /64 prefix delegated from the IPv6 CIDR pool.
+func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolType string, imsi string, sessionID int, nodeID int) (netip.Addr, error) {
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (allocate_ipv6)", "INSERT", IPLeasesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("INSERT"),
+			attribute.String("db.collection", IPLeasesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "allocate_ipv6"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "allocate_ipv6").Inc()
+
+	raw, err := opAllocateIPv6Lease.Invoke(db, &allocateIPLeasePayload{
+		PoolID:    poolID,
+		PoolType:  poolType,
+		IMSI:      imsi,
+		SessionID: sessionID,
+		NodeID:    nodeID,
+	})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return netip.Addr{}, err
+	}
+
+	addrStr, ok := raw.(string)
+	if !ok {
+		err := fmt.Errorf("allocate IPv6 lease: unexpected apply result type %T", raw)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return netip.Addr{}, err
+	}
+
+	addr, err := netip.ParseAddr(addrStr)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return netip.Addr{}, fmt.Errorf("parse allocated address %q: %w", addrStr, err)
+	}
+
+	span.SetAttributes(attribute.String("ipv6", addr.String()))
 	span.SetStatus(codes.Ok, "")
 
 	return addr, nil
@@ -166,8 +230,8 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address net
 	return nil
 }
 
-// GetDynamicLease returns the dynamic lease for (poolID, imsi), or ErrNotFound.
-func (db *Database) GetDynamicLease(ctx context.Context, poolID string, imsi string) (*IPLease, error) {
+// GetDynamicLease returns the dynamic lease for (poolID, poolType, imsi), or ErrNotFound.
+func (db *Database) GetDynamicLease(ctx context.Context, poolID string, poolType string, imsi string) (*IPLease, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (dynamic)", "SELECT", IPLeasesTableName),
@@ -185,7 +249,7 @@ func (db *Database) GetDynamicLease(ctx context.Context, poolID string, imsi str
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
 
-	row := IPLease{PoolID: poolID, IMSI: imsi}
+	row := IPLease{PoolID: poolID, PoolType: poolType, IMSI: imsi}
 
 	err := db.conn().Query(ctx, db.getDynamicLeaseStmt, row).Get(&row)
 	if err != nil {
@@ -205,8 +269,8 @@ func (db *Database) GetDynamicLease(ctx context.Context, poolID string, imsi str
 	return &row, nil
 }
 
-// GetLeaseBySession returns the lease matching (poolID, sessionID, imsi), or ErrNotFound.
-func (db *Database) GetLeaseBySession(ctx context.Context, poolID string, sessionID int, imsi string) (*IPLease, error) {
+// GetLeaseBySession returns the lease matching (poolID, poolType, sessionID, imsi), or ErrNotFound.
+func (db *Database) GetLeaseBySession(ctx context.Context, poolID string, poolType string, sessionID int, imsi string) (*IPLease, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (by session)", "SELECT", IPLeasesTableName),
@@ -224,7 +288,7 @@ func (db *Database) GetLeaseBySession(ctx context.Context, poolID string, sessio
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
 
-	row := IPLease{PoolID: poolID, SessionID: &sessionID, IMSI: imsi}
+	row := IPLease{PoolID: poolID, PoolType: poolType, SessionID: &sessionID, IMSI: imsi}
 
 	err := db.conn().Query(ctx, db.getLeaseBySessionStmt, row).Get(&row)
 	if err != nil {
@@ -513,7 +577,7 @@ func (db *Database) listAllLeases(ctx context.Context) ([]IPLease, error) {
 }
 
 // ListLeasesByPool returns all leases (dynamic + static) for a given pool.
-func (db *Database) ListLeasesByPool(ctx context.Context, poolID string) ([]IPLease, error) {
+func (db *Database) ListLeasesByPool(ctx context.Context, poolID string, poolType string) ([]IPLease, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (by pool)", "SELECT", IPLeasesTableName),
@@ -533,7 +597,7 @@ func (db *Database) ListLeasesByPool(ctx context.Context, poolID string) ([]IPLe
 
 	var leases []IPLease
 
-	err := db.conn().Query(ctx, db.listLeasesByPoolStmt, IPLease{PoolID: poolID}).GetAll(&leases)
+	err := db.conn().Query(ctx, db.listLeasesByPoolStmt, IPLease{PoolID: poolID, PoolType: poolType}).GetAll(&leases)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -553,7 +617,7 @@ func (db *Database) ListLeasesByPool(ctx context.Context, poolID string) ([]IPLe
 
 // ListLeasesByPoolPage returns a page of leases for a pool, ordered by address,
 // along with the total count. The page parameter is 1-based.
-func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID string, page, perPage int) ([]IPLease, int, error) {
+func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID, poolType string, page, perPage int) ([]IPLease, int, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (paged by pool)", "SELECT", IPLeasesTableName),
@@ -582,12 +646,12 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID string, pag
 		Offset: (page - 1) * perPage,
 	}
 
-	err := db.conn().Query(ctx, db.listLeasesByPoolPageStmt, args, IPLease{PoolID: poolID}).GetAll(&leases, &counts)
+	err := db.conn().Query(ctx, db.listLeasesByPoolPageStmt, args, IPLease{PoolID: poolID, PoolType: poolType}).GetAll(&leases, &counts)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
 
-			fallbackCount, countErr := db.CountLeasesByPool(ctx, poolID)
+			fallbackCount, countErr := db.CountLeasesByPool(ctx, poolID, poolType)
 			if countErr != nil {
 				return nil, 0, fmt.Errorf("count fallback failed: %w", countErr)
 			}
@@ -613,7 +677,7 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID string, pag
 
 // ListLeaseAddressesByPool returns sorted addresses for all leases in a pool.
 // Used by the allocator to find free offsets via merge-scan.
-func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID string) ([]string, error) {
+func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID, poolType string) ([]string, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (addresses by pool)", "SELECT", IPLeasesTableName),
@@ -633,7 +697,7 @@ func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID string)
 
 	var leases []IPLease
 
-	err := db.conn().Query(ctx, db.listLeaseAddressesByPoolStmt, IPLease{PoolID: poolID}).GetAll(&leases)
+	err := db.conn().Query(ctx, db.listLeaseAddressesByPoolStmt, IPLease{PoolID: poolID, PoolType: poolType}).GetAll(&leases)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
@@ -658,7 +722,7 @@ func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID string)
 }
 
 // CountLeasesByPool returns the total number of leases in a pool.
-func (db *Database) CountLeasesByPool(ctx context.Context, poolID string) (int, error) {
+func (db *Database) CountLeasesByPool(ctx context.Context, poolID, poolType string) (int, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (count by pool)", "SELECT", IPLeasesTableName),
@@ -678,7 +742,76 @@ func (db *Database) CountLeasesByPool(ctx context.Context, poolID string) (int, 
 
 	var result NumItems
 
-	err := db.conn().Query(ctx, db.countLeasesByPoolStmt, IPLease{PoolID: poolID}).Get(&result)
+	err := db.conn().Query(ctx, db.countLeasesByPoolStmt, IPLease{PoolID: poolID, PoolType: poolType}).Get(&result)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return 0, fmt.Errorf("query failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return result.Count, nil
+}
+
+// CountIPv4LeasesByPool returns the number of IPv4 leases in a pool.
+// IPv4 addresses are stored as IPv4-mapped IPv6 (::ffff:x.x.x.x).
+func (db *Database) CountIPv4LeasesByPool(ctx context.Context, poolID, poolType string) (int, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (count IPv4 by pool)", "SELECT", IPLeasesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			attribute.String("db.collection", IPLeasesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
+
+	var result NumItems
+
+	err := db.conn().Query(ctx, db.countIPv4LeasesByPoolStmt, IPLease{PoolID: poolID, PoolType: poolType}).Get(&result)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return 0, fmt.Errorf("query failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return result.Count, nil
+}
+
+// CountIPv6LeasesByPool returns the number of IPv6 leases in a pool.
+func (db *Database) CountIPv6LeasesByPool(ctx context.Context, poolID, poolType string) (int, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (count IPv6 by pool)", "SELECT", IPLeasesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			attribute.String("db.collection", IPLeasesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "select").Inc()
+
+	var result NumItems
+
+	err := db.conn().Query(ctx, db.countIPv6LeasesByPoolStmt, IPLease{PoolID: poolID, PoolType: poolType}).Get(&result)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")

@@ -14,6 +14,7 @@ import { ValidationError } from "yup";
 import { updateDataNetwork, APIDataNetwork } from "@/queries/data_networks";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { ipv4Regex, ipv6Regex } from "@/utils/bgp";
 
 interface EditDataNetworkModalProps {
   open: boolean;
@@ -30,12 +31,27 @@ const schema = yup.object().shape({
       "Must be a valid IP pool (e.g., 10.45.0.0/22)",
     )
     .required("IP Pool is required"),
+  ipv6_pool: yup
+    .string()
+    .test(
+      "ipv6-cidr",
+      "Must be a valid IPv6 CIDR with prefix length /48 to /60 (e.g., 2001:db8::/48)",
+      (value) => {
+        if (!value) return true;
+        const match = value.match(
+          /^(?:(?:[0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}|::)(\/\d{1,3})$/,
+        );
+        if (!match) return false;
+        const prefixLen = parseInt(match[1].slice(1), 10);
+        return prefixLen >= 48 && prefixLen <= 60;
+      },
+    ),
   dns: yup
     .string()
-    .matches(
-      /^(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)$/,
-      "Must be a valid IP address",
-    )
+    .test("dns-format", "Must be a valid IPv4 or IPv6 address", (value) => {
+      if (!value) return false;
+      return ipv4Regex.test(value) || ipv6Regex.test(value);
+    })
     .required("DNS is required"),
   mtu: yup.number().min(1).max(65535).required("MTU is required"),
 });
@@ -67,6 +83,7 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
       setFormValues({
         name: initialData.name,
         ip_pool: initialData.ip_pool,
+        ipv6_pool: initialData.ipv6_pool || "",
         dns: initialData.dns,
         mtu: initialData.mtu,
       });
@@ -138,6 +155,7 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
         formValues.ip_pool,
         formValues.dns,
         formValues.mtu,
+        formValues.ipv6_pool || undefined,
       );
       onClose();
       onSuccess();
@@ -187,6 +205,17 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
           helperText={touched.ip_pool ? errors.ip_pool : ""}
           margin="normal"
           autoFocus
+        />
+        <TextField
+          fullWidth
+          label="IPv6 Pool (optional)"
+          value={formValues.ipv6_pool || ""}
+          onChange={(e) => handleChange("ipv6_pool", e.target.value)}
+          onBlur={() => handleBlur("ipv6_pool")}
+          error={!!errors.ipv6_pool && touched.ipv6_pool}
+          helperText={touched.ipv6_pool ? errors.ipv6_pool : ""}
+          margin="normal"
+          placeholder="e.g., 2001:db8::/48"
         />
         <TextField
           fullWidth

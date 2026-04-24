@@ -4200,7 +4200,7 @@ components:
           description: "Destination in CIDR notation."
         gateway:
           type: string
-          description: Gateway IPv4 address.
+          description: Gateway IPv4 or IPv6 address.
         interface:
           type: string
           description: "Network interface: `n3` or `n6`."
@@ -4249,7 +4249,7 @@ components:
           description: "Destination in CIDR notation."
         gateway:
           type: string
-          description: Gateway IPv4 address.
+          description: Gateway IPv4 or IPv6 address.
         interface:
           type: string
           enum: [n3, n6]

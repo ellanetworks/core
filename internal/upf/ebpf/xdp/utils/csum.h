@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include "xdp/utils/trace.h"
 #include <features.h>
 #include <linux/bpf.h>
 #include <linux/icmp.h>
@@ -166,12 +167,15 @@ struct {
  * @udp_off: byte offset of the UDP header from the start of the XDP packet
  * @udp_len: length of the UDP datagram (header + payload)
  * @xdp_ctx: the XDP metadata context (needed by bpf_xdp_load_bytes)
- * @returns: the computed UDP checksum (network byte order), or 0 on error
+ * @returns: the computed UDP checksum (network byte order) as a non-negative
+ *           value, or a negative error code on failure.  Note that 0 is a
+ *           valid UDP checksum (one's complement of all-ones) and must not
+ *           be treated as an error.
  */
-static __always_inline __u16 udpv6_csum(const struct in6_addr *saddr,
-					const struct in6_addr *daddr,
-					__u32 udp_off, __u32 udp_len,
-					struct xdp_md *xdp_ctx)
+static __always_inline int udpv6_csum(const struct in6_addr *saddr,
+				      const struct in6_addr *daddr,
+				      __u32 udp_off, __u32 udp_len,
+				      struct xdp_md *xdp_ctx)
 {
 	/* Build the IPv6 pseudo-header on the stack (40 bytes) */
 	struct {
@@ -191,8 +195,7 @@ static __always_inline __u16 udpv6_csum(const struct in6_addr *saddr,
 	pseudo.next_hdr = IPPROTO_UDP;
 
 	/* Checksum the pseudo-header (stack memory, fixed 40 bytes) */
-	__u64 csum = bpf_csum_diff(0, 0, (__be32 *)&pseudo,
-				   sizeof(pseudo), 0);
+	__u64 csum = bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0);
 
 	/*
 	 * Look up the per-CPU scratch buffer BEFORE the bounds checks on
@@ -203,16 +206,21 @@ static __always_inline __u16 udpv6_csum(const struct in6_addr *saddr,
 	 */
 	__u32 key = bpf_get_smp_processor_id();
 	void *scratch = bpf_map_lookup_elem(&csum_scratch, &key);
-	if (!scratch)
-		return 0;
+	if (!scratch) {
+		upf_printk("upf: could not read scratch buffer");
+		return -1;
+	}
 
 	/*
 	 * Clamp udp_len so the verifier can prove it fits in the scratch
 	 * map.  This check MUST come after the last helper call (above)
 	 * so the verifier's bounds knowledge is not clobbered.
 	 */
-	if (udp_len < sizeof(struct udphdr) || udp_len > (CSUM_SCRATCH_SIZE - 4))
-		return 0;
+	if (udp_len < sizeof(struct udphdr) ||
+	    udp_len > (CSUM_SCRATCH_SIZE - 4)) {
+		upf_printk("upf: bad udp_len: %d", udp_len);
+		return -1;
+	}
 
 	/*
 	 * Zero a 4-byte word at offset udp_len in the scratch buffer.
@@ -229,8 +237,10 @@ static __always_inline __u16 udpv6_csum(const struct in6_addr *saddr,
 	*(__u32 *)(scratch + udp_len) = 0;
 
 	/* Copy the UDP datagram from packet memory into the scratch buffer */
-	if (bpf_xdp_load_bytes(xdp_ctx, udp_off, scratch, udp_len) < 0)
-		return 0;
+	if (bpf_xdp_load_bytes(xdp_ctx, udp_off, scratch, udp_len) < 0) {
+		upf_printk("upf: couldn't load packet into scratch buffer");
+		return -1;
+	}
 
 	/*
 	 * Checksum the scratch copy.  bpf_csum_diff reads in 4-byte words,
@@ -241,8 +251,10 @@ static __always_inline __u16 udpv6_csum(const struct in6_addr *saddr,
 	 * verifier a fresh, provable upper bound on aligned_len.
 	 */
 	__u32 aligned_len = (udp_len + 3) & ~3U;
-	if (aligned_len > CSUM_SCRATCH_SIZE)
-		return 0;
+	if (aligned_len > CSUM_SCRATCH_SIZE) {
+		upf_printk("upf: bad aligned_len: %d", aligned_len);
+		return -1;
+	}
 
 	csum = bpf_csum_diff(0, 0, (__be32 *)scratch, aligned_len, csum);
 

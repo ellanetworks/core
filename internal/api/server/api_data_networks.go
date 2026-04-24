@@ -19,16 +19,18 @@ import (
 )
 
 type CreateDataNetworkParams struct {
-	Name   string `json:"name"`
-	IPPool string `json:"ip_pool,omitempty"`
-	DNS    string `json:"dns,omitempty"`
-	MTU    int32  `json:"mtu,omitempty"`
+	Name     string `json:"name"`
+	IPPool   string `json:"ip_pool,omitempty"`
+	IPv6Pool string `json:"ipv6_pool,omitempty"`
+	DNS      string `json:"dns,omitempty"`
+	MTU      int32  `json:"mtu,omitempty"`
 }
 
 type UpdateDataNetworkParams struct {
-	IPPool string `json:"ip_pool,omitempty"`
-	DNS    string `json:"dns,omitempty"`
-	MTU    int32  `json:"mtu,omitempty"`
+	IPPool   string `json:"ip_pool,omitempty"`
+	IPv6Pool string `json:"ipv6_pool,omitempty"`
+	DNS      string `json:"dns,omitempty"`
+	MTU      int32  `json:"mtu,omitempty"`
 }
 
 type DataNetworkStatus struct {
@@ -42,12 +44,14 @@ type DataNetworkIPAllocation struct {
 }
 
 type DataNetwork struct {
-	Name         string                   `json:"name"`
-	IPPool       string                   `json:"ip_pool"`
-	DNS          string                   `json:"dns,omitempty"`
-	MTU          int32                    `json:"mtu,omitempty"`
-	Status       DataNetworkStatus        `json:"status"`
-	IPAllocation *DataNetworkIPAllocation `json:"ip_allocation,omitempty"`
+	Name           string                   `json:"name"`
+	IPPool         string                   `json:"ip_pool"`
+	IPv6Pool       string                   `json:"ipv6_pool,omitempty"`
+	DNS            string                   `json:"dns,omitempty"`
+	MTU            int32                    `json:"mtu,omitempty"`
+	Status         DataNetworkStatus        `json:"status"`
+	IPAllocation   *DataNetworkIPAllocation `json:"ip_allocation,omitempty"`
+	IPv6Allocation *DataNetworkIPAllocation `json:"ipv6_allocation,omitempty"`
 }
 
 type IPAllocationItem struct {
@@ -114,10 +118,11 @@ func ListDataNetworks(dbInstance *db.Database, sessions smf.SessionQuerier) http
 			}
 
 			items = append(items, DataNetwork{
-				Name:   dbDataNetwork.Name,
-				IPPool: dbDataNetwork.IPPool,
-				DNS:    dbDataNetwork.DNS,
-				MTU:    dbDataNetwork.MTU,
+				Name:     dbDataNetwork.Name,
+				IPPool:   dbDataNetwork.IPPool,
+				IPv6Pool: dbDataNetwork.IPv6Pool,
+				DNS:      dbDataNetwork.DNS,
+				MTU:      dbDataNetwork.MTU,
 				Status: DataNetworkStatus{
 					Sessions: sessionCount,
 				},
@@ -155,10 +160,11 @@ func GetDataNetwork(dbInstance *db.Database, sessions smf.SessionQuerier) http.H
 		}
 
 		dataNetwork := DataNetwork{
-			Name:   dbDataNetwork.Name,
-			IPPool: dbDataNetwork.IPPool,
-			DNS:    dbDataNetwork.DNS,
-			MTU:    dbDataNetwork.MTU,
+			Name:     dbDataNetwork.Name,
+			IPPool:   dbDataNetwork.IPPool,
+			IPv6Pool: dbDataNetwork.IPv6Pool,
+			DNS:      dbDataNetwork.DNS,
+			MTU:      dbDataNetwork.MTU,
 			Status: DataNetworkStatus{
 				Sessions: sessionCount,
 			},
@@ -168,9 +174,9 @@ func GetDataNetwork(dbInstance *db.Database, sessions smf.SessionQuerier) http.H
 		if poolErr != nil {
 			logger.APILog.Warn("failed to parse IP pool for allocation stats", zap.String("data_network", name), zap.Error(poolErr))
 		} else {
-			allocated, countErr := dbInstance.CountLeasesByPool(r.Context(), dbDataNetwork.ID)
+			allocated, countErr := dbInstance.CountIPv4LeasesByPool(r.Context(), dbDataNetwork.ID, pool.IPVersion)
 			if countErr != nil {
-				logger.APILog.Warn("failed to count leases for allocation stats", zap.String("data_network", name), zap.Error(countErr))
+				logger.APILog.Warn("failed to count IPv4 leases for allocation stats", zap.String("data_network", name), zap.Error(countErr))
 			} else {
 				poolSize := pool.Size()
 
@@ -183,6 +189,31 @@ func GetDataNetwork(dbInstance *db.Database, sessions smf.SessionQuerier) http.H
 					PoolSize:  poolSize,
 					Allocated: allocated,
 					Available: available,
+				}
+			}
+		}
+
+		if dbDataNetwork.IPv6Pool != "" {
+			pool6, pool6Err := ipam.NewPool6(dbDataNetwork.ID, dbDataNetwork.IPv6Pool, 64)
+			if pool6Err != nil {
+				logger.APILog.Warn("failed to parse IPv6 pool for allocation stats", zap.String("data_network", name), zap.Error(pool6Err))
+			} else {
+				allocated6, countErr := dbInstance.CountIPv6LeasesByPool(r.Context(), dbDataNetwork.ID, pool6.IPVersion)
+				if countErr != nil {
+					logger.APILog.Warn("failed to count IPv6 leases for allocation stats", zap.String("data_network", name), zap.Error(countErr))
+				} else {
+					poolSize6 := pool6.Size()
+
+					available6 := poolSize6 - allocated6
+					if available6 < 0 {
+						available6 = 0
+					}
+
+					dataNetwork.IPv6Allocation = &DataNetworkIPAllocation{
+						PoolSize:  poolSize6,
+						Allocated: allocated6,
+						Available: available6,
+					}
 				}
 			}
 		}
@@ -219,7 +250,7 @@ func ListIPAllocations(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		leases, total, err := dbInstance.ListLeasesByPoolPage(r.Context(), dbDataNetwork.ID, page, perPage)
+		leases, total, err := dbInstance.ListLeasesByPoolPage(r.Context(), dbDataNetwork.ID, "ipv4", page, perPage)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list IP allocations", err, logger.APILog)
 			return
@@ -316,6 +347,13 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		if createDataNetworkParams.IPv6Pool != "" {
+			if err := validateNoIPv6Overlap(r.Context(), dbInstance, createDataNetworkParams.IPv6Pool, ""); err != nil {
+				writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+				return
+			}
+		}
+
 		numDataNetworks, err := dbInstance.CountDataNetworks(r.Context())
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count data networks", err, logger.APILog)
@@ -328,10 +366,11 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 		}
 
 		dbDataNetwork := &db.DataNetwork{
-			Name:   createDataNetworkParams.Name,
-			IPPool: createDataNetworkParams.IPPool,
-			DNS:    createDataNetworkParams.DNS,
-			MTU:    createDataNetworkParams.MTU,
+			Name:     createDataNetworkParams.Name,
+			IPPool:   createDataNetworkParams.IPPool,
+			IPv6Pool: createDataNetworkParams.IPv6Pool,
+			DNS:      createDataNetworkParams.DNS,
+			MTU:      createDataNetworkParams.MTU,
 		}
 
 		if err := dbInstance.CreateDataNetwork(r.Context(), dbDataNetwork); err != nil {
@@ -382,11 +421,19 @@ func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		if updateDataNetworkParams.IPv6Pool != "" {
+			if err := validateNoIPv6Overlap(r.Context(), dbInstance, updateDataNetworkParams.IPv6Pool, name); err != nil {
+				writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+				return
+			}
+		}
+
 		dn := &db.DataNetwork{
-			Name:   name,
-			IPPool: updateDataNetworkParams.IPPool,
-			DNS:    updateDataNetworkParams.DNS,
-			MTU:    updateDataNetworkParams.MTU,
+			Name:     name,
+			IPPool:   updateDataNetworkParams.IPPool,
+			IPv6Pool: updateDataNetworkParams.IPv6Pool,
+			DNS:      updateDataNetworkParams.DNS,
+			MTU:      updateDataNetworkParams.MTU,
 		}
 
 		if err := dbInstance.UpdateDataNetwork(r.Context(), dn); err != nil {
@@ -415,6 +462,26 @@ func isUeIPPoolValid(ueIPPool string) bool {
 	return err == nil
 }
 
+// isIPv6PoolValid validates an IPv6 prefix delegation pool CIDR.
+// The prefix must be valid IPv6 with a prefix length between /48 and /60
+// (we delegate /64s from within the pool).
+func isIPv6PoolValid(pool string) bool {
+	prefix, err := netip.ParsePrefix(pool)
+	if err != nil {
+		return false
+	}
+
+	if !prefix.Addr().Is6() || prefix.Addr().Is4In6() {
+		return false
+	}
+
+	if prefix.Bits() < 48 || prefix.Bits() > 60 {
+		return false
+	}
+
+	return true
+}
+
 func isValidDNS(dns string) bool {
 	_, err := netip.ParseAddr(dns)
 	return err == nil
@@ -439,6 +506,8 @@ func validateDataNetworkParams(p CreateDataNetworkParams) error {
 		return errors.New("invalid name format, must be a valid DNN format")
 	case !isUeIPPoolValid(p.IPPool):
 		return errors.New("invalid ip_pool format, must be in CIDR format")
+	case p.IPv6Pool != "" && !isIPv6PoolValid(p.IPv6Pool):
+		return errors.New("invalid ipv6_pool format, must be a valid IPv6 CIDR with prefix length between /48 and /60")
 	case !isValidDNS(p.DNS):
 		return errors.New("invalid dns format, must be a valid IP address")
 	case !isValidMTU(p.MTU):
@@ -458,6 +527,8 @@ func validateUpdateDataNetworkParams(p UpdateDataNetworkParams) error {
 		return errors.New("mtu is missing")
 	case !isUeIPPoolValid(p.IPPool):
 		return errors.New("invalid ip_pool format, must be in CIDR format")
+	case p.IPv6Pool != "" && !isIPv6PoolValid(p.IPv6Pool):
+		return errors.New("invalid ipv6_pool format, must be a valid IPv6 CIDR with prefix length between /48 and /60")
 	case !isValidDNS(p.DNS):
 		return errors.New("invalid dns format, must be a valid IP address")
 	case !isValidMTU(p.MTU):
@@ -501,6 +572,46 @@ func validateNoOverlap(ctx context.Context, dbInstance *db.Database, cidr string
 
 		if newPrefix.Overlaps(existingPrefix) {
 			return fmt.Errorf("pool %s overlaps with data network %q (%s)", newPrefix, dn.Name, existingPrefix)
+		}
+	}
+
+	return nil
+}
+
+// validateNoIPv6Overlap checks that cidr does not overlap with any existing data
+// network IPv6 pool. excludeName is the name of the data network being updated
+// (empty for create) — its own pool is excluded from the comparison.
+func validateNoIPv6Overlap(ctx context.Context, dbInstance *db.Database, cidr string, excludeName string) error {
+	newPrefix, err := netip.ParsePrefix(cidr)
+	if err != nil {
+		return fmt.Errorf("invalid IPv6 CIDR %q: %w", cidr, err)
+	}
+
+	newPrefix = netip.PrefixFrom(newPrefix.Masked().Addr(), newPrefix.Bits())
+
+	existing, err := dbInstance.ListAllDataNetworks(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list data networks: %w", err)
+	}
+
+	for _, dn := range existing {
+		if dn.Name == excludeName {
+			continue
+		}
+
+		if dn.IPv6Pool == "" {
+			continue
+		}
+
+		existingPrefix, parseErr := netip.ParsePrefix(dn.IPv6Pool)
+		if parseErr != nil {
+			continue
+		}
+
+		existingPrefix = netip.PrefixFrom(existingPrefix.Masked().Addr(), existingPrefix.Bits())
+
+		if newPrefix.Overlaps(existingPrefix) {
+			return fmt.Errorf("IPv6 pool %s overlaps with data network %q (%s)", newPrefix, dn.Name, existingPrefix)
 		}
 	}
 

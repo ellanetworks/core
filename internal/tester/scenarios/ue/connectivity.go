@@ -96,6 +96,7 @@ func runConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
 					gNodeB,
 					subs[i],
 					tunInterfaceName,
+					env.PingDestination(),
 				)
 			})
 		}()
@@ -115,6 +116,7 @@ func runConnectivityTest(
 	gNodeB *gnb.GnodeB,
 	sub subscriber,
 	tunInterfaceName string,
+	pingDestination string,
 ) error {
 	newUE, err := newDefaultUE(gNodeB, sub.IMSI[5:], sub.Key, sub.OPc, sub.SequenceNumber)
 	if err != nil {
@@ -194,17 +196,17 @@ func runConnectivityTest(
 		zap.Uint32("DL TEID", gnbPDUSession.DLTeid),
 	)
 
-	cmd := exec.CommandContext(ctx, "ping", "-I", tunInterfaceName, scenarios.DefaultPingDestination, "-c", "3", "-W", "1") // #nosec G204
+	cmd := exec.CommandContext(ctx, "ping", "-I", tunInterfaceName, pingDestination, "-c", "3", "-W", "1") // #nosec G204
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("ping %s via %s failed after initial registration: %v\noutput:\n%s", scenarios.DefaultPingDestination, tunInterfaceName, err, string(out))
+		return fmt.Errorf("ping %s via %s failed after initial registration: %v\noutput:\n%s", pingDestination, tunInterfaceName, err, string(out))
 	}
 
 	logger.Logger.Debug(
 		"Ping successful",
 		zap.String("interface", tunInterfaceName),
-		zap.String("destination", scenarios.DefaultPingDestination),
+		zap.String("destination", pingDestination),
 	)
 
 	pduSessionStatus := [16]bool{}
@@ -227,17 +229,17 @@ func runConnectivityTest(
 		zap.Int64("RAN UE NGAP ID", ranUENGAPID),
 	)
 
-	cmd = exec.CommandContext(ctx, "ping", "-I", tunInterfaceName, scenarios.DefaultPingDestination, "-c", "3", "-W", "1") // #nosec G204
+	cmd = exec.CommandContext(ctx, "ping", "-I", tunInterfaceName, pingDestination, "-c", "3", "-W", "1") // #nosec G204
 
 	out, err = cmd.CombinedOutput()
 	if err == nil {
-		return fmt.Errorf("ping %s via %s succeeded, but was expected to fail after UE Context Release\noutput:\n%s", scenarios.DefaultPingDestination, tunInterfaceName, string(out))
+		return fmt.Errorf("ping %s via %s succeeded, but was expected to fail after UE Context Release\noutput:\n%s", pingDestination, tunInterfaceName, string(out))
 	}
 
 	logger.Logger.Debug(
 		"Ping failed as expected after UE Context Release",
 		zap.String("interface", tunInterfaceName),
-		zap.String("destination", scenarios.DefaultPingDestination),
+		zap.String("destination", pingDestination),
 	)
 
 	err = procedure.ServiceRequest(&procedure.ServiceRequestOpts{
@@ -286,17 +288,17 @@ func runConnectivityTest(
 		zap.Uint32("DL TEID", pduSession.DLTeid),
 	)
 
-	cmd = exec.CommandContext(ctx, "ping", "-I", tunInterfaceName, scenarios.DefaultPingDestination, "-c", "3", "-W", "1") // #nosec G204
+	cmd = exec.CommandContext(ctx, "ping", "-I", tunInterfaceName, pingDestination, "-c", "3", "-W", "1") // #nosec G204
 
 	out, err = cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("ping %s via %s failed after service request: %v\noutput:\n%s", scenarios.DefaultPingDestination, tunInterfaceName, err, string(out))
+		return fmt.Errorf("ping %s via %s failed after service request: %v\noutput:\n%s", pingDestination, tunInterfaceName, err, string(out))
 	}
 
 	logger.Logger.Debug(
 		"Ping successful after Service Request",
 		zap.String("interface", tunInterfaceName),
-		zap.String("destination", scenarios.DefaultPingDestination),
+		zap.String("destination", pingDestination),
 	)
 
 	// NOTE: client-side usage assertion skipped; integration test will verify.

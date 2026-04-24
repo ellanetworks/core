@@ -178,3 +178,14 @@ type FlowReportRequest struct {
 	Direction       Direction
 	Action          Action
 }
+
+// IPv6SessionRegistration carries the metadata the SMF provides to the UPF
+// so the RA responder can reply to Router Solicitations from IPv6 UEs.
+type IPv6SessionRegistration struct {
+	UplinkTEID   uint32       // UL TEID allocated by the UPF
+	DownlinkTEID uint32       // DL TEID provided by the gNB
+	GnbN3Addr    netip.Addr   // gNB's N3 transport address (IPv4 or IPv6)
+	Prefix       netip.Prefix // delegated /64 prefix
+	MTU          uint32       // DNN MTU
+	QFI          uint8        // QoS Flow Identifier
+}

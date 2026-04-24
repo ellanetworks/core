@@ -74,6 +74,8 @@ type Database struct {
 	listLeasesByPoolStmt         *sqlair.Statement
 	listLeaseAddressesByPoolStmt *sqlair.Statement
 	countLeasesByPoolStmt        *sqlair.Statement
+	countIPv4LeasesByPoolStmt    *sqlair.Statement
+	countIPv6LeasesByPoolStmt    *sqlair.Statement
 	countActiveLeasesStmt        *sqlair.Statement
 	countLeasesByIMSIStmt        *sqlair.Statement
 	listLeasesByPoolPageStmt     *sqlair.Statement
@@ -1190,7 +1192,7 @@ func NewDatabaseWithoutRaft(ctx context.Context, dbPath string) (*Database, erro
 
 // PrepareStatements compiles every registered sqlair.Statement.
 //
-// Forward-compat: when a post-baseline migration (v10+) adds a column
+// Forward-compat: when a post-baseline migration (v11+) adds a column
 // referenced by a new statement, gate that statement on
 // db.cachedAppliedSchema() — the matching op's RequireSchema prevents
 // callers from reaching the unprepared pointer. See
@@ -1226,6 +1228,8 @@ func (db *Database) PrepareStatements() error {
 		{&db.listLeasesByPoolStmt, fmt.Sprintf(listLeasesByPoolStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.listLeaseAddressesByPoolStmt, fmt.Sprintf(listLeaseAddressesByPoolStmt, IPLeasesTableName), []any{IPLease{}}},
 		{&db.countLeasesByPoolStmt, fmt.Sprintf(countLeasesByPoolStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
+		{&db.countIPv4LeasesByPoolStmt, fmt.Sprintf(countIPv4LeasesByPoolStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
+		{&db.countIPv6LeasesByPoolStmt, fmt.Sprintf(countIPv6LeasesByPoolStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
 		{&db.countActiveLeasesStmt, fmt.Sprintf(countActiveLeasesStmt, IPLeasesTableName), []any{NumItems{}}},
 		{&db.countLeasesByIMSIStmt, fmt.Sprintf(countLeasesByIMSIStmt, IPLeasesTableName), []any{NumItems{}, IPLease{}}},
 		{&db.listLeasesByPoolPageStmt, fmt.Sprintf(listLeasesByPoolPageStmt, IPLeasesTableName), []any{ListArgs{}, IPLease{}, NumItems{}}},

@@ -439,6 +439,7 @@ func (db *Database) applyUpdateLeaseNode(ctx context.Context, lease *IPLease) (a
 // inside leaderCaptureAndPropose's proposeMu.
 type allocateIPLeasePayload struct {
 	PoolID    string `json:"poolId"`
+	PoolType  string `json:"poolType"`
 	IMSI      string `json:"imsi"`
 	SessionID int    `json:"sessionId"`
 	NodeID    int    `json:"nodeId"`
@@ -477,16 +478,29 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 		return nil, fmt.Errorf("get data network %s: %w", p.PoolID, err)
 	}
 
-	pool, err := ipam.NewPool(dn.ID, dn.IPPool)
-	if err != nil {
-		return nil, fmt.Errorf("parse pool %q: %w", dn.IPPool, err)
+	var (
+		pool ipam.Pool
+		err  error
+	)
+
+	switch p.PoolType {
+	case "ipv6":
+		pool, err = ipam.NewPool6(dn.ID, dn.IPv6Pool, 64)
+		if err != nil {
+			return nil, fmt.Errorf("parse ipv6 pool %q: %w", dn.IPv6Pool, err)
+		}
+	default:
+		pool, err = ipam.NewPool(dn.ID, dn.IPPool)
+		if err != nil {
+			return nil, fmt.Errorf("parse pool %q: %w", dn.IPPool, err)
+		}
 	}
 
 	sessionID := p.SessionID
 
 	// Step 1: existing dynamic lease (re-registration). Update the
 	// owning node and session and return its address.
-	existing := IPLease{PoolID: p.PoolID, IMSI: p.IMSI}
+	existing := IPLease{PoolID: p.PoolID, PoolType: p.PoolType, IMSI: p.IMSI}
 
 	err = runner.Query(ctx, db.getDynamicLeaseStmt, existing).Get(&existing)
 	switch {
@@ -514,7 +528,7 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 	// to sorted offsets so the merge-scan can skip them in O(N).
 	var leases []IPLease
 
-	err = runner.Query(ctx, db.listLeaseAddressesByPoolStmt, IPLease{PoolID: p.PoolID}).GetAll(&leases)
+	err = runner.Query(ctx, db.listLeaseAddressesByPoolStmt, IPLease{PoolID: p.PoolID, PoolType: p.PoolType}).GetAll(&leases)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("list lease addresses: %w", err)
 	}
@@ -552,6 +566,7 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 		bin := addr.As16()
 		lease := &IPLease{
 			PoolID:     p.PoolID,
+			PoolType:   p.PoolType,
 			AddressBin: bin[:],
 			IMSI:       p.IMSI,
 			SessionID:  &sessionID,

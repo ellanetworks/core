@@ -105,10 +105,11 @@ func (f *F) scopedDataNetwork(spec scenarios.DataNetworkSpec) {
 	f.t.Helper()
 
 	if err := f.c.CreateDataNetwork(f.ctx, &client.CreateDataNetworkOptions{
-		Name:   spec.Name,
-		IPPool: spec.IPPool,
-		DNS:    spec.DNS,
-		Mtu:    spec.MTU,
+		Name:     spec.Name,
+		IPPool:   spec.IPPool,
+		IPv6Pool: spec.IPv6Pool,
+		DNS:      spec.DNS,
+		Mtu:      spec.MTU,
 	}); err != nil {
 		f.fatalf("create scoped data network %q: %v", spec.Name, err)
 	}

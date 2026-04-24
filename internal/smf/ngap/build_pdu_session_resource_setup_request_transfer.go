@@ -11,7 +11,7 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr) ([]byte, error) {
+func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *models.QosData, teid uint32, n3IPv4 netip.Addr, n3IPv6 netip.Addr, pduSessionType aper.Enumerated) ([]byte, error) {
 	if ambr == nil {
 		return nil, fmt.Errorf("ambr is nil")
 	}
@@ -72,7 +72,7 @@ func BuildPDUSessionResourceSetupRequestTransfer(ambr *models.Ambr, qosData *mod
 	ie.Value = ngapType.PDUSessionResourceSetupRequestTransferIEsValue{
 		Present: ngapType.PDUSessionResourceSetupRequestTransferIEsPresentPDUSessionType,
 		PDUSessionType: &ngapType.PDUSessionType{
-			Value: ngapType.PDUSessionTypePresentIpv4,
+			Value: pduSessionType,
 		},
 	}
 	resourceSetupRequestTransfer.ProtocolIEs.List = append(resourceSetupRequestTransfer.ProtocolIEs.List, ie)

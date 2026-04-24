@@ -22,6 +22,28 @@ var scenariosSkipped = map[string]string{
 	"multi/cluster_traffic":       "multi-core HA topology, covered by TestIntegration3GPPMultiGNB",
 }
 
+// scenarioIPFamilyRestrictions returns a map of scenario name → required IP
+// family. Scenarios that only make sense in a specific address-family
+// configuration are listed here so the integration runner can skip them
+// when the compose topology does not match.
+var scenarioIPFamilyRestrictions = map[string]IPFamily{
+	"ue/connectivity_ipv6":      IPv6Only,
+	"ue/connectivity_dualstack": DualStack,
+}
+
+// scenarioIPFamilyExclusions returns a map of scenario name → set of IP
+// families in which the scenario should be skipped. This is used for
+// scenarios that test a specific address family but should be skipped
+// when N6 does not have that family configured.
+var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
+	"ue/connectivity": {
+		IPv6Only: true,
+	},
+	"ue/connectivity_ipv6": {
+		IPv4Only: true,
+	},
+}
+
 // TestIntegrationTester brings the core-tester compose up once,
 // bootstraps Ella Core with the baseline operator, default profile,
 // slice, data network, and policy, then runs one subtest per registered
@@ -52,6 +74,26 @@ func TestIntegrationTester(t *testing.T) {
 		if reason, skip := scenariosSkipped[name]; skip {
 			t.Run(name, func(t *testing.T) { t.Skipf("%s: %s", name, reason) })
 			continue
+		}
+
+		if requiredFamily, ok := scenarioIPFamilyRestrictions[name]; ok {
+			if DetectIPFamily() != requiredFamily {
+				t.Run(name, func(t *testing.T) {
+					t.Skipf("skipping %s: requires %s mode, running %s", name, requiredFamily, DetectIPFamily())
+				})
+
+				continue
+			}
+		}
+
+		if exclusions, ok := scenarioIPFamilyExclusions[name]; ok {
+			if exclusions[DetectIPFamily()] {
+				t.Run(name, func(t *testing.T) {
+					t.Skipf("skipping %s: N6 does not support this address family in %s mode", name, DetectIPFamily())
+				})
+
+				continue
+			}
 		}
 
 		sc, _ := scenarios.Get(name)

@@ -248,6 +248,14 @@ func (f *fakeSessionStore) ReleaseIP(_ context.Context, _ string, _ string, _ ui
 	return netip.Addr{}, fmt.Errorf("not implemented in test")
 }
 
+func (f *fakeSessionStore) AllocateIPv6(_ context.Context, _ string, _ string, _ uint8) (netip.Addr, error) {
+	return netip.Addr{}, fmt.Errorf("not implemented in test")
+}
+
+func (f *fakeSessionStore) ReleaseIPv6(_ context.Context, _ string, _ string, _ uint8) (netip.Addr, error) {
+	return netip.Addr{}, fmt.Errorf("not implemented in test")
+}
+
 func (f *fakeSessionStore) IncrementDailyUsage(_ context.Context, _ string, _, _ uint64) error {
 	return nil
 }
@@ -273,6 +281,14 @@ func (f *fakeUPFClient) DeleteSession(ctx context.Context, remoteSEID uint64) er
 func (f *fakeUPFClient) FlushUsage(ctx context.Context, remoteSEID uint64) {}
 
 func (f *fakeUPFClient) UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error {
+	return nil
+}
+
+func (f *fakeUPFClient) RegisterIPv6Session(ctx context.Context, reg *models.IPv6SessionRegistration) error {
+	return nil
+}
+
+func (f *fakeUPFClient) UnregisterIPv6Session(ctx context.Context, ulTEID uint32) error {
 	return nil
 }
 

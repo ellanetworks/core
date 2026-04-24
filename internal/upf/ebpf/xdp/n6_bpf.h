@@ -6,6 +6,7 @@
 #include "xdp/utils/profiling.h"
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
+#include <linux/in6.h>
 #include <linux/ipv6.h>
 
 #include "xdp/utils/common.h"
@@ -252,12 +253,18 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	const struct ipv6hdr *ip6 = ctx->ip6;
 
 	PROFILE_START(PROF_N6_PDR_LOOKUP);
-	struct pdr_info *pdr =
-		bpf_map_lookup_elem(&pdrs_downlink_ip6, &ip6->daddr);
+	/*
+	 * The UE receives a full /64 prefix for each
+	 * IPv6 PDU session, and that prefix is the key
+	 * for the PDR. Mask the lower 64 bits to get the prefix.
+	 */
+	struct in6_addr prefix = ip6->daddr;
+	__builtin_memset(((void *)&prefix) + 8, 0, 8);
+
+	struct pdr_info *pdr = bpf_map_lookup_elem(&pdrs_downlink_ip6, &prefix);
 	PROFILE_END(PROF_N6_PDR_LOOKUP);
 	if (!pdr) {
-		upf_printk("upf: no downlink session for ip:%pI6c",
-			   &ip6->daddr);
+		upf_printk("upf: no downlink session for ip:%pI6c", &prefix);
 		return DEFAULT_XDP_ACTION;
 	}
 

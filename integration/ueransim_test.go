@@ -76,17 +76,30 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			t.Log("ella core is ready")
 
+			routes := []RouteConfig{
+				{
+					Destination: "8.8.8.8/32",
+					Gateway:     N6Address(),
+					Interface:   "n6",
+					Metric:      0,
+				},
+			}
+
+			if DetectIPFamily() == IPv6Only {
+				routes = []RouteConfig{
+					{
+						Destination: UeIPv6Pool(),
+						Gateway:     N6IPv6Address(),
+						Interface:   "n6",
+						Metric:      0,
+					},
+				}
+			}
+
 			err = configureEllaCore(ctx, ellaClient, EllaCoreConfig{
 				Networking: NetworkingConfig{
-					NAT: tc.nat,
-					Routes: []RouteConfig{
-						{
-							Destination: "8.8.8.8/32",
-							Gateway:     N6Address(),
-							Interface:   "n6",
-							Metric:      0,
-						},
-					},
+					NAT:    tc.nat,
+					Routes: routes,
 				},
 				Subscribers: []SubscriberConfig{
 					{
@@ -148,8 +161,14 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			t.Log("started UERANSIM UE")
 
+			ueReadyPattern := `TUN interface\[uesimtun0, 10\.45\.0\.1\] is up`
+
+			if DetectIPFamily() == IPv6Only {
+				ueReadyPattern = `TUN interface\[uesimtun0, fd45::\d+\] is up`
+			}
+
 			if err := waitForPatternInContainer(ctx, dockerClient, ueransimContainerName,
-				`/tmp/ue.log`, `TUN interface\[uesimtun0, 10\.45\.0\.1\] is up`, 15*time.Second, 200*time.Millisecond); err != nil {
+				`/tmp/ue.log`, ueReadyPattern, 15*time.Second, 200*time.Millisecond); err != nil {
 				t.Fatalf("UE never became ready: %v", err)
 			}
 
@@ -168,7 +187,15 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			t.Logf("Verified that 'uesimtun0' is in the result")
 
-			result, err = dockerClient.Exec(ctx, ueransimContainerName, []string{"ping", "-I", "uesimtun0", N6Address(), "-c", "3"}, false, 10*time.Second, logWriter{t})
+			pingDest := N6Address()
+			pingCmd := "ping"
+
+			if DetectIPFamily() == IPv6Only {
+				pingDest = N6RouterIPv6Address()
+				pingCmd = "ping6"
+			}
+
+			result, err = dockerClient.Exec(ctx, ueransimContainerName, []string{pingCmd, "-I", "uesimtun0", pingDest, "-c", "3"}, false, 10*time.Second, logWriter{t})
 			if err != nil {
 				t.Fatalf("failed to exec command in pod: %v", err)
 			}
@@ -195,7 +222,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 			result, err = dockerClient.Exec(
 				ctx,
 				ueransimContainerName,
-				[]string{"python3", "/network_test.py", "--dev", "uesimtun0", "--dest", N6Address()},
+				[]string{"python3", "/network_test.py", "--dev", "uesimtun0", "--dest", pingDest},
 				false,
 				5*time.Second,
 				logWriter{t},

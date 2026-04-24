@@ -210,6 +210,7 @@ type N3N6EntrypointMapSpecs struct {
 	PdrsDownlinkIp4    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip4"`
 	PdrsDownlinkIp6    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip6"`
 	PdrsUplink         *ebpf.MapSpec `ebpf:"pdrs_uplink"`
+	RsEventMap         *ebpf.MapSpec `ebpf:"rs_event_map"`
 	SdfFilters         *ebpf.MapSpec `ebpf:"sdf_filters"`
 	UplinkRouteStats   *ebpf.MapSpec `ebpf:"uplink_route_stats"`
 	UplinkStatistics   *ebpf.MapSpec `ebpf:"uplink_statistics"`
@@ -258,6 +259,7 @@ type N3N6EntrypointMaps struct {
 	PdrsDownlinkIp4    *ebpf.Map `ebpf:"pdrs_downlink_ip4"`
 	PdrsDownlinkIp6    *ebpf.Map `ebpf:"pdrs_downlink_ip6"`
 	PdrsUplink         *ebpf.Map `ebpf:"pdrs_uplink"`
+	RsEventMap         *ebpf.Map `ebpf:"rs_event_map"`
 	SdfFilters         *ebpf.Map `ebpf:"sdf_filters"`
 	UplinkRouteStats   *ebpf.Map `ebpf:"uplink_route_stats"`
 	UplinkStatistics   *ebpf.Map `ebpf:"uplink_statistics"`
@@ -276,6 +278,7 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.PdrsDownlinkIp4,
 		m.PdrsDownlinkIp6,
 		m.PdrsUplink,
+		m.RsEventMap,
 		m.SdfFilters,
 		m.UplinkRouteStats,
 		m.UplinkStatistics,

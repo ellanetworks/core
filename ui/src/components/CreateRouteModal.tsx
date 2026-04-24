@@ -18,30 +18,78 @@ import { createRoute } from "@/queries/routes";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
-const cidrRegex =
-  /^((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\/([1-9]|[1-2]\d|3[0-2])$/;
-const ipv4Regex =
-  /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+function isValidCIDR(value: string): boolean {
+  if (value.includes("/")) {
+    const parts = value.split("/");
+    if (parts.length !== 2) return false;
+    const addr = parts[0];
+    const prefix = parseInt(parts[1], 10);
+    if (isNaN(prefix)) return false;
+    try {
+      if (addr.includes(":")) {
+        return prefix >= 0 && prefix <= 128;
+      }
+      return prefix >= 0 && prefix <= 32;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+function isValidIP(value: string): boolean {
+  if (value.includes(":")) {
+    const ipv6Regex =
+      /^(?:(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|(?:(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4})?::(?:(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4})?)$/;
+    return ipv6Regex.test(value);
+  }
+  const parts = value.split(".");
+  if (parts.length !== 4) return false;
+  for (const part of parts) {
+    const num = parseInt(part, 10);
+    if (isNaN(num) || num < 0 || num > 255) return false;
+    if (part.length > 1 && part.startsWith("0")) return false;
+  }
+  return true;
+}
+
+const cidrRegex = /^.+\/\d+$/;
+const ipv4OrIpv6Regex = /^[0-9a-fA-F.:]+$/;
 
 const schema = yup.object().shape({
   defaultRoute: yup.boolean(),
   destination: yup.string().when(["defaultRoute"], (values, schema) => {
     const defaultRoute = values[0] as boolean;
     if (defaultRoute) {
-      return schema.oneOf(
-        ["0.0.0.0/0"],
-        "For a default route, destination must be 0.0.0.0/0",
+      return schema.test(
+        "default-route",
+        "For a default route, destination must be 0.0.0.0/0 or ::/0",
+        (value) => {
+          return value === "0.0.0.0/0" || value === "::/0";
+        },
       );
     } else {
       return schema
         .required("Destination is required")
-        .matches(cidrRegex, "Destination must be a valid CIDR (IPv4)");
+        .test(
+          "valid-cidr",
+          "Destination must be a valid CIDR (IPv4 or IPv6)",
+          (value) => {
+            return value != null && isValidCIDR(value);
+          },
+        );
     }
   }),
   gateway: yup
     .string()
     .required("Gateway is required")
-    .matches(ipv4Regex, "Gateway must be a valid IPv4 address"),
+    .test(
+      "valid-gateway",
+      "Gateway must be a valid IPv4 or IPv6 address",
+      (value) => {
+        return value != null && isValidIP(value);
+      },
+    ),
   interface: yup
     .string()
     .oneOf(["n3", "n6"], "Interface must be either n3 or n6")
@@ -92,13 +140,31 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({
   const [alert, setAlert] = useState<{ message: string }>({ message: "" });
 
   const handleChange = (field: string, value: string | number | boolean) => {
+    let newDestination = formValues.destination;
+
     if (field === "defaultRoute" && typeof value === "boolean") {
+      newDestination = value
+        ? formValues.gateway.includes(":")
+          ? "::/0"
+          : "0.0.0.0/0"
+        : "";
+
       setFormValues((prev) => ({
         ...prev,
         defaultRoute: value,
-        destination: value ? "0.0.0.0/0" : "",
+        destination: newDestination,
       }));
-      validateField("destination", value ? "0.0.0.0/0" : "");
+      validateField("destination", newDestination);
+    } else if (field === "gateway" && formValues.defaultRoute) {
+      const gatewayStr = String(value);
+      newDestination = gatewayStr.includes(":") ? "::/0" : "0.0.0.0/0";
+
+      setFormValues((prev) => ({
+        ...prev,
+        gateway: gatewayStr,
+        destination: newDestination,
+      }));
+      validateField("gateway", gatewayStr);
     } else {
       setFormValues((prev) => ({
         ...prev,
@@ -208,7 +274,7 @@ const CreateRouteModal: React.FC<CreateRouteModalProps> = ({
               onChange={(e) => handleChange("defaultRoute", e.target.checked)}
             />
           }
-          label="Default Route (0.0.0.0/0)"
+          label="Default Route (0.0.0.0/0 or ::/0)"
         />
         <TextField
           fullWidth

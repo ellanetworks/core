@@ -124,6 +124,7 @@ func TestCreateAndGetLease(t *testing.T) {
 	sessionID := 1
 	lease := &db.IPLease{
 		PoolID:    poolID,
+		PoolType:  "ipv4",
 		IMSI:      imsi,
 		SessionID: &sessionID,
 		Type:      "dynamic",
@@ -135,7 +136,7 @@ func TestCreateAndGetLease(t *testing.T) {
 	}
 
 	// Should be retrievable as a dynamic lease.
-	got, err := database.GetDynamicLease(ctx, poolID, imsi)
+	got, err := database.GetDynamicLease(ctx, poolID, "ipv4", imsi)
 	if err != nil {
 		t.Fatalf("GetDynamicLease: %s", err)
 	}
@@ -164,6 +165,7 @@ func TestCreateLease_UniqueConstraint(t *testing.T) {
 	sessionID := 1
 	lease := &db.IPLease{
 		PoolID:    poolID,
+		PoolType:  "ipv4",
 		IMSI:      imsi,
 		SessionID: &sessionID,
 		Type:      "dynamic",
@@ -191,6 +193,7 @@ func TestCreateLease_UniqueConstraint(t *testing.T) {
 	sessionID2 := 2
 	dup := &db.IPLease{
 		PoolID:    poolID,
+		PoolType:  "ipv4",
 		IMSI:      imsi2,
 		SessionID: &sessionID2,
 		Type:      "dynamic",
@@ -211,6 +214,7 @@ func TestUpdateLeaseSession(t *testing.T) {
 	sessID := 1
 	lease := &db.IPLease{
 		PoolID:    poolID,
+		PoolType:  "ipv4",
 		IMSI:      imsi,
 		SessionID: &sessID,
 		Type:      "dynamic",
@@ -221,7 +225,7 @@ func TestUpdateLeaseSession(t *testing.T) {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
-	got, err := database.GetDynamicLease(ctx, poolID, imsi)
+	got, err := database.GetDynamicLease(ctx, poolID, "ipv4", imsi)
 	if err != nil {
 		t.Fatalf("GetDynamicLease: %s", err)
 	}
@@ -231,7 +235,7 @@ func TestUpdateLeaseSession(t *testing.T) {
 		t.Fatalf("UpdateLeaseSession: %s", err)
 	}
 
-	got2, err := database.GetDynamicLease(ctx, poolID, imsi)
+	got2, err := database.GetDynamicLease(ctx, poolID, "ipv4", imsi)
 	if err != nil {
 		t.Fatalf("GetDynamicLease after update: %s", err)
 	}
@@ -248,6 +252,7 @@ func TestGetLeaseBySession(t *testing.T) {
 	sessionID := 42
 	lease := &db.IPLease{
 		PoolID:    poolID,
+		PoolType:  "ipv4",
 		IMSI:      imsi,
 		SessionID: &sessionID,
 		Type:      "dynamic",
@@ -258,7 +263,7 @@ func TestGetLeaseBySession(t *testing.T) {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
-	got, err := database.GetLeaseBySession(ctx, poolID, sessionID, imsi)
+	got, err := database.GetLeaseBySession(ctx, poolID, "ipv4", sessionID, imsi)
 	if err != nil {
 		t.Fatalf("GetLeaseBySession: %s", err)
 	}
@@ -268,7 +273,7 @@ func TestGetLeaseBySession(t *testing.T) {
 	}
 
 	// Wrong session should return not found.
-	_, err = database.GetLeaseBySession(ctx, poolID, 999, imsi)
+	_, err = database.GetLeaseBySession(ctx, poolID, "ipv4", 999, imsi)
 	if err != db.ErrNotFound {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
@@ -281,6 +286,7 @@ func TestDeleteDynamicLease(t *testing.T) {
 	sessionID := 5
 	lease := &db.IPLease{
 		PoolID:    poolID,
+		PoolType:  "ipv4",
 		IMSI:      imsi,
 		SessionID: &sessionID,
 		Type:      "dynamic",
@@ -291,7 +297,7 @@ func TestDeleteDynamicLease(t *testing.T) {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
-	got, err := database.GetDynamicLease(ctx, poolID, imsi)
+	got, err := database.GetDynamicLease(ctx, poolID, "ipv4", imsi)
 	if err != nil {
 		t.Fatalf("GetDynamicLease: %s", err)
 	}
@@ -300,7 +306,7 @@ func TestDeleteDynamicLease(t *testing.T) {
 		t.Fatalf("DeleteDynamicLease: %s", err)
 	}
 
-	_, err = database.GetDynamicLease(ctx, poolID, imsi)
+	_, err = database.GetDynamicLease(ctx, poolID, "ipv4", imsi)
 	if err != db.ErrNotFound {
 		t.Fatalf("expected ErrNotFound after delete, got %v", err)
 	}
@@ -330,7 +336,7 @@ func TestDeleteAllDynamicLeases(t *testing.T) {
 
 	// Dynamic lease 1.
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, IMSI: imsi,
+		PoolID: poolID, PoolType: "ipv4", IMSI: imsi,
 		SessionID: &sess1, Type: "dynamic", CreatedAt: now,
 	}, addr("192.168.1.10")); err != nil {
 		t.Fatalf("CreateLease 1: %s", err)
@@ -338,13 +344,13 @@ func TestDeleteAllDynamicLeases(t *testing.T) {
 
 	// Dynamic lease 2.
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, IMSI: imsi2,
+		PoolID: poolID, PoolType: "ipv4", IMSI: imsi2,
 		SessionID: &sess2, Type: "dynamic", CreatedAt: now,
 	}, addr("192.168.1.11")); err != nil {
 		t.Fatalf("CreateLease 2: %s", err)
 	}
 
-	count, err := database.CountLeasesByPool(ctx, poolID)
+	count, err := database.CountLeasesByPool(ctx, poolID, "ipv4")
 	if err != nil {
 		t.Fatalf("CountLeasesByPool: %s", err)
 	}
@@ -359,7 +365,7 @@ func TestDeleteAllDynamicLeases(t *testing.T) {
 	}
 
 	// No leases should remain.
-	count, err = database.CountLeasesByPool(ctx, poolID)
+	count, err = database.CountLeasesByPool(ctx, poolID, "ipv4")
 	if err != nil {
 		t.Fatalf("CountLeasesByPool after cleanup: %s", err)
 	}
@@ -378,7 +384,7 @@ func TestListActiveLeases(t *testing.T) {
 
 	// Active dynamic lease.
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, IMSI: imsi,
+		PoolID: poolID, PoolType: "ipv4", IMSI: imsi,
 		SessionID: &sess, Type: "dynamic", CreatedAt: now,
 	}, addr("192.168.1.5")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
@@ -406,7 +412,7 @@ func TestListLeasesByPool(t *testing.T) {
 	sess := 30
 
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, IMSI: imsi,
+		PoolID: poolID, PoolType: "ipv4", IMSI: imsi,
 		SessionID: &sess, Type: "dynamic", CreatedAt: now,
 	}, addr("192.168.1.1")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
@@ -414,13 +420,13 @@ func TestListLeasesByPool(t *testing.T) {
 
 	sess2 := 31
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, IMSI: imsi,
+		PoolID: poolID, PoolType: "ipv4", IMSI: imsi,
 		SessionID: &sess2, Type: "dynamic", CreatedAt: now,
 	}, addr("192.168.1.2")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
-	leases, err := database.ListLeasesByPool(ctx, poolID)
+	leases, err := database.ListLeasesByPool(ctx, poolID, "ipv4")
 	if err != nil {
 		t.Fatalf("ListLeasesByPool: %s", err)
 	}
@@ -438,7 +444,7 @@ func TestListLeaseAddressesByPool(t *testing.T) {
 	sess := 40
 
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, IMSI: imsi,
+		PoolID: poolID, PoolType: "ipv4", IMSI: imsi,
 		SessionID: &sess, Type: "dynamic", CreatedAt: now,
 	}, addr("192.168.1.3")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
@@ -446,13 +452,13 @@ func TestListLeaseAddressesByPool(t *testing.T) {
 
 	sess2 := 41
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, IMSI: imsi,
+		PoolID: poolID, PoolType: "ipv4", IMSI: imsi,
 		SessionID: &sess2, Type: "dynamic", CreatedAt: now,
 	}, addr("192.168.1.1")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
-	addrs, err := database.ListLeaseAddressesByPool(ctx, poolID)
+	addrs, err := database.ListLeaseAddressesByPool(ctx, poolID, "ipv4")
 	if err != nil {
 		t.Fatalf("ListLeaseAddressesByPool: %s", err)
 	}
@@ -489,7 +495,7 @@ func TestCountActiveLeases(t *testing.T) {
 
 	// One active lease.
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, IMSI: imsi,
+		PoolID: poolID, PoolType: "ipv4", IMSI: imsi,
 		SessionID: &sess, Type: "dynamic", CreatedAt: now,
 	}, addr("192.168.1.7")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
@@ -509,7 +515,7 @@ func TestCountLeasesByPool(t *testing.T) {
 	database, poolID, imsi := setupLeaseTestDB(t)
 	ctx := context.Background()
 
-	count, err := database.CountLeasesByPool(ctx, poolID)
+	count, err := database.CountLeasesByPool(ctx, poolID, "ipv4")
 	if err != nil {
 		t.Fatalf("CountLeasesByPool: %s", err)
 	}
@@ -522,13 +528,13 @@ func TestCountLeasesByPool(t *testing.T) {
 	sess := 60
 
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, IMSI: imsi,
+		PoolID: poolID, PoolType: "ipv4", IMSI: imsi,
 		SessionID: &sess, Type: "dynamic", CreatedAt: now,
 	}, addr("192.168.1.9")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
-	count, err = database.CountLeasesByPool(ctx, poolID)
+	count, err = database.CountLeasesByPool(ctx, poolID, "ipv4")
 	if err != nil {
 		t.Fatalf("CountLeasesByPool: %s", err)
 	}
@@ -544,7 +550,7 @@ func TestOnDeleteCascade_Subscriber(t *testing.T) {
 
 	sess := 70
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, IMSI: imsi,
+		PoolID: poolID, PoolType: "ipv4", IMSI: imsi,
 		SessionID: &sess, Type: "dynamic", CreatedAt: time.Now().Unix(),
 	}, addr("192.168.1.15")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
@@ -572,7 +578,7 @@ func TestOnDeleteCascade_DataNetwork(t *testing.T) {
 
 	sess := 80
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, IMSI: imsi,
+		PoolID: poolID, PoolType: "ipv4", IMSI: imsi,
 		SessionID: &sess, Type: "dynamic", CreatedAt: time.Now().Unix(),
 	}, addr("192.168.1.16")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
@@ -590,7 +596,7 @@ func TestOnDeleteCascade_DataNetwork(t *testing.T) {
 		t.Fatalf("DeleteDataNetwork: %s", err)
 	}
 
-	leases, err := database.ListLeasesByPool(ctx, poolID)
+	leases, err := database.ListLeasesByPool(ctx, poolID, "ipv4")
 	if err != nil {
 		t.Fatalf("ListLeasesByPool: %s", err)
 	}
@@ -618,7 +624,7 @@ func TestCountLeasesByIMSI(t *testing.T) {
 
 	// Add a dynamic lease.
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, IMSI: imsi,
+		PoolID: poolID, PoolType: "ipv4", IMSI: imsi,
 		SessionID: &sess, Type: "dynamic", CreatedAt: now,
 	}, addr("192.168.1.20")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
@@ -658,28 +664,28 @@ func TestListLeasesByPoolPage(t *testing.T) {
 	// Create 3 leases with addresses that sort as: .1, .10, .2
 	// (string sort vs address sort - validates ORDER BY)
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, IMSI: imsi,
+		PoolID: poolID, PoolType: "ipv4", IMSI: imsi,
 		SessionID: &sess1, Type: "dynamic", CreatedAt: now,
 	}, addr("192.168.1.10")); err != nil {
 		t.Fatalf("CreateLease 1: %s", err)
 	}
 
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, IMSI: imsi,
+		PoolID: poolID, PoolType: "ipv4", IMSI: imsi,
 		SessionID: &sess2, Type: "dynamic", CreatedAt: now,
 	}, addr("192.168.1.2")); err != nil {
 		t.Fatalf("CreateLease 2: %s", err)
 	}
 
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, IMSI: imsi2,
+		PoolID: poolID, PoolType: "ipv4", IMSI: imsi2,
 		SessionID: &sess3, Type: "dynamic", CreatedAt: now,
 	}, addr("192.168.1.1")); err != nil {
 		t.Fatalf("CreateLease 3: %s", err)
 	}
 
 	t.Run("first page", func(t *testing.T) {
-		leases, total, err := database.ListLeasesByPoolPage(ctx, poolID, 1, 2)
+		leases, total, err := database.ListLeasesByPoolPage(ctx, poolID, "ipv4", 1, 2)
 		if err != nil {
 			t.Fatalf("ListLeasesByPoolPage: %s", err)
 		}
@@ -703,7 +709,7 @@ func TestListLeasesByPoolPage(t *testing.T) {
 	})
 
 	t.Run("second page", func(t *testing.T) {
-		leases, total, err := database.ListLeasesByPoolPage(ctx, poolID, 2, 2)
+		leases, total, err := database.ListLeasesByPoolPage(ctx, poolID, "ipv4", 2, 2)
 		if err != nil {
 			t.Fatalf("ListLeasesByPoolPage: %s", err)
 		}
@@ -722,7 +728,7 @@ func TestListLeasesByPoolPage(t *testing.T) {
 	})
 
 	t.Run("empty pool", func(t *testing.T) {
-		leases, total, err := database.ListLeasesByPoolPage(ctx, "nonexistent-pool", 1, 25)
+		leases, total, err := database.ListLeasesByPoolPage(ctx, "nonexistent-pool", "ipv4", 1, 25)
 		if err != nil {
 			t.Fatalf("ListLeasesByPoolPage: %s", err)
 		}
@@ -775,27 +781,27 @@ func TestListLeaseAddressesByPool_NumericOrder(t *testing.T) {
 
 	// Insert in non-numeric order: .10, .2, .1
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, IMSI: imsi,
+		PoolID: poolID, PoolType: "ipv4", IMSI: imsi,
 		SessionID: &sess1, Type: "dynamic", CreatedAt: now,
 	}, addr("192.168.1.10")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, IMSI: imsi2,
+		PoolID: poolID, PoolType: "ipv4", IMSI: imsi2,
 		SessionID: &sess2, Type: "dynamic", CreatedAt: now,
 	}, addr("192.168.1.2")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
 	if err := database.CreateLease(ctx, &db.IPLease{
-		PoolID: poolID, IMSI: imsi3,
+		PoolID: poolID, PoolType: "ipv4", IMSI: imsi3,
 		SessionID: &sess3, Type: "dynamic", CreatedAt: now,
 	}, addr("192.168.1.1")); err != nil {
 		t.Fatalf("CreateLease: %s", err)
 	}
 
-	addrs, err := database.ListLeaseAddressesByPool(ctx, poolID)
+	addrs, err := database.ListLeaseAddressesByPool(ctx, poolID, "ipv4")
 	if err != nil {
 		t.Fatalf("ListLeaseAddressesByPool: %s", err)
 	}

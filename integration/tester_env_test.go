@@ -150,6 +150,19 @@ func bootstrapTesterCore(ctx context.Context, cl *client.Client) error {
 		return fmt.Errorf("create route: %w", err)
 	}
 
+	family := DetectIPFamily()
+
+	if family == IPv6Only || family == DualStack {
+		if err := cl.CreateRoute(ctx, &client.CreateRouteOptions{
+			Destination: UeIPv6Pool(),
+			Gateway:     N6IPv6Address(),
+			Interface:   "n6",
+			Metric:      0,
+		}); err != nil && !strings.Contains(err.Error(), "already exists") {
+			return fmt.Errorf("create ipv6 route: %w", err)
+		}
+	}
+
 	return nil
 }
 

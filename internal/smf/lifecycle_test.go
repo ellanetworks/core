@@ -169,7 +169,7 @@ func TestActivateTunnelAndPDR_HappyPath(t *testing.T) {
 		Ambr:    models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
 		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
 	}
-	pduAddr := net.ParseIP("10.0.0.1").To4()
+	pduAddr := netip.MustParseAddr("10.0.0.1")
 
 	err := smCtx.Tunnel.DataPath.ActivateTunnelAndPDR(s, smCtx, policy, pduAddr)
 	if err != nil {

@@ -92,6 +92,8 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 		pduSessionID2 uint8 = 2
 	)
 
+	pingDest := env.PingDestination()
+
 	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
 
 	sub := subscriber{
@@ -337,7 +339,7 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 		zap.String("UE IP", ueIP2),
 	)
 
-	cmd := exec.CommandContext(ctx, "ping", "-I", tun1, scenarios.DefaultPingDestination, "-c", "3", "-W", "1") // #nosec G204
+	cmd := exec.CommandContext(ctx, "ping", "-I", tun1, pingDest, "-c", "3", "-W", "1") // #nosec G204
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -347,10 +349,10 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 	logger.Logger.Debug("Ping successful on PDU session 1",
 		zap.String("DNN", dnn1),
 		zap.String("interface", tun1),
-		zap.String("destination", scenarios.DefaultPingDestination),
+		zap.String("destination", pingDest),
 	)
 
-	cmd = exec.CommandContext(ctx, "ping", "-I", tun2, scenarios.DefaultPingDestination, "-c", "3", "-W", "1") // #nosec G204
+	cmd = exec.CommandContext(ctx, "ping", "-I", tun2, pingDest, "-c", "3", "-W", "1") // #nosec G204
 
 	out, err = cmd.CombinedOutput()
 	if err != nil {
@@ -360,7 +362,7 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 	logger.Logger.Debug("Ping successful on PDU session 2",
 		zap.String("DNN", dnn2),
 		zap.String("interface", tun2),
-		zap.String("destination", scenarios.DefaultPingDestination),
+		zap.String("destination", pingDest),
 	)
 
 	err = gNodeB.CloseTunnel(gnbPDU1.DLTeid)

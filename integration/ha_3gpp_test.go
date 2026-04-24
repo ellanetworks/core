@@ -507,18 +507,33 @@ cluster:
 // configureNATAndRoute applies NAT + default route to each node directly.
 // These tables are node-scoped in HA mode and are not replicated.
 func configureNATAndRoute(ctx context.Context, nodeClients []*client.Client) error {
+	family := DetectIPFamily()
+
 	for i, c := range nodeClients {
-		if err := c.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: true}); err != nil {
-			return fmt.Errorf("update NAT on node %d: %w", i+1, err)
+		if family == IPv4Only || family == DualStack {
+			if err := c.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: true}); err != nil {
+				return fmt.Errorf("update NAT on node %d: %w", i+1, err)
+			}
+
+			if err := c.CreateRoute(ctx, &client.CreateRouteOptions{
+				Destination: "8.8.8.8/32",
+				Gateway:     "10.6.0.3",
+				Interface:   "n6",
+				Metric:      0,
+			}); err != nil && !strings.Contains(err.Error(), "already exists") {
+				return fmt.Errorf("create route on node %d: %w", i+1, err)
+			}
 		}
 
-		if err := c.CreateRoute(ctx, &client.CreateRouteOptions{
-			Destination: "8.8.8.8/32",
-			Gateway:     "10.6.0.3",
-			Interface:   "n6",
-			Metric:      0,
-		}); err != nil && !strings.Contains(err.Error(), "already exists") {
-			return fmt.Errorf("create route on node %d: %w", i+1, err)
+		if family == IPv6Only || family == DualStack {
+			if err := c.CreateRoute(ctx, &client.CreateRouteOptions{
+				Destination: UeIPv6Pool(),
+				Gateway:     N6IPv6Address(),
+				Interface:   "n6",
+				Metric:      0,
+			}); err != nil && !strings.Contains(err.Error(), "already exists") {
+				return fmt.Errorf("create ipv6 route: %w", err)
+			}
 		}
 	}
 

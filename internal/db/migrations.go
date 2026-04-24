@@ -33,6 +33,7 @@ var migrations = []migration{
 	{10, "drop bgp_peers.nodeID and cluster_members.maxSchemaVersion (both dead post-HA-redesign)", migrateV10},
 	{11, "replicated AUTOINCREMENT PKs → TEXT (UUID); spec_uuid.md", migrateV11},
 	{12, "replace chain-PKI cluster TLS with fingerprint pinning (cluster_node_certs)", migrateV12},
+	{13, "add ipv6Pool column to data_networks and poolType column to ip_leases", migrateV13},
 }
 
 // baselineVersion is the highest migration that runs locally during
@@ -47,7 +48,7 @@ var migrations = []migration{
 // reasons (UUID-typed columns must be in place before request handlers
 // fire). This is the same reason 1.10.1 → 1.11 cannot be a rolling
 // upgrade; operators take that hop via backup/restore.
-const baselineVersion = 12
+const baselineVersion = 13
 
 // SchemaVersion returns the highest migration version this binary understands.
 // Used during cluster join to reject version-skewed nodes.
