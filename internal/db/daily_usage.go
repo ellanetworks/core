@@ -54,6 +54,18 @@ GROUP BY imsi
 ORDER BY COALESCE(SUM(bytes_uplink), 0) + COALESCE(SUM(bytes_downlink), 0) DESC`
 )
 
+const getRawDailyUsageStmt = `
+SELECT
+    &DailyUsage.epoch_day,
+    &DailyUsage.imsi,
+    &DailyUsage.bytes_uplink,
+    &DailyUsage.bytes_downlink
+FROM %s
+WHERE
+    epoch_day >= $UsageFilters.start_date
+    AND epoch_day <= $UsageFilters.end_date
+ORDER BY epoch_day ASC, imsi ASC`
+
 type UsagePerDay struct {
 	EpochDay      int64 `db:"epoch_day"`
 	BytesUplink   int64 `db:"bytes_uplink"`
@@ -174,6 +186,49 @@ func (db *Database) GetUsagePerDay(ctx context.Context, imsi string, startDate t
 	span.SetStatus(codes.Ok, "")
 
 	return dailyUsage, nil
+}
+
+func (db *Database) GetRawDailyUsage(ctx context.Context, startDate time.Time, endDate time.Time) ([]DailyUsage, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (raw)", "SELECT", DailyUsageTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			attribute.String("db.collection", DailyUsageTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(DailyUsageTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(DailyUsageTableName, "select").Inc()
+
+	filters := UsageFilters{
+		StartDate: DaysSinceEpoch(startDate),
+		EndDate:   DaysSinceEpoch(endDate),
+	}
+
+	var rows []DailyUsage
+
+	err := db.conn().Query(ctx, db.getRawDailyUsageStmt, filters).GetAll(&rows)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetStatus(codes.Ok, "no rows")
+			return nil, nil
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return rows, nil
 }
 
 func (db *Database) GetUsagePerSubscriber(ctx context.Context, imsi string, startDate time.Time, endDate time.Time) ([]UsagePerSub, error) {

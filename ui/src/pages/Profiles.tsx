@@ -17,12 +17,15 @@ import {
 import CreateProfileModal from "@/components/CreateProfileModal";
 import EmptyState from "@/components/EmptyState";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 import { Link } from "react-router-dom";
 
 const ProfilesPage: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
-  const canEdit = role === "Admin" || role === "Network Manager";
+  const { isFleetManaged } = useFleet();
+  const canEdit =
+    (role === "Admin" || role === "Network Manager") && !isFleetManaged;
 
   const theme = useTheme();
   const gridTheme = useMemo(

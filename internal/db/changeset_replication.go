@@ -68,6 +68,7 @@ var replicatedChangesetTables = []string{
 	ClusterJoinTokensTableName,
 	ClusterPKIStateTableName,
 	DailyUsageTableName,
+	FleetTableName,
 	"schema_version",
 }
 

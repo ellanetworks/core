@@ -33,6 +33,7 @@ import {
   type ListPoliciesResponse,
 } from "@/queries/policies";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import EditProfileModal from "@/components/EditProfileModal";
 import CreatePolicyModal from "@/components/CreatePolicyModal";
@@ -47,9 +48,11 @@ const ProfileDetail: React.FC = () => {
   const { name } = useParams<{ name: string }>();
   const navigate = useNavigate();
   const { role, accessToken, authReady } = useAuth();
+  const { isFleetManaged } = useFleet();
   const { showSnackbar } = useSnackbar();
   const theme = useTheme();
-  const canEdit = role === "Admin" || role === "Network Manager";
+  const canEdit =
+    (role === "Admin" || role === "Network Manager") && !isFleetManaged;
   const queryClient = useQueryClient();
 
   const gridTheme = useMemo(

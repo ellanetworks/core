@@ -13,6 +13,11 @@ type ClusterStatus struct {
 	LeaderAPIAddress string `json:"leaderAPIAddress,omitempty"`
 }
 
+type FleetStatus struct {
+	Managed    bool   `json:"managed"`
+	LastSyncAt string `json:"lastSyncAt,omitempty"`
+}
+
 type Status struct {
 	Version       string         `json:"version"`
 	Revision      string         `json:"revision,omitempty"`
@@ -20,6 +25,7 @@ type Status struct {
 	Ready         bool           `json:"ready"`
 	SchemaVersion int            `json:"schemaVersion"`
 	Cluster       *ClusterStatus `json:"cluster,omitempty"`
+	Fleet         FleetStatus    `json:"fleet"`
 }
 
 // GetStatus retrieves the current status of the system.

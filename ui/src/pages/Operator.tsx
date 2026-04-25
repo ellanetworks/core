@@ -39,6 +39,7 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EditOperatorNASSecurityModal from "@/components/EditOperatorNASSecurityModal";
 import EditOperatorSPNModal from "@/components/EditOperatorSPNModal";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
@@ -67,6 +68,7 @@ const tableContainerSx = {
 const Operator = () => {
   const theme = useTheme();
   const { role, accessToken, authReady } = useAuth();
+  const { isFleetManaged } = useFleet();
 
   const [isEditOperatorIdModalOpen, setEditOperatorIdModalOpen] =
     useState(false);
@@ -122,7 +124,8 @@ const Operator = () => {
 
   const { showSnackbar } = useSnackbar();
 
-  const canEdit = role === "Admin" || role === "Network Manager";
+  const canEdit =
+    (role === "Admin" || role === "Network Manager") && !isFleetManaged;
 
   const handleEditOperatorIdClick = () => setEditOperatorIdModalOpen(true);
   const handleEditOperatorCodeClick = () => setEditOperatorCodeModalOpen(true);
