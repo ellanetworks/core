@@ -36,6 +36,12 @@ var (
 	opDeleteDynamicLease        = registerChangesetOp("DeleteDynamicLease", (*Database).applyDeleteDynamicLease)
 	opDeleteDynamicLeasesByNode = registerChangesetOp("DeleteDynamicLeasesByNode", (*Database).applyDeleteDynamicLeasesByNode)
 	opUpdateLeaseNode           = registerChangesetOp("UpdateLeaseNode", (*Database).applyUpdateLeaseNode)
+	// AllocateIPLease replaces the follower-side pre-pick-then-forward
+	// path. The wire payload is just the intent (poolID, IMSI, sessionID,
+	// nodeID); the leader's apply function does the SELECT-then-INSERT
+	// atomically inside leaderCaptureAndPropose, so concurrent allocations
+	// from any node are serialised by proposeMu.
+	opAllocateIPLease = registerChangesetOp("AllocateIPLease", (*Database).applyAllocateIPLease)
 )
 
 // Audit logs

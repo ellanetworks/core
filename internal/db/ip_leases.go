@@ -69,6 +69,71 @@ func (l *IPLease) Address() netip.Addr {
 	return addr
 }
 
+// AllocateIPLease atomically resolves and inserts a dynamic IP lease for
+// (poolID, IMSI, sessionID, nodeID). On the leader, the resolution and
+// INSERT happen inside leaderCaptureAndPropose's proposeMu; on a
+// follower, the call is forwarded to the leader through the existing
+// /cluster/internal/propose path, so the allocation is serialised
+// regardless of which node initiated it. Returns the chosen address.
+//
+// This replaces the old "follower picks IP locally and forwards
+// CreateLease(IP=X)" path that raced under concurrency: two followers
+// reading a stale local view could both pick the same offset, and the
+// second forwarded INSERT collided at the leader's unique constraint.
+func (db *Database) AllocateIPLease(ctx context.Context, poolID int, imsi string, sessionID int, nodeID int) (netip.Addr, error) {
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (allocate)", "INSERT", IPLeasesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("INSERT"),
+			attribute.String("db.collection", IPLeasesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(IPLeasesTableName, "allocate"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "allocate").Inc()
+
+	raw, err := opAllocateIPLease.Invoke(db, &allocateIPLeasePayload{
+		PoolID:    poolID,
+		IMSI:      imsi,
+		SessionID: sessionID,
+		NodeID:    nodeID,
+	})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return netip.Addr{}, err
+	}
+
+	addrStr, ok := raw.(string)
+	if !ok {
+		err := fmt.Errorf("allocate IP lease: unexpected apply result type %T", raw)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return netip.Addr{}, err
+	}
+
+	addr, err := netip.ParseAddr(addrStr)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return netip.Addr{}, fmt.Errorf("parse allocated address %q: %w", addrStr, err)
+	}
+
+	span.SetAttributes(attribute.String("ip", addr.String()))
+	span.SetStatus(codes.Ok, "")
+
+	return addr, nil
+}
+
 // CreateLease inserts a new IP lease row. The address is stored as a 16-byte
 // binary form. Returns ErrAlreadyExists if the (poolID, addressBin) unique
 // constraint is violated.

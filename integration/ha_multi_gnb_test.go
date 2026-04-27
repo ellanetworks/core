@@ -56,6 +56,7 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 	// Per-tester gNB topology. Each tester runs in its own container with
 	// its own N2 + N3 IPs and is pinned to a single core. The IMSI pool
 	// is partitioned by gNB so subscribers don't collide across testers.
+	// imsis is populated below from imsiBase + uesPerGNB.
 	type gnbSpec struct {
 		service  string // compose service name
 		gnbID    string
@@ -63,6 +64,7 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 		n3       string // gNB N3 address (n3 bridge)
 		coreN2   string // target core's NGAP listener
 		imsiBase string // first IMSI for this tester's UE pool
+		imsis    []string
 	}
 
 	gnbs := []gnbSpec{
@@ -157,12 +159,17 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 
 	// 15 subscribers (5 per gNB), all sharing the default Key/OpC/SQN
 	// since none of them register more than once before the test ends.
-	allIMSIs := make([]string, 0, len(gnbs)*uesPerGNB)
+	// Each gNB's IMSI list is also stored on the gnbSpec so the
+	// post-scenario assertions can query the correct core per UE: AMF
+	// state (registered, PDU sessions) is per-node by design and is
+	// visible only on the core where the UE actually registered.
 	subSpec := scenarios.FixtureSpec{}
 
-	for _, g := range gnbs {
+	for gi := range gnbs {
+		gnbs[gi].imsis = make([]string, 0, uesPerGNB)
+
 		for i := 0; i < uesPerGNB; i++ {
-			imsi, err := offsetIMSI15(g.imsiBase, i)
+			imsi, err := offsetIMSI15(gnbs[gi].imsiBase, i)
 			if err != nil {
 				t.Fatalf("compute IMSI: %v", err)
 			}
@@ -175,7 +182,7 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 				ProfileName:    scenarios.DefaultProfileName,
 			})
 
-			allIMSIs = append(allIMSIs, imsi)
+			gnbs[gi].imsis = append(gnbs[gi].imsis, imsi)
 		}
 	}
 
@@ -247,40 +254,49 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 
 	t.Log("all 3 scenarios passed; verifying cluster state")
 
-	// All 15 subscribers must be Registered with at least one PDU
-	// session. This is the primary functional assertion: ping success
-	// inside each tester proves the per-UE flow worked, and this
-	// confirms the leader's view of subscriber state matches.
-	leader := findFirstLeader(ctx, t, nodeClients)
+	// AMF state (status.Registered, PDU sessions) is per-node and is
+	// not replicated — UE context replication is an explicit non-goal
+	// in spec_security_ha.md. So each gNB's UEs are visible only on
+	// the core where the gNB is homed: query each target core for its
+	// own UEs, never the leader for everyone's. The relationship
+	// gnbs[i] ↔ nodeClients[i] is preserved by bringUpHA3GPPCluster
+	// (clients are returned in node-id order 1, 2, 3).
+	for i, gn := range gnbs {
+		c := nodeClients[i]
 
-	for _, imsi := range allIMSIs {
-		sub, err := leader.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: imsi})
-		if err != nil {
-			t.Fatalf("GetSubscriber(%s): %v", imsi, err)
-		}
+		for _, imsi := range gn.imsis {
+			sub, err := c.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: imsi})
+			if err != nil {
+				t.Fatalf("GetSubscriber(%s) on %s: %v", imsi, gn.service, err)
+			}
 
-		if !sub.Status.Registered {
-			t.Errorf("subscriber %s: expected Registered=true, got false", imsi)
-		}
+			if !sub.Status.Registered {
+				t.Errorf("%s: subscriber %s: expected Registered=true, got false", gn.service, imsi)
+			}
 
-		if len(sub.PDUSessions) == 0 {
-			t.Errorf("subscriber %s: expected >=1 PDU session, got 0", imsi)
+			if len(sub.PDUSessions) == 0 {
+				t.Errorf("%s: subscriber %s: expected >=1 PDU session, got 0", gn.service, imsi)
 
-			continue
-		}
+				continue
+			}
 
-		ip := sub.PDUSessions[0].IPAddress
-		if !strings.HasPrefix(ip, "10.45.") {
-			t.Errorf("subscriber %s: PDU session IP %q not in expected pool 10.45.0.0/16", imsi, ip)
+			ip := sub.PDUSessions[0].IPAddress
+			if !strings.HasPrefix(ip, "10.45.") {
+				t.Errorf("%s: subscriber %s: PDU session IP %q not in expected pool 10.45.0.0/16",
+					gn.service, imsi, ip)
+			}
 		}
 	}
 
 	// Membership and autopilot should still be healthy after the load —
 	// nothing in the steady-state scenario should have destabilised the
-	// cluster.
+	// cluster. Both checks are cluster-wide: assertMembershipConsistent
+	// queries every node and compares; GetAutopilotState is a leader-only
+	// read that the proxy middleware forwards transparently from any
+	// node.
 	assertMembershipConsistent(t, ctx, nodeClients)
 
-	apState, err := leader.GetAutopilotState(ctx)
+	apState, err := nodeClients[0].GetAutopilotState(ctx)
 	if err != nil {
 		t.Fatalf("GetAutopilotState: %v", err)
 	}
@@ -292,27 +308,6 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 	if apState.FailureTolerance != 1 {
 		t.Errorf("expected failureTolerance=1 after load, got %d", apState.FailureTolerance)
 	}
-}
-
-// findFirstLeader returns whichever of clients reports Role=Leader.
-// Fails the test if none do.
-func findFirstLeader(ctx context.Context, t *testing.T, clients []*client.Client) *client.Client {
-	t.Helper()
-
-	for _, c := range clients {
-		status, err := c.GetStatus(ctx)
-		if err != nil || status.Cluster == nil {
-			continue
-		}
-
-		if status.Cluster.Role == "Leader" {
-			return c
-		}
-	}
-
-	t.Fatal("no leader found")
-
-	return nil
 }
 
 // offsetIMSI15 increments the last digits of base by offset and returns

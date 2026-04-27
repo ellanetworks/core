@@ -8,9 +8,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
+	"time"
 
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/dbwriter"
+	"github.com/ellanetworks/core/internal/ipam"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	hraft "github.com/hashicorp/raft"
 )
@@ -347,6 +350,155 @@ func (db *Database) applyUpdateLeaseNode(ctx context.Context, lease *IPLease) (a
 	}
 
 	return nil, nil
+}
+
+// allocateIPLeasePayload is the wire payload for AllocateIPLease. The
+// caller does not pre-resolve the address — that is the whole point of
+// this op. The leader's apply function picks the address atomically
+// inside leaderCaptureAndPropose's proposeMu.
+type allocateIPLeasePayload struct {
+	PoolID    int    `json:"poolId"`
+	IMSI      string `json:"imsi"`
+	SessionID int    `json:"sessionId"`
+	NodeID    int    `json:"nodeId"`
+}
+
+// applyAllocateIPLease atomically resolves an IP for (poolID, IMSI,
+// sessionID, nodeID) and inserts the lease. Runs under
+// leaderCaptureAndPropose's proposeMu and inside captureChangeset's
+// pinned connection, so the merge-scan for a free address and the
+// INSERT are serialised against every other replicated write — no
+// other allocation can race in between.
+//
+// Every query and write goes through db.runner(ctx) so they target the
+// pinned SQLite connection set up by applyWithPinnedConn. Calling the
+// public DB methods (GetDataNetworkByID, GetDynamicLease, etc.) here
+// would dispatch to db.conn() — the shared pool with MaxOpenConns=1
+// whose only connection is already held by the active capture, and
+// every such SELECT would deadlock until the proposeTimeout context
+// fires.
+//
+// Replaces the SequentialAllocator path that had each follower locally
+// pick a free IP and forward only the INSERT: under concurrency, two
+// followers could pick the same offset from a stale local view; the
+// second INSERT then collided at the leader's unique constraint and
+// surfaced as "capture sqlite changeset: already exists" with no retry
+// because the ipam.ErrAlreadyExists sentinel did not survive the
+// proxy boundary.
+func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLeasePayload) (any, error) {
+	if p.IMSI == "" {
+		return nil, fmt.Errorf("IMSI required")
+	}
+
+	runner := db.runner(ctx)
+
+	// Resolve the pool's CIDR. Inlined query against the pinned runner;
+	// see function comment.
+	dn := DataNetwork{ID: p.PoolID}
+
+	if err := runner.Query(ctx, db.getDataNetworkByIDStmt, dn).Get(&dn); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("data network %d not found", p.PoolID)
+		}
+
+		return nil, fmt.Errorf("get data network %d: %w", p.PoolID, err)
+	}
+
+	pool, err := ipam.NewPool(dn.ID, dn.IPPool)
+	if err != nil {
+		return nil, fmt.Errorf("parse pool %q: %w", dn.IPPool, err)
+	}
+
+	sessionID := p.SessionID
+
+	// Step 1: existing dynamic lease (re-registration). Update the
+	// owning node and session and return its address.
+	existing := IPLease{PoolID: p.PoolID, IMSI: p.IMSI}
+
+	err = runner.Query(ctx, db.getDynamicLeaseStmt, existing).Get(&existing)
+	switch {
+	case err == nil:
+		existing.SessionID = &sessionID
+		if existing.NodeID != p.NodeID {
+			existing.NodeID = p.NodeID
+			if _, applyErr := db.applyUpdateLeaseNode(ctx, &existing); applyErr != nil {
+				return nil, fmt.Errorf("update lease node: %w", applyErr)
+			}
+		} else {
+			if _, applyErr := db.applyUpdateLeaseSession(ctx, &existing); applyErr != nil {
+				return nil, fmt.Errorf("update lease session: %w", applyErr)
+			}
+		}
+
+		return existing.Address().String(), nil
+	case errors.Is(err, sql.ErrNoRows):
+		// fall through to fresh allocation
+	default:
+		return nil, fmt.Errorf("get dynamic lease: %w", err)
+	}
+
+	// Step 2: list every allocated address in this pool and convert
+	// to sorted offsets so the merge-scan can skip them in O(N).
+	var leases []IPLease
+
+	err = runner.Query(ctx, db.listLeaseAddressesByPoolStmt, IPLease{PoolID: p.PoolID}).GetAll(&leases)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("list lease addresses: %w", err)
+	}
+
+	allocated := make([]int, 0, len(leases))
+
+	for i := range leases {
+		offset := pool.OffsetOf(leases[i].Address())
+		if offset >= 0 {
+			allocated = append(allocated, offset)
+		}
+	}
+
+	sort.Ints(allocated)
+
+	// Step 3: merge-scan. Under proposeMu the SELECT view is stable, so
+	// the first free offset we find is also free at INSERT time. The
+	// inner ErrAlreadyExists branch is defensive only — it should be
+	// unreachable while proposeMu is held.
+	poolSize := pool.Size()
+	firstUsable := pool.FirstUsable()
+	allocIdx := 0
+	now := time.Now().Unix()
+
+	for offset := firstUsable; offset < firstUsable+poolSize; offset++ {
+		for allocIdx < len(allocated) && allocated[allocIdx] < offset {
+			allocIdx++
+		}
+
+		if allocIdx < len(allocated) && allocated[allocIdx] == offset {
+			continue
+		}
+
+		addr := pool.AddressAtOffset(offset)
+		bin := addr.As16()
+		lease := &IPLease{
+			PoolID:     p.PoolID,
+			AddressBin: bin[:],
+			IMSI:       p.IMSI,
+			SessionID:  &sessionID,
+			Type:       "dynamic",
+			CreatedAt:  now,
+			NodeID:     p.NodeID,
+		}
+
+		if _, applyErr := db.applyCreateLease(ctx, lease); applyErr != nil {
+			if errors.Is(applyErr, ErrAlreadyExists) {
+				continue
+			}
+
+			return nil, fmt.Errorf("create lease: %w", applyErr)
+		}
+
+		return addr.String(), nil
+	}
+
+	return nil, ipam.ErrPoolExhausted
 }
 
 func (db *Database) applyInsertAuditLog(ctx context.Context, p *auditLogPayload) (any, error) {
