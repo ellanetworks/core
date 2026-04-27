@@ -1,0 +1,29 @@
+logging:
+  system:
+    level: "debug"
+    output: "stdout"
+  audit:
+    output: "stdout"
+db:
+  path: "/data/ella.db"
+interfaces:
+  n2:
+    address: "10.100.0.11"
+    port: 38412
+  n3:
+    address: "10.3.0.11"
+  n6:
+    name: "n6"
+  api:
+    address: "10.100.0.11"
+    port: 5002
+xdp:
+  attach-mode: "generic"
+cluster:
+  enabled: true
+  node-id: 1
+  bind-address: "10.100.0.11:7000"
+  peers:
+      - "10.100.0.11:7000"
+      - "10.100.0.12:7000"
+      - "10.100.0.13:7000"

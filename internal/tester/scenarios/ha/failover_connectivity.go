@@ -6,25 +6,16 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-	"github.com/ellanetworks/core/internal/tester/testutil"
-	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
-	"github.com/ellanetworks/core/internal/tester/ue"
-	"github.com/ellanetworks/core/internal/tester/ue/sidf"
-	"github.com/free5gc/nas/nasMessage"
+	"github.com/ellanetworks/core/internal/tester/scenarios/common"
 	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
-
-// PDUSessionType mirrors the constant in scenarios/ue. Redefined here
-// because this package does not import scenarios/ue.
-const pduSessionType = nasMessage.PDUSessionTypeIPv4
 
 // failoverMarker is printed to stdout after the phase-1 flow completes,
 // signalling the orchestrator (integration test) that the primary core
@@ -216,97 +207,16 @@ func runFailoverConnectivity(ctx context.Context, env scenarios.Env) error {
 	return nil
 }
 
-// registerAndPing drives one UE through Initial Registration, PDU Session
-// Establishment, GTP tunnel setup, and a ping through the tunnel. It
-// reuses the default subscriber (scenarios.DefaultIMSI, etc.) for both
-// phases — the fixture provisions it once.
+// registerAndPing is a thin wrapper around common.RegisterAndPing using
+// the default subscriber. Both phases share the same IMSI; phase 2
+// re-registers under a different RAN-UE-NGAP-ID and tunnel name to
+// avoid colliding with stale gNB-local state from phase 1.
 func registerAndPing(ctx context.Context, gNodeB *gnb.GnodeB, ranUENGAPID int64, tunInterfaceName string) error {
-	newUE, err := ue.NewUE(&ue.UEOpts{
-		GnodeB:         gNodeB,
-		PDUSessionID:   scenarios.DefaultPDUSessionID,
-		PDUSessionType: pduSessionType,
-		Msin:           scenarios.DefaultIMSI[5:],
-		K:              scenarios.DefaultKey,
-		OpC:            scenarios.DefaultOPC,
-		Amf:            scenarios.DefaultAMF,
-		Sqn:            scenarios.DefaultSequenceNumber,
-		Mcc:            scenarios.DefaultMCC,
-		Mnc:            scenarios.DefaultMNC,
-		HomeNetworkPublicKey: sidf.HomeNetworkPublicKey{
-			ProtectionScheme: sidf.NullScheme,
-			PublicKeyID:      "0",
-		},
-		RoutingIndicator: scenarios.DefaultRoutingIndicator,
-		DNN:              scenarios.DefaultDNN,
-		Sst:              scenarios.DefaultSST,
-		Sd:               scenarios.DefaultSD,
-		IMEISV:           scenarios.DefaultIMEISV,
-		UeSecurityCapability: testutil.GetUESecurityCapability(&testutil.UeSecurityCapability{
-			Integrity: testutil.IntegrityAlgorithms{
-				Nia2: true,
-			},
-			Ciphering: testutil.CipheringAlgorithms{
-				Nea0: true,
-				Nea2: true,
-			},
-		}),
-	})
-	if err != nil {
-		return fmt.Errorf("create UE: %w", err)
-	}
-
-	gNodeB.AddUE(ranUENGAPID, newUE)
-
-	if _, err := procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
-		RANUENGAPID:  ranUENGAPID,
-		PDUSessionID: scenarios.DefaultPDUSessionID,
-		UE:           newUE,
-	}); err != nil {
-		return fmt.Errorf("initial registration: %w", err)
-	}
-
-	if _, err := newUE.WaitForPDUSession(scenarios.DefaultPDUSessionID, 5*time.Second); err != nil {
-		return fmt.Errorf("wait UE PDU session: %w", err)
-	}
-
-	uePduSession := newUE.GetPDUSession(scenarios.DefaultPDUSessionID)
-	ueIP := uePduSession.UEIP + "/16"
-
-	gnbPDUSession, err := gNodeB.WaitForPDUSession(ranUENGAPID, int64(scenarios.DefaultPDUSessionID), 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("wait gNB PDU session: %w", err)
-	}
-
-	if _, err := gNodeB.AddTunnel(&gnb.NewTunnelOpts{
-		UEIP:             ueIP,
-		UpfIP:            gnbPDUSession.UpfAddress,
+	return common.RegisterAndPing(ctx, &common.RegisterAndPingOpts{
+		GNB:              gNodeB,
+		RANUENGAPID:      ranUENGAPID,
+		PDUSessionID:     scenarios.DefaultPDUSessionID,
+		IMSI:             scenarios.DefaultIMSI,
 		TunInterfaceName: tunInterfaceName,
-		ULteid:           gnbPDUSession.ULTeid,
-		DLteid:           gnbPDUSession.DLTeid,
-		MTU:              uePduSession.MTU,
-		QFI:              uePduSession.QFI,
-	}); err != nil {
-		return fmt.Errorf("create GTP tunnel %q: %w", tunInterfaceName, err)
-	}
-
-	// #nosec G204 -- ping is fixed; tunInterfaceName is internally derived; PingDestination is a test constant
-	cmd := exec.CommandContext(ctx, "ping",
-		"-I", tunInterfaceName,
-		scenarios.DefaultPingDestination,
-		"-c", "3",
-		"-W", "1",
-	)
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("ping via %s: %w\noutput:\n%s", tunInterfaceName, err, string(out))
-	}
-
-	logger.Logger.Debug(
-		"ping ok",
-		zap.String("interface", tunInterfaceName),
-		zap.String("destination", scenarios.DefaultPingDestination),
-	)
-
-	return nil
+	})
 }
