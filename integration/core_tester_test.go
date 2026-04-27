@@ -19,6 +19,7 @@ var scenariosSkipped = map[string]string{
 	"ue/xn_handover_connectivity": "multi-gNB, out of scope",
 	"ue/paging/downlink_data":     "paging, out of scope",
 	"ha/failover_connectivity":    "multi-core HA topology, covered by TestIntegration3GPPHAFailover",
+	"multi/cluster_traffic":       "multi-core HA topology, covered by TestIntegration3GPPMultiGNB",
 }
 
 // TestIntegrationTester brings the core-tester compose up once,
