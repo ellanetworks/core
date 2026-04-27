@@ -17,15 +17,15 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^9.0.0",
     "@mui/material": "^9.0.0",
-    "@mui/x-charts": "^9.0.2",
-    "@mui/x-data-grid": "^9.0.2",
-    "@mui/x-date-pickers": "^9.0.2",
-    "@tanstack/react-query": "^5.99.2",
+    "@mui/x-charts": "^9.0.3",
+    "@mui/x-data-grid": "^9.0.3",
+    "@mui/x-date-pickers": "^9.0.3",
+    "@tanstack/react-query": "^5.100.5",
     "dayjs": "^1.11.20",
     "jwt-decode": "^4.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-router-dom": "^7.14.1",
+    "react-router-dom": "^7.14.2",
     "yup": "1.7.1"
   },
   "devDependencies": {
@@ -34,13 +34,13 @@
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^6.0.0",
     "autoprefixer": "^10.5.0",
-    "@tailwindcss/postcss": "^4.2.2",
+    "@tailwindcss/postcss": "^4.2.4",
     "eslint": "9.32.0",
     "prettier": "^3.8.3",
-    "prettier-plugin-tailwindcss": "^0.7.2",
+    "prettier-plugin-tailwindcss": "^0.8.0",
     "sass-embedded": "^1.99.0",
     "tailwindcss": "^4.1.17",
     "typescript": "^6.0.3",
-    "vite": "^8.0.9"
+    "vite": "^8.0.10"
   }
 }
