@@ -1451,13 +1451,33 @@ var clusterPortPartitionRules = [][]string{
 	{"OUTPUT", "--sport", "7000"},
 }
 
-func partitionClusterPort(ctx context.Context, dc *DockerClient, container string) error {
-	for _, rule := range clusterPortPartitionRules {
-		argv := append([]string{"/usr/sbin/iptables-nft", "-A", rule[0], "-p", "tcp"}, rule[1:]...)
-		argv = append(argv, "-j", "DROP")
+// firewallBinariesForFamily returns the iptables variants that need rules
+// applied for the current IP_VERSION. iptables-nft only manages IPv4 and
+// ip6tables-nft only manages IPv6 — applying v4 rules in IPv6 mode silently
+// does nothing, which previously caused the partition test to time out
+// waiting for an election that could never start because cluster traffic
+// was never blocked. The bare-base rock ships both binaries but no
+// unbranded iptables symlink, so we use the absolute paths.
+func firewallBinariesForFamily() []string {
+	switch DetectIPFamily() {
+	case IPv6Only:
+		return []string{"/usr/sbin/ip6tables-nft"}
+	case DualStack:
+		return []string{"/usr/sbin/iptables-nft", "/usr/sbin/ip6tables-nft"}
+	default:
+		return []string{"/usr/sbin/iptables-nft"}
+	}
+}
 
-		if _, err := dc.Exec(ctx, container, argv, false, 10*time.Second, nil); err != nil {
-			return fmt.Errorf("apply %v: %w", argv, err)
+func partitionClusterPort(ctx context.Context, dc *DockerClient, container string) error {
+	for _, bin := range firewallBinariesForFamily() {
+		for _, rule := range clusterPortPartitionRules {
+			argv := append([]string{bin, "-A", rule[0], "-p", "tcp"}, rule[1:]...)
+			argv = append(argv, "-j", "DROP")
+
+			if _, err := dc.Exec(ctx, container, argv, false, 10*time.Second, nil); err != nil {
+				return fmt.Errorf("apply %v: %w", argv, err)
+			}
 		}
 	}
 
@@ -1467,15 +1487,17 @@ func partitionClusterPort(ctx context.Context, dc *DockerClient, container strin
 func healClusterPort(ctx context.Context, dc *DockerClient, container string) error {
 	var firstErr error
 
-	for _, rule := range clusterPortPartitionRules {
-		argv := append([]string{"/usr/sbin/iptables-nft", "-D", rule[0], "-p", "tcp"}, rule[1:]...)
-		argv = append(argv, "-j", "DROP")
+	for _, bin := range firewallBinariesForFamily() {
+		for _, rule := range clusterPortPartitionRules {
+			argv := append([]string{bin, "-D", rule[0], "-p", "tcp"}, rule[1:]...)
+			argv = append(argv, "-j", "DROP")
 
-		// Best-effort: if a rule was never added (partial setup) the
-		// delete fails with exit 1. Record the first error but keep
-		// removing the rest so we never leave a half-partitioned node.
-		if _, err := dc.Exec(ctx, container, argv, false, 10*time.Second, nil); err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("delete %v: %w", argv, err)
+			// Best-effort: if a rule was never added (partial setup) the
+			// delete fails with exit 1. Record the first error but keep
+			// removing the rest so we never leave a half-partitioned node.
+			if _, err := dc.Exec(ctx, container, argv, false, 10*time.Second, nil); err != nil && firstErr == nil {
+				firstErr = fmt.Errorf("delete %v: %w", argv, err)
+			}
 		}
 	}
 
