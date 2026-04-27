@@ -1,0 +1,30 @@
+logging:
+  system:
+    level: "debug"
+    output: "stdout"
+  audit:
+    output: "stdout"
+db:
+  path: "/data/ella.db"
+interfaces:
+  n2:
+    address: "10.100.0.13"
+    port: 38412
+  n3:
+    address: "10.3.0.13"
+  n6:
+    name: "n6"
+  api:
+    address: "10.100.0.13"
+    port: 5002
+xdp:
+  attach-mode: "generic"
+cluster:
+  enabled: true
+  node-id: 3
+  bind-address: "10.100.0.13:7000"
+  peers:
+      - "10.100.0.11:7000"
+      - "10.100.0.12:7000"
+      - "10.100.0.13:7000"
+  join-token: "AQAAANR7ImlkIjoiNzMxMzI5NjNkYWRmOWU3ZTI0YjAwYzMxOTdhMjdmMTMiLCJub2RlX2lkIjozLCJpYXQiOjE3NzcyOTgxNDksImV4cCI6MTc3NzI5ODc0OSwiY2FmIjoic2hhMjU2OjFiN2FlZTQyYmY1MjQ1NzMxNWRiMTFlOGFmMjNkZTFmM2Y1ODgxMGU1MmJlZjI4YmQ5NGYyZTM0YzIwNTczZDUiLCJjaWQiOiIxMTcyMWEwYi04NDI1LTRmMTQtODRiYS0zNTk1Y2NiMDJmZGQifdMRuUYampp3z89Us4AXOJWBp7haRQL1cNot1Y7w0cCA"

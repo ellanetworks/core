@@ -70,7 +70,7 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 
 	t.Cleanup(func() { _ = dc.Close() })
 
-	adminToken, nodeClients, err := bringUpHA3GPPCluster(ctx, dc, composeDir, composeFile)
+	adminToken, nodeClients, err := bringUpHA3GPPCluster(ctx, dc, composeDir, composeFile, "ella-core-tester", "router")
 	if err != nil {
 		t.Fatalf("bring up cluster: %v", err)
 	}
@@ -252,7 +252,12 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 // Returns the admin token plus a per-node client slice (with the admin
 // token set on each) so callers can use findLeader / waitForAutopilotHealthy
 // etc.
-func bringUpHA3GPPCluster(ctx context.Context, dc *DockerClient, composeDir, composeFile string) (string, []*client.Client, error) {
+// bringUpHA3GPPCluster brings up a 3-node Ella Core cluster from
+// composeDir/composeFile and, after the cluster is converged, starts
+// any extraServices listed (typically the tester sidecar and the N6
+// router). Compose topologies that need a different sidecar shape
+// (e.g., one tester per gNB) pass their own service names instead.
+func bringUpHA3GPPCluster(ctx context.Context, dc *DockerClient, composeDir, composeFile string, extraServices ...string) (string, []*client.Client, error) {
 	nodeServices := []string{"ella-core-1", "ella-core-2", "ella-core-3"}
 
 	peers := []string{
@@ -334,9 +339,12 @@ func bringUpHA3GPPCluster(ctx context.Context, dc *DockerClient, composeDir, com
 		return "", nil, fmt.Errorf("nodes not ready: %w", err)
 	}
 
-	// Start the tester and router last; they don't affect cluster formation.
-	if err := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, "ella-core-tester", "router"); err != nil {
-		return "", nil, fmt.Errorf("start tester + router: %w", err)
+	// Start any caller-supplied sidecars (testers, router) last; they
+	// don't affect cluster formation.
+	if len(extraServices) > 0 {
+		if err := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, extraServices...); err != nil {
+			return "", nil, fmt.Errorf("start extra services %v: %w", extraServices, err)
+		}
 	}
 
 	return adminToken, clients, nil

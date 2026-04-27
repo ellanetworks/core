@@ -138,7 +138,13 @@ func TestClusterHTTP_Status(t *testing.T) {
 // clusterTestServer spins up a cluster HTTP server under a listener and
 // returns the server's advertise address and a per-peer-node-id client
 // factory. Callers close the returned cleanup func.
-func clusterTestServer(t *testing.T, pki *testutil.PKI, serverNodeID int, peerNodeIDs []int) (serverAddr string, clients map[int]*http.Client, cleanup func()) {
+// clusterTestServerNodeID is the node-id of the server-side listener
+// in clusterTestServer. Hardcoded because every test wires the peer
+// trust the same way; if a test ever needs a different server node-id,
+// this becomes a parameter again.
+const clusterTestServerNodeID = 1
+
+func clusterTestServer(t *testing.T, pki *testutil.PKI, peerNodeIDs []int) (serverAddr string, clients map[int]*http.Client, cleanup func()) {
 	t.Helper()
 
 	port := clusterFreePort(t)
@@ -147,10 +153,10 @@ func clusterTestServer(t *testing.T, pki *testutil.PKI, serverNodeID int, peerNo
 	serverLn := listener.New(listener.Config{
 		BindAddress:      serverAddr,
 		AdvertiseAddress: serverAddr,
-		NodeID:           serverNodeID,
+		NodeID:           clusterTestServerNodeID,
 		TrustBundle:      pki.BundleFunc(),
 
-		Leaf: pki.LeafFunc(serverNodeID),
+		Leaf: pki.LeafFunc(clusterTestServerNodeID),
 
 		Revoked: func(*big.Int) bool { return false },
 	})
@@ -189,7 +195,7 @@ func clusterTestServer(t *testing.T, pki *testutil.PKI, serverNodeID int, peerNo
 		clients[id] = &http.Client{
 			Transport: &http.Transport{
 				DialTLSContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
-					return clientLn.Dial(ctx, addr, serverNodeID, listener.ALPNHTTP, 5*time.Second)
+					return clientLn.Dial(ctx, addr, clusterTestServerNodeID, listener.ALPNHTTP, 5*time.Second)
 				},
 			},
 			Timeout: 5 * time.Second,
@@ -211,7 +217,7 @@ func clusterTestServer(t *testing.T, pki *testutil.PKI, serverNodeID int, peerNo
 func TestClusterHTTP_SelfRegistrationMismatch(t *testing.T) {
 	pki := testutil.GenTestPKI(t, []int{1, 5})
 
-	serverAddr, clients, cleanup := clusterTestServer(t, pki, 1, []int{5})
+	serverAddr, clients, cleanup := clusterTestServer(t, pki, []int{5})
 	defer cleanup()
 
 	body := `{"nodeId":3,"raftAddress":"127.0.0.1:9000","apiAddress":"127.0.0.1:9001"}`
@@ -243,7 +249,7 @@ func TestClusterHTTP_SelfRegistrationMismatch(t *testing.T) {
 func TestClusterHTTP_SelfAnnounceAccepted(t *testing.T) {
 	pki := testutil.GenTestPKI(t, []int{1, 5})
 
-	serverAddr, clients, cleanup := clusterTestServer(t, pki, 1, []int{5})
+	serverAddr, clients, cleanup := clusterTestServer(t, pki, []int{5})
 	defer cleanup()
 
 	body := `{"nodeId":5,"raftAddress":"127.0.0.1:9000","apiAddress":"127.0.0.1:9001","binaryVersion":"abc","maxSchemaVersion":9}`
@@ -275,7 +281,7 @@ func TestClusterHTTP_SelfAnnounceAccepted(t *testing.T) {
 func TestClusterHTTP_SelfAnnounceCNMismatch(t *testing.T) {
 	pki := testutil.GenTestPKI(t, []int{1, 5})
 
-	serverAddr, clients, cleanup := clusterTestServer(t, pki, 1, []int{5})
+	serverAddr, clients, cleanup := clusterTestServer(t, pki, []int{5})
 	defer cleanup()
 
 	body := `{"nodeId":3,"raftAddress":"127.0.0.1:9000","apiAddress":"127.0.0.1:9001","binaryVersion":"abc","maxSchemaVersion":10}`
@@ -297,5 +303,65 @@ func TestClusterHTTP_SelfAnnounceCNMismatch(t *testing.T) {
 
 	if resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("expected 403 for CN mismatch, got %d", resp.StatusCode)
+	}
+}
+
+// TestClusterHTTP_AddMemberRejectsStaleSchema verifies the leader-side
+// half of the schema handshake at api_cluster.go: a joiner POSTing to
+// /cluster/members with a schemaVersion lower than the leader's binary
+// must be refused with 409 Conflict. Without this guard, an old-binary
+// node could join a cluster whose applied schema is newer than what it
+// supports, and immediately miss migrations the rest of the cluster has
+// already applied.
+//
+// The follower-side counterpart (discovery skipping a peer whose schema
+// is higher than the joiner's own) lives in discovery.go and is exercised
+// implicitly by the existing TestProbePeer_* tests reading the schema
+// field; the integration suite catches end-to-end mismatches.
+func TestClusterHTTP_AddMemberRejectsStaleSchema(t *testing.T) {
+	pki := testutil.GenTestPKI(t, []int{1, 5})
+
+	serverAddr, clients, cleanup := clusterTestServer(t, pki, []int{5})
+	defer cleanup()
+
+	staleSchema := db.SchemaVersion() - 1
+	if staleSchema < 1 {
+		t.Skipf("db.SchemaVersion()=%d too low to construct a stale request", db.SchemaVersion())
+	}
+
+	body := fmt.Sprintf(
+		`{"nodeId":5,"raftAddress":"127.0.0.1:9000","apiAddress":"127.0.0.1:9001","schemaVersion":%d}`,
+		staleSchema,
+	)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost,
+		fmt.Sprintf("https://%s/cluster/members", serverAddr), strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("create request: %v", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := clients[5].Do(req)
+	if err != nil {
+		t.Fatalf("POST /cluster/members: %v", err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("expected 409 for stale schemaVersion, got %d", resp.StatusCode)
+	}
+
+	var envelope struct {
+		Error string `json:"error"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&envelope); err != nil {
+		t.Fatalf("decode error body: %v", err)
+	}
+
+	if !strings.Contains(strings.ToLower(envelope.Error), "schema version mismatch") {
+		t.Fatalf("expected error to mention schema version mismatch, got %q", envelope.Error)
 	}
 }
