@@ -1,12 +1,6 @@
-# Test-only image used by TestIntegrationHARollingUpgrade.
-# Stamps a locally-built `core` binary on top of the existing
-# ella-core:latest rock image, so the integration test can produce
-# baseline + tagged variants in seconds rather than rebuilding the
-# whole rock. The build context is this directory; build-images.sh
-# drops the binary as `core` in this folder right before each build.
-#
-# Required: ella-core:latest must already exist in the local docker
-# daemon (the standard CI image-build step builds it).
+# Test-only image for TestIntegrationHARollingUpgrade. Stamps the
+# locally-built `core` binary on top of ella-core:latest. build-images.sh
+# drops `core` in this dir before each build.
 
 FROM ella-core:latest
 COPY core /bin/core

@@ -1,5 +1,4 @@
-// Package multi holds tester scenarios that exercise multi-node cluster
-// behaviour from the RAN side without involving failover.
+// Package multi holds tester scenarios for multi-node clusters.
 package multi
 
 import (
@@ -19,8 +18,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// clusterTrafficParams binds the per-invocation flags for the
-// multi/cluster_traffic scenario.
 type clusterTrafficParams struct {
 	UECount  int
 	IMSIBase string
@@ -41,17 +38,14 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
 			return runClusterTraffic(ctx, env, params.(*clusterTrafficParams))
 		},
-		// No Fixture: the integration test driver provisions the full
-		// 15-subscriber pool up-front against the cluster's HA client so
-		// every scenario invocation sees the subscribers it needs.
+		// Fixture nil: the integration test driver provisions all
+		// subscribers up-front against the HA client.
 	})
 }
 
-// runClusterTraffic stands up one gNB on a single core peer and drives
-// UECount UEs through registration + connectivity in parallel. Returns
-// nil only if every UE pinged successfully; on failure, returns a
-// concatenated error listing every failed UE so the test driver can
-// surface all of them at once rather than just the first.
+// runClusterTraffic drives UECount UEs in parallel against one core
+// peer. Returns a concatenated error of every failed UE, not just the
+// first.
 func runClusterTraffic(ctx context.Context, env scenarios.Env, p *clusterTrafficParams) error {
 	if len(env.CoreN2Addresses) == 0 {
 		return fmt.Errorf("multi/cluster_traffic requires --ella-core-n2-address")
@@ -117,9 +111,7 @@ func runClusterTraffic(ctx context.Context, env scenarios.Env, p *clusterTraffic
 			return fmt.Errorf("compute IMSI for UE %d: %w", i, err)
 		}
 
-		// RAN-UE-NGAP-IDs and tunnel names must be unique per UE on this
-		// gNB; collisions would either alias UE state in the gNB or fail
-		// when AddTunnel sees a duplicate interface name.
+		// RAN-UE-NGAP-ID and tunnel name must be unique per UE.
 		ranUENGAPID := int64(scenarios.DefaultRANUENGAPID) + int64(i)
 		tunName := fmt.Sprintf("multi%s%d", p.GnbID, i)
 
@@ -158,9 +150,7 @@ func runClusterTraffic(ctx context.Context, env scenarios.Env, p *clusterTraffic
 	return nil
 }
 
-// offsetIMSI returns base interpreted as a 15-digit decimal integer
-// incremented by offset, zero-padded back to 15 digits. Returns an
-// error if the result would overflow 15 digits.
+// offsetIMSI returns base + offset zero-padded to 15 digits.
 func offsetIMSI(base string, offset int) (string, error) {
 	n, err := strconv.ParseUint(base, 10, 64)
 	if err != nil {

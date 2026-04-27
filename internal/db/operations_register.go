@@ -1,26 +1,10 @@
 // Copyright 2026 Ella Networks
 
 // Package-level registration of every typed replicated operation.
-// Exposed as vars so call sites can write `opFoo.Invoke(db, payload)`
-// without running a lookup on the hot path. registerChangesetOp panics
-// on duplicate names, so a collision surfaces at import time.
 //
-// **Append-only contract.** This registry is part of the cluster's
-// wire format. Renaming an entry, deleting one, or reducing its
-// declared RequireSchema breaks rolling upgrades — a peer running an
-// older binary will see an unfamiliar operation name (or a changeset
-// whose RequiredSchema it can no longer satisfy) and fail to apply.
-// The `TestOperationsRegistry_AppendOnly` unit test enforces this
-// against a checked-in `operations.lock.json`. Never rename, never
-// delete, never relax RequireSchema. Always append.
-//
-// **RequireSchema convention.** The default is 1 (works on the
-// baseline schema). Stamp an op with RequireSchema(N) when its apply
-// function reads from or writes to a column or table introduced by
-// migration N. The migration registry in `migrations.go` is the
-// source of truth for which migration introduces what. The op gate
-// in operations.go enforces RequireSchema at three points: call,
-// capture, apply.
+// Append-only: renaming, deleting, or relaxing RequireSchema breaks
+// rolling upgrades. TestOperationsRegistry_AppendOnly enforces this
+// against operations.lock.json.
 
 package db
 
@@ -42,18 +26,15 @@ var (
 	opClearDailyUsage     = registerChangesetOp("ClearDailyUsage", (*Database).applyClearDailyUsageOp)
 )
 
-// IP leases. All lease ops touch ip_leases.nodeID added in v9.
+// IP leases. ip_leases.nodeID added in v9.
 var (
 	opCreateLease               = registerChangesetOp("CreateLease", (*Database).applyCreateLease, RequireSchema(9))
 	opUpdateLeaseSession        = registerChangesetOp("UpdateLeaseSession", (*Database).applyUpdateLeaseSession, RequireSchema(9))
 	opDeleteDynamicLease        = registerChangesetOp("DeleteDynamicLease", (*Database).applyDeleteDynamicLease, RequireSchema(9))
 	opDeleteDynamicLeasesByNode = registerChangesetOp("DeleteDynamicLeasesByNode", (*Database).applyDeleteDynamicLeasesByNode, RequireSchema(9))
 	opUpdateLeaseNode           = registerChangesetOp("UpdateLeaseNode", (*Database).applyUpdateLeaseNode, RequireSchema(9))
-	// AllocateIPLease replaces the follower-side pre-pick-then-forward
-	// path. The wire payload is just the intent (poolID, IMSI, sessionID,
-	// nodeID); the leader's apply function does the SELECT-then-INSERT
-	// atomically inside leaderCaptureAndPropose, so concurrent allocations
-	// from any node are serialised by proposeMu.
+	// AllocateIPLease forwards intent only; leader resolves the IP
+	// atomically under proposeMu (see applyAllocateIPLease).
 	opAllocateIPLease = registerChangesetOp("AllocateIPLease", (*Database).applyAllocateIPLease, RequireSchema(9))
 )
 
@@ -127,10 +108,7 @@ var (
 	opDeleteHomeNetworkKey = registerChangesetOp("DeleteHomeNetworkKey", (*Database).applyDeleteHomeNetworkKey)
 )
 
-// BGP. bgp_peers.nodeID was added in v9; CreateBGPPeer / UpdateBGPPeer
-// write that column. UpdateBGPSettings and SetImportPrefixesForPeer
-// touch tables (bgp_settings, bgp_import_prefixes) that exist since v4
-// but their current shape is stable post-v9.
+// BGP. bgp_peers.nodeID added in v9.
 var (
 	opCreateBGPPeer            = registerChangesetOp("CreateBGPPeer", (*Database).applyCreateBGPPeer, RequireSchema(9))
 	opUpdateBGPPeer            = registerChangesetOp("UpdateBGPPeer", (*Database).applyUpdateBGPPeer, RequireSchema(9))
@@ -174,15 +152,14 @@ var (
 	opDeleteRoute = registerChangesetOp("DeleteRoute", (*Database).applyDeleteRoute)
 )
 
-// Cluster members. The cluster_members table was introduced in v9.
+// Cluster members. cluster_members table introduced in v9.
 var (
 	opUpsertClusterMember = registerChangesetOp("UpsertClusterMember", (*Database).applyUpsertClusterMember, RequireSchema(9))
 	opDeleteClusterMember = registerChangesetOp("DeleteClusterMember", (*Database).applyDeleteClusterMember, RequireSchema(9))
 	opSetDrainState       = registerChangesetOp("SetDrainState", (*Database).applySetDrainState, RequireSchema(9))
 )
 
-// Cluster PKI. Every PKI table (roots, intermediates, issued certs,
-// revoked certs, join tokens, pki state) was introduced in v9.
+// Cluster PKI. All PKI tables introduced in v9.
 var (
 	opInsertPKIRoot            = registerChangesetOp("InsertPKIRoot", (*Database).applyInsertPKIRoot, RequireSchema(9))
 	opSetPKIRootStatus         = registerChangesetOp("SetPKIRootStatus", (*Database).applySetPKIRootStatus, RequireSchema(9))

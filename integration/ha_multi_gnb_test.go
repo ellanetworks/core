@@ -17,28 +17,11 @@ import (
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
 
-// TestIntegration3GPPMultiGNB stands up a 3-node Ella Core cluster and
-// three independent core-tester containers, each driving its own gNB
-// homed on exactly one core node. Every gNB registers a pool of UEs in
-// parallel and runs a GTP-U ping for each — 15 UEs total in flight
-// across 3 cores.
-//
-// What this exercises that no other test does:
-//
-//   - Concurrent leader-bound writes from two followers. Each UE
-//     registration triggers an AUSF sequenceNumber bump (a Raft-replicated
-//     write); two of the three cores are followers and proxy their
-//     proposes via proxy_middleware.go. Today only TestIntegrationHAFollowerProxy
-//     touches that path, with one in-flight write from one follower.
-//   - Per-node IP lease pool contention. Migration v9 added ip_leases.nodeID;
-//     this is the first integration test that hits the lease allocator
-//     from three nodes simultaneously.
-//   - UPF locality. Each gNB's GTP-U traffic must terminate at its own
-//     core's in-process UPF. A regression where the SMF returned the
-//     wrong N3 endpoint in PDU Session Resource Setup would route across
-//     the wrong UPF.
-//   - Per-node BGP scoping (latent — not asserted here, but exercised:
-//     each core advertises only routes for leases it owns).
+// TestIntegration3GPPMultiGNB drives 3 gNBs (5 UEs each) against 3
+// core nodes, one gNB per core. Exercises concurrent leader-bound
+// writes from two followers (AUSF SQN bumps), the per-node IP lease
+// allocator under cross-node contention, and per-core UPF locality
+// for GTP-U termination.
 func TestIntegration3GPPMultiGNB(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
@@ -53,17 +36,14 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 		uesPerGNB   = 5
 	)
 
-	// Per-tester gNB topology. Each tester runs in its own container with
-	// its own N2 + N3 IPs and is pinned to a single core. The IMSI pool
-	// is partitioned by gNB so subscribers don't collide across testers.
-	// imsis is populated below from imsiBase + uesPerGNB.
+	// imsis filled in below from imsiBase + uesPerGNB.
 	type gnbSpec struct {
-		service  string // compose service name
+		service  string
 		gnbID    string
-		n2       string // gNB N2 address (cluster bridge)
-		n3       string // gNB N3 address (n3 bridge)
-		coreN2   string // target core's NGAP listener
-		imsiBase string // first IMSI for this tester's UE pool
+		n2       string
+		n3       string
+		coreN2   string
+		imsiBase string
 		imsis    []string
 	}
 
@@ -157,12 +137,9 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 	fx.DataNetwork(fixture.DefaultDataNetworkSpec())
 	fx.Policy(fixture.DefaultPolicySpec())
 
-	// 15 subscribers (5 per gNB), all sharing the default Key/OpC/SQN
-	// since none of them register more than once before the test ends.
-	// Each gNB's IMSI list is also stored on the gnbSpec so the
-	// post-scenario assertions can query the correct core per UE: AMF
-	// state (registered, PDU sessions) is per-node by design and is
-	// visible only on the core where the UE actually registered.
+	// 15 subscribers, 5 per gNB. AMF state (Registered, PDUSessions)
+	// is per-node, so each gNB's IMSIs are stored on the spec so the
+	// post-scenario assertions hit the right core.
 	subSpec := scenarios.FixtureSpec{}
 
 	for gi := range gnbs {
@@ -188,7 +165,6 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 
 	fx.Apply(subSpec)
 
-	// Resolve each tester's container name so we can dc.Exec into it.
 	testerContainers := make([]string, len(gnbs))
 
 	for i, g := range gnbs {
@@ -200,11 +176,8 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 		testerContainers[i] = container
 	}
 
-	// Drive all three testers in parallel. Use a WaitGroup + collected
-	// error slice (rather than errgroup) so a failure in one tester does
-	// not cancel the others — we want to see ALL failures, not just the
-	// first, since this test is specifically about behaviour under
-	// concurrent load.
+	// WaitGroup not errgroup: surface every tester's failure, not
+	// just the first.
 	var (
 		wg    sync.WaitGroup
 		errMu sync.Mutex
@@ -254,13 +227,9 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 
 	t.Log("all 3 scenarios passed; verifying cluster state")
 
-	// AMF state (status.Registered, PDU sessions) is per-node and is
-	// not replicated — UE context replication is an explicit non-goal
-	// in spec_security_ha.md. So each gNB's UEs are visible only on
-	// the core where the gNB is homed: query each target core for its
-	// own UEs, never the leader for everyone's. The relationship
-	// gnbs[i] ↔ nodeClients[i] is preserved by bringUpHA3GPPCluster
-	// (clients are returned in node-id order 1, 2, 3).
+	// AMF state is per-node (UE context is not replicated; see
+	// spec_security_ha.md). Query each gNB's home core for its own
+	// UEs, not the leader. gnbs[i] ↔ nodeClients[i] by node-id order.
 	for i, gn := range gnbs {
 		c := nodeClients[i]
 
@@ -288,12 +257,8 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 		}
 	}
 
-	// Membership and autopilot should still be healthy after the load —
-	// nothing in the steady-state scenario should have destabilised the
-	// cluster. Both checks are cluster-wide: assertMembershipConsistent
-	// queries every node and compares; GetAutopilotState is a leader-only
-	// read that the proxy middleware forwards transparently from any
-	// node.
+	// Cluster-wide health post-load. GetAutopilotState is leader-only;
+	// proxy middleware forwards from any node.
 	assertMembershipConsistent(t, ctx, nodeClients)
 
 	apState, err := nodeClients[0].GetAutopilotState(ctx)
@@ -310,11 +275,7 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 	}
 }
 
-// offsetIMSI15 increments the last digits of base by offset and returns
-// the result zero-padded back to 15 characters. Mirrors the helper in
-// scenarios/multi but kept private to the integration test so the test
-// has its own deterministic IMSI scheme without importing the scenario
-// package's internals.
+// offsetIMSI15 returns base + offset zero-padded to 15 digits.
 func offsetIMSI15(base string, offset int) (string, error) {
 	if len(base) != 15 {
 		return "", fmt.Errorf("base %q must be 15 digits", base)

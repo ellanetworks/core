@@ -11,21 +11,14 @@ import (
 	"testing"
 )
 
-// operationsLockFile is the path (relative to this test) of the
-// checked-in append-only operations lock. The lock enumerates every
-// registered changeset and intent op with its minSchema. Renaming an
-// entry, deleting one, or lowering its minSchema fails the test.
 const operationsLockFile = "operations.lock.json"
 
-// updateLockEnvVar, when set to "1", regenerates the lock file in
-// place rather than diffing. Use after appending a new op or bumping a
-// minSchema:
+// updateLockEnvVar, when "1", regenerates the lock file instead of
+// diffing. Run after intentional registry changes:
 //
 //	ELLA_UPDATE_OPS_LOCK=1 go test ./internal/db/... -run TestOperationsRegistry_AppendOnly
 const updateLockEnvVar = "ELLA_UPDATE_OPS_LOCK"
 
-// lockedOp is one entry in the lock file. JSON tag stability matters:
-// renaming a field would invalidate every existing lock file.
 type lockedOp struct {
 	Name      string `json:"name"`
 	Kind      string `json:"kind"`
@@ -38,20 +31,9 @@ type lockFile struct {
 	Operations []lockedOp `json:"operations"`
 }
 
-// TestOperationsRegistry_AppendOnly enforces the registry's append-only
-// contract against operations.lock.json. The registry is part of
-// Ella's HA wire format: renaming an op, deleting one, or lowering its
-// declared RequireSchema breaks rolling upgrades.
-//
-//   - A locked op missing from the live registry — rename or delete.
-//   - A live minSchema below the locked value — schema requirement
-//     was relaxed; older nodes will start applying ops they can't
-//     safely run.
-//   - A live op not present in the lock file — new addition that the
-//     contributor forgot to record.
-//
-// Regenerate after intentional registry changes: append new entries,
-// bump minSchema where needed, then run with ELLA_UPDATE_OPS_LOCK=1.
+// TestOperationsRegistry_AppendOnly enforces the registry's
+// append-only contract: renames, deletes, or relaxed RequireSchema
+// fail. New ops fail until the lock file is regenerated.
 func TestOperationsRegistry_AppendOnly(t *testing.T) {
 	live := buildLockedOps()
 

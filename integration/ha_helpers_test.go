@@ -541,18 +541,10 @@ func dumpClusterDiagnostics(ctx context.Context, dc *DockerClient, clients []*cl
 	}
 }
 
-// assertMembershipConsistent fails the test if the given clients do not
-// all return the same cluster_members set. Polls because a freshly
-// committed membership change (add/promote/remove/drain) takes a brief
-// moment to apply on every follower; a divergence that persists past
-// the deadline is a real bug. IsLeader is included in the comparison —
-// once the cluster is settled, every node should agree on who the
-// leader is.
-//
-// The deadline is short (10s) on purpose: every caller is expected to
-// already be past whatever wait gave the cluster time to settle (e.g.,
-// waitForFollowerConvergence, waitForAutopilotHealthy). We're catching
-// silent persistent divergence, not racing the apply path.
+// assertMembershipConsistent fails if clients return different
+// cluster_members sets. Polls 10s — callers should already be past
+// any settle wait (waitForFollowerConvergence etc.); this catches
+// persistent divergence, not apply-path race.
 func assertMembershipConsistent(t *testing.T, ctx context.Context, clients []*client.Client) {
 	t.Helper()
 
@@ -609,8 +601,7 @@ func collectMembershipSnapshots(ctx context.Context, clients []*client.Client) (
 	return out, nil
 }
 
-// membershipDiff returns "" if all snapshots match, otherwise a short
-// human-readable description of which node disagrees with node 1.
+// membershipDiff returns "" on match, otherwise a node 1 vs node N diff.
 func membershipDiff(snapshots []string) string {
 	if len(snapshots) < 2 {
 		return ""

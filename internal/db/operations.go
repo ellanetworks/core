@@ -50,9 +50,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// OpOption configures an operation registration. RequireSchema is the
-// only option today; the type stays open for future additions
-// (ignorable-on-old-version, deprecation markers, etc.).
+// OpOption configures an operation registration.
 type OpOption func(*opMeta)
 
 type opMeta struct {
@@ -60,16 +58,9 @@ type opMeta struct {
 }
 
 // RequireSchema declares the minimum applied schema version required
-// for this operation to run. Operations registered without this option
-// default to 1 (the baseline — works on every supported deployment).
-// Operations whose apply function or any prepared statement it uses
-// depends on a column or table introduced in migration N must declare
-// RequireSchema(N).
-//
-// The value is enforced at three points: call-time (Invoke returns
-// ErrMigrationPending), capture-time (stamped on the changeset
-// envelope as RequiredSchema), and apply-time (every node verifies
-// before running the FSM apply path).
+// for this operation. Default 1 (works on the baseline). Set to N when
+// the apply function or any statement it uses depends on a column or
+// table introduced in migration N.
 func RequireSchema(n int) OpOption {
 	return func(m *opMeta) {
 		if n < 1 {
@@ -80,21 +71,13 @@ func RequireSchema(n int) OpOption {
 	}
 }
 
-// changesetOpHandler erases the payload type P so all changeset ops can
-// live in a single map keyed by operation name. unmarshal returns a typed
-// payload (as any) so apply can then type-assert it back.
+// changesetOpHandler erases the payload type P so changeset ops live
+// in a single map keyed by operation name.
 type changesetOpHandler struct {
-	// minSchema is the value declared by RequireSchema at registration.
-	// Defaults to 1.
 	minSchema int
-
-	// applyJSON deserialises raw payload bytes and runs the apply function
-	// against db. Intended for the leader-side forwarded-op dispatch path.
 	applyJSON func(db *Database, ctx context.Context, raw json.RawMessage) (any, error)
 }
 
-// intentOpHandler is the CmdXxx-typed counterpart for intent ops that the
-// FSM dispatches directly (bulk retention deletes, migrations).
 type intentOpHandler struct {
 	minSchema int
 	cmdType   ellaraft.CommandType
@@ -105,31 +88,17 @@ var (
 	intentOps    = map[string]intentOpHandler{}
 )
 
-// ChangesetOp binds an operation name to a typed apply function. Registered
-// once at package init via registerChangesetOp and referenced by call sites
-// through Invoke, which hides the leader/follower branching.
+// ChangesetOp binds an operation name to a typed apply function.
+// Call-site handle returned by registerChangesetOp.
 type ChangesetOp[P any] struct {
 	name      string
 	minSchema int
 	apply     func(db *Database, ctx context.Context, p *P) (any, error)
 }
 
-// Name returns the registered operation name. Used by the lock-file
-// generator to enumerate the registry.
-func (op *ChangesetOp[P]) Name() string { return op.name }
-
-// MinSchema returns the minimum applied schema required for this op.
+func (op *ChangesetOp[P]) Name() string   { return op.name }
 func (op *ChangesetOp[P]) MinSchema() int { return op.minSchema }
 
-// registerChangesetOp creates a ChangesetOp, registers it in the global
-// dispatch table, and returns a handle for call sites. The registry entry
-// is needed so the leader's /cluster/internal/propose handler can invoke
-// the op from (name, payload JSON) arriving on the wire.
-//
-// The registry is append-only: renaming a registered op, removing one,
-// or reducing its minSchema breaks the wire contract for in-flight
-// rolling upgrades. A unit test in operations_lock_test.go enforces
-// this against a checked-in operations.lock.json.
 func registerChangesetOp[P any](
 	name string,
 	apply func(db *Database, ctx context.Context, p *P) (any, error),
@@ -165,18 +134,10 @@ func registerChangesetOp[P any](
 	return op
 }
 
-// registerIntentOp registers an intent command with an operation name used
-// on the forwarded-op wire. CmdXxx-typed payload delivery across nodes stays
-// opaque-json (the FSM decodes by command type), but the leader-receiver
-// side reuses the same dispatch envelope.
+// opts retained for symmetry with registerChangesetOp; no shipped
+// intent op currently needs a non-default RequireSchema.
 //
-// opts is variadic for symmetry with registerChangesetOp; today no
-// shipped intent op needs a non-default RequireSchema (the bulk-delete
-// and migration commands all operate on baseline tables). Kept in the
-// signature so future intent ops can opt in without a backward-
-// incompatible API change.
-//
-//nolint:unparam // opts intentionally retained for forward-compat; see comment above.
+//nolint:unparam
 func registerIntentOp(name string, cmdType ellaraft.CommandType, opts ...OpOption) intentOp {
 	if _, exists := intentOps[name]; exists {
 		panic(fmt.Sprintf("duplicate intent op registration: %s", name))
@@ -196,24 +157,18 @@ func registerIntentOp(name string, cmdType ellaraft.CommandType, opts ...OpOptio
 	return intentOp{name: name, minSchema: meta.minSchema, cmdType: cmdType}
 }
 
-// intentOp is the call-site handle for an intent command.
 type intentOp struct {
 	name      string
 	minSchema int
 	cmdType   ellaraft.CommandType
 }
 
-// Name returns the registered operation name.
-func (op intentOp) Name() string { return op.name }
-
-// MinSchema returns the minimum applied schema required for this op.
+func (op intentOp) Name() string   { return op.name }
 func (op intentOp) MinSchema() int { return op.minSchema }
 
-// intentMinSchemaForCmd returns the minimum applied schema required for
-// the given CommandType, or 1 if not a registered intent op. Used by
-// the apply-time gate in ApplyCommand. CmdChangeset is gated by the
-// per-changeset RequiredSchema field, not by command type — it always
-// returns 1 here.
+// intentMinSchemaForCmd returns the minSchema for an intent CommandType,
+// or 1 if not registered. CmdChangeset is gated by bytesPayload.RequiredSchema
+// instead and always returns 1 here.
 func intentMinSchemaForCmd(t ellaraft.CommandType) int {
 	for _, h := range intentOps {
 		if h.cmdType == t {
@@ -224,13 +179,12 @@ func intentMinSchemaForCmd(t ellaraft.CommandType) int {
 	return 1
 }
 
-// allRegisteredOps returns every changeset and intent op registration in
-// a stable shape for the lock-file generator and append-only test.
+// registeredOp is the shape consumed by the lock-file test.
 type registeredOp struct {
 	Name      string
 	Kind      string // "changeset" or "intent"
 	MinSchema int
-	CmdType   string // empty for changeset; CommandType.String() for intent
+	CmdType   string // empty for changeset
 }
 
 func allRegisteredOps() []registeredOp {
@@ -256,15 +210,8 @@ func allRegisteredOps() []registeredOp {
 	return out
 }
 
-// Invoke runs the op: apply-locally on leader (or standalone), forward to
-// the leader on a follower. The payload is marshalled once here and, on the
-// leader, passed to the apply closure by value; on a follower, the marshalled
-// bytes are what ship over the wire.
-//
-// Gates the call on `applied schema >= op.minSchema` before any work,
-// returning ErrMigrationPending (mapped to 503 by the API layer) when
-// the cluster is mid-rolling-upgrade and the migration this op depends
-// on hasn't replicated yet.
+// Invoke runs the op locally on leader / standalone, or forwards
+// (operation, payload JSON) to the leader on a follower.
 func (op *ChangesetOp[P]) Invoke(db *Database, payload *P) (any, error) {
 	if err := db.checkOpSchema(op.minSchema); err != nil {
 		return nil, err
@@ -308,10 +255,8 @@ func (op *ChangesetOp[P]) invokeFollower(db *Database, payload *P) (any, error) 
 	return result.Value, nil
 }
 
-// Invoke runs an intent op. On the leader it goes straight to raft.Apply
-// (intent commands are dispatched by the FSM via CommandType). On a
-// follower it forwards (name, payload JSON) — the leader's handler wraps
-// the payload into a Command envelope and applies.
+// Invoke runs an intent op via raft.Apply on the leader, or forwards
+// to the leader on a follower.
 func (op intentOp) Invoke(db *Database, payload any) (any, error) {
 	if err := db.checkOpSchema(op.minSchema); err != nil {
 		return nil, err
@@ -361,11 +306,9 @@ func (op intentOp) Invoke(db *Database, payload any) (any, error) {
 }
 
 // leaderCaptureAndPropose runs the capture→propose cycle on the leader.
-// Serialised by proposeMu so concurrent writers never capture against the
-// same pre-mutation state (which would produce conflicting changesets).
-//
-// minSchema is stamped on the captured bytesPayload as RequiredSchema so
-// the FSM apply path on every node can verify before running.
+// proposeMu serialises captures so concurrent writers don't observe
+// the same pre-mutation state. minSchema is stamped on bytesPayload as
+// RequiredSchema for the apply-time gate on every node.
 func (db *Database) leaderCaptureAndPropose(operation string, minSchema int, applyFn func(context.Context) (any, error)) (any, error) {
 	db.proposeMu.Lock()
 	defer db.proposeMu.Unlock()
@@ -417,11 +360,9 @@ func (db *Database) leaderCaptureAndPropose(operation string, minSchema int, app
 	return applyResult, nil
 }
 
-// forwardOperation POSTs (operation, payload JSON) to the current leader's
-// /cluster/internal/propose endpoint and returns the ProposeResult the
-// leader produced. Classifies transient errors (no leader / leadership
-// changed mid-forward) as ErrProposeTimeout so the API layer maps them to
-// 503.
+// forwardOperation POSTs to the leader's /cluster/internal/propose
+// endpoint. Transient errors (no leader, leadership changed) become
+// ErrProposeTimeout so the API maps them to 503.
 func (db *Database) forwardOperation(opName string, payload json.RawMessage) (*ellaraft.ProposeResult, error) {
 	if db.raftManager == nil {
 		return nil, hraft.ErrNotLeader
@@ -442,11 +383,9 @@ func (db *Database) forwardOperation(opName string, payload json.RawMessage) (*e
 	return result, nil
 }
 
-// ApplyForwardedOperation is the leader-side entry point for a forwarded
-// op. It dispatches (opName, payloadJSON) to the registered apply function,
-// captures the resulting changeset, and proposes it through Raft.
-// Intent ops skip capture and go straight to raft.Apply — the FSM itself
-// dispatches them by CommandType.
+// ApplyForwardedOperation is the leader-side handler for the
+// /cluster/internal/propose endpoint. Changeset ops capture+propose;
+// intent ops go straight to raft.Apply.
 func (db *Database) ApplyForwardedOperation(opName string, payload json.RawMessage) (*ellaraft.ProposeResult, error) {
 	if db.raftManager == nil {
 		return nil, fmt.Errorf("cluster not enabled")

@@ -14,49 +14,24 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-const haRollingComposeDir = "compose/ha-rolling/"
+const (
+	haRollingComposeDir = "compose/ha-rolling/"
 
-// rollingBaselineImage is the "old" image: current source compiled
-// without the synthetic-migrations build tag. Reports SchemaVersion =
-// the highest registered migration (currently 9).
-const rollingBaselineImage = "ella-core:rolling-baseline"
+	// rollingBaselineImage: current source, no build tag.
+	rollingBaselineImage = "ella-core:rolling-baseline"
+	// rollingTargetImage: built with -tags rolling_upgrade_test_synthetic,
+	// which appends 3 no-op migrations to the registry.
+	rollingTargetImage = "ella-core:rolling-target"
 
-// rollingTargetImage is the "new" image: same source compiled with
-// `-tags rolling_upgrade_test_synthetic`. Appends 3 trivial migrations
-// to the registry, so SchemaVersion = baseline+3.
-const rollingTargetImage = "ella-core:rolling-target"
+	// Must match migration_synthetic_rolling_upgrade.go.
+	numSyntheticMigrations = 3
+)
 
-// numSyntheticMigrations matches what migration_synthetic_rolling_upgrade.go
-// appends. Drives the expected delta between baseline and target.
-const numSyntheticMigrations = 3
-
-// TestIntegrationHARollingUpgrade brings up a 3-node cluster on the
-// baseline image, swaps each node one at a time to the target image
-// (which carries 3 synthetic post-baseline migrations), and asserts
-// the rolling-upgrade machinery behaves correctly throughout:
-//
-//   - Initial state: every node reports applied = baselineSchema, no
-//     pendingMigration.
-//   - After each follower swap: the upgraded node's binary advertises
-//     a higher SchemaVersion and reports pendingMigration with a
-//     laggard pointing at one of the still-baseline voters; the
-//     non-upgraded nodes report no pendingMigration (their binaryMax
-//     == applied).
-//   - After the leader is rolled last: a new leader (one of the
-//     upgraded followers) proposes the queued CmdMigrateShared
-//     entries via Raft. Applied schema advances baselineSchema →
-//     baseline+1 → baseline+2 → baseline+3 in lockstep across every
-//     node.
-//   - Final state: applied = baseline+3 everywhere, no pendingMigration.
-//
-// A background writer creates subscribers throughout. Transient
-// failures during leadership transitions are tolerated; permanent
-// failures fail the test.
-//
-// Out-of-scope for this test: feature-specific assertions (no v=N+1
-// op exists today). When real post-baseline migrations and ops ship
-// in the future, per-feature follow-up tests should run on top of
-// this orchestration.
+// TestIntegrationHARollingUpgrade rolls a 3-node cluster from baseline
+// to target image one node at a time and asserts cluster state
+// transitions through /api/v1/status (cluster.appliedSchemaVersion,
+// cluster.pendingMigration). A background writer validates the
+// cluster stays writable throughout.
 func TestIntegrationHARollingUpgrade(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
@@ -76,9 +51,6 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 
 	t.Cleanup(func() { _ = dc.Close() })
 
-	// Both images get cluster.enabled=true configs from writeNodeConfig
-	// at startup. Override compose's per-service image to baseline for
-	// every node by exporting the env vars before bringup.
 	t.Setenv("ELLA_CORE_1_IMAGE", rollingBaselineImage)
 	t.Setenv("ELLA_CORE_2_IMAGE", rollingBaselineImage)
 	t.Setenv("ELLA_CORE_3_IMAGE", rollingBaselineImage)
@@ -87,9 +59,6 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 		dc.ComposeDownWithFile(context.Background(), haRollingComposeDir, ComposeFile())
 	})
 
-	// bringUpHAClusterAt uses haNodeServices ("ella-core-{1,2,3}") and
-	// the standard ClusterAddressWithPort scheme — both already match
-	// our compose.yaml, so no further parameterisation is needed.
 	clients, err := bringUpHAClusterAt(ctx, dc, haRollingComposeDir, haNodeServices, nil)
 	if err != nil {
 		t.Fatalf("bring up cluster on baseline image: %v", err)
@@ -103,15 +72,11 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 		t.Fatalf("not all baseline nodes became ready: %v", err)
 	}
 
-	// Read the baseline schema version off node 1 — whatever the
-	// current source compiled to, that's our N. The target image will
-	// be N + numSyntheticMigrations.
 	baselineSchema := mustReadSchemaVersion(ctx, t, clients[0])
 	targetSchema := baselineSchema + numSyntheticMigrations
 
 	t.Logf("baseline schema = %d, target schema = %d", baselineSchema, targetSchema)
 
-	// Initial state: every node on baseline, applied == baseline, no pending.
 	for i, c := range clients {
 		assertSchemaState(t, ctx, c, fmt.Sprintf("node %d (initial)", i+1), schemaState{
 			schemaVersion:    baselineSchema,
@@ -120,7 +85,6 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 		})
 	}
 
-	// Background writer.
 	writer := startSubscriberWriter(t, ctx, clients, "001019756150000")
 	t.Cleanup(writer.stop)
 
@@ -155,10 +119,7 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 			t.Fatalf("node %d did not become ready after swap: %v", nodeNum, err)
 		}
 
-		// Wait for the upgraded node to self-announce its new
-		// MaxSchemaVersion via the existing cluster_members machinery.
-		// Polled because self-announce is async (a goroutine fires it
-		// shortly after readiness).
+		// Self-announce of MaxSchemaVersion is async; poll.
 		if err := waitForSchemaCondition(ctx, clients[nodeIdx], func(s *client.Status) error {
 			if s.SchemaVersion != targetSchema {
 				return fmt.Errorf("schemaVersion=%d, want %d", s.SchemaVersion, targetSchema)
@@ -170,17 +131,11 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 		}
 
 		if !isLast {
-			// Mid-window: applied schema must still be baseline (the
-			// leader is still on the baseline binary OR the floor of
-			// voter MaxSchemaVersion is held down by an unswapped
-			// node).
 			expectedLaggards := remainingBaselineNodes(upgradeOrder, step+1)
 
 			t.Logf("intermediate: expecting applied=%d, laggard ∈ %v",
 				baselineSchema, expectedLaggards)
 
-			// The just-upgraded node reports pendingMigration with one
-			// of the still-baseline voters as the laggard.
 			waitForPending := func(c *client.Client, label string) {
 				if err := waitForSchemaCondition(ctx, c, func(s *client.Status) error {
 					if s.Cluster == nil {
@@ -201,10 +156,8 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 						return fmt.Errorf("pending.currentSchema=%d, want %d", p.CurrentSchema, baselineSchema)
 					}
 
-					// Target may equal current (blocked behind a
-					// laggard) or be partway up if some but not all
-					// voters allow it. Either is acceptable; a value
-					// > targetSchema is not.
+					// Target ≤ targetSchema: may equal current (blocked)
+					// or be partway up.
 					if p.TargetSchema > targetSchema {
 						return fmt.Errorf("pending.targetSchema=%d, want <= %d", p.TargetSchema, targetSchema)
 					}
@@ -222,8 +175,6 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 
 			waitForPending(clients[nodeIdx], fmt.Sprintf("node %d (just upgraded)", nodeNum))
 
-			// Non-upgraded nodes still report no pendingMigration —
-			// their local binaryMax equals applied.
 			for _, otherIdx := range expectedLaggards {
 				oc := clients[otherIdx-1]
 				assertSchemaState(t, ctx, oc,
@@ -237,12 +188,7 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 		}
 	}
 
-	// Final state: every node on target. Once the new leader (from
-	// among the previously-upgraded followers, since the original
-	// leader was rolled last and the cluster re-elected during the
-	// swap) calls CheckPendingMigrations, it sees voter floor =
-	// targetSchema and proposes the queued migrations through Raft.
-	t.Log("=== final: all nodes on target image; waiting for migrations to apply ===")
+	t.Log("=== final: all nodes on target; waiting for migrations to apply ===")
 
 	for i, c := range clients {
 		if err := waitForSchemaCondition(ctx, c, func(s *client.Status) error {
@@ -280,31 +226,18 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 		writeReport.success, writeReport.transient, writeReport.attempts)
 
 	if writeReport.success == 0 {
-		t.Fatal("background writer made zero successful writes; rolling upgrade kept the cluster permanently unwriteable")
+		t.Fatal("background writer made zero successful writes; cluster was permanently unwriteable")
 	}
 
-	// Membership should still be consistent end-to-end.
 	assertMembershipConsistent(t, ctx, clients)
 }
 
-// ---------------------------------------------------------------------------
-// Helpers below are scoped to this test file. They could move to
-// ha_helpers_test.go later if other rolling-upgrade-style tests appear,
-// but for one consumer the cohesion of keeping them here is worth more
-// than the future-DRY.
-// ---------------------------------------------------------------------------
-
-// schemaState is the expected shape of a node's /api/v1/status fields
-// at a given point in the test. Each field is asserted independently.
 type schemaState struct {
-	schemaVersion    int                      // top-level binary max
-	applied          int                      // cluster.appliedSchemaVersion
-	pendingMigration *client.PendingMigration // expected pendingMigration; nil = absent
+	schemaVersion    int
+	applied          int
+	pendingMigration *client.PendingMigration // nil = expect absent
 }
 
-// assertSchemaState reads /api/v1/status on c and verifies the schema
-// fields against expected. Fails the test on mismatch (uses Errorf so
-// caller can surface multiple before bailing).
 func assertSchemaState(t *testing.T, ctx context.Context, c *client.Client, label string, want schemaState) {
 	t.Helper()
 
@@ -338,8 +271,6 @@ func assertSchemaState(t *testing.T, ctx context.Context, c *client.Client, labe
 	}
 }
 
-// waitForSchemaCondition polls c.GetStatus at 500ms cadence until cond
-// returns nil or timeout elapses.
 func waitForSchemaCondition(ctx context.Context, c *client.Client, cond func(*client.Status) error, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 
@@ -367,8 +298,6 @@ func waitForSchemaCondition(ctx context.Context, c *client.Client, cond func(*cl
 	return fmt.Errorf("timeout after %s: %w", timeout, lastErr)
 }
 
-// mustReadSchemaVersion returns SchemaVersion off c's /status, fatalling
-// the test on error.
 func mustReadSchemaVersion(ctx context.Context, t *testing.T, c *client.Client) int {
 	t.Helper()
 
@@ -380,7 +309,6 @@ func mustReadSchemaVersion(ctx context.Context, t *testing.T, c *client.Client) 
 	return s.SchemaVersion
 }
 
-// roleAt returns the node's cluster role string for log context.
 func roleAt(ctx context.Context, c *client.Client) string {
 	s, err := c.GetStatus(ctx)
 	if err != nil || s.Cluster == nil {
@@ -390,8 +318,7 @@ func roleAt(ctx context.Context, c *client.Client) string {
 	return s.Cluster.Role
 }
 
-// remainingBaselineNodes returns the 1-based node IDs of nodes in
-// upgradeOrder that haven't been upgraded yet (index >= upgradedSoFar).
+// remainingBaselineNodes returns 1-based node IDs not yet upgraded.
 func remainingBaselineNodes(upgradeOrder []int, upgradedSoFar int) []int {
 	out := make([]int, 0, len(upgradeOrder)-upgradedSoFar)
 
@@ -412,10 +339,6 @@ func contains(xs []int, v int) bool {
 	return false
 }
 
-// swapNodeImage stops node N's container, recreates it with the
-// supplied image (via the per-service env-var override), and waits
-// for the container to be back up. The Compose volume + IP plan stays
-// the same; only the image changes.
 func swapNodeImage(t *testing.T, ctx context.Context, dc *DockerClient, nodeNum int, image string) {
 	t.Helper()
 
@@ -433,11 +356,6 @@ func swapNodeImage(t *testing.T, ctx context.Context, dc *DockerClient, nodeNum 
 	}
 }
 
-// ensureRollingImages verifies both rolling-upgrade images are present
-// in the local docker daemon. Returns an error if either is missing,
-// pointing at the build script. The test treats this as a skip
-// condition rather than a failure: a dev environment without the
-// images shouldn't block the suite.
 func ensureRollingImages(ctx context.Context, t *testing.T) error {
 	t.Helper()
 
@@ -452,10 +370,6 @@ func ensureRollingImages(ctx context.Context, t *testing.T) error {
 
 	return nil
 }
-
-// ---------------------------------------------------------------------------
-// Background subscriber writer
-// ---------------------------------------------------------------------------
 
 type subscriberWriter struct {
 	cancel    context.CancelFunc
@@ -472,15 +386,10 @@ type writerReport struct {
 	attempts  int64
 }
 
-// startSubscriberWriter launches a background goroutine that creates
-// subscribers via a round-robin against the supplied clients. Errors
-// classified as transient (503, "leadership lost", connection-refused
-// during the leader-swap window) are counted but not fatal. Any other
-// error fails the test on stopAndReport().
-//
-// imsiBase is the 15-digit IMSI of the first subscriber; subsequent
-// subscribers increment the last digits. Choose a base that doesn't
-// collide with any other test's subscribers.
+// startSubscriberWriter creates subscribers round-robin at ~5/s.
+// Transient errors (see isTransientWriteError) are counted; any other
+// error fails stopAndReport. imsiBase must be a 15-digit IMSI not
+// shared with other tests.
 func startSubscriberWriter(t *testing.T, parent context.Context, clients []*client.Client, imsiBase string) *subscriberWriter {
 	t.Helper()
 
@@ -543,16 +452,13 @@ func startSubscriberWriter(t *testing.T, parent context.Context, clients []*clie
 	return w
 }
 
-// stop cancels the writer and waits for the goroutine to exit.
-// Safe to call multiple times.
 func (w *subscriberWriter) stop() {
 	w.cancel()
 	<-w.done
 }
 
-// stopAndReport stops the writer and returns the success / transient
-// counts. Returns an error if the writer terminated with a non-transient
-// error.
+// stopAndReport returns an error iff the writer terminated with a
+// non-transient failure.
 func (w *subscriberWriter) stopAndReport() (writerReport, error) {
 	w.cancel()
 	<-w.done
@@ -570,9 +476,8 @@ func (w *subscriberWriter) stopAndReport() (writerReport, error) {
 	return report, nil
 }
 
-// isTransientWriteError matches errors that are expected during a
-// leadership transition or rolling-upgrade swap. Conservative: only
-// known patterns are tolerated.
+// isTransientWriteError matches errors expected during leadership
+// transitions; conservative — only known patterns are tolerated.
 func isTransientWriteError(err error) bool {
 	if err == nil {
 		return false

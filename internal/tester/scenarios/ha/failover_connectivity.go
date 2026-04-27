@@ -207,10 +207,9 @@ func runFailoverConnectivity(ctx context.Context, env scenarios.Env) error {
 	return nil
 }
 
-// registerAndPing is a thin wrapper around common.RegisterAndPing using
-// the default subscriber. Both phases share the same IMSI; phase 2
-// re-registers under a different RAN-UE-NGAP-ID and tunnel name to
-// avoid colliding with stale gNB-local state from phase 1.
+// registerAndPing wraps common.RegisterAndPing with the default
+// subscriber. Phase 2 reuses the IMSI under a fresh RAN-UE-NGAP-ID
+// and tunnel name to avoid colliding with phase 1's gNB state.
 func registerAndPing(ctx context.Context, gNodeB *gnb.GnodeB, ranUENGAPID int64, tunInterfaceName string) error {
 	return common.RegisterAndPing(ctx, &common.RegisterAndPingOpts{
 		GNB:              gNodeB,

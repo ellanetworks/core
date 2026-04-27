@@ -729,13 +729,9 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 
 	t.Log("cluster members verified (3 members), exercising removed-node fence")
 
-	// --- Removed-node fence: writes attempted via the still-running but
-	// removed node 4 must be rejected. The leader's removedNodeFence
-	// middleware (cluster_http_mux.go) returns 410 Gone for proxied
-	// requests from peers no longer in cluster_members; the proxy on
-	// node 4 surfaces that as a 502. The leaf revocation path is a
-	// secondary defence and may or may not have propagated yet — either
-	// failure mode is acceptable here, but the request must NOT succeed.
+	// removedNodeFence (cluster_http_mux.go) returns 410 → 502 to the
+	// caller. Cert revocation is a secondary defence; either failure
+	// mode is acceptable as long as the request doesn't succeed.
 
 	if _, err := node4Client.GetStatus(ctx); err != nil {
 		t.Fatalf("removed node 4's API is unreachable, cannot exercise fence: %v", err)
@@ -1244,24 +1240,15 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 	t.Log("disaster-recovery test passed")
 }
 
-// TestIntegrationHANetworkPartition isolates the current leader from the
-// other voters by dropping cluster-port (7000) traffic at the kernel
-// level inside the leader's container. The cluster mTLS port is the only
-// channel Raft uses for heartbeats and AppendEntries, so this fully
-// partitions the consensus layer while leaving the API port reachable —
-// crucial because the test still needs to talk to the isolated node.
+// TestIntegrationHANetworkPartition partitions the current leader from
+// the other voters by dropping cluster-port (7000) traffic via
+// iptables-nft / ip6tables-nft inside its container, asserts a new
+// leader elects, writes on the isolated leader fail, and the
+// formerly-isolated node converges after heal.
 //
-// Asserts:
-//   - Survivors elect a new leader (different node-id from the isolated one).
-//   - Writes against the new leader succeed and replicate to its peer.
-//   - Writes against the isolated former leader fail (no quorum,
-//     no proxiable leader visible).
-//   - Healing the partition reconverges the formerly isolated node and
-//     it sees writes that landed during the partition.
-//
-// Uses iptables-nft inside the container (the rock ships iptables-nft
-// but no /usr/sbin/iptables symlink because bare-base rocks don't run
-// update-alternatives).
+// The rock ships iptables-nft but no /usr/sbin/iptables symlink
+// (bare-base rocks skip update-alternatives), so we use the absolute
+// path of the family-specific binary.
 func TestIntegrationHANetworkPartition(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
@@ -1381,12 +1368,9 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 
 	t.Log("write to majority side succeeded, attempting write on isolated former leader")
 
-	// Either path is a correct rejection: the isolated node may still
-	// believe it is leader until LeaderLeaseTimeout (~2.5s) elapses, in
-	// which case the propose times out with no quorum (503); after that
-	// it steps down and writes get proxied to a leader address it cannot
-	// reach (502). Either is fine — what would be a regression is the
-	// write succeeding on the local DB without quorum.
+	// 503 (propose times out before lease expiry) or 502 (proxy
+	// can't reach a leader after step-down) are both acceptable;
+	// success would mean split-brain.
 	isolatedClient := clients[leaderIdx]
 	writeCtx, writeCancel := context.WithTimeout(ctx, 30*time.Second)
 
@@ -1439,11 +1423,8 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 	t.Log("formerly isolated node converged after heal; partition test passed")
 }
 
-// clusterPortPartitionRules are the iptables-nft rules added to a node
-// to fully cut Raft cluster-port traffic in both directions while leaving
-// the rest of the network (API port, etc.) alone. Both --dport and --sport
-// rules are needed because peer connections are bidirectional and either
-// side may have ephemeral or fixed ports on cluster_port=7000.
+// Both --dport and --sport on INPUT and OUTPUT: peer connections are
+// bidirectional and either side may use port 7000 as src or dst.
 var clusterPortPartitionRules = [][]string{
 	{"INPUT", "--dport", "7000"},
 	{"INPUT", "--sport", "7000"},
@@ -1451,13 +1432,9 @@ var clusterPortPartitionRules = [][]string{
 	{"OUTPUT", "--sport", "7000"},
 }
 
-// firewallBinariesForFamily returns the iptables variants that need rules
-// applied for the current IP_VERSION. iptables-nft only manages IPv4 and
-// ip6tables-nft only manages IPv6 — applying v4 rules in IPv6 mode silently
-// does nothing, which previously caused the partition test to time out
-// waiting for an election that could never start because cluster traffic
-// was never blocked. The bare-base rock ships both binaries but no
-// unbranded iptables symlink, so we use the absolute paths.
+// firewallBinariesForFamily picks the iptables variant matching
+// IP_VERSION. iptables-nft handles IPv4 only; v4 rules in IPv6 mode
+// are silently no-ops.
 func firewallBinariesForFamily() []string {
 	switch DetectIPFamily() {
 	case IPv6Only:
@@ -1492,9 +1469,8 @@ func healClusterPort(ctx context.Context, dc *DockerClient, container string) er
 			argv := append([]string{bin, "-D", rule[0], "-p", "tcp"}, rule[1:]...)
 			argv = append(argv, "-j", "DROP")
 
-			// Best-effort: if a rule was never added (partial setup) the
-			// delete fails with exit 1. Record the first error but keep
-			// removing the rest so we never leave a half-partitioned node.
+			// Best-effort: keep removing the rest so we never leave
+			// a half-partitioned node.
 			if _, err := dc.Exec(ctx, container, argv, false, 10*time.Second, nil); err != nil && firstErr == nil {
 				firstErr = fmt.Errorf("delete %v: %w", argv, err)
 			}

@@ -23,28 +23,14 @@ import (
 // Compile-time check that *Database implements ellaraft.Applier.
 var _ ellaraft.Applier = (*Database)(nil)
 
-// ApplyCommand dispatches a Raft command to the appropriate applyX method.
-// Called by the FSM on every node (leader and followers) for each committed
-// log entry. Each applyX uses sqlair to execute SQL against the shared database.
-//
-// Apply-time schema gate: every command is checked against the local
-// applied schema before dispatch. CmdChangeset uses the per-changeset
-// RequiredSchema stamped at capture-time; other (intent) commands look
-// up their minSchema by command type via intentMinSchemaForCmd. A
-// requirement above local applied schema returns an error, which the
-// FSM apply path (internal/raft/fsm.go) treats as fatal and panics —
-// the same behavior as any other apply failure. The gate only triggers
-// in three scenarios, all of which are bugs the operator must see:
-//
-//   - leader misbehaved (proposed a v=N op before propagating
-//     CmdMigrateShared(N))
-//   - skip-version upgrade (already a non-goal in spec_ha_complete.md)
-//   - corrupt log replay
-//
-// In normal rolling-upgrade operation the leader proposes
-// CmdMigrateShared(N) before any v=N-dependent op, and Raft applies in
-// strict log order, so the gate is a defensive assertion that should
-// never trigger.
+// ApplyCommand dispatches a Raft command to its applyX method on
+// every node. assertAppliedSchema gates each dispatch on the
+// per-command minSchema (RequiredSchema for CmdChangeset, intent op
+// minSchema for the rest); a violation returns an error and the FSM
+// panics, matching the contract for any other apply failure. The gate
+// is defensive — Raft applies in log order and the leader proposes
+// CmdMigrateShared(N) before any v=N op, so it only fires on leader
+// misbehavior or skip-version upgrades (already a non-goal).
 func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (any, error) {
 	switch cmd.Type {
 	case ellaraft.CmdChangeset:
@@ -116,13 +102,9 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 		result, applyErr := db.applyMigrateShared(ctx, payload)
 		if applyErr == nil {
 			db.signalMigrationCheck()
-			// Refresh the cached applied schema after every successful
-			// shared-migration apply so the op-gate and apply-gate see
-			// the new version on subsequent calls without an extra DB
-			// query. Best-effort: error here is non-fatal because the
-			// cache will refresh on the next checkOpSchema fallback.
+
 			if err := db.refreshAppliedSchema(ctx); err != nil {
-				logger.DBLog.Warn("failed to refresh applied schema cache after migrate-shared apply",
+				logger.DBLog.Warn("refresh applied-schema cache after migrate-shared apply",
 					zap.Error(err))
 			}
 		}
@@ -210,19 +192,9 @@ type (
 		Value bool `json:"value"`
 	}
 	bytesPayload struct {
-		Value     []byte `json:"value"`
-		Operation string `json:"operation,omitempty"`
-
-		// RequiredSchema is the minimum applied schema version every
-		// node must have committed before this changeset can be
-		// applied safely. Stamped at capture-time by
-		// leaderCaptureAndPropose from the originating op's MinSchema.
-		// Verified at apply-time by ApplyCommand — a failure surfaces
-		// as a fatal apply error and the existing FSM panic handler
-		// halts the node, matching the contract for any other apply
-		// failure. Zero (the default for legacy / pre-spec changesets)
-		// is treated as "no requirement."
-		RequiredSchema int `json:"requiredSchema,omitempty"`
+		Value          []byte `json:"value"`
+		Operation      string `json:"operation,omitempty"`
+		RequiredSchema int    `json:"requiredSchema,omitempty"`
 	}
 	auditLogPayload struct {
 		Timestamp string `json:"timestamp"`

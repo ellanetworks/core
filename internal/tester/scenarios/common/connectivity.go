@@ -1,7 +1,4 @@
-// Package common holds tester scenario helpers shared across multiple
-// scenario packages. Lifted from scenarios/ha so multi-UE / multi-gNB
-// scenarios elsewhere don't have to import an HA-specific package just
-// to drive a single UE through registration + connectivity.
+// Package common holds tester scenario helpers shared across packages.
 package common
 
 import (
@@ -23,9 +20,8 @@ import (
 
 const pduSessionType = nasMessage.PDUSessionTypeIPv4
 
-// RegisterAndPingOpts parameterises one UE's registration + connectivity
-// flow. Key/OpC/SQN/PDUSessionID default to scenarios.Default* when zero;
-// IMSI and TunInterfaceName are required and per-UE.
+// RegisterAndPingOpts: Key/OpC/SQN/PDUSessionID default to
+// scenarios.Default* when zero; IMSI and TunInterfaceName are required.
 type RegisterAndPingOpts struct {
 	GNB              *gnb.GnodeB
 	RANUENGAPID      int64
@@ -37,10 +33,9 @@ type RegisterAndPingOpts struct {
 	TunInterfaceName string
 }
 
-// RegisterAndPing drives one UE through Initial Registration, PDU Session
-// Establishment, GTP tunnel setup, and a short ping through the tunnel.
-// Safe to call concurrently for distinct UEs against the same gNB; the
-// gNB tracks per-UE state by RANUENGAPID and tunnels are keyed by name.
+// RegisterAndPing drives one UE: Initial Registration, PDU Session
+// Establishment, GTP tunnel, and a short ping. Safe to call
+// concurrently for distinct UEs on the same gNB.
 func RegisterAndPing(ctx context.Context, opts *RegisterAndPingOpts) error {
 	if opts.GNB == nil {
 		return fmt.Errorf("GNB is required")
