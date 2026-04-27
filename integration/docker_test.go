@@ -301,6 +301,34 @@ func (dc *DockerClient) ComposeUpServicesWithFile(ctx context.Context, composeDi
 	return nil
 }
 
+// ComposeRecreateService stops and recreates a single service with the
+// supplied env vars merged into the docker-compose command env. Used
+// by the rolling-upgrade test to swap a node's image (via
+// ${ELLA_CORE_<N>_IMAGE}) one node at a time. --no-deps is critical:
+// without it, compose may attempt to recreate dependencies when env
+// vars change, which would touch siblings we want left alone.
+func (dc *DockerClient) ComposeRecreateService(ctx context.Context, composeDir, composeFile, service string, env map[string]string) error {
+	cmd := exec.CommandContext(ctx, "docker", "compose",
+		"-f", composeFile,
+		"up", "-d", "--no-deps", "--force-recreate",
+		service,
+	)
+	cmd.Dir = composeDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	cmd.Env = os.Environ()
+	for k, v := range env {
+		cmd.Env = append(cmd.Env, k+"="+v)
+	}
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("compose recreate %s with env %v: %w", service, env, err)
+	}
+
+	return nil
+}
+
 // ComposeCreateWithFile creates containers for the named services from a specific compose file without starting
 // them. Used by HA tests that need to seed join-token files into a
 // follower's data dir before the daemon comes up.

@@ -1,0 +1,6 @@
+# Generated at test time by writeNodeConfig (ha_helpers_test.go).
+# This stub exists so the docker compose volume mount has a target.
+logging:
+  system:
+    level: "debug"
+    output: "stdout"

@@ -1,0 +1,73 @@
+services:
+  ella-core-1:
+    image: ${ELLA_CORE_1_IMAGE:-ella-core:rolling-baseline}
+    restart: unless-stopped
+    entrypoint: /bin/core --config /cfg/core.yaml
+    privileged: true
+    volumes:
+      - ./cfg/node1:/cfg:ro
+      - data1:/data
+    ports:
+      - "5002:5002"
+    networks:
+      cluster:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
+        ipv4_address: 10.100.0.11
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.11
+  ella-core-2:
+    image: ${ELLA_CORE_2_IMAGE:-ella-core:rolling-baseline}
+    restart: unless-stopped
+    entrypoint: /bin/core --config /cfg/core.yaml
+    privileged: true
+    volumes:
+      - ./cfg/node2:/cfg:ro
+      - data2:/data
+    ports:
+      - "5003:5002"
+    networks:
+      cluster:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
+        ipv4_address: 10.100.0.12
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.12
+  ella-core-3:
+    image: ${ELLA_CORE_3_IMAGE:-ella-core:rolling-baseline}
+    restart: unless-stopped
+    entrypoint: /bin/core --config /cfg/core.yaml
+    privileged: true
+    volumes:
+      - ./cfg/node3:/cfg:ro
+      - data3:/data
+    ports:
+      - "5004:5002"
+    networks:
+      cluster:
+        driver_opts:
+              com.docker.network.endpoint.ifname: eth0
+        ipv4_address: 10.100.0.13
+      n6:
+        driver_opts:
+              com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.13
+
+volumes:
+  data1:
+  data2:
+  data3:
+
+networks:
+  cluster:
+    ipam:
+      config:
+        - subnet: 10.100.0.0/24
+  n6:
+    ipam:
+      config:
+        - subnet: 10.6.0.0/24
