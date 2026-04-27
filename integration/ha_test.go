@@ -717,7 +717,51 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 		t.Fatalf("expected 3 cluster members after removal, got %d", len(members))
 	}
 
-	t.Log("cluster members verified (3 members), stopping removed node container")
+	t.Log("cluster members verified (3 members), exercising removed-node fence")
+
+	// --- Removed-node fence: writes attempted via the still-running but
+	// removed node 4 must be rejected. The leader's removedNodeFence
+	// middleware (cluster_http_mux.go) returns 410 Gone for proxied
+	// requests from peers no longer in cluster_members; the proxy on
+	// node 4 surfaces that as a 502. The leaf revocation path is a
+	// secondary defence and may or may not have propagated yet — either
+	// failure mode is acceptable here, but the request must NOT succeed.
+
+	if _, err := node4Client.GetStatus(ctx); err != nil {
+		t.Fatalf("removed node 4's API is unreachable, cannot exercise fence: %v", err)
+	}
+
+	const fencedIMSI = "001019756139940"
+
+	err = node4Client.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
+		Imsi:           fencedIMSI,
+		Key:            "0eefb0893e6f1c2855a3a244c6db1277",
+		OPc:            "98da19bbc55e2a5b53857d10557b1d26",
+		SequenceNumber: "000000000022",
+		ProfileName:    "default",
+	})
+	if err == nil {
+		t.Fatal("CreateSubscriber via removed node 4 succeeded; fence regression")
+	}
+
+	t.Logf("write via removed node correctly rejected: %v", err)
+
+	if _, err := node4Client.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{
+		NodeID:     5,
+		TTLSeconds: 60,
+	}); err == nil {
+		t.Fatal("MintClusterJoinToken via removed node 4 succeeded; fence regression")
+	}
+
+	if _, err := leader.GetSubscriber(ctx, &client.GetSubscriberOptions{
+		ID: fencedIMSI,
+	}); err == nil {
+		t.Fatal("subscriber written via removed node was applied on the leader; fence is broken")
+	}
+
+	t.Log("removed-node fence rejected both write paths and nothing leaked to the leader")
+
+	t.Log("stopping removed node container")
 
 	err = dockerClient.ComposeStopWithFile(ctx, scaleUpComposeDir, composeFile, "ella-core-4")
 	if err != nil {
