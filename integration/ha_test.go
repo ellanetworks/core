@@ -3,9 +3,11 @@ package integration_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/client"
 )
@@ -164,6 +166,8 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 
 		t.Logf("follower node %d returned subscriber correctly", i+1)
 	}
+
+	assertMembershipConsistent(t, ctx, clients)
 }
 
 func TestIntegrationHAFollowerProxy(t *testing.T) {
@@ -274,6 +278,8 @@ func TestIntegrationHAFollowerProxy(t *testing.T) {
 	if sub.Imsi != "001019756139936" {
 		t.Fatalf("leader returned subscriber with IMSI %q, expected %q", sub.Imsi, "001019756139936")
 	}
+
+	assertMembershipConsistent(t, ctx, clients)
 
 	t.Log("leader confirmed subscriber, follower proxy write test passed")
 }
@@ -446,6 +452,8 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 
 	t.Logf("autopilot recovered: failureTolerance=%d voters=%v",
 		apRecovered.FailureTolerance, apRecovered.Voters)
+
+	assertMembershipConsistent(t, ctx, clients)
 }
 
 func TestIntegrationHADrainLeadership(t *testing.T) {
@@ -549,6 +557,8 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 	if sub.Imsi != "001019756139938" {
 		t.Fatalf("new leader returned IMSI %q, expected %q", sub.Imsi, "001019756139938")
 	}
+
+	assertMembershipConsistent(t, ctx, clients)
 
 	t.Log("writes continue on new leader, drain leadership test passed")
 }
@@ -802,6 +812,8 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 		t.Fatalf("leader returned IMSI %q, expected %q", sub.Imsi, "001019756139942")
 	}
 
+	assertMembershipConsistent(t, ctx, clients)
+
 	t.Log("3-node cluster operational after scale-down, scale up/down test passed")
 }
 
@@ -966,6 +978,8 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 	if sub.Imsi != "001019756139940" {
 		t.Fatalf("recovered leader returned IMSI %q, expected %q", sub.Imsi, "001019756139940")
 	}
+
+	assertMembershipConsistent(t, ctx, recoveredClients)
 
 	t.Log("data survived quorum-loss recovery, test passed")
 }
@@ -1225,5 +1239,245 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 		}
 	}
 
+	assertMembershipConsistent(t, ctx, clientsAfterDR)
+
 	t.Log("disaster-recovery test passed")
+}
+
+// TestIntegrationHANetworkPartition isolates the current leader from the
+// other voters by dropping cluster-port (7000) traffic at the kernel
+// level inside the leader's container. The cluster mTLS port is the only
+// channel Raft uses for heartbeats and AppendEntries, so this fully
+// partitions the consensus layer while leaving the API port reachable —
+// crucial because the test still needs to talk to the isolated node.
+//
+// Asserts:
+//   - Survivors elect a new leader (different node-id from the isolated one).
+//   - Writes against the new leader succeed and replicate to its peer.
+//   - Writes against the isolated former leader fail (no quorum,
+//     no proxiable leader visible).
+//   - Healing the partition reconverges the formerly isolated node and
+//     it sees writes that landed during the partition.
+//
+// Uses iptables-nft inside the container (the rock ships iptables-nft
+// but no /usr/sbin/iptables symlink because bare-base rocks don't run
+// update-alternatives).
+func TestIntegrationHANetworkPartition(t *testing.T) {
+	if os.Getenv("INTEGRATION") == "" {
+		t.Skip("skipping integration tests, set environment variable INTEGRATION")
+	}
+
+	ctx := context.Background()
+
+	dockerClient, err := NewDockerClient()
+	if err != nil {
+		t.Fatalf("failed to create docker client: %v", err)
+	}
+
+	defer func() {
+		if err := dockerClient.Close(); err != nil {
+			t.Logf("failed to close docker client: %v", err)
+		}
+	}()
+
+	t.Log("bringing up staged HA cluster")
+
+	clients, err := bringUpHACluster(ctx, dockerClient)
+	if err != nil {
+		t.Fatalf("bring up HA cluster: %v", err)
+	}
+
+	t.Cleanup(func() {
+		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
+	})
+
+	leaderIdx, leader, err := findLeader(ctx, clients)
+	if err != nil {
+		t.Fatalf("failed to find leader: %v", err)
+	}
+
+	if err := waitForAllNodesReady(ctx, clients); err != nil {
+		t.Fatalf("not all nodes ready: %v", err)
+	}
+
+	leaderStatus, err := leader.GetStatus(ctx)
+	if err != nil || leaderStatus.Cluster == nil {
+		t.Fatalf("read leader status: %v", err)
+	}
+
+	isolatedNodeID := leaderStatus.Cluster.NodeID
+	leaderService := haNodeServices[leaderIdx]
+
+	leaderContainer, err := dockerClient.ResolveComposeContainer(ctx, "ha", leaderService)
+	if err != nil {
+		t.Fatalf("resolve leader container: %v", err)
+	}
+
+	survivors := make([]*client.Client, 0, 2)
+
+	for i, c := range clients {
+		if i != leaderIdx {
+			survivors = append(survivors, c)
+		}
+	}
+
+	t.Logf("partitioning %s (node %d) on cluster port 7000", leaderService, isolatedNodeID)
+
+	if err := partitionClusterPort(ctx, dockerClient, leaderContainer); err != nil {
+		t.Fatalf("apply partition: %v", err)
+	}
+
+	healed := false
+
+	t.Cleanup(func() {
+		if healed {
+			return
+		}
+
+		if err := healClusterPort(ctx, dockerClient, leaderContainer); err != nil {
+			t.Logf("cleanup heal failed: %v", err)
+		}
+	})
+
+	t.Log("partition applied, waiting for survivors to elect a new leader")
+
+	newLeader, err := waitForNewLeader(ctx, survivors)
+	if err != nil {
+		t.Fatalf("survivors did not elect a new leader: %v", err)
+	}
+
+	newLeaderStatus, err := newLeader.GetStatus(ctx)
+	if err != nil || newLeaderStatus.Cluster == nil {
+		t.Fatalf("read new leader status: %v", err)
+	}
+
+	if newLeaderStatus.Cluster.NodeID == isolatedNodeID {
+		t.Fatalf("new leader node-id %d matches isolated node; partition not effective",
+			isolatedNodeID)
+	}
+
+	t.Logf("new leader is node %d", newLeaderStatus.Cluster.NodeID)
+
+	const survivorIMSI = "001019756140001"
+
+	if err := newLeader.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
+		Imsi:           survivorIMSI,
+		Key:            "0eefb0893e6f1c2855a3a244c6db1277",
+		OPc:            "98da19bbc55e2a5b53857d10557b1d26",
+		SequenceNumber: "000000000022",
+		ProfileName:    "default",
+	}); err != nil {
+		t.Fatalf("write on new leader: %v", err)
+	}
+
+	idx, err := leaderAppliedIndex(ctx, newLeader)
+	if err != nil {
+		t.Fatalf("new leader applied index: %v", err)
+	}
+
+	if err := waitForFollowerConvergence(ctx, survivors, idx); err != nil {
+		t.Fatalf("survivor follower did not converge: %v", err)
+	}
+
+	t.Log("write to majority side succeeded, attempting write on isolated former leader")
+
+	// Either path is a correct rejection: the isolated node may still
+	// believe it is leader until LeaderLeaseTimeout (~2.5s) elapses, in
+	// which case the propose times out with no quorum (503); after that
+	// it steps down and writes get proxied to a leader address it cannot
+	// reach (502). Either is fine — what would be a regression is the
+	// write succeeding on the local DB without quorum.
+	isolatedClient := clients[leaderIdx]
+	writeCtx, writeCancel := context.WithTimeout(ctx, 30*time.Second)
+
+	err = isolatedClient.CreateSubscriber(writeCtx, &client.CreateSubscriberOptions{
+		Imsi:           "001019756140002",
+		Key:            "0eefb0893e6f1c2855a3a244c6db1277",
+		OPc:            "98da19bbc55e2a5b53857d10557b1d26",
+		SequenceNumber: "000000000022",
+		ProfileName:    "default",
+	})
+
+	writeCancel()
+
+	if err == nil {
+		t.Fatal("isolated former leader accepted a write while partitioned; split-brain regression")
+	}
+
+	t.Logf("write on isolated former leader correctly rejected: %v", err)
+
+	t.Log("healing partition")
+
+	if err := healClusterPort(ctx, dockerClient, leaderContainer); err != nil {
+		t.Fatalf("heal partition: %v", err)
+	}
+
+	healed = true
+
+	t.Log("waiting for formerly isolated node to converge with new leader's state")
+
+	postHealIdx, err := leaderAppliedIndex(ctx, newLeader)
+	if err != nil {
+		t.Fatalf("leader applied index after heal: %v", err)
+	}
+
+	if err := waitForFollowerConvergence(ctx, []*client.Client{isolatedClient}, postHealIdx); err != nil {
+		t.Fatalf("formerly isolated node did not converge: %v", err)
+	}
+
+	sub, err := isolatedClient.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: survivorIMSI})
+	if err != nil {
+		t.Fatalf("read survivor IMSI from formerly isolated node: %v", err)
+	}
+
+	if sub.Imsi != survivorIMSI {
+		t.Fatalf("formerly isolated node IMSI mismatch: got %q want %q", sub.Imsi, survivorIMSI)
+	}
+
+	assertMembershipConsistent(t, ctx, clients)
+
+	t.Log("formerly isolated node converged after heal; partition test passed")
+}
+
+// clusterPortPartitionRules are the iptables-nft rules added to a node
+// to fully cut Raft cluster-port traffic in both directions while leaving
+// the rest of the network (API port, etc.) alone. Both --dport and --sport
+// rules are needed because peer connections are bidirectional and either
+// side may have ephemeral or fixed ports on cluster_port=7000.
+var clusterPortPartitionRules = [][]string{
+	{"INPUT", "--dport", "7000"},
+	{"INPUT", "--sport", "7000"},
+	{"OUTPUT", "--dport", "7000"},
+	{"OUTPUT", "--sport", "7000"},
+}
+
+func partitionClusterPort(ctx context.Context, dc *DockerClient, container string) error {
+	for _, rule := range clusterPortPartitionRules {
+		argv := append([]string{"/usr/sbin/iptables-nft", "-A", rule[0], "-p", "tcp"}, rule[1:]...)
+		argv = append(argv, "-j", "DROP")
+
+		if _, err := dc.Exec(ctx, container, argv, false, 10*time.Second, nil); err != nil {
+			return fmt.Errorf("apply %v: %w", argv, err)
+		}
+	}
+
+	return nil
+}
+
+func healClusterPort(ctx context.Context, dc *DockerClient, container string) error {
+	var firstErr error
+
+	for _, rule := range clusterPortPartitionRules {
+		argv := append([]string{"/usr/sbin/iptables-nft", "-D", rule[0], "-p", "tcp"}, rule[1:]...)
+		argv = append(argv, "-j", "DROP")
+
+		// Best-effort: if a rule was never added (partial setup) the
+		// delete fails with exit 1. Record the first error but keep
+		// removing the rest so we never leave a half-partitioned node.
+		if _, err := dc.Exec(ctx, container, argv, false, 10*time.Second, nil); err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("delete %v: %w", argv, err)
+		}
+	}
+
+	return firstErr
 }

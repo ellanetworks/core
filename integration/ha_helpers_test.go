@@ -2,10 +2,13 @@ package integration_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/client"
@@ -536,4 +539,90 @@ func dumpClusterDiagnostics(ctx context.Context, dc *DockerClient, clients []*cl
 
 		break
 	}
+}
+
+// assertMembershipConsistent fails the test if the given clients do not
+// all return the same cluster_members set. Polls because a freshly
+// committed membership change (add/promote/remove/drain) takes a brief
+// moment to apply on every follower; a divergence that persists past
+// the deadline is a real bug. IsLeader is included in the comparison —
+// once the cluster is settled, every node should agree on who the
+// leader is.
+//
+// The deadline is short (10s) on purpose: every caller is expected to
+// already be past whatever wait gave the cluster time to settle (e.g.,
+// waitForFollowerConvergence, waitForAutopilotHealthy). We're catching
+// silent persistent divergence, not racing the apply path.
+func assertMembershipConsistent(t *testing.T, ctx context.Context, clients []*client.Client) {
+	t.Helper()
+
+	const deadline = 10 * time.Second
+
+	end := time.Now().Add(deadline)
+
+	var lastMismatch string
+
+	for {
+		snapshots, err := collectMembershipSnapshots(ctx, clients)
+		if err == nil {
+			diff := membershipDiff(snapshots)
+			if diff == "" {
+				return
+			}
+
+			lastMismatch = diff
+		} else {
+			lastMismatch = err.Error()
+		}
+
+		if !time.Now().Before(end) {
+			break
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	t.Fatalf("cluster_members not consistent across nodes after %s: %s", deadline, lastMismatch)
+}
+
+func collectMembershipSnapshots(ctx context.Context, clients []*client.Client) ([]string, error) {
+	out := make([]string, 0, len(clients))
+
+	for i, c := range clients {
+		members, err := c.ListClusterMembers(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("list members from node %d: %w", i+1, err)
+		}
+
+		sort.Slice(members, func(a, b int) bool {
+			return members[a].NodeID < members[b].NodeID
+		})
+
+		buf, err := json.Marshal(members)
+		if err != nil {
+			return nil, fmt.Errorf("marshal members from node %d: %w", i+1, err)
+		}
+
+		out = append(out, string(buf))
+	}
+
+	return out, nil
+}
+
+// membershipDiff returns "" if all snapshots match, otherwise a short
+// human-readable description of which node disagrees with node 1.
+func membershipDiff(snapshots []string) string {
+	if len(snapshots) < 2 {
+		return ""
+	}
+
+	ref := snapshots[0]
+
+	for i := 1; i < len(snapshots); i++ {
+		if snapshots[i] != ref {
+			return fmt.Sprintf("node 1 = %s\nnode %d = %s", ref, i+1, snapshots[i])
+		}
+	}
+
+	return ""
 }
