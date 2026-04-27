@@ -1,0 +1,440 @@
+{
+  "_comment": "Append-only operation registry. Renaming, deleting, or lowering RequireSchema breaks rolling upgrades. See spec_rolling_upgrade.md and operations_register.go for the contract. Regenerate with ELLA_UPDATE_OPS_LOCK=1 go test -run TestOperationsRegistry_AppendOnly ./internal/db/...",
+  "operations": [
+    {
+      "name": "AllocateIPLease",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "AllocatePKISerial",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "BootstrapPKI",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "ClearDailyUsage",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "ConsumeJoinToken",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "CreateAPIToken",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "CreateBGPPeer",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "CreateDataNetwork",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "CreateHomeNetworkKey",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "CreateLease",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "CreateNetworkRule",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "CreateNetworkSlice",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "CreatePolicy",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "CreateProfile",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "CreateRoute",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "CreateSession",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "CreateSubscriber",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "CreateUser",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "DeleteAPIToken",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "DeleteAllDynamicLeases",
+      "kind": "intent",
+      "minSchema": 1,
+      "cmdType": "DeleteAllDynamicLeases"
+    },
+    {
+      "name": "DeleteAllSessions",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "DeleteAllSessionsForUser",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "DeleteBGPPeer",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "DeleteClusterMember",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "DeleteDataNetwork",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "DeleteDynamicLease",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "DeleteDynamicLeasesByNode",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "DeleteExpiredIssuedCerts",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "DeleteExpiredSessions",
+      "kind": "intent",
+      "minSchema": 1,
+      "cmdType": "DeleteExpiredSessions"
+    },
+    {
+      "name": "DeleteHomeNetworkKey",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "DeleteNetworkRule",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "DeleteNetworkRulesByPolicy",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "DeleteNetworkSlice",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "DeleteOldAuditLogs",
+      "kind": "intent",
+      "minSchema": 1,
+      "cmdType": "DeleteOldAuditLogs"
+    },
+    {
+      "name": "DeleteOldDailyUsage",
+      "kind": "intent",
+      "minSchema": 1,
+      "cmdType": "DeleteOldDailyUsage"
+    },
+    {
+      "name": "DeleteOldestSessions",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "DeletePKIIntermediate",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "DeletePKIRoot",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "DeletePolicy",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "DeleteProfile",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "DeletePurgedRevocations",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "DeleteRoute",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "DeleteSessionByTokenHash",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "DeleteStaleJoinTokens",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "DeleteSubscriber",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "DeleteUser",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "EditSubscriberSeqNum",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "IncrementDailyUsage",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "InitializeOperator",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "InitializePKIState",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "InsertAuditLog",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "InsertPKIIntermediate",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "InsertPKIRoot",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "InsertRevokedCert",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "MigrateShared",
+      "kind": "intent",
+      "minSchema": 1,
+      "cmdType": "MigrateShared"
+    },
+    {
+      "name": "MintJoinToken",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "RecordIssuedCert",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "SetDrainState",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "SetImportPrefixesForPeer",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "SetJWTSecret",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "SetPKIIntermediateStatus",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "SetPKIRootStatus",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "SetRetentionPolicy",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "UpdateBGPPeer",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "UpdateBGPSettings",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "UpdateDataNetwork",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "UpdateFlowAccountingSettings",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "UpdateLeaseNode",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "UpdateLeaseSession",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "UpdateN3Settings",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "UpdateNATSettings",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "UpdateNetworkRule",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "UpdateNetworkSlice",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "UpdateOperatorAMFIdentity",
+      "kind": "changeset",
+      "minSchema": 9
+    },
+    {
+      "name": "UpdateOperatorClusterID",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "UpdateOperatorCode",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "UpdateOperatorID",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "UpdateOperatorSPN",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "UpdateOperatorSecurityAlgorithms",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "UpdateOperatorTracking",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "UpdatePolicy",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "UpdateProfile",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "UpdateSubscriberProfile",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "UpdateUser",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "UpdateUserPassword",
+      "kind": "changeset",
+      "minSchema": 1
+    },
+    {
+      "name": "UpsertClusterMember",
+      "kind": "changeset",
+      "minSchema": 9
+    }
+  ]
+}

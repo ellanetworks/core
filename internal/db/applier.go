@@ -14,8 +14,10 @@ import (
 	"github.com/canonical/sqlair"
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/ipam"
+	"github.com/ellanetworks/core/internal/logger"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	hraft "github.com/hashicorp/raft"
+	"go.uber.org/zap"
 )
 
 // Compile-time check that *Database implements ellaraft.Applier.
@@ -24,11 +26,34 @@ var _ ellaraft.Applier = (*Database)(nil)
 // ApplyCommand dispatches a Raft command to the appropriate applyX method.
 // Called by the FSM on every node (leader and followers) for each committed
 // log entry. Each applyX uses sqlair to execute SQL against the shared database.
+//
+// Apply-time schema gate: every command is checked against the local
+// applied schema before dispatch. CmdChangeset uses the per-changeset
+// RequiredSchema stamped at capture-time; other (intent) commands look
+// up their minSchema by command type via intentMinSchemaForCmd. A
+// requirement above local applied schema returns an error, which the
+// FSM apply path (internal/raft/fsm.go) treats as fatal and panics —
+// the same behavior as any other apply failure. The gate only triggers
+// in three scenarios, all of which are bugs the operator must see:
+//
+//   - leader misbehaved (proposed a v=N op before propagating
+//     CmdMigrateShared(N))
+//   - skip-version upgrade (already a non-goal in spec_ha_complete.md)
+//   - corrupt log replay
+//
+// In normal rolling-upgrade operation the leader proposes
+// CmdMigrateShared(N) before any v=N-dependent op, and Raft applies in
+// strict log order, so the gate is a defensive assertion that should
+// never trigger.
 func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (any, error) {
 	switch cmd.Type {
 	case ellaraft.CmdChangeset:
 		payload, err := unmarshalPayload[bytesPayload](cmd.Payload)
 		if err != nil {
+			return nil, err
+		}
+
+		if err := db.assertAppliedSchema(ctx, payload.RequiredSchema, fmt.Sprintf("changeset %q", payload.Operation)); err != nil {
 			return nil, err
 		}
 
@@ -40,6 +65,10 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 		return result, applyErr
 
 	case ellaraft.CmdDeleteOldAuditLogs:
+		if err := db.assertAppliedSchema(ctx, intentMinSchemaForCmd(cmd.Type), cmd.Type.String()); err != nil {
+			return nil, err
+		}
+
 		payload, err := unmarshalPayload[stringPayload](cmd.Payload)
 		if err != nil {
 			return nil, err
@@ -48,6 +77,10 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 		return db.applyDeleteOldAuditLogs(ctx, payload)
 
 	case ellaraft.CmdDeleteOldDailyUsage:
+		if err := db.assertAppliedSchema(ctx, intentMinSchemaForCmd(cmd.Type), cmd.Type.String()); err != nil {
+			return nil, err
+		}
+
 		payload, err := unmarshalPayload[int64Payload](cmd.Payload)
 		if err != nil {
 			return nil, err
@@ -56,9 +89,17 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 		return db.applyDeleteOldDailyUsage(ctx, payload)
 
 	case ellaraft.CmdDeleteAllDynamicLeases:
+		if err := db.assertAppliedSchema(ctx, intentMinSchemaForCmd(cmd.Type), cmd.Type.String()); err != nil {
+			return nil, err
+		}
+
 		return nil, db.applyDeleteAllDynamicLeases(ctx)
 
 	case ellaraft.CmdDeleteExpiredSessions:
+		if err := db.assertAppliedSchema(ctx, intentMinSchemaForCmd(cmd.Type), cmd.Type.String()); err != nil {
+			return nil, err
+		}
+
 		payload, err := unmarshalPayload[int64Payload](cmd.Payload)
 		if err != nil {
 			return nil, err
@@ -75,6 +116,15 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 		result, applyErr := db.applyMigrateShared(ctx, payload)
 		if applyErr == nil {
 			db.signalMigrationCheck()
+			// Refresh the cached applied schema after every successful
+			// shared-migration apply so the op-gate and apply-gate see
+			// the new version on subsequent calls without an extra DB
+			// query. Best-effort: error here is non-fatal because the
+			// cache will refresh on the next checkOpSchema fallback.
+			if err := db.refreshAppliedSchema(ctx); err != nil {
+				logger.DBLog.Warn("failed to refresh applied schema cache after migrate-shared apply",
+					zap.Error(err))
+			}
 		}
 
 		return result, applyErr
@@ -125,6 +175,10 @@ func (db *Database) Reopen(ctx context.Context) error {
 		_ = old.PlainDB().Close()
 	}
 
+	if err := db.refreshAppliedSchema(ctx); err != nil {
+		return fmt.Errorf("refresh applied-schema cache after reopen: %w", err)
+	}
+
 	if err := db.PrepareStatements(); err != nil {
 		return fmt.Errorf("re-prepare statements: %w", err)
 	}
@@ -158,6 +212,17 @@ type (
 	bytesPayload struct {
 		Value     []byte `json:"value"`
 		Operation string `json:"operation,omitempty"`
+
+		// RequiredSchema is the minimum applied schema version every
+		// node must have committed before this changeset can be
+		// applied safely. Stamped at capture-time by
+		// leaderCaptureAndPropose from the originating op's MinSchema.
+		// Verified at apply-time by ApplyCommand — a failure surfaces
+		// as a fatal apply error and the existing FSM panic handler
+		// halts the node, matching the contract for any other apply
+		// failure. Zero (the default for legacy / pre-spec changesets)
+		// is treated as "no requirement."
+		RequiredSchema int `json:"requiredSchema,omitempty"`
 	}
 	auditLogPayload struct {
 		Timestamp string `json:"timestamp"`
