@@ -67,6 +67,29 @@ func isLeaderOnlyRead(r *http.Request) bool {
 	return ok
 }
 
+// localWritePaths enumerates non-GET routes whose handler operates on
+// per-node state (telemetry tables not in the Raft log, on-disk
+// snapshots, in-process token validation) and must therefore run on
+// the receiving node rather than be forwarded to the leader.
+var localWritePaths = map[string]struct{}{
+	"/api/v1/ran/events":        {}, // DELETE clears local radio_events
+	"/api/v1/flow-reports":      {}, // DELETE clears local flow_reports
+	"/api/v1/backup":            {}, // streams the receiving node's tar
+	"/api/v1/support-bundle":    {}, // collects the receiving node's logs
+	"/api/v1/restore":           {}, // overwrites the receiving node's DB file
+	"/api/v1/auth/lookup-token": {}, // read-only validator using POST
+}
+
+func isLocalWrite(r *http.Request) bool {
+	if r.Method == http.MethodGet {
+		return false
+	}
+
+	_, ok := localWritePaths[r.URL.Path]
+
+	return ok
+}
+
 // isSelfRemoval reports whether r is a `DELETE /api/v1/cluster/members/{n}`
 // where n matches the node id evaluating the request. Used to reject
 // the request before proxying so an operator cannot delete the cluster
@@ -115,7 +138,7 @@ func LeaderProxyMiddleware(dbInstance *db.Database, ln *listener.Listener, next 
 			return
 		}
 
-		mustProxy := isWriteMethod(r.Method) || isLeaderOnlyRead(r)
+		mustProxy := (isWriteMethod(r.Method) && !isLocalWrite(r)) || isLeaderOnlyRead(r)
 		if dbInstance.IsLeader() || !mustProxy {
 			next.ServeHTTP(w, r)
 			return

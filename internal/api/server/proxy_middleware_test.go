@@ -40,6 +40,34 @@ func TestIsWriteMethod(t *testing.T) {
 	}
 }
 
+func TestIsLocalWrite(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		want   bool
+	}{
+		{"DELETE radio events is local", "DELETE", "/api/v1/ran/events", true},
+		{"DELETE flow reports is local", "DELETE", "/api/v1/flow-reports", true},
+		{"POST backup is local", "POST", "/api/v1/backup", true},
+		{"POST support-bundle is local", "POST", "/api/v1/support-bundle", true},
+		{"POST restore is local", "POST", "/api/v1/restore", true},
+		{"POST lookup-token is local", "POST", "/api/v1/auth/lookup-token", true},
+		{"GET on a listed path is not a write", "GET", "/api/v1/ran/events", false},
+		{"DELETE subscriber must be replicated", "DELETE", "/api/v1/subscribers/001010000000001", false},
+		{"POST policy must be replicated", "POST", "/api/v1/policies", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := httptest.NewRequestWithContext(context.Background(), tt.method, tt.path, nil)
+			if got := isLocalWrite(r); got != tt.want {
+				t.Errorf("isLocalWrite(%s %s) = %v, want %v", tt.method, tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestWaitForIndex_CatchesUpBeforeDeadline(t *testing.T) {
 	var local atomic.Uint64
 
