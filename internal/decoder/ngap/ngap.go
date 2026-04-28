@@ -176,6 +176,8 @@ func buildUnsuccessfulOutcome(unsucMsg ngapType.UnsuccessfulOutcome) NGAPMessage
 	switch unsucMsg.Value.Present {
 	case ngapType.UnsuccessfulOutcomePresentNGSetupFailure:
 		return buildNGSetupFailure(*unsucMsg.Value.NGSetupFailure)
+	case ngapType.UnsuccessfulOutcomePresentInitialContextSetupFailure:
+		return buildInitialContextSetupFailure(*unsucMsg.Value.InitialContextSetupFailure)
 	default:
 		return NGAPMessageValue{
 			Error: fmt.Sprintf("Unsupported message %d", unsucMsg.Value.Present),
