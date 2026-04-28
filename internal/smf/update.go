@@ -146,6 +146,13 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
+	if smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil {
+		span.RecordError(fmt.Errorf("session already released"))
+		span.SetStatus(codes.Error, "session already released")
+
+		return fmt.Errorf("session already released")
+	}
+
 	pdrList, farList, err := handleUpdateN2MsgPDUResourceSetupResp(n2Data, smContext)
 	if err != nil {
 		span.RecordError(err)

@@ -985,6 +985,34 @@ func TestUpdateSmContextN2InfoPduResSetupRsp_NilPFCPContext(t *testing.T) {
 	}
 }
 
+func TestUpdateSmContextN2InfoPduResSetupRsp_TunnelReleased(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+	smCtx.Tunnel = nil
+	smCtx.PFCPContext = nil
+
+	gnbIP := net.ParseIP("10.0.0.200").To4()
+
+	n2Data, err := buildPDUSessionResourceSetupResponseTransfer(7000, gnbIP)
+	if err != nil {
+		t.Fatalf("build N2 payload: %v", err)
+	}
+
+	if err := s.UpdateSmContextN2InfoPduResSetupRsp(ctx, ref, n2Data); err == nil {
+		t.Fatal("expected error when tunnel was released, got nil")
+	}
+
+	upf.mu.Lock()
+	defer upf.mu.Unlock()
+
+	if len(upf.modifyCalls) != 0 {
+		t.Fatalf("expected no PFCP modify calls after tunnel release, got %d", len(upf.modifyCalls))
+	}
+}
+
 // ===========================
 // HandleDownlinkDataReport tests
 // ===========================
