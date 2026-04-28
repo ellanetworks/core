@@ -64,12 +64,12 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, log
 			return nil, err
 		}
 
-		result, applyErr := db.applyDeleteOldAuditLogs(ctx, payload)
+		applyErr := db.applyDeleteOldAuditLogs(ctx, payload)
 		if applyErr == nil {
 			db.publishOpTopics(topicsForIntentCmd(cmd.Type), logIndex)
 		}
 
-		return result, applyErr
+		return nil, applyErr
 
 	case ellaraft.CmdDeleteOldDailyUsage:
 		if err := db.assertAppliedSchema(ctx, intentMinSchemaForCmd(cmd.Type), cmd.Type.String()); err != nil {
@@ -81,12 +81,12 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, log
 			return nil, err
 		}
 
-		result, applyErr := db.applyDeleteOldDailyUsage(ctx, payload)
+		applyErr := db.applyDeleteOldDailyUsage(ctx, payload)
 		if applyErr == nil {
 			db.publishOpTopics(topicsForIntentCmd(cmd.Type), logIndex)
 		}
 
-		return result, applyErr
+		return nil, applyErr
 
 	case ellaraft.CmdDeleteAllDynamicLeases:
 		if err := db.assertAppliedSchema(ctx, intentMinSchemaForCmd(cmd.Type), cmd.Type.String()); err != nil {
@@ -358,16 +358,13 @@ func (db *Database) applyClearDailyUsage(ctx context.Context) error {
 	return nil
 }
 
-// Signature matches the FSM applier dispatch shape; first return is always nil.
-//
-//nolint:unparam
-func (db *Database) applyDeleteOldDailyUsage(ctx context.Context, p *int64Payload) (any, error) {
+func (db *Database) applyDeleteOldDailyUsage(ctx context.Context, p *int64Payload) error {
 	err := db.runner(ctx).Query(ctx, db.deleteOldDailyUsageStmt, cutoffDaysArgs{CutoffDays: p.Value}).Run()
 	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
+		return fmt.Errorf("query failed: %w", err)
 	}
 
-	return nil, nil
+	return nil
 }
 
 func (db *Database) applyCreateLease(ctx context.Context, lease *IPLease) (any, error) {
@@ -595,16 +592,13 @@ func (db *Database) applyInsertAuditLog(ctx context.Context, p *auditLogPayload)
 	return nil, nil
 }
 
-// Signature matches the FSM applier dispatch shape; first return is always nil.
-//
-//nolint:unparam
-func (db *Database) applyDeleteOldAuditLogs(ctx context.Context, p *stringPayload) (any, error) {
+func (db *Database) applyDeleteOldAuditLogs(ctx context.Context, p *stringPayload) error {
 	err := db.runner(ctx).Query(ctx, db.deleteOldAuditLogsStmt, cutoffArgs{Cutoff: p.Value}).Run()
 	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
+		return fmt.Errorf("query failed: %w", err)
 	}
 
-	return nil, nil
+	return nil
 }
 
 func (db *Database) applyCreateUser(ctx context.Context, u *User) (any, error) {
