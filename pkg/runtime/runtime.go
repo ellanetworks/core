@@ -208,7 +208,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	if clusterLn != nil {
-		stopClusterHTTP := server.StartClusterHTTP(dbInstance, clusterLn, apiServer.Handler())
+		stopClusterHTTP := server.StartClusterHTTP(dbInstance, clusterLn)
 		defer stopClusterHTTP()
 
 		if err := clusterLn.Start(ctx); err != nil {
@@ -415,6 +415,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't start UPF: %w", err)
 	}
 
+	fallbackN3, _ := netip.ParseAddr(n3IPv4)
+	upfReconciler := upf.NewSettingsReconciler(upfInstance, dbInstance, fallbackN3)
+	upfReconciler.Start()
+
+	defer upfReconciler.Stop()
+
 	eng := upfInstance.Engine()
 
 	smfUPF := &smfUPFAdapter{engine: eng, upf: upfInstance}
@@ -481,7 +487,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// the cluster is formed, settings are seeded, and NFs are running. ---
 	if err := apiServer.Upgrade(ctx, api.UpgradeConfig{
 		DB:                  dbInstance,
-		UPF:                 upfInstance,
 		Sessions:            smfInstance,
 		AMF:                 amfInstance,
 		BGP:                 bgpService,

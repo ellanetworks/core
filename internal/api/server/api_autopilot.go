@@ -1,6 +1,8 @@
 package server
 
 import (
+	"encoding/json"
+	"errors"
 	"net/http"
 	"sort"
 	"strconv"
@@ -11,6 +13,11 @@ import (
 	"github.com/hashicorp/raft"
 	autopilot "github.com/hashicorp/raft-autopilot"
 )
+
+// InternalAutopilotPath is the cluster-mTLS endpoint a follower hits
+// to read the leader's autopilot state. Autopilot only runs on the
+// leader, so followers cannot answer this read locally.
+const InternalAutopilotPath = "/cluster/internal/autopilot"
 
 // AutopilotServerResponse is the per-peer live state on the wire. It is
 // mapped from autopilot.ServerState so the library struct never leaks
@@ -35,15 +42,57 @@ type AutopilotStateResponse struct {
 }
 
 // GetAutopilotState serves the live autopilot state. Autopilot only runs
-// on the leader, so followers proxy the request via LeaderProxyMiddleware.
-// On the leader, an empty response is served during the cold-start window
-// immediately after leadership acquisition, before the first autopilot
-// tick has published a state.
+// on the leader; on a follower the handler issues a one-shot read
+// against the leader's cluster mTLS port. An empty response is served
+// during the cold-start window immediately after leadership
+// acquisition, before the first autopilot tick has published a state.
 func GetAutopilotState(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if dbInstance.IsLeader() || !dbInstance.ClusterEnabled() {
+			state := dbInstance.AutopilotState()
+			resp := mapAutopilotState(state)
+			writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
+
+			return
+		}
+
+		leaderResp, err := dbInstance.DoLeaderRequest(r.Context(), http.MethodGet, InternalAutopilotPath, nil, "")
+		if err != nil {
+			writeError(r.Context(), w, http.StatusServiceUnavailable, "Failed to read autopilot state from leader", err, logger.APILog)
+			return
+		}
+
+		if leaderResp.StatusCode != http.StatusOK {
+			writeError(r.Context(), w, http.StatusBadGateway, "Leader returned non-OK status reading autopilot state", errors.New(http.StatusText(leaderResp.StatusCode)), logger.APILog)
+			return
+		}
+
+		var resp AutopilotStateResponse
+		if err := json.Unmarshal(leaderResp.Body, &resp); err != nil {
+			writeError(r.Context(), w, http.StatusBadGateway, "Failed to decode autopilot state from leader", err, logger.APILog)
+			return
+		}
+
+		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
+	})
+}
+
+// ClusterAutopilotState serves the autopilot state on the cluster mTLS
+// port. Followers call this when a public-API request reaches them.
+// The response body is the bare AutopilotStateResponse (no envelope)
+// so the follower can re-wrap it in its own response envelope.
+func ClusterAutopilotState(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !dbInstance.IsLeader() {
+			http.Error(w, "not the leader", http.StatusMisdirectedRequest)
+			return
+		}
+
 		state := dbInstance.AutopilotState()
 		resp := mapAutopilotState(state)
-		writeResponse(r.Context(), w, resp, http.StatusOK, logger.APILog)
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
 	})
 }
 

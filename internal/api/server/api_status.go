@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"sync/atomic"
 
@@ -9,6 +10,30 @@ import (
 	"github.com/ellanetworks/core/version"
 	"go.uber.org/zap"
 )
+
+// resolveLeader looks up the current leader in the cluster_members
+// table and returns the leader's API address and node-id. Either field
+// is zero when no leader is known or the leader's row is not yet
+// present.
+func resolveLeader(dbInstance *db.Database) (apiAddress string, nodeID int) {
+	raftAddr := dbInstance.LeaderAddress()
+	if raftAddr == "" {
+		return "", 0
+	}
+
+	members, err := dbInstance.ListClusterMembers(context.Background())
+	if err != nil {
+		return "", 0
+	}
+
+	for _, m := range members {
+		if m.RaftAddress == raftAddr {
+			return m.APIAddress, m.NodeID
+		}
+	}
+
+	return "", 0
+}
 
 // PendingMigrationResponse is non-nil only during a rolling-upgrade
 // window. Surfaced under cluster.pendingMigration.

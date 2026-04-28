@@ -68,6 +68,10 @@ func (fk *fakeKernel) ListRoutesByPriority(priority int, _ kernel.NetworkInterfa
 	return fk.listed, nil
 }
 
+func (fk *fakeKernel) ListManagedRoutes(_ kernel.NetworkInterface) ([]kernel.ManagedRoute, error) {
+	return nil, nil
+}
+
 func (fk *fakeKernel) InterfaceExists(_ kernel.NetworkInterface) (bool, error) { return true, nil }
 func (fk *fakeKernel) RouteExists(_ netip.Prefix, _ netip.Addr, _ int, _ kernel.NetworkInterface) (bool, error) {
 	return false, nil

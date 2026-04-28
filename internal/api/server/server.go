@@ -1,11 +1,9 @@
 package server
 
 import (
-	"context"
 	"io/fs"
 	"net/http"
 	"net/http/pprof"
-	"net/netip"
 	"sync/atomic"
 
 	"github.com/ellanetworks/core/internal/amf"
@@ -14,25 +12,14 @@ import (
 	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
 	"go.uber.org/zap"
 )
 
-type UPFUpdater interface {
-	ReloadNAT(natEnabled bool) error
-	ReloadFlowAccounting(flowAccountingEnabled bool) error
-	UpdateAdvertisedN3Address(netip.Addr)
-	UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error
-}
-
 type HandlerConfig struct {
 	DB                  *db.Database
 	Config              config.Config
-	UPF                 UPFUpdater
-	Kernel              kernel.Kernel
 	JWTSecret           *JWTSecret
 	SecureCookie        bool
 	FrontendFS          fs.FS
@@ -48,8 +35,6 @@ type HandlerConfig struct {
 func NewHandler(cfg HandlerConfig) http.Handler {
 	dbInstance := cfg.DB
 	appCfg := cfg.Config
-	upf := cfg.UPF
-	krnl := cfg.Kernel
 	jwtSecret := cfg.JWTSecret
 	secureCookie := cfg.SecureCookie
 	embedFS := cfg.FrontendFS
@@ -123,7 +108,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	// Policies (Authenticated)
 	mux.HandleFunc("GET /api/v1/policies", Authenticate(jwtSecret, dbInstance, Authorize(PermListPolicies, ListPolicies(dbInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/policies", Authenticate(jwtSecret, dbInstance, Authorize(PermCreatePolicy, CreatePolicy(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/policies/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdatePolicy, UpdatePolicy(dbInstance, upf))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/policies/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdatePolicy, UpdatePolicy(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/policies/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadPolicy, GetPolicy(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/policies/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeletePolicy, DeletePolicy(dbInstance))).ServeHTTP)
 
@@ -162,13 +147,13 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 
 	// Routes (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/routes", Authenticate(jwtSecret, dbInstance, Authorize(PermListRoutes, ListRoutes(dbInstance, bgpService))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/networking/routes", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateRoute, CreateRoute(dbInstance, krnl))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/networking/routes", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateRoute, CreateRoute(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/networking/routes/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadRoute, GetRoute(dbInstance))).ServeHTTP)
-	mux.HandleFunc("DELETE /api/v1/networking/routes/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteRoute, DeleteRoute(dbInstance, krnl))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/networking/routes/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteRoute, DeleteRoute(dbInstance))).ServeHTTP)
 
 	// NAT (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, Authorize(PermGetNATInfo, GetNATInfo(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateNATInfo, UpdateNATInfo(dbInstance, upf, bgpService))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateNATInfo, UpdateNATInfo(dbInstance, bgpService))).ServeHTTP)
 
 	// BGP (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/bgp", Authenticate(jwtSecret, dbInstance, Authorize(PermReadBGP, GetBGPSettings(dbInstance, bgpService, appCfg))).ServeHTTP)
@@ -183,11 +168,11 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 
 	// Flow Accounting (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/flow-accounting", Authenticate(jwtSecret, dbInstance, Authorize(PermGetFlowAccountingInfo, GetFlowAccountingInfo(dbInstance))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/networking/flow-accounting", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateFlowAccountingInfo, UpdateFlowAccountingInfo(dbInstance, upf))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/networking/flow-accounting", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateFlowAccountingInfo, UpdateFlowAccountingInfo(dbInstance))).ServeHTTP)
 
 	// Interfaces (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/interfaces", Authenticate(jwtSecret, dbInstance, Authorize(PermListNetworkInterfaces, ListNetworkInterfaces(dbInstance, appCfg))).ServeHTTP)
-	mux.HandleFunc("PUT /api/v1/networking/interfaces/n3", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateN3Interface, UpdateN3Interface(dbInstance, upf, appCfg))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/networking/interfaces/n3", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateN3Interface, UpdateN3Interface(dbInstance))).ServeHTTP)
 
 	// Radios (Authenticated)
 	mux.HandleFunc("GET /api/v1/ran/radios", Authenticate(jwtSecret, dbInstance, Authorize(PermListRadios, ListRadios(amfInstance))).ServeHTTP)
@@ -251,8 +236,6 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	var handler http.Handler = mux
 
 	handler = MaxBodySizeMiddleware(handler)
-	handler = AppliedIndexMiddleware(dbInstance, handler)
-	handler = LeaderProxyMiddleware(dbInstance, cfg.ClusterListener, handler)
 	handler = SecurityHeadersMiddleware(secureCookie, handler)
 	handler = MetricsMiddleware(handler)
 
@@ -297,8 +280,6 @@ func NewDiscoveryHandler(cfg DiscoveryHandlerConfig) http.Handler {
 	var handler http.Handler = mux
 
 	handler = MaxBodySizeMiddleware(handler)
-	handler = AppliedIndexMiddleware(dbInstance, handler)
-	handler = LeaderProxyMiddleware(dbInstance, nil, handler)
 	handler = SecurityHeadersMiddleware(secureCookie, handler)
 	handler = MetricsMiddleware(handler)
 

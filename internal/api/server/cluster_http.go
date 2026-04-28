@@ -16,6 +16,25 @@ import (
 	"go.uber.org/zap"
 )
 
+// dialPeerHTTPClient returns an HTTP client that dials the specified
+// peer via the mTLS cluster listener, enforcing that the peer's
+// certificate CN resolves to expectedNodeID. The client is built per
+// request because peer identity is part of the TLS dial contract and
+// raft addresses can change between requests.
+func dialPeerHTTPClient(ln *listener.Listener, expectedNodeID int) *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			DialTLSContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
+				return ln.Dial(ctx, addr, expectedNodeID, listener.ALPNHTTP, 10*time.Second)
+			},
+		},
+		Timeout: 0,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+}
+
 // connListener is a net.Listener backed by a channel of connections.
 // The cluster listener's ALPNHTTP handler pushes accepted connections
 // into the channel; http.Server.Serve consumes them via Accept.
@@ -72,10 +91,8 @@ var clusterListenerForPeerLookup *listener.Listener
 
 // StartClusterHTTP registers the ALPNHTTP handler on the cluster
 // listener and starts an HTTP server serving the cluster-internal mux.
-// The operatorHandler, when non-nil, is mounted at /cluster/proxy/ so
-// followers can forward writes to the leader over the cluster port.
 // The returned function shuts down the server.
-func StartClusterHTTP(dbInstance *db.Database, ln *listener.Listener, operatorHandler http.Handler) func() {
+func StartClusterHTTP(dbInstance *db.Database, ln *listener.Listener) func() {
 	addr, _ := net.ResolveTCPAddr("tcp", ln.AdvertiseAddress())
 	cl := newConnListener(addr)
 
@@ -89,7 +106,7 @@ func StartClusterHTTP(dbInstance *db.Database, ln *listener.Listener, operatorHa
 
 	clusterListenerForPeerLookup = ln
 
-	mux := newClusterMux(dbInstance, operatorHandler)
+	mux := newClusterMux(dbInstance)
 	srv := &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,

@@ -142,7 +142,7 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 	})
 }
 
-func UpdateN3Interface(dbInstance *db.Database, upf UPFUpdater, cfg config.Config) http.Handler {
+func UpdateN3Interface(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -158,25 +158,20 @@ func UpdateN3Interface(dbInstance *db.Database, upf UPFUpdater, cfg config.Confi
 			return
 		}
 
-		n3Address := params.ExternalAddress
-		if n3Address == "" {
-			n3Address = cfg.Interfaces.N3.Address
-		}
-
-		n3Addr, err := netip.ParseAddr(n3Address)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid external address. Must be a valid IP address", err, logger.APILog)
-			return
+		// Empty means "use the local interface IP"; the upf reconciler
+		// resolves that against each node's local config when applying.
+		// A non-empty value must be a valid IP.
+		if params.ExternalAddress != "" {
+			if _, err := netip.ParseAddr(params.ExternalAddress); err != nil {
+				writeError(r.Context(), w, http.StatusBadRequest, "Invalid external address. Must be a valid IP address", err, logger.APILog)
+				return
+			}
 		}
 
 		if err := dbInstance.UpdateN3Settings(r.Context(), params.ExternalAddress); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update N3 settings", err, logger.APILog)
 			return
 		}
-
-		upf.UpdateAdvertisedN3Address(n3Addr)
-
-		logger.APILog.Info("N3 interface updated", logger.N3Address(n3Address))
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "N3 interface updated"}, http.StatusOK, logger.APILog)
 

@@ -299,6 +299,93 @@ func waitOrDone(ctx context.Context, d time.Duration) error {
 	}
 }
 
+// LeaderResponse is the result of a one-shot HTTP round-trip against
+// the current leader's cluster mTLS port via LeaderRequest.
+type LeaderResponse struct {
+	StatusCode int
+	Body       []byte
+}
+
+// LeaderRequest performs a single HTTP request against the current
+// leader's cluster mTLS port and returns the response. Used by
+// follower-side handlers that read state which only exists on the
+// leader (autopilot live state, etc.).
+//
+// Returns hraft.ErrNotLeader when no leader is currently known. The
+// caller is responsible for retry semantics; this helper does not
+// retry because the calls it serves are idempotent reads where a
+// transient miss is preferable to amplifying load on a flapping
+// leader.
+func (m *Manager) LeaderRequest(ctx context.Context, method, path string, body []byte, contentType string) (*LeaderResponse, error) {
+	if m.clusterListener == nil {
+		return nil, hraft.ErrNotLeader
+	}
+
+	leaderAddr, leaderID := m.LeaderAddressAndID()
+	if leaderAddr == "" || leaderID == 0 {
+		return nil, hraft.ErrNotLeader
+	}
+
+	conn, err := m.clusterListener.Dial(ctx, leaderAddr, leaderID, listener.ALPNHTTP, dialTimeout)
+	if err != nil {
+		return nil, fmt.Errorf("dial leader: %w", err)
+	}
+
+	connUsed := false
+
+	defer func() {
+		if !connUsed {
+			_ = conn.Close()
+		}
+	}()
+
+	transport := &http.Transport{
+		DialTLSContext: func(context.Context, string, string) (net.Conn, error) {
+			if connUsed {
+				return nil, errors.New("cluster HTTP transport: connection already consumed")
+			}
+
+			connUsed = true
+
+			return conn, nil
+		},
+	}
+
+	client := &http.Client{Transport: transport}
+
+	var reqBody io.Reader
+	if len(body) > 0 {
+		reqBody = bytes.NewReader(body)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, "https://"+leaderAddr+path, reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("new request: %w", err)
+	}
+
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+
+	if len(body) > 0 {
+		req.ContentLength = int64(len(body))
+	}
+
+	resp, err := client.Do(req) // #nosec G107 -- leaderAddr comes from Raft, not user input
+	if err != nil {
+		return nil, fmt.Errorf("post: %w", err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxForwardResponseBytes))
+	if err != nil {
+		return nil, fmt.Errorf("read body: %w", err)
+	}
+
+	return &LeaderResponse{StatusCode: resp.StatusCode, Body: bodyBytes}, nil
+}
+
 // WriteProposeForwardResponse serialises a successful ProposeResult as the
 // /cluster/internal/propose success body and sets the applied-index header.
 func WriteProposeForwardResponse(w http.ResponseWriter, result *ProposeResult) error {

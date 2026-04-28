@@ -61,7 +61,7 @@ func TestClusterHTTP_Status(t *testing.T) {
 		t.Fatalf("create test db: %v", err)
 	}
 
-	stopCluster := server.StartClusterHTTP(testDB, serverLn, nil)
+	stopCluster := server.StartClusterHTTP(testDB, serverLn)
 	defer stopCluster()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -168,7 +168,7 @@ func clusterTestServer(t *testing.T, pki *testutil.PKI, peerNodeIDs []int) (serv
 		t.Fatalf("create test db: %v", err)
 	}
 
-	stopCluster := server.StartClusterHTTP(testDB, serverLn, nil)
+	stopCluster := server.StartClusterHTTP(testDB, serverLn)
 
 	ctx, cancel := context.WithCancel(context.Background())
 

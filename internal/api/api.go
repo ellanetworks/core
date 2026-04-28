@@ -81,7 +81,6 @@ func (hr *handlerRef) set(h http.Handler) {
 // from discovery-only routes to the full API.
 type UpgradeConfig struct {
 	DB                  *db.Database
-	UPF                 server.UPFUpdater
 	Sessions            smf.SessionQuerier
 	AMF                 *amf.AMF
 	BGP                 *bgp.BGPService
@@ -220,8 +219,6 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 	fullHandler := server.NewHandler(server.HandlerConfig{
 		DB:                  opts.DB,
 		Config:              s.cfg,
-		UPF:                 opts.UPF,
-		Kernel:              kernelInt,
 		JWTSecret:           jwtSecret,
 		SecureCookie:        secureCookie,
 		FrontendFS:          opts.EmbedFS,
@@ -258,7 +255,7 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(5 * time.Minute):
+			case <-time.After(5 * time.Second):
 				continue
 			}
 		}
@@ -288,6 +285,16 @@ func resolveScheme(cfg config.Config) Scheme {
 	return HTTPS
 }
 
+// ReconcileKernelRouting drives this node's kernel routing table from
+// the replicated routes table. It both adds DB routes that are missing
+// from the kernel and removes Ella-owned kernel routes that no longer
+// have a DB counterpart. Operator-installed routes are untouched
+// because the deletion pass is scoped to Ella's protocol marker.
+//
+// BGP-learned routes are managed by internal/bgp/watcher.go; this
+// reconciler skips the bgpRouteMetric to avoid stepping on it.
+const bgpRouteMetric = 200
+
 func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernelInt kernel.Kernel) error {
 	expectedRoutes, _, err := dbInstance.ListRoutesPage(ctx, 1, 100)
 	if err != nil {
@@ -306,6 +313,15 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 		}
 	}
 
+	type routeKey struct {
+		destination string
+		gateway     string
+		priority    int
+		ifKey       kernel.NetworkInterface
+	}
+
+	desired := make(map[routeKey]struct{}, len(expectedRoutes))
+
 	for _, route := range expectedRoutes {
 		destPrefix, err := netip.ParsePrefix(route.Destination)
 		if err != nil {
@@ -322,6 +338,13 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 			return fmt.Errorf("invalid interface: %v", route.Interface)
 		}
 
+		desired[routeKey{
+			destination: destPrefix.String(),
+			gateway:     gwAddr.String(),
+			priority:    route.Metric,
+			ifKey:       kernelNetworkInterface,
+		}] = struct{}{}
+
 		routeExists, err := kernelInt.RouteExists(destPrefix, gwAddr, route.Metric, kernelNetworkInterface)
 		if err != nil {
 			return fmt.Errorf("couldn't check if route exists: %v", err)
@@ -331,6 +354,39 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 			err := kernelInt.CreateRoute(destPrefix, gwAddr, route.Metric, kernelNetworkInterface)
 			if err != nil {
 				return fmt.Errorf("couldn't create route: %v", err)
+			}
+		}
+	}
+
+	for _, netIf := range interfaceDBKernelMap {
+		managed, err := kernelInt.ListManagedRoutes(netIf)
+		if err != nil {
+			return fmt.Errorf("couldn't list managed routes on %v: %v", netIf, err)
+		}
+
+		for _, r := range managed {
+			// BGP watcher owns its own metric; never reclaim those here.
+			if r.Priority == bgpRouteMetric {
+				continue
+			}
+
+			key := routeKey{
+				destination: r.Destination.String(),
+				gateway:     r.Gateway.String(),
+				priority:    r.Priority,
+				ifKey:       netIf,
+			}
+
+			if _, ok := desired[key]; ok {
+				continue
+			}
+
+			if err := kernelInt.DeleteRoute(r.Destination, r.Gateway, r.Priority, netIf); err != nil {
+				logger.APILog.Warn("couldn't delete stale route",
+					zap.String("destination", r.Destination.String()),
+					zap.String("gateway", r.Gateway.String()),
+					zap.Int("priority", r.Priority),
+					zap.Error(err))
 			}
 		}
 	}

@@ -326,7 +326,7 @@ func postClusterInternal(ctx context.Context, ln *listener.Listener, targetRaftA
 		return fmt.Errorf("target node has no node-id")
 	}
 
-	client := newClusterProxyClient(ln, targetNodeID)
+	client := dialPeerHTTPClient(ln, targetNodeID)
 	defer client.CloseIdleConnections()
 
 	url := fmt.Sprintf("https://%s%s", targetRaftAddr, path)
@@ -474,7 +474,7 @@ func SignalShutdownDrain(ctx context.Context, dbInstance *db.Database, ln *liste
 		return fmt.Errorf("cluster listener unavailable")
 	}
 
-	client := newClusterProxyClient(ln, leaderID)
+	client := dialPeerHTTPClient(ln, leaderID)
 	defer client.CloseIdleConnections()
 
 	url := fmt.Sprintf("https://%s/cluster/internal/drain-self", leaderAddr)

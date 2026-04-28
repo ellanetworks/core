@@ -97,12 +97,14 @@ const maxClusterJoinBodyBytes = 4096
 
 // newClusterMux builds the HTTP mux served on the cluster port.
 // Routes here are protected by mTLS (no JWT auth). The cluster port
-// exposes only what peers actually need: status probes, self-registration
-// at join time, and the /cluster/proxy/ mount that followers use to
-// forward authenticated writes to the leader. Destructive cluster-
-// membership operations (remove, promote) live on the public API under
-// /api/v1/cluster/members/*, gated by JWT + PermManageCluster.
-func newClusterMux(dbInstance *db.Database, operatorHandler http.Handler) *http.ServeMux {
+// exposes only what peers actually need: status probes, self-
+// registration at join time, the typed propose-forward endpoint that
+// in-process write callers use to commit through the current leader,
+// and a small set of leader-only or node-targeted RPCs (autopilot
+// state, drain-self, side-effect hooks). Destructive cluster-
+// membership operations (remove, promote) live on the public API
+// under /api/v1/cluster/members/*, gated by JWT + PermManageCluster.
+func newClusterMux(dbInstance *db.Database) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /cluster/status", ClusterStatus(dbInstance).ServeHTTP)
@@ -111,6 +113,7 @@ func newClusterMux(dbInstance *db.Database, operatorHandler http.Handler) *http.
 	mux.Handle("POST /cluster/internal/drain-side-effects", removedNodeFence(dbInstance, DrainLocalSideEffects()))
 	mux.Handle("POST /cluster/internal/resume-side-effects", removedNodeFence(dbInstance, ResumeLocalSideEffects()))
 	mux.Handle("POST /cluster/internal/drain-self", removedNodeFence(dbInstance, DrainSelfOnLeader(dbInstance)))
+	mux.Handle("GET "+InternalAutopilotPath, removedNodeFence(dbInstance, ClusterAutopilotState(dbInstance)))
 	mux.Handle("POST "+raft.ProposeForwardPath, removedNodeFence(dbInstance, ClusterPropose(dbInstance)))
 
 	// PKI endpoints on the cluster HTTP ALPN. The issuer service is
@@ -122,10 +125,6 @@ func newClusterMux(dbInstance *db.Database, operatorHandler http.Handler) *http.
 	mux.Handle("POST /cluster/pki/renew", pkiEndpoint(func(svc *pkiissuer.Service) http.Handler {
 		return ClusterPKIRenew(dbInstance, svc)
 	}))
-
-	if operatorHandler != nil {
-		mux.Handle("/cluster/proxy/", removedNodeFence(dbInstance, http.StripPrefix("/cluster/proxy", operatorHandler)))
-	}
 
 	return mux
 }

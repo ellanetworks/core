@@ -423,7 +423,7 @@ func TestCreateRouteInvalidInput(t *testing.T) {
 			gateway:          Gateway,
 			networkInterface: "abcdef",
 			metric:           Metric,
-			error:            "invalid interface: abcdef: only n3 and n6 are allowed",
+			error:            "invalid interface: only n3 and n6 are allowed",
 		},
 	}
 

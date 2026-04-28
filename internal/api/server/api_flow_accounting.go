@@ -36,7 +36,7 @@ func GetFlowAccountingInfo(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func UpdateFlowAccountingInfo(dbInstance *db.Database, upf UPFUpdater) http.Handler {
+func UpdateFlowAccountingInfo(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -54,11 +54,6 @@ func UpdateFlowAccountingInfo(dbInstance *db.Database, upf UPFUpdater) http.Hand
 
 		if err := dbInstance.UpdateFlowAccountingSettings(r.Context(), params.Enabled); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update flow accounting settings", err, logger.APILog)
-			return
-		}
-
-		if err := upf.ReloadFlowAccounting(params.Enabled); err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to reload UPF with new flow accounting settings", err, logger.APILog)
 			return
 		}
 

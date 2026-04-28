@@ -548,6 +548,17 @@ func (db *Database) LeaderAddressAndID() (string, int) {
 	return db.raftManager.LeaderAddressAndID()
 }
 
+// DoLeaderRequest performs a one-shot HTTP request against the current
+// leader's cluster mTLS port. Used for follower-side reads of state
+// that lives only on the leader.
+func (db *Database) DoLeaderRequest(ctx context.Context, method, path string, body []byte, contentType string) (*ellaraft.LeaderResponse, error) {
+	if db.raftManager == nil {
+		return nil, fmt.Errorf("clustering not enabled")
+	}
+
+	return db.raftManager.LeaderRequest(ctx, method, path, body, contentType)
+}
+
 // RaftState returns the current Raft state as a string (Leader, Follower, etc.).
 func (db *Database) RaftState() string {
 	if db.raftManager == nil {

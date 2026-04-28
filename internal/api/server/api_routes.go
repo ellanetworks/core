@@ -9,9 +9,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/db"
-	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
-	"go.uber.org/zap"
 )
 
 type CreateRouteParams struct {
@@ -62,12 +60,6 @@ func isRouteGatewayValid(gateway string) bool {
 var interfaceDBMap = map[string]db.NetworkInterface{
 	"n3": db.N3,
 	"n6": db.N6,
-}
-
-// interfaceKernelMap maps the interface string to the kernel.NetworkInterface enum.
-var interfaceKernelMap = map[string]kernel.NetworkInterface{
-	"n3": kernel.N3,
-	"n6": kernel.N6,
 }
 
 func ListRoutes(dbInstance *db.Database, bgpService *bgp.BGPService) http.Handler {
@@ -166,7 +158,7 @@ func GetRoute(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler {
+func CreateRoute(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -212,50 +204,33 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 			return
 		}
 
-		kernelNetworkInterface, ok := interfaceKernelMap[createRouteParams.Interface]
-		if !ok {
-			writeError(r.Context(), w, http.StatusBadRequest, "invalid interface: abcdef: only n3 and n6 are allowed", nil, logger.APILog)
-			return
-		}
-
-		destPrefix, err := netip.ParsePrefix(createRouteParams.Destination)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid destination format", err, logger.APILog)
-			return
-		}
-
-		gwAddr, err := netip.ParseAddr(createRouteParams.Gateway)
-		if err != nil || !gwAddr.Is4() {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid gateway format: expecting an IPv4 address", nil, logger.APILog)
-			return
-		}
-
-		routeExists, err := kernelInt.RouteExists(destPrefix, gwAddr, createRouteParams.Metric, kernelNetworkInterface)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to check if route exists", err, logger.APILog)
-			return
-		}
-
-		if routeExists {
-			writeError(r.Context(), w, http.StatusBadRequest, "Route already exists", nil, logger.APILog)
-			return
-		}
-
 		dbNetworkInterface, ok := interfaceDBMap[createRouteParams.Interface]
 		if !ok {
-			writeError(r.Context(), w, http.StatusBadRequest, "invalid interface: abcdef: only n3 and n6 are allowed", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "invalid interface: only n3 and n6 are allowed", nil, logger.APILog)
 			return
 		}
 
-		numRoutes, err := dbInstance.CountRoutes(r.Context())
+		// Hard cap on total static routes; bounds the cost of the
+		// reconciler's DB read on every tick.
+		existing, _, err := dbInstance.ListRoutesPage(r.Context(), 1, MaxNumRoutes+1)
 		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count routes", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list routes", err, logger.APILog)
 			return
 		}
 
-		if numRoutes >= MaxNumRoutes {
+		if len(existing) >= MaxNumRoutes {
 			writeError(r.Context(), w, http.StatusBadRequest, "Maximum number of routes reached ("+strconv.Itoa(MaxNumRoutes)+")", nil, logger.APILog)
 			return
+		}
+
+		for _, existingRoute := range existing {
+			if existingRoute.Destination == createRouteParams.Destination &&
+				existingRoute.Gateway == createRouteParams.Gateway &&
+				existingRoute.Metric == createRouteParams.Metric &&
+				existingRoute.Interface == dbNetworkInterface {
+				writeError(r.Context(), w, http.StatusBadRequest, "Route already exists", nil, logger.APILog)
+				return
+			}
 		}
 
 		dbRoute := &db.Route{
@@ -265,39 +240,11 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 			Metric:      createRouteParams.Metric,
 		}
 
-		tx, err := dbInstance.BeginTransaction(r.Context())
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Internal error starting transaction", err, logger.APILog)
-			return
-		}
-
-		committed := false
-
-		defer func() {
-			if !committed {
-				if rbErr := tx.Rollback(); rbErr != nil {
-					logger.APILog.Error("Failed to rollback transaction", zap.Error(rbErr))
-				}
-			}
-		}()
-
-		routeID, err := tx.CreateRoute(r.Context(), dbRoute)
+		routeID, err := dbInstance.CreateRoute(r.Context(), dbRoute)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create route in DB", err, logger.APILog)
 			return
 		}
-
-		if err := kernelInt.CreateRoute(destPrefix, gwAddr, createRouteParams.Metric, kernelNetworkInterface); err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create kernel route: "+err.Error(), nil, logger.APILog)
-			return
-		}
-
-		if err := tx.Commit(); err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to commit transaction", err, logger.APILog)
-			return
-		}
-
-		committed = true
 
 		response := CreateSuccessResponse{Message: "Route created successfully", ID: routeID}
 		writeResponse(r.Context(), w, response, http.StatusCreated, logger.APILog)
@@ -305,7 +252,7 @@ func CreateRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 	})
 }
 
-func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler {
+func DeleteRoute(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -323,8 +270,7 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 			return
 		}
 
-		route, err := dbInstance.GetRoute(r.Context(), routeID)
-		if err != nil {
+		if _, err := dbInstance.GetRoute(r.Context(), routeID); err != nil {
 			if err == db.ErrNotFound {
 				writeError(r.Context(), w, http.StatusNotFound, "Route not found", nil, logger.APILog)
 				return
@@ -335,55 +281,10 @@ func DeleteRoute(dbInstance *db.Database, kernelInt kernel.Kernel) http.Handler 
 			return
 		}
 
-		destPrefix, err := netip.ParsePrefix(route.Destination)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid destination format: expecting CIDR notation.", err, logger.APILog)
-			return
-		}
-
-		gwAddr, err := netip.ParseAddr(route.Gateway)
-		if err != nil || !gwAddr.Is4() {
-			writeError(r.Context(), w, http.StatusBadRequest, "Invalid gateway format: expecting an IPv4 address", nil, logger.APILog)
-			return
-		}
-
-		tx, err := dbInstance.BeginTransaction(r.Context())
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Internal error starting transaction", err, logger.APILog)
-			return
-		}
-
-		committed := false
-
-		defer func() {
-			if !committed {
-				if rbErr := tx.Rollback(); rbErr != nil {
-					logger.APILog.Error("Failed to rollback transaction", zap.Error(rbErr))
-				}
-			}
-		}()
-
-		if err := tx.DeleteRoute(r.Context(), routeID); err != nil {
+		if err := dbInstance.DeleteRoute(r.Context(), routeID); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete route from DB", err, logger.APILog)
 			return
 		}
-
-		kernelInterface, ok := interfaceKernelMap[route.Interface.String()]
-		if !ok {
-			writeError(r.Context(), w, http.StatusInternalServerError, "invalid interface: abcdef: only n3 and n6 are allowed", nil, logger.APILog)
-			return
-		}
-
-		if err := kernelInt.DeleteRoute(destPrefix, gwAddr, route.Metric, kernelInterface); err != nil {
-			logger.APILog.Warn("Failed to delete kernel route, proceeding with DB cleanup", zap.Error(err))
-		}
-
-		if err := tx.Commit(); err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to commit transaction", err, logger.APILog)
-			return
-		}
-
-		committed = true
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Route deleted successfully"}, http.StatusOK, logger.APILog)
 

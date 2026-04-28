@@ -64,6 +64,10 @@ func (fk FakeKernel) ListRoutesByPriority(priority int, networkInterface kernel.
 	return nil, nil
 }
 
+func (fk FakeKernel) ListManagedRoutes(networkInterface kernel.NetworkInterface) ([]kernel.ManagedRoute, error) {
+	return nil, nil
+}
+
 func (fk FakeKernel) EnsureGatewaysOnInterfaceInNeighTable(ifKey kernel.NetworkInterface) error {
 	return nil
 }
@@ -72,37 +76,6 @@ type dummyFS struct{}
 
 func (dummyFS) Open(name string) (fs.File, error) {
 	return nil, fs.ErrNotExist
-}
-
-type FakeUPF struct {
-	calledFilters *[]struct {
-		policyID  int64
-		direction models.Direction
-		rules     []models.FilterRule
-	}
-}
-
-func (f FakeUPF) ReloadNAT(natEnabled bool) error {
-	return nil
-}
-
-func (f FakeUPF) ReloadFlowAccounting(flowAccountingEnabled bool) error {
-	return nil
-}
-
-func (f FakeUPF) UpdateAdvertisedN3Address(ip netip.Addr) {
-}
-
-func (f FakeUPF) UpdateFilters(_ context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {
-	if f.calledFilters != nil {
-		*f.calledFilters = append(*f.calledFilters, struct {
-			policyID  int64
-			direction models.Direction
-			rules     []models.FilterRule
-		}{policyID: policyID, direction: direction, rules: rules})
-	}
-
-	return nil
 }
 
 // testEnv holds the components created by setupServer.
@@ -141,9 +114,7 @@ func buildTestEnv(testdb *db.Database) (testEnv, error) {
 	smfInstance := smf.New(&fakePCF{}, &fakeSessionStore{}, &fakeUPFClient{}, &fakeAMFCallback{})
 
 	jwtSecret := server.NewJWTSecret([]byte("testsecret"))
-	fakeKernel := FakeKernel{}
 	dummyfs := dummyFS{}
-	fakeUPF := FakeUPF{}
 
 	cfg := config.Config{
 		Interfaces: config.Interfaces{
@@ -167,68 +138,6 @@ func buildTestEnv(testdb *db.Database) (testEnv, error) {
 	ts := httptest.NewTLSServer(server.NewHandler(server.HandlerConfig{
 		DB:           testdb,
 		Config:       cfg,
-		UPF:          fakeUPF,
-		Kernel:       fakeKernel,
-		JWTSecret:    jwtSecret,
-		SecureCookie: false,
-		FrontendFS:   dummyfs,
-		Sessions:     smfInstance,
-		AMF:          amfInstance,
-		BcryptCost:   bcrypt.MinCost,
-	}))
-
-	supportbundle.ConfigProvider = func(ctx context.Context) ([]byte, error) {
-		return []byte("fake test config"), nil
-	}
-
-	return testEnv{
-		Server:    ts,
-		JWTSecret: jwtSecret,
-		DB:        testdb,
-		SMF:       smfInstance,
-		AMF:       amfInstance,
-	}, nil
-}
-
-func setupServerWithUPF(filepath string, upf server.UPFUpdater) (testEnv, error) {
-	testdb, err := db.NewDatabaseWithoutRaft(context.Background(), filepath)
-	if err != nil {
-		return testEnv{}, err
-	}
-
-	logger.SetDb(testdb)
-
-	// Initialize SMF context with test stubs
-	smfInstance := smf.New(&fakePCF{}, &fakeSessionStore{}, &fakeUPFClient{}, &fakeAMFCallback{})
-
-	jwtSecret := server.NewJWTSecret([]byte("testsecret"))
-	fakeKernel := FakeKernel{}
-	dummyfs := dummyFS{}
-
-	cfg := config.Config{
-		Interfaces: config.Interfaces{
-			N2: config.N2Interface{
-				Address: "12.12.12.12",
-				Port:    2152,
-			},
-			N3: config.N3Interface{
-				Address: "13.13.13.13",
-			},
-			N6: config.N6Interface{
-				Name: "eth1",
-			},
-			API: config.APIInterface{
-				Port: 8443,
-			},
-		},
-	}
-
-	amfInstance := amf.New(testdb, nil, nil)
-	ts := httptest.NewTLSServer(server.NewHandler(server.HandlerConfig{
-		DB:           testdb,
-		Config:       cfg,
-		UPF:          upf,
-		Kernel:       fakeKernel,
 		JWTSecret:    jwtSecret,
 		SecureCookie: false,
 		FrontendFS:   dummyfs,

@@ -22,6 +22,20 @@ const (
 	N6
 )
 
+// rtProtoElla tags every route Ella inserts into the kernel routing
+// table. Listing and deletion paths filter on it so the reconciler can
+// remove stale Ella routes without touching operator-installed ones.
+// Value sits in the user-defined range (192-255) to avoid collisions
+// with kernel-defined RTPROT_* constants.
+const rtProtoElla netlink.RouteProtocol = 0xEC
+
+// ManagedRoute describes one Ella-owned kernel route.
+type ManagedRoute struct {
+	Destination netip.Prefix
+	Gateway     netip.Addr
+	Priority    int
+}
+
 // Kernel defines the interface for kernel route management.
 type Kernel interface {
 	EnableIPForwarding() error
@@ -30,6 +44,7 @@ type Kernel interface {
 	DeleteRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error
 	ReplaceRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error
 	ListRoutesByPriority(priority int, ifKey NetworkInterface) ([]netip.Prefix, error)
+	ListManagedRoutes(ifKey NetworkInterface) ([]ManagedRoute, error)
 	InterfaceExists(ifKey NetworkInterface) (bool, error)
 	RouteExists(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) (bool, error)
 	EnsureGatewaysOnInterfaceInNeighTable(ifKey NetworkInterface) error
@@ -86,6 +101,7 @@ func (rk *RealKernel) CreateRoute(destination netip.Prefix, gateway netip.Addr, 
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
 		Table:     unix.RT_TABLE_MAIN,
+		Protocol:  rtProtoElla,
 	}
 
 	if err := netlink.RouteAdd(&nlRoute); err != nil {
@@ -99,6 +115,8 @@ func (rk *RealKernel) CreateRoute(destination netip.Prefix, gateway netip.Addr, 
 }
 
 // DeleteRoute removes a route from the kernel for the interface defined by ifKey.
+// Matches only routes carrying Ella's protocol marker, so an operator-installed
+// route with the same prefix/gateway/metric is left alone.
 func (rk *RealKernel) DeleteRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error {
 	interfaceName, ok := rk.ifMapping[ifKey]
 	if !ok {
@@ -116,6 +134,7 @@ func (rk *RealKernel) DeleteRoute(destination netip.Prefix, gateway netip.Addr, 
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
 		Table:     unix.RT_TABLE_MAIN,
+		Protocol:  rtProtoElla,
 	}
 
 	if err := netlink.RouteDel(&nlRoute); err != nil {
@@ -145,6 +164,7 @@ func (rk *RealKernel) ReplaceRoute(destination netip.Prefix, gateway netip.Addr,
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
 		Table:     unix.RT_TABLE_MAIN,
+		Protocol:  rtProtoElla,
 	}
 
 	if err := netlink.RouteReplace(&nlRoute); err != nil {
@@ -156,8 +176,9 @@ func (rk *RealKernel) ReplaceRoute(destination netip.Prefix, gateway netip.Addr,
 	return addNeighbourForLink(addrToNetIP(gateway), link)
 }
 
-// ListRoutesByPriority returns all route destinations with the given priority (metric)
-// on the interface defined by ifKey.
+// ListRoutesByPriority returns Ella-owned route destinations with the given
+// priority (metric) on the interface defined by ifKey. Only routes carrying
+// Ella's protocol marker are returned; operator-installed routes are skipped.
 func (rk *RealKernel) ListRoutesByPriority(priority int, ifKey NetworkInterface) ([]netip.Prefix, error) {
 	interfaceName, ok := rk.ifMapping[ifKey]
 	if !ok {
@@ -172,9 +193,10 @@ func (rk *RealKernel) ListRoutesByPriority(priority int, ifKey NetworkInterface)
 	nlRoute := netlink.Route{
 		LinkIndex: link.Attrs().Index,
 		Table:     unix.RT_TABLE_MAIN,
+		Protocol:  rtProtoElla,
 	}
 
-	routes, err := netlink.RouteListFiltered(unix.AF_INET, &nlRoute, netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE)
+	routes, err := netlink.RouteListFiltered(unix.AF_INET, &nlRoute, netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list routes: %v", err)
 	}
@@ -191,6 +213,57 @@ func (rk *RealKernel) ListRoutesByPriority(priority int, ifKey NetworkInterface)
 			ones, _ := r.Dst.Mask.Size()
 			result = append(result, netip.PrefixFrom(addr, ones))
 		}
+	}
+
+	return result, nil
+}
+
+// ListManagedRoutes returns every Ella-owned route on the interface
+// identified by ifKey, with full destination/gateway/priority info so the
+// caller can diff against a desired set and call DeleteRoute for stale
+// entries.
+func (rk *RealKernel) ListManagedRoutes(ifKey NetworkInterface) ([]ManagedRoute, error) {
+	interfaceName, ok := rk.ifMapping[ifKey]
+	if !ok {
+		return nil, fmt.Errorf("invalid interface key: %v", ifKey)
+	}
+
+	link, err := netlink.LinkByName(interfaceName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
+	}
+
+	nlRoute := netlink.Route{
+		LinkIndex: link.Attrs().Index,
+		Table:     unix.RT_TABLE_MAIN,
+		Protocol:  rtProtoElla,
+	}
+
+	routes, err := netlink.RouteListFiltered(unix.AF_INET, &nlRoute, netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list routes: %v", err)
+	}
+
+	result := make([]ManagedRoute, 0, len(routes))
+
+	for _, r := range routes {
+		if r.Dst == nil {
+			continue
+		}
+
+		dstAddr, ok := netip.AddrFromSlice(r.Dst.IP)
+		if !ok {
+			continue
+		}
+
+		ones, _ := r.Dst.Mask.Size()
+		gw, _ := netip.AddrFromSlice(r.Gw)
+
+		result = append(result, ManagedRoute{
+			Destination: netip.PrefixFrom(dstAddr, ones),
+			Gateway:     gw,
+			Priority:    r.Priority,
+		})
 	}
 
 	return result, nil
@@ -215,7 +288,9 @@ func (rk *RealKernel) InterfaceExists(ifKey NetworkInterface) (bool, error) {
 	return true, nil
 }
 
-// RouteExists checks if a route exists for the interface defined by ifKey.
+// RouteExists checks if an Ella-owned route exists for the interface
+// defined by ifKey. Operator-installed routes with the same prefix do not
+// count.
 func (rk *RealKernel) RouteExists(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) (bool, error) {
 	interfaceName, ok := rk.ifMapping[ifKey]
 	if !ok {
@@ -233,9 +308,10 @@ func (rk *RealKernel) RouteExists(destination netip.Prefix, gateway netip.Addr, 
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
 		Table:     unix.RT_TABLE_MAIN,
+		Protocol:  rtProtoElla,
 	}
 
-	routes, err := netlink.RouteListFiltered(unix.AF_INET, &nlRoute, netlink.RT_FILTER_DST|netlink.RT_FILTER_GW|netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE)
+	routes, err := netlink.RouteListFiltered(unix.AF_INET, &nlRoute, netlink.RT_FILTER_DST|netlink.RT_FILTER_GW|netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
 	if err != nil {
 		return false, fmt.Errorf("failed to list routes: %v", err)
 	}

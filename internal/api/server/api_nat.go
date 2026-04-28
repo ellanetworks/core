@@ -38,7 +38,7 @@ func GetNATInfo(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func UpdateNATInfo(dbInstance *db.Database, upf UPFUpdater, bgpService *bgp.BGPService) http.Handler {
+func UpdateNATInfo(dbInstance *db.Database, bgpService *bgp.BGPService) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -59,16 +59,12 @@ func UpdateNATInfo(dbInstance *db.Database, upf UPFUpdater, bgpService *bgp.BGPS
 			return
 		}
 
-		err := upf.ReloadNAT(params.Enabled)
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to reload UPF with new NAT settings", err, logger.APILog)
-			return
-		}
-
-		// NAT enabled → suppress BGP route advertising; NAT disabled → resume.
-		// When re-enabling advertising, the BGP reconciler's next tick
-		// rebuilds the RIB from the replicated lease table — no allocated-
-		// IP list is needed here.
+		// Local BGP advertising flag is per-node runtime state; flip
+		// it on the receiving node so this node's BGP daemon stops
+		// (or resumes) advertising UE /32s. Other nodes converge UPF
+		// state via the upf settings reconciler; their BGP daemon
+		// state is updated when their own handler is hit, or on
+		// process restart.
 		if bgpService != nil {
 			bgpService.SetAdvertising(!params.Enabled)
 		}
