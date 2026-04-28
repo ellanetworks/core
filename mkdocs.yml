@@ -72,6 +72,7 @@ nav:
     - Integrate with a Radio: how_to/integrate_with_radio.md
     - Backup and Restore: how_to/backup_and_restore.md
     - Scale Up a High Availability Cluster (beta): how_to/scale_up_ha_cluster.md
+    - Perform a Rolling Upgrade (beta): how_to/rolling_upgrade.md
     - Tune Network Performance: how_to/performance_tuning.md
     - Advertise subscriber routes with BGP: how_to/bgp.md
     - Manage Your Network with AI Agents: how_to/ai_agents.md

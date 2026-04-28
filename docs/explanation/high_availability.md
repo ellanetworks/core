@@ -92,12 +92,15 @@ HA clusters recover from total loss through an offline, backup-driven path. An o
 
 ## Rolling upgrades
 
-Upgrades proceed one node at a time: drain, remove, upgrade, rejoin as non-voter, wait for auto-promotion (or promote manually). Writes continue throughout; the cluster is briefly mixed-version during each swap.
+Upgrades proceed one node at a time: drain the node, refresh its binary, then resume. Each node retains its node-id, certificate, and Raft membership across the swap. Writes continue throughout; the cluster is briefly mixed-version during each step.
 
-The cluster coordinates schema changes so a mixed-version cluster stays consistent during an upgrade. Skip-version upgrades (`vN → vN+2`) and downgrades are not supported.
+When the new binary carries schema changes, the cluster proposes them through Raft only after every voter has self-announced support. Until then, the cluster keeps running on the old schema. Operators can watch progress on `GET /api/v1/status`: `cluster.appliedSchemaVersion` advances in lockstep across nodes, and `cluster.pendingMigration.laggardNodeId` identifies the node holding a migration up.
+
+Skip-version upgrades (`vN → vN+2`) and downgrades are not supported.
 
 ## Further reading
 
 - [Deploy a High Availability Cluster](../how_to/deploy_ha_cluster.md) — step-by-step guide to bring up a cluster.
 - [Scale Up a High Availability Cluster (beta)](../how_to/scale_up_ha_cluster.md) — add nodes to an existing cluster.
+- [Perform a Rolling Upgrade (beta)](../how_to/rolling_upgrade.md) — upgrade every node without taking the cluster offline.
 - [Cluster API reference](../reference/api/cluster.md) — cluster management endpoints.
