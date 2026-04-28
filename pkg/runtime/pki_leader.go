@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/cluster/listener"
@@ -16,15 +17,18 @@ import (
 	"go.uber.org/zap"
 )
 
-// pkiLeaderCallback runs setupLeaderPKI each time this node becomes the
-// Raft leader, and unloads in-memory keys when leadership is lost.
-// Implements raft.LeaderCallback via duck-typing.
+const (
+	leaderInitInitialBackoff = time.Second
+	leaderInitMaxBackoff     = 30 * time.Second
+)
+
 type pkiLeaderCallback struct {
-	ctx        context.Context
-	state      *pkiState
-	dbInstance *db.Database
-	clusterLn  *listener.Listener
-	nodeID     int
+	ctx           context.Context
+	state         *pkiState
+	dbInstance    *db.Database
+	clusterLn     *listener.Listener
+	nodeID        int
+	binaryVersion string
 
 	// needsDRSnapshot is true when this node was bootstrapped from a
 	// restore bundle. Its FSM carries state that wasn't built up by
@@ -39,65 +43,152 @@ type pkiLeaderCallback struct {
 	needsDRSnapshot bool
 
 	bootstrapRegistered sync.Once
+
+	mu           sync.Mutex
+	leaderCancel context.CancelFunc
 }
 
-func newPKILeaderCallback(ctx context.Context, state *pkiState, dbInstance *db.Database, ln *listener.Listener, nodeID int, needsDRSnapshot bool) *pkiLeaderCallback {
+func newPKILeaderCallback(ctx context.Context, state *pkiState, dbInstance *db.Database, ln *listener.Listener, nodeID int, binaryVersion string, needsDRSnapshot bool) *pkiLeaderCallback {
 	return &pkiLeaderCallback{
 		ctx:             ctx,
 		state:           state,
 		dbInstance:      dbInstance,
 		clusterLn:       ln,
 		nodeID:          nodeID,
+		binaryVersion:   binaryVersion,
 		needsDRSnapshot: needsDRSnapshot,
 	}
 }
 
-// OnBecameLeader loads or bootstraps PKI material on this node and
-// publishes the issuer so HTTP handlers can reach it. Best-effort: a
-// failure logs but does not panic; issuance requests return 503 until
-// the next leadership transition retries.
+// OnBecameLeader runs runLeaderInit synchronously on the typical
+// success path so the leader's init completes before observer.Register
+// returns. On failure it yields leadership and retries in the
+// background under a leadership-scoped context.
 func (c *pkiLeaderCallback) OnBecameLeader() {
+	leaderCtx := c.beginLeaderTerm()
+
 	if c.needsDRSnapshot {
-		if err := c.dbInstance.SelfRestore(c.ctx); err != nil {
+		if err := c.dbInstance.SelfRestore(leaderCtx); err != nil {
 			logger.EllaLog.Warn("post-DR self-restore failed", zap.Error(err))
-			// Skip the rest for this transition; the next leader
-			// callback fires a retry.
 			return
 		}
 
 		c.needsDRSnapshot = false
 	}
 
-	if err := setupLeaderPKI(c.ctx, c.state, c.dbInstance, c.nodeID); err != nil {
-		logger.EllaLog.Warn("setupLeaderPKI on leader transition failed", zap.Error(err))
+	if err := runLeaderInit(leaderCtx, c.state, c.dbInstance, c.nodeID, c.binaryVersion); err != nil {
+		logger.EllaLog.Warn("leader init failed; yielding leadership and scheduling retry",
+			zap.Error(err))
+
+		c.yieldLeadership()
+
+		go c.retryLeaderInit(leaderCtx)
+
 		return
 	}
 
-	// Register the bootstrap ALPN the first time setup succeeds.
-	// listener.Register panics on duplicate ALPN, so we guard with a
-	// once that only fires after a successful setupLeaderPKI.
-	if c.clusterLn != nil && c.state.issuer != nil {
+	c.onLeaderInitSuccess()
+}
+
+func (c *pkiLeaderCallback) OnLostLeadership() {
+	c.mu.Lock()
+	if c.leaderCancel != nil {
+		c.leaderCancel()
+		c.leaderCancel = nil
+	}
+	c.mu.Unlock()
+
+	if c.state != nil && c.state.issuer != nil {
+		c.state.issuer.UnloadKeys()
+	}
+}
+
+func (c *pkiLeaderCallback) beginLeaderTerm() context.Context {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.leaderCancel != nil {
+		c.leaderCancel()
+	}
+
+	leaderCtx, cancel := context.WithCancel(c.ctx)
+	c.leaderCancel = cancel
+
+	return leaderCtx
+}
+
+// yieldLeadership best-effort transfers leadership to a follower.
+// Fails (and is logged at Debug) on a single-node cluster — the retry
+// loop covers that case.
+func (c *pkiLeaderCallback) yieldLeadership() {
+	if err := c.dbInstance.LeadershipTransfer(); err != nil {
+		logger.EllaLog.Debug("leadership transfer after init failure",
+			zap.Error(err))
+	}
+}
+
+func (c *pkiLeaderCallback) retryLeaderInit(ctx context.Context) {
+	backoff := leaderInitInitialBackoff
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(backoff):
+		}
+
+		err := runLeaderInit(ctx, c.state, c.dbInstance, c.nodeID, c.binaryVersion)
+		if err == nil {
+			logger.EllaLog.Info("leader init recovered after retry")
+			c.onLeaderInitSuccess()
+
+			return
+		}
+
+		backoff *= 2
+		if backoff > leaderInitMaxBackoff {
+			backoff = leaderInitMaxBackoff
+		}
+
+		logger.EllaLog.Warn("leader init retry failed",
+			zap.Error(err),
+			zap.Duration("next_backoff", backoff))
+	}
+}
+
+func (c *pkiLeaderCallback) onLeaderInitSuccess() {
+	// listener.Register panics on duplicate ALPN, so guard with Once.
+	if c.clusterLn != nil && c.state != nil && c.state.issuer != nil {
 		c.bootstrapRegistered.Do(func() {
 			server.RegisterBootstrapALPN(c.clusterLn, c.state.issuer)
 		})
 	}
 }
 
-// OnLostLeadership zeroes the in-memory keys. The issuer stays
-// registered with the HTTP handlers so follower-side bundle accessors
-// still work, but Issue / MintJoinToken return "not leader" until we
-// regain leadership.
-func (c *pkiLeaderCallback) OnLostLeadership() {
-	if c.state.issuer != nil {
-		c.state.issuer.UnloadKeys()
+// runLeaderInit is idempotent; each step's invariant is checked
+// before any write.
+func runLeaderInit(ctx context.Context, pki *pkiState, dbInstance *db.Database, nodeID int, binaryVersion string) error {
+	if err := dbInstance.Initialize(ctx); err != nil {
+		return fmt.Errorf("initialize: %w", err)
 	}
+
+	if err := dbInstance.PostInitClusterSetup(ctx, binaryVersion); err != nil {
+		return fmt.Errorf("post-init cluster setup: %w", err)
+	}
+
+	if err := dbInstance.DeleteAllDynamicLeases(ctx); err != nil {
+		return fmt.Errorf("delete dynamic leases: %w", err)
+	}
+
+	if pki != nil {
+		if err := setupLeaderPKI(ctx, pki, dbInstance, nodeID); err != nil {
+			return fmt.Errorf("setup pki: %w", err)
+		}
+	}
+
+	return nil
 }
 
-// setupLeaderPKI runs after PostInitClusterSetup. It bootstraps the
-// issuer on the first leader, loads signing keys from the replicated
-// DB on every leadership transition, self-issues a leaf if this node
-// doesn't have one, and publishes the issuer so HTTP handlers can
-// reach it.
 func setupLeaderPKI(ctx context.Context, pki *pkiState, dbInstance *db.Database, nodeID int) error {
 	if pki.issuer == nil {
 		pki.issuer = pkiissuer.New(dbInstance)
@@ -133,8 +224,6 @@ func setupLeaderPKI(ctx context.Context, pki *pkiState, dbInstance *db.Database,
 	return nil
 }
 
-// selfIssueLeaf generates a local CSR, has the issuer sign it, and
-// stores the result via the agent.
 func selfIssueLeaf(ctx context.Context, pki *pkiState, nodeID int) error {
 	// Re-read clusterID so the CSR's URI SAN matches.
 	bundle := pki.bundleCached.Load()

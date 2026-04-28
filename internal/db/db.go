@@ -916,26 +916,34 @@ func (db *Database) RunDiscovery(ctx context.Context) error {
 	return nil
 }
 
-// PostInitClusterSetup generates the cluster ID (if absent) and upserts this
-// node's cluster_members row. Must be called on the leader after Initialize()
-// has seeded the operator row.
-func (db *Database) PostInitClusterSetup(ctx context.Context, binaryVersion string) error {
-	if db.raftManager == nil || !db.raftManager.IsLeader() {
+// ensureClusterID populates the operator row's ClusterID if empty.
+// Run from Initialize() so a standalone DB carries one too — the PKI
+// bootstrap on a later cluster-mode boot needs it.
+func (db *Database) ensureClusterID(ctx context.Context) error {
+	op, err := db.GetOperator(ctx)
+	if err != nil {
+		return fmt.Errorf("read operator: %w", err)
+	}
+
+	if op.ClusterID != "" {
 		return nil
 	}
 
-	op, err := db.GetOperator(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to read operator for cluster ID check: %w", err)
+	clusterID := uuid.New().String()
+	if err := db.UpdateOperatorClusterID(ctx, clusterID); err != nil {
+		return fmt.Errorf("set cluster ID: %w", err)
 	}
 
-	if op.ClusterID == "" {
-		clusterID := uuid.New().String()
-		if err := db.UpdateOperatorClusterID(ctx, clusterID); err != nil {
-			return fmt.Errorf("failed to set cluster ID: %w", err)
-		}
+	logger.WithTrace(ctx, logger.DBLog).Info("Generated cluster ID", zap.String("cluster_id", clusterID))
 
-		logger.WithTrace(ctx, logger.DBLog).Info("Generated cluster ID", zap.String("cluster_id", clusterID))
+	return nil
+}
+
+// PostInitClusterSetup upserts this node's cluster_members row.
+// Leader-only.
+func (db *Database) PostInitClusterSetup(ctx context.Context, binaryVersion string) error {
+	if db.raftManager == nil || !db.raftManager.IsLeader() {
+		return nil
 	}
 
 	if err := db.selfUpsertClusterMember(ctx, binaryVersion); err != nil {
@@ -1488,6 +1496,10 @@ func (db *Database) Initialize(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to initialize network configuration: %v", err)
 		}
+	}
+
+	if err := db.ensureClusterID(ctx); err != nil {
+		return fmt.Errorf("failed to ensure cluster ID: %w", err)
 	}
 
 	numKeys, err := db.CountHomeNetworkKeys(ctx)
