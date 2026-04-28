@@ -18,9 +18,12 @@ import (
 )
 
 const (
-	defaultUPFReconcileInterval = 5 * time.Second
-	directionUplinkString       = "uplink"
-	directionDownlinkString     = "downlink"
+	// upfReconcileBackstop is the periodic invariant-checking sweep
+	// when no change events have fired. Primary trigger is the
+	// changefeed; this exists only to recover from missed signals.
+	upfReconcileBackstop    = 5 * time.Minute
+	directionUplinkString   = "uplink"
+	directionDownlinkString = "downlink"
 )
 
 // SettingsStore is the narrow view the reconciler needs over the DB.
@@ -52,8 +55,9 @@ type Updater interface {
 type SettingsReconciler struct {
 	updater      Updater
 	store        SettingsStore
+	changefeed   *db.Changefeed
 	fallbackN3IP netip.Addr
-	interval     time.Duration
+	backstop     time.Duration
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -73,13 +77,15 @@ type filterSnapshot struct {
 
 // NewSettingsReconciler wires a reconciler. fallbackN3IP is the local
 // node's configured N3 address used when n3_settings.external_address
-// is empty.
-func NewSettingsReconciler(updater Updater, store SettingsStore, fallbackN3IP netip.Addr) *SettingsReconciler {
+// is empty. changefeed may be nil in tests that drive Reconcile()
+// directly; production callers always pass a non-nil broker.
+func NewSettingsReconciler(updater Updater, store SettingsStore, changefeed *db.Changefeed, fallbackN3IP netip.Addr) *SettingsReconciler {
 	return &SettingsReconciler{
 		updater:        updater,
 		store:          store,
+		changefeed:     changefeed,
 		fallbackN3IP:   fallbackN3IP,
-		interval:       defaultUPFReconcileInterval,
+		backstop:       upfReconcileBackstop,
 		appliedFilters: make(map[int64]filterSnapshot),
 	}
 }
@@ -122,21 +128,43 @@ func (r *SettingsReconciler) Stop() {
 func (r *SettingsReconciler) loop(ctx context.Context, done chan struct{}) {
 	defer close(done)
 
-	ticker := time.NewTicker(r.interval)
-	defer ticker.Stop()
+	var (
+		events  <-chan db.Event
+		dropped <-chan struct{}
+	)
+
+	if r.changefeed != nil {
+		sub := r.changefeed.Subscribe(
+			db.TopicNATSettings,
+			db.TopicFlowAccountingSettings,
+			db.TopicN3Settings,
+			db.TopicPolicies,
+			db.TopicNetworkRules,
+		)
+		defer sub.Close()
+
+		events = sub.Events
+		dropped = sub.Dropped
+	}
 
 	if err := r.Reconcile(ctx); err != nil {
 		logger.UpfLog.Warn("upf settings reconcile failed", zap.Error(err))
 	}
 
+	backstop := time.NewTicker(r.backstop)
+	defer backstop.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			if err := r.Reconcile(ctx); err != nil {
-				logger.UpfLog.Warn("upf settings reconcile failed", zap.Error(err))
-			}
+		case <-events:
+		case <-dropped:
+		case <-backstop.C:
+		}
+
+		if err := r.Reconcile(ctx); err != nil {
+			logger.UpfLog.Warn("upf settings reconcile failed", zap.Error(err))
 		}
 	}
 }

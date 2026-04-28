@@ -28,14 +28,14 @@ var (
 
 // IP leases. ip_leases.nodeID added in v9.
 var (
-	opCreateLease               = registerChangesetOp("CreateLease", (*Database).applyCreateLease, RequireSchema(9))
-	opUpdateLeaseSession        = registerChangesetOp("UpdateLeaseSession", (*Database).applyUpdateLeaseSession, RequireSchema(9))
-	opDeleteDynamicLease        = registerChangesetOp("DeleteDynamicLease", (*Database).applyDeleteDynamicLease, RequireSchema(9))
-	opDeleteDynamicLeasesByNode = registerChangesetOp("DeleteDynamicLeasesByNode", (*Database).applyDeleteDynamicLeasesByNode, RequireSchema(9))
-	opUpdateLeaseNode           = registerChangesetOp("UpdateLeaseNode", (*Database).applyUpdateLeaseNode, RequireSchema(9))
+	opCreateLease               = registerChangesetOp("CreateLease", (*Database).applyCreateLease, RequireSchema(9), AffectsTopic(TopicIPLeases))
+	opUpdateLeaseSession        = registerChangesetOp("UpdateLeaseSession", (*Database).applyUpdateLeaseSession, RequireSchema(9), AffectsTopic(TopicIPLeases))
+	opDeleteDynamicLease        = registerChangesetOp("DeleteDynamicLease", (*Database).applyDeleteDynamicLease, RequireSchema(9), AffectsTopic(TopicIPLeases))
+	opDeleteDynamicLeasesByNode = registerChangesetOp("DeleteDynamicLeasesByNode", (*Database).applyDeleteDynamicLeasesByNode, RequireSchema(9), AffectsTopic(TopicIPLeases))
+	opUpdateLeaseNode           = registerChangesetOp("UpdateLeaseNode", (*Database).applyUpdateLeaseNode, RequireSchema(9), AffectsTopic(TopicIPLeases))
 	// AllocateIPLease forwards intent only; leader resolves the IP
 	// atomically under proposeMu (see applyAllocateIPLease).
-	opAllocateIPLease = registerChangesetOp("AllocateIPLease", (*Database).applyAllocateIPLease, RequireSchema(9))
+	opAllocateIPLease = registerChangesetOp("AllocateIPLease", (*Database).applyAllocateIPLease, RequireSchema(9), AffectsTopic(TopicIPLeases))
 )
 
 // Audit logs
@@ -82,24 +82,24 @@ var (
 
 // Data networks
 var (
-	opCreateDataNetwork = registerChangesetOp("CreateDataNetwork", (*Database).applyCreateDataNetwork)
-	opUpdateDataNetwork = registerChangesetOp("UpdateDataNetwork", (*Database).applyUpdateDataNetwork)
-	opDeleteDataNetwork = registerChangesetOp("DeleteDataNetwork", (*Database).applyDeleteDataNetwork)
+	opCreateDataNetwork = registerChangesetOp("CreateDataNetwork", (*Database).applyCreateDataNetwork, AffectsTopic(TopicDataNetworks))
+	opUpdateDataNetwork = registerChangesetOp("UpdateDataNetwork", (*Database).applyUpdateDataNetwork, AffectsTopic(TopicDataNetworks))
+	opDeleteDataNetwork = registerChangesetOp("DeleteDataNetwork", (*Database).applyDeleteDataNetwork, AffectsTopic(TopicDataNetworks))
 )
 
 // Policies
 var (
-	opCreatePolicy = registerChangesetOp("CreatePolicy", (*Database).applyCreatePolicy)
-	opUpdatePolicy = registerChangesetOp("UpdatePolicy", (*Database).applyUpdatePolicy)
-	opDeletePolicy = registerChangesetOp("DeletePolicy", (*Database).applyDeletePolicy)
+	opCreatePolicy = registerChangesetOp("CreatePolicy", (*Database).applyCreatePolicy, AffectsTopic(TopicPolicies))
+	opUpdatePolicy = registerChangesetOp("UpdatePolicy", (*Database).applyUpdatePolicy, AffectsTopic(TopicPolicies))
+	opDeletePolicy = registerChangesetOp("DeletePolicy", (*Database).applyDeletePolicy, AffectsTopic(TopicPolicies))
 )
 
 // Network rules
 var (
-	opCreateNetworkRule          = registerChangesetOp("CreateNetworkRule", (*Database).applyCreateNetworkRule)
-	opUpdateNetworkRule          = registerChangesetOp("UpdateNetworkRule", (*Database).applyUpdateNetworkRule)
-	opDeleteNetworkRule          = registerChangesetOp("DeleteNetworkRule", (*Database).applyDeleteNetworkRule)
-	opDeleteNetworkRulesByPolicy = registerChangesetOp("DeleteNetworkRulesByPolicy", (*Database).applyDeleteNetworkRulesByPolicy)
+	opCreateNetworkRule          = registerChangesetOp("CreateNetworkRule", (*Database).applyCreateNetworkRule, AffectsTopic(TopicNetworkRules))
+	opUpdateNetworkRule          = registerChangesetOp("UpdateNetworkRule", (*Database).applyUpdateNetworkRule, AffectsTopic(TopicNetworkRules))
+	opDeleteNetworkRule          = registerChangesetOp("DeleteNetworkRule", (*Database).applyDeleteNetworkRule, AffectsTopic(TopicNetworkRules))
+	opDeleteNetworkRulesByPolicy = registerChangesetOp("DeleteNetworkRulesByPolicy", (*Database).applyDeleteNetworkRulesByPolicy, AffectsTopic(TopicNetworkRules))
 )
 
 // Home network key
@@ -110,18 +110,18 @@ var (
 
 // BGP. bgp_peers.nodeID added in v9.
 var (
-	opCreateBGPPeer            = registerChangesetOp("CreateBGPPeer", (*Database).applyCreateBGPPeer, RequireSchema(9))
-	opUpdateBGPPeer            = registerChangesetOp("UpdateBGPPeer", (*Database).applyUpdateBGPPeer, RequireSchema(9))
-	opDeleteBGPPeer            = registerChangesetOp("DeleteBGPPeer", (*Database).applyDeleteBGPPeer, RequireSchema(9))
-	opUpdateBGPSettings        = registerChangesetOp("UpdateBGPSettings", (*Database).applyUpdateBGPSettings)
-	opSetImportPrefixesForPeer = registerChangesetOp("SetImportPrefixesForPeer", (*Database).applySetImportPrefixesForPeer)
+	opCreateBGPPeer            = registerChangesetOp("CreateBGPPeer", (*Database).applyCreateBGPPeer, RequireSchema(9), AffectsTopic(TopicBGPPeers))
+	opUpdateBGPPeer            = registerChangesetOp("UpdateBGPPeer", (*Database).applyUpdateBGPPeer, RequireSchema(9), AffectsTopic(TopicBGPPeers))
+	opDeleteBGPPeer            = registerChangesetOp("DeleteBGPPeer", (*Database).applyDeleteBGPPeer, RequireSchema(9), AffectsTopic(TopicBGPPeers))
+	opUpdateBGPSettings        = registerChangesetOp("UpdateBGPSettings", (*Database).applyUpdateBGPSettings, AffectsTopic(TopicBGPSettings))
+	opSetImportPrefixesForPeer = registerChangesetOp("SetImportPrefixesForPeer", (*Database).applySetImportPrefixesForPeer, AffectsTopic(TopicBGPPeers))
 )
 
 // NAT / N3 / Flow accounting
 var (
-	opUpdateNATSettings            = registerChangesetOp("UpdateNATSettings", (*Database).applyUpdateNATSettings)
-	opUpdateN3Settings             = registerChangesetOp("UpdateN3Settings", (*Database).applyUpdateN3Settings)
-	opUpdateFlowAccountingSettings = registerChangesetOp("UpdateFlowAccountingSettings", (*Database).applyUpdateFlowAccountingSettings)
+	opUpdateNATSettings            = registerChangesetOp("UpdateNATSettings", (*Database).applyUpdateNATSettings, AffectsTopic(TopicNATSettings))
+	opUpdateN3Settings             = registerChangesetOp("UpdateN3Settings", (*Database).applyUpdateN3Settings, AffectsTopic(TopicN3Settings))
+	opUpdateFlowAccountingSettings = registerChangesetOp("UpdateFlowAccountingSettings", (*Database).applyUpdateFlowAccountingSettings, AffectsTopic(TopicFlowAccountingSettings))
 )
 
 // Retention
@@ -148,8 +148,8 @@ var (
 
 // Routes
 var (
-	opCreateRoute = registerChangesetOp("CreateRoute", (*Database).applyCreateRoute)
-	opDeleteRoute = registerChangesetOp("DeleteRoute", (*Database).applyDeleteRoute)
+	opCreateRoute = registerChangesetOp("CreateRoute", (*Database).applyCreateRoute, AffectsTopic(TopicRoutes))
+	opDeleteRoute = registerChangesetOp("DeleteRoute", (*Database).applyDeleteRoute, AffectsTopic(TopicRoutes))
 )
 
 // Cluster members. cluster_members table introduced in v9.
@@ -185,7 +185,7 @@ var (
 var (
 	opDeleteOldAuditLogs     = registerIntentOp("DeleteOldAuditLogs", ellaraft.CmdDeleteOldAuditLogs)
 	opDeleteOldDailyUsage    = registerIntentOp("DeleteOldDailyUsage", ellaraft.CmdDeleteOldDailyUsage)
-	opDeleteAllDynamicLeases = registerIntentOp("DeleteAllDynamicLeases", ellaraft.CmdDeleteAllDynamicLeases)
+	opDeleteAllDynamicLeases = registerIntentOp("DeleteAllDynamicLeases", ellaraft.CmdDeleteAllDynamicLeases, AffectsTopic(TopicIPLeases))
 	opDeleteExpiredSessions  = registerIntentOp("DeleteExpiredSessions", ellaraft.CmdDeleteExpiredSessions)
 	opMigrateShared          = registerIntentOp("MigrateShared", ellaraft.CmdMigrateShared)
 )

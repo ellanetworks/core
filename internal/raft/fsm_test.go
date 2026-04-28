@@ -77,7 +77,7 @@ func (a *testApplier) open() error {
 	return nil
 }
 
-func (a *testApplier) ApplyCommand(ctx context.Context, cmd *Command) (any, error) {
+func (a *testApplier) ApplyCommand(ctx context.Context, cmd *Command, _ uint64) (any, error) {
 	a.mu.Lock()
 	a.commands = append(a.commands, cmd)
 	a.mu.Unlock()

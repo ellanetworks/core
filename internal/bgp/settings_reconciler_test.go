@@ -126,7 +126,7 @@ func TestSettingsReconcile_StartsWhenEnabled(t *testing.T) {
 	store := &fakeSettingsStore{settings: BGPSettings{Enabled: true, LocalAS: 65000}}
 	svc := &fakeService{running: false}
 
-	r := NewSettingsReconciler(svc, store, nil)
+	r := NewSettingsReconciler(svc, store, nil, nil)
 
 	if err := r.Reconcile(context.Background()); err != nil {
 		t.Fatalf("reconcile: %v", err)
@@ -141,7 +141,7 @@ func TestSettingsReconcile_StopsWhenDisabledAndRunning(t *testing.T) {
 	store := &fakeSettingsStore{settings: BGPSettings{Enabled: false}}
 	svc := &fakeService{running: true}
 
-	r := NewSettingsReconciler(svc, store, nil)
+	r := NewSettingsReconciler(svc, store, nil, nil)
 	r.MarkApplied(BGPSettings{Enabled: true, LocalAS: 65000}, nil, true)
 
 	if err := r.Reconcile(context.Background()); err != nil {
@@ -157,7 +157,7 @@ func TestSettingsReconcile_ReconfiguresOnSettingsChange(t *testing.T) {
 	store := &fakeSettingsStore{settings: BGPSettings{Enabled: true, LocalAS: 65000, RouterID: "1.1.1.1"}}
 	svc := &fakeService{running: true}
 
-	r := NewSettingsReconciler(svc, store, nil)
+	r := NewSettingsReconciler(svc, store, nil, nil)
 	r.MarkApplied(BGPSettings{Enabled: true, LocalAS: 65000, RouterID: "1.1.1.1"}, nil, true)
 
 	if err := r.Reconcile(context.Background()); err != nil {
@@ -186,7 +186,7 @@ func TestSettingsReconcile_ReconfiguresOnPeerChange(t *testing.T) {
 	store := &fakeSettingsStore{settings: BGPSettings{Enabled: true, LocalAS: 65000}, peers: peers}
 	svc := &fakeService{running: true}
 
-	r := NewSettingsReconciler(svc, store, nil)
+	r := NewSettingsReconciler(svc, store, nil, nil)
 	r.MarkApplied(BGPSettings{Enabled: true, LocalAS: 65000}, peers, true)
 
 	if err := r.Reconcile(context.Background()); err != nil {
@@ -214,7 +214,7 @@ func TestSettingsReconcile_AdvertisingFollowsNAT(t *testing.T) {
 	store := &fakeSettingsStore{settings: BGPSettings{Enabled: true, LocalAS: 65000}, natEnabled: false}
 	svc := &fakeService{running: true}
 
-	r := NewSettingsReconciler(svc, store, nil)
+	r := NewSettingsReconciler(svc, store, nil, nil)
 	r.MarkApplied(BGPSettings{Enabled: true, LocalAS: 65000}, nil, true)
 
 	if err := r.Reconcile(context.Background()); err != nil {
@@ -252,7 +252,7 @@ func TestSettingsReconcile_FilterRebuiltOnDiff(t *testing.T) {
 		return currentFilter, nil
 	}
 
-	r := NewSettingsReconciler(svc, store, builder)
+	r := NewSettingsReconciler(svc, store, builder, nil)
 	r.MarkApplied(BGPSettings{Enabled: true, LocalAS: 65000}, nil, true)
 
 	if err := r.Reconcile(context.Background()); err != nil {
@@ -289,7 +289,7 @@ func TestSettingsReconcile_StorePropagatesError(t *testing.T) {
 	store := &fakeSettingsStore{settingsErr: wantErr}
 	svc := &fakeService{}
 
-	r := NewSettingsReconciler(svc, store, nil)
+	r := NewSettingsReconciler(svc, store, nil, nil)
 
 	if err := r.Reconcile(context.Background()); err == nil {
 		t.Fatal("expected store error to surface")

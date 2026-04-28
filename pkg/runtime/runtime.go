@@ -377,7 +377,10 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// disabled — the reconciler's calls are no-ops against a stopped
 	// service, and starting here means re-enabling BGP via the API does
 	// not need separate reconciler wiring.
-	bgpReconciler := bgp.NewReconciler(bgpService, &bgpLeaseStoreAdapter{db: dbInstance}, dbInstance.NodeID())
+	bgpWakeup, stopBgpWakeup := dbInstance.Changefeed().Wakeup(db.TopicIPLeases)
+	defer stopBgpWakeup()
+
+	bgpReconciler := bgp.NewReconciler(bgpService, &bgpLeaseStoreAdapter{db: dbInstance}, dbInstance.NodeID(), bgpWakeup)
 	bgpReconciler.Start()
 
 	n3Settings, err := dbInstance.GetN3Settings(ctx)
@@ -416,7 +419,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	fallbackN3, _ := netip.ParseAddr(n3IPv4)
-	upfReconciler := upf.NewSettingsReconciler(upfInstance, dbInstance, fallbackN3)
+	upfReconciler := upf.NewSettingsReconciler(upfInstance, dbInstance, dbInstance.Changefeed(), fallbackN3)
 	upfReconciler.Start()
 
 	defer upfReconciler.Stop()

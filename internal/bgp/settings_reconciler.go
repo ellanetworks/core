@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const defaultSettingsReconcileInterval = 5 * time.Second
+const defaultSettingsReconcileBackstop = 5 * time.Minute
 
 // SettingsStore is the narrow view the reconciler needs over the
 // replicated settings tables. The api layer satisfies it with a
@@ -64,7 +64,8 @@ type SettingsReconciler struct {
 	service       SettingsService
 	store         SettingsStore
 	filterBuilder FilterBuilder
-	interval      time.Duration
+	wakeup        <-chan struct{}
+	backstop      time.Duration
 	log           *zap.Logger
 
 	mu     sync.Mutex
@@ -80,13 +81,16 @@ type SettingsReconciler struct {
 }
 
 // NewSettingsReconciler wires a reconciler. filterBuilder may be nil
-// to disable filter reconciliation.
-func NewSettingsReconciler(service SettingsService, store SettingsStore, filterBuilder FilterBuilder) *SettingsReconciler {
+// to disable filter reconciliation. wakeup is signalled by the caller
+// when a relevant replicated change has applied; nil is fine (then
+// only the backstop sweep fires).
+func NewSettingsReconciler(service SettingsService, store SettingsStore, filterBuilder FilterBuilder, wakeup <-chan struct{}) *SettingsReconciler {
 	return &SettingsReconciler{
 		service:       service,
 		store:         store,
 		filterBuilder: filterBuilder,
-		interval:      defaultSettingsReconcileInterval,
+		wakeup:        wakeup,
+		backstop:      defaultSettingsReconcileBackstop,
 		log:           logger.EllaLog.With(zap.String("component", "BGPSettingsReconciler")),
 	}
 }
@@ -145,21 +149,23 @@ func (r *SettingsReconciler) MarkApplied(settings BGPSettings, peers []BGPPeer, 
 func (r *SettingsReconciler) loop(ctx context.Context, done chan struct{}) {
 	defer close(done)
 
-	ticker := time.NewTicker(r.interval)
-	defer ticker.Stop()
-
 	if err := r.Reconcile(ctx); err != nil {
 		r.log.Warn("initial bgp settings reconcile failed", zap.Error(err))
 	}
+
+	backstop := time.NewTicker(r.backstop)
+	defer backstop.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			if err := r.Reconcile(ctx); err != nil {
-				r.log.Warn("bgp settings reconcile failed", zap.Error(err))
-			}
+		case <-r.wakeup:
+		case <-backstop.C:
+		}
+
+		if err := r.Reconcile(ctx); err != nil {
+			r.log.Warn("bgp settings reconcile failed", zap.Error(err))
 		}
 	}
 }

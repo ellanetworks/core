@@ -28,13 +28,15 @@ import (
 // interface, and internal/db implements it.
 type Applier interface {
 	// ApplyCommand executes a Raft command against the shared database.
-	// Each call corresponds to a single committed log entry. The
+	// Each call corresponds to a single committed log entry. logIndex
+	// is the Raft log index of the entry being applied; the
+	// implementation uses it to publish post-apply change events. The
 	// implementation dispatches on cmd.Type to the appropriate applyX
 	// method, which uses sqlair to execute the SQL. SQLite's
 	// MaxOpenConns(1) serialises access, so no explicit transaction
 	// wrapping is needed here — sqlair methods manage their own
 	// transactions as they do in standalone mode.
-	ApplyCommand(ctx context.Context, cmd *Command) (any, error)
+	ApplyCommand(ctx context.Context, cmd *Command, logIndex uint64) (any, error)
 
 	// PlainDB returns the raw *sql.DB for the application database,
 	// needed for snapshot operations (VACUUM INTO) and ID counter seeding.
@@ -133,7 +135,7 @@ func (f *FSM) Apply(l *raft.Log) interface{} {
 
 	ctx := context.Background()
 
-	result, err := f.applier.ApplyCommand(ctx, cmd)
+	result, err := f.applier.ApplyCommand(ctx, cmd, l.Index)
 	if cmd.Type == CmdChangeset {
 		ObserveChangesetBytes(len(cmd.Payload))
 	}
@@ -216,7 +218,7 @@ func (f *FSM) ApplyBatch(logs []*raft.Log) []interface{} {
 			continue
 		}
 
-		result, applyErr := f.applier.ApplyCommand(ctx, cmd)
+		result, applyErr := f.applier.ApplyCommand(ctx, cmd, l.Index)
 		if cmd.Type == CmdChangeset {
 			ObserveChangesetBytes(len(cmd.Payload))
 		}

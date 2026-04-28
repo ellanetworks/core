@@ -31,7 +31,7 @@ var _ ellaraft.Applier = (*Database)(nil)
 // is defensive — Raft applies in log order and the leader proposes
 // CmdMigrateShared(N) before any v=N op, so it only fires on leader
 // misbehavior or skip-version upgrades (already a non-goal).
-func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (any, error) {
+func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, logIndex uint64) (any, error) {
 	switch cmd.Type {
 	case ellaraft.CmdChangeset:
 		payload, err := unmarshalPayload[bytesPayload](cmd.Payload)
@@ -44,8 +44,12 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 		}
 
 		result, applyErr := db.applyChangeset(ctx, payload)
-		if applyErr == nil && payload.Operation == "UpsertClusterMember" {
-			db.signalMigrationCheck()
+		if applyErr == nil {
+			if payload.Operation == "UpsertClusterMember" {
+				db.signalMigrationCheck()
+			}
+
+			db.publishOpTopics(topicsForChangesetOp(payload.Operation), logIndex)
 		}
 
 		return result, applyErr
@@ -60,7 +64,12 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 			return nil, err
 		}
 
-		return db.applyDeleteOldAuditLogs(ctx, payload)
+		result, applyErr := db.applyDeleteOldAuditLogs(ctx, payload)
+		if applyErr == nil {
+			db.publishOpTopics(topicsForIntentCmd(cmd.Type), logIndex)
+		}
+
+		return result, applyErr
 
 	case ellaraft.CmdDeleteOldDailyUsage:
 		if err := db.assertAppliedSchema(ctx, intentMinSchemaForCmd(cmd.Type), cmd.Type.String()); err != nil {
@@ -72,14 +81,24 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 			return nil, err
 		}
 
-		return db.applyDeleteOldDailyUsage(ctx, payload)
+		result, applyErr := db.applyDeleteOldDailyUsage(ctx, payload)
+		if applyErr == nil {
+			db.publishOpTopics(topicsForIntentCmd(cmd.Type), logIndex)
+		}
+
+		return result, applyErr
 
 	case ellaraft.CmdDeleteAllDynamicLeases:
 		if err := db.assertAppliedSchema(ctx, intentMinSchemaForCmd(cmd.Type), cmd.Type.String()); err != nil {
 			return nil, err
 		}
 
-		return nil, db.applyDeleteAllDynamicLeases(ctx)
+		applyErr := db.applyDeleteAllDynamicLeases(ctx)
+		if applyErr == nil {
+			db.publishOpTopics(topicsForIntentCmd(cmd.Type), logIndex)
+		}
+
+		return nil, applyErr
 
 	case ellaraft.CmdDeleteExpiredSessions:
 		if err := db.assertAppliedSchema(ctx, intentMinSchemaForCmd(cmd.Type), cmd.Type.String()); err != nil {
@@ -91,7 +110,12 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 			return nil, err
 		}
 
-		return db.applyDeleteExpiredSessions(ctx, payload)
+		result, applyErr := db.applyDeleteExpiredSessions(ctx, payload)
+		if applyErr == nil {
+			db.publishOpTopics(topicsForIntentCmd(cmd.Type), logIndex)
+		}
+
+		return result, applyErr
 
 	case ellaraft.CmdMigrateShared:
 		payload, err := unmarshalPayload[migrateSharedPayload](cmd.Payload)
@@ -113,6 +137,18 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command) (an
 
 	default:
 		return nil, fmt.Errorf("unknown command type: %s", cmd.Type)
+	}
+}
+
+// publishOpTopics fans out wakeup events for every topic an op
+// declared via AffectsTopic. Safe to call with a nil/empty slice.
+func (db *Database) publishOpTopics(topics []Topic, index uint64) {
+	if db.changefeed == nil || len(topics) == 0 {
+		return
+	}
+
+	for _, t := range topics {
+		db.changefeed.Publish(t, index)
 	}
 }
 
@@ -322,6 +358,9 @@ func (db *Database) applyClearDailyUsage(ctx context.Context) error {
 	return nil
 }
 
+// Signature matches the FSM applier dispatch shape; first return is always nil.
+//
+//nolint:unparam
 func (db *Database) applyDeleteOldDailyUsage(ctx context.Context, p *int64Payload) (any, error) {
 	err := db.runner(ctx).Query(ctx, db.deleteOldDailyUsageStmt, cutoffDaysArgs{CutoffDays: p.Value}).Run()
 	if err != nil {
@@ -556,6 +595,9 @@ func (db *Database) applyInsertAuditLog(ctx context.Context, p *auditLogPayload)
 	return nil, nil
 }
 
+// Signature matches the FSM applier dispatch shape; first return is always nil.
+//
+//nolint:unparam
 func (db *Database) applyDeleteOldAuditLogs(ctx context.Context, p *stringPayload) (any, error) {
 	err := db.runner(ctx).Query(ctx, db.deleteOldAuditLogsStmt, cutoffArgs{Cutoff: p.Value}).Run()
 	if err != nil {

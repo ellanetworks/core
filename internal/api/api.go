@@ -46,6 +46,11 @@ const (
 // In tests we can override it to disable actual reconciliation.
 var routeReconciler = ReconcileKernelRouting
 
+// routeReconcileBackstop is the periodic invariant-checking sweep
+// when no change events have fired. The primary trigger is the
+// changefeed; this exists only to recover from missed signals.
+const routeReconcileBackstop = 5 * time.Minute
+
 // Server wraps the HTTP server and supports two-phase startup. Phase one
 // (StartDiscovery) starts the listener with only the routes needed for
 // cluster discovery. Phase two (Upgrade) swaps in the full API handler
@@ -246,17 +251,30 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 	reconcile := routeReconciler
 
 	go func() {
-		for {
-			err := reconcile(ctx, opts.DB, kernelInt)
-			if err != nil {
+		sub := opts.DB.Changefeed().Subscribe(db.TopicRoutes)
+		defer sub.Close()
+
+		runReconcile := func() {
+			if err := reconcile(ctx, opts.DB, kernelInt); err != nil {
 				logger.APILog.Error("couldn't reconcile routes", zap.Error(err))
 			}
+		}
 
+		runReconcile()
+
+		backstop := time.NewTicker(routeReconcileBackstop)
+		defer backstop.Stop()
+
+		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(5 * time.Second):
-				continue
+			case <-sub.Events:
+				runReconcile()
+			case <-sub.Dropped:
+				runReconcile()
+			case <-backstop.C:
+				runReconcile()
 			}
 		}
 	}()
@@ -270,13 +288,21 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 			return bgp.BuildRouteFilter(pools, n3Addr, s.cfg.Interfaces.N6.Name), nil
 		}
 
-		bgpReconciler := bgp.NewSettingsReconciler(opts.BGP, bgpStore, filterBuilder)
+		bgpSettingsWakeup, stopBGPSettingsWakeup := opts.DB.Changefeed().Wakeup(
+			db.TopicBGPSettings,
+			db.TopicBGPPeers,
+			db.TopicNATSettings,
+			db.TopicDataNetworks,
+		)
+
+		bgpReconciler := bgp.NewSettingsReconciler(opts.BGP, bgpStore, filterBuilder, bgpSettingsWakeup)
 		seedReconcilerFromCurrentState(ctx, bgpReconciler, opts.DB)
 		bgpReconciler.Start()
 
 		go func() {
 			<-ctx.Done()
 			bgpReconciler.Stop()
+			stopBGPSettingsWakeup()
 		}()
 	}
 

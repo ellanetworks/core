@@ -37,11 +37,11 @@ type Lease struct {
 	IMSI    string
 }
 
-// defaultReconcileInterval is the periodic backstop tick. Latency of
-// route propagation to peers is dominated by BGP keepalive/hold timers,
-// which are seconds-to-minutes, so a 2s reconcile cadence is more than
-// adequate.
-const defaultReconcileInterval = 2 * time.Second
+// reconcileBackstop is the periodic invariant-checking sweep when no
+// wakeups have fired. Primary trigger is wakeup signals from the
+// caller (typically the lease changefeed); this exists to recover
+// from missed signals.
+const reconcileBackstop = 5 * time.Minute
 
 // Reconciler continuously reconciles a BGPService's RIB against the set
 // of active leases owned by this cluster node.
@@ -56,7 +56,8 @@ type Reconciler struct {
 	rib      RIB
 	store    LeaseStore
 	nodeID   int
-	interval time.Duration
+	wakeup   <-chan struct{}
+	backstop time.Duration
 	log      *zap.Logger
 
 	mu     sync.Mutex
@@ -65,14 +66,16 @@ type Reconciler struct {
 }
 
 // NewReconciler wires a reconciler for the given RIB, lease store, and
-// cluster node id. The returned reconciler is not started; call Start
-// when ready.
-func NewReconciler(rib RIB, store LeaseStore, nodeID int) *Reconciler {
+// cluster node id. wakeup is signalled by the caller when a relevant
+// replicated change has applied; nil is fine (then only the backstop
+// sweep fires). Start must be called explicitly.
+func NewReconciler(rib RIB, store LeaseStore, nodeID int, wakeup <-chan struct{}) *Reconciler {
 	return &Reconciler{
 		rib:      rib,
 		store:    store,
 		nodeID:   nodeID,
-		interval: defaultReconcileInterval,
+		wakeup:   wakeup,
+		backstop: reconcileBackstop,
 		log:      logger.EllaLog.With(zap.String("component", "BGPReconciler")),
 	}
 }
@@ -167,21 +170,23 @@ func (r *Reconciler) Reconcile(ctx context.Context) error {
 func (r *Reconciler) loop(ctx context.Context, done chan struct{}) {
 	defer close(done)
 
-	ticker := time.NewTicker(r.interval)
-	defer ticker.Stop()
-
 	if err := r.Reconcile(ctx); err != nil {
 		r.log.Warn("initial BGP reconcile failed", zap.Error(err))
 	}
+
+	backstop := time.NewTicker(r.backstop)
+	defer backstop.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			if err := r.Reconcile(ctx); err != nil {
-				r.log.Warn("BGP reconcile failed", zap.Error(err))
-			}
+		case <-r.wakeup:
+		case <-backstop.C:
+		}
+
+		if err := r.Reconcile(ctx); err != nil {
+			r.log.Warn("BGP reconcile failed", zap.Error(err))
 		}
 	}
 }

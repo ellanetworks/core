@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
@@ -136,7 +137,7 @@ func (f *fakeUpdater) UpdateFilters(_ context.Context, policyID int64, direction
 }
 
 func newReconciler(updater Updater, store SettingsStore, fallback netip.Addr) *SettingsReconciler {
-	return NewSettingsReconciler(updater, store, fallback)
+	return NewSettingsReconciler(updater, store, nil, fallback)
 }
 
 func TestReconcile_NATAppliesOnFirstTickAndSkipsWhenUnchanged(t *testing.T) {
@@ -343,6 +344,74 @@ func TestReconcile_FiltersAddRemoveModify(t *testing.T) {
 	if len(downlinkCalls) != 1 || len(downlinkCalls[0].rules) != 0 {
 		t.Fatalf("expected downlink cleared (empty rules) on policy delete, got %v", downlinkCalls)
 	}
+}
+
+// TestReconcile_LoopWakesOnChangefeedEvent verifies the end-to-end
+// path: starting the reconciler with a real changefeed wakeup, then
+// publishing an event, drives Reconcile within milliseconds — not
+// "next backstop tick."
+func TestReconcile_LoopWakesOnChangefeedEvent(t *testing.T) {
+	feed := db.NewChangefeed()
+
+	store := &fakeStore{natEnabled: true}
+	updater := &fakeUpdater{}
+
+	r := NewSettingsReconciler(updater, store, feed, netip.MustParseAddr("1.2.3.4"))
+	r.backstop = time.Hour // disable backstop so the test only passes via events
+
+	r.Start()
+	defer r.Stop()
+
+	// Wait for the initial reconcile (synchronous in loop()).
+	deadline := time.Now().Add(time.Second)
+
+	for time.Now().Before(deadline) {
+		updater.mu.Lock()
+		count := len(updater.natCalls)
+		updater.mu.Unlock()
+
+		if count == 1 {
+			break
+		}
+
+		time.Sleep(time.Millisecond)
+	}
+
+	updater.mu.Lock()
+	initialNATCalls := len(updater.natCalls)
+	updater.mu.Unlock()
+
+	if initialNATCalls != 1 {
+		t.Fatalf("expected 1 NAT call after initial reconcile, got %d", initialNATCalls)
+	}
+
+	// Flip desired state and publish an event; the loop must observe
+	// the change without waiting for the (disabled) backstop tick.
+	store.mu.Lock()
+	store.natEnabled = false
+	store.mu.Unlock()
+
+	feed.Publish(db.TopicNATSettings, 0)
+
+	deadline = time.Now().Add(time.Second)
+
+	for time.Now().Before(deadline) {
+		updater.mu.Lock()
+		count := len(updater.natCalls)
+		updater.mu.Unlock()
+
+		if count == 2 {
+			return
+		}
+
+		time.Sleep(time.Millisecond)
+	}
+
+	updater.mu.Lock()
+	finalNATCalls := len(updater.natCalls)
+	updater.mu.Unlock()
+
+	t.Fatalf("expected reconcile to fire from changefeed event; got %d total NAT calls", finalNATCalls)
 }
 
 func TestReconcile_PropagatesNATError(t *testing.T) {

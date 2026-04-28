@@ -55,6 +55,7 @@ type OpOption func(*opMeta)
 
 type opMeta struct {
 	minSchema int
+	topics    []Topic
 }
 
 // RequireSchema declares the minimum applied schema version required
@@ -71,15 +72,27 @@ func RequireSchema(n int) OpOption {
 	}
 }
 
+// AffectsTopic declares the changefeed topics this op writes to.
+// Subscribers to these topics are signalled after the op applies on
+// every node. Ops that don't affect any reconciler-watched table omit
+// this option.
+func AffectsTopic(topics ...Topic) OpOption {
+	return func(m *opMeta) {
+		m.topics = append(m.topics, topics...)
+	}
+}
+
 // changesetOpHandler erases the payload type P so changeset ops live
 // in a single map keyed by operation name.
 type changesetOpHandler struct {
 	minSchema int
+	topics    []Topic
 	applyJSON func(db *Database, ctx context.Context, raw json.RawMessage) (any, error)
 }
 
 type intentOpHandler struct {
 	minSchema int
+	topics    []Topic
 	cmdType   ellaraft.CommandType
 }
 
@@ -121,6 +134,7 @@ func registerChangesetOp[P any](
 
 	changesetOps[name] = changesetOpHandler{
 		minSchema: meta.minSchema,
+		topics:    meta.topics,
 		applyJSON: func(db *Database, ctx context.Context, raw json.RawMessage) (any, error) {
 			var p P
 			if err := json.Unmarshal(raw, &p); err != nil {
@@ -152,9 +166,32 @@ func registerIntentOp(name string, cmdType ellaraft.CommandType, opts ...OpOptio
 		opt(&meta)
 	}
 
-	intentOps[name] = intentOpHandler{minSchema: meta.minSchema, cmdType: cmdType}
+	intentOps[name] = intentOpHandler{minSchema: meta.minSchema, topics: meta.topics, cmdType: cmdType}
 
 	return intentOp{name: name, minSchema: meta.minSchema, cmdType: cmdType}
+}
+
+// topicsForChangesetOp returns the topics declared by a registered
+// changeset op. Empty when the op was registered without
+// AffectsTopic — used by ApplyCommand to publish wakeups.
+func topicsForChangesetOp(name string) []Topic {
+	if h, ok := changesetOps[name]; ok {
+		return h.topics
+	}
+
+	return nil
+}
+
+// topicsForIntentCmd returns the topics declared by the intent op
+// matching the given CommandType.
+func topicsForIntentCmd(t ellaraft.CommandType) []Topic {
+	for _, h := range intentOps {
+		if h.cmdType == t {
+			return h.topics
+		}
+	}
+
+	return nil
 }
 
 type intentOp struct {
@@ -218,7 +255,12 @@ func (op *ChangesetOp[P]) Invoke(db *Database, payload *P) (any, error) {
 	}
 
 	if db.raftManager == nil {
-		return op.apply(db, context.Background(), payload)
+		result, err := op.apply(db, context.Background(), payload)
+		if err == nil {
+			db.publishOpTopics(topicsForChangesetOp(op.name), 0)
+		}
+
+		return result, err
 	}
 
 	if db.IsLeader() {
@@ -268,7 +310,7 @@ func (op intentOp) Invoke(db *Database, payload any) (any, error) {
 	}
 
 	if db.raftManager == nil {
-		return db.ApplyCommand(context.Background(), cmd)
+		return db.ApplyCommand(context.Background(), cmd, 0)
 	}
 
 	if db.IsLeader() {

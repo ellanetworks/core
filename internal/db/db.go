@@ -40,6 +40,10 @@ type Database struct {
 	raftManager    *ellaraft.Manager
 	proposeTimeout time.Duration
 
+	// changefeed broadcasts post-apply events to in-process
+	// subscribers (reconcilers). Always non-nil.
+	changefeed *Changefeed
+
 	// migrationCheckCh fan-ins re-trigger signals from the FSM applier
 	// (after UpsertClusterMember or CmdMigrateShared commits) so the
 	// leader re-runs CheckPendingMigrations without waiting for the
@@ -483,6 +487,12 @@ func (db *Database) RaftAppliedIndex() uint64 {
 	}
 
 	return db.raftManager.AppliedIndex()
+}
+
+// Changefeed exposes the in-process broker used by reconcilers to wake
+// up on replicated state changes.
+func (db *Database) Changefeed() *Changefeed {
+	return db.changefeed
 }
 
 // LeaderObserver returns the Raft leadership observer for registering
@@ -1067,6 +1077,7 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	db.connPtr.Store(sqlair.NewDB(sqlConn))
 	db.dbPath = dbPath
 	db.dataDir = dataDir
+	db.changefeed = NewChangefeed()
 
 	if err := db.assertTableReplicationClassification(ctx); err != nil {
 		_ = db.Close()
@@ -1147,6 +1158,7 @@ func NewDatabaseWithoutRaft(ctx context.Context, dbPath string) (*Database, erro
 	db.connPtr.Store(sqlair.NewDB(sqlConn))
 	db.dbPath = dbPath
 	db.dataDir = dataDir
+	db.changefeed = NewChangefeed()
 
 	if err := db.assertTableReplicationClassification(ctx); err != nil {
 		_ = db.Close()
