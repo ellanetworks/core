@@ -435,13 +435,30 @@ func watchDrainDeadline(ctx context.Context, dbInstance *db.Database, nodeID int
 // leader the write is proposed locally; on a follower it is sent to the
 // current leader's cluster mTLS port. Best-effort: errors are logged and
 // do not block the rest of the shutdown sequence.
+//
+// No-op when the node's current state is "active" — an unsolicited
+// restart (systemctl restart, kernel update, ad-hoc reboot) must not
+// strand the node out of service. Operator-initiated drain (state
+// "draining" or "drained") still finalises to "drained" on shutdown
+// so the rolling-upgrade signal is preserved.
 func SignalShutdownDrain(ctx context.Context, dbInstance *db.Database, ln *listener.Listener) error {
 	if dbInstance == nil || !dbInstance.ClusterEnabled() {
 		return nil
 	}
 
+	nodeID := dbInstance.NodeID()
+
+	member, err := dbInstance.GetClusterMember(ctx, nodeID)
+	if err != nil {
+		return fmt.Errorf("read self cluster member: %w", err)
+	}
+
+	if member.DrainState == db.DrainStateActive {
+		return nil
+	}
+
 	if dbInstance.IsLeader() {
-		return dbInstance.SetDrainState(ctx, dbInstance.NodeID(), db.DrainStateDrained)
+		return dbInstance.SetDrainState(ctx, nodeID, db.DrainStateDrained)
 	}
 
 	leaderAddr, leaderID := dbInstance.LeaderAddressAndID()
