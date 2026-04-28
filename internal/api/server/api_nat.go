@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 )
@@ -38,7 +37,7 @@ func GetNATInfo(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func UpdateNATInfo(dbInstance *db.Database, bgpService *bgp.BGPService) http.Handler {
+func UpdateNATInfo(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -57,16 +56,6 @@ func UpdateNATInfo(dbInstance *db.Database, bgpService *bgp.BGPService) http.Han
 		if err := dbInstance.UpdateNATSettings(r.Context(), params.Enabled); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update NAT settings", err, logger.APILog)
 			return
-		}
-
-		// Local BGP advertising flag is per-node runtime state; flip
-		// it on the receiving node so this node's BGP daemon stops
-		// (or resumes) advertising UE /32s. Other nodes converge UPF
-		// state via the upf settings reconciler; their BGP daemon
-		// state is updated when their own handler is hit, or on
-		// process restart.
-		if bgpService != nil {
-			bgpService.SetAdvertising(!params.Enabled)
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "NAT settings updated successfully"}, http.StatusOK, logger.APILog)

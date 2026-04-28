@@ -172,13 +172,6 @@ func UpdateBGPSettings(dbInstance *db.Database, bgpService *bgp.BGPService) http
 			return
 		}
 
-		// Get previous settings to determine what changed
-		prevSettings, err := dbInstance.GetBGPSettings(r.Context())
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get current BGP settings", err, logger.APILog)
-			return
-		}
-
 		settings := &db.BGPSettings{
 			Enabled:       params.Enabled,
 			LocalAS:       params.LocalAS,
@@ -189,24 +182,6 @@ func UpdateBGPSettings(dbInstance *db.Database, bgpService *bgp.BGPService) http
 		if err := dbInstance.UpdateBGPSettings(r.Context(), settings); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update BGP settings", err, logger.APILog)
 			return
-		}
-
-		// Apply changes to the live BGP speaker
-		if bgpService != nil {
-			if err := applyBGPSettingsChange(r.Context(), dbInstance, bgpService, prevSettings.Enabled, params.Enabled); err != nil {
-				// Rollback DB on failure
-				rollbackSettings := &db.BGPSettings{
-					Enabled:       prevSettings.Enabled,
-					LocalAS:       prevSettings.LocalAS,
-					RouterID:      prevSettings.RouterID,
-					ListenAddress: prevSettings.ListenAddress,
-				}
-				_ = dbInstance.UpdateBGPSettings(r.Context(), rollbackSettings)
-
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to apply BGP settings: "+err.Error(), err, logger.APILog)
-
-				return
-			}
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "BGP settings updated successfully"}, http.StatusOK, logger.APILog)
@@ -231,53 +206,6 @@ func DBSettingsToBGPSettings(s *db.BGPSettings) bgp.BGPSettings {
 	}
 }
 
-func applyBGPSettingsChange(ctx context.Context, dbInstance *db.Database, bgpService *bgp.BGPService, wasEnabled, nowEnabled bool) error {
-	switch {
-	case !wasEnabled && nowEnabled:
-		// Start the BGP speaker
-		settings, err := dbInstance.GetBGPSettings(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to read BGP settings: %w", err)
-		}
-
-		dbPeers, err := dbInstance.ListAllBGPPeers(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to list BGP peers: %w", err)
-		}
-
-		natEnabled, err := dbInstance.IsNATEnabled(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to check NAT settings: %w", err)
-		}
-
-		bgpPeers := DBPeersToBGPPeers(dbPeers)
-
-		return bgpService.Start(ctx, DBSettingsToBGPSettings(settings), bgpPeers, !natEnabled)
-
-	case wasEnabled && !nowEnabled:
-		// Stop the BGP speaker
-		return bgpService.Stop()
-
-	case wasEnabled && nowEnabled:
-		// Reconfigure (AS/RouterID/ListenAddress may have changed)
-		settings, err := dbInstance.GetBGPSettings(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to read BGP settings: %w", err)
-		}
-
-		dbPeers, err := dbInstance.ListAllBGPPeers(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to list BGP peers: %w", err)
-		}
-
-		bgpPeers := DBPeersToBGPPeers(dbPeers)
-
-		return bgpService.Reconfigure(ctx, DBSettingsToBGPSettings(settings), bgpPeers)
-	}
-
-	return nil
-}
-
 // DBPeersToBGPPeers converts database BGP peer records to BGP service peer configs.
 func DBPeersToBGPPeers(dbPeers []db.BGPPeer) []bgp.BGPPeer {
 	peers := make([]bgp.BGPPeer, len(dbPeers))
@@ -293,26 +221,6 @@ func DBPeersToBGPPeers(dbPeers []db.BGPPeer) []bgp.BGPPeer {
 	}
 
 	return peers
-}
-
-func reconfigureBGPPeers(ctx context.Context, dbInstance *db.Database, bgpService *bgp.BGPService) error {
-	if bgpService == nil || !bgpService.IsRunning() {
-		return nil
-	}
-
-	settings, err := dbInstance.GetBGPSettings(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to read BGP settings: %w", err)
-	}
-
-	dbPeers, err := dbInstance.ListAllBGPPeers(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to list BGP peers: %w", err)
-	}
-
-	bgpPeers := DBPeersToBGPPeers(dbPeers)
-
-	return bgpService.Reconfigure(ctx, DBSettingsToBGPSettings(settings), bgpPeers)
 }
 
 // loadImportPrefixesForPeer loads import prefix entries from the DB for a single peer.
@@ -584,14 +492,6 @@ func CreateBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Han
 			}
 		}
 
-		if err := reconfigureBGPPeers(r.Context(), dbInstance, bgpService); err != nil {
-			_ = dbInstance.DeleteBGPPeer(r.Context(), dbPeer.ID)
-
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to apply BGP peer: "+err.Error(), err, logger.APILog)
-
-			return
-		}
-
 		writeResponse(r.Context(), w, SuccessResponse{Message: "BGP peer created successfully"}, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(
@@ -644,9 +544,6 @@ func UpdateBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Han
 			return
 		}
 
-		// Snapshot previous import prefixes for rollback.
-		prevImportPrefixes := loadImportPrefixesForPeer(r.Context(), dbInstance, id)
-
 		password := prevPeer.Password
 		if params.Password != nil {
 			password = *params.Password
@@ -682,16 +579,6 @@ func UpdateBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Han
 			return
 		}
 
-		if err := reconfigureBGPPeers(r.Context(), dbInstance, bgpService); err != nil {
-			// Rollback peer update and import prefix changes
-			_ = dbInstance.UpdateBGPPeer(r.Context(), prevPeer)
-			_ = saveImportPrefixesForPeer(r.Context(), dbInstance, id, prevImportPrefixes)
-
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to apply BGP peer update: "+err.Error(), err, logger.APILog)
-
-			return
-		}
-
 		writeResponse(r.Context(), w, SuccessResponse{Message: "BGP peer updated successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
@@ -720,8 +607,7 @@ func DeleteBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Han
 			return
 		}
 
-		prevPeer, err := dbInstance.GetBGPPeer(r.Context(), id)
-		if err != nil {
+		if _, err := dbInstance.GetBGPPeer(r.Context(), id); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "BGP peer not found", nil, logger.APILog)
 
@@ -733,20 +619,8 @@ func DeleteBGPPeer(dbInstance *db.Database, bgpService *bgp.BGPService) http.Han
 			return
 		}
 
-		// Snapshot import prefixes before deletion (cascade-deleted by FK).
-		prevImportPrefixes := loadImportPrefixesForPeer(r.Context(), dbInstance, id)
-
 		if err := dbInstance.DeleteBGPPeer(r.Context(), id); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete BGP peer", err, logger.APILog)
-
-			return
-		}
-
-		if err := reconfigureBGPPeers(r.Context(), dbInstance, bgpService); err != nil {
-			_ = dbInstance.CreateBGPPeer(r.Context(), prevPeer)
-			_ = saveImportPrefixesForPeer(r.Context(), dbInstance, prevPeer.ID, prevImportPrefixes)
-
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to apply BGP peer removal: "+err.Error(), err, logger.APILog)
 
 			return
 		}

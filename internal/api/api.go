@@ -261,7 +261,74 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 		}
 	}()
 
+	if opts.BGP != nil {
+		bgpStore := &bgpSettingsStoreAdapter{db: opts.DB}
+		filterBuilder := func(fbCtx context.Context) (*bgp.RouteFilter, error) {
+			pools := server.CollectUEPools(fbCtx, opts.DB)
+			n3Addr, _ := netip.ParseAddr(s.cfg.Interfaces.N3.Address)
+
+			return bgp.BuildRouteFilter(pools, n3Addr, s.cfg.Interfaces.N6.Name), nil
+		}
+
+		bgpReconciler := bgp.NewSettingsReconciler(opts.BGP, bgpStore, filterBuilder)
+		seedReconcilerFromCurrentState(ctx, bgpReconciler, opts.DB)
+		bgpReconciler.Start()
+
+		go func() {
+			<-ctx.Done()
+			bgpReconciler.Stop()
+		}()
+	}
+
 	return nil
+}
+
+// bgpSettingsStoreAdapter adapts *db.Database to bgp.SettingsStore,
+// converting from the DB row types into the BGP service's own types
+// so the bgp package does not depend on db.
+type bgpSettingsStoreAdapter struct {
+	db *db.Database
+}
+
+func (a *bgpSettingsStoreAdapter) GetSettings(ctx context.Context) (bgp.BGPSettings, error) {
+	settings, err := a.db.GetBGPSettings(ctx)
+	if err != nil {
+		return bgp.BGPSettings{}, err
+	}
+
+	return server.DBSettingsToBGPSettings(settings), nil
+}
+
+func (a *bgpSettingsStoreAdapter) ListPeers(ctx context.Context) ([]bgp.BGPPeer, error) {
+	dbPeers, err := a.db.ListAllBGPPeers(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return server.DBPeersToBGPPeers(dbPeers), nil
+}
+
+func (a *bgpSettingsStoreAdapter) IsNATEnabled(ctx context.Context) (bool, error) {
+	return a.db.IsNATEnabled(ctx)
+}
+
+func seedReconcilerFromCurrentState(ctx context.Context, r *bgp.SettingsReconciler, dbInstance *db.Database) {
+	settings, err := dbInstance.GetBGPSettings(ctx)
+	if err != nil {
+		return
+	}
+
+	dbPeers, err := dbInstance.ListAllBGPPeers(ctx)
+	if err != nil {
+		return
+	}
+
+	natEnabled, err := dbInstance.IsNATEnabled(ctx)
+	if err != nil {
+		return
+	}
+
+	r.MarkApplied(server.DBSettingsToBGPSettings(settings), server.DBPeersToBGPPeers(dbPeers), !natEnabled)
 }
 
 // Handler returns the swappable HTTP handler backing the API server.
