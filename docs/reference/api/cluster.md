@@ -27,7 +27,7 @@ None
             "nodeId": 1,
             "raftAddress": "10.0.0.1:7000",
             "apiAddress": "https://10.0.0.1:5000",
-            "binaryVersion": "v1.9.1",
+            "binaryVersion": "v1.10.0",
             "suffrage": "voter",
             "isLeader": true
         },
@@ -35,7 +35,7 @@ None
             "nodeId": 2,
             "raftAddress": "10.0.0.2:7000",
             "apiAddress": "https://10.0.0.2:5000",
-            "binaryVersion": "v1.9.1",
+            "binaryVersion": "v1.10.0",
             "suffrage": "voter",
             "isLeader": false
         }

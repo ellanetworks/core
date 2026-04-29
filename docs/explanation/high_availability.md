@@ -7,22 +7,20 @@ description: Explanation of how high availability works in Ella Core.
 !!! info "Beta feature"
     High availability is currently in beta. It is available for testing and feedback in the `main` branch but not recommended for production use yet. Expect breaking changes as we iterate on the design and implementation.
 
-High availability (HA) lets you run an Ella Core cluster so that the network keeps working when one node fails.
+High availability (HA) lets you run an Ella Core cluster so that the network keeps working when nodes fail. Each node is active and can accept 5G radios and subscriber traffic.
 
-HA in Ella Core rests on two pillars. Consensus is handled by the [Raft algorithm](https://raft.github.io/): at any time one node is the leader, it is the only node that accepts writes, and every write replicates to a majority of nodes before it is considered committed. Inter-node traffic — Raft replication and the cluster HTTP port that carries the follower proxy — is mutually authenticated over TLS using certificates issued by a cluster CA that Ella Core generates itself on first-leader election.
-
-A follower that receives a write request forwards it to the leader transparently, and waits until its own database has applied the commit before returning — so a subsequent read on the same follower sees its own write.
+HA is designed around the [Raft Consensus Algorithm](https://raft.github.io/): at any time one node is the leader, it is the only node that accepts writes, and every write replicates to a majority of nodes before it is considered committed. Nodes communicate together via mTLS to share changes.
 
 <figure markdown="span">
   ![Ella Core HA cluster](../images/ha_raft.svg){ width="700" }
   <figcaption>High Availability in Ella Core</figcaption>
 </figure>
 
-## Cluster size and quorum
+## What HA covers
 
-Deploy three or five nodes. A quorum is a majority of voters: 2 of 3, or 3 of 5. Three nodes tolerate one failure; five nodes tolerate two. Even-sized clusters offer no additional fault tolerance over N−1 and should be avoided.
+Deploy three or five nodes. A quorum is a majority of voters: 2 of 3, or 3 of 5. Three nodes tolerate one failure; five nodes tolerate two. Within those bounds, surviving voters keep accepting writes, gNB traffic, and operator changes with no manual intervention.
 
-If the cluster loses quorum — for example, two of three nodes down simultaneously — writes on the survivor stall and return `503 Service Unavailable`; reads continue. Once enough nodes return to restore a majority, writes resume automatically; no operator intervention is needed.
+HA does not cover total cluster loss (see [Disaster recovery](#disaster-recovery)), correlated failures across a majority of voters, or in-flight UE sessions on a dead node — those UEs must re-register on a surviving node.
 
 ## What replicates, and what does not
 
@@ -30,9 +28,7 @@ All persistent resources are replicated across the cluster, so if a node dies, t
 
 Runtime state tied to a specific connection or session does not replicate. This includes SCTP associations with gNBs, UE contexts, active PDU sessions and their User Plane state, GTP-U tunnels, and active BGP adjacencies.
 
-Observability is also per-node. Each Ella Core instance exposes its own Prometheus endpoint at `/api/v1/metrics` and keeps its own `radio_events` and `flow_reports` tables. Operators scrape each node individually for a cluster-wide view. Audit logs are the exception: they replicate like other operator data.
-
-Cluster health itself is not per-node. The leader continuously assesses every peer — reachability, applied-index lag, overall state, failure tolerance — and exposes the result at `/api/v1/cluster/autopilot`. The Cluster page in the UI renders this.
+Observability is also per-node: each instance exposes its own Prometheus endpoint and radio events and flow reports, so operators scrape every node for a cluster-wide view.
 
 ## User plane and routing
 
@@ -70,7 +66,9 @@ Useful for site- or tenant-partitioned deployments. The cluster still replicates
 
 ## Draining a node
 
-Draining prepares a node for removal without disrupting traffic on its peers. A drained node hands Raft leadership to another voter if it held it, signals connected radios that it is unavailable so new UEs attach elsewhere, and stops advertising user-plane routes so upstream routing shifts to the survivors. Existing flows keep running until the node is removed or shut down. A node receiving a shutdown signal (SIGTERM) also marks itself `drained` as part of a clean shutdown. Removal requires a drained node.
+Draining prepares a node for removal without disrupting traffic on its peers. A drained node hands Raft leadership to another voter if it held it, signals connected radios that it is unavailable so new UEs attach elsewhere, and stops advertising user-plane routes so upstream routing shifts to the survivors. Existing flows keep running until the node is removed or shut down.
+
+Drain is triggered by an operator via the cluster API. Removal requires a drained node.
 
 ## Scaling the cluster
 
@@ -80,11 +78,7 @@ Shrinking is symmetric. Drain the node, then remove it; the remaining voters con
 
 ## Inter-node communication using mTLS
 
-Every inter-node connection is mutually authenticated over TLS. On first-leader election, the cluster generates its own CA, and the signing material is replicated through Raft so any voter can issue certificates once it becomes leader.
-
-Additional nodes join via a single-use token. An admin mints one through the Cluster page; the joining node puts it in its `cluster.join-token` config field and exchanges it for a certificate at startup.
-
-Node certificates are short-lived and renewed automatically well before expiry. Removing a cluster member revokes every certificate it holds, and revoked certificates stop authenticating within tens of seconds. Each certificate is bound to a specific cluster identity, so a certificate from one cluster cannot authenticate into another.
+Every inter-node connection is mutually authenticated over TLS. The cluster runs its own CA, generated at first-leader election and replicated through Raft so any voter can issue certificates once it becomes leader. New nodes join by exchanging a single-use token, minted by an admin from the Cluster page, for a certificate at startup. Certificates are bound to the cluster's identity, so credentials from one cluster cannot authenticate into another.
 
 ## Disaster recovery
 
@@ -94,7 +88,7 @@ HA clusters recover from total loss through an offline, backup-driven path. An o
 
 Upgrades proceed one node at a time: drain the node, refresh its binary, then resume. Each node retains its node-id, certificate, and Raft membership across the swap. Writes continue throughout; the cluster is briefly mixed-version during each step.
 
-When the new binary carries schema changes, the cluster proposes them through Raft only after every voter has self-announced support. Until then, the cluster keeps running on the old schema. Operators can watch progress on `GET /api/v1/status`: `cluster.appliedSchemaVersion` advances in lockstep across nodes, and `cluster.pendingMigration.laggardNodeId` identifies the node holding a migration up.
+When the new binary carries schema changes, the cluster keeps running on the old schema until every voter has self-announced support; only then does the migration commit through Raft. Migration progress is observable through the status endpoint.
 
 Skip-version upgrades (`vN → vN+2`) and downgrades are not supported.
 
