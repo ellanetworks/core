@@ -20,7 +20,7 @@ HA is designed around the [Raft Consensus Algorithm](https://raft.github.io/): a
 
 Deploy three or five nodes. A quorum is a majority of voters: 2 of 3, or 3 of 5. Three nodes tolerate one failure; five nodes tolerate two. Within those bounds, surviving voters keep accepting writes, gNB traffic, and operator changes with no manual intervention.
 
-HA does not cover total cluster loss (see [Disaster recovery](#disaster-recovery)), correlated failures across a majority of voters, or in-flight UE sessions on a dead node — those UEs must re-register on a surviving node.
+Two things HA does not handle automatically. If more than half the voters fail at the same time, the cluster loses quorum and writes stall until enough nodes return — or the cluster is restored from backup via [Disaster recovery](#disaster-recovery). And UE sessions on a dead node drop; those UEs re-register on a surviving node.
 
 ## What replicates, and what does not
 
