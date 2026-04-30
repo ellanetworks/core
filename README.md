@@ -18,7 +18,7 @@ Use Ella Core where you need 5G connectivity: in a factory, a warehouse, a farm,
 
 - **Performant Data Plane**: Achieve high throughput and low latency with an eBPF-based data plane. Ella Core delivers over 10 Gbps of throughput and less than 1 ms of latency.
 - **Lightweight**: Ella Core is a single binary with an embedded database, making it easy and quick to stand up. It requires as little as 1 CPU core, 1GB of RAM, and 10GB of disk space. Forget specialized hardware; all you need to operate your 5G core network is a Linux system with a network interface.
-- **Highly Available (beta)**: Deploy Ella Core as a high-availability cluster to ensure continuous operation with failover capabilities.
+- **Highly Available**: Deploy Ella Core as a high-availability cluster to ensure continuous operation with failover capabilities.
 - **Subscriber Traffic Control**: Define permitted network flows per subscriber, enforce them in the user plane. Track subscriber traffic and usage in real time.
 - **AI-Native API**: Complete RESTful API and Go client for automation and integration. Manage every aspect of your network programmatically — or let AI agents do it securely using the OpenAPI specification and ready-to-use AI agent skill.
 - **BGP Support**: Advertise subscriber routes to your enterprise network and receive routes from BGP peers.

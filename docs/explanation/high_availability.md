@@ -2,10 +2,7 @@
 description: Explanation of how high availability works in Ella Core.
 ---
 
-# High Availability (beta)
-
-!!! info "Beta feature"
-    High availability is currently in beta. It is available for testing and feedback in the `main` branch but not recommended for production use yet. Expect breaking changes as we iterate on the design and implementation.
+# High Availability
 
 High availability (HA) lets you run an Ella Core cluster so that the network keeps working when nodes fail. Each node is active and can accept 5G radios and subscriber traffic.
 
@@ -95,6 +92,6 @@ Skip-version upgrades (`vN → vN+2`) and downgrades are not supported.
 ## Further reading
 
 - [Deploy a High Availability Cluster](../how_to/deploy_ha_cluster.md) — step-by-step guide to bring up a cluster.
-- [Scale Up a High Availability Cluster (beta)](../how_to/scale_up_ha_cluster.md) — add nodes to an existing cluster.
-- [Perform a Rolling Upgrade (beta)](../how_to/rolling_upgrade.md) — upgrade every node without taking the cluster offline.
+- [Scale Up a High Availability Cluster](../how_to/scale_up_ha_cluster.md) — add nodes to an existing cluster.
+- [Perform a Rolling Upgrade](../how_to/rolling_upgrade.md) — upgrade every node without taking the cluster offline.
 - [Cluster API reference](../reference/api/cluster.md) — cluster management endpoints.

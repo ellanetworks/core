@@ -65,14 +65,14 @@ nav:
   - How-to Guides:
     - how_to/index.md
     - Install: how_to/install.md
-    - Deploy a High Availability Cluster (beta): how_to/deploy_ha_cluster.md
+    - Deploy a High Availability Cluster: how_to/deploy_ha_cluster.md
     - Co-host with OCUDU: how_to/co_host_with_ocudu.md
     - Use VLANs: how_to/vlan.md
     - Use native XDP with veth: how_to/native_xdp_veth.md
     - Integrate with a Radio: how_to/integrate_with_radio.md
     - Backup and Restore: how_to/backup_and_restore.md
-    - Scale Up a High Availability Cluster (beta): how_to/scale_up_ha_cluster.md
-    - Perform a Rolling Upgrade (beta): how_to/rolling_upgrade.md
+    - Scale Up a High Availability Cluster: how_to/scale_up_ha_cluster.md
+    - Perform a Rolling Upgrade: how_to/rolling_upgrade.md
     - Tune Network Performance: how_to/performance_tuning.md
     - Advertise subscriber routes with BGP: how_to/bgp.md
     - Manage Your Network with AI Agents: how_to/ai_agents.md
@@ -110,7 +110,7 @@ nav:
   - Explanation:
     - explanation/index.md
     - Architecture: explanation/architecture.md
-    - High Availability (beta): explanation/high_availability.md
+    - High Availability: explanation/high_availability.md
     - Platform Security: explanation/platform_security.md
     - Subscriber Security: explanation/subscriber_security.md
     - User Plane Packet processing with eBPF: explanation/user_plane_packet_processing_with_ebpf.md

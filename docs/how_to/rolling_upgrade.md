@@ -2,12 +2,9 @@
 description: Upgrade a running Ella Core high-availability cluster one node at a time without taking it offline.
 ---
 
-# Perform a Rolling Upgrade (beta)
+# Perform a Rolling Upgrade
 
 This guide walks through upgrading every node in a running Ella Core high-availability cluster, one at a time, without taking the cluster offline. For background on mixed-version clusters, draining, and schema coordination, see [High Availability](../explanation/high_availability.md).
-
-!!! info "Beta feature"
-    High availability is currently in beta. It is available for testing and feedback in the `main` branch but not recommended for production use yet. Expect breaking changes as we iterate on the design and implementation.
 
 ## Prerequisites
 

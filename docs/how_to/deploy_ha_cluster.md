@@ -2,12 +2,9 @@
 description: Step-by-step instructions to deploy Ella Core as a high-availability cluster.
 ---
 
-# Deploy a High Availability Cluster (beta)
+# Deploy a High Availability Cluster
 
 Ella Core can be deployed as a high-availability cluster to provide redundancy and failover capabilities. See [High Availability](../explanation/high_availability.md) for more information.
-
-!!! info "Beta feature"
-    High availability is currently in beta. It is available for testing and feedback in the `main` branch but not recommended for production use yet. Expect breaking changes as we iterate on the design and implementation.
 
 ## Prerequisites
 

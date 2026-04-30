@@ -2,12 +2,9 @@
 description: Add nodes to a running Ella Core high-availability cluster.
 ---
 
-# Scale Up a High Availability Cluster (beta)
+# Scale Up a High Availability Cluster
 
 This guide walks through adding a node to an existing Ella Core high-availability cluster. For background on quorum, voter counts, and failover, see [High Availability](../explanation/high_availability.md). To bring up the initial cluster, see [Deploy a High Availability Cluster](deploy_ha_cluster.md).
-
-!!! info "Beta feature"
-    High availability is currently in beta. It is available for testing and feedback in the `main` branch but not recommended for production use yet. Expect breaking changes as we iterate on the design and implementation.
 
 ## Prerequisites
 
