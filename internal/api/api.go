@@ -222,16 +222,19 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 	secureCookie := resolveScheme(s.cfg) == HTTPS
 
 	fullHandler := server.NewHandler(server.HandlerConfig{
-		DB:                  opts.DB,
-		Config:              s.cfg,
-		JWTSecret:           jwtSecret,
-		SecureCookie:        secureCookie,
-		FrontendFS:          opts.EmbedFS,
-		Sessions:            opts.Sessions,
-		AMF:                 opts.AMF,
-		BGP:                 opts.BGP,
-		BcryptCost:          bcrypt.DefaultCost,
-		Ready:               &s.ready,
+		DB:           opts.DB,
+		Config:       s.cfg,
+		JWTSecret:    jwtSecret,
+		SecureCookie: secureCookie,
+		FrontendFS:   opts.EmbedFS,
+		Sessions:     opts.Sessions,
+		AMF:          opts.AMF,
+		BGP:          opts.BGP,
+		BcryptCost:   bcrypt.DefaultCost,
+		Ready:        &s.ready,
+		ReconcileRoutes: func(rcCtx context.Context) error {
+			return routeReconciler(rcCtx, opts.DB, kernelInt)
+		},
 		RegisterExtraRoutes: opts.RegisterExtraRoutes,
 		ClusterListener:     opts.ClusterListener,
 	})
@@ -251,9 +254,6 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 	reconcile := routeReconciler
 
 	go func() {
-		sub := opts.DB.Changefeed().Subscribe(db.TopicRoutes)
-		defer sub.Close()
-
 		runReconcile := func() {
 			if err := reconcile(ctx, opts.DB, kernelInt); err != nil {
 				logger.APILog.Error("couldn't reconcile routes", zap.Error(err))
@@ -269,10 +269,6 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 			select {
 			case <-ctx.Done():
 				return
-			case <-sub.Events:
-				runReconcile()
-			case <-sub.Dropped:
-				runReconcile()
 			case <-backstop.C:
 				runReconcile()
 			}

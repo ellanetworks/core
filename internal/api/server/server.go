@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"io/fs"
 	"net/http"
 	"net/http/pprof"
@@ -28,6 +29,7 @@ type HandlerConfig struct {
 	BGP                 *bgp.BGPService
 	BcryptCost          int
 	Ready               *atomic.Bool
+	ReconcileRoutes     func(context.Context) error
 	RegisterExtraRoutes func(*http.ServeMux)
 	ClusterListener     *listener.Listener
 }
@@ -42,6 +44,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	amfInstance := cfg.AMF
 	bgpService := cfg.BGP
 	bcryptCost := cfg.BcryptCost
+	reconcileRoutes := cfg.ReconcileRoutes
 	registerExtraRoutes := cfg.RegisterExtraRoutes
 
 	mux := http.NewServeMux()
@@ -147,9 +150,9 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 
 	// Routes (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/routes", Authenticate(jwtSecret, dbInstance, Authorize(PermListRoutes, ListRoutes(dbInstance, bgpService))).ServeHTTP)
-	mux.HandleFunc("POST /api/v1/networking/routes", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateRoute, CreateRoute(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/networking/routes", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateRoute, CreateRoute(dbInstance, reconcileRoutes))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/networking/routes/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadRoute, GetRoute(dbInstance))).ServeHTTP)
-	mux.HandleFunc("DELETE /api/v1/networking/routes/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteRoute, DeleteRoute(dbInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/networking/routes/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteRoute, DeleteRoute(dbInstance, reconcileRoutes))).ServeHTTP)
 
 	// NAT (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/nat", Authenticate(jwtSecret, dbInstance, Authorize(PermGetNATInfo, GetNATInfo(dbInstance))).ServeHTTP)

@@ -54,7 +54,7 @@ func TestApplyCommand_DoesNotPublishForUnannotatedOps(t *testing.T) {
 
 	defer func() { _ = dbInstance.Close() }()
 
-	sub := dbInstance.Changefeed().Subscribe(db.TopicRoutes)
+	sub := dbInstance.Changefeed().Subscribe(db.TopicFlowAccountingSettings)
 	defer sub.Close()
 
 	// Update an unrelated topic; subscriber should see nothing.
@@ -69,9 +69,9 @@ func TestApplyCommand_DoesNotPublishForUnannotatedOps(t *testing.T) {
 	}
 }
 
-// TestApplyCommand_PublishesRoutesEvent covers the end-to-end path for
-// the route reconciler's primary topic.
-func TestApplyCommand_PublishesRoutesEvent(t *testing.T) {
+// TestApplyCommand_PublishesFlowAccountingEvent covers another
+// topic-wired local write path.
+func TestApplyCommand_PublishesFlowAccountingEvent(t *testing.T) {
 	tempDir := t.TempDir()
 
 	dbInstance, err := db.NewDatabaseWithoutRaft(context.Background(), filepath.Join(tempDir, "test.db"))
@@ -81,24 +81,19 @@ func TestApplyCommand_PublishesRoutesEvent(t *testing.T) {
 
 	defer func() { _ = dbInstance.Close() }()
 
-	sub := dbInstance.Changefeed().Subscribe(db.TopicRoutes)
+	sub := dbInstance.Changefeed().Subscribe(db.TopicFlowAccountingSettings)
 	defer sub.Close()
 
-	if _, err := dbInstance.CreateRoute(context.Background(), &db.Route{
-		Destination: "10.10.10.0/24",
-		Gateway:     "192.168.1.1",
-		Interface:   db.N6,
-		Metric:      100,
-	}); err != nil {
-		t.Fatalf("CreateRoute: %v", err)
+	if err := dbInstance.UpdateFlowAccountingSettings(context.Background(), true); err != nil {
+		t.Fatalf("UpdateFlowAccountingSettings: %v", err)
 	}
 
 	select {
 	case ev := <-sub.Events:
-		if ev.Topic != db.TopicRoutes {
-			t.Fatalf("expected topic %q, got %q", db.TopicRoutes, ev.Topic)
+		if ev.Topic != db.TopicFlowAccountingSettings {
+			t.Fatalf("expected topic %q, got %q", db.TopicFlowAccountingSettings, ev.Topic)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("did not receive routes change event")
+		t.Fatal("did not receive flow-accounting change event")
 	}
 }

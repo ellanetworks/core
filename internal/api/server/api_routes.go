@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -158,7 +159,7 @@ func GetRoute(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func CreateRoute(dbInstance *db.Database) http.Handler {
+func CreateRoute(dbInstance *db.Database, reconcileRoutes func(context.Context) error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -246,13 +247,20 @@ func CreateRoute(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		if reconcileRoutes != nil {
+			if err := reconcileRoutes(r.Context()); err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to apply route to kernel", err, logger.APILog)
+				return
+			}
+		}
+
 		response := CreateSuccessResponse{Message: "Route created successfully", ID: routeID}
 		writeResponse(r.Context(), w, response, http.StatusCreated, logger.APILog)
 		logger.LogAuditEvent(r.Context(), CreateRouteAction, email, getClientIP(r), "User created route: "+fmt.Sprint(routeID))
 	})
 }
 
-func DeleteRoute(dbInstance *db.Database) http.Handler {
+func DeleteRoute(dbInstance *db.Database, reconcileRoutes func(context.Context) error) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		emailAny := r.Context().Value(contextKeyEmail)
 
@@ -284,6 +292,13 @@ func DeleteRoute(dbInstance *db.Database) http.Handler {
 		if err := dbInstance.DeleteRoute(r.Context(), routeID); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete route from DB", err, logger.APILog)
 			return
+		}
+
+		if reconcileRoutes != nil {
+			if err := reconcileRoutes(r.Context()); err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to apply route deletion to kernel", err, logger.APILog)
+				return
+			}
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Route deleted successfully"}, http.StatusOK, logger.APILog)

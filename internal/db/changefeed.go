@@ -15,7 +15,6 @@ const (
 	// the full set of replicated tables that drive runtime state.
 	// Adding a new reconciler is two lines: declare the topic, mark
 	// the ops that touch it via AffectsTopic in operations_register.go.
-	TopicRoutes                 Topic = "routes"
 	TopicNATSettings            Topic = "nat_settings"
 	TopicFlowAccountingSettings Topic = "flow_accounting_settings"
 	TopicN3Settings             Topic = "n3_settings"

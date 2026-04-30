@@ -250,7 +250,6 @@ func (db *Database) CreateRoute(ctx context.Context, route *Route) (int64, error
 
 	id, _ := result.(int64)
 
-	db.publishOpTopics([]Topic{TopicRoutes}, 0)
 	span.SetStatus(codes.Ok, "")
 
 	return id, nil
@@ -282,7 +281,6 @@ func (db *Database) DeleteRoute(ctx context.Context, id int64) error {
 		return err
 	}
 
-	db.publishOpTopics([]Topic{TopicRoutes}, 0)
 	span.SetStatus(codes.Ok, "")
 
 	return nil

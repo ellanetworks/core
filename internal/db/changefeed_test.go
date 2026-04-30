@@ -41,46 +41,46 @@ func expectNoEvent(t *testing.T, sub *db.Subscription) {
 func TestChangefeed_PublishDeliversToMatchingSubscriber(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	sub := cf.Subscribe(db.TopicRoutes)
+	sub := cf.Subscribe(db.TopicNATSettings)
 	defer sub.Close()
 
-	cf.Publish(db.TopicRoutes, 42)
+	cf.Publish(db.TopicNATSettings, 42)
 
-	receiveEvent(t, sub, db.TopicRoutes, 42)
+	receiveEvent(t, sub, db.TopicNATSettings, 42)
 }
 
 func TestChangefeed_TopicIsolation(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	subA := cf.Subscribe(db.TopicRoutes)
+	subA := cf.Subscribe(db.TopicFlowAccountingSettings)
 	defer subA.Close()
 
 	subB := cf.Subscribe(db.TopicNATSettings)
 	defer subB.Close()
 
-	cf.Publish(db.TopicRoutes, 1)
+	cf.Publish(db.TopicFlowAccountingSettings, 1)
 
-	receiveEvent(t, subA, db.TopicRoutes, 1)
+	receiveEvent(t, subA, db.TopicFlowAccountingSettings, 1)
 	expectNoEvent(t, subB)
 }
 
 func TestChangefeed_MultiTopicSubscriber(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	sub := cf.Subscribe(db.TopicRoutes, db.TopicNATSettings)
+	sub := cf.Subscribe(db.TopicNATSettings, db.TopicFlowAccountingSettings)
 	defer sub.Close()
 
-	cf.Publish(db.TopicRoutes, 1)
-	cf.Publish(db.TopicNATSettings, 2)
+	cf.Publish(db.TopicNATSettings, 1)
+	cf.Publish(db.TopicFlowAccountingSettings, 2)
 
-	receiveEvent(t, sub, db.TopicRoutes, 1)
-	receiveEvent(t, sub, db.TopicNATSettings, 2)
+	receiveEvent(t, sub, db.TopicNATSettings, 1)
+	receiveEvent(t, sub, db.TopicFlowAccountingSettings, 2)
 }
 
 func TestChangefeed_RingOverflowFiresDroppedAndDoesNotBlock(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	sub := cf.Subscribe(db.TopicRoutes)
+	sub := cf.Subscribe(db.TopicNATSettings)
 	defer sub.Close()
 
 	// Publisher must remain non-blocking even if a subscriber never
@@ -92,7 +92,7 @@ func TestChangefeed_RingOverflowFiresDroppedAndDoesNotBlock(t *testing.T) {
 
 	go func() {
 		for i := 0; i < overflow; i++ {
-			cf.Publish(db.TopicRoutes, uint64(i))
+			cf.Publish(db.TopicNATSettings, uint64(i))
 		}
 
 		close(done)
@@ -114,11 +114,11 @@ func TestChangefeed_RingOverflowFiresDroppedAndDoesNotBlock(t *testing.T) {
 func TestChangefeed_DroppedDoesNotBlockSubsequentPublishes(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	sub := cf.Subscribe(db.TopicRoutes)
+	sub := cf.Subscribe(db.TopicNATSettings)
 	defer sub.Close()
 
 	for i := 0; i < 256; i++ {
-		cf.Publish(db.TopicRoutes, uint64(i))
+		cf.Publish(db.TopicNATSettings, uint64(i))
 	}
 
 	// Even after Dropped is pending, further Publish calls must not
@@ -128,7 +128,7 @@ func TestChangefeed_DroppedDoesNotBlockSubsequentPublishes(t *testing.T) {
 
 	go func() {
 		for i := 0; i < 100; i++ {
-			cf.Publish(db.TopicRoutes, uint64(i+1000))
+			cf.Publish(db.TopicNATSettings, uint64(i+1000))
 		}
 
 		close(done)
@@ -144,10 +144,10 @@ func TestChangefeed_DroppedDoesNotBlockSubsequentPublishes(t *testing.T) {
 func TestChangefeed_CloseStopsDelivery(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	sub := cf.Subscribe(db.TopicRoutes)
+	sub := cf.Subscribe(db.TopicNATSettings)
 	sub.Close()
 
-	cf.Publish(db.TopicRoutes, 1)
+	cf.Publish(db.TopicNATSettings, 1)
 
 	expectNoEvent(t, sub)
 }
@@ -155,7 +155,7 @@ func TestChangefeed_CloseStopsDelivery(t *testing.T) {
 func TestChangefeed_CloseIsIdempotent(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	sub := cf.Subscribe(db.TopicRoutes)
+	sub := cf.Subscribe(db.TopicNATSettings)
 	sub.Close()
 	sub.Close()
 }
@@ -166,7 +166,7 @@ func TestChangefeed_PublishWithNoSubscribersIsNoop(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		cf.Publish(db.TopicRoutes, 1)
+		cf.Publish(db.TopicNATSettings, 1)
 		close(done)
 	}()
 
@@ -195,7 +195,7 @@ func TestChangefeed_ConcurrentPublishSubscribeClose(t *testing.T) {
 			defer wg.Done()
 
 			for !stop.Load() {
-				sub := cf.Subscribe(db.TopicRoutes)
+				sub := cf.Subscribe(db.TopicNATSettings)
 
 				go func() {
 					for {
@@ -222,7 +222,7 @@ func TestChangefeed_ConcurrentPublishSubscribeClose(t *testing.T) {
 			defer wg.Done()
 
 			for !stop.Load() {
-				cf.Publish(db.TopicRoutes, 1)
+				cf.Publish(db.TopicNATSettings, 1)
 			}
 		}()
 	}
@@ -235,14 +235,14 @@ func TestChangefeed_ConcurrentPublishSubscribeClose(t *testing.T) {
 func TestChangefeed_WakeupCoalesces(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	wakeup, stop := cf.Wakeup(db.TopicRoutes)
+	wakeup, stop := cf.Wakeup(db.TopicNATSettings)
 	defer stop()
 
 	// Burst of publishes coalesces to a single wakeup, possibly two
 	// if the bridge goroutine drained the first by the time we
 	// publish more.
 	for i := 0; i < 10; i++ {
-		cf.Publish(db.TopicRoutes, uint64(i))
+		cf.Publish(db.TopicNATSettings, uint64(i))
 	}
 
 	select {
@@ -255,11 +255,11 @@ func TestChangefeed_WakeupCoalesces(t *testing.T) {
 func TestChangefeed_WakeupStopReleasesResources(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	wakeup, stop := cf.Wakeup(db.TopicRoutes)
+	wakeup, stop := cf.Wakeup(db.TopicNATSettings)
 
 	stop()
 
-	cf.Publish(db.TopicRoutes, 1)
+	cf.Publish(db.TopicNATSettings, 1)
 
 	select {
 	case <-wakeup:
@@ -271,16 +271,16 @@ func TestChangefeed_WakeupStopReleasesResources(t *testing.T) {
 func TestChangefeed_EventOrderingPerSubscriber(t *testing.T) {
 	cf := db.NewChangefeed()
 
-	sub := cf.Subscribe(db.TopicRoutes)
+	sub := cf.Subscribe(db.TopicNATSettings)
 	defer sub.Close()
 
 	const n = 50
 
 	for i := uint64(1); i <= n; i++ {
-		cf.Publish(db.TopicRoutes, i)
+		cf.Publish(db.TopicNATSettings, i)
 	}
 
 	for i := uint64(1); i <= n; i++ {
-		receiveEvent(t, sub, db.TopicRoutes, i)
+		receiveEvent(t, sub, db.TopicNATSettings, i)
 	}
 }

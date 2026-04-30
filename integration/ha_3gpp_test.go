@@ -16,7 +16,6 @@ import (
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/integration/fixture"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
-
 	// Side-effect import to register the ha/failover_connectivity scenario.
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
