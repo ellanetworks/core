@@ -240,7 +240,7 @@ func (db *Database) CreateRoute(ctx context.Context, route *Route) (int64, error
 
 	DBQueriesTotal.WithLabelValues(RoutesTableName, "insert").Inc()
 
-	result, err := opCreateRoute.Invoke(db, route)
+	result, err := db.applyCreateRoute(ctx, route)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -250,6 +250,7 @@ func (db *Database) CreateRoute(ctx context.Context, route *Route) (int64, error
 
 	id, _ := result.(int64)
 
+	db.publishOpTopics([]Topic{TopicRoutes}, 0)
 	span.SetStatus(codes.Ok, "")
 
 	return id, nil
@@ -273,7 +274,7 @@ func (db *Database) DeleteRoute(ctx context.Context, id int64) error {
 
 	DBQueriesTotal.WithLabelValues(RoutesTableName, "delete").Inc()
 
-	_, err := opDeleteRoute.Invoke(db, &int64Payload{Value: id})
+	_, err := db.applyDeleteRoute(ctx, &int64Payload{Value: id})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -281,6 +282,7 @@ func (db *Database) DeleteRoute(ctx context.Context, id int64) error {
 		return err
 	}
 
+	db.publishOpTopics([]Topic{TopicRoutes}, 0)
 	span.SetStatus(codes.Ok, "")
 
 	return nil

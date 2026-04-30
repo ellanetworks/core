@@ -96,7 +96,7 @@ func (db *Database) UpdateFlowAccountingSettings(ctx context.Context, enabled bo
 
 	DBQueriesTotal.WithLabelValues(FlowAccountingSettingsTableName, "update").Inc()
 
-	_, err := opUpdateFlowAccountingSettings.Invoke(db, &boolPayload{Value: enabled})
+	_, err := db.applyUpdateFlowAccountingSettings(ctx, &boolPayload{Value: enabled})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -104,6 +104,7 @@ func (db *Database) UpdateFlowAccountingSettings(ctx context.Context, enabled bo
 		return err
 	}
 
+	db.publishOpTopics([]Topic{TopicFlowAccountingSettings}, 0)
 	span.SetStatus(codes.Ok, "")
 
 	return nil

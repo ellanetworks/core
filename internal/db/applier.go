@@ -240,10 +240,6 @@ type (
 		IP        string `json:"ip"`
 		Details   string `json:"details"`
 	}
-	importPrefixesPayload struct {
-		PeerID   int               `json:"peer_id"`
-		Prefixes []BGPImportPrefix `json:"prefixes"`
-	}
 	migrateSharedPayload struct {
 		TargetVersion int `json:"targetVersion"`
 	}
@@ -1122,7 +1118,7 @@ func (db *Database) applyUpdateBGPPeer(ctx context.Context, p *BGPPeer) (any, er
 		return nil, ErrNotFound
 	}
 
-	return nil, nil
+	return struct{}{}, nil
 }
 
 func (db *Database) applyDeleteBGPPeer(ctx context.Context, p *intPayload) (any, error) {
@@ -1142,7 +1138,7 @@ func (db *Database) applyDeleteBGPPeer(ctx context.Context, p *intPayload) (any,
 		return nil, ErrNotFound
 	}
 
-	return nil, nil
+	return struct{}{}, nil
 }
 
 func (db *Database) applyUpdateBGPSettings(ctx context.Context, s *BGPSettings) (any, error) {
@@ -1151,27 +1147,7 @@ func (db *Database) applyUpdateBGPSettings(ctx context.Context, s *BGPSettings) 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	return nil, nil
-}
-
-func (db *Database) applySetImportPrefixesForPeer(ctx context.Context, p *importPrefixesPayload) (any, error) {
-	// Runs inside the capture transaction opened by captureChangeset, so no
-	// nested Begin is needed here.
-	runner := db.runner(ctx)
-
-	if err := runner.Query(ctx, db.deleteImportPrefixesByPeerStmt, BGPImportPrefix{PeerID: p.PeerID}).Run(); err != nil {
-		return nil, fmt.Errorf("delete existing prefixes: %w", err)
-	}
-
-	for _, prefix := range p.Prefixes {
-		prefix.PeerID = p.PeerID
-
-		if err := runner.Query(ctx, db.createImportPrefixStmt, prefix).Run(); err != nil {
-			return nil, fmt.Errorf("insert prefix: %w", err)
-		}
-	}
-
-	return nil, nil
+	return struct{}{}, nil
 }
 
 func (db *Database) applyUpdateNATSettings(ctx context.Context, p *boolPayload) (any, error) {
@@ -1180,7 +1156,7 @@ func (db *Database) applyUpdateNATSettings(ctx context.Context, p *boolPayload) 
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	return nil, nil
+	return struct{}{}, nil
 }
 
 func (db *Database) applyUpdateN3Settings(ctx context.Context, p *stringPayload) (any, error) {
@@ -1189,7 +1165,7 @@ func (db *Database) applyUpdateN3Settings(ctx context.Context, p *stringPayload)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	return nil, nil
+	return struct{}{}, nil
 }
 
 func (db *Database) applyUpdateFlowAccountingSettings(ctx context.Context, p *boolPayload) (any, error) {
@@ -1198,7 +1174,7 @@ func (db *Database) applyUpdateFlowAccountingSettings(ctx context.Context, p *bo
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	return nil, nil
+	return struct{}{}, nil
 }
 
 func (db *Database) applySetRetentionPolicy(ctx context.Context, rp *RetentionPolicy) (any, error) {
@@ -1292,7 +1268,9 @@ func (db *Database) applySetJWTSecret(ctx context.Context, p *bytesPayload) (any
 }
 
 func (db *Database) applyCreateRoute(ctx context.Context, r *Route) (any, error) {
-	err := db.runner(ctx).Query(ctx, db.createRouteStmt, r).Run()
+	var outcome sqlair.Outcome
+
+	err := db.runner(ctx).Query(ctx, db.createRouteStmt, r).Get(&outcome)
 	if err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
@@ -1301,7 +1279,12 @@ func (db *Database) applyCreateRoute(ctx context.Context, r *Route) (any, error)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	return nil, nil
+	id, err := outcome.Result().LastInsertId()
+	if err != nil {
+		return nil, fmt.Errorf("retrieving insert ID failed: %w", err)
+	}
+
+	return id, nil
 }
 
 func (db *Database) applyDeleteRoute(ctx context.Context, p *int64Payload) (any, error) {
@@ -1321,7 +1304,7 @@ func (db *Database) applyDeleteRoute(ctx context.Context, p *int64Payload) (any,
 		return nil, ErrNotFound
 	}
 
-	return nil, nil
+	return struct{}{}, nil
 }
 
 func (db *Database) applyUpsertClusterMember(ctx context.Context, m *ClusterMember) (any, error) {

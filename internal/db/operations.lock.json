@@ -32,11 +32,6 @@
       "minSchema": 1
     },
     {
-      "name": "CreateBGPPeer",
-      "kind": "changeset",
-      "minSchema": 9
-    },
-    {
       "name": "CreateDataNetwork",
       "kind": "changeset",
       "minSchema": 1
@@ -68,11 +63,6 @@
     },
     {
       "name": "CreateProfile",
-      "kind": "changeset",
-      "minSchema": 1
-    },
-    {
-      "name": "CreateRoute",
       "kind": "changeset",
       "minSchema": 1
     },
@@ -111,11 +101,6 @@
       "name": "DeleteAllSessionsForUser",
       "kind": "changeset",
       "minSchema": 1
-    },
-    {
-      "name": "DeleteBGPPeer",
-      "kind": "changeset",
-      "minSchema": 9
     },
     {
       "name": "DeleteClusterMember",
@@ -211,11 +196,6 @@
       "minSchema": 9
     },
     {
-      "name": "DeleteRoute",
-      "kind": "changeset",
-      "minSchema": 1
-    },
-    {
       "name": "DeleteSessionByTokenHash",
       "kind": "changeset",
       "minSchema": 1
@@ -297,11 +277,6 @@
       "minSchema": 9
     },
     {
-      "name": "SetImportPrefixesForPeer",
-      "kind": "changeset",
-      "minSchema": 1
-    },
-    {
       "name": "SetJWTSecret",
       "kind": "changeset",
       "minSchema": 1
@@ -322,22 +297,7 @@
       "minSchema": 1
     },
     {
-      "name": "UpdateBGPPeer",
-      "kind": "changeset",
-      "minSchema": 9
-    },
-    {
-      "name": "UpdateBGPSettings",
-      "kind": "changeset",
-      "minSchema": 1
-    },
-    {
       "name": "UpdateDataNetwork",
-      "kind": "changeset",
-      "minSchema": 1
-    },
-    {
-      "name": "UpdateFlowAccountingSettings",
       "kind": "changeset",
       "minSchema": 1
     },
@@ -350,16 +310,6 @@
       "name": "UpdateLeaseSession",
       "kind": "changeset",
       "minSchema": 9
-    },
-    {
-      "name": "UpdateN3Settings",
-      "kind": "changeset",
-      "minSchema": 1
-    },
-    {
-      "name": "UpdateNATSettings",
-      "kind": "changeset",
-      "minSchema": 1
     },
     {
       "name": "UpdateNetworkRule",

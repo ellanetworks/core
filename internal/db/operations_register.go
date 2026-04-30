@@ -109,20 +109,6 @@ var (
 )
 
 // BGP. bgp_peers.nodeID added in v9.
-var (
-	opCreateBGPPeer            = registerChangesetOp("CreateBGPPeer", (*Database).applyCreateBGPPeer, RequireSchema(9), AffectsTopic(TopicBGPPeers))
-	opUpdateBGPPeer            = registerChangesetOp("UpdateBGPPeer", (*Database).applyUpdateBGPPeer, RequireSchema(9), AffectsTopic(TopicBGPPeers))
-	opDeleteBGPPeer            = registerChangesetOp("DeleteBGPPeer", (*Database).applyDeleteBGPPeer, RequireSchema(9), AffectsTopic(TopicBGPPeers))
-	opUpdateBGPSettings        = registerChangesetOp("UpdateBGPSettings", (*Database).applyUpdateBGPSettings, AffectsTopic(TopicBGPSettings))
-	opSetImportPrefixesForPeer = registerChangesetOp("SetImportPrefixesForPeer", (*Database).applySetImportPrefixesForPeer, AffectsTopic(TopicBGPPeers))
-)
-
-// NAT / N3 / Flow accounting
-var (
-	opUpdateNATSettings            = registerChangesetOp("UpdateNATSettings", (*Database).applyUpdateNATSettings, AffectsTopic(TopicNATSettings))
-	opUpdateN3Settings             = registerChangesetOp("UpdateN3Settings", (*Database).applyUpdateN3Settings, AffectsTopic(TopicN3Settings))
-	opUpdateFlowAccountingSettings = registerChangesetOp("UpdateFlowAccountingSettings", (*Database).applyUpdateFlowAccountingSettings, AffectsTopic(TopicFlowAccountingSettings))
-)
 
 // Retention
 var (
@@ -147,10 +133,6 @@ var (
 )
 
 // Routes
-var (
-	opCreateRoute = registerChangesetOp("CreateRoute", (*Database).applyCreateRoute, AffectsTopic(TopicRoutes))
-	opDeleteRoute = registerChangesetOp("DeleteRoute", (*Database).applyDeleteRoute, AffectsTopic(TopicRoutes))
-)
 
 // Cluster members. cluster_members table introduced in v9.
 var (

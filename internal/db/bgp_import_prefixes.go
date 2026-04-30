@@ -87,7 +87,7 @@ func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, pr
 
 	DBQueriesTotal.WithLabelValues(BGPImportPrefixesTableName, "replace").Inc()
 
-	_, err := opSetImportPrefixesForPeer.Invoke(db, &importPrefixesPayload{PeerID: peerID, Prefixes: prefixes})
+	tx, err := db.BeginTransaction(ctx)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -95,6 +95,34 @@ func (db *Database) SetImportPrefixesForPeer(ctx context.Context, peerID int, pr
 		return err
 	}
 
+	defer func() { _ = tx.Rollback() }()
+
+	if err := tx.tx.Query(ctx, db.deleteImportPrefixesByPeerStmt, BGPImportPrefix{PeerID: peerID}).Run(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return fmt.Errorf("delete existing prefixes: %w", err)
+	}
+
+	for _, prefix := range prefixes {
+		prefix.PeerID = peerID
+
+		if err := tx.tx.Query(ctx, db.createImportPrefixStmt, prefix).Run(); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+
+			return fmt.Errorf("insert prefix: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	db.publishOpTopics([]Topic{TopicBGPPeers}, 0)
 	span.SetStatus(codes.Ok, "")
 
 	return nil

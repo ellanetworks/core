@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/integration/fixture"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
+
 	// Side-effect import to register the multi/cluster_traffic scenario.
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
@@ -125,7 +126,7 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 
 	haClient.SetToken(adminToken)
 
-	if err := configureNATAndRoute(ctx, haClient); err != nil {
+	if err := configureNATAndRoute(ctx, nodeClients); err != nil {
 		t.Fatalf("configure NAT + route: %v", err)
 	}
 

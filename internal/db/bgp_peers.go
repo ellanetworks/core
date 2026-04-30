@@ -19,8 +19,8 @@ const (
 	listBGPPeersPagedStmt = "SELECT &BGPPeer.*, COUNT(*) OVER() AS &NumItems.count FROM %s ORDER BY id ASC LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	listAllBGPPeersStmt   = "SELECT &BGPPeer.* FROM %s ORDER BY id ASC"
 	getBGPPeerStmt        = "SELECT &BGPPeer.* FROM %s WHERE id==$BGPPeer.id"
-	createBGPPeerStmt     = "INSERT INTO %s (address, remoteAS, holdTime, password, description, nodeID) VALUES ($BGPPeer.address, $BGPPeer.remoteAS, $BGPPeer.holdTime, $BGPPeer.password, $BGPPeer.description, $BGPPeer.nodeID)"
-	updateBGPPeerStmt     = "UPDATE %s SET address=$BGPPeer.address, remoteAS=$BGPPeer.remoteAS, holdTime=$BGPPeer.holdTime, password=$BGPPeer.password, description=$BGPPeer.description, nodeID=$BGPPeer.nodeID WHERE id==$BGPPeer.id"
+	createBGPPeerStmt     = "INSERT INTO %s (address, remoteAS, holdTime, password, description) VALUES ($BGPPeer.address, $BGPPeer.remoteAS, $BGPPeer.holdTime, $BGPPeer.password, $BGPPeer.description)"
+	updateBGPPeerStmt     = "UPDATE %s SET address=$BGPPeer.address, remoteAS=$BGPPeer.remoteAS, holdTime=$BGPPeer.holdTime, password=$BGPPeer.password, description=$BGPPeer.description WHERE id==$BGPPeer.id"
 	deleteBGPPeerStmt     = "DELETE FROM %s WHERE id==$BGPPeer.id"
 	countBGPPeersStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
@@ -32,7 +32,6 @@ type BGPPeer struct {
 	HoldTime    int    `db:"holdTime"`
 	Password    string `db:"password"` // stored in plaintext — required by GoBGP TCP MD5 API
 	Description string `db:"description"`
-	NodeID      *int   `db:"nodeID"`
 }
 
 func (db *Database) ListBGPPeersPage(ctx context.Context, page, perPage int) ([]BGPPeer, int, error) {
@@ -190,7 +189,7 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "insert").Inc()
 
-	result, err := opCreateBGPPeer.Invoke(db, peer)
+	result, err := db.applyCreateBGPPeer(ctx, peer)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -200,6 +199,7 @@ func (db *Database) CreateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 	peer.ID = result.(int)
 
+	db.publishOpTopics([]Topic{TopicBGPPeers}, 0)
 	span.SetStatus(codes.Ok, "")
 
 	return nil
@@ -223,7 +223,7 @@ func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "update").Inc()
 
-	_, err := opUpdateBGPPeer.Invoke(db, peer)
+	_, err := db.applyUpdateBGPPeer(ctx, peer)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -231,6 +231,7 @@ func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 		return err
 	}
 
+	db.publishOpTopics([]Topic{TopicBGPPeers}, 0)
 	span.SetStatus(codes.Ok, "")
 
 	return nil
@@ -254,7 +255,7 @@ func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "delete").Inc()
 
-	_, err := opDeleteBGPPeer.Invoke(db, &intPayload{Value: id})
+	_, err := db.applyDeleteBGPPeer(ctx, &intPayload{Value: id})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -262,6 +263,7 @@ func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
 		return err
 	}
 
+	db.publishOpTopics([]Topic{TopicBGPPeers}, 0)
 	span.SetStatus(codes.Ok, "")
 
 	return nil

@@ -116,7 +116,7 @@ func (db *Database) UpdateBGPSettings(ctx context.Context, settings *BGPSettings
 
 	DBQueriesTotal.WithLabelValues(BGPSettingsTableName, "update").Inc()
 
-	_, err := opUpdateBGPSettings.Invoke(db, settings)
+	_, err := db.applyUpdateBGPSettings(ctx, settings)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -124,6 +124,7 @@ func (db *Database) UpdateBGPSettings(ctx context.Context, settings *BGPSettings
 		return err
 	}
 
+	db.publishOpTopics([]Topic{TopicBGPSettings}, 0)
 	span.SetStatus(codes.Ok, "")
 
 	return nil

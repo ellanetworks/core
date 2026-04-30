@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/client"
 	"github.com/ellanetworks/core/integration/fixture"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
+
 	// Side-effect import to register the ha/failover_connectivity scenario.
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
@@ -136,7 +137,7 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 
 	haClient.SetToken(adminToken)
 
-	if err := configureNATAndRoute(ctx, haClient); err != nil {
+	if err := configureNATAndRoute(ctx, nodeClients); err != nil {
 		t.Fatalf("configure NAT + route: %v", err)
 	}
 
@@ -452,22 +453,22 @@ cluster:
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }
 
-// configureNATAndRoute applies the cluster-wide networking config for
-// 5G data plane: NAT on, plus a route for the ping destination via the
-// N6 router. Writes go through the HA client so they land on whichever
-// node is currently the leader.
-func configureNATAndRoute(ctx context.Context, c *client.Client) error {
-	if err := c.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: true}); err != nil {
-		return fmt.Errorf("update NAT: %w", err)
-	}
+// configureNATAndRoute applies NAT + default route to each node directly.
+// These tables are node-scoped in HA mode and are not replicated.
+func configureNATAndRoute(ctx context.Context, nodeClients []*client.Client) error {
+	for i, c := range nodeClients {
+		if err := c.UpdateNATInfo(ctx, &client.UpdateNATInfoOptions{Enabled: true}); err != nil {
+			return fmt.Errorf("update NAT on node %d: %w", i+1, err)
+		}
 
-	if err := c.CreateRoute(ctx, &client.CreateRouteOptions{
-		Destination: "8.8.8.8/32",
-		Gateway:     "10.6.0.3",
-		Interface:   "n6",
-		Metric:      0,
-	}); err != nil && !strings.Contains(err.Error(), "already exists") {
-		return fmt.Errorf("create route: %w", err)
+		if err := c.CreateRoute(ctx, &client.CreateRouteOptions{
+			Destination: "8.8.8.8/32",
+			Gateway:     "10.6.0.3",
+			Interface:   "n6",
+			Metric:      0,
+		}); err != nil && !strings.Contains(err.Error(), "already exists") {
+			return fmt.Errorf("create route on node %d: %w", i+1, err)
+		}
 	}
 
 	return nil

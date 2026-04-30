@@ -66,7 +66,7 @@ func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string
 
 	DBQueriesTotal.WithLabelValues(N3SettingsTableName, "update").Inc()
 
-	_, err := opUpdateN3Settings.Invoke(db, &stringPayload{Value: externalAddress})
+	_, err := db.applyUpdateN3Settings(ctx, &stringPayload{Value: externalAddress})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -74,6 +74,7 @@ func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string
 		return err
 	}
 
+	db.publishOpTopics([]Topic{TopicN3Settings}, 0)
 	span.SetStatus(codes.Ok, "")
 
 	return nil
