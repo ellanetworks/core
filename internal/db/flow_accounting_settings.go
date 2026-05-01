@@ -19,8 +19,6 @@ const (
 
 const FlowAccountingSettingsTableName = "flow_accounting_settings"
 
-const insertDefaultFlowAccountingSettingsStmt = `INSERT OR IGNORE INTO %s (singleton, enabled) VALUES (TRUE, $FlowAccountingSettings.enabled);`
-
 const upsertFlowAccountingSettingsStmt = `
 INSERT INTO %s (singleton, enabled) VALUES (TRUE, $FlowAccountingSettings.enabled)
 ON CONFLICT(singleton) DO UPDATE SET enabled=$FlowAccountingSettings.enabled;

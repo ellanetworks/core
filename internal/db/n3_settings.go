@@ -19,11 +19,6 @@ const (
 
 const N3SettingsTableName = "n3_settings"
 
-const insertDefaultN3SettingsStmt = `
-INSERT OR IGNORE INTO %s (singleton, external_address)
-VALUES (TRUE, $N3Settings.external_address);
-`
-
 const upsertN3SettingsStmt = `
 INSERT INTO %s (singleton, external_address) VALUES (TRUE, $N3Settings.external_address)
 ON CONFLICT(singleton) DO UPDATE SET external_address=$N3Settings.external_address;

@@ -34,8 +34,6 @@ func defaultBGPSettings() *BGPSettings {
 
 const BGPSettingsTableName = "bgp_settings"
 
-const insertDefaultBGPSettingsStmt = `INSERT OR IGNORE INTO %s (singleton, enabled, localAS, routerID, listenAddress) VALUES (TRUE, $BGPSettings.enabled, $BGPSettings.localAS, $BGPSettings.routerID, $BGPSettings.listenAddress);`
-
 const upsertBGPSettingsStmt = `
 INSERT INTO %s (singleton, enabled, localAS, routerID, listenAddress) VALUES (TRUE, $BGPSettings.enabled, $BGPSettings.localAS, $BGPSettings.routerID, $BGPSettings.listenAddress)
 ON CONFLICT(singleton) DO UPDATE SET enabled=$BGPSettings.enabled, localAS=$BGPSettings.localAS, routerID=$BGPSettings.routerID, listenAddress=$BGPSettings.listenAddress;

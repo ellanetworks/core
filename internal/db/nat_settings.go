@@ -19,8 +19,6 @@ const (
 
 const NATSettingsTableName = "nat_settings"
 
-const insertDefaultNATSettingsStmt = `INSERT OR IGNORE INTO %s (singleton, enabled) VALUES (TRUE, $NATSettings.enabled);`
-
 const upsertNATSettingsStmt = `
 INSERT INTO %s (singleton, enabled) VALUES (TRUE, $NATSettings.enabled)
 ON CONFLICT(singleton) DO UPDATE SET enabled=$NATSettings.enabled;
