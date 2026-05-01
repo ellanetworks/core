@@ -1,10 +1,7 @@
 // Copyright 2026 Ella Networks
 
 // Package-level registration of every typed replicated operation.
-//
-// Append-only: renaming, deleting, or relaxing RequireSchema breaks
-// rolling upgrades. TestOperationsRegistry_AppendOnly enforces this
-// against operations.lock.json.
+// Renaming, deleting, or relaxing RequireSchema breaks rolling upgrades.
 
 package db
 

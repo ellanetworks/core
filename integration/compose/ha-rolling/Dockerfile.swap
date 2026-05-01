@@ -1,6 +1,0 @@
-# Test-only image for TestIntegrationHARollingUpgrade. Stamps the
-# locally-built `core` binary on top of ella-core:latest. build-images.sh
-# drops `core` in this dir before each build.
-
-FROM ella-core:latest
-COPY core /bin/core

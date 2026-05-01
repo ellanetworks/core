@@ -1,0 +1,48 @@
+name: Rolling upgrade integration test
+
+permissions:
+  contents: read
+  packages: read
+
+on:
+  workflow_call:
+
+jobs:
+  rolling-upgrade-integration-test:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download current build image from GitHub Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-image-amd64
+
+      - name: Load current build image
+        run: |
+          docker load -i ellacore_latest-amd64.tar
+
+      - name: Pull and tag previous-release baseline image
+        run: |
+          integration/compose/ha-rolling/build-images.sh
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Run rolling-upgrade integration test
+        env:
+          HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
+        run: |
+          INTEGRATION=1 go test ./integration/... -run TestIntegrationHARollingUpgrade -v -timeout 15m
+
+      - name: Upload cluster logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rolling-upgrade-cluster-logs
+          path: ${{ runner.temp }}/ha-cluster-logs
+          if-no-files-found: ignore
+          retention-days: 7

@@ -17,21 +17,13 @@ import (
 const (
 	haRollingComposeDir = "compose/ha-rolling/"
 
-	// rollingBaselineImage: current source, no build tag.
 	rollingBaselineImage = "ella-core:rolling-baseline"
-	// rollingTargetImage: built with -tags rolling_upgrade_test_synthetic,
-	// which appends 3 no-op migrations to the registry.
-	rollingTargetImage = "ella-core:rolling-target"
-
-	// Must match migration_synthetic_rolling_upgrade.go.
-	numSyntheticMigrations = 3
+	rollingTargetImage   = "ella-core:latest"
 )
 
-// TestIntegrationHARollingUpgrade rolls a 3-node cluster from baseline
-// to target image one node at a time and asserts cluster state
-// transitions through /api/v1/status (cluster.appliedSchemaVersion,
-// cluster.pendingMigration). A background writer validates the
-// cluster stays writable throughout.
+// TestIntegrationHARollingUpgrade rolls a 3-node cluster from the
+// previous release image to the current build, one node at a time, and
+// asserts the cluster stays writable and converges on the target schema.
 func TestIntegrationHARollingUpgrade(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
@@ -73,9 +65,11 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 	}
 
 	baselineSchema := mustReadSchemaVersion(ctx, t, clients[0])
-	targetSchema := baselineSchema + numSyntheticMigrations
 
-	t.Logf("baseline schema = %d, target schema = %d", baselineSchema, targetSchema)
+	// Discovered after the first swap.
+	var targetSchema int
+
+	t.Logf("baseline schema = %d", baselineSchema)
 
 	for i, c := range clients {
 		assertSchemaState(t, ctx, c, fmt.Sprintf("node %d (initial)", i+1), schemaState{
@@ -119,6 +113,18 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 			t.Fatalf("node %d did not become ready after swap: %v", nodeNum, err)
 		}
 
+		if step == 0 {
+			targetSchema = mustReadSchemaVersion(ctx, t, clients[nodeIdx])
+
+			if targetSchema < baselineSchema {
+				t.Fatalf("target schema %d < baseline schema %d — current build cannot downgrade",
+					targetSchema, baselineSchema)
+			}
+
+			t.Logf("target schema = %d (delta from baseline = %d)",
+				targetSchema, targetSchema-baselineSchema)
+		}
+
 		// Self-announce of MaxSchemaVersion is async; poll.
 		if err := waitForSchemaCondition(ctx, clients[nodeIdx], func(s *client.Status) error {
 			if s.SchemaVersion != targetSchema {
@@ -130,7 +136,7 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 			t.Fatalf("node %d schemaVersion did not advance: %v", nodeNum, err)
 		}
 
-		if !isLast {
+		if !isLast && targetSchema > baselineSchema {
 			expectedLaggards := remainingBaselineNodes(upgradeOrder, step+1)
 
 			t.Logf("intermediate: expecting applied=%d, laggard ∈ %v",
