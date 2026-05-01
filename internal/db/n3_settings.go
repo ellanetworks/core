@@ -35,6 +35,8 @@ type N3Settings struct {
 	ExternalAddress string `db:"external_address"`
 }
 
+// InitializeN3Settings inserts the default N3 settings row if the
+// singleton row does not yet exist. Idempotent.
 func (db *Database) InitializeN3Settings(ctx context.Context) error {
 	_, err := db.GetN3Settings(ctx)
 	if err == nil {

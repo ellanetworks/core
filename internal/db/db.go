@@ -1115,6 +1115,16 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 
 	RegisterMetrics(db)
 
+	// Local-only singleton tables (NAT, flow accounting, BGP, N3) seed
+	// their default rows here on every node — leader, follower, standalone.
+	// Local-only writes don't go through Raft, so no leader is required
+	// and this is safe to run before RunDiscovery. Each Initialize* is
+	// idempotent: an existing row (default or operator-set) is preserved.
+	if err := db.InitializeLocalSettings(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("seed local-only settings: %w", err)
+	}
+
 	// In HA mode, defer Initialize() until RunDiscovery has formed or
 	// joined the cluster and a leader exists — otherwise every propose()
 	// here would fail with ErrNotLeader on a fresh follower. Callers must
@@ -1176,6 +1186,11 @@ func NewDatabaseWithoutRaft(ctx context.Context, dbPath string) (*Database, erro
 	}
 
 	RegisterMetrics(db)
+
+	if err := db.InitializeLocalSettings(ctx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("seed local-only settings: %w", err)
+	}
 
 	if err := db.Initialize(ctx); err != nil {
 		_ = db.Close()
@@ -1480,16 +1495,50 @@ func (db *Database) WaitForInitialization(ctx context.Context, timeout time.Dura
 	}
 }
 
-func (db *Database) Initialize(ctx context.Context) error {
-	initSteps := []struct {
+// InitializeLocalSettings seeds the singleton row of every local-only
+// settings table (nat_settings, flow_accounting_settings, bgp_settings,
+// n3_settings) with documented defaults. Each Initialize* is idempotent:
+// an existing row (whether it holds the default or an operator-set value)
+// is left untouched, so a daemon restart never overwrites operator state.
+//
+// Runs on every node — leader, follower, standalone — from NewDatabase.
+// Local-only writes do not go through Raft, so this is safe to call
+// before RunDiscovery / leader election.
+//
+// Invariant: every singleton table in localOnlyTables (see
+// changeset_replication.go) MUST have its initializer registered here.
+// Forgetting to do so means a freshly-started node will crash when its
+// reader hits sql.ErrNoRows.
+func (db *Database) InitializeLocalSettings(ctx context.Context) error {
+	steps := []struct {
 		name string
 		fn   func() error
 	}{
 		{"NAT settings", func() error { return db.InitializeNATSettings(ctx) }},
 		{"flow accounting settings", func() error { return db.InitializeFlowAccountingSettings(ctx) }},
 		{"BGP settings", func() error { return db.InitializeBGPSettings(ctx) }},
-		{"JWT secret", func() error { return db.InitializeJWTSecret(ctx) }},
 		{"N3 settings", func() error { return db.InitializeN3Settings(ctx) }},
+	}
+
+	for _, step := range steps {
+		if err := step.fn(); err != nil {
+			return fmt.Errorf("failed to initialize %s: %w", step.name, err)
+		}
+	}
+
+	return nil
+}
+
+func (db *Database) Initialize(ctx context.Context) error {
+	// Local-only singleton tables are seeded in NewDatabase via
+	// InitializeLocalSettings — they run on every node, not just the
+	// leader. This function handles only state that genuinely needs to
+	// persist as a replicated row (JWT secret, operator, admin user).
+	initSteps := []struct {
+		name string
+		fn   func() error
+	}{
+		{"JWT secret", func() error { return db.InitializeJWTSecret(ctx) }},
 	}
 
 	for _, step := range initSteps {

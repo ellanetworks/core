@@ -64,6 +64,21 @@ var replicatedChangesetTables = []string{
 	"schema_version",
 }
 
+// localOnlyTables are NOT replicated through Raft. Each node owns its own
+// copy: writes are applied directly to the local SQLite, never proposed
+// through the Raft log; rows are preserved across full DB swaps via
+// BackupLocalTables / RestoreLocalTables.
+//
+// SEED CONTRACT for singleton local-only tables: every node must seed the
+// singleton row at startup with documented defaults so readers always see
+// a row. Seeds run from db.InitializeLocalSettings (called by NewDatabase
+// on every node — leader, follower, standalone). The seed must be
+// idempotent: an existing row, whether default or operator-set, is left
+// untouched so a daemon restart never overwrites operator state.
+//
+// When adding a new singleton local-only table, register its Initialize*
+// in db.InitializeLocalSettings AND extend the fresh-DB regression test
+// in local_only_defaults_test.go.
 var localOnlyTables = []string{
 	RadioEventsTableName,
 	FlowReportsTableName,

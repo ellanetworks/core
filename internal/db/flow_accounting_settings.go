@@ -32,6 +32,8 @@ type FlowAccountingSettings struct {
 	Enabled bool `db:"enabled"`
 }
 
+// InitializeFlowAccountingSettings inserts the default flow accounting
+// settings row if the singleton row does not yet exist. Idempotent.
 func (db *Database) InitializeFlowAccountingSettings(ctx context.Context) error {
 	_, err := db.IsFlowAccountingEnabled(ctx)
 	if err == nil {

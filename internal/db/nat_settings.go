@@ -32,8 +32,9 @@ type NATSettings struct {
 	Enabled bool `db:"enabled"`
 }
 
-// InitializeNATSettings inserts the default NAT settings into the database.
-// If the settings already exist, it does nothing.
+// InitializeNATSettings inserts the default NAT settings row if the
+// singleton row does not yet exist. Idempotent: an existing row (whether
+// holding the default or an operator-set value) is left untouched.
 func (db *Database) InitializeNATSettings(ctx context.Context) error {
 	_, err := db.IsNATEnabled(ctx)
 	if err == nil {
