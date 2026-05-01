@@ -59,7 +59,7 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 		dc.ComposeDownWithFile(context.Background(), haRollingComposeDir, ComposeFile())
 	})
 
-	clients, err := bringUpHAClusterAt(ctx, dc, haRollingComposeDir, haNodeServices, nil)
+	clients, err := bringUpHAClusterAt(t, ctx, dc, haRollingComposeDir, haNodeServices, nil)
 	if err != nil {
 		t.Fatalf("bring up cluster on baseline image: %v", err)
 	}

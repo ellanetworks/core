@@ -46,8 +46,8 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `enabled` (boolean): Enables HA mode. When `false`, Ella Core runs as a standalone single-server instance.
     - `node-id` (int, 1–63): Unique per node. Baked into this node's leaf certificate and 5G-GUTIs.
     - `bind-address` (string): `host:port` the cluster listener binds to. Carries Raft consensus and cluster HTTP over mTLS.
-    - `advertise-address` (string, optional): `host:port` peers use to reach this node. Defaults to `bind-address`. Must appear in `peers` and must not use an unspecified IP.
-    - `peers` (list of strings): `host:port` of every node in the cluster. Must include this node's own `advertise-address`.
+    - `advertise-address` (string, optional): `host:port` peers use to reach this node. Host may be an IP or DNS name. Defaults to `bind-address`. Must appear in `peers` and must not use an unspecified IP.
+    - `peers` (list of strings): `host:port` of every node in the cluster. Host may be an IP or DNS name. Must include this node's own `advertise-address` (or `bind-address` if `advertise-address` is unset) as the same string.
     - `join-token` (string, optional): Single-use token minted on an existing voter via `POST /api/v1/cluster/pki/join-tokens`. Required on the first boot of a node joining an existing cluster; consumed and ignored on subsequent starts. Its presence also tells the daemon that this node is a joiner, not the founder.
     - `initial-suffrage` (string, optional): `voter` or `nonvoter`. Defaults to `voter`.
     - `join-timeout` (duration string, optional): Maximum wait for cluster formation during discovery.

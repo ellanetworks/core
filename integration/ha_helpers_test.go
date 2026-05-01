@@ -18,6 +18,56 @@ const haComposeDir = "compose/ha/"
 
 var haNodeServices = []string{"ella-core-1", "ella-core-2", "ella-core-3"}
 
+// captureClusterLogs collects per-service container logs from composeDir
+// and emits them via t.Logf so they appear in `go test -v` output. If the
+// HA_CLUSTER_LOG_DIR environment variable is set (CI sets it), a copy of
+// each service's log is also written to
+// <HA_CLUSTER_LOG_DIR>/<sanitized-test-name>/<service>.log so the workflow
+// can upload them as an artifact.
+//
+// Safe to call before any client connection has been established (i.e. on
+// a bring-up failure with no clients yet). Uses a fresh background context
+// with a 2-minute timeout so a cancelled test context does not break log
+// collection.
+func captureClusterLogs(t *testing.T, dc *DockerClient, composeDir string, services []string) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	var diskDir string
+
+	if root := os.Getenv("HA_CLUSTER_LOG_DIR"); root != "" {
+		diskDir = filepath.Join(root, sanitizeTestName(t.Name()))
+		if err := os.MkdirAll(diskDir, 0o755); err != nil {
+			t.Logf("captureClusterLogs: mkdir %s: %v", diskDir, err)
+
+			diskDir = ""
+		}
+	}
+
+	for _, svc := range services {
+		logs, err := dc.ComposeLogs(ctx, composeDir, svc)
+		if err != nil {
+			t.Logf("=== %s logs: collection failed: %v ===", svc, err)
+			continue
+		}
+
+		t.Logf("=== %s logs ===\n%s", svc, logs)
+
+		if diskDir != "" {
+			path := filepath.Join(diskDir, svc+".log")
+			if err := os.WriteFile(path, []byte(logs), 0o644); err != nil {
+				t.Logf("captureClusterLogs: write %s: %v", path, err)
+			}
+		}
+	}
+}
+
+func sanitizeTestName(name string) string {
+	return strings.NewReplacer("/", "_", " ", "_").Replace(name)
+}
+
 // getHANodeURLs returns the API URLs for HA nodes based on the current IP family
 func getHANodeURLs() []string {
 	urls := make([]string, 3)
@@ -30,8 +80,8 @@ func getHANodeURLs() []string {
 
 // bringUpHACluster stages a 3-node HA cluster from scratch against the
 // default haComposeDir.
-func bringUpHACluster(ctx context.Context, dc *DockerClient) ([]*client.Client, error) {
-	return bringUpHAClusterAt(ctx, dc, haComposeDir, haNodeServices, nil)
+func bringUpHACluster(t *testing.T, ctx context.Context, dc *DockerClient) ([]*client.Client, error) {
+	return bringUpHAClusterAt(t, ctx, dc, haComposeDir, haNodeServices, nil)
 }
 
 // bringUpHAClusterAt brings up a 3-node HA cluster against composeDir.
@@ -39,15 +89,26 @@ func bringUpHACluster(ctx context.Context, dc *DockerClient) ([]*client.Client, 
 // into each service as /cfg/core.yaml. This helper writes those files.
 // extraPeers lets callers with a larger peers list (scaleup) include
 // more addresses than the starting set of services.
-func bringUpHAClusterAt(ctx context.Context, dc *DockerClient, composeDir string, services []string, extraPeers []string) ([]*client.Client, error) {
+//
+// On any error return, captureClusterLogs is invoked so per-node container
+// logs are emitted (and persisted to HA_CLUSTER_LOG_DIR if set) BEFORE the
+// next test's ComposeCleanup tears the containers down.
+func bringUpHAClusterAt(t *testing.T, ctx context.Context, dc *DockerClient, composeDir string, services []string, extraPeers []string) ([]*client.Client, error) {
+	t.Helper()
+
 	dc.ComposeCleanup(ctx)
+
+	fail := func(err error) ([]*client.Client, error) {
+		captureClusterLogs(t, dc, composeDir, services)
+		return nil, err
+	}
 
 	peers := []string{ClusterAddressWithPort(1, 7000), ClusterAddressWithPort(2, 7000), ClusterAddressWithPort(3, 7000)}
 	peers = append(peers, extraPeers...)
 
 	// Write node 1's config (no join-token, default voter suffrage).
 	if err := writeNodeConfig(composeDir, 1, peers, "", ""); err != nil {
-		return nil, err
+		return fail(err)
 	}
 
 	composeFile := ComposeFile()
@@ -55,22 +116,22 @@ func bringUpHAClusterAt(ctx context.Context, dc *DockerClient, composeDir string
 	if err := dc.ComposeStartWithFile(ctx, composeDir, services[0], composeFile); err != nil {
 		// Service may not exist yet — create and start.
 		if err2 := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, services[0]); err2 != nil {
-			return nil, fmt.Errorf("start node 1: %w (create: %v)", err, err2)
+			return fail(fmt.Errorf("start node 1: %w (create: %v)", err, err2))
 		}
 	}
 
 	node1, err := newInsecureClient(getHANodeURLs()[0])
 	if err != nil {
-		return nil, err
+		return fail(err)
 	}
 
 	if err := waitForNodeReady(ctx, node1); err != nil {
-		return nil, fmt.Errorf("node 1 never became ready: %w", err)
+		return fail(fmt.Errorf("node 1 never became ready: %w", err))
 	}
 
 	adminToken, err := initializeAndGetAdminToken(ctx, node1)
 	if err != nil {
-		return nil, err
+		return fail(err)
 	}
 
 	node1.SetToken(adminToken)
@@ -80,13 +141,13 @@ func bringUpHAClusterAt(ctx context.Context, dc *DockerClient, composeDir string
 		nodeID := i + 1
 
 		if err := stageAndStartJoiner(ctx, dc, node1, composeDir, services[i], nodeID, peers, ""); err != nil {
-			return nil, err
+			return fail(err)
 		}
 	}
 
 	clients, err := newHANodeClients()
 	if err != nil {
-		return nil, err
+		return fail(err)
 	}
 
 	for _, c := range clients {
@@ -94,7 +155,7 @@ func bringUpHAClusterAt(ctx context.Context, dc *DockerClient, composeDir string
 	}
 
 	if err := waitForClusterReady(ctx, clients); err != nil {
-		return nil, fmt.Errorf("cluster not ready: %w", err)
+		return fail(fmt.Errorf("cluster not ready: %w", err))
 	}
 
 	return clients, nil

@@ -45,5 +45,16 @@ jobs:
           go-version-file: "go.mod"
 
       - name: Run integration tests
+        env:
+          HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
         run: |
           INTEGRATION=1 IP_VERSION=${{ matrix.ip_version }} go test ./integration/... -skip 'TestIntegrationHA|TestIntegration3GPPHAFailover' -v
+
+      - name: Upload cluster logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-cluster-logs-${{ matrix.arch }}-${{ matrix.ip_version }}
+          path: ${{ runner.temp }}/ha-cluster-logs
+          if-no-files-found: ignore
+          retention-days: 7

@@ -37,5 +37,16 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libpcap-dev
 
       - name: Run HA+3GPP integration tests
+        env:
+          HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
         run: |
           INTEGRATION=1 go test ./integration/... -run TestIntegration3GPPHAFailover -v -timeout 15m
+
+      - name: Upload cluster logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ha3gpp-cluster-logs
+          path: ${{ runner.temp }}/ha-cluster-logs
+          if-no-files-found: ignore
+          retention-days: 7

@@ -88,7 +88,7 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 
 	testerServices = append(testerServices, "router")
 
-	adminToken, nodeClients, err := bringUpHA3GPPCluster(ctx, dc, composeDir, composeFile, testerServices...)
+	adminToken, nodeClients, err := bringUpHA3GPPCluster(t, ctx, dc, composeDir, composeFile, testerServices...)
 	if err != nil {
 		t.Fatalf("bring up cluster: %v", err)
 	}

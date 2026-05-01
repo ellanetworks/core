@@ -32,7 +32,7 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 
 	t.Log("bringing up staged HA cluster")
 
-	clients, err := bringUpHACluster(ctx, dockerClient)
+	clients, err := bringUpHACluster(t, ctx, dockerClient)
 	if err != nil {
 		t.Fatalf("bring up HA cluster: %v", err)
 	}
@@ -190,7 +190,7 @@ func TestIntegrationHAFollowerProxy(t *testing.T) {
 
 	t.Log("bringing up staged HA cluster")
 
-	clients, err := bringUpHACluster(ctx, dockerClient)
+	clients, err := bringUpHACluster(t, ctx, dockerClient)
 	if err != nil {
 		t.Fatalf("bring up HA cluster: %v", err)
 	}
@@ -305,7 +305,7 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 
 	t.Log("bringing up staged HA cluster")
 
-	clients, err := bringUpHACluster(ctx, dockerClient)
+	clients, err := bringUpHACluster(t, ctx, dockerClient)
 	if err != nil {
 		t.Fatalf("bring up HA cluster: %v", err)
 	}
@@ -476,7 +476,7 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 
 	t.Log("bringing up staged HA cluster")
 
-	clients, err := bringUpHACluster(ctx, dockerClient)
+	clients, err := bringUpHACluster(t, ctx, dockerClient)
 	if err != nil {
 		t.Fatalf("bring up HA cluster: %v", err)
 	}
@@ -602,7 +602,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 	// integration tests run serially so the override is safe.
 	// scaleup compose has a 4th peer address reachable later; include it
 	// in the baseline peers list so all configs match.
-	clients, err := bringUpHAClusterAt(ctx, dockerClient, scaleUpComposeDir, haNodeServices, []string{ClusterAddressWithPort(4, 7000)})
+	clients, err := bringUpHAClusterAt(t, ctx, dockerClient, scaleUpComposeDir, haNodeServices, []string{ClusterAddressWithPort(4, 7000)})
 	if err != nil {
 		t.Fatalf("bring up 3-node cluster: %v", err)
 	}
@@ -834,7 +834,7 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 
 	t.Log("bringing up staged HA cluster")
 
-	clients, err := bringUpHACluster(ctx, dockerClient)
+	clients, err := bringUpHACluster(t, ctx, dockerClient)
 	if err != nil {
 		t.Fatalf("bring up HA cluster: %v", err)
 	}
@@ -1018,7 +1018,7 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 
 	t.Log("bringing up staged HA cluster")
 
-	clients, err := bringUpHACluster(ctx, dockerClient)
+	clients, err := bringUpHACluster(t, ctx, dockerClient)
 	if err != nil {
 		t.Fatalf("bring up HA cluster: %v", err)
 	}
@@ -1269,7 +1269,7 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 
 	t.Log("bringing up staged HA cluster")
 
-	clients, err := bringUpHACluster(ctx, dockerClient)
+	clients, err := bringUpHACluster(t, ctx, dockerClient)
 	if err != nil {
 		t.Fatalf("bring up HA cluster: %v", err)
 	}

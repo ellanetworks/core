@@ -70,7 +70,7 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 
 	t.Cleanup(func() { _ = dc.Close() })
 
-	adminToken, nodeClients, err := bringUpHA3GPPCluster(ctx, dc, composeDir, composeFile, "ella-core-tester", "router")
+	adminToken, nodeClients, err := bringUpHA3GPPCluster(t, ctx, dc, composeDir, composeFile, "ella-core-tester", "router")
 	if err != nil {
 		t.Fatalf("bring up cluster: %v", err)
 	}
@@ -257,7 +257,9 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 // any extraServices listed (typically the tester sidecar and the N6
 // router). Compose topologies that need a different sidecar shape
 // (e.g., one tester per gNB) pass their own service names instead.
-func bringUpHA3GPPCluster(ctx context.Context, dc *DockerClient, composeDir, composeFile string, extraServices ...string) (string, []*client.Client, error) {
+func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, composeDir, composeFile string, extraServices ...string) (string, []*client.Client, error) {
+	t.Helper()
+
 	nodeServices := []string{"ella-core-1", "ella-core-2", "ella-core-3"}
 
 	peers := []string{
@@ -268,28 +270,33 @@ func bringUpHA3GPPCluster(ctx context.Context, dc *DockerClient, composeDir, com
 
 	dc.ComposeCleanup(ctx)
 
-	if err := writeHA3GPPNodeConfig(composeDir, 1, peers, ""); err != nil {
+	fail := func(err error) (string, []*client.Client, error) {
+		captureClusterLogs(t, dc, composeDir, nodeServices)
 		return "", nil, err
 	}
 
+	if err := writeHA3GPPNodeConfig(composeDir, 1, peers, ""); err != nil {
+		return fail(err)
+	}
+
 	if err := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, nodeServices[0]); err != nil {
-		return "", nil, fmt.Errorf("start node 1: %w", err)
+		return fail(fmt.Errorf("start node 1: %w", err))
 	}
 
 	node1URL := "http://10.100.0.11:5002"
 
 	node1, err := client.New(&client.Config{BaseURL: node1URL})
 	if err != nil {
-		return "", nil, fmt.Errorf("node 1 client: %w", err)
+		return fail(fmt.Errorf("node 1 client: %w", err))
 	}
 
 	if err := waitForNodeReady(ctx, node1); err != nil {
-		return "", nil, fmt.Errorf("node 1 never became ready: %w", err)
+		return fail(fmt.Errorf("node 1 never became ready: %w", err))
 	}
 
 	adminToken, err := initializeAndGetAdminToken(ctx, node1)
 	if err != nil {
-		return "", nil, err
+		return fail(err)
 	}
 
 	node1.SetToken(adminToken)
@@ -302,15 +309,15 @@ func bringUpHA3GPPCluster(ctx context.Context, dc *DockerClient, composeDir, com
 			TTLSeconds: 600,
 		})
 		if err != nil {
-			return "", nil, fmt.Errorf("mint join token for node %d: %w", nodeID, err)
+			return fail(fmt.Errorf("mint join token for node %d: %w", nodeID, err))
 		}
 
 		if err := writeHA3GPPNodeConfig(composeDir, nodeID, peers, tok.Token); err != nil {
-			return "", nil, err
+			return fail(err)
 		}
 
 		if err := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, nodeServices[i]); err != nil {
-			return "", nil, fmt.Errorf("start node %d: %w", nodeID, err)
+			return fail(fmt.Errorf("start node %d: %w", nodeID, err))
 		}
 	}
 
@@ -319,7 +326,7 @@ func bringUpHA3GPPCluster(ctx context.Context, dc *DockerClient, composeDir, com
 	for _, url := range []string{"http://10.100.0.12:5002", "http://10.100.0.13:5002"} {
 		c, err := client.New(&client.Config{BaseURL: url})
 		if err != nil {
-			return "", nil, fmt.Errorf("client for %s: %w", url, err)
+			return fail(fmt.Errorf("client for %s: %w", url, err))
 		}
 
 		c.SetToken(adminToken)
@@ -327,7 +334,7 @@ func bringUpHA3GPPCluster(ctx context.Context, dc *DockerClient, composeDir, com
 	}
 
 	if err := waitForClusterReady(ctx, clients); err != nil {
-		return "", nil, fmt.Errorf("cluster not ready: %w", err)
+		return fail(fmt.Errorf("cluster not ready: %w", err))
 	}
 
 	// waitForClusterReady only asserts "reachable + 1 leader elected". The
@@ -336,14 +343,14 @@ func bringUpHA3GPPCluster(ctx context.Context, dc *DockerClient, composeDir, com
 	// NAT + route — can race against node startup and silently incur
 	// retry-on-503 stalls via the haRequester.
 	if err := waitForAllNodesReady(ctx, clients); err != nil {
-		return "", nil, fmt.Errorf("nodes not ready: %w", err)
+		return fail(fmt.Errorf("nodes not ready: %w", err))
 	}
 
 	// Start any caller-supplied sidecars (testers, router) last; they
 	// don't affect cluster formation.
 	if len(extraServices) > 0 {
 		if err := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, extraServices...); err != nil {
-			return "", nil, fmt.Errorf("start extra services %v: %w", extraServices, err)
+			return fail(fmt.Errorf("start extra services %v: %w", extraServices, err))
 		}
 	}
 
