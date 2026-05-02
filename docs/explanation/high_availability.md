@@ -21,11 +21,13 @@ Two things HA does not handle automatically. If more than half the voters fail a
 
 ## What replicates, and what does not
 
-All persistent resources are replicated across the cluster, so if a node dies, the others have the same subscribers, policies, and operator configuration. The cluster automatically elects a new leader and keeps accepting operator changes with no manual intervention.
+Network-wide resources — subscribers, profiles, policies, slices, data networks, network rules, IP leases, users, API tokens, audit logs, the operator configuration — replicate across the cluster. If a node dies, the survivors hold the same state, automatically elect a new leader, and keep accepting writes.
 
-Runtime state tied to a specific connection or session does not replicate. This includes SCTP associations with gNBs, UE contexts, active PDU sessions and their User Plane state, GTP-U tunnels, and active BGP adjacencies.
+Per-node configuration does not replicate. This covers the local data-plane and routing settings each node owns: static routes, BGP settings, BGP peers and import prefixes, NAT, the N3 external address, and flow accounting. To configure these on an HA cluster, hit each node's API directly — a change made on one node does not propagate to its peers. This lets nodes in different racks or AZs run with different upstream gateways and BGP topologies.
 
-Observability is also per-node: each instance exposes its own Prometheus endpoint and radio events and flow reports, so operators scrape every node for a cluster-wide view.
+Runtime state tied to a specific connection or session also does not replicate: SCTP associations with gNBs, UE contexts, active PDU sessions and their User Plane state, GTP-U tunnels, and active BGP adjacencies.
+
+Observability is per-node: each instance exposes its own Prometheus endpoint, radio events, and flow reports, so operators scrape every node for a cluster-wide view.
 
 ## User plane and routing
 
@@ -54,7 +56,7 @@ When a Core dies, gNBs reselect within the Set automatically; affected UEs re-re
 
 ### Radios Pinned to Specific Nodes
 
-Useful for site- or tenant-partitioned deployments. The cluster still replicates operator state across all nodes, so changes made anywhere are visible everywhere — but if a Core dies, its paired gNBs lose N2 and must be reconfigured to reach a surviving node. UE failover is manual, not automatic.
+Useful for site- or tenant-partitioned deployments. Network-wide state still replicates, so subscribers and policies stay consistent across nodes — but if a Core dies, its paired gNBs lose N2 and must be reconfigured to reach a surviving node. UE failover is manual, not automatic.
 
 <figure markdown="span">
   ![Radios Pinned to Specific Nodes](../images/ha_scenario_2.svg){ width="700" }
