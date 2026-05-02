@@ -113,11 +113,11 @@ func bringUpHAClusterAt(t *testing.T, ctx context.Context, dc *DockerClient, com
 
 	composeFile := ComposeFile()
 
-	if err := dc.ComposeStartWithFile(ctx, composeDir, services[0], composeFile); err != nil {
-		// Service may not exist yet — create and start.
-		if err2 := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, services[0]); err2 != nil {
-			return fail(fmt.Errorf("start node 1: %w (create: %v)", err, err2))
-		}
+	// ComposeCleanup above wiped all containers, so node 1 needs to be
+	// (re-)created — `up -d` is the only path that does both create and
+	// start. A plain `start` would always fail with "no such container".
+	if err := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, services[0]); err != nil {
+		return fail(fmt.Errorf("start node 1: %w", err))
 	}
 
 	node1, err := newInsecureClient(getHANodeURLs()[0])

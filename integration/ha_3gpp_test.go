@@ -70,7 +70,12 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 
 	t.Cleanup(func() { _ = dc.Close() })
 
-	adminToken, nodeClients, err := bringUpHA3GPPCluster(t, ctx, dc, composeDir, composeFile, "ella-core-tester", "router")
+	adminToken, nodeClients, err := bringUpHA3GPPCluster(t, ctx, dc, composeDir, composeFile, bringUpHA3GPPClusterOpts{
+		// Exercise the hostname-resolved peer path; TestIntegration3GPPMultiGNB
+		// covers the IP-literal path.
+		UseFQDN:       true,
+		ExtraServices: []string{"ella-core-tester", "router"},
+	})
 	if err != nil {
 		t.Fatalf("bring up cluster: %v", err)
 	}
@@ -257,15 +262,44 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 // any extraServices listed (typically the tester sidecar and the N6
 // router). Compose topologies that need a different sidecar shape
 // (e.g., one tester per gNB) pass their own service names instead.
-func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, composeDir, composeFile string, extraServices ...string) (string, []*client.Client, error) {
+// bringUpHA3GPPClusterOpts captures the optional flags accepted by
+// bringUpHA3GPPCluster. Anything that varies per-test goes here so the
+// helper signature stays stable.
+type bringUpHA3GPPClusterOpts struct {
+	// UseFQDN selects compose-service-name FQDNs (ella-core-1 / ella-core-2
+	// / ella-core-3) for the cluster peer list and bind-address instead of
+	// raw IP literals. Docker's embedded DNS on the user-defined `cluster`
+	// network resolves those names to the per-node IP. Used to verify that
+	// the cluster control-plane works against hostname peers — the way
+	// real deployments name their members. Default false: peers stay on
+	// IP literals so most tests still cover the IP-based path.
+	UseFQDN bool
+
+	// ExtraServices are compose services started after the cluster is
+	// converged (testers, routers). Cluster formation does not depend on
+	// them.
+	ExtraServices []string
+}
+
+func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, composeDir, composeFile string, opts bringUpHA3GPPClusterOpts) (string, []*client.Client, error) {
 	t.Helper()
 
 	nodeServices := []string{"ella-core-1", "ella-core-2", "ella-core-3"}
 
-	peers := []string{
-		"10.100.0.11:7000",
-		"10.100.0.12:7000",
-		"10.100.0.13:7000",
+	var peers []string
+
+	if opts.UseFQDN {
+		peers = []string{
+			"ella-core-1:7000",
+			"ella-core-2:7000",
+			"ella-core-3:7000",
+		}
+	} else {
+		peers = []string{
+			"10.100.0.11:7000",
+			"10.100.0.12:7000",
+			"10.100.0.13:7000",
+		}
 	}
 
 	dc.ComposeCleanup(ctx)
@@ -275,7 +309,7 @@ func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, c
 		return "", nil, err
 	}
 
-	if err := writeHA3GPPNodeConfig(composeDir, 1, peers, ""); err != nil {
+	if err := writeHA3GPPNodeConfig(composeDir, 1, peers, "", opts.UseFQDN); err != nil {
 		return fail(err)
 	}
 
@@ -312,7 +346,7 @@ func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, c
 			return fail(fmt.Errorf("mint join token for node %d: %w", nodeID, err))
 		}
 
-		if err := writeHA3GPPNodeConfig(composeDir, nodeID, peers, tok.Token); err != nil {
+		if err := writeHA3GPPNodeConfig(composeDir, nodeID, peers, tok.Token, opts.UseFQDN); err != nil {
 			return fail(err)
 		}
 
@@ -348,9 +382,9 @@ func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, c
 
 	// Start any caller-supplied sidecars (testers, router) last; they
 	// don't affect cluster formation.
-	if len(extraServices) > 0 {
-		if err := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, extraServices...); err != nil {
-			return fail(fmt.Errorf("start extra services %v: %w", extraServices, err))
+	if len(opts.ExtraServices) > 0 {
+		if err := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, opts.ExtraServices...); err != nil {
+			return fail(fmt.Errorf("start extra services %v: %w", opts.ExtraServices, err))
 		}
 	}
 
@@ -400,7 +434,13 @@ func composeKill(ctx context.Context, composeDir, composeFile, service string) e
 // Mirrors the pattern of writeNodeConfig in ha_helpers_test.go but with
 // per-node n3 addresses instead of the single-bridge shape used by the
 // non-5G HA tests.
-func writeHA3GPPNodeConfig(composeDir string, nodeID int, peers []string, joinToken string) error {
+//
+// When useFQDN is true, the cluster.bind-address uses the compose service
+// name (ella-core-N) rather than the per-node IP, exercising the
+// hostname-resolved peer path. n2/n3/api addresses stay on IP literals
+// because they are data-plane endpoints reached by simulators that bind
+// directly to fixed IPs.
+func writeHA3GPPNodeConfig(composeDir string, nodeID int, peers []string, joinToken string, useFQDN bool) error {
 	cfgDir, err := filepath.Abs(filepath.Join(composeDir, "cfg", fmt.Sprintf("node%d", nodeID)))
 	if err != nil {
 		return fmt.Errorf("abs path %s: %w", composeDir, err)
@@ -416,6 +456,11 @@ func writeHA3GPPNodeConfig(composeDir string, nodeID int, peers []string, joinTo
 
 	clusterAddr := fmt.Sprintf("10.100.0.%d", 10+nodeID)
 	n3Addr := fmt.Sprintf("10.3.0.%d", 10+nodeID)
+
+	clusterBindHost := clusterAddr
+	if useFQDN {
+		clusterBindHost = fmt.Sprintf("ella-core-%d", nodeID)
+	}
 
 	var peersYAML strings.Builder
 
@@ -454,7 +499,7 @@ cluster:
   node-id: %d
   bind-address: "%s:7000"
   peers:
-%s%s`, clusterAddr, n3Addr, clusterAddr, nodeID, clusterAddr, peersYAML.String(), joinTokenLine)
+%s%s`, clusterAddr, n3Addr, clusterAddr, nodeID, clusterBindHost, peersYAML.String(), joinTokenLine)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }

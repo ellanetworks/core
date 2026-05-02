@@ -27,4 +27,4 @@ Ella Core receives routes from BGP peers and installs them into the kernel routi
 
 ### In an HA cluster
 
-Each node runs its own BGP speaker and advertises `/32` subnets for the sessions it currently hosts.See [High Availability](high_availability.md) for the broader cluster model.
+Each node runs its own BGP speaker and advertises `/32` subnets for the sessions it currently hosts. See [High Availability](high_availability.md) for the broader cluster model.

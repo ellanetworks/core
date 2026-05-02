@@ -113,19 +113,16 @@ type Database struct {
 	countDataNetworksStmt   *sqlair.Statement
 
 	// N3 Settings statements
-	insertDefaultN3SettingsStmt *sqlair.Statement
-	updateN3SettingsStmt        *sqlair.Statement
-	getN3SettingsStmt           *sqlair.Statement
+	updateN3SettingsStmt *sqlair.Statement
+	getN3SettingsStmt    *sqlair.Statement
 
 	// NAT Settings statements
-	insertDefaultNATSettingsStmt *sqlair.Statement
-	getNATSettingsStmt           *sqlair.Statement
-	upsertNATSettingsStmt        *sqlair.Statement
+	getNATSettingsStmt    *sqlair.Statement
+	upsertNATSettingsStmt *sqlair.Statement
 
 	// BGP Settings statements
-	insertDefaultBGPSettingsStmt *sqlair.Statement
-	getBGPSettingsStmt           *sqlair.Statement
-	upsertBGPSettingsStmt        *sqlair.Statement
+	getBGPSettingsStmt    *sqlair.Statement
+	upsertBGPSettingsStmt *sqlair.Statement
 
 	// BGP Peers statements
 	listBGPPeersStmt    *sqlair.Statement
@@ -142,9 +139,8 @@ type Database struct {
 	deleteImportPrefixesByPeerStmt *sqlair.Statement
 
 	// Flow Accounting Settings statements
-	insertDefaultFlowAccountingSettingsStmt *sqlair.Statement
-	getFlowAccountingSettingsStmt           *sqlair.Statement
-	upsertFlowAccountingSettingsStmt        *sqlair.Statement
+	getFlowAccountingSettingsStmt    *sqlair.Statement
+	upsertFlowAccountingSettingsStmt *sqlair.Statement
 
 	// Operator statements
 	getOperatorStmt                      *sqlair.Statement
@@ -1277,17 +1273,14 @@ func (db *Database) PrepareStatements() error {
 		{&db.countDataNetworksStmt, fmt.Sprintf(countDataNetworksStmt, DataNetworksTableName), []any{NumItems{}}},
 
 		// N3 Settings
-		{&db.insertDefaultN3SettingsStmt, fmt.Sprintf(insertDefaultN3SettingsStmt, N3SettingsTableName), []any{N3Settings{}}},
 		{&db.updateN3SettingsStmt, fmt.Sprintf(upsertN3SettingsStmt, N3SettingsTableName), []any{N3Settings{}}},
 		{&db.getN3SettingsStmt, fmt.Sprintf(getN3SettingsStmt, N3SettingsTableName), []any{N3Settings{}}},
 
 		// NAT Settings
-		{&db.insertDefaultNATSettingsStmt, fmt.Sprintf(insertDefaultNATSettingsStmt, NATSettingsTableName), []any{NATSettings{}}},
 		{&db.getNATSettingsStmt, fmt.Sprintf(getNATSettingsStmt, NATSettingsTableName), []any{NATSettings{}}},
 		{&db.upsertNATSettingsStmt, fmt.Sprintf(upsertNATSettingsStmt, NATSettingsTableName), []any{NATSettings{}}},
 
 		// BGP Settings
-		{&db.insertDefaultBGPSettingsStmt, fmt.Sprintf(insertDefaultBGPSettingsStmt, BGPSettingsTableName), []any{BGPSettings{}}},
 		{&db.getBGPSettingsStmt, fmt.Sprintf(getBGPSettingsStmt, BGPSettingsTableName), []any{BGPSettings{}}},
 		{&db.upsertBGPSettingsStmt, fmt.Sprintf(upsertBGPSettingsStmt, BGPSettingsTableName), []any{BGPSettings{}}},
 
@@ -1306,7 +1299,6 @@ func (db *Database) PrepareStatements() error {
 		{&db.deleteImportPrefixesByPeerStmt, fmt.Sprintf(deleteImportPrefixesByPeerStmt, BGPImportPrefixesTableName), []any{BGPImportPrefix{}}},
 
 		// Flow Accounting Settings
-		{&db.insertDefaultFlowAccountingSettingsStmt, fmt.Sprintf(insertDefaultFlowAccountingSettingsStmt, FlowAccountingSettingsTableName), []any{FlowAccountingSettings{}}},
 		{&db.getFlowAccountingSettingsStmt, fmt.Sprintf(getFlowAccountingSettingsStmt, FlowAccountingSettingsTableName), []any{FlowAccountingSettings{}}},
 		{&db.upsertFlowAccountingSettingsStmt, fmt.Sprintf(upsertFlowAccountingSettingsStmt, FlowAccountingSettingsTableName), []any{FlowAccountingSettings{}}},
 
