@@ -31,13 +31,11 @@ Repeat these steps for each node, **upgrading the leader last**.
 
 ## Verify the upgrade
 
-After every node has been refreshed, confirm on `GET /api/v1/status` from each node:
+After every node has been refreshed, open the **Cluster** page and confirm:
 
-- `version` and `revision` match the target release.
-- `cluster.appliedSchemaVersion` equals the top-level `schemaVersion`.
-- `cluster.pendingMigration` is absent.
-
-If `cluster.pendingMigration` is still present, the `laggardNodeId` field identifies the node that must be upgraded next.
+- Every node's **Version** column shows the target release.
+- The mixed-version warning banner is gone.
+- Every node is **Healthy** and its **Drain State** is `active`.
 
 !!! note
     All steps in this guide can also be performed via the REST API. See the [Cluster API reference](../reference/api/cluster.md) for details.

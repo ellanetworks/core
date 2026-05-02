@@ -557,11 +557,6 @@ func waitForAutopilotReportsUnhealthy(ctx context.Context, leader *client.Client
 // cluster_members from each reachable node. composeDir MUST match the
 // compose project the test brought up — passing the wrong dir silently
 // returns empty logs.
-//
-// passes a different value is t.Skip'd until v1.10.1); keeping the parameter
-// preserves the bug fix for when that test re-enables.
-//
-//nolint:unparam // composeDir is constant today (the rolling-upgrade test that
 func dumpClusterDiagnostics(t *testing.T, ctx context.Context, dc *DockerClient, composeDir string, services []string, clients []*client.Client) {
 	t.Helper()
 

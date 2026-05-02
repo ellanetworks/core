@@ -912,13 +912,25 @@ type clusterCoordinator struct {
 	cancelTick context.CancelFunc
 }
 
-const migrationGateTickInterval = 5 * time.Second
+const (
+	migrationGateTickInterval = 5 * time.Second
+	barrierTimeout            = 30 * time.Second
+)
 
 func newClusterCoordinator(db *Database, parentCtx context.Context) *clusterCoordinator {
 	return &clusterCoordinator{db: db, parentCtx: parentCtx}
 }
 
 func (c *clusterCoordinator) OnBecameLeader() {
+	// Drain previous-term entries before any subsequent observer
+	// callback (notably the leadership-audit callback) captures. Without
+	// this barrier, the new leader's first capture can pick the same
+	// AUTOINCREMENT id as a pending-but-not-yet-applied entry from the
+	// previous leader, causing sqlite3changeset_apply CONFLICT on apply.
+	if err := c.db.raftManager.Barrier(barrierTimeout); err != nil {
+		logger.DBLog.Error("leader-takeover barrier failed", zap.Error(err))
+	}
+
 	c.db.signalMigrationCheck()
 
 	c.mu.Lock()
