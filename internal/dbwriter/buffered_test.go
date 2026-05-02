@@ -138,6 +138,7 @@ func TestBufferedDBWriter_AuditLogIsSynchronous(t *testing.T) {
 	buf := dbwriter.NewBufferedDBWriter(fake, 10, zap.NewNop())
 
 	err := buf.InsertAuditLog(context.Background(), &dbwriter.AuditLog{
+		ID:     "01900000-0000-7000-8000-000000000001",
 		Action: "create_subscriber",
 		Actor:  "admin",
 	})

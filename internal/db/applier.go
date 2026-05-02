@@ -233,6 +233,7 @@ type (
 		RequiredSchema int    `json:"requiredSchema,omitempty"`
 	}
 	auditLogPayload struct {
+		ID        string `json:"id"`
 		Timestamp string `json:"timestamp"`
 		Level     string `json:"level"`
 		Actor     string `json:"actor"`
@@ -572,6 +573,7 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 
 func (db *Database) applyInsertAuditLog(ctx context.Context, p *auditLogPayload) (any, error) {
 	log := &dbwriter.AuditLog{
+		ID:        p.ID,
 		Timestamp: p.Timestamp,
 		Level:     p.Level,
 		Actor:     p.Actor,

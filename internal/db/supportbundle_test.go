@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
+	"github.com/google/uuid"
 )
 
 func TestExportSupportData_Default(t *testing.T) {
@@ -105,7 +106,13 @@ func TestExportSupportData_WithEntries(t *testing.T) {
 	}()
 
 	// insert an audit log
+	auditID, err := uuid.NewV7()
+	if err != nil {
+		t.Fatalf("uuid.NewV7: %v", err)
+	}
+
 	al := &dbwriter.AuditLog{
+		ID:        auditID.String(),
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		Level:     "INFO",
 		Actor:     "testuser",

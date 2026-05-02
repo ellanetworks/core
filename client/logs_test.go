@@ -14,7 +14,7 @@ func TestListAuditLogs_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"items": [{"id": 1, "timestamp": "2023-10-01T12:00:00Z", "level": "info", "user": "admin@ellanetworks.com", "action": "login", "ip": "1.2.3.4", "details": "User logged in"}], "page": 1, "per_page": 10, "total_count": 1}`),
+			Result:     []byte(`{"items": [{"id": "01900000-0000-7000-8000-000000000001", "timestamp": "2023-10-01T12:00:00Z", "level": "info", "user": "admin@ellanetworks.com", "action": "login", "ip": "1.2.3.4", "details": "User logged in"}], "page": 1, "per_page": 10, "total_count": 1}`),
 		},
 		err: nil,
 	}
@@ -38,8 +38,8 @@ func TestListAuditLogs_Success(t *testing.T) {
 		t.Fatalf("expected 1 audit log, got %d", len(resp.Items))
 	}
 
-	if resp.Items[0].ID != 1 {
-		t.Fatalf("expected audit log ID 1, got %d", resp.Items[0].ID)
+	if resp.Items[0].ID != "01900000-0000-7000-8000-000000000001" {
+		t.Fatalf("expected audit log ID, got %q", resp.Items[0].ID)
 	}
 
 	if resp.Items[0].Timestamp != "2023-10-01T12:00:00Z" {
@@ -194,7 +194,7 @@ func TestListAuditLogsByActor_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"items": [{"id": 1, "timestamp": "2023-10-01T12:00:00Z", "level": "info", "user": "admin@example.com", "action": "create_user", "ip": "1.2.3.4", "details": "Created user"}], "page": 1, "per_page": 10, "total_count": 1}`),
+			Result:     []byte(`{"items": [{"id": "01900000-0000-7000-8000-000000000002", "timestamp": "2023-10-01T12:00:00Z", "level": "info", "user": "admin@example.com", "action": "create_user", "ip": "1.2.3.4", "details": "Created user"}], "page": 1, "per_page": 10, "total_count": 1}`),
 		},
 		err: nil,
 	}

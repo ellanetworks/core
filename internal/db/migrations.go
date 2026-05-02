@@ -31,6 +31,7 @@ var migrations = []migration{
 	{8, "add action to flow reports", migrateV8},
 	{9, "HA schema additions (amfRegionID, cluster_members, ip_leases.nodeID, bgp_peers.nodeID)", migrateV9},
 	{10, "drop bgp_peers.nodeID and cluster_members.maxSchemaVersion (both dead post-HA-redesign)", migrateV10},
+	{11, "audit_logs.id → TEXT (UUID); decouples PK assignment from rollback-able local state", migrateV11},
 }
 
 // baselineVersion is the highest migration that runs locally during

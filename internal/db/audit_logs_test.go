@@ -11,7 +11,19 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/google/uuid"
 )
+
+func newAuditLogID(t *testing.T) string {
+	t.Helper()
+
+	id, err := uuid.NewV7()
+	if err != nil {
+		t.Fatalf("uuid.NewV7: %v", err)
+	}
+
+	return id.String()
+}
 
 func TestAuditLogsEndToEnd(t *testing.T) {
 	tempDir := t.TempDir()
@@ -43,6 +55,7 @@ func TestAuditLogsEndToEnd(t *testing.T) {
 	}
 
 	err = database.InsertAuditLog(context.Background(), &dbwriter.AuditLog{
+		ID:        newAuditLogID(t),
 		Timestamp: "2024-10-01T12:00:00Z",
 		Level:     "info",
 		Actor:     "test_actor",
@@ -55,6 +68,7 @@ func TestAuditLogsEndToEnd(t *testing.T) {
 	}
 
 	err = database.InsertAuditLog(context.Background(), &dbwriter.AuditLog{
+		ID:        newAuditLogID(t),
 		Timestamp: "2024-10-01T13:00:00Z",
 		Level:     "info",
 		Actor:     "another_actor",
@@ -124,6 +138,7 @@ func TestAuditLogsRetentionPurgeKeepsNewerAndBoundary(t *testing.T) {
 
 	insert := func(ts time.Time, action string) {
 		if err := database.InsertAuditLog(ctx, &dbwriter.AuditLog{
+			ID:        newAuditLogID(t),
 			Timestamp: ts.UTC().Format(time.RFC3339),
 			Level:     "info",
 			Actor:     "tester",
@@ -218,6 +233,7 @@ func TestListAuditLogsByActorPage(t *testing.T) {
 
 	// Insert logs from different actors
 	err = database.InsertAuditLog(ctx, &dbwriter.AuditLog{
+		ID:        newAuditLogID(t),
 		Timestamp: "2024-10-01T12:00:00Z",
 		Level:     "info",
 		Actor:     "admin@example.com",
@@ -230,6 +246,7 @@ func TestListAuditLogsByActorPage(t *testing.T) {
 	}
 
 	err = database.InsertAuditLog(ctx, &dbwriter.AuditLog{
+		ID:        newAuditLogID(t),
 		Timestamp: "2024-10-01T13:00:00Z",
 		Level:     "info",
 		Actor:     "viewer@example.com",
@@ -242,6 +259,7 @@ func TestListAuditLogsByActorPage(t *testing.T) {
 	}
 
 	err = database.InsertAuditLog(ctx, &dbwriter.AuditLog{
+		ID:        newAuditLogID(t),
 		Timestamp: "2024-10-01T14:00:00Z",
 		Level:     "info",
 		Actor:     "admin@example.com",
