@@ -57,7 +57,7 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		dumpClusterDiagnostics(context.Background(), dc, clients, t.Logf)
+		dumpClusterDiagnostics(t, context.Background(), dc, haRollingComposeDir, haNodeServices, clients)
 	})
 
 	if err := waitForAllNodesReady(ctx, clients); err != nil {

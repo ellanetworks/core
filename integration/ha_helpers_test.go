@@ -561,44 +561,67 @@ func waitForAutopilotReportsUnhealthy(ctx context.Context, leader *client.Client
 }
 
 // dumpClusterDiagnostics logs node status and cluster members from each
-// reachable node. Call from t.Cleanup to aid failure triage.
-func dumpClusterDiagnostics(ctx context.Context, dc *DockerClient, clients []*client.Client, logf func(string, ...any)) {
-	for i, svc := range haNodeServices {
-		logs, err := dc.ComposeLogs(ctx, haComposeDir, svc)
-		if err != nil {
-			logf("failed to collect logs for %s: %v", svc, err)
-		} else {
-			logf("=== %s logs ===\n%s", svc, logs)
+// reachable node. Call from t.Cleanup to aid failure triage. composeDir
+// MUST match the compose project the test brought up — the prior bug of
+// hardcoding haComposeDir silently dropped logs for ha-rolling tests
+// because docker compose returned empty output for the wrong project.
+//
+// Container logs are also persisted to HA_CLUSTER_LOG_DIR (set in CI) via
+// captureClusterLogs so the workflow can upload them as an artifact even
+// when the test failure printout is the only thing visible in the job
+// output.
+func dumpClusterDiagnostics(t *testing.T, ctx context.Context, dc *DockerClient, composeDir string, services []string, clients []*client.Client) {
+	t.Helper()
+
+	captureClusterLogs(t, dc, composeDir, services)
+
+	for i, svc := range services {
+		if i >= len(clients) {
+			break
 		}
 
-		if i < len(clients) {
-			status, err := clients[i].GetStatus(ctx)
-			if err != nil {
-				logf("%s status: unreachable (%v)", svc, err)
-			} else {
-				role := "standalone"
-				if status.Cluster != nil {
-					role = status.Cluster.Role
-				}
+		status, err := clients[i].GetStatus(ctx)
+		if err != nil {
+			t.Logf("%s status: unreachable (%v)", svc, err)
+			continue
+		}
 
-				logf("%s status: role=%s initialized=%v", svc, role, status.Initialized)
+		role := "standalone"
+
+		var (
+			appliedSchema int
+			pending       string
+		)
+
+		if status.Cluster != nil {
+			role = status.Cluster.Role
+			appliedSchema = status.Cluster.AppliedSchemaVersion
+
+			if p := status.Cluster.PendingMigration; p != nil {
+				pending = fmt.Sprintf(" pending={current=%d target=%d laggard=%d}",
+					p.CurrentSchema, p.TargetSchema, p.LaggardNodeId)
 			}
 		}
+
+		t.Logf("%s status: role=%s initialized=%v ready=%v binarySchema=%d appliedSchema=%d%s",
+			svc, role, status.Initialized, status.Ready,
+			status.SchemaVersion, appliedSchema, pending)
 	}
 
 	for i, c := range clients {
 		members, err := c.ListClusterMembers(ctx)
 		if err != nil {
+			t.Logf("cluster members (from node %d): unreachable (%v)", i+1, err)
 			continue
 		}
 
-		logf("cluster members (from node %d):", i+1)
+		t.Logf("cluster members (from node %d):", i+1)
 
 		for _, m := range members {
-			logf("  node=%d raft=%s api=%s suffrage=%s", m.NodeID, m.RaftAddress, m.APIAddress, m.Suffrage)
+			t.Logf("  node=%d raft=%s api=%s suffrage=%s isLeader=%v binaryVersion=%q maxSchemaVersion=%d drainState=%s",
+				m.NodeID, m.RaftAddress, m.APIAddress, m.Suffrage, m.IsLeader,
+				m.BinaryVersion, m.MaxSchemaVersion, m.DrainState)
 		}
-
-		break
 	}
 }
 

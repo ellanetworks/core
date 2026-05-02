@@ -38,7 +38,7 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
+		dumpClusterDiagnostics(t, ctx, dockerClient, haComposeDir, haNodeServices, clients)
 	})
 
 	t.Log("cluster is ready, verifying roles")
@@ -196,7 +196,7 @@ func TestIntegrationHAFollowerProxy(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
+		dumpClusterDiagnostics(t, ctx, dockerClient, haComposeDir, haNodeServices, clients)
 	})
 
 	_, leader, err := findLeader(ctx, clients)
@@ -311,7 +311,7 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
+		dumpClusterDiagnostics(t, ctx, dockerClient, haComposeDir, haNodeServices, clients)
 	})
 
 	leaderIdx, leader, err := findLeader(ctx, clients)
@@ -482,7 +482,7 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
+		dumpClusterDiagnostics(t, ctx, dockerClient, haComposeDir, haNodeServices, clients)
 	})
 
 	_, leader, err := findLeader(ctx, clients)
@@ -608,7 +608,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
+		dumpClusterDiagnostics(t, ctx, dockerClient, haComposeDir, haNodeServices, clients)
 	})
 
 	_, leader, err := findLeader(ctx, clients)
@@ -840,7 +840,7 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
+		dumpClusterDiagnostics(t, ctx, dockerClient, haComposeDir, haNodeServices, clients)
 	})
 
 	_, leader, err := findLeader(ctx, clients)
@@ -1024,7 +1024,7 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
+		dumpClusterDiagnostics(t, ctx, dockerClient, haComposeDir, haNodeServices, clients)
 	})
 
 	_, leader, err := findLeader(ctx, clients)
@@ -1275,7 +1275,7 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 	}
 
 	t.Cleanup(func() {
-		dumpClusterDiagnostics(ctx, dockerClient, clients, t.Logf)
+		dumpClusterDiagnostics(t, ctx, dockerClient, haComposeDir, haNodeServices, clients)
 	})
 
 	leaderIdx, leader, err := findLeader(ctx, clients)

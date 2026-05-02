@@ -8,14 +8,15 @@ import (
 )
 
 type ClusterMember struct {
-	NodeID         int    `json:"nodeId"`
-	RaftAddress    string `json:"raftAddress"`
-	APIAddress     string `json:"apiAddress"`
-	BinaryVersion  string `json:"binaryVersion"`
-	Suffrage       string `json:"suffrage"`
-	IsLeader       bool   `json:"isLeader"`
-	DrainState     string `json:"drainState"`
-	DrainUpdatedAt string `json:"drainUpdatedAt,omitempty"`
+	NodeID           int    `json:"nodeId"`
+	RaftAddress      string `json:"raftAddress"`
+	APIAddress       string `json:"apiAddress"`
+	BinaryVersion    string `json:"binaryVersion"`
+	Suffrage         string `json:"suffrage"`
+	IsLeader         bool   `json:"isLeader"`
+	MaxSchemaVersion int    `json:"maxSchemaVersion"`
+	DrainState       string `json:"drainState"`
+	DrainUpdatedAt   string `json:"drainUpdatedAt,omitempty"`
 }
 
 type DrainOptions struct {
