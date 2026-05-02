@@ -286,40 +286,45 @@ func (m *Manager) probePeer(ctx context.Context, peerAddr string) (peerState, in
 	return peerForming, nodeID, clusterID, schemaVersion
 }
 
-// SelfAnnounce POSTs this node's capability record (node-id, addresses,
-// binary version, max schema version, suffrage) to the current leader's
-// cluster port. Callers invoke this on startup after Raft is up so
-// follower rows in `cluster_members` reflect the running binary. When
-// this node is the leader, callers should write directly via
-// db.UpsertClusterMember rather than calling this method.
-func (m *Manager) SelfAnnounce(ctx context.Context, payload any) error {
-	leaderAddr, leaderID := m.LeaderAddressAndID()
-	if leaderAddr == "" {
-		return fmt.Errorf("no known leader")
+// ProbePeerSchemaVersion reads the peer's reported SchemaVersion from
+// its /cluster/status endpoint. peerNodeID pins the mTLS dial.
+// Callers must treat any error as "capability unknown".
+func (m *Manager) ProbePeerSchemaVersion(ctx context.Context, peerNodeID int, peerAddr string) (int, error) {
+	if peerNodeID <= 0 {
+		return 0, fmt.Errorf("peer node id required")
 	}
 
-	if leaderID == 0 {
-		return fmt.Errorf("leader at %s has unrecognized server id; refusing to self-announce", leaderAddr)
+	if peerAddr == "" {
+		return 0, fmt.Errorf("peer raft address required")
 	}
 
-	body, err := json.Marshal(payload)
+	resp, err := m.clusterHTTPDo(ctx, http.MethodGet, peerAddr, peerNodeID, "/cluster/status", nil)
 	if err != nil {
-		return fmt.Errorf("marshal self-announce: %w", err)
-	}
-
-	resp, err := m.clusterHTTPDo(ctx, http.MethodPost, leaderAddr, leaderID, "/cluster/members/self", bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("dial leader %s: %w", leaderAddr, err)
+		return 0, fmt.Errorf("dial peer %s: %w", peerAddr, err)
 	}
 
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("leader returned %d: %s", resp.StatusCode, string(respBody))
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return 0, fmt.Errorf("peer %s returned %d: %s", peerAddr, resp.StatusCode, string(body))
 	}
 
-	return nil
+	var status statusResponse
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&status); err != nil {
+		return 0, fmt.Errorf("decode status from peer %s: %w", peerAddr, err)
+	}
+
+	if status.Result.Cluster == nil {
+		return 0, fmt.Errorf("peer %s reported no cluster status", peerAddr)
+	}
+
+	v := status.Result.Cluster.SchemaVersion
+	if v < 1 {
+		return 0, fmt.Errorf("peer %s reported invalid schema version %d", peerAddr, v)
+	}
+
+	return v, nil
 }
 
 // joinCluster POSTs our membership to a peer's cluster port. peerNodeID
@@ -327,21 +332,21 @@ func (m *Manager) SelfAnnounce(ctx context.Context, payload any) error {
 // dial so we only send the join payload to the node we intended.
 func (m *Manager) joinCluster(ctx context.Context, peerAddr string, peerNodeID int, clusterID string) error {
 	payload := struct {
-		NodeID           int    `json:"nodeId"`
-		RaftAddress      string `json:"raftAddress"`
-		APIAddress       string `json:"apiAddress"`
-		ClusterID        string `json:"clusterId"`
-		SchemaVersion    int    `json:"schemaVersion"`
-		MaxSchemaVersion int    `json:"maxSchemaVersion"`
-		Suffrage         string `json:"suffrage,omitempty"`
+		NodeID        int    `json:"nodeId"`
+		RaftAddress   string `json:"raftAddress"`
+		APIAddress    string `json:"apiAddress"`
+		ClusterID     string `json:"clusterId"`
+		SchemaVersion int    `json:"schemaVersion"`
+		BinaryVersion string `json:"binaryVersion,omitempty"`
+		Suffrage      string `json:"suffrage,omitempty"`
 	}{
-		NodeID:           m.nodeID,
-		RaftAddress:      string(m.transport.LocalAddr()),
-		APIAddress:       m.config.APIAddress,
-		ClusterID:        clusterID,
-		SchemaVersion:    m.config.SchemaVersion,
-		MaxSchemaVersion: m.config.SchemaVersion,
-		Suffrage:         m.config.InitialSuffrage,
+		NodeID:        m.nodeID,
+		RaftAddress:   string(m.transport.LocalAddr()),
+		APIAddress:    m.config.APIAddress,
+		ClusterID:     clusterID,
+		SchemaVersion: m.config.SchemaVersion,
+		BinaryVersion: m.config.BinaryVersion,
+		Suffrage:      m.config.InitialSuffrage,
 	}
 
 	body, err := json.Marshal(payload)

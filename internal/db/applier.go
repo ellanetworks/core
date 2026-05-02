@@ -43,7 +43,7 @@ func (db *Database) ApplyCommand(ctx context.Context, cmd *ellaraft.Command, log
 			return nil, err
 		}
 
-		result, applyErr := db.applyChangeset(ctx, payload)
+		result, applyErr := db.applyChangeset(ctx, payload, logIndex)
 		if applyErr == nil {
 			if payload.Operation == "UpsertClusterMember" {
 				db.signalMigrationCheck()

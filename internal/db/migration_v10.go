@@ -8,10 +8,20 @@ import (
 	"fmt"
 )
 
-// V10 drops the bgp_peers.nodeID column. The bgp_peers table is now
-// local-only (not replicated via Raft), so per-node scoping via a nodeID
-// column is unnecessary.
+// V10 drops two columns whose data the current binary no longer reads
+// or writes: bgp_peers.nodeID (table is local-only) and
+// cluster_members.maxSchemaVersion (gate reads /cluster/status live).
 func migrateV10(ctx context.Context, tx *sql.Tx) error {
-	_, err := tx.ExecContext(ctx, fmt.Sprintf("ALTER TABLE %s DROP COLUMN nodeID", BGPPeersTableName))
-	return err
+	stmts := []string{
+		fmt.Sprintf("ALTER TABLE %s DROP COLUMN nodeID", BGPPeersTableName),
+		fmt.Sprintf("ALTER TABLE %s DROP COLUMN maxSchemaVersion", ClusterMembersTableName),
+	}
+
+	for _, stmt := range stmts {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return fmt.Errorf("execute %q: %w", stmt, err)
+		}
+	}
+
+	return nil
 }

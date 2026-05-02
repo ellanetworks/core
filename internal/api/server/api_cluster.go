@@ -14,9 +14,8 @@ import (
 )
 
 const (
-	ClusterMemberAddAction          = "cluster_member_add"
-	ClusterMemberRemoveAction       = "cluster_member_remove"
-	ClusterMemberSelfAnnounceAction = "cluster_member_self_announce"
+	ClusterMemberAddAction    = "cluster_member_add"
+	ClusterMemberRemoveAction = "cluster_member_remove"
 )
 
 type ClusterMemberResponse struct {
@@ -54,13 +53,13 @@ func toClusterMemberResponse(m db.ClusterMember, leaderAddr string) ClusterMembe
 }
 
 type AddClusterMemberRequest struct {
-	NodeID           int    `json:"nodeId"`
-	RaftAddress      string `json:"raftAddress"`
-	APIAddress       string `json:"apiAddress"`
-	ClusterID        string `json:"clusterId,omitempty"`
-	SchemaVersion    int    `json:"schemaVersion,omitempty"`
-	MaxSchemaVersion int    `json:"maxSchemaVersion,omitempty"`
-	Suffrage         string `json:"suffrage,omitempty"`
+	NodeID        int    `json:"nodeId"`
+	RaftAddress   string `json:"raftAddress"`
+	APIAddress    string `json:"apiAddress"`
+	ClusterID     string `json:"clusterId,omitempty"`
+	SchemaVersion int    `json:"schemaVersion,omitempty"`
+	BinaryVersion string `json:"binaryVersion,omitempty"`
+	Suffrage      string `json:"suffrage,omitempty"`
 }
 
 func ListClusterMembers(dbInstance *db.Database) http.Handler {
@@ -109,11 +108,6 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 		// client bug and must not pass through silently.
 		if req.SchemaVersion < 0 {
 			writeError(r.Context(), w, http.StatusBadRequest, "schemaVersion must be non-negative", nil, logger.APILog)
-			return
-		}
-
-		if req.MaxSchemaVersion < 0 {
-			writeError(r.Context(), w, http.StatusBadRequest, "maxSchemaVersion must be non-negative", nil, logger.APILog)
 			return
 		}
 
@@ -172,12 +166,11 @@ func AddClusterMember(dbInstance *db.Database) http.Handler {
 		}
 
 		member := &db.ClusterMember{
-			NodeID:           req.NodeID,
-			RaftAddress:      req.RaftAddress,
-			APIAddress:       req.APIAddress,
-			BinaryVersion:    "", // populated by the joining node's self-announce
-			Suffrage:         suffrage,
-			MaxSchemaVersion: req.MaxSchemaVersion,
+			NodeID:        req.NodeID,
+			RaftAddress:   req.RaftAddress,
+			APIAddress:    req.APIAddress,
+			BinaryVersion: req.BinaryVersion,
+			Suffrage:      suffrage,
 		}
 
 		if err := dbInstance.UpsertClusterMember(r.Context(), member); err != nil {

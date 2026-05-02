@@ -109,7 +109,6 @@ func newClusterMux(dbInstance *db.Database) *http.ServeMux {
 
 	mux.HandleFunc("GET /cluster/status", ClusterStatus(dbInstance).ServeHTTP)
 	mux.Handle("POST /cluster/members", selfRegistrationGuard(AddClusterMember(dbInstance)))
-	mux.Handle("POST /cluster/members/self", selfRegistrationGuard(SelfAnnounceClusterMember(dbInstance)))
 	mux.Handle("POST /cluster/internal/drain-side-effects", removedNodeFence(dbInstance, DrainLocalSideEffects()))
 	mux.Handle("POST /cluster/internal/resume-side-effects", removedNodeFence(dbInstance, ResumeLocalSideEffects()))
 	mux.Handle("POST /cluster/internal/drain-self", removedNodeFence(dbInstance, DrainSelfOnLeader(dbInstance)))
@@ -375,85 +374,5 @@ func ClusterStatus(dbInstance *db.Database) http.Handler {
 		}
 
 		writeResponse(r.Context(), w, clusterStatusResponse{Cluster: status}, http.StatusOK, logger.APILog)
-	})
-}
-
-// SelfAnnounceRequest is the body a node sends to POST /cluster/members/self
-// on the leader's cluster port. Every field is self-reported capability data.
-type SelfAnnounceRequest struct {
-	NodeID           int    `json:"nodeId"`
-	RaftAddress      string `json:"raftAddress"`
-	APIAddress       string `json:"apiAddress"`
-	BinaryVersion    string `json:"binaryVersion"`
-	MaxSchemaVersion int    `json:"maxSchemaVersion"`
-	Suffrage         string `json:"suffrage,omitempty"`
-}
-
-// SelfAnnounceClusterMember handles a node refreshing its own
-// cluster_members row. Only the leader can service the request; the
-// selfRegistrationGuard wrapper has already validated that the body's
-// nodeId matches the peer certificate CN, so the request is authentic.
-// Followers return 421 Misdirected Request so the caller can retry
-// against the current leader.
-func SelfAnnounceClusterMember(dbInstance *db.Database) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !dbInstance.IsLeader() {
-			writeError(r.Context(), w, http.StatusMisdirectedRequest,
-				"not the leader; retry against the current leader", nil, logger.APILog)
-
-			return
-		}
-
-		var req SelfAnnounceRequest
-		if err := json.NewDecoder(io.LimitReader(r.Body, maxClusterJoinBodyBytes)).Decode(&req); err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "invalid request body", err, logger.APILog)
-			return
-		}
-
-		if req.NodeID <= 0 || req.RaftAddress == "" || req.APIAddress == "" {
-			writeError(r.Context(), w, http.StatusBadRequest, "nodeId, raftAddress, apiAddress are required", nil, logger.APILog)
-			return
-		}
-
-		suffrage := req.Suffrage
-		if suffrage == "" {
-			suffrage = "voter"
-		}
-
-		if suffrage != "voter" && suffrage != "nonvoter" {
-			writeError(r.Context(), w, http.StatusBadRequest, `suffrage must be "voter" or "nonvoter"`, nil, logger.APILog)
-			return
-		}
-
-		// Preserve the suffrage already recorded by the leader: a node
-		// self-announcing a conflicting suffrage must not be able to
-		// promote itself.
-		if existing, err := dbInstance.GetClusterMember(r.Context(), req.NodeID); err == nil && existing != nil && existing.Suffrage != "" {
-			suffrage = existing.Suffrage
-		}
-
-		member := &db.ClusterMember{
-			NodeID:           req.NodeID,
-			RaftAddress:      req.RaftAddress,
-			APIAddress:       req.APIAddress,
-			BinaryVersion:    req.BinaryVersion,
-			Suffrage:         suffrage,
-			MaxSchemaVersion: req.MaxSchemaVersion,
-		}
-
-		if err := dbInstance.UpsertClusterMember(r.Context(), member); err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "failed to record cluster member", err, logger.APILog)
-			return
-		}
-
-		logger.LogAuditEvent(
-			r.Context(),
-			ClusterMemberSelfAnnounceAction,
-			getActorFromContext(r),
-			getClientIP(r),
-			fmt.Sprintf("Self-announced cluster member node %d at %s", req.NodeID, req.RaftAddress),
-		)
-
-		writeResponse(r.Context(), w, SuccessResponse{Message: "self-announce accepted"}, http.StatusOK, logger.APILog)
 	})
 }

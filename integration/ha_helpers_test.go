@@ -18,17 +18,10 @@ const haComposeDir = "compose/ha/"
 
 var haNodeServices = []string{"ella-core-1", "ella-core-2", "ella-core-3"}
 
-// captureClusterLogs collects per-service container logs from composeDir
-// and emits them via t.Logf so they appear in `go test -v` output. If the
-// HA_CLUSTER_LOG_DIR environment variable is set (CI sets it), a copy of
-// each service's log is also written to
-// <HA_CLUSTER_LOG_DIR>/<sanitized-test-name>/<service>.log so the workflow
-// can upload them as an artifact.
-//
-// Safe to call before any client connection has been established (i.e. on
-// a bring-up failure with no clients yet). Uses a fresh background context
-// with a 2-minute timeout so a cancelled test context does not break log
-// collection.
+// captureClusterLogs emits each service's container logs via t.Logf
+// and, if HA_CLUSTER_LOG_DIR is set, also writes them to
+// <dir>/<test-name>/<service>.log for CI artifact upload. Safe to call
+// with no clients (e.g. on bring-up failure).
 func captureClusterLogs(t *testing.T, dc *DockerClient, composeDir string, services []string) {
 	t.Helper()
 
@@ -560,45 +553,67 @@ func waitForAutopilotReportsUnhealthy(ctx context.Context, leader *client.Client
 		nodeID, timeout, last)
 }
 
-// dumpClusterDiagnostics logs node status and cluster members from each
-// reachable node. Call from t.Cleanup to aid failure triage.
-func dumpClusterDiagnostics(ctx context.Context, dc *DockerClient, clients []*client.Client, logf func(string, ...any)) {
-	for i, svc := range haNodeServices {
-		logs, err := dc.ComposeLogs(ctx, haComposeDir, svc)
-		if err != nil {
-			logf("failed to collect logs for %s: %v", svc, err)
-		} else {
-			logf("=== %s logs ===\n%s", svc, logs)
+// dumpClusterDiagnostics logs container output, per-node status, and
+// cluster_members from each reachable node. composeDir MUST match the
+// compose project the test brought up — passing the wrong dir silently
+// returns empty logs.
+//
+// passes a different value is t.Skip'd until v1.10.1); keeping the parameter
+// preserves the bug fix for when that test re-enables.
+//
+//nolint:unparam // composeDir is constant today (the rolling-upgrade test that
+func dumpClusterDiagnostics(t *testing.T, ctx context.Context, dc *DockerClient, composeDir string, services []string, clients []*client.Client) {
+	t.Helper()
+
+	captureClusterLogs(t, dc, composeDir, services)
+
+	for i, svc := range services {
+		if i >= len(clients) {
+			break
 		}
 
-		if i < len(clients) {
-			status, err := clients[i].GetStatus(ctx)
-			if err != nil {
-				logf("%s status: unreachable (%v)", svc, err)
-			} else {
-				role := "standalone"
-				if status.Cluster != nil {
-					role = status.Cluster.Role
-				}
+		status, err := clients[i].GetStatus(ctx)
+		if err != nil {
+			t.Logf("%s status: unreachable (%v)", svc, err)
+			continue
+		}
 
-				logf("%s status: role=%s initialized=%v", svc, role, status.Initialized)
+		role := "standalone"
+
+		var (
+			appliedSchema int
+			pending       string
+		)
+
+		if status.Cluster != nil {
+			role = status.Cluster.Role
+			appliedSchema = status.Cluster.AppliedSchemaVersion
+
+			if p := status.Cluster.PendingMigration; p != nil {
+				pending = fmt.Sprintf(" pending={current=%d target=%d laggard=%d}",
+					p.CurrentSchema, p.TargetSchema, p.LaggardNodeId)
 			}
 		}
+
+		t.Logf("%s status: role=%s initialized=%v ready=%v binarySchema=%d appliedSchema=%d%s",
+			svc, role, status.Initialized, status.Ready,
+			status.SchemaVersion, appliedSchema, pending)
 	}
 
 	for i, c := range clients {
 		members, err := c.ListClusterMembers(ctx)
 		if err != nil {
+			t.Logf("cluster members (from node %d): unreachable (%v)", i+1, err)
 			continue
 		}
 
-		logf("cluster members (from node %d):", i+1)
+		t.Logf("cluster members (from node %d):", i+1)
 
 		for _, m := range members {
-			logf("  node=%d raft=%s api=%s suffrage=%s", m.NodeID, m.RaftAddress, m.APIAddress, m.Suffrage)
+			t.Logf("  node=%d raft=%s api=%s suffrage=%s isLeader=%v binaryVersion=%q drainState=%s",
+				m.NodeID, m.RaftAddress, m.APIAddress, m.Suffrage, m.IsLeader,
+				m.BinaryVersion, m.DrainState)
 		}
-
-		break
 	}
 }
 

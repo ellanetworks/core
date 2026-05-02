@@ -77,6 +77,11 @@ type ClusterConfig struct {
 	// InitialSuffrage controls whether this node joins as "voter" or
 	// "nonvoter". Set to "nonvoter" during rolling upgrade re-joins.
 	InitialSuffrage string
+
+	// BinaryVersion is sent in the join handshake and recorded on the
+	// joiner's cluster_members row. Used for operator inventory only;
+	// the migration gate reads SchemaVersion live via /cluster/status.
+	BinaryVersion string
 }
 
 const (

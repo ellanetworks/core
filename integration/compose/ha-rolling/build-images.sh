@@ -1,44 +1,35 @@
 #!/bin/sh
-# Build the two images used by TestIntegrationHARollingUpgrade:
+# Prepare images used by TestIntegrationHARollingUpgrade.
 #
-#   ella-core:rolling-baseline — current source, no synthetic migrations.
-#   ella-core:rolling-target   — same source built with
-#                                -tags rolling_upgrade_test_synthetic,
-#                                which appends three trivial no-op
-#                                migrations to the registry.
+#   ella-core:rolling-baseline — the previous release image, pulled from
+#                                ghcr.io. Bump ROLLING_BASELINE_VERSION
+#                                with every release.
+#   ella-core:latest           — the current build (already produced by
+#                                the standard image-build step).
 #
-# Both stamp their fresh binary onto ella-core:latest via Dockerfile.swap.
-# Run from the repo root or from anywhere — the script resolves its own
-# location and uses repo-root-relative paths for the Go source.
+# The test rolls the cluster from rolling-baseline to latest and surfaces
+# any rolling-upgrade compatibility break (renamed or removed Raft op,
+# schema migration that an old node cannot tolerate, payload-shape drift)
+# as a real test failure rather than a stale committed manifest.
 set -eu
 
-DIR=$(cd "$(dirname "$0")" && pwd)
-REPO=$(cd "${DIR}/../../.." && pwd)
+# Pinned to the previous release tag. Bump this in the same PR that cuts
+# a new release.
+ROLLING_BASELINE_VERSION="${ROLLING_BASELINE_VERSION:-v1.10.0}"
+ROLLING_BASELINE_IMAGE="ghcr.io/ellanetworks/ella-core:${ROLLING_BASELINE_VERSION}"
 
-# Sanity: ella-core:latest must exist (Dockerfile.swap FROMs it).
 if ! docker image inspect ella-core:latest >/dev/null 2>&1; then
     echo "error: ella-core:latest not found in the local docker daemon." >&2
     echo "       Build it first with rockcraft / the standard image-build step." >&2
     exit 1
 fi
 
-cd "${REPO}"
+echo "==> Pulling ${ROLLING_BASELINE_IMAGE}"
+docker pull -q "${ROLLING_BASELINE_IMAGE}"
 
-echo "==> Building rolling-upgrade baseline binary"
-go build -o "${DIR}/core" ./cmd/core
-
-echo "==> Building ella-core:rolling-baseline image"
-docker build -q -t ella-core:rolling-baseline -f "${DIR}/Dockerfile.swap" "${DIR}"
-
-echo "==> Building rolling-upgrade target binary (tag: rolling_upgrade_test_synthetic)"
-go build -tags rolling_upgrade_test_synthetic -o "${DIR}/core" ./cmd/core
-
-echo "==> Building ella-core:rolling-target image"
-docker build -q -t ella-core:rolling-target -f "${DIR}/Dockerfile.swap" "${DIR}"
-
-# Clean the per-build binary; the image carries it from here.
-rm -f "${DIR}/core"
+echo "==> Tagging as ella-core:rolling-baseline"
+docker tag "${ROLLING_BASELINE_IMAGE}" ella-core:rolling-baseline
 
 echo "==> Done."
 echo "    ella-core:rolling-baseline  ($(docker image inspect -f '{{.Size}}' ella-core:rolling-baseline | numfmt --to=iec))"
-echo "    ella-core:rolling-target    ($(docker image inspect -f '{{.Size}}' ella-core:rolling-target | numfmt --to=iec))"
+echo "    ella-core:latest            ($(docker image inspect -f '{{.Size}}' ella-core:latest | numfmt --to=iec))"

@@ -216,37 +216,6 @@ func intentMinSchemaForCmd(t ellaraft.CommandType) int {
 	return 1
 }
 
-// registeredOp is the shape consumed by the lock-file test.
-type registeredOp struct {
-	Name      string
-	Kind      string // "changeset" or "intent"
-	MinSchema int
-	CmdType   string // empty for changeset
-}
-
-func allRegisteredOps() []registeredOp {
-	out := make([]registeredOp, 0, len(changesetOps)+len(intentOps))
-
-	for name, h := range changesetOps {
-		out = append(out, registeredOp{
-			Name:      name,
-			Kind:      "changeset",
-			MinSchema: h.minSchema,
-		})
-	}
-
-	for name, h := range intentOps {
-		out = append(out, registeredOp{
-			Name:      name,
-			Kind:      "intent",
-			MinSchema: h.minSchema,
-			CmdType:   h.cmdType.String(),
-		})
-	}
-
-	return out
-}
-
 // Invoke runs the op locally on leader / standalone, or forwards
 // (operation, payload JSON) to the leader on a follower.
 func (op *ChangesetOp[P]) Invoke(db *Database, payload *P) (any, error) {

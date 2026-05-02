@@ -46,3 +46,6 @@ jobs:
   integration-tests-ha3gpp:
     needs: [image-build, image-build-tester]
     uses: ./.github/workflows/integration-tests-ha3gpp.yaml
+  integration-tests-rolling-upgrade:
+    needs: [image-build]
+    uses: ./.github/workflows/integration-tests-rolling-upgrade.yaml

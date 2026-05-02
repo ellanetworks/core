@@ -130,7 +130,20 @@ func (db *Database) assertTableReplicationClassification(ctx context.Context) er
 	return nil
 }
 
-func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload) (any, error) {
+// applyChangeset replays a captured changeset on the local SQLite and
+// advances fsm_state.lastApplied to logIndex in the same transaction.
+//
+// The atomicity matters: a crash between the changeset commit and the
+// lastApplied write would let Raft replay re-apply this entry, and
+// changesets are not idempotent — duplicate INSERTs hit
+// sqlite3changeset_apply's CONFLICT path and crash-loop the FSM.
+//
+// Other apply paths get away with the batch-level writeLastApplied in
+// fsm.go because they are idempotent on re-apply: intent DELETEs by
+// construction, and applyMigrateShared self-checks
+// current >= TargetVersion. Any future non-idempotent op must go
+// through this path (or replicate the same atomicity).
+func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload, logIndex uint64) (any, error) {
 	conn, err := db.conn().PlainDB().Conn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("acquire sqlite conn for apply: %w", err)
@@ -144,6 +157,7 @@ func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload) (
 			return fmt.Errorf("unexpected sqlite driver conn type %T", raw)
 		}
 
+		// PRAGMA must be set outside any transaction.
 		if _, err := sqliteConn.ExecContext(ctx, "PRAGMA foreign_keys = OFF", nil); err != nil {
 			return fmt.Errorf("disable foreign keys before changeset apply: %w", err)
 		}
@@ -152,8 +166,32 @@ func (db *Database) applyChangeset(ctx context.Context, payload *bytesPayload) (
 			_, _ = sqliteConn.ExecContext(context.Background(), "PRAGMA foreign_keys = ON", nil)
 		}()
 
+		if _, err := sqliteConn.ExecContext(ctx, "BEGIN IMMEDIATE", nil); err != nil {
+			return fmt.Errorf("begin changeset apply tx: %w", err)
+		}
+
+		// On any failure inside the tx use context.Background for the
+		// rollback so a cancelled caller context does not leave the
+		// connection mid-transaction.
+		rollback := func() {
+			_, _ = sqliteConn.ExecContext(context.Background(), "ROLLBACK", nil)
+		}
+
 		if err := sqliteConn.ApplyChangeset(ctx, payload.Value); err != nil {
+			rollback()
 			return fmt.Errorf("apply sqlite changeset: %w", err)
+		}
+
+		if _, err := sqliteConn.ExecContext(ctx,
+			"UPDATE fsm_state SET lastApplied = ? WHERE id = 1",
+			[]driver.NamedValue{{Ordinal: 1, Value: int64(logIndex)}},
+		); err != nil {
+			rollback()
+			return fmt.Errorf("update fsm_state.lastApplied: %w", err)
+		}
+
+		if _, err := sqliteConn.ExecContext(ctx, "COMMIT", nil); err != nil {
+			return fmt.Errorf("commit changeset apply: %w", err)
 		}
 
 		return nil

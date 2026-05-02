@@ -132,12 +132,11 @@ func TestListClusterMembers_IncludesHAFields(t *testing.T) {
 	}
 
 	member := &db.ClusterMember{
-		NodeID:           7,
-		RaftAddress:      "10.0.0.7:7000",
-		APIAddress:       "10.0.0.7:8443",
-		BinaryVersion:    "v1.2.3",
-		Suffrage:         "voter",
-		MaxSchemaVersion: 1,
+		NodeID:        7,
+		RaftAddress:   "10.0.0.7:7000",
+		APIAddress:    "10.0.0.7:8443",
+		BinaryVersion: "v1.2.3",
+		Suffrage:      "voter",
 	}
 
 	if err := env.DB.UpsertClusterMember(context.Background(), member); err != nil {
