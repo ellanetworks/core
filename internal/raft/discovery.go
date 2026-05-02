@@ -286,40 +286,58 @@ func (m *Manager) probePeer(ctx context.Context, peerAddr string) (peerState, in
 	return peerForming, nodeID, clusterID, schemaVersion
 }
 
-// SelfAnnounce POSTs this node's capability record (node-id, addresses,
-// binary version, max schema version, suffrage) to the current leader's
-// cluster port. Callers invoke this on startup after Raft is up so
-// follower rows in `cluster_members` reflect the running binary. When
-// this node is the leader, callers should write directly via
-// db.UpsertClusterMember rather than calling this method.
-func (m *Manager) SelfAnnounce(ctx context.Context, payload any) error {
-	leaderAddr, leaderID := m.LeaderAddressAndID()
-	if leaderAddr == "" {
-		return fmt.Errorf("no known leader")
+// ProbePeerSchemaVersion returns the maximum schema version the binary
+// running on `peerAddr` (Raft address, host:port) reports via its
+// cluster-internal /cluster/status endpoint. peerNodeID pins the mTLS
+// dial so we only accept the answer from the node we intended.
+//
+// This is the live source of truth for the rolling-upgrade migration
+// gate: every voter's binary capability is read on demand instead of
+// from a cached row, so a node that has just upgraded its binary
+// becomes "current" the moment its /cluster/status reflects the new
+// version — no separate announce round-trip required.
+//
+// Returns the SchemaVersion (>= 1 in a healthy cluster) or an error if
+// the peer is unreachable, returns a non-2xx status, or returns a body
+// whose schema field cannot be parsed. Errors are intended to gate
+// migration proposals: an unreachable voter must be treated as
+// "capability unknown" by the caller.
+func (m *Manager) ProbePeerSchemaVersion(ctx context.Context, peerNodeID int, peerAddr string) (int, error) {
+	if peerNodeID <= 0 {
+		return 0, fmt.Errorf("peer node id required")
 	}
 
-	if leaderID == 0 {
-		return fmt.Errorf("leader at %s has unrecognized server id; refusing to self-announce", leaderAddr)
+	if peerAddr == "" {
+		return 0, fmt.Errorf("peer raft address required")
 	}
 
-	body, err := json.Marshal(payload)
+	resp, err := m.clusterHTTPDo(ctx, http.MethodGet, peerAddr, peerNodeID, "/cluster/status", nil)
 	if err != nil {
-		return fmt.Errorf("marshal self-announce: %w", err)
-	}
-
-	resp, err := m.clusterHTTPDo(ctx, http.MethodPost, leaderAddr, leaderID, "/cluster/members/self", bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("dial leader %s: %w", leaderAddr, err)
+		return 0, fmt.Errorf("dial peer %s: %w", peerAddr, err)
 	}
 
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("leader returned %d: %s", resp.StatusCode, string(respBody))
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return 0, fmt.Errorf("peer %s returned %d: %s", peerAddr, resp.StatusCode, string(body))
 	}
 
-	return nil
+	var status statusResponse
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&status); err != nil {
+		return 0, fmt.Errorf("decode status from peer %s: %w", peerAddr, err)
+	}
+
+	if status.Result.Cluster == nil {
+		return 0, fmt.Errorf("peer %s reported no cluster status", peerAddr)
+	}
+
+	v := status.Result.Cluster.SchemaVersion
+	if v < 1 {
+		return 0, fmt.Errorf("peer %s reported invalid schema version %d", peerAddr, v)
+	}
+
+	return v, nil
 }
 
 // joinCluster POSTs our membership to a peer's cluster port. peerNodeID

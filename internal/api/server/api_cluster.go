@@ -14,9 +14,8 @@ import (
 )
 
 const (
-	ClusterMemberAddAction          = "cluster_member_add"
-	ClusterMemberRemoveAction       = "cluster_member_remove"
-	ClusterMemberSelfAnnounceAction = "cluster_member_self_announce"
+	ClusterMemberAddAction    = "cluster_member_add"
+	ClusterMemberRemoveAction = "cluster_member_remove"
 )
 
 type ClusterMemberResponse struct {

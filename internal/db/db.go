@@ -301,6 +301,17 @@ type Database struct {
 	// appliedSchemaCache mirrors schema_version.version for the
 	// op-gate / apply-gate hot path. Updated by refreshAppliedSchema.
 	appliedSchemaCache atomic.Int64
+
+	// probeVoterSchema returns the live SchemaVersion reported by the
+	// peer at (nodeID, raftAddr) via cluster-mTLS GET /cluster/status.
+	// Used by the rolling-upgrade migration gate to consult voter
+	// capability without depending on a cached row that may be stale
+	// after a binary upgrade.
+	//
+	// In production this is set to a wrapper over
+	// raftManager.ProbePeerSchemaVersion. Tests inject a stub so the
+	// gate can be exercised without spinning up real peers.
+	probeVoterSchema func(ctx context.Context, nodeID int, raftAddr string) (int, error)
 }
 
 // conn returns the current *sqlair.DB handle.
@@ -851,63 +862,128 @@ func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationS
 	return status, nil
 }
 
-// minVoterSchemaSupport returns the minimum maxSchemaVersion across
-// voter rows in cluster_members and the nodeID of the laggard. Any
-// voter whose maxSchemaVersion is 0 (not yet self-announced) returns
-// a floor of 0 — the gate blocks until every voter reports support.
-// When there are no voter rows yet (e.g. fresh bootstrap before any
-// self-announce) the floor is the leader's own binary max, so the
-// leader is not blocked from applying its own migrations.
+// minVoterSchemaSupport returns the minimum SchemaVersion supported by
+// any voter in the cluster and the nodeID of the laggard. Voter
+// identity (nodeID, raftAddress, suffrage) comes from cluster_members;
+// the SchemaVersion itself is read live from each peer's
+// /cluster/status endpoint via probeVoterSchema. The local node
+// contributes its own SchemaVersion() in-process, never via RPC.
+//
+// An unreachable voter blocks the gate: probe failure returns a floor
+// of 0 with that voter named as laggard, mirroring the previous
+// "MaxSchemaVersion=0 → unknown → defer" semantics. The leader will
+// re-check on the next tick (see clusterCoordinator); a transient
+// network error self-heals.
+//
+// When the cluster has no voter rows yet (fresh bootstrap, before any
+// peer has joined) the floor is the local binary's SchemaVersion so
+// the leader is not blocked from applying its own migrations.
 func (db *Database) minVoterSchemaSupport(ctx context.Context) (int, int, error) {
 	members, err := db.ListClusterMembers(ctx)
 	if err != nil {
 		return 0, 0, fmt.Errorf("list cluster members: %w", err)
 	}
 
+	selfID := db.raftManager.NodeID()
 	floor := -1
 	laggard := 0
+
+	consider := func(nodeID, version int) {
+		if floor < 0 || version < floor {
+			floor = version
+			laggard = nodeID
+		}
+	}
 
 	for _, m := range members {
 		if m.Suffrage != "voter" {
 			continue
 		}
 
-		if floor < 0 || m.MaxSchemaVersion < floor {
-			floor = m.MaxSchemaVersion
-			laggard = m.NodeID
+		if m.NodeID == selfID {
+			consider(selfID, SchemaVersion())
+			continue
 		}
+
+		v, err := db.probeVoterSchema(ctx, m.NodeID, m.RaftAddress)
+		if err != nil {
+			logger.WithTrace(ctx, logger.DBLog).Info("Migration gate: voter capability unknown, deferring",
+				zap.Int("nodeID", m.NodeID),
+				zap.String("raftAddress", m.RaftAddress),
+				zap.Error(err),
+			)
+
+			return 0, m.NodeID, nil
+		}
+
+		consider(m.NodeID, v)
 	}
 
 	if floor < 0 {
-		return SchemaVersion(), db.raftManager.NodeID(), nil
+		return SchemaVersion(), selfID, nil
 	}
 
 	return floor, laggard, nil
 }
 
-// clusterCoordinator implements ellaraft.LeaderCallback to propose deferred
-// migrations on leadership transitions.
+// clusterCoordinator implements ellaraft.LeaderCallback to propose
+// deferred migrations on leadership transitions and on a periodic
+// timer while leader.
+//
+// The periodic re-check exists because voter capability is read live
+// (raftManager.ProbePeerSchemaVersion in CheckPendingMigrations →
+// minVoterSchemaSupport): there is no UpsertClusterMember commit to
+// trigger a re-check after a follower swaps its binary, so without a
+// timer the gate would only fire on leader transitions.
+//
+// The check is cheap when no migration is pending — CheckPendingMigrations
+// short-circuits when the leader's applied schema already equals
+// SchemaVersion(), so the steady-state cost is one schema_version read
+// per tick.
 type clusterCoordinator struct {
-	db *Database
+	db         *Database
+	cancelTick context.CancelFunc
 }
+
+const migrationGateTickInterval = 5 * time.Second
 
 func newClusterCoordinator(db *Database) *clusterCoordinator {
 	return &clusterCoordinator{db: db}
 }
 
 func (c *clusterCoordinator) OnBecameLeader() {
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
+	c.signalCheck()
 
-		if err := c.db.CheckPendingMigrations(ctx); err != nil {
-			logger.WithTrace(ctx, logger.DBLog).Warn("check pending migrations on leader change failed",
-				zap.Error(err))
-		}
-	}()
+	tickCtx, cancel := context.WithCancel(context.Background())
+	c.cancelTick = cancel
+
+	go c.runPeriodicCheck(tickCtx)
 }
 
-func (c *clusterCoordinator) OnLostLeadership() {}
+func (c *clusterCoordinator) OnLostLeadership() {
+	if c.cancelTick != nil {
+		c.cancelTick()
+		c.cancelTick = nil
+	}
+}
+
+func (c *clusterCoordinator) signalCheck() {
+	c.db.signalMigrationCheck()
+}
+
+func (c *clusterCoordinator) runPeriodicCheck(ctx context.Context) {
+	ticker := time.NewTicker(migrationGateTickInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.signalCheck()
+		}
+	}
+}
 
 // RemoveServer removes a node from the Raft cluster. Only callable on the leader.
 func (db *Database) RemoveServer(nodeID int) error {
@@ -970,15 +1046,20 @@ func (db *Database) PostInitClusterSetup(ctx context.Context, binaryVersion stri
 	return nil
 }
 
-// selfUpsertClusterMember proposes this leader's own cluster_members row with
-// the running binary version. Idempotent via ON CONFLICT(nodeID). Called after
-// discovery on the leader. Followers self-announce via SelfAnnounce.
+// selfUpsertClusterMember proposes this leader's own cluster_members
+// row with the running binary version. Idempotent via ON CONFLICT(nodeID).
+// Called after discovery on the leader as part of PostInitClusterSetup.
 //
-// Addresses are pulled from the raft manager (authoritative for raftAddress
-// post-bind and for the configured apiAddress) rather than from any existing
-// DB row, so first-time self-registration writes a fully populated row.
-// Existing Suffrage is preserved to avoid clobbering a non-voter entry set
-// during a rolling upgrade rejoin.
+// Addresses are pulled from the raft manager (authoritative for
+// raftAddress post-bind and for the configured apiAddress) rather than
+// from any existing DB row, so first-time self-registration writes a
+// fully populated row. Existing Suffrage is preserved to avoid
+// clobbering a non-voter entry set during a rolling upgrade rejoin.
+//
+// Followers do not self-announce: voter capability is read live by the
+// leader via raftManager.ProbePeerSchemaVersion, so the only durable
+// state needed in cluster_members is identity (addresses + suffrage),
+// which is already written on join via AddClusterMember.
 func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion string) error {
 	if db.raftManager == nil {
 		return nil
@@ -991,54 +1072,14 @@ func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion s
 	}
 
 	member := &ClusterMember{
-		NodeID:           db.raftManager.NodeID(),
-		RaftAddress:      db.raftManager.RaftAddress(),
-		APIAddress:       db.raftManager.APIAddress(),
-		BinaryVersion:    binaryVersion,
-		Suffrage:         suffrage,
-		MaxSchemaVersion: SchemaVersion(),
+		NodeID:        db.raftManager.NodeID(),
+		RaftAddress:   db.raftManager.RaftAddress(),
+		APIAddress:    db.raftManager.APIAddress(),
+		BinaryVersion: binaryVersion,
+		Suffrage:      suffrage,
 	}
 
 	return db.UpsertClusterMember(ctx, member)
-}
-
-// SelfAnnounce refreshes this node's cluster_members row so voter
-// capability (binaryVersion + maxSchemaVersion) stays current. On the
-// leader it proposes the upsert directly; on a follower it POSTs to the
-// current leader's cluster port. Called on every startup after Raft is
-// up so rolling-restart upgrades rendezvous on the migration gate.
-func (db *Database) SelfAnnounce(ctx context.Context, binaryVersion string) error {
-	if db.raftManager == nil || !db.raftManager.ClusterEnabled() {
-		return nil
-	}
-
-	if db.raftManager.IsLeader() {
-		return db.selfUpsertClusterMember(ctx, binaryVersion)
-	}
-
-	suffrage := "voter"
-
-	if existing, err := db.GetClusterMember(ctx, db.raftManager.NodeID()); err == nil && existing != nil && existing.Suffrage != "" {
-		suffrage = existing.Suffrage
-	}
-
-	payload := struct {
-		NodeID           int    `json:"nodeId"`
-		RaftAddress      string `json:"raftAddress"`
-		APIAddress       string `json:"apiAddress"`
-		BinaryVersion    string `json:"binaryVersion"`
-		MaxSchemaVersion int    `json:"maxSchemaVersion"`
-		Suffrage         string `json:"suffrage,omitempty"`
-	}{
-		NodeID:           db.raftManager.NodeID(),
-		RaftAddress:      db.raftManager.RaftAddress(),
-		APIAddress:       db.raftManager.APIAddress(),
-		BinaryVersion:    binaryVersion,
-		MaxSchemaVersion: SchemaVersion(),
-		Suffrage:         suffrage,
-	}
-
-	return db.raftManager.SelfAnnounce(ctx, payload)
 }
 
 // NewDatabase opens (or creates) the SQLite database file at dbPath. The
@@ -1098,6 +1139,7 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 
 	db.raftManager = raftMgr
 	db.proposeTimeout = raftMgr.ProposeTimeout()
+	db.probeVoterSchema = raftMgr.ProbePeerSchemaVersion
 
 	db.migrationCheckCh = make(chan struct{}, 1)
 	workerCtx, workerCancel := context.WithCancel(context.Background())
