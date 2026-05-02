@@ -25,15 +25,6 @@ const (
 // previous release image to the current build, one node at a time, and
 // asserts the cluster stays writable and converges on the target schema.
 func TestIntegrationHARollingUpgrade(t *testing.T) {
-	// v1.10.0's FSM apply path was non-atomic with fsm_state.lastApplied,
-	// so a SIGKILL of the v1.10.0 binary mid-batch leaves SQLite ahead of
-	// the recorded lastApplied. The new binary inherits the discrepancy
-	// and crash-loops on replay (CONFLICT on duplicate auto-increment
-	// INSERT). Re-enable this test with ROLLING_BASELINE_VERSION=v1.10.1
-	// in integration/compose/ha-rolling/build-images.sh once v1.10.1 is
-	// tagged.
-	t.Skip("disabled until rolling baseline is bumped to v1.10.1 (carries the atomic-apply fix)")
-
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
