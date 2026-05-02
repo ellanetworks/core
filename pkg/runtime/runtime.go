@@ -111,6 +111,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		SnapshotThreshold: cfg.Cluster.SnapshotThreshold,
 		SchemaVersion:     db.SchemaVersion(),
 		InitialSuffrage:   cfg.Cluster.InitialSuffrage,
+		BinaryVersion:     ver.Version,
 	}
 
 	var clusterLn *listener.Listener

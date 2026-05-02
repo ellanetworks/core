@@ -879,10 +879,9 @@ func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationS
 // contributes its own SchemaVersion() in-process, never via RPC.
 //
 // An unreachable voter blocks the gate: probe failure returns a floor
-// of 0 with that voter named as laggard, mirroring the previous
-// "MaxSchemaVersion=0 → unknown → defer" semantics. The leader will
-// re-check on the next tick (see clusterCoordinator); a transient
-// network error self-heals.
+// of 0 with that voter named as laggard. The leader will re-check on
+// the next tick (see clusterCoordinator); a transient network error
+// self-heals.
 //
 // When the cluster has no voter rows yet (fresh bootstrap, before any
 // peer has joined) the floor is the local binary's SchemaVersion so

@@ -618,9 +618,9 @@ func dumpClusterDiagnostics(t *testing.T, ctx context.Context, dc *DockerClient,
 		t.Logf("cluster members (from node %d):", i+1)
 
 		for _, m := range members {
-			t.Logf("  node=%d raft=%s api=%s suffrage=%s isLeader=%v binaryVersion=%q maxSchemaVersion=%d drainState=%s",
+			t.Logf("  node=%d raft=%s api=%s suffrage=%s isLeader=%v binaryVersion=%q drainState=%s",
 				m.NodeID, m.RaftAddress, m.APIAddress, m.Suffrage, m.IsLeader,
-				m.BinaryVersion, m.MaxSchemaVersion, m.DrainState)
+				m.BinaryVersion, m.DrainState)
 		}
 	}
 }

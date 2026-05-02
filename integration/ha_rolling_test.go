@@ -125,7 +125,8 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 				targetSchema, targetSchema-baselineSchema)
 		}
 
-		// Self-announce of MaxSchemaVersion is async; poll.
+		// SchemaVersion only reflects the new binary after the API server
+		// is fully up; poll until the upgraded node reports it.
 		if err := waitForSchemaCondition(ctx, clients[nodeIdx], func(s *client.Status) error {
 			if s.SchemaVersion != targetSchema {
 				return fmt.Errorf("schemaVersion=%d, want %d", s.SchemaVersion, targetSchema)

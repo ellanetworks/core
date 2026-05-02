@@ -345,21 +345,21 @@ func (m *Manager) ProbePeerSchemaVersion(ctx context.Context, peerNodeID int, pe
 // dial so we only send the join payload to the node we intended.
 func (m *Manager) joinCluster(ctx context.Context, peerAddr string, peerNodeID int, clusterID string) error {
 	payload := struct {
-		NodeID           int    `json:"nodeId"`
-		RaftAddress      string `json:"raftAddress"`
-		APIAddress       string `json:"apiAddress"`
-		ClusterID        string `json:"clusterId"`
-		SchemaVersion    int    `json:"schemaVersion"`
-		MaxSchemaVersion int    `json:"maxSchemaVersion"`
-		Suffrage         string `json:"suffrage,omitempty"`
+		NodeID        int    `json:"nodeId"`
+		RaftAddress   string `json:"raftAddress"`
+		APIAddress    string `json:"apiAddress"`
+		ClusterID     string `json:"clusterId"`
+		SchemaVersion int    `json:"schemaVersion"`
+		BinaryVersion string `json:"binaryVersion,omitempty"`
+		Suffrage      string `json:"suffrage,omitempty"`
 	}{
-		NodeID:           m.nodeID,
-		RaftAddress:      string(m.transport.LocalAddr()),
-		APIAddress:       m.config.APIAddress,
-		ClusterID:        clusterID,
-		SchemaVersion:    m.config.SchemaVersion,
-		MaxSchemaVersion: m.config.SchemaVersion,
-		Suffrage:         m.config.InitialSuffrage,
+		NodeID:        m.nodeID,
+		RaftAddress:   string(m.transport.LocalAddr()),
+		APIAddress:    m.config.APIAddress,
+		ClusterID:     clusterID,
+		SchemaVersion: m.config.SchemaVersion,
+		BinaryVersion: m.config.BinaryVersion,
+		Suffrage:      m.config.InitialSuffrage,
 	}
 
 	body, err := json.Marshal(payload)
