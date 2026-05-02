@@ -208,7 +208,7 @@ func (rq *defaultRequester) Do(ctx context.Context, opts *RequestOptions) (*Requ
 		return nil, err
 	}
 
-	if err := serverResp.err(); err != nil {
+	if err := serverResp.err(httpResp.StatusCode); err != nil {
 		return nil, err
 	}
 
@@ -240,9 +240,9 @@ type response struct {
 	Error  string          `json:"error"`
 }
 
-func (rsp *response) err() error {
+func (rsp *response) err(statusCode int) error {
 	if rsp.Error != "" {
-		return fmt.Errorf("server error: %s", rsp.Error)
+		return fmt.Errorf("server error %d: %s", statusCode, rsp.Error)
 	}
 
 	return nil
