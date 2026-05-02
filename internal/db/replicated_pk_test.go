@@ -18,17 +18,12 @@ import (
 // Empty target: every replicated table generates its PK at the request
 // handler and stores it as TEXT.
 var autoIncrementExempt = map[string]struct{}{
-	"data_networks":      {},
-	"policies":           {},
-	"users":              {},
-	"sessions":           {},
-	"api_tokens":         {},
-	"network_slices":     {},
-	"network_rules":      {},
-	"ip_leases":          {},
-	"profiles":           {},
-	"subscribers":        {},
-	"retention_policies": {},
+	"data_networks":  {},
+	"policies":       {},
+	"users":          {},
+	"network_slices": {},
+	"profiles":       {},
+	"subscribers":    {},
 }
 
 // TestReplicatedTables_NoUnexpectedAUTOINCREMENT enforces the spec_uuid.md

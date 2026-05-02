@@ -72,8 +72,8 @@ func TestNetworkRulesCreateGetUpdate(t *testing.T) {
 		t.Fatalf("Couldn't complete CreateNetworkRule: %s", err)
 	}
 
-	if id == 0 {
-		t.Fatalf("Expected non-zero ID from CreateNetworkRule")
+	if id == "" {
+		t.Fatalf("Expected non-empty ID from CreateNetworkRule")
 	}
 
 	retrieved, err := database.GetNetworkRule(context.Background(), id)
@@ -618,7 +618,7 @@ func TestListRulesForPolicy(t *testing.T) {
 		t.Fatalf("Couldn't get policy 2: %s", err)
 	}
 
-	var ruleIDs []int64
+	var ruleIDs []string
 
 	for i := 1; i <= 3; i++ {
 		rule := &db.NetworkRule{
@@ -742,7 +742,7 @@ func TestListRulesForPolicy_Ordering(t *testing.T) {
 		{"rule-200", 200},
 	}
 
-	ids := make([]int64, len(rules))
+	ids := make([]string, len(rules))
 	for i, tc := range rules {
 		id, err := dbInstance.CreateNetworkRule(ctx, &db.NetworkRule{
 			PolicyID:    int64(policy.ID),
@@ -784,7 +784,7 @@ func TestReorderRulesForPolicy(t *testing.T) {
 
 	policy := createTestPolicy(t, dbInstance)
 
-	var ids [3]int64
+	var ids [3]string
 
 	for i, name := range []string{"rule-a", "rule-b", "rule-c"} {
 		id, err := dbInstance.CreateNetworkRule(ctx, &db.NetworkRule{
@@ -811,10 +811,10 @@ func TestReorderRulesForPolicy(t *testing.T) {
 		t.Fatalf("ListRulesForPolicy after reorder: %v", err)
 	}
 
-	wantIDs := []int64{ids[2], ids[0], ids[1]}
+	wantIDs := []string{ids[2], ids[0], ids[1]}
 	for i, r := range got {
 		if r.ID != wantIDs[i] {
-			t.Errorf("rule[%d]: want id %d, got %d", i, wantIDs[i], r.ID)
+			t.Errorf("rule[%d]: want id %s, got %s", i, wantIDs[i], r.ID)
 		}
 
 		if r.Precedence != int32((i+1)*100)+1 {
@@ -831,10 +831,10 @@ func TestReorderRulesForPolicy(t *testing.T) {
 		t.Fatalf("ListRulesForPolicy after reorder: %v", err)
 	}
 
-	wantIDs = []int64{ids[2], ids[1], ids[0]}
+	wantIDs = []string{ids[2], ids[1], ids[0]}
 	for i, r := range got {
 		if r.ID != wantIDs[i] {
-			t.Errorf("rule[%d]: want id %d, got %d", i, wantIDs[i], r.ID)
+			t.Errorf("rule[%d]: want id %s, got %s", i, wantIDs[i], r.ID)
 		}
 
 		if r.Precedence != int32((i+1)*100) {

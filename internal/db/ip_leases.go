@@ -19,7 +19,7 @@ import (
 const IPLeasesTableName = "ip_leases"
 
 const (
-	createLeaseStmt              = "INSERT INTO %s (poolID, addressBin, imsi, sessionID, type, createdAt, nodeID) VALUES ($IPLease.poolID, $IPLease.addressBin, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt, $IPLease.nodeID)"
+	createLeaseStmt              = "INSERT INTO %s (id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID) VALUES ($IPLease.id, $IPLease.poolID, $IPLease.addressBin, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt, $IPLease.nodeID)"
 	getDynamicLeaseStmt          = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND imsi==$IPLease.imsi AND type='dynamic'"
 	getLeaseBySessionStmt        = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND sessionID==$IPLease.sessionID AND imsi==$IPLease.imsi"
 	updateLeaseSessionStmt       = "UPDATE %s SET sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
@@ -40,7 +40,7 @@ const (
 
 // IPLease represents a row in the ip_leases table.
 type IPLease struct {
-	ID         int    `db:"id"`
+	ID         string `db:"id"` // UUIDv7
 	PoolID     int    `db:"poolID"`
 	AddressBin []byte `db:"addressBin"`
 	IMSI       string `db:"imsi"`
@@ -250,7 +250,7 @@ func (db *Database) GetLeaseBySession(ctx context.Context, poolID int, sessionID
 }
 
 // UpdateLeaseSession sets the sessionID on an existing lease.
-func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID int, sessionID int) error {
+func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID string, sessionID int) error {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (session)", "UPDATE", IPLeasesTableName),
@@ -284,7 +284,7 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID int, session
 }
 
 // DeleteDynamicLease deletes a dynamic lease by ID.
-func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID int) error {
+func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID string) error {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", IPLeasesTableName),
@@ -302,7 +302,7 @@ func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID int) error {
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
-	_, err := opDeleteDynamicLease.Invoke(db, &intPayload{Value: leaseID})
+	_, err := opDeleteDynamicLease.Invoke(db, &stringPayload{Value: leaseID})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -385,7 +385,7 @@ func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID int) e
 
 // UpdateLeaseNode updates the nodeID and sessionID on an existing lease.
 // Used during failover to transfer lease ownership to the new serving node.
-func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID int, nodeID int, sessionID int) error {
+func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID string, nodeID int, sessionID int) error {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (node)", "UPDATE", IPLeasesTableName),

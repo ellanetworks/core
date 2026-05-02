@@ -25,6 +25,13 @@ func newFakeStore() *fakeStore {
 	return &fakeStore{nextID: 1}
 }
 
+func (s *fakeStore) allocID() string {
+	id := s.nextID
+	s.nextID++
+
+	return fmt.Sprintf("lease-%d", id)
+}
+
 func (s *fakeStore) GetDynamicLease(_ context.Context, poolID int, imsi string) (*Lease, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -79,14 +86,13 @@ func (s *fakeStore) CreateLease(_ context.Context, lease *Lease) error {
 		}
 	}
 
-	lease.ID = s.nextID
-	s.nextID++
+	lease.ID = s.allocID()
 	s.leases = append(s.leases, *lease)
 
 	return nil
 }
 
-func (s *fakeStore) UpdateLeaseSession(_ context.Context, leaseID int, sessionID int) error {
+func (s *fakeStore) UpdateLeaseSession(_ context.Context, leaseID string, sessionID int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -100,7 +106,7 @@ func (s *fakeStore) UpdateLeaseSession(_ context.Context, leaseID int, sessionID
 	return ErrNotFound
 }
 
-func (s *fakeStore) UpdateLeaseNode(_ context.Context, leaseID int, nodeID int, sessionID int) error {
+func (s *fakeStore) UpdateLeaseNode(_ context.Context, leaseID string, nodeID int, sessionID int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -116,7 +122,7 @@ func (s *fakeStore) UpdateLeaseNode(_ context.Context, leaseID int, nodeID int, 
 	return ErrNotFound
 }
 
-func (s *fakeStore) DeleteDynamicLease(_ context.Context, leaseID int) error {
+func (s *fakeStore) DeleteDynamicLease(_ context.Context, leaseID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

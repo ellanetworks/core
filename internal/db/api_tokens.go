@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -17,7 +18,7 @@ import (
 const APITokensTableName = "api_tokens"
 
 type APIToken struct {
-	ID        int        `db:"id"`
+	ID        string     `db:"id"` // UUIDv7
 	TokenID   string     `db:"token_id"`
 	Name      string     `db:"name"`
 	TokenHash string     `db:"token_hash"`
@@ -29,9 +30,9 @@ const (
 	listAPITokensPagedStmt = `SELECT &APIToken.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE user_id == $APIToken.user_id ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
 	getByTokenIDStmt       = "SELECT &APIToken.* FROM %s WHERE token_id==$APIToken.token_id"
 	getByNameStmt          = "SELECT &APIToken.* FROM %s WHERE user_id==$APIToken.user_id AND name==$APIToken.name"
-	deleteAPITokenStmt     = "DELETE FROM %s WHERE id==$APIToken.id"                                                                                                                                       // #nosec: G101
-	createAPITokenStmt     = "INSERT INTO %s (token_id, name, token_hash, user_id, expires_at) VALUES ($APIToken.token_id, $APIToken.name, $APIToken.token_hash, $APIToken.user_id, $APIToken.expires_at)" // #nosec: G101
-	countAPITokensStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE user_id==$APIToken.user_id"                                                                                                 // #nosec: G101
+	deleteAPITokenStmt     = "DELETE FROM %s WHERE id==$APIToken.id"                                                                                                                                                         // #nosec: G101
+	createAPITokenStmt     = "INSERT INTO %s (id, token_id, name, token_hash, user_id, expires_at) VALUES ($APIToken.id, $APIToken.token_id, $APIToken.name, $APIToken.token_hash, $APIToken.user_id, $APIToken.expires_at)" // #nosec: G101
+	countAPITokensStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE user_id==$APIToken.user_id"                                                                                                                   // #nosec: G101
 )
 
 func (db *Database) ListAPITokensPage(ctx context.Context, userID int64, page int, perPage int) ([]APIToken, int, error) {
@@ -112,6 +113,15 @@ func (db *Database) CreateAPIToken(ctx context.Context, apiToken *APIToken) erro
 	defer timer.ObserveDuration()
 
 	DBQueriesTotal.WithLabelValues(APITokensTableName, "insert").Inc()
+
+	if apiToken.ID == "" {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("generate api token id: %w", err)
+		}
+
+		apiToken.ID = id.String()
+	}
 
 	_, err := opCreateAPIToken.Invoke(db, apiToken)
 	if err != nil {
@@ -202,7 +212,7 @@ func (db *Database) GetAPITokenByName(ctx context.Context, userID int64, name st
 	return &row, nil
 }
 
-func (db *Database) DeleteAPIToken(ctx context.Context, id int) error {
+func (db *Database) DeleteAPIToken(ctx context.Context, id string) error {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", APITokensTableName),
@@ -220,7 +230,7 @@ func (db *Database) DeleteAPIToken(ctx context.Context, id int) error {
 
 	DBQueriesTotal.WithLabelValues(APITokensTableName, "delete").Inc()
 
-	_, err := opDeleteAPIToken.Invoke(db, &intPayload{Value: id})
+	_, err := opDeleteAPIToken.Invoke(db, &stringPayload{Value: id})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

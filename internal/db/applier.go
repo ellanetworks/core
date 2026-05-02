@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/ipam"
 	"github.com/ellanetworks/core/internal/logger"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
+	"github.com/google/uuid"
 	hraft "github.com/hashicorp/raft"
 	"go.uber.org/zap"
 )
@@ -365,6 +366,15 @@ func (db *Database) applyDeleteOldDailyUsage(ctx context.Context, p *int64Payloa
 }
 
 func (db *Database) applyCreateLease(ctx context.Context, lease *IPLease) (any, error) {
+	if lease.ID == "" {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return nil, fmt.Errorf("generate lease id: %w", err)
+		}
+
+		lease.ID = id.String()
+	}
+
 	err := db.runner(ctx).Query(ctx, db.createLeaseStmt, lease).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
@@ -386,7 +396,7 @@ func (db *Database) applyUpdateLeaseSession(ctx context.Context, lease *IPLease)
 	return nil, nil
 }
 
-func (db *Database) applyDeleteDynamicLease(ctx context.Context, p *intPayload) (any, error) {
+func (db *Database) applyDeleteDynamicLease(ctx context.Context, p *stringPayload) (any, error) {
 	err := db.runner(ctx).Query(ctx, db.deleteLeaseStmt, IPLease{ID: p.Value}).Run()
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -745,7 +755,7 @@ func (db *Database) applyCreateAPIToken(ctx context.Context, t *APIToken) (any, 
 	return nil, nil
 }
 
-func (db *Database) applyDeleteAPIToken(ctx context.Context, p *intPayload) (any, error) {
+func (db *Database) applyDeleteAPIToken(ctx context.Context, p *stringPayload) (any, error) {
 	err := db.runner(ctx).Query(ctx, db.deleteAPITokenStmt, APIToken{ID: p.Value}).Run()
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -755,19 +765,11 @@ func (db *Database) applyDeleteAPIToken(ctx context.Context, p *intPayload) (any
 }
 
 func (db *Database) applyCreateSession(ctx context.Context, s *Session) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.createSessionStmt, s).Get(&outcome)
-	if err != nil {
+	if err := db.runner(ctx).Query(ctx, db.createSessionStmt, s).Run(); err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	id, err := outcome.Result().LastInsertId()
-	if err != nil {
-		return nil, fmt.Errorf("last insert id: %w", err)
-	}
-
-	return id, nil
+	return nil, nil
 }
 
 func (db *Database) applyDeleteSessionByTokenHash(ctx context.Context, p *bytesPayload) (any, error) {
@@ -982,10 +984,7 @@ func (db *Database) applyDeletePolicy(ctx context.Context, p *stringPayload) (an
 }
 
 func (db *Database) applyCreateNetworkRule(ctx context.Context, nr *NetworkRule) (any, error) {
-	var outcome sqlair.Outcome
-
-	err := db.runner(ctx).Query(ctx, db.createNetworkRuleStmt, nr).Get(&outcome)
-	if err != nil {
+	if err := db.runner(ctx).Query(ctx, db.createNetworkRuleStmt, nr).Run(); err != nil {
 		if isUniqueNameError(err) {
 			return nil, ErrAlreadyExists
 		}
@@ -993,12 +992,7 @@ func (db *Database) applyCreateNetworkRule(ctx context.Context, nr *NetworkRule)
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
-	id, err := outcome.Result().LastInsertId()
-	if err != nil {
-		return nil, fmt.Errorf("last insert id: %w", err)
-	}
-
-	return id, nil
+	return nil, nil
 }
 
 func (db *Database) applyUpdateNetworkRule(ctx context.Context, nr *NetworkRule) (any, error) {
@@ -1021,7 +1015,7 @@ func (db *Database) applyUpdateNetworkRule(ctx context.Context, nr *NetworkRule)
 	return nil, nil
 }
 
-func (db *Database) applyDeleteNetworkRule(ctx context.Context, p *int64Payload) (any, error) {
+func (db *Database) applyDeleteNetworkRule(ctx context.Context, p *stringPayload) (any, error) {
 	var outcome sqlair.Outcome
 
 	err := db.runner(ctx).Query(ctx, db.deleteNetworkRuleStmt, NetworkRule{ID: p.Value}).Get(&outcome)

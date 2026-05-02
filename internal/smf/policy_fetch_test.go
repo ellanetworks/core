@@ -89,8 +89,8 @@ func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
 		t.Fatalf("couldn't create rule 1: %s", err)
 	}
 
-	if id1 == 0 {
-		t.Fatalf("expected non-zero rule ID")
+	if id1 == "" {
+		t.Fatalf("expected non-empty rule ID")
 	}
 
 	prefix2 := "10.0.0.0/8"
@@ -111,8 +111,8 @@ func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
 		t.Fatalf("couldn't create rule 2: %s", err)
 	}
 
-	if id2 == 0 {
-		t.Fatalf("expected non-zero rule ID")
+	if id2 == "" {
+		t.Fatalf("expected non-empty rule ID")
 	}
 
 	subscriber := &db.Subscriber{

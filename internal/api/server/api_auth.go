@@ -283,8 +283,7 @@ func createSessionAndSetCookie(ctx context.Context, dbInstance *db.Database, use
 		ExpiresAt: expiresAt.Unix(),
 	}
 
-	_, err = dbInstance.CreateSession(ctx, session)
-	if err != nil {
+	if err = dbInstance.CreateSession(ctx, session); err != nil {
 		return fmt.Errorf("couldn't create session: %w", err)
 	}
 

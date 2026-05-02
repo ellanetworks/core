@@ -26,19 +26,19 @@ type LeaseStore interface {
 	CreateLease(ctx context.Context, lease *Lease) error
 
 	// UpdateLeaseSession sets the sessionID on a lease.
-	UpdateLeaseSession(ctx context.Context, leaseID int, sessionID int) error
+	UpdateLeaseSession(ctx context.Context, leaseID string, sessionID int) error
 
 	// UpdateLeaseNode updates the nodeID and sessionID on a lease.
-	UpdateLeaseNode(ctx context.Context, leaseID int, nodeID int, sessionID int) error
+	UpdateLeaseNode(ctx context.Context, leaseID string, nodeID int, sessionID int) error
 
 	// DeleteDynamicLease deletes a dynamic lease by ID.
-	DeleteDynamicLease(ctx context.Context, leaseID int) error
+	DeleteDynamicLease(ctx context.Context, leaseID string) error
 }
 
 // Lease mirrors db.IPLease but lives in the ipam package to avoid an import
 // cycle. The db package satisfies LeaseStore via adapter methods.
 type Lease struct {
-	ID        int
+	ID        string
 	PoolID    int
 	Address   string
 	IMSI      string

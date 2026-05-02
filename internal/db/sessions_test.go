@@ -47,7 +47,7 @@ func TestSessionsEndToEnd(t *testing.T) {
 		ExpiresAt: expiresAt.Unix(),
 	}
 
-	_, err = database.CreateSession(context.Background(), session)
+	err = database.CreateSession(context.Background(), session)
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateSession: %s", err)
 	}
@@ -109,7 +109,7 @@ func TestDeleteSessionByTokenHash(t *testing.T) {
 		ExpiresAt: expiresAt.Unix(),
 	}
 
-	_, err = database.CreateSession(context.Background(), session)
+	err = database.CreateSession(context.Background(), session)
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateSession: %s", err)
 	}
@@ -179,12 +179,12 @@ func TestDeleteExpiredSessions(t *testing.T) {
 		ExpiresAt: now.Add(1 * time.Hour).Unix(),
 	}
 
-	_, err = database.CreateSession(context.Background(), expiredSession)
+	err = database.CreateSession(context.Background(), expiredSession)
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateSession for expired session: %s", err)
 	}
 
-	_, err = database.CreateSession(context.Background(), validSession)
+	err = database.CreateSession(context.Background(), validSession)
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateSession for valid session: %s", err)
 	}
@@ -260,7 +260,7 @@ func TestDeleteManyExpiredSessions(t *testing.T) {
 			session.ExpiresAt = now.Add(5 * time.Minute).Unix() // valid
 		}
 
-		_, err = database.CreateSession(context.Background(), session)
+		err = database.CreateSession(context.Background(), session)
 		if err != nil {
 			t.Fatalf("Couldn't complete CreateSession for session %d: %s", i, err)
 		}
@@ -346,7 +346,7 @@ func TestDeleteAllSessionsForUser(t *testing.T) {
 			ExpiresAt: expiresAt,
 		}
 
-		_, err = database.CreateSession(context.Background(), session)
+		err = database.CreateSession(context.Background(), session)
 		if err != nil {
 			t.Fatalf("Couldn't complete CreateSession: %s", err)
 		}
@@ -359,7 +359,7 @@ func TestDeleteAllSessionsForUser(t *testing.T) {
 		ExpiresAt: expiresAt,
 	}
 
-	_, err = database.CreateSession(context.Background(), user2Session)
+	err = database.CreateSession(context.Background(), user2Session)
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateSession: %s", err)
 	}
@@ -432,7 +432,7 @@ func TestDeleteAllSessions(t *testing.T) {
 	}
 
 	for _, s := range sessions {
-		_, err = database.CreateSession(context.Background(), s)
+		err = database.CreateSession(context.Background(), s)
 		if err != nil {
 			t.Fatalf("Couldn't complete CreateSession: %s", err)
 		}

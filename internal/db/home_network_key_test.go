@@ -13,10 +13,12 @@ import (
 
 func newKeyID(t *testing.T) string {
 	t.Helper()
+
 	id, err := uuid.NewV7()
 	if err != nil {
 		t.Fatalf("uuid.NewV7: %v", err)
 	}
+
 	return id.String()
 }
 
