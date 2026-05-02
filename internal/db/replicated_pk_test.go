@@ -28,7 +28,6 @@ var autoIncrementExempt = map[string]struct{}{
 	"ip_leases":          {},
 	"profiles":           {},
 	"subscribers":        {},
-	"home_network_keys":  {},
 	"retention_policies": {},
 }
 

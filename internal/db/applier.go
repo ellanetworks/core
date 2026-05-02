@@ -1063,7 +1063,7 @@ func (db *Database) applyCreateHomeNetworkKey(ctx context.Context, k *HomeNetwor
 	return nil, nil
 }
 
-func (db *Database) applyDeleteHomeNetworkKey(ctx context.Context, p *intPayload) (any, error) {
+func (db *Database) applyDeleteHomeNetworkKey(ctx context.Context, p *stringPayload) (any, error) {
 	var outcome sqlair.Outcome
 
 	err := db.runner(ctx).Query(ctx, db.deleteHomeNetworkKeyStmt, HomeNetworkKey{ID: p.Value}).Get(&outcome)

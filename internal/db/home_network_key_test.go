@@ -8,7 +8,17 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/google/uuid"
 )
+
+func newKeyID(t *testing.T) string {
+	t.Helper()
+	id, err := uuid.NewV7()
+	if err != nil {
+		t.Fatalf("uuid.NewV7: %v", err)
+	}
+	return id.String()
+}
 
 func TestHomeNetworkKeysCRUD(t *testing.T) {
 	tempDir := t.TempDir()
@@ -83,6 +93,7 @@ func TestHomeNetworkKeysCRUD(t *testing.T) {
 	// Create a Profile B key.
 	// Use a known valid P-256 private key (from TS 33.501 Annex C.3.4).
 	profileBKey := &db.HomeNetworkKey{
+		ID:            newKeyID(t),
 		KeyIdentifier: 0,
 		Scheme:        "B",
 		PrivateKey:    "f1ab1074477ebcce59b97460c83b4071db578ffab54ee4fbc76aeca38e4b7b01",
@@ -119,6 +130,7 @@ func TestHomeNetworkKeysCRUD(t *testing.T) {
 
 	// Create a second Profile A key (key rotation scenario).
 	rotationKey := &db.HomeNetworkKey{
+		ID:            newKeyID(t),
 		KeyIdentifier: 1,
 		Scheme:        "A",
 		PrivateKey:    keys[0].PrivateKey, // reuse for simplicity
@@ -194,6 +206,7 @@ func TestCreateHomeNetworkKey_Duplicate(t *testing.T) {
 
 	// Default key (A, 0) already exists. Try to create another (A, 0).
 	dupKey := &db.HomeNetworkKey{
+		ID:            newKeyID(t),
 		KeyIdentifier: 0,
 		Scheme:        "A",
 		PrivateKey:    "0000000000000000000000000000000000000000000000000000000000000001",
@@ -225,7 +238,7 @@ func TestGetHomeNetworkKey_NotFound(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err = database.GetHomeNetworkKey(ctx, 9999)
+	_, err = database.GetHomeNetworkKey(ctx, "00000000-0000-7000-8000-000000000000")
 	if err == nil {
 		t.Fatal("Expected error for non-existent key, got nil")
 	}

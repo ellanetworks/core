@@ -182,7 +182,7 @@ func GetOperator(dbInstance *db.Database) http.Handler {
 		for _, k := range hnKeys {
 			pubKey, err := k.GetPublicKey()
 			if err != nil {
-				logger.APILog.Warn("Failed to derive public key", zap.Int("id", k.ID), zap.Error(err))
+				logger.APILog.Warn("Failed to derive public key", zap.String("id", k.ID), zap.Error(err))
 				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to derive public key", err, logger.APILog)
 
 				return

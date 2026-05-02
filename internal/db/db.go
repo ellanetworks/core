@@ -1596,7 +1596,13 @@ func (db *Database) Initialize(ctx context.Context) error {
 			return fmt.Errorf("failed to generate default home network key: %w", err)
 		}
 
+		defaultKeyID, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("failed to generate default home network key id: %w", err)
+		}
+
 		defaultKey := &HomeNetworkKey{
+			ID:            defaultKeyID.String(),
 			KeyIdentifier: 0,
 			Scheme:        "A",
 			PrivateKey:    initialHNPrivateKey,

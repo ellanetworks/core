@@ -28,14 +28,14 @@ const (
 	listHomeNetworkKeysStmtStr                    = "SELECT &HomeNetworkKey.* FROM %s ORDER BY scheme, key_identifier"
 	getHomeNetworkKeyStmtStr                      = "SELECT &HomeNetworkKey.* FROM %s WHERE id==$HomeNetworkKey.id"
 	getHomeNetworkKeyBySchemeAndIdentifierStmtStr = "SELECT &HomeNetworkKey.* FROM %s WHERE scheme==$HomeNetworkKey.scheme AND key_identifier==$HomeNetworkKey.key_identifier"
-	createHomeNetworkKeyStmtStr                   = "INSERT INTO %s (key_identifier, scheme, private_key) VALUES ($HomeNetworkKey.key_identifier, $HomeNetworkKey.scheme, $HomeNetworkKey.private_key)"
+	createHomeNetworkKeyStmtStr                   = "INSERT INTO %s (id, key_identifier, scheme, private_key) VALUES ($HomeNetworkKey.id, $HomeNetworkKey.key_identifier, $HomeNetworkKey.scheme, $HomeNetworkKey.private_key)"
 	deleteHomeNetworkKeyStmtStr                   = "DELETE FROM %s WHERE id==$HomeNetworkKey.id"
 	countHomeNetworkKeysStmtStr                   = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
 // HomeNetworkKey represents a home network key used for SUCI de-concealment.
 type HomeNetworkKey struct {
-	ID            int    `db:"id"`
+	ID            string `db:"id"` // UUIDv7, generated at the request handler
 	KeyIdentifier int    `db:"key_identifier"`
 	Scheme        string `db:"scheme"` // "A" or "B"
 	PrivateKey    string `db:"private_key"`
@@ -120,8 +120,8 @@ func (db *Database) ListHomeNetworkKeys(ctx context.Context) ([]HomeNetworkKey, 
 	return keys, nil
 }
 
-// GetHomeNetworkKey retrieves a home network key by its database row ID.
-func (db *Database) GetHomeNetworkKey(ctx context.Context, id int) (*HomeNetworkKey, error) {
+// GetHomeNetworkKey retrieves a home network key by its UUID.
+func (db *Database) GetHomeNetworkKey(ctx context.Context, id string) (*HomeNetworkKey, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "SELECT", HomeNetworkKeysTableName),
@@ -217,6 +217,10 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 
 	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "insert").Inc()
 
+	if key.ID == "" {
+		return fmt.Errorf("CreateHomeNetworkKey: ID must be set by the caller")
+	}
+
 	_, err := opCreateHomeNetworkKey.Invoke(db, key)
 	if err != nil {
 		span.RecordError(err)
@@ -230,8 +234,8 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 	return nil
 }
 
-// DeleteHomeNetworkKey removes a home network key by its database row ID.
-func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id int) error {
+// DeleteHomeNetworkKey removes a home network key by its UUID.
+func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id string) error {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", HomeNetworkKeysTableName),
@@ -249,7 +253,7 @@ func (db *Database) DeleteHomeNetworkKey(ctx context.Context, id int) error {
 
 	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "delete").Inc()
 
-	_, err := opDeleteHomeNetworkKey.Invoke(db, &intPayload{Value: id})
+	_, err := opDeleteHomeNetworkKey.Invoke(db, &stringPayload{Value: id})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
