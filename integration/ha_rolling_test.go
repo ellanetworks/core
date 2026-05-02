@@ -441,6 +441,13 @@ func startSubscriberWriter(t *testing.T, parent context.Context, clients []*clie
 				SequenceNumber: "000000000022",
 				ProfileName:    "default",
 			})
+
+			// stop() cancels ctx; any in-flight request then fails with
+			// "context canceled". That is shutdown, not a real error.
+			if ctx.Err() != nil {
+				return
+			}
+
 			switch {
 			case err == nil:
 				w.success.Add(1)
