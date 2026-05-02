@@ -740,17 +740,20 @@ func (db *Database) assertAppliedSchema(ctx context.Context, required int, label
 
 // CheckPendingMigrations proposes CmdMigrateShared entries for each
 // migration beyond the current applied version, bounded by what every
-// voter can apply. Called on leadership transitions and when voter
-// capabilities change. Only the leader proposes.
+// voter can apply. Called on leadership transitions, on a periodic
+// timer while leader (clusterCoordinator), and after every CmdMigrateShared
+// applies. Only the leader proposes.
 //
 // The proposal gate upholds the rolling-upgrade invariant:
 //
 //	dbSchema ≤ binarySchema(v) for every voter v.
 //
-// If any voter has not yet self-announced its maxSchemaVersion
-// (column default 0), the gate defers entirely: "unknown" is treated
-// as "cannot apply." Learners are ignored — they can crash on an
-// unsupported migration without breaking quorum.
+// Voter capability is read live from each peer's /cluster/status
+// endpoint via probeVoterSchema, not from a cached column. If any
+// voter is unreachable the gate defers — "unknown" is treated as
+// "cannot apply" — and the next periodic tick re-checks. Learners are
+// ignored: they can crash on an unsupported migration without breaking
+// quorum.
 func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 	if db.raftManager == nil || !db.raftManager.ClusterEnabled() {
 		return nil
@@ -813,8 +816,14 @@ type PendingMigrationStatus struct {
 }
 
 // PendingMigrationInfo computes the snapshot. Read-only, safe on any
-// node — cluster_members is replicated so followers see the same
-// voter-capability data the leader uses.
+// node: voter capability is read live by probing each peer's
+// /cluster/status, so followers compute the same view the leader does.
+//
+// Cost: when a migration is pending, each call probes every other voter
+// (typically 2 RPCs in a 3-voter cluster). Once the cluster has
+// converged on the binary's max schema version the function
+// short-circuits before any probe runs, so the steady-state cost is one
+// schema_version read.
 func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationStatus, error) {
 	current, err := db.CurrentSchemaVersion(ctx)
 	if err != nil {
@@ -941,34 +950,50 @@ func (db *Database) minVoterSchemaSupport(ctx context.Context) (int, int, error)
 // SchemaVersion(), so the steady-state cost is one schema_version read
 // per tick.
 type clusterCoordinator struct {
-	db         *Database
+	db *Database
+	// parentCtx is cancelled in Database.Close so the ticker goroutine
+	// exits even if the leader observer never fires OnLostLeadership
+	// (e.g. raft shutdown closes leaderCh without a false transition).
+	parentCtx context.Context
+
+	mu         sync.Mutex
 	cancelTick context.CancelFunc
 }
 
 const migrationGateTickInterval = 5 * time.Second
 
-func newClusterCoordinator(db *Database) *clusterCoordinator {
-	return &clusterCoordinator{db: db}
+func newClusterCoordinator(db *Database, parentCtx context.Context) *clusterCoordinator {
+	return &clusterCoordinator{db: db, parentCtx: parentCtx}
 }
 
 func (c *clusterCoordinator) OnBecameLeader() {
-	c.signalCheck()
+	c.db.signalMigrationCheck()
 
-	tickCtx, cancel := context.WithCancel(context.Background())
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Defensive: a duplicate OnBecameLeader without a matching
+	// OnLostLeadership in between would otherwise leak the previous
+	// ticker. The observer guarantees alternation today, but the cost
+	// of being correct under future churn is one nil check.
+	if c.cancelTick != nil {
+		c.cancelTick()
+	}
+
+	tickCtx, cancel := context.WithCancel(c.parentCtx)
 	c.cancelTick = cancel
 
 	go c.runPeriodicCheck(tickCtx)
 }
 
 func (c *clusterCoordinator) OnLostLeadership() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.cancelTick != nil {
 		c.cancelTick()
 		c.cancelTick = nil
 	}
-}
-
-func (c *clusterCoordinator) signalCheck() {
-	c.db.signalMigrationCheck()
 }
 
 func (c *clusterCoordinator) runPeriodicCheck(ctx context.Context) {
@@ -980,7 +1005,7 @@ func (c *clusterCoordinator) runPeriodicCheck(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			c.signalCheck()
+			c.db.signalMigrationCheck()
 		}
 	}
 }
@@ -1148,7 +1173,10 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	go db.runMigrationCheckWorker(workerCtx)
 
 	if observer := raftMgr.LeaderObserver(); observer != nil {
-		observer.Register(newClusterCoordinator(db))
+		// The coordinator's periodic ticker must die with the database,
+		// so anchor its goroutine to workerCtx — Close cancels both the
+		// migration-check worker and any active leader-only ticker.
+		observer.Register(newClusterCoordinator(db, workerCtx))
 	}
 
 	RegisterMetrics(db)
