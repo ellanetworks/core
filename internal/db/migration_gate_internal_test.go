@@ -11,12 +11,8 @@ import (
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
-// Whitebox tests for the schema-migration proposal gate.
-// minVoterSchemaSupport is unexported and the full
-// CheckPendingMigrations path requires a leader; here we seed
-// cluster_members directly via the public upsert API and inject a
-// probe stub so the gate can be exercised without spinning up real
-// peers.
+// Whitebox tests for the migration gate. Seeds cluster_members via the
+// public upsert API and stubs probeVoterSchema to avoid real peers.
 
 func newStandaloneDB(t *testing.T) *Database {
 	t.Helper()
@@ -33,9 +29,6 @@ func newStandaloneDB(t *testing.T) *Database {
 	return database
 }
 
-// stubProbe builds a probe function that returns the version recorded
-// for each nodeID, or the configured error when the entry is missing
-// (used to simulate "voter unreachable").
 type stubProbe struct {
 	versions    map[int]int
 	unreachable map[int]bool
@@ -68,8 +61,6 @@ func TestMinVoterSchemaSupport_FloorIsLaggard(t *testing.T) {
 		}
 	}
 
-	// Standalone DBs report nodeID 0, so no member matches "self" and
-	// every voter is probed.
 	database.probeVoterSchema = stubProbe{versions: map[int]int{1: 10, 2: 9, 3: 11}}.probe
 
 	floor, laggard, err := database.minVoterSchemaSupport(ctx)

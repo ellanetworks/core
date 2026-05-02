@@ -286,22 +286,9 @@ func (m *Manager) probePeer(ctx context.Context, peerAddr string) (peerState, in
 	return peerForming, nodeID, clusterID, schemaVersion
 }
 
-// ProbePeerSchemaVersion returns the maximum schema version the binary
-// running on `peerAddr` (Raft address, host:port) reports via its
-// cluster-internal /cluster/status endpoint. peerNodeID pins the mTLS
-// dial so we only accept the answer from the node we intended.
-//
-// This is the live source of truth for the rolling-upgrade migration
-// gate: every voter's binary capability is read on demand instead of
-// from a cached row, so a node that has just upgraded its binary
-// becomes "current" the moment its /cluster/status reflects the new
-// version — no separate announce round-trip required.
-//
-// Returns the SchemaVersion (>= 1 in a healthy cluster) or an error if
-// the peer is unreachable, returns a non-2xx status, or returns a body
-// whose schema field cannot be parsed. Errors are intended to gate
-// migration proposals: an unreachable voter must be treated as
-// "capability unknown" by the caller.
+// ProbePeerSchemaVersion reads the peer's reported SchemaVersion from
+// its /cluster/status endpoint. peerNodeID pins the mTLS dial.
+// Callers must treat any error as "capability unknown".
 func (m *Manager) ProbePeerSchemaVersion(ctx context.Context, peerNodeID int, peerAddr string) (int, error) {
 	if peerNodeID <= 0 {
 		return 0, fmt.Errorf("peer node id required")

@@ -280,6 +280,11 @@ func NewDiscoveryHandler(cfg DiscoveryHandlerConfig) http.Handler {
 	// POST /api/v1/cluster/members is not served during discovery; in mTLS
 	// mode, join requests arrive on the cluster port (wired in a later step).
 
+	// Catch-all: anything not wired in this phase responds 503 with a
+	// Retry-After hint, so clients hitting a node mid-startup back off
+	// instead of misreading 404 as a permanent route error.
+	mux.HandleFunc("/", phaseAFallback)
+
 	var handler http.Handler = mux
 
 	handler = MaxBodySizeMiddleware(handler)
@@ -291,6 +296,16 @@ func NewDiscoveryHandler(cfg DiscoveryHandlerConfig) http.Handler {
 	}
 
 	return handler
+}
+
+// phaseAFallback handles every path the discovery mux does not serve.
+// 503 + Retry-After lets clients (operator dashboards, integration
+// tests, monitoring) back off across the brief Phase A → Phase B
+// window without misreading the gap as a permanent 404.
+func phaseAFallback(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Retry-After", "1")
+	writeError(r.Context(), w, http.StatusServiceUnavailable,
+		"API server starting; retry after cluster initialization", nil, logger.APILog)
 }
 
 func registerAuthenticatedPprof(root *http.ServeMux, jwtSecret *JWTSecret, dbInstance *db.Database) {

@@ -18,17 +18,10 @@ const haComposeDir = "compose/ha/"
 
 var haNodeServices = []string{"ella-core-1", "ella-core-2", "ella-core-3"}
 
-// captureClusterLogs collects per-service container logs from composeDir
-// and emits them via t.Logf so they appear in `go test -v` output. If the
-// HA_CLUSTER_LOG_DIR environment variable is set (CI sets it), a copy of
-// each service's log is also written to
-// <HA_CLUSTER_LOG_DIR>/<sanitized-test-name>/<service>.log so the workflow
-// can upload them as an artifact.
-//
-// Safe to call before any client connection has been established (i.e. on
-// a bring-up failure with no clients yet). Uses a fresh background context
-// with a 2-minute timeout so a cancelled test context does not break log
-// collection.
+// captureClusterLogs emits each service's container logs via t.Logf
+// and, if HA_CLUSTER_LOG_DIR is set, also writes them to
+// <dir>/<test-name>/<service>.log for CI artifact upload. Safe to call
+// with no clients (e.g. on bring-up failure).
 func captureClusterLogs(t *testing.T, dc *DockerClient, composeDir string, services []string) {
 	t.Helper()
 
@@ -560,16 +553,10 @@ func waitForAutopilotReportsUnhealthy(ctx context.Context, leader *client.Client
 		nodeID, timeout, last)
 }
 
-// dumpClusterDiagnostics logs node status and cluster members from each
-// reachable node. Call from t.Cleanup to aid failure triage. composeDir
-// MUST match the compose project the test brought up — the prior bug of
-// hardcoding haComposeDir silently dropped logs for ha-rolling tests
-// because docker compose returned empty output for the wrong project.
-//
-// Container logs are also persisted to HA_CLUSTER_LOG_DIR (set in CI) via
-// captureClusterLogs so the workflow can upload them as an artifact even
-// when the test failure printout is the only thing visible in the job
-// output.
+// dumpClusterDiagnostics logs container output, per-node status, and
+// cluster_members from each reachable node. composeDir MUST match the
+// compose project the test brought up — passing the wrong dir silently
+// returns empty logs.
 func dumpClusterDiagnostics(t *testing.T, ctx context.Context, dc *DockerClient, composeDir string, services []string, clients []*client.Client) {
 	t.Helper()
 

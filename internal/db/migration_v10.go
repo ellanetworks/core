@@ -8,20 +8,9 @@ import (
 	"fmt"
 )
 
-// V10 drops two columns that became dead after the HA design moved
-// away from per-row capability caching:
-//
-//   - bgp_peers.nodeID — bgp_peers is now a local-only table (not
-//     replicated via Raft), so per-node scoping via a column is
-//     unnecessary.
-//   - cluster_members.maxSchemaVersion — the migration gate now reads
-//     each voter's binary capability live via /cluster/status instead
-//     of trusting a cached row, so the column has no consumer.
-//
-// Safe to run as a coordinated post-baseline migration: by the time the
-// gate proposes v10, every voter is on a binary whose UpsertClusterMember
-// SQL no longer references maxSchemaVersion, so no captured changeset
-// in flight can reference the dropped column at apply time.
+// V10 drops two columns whose data the current binary no longer reads
+// or writes: bgp_peers.nodeID (table is local-only) and
+// cluster_members.maxSchemaVersion (gate reads /cluster/status live).
 func migrateV10(ctx context.Context, tx *sql.Tx) error {
 	stmts := []string{
 		fmt.Sprintf("ALTER TABLE %s DROP COLUMN nodeID", BGPPeersTableName),

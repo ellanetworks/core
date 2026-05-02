@@ -302,15 +302,8 @@ type Database struct {
 	// op-gate / apply-gate hot path. Updated by refreshAppliedSchema.
 	appliedSchemaCache atomic.Int64
 
-	// probeVoterSchema returns the live SchemaVersion reported by the
-	// peer at (nodeID, raftAddr) via cluster-mTLS GET /cluster/status.
-	// Used by the rolling-upgrade migration gate to consult voter
-	// capability without depending on a cached row that may be stale
-	// after a binary upgrade.
-	//
-	// In production this is set to a wrapper over
-	// raftManager.ProbePeerSchemaVersion. Tests inject a stub so the
-	// gate can be exercised without spinning up real peers.
+	// probeVoterSchema reads a peer's live SchemaVersion. Field-injected
+	// so tests can stub it.
 	probeVoterSchema func(ctx context.Context, nodeID int, raftAddr string) (int, error)
 }
 
@@ -738,21 +731,10 @@ func (db *Database) assertAppliedSchema(ctx context.Context, required int, label
 	return nil
 }
 
-// CheckPendingMigrations proposes CmdMigrateShared entries for each
-// migration beyond the current applied version, bounded by what every
-// voter can apply. Called on leadership transitions, on a periodic
-// timer while leader (clusterCoordinator), and after every CmdMigrateShared
-// applies. Only the leader proposes.
-//
-// The proposal gate upholds the rolling-upgrade invariant:
-//
-//	dbSchema ≤ binarySchema(v) for every voter v.
-//
-// Voter capability is read live from each peer's /cluster/status
-// endpoint via probeVoterSchema, not from a cached column. If any
-// voter is unreachable the gate defers — "unknown" is treated as
-// "cannot apply" — and the next periodic tick re-checks. Learners are
-// ignored: they can crash on an unsupported migration without breaking
+// CheckPendingMigrations proposes one CmdMigrateShared per missing
+// migration, bounded by the minimum SchemaVersion across voters.
+// Leader-only; an unreachable voter blocks the gate. Learners are
+// ignored — they can crash on an unsupported migration without breaking
 // quorum.
 func (db *Database) CheckPendingMigrations(ctx context.Context) error {
 	if db.raftManager == nil || !db.raftManager.ClusterEnabled() {
@@ -815,15 +797,9 @@ type PendingMigrationStatus struct {
 	LaggardNodeID int // voter holding target == current; zero when unblocked
 }
 
-// PendingMigrationInfo computes the snapshot. Read-only, safe on any
-// node: voter capability is read live by probing each peer's
-// /cluster/status, so followers compute the same view the leader does.
-//
-// Cost: when a migration is pending, each call probes every other voter
-// (typically 2 RPCs in a 3-voter cluster). Once the cluster has
-// converged on the binary's max schema version the function
-// short-circuits before any probe runs, so the steady-state cost is one
-// schema_version read.
+// PendingMigrationInfo computes the snapshot. Probes every voter when
+// a migration is pending; short-circuits to a single schema_version
+// read once the cluster has converged.
 func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationStatus, error) {
 	current, err := db.CurrentSchemaVersion(ctx)
 	if err != nil {
@@ -871,21 +847,12 @@ func (db *Database) PendingMigrationInfo(ctx context.Context) (PendingMigrationS
 	return status, nil
 }
 
-// minVoterSchemaSupport returns the minimum SchemaVersion supported by
-// any voter in the cluster and the nodeID of the laggard. Voter
-// identity (nodeID, raftAddress, suffrage) comes from cluster_members;
-// the SchemaVersion itself is read live from each peer's
-// /cluster/status endpoint via probeVoterSchema. The local node
-// contributes its own SchemaVersion() in-process, never via RPC.
-//
-// An unreachable voter blocks the gate: probe failure returns a floor
-// of 0 with that voter named as laggard. The leader will re-check on
-// the next tick (see clusterCoordinator); a transient network error
-// self-heals.
-//
-// When the cluster has no voter rows yet (fresh bootstrap, before any
-// peer has joined) the floor is the local binary's SchemaVersion so
-// the leader is not blocked from applying its own migrations.
+// minVoterSchemaSupport returns the minimum SchemaVersion across
+// voters and the laggard's nodeID. The local node answers in-process;
+// peers are probed live. Probe failure returns floor=0 with that voter
+// as laggard. With no voter rows the floor is the local binary's
+// SchemaVersion, so a fresh leader is not blocked from its own
+// migrations.
 func (db *Database) minVoterSchemaSupport(ctx context.Context) (int, int, error) {
 	members, err := db.ListClusterMembers(ctx)
 	if err != nil {
@@ -934,26 +901,12 @@ func (db *Database) minVoterSchemaSupport(ctx context.Context) (int, int, error)
 	return floor, laggard, nil
 }
 
-// clusterCoordinator implements ellaraft.LeaderCallback to propose
-// deferred migrations on leadership transitions and on a periodic
-// timer while leader.
-//
-// The periodic re-check exists because voter capability is read live
-// (raftManager.ProbePeerSchemaVersion in CheckPendingMigrations →
-// minVoterSchemaSupport): there is no UpsertClusterMember commit to
-// trigger a re-check after a follower swaps its binary, so without a
-// timer the gate would only fire on leader transitions.
-//
-// The check is cheap when no migration is pending — CheckPendingMigrations
-// short-circuits when the leader's applied schema already equals
-// SchemaVersion(), so the steady-state cost is one schema_version read
-// per tick.
+// clusterCoordinator runs the migration gate on leadership transitions
+// and on a periodic timer while leader. The timer is what catches a
+// voter swapping its binary (no event fires on that).
 type clusterCoordinator struct {
-	db *Database
-	// parentCtx is cancelled in Database.Close so the ticker goroutine
-	// exits even if the leader observer never fires OnLostLeadership
-	// (e.g. raft shutdown closes leaderCh without a false transition).
-	parentCtx context.Context
+	db        *Database
+	parentCtx context.Context // cancelled by Database.Close
 
 	mu         sync.Mutex
 	cancelTick context.CancelFunc
@@ -971,10 +924,8 @@ func (c *clusterCoordinator) OnBecameLeader() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Defensive: a duplicate OnBecameLeader without a matching
-	// OnLostLeadership in between would otherwise leak the previous
-	// ticker. The observer guarantees alternation today, but the cost
-	// of being correct under future churn is one nil check.
+	// Guard against future observer changes that could fire OnBecameLeader
+	// twice without OnLostLeadership in between.
 	if c.cancelTick != nil {
 		c.cancelTick()
 	}
@@ -1070,20 +1021,10 @@ func (db *Database) PostInitClusterSetup(ctx context.Context, binaryVersion stri
 	return nil
 }
 
-// selfUpsertClusterMember proposes this leader's own cluster_members
-// row with the running binary version. Idempotent via ON CONFLICT(nodeID).
-// Called after discovery on the leader as part of PostInitClusterSetup.
-//
-// Addresses are pulled from the raft manager (authoritative for
-// raftAddress post-bind and for the configured apiAddress) rather than
-// from any existing DB row, so first-time self-registration writes a
-// fully populated row. Existing Suffrage is preserved to avoid
-// clobbering a non-voter entry set during a rolling upgrade rejoin.
-//
-// Followers do not self-announce: voter capability is read live by the
-// leader via raftManager.ProbePeerSchemaVersion, so the only durable
-// state needed in cluster_members is identity (addresses + suffrage),
-// which is already written on join via AddClusterMember.
+// selfUpsertClusterMember writes the leader's own cluster_members row.
+// Idempotent. Addresses come from the raft manager (authoritative
+// post-bind); existing Suffrage is preserved so a non-voter rejoin is
+// not silently promoted.
 func (db *Database) selfUpsertClusterMember(ctx context.Context, binaryVersion string) error {
 	if db.raftManager == nil {
 		return nil
@@ -1172,9 +1113,6 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	go db.runMigrationCheckWorker(workerCtx)
 
 	if observer := raftMgr.LeaderObserver(); observer != nil {
-		// The coordinator's periodic ticker must die with the database,
-		// so anchor its goroutine to workerCtx — Close cancels both the
-		// migration-check worker and any active leader-only ticker.
 		observer.Register(newClusterCoordinator(db, workerCtx))
 	}
 
