@@ -254,7 +254,7 @@ func CreateRoute(dbInstance *db.Database, reconcileRoutes func(context.Context) 
 			}
 		}
 
-		response := CreateSuccessResponse{Message: "Route created successfully", ID: routeID}
+		response := CreateSuccessResponse{Message: "Route created successfully", ID: strconv.FormatInt(routeID, 10)}
 		writeResponse(r.Context(), w, response, http.StatusCreated, logger.APILog)
 		logger.LogAuditEvent(r.Context(), CreateRouteAction, email, getClientIP(r), "User created route: "+fmt.Sprint(routeID))
 	})

@@ -506,9 +506,9 @@ func TestHandleNGSetupRequest_ResponseContainsAllConfiguredSlices(t *testing.T) 
 	amfInstance := amf.New(&FakeDBInstance{
 		Operator: op,
 		Slices: []db.NetworkSlice{
-			{ID: 1, Name: "eMBB", Sst: 1, Sd: &sd1},
-			{ID: 2, Name: "URLLC", Sst: 2, Sd: &sd2},
-			{ID: 3, Name: "mMTC", Sst: 3, Sd: nil},
+			{ID: "slice-1", Name: "eMBB", Sst: 1, Sd: &sd1},
+			{ID: "slice-2", Name: "URLLC", Sst: 2, Sd: &sd2},
+			{ID: "slice-3", Name: "mMTC", Sst: 3, Sd: nil},
 		},
 	}, nil, nil)
 	amfInstance.Name = "ella-core"

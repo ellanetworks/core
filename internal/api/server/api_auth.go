@@ -52,7 +52,7 @@ const (
 )
 
 // Helper function to generate a JWT
-func generateJWT(id int64, email string, roleID RoleID, jwtSecret []byte) (string, error) {
+func generateJWT(id string, email string, roleID RoleID, jwtSecret []byte) (string, error) {
 	now := time.Now()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims{
 		ID:     id,
@@ -246,7 +246,7 @@ func Login(dbInstance *db.Database, jwtSecret *JWTSecret, secureCookie bool, log
 	})
 }
 
-func createSessionAndSetCookie(ctx context.Context, dbInstance *db.Database, userID int64, secureCookie bool, w http.ResponseWriter) error {
+func createSessionAndSetCookie(ctx context.Context, dbInstance *db.Database, userID string, secureCookie bool, w http.ResponseWriter) error {
 	// Enforce session limit per user to prevent database bloat
 	sessionCount, err := dbInstance.CountSessionsByUser(ctx, userID)
 	if err != nil {

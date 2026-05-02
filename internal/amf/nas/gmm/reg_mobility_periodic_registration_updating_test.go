@@ -29,15 +29,15 @@ func (fdb *failingSubscriberDB) GetOperator(ctx context.Context) (*db.Operator, 
 	return fdb.Operator, nil
 }
 
-func (fdb *failingSubscriberDB) GetDataNetworkByID(ctx context.Context, id int) (*db.DataNetwork, error) {
+func (fdb *failingSubscriberDB) GetDataNetworkByID(ctx context.Context, id string) (*db.DataNetwork, error) {
 	return &db.DataNetwork{ID: id, Name: "TestDataNetwork"}, nil
 }
 
-func (fdb *failingSubscriberDB) GetNetworkSliceByID(_ context.Context, id int) (*db.NetworkSlice, error) {
+func (fdb *failingSubscriberDB) GetNetworkSliceByID(_ context.Context, id string) (*db.NetworkSlice, error) {
 	return &db.NetworkSlice{ID: id, Name: "TestSlice", Sst: 1}, nil
 }
 
-func (fdb *failingSubscriberDB) ListNetworkSlicesByIDs(_ context.Context, ids []int) ([]db.NetworkSlice, error) {
+func (fdb *failingSubscriberDB) ListNetworkSlicesByIDs(_ context.Context, ids []string) ([]db.NetworkSlice, error) {
 	var out []db.NetworkSlice
 	for _, id := range ids {
 		out = append(out, db.NetworkSlice{ID: id, Name: "TestSlice", Sst: 1})
@@ -50,20 +50,20 @@ func (fdb *failingSubscriberDB) GetSubscriber(ctx context.Context, imsi string) 
 	return nil, fmt.Errorf("subscriber not found")
 }
 
-func (fdb *failingSubscriberDB) GetProfileByID(ctx context.Context, id int) (*db.Profile, error) {
+func (fdb *failingSubscriberDB) GetProfileByID(ctx context.Context, id string) (*db.Profile, error) {
 	return &db.Profile{ID: id, Name: "TestProfile"}, nil
 }
 
 func (fdb *failingSubscriberDB) ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error) {
-	return []db.NetworkSlice{{ID: 1, Sst: 1, Name: "default"}}, nil
+	return []db.NetworkSlice{{ID: "slice-1", Sst: 1, Name: "default"}}, nil
 }
 
-func (fdb *failingSubscriberDB) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID int) (*db.Policy, error) {
-	return &db.Policy{ID: 1, Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: 1}, nil
+func (fdb *failingSubscriberDB) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID string) (*db.Policy, error) {
+	return &db.Policy{ID: "policy-1", Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: "dn-1"}, nil
 }
 
-func (fdb *failingSubscriberDB) ListPoliciesByProfile(_ context.Context, _ int) ([]db.Policy, error) {
-	return []db.Policy{{ID: 1, Name: "TestPolicy", ProfileID: 1, SliceID: 1, DataNetworkID: 1}}, nil
+func (fdb *failingSubscriberDB) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {
+	return []db.Policy{{ID: "policy-1", Name: "TestPolicy", ProfileID: "profile-1", SliceID: "slice-1", DataNetworkID: "dn-1"}}, nil
 }
 
 func (fdb *failingSubscriberDB) NodeID() int { return 0 }
@@ -856,30 +856,30 @@ func (m *multiSliceDB) GetOperator(ctx context.Context) (*db.Operator, error) {
 	return m.Operator, nil
 }
 
-func (m *multiSliceDB) GetDataNetworkByID(_ context.Context, id int) (*db.DataNetwork, error) {
+func (m *multiSliceDB) GetDataNetworkByID(_ context.Context, id string) (*db.DataNetwork, error) {
 	return &db.DataNetwork{ID: id, Name: "TestDataNetwork"}, nil
 }
 
-func (m *multiSliceDB) GetNetworkSliceByID(_ context.Context, id int) (*db.NetworkSlice, error) {
+func (m *multiSliceDB) GetNetworkSliceByID(_ context.Context, id string) (*db.NetworkSlice, error) {
 	sd1, sd2 := "010203", "aabbcc"
-	slices := map[int]*db.NetworkSlice{
-		1: {ID: 1, Name: "slice-a", Sst: 1, Sd: &sd1},
-		2: {ID: 2, Name: "slice-b", Sst: 2, Sd: &sd2},
+	slices := map[string]*db.NetworkSlice{
+		"slice-1": {ID: "slice-1", Name: "slice-a", Sst: 1, Sd: &sd1},
+		"slice-2": {ID: "slice-2", Name: "slice-b", Sst: 2, Sd: &sd2},
 	}
 
 	s, ok := slices[id]
 	if !ok {
-		return nil, fmt.Errorf("slice %d not found", id)
+		return nil, fmt.Errorf("slice %s not found", id)
 	}
 
 	return s, nil
 }
 
-func (m *multiSliceDB) ListNetworkSlicesByIDs(_ context.Context, ids []int) ([]db.NetworkSlice, error) {
+func (m *multiSliceDB) ListNetworkSlicesByIDs(_ context.Context, ids []string) ([]db.NetworkSlice, error) {
 	sd1, sd2 := "010203", "aabbcc"
-	slices := map[int]db.NetworkSlice{
-		1: {ID: 1, Name: "slice-a", Sst: 1, Sd: &sd1},
-		2: {ID: 2, Name: "slice-b", Sst: 2, Sd: &sd2},
+	slices := map[string]db.NetworkSlice{
+		"slice-1": {ID: "slice-1", Name: "slice-a", Sst: 1, Sd: &sd1},
+		"slice-2": {ID: "slice-2", Name: "slice-b", Sst: 2, Sd: &sd2},
 	}
 
 	var out []db.NetworkSlice
@@ -894,10 +894,10 @@ func (m *multiSliceDB) ListNetworkSlicesByIDs(_ context.Context, ids []int) ([]d
 }
 
 func (m *multiSliceDB) GetSubscriber(_ context.Context, imsi string) (*db.Subscriber, error) {
-	return &db.Subscriber{Imsi: imsi, ProfileID: 1}, nil
+	return &db.Subscriber{Imsi: imsi, ProfileID: "profile-1"}, nil
 }
 
-func (m *multiSliceDB) GetProfileByID(_ context.Context, id int) (*db.Profile, error) {
+func (m *multiSliceDB) GetProfileByID(_ context.Context, id string) (*db.Profile, error) {
 	return &db.Profile{ID: id, Name: "TestProfile"}, nil
 }
 
@@ -905,19 +905,19 @@ func (m *multiSliceDB) ListAllNetworkSlices(_ context.Context) ([]db.NetworkSlic
 	sd1, sd2 := "010203", "aabbcc"
 
 	return []db.NetworkSlice{
-		{ID: 1, Name: "slice-a", Sst: 1, Sd: &sd1},
-		{ID: 2, Name: "slice-b", Sst: 2, Sd: &sd2},
+		{ID: "slice-1", Name: "slice-a", Sst: 1, Sd: &sd1},
+		{ID: "slice-2", Name: "slice-b", Sst: 2, Sd: &sd2},
 	}, nil
 }
 
-func (m *multiSliceDB) GetPolicyByProfileAndSlice(_ context.Context, profileID, sliceID int) (*db.Policy, error) {
-	return &db.Policy{ID: sliceID, Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: 1}, nil
+func (m *multiSliceDB) GetPolicyByProfileAndSlice(_ context.Context, profileID, sliceID string) (*db.Policy, error) {
+	return &db.Policy{ID: sliceID, Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: "dn-1"}, nil
 }
 
-func (m *multiSliceDB) ListPoliciesByProfile(_ context.Context, _ int) ([]db.Policy, error) {
+func (m *multiSliceDB) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {
 	return []db.Policy{
-		{ID: 1, Name: "Policy-A", ProfileID: 1, SliceID: 1, DataNetworkID: 1},
-		{ID: 2, Name: "Policy-B", ProfileID: 1, SliceID: 2, DataNetworkID: 2},
+		{ID: "policy-1", Name: "Policy-A", ProfileID: "profile-1", SliceID: "slice-1", DataNetworkID: "dn-1"},
+		{ID: "policy-2", Name: "Policy-B", ProfileID: "profile-1", SliceID: "slice-2", DataNetworkID: "dn-2"},
 	}, nil
 }
 

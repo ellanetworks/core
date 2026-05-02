@@ -47,8 +47,8 @@ func TestDBUsersEndToEnd(t *testing.T) {
 		t.Fatalf("Couldn't complete Create: %s", err)
 	}
 
-	if userID == 0 {
-		t.Fatalf("Expected user ID to be non-zero after creation")
+	if userID == "" {
+		t.Fatalf("Expected user ID to be non-empty after creation")
 	}
 
 	res, total, err = database.ListUsersPage(context.Background(), 1, 10)

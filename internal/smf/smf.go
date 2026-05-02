@@ -77,7 +77,7 @@ type UPFClient interface {
 	FlushUsage(ctx context.Context, remoteSEID uint64)
 	DeleteSession(ctx context.Context, remoteSEID uint64) error
 
-	UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error
+	UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error
 }
 
 // AMFCallback abstracts the SMF → AMF communication.
@@ -96,7 +96,7 @@ type AMFCallback interface {
 // ResolvedNetworkRule represents a network rule attached to a policy for PDI/SDF filtering.
 type ResolvedNetworkRule struct {
 	Description  string
-	PolicyID     int64
+	PolicyID     string
 	Direction    models.Direction
 	RemotePrefix *string
 	Protocol     int32
@@ -109,7 +109,7 @@ type ResolvedNetworkRule struct {
 // Policy contains the QoS parameters, network rules, and DNN configuration
 // the SMF needs for a session.
 type Policy struct {
-	PolicyID     int64 // DB primary key; populated by GetSessionPolicy
+	PolicyID     string // DB primary key (UUID); populated by GetSessionPolicy
 	Ambr         models.Ambr
 	QosData      models.QosData
 	NetworkRules []*ResolvedNetworkRule

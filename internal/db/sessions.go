@@ -29,8 +29,8 @@ const (
 )
 
 type Session struct {
-	ID        string `db:"id"` // UUIDv7
-	UserID    int64  `db:"user_id"`
+	ID        string `db:"id"`      // UUIDv7
+	UserID    string `db:"user_id"` // FK to users.id (UUID)
 	TokenHash []byte `db:"token_hash"`
 	CreatedAt int64  `db:"created_at"` // store as Unix timestamp (seconds since epoch)
 	ExpiresAt int64  `db:"expires_at"` // store as Unix timestamp (seconds since epoch)
@@ -41,12 +41,12 @@ type SessionCutoff struct {
 }
 
 type UserIDArgs struct {
-	UserID int64 `db:"user_id"`
+	UserID string `db:"user_id"`
 }
 
 type DeleteOldestArgs struct {
-	UserID int64 `db:"user_id"`
-	Limit  int   `db:"limit"`
+	UserID string `db:"user_id"`
+	Limit  int    `db:"limit"`
 }
 
 func (db *Database) CreateSession(ctx context.Context, session *Session) error {
@@ -191,7 +191,7 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 	return result.(int), nil
 }
 
-func (db *Database) CountSessionsByUser(ctx context.Context, userID int64) (int, error) {
+func (db *Database) CountSessionsByUser(ctx context.Context, userID string) (int, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "COUNT", SessionsTableName),
@@ -226,7 +226,7 @@ func (db *Database) CountSessionsByUser(ctx context.Context, userID int64) (int,
 	return result.Count, nil
 }
 
-func (db *Database) DeleteOldestSessions(ctx context.Context, userID int64, limit int) error {
+func (db *Database) DeleteOldestSessions(ctx context.Context, userID string, limit int) error {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", SessionsTableName),
@@ -257,7 +257,7 @@ func (db *Database) DeleteOldestSessions(ctx context.Context, userID int64, limi
 	return nil
 }
 
-func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID int64) error {
+func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID string) error {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", SessionsTableName),
@@ -275,7 +275,7 @@ func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID int64) 
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	_, err := opDeleteAllSessionsForUser.Invoke(db, &int64Payload{Value: userID})
+	_, err := opDeleteAllSessionsForUser.Invoke(db, &stringPayload{Value: userID})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -21,7 +22,7 @@ const (
 	listProfilesPagedStmt         = "SELECT &Profile.*, COUNT(*) OVER() AS &NumItems.count FROM %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getProfileStmt                = "SELECT &Profile.* FROM %s WHERE name==$Profile.name"
 	getProfileByIDStmt            = "SELECT &Profile.* FROM %s WHERE id==$Profile.id"
-	createProfileStmt             = "INSERT INTO %s (name, ueAmbrUplink, ueAmbrDownlink) VALUES ($Profile.name, $Profile.ueAmbrUplink, $Profile.ueAmbrDownlink)"
+	createProfileStmt             = "INSERT INTO %s (id, name, ueAmbrUplink, ueAmbrDownlink) VALUES ($Profile.id, $Profile.name, $Profile.ueAmbrUplink, $Profile.ueAmbrDownlink)"
 	editProfileStmt               = "UPDATE %s SET ueAmbrUplink=$Profile.ueAmbrUplink, ueAmbrDownlink=$Profile.ueAmbrDownlink WHERE name==$Profile.name"
 	deleteProfileStmt             = "DELETE FROM %s WHERE name==$Profile.name"
 	countProfilesStmt             = "SELECT COUNT(*) AS &NumItems.count FROM %s"
@@ -29,7 +30,7 @@ const (
 )
 
 type Profile struct {
-	ID             int    `db:"id"`
+	ID             string `db:"id"` // UUIDv7
 	Name           string `db:"name"`
 	UeAmbrUplink   string `db:"ueAmbrUplink"`
 	UeAmbrDownlink string `db:"ueAmbrDownlink"`
@@ -131,7 +132,7 @@ func (db *Database) GetProfile(ctx context.Context, name string) (*Profile, erro
 	return &row, nil
 }
 
-func (db *Database) GetProfileByID(ctx context.Context, id int) (*Profile, error) {
+func (db *Database) GetProfileByID(ctx context.Context, id string) (*Profile, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "SELECT", ProfilesTableName),
@@ -186,6 +187,15 @@ func (db *Database) CreateProfile(ctx context.Context, profile *Profile) error {
 	defer timer.ObserveDuration()
 
 	DBQueriesTotal.WithLabelValues(ProfilesTableName, "insert").Inc()
+
+	if profile.ID == "" {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("generate profile id: %w", err)
+		}
+
+		profile.ID = id.String()
+	}
 
 	_, err := opCreateProfile.Invoke(db, profile)
 	if err != nil {
@@ -295,7 +305,7 @@ func (db *Database) CountProfiles(ctx context.Context) (int, error) {
 	return result.Count, nil
 }
 
-func (db *Database) CountSubscribersInProfile(ctx context.Context, profileID int) (int, error) {
+func (db *Database) CountSubscribersInProfile(ctx context.Context, profileID string) (int, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (by profile)", "SELECT", SubscribersTableName),
@@ -304,7 +314,7 @@ func (db *Database) CountSubscribersInProfile(ctx context.Context, profileID int
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", SubscribersTableName),
-			attribute.Int("profile_id", profileID),
+			attribute.String("profile_id", profileID),
 		),
 	)
 	defer span.End()

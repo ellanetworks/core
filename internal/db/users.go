@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -21,7 +22,7 @@ const (
 	listUsersPageStmt    = "SELECT &User.*, COUNT(*) OVER() AS &NumItems.count from %s ORDER BY id LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getUserStmt          = "SELECT &User.* from %s WHERE email==$User.email"
 	getUserByIDStmt      = "SELECT &User.* from %s WHERE id==$User.id"
-	createUserStmt       = "INSERT INTO %s (email, roleID, hashedPassword) VALUES ($User.email, $User.roleID, $User.hashedPassword)"
+	createUserStmt       = "INSERT INTO %s (id, email, roleID, hashedPassword) VALUES ($User.id, $User.email, $User.roleID, $User.hashedPassword)"
 	editUserStmt         = "UPDATE %s SET roleID=$User.roleID WHERE email==$User.email"
 	editUserPasswordStmt = "UPDATE %s SET hashedPassword=$User.hashedPassword WHERE email==$User.email" // #nosec: G101
 	deleteUserStmt       = "DELETE FROM %s WHERE email==$User.email"
@@ -37,7 +38,7 @@ const (
 )
 
 type User struct {
-	ID             int64  `db:"id"`
+	ID             string `db:"id"` // UUIDv7
 	Email          string `db:"email"`
 	RoleID         RoleID `db:"roleID"`
 	HashedPassword string `db:"hashedPassword"`
@@ -141,7 +142,7 @@ func (db *Database) GetUser(ctx context.Context, email string) (*User, error) {
 }
 
 // GetUserByID fetches a single user by ID with a span named "SELECT users".
-func (db *Database) GetUserByID(ctx context.Context, id int64) (*User, error) {
+func (db *Database) GetUserByID(ctx context.Context, id string) (*User, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "SELECT", UsersTableName),
@@ -179,7 +180,7 @@ func (db *Database) GetUserByID(ctx context.Context, id int64) (*User, error) {
 	return &row, nil
 }
 
-func (db *Database) CreateUser(ctx context.Context, user *User) (int64, error) {
+func (db *Database) CreateUser(ctx context.Context, user *User) (string, error) {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", UsersTableName),
@@ -197,17 +198,25 @@ func (db *Database) CreateUser(ctx context.Context, user *User) (int64, error) {
 
 	DBQueriesTotal.WithLabelValues(UsersTableName, "insert").Inc()
 
-	result, err := opCreateUser.Invoke(db, user)
-	if err != nil {
+	if user.ID == "" {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return "", fmt.Errorf("generate user id: %w", err)
+		}
+
+		user.ID = id.String()
+	}
+
+	if _, err := opCreateUser.Invoke(db, user); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 
-		return 0, err
+		return "", err
 	}
 
 	span.SetStatus(codes.Ok, "")
 
-	return result.(int64), nil
+	return user.ID, nil
 }
 
 // UpdateUser updates a user's role with a span named "UPDATE users".

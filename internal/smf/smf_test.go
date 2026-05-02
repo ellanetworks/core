@@ -138,7 +138,7 @@ func (f *fakeUPF) DeleteSession(_ context.Context, remoteSEID uint64) error {
 
 func (f *fakeUPF) FlushUsage(_ context.Context, _ uint64) {}
 
-func (f *fakeUPF) UpdateFilters(_ context.Context, _ int64, _ models.Direction, _ []models.FilterRule) error {
+func (f *fakeUPF) UpdateFilters(_ context.Context, _ string, _ models.Direction, _ []models.FilterRule) error {
 	return nil
 }
 

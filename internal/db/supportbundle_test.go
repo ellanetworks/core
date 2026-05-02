@@ -136,7 +136,7 @@ func TestExportSupportData_WithEntries(t *testing.T) {
 		t.Fatalf("unable to list data networks: %v", err)
 	}
 
-	var dnID int
+	var dnID string
 
 	for _, d := range dns {
 		if d.Name == dn.Name {
@@ -145,11 +145,21 @@ func TestExportSupportData_WithEntries(t *testing.T) {
 		}
 	}
 
-	if dnID == 0 {
+	if dnID == "" {
 		t.Fatalf("couldn't find created data network")
 	}
 
-	policy := &db.Policy{Name: "support-policy", SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "100 Mbps", Var5qi: 9, Arp: 1, DataNetworkID: dnID, ProfileID: 1, SliceID: 1}
+	defaultProfile, err := database.GetProfile(context.Background(), db.InitialProfileName)
+	if err != nil {
+		t.Fatalf("Couldn't get default profile: %v", err)
+	}
+
+	defaultSlice, err := database.GetNetworkSlice(context.Background(), db.InitialSliceName)
+	if err != nil {
+		t.Fatalf("Couldn't get default slice: %v", err)
+	}
+
+	policy := &db.Policy{Name: "support-policy", SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "100 Mbps", Var5qi: 9, Arp: 1, DataNetworkID: dnID, ProfileID: defaultProfile.ID, SliceID: defaultSlice.ID}
 	if err := database.CreatePolicy(context.Background(), policy); err != nil {
 		t.Fatalf("CreatePolicy failed: %v", err)
 	}
@@ -160,7 +170,7 @@ func TestExportSupportData_WithEntries(t *testing.T) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   strings.Repeat("p", 32),
 		Opc:            strings.Repeat("o", 32),
-		ProfileID:      1,
+		ProfileID:      defaultProfile.ID,
 	}
 	if err := database.CreateSubscriber(context.Background(), sub); err != nil {
 		t.Fatalf("CreateSubscriber failed: %v", err)
@@ -239,15 +249,8 @@ func TestExportSupportData_WithEntries(t *testing.T) {
 				idAny = v
 			}
 
-			switch idv := idAny.(type) {
-			case int:
-				if idv == dnID {
-					foundPolicy = true
-				}
-			case float64:
-				if int(idv) == dnID {
-					foundPolicy = true
-				}
+			if idv, ok := idAny.(string); ok && idv == dnID {
+				foundPolicy = true
 			}
 		}
 	}

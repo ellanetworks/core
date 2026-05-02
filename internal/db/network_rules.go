@@ -34,8 +34,8 @@ const (
 const gap = 100
 
 type NetworkRule struct {
-	ID           string    `db:"id"` // UUIDv7
-	PolicyID     int64     `db:"policy_id"`
+	ID           string    `db:"id"`        // UUIDv7
+	PolicyID     string    `db:"policy_id"` // FK to policies.id (UUID)
 	Description  string    `db:"description"`
 	Direction    string    `db:"direction"`
 	RemotePrefix *string   `db:"remote_prefix"`
@@ -167,7 +167,7 @@ func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) erro
 }
 
 // ReorderRulesForPolicy moves a rule to a new position within its policy and normalizes all precedence values.
-func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID int64, movedRuleID string, newIndex int, direction string) error {
+func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID string, movedRuleID string, newIndex int, direction string) error {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", NetworkRulesTableName),
@@ -333,7 +333,7 @@ func (db *Database) CountNetworkRules(ctx context.Context) (int, error) {
 }
 
 // ListRulesForPolicy retrieves all network rules associated with a policy.
-func (db *Database) ListRulesForPolicy(ctx context.Context, policyID int64) ([]*NetworkRule, error) {
+func (db *Database) ListRulesForPolicy(ctx context.Context, policyID string) ([]*NetworkRule, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "SELECT", NetworkRulesTableName),
@@ -426,7 +426,7 @@ func (t *Transaction) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (s
 }
 
 // DeleteNetworkRulesByPolicyID deletes all network rules for a given policy ID within a transaction.
-func (t *Transaction) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID int64) error {
+func (t *Transaction) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID string) error {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName),
@@ -460,7 +460,7 @@ func (t *Transaction) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID
 }
 
 // DeleteNetworkRulesByPolicyID deletes all network rules for a given policy ID.
-func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID int64) error {
+func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID string) error {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName),
@@ -478,7 +478,7 @@ func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID i
 
 	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "delete").Inc()
 
-	_, err := opDeleteNetworkRulesByPolicy.Invoke(db, &int64Payload{Value: policyID})
+	_, err := opDeleteNetworkRulesByPolicy.Invoke(db, &stringPayload{Value: policyID})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

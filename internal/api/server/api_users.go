@@ -425,7 +425,7 @@ func UpdateMyUserPassword(dbInstance *db.Database, bcryptCost int) http.Handler 
 
 		userIDAny := r.Context().Value(contextKeyUserID)
 
-		userID, ok := userIDAny.(int64)
+		userID, ok := userIDAny.(string)
 		if !ok {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get user ID", errors.New("user ID missing in context"), logger.APILog)
 			return
@@ -563,7 +563,7 @@ func ListMyAPITokens(dbInstance *db.Database) http.Handler {
 
 		userIDAny := r.Context().Value(contextKeyUserID)
 
-		userID, ok := userIDAny.(int64)
+		userID, ok := userIDAny.(string)
 		if !ok {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get user ID", errors.New("user ID missing in context"), logger.APILog)
 			return
@@ -651,7 +651,7 @@ func CreateMyAPIToken(dbInstance *db.Database, bcryptCost int) http.Handler {
 
 		userIDAny := r.Context().Value(contextKeyUserID)
 
-		userID, ok := userIDAny.(int64)
+		userID, ok := userIDAny.(string)
 		if !ok {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get user ID", errors.New("user ID missing in context"), logger.APILog)
 			return
@@ -763,7 +763,7 @@ func DeleteMyAPIToken(dbInstance *db.Database) http.Handler {
 
 		userIDAny := r.Context().Value(contextKeyUserID)
 
-		userID, ok := userIDAny.(int64)
+		userID, ok := userIDAny.(string)
 		if !ok {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get user ID", errors.New("user ID missing in context"), logger.APILog)
 			return

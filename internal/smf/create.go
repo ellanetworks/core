@@ -335,7 +335,7 @@ func (s *SMF) sendPFCPRules(ctx context.Context, smContext *SMContext) error {
 		return fmt.Errorf("PFCP context not initialized")
 	}
 
-	var policyID int64
+	var policyID string
 	if smContext.PolicyData != nil {
 		policyID = smContext.PolicyData.PolicyID
 	}

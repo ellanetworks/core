@@ -11,7 +11,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
-func createDataNetworkPolicyAndSubscriber(database *db.Database, imsi string) (int, error) {
+func createDataNetworkPolicyAndSubscriber(database *db.Database, imsi string) (string, error) {
 	newDataNetwork := &db.DataNetwork{
 		Name:   "not-internet",
 		IPPool: "1.2.3.0/24",
@@ -19,12 +19,12 @@ func createDataNetworkPolicyAndSubscriber(database *db.Database, imsi string) (i
 
 	err := database.CreateDataNetwork(context.Background(), newDataNetwork)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	createdNetwork, err := database.GetDataNetwork(context.Background(), newDataNetwork.Name)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	profile := &db.Profile{
@@ -35,12 +35,12 @@ func createDataNetworkPolicyAndSubscriber(database *db.Database, imsi string) (i
 
 	err = database.CreateProfile(context.Background(), profile)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	createdProfile, err := database.GetProfile(context.Background(), profile.Name)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	slice := &db.NetworkSlice{
@@ -50,12 +50,12 @@ func createDataNetworkPolicyAndSubscriber(database *db.Database, imsi string) (i
 
 	err = database.CreateNetworkSlice(context.Background(), slice)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	createdSlice, err := database.GetNetworkSlice(context.Background(), slice.Name)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	policy := &db.Policy{
@@ -71,7 +71,7 @@ func createDataNetworkPolicyAndSubscriber(database *db.Database, imsi string) (i
 
 	err = database.CreatePolicy(context.Background(), policy)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	subscriber := &db.Subscriber{
@@ -84,7 +84,7 @@ func createDataNetworkPolicyAndSubscriber(database *db.Database, imsi string) (i
 
 	err = database.CreateSubscriber(context.Background(), subscriber)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	return createdProfile.ID, nil

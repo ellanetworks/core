@@ -127,19 +127,19 @@ func (f *fakeDBInstance) GetSubscriber(context.Context, string) (*db.Subscriber,
 	return nil, nil
 }
 
-func (f *fakeDBInstance) GetDataNetworkByID(context.Context, int) (*db.DataNetwork, error) {
+func (f *fakeDBInstance) GetDataNetworkByID(context.Context, string) (*db.DataNetwork, error) {
 	return nil, nil
 }
 
-func (f *fakeDBInstance) GetNetworkSliceByID(context.Context, int) (*db.NetworkSlice, error) {
+func (f *fakeDBInstance) GetNetworkSliceByID(context.Context, string) (*db.NetworkSlice, error) {
 	return nil, nil
 }
 
-func (f *fakeDBInstance) ListNetworkSlicesByIDs(context.Context, []int) ([]db.NetworkSlice, error) {
+func (f *fakeDBInstance) ListNetworkSlicesByIDs(context.Context, []string) ([]db.NetworkSlice, error) {
 	return nil, nil
 }
 
-func (f *fakeDBInstance) GetProfileByID(context.Context, int) (*db.Profile, error) {
+func (f *fakeDBInstance) GetProfileByID(context.Context, string) (*db.Profile, error) {
 	return nil, nil
 }
 
@@ -147,11 +147,11 @@ func (f *fakeDBInstance) ListAllNetworkSlices(context.Context) ([]db.NetworkSlic
 	return nil, nil
 }
 
-func (f *fakeDBInstance) GetPolicyByProfileAndSlice(context.Context, int, int) (*db.Policy, error) {
+func (f *fakeDBInstance) GetPolicyByProfileAndSlice(context.Context, string, string) (*db.Policy, error) {
 	return nil, nil
 }
 
-func (f *fakeDBInstance) ListPoliciesByProfile(context.Context, int) ([]db.Policy, error) {
+func (f *fakeDBInstance) ListPoliciesByProfile(context.Context, string) ([]db.Policy, error) {
 	return nil, nil
 }
 

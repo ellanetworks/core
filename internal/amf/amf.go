@@ -79,13 +79,13 @@ type TimerValue struct {
 type DBer interface {
 	GetOperator(ctx context.Context) (*db.Operator, error)
 	GetSubscriber(ctx context.Context, imsi string) (*db.Subscriber, error)
-	GetDataNetworkByID(ctx context.Context, id int) (*db.DataNetwork, error)
-	GetNetworkSliceByID(ctx context.Context, id int) (*db.NetworkSlice, error)
-	ListNetworkSlicesByIDs(ctx context.Context, ids []int) ([]db.NetworkSlice, error)
-	GetProfileByID(ctx context.Context, id int) (*db.Profile, error)
-	GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID int) (*db.Policy, error)
+	GetDataNetworkByID(ctx context.Context, id string) (*db.DataNetwork, error)
+	GetNetworkSliceByID(ctx context.Context, id string) (*db.NetworkSlice, error)
+	ListNetworkSlicesByIDs(ctx context.Context, ids []string) ([]db.NetworkSlice, error)
+	GetProfileByID(ctx context.Context, id string) (*db.Profile, error)
+	GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID string) (*db.Policy, error)
 	ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error)
-	ListPoliciesByProfile(ctx context.Context, profileID int) ([]db.Policy, error)
+	ListPoliciesByProfile(ctx context.Context, profileID string) ([]db.Policy, error)
 	NodeID() int
 }
 

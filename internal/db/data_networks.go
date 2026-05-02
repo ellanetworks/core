@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -22,14 +23,14 @@ const (
 	listAllDataNetworksStmt   = "SELECT &DataNetwork.* FROM %s ORDER BY id ASC"
 	getDataNetworkStmt        = "SELECT &DataNetwork.* from %s WHERE name==$DataNetwork.name"
 	getDataNetworkByIDStmt    = "SELECT &DataNetwork.* FROM %s WHERE id==$DataNetwork.id"
-	createDataNetworkStmt     = "INSERT INTO %s (name, ipPool, dns, mtu) VALUES ($DataNetwork.name, $DataNetwork.ipPool, $DataNetwork.dns, $DataNetwork.mtu)"
+	createDataNetworkStmt     = "INSERT INTO %s (id, name, ipPool, dns, mtu) VALUES ($DataNetwork.id, $DataNetwork.name, $DataNetwork.ipPool, $DataNetwork.dns, $DataNetwork.mtu)"
 	editDataNetworkStmt       = "UPDATE %s SET ipPool=$DataNetwork.ipPool, dns=$DataNetwork.dns, mtu=$DataNetwork.mtu WHERE name==$DataNetwork.name"
 	deleteDataNetworkStmt     = "DELETE FROM %s WHERE name==$DataNetwork.name"
 	countDataNetworksStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
 type DataNetwork struct {
-	ID     int    `db:"id"`
+	ID     string `db:"id"` // UUIDv7
 	Name   string `db:"name"`
 	IPPool string `db:"ipPool"`
 	DNS    string `db:"dns"`
@@ -173,7 +174,7 @@ func (db *Database) GetDataNetwork(ctx context.Context, name string) (*DataNetwo
 	return &row, nil
 }
 
-func (db *Database) GetDataNetworkByID(ctx context.Context, id int) (*DataNetwork, error) {
+func (db *Database) GetDataNetworkByID(ctx context.Context, id string) (*DataNetwork, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "SELECT", DataNetworksTableName),
@@ -230,6 +231,15 @@ func (db *Database) CreateDataNetwork(ctx context.Context, dataNetwork *DataNetw
 	defer timer.ObserveDuration()
 
 	DBQueriesTotal.WithLabelValues(DataNetworksTableName, "insert").Inc()
+
+	if dataNetwork.ID == "" {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("generate data network id: %w", err)
+		}
+
+		dataNetwork.ID = id.String()
+	}
 
 	_, err := opCreateDataNetwork.Invoke(db, dataNetwork)
 	if err != nil {

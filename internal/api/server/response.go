@@ -17,7 +17,7 @@ type SuccessResponse struct {
 
 type CreateSuccessResponse struct {
 	Message string `json:"message"`
-	ID      int64  `json:"id"`
+	ID      string `json:"id"` // UUIDv7 of created resource
 }
 
 type ErrorResponse struct {

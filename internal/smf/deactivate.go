@@ -60,7 +60,7 @@ func (s *SMF) DeactivateSmContext(ctx context.Context, smContextRef string) erro
 
 	err = s.upf.ModifySession(ctx, BuildModifyRequest(
 		remoteSEID,
-		0,
+		"",
 		nil, farList, nil,
 	))
 	if err != nil {

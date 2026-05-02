@@ -54,9 +54,33 @@ func TestDatabaseMetrics(t *testing.T) {
 		t.Fatalf("Couldn't get data network 2: %s", err)
 	}
 
+	profile := &db.Profile{
+		Name:           "test-profile",
+		UeAmbrUplink:   "200 Mbps",
+		UeAmbrDownlink: "200 Mbps",
+	}
+	if err := database.CreateProfile(context.Background(), profile); err != nil {
+		t.Fatalf("Couldn't create profile: %s", err)
+	}
+
+	createdProfile, err := database.GetProfile(context.Background(), profile.Name)
+	if err != nil {
+		t.Fatalf("Couldn't get profile: %s", err)
+	}
+
+	slice := &db.NetworkSlice{Name: "test-slice", Sst: 1}
+	if err := database.CreateNetworkSlice(context.Background(), slice); err != nil {
+		t.Fatalf("Couldn't create network slice: %s", err)
+	}
+
+	createdSlice, err := database.GetNetworkSlice(context.Background(), slice.Name)
+	if err != nil {
+		t.Fatalf("Couldn't get network slice: %s", err)
+	}
+
 	policies := []db.Policy{
-		{Name: "Policy1", DataNetworkID: createdDN.ID, ProfileID: 1, SliceID: 1},
-		{Name: "Policy2", DataNetworkID: createdDN2.ID, ProfileID: 1, SliceID: 1},
+		{Name: "Policy1", DataNetworkID: createdDN.ID, ProfileID: createdProfile.ID, SliceID: createdSlice.ID},
+		{Name: "Policy2", DataNetworkID: createdDN2.ID, ProfileID: createdProfile.ID, SliceID: createdSlice.ID},
 	}
 	for _, policy := range policies {
 		err := database.CreatePolicy(context.Background(), &policy)
@@ -69,21 +93,21 @@ func TestDatabaseMetrics(t *testing.T) {
 		{
 			Imsi:           "001019379926281",
 			SequenceNumber: "000000000001",
-			ProfileID:      1,
+			ProfileID:      createdProfile.ID,
 			Opc:            "1234567890abcdef1234567890abcdef",
 			PermanentKey:   "1234567890abcdef1234567890abcdef",
 		},
 		{
 			Imsi:           "001019379926282",
 			SequenceNumber: "000000000002",
-			ProfileID:      1,
+			ProfileID:      createdProfile.ID,
 			Opc:            "1234567890abcdef1234567890abcdef",
 			PermanentKey:   "1234567890abcdef1234567890abcdef",
 		},
 		{
 			Imsi:           "001019379926283",
 			SequenceNumber: "000000000003",
-			ProfileID:      1,
+			ProfileID:      createdProfile.ID,
 			Opc:            "1234567890abcdef1234567890abcdef",
 			PermanentKey:   "1234567890abcdef1234567890abcdef",
 		},

@@ -234,7 +234,7 @@ func (u *UPF) UpdateAdvertisedN3Address(newN3Addr netip.Addr) {
 	}
 }
 
-func (u *UPF) UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {
+func (u *UPF) UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error {
 	return u.se.UpdateFilters(ctx, policyID, direction, rules)
 }
 

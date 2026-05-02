@@ -224,7 +224,7 @@ func validatePolicyRules(rules *PolicyRules) error {
 	return nil
 }
 
-func createNetworkRulesForPolicyTx(ctx context.Context, tx *db.Transaction, policyID int64, rules *PolicyRules) error {
+func createNetworkRulesForPolicyTx(ctx context.Context, tx *db.Transaction, policyID string, rules *PolicyRules) error {
 	if rules == nil {
 		return nil
 	}
@@ -358,7 +358,7 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func getPolicyRulesForPolicy(ctx context.Context, dbInstance *db.Database, policyID int64) (*PolicyRules, error) {
+func getPolicyRulesForPolicy(ctx context.Context, dbInstance *db.Database, policyID string) (*PolicyRules, error) {
 	rules, err := dbInstance.ListRulesForPolicy(ctx, policyID)
 	if err != nil {
 		return nil, err
@@ -437,7 +437,7 @@ func GetPolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		rules, err := getPolicyRulesForPolicy(r.Context(), dbInstance, int64(dbPolicy.ID))
+		rules, err := getPolicyRulesForPolicy(r.Context(), dbInstance, dbPolicy.ID)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve policy rules", err, logger.APILog)
 			return
@@ -679,12 +679,12 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 
 		// Omitting the rules field in the request body is treated as an
 		// explicit deletion of all rules. Re-creating happens below.
-		if err := tx.DeleteNetworkRulesByPolicyID(r.Context(), int64(policy.ID)); err != nil {
+		if err := tx.DeleteNetworkRulesByPolicyID(r.Context(), policy.ID); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete existing policy rules", err, logger.APILog)
 			return
 		}
 
-		if err := createNetworkRulesForPolicyTx(r.Context(), tx, int64(policy.ID), updatePolicyParams.Rules); err != nil {
+		if err := createNetworkRulesForPolicyTx(r.Context(), tx, policy.ID, updatePolicyParams.Rules); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create policy rules", err, logger.APILog)
 			return
 		}

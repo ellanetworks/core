@@ -3040,8 +3040,9 @@ components:
         message:
           type: string
         id:
-          type: integer
-          format: int64
+          type: string
+          format: uuid
+          description: UUIDv7 of the created resource.
       required: [message, id]
 
     RetentionPolicyParams:
@@ -3937,8 +3938,9 @@ components:
       type: object
       properties:
         id:
-          type: integer
-          description: Internal database ID.
+          type: string
+          format: uuid
+          description: Internal UUIDv7 database ID.
         keyIdentifier:
           type: integer
           minimum: 0

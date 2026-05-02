@@ -18,7 +18,7 @@ const (
 )
 
 type CreateRouteResponseResult struct {
-	ID      int64  `json:"id"`
+	ID      string `json:"id"` // CreateSuccessResponse.id is a string (decimal-formatted route id for local-only routes table)
 	Message string `json:"message"`
 }
 

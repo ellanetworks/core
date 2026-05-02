@@ -288,7 +288,7 @@ func TestListNetworkSlicesByIDs(t *testing.T) {
 	}
 
 	// Fetch subset of IDs
-	slices, err := database.ListNetworkSlicesByIDs(context.Background(), []int{defaultSlice.ID, sliceB.ID})
+	slices, err := database.ListNetworkSlicesByIDs(context.Background(), []string{defaultSlice.ID, sliceB.ID})
 	if err != nil {
 		t.Fatalf("Couldn't complete ListNetworkSlicesByIDs: %s", err)
 	}
@@ -297,17 +297,17 @@ func TestListNetworkSlicesByIDs(t *testing.T) {
 		t.Fatalf("Expected 2 slices, got %d", len(slices))
 	}
 
-	foundIDs := map[int]bool{}
+	foundIDs := map[string]bool{}
 	for _, s := range slices {
 		foundIDs[s.ID] = true
 	}
 
 	if !foundIDs[defaultSlice.ID] || !foundIDs[sliceB.ID] {
-		t.Fatalf("Expected IDs %d and %d, got %v", defaultSlice.ID, sliceB.ID, foundIDs)
+		t.Fatalf("Expected IDs %s and %s, got %v", defaultSlice.ID, sliceB.ID, foundIDs)
 	}
 
 	// Fetch all three
-	slices, err = database.ListNetworkSlicesByIDs(context.Background(), []int{defaultSlice.ID, sliceA.ID, sliceB.ID})
+	slices, err = database.ListNetworkSlicesByIDs(context.Background(), []string{defaultSlice.ID, sliceA.ID, sliceB.ID})
 	if err != nil {
 		t.Fatalf("Couldn't complete ListNetworkSlicesByIDs: %s", err)
 	}
@@ -317,7 +317,7 @@ func TestListNetworkSlicesByIDs(t *testing.T) {
 	}
 
 	// Empty IDs returns nil
-	slices, err = database.ListNetworkSlicesByIDs(context.Background(), []int{})
+	slices, err = database.ListNetworkSlicesByIDs(context.Background(), []string{})
 	if err != nil {
 		t.Fatalf("Couldn't complete ListNetworkSlicesByIDs with empty IDs: %s", err)
 	}
@@ -327,7 +327,7 @@ func TestListNetworkSlicesByIDs(t *testing.T) {
 	}
 
 	// Non-existent IDs return empty
-	slices, err = database.ListNetworkSlicesByIDs(context.Background(), []int{9999})
+	slices, err = database.ListNetworkSlicesByIDs(context.Background(), []string{"nonexistent-slice"})
 	if err != nil {
 		t.Fatalf("Couldn't complete ListNetworkSlicesByIDs with non-existent ID: %s", err)
 	}

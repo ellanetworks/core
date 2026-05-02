@@ -22,7 +22,7 @@ type APIToken struct {
 	TokenID   string     `db:"token_id"`
 	Name      string     `db:"name"`
 	TokenHash string     `db:"token_hash"`
-	UserID    int64      `db:"user_id"`
+	UserID    string     `db:"user_id"` // FK to users.id (UUID)
 	ExpiresAt *time.Time `db:"expires_at"`
 }
 
@@ -35,7 +35,7 @@ const (
 	countAPITokensStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE user_id==$APIToken.user_id"                                                                                                                   // #nosec: G101
 )
 
-func (db *Database) ListAPITokensPage(ctx context.Context, userID int64, page int, perPage int) ([]APIToken, int, error) {
+func (db *Database) ListAPITokensPage(ctx context.Context, userID string, page int, perPage int) ([]APIToken, int, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (paged)", "SELECT", APITokensTableName),
@@ -174,7 +174,7 @@ func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (*
 	return &row, nil
 }
 
-func (db *Database) GetAPITokenByName(ctx context.Context, userID int64, name string) (*APIToken, error) {
+func (db *Database) GetAPITokenByName(ctx context.Context, userID string, name string) (*APIToken, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "SELECT", APITokensTableName),
@@ -243,7 +243,7 @@ func (db *Database) DeleteAPIToken(ctx context.Context, id string) error {
 	return nil
 }
 
-func (db *Database) CountAPITokens(ctx context.Context, userID int64) (int, error) {
+func (db *Database) CountAPITokens(ctx context.Context, userID string) (int, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "SELECT", APITokensTableName),

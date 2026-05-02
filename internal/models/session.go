@@ -13,7 +13,7 @@ import (
 type EstablishRequest struct {
 	LocalSEID uint64
 	IMSI      string
-	PolicyID  int64
+	PolicyID  string
 	PDRs      []PDR
 	FARs      []FAR
 	QERs      []QER
@@ -130,7 +130,7 @@ type URR struct {
 // RuleUpdate→Update, RuleRemove→Remove).
 type ModifyRequest struct {
 	SEID     uint64
-	PolicyID int64
+	PolicyID string
 
 	CreatePDRs   []PDR
 	UpdatePDRs   []PDR

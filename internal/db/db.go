@@ -922,11 +922,15 @@ func newClusterCoordinator(db *Database, parentCtx context.Context) *clusterCoor
 }
 
 func (c *clusterCoordinator) OnBecameLeader() {
-	// Drain previous-term entries before any subsequent observer
-	// callback (notably the leadership-audit callback) captures. Without
-	// this barrier, the new leader's first capture can pick the same
-	// AUTOINCREMENT id as a pending-but-not-yet-applied entry from the
-	// previous leader, causing sqlite3changeset_apply CONFLICT on apply.
+	// Drain previous-term entries before any subsequent observer callback
+	// (notably the leadership-audit callback) captures. The original
+	// motivation was the AUTOINCREMENT race on the leader-takeover
+	// boundary; that class is now closed by spec_uuid.md — replicated
+	// PKs are UUIDs generated at the request handler, never derived from
+	// rollback-able local state. The barrier is kept as defense in depth
+	// for any future ordering invariant that needs the FSM caught up
+	// before leader-only work begins. Cost is one Raft log entry per
+	// leader transition.
 	if err := c.db.raftManager.Barrier(barrierTimeout); err != nil {
 		logger.DBLog.Error("leader-takeover barrier failed", zap.Error(err))
 	}

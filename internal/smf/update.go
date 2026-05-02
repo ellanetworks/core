@@ -170,7 +170,7 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 
 	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
 		smContext.PFCPContext.RemoteSEID,
-		0,
+		"",
 		pdrList, farList, nil,
 	)); err != nil {
 		span.RecordError(err)
@@ -562,7 +562,7 @@ func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smCont
 
 	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
 		smContext.PFCPContext.RemoteSEID,
-		0,
+		"",
 		pdrList, farList, nil,
 	)); err != nil {
 		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)

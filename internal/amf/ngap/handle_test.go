@@ -169,18 +169,18 @@ func (fdb *FakeDBInstance) GetOperator(ctx context.Context) (*db.Operator, error
 	return fdb.Operator, nil
 }
 
-func (fdb *FakeDBInstance) GetDataNetworkByID(ctx context.Context, id int) (*db.DataNetwork, error) {
+func (fdb *FakeDBInstance) GetDataNetworkByID(ctx context.Context, id string) (*db.DataNetwork, error) {
 	return &db.DataNetwork{
 		ID:   id,
 		Name: "TestDataNetwork",
 	}, nil
 }
 
-func (fdb *FakeDBInstance) GetNetworkSliceByID(_ context.Context, id int) (*db.NetworkSlice, error) {
+func (fdb *FakeDBInstance) GetNetworkSliceByID(_ context.Context, id string) (*db.NetworkSlice, error) {
 	return &db.NetworkSlice{ID: id, Name: "TestSlice", Sst: 1}, nil
 }
 
-func (fdb *FakeDBInstance) ListNetworkSlicesByIDs(_ context.Context, ids []int) ([]db.NetworkSlice, error) {
+func (fdb *FakeDBInstance) ListNetworkSlicesByIDs(_ context.Context, ids []string) ([]db.NetworkSlice, error) {
 	var out []db.NetworkSlice
 	for _, id := range ids {
 		out = append(out, db.NetworkSlice{ID: id, Name: "TestSlice", Sst: 1})
@@ -195,7 +195,7 @@ func (fdb *FakeDBInstance) GetSubscriber(ctx context.Context, imsi string) (*db.
 	}, nil
 }
 
-func (fdb *FakeDBInstance) GetProfileByID(ctx context.Context, id int) (*db.Profile, error) {
+func (fdb *FakeDBInstance) GetProfileByID(ctx context.Context, id string) (*db.Profile, error) {
 	return &db.Profile{ID: id, Name: "TestProfile"}, nil
 }
 
@@ -204,15 +204,15 @@ func (fdb *FakeDBInstance) ListAllNetworkSlices(ctx context.Context) ([]db.Netwo
 		return fdb.Slices, nil
 	}
 
-	return []db.NetworkSlice{{ID: 1, Name: "default", Sst: 1}}, nil
+	return []db.NetworkSlice{{ID: "slice-1", Name: "default", Sst: 1}}, nil
 }
 
-func (fdb *FakeDBInstance) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID int) (*db.Policy, error) {
-	return &db.Policy{ID: 1, Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: 1}, nil
+func (fdb *FakeDBInstance) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID string) (*db.Policy, error) {
+	return &db.Policy{ID: "policy-1", Name: "TestPolicy", ProfileID: profileID, SliceID: sliceID, DataNetworkID: "dn-1"}, nil
 }
 
-func (fdb *FakeDBInstance) ListPoliciesByProfile(_ context.Context, _ int) ([]db.Policy, error) {
-	return []db.Policy{{ID: 1, Name: "TestPolicy", ProfileID: 1, SliceID: 1, DataNetworkID: 1}}, nil
+func (fdb *FakeDBInstance) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {
+	return []db.Policy{{ID: "policy-1", Name: "TestPolicy", ProfileID: "profile-1", SliceID: "slice-1", DataNetworkID: "dn-1"}}, nil
 }
 
 func (fdb *FakeDBInstance) NodeID() int { return 0 }

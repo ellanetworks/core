@@ -10,6 +10,38 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
+// createPolicyDeps creates a profile and a network slice and returns their IDs.
+// Used to satisfy the FK constraints on policies.profile_id / slice_id.
+func createPolicyDeps(t *testing.T, database *db.Database, suffix string) (profileID string, sliceID string) {
+	t.Helper()
+
+	profile := &db.Profile{
+		Name:           "test-profile-" + suffix,
+		UeAmbrUplink:   "200 Mbps",
+		UeAmbrDownlink: "200 Mbps",
+	}
+	if err := database.CreateProfile(context.Background(), profile); err != nil {
+		t.Fatalf("CreateProfile: %s", err)
+	}
+
+	createdProfile, err := database.GetProfile(context.Background(), profile.Name)
+	if err != nil {
+		t.Fatalf("GetProfile: %s", err)
+	}
+
+	slice := &db.NetworkSlice{Name: "test-slice-" + suffix, Sst: 1}
+	if err := database.CreateNetworkSlice(context.Background(), slice); err != nil {
+		t.Fatalf("CreateNetworkSlice: %s", err)
+	}
+
+	createdSlice, err := database.GetNetworkSlice(context.Background(), slice.Name)
+	if err != nil {
+		t.Fatalf("GetNetworkSlice: %s", err)
+	}
+
+	return createdProfile.ID, createdSlice.ID
+}
+
 func TestNetworkRulesCreateGetUpdate(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -34,6 +66,8 @@ func TestNetworkRulesCreateGetUpdate(t *testing.T) {
 		t.Fatalf("Couldn't get initial data network: %s", err)
 	}
 
+	profileID, sliceID := createPolicyDeps(t, database, "create-get-update")
+
 	newPolicy := &db.Policy{
 		Name:                "test-policy",
 		SessionAmbrUplink:   "100 Mbps",
@@ -41,8 +75,8 @@ func TestNetworkRulesCreateGetUpdate(t *testing.T) {
 		Var5qi:              9,
 		Arp:                 1,
 		DataNetworkID:       dataNetwork.ID,
-		ProfileID:           1,
-		SliceID:             1,
+		ProfileID:           profileID,
+		SliceID:             sliceID,
 	}
 
 	err = database.CreatePolicy(context.Background(), newPolicy)
@@ -56,7 +90,7 @@ func TestNetworkRulesCreateGetUpdate(t *testing.T) {
 	}
 
 	rule := &db.NetworkRule{
-		PolicyID:     int64(createdPolicy.ID),
+		PolicyID:     createdPolicy.ID,
 		Description:  "test-rule-1",
 		Direction:    "uplink",
 		RemotePrefix: nil,
@@ -93,8 +127,8 @@ func TestNetworkRulesCreateGetUpdate(t *testing.T) {
 		t.Fatalf("Retrieved rule action %q doesn't match created rule action %q", retrieved.Action, rule.Action)
 	}
 
-	if retrieved.PolicyID != int64(createdPolicy.ID) {
-		t.Fatalf("Retrieved rule policy_id %d doesn't match expected policy_id %d", retrieved.PolicyID, createdPolicy.ID)
+	if retrieved.PolicyID != createdPolicy.ID {
+		t.Fatalf("Retrieved rule policy_id %s doesn't match expected policy_id %s", retrieved.PolicyID, createdPolicy.ID)
 	}
 
 	retrieved.Direction = "downlink"
@@ -143,6 +177,8 @@ func TestNetworkRulesDelete(t *testing.T) {
 		t.Fatalf("Couldn't get initial data network: %s", err)
 	}
 
+	profileID, sliceID := createPolicyDeps(t, database, "delete")
+
 	newPolicy := &db.Policy{
 		Name:                "test-policy-delete",
 		SessionAmbrUplink:   "100 Mbps",
@@ -150,8 +186,8 @@ func TestNetworkRulesDelete(t *testing.T) {
 		Var5qi:              9,
 		Arp:                 1,
 		DataNetworkID:       dataNetwork.ID,
-		ProfileID:           1,
-		SliceID:             1,
+		ProfileID:           profileID,
+		SliceID:             sliceID,
 	}
 
 	err = database.CreatePolicy(context.Background(), newPolicy)
@@ -165,7 +201,7 @@ func TestNetworkRulesDelete(t *testing.T) {
 	}
 
 	rule := &db.NetworkRule{
-		PolicyID:     int64(createdPolicy.ID),
+		PolicyID:     createdPolicy.ID,
 		Description:  "test-rule-delete",
 		Direction:    "uplink",
 		RemotePrefix: nil,
@@ -216,6 +252,8 @@ func TestNetworkRulesDuplicatePrecedencePerPolicy(t *testing.T) {
 		t.Fatalf("Couldn't get initial data network: %s", err)
 	}
 
+	profileID, sliceID := createPolicyDeps(t, database, "precedence-unique")
+
 	newPolicy := &db.Policy{
 		Name:                "test-policy-precedence-unique",
 		SessionAmbrUplink:   "100 Mbps",
@@ -223,8 +261,8 @@ func TestNetworkRulesDuplicatePrecedencePerPolicy(t *testing.T) {
 		Var5qi:              9,
 		Arp:                 1,
 		DataNetworkID:       dataNetwork.ID,
-		ProfileID:           1,
-		SliceID:             1,
+		ProfileID:           profileID,
+		SliceID:             sliceID,
 	}
 
 	err = database.CreatePolicy(context.Background(), newPolicy)
@@ -238,7 +276,7 @@ func TestNetworkRulesDuplicatePrecedencePerPolicy(t *testing.T) {
 	}
 
 	_, err = database.CreateNetworkRule(context.Background(), &db.NetworkRule{
-		PolicyID:    int64(createdPolicy.ID),
+		PolicyID:    createdPolicy.ID,
 		Description: "rule-precedence-100",
 		Direction:   "uplink",
 		Protocol:    6,
@@ -252,7 +290,7 @@ func TestNetworkRulesDuplicatePrecedencePerPolicy(t *testing.T) {
 	}
 
 	_, err = database.CreateNetworkRule(context.Background(), &db.NetworkRule{
-		PolicyID:    int64(createdPolicy.ID),
+		PolicyID:    createdPolicy.ID,
 		Description: "rule-precedence-100-duplicate-same-direction",
 		Direction:   "uplink",
 		Protocol:    6,
@@ -290,6 +328,8 @@ func TestNetworkRulesDuplicatePrecedenceDifferentPoliciesAllowed(t *testing.T) {
 		t.Fatalf("Couldn't get initial data network: %s", err)
 	}
 
+	profileID, sliceID := createPolicyDeps(t, database, "prec")
+
 	policy1 := &db.Policy{
 		Name:                "test-policy-prec-1",
 		SessionAmbrUplink:   "100 Mbps",
@@ -297,8 +337,8 @@ func TestNetworkRulesDuplicatePrecedenceDifferentPoliciesAllowed(t *testing.T) {
 		Var5qi:              9,
 		Arp:                 1,
 		DataNetworkID:       dataNetwork.ID,
-		ProfileID:           1,
-		SliceID:             1,
+		ProfileID:           profileID,
+		SliceID:             sliceID,
 	}
 	if err := database.CreatePolicy(context.Background(), policy1); err != nil {
 		t.Fatalf("Couldn't create policy 1: %s", err)
@@ -326,8 +366,8 @@ func TestNetworkRulesDuplicatePrecedenceDifferentPoliciesAllowed(t *testing.T) {
 		Var5qi:              9,
 		Arp:                 1,
 		DataNetworkID:       dataNetwork2.ID,
-		ProfileID:           1,
-		SliceID:             1,
+		ProfileID:           profileID,
+		SliceID:             sliceID,
 	}
 	if err := database.CreatePolicy(context.Background(), policy2); err != nil {
 		t.Fatalf("Couldn't create policy 2: %s", err)
@@ -339,7 +379,7 @@ func TestNetworkRulesDuplicatePrecedenceDifferentPoliciesAllowed(t *testing.T) {
 	}
 
 	_, err = database.CreateNetworkRule(context.Background(), &db.NetworkRule{
-		PolicyID:    int64(createdPolicy1.ID),
+		PolicyID:    createdPolicy1.ID,
 		Description: "rule-p1",
 		Direction:   "uplink",
 		Protocol:    6,
@@ -351,7 +391,7 @@ func TestNetworkRulesDuplicatePrecedenceDifferentPoliciesAllowed(t *testing.T) {
 	}
 
 	_, err = database.CreateNetworkRule(context.Background(), &db.NetworkRule{
-		PolicyID:    int64(createdPolicy2.ID),
+		PolicyID:    createdPolicy2.ID,
 		Description: "rule-p2",
 		Direction:   "uplink",
 		Protocol:    6,
@@ -387,6 +427,8 @@ func TestNetworkRulesDuplicateNamePerPolicy(t *testing.T) {
 		t.Fatalf("Couldn't get initial data network: %s", err)
 	}
 
+	profileID, sliceID := createPolicyDeps(t, database, "name-unique")
+
 	newPolicy := &db.Policy{
 		Name:                "test-policy-unique",
 		SessionAmbrUplink:   "100 Mbps",
@@ -394,8 +436,8 @@ func TestNetworkRulesDuplicateNamePerPolicy(t *testing.T) {
 		Var5qi:              9,
 		Arp:                 1,
 		DataNetworkID:       dataNetwork.ID,
-		ProfileID:           1,
-		SliceID:             1,
+		ProfileID:           profileID,
+		SliceID:             sliceID,
 	}
 
 	err = database.CreatePolicy(context.Background(), newPolicy)
@@ -409,7 +451,7 @@ func TestNetworkRulesDuplicateNamePerPolicy(t *testing.T) {
 	}
 
 	rule := &db.NetworkRule{
-		PolicyID:     int64(createdPolicy.ID),
+		PolicyID:     createdPolicy.ID,
 		Description:  "duplicate-rule",
 		Direction:    "uplink",
 		RemotePrefix: nil,
@@ -455,6 +497,8 @@ func TestNetworkRulesDifferentPoliciesSameName(t *testing.T) {
 		t.Fatalf("Couldn't get initial data network: %s", err)
 	}
 
+	profileID, sliceID := createPolicyDeps(t, database, "diff-pol-same-name")
+
 	policy1 := &db.Policy{
 		Name:                "test-policy-1",
 		SessionAmbrUplink:   "100 Mbps",
@@ -462,8 +506,8 @@ func TestNetworkRulesDifferentPoliciesSameName(t *testing.T) {
 		Var5qi:              9,
 		Arp:                 1,
 		DataNetworkID:       dataNetwork.ID,
-		ProfileID:           1,
-		SliceID:             1,
+		ProfileID:           profileID,
+		SliceID:             sliceID,
 	}
 
 	err = database.CreatePolicy(context.Background(), policy1)
@@ -493,8 +537,8 @@ func TestNetworkRulesDifferentPoliciesSameName(t *testing.T) {
 		Var5qi:              9,
 		Arp:                 1,
 		DataNetworkID:       dataNetwork2.ID,
-		ProfileID:           1,
-		SliceID:             1,
+		ProfileID:           profileID,
+		SliceID:             sliceID,
 	}
 
 	err = database.CreatePolicy(context.Background(), policy2)
@@ -508,7 +552,7 @@ func TestNetworkRulesDifferentPoliciesSameName(t *testing.T) {
 	}
 
 	rule1 := &db.NetworkRule{
-		PolicyID:     int64(createdPolicy1.ID),
+		PolicyID:     createdPolicy1.ID,
 		Description:  "same-rule-name",
 		Direction:    "uplink",
 		RemotePrefix: nil,
@@ -525,7 +569,7 @@ func TestNetworkRulesDifferentPoliciesSameName(t *testing.T) {
 	}
 
 	rule2 := &db.NetworkRule{
-		PolicyID:     int64(createdPolicy2.ID),
+		PolicyID:     createdPolicy2.ID,
 		Description:  "same-rule-name",
 		Direction:    "uplink",
 		RemotePrefix: nil,
@@ -566,6 +610,8 @@ func TestListRulesForPolicy(t *testing.T) {
 		t.Fatalf("Couldn't get initial data network: %s", err)
 	}
 
+	profileID, sliceID := createPolicyDeps(t, database, "list-rules")
+
 	policy1 := &db.Policy{
 		Name:                "test-policy-with-rules",
 		SessionAmbrUplink:   "100 Mbps",
@@ -573,8 +619,8 @@ func TestListRulesForPolicy(t *testing.T) {
 		Var5qi:              9,
 		Arp:                 1,
 		DataNetworkID:       dataNetwork.ID,
-		ProfileID:           1,
-		SliceID:             1,
+		ProfileID:           profileID,
+		SliceID:             sliceID,
 	}
 
 	err = database.CreatePolicy(context.Background(), policy1)
@@ -604,8 +650,8 @@ func TestListRulesForPolicy(t *testing.T) {
 		Var5qi:              9,
 		Arp:                 1,
 		DataNetworkID:       dataNetwork2.ID,
-		ProfileID:           1,
-		SliceID:             1,
+		ProfileID:           profileID,
+		SliceID:             sliceID,
 	}
 
 	err = database.CreatePolicy(context.Background(), policy2)
@@ -622,7 +668,7 @@ func TestListRulesForPolicy(t *testing.T) {
 
 	for i := 1; i <= 3; i++ {
 		rule := &db.NetworkRule{
-			PolicyID:     int64(createdPolicy1.ID),
+			PolicyID:     createdPolicy1.ID,
 			Description:  "rule-for-listing-" + string(rune('0'+i)),
 			Direction:    "uplink",
 			RemotePrefix: nil,
@@ -641,7 +687,7 @@ func TestListRulesForPolicy(t *testing.T) {
 		ruleIDs = append(ruleIDs, ruleID)
 	}
 
-	retrievedRules1, err := database.ListRulesForPolicy(context.Background(), int64(createdPolicy1.ID))
+	retrievedRules1, err := database.ListRulesForPolicy(context.Background(), createdPolicy1.ID)
 	if err != nil {
 		t.Fatalf("Couldn't list rules for policy 1: %s", err)
 	}
@@ -665,7 +711,7 @@ func TestListRulesForPolicy(t *testing.T) {
 		}
 	}
 
-	retrievedRules2, err := database.ListRulesForPolicy(context.Background(), int64(createdPolicy2.ID))
+	retrievedRules2, err := database.ListRulesForPolicy(context.Background(), createdPolicy2.ID)
 	if err != nil {
 		t.Fatalf("Couldn't list rules for policy 2: %s", err)
 	}
@@ -703,6 +749,8 @@ func createTestPolicy(t *testing.T, dbInstance *db.Database) *db.Policy {
 		t.Fatalf("Couldn't get test data network: %s", err)
 	}
 
+	profileID, sliceID := createPolicyDeps(t, dbInstance, t.Name())
+
 	policy := &db.Policy{
 		Name:                "test-policy-" + t.Name(),
 		SessionAmbrUplink:   "100 Mbps",
@@ -710,8 +758,8 @@ func createTestPolicy(t *testing.T, dbInstance *db.Database) *db.Policy {
 		Var5qi:              9,
 		Arp:                 1,
 		DataNetworkID:       dataNetwork.ID,
-		ProfileID:           1,
-		SliceID:             1,
+		ProfileID:           profileID,
+		SliceID:             sliceID,
 	}
 
 	err = dbInstance.CreatePolicy(context.Background(), policy)
@@ -745,7 +793,7 @@ func TestListRulesForPolicy_Ordering(t *testing.T) {
 	ids := make([]string, len(rules))
 	for i, tc := range rules {
 		id, err := dbInstance.CreateNetworkRule(ctx, &db.NetworkRule{
-			PolicyID:    int64(policy.ID),
+			PolicyID:    policy.ID,
 			Description: tc.name,
 			Direction:   "uplink",
 			Protocol:    6,
@@ -761,7 +809,7 @@ func TestListRulesForPolicy_Ordering(t *testing.T) {
 		ids[i] = id
 	}
 
-	got, err := dbInstance.ListRulesForPolicy(ctx, int64(policy.ID))
+	got, err := dbInstance.ListRulesForPolicy(ctx, policy.ID)
 	if err != nil {
 		t.Fatalf("ListRulesForPolicy: %v", err)
 	}
@@ -788,7 +836,7 @@ func TestReorderRulesForPolicy(t *testing.T) {
 
 	for i, name := range []string{"rule-a", "rule-b", "rule-c"} {
 		id, err := dbInstance.CreateNetworkRule(ctx, &db.NetworkRule{
-			PolicyID:    int64(policy.ID),
+			PolicyID:    policy.ID,
 			Description: name,
 			Direction:   "uplink",
 			Protocol:    6,
@@ -802,11 +850,11 @@ func TestReorderRulesForPolicy(t *testing.T) {
 		ids[i] = id
 	}
 
-	if err := dbInstance.ReorderRulesForPolicy(ctx, int64(policy.ID), ids[2], 0, "uplink"); err != nil {
+	if err := dbInstance.ReorderRulesForPolicy(ctx, policy.ID, ids[2], 0, "uplink"); err != nil {
 		t.Fatalf("ReorderRulesForPolicy: %v", err)
 	}
 
-	got, err := dbInstance.ListRulesForPolicy(ctx, int64(policy.ID))
+	got, err := dbInstance.ListRulesForPolicy(ctx, policy.ID)
 	if err != nil {
 		t.Fatalf("ListRulesForPolicy after reorder: %v", err)
 	}
@@ -822,11 +870,11 @@ func TestReorderRulesForPolicy(t *testing.T) {
 		}
 	}
 
-	if err := dbInstance.ReorderRulesForPolicy(ctx, int64(policy.ID), ids[0], 2, "uplink"); err != nil {
+	if err := dbInstance.ReorderRulesForPolicy(ctx, policy.ID, ids[0], 2, "uplink"); err != nil {
 		t.Fatalf("ReorderRulesForPolicy: %v", err)
 	}
 
-	got, err = dbInstance.ListRulesForPolicy(ctx, int64(policy.ID))
+	got, err = dbInstance.ListRulesForPolicy(ctx, policy.ID)
 	if err != nil {
 		t.Fatalf("ListRulesForPolicy after reorder: %v", err)
 	}

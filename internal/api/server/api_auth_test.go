@@ -1200,8 +1200,14 @@ func TestSessionLimitPerUser(t *testing.T) {
 		}
 	}
 
+	// Resolve the first user's ID (string UUID) for direct DB access.
+	firstUser, err := env.DB.GetUser(context.Background(), FirstUserEmail)
+	if err != nil {
+		t.Fatalf("couldn't get first user: %s", err)
+	}
+
 	// Count sessions - should be MaxSessionsPerUser
-	sessionCount, err := env.DB.CountSessionsByUser(context.Background(), 1) // User ID 1 is the first user
+	sessionCount, err := env.DB.CountSessionsByUser(context.Background(), firstUser.ID)
 	if err != nil {
 		t.Fatalf("couldn't count sessions: %s", err)
 	}
@@ -1224,7 +1230,7 @@ func TestSessionLimitPerUser(t *testing.T) {
 	}
 
 	// Count sessions again - should still be MaxSessionsPerUser
-	sessionCount, err = env.DB.CountSessionsByUser(context.Background(), 1)
+	sessionCount, err = env.DB.CountSessionsByUser(context.Background(), firstUser.ID)
 	if err != nil {
 		t.Fatalf("couldn't count sessions after final login: %s", err)
 	}

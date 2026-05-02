@@ -14,13 +14,13 @@ import (
 // It is satisfied by *db.Database.
 type LeaseStore interface {
 	// GetDynamicLease returns the dynamic lease for (poolID, imsi), or ErrNotFound.
-	GetDynamicLease(ctx context.Context, poolID int, imsi string) (*Lease, error)
+	GetDynamicLease(ctx context.Context, poolID string, imsi string) (*Lease, error)
 
 	// GetLeaseBySession returns the lease for (poolID, sessionID, imsi), or ErrNotFound.
-	GetLeaseBySession(ctx context.Context, poolID int, sessionID int, imsi string) (*Lease, error)
+	GetLeaseBySession(ctx context.Context, poolID string, sessionID int, imsi string) (*Lease, error)
 
 	// ListLeaseAddressesByPool returns sorted address strings for all leases in the pool.
-	ListLeaseAddressesByPool(ctx context.Context, poolID int) ([]string, error)
+	ListLeaseAddressesByPool(ctx context.Context, poolID string) ([]string, error)
 
 	// CreateLease inserts a new lease. Returns ErrAlreadyExists on unique violation.
 	CreateLease(ctx context.Context, lease *Lease) error
@@ -39,7 +39,7 @@ type LeaseStore interface {
 // cycle. The db package satisfies LeaseStore via adapter methods.
 type Lease struct {
 	ID        string
-	PoolID    int
+	PoolID    string
 	Address   string
 	IMSI      string
 	SessionID *int

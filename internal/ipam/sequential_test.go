@@ -32,7 +32,7 @@ func (s *fakeStore) allocID() string {
 	return fmt.Sprintf("lease-%d", id)
 }
 
-func (s *fakeStore) GetDynamicLease(_ context.Context, poolID int, imsi string) (*Lease, error) {
+func (s *fakeStore) GetDynamicLease(_ context.Context, poolID string, imsi string) (*Lease, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -45,7 +45,7 @@ func (s *fakeStore) GetDynamicLease(_ context.Context, poolID int, imsi string) 
 	return nil, ErrNotFound
 }
 
-func (s *fakeStore) GetLeaseBySession(_ context.Context, poolID int, sessionID int, imsi string) (*Lease, error) {
+func (s *fakeStore) GetLeaseBySession(_ context.Context, poolID string, sessionID int, imsi string) (*Lease, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -59,7 +59,7 @@ func (s *fakeStore) GetLeaseBySession(_ context.Context, poolID int, sessionID i
 	return nil, ErrNotFound
 }
 
-func (s *fakeStore) ListLeaseAddressesByPool(_ context.Context, poolID int) ([]string, error) {
+func (s *fakeStore) ListLeaseAddressesByPool(_ context.Context, poolID string) ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -141,7 +141,7 @@ func (s *fakeStore) DeleteDynamicLease(_ context.Context, leaseID string) error 
 // ---------------------------------------------------------------------------
 
 func mustPool(cidr string) Pool {
-	p, err := NewPool(1, cidr)
+	p, err := NewPool("test-pool", cidr)
 	if err != nil {
 		panic(err)
 	}

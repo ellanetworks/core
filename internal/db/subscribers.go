@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -20,7 +21,7 @@ const SubscribersTableName = "subscribers"
 const (
 	listSubscribersPagedStmt  = "SELECT &Subscriber.*, COUNT(*) OVER() AS &NumItems.count from %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getSubscriberStmt         = "SELECT &Subscriber.* from %s WHERE imsi==$Subscriber.imsi"
-	createSubscriberStmt      = "INSERT INTO %s (imsi, sequenceNumber, permanentKey, opc, profileID) VALUES ($Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.profileID)"
+	createSubscriberStmt      = "INSERT INTO %s (id, imsi, sequenceNumber, permanentKey, opc, profileID) VALUES ($Subscriber.id, $Subscriber.imsi, $Subscriber.sequenceNumber, $Subscriber.permanentKey, $Subscriber.opc, $Subscriber.profileID)"
 	editSubscriberProfileStmt = "UPDATE %s SET profileID=$Subscriber.profileID WHERE imsi==$Subscriber.imsi"
 	editSubscriberSeqNumStmt  = "UPDATE %s SET sequenceNumber=$Subscriber.sequenceNumber WHERE imsi==$Subscriber.imsi"
 	deleteSubscriberStmt      = "DELETE FROM %s WHERE imsi==$Subscriber.imsi"
@@ -28,12 +29,12 @@ const (
 )
 
 type Subscriber struct {
-	ID             int    `db:"id"`
+	ID             string `db:"id"` // UUIDv7
 	Imsi           string `db:"imsi"`
 	SequenceNumber string `db:"sequenceNumber"`
 	PermanentKey   string `db:"permanentKey"`
 	Opc            string `db:"opc"`
-	ProfileID      int    `db:"profileID"`
+	ProfileID      string `db:"profileID"`
 }
 
 func (db *Database) ListSubscribersPage(ctx context.Context, page int, perPage int) ([]Subscriber, int, error) {
@@ -149,6 +150,15 @@ func (db *Database) CreateSubscriber(ctx context.Context, subscriber *Subscriber
 	defer timer.ObserveDuration()
 
 	DBQueriesTotal.WithLabelValues(SubscribersTableName, "insert").Inc()
+
+	if subscriber.ID == "" {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("generate subscriber id: %w", err)
+		}
+
+		subscriber.ID = id.String()
+	}
 
 	_, err := opCreateSubscriber.Invoke(db, subscriber)
 	if err != nil {

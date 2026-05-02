@@ -48,12 +48,12 @@ func updateFiltersRule(rule models.FilterRule) ebpf.SdfRule {
 
 // resolveFilterIndex returns the BPF filter map index for a (policyID, direction) pair.
 // Returns ebpf.NoFilterIndex if no filter is allocated.
-func (conn *SessionEngine) resolveFilterIndex(policyID int64, direction models.Direction) uint32 {
-	if policyID == 0 {
+func (conn *SessionEngine) resolveFilterIndex(policyID string, direction models.Direction) uint32 {
+	if policyID == "" {
 		return ebpf.NoFilterIndex
 	}
 
-	key := fmt.Sprintf("%d:%s", policyID, direction.String())
+	key := fmt.Sprintf("%s:%s", policyID, direction.String())
 
 	conn.filterMu.RLock()
 	defer conn.filterMu.RUnlock()
@@ -70,8 +70,8 @@ func (conn *SessionEngine) resolveFilterIndex(policyID int64, direction models.D
 //
 //   - Non-empty rules: allocate or update the BPF slot, propagate to PDRs.
 //   - Empty rules: deallocate the slot and reset PDRs to NoFilterIndex.
-func (conn *SessionEngine) UpdateFilters(_ context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {
-	key := fmt.Sprintf("%d:%s", policyID, direction.String())
+func (conn *SessionEngine) UpdateFilters(_ context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error {
+	key := fmt.Sprintf("%s:%s", policyID, direction.String())
 
 	// Empty rules: deallocate the existing slot (if any) and reset PDRs.
 	if len(rules) == 0 {
@@ -139,7 +139,7 @@ func (conn *SessionEngine) UpdateFilters(_ context.Context, policyID int64, dire
 }
 
 // propagateFilterIndex updates FilterMapIndex on all PDRs matching (policyID, direction).
-func (conn *SessionEngine) propagateFilterIndex(policyID int64, direction models.Direction, idx uint32) error {
+func (conn *SessionEngine) propagateFilterIndex(policyID string, direction models.Direction, idx uint32) error {
 	conn.mu.RLock()
 
 	seids, ok := conn.policyToSEIDs[policyID]

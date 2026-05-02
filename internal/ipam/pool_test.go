@@ -23,7 +23,7 @@ func TestNewPool(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pool, err := NewPool(1, tt.cidr)
+			pool, err := NewPool("test-pool", tt.cidr)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -44,7 +44,7 @@ func TestNewPool(t *testing.T) {
 }
 
 func TestPoolFirstUsable(t *testing.T) {
-	pool, _ := NewPool(1, "192.168.1.0/24")
+	pool, _ := NewPool("test-pool", "192.168.1.0/24")
 	if pool.FirstUsable() != 1 {
 		t.Fatalf("expected FirstUsable=1 for IPv4, got %d", pool.FirstUsable())
 	}
@@ -64,7 +64,7 @@ func TestPoolSize(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.cidr, func(t *testing.T) {
-			pool, err := NewPool(1, tt.cidr)
+			pool, err := NewPool("test-pool", tt.cidr)
 			if err != nil {
 				t.Fatalf("NewPool: %v", err)
 			}
@@ -77,7 +77,7 @@ func TestPoolSize(t *testing.T) {
 }
 
 func TestPoolAddressAtOffset(t *testing.T) {
-	pool, _ := NewPool(1, "192.168.1.0/24")
+	pool, _ := NewPool("test-pool", "192.168.1.0/24")
 
 	tests := []struct {
 		offset int
@@ -99,7 +99,7 @@ func TestPoolAddressAtOffset(t *testing.T) {
 }
 
 func TestPoolAddressAtOffset_Slash22(t *testing.T) {
-	pool, _ := NewPool(1, "10.45.0.0/22")
+	pool, _ := NewPool("test-pool", "10.45.0.0/22")
 
 	// First usable = 10.45.0.1 (offset 1)
 	got := pool.AddressAtOffset(1)
@@ -121,7 +121,7 @@ func TestPoolAddressAtOffset_Slash22(t *testing.T) {
 }
 
 func TestPoolOffsetOf(t *testing.T) {
-	pool, _ := NewPool(1, "192.168.1.0/24")
+	pool, _ := NewPool("test-pool", "192.168.1.0/24")
 
 	tests := []struct {
 		addr       string
@@ -145,7 +145,7 @@ func TestPoolOffsetOf(t *testing.T) {
 }
 
 func TestPoolOffsetOf_Slash22(t *testing.T) {
-	pool, _ := NewPool(1, "10.45.0.0/22")
+	pool, _ := NewPool("test-pool", "10.45.0.0/22")
 
 	addr := netip.MustParseAddr("10.45.3.254")
 
@@ -156,7 +156,7 @@ func TestPoolOffsetOf_Slash22(t *testing.T) {
 }
 
 func TestPoolRoundTrip(t *testing.T) {
-	pool, _ := NewPool(1, "10.45.0.0/22")
+	pool, _ := NewPool("test-pool", "10.45.0.0/22")
 
 	// For every offset in the usable range, AddressAtOffset and OffsetOf
 	// must be inverses of each other.

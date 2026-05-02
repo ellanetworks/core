@@ -437,7 +437,7 @@ func (db *Database) applyUpdateLeaseNode(ctx context.Context, lease *IPLease) (a
 // this op. The leader's apply function picks the address atomically
 // inside leaderCaptureAndPropose's proposeMu.
 type allocateIPLeasePayload struct {
-	PoolID    int    `json:"poolId"`
+	PoolID    string `json:"poolId"`
 	IMSI      string `json:"imsi"`
 	SessionID int    `json:"sessionId"`
 	NodeID    int    `json:"nodeId"`
@@ -478,10 +478,10 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 
 	if err := runner.Query(ctx, db.getDataNetworkByIDStmt, dn).Get(&dn); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("data network %d not found", p.PoolID)
+			return nil, fmt.Errorf("data network %s not found", p.PoolID)
 		}
 
-		return nil, fmt.Errorf("get data network %d: %w", p.PoolID, err)
+		return nil, fmt.Errorf("get data network %s: %w", p.PoolID, err)
 	}
 
 	pool, err := ipam.NewPool(dn.ID, dn.IPPool)
@@ -806,7 +806,7 @@ func (db *Database) applyDeleteOldestSessions(ctx context.Context, args *DeleteO
 	return nil, nil
 }
 
-func (db *Database) applyDeleteAllSessionsForUser(ctx context.Context, p *int64Payload) (any, error) {
+func (db *Database) applyDeleteAllSessionsForUser(ctx context.Context, p *stringPayload) (any, error) {
 	err := db.runner(ctx).Query(ctx, db.deleteAllSessionsForUserStmt, UserIDArgs{UserID: p.Value}).Run()
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -1035,7 +1035,7 @@ func (db *Database) applyDeleteNetworkRule(ctx context.Context, p *stringPayload
 	return nil, nil
 }
 
-func (db *Database) applyDeleteNetworkRulesByPolicy(ctx context.Context, p *int64Payload) (any, error) {
+func (db *Database) applyDeleteNetworkRulesByPolicy(ctx context.Context, p *stringPayload) (any, error) {
 	err := db.runner(ctx).Query(ctx, db.deleteNetworkRulesByPolicyStmt, NetworkRule{PolicyID: p.Value}).Run()
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)

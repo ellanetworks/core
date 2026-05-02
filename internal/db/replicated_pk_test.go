@@ -17,14 +17,12 @@ import (
 //
 // Empty target: every replicated table generates its PK at the request
 // handler and stores it as TEXT.
-var autoIncrementExempt = map[string]struct{}{
-	"data_networks":  {},
-	"policies":       {},
-	"users":          {},
-	"network_slices": {},
-	"profiles":       {},
-	"subscribers":    {},
-}
+// All replicated tables have been migrated to TEXT UUID PKs (spec_uuid.md
+// + migration v11). The exempt list is empty: every replicated table now
+// generates its PK at the request handler. Adding a table here in the
+// future requires a code review nudge that the structural fix is being
+// deferred for that table.
+var autoIncrementExempt = map[string]struct{}{}
 
 // TestReplicatedTables_NoUnexpectedAUTOINCREMENT enforces the spec_uuid.md
 // invariant: PKs of replicated tables are decided at the request handler,

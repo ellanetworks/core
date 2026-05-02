@@ -155,21 +155,21 @@ func (amf *AMF) GetSubscriberProfile(ctx context.Context, supi etsi.SUPI) (*Subs
 	// Derive allowed NSSAI from the subscriber's profile policies.
 	policies, err := amf.DBInstance.ListPoliciesByProfile(ctx, subscriber.ProfileID)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't list policies for profile %d: %w", subscriber.ProfileID, err)
+		return nil, fmt.Errorf("couldn't list policies for profile %s: %w", subscriber.ProfileID, err)
 	}
 
 	// Collect unique slice IDs and batch-fetch.
-	sliceIDSet := make(map[int]struct{})
+	sliceIDSet := make(map[string]struct{})
 	for _, p := range policies {
 		sliceIDSet[p.SliceID] = struct{}{}
 	}
 
-	sliceIDs := make([]int, 0, len(sliceIDSet))
+	sliceIDs := make([]string, 0, len(sliceIDSet))
 	for id := range sliceIDSet {
 		sliceIDs = append(sliceIDs, id)
 	}
 
-	sort.Ints(sliceIDs)
+	sort.Strings(sliceIDs)
 
 	slices, err := amf.DBInstance.ListNetworkSlicesByIDs(ctx, sliceIDs)
 	if err != nil {
@@ -193,7 +193,7 @@ func (amf *AMF) GetSubscriberProfile(ctx context.Context, supi etsi.SUPI) (*Subs
 	// Derive bitrate from the subscriber's profile.
 	profile, err := amf.DBInstance.GetProfileByID(ctx, subscriber.ProfileID)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get profile %d: %v", subscriber.ProfileID, err)
+		return nil, fmt.Errorf("couldn't get profile %s: %v", subscriber.ProfileID, err)
 	}
 
 	return &SubscriberProfile{
@@ -228,28 +228,28 @@ func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *mo
 
 	policies, err := amf.DBInstance.ListPoliciesByProfile(ctx, subscriber.ProfileID)
 	if err != nil {
-		return "", fmt.Errorf("couldn't list policies for profile %d: %v", subscriber.ProfileID, err)
+		return "", fmt.Errorf("couldn't list policies for profile %s: %v", subscriber.ProfileID, err)
 	}
 
 	// Batch-fetch all referenced network slices.
-	sliceIDSet := make(map[int]struct{})
+	sliceIDSet := make(map[string]struct{})
 	for _, p := range policies {
 		sliceIDSet[p.SliceID] = struct{}{}
 	}
 
-	sliceIDs := make([]int, 0, len(sliceIDSet))
+	sliceIDs := make([]string, 0, len(sliceIDSet))
 	for id := range sliceIDSet {
 		sliceIDs = append(sliceIDs, id)
 	}
 
-	sort.Ints(sliceIDs)
+	sort.Strings(sliceIDs)
 
 	sliceList, err := amf.DBInstance.ListNetworkSlicesByIDs(ctx, sliceIDs)
 	if err != nil {
 		return "", fmt.Errorf("couldn't list slices by IDs: %v", err)
 	}
 
-	sliceMap := make(map[int]db.NetworkSlice, len(sliceList))
+	sliceMap := make(map[string]db.NetworkSlice, len(sliceList))
 	for _, s := range sliceList {
 		sliceMap[s.ID] = s
 	}
@@ -268,14 +268,14 @@ func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *mo
 		if slice.Sst == snssai.Sst && sliceSd == snssai.Sd {
 			dataNetwork, err := amf.DBInstance.GetDataNetworkByID(ctx, p.DataNetworkID)
 			if err != nil {
-				return "", fmt.Errorf("couldn't get data network %d: %v", p.DataNetworkID, err)
+				return "", fmt.Errorf("couldn't get data network %s: %v", p.DataNetworkID, err)
 			}
 
 			return dataNetwork.Name, nil
 		}
 	}
 
-	return "", fmt.Errorf("no policy matching sst=%d sd=%q for profile %d", snssai.Sst, snssai.Sd, subscriber.ProfileID)
+	return "", fmt.Errorf("no policy matching sst=%d sd=%q for profile %s", snssai.Sst, snssai.Sd, subscriber.ProfileID)
 }
 
 var cipheringNameToAlg = map[string]uint8{

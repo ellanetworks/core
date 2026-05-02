@@ -1,8 +1,8 @@
 import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export type NetworkRule = {
-  id: number;
-  policy_id: number;
+  id: string;
+  policy_id: string;
   description: string;
   direction: "uplink" | "downlink";
   remote_prefix?: string;
@@ -35,7 +35,7 @@ export async function listNetworkRules(
 export async function reorderNetworkRule(
   authToken: string,
   policyName: string,
-  ruleId: number,
+  ruleId: string,
   newIndex: number,
 ): Promise<void> {
   await apiFetchVoid(
@@ -61,8 +61,8 @@ export async function createNetworkRule(
   protocol?: number,
   portLow?: number,
   portHigh?: number,
-): Promise<{ id: number }> {
-  return apiFetch<{ id: number }>(
+): Promise<{ id: string }> {
+  return apiFetch<{ id: string }>(
     `/api/v1/policies/${encodeURIComponent(policyName)}/rules`,
     {
       method: "POST",
@@ -84,7 +84,7 @@ export async function createNetworkRule(
 export async function updateNetworkRule(
   authToken: string,
   policyName: string,
-  ruleId: number,
+  ruleId: string,
   description: string,
   direction: "uplink" | "downlink",
   action: "allow" | "deny",
@@ -116,7 +116,7 @@ export async function updateNetworkRule(
 export async function deleteNetworkRule(
   authToken: string,
   policyName: string,
-  ruleId: number,
+  ruleId: string,
 ): Promise<void> {
   await apiFetchVoid(
     `/api/v1/policies/${encodeURIComponent(policyName)}/rules/${ruleId}`,
@@ -130,7 +130,7 @@ export async function deleteNetworkRule(
 export async function getNetworkRule(
   authToken: string,
   policyName: string,
-  ruleId: number,
+  ruleId: string,
 ): Promise<NetworkRule> {
   return apiFetch<NetworkRule>(
     `/api/v1/policies/${encodeURIComponent(policyName)}/rules/${ruleId}`,

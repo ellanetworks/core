@@ -18,7 +18,7 @@ type configTestDB struct {
 	subErr     error
 	policies   []db.Policy
 	polErr     error
-	slices     map[int]*db.NetworkSlice
+	slices     map[string]*db.NetworkSlice
 	sliceErr   error
 	allSlices  []db.NetworkSlice
 	operator   *db.Operator
@@ -33,20 +33,20 @@ func (d *configTestDB) GetSubscriber(_ context.Context, _ string) (*db.Subscribe
 	return d.subscriber, d.subErr
 }
 
-func (d *configTestDB) GetDataNetworkByID(context.Context, int) (*db.DataNetwork, error) {
+func (d *configTestDB) GetDataNetworkByID(context.Context, string) (*db.DataNetwork, error) {
 	return nil, nil
 }
 
-func (d *configTestDB) GetNetworkSliceByID(_ context.Context, id int) (*db.NetworkSlice, error) {
+func (d *configTestDB) GetNetworkSliceByID(_ context.Context, id string) (*db.NetworkSlice, error) {
 	s, ok := d.slices[id]
 	if !ok {
-		return nil, fmt.Errorf("slice %d not found", id)
+		return nil, fmt.Errorf("slice %s not found", id)
 	}
 
 	return s, nil
 }
 
-func (d *configTestDB) ListNetworkSlicesByIDs(_ context.Context, ids []int) ([]db.NetworkSlice, error) {
+func (d *configTestDB) ListNetworkSlicesByIDs(_ context.Context, ids []string) ([]db.NetworkSlice, error) {
 	var out []db.NetworkSlice
 
 	for _, id := range ids {
@@ -58,11 +58,11 @@ func (d *configTestDB) ListNetworkSlicesByIDs(_ context.Context, ids []int) ([]d
 	return out, d.sliceErr
 }
 
-func (d *configTestDB) GetProfileByID(_ context.Context, id int) (*db.Profile, error) {
+func (d *configTestDB) GetProfileByID(_ context.Context, id string) (*db.Profile, error) {
 	return &db.Profile{ID: id}, nil
 }
 
-func (d *configTestDB) GetPolicyByProfileAndSlice(context.Context, int, int) (*db.Policy, error) {
+func (d *configTestDB) GetPolicyByProfileAndSlice(context.Context, string, string) (*db.Policy, error) {
 	return nil, nil
 }
 
@@ -80,7 +80,7 @@ func (d *configTestDB) ListAllNetworkSlices(context.Context) ([]db.NetworkSlice,
 	return out, d.sliceErr
 }
 
-func (d *configTestDB) ListPoliciesByProfile(_ context.Context, _ int) ([]db.Policy, error) {
+func (d *configTestDB) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {
 	return d.policies, d.polErr
 }
 
@@ -100,9 +100,9 @@ func mustSUPI(t *testing.T) etsi.SUPI {
 func TestGetSubscriberProfile_SinglePolicy(t *testing.T) {
 	sd := "010203"
 	fakeDB := &configTestDB{
-		subscriber: &db.Subscriber{ID: 1, Imsi: "001010000000001", ProfileID: 10},
-		policies:   []db.Policy{{ID: 1, ProfileID: 10, SliceID: 100}},
-		slices:     map[int]*db.NetworkSlice{100: {ID: 100, Name: "slice-a", Sst: 1, Sd: &sd}},
+		subscriber: &db.Subscriber{ID: "sub-1", Imsi: "001010000000001", ProfileID: "profile-10"},
+		policies:   []db.Policy{{ID: "policy-1", ProfileID: "profile-10", SliceID: "slice-100"}},
+		slices:     map[string]*db.NetworkSlice{"slice-100": {ID: "slice-100", Name: "slice-a", Sst: 1, Sd: &sd}},
 	}
 
 	amfInstance := amf.New(fakeDB, nil, nil)
@@ -129,14 +129,14 @@ func TestGetSubscriberProfile_MultiplePoliciesDifferentSlices(t *testing.T) {
 	sd1 := "010203"
 	sd2 := "aabbcc"
 	fakeDB := &configTestDB{
-		subscriber: &db.Subscriber{ID: 1, Imsi: "001010000000001", ProfileID: 10},
+		subscriber: &db.Subscriber{ID: "sub-1", Imsi: "001010000000001", ProfileID: "profile-10"},
 		policies: []db.Policy{
-			{ID: 1, ProfileID: 10, SliceID: 100},
-			{ID: 2, ProfileID: 10, SliceID: 200},
+			{ID: "policy-1", ProfileID: "profile-10", SliceID: "slice-100"},
+			{ID: "policy-2", ProfileID: "profile-10", SliceID: "slice-200"},
 		},
-		slices: map[int]*db.NetworkSlice{
-			100: {ID: 100, Name: "slice-a", Sst: 1, Sd: &sd1},
-			200: {ID: 200, Name: "slice-b", Sst: 2, Sd: &sd2},
+		slices: map[string]*db.NetworkSlice{
+			"slice-100": {ID: "slice-100", Name: "slice-a", Sst: 1, Sd: &sd1},
+			"slice-200": {ID: "slice-200", Name: "slice-b", Sst: 2, Sd: &sd2},
 		},
 	}
 
@@ -165,13 +165,13 @@ func TestGetSubscriberProfile_MultiplePoliciesDifferentSlices(t *testing.T) {
 func TestGetSubscriberProfile_DeduplicatesSameSlice(t *testing.T) {
 	sd := "010203"
 	fakeDB := &configTestDB{
-		subscriber: &db.Subscriber{ID: 1, Imsi: "001010000000001", ProfileID: 10},
+		subscriber: &db.Subscriber{ID: "sub-1", Imsi: "001010000000001", ProfileID: "profile-10"},
 		policies: []db.Policy{
-			{ID: 1, ProfileID: 10, SliceID: 100},
-			{ID: 2, ProfileID: 10, SliceID: 100}, // same slice
+			{ID: "policy-1", ProfileID: "profile-10", SliceID: "slice-100"},
+			{ID: "policy-2", ProfileID: "profile-10", SliceID: "slice-100"}, // same slice
 		},
-		slices: map[int]*db.NetworkSlice{
-			100: {ID: 100, Name: "slice-a", Sst: 1, Sd: &sd},
+		slices: map[string]*db.NetworkSlice{
+			"slice-100": {ID: "slice-100", Name: "slice-a", Sst: 1, Sd: &sd},
 		},
 	}
 
@@ -189,9 +189,9 @@ func TestGetSubscriberProfile_DeduplicatesSameSlice(t *testing.T) {
 
 func TestGetSubscriberProfile_NilSD(t *testing.T) {
 	fakeDB := &configTestDB{
-		subscriber: &db.Subscriber{ID: 1, Imsi: "001010000000001", ProfileID: 10},
-		policies:   []db.Policy{{ID: 1, ProfileID: 10, SliceID: 100}},
-		slices:     map[int]*db.NetworkSlice{100: {ID: 100, Name: "slice-a", Sst: 1, Sd: nil}},
+		subscriber: &db.Subscriber{ID: "sub-1", Imsi: "001010000000001", ProfileID: "profile-10"},
+		policies:   []db.Policy{{ID: "policy-1", ProfileID: "profile-10", SliceID: "slice-100"}},
+		slices:     map[string]*db.NetworkSlice{"slice-100": {ID: "slice-100", Name: "slice-a", Sst: 1, Sd: nil}},
 	}
 
 	amfInstance := amf.New(fakeDB, nil, nil)
@@ -212,9 +212,9 @@ func TestGetSubscriberProfile_NilSD(t *testing.T) {
 
 func TestGetSubscriberProfile_NoPolicies(t *testing.T) {
 	fakeDB := &configTestDB{
-		subscriber: &db.Subscriber{ID: 1, Imsi: "001010000000001", ProfileID: 10},
+		subscriber: &db.Subscriber{ID: "sub-1", Imsi: "001010000000001", ProfileID: "profile-10"},
 		policies:   []db.Policy{},
-		slices:     map[int]*db.NetworkSlice{},
+		slices:     map[string]*db.NetworkSlice{},
 	}
 
 	amfInstance := amf.New(fakeDB, nil, nil)
@@ -244,7 +244,7 @@ func TestGetSubscriberProfile_SubscriberNotFound(t *testing.T) {
 
 func TestGetSubscriberProfile_PolicyListError(t *testing.T) {
 	fakeDB := &configTestDB{
-		subscriber: &db.Subscriber{ID: 1, Imsi: "001010000000001", ProfileID: 10},
+		subscriber: &db.Subscriber{ID: "sub-1", Imsi: "001010000000001", ProfileID: "profile-10"},
 		polErr:     fmt.Errorf("db error"),
 	}
 
@@ -266,8 +266,8 @@ func TestListOperatorSnssai_MultipleSlices(t *testing.T) {
 			SupportedTACs: "[\"000001\"]",
 		},
 		allSlices: []db.NetworkSlice{
-			{ID: 1, Name: "slice-a", Sst: 1, Sd: &sd1},
-			{ID: 2, Name: "slice-b", Sst: 2, Sd: &sd2},
+			{ID: "slice-1", Name: "slice-a", Sst: 1, Sd: &sd1},
+			{ID: "slice-2", Name: "slice-b", Sst: 2, Sd: &sd2},
 		},
 	}
 
@@ -294,7 +294,7 @@ func TestListOperatorSnssai_MultipleSlices(t *testing.T) {
 func TestListOperatorSnssai_SliceWithNilSD(t *testing.T) {
 	fakeDB := &configTestDB{
 		allSlices: []db.NetworkSlice{
-			{ID: 1, Name: "default", Sst: 1, Sd: nil},
+			{ID: "slice-1", Name: "default", Sst: 1, Sd: nil},
 		},
 	}
 
