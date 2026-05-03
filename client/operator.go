@@ -17,7 +17,7 @@ type GetOperatorTrackingResponse struct {
 }
 
 type HomeNetworkKeyResponse struct {
-	ID            int    `json:"id"`
+	ID            string `json:"id"` // UUIDv7
 	KeyIdentifier int    `json:"keyIdentifier"`
 	Scheme        string `json:"scheme"`
 	PublicKey     string `json:"publicKey"`

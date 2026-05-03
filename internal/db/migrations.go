@@ -37,7 +37,17 @@ var migrations = []migration{
 // baselineVersion is the highest migration that runs locally during
 // cluster-mode startup. Post-baseline migrations are proposed through Raft
 // by the leader (§5.5).
-const baselineVersion = 9
+//
+// v11 must be local: the new code path generates UUID strings at every
+// request handler, and the tables it writes to (audit_logs,
+// home_network_keys, …) need v11's TEXT id column in place before the
+// leader's first post-election write fires. Running v11 through Raft
+// instead would leave a window where the schema is still v10 and the
+// handler is already emitting UUIDs — INTEGER PRIMARY KEY rejects
+// those with "datatype mismatch". This is the same reason 1.10.1 →
+// 1.11 cannot be a rolling upgrade; operators take that hop via
+// backup/restore.
+const baselineVersion = 11
 
 // SchemaVersion returns the highest migration version this binary understands.
 // Used during cluster join to reject version-skewed nodes.
