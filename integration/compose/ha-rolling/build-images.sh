@@ -15,7 +15,7 @@ set -eu
 
 # Pinned to the previous release tag. Bump this in the same PR that cuts
 # a new release.
-ROLLING_BASELINE_VERSION="${ROLLING_BASELINE_VERSION:-v1.10.1}"
+ROLLING_BASELINE_VERSION="${ROLLING_BASELINE_VERSION:-v1.10.2}"
 ROLLING_BASELINE_IMAGE="ghcr.io/ellanetworks/ella-core:${ROLLING_BASELINE_VERSION}"
 
 if ! docker image inspect ella-core:latest >/dev/null 2>&1; then
