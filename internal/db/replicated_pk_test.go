@@ -10,31 +10,21 @@ import (
 	"testing"
 )
 
-// autoIncrementExempt lists replicated tables that still use INTEGER
-// PRIMARY KEY AUTOINCREMENT pending migration to UUID PKs. The list
-// must only shrink — adding to it requires a code review nudge that
-// the spec_uuid.md plan is being deferred for that table.
+// TestReplicatedTables_NoAUTOINCREMENT enforces a structural invariant:
+// the primary key of every replicated table is decided at the request
+// handler (UUIDv7) and never derived from rollback-able local state.
 //
-// Empty target: every replicated table generates its PK at the request
-// handler and stores it as TEXT.
-// All replicated tables have been migrated to TEXT UUID PKs (spec_uuid.md
-// + migration v11). The exempt list is empty: every replicated table now
-// generates its PK at the request handler. Adding a table here in the
-// future requires a code review nudge that the structural fix is being
-// deferred for that table.
-var autoIncrementExempt = map[string]struct{}{}
-
-// TestReplicatedTables_NoUnexpectedAUTOINCREMENT enforces the spec_uuid.md
-// invariant: PKs of replicated tables are decided at the request handler,
-// never derived from rollback-able local state. AUTOINCREMENT on a table
-// that goes through changeset capture lets two captures pick the same id
-// when the new leader's first capture races with a previous-term entry's
-// pending FSM apply (see int_fail8.txt for the observed crash).
+// Server-side AUTOINCREMENT in a replicated table is unsafe: the
+// leader's capture path (BEGIN; INSERT; capture changeset; ROLLBACK)
+// rolls back sqlite_sequence with the row, so two captures across the
+// leader-takeover window can pick the same id. The follower's
+// sqlite3changeset_apply then rejects the second INSERT with CONFLICT
+// and the FSM panics. Generating the PK at the handler eliminates the
+// race regardless of timing.
 //
-// Failures here mean either: a new replicated table was added with
-// AUTOINCREMENT (don't), or an exempted table was migrated and the
-// exemption stayed in the list (delete it).
-func TestReplicatedTables_NoUnexpectedAUTOINCREMENT(t *testing.T) {
+// Adding a replicated table with INTEGER PRIMARY KEY AUTOINCREMENT
+// fails this test — migrate it to TEXT PRIMARY KEY (UUIDv7) first.
+func TestReplicatedTables_NoAUTOINCREMENT(t *testing.T) {
 	tmp := t.TempDir()
 
 	conn, err := openSQLiteConnection(context.Background(), filepath.Join(tmp, "db.sqlite3"))
@@ -50,13 +40,8 @@ func TestReplicatedTables_NoUnexpectedAUTOINCREMENT(t *testing.T) {
 
 	for _, table := range replicatedChangesetTables {
 		if hasAutoIncrement(t, conn, table) {
-			if _, ok := autoIncrementExempt[table]; ok {
-				continue
-			}
-
-			t.Errorf("replicated table %q uses AUTOINCREMENT but is not in autoIncrementExempt; either migrate it to a TEXT UUID PK (spec_uuid.md) or add it to the exempt list", table)
-		} else if _, ok := autoIncrementExempt[table]; ok {
-			t.Errorf("table %q is in autoIncrementExempt but no longer uses AUTOINCREMENT; delete it from the list", table)
+			t.Errorf("replicated table %q uses INTEGER PRIMARY KEY AUTOINCREMENT; "+
+				"migrate it to TEXT PRIMARY KEY with a handler-generated UUID", table)
 		}
 	}
 }

@@ -457,14 +457,6 @@ type allocateIPLeasePayload struct {
 // whose only connection is already held by the active capture, and
 // every such SELECT would deadlock until the proposeTimeout context
 // fires.
-//
-// Replaces the SequentialAllocator path that had each follower locally
-// pick a free IP and forward only the INSERT: under concurrency, two
-// followers could pick the same offset from a stale local view; the
-// second INSERT then collided at the leader's unique constraint and
-// surfaced as "capture sqlite changeset: already exists" with no retry
-// because the ipam.ErrAlreadyExists sentinel did not survive the
-// proxy boundary.
 func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLeasePayload) (any, error) {
 	if p.IMSI == "" {
 		return nil, fmt.Errorf("IMSI required")

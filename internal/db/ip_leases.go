@@ -75,11 +75,6 @@ func (l *IPLease) Address() netip.Addr {
 // follower, the call is forwarded to the leader through the existing
 // /cluster/internal/propose path, so the allocation is serialised
 // regardless of which node initiated it. Returns the chosen address.
-//
-// This replaces the old "follower picks IP locally and forwards
-// CreateLease(IP=X)" path that raced under concurrency: two followers
-// reading a stale local view could both pick the same offset, and the
-// second forwarded INSERT collided at the leader's unique constraint.
 func (db *Database) AllocateIPLease(ctx context.Context, poolID string, imsi string, sessionID int, nodeID int) (netip.Addr, error) {
 	_, span := tracer.Start(
 		ctx,

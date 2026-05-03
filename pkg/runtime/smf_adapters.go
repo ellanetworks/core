@@ -30,30 +30,6 @@ import (
 var tracer = otel.Tracer("ella-core/runtime")
 
 // ---------------------------------------------------------------------------
-// leaseStoreAdapter bridges db.Database (which uses *db.IPLease) to
-// ipam.LeaseStore (which uses *ipam.Lease), avoiding an import cycle.
-// ---------------------------------------------------------------------------
-
-type leaseStoreAdapter struct {
-	db *db.Database
-}
-
-// mapDBError translates db sentinel errors to ipam sentinel errors so the
-// allocator can use errors.Is() without importing the db package.
-func mapDBError(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, db.ErrNotFound):
-		return ipam.ErrNotFound
-	case errors.Is(err, db.ErrAlreadyExists):
-		return ipam.ErrAlreadyExists
-	default:
-		return err
-	}
-}
-
-// ---------------------------------------------------------------------------
 // pcfDBAdapter adapts *db.Database to the smf.PCF interface.
 // In 3GPP terms this is the Npcf_SMPolicyControl service backed by the
 // local subscriber / policy database.
@@ -68,81 +44,12 @@ func NewPCFDBAdapter(database *db.Database) smf.PCF {
 	return &pcfDBAdapter{db: database}
 }
 
-func dbLeaseToIPAM(l *db.IPLease) *ipam.Lease {
-	return &ipam.Lease{
-		ID:        l.ID,
-		PoolID:    l.PoolID,
-		Address:   l.Address().String(),
-		IMSI:      l.IMSI,
-		SessionID: l.SessionID,
-		Type:      l.Type,
-		CreatedAt: l.CreatedAt,
-		NodeID:    l.NodeID,
-	}
-}
-
-func ipamLeaseToDB(l *ipam.Lease) *db.IPLease {
-	return &db.IPLease{
-		ID:        l.ID,
-		PoolID:    l.PoolID,
-		IMSI:      l.IMSI,
-		SessionID: l.SessionID,
-		Type:      l.Type,
-		CreatedAt: l.CreatedAt,
-		NodeID:    l.NodeID,
-	}
-}
-
-func (a *leaseStoreAdapter) GetDynamicLease(ctx context.Context, poolID string, imsi string) (*ipam.Lease, error) {
-	l, err := a.db.GetDynamicLease(ctx, poolID, imsi)
-	if err != nil {
-		return nil, mapDBError(err)
-	}
-
-	return dbLeaseToIPAM(l), nil
-}
-
-func (a *leaseStoreAdapter) GetLeaseBySession(ctx context.Context, poolID string, sessionID int, imsi string) (*ipam.Lease, error) {
-	l, err := a.db.GetLeaseBySession(ctx, poolID, sessionID, imsi)
-	if err != nil {
-		return nil, mapDBError(err)
-	}
-
-	return dbLeaseToIPAM(l), nil
-}
-
-func (a *leaseStoreAdapter) ListLeaseAddressesByPool(ctx context.Context, poolID string) ([]string, error) {
-	return a.db.ListLeaseAddressesByPool(ctx, poolID)
-}
-
-func (a *leaseStoreAdapter) CreateLease(ctx context.Context, lease *ipam.Lease) error {
-	addr, err := netip.ParseAddr(lease.Address)
-	if err != nil {
-		return fmt.Errorf("invalid IP address %q: %w", lease.Address, err)
-	}
-
-	return mapDBError(a.db.CreateLease(ctx, ipamLeaseToDB(lease), addr))
-}
-
-func (a *leaseStoreAdapter) UpdateLeaseSession(ctx context.Context, leaseID string, sessionID int) error {
-	return mapDBError(a.db.UpdateLeaseSession(ctx, leaseID, sessionID))
-}
-
-func (a *leaseStoreAdapter) UpdateLeaseNode(ctx context.Context, leaseID string, nodeID int, sessionID int) error {
-	return mapDBError(a.db.UpdateLeaseNode(ctx, leaseID, nodeID, sessionID))
-}
-
-func (a *leaseStoreAdapter) DeleteDynamicLease(ctx context.Context, leaseID string) error {
-	return mapDBError(a.db.DeleteDynamicLease(ctx, leaseID))
-}
-
 // ---------------------------------------------------------------------------
 // smfDBAdapter adapts *db.Database to the smf.SessionStore interface.
 // ---------------------------------------------------------------------------
 
 type smfDBAdapter struct {
-	db        *db.Database
-	allocator ipam.Allocator
+	db *db.Database
 }
 
 // resolvePoolByDNN looks up the IP pool for a data network by name.
@@ -175,8 +82,7 @@ func (a *smfDBAdapter) AllocateIP(ctx context.Context, imsi string, dnn string, 
 
 	// AllocateIPLease runs the SELECT-then-INSERT atomically on the
 	// leader inside leaderCaptureAndPropose's proposeMu, so concurrent
-	// allocations from any node serialise correctly. The legacy
-	// pre-pick-on-follower path is gone.
+	// allocations from any node serialise correctly.
 	addr, err := a.db.AllocateIPLease(ctx, pool.ID, imsi, int(pduSessionID), a.db.NodeID())
 	if err != nil {
 		span.RecordError(err)
@@ -208,15 +114,22 @@ func (a *smfDBAdapter) ReleaseIP(ctx context.Context, imsi string, dnn string, p
 		return netip.Addr{}, fmt.Errorf("resolve pool: %w", err)
 	}
 
-	addr, err := a.allocator.Release(ctx, pool, int(pduSessionID), imsi)
+	lease, err := a.db.GetLeaseBySession(ctx, pool.ID, int(pduSessionID), imsi)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "release failed")
+		span.SetStatus(codes.Error, "lookup failed")
 
-		return netip.Addr{}, err
+		return netip.Addr{}, fmt.Errorf("lookup lease: %w", err)
 	}
 
-	return addr, nil
+	if err := a.db.DeleteDynamicLease(ctx, lease.ID); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "delete failed")
+
+		return netip.Addr{}, fmt.Errorf("delete lease: %w", err)
+	}
+
+	return lease.Address(), nil
 }
 
 func (a *pcfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai *models.Snssai, dnn string) (*smf.Policy, error) {
