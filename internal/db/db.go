@@ -80,12 +80,11 @@ type Database struct {
 	listAllLeasesStmt            *sqlair.Statement
 
 	// API Token statements
-	listAPITokensStmt     *sqlair.Statement
-	countAPITokensStmt    *sqlair.Statement
-	createAPITokenStmt    *sqlair.Statement
-	getAPITokenByNameStmt *sqlair.Statement
-	getAPITokenByIDStmt   *sqlair.Statement
-	deleteAPITokenStmt    *sqlair.Statement
+	listAPITokensStmt   *sqlair.Statement
+	countAPITokensStmt  *sqlair.Statement
+	createAPITokenStmt  *sqlair.Statement
+	getAPITokenByIDStmt *sqlair.Statement
+	deleteAPITokenStmt  *sqlair.Statement
 
 	// Radio Event statements
 	insertRadioEventStmt     *sqlair.Statement
@@ -204,7 +203,6 @@ type Database struct {
 	updateNetworkRuleStmt          *sqlair.Statement
 	deleteNetworkRuleStmt          *sqlair.Statement
 	deleteNetworkRulesByPolicyStmt *sqlair.Statement
-	countNetworkRulesStmt          *sqlair.Statement
 	listRulesForPolicyStmt         *sqlair.Statement
 
 	// Retention Policy statements
@@ -222,7 +220,6 @@ type Database struct {
 	insertAuditLogStmt        *sqlair.Statement
 	listAuditLogsFilteredStmt *sqlair.Statement
 	deleteOldAuditLogsStmt    *sqlair.Statement
-	countAuditLogsStmt        *sqlair.Statement
 
 	// Flow Report statements
 	insertFlowReportStmt                *sqlair.Statement
@@ -279,7 +276,6 @@ type Database struct {
 	deletePKIIntermediateStmt    *sqlair.Statement
 	insertIssuedCertStmt         *sqlair.Statement
 	listIssuedCertsByNodeStmt    *sqlair.Statement
-	listIssuedCertsActiveStmt    *sqlair.Statement
 	deleteIssuedCertsExpiredStmt *sqlair.Statement
 	insertRevokedCertStmt        *sqlair.Statement
 	listRevokedCertsStmt         *sqlair.Statement
@@ -1250,7 +1246,6 @@ func (db *Database) PrepareStatements() error {
 		{&db.listAPITokensStmt, fmt.Sprintf(listAPITokensPagedStmt, APITokensTableName), []any{ListArgs{}, APIToken{}, NumItems{}}},
 		{&db.countAPITokensStmt, fmt.Sprintf(countAPITokensStmt, APITokensTableName), []any{APIToken{}, NumItems{}}},
 		{&db.createAPITokenStmt, fmt.Sprintf(createAPITokenStmt, APITokensTableName), []any{APIToken{}}},
-		{&db.getAPITokenByNameStmt, fmt.Sprintf(getByNameStmt, APITokensTableName), []any{APIToken{}}},
 		{&db.deleteAPITokenStmt, fmt.Sprintf(deleteAPITokenStmt, APITokensTableName), []any{APIToken{}}},
 		{&db.getAPITokenByIDStmt, fmt.Sprintf(getByTokenIDStmt, APITokensTableName), []any{APIToken{}}},
 
@@ -1370,7 +1365,6 @@ func (db *Database) PrepareStatements() error {
 		{&db.updateNetworkRuleStmt, fmt.Sprintf(updateNetworkRuleStmt, NetworkRulesTableName), []any{NetworkRule{}}},
 		{&db.deleteNetworkRuleStmt, fmt.Sprintf(deleteNetworkRuleStmt, NetworkRulesTableName), []any{NetworkRule{}}},
 		{&db.deleteNetworkRulesByPolicyStmt, fmt.Sprintf(deleteNetworkRulesByPolicyStmt, NetworkRulesTableName), []any{NetworkRule{}}},
-		{&db.countNetworkRulesStmt, fmt.Sprintf(countNetworkRulesStmt, NetworkRulesTableName), []any{NumItems{}}},
 		{&db.listRulesForPolicyStmt, fmt.Sprintf(listRulesForPolicyStmt, NetworkRulesTableName), []any{NetworkRule{}}},
 
 		// Retention Policy
@@ -1388,7 +1382,6 @@ func (db *Database) PrepareStatements() error {
 		{&db.insertAuditLogStmt, fmt.Sprintf(insertAuditLogStmt, AuditLogsTableName), []any{dbwriter.AuditLog{}}},
 		{&db.listAuditLogsFilteredStmt, fmt.Sprintf(listAuditLogsFilteredPageStmt, AuditLogsTableName), []any{ListArgs{}, AuditLogFilters{}, dbwriter.AuditLog{}, NumItems{}}},
 		{&db.deleteOldAuditLogsStmt, fmt.Sprintf(deleteOldAuditLogsStmt, AuditLogsTableName), []any{cutoffArgs{}}},
-		{&db.countAuditLogsStmt, fmt.Sprintf(countAuditLogsStmt, AuditLogsTableName), []any{NumItems{}}},
 
 		// Flow Reports
 		{&db.insertFlowReportStmt, fmt.Sprintf(insertFlowReportStmt, FlowReportsTableName), []any{dbwriter.FlowReport{}}},
@@ -1445,7 +1438,6 @@ func (db *Database) PrepareStatements() error {
 		{&db.deletePKIIntermediateStmt, fmt.Sprintf(deletePKIIntermediateStmtStr, ClusterPKIIntermediatesTableName), []any{ClusterPKIIntermediate{}}},
 		{&db.insertIssuedCertStmt, fmt.Sprintf(insertIssuedCertStmtStr, ClusterIssuedCertsTableName), []any{ClusterIssuedCert{}}},
 		{&db.listIssuedCertsByNodeStmt, fmt.Sprintf(listIssuedCertsByNodeStmtStr, ClusterIssuedCertsTableName), []any{ClusterIssuedCert{}}},
-		{&db.listIssuedCertsActiveStmt, fmt.Sprintf(listIssuedCertsActiveStmtStr, ClusterIssuedCertsTableName), []any{ClusterIssuedCert{}}},
 		{&db.deleteIssuedCertsExpiredStmt, fmt.Sprintf(deleteIssuedCertsExpiredStmtStr, ClusterIssuedCertsTableName), []any{ClusterIssuedCert{}}},
 		{&db.insertRevokedCertStmt, fmt.Sprintf(insertRevokedCertStmtStr, ClusterRevokedCertsTableName), []any{ClusterRevokedCert{}}},
 		{&db.listRevokedCertsStmt, fmt.Sprintf(listRevokedCertsStmtStr, ClusterRevokedCertsTableName), []any{ClusterRevokedCert{}}},

@@ -22,7 +22,6 @@ const AuditLogsTableName = "audit_logs"
 const (
 	insertAuditLogStmt     = "INSERT INTO %s (id, timestamp, level, actor, action, ip, details) VALUES ($AuditLog.id, $AuditLog.timestamp, $AuditLog.level, $AuditLog.actor, $AuditLog.action, $AuditLog.ip, $AuditLog.details)"
 	deleteOldAuditLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
-	countAuditLogsStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
 // id is a UUIDv7, so it's not strictly time-ordered (clock skew between
@@ -192,42 +191,4 @@ func (db *Database) DeleteOldAuditLogs(ctx context.Context, days int) error {
 func (db *Database) ListAuditLogsByActorPage(ctx context.Context, actor string, page, perPage int) ([]dbwriter.AuditLog, int, error) {
 	filters := &AuditLogFilters{Actor: &actor}
 	return db.ListAuditLogsPage(ctx, filters, page, perPage)
-}
-
-func (db *Database) CountAuditLogs(ctx context.Context) (int, error) {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s", "COUNT", AuditLogsTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("COUNT"),
-			attribute.String("db.collection", AuditLogsTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(AuditLogsTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(AuditLogsTableName, "select").Inc()
-
-	var result NumItems
-
-	err := db.conn().Query(ctx, db.countAuditLogsStmt).Get(&result)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-			return 0, nil
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return 0, fmt.Errorf("query failed: %w", err)
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return result.Count, nil
 }

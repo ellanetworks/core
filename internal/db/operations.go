@@ -109,9 +109,6 @@ type ChangesetOp[P any] struct {
 	apply     func(db *Database, ctx context.Context, p *P) (any, error)
 }
 
-func (op *ChangesetOp[P]) Name() string   { return op.name }
-func (op *ChangesetOp[P]) MinSchema() int { return op.minSchema }
-
 func registerChangesetOp[P any](
 	name string,
 	apply func(db *Database, ctx context.Context, p *P) (any, error),
@@ -199,9 +196,6 @@ type intentOp struct {
 	minSchema int
 	cmdType   ellaraft.CommandType
 }
-
-func (op intentOp) Name() string   { return op.name }
-func (op intentOp) MinSchema() int { return op.minSchema }
 
 // intentMinSchemaForCmd returns the minSchema for an intent CommandType,
 // or 1 if not registered. CmdChangeset is gated by bytesPayload.RequiredSchema

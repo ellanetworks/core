@@ -27,7 +27,6 @@ const (
 	updateNetworkRuleStmt          = "UPDATE %s SET description=$NetworkRule.description, direction=$NetworkRule.direction, remote_prefix=$NetworkRule.remote_prefix, protocol=$NetworkRule.protocol, port_low=$NetworkRule.port_low, port_high=$NetworkRule.port_high, action=$NetworkRule.action, precedence=$NetworkRule.precedence, updated_at=$NetworkRule.updated_at WHERE id==$NetworkRule.id"
 	deleteNetworkRuleStmt          = "DELETE FROM %s WHERE id==$NetworkRule.id"
 	deleteNetworkRulesByPolicyStmt = "DELETE FROM %s WHERE policy_id==$NetworkRule.policy_id"
-	countNetworkRulesStmt          = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 	listRulesForPolicyStmt         = "SELECT &NetworkRule.* FROM %s WHERE policy_id==$NetworkRule.policy_id ORDER BY precedence ASC"
 )
 
@@ -296,40 +295,6 @@ func (db *Database) DeleteNetworkRule(ctx context.Context, id string) error {
 	span.SetStatus(codes.Ok, "")
 
 	return nil
-}
-
-// CountNetworkRules returns the total count of network rules.
-func (db *Database) CountNetworkRules(ctx context.Context) (int, error) {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s", "SELECT", NetworkRulesTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", NetworkRulesTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NetworkRulesTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "select").Inc()
-
-	var result NumItems
-
-	err := db.conn().Query(ctx, db.countNetworkRulesStmt).Get(&result)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return 0, fmt.Errorf("query failed: %w", err)
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return result.Count, nil
 }
 
 // ListRulesForPolicy retrieves all network rules associated with a policy.

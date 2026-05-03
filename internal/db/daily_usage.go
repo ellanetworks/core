@@ -86,10 +86,6 @@ func DaysSinceEpoch(t time.Time) int64 {
 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC).Unix() / 86400
 }
 
-func (d *DailyUsage) SetDay(t time.Time) {
-	d.EpochDay = DaysSinceEpoch(t)
-}
-
 func (d *DailyUsage) GetDay() time.Time {
 	return time.Unix(d.EpochDay*86400, 0).UTC()
 }

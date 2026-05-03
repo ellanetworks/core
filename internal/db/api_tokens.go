@@ -29,7 +29,6 @@ type APIToken struct {
 const (
 	listAPITokensPagedStmt = `SELECT &APIToken.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE user_id == $APIToken.user_id ORDER BY id DESC LIMIT $ListArgs.limit OFFSET $ListArgs.offset`
 	getByTokenIDStmt       = "SELECT &APIToken.* FROM %s WHERE token_id==$APIToken.token_id"
-	getByNameStmt          = "SELECT &APIToken.* FROM %s WHERE user_id==$APIToken.user_id AND name==$APIToken.name"
 	deleteAPITokenStmt     = "DELETE FROM %s WHERE id==$APIToken.id"                                                                                                                                                         // #nosec: G101
 	createAPITokenStmt     = "INSERT INTO %s (id, token_id, name, token_hash, user_id, expires_at) VALUES ($APIToken.id, $APIToken.token_id, $APIToken.name, $APIToken.token_hash, $APIToken.user_id, $APIToken.expires_at)" // #nosec: G101
 	countAPITokensStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE user_id==$APIToken.user_id"                                                                                                                   // #nosec: G101
@@ -157,44 +156,6 @@ func (db *Database) GetAPITokenByTokenID(ctx context.Context, tokenID string) (*
 	row := APIToken{TokenID: tokenID}
 
 	err := db.conn().Query(ctx, db.getAPITokenByIDStmt, row).Get(&row)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			span.SetStatus(codes.Ok, "no rows")
-			return nil, ErrNotFound
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return nil, fmt.Errorf("query failed: %w", err)
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	return &row, nil
-}
-
-func (db *Database) GetAPITokenByName(ctx context.Context, userID string, name string) (*APIToken, error) {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s", "SELECT", APITokensTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("SELECT"),
-			attribute.String("db.collection", APITokensTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(APITokensTableName, "select"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(APITokensTableName, "select").Inc()
-
-	row := APIToken{UserID: userID, Name: name}
-
-	err := db.conn().Query(ctx, db.getAPITokenByNameStmt, row).Get(&row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			span.SetStatus(codes.Ok, "no rows")
