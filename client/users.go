@@ -45,7 +45,7 @@ type CreateAPITokenResponse struct {
 }
 
 type APIToken struct {
-	ID     int    `json:"id"`
+	ID     string `json:"id"` // public token identifier (token_id), not the DB primary key
 	Name   string `json:"name"`
 	Expiry string `json:"expiry,omitempty"` // ISO 8601 format, optional
 }

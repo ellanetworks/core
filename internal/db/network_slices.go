@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -22,7 +23,7 @@ const (
 	listAllNetworkSlicesStmt   = "SELECT &NetworkSlice.* FROM %s ORDER BY id ASC"
 	getNetworkSliceStmt        = "SELECT &NetworkSlice.* FROM %s WHERE name==$NetworkSlice.name"
 	getNetworkSliceByIDStmt    = "SELECT &NetworkSlice.* FROM %s WHERE id==$NetworkSlice.id"
-	createNetworkSliceStmt     = "INSERT INTO %s (sst, sd, name) VALUES ($NetworkSlice.sst, $NetworkSlice.sd, $NetworkSlice.name)"
+	createNetworkSliceStmt     = "INSERT INTO %s (id, sst, sd, name) VALUES ($NetworkSlice.id, $NetworkSlice.sst, $NetworkSlice.sd, $NetworkSlice.name)"
 	editNetworkSliceStmt       = "UPDATE %s SET sst=$NetworkSlice.sst, sd=$NetworkSlice.sd WHERE name==$NetworkSlice.name"
 	deleteNetworkSliceStmt     = "DELETE FROM %s WHERE name==$NetworkSlice.name"
 	countNetworkSlicesStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
@@ -30,7 +31,7 @@ const (
 )
 
 type NetworkSlice struct {
-	ID   int     `db:"id"`
+	ID   string  `db:"id"` // UUIDv7
 	Sst  int32   `db:"sst"`
 	Sd   *string `db:"sd"`
 	Name string  `db:"name"`
@@ -170,7 +171,7 @@ func (db *Database) GetNetworkSlice(ctx context.Context, name string) (*NetworkS
 	return &row, nil
 }
 
-func (db *Database) GetNetworkSliceByID(ctx context.Context, id int) (*NetworkSlice, error) {
+func (db *Database) GetNetworkSliceByID(ctx context.Context, id string) (*NetworkSlice, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "SELECT", NetworkSlicesTableName),
@@ -225,6 +226,15 @@ func (db *Database) CreateNetworkSlice(ctx context.Context, slice *NetworkSlice)
 	defer timer.ObserveDuration()
 
 	DBQueriesTotal.WithLabelValues(NetworkSlicesTableName, "insert").Inc()
+
+	if slice.ID == "" {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("generate network slice id: %w", err)
+		}
+
+		slice.ID = id.String()
+	}
 
 	_, err := opCreateNetworkSlice.Invoke(db, slice)
 	if err != nil {
@@ -334,7 +344,7 @@ func (db *Database) CountNetworkSlices(ctx context.Context) (int, error) {
 	return result.Count, nil
 }
 
-func (db *Database) ListNetworkSlicesByIDs(ctx context.Context, ids []int) ([]NetworkSlice, error) {
+func (db *Database) ListNetworkSlicesByIDs(ctx context.Context, ids []string) ([]NetworkSlice, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (by IDs)", "SELECT", NetworkSlicesTableName),

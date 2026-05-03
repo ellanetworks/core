@@ -10,7 +10,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 )
 
-func createDataNetworkAndPolicy(database *db.Database) (int, error) {
+func createDataNetworkAndPolicy(database *db.Database) (string, error) {
 	newDataNetwork := &db.DataNetwork{
 		Name:   "not-internet",
 		IPPool: "1.2.3.0/24",
@@ -18,12 +18,12 @@ func createDataNetworkAndPolicy(database *db.Database) (int, error) {
 
 	err := database.CreateDataNetwork(context.Background(), newDataNetwork)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	createdNetwork, err := database.GetDataNetwork(context.Background(), newDataNetwork.Name)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	profile := &db.Profile{
@@ -34,12 +34,12 @@ func createDataNetworkAndPolicy(database *db.Database) (int, error) {
 
 	err = database.CreateProfile(context.Background(), profile)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	createdProfile, err := database.GetProfile(context.Background(), profile.Name)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	slice := &db.NetworkSlice{
@@ -49,12 +49,12 @@ func createDataNetworkAndPolicy(database *db.Database) (int, error) {
 
 	err = database.CreateNetworkSlice(context.Background(), slice)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	createdSlice, err := database.GetNetworkSlice(context.Background(), slice.Name)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	policy := &db.Policy{
@@ -70,7 +70,7 @@ func createDataNetworkAndPolicy(database *db.Database) (int, error) {
 
 	err = database.CreatePolicy(context.Background(), policy)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	return createdProfile.ID, nil
@@ -182,7 +182,7 @@ func TestSubscribersDbEndToEnd(t *testing.T) {
 	}
 
 	if retrievedSubscriber.ProfileID != newProfileCreated.ID {
-		t.Fatalf("Profile IDs don't match: %d", retrievedSubscriber.ProfileID)
+		t.Fatalf("Profile IDs don't match: %s", retrievedSubscriber.ProfileID)
 	}
 
 	if err = database.DeleteSubscriber(context.Background(), subscriber.Imsi); err != nil {

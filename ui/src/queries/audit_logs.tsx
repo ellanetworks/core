@@ -5,7 +5,7 @@ export type AuditLogRetentionPolicy = {
 };
 
 export type APIAuditLog = {
-  id: number;
+  id: string; // UUIDv7
   timestamp: string;
   level: string;
   user: string;

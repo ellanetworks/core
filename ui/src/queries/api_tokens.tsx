@@ -1,7 +1,7 @@
 import { apiFetch, apiFetchVoid } from "@/queries/utils";
 
 export type APIToken = {
-  id: number;
+  id: string;
   name: string;
   expires_at: string | null;
 };
@@ -38,7 +38,7 @@ export const createAPIToken = async (
 
 export const deleteAPIToken = async (
   authToken: string,
-  id: number,
+  id: string,
 ): Promise<void> => {
   await apiFetchVoid(`/api/v1/users/me/api-tokens/${id}`, {
     method: "DELETE",
@@ -74,7 +74,7 @@ export const createUserAPIToken = async (
 export const deleteUserAPIToken = async (
   authToken: string,
   email: string,
-  id: number,
+  id: string,
 ): Promise<void> => {
   await apiFetchVoid(`/api/v1/users/${email}/api-tokens/${id}`, {
     method: "DELETE",

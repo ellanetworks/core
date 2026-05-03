@@ -14,32 +14,32 @@ import (
 // It is satisfied by *db.Database.
 type LeaseStore interface {
 	// GetDynamicLease returns the dynamic lease for (poolID, imsi), or ErrNotFound.
-	GetDynamicLease(ctx context.Context, poolID int, imsi string) (*Lease, error)
+	GetDynamicLease(ctx context.Context, poolID string, imsi string) (*Lease, error)
 
 	// GetLeaseBySession returns the lease for (poolID, sessionID, imsi), or ErrNotFound.
-	GetLeaseBySession(ctx context.Context, poolID int, sessionID int, imsi string) (*Lease, error)
+	GetLeaseBySession(ctx context.Context, poolID string, sessionID int, imsi string) (*Lease, error)
 
 	// ListLeaseAddressesByPool returns sorted address strings for all leases in the pool.
-	ListLeaseAddressesByPool(ctx context.Context, poolID int) ([]string, error)
+	ListLeaseAddressesByPool(ctx context.Context, poolID string) ([]string, error)
 
 	// CreateLease inserts a new lease. Returns ErrAlreadyExists on unique violation.
 	CreateLease(ctx context.Context, lease *Lease) error
 
 	// UpdateLeaseSession sets the sessionID on a lease.
-	UpdateLeaseSession(ctx context.Context, leaseID int, sessionID int) error
+	UpdateLeaseSession(ctx context.Context, leaseID string, sessionID int) error
 
 	// UpdateLeaseNode updates the nodeID and sessionID on a lease.
-	UpdateLeaseNode(ctx context.Context, leaseID int, nodeID int, sessionID int) error
+	UpdateLeaseNode(ctx context.Context, leaseID string, nodeID int, sessionID int) error
 
 	// DeleteDynamicLease deletes a dynamic lease by ID.
-	DeleteDynamicLease(ctx context.Context, leaseID int) error
+	DeleteDynamicLease(ctx context.Context, leaseID string) error
 }
 
 // Lease mirrors db.IPLease but lives in the ipam package to avoid an import
 // cycle. The db package satisfies LeaseStore via adapter methods.
 type Lease struct {
-	ID        int
-	PoolID    int
+	ID        string
+	PoolID    string
 	Address   string
 	IMSI      string
 	SessionID *int

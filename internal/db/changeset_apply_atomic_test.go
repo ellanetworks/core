@@ -18,6 +18,7 @@ func captureAuditLogChangeset(t *testing.T, database *Database) []byte {
 	t.Helper()
 
 	payload := &auditLogPayload{
+		ID:        "01900000-0000-7000-8000-00000000aaaa",
 		Timestamp: "2026-05-02T13:00:00Z",
 		Level:     "info",
 		Actor:     "test",

@@ -50,6 +50,16 @@ func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
 		t.Fatalf("couldn't get test profile: %s", err)
 	}
 
+	testSlice := &db.NetworkSlice{Name: "test-slice", Sst: 1}
+	if err := database.CreateNetworkSlice(ctx, testSlice); err != nil {
+		t.Fatalf("couldn't create test slice: %s", err)
+	}
+
+	createdSlice, err := database.GetNetworkSlice(ctx, "test-slice")
+	if err != nil {
+		t.Fatalf("couldn't get test slice: %s", err)
+	}
+
 	policy := &db.Policy{
 		Name:                "test-policy",
 		SessionAmbrUplink:   "100 Mbps",
@@ -58,7 +68,7 @@ func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
 		Arp:                 1,
 		DataNetworkID:       testDataNetwork.ID,
 		ProfileID:           createdProfile.ID,
-		SliceID:             1,
+		SliceID:             createdSlice.ID,
 	}
 
 	err = database.CreatePolicy(ctx, policy)
@@ -73,7 +83,7 @@ func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
 
 	prefix1 := "192.168.0.0/24"
 	rule1 := &db.NetworkRule{
-		PolicyID:     int64(createdPolicy.ID),
+		PolicyID:     createdPolicy.ID,
 		Description:  "rule-1",
 		Direction:    "uplink",
 		RemotePrefix: &prefix1,
@@ -89,13 +99,13 @@ func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
 		t.Fatalf("couldn't create rule 1: %s", err)
 	}
 
-	if id1 == 0 {
-		t.Fatalf("expected non-zero rule ID")
+	if id1 == "" {
+		t.Fatalf("expected non-empty rule ID")
 	}
 
 	prefix2 := "10.0.0.0/8"
 	rule2 := &db.NetworkRule{
-		PolicyID:     int64(createdPolicy.ID),
+		PolicyID:     createdPolicy.ID,
 		Description:  "rule-2",
 		Direction:    "downlink",
 		RemotePrefix: &prefix2,
@@ -111,8 +121,8 @@ func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
 		t.Fatalf("couldn't create rule 2: %s", err)
 	}
 
-	if id2 == 0 {
-		t.Fatalf("expected non-zero rule ID")
+	if id2 == "" {
+		t.Fatalf("expected non-empty rule ID")
 	}
 
 	subscriber := &db.Subscriber{
@@ -263,6 +273,16 @@ func TestGetSessionPolicy_NoNetworkRules(t *testing.T) {
 		t.Fatalf("couldn't get test profile: %s", err)
 	}
 
+	testSlice := &db.NetworkSlice{Name: "test-slice-2", Sst: 1}
+	if err := database.CreateNetworkSlice(ctx, testSlice); err != nil {
+		t.Fatalf("couldn't create test slice: %s", err)
+	}
+
+	createdSlice, err := database.GetNetworkSlice(ctx, "test-slice-2")
+	if err != nil {
+		t.Fatalf("couldn't get test slice: %s", err)
+	}
+
 	policy := &db.Policy{
 		Name:                "test-policy-no-rules",
 		SessionAmbrUplink:   "50 Mbps",
@@ -271,7 +291,7 @@ func TestGetSessionPolicy_NoNetworkRules(t *testing.T) {
 		Arp:                 1,
 		DataNetworkID:       testDataNetwork.ID,
 		ProfileID:           createdProfile.ID,
-		SliceID:             1,
+		SliceID:             createdSlice.ID,
 	}
 
 	err = database.CreatePolicy(ctx, policy)

@@ -24,7 +24,7 @@ type UpdateAuditLogsRetentionPolicyParams struct {
 }
 
 type AuditLog struct {
-	ID        int    `json:"id"`
+	ID        string `json:"id"`
 	Timestamp string `json:"timestamp"`
 	Level     string `json:"level"`
 	User      string `json:"user"`

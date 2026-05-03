@@ -375,7 +375,7 @@ func TestUpdateFlowReportsRetentionPolicyInvalidInput(t *testing.T) {
 	}
 }
 
-func createFlowReportTestSubscriber(t *testing.T, dbInstance *db.Database) int {
+func createFlowReportTestSubscriber(t *testing.T, dbInstance *db.Database) string {
 	t.Helper()
 
 	const imsi = "001010100000001"
@@ -395,6 +395,30 @@ func createFlowReportTestSubscriber(t *testing.T, dbInstance *db.Database) int {
 		t.Fatalf("couldn't get data network: %s", err)
 	}
 
+	profile := &db.Profile{
+		Name:           "test-profile-" + imsi,
+		UeAmbrUplink:   "200 Mbps",
+		UeAmbrDownlink: "200 Mbps",
+	}
+	if err := dbInstance.CreateProfile(ctx, profile); err != nil {
+		t.Fatalf("couldn't create profile: %s", err)
+	}
+
+	createdProfile, err := dbInstance.GetProfile(ctx, profile.Name)
+	if err != nil {
+		t.Fatalf("couldn't get profile: %s", err)
+	}
+
+	slice := &db.NetworkSlice{Name: "test-slice-" + imsi, Sst: 1}
+	if err := dbInstance.CreateNetworkSlice(ctx, slice); err != nil {
+		t.Fatalf("couldn't create network slice: %s", err)
+	}
+
+	createdSlice, err := dbInstance.GetNetworkSlice(ctx, slice.Name)
+	if err != nil {
+		t.Fatalf("couldn't get network slice: %s", err)
+	}
+
 	policy := &db.Policy{
 		Name:                "test-policy-" + imsi,
 		SessionAmbrUplink:   "100 Mbps",
@@ -402,8 +426,8 @@ func createFlowReportTestSubscriber(t *testing.T, dbInstance *db.Database) int {
 		Var5qi:              9,
 		Arp:                 1,
 		DataNetworkID:       createdDN.ID,
-		ProfileID:           1,
-		SliceID:             1,
+		ProfileID:           createdProfile.ID,
+		SliceID:             createdSlice.ID,
 	}
 	if err := dbInstance.CreatePolicy(ctx, policy); err != nil {
 		t.Fatalf("couldn't create policy: %s", err)

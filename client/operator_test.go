@@ -400,8 +400,8 @@ func TestGetOperator_IncludesHomeNetworkKeys(t *testing.T) {
 			Result: []byte(`{
 				"id": {"mcc": "001", "mnc": "01"},
 				"homeNetworkKeys": [
-					{"id": 1, "keyIdentifier": 0, "scheme": "A", "publicKey": "aabb"},
-					{"id": 2, "keyIdentifier": 0, "scheme": "B", "publicKey": "02cc"}
+					{"id": "018f0000-0000-7000-8000-000000000001", "keyIdentifier": 0, "scheme": "A", "publicKey": "aabb"},
+					{"id": "018f0000-0000-7000-8000-000000000002", "keyIdentifier": 0, "scheme": "B", "publicKey": "02cc"}
 				]
 			}`),
 		},

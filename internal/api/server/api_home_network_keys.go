@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/google/uuid"
 )
 
 type CreateHomeNetworkKeyParams struct {
@@ -19,7 +19,7 @@ type CreateHomeNetworkKeyParams struct {
 }
 
 type HomeNetworkKeyResponse struct {
-	ID            int    `json:"id"`
+	ID            string `json:"id"`
 	KeyIdentifier int    `json:"keyIdentifier"`
 	Scheme        string `json:"scheme"`
 	PublicKey     string `json:"publicKey"`
@@ -61,10 +61,8 @@ func GetHomeNetworkKeyPrivateKey(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := getEmailFromContext(r)
 
-		idStr := r.PathValue("id")
-
-		id, err := strconv.Atoi(idStr)
-		if err != nil {
+		id := r.PathValue("id")
+		if _, err := uuid.Parse(id); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid key ID", err, logger.APILog)
 			return
 		}
@@ -86,7 +84,7 @@ func GetHomeNetworkKeyPrivateKey(dbInstance *db.Database) http.Handler {
 			ViewHomeNetworkKeyPrivateKeyAction,
 			email,
 			getClientIP(r),
-			fmt.Sprintf("Viewed private key for home network key (id=%d, scheme=%s, keyIdentifier=%d)", id, existingKey.Scheme, existingKey.KeyIdentifier),
+			fmt.Sprintf("Viewed private key for home network key (id=%s, scheme=%s, keyIdentifier=%d)", id, existingKey.Scheme, existingKey.KeyIdentifier),
 		)
 
 		writeResponse(r.Context(), w, HomeNetworkKeyPrivateKeyResponse{
@@ -140,7 +138,14 @@ func CreateHomeNetworkKey(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		id, err := uuid.NewV7()
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to generate key id", err, logger.APILog)
+			return
+		}
+
 		key := &db.HomeNetworkKey{
+			ID:            id.String(),
 			KeyIdentifier: params.KeyIdentifier,
 			Scheme:        params.Scheme,
 			PrivateKey:    params.PrivateKey,
@@ -175,10 +180,8 @@ func DeleteHomeNetworkKey(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := getEmailFromContext(r)
 
-		idStr := r.PathValue("id")
-
-		id, err := strconv.Atoi(idStr)
-		if err != nil {
+		id := r.PathValue("id")
+		if _, err := uuid.Parse(id); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "Invalid key ID", err, logger.APILog)
 			return
 		}
@@ -207,7 +210,7 @@ func DeleteHomeNetworkKey(dbInstance *db.Database) http.Handler {
 			DeleteHomeNetworkKeyAction,
 			email,
 			getClientIP(r),
-			fmt.Sprintf("Deleted home network key (id=%d, scheme=%s, keyIdentifier=%d)", id, existingKey.Scheme, existingKey.KeyIdentifier),
+			fmt.Sprintf("Deleted home network key (id=%s, scheme=%s, keyIdentifier=%d)", id, existingKey.Scheme, existingKey.KeyIdentifier),
 		)
 	})
 }

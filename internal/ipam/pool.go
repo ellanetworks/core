@@ -12,15 +12,15 @@ import (
 // offsets and addresses. The offset is relative to the network base address
 // (e.g. for 10.0.0.0/24, offset 1 = 10.0.0.1).
 type Pool struct {
-	// ID is the data_networks.id primary key, used as pool_id in ip_leases.
-	ID int
+	// ID is the data_networks.id primary key (UUID), used as pool_id in ip_leases.
+	ID string
 
 	// Prefix is the parsed CIDR (e.g. "10.45.0.0/22" → 10.45.0.0/22).
 	Prefix netip.Prefix
 }
 
 // NewPool creates a Pool from a data network ID and CIDR string.
-func NewPool(id int, cidr string) (Pool, error) {
+func NewPool(id string, cidr string) (Pool, error) {
 	prefix, err := netip.ParsePrefix(cidr)
 	if err != nil {
 		return Pool{}, fmt.Errorf("invalid CIDR %q: %w", cidr, err)

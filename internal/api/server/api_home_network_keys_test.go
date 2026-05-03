@@ -17,7 +17,7 @@ type CreateHomeNetworkKeyParams struct {
 }
 
 type HomeNetworkKeyResponseItem struct {
-	ID            int    `json:"id"`
+	ID            string `json:"id"`
 	KeyIdentifier int    `json:"keyIdentifier"`
 	Scheme        string `json:"scheme"`
 	PublicKey     string `json:"publicKey"`
@@ -68,8 +68,8 @@ func createHomeNetworkKey(url string, client *http.Client, token string, data *C
 	return res.StatusCode, &resp, nil
 }
 
-func deleteHomeNetworkKey(url string, client *http.Client, token string, id int) (int, *DeleteHomeNetworkKeyResponse, error) { //nolint:unparam
-	req, err := http.NewRequestWithContext(context.Background(), "DELETE", fmt.Sprintf("%s/api/v1/operator/home-network-keys/%d", url, id), nil)
+func deleteHomeNetworkKey(url string, client *http.Client, token string, id string) (int, *DeleteHomeNetworkKeyResponse, error) { //nolint:unparam
+	req, err := http.NewRequestWithContext(context.Background(), "DELETE", fmt.Sprintf("%s/api/v1/operator/home-network-keys/%s", url, id), nil)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -333,7 +333,7 @@ func TestDeleteHomeNetworkKey(t *testing.T) {
 	}
 
 	// Find the key with identifier 1.
-	var keyID int
+	var keyID string
 
 	for _, k := range opResp.Result.HomeNetworkKeys {
 		if k.KeyIdentifier == 1 {
@@ -342,7 +342,7 @@ func TestDeleteHomeNetworkKey(t *testing.T) {
 		}
 	}
 
-	if keyID == 0 {
+	if keyID == "" {
 		t.Fatal("couldn't find key with identifier 1")
 	}
 
@@ -385,7 +385,7 @@ func TestDeleteHomeNetworkKey_NotFound(t *testing.T) {
 		t.Fatalf("couldn't initialize: %s", err)
 	}
 
-	statusCode, _, err := deleteHomeNetworkKey(env.Server.URL, client, token, 9999)
+	statusCode, _, err := deleteHomeNetworkKey(env.Server.URL, client, token, "00000000-0000-7000-8000-000000000000")
 	if err != nil {
 		t.Fatalf("request failed: %s", err)
 	}

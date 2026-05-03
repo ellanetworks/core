@@ -219,7 +219,7 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler
 			return
 		}
 
-		profileByID := make(map[int]*db.Profile, len(allProfiles))
+		profileByID := make(map[string]*db.Profile, len(allProfiles))
 		for i := range allProfiles {
 			profileByID[allProfiles[i].ID] = &allProfiles[i]
 		}
@@ -233,7 +233,7 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler
 
 			profile, ok := profileByID[dbSubscriber.ProfileID]
 			if !ok {
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve profile", fmt.Errorf("no profile for ID %d", dbSubscriber.ProfileID), logger.APILog)
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to retrieve profile", fmt.Errorf("no profile for ID %s", dbSubscriber.ProfileID), logger.APILog)
 				return
 			}
 

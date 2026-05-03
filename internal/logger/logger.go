@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/dbwriter"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -179,7 +180,14 @@ func LogAuditEvent(ctx context.Context, action, actor, ip, details string) {
 		return
 	}
 
-	err := dbInstance.InsertAuditLog(ctx, &dbwriter.AuditLog{
+	id, err := uuid.NewV7()
+	if err != nil {
+		AuditLog.Warn("failed to generate audit log id", zap.Error(err))
+		return
+	}
+
+	err = dbInstance.InsertAuditLog(ctx, &dbwriter.AuditLog{
+		ID:        id.String(),
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		Level:     "INFO",
 		Actor:     actor,

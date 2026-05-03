@@ -64,7 +64,7 @@ func (u *URR) ToURR() models.URR {
 func BuildEstablishRequest(
 	localSEID uint64,
 	imsi string,
-	policyID int64,
+	policyID string,
 	pdrs []*PDR,
 	fars []*FAR,
 	qers []*QER,
@@ -116,7 +116,7 @@ func BuildEstablishRequest(
 // states are advanced to RuleCreate.
 func BuildModifyRequest(
 	remoteSEID uint64,
-	policyID int64,
+	policyID string,
 	pdrs []*PDR,
 	fars []*FAR,
 	qers []*QER,

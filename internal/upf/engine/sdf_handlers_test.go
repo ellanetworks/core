@@ -12,7 +12,7 @@ import (
 func newTestEngine() *SessionEngine {
 	return &SessionEngine{
 		sessions:          make(map[uint64]*Session),
-		policyToSEIDs:     make(map[int64]map[uint64]struct{}),
+		policyToSEIDs:     make(map[string]map[uint64]struct{}),
 		SdfIndexAllocator: NewSdfIndexAllocator(ebpf.MaxSdfFilters),
 		filtersByKey:      make(map[string]uint32),
 	}
@@ -20,7 +20,7 @@ func newTestEngine() *SessionEngine {
 
 // addSessionWithPDRs is a test helper that creates a session with one uplink
 // and one downlink PDR, registers it in the engine, and returns the session.
-func addSessionWithPDRs(t *testing.T, eng *SessionEngine, seid uint64, policyID int64) *Session {
+func addSessionWithPDRs(t *testing.T, eng *SessionEngine, seid uint64, policyID string) *Session {
 	t.Helper()
 
 	sess := NewSession(seid)
@@ -56,10 +56,10 @@ func addSessionWithPDRs(t *testing.T, eng *SessionEngine, seid uint64, policyID 
 
 func TestUpdateFilters_NewRulesPropagatesToPDRs(t *testing.T) {
 	eng := newTestEngine()
-	sess := addSessionWithPDRs(t, eng, 100, 42)
+	sess := addSessionWithPDRs(t, eng, 100, "42")
 
 	// Add uplink rules — should propagate to uplink PDR only.
-	err := eng.UpdateFilters(context.Background(), 42, models.DirectionUplink, []models.FilterRule{
+	err := eng.UpdateFilters(context.Background(), "42", models.DirectionUplink, []models.FilterRule{
 		{Protocol: 6, PortLow: 80, PortHigh: 80, Action: models.Allow},
 	})
 	if err != nil {
@@ -77,7 +77,7 @@ func TestUpdateFilters_NewRulesPropagatesToPDRs(t *testing.T) {
 	}
 
 	// Add downlink rules — should propagate to downlink PDR only.
-	err = eng.UpdateFilters(context.Background(), 42, models.DirectionDownlink, []models.FilterRule{
+	err = eng.UpdateFilters(context.Background(), "42", models.DirectionDownlink, []models.FilterRule{
 		{Protocol: 6, PortLow: 443, PortHigh: 443, Action: models.Allow},
 	})
 	if err != nil {
@@ -94,20 +94,20 @@ func TestUpdateFilters_InPlaceUpdateKeepsSameSlot(t *testing.T) {
 	eng := newTestEngine()
 
 	// Allocate a slot.
-	err := eng.UpdateFilters(context.Background(), 42, models.DirectionUplink, []models.FilterRule{
+	err := eng.UpdateFilters(context.Background(), "42", models.DirectionUplink, []models.FilterRule{
 		{Protocol: 6, PortLow: 80, PortHigh: 80, Action: models.Allow},
 	})
 	if err != nil {
 		t.Fatalf("initial UpdateFilters: %v", err)
 	}
 
-	idx := eng.resolveFilterIndex(42, models.DirectionUplink)
+	idx := eng.resolveFilterIndex("42", models.DirectionUplink)
 	if idx == ebpf.NoFilterIndex {
 		t.Fatal("filter index not found after initial UpdateFilters")
 	}
 
 	// Create session with the current filter index.
-	sess := addSessionWithPDRs(t, eng, 200, 42)
+	sess := addSessionWithPDRs(t, eng, 200, "42")
 
 	// Manually set the uplink PDR to use the allocated index.
 	spdr := sess.GetPDR(1)
@@ -115,7 +115,7 @@ func TestUpdateFilters_InPlaceUpdateKeepsSameSlot(t *testing.T) {
 	sess.PutPDR(1, spdr)
 
 	// Update the same slot with different rules — should be in-place.
-	err = eng.UpdateFilters(context.Background(), 42, models.DirectionUplink, []models.FilterRule{
+	err = eng.UpdateFilters(context.Background(), "42", models.DirectionUplink, []models.FilterRule{
 		{Protocol: 17, PortLow: 53, PortHigh: 53, Action: models.Deny},
 	})
 	if err != nil {
@@ -129,7 +129,7 @@ func TestUpdateFilters_InPlaceUpdateKeepsSameSlot(t *testing.T) {
 	}
 
 	// The resolved index should still be the same.
-	if eng.resolveFilterIndex(42, models.DirectionUplink) != idx {
+	if eng.resolveFilterIndex("42", models.DirectionUplink) != idx {
 		t.Error("resolveFilterIndex returned different index after in-place update")
 	}
 }
@@ -138,10 +138,10 @@ func TestUpdateFilters_MultipleSessionsSamePolicy(t *testing.T) {
 	eng := newTestEngine()
 
 	for _, seid := range []uint64{300, 301} {
-		addSessionWithPDRs(t, eng, seid, 10)
+		addSessionWithPDRs(t, eng, seid, "10")
 	}
 
-	err := eng.UpdateFilters(context.Background(), 10, models.DirectionUplink, []models.FilterRule{
+	err := eng.UpdateFilters(context.Background(), "10", models.DirectionUplink, []models.FilterRule{
 		{Protocol: 6, PortLow: 80, PortHigh: 80, Action: models.Allow},
 	})
 	if err != nil {
@@ -160,10 +160,10 @@ func TestUpdateFilters_MultipleSessionsSamePolicy(t *testing.T) {
 
 func TestUpdateFilters_EmptyRulesClearsFilter(t *testing.T) {
 	eng := newTestEngine()
-	sess := addSessionWithPDRs(t, eng, 500, 42)
+	sess := addSessionWithPDRs(t, eng, 500, "42")
 
 	// Add uplink rules.
-	err := eng.UpdateFilters(context.Background(), 42, models.DirectionUplink, []models.FilterRule{
+	err := eng.UpdateFilters(context.Background(), "42", models.DirectionUplink, []models.FilterRule{
 		{Protocol: 6, PortLow: 80, PortHigh: 80, Action: models.Deny},
 	})
 	if err != nil {
@@ -176,7 +176,7 @@ func TestUpdateFilters_EmptyRulesClearsFilter(t *testing.T) {
 	}
 
 	// Now update with empty rules — should clear the filter.
-	err = eng.UpdateFilters(context.Background(), 42, models.DirectionUplink, nil)
+	err = eng.UpdateFilters(context.Background(), "42", models.DirectionUplink, nil)
 	if err != nil {
 		t.Fatalf("UpdateFilters with empty rules: %v", err)
 	}
@@ -186,17 +186,17 @@ func TestUpdateFilters_EmptyRulesClearsFilter(t *testing.T) {
 		t.Errorf("expected FilterMapIndex to be reset to NoFilterIndex, got %d", pdr.PdrInfo.FilterMapIndex)
 	}
 
-	if eng.resolveFilterIndex(42, models.DirectionUplink) != ebpf.NoFilterIndex {
+	if eng.resolveFilterIndex("42", models.DirectionUplink) != ebpf.NoFilterIndex {
 		t.Error("expected resolveFilterIndex to return NoFilterIndex after clearing")
 	}
 }
 
 func TestUpdateFilters_EmptyRulesWhenNoSlotIsNoop(t *testing.T) {
 	eng := newTestEngine()
-	addSessionWithPDRs(t, eng, 600, 42)
+	addSessionWithPDRs(t, eng, 600, "42")
 
 	// Calling UpdateFilters with empty rules when no slot exists should be a no-op.
-	err := eng.UpdateFilters(context.Background(), 42, models.DirectionUplink, nil)
+	err := eng.UpdateFilters(context.Background(), "42", models.DirectionUplink, nil)
 	if err != nil {
 		t.Fatalf("UpdateFilters with empty rules (no existing slot): %v", err)
 	}
@@ -211,33 +211,33 @@ func TestUpdateFilters_EmptyRulesWhenNoSlotIsNoop(t *testing.T) {
 
 func TestUpdateFilters_ClearThenReaddAllocatesNewSlot(t *testing.T) {
 	eng := newTestEngine()
-	sess := addSessionWithPDRs(t, eng, 700, 42)
+	sess := addSessionWithPDRs(t, eng, 700, "42")
 
 	// Add rules.
-	err := eng.UpdateFilters(context.Background(), 42, models.DirectionUplink, []models.FilterRule{
+	err := eng.UpdateFilters(context.Background(), "42", models.DirectionUplink, []models.FilterRule{
 		{Protocol: 6, PortLow: 80, PortHigh: 80, Action: models.Allow},
 	})
 	if err != nil {
 		t.Fatalf("initial UpdateFilters: %v", err)
 	}
 
-	firstIdx := eng.resolveFilterIndex(42, models.DirectionUplink)
+	firstIdx := eng.resolveFilterIndex("42", models.DirectionUplink)
 
 	// Clear rules.
-	err = eng.UpdateFilters(context.Background(), 42, models.DirectionUplink, nil)
+	err = eng.UpdateFilters(context.Background(), "42", models.DirectionUplink, nil)
 	if err != nil {
 		t.Fatalf("clear UpdateFilters: %v", err)
 	}
 
 	// Re-add rules — should allocate a new slot and propagate.
-	err = eng.UpdateFilters(context.Background(), 42, models.DirectionUplink, []models.FilterRule{
+	err = eng.UpdateFilters(context.Background(), "42", models.DirectionUplink, []models.FilterRule{
 		{Protocol: 17, PortLow: 53, PortHigh: 53, Action: models.Deny},
 	})
 	if err != nil {
 		t.Fatalf("re-add UpdateFilters: %v", err)
 	}
 
-	newIdx := eng.resolveFilterIndex(42, models.DirectionUplink)
+	newIdx := eng.resolveFilterIndex("42", models.DirectionUplink)
 	if newIdx == ebpf.NoFilterIndex {
 		t.Fatal("expected a valid filter index after re-adding rules")
 	}
@@ -254,10 +254,10 @@ func TestUpdateFilters_ClearThenReaddAllocatesNewSlot(t *testing.T) {
 
 func TestUpdateFilters_OnlyAffectsMatchingDirection(t *testing.T) {
 	eng := newTestEngine()
-	sess := addSessionWithPDRs(t, eng, 800, 42)
+	sess := addSessionWithPDRs(t, eng, 800, "42")
 
 	// Add uplink rules.
-	err := eng.UpdateFilters(context.Background(), 42, models.DirectionUplink, []models.FilterRule{
+	err := eng.UpdateFilters(context.Background(), "42", models.DirectionUplink, []models.FilterRule{
 		{Protocol: 6, PortLow: 80, PortHigh: 80, Action: models.Deny},
 	})
 	if err != nil {
@@ -265,7 +265,7 @@ func TestUpdateFilters_OnlyAffectsMatchingDirection(t *testing.T) {
 	}
 
 	// Add downlink rules.
-	err = eng.UpdateFilters(context.Background(), 42, models.DirectionDownlink, []models.FilterRule{
+	err = eng.UpdateFilters(context.Background(), "42", models.DirectionDownlink, []models.FilterRule{
 		{Protocol: 6, PortLow: 443, PortHigh: 443, Action: models.Deny},
 	})
 	if err != nil {
@@ -280,7 +280,7 @@ func TestUpdateFilters_OnlyAffectsMatchingDirection(t *testing.T) {
 	}
 
 	// Clear only uplink — downlink should remain.
-	err = eng.UpdateFilters(context.Background(), 42, models.DirectionUplink, nil)
+	err = eng.UpdateFilters(context.Background(), "42", models.DirectionUplink, nil)
 	if err != nil {
 		t.Fatalf("clear uplink: %v", err)
 	}
@@ -298,7 +298,7 @@ func TestUpdateFilters_NoSessionsForPolicy(t *testing.T) {
 	eng := newTestEngine()
 
 	// UpdateFilters with no sessions for the policy should succeed without error.
-	err := eng.UpdateFilters(context.Background(), 99, models.DirectionUplink, []models.FilterRule{
+	err := eng.UpdateFilters(context.Background(), "99", models.DirectionUplink, []models.FilterRule{
 		{Protocol: 6, PortLow: 80, PortHigh: 80, Action: models.Allow},
 	})
 	if err != nil {
@@ -306,7 +306,7 @@ func TestUpdateFilters_NoSessionsForPolicy(t *testing.T) {
 	}
 
 	// The slot should still be allocated (ready for future sessions).
-	if eng.resolveFilterIndex(99, models.DirectionUplink) == ebpf.NoFilterIndex {
+	if eng.resolveFilterIndex("99", models.DirectionUplink) == ebpf.NoFilterIndex {
 		t.Error("expected filter index to be allocated even with no sessions")
 	}
 }
@@ -315,16 +315,16 @@ func TestDeleteSession_DeregistersFromPolicyIndex(t *testing.T) {
 	eng := newTestEngine()
 
 	sess := NewSession(400)
-	sess.SetPolicyID(50)
+	sess.SetPolicyID("50")
 
 	eng.mu.Lock()
 	eng.sessions[400] = sess
-	eng.registerPolicy(50, 400)
+	eng.registerPolicy("50", 400)
 	eng.mu.Unlock()
 
 	// Verify the reverse index has the entry.
 	eng.mu.Lock()
-	seids := eng.policyToSEIDs[50]
+	seids := eng.policyToSEIDs["50"]
 	eng.mu.Unlock()
 
 	if len(seids) != 1 {
@@ -341,7 +341,7 @@ func TestDeleteSession_DeregistersFromPolicyIndex(t *testing.T) {
 
 	eng.mu.Lock()
 
-	_, exists := eng.policyToSEIDs[50]
+	_, exists := eng.policyToSEIDs["50"]
 
 	eng.mu.Unlock()
 

@@ -35,6 +35,12 @@ A UE's user-plane traffic flows through the node that handled its registration �
 
 When BGP is enabled, each node advertises a `/32` route for every UE session it hosts (see [Advertising routes via BGP](bgp.md)). When a UE re-registers on a different node after failover, the lease's owning node is updated in place — the UE keeps its IP — and the new node's speaker begins advertising the same `/32` from its N6. The dead node's BGP session times out after the hold timer (30–180 s, peer-dependent), its routes are withdrawn, and upstream routing converges on the survivor without operator action.
 
+## Replicated identifiers
+
+Every replicated resource — subscribers, profiles, policies, slices, data networks, network rules, IP leases, users, sessions, API tokens, audit logs, retention policies — carries a UUIDv7 primary key generated at the API handler before the request enters the replicated state machine. This is a structural invariant: the primary key of a replicated row is decided before the request is captured, never derived from local mutable state on the leader.
+
+The alternative — server-side `INTEGER PRIMARY KEY AUTOINCREMENT` — is unsafe in this architecture. The leader captures changesets by wrapping the apply in `BEGIN; INSERT; CAPTURE; ROLLBACK; propose-via-Raft`, so the captured INSERT carries an id assigned from `sqlite_sequence`. Two captures back-to-back can pick the same id whenever they see the same `sqlite_sequence` snapshot — most observably when a new leader's first capture races with a previous-term entry that has been replicated but not yet applied to its FSM. The follower then rejects the second INSERT with a CONFLICT and the FSM crashes. Generating UUIDs at the handler eliminates the class: two handlers cannot pick the same UUID, regardless of timing or which node is leader.
+
 ## Failover and timing
 
 Leader re-election completes within a few seconds; surviving nodes continue accepting NGAP and API calls the whole time.

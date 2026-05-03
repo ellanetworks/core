@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -18,8 +19,8 @@ const RetentionPolicyTableName = "retention_policies"
 const (
 	selectRetentionPolicyStmt = "SELECT &RetentionPolicy.* FROM %s WHERE category = $RetentionPolicy.category"
 	upsertRetentionPolicyStmt = `
-INSERT INTO %s (category, retention_days)
-VALUES ($RetentionPolicy.category, $RetentionPolicy.retention_days)
+INSERT INTO %s (id, category, retention_days)
+VALUES ($RetentionPolicy.id, $RetentionPolicy.category, $RetentionPolicy.retention_days)
 ON CONFLICT(category) DO UPDATE SET retention_days = excluded.retention_days
 `
 )
@@ -34,7 +35,7 @@ const (
 )
 
 type RetentionPolicy struct {
-	ID       int               `db:"id"`
+	ID       string            `db:"id"` // UUIDv7
 	Category RetentionCategory `db:"category"`
 	Days     int               `db:"retention_days"`
 }
@@ -116,6 +117,8 @@ func (db *Database) IsRetentionPolicyInitialized(ctx context.Context, category R
 }
 
 // SetRetentionPolicy upserts the retention policy for a category.
+// If policy.ID is empty (new row, not an update of an existing one),
+// a UUIDv7 is generated. The id is ignored on UPDATE conflict.
 func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPolicy) error {
 	_, span := tracer.Start(
 		ctx,
@@ -135,6 +138,15 @@ func (db *Database) SetRetentionPolicy(ctx context.Context, policy *RetentionPol
 	defer timer.ObserveDuration()
 
 	DBQueriesTotal.WithLabelValues(RetentionPolicyTableName, "insert").Inc()
+
+	if policy.ID == "" {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("generate retention policy id: %w", err)
+		}
+
+		policy.ID = id.String()
+	}
 
 	_, err := opSetRetentionPolicy.Invoke(db, policy)
 	if err != nil {

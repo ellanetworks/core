@@ -96,7 +96,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 			return nil, fmt.Errorf("couldn't extract PDR info: %w", err)
 		}
 
-		if req.PolicyID != 0 {
+		if req.PolicyID != "" {
 			dir := models.DirectionUplink
 			if spdrInfo.UEIP.IsValid() {
 				dir = models.DirectionDownlink
@@ -127,7 +127,7 @@ func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.Est
 	span.AddEvent("pdrs_processed", trace.WithAttributes(attribute.Int("count", len(createdPDRs))))
 	span.AddEvent("ebpf_maps_updated")
 
-	if req.PolicyID != 0 {
+	if req.PolicyID != "" {
 		sess.SetPolicyID(req.PolicyID)
 	}
 

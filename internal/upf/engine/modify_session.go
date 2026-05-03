@@ -135,11 +135,11 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 		}
 
 		policyID := req.PolicyID
-		if policyID == 0 {
+		if policyID == "" {
 			policyID = session.PolicyID()
 		}
 
-		if policyID != 0 {
+		if policyID != "" {
 			dir := models.DirectionUplink
 			if spdrInfo.UEIP.IsValid() {
 				dir = models.DirectionDownlink
@@ -199,7 +199,7 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 
 	logger.WithTrace(ctx, logger.UpfLog).Debug("Session modification successful")
 
-	if req.PolicyID != 0 && req.PolicyID != session.PolicyID() {
+	if req.PolicyID != "" && req.PolicyID != session.PolicyID() {
 		oldPolicyID := session.PolicyID()
 		session.SetPolicyID(req.PolicyID)
 

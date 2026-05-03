@@ -16,7 +16,7 @@ type RadioEvent struct {
 }
 
 type AuditLog struct {
-	ID        int    `db:"id"`
+	ID        string `db:"id"`        // UUIDv7, generated at the request handler
 	Timestamp string `db:"timestamp"` // store as RFC3339 string; parse in API layer if needed
 	Level     string `db:"level"`
 	Actor     string `db:"actor"`

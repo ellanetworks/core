@@ -18,4 +18,4 @@ type cutoffDaysArgs struct {
 }
 
 // SliceIDs is a named slice type used with sqlair's IN ($SliceIDs[:]) syntax.
-type SliceIDs []int
+type SliceIDs []string

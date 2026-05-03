@@ -15,7 +15,12 @@ import (
 // setupLeaseTestDB creates a new database with a data network, policy, and
 // subscriber ready for lease testing. Returns the database, pool (data network)
 // ID, and subscriber IMSI.
-func setupLeaseTestDB(t *testing.T) (*db.Database, int, string) {
+func setupLeaseTestDB(t *testing.T) (database *db.Database, poolID string, imsi string) {
+	database, poolID, imsi, _ = setupLeaseTestDBWithProfile(t)
+	return database, poolID, imsi
+}
+
+func setupLeaseTestDBWithProfile(t *testing.T) (*db.Database, string, string, string) {
 	t.Helper()
 
 	tempDir := t.TempDir()
@@ -47,11 +52,40 @@ func setupLeaseTestDB(t *testing.T) (*db.Database, int, string) {
 		t.Fatalf("GetDataNetwork: %s", err)
 	}
 
+	profile := &db.Profile{
+		Name:           "test-profile",
+		UeAmbrUplink:   "200 Mbps",
+		UeAmbrDownlink: "200 Mbps",
+	}
+
+	if err := database.CreateProfile(context.Background(), profile); err != nil {
+		t.Fatalf("CreateProfile: %s", err)
+	}
+
+	createdProfile, err := database.GetProfile(context.Background(), profile.Name)
+	if err != nil {
+		t.Fatalf("GetProfile: %s", err)
+	}
+
+	slice := &db.NetworkSlice{
+		Name: "test-slice",
+		Sst:  1,
+	}
+
+	if err := database.CreateNetworkSlice(context.Background(), slice); err != nil {
+		t.Fatalf("CreateNetworkSlice: %s", err)
+	}
+
+	createdSlice, err := database.GetNetworkSlice(context.Background(), slice.Name)
+	if err != nil {
+		t.Fatalf("GetNetworkSlice: %s", err)
+	}
+
 	policy := &db.Policy{
 		Name:          "test-policy",
 		DataNetworkID: createdDNN.ID,
-		ProfileID:     1,
-		SliceID:       1,
+		ProfileID:     createdProfile.ID,
+		SliceID:       createdSlice.ID,
 	}
 
 	if err := database.CreatePolicy(context.Background(), policy); err != nil {
@@ -71,14 +105,14 @@ func setupLeaseTestDB(t *testing.T) (*db.Database, int, string) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		ProfileID:      1,
+		ProfileID:      createdProfile.ID,
 	}
 
 	if err := database.CreateSubscriber(context.Background(), sub); err != nil {
 		t.Fatalf("CreateSubscriber: %s", err)
 	}
 
-	return database, createdDNN.ID, imsi
+	return database, createdDNN.ID, imsi, createdProfile.ID
 }
 
 func addr(s string) netip.Addr { return netip.MustParseAddr(s) }
@@ -124,7 +158,7 @@ func TestCreateAndGetLease(t *testing.T) {
 }
 
 func TestCreateLease_UniqueConstraint(t *testing.T) {
-	database, poolID, imsi := setupLeaseTestDB(t)
+	database, poolID, imsi, profileID := setupLeaseTestDBWithProfile(t)
 	ctx := context.Background()
 
 	sessionID := 1
@@ -147,7 +181,7 @@ func TestCreateLease_UniqueConstraint(t *testing.T) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		ProfileID:      1,
+		ProfileID:      profileID,
 	}
 
 	if err := database.CreateSubscriber(ctx, sub2); err != nil {
@@ -273,7 +307,7 @@ func TestDeleteDynamicLease(t *testing.T) {
 }
 
 func TestDeleteAllDynamicLeases(t *testing.T) {
-	database, poolID, imsi := setupLeaseTestDB(t)
+	database, poolID, imsi, profileID := setupLeaseTestDBWithProfile(t)
 	ctx := context.Background()
 
 	// Create a second subscriber for a second lease.
@@ -283,7 +317,7 @@ func TestDeleteAllDynamicLeases(t *testing.T) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		ProfileID:      1,
+		ProfileID:      profileID,
 	}
 
 	if err := database.CreateSubscriber(ctx, sub2); err != nil {
@@ -601,7 +635,7 @@ func TestCountLeasesByIMSI(t *testing.T) {
 }
 
 func TestListLeasesByPoolPage(t *testing.T) {
-	database, poolID, imsi := setupLeaseTestDB(t)
+	database, poolID, imsi, profileID := setupLeaseTestDBWithProfile(t)
 	ctx := context.Background()
 
 	// Create a second subscriber.
@@ -611,7 +645,7 @@ func TestListLeasesByPoolPage(t *testing.T) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		ProfileID:      1,
+		ProfileID:      profileID,
 	}
 
 	if err := database.CreateSubscriber(ctx, sub2); err != nil {
@@ -688,7 +722,7 @@ func TestListLeasesByPoolPage(t *testing.T) {
 	})
 
 	t.Run("empty pool", func(t *testing.T) {
-		leases, total, err := database.ListLeasesByPoolPage(ctx, 9999, 1, 25)
+		leases, total, err := database.ListLeasesByPoolPage(ctx, "nonexistent-pool", 1, 25)
 		if err != nil {
 			t.Fatalf("ListLeasesByPoolPage: %s", err)
 		}
@@ -704,7 +738,7 @@ func TestListLeasesByPoolPage(t *testing.T) {
 }
 
 func TestListLeaseAddressesByPool_NumericOrder(t *testing.T) {
-	database, poolID, imsi := setupLeaseTestDB(t)
+	database, poolID, imsi, profileID := setupLeaseTestDBWithProfile(t)
 	ctx := context.Background()
 
 	// Create additional subscribers for unique (poolID, addressBin, imsi) combos.
@@ -715,7 +749,7 @@ func TestListLeaseAddressesByPool_NumericOrder(t *testing.T) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		ProfileID:      1,
+		ProfileID:      profileID,
 	}
 
 	if err := database.CreateSubscriber(ctx, sub2); err != nil {
@@ -729,7 +763,7 @@ func TestListLeaseAddressesByPool_NumericOrder(t *testing.T) {
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		ProfileID:      1,
+		ProfileID:      profileID,
 	}
 
 	if err := database.CreateSubscriber(ctx, sub3); err != nil {

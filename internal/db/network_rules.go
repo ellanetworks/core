@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/canonical/sqlair"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -22,7 +23,7 @@ const NetworkRulesTableName = "network_rules"
 
 const (
 	getNetworkRuleStmt             = "SELECT &NetworkRule.* FROM %s WHERE id==$NetworkRule.id"
-	createNetworkRuleStmt          = "INSERT INTO %s (policy_id, description, direction, remote_prefix, protocol, port_low, port_high, action, precedence, created_at, updated_at) VALUES ($NetworkRule.policy_id, $NetworkRule.description, $NetworkRule.direction, $NetworkRule.remote_prefix, $NetworkRule.protocol, $NetworkRule.port_low, $NetworkRule.port_high, $NetworkRule.action, $NetworkRule.precedence, $NetworkRule.created_at, $NetworkRule.updated_at)"
+	createNetworkRuleStmt          = "INSERT INTO %s (id, policy_id, description, direction, remote_prefix, protocol, port_low, port_high, action, precedence, created_at, updated_at) VALUES ($NetworkRule.id, $NetworkRule.policy_id, $NetworkRule.description, $NetworkRule.direction, $NetworkRule.remote_prefix, $NetworkRule.protocol, $NetworkRule.port_low, $NetworkRule.port_high, $NetworkRule.action, $NetworkRule.precedence, $NetworkRule.created_at, $NetworkRule.updated_at)"
 	updateNetworkRuleStmt          = "UPDATE %s SET description=$NetworkRule.description, direction=$NetworkRule.direction, remote_prefix=$NetworkRule.remote_prefix, protocol=$NetworkRule.protocol, port_low=$NetworkRule.port_low, port_high=$NetworkRule.port_high, action=$NetworkRule.action, precedence=$NetworkRule.precedence, updated_at=$NetworkRule.updated_at WHERE id==$NetworkRule.id"
 	deleteNetworkRuleStmt          = "DELETE FROM %s WHERE id==$NetworkRule.id"
 	deleteNetworkRulesByPolicyStmt = "DELETE FROM %s WHERE policy_id==$NetworkRule.policy_id"
@@ -33,8 +34,8 @@ const (
 const gap = 100
 
 type NetworkRule struct {
-	ID           int64     `db:"id"`
-	PolicyID     int64     `db:"policy_id"`
+	ID           string    `db:"id"`        // UUIDv7
+	PolicyID     string    `db:"policy_id"` // FK to policies.id (UUID)
 	Description  string    `db:"description"`
 	Direction    string    `db:"direction"`
 	RemotePrefix *string   `db:"remote_prefix"`
@@ -48,7 +49,7 @@ type NetworkRule struct {
 }
 
 // CreateNetworkRule creates a new network rule and returns its ID.
-func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (int64, error) {
+func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (string, error) {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", NetworkRulesTableName),
@@ -70,21 +71,30 @@ func (db *Database) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (int
 	nr.CreatedAt = now
 	nr.UpdatedAt = now
 
-	result, err := opCreateNetworkRule.Invoke(db, nr)
+	if nr.ID == "" {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return "", fmt.Errorf("generate network rule id: %w", err)
+		}
+
+		nr.ID = id.String()
+	}
+
+	_, err := opCreateNetworkRule.Invoke(db, nr)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 
-		return 0, err
+		return "", err
 	}
 
 	span.SetStatus(codes.Ok, "")
 
-	return result.(int64), nil
+	return nr.ID, nil
 }
 
 // GetNetworkRule retrieves a network rule by ID.
-func (db *Database) GetNetworkRule(ctx context.Context, id int64) (*NetworkRule, error) {
+func (db *Database) GetNetworkRule(ctx context.Context, id string) (*NetworkRule, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "SELECT", NetworkRulesTableName),
@@ -157,7 +167,7 @@ func (db *Database) UpdateNetworkRule(ctx context.Context, nr *NetworkRule) erro
 }
 
 // ReorderRulesForPolicy moves a rule to a new position within its policy and normalizes all precedence values.
-func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID int64, movedRuleID int64, newIndex int, direction string) error {
+func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID string, movedRuleID string, newIndex int, direction string) error {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "UPDATE", NetworkRulesTableName),
@@ -236,18 +246,18 @@ func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID int64, m
 
 	if err := db.UpdateNetworkRule(ctx, movedRule); err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, fmt.Sprintf("failed to update rule precedence for rule %d", movedRule.ID))
+		span.SetStatus(codes.Error, fmt.Sprintf("failed to update rule precedence for rule %s", movedRule.ID))
 
-		return fmt.Errorf("failed to update rule precedence for rule %d: %w", movedRule.ID, err)
+		return fmt.Errorf("failed to update rule precedence for rule %s: %w", movedRule.ID, err)
 	}
 
 	for i, rule := range reorderedRules {
 		rule.Precedence = int32((i+1)*gap) + offset
 		if err := db.UpdateNetworkRule(ctx, rule); err != nil {
 			span.RecordError(err)
-			span.SetStatus(codes.Error, fmt.Sprintf("failed to update rule precedence for rule %d", rule.ID))
+			span.SetStatus(codes.Error, fmt.Sprintf("failed to update rule precedence for rule %s", rule.ID))
 
-			return fmt.Errorf("failed to update rule precedence for rule %d: %w", rule.ID, err)
+			return fmt.Errorf("failed to update rule precedence for rule %s: %w", rule.ID, err)
 		}
 	}
 
@@ -257,7 +267,7 @@ func (db *Database) ReorderRulesForPolicy(ctx context.Context, policyID int64, m
 }
 
 // DeleteNetworkRule deletes a network rule by ID.
-func (db *Database) DeleteNetworkRule(ctx context.Context, id int64) error {
+func (db *Database) DeleteNetworkRule(ctx context.Context, id string) error {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName),
@@ -275,7 +285,7 @@ func (db *Database) DeleteNetworkRule(ctx context.Context, id int64) error {
 
 	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "delete").Inc()
 
-	_, err := opDeleteNetworkRule.Invoke(db, &int64Payload{Value: id})
+	_, err := opDeleteNetworkRule.Invoke(db, &stringPayload{Value: id})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -323,7 +333,7 @@ func (db *Database) CountNetworkRules(ctx context.Context) (int, error) {
 }
 
 // ListRulesForPolicy retrieves all network rules associated with a policy.
-func (db *Database) ListRulesForPolicy(ctx context.Context, policyID int64) ([]*NetworkRule, error) {
+func (db *Database) ListRulesForPolicy(ctx context.Context, policyID string) ([]*NetworkRule, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "SELECT", NetworkRulesTableName),
@@ -364,7 +374,7 @@ func (db *Database) ListRulesForPolicy(ctx context.Context, policyID int64) ([]*
 }
 
 // CreateNetworkRule creates a new network rule in the transaction and returns its ID.
-func (t *Transaction) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (int64, error) {
+func (t *Transaction) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (string, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", NetworkRulesTableName),
@@ -386,38 +396,37 @@ func (t *Transaction) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (i
 	nr.CreatedAt = now
 	nr.UpdatedAt = now
 
-	var outcome sqlair.Outcome
+	if nr.ID == "" {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return "", fmt.Errorf("generate network rule id: %w", err)
+		}
 
-	err := t.tx.Query(ctx, t.db.createNetworkRuleStmt, nr).Get(&outcome)
+		nr.ID = id.String()
+	}
+
+	err := t.tx.Query(ctx, t.db.createNetworkRuleStmt, nr).Run()
 	if err != nil {
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
 			span.SetStatus(codes.Error, "unique constraint failed")
 
-			return 0, ErrAlreadyExists
+			return "", ErrAlreadyExists
 		}
 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return 0, fmt.Errorf("query failed: %w", err)
-	}
-
-	id, err := outcome.Result().LastInsertId()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving insert ID failed")
-
-		return 0, fmt.Errorf("retrieving insert ID failed: %w", err)
+		return "", fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
 
-	return id, nil
+	return nr.ID, nil
 }
 
 // DeleteNetworkRulesByPolicyID deletes all network rules for a given policy ID within a transaction.
-func (t *Transaction) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID int64) error {
+func (t *Transaction) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID string) error {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName),
@@ -451,7 +460,7 @@ func (t *Transaction) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID
 }
 
 // DeleteNetworkRulesByPolicyID deletes all network rules for a given policy ID.
-func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID int64) error {
+func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID string) error {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName),
@@ -469,7 +478,7 @@ func (db *Database) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID i
 
 	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "delete").Inc()
 
-	_, err := opDeleteNetworkRulesByPolicy.Invoke(db, &int64Payload{Value: policyID})
+	_, err := opDeleteNetworkRulesByPolicy.Invoke(db, &stringPayload{Value: policyID})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

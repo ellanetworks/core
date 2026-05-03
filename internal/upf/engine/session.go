@@ -12,7 +12,7 @@ import (
 type Session struct {
 	mu       sync.RWMutex
 	SEID     uint64
-	policyID int64
+	policyID string
 	pdrs     map[uint32]SPDRInfo
 	fars     map[uint32]ebpf.FarInfo
 	qers     map[uint32]ebpf.QerInfo
@@ -35,14 +35,14 @@ type SPDRInfo struct {
 	Allocated bool
 }
 
-func (s *Session) PolicyID() int64 {
+func (s *Session) PolicyID() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	return s.policyID
 }
 
-func (s *Session) SetPolicyID(id int64) {
+func (s *Session) SetPolicyID(id string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

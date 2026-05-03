@@ -20,11 +20,14 @@ import (
 const AuditLogsTableName = "audit_logs"
 
 const (
-	insertAuditLogStmt     = "INSERT INTO %s (timestamp, level, actor, action, ip, details) VALUES ($AuditLog.timestamp, $AuditLog.level, $AuditLog.actor, $AuditLog.action, $AuditLog.ip, $AuditLog.details)"
+	insertAuditLogStmt     = "INSERT INTO %s (id, timestamp, level, actor, action, ip, details) VALUES ($AuditLog.id, $AuditLog.timestamp, $AuditLog.level, $AuditLog.actor, $AuditLog.action, $AuditLog.ip, $AuditLog.details)"
 	deleteOldAuditLogsStmt = "DELETE FROM %s WHERE timestamp < $cutoffArgs.cutoff"
 	countAuditLogsStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
+// id is a UUIDv7, so it's not strictly time-ordered (clock skew between
+// generators); the secondary sort by id keeps the ordering stable when
+// timestamps tie.
 const listAuditLogsFilteredPageStmt = `
   SELECT &AuditLog.*, COUNT(*) OVER() AS &NumItems.count
   FROM %s
@@ -33,7 +36,7 @@ const listAuditLogsFilteredPageStmt = `
     AND ($AuditLogFilters.action IS NULL OR action = $AuditLogFilters.action)
     AND ($AuditLogFilters.timestamp_from IS NULL OR timestamp >= $AuditLogFilters.timestamp_from)
     AND ($AuditLogFilters.timestamp_to IS NULL OR timestamp < $AuditLogFilters.timestamp_to)
-  ORDER BY id DESC
+  ORDER BY timestamp DESC, id DESC
   LIMIT $ListArgs.limit
   OFFSET $ListArgs.offset
 `
@@ -65,7 +68,12 @@ func (db *Database) InsertAuditLog(ctx context.Context, auditLog *dbwriter.Audit
 
 	DBQueriesTotal.WithLabelValues(AuditLogsTableName, "insert").Inc()
 
+	if auditLog.ID == "" {
+		return fmt.Errorf("InsertAuditLog: ID must be set by the caller")
+	}
+
 	payload := &auditLogPayload{
+		ID:        auditLog.ID,
 		Timestamp: auditLog.Timestamp,
 		Level:     auditLog.Level,
 		Actor:     auditLog.Actor,

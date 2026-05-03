@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -17,7 +18,7 @@ import (
 const SessionsTableName = "sessions"
 
 const (
-	createSessionStmt            = "INSERT INTO %s (user_id, token_hash, created_at, expires_at) VALUES ($Session.user_id, $Session.token_hash, $Session.created_at, $Session.expires_at)"
+	createSessionStmt            = "INSERT INTO %s (id, user_id, token_hash, created_at, expires_at) VALUES ($Session.id, $Session.user_id, $Session.token_hash, $Session.created_at, $Session.expires_at)"
 	getSessionByTokenHashStmt    = "SELECT &Session.* FROM %s WHERE token_hash==$Session.token_hash"
 	deleteSessionByTokenHashStmt = "DELETE FROM %s WHERE token_hash==$Session.token_hash"       // #nosec: G101
 	deleteExpiredSessionsStmt    = "DELETE FROM %s WHERE expires_at <= $SessionCutoff.now_unix" // #nosec: G101
@@ -28,8 +29,8 @@ const (
 )
 
 type Session struct {
-	ID        int    `db:"id"`
-	UserID    int64  `db:"user_id"`
+	ID        string `db:"id"`      // UUIDv7
+	UserID    string `db:"user_id"` // FK to users.id (UUID)
 	TokenHash []byte `db:"token_hash"`
 	CreatedAt int64  `db:"created_at"` // store as Unix timestamp (seconds since epoch)
 	ExpiresAt int64  `db:"expires_at"` // store as Unix timestamp (seconds since epoch)
@@ -40,15 +41,15 @@ type SessionCutoff struct {
 }
 
 type UserIDArgs struct {
-	UserID int64 `db:"user_id"`
+	UserID string `db:"user_id"`
 }
 
 type DeleteOldestArgs struct {
-	UserID int64 `db:"user_id"`
-	Limit  int   `db:"limit"`
+	UserID string `db:"user_id"`
+	Limit  int    `db:"limit"`
 }
 
-func (db *Database) CreateSession(ctx context.Context, session *Session) (int64, error) {
+func (db *Database) CreateSession(ctx context.Context, session *Session) error {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", SessionsTableName),
@@ -66,17 +67,26 @@ func (db *Database) CreateSession(ctx context.Context, session *Session) (int64,
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "insert").Inc()
 
-	result, err := opCreateSession.Invoke(db, session)
+	if session.ID == "" {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("generate session id: %w", err)
+		}
+
+		session.ID = id.String()
+	}
+
+	_, err := opCreateSession.Invoke(db, session)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 
-		return 0, err
+		return err
 	}
 
 	span.SetStatus(codes.Ok, "")
 
-	return result.(int64), nil
+	return nil
 }
 
 func (db *Database) GetSessionByTokenHash(ctx context.Context, tokenHash []byte) (*Session, error) {
@@ -181,7 +191,7 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 	return result.(int), nil
 }
 
-func (db *Database) CountSessionsByUser(ctx context.Context, userID int64) (int, error) {
+func (db *Database) CountSessionsByUser(ctx context.Context, userID string) (int, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "COUNT", SessionsTableName),
@@ -216,7 +226,7 @@ func (db *Database) CountSessionsByUser(ctx context.Context, userID int64) (int,
 	return result.Count, nil
 }
 
-func (db *Database) DeleteOldestSessions(ctx context.Context, userID int64, limit int) error {
+func (db *Database) DeleteOldestSessions(ctx context.Context, userID string, limit int) error {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", SessionsTableName),
@@ -247,7 +257,7 @@ func (db *Database) DeleteOldestSessions(ctx context.Context, userID int64, limi
 	return nil
 }
 
-func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID int64) error {
+func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID string) error {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", SessionsTableName),
@@ -265,7 +275,7 @@ func (db *Database) DeleteAllSessionsForUser(ctx context.Context, userID int64) 
 
 	DBQueriesTotal.WithLabelValues(SessionsTableName, "delete").Inc()
 
-	_, err := opDeleteAllSessionsForUser.Invoke(db, &int64Payload{Value: userID})
+	_, err := opDeleteAllSessionsForUser.Invoke(db, &stringPayload{Value: userID})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

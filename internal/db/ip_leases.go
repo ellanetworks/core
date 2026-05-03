@@ -19,7 +19,7 @@ import (
 const IPLeasesTableName = "ip_leases"
 
 const (
-	createLeaseStmt              = "INSERT INTO %s (poolID, addressBin, imsi, sessionID, type, createdAt, nodeID) VALUES ($IPLease.poolID, $IPLease.addressBin, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt, $IPLease.nodeID)"
+	createLeaseStmt              = "INSERT INTO %s (id, poolID, addressBin, imsi, sessionID, type, createdAt, nodeID) VALUES ($IPLease.id, $IPLease.poolID, $IPLease.addressBin, $IPLease.imsi, $IPLease.sessionID, $IPLease.type, $IPLease.createdAt, $IPLease.nodeID)"
 	getDynamicLeaseStmt          = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND imsi==$IPLease.imsi AND type='dynamic'"
 	getLeaseBySessionStmt        = "SELECT &IPLease.* FROM %s WHERE poolID==$IPLease.poolID AND sessionID==$IPLease.sessionID AND imsi==$IPLease.imsi"
 	updateLeaseSessionStmt       = "UPDATE %s SET sessionID=$IPLease.sessionID WHERE id==$IPLease.id"
@@ -40,8 +40,8 @@ const (
 
 // IPLease represents a row in the ip_leases table.
 type IPLease struct {
-	ID         int    `db:"id"`
-	PoolID     int    `db:"poolID"`
+	ID         string `db:"id"`     // UUIDv7
+	PoolID     string `db:"poolID"` // FK to data_networks.id (UUID)
 	AddressBin []byte `db:"addressBin"`
 	IMSI       string `db:"imsi"`
 	SessionID  *int   `db:"sessionID"`
@@ -80,7 +80,7 @@ func (l *IPLease) Address() netip.Addr {
 // CreateLease(IP=X)" path that raced under concurrency: two followers
 // reading a stale local view could both pick the same offset, and the
 // second forwarded INSERT collided at the leader's unique constraint.
-func (db *Database) AllocateIPLease(ctx context.Context, poolID int, imsi string, sessionID int, nodeID int) (netip.Addr, error) {
+func (db *Database) AllocateIPLease(ctx context.Context, poolID string, imsi string, sessionID int, nodeID int) (netip.Addr, error) {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (allocate)", "INSERT", IPLeasesTableName),
@@ -172,7 +172,7 @@ func (db *Database) CreateLease(ctx context.Context, lease *IPLease, address net
 }
 
 // GetDynamicLease returns the dynamic lease for (poolID, imsi), or ErrNotFound.
-func (db *Database) GetDynamicLease(ctx context.Context, poolID int, imsi string) (*IPLease, error) {
+func (db *Database) GetDynamicLease(ctx context.Context, poolID string, imsi string) (*IPLease, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (dynamic)", "SELECT", IPLeasesTableName),
@@ -211,7 +211,7 @@ func (db *Database) GetDynamicLease(ctx context.Context, poolID int, imsi string
 }
 
 // GetLeaseBySession returns the lease matching (poolID, sessionID, imsi), or ErrNotFound.
-func (db *Database) GetLeaseBySession(ctx context.Context, poolID int, sessionID int, imsi string) (*IPLease, error) {
+func (db *Database) GetLeaseBySession(ctx context.Context, poolID string, sessionID int, imsi string) (*IPLease, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (by session)", "SELECT", IPLeasesTableName),
@@ -250,7 +250,7 @@ func (db *Database) GetLeaseBySession(ctx context.Context, poolID int, sessionID
 }
 
 // UpdateLeaseSession sets the sessionID on an existing lease.
-func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID int, sessionID int) error {
+func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID string, sessionID int) error {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (session)", "UPDATE", IPLeasesTableName),
@@ -284,7 +284,7 @@ func (db *Database) UpdateLeaseSession(ctx context.Context, leaseID int, session
 }
 
 // DeleteDynamicLease deletes a dynamic lease by ID.
-func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID int) error {
+func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID string) error {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "DELETE", IPLeasesTableName),
@@ -302,7 +302,7 @@ func (db *Database) DeleteDynamicLease(ctx context.Context, leaseID int) error {
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "delete").Inc()
 
-	_, err := opDeleteDynamicLease.Invoke(db, &intPayload{Value: leaseID})
+	_, err := opDeleteDynamicLease.Invoke(db, &stringPayload{Value: leaseID})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -385,7 +385,7 @@ func (db *Database) DeleteDynamicLeasesByNode(ctx context.Context, nodeID int) e
 
 // UpdateLeaseNode updates the nodeID and sessionID on an existing lease.
 // Used during failover to transfer lease ownership to the new serving node.
-func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID int, nodeID int, sessionID int) error {
+func (db *Database) UpdateLeaseNode(ctx context.Context, leaseID string, nodeID int, sessionID int) error {
 	_, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (node)", "UPDATE", IPLeasesTableName),
@@ -518,7 +518,7 @@ func (db *Database) listAllLeases(ctx context.Context) ([]IPLease, error) {
 }
 
 // ListLeasesByPool returns all leases (dynamic + static) for a given pool.
-func (db *Database) ListLeasesByPool(ctx context.Context, poolID int) ([]IPLease, error) {
+func (db *Database) ListLeasesByPool(ctx context.Context, poolID string) ([]IPLease, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (by pool)", "SELECT", IPLeasesTableName),
@@ -558,7 +558,7 @@ func (db *Database) ListLeasesByPool(ctx context.Context, poolID int) ([]IPLease
 
 // ListLeasesByPoolPage returns a page of leases for a pool, ordered by address,
 // along with the total count. The page parameter is 1-based.
-func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID int, page, perPage int) ([]IPLease, int, error) {
+func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID string, page, perPage int) ([]IPLease, int, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (paged by pool)", "SELECT", IPLeasesTableName),
@@ -618,7 +618,7 @@ func (db *Database) ListLeasesByPoolPage(ctx context.Context, poolID int, page, 
 
 // ListLeaseAddressesByPool returns sorted addresses for all leases in a pool.
 // Used by the allocator to find free offsets via merge-scan.
-func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID int) ([]string, error) {
+func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID string) ([]string, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (addresses by pool)", "SELECT", IPLeasesTableName),
@@ -663,7 +663,7 @@ func (db *Database) ListLeaseAddressesByPool(ctx context.Context, poolID int) ([
 }
 
 // CountLeasesByPool returns the total number of leases in a pool.
-func (db *Database) CountLeasesByPool(ctx context.Context, poolID int) (int, error) {
+func (db *Database) CountLeasesByPool(ctx context.Context, poolID string) (int, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (count by pool)", "SELECT", IPLeasesTableName),

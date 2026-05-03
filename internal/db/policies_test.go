@@ -52,6 +52,16 @@ func TestPoliciesEndToEnd(t *testing.T) {
 		t.Fatalf("Couldn't complete GetDataNetwork: %s", err)
 	}
 
+	defaultProfile, err := database.GetProfile(context.Background(), db.InitialProfileName)
+	if err != nil {
+		t.Fatalf("Couldn't get default profile: %s", err)
+	}
+
+	defaultSlice, err := database.GetNetworkSlice(context.Background(), db.InitialSliceName)
+	if err != nil {
+		t.Fatalf("Couldn't get default slice: %s", err)
+	}
+
 	policy := &db.Policy{
 		Name:                "my-policy",
 		SessionAmbrUplink:   "100 Mbps",
@@ -59,8 +69,8 @@ func TestPoliciesEndToEnd(t *testing.T) {
 		Var5qi:              9,
 		Arp:                 1,
 		DataNetworkID:       createdNetwork.ID,
-		ProfileID:           1,
-		SliceID:             1,
+		ProfileID:           defaultProfile.ID,
+		SliceID:             defaultSlice.ID,
 	}
 
 	err = database.CreatePolicy(context.Background(), policy)
@@ -159,8 +169,22 @@ func TestGetPolicyByLookup(t *testing.T) {
 		}
 	}()
 
-	// The default policy links default profile (1), default slice (1), default data network (1)
-	policy, err := database.GetPolicyByLookup(context.Background(), 1, 1, 1)
+	defaultProfile, err := database.GetProfile(context.Background(), db.InitialProfileName)
+	if err != nil {
+		t.Fatalf("Couldn't get default profile: %s", err)
+	}
+
+	defaultSlice, err := database.GetNetworkSlice(context.Background(), db.InitialSliceName)
+	if err != nil {
+		t.Fatalf("Couldn't get default slice: %s", err)
+	}
+
+	defaultDN, err := database.GetDataNetwork(context.Background(), db.InitialDataNetworkName)
+	if err != nil {
+		t.Fatalf("Couldn't get default data network: %s", err)
+	}
+
+	policy, err := database.GetPolicyByLookup(context.Background(), defaultProfile.ID, defaultSlice.ID, defaultDN.ID)
 	if err != nil {
 		t.Fatalf("Couldn't complete GetPolicyByLookup: %s", err)
 	}
@@ -170,7 +194,7 @@ func TestGetPolicyByLookup(t *testing.T) {
 	}
 
 	// Non-existent lookup
-	_, err = database.GetPolicyByLookup(context.Background(), 999, 999, 999)
+	_, err = database.GetPolicyByLookup(context.Background(), "missing-profile", "missing-slice", "missing-dn")
 	if err != db.ErrNotFound {
 		t.Fatalf("Expected ErrNotFound, got %v", err)
 	}
@@ -190,8 +214,17 @@ func TestGetPolicyByProfileAndSlice(t *testing.T) {
 		}
 	}()
 
-	// Default profile ID = 1, slice ID = 1 has the default policy
-	policy, err := database.GetPolicyByProfileAndSlice(context.Background(), 1, 1)
+	defaultProfile, err := database.GetProfile(context.Background(), db.InitialProfileName)
+	if err != nil {
+		t.Fatalf("Couldn't get default profile: %s", err)
+	}
+
+	defaultSlice, err := database.GetNetworkSlice(context.Background(), db.InitialSliceName)
+	if err != nil {
+		t.Fatalf("Couldn't get default slice: %s", err)
+	}
+
+	policy, err := database.GetPolicyByProfileAndSlice(context.Background(), defaultProfile.ID, defaultSlice.ID)
 	if err != nil {
 		t.Fatalf("Couldn't complete GetPolicyByProfileAndSlice: %s", err)
 	}
@@ -201,7 +234,7 @@ func TestGetPolicyByProfileAndSlice(t *testing.T) {
 	}
 
 	// Non-existent profile + slice combination
-	_, err = database.GetPolicyByProfileAndSlice(context.Background(), 999, 999)
+	_, err = database.GetPolicyByProfileAndSlice(context.Background(), "missing-profile", "missing-slice")
 	if err != db.ErrNotFound {
 		t.Fatalf("Expected ErrNotFound, got %v", err)
 	}
@@ -221,8 +254,22 @@ func TestCountPoliciesInRelations(t *testing.T) {
 		}
 	}()
 
-	// Default policy references profile 1, slice 1, data network 1
-	count, err := database.CountPoliciesInProfile(context.Background(), 1)
+	defaultProfile, err := database.GetProfile(context.Background(), db.InitialProfileName)
+	if err != nil {
+		t.Fatalf("Couldn't get default profile: %s", err)
+	}
+
+	defaultSlice, err := database.GetNetworkSlice(context.Background(), db.InitialSliceName)
+	if err != nil {
+		t.Fatalf("Couldn't get default slice: %s", err)
+	}
+
+	defaultDN, err := database.GetDataNetwork(context.Background(), db.InitialDataNetworkName)
+	if err != nil {
+		t.Fatalf("Couldn't get default data network: %s", err)
+	}
+
+	count, err := database.CountPoliciesInProfile(context.Background(), defaultProfile.ID)
 	if err != nil {
 		t.Fatalf("Couldn't complete CountPoliciesInProfile: %s", err)
 	}
@@ -231,7 +278,7 @@ func TestCountPoliciesInRelations(t *testing.T) {
 		t.Fatalf("Expected 1 policy in default profile, got %d", count)
 	}
 
-	count, err = database.CountPoliciesInSlice(context.Background(), 1)
+	count, err = database.CountPoliciesInSlice(context.Background(), defaultSlice.ID)
 	if err != nil {
 		t.Fatalf("Couldn't complete CountPoliciesInSlice: %s", err)
 	}
@@ -240,7 +287,7 @@ func TestCountPoliciesInRelations(t *testing.T) {
 		t.Fatalf("Expected 1 policy in default slice, got %d", count)
 	}
 
-	count, err = database.CountPoliciesInDataNetwork(context.Background(), 1)
+	count, err = database.CountPoliciesInDataNetwork(context.Background(), defaultDN.ID)
 	if err != nil {
 		t.Fatalf("Couldn't complete CountPoliciesInDataNetwork: %s", err)
 	}
@@ -250,7 +297,7 @@ func TestCountPoliciesInRelations(t *testing.T) {
 	}
 
 	// Non-existent relations
-	count, err = database.CountPoliciesInProfile(context.Background(), 999)
+	count, err = database.CountPoliciesInProfile(context.Background(), "missing-profile")
 	if err != nil {
 		t.Fatalf("Couldn't complete CountPoliciesInProfile: %s", err)
 	}
@@ -327,13 +374,18 @@ func TestGetSessionPolicy(t *testing.T) {
 		}
 	}()
 
+	defaultProfile, err := database.GetProfile(context.Background(), db.InitialProfileName)
+	if err != nil {
+		t.Fatalf("Couldn't get default profile: %s", err)
+	}
+
 	// Create a subscriber on the default profile
 	subscriber := &db.Subscriber{
 		Imsi:           "001010100007487",
 		SequenceNumber: "000000000001",
 		PermanentKey:   "6f30087629feb0b089783c81d0ae09b5",
 		Opc:            "21a7e1897dfb481d62439142cdf1b6ee",
-		ProfileID:      1, // default profile
+		ProfileID:      defaultProfile.ID,
 	}
 
 	err = database.CreateSubscriber(context.Background(), subscriber)

@@ -134,8 +134,11 @@ func TestMinVoterSchemaSupport_IgnoresLearners(t *testing.T) {
 		t.Fatalf("minVoterSchemaSupport: %v", err)
 	}
 
-	if floor != 10 {
-		t.Fatalf("floor: want 10 (learner ignored), got %d", floor)
+	// node 1 matches the standalone selfID, so its contribution is the
+	// in-process SchemaVersion(). Tracking the literal would require a
+	// test update on every migration bump.
+	if floor != SchemaVersion() {
+		t.Fatalf("floor: want %d (learner ignored), got %d", SchemaVersion(), floor)
 	}
 
 	if laggard != 1 {

@@ -20,7 +20,7 @@ type SessionEngine struct {
 	mu sync.RWMutex
 
 	sessions                map[uint64]*Session
-	policyToSEIDs           map[int64]map[uint64]struct{}
+	policyToSEIDs           map[string]map[uint64]struct{}
 	nodeID                  string
 	nodeAddrV4              net.IP
 	n3AddressIPv4           netip.Addr // may be zero if not available
@@ -66,8 +66,8 @@ func (pc *SessionEngine) AddSession(seid uint64, session *Session) {
 
 // registerPolicy links a policyID to a session SEID in the reverse index.
 // Caller must hold pc.mu.
-func (pc *SessionEngine) registerPolicy(policyID int64, seid uint64) {
-	if policyID == 0 {
+func (pc *SessionEngine) registerPolicy(policyID string, seid uint64) {
+	if policyID == "" {
 		return
 	}
 
@@ -82,8 +82,8 @@ func (pc *SessionEngine) registerPolicy(policyID int64, seid uint64) {
 
 // deregisterPolicy removes a session SEID from the reverse index.
 // Caller must hold pc.mu.
-func (pc *SessionEngine) deregisterPolicy(policyID int64, seid uint64) {
-	if policyID == 0 {
+func (pc *SessionEngine) deregisterPolicy(policyID string, seid uint64) {
+	if policyID == "" {
 		return
 	}
 
@@ -122,11 +122,11 @@ func (pc *SessionEngine) InitializeFiltersFromDB(ctx context.Context, dbInstance
 	}
 
 	for _, policy := range policies {
-		rules, err := dbInstance.ListRulesForPolicy(ctx, int64(policy.ID))
+		rules, err := dbInstance.ListRulesForPolicy(ctx, policy.ID)
 		if err != nil {
 			logger.WithTrace(ctx, logger.DBLog).Error(
 				"failed to list rules for policy",
-				zap.Int("policyID", policy.ID),
+				zap.String("policyID", policy.ID),
 				zap.Error(err),
 			)
 
@@ -158,20 +158,20 @@ func (pc *SessionEngine) InitializeFiltersFromDB(ctx context.Context, dbInstance
 		}
 
 		if len(uplinkRules) > 0 {
-			if err := pc.UpdateFilters(ctx, int64(policy.ID), models.DirectionUplink, uplinkRules); err != nil {
+			if err := pc.UpdateFilters(ctx, policy.ID, models.DirectionUplink, uplinkRules); err != nil {
 				logger.WithTrace(ctx, logger.DBLog).Error(
 					"failed to update uplink filters",
-					zap.Int("policyID", policy.ID),
+					zap.String("policyID", policy.ID),
 					zap.Error(err),
 				)
 			}
 		}
 
 		if len(downlinkRules) > 0 {
-			if err := pc.UpdateFilters(ctx, int64(policy.ID), models.DirectionDownlink, downlinkRules); err != nil {
+			if err := pc.UpdateFilters(ctx, policy.ID, models.DirectionDownlink, downlinkRules); err != nil {
 				logger.WithTrace(ctx, logger.DBLog).Error(
 					"failed to update downlink filters",
-					zap.Int("policyID", policy.ID),
+					zap.String("policyID", policy.ID),
 					zap.Error(err),
 				)
 			}
@@ -261,7 +261,7 @@ func NewSessionEngine(addr string, nodeID string, n3IPv4 string, n3IPv6 string, 
 
 	conn := &SessionEngine{
 		sessions:                make(map[uint64]*Session),
-		policyToSEIDs:           make(map[int64]map[uint64]struct{}),
+		policyToSEIDs:           make(map[string]map[uint64]struct{}),
 		nodeID:                  nodeID,
 		nodeAddrV4:              addrV4,
 		n3AddressIPv4:           n3AddrIPv4,

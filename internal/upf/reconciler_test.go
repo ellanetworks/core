@@ -22,7 +22,7 @@ type fakeStore struct {
 	n3External      string
 	n3GetErr        error
 	policies        []db.Policy
-	rulesByPolicyID map[int64][]*db.NetworkRule
+	rulesByPolicyID map[string][]*db.NetworkRule
 }
 
 func (f *fakeStore) IsNATEnabled(_ context.Context) (bool, error) {
@@ -60,7 +60,7 @@ func (f *fakeStore) ListPoliciesPage(_ context.Context, _ int, _ int) ([]db.Poli
 	return out, len(out), nil
 }
 
-func (f *fakeStore) ListRulesForPolicy(_ context.Context, policyID int64) ([]*db.NetworkRule, error) {
+func (f *fakeStore) ListRulesForPolicy(_ context.Context, policyID string) ([]*db.NetworkRule, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -72,7 +72,7 @@ func (f *fakeStore) ListRulesForPolicy(_ context.Context, policyID int64) ([]*db
 }
 
 type filterCall struct {
-	policyID  int64
+	policyID  string
 	direction models.Direction
 	rules     []models.FilterRule
 }
@@ -121,7 +121,7 @@ func (f *fakeUpdater) UpdateAdvertisedN3Address(addr netip.Addr) {
 	f.n3Calls = append(f.n3Calls, addr)
 }
 
-func (f *fakeUpdater) UpdateFilters(_ context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {
+func (f *fakeUpdater) UpdateFilters(_ context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -266,9 +266,9 @@ func TestReconcile_N3HandlesGetN3SettingsNotFound(t *testing.T) {
 
 func TestReconcile_FiltersAddRemoveModify(t *testing.T) {
 	store := &fakeStore{
-		policies: []db.Policy{{ID: 1}},
-		rulesByPolicyID: map[int64][]*db.NetworkRule{
-			1: {
+		policies: []db.Policy{{ID: "policy-1"}},
+		rulesByPolicyID: map[string][]*db.NetworkRule{
+			"policy-1": {
 				{Direction: directionUplinkString, Protocol: 6, PortLow: 80, PortHigh: 80, Action: "allow"},
 			},
 		},
@@ -281,7 +281,7 @@ func TestReconcile_FiltersAddRemoveModify(t *testing.T) {
 		t.Fatalf("reconcile 1: %v", err)
 	}
 
-	uplinkCalls, downlinkCalls := splitFilterCalls(updater.filterCalls, 1)
+	uplinkCalls, downlinkCalls := splitFilterCalls(updater.filterCalls, "policy-1")
 
 	if len(uplinkCalls) != 1 || len(uplinkCalls[0].rules) != 1 {
 		t.Fatalf("expected one uplink call with one rule, got %v", uplinkCalls)
@@ -304,7 +304,7 @@ func TestReconcile_FiltersAddRemoveModify(t *testing.T) {
 	}
 
 	store.mu.Lock()
-	store.rulesByPolicyID[1] = []*db.NetworkRule{
+	store.rulesByPolicyID["policy-1"] = []*db.NetworkRule{
 		{Direction: directionUplinkString, Protocol: 17, PortLow: 53, PortHigh: 53, Action: "allow"},
 	}
 	store.mu.Unlock()
@@ -317,7 +317,7 @@ func TestReconcile_FiltersAddRemoveModify(t *testing.T) {
 		t.Fatalf("reconcile 3: %v", err)
 	}
 
-	uplinkCalls, _ = splitFilterCalls(updater.filterCalls, 1)
+	uplinkCalls, _ = splitFilterCalls(updater.filterCalls, "policy-1")
 	if len(uplinkCalls) != 1 || uplinkCalls[0].rules[0].Protocol != 17 {
 		t.Fatalf("expected uplink reapplied with new rules, got %v", uplinkCalls)
 	}
@@ -335,7 +335,7 @@ func TestReconcile_FiltersAddRemoveModify(t *testing.T) {
 		t.Fatalf("reconcile 4: %v", err)
 	}
 
-	uplinkCalls, downlinkCalls = splitFilterCalls(updater.filterCalls, 1)
+	uplinkCalls, downlinkCalls = splitFilterCalls(updater.filterCalls, "policy-1")
 
 	if len(uplinkCalls) != 1 || len(uplinkCalls[0].rules) != 0 {
 		t.Fatalf("expected uplink cleared (empty rules) on policy delete, got %v", uplinkCalls)
@@ -426,7 +426,7 @@ func TestReconcile_PropagatesNATError(t *testing.T) {
 	}
 }
 
-func splitFilterCalls(calls []filterCall, policyID int64) (uplink, downlink []filterCall) {
+func splitFilterCalls(calls []filterCall, policyID string) (uplink, downlink []filterCall) {
 	for _, c := range calls {
 		if c.policyID != policyID {
 			continue

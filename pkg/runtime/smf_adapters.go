@@ -93,7 +93,7 @@ func ipamLeaseToDB(l *ipam.Lease) *db.IPLease {
 	}
 }
 
-func (a *leaseStoreAdapter) GetDynamicLease(ctx context.Context, poolID int, imsi string) (*ipam.Lease, error) {
+func (a *leaseStoreAdapter) GetDynamicLease(ctx context.Context, poolID string, imsi string) (*ipam.Lease, error) {
 	l, err := a.db.GetDynamicLease(ctx, poolID, imsi)
 	if err != nil {
 		return nil, mapDBError(err)
@@ -102,7 +102,7 @@ func (a *leaseStoreAdapter) GetDynamicLease(ctx context.Context, poolID int, ims
 	return dbLeaseToIPAM(l), nil
 }
 
-func (a *leaseStoreAdapter) GetLeaseBySession(ctx context.Context, poolID int, sessionID int, imsi string) (*ipam.Lease, error) {
+func (a *leaseStoreAdapter) GetLeaseBySession(ctx context.Context, poolID string, sessionID int, imsi string) (*ipam.Lease, error) {
 	l, err := a.db.GetLeaseBySession(ctx, poolID, sessionID, imsi)
 	if err != nil {
 		return nil, mapDBError(err)
@@ -111,7 +111,7 @@ func (a *leaseStoreAdapter) GetLeaseBySession(ctx context.Context, poolID int, s
 	return dbLeaseToIPAM(l), nil
 }
 
-func (a *leaseStoreAdapter) ListLeaseAddressesByPool(ctx context.Context, poolID int) ([]string, error) {
+func (a *leaseStoreAdapter) ListLeaseAddressesByPool(ctx context.Context, poolID string) ([]string, error) {
 	return a.db.ListLeaseAddressesByPool(ctx, poolID)
 }
 
@@ -124,15 +124,15 @@ func (a *leaseStoreAdapter) CreateLease(ctx context.Context, lease *ipam.Lease) 
 	return mapDBError(a.db.CreateLease(ctx, ipamLeaseToDB(lease), addr))
 }
 
-func (a *leaseStoreAdapter) UpdateLeaseSession(ctx context.Context, leaseID int, sessionID int) error {
+func (a *leaseStoreAdapter) UpdateLeaseSession(ctx context.Context, leaseID string, sessionID int) error {
 	return mapDBError(a.db.UpdateLeaseSession(ctx, leaseID, sessionID))
 }
 
-func (a *leaseStoreAdapter) UpdateLeaseNode(ctx context.Context, leaseID int, nodeID int, sessionID int) error {
+func (a *leaseStoreAdapter) UpdateLeaseNode(ctx context.Context, leaseID string, nodeID int, sessionID int) error {
 	return mapDBError(a.db.UpdateLeaseNode(ctx, leaseID, nodeID, sessionID))
 }
 
-func (a *leaseStoreAdapter) DeleteDynamicLease(ctx context.Context, leaseID int) error {
+func (a *leaseStoreAdapter) DeleteDynamicLease(ctx context.Context, leaseID string) error {
 	return mapDBError(a.db.DeleteDynamicLease(ctx, leaseID))
 }
 
@@ -232,7 +232,7 @@ func (a *pcfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai
 	dns := net.ParseIP(dn.DNS)
 
 	policy := &smf.Policy{
-		PolicyID: int64(pol.ID),
+		PolicyID: pol.ID,
 		Ambr: models.Ambr{
 			Uplink:   pol.SessionAmbrUplink,
 			Downlink: pol.SessionAmbrDownlink,
@@ -252,7 +252,7 @@ func (a *pcfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai
 	for i, dbRule := range dbRules {
 		dir, err := models.ParseDirection(dbRule.Direction)
 		if err != nil {
-			return nil, fmt.Errorf("invalid direction for rule %d: %w", dbRule.ID, err)
+			return nil, fmt.Errorf("invalid direction for rule %s: %w", dbRule.ID, err)
 		}
 
 		resolvedRules[i] = &smf.ResolvedNetworkRule{
@@ -334,7 +334,7 @@ func (a *smfUPFAdapter) DeleteSession(ctx context.Context, remoteSEID uint64) er
 	return a.engine.DeleteSession(ctx, &models.DeleteRequest{SEID: remoteSEID})
 }
 
-func (a *smfUPFAdapter) UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error {
+func (a *smfUPFAdapter) UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error {
 	return a.engine.UpdateFilters(ctx, policyID, direction, rules)
 }
 

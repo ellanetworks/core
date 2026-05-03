@@ -22,7 +22,7 @@ var tracer = otel.Tracer("ella-core/api/authentication_middleware")
 const AuthenticationAction = "user_authentication"
 
 type claims struct {
-	ID     int64  `json:"id"`
+	ID     string `json:"id"`
 	Email  string `json:"email"`
 	RoleID RoleID `json:"role_id"`
 	jwt.RegisteredClaims
@@ -55,7 +55,7 @@ func parseAPIToken(presented string) (tokenID, secret string, ok bool) {
 
 // authenticateRequest validates the Authorization header (JWT or API token),
 // and returns (userID, email, roleID) for authorization.
-func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Database) (int64, string, RoleID, error) {
+func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Database) (string, string, RoleID, error) {
 	var authType string
 
 	var success bool
@@ -78,7 +78,7 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "missing Authorization header")
 
-		return 0, "", 0, err
+		return "", "", 0, err
 	}
 
 	parts := strings.SplitN(authHeader, " ", 2)
@@ -87,7 +87,7 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "invalid Authorization scheme")
 
-		return 0, "", 0, err
+		return "", "", 0, err
 	}
 
 	token := strings.TrimSpace(parts[1])
@@ -96,7 +96,7 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "empty token")
 
-		return 0, "", 0, err
+		return "", "", 0, err
 	}
 
 	// API token path
@@ -109,7 +109,7 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "invalid API token format")
 
-			return 0, "", 0, err
+			return "", "", 0, err
 		}
 
 		tok, err := store.GetAPITokenByTokenID(ctx, tokenID)
@@ -118,7 +118,7 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "invalid API token")
 
-			return 0, "", 0, err
+			return "", "", 0, err
 		}
 
 		if tok.ExpiresAt != nil && time.Now().After(*tok.ExpiresAt) {
@@ -126,7 +126,7 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "API token expired")
 
-			return 0, "", 0, err
+			return "", "", 0, err
 		}
 
 		// CompareHashAndPassword uses constant time comparison, making it safer but slower
@@ -135,7 +135,7 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "invalid API token")
 
-			return 0, "", 0, err
+			return "", "", 0, err
 		}
 
 		u, err := store.GetUserByID(ctx, tok.UserID)
@@ -144,7 +144,7 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "user not found")
 
-			return 0, "", 0, err
+			return "", "", 0, err
 		}
 
 		success = true
@@ -157,12 +157,12 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 
 	cl, err := getClaimsFromJWT(token, jwtSecret.Get())
 	if err != nil {
-		return 0, "", 0, err
+		return "", "", 0, err
 	}
 
 	u, err := store.GetUserByID(ctx, cl.ID)
 	if err != nil || u == nil {
-		return 0, "", 0, errors.New("user not found")
+		return "", "", 0, errors.New("user not found")
 	}
 
 	success = true
@@ -171,7 +171,7 @@ func authenticateRequest(r *http.Request, jwtSecret *JWTSecret, store *db.Databa
 }
 
 // putIdentity adds identity to context.
-func putIdentity(ctx context.Context, id int64, email string, role RoleID) context.Context {
+func putIdentity(ctx context.Context, id string, email string, role RoleID) context.Context {
 	ctx = context.WithValue(ctx, contextKeyUserID, id)
 	ctx = context.WithValue(ctx, contextKeyEmail, email)
 	ctx = context.WithValue(ctx, contextKeyRoleID, role)

@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/canonical/sqlair"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -22,7 +23,7 @@ const (
 	listPoliciesPagedStmt          = "SELECT &Policy.*, COUNT(*) OVER() AS &NumItems.count FROM %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getPolicyStmt                  = "SELECT &Policy.* FROM %s WHERE name==$Policy.name"
 	getPolicyByLookupStmt          = "SELECT &Policy.* FROM %s WHERE profileID==$Policy.profileID AND sliceID==$Policy.sliceID AND dataNetworkID==$Policy.dataNetworkID"
-	createPolicyStmt               = "INSERT INTO %s (name, profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink) VALUES ($Policy.name, $Policy.profileID, $Policy.sliceID, $Policy.dataNetworkID, $Policy.var5qi, $Policy.arp, $Policy.sessionAmbrUplink, $Policy.sessionAmbrDownlink)"
+	createPolicyStmt               = "INSERT INTO %s (id, name, profileID, sliceID, dataNetworkID, var5qi, arp, sessionAmbrUplink, sessionAmbrDownlink) VALUES ($Policy.id, $Policy.name, $Policy.profileID, $Policy.sliceID, $Policy.dataNetworkID, $Policy.var5qi, $Policy.arp, $Policy.sessionAmbrUplink, $Policy.sessionAmbrDownlink)"
 	editPolicyStmt                 = "UPDATE %s SET profileID=$Policy.profileID, sliceID=$Policy.sliceID, dataNetworkID=$Policy.dataNetworkID, var5qi=$Policy.var5qi, arp=$Policy.arp, sessionAmbrUplink=$Policy.sessionAmbrUplink, sessionAmbrDownlink=$Policy.sessionAmbrDownlink WHERE name==$Policy.name"
 	deletePolicyStmt               = "DELETE FROM %s WHERE name==$Policy.name"
 	countPoliciesStmt              = "SELECT COUNT(*) AS &NumItems.count FROM %s"
@@ -36,11 +37,11 @@ const (
 )
 
 type Policy struct {
-	ID                  int    `db:"id"`
+	ID                  string `db:"id"` // UUIDv7
 	Name                string `db:"name"`
-	ProfileID           int    `db:"profileID"`
-	SliceID             int    `db:"sliceID"`
-	DataNetworkID       int    `db:"dataNetworkID"`
+	ProfileID           string `db:"profileID"`
+	SliceID             string `db:"sliceID"`
+	DataNetworkID       string `db:"dataNetworkID"`
 	Var5qi              int32  `db:"var5qi"`
 	Arp                 int32  `db:"arp"`
 	SessionAmbrUplink   string `db:"sessionAmbrUplink"`
@@ -105,7 +106,7 @@ func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int)
 	return policies, count, nil
 }
 
-func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID int, page int, perPage int) ([]Policy, int, error) {
+func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID string, page int, perPage int) ([]Policy, int, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (paged by profile)", "SELECT", PoliciesTableName),
@@ -114,7 +115,7 @@ func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID int
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", PoliciesTableName),
-			attribute.Int("profileID", profileID),
+			attribute.String("profileID", profileID),
 			attribute.Int("page", page),
 			attribute.Int("per_page", perPage),
 		),
@@ -161,7 +162,7 @@ func (db *Database) ListPoliciesByProfilePage(ctx context.Context, profileID int
 	return policies, count, nil
 }
 
-func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID int) ([]Policy, error) {
+func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID string) ([]Policy, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (all by profile)", "SELECT", PoliciesTableName),
@@ -170,7 +171,7 @@ func (db *Database) ListPoliciesByProfile(ctx context.Context, profileID int) ([
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", PoliciesTableName),
-			attribute.Int("profileID", profileID),
+			attribute.String("profileID", profileID),
 		),
 	)
 	defer span.End()
@@ -242,7 +243,7 @@ func (db *Database) GetPolicy(ctx context.Context, name string) (*Policy, error)
 }
 
 // GetPolicyByLookup finds a policy by its profileID, sliceID, and dataNetworkID.
-func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, dataNetworkID int) (*Policy, error) {
+func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, dataNetworkID string) (*Policy, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (lookup)", "SELECT", PoliciesTableName),
@@ -251,9 +252,9 @@ func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, d
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", PoliciesTableName),
-			attribute.Int("profile_id", profileID),
-			attribute.Int("slice_id", sliceID),
-			attribute.Int("data_network_id", dataNetworkID),
+			attribute.String("profile_id", profileID),
+			attribute.String("slice_id", sliceID),
+			attribute.String("data_network_id", dataNetworkID),
 		),
 	)
 	defer span.End()
@@ -286,7 +287,7 @@ func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, d
 
 // GetPolicyByProfileAndSlice finds the first policy for a given profile and slice.
 // Used by the AMF to resolve a default DNN when the UE does not specify one.
-func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID int) (*Policy, error) {
+func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID string) (*Policy, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (by profile+slice)", "SELECT", PoliciesTableName),
@@ -295,8 +296,8 @@ func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, s
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", PoliciesTableName),
-			attribute.Int("profile_id", profileID),
-			attribute.Int("slice_id", sliceID),
+			attribute.String("profile_id", profileID),
+			attribute.String("slice_id", sliceID),
 		),
 	)
 	defer span.End()
@@ -357,16 +358,16 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "list policies failed")
 
-		return nil, nil, nil, fmt.Errorf("list policies for profile %d: %w", sub.ProfileID, err)
+		return nil, nil, nil, fmt.Errorf("list policies for profile %s: %w", sub.ProfileID, err)
 	}
 
 	// Batch-fetch all referenced network slices.
-	sliceIDSet := make(map[int]struct{})
+	sliceIDSet := make(map[string]struct{})
 	for _, p := range policies {
 		sliceIDSet[p.SliceID] = struct{}{}
 	}
 
-	sliceIDs := make([]int, 0, len(sliceIDSet))
+	sliceIDs := make([]string, 0, len(sliceIDSet))
 	for id := range sliceIDSet {
 		sliceIDs = append(sliceIDs, id)
 	}
@@ -379,7 +380,7 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 		return nil, nil, nil, fmt.Errorf("list slices by IDs: %w", err)
 	}
 
-	sliceMap := make(map[int]NetworkSlice, len(sliceList))
+	sliceMap := make(map[string]NetworkSlice, len(sliceList))
 	for _, s := range sliceList {
 		sliceMap[s.ID] = s
 	}
@@ -402,19 +403,19 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 		dataNetwork, err := db.GetDataNetworkByID(ctx, p.DataNetworkID)
 		if err != nil {
 			span.RecordError(err)
-			return nil, nil, nil, fmt.Errorf("couldn't get data network %d: %w", p.DataNetworkID, err)
+			return nil, nil, nil, fmt.Errorf("couldn't get data network %s: %w", p.DataNetworkID, err)
 		}
 
 		if dataNetwork.Name != dnn {
 			continue
 		}
 
-		rules, err := db.ListRulesForPolicy(ctx, int64(p.ID))
+		rules, err := db.ListRulesForPolicy(ctx, p.ID)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "list rules failed")
 
-			return nil, nil, nil, fmt.Errorf("list rules for policy %d: %w", p.ID, err)
+			return nil, nil, nil, fmt.Errorf("list rules for policy %s: %w", p.ID, err)
 		}
 
 		span.SetStatus(codes.Ok, "")
@@ -424,7 +425,7 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 
 	span.SetStatus(codes.Error, "no matching policy")
 
-	return nil, nil, nil, fmt.Errorf("no policy matching sst=%d sd=%q dnn=%q for profile %d", sst, sd, dnn, sub.ProfileID)
+	return nil, nil, nil, fmt.Errorf("no policy matching sst=%d sd=%q dnn=%q for profile %s", sst, sd, dnn, sub.ProfileID)
 }
 
 func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
@@ -444,6 +445,15 @@ func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {
 	defer timer.ObserveDuration()
 
 	DBQueriesTotal.WithLabelValues(PoliciesTableName, "insert").Inc()
+
+	if policy.ID == "" {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return fmt.Errorf("generate policy id: %w", err)
+		}
+
+		policy.ID = id.String()
+	}
 
 	_, err := opCreatePolicy.Invoke(db, policy)
 	if err != nil {
@@ -489,7 +499,7 @@ func (db *Database) UpdatePolicy(ctx context.Context, policy *Policy) error {
 	return nil
 }
 
-func (t *Transaction) CreatePolicy(ctx context.Context, policy *Policy) (int64, error) {
+func (t *Transaction) CreatePolicy(ctx context.Context, policy *Policy) (string, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s", "INSERT", PoliciesTableName),
@@ -507,34 +517,32 @@ func (t *Transaction) CreatePolicy(ctx context.Context, policy *Policy) (int64, 
 
 	DBQueriesTotal.WithLabelValues(PoliciesTableName, "insert").Inc()
 
-	var outcome sqlair.Outcome
+	if policy.ID == "" {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return "", fmt.Errorf("generate policy id: %w", err)
+		}
 
-	err := t.tx.Query(ctx, t.db.createPolicyStmt, policy).Get(&outcome)
-	if err != nil {
+		policy.ID = id.String()
+	}
+
+	if err := t.tx.Query(ctx, t.db.createPolicyStmt, policy).Run(); err != nil {
 		if isUniqueNameError(err) {
 			span.RecordError(ErrAlreadyExists)
 			span.SetStatus(codes.Error, "unique constraint failed")
 
-			return 0, ErrAlreadyExists
+			return "", ErrAlreadyExists
 		}
 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "query failed")
 
-		return 0, fmt.Errorf("query failed: %w", err)
-	}
-
-	id, err := outcome.Result().LastInsertId()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "retrieving insert ID failed")
-
-		return 0, fmt.Errorf("retrieving insert ID failed: %w", err)
+		return "", fmt.Errorf("query failed: %w", err)
 	}
 
 	span.SetStatus(codes.Ok, "")
 
-	return id, nil
+	return policy.ID, nil
 }
 
 func (t *Transaction) UpdatePolicy(ctx context.Context, policy *Policy) error {
@@ -650,7 +658,7 @@ func (db *Database) CountPolicies(ctx context.Context) (int, error) {
 	return result.Count, nil
 }
 
-func (db *Database) CountPoliciesInProfile(ctx context.Context, profileID int) (int, error) {
+func (db *Database) CountPoliciesInProfile(ctx context.Context, profileID string) (int, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (by profile)", "SELECT", PoliciesTableName),
@@ -659,7 +667,7 @@ func (db *Database) CountPoliciesInProfile(ctx context.Context, profileID int) (
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", PoliciesTableName),
-			attribute.Int("profile_id", profileID),
+			attribute.String("profile_id", profileID),
 		),
 	)
 	defer span.End()
@@ -686,7 +694,7 @@ func (db *Database) CountPoliciesInProfile(ctx context.Context, profileID int) (
 	return result.Count, nil
 }
 
-func (db *Database) CountPoliciesInSlice(ctx context.Context, sliceID int) (int, error) {
+func (db *Database) CountPoliciesInSlice(ctx context.Context, sliceID string) (int, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (by slice)", "SELECT", PoliciesTableName),
@@ -695,7 +703,7 @@ func (db *Database) CountPoliciesInSlice(ctx context.Context, sliceID int) (int,
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", PoliciesTableName),
-			attribute.Int("slice_id", sliceID),
+			attribute.String("slice_id", sliceID),
 		),
 	)
 	defer span.End()
@@ -722,7 +730,7 @@ func (db *Database) CountPoliciesInSlice(ctx context.Context, sliceID int) (int,
 	return result.Count, nil
 }
 
-func (db *Database) CountPoliciesInDataNetwork(ctx context.Context, dataNetworkID int) (int, error) {
+func (db *Database) CountPoliciesInDataNetwork(ctx context.Context, dataNetworkID string) (int, error) {
 	ctx, span := tracer.Start(
 		ctx,
 		fmt.Sprintf("%s %s (by data network)", "SELECT", PoliciesTableName),
@@ -731,7 +739,7 @@ func (db *Database) CountPoliciesInDataNetwork(ctx context.Context, dataNetworkI
 			semconv.DBSystemNameSQLite,
 			semconv.DBOperationName("SELECT"),
 			attribute.String("db.collection", PoliciesTableName),
-			attribute.Int("data_network_id", dataNetworkID),
+			attribute.String("data_network_id", dataNetworkID),
 		),
 	)
 	defer span.End()

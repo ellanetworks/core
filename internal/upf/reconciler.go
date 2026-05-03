@@ -33,7 +33,7 @@ type SettingsStore interface {
 	IsFlowAccountingEnabled(ctx context.Context) (bool, error)
 	GetN3Settings(ctx context.Context) (*db.N3Settings, error)
 	ListPoliciesPage(ctx context.Context, page int, perPage int) ([]db.Policy, int, error)
-	ListRulesForPolicy(ctx context.Context, policyID int64) ([]*db.NetworkRule, error)
+	ListRulesForPolicy(ctx context.Context, policyID string) ([]*db.NetworkRule, error)
 }
 
 // Updater is the narrow view the reconciler needs over the UPF runtime.
@@ -42,7 +42,7 @@ type Updater interface {
 	ReloadNAT(enabled bool) error
 	ReloadFlowAccounting(enabled bool) error
 	UpdateAdvertisedN3Address(addr netip.Addr)
-	UpdateFilters(ctx context.Context, policyID int64, direction models.Direction, rules []models.FilterRule) error
+	UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error
 }
 
 // SettingsReconciler drives this node's UPF runtime from replicated DB
@@ -67,7 +67,7 @@ type SettingsReconciler struct {
 	appliedNAT            *bool
 	appliedFlowAccounting *bool
 	appliedN3Address      netip.Addr
-	appliedFilters        map[int64]filterSnapshot
+	appliedFilters        map[string]filterSnapshot
 }
 
 type filterSnapshot struct {
@@ -86,7 +86,7 @@ func NewSettingsReconciler(updater Updater, store SettingsStore, changefeed *db.
 		changefeed:     changefeed,
 		fallbackN3IP:   fallbackN3IP,
 		backstop:       upfReconcileBackstop,
-		appliedFilters: make(map[int64]filterSnapshot),
+		appliedFilters: make(map[string]filterSnapshot),
 	}
 }
 
@@ -298,15 +298,15 @@ func (r *SettingsReconciler) reconcileFilters(ctx context.Context) error {
 		return fmt.Errorf("list policies: %w", err)
 	}
 
-	desired := make(map[int64]filterSnapshot, len(policies))
+	desired := make(map[string]filterSnapshot, len(policies))
 
 	for _, p := range policies {
-		rules, err := r.store.ListRulesForPolicy(ctx, int64(p.ID))
+		rules, err := r.store.ListRulesForPolicy(ctx, p.ID)
 		if err != nil {
-			return fmt.Errorf("list rules for policy %d: %w", p.ID, err)
+			return fmt.Errorf("list rules for policy %s: %w", p.ID, err)
 		}
 
-		desired[int64(p.ID)] = filterSnapshot{
+		desired[p.ID] = filterSnapshot{
 			uplink:   networkRulesToFilterRules(rules, directionUplinkString),
 			downlink: networkRulesToFilterRules(rules, directionDownlinkString),
 		}
@@ -322,7 +322,7 @@ func (r *SettingsReconciler) reconcileFilters(ctx context.Context) error {
 		if !hadApplied || !reflect.DeepEqual(appliedSnap.uplink, desiredSnap.uplink) {
 			if err := r.updater.UpdateFilters(ctx, policyID, models.DirectionUplink, desiredSnap.uplink); err != nil {
 				logger.UpfLog.Warn("failed to update uplink filters",
-					zap.Int64("policyID", policyID), zap.Error(err))
+					zap.String("policyID", policyID), zap.Error(err))
 
 				continue
 			}
@@ -331,7 +331,7 @@ func (r *SettingsReconciler) reconcileFilters(ctx context.Context) error {
 		if !hadApplied || !reflect.DeepEqual(appliedSnap.downlink, desiredSnap.downlink) {
 			if err := r.updater.UpdateFilters(ctx, policyID, models.DirectionDownlink, desiredSnap.downlink); err != nil {
 				logger.UpfLog.Warn("failed to update downlink filters",
-					zap.Int64("policyID", policyID), zap.Error(err))
+					zap.String("policyID", policyID), zap.Error(err))
 
 				continue
 			}
@@ -346,12 +346,12 @@ func (r *SettingsReconciler) reconcileFilters(ctx context.Context) error {
 		// Policy deleted: clear filters so the eBPF slot is freed.
 		if err := r.updater.UpdateFilters(ctx, policyID, models.DirectionUplink, nil); err != nil {
 			logger.UpfLog.Warn("failed to clear uplink filters for deleted policy",
-				zap.Int64("policyID", policyID), zap.Error(err))
+				zap.String("policyID", policyID), zap.Error(err))
 		}
 
 		if err := r.updater.UpdateFilters(ctx, policyID, models.DirectionDownlink, nil); err != nil {
 			logger.UpfLog.Warn("failed to clear downlink filters for deleted policy",
-				zap.Int64("policyID", policyID), zap.Error(err))
+				zap.String("policyID", policyID), zap.Error(err))
 		}
 	}
 
