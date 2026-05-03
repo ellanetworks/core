@@ -46,7 +46,6 @@ const (
 
 	insertIssuedCertStmtStr         = "INSERT INTO %s (serial, nodeID, notAfter, intermediateFingerprint, issuedAt) VALUES ($ClusterIssuedCert.serial, $ClusterIssuedCert.nodeID, $ClusterIssuedCert.notAfter, $ClusterIssuedCert.intermediateFingerprint, $ClusterIssuedCert.issuedAt)"
 	listIssuedCertsByNodeStmtStr    = "SELECT &ClusterIssuedCert.* FROM %s WHERE nodeID=$ClusterIssuedCert.nodeID AND notAfter>$ClusterIssuedCert.notAfter"
-	listIssuedCertsActiveStmtStr    = "SELECT &ClusterIssuedCert.* FROM %s WHERE notAfter>$ClusterIssuedCert.notAfter"
 	deleteIssuedCertsExpiredStmtStr = "DELETE FROM %s WHERE notAfter<$ClusterIssuedCert.notAfter"
 
 	insertRevokedCertStmtStr        = "INSERT INTO %s (serial, nodeID, revokedAt, reason, purgeAfter) VALUES ($ClusterRevokedCert.serial, $ClusterRevokedCert.nodeID, $ClusterRevokedCert.revokedAt, $ClusterRevokedCert.reason, $ClusterRevokedCert.purgeAfter) ON CONFLICT(serial) DO NOTHING"
@@ -325,24 +324,6 @@ func (db *Database) ListActiveIssuedCertsByNode(ctx context.Context, nodeID int)
 	}
 
 	return rows, nil
-}
-
-// CountActiveIssuedCerts returns how many non-expired issued certs exist.
-// Used by root rotation to decide when the old root can be retired.
-func (db *Database) CountActiveIssuedCerts(ctx context.Context) (int, error) {
-	var rows []ClusterIssuedCert
-
-	arg := ClusterIssuedCert{NotAfter: time.Now().Unix()}
-
-	if err := db.conn().Query(ctx, db.listIssuedCertsActiveStmt, arg).GetAll(&rows); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return 0, nil
-		}
-
-		return 0, fmt.Errorf("count active issued certs: %w", err)
-	}
-
-	return len(rows), nil
 }
 
 // DeleteExpiredIssuedCerts removes rows where notAfter < now − 1h. Called

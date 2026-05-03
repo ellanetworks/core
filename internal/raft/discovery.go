@@ -48,12 +48,6 @@ type statusResponse struct {
 	Result statusResult `json:"result"`
 }
 
-// NeedsDiscovery reports whether this manager requires the discovery loop
-// to form or join a cluster before it can serve writes.
-func (m *Manager) NeedsDiscovery() bool {
-	return m.needsDiscovery
-}
-
 // RunDiscovery performs cluster formation for HA mode. It must be called after
 // the cluster listener starts so peers can reach this node's cluster port. In
 // standalone mode or when resuming existing Raft state, it returns immediately.

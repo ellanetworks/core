@@ -28,7 +28,6 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/dbwriter"
-	"github.com/ellanetworks/core/internal/ipam"
 	"github.com/ellanetworks/core/internal/jobs"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
@@ -401,7 +400,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	// Create SMF with dependency-injected adapters.
 	smfPCF := &pcfDBAdapter{db: dbInstance}
-	smfStore := &smfDBAdapter{db: dbInstance, allocator: ipam.NewSequentialAllocator(&leaseStoreAdapter{db: dbInstance})}
+	smfStore := &smfDBAdapter{db: dbInstance}
 	smfAMF := &smfAMFAdapter{}
 
 	smfInstance := smf.New(smfPCF, smfStore, nil, smfAMF)

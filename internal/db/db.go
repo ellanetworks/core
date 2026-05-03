@@ -80,12 +80,11 @@ type Database struct {
 	listAllLeasesStmt            *sqlair.Statement
 
 	// API Token statements
-	listAPITokensStmt     *sqlair.Statement
-	countAPITokensStmt    *sqlair.Statement
-	createAPITokenStmt    *sqlair.Statement
-	getAPITokenByNameStmt *sqlair.Statement
-	getAPITokenByIDStmt   *sqlair.Statement
-	deleteAPITokenStmt    *sqlair.Statement
+	listAPITokensStmt   *sqlair.Statement
+	countAPITokensStmt  *sqlair.Statement
+	createAPITokenStmt  *sqlair.Statement
+	getAPITokenByIDStmt *sqlair.Statement
+	deleteAPITokenStmt  *sqlair.Statement
 
 	// Radio Event statements
 	insertRadioEventStmt     *sqlair.Statement
@@ -204,7 +203,6 @@ type Database struct {
 	updateNetworkRuleStmt          *sqlair.Statement
 	deleteNetworkRuleStmt          *sqlair.Statement
 	deleteNetworkRulesByPolicyStmt *sqlair.Statement
-	countNetworkRulesStmt          *sqlair.Statement
 	listRulesForPolicyStmt         *sqlair.Statement
 
 	// Retention Policy statements
@@ -222,7 +220,6 @@ type Database struct {
 	insertAuditLogStmt        *sqlair.Statement
 	listAuditLogsFilteredStmt *sqlair.Statement
 	deleteOldAuditLogsStmt    *sqlair.Statement
-	countAuditLogsStmt        *sqlair.Statement
 
 	// Flow Report statements
 	insertFlowReportStmt                *sqlair.Statement
@@ -279,7 +276,6 @@ type Database struct {
 	deletePKIIntermediateStmt    *sqlair.Statement
 	insertIssuedCertStmt         *sqlair.Statement
 	listIssuedCertsByNodeStmt    *sqlair.Statement
-	listIssuedCertsActiveStmt    *sqlair.Statement
 	deleteIssuedCertsExpiredStmt *sqlair.Statement
 	insertRevokedCertStmt        *sqlair.Statement
 	listRevokedCertsStmt         *sqlair.Statement
@@ -912,29 +908,13 @@ type clusterCoordinator struct {
 	cancelTick context.CancelFunc
 }
 
-const (
-	migrationGateTickInterval = 5 * time.Second
-	barrierTimeout            = 30 * time.Second
-)
+const migrationGateTickInterval = 5 * time.Second
 
 func newClusterCoordinator(db *Database, parentCtx context.Context) *clusterCoordinator {
 	return &clusterCoordinator{db: db, parentCtx: parentCtx}
 }
 
 func (c *clusterCoordinator) OnBecameLeader() {
-	// Drain previous-term entries before any subsequent observer callback
-	// (notably the leadership-audit callback) captures. The original
-	// motivation was the AUTOINCREMENT race on the leader-takeover
-	// boundary; that class is now closed by spec_uuid.md — replicated
-	// PKs are UUIDs generated at the request handler, never derived from
-	// rollback-able local state. The barrier is kept as defense in depth
-	// for any future ordering invariant that needs the FSM caught up
-	// before leader-only work begins. Cost is one Raft log entry per
-	// leader transition.
-	if err := c.db.raftManager.Barrier(barrierTimeout); err != nil {
-		logger.DBLog.Error("leader-takeover barrier failed", zap.Error(err))
-	}
-
 	c.db.signalMigrationCheck()
 
 	c.mu.Lock()
@@ -1266,7 +1246,6 @@ func (db *Database) PrepareStatements() error {
 		{&db.listAPITokensStmt, fmt.Sprintf(listAPITokensPagedStmt, APITokensTableName), []any{ListArgs{}, APIToken{}, NumItems{}}},
 		{&db.countAPITokensStmt, fmt.Sprintf(countAPITokensStmt, APITokensTableName), []any{APIToken{}, NumItems{}}},
 		{&db.createAPITokenStmt, fmt.Sprintf(createAPITokenStmt, APITokensTableName), []any{APIToken{}}},
-		{&db.getAPITokenByNameStmt, fmt.Sprintf(getByNameStmt, APITokensTableName), []any{APIToken{}}},
 		{&db.deleteAPITokenStmt, fmt.Sprintf(deleteAPITokenStmt, APITokensTableName), []any{APIToken{}}},
 		{&db.getAPITokenByIDStmt, fmt.Sprintf(getByTokenIDStmt, APITokensTableName), []any{APIToken{}}},
 
@@ -1386,7 +1365,6 @@ func (db *Database) PrepareStatements() error {
 		{&db.updateNetworkRuleStmt, fmt.Sprintf(updateNetworkRuleStmt, NetworkRulesTableName), []any{NetworkRule{}}},
 		{&db.deleteNetworkRuleStmt, fmt.Sprintf(deleteNetworkRuleStmt, NetworkRulesTableName), []any{NetworkRule{}}},
 		{&db.deleteNetworkRulesByPolicyStmt, fmt.Sprintf(deleteNetworkRulesByPolicyStmt, NetworkRulesTableName), []any{NetworkRule{}}},
-		{&db.countNetworkRulesStmt, fmt.Sprintf(countNetworkRulesStmt, NetworkRulesTableName), []any{NumItems{}}},
 		{&db.listRulesForPolicyStmt, fmt.Sprintf(listRulesForPolicyStmt, NetworkRulesTableName), []any{NetworkRule{}}},
 
 		// Retention Policy
@@ -1404,7 +1382,6 @@ func (db *Database) PrepareStatements() error {
 		{&db.insertAuditLogStmt, fmt.Sprintf(insertAuditLogStmt, AuditLogsTableName), []any{dbwriter.AuditLog{}}},
 		{&db.listAuditLogsFilteredStmt, fmt.Sprintf(listAuditLogsFilteredPageStmt, AuditLogsTableName), []any{ListArgs{}, AuditLogFilters{}, dbwriter.AuditLog{}, NumItems{}}},
 		{&db.deleteOldAuditLogsStmt, fmt.Sprintf(deleteOldAuditLogsStmt, AuditLogsTableName), []any{cutoffArgs{}}},
-		{&db.countAuditLogsStmt, fmt.Sprintf(countAuditLogsStmt, AuditLogsTableName), []any{NumItems{}}},
 
 		// Flow Reports
 		{&db.insertFlowReportStmt, fmt.Sprintf(insertFlowReportStmt, FlowReportsTableName), []any{dbwriter.FlowReport{}}},
@@ -1461,7 +1438,6 @@ func (db *Database) PrepareStatements() error {
 		{&db.deletePKIIntermediateStmt, fmt.Sprintf(deletePKIIntermediateStmtStr, ClusterPKIIntermediatesTableName), []any{ClusterPKIIntermediate{}}},
 		{&db.insertIssuedCertStmt, fmt.Sprintf(insertIssuedCertStmtStr, ClusterIssuedCertsTableName), []any{ClusterIssuedCert{}}},
 		{&db.listIssuedCertsByNodeStmt, fmt.Sprintf(listIssuedCertsByNodeStmtStr, ClusterIssuedCertsTableName), []any{ClusterIssuedCert{}}},
-		{&db.listIssuedCertsActiveStmt, fmt.Sprintf(listIssuedCertsActiveStmtStr, ClusterIssuedCertsTableName), []any{ClusterIssuedCert{}}},
 		{&db.deleteIssuedCertsExpiredStmt, fmt.Sprintf(deleteIssuedCertsExpiredStmtStr, ClusterIssuedCertsTableName), []any{ClusterIssuedCert{}}},
 		{&db.insertRevokedCertStmt, fmt.Sprintf(insertRevokedCertStmtStr, ClusterRevokedCertsTableName), []any{ClusterRevokedCert{}}},
 		{&db.listRevokedCertsStmt, fmt.Sprintf(listRevokedCertsStmtStr, ClusterRevokedCertsTableName), []any{ClusterRevokedCert{}}},
