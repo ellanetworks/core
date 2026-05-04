@@ -15,18 +15,16 @@ import (
 )
 
 // JoinClaims are the authenticated claims carried in a join token. They
-// bind the token to a specific node-id, expiry, cluster root CA, and
-// cluster identity so a leaked token cannot be replayed against an
-// arbitrary node-id, a joining node can pin the server's TLS handshake
-// to the root named in the claims, and a first-boot joiner can build
-// a CSR with the correct SPIFFE URI without separately discovering the
-// clusterID.
+// bind the token to a specific node-id, expiry, the leader's pinned
+// self-signed cert (so the joining node can verify the bootstrap TLS
+// handshake without a CA), and cluster identity (so the joiner builds
+// a self-signed cert with the correct SPIFFE URI).
 type JoinClaims struct {
 	TokenID       string `json:"id"`
 	NodeID        int    `json:"node_id"`
 	IssuedAt      int64  `json:"iat"`
 	ExpiresAt     int64  `json:"exp"`
-	CAFingerprint string `json:"caf"`
+	LeaderCertPin string `json:"lcp"`
 	ClusterID     string `json:"cid"`
 }
 
@@ -60,8 +58,8 @@ func MintJoinToken(hmacKey []byte, claims JoinClaims) (string, error) {
 		return "", fmt.Errorf("claims.ExpiresAt %d must exceed IssuedAt %d", claims.ExpiresAt, claims.IssuedAt)
 	}
 
-	if claims.CAFingerprint == "" {
-		return "", fmt.Errorf("claims.CAFingerprint must be set")
+	if claims.LeaderCertPin == "" {
+		return "", fmt.Errorf("claims.LeaderCertPin must be set")
 	}
 
 	if claims.ClusterID == "" {

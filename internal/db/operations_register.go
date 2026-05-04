@@ -138,24 +138,16 @@ var (
 	opSetDrainState       = registerChangesetOp("SetDrainState", (*Database).applySetDrainState, RequireSchema(9))
 )
 
-// Cluster PKI. All PKI tables introduced in v9.
+// Cluster PKI. v12 replaces the chain-based scheme with fingerprint
+// pinning. cluster_join_tokens (v9) survives; cluster_node_certs and
+// cluster_join_hmac are introduced in v12.
 var (
-	opInsertPKIRoot            = registerChangesetOp("InsertPKIRoot", (*Database).applyInsertPKIRoot, RequireSchema(9))
-	opSetPKIRootStatus         = registerChangesetOp("SetPKIRootStatus", (*Database).applySetPKIRootStatus, RequireSchema(9))
-	opDeletePKIRoot            = registerChangesetOp("DeletePKIRoot", (*Database).applyDeletePKIRoot, RequireSchema(9))
-	opInsertPKIIntermediate    = registerChangesetOp("InsertPKIIntermediate", (*Database).applyInsertPKIIntermediate, RequireSchema(9))
-	opSetPKIIntermediateStatus = registerChangesetOp("SetPKIIntermediateStatus", (*Database).applySetPKIIntermediateStatus, RequireSchema(9))
-	opDeletePKIIntermediate    = registerChangesetOp("DeletePKIIntermediate", (*Database).applyDeletePKIIntermediate, RequireSchema(9))
-	opRecordIssuedCert         = registerChangesetOp("RecordIssuedCert", (*Database).applyInsertIssuedCert, RequireSchema(9))
-	opDeleteExpiredIssuedCerts = registerChangesetOp("DeleteExpiredIssuedCerts", (*Database).applyDeleteIssuedCertsExpired, RequireSchema(9))
-	opInsertRevokedCert        = registerChangesetOp("InsertRevokedCert", (*Database).applyInsertRevokedCert, RequireSchema(9))
-	opDeletePurgedRevocations  = registerChangesetOp("DeletePurgedRevocations", (*Database).applyDeleteRevokedCertsPurged, RequireSchema(9))
-	opMintJoinToken            = registerChangesetOp("MintJoinToken", (*Database).applyInsertJoinToken, RequireSchema(9))
-	opConsumeJoinToken         = registerChangesetOp("ConsumeJoinToken", (*Database).applyConsumeJoinToken, RequireSchema(9))
-	opDeleteStaleJoinTokens    = registerChangesetOp("DeleteStaleJoinTokens", (*Database).applyDeleteJoinTokensStale, RequireSchema(9))
-	opInitializePKIState       = registerChangesetOp("InitializePKIState", (*Database).applyInitPKIState, RequireSchema(9))
-	opBootstrapPKI             = registerChangesetOp("BootstrapPKI", (*Database).applyBootstrapPKIOp, RequireSchema(9))
-	opAllocatePKISerial        = registerChangesetOp("AllocatePKISerial", (*Database).applyAllocatePKISerialOp, RequireSchema(9))
+	opUpsertNodeCert        = registerChangesetOp("UpsertClusterNodeCert", (*Database).applyUpsertNodeCert, RequireSchema(12))
+	opDeleteNodeCert        = registerChangesetOp("DeleteClusterNodeCert", (*Database).applyDeleteNodeCert, RequireSchema(12))
+	opMintJoinToken         = registerChangesetOp("MintJoinToken", (*Database).applyInsertJoinToken, RequireSchema(9))
+	opConsumeJoinToken      = registerChangesetOp("ConsumeJoinToken", (*Database).applyConsumeJoinToken, RequireSchema(9))
+	opDeleteStaleJoinTokens = registerChangesetOp("DeleteStaleJoinTokens", (*Database).applyDeleteJoinTokensStale, RequireSchema(9))
+	opInitJoinHMAC          = registerChangesetOp("InitClusterJoinHMACKey", (*Database).applyInitJoinHMAC, RequireSchema(12))
 )
 
 // Intent ops — bulk deletes and migrations dispatched explicitly by the

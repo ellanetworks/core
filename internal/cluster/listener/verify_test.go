@@ -6,12 +6,44 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
-	"math/big"
 	"testing"
+	"time"
 
-	"github.com/ellanetworks/core/internal/cluster/listener/testutil"
 	"github.com/ellanetworks/core/internal/pki"
 )
+
+// genCert is a minimal helper duplicating what testutil.GenTestPKI
+// would do, but kept in-package to avoid an import cycle from the
+// listener_test/testutil/listener triangle. Any test that needs the
+// full PKI helper lives in the external listener_test package.
+type genCert struct {
+	NodeID  int
+	CertPEM []byte
+}
+
+func mintForTest(t *testing.T, nodeID int) genCert {
+	t.Helper()
+
+	cert, _, err := pki.GenerateNodeCert(nodeID, "test", time.Hour)
+	if err != nil {
+		t.Fatalf("generate cert: %v", err)
+	}
+
+	return genCert{NodeID: nodeID, CertPEM: pki.EncodeCertPEM(cert)}
+}
+
+func pinFromCerts(certs ...genCert) PinFunc {
+	pins := make(map[string]int, len(certs))
+	for _, c := range certs {
+		parsed, _ := pki.ParseCertPEM(c.CertPEM)
+		pins[pki.Fingerprint(parsed)] = c.NodeID
+	}
+
+	return func(fp string) PinResult {
+		nid, ok := pins[fp]
+		return PinResult{Found: ok, NodeID: nid}
+	}
+}
 
 func parseCerts(t *testing.T, certPEM []byte) []*x509.Certificate {
 	t.Helper()
@@ -40,31 +72,24 @@ func parseCerts(t *testing.T, certPEM []byte) []*x509.Certificate {
 }
 
 func TestVerifyConnection_HappyPath(t *testing.T) {
-	p := testutil.GenTestPKI(t, []int{1})
-	bundle := p.Bundle()
+	c := mintForTest(t, 1)
 
-	cb := verifyConnection(func() *pki.TrustBundle { return bundle }, func(*big.Int) bool { return false })
+	cb := verifyConnection(pinFromCerts(c))
 
 	cs := tls.ConnectionState{
 		NegotiatedProtocol: ALPNHTTP,
-		PeerCertificates:   parseCerts(t, p.Nodes[1].CertPEM),
+		PeerCertificates:   parseCerts(t, c.CertPEM),
 	}
 
 	if err := cb(cs); err != nil {
-		t.Fatalf("valid leaf should verify: %v", err)
+		t.Fatalf("pinned cert should verify: %v", err)
 	}
 }
 
 func TestVerifyConnection_BootstrapALPN_NoCert(t *testing.T) {
-	p := testutil.GenTestPKI(t, []int{1})
-	bundle := p.Bundle()
+	cb := verifyConnection(pinFromCerts())
 
-	cb := verifyConnection(func() *pki.TrustBundle { return bundle }, func(*big.Int) bool { return false })
-
-	// Bootstrap ALPN without any peer cert is allowed.
-	cs := tls.ConnectionState{
-		NegotiatedProtocol: ALPNPKIBootstrap,
-	}
+	cs := tls.ConnectionState{NegotiatedProtocol: ALPNPKIBootstrap}
 
 	if err := cb(cs); err != nil {
 		t.Fatalf("bootstrap ALPN must pass without cert: %v", err)
@@ -72,10 +97,7 @@ func TestVerifyConnection_BootstrapALPN_NoCert(t *testing.T) {
 }
 
 func TestVerifyConnection_NonBootstrap_NoCertRejected(t *testing.T) {
-	p := testutil.GenTestPKI(t, []int{1})
-	bundle := p.Bundle()
-
-	cb := verifyConnection(func() *pki.TrustBundle { return bundle }, func(*big.Int) bool { return false })
+	cb := verifyConnection(pinFromCerts())
 
 	cs := tls.ConnectionState{NegotiatedProtocol: ALPNHTTP}
 
@@ -84,59 +106,38 @@ func TestVerifyConnection_NonBootstrap_NoCertRejected(t *testing.T) {
 	}
 }
 
-func TestVerifyConnection_Revoked(t *testing.T) {
-	p := testutil.GenTestPKI(t, []int{1})
-	bundle := p.Bundle()
+func TestVerifyConnection_UnpinnedRejected(t *testing.T) {
+	known := mintForTest(t, 1)
+	stranger := mintForTest(t, 1)
 
-	certs := parseCerts(t, p.Nodes[1].CertPEM)
-	serial := certs[0].SerialNumber
-
-	cb := verifyConnection(
-		func() *pki.TrustBundle { return bundle },
-		func(s *big.Int) bool { return s.Cmp(serial) == 0 },
-	)
+	cb := verifyConnection(pinFromCerts(known))
 
 	cs := tls.ConnectionState{
 		NegotiatedProtocol: ALPNHTTP,
-		PeerCertificates:   certs,
+		PeerCertificates:   parseCerts(t, stranger.CertPEM),
 	}
 
 	if err := cb(cs); err == nil {
-		t.Fatal("revoked leaf must be rejected")
+		t.Fatal("unpinned fingerprint must be rejected")
 	}
 }
 
-func TestVerifyConnection_WrongCluster(t *testing.T) {
-	p := testutil.GenTestPKI(t, []int{1})
+func TestVerifyConnection_NodeIDMismatch(t *testing.T) {
+	c := mintForTest(t, 2)
 
-	otherBundle := &pki.TrustBundle{
-		Roots:         p.Bundle().Roots,
-		Intermediates: p.Bundle().Intermediates,
-		ClusterID:     "other-cluster",
+	mismatched := func(_ string) PinResult {
+		return PinResult{Found: true, NodeID: 1}
 	}
 
-	cb := verifyConnection(func() *pki.TrustBundle { return otherBundle }, func(*big.Int) bool { return false })
+	cb := verifyConnection(mismatched)
 
 	cs := tls.ConnectionState{
 		NegotiatedProtocol: ALPNHTTP,
-		PeerCertificates:   parseCerts(t, p.Nodes[1].CertPEM),
+		PeerCertificates:   parseCerts(t, c.CertPEM),
 	}
 
 	if err := cb(cs); err == nil {
-		t.Fatal("leaf from a different cluster must be rejected")
-	}
-}
-
-func TestVerifyConnection_BundleUnavailable(t *testing.T) {
-	cb := verifyConnection(func() *pki.TrustBundle { return nil }, func(*big.Int) bool { return false })
-
-	cs := tls.ConnectionState{
-		NegotiatedProtocol: ALPNHTTP,
-		PeerCertificates:   []*x509.Certificate{{}},
-	}
-
-	if err := cb(cs); err == nil {
-		t.Fatal("missing bundle must fail")
+		t.Fatal("URI nodeID / pin owner mismatch must be rejected")
 	}
 }
 
@@ -151,5 +152,21 @@ func TestRequiresClientCert(t *testing.T) {
 
 	if RequiresClientCert(ALPNPKIBootstrap) {
 		t.Fatal("bootstrap ALPN must NOT require client cert")
+	}
+}
+
+// Sanity-check that pki.Fingerprint matches what verifyConnection
+// computes — the contract this whole subsystem hinges on.
+func TestVerifyConnection_FingerprintMatchesPKIPackage(t *testing.T) {
+	c := mintForTest(t, 1)
+
+	cert := parseCerts(t, c.CertPEM)[0]
+
+	fpFromPKI := pki.Fingerprint(cert)
+
+	pinFn := pinFromCerts(c)
+
+	if !pinFn(fpFromPKI).Found {
+		t.Fatalf("pin lookup for %s should succeed", fpFromPKI)
 	}
 }

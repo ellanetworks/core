@@ -17,9 +17,8 @@ import (
 	"github.com/ellanetworks/core/internal/pki"
 )
 
-// Audit action strings.
 const (
-	PKIMintJoinTokenAction = "pki_mint_join_token" // #nosec G101 -- audit action name, not a credential
+	PKIMintJoinTokenAction = "pki_mint_join_token" // #nosec G101 -- audit action name
 )
 
 // pkiAdminEndpoint resolves the pkiissuer.Service at request time and
@@ -47,16 +46,18 @@ type MintJoinTokenRequest struct {
 	TTLSeconds int `json:"ttlSeconds,omitempty"`
 }
 
-// MintJoinTokenResponse carries the minted token. The CA fingerprint
-// is embedded in the token itself — the joining node extracts it
-// unverified to pin its TLS handshake, and the token's HMAC protects
-// against tampering.
+// MintJoinTokenResponse carries the minted token. The leader's pinned
+// cert fingerprint is embedded in the token; the joining node
+// extracts it unverified to pin the bootstrap TLS handshake, and the
+// token's HMAC protects against tampering.
 type MintJoinTokenResponse struct {
 	Token             string `json:"token"`
 	ExpiresAtUnixSecs int64  `json:"expiresAt"`
 }
 
-// PKIMintJoinToken handles POST /api/v1/cluster/pki/join-tokens.
+// PKIMintJoinToken handles POST /api/v1/cluster/pki/join-tokens. The
+// token embeds the local node's pin (the local node is, by
+// construction, the leader on the API path that lands here).
 func PKIMintJoinToken(dbInstance *db.Database, svc *pkiissuer.Service) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req MintJoinTokenRequest
@@ -77,7 +78,7 @@ func PKIMintJoinToken(dbInstance *db.Database, svc *pkiissuer.Service) http.Hand
 			ttl = 30 * time.Minute
 		}
 
-		token, err := svc.MintJoinToken(r.Context(), req.NodeID, ttl)
+		token, err := svc.MintJoinToken(r.Context(), req.NodeID, ttl, dbInstance.NodeID())
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "mint token", err, logger.APILog)
 			return

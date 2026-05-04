@@ -266,27 +266,16 @@ type Database struct {
 	setDrainStateStmt       *sqlair.Statement
 
 	// Cluster PKI statements
-	listPKIRootsStmt             *sqlair.Statement
-	insertPKIRootStmt            *sqlair.Statement
-	setPKIRootStatusStmt         *sqlair.Statement
-	deletePKIRootStmt            *sqlair.Statement
-	listPKIIntermediatesStmt     *sqlair.Statement
-	insertPKIIntermediateStmt    *sqlair.Statement
-	setPKIIntermediateStatusStmt *sqlair.Statement
-	deletePKIIntermediateStmt    *sqlair.Statement
-	insertIssuedCertStmt         *sqlair.Statement
-	listIssuedCertsByNodeStmt    *sqlair.Statement
-	deleteIssuedCertsExpiredStmt *sqlair.Statement
-	insertRevokedCertStmt        *sqlair.Statement
-	listRevokedCertsStmt         *sqlair.Statement
-	deleteRevokedCertsPurgedStmt *sqlair.Statement
-	insertJoinTokenStmt          *sqlair.Statement
-	getJoinTokenStmt             *sqlair.Statement
-	consumeJoinTokenStmt         *sqlair.Statement
-	deleteJoinTokensStaleStmt    *sqlair.Statement
-	initPKIStateStmt             *sqlair.Statement
-	getPKIStateStmt              *sqlair.Statement
-	allocateSerialStmt           *sqlair.Statement
+	listNodeCertsStmt         *sqlair.Statement
+	getNodeCertByFPStmt       *sqlair.Statement
+	upsertNodeCertStmt        *sqlair.Statement
+	deleteNodeCertByNodeStmt  *sqlair.Statement
+	insertJoinTokenStmt       *sqlair.Statement
+	getJoinTokenStmt          *sqlair.Statement
+	consumeJoinTokenStmt      *sqlair.Statement
+	deleteJoinTokensStaleStmt *sqlair.Statement
+	getJoinHMACStmt           *sqlair.Statement
+	initJoinHMACStmt          *sqlair.Statement
 
 	// connPtr holds the SQLite handle for the application database. Reopen
 	// atomically swaps the pointer so concurrent readers (API handlers,
@@ -1427,28 +1416,17 @@ func (db *Database) PrepareStatements() error {
 		{&db.countClusterMembersStmt, fmt.Sprintf(countClusterMembersStmtStr, ClusterMembersTableName), []any{NumItems{}}},
 		{&db.setDrainStateStmt, fmt.Sprintf(setDrainStateStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 
-		// Cluster PKI
-		{&db.listPKIRootsStmt, fmt.Sprintf(listPKIRootsStmtStr, ClusterPKIRootsTableName), []any{ClusterPKIRoot{}}},
-		{&db.insertPKIRootStmt, fmt.Sprintf(insertPKIRootStmtStr, ClusterPKIRootsTableName), []any{ClusterPKIRoot{}}},
-		{&db.setPKIRootStatusStmt, fmt.Sprintf(setPKIRootStatusStmtStr, ClusterPKIRootsTableName), []any{ClusterPKIRoot{}}},
-		{&db.deletePKIRootStmt, fmt.Sprintf(deletePKIRootStmtStr, ClusterPKIRootsTableName), []any{ClusterPKIRoot{}}},
-		{&db.listPKIIntermediatesStmt, fmt.Sprintf(listPKIIntermediatesStmtStr, ClusterPKIIntermediatesTableName), []any{ClusterPKIIntermediate{}}},
-		{&db.insertPKIIntermediateStmt, fmt.Sprintf(insertPKIIntermediateStmtStr, ClusterPKIIntermediatesTableName), []any{ClusterPKIIntermediate{}}},
-		{&db.setPKIIntermediateStatusStmt, fmt.Sprintf(setPKIIntermediateStatusStmtStr, ClusterPKIIntermediatesTableName), []any{ClusterPKIIntermediate{}}},
-		{&db.deletePKIIntermediateStmt, fmt.Sprintf(deletePKIIntermediateStmtStr, ClusterPKIIntermediatesTableName), []any{ClusterPKIIntermediate{}}},
-		{&db.insertIssuedCertStmt, fmt.Sprintf(insertIssuedCertStmtStr, ClusterIssuedCertsTableName), []any{ClusterIssuedCert{}}},
-		{&db.listIssuedCertsByNodeStmt, fmt.Sprintf(listIssuedCertsByNodeStmtStr, ClusterIssuedCertsTableName), []any{ClusterIssuedCert{}}},
-		{&db.deleteIssuedCertsExpiredStmt, fmt.Sprintf(deleteIssuedCertsExpiredStmtStr, ClusterIssuedCertsTableName), []any{ClusterIssuedCert{}}},
-		{&db.insertRevokedCertStmt, fmt.Sprintf(insertRevokedCertStmtStr, ClusterRevokedCertsTableName), []any{ClusterRevokedCert{}}},
-		{&db.listRevokedCertsStmt, fmt.Sprintf(listRevokedCertsStmtStr, ClusterRevokedCertsTableName), []any{ClusterRevokedCert{}}},
-		{&db.deleteRevokedCertsPurgedStmt, fmt.Sprintf(deleteRevokedCertsPurgedStmtStr, ClusterRevokedCertsTableName), []any{ClusterRevokedCert{}}},
+		// Cluster PKI (v12 fingerprint pinning)
+		{&db.listNodeCertsStmt, fmt.Sprintf(listNodeCertsStmtStr, ClusterNodeCertsTableName), []any{ClusterNodeCert{}}},
+		{&db.getNodeCertByFPStmt, fmt.Sprintf(getNodeCertByFPStmtStr, ClusterNodeCertsTableName), []any{ClusterNodeCert{}}},
+		{&db.upsertNodeCertStmt, fmt.Sprintf(upsertNodeCertStmtStr, ClusterNodeCertsTableName), []any{ClusterNodeCert{}}},
+		{&db.deleteNodeCertByNodeStmt, fmt.Sprintf(deleteNodeCertByNodeStmtStr, ClusterNodeCertsTableName), []any{ClusterNodeCert{}}},
 		{&db.insertJoinTokenStmt, fmt.Sprintf(insertJoinTokenStmtStr, ClusterJoinTokensTableName), []any{ClusterJoinToken{}}},
 		{&db.getJoinTokenStmt, fmt.Sprintf(getJoinTokenStmtStr, ClusterJoinTokensTableName), []any{ClusterJoinToken{}}},
 		{&db.consumeJoinTokenStmt, fmt.Sprintf(consumeJoinTokenStmtStr, ClusterJoinTokensTableName), []any{ClusterJoinToken{}}},
 		{&db.deleteJoinTokensStaleStmt, fmt.Sprintf(deleteJoinTokensStaleStmtStr, ClusterJoinTokensTableName), []any{ClusterJoinToken{}}},
-		{&db.initPKIStateStmt, fmt.Sprintf(initPKIStateStmtStr, ClusterPKIStateTableName), []any{ClusterPKIState{}}},
-		{&db.getPKIStateStmt, fmt.Sprintf(getPKIStateStmtStr, ClusterPKIStateTableName), []any{ClusterPKIState{}}},
-		{&db.allocateSerialStmt, fmt.Sprintf(allocateSerialStmtStr, ClusterPKIStateTableName), []any{ClusterPKIState{}}},
+		{&db.getJoinHMACStmt, fmt.Sprintf(getJoinHMACStmtStr, ClusterJoinHMACTableName), []any{ClusterJoinHMAC{}}},
+		{&db.initJoinHMACStmt, fmt.Sprintf(initJoinHMACStmtStr, ClusterJoinHMACTableName), []any{ClusterJoinHMAC{}}},
 	}
 
 	for _, s := range stmts {

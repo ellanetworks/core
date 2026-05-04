@@ -60,7 +60,7 @@ func (l *Listener) dial(ctx context.Context, addr string, expectedPeerID int, al
 	}
 
 	if expectedPeerID != 0 {
-		actualID, err := PeerNodeID(tlsConn, l.cfg.TrustBundle())
+		actualID, err := PeerNodeID(tlsConn)
 		if err != nil {
 			_ = tlsConn.Close()
 			return nil, fmt.Errorf("cluster dial %s: %w", addr, err)

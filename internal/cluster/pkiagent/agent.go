@@ -1,28 +1,30 @@
 // Copyright 2026 Ella Networks
 
-// Package pkiagent runs on every cluster node. It owns the local leaf
-// key, fetches a leaf at first boot (via the join flow on a joining
-// node, or via the issuer service on the first node), persists the
-// leaf to disk, and renews on a jittered schedule.
+// Package pkiagent runs on every cluster node. It owns the local
+// self-signed cluster cert: generates it at first boot, persists it
+// to disk, and on a joining node POSTs the cert + token to the
+// leader's /cluster/pki/register endpoint so the leader can replicate
+// the pin to every voter.
+//
+// There is no CA, no chain, no leaf-renewal goroutine. Optional
+// rotation re-runs the same self-sign-and-register flow; failure of
+// rotation is harmless because the existing pin remains valid.
 package pkiagent
 
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/big"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -30,17 +32,13 @@ import (
 	"github.com/ellanetworks/core/internal/pki"
 )
 
-// Filenames under <dataDir>/cluster-tls/. All three are per-node
-// caches: leaf.crt and bundle.crt carry public material reassemble-able
-// from the replicated DB; leaf.key is the per-node private key that
-// must not be replicated.
+// Filenames under <dataDir>/cluster-tls/.
 const (
-	leafCertFile   = "leaf.crt"
-	leafKeyFile    = "leaf.key"
-	bundleCertFile = "bundle.crt"
+	leafCertFile = "leaf.crt"
+	leafKeyFile  = "leaf.key"
 )
 
-// Agent manages the local node's cluster leaf.
+// Agent manages the local node's cluster cert.
 type Agent struct {
 	NodeID    int
 	ClusterID string
@@ -50,7 +48,7 @@ type Agent struct {
 }
 
 // NewAgent returns an unloaded agent. Callers should invoke Load,
-// JoinFlow, or the issuer's self-issue path before relying on Leaf.
+// JoinFlow, or BootstrapSelf before relying on Leaf.
 func NewAgent(nodeID int, clusterID, dataDir string) *Agent {
 	return &Agent{
 		NodeID:    nodeID,
@@ -66,59 +64,38 @@ func (a *Agent) Leaf() *tls.Certificate {
 
 // HaveLeafOnDisk reports whether leaf.crt and leaf.key both exist.
 func (a *Agent) HaveLeafOnDisk() bool {
-	certPath := a.path(leafCertFile)
-	keyPath := a.path(leafKeyFile)
-
-	if _, err := os.Stat(certPath); err != nil {
+	if _, err := os.Stat(a.path(leafCertFile)); err != nil {
 		return false
 	}
 
-	if _, err := os.Stat(keyPath); err != nil {
+	if _, err := os.Stat(a.path(leafKeyFile)); err != nil {
 		return false
 	}
 
 	return true
 }
 
-// Load reads leaf.crt, leaf.key, and bundle.crt from disk and installs
-// the in-memory tls.Certificate used by the listener. A missing
-// bundle.crt is tolerated (the resulting certificate carries only the
-// leaf) so first-boot listener startup can complete before the bundle
-// has been written.
+// Load reads the on-disk cert and key into memory. Idempotent.
 func (a *Agent) Load() error {
-	certPEM, err := os.ReadFile(a.path(leafCertFile)) // #nosec: G304 -- under dataDir
+	certPEM, err := os.ReadFile(a.path(leafCertFile)) // #nosec G304 -- under dataDir
 	if err != nil {
 		return fmt.Errorf("read leaf.crt: %w", err)
 	}
 
-	keyPEM, err := os.ReadFile(a.path(leafKeyFile)) // #nosec: G304
+	keyPEM, err := os.ReadFile(a.path(leafKeyFile)) // #nosec G304
 	if err != nil {
 		return fmt.Errorf("read leaf.key: %w", err)
 	}
 
-	chainPEM := certPEM
-
-	if bundlePEM, err := os.ReadFile(a.path(bundleCertFile)); err == nil { // #nosec: G304
-		chainPEM = append(append([]byte{}, certPEM...), bundlePEM...)
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("read bundle.crt: %w", err)
-	}
-
-	c, err := tls.X509KeyPair(chainPEM, keyPEM)
+	c, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
 		return fmt.Errorf("load leaf+key: %w", err)
 	}
 
-	// Compute Leaf (parsed cert) so downstream consumers don't re-parse,
-	// and re-derive ClusterID from its SPIFFE URI. ClusterID is needed
-	// by SeedBundleFromAgentDisk and CSR generation; on a restart boot
-	// the runtime's pkiState starts with an empty ClusterID, so pulling
-	// it from the leaf here is what keeps the listener's trust bundle
-	// accessor honest before raft replication kicks in.
 	if leaf, err := x509.ParseCertificate(c.Certificate[0]); err == nil {
 		c.Leaf = leaf
 
-		if cid, err := pki.ClusterIDFromLeaf(leaf); err == nil {
+		if cid, _, err := pki.IdentityFromCert(leaf); err == nil {
 			a.ClusterID = cid
 		}
 	}
@@ -128,73 +105,92 @@ func (a *Agent) Load() error {
 	return nil
 }
 
-// StoreLeaf writes leafPEM, keyPEM, and bundlePEM to disk atomically
-// and builds the in-memory tls.Certificate (leaf + bundle + key) used
-// by the listener.
-func (a *Agent) StoreLeaf(leafPEM, keyPEM, bundlePEM []byte) error {
+// GenerateAndPersist creates a fresh self-signed cluster cert under
+// the agent's nodeID/clusterID, writes it to disk atomically, and
+// installs it as the live cert for the listener. clusterID must be
+// non-empty (set by JoinFlow from the token's claims, or from the
+// operator's bootstrap path on the first node).
+func (a *Agent) GenerateAndPersist() error {
+	if a.ClusterID == "" {
+		return fmt.Errorf("cluster id not set")
+	}
+
+	cert, key, err := pki.GenerateNodeCert(a.NodeID, a.ClusterID, pki.DefaultNodeCertTTL)
+	if err != nil {
+		return fmt.Errorf("generate cert: %w", err)
+	}
+
+	certPEM := pki.EncodeCertPEM(cert)
+
+	keyPEM, err := pki.EncodePrivateKeyPEM(key)
+	if err != nil {
+		return fmt.Errorf("encode key: %w", err)
+	}
+
 	if err := os.MkdirAll(filepath.Dir(a.path(leafCertFile)), 0o700); err != nil {
 		return fmt.Errorf("mkdir cluster-tls: %w", err)
 	}
 
-	for _, f := range []struct {
-		name string
-		data []byte
-		mode os.FileMode
-	}{
-		{leafKeyFile, keyPEM, 0o600},
-		{leafCertFile, leafPEM, 0o644},
-		{bundleCertFile, bundlePEM, 0o644},
-	} {
-		if err := atomicWrite(a.path(f.name), f.data, f.mode); err != nil {
-			return err
-		}
+	if err := atomicWrite(a.path(leafKeyFile), keyPEM, 0o600); err != nil {
+		return err
 	}
 
-	chainPEM := append(append([]byte{}, leafPEM...), bundlePEM...)
+	if err := atomicWrite(a.path(leafCertFile), certPEM, 0o644); err != nil {
+		return err
+	}
 
-	c, err := tls.X509KeyPair(chainPEM, keyPEM)
+	c, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
-		return fmt.Errorf("pair leaf+key after store: %w", err)
+		return fmt.Errorf("pair after store: %w", err)
 	}
 
-	if leaf, err := x509.ParseCertificate(c.Certificate[0]); err == nil {
-		c.Leaf = leaf
-	}
+	c.Leaf = cert
 
 	a.current.Store(&c)
 
 	return nil
 }
 
-// IssueResponse is the wire format returned by /cluster/pki/issue.
-type IssueResponse struct {
-	LeafPEM   string `json:"leafPEM"`
-	BundlePEM string `json:"bundlePEM"`
+// CurrentCertPEM returns the PEM encoding of the live cert, suitable
+// for posting to the leader's /cluster/pki/register endpoint. Returns
+// nil if no cert has been generated yet.
+func (a *Agent) CurrentCertPEM() []byte {
+	leaf := a.current.Load()
+	if leaf == nil || leaf.Leaf == nil {
+		return nil
+	}
+
+	return pki.EncodeCertPEM(leaf.Leaf)
 }
 
-// IssueRequest is the wire format posted to /cluster/pki/issue.
-type IssueRequest struct {
-	CSRPEM    string `json:"csrPEM"`
+// RegisterRequest is the wire format posted to /cluster/pki/register.
+type RegisterRequest struct {
+	CertPEM   string `json:"certPEM"`
 	Token     string `json:"token,omitempty"`
 	NodeID    int    `json:"nodeID"`
-	ClusterID string `json:"clusterID,omitempty"`
+	ClusterID string `json:"clusterID"`
 }
 
-// JoinFlow dials serverAddr on the bootstrap ALPN, pins the server cert
-// to the CA fingerprint embedded in the join token, submits a CSR +
-// token, and writes the returned leaf and trust bundle to disk. The
-// fingerprint is extracted from the token's claims without HMAC
-// verification; tampering is caught later when the server validates
-// the HMAC, and a bad fingerprint already aborts the TLS handshake.
-// Generates a fresh leaf key.
+// RegisterResponse is returned on a successful register.
+type RegisterResponse struct {
+	Fingerprint string `json:"fingerprint"`
+}
+
+// JoinFlow runs on a fresh node. It reads the token's claims (without
+// HMAC verification) to obtain the leader's cert pin and the cluster
+// id, generates and persists a self-signed cert, dials the leader's
+// bootstrap ALPN with the leader-cert pin enforced, and POSTs
+// (cert, token) to /cluster/pki/register. After this returns
+// successfully the leader has replicated the pin to every voter and
+// the agent's cert is usable for cluster mTLS on subsequent ALPNs.
 func (a *Agent) JoinFlow(ctx context.Context, serverAddr, token string) error {
 	claims, err := pki.ExtractClaimsUnverified(token)
 	if err != nil {
 		return fmt.Errorf("parse join token: %w", err)
 	}
 
-	if claims.CAFingerprint == "" {
-		return fmt.Errorf("join token has no CA fingerprint")
+	if claims.LeaderCertPin == "" {
+		return fmt.Errorf("join token has no leader cert pin")
 	}
 
 	if claims.ClusterID == "" {
@@ -202,58 +198,56 @@ func (a *Agent) JoinFlow(ctx context.Context, serverAddr, token string) error {
 	}
 
 	if claims.NodeID != a.NodeID {
-		// Token was minted for a different node-id. Fail early rather
-		// than wait for the server to reject on node-id mismatch.
 		return fmt.Errorf("join token is for node-id %d, but this node is %d", claims.NodeID, a.NodeID)
 	}
 
-	// Seed the agent's clusterID from the token so postIssue can build
-	// a CSR with the correct SPIFFE URI on first boot. The server will
-	// still reject a mismatched clusterID when it verifies the token's
-	// HMAC, so a forged token here doesn't bypass the check.
 	if a.ClusterID == "" {
 		a.ClusterID = claims.ClusterID
 	}
 
-	client, err := bootstrapHTTPClient(claims.CAFingerprint)
+	if err := a.GenerateAndPersist(); err != nil {
+		return fmt.Errorf("self-sign: %w", err)
+	}
+
+	client, err := bootstrapHTTPClient(claims.LeaderCertPin)
 	if err != nil {
 		return err
 	}
 
 	defer client.CloseIdleConnections()
 
-	return a.postIssue(ctx, client, "https://"+serverAddr+"/cluster/pki/issue", token)
+	return a.postRegister(ctx, client, "https://"+serverAddr+"/cluster/pki/register", token)
 }
 
-// RenewFlow posts a fresh CSR to the leader's /cluster/pki/renew
-// endpoint over the existing mTLS cluster listener and installs the
-// returned leaf.
-func (a *Agent) RenewFlow(ctx context.Context, ln *listener.Listener, leaderAddr string, leaderID int) error {
+// Rotate generates a fresh self-signed cert and re-registers it with
+// the leader over the existing mTLS cluster listener. Best-effort: the
+// previous pin remains valid until the new one is committed, so a
+// failed rotation is recoverable.
+func (a *Agent) Rotate(ctx context.Context, ln *listener.Listener, leaderAddr string, leaderID int) error {
+	if err := a.GenerateAndPersist(); err != nil {
+		return fmt.Errorf("self-sign: %w", err)
+	}
+
 	client := &http.Client{
 		Transport: &http.Transport{
-			DialTLSContext: func(ctx context.Context, _, addr string) (net.Conn, error) {
-				return ln.Dial(ctx, addr, leaderID, listener.ALPNHTTP, 10*time.Second)
-			},
+			DialTLSContext: dialFuncForListener(ln, leaderID),
 		},
 		Timeout: 30 * time.Second,
 	}
 
 	defer client.CloseIdleConnections()
 
-	return a.postIssue(ctx, client, "https://"+leaderAddr+"/cluster/pki/renew", "")
+	return a.postRegister(ctx, client, "https://"+leaderAddr+"/cluster/pki/register", "")
 }
 
-// postIssue generates a CSR, POSTs it to url, and stores the returned
-// leaf + bundle. Shared between JoinFlow (bootstrap ALPN, token auth)
-// and RenewFlow (mTLS, cert auth).
-func (a *Agent) postIssue(ctx context.Context, client *http.Client, url, token string) error {
-	keyPEM, csrPEM, err := pki.GenerateKeyAndCSR(a.NodeID, a.ClusterID)
-	if err != nil {
-		return fmt.Errorf("generate csr: %w", err)
+func (a *Agent) postRegister(ctx context.Context, client *http.Client, url, token string) error {
+	certPEM := a.CurrentCertPEM()
+	if len(certPEM) == 0 {
+		return fmt.Errorf("no cert to register")
 	}
 
-	bodyBytes, err := json.Marshal(IssueRequest{
-		CSRPEM:    string(csrPEM),
+	body, err := json.Marshal(RegisterRequest{
+		CertPEM:   string(certPEM),
 		Token:     token,
 		NodeID:    a.NodeID,
 		ClusterID: a.ClusterID,
@@ -262,96 +256,36 @@ func (a *Agent) postIssue(ctx context.Context, client *http.Client, url, token s
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(bodyBytes))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := client.Do(req) // #nosec G107 -- url built from operator-configured peer or Raft-tracked leader address
+	resp, err := client.Do(req) // #nosec G107 -- url built from operator-configured peer or Raft-tracked leader
 	if err != nil {
 		return fmt.Errorf("POST %s: %w", url, err)
 	}
 
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return fmt.Errorf("%s returned %d: %s", url, resp.StatusCode, string(msg))
 	}
 
-	var out IssueResponse
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 256<<10)).Decode(&out); err != nil {
-		return fmt.Errorf("decode response: %w", err)
-	}
+	var out RegisterResponse
 
-	if out.LeafPEM == "" || out.BundlePEM == "" {
-		return fmt.Errorf("%s response missing leaf or bundle", url)
-	}
+	_ = json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&out)
 
-	return a.StoreLeaf([]byte(out.LeafPEM), keyPEM, []byte(out.BundlePEM))
-}
-
-// RenewSchedule returns the soft and hard renewal times for the current
-// leaf, per the §3.4 jitter policy. Zero times are returned if no leaf
-// is loaded.
-func (a *Agent) RenewSchedule(now time.Time) (soft, hard time.Time) {
-	c := a.current.Load()
-	if c == nil || c.Leaf == nil {
-		return time.Time{}, time.Time{}
-	}
-
-	total := c.Leaf.NotAfter.Sub(c.Leaf.NotBefore)
-
-	return c.Leaf.NotBefore.Add(time.Duration(float64(total) * 0.6)),
-		c.Leaf.NotBefore.Add(time.Duration(float64(total) * 0.9))
-}
-
-// PickRenewAt returns a uniform-random time in [soft, hard) given now,
-// or now itself if we're already past hard. If no leaf is loaded,
-// returns now+1h as a conservative retry.
-func (a *Agent) PickRenewAt(now time.Time) time.Time {
-	soft, hard := a.RenewSchedule(now)
-	if soft.IsZero() {
-		return now.Add(time.Hour)
-	}
-
-	if now.After(hard) {
-		return now
-	}
-
-	lower := soft
-	if now.After(lower) {
-		lower = now
-	}
-
-	span := hard.Sub(lower)
-	if span <= 0 {
-		return lower
-	}
-
-	n, err := rand.Int(rand.Reader, big.NewInt(int64(span)))
-	if err != nil {
-		return lower
-	}
-
-	return lower.Add(time.Duration(n.Int64()))
+	return nil
 }
 
 func (a *Agent) path(name string) string {
 	return filepath.Join(a.DataDir, "cluster-tls", name)
 }
 
-// BundlePath returns the filesystem path of bundle.crt. The runtime
-// reads it at startup to seed the listener's trust cache before raft
-// replication makes the CA tables locally queryable.
-func (a *Agent) BundlePath() string {
-	return a.path(bundleCertFile)
-}
-
-// atomicWrite writes data to path+".tmp" then renames, so readers never
-// see a half-written file.
 func atomicWrite(path string, data []byte, mode os.FileMode) error {
 	tmp := path + ".tmp"
 
@@ -368,17 +302,12 @@ func atomicWrite(path string, data []byte, mode os.FileMode) error {
 }
 
 // bootstrapHTTPClient returns an HTTP client that dials the bootstrap
-// ALPN without a client cert and pins the server cert fingerprint.
+// ALPN without a client cert and pins the server cert to
+// expectedFingerprint.
 func bootstrapHTTPClient(expectedFingerprint string) (*http.Client, error) {
-	expected := strings.TrimPrefix(expectedFingerprint, "sha256:")
-
-	raw, err := hex.DecodeString(expected)
+	raw, err := pki.ParseFingerprint(expectedFingerprint)
 	if err != nil {
-		return nil, fmt.Errorf("decode fingerprint %q: %w", expectedFingerprint, err)
-	}
-
-	if len(raw) != sha256.Size {
-		return nil, fmt.Errorf("fingerprint length %d, want %d", len(raw), sha256.Size)
+		return nil, err
 	}
 
 	tlsCfg := &tls.Config{
@@ -391,17 +320,13 @@ func bootstrapHTTPClient(expectedFingerprint string) (*http.Client, error) {
 			}
 
 			for _, c := range cs.PeerCertificates {
-				if bytes.Equal(certFingerprint(c), raw) {
+				sum := sha256.Sum256(c.Raw)
+				if subtle.ConstantTimeCompare(sum[:], raw) == 1 {
 					return nil
 				}
 			}
 
-			seen := make([]string, 0, len(cs.PeerCertificates))
-			for _, c := range cs.PeerCertificates {
-				seen = append(seen, fmt.Sprintf("%s=sha256:%s", c.Subject.CommonName, hex.EncodeToString(certFingerprint(c))))
-			}
-
-			return fmt.Errorf("bootstrap: server chain (%d certs: %v) does not contain pinned %s", len(cs.PeerCertificates), seen, expectedFingerprint)
+			return fmt.Errorf("bootstrap: server cert chain does not contain pinned %s", expectedFingerprint)
 		},
 	}
 
@@ -415,7 +340,10 @@ func bootstrapHTTPClient(expectedFingerprint string) (*http.Client, error) {
 	}, nil
 }
 
-func certFingerprint(c *x509.Certificate) []byte {
-	sum := sha256.Sum256(c.Raw)
-	return sum[:]
+// dialFuncForListener wraps the listener's mTLS dialer so an
+// http.Client can use it for cluster-internal HTTP.
+func dialFuncForListener(ln *listener.Listener, peerID int) func(ctx context.Context, network, addr string) (net.Conn, error) {
+	return func(ctx context.Context, _, addr string) (net.Conn, error) {
+		return ln.Dial(ctx, addr, peerID, listener.ALPNHTTP, 10*time.Second)
+	}
 }

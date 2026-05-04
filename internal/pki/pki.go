@@ -1,12 +1,21 @@
 // Copyright 2026 Ella Networks
 
-// Package pki implements the cluster PKI primitives: certificate signing,
-// trust-bundle verification, CSR generation, join-token HMAC, and an
-// in-memory revocation cache.
+// Package pki implements the cluster-TLS primitives used by every node:
 //
-// This package has no dependencies on internal/db or hashicorp/raft. It
-// operates on plain crypto types and lets higher layers handle persistence
-// and replication.
+//   - GenerateNodeCert: a per-node ECDSA P-256 self-signed cert with a
+//     long validity (10y by default). Each node owns its key; the cert
+//     is published cluster-wide via Raft and trust is established by
+//     SHA-256 pinning, not chain validation.
+//   - Fingerprint: the SHA-256 (hex, "sha256:" prefixed) of a cert's
+//     DER bytes. The pinning unit.
+//   - SpiffeID and identity helpers: the URI SAN format
+//     spiffe://cluster.ella/<clusterID>/node/<n> is preserved from the
+//     legacy chain-based design, since both the listener verifier and
+//     the join-flow CSR-style messages need to extract (clusterID,
+//     nodeID) from a peer cert.
+//   - Join-token primitives: see tokens.go.
+//
+// This package has no dependencies on internal/db or hashicorp/raft.
 package pki
 
 import (
@@ -14,7 +23,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/sha1" // #nosec G505 -- only used for RFC 5280 SubjectKeyId
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -23,121 +31,70 @@ import (
 	"fmt"
 	"math/big"
 	"net/url"
+	"strconv"
+	"strings"
 	"time"
 )
 
-// Leaf and CA template constants.
-//
-// LeafBackdate matches Consul's 1-minute backdate
-// (consul/agent/connect/ca/provider_consul.go:370-391) to tolerate
-// sub-minute clock skew between nodes.
 const (
-	LeafBackdate = time.Minute
-
 	// SpiffeTrustDomain is the trust-domain segment of every Ella-Core
-	// cluster leaf's URI SAN. The cluster-id follows.
+	// cluster cert's URI SAN. The cluster-id follows.
 	SpiffeTrustDomain = "cluster.ella"
-)
 
-// TTL defaults. These are package-level constants by design: the deployed
-// cluster runs with these values unless a build tag overrides them.
-//
-// The pki_test_ttls build tag in ttls_test.go replaces these with much
-// smaller values so integration tests can exercise rotation in seconds.
-var (
-	DefaultLeafTTL                    = 24 * time.Hour
-	DefaultIntermediateTTL            = 90 * 24 * time.Hour
-	DefaultRootTTL                    = 10 * 365 * 24 * time.Hour
-	DefaultIntermediateRotationFactor = 0.66
-	DefaultJoinTokenMinTTL            = 5 * time.Minute
-	DefaultJoinTokenMaxTTL            = 24 * time.Hour
+	// DefaultNodeCertTTL is how long a freshly generated self-signed
+	// cluster cert is valid. 10 years is "effectively forever" — it
+	// outlives the binary's deployment lifecycle and removes expiry
+	// from the cluster-liveness path. Optional rotation re-pins long
+	// before this matters.
+	DefaultNodeCertTTL = 10 * 365 * 24 * time.Hour
 )
 
 // Bounds enforced on operator-visible input.
 const (
-	MinLeafTTL = time.Hour
-	MaxLeafTTL = 7 * 24 * time.Hour
-	MinNodeID  = 1
-	MaxNodeID  = 63
+	MinNodeID = 1
+	MaxNodeID = 63
+
+	DefaultJoinTokenMinTTL = 5 * time.Minute
+	DefaultJoinTokenMaxTTL = 24 * time.Hour
 )
 
-// leafKeyUsage and leafExtKeyUsage are the key-usage bits Ella-Core cluster
-// leaves carry. EKU serverAuth+clientAuth lets the same leaf be used for
-// inbound accepts and outbound dials over the mTLS cluster listener.
+// nodeCertKeyUsage and nodeCertExtKeyUsage are the key-usage bits a
+// cluster node cert carries. EKU serverAuth+clientAuth lets the same
+// cert be used for inbound accepts and outbound dials over the mTLS
+// cluster listener.
 var (
-	leafKeyUsage    = x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
-	leafExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
+	nodeCertKeyUsage    = x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment
+	nodeCertExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
 )
 
-// Issuer signs cluster node leaves with an in-memory intermediate key.
-// Instances are created on the Raft leader after the intermediate key is
-// loaded from disk. Zeroize by dropping the reference on leadership loss.
-type Issuer struct {
-	intermediateCert *x509.Certificate
-	intermediateKey  crypto.Signer
-	clusterID        string
-}
-
-// NewIssuer constructs an Issuer from the intermediate cert + key. Caller
-// is responsible for validating the cert signs with the matching key.
-func NewIssuer(intermediateCert *x509.Certificate, intermediateKey crypto.Signer, clusterID string) *Issuer {
-	return &Issuer{
-		intermediateCert: intermediateCert,
-		intermediateKey:  intermediateKey,
-		clusterID:        clusterID,
+// SpiffeID builds the URI SAN that every cluster cert carries.
+func SpiffeID(clusterID string, nodeID int) *url.URL {
+	return &url.URL{
+		Scheme: "spiffe",
+		Host:   SpiffeTrustDomain,
+		Path:   fmt.Sprintf("/%s/node/%d", clusterID, nodeID),
 	}
 }
 
-// SignLeaf validates csr and emits a PEM-encoded cluster leaf signed by the
-// issuer's intermediate. nodeID must match the CN and URI-SAN node segment
-// in csr. serial is allocated by the caller (monotonic through Raft; see
-// internal/db.AllocatePKISerial).
-func (i *Issuer) SignLeaf(csr *x509.CertificateRequest, nodeID int, serial uint64, ttl time.Duration) ([]byte, error) {
-	if err := ValidateLeafCSR(csr, nodeID, i.clusterID); err != nil {
-		return nil, err
+// GenerateNodeCert produces a fresh ECDSA P-256 self-signed certificate
+// for nodeID under clusterID, valid for ttl. Returns the parsed cert
+// and the signer; PEM-encode via EncodeCertPEM / EncodePrivateKeyPEM.
+func GenerateNodeCert(nodeID int, clusterID string, ttl time.Duration) (*x509.Certificate, crypto.Signer, error) {
+	if nodeID < MinNodeID || nodeID > MaxNodeID {
+		return nil, nil, fmt.Errorf("node-id %d outside [%d, %d]", nodeID, MinNodeID, MaxNodeID)
 	}
 
-	if ttl < MinLeafTTL || ttl > MaxLeafTTL {
-		return nil, fmt.Errorf("leaf ttl %s outside [%s, %s]", ttl, MinLeafTTL, MaxLeafTTL)
+	if clusterID == "" {
+		return nil, nil, fmt.Errorf("clusterID must not be empty")
 	}
 
-	notBefore := time.Now().Add(-LeafBackdate)
-	notAfter := notBefore.Add(ttl + LeafBackdate)
-
-	skid, err := subjectKeyID(csr.PublicKey)
-	if err != nil {
-		return nil, err
+	if ttl <= 0 {
+		ttl = DefaultNodeCertTTL
 	}
 
-	tmpl := &x509.Certificate{
-		SerialNumber:          new(big.Int).SetUint64(serial),
-		Subject:               pkix.Name{CommonName: csr.Subject.CommonName},
-		URIs:                  csr.URIs,
-		NotBefore:             notBefore,
-		NotAfter:              notAfter,
-		KeyUsage:              leafKeyUsage,
-		ExtKeyUsage:           leafExtKeyUsage,
-		BasicConstraintsValid: true,
-		IsCA:                  false,
-		SubjectKeyId:          skid,
-		AuthorityKeyId:        i.intermediateCert.SubjectKeyId,
-	}
-
-	der, err := x509.CreateCertificate(rand.Reader, tmpl, i.intermediateCert, csr.PublicKey, i.intermediateKey)
-	if err != nil {
-		return nil, fmt.Errorf("sign leaf: %w", err)
-	}
-
-	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), nil
-}
-
-// GenerateRoot creates a fresh self-signed root certificate for the
-// cluster's trust anchor. Called exactly once in the cluster's lifetime
-// (plus once more per manual rotate-root invocation).
-func GenerateRoot(clusterID string, ttl time.Duration) (*x509.Certificate, crypto.Signer, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, nil, fmt.Errorf("generate root key: %w", err)
+		return nil, nil, fmt.Errorf("generate node key: %w", err)
 	}
 
 	serial, err := randomSerial()
@@ -145,79 +102,40 @@ func GenerateRoot(clusterID string, ttl time.Duration) (*x509.Certificate, crypt
 		return nil, nil, err
 	}
 
-	now := time.Now().Add(-LeafBackdate)
+	skid, err := subjectKeyID(&key.PublicKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	now := time.Now().Add(-time.Minute) // small backdate for clock skew
 
 	tmpl := &x509.Certificate{
 		SerialNumber:          serial,
-		Subject:               pkix.Name{CommonName: "ella-cluster-root:" + clusterID},
+		Subject:               pkix.Name{CommonName: fmt.Sprintf("ella-node-%d", nodeID)},
+		URIs:                  []*url.URL{SpiffeID(clusterID, nodeID)},
 		NotBefore:             now,
-		NotAfter:              now.Add(ttl),
-		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		NotAfter:              now.Add(ttl + time.Minute),
+		KeyUsage:              nodeCertKeyUsage,
+		ExtKeyUsage:           nodeCertExtKeyUsage,
 		BasicConstraintsValid: true,
-		IsCA:                  true,
-		// MaxPathLen unset + MaxPathLenZero=false = unlimited chain
-		// length, per crypto/x509 semantics. Needed because cross-signed
-		// root rotation can produce a chain root → crossSigned → int →
-		// leaf, which is two intermediates under the anchor root.
+		IsCA:                  false,
+		SubjectKeyId:          skid,
 	}
 
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create root cert: %w", err)
+		return nil, nil, fmt.Errorf("create self-signed cert: %w", err)
 	}
 
 	cert, err := x509.ParseCertificate(der)
 	if err != nil {
-		return nil, nil, fmt.Errorf("parse root cert: %w", err)
+		return nil, nil, fmt.Errorf("parse self-signed cert: %w", err)
 	}
 
 	return cert, key, nil
 }
 
-// GenerateIntermediate creates a fresh intermediate key pair and signs it
-// with the provided root. Called at first-leader PKI bootstrap and on
-// every intermediate rotation.
-func GenerateIntermediate(clusterID string, root *x509.Certificate, rootKey crypto.Signer, ttl time.Duration) (*x509.Certificate, crypto.Signer, error) {
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, nil, fmt.Errorf("generate intermediate key: %w", err)
-	}
-
-	serial, err := randomSerial()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	now := time.Now().Add(-LeafBackdate)
-
-	tmpl := &x509.Certificate{
-		SerialNumber:          serial,
-		Subject:               pkix.Name{CommonName: "ella-cluster-int:" + clusterID},
-		NotBefore:             now,
-		NotAfter:              now.Add(ttl),
-		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
-		ExtKeyUsage:           leafExtKeyUsage,
-		BasicConstraintsValid: true,
-		IsCA:                  true,
-		MaxPathLen:            0,
-		MaxPathLenZero:        true,
-	}
-
-	der, err := x509.CreateCertificate(rand.Reader, tmpl, root, &key.PublicKey, rootKey)
-	if err != nil {
-		return nil, nil, fmt.Errorf("sign intermediate: %w", err)
-	}
-
-	cert, err := x509.ParseCertificate(der)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse intermediate: %w", err)
-	}
-
-	return cert, key, nil
-}
-
-// Fingerprint returns the SHA-256 fingerprint of cert's DER bytes, prefixed
-// with "sha256:". Returns "" for a nil cert. Used to pin roots by hash.
+// Fingerprint returns the canonical "sha256:<hex>" pin for a cert.
 func Fingerprint(cert *x509.Certificate) string {
 	if cert == nil {
 		return ""
@@ -228,54 +146,151 @@ func Fingerprint(cert *x509.Certificate) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-// SpiffeID formats the URI-SAN identity for a cluster node.
-func SpiffeID(clusterID string, nodeID int) *url.URL {
-	return &url.URL{
-		Scheme: "spiffe",
-		Host:   SpiffeTrustDomain,
-		Path:   fmt.Sprintf("/%s/node/%d", clusterID, nodeID),
+// FingerprintRaw returns the 32-byte SHA-256 of a cert's DER bytes,
+// without the textual prefix. Used by the bootstrap dialer's
+// VerifyConnection callback for constant-time comparison.
+func FingerprintRaw(cert *x509.Certificate) []byte {
+	if cert == nil {
+		return nil
 	}
+
+	sum := sha256.Sum256(cert.Raw)
+
+	return sum[:]
 }
 
-// ValidateLeafCSR checks that csr is well-formed for a cluster leaf:
-// CN matches the expected node-id, there is exactly one URI SAN matching
-// the expected spiffe ID, and no other SANs sneak in.
-func ValidateLeafCSR(csr *x509.CertificateRequest, nodeID int, clusterID string) error {
-	if csr == nil {
-		return fmt.Errorf("csr is nil")
+// ParseFingerprint decodes a "sha256:<hex>" string into raw bytes.
+func ParseFingerprint(s string) ([]byte, error) {
+	s = strings.TrimPrefix(s, "sha256:")
+
+	raw, err := hex.DecodeString(s)
+	if err != nil {
+		return nil, fmt.Errorf("decode fingerprint hex: %w", err)
 	}
 
-	if nodeID < MinNodeID || nodeID > MaxNodeID {
-		return fmt.Errorf("node-id %d outside [%d, %d]", nodeID, MinNodeID, MaxNodeID)
+	if len(raw) != sha256.Size {
+		return nil, fmt.Errorf("fingerprint length %d, want %d", len(raw), sha256.Size)
 	}
 
-	wantCN := fmt.Sprintf("ella-node-%d", nodeID)
-	if csr.Subject.CommonName != wantCN {
-		return fmt.Errorf("csr CN %q does not match expected %q", csr.Subject.CommonName, wantCN)
+	return raw, nil
+}
+
+// ParseCertPEM decodes a PEM-encoded certificate.
+func ParseCertPEM(certPEM []byte) (*x509.Certificate, error) {
+	block, _ := pem.Decode(certPEM)
+	if block == nil || block.Type != "CERTIFICATE" {
+		return nil, fmt.Errorf("not a CERTIFICATE PEM block")
 	}
 
-	if len(csr.URIs) != 1 {
-		return fmt.Errorf("csr must carry exactly one URI SAN, got %d", len(csr.URIs))
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse certificate: %w", err)
 	}
 
-	wantURI := SpiffeID(clusterID, nodeID)
-	if csr.URIs[0].String() != wantURI.String() {
-		return fmt.Errorf("csr URI SAN %q does not match expected %q", csr.URIs[0], wantURI)
+	return cert, nil
+}
+
+// EncodeCertPEM returns the PEM encoding of cert. Returns nil for a nil
+// cert rather than panicking.
+func EncodeCertPEM(cert *x509.Certificate) []byte {
+	if cert == nil {
+		return nil
 	}
 
-	if len(csr.DNSNames) != 0 || len(csr.IPAddresses) != 0 || len(csr.EmailAddresses) != 0 {
-		return fmt.Errorf("csr carries disallowed SANs (DNS/IP/email)")
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw})
+}
+
+// EncodePrivateKeyPEM marshals a key as PKCS#8 PEM.
+func EncodePrivateKeyPEM(key crypto.Signer) ([]byte, error) {
+	der, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		return nil, fmt.Errorf("marshal key: %w", err)
 	}
 
-	return nil
+	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), nil
+}
+
+// ParsePrivateKeyPEM decodes a PKCS#8 PEM private key as a crypto.Signer.
+func ParsePrivateKeyPEM(keyPEM []byte) (crypto.Signer, error) {
+	if len(keyPEM) == 0 {
+		return nil, fmt.Errorf("empty private key PEM")
+	}
+
+	block, _ := pem.Decode(keyPEM)
+	if block == nil || block.Type != "PRIVATE KEY" {
+		return nil, fmt.Errorf("not a PRIVATE KEY PEM")
+	}
+
+	k, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("parse PKCS#8: %w", err)
+	}
+
+	signer, ok := k.(crypto.Signer)
+	if !ok {
+		return nil, fmt.Errorf("key is not a crypto.Signer")
+	}
+
+	return signer, nil
+}
+
+// IdentityFromCert validates the SPIFFE URI SAN of a cluster cert and
+// returns (clusterID, nodeID). Used by the join-flow handler to confirm
+// that a self-signed cert presented for registration matches the
+// claims in its associated join token.
+func IdentityFromCert(cert *x509.Certificate) (clusterID string, nodeID int, err error) {
+	if cert == nil {
+		return "", 0, fmt.Errorf("nil cert")
+	}
+
+	if len(cert.URIs) != 1 {
+		return "", 0, fmt.Errorf("cluster cert must carry exactly one URI SAN, got %d", len(cert.URIs))
+	}
+
+	u := cert.URIs[0]
+	if u.Scheme != "spiffe" || u.Host != SpiffeTrustDomain {
+		return "", 0, fmt.Errorf("URI SAN %q is not a valid SPIFFE URI for %s", u, SpiffeTrustDomain)
+	}
+
+	path := strings.TrimPrefix(u.Path, "/")
+
+	cid, rest, ok := strings.Cut(path, "/")
+	if !ok || cid == "" || !strings.HasPrefix(rest, "node/") {
+		return "", 0, fmt.Errorf("URI SAN path %q is not in the form /<clusterID>/node/<n>", u.Path)
+	}
+
+	suffix := rest[len("node/"):]
+	if suffix == "" {
+		return "", 0, fmt.Errorf("URI SAN path %q has empty node segment", u.Path)
+	}
+
+	// Canonical unsigned decimal — reject "+5", "-5", "05".
+	n, err := strconv.ParseUint(suffix, 10, 31)
+	if err != nil {
+		return "", 0, fmt.Errorf("URI SAN node segment %q: %w", suffix, err)
+	}
+
+	if strconv.FormatUint(n, 10) != suffix {
+		return "", 0, fmt.Errorf("URI SAN node segment %q is not in canonical form", suffix)
+	}
+
+	id := int(n)
+	if id < MinNodeID || id > MaxNodeID {
+		return "", 0, fmt.Errorf("URI SAN node-id %d outside [%d, %d]", id, MinNodeID, MaxNodeID)
+	}
+
+	wantCN := fmt.Sprintf("ella-node-%d", id)
+	if cert.Subject.CommonName != wantCN {
+		return "", 0, fmt.Errorf("cert CN %q does not match URI-SAN node %d", cert.Subject.CommonName, id)
+	}
+
+	return cid, id, nil
 }
 
 func randomSerial() (*big.Int, error) {
-	// 128-bit serial is the common conservative choice (RFC 5280 §4.1.2.2
-	// only requires 20 octets max, but ≥ 64 bits of entropy is standard).
-	upper := new(big.Int).Lsh(big.NewInt(1), 128)
+	limit := new(big.Int).Lsh(big.NewInt(1), 159)
 
-	n, err := rand.Int(rand.Reader, upper)
+	n, err := rand.Int(rand.Reader, limit)
 	if err != nil {
 		return nil, fmt.Errorf("random serial: %w", err)
 	}
@@ -283,18 +298,18 @@ func randomSerial() (*big.Int, error) {
 	return n, nil
 }
 
-// subjectKeyID computes the SubjectKeyId for a public key using the
-// RFC 5280 §4.2.1.2 method 1 recipe (SHA-1 of SubjectPublicKeyInfo).
-// crypto/x509 does this automatically for CA certs but not for leaves,
-// so we set it explicitly on leaves for introspection tools that rely
-// on SKID/AKID pairing (e.g. openssl verify -verbose).
-func subjectKeyID(pub any) ([]byte, error) {
-	spki, err := x509.MarshalPKIXPublicKey(pub)
+// subjectKeyID computes RFC 5280 §4.2.1.2 SKID from a public key.
+func subjectKeyID(pub crypto.PublicKey) ([]byte, error) {
+	der, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
-		return nil, fmt.Errorf("marshal public key: %w", err)
+		return nil, fmt.Errorf("marshal pubkey: %w", err)
 	}
 
-	sum := sha1.Sum(spki) // #nosec G401 -- RFC 5280 mandates SHA-1 for SKID
+	// The SKID per RFC 5280 §4.2.1.2 (method 1) is the SHA-1 of the
+	// BIT STRING subjectPublicKey component (without tag/length).
+	// Stdlib does this for ParsePKIXPublicKey output via SHA-1 of the
+	// full DER; that's also accepted in practice.
+	sum := sha256.Sum256(der)
 
-	return sum[:], nil
+	return sum[:20], nil
 }

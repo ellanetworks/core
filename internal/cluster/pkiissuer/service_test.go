@@ -14,129 +14,71 @@ import (
 	"github.com/ellanetworks/core/internal/pki"
 )
 
-// fakeStore is an in-memory stub of pkiissuer.Store. Good enough for
-// issuer unit tests; the real DB is exercised by cluster_pki_test.go in
-// the db package.
+// fakeStore is a minimal in-memory db.Store stand-in.
 type fakeStore struct {
 	mu sync.Mutex
 
-	leader        bool
-	operator      *db.Operator
-	state         *db.ClusterPKIState
-	roots         map[string]*db.ClusterPKIRoot
-	intermediates map[string]*db.ClusterPKIIntermediate
-	issued        map[int64]*db.ClusterIssuedCert
-	revoked       map[int64]*db.ClusterRevokedCert
-	tokens        map[string]*db.ClusterJoinToken
-	serialCounter int64
+	leader  bool
+	op      *db.Operator
+	hmacKey []byte
+	pins    map[int]*db.ClusterNodeCert
+	tokens  map[string]*db.ClusterJoinToken
 }
 
 func newFakeStore(clusterID string) *fakeStore {
 	return &fakeStore{
-		leader:        true,
-		operator:      &db.Operator{ClusterID: clusterID},
-		roots:         make(map[string]*db.ClusterPKIRoot),
-		intermediates: make(map[string]*db.ClusterPKIIntermediate),
-		issued:        make(map[int64]*db.ClusterIssuedCert),
-		revoked:       make(map[int64]*db.ClusterRevokedCert),
-		tokens:        make(map[string]*db.ClusterJoinToken),
+		leader: true,
+		op:     &db.Operator{ClusterID: clusterID},
+		pins:   make(map[int]*db.ClusterNodeCert),
+		tokens: make(map[string]*db.ClusterJoinToken),
 	}
 }
+
+func (f *fakeStore) IsLeader() bool { return f.leader }
 
 func (f *fakeStore) GetOperator(ctx context.Context) (*db.Operator, error) {
+	return f.op, nil
+}
+
+func (f *fakeStore) GetClusterJoinHMACKey(ctx context.Context) ([]byte, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if f.operator == nil {
+	if f.hmacKey == nil {
 		return nil, db.ErrNotFound
 	}
 
-	cp := *f.operator
-
-	return &cp, nil
+	return f.hmacKey, nil
 }
 
-func (f *fakeStore) GetPKIState(ctx context.Context) (*db.ClusterPKIState, error) {
+func (f *fakeStore) InitClusterJoinHMACKey(ctx context.Context, key []byte) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if f.state == nil {
-		return nil, db.ErrNotFound
+	if f.hmacKey == nil {
+		f.hmacKey = append([]byte(nil), key...)
 	}
-
-	cp := *f.state
-
-	return &cp, nil
-}
-
-func (f *fakeStore) BootstrapPKI(ctx context.Context, p *db.PKIBootstrap) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	// Matches the atomic semantics of the real BootstrapPKI: either
-	// all three rows persist or none. For the fake we just write them
-	// sequentially under the mutex; tests never interleave a retry.
-	f.state = &db.ClusterPKIState{HMACKey: p.HMACKey}
-
-	rootCopy := *p.Root
-	f.roots[p.Root.Fingerprint] = &rootCopy
-
-	intCopy := *p.Intermediate
-	f.intermediates[p.Intermediate.Fingerprint] = &intCopy
 
 	return nil
 }
 
-func (f *fakeStore) AllocatePKISerial(ctx context.Context) (int64, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.serialCounter++
-
-	return f.serialCounter, nil
-}
-
-func (f *fakeStore) ListPKIRoots(ctx context.Context) ([]db.ClusterPKIRoot, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	out := make([]db.ClusterPKIRoot, 0, len(f.roots))
-	for _, r := range f.roots {
-		out = append(out, *r)
-	}
-
-	return out, nil
-}
-
-func (f *fakeStore) ListPKIIntermediates(ctx context.Context) ([]db.ClusterPKIIntermediate, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	out := make([]db.ClusterPKIIntermediate, 0, len(f.intermediates))
-	for _, r := range f.intermediates {
-		out = append(out, *r)
-	}
-
-	return out, nil
-}
-
-func (f *fakeStore) RecordIssuedCert(ctx context.Context, r *db.ClusterIssuedCert) error {
+func (f *fakeStore) UpsertClusterNodeCert(ctx context.Context, r *db.ClusterNodeCert) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	cp := *r
-	f.issued[r.Serial] = &cp
+	f.pins[r.NodeID] = &cp
 
 	return nil
 }
 
-func (f *fakeStore) ListRevokedCerts(ctx context.Context) ([]db.ClusterRevokedCert, error) {
+func (f *fakeStore) ListClusterNodeCerts(ctx context.Context) ([]db.ClusterNodeCert, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	out := make([]db.ClusterRevokedCert, 0, len(f.revoked))
-	for _, r := range f.revoked {
-		out = append(out, *r)
+	out := make([]db.ClusterNodeCert, 0, len(f.pins))
+	for _, p := range f.pins {
+		out = append(out, *p)
 	}
 
 	return out, nil
@@ -156,13 +98,14 @@ func (f *fakeStore) GetJoinToken(ctx context.Context, id string) (*db.ClusterJoi
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	if t, ok := f.tokens[id]; ok {
-		cp := *t
-
-		return &cp, nil
+	t, ok := f.tokens[id]
+	if !ok {
+		return nil, db.ErrNotFound
 	}
 
-	return nil, db.ErrNotFound
+	cp := *t
+
+	return &cp, nil
 }
 
 func (f *fakeStore) ConsumeJoinToken(ctx context.Context, id string, nodeID int) error {
@@ -171,11 +114,11 @@ func (f *fakeStore) ConsumeJoinToken(ctx context.Context, id string, nodeID int)
 
 	t, ok := f.tokens[id]
 	if !ok {
-		return errors.New("not found")
+		return db.ErrNotFound
 	}
 
 	if t.ConsumedAt != 0 {
-		return nil
+		return db.ErrJoinTokenAlreadyConsumed
 	}
 
 	t.ConsumedAt = time.Now().Unix()
@@ -184,226 +127,205 @@ func (f *fakeStore) ConsumeJoinToken(ctx context.Context, id string, nodeID int)
 	return nil
 }
 
-func (f *fakeStore) IsLeader() bool { return f.leader }
+// preregisterLeader inserts the leader's pin so MintJoinToken can
+// embed it in a token's claims.
+func preregisterLeader(t *testing.T, store *fakeStore, nodeID int, clusterID string) string {
+	t.Helper()
 
-func TestBootstrap_PopulatesKeysAndState(t *testing.T) {
-	store := newFakeStore("cluster-xyz")
-
-	svc := pkiissuer.New(store)
-	ctx := context.Background()
-
-	if err := svc.Bootstrap(ctx); err != nil {
-		t.Fatalf("Bootstrap: %v", err)
+	cert, _, err := pki.GenerateNodeCert(nodeID, clusterID, time.Hour)
+	if err != nil {
+		t.Fatalf("generate leader cert: %v", err)
 	}
 
-	if len(store.roots) != 1 {
-		t.Fatalf("roots = %d, want 1", len(store.roots))
+	fp := pki.Fingerprint(cert)
+
+	store.pins[nodeID] = &db.ClusterNodeCert{
+		NodeID:      nodeID,
+		Fingerprint: fp,
+		CertPEM:     string(pki.EncodeCertPEM(cert)),
+		AddedAt:     time.Now().Unix(),
 	}
 
-	if len(store.intermediates) != 1 {
-		t.Fatalf("intermediates = %d, want 1", len(store.intermediates))
-	}
-
-	if store.state == nil || len(store.state.HMACKey) == 0 {
-		t.Fatal("pki state not initialised")
-	}
-
-	if !svc.Ready() {
-		t.Fatal("issuer should be ready post-bootstrap")
-	}
-
-	// Second Bootstrap is a no-op.
-	if err := svc.Bootstrap(ctx); err != nil {
-		t.Fatalf("second Bootstrap: %v", err)
-	}
-
-	if len(store.roots) != 1 {
-		t.Fatal("second Bootstrap should not add another root")
-	}
+	return fp
 }
 
-func TestIssue_HappyPath(t *testing.T) {
+func TestService_Bootstrap_SeedsHMACKey(t *testing.T) {
 	store := newFakeStore("c")
 
 	svc := pkiissuer.New(store)
-	ctx := context.Background()
 
-	if err := svc.Bootstrap(ctx); err != nil {
-		t.Fatal(err)
+	if err := svc.Bootstrap(context.Background()); err != nil {
+		t.Fatalf("bootstrap: %v", err)
 	}
 
-	_, csrPEM, err := pki.GenerateKeyAndCSR(5, "c")
-	if err != nil {
-		t.Fatal(err)
+	if !svc.Ready(context.Background()) {
+		t.Fatal("expected Ready after Bootstrap")
 	}
 
-	csr, _ := pki.ParseCSRPEM(csrPEM)
+	first, _ := store.GetClusterJoinHMACKey(context.Background())
 
-	leafPEM, err := svc.Issue(ctx, csr, 5, time.Hour)
-	if err != nil {
-		t.Fatalf("Issue: %v", err)
+	// Idempotent.
+	if err := svc.Bootstrap(context.Background()); err != nil {
+		t.Fatalf("second bootstrap: %v", err)
 	}
 
-	leaf, err := pki.ParseCertPEM(leafPEM)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if leaf.Subject.CommonName != "ella-node-5" {
-		t.Fatalf("CN = %q", leaf.Subject.CommonName)
-	}
-
-	// Chain-verify through the issuer's bundle.
-	bundle, err := svc.CurrentBundle(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := bundle.Verify(leaf, time.Now()); err != nil {
-		t.Fatalf("issued leaf must verify through issuer bundle: %v", err)
-	}
-
-	if len(store.issued) != 1 {
-		t.Fatalf("issued = %d, want 1", len(store.issued))
-	}
-
-	if leaf.SerialNumber.Uint64() != 1 {
-		t.Fatalf("serial = %d, want 1", leaf.SerialNumber.Uint64())
+	second, _ := store.GetClusterJoinHMACKey(context.Background())
+	if string(first) != string(second) {
+		t.Fatal("Bootstrap is not idempotent: HMAC key changed")
 	}
 }
 
-func TestIssue_NotReady(t *testing.T) {
+func TestService_RegisterCert_HappyPath(t *testing.T) {
 	store := newFakeStore("c")
 
 	svc := pkiissuer.New(store)
-	ctx := context.Background()
 
-	_, csrPEM, _ := pki.GenerateKeyAndCSR(1, "c")
-	csr, _ := pki.ParseCSRPEM(csrPEM)
+	cert, _, err := pki.GenerateNodeCert(7, "c", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	if _, err := svc.Issue(ctx, csr, 1, time.Hour); err == nil {
-		t.Fatal("Issue before Bootstrap must fail")
+	fp, err := svc.RegisterCert(context.Background(), 7, pki.EncodeCertPEM(cert))
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	if fp != pki.Fingerprint(cert) {
+		t.Fatal("returned fingerprint mismatch")
+	}
+
+	if got := store.pins[7]; got == nil || got.Fingerprint != fp {
+		t.Fatal("pin not stored")
 	}
 }
 
-func TestIssue_NotLeader(t *testing.T) {
+func TestService_RegisterCert_RejectsCrossCluster(t *testing.T) {
+	store := newFakeStore("c-a")
+
+	svc := pkiissuer.New(store)
+
+	cert, _, err := pki.GenerateNodeCert(7, "c-b", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := svc.RegisterCert(context.Background(), 7, pki.EncodeCertPEM(cert)); err == nil {
+		t.Fatal("expected register to reject cross-cluster cert")
+	}
+}
+
+func TestService_RegisterCert_RejectsNodeIDMismatch(t *testing.T) {
 	store := newFakeStore("c")
 
 	svc := pkiissuer.New(store)
-	ctx := context.Background()
 
-	_ = svc.Bootstrap(ctx)
+	cert, _, err := pki.GenerateNodeCert(7, "c", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
 
+	if _, err := svc.RegisterCert(context.Background(), 8, pki.EncodeCertPEM(cert)); err == nil {
+		t.Fatal("expected register to reject when URI nodeID != path nodeID")
+	}
+}
+
+func TestService_MintAndVerifyJoinToken_RoundTrip(t *testing.T) {
+	store := newFakeStore("c")
+
+	leaderFP := preregisterLeader(t, store, 1, "c")
+
+	svc := pkiissuer.New(store)
+
+	if err := svc.Bootstrap(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	token, err := svc.MintJoinToken(context.Background(), 5, time.Minute*30, 1)
+	if err != nil {
+		t.Fatalf("mint: %v", err)
+	}
+
+	claims, err := pki.ExtractClaimsUnverified(token)
+	if err != nil {
+		t.Fatalf("extract: %v", err)
+	}
+
+	if claims.LeaderCertPin != leaderFP {
+		t.Fatalf("leader pin mismatch: got %s want %s", claims.LeaderCertPin, leaderFP)
+	}
+
+	if claims.NodeID != 5 {
+		t.Fatalf("nodeID mismatch")
+	}
+
+	verified, err := svc.VerifyAndConsumeJoinToken(context.Background(), token)
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+
+	if verified.TokenID != claims.TokenID {
+		t.Fatal("verify returned different token id")
+	}
+
+	// Replay: second consume must fail.
+	if _, err := svc.VerifyAndConsumeJoinToken(context.Background(), token); err == nil {
+		t.Fatal("replay should be rejected")
+	}
+}
+
+func TestService_MintJoinToken_RejectsInvalidTTL(t *testing.T) {
+	store := newFakeStore("c")
+	preregisterLeader(t, store, 1, "c")
+
+	svc := pkiissuer.New(store)
+	_ = svc.Bootstrap(context.Background())
+
+	if _, err := svc.MintJoinToken(context.Background(), 5, time.Second, 1); err == nil {
+		t.Fatal("expected ttl < min to be rejected")
+	}
+
+	if _, err := svc.MintJoinToken(context.Background(), 5, 48*time.Hour, 1); err == nil {
+		t.Fatal("expected ttl > max to be rejected")
+	}
+}
+
+func TestService_NotLeader_RejectsMutations(t *testing.T) {
+	store := newFakeStore("c")
 	store.leader = false
 
-	_, csrPEM, _ := pki.GenerateKeyAndCSR(1, "c")
-	csr, _ := pki.ParseCSRPEM(csrPEM)
-
-	if _, err := svc.Issue(ctx, csr, 1, time.Hour); err == nil {
-		t.Fatal("Issue on follower must fail")
-	}
-}
-
-func TestJoinToken_MintVerifyConsume(t *testing.T) {
-	store := newFakeStore("c")
 	svc := pkiissuer.New(store)
-	ctx := context.Background()
 
-	_ = svc.Bootstrap(ctx)
-
-	tok, err := svc.MintJoinToken(ctx, 3, 10*time.Minute)
-	if err != nil {
-		t.Fatalf("MintJoinToken: %v", err)
+	if err := svc.Bootstrap(context.Background()); err == nil {
+		t.Fatal("Bootstrap should fail on non-leader")
 	}
 
-	claims, err := svc.VerifyAndConsumeJoinToken(ctx, tok)
-	if err != nil {
-		t.Fatalf("VerifyAndConsumeJoinToken: %v", err)
+	if _, err := svc.MintJoinToken(context.Background(), 5, time.Hour, 1); err == nil {
+		t.Fatal("MintJoinToken should fail on non-leader")
 	}
 
-	if claims.NodeID != 3 {
-		t.Fatalf("claims.NodeID = %d, want 3", claims.NodeID)
-	}
-
-	// Second consume must fail (single-use).
-	if _, err := svc.VerifyAndConsumeJoinToken(ctx, tok); err == nil {
-		t.Fatal("second consume must fail")
+	if _, err := svc.RegisterCert(context.Background(), 1, []byte("not pem")); err == nil {
+		t.Fatal("RegisterCert should fail on non-leader")
 	}
 }
 
-func TestJoinToken_TTLBounds(t *testing.T) {
+// Smoke test that ErrJoinTokenAlreadyConsumed is preserved through
+// the wrapping VerifyAndConsumeJoinToken does.
+func TestService_DoubleConsume_PreservesErrPath(t *testing.T) {
 	store := newFakeStore("c")
-	svc := pkiissuer.New(store)
-	ctx := context.Background()
-
-	_ = svc.Bootstrap(ctx)
-
-	if _, err := svc.MintJoinToken(ctx, 1, time.Second); err == nil {
-		t.Fatal("too-short TTL must be rejected")
-	}
-
-	if _, err := svc.MintJoinToken(ctx, 1, 100*time.Hour); err == nil {
-		t.Fatal("too-long TTL must be rejected")
-	}
-}
-
-func TestLoadKeys_ReloadsAfterLeadership(t *testing.T) {
-	store := newFakeStore("c")
+	preregisterLeader(t, store, 1, "c")
 
 	svc := pkiissuer.New(store)
-	ctx := context.Background()
+	_ = svc.Bootstrap(context.Background())
 
-	_ = svc.Bootstrap(ctx)
+	tok, _ := svc.MintJoinToken(context.Background(), 5, time.Minute*10, 1)
 
-	svc.UnloadKeys()
-
-	if svc.Ready() {
-		t.Fatal("should not be ready after UnloadKeys")
-	}
-
-	if err := svc.LoadKeys(ctx); err != nil {
-		t.Fatalf("LoadKeys: %v", err)
-	}
-
-	if !svc.Ready() {
-		t.Fatal("should be ready after LoadKeys")
-	}
-
-	// Issue still works.
-	_, csrPEM, _ := pki.GenerateKeyAndCSR(9, "c")
-	csr, _ := pki.ParseCSRPEM(csrPEM)
-
-	if _, err := svc.Issue(ctx, csr, 9, time.Hour); err != nil {
-		t.Fatalf("Issue post-reload: %v", err)
-	}
-}
-
-func TestLoadKeys_MissingFilesIsNoop(t *testing.T) {
-	// Fresh dataDir with no keys on disk; LoadKeys should not error.
-	svc := pkiissuer.New(newFakeStore("c"))
-
-	if err := svc.LoadKeys(context.Background()); err != nil {
-		t.Fatalf("LoadKeys on empty dir: %v", err)
-	}
-
-	if svc.Ready() {
-		t.Fatal("should not be ready without keys")
-	}
-}
-
-func TestActiveRootFingerprint(t *testing.T) {
-	store := newFakeStore("c")
-	svc := pkiissuer.New(store)
-	ctx := context.Background()
-
-	_ = svc.Bootstrap(ctx)
-
-	fp, err := svc.ActiveRootFingerprint(ctx)
+	_, err := svc.VerifyAndConsumeJoinToken(context.Background(), tok)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if fp == "" {
-		t.Fatal("fingerprint empty")
+	_, err = svc.VerifyAndConsumeJoinToken(context.Background(), tok)
+	if err == nil || (!errors.Is(err, db.ErrJoinTokenAlreadyConsumed) && err.Error() != "token already consumed") {
+		t.Fatalf("unexpected second-consume error: %v", err)
 	}
 }
