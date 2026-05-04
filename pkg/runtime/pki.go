@@ -21,13 +21,11 @@ import (
 	"go.uber.org/zap"
 )
 
-// pkiState collects the runtime-wide PKI plumbing.
-//
-// The cluster TLS transport is a fingerprint-pinning system rather
-// than a CA hierarchy: each node owns a long-lived self-signed cert
-// and trust is established by the replicated cluster_node_certs
-// table. The runtime caches that table in memory (pins) and refreshes
-// it on a tick so handshakes do not hit SQLite per dial.
+// pkiState collects the runtime-wide PKI plumbing: the local
+// per-node self-signed certificate (via Agent), the leader-side
+// register/mint service (via Service, populated on leader
+// promotion), and an in-memory pin map mirroring
+// cluster_node_certs that the listener consults at handshake time.
 type pkiState struct {
 	agent  *pkiagent.Agent
 	issuer *pkiissuer.Service
@@ -41,14 +39,12 @@ func newPKIState(nodeID int, clusterID, dataDir string) *pkiState {
 	}
 }
 
-// LeafFunc returns the listener-compatible accessor for this node's
-// self-signed cert.
 func (p *pkiState) LeafFunc() listener.LeafFunc {
 	return func() *tls.Certificate { return p.agent.Leaf() }
 }
 
-// PinFunc returns the listener-compatible accessor that resolves a
-// peer's fingerprint via the cached pin map.
+// PinFunc returns the listener accessor that resolves a peer's
+// fingerprint against the cached pin map.
 func (p *pkiState) PinFunc() listener.PinFunc {
 	return func(fingerprint string) listener.PinResult {
 		m := p.pins.Load()
@@ -62,11 +58,9 @@ func (p *pkiState) PinFunc() listener.PinFunc {
 	}
 }
 
-// SeedPinsFromAgentDisk installs an early pin map containing only
-// the local cert. Used at startup so the listener has at least its
-// own pin to check before Raft replication of cluster_node_certs has
-// caught up. RefreshPins replaces the cache with the full table once
-// available.
+// SeedPinsFromAgentDisk installs a pin map containing only the
+// local cert, so the listener has at least its own pin to check
+// during the window between startup and the first RefreshPins.
 func (p *pkiState) SeedPinsFromAgentDisk() {
 	leaf := p.agent.Leaf()
 	if leaf == nil || leaf.Leaf == nil {
@@ -104,9 +98,9 @@ func (p *pkiState) RefreshPins(ctx context.Context, dbInstance *db.Database) err
 	return nil
 }
 
-// pinRefreshInterval bounds how stale the in-memory cache can be.
-// Pin updates are rare (member add/remove or rotation), so polling
-// is cheap.
+// pinRefreshInterval bounds how stale the in-memory cache can lag
+// the replicated state. Pin updates are rare (member add/remove or
+// rotation), so polling is cheap.
 const pinRefreshInterval = 30 * time.Second
 
 func runPinRefresher(ctx context.Context, pki *pkiState, dbInstance *db.Database) {
@@ -125,10 +119,9 @@ func runPinRefresher(ctx context.Context, pki *pkiState, dbInstance *db.Database
 	}
 }
 
-// rotateInterval is how often a node optionally re-generates its
-// self-signed cert and re-pins it. Failure is harmless: the existing
-// pin remains valid until the new one commits, so the cluster
-// liveness path does not depend on rotation succeeding.
+// rotateInterval is how often a node re-generates its self-signed
+// cert and re-pins it. The previous pin remains valid until the
+// new one commits, so a failed rotation is safe to retry.
 const rotateInterval = 90 * 24 * time.Hour
 
 func runRotator(ctx context.Context, p *pkiState, ln *listener.Listener, dbInstance *db.Database) {
@@ -231,10 +224,10 @@ func runJoinFlow(ctx context.Context, agent *pkiagent.Agent, peers []string, tok
 	return fmt.Errorf("all peers rejected the join: %w", lastErr)
 }
 
-// refreshFollowerPinsWithRetry polls RefreshPins until it returns at
-// least one pin or timeout elapses. Covers the window where a
-// joiner's WaitForInitialization returns on the operator row before
-// cluster_node_certs has replicated.
+// refreshFollowerPinsWithRetry polls RefreshPins until at least
+// one pin lands or timeout elapses. Covers the window where a
+// joiner's WaitForInitialization returns on the operator row
+// before cluster_node_certs has replicated.
 func refreshFollowerPinsWithRetry(ctx context.Context, p *pkiState, dbInstance *db.Database, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 
@@ -266,7 +259,3 @@ func refreshFollowerPinsWithRetry(ctx context.Context, p *pkiState, dbInstance *
 		}
 	}
 }
-
-// _ keeps pkiissuer in the import set without a build-time hit even
-// when the only direct use site is pki_leader.go.
-var _ = pkiissuer.New

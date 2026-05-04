@@ -46,14 +46,15 @@ func loadPKIIssuer() *pkiissuer.Service {
 	return pkiIssuerService.Load()
 }
 
-// pinRefresherFn is the callback the runtime installs so the local
-// in-memory cluster_node_certs cache picks up new pins without
-// waiting for the 30 s periodic refresher. Used by RemoveClusterMember
-// (delete pin) and ClusterPKIRegister (insert pin).
+// pinRefresherFn is the runtime callback that rebuilds the local
+// in-memory cluster_node_certs cache. Invoked by handlers that
+// mutate the registry (ClusterPKIRegister, RemoveClusterMember) so
+// the cache picks up the change immediately instead of waiting for
+// the periodic refresher.
 var pinRefresherFn atomic.Pointer[func(context.Context)]
 
-// SetPinRefresher installs the runtime's pin-refresh callback. nil
-// uninstalls.
+// SetPinRefresher installs the runtime's pin-refresh callback;
+// passing nil uninstalls it.
 func SetPinRefresher(fn func(context.Context)) {
 	if fn == nil {
 		pinRefresherFn.Store(nil)
@@ -114,9 +115,8 @@ func newClusterMux(dbInstance *db.Database) *http.ServeMux {
 	mux.Handle("POST "+raft.ProposeForwardPath, removedNodeFence(dbInstance, ClusterPropose(dbInstance)))
 
 	// PKI register endpoint on the cluster HTTP ALPN. The issuer
-	// service is not available until the first leader election has
-	// populated it; handlers look up pkiIssuerService at request
-	// time.
+	// service becomes available after the first leader election;
+	// pkiEndpoint resolves it at request time and 503s before then.
 	mux.Handle("POST /cluster/pki/register", pkiEndpoint(func(svc *pkiissuer.Service) http.Handler {
 		return ClusterPKIRegister(svc)
 	}))

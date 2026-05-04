@@ -190,10 +190,12 @@ type MintJoinTokenResponse struct {
 	ExpiresAt int64  `json:"expiresAt"`
 }
 
-// MintClusterJoinToken mints a single-use HMAC-signed token a joining
-// node uses to get its first cluster leaf. The joining node puts the
-// token in its `cluster.join-token` config field; the cluster root
-// fingerprint is embedded in the token itself.
+// MintClusterJoinToken mints a single-use HMAC-signed token that
+// authorises a joining node to register its self-signed cluster
+// certificate with the leader. The joining node puts the token in
+// its `cluster.join-token` config field; the leader's pinned
+// certificate fingerprint is embedded in the token so the joiner
+// pins the bootstrap TLS handshake directly to the leader's cert.
 func (c *Client) MintClusterJoinToken(ctx context.Context, opts *MintJoinTokenOptions) (*MintJoinTokenResponse, error) {
 	if opts == nil {
 		return nil, fmt.Errorf("MintClusterJoinToken: opts must not be nil")

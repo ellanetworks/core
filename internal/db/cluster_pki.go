@@ -1,12 +1,10 @@
 // Copyright 2026 Ella Networks
 
-// Cluster PKI storage: pinned per-node self-signed certs and the
-// single-use join-token registry used to authorise new pins.
-//
-// There is no CA. Cluster TLS trusts a peer iff the peer's leaf SHA-256
-// matches a row in cluster_node_certs. Removing a node = deleting its
-// row. The join-token table remains because operators still need
-// out-of-band auth on first contact, before a pin exists.
+// Cluster PKI storage. Cluster TLS trusts a peer when the peer's
+// leaf SHA-256 matches a row in cluster_node_certs; removing a node
+// from the cluster deletes its row. The join-token registry
+// authorises a node's first contact (when no pin yet exists) using
+// an HMAC key from the cluster_join_hmac singleton.
 
 package db
 
@@ -26,8 +24,8 @@ const (
 	ClusterJoinHMACTableName   = "cluster_join_hmac"
 )
 
-// Legacy table-name constants kept so the v12 migration can DROP them.
-// New code paths must not reference these except in migrate_v12.
+// Names of tables dropped by migration v12. Referenced only by the
+// migration's DROP TABLE statements.
 const (
 	ClusterPKIRootsTableName         = "cluster_pki_roots"
 	ClusterPKIIntermediatesTableName = "cluster_pki_intermediates"
@@ -51,8 +49,8 @@ const (
 	initJoinHMACStmtStr = "INSERT INTO %s (id, hmacKey) VALUES (1, $ClusterJoinHMAC.hmacKey) ON CONFLICT(id) DO NOTHING"
 )
 
-// ClusterNodeCert pins one cluster member's self-signed leaf by SHA-256.
-// One row per nodeID. Insert via the join flow; delete via
+// ClusterNodeCert pins one cluster member's self-signed leaf by
+// SHA-256. One row per nodeID. Inserted by the join flow; removed by
 // RemoveClusterMember.
 type ClusterNodeCert struct {
 	NodeID      int    `db:"nodeID"`
@@ -127,9 +125,9 @@ func (db *Database) applyInitJoinHMAC(ctx context.Context, r *ClusterJoinHMAC) (
 // Public methods.
 // ---------------------------------------------------------------------------
 
-// ListClusterNodeCerts returns every pinned per-node cert. Used by the
-// listener verifier on every handshake (via a cached map) and by
-// admin/diagnostic surfaces.
+// ListClusterNodeCerts returns every pinned per-node cert. The
+// listener verifier consults this through an in-memory pin map
+// rebuilt on a tick by the runtime.
 func (db *Database) ListClusterNodeCerts(ctx context.Context) ([]ClusterNodeCert, error) {
 	var rows []ClusterNodeCert
 
@@ -144,9 +142,9 @@ func (db *Database) ListClusterNodeCerts(ctx context.Context) ([]ClusterNodeCert
 	return rows, nil
 }
 
-// GetClusterNodeCertByFingerprint returns the row matching fingerprint
-// or ErrNotFound. Useful for verification audits; the hot path uses an
-// in-memory pin map.
+// GetClusterNodeCertByFingerprint returns the row matching
+// fingerprint, or ErrNotFound. Diagnostic-path lookup; the verifier
+// hot path uses an in-memory pin map.
 func (db *Database) GetClusterNodeCertByFingerprint(ctx context.Context, fingerprint string) (*ClusterNodeCert, error) {
 	row := ClusterNodeCert{Fingerprint: fingerprint}
 
@@ -163,7 +161,7 @@ func (db *Database) GetClusterNodeCertByFingerprint(ctx context.Context, fingerp
 }
 
 // UpsertClusterNodeCert pins (or re-pins on rotation) a node's cert.
-// Driven by the leader's /cluster/pki/register handler.
+// The leader's /cluster/pki/register handler drives this.
 func (db *Database) UpsertClusterNodeCert(ctx context.Context, r *ClusterNodeCert) error {
 	_, err := opUpsertNodeCert.Invoke(db, r)
 
@@ -171,8 +169,8 @@ func (db *Database) UpsertClusterNodeCert(ctx context.Context, r *ClusterNodeCer
 }
 
 // DeleteClusterNodeCert removes a node's pin. Called from
-// RemoveClusterMember. After replication, peers will refuse to
-// handshake with the removed node.
+// RemoveClusterMember; once the deletion replicates, peers reject
+// the removed node's handshakes.
 func (db *Database) DeleteClusterNodeCert(ctx context.Context, nodeID int) error {
 	_, err := opDeleteNodeCert.Invoke(db, &ClusterNodeCert{NodeID: nodeID})
 
@@ -188,7 +186,7 @@ func (db *Database) MintJoinTokenRecord(ctx context.Context, r *ClusterJoinToken
 	return err
 }
 
-// GetJoinToken looks up a token row by id. Returns ErrNotFound if absent.
+// GetJoinToken returns the token row for id, or ErrNotFound.
 func (db *Database) GetJoinToken(ctx context.Context, id string) (*ClusterJoinToken, error) {
 	row := ClusterJoinToken{ID: id}
 
@@ -217,7 +215,8 @@ func (db *Database) ConsumeJoinToken(ctx context.Context, id string, nodeID int)
 	return err
 }
 
-// DeleteStaleJoinTokens removes expired and old-consumed tokens.
+// DeleteStaleJoinTokens removes expired tokens and tokens consumed
+// more than an hour ago.
 func (db *Database) DeleteStaleJoinTokens(ctx context.Context, now time.Time) error {
 	cutoffConsumed := now.Add(-time.Hour).Unix()
 
@@ -229,8 +228,8 @@ func (db *Database) DeleteStaleJoinTokens(ctx context.Context, now time.Time) er
 	return err
 }
 
-// GetClusterJoinHMACKey returns the HMAC key for join tokens. Returns
-// ErrNotFound if the leader has not yet seeded it.
+// GetClusterJoinHMACKey returns the join-token HMAC key, or
+// ErrNotFound when the leader has not yet seeded it.
 func (db *Database) GetClusterJoinHMACKey(ctx context.Context) ([]byte, error) {
 	var row ClusterJoinHMAC
 
@@ -246,8 +245,9 @@ func (db *Database) GetClusterJoinHMACKey(ctx context.Context) ([]byte, error) {
 	return row.HMACKey, nil
 }
 
-// InitClusterJoinHMACKey seeds the singleton HMAC key. Idempotent.
-// Called by the leader on first promotion.
+// InitClusterJoinHMACKey seeds the singleton HMAC key on first
+// leader promotion. Subsequent calls are no-ops (ON CONFLICT DO
+// NOTHING) so the key is fixed for the cluster's lifetime.
 func (db *Database) InitClusterJoinHMACKey(ctx context.Context, key []byte) error {
 	_, err := opInitJoinHMAC.Invoke(db, &ClusterJoinHMAC{HMACKey: key})
 

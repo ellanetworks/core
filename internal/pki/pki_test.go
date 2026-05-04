@@ -74,38 +74,21 @@ func TestFingerprint_Stable(t *testing.T) {
 	if string(raw) != string(expected[:]) {
 		t.Errorf("parsed bytes != source")
 	}
-
-	if string(pki.FingerprintRaw(cert)) != string(expected[:]) {
-		t.Errorf("FingerprintRaw mismatch")
-	}
 }
 
-func TestIdentityFromCert_Rejections(t *testing.T) {
-	tests := []struct {
-		name      string
-		clusterID string
-		nodeID    int
-		want      string
-	}{
-		{"good", "abc", 5, ""},
+func TestIdentityFromCert_RoundTrip(t *testing.T) {
+	cert, _, err := pki.GenerateNodeCert(5, "abc", time.Hour)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			cert, _, err := pki.GenerateNodeCert(tc.nodeID, tc.clusterID, time.Hour)
-			if err != nil {
-				t.Fatal(err)
-			}
+	cid, nid, err := pki.IdentityFromCert(cert)
+	if err != nil {
+		t.Fatalf("identity: %v", err)
+	}
 
-			cid, nid, err := pki.IdentityFromCert(cert)
-			if err != nil {
-				t.Fatalf("identity: %v", err)
-			}
-
-			if cid != tc.clusterID || nid != tc.nodeID {
-				t.Errorf("got (%s, %d) want (%s, %d)", cid, nid, tc.clusterID, tc.nodeID)
-			}
-		})
+	if cid != "abc" || nid != 5 {
+		t.Errorf("got (%s, %d) want (abc, 5)", cid, nid)
 	}
 }
 

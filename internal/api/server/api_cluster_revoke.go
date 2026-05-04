@@ -11,12 +11,11 @@ import (
 	"go.uber.org/zap"
 )
 
-// dropPinForRemovedNode is the v12 equivalent of cert revocation: in
-// the fingerprint-pinning model, removing a node means deleting its
-// row in cluster_node_certs. After the row is replicated out, peer
-// listeners refuse the removed node's handshakes immediately. This
-// function also tears down any in-flight connections whose peer cert
-// matches the dropped pin.
+// dropPinForRemovedNode deletes the removed node's
+// cluster_node_certs row and closes any in-flight connections
+// whose peer cert matches the dropped pin. Once the deletion
+// replicates, peer listeners reject the removed node's
+// handshakes.
 func dropPinForRemovedNode(ctx context.Context, dbInstance *db.Database, ln *listener.Listener, nodeID int) {
 	rows, err := dbInstance.ListClusterNodeCerts(ctx)
 	if err != nil {
@@ -36,7 +35,7 @@ func dropPinForRemovedNode(ctx context.Context, dbInstance *db.Database, ln *lis
 	}
 
 	if fingerprint == "" {
-		// No pin for that nodeID — already removed, or never registered.
+		// nodeID has no pin: either previously removed or never registered.
 		return
 	}
 
@@ -47,9 +46,9 @@ func dropPinForRemovedNode(ctx context.Context, dbInstance *db.Database, ln *lis
 		return
 	}
 
-	// Refresh our own pin cache immediately so handshakes on this
-	// leader reject the removed cert without waiting for the periodic
-	// refresher. Followers still lag by up to that interval.
+	// Refresh the local pin cache so handshakes on this leader
+	// reject the removed cert immediately. Followers pick up the
+	// deletion at the next refresher tick.
 	nudgePinCache(ctx)
 
 	if ln == nil {

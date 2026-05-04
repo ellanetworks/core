@@ -1,19 +1,11 @@
 // Copyright 2026 Ella Networks
 
-// Package pki implements the cluster-TLS primitives used by every node:
-//
-//   - GenerateNodeCert: a per-node ECDSA P-256 self-signed cert with a
-//     long validity (10y by default). Each node owns its key; the cert
-//     is published cluster-wide via Raft and trust is established by
-//     SHA-256 pinning, not chain validation.
-//   - Fingerprint: the SHA-256 (hex, "sha256:" prefixed) of a cert's
-//     DER bytes. The pinning unit.
-//   - SpiffeID and identity helpers: the URI SAN format
-//     spiffe://cluster.ella/<clusterID>/node/<n> is preserved from the
-//     legacy chain-based design, since both the listener verifier and
-//     the join-flow CSR-style messages need to extract (clusterID,
-//     nodeID) from a peer cert.
-//   - Join-token primitives: see tokens.go.
+// Package pki implements the cluster-TLS primitives used by every
+// node: per-node self-signed certificate generation, SHA-256
+// fingerprint helpers, SPIFFE URI SAN identity extraction, and join
+// token mint/verify (see tokens.go). Trust between nodes is
+// established by fingerprint pinning against the replicated
+// cluster_node_certs table.
 //
 // This package has no dependencies on internal/db or hashicorp/raft.
 package pki
@@ -41,11 +33,10 @@ const (
 	// cluster cert's URI SAN. The cluster-id follows.
 	SpiffeTrustDomain = "cluster.ella"
 
-	// DefaultNodeCertTTL is how long a freshly generated self-signed
-	// cluster cert is valid. 10 years is "effectively forever" — it
-	// outlives the binary's deployment lifecycle and removes expiry
-	// from the cluster-liveness path. Optional rotation re-pins long
-	// before this matters.
+	// DefaultNodeCertTTL is the validity of a freshly generated
+	// self-signed cluster cert. 10 years outlives the binary's
+	// deployment lifecycle so the rotation worker, not expiry,
+	// drives cert turnover.
 	DefaultNodeCertTTL = 10 * 365 * 24 * time.Hour
 )
 
@@ -146,19 +137,6 @@ func Fingerprint(cert *x509.Certificate) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-// FingerprintRaw returns the 32-byte SHA-256 of a cert's DER bytes,
-// without the textual prefix. Used by the bootstrap dialer's
-// VerifyConnection callback for constant-time comparison.
-func FingerprintRaw(cert *x509.Certificate) []byte {
-	if cert == nil {
-		return nil
-	}
-
-	sum := sha256.Sum256(cert.Raw)
-
-	return sum[:]
-}
-
 // ParseFingerprint decodes a "sha256:<hex>" string into raw bytes.
 func ParseFingerprint(s string) ([]byte, error) {
 	s = strings.TrimPrefix(s, "sha256:")
@@ -234,10 +212,8 @@ func ParsePrivateKeyPEM(keyPEM []byte) (crypto.Signer, error) {
 	return signer, nil
 }
 
-// IdentityFromCert validates the SPIFFE URI SAN of a cluster cert and
-// returns (clusterID, nodeID). Used by the join-flow handler to confirm
-// that a self-signed cert presented for registration matches the
-// claims in its associated join token.
+// IdentityFromCert validates the SPIFFE URI SAN of a cluster cert
+// and returns its (clusterID, nodeID).
 func IdentityFromCert(cert *x509.Certificate) (clusterID string, nodeID int, err error) {
 	if cert == nil {
 		return "", 0, fmt.Errorf("nil cert")
@@ -298,17 +274,15 @@ func randomSerial() (*big.Int, error) {
 	return n, nil
 }
 
-// subjectKeyID computes RFC 5280 §4.2.1.2 SKID from a public key.
+// subjectKeyID returns 20 bytes deterministically derived from the
+// public key DER. RFC 5280 §4.2.1.2 leaves the derivation method
+// unspecified; we use the leading 20 bytes of SHA-256(DER).
 func subjectKeyID(pub crypto.PublicKey) ([]byte, error) {
 	der, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
 		return nil, fmt.Errorf("marshal pubkey: %w", err)
 	}
 
-	// The SKID per RFC 5280 §4.2.1.2 (method 1) is the SHA-1 of the
-	// BIT STRING subjectPublicKey component (without tag/length).
-	// Stdlib does this for ParsePKIXPublicKey output via SHA-1 of the
-	// full DER; that's also accepted in practice.
 	sum := sha256.Sum256(der)
 
 	return sum[:20], nil

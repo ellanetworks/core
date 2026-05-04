@@ -12,11 +12,8 @@ import (
 )
 
 // RunJoinTokenTidyWorker prunes expired and old-consumed rows from
-// cluster_join_tokens. Runs on the leader only (gated by guard);
-// mirrors the RunDataRetentionWorker pattern.
-//
-// In the post-v12 PKI design there are no issued-cert or revocation
-// rows to tidy — the only growable table is cluster_join_tokens.
+// cluster_join_tokens hourly. Runs on the leader only (gated by
+// guard); follows the RunDataRetentionWorker pattern.
 func RunJoinTokenTidyWorker(ctx context.Context, database *db.Database, guard *LeaderGuard) {
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()

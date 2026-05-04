@@ -46,18 +46,19 @@ type MintJoinTokenRequest struct {
 	TTLSeconds int `json:"ttlSeconds,omitempty"`
 }
 
-// MintJoinTokenResponse carries the minted token. The leader's pinned
-// cert fingerprint is embedded in the token; the joining node
-// extracts it unverified to pin the bootstrap TLS handshake, and the
-// token's HMAC protects against tampering.
+// MintJoinTokenResponse carries the minted token. The leader's
+// pinned cert fingerprint is embedded in the token; the joining
+// node extracts it unverified to pin the bootstrap TLS handshake,
+// and the token's HMAC protects against tampering.
 type MintJoinTokenResponse struct {
 	Token             string `json:"token"`
 	ExpiresAtUnixSecs int64  `json:"expiresAt"`
 }
 
-// PKIMintJoinToken handles POST /api/v1/cluster/pki/join-tokens. The
-// token embeds the local node's pin (the local node is, by
-// construction, the leader on the API path that lands here).
+// PKIMintJoinToken handles POST /api/v1/cluster/pki/join-tokens.
+// The handler runs on the leader (the public API forwards to it),
+// so dbInstance.NodeID() identifies the leader whose pin gets
+// embedded in the token's claims.
 func PKIMintJoinToken(dbInstance *db.Database, svc *pkiissuer.Service) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req MintJoinTokenRequest

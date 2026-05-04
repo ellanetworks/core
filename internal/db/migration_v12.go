@@ -8,16 +8,13 @@ import (
 	"fmt"
 )
 
-// V12 replaces the chain-based cluster PKI (root + intermediate +
-// leaf-issuance + revocation) with a flat fingerprint-pinning model
-// (cluster_node_certs). The cluster TLS transport now trusts peers by
-// SHA-256 of their self-signed cert. There is no CA. Removing a node
-// from the cluster means deleting its row.
+// V12 introduces the cluster_node_certs (fingerprint pin registry) and
+// cluster_join_hmac (single-row HMAC key) tables, and drops the v9 PKI
+// tables (cluster_pki_roots, cluster_pki_intermediates,
+// cluster_issued_certs, cluster_revoked_certs, cluster_pki_state).
 //
-// Because the live cert material in the dropped tables would not chain
-// against the new (absent) CA anyway, this migration is destructive on
-// purpose: any existing PKI state from v9-v11 is discarded. Operators
-// upgrading across this boundary must re-bootstrap by re-issuing
+// Destructive on purpose: any existing PKI state from v9-v11 is
+// discarded. Operators upgrading across this boundary must re-issue
 // join tokens for each cluster member.
 
 const v12CreateClusterNodeCerts = `
@@ -39,8 +36,8 @@ const v12CreateClusterJoinHMAC = `
 
 func migrateV12(ctx context.Context, tx *sql.Tx) error {
 	stmts := []string{
-		// Drop chain-PKI tables. cluster_join_tokens stays — still used by
-		// the new register flow for replay protection.
+		// cluster_join_tokens is preserved across this migration; the
+		// register flow uses it for replay protection.
 		fmt.Sprintf("DROP TABLE IF EXISTS %s", ClusterPKIRootsTableName),
 		fmt.Sprintf("DROP TABLE IF EXISTS %s", ClusterPKIIntermediatesTableName),
 		fmt.Sprintf("DROP TABLE IF EXISTS %s", ClusterIssuedCertsTableName),

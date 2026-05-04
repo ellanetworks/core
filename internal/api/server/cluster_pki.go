@@ -2,11 +2,10 @@
 
 // Handlers for /cluster/pki/register on the cluster HTTP port.
 //
-// A joining node POSTs (cert, token) on the bootstrap ALPN.
-// A node rotating its cert POSTs (cert, "") over the regular mTLS
-// ALPN; the presenting cert's nodeID must match the new cert's URI
-// nodeID, otherwise the handler refuses to overwrite a different
-// member's pin.
+// A joining node POSTs (cert, token) on the bootstrap ALPN. A node
+// rotating its cert POSTs (cert) over the regular mTLS ALPN; the
+// presenting cert's nodeID must match the new cert's URI nodeID
+// so a member cannot overwrite another member's pin.
 
 package server
 
@@ -29,12 +28,10 @@ import (
 
 const clusterPKIMaxBody = 32 * 1024
 
-// ClusterPKIRegister handles POST /cluster/pki/register.
-//
-// On the bootstrap ALPN: token must validate.
-// On the regular mTLS ALPN: the presenting peer cert's nodeID must
-// match the requested nodeID — i.e. only the owner can rotate its
-// own pin.
+// ClusterPKIRegister handles POST /cluster/pki/register. On the
+// bootstrap ALPN it requires a valid join token; on the mTLS ALPN
+// the presenting peer cert's nodeID must equal the requested
+// nodeID, restricting re-pinning to the cert's owner.
 func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(io.LimitReader(r.Body, clusterPKIMaxBody))
@@ -58,7 +55,8 @@ func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 
 		switch {
 		case hasPeer:
-			// mTLS rotation: only the owner may re-pin their nodeID.
+			// mTLS path: the cert's owner is the only caller who
+			// may re-pin its nodeID.
 			if peerNodeID != req.NodeID {
 				writeError(r.Context(), w, http.StatusForbidden,
 					"node-id in body does not match presenting peer cert", nil, logger.APILog)
@@ -94,9 +92,8 @@ func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 			return
 		}
 
-		// Nudge our local pin cache so handshakes from the freshly
-		// registered peer immediately succeed without waiting for
-		// the periodic refresher.
+		// Refresh the local pin cache so handshakes from the new
+		// peer succeed without waiting for the periodic refresher.
 		nudgePinCache(r.Context())
 
 		w.Header().Set("Content-Type", "application/json")
@@ -105,8 +102,9 @@ func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 	})
 }
 
-// RegisterBootstrapALPN serves a single POST /cluster/pki/register on
-// the bootstrap ALPN (no client cert) and closes the connection.
+// RegisterBootstrapALPN dispatches POST /cluster/pki/register on
+// the bootstrap ALPN (no client cert) and closes the connection
+// after one request.
 func RegisterBootstrapALPN(ln *listener.Listener, svc *pkiissuer.Service) {
 	register := ClusterPKIRegister(svc)
 

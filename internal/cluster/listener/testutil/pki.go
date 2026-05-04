@@ -1,8 +1,8 @@
 // Copyright 2026 Ella Networks
 
-// Package testutil mints self-signed cluster certs and a fingerprint
-// pin map for wiring into listener.Config in unit and integration
-// tests.
+// Package testutil mints self-signed cluster certs and a
+// fingerprint pin map for wiring into listener.Config in unit and
+// integration tests.
 package testutil
 
 import (
@@ -17,8 +17,8 @@ import (
 	"github.com/ellanetworks/core/internal/pki"
 )
 
-// PKI holds a fingerprint-pinning test universe: one self-signed cert
-// per node-id under a single clusterID.
+// PKI holds the test cluster identity: one self-signed cert per
+// node-id under a shared clusterID, plus the matching pin map.
 type PKI struct {
 	ClusterID string
 
@@ -35,8 +35,8 @@ type NodeCert struct {
 	KeyPEM  []byte
 }
 
-// PinFunc returns a closure compatible with listener.Config.Pin that
-// resolves any fingerprint registered in the test PKI to its owner.
+// PinFunc returns a listener.Config.Pin closure that resolves any
+// fingerprint registered in the test PKI to its owner.
 func (p *PKI) PinFunc() listener.PinFunc {
 	pins := make(map[string]int, len(p.Nodes))
 	for _, n := range p.Nodes {
@@ -49,7 +49,7 @@ func (p *PKI) PinFunc() listener.PinFunc {
 	}
 }
 
-// LeafFunc returns a listener.Config.Leaf-compatible closure for nodeID.
+// LeafFunc returns a listener.Config.Leaf closure for nodeID.
 // Panics if nodeID is not in the PKI.
 func (p *PKI) LeafFunc(nodeID int) func() *tls.Certificate {
 	n, ok := p.Nodes[nodeID]
@@ -62,9 +62,9 @@ func (p *PKI) LeafFunc(nodeID int) func() *tls.Certificate {
 	return func() *tls.Certificate { return &c }
 }
 
-// GenTestPKI creates a self-signed cert per node-id. All certs are
-// valid for one hour, which is plenty for a unit test and avoids
-// creating decade-long-lived test artifacts.
+// GenTestPKI creates a self-signed cert per node-id, valid for one
+// hour. Sufficient for unit tests; avoids minting decade-long
+// artifacts during runs.
 func GenTestPKI(t testing.TB, nodeIDs []int) *PKI {
 	t.Helper()
 

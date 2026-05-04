@@ -1,16 +1,16 @@
 // Copyright 2026 Ella Networks
 
-// Package pkiissuer is the leader-side service that registers a
-// joining node's self-signed cluster cert. Unlike the legacy CA-based
-// issuer, this service does not sign anything: it validates the join
-// token, parses the offered cert, confirms the SPIFFE URI's nodeID
-// matches the token's claims, and replicates the pin into
-// cluster_node_certs via Raft. The runtime then refreshes its in-
-// memory pin map so subsequent handshakes from the new node are
-// accepted.
+// Package pkiissuer is the leader-side service for join-token
+// minting and cluster-certificate registration. RegisterCert
+// validates a node-supplied self-signed certificate (SPIFFE URI
+// shape, clusterID, requested nodeID, self-signature) and
+// replicates its SHA-256 pin into cluster_node_certs via Raft;
+// MintJoinToken issues HMAC-signed single-use tokens that admit a
+// joining node to call RegisterCert.
 package pkiissuer
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -39,9 +39,8 @@ type Store interface {
 	IsLeader() bool
 }
 
-// Service runs on every voter. Mutating operations (Bootstrap,
-// MintJoinToken, RegisterCert) require IsLeader; read paths
-// (ListPins) work on followers too.
+// Service runs on every voter. Bootstrap, MintJoinToken, and
+// RegisterCert require IsLeader; CurrentPins works on followers.
 type Service struct {
 	store Store
 }
@@ -50,9 +49,9 @@ func New(store Store) *Service {
 	return &Service{store: store}
 }
 
-// Bootstrap is called from the leader-init path. It seeds the
-// HMAC-key singleton (idempotent) so MintJoinToken can sign tokens.
-// Trivially fast; safe to retry.
+// Bootstrap seeds the HMAC-key singleton on the leader-init path.
+// Idempotent; re-runs on every leader transition are no-ops once
+// the row exists.
 func (s *Service) Bootstrap(ctx context.Context) error {
 	if !s.store.IsLeader() {
 		return fmt.Errorf("not leader")
@@ -76,9 +75,9 @@ func (s *Service) Bootstrap(ctx context.Context) error {
 	return nil
 }
 
-// Ready reports whether the service can mint or verify join tokens.
-// A follower returns true once the HMAC key has replicated; a leader
-// returns true once Bootstrap has run.
+// Ready reports whether the service can mint or verify join
+// tokens. Becomes true on the leader once Bootstrap commits, and
+// on followers once the HMAC key replicates.
 func (s *Service) Ready(ctx context.Context) bool {
 	if _, err := s.store.GetClusterJoinHMACKey(ctx); err != nil {
 		return false
@@ -88,13 +87,9 @@ func (s *Service) Ready(ctx context.Context) bool {
 }
 
 // MintJoinToken emits a single-use HMAC token bound to nodeID with
-// the given TTL, embedding the leader's own pinned cert fingerprint
-// so the joining node can pin the bootstrap TLS handshake.
-//
-// leaderCertPin is the operator-supplied fingerprint of the leader's
-// self-signed cert (taken from cluster_node_certs WHERE nodeID =
-// leader's nodeID). If empty, MintJoinToken looks it up from the
-// replicated table.
+// the given TTL, embedding the cluster_node_certs pin owned by
+// leaderNodeID so the joining node pins the bootstrap TLS
+// handshake against the leader's certificate.
 func (s *Service) MintJoinToken(ctx context.Context, nodeID int, ttl time.Duration, leaderNodeID int) (string, error) {
 	if ttl < pki.DefaultJoinTokenMinTTL || ttl > pki.DefaultJoinTokenMaxTTL {
 		return "", fmt.Errorf("join-token ttl %s outside [%s, %s]", ttl, pki.DefaultJoinTokenMinTTL, pki.DefaultJoinTokenMaxTTL)
@@ -168,9 +163,8 @@ func (s *Service) leaderPin(ctx context.Context, leaderNodeID int) (string, erro
 	}
 
 	if leaderNodeID == 0 {
-		// Standalone / single-node test path: there is at most one
-		// registered pin (the local node), and it is by definition
-		// the leader. Pick it.
+		// Standalone or single-node test path: with exactly one
+		// registered pin, that pin belongs to the leader.
 		if len(rows) == 1 {
 			return rows[0].Fingerprint, nil
 		}
@@ -187,8 +181,9 @@ func (s *Service) leaderPin(ctx context.Context, leaderNodeID int) (string, erro
 	return "", fmt.Errorf("leader node %d has no registered pin", leaderNodeID)
 }
 
-// VerifyAndConsumeJoinToken authenticates tokenStr, enforces expiry
-// and single-use semantics, and records consumption.
+// VerifyAndConsumeJoinToken authenticates tokenStr, enforces
+// expiry, marks the token consumed, and returns its claims. A
+// second consumption on any voter returns an error.
 func (s *Service) VerifyAndConsumeJoinToken(ctx context.Context, tokenStr string) (*pki.JoinClaims, error) {
 	hmacKey, err := s.store.GetClusterJoinHMACKey(ctx)
 	if err != nil {
@@ -220,10 +215,10 @@ func (s *Service) VerifyAndConsumeJoinToken(ctx context.Context, tokenStr string
 	return claims, nil
 }
 
-// RegisterCert pins certPEM under nodeID. The cert must be a
-// well-formed cluster cert (SPIFFE URI matches op.ClusterID and
-// declares nodeID). Driven by the /cluster/pki/register handler
-// after token verification or after a peer-mTLS rotation request.
+// RegisterCert validates certPEM (SPIFFE URI matches the cluster's
+// clusterID, declares nodeID, self-signed and self-signature
+// verifies) and replicates its SHA-256 pin into cluster_node_certs.
+// Returns the pin fingerprint.
 func (s *Service) RegisterCert(ctx context.Context, nodeID int, certPEM []byte) (string, error) {
 	if !s.store.IsLeader() {
 		return "", fmt.Errorf("not leader")
@@ -252,9 +247,9 @@ func (s *Service) RegisterCert(ctx context.Context, nodeID int, certPEM []byte) 
 		return "", fmt.Errorf("cert URI nodeID %d != requested nodeID %d", certNodeID, nodeID)
 	}
 
-	// Self-signed sanity check: issuer must equal subject. Catches a
-	// cert minted by an unrelated CA being slipped past register.
-	if !bytesEqual(cert.RawIssuer, cert.RawSubject) {
+	// Issuer must equal subject; the cluster TLS contract requires
+	// every node cert to be self-signed.
+	if !bytes.Equal(cert.RawIssuer, cert.RawSubject) {
 		return "", fmt.Errorf("cert is not self-signed")
 	}
 
@@ -278,8 +273,8 @@ func (s *Service) RegisterCert(ctx context.Context, nodeID int, certPEM []byte) 
 	return fp, nil
 }
 
-// CurrentPins returns the replicated pin set, suitable for caching
-// in the listener's PinFunc.
+// CurrentPins returns the replicated pin set as a fingerprint →
+// nodeID map for caching in the listener's PinFunc.
 func (s *Service) CurrentPins(ctx context.Context) (map[string]int, error) {
 	rows, err := s.store.ListClusterNodeCerts(ctx)
 	if err != nil {
@@ -294,8 +289,6 @@ func (s *Service) CurrentPins(ctx context.Context) (map[string]int, error) {
 	return out, nil
 }
 
-// IsLeader reflects the underlying store. Used by handlers that need
-// a leader-only short-circuit.
 func (s *Service) IsLeader() bool { return s.store.IsLeader() }
 
 func newHMACKey() ([]byte, error) {
@@ -305,19 +298,4 @@ func newHMACKey() ([]byte, error) {
 	}
 
 	return b, nil
-}
-
-// bytesEqual avoids importing bytes just for one call.
-func bytesEqual(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-
-	return true
 }

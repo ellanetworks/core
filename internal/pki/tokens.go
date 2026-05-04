@@ -14,11 +14,11 @@ import (
 	"time"
 )
 
-// JoinClaims are the authenticated claims carried in a join token. They
-// bind the token to a specific node-id, expiry, the leader's pinned
-// self-signed cert (so the joining node can verify the bootstrap TLS
-// handshake without a CA), and cluster identity (so the joiner builds
-// a self-signed cert with the correct SPIFFE URI).
+// JoinClaims are the authenticated claims carried in a join token.
+// They bind the token to a target node-id, an expiry, the leader's
+// pinned-cert fingerprint (so the joining node can pin the
+// bootstrap TLS handshake), and the cluster's identity (so the
+// joiner mints a cert with the matching SPIFFE URI).
 type JoinClaims struct {
 	TokenID       string `json:"id"`
 	NodeID        int    `json:"node_id"`

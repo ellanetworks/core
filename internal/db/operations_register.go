@@ -138,9 +138,8 @@ var (
 	opSetDrainState       = registerChangesetOp("SetDrainState", (*Database).applySetDrainState, RequireSchema(9))
 )
 
-// Cluster PKI. v12 replaces the chain-based scheme with fingerprint
-// pinning. cluster_join_tokens (v9) survives; cluster_node_certs and
-// cluster_join_hmac are introduced in v12.
+// Cluster PKI. cluster_join_tokens dates from v9;
+// cluster_node_certs and cluster_join_hmac are added in v12.
 var (
 	opUpsertNodeCert        = registerChangesetOp("UpsertClusterNodeCert", (*Database).applyUpsertNodeCert, RequireSchema(12))
 	opDeleteNodeCert        = registerChangesetOp("DeleteClusterNodeCert", (*Database).applyDeleteNodeCert, RequireSchema(12))

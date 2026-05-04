@@ -1,14 +1,13 @@
 // Copyright 2026 Ella Networks
 
 // Package pkiagent runs on every cluster node. It owns the local
-// self-signed cluster cert: generates it at first boot, persists it
-// to disk, and on a joining node POSTs the cert + token to the
-// leader's /cluster/pki/register endpoint so the leader can replicate
-// the pin to every voter.
-//
-// There is no CA, no chain, no leaf-renewal goroutine. Optional
-// rotation re-runs the same self-sign-and-register flow; failure of
-// rotation is harmless because the existing pin remains valid.
+// self-signed cluster certificate: generates it at first boot,
+// persists it to disk, and POSTs the certificate (plus a join
+// token, on a fresh node) to the leader's /cluster/pki/register
+// endpoint so the leader replicates the pin to every voter.
+// Optional rotation re-runs the same generate-and-register flow;
+// the pre-rotation pin remains valid until the new one commits, so
+// rotation is safe to retry.
 package pkiagent
 
 import (
@@ -47,8 +46,9 @@ type Agent struct {
 	current atomic.Pointer[tls.Certificate]
 }
 
-// NewAgent returns an unloaded agent. Callers should invoke Load,
-// JoinFlow, or BootstrapSelf before relying on Leaf.
+// NewAgent returns an unloaded agent. Callers must invoke Load,
+// JoinFlow, or GenerateAndPersist before Leaf returns a usable
+// certificate.
 func NewAgent(nodeID int, clusterID, dataDir string) *Agent {
 	return &Agent{
 		NodeID:    nodeID,
