@@ -105,28 +105,36 @@ func (a *Agent) Load() error {
 	return nil
 }
 
-// GenerateAndPersist creates a fresh self-signed cluster cert under
-// the agent's nodeID/clusterID, writes it to disk atomically, and
-// installs it as the live cert for the listener. clusterID must be
-// non-empty (set by JoinFlow from the token's claims, or from the
-// operator's bootstrap path on the first node).
-func (a *Agent) GenerateAndPersist() error {
+// prepareNewCert generates a fresh keypair and self-signed
+// certificate in memory. Nothing is persisted and the agent's live
+// cert is unchanged; callers must invoke installCert after the
+// new cert's fingerprint has been registered cluster-wide.
+func (a *Agent) prepareNewCert() (certPEM, keyPEM []byte, cert *x509.Certificate, err error) {
 	if a.ClusterID == "" {
-		return fmt.Errorf("cluster id not set")
+		return nil, nil, nil, fmt.Errorf("cluster id not set")
 	}
 
 	cert, key, err := pki.GenerateNodeCert(a.NodeID, a.ClusterID, pki.DefaultNodeCertTTL)
 	if err != nil {
-		return fmt.Errorf("generate cert: %w", err)
+		return nil, nil, nil, fmt.Errorf("generate cert: %w", err)
 	}
 
-	certPEM := pki.EncodeCertPEM(cert)
+	certPEM = pki.EncodeCertPEM(cert)
 
-	keyPEM, err := pki.EncodePrivateKeyPEM(key)
+	keyPEM, err = pki.EncodePrivateKeyPEM(key)
 	if err != nil {
-		return fmt.Errorf("encode key: %w", err)
+		return nil, nil, nil, fmt.Errorf("encode key: %w", err)
 	}
 
+	return certPEM, keyPEM, cert, nil
+}
+
+// installCert atomically writes the keypair to disk and swaps the
+// live tls.Certificate. Callers must ensure the cert's fingerprint
+// is already pinned in cluster_node_certs before installing,
+// otherwise peers will refuse subsequent handshakes from this
+// node.
+func (a *Agent) installCert(certPEM, keyPEM []byte, cert *x509.Certificate) error {
 	if err := os.MkdirAll(filepath.Dir(a.path(leafCertFile)), 0o700); err != nil {
 		return fmt.Errorf("mkdir cluster-tls: %w", err)
 	}
@@ -151,16 +159,20 @@ func (a *Agent) GenerateAndPersist() error {
 	return nil
 }
 
-// CurrentCertPEM returns the PEM encoding of the live cert, suitable
-// for posting to the leader's /cluster/pki/register endpoint. Returns
-// nil if no cert has been generated yet.
-func (a *Agent) CurrentCertPEM() []byte {
-	leaf := a.current.Load()
-	if leaf == nil || leaf.Leaf == nil {
-		return nil
+// GenerateAndPersist generates a fresh self-signed cluster cert
+// and installs it as the live cert. The first-leader bootstrap
+// path uses this; the cert's fingerprint is registered immediately
+// afterwards via the in-process issuer (no remote step that can
+// fail). Joining and rotating nodes use prepareNewCert + (POST) +
+// installCert so that a failed remote register leaves the live
+// cert untouched.
+func (a *Agent) GenerateAndPersist() error {
+	certPEM, keyPEM, cert, err := a.prepareNewCert()
+	if err != nil {
+		return err
 	}
 
-	return pki.EncodeCertPEM(leaf.Leaf)
+	return a.installCert(certPEM, keyPEM, cert)
 }
 
 // RegisterRequest is the wire format posted to /cluster/pki/register.
@@ -178,11 +190,11 @@ type RegisterResponse struct {
 
 // JoinFlow runs on a fresh node. It reads the token's claims (without
 // HMAC verification) to obtain the leader's cert pin and the cluster
-// id, generates and persists a self-signed cert, dials the leader's
+// id, generates a self-signed cert in memory, dials the leader's
 // bootstrap ALPN with the leader-cert pin enforced, and POSTs
-// (cert, token) to /cluster/pki/register. After this returns
-// successfully the leader has replicated the pin to every voter and
-// the agent's cert is usable for cluster mTLS on subsequent ALPNs.
+// (cert, token) to /cluster/pki/register. The new cert is installed
+// only after the leader has replicated the pin, so a failed POST
+// leaves the agent's state untouched.
 func (a *Agent) JoinFlow(ctx context.Context, serverAddr, token string) error {
 	claims, err := pki.ExtractClaimsUnverified(token)
 	if err != nil {
@@ -205,8 +217,9 @@ func (a *Agent) JoinFlow(ctx context.Context, serverAddr, token string) error {
 		a.ClusterID = claims.ClusterID
 	}
 
-	if err := a.GenerateAndPersist(); err != nil {
-		return fmt.Errorf("self-sign: %w", err)
+	certPEM, keyPEM, cert, err := a.prepareNewCert()
+	if err != nil {
+		return fmt.Errorf("prepare cert: %w", err)
 	}
 
 	client, err := bootstrapHTTPClient(claims.LeaderCertPin)
@@ -216,16 +229,22 @@ func (a *Agent) JoinFlow(ctx context.Context, serverAddr, token string) error {
 
 	defer client.CloseIdleConnections()
 
-	return a.postRegister(ctx, client, "https://"+serverAddr+"/cluster/pki/register", token)
+	if err := a.postRegister(ctx, client, "https://"+serverAddr+"/cluster/pki/register", token, certPEM); err != nil {
+		return err
+	}
+
+	return a.installCert(certPEM, keyPEM, cert)
 }
 
-// Rotate generates a fresh self-signed cert and re-registers it with
-// the leader over the existing mTLS cluster listener. Best-effort: the
-// previous pin remains valid until the new one is committed, so a
-// failed rotation is recoverable.
+// Rotate generates a fresh self-signed cert in memory, registers
+// its fingerprint with the leader over the existing mTLS cluster
+// listener, and only then installs it as the live cert. A failed
+// register leaves the previous cert in place; the next rotation
+// tick retries cleanly.
 func (a *Agent) Rotate(ctx context.Context, ln *listener.Listener, leaderAddr string, leaderID int) error {
-	if err := a.GenerateAndPersist(); err != nil {
-		return fmt.Errorf("self-sign: %w", err)
+	certPEM, keyPEM, cert, err := a.prepareNewCert()
+	if err != nil {
+		return fmt.Errorf("prepare cert: %w", err)
 	}
 
 	client := &http.Client{
@@ -237,15 +256,14 @@ func (a *Agent) Rotate(ctx context.Context, ln *listener.Listener, leaderAddr st
 
 	defer client.CloseIdleConnections()
 
-	return a.postRegister(ctx, client, "https://"+leaderAddr+"/cluster/pki/register", "")
-}
-
-func (a *Agent) postRegister(ctx context.Context, client *http.Client, url, token string) error {
-	certPEM := a.CurrentCertPEM()
-	if len(certPEM) == 0 {
-		return fmt.Errorf("no cert to register")
+	if err := a.postRegister(ctx, client, "https://"+leaderAddr+"/cluster/pki/register", "", certPEM); err != nil {
+		return err
 	}
 
+	return a.installCert(certPEM, keyPEM, cert)
+}
+
+func (a *Agent) postRegister(ctx context.Context, client *http.Client, url, token string, certPEM []byte) error {
 	body, err := json.Marshal(RegisterRequest{
 		CertPEM:   string(certPEM),
 		Token:     token,
