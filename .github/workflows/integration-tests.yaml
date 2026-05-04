@@ -52,7 +52,7 @@ jobs:
 
       - name: Upload cluster logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: integration-cluster-logs-${{ matrix.arch }}-${{ matrix.ip_version }}
           path: ${{ runner.temp }}/ha-cluster-logs
