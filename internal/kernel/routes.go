@@ -332,15 +332,18 @@ func (rk *RealKernel) RouteExists(destination netip.Prefix, gateway netip.Addr, 
 		Protocol:  rtProtoElla,
 	}
 
-	for _, af := range []int{unix.AF_INET, unix.AF_INET6} {
-		routes, err := netlink.RouteListFiltered(af, &nlRoute, netlink.RT_FILTER_DST|netlink.RT_FILTER_GW|netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
-		if err != nil {
-			return false, fmt.Errorf("failed to list routes: %v", err)
-		}
+	af := unix.AF_INET
+	if !destination.Addr().Is4() {
+		af = unix.AF_INET6
+	}
 
-		if len(routes) > 0 {
-			return true, nil
-		}
+	routes, err := netlink.RouteListFiltered(af, &nlRoute, netlink.RT_FILTER_DST|netlink.RT_FILTER_GW|netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
+	if err != nil {
+		return false, fmt.Errorf("failed to list routes: %v", err)
+	}
+
+	if len(routes) > 0 {
+		return true, nil
 	}
 
 	return false, nil
