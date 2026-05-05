@@ -72,29 +72,19 @@ func N3Address(node int) string {
 	}
 }
 
-// N6Address returns the N6 (external) address for the router.
-// In IPv4-only mode it returns the IPv4 address; in IPv6-only mode it returns
-// the IPv6 address; in dual-stack mode it returns the IPv4 address for
-// backward compatibility.
-func N6Address() string {
-	family := DetectIPFamily()
-
-	switch family {
-	case IPv6Only:
-		return "fd00:6::3"
-	default: // IPv4Only, DualStack
-		return "10.6.0.3"
-	}
-}
-
-// N6IPv6Address returns the N6 IPv6 address of the core node.
-func N6IPv6Address() string {
-	return "fd00:6::2"
+// N6RouterIPv6Address returns the N6 IPv4 address of the router (ping destination).
+func N6RouterIPv4Address() string {
+	return "10.6.0.3"
 }
 
 // N6RouterIPv6Address returns the N6 IPv6 address of the router (ping destination).
 func N6RouterIPv6Address() string {
 	return "fd00:6::3"
+}
+
+// N6IPv6Address returns the N6 IPv6 address of the core node.
+func N6IPv6Address() string {
+	return "fd00:6::2"
 }
 
 // UeIPv6Pool returns the UE IPv6 pool prefix.

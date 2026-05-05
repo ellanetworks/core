@@ -79,7 +79,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 			routes := []RouteConfig{
 				{
 					Destination: "8.8.8.8/32",
-					Gateway:     N6Address(),
+					Gateway:     N6RouterIPv4Address(),
 					Interface:   "n6",
 					Metric:      0,
 				},
@@ -88,8 +88,8 @@ func TestIntegrationUERANSIM(t *testing.T) {
 			if DetectIPFamily() == IPv6Only {
 				routes = []RouteConfig{
 					{
-						Destination: UeIPv6Pool(),
-						Gateway:     N6IPv6Address(),
+						Destination: "2001:4860:4860::8888/128",
+						Gateway:     N6RouterIPv6Address(),
 						Interface:   "n6",
 						Metric:      0,
 					},
@@ -187,7 +187,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			t.Logf("Verified that 'uesimtun0' is in the result")
 
-			pingDest := N6Address()
+			pingDest := N6RouterIPv4Address()
 			pingCmd := "ping"
 
 			if DetectIPFamily() == IPv6Only {
