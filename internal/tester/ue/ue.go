@@ -64,6 +64,7 @@ type Amf struct {
 type PDUSessionInfo struct {
 	PDUSessionID uint8
 	UEIP         string
+	UEIPV6       string
 	MTU          uint16
 	QFI          uint8
 }

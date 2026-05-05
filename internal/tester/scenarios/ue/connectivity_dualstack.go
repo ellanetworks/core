@@ -152,94 +152,58 @@ func runConnectivityDualStack(ctx context.Context, env scenarios.Env, _ any) err
 		zap.Int64("RAN UE NGAP ID", ranUENGAPID),
 	)
 
-	tunIPv4 := gtpInterfaceNamePrefix + "ds0"
-	tunIPv6 := gtpInterfaceNamePrefix + "ds1"
+	tunName := gtpInterfaceNamePrefix + "ds0"
 
 	ueIPv4 := uePDUSession.UEIP + "/16"
+	ueIPv6 := uePDUSession.UEIPV6 + "/64"
 
 	_, err = gNodeB.AddTunnel(&gnb.NewTunnelOpts{
 		UEIP:             ueIPv4,
+		UEIPV6:           ueIPv6,
 		UpfIP:            gnbPDUSession.UpfAddress,
-		TunInterfaceName: tunIPv4,
+		TunInterfaceName: tunName,
 		ULteid:           gnbPDUSession.ULTeid,
 		DLteid:           gnbPDUSession.DLTeid,
 		MTU:              uePDUSession.MTU,
 		QFI:              uePDUSession.QFI,
 	})
 	if err != nil {
-		return fmt.Errorf("could not create GTP tunnel for IPv4 (name: %s): %v", tunIPv4, err)
+		return fmt.Errorf("could not create GTP tunnel (name: %s): %v", tunName, err)
 	}
 
-	logger.GnbLogger.Debug("Created GTP tunnel for IPv4 (Dual-Stack)",
-		zap.String("interface", tunIPv4),
-		zap.String("UE IP", ueIPv4),
+	logger.GnbLogger.Debug("Created GTP tunnel for dual-stack (Dual-Stack)",
+		zap.String("interface", tunName),
+		zap.String("UE IPv4", ueIPv4),
+		zap.String("UE IPv6", ueIPv6),
 	)
 
-	cmd := exec.CommandContext(ctx, "ping", "-I", tunIPv4, scenarios.DefaultPingDestination, "-c", "3", "-W", "1") // #nosec G204 -- test constants only, no user input
+	cmd := exec.CommandContext(ctx, "ping", "-I", tunName, scenarios.DefaultPingDestination, "-c", "3", "-W", "1") // #nosec G204 -- test constants only, no user input
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("ping %s via %s (IPv4) failed: %v\noutput:\n%s", scenarios.DefaultPingDestination, tunIPv4, err, string(out))
+		return fmt.Errorf("ping %s via %s (IPv4) failed: %v\noutput:\n%s", scenarios.DefaultPingDestination, tunName, err, string(out))
 	}
 
 	logger.Logger.Debug("Ping successful on IPv4 (Dual-Stack)",
-		zap.String("interface", tunIPv4),
+		zap.String("interface", tunName),
 		zap.String("destination", scenarios.DefaultPingDestination),
 	)
 
-	_, err = newUE.WaitForPDUSession(2, 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("timeout waiting for PDU session 2 (IPv6): %v", err)
-	}
-
-	time.Sleep(50 * time.Millisecond)
-
-	uePDUSession2 := newUE.GetPDUSession(2)
-	ueIPv6 := uePDUSession2.UEIP + "/48"
-
-	gnbPDUSession2, err := gNodeB.WaitForPDUSession(ranUENGAPID, 2, 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("could not get PDU Session 2 for RAN UE NGAP ID %d: %v", ranUENGAPID, err)
-	}
-
-	_, err = gNodeB.AddTunnel(&gnb.NewTunnelOpts{
-		UEIP:             ueIPv6,
-		UpfIP:            gnbPDUSession2.UpfAddress,
-		TunInterfaceName: tunIPv6,
-		ULteid:           gnbPDUSession2.ULTeid,
-		DLteid:           gnbPDUSession2.DLTeid,
-		MTU:              uePDUSession2.MTU,
-		QFI:              uePDUSession2.QFI,
-	})
-	if err != nil {
-		return fmt.Errorf("could not create GTP tunnel for IPv6 (name: %s): %v", tunIPv6, err)
-	}
-
-	logger.GnbLogger.Debug("Created GTP tunnel for IPv6 (Dual-Stack)",
-		zap.String("interface", tunIPv6),
-		zap.String("UE IP", ueIPv6),
-	)
-
-	cmd = exec.CommandContext(ctx, "ping6", "-I", tunIPv6, scenarios.DefaultPingDestinationV6, "-c", "3", "-W", "1") // #nosec G204 -- test constants only, no user input
+	cmd = exec.CommandContext(ctx, "ping6", "-I", tunName, scenarios.DefaultPingDestinationV6, "-c", "3", "-W", "1") // #nosec G204 -- test constants only, no user input
 
 	out, err = cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("ping6 %s via %s (IPv6) failed: %v\noutput:\n%s", scenarios.DefaultPingDestinationV6, tunIPv6, err, string(out))
+		return fmt.Errorf("ping6 %s via %s (IPv6) failed: %v\noutput:\n%s", scenarios.DefaultPingDestinationV6, tunName, err, string(out))
 	}
 
 	logger.Logger.Debug("Ping6 successful on IPv6 (Dual-Stack)",
-		zap.String("interface", tunIPv6),
+		zap.String("interface", tunName),
 		zap.String("destination", scenarios.DefaultPingDestinationV6),
 	)
 
 	err = gNodeB.CloseTunnel(gnbPDUSession.DLTeid)
 	if err != nil {
-		return fmt.Errorf("could not close GTP tunnel for IPv4: %v", err)
-	}
-
-	err = gNodeB.CloseTunnel(gnbPDUSession2.DLTeid)
-	if err != nil {
-		return fmt.Errorf("could not close GTP tunnel for IPv6: %v", err)
+		return fmt.Errorf("could not close GTP tunnel: %v", err)
 	}
 
 	err = procedure.Deregistration(&procedure.DeregistrationOpts{

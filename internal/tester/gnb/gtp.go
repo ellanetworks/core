@@ -31,6 +31,7 @@ type Tunnel struct {
 
 type NewTunnelOpts struct {
 	UEIP             string
+	UEIPV6           string
 	UpfIP            string
 	TunInterfaceName string
 	ULteid           uint32
@@ -56,14 +57,28 @@ func (g *GnodeB) AddTunnel(opts *NewTunnelOpts) (*Tunnel, error) {
 		return nil, fmt.Errorf("cannot read TUN interface: %v", err)
 	}
 
-	ueAddr, err := netlink.ParseAddr(opts.UEIP)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse UE address: %v", err)
+	if opts.UEIP != "" {
+		ueAddr, err := netlink.ParseAddr(opts.UEIP)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse UE address: %v", err)
+		}
+
+		err = netlink.AddrAdd(eth, ueAddr)
+		if err != nil {
+			return nil, fmt.Errorf("could not assign UE address to TUN interface: %v", err)
+		}
 	}
 
-	err = netlink.AddrAdd(eth, ueAddr)
-	if err != nil {
-		return nil, fmt.Errorf("could not assign UE address to TUN interface: %v", err)
+	if opts.UEIPV6 != "" {
+		ueAddrV6, err := netlink.ParseAddr(opts.UEIPV6)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse UE IPv6 address: %v", err)
+		}
+
+		err = netlink.AddrAdd(eth, ueAddrV6)
+		if err != nil {
+			return nil, fmt.Errorf("could not assign UE IPv6 address to TUN interface: %v", err)
+		}
 	}
 
 	err = netlink.LinkSetMTU(eth, int(opts.MTU))
