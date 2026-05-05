@@ -218,43 +218,44 @@ func (s *Service) VerifyAndConsumeJoinToken(ctx context.Context, tokenStr string
 // RegisterCert validates certPEM (SPIFFE URI matches the cluster's
 // clusterID, declares nodeID, self-signed and self-signature
 // verifies) and replicates its SHA-256 pin into cluster_node_certs.
-// Returns the pin fingerprint.
-func (s *Service) RegisterCert(ctx context.Context, nodeID int, certPEM []byte) (string, error) {
+// Returns the pin fingerprint and the post-commit snapshot of
+// every registered pin so the caller can seed its local pin map.
+func (s *Service) RegisterCert(ctx context.Context, nodeID int, certPEM []byte) (string, []db.ClusterNodeCert, error) {
 	if !s.store.IsLeader() {
-		return "", fmt.Errorf("not leader")
+		return "", nil, fmt.Errorf("not leader")
 	}
 
 	op, err := s.store.GetOperator(ctx)
 	if err != nil {
-		return "", fmt.Errorf("get operator: %w", err)
+		return "", nil, fmt.Errorf("get operator: %w", err)
 	}
 
 	cert, err := pki.ParseCertPEM(certPEM)
 	if err != nil {
-		return "", fmt.Errorf("parse cert: %w", err)
+		return "", nil, fmt.Errorf("parse cert: %w", err)
 	}
 
 	clusterID, certNodeID, err := pki.IdentityFromCert(cert)
 	if err != nil {
-		return "", fmt.Errorf("invalid cluster cert: %w", err)
+		return "", nil, fmt.Errorf("invalid cluster cert: %w", err)
 	}
 
 	if clusterID != op.ClusterID {
-		return "", fmt.Errorf("cert clusterID %q != operator clusterID %q", clusterID, op.ClusterID)
+		return "", nil, fmt.Errorf("cert clusterID %q != operator clusterID %q", clusterID, op.ClusterID)
 	}
 
 	if certNodeID != nodeID {
-		return "", fmt.Errorf("cert URI nodeID %d != requested nodeID %d", certNodeID, nodeID)
+		return "", nil, fmt.Errorf("cert URI nodeID %d != requested nodeID %d", certNodeID, nodeID)
 	}
 
 	// Issuer must equal subject; the cluster TLS contract requires
 	// every node cert to be self-signed.
 	if !bytes.Equal(cert.RawIssuer, cert.RawSubject) {
-		return "", fmt.Errorf("cert is not self-signed")
+		return "", nil, fmt.Errorf("cert is not self-signed")
 	}
 
 	if err := cert.CheckSignature(cert.SignatureAlgorithm, cert.RawTBSCertificate, cert.Signature); err != nil {
-		return "", fmt.Errorf("self-signature verify: %w", err)
+		return "", nil, fmt.Errorf("self-signature verify: %w", err)
 	}
 
 	fp := pki.Fingerprint(cert)
@@ -267,10 +268,15 @@ func (s *Service) RegisterCert(ctx context.Context, nodeID int, certPEM []byte) 
 	}
 
 	if err := s.store.UpsertClusterNodeCert(ctx, row); err != nil {
-		return "", fmt.Errorf("upsert pin: %w", err)
+		return "", nil, fmt.Errorf("upsert pin: %w", err)
 	}
 
-	return fp, nil
+	pins, err := s.store.ListClusterNodeCerts(ctx)
+	if err != nil {
+		return "", nil, fmt.Errorf("list pins after commit: %w", err)
+	}
+
+	return fp, pins, nil
 }
 
 // CurrentPins returns the replicated pin set as a fingerprint →

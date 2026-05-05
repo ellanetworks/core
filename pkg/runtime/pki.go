@@ -58,17 +58,25 @@ func (p *pkiState) PinFunc() listener.PinFunc {
 	}
 }
 
-// SeedPinsFromAgentDisk installs a pin map containing only the
-// local cert, so the listener has at least its own pin to check
-// during the window between startup and the first RefreshPins.
+// SeedPinsFromAgentDisk installs the disk-resident pin map (the
+// local node's own pin plus the peer-pins.json snapshot saved by
+// the most recent JoinFlow / register call) so the listener can
+// verify peers during the startup window before the first
+// RefreshPins reads the replicated table.
 func (p *pkiState) SeedPinsFromAgentDisk() {
-	leaf := p.agent.Leaf()
-	if leaf == nil || leaf.Leaf == nil {
-		return
+	m, err := p.agent.LoadPeerPins()
+	if err != nil {
+		logger.EllaLog.Warn("seed pins: load peer-pins.json", zap.Error(err))
+
+		m = map[string]int{}
 	}
 
-	m := map[string]int{
-		pki.Fingerprint(leaf.Leaf): p.agent.NodeID,
+	if leaf := p.agent.Leaf(); leaf != nil && leaf.Leaf != nil {
+		m[pki.Fingerprint(leaf.Leaf)] = p.agent.NodeID
+	}
+
+	if len(m) == 0 {
+		return
 	}
 
 	p.pins.Store(&m)

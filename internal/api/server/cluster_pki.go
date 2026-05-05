@@ -86,7 +86,7 @@ func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 			}
 		}
 
-		fp, err := svc.RegisterCert(r.Context(), req.NodeID, []byte(req.CertPEM))
+		fp, pins, err := svc.RegisterCert(r.Context(), req.NodeID, []byte(req.CertPEM))
 		if err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "register cert", err, logger.APILog)
 			return
@@ -96,9 +96,17 @@ func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 		// peer succeed without waiting for the periodic refresher.
 		nudgePinCache(r.Context())
 
+		records := make([]pkiagent.PinRecord, 0, len(pins))
+		for _, p := range pins {
+			records = append(records, pkiagent.PinRecord{NodeID: p.NodeID, Fingerprint: p.Fingerprint})
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(pkiagent.RegisterResponse{Fingerprint: fp})
+		_ = json.NewEncoder(w).Encode(pkiagent.RegisterResponse{
+			Fingerprint: fp,
+			Pins:        records,
+		})
 	})
 }
 

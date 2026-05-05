@@ -211,7 +211,7 @@ func setupLeaderPKI(ctx context.Context, p *pkiState, dbInstance *db.Database, n
 	leaf := p.agent.Leaf()
 	if leaf != nil && leaf.Leaf != nil {
 		certPEM := pki.EncodeCertPEM(leaf.Leaf)
-		if _, err := p.issuer.RegisterCert(ctx, nodeID, certPEM); err != nil {
+		if _, _, err := p.issuer.RegisterCert(ctx, nodeID, certPEM); err != nil {
 			return fmt.Errorf("register leader cert: %w", err)
 		}
 	}

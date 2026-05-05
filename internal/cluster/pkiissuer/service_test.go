@@ -185,7 +185,7 @@ func TestService_RegisterCert_HappyPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fp, err := svc.RegisterCert(context.Background(), 7, pki.EncodeCertPEM(cert))
+	fp, pins, err := svc.RegisterCert(context.Background(), 7, pki.EncodeCertPEM(cert))
 	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
@@ -196,6 +196,10 @@ func TestService_RegisterCert_HappyPath(t *testing.T) {
 
 	if got := store.pins[7]; got == nil || got.Fingerprint != fp {
 		t.Fatal("pin not stored")
+	}
+
+	if len(pins) != 1 || pins[0].NodeID != 7 || pins[0].Fingerprint != fp {
+		t.Fatalf("post-commit pin snapshot: got %+v", pins)
 	}
 }
 
@@ -209,7 +213,7 @@ func TestService_RegisterCert_RejectsCrossCluster(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := svc.RegisterCert(context.Background(), 7, pki.EncodeCertPEM(cert)); err == nil {
+	if _, _, err := svc.RegisterCert(context.Background(), 7, pki.EncodeCertPEM(cert)); err == nil {
 		t.Fatal("expected register to reject cross-cluster cert")
 	}
 }
@@ -224,7 +228,7 @@ func TestService_RegisterCert_RejectsNodeIDMismatch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := svc.RegisterCert(context.Background(), 8, pki.EncodeCertPEM(cert)); err == nil {
+	if _, _, err := svc.RegisterCert(context.Background(), 8, pki.EncodeCertPEM(cert)); err == nil {
 		t.Fatal("expected register to reject when URI nodeID != path nodeID")
 	}
 }
@@ -303,7 +307,7 @@ func TestService_NotLeader_RejectsMutations(t *testing.T) {
 		t.Fatal("MintJoinToken should fail on non-leader")
 	}
 
-	if _, err := svc.RegisterCert(context.Background(), 1, []byte("not pem")); err == nil {
+	if _, _, err := svc.RegisterCert(context.Background(), 1, []byte("not pem")); err == nil {
 		t.Fatal("RegisterCert should fail on non-leader")
 	}
 }

@@ -35,6 +35,7 @@ import (
 const (
 	leafCertFile = "leaf.crt"
 	leafKeyFile  = "leaf.key"
+	peerPinsFile = "peer-pins.json"
 )
 
 // Agent manages the local node's cluster cert.
@@ -183,9 +184,21 @@ type RegisterRequest struct {
 	ClusterID string `json:"clusterID"`
 }
 
-// RegisterResponse is returned on a successful register.
-type RegisterResponse struct {
+// PinRecord is one entry in cluster_node_certs as carried over the
+// wire to a joining or rotating node so it can seed its local pin
+// map at the next listener startup.
+type PinRecord struct {
+	NodeID      int    `json:"nodeID"`
 	Fingerprint string `json:"fingerprint"`
+}
+
+// RegisterResponse is returned on a successful register. Pins is
+// the full snapshot of cluster_node_certs at the moment the
+// registration committed; the caller persists it so its listener
+// can verify peers before Raft replication catches up.
+type RegisterResponse struct {
+	Fingerprint string      `json:"fingerprint"`
+	Pins        []PinRecord `json:"pins"`
 }
 
 // JoinFlow runs on a fresh node. It reads the token's claims (without
@@ -295,13 +308,60 @@ func (a *Agent) postRegister(ctx context.Context, client *http.Client, url, toke
 
 	var out RegisterResponse
 
-	_ = json.NewDecoder(io.LimitReader(resp.Body, 4096)).Decode(&out)
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 256<<10)).Decode(&out); err != nil {
+		return fmt.Errorf("decode register response: %w", err)
+	}
+
+	if len(out.Pins) > 0 {
+		if err := a.storePeerPins(out.Pins); err != nil {
+			return fmt.Errorf("persist peer pins: %w", err)
+		}
+	}
 
 	return nil
 }
 
 func (a *Agent) path(name string) string {
 	return filepath.Join(a.DataDir, "cluster-tls", name)
+}
+
+// LoadPeerPins reads the pin snapshot last persisted by JoinFlow
+// (or any later register call). Returns an empty map and no error
+// when the file is absent — fresh nodes have nothing to seed yet.
+func (a *Agent) LoadPeerPins() (map[string]int, error) {
+	raw, err := os.ReadFile(a.path(peerPinsFile)) // #nosec G304 -- under dataDir
+	if err != nil {
+		if os.IsNotExist(err) {
+			return map[string]int{}, nil
+		}
+
+		return nil, fmt.Errorf("read peer-pins.json: %w", err)
+	}
+
+	var records []PinRecord
+	if err := json.Unmarshal(raw, &records); err != nil {
+		return nil, fmt.Errorf("parse peer-pins.json: %w", err)
+	}
+
+	out := make(map[string]int, len(records))
+	for _, r := range records {
+		out[r.Fingerprint] = r.NodeID
+	}
+
+	return out, nil
+}
+
+func (a *Agent) storePeerPins(records []PinRecord) error {
+	if err := os.MkdirAll(filepath.Dir(a.path(peerPinsFile)), 0o700); err != nil {
+		return fmt.Errorf("mkdir cluster-tls: %w", err)
+	}
+
+	data, err := json.Marshal(records)
+	if err != nil {
+		return fmt.Errorf("marshal peer pins: %w", err)
+	}
+
+	return atomicWrite(a.path(peerPinsFile), data, 0o644)
 }
 
 func atomicWrite(path string, data []byte, mode os.FileMode) error {
