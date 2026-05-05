@@ -54,7 +54,17 @@ func (p *pkiState) PinFunc() listener.PinFunc {
 
 		nid, ok := (*m)[fingerprint]
 
-		return listener.PinResult{Found: ok, NodeID: nid}
+		known := make([]int, 0, len(*m))
+		for _, n := range *m {
+			known = append(known, n)
+		}
+
+		return listener.PinResult{
+			Found:        ok,
+			NodeID:       nid,
+			CacheSize:    len(*m),
+			KnownNodeIDs: known,
+		}
 	}
 }
 
@@ -101,9 +111,36 @@ func (p *pkiState) RefreshPins(ctx context.Context, dbInstance *db.Database) err
 	if prev == nil || len(*prev) == 0 {
 		logger.EllaLog.Info("cluster pin cache populated from DB",
 			zap.Int("pins", len(m)))
+
+		return nil
 	}
 
+	added, removed := pinDelta(*prev, m)
+
+	logger.EllaLog.Debug("cluster pin cache refreshed",
+		zap.Int("size", len(m)),
+		zap.Ints("added", added),
+		zap.Ints("removed", removed))
+
 	return nil
+}
+
+// pinDelta returns the nodeIDs that were added in next vs prev and
+// the nodeIDs that were removed.
+func pinDelta(prev, next map[string]int) (added, removed []int) {
+	for fp, nid := range next {
+		if _, ok := prev[fp]; !ok {
+			added = append(added, nid)
+		}
+	}
+
+	for fp, nid := range prev {
+		if _, ok := next[fp]; !ok {
+			removed = append(removed, nid)
+		}
+	}
+
+	return added, removed
 }
 
 // pinRefreshInterval bounds how stale the in-memory cache can lag

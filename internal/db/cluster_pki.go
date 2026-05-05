@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/canonical/sqlair"
+	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 const (
@@ -83,11 +85,26 @@ type ClusterJoinHMAC struct {
 // ---------------------------------------------------------------------------
 
 func (db *Database) applyUpsertNodeCert(ctx context.Context, r *ClusterNodeCert) (any, error) {
-	return nil, db.runner(ctx).Query(ctx, db.upsertNodeCertStmt, r).Run()
+	if err := db.runner(ctx).Query(ctx, db.upsertNodeCertStmt, r).Run(); err != nil {
+		return nil, err
+	}
+
+	logger.DBLog.Debug("applied cluster_node_certs upsert",
+		zap.Int("nodeID", r.NodeID),
+		zap.String("fingerprint", r.Fingerprint))
+
+	return nil, nil
 }
 
 func (db *Database) applyDeleteNodeCert(ctx context.Context, r *ClusterNodeCert) (any, error) {
-	return nil, db.runner(ctx).Query(ctx, db.deleteNodeCertByNodeStmt, r).Run()
+	if err := db.runner(ctx).Query(ctx, db.deleteNodeCertByNodeStmt, r).Run(); err != nil {
+		return nil, err
+	}
+
+	logger.DBLog.Debug("applied cluster_node_certs delete",
+		zap.Int("nodeID", r.NodeID))
+
+	return nil, nil
 }
 
 func (db *Database) applyInsertJoinToken(ctx context.Context, r *ClusterJoinToken) (any, error) {

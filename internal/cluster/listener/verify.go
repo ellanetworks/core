@@ -11,10 +11,16 @@ import (
 )
 
 // PinResult is the outcome of a pin lookup. Found indicates the
-// peer's fingerprint is registered; NodeID is the registered owner.
+// peer's fingerprint is registered; NodeID is the registered
+// owner. CacheSize and KnownNodeIDs describe the cache state at
+// the moment of the lookup; the verifier includes them in
+// rejection messages so a stale-cache failure is one log line to
+// diagnose.
 type PinResult struct {
-	Found  bool
-	NodeID int
+	Found        bool
+	NodeID       int
+	CacheSize    int
+	KnownNodeIDs []int
 }
 
 // PinFunc resolves a peer cert's fingerprint against the local
@@ -41,7 +47,8 @@ func verifyConnection(pinFn PinFunc) func(tls.ConnectionState) error {
 
 		res := pinFn(fp)
 		if !res.Found {
-			return fmt.Errorf("cluster TLS: peer fingerprint %s is not pinned", fp)
+			return fmt.Errorf("cluster TLS: peer fingerprint %s is not pinned (cache size %d, known nodeIDs %v)",
+				fp, res.CacheSize, res.KnownNodeIDs)
 		}
 
 		// The URI SAN's nodeID must match the pin's owner.

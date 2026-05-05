@@ -43,9 +43,20 @@ func (p *PKI) PinFunc() listener.PinFunc {
 		pins[pki.Fingerprint(n.Cert)] = n.NodeID
 	}
 
+	known := make([]int, 0, len(pins))
+	for _, n := range pins {
+		known = append(known, n)
+	}
+
 	return func(fingerprint string) listener.PinResult {
 		nid, ok := pins[fingerprint]
-		return listener.PinResult{Found: ok, NodeID: nid}
+
+		return listener.PinResult{
+			Found:        ok,
+			NodeID:       nid,
+			CacheSize:    len(pins),
+			KnownNodeIDs: known,
+		}
 	}
 }
 

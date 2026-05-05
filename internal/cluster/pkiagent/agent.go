@@ -28,7 +28,9 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/cluster/listener"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
+	"go.uber.org/zap"
 )
 
 // Filenames under <dataDir>/cluster-tls/.
@@ -348,6 +350,10 @@ func (a *Agent) LoadPeerPins() (map[string]int, error) {
 		out[r.Fingerprint] = r.NodeID
 	}
 
+	logger.EllaLog.Debug("loaded peer-pins.json",
+		zap.Int("count", len(out)),
+		zap.String("path", a.path(peerPinsFile)))
+
 	return out, nil
 }
 
@@ -361,7 +367,15 @@ func (a *Agent) storePeerPins(records []PinRecord) error {
 		return fmt.Errorf("marshal peer pins: %w", err)
 	}
 
-	return atomicWrite(a.path(peerPinsFile), data, 0o644)
+	if err := atomicWrite(a.path(peerPinsFile), data, 0o644); err != nil {
+		return err
+	}
+
+	logger.EllaLog.Debug("persisted peer-pins.json",
+		zap.Int("count", len(records)),
+		zap.String("path", a.path(peerPinsFile)))
+
+	return nil
 }
 
 func atomicWrite(path string, data []byte, mode os.FileMode) error {

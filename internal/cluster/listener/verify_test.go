@@ -39,9 +39,20 @@ func pinFromCerts(certs ...genCert) PinFunc {
 		pins[pki.Fingerprint(parsed)] = c.NodeID
 	}
 
+	known := make([]int, 0, len(pins))
+	for _, n := range pins {
+		known = append(known, n)
+	}
+
 	return func(fp string) PinResult {
 		nid, ok := pins[fp]
-		return PinResult{Found: ok, NodeID: nid}
+
+		return PinResult{
+			Found:        ok,
+			NodeID:       nid,
+			CacheSize:    len(pins),
+			KnownNodeIDs: known,
+		}
 	}
 }
 
