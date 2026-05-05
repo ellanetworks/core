@@ -42,6 +42,10 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 	"ue/connectivity_ipv6": {
 		IPv4Only: true,
 	},
+	"enb/connectivity": {
+		IPv6Only:  true,
+		DualStack: true,
+	},
 }
 
 // TestIntegrationTester brings the core-tester compose up once,
@@ -98,9 +102,16 @@ func TestIntegrationTester(t *testing.T) {
 
 		sc, _ := scenarios.Get(name)
 
+		// Build a scenarios.Env from the tester environment so that
+		// IP-family-aware fixtures can inspect address family details.
+		var scenariosEnv scenarios.Env
+		if len(env.CoreN2Addresses) > 0 || len(env.GNBs) > 0 {
+			scenariosEnv = buildScenariosEnv(env)
+		}
+
 		var spec scenarios.FixtureSpec
 		if sc.Fixture != nil {
-			spec = sc.Fixture()
+			spec = sc.Fixture(scenariosEnv)
 		}
 
 		t.Run(name, func(t *testing.T) {
@@ -113,5 +124,25 @@ func TestIntegrationTester(t *testing.T) {
 				fixture.AssertUsagePositive(ctx, t, env.Client, spec.AssertUsageForIMSIs, 30*time.Second)
 			}
 		})
+	}
+}
+
+// buildScenariosEnv converts a *testerEnv into a scenarios.Env so that
+// IP-family-aware fixtures can inspect the address family of the gNB N3
+// interface.
+func buildScenariosEnv(e *testerEnv) scenarios.Env {
+	gnbs := make([]scenarios.GNB, 0, len(e.GNBs))
+	for _, g := range e.GNBs {
+		gnbs = append(gnbs, scenarios.GNB{
+			Name:        g.Name,
+			N2Address:   g.N2Address,
+			N3Address:   g.N3Address,
+			N3Secondary: g.N3Secondary,
+		})
+	}
+
+	return scenarios.Env{
+		CoreN2Addresses: e.CoreN2Addresses,
+		GNBs:            gnbs,
 	}
 }

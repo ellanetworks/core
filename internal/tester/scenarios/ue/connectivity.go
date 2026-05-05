@@ -34,7 +34,7 @@ func init() {
 	})
 }
 
-func fixtureConnectivity() scenarios.FixtureSpec {
+func fixtureConnectivity(env scenarios.Env) scenarios.FixtureSpec {
 	subs := make([]scenarios.SubscriberSpec, numConnectivityParallel)
 	imsis := make([]string, numConnectivityParallel)
 
@@ -97,6 +97,7 @@ func runConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
 					subs[i],
 					tunInterfaceName,
 					env.PingDestination(),
+					env.PDUSessionType(),
 				)
 			})
 		}()
@@ -117,8 +118,9 @@ func runConnectivityTest(
 	sub subscriber,
 	tunInterfaceName string,
 	pingDestination string,
+	pduSessionType uint8,
 ) error {
-	newUE, err := newDefaultUE(gNodeB, sub.IMSI[5:], sub.Key, sub.OPc, sub.SequenceNumber)
+	newUE, err := newDefaultUE(gNodeB, sub.IMSI[5:], sub.Key, sub.OPc, sub.SequenceNumber, pduSessionType)
 	if err != nil {
 		return fmt.Errorf("could not create UE: %v", err)
 	}

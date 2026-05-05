@@ -28,7 +28,7 @@ func init() {
 	})
 }
 
-func fixtureAuthenticationWrongKey() scenarios.FixtureSpec {
+func fixtureAuthenticationWrongKey(env scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{
 		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
 	}
@@ -62,7 +62,7 @@ func runAuthenticationWrongKey(_ context.Context, env scenarios.Env, _ any) erro
 	}
 
 	newUE, err := ue.NewUE(&ue.UEOpts{
-		PDUSessionType: PDUSessionType,
+		PDUSessionType: env.PDUSessionType(),
 		GnodeB:         gNodeB,
 		Msin:           scenarios.DefaultIMSI[5:],
 		K:              scenarios.DefaultKey,

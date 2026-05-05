@@ -32,7 +32,7 @@ func init() {
 	})
 }
 
-func fixtureConnectivityIPv6() scenarios.FixtureSpec {
+func fixtureConnectivityIPv6(env scenarios.Env) scenarios.FixtureSpec {
 	subs := make([]scenarios.SubscriberSpec, numConnectivityParallel)
 	imsis := make([]string, numConnectivityParallel)
 
@@ -94,6 +94,7 @@ func runConnectivityIPv6(ctx context.Context, env scenarios.Env, _ any) error {
 					gNodeB,
 					subs[i],
 					tunInterfaceName,
+					env.PDUSessionType(),
 				)
 			})
 		}()
@@ -113,8 +114,9 @@ func runConnectivityIPv6Test(
 	gNodeB *gnb.GnodeB,
 	sub subscriber,
 	tunInterfaceName string,
+	pduSessionType uint8,
 ) error {
-	newUE, err := newDefaultUE(gNodeB, sub.IMSI[5:], sub.Key, sub.OPc, sub.SequenceNumber)
+	newUE, err := newDefaultUE(gNodeB, sub.IMSI[5:], sub.Key, sub.OPc, sub.SequenceNumber, pduSessionType)
 	if err != nil {
 		return fmt.Errorf("could not create UE: %v", err)
 	}
@@ -153,7 +155,7 @@ func runConnectivityIPv6Test(
 	}
 
 	uePduSession := newUE.GetPDUSession(scenarios.DefaultPDUSessionID)
-	ueIP := uePduSession.UEIP + "/48"
+	ueIP := uePduSession.UEIP + "/64"
 
 	gnbPDUSession, err := gNodeB.WaitForPDUSession(ranUENGAPID, int64(scenarios.DefaultPDUSessionID), 5*time.Second)
 	if err != nil {

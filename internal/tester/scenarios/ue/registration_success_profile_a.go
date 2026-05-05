@@ -40,7 +40,7 @@ func init() {
 
 const profileAHomeNetworkPrivateKeyHex = "c53c22208b61860b06c62e5406a7b330c2b577aab3cd7cd2d3fa33ef6b3df3f6"
 
-func fixtureRegistrationSuccessProfileA() scenarios.FixtureSpec {
+func fixtureRegistrationSuccessProfileA(env scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{
 		HomeNetworkKeys: []scenarios.HomeNetworkKeySpec{
 			{
@@ -100,7 +100,7 @@ func runRegistrationSuccessProfileA(_ context.Context, env scenarios.Env, params
 
 	newUE, err := ue.NewUE(&ue.UEOpts{
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
-		PDUSessionType: PDUSessionType,
+		PDUSessionType: env.PDUSessionType(),
 		GnodeB:         gNodeB,
 		Msin:           scenarios.DefaultIMSI[5:],
 		K:              scenarios.DefaultKey,

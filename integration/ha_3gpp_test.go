@@ -160,7 +160,13 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 		t.Fatalf("scenario ha/failover_connectivity not registered")
 	}
 
-	spec := sc.Fixture()
+	scenariosEnv := scenarios.Env{
+		CoreN2Addresses: nodeN2Addrs[:],
+		GNBs: []scenarios.GNB{
+			{Name: "gnb1", N2Address: gnbN2, N3Address: gnbN3},
+		},
+	}
+	spec := sc.Fixture(scenariosEnv)
 	fx.Apply(spec)
 
 	testerContainer, err := dc.ResolveComposeContainer(ctx, "ha-5g", "ella-core-tester")

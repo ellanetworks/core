@@ -37,6 +37,10 @@ const (
 	DefaultRoutingIndicator = "0000"
 	DefaultIMEISV           = "3569380356438091"
 
+	DefaultPDUSessionTypeIPv4     = 0x01
+	DefaultPDUSessionTypeIPv6     = 0x02
+	DefaultPDUSessionTypeIPv4IPv6 = 0x03
+
 	DefaultPingDestination   = "10.6.0.3"
 	DefaultPingDestinationV6 = "fd00:6::3"
 )

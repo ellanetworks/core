@@ -31,7 +31,7 @@ func init() {
 	})
 }
 
-func fixtureConnectivityDualStack() scenarios.FixtureSpec {
+func fixtureConnectivityDualStack(env scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{
 		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
 	}

@@ -19,9 +19,6 @@ import (
 	"github.com/free5gc/nas/security"
 )
 
-// PDUSessionType is the default PDU Session Type used across UE scenarios.
-const PDUSessionType = nasMessage.PDUSessionTypeIPv4
-
 // subscriber is a scenario-local subscriber stub used by multi-UE helpers.
 type subscriber struct {
 	IMSI           string
@@ -316,11 +313,11 @@ func validateRegistrationReject(msg *nas.Message, cause uint8) error {
 }
 
 // newUEWithDNN builds a UE for the given subscriber, DNN, and default slice.
-func newUEWithDNN(gNodeB *gnb.GnodeB, sub subscriber, dnn string) (*ue.UE, error) {
+func newUEWithDNN(gNodeB *gnb.GnodeB, sub subscriber, dnn string, pduSessionType uint8) (*ue.UE, error) {
 	return ue.NewUE(&ue.UEOpts{
 		GnodeB:         gNodeB,
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
-		PDUSessionType: PDUSessionType,
+		PDUSessionType: pduSessionType,
 		Msin:           sub.IMSI[5:],
 		K:              sub.Key,
 		OpC:            sub.OPc,
@@ -352,10 +349,10 @@ func newUEWithDNN(gNodeB *gnb.GnodeB, sub subscriber, dnn string) (*ue.UE, error
 // newDefaultUE builds a UE using the default test identity and the given
 // subscriber sequence number and msin. Used by scenarios that just need a
 // basic UE with the standard settings.
-func newDefaultUE(gNodeB *gnb.GnodeB, msin, k, opc, sqn string) (*ue.UE, error) {
+func newDefaultUE(gNodeB *gnb.GnodeB, msin, k, opc, sqn string, pduSessionType uint8) (*ue.UE, error) {
 	return ue.NewUE(&ue.UEOpts{
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
-		PDUSessionType: PDUSessionType,
+		PDUSessionType: pduSessionType,
 		GnodeB:         gNodeB,
 		Msin:           msin,
 		K:              k,
@@ -388,11 +385,11 @@ func newDefaultUE(gNodeB *gnb.GnodeB, msin, k, opc, sqn string) (*ue.UE, error) 
 // ueRegistrationTest executes a single UE registration/deregistration using
 // the subscriber's configured keys and asserts the PDU Session Establishment
 // Accept against exp.
-func ueRegistrationTest(ranUENGAPID int64, gNodeB *gnb.GnodeB, sub subscriber, dnn string, exp *validate.ExpectedPDUSessionEstablishmentAccept) error {
+func ueRegistrationTest(ranUENGAPID int64, gNodeB *gnb.GnodeB, sub subscriber, dnn string, exp *validate.ExpectedPDUSessionEstablishmentAccept, pduSessionType uint8) error {
 	newUE, err := ue.NewUE(&ue.UEOpts{
 		GnodeB:         gNodeB,
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
-		PDUSessionType: PDUSessionType,
+		PDUSessionType: pduSessionType,
 		Msin:           sub.IMSI[5:],
 		K:              sub.Key,
 		OpC:            sub.OPc,

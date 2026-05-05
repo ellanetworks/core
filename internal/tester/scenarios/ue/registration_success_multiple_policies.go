@@ -25,7 +25,7 @@ func init() {
 	})
 }
 
-func fixtureRegistrationSuccessMultiplePolicies() scenarios.FixtureSpec {
+func fixtureRegistrationSuccessMultiplePolicies(env scenarios.Env) scenarios.FixtureSpec {
 	// Scenario expects UE i to see Session AMBR = (10*(i+1), 50*(i+1)) Mbps
 	// with 5qi = 5+i, for i=0..4. All 5 UEs are fixture-scoped: each has its
 	// own profile/policy pair (profile0/policy0 .. profile4/policy4) bound to
@@ -112,7 +112,7 @@ func runRegistrationSuccessMultiplePolicies(_ context.Context, env scenarios.Env
 				ranUENGAPID := int64(scenarios.DefaultRANUENGAPID) + int64(i)
 				exp := &validate.ExpectedPDUSessionEstablishmentAccept{
 					PDUSessionID:               scenarios.DefaultPDUSessionID,
-					PDUSessionType:             PDUSessionType,
+					PDUSessionType:             env.PDUSessionType(),
 					UeIPSubnet:                 network,
 					Dnn:                        scenarios.DefaultDNN,
 					Sst:                        scenarios.DefaultSST,
@@ -123,7 +123,7 @@ func runRegistrationSuccessMultiplePolicies(_ context.Context, env scenarios.Env
 					FiveQI:                     5 + uint8(i),
 				}
 
-				return ueRegistrationTest(ranUENGAPID, gNodeB, subs[i], scenarios.DefaultDNN, exp)
+				return ueRegistrationTest(ranUENGAPID, gNodeB, subs[i], scenarios.DefaultDNN, exp, env.PDUSessionType())
 			})
 		}()
 	}

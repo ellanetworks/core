@@ -36,7 +36,7 @@ func init() {
 		Run: func(ctx context.Context, env scenarios.Env, _ any) error {
 			return runFailoverConnectivity(ctx, env)
 		},
-		Fixture: func() scenarios.FixtureSpec {
+		Fixture: func(env scenarios.Env) scenarios.FixtureSpec {
 			return scenarios.FixtureSpec{
 				Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
 			}

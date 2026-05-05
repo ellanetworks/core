@@ -1,6 +1,9 @@
 package scenarios
 
-import "os"
+import (
+	"net"
+	"os"
+)
 
 // IPFamily represents the IP address family mode for the test environment.
 type IPFamily int
@@ -46,6 +49,12 @@ type GNB struct {
 	N2Address   string
 	N3Address   string
 	N3Secondary string
+}
+
+// HasIPv6 returns true when the gNB N3 address is an IPv6 address.
+func (g GNB) HasIPv6() bool {
+	ip := net.ParseIP(g.N3Address)
+	return ip != nil && ip.To4() == nil
 }
 
 // FirstCore returns CoreN2Addresses[0], or "" when empty.
@@ -105,4 +114,43 @@ func (e Env) PingDestinationV6() string {
 	}
 
 	return ""
+}
+
+// PDUSessionType returns the appropriate PDU Session Type for the current IP
+// family. In IPv4-only mode it returns IPv4, in IPv6-only mode it returns
+// IPv6, and in dual-stack mode it returns IPv4+IPv6.
+func (e Env) PDUSessionType() uint8 {
+	family := e.IPFamily()
+	switch family {
+	case IPv6Only:
+		return DefaultPDUSessionTypeIPv6
+	case DualStack:
+		return DefaultPDUSessionTypeIPv4IPv6
+	default:
+		return DefaultPDUSessionTypeIPv4
+	}
+}
+
+// UIPrefix returns the appropriate IP prefix length for the current IP family.
+// Returns "/16" for IPv4 and "/64" for IPv6.
+func (e Env) UIPrefix() string {
+	family := e.IPFamily()
+	switch family {
+	case IPv6Only, DualStack:
+		return "/64"
+	default:
+		return "/16"
+	}
+}
+
+// PingCommand returns the appropriate ping command for the current IP family.
+// Returns "ping" for IPv4 and "ping6" for IPv6.
+func (e Env) PingCommand() string {
+	family := e.IPFamily()
+	switch family {
+	case IPv6Only, DualStack:
+		return "ping6"
+	default:
+		return "ping"
+	}
 }

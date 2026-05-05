@@ -32,7 +32,7 @@ func init() {
 	})
 }
 
-func fixtureRegistrationIncorrectGUTI() scenarios.FixtureSpec {
+func fixtureRegistrationIncorrectGUTI(env scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{
 		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
 	}
@@ -77,7 +77,7 @@ func runRegistrationIncorrectGUTI(_ context.Context, env scenarios.Env, _ any) e
 	newUE, err := ue.NewUE(&ue.UEOpts{
 		GnodeB:         gNodeB,
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
-		PDUSessionType: PDUSessionType,
+		PDUSessionType: env.PDUSessionType(),
 		Guti:           guti,
 		Msin:           scenarios.DefaultIMSI[5:],
 		K:              scenarios.DefaultKey,
@@ -119,7 +119,7 @@ func runRegistrationIncorrectGUTI(_ context.Context, env scenarios.Env, _ any) e
 		DNN:                    scenarios.DefaultDNN,
 		RANUENGAPID:            int64(scenarios.DefaultRANUENGAPID),
 		PDUSessionID:           scenarios.DefaultPDUSessionID,
-		ExpectedPDUSessionType: PDUSessionType,
+		ExpectedPDUSessionType: env.PDUSessionType(),
 		UE:                     newUE,
 		GnodeB:                 gNodeB,
 	})

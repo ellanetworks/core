@@ -27,7 +27,7 @@ func init() {
 	})
 }
 
-func fixtureRegistrationSuccessV4V6() scenarios.FixtureSpec {
+func fixtureRegistrationSuccessV4V6(env scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{
 		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
 	}
