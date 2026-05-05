@@ -21,6 +21,11 @@ func TestIntegrationUERANSIM(t *testing.T) {
 		t.Skip("skipping UERANSIM integration in dual-stack mode")
 	}
 
+	// UERANSIM does not support IPv6 PDU session type so we skip this test.
+	if DetectIPFamily() == IPv6Only {
+		t.Skip("skipping UERANSIM integration in IPv6 mode")
+	}
+
 	testCases := []struct {
 		name string
 		nat  bool
