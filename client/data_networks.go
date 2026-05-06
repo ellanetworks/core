@@ -16,6 +16,14 @@ type CreateDataNetworkOptions struct {
 	Mtu      int32  `json:"mtu"`
 }
 
+type UpdateDataNetworkOptions struct {
+	Name     string `json:"name"`
+	IPPool   string `json:"ip_pool"`
+	IPv6Pool string `json:"ipv6_pool,omitempty"`
+	DNS      string `json:"dns"`
+	Mtu      int32  `json:"mtu"`
+}
+
 type GetDataNetworkOptions struct {
 	Name string `json:"name"`
 }
@@ -96,6 +104,42 @@ func (c *Client) CreateDataNetwork(ctx context.Context, opts *CreateDataNetworkO
 		Type:   SyncRequest,
 		Method: "POST",
 		Path:   "api/v1/networking/data-networks",
+		Body:   &body,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UpdateDataNetwork updates an existing data network with the provided options.
+func (c *Client) UpdateDataNetwork(ctx context.Context, opts *UpdateDataNetworkOptions) error {
+	payload := struct {
+		Name     string `json:"name"`
+		IPPool   string `json:"ip_pool"`
+		IPv6Pool string `json:"ipv6_pool,omitempty"`
+		DNS      string `json:"dns"`
+		Mtu      int32  `json:"mtu"`
+	}{
+		Name:     opts.Name,
+		IPPool:   opts.IPPool,
+		IPv6Pool: opts.IPv6Pool,
+		DNS:      opts.DNS,
+		Mtu:      opts.Mtu,
+	}
+
+	var body bytes.Buffer
+
+	err := json.NewEncoder(&body).Encode(payload)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "PUT",
+		Path:   "api/v1/networking/data-networks/" + opts.Name,
 		Body:   &body,
 	})
 	if err != nil {
