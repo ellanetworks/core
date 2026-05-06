@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -364,10 +365,43 @@ func swapNodeImage(t *testing.T, ctx context.Context, dc *DockerClient, nodeNum 
 		t.Fatalf("stop %s: %v", service, err)
 	}
 
+	// Capture the stopped container's logs before recreate destroys them.
+	// Without this, a failure on the original container leaves no trace —
+	// docker compose logs only shows the post-recreate container.
+	capturePreSwapLogs(t, ctx, dc, service)
+
 	if err := dc.ComposeRecreateService(ctx, haRollingComposeDir, ComposeFile(), service, map[string]string{
 		envKey: image,
 	}); err != nil {
 		t.Fatalf("recreate %s with image %s: %v", service, image, err)
+	}
+}
+
+func capturePreSwapLogs(t *testing.T, ctx context.Context, dc *DockerClient, service string) {
+	t.Helper()
+
+	dir := os.Getenv("HA_CLUSTER_LOG_DIR")
+	if dir == "" {
+		return
+	}
+
+	subdir := filepath.Join(dir, sanitizeTestName(t.Name()))
+	if err := os.MkdirAll(subdir, 0o755); err != nil {
+		t.Logf("capturePreSwapLogs: mkdir %s: %v", subdir, err)
+		return
+	}
+
+	logs, err := dc.ComposeLogs(ctx, haRollingComposeDir, service)
+	if err != nil {
+		t.Logf("capturePreSwapLogs: %s: %v", service, err)
+		return
+	}
+
+	// Use a timestamped suffix so successive swaps of the same service
+	// (or repeated test runs) don't clobber prior captures.
+	path := filepath.Join(subdir, fmt.Sprintf("%s.pre-swap-%s.log", service, time.Now().UTC().Format("150405.000")))
+	if err := os.WriteFile(path, []byte(logs), 0o644); err != nil {
+		t.Logf("capturePreSwapLogs: write %s: %v", path, err)
 	}
 }
 
