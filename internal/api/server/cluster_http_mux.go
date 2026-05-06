@@ -4,7 +4,6 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -44,31 +43,6 @@ func SetPKIIssuer(svc *pkiissuer.Service) {
 
 func loadPKIIssuer() *pkiissuer.Service {
 	return pkiIssuerService.Load()
-}
-
-// pinRefresherFn is the runtime callback that rebuilds the local
-// in-memory cluster_node_certs cache. Invoked by handlers that
-// mutate the registry (ClusterPKIRegister, RemoveClusterMember) so
-// the cache picks up the change immediately instead of waiting for
-// the periodic refresher.
-var pinRefresherFn atomic.Pointer[func(context.Context)]
-
-// SetPinRefresher installs the runtime's pin-refresh callback;
-// passing nil uninstalls it.
-func SetPinRefresher(fn func(context.Context)) {
-	if fn == nil {
-		pinRefresherFn.Store(nil)
-
-		return
-	}
-
-	pinRefresherFn.Store(&fn)
-}
-
-func nudgePinCache(ctx context.Context) {
-	if fn := pinRefresherFn.Load(); fn != nil {
-		(*fn)(ctx)
-	}
 }
 
 var clusterSideEffectDeps atomic.Pointer[ClusterSideEffectDeps]

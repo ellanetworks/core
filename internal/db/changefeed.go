@@ -24,6 +24,7 @@ const (
 	TopicBGPPeers               Topic = "bgp_peers"
 	TopicDataNetworks           Topic = "data_networks"
 	TopicIPLeases               Topic = "ip_leases"
+	TopicClusterNodeCerts       Topic = "cluster_node_certs"
 )
 
 // Event is published once per (topic, applied-index) and carries no

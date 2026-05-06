@@ -46,11 +46,6 @@ func dropPinForRemovedNode(ctx context.Context, dbInstance *db.Database, ln *lis
 		return
 	}
 
-	// Refresh the local pin cache so handshakes on this leader
-	// reject the removed cert immediately. Followers pick up the
-	// deletion at the next refresher tick.
-	nudgePinCache(ctx)
-
 	if ln == nil {
 		return
 	}
