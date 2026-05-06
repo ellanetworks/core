@@ -986,11 +986,14 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 // from the archive on a fresh host.
 //
 // This end-to-end exercises:
-//   - backup archive shape (ella.db carrying CA signing keys)
+//   - backup archive shape (ella.db carrying the cluster_node_certs
+//     pin registry and the join-token HMAC key)
 //   - maybeRestoreFromBundle + ExtractForRestore on first boot
-//   - the DR self-issue path: no leaf on disk + active CA in DB ⇒
-//     in-process issuer signs a fresh leaf for the restored node
-//   - trust bundle seeded from the on-disk DB at startup
+//   - the DR self-cert path: no cert on disk + clusterID populated ⇒
+//     the restored leader generates its own self-signed cert and
+//     re-registers its own pin during setupLeaderPKI
+//   - pin map seeded from the on-disk DB at startup so the listener
+//     accepts handshakes immediately on boot
 //   - fresh joiners authenticating against the restored cluster
 func TestIntegrationHADisasterRecovery(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
@@ -1121,7 +1124,7 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 		t.Fatalf("copy restore.bundle to node 1: %v", err)
 	}
 
-	t.Log("starting node 1 — runtime should extract restore.bundle and self-issue a leaf")
+	t.Log("starting node 1 — runtime should extract restore.bundle and self-sign a fresh cluster cert")
 
 	if err := dockerClient.ComposeStartWithFile(ctx, haComposeDir, ComposeFile(), haNodeServices[0]); err != nil {
 		t.Fatalf("start node 1: %v", err)

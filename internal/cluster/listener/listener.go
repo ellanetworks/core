@@ -1,37 +1,38 @@
 // Copyright 2026 Ella Networks
 
-// Package listener provides a multiplexed TLS listener for intra-cluster
-// communication. A single TCP socket carries all cluster traffic — Raft
-// consensus, cluster-internal HTTP, and the join-flow bootstrap path —
-// distinguished by ALPN protocol negotiation during the TLS handshake.
+// Package listener provides a multiplexed TLS listener for
+// intra-cluster communication. A single TCP socket carries all
+// cluster traffic — Raft consensus, cluster-internal HTTP, and the
+// join-flow bootstrap path — dispatched by ALPN protocol negotiated
+// at handshake time.
 //
-// Every non-bootstrap connection is mutually authenticated: both sides
-// present a leaf certificate signed by the cluster CA, with a URI SAN
-// whose cluster-id segment matches this node's local cluster-id. The
-// bootstrap ALPN (ella-pki-bootstrap-v1) is the exception: joining nodes
-// have no leaf yet and authenticate via a join-token HMAC in the request
-// body. The server side is authenticated via a root-fingerprint pin the
-// operator transfers alongside the join token.
+// On every non-bootstrap ALPN both sides present a self-signed
+// cluster certificate, and the verifier accepts the connection when
+// the peer's leaf SHA-256 matches a row in cluster_node_certs (via
+// the in-memory pin map) and its SPIFFE URI SAN's nodeID matches
+// the pin's owner. The bootstrap ALPN (ella-pki-bootstrap-v1) skips
+// client-cert presentation; joining nodes authenticate via a
+// join-token HMAC in the request body and pin the server cert
+// using the LeaderCertPin claim embedded in the token.
 //
-// Outbound dials use Dial when the caller knows which peer they intend
-// to reach; Dial refuses the connection if the peer's URI SAN resolves
-// to a different node-id. DialAnyPeer relaxes that last check and is
-// used by discovery paths that need to learn the peer's identity from
-// the connection itself.
+// Outbound dials use Dial when the caller knows which peer they
+// intend to reach; Dial refuses the connection if the peer's URI
+// SAN resolves to a different node-id. DialAnyPeer relaxes that
+// check and is used by discovery paths that learn the peer's
+// identity from the connection itself.
 //
-// The listener tracks active authenticated connections in a concurrent-
-// safe map so CloseByPeerSerial can tear down a node's connections when
-// its leaf has been revoked (see RemoveClusterMember).
+// The listener tracks active authenticated connections in a
+// concurrent-safe map so CloseByPeerFingerprint can tear down a
+// node's connections when its pin row has been deleted (see
+// RemoveClusterMember).
 
 package listener
 
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
-	"math/big"
 	"net"
 	"sync"
 	"time"
@@ -46,31 +47,28 @@ import (
 // connection when done.
 type ConnHandler func(conn net.Conn)
 
-// TrustBundleFunc returns the current cluster trust bundle. Called at
-// handshake time on every accepted connection.
-type TrustBundleFunc func() *pki.TrustBundle
-
-// LeafFunc returns the current leaf certificate for this node, or nil if
-// the node has not yet been issued one. Called at handshake time as
-// tls.Config.GetCertificate / GetClientCertificate. Returning nil on the
-// server side aborts the handshake; returning an empty tls.Certificate on
-// the client side (bootstrap path) lets us handshake without a client cert.
+// LeafFunc returns the current self-signed certificate for this node,
+// or nil if the node has not yet generated one. Called at handshake
+// time as tls.Config.GetCertificate / GetClientCertificate. Returning
+// nil on the server side aborts the handshake; returning an empty
+// tls.Certificate on the client side (bootstrap path) lets us
+// handshake without a client cert.
 type LeafFunc func() *tls.Certificate
 
-// RevokedFunc returns true if the given certificate serial has been
-// revoked. Called at handshake time after chain validation.
-type RevokedFunc func(serial *big.Int) bool
-
 // Config captures the bind address and the dynamic accessors the listener
-// consults on every handshake. All accessors are mandatory.
+// consults on every handshake.
 type Config struct {
 	BindAddress      string
 	AdvertiseAddress string
 	NodeID           int
 
-	TrustBundle TrustBundleFunc
-	Leaf        LeafFunc
-	Revoked     RevokedFunc
+	// Pin returns whether a peer cert's SHA-256 fingerprint is
+	// registered (and which nodeID owns it). Called once per
+	// non-bootstrap handshake.
+	Pin PinFunc
+
+	// Leaf returns this node's self-signed cluster cert.
+	Leaf LeafFunc
 }
 
 // Listener is the multiplexed cluster port. One TCP socket, one TLS
@@ -84,10 +82,10 @@ type Listener struct {
 	stopCh    chan struct{}
 	wg        sync.WaitGroup
 
-	// connMu protects conns. Every authenticated connection is registered
-	// after handshake and deregistered when the handler returns, so
-	// CloseByPeerSerial can scan for matches. Bootstrap-ALPN connections
-	// are tracked too (serial is zero-ish, but they're short-lived).
+	// connMu protects conns. Every accepted connection is
+	// registered after handshake and deregistered when its handler
+	// returns; CloseByPeerFingerprint scans the map to tear down
+	// connections from a peer whose pin has been removed.
 	connMu sync.Mutex
 	conns  map[*tls.Conn]struct{}
 }
@@ -95,26 +93,23 @@ type Listener struct {
 // New creates a Listener from the given config. Register ALPN handlers
 // with Register before calling Start.
 func New(cfg Config) *Listener {
-	if cfg.TrustBundle == nil || cfg.Leaf == nil || cfg.Revoked == nil {
+	if cfg.Pin == nil || cfg.Leaf == nil {
 		// These are programmer errors at wiring time; crashing is OK.
-		panic("listener.New: TrustBundle, Leaf, and Revoked accessors are mandatory")
+		panic("listener.New: Pin and Leaf accessors are mandatory")
 	}
 
 	tlsCfg := &tls.Config{
 		MinVersion: tls.VersionTLS13,
 		// ClientAuth is RequestClientCert so the bootstrap ALPN can
 		// complete without a peer cert. For non-bootstrap ALPNs the
-		// joining node always presents its leaf, and VerifyConnection
-		// rejects the handshake if the cert is missing or invalid.
-		//
-		// Native x509 chain verification is bypassed in favour of
-		// verifyConnection (which uses the replicated trust bundle):
-		// VerifyPeerCertificate returns nil unconditionally, and
-		// InsecureSkipVerify covers the client side.
+		// joining node always presents its self-signed leaf, and
+		// VerifyConnection rejects the handshake if the cert is
+		// missing or its fingerprint is not pinned.
+		// ClientAuth=RequestClientCert lets the bootstrap ALPN
+		// complete without a peer cert; on every other ALPN the
+		// VerifyConnection callback rejects connections whose peer
+		// leaf is missing or unpinned.
 		ClientAuth: tls.RequestClientCert,
-		VerifyPeerCertificate: func(_ [][]byte, _ [][]*x509.Certificate) error {
-			return nil
-		},
 		GetCertificate: func(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
 			leaf := cfg.Leaf()
 			if leaf == nil || len(leaf.Certificate) == 0 {
@@ -132,8 +127,8 @@ func New(cfg Config) *Listener {
 			return leaf, nil
 		},
 		NextProtos:         []string{ALPNRaft, ALPNHTTP, ALPNPKIBootstrap},
-		VerifyConnection:   verifyConnection(cfg.TrustBundle, cfg.Revoked),
-		InsecureSkipVerify: true, // #nosec G402 -- verifyConnection + VerifyPeerCertificate own cert validation.
+		VerifyConnection:   verifyConnection(cfg.Pin),
+		InsecureSkipVerify: true, // #nosec G402 -- VerifyConnection enforces fingerprint pinning.
 	}
 
 	return &Listener{
@@ -304,8 +299,8 @@ func (l *Listener) dispatch(ctx context.Context, conn net.Conn) {
 	handler(conn)
 }
 
-// trackConn registers a post-handshake connection so CloseByPeerSerial
-// can close it if its peer's serial is later revoked.
+// trackConn registers a post-handshake connection so
+// CloseByPeerFingerprint can close it on pin removal.
 func (l *Listener) trackConn(c *tls.Conn) {
 	l.connMu.Lock()
 	l.conns[c] = struct{}{}
@@ -318,13 +313,12 @@ func (l *Listener) untrackConn(c *tls.Conn) {
 	l.connMu.Unlock()
 }
 
-// CloseByPeerSerial closes every tracked connection whose peer leaf has
-// the given serial. Used by RemoveClusterMember to tear down a removed
-// voter's active mTLS sessions immediately, rather than waiting for
-// next-dial revocation enforcement. Returns the count of connections
-// closed.
-func (l *Listener) CloseByPeerSerial(serial *big.Int) int {
-	if serial == nil {
+// CloseByPeerFingerprint closes every tracked connection whose peer
+// leaf matches fingerprint. RemoveClusterMember calls this so a
+// removed voter's active mTLS sessions drop sub-second instead of
+// at the next handshake. Returns the count of connections closed.
+func (l *Listener) CloseByPeerFingerprint(fingerprint string) int {
+	if fingerprint == "" {
 		return 0
 	}
 
@@ -338,7 +332,7 @@ func (l *Listener) CloseByPeerSerial(serial *big.Int) int {
 			continue
 		}
 
-		if state.PeerCertificates[0].SerialNumber.Cmp(serial) == 0 {
+		if pki.Fingerprint(state.PeerCertificates[0]) == fingerprint {
 			victims = append(victims, c)
 		}
 	}

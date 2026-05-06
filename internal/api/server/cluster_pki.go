@@ -1,9 +1,11 @@
 // Copyright 2026 Ella Networks
 
-// Handlers for the /cluster/pki/* surface on the cluster HTTP port.
+// Handlers for /cluster/pki/register on the cluster HTTP port.
 //
-//	POST /cluster/pki/issue  — join-token OR mTLS leaf. Sign a CSR.
-//	POST /cluster/pki/renew  — mTLS leaf. Renew the presenting node's leaf.
+// A joining node POSTs (cert, token) on the bootstrap ALPN. A node
+// rotating its cert POSTs (cert) over the regular mTLS ALPN; the
+// presenting cert's nodeID must match the new cert's URI nodeID
+// so a member cannot overwrite another member's pin.
 
 package server
 
@@ -11,7 +13,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -20,35 +21,26 @@ import (
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/cluster/pkiagent"
 	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
-	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/pki"
 	"go.uber.org/zap"
 )
 
-// clusterPKIMaxBody caps the request body we decode. IssueRequest's
-// fields (CSR PEM + token + ids) never need more than a few KB.
 const clusterPKIMaxBody = 32 * 1024
 
-// ClusterPKIIssue handles POST /cluster/pki/issue.
-//
-// If the request arrives without an mTLS peer cert (bootstrap ALPN),
-// the caller MUST supply a valid join token. Otherwise the caller
-// MUST present a leaf whose node-id matches the CSR's (mTLS renewal).
-func ClusterPKIIssue(svc *pkiissuer.Service) http.Handler {
+// ClusterPKIRegister handles POST /cluster/pki/register. On the
+// bootstrap ALPN it requires a valid join token; on the mTLS ALPN
+// the presenting peer cert's nodeID must equal the requested
+// nodeID, restricting re-pinning to the cert's owner.
+func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !svc.Ready() {
-			writeError(r.Context(), w, http.StatusServiceUnavailable, "pki issuer not ready", nil, logger.APILog)
-			return
-		}
-
 		body, err := io.ReadAll(io.LimitReader(r.Body, clusterPKIMaxBody))
 		if err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "read body", err, logger.APILog)
 			return
 		}
 
-		var req pkiagent.IssueRequest
+		var req pkiagent.RegisterRequest
 		if err := json.Unmarshal(body, &req); err != nil {
 			writeError(r.Context(), w, http.StatusBadRequest, "decode body", err, logger.APILog)
 			return
@@ -59,24 +51,15 @@ func ClusterPKIIssue(svc *pkiissuer.Service) http.Handler {
 			return
 		}
 
-		csr, err := pki.ParseCSRPEM([]byte(req.CSRPEM))
-		if err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "parse csr", err, logger.APILog)
-			return
-		}
-
-		if err := svc.ValidateCSR(csr, req.NodeID); err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, "invalid csr", err, logger.APILog)
-			return
-		}
-
 		peerNodeID, hasPeer := peerNodeIDFromContext(r.Context())
 
 		switch {
 		case hasPeer:
+			// mTLS path: the cert's owner is the only caller who
+			// may re-pin its nodeID.
 			if peerNodeID != req.NodeID {
 				writeError(r.Context(), w, http.StatusForbidden,
-					"node-id in CSR does not match presenting leaf", nil, logger.APILog)
+					"node-id in body does not match presenting peer cert", nil, logger.APILog)
 
 				return
 			}
@@ -97,90 +80,45 @@ func ClusterPKIIssue(svc *pkiissuer.Service) http.Handler {
 
 			if claims.NodeID != req.NodeID {
 				writeError(r.Context(), w, http.StatusForbidden,
-					"node-id in CSR does not match token claims", nil, logger.APILog)
+					"node-id in body does not match token claims", nil, logger.APILog)
 
 				return
 			}
 		}
 
-		leafPEM, err := svc.Issue(r.Context(), csr, req.NodeID, pki.DefaultLeafTTL)
+		fp, pins, err := svc.RegisterCert(r.Context(), req.NodeID, []byte(req.CertPEM))
 		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "issue leaf", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "register cert", err, logger.APILog)
 			return
 		}
 
-		bundle, err := svc.CurrentBundle(r.Context())
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "get bundle", err, logger.APILog)
-			return
+		// Refresh the local pin cache so handshakes from the new
+		// peer succeed without waiting for the periodic refresher.
+		nudgePinCache(r.Context())
+
+		records := make([]pkiagent.PinRecord, 0, len(pins))
+		for _, p := range pins {
+			records = append(records, pkiagent.PinRecord{NodeID: p.NodeID, Fingerprint: p.Fingerprint})
 		}
 
-		writeIssueResponse(w, leafPEM, bundle)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(pkiagent.RegisterResponse{
+			Fingerprint: fp,
+			Pins:        records,
+		})
 	})
 }
 
-// ClusterPKIRenew handles POST /cluster/pki/renew (mTLS only). In
-// addition to the base Issue flow, it verifies the presenting node is
-// still a cluster member — a removed node's cert may still be within
-// its TTL but should not renew.
-func ClusterPKIRenew(dbInstance *db.Database, svc *pkiissuer.Service) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		peerNodeID, ok := peerNodeIDFromContext(r.Context())
-		if !ok {
-			writeError(r.Context(), w, http.StatusUnauthorized, "mTLS required for renew", nil, logger.APILog)
-			return
-		}
-
-		if _, err := dbInstance.GetClusterMember(r.Context(), peerNodeID); err != nil {
-			if errors.Is(err, db.ErrNotFound) {
-				writeError(r.Context(), w, http.StatusForbidden,
-					"node is no longer a cluster member", nil, logger.APILog)
-
-				return
-			}
-
-			writeError(r.Context(), w, http.StatusInternalServerError, "verify membership", err, logger.APILog)
-
-			return
-		}
-
-		ClusterPKIIssue(svc).ServeHTTP(w, r)
-	})
-}
-
-func writeIssueResponse(w http.ResponseWriter, leafPEM []byte, bundle *pki.TrustBundle) {
-	var bundlePEM []byte
-
-	for _, r := range bundle.Roots {
-		bundlePEM = append(bundlePEM, pki.EncodeCertPEM(r)...)
-	}
-
-	for _, i := range bundle.Intermediates {
-		bundlePEM = append(bundlePEM, pki.EncodeCertPEM(i)...)
-	}
-
-	resp := pkiagent.IssueResponse{
-		LeafPEM:   string(leafPEM),
-		BundlePEM: string(bundlePEM),
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(resp)
-}
-
-// RegisterBootstrapALPN registers a listener handler for the bootstrap
-// ALPN. Connections on this ALPN have no mTLS peer cert; the handler
-// serves exactly one POST /cluster/pki/issue on the raw conn and then
-// closes it.
+// RegisterBootstrapALPN dispatches POST /cluster/pki/register on
+// the bootstrap ALPN (no client cert) and closes the connection
+// after one request.
 func RegisterBootstrapALPN(ln *listener.Listener, svc *pkiissuer.Service) {
-	issue := ClusterPKIIssue(svc)
+	register := ClusterPKIRegister(svc)
 
 	ln.Register(listener.ALPNPKIBootstrap, func(conn net.Conn) {
 		defer func() { _ = conn.Close() }()
 
-		// Cap the whole exchange: a slow or silent client must not tie
-		// up the bootstrap handler indefinitely. 30s is generous for a
-		// single ReadRequest + sign + write over a healthy network.
 		_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
 
 		br := bufio.NewReader(conn)
@@ -191,20 +129,17 @@ func RegisterBootstrapALPN(ln *listener.Listener, svc *pkiissuer.Service) {
 			return
 		}
 
-		if req.Method != http.MethodPost || req.URL.Path != "/cluster/pki/issue" {
-			writeInlineResponse(conn, http.StatusNotFound, "only POST /cluster/pki/issue is served on the bootstrap ALPN")
+		if req.Method != http.MethodPost || req.URL.Path != "/cluster/pki/register" {
+			writeInlineResponse(conn, http.StatusNotFound, "only POST /cluster/pki/register is served on the bootstrap ALPN")
 			return
 		}
 
 		bw := &bufferedResponseWriter{header: http.Header{}}
-		issue.ServeHTTP(bw, req)
+		register.ServeHTTP(bw, req)
 		bw.writeTo(conn)
 	})
 }
 
-// bufferedResponseWriter is a minimal http.ResponseWriter that captures
-// status, headers, and body so we can serialize one HTTP response on a
-// raw conn without running an http.Server.
 type bufferedResponseWriter struct {
 	header http.Header
 	status int

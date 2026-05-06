@@ -2869,10 +2869,13 @@ paths:
       summary: Mint a cluster join token
       description: >-
         Mints a single-use HMAC-signed token authorising `nodeID` to
-        request its first cluster leaf. The joining node puts the
-        token in its `cluster.join-token` config field before starting
-        the daemon; the root CA fingerprint is embedded in the token.
-        Requires admin privileges.
+        register its self-signed cluster certificate's fingerprint
+        with the leader. The joining node puts the token in its
+        `cluster.join-token` config field before starting the daemon.
+        The leader's pinned certificate fingerprint is embedded in
+        the token so the joiner can pin the bootstrap TLS handshake
+        directly to the leader's certificate. Requires admin
+        privileges.
       requestBody:
         required: true
         content:
