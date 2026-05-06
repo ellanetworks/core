@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"net"
 	"net/http"
 	"path/filepath"
@@ -47,11 +46,9 @@ func TestClusterHTTP_Status(t *testing.T) {
 		BindAddress:      serverAddr,
 		AdvertiseAddress: serverAddr,
 		NodeID:           1,
-		TrustBundle:      pki.BundleFunc(),
+		Pin:              pki.PinFunc(),
 
 		Leaf: pki.LeafFunc(1),
-
-		Revoked: func(*big.Int) bool { return false },
 	})
 
 	dbPath := filepath.Join(t.TempDir(), "test.db")
@@ -76,11 +73,9 @@ func TestClusterHTTP_Status(t *testing.T) {
 		BindAddress:      "127.0.0.1:0",
 		AdvertiseAddress: "127.0.0.1:0",
 		NodeID:           2,
-		TrustBundle:      pki.BundleFunc(),
+		Pin:              pki.PinFunc(),
 
 		Leaf: pki.LeafFunc(2),
-
-		Revoked: func(*big.Int) bool { return false },
 	})
 
 	client := &http.Client{
@@ -154,11 +149,9 @@ func clusterTestServer(t *testing.T, pki *testutil.PKI, peerNodeIDs []int) (serv
 		BindAddress:      serverAddr,
 		AdvertiseAddress: serverAddr,
 		NodeID:           clusterTestServerNodeID,
-		TrustBundle:      pki.BundleFunc(),
+		Pin:              pki.PinFunc(),
 
 		Leaf: pki.LeafFunc(clusterTestServerNodeID),
-
-		Revoked: func(*big.Int) bool { return false },
 	})
 
 	dbPath := filepath.Join(t.TempDir(), "test.db")
@@ -185,11 +178,9 @@ func clusterTestServer(t *testing.T, pki *testutil.PKI, peerNodeIDs []int) (serv
 			BindAddress:      "127.0.0.1:0",
 			AdvertiseAddress: "127.0.0.1:0",
 			NodeID:           id,
-			TrustBundle:      pki.BundleFunc(),
+			Pin:              pki.PinFunc(),
 
 			Leaf: pki.LeafFunc(id),
-
-			Revoked: func(*big.Int) bool { return false },
 		})
 
 		clients[id] = &http.Client{

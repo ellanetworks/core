@@ -13,7 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	ellapki "github.com/ellanetworks/core/internal/pki"
+	"github.com/ellanetworks/core/internal/pki"
 	"go.uber.org/zap"
 )
 
@@ -30,16 +30,6 @@ type pkiLeaderCallback struct {
 	nodeID        int
 	binaryVersion string
 
-	// needsDRSnapshot is true when this node was bootstrapped from a
-	// restore bundle. Its FSM carries state that wasn't built up by
-	// replicated log entries, so a fresh joiner replaying the log
-	// from index 1 would hit changeset conflicts on the UPDATE
-	// changesets produced by the leader's post-bootstrap work (PKI
-	// mint etc). On the first leader transition we re-inject the
-	// current DB as a raft user snapshot, which truncates the log
-	// and forces joiners through InstallSnapshot. Cleared after a
-	// successful SelfRestore; OnBecameLeader is single-threaded from
-	// the observer so no mutex is needed.
 	needsDRSnapshot bool
 
 	bootstrapRegistered sync.Once
@@ -61,9 +51,8 @@ func newPKILeaderCallback(ctx context.Context, state *pkiState, dbInstance *db.D
 }
 
 // OnBecameLeader runs runLeaderInit synchronously on the typical
-// success path so the leader's init completes before observer.Register
-// returns. On failure it yields leadership and retries in the
-// background under a leadership-scoped context.
+// success path. On failure it yields leadership and retries in
+// background.
 func (c *pkiLeaderCallback) OnBecameLeader() {
 	leaderCtx := c.beginLeaderTerm()
 
@@ -97,10 +86,6 @@ func (c *pkiLeaderCallback) OnLostLeadership() {
 		c.leaderCancel = nil
 	}
 	c.mu.Unlock()
-
-	if c.state != nil && c.state.issuer != nil {
-		c.state.issuer.UnloadKeys()
-	}
 }
 
 func (c *pkiLeaderCallback) beginLeaderTerm() context.Context {
@@ -117,9 +102,6 @@ func (c *pkiLeaderCallback) beginLeaderTerm() context.Context {
 	return leaderCtx
 }
 
-// yieldLeadership best-effort transfers leadership to a follower.
-// Fails (and is logged at Debug) on a single-node cluster — the retry
-// loop covers that case.
 func (c *pkiLeaderCallback) yieldLeadership() {
 	if err := c.dbInstance.LeadershipTransfer(); err != nil {
 		logger.EllaLog.Debug("leadership transfer after init failure",
@@ -157,7 +139,6 @@ func (c *pkiLeaderCallback) retryLeaderInit(ctx context.Context) {
 }
 
 func (c *pkiLeaderCallback) onLeaderInitSuccess() {
-	// listener.Register panics on duplicate ALPN, so guard with Once.
 	if c.clusterLn != nil && c.state != nil && c.state.issuer != nil {
 		c.bootstrapRegistered.Do(func() {
 			server.RegisterBootstrapALPN(c.clusterLn, c.state.issuer)
@@ -165,8 +146,7 @@ func (c *pkiLeaderCallback) onLeaderInitSuccess() {
 	}
 }
 
-// runLeaderInit is idempotent; each step's invariant is checked
-// before any write.
+// runLeaderInit is idempotent.
 func runLeaderInit(ctx context.Context, pki *pkiState, dbInstance *db.Database, nodeID int, binaryVersion string) error {
 	if err := dbInstance.Initialize(ctx); err != nil {
 		return fmt.Errorf("initialize: %w", err)
@@ -189,74 +169,61 @@ func runLeaderInit(ctx context.Context, pki *pkiState, dbInstance *db.Database, 
 	return nil
 }
 
-func setupLeaderPKI(ctx context.Context, pki *pkiState, dbInstance *db.Database, nodeID int) error {
-	if pki.issuer == nil {
-		pki.issuer = pkiissuer.New(dbInstance)
-	}
+func setupLeaderPKI(ctx context.Context, p *pkiState, dbInstance *db.Database, nodeID int) error {
+	// Step 1: ensure this node's self-signed cert exists. On a fresh
+	// first-leader boot the cert was not created by JoinFlow, so we
+	// generate one here. The clusterID is now populated by
+	// PostInitClusterSetup.
+	if !p.agent.HaveLeafOnDisk() {
+		op, err := dbInstance.GetOperator(ctx)
+		if err != nil {
+			return fmt.Errorf("get operator: %w", err)
+		}
 
-	if err := pki.issuer.Bootstrap(ctx); err != nil {
-		return fmt.Errorf("issuer bootstrap: %w", err)
-	}
+		if op.ClusterID == "" {
+			return fmt.Errorf("clusterID still empty after PostInitClusterSetup")
+		}
 
-	// A voter promoted before raft replicated the CA tables will leave
-	// LoadKeys with no active rows to load; Ready stays false and the
-	// next election re-runs this path.
-	if err := pki.issuer.LoadKeys(ctx); err != nil {
-		return fmt.Errorf("issuer load keys: %w", err)
-	}
+		p.agent.ClusterID = op.ClusterID
 
-	if err := pki.RefreshBundle(ctx); err != nil {
-		return fmt.Errorf("refresh bundle: %w", err)
-	}
-
-	if err := pki.RefreshRevocations(ctx, dbInstance); err != nil {
-		logger.EllaLog.Warn("refresh revocations", zap.Error(err))
-	}
-
-	if pki.agent.Leaf() == nil && pki.issuer.Ready() {
-		if err := selfIssueLeaf(ctx, pki, nodeID); err != nil {
-			return fmt.Errorf("self-issue leaf: %w", err)
+		if err := p.agent.GenerateAndPersist(); err != nil {
+			return fmt.Errorf("generate self-signed cert: %w", err)
+		}
+	} else if p.agent.Leaf() == nil {
+		if err := p.agent.Load(); err != nil {
+			return fmt.Errorf("load existing cert: %w", err)
 		}
 	}
 
-	server.SetPKIIssuer(pki.issuer)
+	// Step 2: install the issuer so the leader can mint join tokens
+	// and accept register requests.
+	if p.issuer == nil {
+		p.issuer = pkiissuer.New(dbInstance)
+	}
+
+	if err := p.issuer.Bootstrap(ctx); err != nil {
+		return fmt.Errorf("issuer bootstrap: %w", err)
+	}
+
+	// Step 3: pin the leader's own cert in cluster_node_certs (if not
+	// already there). This is what lets MintJoinToken later embed
+	// the leader's pin in tokens.
+	leaf := p.agent.Leaf()
+	if leaf != nil && leaf.Leaf != nil {
+		certPEM := pki.EncodeCertPEM(leaf.Leaf)
+		if _, _, err := p.issuer.RegisterCert(ctx, nodeID, certPEM); err != nil {
+			return fmt.Errorf("register leader cert: %w", err)
+		}
+	}
+
+	// Step 4: refresh the in-memory pin map so the listener sees the
+	// just-registered leader pin and any others the new leader's
+	// snapshot loaded.
+	if err := p.RefreshPins(ctx, dbInstance); err != nil {
+		return fmt.Errorf("refresh pin cache: %w", err)
+	}
+
+	server.SetPKIIssuer(p.issuer)
 
 	return nil
-}
-
-func selfIssueLeaf(ctx context.Context, pki *pkiState, nodeID int) error {
-	// Re-read clusterID so the CSR's URI SAN matches.
-	bundle := pki.bundleCached.Load()
-	if bundle == nil {
-		return fmt.Errorf("no bundle available for self-issue")
-	}
-
-	pki.agent.ClusterID = bundle.ClusterID
-
-	keyPEM, csrPEM, err := ellapki.GenerateKeyAndCSR(nodeID, bundle.ClusterID)
-	if err != nil {
-		return err
-	}
-
-	csr, err := ellapki.ParseCSRPEM(csrPEM)
-	if err != nil {
-		return err
-	}
-
-	leafPEM, err := pki.issuer.Issue(ctx, csr, nodeID, ellapki.DefaultLeafTTL)
-	if err != nil {
-		return err
-	}
-
-	var bundlePEM []byte
-
-	for _, r := range bundle.Roots {
-		bundlePEM = append(bundlePEM, ellapki.EncodeCertPEM(r)...)
-	}
-
-	for _, i := range bundle.Intermediates {
-		bundlePEM = append(bundlePEM, ellapki.EncodeCertPEM(i)...)
-	}
-
-	return pki.agent.StoreLeaf(leafPEM, keyPEM, bundlePEM)
 }

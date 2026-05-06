@@ -9,9 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/pki"
 )
 
 // TestPKIAdminEndpoints_Gated verifies that admin PKI endpoints reject
@@ -70,6 +73,22 @@ func TestPKIAdminEndpoints_MintToken(t *testing.T) {
 	issuer := pkiissuer.New(env.DB)
 	if err := issuer.Bootstrap(context.Background()); err != nil {
 		t.Fatalf("Bootstrap: %v", err)
+	}
+
+	// Register the leader's pin (NodeID()==0 in standalone, so seed
+	// node 1 as the "leader" the test API uses).
+	leaderCert, _, err := pki.GenerateNodeCert(1, "test-cluster", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := env.DB.UpsertClusterNodeCert(context.Background(), &db.ClusterNodeCert{
+		NodeID:      1,
+		Fingerprint: pki.Fingerprint(leaderCert),
+		CertPEM:     string(pki.EncodeCertPEM(leaderCert)),
+		AddedAt:     time.Now().Unix(),
+	}); err != nil {
+		t.Fatal(err)
 	}
 
 	server.SetPKIIssuer(issuer)

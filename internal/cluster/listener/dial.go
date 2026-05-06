@@ -10,18 +10,17 @@ import (
 	"time"
 )
 
-// Dial opens an mTLS connection to the cluster peer identified by
-// expectedPeerID at addr and negotiates alpn. The peer's leaf must chain
-// to the current trust bundle, have a SAN whose cluster-id matches, and
-// resolve to expectedPeerID; otherwise the connection is torn down.
-// Use this whenever the caller knows which node it intends to reach.
+// Dial opens an mTLS connection to the cluster peer at addr and
+// negotiates alpn. Closes the connection unless the peer's
+// fingerprint is pinned and its SPIFFE URI nodeID equals
+// expectedPeerID.
 func (l *Listener) Dial(ctx context.Context, addr string, expectedPeerID int, alpn string, timeout time.Duration) (*tls.Conn, error) {
 	return l.dial(ctx, addr, expectedPeerID, alpn, timeout)
 }
 
-// DialAnyPeer opens an mTLS connection to a cluster peer at addr without
-// constraining which node answers. Chain + SAN shape are still verified;
-// only the node-id match is relaxed.
+// DialAnyPeer is Dial with the node-id check skipped; pin
+// enforcement still applies. Used by discovery paths that learn the
+// peer's identity from the connection.
 func (l *Listener) DialAnyPeer(ctx context.Context, addr, alpn string, timeout time.Duration) (*tls.Conn, error) {
 	return l.dial(ctx, addr, 0, alpn, timeout)
 }
@@ -60,7 +59,7 @@ func (l *Listener) dial(ctx context.Context, addr string, expectedPeerID int, al
 	}
 
 	if expectedPeerID != 0 {
-		actualID, err := PeerNodeID(tlsConn, l.cfg.TrustBundle())
+		actualID, err := PeerNodeID(tlsConn)
 		if err != nil {
 			_ = tlsConn.Close()
 			return nil, fmt.Errorf("cluster dial %s: %w", addr, err)

@@ -3,203 +3,153 @@
 package runtime
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
 	"errors"
 	"fmt"
-	"math/big"
 	"os"
 	"path/filepath"
-	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/cluster/pkiagent"
 	"github.com/ellanetworks/core/internal/cluster/pkiissuer"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	ellapki "github.com/ellanetworks/core/internal/pki"
+	"github.com/ellanetworks/core/internal/pki"
 	"go.uber.org/zap"
 )
 
-// pkiState collects the runtime-wide PKI plumbing.
+// pkiState collects the runtime-wide PKI plumbing: the local
+// per-node self-signed certificate (via Agent), the leader-side
+// register/mint service (via Service, populated on leader
+// promotion), and an in-memory pin map mirroring
+// cluster_node_certs that the listener consults at handshake time.
 type pkiState struct {
-	agent      *pkiagent.Agent
-	issuer     *pkiissuer.Service
-	revocation *ellapki.RevocationCache
+	agent  *pkiagent.Agent
+	issuer *pkiissuer.Service
 
-	// bundleCached serves the listener's trust accessor from memory so
-	// per-handshake calls don't hit the DB.
-	bundleCached atomic.Pointer[ellapki.TrustBundle]
-
-	// bundleRefreshMu serialises concurrent refreshes.
-	bundleRefreshMu sync.Mutex
+	pins atomic.Pointer[map[string]int]
 }
 
 func newPKIState(nodeID int, clusterID, dataDir string) *pkiState {
 	return &pkiState{
-		agent:      pkiagent.NewAgent(nodeID, clusterID, dataDir),
-		revocation: ellapki.NewRevocationCache(),
+		agent: pkiagent.NewAgent(nodeID, clusterID, dataDir),
 	}
 }
 
-func (p *pkiState) LeafFunc() func() *tls.Certificate {
+func (p *pkiState) LeafFunc() listener.LeafFunc {
 	return func() *tls.Certificate { return p.agent.Leaf() }
 }
 
-func (p *pkiState) RevokedFunc() func(*big.Int) bool {
-	return p.revocation.IsRevoked
+// PinFunc returns the listener accessor that resolves a peer's
+// fingerprint against the cached pin map.
+func (p *pkiState) PinFunc() listener.PinFunc {
+	return func(fingerprint string) listener.PinResult {
+		m := p.pins.Load()
+		if m == nil {
+			return listener.PinResult{}
+		}
+
+		nid, ok := (*m)[fingerprint]
+
+		known := make([]int, 0, len(*m))
+		for _, n := range *m {
+			known = append(known, n)
+		}
+
+		return listener.PinResult{
+			Found:        ok,
+			NodeID:       nid,
+			CacheSize:    len(*m),
+			KnownNodeIDs: known,
+		}
+	}
 }
 
-// BundleFunc reads through bundleCached. RefreshBundle is responsible
-// for keeping that cache current.
-func (p *pkiState) BundleFunc() func() *ellapki.TrustBundle {
-	return func() *ellapki.TrustBundle { return p.bundleCached.Load() }
+// SeedPinsFromAgentDisk installs the disk-resident pin map (the
+// local node's own pin plus the peer-pins.json snapshot saved by
+// the most recent JoinFlow / register call) so the listener can
+// verify peers during the startup window before the first
+// RefreshPins reads the replicated table.
+func (p *pkiState) SeedPinsFromAgentDisk() {
+	m, err := p.agent.LoadPeerPins()
+	if err != nil {
+		logger.EllaLog.Warn("seed pins: load peer-pins.json", zap.Error(err))
+
+		m = map[string]int{}
+	}
+
+	if leaf := p.agent.Leaf(); leaf != nil && leaf.Leaf != nil {
+		m[pki.Fingerprint(leaf.Leaf)] = p.agent.NodeID
+	}
+
+	if len(m) == 0 {
+		return
+	}
+
+	p.pins.Store(&m)
 }
 
-// RefreshBundle reads the current bundle from the DB and stores it in
-// the cache. Safe to call concurrently. On error — including the "no
-// active roots yet" race during bootstrap — the previous cache entry
-// is preserved.
-func (p *pkiState) RefreshBundle(ctx context.Context) error {
-	p.bundleRefreshMu.Lock()
-	defer p.bundleRefreshMu.Unlock()
+// RefreshPins reads cluster_node_certs and replaces the cache.
+func (p *pkiState) RefreshPins(ctx context.Context, dbInstance *db.Database) error {
+	rows, err := dbInstance.ListClusterNodeCerts(ctx)
+	if err != nil {
+		return err
+	}
 
-	if p.issuer == nil {
+	m := make(map[string]int, len(rows))
+	for _, r := range rows {
+		m[r.Fingerprint] = r.NodeID
+	}
+
+	prev := p.pins.Load()
+
+	p.pins.Store(&m)
+
+	if prev == nil || len(*prev) == 0 {
+		logger.EllaLog.Info("cluster pin cache populated from DB",
+			zap.Int("pins", len(m)))
+
 		return nil
 	}
 
-	b, err := p.issuer.CurrentBundle(ctx)
-	if err != nil {
-		return err
-	}
+	added, removed := pinDelta(*prev, m)
 
-	prev := p.bundleCached.Load()
-	p.bundleCached.Store(b)
-
-	// One-shot breadcrumb when the DB-backed bundle first becomes
-	// usable. If this line is absent from a node serving cluster
-	// traffic, the listener is running on a seed-only bundle.
-	if prev == nil || len(prev.Roots) == 0 {
-		logger.EllaLog.Info("cluster PKI trust bundle populated from DB",
-			zap.Int("roots", len(b.Roots)),
-			zap.Int("intermediates", len(b.Intermediates)))
-	}
+	logger.EllaLog.Debug("cluster pin cache refreshed",
+		zap.Int("size", len(m)),
+		zap.Ints("added", added),
+		zap.Ints("removed", removed))
 
 	return nil
 }
 
-// refreshFollowerBundleWithRetry polls RefreshBundle until it succeeds
-// or timeout elapses. Covers the window where a joiner's
-// WaitForInitialization returns on the operator row before the
-// pki_roots rows have replicated.
-func refreshFollowerBundleWithRetry(ctx context.Context, pki *pkiState, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-
-	const interval = 200 * time.Millisecond
-
-	var lastErr error
-
-	for {
-		lastErr = pki.RefreshBundle(ctx)
-		if lastErr == nil {
-			return nil
-		}
-
-		if time.Now().After(deadline) {
-			return lastErr
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(interval):
+// pinDelta returns the nodeIDs that were added in next vs prev and
+// the nodeIDs that were removed.
+func pinDelta(prev, next map[string]int) (added, removed []int) {
+	for fp, nid := range next {
+		if _, ok := prev[fp]; !ok {
+			added = append(added, nid)
 		}
 	}
+
+	for fp, nid := range prev {
+		if _, ok := next[fp]; !ok {
+			removed = append(removed, nid)
+		}
+	}
+
+	return added, removed
 }
 
-// SeedBundleFromAgentDisk parses bundle.crt into a TrustBundle and
-// installs it in the cache. Runs at startup after the agent has
-// leaf files on disk, so the listener has a usable trust bundle
-// before raft replication makes the CA tables locally queryable.
-func (p *pkiState) SeedBundleFromAgentDisk(clusterID string) error {
-	bundlePath := p.agent.BundlePath()
+// pinRefreshInterval bounds how stale the in-memory cache can lag
+// the replicated state. Pin updates are rare (member add/remove or
+// rotation), so polling is cheap.
+const pinRefreshInterval = 30 * time.Second
 
-	pemBytes, err := os.ReadFile(bundlePath) // #nosec: G304 -- under dataDir
-	if err != nil {
-		return fmt.Errorf("read bundle %s: %w", bundlePath, err)
-	}
-
-	b := &ellapki.TrustBundle{ClusterID: clusterID}
-
-	rest := pemBytes
-
-	for {
-		var block *pem.Block
-
-		block, rest = pem.Decode(rest)
-		if block == nil {
-			break
-		}
-
-		if block.Type != "CERTIFICATE" {
-			continue
-		}
-
-		cert, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return fmt.Errorf("parse bundle cert: %w", err)
-		}
-
-		if bytes.Equal(cert.RawIssuer, cert.RawSubject) {
-			b.Roots = append(b.Roots, cert)
-		} else {
-			b.Intermediates = append(b.Intermediates, cert)
-		}
-	}
-
-	if len(b.Roots) == 0 {
-		return fmt.Errorf("bundle %s has no root certs", bundlePath)
-	}
-
-	p.bundleCached.Store(b)
-
-	return nil
-}
-
-// RefreshRevocations rebuilds the revocation cache from the DB.
-func (p *pkiState) RefreshRevocations(ctx context.Context, dbInstance *db.Database) error {
-	rows, err := dbInstance.ListRevokedCerts(ctx)
-	if err != nil {
-		return err
-	}
-
-	serials := make([]uint64, 0, len(rows))
-	for _, r := range rows {
-		if r.Serial >= 0 {
-			serials = append(serials, uint64(r.Serial))
-		}
-	}
-
-	p.revocation.Replace(serials)
-
-	return nil
-}
-
-// revocationRefreshInterval is the upper bound on how long the in-memory
-// revocation cache can lag the replicated state. Revocations are rare
-// (only on cluster-member removal), so polling is cheap and the bound
-// does not need to be tight.
-const revocationRefreshInterval = 30 * time.Second
-
-// runRevocationRefresher periodically rebuilds the revocation cache from
-// the DB so followers pick up new revocations applied via Raft. Blocks
-// until ctx is cancelled.
-func runRevocationRefresher(ctx context.Context, pki *pkiState, dbInstance *db.Database) {
-	t := time.NewTicker(revocationRefreshInterval)
+func runPinRefresher(ctx context.Context, pki *pkiState, dbInstance *db.Database) {
+	t := time.NewTicker(pinRefreshInterval)
 	defer t.Stop()
 
 	for {
@@ -207,16 +157,49 @@ func runRevocationRefresher(ctx context.Context, pki *pkiState, dbInstance *db.D
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if err := pki.RefreshRevocations(ctx, dbInstance); err != nil {
-				logger.EllaLog.Warn("periodic revocation refresh failed", zap.Error(err))
+			if err := pki.RefreshPins(ctx, dbInstance); err != nil {
+				logger.EllaLog.Warn("periodic pin refresh failed", zap.Error(err))
 			}
 		}
 	}
 }
 
+// rotateInterval is how often a node re-generates its self-signed
+// cert and re-pins it. The previous pin remains valid until the
+// new one commits, so a failed rotation is safe to retry.
+const rotateInterval = 90 * 24 * time.Hour
+
+func runRotator(ctx context.Context, p *pkiState, ln *listener.Listener, dbInstance *db.Database) {
+	t := time.NewTicker(rotateInterval)
+	defer t.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			leaderAddr, leaderID := dbInstance.LeaderAddressAndID()
+			if leaderAddr == "" || leaderID == 0 {
+				logger.EllaLog.Info("skip rotation: no leader yet")
+				continue
+			}
+
+			rotCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+
+			if err := p.agent.Rotate(rotCtx, ln, leaderAddr, leaderID); err != nil {
+				logger.EllaLog.Warn("cluster cert rotation failed; existing pin remains valid",
+					zap.Error(err))
+			} else {
+				logger.EllaLog.Info("cluster cert rotated successfully")
+			}
+
+			cancel()
+		}
+	}
+}
+
 // maybeRestoreFromBundle extracts restore.bundle under dataDir when
-// present and ella.db does not yet exist. Returns true if a restore
-// happened. No-op otherwise.
+// present and ella.db does not yet exist.
 func maybeRestoreFromBundle(dataDir string) (bool, error) {
 	bundlePath := filepath.Join(dataDir, "restore.bundle")
 
@@ -251,8 +234,8 @@ func maybeRestoreFromBundle(dataDir string) (bool, error) {
 	return true, nil
 }
 
-// runJoinFlow dials each peer in turn presenting token until one
-// accepts and issues a leaf. No-op if token is empty.
+// runJoinFlow dials each peer presenting token until one accepts and
+// registers this node's cert. No-op if token is empty.
 func runJoinFlow(ctx context.Context, agent *pkiagent.Agent, peers []string, token string) error {
 	if token == "" {
 		return nil
@@ -277,11 +260,47 @@ func runJoinFlow(ctx context.Context, agent *pkiagent.Agent, peers []string, tok
 
 		cancel()
 
-		logger.EllaLog.Info("join flow completed; leaf installed",
+		logger.EllaLog.Info("join flow completed; cert registered",
 			zap.String("peer", addr))
 
 		return nil
 	}
 
 	return fmt.Errorf("all peers rejected the join: %w", lastErr)
+}
+
+// refreshFollowerPinsWithRetry polls RefreshPins until at least
+// one pin lands or timeout elapses. Covers the window where a
+// joiner's WaitForInitialization returns on the operator row
+// before cluster_node_certs has replicated.
+func refreshFollowerPinsWithRetry(ctx context.Context, p *pkiState, dbInstance *db.Database, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+
+	const interval = 200 * time.Millisecond
+
+	var lastErr error
+
+	for {
+		lastErr = p.RefreshPins(ctx, dbInstance)
+		if lastErr == nil {
+			m := p.pins.Load()
+			if m != nil && len(*m) > 0 {
+				return nil
+			}
+		}
+
+		if time.Now().After(deadline) {
+			if lastErr != nil {
+				return lastErr
+			}
+
+			return fmt.Errorf("no pins replicated within %s", timeout)
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(interval):
+		}
+	}
 }

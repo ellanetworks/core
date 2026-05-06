@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"net"
 	"net/http"
 	"sync"
@@ -111,11 +110,9 @@ func TestProbePeer_LeaderReturns200(t *testing.T) {
 		BindAddress:      serverAddr,
 		AdvertiseAddress: serverAddr,
 		NodeID:           1,
-		TrustBundle:      pki.BundleFunc(),
+		Pin:              pki.PinFunc(),
 
 		Leaf: pki.LeafFunc(1),
-
-		Revoked: func(*big.Int) bool { return false },
 	})
 
 	startTestClusterHTTP(t, serverLn, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -145,11 +142,9 @@ func TestProbePeer_LeaderReturns200(t *testing.T) {
 		BindAddress:      "127.0.0.1:0",
 		AdvertiseAddress: "127.0.0.1:0",
 		NodeID:           2,
-		TrustBundle:      pki.BundleFunc(),
+		Pin:              pki.PinFunc(),
 
 		Leaf: pki.LeafFunc(2),
-
-		Revoked: func(*big.Int) bool { return false },
 	})
 
 	m := &Manager{clusterListener: clientLn}
@@ -183,11 +178,9 @@ func TestProbePeer_FollowerReturns200(t *testing.T) {
 		BindAddress:      serverAddr,
 		AdvertiseAddress: serverAddr,
 		NodeID:           1,
-		TrustBundle:      pki.BundleFunc(),
+		Pin:              pki.PinFunc(),
 
 		Leaf: pki.LeafFunc(1),
-
-		Revoked: func(*big.Int) bool { return false },
 	})
 
 	startTestClusterHTTP(t, serverLn, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -217,11 +210,9 @@ func TestProbePeer_FollowerReturns200(t *testing.T) {
 		BindAddress:      "127.0.0.1:0",
 		AdvertiseAddress: "127.0.0.1:0",
 		NodeID:           3,
-		TrustBundle:      pki.BundleFunc(),
+		Pin:              pki.PinFunc(),
 
 		Leaf: pki.LeafFunc(2),
-
-		Revoked: func(*big.Int) bool { return false },
 	})
 
 	m := &Manager{clusterListener: clientLn}
@@ -255,11 +246,9 @@ func TestProbePeer_FormingNode(t *testing.T) {
 		BindAddress:      serverAddr,
 		AdvertiseAddress: serverAddr,
 		NodeID:           1,
-		TrustBundle:      pki.BundleFunc(),
+		Pin:              pki.PinFunc(),
 
 		Leaf: pki.LeafFunc(1),
-
-		Revoked: func(*big.Int) bool { return false },
 	})
 
 	startTestClusterHTTP(t, serverLn, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -287,11 +276,9 @@ func TestProbePeer_FormingNode(t *testing.T) {
 		BindAddress:      "127.0.0.1:0",
 		AdvertiseAddress: "127.0.0.1:0",
 		NodeID:           2,
-		TrustBundle:      pki.BundleFunc(),
+		Pin:              pki.PinFunc(),
 
 		Leaf: pki.LeafFunc(2),
-
-		Revoked: func(*big.Int) bool { return false },
 	})
 
 	m := &Manager{clusterListener: clientLn}
@@ -331,11 +318,9 @@ func TestDiscoveryTick_DuplicateNodeIDFails(t *testing.T) {
 				BindAddress:      serverAddr,
 				AdvertiseAddress: serverAddr,
 				NodeID:           1,
-				TrustBundle:      pki.BundleFunc(),
+				Pin:              pki.PinFunc(),
 
 				Leaf: pki.LeafFunc(1),
-
-				Revoked: func(*big.Int) bool { return false },
 			})
 
 			cluster := &statusClusterBlock{
@@ -368,11 +353,9 @@ func TestDiscoveryTick_DuplicateNodeIDFails(t *testing.T) {
 				BindAddress:      "127.0.0.1:0",
 				AdvertiseAddress: "127.0.0.1:0",
 				NodeID:           2,
-				TrustBundle:      pki.BundleFunc(),
+				Pin:              pki.PinFunc(),
 
 				Leaf: pki.LeafFunc(2),
-
-				Revoked: func(*big.Int) bool { return false },
 			})
 
 			m := &Manager{
@@ -408,11 +391,9 @@ func TestProbePeer_503IsUnreachable(t *testing.T) {
 		BindAddress:      serverAddr,
 		AdvertiseAddress: serverAddr,
 		NodeID:           1,
-		TrustBundle:      pki.BundleFunc(),
+		Pin:              pki.PinFunc(),
 
 		Leaf: pki.LeafFunc(1),
-
-		Revoked: func(*big.Int) bool { return false },
 	})
 
 	startTestClusterHTTP(t, serverLn, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -432,11 +413,9 @@ func TestProbePeer_503IsUnreachable(t *testing.T) {
 		BindAddress:      "127.0.0.1:0",
 		AdvertiseAddress: "127.0.0.1:0",
 		NodeID:           2,
-		TrustBundle:      pki.BundleFunc(),
+		Pin:              pki.PinFunc(),
 
 		Leaf: pki.LeafFunc(2),
-
-		Revoked: func(*big.Int) bool { return false },
 	})
 
 	m := &Manager{clusterListener: clientLn}

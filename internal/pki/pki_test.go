@@ -3,180 +3,105 @@
 package pki_test
 
 import (
-	"crypto/x509"
+	"crypto/sha256"
+	"crypto/tls"
+	"encoding/hex"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/internal/pki"
 )
 
-func TestGenerateRootAndIntermediate(t *testing.T) {
-	root, rootKey, err := pki.GenerateRoot("cluster-abc", 24*time.Hour)
+func TestGenerateNodeCert_RoundTrip(t *testing.T) {
+	cert, key, err := pki.GenerateNodeCert(2, "test-cluster", time.Hour)
 	if err != nil {
-		t.Fatalf("GenerateRoot: %v", err)
+		t.Fatalf("generate: %v", err)
 	}
 
-	if !root.IsCA {
-		t.Fatal("root must be CA")
+	if cert.Subject.CommonName != "ella-node-2" {
+		t.Errorf("CN = %q, want ella-node-2", cert.Subject.CommonName)
 	}
 
-	if root.KeyUsage&x509.KeyUsageCertSign == 0 {
-		t.Fatal("root missing KeyUsageCertSign")
-	}
-
-	intCert, _, err := pki.GenerateIntermediate("cluster-abc", root, rootKey, 12*time.Hour)
+	clusterID, nodeID, err := pki.IdentityFromCert(cert)
 	if err != nil {
-		t.Fatalf("GenerateIntermediate: %v", err)
+		t.Fatalf("identity: %v", err)
 	}
 
-	if !intCert.IsCA {
-		t.Fatal("intermediate must be CA")
+	if clusterID != "test-cluster" || nodeID != 2 {
+		t.Errorf("identity = (%q, %d), want (test-cluster, 2)", clusterID, nodeID)
 	}
 
-	if !intCert.MaxPathLenZero {
-		t.Fatal("intermediate must have MaxPathLen=0")
+	// Self-signed: issuer == subject.
+	if string(cert.RawIssuer) != string(cert.RawSubject) {
+		t.Errorf("not self-signed (issuer != subject)")
 	}
 
-	// Verify intermediate chains to root.
-	roots := x509.NewCertPool()
-	roots.AddCert(root)
+	// Round-trip via PEM and tls.X509KeyPair.
+	certPEM := pki.EncodeCertPEM(cert)
 
-	if _, err := intCert.Verify(x509.VerifyOptions{Roots: roots, KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}); err != nil {
-		t.Fatalf("intermediate -> root chain: %v", err)
+	keyPEM, err := pki.EncodePrivateKeyPEM(key)
+	if err != nil {
+		t.Fatalf("encode key: %v", err)
+	}
+
+	if _, err := tls.X509KeyPair(certPEM, keyPEM); err != nil {
+		t.Errorf("tls.X509KeyPair: %v", err)
 	}
 }
 
-func TestSignLeaf_HappyPath(t *testing.T) {
-	clusterID := "test-cluster"
-
-	root, rootKey, err := pki.GenerateRoot(clusterID, 24*time.Hour)
+func TestFingerprint_Stable(t *testing.T) {
+	cert, _, err := pki.GenerateNodeCert(1, "c", time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	intCert, intKey, err := pki.GenerateIntermediate(clusterID, root, rootKey, 24*time.Hour)
+	fp := pki.Fingerprint(cert)
+	if !strings.HasPrefix(fp, "sha256:") {
+		t.Fatalf("missing prefix: %q", fp)
+	}
+
+	expected := sha256.Sum256(cert.Raw)
+	if fp != "sha256:"+hex.EncodeToString(expected[:]) {
+		t.Errorf("fingerprint mismatch")
+	}
+
+	raw, err := pki.ParseFingerprint(fp)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("parse: %v", err)
 	}
 
-	issuer := pki.NewIssuer(intCert, intKey, clusterID)
-
-	_, csrPEM, err := pki.GenerateKeyAndCSR(7, clusterID)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	csr, err := pki.ParseCSRPEM(csrPEM)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	leafPEM, err := issuer.SignLeaf(csr, 7, 1001, time.Hour)
-	if err != nil {
-		t.Fatalf("SignLeaf: %v", err)
-	}
-
-	leaf, err := pki.ParseCertPEM(leafPEM)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if leaf.SerialNumber.Uint64() != 1001 {
-		t.Fatalf("serial = %d, want 1001", leaf.SerialNumber.Uint64())
-	}
-
-	// 60s backdate + 1h TTL = 1h01m window.
-	total := leaf.NotAfter.Sub(leaf.NotBefore)
-	if total < time.Hour+50*time.Second || total > time.Hour+70*time.Second {
-		t.Fatalf("validity window = %s, want ~1h01m", total)
-	}
-
-	// Chain-verify through the bundle.
-	bundle := &pki.TrustBundle{
-		Roots:         []*x509.Certificate{root},
-		Intermediates: []*x509.Certificate{intCert},
-		ClusterID:     clusterID,
-	}
-
-	nodeID, err := bundle.Verify(leaf, time.Now())
-	if err != nil {
-		t.Fatalf("bundle.Verify: %v", err)
-	}
-
-	if nodeID != 7 {
-		t.Fatalf("verified node-id = %d, want 7", nodeID)
+	if string(raw) != string(expected[:]) {
+		t.Errorf("parsed bytes != source")
 	}
 }
 
-func TestSignLeaf_Rejections(t *testing.T) {
-	clusterID := "test-cluster"
-
-	root, rootKey, _ := pki.GenerateRoot(clusterID, 24*time.Hour)
-	intCert, intKey, _ := pki.GenerateIntermediate(clusterID, root, rootKey, 24*time.Hour)
-	issuer := pki.NewIssuer(intCert, intKey, clusterID)
-
-	cases := []struct {
-		name    string
-		nodeID  int
-		csrNode int
-		ttl     time.Duration
-		wantErr string
-	}{
-		{"ttl too short", 5, 5, 30 * time.Minute, "outside"},
-		{"ttl too long", 5, 5, 30 * 24 * time.Hour, "outside"},
-		{"nodeID mismatch", 5, 9, time.Hour, "does not match"},
-		{"nodeID out of range high", 100, 5, time.Hour, "outside"},
-		{"nodeID zero", 0, 5, time.Hour, "outside"},
+func TestIdentityFromCert_RoundTrip(t *testing.T) {
+	cert, _, err := pki.GenerateNodeCert(5, "abc", time.Hour)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			_, csrPEM, err := pki.GenerateKeyAndCSR(tc.csrNode, clusterID)
-			if err != nil {
-				t.Fatalf("GenerateKeyAndCSR: %v", err)
-			}
+	cid, nid, err := pki.IdentityFromCert(cert)
+	if err != nil {
+		t.Fatalf("identity: %v", err)
+	}
 
-			csr, err := pki.ParseCSRPEM(csrPEM)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			_, err = issuer.SignLeaf(csr, tc.nodeID, 1, tc.ttl)
-			if err == nil {
-				t.Fatal("expected error")
-			}
-
-			if !contains(err.Error(), tc.wantErr) {
-				t.Fatalf("err %q missing substring %q", err.Error(), tc.wantErr)
-			}
-		})
+	if cid != "abc" || nid != 5 {
+		t.Errorf("got (%s, %d) want (abc, 5)", cid, nid)
 	}
 }
 
-func TestFingerprint(t *testing.T) {
-	root, _, _ := pki.GenerateRoot("x", 24*time.Hour)
-
-	fp := pki.Fingerprint(root)
-	if len(fp) != len("sha256:")+64 {
-		t.Fatalf("unexpected fingerprint length: %d", len(fp))
+func TestGenerateNodeCert_Bounds(t *testing.T) {
+	if _, _, err := pki.GenerateNodeCert(0, "c", time.Hour); err == nil {
+		t.Error("expected error for nodeID=0")
 	}
 
-	if fp[:7] != "sha256:" {
-		t.Fatalf("fingerprint missing sha256: prefix")
+	if _, _, err := pki.GenerateNodeCert(64, "c", time.Hour); err == nil {
+		t.Error("expected error for nodeID=64")
 	}
 
-	// Deterministic.
-	if pki.Fingerprint(root) != fp {
-		t.Fatal("fingerprint is not deterministic")
+	if _, _, err := pki.GenerateNodeCert(1, "", time.Hour); err == nil {
+		t.Error("expected error for empty clusterID")
 	}
-}
-
-func contains(s, sub string) bool {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-
-	return false
 }
