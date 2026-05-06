@@ -24,13 +24,24 @@ func DefaultDataNetworkSpec() DataNetworkSpec {
 	}
 }
 
-// DataNetwork creates the baseline data network if none with the given
-// name exists. A pre-existing DN is left untouched; scenarios needing
-// specific DN parameters must use a distinct name.
+// DataNetwork upserts the baseline data network: when it already exists
+// (e.g. Core's seeded "internet"), its configuration is overwritten to
+// match spec. A pre-existing DN is never left with mismatched parameters;
+// scenarios needing specific DN parameters must use a distinct name.
 func (f *F) DataNetwork(spec DataNetworkSpec) {
 	f.t.Helper()
 
 	if _, err := f.c.GetDataNetwork(f.ctx, &client.GetDataNetworkOptions{Name: spec.Name}); err == nil {
+		if err := f.c.UpdateDataNetwork(f.ctx, &client.UpdateDataNetworkOptions{
+			Name:     spec.Name,
+			IPPool:   spec.IPPool,
+			IPv6Pool: spec.IPv6Pool,
+			DNS:      spec.DNS,
+			Mtu:      spec.MTU,
+		}); err != nil {
+			f.fatalf("update data network %q: %v", spec.Name, err)
+		}
+
 		return
 	}
 

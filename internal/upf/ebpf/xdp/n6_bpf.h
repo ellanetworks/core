@@ -324,6 +324,16 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		return XDP_DROP;
 
 	__u8 tos = far->transport_level_marking >> 8;
-	upf_printk("upf: use mapping %pI6c -> TEID:%d", &ip6->daddr, far->teid);
+
+	/* Update downlink traffic counter */
+	{
+		__u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+		ctx->statistics->byte_counter.bytes += packet_size;
+	}
+
+	__u32 urr_id = pdr->urr_id;
+	update_urr_bytes(ctx, urr_id);
+	/* Flow accounting is IPv4-only; not called for IPv6 downlink. */
+
 	return send_to_gtp_tunnel(ctx, far, tos, qer->qfi);
 }

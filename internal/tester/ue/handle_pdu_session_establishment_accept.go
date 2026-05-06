@@ -14,7 +14,7 @@ func handlePDUSessionEstablishmentAccept(ue *UE, msg *nasMessage.PDUSessionEstab
 	pduAddrInfo := msg.GetPDUAddressInformation()
 	pduSessionType := msg.SelectedSSCModeAndSelectedPDUSessionType.Octet & 0x07
 
-	ueIP, err := testutil.UEIPFromNAS(pduAddrInfo)
+	ueIP, err := testutil.UEIPFromNAS(pduSessionType, pduAddrInfo)
 	if err != nil {
 		return fmt.Errorf("could not get UE IP from NAS PDU Address Information: %v", err)
 	}

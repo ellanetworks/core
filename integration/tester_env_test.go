@@ -169,9 +169,9 @@ func bootstrapTesterCore(ctx context.Context, cl *client.Client) error {
 }
 
 // RunScenario invokes `core-tester run <scenario>` in the sidecar,
-// injecting --ella-core-n2-address and --gnb from the compose topology.
-// Fails the subtest on non-zero exit. stdout/stderr mirror to the test
-// log.
+// injecting --ella-core-n2-address, --gnb, and --ip-version from the
+// compose topology. Fails the subtest on non-zero exit. stdout/stderr
+// mirror to the test log.
 func (e *testerEnv) RunScenario(ctx context.Context, t *testing.T, scenario string, extraArgs ...string) {
 	t.Helper()
 

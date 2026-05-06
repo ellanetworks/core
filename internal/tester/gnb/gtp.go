@@ -8,6 +8,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"strings"
+	"time"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/songgao/water"
@@ -23,6 +25,7 @@ const (
 type Tunnel struct {
 	Name    string
 	tunIF   *water.Interface
+	link    netlink.Link
 	upfAddr *net.UDPAddr
 	ulteid  uint32
 	dlteid  uint32
@@ -57,6 +60,37 @@ func (g *GnodeB) AddTunnel(opts *NewTunnelOpts) (*Tunnel, error) {
 		return nil, fmt.Errorf("cannot read TUN interface: %v", err)
 	}
 
+	err = netlink.LinkSetUp(eth)
+	if err != nil {
+		return nil, fmt.Errorf("could not set TUN interface UP: %v", err)
+	}
+
+	// Give the kernel time to auto-generate the link-local address
+	// before we try to remove it.
+	time.Sleep(20 * time.Millisecond)
+
+	err = netlink.LinkSetMTU(eth, int(opts.MTU))
+	if err != nil {
+		return nil, fmt.Errorf("could not set MTU on TUN interface: %v", err)
+	}
+
+	// Delete the kernel's auto-generated link-local address so that
+	// we can add our own (derived from the IID received in the PDU
+	// Session Establishment Accept). The kernel needs a link-local
+	// source address to send Router Solicitations.
+	for i := 0; i < 3; i++ {
+		err = delAutoLinkLocal(eth)
+		if err == nil {
+			break
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("could not clean up auto-assigned link-local addresses: %v", err)
+	}
+
 	if opts.UEIP != "" {
 		ueAddr, err := netlink.ParseAddr(opts.UEIP)
 		if err != nil {
@@ -81,19 +115,12 @@ func (g *GnodeB) AddTunnel(opts *NewTunnelOpts) (*Tunnel, error) {
 		}
 	}
 
-	err = netlink.LinkSetMTU(eth, int(opts.MTU))
-	if err != nil {
-		return nil, fmt.Errorf("could not set MTU on TUN interface: %v", err)
-	}
+	time.Sleep(3 * time.Second)
 
-	err = netlink.LinkSetUp(eth)
-	if err != nil {
-		return nil, fmt.Errorf("could not set TUN interface UP: %v", err)
-	}
-
-	tunnel := &Tunnel{
+	t := &Tunnel{
 		Name:   ifce.Name(),
 		tunIF:  ifce,
+		link:   eth,
 		ulteid: opts.ULteid,
 		dlteid: opts.DLteid,
 		upfAddr: &net.UDPAddr{
@@ -104,12 +131,20 @@ func (g *GnodeB) AddTunnel(opts *NewTunnelOpts) (*Tunnel, error) {
 	}
 
 	g.mu.Lock()
-	g.tunnels[opts.DLteid] = tunnel
+	g.tunnels[opts.DLteid] = t
 	g.mu.Unlock()
 
-	go tunToGtp(g.N3Conn, tunnel)
+	go tunToGtp(g.N3Conn, t)
 
-	return tunnel, nil
+	// Add a route so the kernel knows how to reach the N6 network
+	// through this TUN interface. Without this, ping6 returns
+	// "Network is unreachable" because the kernel has no route
+	// to the N6 subnet (fd00:6::/64) in the container's routing table.
+	if err := addTunRoute(eth); err != nil {
+		return nil, fmt.Errorf("could not add route for N6 network via TUN interface: %v", err)
+	}
+
+	return t, nil
 }
 
 func (g *GnodeB) CloseTunnel(dlteid uint32) error {
@@ -119,6 +154,12 @@ func (g *GnodeB) CloseTunnel(dlteid uint32) error {
 	t, ok := g.tunnels[dlteid]
 	if !ok {
 		return fmt.Errorf("no tunnel with DL TEID %d", dlteid)
+	}
+
+	if t.link != nil {
+		if err := delTunRoute(t.link); err != nil {
+			logger.GnbLogger.Error("error deleting TUN route", zap.String("if", t.Name), zap.Error(err))
+		}
 	}
 
 	err := t.tunIF.Close()
@@ -279,4 +320,113 @@ func tunToGtp(conn *net.UDPConn, t *Tunnel) {
 			zap.Int("TEID", int(t.ulteid)),
 		)
 	}
+}
+
+func delAutoLinkLocal(eth netlink.Link) error {
+	addrs, err := netlink.AddrList(eth, netlink.FAMILY_V6)
+	if err != nil {
+		return fmt.Errorf("could not list IPv6 addresses: %v", err)
+	}
+
+	for _, addr := range addrs {
+		if addr.IP.IsLinkLocalUnicast() {
+			if err := netlink.AddrDel(eth, &addr); err != nil {
+				return fmt.Errorf("could not delete link-local address %s: %v", addr.IP.String(), err)
+			}
+
+			logger.GnbLogger.Debug("Deleted link-local address", zap.String("address", addr.IP.String()))
+		}
+	}
+
+	return nil
+}
+
+// addTunRoute adds an IPv6 route to the N6 network (fd00:6::/64) via the
+// given TUN interface. This is needed because the container's routing table
+// does not have a route to the N6 network — the only path is through the
+// GTP tunnel, which requires the kernel to deliver packets to the TUN
+// interface.
+func addTunRoute(eth netlink.Link) error {
+	_, dst, err := net.ParseCIDR("fd00:6::/64")
+	if err != nil {
+		return fmt.Errorf("parse N6 subnet: %w", err)
+	}
+
+	route := &netlink.Route{
+		LinkIndex: eth.Attrs().Index,
+		Scope:     netlink.SCOPE_UNIVERSE,
+		Dst:       dst,
+	}
+
+	if err := netlink.RouteAdd(route); err != nil {
+		// Ignore "file exists" errors — another tunnel already added it.
+		if !strings.Contains(err.Error(), "exists") {
+			return fmt.Errorf("add route fd00:6::/64 via %s: %w", eth.Attrs().Name, err)
+		}
+	}
+
+	logger.GnbLogger.Debug("Added route for N6 network via TUN interface", zap.String("interface", eth.Attrs().Name))
+
+	return nil
+}
+
+// delTunRoute removes the IPv6 route to the N6 network from the given TUN
+// interface.
+func delTunRoute(eth netlink.Link) error {
+	_, dst, err := net.ParseCIDR("fd00:6::/64")
+	if err != nil {
+		return fmt.Errorf("parse N6 subnet: %w", err)
+	}
+
+	route := &netlink.Route{
+		LinkIndex: eth.Attrs().Index,
+		Scope:     netlink.SCOPE_UNIVERSE,
+		Dst:       dst,
+	}
+
+	if err := netlink.RouteDel(route); err != nil {
+		logger.GnbLogger.Debug("Could not delete route (may not exist)", zap.String("interface", eth.Attrs().Name), zap.Error(err))
+	}
+
+	return nil
+}
+
+// WaitForULAAddr waits for an IPv6 ULA address to appear on the given
+// TUN interface. After the TUN interface is configured with the
+// link-local address (fe80::IID), the kernel sends a Router
+// Solicitation, the core responds with a Router Advertisement
+// containing the delegated prefix (e.g. fd45::/64), and the kernel
+// auto-configures the ULA address. This function polls until that
+// address appears or the timeout expires.
+func WaitForULAAddr(ifName string, prefix string, timeout time.Duration) error {
+	start := time.Now()
+
+	for time.Since(start) < timeout {
+		link, err := netlink.LinkByName(ifName)
+		if err != nil {
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+
+		addrs, err := netlink.AddrList(link, netlink.FAMILY_V6)
+		if err != nil {
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+
+		for _, addr := range addrs {
+			if addr.IP.IsGlobalUnicast() && addr.IP.String()[:3] == prefix[:3] {
+				logger.GnbLogger.Debug("ULA address appeared on TUN interface",
+					zap.String("interface", ifName),
+					zap.String("address", addr.IP.String()),
+				)
+
+				return nil
+			}
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	return fmt.Errorf("timeout waiting for ULA address on %s (prefix %s)", ifName, prefix)
 }

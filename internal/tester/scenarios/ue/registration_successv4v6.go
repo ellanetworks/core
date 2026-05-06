@@ -99,7 +99,7 @@ func runRegistrationSuccessV4V6(_ context.Context, env scenarios.Env, _ any) err
 	err = runInitialRegistration(&initialRegistrationOpts{
 		RANUENGAPID:            int64(scenarios.DefaultRANUENGAPID),
 		PDUSessionID:           scenarios.DefaultPDUSessionID,
-		ExpectedPDUSessionType: nasMessage.PDUSessionTypeIPv4,
+		ExpectedPDUSessionType: nasMessage.PDUSessionTypeIPv4IPv6,
 		UE:                     newUE,
 		GnodeB:                 gNodeB,
 	})

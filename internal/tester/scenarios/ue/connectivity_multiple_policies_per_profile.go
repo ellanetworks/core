@@ -177,7 +177,11 @@ func runConnectivityTestWithDNN(
 	}
 
 	uePduSession := newUE.GetPDUSession(scenarios.DefaultPDUSessionID)
+
 	ueIP := uePduSession.UEIP + ipPrefix
+	if pduSessionType == scenarios.DefaultPDUSessionTypeIPv6 {
+		ueIP = uePduSession.UEIPV6 + ipPrefix
+	}
 
 	gnbPDUSession, err := gNodeB.WaitForPDUSession(ranUENGAPID, int64(scenarios.DefaultPDUSessionID), 5*time.Second)
 	if err != nil {

@@ -100,12 +100,14 @@ func PDUSessionEstablishmentAccept(nasMsg *nas.Message, opts *ExpectedPDUSession
 		return fmt.Errorf("unexpected PDUSessionID: %d", pduSessionId)
 	}
 
-	ueIP, err := testutil.UEIPFromNAS(nasMsg.GetPDUAddressInformation())
+	ueIP, err := testutil.UEIPFromNAS(opts.PDUSessionType, nasMsg.GetPDUAddressInformation())
 	if err != nil {
 		return fmt.Errorf("could not get UE IP from NAS PDU Address Information: %v", err)
 	}
 
-	if !opts.UeIPSubnet.Contains(ueIP) {
+	if !ueIP.IsValid() {
+		// IPv6-only PDU session — no IPv4 address to validate
+	} else if !opts.UeIPSubnet.Contains(ueIP) {
 		return fmt.Errorf("UE IP %s is not contained in expected subnet %s", ueIP.String(), opts.UeIPSubnet.String())
 	}
 

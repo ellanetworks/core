@@ -177,6 +177,11 @@ func runConnectivityDualStack(ctx context.Context, env scenarios.Env, _ any) err
 		zap.String("UE IPv6", ueIPv6),
 	)
 
+	err = gnb.WaitForULAAddr(tunName, scenarios.DefaultUEIPv6Pool, 5*time.Second)
+	if err != nil {
+		return fmt.Errorf("timeout waiting for ULA address on %s: %v", tunName, err)
+	}
+
 	cmd := exec.CommandContext(ctx, "ping", "-I", tunName, scenarios.DefaultPingDestination, "-c", "3", "-W", "1") // #nosec G204 -- test constants only, no user input
 
 	out, err := cmd.CombinedOutput()

@@ -42,6 +42,12 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 	"ue/connectivity_ipv6": {
 		IPv4Only: true,
 	},
+	"ue/connectivity_multi_pdu_session": {
+		IPv6Only: true,
+	},
+	"ue/connectivity_multiple_policies_per_profile": {
+		IPv6Only: true,
+	},
 	"enb/connectivity": {
 		IPv6Only:  true,
 		DualStack: true,
@@ -118,7 +124,17 @@ func TestIntegrationTester(t *testing.T) {
 			fx := fixture.New(t, ctx, env.Client)
 			fx.Apply(spec)
 
-			env.RunScenario(ctx, t, name, spec.ExtraArgs...)
+			// Only pass --ip-version to scenarios that are explicitly
+			// IPv6-specific (listed in scenarioIPFamilyRestrictions).
+			// Other scenarios should default to IPv4.
+			var extraArgs []string
+			if requiredFamily, ok := scenarioIPFamilyRestrictions[name]; ok {
+				extraArgs = append(extraArgs, "--ip-version", string(requiredFamily))
+			}
+
+			extraArgs = append(extraArgs, spec.ExtraArgs...)
+
+			env.RunScenario(ctx, t, name, extraArgs...)
 
 			if len(spec.AssertUsageForIMSIs) > 0 {
 				fixture.AssertUsagePositive(ctx, t, env.Client, spec.AssertUsageForIMSIs, 30*time.Second)

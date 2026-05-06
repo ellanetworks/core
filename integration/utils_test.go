@@ -137,9 +137,15 @@ func waitForEllaCoreReady(ctx context.Context, cl *client.Client) error {
 		case <-timer:
 			return fmt.Errorf("timeout waiting for ella core to be ready")
 		default:
-			_, err := cl.GetStatus(ctx)
+			status, err := cl.GetStatus(ctx)
 			if err != nil {
 				time.Sleep(2 * time.Second)
+				continue
+			}
+
+			if !status.Ready {
+				// Phase A: discovery handler active, full API not yet available.
+				time.Sleep(500 * time.Millisecond)
 				continue
 			}
 

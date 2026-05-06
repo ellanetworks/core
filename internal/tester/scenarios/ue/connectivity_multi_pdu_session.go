@@ -319,8 +319,14 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 	tun1 := gtpInterfaceNamePrefix + "mp0"
 	tun2 := gtpInterfaceNamePrefix + "mp1"
 
-	ueIP1 := uePDU1.UEIP + env.UIPrefix()
-	ueIP2 := uePDU2.UEIP + env.UIPrefix()
+	var ueIP1, ueIP2 string
+	if ipFamily == scenarios.IPv6Only {
+		ueIP1 = uePDU1.UEIPV6 + env.UIPrefix()
+		ueIP2 = uePDU2.UEIPV6 + env.UIPrefix()
+	} else {
+		ueIP1 = uePDU1.UEIP + env.UIPrefix()
+		ueIP2 = uePDU2.UEIP + env.UIPrefix()
+	}
 
 	_, err = gNodeB.AddTunnel(&gnb.NewTunnelOpts{
 		UEIP:             ueIP1,

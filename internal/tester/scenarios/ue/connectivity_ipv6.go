@@ -155,7 +155,7 @@ func runConnectivityIPv6Test(
 	}
 
 	uePduSession := newUE.GetPDUSession(scenarios.DefaultPDUSessionID)
-	ueIP := uePduSession.UEIP + "/64"
+	ueIP := uePduSession.UEIPV6 + "/64"
 
 	gnbPDUSession, err := gNodeB.WaitForPDUSession(ranUENGAPID, int64(scenarios.DefaultPDUSessionID), 5*time.Second)
 	if err != nil {
@@ -193,6 +193,11 @@ func runConnectivityIPv6Test(
 		zap.Uint32("UL TEID", gnbPDUSession.ULTeid),
 		zap.Uint32("DL TEID", gnbPDUSession.DLTeid),
 	)
+
+	err = gnb.WaitForULAAddr(tunInterfaceName, scenarios.DefaultUEIPv6Pool, 5*time.Second)
+	if err != nil {
+		return fmt.Errorf("timeout waiting for ULA address on %s: %v", tunInterfaceName, err)
+	}
 
 	cmd := exec.CommandContext(ctx, "ping6", "-I", tunInterfaceName, scenarios.DefaultPingDestinationV6, "-c", "3", "-W", "1") // #nosec G204 -- test constants only, no user input
 
@@ -285,6 +290,11 @@ func runConnectivityIPv6Test(
 		zap.Uint32("UL TEID", pduSession.ULTeid),
 		zap.Uint32("DL TEID", pduSession.DLTeid),
 	)
+
+	err = gnb.WaitForULAAddr(tunInterfaceName, scenarios.DefaultUEIPv6Pool, 5*time.Second)
+	if err != nil {
+		return fmt.Errorf("timeout waiting for ULA address on %s after service request: %v", tunInterfaceName, err)
+	}
 
 	cmd = exec.CommandContext(ctx, "ping6", "-I", tunInterfaceName, scenarios.DefaultPingDestinationV6, "-c", "3", "-W", "1") // #nosec G204 -- test constants only, no user input
 
