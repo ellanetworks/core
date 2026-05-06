@@ -46,28 +46,27 @@ func loadPKIIssuer() *pkiissuer.Service {
 	return pkiIssuerService.Load()
 }
 
-// revocationRefresherFn is the callback invoked after a leader-side
-// batch of revocations has been committed, so the local in-memory
-// revocation cache picks up the new serials without waiting for the
-// 30 s periodic refresher. Installed by runtime via
-// SetRevocationRefresher; nil is a no-op.
-var revocationRefresherFn atomic.Pointer[func(context.Context)]
+// pinRefresherFn is the runtime callback that rebuilds the local
+// in-memory cluster_node_certs cache. Invoked by handlers that
+// mutate the registry (ClusterPKIRegister, RemoveClusterMember) so
+// the cache picks up the change immediately instead of waiting for
+// the periodic refresher.
+var pinRefresherFn atomic.Pointer[func(context.Context)]
 
-// SetRevocationRefresher installs a callback the leader invokes after
-// writing revocation rows so its own revocation cache stays in sync
-// with the replicated state. Pass nil to uninstall.
-func SetRevocationRefresher(fn func(context.Context)) {
+// SetPinRefresher installs the runtime's pin-refresh callback;
+// passing nil uninstalls it.
+func SetPinRefresher(fn func(context.Context)) {
 	if fn == nil {
-		revocationRefresherFn.Store(nil)
+		pinRefresherFn.Store(nil)
 
 		return
 	}
 
-	revocationRefresherFn.Store(&fn)
+	pinRefresherFn.Store(&fn)
 }
 
-func refreshLocalRevocations(ctx context.Context) {
-	if fn := revocationRefresherFn.Load(); fn != nil {
+func nudgePinCache(ctx context.Context) {
+	if fn := pinRefresherFn.Load(); fn != nil {
 		(*fn)(ctx)
 	}
 }
@@ -115,14 +114,11 @@ func newClusterMux(dbInstance *db.Database) *http.ServeMux {
 	mux.Handle("GET "+InternalAutopilotPath, removedNodeFence(dbInstance, ClusterAutopilotState(dbInstance)))
 	mux.Handle("POST "+raft.ProposeForwardPath, removedNodeFence(dbInstance, ClusterPropose(dbInstance)))
 
-	// PKI endpoints on the cluster HTTP ALPN. The issuer service is
-	// not available until the first leader election has populated it;
-	// handlers look up pkiIssuerService at request time.
-	mux.Handle("POST /cluster/pki/issue", pkiEndpoint(func(svc *pkiissuer.Service) http.Handler {
-		return ClusterPKIIssue(svc)
-	}))
-	mux.Handle("POST /cluster/pki/renew", pkiEndpoint(func(svc *pkiissuer.Service) http.Handler {
-		return ClusterPKIRenew(dbInstance, svc)
+	// PKI register endpoint on the cluster HTTP ALPN. The issuer
+	// service becomes available after the first leader election;
+	// pkiEndpoint resolves it at request time and 503s before then.
+	mux.Handle("POST /cluster/pki/register", pkiEndpoint(func(svc *pkiissuer.Service) http.Handler {
+		return ClusterPKIRegister(svc)
 	}))
 
 	return mux

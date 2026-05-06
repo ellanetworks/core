@@ -257,6 +257,7 @@ type (
 func isTransientRaftErr(err error) bool {
 	return errors.Is(err, hraft.ErrEnqueueTimeout) ||
 		errors.Is(err, hraft.ErrLeadershipLost) ||
+		errors.Is(err, hraft.ErrLeadershipTransferInProgress) ||
 		errors.Is(err, hraft.ErrRaftShutdown)
 }
 

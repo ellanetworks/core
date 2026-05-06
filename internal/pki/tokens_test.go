@@ -22,7 +22,7 @@ func TestToken_RoundTrip(t *testing.T) {
 		NodeID:        2,
 		IssuedAt:      time.Now().Unix(),
 		ExpiresAt:     time.Now().Add(15 * time.Minute).Unix(),
-		CAFingerprint: "sha256:abc",
+		LeaderCertPin: "sha256:abc",
 		ClusterID:     "test-cluster",
 	}
 
@@ -51,7 +51,7 @@ func TestToken_WrongKey(t *testing.T) {
 		NodeID:        2,
 		IssuedAt:      time.Now().Unix(),
 		ExpiresAt:     time.Now().Add(time.Hour).Unix(),
-		CAFingerprint: "sha256:abc",
+		LeaderCertPin: "sha256:abc",
 		ClusterID:     "test-cluster",
 	}
 
@@ -71,7 +71,7 @@ func TestToken_Tampered(t *testing.T) {
 		NodeID:        2,
 		IssuedAt:      time.Now().Unix(),
 		ExpiresAt:     time.Now().Add(time.Hour).Unix(),
-		CAFingerprint: "sha256:abc",
+		LeaderCertPin: "sha256:abc",
 		ClusterID:     "test-cluster",
 	}
 
@@ -95,7 +95,7 @@ func TestToken_Expired(t *testing.T) {
 		NodeID:        2,
 		IssuedAt:      time.Now().Add(-2 * time.Hour).Unix(),
 		ExpiresAt:     time.Now().Add(-time.Hour).Unix(),
-		CAFingerprint: "sha256:abc",
+		LeaderCertPin: "sha256:abc",
 		ClusterID:     "test-cluster",
 	}
 
@@ -115,7 +115,7 @@ func TestToken_FutureIssued(t *testing.T) {
 		NodeID:        2,
 		IssuedAt:      time.Now().Add(time.Hour).Unix(),
 		ExpiresAt:     time.Now().Add(2 * time.Hour).Unix(),
-		CAFingerprint: "sha256:abc",
+		LeaderCertPin: "sha256:abc",
 		ClusterID:     "test-cluster",
 	}
 
@@ -148,7 +148,7 @@ func TestExtractClaimsUnverified_ReadsFingerprint(t *testing.T) {
 		NodeID:        7,
 		IssuedAt:      time.Now().Unix(),
 		ExpiresAt:     time.Now().Add(time.Hour).Unix(),
-		CAFingerprint: "sha256:deadbeef",
+		LeaderCertPin: "sha256:deadbeef",
 		ClusterID:     "test-cluster",
 	}
 
@@ -163,8 +163,8 @@ func TestExtractClaimsUnverified_ReadsFingerprint(t *testing.T) {
 		t.Fatalf("ExtractClaimsUnverified: %v", err)
 	}
 
-	if got.CAFingerprint != "sha256:deadbeef" {
-		t.Fatalf("fingerprint = %q", got.CAFingerprint)
+	if got.LeaderCertPin != "sha256:deadbeef" {
+		t.Fatalf("fingerprint = %q", got.LeaderCertPin)
 	}
 
 	if got.NodeID != 7 {
@@ -182,7 +182,7 @@ func TestMint_MissingFingerprint(t *testing.T) {
 		ExpiresAt: 10,
 	})
 	if err == nil {
-		t.Fatal("mint without CAFingerprint must be rejected")
+		t.Fatal("mint without LeaderCertPin must be rejected")
 	}
 }
 
@@ -204,7 +204,7 @@ func TestMint_ShortKey(t *testing.T) {
 		NodeID:        1,
 		IssuedAt:      1,
 		ExpiresAt:     10,
-		CAFingerprint: "sha256:abc",
+		LeaderCertPin: "sha256:abc",
 		ClusterID:     "test-cluster",
 	})
 	if err == nil {

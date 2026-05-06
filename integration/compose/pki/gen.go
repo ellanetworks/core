@@ -1,8 +1,15 @@
 //go:build ignore
 
-// gen.go generates the static test PKI used by the HA integration tests.
+// gen.go regenerates the per-node self-signed cluster certs used by
+// the HA integration tests.
+//
 // Run once with:  go run gen.go
 // The output PEM files are checked into the repository.
+//
+// Post-v12: there is no CA. Each node owns a self-signed cluster
+// cert; trust is established at runtime via cluster_node_certs pins.
+// The integration harness either pre-seeds the pins in each node's
+// DB or relies on the join-token flow to register them.
 
 package main
 
@@ -10,11 +17,14 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"net/url"
 	"os"
 	"time"
 )
@@ -23,66 +33,52 @@ func main() {
 	notBefore := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	notAfter := time.Date(2036, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		panic(err)
-	}
-
-	caTemplate := &x509.Certificate{
-		SerialNumber:          big.NewInt(1),
-		Subject:               pkix.Name{CommonName: "ella-test-ca"},
-		NotBefore:             notBefore,
-		NotAfter:              notAfter,
-		IsCA:                  true,
-		BasicConstraintsValid: true,
-		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
-	}
-
-	caDER, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, &caKey.PublicKey, caKey)
-	if err != nil {
-		panic(err)
-	}
-
-	caCert, err := x509.ParseCertificate(caDER)
-	if err != nil {
-		panic(err)
-	}
-
-	writePEM("ca.pem", "CERTIFICATE", caDER)
+	clusterID := "ella-test-cluster"
 
 	for _, nodeID := range []int{1, 2, 3, 4} {
-		leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
 			panic(err)
 		}
 
 		cn := fmt.Sprintf("ella-node-%d", nodeID)
 
-		leafTemplate := &x509.Certificate{
-			SerialNumber: big.NewInt(int64(nodeID + 1)),
-			Subject:      pkix.Name{CommonName: cn},
-			DNSNames:     []string{cn},
-			NotBefore:    notBefore,
-			NotAfter:     notAfter,
-			KeyUsage:     x509.KeyUsageDigitalSignature,
-			ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		uri := &url.URL{
+			Scheme: "spiffe",
+			Host:   "cluster.ella",
+			Path:   fmt.Sprintf("/%s/node/%d", clusterID, nodeID),
 		}
 
-		leafDER, err := x509.CreateCertificate(rand.Reader, leafTemplate, caCert, &leafKey.PublicKey, caKey)
+		template := &x509.Certificate{
+			SerialNumber:          big.NewInt(int64(nodeID + 1)),
+			Subject:               pkix.Name{CommonName: cn},
+			URIs:                  []*url.URL{uri},
+			NotBefore:             notBefore,
+			NotAfter:              notAfter,
+			KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+			ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+			BasicConstraintsValid: true,
+		}
+
+		der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
 		if err != nil {
 			panic(err)
 		}
 
-		keyDER, err := x509.MarshalECPrivateKey(leafKey)
+		keyDER, err := x509.MarshalECPrivateKey(key)
 		if err != nil {
 			panic(err)
 		}
 
-		writePEM(fmt.Sprintf("node%d-cert.pem", nodeID), "CERTIFICATE", leafDER)
+		writePEM(fmt.Sprintf("node%d-cert.pem", nodeID), "CERTIFICATE", der)
 		writePEM(fmt.Sprintf("node%d-key.pem", nodeID), "EC PRIVATE KEY", keyDER)
+
+		sum := sha256.Sum256(der)
+
+		fmt.Printf("node %d: sha256:%s\n", nodeID, hex.EncodeToString(sum[:]))
 	}
 
-	fmt.Println("PKI generated: ca.pem, node{1..4}-{cert,key}.pem")
+	fmt.Println("self-signed cluster certs regenerated")
 }
 
 func writePEM(filename, blockType string, data []byte) {

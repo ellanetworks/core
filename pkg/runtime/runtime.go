@@ -131,8 +131,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 		restoredFromBundle = restored
 
-		// cluster-id is unknown at construction; the agent re-reads it
-		// before signing CSRs.
+		// cluster-id is unknown at construction; on a fresh first
+		// boot the agent gets it from the leader-init path; on a
+		// joining node it gets it from the join token's claims;
+		// across restarts it's recovered from the on-disk leaf's
+		// SPIFFE URI.
 		pki = newPKIState(cfg.Cluster.NodeID, "", dataDir)
 
 		// Join-token path runs before the listener comes up so raft
@@ -148,24 +151,18 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 				return fmt.Errorf("load leaf: %w", err)
 			}
 
-			// Seed the listener's trust bundle from bundle.crt.
-			// Without this, incoming mTLS would be rejected until
-			// RefreshBundle fires — which requires raft to replicate,
-			// which itself requires working mTLS.
-			if pki.agent.ClusterID != "" {
-				if err := pki.SeedBundleFromAgentDisk(pki.agent.ClusterID); err != nil {
-					return fmt.Errorf("seed trust bundle: %w", err)
-				}
-			}
+			// Seed the in-memory pin map with at least our own
+			// fingerprint, so the listener can answer handshakes
+			// before raft replication of cluster_node_certs lands.
+			pki.SeedPinsFromAgentDisk()
 		}
 
 		clusterLn = listener.New(listener.Config{
 			BindAddress:      cfg.Cluster.BindAddress,
 			AdvertiseAddress: cfg.Cluster.AdvertiseAddress,
 			NodeID:           cfg.Cluster.NodeID,
-			TrustBundle:      pki.BundleFunc(),
+			Pin:              pki.PinFunc(),
 			Leaf:             pki.LeafFunc(),
-			Revoked:          pki.RevokedFunc(),
 		})
 		raftOpts = append(raftOpts, ellaraft.WithClusterListener(clusterLn))
 	}
@@ -179,12 +176,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	logger.SetDb(bufferedWriter)
 
 	if pki != nil {
-		// Let the leader-side revocation handler nudge our local cache
-		// as soon as revocation rows are written, so new handshakes on
-		// this node see them without waiting for the 30 s refresher.
-		server.SetRevocationRefresher(func(ctx context.Context) {
-			if err := pki.RefreshRevocations(ctx, dbInstance); err != nil {
-				logger.EllaLog.Warn("immediate revocation refresh failed", zap.Error(err))
+		// Let the leader-side membership-change handler nudge our
+		// local cache so handshakes pick up new pins without waiting
+		// for the 30 s refresher.
+		server.SetPinRefresher(func(ctx context.Context) {
+			if err := pki.RefreshPins(ctx, dbInstance); err != nil {
+				logger.EllaLog.Warn("immediate pin refresh failed", zap.Error(err))
 			}
 		})
 	}
@@ -234,19 +231,15 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 			logger.EllaLog.Info("Leader initialization replicated successfully")
 
-			// Follower: build a local issuer handle (can't issue — we're
-			// not the leader), and install it for HTTP handlers. The bundle
-			// accessor is refreshed here and again on every leadership
-			// transition.
+			// Follower: build a local issuer handle (can't mutate; the
+			// follower's IsLeader returns false) and install it for
+			// HTTP handlers. Refresh the pin cache so the listener
+			// trusts every registered peer.
 			if pki != nil {
 				pki.issuer = pkiissuer.New(dbInstance)
 
-				if err := refreshFollowerBundleWithRetry(ctx, pki, 30*time.Second); err != nil {
-					logger.EllaLog.Warn("follower refresh bundle", zap.Error(err))
-				}
-
-				if err := pki.RefreshRevocations(ctx, dbInstance); err != nil {
-					logger.EllaLog.Warn("follower refresh revocations", zap.Error(err))
+				if err := refreshFollowerPinsWithRetry(ctx, pki, dbInstance, 30*time.Second); err != nil {
+					logger.EllaLog.Warn("follower refresh pins", zap.Error(err))
 				}
 
 				server.SetPKIIssuer(pki.issuer)
@@ -278,29 +271,27 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	})
 
 	wg.Go(func() {
-		jobs.RunPKITidyWorker(ctx, dbInstance, jobsGuard)
+		jobs.RunJoinTokenTidyWorker(ctx, dbInstance, jobsGuard)
 	})
 
 	wg.Go(func() {
 		sessions.CleanUp(ctx, dbInstance, sessionsGuard)
 	})
 
-	// Revocation cache refresher: every node (leader and follower) polls
-	// the replicated cluster_revoked_certs table on a short interval so
-	// the in-memory revocation set — consulted on every cluster-listener
-	// handshake — never drifts more than revocationRefreshInterval from
-	// the committed Raft state. A leader-side immediate refresh still
-	// happens inside RemoveClusterMember for the common case; this tick
-	// is the backstop for followers and for the brief window between
-	// leader action and follower apply.
+	// Pin-cache refresher: every node polls cluster_node_certs on a
+	// short interval so the in-memory pin map — consulted on every
+	// cluster-listener handshake — never drifts more than
+	// pinRefreshInterval from the committed Raft state. A leader-side
+	// immediate nudge still happens inside RemoveClusterMember /
+	// register handlers; this tick is the follower backstop.
 	if pki != nil {
 		wg.Go(func() {
-			runRevocationRefresher(ctx, pki, dbInstance)
+			runPinRefresher(ctx, pki, dbInstance)
 		})
 
 		if clusterLn != nil {
 			wg.Go(func() {
-				runLeafRenewer(ctx, pki, clusterLn, dbInstance)
+				runRotator(ctx, pki, clusterLn, dbInstance)
 			})
 		}
 	}
