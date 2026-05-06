@@ -141,8 +141,8 @@ var (
 // Cluster PKI. cluster_join_tokens dates from v9;
 // cluster_node_certs and cluster_join_hmac are added in v12.
 var (
-	opUpsertNodeCert        = registerChangesetOp("UpsertClusterNodeCert", (*Database).applyUpsertNodeCert, RequireSchema(12))
-	opDeleteNodeCert        = registerChangesetOp("DeleteClusterNodeCert", (*Database).applyDeleteNodeCert, RequireSchema(12))
+	opUpsertNodeCert        = registerChangesetOp("UpsertClusterNodeCert", (*Database).applyUpsertNodeCert, RequireSchema(12), AffectsTopic(TopicClusterNodeCerts))
+	opDeleteNodeCert        = registerChangesetOp("DeleteClusterNodeCert", (*Database).applyDeleteNodeCert, RequireSchema(12), AffectsTopic(TopicClusterNodeCerts))
 	opMintJoinToken         = registerChangesetOp("MintJoinToken", (*Database).applyInsertJoinToken, RequireSchema(9))
 	opConsumeJoinToken      = registerChangesetOp("ConsumeJoinToken", (*Database).applyConsumeJoinToken, RequireSchema(9))
 	opDeleteStaleJoinTokens = registerChangesetOp("DeleteStaleJoinTokens", (*Database).applyDeleteJoinTokensStale, RequireSchema(9))

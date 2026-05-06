@@ -175,17 +175,6 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	bufferedWriter := dbwriter.NewBufferedDBWriter(dbInstance, 1000, logger.NetworkLog)
 	logger.SetDb(bufferedWriter)
 
-	if pki != nil {
-		// Let the leader-side membership-change handler nudge our
-		// local cache so handshakes pick up new pins without waiting
-		// for the 30 s refresher.
-		server.SetPinRefresher(func(ctx context.Context) {
-			if err := pki.RefreshPins(ctx, dbInstance); err != nil {
-				logger.EllaLog.Warn("immediate pin refresh failed", zap.Error(err))
-			}
-		})
-	}
-
 	// Provide the runtime config file contents to the supportbundle generator
 	// so support bundles include the exact YAML used at startup. This is safe
 	// because main controls what is exposed via the provider; here we simply
@@ -233,15 +222,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 			// Follower: build a local issuer handle (can't mutate; the
 			// follower's IsLeader returns false) and install it for
-			// HTTP handlers. Refresh the pin cache so the listener
-			// trusts every registered peer.
+			// HTTP handlers. Pin-cache priming happens via the
+			// changefeed subscription started below; the FSM applies
+			// every cluster_node_certs entry on this node before
+			// WaitForInitialization unblocks.
 			if pki != nil {
 				pki.issuer = pkiissuer.New(dbInstance)
-
-				if err := refreshFollowerPinsWithRetry(ctx, pki, dbInstance, 30*time.Second); err != nil {
-					logger.EllaLog.Warn("follower refresh pins", zap.Error(err))
-				}
-
 				server.SetPKIIssuer(pki.issuer)
 			}
 		}
@@ -278,13 +264,17 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		sessions.CleanUp(ctx, dbInstance, sessionsGuard)
 	})
 
-	// Pin-cache refresher: every node polls cluster_node_certs on a
-	// short interval so the in-memory pin map — consulted on every
-	// cluster-listener handshake — never drifts more than
-	// pinRefreshInterval from the committed Raft state. A leader-side
-	// immediate nudge still happens inside RemoveClusterMember /
-	// register handlers; this tick is the follower backstop.
+	// Pin-cache propagation: runPinSubscriber rebuilds the in-memory
+	// pin map every time the FSM applies a cluster_node_certs upsert
+	// or delete on this node, so leaders and followers learn new
+	// peers' pins the instant the entry replicates rather than
+	// waiting on the slow refresh tick. runPinRefresher remains as a
+	// drift backstop.
 	if pki != nil {
+		wg.Go(func() {
+			runPinSubscriber(ctx, pki, dbInstance)
+		})
+
 		wg.Go(func() {
 			runPinRefresher(ctx, pki, dbInstance)
 		})
