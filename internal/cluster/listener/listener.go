@@ -73,14 +73,26 @@ type Config struct {
 
 // Listener is the multiplexed cluster port. One TCP socket, one TLS
 // configuration, N logical protocols dispatched by ALPN NegotiatedProtocol.
+//
+// Lifecycle: New → Register* → Start → Stop. Stop waits for every
+// goroutine the listener owns (the ctx watcher, the accept loop, and
+// every in-flight dispatch handler) before returning, so callers can
+// safely free state the listener referenced once Stop returns.
 type Listener struct {
 	cfg       Config
 	tlsConfig *tls.Config
-	tcpLn     net.Listener
+	tlsLn     net.Listener
 	handlers  map[string]ConnHandler
 	mu        sync.Mutex
 	stopCh    chan struct{}
-	wg        sync.WaitGroup
+	// wg counts every goroutine the listener owns: the ctx watcher
+	// and accept loop spawned by Start, plus every dispatch handler
+	// the accept loop spawns. The accept loop holds its own +1 for
+	// its full lifetime, which is what guarantees the counter cannot
+	// reach zero before the loop has exited; this in turn makes it
+	// safe for the loop to call wg.Add(1) for each new dispatch
+	// without racing wg.Wait in Stop.
+	wg sync.WaitGroup
 
 	// connMu protects conns. Every accepted connection is
 	// registered after handshake and deregistered when its handler
@@ -165,26 +177,58 @@ func (l *Listener) Start(ctx context.Context) error {
 		return fmt.Errorf("cluster listener bind %s: %w", l.cfg.BindAddress, err)
 	}
 
-	l.mu.Lock()
-	l.tcpLn = tcpLn
-	l.mu.Unlock()
-
 	tlsLn := tls.NewListener(tcpLn, l.tlsConfig)
 
-	go func() {
-		select {
-		case <-ctx.Done():
-			l.Stop()
-		case <-l.stopCh:
-		}
-	}()
+	l.mu.Lock()
+	l.tlsLn = tlsLn
+	l.mu.Unlock()
 
+	l.wg.Add(2)
+
+	go l.watchCtx(ctx)
 	go l.acceptLoop(ctx, tlsLn)
 
 	return nil
 }
 
+// watchCtx mirrors ctx cancellation onto the listener's stop signal.
+// Tracked in l.wg so Stop blocks until this goroutine has exited.
+// Calls signalStop (close stopCh + close tlsLn) rather than Stop itself,
+// because Stop's wg.Wait would deadlock waiting for this goroutine.
+func (l *Listener) watchCtx(ctx context.Context) {
+	defer l.wg.Done()
+
+	select {
+	case <-ctx.Done():
+		l.signalStop()
+	case <-l.stopCh:
+	}
+}
+
+// signalStop closes stopCh and the TLS listener, the two side-effects
+// that cause the accept loop and ctx watcher to wake up and exit.
+// Idempotent: a second caller observes stopCh already closed and returns.
+// Does not block on goroutine completion; that is Stop's job.
+func (l *Listener) signalStop() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	select {
+	case <-l.stopCh:
+		return
+	default:
+	}
+
+	close(l.stopCh)
+
+	if l.tlsLn != nil {
+		_ = l.tlsLn.Close()
+	}
+}
+
 func (l *Listener) acceptLoop(ctx context.Context, tlsLn net.Listener) {
+	defer l.wg.Done()
+
 	const (
 		baseDelay = 5 * time.Millisecond
 		maxDelay  = 1 * time.Second
@@ -226,26 +270,16 @@ func (l *Listener) acceptLoop(ctx context.Context, tlsLn net.Listener) {
 	}
 }
 
-// Stop gracefully shuts down the listener. In-flight connections are
-// allowed to drain.
+// Stop shuts the listener down and blocks until every goroutine the
+// listener owns has returned: the ctx watcher, the accept loop, and
+// every in-flight dispatch handler. Once Stop returns the caller can
+// safely free state the listener referenced (sockets, TLS configs,
+// captured context).
+//
+// Must not be called from a goroutine that is itself tracked in l.wg
+// (the ctx watcher uses signalStop instead, for that reason).
 func (l *Listener) Stop() {
-	l.mu.Lock()
-
-	select {
-	case <-l.stopCh:
-		l.mu.Unlock()
-		return
-	default:
-	}
-
-	close(l.stopCh)
-
-	if l.tcpLn != nil {
-		_ = l.tcpLn.Close()
-	}
-
-	l.mu.Unlock()
-
+	l.signalStop()
 	l.wg.Wait()
 }
 
