@@ -259,12 +259,13 @@ func RemoveClusterMember(dbInstance *db.Database) http.Handler {
 				zap.Int("nodeId", nodeID), zap.Error(err))
 		}
 
-		// Revoke every leaf the removed node was issued. Revocation rows
-		// replicate through Raft and populate the in-memory revocation
-		// cache on every voter, so subsequent handshakes reject the old
-		// leaves. We also close any currently-active mTLS conns on this
-		// voter's listener so the drop is sub-second, not leaf-TTL.
-		revokeIssuedCertsForRemovedNode(r.Context(), dbInstance, clusterListenerForPeerLookup, nodeID)
+		// Drop the removed node's pin from cluster_node_certs. The
+		// row deletion replicates through Raft; once committed,
+		// peer listeners refuse the removed node's handshakes. We
+		// also close any currently-active mTLS conns whose peer
+		// matches the dropped fingerprint, so the cutover is
+		// sub-second.
+		dropPinForRemovedNode(r.Context(), dbInstance, clusterListenerForPeerLookup, nodeID)
 
 		actor := getActorFromContext(r)
 

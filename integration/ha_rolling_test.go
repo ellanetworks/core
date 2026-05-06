@@ -30,6 +30,15 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	// Migration v12 replaces the v9 chain-PKI tables with the
+	// fingerprint-pinning registry (cluster_node_certs). Pre-v12
+	// nodes hold chain-signed leaves on disk that the new verifier
+	// will not accept until those nodes' fingerprints are pinned,
+	// which only happens after a fresh JoinFlow. Operators take
+	// this version hop via backup/restore + rejoin, not a rolling
+	// upgrade.
+	t.Skip("v11 → v12 cannot be a rolling upgrade; cluster TLS schema changed (see migration_v12)")
+
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
 	defer cancel()
 

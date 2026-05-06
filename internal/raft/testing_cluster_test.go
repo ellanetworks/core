@@ -273,6 +273,62 @@ func TestSetupTestCluster_FSMConvergence(t *testing.T) {
 	t.Logf("all %d nodes have identical %d rows", len(tc.Nodes), len(reference))
 }
 
+// TestSetupTestCluster_TwoVoterQuorumLoss confirms that a 2-voter
+// cluster halts writes when one voter is killed. Quorum is 2, so
+// the survivor cannot commit any new entry on its own; Propose
+// must return an error within the configured timeout rather than
+// silently accepting writes.
+func TestSetupTestCluster_TwoVoterQuorumLoss(t *testing.T) {
+	applier := newTestApplier(t)
+	tc := SetupTestCluster(t, 2, applier)
+
+	leader := tc.Leader()
+	if leader == nil {
+		t.Fatal("no leader")
+	}
+
+	// Sanity: the healthy 2-voter cluster commits.
+	cmd, err := NewCommand(CmdChangeset, map[string]string{"phase": "before-loss"})
+	if err != nil {
+		t.Fatalf("new command: %v", err)
+	}
+
+	if _, err := leader.Propose(cmd, 5*time.Second); err != nil {
+		t.Fatalf("propose before partition: %v", err)
+	}
+
+	// Identify and kill the follower.
+	var followerIdx int
+
+	for i, n := range tc.Nodes {
+		if n != leader {
+			followerIdx = i
+			break
+		}
+	}
+
+	if err := tc.Nodes[followerIdx].Shutdown(); err != nil {
+		t.Fatalf("shutdown follower: %v", err)
+	}
+
+	tc.Listeners[followerIdx].Stop()
+
+	// Propose with a tight timeout. The leader cannot replicate to
+	// the dead follower; Propose must fail (timeout, leadership
+	// lost, or enqueue timeout — all acceptable).
+	cmd, err = NewCommand(CmdChangeset, map[string]string{"phase": "after-loss"})
+	if err != nil {
+		t.Fatalf("new command: %v", err)
+	}
+
+	_, err = leader.Propose(cmd, 1*time.Second)
+	if err == nil {
+		t.Fatal("Propose should fail without a quorum; got nil error")
+	}
+
+	t.Logf("Propose without quorum returned %v", err)
+}
+
 // queryAllRows returns all rows from table t ordered by id.
 func queryAllRows(t testing.TB, ctx context.Context, db *sql.DB) []string {
 	t.Helper()

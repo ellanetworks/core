@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	"net"
 	"os"
 	"path/filepath"
@@ -16,7 +15,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/cluster/listener"
 	"github.com/ellanetworks/core/internal/cluster/listener/testutil"
-	ellapki "github.com/ellanetworks/core/internal/pki"
 	hraft "github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 )
@@ -224,16 +222,12 @@ func createTestNode(t testing.TB, nodeID int, pki *testutil.PKI, applier Applier
 	port := freePort(t)
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 
-	bundle := pki.Bundle()
-	leaf := pki.LeafFunc(nodeID)
-
 	ln := listener.New(listener.Config{
 		BindAddress:      addr,
 		AdvertiseAddress: addr,
 		NodeID:           nodeID,
-		TrustBundle:      func() *ellapki.TrustBundle { return bundle },
-		Leaf:             leaf,
-		Revoked:          func(*big.Int) bool { return false },
+		Pin:              pki.PinFunc(),
+		Leaf:             pki.LeafFunc(nodeID),
 	})
 
 	sl, err := newRaftStreamLayer(ln, addr)

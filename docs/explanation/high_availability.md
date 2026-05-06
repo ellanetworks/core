@@ -83,11 +83,11 @@ Shrinking is symmetric. Drain the node, then remove it; the remaining voters con
 
 ## Inter-node communication using mTLS
 
-Every inter-node connection is mutually authenticated over TLS. The cluster runs its own CA, generated at first-leader election and replicated through Raft so any voter can issue certificates once it becomes leader. New nodes join by exchanging a single-use token, minted by an admin from the Cluster page, for a certificate at startup. Certificates are bound to the cluster's identity, so credentials from one cluster cannot authenticate into another.
+Every inter-node connection is mutually authenticated over TLS. Each node owns a long-lived self-signed cluster certificate; trust between nodes is established by SHA-256 fingerprint pinning in a Raft-replicated table. New nodes join by exchanging a single-use HMAC join token (minted by an admin from the Cluster page) for the right to register their own certificate's fingerprint with the leader. Once the row is replicated, every voter accepts the new node's handshakes. Certificates are bound to the cluster's identity via a SPIFFE URI, so credentials from one cluster cannot authenticate into another. Removing a node deletes its pin row, immediately revoking its access cluster-wide.
 
 ## Disaster recovery
 
-HA clusters recover from total loss through an offline, backup-driven path. An operator stops every node, seeds one node from a backup archive, and starts it — it comes up as a single-voter cluster carrying the restored state. The remaining voters then rejoin with fresh join tokens. Because the backup archive carries the cluster CA signing material, the restored cluster keeps its original identity. The step-by-step procedure lives in [Backup and Restore](../how_to/backup_and_restore.md).
+HA clusters recover from total loss through an offline, backup-driven path. An operator stops every node, seeds one node from a backup archive, and starts it — it comes up as a single-voter cluster carrying the restored state. The remaining voters then rejoin with fresh join tokens. The backup archive carries the cluster identity (operator row) and the pin registry (`cluster_node_certs`), so the restored leader trusts itself immediately; freshly-joined voters re-register their own pins through the standard join flow. The step-by-step procedure lives in [Backup and Restore](../how_to/backup_and_restore.md).
 
 ## Rolling upgrades
 

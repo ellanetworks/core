@@ -182,7 +182,7 @@ None
 
 ## Mint Join Token
 
-This path mints a single-use HMAC token authorising `nodeID` to request its first cluster leaf certificate. The cluster root fingerprint is embedded in the token. Requires admin privileges.
+This path mints a single-use HMAC token authorising `nodeID` to register its self-signed cluster certificate with the leader. The leader's own pinned certificate fingerprint is embedded in the token, so the joining node pins the bootstrap TLS handshake directly to the leader's certificate. Requires admin privileges.
 
 | Method | Path                               |
 | ------ | ---------------------------------- |
