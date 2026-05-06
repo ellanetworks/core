@@ -92,10 +92,6 @@ func ClusterPKIRegister(svc *pkiissuer.Service) http.Handler {
 			return
 		}
 
-		// Refresh the local pin cache so handshakes from the new
-		// peer succeed without waiting for the periodic refresher.
-		nudgePinCache(r.Context())
-
 		records := make([]pkiagent.PinRecord, 0, len(pins))
 		for _, p := range pins {
 			records = append(records, pkiagent.PinRecord{NodeID: p.NodeID, Fingerprint: p.Fingerprint})

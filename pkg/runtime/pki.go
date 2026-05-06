@@ -143,10 +143,12 @@ func pinDelta(prev, next map[string]int) (added, removed []int) {
 	return added, removed
 }
 
-// pinRefreshInterval bounds how stale the in-memory cache can lag
-// the replicated state. Pin updates are rare (member add/remove or
-// rotation), so polling is cheap.
-const pinRefreshInterval = 30 * time.Second
+// pinRefreshInterval is a slow drift backstop. The hot path is the
+// changefeed subscription in runPinSubscriber, which reacts the
+// instant a cluster_node_certs apply lands; this tick only covers
+// the unlikely case where the in-memory cache and the replicated
+// table diverge for some other reason.
+const pinRefreshInterval = 5 * time.Minute
 
 func runPinRefresher(ctx context.Context, pki *pkiState, dbInstance *db.Database) {
 	t := time.NewTicker(pinRefreshInterval)
@@ -159,6 +161,31 @@ func runPinRefresher(ctx context.Context, pki *pkiState, dbInstance *db.Database
 		case <-t.C:
 			if err := pki.RefreshPins(ctx, dbInstance); err != nil {
 				logger.EllaLog.Warn("periodic pin refresh failed", zap.Error(err))
+			}
+		}
+	}
+}
+
+// runPinSubscriber rebuilds the in-memory pin map every time the FSM
+// applies a cluster_node_certs upsert or delete on this node. Because
+// every node — leader and followers — applies replicated entries,
+// every node's pin cache stays in lockstep with the replicated table
+// without depending on HTTP-handler nudges or the slow tick.
+func runPinSubscriber(ctx context.Context, pki *pkiState, dbInstance *db.Database) {
+	wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicClusterNodeCerts)
+	defer stop()
+
+	if err := pki.RefreshPins(ctx, dbInstance); err != nil {
+		logger.EllaLog.Warn("initial pin refresh failed", zap.Error(err))
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-wakeup:
+			if err := pki.RefreshPins(ctx, dbInstance); err != nil {
+				logger.EllaLog.Warn("pin refresh on changefeed wakeup failed", zap.Error(err))
 			}
 		}
 	}
@@ -267,40 +294,4 @@ func runJoinFlow(ctx context.Context, agent *pkiagent.Agent, peers []string, tok
 	}
 
 	return fmt.Errorf("all peers rejected the join: %w", lastErr)
-}
-
-// refreshFollowerPinsWithRetry polls RefreshPins until at least
-// one pin lands or timeout elapses. Covers the window where a
-// joiner's WaitForInitialization returns on the operator row
-// before cluster_node_certs has replicated.
-func refreshFollowerPinsWithRetry(ctx context.Context, p *pkiState, dbInstance *db.Database, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-
-	const interval = 200 * time.Millisecond
-
-	var lastErr error
-
-	for {
-		lastErr = p.RefreshPins(ctx, dbInstance)
-		if lastErr == nil {
-			m := p.pins.Load()
-			if m != nil && len(*m) > 0 {
-				return nil
-			}
-		}
-
-		if time.Now().After(deadline) {
-			if lastErr != nil {
-				return lastErr
-			}
-
-			return fmt.Errorf("no pins replicated within %s", timeout)
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(interval):
-		}
-	}
 }
