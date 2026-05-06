@@ -534,7 +534,7 @@ func configureNATAndRoute(ctx context.Context, nodeClients []*client.Client) err
 		if family == IPv6Only || family == DualStack {
 			if err := c.CreateRoute(ctx, &client.CreateRouteOptions{
 				Destination: UeIPv6Pool(),
-				Gateway:     N6IPv6Address(),
+				Gateway:     N6RouterIPv6Address(),
 				Interface:   "n6",
 				Metric:      0,
 			}); err != nil && !strings.Contains(err.Error(), "already exists") {
