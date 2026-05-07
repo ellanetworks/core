@@ -188,7 +188,25 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 
 	span.SetStatus(codes.Ok, "")
 
-	return result.(int), nil
+	// Handle different possible result types
+	switch v := result.(type) {
+	case sql.Result:
+		rowsAffected, err := v.RowsAffected()
+		if err != nil {
+			return 0, fmt.Errorf("failed to get rows affected: %w", err)
+		}
+
+		return int(rowsAffected), nil
+	case int:
+		return v, nil
+	case int64:
+		return int(v), nil
+	case nil:
+		// Zero rows deleted
+		return 0, nil
+	default:
+		return 0, fmt.Errorf("unexpected result type %T from DeleteExpiredSessions", v)
+	}
 }
 
 func (db *Database) CountSessionsByUser(ctx context.Context, userID string) (int, error) {
