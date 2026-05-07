@@ -1,6 +1,0 @@
-{
-  "name": "ella-core",
-  "version": "0.2.0",
-  "description": "Manage and inspect a running Ella Core 5G private mobile network via its REST API.",
-  "skills": "./skills/"
-}
