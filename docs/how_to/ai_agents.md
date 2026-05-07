@@ -15,7 +15,26 @@ Before using the skill, you need:
 
 ## 1. Install the skill
 
-Download [`SKILL.md`](https://raw.githubusercontent.com/ellanetworks/core/main/.github/skills/ella-core-api/SKILL.md) and place it in a skills directory that your AI tool can discover (e.g. `<project>/.agents/skills/ella-core-api/SKILL.md`).
+### Claude Code (recommended)
+
+Add the marketplace and install the plugin:
+
+```
+/plugin marketplace add ellanetworks/core
+/plugin install ella-core@ellanetworks-core
+```
+
+Updates land with `/plugin marketplace update`.
+
+### Other AI tools
+
+The skill is a folder containing `SKILL.md` and a `references/` directory at [`skills/ella-core/`](https://github.com/ellanetworks/core/tree/main/skills/ella-core). Copy the whole folder into a skills directory your tool discovers (e.g. `<project>/.agents/skills/ella-core/`):
+
+```bash
+git clone --depth 1 --filter=blob:none --sparse https://github.com/ellanetworks/core.git /tmp/ella
+git -C /tmp/ella sparse-checkout set skills/ella-core
+mkdir -p .agents/skills && cp -r /tmp/ella/skills/ella-core .agents/skills/
+```
 
 ## 2. Prompt the agent
 
