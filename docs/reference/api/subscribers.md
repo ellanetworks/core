@@ -123,7 +123,7 @@ None
       {
         "pdu_session_id": 1,
         "status": "active",
-        "ipAddress": "10.45.0.2",
+        "ipv4Address": "10.45.0.2",
         "dnn": "internet",
         "sst": 1,
         "sd": "000001",

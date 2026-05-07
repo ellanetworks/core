@@ -700,9 +700,9 @@ func buildRejectedPrefixes(ctx context.Context, dbInstance *db.Database, cfg con
 	dataNetworks, err := dbInstance.ListAllDataNetworks(ctx)
 	if err == nil {
 		for _, dn := range dataNetworks {
-			if _, parseErr := netip.ParsePrefix(dn.IPPool); parseErr == nil {
+			if _, parseErr := netip.ParsePrefix(dn.IPv4Pool); parseErr == nil {
 				filters = append(filters, RejectedPrefix{
-					Prefix:      dn.IPPool,
+					Prefix:      dn.IPv4Pool,
 					Source:      "data_network",
 					Description: "UE IP pool (" + dn.Name + ")",
 				})

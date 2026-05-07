@@ -383,8 +383,8 @@ func createFlowReportTestSubscriber(t *testing.T, dbInstance *db.Database) strin
 	ctx := context.Background()
 
 	dataNetwork := &db.DataNetwork{
-		Name:   "test-dn-" + imsi,
-		IPPool: "10.0.0.0/24",
+		Name:     "test-dn-" + imsi,
+		IPv4Pool: "10.0.0.0/24",
 	}
 	if err := dbInstance.CreateDataNetwork(ctx, dataNetwork); err != nil {
 		t.Fatalf("couldn't create data network: %s", err)

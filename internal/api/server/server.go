@@ -146,8 +146,8 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("PUT /api/v1/networking/data-networks/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateDataNetwork, UpdateDataNetwork(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/networking/data-networks/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadDataNetwork, GetDataNetwork(dbInstance, sessions))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/networking/data-networks/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteDataNetwork, DeleteDataNetwork(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/networking/data-networks/{name}/ip-allocations", Authenticate(jwtSecret, dbInstance, Authorize(PermReadDataNetwork, ListIPAllocations(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/networking/data-networks/{name}/ipv6-allocations", Authenticate(jwtSecret, dbInstance, Authorize(PermReadDataNetwork, ListIPv6IPAllocations(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/networking/data-networks/{name}/ipv4-allocations", Authenticate(jwtSecret, dbInstance, Authorize(PermReadDataNetwork, ListIPv4Allocations(dbInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/networking/data-networks/{name}/ipv6-allocations", Authenticate(jwtSecret, dbInstance, Authorize(PermReadDataNetwork, ListIPv6Allocations(dbInstance))).ServeHTTP)
 
 	// Routes (Authenticated)
 	mux.HandleFunc("GET /api/v1/networking/routes", Authenticate(jwtSecret, dbInstance, Authorize(PermListRoutes, ListRoutes(dbInstance, bgpService))).ServeHTTP)

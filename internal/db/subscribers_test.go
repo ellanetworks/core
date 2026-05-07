@@ -12,8 +12,8 @@ import (
 
 func createDataNetworkAndPolicy(database *db.Database) (string, error) {
 	newDataNetwork := &db.DataNetwork{
-		Name:   "not-internet",
-		IPPool: "1.2.3.0/24",
+		Name:     "not-internet",
+		IPv4Pool: "1.2.3.0/24",
 	}
 
 	err := database.CreateDataNetwork(context.Background(), newDataNetwork)

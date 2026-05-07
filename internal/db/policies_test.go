@@ -38,8 +38,8 @@ func TestPoliciesEndToEnd(t *testing.T) {
 	}
 
 	newDataNetwork := &db.DataNetwork{
-		Name:   "not-internet",
-		IPPool: "1.2.3.0/24",
+		Name:     "not-internet",
+		IPv4Pool: "1.2.3.0/24",
 	}
 
 	err = database.CreateDataNetwork(context.Background(), newDataNetwork)
@@ -343,8 +343,8 @@ func TestPoliciesInDataNetworkAndSlice(t *testing.T) {
 
 	// Create an unused data network
 	err = database.CreateDataNetwork(context.Background(), &db.DataNetwork{
-		Name:   "unused-dn",
-		IPPool: "172.16.0.0/24",
+		Name:     "unused-dn",
+		IPv4Pool: "172.16.0.0/24",
 	})
 	if err != nil {
 		t.Fatalf("Couldn't complete CreateDataNetwork: %s", err)

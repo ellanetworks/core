@@ -36,14 +36,14 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	if smContext.PDUAddress != nil {
+	if smContext.PDUIPV4Address != nil {
 		_, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
 		if releaseErr != nil {
 			logger.SmfLog.Warn("release UE IP address failed", zap.Error(releaseErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID), logger.DNN(smContext.Dnn), zap.String("smContextRef", smContextRef))
 		}
 	}
 
-	if smContext.PDUAddressIPv6 != nil {
+	if smContext.PDUIPV6Prefix != nil {
 		_, releaseErr := s.store.ReleaseIPv6(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
 		if releaseErr != nil {
 			logger.SmfLog.Warn("release UE IPv6 address failed", zap.Error(releaseErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID), logger.DNN(smContext.Dnn), zap.String("smContextRef", smContextRef))
@@ -72,7 +72,7 @@ func (s *SMF) releaseTunnel(ctx context.Context, smContext *SMContext) error {
 
 	// Unregister the IPv6 session from the RA responder before tearing down
 	// the tunnel so that any in-flight RS events are dropped cleanly.
-	if smContext.PDUAddressIPv6 != nil {
+	if smContext.PDUIPV6Prefix != nil {
 		ulTEID := smContext.Tunnel.DataPath.UpLinkTunnel.TEID
 		if ulTEID != 0 {
 			if err := s.upf.UnregisterIPv6Session(ctx, ulTEID); err != nil {

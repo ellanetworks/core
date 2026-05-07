@@ -55,7 +55,7 @@ func fixtureConnectivityMultiPDUSession(env scenarios.Env) scenarios.FixtureSpec
 			{Name: "enterprise-slice", SST: 1, SD: "204060"},
 		},
 		DataNetworks: []scenarios.DataNetworkSpec{
-			{Name: "enterprise", IPPool: enterpriseIPPool, DNS: enterpriseDNS, MTU: scenarios.DefaultMTU},
+			{Name: "enterprise", IPv4Pool: enterpriseIPPool, DNS: enterpriseDNS, MTU: scenarios.DefaultMTU},
 		},
 		Policies: []scenarios.PolicySpec{
 			{

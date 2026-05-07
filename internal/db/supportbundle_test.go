@@ -125,7 +125,7 @@ func TestExportSupportData_WithEntries(t *testing.T) {
 	}
 
 	// create a data network explicitly and a policy referencing it
-	dn := &db.DataNetwork{Name: "support-net", IPPool: "10.99.0.0/24", DNS: "1.1.1.1", MTU: 1400}
+	dn := &db.DataNetwork{Name: "support-net", IPv4Pool: "10.99.0.0/24", DNS: "1.1.1.1", MTU: 1400}
 	if err := database.CreateDataNetwork(context.Background(), dn); err != nil {
 		t.Fatalf("CreateDataNetwork failed: %v", err)
 	}
@@ -280,15 +280,17 @@ func TestExportSupportData_WithEntries(t *testing.T) {
 				continue
 			}
 
-			// ipPool may be "ipPool" or "IPPool"
+			// ipPool may be "ipPool", "IPPool", or "IPv4Pool"
 			var ip string
 			if v, ok := nm["ipPool"].(string); ok {
 				ip = v
 			} else if v, ok := nm["IPPool"].(string); ok {
 				ip = v
+			} else if v, ok := nm["IPv4Pool"].(string); ok {
+				ip = v
 			}
 
-			if ip == dn.IPPool {
+			if ip == dn.IPv4Pool {
 				foundNet = true
 				break
 			}

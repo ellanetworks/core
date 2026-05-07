@@ -97,7 +97,7 @@ export default function DataNetworksTab() {
           </Box>
         ),
       },
-      { field: "ip_pool", headerName: "IP Pool", flex: 1, minWidth: 180 },
+      { field: "ipv4_pool", headerName: "IPv4 Pool", flex: 1, minWidth: 180 },
       {
         field: "ipv6_pool",
         headerName: "IPv6 Pool",

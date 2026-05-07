@@ -8,7 +8,7 @@ import (
 // DataNetworkSpec describes a PDU session anchor (DNN + IP pool).
 type DataNetworkSpec struct {
 	Name     string
-	IPPool   string
+	IPv4Pool string
 	IPv6Pool string
 	DNS      string
 	MTU      int32
@@ -17,7 +17,7 @@ type DataNetworkSpec struct {
 func DefaultDataNetworkSpec() DataNetworkSpec {
 	return DataNetworkSpec{
 		Name:     scenarios.DefaultDNN,
-		IPPool:   scenarios.DefaultUEIPPool,
+		IPv4Pool: scenarios.DefaultUEIPv4Pool,
 		IPv6Pool: scenarios.DefaultUEIPv6Pool,
 		DNS:      scenarios.DefaultDNS,
 		MTU:      scenarios.DefaultMTU,
@@ -34,7 +34,7 @@ func (f *F) DataNetwork(spec DataNetworkSpec) {
 	if _, err := f.c.GetDataNetwork(f.ctx, &client.GetDataNetworkOptions{Name: spec.Name}); err == nil {
 		if err := f.c.UpdateDataNetwork(f.ctx, &client.UpdateDataNetworkOptions{
 			Name:     spec.Name,
-			IPPool:   spec.IPPool,
+			IPv4Pool: spec.IPv4Pool,
 			IPv6Pool: spec.IPv6Pool,
 			DNS:      spec.DNS,
 			Mtu:      spec.MTU,
@@ -47,7 +47,7 @@ func (f *F) DataNetwork(spec DataNetworkSpec) {
 
 	if err := f.c.CreateDataNetwork(f.ctx, &client.CreateDataNetworkOptions{
 		Name:     spec.Name,
-		IPPool:   spec.IPPool,
+		IPv4Pool: spec.IPv4Pool,
 		IPv6Pool: spec.IPv6Pool,
 		DNS:      spec.DNS,
 		Mtu:      spec.MTU,

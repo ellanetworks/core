@@ -182,7 +182,7 @@ func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, policy 
 
 	dp.ActivateDlLinkPdr(smContext.Tunnel.ANInformation.IPv4Address, smContext.Tunnel.ANInformation.IPv6Address, smContext.Tunnel.ANInformation.TEID, ueIP, defQER, defDLURR)
 
-	if smContext.PDUAddress != nil && smContext.PDUAddressIPv6 != nil {
+	if smContext.PDUIPV4Address != nil && smContext.PDUIPV6Prefix != nil {
 		secondPdr, err := smf.NewPDR()
 		if err != nil {
 			return fmt.Errorf("could not create second downlink PDR: %s", err)
@@ -191,7 +191,7 @@ func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, policy 
 		secondPdr.FAR = dlPdr.FAR
 		secondPdr.QER = defQER
 		secondPdr.URR = defDLURR
-		secondPdr.PDI.UEIPAddress, _ = netip.AddrFromSlice(smContext.PDUAddressIPv6.To16())
+		secondPdr.PDI.UEIPAddress, _ = netip.AddrFromSlice(smContext.PDUIPV6Prefix.To16())
 
 		dp.SecondPDR = secondPdr
 	}

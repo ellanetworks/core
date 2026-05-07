@@ -34,10 +34,10 @@ func fixtureRegistrationSuccessMultipleDataNetworks(env scenarios.Env) scenarios
 	}
 
 	dns := []scenarios.DataNetworkSpec{
-		{Name: "dnn1", IPPool: "10.46.0.0/16", DNS: scenarios.DefaultDNS, MTU: scenarios.DefaultMTU},
-		{Name: "dnn2", IPPool: "10.47.0.0/16", DNS: scenarios.DefaultDNS, MTU: scenarios.DefaultMTU},
-		{Name: "dnn3", IPPool: "10.48.0.0/16", DNS: scenarios.DefaultDNS, MTU: scenarios.DefaultMTU},
-		{Name: "dnn4", IPPool: "10.49.0.0/16", DNS: scenarios.DefaultDNS, MTU: scenarios.DefaultMTU},
+		{Name: "dnn1", IPv4Pool: "10.46.0.0/16", DNS: scenarios.DefaultDNS, MTU: scenarios.DefaultMTU},
+		{Name: "dnn2", IPv4Pool: "10.47.0.0/16", DNS: scenarios.DefaultDNS, MTU: scenarios.DefaultMTU},
+		{Name: "dnn3", IPv4Pool: "10.48.0.0/16", DNS: scenarios.DefaultDNS, MTU: scenarios.DefaultMTU},
+		{Name: "dnn4", IPv4Pool: "10.49.0.0/16", DNS: scenarios.DefaultDNS, MTU: scenarios.DefaultMTU},
 	}
 
 	policies := []scenarios.PolicySpec{

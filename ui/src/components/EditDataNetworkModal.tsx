@@ -24,7 +24,7 @@ interface EditDataNetworkModalProps {
 }
 
 const schema = yup.object().shape({
-  ip_pool: yup
+  ipv4_pool: yup
     .string()
     .test(
       "at-least-one-pool",
@@ -42,8 +42,8 @@ const schema = yup.object().shape({
       "at-least-one-pool",
       "At least one IP pool (IPv4 or IPv6) is required",
       function (value) {
-        const { ip_pool } = this.parent;
-        if (!value && !ip_pool) return false;
+        const { ipv4_pool } = this.parent;
+        if (!value && !ipv4_pool) return false;
         if (!value) return true;
         return isValidIpv6Cidr(value);
       },
@@ -84,7 +84,7 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
     if (open) {
       setFormValues({
         name: initialData.name,
-        ip_pool: initialData.ip_pool,
+        ipv4_pool: initialData.ipv4_pool,
         ipv6_pool: initialData.ipv6_pool || "",
         dns: initialData.dns,
         mtu: initialData.mtu,
@@ -154,7 +154,7 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
       await updateDataNetwork(
         accessToken,
         formValues.name,
-        formValues.ip_pool,
+        formValues.ipv4_pool,
         formValues.dns,
         formValues.mtu,
         formValues.ipv6_pool || undefined,
@@ -199,12 +199,12 @@ const EditDataNetworkModal: React.FC<EditDataNetworkModalProps> = ({
         />
         <TextField
           fullWidth
-          label="IP Pool"
-          value={formValues.ip_pool}
-          onChange={(e) => handleChange("ip_pool", e.target.value)}
-          onBlur={() => handleBlur("ip_pool")}
-          error={!!errors.ip_pool && touched.ip_pool}
-          helperText={touched.ip_pool ? errors.ip_pool : ""}
+          label="IPv4 Pool"
+          value={formValues.ipv4_pool}
+          onChange={(e) => handleChange("ipv4_pool", e.target.value)}
+          onBlur={() => handleBlur("ipv4_pool")}
+          error={!!errors.ipv4_pool && touched.ipv4_pool}
+          helperText={touched.ipv4_pool ? errors.ipv4_pool : ""}
           margin="normal"
           autoFocus
         />

@@ -130,7 +130,7 @@ type Policy struct {
 	NetworkRules []*ResolvedNetworkRule
 	DNS          net.IP
 	MTU          uint16
-	IPPool       string // IPv4 pool CIDR (may be empty if only IPv6 is configured)
+	IPv4Pool     string // IPv4 pool CIDR (may be empty if only IPv6 is configured)
 	IPv6Pool     string // IPv6 prefix delegation pool CIDR (may be empty if only IPv4 is configured)
 }
 
@@ -247,14 +247,14 @@ func (s *SMF) RemoveSession(ctx context.Context, ref string) {
 	delete(s.pool, ref)
 	s.mu.Unlock()
 
-	if smCtx.PDUAddress != nil {
+	if smCtx.PDUIPV4Address != nil {
 		_, err := s.store.ReleaseIP(ctx, smCtx.Supi.IMSI(), smCtx.Dnn, smCtx.PDUSessionID)
 		if err != nil {
 			logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
 		}
 	}
 
-	if smCtx.PDUAddressIPv6 != nil {
+	if smCtx.PDUIPV6Prefix != nil {
 		_, err := s.store.ReleaseIPv6(ctx, smCtx.Supi.IMSI(), smCtx.Dnn, smCtx.PDUSessionID)
 		if err != nil {
 			logger.SmfLog.Error("release UE IPv6-Address failed", zap.Error(err), zap.String("smContextRef", ref))

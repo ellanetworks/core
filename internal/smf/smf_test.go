@@ -269,7 +269,7 @@ func defaultFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 			},
 			DNS:      net.ParseIP("8.8.8.8").To4(),
 			MTU:      1500,
-			IPPool:   "10.0.0.0/24",
+			IPv4Pool: "10.0.0.0/24",
 			IPv6Pool: "",
 		},
 	}
@@ -352,7 +352,7 @@ func TestRemoveSession_ReleasesIP(t *testing.T) {
 	bgCtx := context.Background()
 
 	smCtx := s.NewSession(supi, 1, testDNN, testSnssai)
-	smCtx.PDUAddress = net.ParseIP("10.0.0.1").To4()
+	smCtx.PDUIPV4Address = net.ParseIP("10.0.0.1").To4()
 	ref := smf.CanonicalName(supi, 1)
 
 	s.RemoveSession(bgCtx, ref)

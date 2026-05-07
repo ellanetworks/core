@@ -39,7 +39,7 @@ const schema = yup.object().shape({
       "Must be a valid DNN (e.g., internet, ims, core.mycompany)",
     )
     .required("Data Network Name is required"),
-  ip_pool: yup
+  ipv4_pool: yup
     .string()
     .test(
       "at-least-one-pool",
@@ -57,8 +57,8 @@ const schema = yup.object().shape({
       "at-least-one-pool",
       "At least one IP pool (IPv4 or IPv6) is required",
       function (value) {
-        const { ip_pool } = this.parent;
-        if (!value && !ip_pool) return false;
+        const { ipv4_pool } = this.parent;
+        if (!value && !ipv4_pool) return false;
         if (!value) return true;
         return isValidIpv6Cidr(value);
       },
@@ -88,7 +88,7 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
 
   const [formValues, setFormValues] = useState({
     name: "",
-    ip_pool: "10.45.0.0/22",
+    ipv4_pool: "10.45.0.0/22",
     ipv6_pool: "",
     dns: "8.8.8.8",
     mtu: 1456,
@@ -162,7 +162,7 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
       await createDataNetwork(
         accessToken,
         formValues.name,
-        formValues.ip_pool,
+        formValues.ipv4_pool,
         formValues.dns,
         formValues.mtu,
         formValues.ipv6_pool || undefined,
@@ -217,12 +217,12 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
         />
         <TextField
           fullWidth
-          label="IP Pool"
-          value={formValues.ip_pool}
-          onChange={(e) => handleChange("ip_pool", e.target.value)}
-          onBlur={() => handleBlur("ip_pool")}
-          error={!!errors.ip_pool && touched.ip_pool}
-          helperText={touched.ip_pool ? errors.ip_pool : ""}
+          label="IPv4 Pool"
+          value={formValues.ipv4_pool}
+          onChange={(e) => handleChange("ipv4_pool", e.target.value)}
+          onBlur={() => handleBlur("ipv4_pool")}
+          error={!!errors.ipv4_pool && touched.ipv4_pool}
+          helperText={touched.ipv4_pool ? errors.ipv4_pool : ""}
           margin="normal"
         />
         <TextField

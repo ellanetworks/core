@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	DefaultDNIPPool = "10.45.0.0/22"
+	DefaultDNIPv4Pool = "10.45.0.0/22"
 )
 
 func TestDatabaseMetrics(t *testing.T) {
@@ -34,8 +34,8 @@ func TestDatabaseMetrics(t *testing.T) {
 	}()
 
 	dataNetworks := []db.DataNetwork{
-		{Name: "not-internet", IPPool: "10.0.0.0/16"},
-		{Name: "not-internet-2", IPPool: "10.1.0.0/16"},
+		{Name: "not-internet", IPv4Pool: "10.0.0.0/16"},
+		{Name: "not-internet-2", IPv4Pool: "10.1.0.0/16"},
 	}
 	for _, dn := range dataNetworks {
 		err := database.CreateDataNetwork(context.Background(), &dn)
@@ -157,7 +157,7 @@ func TestDatabaseMetrics(t *testing.T) {
 			t.Fatalf("Couldn't get total IP addresses: %s", err)
 		}
 
-		expectedTotal := countIPsInCIDR(DefaultDNIPPool) + countIPsInCIDR("10.0.0.0/16") + countIPsInCIDR("10.1.0.0/16")
+		expectedTotal := countIPsInCIDR(DefaultDNIPv4Pool) + countIPsInCIDR("10.0.0.0/16") + countIPsInCIDR("10.1.0.0/16")
 		if totalIPs != expectedTotal {
 			t.Fatalf("Expected total IPs %d, got %d", expectedTotal, totalIPs)
 		}

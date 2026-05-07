@@ -292,10 +292,10 @@ func TestAPIPoliciesEndToEnd(t *testing.T) {
 
 	t.Run("2. Create new data network", func(t *testing.T) {
 		createDataNetworkParams := &CreateDataNetworkParams{
-			Name:   DataNetworkName,
-			MTU:    MTU,
-			IPPool: IPPool,
-			DNS:    DNS,
+			Name:     DataNetworkName,
+			MTU:      MTU,
+			IPv4Pool: IPv4Pool,
+			DNS:      DNS,
 		}
 
 		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, createDataNetworkParams)
@@ -567,7 +567,7 @@ func TestUpdatePolicyPathBodyMismatch(t *testing.T) {
 
 	// Create data network and policy.
 	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-		Name: DataNetworkName, MTU: MTU, IPPool: IPPool, DNS: DNS,
+		Name: DataNetworkName, MTU: MTU, IPv4Pool: IPv4Pool, DNS: DNS,
 	})
 	if err != nil {
 		t.Fatalf("couldn't create data network: %s", err)
@@ -912,10 +912,10 @@ func TestCreateTooManyPoliciesPerProfile(t *testing.T) {
 	for i := 0; i < 11; i++ {
 		dnName := "test-dn-" + strconv.Itoa(i)
 		dnParams := &CreateDataNetworkParams{
-			Name:   dnName,
-			MTU:    1500,
-			DNS:    "8.8.8.8",
-			IPPool: fmt.Sprintf("10.%d.0.0/16", 50+i),
+			Name:     dnName,
+			MTU:      1500,
+			DNS:      "8.8.8.8",
+			IPv4Pool: fmt.Sprintf("10.%d.0.0/16", 50+i),
 		}
 
 		statusCode, _, dnErr := createDataNetwork(env.Server.URL, client, token, dnParams)
@@ -1037,7 +1037,7 @@ func TestUpdatePolicyDeletesRulesWhenNotProvided(t *testing.T) {
 
 	// Create the data network first.
 	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-		Name: DataNetworkName, MTU: MTU, IPPool: IPPool, DNS: DNS,
+		Name: DataNetworkName, MTU: MTU, IPv4Pool: IPv4Pool, DNS: DNS,
 	})
 	if err != nil {
 		t.Fatalf("couldn't create data network: %s", err)
@@ -1137,10 +1137,10 @@ func TestCreateMultiplePoliciesPerProfile(t *testing.T) {
 
 	// Create a second data network for the second policy
 	dn := &CreateDataNetworkParams{
-		Name:   "second-dn",
-		IPPool: "10.46.0.0/24",
-		DNS:    "8.8.8.8",
-		MTU:    1500,
+		Name:     "second-dn",
+		IPv4Pool: "10.46.0.0/24",
+		DNS:      "8.8.8.8",
+		MTU:      1500,
 	}
 
 	statusCode, _, err := createDataNetwork(env.Server.URL, client, token, dn)
@@ -1196,7 +1196,7 @@ func TestUpdatePolicyPersistsRules(t *testing.T) {
 	}
 
 	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-		Name: DataNetworkName, MTU: MTU, IPPool: IPPool, DNS: DNS,
+		Name: DataNetworkName, MTU: MTU, IPv4Pool: IPv4Pool, DNS: DNS,
 	})
 	if err != nil {
 		t.Fatalf("couldn't create data network: %s", err)

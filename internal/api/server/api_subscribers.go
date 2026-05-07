@@ -80,7 +80,7 @@ type SubscriberCredentials struct {
 type SessionInfo struct {
 	PDUSessionID    uint8  `json:"pdu_session_id"`
 	Status          string `json:"status"`
-	IPAddress       string `json:"ipAddress,omitempty"`
+	IPv4Address     string `json:"ipv4Address,omitempty"`
 	IPv6Address     string `json:"ipv6Address,omitempty"`
 	DNN             string `json:"dnn,omitempty"`
 	SST             int32  `json:"sst,omitempty"`
@@ -636,8 +636,8 @@ func toSessionInfo(pdu amf.PDUSessionExport) SessionInfo {
 	s := SessionInfo{
 		PDUSessionID: pdu.PDUSessionID,
 		Status:       status,
-		IPAddress:    pdu.PDUAddress,
-		IPv6Address:  pdu.PDUAddressIPv6,
+		IPv4Address:  pdu.PDUIPV4Address,
+		IPv6Address:  pdu.PDUIPV6Prefix,
 		DNN:          pdu.DNN,
 	}
 	if pdu.Snssai != nil {

@@ -106,7 +106,7 @@ func (f *F) scopedDataNetwork(spec scenarios.DataNetworkSpec) {
 
 	if err := f.c.CreateDataNetwork(f.ctx, &client.CreateDataNetworkOptions{
 		Name:     spec.Name,
-		IPPool:   spec.IPPool,
+		IPv4Pool: spec.IPv4Pool,
 		IPv6Pool: spec.IPv6Pool,
 		DNS:      spec.DNS,
 		Mtu:      spec.MTU,

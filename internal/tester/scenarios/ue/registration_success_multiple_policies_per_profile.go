@@ -28,7 +28,7 @@ func init() {
 func fixtureRegistrationSuccessMultiplePoliciesPerProfile(env scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{
 		DataNetworks: []scenarios.DataNetworkSpec{
-			{Name: "enterprise", IPPool: "10.46.0.0/16", DNS: "8.8.4.4", MTU: scenarios.DefaultMTU},
+			{Name: "enterprise", IPv4Pool: "10.46.0.0/16", DNS: "8.8.4.4", MTU: scenarios.DefaultMTU},
 		},
 		Policies: []scenarios.PolicySpec{
 			{

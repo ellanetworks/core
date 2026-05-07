@@ -17,7 +17,7 @@ func TestNegotiatePDUSessionType(t *testing.T) {
 	tests := []struct {
 		name         string
 		requested    uint8
-		ipPool       string
+		ipv4Pool     string
 		ipv6Pool     string
 		expectedType uint8
 		expectError  bool
@@ -26,7 +26,7 @@ func TestNegotiatePDUSessionType(t *testing.T) {
 		{
 			name:         "IPv4 requested with IPv4 pool",
 			requested:    nasMessage.PDUSessionTypeIPv4,
-			ipPool:       "10.0.0.0/24",
+			ipv4Pool:     "10.0.0.0/24",
 			ipv6Pool:     "",
 			expectedType: nasMessage.PDUSessionTypeIPv4,
 			expectError:  false,
@@ -34,7 +34,7 @@ func TestNegotiatePDUSessionType(t *testing.T) {
 		{
 			name:        "IPv4 requested without IPv4 pool",
 			requested:   nasMessage.PDUSessionTypeIPv4,
-			ipPool:      "",
+			ipv4Pool:    "",
 			ipv6Pool:    "2001:db8::/32",
 			expectError: true,
 		},
@@ -43,7 +43,7 @@ func TestNegotiatePDUSessionType(t *testing.T) {
 		{
 			name:         "IPv6 requested with IPv6 pool",
 			requested:    nasMessage.PDUSessionTypeIPv6,
-			ipPool:       "",
+			ipv4Pool:     "",
 			ipv6Pool:     "2001:db8::/32",
 			expectedType: nasMessage.PDUSessionTypeIPv6,
 			expectError:  false,
@@ -51,7 +51,7 @@ func TestNegotiatePDUSessionType(t *testing.T) {
 		{
 			name:        "IPv6 requested without IPv6 pool",
 			requested:   nasMessage.PDUSessionTypeIPv6,
-			ipPool:      "10.0.0.0/24",
+			ipv4Pool:    "10.0.0.0/24",
 			ipv6Pool:    "",
 			expectError: true,
 		},
@@ -60,7 +60,7 @@ func TestNegotiatePDUSessionType(t *testing.T) {
 		{
 			name:         "IPv4v6 requested with both pools",
 			requested:    nasMessage.PDUSessionTypeIPv4IPv6,
-			ipPool:       "10.0.0.0/24",
+			ipv4Pool:     "10.0.0.0/24",
 			ipv6Pool:     "2001:db8::/32",
 			expectedType: nasMessage.PDUSessionTypeIPv4IPv6,
 			expectError:  false,
@@ -68,7 +68,7 @@ func TestNegotiatePDUSessionType(t *testing.T) {
 		{
 			name:         "IPv4v6 requested with IPv4-only pool -> downgraded to IPv4",
 			requested:    nasMessage.PDUSessionTypeIPv4IPv6,
-			ipPool:       "10.0.0.0/24",
+			ipv4Pool:     "10.0.0.0/24",
 			ipv6Pool:     "",
 			expectedType: nasMessage.PDUSessionTypeIPv4,
 			expectError:  false,
@@ -76,7 +76,7 @@ func TestNegotiatePDUSessionType(t *testing.T) {
 		{
 			name:         "IPv4v6 requested with IPv6-only pool -> downgraded to IPv6",
 			requested:    nasMessage.PDUSessionTypeIPv4IPv6,
-			ipPool:       "",
+			ipv4Pool:     "",
 			ipv6Pool:     "2001:db8::/32",
 			expectedType: nasMessage.PDUSessionTypeIPv6,
 			expectError:  false,
@@ -84,7 +84,7 @@ func TestNegotiatePDUSessionType(t *testing.T) {
 		{
 			name:        "IPv4v6 requested with no pools",
 			requested:   nasMessage.PDUSessionTypeIPv4IPv6,
-			ipPool:      "",
+			ipv4Pool:    "",
 			ipv6Pool:    "",
 			expectError: true,
 		},
@@ -100,7 +100,7 @@ func TestNegotiatePDUSessionType(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			policy := &Policy{
-				IPPool:   tc.ipPool,
+				IPv4Pool: tc.ipv4Pool,
 				IPv6Pool: tc.ipv6Pool,
 			}
 
@@ -108,7 +108,7 @@ func TestNegotiatePDUSessionType(t *testing.T) {
 
 			if tc.expectError {
 				if err == nil {
-					t.Fatalf("expected error for requested=%d, ipPool=%q, ipv6Pool=%q", tc.requested, tc.ipPool, tc.ipv6Pool)
+					t.Fatalf("expected error for requested=%d, ipv4Pool=%q, ipv6Pool=%q", tc.requested, tc.ipv4Pool, tc.ipv6Pool)
 				}
 
 				return
@@ -132,7 +132,7 @@ func TestNegotiatePDUSessionType_CauseForDowngrade(t *testing.T) {
 	// IPv4v6 requested, IPv4-only pool -> should produce IPv4-only cause
 	{
 		requested := nasMessage.PDUSessionTypeIPv4IPv6
-		policy := &Policy{IPPool: "10.0.0.0/24", IPv6Pool: ""}
+		policy := &Policy{IPv4Pool: "10.0.0.0/24", IPv6Pool: ""}
 
 		negotiated, err := s.negotiatePDUSessionType(ctx, requested, policy)
 		if err != nil {
@@ -161,7 +161,7 @@ func TestNegotiatePDUSessionType_CauseForDowngrade(t *testing.T) {
 	// IPv4v6 requested, IPv6-only pool -> should produce IPv6-only cause
 	{
 		requested := nasMessage.PDUSessionTypeIPv4IPv6
-		policy := &Policy{IPPool: "", IPv6Pool: "2001:db8::/32"}
+		policy := &Policy{IPv4Pool: "", IPv6Pool: "2001:db8::/32"}
 
 		negotiated, err := s.negotiatePDUSessionType(ctx, requested, policy)
 		if err != nil {
@@ -190,7 +190,7 @@ func TestNegotiatePDUSessionType_CauseForDowngrade(t *testing.T) {
 	// IPv4v6 requested with both pools -> no cause (full dual-stack accepted)
 	{
 		requested := nasMessage.PDUSessionTypeIPv4IPv6
-		policy := &Policy{IPPool: "10.0.0.0/24", IPv6Pool: "2001:db8::/32"}
+		policy := &Policy{IPv4Pool: "10.0.0.0/24", IPv6Pool: "2001:db8::/32"}
 
 		negotiated, err := s.negotiatePDUSessionType(ctx, requested, policy)
 		if err != nil {
@@ -219,7 +219,7 @@ func TestNegotiatePDUSessionType_CauseForDowngrade(t *testing.T) {
 	// IPv4 requested, IPv6-only pool -> reject (not a downgrade, a rejection)
 	{
 		requested := nasMessage.PDUSessionTypeIPv4
-		policy := &Policy{IPPool: "", IPv6Pool: "2001:db8::/32"}
+		policy := &Policy{IPv4Pool: "", IPv6Pool: "2001:db8::/32"}
 
 		_, err := s.negotiatePDUSessionType(ctx, requested, policy)
 		if err == nil {

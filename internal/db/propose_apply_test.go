@@ -37,8 +37,8 @@ func TestProposeApply_RoundTrip_WritesShowUpAndAdvanceAppliedIndex(t *testing.T)
 	startIdx := database.RaftAppliedIndex()
 
 	if err := database.CreateDataNetwork(ctx, &db.DataNetwork{
-		Name:   "net-1",
-		IPPool: "10.0.0.0/24",
+		Name:     "net-1",
+		IPv4Pool: "10.0.0.0/24",
 	}); err != nil {
 		t.Fatalf("create data network: %v", err)
 	}
@@ -53,15 +53,15 @@ func TestProposeApply_RoundTrip_WritesShowUpAndAdvanceAppliedIndex(t *testing.T)
 		t.Fatalf("read-after-write failed: %v", err)
 	}
 
-	if got.IPPool != "10.0.0.0/24" {
-		t.Fatalf("read-after-write payload mismatch: got %q", got.IPPool)
+	if got.IPv4Pool != "10.0.0.0/24" {
+		t.Fatalf("read-after-write payload mismatch: got %q", got.IPv4Pool)
 	}
 
 	// A second write advances the index again; two sequential writes cannot
 	// collapse into one log entry.
 	if err := database.CreateDataNetwork(ctx, &db.DataNetwork{
-		Name:   "net-2",
-		IPPool: "10.0.1.0/24",
+		Name:     "net-2",
+		IPv4Pool: "10.0.1.0/24",
 	}); err != nil {
 		t.Fatalf("create second data network: %v", err)
 	}
@@ -92,8 +92,8 @@ func TestProposeApply_ApplierErrorSurfacesToCaller(t *testing.T) {
 	}()
 
 	if err := database.CreateDataNetwork(ctx, &db.DataNetwork{
-		Name:   "dup",
-		IPPool: "10.0.0.0/24",
+		Name:     "dup",
+		IPv4Pool: "10.0.0.0/24",
 	}); err != nil {
 		t.Fatalf("initial create: %v", err)
 	}
@@ -101,8 +101,8 @@ func TestProposeApply_ApplierErrorSurfacesToCaller(t *testing.T) {
 	// Re-creating the same data network must fail with ErrAlreadyExists,
 	// unwrapped from the FSM response envelope.
 	err = database.CreateDataNetwork(ctx, &db.DataNetwork{
-		Name:   "dup",
-		IPPool: "10.0.0.0/24",
+		Name:     "dup",
+		IPv4Pool: "10.0.0.0/24",
 	})
 	if err == nil {
 		t.Fatal("expected duplicate create to fail")

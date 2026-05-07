@@ -32,7 +32,7 @@ const (
 type DataNetwork struct {
 	ID       string `db:"id"` // UUIDv7
 	Name     string `db:"name"`
-	IPPool   string `db:"ipPool"`
+	IPv4Pool string `db:"ipPool"`
 	IPv6Pool string `db:"ipv6Pool"`
 	DNS      string `db:"dns"`
 	MTU      int32  `db:"mtu"`

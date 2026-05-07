@@ -132,7 +132,7 @@ export interface SnssaiInfo {
 export interface SessionInfo {
   pdu_session_id: number;
   status: string;
-  ipAddress?: string;
+  ipv4Address?: string;
   ipv6Address?: string;
   dnn?: string;
   sst?: number;

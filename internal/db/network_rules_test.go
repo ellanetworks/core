@@ -56,7 +56,7 @@ func TestNetworkRulesCreateGetUpdate(t *testing.T) {
 		}
 	}()
 
-	testDN := &db.DataNetwork{Name: "test-dnn", IPPool: "10.1.0.0/24"}
+	testDN := &db.DataNetwork{Name: "test-dnn", IPv4Pool: "10.1.0.0/24"}
 	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
 		t.Fatalf("Couldnt create test data network: %s", err)
 	}
@@ -167,7 +167,7 @@ func TestNetworkRulesDelete(t *testing.T) {
 		}
 	}()
 
-	testDN := &db.DataNetwork{Name: "test-dnn", IPPool: "10.1.0.0/24"}
+	testDN := &db.DataNetwork{Name: "test-dnn", IPv4Pool: "10.1.0.0/24"}
 	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
 		t.Fatalf("Couldnt create test data network: %s", err)
 	}
@@ -242,7 +242,7 @@ func TestNetworkRulesDuplicatePrecedencePerPolicy(t *testing.T) {
 		}
 	}()
 
-	testDN := &db.DataNetwork{Name: "test-dnn", IPPool: "10.1.0.0/24"}
+	testDN := &db.DataNetwork{Name: "test-dnn", IPv4Pool: "10.1.0.0/24"}
 	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
 		t.Fatalf("Couldnt create test data network: %s", err)
 	}
@@ -318,7 +318,7 @@ func TestNetworkRulesDuplicatePrecedenceDifferentPoliciesAllowed(t *testing.T) {
 		}
 	}()
 
-	testDN := &db.DataNetwork{Name: "test-dnn", IPPool: "10.1.0.0/24"}
+	testDN := &db.DataNetwork{Name: "test-dnn", IPv4Pool: "10.1.0.0/24"}
 	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
 		t.Fatalf("Couldnt create test data network: %s", err)
 	}
@@ -349,7 +349,7 @@ func TestNetworkRulesDuplicatePrecedenceDifferentPoliciesAllowed(t *testing.T) {
 		t.Fatalf("Couldn't get policy 1: %s", err)
 	}
 
-	testDN2 := &db.DataNetwork{Name: "test-dnn-2", IPPool: "10.2.0.0/24"}
+	testDN2 := &db.DataNetwork{Name: "test-dnn-2", IPv4Pool: "10.2.0.0/24"}
 	if err := database.CreateDataNetwork(context.Background(), testDN2); err != nil {
 		t.Fatalf("Couldnt create second test data network: %s", err)
 	}
@@ -417,7 +417,7 @@ func TestNetworkRulesDuplicateNamePerPolicy(t *testing.T) {
 		}
 	}()
 
-	testDN := &db.DataNetwork{Name: "test-dnn", IPPool: "10.1.0.0/24"}
+	testDN := &db.DataNetwork{Name: "test-dnn", IPv4Pool: "10.1.0.0/24"}
 	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
 		t.Fatalf("Couldnt create test data network: %s", err)
 	}
@@ -487,7 +487,7 @@ func TestNetworkRulesDifferentPoliciesSameName(t *testing.T) {
 		}
 	}()
 
-	testDN := &db.DataNetwork{Name: "test-dnn", IPPool: "10.1.0.0/24"}
+	testDN := &db.DataNetwork{Name: "test-dnn", IPv4Pool: "10.1.0.0/24"}
 	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
 		t.Fatalf("Couldnt create test data network: %s", err)
 	}
@@ -520,7 +520,7 @@ func TestNetworkRulesDifferentPoliciesSameName(t *testing.T) {
 		t.Fatalf("Couldn't get policy 1: %s", err)
 	}
 
-	testDN2 := &db.DataNetwork{Name: "test-dnn-2", IPPool: "10.2.0.0/24"}
+	testDN2 := &db.DataNetwork{Name: "test-dnn-2", IPv4Pool: "10.2.0.0/24"}
 	if err := database.CreateDataNetwork(context.Background(), testDN2); err != nil {
 		t.Fatalf("Couldnt create second test data network: %s", err)
 	}
@@ -600,7 +600,7 @@ func TestListRulesForPolicy(t *testing.T) {
 		}
 	}()
 
-	testDN := &db.DataNetwork{Name: "test-dnn", IPPool: "10.1.0.0/24"}
+	testDN := &db.DataNetwork{Name: "test-dnn", IPv4Pool: "10.1.0.0/24"}
 	if err := database.CreateDataNetwork(context.Background(), testDN); err != nil {
 		t.Fatalf("Couldnt create test data network: %s", err)
 	}
@@ -633,7 +633,7 @@ func TestListRulesForPolicy(t *testing.T) {
 		t.Fatalf("Couldn't get policy 1: %s", err)
 	}
 
-	testDN2 := &db.DataNetwork{Name: "test-dnn-2", IPPool: "10.2.0.0/24"}
+	testDN2 := &db.DataNetwork{Name: "test-dnn-2", IPv4Pool: "10.2.0.0/24"}
 	if err := database.CreateDataNetwork(context.Background(), testDN2); err != nil {
 		t.Fatalf("Couldnt create second test data network: %s", err)
 	}
@@ -739,7 +739,7 @@ func setupTestDB(t *testing.T) *db.Database {
 }
 
 func createTestPolicy(t *testing.T, dbInstance *db.Database) *db.Policy {
-	testDN := &db.DataNetwork{Name: "test-dnn-" + t.Name(), IPPool: "10.3.0.0/24"}
+	testDN := &db.DataNetwork{Name: "test-dnn-" + t.Name(), IPv4Pool: "10.3.0.0/24"}
 	if err := dbInstance.CreateDataNetwork(context.Background(), testDN); err != nil {
 		t.Fatalf("Couldn't create test data network: %s", err)
 	}

@@ -28,7 +28,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   getDataNetwork,
   deleteDataNetwork,
-  listIPAllocations,
+  listIPv4Allocations,
   listIPv6Allocations,
   type APIDataNetwork,
   type APIIPAllocation,
@@ -91,11 +91,11 @@ const DataNetworkDetail: React.FC = () => {
   const allocPage = allocPaginationModel.page + 1;
   const allocPerPage = allocPaginationModel.pageSize;
 
-  const { data: allocationsData } = useQuery({
-    queryKey: ["ip-allocations", name, allocPage, allocPerPage],
+const { data: allocationsData } = useQuery({
+    queryKey: ["ipv4-allocations", name, allocPage, allocPerPage],
     queryFn: () =>
-      listIPAllocations(accessToken!, name!, allocPage, allocPerPage),
-    enabled: authReady && !!accessToken && !!name && !!dataNetwork?.ip_pool,
+      listIPv4Allocations(accessToken!, name!, allocPage, allocPerPage),
+    enabled: authReady && !!accessToken && !!name && !!dataNetwork?.ipv4_pool,
     refetchInterval: 5000,
   });
 
@@ -406,7 +406,7 @@ const DataNetworkDetail: React.FC = () => {
   const allocationRowCount = allocationsData?.total_count ?? 0;
   const ipv6AllocationRows = ipv6AllocationsData?.items ?? [];
   const ipv6AllocationRowCount = ipv6AllocationsData?.total_count ?? 0;
-  const hasIpv4Pool = !!dataNetwork.ip_pool;
+  const hasIpv4Pool = !!dataNetwork.ipv4_pool;
   const hasIpv6Pool = !!dataNetwork.ipv6_pool;
   const ipAlloc = dataNetwork.ip_allocation;
   const poolSize = ipAlloc?.pool_size ?? 0;
@@ -519,13 +519,13 @@ const DataNetworkDetail: React.FC = () => {
             >
               <TableBody>
                 <TableRow>
-                  <TableCell sx={labelCellSx}>IP Pool</TableCell>
+                  <TableCell sx={labelCellSx}>IPv4 Pool</TableCell>
                   <TableCell sx={valueCellSx}>
                     <Typography
                       variant="body2"
                       sx={{ fontFamily: "monospace" }}
                     >
-                      {dataNetwork.ip_pool}
+                      {dataNetwork.ipv4_pool}
                     </Typography>
                   </TableCell>
                 </TableRow>
@@ -593,7 +593,7 @@ const DataNetworkDetail: React.FC = () => {
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell sx={labelCellSx}>IP Pool Utilization</TableCell>
+                  <TableCell sx={labelCellSx}>IPv4 Pool Utilization</TableCell>
                   <TableCell sx={valueCellSx}>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <LinearProgress
@@ -642,9 +642,6 @@ const DataNetworkDetail: React.FC = () => {
       {/* IP Allocations */}
       {(hasIpv4Pool || hasIpv6Pool) && (
         <Box sx={{ mt: 3 }}>
-          <Typography variant="h6" sx={{ mb: 1 }}>
-            IP Allocations
-          </Typography>
           <Box
             sx={{
               display: "grid",

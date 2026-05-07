@@ -106,11 +106,11 @@ func (db *Database) GetIPAddressesTotal() (int, error) {
 	var total int
 
 	for _, dn := range dataNetworks {
-		ipPool := dn.IPPool
+		ipv4Pool := dn.IPv4Pool
 
-		prefix, err := netip.ParsePrefix(ipPool)
+		prefix, err := netip.ParsePrefix(ipv4Pool)
 		if err != nil {
-			return 0, fmt.Errorf("invalid IP pool format '%s': %v", ipPool, err)
+			return 0, fmt.Errorf("invalid IP pool format '%s': %v", ipv4Pool, err)
 		}
 
 		total += countIPsInPrefix(prefix)

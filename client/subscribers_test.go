@@ -68,7 +68,7 @@ func TestGetSubscriber_Success(t *testing.T) {
 		response: &client.RequestResponse{
 			StatusCode: 200,
 			Headers:    http.Header{},
-			Result:     []byte(`{"imsi": "001010100000022", "profile_name": "default", "status": {"registered": false, "imei": "", "cipheringAlgorithm": "", "integrityAlgorithm": ""}, "pdu_sessions": [{"pdu_session_id": 1, "status": "active", "ipAddress": "10.45.0.2", "dnn": "internet", "sst": 1, "sd": "000001", "session_ambr_uplink": "100 Mbps", "session_ambr_downlink": "200 Mbps"}]}`),
+			Result:     []byte(`{"imsi": "001010100000022", "profile_name": "default", "status": {"registered": false, "imei": "", "cipheringAlgorithm": "", "integrityAlgorithm": ""}, "pdu_sessions": [{"pdu_session_id": 1, "status": "active", "ipv4Address": "10.45.0.2", "dnn": "internet", "sst": 1, "sd": "000001", "session_ambr_uplink": "100 Mbps", "session_ambr_downlink": "200 Mbps"}]}`),
 		},
 		err: nil,
 	}
@@ -116,8 +116,8 @@ func TestGetSubscriber_Success(t *testing.T) {
 		t.Fatalf("expected session status 'active', got %s", subscriber.PDUSessions[0].Status)
 	}
 
-	if subscriber.PDUSessions[0].IPAddress != "10.45.0.2" {
-		t.Fatalf("expected session IP '10.45.0.2', got %s", subscriber.PDUSessions[0].IPAddress)
+	if subscriber.PDUSessions[0].IPv4Address != "10.45.0.2" {
+		t.Fatalf("expected session IP '10.45.0.2', got %s", subscriber.PDUSessions[0].IPv4Address)
 	}
 
 	if subscriber.PDUSessions[0].DNN != "internet" {

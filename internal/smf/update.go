@@ -86,7 +86,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 	case nas.MsgTypePDUSessionReleaseRequest:
 		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Request received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
-		if smContext.PDUAddress != nil {
+		if smContext.PDUIPV4Address != nil {
 			_, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
 			if releaseErr != nil {
 				logger.WithTrace(ctx, logger.SmfLog).Warn("release UE IP address failed during PDU session release, continuing teardown",
@@ -94,7 +94,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 			}
 		}
 
-		if smContext.PDUAddressIPv6 != nil {
+		if smContext.PDUIPV6Prefix != nil {
 			_, releaseErr := s.store.ReleaseIPv6(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
 			if releaseErr != nil {
 				logger.WithTrace(ctx, logger.SmfLog).Warn("release UE IPv6 address failed during PDU session release, continuing teardown",
@@ -697,7 +697,7 @@ func handlePathSwitchRequestSetupFailedTransfer(b []byte) error {
 // responder if the session has a delegated IPv6 prefix and the gNB's tunnel
 // endpoint is known. Must be called with smContext.Mutex held.
 func (s *SMF) registerIPv6SessionIfNeeded(ctx context.Context, smContext *SMContext) {
-	if smContext.PDUAddressIPv6 == nil || smContext.Tunnel == nil {
+	if smContext.PDUIPV6Prefix == nil || smContext.Tunnel == nil {
 		return
 	}
 
@@ -724,7 +724,7 @@ func (s *SMF) registerIPv6SessionIfNeeded(ctx context.Context, smContext *SMCont
 		return
 	}
 
-	prefixAddr, ok := netip.AddrFromSlice(smContext.PDUAddressIPv6.To16())
+	prefixAddr, ok := netip.AddrFromSlice(smContext.PDUIPV6Prefix.To16())
 	if !ok {
 		return
 	}

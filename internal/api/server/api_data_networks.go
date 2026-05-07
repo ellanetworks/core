@@ -20,14 +20,14 @@ import (
 
 type CreateDataNetworkParams struct {
 	Name     string `json:"name"`
-	IPPool   string `json:"ip_pool,omitempty"`
+	IPv4Pool string `json:"ipv4_pool,omitempty"`
 	IPv6Pool string `json:"ipv6_pool,omitempty"`
 	DNS      string `json:"dns,omitempty"`
 	MTU      int32  `json:"mtu,omitempty"`
 }
 
 type UpdateDataNetworkParams struct {
-	IPPool   string `json:"ip_pool,omitempty"`
+	IPv4Pool string `json:"ipv4_pool,omitempty"`
 	IPv6Pool string `json:"ipv6_pool,omitempty"`
 	DNS      string `json:"dns,omitempty"`
 	MTU      int32  `json:"mtu,omitempty"`
@@ -45,7 +45,7 @@ type DataNetworkIPAllocation struct {
 
 type DataNetwork struct {
 	Name           string                   `json:"name"`
-	IPPool         string                   `json:"ip_pool"`
+	IPv4Pool       string                   `json:"ipv4_pool"`
 	IPv6Pool       string                   `json:"ipv6_pool,omitempty"`
 	DNS            string                   `json:"dns,omitempty"`
 	MTU            int32                    `json:"mtu,omitempty"`
@@ -119,7 +119,7 @@ func ListDataNetworks(dbInstance *db.Database, sessions smf.SessionQuerier) http
 
 			items = append(items, DataNetwork{
 				Name:     dbDataNetwork.Name,
-				IPPool:   dbDataNetwork.IPPool,
+				IPv4Pool: dbDataNetwork.IPv4Pool,
 				IPv6Pool: dbDataNetwork.IPv6Pool,
 				DNS:      dbDataNetwork.DNS,
 				MTU:      dbDataNetwork.MTU,
@@ -161,7 +161,7 @@ func GetDataNetwork(dbInstance *db.Database, sessions smf.SessionQuerier) http.H
 
 		dataNetwork := DataNetwork{
 			Name:     dbDataNetwork.Name,
-			IPPool:   dbDataNetwork.IPPool,
+			IPv4Pool: dbDataNetwork.IPv4Pool,
 			IPv6Pool: dbDataNetwork.IPv6Pool,
 			DNS:      dbDataNetwork.DNS,
 			MTU:      dbDataNetwork.MTU,
@@ -170,7 +170,7 @@ func GetDataNetwork(dbInstance *db.Database, sessions smf.SessionQuerier) http.H
 			},
 		}
 
-		pool, poolErr := ipam.NewPool(dbDataNetwork.ID, dbDataNetwork.IPPool)
+		pool, poolErr := ipam.NewPool(dbDataNetwork.ID, dbDataNetwork.IPv4Pool)
 		if poolErr != nil {
 			logger.APILog.Warn("failed to parse IP pool for allocation stats", zap.String("data_network", name), zap.Error(poolErr))
 		} else {
@@ -222,7 +222,7 @@ func GetDataNetwork(dbInstance *db.Database, sessions smf.SessionQuerier) http.H
 	})
 }
 
-func ListIPAllocations(dbInstance *db.Database) http.Handler {
+func ListIPv4Allocations(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")
 		if name == "" {
@@ -252,7 +252,7 @@ func ListIPAllocations(dbInstance *db.Database) http.Handler {
 
 		leases, total, err := dbInstance.ListLeasesByPoolPage(r.Context(), dbDataNetwork.ID, "ipv4", page, perPage)
 		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list IP allocations", err, logger.APILog)
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list IPv4 allocations", err, logger.APILog)
 			return
 		}
 
@@ -275,7 +275,7 @@ func ListIPAllocations(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func ListIPv6IPAllocations(dbInstance *db.Database) http.Handler {
+func ListIPv6Allocations(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")
 		if name == "" {
@@ -400,8 +400,8 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if createDataNetworkParams.IPPool != "" {
-			if err := validateNoOverlap(r.Context(), dbInstance, createDataNetworkParams.IPPool, ""); err != nil {
+		if createDataNetworkParams.IPv4Pool != "" {
+			if err := validateNoOverlap(r.Context(), dbInstance, createDataNetworkParams.IPv4Pool, ""); err != nil {
 				writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 				return
 			}
@@ -427,7 +427,7 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 
 		dbDataNetwork := &db.DataNetwork{
 			Name:     createDataNetworkParams.Name,
-			IPPool:   createDataNetworkParams.IPPool,
+			IPv4Pool: createDataNetworkParams.IPv4Pool,
 			IPv6Pool: createDataNetworkParams.IPv6Pool,
 			DNS:      createDataNetworkParams.DNS,
 			MTU:      createDataNetworkParams.MTU,
@@ -476,8 +476,8 @@ func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if updateDataNetworkParams.IPPool != "" {
-			if err := validateNoOverlap(r.Context(), dbInstance, updateDataNetworkParams.IPPool, name); err != nil {
+		if updateDataNetworkParams.IPv4Pool != "" {
+			if err := validateNoOverlap(r.Context(), dbInstance, updateDataNetworkParams.IPv4Pool, name); err != nil {
 				writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
 				return
 			}
@@ -492,7 +492,7 @@ func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
 
 		dn := &db.DataNetwork{
 			Name:     name,
-			IPPool:   updateDataNetworkParams.IPPool,
+			IPv4Pool: updateDataNetworkParams.IPv4Pool,
 			IPv6Pool: updateDataNetworkParams.IPv6Pool,
 			DNS:      updateDataNetworkParams.DNS,
 			MTU:      updateDataNetworkParams.MTU,
@@ -557,7 +557,7 @@ func validateDataNetworkParams(p CreateDataNetworkParams) error {
 	switch {
 	case p.Name == "":
 		return errors.New("name is missing")
-	case p.IPPool == "" && p.IPv6Pool == "":
+	case p.IPv4Pool == "" && p.IPv6Pool == "":
 		return errors.New("at least one IP pool (IPv4 or IPv6) is required")
 	case p.DNS == "":
 		return errors.New("dns is missing")
@@ -566,8 +566,8 @@ func validateDataNetworkParams(p CreateDataNetworkParams) error {
 
 	case !isDataNetworkNameValid(p.Name):
 		return errors.New("invalid name format, must be a valid DNN format")
-	case p.IPPool != "" && !isUeIPPoolValid(p.IPPool):
-		return errors.New("invalid ip_pool format, must be in CIDR format")
+	case p.IPv4Pool != "" && !isUeIPPoolValid(p.IPv4Pool):
+		return errors.New("invalid ipv4_pool format, must be in CIDR format")
 	case p.IPv6Pool != "" && !isIPv6PoolValid(p.IPv6Pool):
 		return errors.New("invalid ipv6_pool format, must be a valid IPv6 CIDR with prefix length between /48 and /60")
 	case !isValidDNS(p.DNS):
@@ -581,14 +581,14 @@ func validateDataNetworkParams(p CreateDataNetworkParams) error {
 
 func validateUpdateDataNetworkParams(p UpdateDataNetworkParams) error {
 	switch {
-	case p.IPPool == "" && p.IPv6Pool == "":
+	case p.IPv4Pool == "" && p.IPv6Pool == "":
 		return errors.New("at least one IP pool (IPv4 or IPv6) is required")
 	case p.DNS == "":
 		return errors.New("dns is missing")
 	case p.MTU == 0:
 		return errors.New("mtu is missing")
-	case p.IPPool != "" && !isUeIPPoolValid(p.IPPool):
-		return errors.New("invalid ip_pool format, must be in CIDR format")
+	case p.IPv4Pool != "" && !isUeIPPoolValid(p.IPv4Pool):
+		return errors.New("invalid ipv4_pool format, must be in CIDR format")
 	case p.IPv6Pool != "" && !isIPv6PoolValid(p.IPv6Pool):
 		return errors.New("invalid ipv6_pool format, must be a valid IPv6 CIDR with prefix length between /48 and /60")
 	case !isValidDNS(p.DNS):
@@ -621,11 +621,11 @@ func validateNoOverlap(ctx context.Context, dbInstance *db.Database, cidr string
 			continue
 		}
 
-		if dn.IPPool == "" {
+		if dn.IPv4Pool == "" {
 			continue
 		}
 
-		existingPrefix, parseErr := netip.ParsePrefix(dn.IPPool)
+		existingPrefix, parseErr := netip.ParsePrefix(dn.IPv4Pool)
 		if parseErr != nil {
 			continue
 		}
@@ -692,7 +692,7 @@ func CollectUEPools(ctx context.Context, dbInstance *db.Database) []netip.Prefix
 	var pools []netip.Prefix
 
 	for _, dn := range dataNetworks {
-		prefix, err := netip.ParsePrefix(dn.IPPool)
+		prefix, err := netip.ParsePrefix(dn.IPv4Pool)
 		if err != nil {
 			continue
 		}

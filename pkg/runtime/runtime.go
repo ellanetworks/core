@@ -775,7 +775,7 @@ func collectUEPools(ctx context.Context, dbInstance *db.Database) []netip.Prefix
 	var pools []netip.Prefix
 
 	for _, dn := range dataNetworks {
-		prefix, err := netip.ParsePrefix(dn.IPPool)
+		prefix, err := netip.ParsePrefix(dn.IPv4Pool)
 		if err != nil {
 			continue
 		}

@@ -10,7 +10,7 @@ import (
 
 type CreateDataNetworkOptions struct {
 	Name     string `json:"name"`
-	IPPool   string `json:"ip_pool"`
+	IPv4Pool string `json:"ipv4_pool"`
 	IPv6Pool string `json:"ipv6_pool,omitempty"`
 	DNS      string `json:"dns"`
 	Mtu      int32  `json:"mtu"`
@@ -18,7 +18,7 @@ type CreateDataNetworkOptions struct {
 
 type UpdateDataNetworkOptions struct {
 	Name     string `json:"name"`
-	IPPool   string `json:"ip_pool"`
+	IPv4Pool string `json:"ipv4_pool"`
 	IPv6Pool string `json:"ipv6_pool,omitempty"`
 	DNS      string `json:"dns"`
 	Mtu      int32  `json:"mtu"`
@@ -48,7 +48,7 @@ type DataNetworkIPAllocation struct {
 
 type DataNetwork struct {
 	Name         string                   `json:"name"`
-	IPPool       string                   `json:"ip_pool"`
+	IPv4Pool     string                   `json:"ipv4_pool"`
 	IPv6Pool     string                   `json:"ipv6_pool,omitempty"`
 	DNS          string                   `json:"dns"`
 	Mtu          int32                    `json:"mtu"`
@@ -81,13 +81,13 @@ type ListDataNetworksResponse struct {
 func (c *Client) CreateDataNetwork(ctx context.Context, opts *CreateDataNetworkOptions) error {
 	payload := struct {
 		Name     string `json:"name"`
-		IPPool   string `json:"ip_pool"`
+		IPv4Pool string `json:"ipv4_pool"`
 		IPv6Pool string `json:"ipv6_pool,omitempty"`
 		DNS      string `json:"dns"`
 		Mtu      int32  `json:"mtu"`
 	}{
 		Name:     opts.Name,
-		IPPool:   opts.IPPool,
+		IPv4Pool: opts.IPv4Pool,
 		IPv6Pool: opts.IPv6Pool,
 		DNS:      opts.DNS,
 		Mtu:      opts.Mtu,
@@ -117,13 +117,13 @@ func (c *Client) CreateDataNetwork(ctx context.Context, opts *CreateDataNetworkO
 func (c *Client) UpdateDataNetwork(ctx context.Context, opts *UpdateDataNetworkOptions) error {
 	payload := struct {
 		Name     string `json:"name"`
-		IPPool   string `json:"ip_pool"`
+		IPv4Pool string `json:"ipv4_pool"`
 		IPv6Pool string `json:"ipv6_pool,omitempty"`
 		DNS      string `json:"dns"`
 		Mtu      int32  `json:"mtu"`
 	}{
 		Name:     opts.Name,
-		IPPool:   opts.IPPool,
+		IPv4Pool: opts.IPv4Pool,
 		IPv6Pool: opts.IPv6Pool,
 		DNS:      opts.DNS,
 		Mtu:      opts.Mtu,
@@ -209,12 +209,12 @@ func (c *Client) ListDataNetworks(ctx context.Context, p *ListParams) (*ListData
 	return &dataNetworks, nil
 }
 
-// ListIPAllocations lists IP allocations for a data network with pagination support.
-func (c *Client) ListIPAllocations(ctx context.Context, opts *ListIPAllocationsOptions, p *ListParams) (*ListIPAllocationsResponse, error) {
+// ListIPv4Allocations lists IPv4 allocations for a data network with pagination support.
+func (c *Client) ListIPv4Allocations(ctx context.Context, opts *ListIPAllocationsOptions, p *ListParams) (*ListIPAllocationsResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/networking/data-networks/" + opts.DataNetworkName + "/ip-allocations",
+		Path:   "api/v1/networking/data-networks/" + opts.DataNetworkName + "/ipv4-allocations",
 		Query: url.Values{
 			"page":     {fmt.Sprintf("%d", p.Page)},
 			"per_page": {fmt.Sprintf("%d", p.PerPage)},

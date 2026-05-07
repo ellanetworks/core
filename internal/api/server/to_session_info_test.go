@@ -9,11 +9,11 @@ import (
 
 func TestToSessionInfo_ActiveWithAllFields(t *testing.T) {
 	pdu := amf.PDUSessionExport{
-		PDUSessionID: 1,
-		Inactive:     false,
-		PDUAddress:   "10.45.0.2",
-		DNN:          "internet",
-		Snssai:       &models.Snssai{Sst: 1, Sd: "000001"},
+		PDUSessionID:   1,
+		Inactive:       false,
+		PDUIPV4Address: "10.45.0.2",
+		DNN:            "internet",
+		Snssai:         &models.Snssai{Sst: 1, Sd: "000001"},
 		PolicyData: &amf.PolicyDataExport{
 			Ambr: &models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
 		},
@@ -29,8 +29,8 @@ func TestToSessionInfo_ActiveWithAllFields(t *testing.T) {
 		t.Errorf("Status = %q, want %q", s.Status, "active")
 	}
 
-	if s.IPAddress != "10.45.0.2" {
-		t.Errorf("IPAddress = %q, want %q", s.IPAddress, "10.45.0.2")
+	if s.IPv4Address != "10.45.0.2" {
+		t.Errorf("IPAddress = %q, want %q", s.IPv4Address, "10.45.0.2")
 	}
 
 	if s.DNN != "internet" {
@@ -56,10 +56,10 @@ func TestToSessionInfo_ActiveWithAllFields(t *testing.T) {
 
 func TestToSessionInfo_Inactive(t *testing.T) {
 	pdu := amf.PDUSessionExport{
-		PDUSessionID: 5,
-		Inactive:     true,
-		PDUAddress:   "10.45.0.10",
-		DNN:          "iot",
+		PDUSessionID:   5,
+		Inactive:       true,
+		PDUIPV4Address: "10.45.0.10",
+		DNN:            "iot",
 	}
 
 	s := toSessionInfo(pdu)
@@ -147,15 +147,15 @@ func TestToSessionInfo_WithIPv6Address(t *testing.T) {
 	pdu := amf.PDUSessionExport{
 		PDUSessionID:   7,
 		Inactive:       false,
-		PDUAddress:     "10.45.0.5",
-		PDUAddressIPv6: "2001:db8:ad50:8500::",
+		PDUIPV4Address: "10.45.0.5",
+		PDUIPV6Prefix:  "2001:db8:ad50:8500::",
 		DNN:            "internet",
 	}
 
 	s := toSessionInfo(pdu)
 
-	if s.IPAddress != "10.45.0.5" {
-		t.Errorf("IPAddress = %q, want %q", s.IPAddress, "10.45.0.5")
+	if s.IPv4Address != "10.45.0.5" {
+		t.Errorf("IPAddress = %q, want %q", s.IPv4Address, "10.45.0.5")
 	}
 
 	if s.IPv6Address != "2001:db8:ad50:8500::" {
