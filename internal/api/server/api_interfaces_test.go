@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"path/filepath"
 	"testing"
+
+	"github.com/ellanetworks/core/internal/config"
 )
 
 type N2Interface struct {
@@ -22,7 +24,8 @@ type N3Interface struct {
 }
 
 type N6Interface struct {
-	Name string `json:"name"`
+	Name      string   `json:"name"`
+	Addresses []string `json:"addresses"`
 }
 
 type APIInterface struct {
@@ -122,6 +125,20 @@ func updateN3Info(url string, client *http.Client, token string, externalAddress
 }
 
 func TestNetworkInteraces_EndToEnd(t *testing.T) {
+	originalGetInterfaceIPsFunc := config.GetInterfaceIPsFunc
+	config.GetInterfaceIPsFunc = func(name string) ([]string, error) {
+		switch name {
+		case "eth1":
+			return []string{"14.14.14.14"}, nil
+		default:
+			return nil, nil
+		}
+	}
+
+	t.Cleanup(func() {
+		config.GetInterfaceIPsFunc = originalGetInterfaceIPsFunc
+	})
+
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "db.sqlite3")
 
@@ -175,6 +192,10 @@ func TestNetworkInteraces_EndToEnd(t *testing.T) {
 
 		if resp.Result.N6.Name != "eth1" {
 			t.Fatalf("unexpected N6 interface name: %s", resp.Result.N6.Name)
+		}
+
+		if len(resp.Result.N6.Addresses) != 1 || resp.Result.N6.Addresses[0] != "14.14.14.14" {
+			t.Fatalf("unexpected N6 interface addresses: %v", resp.Result.N6.Addresses)
 		}
 
 		if len(resp.Result.API.Addresses) != 0 {
