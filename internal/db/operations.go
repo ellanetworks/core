@@ -39,6 +39,7 @@
 package db
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -101,9 +102,10 @@ var (
 	intentOps    = map[string]intentOpHandler{}
 )
 
-// ChangesetOp binds an operation name to a typed apply function.
-// Call-site handle returned by registerChangesetOp.
-type ChangesetOp[P any] struct {
+// ChangesetOp binds an operation name to a typed apply function. R is the
+// declared result type the dispatcher narrows the apply's `any` to, including
+// the typed JSON decode on the follower-forward path.
+type ChangesetOp[P any, R any] struct {
 	name      string
 	minSchema int
 	apply     func(db *Database, ctx context.Context, p *P) (any, error)
@@ -113,7 +115,15 @@ func registerChangesetOp[P any](
 	name string,
 	apply func(db *Database, ctx context.Context, p *P) (any, error),
 	opts ...OpOption,
-) *ChangesetOp[P] {
+) *ChangesetOp[P, struct{}] {
+	return registerChangesetOpReturning[P, struct{}](name, apply, opts...)
+}
+
+func registerChangesetOpReturning[P any, R any](
+	name string,
+	apply func(db *Database, ctx context.Context, p *P) (any, error),
+	opts ...OpOption,
+) *ChangesetOp[P, R] {
 	if _, exists := changesetOps[name]; exists {
 		panic(fmt.Sprintf("duplicate changeset op registration: %s", name))
 	}
@@ -126,8 +136,6 @@ func registerChangesetOp[P any](
 	for _, opt := range opts {
 		opt(&meta)
 	}
-
-	op := &ChangesetOp[P]{name: name, minSchema: meta.minSchema, apply: apply}
 
 	changesetOps[name] = changesetOpHandler{
 		minSchema: meta.minSchema,
@@ -142,14 +150,14 @@ func registerChangesetOp[P any](
 		},
 	}
 
-	return op
+	return &ChangesetOp[P, R]{name: name, minSchema: meta.minSchema, apply: apply}
 }
 
-// opts retained for symmetry with registerChangesetOp; no shipped
-// intent op currently needs a non-default RequireSchema.
-//
-//nolint:unparam
-func registerIntentOp(name string, cmdType ellaraft.CommandType, opts ...OpOption) intentOp {
+func registerIntentOp(name string, cmdType ellaraft.CommandType, opts ...OpOption) intentOp[struct{}] {
+	return registerIntentOpReturning[struct{}](name, cmdType, opts...)
+}
+
+func registerIntentOpReturning[R any](name string, cmdType ellaraft.CommandType, opts ...OpOption) intentOp[R] {
 	if _, exists := intentOps[name]; exists {
 		panic(fmt.Sprintf("duplicate intent op registration: %s", name))
 	}
@@ -165,7 +173,7 @@ func registerIntentOp(name string, cmdType ellaraft.CommandType, opts ...OpOptio
 
 	intentOps[name] = intentOpHandler{minSchema: meta.minSchema, topics: meta.topics, cmdType: cmdType}
 
-	return intentOp{name: name, minSchema: meta.minSchema, cmdType: cmdType}
+	return intentOp[R]{name: name, minSchema: meta.minSchema, cmdType: cmdType}
 }
 
 // topicsForChangesetOp returns the topics declared by a registered
@@ -191,7 +199,7 @@ func topicsForIntentCmd(t ellaraft.CommandType) []Topic {
 	return nil
 }
 
-type intentOp struct {
+type intentOp[R any] struct {
 	name      string
 	minSchema int
 	cmdType   ellaraft.CommandType
@@ -210,20 +218,57 @@ func intentMinSchemaForCmd(t ellaraft.CommandType) int {
 	return 1
 }
 
-// Invoke runs the op locally on leader / standalone, or forwards
-// (operation, payload JSON) to the leader on a follower.
-func (op *ChangesetOp[P]) Invoke(db *Database, payload *P) (any, error) {
+// narrowResult converts the dispatcher's `any` into the op's declared R.
+// Three shapes reach here: a typed any (standalone / leader local FSM),
+// a json.RawMessage (follower forward, raw bytes preserved by forward.go),
+// and nil (FSM replay-skip or void op). R = struct{} short-circuits — void
+// ops discard whatever the applier returned, typically a last-insert-id.
+// Mismatches are reported as errors rather than panicking so wire-format
+// drift surfaces normally.
+func narrowResult[R any](opName string, raw any) (R, error) {
+	var zero R
+
+	if _, void := any(zero).(struct{}); void {
+		return zero, nil
+	}
+
+	switch v := raw.(type) {
+	case nil:
+		return zero, nil
+	case json.RawMessage:
+		if len(v) == 0 || bytes.Equal(v, []byte("null")) {
+			return zero, nil
+		}
+
+		var r R
+		if err := json.Unmarshal(v, &r); err != nil {
+			return zero, fmt.Errorf("decode %s result: %w", opName, err)
+		}
+
+		return r, nil
+	case R:
+		return v, nil
+	default:
+		return zero, fmt.Errorf("op %s: unexpected result type %T (want %T)", opName, raw, zero)
+	}
+}
+
+func (op *ChangesetOp[P, R]) Invoke(db *Database, payload *P) (R, error) {
+	var zero R
+
 	if err := db.checkOpSchema(op.minSchema); err != nil {
-		return nil, err
+		return zero, err
 	}
 
 	if db.raftManager == nil {
 		result, err := op.apply(db, context.Background(), payload)
-		if err == nil {
-			db.publishOpTopics(topicsForChangesetOp(op.name), 0)
+		if err != nil {
+			return zero, err
 		}
 
-		return result, err
+		db.publishOpTopics(topicsForChangesetOp(op.name), 0)
+
+		return narrowResult[R](op.name, result)
 	}
 
 	if db.IsLeader() {
@@ -231,11 +276,11 @@ func (op *ChangesetOp[P]) Invoke(db *Database, payload *P) (any, error) {
 			return op.apply(db, ctx, payload)
 		})
 		if err == nil {
-			return result, nil
+			return narrowResult[R](op.name, result)
 		}
 
 		if !errors.Is(err, hraft.ErrNotLeader) && !errors.Is(err, hraft.ErrLeadershipLost) {
-			return nil, err
+			return zero, err
 		}
 
 		// Leadership lost between IsLeader() and Propose(); fall through
@@ -246,68 +291,75 @@ func (op *ChangesetOp[P]) Invoke(db *Database, payload *P) (any, error) {
 	return op.invokeFollower(db, payload)
 }
 
-func (op *ChangesetOp[P]) invokeFollower(db *Database, payload *P) (any, error) {
+func (op *ChangesetOp[P, R]) invokeFollower(db *Database, payload *P) (R, error) {
+	var zero R
+
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("marshal %s payload: %w", op.name, err)
+		return zero, fmt.Errorf("marshal %s payload: %w", op.name, err)
 	}
 
 	result, err := db.forwardOperation(op.name, payloadJSON)
 	if err != nil {
-		return nil, err
+		return zero, err
 	}
 
-	return result.Value, nil
+	return narrowResult[R](op.name, result.Value)
 }
 
-// Invoke runs an intent op via raft.Apply on the leader, or forwards
-// to the leader on a follower.
-func (op intentOp) Invoke(db *Database, payload any) (any, error) {
+func (op intentOp[R]) Invoke(db *Database, payload any) (R, error) {
+	var zero R
+
 	if err := db.checkOpSchema(op.minSchema); err != nil {
-		return nil, err
+		return zero, err
 	}
 
 	cmd, err := ellaraft.NewCommand(op.cmdType, payload)
 	if err != nil {
-		return nil, err
+		return zero, err
 	}
 
 	if db.raftManager == nil {
-		return db.ApplyCommand(context.Background(), cmd, 0)
+		result, err := db.ApplyCommand(context.Background(), cmd, 0)
+		if err != nil {
+			return zero, err
+		}
+
+		return narrowResult[R](op.name, result)
 	}
 
 	if db.IsLeader() {
 		data, err := cmd.MarshalBinary()
 		if err != nil {
-			return nil, fmt.Errorf("marshal intent command: %w", err)
+			return zero, fmt.Errorf("marshal intent command: %w", err)
 		}
 
 		result, applyErr := db.raftManager.ApplyBytes(data, db.proposeTimeout)
 		if applyErr == nil {
-			return result.Value, nil
+			return narrowResult[R](op.name, result.Value)
 		}
 
 		if !errors.Is(applyErr, hraft.ErrNotLeader) && !errors.Is(applyErr, hraft.ErrLeadershipLost) {
 			if isTransientRaftErr(applyErr) {
-				return nil, fmt.Errorf("%w: %v", ErrProposeTimeout, applyErr)
+				return zero, fmt.Errorf("%w: %v", ErrProposeTimeout, applyErr)
 			}
 
-			return nil, applyErr
+			return zero, applyErr
 		}
 		// Lost leadership mid-apply — fall through to forward path.
 	}
 
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("marshal %s payload: %w", op.name, err)
+		return zero, fmt.Errorf("marshal %s payload: %w", op.name, err)
 	}
 
 	result, err := db.forwardOperation(op.name, payloadJSON)
 	if err != nil {
-		return nil, err
+		return zero, err
 	}
 
-	return result.Value, nil
+	return narrowResult[R](op.name, result.Value)
 }
 
 // leaderCaptureAndPropose runs the capture→propose cycle on the leader.

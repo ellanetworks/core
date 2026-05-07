@@ -178,7 +178,7 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 
 	nowUnix := time.Now().Unix()
 
-	result, err := opDeleteExpiredSessions.Invoke(db, &int64Payload{Value: nowUnix})
+	count, err := opDeleteExpiredSessions.Invoke(db, &int64Payload{Value: nowUnix})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -188,7 +188,7 @@ func (db *Database) DeleteExpiredSessions(ctx context.Context) (int, error) {
 
 	span.SetStatus(codes.Ok, "")
 
-	return result.(int), nil
+	return count, nil
 }
 
 func (db *Database) CountSessionsByUser(ctx context.Context, userID string) (int, error) {
