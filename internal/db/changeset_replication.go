@@ -87,6 +87,7 @@ var localOnlyTables = []string{
 	N3SettingsTableName,
 	NATSettingsTableName,
 	FlowAccountingSettingsTableName,
+	FleetTableName,
 }
 
 func (db *Database) assertTableReplicationClassification(ctx context.Context) error {

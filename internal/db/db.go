@@ -98,6 +98,7 @@ type Database struct {
 	incrementDailyUsageStmt   *sqlair.Statement
 	getUsagePerDayStmt        *sqlair.Statement
 	getUsagePerSubscriberStmt *sqlair.Statement
+	getRawDailyUsageStmt      *sqlair.Statement
 	deleteAllDailyUsageStmt   *sqlair.Statement
 	deleteOldDailyUsageStmt   *sqlair.Statement
 
@@ -256,6 +257,16 @@ type Database struct {
 	editUserPasswordStmt *sqlair.Statement
 	deleteUserStmt       *sqlair.Statement
 	countUsersStmt       *sqlair.Statement
+
+	// Fleet statements
+	getFleetStmt                  *sqlair.Statement
+	initializeFleetStmt           *sqlair.Statement
+	updateFleetKeyStmt            *sqlair.Statement
+	updateFleetCredentialsStmt    *sqlair.Statement
+	clearFleetCredentialsStmt     *sqlair.Statement
+	updateFleetSyncStatusStmt     *sqlair.Statement
+	updateFleetConfigRevisionStmt *sqlair.Statement
+	updateFleetURLStmt            *sqlair.Statement
 
 	// Cluster Members statements
 	listClusterMembersStmt  *sqlair.Statement
@@ -1250,6 +1261,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.incrementDailyUsageStmt, fmt.Sprintf(incrementDailyUsageStmt, DailyUsageTableName), []any{DailyUsage{}}},
 		{&db.getUsagePerDayStmt, fmt.Sprintf(getUsagePerDayStmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerDay{}}},
 		{&db.getUsagePerSubscriberStmt, fmt.Sprintf(getUsagePerSubscriberStmt, DailyUsageTableName), []any{UsageFilters{}, UsagePerSub{}}},
+		{&db.getRawDailyUsageStmt, fmt.Sprintf(getRawDailyUsageStmt, DailyUsageTableName), []any{UsageFilters{}, DailyUsage{}}},
 		{&db.deleteAllDailyUsageStmt, fmt.Sprintf(deleteAllDailyUsageStmt, DailyUsageTableName), nil},
 		{&db.deleteOldDailyUsageStmt, fmt.Sprintf(deleteOldDailyUsageStmt, DailyUsageTableName), []any{cutoffDaysArgs{}}},
 
@@ -1408,6 +1420,16 @@ func (db *Database) PrepareStatements() error {
 		{&db.deleteUserStmt, fmt.Sprintf(deleteUserStmt, UsersTableName), []any{User{}}},
 		{&db.countUsersStmt, fmt.Sprintf(countUsersStmt, UsersTableName), []any{NumItems{}}},
 
+		// Fleet
+		{&db.getFleetStmt, fmt.Sprintf(getFleetStmt, FleetTableName), []any{Fleet{}}},
+		{&db.initializeFleetStmt, fmt.Sprintf(initializeFleetStmt, FleetTableName), []any{Fleet{}}},
+		{&db.updateFleetKeyStmt, fmt.Sprintf(updateFleetKeyStmt, FleetTableName), []any{Fleet{}}},
+		{&db.updateFleetCredentialsStmt, fmt.Sprintf(updateFleetCredentialsStmt, FleetTableName), []any{Fleet{}}},
+		{&db.clearFleetCredentialsStmt, fmt.Sprintf(clearFleetCredentialsStmt, FleetTableName), []any{Fleet{}}},
+		{&db.updateFleetSyncStatusStmt, fmt.Sprintf(updateFleetSyncStatusStmt, FleetTableName), []any{Fleet{}}},
+		{&db.updateFleetConfigRevisionStmt, fmt.Sprintf(updateFleetConfigRevisionStmt, FleetTableName), []any{Fleet{}}},
+		{&db.updateFleetURLStmt, fmt.Sprintf(updateFleetURLStmt, FleetTableName), []any{Fleet{}}},
+
 		// Cluster Members
 		{&db.listClusterMembersStmt, fmt.Sprintf(listClusterMembersStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
 		{&db.getClusterMemberStmt, fmt.Sprintf(getClusterMemberStmtStr, ClusterMembersTableName), []any{ClusterMember{}}},
@@ -1466,9 +1488,10 @@ func (db *Database) WaitForInitialization(ctx context.Context, timeout time.Dura
 
 // InitializeLocalSettings seeds the singleton row of every local-only
 // settings table (nat_settings, flow_accounting_settings, bgp_settings,
-// n3_settings) with documented defaults. Each Initialize* is idempotent:
-// an existing row (whether it holds the default or an operator-set value)
-// is left untouched, so a daemon restart never overwrites operator state.
+// n3_settings, fleet) with documented defaults. Each Initialize* is
+// idempotent: an existing row (whether it holds the default or an
+// operator-set value) is left untouched, so a daemon restart never
+// overwrites operator state.
 //
 // Runs on every node — leader, follower, standalone — from NewDatabase.
 // Local-only writes do not go through Raft, so this is safe to call
@@ -1487,6 +1510,7 @@ func (db *Database) InitializeLocalSettings(ctx context.Context) error {
 		{"flow accounting settings", func() error { return db.InitializeFlowAccountingSettings(ctx) }},
 		{"BGP settings", func() error { return db.InitializeBGPSettings(ctx) }},
 		{"N3 settings", func() error { return db.InitializeN3Settings(ctx) }},
+		{"fleet", func() error { return db.InitializeFleet(ctx) }},
 	}
 
 	for _, step := range steps {

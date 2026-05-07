@@ -273,7 +273,7 @@ func (db *Database) DeleteRoute(ctx context.Context, id int64) error {
 
 	DBQueriesTotal.WithLabelValues(RoutesTableName, "delete").Inc()
 
-	_, err := db.applyDeleteRoute(ctx, &int64Payload{Value: id})
+	err := db.applyDeleteRoute(ctx, &int64Payload{Value: id})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

@@ -63,7 +63,7 @@ func (db *Database) UpdateN3Settings(ctx context.Context, externalAddress string
 
 	DBQueriesTotal.WithLabelValues(N3SettingsTableName, "update").Inc()
 
-	_, err := db.applyUpdateN3Settings(ctx, &stringPayload{Value: externalAddress})
+	err := db.applyUpdateN3Settings(ctx, &stringPayload{Value: externalAddress})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

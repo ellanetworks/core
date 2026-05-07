@@ -60,6 +60,11 @@ type ClusterStatusResponse struct {
 	PendingMigration     *PendingMigrationResponse `json:"pendingMigration,omitempty"`
 }
 
+type FleetStatusResponse struct {
+	Managed    bool   `json:"managed"`
+	LastSyncAt string `json:"lastSyncAt,omitempty"`
+}
+
 type StatusResponse struct {
 	Version       string                 `json:"version"`
 	Revision      string                 `json:"revision"`
@@ -67,6 +72,7 @@ type StatusResponse struct {
 	Ready         bool                   `json:"ready"`
 	SchemaVersion int                    `json:"schemaVersion"`
 	Cluster       *ClusterStatusResponse `json:"cluster,omitempty"`
+	Fleet         FleetStatusResponse    `json:"fleet"`
 }
 
 func GetStatus(dbInstance *db.Database, ready *atomic.Bool) http.Handler {
@@ -83,12 +89,22 @@ func GetStatus(dbInstance *db.Database, ready *atomic.Bool) http.Handler {
 
 		ver := version.GetVersion()
 
+		var fleetStatus FleetStatusResponse
+
+		if fleetData, err := dbInstance.GetFleet(ctx); err == nil && fleetData != nil {
+			fleetStatus.Managed = len(fleetData.Certificate) > 0 && len(fleetData.CACertificate) > 0
+			fleetStatus.LastSyncAt = fleetData.LastSyncAt
+		} else if err != nil {
+			logger.APILog.Warn("couldn't read fleet row for status", zap.Error(err))
+		}
+
 		statusResponse := StatusResponse{
 			Version:       ver.Version,
 			Revision:      ver.Revision,
 			Initialized:   initialized,
 			Ready:         ready.Load(),
 			SchemaVersion: db.SchemaVersion(),
+			Fleet:         fleetStatus,
 		}
 
 		if dbInstance.ClusterEnabled() {

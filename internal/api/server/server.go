@@ -207,6 +207,12 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("PUT /api/v1/logs/audit/retention", Authenticate(jwtSecret, dbInstance, Authorize(PermSetAuditLogRetentionPolicy, UpdateAuditLogRetentionPolicy(dbInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/logs/audit", Authenticate(jwtSecret, dbInstance, Authorize(PermListAuditLogs, ListAuditLogs(dbInstance))).ServeHTTP)
 
+	// Fleet (Authenticated)
+	mux.HandleFunc("GET /api/v1/fleet/url", Authenticate(jwtSecret, dbInstance, Authorize(PermGetFleetURL, GetFleetURL(dbInstance))).ServeHTTP)
+	mux.HandleFunc("PUT /api/v1/fleet/url", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateFleetURL, UpdateFleetURL(dbInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/fleet/register", Authenticate(jwtSecret, dbInstance, Authorize(PermRegisterFleet, RegisterFleet(dbInstance, appCfg, amfInstance))).ServeHTTP)
+	mux.HandleFunc("POST /api/v1/fleet/unregister", Authenticate(jwtSecret, dbInstance, Authorize(PermUnregisterFleet, UnregisterFleet(dbInstance))).ServeHTTP)
+
 	// Cluster (Authenticated, admin only)
 	mux.HandleFunc("GET /api/v1/cluster/members", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, ListClusterMembers(dbInstance))).ServeHTTP)
 	mux.HandleFunc("DELETE /api/v1/cluster/members/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermManageCluster, RemoveClusterMember(dbInstance))).ServeHTTP)
@@ -239,6 +245,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	var handler http.Handler = mux
 
 	handler = MaxBodySizeMiddleware(handler)
+	handler = FleetReadOnlyMiddleware(dbInstance, handler)
 	handler = SecurityHeadersMiddleware(secureCookie, handler)
 	handler = MetricsMiddleware(handler)
 
