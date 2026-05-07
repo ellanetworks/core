@@ -41,6 +41,7 @@ import {
   type ListRadiosResponse,
 } from "@/queries/radios";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
 import {
@@ -189,7 +190,8 @@ const TOOLBAR_HEIGHT = 64;
 
 export default function EventsTab() {
   const { role, accessToken, authReady } = useAuth();
-  const canEdit = role === "Admin";
+  const { isFleetManaged } = useFleet();
+  const canEdit = role === "Admin" && !isFleetManaged;
   const theme = useTheme();
   const { gridTheme } = useRadiosContext();
 

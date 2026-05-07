@@ -3,6 +3,7 @@ import type { SyntheticEvent } from "react";
 import { Box, Typography, Tabs, Tab } from "@mui/material";
 import { useTheme, createTheme } from "@mui/material/styles";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
@@ -21,7 +22,9 @@ type TabKey = (typeof TAB_SEGMENTS)[number];
 
 export default function NetworkingPage() {
   const { role, accessToken } = useAuth();
-  const canEdit = role === "Admin" || role === "Network Manager";
+  const { isFleetManaged } = useFleet();
+  const canEdit =
+    (role === "Admin" || role === "Network Manager") && !isFleetManaged;
   const { showSnackbar } = useSnackbar();
 
   const location = useLocation();

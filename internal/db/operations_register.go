@@ -149,6 +149,14 @@ var (
 	opInitJoinHMAC          = registerChangesetOp("InitClusterJoinHMACKey", (*Database).applyInitJoinHMAC, RequireSchema(12))
 )
 
+// Fleet. The fleet table is local-only (per-node mTLS material and
+// registration state); writes call apply* directly and skip Raft.
+// UpdateConfig stays replicated because it mutates replicated tables
+// (operator, profiles, slices, policies, subscribers, etc.).
+var (
+	opUpdateConfig = registerChangesetOp("UpdateConfig", (*Database).applyUpdateConfig, RequireSchema(13))
+)
+
 // Intent ops — bulk deletes and migrations dispatched explicitly by the
 // FSM via CommandType. Call sites use intentOp.Invoke; the forwarded-op
 // envelope carries the same name the leader's dispatcher looks up here.

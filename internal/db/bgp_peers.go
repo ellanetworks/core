@@ -223,7 +223,7 @@ func (db *Database) UpdateBGPPeer(ctx context.Context, peer *BGPPeer) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "update").Inc()
 
-	_, err := db.applyUpdateBGPPeer(ctx, peer)
+	err := db.applyUpdateBGPPeer(ctx, peer)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -255,7 +255,7 @@ func (db *Database) DeleteBGPPeer(ctx context.Context, id int) error {
 
 	DBQueriesTotal.WithLabelValues(BGPPeersTableName, "delete").Inc()
 
-	_, err := db.applyDeleteBGPPeer(ctx, &intPayload{Value: id})
+	err := db.applyDeleteBGPPeer(ctx, &intPayload{Value: id})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

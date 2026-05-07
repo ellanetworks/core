@@ -15,6 +15,7 @@ import {
   type APISubscriber,
 } from "@/queries/subscribers";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import EditSubscriberModal from "@/components/EditSubscriberModal";
 import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
@@ -29,8 +30,10 @@ const SubscriberDetail: React.FC = () => {
   const { imsi } = useParams<{ imsi: string }>();
   const navigate = useNavigate();
   const { role, accessToken, authReady } = useAuth();
+  const { isFleetManaged } = useFleet();
   const { showSnackbar } = useSnackbar();
-  const canEdit = role === "Admin" || role === "Network Manager";
+  const canEdit =
+    (role === "Admin" || role === "Network Manager") && !isFleetManaged;
 
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);

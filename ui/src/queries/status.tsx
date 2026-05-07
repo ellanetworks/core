@@ -11,6 +11,11 @@ export type ClusterStatus = {
   clusterId?: string;
 };
 
+export type APIFleetStatus = {
+  managed: boolean;
+  lastSyncAt?: string;
+};
+
 export type APIStatus = {
   initialized: boolean;
   version?: string;
@@ -18,6 +23,7 @@ export type APIStatus = {
   ready?: boolean;
   schemaVersion?: number;
   cluster?: ClusterStatus;
+  fleet: APIFleetStatus;
 };
 
 export const getStatus = async (): Promise<APIStatus> => {

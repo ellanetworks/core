@@ -27,6 +27,7 @@ import {
 } from "@/queries/audit_logs";
 import { listUsers, type ListUsersResponse } from "@/queries/users";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFleet } from "@/contexts/FleetContext";
 import EditAuditLogRetentionPolicyModal from "@/components/EditAuditLogRetentionPolicyModal";
 import { formatDateTime } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
@@ -41,7 +42,8 @@ const getDefaultDateRange = () => {
 
 const AuditLog: React.FC = () => {
   const { role, accessToken, authReady } = useAuth();
-  const canEdit = role === "Admin";
+  const { isFleetManaged } = useFleet();
+  const canEdit = role === "Admin" && !isFleetManaged;
 
   const outerTheme = useTheme();
   const gridTheme = useMemo(

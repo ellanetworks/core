@@ -106,6 +106,41 @@ func TestLocalOnlySingletons_SeededOnFreshDB(t *testing.T) {
 		}
 	})
 
+	t.Run("fleet", func(t *testing.T) {
+		got, err := database.GetFleet(ctx)
+		if err != nil {
+			t.Fatalf("GetFleet on fresh DB returned error: %v", err)
+		}
+
+		if got == nil {
+			t.Fatal("GetFleet returned nil row")
+		}
+
+		if got.URL != "" {
+			t.Fatalf("URL = %q, want default \"\"", got.URL)
+		}
+
+		if len(got.PrivateKey) != 0 {
+			t.Fatalf("PrivateKey len = %d, want 0", len(got.PrivateKey))
+		}
+
+		if len(got.Certificate) != 0 {
+			t.Fatalf("Certificate len = %d, want 0", len(got.Certificate))
+		}
+
+		if len(got.CACertificate) != 0 {
+			t.Fatalf("CACertificate len = %d, want 0", len(got.CACertificate))
+		}
+
+		if got.LastSyncAt != "" {
+			t.Fatalf("LastSyncAt = %q, want default \"\"", got.LastSyncAt)
+		}
+
+		if got.ConfigRevision != 0 {
+			t.Fatalf("ConfigRevision = %d, want default 0", got.ConfigRevision)
+		}
+	})
+
 	// Restart preserves operator state. Switch every singleton away from
 	// its default, close the DB, reopen it, and confirm the seed step
 	// did not overwrite the operator-set values.
@@ -129,6 +164,10 @@ func TestLocalOnlySingletons_SeededOnFreshDB(t *testing.T) {
 			ListenAddress: "10.0.0.1:179",
 		}); err != nil {
 			t.Fatalf("UpdateBGPSettings: %v", err)
+		}
+
+		if err := database.UpdateFleetURL(ctx, "https://fleet.example.com"); err != nil {
+			t.Fatalf("UpdateFleetURL: %v", err)
 		}
 
 		if err := database.Close(); err != nil {
@@ -182,6 +221,15 @@ func TestLocalOnlySingletons_SeededOnFreshDB(t *testing.T) {
 
 		if bgp.LocalAS != 65000 || bgp.RouterID != "10.0.0.1" || bgp.Enabled == db.BGPDefaultEnabled {
 			t.Fatalf("BGP settings were reset after restart: %+v", bgp)
+		}
+
+		fleet, err := reopened.GetFleet(ctx)
+		if err != nil {
+			t.Fatalf("GetFleet after restart: %v", err)
+		}
+
+		if fleet.URL != "https://fleet.example.com" {
+			t.Fatalf("fleet URL was reset after restart: got %q", fleet.URL)
 		}
 	})
 }

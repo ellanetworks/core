@@ -33,6 +33,7 @@ var migrations = []migration{
 	{10, "drop bgp_peers.nodeID and cluster_members.maxSchemaVersion (both dead post-HA-redesign)", migrateV10},
 	{11, "replicated AUTOINCREMENT PKs → TEXT (UUID); spec_uuid.md", migrateV11},
 	{12, "replace chain-PKI cluster TLS with fingerprint pinning (cluster_node_certs)", migrateV12},
+	{13, "add fleet registration table", migrateV13},
 }
 
 // baselineVersion is the highest migration that runs locally during

@@ -1090,80 +1090,80 @@ func (db *Database) applyCreateBGPPeer(ctx context.Context, p *BGPPeer) (any, er
 	return int(id), nil
 }
 
-func (db *Database) applyUpdateBGPPeer(ctx context.Context, p *BGPPeer) (any, error) {
+func (db *Database) applyUpdateBGPPeer(ctx context.Context, p *BGPPeer) error {
 	var outcome sqlair.Outcome
 
 	err := db.runner(ctx).Query(ctx, db.updateBGPPeerStmt, p).Get(&outcome)
 	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	rowsAffected, err := outcome.Result().RowsAffected()
 	if err != nil {
-		return nil, fmt.Errorf("rows affected: %w", err)
+		return fmt.Errorf("rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
-		return nil, ErrNotFound
+		return ErrNotFound
 	}
 
-	return struct{}{}, nil
+	return nil
 }
 
-func (db *Database) applyDeleteBGPPeer(ctx context.Context, p *intPayload) (any, error) {
+func (db *Database) applyDeleteBGPPeer(ctx context.Context, p *intPayload) error {
 	var outcome sqlair.Outcome
 
 	err := db.runner(ctx).Query(ctx, db.deleteBGPPeerStmt, BGPPeer{ID: p.Value}).Get(&outcome)
 	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	rowsAffected, err := outcome.Result().RowsAffected()
 	if err != nil {
-		return nil, fmt.Errorf("rows affected: %w", err)
+		return fmt.Errorf("rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
-		return nil, ErrNotFound
+		return ErrNotFound
 	}
 
-	return struct{}{}, nil
+	return nil
 }
 
-func (db *Database) applyUpdateBGPSettings(ctx context.Context, s *BGPSettings) (any, error) {
+func (db *Database) applyUpdateBGPSettings(ctx context.Context, s *BGPSettings) error {
 	err := db.runner(ctx).Query(ctx, db.upsertBGPSettingsStmt, s).Run()
 	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
+		return fmt.Errorf("query failed: %w", err)
 	}
 
-	return struct{}{}, nil
+	return nil
 }
 
-func (db *Database) applyUpdateNATSettings(ctx context.Context, p *boolPayload) (any, error) {
+func (db *Database) applyUpdateNATSettings(ctx context.Context, p *boolPayload) error {
 	err := db.runner(ctx).Query(ctx, db.upsertNATSettingsStmt, NATSettings{Enabled: p.Value}).Run()
 	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
+		return fmt.Errorf("query failed: %w", err)
 	}
 
-	return struct{}{}, nil
+	return nil
 }
 
-func (db *Database) applyUpdateN3Settings(ctx context.Context, p *stringPayload) (any, error) {
+func (db *Database) applyUpdateN3Settings(ctx context.Context, p *stringPayload) error {
 	err := db.runner(ctx).Query(ctx, db.updateN3SettingsStmt, N3Settings{ExternalAddress: p.Value}).Run()
 	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
+		return fmt.Errorf("query failed: %w", err)
 	}
 
-	return struct{}{}, nil
+	return nil
 }
 
-func (db *Database) applyUpdateFlowAccountingSettings(ctx context.Context, p *boolPayload) (any, error) {
+func (db *Database) applyUpdateFlowAccountingSettings(ctx context.Context, p *boolPayload) error {
 	err := db.runner(ctx).Query(ctx, db.upsertFlowAccountingSettingsStmt, FlowAccountingSettings{Enabled: p.Value}).Run()
 	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
+		return fmt.Errorf("query failed: %w", err)
 	}
 
-	return struct{}{}, nil
+	return nil
 }
 
 func (db *Database) applySetRetentionPolicy(ctx context.Context, rp *RetentionPolicy) (any, error) {
@@ -1276,24 +1276,24 @@ func (db *Database) applyCreateRoute(ctx context.Context, r *Route) (any, error)
 	return id, nil
 }
 
-func (db *Database) applyDeleteRoute(ctx context.Context, p *int64Payload) (any, error) {
+func (db *Database) applyDeleteRoute(ctx context.Context, p *int64Payload) error {
 	var outcome sqlair.Outcome
 
 	err := db.runner(ctx).Query(ctx, db.deleteRouteStmt, Route{ID: p.Value}).Get(&outcome)
 	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
+		return fmt.Errorf("query failed: %w", err)
 	}
 
 	rowsAffected, err := outcome.Result().RowsAffected()
 	if err != nil {
-		return nil, fmt.Errorf("rows affected: %w", err)
+		return fmt.Errorf("rows affected: %w", err)
 	}
 
 	if rowsAffected == 0 {
-		return nil, ErrNotFound
+		return ErrNotFound
 	}
 
-	return struct{}{}, nil
+	return nil
 }
 
 func (db *Database) applyUpsertClusterMember(ctx context.Context, m *ClusterMember) (any, error) {
