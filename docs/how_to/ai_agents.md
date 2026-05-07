@@ -15,26 +15,26 @@ Before using the skill, you need:
 
 ## 1. Install the skill
 
-### Claude Code (recommended)
-
-Add the marketplace and install the plugin:
+### Claude Code
 
 ```
 /plugin marketplace add ellanetworks/core
 /plugin install ella-core@ellanetworks-core
 ```
 
-Updates land with `/plugin marketplace update`.
+Refresh later with `/plugin marketplace update`.
 
-### Other AI tools
+### Codex
 
-The skill is a folder containing `SKILL.md` and a `references/` directory at [`skills/ella-core/`](https://github.com/ellanetworks/core/tree/main/skills/ella-core). Copy the whole folder into a skills directory your tool discovers (e.g. `<project>/.agents/skills/ella-core/`):
-
-```bash
-git clone --depth 1 --filter=blob:none --sparse https://github.com/ellanetworks/core.git /tmp/ella
-git -C /tmp/ella sparse-checkout set skills/ella-core
-mkdir -p .agents/skills && cp -r /tmp/ella/skills/ella-core .agents/skills/
 ```
+codex plugin marketplace add ellanetworks/core
+```
+
+Then install `ella-core` from Codex's plugin directory.
+
+### Manual
+
+Copy the [`skills/ella-core/`](https://github.com/ellanetworks/core/tree/main/skills/ella-core) folder into the skills directory your AI tool discovers.
 
 ## 2. Prompt the agent
 
