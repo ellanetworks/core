@@ -42,7 +42,7 @@ func fixtureConnectivityMultiPDUSession(env scenarios.Env) scenarios.FixtureSpec
 	enterpriseIPPool := "10.46.0.0/16"
 	enterpriseDNS := "8.8.4.4"
 
-	if env.IPFamily() != scenarios.IPv4Only {
+	if env.IPFamily() == scenarios.IPv6Only {
 		enterpriseIPPool = "fd46::/48"
 		enterpriseDNS = scenarios.DefaultDNSv6
 	}
