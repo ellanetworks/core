@@ -31,23 +31,21 @@ type OperatorSPN struct {
 	ShortName string `json:"short_name"`
 }
 
-type OperatorAMF struct {
-	RegionID int `json:"region_id"`
-	SetID    int `json:"set_id"`
-}
-
 type OperatorID struct {
 	Mcc string `json:"mcc"`
 	Mnc string `json:"mnc"`
 }
 
+// Operator carries the cluster-scoped operator configuration that Fleet
+// manages. AMF identity and ClusterID are intentionally absent: they are
+// cluster-local — AMF region/set IDs depend on the operator's broader 5G
+// topology and ClusterID is generated inside the cluster.
 type Operator struct {
 	ID           OperatorID          `json:"id"`
 	OperatorCode string              `json:"operator_code"`
 	Tracking     OperatorTracking    `json:"tracking"`
 	NASSecurity  OperatorNASSecurity `json:"nas_security"`
 	SPN          OperatorSPN         `json:"spn"`
-	AMF          OperatorAMF         `json:"amf"`
 }
 
 type HomeNetworkKey struct {
@@ -183,27 +181,50 @@ type StatusNetworkInterfaces struct {
 	API APIInterface `json:"api"`
 }
 
-type Networking struct {
-	DataNetworks      []DataNetwork     `json:"data_networks"`
-	Routes            []Route           `json:"routes"`
-	NAT               bool              `json:"nat"`
-	FlowAccounting    bool              `json:"flow_accounting"`
-	N3ExternalAddress string            `json:"n3_external_address"`
-	BGP               BGPSettings       `json:"bgp"`
-	BGPPeers          []BGPPeer         `json:"bgp_peers"`
-	BGPImportPrefixes []BGPImportPrefix `json:"bgp_import_prefixes"`
+// NetworkInterfaces holds the per-node interface-level configuration
+// that Fleet manages. Today only N3's external address is configurable;
+// the struct is shaped so future N2/N6 fields can be added without
+// reshaping the wire.
+type NetworkInterfaces struct {
+	N3ExternalAddress string `json:"n3_external_address"`
 }
 
-type EllaCoreConfig struct {
+// ClusterConfig carries the cluster-replicated portion of the Fleet
+// config. Applied by the leader via Raft; followers receive an identical
+// copy in the sync response but discard it.
+type ClusterConfig struct {
 	Operator          Operator          `json:"operator"`
 	HomeNetworkKeys   []HomeNetworkKey  `json:"home_network_keys"`
-	Networking        Networking        `json:"networking"`
+	DataNetworks      []DataNetwork     `json:"data_networks"`
 	Profiles          []Profile         `json:"profiles"`
 	Slices            []Slice           `json:"slices"`
 	Policies          []Policy          `json:"policies"`
 	NetworkRules      []NetworkRule     `json:"network_rules"`
 	Subscribers       []Subscriber      `json:"subscribers"`
 	RetentionPolicies []RetentionPolicy `json:"retention_policies"`
+}
+
+// NodeConfig carries the per-node portion of the Fleet config. Each
+// member receives the slice scoped to its own node and applies it
+// locally; writes bypass Raft.
+type NodeConfig struct {
+	Routes            []Route           `json:"routes"`
+	NAT               bool              `json:"nat"`
+	FlowAccounting    bool              `json:"flow_accounting"`
+	NetworkInterfaces NetworkInterfaces `json:"network_interfaces"`
+	BGP               BGPSettings       `json:"bgp"`
+	BGPPeers          []BGPPeer         `json:"bgp_peers"`
+	BGPImportPrefixes []BGPImportPrefix `json:"bgp_import_prefixes"`
+}
+
+// Config is the unified Fleet config payload exchanged in both
+// directions: Cores send it as RegisterParams.InitialConfig, and Fleet
+// returns it as SyncResponse.Config. The Cluster / Node split mirrors
+// the apply paths in core2: only the leader applies Cluster; every node
+// applies Node.
+type Config struct {
+	Cluster ClusterConfig `json:"cluster"`
+	Node    NodeConfig    `json:"node"`
 }
 
 type PlmnID struct {
@@ -270,7 +291,7 @@ type RegisterParams struct {
 	PublicKey       string                 `json:"public_key"`
 	ClusterID       string                 `json:"cluster_id,omitempty"`
 	NodeID          int                    `json:"node_id,omitempty"`
-	InitialConfig   EllaCoreConfig         `json:"initial_config"`
+	InitialConfig   Config                 `json:"initial_config"`
 	InitialStatus   EllaCoreStatus         `json:"initial_status"`
 	InitialMetrics  EllaCoreMetrics        `json:"initial_metrics"`
 	InitialUsage    []SubscriberUsageEntry `json:"initial_usage,omitempty"`
@@ -294,7 +315,7 @@ type RegisterInput struct {
 	PublicKey       ecdsa.PublicKey
 	ClusterID       string
 	NodeID          int
-	InitialConfig   EllaCoreConfig
+	InitialConfig   Config
 	InitialStatus   EllaCoreStatus
 	InitialMetrics  EllaCoreMetrics
 	InitialUsage    []SubscriberUsageEntry

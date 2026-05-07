@@ -45,36 +45,9 @@ type SyncParams struct {
 	SubscriberUsage   []SubscriberUsageEntry `json:"subscriber_usage,omitempty"`
 }
 
-type SyncNetworkInterfaces struct {
-	N3ExternalAddress string `json:"n3_external_address"`
-}
-
-type SyncNetworking struct {
-	DataNetworks      []DataNetwork         `json:"data_networks"`
-	Routes            []Route               `json:"routes"`
-	NAT               bool                  `json:"nat"`
-	FlowAccounting    bool                  `json:"flow_accounting"`
-	NetworkInterfaces SyncNetworkInterfaces `json:"network_interfaces"`
-	BGP               BGPSettings           `json:"bgp"`
-	BGPPeers          []BGPPeer             `json:"bgp_peers"`
-	BGPImportPrefixes []BGPImportPrefix     `json:"bgp_import_prefixes"`
-}
-
-type SyncConfig struct {
-	Operator          Operator          `json:"operator"`
-	HomeNetworkKeys   []HomeNetworkKey  `json:"home_network_keys"`
-	Networking        SyncNetworking    `json:"networking"`
-	Profiles          []Profile         `json:"profiles"`
-	Slices            []Slice           `json:"slices"`
-	Policies          []Policy          `json:"policies"`
-	NetworkRules      []NetworkRule     `json:"network_rules"`
-	Subscribers       []Subscriber      `json:"subscribers"`
-	RetentionPolicies []RetentionPolicy `json:"retention_policies"`
-}
-
 type SyncResponse struct {
-	Config         *SyncConfig `json:"config,omitempty"`
-	ConfigRevision int64       `json:"config_revision"`
+	Config         *Config `json:"config,omitempty"`
+	ConfigRevision int64   `json:"config_revision"`
 }
 
 func (fc *Fleet) Sync(ctx context.Context, params *SyncParams) (*SyncResponse, error) {

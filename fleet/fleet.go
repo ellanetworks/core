@@ -104,13 +104,13 @@ type syncer interface {
 }
 
 // syncDB abstracts the database operations needed by the sync loop.
-// UpdateConfig and GetRawDailyUsage are leader-only (replicated tables;
-// the leader's apply propagates via Raft). UpdateNodeConfig and
+// UpdateClusterConfig and GetRawDailyUsage are leader-only (replicated
+// tables; the leader's apply propagates via Raft). UpdateNodeConfig and
 // UpdateFleetConfigRevision run on every node — they write to local-only
 // tables (per-node network config and the fleet registration row).
 type syncDB interface {
-	UpdateConfig(ctx context.Context, cfg client.SyncConfig) error
-	UpdateNodeConfig(ctx context.Context, cfg client.SyncConfig) error
+	UpdateClusterConfig(ctx context.Context, cfg client.ClusterConfig) error
+	UpdateNodeConfig(ctx context.Context, cfg client.NodeConfig) error
 	UpdateFleetConfigRevision(ctx context.Context, revision int64) error
 	GetRawDailyUsage(ctx context.Context, start, end time.Time) ([]db.DailyUsage, error)
 	GetFleet(ctx context.Context) (*db.Fleet, error)
@@ -201,12 +201,12 @@ func (r *syncRunner) runOneCycle(ctx context.Context) {
 	// against its own node-scoped slice of the response.
 	if resp.Config != nil {
 		if isLeader {
-			if err := r.db.UpdateConfig(ctx, *resp.Config); err != nil {
-				logger.EllaLog.Error("failed to apply fleet config", zap.Error(err))
+			if err := r.db.UpdateClusterConfig(ctx, resp.Config.Cluster); err != nil {
+				logger.EllaLog.Error("failed to apply fleet cluster config", zap.Error(err))
 			}
 		}
 
-		if err := r.db.UpdateNodeConfig(ctx, *resp.Config); err != nil {
+		if err := r.db.UpdateNodeConfig(ctx, resp.Config.Node); err != nil {
 			logger.EllaLog.Error("failed to apply per-node fleet config", zap.Error(err))
 		} else {
 			r.lastKnownRev = resp.ConfigRevision
@@ -224,7 +224,7 @@ func (r *syncRunner) runOneCycle(ctx context.Context) {
 	}
 }
 
-func (r *syncRunner) reloadConfig(cfg *client.SyncConfig) {
+func (r *syncRunner) reloadConfig(cfg *client.Config) {
 	if r.handle == nil {
 		return
 	}
@@ -234,11 +234,11 @@ func (r *syncRunner) reloadConfig(cfg *client.SyncConfig) {
 		return
 	}
 
-	if err := reloader.ReloadNAT(cfg.Networking.NAT); err != nil {
+	if err := reloader.ReloadNAT(cfg.Node.NAT); err != nil {
 		logger.EllaLog.Error("failed to reload NAT after fleet sync", zap.Error(err))
 	}
 
-	if err := reloader.ReloadFlowAccounting(cfg.Networking.FlowAccounting); err != nil {
+	if err := reloader.ReloadFlowAccounting(cfg.Node.FlowAccounting); err != nil {
 		logger.EllaLog.Error("failed to reload flow accounting after fleet sync", zap.Error(err))
 	}
 }

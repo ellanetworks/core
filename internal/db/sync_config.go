@@ -29,9 +29,9 @@ func newUUIDv7() (string, error) {
 	return id.String(), nil
 }
 
-// UpdateConfig applies the cluster-wide portion of the fleet config to
-// the replicated tables. Only the leader calls this; the resulting
-// changeset is replayed on every follower via Raft.
+// UpdateClusterConfig applies the cluster-wide portion of the fleet
+// config to the replicated tables. Only the leader calls this; the
+// resulting changeset is replayed on every follower via Raft.
 //
 // Operator, profiles/slices/data networks, policies, subscribers, home
 // network keys, network rules, and retention policies are reconciled
@@ -42,8 +42,8 @@ func newUUIDv7() (string, error) {
 // Fleet-side IDs are resolved to local IDs via name at apply time, so
 // the IDs seen here do not need to match what the local DB last
 // assigned.
-func (db *Database) UpdateConfig(ctx context.Context, cfg client.SyncConfig) error {
-	_, span := tracer.Start(ctx, "UpdateConfig", trace.WithSpanKind(trace.SpanKindClient))
+func (db *Database) UpdateClusterConfig(ctx context.Context, cfg client.ClusterConfig) error {
+	_, span := tracer.Start(ctx, "UpdateClusterConfig", trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
 	_, err := opUpdateConfig.Invoke(db, &cfg)
@@ -62,7 +62,7 @@ func (db *Database) UpdateConfig(ctx context.Context, cfg client.SyncConfig) err
 // UpdateNodeConfig applies the per-node portion of the fleet config to
 // local-only tables. Every node calls this with its own node-scoped
 // payload; writes bypass Raft.
-func (db *Database) UpdateNodeConfig(ctx context.Context, cfg client.SyncConfig) error {
+func (db *Database) UpdateNodeConfig(ctx context.Context, cfg client.NodeConfig) error {
 	_, span := tracer.Start(ctx, "UpdateNodeConfig", trace.WithSpanKind(trace.SpanKindClient))
 	defer span.End()
 
@@ -78,11 +78,11 @@ func (db *Database) UpdateNodeConfig(ctx context.Context, cfg client.SyncConfig)
 	return nil
 }
 
-func (db *Database) applyUpdateConfig(ctx context.Context, cfg *client.SyncConfig) (any, error) {
-	return nil, db.applySyncConfig(ctx, cfg)
+func (db *Database) applyUpdateConfig(ctx context.Context, cfg *client.ClusterConfig) (any, error) {
+	return nil, db.applyClusterConfig(ctx, cfg)
 }
 
-func (db *Database) applySyncConfig(ctx context.Context, cfg *client.SyncConfig) error {
+func (db *Database) applyClusterConfig(ctx context.Context, cfg *client.ClusterConfig) error {
 	if err := db.syncOperator(ctx, cfg.Operator); err != nil {
 		return fmt.Errorf("sync operator: %w", err)
 	}
@@ -91,7 +91,7 @@ func (db *Database) applySyncConfig(ctx context.Context, cfg *client.SyncConfig)
 		return fmt.Errorf("sync home network keys: %w", err)
 	}
 
-	if err := db.syncDataNetworks(ctx, cfg.Networking.DataNetworks); err != nil {
+	if err := db.syncDataNetworks(ctx, cfg.DataNetworks); err != nil {
 		return fmt.Errorf("sync data networks: %w", err)
 	}
 
@@ -130,7 +130,7 @@ func (db *Database) applySyncConfig(ctx context.Context, cfg *client.SyncConfig)
 		return fmt.Errorf("sync slices (deletes): %w", err)
 	}
 
-	if err := db.syncDataNetworksDeletes(ctx, cfg.Networking.DataNetworks); err != nil {
+	if err := db.syncDataNetworksDeletes(ctx, cfg.DataNetworks); err != nil {
 		return fmt.Errorf("sync data networks (deletes): %w", err)
 	}
 
@@ -148,36 +148,41 @@ func (db *Database) applySyncConfig(ctx context.Context, cfg *client.SyncConfig)
 // applyNodeConfig writes the per-node portion of the fleet config to
 // local-only tables. Every node runs this against its own DB; writes are
 // not captured into a Raft changeset.
-func (db *Database) applyNodeConfig(ctx context.Context, cfg *client.SyncConfig) error {
-	if err := db.syncRoutes(ctx, cfg.Networking.Routes); err != nil {
+func (db *Database) applyNodeConfig(ctx context.Context, cfg *client.NodeConfig) error {
+	if err := db.syncRoutes(ctx, cfg.Routes); err != nil {
 		return fmt.Errorf("sync routes: %w", err)
 	}
 
-	if err := db.syncBGPSettings(ctx, cfg.Networking.BGP); err != nil {
+	if err := db.syncBGPSettings(ctx, cfg.BGP); err != nil {
 		return fmt.Errorf("sync BGP settings: %w", err)
 	}
 
-	if err := db.syncBGPPeersAndPrefixes(ctx, cfg.Networking.BGPPeers, cfg.Networking.BGPImportPrefixes); err != nil {
+	if err := db.syncBGPPeersAndPrefixes(ctx, cfg.BGPPeers, cfg.BGPImportPrefixes); err != nil {
 		return fmt.Errorf("sync BGP peers: %w", err)
 	}
 
-	if err := db.applyUpdateNATSettings(ctx, &boolPayload{Value: cfg.Networking.NAT}); err != nil {
+	if err := db.applyUpdateNATSettings(ctx, &boolPayload{Value: cfg.NAT}); err != nil {
 		return fmt.Errorf("sync NAT: %w", err)
 	}
 
-	if err := db.applyUpdateFlowAccountingSettings(ctx, &boolPayload{Value: cfg.Networking.FlowAccounting}); err != nil {
+	if err := db.applyUpdateFlowAccountingSettings(ctx, &boolPayload{Value: cfg.FlowAccounting}); err != nil {
 		return fmt.Errorf("sync flow accounting: %w", err)
 	}
 
-	if err := db.applyUpdateN3Settings(ctx, &stringPayload{Value: cfg.Networking.NetworkInterfaces.N3ExternalAddress}); err != nil {
+	if err := db.applyUpdateN3Settings(ctx, &stringPayload{Value: cfg.NetworkInterfaces.N3ExternalAddress}); err != nil {
 		return fmt.Errorf("sync N3 settings: %w", err)
 	}
 
 	return nil
 }
 
-// syncOperator updates the singleton operator row in place. Cluster ID
-// and AMF identity remain local-only — Fleet does not manage them.
+// syncOperator updates the singleton operator row in place.
+//
+// Cluster ID and AMF identity are intentionally not synced from Fleet:
+// ClusterID is generated locally inside the cluster (see
+// ensureClusterID) and AMF Region/Set IDs are cluster-local topology
+// values that Fleet has no authority over. Operators set AMF identity
+// via the cluster's own API (UpdateOperatorAMFIdentity).
 func (db *Database) syncOperator(ctx context.Context, desired client.Operator) error {
 	if _, err := db.applyUpdateOperatorID(ctx, &Operator{Mcc: desired.ID.Mcc, Mnc: desired.ID.Mnc}); err != nil {
 		return fmt.Errorf("update operator id: %w", err)
@@ -214,16 +219,24 @@ func (db *Database) syncOperator(ctx context.Context, desired client.Operator) e
 		return fmt.Errorf("update operator SPN: %w", err)
 	}
 
-	if _, err := db.applyUpdateOperatorAMFIdentity(ctx, &Operator{AmfRegionID: desired.AMF.RegionID, AmfSetID: desired.AMF.SetID}); err != nil {
-		return fmt.Errorf("update operator AMF identity: %w", err)
-	}
-
 	return nil
 }
 
 // syncHomeNetworkKeys reconciles home network keys by keyIdentifier.
-// Existing keys are left untouched (private keys are not rotated via
-// Fleet); missing keys are created and extras are deleted.
+//
+// Reconcile contract (relied on by Fleet):
+//   - missing identifiers are created from the desired payload,
+//   - identifiers present locally but absent from the desired payload
+//     are deleted,
+//   - identifiers present in both are LEFT UNTOUCHED — neither the
+//     scheme nor the private_key of an existing identifier is
+//     overwritten by sync.
+//
+// The "untouched" rule is deliberate. Silent re-keying via a Fleet
+// round-trip would be a serious footgun: a typo in Fleet's UI could
+// rewrite a live home-network private key and break SUPI deconcealment
+// across every subscriber. Operators rotate by allocating a new
+// key_identifier instead.
 func (db *Database) syncHomeNetworkKeys(ctx context.Context, desired []client.HomeNetworkKey) error {
 	existing, err := db.listHomeNetworkKeysPinned(ctx)
 	if err != nil {

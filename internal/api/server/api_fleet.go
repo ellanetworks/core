@@ -369,15 +369,15 @@ func getSubscribersStatus(ctx context.Context, dbInstance *db.Database, amfInsta
 	return statuses
 }
 
-func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.EllaCoreConfig, error) {
+func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.Config, error) {
 	op, err := dbInstance.GetOperator(ctx)
 	if err != nil {
-		return client.EllaCoreConfig{}, fmt.Errorf("couldn't get operator from database: %w", err)
+		return client.Config{}, fmt.Errorf("couldn't get operator from database: %w", err)
 	}
 
 	supportedTacs, err := op.GetSupportedTacs()
 	if err != nil {
-		return client.EllaCoreConfig{}, fmt.Errorf("couldn't get supported tacs: %w", err)
+		return client.Config{}, fmt.Errorf("couldn't get supported tacs: %w", err)
 	}
 
 	ciphering, _ := op.GetCiphering()
@@ -385,7 +385,7 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.El
 
 	routes, _, err := dbInstance.ListRoutesPage(ctx, 1, 100)
 	if err != nil {
-		return client.EllaCoreConfig{}, fmt.Errorf("couldn't list routes: %w", err)
+		return client.Config{}, fmt.Errorf("couldn't list routes: %w", err)
 	}
 
 	routesCfg := make([]client.Route, len(routes))
@@ -401,22 +401,22 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.El
 
 	natEnabled, err := dbInstance.IsNATEnabled(ctx)
 	if err != nil {
-		return client.EllaCoreConfig{}, fmt.Errorf("couldn't get NAT configuration: %w", err)
+		return client.Config{}, fmt.Errorf("couldn't get NAT configuration: %w", err)
 	}
 
 	flowAccEnabled, err := dbInstance.IsFlowAccountingEnabled(ctx)
 	if err != nil {
-		return client.EllaCoreConfig{}, fmt.Errorf("couldn't get flow accounting configuration: %w", err)
+		return client.Config{}, fmt.Errorf("couldn't get flow accounting configuration: %w", err)
 	}
 
 	n3Settings, err := dbInstance.GetN3Settings(ctx)
 	if err != nil {
-		return client.EllaCoreConfig{}, fmt.Errorf("couldn't get N3 settings: %w", err)
+		return client.Config{}, fmt.Errorf("couldn't get N3 settings: %w", err)
 	}
 
 	dataNetworks, err := dbInstance.ListAllDataNetworks(ctx)
 	if err != nil {
-		return client.EllaCoreConfig{}, fmt.Errorf("couldn't list data networks: %w", err)
+		return client.Config{}, fmt.Errorf("couldn't list data networks: %w", err)
 	}
 
 	dnCfg := make([]client.DataNetwork, len(dataNetworks))
@@ -431,7 +431,7 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.El
 
 	profiles, _, err := dbInstance.ListProfilesPage(ctx, 1, 1000)
 	if err != nil {
-		return client.EllaCoreConfig{}, fmt.Errorf("couldn't list profiles: %w", err)
+		return client.Config{}, fmt.Errorf("couldn't list profiles: %w", err)
 	}
 
 	profileCfg := make([]client.Profile, len(profiles))
@@ -449,7 +449,7 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.El
 
 	slices, err := dbInstance.ListAllNetworkSlices(ctx)
 	if err != nil {
-		return client.EllaCoreConfig{}, fmt.Errorf("couldn't list slices: %w", err)
+		return client.Config{}, fmt.Errorf("couldn't list slices: %w", err)
 	}
 
 	sliceCfg := make([]client.Slice, len(slices))
@@ -467,7 +467,7 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.El
 
 	policies, _, err := dbInstance.ListPoliciesPage(ctx, 1, 1000)
 	if err != nil {
-		return client.EllaCoreConfig{}, fmt.Errorf("couldn't list policies: %w", err)
+		return client.Config{}, fmt.Errorf("couldn't list policies: %w", err)
 	}
 
 	dnNameByID := make(map[string]string, len(dataNetworks))
@@ -492,7 +492,7 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.El
 
 		rules, err := dbInstance.ListRulesForPolicy(ctx, p.ID)
 		if err != nil {
-			return client.EllaCoreConfig{}, fmt.Errorf("couldn't list rules for policy %q: %w", p.Name, err)
+			return client.Config{}, fmt.Errorf("couldn't list rules for policy %q: %w", p.Name, err)
 		}
 
 		for _, r := range rules {
@@ -512,7 +512,7 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.El
 
 	subscribers, _, err := dbInstance.ListSubscribersPage(ctx, 1, 1000)
 	if err != nil {
-		return client.EllaCoreConfig{}, fmt.Errorf("couldn't list subscribers: %w", err)
+		return client.Config{}, fmt.Errorf("couldn't list subscribers: %w", err)
 	}
 
 	subCfg := make([]client.Subscriber, len(subscribers))
@@ -528,7 +528,7 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.El
 
 	hnKeys, err := dbInstance.ListHomeNetworkKeys(ctx)
 	if err != nil {
-		return client.EllaCoreConfig{}, fmt.Errorf("couldn't list home network keys: %w", err)
+		return client.Config{}, fmt.Errorf("couldn't list home network keys: %w", err)
 	}
 
 	hnKeyCfg := make([]client.HomeNetworkKey, len(hnKeys))
@@ -542,40 +542,41 @@ func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.El
 
 	bgpCfg, bgpPeersCfg, bgpImportCfg, err := collectBGPConfig(ctx, dbInstance)
 	if err != nil {
-		return client.EllaCoreConfig{}, err
+		return client.Config{}, err
 	}
 
 	retentionCfg, err := collectRetentionPolicies(ctx, dbInstance)
 	if err != nil {
-		return client.EllaCoreConfig{}, err
+		return client.Config{}, err
 	}
 
-	return client.EllaCoreConfig{
-		Operator: client.Operator{
-			ID:           client.OperatorID{Mcc: op.Mcc, Mnc: op.Mnc},
-			OperatorCode: op.OperatorCode,
-			Tracking:     client.OperatorTracking{SupportedTacs: supportedTacs},
-			NASSecurity:  client.OperatorNASSecurity{Ciphering: ciphering, Integrity: integrity},
-			SPN:          client.OperatorSPN{FullName: op.SpnFullName, ShortName: op.SpnShortName},
-			AMF:          client.OperatorAMF{RegionID: op.AmfRegionID, SetID: op.AmfSetID},
-		},
-		HomeNetworkKeys: hnKeyCfg,
-		Networking: client.Networking{
+	return client.Config{
+		Cluster: client.ClusterConfig{
+			Operator: client.Operator{
+				ID:           client.OperatorID{Mcc: op.Mcc, Mnc: op.Mnc},
+				OperatorCode: op.OperatorCode,
+				Tracking:     client.OperatorTracking{SupportedTacs: supportedTacs},
+				NASSecurity:  client.OperatorNASSecurity{Ciphering: ciphering, Integrity: integrity},
+				SPN:          client.OperatorSPN{FullName: op.SpnFullName, ShortName: op.SpnShortName},
+			},
+			HomeNetworkKeys:   hnKeyCfg,
 			DataNetworks:      dnCfg,
+			Profiles:          profileCfg,
+			Slices:            sliceCfg,
+			Policies:          policyCfg,
+			NetworkRules:      ruleCfg,
+			Subscribers:       subCfg,
+			RetentionPolicies: retentionCfg,
+		},
+		Node: client.NodeConfig{
 			Routes:            routesCfg,
 			NAT:               natEnabled,
 			FlowAccounting:    flowAccEnabled,
-			N3ExternalAddress: n3Settings.ExternalAddress,
+			NetworkInterfaces: client.NetworkInterfaces{N3ExternalAddress: n3Settings.ExternalAddress},
 			BGP:               bgpCfg,
 			BGPPeers:          bgpPeersCfg,
 			BGPImportPrefixes: bgpImportCfg,
 		},
-		Profiles:          profileCfg,
-		Slices:            sliceCfg,
-		Policies:          policyCfg,
-		NetworkRules:      ruleCfg,
-		Subscribers:       subCfg,
-		RetentionPolicies: retentionCfg,
 	}, nil
 }
 
