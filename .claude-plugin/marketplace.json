@@ -14,8 +14,6 @@
       "description": "Manage and inspect a running Ella Core 5G private mobile network via its REST API. Triggers: subscribers, profiles, slices, policies, data networks, radios, BGP, NAT, routes, PDU sessions, IMSI, S-NSSAI, DNN, 5QI, AMBR, ARP, audit logs, flow reports, data usage on an Ella Core instance.",
       "version": "0.2.0",
       "source": "./",
-      "strict": false,
-      "skills": ["./plugins/ella-core/skills/ella-core"],
       "author": {
         "name": "Ella Networks",
         "email": "contact@ellanetworks.com"

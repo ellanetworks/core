@@ -1,0 +1,13 @@
+{
+  "name": "ella-core",
+  "version": "0.2.0",
+  "description": "Manage and inspect a running Ella Core 5G private mobile network via its REST API.",
+  "author": {
+    "name": "Ella Networks",
+    "email": "contact@ellanetworks.com"
+  },
+  "homepage": "https://docs.ellanetworks.com",
+  "repository": "https://github.com/ellanetworks/core",
+  "license": "Apache-2.0",
+  "keywords": ["5g", "mobile-network", "private-5g", "ella-core", "ellanetworks"]
+}

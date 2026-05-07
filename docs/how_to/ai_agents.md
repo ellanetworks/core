@@ -24,17 +24,17 @@ Before using the skill, you need:
 
     Refresh later with `/plugin marketplace update`.
 
-=== "Codex"
+=== "NPX"
+
+    Works with any Skills-aware tool that auto-discovers `.agents/skills/` (Codex, Cursor, Cline, Goose, Amp, OpenCode, …).
 
     ```
-    codex plugin marketplace add ellanetworks/core
+    npx skills add ellanetworks/core
     ```
-
-    Then install `ella-core` from Codex's plugin directory.
 
 === "Manual"
 
-    Copy the [`plugins/ella-core/skills/ella-core/`](https://github.com/ellanetworks/core/tree/main/plugins/ella-core/skills/ella-core) folder into the skills directory your AI tool discovers.
+    Copy the [`skills/ella-core/`](https://github.com/ellanetworks/core/tree/main/skills/ella-core) folder into the skills directory your AI tool discovers.
 
 ## 2. Prompt the agent
 
