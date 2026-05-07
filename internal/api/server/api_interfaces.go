@@ -30,8 +30,9 @@ type Vlan struct {
 }
 
 type N6Interface struct {
-	Name string `json:"name"`
-	Vlan *Vlan  `json:"vlan,omitempty"`
+	Name      string   `json:"name"`
+	Addresses []string `json:"addresses"`
+	Vlan      *Vlan    `json:"vlan,omitempty"`
 }
 
 type APIInterface struct {
@@ -104,6 +105,18 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 			n3Addresses = []string{cfg.Interfaces.N3.Address}
 		}
 
+		var n6Addresses []string
+
+		if cfg.Interfaces.N6.Name != "" {
+			ips, err := config.GetInterfaceIPs(cfg.Interfaces.N6.Name)
+			if err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to get N6 interface IPs", err, logger.APILog)
+				return
+			}
+
+			n6Addresses = ips
+		}
+
 		resp := &NetworkInterfaces{
 			N2: N2Interface{
 				Addresses: n2Addresses,
@@ -116,7 +129,8 @@ func ListNetworkInterfaces(dbInstance *db.Database, cfg config.Config) http.Hand
 				ExternalAddress: n3Settings.ExternalAddress,
 			},
 			N6: N6Interface{
-				Name: cfg.Interfaces.N6.Name,
+				Name:      cfg.Interfaces.N6.Name,
+				Addresses: n6Addresses,
 			},
 			API: APIInterface{
 				Addresses: apiAddresses,

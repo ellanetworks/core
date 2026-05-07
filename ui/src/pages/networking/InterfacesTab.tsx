@@ -211,6 +211,18 @@ export default function InterfacesTab() {
                 Interface name:{" "}
                 <strong>{interfacesInfo.n6?.name ?? "—"}</strong>
               </Typography>
+              {interfacesInfo.n6?.addresses &&
+              interfacesInfo.n6.addresses.length > 0 ? (
+                interfacesInfo.n6.addresses.map((addr) => (
+                  <Typography key={addr} variant="body2" color="textSecondary">
+                    Address: <strong>{addr}</strong>
+                  </Typography>
+                ))
+              ) : (
+                <Typography variant="body2" color="textSecondary">
+                  Address: <strong>—</strong>
+                </Typography>
+              )}
               {interfacesInfo.n6?.vlan && (
                 <Typography variant="body2" color="textSecondary">
                   VLAN:{" "}
