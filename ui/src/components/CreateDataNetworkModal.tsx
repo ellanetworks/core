@@ -14,13 +14,7 @@ import { ValidationError } from "yup";
 import { createDataNetwork } from "@/queries/data_networks";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  ipv4Regex,
-  ipv6Regex,
-  cidrRegex,
-  ipv6CidrRegex,
-  isValidIpv6Cidr,
-} from "@/utils/bgp";
+import { ipv4Regex, ipv6Regex, cidrRegex, isValidIpv6Cidr } from "@/utils/ip";
 
 interface CreateDataNetworkModalProps {
   open: boolean;
