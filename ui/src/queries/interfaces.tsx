@@ -13,7 +13,7 @@ export type InterfacesInfo = {
     external_address?: string;
     vlan?: VlanInfo;
   };
-  n6?: { name?: string; vlan?: VlanInfo };
+  n6?: { name?: string; addresses?: string[]; vlan?: VlanInfo };
   api?: { addresses?: string[]; port?: number };
 };
 
