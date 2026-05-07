@@ -19,14 +19,18 @@ import (
 // --- Fakes ---
 
 type fakeStore struct {
-	mu            sync.Mutex
-	allocatedIP   netip.Addr
-	releasedIP    netip.Addr
-	usageLog      []usageEntry
-	flowLog       []models.FlowReportRequest
-	releasedIPs   []string
-	err           error
-	allocateIPErr error
+	mu              sync.Mutex
+	allocatedIP     netip.Addr
+	allocatedIPv6   netip.Addr
+	releasedIP      netip.Addr
+	releasedIPv6    netip.Addr
+	usageLog        []usageEntry
+	flowLog         []models.FlowReportRequest
+	releasedIPs     []string
+	releasedIPv6s   []string
+	err             error
+	allocateIPErr   error
+	allocateIPv6Err error
 }
 
 type fakePCF struct {
@@ -59,6 +63,26 @@ func (f *fakeStore) ReleaseIP(_ context.Context, imsi string, _ string, _ uint8)
 	f.releasedIPs = append(f.releasedIPs, imsi)
 
 	return f.releasedIP, f.err
+}
+
+func (f *fakeStore) AllocateIPv6(_ context.Context, _ string, _ string, _ uint8) (netip.Addr, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.allocateIPv6Err != nil {
+		return f.allocatedIPv6, f.allocateIPv6Err
+	}
+
+	return f.allocatedIPv6, f.err
+}
+
+func (f *fakeStore) ReleaseIPv6(_ context.Context, imsi string, _ string, _ uint8) (netip.Addr, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.releasedIPv6s = append(f.releasedIPv6s, imsi)
+
+	return f.releasedIPv6, f.err
 }
 
 func (f *fakePCF) GetSessionPolicy(_ context.Context, _ string, _ *models.Snssai, _ string) (*smf.Policy, error) {
@@ -102,6 +126,7 @@ type fakeUPF struct {
 	lastEstablish   *models.EstablishRequest
 	modifyCalls     []*models.ModifyRequest
 	deleteCalls     []deletionCall
+	lastIPv6Reg     *models.IPv6SessionRegistration
 	err             error
 }
 
@@ -139,6 +164,19 @@ func (f *fakeUPF) DeleteSession(_ context.Context, remoteSEID uint64) error {
 func (f *fakeUPF) FlushUsage(_ context.Context, _ uint64) {}
 
 func (f *fakeUPF) UpdateFilters(_ context.Context, _ string, _ models.Direction, _ []models.FilterRule) error {
+	return nil
+}
+
+func (f *fakeUPF) RegisterIPv6Session(_ context.Context, reg *models.IPv6SessionRegistration) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.lastIPv6Reg = reg
+
+	return nil
+}
+
+func (f *fakeUPF) UnregisterIPv6Session(_ context.Context, _ uint32) error {
 	return nil
 }
 
@@ -229,8 +267,10 @@ func defaultFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 				Arp:    &models.Arp{PriorityLevel: 1},
 				QFI:    1,
 			},
-			DNS: net.ParseIP("8.8.8.8").To4(),
-			MTU: 1500,
+			DNS:      net.ParseIP("8.8.8.8").To4(),
+			MTU:      1500,
+			IPPool:   "10.0.0.0/24",
+			IPv6Pool: "",
 		},
 	}
 	store := &fakeStore{

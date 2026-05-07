@@ -469,11 +469,13 @@ static __always_inline __u32 add_gtp_over_ip6_headers(
 		ip_packet_len = bpf_ntohs(ctx->ip6->payload_len) +
 				sizeof(struct ipv6hdr);
 	} else {
+		upf_printk("upf: not ip4 or ip6?");
 		return -1;
 	}
 
 	int result = bpf_xdp_adjust_head(ctx->xdp_ctx, (__s32)-gtp_encap_size);
 	if (result) {
+		upf_printk("upf: could not adjust head");
 		return -1;
 	}
 
@@ -482,6 +484,7 @@ static __always_inline __u32 add_gtp_over_ip6_headers(
 
 	struct ethhdr *orig_eth = (struct ethhdr *)(data + gtp_encap_size);
 	if ((const void *)(orig_eth + 1) > data_end) {
+		upf_printk("upf: orig_eth overflows data_end");
 		return -1;
 	}
 
@@ -491,17 +494,20 @@ static __always_inline __u32 add_gtp_over_ip6_headers(
 
 	struct ipv6hdr *ip6 = (struct ipv6hdr *)(eth + 1);
 	if ((const void *)(ip6 + 1) > data_end) {
+		upf_printk("upf: ip6 overflows data_end");
 		return -1;
 	}
 
 	struct vlan_hdr *vlan = NULL;
 	if (n3_vlan) {
+		upf_printk("upf: including vlan header for n3");
 		eth->h_proto = bpf_htons(ETH_P_8021Q);
 		vlan = (struct vlan_hdr *)ip6;
 		vlan->h_vlan_TCI = bpf_htons(n3_vlan & 0x0FFF);
 		vlan->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IPV6);
 		ip6 = (struct ipv6hdr *)((void *)ip6 + sizeof(struct vlan_hdr));
 		if ((const void *)(ip6 + 1) > data_end) {
+			upf_printk("upf: ip6 overflows data_end");
 			return -1;
 		}
 	}
@@ -513,41 +519,54 @@ static __always_inline __u32 add_gtp_over_ip6_headers(
 
 	/* Add the UDP header */
 	struct udphdr *udp = (struct udphdr *)(ip6 + 1);
-	if ((const void *)(udp + 1) > data_end)
+	if ((const void *)(udp + 1) > data_end) {
+		upf_printk("upf: udp overflows data_end");
 		return -1;
+	}
 
 	fill_udp_header(udp, GTP_UDP_PORT,
 			ip_packet_len + sizeof(*udp) + gtp_full_hdr_size);
 
 	/* Add the GTP header */
 	struct gtpuhdr *gtp = (struct gtpuhdr *)(udp + 1);
-	if ((const void *)(gtp + 1) > data_end)
+	if ((const void *)(gtp + 1) > data_end) {
+		upf_printk("upf: gtp overflows data_end");
 		return -1;
+	}
 
 	fill_gtp_header(gtp, teid, gtp_ext_hdr_size + ip_packet_len);
 
 	/* Add the GTP ext header */
 	struct gtp_hdr_ext *gtp_ext = (struct gtp_hdr_ext *)(gtp + 1);
-	if ((const void *)(gtp_ext + 1) > data_end)
+	if ((const void *)(gtp_ext + 1) > data_end) {
+		upf_printk("upf: gtp_ext overflows data_end");
 		return -1;
+	}
 
 	fill_gtp_ext_header(gtp_ext);
 
 	/* Add the GTP PDU session container header */
 	struct gtp_hdr_ext_pdu_session_container *gtp_psc =
 		(struct gtp_hdr_ext_pdu_session_container *)(gtp_ext + 1);
-	if ((const void *)(gtp_psc + 1) > data_end)
+	if ((const void *)(gtp_psc + 1) > data_end) {
+		upf_printk("upf: gtp_psc overflows data_end");
 		return -1;
+	}
 
 	fill_gtp_ext_header_psc(gtp_psc, qfi,
 				PDU_SESSION_CONTAINER_PDU_TYPE_DL_PSU);
 
 	/* GTP-U over IPv6 requires UDP checksum (RFC 6936) */
 	if (ip6) {
-		__u32 udp_off = (__u32)((__u8 *)udp -
-					(__u8 *)(long)ctx->xdp_ctx->data);
-		udp->check = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off,
-					bpf_ntohs(udp->len), ctx->xdp_ctx);
+		__u32 udp_off =
+			(__u32)((__u8 *)udp - (__u8 *)(long)ctx->xdp_ctx->data);
+		int csum_ret = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off,
+					  bpf_ntohs(udp->len), ctx->xdp_ctx);
+		if (csum_ret < 0) {
+			upf_printk("upf: udpv6_csum failed");
+			return -1;
+		}
+		udp->check = (__u16)csum_ret;
 	}
 
 	/* Update packet pointers */

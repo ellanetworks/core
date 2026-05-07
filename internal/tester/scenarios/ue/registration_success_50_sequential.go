@@ -29,7 +29,7 @@ func init() {
 	})
 }
 
-func fixtureRegistrationSuccess50Sequential() scenarios.FixtureSpec {
+func fixtureRegistrationSuccess50Sequential(env scenarios.Env) scenarios.FixtureSpec {
 	subs := make([]scenarios.SubscriberSpec, numSubscribersSequential)
 	for i := range numSubscribersSequential {
 		subs[i] = scenarios.DefaultSubscriberWith(incrementIMSI(sequentialStartIMSI, i), "")
@@ -80,7 +80,7 @@ func runRegistrationSuccess50Sequential(_ context.Context, env scenarios.Env, _ 
 
 		exp := &validate.ExpectedPDUSessionEstablishmentAccept{
 			PDUSessionID:               scenarios.DefaultPDUSessionID,
-			PDUSessionType:             PDUSessionType,
+			PDUSessionType:             env.PDUSessionType(),
 			UeIPSubnet:                 network,
 			Dnn:                        scenarios.DefaultDNN,
 			Sst:                        scenarios.DefaultSST,
@@ -91,7 +91,7 @@ func runRegistrationSuccess50Sequential(_ context.Context, env scenarios.Env, _ 
 			FiveQI:                     9,
 		}
 
-		err := ueRegistrationTest(ranUENGAPID, gNodeB, subs[i], scenarios.DefaultDNN, exp)
+		err := ueRegistrationTest(ranUENGAPID, gNodeB, subs[i], scenarios.DefaultDNN, exp, env.PDUSessionType())
 		if err != nil {
 			return fmt.Errorf("UE registration test failed for subscriber %d: %v", i, err)
 		}

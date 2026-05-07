@@ -27,7 +27,7 @@ func init() {
 	})
 }
 
-func fixtureEnbDeregistration() scenarios.FixtureSpec {
+func fixtureEnbDeregistration(env scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{
 		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
 	}

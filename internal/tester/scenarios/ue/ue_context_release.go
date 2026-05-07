@@ -27,7 +27,7 @@ func init() {
 	})
 }
 
-func fixtureUEContextRelease() scenarios.FixtureSpec {
+func fixtureUEContextRelease(env scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{
 		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
 	}
@@ -60,7 +60,7 @@ func runUEContextRelease(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("did not receive SCTP frame: %v", err)
 	}
 
-	newUE, err := newDefaultUE(gNodeB, scenarios.DefaultIMSI[5:], scenarios.DefaultKey, scenarios.DefaultOPC, scenarios.DefaultSequenceNumber)
+	newUE, err := newDefaultUE(gNodeB, scenarios.DefaultIMSI[5:], scenarios.DefaultKey, scenarios.DefaultOPC, scenarios.DefaultSequenceNumber, env.PDUSessionType())
 	if err != nil {
 		return fmt.Errorf("could not create UE: %v", err)
 	}

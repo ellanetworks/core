@@ -32,7 +32,9 @@ var (
 	opUpdateLeaseNode           = registerChangesetOp("UpdateLeaseNode", (*Database).applyUpdateLeaseNode, RequireSchema(9), AffectsTopic(TopicIPLeases))
 	// AllocateIPLease forwards intent only; leader resolves the IP
 	// atomically under proposeMu (see applyAllocateIPLease).
-	opAllocateIPLease = registerChangesetOp("AllocateIPLease", (*Database).applyAllocateIPLease, RequireSchema(9), AffectsTopic(TopicIPLeases))
+	opAllocateIPLease = registerChangesetOp("AllocateIPLease", (*Database).applyAllocateIPLease, RequireSchema(12), AffectsTopic(TopicIPLeases))
+	// AllocateIPv6Lease is the same for IPv6 /64 prefix delegation.
+	opAllocateIPv6Lease = registerChangesetOp("AllocateIPv6Lease", (*Database).applyAllocateIPLease, RequireSchema(12), AffectsTopic(TopicIPLeases))
 )
 
 // Audit logs

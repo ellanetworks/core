@@ -27,6 +27,10 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	if f := DetectIPFamily(); f == IPv6Only || f == DualStack {
+		t.Skipf("skipping: TestIntegration3GPPMultiGNB is IPv4-only (IP_VERSION=%s)", os.Getenv("IP_VERSION"))
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 

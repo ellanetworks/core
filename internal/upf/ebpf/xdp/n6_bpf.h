@@ -6,6 +6,7 @@
 #include "xdp/utils/profiling.h"
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
+#include <linux/in6.h>
 #include <linux/ipv6.h>
 
 #include "xdp/utils/common.h"
@@ -252,12 +253,18 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	const struct ipv6hdr *ip6 = ctx->ip6;
 
 	PROFILE_START(PROF_N6_PDR_LOOKUP);
-	struct pdr_info *pdr =
-		bpf_map_lookup_elem(&pdrs_downlink_ip6, &ip6->daddr);
+	/*
+	 * The UE receives a full /64 prefix for each
+	 * IPv6 PDU session, and that prefix is the key
+	 * for the PDR. Mask the lower 64 bits to get the prefix.
+	 */
+	struct in6_addr prefix = ip6->daddr;
+	__builtin_memset(((void *)&prefix) + 8, 0, 8);
+
+	struct pdr_info *pdr = bpf_map_lookup_elem(&pdrs_downlink_ip6, &prefix);
 	PROFILE_END(PROF_N6_PDR_LOOKUP);
 	if (!pdr) {
-		upf_printk("upf: no downlink session for ip:%pI6c",
-			   &ip6->daddr);
+		upf_printk("upf: no downlink session for ip:%pI6c", &prefix);
 		return DEFAULT_XDP_ACTION;
 	}
 
@@ -317,6 +324,16 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		return XDP_DROP;
 
 	__u8 tos = far->transport_level_marking >> 8;
-	upf_printk("upf: use mapping %pI6c -> TEID:%d", &ip6->daddr, far->teid);
+
+	/* Update downlink traffic counter */
+	{
+		__u64 packet_size = ctx->xdp_ctx->data_end - ctx->xdp_ctx->data;
+		ctx->statistics->byte_counter.bytes += packet_size;
+	}
+
+	__u32 urr_id = pdr->urr_id;
+	update_urr_bytes(ctx, urr_id);
+	/* Flow accounting is IPv4-only; not called for IPv6 downlink. */
+
 	return send_to_gtp_tunnel(ctx, far, tos, qer->qfi);
 }

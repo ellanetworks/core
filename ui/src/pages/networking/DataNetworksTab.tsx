@@ -99,6 +99,33 @@ export default function DataNetworksTab() {
       },
       { field: "ip_pool", headerName: "IP Pool", flex: 1, minWidth: 180 },
       {
+        field: "ipv6_pool",
+        headerName: "IPv6 Pool",
+        flex: 1,
+        minWidth: 180,
+        renderCell: (params: GridRenderCellParams<APIDataNetwork>) => (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+              height: "100%",
+            }}
+          >
+            <Typography
+              variant="body2"
+              sx={
+                params.row.ipv6_pool
+                  ? { fontFamily: "monospace" }
+                  : { color: "text.secondary" }
+              }
+            >
+              {params.row.ipv6_pool || "—"}
+            </Typography>
+          </Box>
+        ),
+      },
+      {
         field: "sessions",
         headerName: "Sessions",
         width: 120,

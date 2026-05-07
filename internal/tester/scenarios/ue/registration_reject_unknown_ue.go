@@ -27,7 +27,7 @@ func init() {
 	})
 }
 
-func fixtureRegistrationRejectUnknownUE() scenarios.FixtureSpec {
+func fixtureRegistrationRejectUnknownUE(env scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{}
 }
 
@@ -70,7 +70,7 @@ func runRegistrationRejectUnknownUE(_ context.Context, env scenarios.Env, _ any)
 
 	newUEOpts := &ue.UEOpts{
 		GnodeB:         gNodeB,
-		PDUSessionType: PDUSessionType,
+		PDUSessionType: env.PDUSessionType(),
 		Msin:           "1234567890",
 		K:              scenarios.DefaultKey,
 		OpC:            scenarios.DefaultOPC,

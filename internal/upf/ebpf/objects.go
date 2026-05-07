@@ -33,6 +33,13 @@ type DataNotification struct {
 	QFI       uint8
 }
 
+// RSEvent is the Go representation of struct rs_event emitted by the N3 XDP
+// program when a Router Solicitation is detected inside a GTP-U packet.
+type RSEvent struct {
+	TEID   uint32
+	UEIPv6 [16]byte // struct in6_addr — UE source IPv6 address
+}
+
 type BpfObjects struct {
 	N3N6EntrypointObjects
 
@@ -174,6 +181,7 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 		"pdrs_downlink_ip4":    bpfObjects.PdrsDownlinkIp4,
 		"pdrs_downlink_ip6":    bpfObjects.PdrsDownlinkIp6,
 		"pdrs_uplink":          bpfObjects.PdrsUplink,
+		"rs_event_map":         bpfObjects.RsEventMap,
 		"sdf_filters":          bpfObjects.SdfFilters,
 		"uplink_route_stats":   bpfObjects.UplinkRouteStats,
 		"uplink_statistics":    bpfObjects.UplinkStatistics,

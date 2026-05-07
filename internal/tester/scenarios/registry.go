@@ -30,7 +30,7 @@ type Scenario struct {
 	// Fixture (optional) returns the Ella Core fixture this scenario needs
 	// provisioned before it runs. The integration test applies this via
 	// the fixture package. When nil, only the baseline fixture applies.
-	Fixture func() FixtureSpec
+	Fixture func(env Env) FixtureSpec
 }
 
 var (

@@ -29,7 +29,7 @@ func init() {
 	})
 }
 
-func fixtureRegistrationRejectInvalidHomeNetworkPublicKey() scenarios.FixtureSpec {
+func fixtureRegistrationRejectInvalidHomeNetworkPublicKey(env scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{
 		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
 	}
@@ -75,7 +75,7 @@ func runRegistrationRejectInvalidHomeNetworkPublicKey(_ context.Context, env sce
 
 	newUE, err := ue.NewUE(&ue.UEOpts{
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
-		PDUSessionType: PDUSessionType,
+		PDUSessionType: env.PDUSessionType(),
 		GnodeB:         gNodeB,
 		Msin:           scenarios.DefaultIMSI[5:],
 		K:              scenarios.DefaultKey,

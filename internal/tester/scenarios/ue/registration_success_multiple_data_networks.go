@@ -25,7 +25,7 @@ func init() {
 	})
 }
 
-func fixtureRegistrationSuccessMultipleDataNetworks() scenarios.FixtureSpec {
+func fixtureRegistrationSuccessMultipleDataNetworks(env scenarios.Env) scenarios.FixtureSpec {
 	profiles := []scenarios.ProfileSpec{
 		{Name: "profile1", UeAmbrUplink: scenarios.DefaultProfileUeAmbrUplink, UeAmbrDownlink: scenarios.DefaultProfileUeAmbrDownlink},
 		{Name: "profile2", UeAmbrUplink: scenarios.DefaultProfileUeAmbrUplink, UeAmbrDownlink: scenarios.DefaultProfileUeAmbrDownlink},
@@ -114,7 +114,7 @@ func runRegistrationSuccessMultipleDataNetworks(_ context.Context, env scenarios
 
 				exp := &validate.ExpectedPDUSessionEstablishmentAccept{
 					PDUSessionID:               scenarios.DefaultPDUSessionID,
-					PDUSessionType:             PDUSessionType,
+					PDUSessionType:             env.PDUSessionType(),
 					UeIPSubnet:                 network,
 					Dnn:                        dnns[i],
 					Sst:                        scenarios.DefaultSST,
@@ -125,7 +125,7 @@ func runRegistrationSuccessMultipleDataNetworks(_ context.Context, env scenarios
 					FiveQI:                     9,
 				}
 
-				return ueRegistrationTest(ranUENGAPID, gNodeB, subs[i], dnns[i], exp)
+				return ueRegistrationTest(ranUENGAPID, gNodeB, subs[i], dnns[i], exp, env.PDUSessionType())
 			})
 		}()
 	}

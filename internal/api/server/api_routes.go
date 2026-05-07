@@ -53,8 +53,8 @@ func isRouteDestinationValid(dest string) bool {
 
 // isRouteGatewayValid checks if the gateway is a valid IP address.
 func isRouteGatewayValid(gateway string) bool {
-	addr, err := netip.ParseAddr(gateway)
-	return err == nil && addr.Is4()
+	_, err := netip.ParseAddr(gateway)
+	return err == nil
 }
 
 // interfaceDBMap maps the interface string to the db.NetworkInterface enum.
@@ -196,7 +196,7 @@ func CreateRoute(dbInstance *db.Database, reconcileRoutes func(context.Context) 
 		}
 
 		if !isRouteGatewayValid(createRouteParams.Gateway) {
-			writeError(r.Context(), w, http.StatusBadRequest, "invalid gateway format: expecting an IPv4 address", nil, logger.APILog)
+			writeError(r.Context(), w, http.StatusBadRequest, "invalid gateway format: expecting an IPv4 or IPv6 address", nil, logger.APILog)
 			return
 		}
 

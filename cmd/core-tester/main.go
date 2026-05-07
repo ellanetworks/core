@@ -23,6 +23,7 @@ var (
 	gnbSpecs        []string
 	gnbCoreTargets  []string
 	verbose         bool
+	ipVersion       string
 )
 
 func main() {
@@ -79,6 +80,7 @@ func runCmd() *cobra.Command {
 	run.PersistentFlags().StringArrayVar(&gnbCoreTargets, "gnb-core-target", nil,
 		"pair <gnb-name>=<core-n2-addr> (repeatable)")
 	run.PersistentFlags().BoolVar(&verbose, "verbose", false, "verbose logging")
+	run.PersistentFlags().StringVar(&ipVersion, "ip-version", "", "IP address family: ipv4, ipv6, or dualstack")
 
 	for _, name := range scenarios.List() {
 		sc, _ := scenarios.Get(name)
@@ -113,6 +115,12 @@ func scenarioSubcommand(sc scenarios.Scenario) *cobra.Command {
 			targets, err := parseGNBCoreTargets(gnbCoreTargets)
 			if err != nil {
 				return fmt.Errorf("invalid --gnb-core-target: %w", err)
+			}
+
+			// Propagate --ip-version to the environment so scenarios can
+			// detect the address family via os.Getenv("IP_VERSION").
+			if ipVersion != "" {
+				_ = os.Setenv("IP_VERSION", ipVersion)
 			}
 
 			env := scenarios.Env{

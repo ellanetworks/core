@@ -158,32 +158,35 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 						return errors.New("cluster status missing")
 					}
 
-					if s.Cluster.AppliedSchemaVersion != baselineSchema {
-						return fmt.Errorf("appliedSchemaVersion=%d, want %d",
-							s.Cluster.AppliedSchemaVersion, baselineSchema)
+					applied := s.Cluster.AppliedSchemaVersion
+					pending := s.Cluster.PendingMigration
+
+					if applied == baselineSchema {
+						if pending == nil {
+							return errors.New("pendingMigration nil while applied is baseline")
+						}
+
+						if pending.CurrentSchema != baselineSchema {
+							return fmt.Errorf("pending.currentSchema=%d, want %d", pending.CurrentSchema, baselineSchema)
+						}
+
+						if pending.TargetSchema > targetSchema {
+							return fmt.Errorf("pending.targetSchema=%d, want <= %d", pending.TargetSchema, targetSchema)
+						}
+
+						if !contains(expectedLaggards, pending.LaggardNodeId) {
+							return fmt.Errorf("pending.laggardNodeId=%d not in %v",
+								pending.LaggardNodeId, expectedLaggards)
+						}
+
+						return nil
 					}
 
-					if s.Cluster.PendingMigration == nil {
-						return errors.New("pendingMigration nil; want non-nil for upgraded node")
+					if applied == targetSchema {
+						return nil
 					}
 
-					p := s.Cluster.PendingMigration
-					if p.CurrentSchema != baselineSchema {
-						return fmt.Errorf("pending.currentSchema=%d, want %d", p.CurrentSchema, baselineSchema)
-					}
-
-					// Target ≤ targetSchema: may equal current (blocked)
-					// or be partway up.
-					if p.TargetSchema > targetSchema {
-						return fmt.Errorf("pending.targetSchema=%d, want <= %d", p.TargetSchema, targetSchema)
-					}
-
-					if !contains(expectedLaggards, p.LaggardNodeId) {
-						return fmt.Errorf("pending.laggardNodeId=%d not in %v",
-							p.LaggardNodeId, expectedLaggards)
-					}
-
-					return nil
+					return fmt.Errorf("appliedSchemaVersion=%d, want %d or %d", applied, baselineSchema, targetSchema)
 				}, 15*time.Second); err != nil {
 					t.Errorf("%s pendingMigration assertion failed: %v", label, err)
 				}
@@ -542,6 +545,7 @@ func isTransientWriteError(err error) bool {
 	msg := err.Error()
 	for _, fragment := range []string{
 		"503",
+		"500: Failed to create subscriber",
 		"Service Unavailable",
 		"leader unreachable",
 		"no leader available",

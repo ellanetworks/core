@@ -43,7 +43,7 @@ func TestBuildPDUSessionResourceSetupRequestTransfer(t *testing.T) {
 	qos := &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}
 	addr := netip.MustParseAddr("10.3.0.2")
 
-	buf, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(ambr, qos, 42, addr, netip.Addr{})
+	buf, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(ambr, qos, 42, addr, netip.Addr{}, ngapType.PDUSessionTypePresentIpv4)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestBuildPDUSessionResourceSetupRequestTransfer(t *testing.T) {
 }
 
 func TestBuildPDUSessionResourceSetupRequestTransfer_NilAmbr(t *testing.T) {
-	_, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(nil, nil, 1, netip.MustParseAddr("1.2.3.4"), netip.Addr{})
+	_, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(nil, nil, 1, netip.MustParseAddr("1.2.3.4"), netip.Addr{}, ngapType.PDUSessionTypePresentIpv4)
 	if err == nil {
 		t.Fatal("expected error for nil ambr")
 	}
@@ -78,7 +78,7 @@ func TestBuildPDUSessionResourceSetupRequestTransfer_IPv6Only(t *testing.T) {
 	qos := &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}
 	ipv6 := netip.MustParseAddr("2001:db8::1")
 
-	buf, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(ambr, qos, 7, netip.Addr{}, ipv6)
+	buf, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(ambr, qos, 7, netip.Addr{}, ipv6, ngapType.PDUSessionTypePresentIpv6)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestBuildPDUSessionResourceSetupRequestTransfer_DualStack(t *testing.T) {
 	ipv4 := netip.MustParseAddr("10.3.0.2")
 	ipv6 := netip.MustParseAddr("2001:db8::1")
 
-	buf, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(ambr, qos, 99, ipv4, ipv6)
+	buf, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(ambr, qos, 99, ipv4, ipv6, ngapType.PDUSessionTypePresentIpv4v6)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -8,6 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"net/netip"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -89,6 +90,14 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 			_, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
 			if releaseErr != nil {
 				logger.WithTrace(ctx, logger.SmfLog).Warn("release UE IP address failed during PDU session release, continuing teardown",
+					zap.Error(releaseErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID), logger.DNN(smContext.Dnn))
+			}
+		}
+
+		if smContext.PDUAddressIPv6 != nil {
+			_, releaseErr := s.store.ReleaseIPv6(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
+			if releaseErr != nil {
+				logger.WithTrace(ctx, logger.SmfLog).Warn("release UE IPv6 address failed during PDU session release, continuing teardown",
 					zap.Error(releaseErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID), logger.DNN(smContext.Dnn))
 			}
 		}
@@ -178,6 +187,10 @@ func (s *SMF) UpdateSmContextN2InfoPduResSetupRsp(ctx context.Context, smContext
 
 		return fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
+
+	// Register the IPv6 session for RA responses now that the gNB tunnel
+	// endpoint is known.
+	s.registerIPv6SessionIfNeeded(ctx, smContext)
 
 	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
@@ -425,7 +438,7 @@ func (s *SMF) UpdateSmContextN2HandoverPreparing(ctx context.Context, smContextR
 		return nil, fmt.Errorf("handle HandoverRequiredTransfer failed: %v", err)
 	}
 
-	n2Rsp, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6)
+	n2Rsp, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build PDU session resource setup request transfer")
@@ -568,6 +581,9 @@ func (s *SMF) UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smCont
 		return nil, fmt.Errorf("failed to send PFCP session modification request: %v", err)
 	}
 
+	// Re-register the IPv6 session with the new gNB tunnel endpoint.
+	s.registerIPv6SessionIfNeeded(ctx, smContext)
+
 	logger.SmfLog.Info("Sent PFCP session modification request", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return n2buf, nil
@@ -675,6 +691,70 @@ func handlePathSwitchRequestSetupFailedTransfer(b []byte) error {
 	}
 
 	return nil
+}
+
+// registerIPv6SessionIfNeeded registers the IPv6 session with the UPF's RA
+// responder if the session has a delegated IPv6 prefix and the gNB's tunnel
+// endpoint is known. Must be called with smContext.Mutex held.
+func (s *SMF) registerIPv6SessionIfNeeded(ctx context.Context, smContext *SMContext) {
+	if smContext.PDUAddressIPv6 == nil || smContext.Tunnel == nil {
+		return
+	}
+
+	anInfo := smContext.Tunnel.ANInformation
+	if anInfo.TEID == 0 {
+		return
+	}
+
+	var gnbIP netip.Addr
+
+	if anInfo.IPv6Address != nil {
+		if addr, ok := netip.AddrFromSlice(anInfo.IPv6Address.To16()); ok {
+			gnbIP = addr
+		}
+	}
+
+	if !gnbIP.IsValid() && anInfo.IPv4Address != nil {
+		if addr, ok := netip.AddrFromSlice(anInfo.IPv4Address.To4()); ok {
+			gnbIP = addr
+		}
+	}
+
+	if !gnbIP.IsValid() {
+		return
+	}
+
+	prefixAddr, ok := netip.AddrFromSlice(smContext.PDUAddressIPv6.To16())
+	if !ok {
+		return
+	}
+
+	var qfi uint8
+	if smContext.PolicyData != nil {
+		qfi = smContext.PolicyData.QosData.QFI
+	}
+
+	var mtu uint32
+	if smContext.PolicyData != nil {
+		mtu = uint32(smContext.PolicyData.MTU)
+	}
+
+	reg := &models.IPv6SessionRegistration{
+		UplinkTEID:   smContext.Tunnel.DataPath.UpLinkTunnel.TEID,
+		DownlinkTEID: anInfo.TEID,
+		GnbN3Addr:    gnbIP,
+		Prefix:       netip.PrefixFrom(prefixAddr, 64),
+		MTU:          mtu,
+		QFI:          qfi,
+	}
+
+	if err := s.upf.RegisterIPv6Session(ctx, reg); err != nil {
+		logger.SmfLog.Warn("failed to register IPv6 session for RA",
+			zap.Error(err),
+			logger.SUPI(smContext.Supi.String()),
+			logger.PDUSessionID(smContext.PDUSessionID),
+		)
+	}
 }
 
 // --- NGAP cause string helpers (moved from pdusession) ---

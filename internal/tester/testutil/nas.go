@@ -49,15 +49,15 @@ func GetAMFUENGAPIDFromDownlinkNASTransport(downlinkNASTransport *ngapType.Downl
 	return nil
 }
 
-func UEIPFromNAS(ip [12]uint8) (netip.Addr, error) {
-	ueIPString := fmt.Sprintf("%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3])
-
-	ueIP, err := netip.ParseAddr(ueIPString)
-	if err != nil {
-		return netip.Addr{}, fmt.Errorf("could not parse UE IP: %s, %v", ueIPString, err)
+func UEIPFromNAS(pduSessionType uint8, ip [12]uint8) (netip.Addr, error) {
+	switch pduSessionType {
+	case 3: // IPv4v6 dual-stack: IPv4 is at bytes 8-11
+		return netip.AddrFrom4([4]byte{ip[8], ip[9], ip[10], ip[11]}), nil
+	case 2: // IPv6-only: no IPv4 address
+		return netip.Addr{}, nil
+	default: // IPv4-only: IPv4 is at bytes 0-3
+		return netip.AddrFrom4([4]byte{ip[0], ip[1], ip[2], ip[3]}), nil
 	}
-
-	return ueIP, nil
 }
 
 func MTUFromExtendProtocolConfigurationOptionsContents(pco_buf []byte) (uint16, error) {

@@ -72,7 +72,7 @@ func init() {
 	})
 }
 
-func fixtureEnbConnectivity() scenarios.FixtureSpec {
+func fixtureEnbConnectivity(env scenarios.Env) scenarios.FixtureSpec {
 	subs := make([]scenarios.SubscriberSpec, enbNumConnectivityParallel)
 	imsis := make([]string, enbNumConnectivityParallel)
 

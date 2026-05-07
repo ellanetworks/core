@@ -438,7 +438,7 @@ func ReconcileKernelRouting(ctx context.Context, dbInstance *db.Database, kernel
 		}
 
 		gwAddr, err := netip.ParseAddr(route.Gateway)
-		if err != nil || !gwAddr.Is4() {
+		if err != nil {
 			return fmt.Errorf("invalid gateway: %v", route.Gateway)
 		}
 

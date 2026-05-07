@@ -24,9 +24,11 @@ const (
 	DefaultOPC            = "cb698a2341629c3241ae01de9d89de4f"
 	DefaultSequenceNumber = "000000000022"
 
-	DefaultUEIPPool = "10.45.0.0/16"
-	DefaultDNS      = "8.8.8.8"
-	DefaultMTU      = 1500
+	DefaultUEIPPool   = "10.45.0.0/16"
+	DefaultUEIPv6Pool = "fd45::/48"
+	DefaultDNS        = "8.8.8.8"
+	DefaultDNSv6      = "2001:4860:4860::8888"
+	DefaultMTU        = 1500
 
 	DefaultGNBID            = "000008"
 	DefaultRANUENGAPID      = 1
@@ -35,5 +37,10 @@ const (
 	DefaultRoutingIndicator = "0000"
 	DefaultIMEISV           = "3569380356438091"
 
-	DefaultPingDestination = "10.6.0.3"
+	DefaultPDUSessionTypeIPv4     = 0x01
+	DefaultPDUSessionTypeIPv6     = 0x02
+	DefaultPDUSessionTypeIPv4IPv6 = 0x03
+
+	DefaultPingDestination   = "10.6.0.3"
+	DefaultPingDestinationV6 = "fd00:6::3"
 )

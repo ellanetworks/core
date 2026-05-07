@@ -28,10 +28,18 @@ func init() {
 	})
 }
 
-func fixtureConnectivityMultiplePoliciesPerProfile() scenarios.FixtureSpec {
+func fixtureConnectivityMultiplePoliciesPerProfile(env scenarios.Env) scenarios.FixtureSpec {
+	enterpriseIPPool := "10.46.0.0/16"
+	enterpriseDNS := "8.8.4.4"
+
+	if env.IPFamily() == scenarios.IPv6Only {
+		enterpriseIPPool = "fd46::/48"
+		enterpriseDNS = scenarios.DefaultDNSv6
+	}
+
 	return scenarios.FixtureSpec{
 		DataNetworks: []scenarios.DataNetworkSpec{
-			{Name: "enterprise", IPPool: "10.46.0.0/16", DNS: "8.8.4.4", MTU: scenarios.DefaultMTU},
+			{Name: "enterprise", IPPool: enterpriseIPPool, DNS: enterpriseDNS, MTU: scenarios.DefaultMTU},
 		},
 		Policies: []scenarios.PolicySpec{
 			{
@@ -60,6 +68,8 @@ func runConnectivityMultiplePoliciesPerProfile(ctx context.Context, env scenario
 		{IMSI: "001017271246546", Key: scenarios.DefaultKey, SequenceNumber: scenarios.DefaultSequenceNumber, OPc: scenarios.DefaultOPC, ProfileName: scenarios.DefaultProfileName},
 		{IMSI: "001017271246547", Key: scenarios.DefaultKey, SequenceNumber: scenarios.DefaultSequenceNumber, OPc: scenarios.DefaultOPC, ProfileName: scenarios.DefaultProfileName},
 	}
+
+	pingCmd := env.PingCommand()
 
 	g := env.FirstGNB()
 
@@ -109,6 +119,9 @@ func runConnectivityMultiplePoliciesPerProfile(ctx context.Context, env scenario
 					tunInterfaceName,
 					dnns[i],
 					expectedQoS[i],
+					pingCmd,
+					env.PDUSessionType(),
+					env.UIPrefix(),
 				)
 			})
 		}()
@@ -130,8 +143,11 @@ func runConnectivityTestWithDNN(
 	tunInterfaceName string,
 	dnn string,
 	expectedQoS *validate.ExpectedPDUSessionInformation,
+	pingCmd string,
+	pduSessionType uint8,
+	ipPrefix string,
 ) error {
-	newUE, err := newUEWithDNN(gNodeB, sub, dnn)
+	newUE, err := newUEWithDNN(gNodeB, sub, dnn, pduSessionType)
 	if err != nil {
 		return fmt.Errorf("could not create UE: %v", err)
 	}
@@ -161,7 +177,11 @@ func runConnectivityTestWithDNN(
 	}
 
 	uePduSession := newUE.GetPDUSession(scenarios.DefaultPDUSessionID)
-	ueIP := uePduSession.UEIP + "/16"
+
+	ueIP := uePduSession.UEIP + ipPrefix
+	if pduSessionType == scenarios.DefaultPDUSessionTypeIPv6 {
+		ueIP = uePduSession.UEIPV6 + ipPrefix
+	}
 
 	gnbPDUSession, err := gNodeB.WaitForPDUSession(ranUENGAPID, int64(scenarios.DefaultPDUSessionID), 5*time.Second)
 	if err != nil {
@@ -197,7 +217,7 @@ func runConnectivityTestWithDNN(
 		zap.Uint32("DL TEID", gnbPDUSession.DLTeid),
 	)
 
-	cmd := exec.CommandContext(ctx, "ping", "-I", tunInterfaceName, scenarios.DefaultPingDestination, "-c", "3", "-W", "1") // #nosec G204
+	cmd := exec.CommandContext(ctx, pingCmd, "-I", tunInterfaceName, scenarios.DefaultPingDestination, "-c", "3", "-W", "1") // #nosec G204
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -231,7 +251,7 @@ func runConnectivityTestWithDNN(
 		zap.Int64("RAN UE NGAP ID", ranUENGAPID),
 	)
 
-	cmd = exec.CommandContext(ctx, "ping", "-I", tunInterfaceName, scenarios.DefaultPingDestination, "-c", "3", "-W", "1") // #nosec G204
+	cmd = exec.CommandContext(ctx, pingCmd, "-I", tunInterfaceName, scenarios.DefaultPingDestination, "-c", "3", "-W", "1") // #nosec G204
 
 	out, err = cmd.CombinedOutput()
 	if err == nil {
@@ -293,7 +313,7 @@ func runConnectivityTestWithDNN(
 		zap.Uint32("DL TEID", pduSession.DLTeid),
 	)
 
-	cmd = exec.CommandContext(ctx, "ping", "-I", tunInterfaceName, scenarios.DefaultPingDestination, "-c", "3", "-W", "1") // #nosec G204
+	cmd = exec.CommandContext(ctx, pingCmd, "-I", tunInterfaceName, scenarios.DefaultPingDestination, "-c", "3", "-W", "1") // #nosec G204
 
 	out, err = cmd.CombinedOutput()
 	if err != nil {

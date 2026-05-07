@@ -32,7 +32,7 @@ func init() {
 	})
 }
 
-func fixtureEnbMultiUERegistration() scenarios.FixtureSpec {
+func fixtureEnbMultiUERegistration(env scenarios.Env) scenarios.FixtureSpec {
 	subs := make([]scenarios.SubscriberSpec, enbNumMultiUERegistration)
 	for i := range enbNumMultiUERegistration {
 		subs[i] = scenarios.DefaultSubscriberWith(enbIncrementIMSI(enbTestStartIMSI, i), "")

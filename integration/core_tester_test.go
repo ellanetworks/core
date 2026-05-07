@@ -22,6 +22,38 @@ var scenariosSkipped = map[string]string{
 	"multi/cluster_traffic":       "multi-core HA topology, covered by TestIntegration3GPPMultiGNB",
 }
 
+// scenarioIPFamilyRestrictions returns a map of scenario name → required IP
+// family. Scenarios that only make sense in a specific address-family
+// configuration are listed here so the integration runner can skip them
+// when the compose topology does not match.
+var scenarioIPFamilyRestrictions = map[string]IPFamily{
+	"ue/connectivity_ipv6":      IPv6Only,
+	"ue/connectivity_dualstack": DualStack,
+}
+
+// scenarioIPFamilyExclusions returns a map of scenario name → set of IP
+// families in which the scenario should be skipped. This is used for
+// scenarios that test a specific address family but should be skipped
+// when N6 does not have that family configured.
+var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
+	"ue/connectivity": {
+		IPv6Only: true,
+	},
+	"ue/connectivity_ipv6": {
+		IPv4Only: true,
+	},
+	"ue/connectivity_multi_pdu_session": {
+		IPv6Only: true,
+	},
+	"ue/connectivity_multiple_policies_per_profile": {
+		IPv6Only: true,
+	},
+	"enb/connectivity": {
+		IPv6Only:  true,
+		DualStack: true,
+	},
+}
+
 // TestIntegrationTester brings the core-tester compose up once,
 // bootstraps Ella Core with the baseline operator, default profile,
 // slice, data network, and policy, then runs one subtest per registered
@@ -54,22 +86,79 @@ func TestIntegrationTester(t *testing.T) {
 			continue
 		}
 
+		if requiredFamily, ok := scenarioIPFamilyRestrictions[name]; ok {
+			if DetectIPFamily() != requiredFamily {
+				t.Run(name, func(t *testing.T) {
+					t.Skipf("skipping %s: requires %s mode, running %s", name, requiredFamily, DetectIPFamily())
+				})
+
+				continue
+			}
+		}
+
+		if exclusions, ok := scenarioIPFamilyExclusions[name]; ok {
+			if exclusions[DetectIPFamily()] {
+				t.Run(name, func(t *testing.T) {
+					t.Skipf("skipping %s: N6 does not support this address family in %s mode", name, DetectIPFamily())
+				})
+
+				continue
+			}
+		}
+
 		sc, _ := scenarios.Get(name)
+
+		// Build a scenarios.Env from the tester environment so that
+		// IP-family-aware fixtures can inspect address family details.
+		var scenariosEnv scenarios.Env
+		if len(env.CoreN2Addresses) > 0 || len(env.GNBs) > 0 {
+			scenariosEnv = buildScenariosEnv(env)
+		}
 
 		var spec scenarios.FixtureSpec
 		if sc.Fixture != nil {
-			spec = sc.Fixture()
+			spec = sc.Fixture(scenariosEnv)
 		}
 
 		t.Run(name, func(t *testing.T) {
 			fx := fixture.New(t, ctx, env.Client)
 			fx.Apply(spec)
 
-			env.RunScenario(ctx, t, name, spec.ExtraArgs...)
+			// Only pass --ip-version to scenarios that are explicitly
+			// IPv6-specific (listed in scenarioIPFamilyRestrictions).
+			// Other scenarios should default to IPv4.
+			var extraArgs []string
+			if requiredFamily, ok := scenarioIPFamilyRestrictions[name]; ok {
+				extraArgs = append(extraArgs, "--ip-version", string(requiredFamily))
+			}
+
+			extraArgs = append(extraArgs, spec.ExtraArgs...)
+
+			env.RunScenario(ctx, t, name, extraArgs...)
 
 			if len(spec.AssertUsageForIMSIs) > 0 {
 				fixture.AssertUsagePositive(ctx, t, env.Client, spec.AssertUsageForIMSIs, 30*time.Second)
 			}
 		})
+	}
+}
+
+// buildScenariosEnv converts a *testerEnv into a scenarios.Env so that
+// IP-family-aware fixtures can inspect the address family of the gNB N3
+// interface.
+func buildScenariosEnv(e *testerEnv) scenarios.Env {
+	gnbs := make([]scenarios.GNB, 0, len(e.GNBs))
+	for _, g := range e.GNBs {
+		gnbs = append(gnbs, scenarios.GNB{
+			Name:        g.Name,
+			N2Address:   g.N2Address,
+			N3Address:   g.N3Address,
+			N3Secondary: g.N3Secondary,
+		})
+	}
+
+	return scenarios.Env{
+		CoreN2Addresses: e.CoreN2Addresses,
+		GNBs:            gnbs,
 	}
 }

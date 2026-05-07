@@ -25,6 +25,7 @@ type GTPTunnel struct {
 type DataPath struct {
 	UpLinkTunnel   *GTPTunnel
 	DownLinkTunnel *GTPTunnel
+	SecondPDR      *PDR
 	Activated      bool
 }
 
@@ -76,14 +77,32 @@ func (dp *DataPath) DeactivateDownLinkTunnel(smf *SMF) {
 	}
 
 	dp.DownLinkTunnel = &GTPTunnel{}
+
+	if dp.SecondPDR != nil {
+		smf.RemovePDR(dp.SecondPDR)
+
+		if dp.SecondPDR.FAR != nil {
+			smf.RemoveFAR(dp.SecondPDR.FAR)
+		}
+
+		if dp.SecondPDR.QER != nil {
+			smf.RemoveQER(dp.SecondPDR.QER)
+		}
+
+		if dp.SecondPDR.URR != nil {
+			smf.RemoveURR(dp.SecondPDR.URR)
+		}
+
+		dp.SecondPDR = nil
+	}
 }
 
-func (dp *DataPath) ActivateUpLinkPdr(pduAddress net.IP, anIP net.IP, defQER *QER, defURR *URR) {
+func (dp *DataPath) ActivateUpLinkPdr(ueIP netip.Addr, anIP net.IP, defQER *QER, defURR *URR) {
 	dp.UpLinkTunnel.PDR.QER = defQER
 	dp.UpLinkTunnel.PDR.URR = defURR
 
 	dp.UpLinkTunnel.PDR.PDI.LocalFTEID = &models.FTEID{}
-	dp.UpLinkTunnel.PDR.PDI.UEIPAddress = netip.AddrFrom4([4]byte(pduAddress.To4()))
+	dp.UpLinkTunnel.PDR.PDI.UEIPAddress = ueIP
 
 	ohr := models.OuterHeaderRemovalGtpUUdpIpv4
 	if anIP != nil && anIP.To4() == nil {
@@ -98,11 +117,11 @@ func (dp *DataPath) ActivateUpLinkPdr(pduAddress net.IP, anIP net.IP, defQER *QE
 	dp.UpLinkTunnel.PDR.FAR.ForwardingParameters = &models.ForwardingParameters{}
 }
 
-func (dp *DataPath) ActivateDlLinkPdr(anIPv4 net.IP, anIPv6 net.IP, teid uint32, pduAddress net.IP, defQER *QER, defURR *URR) {
+func (dp *DataPath) ActivateDlLinkPdr(anIPv4 net.IP, anIPv6 net.IP, teid uint32, ueIP netip.Addr, defQER *QER, defURR *URR) {
 	dp.DownLinkTunnel.PDR.QER = defQER
 	dp.DownLinkTunnel.PDR.URR = defURR
 
-	dp.DownLinkTunnel.PDR.PDI.UEIPAddress = netip.AddrFrom4([4]byte(pduAddress.To4()))
+	dp.DownLinkTunnel.PDR.PDI.UEIPAddress = ueIP
 
 	// When both addresses are available, IPv6 is preferred for the downlink tunnel.
 	// This preference is intentional and is documented in the configuration file reference.
@@ -125,7 +144,7 @@ func (dp *DataPath) ActivateDlLinkPdr(anIPv4 net.IP, anIPv6 net.IP, teid uint32,
 	}
 }
 
-func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, policy *Policy, pduAddress net.IP) error {
+func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, policy *Policy, ueIP netip.Addr) error {
 	seid := smf.AllocateLocalSEID()
 
 	smContext.SetPFCPSession(seid)
@@ -159,9 +178,23 @@ func (dp *DataPath) ActivateTunnelAndPDR(smf *SMF, smContext *SMContext, policy 
 		return fmt.Errorf("could not create downlink URR: %v", err)
 	}
 
-	dp.ActivateUpLinkPdr(pduAddress, smContext.Tunnel.ANInformation.IPv4Address, defQER, defULURR)
+	dp.ActivateUpLinkPdr(ueIP, smContext.Tunnel.ANInformation.IPv4Address, defQER, defULURR)
 
-	dp.ActivateDlLinkPdr(smContext.Tunnel.ANInformation.IPv4Address, smContext.Tunnel.ANInformation.IPv6Address, smContext.Tunnel.ANInformation.TEID, pduAddress, defQER, defDLURR)
+	dp.ActivateDlLinkPdr(smContext.Tunnel.ANInformation.IPv4Address, smContext.Tunnel.ANInformation.IPv6Address, smContext.Tunnel.ANInformation.TEID, ueIP, defQER, defDLURR)
+
+	if smContext.PDUAddress != nil && smContext.PDUAddressIPv6 != nil {
+		secondPdr, err := smf.NewPDR()
+		if err != nil {
+			return fmt.Errorf("could not create second downlink PDR: %s", err)
+		}
+
+		secondPdr.FAR = dlPdr.FAR
+		secondPdr.QER = defQER
+		secondPdr.URR = defDLURR
+		secondPdr.PDI.UEIPAddress, _ = netip.AddrFromSlice(smContext.PDUAddressIPv6.To16())
+
+		dp.SecondPDR = secondPdr
+	}
 
 	dp.Activated = true
 

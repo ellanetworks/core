@@ -53,6 +53,7 @@ type UPF struct {
 	smf                engine.SMFReportHandler
 	notificationReader *ringbuf.Reader
 	noNeighReader      *ringbuf.Reader
+	raResponder        *RAResponder
 
 	ctx      context.Context
 	gcCancel context.CancelFunc
@@ -162,6 +163,38 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 		ctx:                ctx,
 	}
 
+	// Start the RA responder for IPv6 prefix delegation (RS → RA via veth).
+	var n3IPv4Addr netip.Addr
+	if parsed, err := netip.ParseAddr(n3IPv4); err == nil && parsed.Is4() {
+		n3IPv4Addr = parsed
+	}
+
+	var n3IPv6Addr netip.Addr
+	if parsed, err := netip.ParseAddr(n3IPv6); err == nil && parsed.Is6() {
+		n3IPv6Addr = parsed
+	}
+
+	if n3IPv4Addr.IsValid() || n3IPv6Addr.IsValid() {
+		raResp, err := NewRAResponder(bpfObjects.RsEventMap, n3IPv4Addr, n3IPv6Addr, n3Iface.Index)
+		if err != nil {
+			logger.UpfLog.Warn("failed to create RA responder, IPv6 RS/RA will be unavailable", zap.Error(err))
+		} else {
+			if err := raResp.Start(); err != nil {
+				logger.UpfLog.Warn("failed to start RA responder, IPv6 RS/RA will be unavailable", zap.Error(err))
+
+				_ = raResp.Close()
+			} else {
+				upf.raResponder = raResp
+			}
+		}
+	} else {
+		logger.UpfLog.Warn("skipping RA responder startup because no N3 transport address is available",
+			zap.String("n3_ipv4", n3IPv4),
+			zap.String("n3_ipv6", n3IPv6),
+			zap.String("n3_interface", n3AttachmentInterface),
+		)
+	}
+
 	go upf.listenForTrafficNotifications() // #nosec: G118 -- lifecycle goroutine, not request-scoped
 
 	go upf.monitorUsage(30*time.Second, ctx.Done())
@@ -190,6 +223,12 @@ func (u *UPF) Close(ctx context.Context) {
 
 	go func() {
 		defer close(done)
+
+		if u.raResponder != nil {
+			if err := u.raResponder.Close(); err != nil {
+				logger.UpfLog.Warn("Failed to close RA responder", zap.Error(err))
+			}
+		}
 
 		if u.n6Link != nil {
 			if err := (*u.n6Link).Close(); err != nil {
@@ -224,6 +263,26 @@ func (u *UPF) Close(ctx context.Context) {
 
 func (u *UPF) Engine() *engine.SessionEngine {
 	return u.se
+}
+
+// RegisterIPv6Session registers an IPv6 session for RA responses.
+// Called by the SMF adapter after the gNB tunnel endpoint is known.
+func (u *UPF) RegisterIPv6Session(ulTEID uint32, sessionCtx *IPv6SessionContext) {
+	if u.raResponder == nil {
+		return
+	}
+
+	u.raResponder.RegisterSession(ulTEID, sessionCtx)
+}
+
+// UnregisterIPv6Session removes an IPv6 session from the RA responder.
+// Called by the SMF adapter on session release.
+func (u *UPF) UnregisterIPv6Session(ulTEID uint32) {
+	if u.raResponder == nil {
+		return
+	}
+
+	u.raResponder.UnregisterSession(ulTEID)
 }
 
 func (u *UPF) UpdateAdvertisedN3Address(newN3Addr netip.Addr) {

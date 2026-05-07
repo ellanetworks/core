@@ -39,6 +39,8 @@ func DestinationPort(val uint16) zap.Field { return zap.Uint16("destination_port
 func Protocol(val uint8) zap.Field         { return zap.Uint8("protocol", val) }
 func ProtocolName(val string) zap.Field    { return zap.String("protocol", val) }
 func IPAddress(val string) zap.Field       { return zap.String("ip_address", val) }
+func IPv6Prefix(val string) zap.Field      { return zap.String("ipv6_prefix", val) }
+func IPv6IID(val string) zap.Field         { return zap.String("ipv6_iid", val) }
 func TEID(val uint32) zap.Field            { return zap.Uint32("teid", val) }
 func Direction(val string) zap.Field       { return zap.String("direction", val) }
 func N3Address(val string) zap.Field       { return zap.String("n3_address", val) }

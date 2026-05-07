@@ -60,6 +60,13 @@ type SessionStore interface {
 	// Returns the released IPv4 address so the caller can withdraw the BGP route.
 	ReleaseIP(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error)
 
+	// AllocateIPv6 assigns a /64 prefix from the given data network's IPv6 pool.
+	// Returns the prefix base address (lower 64 bits = 0).
+	AllocateIPv6(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error)
+
+	// ReleaseIPv6 frees the IPv6 prefix lease associated with a session.
+	ReleaseIPv6(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error)
+
 	// IncrementDailyUsage adds uplink/downlink byte counts to a subscriber's daily usage.
 	IncrementDailyUsage(ctx context.Context, imsi string, uplinkBytes, downlinkBytes uint64) error
 
@@ -78,6 +85,14 @@ type UPFClient interface {
 	DeleteSession(ctx context.Context, remoteSEID uint64) error
 
 	UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error
+
+	// RegisterIPv6Session tells the UPF's RA responder about a new IPv6
+	// session so it can respond to Router Solicitations with an RA
+	// containing the delegated /64 prefix.
+	RegisterIPv6Session(ctx context.Context, reg *models.IPv6SessionRegistration) error
+
+	// UnregisterIPv6Session removes the IPv6 session from the RA responder.
+	UnregisterIPv6Session(ctx context.Context, ulTEID uint32) error
 }
 
 // AMFCallback abstracts the SMF → AMF communication.
@@ -115,6 +130,8 @@ type Policy struct {
 	NetworkRules []*ResolvedNetworkRule
 	DNS          net.IP
 	MTU          uint16
+	IPPool       string // IPv4 pool CIDR (may be empty if only IPv6 is configured)
+	IPv6Pool     string // IPv6 prefix delegation pool CIDR (may be empty if only IPv4 is configured)
 }
 
 // SMF implements the Session Management Function.
@@ -217,7 +234,7 @@ func (s *SMF) GetSessionBySEID(seid uint64) *SMContext {
 	return nil
 }
 
-// RemoveSession removes a session from the pool and releases its IP address.
+// RemoveSession removes a session from the pool and releases its IP address(es).
 func (s *SMF) RemoveSession(ctx context.Context, ref string) {
 	s.mu.Lock()
 
@@ -234,6 +251,13 @@ func (s *SMF) RemoveSession(ctx context.Context, ref string) {
 		_, err := s.store.ReleaseIP(ctx, smCtx.Supi.IMSI(), smCtx.Dnn, smCtx.PDUSessionID)
 		if err != nil {
 			logger.SmfLog.Error("release UE IP-Address failed", zap.Error(err), zap.String("smContextRef", ref))
+		}
+	}
+
+	if smCtx.PDUAddressIPv6 != nil {
+		_, err := s.store.ReleaseIPv6(ctx, smCtx.Supi.IMSI(), smCtx.Dnn, smCtx.PDUSessionID)
+		if err != nil {
+			logger.SmfLog.Error("release UE IPv6-Address failed", zap.Error(err), zap.String("smContextRef", ref))
 		}
 	}
 

@@ -62,6 +62,21 @@ func (a *smfDBAdapter) resolvePoolByDNN(ctx context.Context, dnn string) (ipam.P
 	return ipam.NewPool(dn.ID, dn.IPPool)
 }
 
+// resolveIPv6PoolByDNN looks up the IPv6 prefix delegation pool for a data
+// network by name. It delegates /64 prefixes from the configured IPv6 CIDR.
+func (a *smfDBAdapter) resolveIPv6PoolByDNN(ctx context.Context, dnn string) (ipam.Pool, error) {
+	dn, err := a.db.GetDataNetwork(ctx, dnn)
+	if err != nil {
+		return ipam.Pool{}, fmt.Errorf("get data network: %w", err)
+	}
+
+	if dn.IPv6Pool == "" {
+		return ipam.Pool{}, fmt.Errorf("data network %q has no IPv6 pool configured", dnn)
+	}
+
+	return ipam.NewPool6(dn.ID, dn.IPv6Pool, 64)
+}
+
 func (a *smfDBAdapter) AllocateIP(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error) {
 	ctx, span := tracer.Start(ctx, "smf/allocate_ip",
 		trace.WithAttributes(
@@ -82,8 +97,9 @@ func (a *smfDBAdapter) AllocateIP(ctx context.Context, imsi string, dnn string, 
 
 	// AllocateIPLease runs the SELECT-then-INSERT atomically on the
 	// leader inside leaderCaptureAndPropose's proposeMu, so concurrent
-	// allocations from any node serialise correctly.
-	addr, err := a.db.AllocateIPLease(ctx, pool.ID, imsi, int(pduSessionID), a.db.NodeID())
+	// allocations from any node serialise correctly. The legacy
+	// pre-pick-on-follower path is gone.
+	addr, err := a.db.AllocateIPLease(ctx, pool.ID, pool.IPVersion, imsi, int(pduSessionID), a.db.NodeID())
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "allocate failed")
@@ -114,7 +130,7 @@ func (a *smfDBAdapter) ReleaseIP(ctx context.Context, imsi string, dnn string, p
 		return netip.Addr{}, fmt.Errorf("resolve pool: %w", err)
 	}
 
-	lease, err := a.db.GetLeaseBySession(ctx, pool.ID, int(pduSessionID), imsi)
+	lease, err := a.db.GetLeaseBySession(ctx, pool.ID, pool.IPVersion, int(pduSessionID), imsi)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "lookup failed")
@@ -127,6 +143,73 @@ func (a *smfDBAdapter) ReleaseIP(ctx context.Context, imsi string, dnn string, p
 		span.SetStatus(codes.Error, "delete failed")
 
 		return netip.Addr{}, fmt.Errorf("delete lease: %w", err)
+	}
+
+	return lease.Address(), nil
+}
+
+func (a *smfDBAdapter) AllocateIPv6(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error) {
+	ctx, span := tracer.Start(ctx, "smf/allocate_ipv6",
+		trace.WithAttributes(
+			attribute.String("imsi", imsi),
+			attribute.String("dnn", dnn),
+			attribute.Int("pdu_session_id", int(pduSessionID)),
+		),
+	)
+	defer span.End()
+
+	pool, err := a.resolveIPv6PoolByDNN(ctx, dnn)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "resolve IPv6 pool failed")
+
+		return netip.Addr{}, fmt.Errorf("resolve IPv6 pool: %w", err)
+	}
+
+	addr, err := a.db.AllocateIPv6Lease(ctx, pool.ID, pool.IPVersion, imsi, int(pduSessionID), a.db.NodeID())
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "allocate IPv6 failed")
+
+		return netip.Addr{}, err
+	}
+
+	span.SetAttributes(attribute.String("ipv6", addr.String()))
+
+	return addr, nil
+}
+
+func (a *smfDBAdapter) ReleaseIPv6(ctx context.Context, imsi string, dnn string, pduSessionID uint8) (netip.Addr, error) {
+	ctx, span := tracer.Start(ctx, "smf/release_ipv6",
+		trace.WithAttributes(
+			attribute.String("imsi", imsi),
+			attribute.String("dnn", dnn),
+			attribute.Int("pdu_session_id", int(pduSessionID)),
+		),
+	)
+	defer span.End()
+
+	pool, err := a.resolveIPv6PoolByDNN(ctx, dnn)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "resolve IPv6 pool failed")
+
+		return netip.Addr{}, fmt.Errorf("resolve IPv6 pool: %w", err)
+	}
+
+	lease, err := a.db.GetLeaseBySession(ctx, pool.ID, pool.IPVersion, int(pduSessionID), imsi)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "lookup failed")
+
+		return netip.Addr{}, fmt.Errorf("lookup lease: %w", err)
+	}
+
+	if err := a.db.DeleteDynamicLease(ctx, lease.ID); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "release IPv6 failed")
+
+		return netip.Addr{}, err
 	}
 
 	return lease.Address(), nil
@@ -157,8 +240,10 @@ func (a *pcfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai
 				PriorityLevel: pol.Arp,
 			},
 		},
-		DNS: dns,
-		MTU: uint16(dn.MTU),
+		DNS:      dns,
+		MTU:      uint16(dn.MTU),
+		IPPool:   dn.IPPool,
+		IPv6Pool: dn.IPv6Pool,
 	}
 
 	resolvedRules := make([]*smf.ResolvedNetworkRule, len(dbRules))
@@ -249,6 +334,32 @@ func (a *smfUPFAdapter) DeleteSession(ctx context.Context, remoteSEID uint64) er
 
 func (a *smfUPFAdapter) UpdateFilters(ctx context.Context, policyID string, direction models.Direction, rules []models.FilterRule) error {
 	return a.engine.UpdateFilters(ctx, policyID, direction, rules)
+}
+
+func (a *smfUPFAdapter) RegisterIPv6Session(_ context.Context, reg *models.IPv6SessionRegistration) error {
+	if a.upf == nil {
+		return nil
+	}
+
+	a.upf.RegisterIPv6Session(reg.UplinkTEID, &upf.IPv6SessionContext{
+		DownlinkTEID: reg.DownlinkTEID,
+		GnbN3Addr:    reg.GnbN3Addr,
+		Prefix:       reg.Prefix,
+		MTU:          reg.MTU,
+		QFI:          reg.QFI,
+	})
+
+	return nil
+}
+
+func (a *smfUPFAdapter) UnregisterIPv6Session(_ context.Context, ulTEID uint32) error {
+	if a.upf == nil {
+		return nil
+	}
+
+	a.upf.UnregisterIPv6Session(ulTEID)
+
+	return nil
 }
 
 // ---------------------------------------------------------------------------

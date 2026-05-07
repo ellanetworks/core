@@ -25,7 +25,7 @@ func init() {
 	})
 }
 
-func fixtureRegistrationSuccessMultiplePoliciesPerProfile() scenarios.FixtureSpec {
+func fixtureRegistrationSuccessMultiplePoliciesPerProfile(env scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{
 		DataNetworks: []scenarios.DataNetworkSpec{
 			{Name: "enterprise", IPPool: "10.46.0.0/16", DNS: "8.8.4.4", MTU: scenarios.DefaultMTU},
@@ -111,7 +111,7 @@ func runRegistrationSuccessMultiplePoliciesPerProfile(_ context.Context, env sce
 				ranUENGAPID := int64(scenarios.DefaultRANUENGAPID) + int64(i)
 				exp := &validate.ExpectedPDUSessionEstablishmentAccept{
 					PDUSessionID:               scenarios.DefaultPDUSessionID,
-					PDUSessionType:             PDUSessionType,
+					PDUSessionType:             env.PDUSessionType(),
 					UeIPSubnet:                 networks[i],
 					Dnn:                        dnns[i],
 					Sst:                        scenarios.DefaultSST,
@@ -122,7 +122,7 @@ func runRegistrationSuccessMultiplePoliciesPerProfile(_ context.Context, env sce
 					FiveQI:                     fiveQIs[i],
 				}
 
-				return ueRegistrationTest(ranUENGAPID, gNodeB, subs[i], dnns[i], exp)
+				return ueRegistrationTest(ranUENGAPID, gNodeB, subs[i], dnns[i], exp, env.PDUSessionType())
 			})
 		}()
 	}

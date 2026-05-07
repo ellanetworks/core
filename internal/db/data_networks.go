@@ -23,18 +23,19 @@ const (
 	listAllDataNetworksStmt   = "SELECT &DataNetwork.* FROM %s ORDER BY id ASC"
 	getDataNetworkStmt        = "SELECT &DataNetwork.* from %s WHERE name==$DataNetwork.name"
 	getDataNetworkByIDStmt    = "SELECT &DataNetwork.* FROM %s WHERE id==$DataNetwork.id"
-	createDataNetworkStmt     = "INSERT INTO %s (id, name, ipPool, dns, mtu) VALUES ($DataNetwork.id, $DataNetwork.name, $DataNetwork.ipPool, $DataNetwork.dns, $DataNetwork.mtu)"
-	editDataNetworkStmt       = "UPDATE %s SET ipPool=$DataNetwork.ipPool, dns=$DataNetwork.dns, mtu=$DataNetwork.mtu WHERE name==$DataNetwork.name"
+	createDataNetworkStmt     = "INSERT INTO %s (id, name, ipPool, ipv6Pool, dns, mtu) VALUES ($DataNetwork.id, $DataNetwork.name, $DataNetwork.ipPool, $DataNetwork.ipv6Pool, $DataNetwork.dns, $DataNetwork.mtu)"
+	editDataNetworkStmt       = "UPDATE %s SET ipPool=$DataNetwork.ipPool, ipv6Pool=$DataNetwork.ipv6Pool, dns=$DataNetwork.dns, mtu=$DataNetwork.mtu WHERE name==$DataNetwork.name"
 	deleteDataNetworkStmt     = "DELETE FROM %s WHERE name==$DataNetwork.name"
 	countDataNetworksStmt     = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
 
 type DataNetwork struct {
-	ID     string `db:"id"` // UUIDv7
-	Name   string `db:"name"`
-	IPPool string `db:"ipPool"`
-	DNS    string `db:"dns"`
-	MTU    int32  `db:"mtu"`
+	ID       string `db:"id"` // UUIDv7
+	Name     string `db:"name"`
+	IPPool   string `db:"ipPool"`
+	IPv6Pool string `db:"ipv6Pool"`
+	DNS      string `db:"dns"`
+	MTU      int32  `db:"mtu"`
 }
 
 func (db *Database) ListDataNetworksPage(ctx context.Context, page, perPage int) ([]DataNetwork, int, error) {

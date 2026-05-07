@@ -30,7 +30,7 @@ func init() {
 	})
 }
 
-func fixtureRegistrationSuccessMultipleSlices() scenarios.FixtureSpec {
+func fixtureRegistrationSuccessMultipleSlices(env scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{
 		Profiles: []scenarios.ProfileSpec{
 			{
@@ -151,7 +151,7 @@ func runRegistrationSuccessMultipleSlices(_ context.Context, env scenarios.Env, 
 		newUE, err := ue.NewUE(&ue.UEOpts{
 			GnodeB:         gNodeB,
 			PDUSessionID:   scenarios.DefaultPDUSessionID,
-			PDUSessionType: PDUSessionType,
+			PDUSessionType: env.PDUSessionType(),
 			Msin:           tc.sub.IMSI[5:],
 			K:              tc.sub.Key,
 			OpC:            tc.sub.OPc,
@@ -226,7 +226,7 @@ func runRegistrationSuccessMultipleSlices(_ context.Context, env scenarios.Env, 
 
 		err = validate.PDUSessionEstablishmentAccept(pduMsg, &validate.ExpectedPDUSessionEstablishmentAccept{
 			PDUSessionID:               scenarios.DefaultPDUSessionID,
-			PDUSessionType:             PDUSessionType,
+			PDUSessionType:             env.PDUSessionType(),
 			UeIPSubnet:                 network,
 			Dnn:                        scenarios.DefaultDNN,
 			Sst:                        tc.expectedSST,

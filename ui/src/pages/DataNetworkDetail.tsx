@@ -284,6 +284,11 @@ const DataNetworkDetail: React.FC = () => {
   const poolSize = ipAlloc?.pool_size ?? 0;
   const allocated = ipAlloc?.allocated ?? 0;
   const utilPercent = poolSize > 0 ? (allocated / poolSize) * 100 : 0;
+  const ipv6Alloc = dataNetwork.ipv6_allocation;
+  const ipv6PoolSize = ipv6Alloc?.pool_size ?? 0;
+  const ipv6Allocated = ipv6Alloc?.allocated ?? 0;
+  const ipv6UtilPercent =
+    ipv6PoolSize > 0 ? (ipv6Allocated / ipv6PoolSize) * 100 : 0;
 
   return (
     <Box
@@ -396,6 +401,19 @@ const DataNetworkDetail: React.FC = () => {
                     </Typography>
                   </TableCell>
                 </TableRow>
+                {dataNetwork.ipv6_pool && (
+                  <TableRow>
+                    <TableCell sx={labelCellSx}>IPv6 Pool</TableCell>
+                    <TableCell sx={valueCellSx}>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontFamily: "monospace" }}
+                      >
+                        {dataNetwork.ipv6_pool}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
                 <TableRow>
                   <TableCell sx={labelCellSx}>DNS</TableCell>
                   <TableCell sx={valueCellSx}>
@@ -462,6 +480,31 @@ const DataNetworkDetail: React.FC = () => {
                     </Box>
                   </TableCell>
                 </TableRow>
+                {dataNetwork.ipv6_pool && (
+                  <TableRow>
+                    <TableCell sx={labelCellSx}>
+                      IPv6 Pool Utilization
+                    </TableCell>
+                    <TableCell sx={valueCellSx}>
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                      >
+                        <LinearProgress
+                          variant="determinate"
+                          value={Math.min(ipv6UtilPercent, 100)}
+                          sx={{ flex: 1, height: 8, borderRadius: 4 }}
+                        />
+                        <Typography
+                          variant="body2"
+                          sx={{ whiteSpace: "nowrap" }}
+                        >
+                          {ipv6Allocated.toLocaleString()} /{" "}
+                          {ipv6PoolSize.toLocaleString()}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>

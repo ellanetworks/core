@@ -29,11 +29,13 @@ type DataNetworkIPAllocation struct {
 }
 
 type DataNetwork struct {
-	Name         string                   `json:"name"`
-	IPPool       string                   `json:"ip_pool,omitempty"`
-	DNS          string                   `json:"dns,omitempty"`
-	MTU          int32                    `json:"mtu,omitempty"`
-	IPAllocation *DataNetworkIPAllocation `json:"ip_allocation,omitempty"`
+	Name           string                   `json:"name"`
+	IPPool         string                   `json:"ip_pool,omitempty"`
+	IPv6Pool       string                   `json:"ipv6_pool,omitempty"`
+	DNS            string                   `json:"dns,omitempty"`
+	MTU            int32                    `json:"mtu,omitempty"`
+	IPAllocation   *DataNetworkIPAllocation `json:"ip_allocation,omitempty"`
+	IPv6Allocation *DataNetworkIPAllocation `json:"ipv6_allocation,omitempty"`
 }
 
 type GetDataNetworkResponse struct {
@@ -42,10 +44,11 @@ type GetDataNetworkResponse struct {
 }
 
 type CreateDataNetworkParams struct {
-	Name   string `json:"name"`
-	IPPool string `json:"ip_pool,omitempty"`
-	DNS    string `json:"dns,omitempty"`
-	MTU    int32  `json:"mtu,omitempty"`
+	Name     string `json:"name"`
+	IPPool   string `json:"ip_pool,omitempty"`
+	IPv6Pool string `json:"ipv6_pool,omitempty"`
+	DNS      string `json:"dns,omitempty"`
+	MTU      int32  `json:"mtu,omitempty"`
 }
 
 type CreateDataNetworkResponse struct {
@@ -54,9 +57,10 @@ type CreateDataNetworkResponse struct {
 }
 
 type UpdateDataNetworkParams struct {
-	IPPool string `json:"ip_pool,omitempty"`
-	DNS    string `json:"dns,omitempty"`
-	MTU    int32  `json:"mtu,omitempty"`
+	IPPool   string `json:"ip_pool,omitempty"`
+	IPv6Pool string `json:"ipv6_pool,omitempty"`
+	DNS      string `json:"dns,omitempty"`
+	MTU      int32  `json:"mtu,omitempty"`
 }
 
 type DeleteDataNetworkResponseResult struct {
@@ -349,7 +353,30 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("6. Get data network - id not found", func(t *testing.T) {
+	t.Run("6b. Create data network - IPv6 DNS", func(t *testing.T) {
+		createDataNetworkParams := &CreateDataNetworkParams{
+			Name:     "ipv6-dns-test",
+			IPPool:   "10.50.0.0/24",
+			DNS:      "2001:4860:4860::8888",
+			IPv6Pool: "2001:db8::/56",
+			MTU:      1456,
+		}
+
+		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, createDataNetworkParams)
+		if err != nil {
+			t.Fatalf("couldn't create data network: %s", err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+
+		if response.Error != "" {
+			t.Fatalf("unexpected error: %q", response.Error)
+		}
+	})
+
+	t.Run("8. Get data network - id not found", func(t *testing.T) {
 		statusCode, response, err := getDataNetwork(env.Server.URL, client, token, "data network-002")
 		if err != nil {
 			t.Fatalf("couldn't get data network: %s", err)
@@ -364,7 +391,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("7. Create data network - no name", func(t *testing.T) {
+	t.Run("9. Create data network - no name", func(t *testing.T) {
 		createDataNetworkParams := &CreateDataNetworkParams{}
 
 		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, createDataNetworkParams)
@@ -381,7 +408,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("8. Edit data network - success", func(t *testing.T) {
+	t.Run("10. Edit data network - success", func(t *testing.T) {
 		updateDataNetworkParams := &UpdateDataNetworkParams{
 			DNS:    "2.2.2.2",
 			IPPool: "1.1.1.0/29",
@@ -402,7 +429,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("9. Create profile and policy", func(t *testing.T) {
+	t.Run("11. Create profile and policy", func(t *testing.T) {
 		_, _, profErr := createProfile(env.Server.URL, client, token, &CreateProfileParams{
 			Name:           "dn-test-profile",
 			UeAmbrUplink:   SessionAmbrUplink,
@@ -437,7 +464,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("10. Delete data network - failure because data network has policies", func(t *testing.T) {
+	t.Run("12. Delete data network - failure because data network has policies", func(t *testing.T) {
 		statusCode, response, err := deleteDataNetwork(env.Server.URL, client, token, DataNetworkName)
 		if err != nil {
 			t.Fatalf("couldn't delete data network: %s", err)
@@ -452,7 +479,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("11. Delete policy", func(t *testing.T) {
+	t.Run("13. Delete policy", func(t *testing.T) {
 		statusCode, response, err := deletePolicy(env.Server.URL, client, token, "whatever")
 		if err != nil {
 			t.Fatalf("couldn't delete policy: %s", err)
@@ -467,7 +494,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("12. Delete data network - success", func(t *testing.T) {
+	t.Run("14. Delete data network - success", func(t *testing.T) {
 		statusCode, response, err := deleteDataNetwork(env.Server.URL, client, token, DataNetworkName)
 		if err != nil {
 			t.Fatalf("couldn't delete data network: %s", err)
@@ -482,7 +509,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 		}
 	})
 
-	t.Run("13. Delete data network - no data network", func(t *testing.T) {
+	t.Run("15. Delete data network - no data network", func(t *testing.T) {
 		statusCode, response, err := deleteDataNetwork(env.Server.URL, client, token, DataNetworkName)
 		if err != nil {
 			t.Fatalf("couldn't delete data network: %s", err)
@@ -1083,6 +1110,322 @@ func TestUpdateDataNetworkOverlappingPool(t *testing.T) {
 	t.Run("update own pool succeeds", func(t *testing.T) {
 		statusCode, response, err := editDataNetwork(env.Server.URL, client, "dn-y", token, &UpdateDataNetworkParams{
 			IPPool: "10.51.0.0/22", DNS: DNS, MTU: MTU,
+		})
+		if err != nil {
+			t.Fatalf("couldn't edit data network: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d (error: %s)", http.StatusOK, statusCode, response.Error)
+		}
+	})
+}
+
+func TestCreateDataNetworkWithIPv6Pool(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	t.Run("create with valid IPv6 pool", func(t *testing.T) {
+		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+			Name: "dn-v6-a", IPPool: "10.60.0.0/24", IPv6Pool: "2001:db8::/48", DNS: DNS, MTU: MTU,
+		})
+		if err != nil {
+			t.Fatalf("couldn't create data network: %s", err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d (error: %s)", http.StatusCreated, statusCode, response.Error)
+		}
+	})
+
+	t.Run("get data network with IPv6 allocation stats", func(t *testing.T) {
+		statusCode, response, err := getDataNetwork(env.Server.URL, client, token, "dn-v6-a")
+		if err != nil {
+			t.Fatalf("couldn't get data network: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if response.Result.IPv6Pool != "2001:db8::/48" {
+			t.Fatalf("expected ipv6_pool %q, got %q", "2001:db8::/48", response.Result.IPv6Pool)
+		}
+
+		if response.Result.IPv6Allocation == nil {
+			t.Fatal("expected ipv6_allocation to be present in detail response")
+		}
+
+		if response.Result.IPv6Allocation.PoolSize <= 0 {
+			t.Fatalf("expected positive IPv6 pool_size, got %d", response.Result.IPv6Allocation.PoolSize)
+		}
+
+		if response.Result.IPv6Allocation.Allocated != 0 {
+			t.Fatalf("expected 0 allocated IPv6 prefixes, got %d", response.Result.IPv6Allocation.Allocated)
+		}
+
+		if response.Result.IPv6Allocation.Available != response.Result.IPv6Allocation.PoolSize {
+			t.Fatalf("expected available == pool_size when none allocated, got available=%d pool_size=%d",
+				response.Result.IPv6Allocation.Available, response.Result.IPv6Allocation.PoolSize)
+		}
+	})
+
+	t.Run("create without IPv6 pool omits ipv6_allocation", func(t *testing.T) {
+		_, _, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+			Name: "dn-v4-only", IPPool: "10.61.0.0/24", DNS: DNS, MTU: MTU,
+		})
+		if err != nil {
+			t.Fatalf("couldn't create data network: %s", err)
+		}
+
+		statusCode, response, err := getDataNetwork(env.Server.URL, client, token, "dn-v4-only")
+		if err != nil {
+			t.Fatalf("couldn't get data network: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if response.Result.IPv6Allocation != nil {
+			t.Fatal("expected ipv6_allocation to be nil for IPv4-only data network")
+		}
+	})
+}
+
+func TestCreateDataNetworkIPv6PoolValidation(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	expectedErr := "invalid ipv6_pool format, must be a valid IPv6 CIDR with prefix length between /48 and /60"
+
+	tests := []struct {
+		testName string
+		ipv6Pool string
+	}{
+		{
+			testName: "not a CIDR",
+			ipv6Pool: "2001:db8::1",
+		},
+		{
+			testName: "IPv4 address",
+			ipv6Pool: "10.0.0.0/24",
+		},
+		{
+			testName: "IPv4-mapped IPv6",
+			ipv6Pool: "::ffff:10.0.0.0/96",
+		},
+		{
+			testName: "prefix too short /32",
+			ipv6Pool: "2001:db8::/32",
+		},
+		{
+			testName: "prefix too long /64",
+			ipv6Pool: "2001:db8:abcd:1234::/64",
+		},
+		{
+			testName: "prefix too long /128",
+			ipv6Pool: "2001:db8::1/128",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+				Name: "dn-bad-v6", IPPool: "10.70.0.0/24", IPv6Pool: tt.ipv6Pool, DNS: DNS, MTU: MTU,
+			})
+			if err != nil {
+				t.Fatalf("couldn't create data network: %s", err)
+			}
+
+			if statusCode != http.StatusBadRequest {
+				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+			}
+
+			if response.Error != expectedErr {
+				t.Fatalf("expected error %q, got %q", expectedErr, response.Error)
+			}
+		})
+	}
+
+	t.Run("valid /48", func(t *testing.T) {
+		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+			Name: "dn-v6-48", IPPool: "10.71.0.0/24", IPv6Pool: "2001:db8:1::/48", DNS: DNS, MTU: MTU,
+		})
+		if err != nil {
+			t.Fatalf("couldn't create data network: %s", err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d (error: %s)", http.StatusCreated, statusCode, response.Error)
+		}
+	})
+
+	t.Run("valid /60", func(t *testing.T) {
+		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+			Name: "dn-v6-60", IPPool: "10.72.0.0/24", IPv6Pool: "2001:db8:2::/60", DNS: DNS, MTU: MTU,
+		})
+		if err != nil {
+			t.Fatalf("couldn't create data network: %s", err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d (error: %s)", http.StatusCreated, statusCode, response.Error)
+		}
+	})
+}
+
+func TestCreateDataNetworkIPv6PoolOverlap(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	// Create first data network with an IPv6 pool.
+	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+		Name: "dn-v6-first", IPPool: "10.80.0.0/24", IPv6Pool: "2001:db8:abcd::/48", DNS: DNS, MTU: MTU,
+	})
+	if err != nil {
+		t.Fatalf("couldn't create first data network: %s", err)
+	}
+
+	t.Run("exact IPv6 overlap", func(t *testing.T) {
+		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+			Name: "dn-v6-dup", IPPool: "10.81.0.0/24", IPv6Pool: "2001:db8:abcd::/48", DNS: DNS, MTU: MTU,
+		})
+		if err != nil {
+			t.Fatalf("couldn't create data network: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if !strings.Contains(response.Error, "overlaps") {
+			t.Fatalf("expected overlap error, got %q", response.Error)
+		}
+	})
+
+	t.Run("subset IPv6 overlap", func(t *testing.T) {
+		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+			Name: "dn-v6-sub", IPPool: "10.82.0.0/24", IPv6Pool: "2001:db8:abcd:0010::/60", DNS: DNS, MTU: MTU,
+		})
+		if err != nil {
+			t.Fatalf("couldn't create data network: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if !strings.Contains(response.Error, "overlaps") {
+			t.Fatalf("expected overlap error, got %q", response.Error)
+		}
+	})
+
+	t.Run("non-overlapping IPv6 succeeds", func(t *testing.T) {
+		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+			Name: "dn-v6-ok", IPPool: "10.83.0.0/24", IPv6Pool: "2001:db8:cafe::/48", DNS: DNS, MTU: MTU,
+		})
+		if err != nil {
+			t.Fatalf("couldn't create data network: %s", err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d (error: %s)", http.StatusCreated, statusCode, response.Error)
+		}
+	})
+}
+
+func TestUpdateDataNetworkIPv6PoolOverlap(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	// Create two data networks with non-overlapping IPv6 pools.
+	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+		Name: "dn-v6-u1", IPPool: "10.90.0.0/24", IPv6Pool: "2001:db8:1::/48", DNS: DNS, MTU: MTU,
+	})
+	if err != nil {
+		t.Fatalf("couldn't create first data network: %s", err)
+	}
+
+	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+		Name: "dn-v6-u2", IPPool: "10.91.0.0/24", IPv6Pool: "2001:db8:2::/48", DNS: DNS, MTU: MTU,
+	})
+	if err != nil {
+		t.Fatalf("couldn't create second data network: %s", err)
+	}
+
+	t.Run("update to overlapping IPv6 pool rejected", func(t *testing.T) {
+		statusCode, response, err := editDataNetwork(env.Server.URL, client, "dn-v6-u2", token, &UpdateDataNetworkParams{
+			IPPool: "10.91.0.0/24", IPv6Pool: "2001:db8:1::/48", DNS: DNS, MTU: MTU,
+		})
+		if err != nil {
+			t.Fatalf("couldn't edit data network: %s", err)
+		}
+
+		if statusCode != http.StatusBadRequest {
+			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
+		}
+
+		if !strings.Contains(response.Error, "overlaps") {
+			t.Fatalf("expected overlap error, got %q", response.Error)
+		}
+	})
+
+	t.Run("update own IPv6 pool succeeds", func(t *testing.T) {
+		statusCode, response, err := editDataNetwork(env.Server.URL, client, "dn-v6-u2", token, &UpdateDataNetworkParams{
+			IPPool: "10.91.0.0/24", IPv6Pool: "2001:db8:2::/52", DNS: DNS, MTU: MTU,
 		})
 		if err != nil {
 			t.Fatalf("couldn't edit data network: %s", err)

@@ -44,6 +44,8 @@ import (
 	"go.uber.org/zap"
 )
 
+var getInterfaceIPs = config.GetInterfaceIPs
+
 type RuntimeConfig struct {
 	ConfigPath          string
 	RegisterExtraRoutes func(mux *http.ServeMux)
@@ -732,8 +734,6 @@ func resolveN3Addresses(n3Interface config.N3Interface) (n3IPv4, n3IPv6 string) 
 			} else {
 				n3IPv6 = n3Interface.Address
 			}
-
-			return n3IPv4, n3IPv6
 		}
 	}
 
@@ -742,7 +742,7 @@ func resolveN3Addresses(n3Interface config.N3Interface) (n3IPv4, n3IPv6 string) 
 		ifaceName = n3Interface.VlanConfig.MasterInterface
 	}
 
-	ips, err := config.GetInterfaceIPs(ifaceName)
+	ips, err := getInterfaceIPs(ifaceName)
 	if err != nil {
 		return n3IPv4, n3IPv6
 	}

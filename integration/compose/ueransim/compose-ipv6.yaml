@@ -76,7 +76,7 @@ configs:
         class15: false
 
       sessions:
-        - type: 'IPv4'
+        - type: 'IPv6'
           apn: 'internet'
           slice:
             sst: 0x01
@@ -125,7 +125,7 @@ services:
       n6:
         driver_opts:
               com.docker.network.endpoint.ifname: n6
-        ipv4_address: 10.6.0.2
+        ipv6_address: fd00:6::2
   ueransim:
     image: ghcr.io/ellanetworks/ueransim:3.2.7
     configs:
@@ -151,7 +151,7 @@ services:
       - /bin/bash
       - -lc
       - >
-        ip route add 10.45.0.0/22 dev n6 via 10.6.0.2;
+        ip -6 route add fd45::/48 dev n6 via fd00:6::2;
         trap : TERM INT;
         python3 /responder.py 34242 & wait
     restart: unless-stopped
@@ -160,7 +160,7 @@ services:
       n6:
         driver_opts:
               com.docker.network.endpoint.ifname: n6
-        ipv4_address: 10.6.0.3
+        ipv6_address: fd00:6::3
 
 networks:
   default:
@@ -176,6 +176,7 @@ networks:
       config:
         - subnet: 2001:db8:3::/64
   n6:
+    enable_ipv6: true
     ipam:
       config:
-        - subnet: 10.6.0.0/24
+        - subnet: fd00:6::/64

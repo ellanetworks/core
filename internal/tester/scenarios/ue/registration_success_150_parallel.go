@@ -30,7 +30,7 @@ func init() {
 	})
 }
 
-func fixtureRegistrationSuccess150Parallel() scenarios.FixtureSpec {
+func fixtureRegistrationSuccess150Parallel(env scenarios.Env) scenarios.FixtureSpec {
 	subs := make([]scenarios.SubscriberSpec, numSubscribersParallel)
 	for i := range numSubscribersParallel {
 		subs[i] = scenarios.DefaultSubscriberWith(incrementIMSI(parallelStartIMSI, i), "")
@@ -85,7 +85,7 @@ func runRegistrationSuccess150Parallel(_ context.Context, env scenarios.Env, _ a
 
 				exp := &validate.ExpectedPDUSessionEstablishmentAccept{
 					PDUSessionID:               scenarios.DefaultPDUSessionID,
-					PDUSessionType:             PDUSessionType,
+					PDUSessionType:             env.PDUSessionType(),
 					UeIPSubnet:                 network,
 					Dnn:                        scenarios.DefaultDNN,
 					Sst:                        scenarios.DefaultSST,
@@ -96,7 +96,7 @@ func runRegistrationSuccess150Parallel(_ context.Context, env scenarios.Env, _ a
 					FiveQI:                     9,
 				}
 
-				return ueRegistrationTest(ranUENGAPID, gNodeB, subs[i], scenarios.DefaultDNN, exp)
+				return ueRegistrationTest(ranUENGAPID, gNodeB, subs[i], scenarios.DefaultDNN, exp, env.PDUSessionType())
 			})
 		}()
 	}

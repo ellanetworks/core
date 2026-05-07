@@ -13,10 +13,12 @@ export type DataNetworkIPAllocation = {
 export type APIDataNetwork = {
   name: string;
   ip_pool: string;
+  ipv6_pool?: string;
   dns: string;
   mtu: number;
   status?: DataNetworkStatus;
   ip_allocation?: DataNetworkIPAllocation;
+  ipv6_allocation?: DataNetworkIPAllocation;
 };
 
 export type APIIPAllocation = {
@@ -79,11 +81,16 @@ export const createDataNetwork = async (
   ipPool: string,
   dns: string,
   mtu: number,
+  ipv6Pool?: string,
 ): Promise<void> => {
+  const body: Record<string, unknown> = { name, ip_pool: ipPool, dns, mtu };
+  if (ipv6Pool) {
+    body.ipv6_pool = ipv6Pool;
+  }
   await apiFetchVoid(`/api/v1/networking/data-networks`, {
     method: "POST",
     authToken,
-    body: { name, ip_pool: ipPool, dns, mtu },
+    body,
   });
 };
 
@@ -93,11 +100,16 @@ export const updateDataNetwork = async (
   ipPool: string,
   dns: string,
   mtu: number,
+  ipv6Pool?: string,
 ): Promise<void> => {
+  const body: Record<string, unknown> = { name, ip_pool: ipPool, dns, mtu };
+  if (ipv6Pool) {
+    body.ipv6_pool = ipv6Pool;
+  }
   await apiFetchVoid(`/api/v1/networking/data-networks/${name}`, {
     method: "PUT",
     authToken,
-    body: { name, ip_pool: ipPool, dns, mtu },
+    body,
   });
 };
 

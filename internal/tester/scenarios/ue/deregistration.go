@@ -23,7 +23,7 @@ func init() {
 	})
 }
 
-func fixtureDeregistration() scenarios.FixtureSpec {
+func fixtureDeregistration(env scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{
 		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
 	}
@@ -56,7 +56,7 @@ func runDeregistration(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("did not receive SCTP frame: %v", err)
 	}
 
-	newUE, err := newDefaultUE(gNodeB, scenarios.DefaultIMSI[5:], scenarios.DefaultKey, scenarios.DefaultOPC, "000000000001")
+	newUE, err := newDefaultUE(gNodeB, scenarios.DefaultIMSI[5:], scenarios.DefaultKey, scenarios.DefaultOPC, "000000000001", env.PDUSessionType())
 	if err != nil {
 		return fmt.Errorf("could not create UE: %v", err)
 	}

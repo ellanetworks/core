@@ -70,10 +70,11 @@ type SliceSpec struct {
 
 // DataNetworkSpec describes a PDU session anchor.
 type DataNetworkSpec struct {
-	Name   string
-	IPPool string
-	DNS    string
-	MTU    int32
+	Name     string
+	IPPool   string
+	IPv6Pool string
+	DNS      string
+	MTU      int32
 }
 
 // PolicySpec describes a QoS policy.

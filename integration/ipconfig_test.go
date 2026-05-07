@@ -72,9 +72,24 @@ func N3Address(node int) string {
 	}
 }
 
-// N6Address returns the N6 (external) address - always IPv4
-func N6Address() string {
+// N6RouterIPv6Address returns the N6 IPv4 address of the router (ping destination).
+func N6RouterIPv4Address() string {
 	return "10.6.0.3"
+}
+
+// N6RouterIPv6Address returns the N6 IPv6 address of the router (ping destination).
+func N6RouterIPv6Address() string {
+	return "fd00:6::3"
+}
+
+// N6IPv6Address returns the N6 IPv6 address of the core node.
+func N6IPv6Address() string {
+	return "fd00:6::2"
+}
+
+// UeIPv6Pool returns the UE IPv6 pool prefix.
+func UeIPv6Pool() string {
+	return "fd45::/48"
 }
 
 // CoreTesterN3Address returns the core-tester N3 interface address

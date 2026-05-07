@@ -33,12 +33,20 @@ func init() {
 	})
 }
 
-func fixtureConnectivityMultiPDUSession() scenarios.FixtureSpec {
+func fixtureConnectivityMultiPDUSession(env scenarios.Env) scenarios.FixtureSpec {
 	// Scenario validates UE-AMBR at 500 Mbps, distinct from the baseline
 	// default profile (100 Mbps). The fixture declares its own profile
 	// "multi-pdu-profile" (500 Mbps) and two policies pinning that profile
 	// to (default slice, default DN) for PDU session 1 and to
 	// (enterprise slice, enterprise DN) for PDU session 2.
+	enterpriseIPPool := "10.46.0.0/16"
+	enterpriseDNS := "8.8.4.4"
+
+	if env.IPFamily() == scenarios.IPv6Only {
+		enterpriseIPPool = "fd46::/48"
+		enterpriseDNS = scenarios.DefaultDNSv6
+	}
+
 	return scenarios.FixtureSpec{
 		Profiles: []scenarios.ProfileSpec{
 			{Name: "multi-pdu-profile", UeAmbrUplink: "500 Mbps", UeAmbrDownlink: "500 Mbps"},
@@ -47,7 +55,7 @@ func fixtureConnectivityMultiPDUSession() scenarios.FixtureSpec {
 			{Name: "enterprise-slice", SST: 1, SD: "204060"},
 		},
 		DataNetworks: []scenarios.DataNetworkSpec{
-			{Name: "enterprise", IPPool: "10.46.0.0/16", DNS: "8.8.4.4", MTU: scenarios.DefaultMTU},
+			{Name: "enterprise", IPPool: enterpriseIPPool, DNS: enterpriseDNS, MTU: scenarios.DefaultMTU},
 		},
 		Policies: []scenarios.PolicySpec{
 			{
@@ -80,10 +88,8 @@ func fixtureConnectivityMultiPDUSession() scenarios.FixtureSpec {
 
 func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ any) error {
 	const (
-		dnn1    = scenarios.DefaultDNN
-		dnn2    = "enterprise"
-		ipPool1 = "10.45.0.0/16"
-		ipPool2 = "10.46.0.0/16"
+		dnn1 = scenarios.DefaultDNN
+		dnn2 = "enterprise"
 
 		slice2SST = int32(1)
 		slice2SD  = "204060"
@@ -91,6 +97,21 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 		pduSessionID1 uint8 = 1
 		pduSessionID2 uint8 = 2
 	)
+
+	ipFamily := env.IPFamily()
+
+	var ipPool1, ipPool2 string
+	if ipFamily == scenarios.IPv6Only {
+		ipPool1 = "fd45::/48"
+		ipPool2 = "fd46::/48"
+	} else {
+		ipPool1 = "10.45.0.0/16"
+		ipPool2 = "10.46.0.0/16"
+	}
+
+	pingDest := env.PingDestination()
+	pingCmd := env.PingCommand()
+	pduSessionType := env.PDUSessionType()
 
 	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
 
@@ -135,7 +156,7 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 	newUE, err := ue.NewUE(&ue.UEOpts{
 		GnodeB:         gNodeB,
 		PDUSessionID:   pduSessionID1,
-		PDUSessionType: PDUSessionType,
+		PDUSessionType: pduSessionType,
 		Msin:           sub.IMSI[5:],
 		K:              sub.Key,
 		OpC:            sub.OPc,
@@ -189,7 +210,7 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 
 	err = validate.PDUSessionEstablishmentAccept(pduAccept1, &validate.ExpectedPDUSessionEstablishmentAccept{
 		PDUSessionID:               pduSessionID1,
-		PDUSessionType:             PDUSessionType,
+		PDUSessionType:             pduSessionType,
 		UeIPSubnet:                 network1,
 		Dnn:                        dnn1,
 		Sst:                        scenarios.DefaultSST,
@@ -236,7 +257,7 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 
 	err = validate.PDUSessionEstablishmentAccept(pduAccept2, &validate.ExpectedPDUSessionEstablishmentAccept{
 		PDUSessionID:               pduSessionID2,
-		PDUSessionType:             PDUSessionType,
+		PDUSessionType:             pduSessionType,
 		UeIPSubnet:                 network2,
 		Dnn:                        dnn2,
 		Sst:                        slice2SST,
@@ -298,8 +319,14 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 	tun1 := gtpInterfaceNamePrefix + "mp0"
 	tun2 := gtpInterfaceNamePrefix + "mp1"
 
-	ueIP1 := uePDU1.UEIP + "/16"
-	ueIP2 := uePDU2.UEIP + "/16"
+	var ueIP1, ueIP2 string
+	if ipFamily == scenarios.IPv6Only {
+		ueIP1 = uePDU1.UEIPV6 + env.UIPrefix()
+		ueIP2 = uePDU2.UEIPV6 + env.UIPrefix()
+	} else {
+		ueIP1 = uePDU1.UEIP + env.UIPrefix()
+		ueIP2 = uePDU2.UEIP + env.UIPrefix()
+	}
 
 	_, err = gNodeB.AddTunnel(&gnb.NewTunnelOpts{
 		UEIP:             ueIP1,
@@ -337,7 +364,7 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 		zap.String("UE IP", ueIP2),
 	)
 
-	cmd := exec.CommandContext(ctx, "ping", "-I", tun1, scenarios.DefaultPingDestination, "-c", "3", "-W", "1") // #nosec G204
+	cmd := exec.CommandContext(ctx, pingCmd, "-I", tun1, pingDest, "-c", "3", "-W", "1") // #nosec G204
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -347,10 +374,10 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 	logger.Logger.Debug("Ping successful on PDU session 1",
 		zap.String("DNN", dnn1),
 		zap.String("interface", tun1),
-		zap.String("destination", scenarios.DefaultPingDestination),
+		zap.String("destination", pingDest),
 	)
 
-	cmd = exec.CommandContext(ctx, "ping", "-I", tun2, scenarios.DefaultPingDestination, "-c", "3", "-W", "1") // #nosec G204
+	cmd = exec.CommandContext(ctx, pingCmd, "-I", tun2, pingDest, "-c", "3", "-W", "1") // #nosec G204
 
 	out, err = cmd.CombinedOutput()
 	if err != nil {
@@ -360,7 +387,7 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 	logger.Logger.Debug("Ping successful on PDU session 2",
 		zap.String("DNN", dnn2),
 		zap.String("interface", tun2),
-		zap.String("destination", scenarios.DefaultPingDestination),
+		zap.String("destination", pingDest),
 	)
 
 	err = gNodeB.CloseTunnel(gnbPDU1.DLTeid)

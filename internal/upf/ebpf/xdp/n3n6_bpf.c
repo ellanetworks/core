@@ -20,6 +20,7 @@
 
 #include <linux/in.h>
 #include <linux/if_ether.h>
+#include <linux/in6.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 #include <linux/tcp.h>
@@ -47,7 +48,12 @@ static __always_inline enum xdp_action handle_ip4(struct packet_context *ctx)
 		struct udphdr *udp = detect_udp_header(ctx, 0);
 		if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT) {
 			parse_udp(ctx);
-			upf_printk("upf: gtp-u received");
+			upf_printk(
+				"upf: gtp-u received on %s, src=%pI4 dst=%pI4",
+				(ctx->xdp_ctx->ingress_ifindex == n3_ifindex) ?
+					"N3" :
+					"N6",
+				&ctx->ip4->saddr, &ctx->ip4->daddr);
 			action = handle_gtpu(ctx);
 			ctx->statistics->xdp_actions[action &
 						     EUPF_MAX_XDP_ACTION_MASK] +=
@@ -74,11 +80,7 @@ static __always_inline enum xdp_action handle_ip6(struct packet_context *ctx)
 {
 	enum xdp_action action;
 	int l4_protocol = parse_ip6(ctx);
-	switch (l4_protocol) {
-	case IPPROTO_ICMPV6:
-		upf_printk("upf: icmpv6 received. passing to kernel");
-		return XDP_PASS;
-	case IPPROTO_UDP: {
+	if (l4_protocol == IPPROTO_UDP) {
 		struct udphdr *udp = detect_udp_header(ctx, 0);
 		if (udp && bpf_ntohs(udp->dest) == GTP_UDP_PORT) {
 			parse_udp(ctx);
@@ -89,11 +91,8 @@ static __always_inline enum xdp_action handle_ip6(struct packet_context *ctx)
 				1;
 			return action;
 		}
-		break;
-	}
-	case IPPROTO_TCP:
-		break;
-	default:
+	} else if (l4_protocol != IPPROTO_ICMPV6 &&
+		   l4_protocol != IPPROTO_TCP) {
 		action = DEFAULT_XDP_ACTION;
 		ctx->statistics
 			->xdp_actions[action & EUPF_MAX_XDP_ACTION_MASK] += 1;

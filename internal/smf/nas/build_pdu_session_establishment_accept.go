@@ -24,14 +24,22 @@ import (
 )
 
 const (
-	DefaultQosRuleID      uint8 = 1
-	AllowedPDUSessionType       = nasMessage.PDUSessionTypeIPv4
+	DefaultQosRuleID uint8 = 1
 )
 
 type ProtocolConfigurationOptions struct {
 	DNSIPv4Request     bool
 	DNSIPv6Request     bool
 	IPv4LinkMTURequest bool
+}
+
+// PDUSessionAddresses holds the address information for a PDU session.
+// For IPv4-only, only IPv4Address is set. For IPv6-only, only IPv6IID is set.
+// For IPv4v6, both are set.
+type PDUSessionAddresses struct {
+	PDUSessionType uint8   // nasMessage.PDUSessionTypeIPv4/IPv6/IPv4IPv6
+	IPv4Address    net.IP  // 4-byte IPv4 address (nil for IPv6-only)
+	IPv6IID        [8]byte // Interface Identifier (zero for IPv4-only)
 }
 
 func BuildGSMPDUSessionEstablishmentAccept(
@@ -44,8 +52,14 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	pco *ProtocolConfigurationOptions,
 	dns net.IP,
 	mtu uint16,
-	pduAddress net.IP,
+	cause uint8,
+	addrs *PDUSessionAddresses,
 ) ([]byte, error) {
+	pduSessionType := nasMessage.PDUSessionTypeIPv4
+	if addrs != nil {
+		pduSessionType = addrs.PDUSessionType
+	}
+
 	m := nas.NewMessage()
 	m.GsmMessage = nas.NewGsmMessage()
 	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionEstablishmentAccept)
@@ -55,8 +69,13 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	m.PDUSessionEstablishmentAccept.SetMessageType(nas.MsgTypePDUSessionEstablishmentAccept)
 	m.PDUSessionEstablishmentAccept.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
 	m.PDUSessionEstablishmentAccept.SetPTI(pti)
-	m.SetPDUSessionType(AllowedPDUSessionType)
+	m.SetPDUSessionType(pduSessionType)
 	m.PDUSessionEstablishmentAccept.SetSSCMode(1)
+
+	if cause != 0 {
+		m.PDUSessionEstablishmentAccept.Cause5GSM = nasType.NewCause5GSM(nasMessage.PDUSessionEstablishmentAcceptCause5GSMType)
+		m.PDUSessionEstablishmentAccept.SetCauseValue(cause)
+	}
 
 	sessAmbr, err := modelsToSessionAMBR(ambr)
 	if err != nil {
@@ -78,11 +97,11 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	m.PDUSessionEstablishmentAccept.AuthorizedQosRules.SetLen(uint16(len(qosRulesBytes)))
 	m.PDUSessionEstablishmentAccept.SetQosRule(qosRulesBytes)
 
-	if pduAddress != nil {
-		addr, addrLen := pduAddressToNAS(pduAddress, AllowedPDUSessionType)
+	if addrs != nil {
+		addr, addrLen := pduAddressToNAS(addrs)
 		m.PDUAddress = nasType.NewPDUAddress(nasMessage.PDUSessionEstablishmentAcceptPDUAddressType)
 		m.PDUAddress.SetLen(addrLen)
-		m.PDUSessionEstablishmentAccept.SetPDUSessionTypeValue(AllowedPDUSessionType)
+		m.PDUSessionEstablishmentAccept.SetPDUSessionTypeValue(pduSessionType)
 		m.SetPDUAddressInformation(addr)
 	}
 
@@ -138,7 +157,10 @@ func BuildGSMPDUSessionEstablishmentAccept(
 
 		// IPv6 DNS
 		if pco.DNSIPv6Request {
-			logger.SmfLog.Warn("IPv6 DNS request is not supported")
+			err := protocolConfigurationOptions.AddDNSServerIPv6Address(dns)
+			if err != nil {
+				logger.SmfLog.Warn("Error while adding DNS IPv6 Addr", zap.Error(err), logger.PDUSessionID(pduSessionID))
+			}
 		}
 
 		// MTU
@@ -208,15 +230,25 @@ func strToAMBRUnit(unit string) uint8 {
 	return nasMessage.SessionAMBRUnitNotUsed
 }
 
-func pduAddressToNAS(pduAddress net.IP, pduSessionType uint8) ([12]byte, uint8) {
+// pduAddressToNAS encodes the PDU address for the NAS wire format.
+// Per 3GPP TS 24.501 §9.11.4.10:
+//   - IPv4:   1 byte type + 4 bytes IPv4 address  → len 5
+//   - IPv6:   1 byte type + 8 bytes IID            → len 9
+//   - IPv4v6: 1 byte type + 8 bytes IID + 4 bytes IPv4 → len 13
+func pduAddressToNAS(addrs *PDUSessionAddresses) ([12]byte, uint8) {
 	var addr [12]byte
 
-	copy(addr[:], pduAddress)
-
-	switch pduSessionType {
+	switch addrs.PDUSessionType {
 	case nasMessage.PDUSessionTypeIPv4:
+		copy(addr[:], addrs.IPv4Address.To4())
 		return addr, 4 + 1
+	case nasMessage.PDUSessionTypeIPv6:
+		copy(addr[:8], addrs.IPv6IID[:])
+		return addr, 8 + 1
 	case nasMessage.PDUSessionTypeIPv4IPv6:
+		copy(addr[:8], addrs.IPv6IID[:])
+		copy(addr[8:12], addrs.IPv4Address.To4())
+
 		return addr, 12 + 1
 	default:
 		return addr, 0

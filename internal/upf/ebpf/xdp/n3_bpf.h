@@ -17,6 +17,7 @@
 #include "xdp/utils/sdf.h"
 #include "xdp/utils/urr.h"
 #include "xdp/utils/statistics.h"
+#include "xdp/utils/rs_event.h"
 
 struct {
 	__uint(type, BPF_MAP_TYPE_HASH);
@@ -54,8 +55,10 @@ handle_gtp_packet(struct packet_context *ctx)
 	struct pdr_info *pdr = bpf_map_lookup_elem(&pdrs_uplink, &teid);
 	PROFILE_END(PROF_N3_PDR_LOOKUP);
 	if (!pdr) {
-		upf_printk("upf: no session for teid:%d", teid);
-		return DEFAULT_XDP_ACTION;
+		upf_printk(
+			"upf: no uplink PDR for teid:%d, passing to kernel",
+			teid);
+		return DEFAULT_XDP_ACTION; /* XDP_PASS */
 	}
 
 	__u32 urr_id = pdr->urr_id;
@@ -160,6 +163,51 @@ handle_gtp_packet(struct packet_context *ctx)
 		/* Parse inner L4 so match_sdf_filters can inspect protocol/ports */
 		if (ctx->ip4)
 			parse_l4(ctx->ip4->protocol, ctx);
+
+		/*
+		 * Intercept IPv6 Router Solicitations from UEs.
+		 *
+		 * After GTP decap, if the inner packet is an ICMPv6 RS
+		 * (next_header=58, type=133), emit the TEID and UE source
+		 * address to Go via the rs_event ring buffer and drop the
+		 * packet.  The RA response is generated entirely in Go and
+		 * injected through the veth path.
+		 */
+		if (ctx->ip6 && ctx->ip6->nexthdr == IPPROTO_ICMPV6) {
+			/*
+			 * ICMPv6 header: the first byte after the IPv6
+			 * header is the type field.  ctx->data was advanced
+			 * past the IPv6 header by context_reinit inside
+			 * remove_gtp_header, so re-derive pointers from
+			 * the xdp_md to be safe.
+			 */
+			void *pkt_data = (void *)(long)ctx->xdp_ctx->data;
+			const void *pkt_end =
+				(const void *)(long)ctx->xdp_ctx->data_end;
+			struct ipv6hdr *ip6_inner =
+				(struct ipv6hdr *)(pkt_data +
+						   sizeof(struct ethhdr));
+			if ((const void *)(ip6_inner + 1) <= pkt_end) {
+				__u8 *icmp6_type = (__u8 *)(ip6_inner + 1);
+				if ((const void *)(icmp6_type + 1) <= pkt_end &&
+				    *icmp6_type ==
+					    ICMPV6_TYPE_ROUTER_SOLICITATION) {
+					upf_printk(
+						"upf: RS detected for teid:%d",
+						teid);
+					struct rs_event ev = {
+						.teid = teid,
+					};
+					__builtin_memcpy(
+						&ev.ue_ipv6, &ip6_inner->saddr,
+						sizeof(struct in6_addr));
+					bpf_ringbuf_output(&rs_event_map, &ev,
+							   sizeof(ev), 0);
+					PROFILE_END(PROF_N3_GTP_MANIP);
+					return XDP_DROP;
+				}
+			}
+		}
 	}
 	PROFILE_END(PROF_N3_GTP_MANIP);
 

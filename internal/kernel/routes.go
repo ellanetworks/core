@@ -68,9 +68,18 @@ func NewRealKernel(n3Interface, n6Interface string) *RealKernel {
 
 // prefixToIPNet converts a netip.Prefix to a *net.IPNet for netlink.
 func prefixToIPNet(p netip.Prefix) *net.IPNet {
+	addr := p.Masked().Addr()
+
+	var maskBits int
+	if addr.Is4() {
+		maskBits = 32
+	} else {
+		maskBits = 128
+	}
+
 	return &net.IPNet{
-		IP:   p.Masked().Addr().AsSlice(),
-		Mask: net.CIDRMask(p.Bits(), 32),
+		IP:   addr.AsSlice(),
+		Mask: net.CIDRMask(p.Bits(), maskBits),
 	}
 }
 
@@ -196,14 +205,20 @@ func (rk *RealKernel) ListRoutesByPriority(priority int, ifKey NetworkInterface)
 		Protocol:  rtProtoElla,
 	}
 
-	routes, err := netlink.RouteListFiltered(unix.AF_INET, &nlRoute, netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list routes: %v", err)
+	var allRoutes []netlink.Route
+
+	for _, af := range []int{unix.AF_INET, unix.AF_INET6} {
+		routes, err := netlink.RouteListFiltered(af, &nlRoute, netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list routes: %v", err)
+		}
+
+		allRoutes = append(allRoutes, routes...)
 	}
 
 	var result []netip.Prefix
 
-	for _, r := range routes {
+	for _, r := range allRoutes {
 		if r.Priority == priority && r.Dst != nil {
 			addr, ok := netip.AddrFromSlice(r.Dst.IP)
 			if !ok {
@@ -239,14 +254,20 @@ func (rk *RealKernel) ListManagedRoutes(ifKey NetworkInterface) ([]ManagedRoute,
 		Protocol:  rtProtoElla,
 	}
 
-	routes, err := netlink.RouteListFiltered(unix.AF_INET, &nlRoute, netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list routes: %v", err)
+	var allRoutes []netlink.Route
+
+	for _, af := range []int{unix.AF_INET, unix.AF_INET6} {
+		routes, err := netlink.RouteListFiltered(af, &nlRoute, netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list routes: %v", err)
+		}
+
+		allRoutes = append(allRoutes, routes...)
 	}
 
-	result := make([]ManagedRoute, 0, len(routes))
+	result := make([]ManagedRoute, 0, len(allRoutes))
 
-	for _, r := range routes {
+	for _, r := range allRoutes {
 		if r.Dst == nil {
 			continue
 		}
@@ -311,12 +332,21 @@ func (rk *RealKernel) RouteExists(destination netip.Prefix, gateway netip.Addr, 
 		Protocol:  rtProtoElla,
 	}
 
-	routes, err := netlink.RouteListFiltered(unix.AF_INET, &nlRoute, netlink.RT_FILTER_DST|netlink.RT_FILTER_GW|netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
+	af := unix.AF_INET
+	if !destination.Addr().Is4() {
+		af = unix.AF_INET6
+	}
+
+	routes, err := netlink.RouteListFiltered(af, &nlRoute, netlink.RT_FILTER_DST|netlink.RT_FILTER_GW|netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
 	if err != nil {
 		return false, fmt.Errorf("failed to list routes: %v", err)
 	}
 
-	return len(routes) > 0, nil
+	if len(routes) > 0 {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // filterForwarding adds a firewall default rule to block forwarding with nftables
@@ -422,9 +452,15 @@ func (rk *RealKernel) EnsureGatewaysOnInterfaceInNeighTable(ifKey NetworkInterfa
 
 	nlRoute := netlink.Route{LinkIndex: link.Attrs().Index}
 
-	routes, err := netlink.RouteListFiltered(unix.AF_INET, &nlRoute, netlink.RT_FILTER_OIF)
-	if err != nil {
-		return fmt.Errorf("failed to list routes: %v", err)
+	var routes []netlink.Route
+
+	for _, af := range []int{unix.AF_INET, unix.AF_INET6} {
+		r, err := netlink.RouteListFiltered(af, &nlRoute, netlink.RT_FILTER_OIF)
+		if err != nil {
+			return fmt.Errorf("failed to list routes: %v", err)
+		}
+
+		routes = append(routes, r...)
 	}
 
 	for _, route := range routes {

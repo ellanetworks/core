@@ -26,7 +26,7 @@ func init() {
 	})
 }
 
-func fixtureRegistrationSuccessNoSD() scenarios.FixtureSpec {
+func fixtureRegistrationSuccessNoSD(env scenarios.Env) scenarios.FixtureSpec {
 	// Scenario registers a UE with SD="". Slice selection requires an
 	// exact SST+SD match, so the baseline slice (SD=DefaultSD) won't
 	// match. Fixture declares a scoped slice with SD="" and a scoped
@@ -89,7 +89,7 @@ func runRegistrationSuccessNoSD(_ context.Context, env scenarios.Env, _ any) err
 
 	newUE, err := ue.NewUE(&ue.UEOpts{
 		PDUSessionID:   scenarios.DefaultPDUSessionID,
-		PDUSessionType: PDUSessionType,
+		PDUSessionType: env.PDUSessionType(),
 		GnodeB:         gNodeB,
 		Msin:           scenarios.DefaultIMSI[5:],
 		K:              scenarios.DefaultKey,

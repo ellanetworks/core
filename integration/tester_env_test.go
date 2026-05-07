@@ -141,22 +141,37 @@ func bootstrapTesterCore(ctx context.Context, cl *client.Client) error {
 		return fmt.Errorf("update NAT: %w", err)
 	}
 
-	if err := cl.CreateRoute(ctx, &client.CreateRouteOptions{
-		Destination: "8.8.8.8/32",
-		Gateway:     N6Address(),
-		Interface:   "n6",
-		Metric:      0,
-	}); err != nil && !strings.Contains(err.Error(), "already exists") {
-		return fmt.Errorf("create route: %w", err)
+	family := DetectIPFamily()
+
+	if family == IPv4Only || family == DualStack {
+		if err := cl.CreateRoute(ctx, &client.CreateRouteOptions{
+			Destination: "8.8.8.8/32",
+			Gateway:     N6RouterIPv4Address(),
+			Interface:   "n6",
+			Metric:      0,
+		}); err != nil && !strings.Contains(err.Error(), "already exists") {
+			return fmt.Errorf("create route: %w", err)
+		}
+	}
+
+	if family == IPv6Only || family == DualStack {
+		if err := cl.CreateRoute(ctx, &client.CreateRouteOptions{
+			Destination: "2001:4860:4860::8888/128",
+			Gateway:     N6RouterIPv6Address(),
+			Interface:   "n6",
+			Metric:      0,
+		}); err != nil && !strings.Contains(err.Error(), "already exists") {
+			return fmt.Errorf("create ipv6 route: %w", err)
+		}
 	}
 
 	return nil
 }
 
 // RunScenario invokes `core-tester run <scenario>` in the sidecar,
-// injecting --ella-core-n2-address and --gnb from the compose topology.
-// Fails the subtest on non-zero exit. stdout/stderr mirror to the test
-// log.
+// injecting --ella-core-n2-address, --gnb, and --ip-version from the
+// compose topology. Fails the subtest on non-zero exit. stdout/stderr
+// mirror to the test log.
 func (e *testerEnv) RunScenario(ctx context.Context, t *testing.T, scenario string, extraArgs ...string) {
 	t.Helper()
 
