@@ -32,9 +32,9 @@ var (
 	opUpdateLeaseNode           = registerChangesetOp("UpdateLeaseNode", (*Database).applyUpdateLeaseNode, RequireSchema(9), AffectsTopic(TopicIPLeases))
 	// AllocateIPLease forwards intent only; leader resolves the IP
 	// atomically under proposeMu (see applyAllocateIPLease).
-	opAllocateIPLease = registerChangesetOp("AllocateIPLease", (*Database).applyAllocateIPLease, RequireSchema(12), AffectsTopic(TopicIPLeases))
+	opAllocateIPLease = registerChangesetOpReturning[allocateIPLeasePayload, string]("AllocateIPLease", (*Database).applyAllocateIPLease, RequireSchema(12), AffectsTopic(TopicIPLeases))
 	// AllocateIPv6Lease is the same for IPv6 /64 prefix delegation.
-	opAllocateIPv6Lease = registerChangesetOp("AllocateIPv6Lease", (*Database).applyAllocateIPLease, RequireSchema(12), AffectsTopic(TopicIPLeases))
+	opAllocateIPv6Lease = registerChangesetOpReturning[allocateIPLeasePayload, string]("AllocateIPv6Lease", (*Database).applyAllocateIPLease, RequireSchema(12), AffectsTopic(TopicIPLeases))
 )
 
 // Audit logs
@@ -158,6 +158,6 @@ var (
 	opDeleteOldAuditLogs     = registerIntentOp("DeleteOldAuditLogs", ellaraft.CmdDeleteOldAuditLogs)
 	opDeleteOldDailyUsage    = registerIntentOp("DeleteOldDailyUsage", ellaraft.CmdDeleteOldDailyUsage)
 	opDeleteAllDynamicLeases = registerIntentOp("DeleteAllDynamicLeases", ellaraft.CmdDeleteAllDynamicLeases, AffectsTopic(TopicIPLeases))
-	opDeleteExpiredSessions  = registerIntentOp("DeleteExpiredSessions", ellaraft.CmdDeleteExpiredSessions)
+	opDeleteExpiredSessions  = registerIntentOpReturning[int]("DeleteExpiredSessions", ellaraft.CmdDeleteExpiredSessions)
 	opMigrateShared          = registerIntentOp("MigrateShared", ellaraft.CmdMigrateShared)
 )

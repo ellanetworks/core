@@ -96,7 +96,7 @@ func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "allocate").Inc()
 
-	raw, err := opAllocateIPLease.Invoke(db, &allocateIPLeasePayload{
+	addrStr, err := opAllocateIPLease.Invoke(db, &allocateIPLeasePayload{
 		PoolID:    poolID,
 		PoolType:  poolType,
 		IMSI:      imsi,
@@ -104,15 +104,6 @@ func (db *Database) AllocateIPLease(ctx context.Context, poolID string, poolType
 		NodeID:    nodeID,
 	})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-
-		return netip.Addr{}, err
-	}
-
-	addrStr, ok := raw.(string)
-	if !ok {
-		err := fmt.Errorf("allocate IP lease: unexpected apply result type %T", raw)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 
@@ -156,7 +147,7 @@ func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolTy
 
 	DBQueriesTotal.WithLabelValues(IPLeasesTableName, "allocate_ipv6").Inc()
 
-	raw, err := opAllocateIPv6Lease.Invoke(db, &allocateIPLeasePayload{
+	addrStr, err := opAllocateIPv6Lease.Invoke(db, &allocateIPLeasePayload{
 		PoolID:    poolID,
 		PoolType:  poolType,
 		IMSI:      imsi,
@@ -164,15 +155,6 @@ func (db *Database) AllocateIPv6Lease(ctx context.Context, poolID string, poolTy
 		NodeID:    nodeID,
 	})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-
-		return netip.Addr{}, err
-	}
-
-	addrStr, ok := raw.(string)
-	if !ok {
-		err := fmt.Errorf("allocate IPv6 lease: unexpected apply result type %T", raw)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 

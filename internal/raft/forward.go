@@ -241,12 +241,9 @@ func (m *Manager) doForwardRequest(ctx context.Context, leaderAddr string, leade
 	result := &ProposeResult{Index: env.Index}
 
 	if len(env.Value) > 0 && !bytes.Equal(env.Value, []byte("null")) {
-		var v any
-		if err := json.Unmarshal(env.Value, &v); err != nil {
-			return nil, 0, fmt.Errorf("decode result value: %w", err)
-		}
-
-		result.Value = v
+		// Preserve raw bytes; the typed-op dispatcher decodes into the
+		// op's declared result type to avoid `any → float64` erasure.
+		result.Value = env.Value
 	}
 
 	return result, http.StatusOK, nil

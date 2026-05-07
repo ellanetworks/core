@@ -3,13 +3,17 @@
 package db_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http/httptest"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/ellanetworks/core/internal/db"
+	ellaraft "github.com/ellanetworks/core/internal/raft"
 )
 
 func TestSessionsEndToEnd(t *testing.T) {
@@ -449,5 +453,36 @@ func TestDeleteAllSessions(t *testing.T) {
 		if err == nil {
 			t.Fatalf("Expected error when retrieving deleted session with hash %v", s.TokenHash)
 		}
+	}
+}
+
+// TestDeleteExpiredSessions_TypedResultSurvivesForwardWire is the regression
+// test for issue #1331. The leader's int result is JSON-encoded into the
+// propose-forward envelope and then decoded on the follower; the dispatcher
+// must surface int(N), not panic on a JSON-roundtripped float64.
+func TestDeleteExpiredSessions_TypedResultSurvivesForwardWire(t *testing.T) {
+	const fsmCount = 3
+
+	rec := httptest.NewRecorder()
+	if err := ellaraft.WriteProposeForwardResponse(rec, &ellaraft.ProposeResult{Index: 7, Value: fsmCount}); err != nil {
+		t.Fatalf("WriteProposeForwardResponse: %v", err)
+	}
+
+	var env ellaraft.ProposeForwardResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode envelope: %v", err)
+	}
+
+	if len(env.Value) == 0 || bytes.Equal(env.Value, []byte("null")) {
+		t.Fatalf("envelope value missing: %s", rec.Body.String())
+	}
+
+	var got int
+	if err := json.Unmarshal(env.Value, &got); err != nil {
+		t.Fatalf("decode result into int: %v", err)
+	}
+
+	if got != fsmCount {
+		t.Fatalf("typed decode mismatch: got %d, want %d", got, fsmCount)
 	}
 }
