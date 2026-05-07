@@ -15,7 +15,26 @@ Before using the skill, you need:
 
 ## 1. Install the skill
 
-Download [`SKILL.md`](https://raw.githubusercontent.com/ellanetworks/core/main/.github/skills/ella-core-api/SKILL.md) and place it in a skills directory that your AI tool can discover (e.g. `<project>/.agents/skills/ella-core-api/SKILL.md`).
+=== "Claude Code"
+
+    ```
+    /plugin marketplace add ellanetworks/core
+    /plugin install ella-core@ellanetworks-core
+    ```
+
+    Refresh later with `/plugin marketplace update`.
+
+=== "NPX"
+
+    Works with any Skills-aware tool that auto-discovers `.agents/skills/` (Codex, Cursor, Cline, Goose, Amp, OpenCode, …).
+
+    ```
+    npx skills add ellanetworks/core
+    ```
+
+=== "Manual"
+
+    Copy the [`skills/ella-core/`](https://github.com/ellanetworks/core/tree/main/skills/ella-core) folder into the skills directory your AI tool discovers.
 
 ## 2. Prompt the agent
 

@@ -1,0 +1,27 @@
+{
+  "name": "ellanetworks-core",
+  "owner": {
+    "name": "Ella Networks",
+    "email": "contact@ellanetworks.com"
+  },
+  "metadata": {
+    "description": "Official Ella Networks plugins for Claude Code",
+    "version": "0.2.0"
+  },
+  "plugins": [
+    {
+      "name": "ella-core",
+      "description": "Manage and inspect a running Ella Core 5G private mobile network via its REST API. Triggers: subscribers, profiles, slices, policies, data networks, radios, BGP, NAT, routes, PDU sessions, IMSI, S-NSSAI, DNN, 5QI, AMBR, ARP, audit logs, flow reports, data usage on an Ella Core instance.",
+      "version": "0.2.0",
+      "source": "./",
+      "author": {
+        "name": "Ella Networks",
+        "email": "contact@ellanetworks.com"
+      },
+      "homepage": "https://docs.ellanetworks.com",
+      "repository": "https://github.com/ellanetworks/core",
+      "license": "Apache-2.0",
+      "keywords": ["5g", "mobile-network", "private-5g", "ella-core", "ellanetworks"]
+    }
+  ]
+}
