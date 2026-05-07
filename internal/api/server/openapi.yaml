@@ -1776,6 +1776,30 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/v1/networking/data-networks/{name}/ipv6-allocations:
+    get:
+      operationId: listIPv6Allocations
+      tags: [Data Networks]
+      summary: List IPv6 prefix allocations for a data network
+      description: Returns a paginated list of IPv6 prefix allocations (leases) for the specified data network. Only available if the data network has an IPv6 pool configured.
+      parameters:
+        - $ref: "#/components/parameters/DataNetworkNamePath"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Paginated list of IPv6 prefix allocations.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListIPAllocationsResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   # -- Routes --------------------------------------------------------------
   /api/v1/networking/routes:
     get:
@@ -3465,7 +3489,10 @@ components:
           description: "PDU session status (e.g. active, inactive)."
         ipAddress:
           type: string
-          description: "Assigned IP address for this PDU session. May be omitted if unknown."
+          description: "Assigned IPv4 address for this PDU session. May be omitted if unknown."
+        ipv6Address:
+          type: string
+          description: "Assigned IPv6 prefix (/64) for this PDU session. May be omitted if unknown."
         dnn:
           type: string
           description: "Data network name for this PDU session."

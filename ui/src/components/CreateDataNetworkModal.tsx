@@ -14,7 +14,13 @@ import { ValidationError } from "yup";
 import { createDataNetwork } from "@/queries/data_networks";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { ipv4Regex, ipv6Regex } from "@/utils/bgp";
+import {
+  ipv4Regex,
+  ipv6Regex,
+  cidrRegex,
+  ipv6CidrRegex,
+  isValidIpv6Cidr,
+} from "@/utils/bgp";
 
 interface CreateDataNetworkModalProps {
   open: boolean;
@@ -35,24 +41,26 @@ const schema = yup.object().shape({
     .required("Data Network Name is required"),
   ip_pool: yup
     .string()
-    .matches(
-      /^(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[0-1]?[0-9][0-9]?)\/\d{1,2}$/,
-      "Must be a valid IP pool (e.g., 10.45.0.0/22)",
-    )
-    .required("IP Pool is required"),
+    .test(
+      "at-least-one-pool",
+      "At least one IP pool (IPv4 or IPv6) is required",
+      function (value) {
+        const { ipv6_pool } = this.parent;
+        if (!value && !ipv6_pool) return false;
+        if (!value) return true;
+        return cidrRegex.test(value);
+      },
+    ),
   ipv6_pool: yup
     .string()
     .test(
-      "ipv6-cidr",
-      "Must be a valid IPv6 CIDR with prefix length /48 to /60 (e.g., 2001:db8::/48)",
-      (value) => {
+      "at-least-one-pool",
+      "At least one IP pool (IPv4 or IPv6) is required",
+      function (value) {
+        const { ip_pool } = this.parent;
+        if (!value && !ip_pool) return false;
         if (!value) return true;
-        const match = value.match(
-          /^(?:(?:[0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}|::)(\/\d{1,3})$/,
-        );
-        if (!match) return false;
-        const prefixLen = parseInt(match[1].slice(1), 10);
-        return prefixLen >= 48 && prefixLen <= 60;
+        return isValidIpv6Cidr(value);
       },
     ),
   dns: yup
@@ -219,7 +227,7 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
         />
         <TextField
           fullWidth
-          label="IPv6 Pool (optional)"
+          label="IPv6 Pool"
           value={formValues.ipv6_pool}
           onChange={(e) => handleChange("ipv6_pool", e.target.value)}
           onBlur={() => handleBlur("ipv6_pool")}

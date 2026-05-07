@@ -275,6 +275,64 @@ func ListIPAllocations(dbInstance *db.Database) http.Handler {
 	})
 }
 
+func ListIPv6IPAllocations(dbInstance *db.Database) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		name := r.PathValue("name")
+		if name == "" {
+			writeError(r.Context(), w, http.StatusBadRequest, "Missing name parameter", nil, logger.APILog)
+			return
+		}
+
+		q := r.URL.Query()
+		page := atoiDefault(q.Get("page"), 1)
+		perPage := atoiDefault(q.Get("per_page"), 25)
+
+		if page < 1 {
+			writeError(r.Context(), w, http.StatusBadRequest, "page must be >= 1", nil, logger.APILog)
+			return
+		}
+
+		if perPage < 1 || perPage > 100 {
+			writeError(r.Context(), w, http.StatusBadRequest, "per_page must be between 1 and 100", nil, logger.APILog)
+			return
+		}
+
+		dbDataNetwork, err := dbInstance.GetDataNetwork(r.Context(), name)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusNotFound, "Data Network not found", nil, logger.APILog)
+			return
+		}
+
+		if dbDataNetwork.IPv6Pool == "" {
+			writeError(r.Context(), w, http.StatusBadRequest, "Data network has no IPv6 pool", nil, logger.APILog)
+			return
+		}
+
+		leases, total, err := dbInstance.ListLeasesByPoolPage(r.Context(), dbDataNetwork.ID, "ipv6", page, perPage)
+		if err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list IPv6 IP allocations", err, logger.APILog)
+			return
+		}
+
+		items := make([]IPAllocationItem, 0, len(leases))
+		for _, lease := range leases {
+			items = append(items, IPAllocationItem{
+				Address:   lease.Address().String(),
+				IMSI:      lease.IMSI,
+				Type:      lease.Type,
+				SessionID: lease.SessionID,
+			})
+		}
+
+		writeResponse(r.Context(), w, ListIPAllocationsResponse{
+			Items:      items,
+			Page:       page,
+			PerPage:    perPage,
+			TotalCount: total,
+		}, http.StatusOK, logger.APILog)
+	})
+}
+
 func DeleteDataNetwork(dbInstance *db.Database) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email, ok := r.Context().Value(contextKeyEmail).(string)
@@ -342,9 +400,11 @@ func CreateDataNetwork(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if err := validateNoOverlap(r.Context(), dbInstance, createDataNetworkParams.IPPool, ""); err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
-			return
+		if createDataNetworkParams.IPPool != "" {
+			if err := validateNoOverlap(r.Context(), dbInstance, createDataNetworkParams.IPPool, ""); err != nil {
+				writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+				return
+			}
 		}
 
 		if createDataNetworkParams.IPv6Pool != "" {
@@ -416,9 +476,11 @@ func UpdateDataNetwork(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if err := validateNoOverlap(r.Context(), dbInstance, updateDataNetworkParams.IPPool, name); err != nil {
-			writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
-			return
+		if updateDataNetworkParams.IPPool != "" {
+			if err := validateNoOverlap(r.Context(), dbInstance, updateDataNetworkParams.IPPool, name); err != nil {
+				writeError(r.Context(), w, http.StatusBadRequest, err.Error(), nil, logger.APILog)
+				return
+			}
 		}
 
 		if updateDataNetworkParams.IPv6Pool != "" {
@@ -495,8 +557,8 @@ func validateDataNetworkParams(p CreateDataNetworkParams) error {
 	switch {
 	case p.Name == "":
 		return errors.New("name is missing")
-	case p.IPPool == "":
-		return errors.New("ip_pool is missing")
+	case p.IPPool == "" && p.IPv6Pool == "":
+		return errors.New("at least one IP pool (IPv4 or IPv6) is required")
 	case p.DNS == "":
 		return errors.New("dns is missing")
 	case p.MTU == 0:
@@ -504,7 +566,7 @@ func validateDataNetworkParams(p CreateDataNetworkParams) error {
 
 	case !isDataNetworkNameValid(p.Name):
 		return errors.New("invalid name format, must be a valid DNN format")
-	case !isUeIPPoolValid(p.IPPool):
+	case p.IPPool != "" && !isUeIPPoolValid(p.IPPool):
 		return errors.New("invalid ip_pool format, must be in CIDR format")
 	case p.IPv6Pool != "" && !isIPv6PoolValid(p.IPv6Pool):
 		return errors.New("invalid ipv6_pool format, must be a valid IPv6 CIDR with prefix length between /48 and /60")
@@ -519,13 +581,13 @@ func validateDataNetworkParams(p CreateDataNetworkParams) error {
 
 func validateUpdateDataNetworkParams(p UpdateDataNetworkParams) error {
 	switch {
-	case p.IPPool == "":
-		return errors.New("ip_pool is missing")
+	case p.IPPool == "" && p.IPv6Pool == "":
+		return errors.New("at least one IP pool (IPv4 or IPv6) is required")
 	case p.DNS == "":
 		return errors.New("dns is missing")
 	case p.MTU == 0:
 		return errors.New("mtu is missing")
-	case !isUeIPPoolValid(p.IPPool):
+	case p.IPPool != "" && !isUeIPPoolValid(p.IPPool):
 		return errors.New("invalid ip_pool format, must be in CIDR format")
 	case p.IPv6Pool != "" && !isIPv6PoolValid(p.IPv6Pool):
 		return errors.New("invalid ipv6_pool format, must be a valid IPv6 CIDR with prefix length between /48 and /60")

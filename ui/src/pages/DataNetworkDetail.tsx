@@ -29,6 +29,7 @@ import {
   getDataNetwork,
   deleteDataNetwork,
   listIPAllocations,
+  listIPv6Allocations,
   type APIDataNetwork,
   type APIIPAllocation,
 } from "@/queries/data_networks";
@@ -94,7 +95,21 @@ const DataNetworkDetail: React.FC = () => {
     queryKey: ["ip-allocations", name, allocPage, allocPerPage],
     queryFn: () =>
       listIPAllocations(accessToken!, name!, allocPage, allocPerPage),
-    enabled: authReady && !!accessToken && !!name,
+    enabled: authReady && !!accessToken && !!name && !!dataNetwork?.ip_pool,
+    refetchInterval: 5000,
+  });
+
+  const [ipv6AllocPaginationModel, setIpv6AllocPaginationModel] =
+    useState<GridPaginationModel>({ page: 0, pageSize: 10 });
+
+  const ipv6AllocPage = ipv6AllocPaginationModel.page + 1;
+  const ipv6AllocPerPage = ipv6AllocPaginationModel.pageSize;
+
+  const { data: ipv6AllocationsData } = useQuery({
+    queryKey: ["ipv6-allocations", name, ipv6AllocPage, ipv6AllocPerPage],
+    queryFn: () =>
+      listIPv6Allocations(accessToken!, name!, ipv6AllocPage, ipv6AllocPerPage),
+    enabled: authReady && !!accessToken && !!name && !!dataNetwork?.ipv6_pool,
     refetchInterval: 5000,
   });
 
@@ -133,6 +148,115 @@ const DataNetworkDetail: React.FC = () => {
           >
             <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
               {params.row.address}
+            </Typography>
+          </Box>
+        ),
+      },
+      {
+        field: "imsi",
+        headerName: "Subscriber",
+        flex: 1,
+        minWidth: 140,
+        renderCell: (params: GridRenderCellParams<APIIPAllocation>) => (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+              height: "100%",
+            }}
+          >
+            <RouterLink
+              to={`/subscribers/${params.row.imsi}`}
+              style={{ textDecoration: "none" }}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            >
+              <Typography
+                variant="body2"
+                sx={{
+                  fontFamily: "monospace",
+                  color: theme.palette.link,
+                  textDecoration: "underline",
+                  "&:hover": { textDecoration: "underline" },
+                }}
+              >
+                {params.row.imsi}
+              </Typography>
+            </RouterLink>
+          </Box>
+        ),
+      },
+      {
+        field: "type",
+        headerName: "Type",
+        width: 120,
+        renderCell: (params: GridRenderCellParams<APIIPAllocation>) => (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+              height: "100%",
+            }}
+          >
+            <Chip
+              size="small"
+              label={params.row.type}
+              color={params.row.type === "static" ? "primary" : "default"}
+              variant="outlined"
+            />
+          </Box>
+        ),
+      },
+      {
+        field: "session_id",
+        headerName: "PDU Session ID",
+        flex: 0.5,
+        minWidth: 100,
+        renderCell: (params: GridRenderCellParams<APIIPAllocation>) => (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+              height: "100%",
+            }}
+          >
+            <Typography
+              variant="body2"
+              sx={
+                params.row.session_id != null ? {} : { color: "text.secondary" }
+              }
+            >
+              {params.row.session_id != null ? params.row.session_id : "—"}
+            </Typography>
+          </Box>
+        ),
+      },
+    ],
+    [theme],
+  );
+
+  const ipv6AllocationColumns: GridColDef<APIIPAllocation>[] = useMemo(
+    () => [
+      {
+        field: "address",
+        headerName: "Prefix",
+        flex: 1,
+        minWidth: 180,
+        renderCell: (params: GridRenderCellParams<APIIPAllocation>) => (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              width: "100%",
+              height: "100%",
+            }}
+          >
+            <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
+              {params.row.address.includes(":")
+                ? `${params.row.address}/64`
+                : params.row.address}
             </Typography>
           </Box>
         ),
@@ -280,6 +404,10 @@ const DataNetworkDetail: React.FC = () => {
 
   const allocationRows = allocationsData?.items ?? [];
   const allocationRowCount = allocationsData?.total_count ?? 0;
+  const ipv6AllocationRows = ipv6AllocationsData?.items ?? [];
+  const ipv6AllocationRowCount = ipv6AllocationsData?.total_count ?? 0;
+  const hasIpv4Pool = !!dataNetwork.ip_pool;
+  const hasIpv6Pool = !!dataNetwork.ipv6_pool;
   const ipAlloc = dataNetwork.ip_allocation;
   const poolSize = ipAlloc?.pool_size ?? 0;
   const allocated = ipAlloc?.allocated ?? 0;
@@ -511,46 +639,108 @@ const DataNetworkDetail: React.FC = () => {
         </Card>
       </Box>
 
-      {/* IP Allocations DataGrid */}
-      <Box sx={{ mt: 3 }}>
-        <Typography variant="h6" sx={{ mb: 1 }}>
-          IP Allocations ({allocationRowCount.toLocaleString()})
-        </Typography>
-        {allocationRowCount === 0 ? (
-          <TableContainer sx={tableContainerSx}>
-            <Box sx={{ p: 3, textAlign: "center" }}>
-              <Typography variant="body2" color="textSecondary">
-                No IP addresses are currently allocated in this pool.
-              </Typography>
-            </Box>
-          </TableContainer>
-        ) : (
-          <ThemeProvider theme={gridTheme}>
-            <DataGrid<APIIPAllocation>
-              rows={allocationRows}
-              columns={allocationColumns}
-              getRowId={(row) => row.address}
-              paginationMode="server"
-              rowCount={allocationRowCount}
-              paginationModel={allocPaginationModel}
-              onPaginationModelChange={setAllocPaginationModel}
-              pageSizeOptions={[10, 25]}
-              disableColumnMenu
-              disableRowSelectionOnClick
-              density="compact"
-              sx={{
-                height: GRID_HEIGHT,
-                border: 1,
-                borderColor: "divider",
-                "& .MuiDataGrid-cell": {
-                  borderBottom: "1px solid",
-                  borderColor: "divider",
-                },
-              }}
-            />
-          </ThemeProvider>
-        )}
-      </Box>
+      {/* IP Allocations */}
+      {(hasIpv4Pool || hasIpv6Pool) && (
+        <Box sx={{ mt: 3 }}>
+          <Typography variant="h6" sx={{ mb: 1 }}>
+            IP Allocations
+          </Typography>
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "1fr",
+                md: hasIpv4Pool && hasIpv6Pool ? "1fr 1fr" : "1fr",
+              },
+              gap: 2,
+              alignItems: "start",
+            }}
+          >
+            {hasIpv4Pool && (
+              <Box>
+                <Typography variant="subtitle1" sx={{ mb: 1 }}>
+                  IPv4 Allocations ({allocationRowCount.toLocaleString()})
+                </Typography>
+                {allocationRowCount === 0 ? (
+                  <TableContainer sx={tableContainerSx}>
+                    <Box sx={{ p: 3, textAlign: "center" }}>
+                      <Typography variant="body2" color="textSecondary">
+                        No IPv4 addresses are currently allocated in this pool.
+                      </Typography>
+                    </Box>
+                  </TableContainer>
+                ) : (
+                  <ThemeProvider theme={gridTheme}>
+                    <DataGrid<APIIPAllocation>
+                      rows={allocationRows}
+                      columns={allocationColumns}
+                      getRowId={(row) => row.address}
+                      paginationMode="server"
+                      rowCount={allocationRowCount}
+                      paginationModel={allocPaginationModel}
+                      onPaginationModelChange={setAllocPaginationModel}
+                      pageSizeOptions={[10, 25]}
+                      disableColumnMenu
+                      disableRowSelectionOnClick
+                      density="compact"
+                      sx={{
+                        height: GRID_HEIGHT,
+                        border: 1,
+                        borderColor: "divider",
+                        "& .MuiDataGrid-cell": {
+                          borderBottom: "1px solid",
+                          borderColor: "divider",
+                        },
+                      }}
+                    />
+                  </ThemeProvider>
+                )}
+              </Box>
+            )}
+            {hasIpv6Pool && (
+              <Box>
+                <Typography variant="subtitle1" sx={{ mb: 1 }}>
+                  IPv6 Allocations ({ipv6AllocationRowCount.toLocaleString()})
+                </Typography>
+                {ipv6AllocationRowCount === 0 ? (
+                  <TableContainer sx={tableContainerSx}>
+                    <Box sx={{ p: 3, textAlign: "center" }}>
+                      <Typography variant="body2" color="textSecondary">
+                        No IPv6 prefixes are currently allocated in this pool.
+                      </Typography>
+                    </Box>
+                  </TableContainer>
+                ) : (
+                  <ThemeProvider theme={gridTheme}>
+                    <DataGrid<APIIPAllocation>
+                      rows={ipv6AllocationRows}
+                      columns={ipv6AllocationColumns}
+                      getRowId={(row) => row.address}
+                      paginationMode="server"
+                      rowCount={ipv6AllocationRowCount}
+                      paginationModel={ipv6AllocPaginationModel}
+                      onPaginationModelChange={setIpv6AllocPaginationModel}
+                      pageSizeOptions={[10, 25]}
+                      disableColumnMenu
+                      disableRowSelectionOnClick
+                      density="compact"
+                      sx={{
+                        height: GRID_HEIGHT,
+                        border: 1,
+                        borderColor: "divider",
+                        "& .MuiDataGrid-cell": {
+                          borderBottom: "1px solid",
+                          borderColor: "divider",
+                        },
+                      }}
+                    />
+                  </ThemeProvider>
+                )}
+              </Box>
+            )}
+          </Box>
+        </Box>
+      )}
 
       {/* Modals */}
       {isEditModalOpen && (

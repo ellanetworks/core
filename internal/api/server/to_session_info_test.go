@@ -142,3 +142,31 @@ func TestToSessionInfo_EmptySD(t *testing.T) {
 		t.Errorf("SD = %q, want empty", s.SD)
 	}
 }
+
+func TestToSessionInfo_WithIPv6Address(t *testing.T) {
+	pdu := amf.PDUSessionExport{
+		PDUSessionID:   7,
+		Inactive:       false,
+		PDUAddress:     "10.45.0.5",
+		PDUAddressIPv6: "2001:db8:ad50:8500::",
+		DNN:            "internet",
+	}
+
+	s := toSessionInfo(pdu)
+
+	if s.IPAddress != "10.45.0.5" {
+		t.Errorf("IPAddress = %q, want %q", s.IPAddress, "10.45.0.5")
+	}
+
+	if s.IPv6Address != "2001:db8:ad50:8500::" {
+		t.Errorf("IPv6Address = %q, want %q", s.IPv6Address, "2001:db8:ad50:8500::")
+	}
+
+	if s.PDUSessionID != 7 {
+		t.Errorf("PDUSessionID = %d, want 7", s.PDUSessionID)
+	}
+
+	if s.Status != "active" {
+		t.Errorf("Status = %q, want %q", s.Status, "active")
+	}
+}

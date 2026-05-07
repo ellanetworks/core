@@ -122,3 +122,15 @@ export const deleteDataNetwork = async (
     authToken,
   });
 };
+
+export async function listIPv6Allocations(
+  authToken: string,
+  name: string,
+  page: number,
+  perPage: number,
+): Promise<ListIPAllocationsResponse> {
+  return apiFetch<ListIPAllocationsResponse>(
+    `/api/v1/networking/data-networks/${encodeURIComponent(name)}/ipv6-allocations?page=${page}&per_page=${perPage}`,
+    { authToken },
+  );
+}

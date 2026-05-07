@@ -75,6 +75,7 @@ type PDUSessionExport struct {
 	Inactive                       bool              `json:"inactive"`
 	DNN                            string            `json:"dnn,omitempty"`
 	PDUAddress                     string            `json:"pdu_address,omitempty"`
+	PDUAddressIPv6                 string            `json:"pdu_address_ipv6,omitempty"`
 	PDUSessionReleaseDueToDupPduID bool              `json:"release_due_to_dup_id,omitempty"`
 	PolicyData                     *PolicyDataExport `json:"policy_data,omitempty"`
 	Tunnel                         *TunnelExport     `json:"tunnel,omitempty"`
@@ -419,6 +420,10 @@ func (amf *AMF) buildPDUSessions(copies []smContextCopy) map[string]PDUSessionEx
 
 			if smCtx.PDUAddress != nil {
 				pdu.PDUAddress = smCtx.PDUAddress.String()
+			}
+
+			if smCtx.PDUAddressIPv6 != nil {
+				pdu.PDUAddressIPv6 = smCtx.PDUAddressIPv6.String()
 			}
 
 			pdu.PolicyData = policyDataFromSMF(smCtx.PolicyData)

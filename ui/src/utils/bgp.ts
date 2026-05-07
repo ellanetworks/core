@@ -9,6 +9,17 @@ export const ipv6Regex =
 export const cidrRegex =
   /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}\/\d{1,2}$/;
 
+export const ipv6CidrRegex =
+  /^(?:(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,7}:|(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}|(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}|(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}|(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:(?::[0-9a-fA-F]{1,4}){1,6}|:(?::[0-9a-fA-F]{1,4}){1,7}|::)(\/\d{1,3})$/;
+
+export function isValidIpv6Cidr(value: string) {
+  if (!value) return true;
+  const match = value.match(ipv6CidrRegex);
+  if (!match) return false;
+  const prefixLen = parseInt(match[1].slice(1), 10);
+  return prefixLen >= 48 && prefixLen <= 60;
+}
+
 export type ImportPreset = "none" | "default-route" | "all" | "custom";
 
 export function detectPreset(prefixes: BGPImportPrefix[]): ImportPreset {
