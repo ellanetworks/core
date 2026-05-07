@@ -289,6 +289,7 @@ type EllaCoreMetrics struct {
 type RegisterParams struct {
 	ActivationToken string                 `json:"activation_token"`
 	PublicKey       string                 `json:"public_key"`
+	ClusterEnabled  bool                   `json:"cluster_enabled"`
 	ClusterID       string                 `json:"cluster_id,omitempty"`
 	NodeID          int                    `json:"node_id,omitempty"`
 	InitialConfig   Config                 `json:"initial_config"`
@@ -313,6 +314,7 @@ type Response struct {
 type RegisterInput struct {
 	ActivationToken string
 	PublicKey       ecdsa.PublicKey
+	ClusterEnabled  bool
 	ClusterID       string
 	NodeID          int
 	InitialConfig   Config
@@ -330,6 +332,7 @@ func (fc *Fleet) Register(ctx context.Context, in RegisterInput) (*RegisterRespo
 	params := &RegisterParams{
 		ActivationToken: in.ActivationToken,
 		PublicKey:       pubKeyPEM,
+		ClusterEnabled:  in.ClusterEnabled,
 		ClusterID:       in.ClusterID,
 		NodeID:          in.NodeID,
 		InitialConfig:   in.InitialConfig,

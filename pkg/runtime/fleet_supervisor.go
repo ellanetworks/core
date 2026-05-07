@@ -110,8 +110,9 @@ func startFleetSync(ctx context.Context, dbInstance *db.Database, cfg config.Con
 				}
 			}
 		},
-		Buffer:    buffer,
-		ClusterID: clusterID,
+		Buffer:         buffer,
+		ClusterEnabled: cfg.Cluster.Enabled,
+		ClusterID:      clusterID,
 	})
 	if err != nil {
 		return err

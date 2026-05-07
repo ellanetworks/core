@@ -127,6 +127,7 @@ type syncRunner struct {
 	metricsProvider MetricsProvider
 	tracker         statusTracker
 	version         string
+	clusterEnabled  bool
 	clusterID       string
 	lastKnownRev    int64
 	onSync          SyncCallback
@@ -150,6 +151,7 @@ func (r *syncRunner) runOneCycle(ctx context.Context) {
 
 	params := &client.SyncParams{
 		Version:           r.version,
+		ClusterEnabled:    r.clusterEnabled,
 		NodeID:            r.db.NodeID(),
 		ClusterID:         r.clusterID,
 		IsLeader:          isLeader,
@@ -277,6 +279,7 @@ type ResumeSyncInput struct {
 	MetricsProvider MetricsProvider
 	OnSync          SyncCallback
 	Buffer          *FleetBuffer
+	ClusterEnabled  bool
 	ClusterID       string
 }
 
@@ -303,6 +306,7 @@ func ResumeSync(ctx context.Context, in ResumeSyncInput) (*SyncHandle, error) {
 		statusProvider:  in.StatusProvider,
 		metricsProvider: in.MetricsProvider,
 		version:         version.GetVersion().Version,
+		clusterEnabled:  in.ClusterEnabled,
 		clusterID:       in.ClusterID,
 		lastKnownRev:    fleetData.ConfigRevision,
 		onSync:          in.OnSync,

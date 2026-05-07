@@ -120,6 +120,7 @@ func register(ctx context.Context, dbInstance *db.Database, activationToken stri
 	data, err := fc.Register(ctx, client.RegisterInput{
 		ActivationToken: activationToken,
 		PublicKey:       key.PublicKey,
+		ClusterEnabled:  cfg.Cluster.Enabled,
 		ClusterID:       clusterID,
 		NodeID:          dbInstance.NodeID(),
 		InitialConfig:   initialConfig,

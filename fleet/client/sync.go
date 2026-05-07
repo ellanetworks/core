@@ -35,6 +35,7 @@ type FlowEntry struct {
 
 type SyncParams struct {
 	Version           string                 `json:"version"`
+	ClusterEnabled    bool                   `json:"cluster_enabled"`
 	NodeID            int                    `json:"node_id,omitempty"`
 	ClusterID         string                 `json:"cluster_id,omitempty"`
 	IsLeader          bool                   `json:"is_leader"`
