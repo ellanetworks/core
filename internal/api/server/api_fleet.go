@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/fleet/client"
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -44,7 +45,7 @@ const (
 // request and stores credentials in that node's local DB only. To bring
 // every node under Fleet management the operator registers each node
 // individually. UPF reload wiring lives in the supervisor, not here.
-func RegisterFleet(dbInstance *db.Database, cfg config.Config, amfInstance *amf.AMF) http.HandlerFunc {
+func RegisterFleet(dbInstance *db.Database, cfg config.Config, amfInstance *amf.AMF, bgpService *bgp.BGPService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		email := r.Context().Value(contextKeyEmail)
 
@@ -65,7 +66,7 @@ func RegisterFleet(dbInstance *db.Database, cfg config.Config, amfInstance *amf.
 			return
 		}
 
-		err := register(r.Context(), dbInstance, params.ActivationToken, cfg, amfInstance)
+		err := register(r.Context(), dbInstance, params.ActivationToken, cfg, amfInstance, bgpService)
 		if err != nil {
 			if errors.Is(err, client.ErrUnauthorized) {
 				writeError(r.Context(), w, http.StatusUnauthorized, "Invalid activation code", err, logger.APILog)
@@ -89,7 +90,7 @@ func RegisterFleet(dbInstance *db.Database, cfg config.Config, amfInstance *amf.
 	}
 }
 
-func register(ctx context.Context, dbInstance *db.Database, activationToken string, cfg config.Config, amfInstance *amf.AMF) error {
+func register(ctx context.Context, dbInstance *db.Database, activationToken string, cfg config.Config, amfInstance *amf.AMF, bgpService *bgp.BGPService) error {
 	fleetURL, err := dbInstance.GetFleetURL(ctx)
 	if err != nil {
 		return fmt.Errorf("couldn't get fleet URL from database: %w", err)
@@ -124,7 +125,7 @@ func register(ctx context.Context, dbInstance *db.Database, activationToken stri
 		ClusterID:       clusterID,
 		NodeID:          dbInstance.NodeID(),
 		InitialConfig:   initialConfig,
-		InitialStatus:   BuildStatus(ctx, dbInstance, cfg, amfInstance),
+		InitialStatus:   BuildStatus(ctx, dbInstance, cfg, amfInstance, bgpService),
 		InitialMetrics:  BuildMetrics(),
 		InitialUsage:    collectInitialUsage(ctx, dbInstance),
 	})
@@ -144,9 +145,9 @@ func register(ctx context.Context, dbInstance *db.Database, activationToken stri
 }
 
 // BuildStatus returns a fresh status snapshot for this node. Each node
-// reports its own network interfaces, connected radios, and per-UE
-// session state (IP, IMEI, last-seen radio) from its local AMF.
-func BuildStatus(ctx context.Context, dbInstance *db.Database, cfg config.Config, amfInstance *amf.AMF) client.EllaCoreStatus {
+// reports its own network interfaces, connected radios, per-UE session
+// state from its local AMF, and BGP live state when BGP is enabled.
+func BuildStatus(ctx context.Context, dbInstance *db.Database, cfg config.Config, amfInstance *amf.AMF, bgpService *bgp.BGPService) client.EllaCoreStatus {
 	networkInterfaces := client.StatusNetworkInterfaces{
 		N2: client.N2Interface{
 			Address: cfg.Interfaces.N2.Address,
@@ -179,11 +180,71 @@ func BuildStatus(ctx context.Context, dbInstance *db.Database, cfg config.Config
 		}
 	}
 
+	bgpPeerStates, advertisedRoutes, learnedRoutes := getBGPState(ctx, bgpService)
+
 	return client.EllaCoreStatus{
 		NetworkInterfaces: networkInterfaces,
 		Radios:            getRadiosStatus(amfInstance),
 		Subscribers:       getSubscribersStatus(ctx, dbInstance, amfInstance),
+		BGPPeerStates:     bgpPeerStates,
+		AdvertisedRoutes:  advertisedRoutes,
+		LearnedRoutes:     learnedRoutes,
 	}
+}
+
+// getBGPState projects internal/bgp.BGPService snapshots into the wire
+// types Fleet expects. Returns empty slices when BGP is disabled or
+// the service is nil; never errors.
+func getBGPState(ctx context.Context, bgpService *bgp.BGPService) ([]client.BGPPeerState, []client.BGPAdvertisedRoute, []client.BGPLearnedRoute) {
+	if bgpService == nil || !bgpService.IsRunning() {
+		return nil, nil, nil
+	}
+
+	var peerStates []client.BGPPeerState
+
+	if status, err := bgpService.GetStatus(ctx); err == nil && status != nil {
+		peerStates = make([]client.BGPPeerState, 0, len(status.Peers))
+		for _, p := range status.Peers {
+			peerStates = append(peerStates, client.BGPPeerState{
+				Address:          p.Address,
+				RemoteAS:         p.RemoteAS,
+				State:            p.State,
+				Uptime:           p.Uptime,
+				PrefixesSent:     p.PrefixesSent,
+				PrefixesReceived: p.PrefixesReceived,
+			})
+		}
+	} else if err != nil {
+		logger.EllaLog.Warn("BGP status snapshot failed", zap.Error(err))
+	}
+
+	var advertised []client.BGPAdvertisedRoute
+
+	if routes, err := bgpService.GetRoutes(); err == nil {
+		advertised = make([]client.BGPAdvertisedRoute, 0, len(routes))
+		for _, r := range routes {
+			advertised = append(advertised, client.BGPAdvertisedRoute{
+				Subscriber: r.Subscriber,
+				Prefix:     r.Prefix,
+				NextHop:    r.NextHop,
+			})
+		}
+	} else {
+		logger.EllaLog.Warn("BGP advertised routes snapshot failed", zap.Error(err))
+	}
+
+	learnedSrc := bgpService.GetLearnedRoutes()
+	learned := make([]client.BGPLearnedRoute, 0, len(learnedSrc))
+
+	for _, r := range learnedSrc {
+		learned = append(learned, client.BGPLearnedRoute{
+			Prefix:      r.Prefix,
+			NextHop:     r.NextHop,
+			PeerAddress: r.Peer,
+		})
+	}
+
+	return peerStates, advertised, learned
 }
 
 // BuildMetrics scrapes the local Prometheus registry and packages the
@@ -318,10 +379,12 @@ func getRadiosStatus(amfInstance *amf.AMF) []client.Radio {
 		}
 
 		radios = append(radios, client.Radio{
-			Name:          radio.Name,
-			ID:            radioID,
-			Address:       radioAddress,
-			SupportedTAIs: supportedTAIs,
+			Name:           radio.Name,
+			ID:             radioID,
+			Address:        radioAddress,
+			SupportedTAIs:  supportedTAIs,
+			RanNodeType:    radio.RanNodeTypeName(),
+			LastSeenAtUnix: radio.GetLastSeenAt().Unix(),
 		})
 	}
 
@@ -361,6 +424,10 @@ func getSubscribersStatus(ctx context.Context, dbInstance *db.Database, amfInsta
 						status.LastSeenAt = snap.LastSeenAt.UTC().Format(time.RFC3339)
 					}
 				}
+
+				if sessions, found := amfInstance.GetUEPDUSessions(supi); found {
+					status.Sessions = projectPDUSessions(sessions)
+				}
 			}
 		}
 
@@ -368,6 +435,40 @@ func getSubscribersStatus(ctx context.Context, dbInstance *db.Database, amfInsta
 	}
 
 	return statuses
+}
+
+// projectPDUSessions converts AMF's PDUSessionExport into the wire shape
+// Fleet expects. AMF's export carries Snssai, DNN, PDUAddress, and a
+// PolicyData snapshot; the wire copies those plus 5QI/ARP from the
+// QosData when present.
+func projectPDUSessions(sessions []amf.PDUSessionExport) []client.PDUSession {
+	if len(sessions) == 0 {
+		return nil
+	}
+
+	out := make([]client.PDUSession, 0, len(sessions))
+
+	for _, s := range sessions {
+		ps := client.PDUSession{
+			SessionID:       int(s.PDUSessionID),
+			DataNetworkName: s.DNN,
+			AllocatedIP:     s.PDUAddress,
+		}
+
+		if s.Snssai != nil {
+			ps.Sst = int32(s.Snssai.Sst)
+			ps.Sd = s.Snssai.Sd
+		}
+
+		if s.PolicyData != nil && s.PolicyData.QosData != nil {
+			ps.QoS5QI = int32(s.PolicyData.QosData.Var5qi)
+			ps.QoSARP = int32(s.PolicyData.QosData.Arp.PriorityLevel)
+		}
+
+		out = append(out, ps)
+	}
+
+	return out
 }
 
 func buildInitialConfig(ctx context.Context, dbInstance *db.Database) (client.Config, error) {

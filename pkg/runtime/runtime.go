@@ -477,7 +477,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}
 
 	wg.Go(func() {
-		runFleetSupervisor(ctx, dbInstance, cfg, amfInstance, upfInstance, fleetBuffer)
+		runFleetSupervisor(ctx, dbInstance, cfg, amfInstance, upfInstance, bgpService, fleetBuffer)
 	})
 
 	nasLogger.SetLogLevel(0) // Suppress free5gc NAS log output

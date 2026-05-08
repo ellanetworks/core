@@ -10,6 +10,7 @@ import (
 	"github.com/ellanetworks/core/fleet/client"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/api/server"
+	"github.com/ellanetworks/core/internal/bgp"
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
@@ -25,7 +26,7 @@ const fleetSupervisorInterval = 30 * time.Second
 // or stops the per-node sync loop to match. The fleet table is
 // local-only: each node holds its own registration state and connects
 // to Fleet independently.
-func runFleetSupervisor(ctx context.Context, dbInstance *db.Database, cfg config.Config, amfInstance *amf.AMF, upfInstance *upf.UPF, buffer *fleet.FleetBuffer) {
+func runFleetSupervisor(ctx context.Context, dbInstance *db.Database, cfg config.Config, amfInstance *amf.AMF, upfInstance *upf.UPF, bgpService *bgp.BGPService, buffer *fleet.FleetBuffer) {
 	ticker := time.NewTicker(fleetSupervisorInterval)
 	defer ticker.Stop()
 
@@ -40,7 +41,7 @@ func runFleetSupervisor(ctx context.Context, dbInstance *db.Database, cfg config
 
 		switch {
 		case managed && !running:
-			if err := startFleetSync(ctx, dbInstance, cfg, amfInstance, upfInstance, buffer); err != nil {
+			if err := startFleetSync(ctx, dbInstance, cfg, amfInstance, upfInstance, bgpService, buffer); err != nil {
 				logger.EllaLog.Warn("fleet supervisor: failed to start sync", zap.Error(err))
 				return
 			}
@@ -70,7 +71,7 @@ func runFleetSupervisor(ctx context.Context, dbInstance *db.Database, cfg config
 	}
 }
 
-func startFleetSync(ctx context.Context, dbInstance *db.Database, cfg config.Config, amfInstance *amf.AMF, upfInstance *upf.UPF, buffer *fleet.FleetBuffer) error {
+func startFleetSync(ctx context.Context, dbInstance *db.Database, cfg config.Config, amfInstance *amf.AMF, upfInstance *upf.UPF, bgpService *bgp.BGPService, buffer *fleet.FleetBuffer) error {
 	fleetData, err := dbInstance.GetFleet(ctx)
 	if err != nil {
 		return err
@@ -88,7 +89,7 @@ func startFleetSync(ctx context.Context, dbInstance *db.Database, cfg config.Con
 	}
 
 	statusProvider := func() client.EllaCoreStatus {
-		return server.BuildStatus(context.Background(), dbInstance, cfg, amfInstance)
+		return server.BuildStatus(context.Background(), dbInstance, cfg, amfInstance, bgpService)
 	}
 
 	metricsProvider := func() client.EllaCoreMetrics {

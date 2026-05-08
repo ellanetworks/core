@@ -248,27 +248,74 @@ type SupportedTAI struct {
 }
 
 type Radio struct {
-	Name          string         `json:"name"`
-	ID            string         `json:"id"`
-	Address       string         `json:"address"`
-	SupportedTAIs []SupportedTAI `json:"supported_tais"`
+	Name           string         `json:"name"`
+	ID             string         `json:"id"`
+	Address        string         `json:"address"`
+	SupportedTAIs  []SupportedTAI `json:"supported_tais"`
+	RanNodeType    string         `json:"ran_node_type"`
+	LastSeenAtUnix int64          `json:"last_seen_at_unix"`
+}
+
+// PDUSession is one active PDU session for a subscriber, projected from
+// internal/amf.PDUSessionExport. Fleet uses this to populate the per-IMSI
+// sessions card.
+type PDUSession struct {
+	SessionID         int    `json:"session_id"`
+	DataNetworkName   string `json:"data_network_name"`
+	Sst               int32  `json:"sst"`
+	Sd                string `json:"sd"`
+	AllocatedIP       string `json:"allocated_ip"`
+	QoS5QI            int32  `json:"qos_5qi"`
+	QoSARP            int32  `json:"qos_arp"`
+	EstablishedAtUnix int64  `json:"established_at_unix"`
 }
 
 type SubscriberStatus struct {
-	Imsi               string `json:"imsi"`
-	Registered         bool   `json:"registered"`
-	IPAddress          string `json:"ip_address"`
-	Imei               string `json:"imei,omitempty"`
-	CipheringAlgorithm string `json:"ciphering_algorithm,omitempty"`
-	IntegrityAlgorithm string `json:"integrity_algorithm,omitempty"`
-	LastSeenAt         string `json:"last_seen_at,omitempty"`
-	LastSeenRadio      string `json:"last_seen_radio,omitempty"`
+	Imsi               string       `json:"imsi"`
+	Registered         bool         `json:"registered"`
+	IPAddress          string       `json:"ip_address"`
+	Imei               string       `json:"imei,omitempty"`
+	CipheringAlgorithm string       `json:"ciphering_algorithm,omitempty"`
+	IntegrityAlgorithm string       `json:"integrity_algorithm,omitempty"`
+	LastSeenAt         string       `json:"last_seen_at,omitempty"`
+	LastSeenRadio      string       `json:"last_seen_radio,omitempty"`
+	Sessions           []PDUSession `json:"sessions,omitempty"`
+}
+
+// BGPPeerState mirrors internal/bgp.BGPPeerStatus on the wire. Reported
+// per peer per sync cycle when BGP is enabled; empty otherwise.
+type BGPPeerState struct {
+	Address          string `json:"address"`
+	RemoteAS         int    `json:"remote_as"`
+	State            string `json:"state"`
+	Uptime           string `json:"uptime,omitempty"`
+	PrefixesSent     int    `json:"prefixes_sent"`
+	PrefixesReceived int    `json:"prefixes_received"`
+}
+
+// BGPAdvertisedRoute mirrors internal/bgp.BGPRoute on the wire. Routes
+// originated by this Core; subscriber is the IMSI when the route comes
+// from a UE allocation.
+type BGPAdvertisedRoute struct {
+	Subscriber string `json:"subscriber,omitempty"`
+	Prefix     string `json:"prefix"`
+	NextHop    string `json:"next_hop"`
+}
+
+// BGPLearnedRoute mirrors internal/bgp.LearnedRoute on the wire.
+type BGPLearnedRoute struct {
+	Prefix      string `json:"prefix"`
+	NextHop     string `json:"next_hop"`
+	PeerAddress string `json:"peer_address"`
 }
 
 type EllaCoreStatus struct {
 	NetworkInterfaces StatusNetworkInterfaces `json:"network_interfaces"`
 	Radios            []Radio                 `json:"radios"`
 	Subscribers       []SubscriberStatus      `json:"subscribers"`
+	BGPPeerStates     []BGPPeerState          `json:"bgp_peer_states,omitempty"`
+	AdvertisedRoutes  []BGPAdvertisedRoute    `json:"advertised_routes,omitempty"`
+	LearnedRoutes     []BGPLearnedRoute       `json:"learned_routes,omitempty"`
 }
 
 type EllaCoreMetrics struct {
