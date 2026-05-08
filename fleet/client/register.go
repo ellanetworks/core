@@ -282,6 +282,20 @@ type SubscriberStatus struct {
 	Sessions           []PDUSession `json:"sessions,omitempty"`
 }
 
+// IPLease mirrors db.IPLease on the wire. Fleet uses these to render
+// the per-DNN IP allocations table and to compute pool utilization.
+// `data_network_name` is included so Fleet can group by DNN without
+// having to resolve UUIDs (Core's pool IDs aren't meaningful in
+// Fleet). `session_id` is nil for static reservations.
+type IPLease struct {
+	Address           string `json:"address"`
+	IMSI              string `json:"imsi"`
+	Type              string `json:"type"`
+	SessionID         *int   `json:"session_id,omitempty"`
+	DataNetworkName   string `json:"data_network_name"`
+	EstablishedAtUnix int64  `json:"established_at_unix,omitempty"`
+}
+
 // BGPPeerState mirrors internal/bgp.BGPPeerStatus on the wire. Reported
 // per peer per sync cycle when BGP is enabled; empty otherwise.
 type BGPPeerState struct {
@@ -316,6 +330,7 @@ type EllaCoreStatus struct {
 	BGPPeerStates     []BGPPeerState          `json:"bgp_peer_states,omitempty"`
 	AdvertisedRoutes  []BGPAdvertisedRoute    `json:"advertised_routes,omitempty"`
 	LearnedRoutes     []BGPLearnedRoute       `json:"learned_routes,omitempty"`
+	IPLeases          []IPLease               `json:"ip_leases,omitempty"`
 }
 
 type EllaCoreMetrics struct {

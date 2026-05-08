@@ -189,7 +189,60 @@ func BuildStatus(ctx context.Context, dbInstance *db.Database, cfg config.Config
 		BGPPeerStates:     bgpPeerStates,
 		AdvertisedRoutes:  advertisedRoutes,
 		LearnedRoutes:     learnedRoutes,
+		IPLeases:          getIPLeasesStatus(ctx, dbInstance),
 	}
+}
+
+// getIPLeasesStatus projects every IP lease (dynamic + static, active +
+// inactive) into the wire shape Fleet expects. The pool UUID is mapped
+// to the data-network name via a single ListDataNetworks call so Fleet
+// doesn't have to resolve UUIDs. Lease rows whose pool no longer
+// exists in the data_networks table are dropped silently.
+func getIPLeasesStatus(ctx context.Context, dbInstance *db.Database) []client.IPLease {
+	if dbInstance == nil {
+		return nil
+	}
+
+	leases, err := dbInstance.ListAllLeases(ctx)
+	if err != nil {
+		logger.APILog.Warn("failed to list IP leases for fleet sync", zap.Error(err))
+		return nil
+	}
+
+	if len(leases) == 0 {
+		return nil
+	}
+
+	dataNetworks, err := dbInstance.ListAllDataNetworks(ctx)
+	if err != nil {
+		logger.APILog.Warn("failed to list data networks for IP lease projection", zap.Error(err))
+		return nil
+	}
+
+	nameByID := make(map[string]string, len(dataNetworks))
+	for _, dn := range dataNetworks {
+		nameByID[dn.ID] = dn.Name
+	}
+
+	out := make([]client.IPLease, 0, len(leases))
+
+	for _, l := range leases {
+		dnName, ok := nameByID[l.PoolID]
+		if !ok {
+			continue
+		}
+
+		out = append(out, client.IPLease{
+			Address:           l.Address().String(),
+			IMSI:              l.IMSI,
+			Type:              l.Type,
+			SessionID:         l.SessionID,
+			DataNetworkName:   dnName,
+			EstablishedAtUnix: l.CreatedAt,
+		})
+	}
+
+	return out
 }
 
 // getBGPState projects internal/bgp.BGPService snapshots into the wire

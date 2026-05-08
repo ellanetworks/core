@@ -496,6 +496,12 @@ func (db *Database) ListActiveLeasesByNode(ctx context.Context, nodeID int) ([]I
 	return leases, nil
 }
 
+// ListAllLeases returns every lease row. Used by the support bundle
+// export and by the Fleet sync exporter.
+func (db *Database) ListAllLeases(ctx context.Context) ([]IPLease, error) {
+	return db.listAllLeases(ctx)
+}
+
 // listAllLeases returns every lease row. Used only by the support bundle export.
 func (db *Database) listAllLeases(ctx context.Context) ([]IPLease, error) {
 	var leases []IPLease
