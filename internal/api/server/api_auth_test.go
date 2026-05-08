@@ -755,10 +755,10 @@ func TestRolesEndToEnd(t *testing.T) {
 
 	t.Run("8. Use Network Manager user to create data network - should succeed", func(t *testing.T) {
 		createDataNetworkParams := &CreateDataNetworkParams{
-			Name:   DataNetworkName,
-			IPPool: "1.2.3.0/24",
-			MTU:    1500,
-			DNS:    "3.2.2.1",
+			Name:     DataNetworkName,
+			IPv4Pool: "1.2.3.0/24",
+			MTU:      1500,
+			DNS:      "3.2.2.1",
 		}
 
 		statusCode, response, err := createDataNetwork(env.Server.URL, client, networkManagerToken, createDataNetworkParams)

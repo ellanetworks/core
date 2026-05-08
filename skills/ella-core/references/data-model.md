@@ -6,7 +6,7 @@ Resource paths are not all top-level: data networks, BGP, NAT, and routes live u
 
 ## 1. Data Network
 
-`/api/v1/networking/data-networks` — represents a DNN/APN (e.g. `internet`). Fields: `name`, `ip_pool` (CIDR for UE IP allocation, e.g. `10.45.0.0/22`), `dns`, `mtu`, `status`.
+`/api/v1/networking/data-networks` — represents a DNN/APN (e.g. `internet`). Fields: `name`, `ipv4_pool` (CIDR for UE IP allocation, e.g. `10.45.0.0/22`), `dns`, `mtu`, `status`.
 
 ## 2. Slice
 

@@ -119,11 +119,12 @@ None
       "lastSeenAt": "2026-03-16T12:34:56Z",
       "lastSeenRadio": "gNB-1"
     },
-    "pdu_sessions": [
+  "pdu_sessions": [
       {
         "pdu_session_id": 1,
         "status": "active",
-        "ipAddress": "10.45.0.2",
+        "ipv4Address": "10.45.0.2",
+        "ipv6Prefix": "2001:db8::/64",
         "dnn": "internet",
         "sst": 1,
         "sd": "000001",

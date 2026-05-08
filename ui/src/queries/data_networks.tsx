@@ -12,7 +12,7 @@ export type DataNetworkIPAllocation = {
 
 export type APIDataNetwork = {
   name: string;
-  ip_pool: string;
+  ipv4_pool: string;
   ipv6_pool?: string;
   dns: string;
   mtu: number;
@@ -63,14 +63,14 @@ export async function getDataNetwork(
   );
 }
 
-export async function listIPAllocations(
+export async function listIPv4Allocations(
   authToken: string,
   name: string,
   page: number,
   perPage: number,
 ): Promise<ListIPAllocationsResponse> {
   return apiFetch<ListIPAllocationsResponse>(
-    `/api/v1/networking/data-networks/${encodeURIComponent(name)}/ip-allocations?page=${page}&per_page=${perPage}`,
+    `/api/v1/networking/data-networks/${encodeURIComponent(name)}/ipv4-allocations?page=${page}&per_page=${perPage}`,
     { authToken },
   );
 }
@@ -78,12 +78,12 @@ export async function listIPAllocations(
 export const createDataNetwork = async (
   authToken: string,
   name: string,
-  ipPool: string,
+  ipv4Pool: string,
   dns: string,
   mtu: number,
   ipv6Pool?: string,
 ): Promise<void> => {
-  const body: Record<string, unknown> = { name, ip_pool: ipPool, dns, mtu };
+  const body: Record<string, unknown> = { name, ipv4_pool: ipv4Pool, dns, mtu };
   if (ipv6Pool) {
     body.ipv6_pool = ipv6Pool;
   }
@@ -97,12 +97,12 @@ export const createDataNetwork = async (
 export const updateDataNetwork = async (
   authToken: string,
   name: string,
-  ipPool: string,
+  ipv4Pool: string,
   dns: string,
   mtu: number,
   ipv6Pool?: string,
 ): Promise<void> => {
-  const body: Record<string, unknown> = { name, ip_pool: ipPool, dns, mtu };
+  const body: Record<string, unknown> = { name, ipv4_pool: ipv4Pool, dns, mtu };
   if (ipv6Pool) {
     body.ipv6_pool = ipv6Pool;
   }
@@ -122,3 +122,15 @@ export const deleteDataNetwork = async (
     authToken,
   });
 };
+
+export async function listIPv6Allocations(
+  authToken: string,
+  name: string,
+  page: number,
+  perPage: number,
+): Promise<ListIPAllocationsResponse> {
+  return apiFetch<ListIPAllocationsResponse>(
+    `/api/v1/networking/data-networks/${encodeURIComponent(name)}/ipv6-allocations?page=${page}&per_page=${perPage}`,
+    { authToken },
+  );
+}

@@ -59,7 +59,7 @@ func (a *smfDBAdapter) resolvePoolByDNN(ctx context.Context, dnn string) (ipam.P
 		return ipam.Pool{}, fmt.Errorf("get data network: %w", err)
 	}
 
-	return ipam.NewPool(dn.ID, dn.IPPool)
+	return ipam.NewPool(dn.ID, dn.IPv4Pool)
 }
 
 // resolveIPv6PoolByDNN looks up the IPv6 prefix delegation pool for a data
@@ -242,7 +242,7 @@ func (a *pcfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai
 		},
 		DNS:      dns,
 		MTU:      uint16(dn.MTU),
-		IPPool:   dn.IPPool,
+		IPv4Pool: dn.IPv4Pool,
 		IPv6Pool: dn.IPv6Pool,
 	}
 

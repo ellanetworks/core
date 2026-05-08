@@ -37,10 +37,10 @@ func setupLeaseTestDBWithProfile(t *testing.T) (*db.Database, string, string, st
 	})
 
 	dnn := &db.DataNetwork{
-		Name:   "test-dnn",
-		IPPool: "192.168.1.0/24",
-		DNS:    "8.8.8.8",
-		MTU:    1400,
+		Name:     "test-dnn",
+		IPv4Pool: "192.168.1.0/24",
+		DNS:      "8.8.8.8",
+		MTU:      1400,
 	}
 
 	if err := database.CreateDataNetwork(context.Background(), dnn); err != nil {

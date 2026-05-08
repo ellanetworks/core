@@ -490,9 +490,9 @@ func (db *Database) applyAllocateIPLease(ctx context.Context, p *allocateIPLease
 			return nil, fmt.Errorf("parse ipv6 pool %q: %w", dn.IPv6Pool, err)
 		}
 	default:
-		pool, err = ipam.NewPool(dn.ID, dn.IPPool)
+		pool, err = ipam.NewPool(dn.ID, dn.IPv4Pool)
 		if err != nil {
-			return nil, fmt.Errorf("parse pool %q: %w", dn.IPPool, err)
+			return nil, fmt.Errorf("parse pool %q: %w", dn.IPv4Pool, err)
 		}
 	}
 

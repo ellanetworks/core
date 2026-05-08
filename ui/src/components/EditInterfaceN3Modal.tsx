@@ -14,7 +14,7 @@ import * as yup from "yup";
 import { updateN3Settings } from "@/queries/interfaces";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { ipv4Regex, ipv6Regex } from "@/utils/bgp";
+import { ipv4Regex, ipv6Regex } from "@/utils/ip";
 
 interface EditInterfaceN3ModalProps {
   open: boolean;

@@ -36,7 +36,7 @@ Ella Core currently relies on the kernel to make routing decisions for incoming 
 
 ### NAT
 
-Network Address Translation (NAT) simplifies networking as it lets subscribers use private IP addresses without requiring an external router. It uses Ella Core's N6 IP as the source for outbound traffic. Enabling NAT adds processing overhead and some niche protocols won't work (e.g., FTP active mode). You can enable NAT in Ella Core by navigating to the `Networking` page in the UI and enabling the `NAT` option or by using the [Networking API](../reference/api/networking.md).
+Network Address Translation (NAT) simplifies networking as it lets subscribers use private IP addresses without requiring an external router. It uses Ella Core's N6 IP as the source for outbound traffic. NAT is IPv4-only and does not apply to IPv6 traffic. Enabling NAT adds processing overhead and some niche protocols won't work (e.g., FTP active mode). You can enable NAT in Ella Core by navigating to the `Networking` page in the UI and enabling the `NAT` option or by using the [Networking API](../reference/api/networking.md).
 
 ### Performance
 

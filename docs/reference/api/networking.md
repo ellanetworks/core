@@ -27,7 +27,8 @@ This path returns the list of data networks.
         "items": [
             {
                 "name": "internet",
-                "ip_pool": "172.250.0.0/24",
+                "ipv4_pool": "172.250.0.0/24",
+                "ipv6_pool": "2001:db8::/48",
                 "dns": "8.8.8.8",
                 "mtu": 1460,
                 "status": {
@@ -53,7 +54,8 @@ This path creates a new Data Network.
 ### Parameters
 
 - `name` (string): The Name of the Data Network (dnn)
-- `ip_pool` (string): The IP pool of the data network in CIDR notation. Example: `172.250.0.0/24`.
+- `ipv4_pool` (string): The IPv4 pool of the data network in CIDR notation. Example: `172.250.0.0/24`.
+- `ipv6_pool` (string, optional): The IPv6 pool of the data network in CIDR notation. Example: `2001:db8::/48`.
 - `dns` (string): The IP address of the DNS server of the data network. Example: `8.8.8.8`.
 - `mtu` (integer): The MTU of the data network. Must be an integer between 0 and 65535.
 
@@ -77,7 +79,8 @@ This path updates an existing data network.
 
 ### Parameters
 
-- `ip_pool` (string): The IP pool of the data network in CIDR notation. Example: `172.250.0.0/24`.
+- `ipv4_pool` (string): The IPv4 pool of the data network in CIDR notation. Example: `172.250.0.0/24`.
+- `ipv6_pool` (string, optional): The IPv6 pool of the data network in CIDR notation. Example: `2001:db8::/48`.
 - `dns` (string): The IP address of the DNS server of the data network. Example: `8.8.8.8`.
 - `mtu` (integer): The MTU of the data network. Must be an integer between 0 and 65535.
 
@@ -109,7 +112,8 @@ None
 {
     "result": {
         "name": "internet",
-        "ip_pool": "0.0.0.0/24",
+        "ipv4_pool": "0.0.0.0/24",
+        "ipv6_pool": "2001:db8::/48",
         "dns": "8.8.8.8",
         "mtu": 1460,
         "status": {
@@ -119,18 +123,23 @@ None
             "pool_size": 254,
             "allocated": 0,
             "available": 254
+        },
+        "ipv6_allocation": {
+            "pool_size": 1,
+            "allocated": 0,
+            "available": 1
         }
     }
 }
 ```
 
-## List IP Allocations
+## List IPv4 Allocations
 
-This path returns a paginated list of IP address allocations (leases) for a specific data network.
+This path returns a paginated list of IPv4 address allocations (leases) for a specific data network.
 
 | Method | Path                           |
 | ------ | ------------------------------ |
-| GET    | `/api/v1/networking/data-networks/{name}/ip-allocations` |
+| GET    | `/api/v1/networking/data-networks/{name}/ipv4-allocations` |
 
 ### Query Parameters
 
@@ -158,6 +167,45 @@ This path returns a paginated list of IP address allocations (leases) for a spec
     }
 }
 ```
+
+Each item contains the subscriber's assigned IPv4 address.
+
+## List IPv6 Allocations
+
+This path returns a paginated list of IPv6 address allocations (leases) for a specific data network.
+
+| Method | Path                           |
+| ------ | ------------------------------ |
+| GET    | `/api/v1/networking/data-networks/{name}/ipv6-allocations` |
+
+### Query Parameters
+
+| Name       | In    | Type | Default | Allowed | Description                   |
+| ---------- | ----- | ---- | ------- | ------- | ----------------------------- |
+| `page`     | query | int  | `1`     | `>= 1`  | 1-based page index.           |
+| `per_page` | query | int  | `25`    | `1…100` | Number of items per page.     |
+
+### Sample Response
+
+```json
+{
+    "result": {
+        "items": [
+            {
+                "address": "2001:db8::/64",
+                "imsi": "001010100000001",
+                "type": "dynamic",
+                "session_id": 1
+            }
+        ],
+        "page": 1,
+        "per_page": 25,
+        "total_count": 1
+    }
+}
+```
+
+Each item contains the subscriber's assigned IPv6 /64 prefix.
 
 ## Delete a Data Network
 
@@ -281,11 +329,27 @@ This path returns the list of routes, including both user-configured static rout
                 "interface": "n6",
                 "metric": 0,
                 "source": "static"
+            },
+            {
+                "id": 2,
+                "destination": "::/0",
+                "gateway": "2001:db8::1",
+                "interface": "n6",
+                "metric": 200,
+                "source": "bgp"
+            },
+            {
+                "id": 3,
+                "destination": "fd45::/48",
+                "gateway": "2001:db8:6::2",
+                "interface": "n6",
+                "metric": 0,
+                "source": "static"
             }
         ],
         "page": 1,
         "per_page": 25,
-        "total_count": 2
+        "total_count": 4
     }
 }
 ```
@@ -300,8 +364,8 @@ This path creates a new route.
 
 ### Parameters
 
-- `destination` (string): The destination IP address of the route in CIDR notation. Example: `0.0.0.0/0`.
-- `gateway` (string): The IP address of the gateway of the route. Example: `1.2.3.4`.
+- `destination` (string): The destination IP address of the route in CIDR notation. Examples: `0.0.0.0/0` (IPv4) or `::/0` (IPv6).
+- `gateway` (string): The IP address of the gateway of the route. Examples: `1.2.3.4` (IPv4) or `2001:db8::1` (IPv6).
 - `interface` (string): The outgoing interface of the route. Allowed values: `n3`, `n6`.
 - `metric` (int): The metric of the route. Must be an integer between 0 and 255.
 

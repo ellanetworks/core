@@ -14,7 +14,7 @@ import (
 const (
 	DataNetworkName = "not-internet"
 	DNS             = "8.8.8.8"
-	IPPool          = "0.0.0.0/24"
+	IPv4Pool        = "0.0.0.0/24"
 	MTU             = 1500
 )
 
@@ -30,7 +30,7 @@ type DataNetworkIPAllocation struct {
 
 type DataNetwork struct {
 	Name           string                   `json:"name"`
-	IPPool         string                   `json:"ip_pool,omitempty"`
+	IPv4Pool       string                   `json:"ipv4_pool,omitempty"`
 	IPv6Pool       string                   `json:"ipv6_pool,omitempty"`
 	DNS            string                   `json:"dns,omitempty"`
 	MTU            int32                    `json:"mtu,omitempty"`
@@ -45,7 +45,7 @@ type GetDataNetworkResponse struct {
 
 type CreateDataNetworkParams struct {
 	Name     string `json:"name"`
-	IPPool   string `json:"ip_pool,omitempty"`
+	IPv4Pool string `json:"ipv4_pool,omitempty"`
 	IPv6Pool string `json:"ipv6_pool,omitempty"`
 	DNS      string `json:"dns,omitempty"`
 	MTU      int32  `json:"mtu,omitempty"`
@@ -57,7 +57,7 @@ type CreateDataNetworkResponse struct {
 }
 
 type UpdateDataNetworkParams struct {
-	IPPool   string `json:"ip_pool,omitempty"`
+	IPv4Pool string `json:"ipv4_pool,omitempty"`
 	IPv6Pool string `json:"ipv6_pool,omitempty"`
 	DNS      string `json:"dns,omitempty"`
 	MTU      int32  `json:"mtu,omitempty"`
@@ -271,10 +271,10 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 
 	t.Run("2. Create data network", func(t *testing.T) {
 		createDataNetworkParams := &CreateDataNetworkParams{
-			Name:   DataNetworkName,
-			MTU:    MTU,
-			IPPool: IPPool,
-			DNS:    DNS,
+			Name:     DataNetworkName,
+			MTU:      MTU,
+			IPv4Pool: IPv4Pool,
+			DNS:      DNS,
 		}
 
 		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, createDataNetworkParams)
@@ -324,8 +324,8 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 			t.Fatalf("expected name %s, got %s", DataNetworkName, response.Result.Name)
 		}
 
-		if response.Result.IPPool != IPPool {
-			t.Fatalf("expected ip pool %s got %s", IPPool, response.Result.IPPool)
+		if response.Result.IPv4Pool != IPv4Pool {
+			t.Fatalf("expected ip pool %s got %s", IPv4Pool, response.Result.IPv4Pool)
 		}
 
 		if response.Result.DNS != DNS {
@@ -356,7 +356,7 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 	t.Run("6b. Create data network - IPv6 DNS", func(t *testing.T) {
 		createDataNetworkParams := &CreateDataNetworkParams{
 			Name:     "ipv6-dns-test",
-			IPPool:   "10.50.0.0/24",
+			IPv4Pool: "10.50.0.0/24",
 			DNS:      "2001:4860:4860::8888",
 			IPv6Pool: "2001:db8::/56",
 			MTU:      1456,
@@ -410,9 +410,9 @@ func TestAPIDataNetworksEndToEnd(t *testing.T) {
 
 	t.Run("10. Edit data network - success", func(t *testing.T) {
 		updateDataNetworkParams := &UpdateDataNetworkParams{
-			DNS:    "2.2.2.2",
-			IPPool: "1.1.1.0/29",
-			MTU:    1400,
+			DNS:      "2.2.2.2",
+			IPv4Pool: "1.1.1.0/29",
+			MTU:      1400,
 		}
 
 		statusCode, response, err := editDataNetwork(env.Server.URL, client, DataNetworkName, token, updateDataNetworkParams)
@@ -543,9 +543,9 @@ func TestEditInexistentDataNetwork(t *testing.T) {
 	}
 
 	editDataNetworkParams := &UpdateDataNetworkParams{
-		IPPool: IPPool,
-		DNS:    DNS,
-		MTU:    MTU,
+		IPv4Pool: IPv4Pool,
+		DNS:      DNS,
+		MTU:      MTU,
 	}
 
 	statusCode, response, err := editDataNetwork(env.Server.URL, client, "inexistent-dn", token, editDataNetworkParams)
@@ -583,7 +583,7 @@ func TestUpdateDataNetworkPathBodyMismatch(t *testing.T) {
 
 	// Create a data network.
 	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-		Name: "real-dn", IPPool: IPPool, DNS: DNS, MTU: MTU,
+		Name: "real-dn", IPv4Pool: IPv4Pool, DNS: DNS, MTU: MTU,
 	})
 	if err != nil {
 		t.Fatalf("couldn't create data network: %s", err)
@@ -591,9 +591,9 @@ func TestUpdateDataNetworkPathBodyMismatch(t *testing.T) {
 
 	// Update with a different name in the body than the path.
 	updateParams := &UpdateDataNetworkParams{
-		IPPool: "10.0.0.0/24",
-		DNS:    "8.8.8.8",
-		MTU:    1400,
+		IPv4Pool: "10.0.0.0/24",
+		DNS:      "8.8.8.8",
+		MTU:      1400,
 	}
 
 	statusCode, response, err := editDataNetwork(env.Server.URL, client, "real-dn", token, updateParams)
@@ -667,7 +667,7 @@ func TestCreateDataNetworkInvalidInput(t *testing.T) {
 	tests := []struct {
 		testName string
 		name     string
-		ipPool   string
+		ipv4Pool string
 		dns      string
 		mtu      int32
 		error    string
@@ -675,7 +675,7 @@ func TestCreateDataNetworkInvalidInput(t *testing.T) {
 		{
 			testName: "Invalid Name - 1",
 			name:     "Internet",
-			ipPool:   IPPool,
+			ipv4Pool: IPv4Pool,
 			dns:      DNS,
 			mtu:      MTU,
 			error:    "invalid name format, must be a valid DNN format",
@@ -683,7 +683,7 @@ func TestCreateDataNetworkInvalidInput(t *testing.T) {
 		{
 			testName: "Invalid Name - 2",
 			name:     "data_network",
-			ipPool:   IPPool,
+			ipv4Pool: IPv4Pool,
 			dns:      DNS,
 			mtu:      MTU,
 			error:    "invalid name format, must be a valid DNN format",
@@ -691,7 +691,7 @@ func TestCreateDataNetworkInvalidInput(t *testing.T) {
 		{
 			testName: "Invalid Name - 3",
 			name:     "-privatenet",
-			ipPool:   IPPool,
+			ipv4Pool: IPv4Pool,
 			dns:      DNS,
 			mtu:      MTU,
 			error:    "invalid name format, must be a valid DNN format",
@@ -699,7 +699,7 @@ func TestCreateDataNetworkInvalidInput(t *testing.T) {
 		{
 			testName: "Invalid Name - 4",
 			name:     "net.",
-			ipPool:   IPPool,
+			ipv4Pool: IPv4Pool,
 			dns:      DNS,
 			mtu:      MTU,
 			error:    "invalid name format, must be a valid DNN format",
@@ -707,31 +707,31 @@ func TestCreateDataNetworkInvalidInput(t *testing.T) {
 		{
 			testName: "Invalid IP Pool - bad format",
 			name:     DataNetworkName,
-			ipPool:   "invalid-ip_pool",
+			ipv4Pool: "invalid-ip_pool",
 			dns:      DNS,
 			mtu:      MTU,
-			error:    "invalid ip_pool format, must be in CIDR format",
+			error:    "invalid ipv4_pool format, must be in CIDR format",
 		},
 		{
 			testName: "Invalid IP Pool - missing subnet",
 			name:     DataNetworkName,
-			ipPool:   "0.0.0.0",
+			ipv4Pool: "0.0.0.0",
 			dns:      DNS,
 			mtu:      MTU,
-			error:    "invalid ip_pool format, must be in CIDR format",
+			error:    "invalid ipv4_pool format, must be in CIDR format",
 		},
 		{
 			testName: "Invalid IP Pool - Too many bits",
 			name:     DataNetworkName,
-			ipPool:   "0.0.0.0/2555",
+			ipv4Pool: "0.0.0.0/2555",
 			dns:      DNS,
 			mtu:      MTU,
-			error:    "invalid ip_pool format, must be in CIDR format",
+			error:    "invalid ipv4_pool format, must be in CIDR format",
 		},
 		{
 			testName: "Invalid DNS",
 			name:     DataNetworkName,
-			ipPool:   IPPool,
+			ipv4Pool: IPv4Pool,
 			dns:      "invalid-dns",
 			mtu:      MTU,
 			error:    "invalid dns format, must be a valid IP address",
@@ -739,7 +739,7 @@ func TestCreateDataNetworkInvalidInput(t *testing.T) {
 		{
 			testName: "Invalid MTU - too small",
 			name:     DataNetworkName,
-			ipPool:   IPPool,
+			ipv4Pool: IPv4Pool,
 			dns:      DNS,
 			mtu:      -1,
 			error:    "invalid mtu format, must be an integer between 0 and 65535",
@@ -747,7 +747,7 @@ func TestCreateDataNetworkInvalidInput(t *testing.T) {
 		{
 			testName: "Invalid MTU - too large",
 			name:     DataNetworkName,
-			ipPool:   IPPool,
+			ipv4Pool: IPv4Pool,
 			dns:      DNS,
 			mtu:      65535 + 1,
 			error:    "invalid mtu format, must be an integer between 0 and 65535",
@@ -756,10 +756,10 @@ func TestCreateDataNetworkInvalidInput(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
 			createDataNetworkParams := &CreateDataNetworkParams{
-				Name:   tt.name,
-				IPPool: tt.ipPool,
-				DNS:    tt.dns,
-				MTU:    tt.mtu,
+				Name:     tt.name,
+				IPv4Pool: tt.ipv4Pool,
+				DNS:      tt.dns,
+				MTU:      tt.mtu,
 			}
 
 			statusCode, response, err := createDataNetwork(env.Server.URL, client, token, createDataNetworkParams)
@@ -797,10 +797,10 @@ func TestCreateTooManyDataNetworks(t *testing.T) {
 
 	for i := range 11 { // We use 11 instead of 12 because the first data network is created by default
 		createDataNetworkParams := &CreateDataNetworkParams{
-			Name:   "data-network-" + strconv.Itoa(i),
-			IPPool: fmt.Sprintf("10.%d.0.0/24", i),
-			DNS:    DNS,
-			MTU:    MTU,
+			Name:     "data-network-" + strconv.Itoa(i),
+			IPv4Pool: fmt.Sprintf("10.%d.0.0/24", i),
+			DNS:      DNS,
+			MTU:      MTU,
 		}
 
 		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, createDataNetworkParams)
@@ -818,10 +818,10 @@ func TestCreateTooManyDataNetworks(t *testing.T) {
 	}
 
 	createDataNetworkParams := &CreateDataNetworkParams{
-		Name:   "data-network-too-many",
-		IPPool: "10.100.0.0/24",
-		DNS:    DNS,
-		MTU:    MTU,
+		Name:     "data-network-too-many",
+		IPv4Pool: "10.100.0.0/24",
+		DNS:      DNS,
+		MTU:      MTU,
 	}
 
 	statusCode, response, err := createDataNetwork(env.Server.URL, client, token, createDataNetworkParams)
@@ -857,7 +857,7 @@ func TestCreateDataNetworkOverlappingPool(t *testing.T) {
 
 	// Create the first data network with a /24 pool.
 	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-		Name: "dn-a", IPPool: "10.45.0.0/24", DNS: DNS, MTU: MTU,
+		Name: "dn-a", IPv4Pool: "10.45.0.0/24", DNS: DNS, MTU: MTU,
 	})
 	if err != nil {
 		t.Fatalf("couldn't create first data network: %s", err)
@@ -865,7 +865,7 @@ func TestCreateDataNetworkOverlappingPool(t *testing.T) {
 
 	t.Run("exact overlap", func(t *testing.T) {
 		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-			Name: "dn-b", IPPool: "10.45.0.0/24", DNS: DNS, MTU: MTU,
+			Name: "dn-b", IPv4Pool: "10.45.0.0/24", DNS: DNS, MTU: MTU,
 		})
 		if err != nil {
 			t.Fatalf("couldn't create data network: %s", err)
@@ -882,7 +882,7 @@ func TestCreateDataNetworkOverlappingPool(t *testing.T) {
 
 	t.Run("superset overlap", func(t *testing.T) {
 		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-			Name: "dn-c", IPPool: "10.45.0.0/16", DNS: DNS, MTU: MTU,
+			Name: "dn-c", IPv4Pool: "10.45.0.0/16", DNS: DNS, MTU: MTU,
 		})
 		if err != nil {
 			t.Fatalf("couldn't create data network: %s", err)
@@ -899,7 +899,7 @@ func TestCreateDataNetworkOverlappingPool(t *testing.T) {
 
 	t.Run("subset overlap", func(t *testing.T) {
 		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-			Name: "dn-d", IPPool: "10.45.0.128/25", DNS: DNS, MTU: MTU,
+			Name: "dn-d", IPv4Pool: "10.45.0.128/25", DNS: DNS, MTU: MTU,
 		})
 		if err != nil {
 			t.Fatalf("couldn't create data network: %s", err)
@@ -916,7 +916,7 @@ func TestCreateDataNetworkOverlappingPool(t *testing.T) {
 
 	t.Run("non-overlapping succeeds", func(t *testing.T) {
 		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-			Name: "dn-e", IPPool: "10.46.0.0/24", DNS: DNS, MTU: MTU,
+			Name: "dn-e", IPv4Pool: "10.46.0.0/24", DNS: DNS, MTU: MTU,
 		})
 		if err != nil {
 			t.Fatalf("couldn't create data network: %s", err)
@@ -947,8 +947,8 @@ type ListIPAllocationsResponse struct {
 	Error  string                  `json:"error,omitempty"`
 }
 
-func listIPAllocations(url string, client *http.Client, token string, name string, page, perPage int) (int, *ListIPAllocationsResponse, error) {
-	reqURL := fmt.Sprintf("%s/api/v1/networking/data-networks/%s/ip-allocations?page=%d&per_page=%d", url, name, page, perPage)
+func listIPv4Allocations(url string, client *http.Client, token string, name string, page, perPage int) (int, *ListIPAllocationsResponse, error) {
+	reqURL := fmt.Sprintf("%s/api/v1/networking/data-networks/%s/ipv4-allocations?page=%d&per_page=%d", url, name, page, perPage)
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", reqURL, nil)
 	if err != nil {
@@ -994,7 +994,7 @@ func TestListIPAllocationsEndpoint(t *testing.T) {
 	}
 
 	t.Run("empty allocations for default data network", func(t *testing.T) {
-		statusCode, response, err := listIPAllocations(env.Server.URL, client, token, "internet", 1, 25)
+		statusCode, response, err := listIPv4Allocations(env.Server.URL, client, token, "internet", 1, 25)
 		if err != nil {
 			t.Fatalf("couldn't list ip allocations: %s", err)
 		}
@@ -1021,7 +1021,7 @@ func TestListIPAllocationsEndpoint(t *testing.T) {
 	})
 
 	t.Run("404 for unknown data network", func(t *testing.T) {
-		statusCode, response, err := listIPAllocations(env.Server.URL, client, token, "nonexistent", 1, 25)
+		statusCode, response, err := listIPv4Allocations(env.Server.URL, client, token, "nonexistent", 1, 25)
 		if err != nil {
 			t.Fatalf("couldn't list ip allocations: %s", err)
 		}
@@ -1036,7 +1036,7 @@ func TestListIPAllocationsEndpoint(t *testing.T) {
 	})
 
 	t.Run("invalid page parameter", func(t *testing.T) {
-		statusCode, _, err := listIPAllocations(env.Server.URL, client, token, "internet", 0, 25)
+		statusCode, _, err := listIPv4Allocations(env.Server.URL, client, token, "internet", 0, 25)
 		if err != nil {
 			t.Fatalf("couldn't list ip allocations: %s", err)
 		}
@@ -1047,7 +1047,7 @@ func TestListIPAllocationsEndpoint(t *testing.T) {
 	})
 
 	t.Run("invalid per_page parameter", func(t *testing.T) {
-		statusCode, _, err := listIPAllocations(env.Server.URL, client, token, "internet", 1, 101)
+		statusCode, _, err := listIPv4Allocations(env.Server.URL, client, token, "internet", 1, 101)
 		if err != nil {
 			t.Fatalf("couldn't list ip allocations: %s", err)
 		}
@@ -1077,14 +1077,14 @@ func TestUpdateDataNetworkOverlappingPool(t *testing.T) {
 
 	// Create two data networks with non-overlapping pools.
 	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-		Name: "dn-x", IPPool: "10.50.0.0/24", DNS: DNS, MTU: MTU,
+		Name: "dn-x", IPv4Pool: "10.50.0.0/24", DNS: DNS, MTU: MTU,
 	})
 	if err != nil {
 		t.Fatalf("couldn't create first data network: %s", err)
 	}
 
 	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-		Name: "dn-y", IPPool: "10.51.0.0/24", DNS: DNS, MTU: MTU,
+		Name: "dn-y", IPv4Pool: "10.51.0.0/24", DNS: DNS, MTU: MTU,
 	})
 	if err != nil {
 		t.Fatalf("couldn't create second data network: %s", err)
@@ -1092,7 +1092,7 @@ func TestUpdateDataNetworkOverlappingPool(t *testing.T) {
 
 	t.Run("update to overlapping pool rejected", func(t *testing.T) {
 		statusCode, response, err := editDataNetwork(env.Server.URL, client, "dn-y", token, &UpdateDataNetworkParams{
-			IPPool: "10.50.0.0/24", DNS: DNS, MTU: MTU,
+			IPv4Pool: "10.50.0.0/24", DNS: DNS, MTU: MTU,
 		})
 		if err != nil {
 			t.Fatalf("couldn't edit data network: %s", err)
@@ -1109,7 +1109,7 @@ func TestUpdateDataNetworkOverlappingPool(t *testing.T) {
 
 	t.Run("update own pool succeeds", func(t *testing.T) {
 		statusCode, response, err := editDataNetwork(env.Server.URL, client, "dn-y", token, &UpdateDataNetworkParams{
-			IPPool: "10.51.0.0/22", DNS: DNS, MTU: MTU,
+			IPv4Pool: "10.51.0.0/22", DNS: DNS, MTU: MTU,
 		})
 		if err != nil {
 			t.Fatalf("couldn't edit data network: %s", err)
@@ -1140,7 +1140,7 @@ func TestCreateDataNetworkWithIPv6Pool(t *testing.T) {
 
 	t.Run("create with valid IPv6 pool", func(t *testing.T) {
 		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-			Name: "dn-v6-a", IPPool: "10.60.0.0/24", IPv6Pool: "2001:db8::/48", DNS: DNS, MTU: MTU,
+			Name: "dn-v6-a", IPv4Pool: "10.60.0.0/24", IPv6Pool: "2001:db8::/48", DNS: DNS, MTU: MTU,
 		})
 		if err != nil {
 			t.Fatalf("couldn't create data network: %s", err)
@@ -1185,7 +1185,7 @@ func TestCreateDataNetworkWithIPv6Pool(t *testing.T) {
 
 	t.Run("create without IPv6 pool omits ipv6_allocation", func(t *testing.T) {
 		_, _, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-			Name: "dn-v4-only", IPPool: "10.61.0.0/24", DNS: DNS, MTU: MTU,
+			Name: "dn-v4-only", IPv4Pool: "10.61.0.0/24", DNS: DNS, MTU: MTU,
 		})
 		if err != nil {
 			t.Fatalf("couldn't create data network: %s", err)
@@ -1258,7 +1258,7 @@ func TestCreateDataNetworkIPv6PoolValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
 			statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-				Name: "dn-bad-v6", IPPool: "10.70.0.0/24", IPv6Pool: tt.ipv6Pool, DNS: DNS, MTU: MTU,
+				Name: "dn-bad-v6", IPv4Pool: "10.70.0.0/24", IPv6Pool: tt.ipv6Pool, DNS: DNS, MTU: MTU,
 			})
 			if err != nil {
 				t.Fatalf("couldn't create data network: %s", err)
@@ -1276,7 +1276,7 @@ func TestCreateDataNetworkIPv6PoolValidation(t *testing.T) {
 
 	t.Run("valid /48", func(t *testing.T) {
 		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-			Name: "dn-v6-48", IPPool: "10.71.0.0/24", IPv6Pool: "2001:db8:1::/48", DNS: DNS, MTU: MTU,
+			Name: "dn-v6-48", IPv4Pool: "10.71.0.0/24", IPv6Pool: "2001:db8:1::/48", DNS: DNS, MTU: MTU,
 		})
 		if err != nil {
 			t.Fatalf("couldn't create data network: %s", err)
@@ -1289,7 +1289,7 @@ func TestCreateDataNetworkIPv6PoolValidation(t *testing.T) {
 
 	t.Run("valid /60", func(t *testing.T) {
 		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-			Name: "dn-v6-60", IPPool: "10.72.0.0/24", IPv6Pool: "2001:db8:2::/60", DNS: DNS, MTU: MTU,
+			Name: "dn-v6-60", IPv4Pool: "10.72.0.0/24", IPv6Pool: "2001:db8:2::/60", DNS: DNS, MTU: MTU,
 		})
 		if err != nil {
 			t.Fatalf("couldn't create data network: %s", err)
@@ -1320,7 +1320,7 @@ func TestCreateDataNetworkIPv6PoolOverlap(t *testing.T) {
 
 	// Create first data network with an IPv6 pool.
 	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-		Name: "dn-v6-first", IPPool: "10.80.0.0/24", IPv6Pool: "2001:db8:abcd::/48", DNS: DNS, MTU: MTU,
+		Name: "dn-v6-first", IPv4Pool: "10.80.0.0/24", IPv6Pool: "2001:db8:abcd::/48", DNS: DNS, MTU: MTU,
 	})
 	if err != nil {
 		t.Fatalf("couldn't create first data network: %s", err)
@@ -1328,7 +1328,7 @@ func TestCreateDataNetworkIPv6PoolOverlap(t *testing.T) {
 
 	t.Run("exact IPv6 overlap", func(t *testing.T) {
 		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-			Name: "dn-v6-dup", IPPool: "10.81.0.0/24", IPv6Pool: "2001:db8:abcd::/48", DNS: DNS, MTU: MTU,
+			Name: "dn-v6-dup", IPv4Pool: "10.81.0.0/24", IPv6Pool: "2001:db8:abcd::/48", DNS: DNS, MTU: MTU,
 		})
 		if err != nil {
 			t.Fatalf("couldn't create data network: %s", err)
@@ -1345,7 +1345,7 @@ func TestCreateDataNetworkIPv6PoolOverlap(t *testing.T) {
 
 	t.Run("subset IPv6 overlap", func(t *testing.T) {
 		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-			Name: "dn-v6-sub", IPPool: "10.82.0.0/24", IPv6Pool: "2001:db8:abcd:0010::/60", DNS: DNS, MTU: MTU,
+			Name: "dn-v6-sub", IPv4Pool: "10.82.0.0/24", IPv6Pool: "2001:db8:abcd:0010::/60", DNS: DNS, MTU: MTU,
 		})
 		if err != nil {
 			t.Fatalf("couldn't create data network: %s", err)
@@ -1362,7 +1362,7 @@ func TestCreateDataNetworkIPv6PoolOverlap(t *testing.T) {
 
 	t.Run("non-overlapping IPv6 succeeds", func(t *testing.T) {
 		statusCode, response, err := createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-			Name: "dn-v6-ok", IPPool: "10.83.0.0/24", IPv6Pool: "2001:db8:cafe::/48", DNS: DNS, MTU: MTU,
+			Name: "dn-v6-ok", IPv4Pool: "10.83.0.0/24", IPv6Pool: "2001:db8:cafe::/48", DNS: DNS, MTU: MTU,
 		})
 		if err != nil {
 			t.Fatalf("couldn't create data network: %s", err)
@@ -1393,14 +1393,14 @@ func TestUpdateDataNetworkIPv6PoolOverlap(t *testing.T) {
 
 	// Create two data networks with non-overlapping IPv6 pools.
 	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-		Name: "dn-v6-u1", IPPool: "10.90.0.0/24", IPv6Pool: "2001:db8:1::/48", DNS: DNS, MTU: MTU,
+		Name: "dn-v6-u1", IPv4Pool: "10.90.0.0/24", IPv6Pool: "2001:db8:1::/48", DNS: DNS, MTU: MTU,
 	})
 	if err != nil {
 		t.Fatalf("couldn't create first data network: %s", err)
 	}
 
 	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
-		Name: "dn-v6-u2", IPPool: "10.91.0.0/24", IPv6Pool: "2001:db8:2::/48", DNS: DNS, MTU: MTU,
+		Name: "dn-v6-u2", IPv4Pool: "10.91.0.0/24", IPv6Pool: "2001:db8:2::/48", DNS: DNS, MTU: MTU,
 	})
 	if err != nil {
 		t.Fatalf("couldn't create second data network: %s", err)
@@ -1408,7 +1408,7 @@ func TestUpdateDataNetworkIPv6PoolOverlap(t *testing.T) {
 
 	t.Run("update to overlapping IPv6 pool rejected", func(t *testing.T) {
 		statusCode, response, err := editDataNetwork(env.Server.URL, client, "dn-v6-u2", token, &UpdateDataNetworkParams{
-			IPPool: "10.91.0.0/24", IPv6Pool: "2001:db8:1::/48", DNS: DNS, MTU: MTU,
+			IPv4Pool: "10.91.0.0/24", IPv6Pool: "2001:db8:1::/48", DNS: DNS, MTU: MTU,
 		})
 		if err != nil {
 			t.Fatalf("couldn't edit data network: %s", err)
@@ -1425,7 +1425,7 @@ func TestUpdateDataNetworkIPv6PoolOverlap(t *testing.T) {
 
 	t.Run("update own IPv6 pool succeeds", func(t *testing.T) {
 		statusCode, response, err := editDataNetwork(env.Server.URL, client, "dn-v6-u2", token, &UpdateDataNetworkParams{
-			IPPool: "10.91.0.0/24", IPv6Pool: "2001:db8:2::/52", DNS: DNS, MTU: MTU,
+			IPv4Pool: "10.91.0.0/24", IPv6Pool: "2001:db8:2::/52", DNS: DNS, MTU: MTU,
 		})
 		if err != nil {
 			t.Fatalf("couldn't edit data network: %s", err)

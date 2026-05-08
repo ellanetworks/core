@@ -189,10 +189,10 @@ func editSubscriberUsageRetentionPolicy(url string, client *http.Client, token s
 
 func createDataNetworkAndPolicy(url string, client *http.Client, token string) error {
 	createDataNetworkParams := &CreateDataNetworkParams{
-		Name:   DataNetworkName,
-		MTU:    MTU,
-		IPPool: IPPool,
-		DNS:    DNS,
+		Name:     DataNetworkName,
+		MTU:      MTU,
+		IPv4Pool: IPv4Pool,
+		DNS:      DNS,
 	}
 
 	_, _, err := createDataNetwork(url, client, token, createDataNetworkParams)

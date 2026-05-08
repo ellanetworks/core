@@ -74,7 +74,8 @@ type PDUSessionExport struct {
 	Snssai                         *models.Snssai    `json:"snssai,omitempty"`
 	Inactive                       bool              `json:"inactive"`
 	DNN                            string            `json:"dnn,omitempty"`
-	PDUAddress                     string            `json:"pdu_address,omitempty"`
+	PDUIPV4Address                 string            `json:"pduIpv4Address,omitempty"`
+	PDUIPV6Prefix                  string            `json:"pduIpv6Prefix,omitempty"`
 	PDUSessionReleaseDueToDupPduID bool              `json:"release_due_to_dup_id,omitempty"`
 	PolicyData                     *PolicyDataExport `json:"policy_data,omitempty"`
 	Tunnel                         *TunnelExport     `json:"tunnel,omitempty"`
@@ -417,8 +418,12 @@ func (amf *AMF) buildPDUSessions(copies []smContextCopy) map[string]PDUSessionEx
 			pdu.DNN = smCtx.Dnn
 			pdu.PDUSessionReleaseDueToDupPduID = smCtx.PDUSessionReleaseDueToDupPduID
 
-			if smCtx.PDUAddress != nil {
-				pdu.PDUAddress = smCtx.PDUAddress.String()
+			if smCtx.PDUIPV4Address != nil {
+				pdu.PDUIPV4Address = smCtx.PDUIPV4Address.String()
+			}
+
+			if smCtx.PDUIPV6Prefix != nil {
+				pdu.PDUIPV6Prefix = smCtx.PDUIPV6Prefix.String()
 			}
 
 			pdu.PolicyData = policyDataFromSMF(smCtx.PolicyData)

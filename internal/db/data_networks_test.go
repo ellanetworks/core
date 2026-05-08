@@ -41,13 +41,13 @@ func TestDataNetworksEndToEnd(t *testing.T) {
 		t.Fatalf("Expected the default data network to be named 'internet', but got '%s'", res[0].Name)
 	}
 
-	if res[0].IPPool != DefaultDNIPPool {
-		t.Fatalf("Expected the default data network to have IP pool '%s', but got '%s'", DefaultDNIPPool, res[0].IPPool)
+	if res[0].IPv4Pool != DefaultDNIPv4Pool {
+		t.Fatalf("Expected the default data network to have IP pool '%s', but got '%s'", DefaultDNIPv4Pool, res[0].IPv4Pool)
 	}
 
 	newDN := &db.DataNetwork{
-		Name:   "not-internet",
-		IPPool: "2.2.2.0/29",
+		Name:     "not-internet",
+		IPv4Pool: "2.2.2.0/29",
 	}
 
 	err = database.CreateDataNetwork(context.Background(), newDN)
@@ -73,7 +73,7 @@ func TestDataNetworksEndToEnd(t *testing.T) {
 		t.Fatalf("couldn't get data network: %s", err)
 	}
 
-	if retrievedDN.Name != newDN.Name || retrievedDN.IPPool != newDN.IPPool {
+	if retrievedDN.Name != newDN.Name || retrievedDN.IPv4Pool != newDN.IPv4Pool {
 		t.Fatalf("The data network from the database doesn't match the one that was created")
 	}
 

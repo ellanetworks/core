@@ -75,7 +75,8 @@ type SubscriberDetail struct {
 type SessionInfo struct {
 	PDUSessionID    uint8  `json:"pdu_session_id"`
 	Status          string `json:"status"`
-	IPAddress       string `json:"ipAddress,omitempty"`
+	IPv4Address     string `json:"ipv4Address,omitempty"`
+	IPv6Prefix      string `json:"ipv6Prefix,omitempty"`
 	DNN             string `json:"dnn,omitempty"`
 	SST             int32  `json:"sst,omitempty"`
 	SD              string `json:"sd,omitempty"`

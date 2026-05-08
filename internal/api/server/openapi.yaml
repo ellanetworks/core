@@ -1752,19 +1752,43 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
-  /api/v1/networking/data-networks/{name}/ip-allocations:
+  /api/v1/networking/data-networks/{name}/ipv4-allocations:
     get:
-      operationId: listIPAllocations
+      operationId: listIPv4Allocations
       tags: [Data Networks]
-      summary: List IP allocations for a data network
-      description: Returns a paginated list of IP address allocations (leases) for the specified data network.
+      summary: List IPv4 allocations for a data network
+      description: Returns a paginated list of IPv4 address allocations (leases) for the specified data network.
       parameters:
         - $ref: "#/components/parameters/DataNetworkNamePath"
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PerPage"
       responses:
         "200":
-          description: Paginated list of IP allocations.
+          description: Paginated list of IPv4 allocations.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListIPAllocationsResponseEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/networking/data-networks/{name}/ipv6-allocations:
+    get:
+      operationId: listIPv6Allocations
+      tags: [Data Networks]
+      summary: List IPv6 prefix allocations for a data network
+      description: Returns a paginated list of IPv6 prefix allocations (leases) for the specified data network. Only available if the data network has an IPv6 pool configured.
+      parameters:
+        - $ref: "#/components/parameters/DataNetworkNamePath"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PerPage"
+      responses:
+        "200":
+          description: Paginated list of IPv6 prefix allocations.
           content:
             application/json:
               schema:
@@ -3463,9 +3487,12 @@ components:
         status:
           type: string
           description: "PDU session status (e.g. active, inactive)."
-        ipAddress:
+        ipv4Address:
           type: string
-          description: "Assigned IP address for this PDU session. May be omitted if unknown."
+          description: "Assigned IPv4 address for this PDU session. May be omitted if unknown."
+        ipv6Prefix:
+          type: string
+          description: "Assigned IPv6 prefix (/64) for this PDU session. May be omitted if unknown."
         dnn:
           type: string
           description: "Data network name for this PDU session."
@@ -4072,9 +4099,12 @@ components:
       properties:
         name:
           type: string
-        ip_pool:
+        ipv4_pool:
           type: string
-          description: "IP pool in CIDR notation."
+          description: "IPv4 pool in CIDR notation."
+        ipv6_pool:
+          type: string
+          description: "IPv6 pool in CIDR notation."
         dns:
           type: string
           description: DNS server IP address.
@@ -4085,8 +4115,11 @@ components:
           $ref: "#/components/schemas/DataNetworkStatus"
         ip_allocation:
           $ref: "#/components/schemas/DataNetworkIPAllocation"
-          description: IP pool utilization statistics. Present only in the detail response.
-      required: [name, ip_pool, dns, mtu, status]
+          description: IPv4 pool utilization statistics. Present only in the detail response.
+        ipv6_allocation:
+          $ref: "#/components/schemas/DataNetworkIPAllocation"
+          description: IPv6 pool utilization statistics. Present only in the detail response.
+      required: [name, ipv4_pool, dns, mtu, status]
 
     DataNetworkResponseEnvelope:
       type: object
@@ -4117,14 +4150,17 @@ components:
 
     CreateDataNetworkParams:
       type: object
-      required: [name, ip_pool, dns, mtu]
+      required: [name, ipv4_pool, dns, mtu]
       properties:
         name:
           type: string
           description: "Valid DNN format (lowercase alphanumeric, hyphens, dots)."
-        ip_pool:
+        ipv4_pool:
           type: string
-          description: "CIDR notation (e.g. \"10.0.0.0/24\")."
+          description: "IPv4 CIDR notation (e.g. \"10.0.0.0/24\")."
+        ipv6_pool:
+          type: string
+          description: "IPv6 CIDR notation (e.g. \"2001:db8::/48\")."
         dns:
           type: string
           description: DNS server IP address.
@@ -4135,11 +4171,14 @@ components:
 
     UpdateDataNetworkParams:
       type: object
-      required: [ip_pool, dns, mtu]
+      required: [ipv4_pool, dns, mtu]
       properties:
-        ip_pool:
+        ipv4_pool:
           type: string
-          description: "CIDR notation (e.g. \"10.0.0.0/24\")."
+          description: "IPv4 CIDR notation (e.g. \"10.0.0.0/24\")."
+        ipv6_pool:
+          type: string
+          description: "IPv6 CIDR notation (e.g. \"2001:db8::/48\")."
         dns:
           type: string
           description: DNS server IP address.
@@ -4153,7 +4192,7 @@ components:
       properties:
         address:
           type: string
-          description: Allocated IP address.
+          description: "Allocated IPv4 address (e.g. \"10.45.0.3\") or IPv6 /64 prefix (e.g. \"2001:db8::/64\")."
         imsi:
           type: string
           description: IMSI of the subscriber holding the lease.

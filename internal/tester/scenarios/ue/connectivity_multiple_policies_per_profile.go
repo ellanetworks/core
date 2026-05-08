@@ -39,7 +39,7 @@ func fixtureConnectivityMultiplePoliciesPerProfile(env scenarios.Env) scenarios.
 
 	return scenarios.FixtureSpec{
 		DataNetworks: []scenarios.DataNetworkSpec{
-			{Name: "enterprise", IPPool: enterpriseIPPool, DNS: enterpriseDNS, MTU: scenarios.DefaultMTU},
+			{Name: "enterprise", IPv4Pool: enterpriseIPPool, DNS: enterpriseDNS, MTU: scenarios.DefaultMTU},
 		},
 		Policies: []scenarios.PolicySpec{
 			{

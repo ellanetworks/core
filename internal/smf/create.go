@@ -216,9 +216,9 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 
 		// Determine the appropriate reject cause based on which pools are available.
 		cause := nasMessage.Cause5GSMInsufficientResources
-		if policy.IPPool != "" && policy.IPv6Pool == "" {
+		if policy.IPv4Pool != "" && policy.IPv6Pool == "" {
 			cause = nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed
-		} else if policy.IPPool == "" && policy.IPv6Pool != "" {
+		} else if policy.IPv4Pool == "" && policy.IPv6Pool != "" {
 			cause = nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed
 		}
 
@@ -267,8 +267,8 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 			return nil, nil, 0, nil, 0, rsp, fmt.Errorf("failed to allocate IPv4 address: %v", allocErr)
 		}
 
-		smContext.PDUAddress = netipToIP(ipv4Addr)
-		addrs.IPv4Address = smContext.PDUAddress
+		smContext.PDUIPV4Address = netipToIP(ipv4Addr)
+		addrs.IPv4Address = smContext.PDUIPV4Address
 		dlPdrIP = ipv4Addr
 
 		logger.WithTrace(ctx, logger.SmfLog).Info("Allocated IPv4 address", logger.IPAddress(ipv4Addr.String()), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
@@ -279,12 +279,12 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 		ipv6Prefix, allocErr := s.store.AllocateIPv6(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
 		if allocErr != nil {
 			// Roll back IPv4 if dual-stack.
-			if smContext.PDUAddress != nil {
+			if smContext.PDUIPV4Address != nil {
 				if _, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID); releaseErr != nil {
 					logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv4 after IPv6 allocation error", zap.Error(releaseErr))
 				}
 
-				smContext.PDUAddress = nil
+				smContext.PDUIPV4Address = nil
 			}
 
 			PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
@@ -297,7 +297,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 			return nil, nil, 0, nil, 0, rsp, fmt.Errorf("failed to allocate IPv6 prefix: %v", allocErr)
 		}
 
-		smContext.PDUAddressIPv6 = netipToIP(ipv6Prefix)
+		smContext.PDUIPV6Prefix = netipToIP(ipv6Prefix)
 
 		iid, iidErr := s.assignIID(smContext.Dnn)
 		if iidErr != nil {
@@ -306,7 +306,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 				logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv6 after IID generation error", zap.Error(releaseErr))
 			}
 
-			if smContext.PDUAddress != nil {
+			if smContext.PDUIPV4Address != nil {
 				if _, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID); releaseErr != nil {
 					logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv4 after IID generation error", zap.Error(releaseErr))
 				}
@@ -378,7 +378,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 // otherwise the request is rejected. For dual-stack (IPv4v6) requests the
 // type is downgraded to whichever single stack is available.
 func (s *SMF) negotiatePDUSessionType(_ context.Context, requested uint8, policy *Policy) (uint8, error) {
-	hasIPv4 := policy.IPPool != ""
+	hasIPv4 := policy.IPv4Pool != ""
 	hasIPv6 := policy.IPv6Pool != ""
 
 	switch requested {
@@ -419,20 +419,20 @@ func (s *SMF) negotiatePDUSessionType(_ context.Context, requested uint8, policy
 // releaseAllocatedAddresses releases any IP addresses that were allocated
 // during session creation. Used on error paths.
 func (s *SMF) releaseAllocatedAddresses(ctx context.Context, smContext *SMContext) {
-	if smContext.PDUAddress != nil {
+	if smContext.PDUIPV4Address != nil {
 		if _, err := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID); err != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv4 address", zap.Error(err))
 		}
 
-		smContext.PDUAddress = nil
+		smContext.PDUIPV4Address = nil
 	}
 
-	if smContext.PDUAddressIPv6 != nil {
+	if smContext.PDUIPV6Prefix != nil {
 		if _, err := s.store.ReleaseIPv6(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID); err != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Error("failed to release IPv6 address", zap.Error(err))
 		}
 
-		smContext.PDUAddressIPv6 = nil
+		smContext.PDUIPV6Prefix = nil
 	}
 }
 

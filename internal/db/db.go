@@ -331,10 +331,10 @@ const (
 
 // Initial Data network values
 const (
-	InitialDataNetworkName   = "internet"
-	InitialDataNetworkIPPool = "10.45.0.0/22"
-	InitialDataNetworkDNS    = "8.8.8.8"
-	InitialDataNetworkMTU    = 1400
+	InitialDataNetworkName     = "internet"
+	InitialDataNetworkIPv4Pool = "10.45.0.0/22"
+	InitialDataNetworkDNS      = "8.8.8.8"
+	InitialDataNetworkMTU      = 1400
 )
 
 // Initial Policy values
@@ -1634,10 +1634,10 @@ func (db *Database) Initialize(ctx context.Context) error {
 
 	if numDataNetworks == 0 {
 		initialDataNetwork := &DataNetwork{
-			Name:   InitialDataNetworkName,
-			IPPool: InitialDataNetworkIPPool,
-			DNS:    InitialDataNetworkDNS,
-			MTU:    InitialDataNetworkMTU,
+			Name:     InitialDataNetworkName,
+			IPv4Pool: InitialDataNetworkIPv4Pool,
+			DNS:      InitialDataNetworkDNS,
+			MTU:      InitialDataNetworkMTU,
 		}
 		if err := db.CreateDataNetwork(ctx, initialDataNetwork); err != nil {
 			return fmt.Errorf("failed to create default data network: %v", err)

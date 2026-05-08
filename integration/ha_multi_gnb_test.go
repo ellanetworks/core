@@ -257,7 +257,7 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 				continue
 			}
 
-			ip := sub.PDUSessions[0].IPAddress
+			ip := sub.PDUSessions[0].IPv4Address
 			if !strings.HasPrefix(ip, "10.45.") {
 				t.Errorf("%s: subscriber %s: PDU session IP %q not in expected pool 10.45.0.0/16",
 					gn.service, imsi, ip)

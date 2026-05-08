@@ -39,8 +39,8 @@ type SMContext struct {
 	PolicyData                     *Policy
 	PFCPContext                    *PFCPSessionContext
 	PDUSessionID                   uint8
-	PDUAddress                     net.IP
-	PDUAddressIPv6                 net.IP  // delegated /64 prefix base address (lower 64 bits = 0)
+	PDUIPV4Address                 net.IP
+	PDUIPV6Prefix                  net.IP  // delegated /64 prefix base address (lower 64 bits = 0)
 	IPv6IID                        [8]byte // random Interface Identifier sent to UE
 	PDUSessionType                 uint8   // negotiated type: nasMessage.PDUSessionTypeIPv4/IPv6/IPv4IPv6
 	PDUSessionReleaseDueToDupPduID bool

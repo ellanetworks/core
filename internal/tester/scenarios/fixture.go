@@ -71,7 +71,7 @@ type SliceSpec struct {
 // DataNetworkSpec describes a PDU session anchor.
 type DataNetworkSpec struct {
 	Name     string
-	IPPool   string
+	IPv4Pool string
 	IPv6Pool string
 	DNS      string
 	MTU      int32

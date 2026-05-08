@@ -36,29 +36,44 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
         width: 60,
       },
       {
-        field: "ipAddress",
+        field: "ipv4Address",
         headerName: "IP Address",
         flex: 0.8,
         minWidth: 120,
-        renderCell: (params: GridRenderCellParams<SessionInfo>) =>
-          params.value ? (
+        renderCell: (params: GridRenderCellParams<SessionInfo>) => {
+          const ipv4Address = params.value;
+          const ipv6 = params.row.ipv6Prefix;
+          if (!ipv4Address && !ipv6) return "—";
+          return (
             <Box
               sx={{
                 display: "flex",
-                alignItems: "center",
+                flexDirection: "column",
+                alignItems: "flex-start",
                 height: "100%",
+                gap: 0.5,
+                justifyContent: "center",
               }}
             >
-              <Typography
-                variant="body2"
-                sx={{ fontFamily: "monospace", fontSize: "0.8rem" }}
-              >
-                {params.value}
-              </Typography>
+              {ipv4Address && (
+                <Typography
+                  variant="body2"
+                  sx={{ fontFamily: "monospace", fontSize: "0.8rem" }}
+                >
+                  {ipv4Address}
+                </Typography>
+              )}
+              {ipv6 && (
+                <Typography
+                  variant="body2"
+                  sx={{ fontFamily: "monospace", fontSize: "0.8rem" }}
+                >
+                  {ipv6}/64
+                </Typography>
+              )}
             </Box>
-          ) : (
-            "—"
-          ),
+          );
+        },
       },
       {
         field: "dnn",

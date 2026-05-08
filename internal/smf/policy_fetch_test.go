@@ -30,7 +30,7 @@ func TestGetSessionPolicy_FetchesNetworkRules(t *testing.T) {
 
 	ctx := context.Background()
 
-	testDN := &db.DataNetwork{Name: "test-dnn", IPPool: "10.1.0.0/24"}
+	testDN := &db.DataNetwork{Name: "test-dnn", IPv4Pool: "10.1.0.0/24"}
 	if err := database.CreateDataNetwork(ctx, testDN); err != nil {
 		t.Fatalf("couldn't create test data network: %s", err)
 	}
@@ -253,7 +253,7 @@ func TestGetSessionPolicy_NoNetworkRules(t *testing.T) {
 
 	ctx := context.Background()
 
-	testDN := &db.DataNetwork{Name: "test-dnn-2", IPPool: "10.2.0.0/24"}
+	testDN := &db.DataNetwork{Name: "test-dnn-2", IPv4Pool: "10.2.0.0/24"}
 	if err := database.CreateDataNetwork(ctx, testDN); err != nil {
 		t.Fatalf("couldn't create test data network: %s", err)
 	}

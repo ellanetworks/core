@@ -24,7 +24,7 @@ const (
 	DefaultOPC            = "cb698a2341629c3241ae01de9d89de4f"
 	DefaultSequenceNumber = "000000000022"
 
-	DefaultUEIPPool   = "10.45.0.0/16"
+	DefaultUEIPv4Pool = "10.45.0.0/16"
 	DefaultUEIPv6Pool = "fd45::/48"
 	DefaultDNS        = "8.8.8.8"
 	DefaultDNSv6      = "2001:4860:4860::8888"

@@ -37,12 +37,8 @@ import {
 } from "@/queries/bgp";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  ipv4Regex,
-  cidrRegex,
-  detectPreset,
-  type ImportPreset,
-} from "@/utils/bgp";
+import { ipv4Regex, cidrRegex } from "@/utils/ip";
+import { detectPreset, type ImportPreset } from "@/utils/bgp";
 
 const schema = yup.object().shape({
   address: yup

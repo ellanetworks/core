@@ -60,7 +60,7 @@ func ipv6Fakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 			},
 			DNS:      net.ParseIP("2001:4860:4860::8888"),
 			MTU:      1500,
-			IPPool:   "",
+			IPv4Pool: "",
 			IPv6Pool: "2001:db8::/48",
 		},
 	}
@@ -117,7 +117,7 @@ func dualStackFakes() (*fakePCF, *fakeStore, *fakeUPF, *fakeAMF) {
 			},
 			DNS:      net.ParseIP("2001:4860:4860::8888"),
 			MTU:      1500,
-			IPPool:   "10.0.0.0/24",
+			IPv4Pool: "10.0.0.0/24",
 			IPv6Pool: "2001:db8::/48",
 		},
 	}
@@ -176,13 +176,13 @@ func TestCreateSmContext_IPv6Only_HappyPath(t *testing.T) {
 	}
 
 	// Verify IPv6 prefix was allocated.
-	if smCtx.PDUAddressIPv6 == nil {
+	if smCtx.PDUIPV6Prefix == nil {
 		t.Fatal("expected PDUAddressIPv6 to be set")
 	}
 
 	expectedPrefix := net.ParseIP("2001:db8::")
-	if !smCtx.PDUAddressIPv6.Equal(expectedPrefix) {
-		t.Fatalf("expected PDUAddressIPv6 %s, got %s", expectedPrefix, smCtx.PDUAddressIPv6)
+	if !smCtx.PDUIPV6Prefix.Equal(expectedPrefix) {
+		t.Fatalf("expected PDUAddressIPv6 %s, got %s", expectedPrefix, smCtx.PDUIPV6Prefix)
 	}
 
 	// Verify IID was generated (non-zero).
@@ -192,8 +192,8 @@ func TestCreateSmContext_IPv6Only_HappyPath(t *testing.T) {
 	}
 
 	// Verify no IPv4 address was allocated.
-	if smCtx.PDUAddress != nil {
-		t.Fatalf("expected nil PDUAddress for IPv6-only, got %s", smCtx.PDUAddress)
+	if smCtx.PDUIPV4Address != nil {
+		t.Fatalf("expected nil PDUAddress for IPv6-only, got %s", smCtx.PDUIPV4Address)
 	}
 
 	// Verify PFCP establishment was called.
@@ -274,23 +274,23 @@ func TestCreateSmContext_DualStack_HappyPath(t *testing.T) {
 	}
 
 	// Verify IPv4 address was allocated.
-	if smCtx.PDUAddress == nil {
+	if smCtx.PDUIPV4Address == nil {
 		t.Fatal("expected PDUAddress to be set for dual-stack")
 	}
 
 	expectedIPv4 := net.ParseIP("10.0.0.1").To4()
-	if !smCtx.PDUAddress.Equal(expectedIPv4) {
-		t.Fatalf("expected PDUAddress %s, got %s", expectedIPv4, smCtx.PDUAddress)
+	if !smCtx.PDUIPV4Address.Equal(expectedIPv4) {
+		t.Fatalf("expected PDUAddress %s, got %s", expectedIPv4, smCtx.PDUIPV4Address)
 	}
 
 	// Verify IPv6 prefix was allocated.
-	if smCtx.PDUAddressIPv6 == nil {
+	if smCtx.PDUIPV6Prefix == nil {
 		t.Fatal("expected PDUAddressIPv6 to be set for dual-stack")
 	}
 
 	expectedIPv6 := net.ParseIP("2001:db8:abcd::")
-	if !smCtx.PDUAddressIPv6.Equal(expectedIPv6) {
-		t.Fatalf("expected PDUAddressIPv6 %s, got %s", expectedIPv6, smCtx.PDUAddressIPv6)
+	if !smCtx.PDUIPV6Prefix.Equal(expectedIPv6) {
+		t.Fatalf("expected PDUAddressIPv6 %s, got %s", expectedIPv6, smCtx.PDUIPV6Prefix)
 	}
 
 	// Verify IID was generated (non-zero).
@@ -546,7 +546,7 @@ func setupIPv6SessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, strin
 	}
 	smCtx.Tunnel.ANInformation.IPv4Address = net.ParseIP("10.0.0.100").To4()
 	smCtx.Tunnel.ANInformation.TEID = 6000
-	smCtx.PDUAddressIPv6 = net.ParseIP("2001:db8::").To16()
+	smCtx.PDUIPV6Prefix = net.ParseIP("2001:db8::").To16()
 	smCtx.PDUSessionType = nasMessage.PDUSessionTypeIPv6
 
 	smCtx.PolicyData = &smf.Policy{
@@ -563,7 +563,7 @@ func setupDualStackSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, 
 	t.Helper()
 
 	smCtx, ref := setupIPv6SessionWithTunnel(t, s)
-	smCtx.PDUAddress = net.ParseIP("10.0.0.1").To4()
+	smCtx.PDUIPV4Address = net.ParseIP("10.0.0.1").To4()
 	smCtx.PDUSessionType = nasMessage.PDUSessionTypeIPv4IPv6
 
 	return smCtx, ref
@@ -657,7 +657,7 @@ func TestRemoveSession_IPv6Only_ReleasesIPv6(t *testing.T) {
 	ctx := context.Background()
 
 	smCtx := s.NewSession(supi, 1, testDNN, testSnssai)
-	smCtx.PDUAddressIPv6 = net.ParseIP("2001:db8::").To16()
+	smCtx.PDUIPV6Prefix = net.ParseIP("2001:db8::").To16()
 
 	ref := smf.CanonicalName(supi, 1)
 
@@ -682,8 +682,8 @@ func TestRemoveSession_DualStack_ReleasesBoth(t *testing.T) {
 	ctx := context.Background()
 
 	smCtx := s.NewSession(supi, 1, testDNN, testSnssai)
-	smCtx.PDUAddress = net.ParseIP("10.0.0.1").To4()
-	smCtx.PDUAddressIPv6 = net.ParseIP("2001:db8:abcd::").To16()
+	smCtx.PDUIPV4Address = net.ParseIP("10.0.0.1").To4()
+	smCtx.PDUIPV6Prefix = net.ParseIP("2001:db8:abcd::").To16()
 
 	ref := smf.CanonicalName(supi, 1)
 
@@ -860,11 +860,11 @@ func TestIPv6Session_CreateAndRelease_RoundTrip(t *testing.T) {
 		t.Fatalf("expected IPv6 session type, got %d", smCtx.PDUSessionType)
 	}
 
-	if smCtx.PDUAddressIPv6 == nil {
+	if smCtx.PDUIPV6Prefix == nil {
 		t.Fatal("expected PDUAddressIPv6 to be set")
 	}
 
-	if smCtx.PDUAddress != nil {
+	if smCtx.PDUIPV4Address != nil {
 		t.Fatal("expected no IPv4 address for IPv6-only")
 	}
 
@@ -919,11 +919,11 @@ func TestDualStackSession_CreateAndRelease_RoundTrip(t *testing.T) {
 		t.Fatalf("expected IPv4v6 session type, got %d", smCtx.PDUSessionType)
 	}
 
-	if smCtx.PDUAddress == nil {
+	if smCtx.PDUIPV4Address == nil {
 		t.Fatal("expected PDUAddress to be set for dual-stack")
 	}
 
-	if smCtx.PDUAddressIPv6 == nil {
+	if smCtx.PDUIPV6Prefix == nil {
 		t.Fatal("expected PDUAddressIPv6 to be set for dual-stack")
 	}
 
