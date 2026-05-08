@@ -81,7 +81,7 @@ type SessionInfo struct {
 	PDUSessionID    uint8  `json:"pdu_session_id"`
 	Status          string `json:"status"`
 	IPv4Address     string `json:"ipv4Address,omitempty"`
-	IPv6Address     string `json:"ipv6Address,omitempty"`
+	IPv6Prefix      string `json:"ipv6Prefix,omitempty"`
 	DNN             string `json:"dnn,omitempty"`
 	SST             int32  `json:"sst,omitempty"`
 	SD              string `json:"sd,omitempty"`
@@ -637,7 +637,7 @@ func toSessionInfo(pdu amf.PDUSessionExport) SessionInfo {
 		PDUSessionID: pdu.PDUSessionID,
 		Status:       status,
 		IPv4Address:  pdu.PDUIPV4Address,
-		IPv6Address:  pdu.PDUIPV6Prefix,
+		IPv6Prefix:   pdu.PDUIPV6Prefix,
 		DNN:          pdu.DNN,
 	}
 	if pdu.Snssai != nil {

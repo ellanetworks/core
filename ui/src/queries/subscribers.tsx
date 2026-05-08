@@ -133,7 +133,7 @@ export interface SessionInfo {
   pdu_session_id: number;
   status: string;
   ipv4Address?: string;
-  ipv6Address?: string;
+  ipv6Prefix?: string;
   dnn?: string;
   sst?: number;
   sd?: string;

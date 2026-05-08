@@ -3490,7 +3490,7 @@ components:
         ipv4Address:
           type: string
           description: "Assigned IPv4 address for this PDU session. May be omitted if unknown."
-        ipv6Address:
+        ipv6Prefix:
           type: string
           description: "Assigned IPv6 prefix (/64) for this PDU session. May be omitted if unknown."
         dnn:
@@ -4192,7 +4192,7 @@ components:
       properties:
         address:
           type: string
-          description: Allocated IP address.
+          description: "Allocated IPv4 address (e.g. \"10.45.0.3\") or IPv6 /64 prefix (e.g. \"2001:db8::/64\")."
         imsi:
           type: string
           description: IMSI of the subscriber holding the lease.

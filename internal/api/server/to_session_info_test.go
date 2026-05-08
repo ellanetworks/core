@@ -143,7 +143,7 @@ func TestToSessionInfo_EmptySD(t *testing.T) {
 	}
 }
 
-func TestToSessionInfo_WithIPv6Address(t *testing.T) {
+func TestToSessionInfo_WithIPv6Prefix(t *testing.T) {
 	pdu := amf.PDUSessionExport{
 		PDUSessionID:   7,
 		Inactive:       false,
@@ -158,8 +158,8 @@ func TestToSessionInfo_WithIPv6Address(t *testing.T) {
 		t.Errorf("IPAddress = %q, want %q", s.IPv4Address, "10.45.0.5")
 	}
 
-	if s.IPv6Address != "2001:db8:ad50:8500::" {
-		t.Errorf("IPv6Address = %q, want %q", s.IPv6Address, "2001:db8:ad50:8500::")
+	if s.IPv6Prefix != "2001:db8:ad50:8500::" {
+		t.Errorf("IPv6Prefix = %q, want %q", s.IPv6Prefix, "2001:db8:ad50:8500::")
 	}
 
 	if s.PDUSessionID != 7 {

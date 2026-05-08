@@ -42,7 +42,7 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
         minWidth: 120,
         renderCell: (params: GridRenderCellParams<SessionInfo>) => {
           const ipv4Address = params.value;
-          const ipv6 = params.row.ipv6Address;
+          const ipv6 = params.row.ipv6Prefix;
           if (!ipv4Address && !ipv6) return "—";
           return (
             <Box

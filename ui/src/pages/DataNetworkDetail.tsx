@@ -91,7 +91,7 @@ const DataNetworkDetail: React.FC = () => {
   const allocPage = allocPaginationModel.page + 1;
   const allocPerPage = allocPaginationModel.pageSize;
 
-const { data: allocationsData } = useQuery({
+  const { data: allocationsData } = useQuery({
     queryKey: ["ipv4-allocations", name, allocPage, allocPerPage],
     queryFn: () =>
       listIPv4Allocations(accessToken!, name!, allocPage, allocPerPage),

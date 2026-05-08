@@ -27,7 +27,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
         - `port` (int): The port to listen on.
     - `n3` (object): The configuration for the n3 interface. This interface should be connected to the radios.
         - `name` (string): The name of the network interface (optional: either name or address must be provided).
-        - `address` (string): The address to listen on. Currently only IPv4 is supported (optional: either name or address must be provided).
+        - `address` (string): The address to listen on. Supports both IPv4 and IPv6 (optional: either name or address must be provided).
     - `n6` (object): The configuration for the n6 interface. This interface should be connected to the internet.
         - `name` (string): The name of the network interface.
     - `api` (object): The configuration for the api interface.
@@ -121,7 +121,7 @@ interfaces:
     address: "2001:db8::1"
     port: 38412
   n3:
-    address: "2001:dba::1"
+    address: "2001:db8::1"
   n6:
     name: "ens3"
   api:
@@ -144,9 +144,6 @@ interfaces:
     name: "ens0"
     port: 5002
 ```
-
-!!! note
-    IPv6 support is currently available for the management interface (`api`), radio interface (`n2`) and GTPU interface (`n3`). Only IPv4 is currently supported for the UE traffic and the data network interface (`n6`).
 
 ## GTP-U Transport over IPv6
 

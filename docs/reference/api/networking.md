@@ -168,6 +168,8 @@ This path returns a paginated list of IPv4 address allocations (leases) for a sp
 }
 ```
 
+Each item contains the subscriber's assigned IPv4 address.
+
 ## List IPv6 Allocations
 
 This path returns a paginated list of IPv6 address allocations (leases) for a specific data network.
@@ -190,7 +192,7 @@ This path returns a paginated list of IPv6 address allocations (leases) for a sp
     "result": {
         "items": [
             {
-                "address": "2001:db8::1",
+                "address": "2001:db8::/64",
                 "imsi": "001010100000001",
                 "type": "dynamic",
                 "session_id": 1
@@ -202,6 +204,8 @@ This path returns a paginated list of IPv6 address allocations (leases) for a sp
     }
 }
 ```
+
+Each item contains the subscriber's assigned IPv6 /64 prefix.
 
 ## Delete a Data Network
 
