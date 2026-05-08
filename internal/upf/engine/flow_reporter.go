@@ -38,11 +38,23 @@ func mustGetBootTime() time.Time {
 	return bootTime
 }
 
-func int2ip(nn uint32) netip.Addr {
-	var b [4]byte
-	binary.NativeEndian.PutUint32(b[:], nn)
+func addrFromIn6(addr ebpf.N3N6EntrypointIn6Addr) netip.Addr {
+	b := addr.In6U.U6Addr8
+	// Check for IPv4-mapped IPv6 (::ffff:0.0.0.0/96)
+	// bytes 0-9 must be zero, bytes 10-11 must be 0xFF, 0xFF
+	if b[0] == 0 && b[1] == 0 && b[2] == 0 && b[3] == 0 && b[4] == 0 &&
+		b[5] == 0 && b[6] == 0 && b[7] == 0 && b[8] == 0 && b[9] == 0 &&
+		b[10] == 0xff && b[11] == 0xff {
+		var b4 [4]byte
+		copy(b4[:], b[12:16])
 
-	return netip.AddrFrom4(b)
+		return netip.AddrFrom4(b4)
+	}
+
+	var b16 [16]byte
+	copy(b16[:], b[:])
+
+	return netip.AddrFrom16(b16)
 }
 
 func u16NtoHS(n uint16) uint16 {
@@ -55,8 +67,8 @@ func u16NtoHS(n uint16) uint16 {
 // BuildFlowReportRequest converts an eBPF flow record to a FlowReportRequest
 // without sending it. Used by the batch reporting path.
 func BuildFlowReportRequest(flow ebpf.N3N6EntrypointFlow, stats ebpf.N3N6EntrypointFlowStats) *models.FlowReportRequest {
-	saddr := int2ip(flow.Saddr)
-	daddr := int2ip(flow.Daddr)
+	saddr := addrFromIn6(flow.Saddr)
+	daddr := addrFromIn6(flow.Daddr)
 	sport := u16NtoHS(flow.Sport)
 	dport := u16NtoHS(flow.Dport)
 	startTime := bootTime.Add(time.Duration(stats.FirstTs))

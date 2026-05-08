@@ -25,14 +25,14 @@ type N3N6EntrypointFiveTuple struct {
 type N3N6EntrypointFlow struct {
 	_              structs.HostLayout
 	Imsi           uint64
-	Saddr          uint32
-	Daddr          uint32
+	Saddr          N3N6EntrypointIn6Addr
+	Daddr          N3N6EntrypointIn6Addr
 	IngressIfindex uint32
 	EgressIfindex  uint32
 	Sport          uint16
 	Dport          uint16
 	Proto          uint8
-	Tos            uint8
+	Dscp           uint8
 	Action         uint8
 	_              [1]byte
 }

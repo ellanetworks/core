@@ -610,28 +610,66 @@ const Traffic: React.FC = () => {
         field: "source_ip",
         headerName: "Source",
         flex: 1,
-        minWidth: 100,
+        minWidth: 200,
         renderCell: (params) => {
           const row = params.row as FlowReport;
-          const proto = row.protocol;
-          if (proto === 6 || proto === 17) {
-            return `${row.source_ip}:${row.source_port}`;
+          const hasPort = row.protocol === 6 || row.protocol === 17;
+          const isV6 = row.source_ip.includes(":");
+          let display: string;
+          if (hasPort && isV6) {
+            display = `[${row.source_ip}]:${row.source_port}`;
+          } else if (hasPort) {
+            display = `${row.source_ip}:${row.source_port}`;
+          } else {
+            display = row.source_ip;
           }
-          return row.source_ip;
+          return (
+            <Tooltip title={display}>
+              <Box
+                sx={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  width: "100%",
+                }}
+              >
+                {display}
+              </Box>
+            </Tooltip>
+          );
         },
       },
       {
         field: "destination_ip",
         headerName: "Destination",
         flex: 1,
-        minWidth: 100,
+        minWidth: 200,
         renderCell: (params) => {
           const row = params.row as FlowReport;
-          const proto = row.protocol;
-          if (proto === 6 || proto === 17) {
-            return `${row.destination_ip}:${row.destination_port}`;
+          const hasPort = row.protocol === 6 || row.protocol === 17;
+          const isV6 = row.destination_ip.includes(":");
+          let display: string;
+          if (hasPort && isV6) {
+            display = `[${row.destination_ip}]:${row.destination_port}`;
+          } else if (hasPort) {
+            display = `${row.destination_ip}:${row.destination_port}`;
+          } else {
+            display = row.destination_ip;
           }
-          return row.destination_ip;
+          return (
+            <Tooltip title={display}>
+              <Box
+                sx={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  width: "100%",
+                }}
+              >
+                {display}
+              </Box>
+            </Tooltip>
+          );
         },
       },
       {

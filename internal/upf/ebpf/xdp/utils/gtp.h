@@ -28,12 +28,13 @@
 
 #include "xdp/utils/csum.h"
 #include "xdp/utils/gtpu.h"
+#include "xdp/utils/ip_addr.h"
 #include "xdp/utils/packet_context.h"
 #include "xdp/utils/parsers.h"
 #include "xdp/utils/pdr.h"
 #include "xdp/utils/trace.h"
 
-/*
+/* ---------------------------------------------------------------------------
  * GTP-U encapsulation overhead constants.
  *
  * IPv4 outer: IPv4 header (20) + UDP (8) + GTP-U (8) + PDU session ext (8) = 44
@@ -45,37 +46,6 @@
 #define GTP_ENCAP_SIZE_IPV6                               \
 	(sizeof(struct ipv6hdr) + sizeof(struct udphdr) + \
 	 sizeof(struct gtpuhdr) + 8)
-
-/* ---------------------------------------------------------------------------
- * IPv4-mapped IPv6 address helpers
- *
- * IPv4 addresses are stored in in6_addr as ::ffff:x.x.x.x
- * (bytes 10-11 = 0xff, bytes 12-15 = IPv4 address in network order).
- * ---------------------------------------------------------------------------
- */
-
-static __always_inline int is_ipv4_mapped_ipv6(const struct in6_addr *addr)
-{
-	/* Check bytes 0-9 are zero and bytes 10-11 are 0xff */
-	const __u8 *b = addr->in6_u.u6_addr8;
-	return (b[0] == 0 && b[1] == 0 && b[2] == 0 && b[3] == 0 && b[4] == 0 &&
-		b[5] == 0 && b[6] == 0 && b[7] == 0 && b[8] == 0 && b[9] == 0 &&
-		b[10] == 0xff && b[11] == 0xff);
-}
-
-static __always_inline __u32 ipv4_from_mapped(const struct in6_addr *addr)
-{
-	/* bytes 12-15 hold the IPv4 address in network byte order */
-	return *(__u32 *)(&addr->in6_u.u6_addr8[12]);
-}
-
-static __always_inline void ipv4_to_mapped(struct in6_addr *addr, __u32 ip4_be)
-{
-	__builtin_memset(addr, 0, sizeof(*addr));
-	addr->in6_u.u6_addr8[10] = 0xff;
-	addr->in6_u.u6_addr8[11] = 0xff;
-	*(__u32 *)(&addr->in6_u.u6_addr8[12]) = ip4_be;
-}
 
 volatile const int n3_vlan;
 volatile const int n3_vlan = 0;
