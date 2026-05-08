@@ -148,10 +148,29 @@ func register(ctx context.Context, dbInstance *db.Database, activationToken stri
 // reports its own network interfaces, connected radios, per-UE session
 // state from its local AMF, and BGP live state when BGP is enabled.
 func BuildStatus(ctx context.Context, dbInstance *db.Database, cfg config.Config, amfInstance *amf.AMF, bgpService *bgp.BGPService) client.EllaCoreStatus {
+	// N2 may bind by interface name (resolve to every IP on that
+	// interface, like the local /interfaces endpoint does) or by a
+	// single address. Mirror that resolution here so Fleet can list
+	// every N2 bind point per core.
+	var n2Addresses []string
+
+	switch {
+	case cfg.Interfaces.N2.Name != "":
+		ips, err := config.GetInterfaceIPs(cfg.Interfaces.N2.Name)
+		if err != nil {
+			logger.APILog.Warn("failed to resolve N2 interface IPs for fleet sync",
+				zap.String("interface", cfg.Interfaces.N2.Name), zap.Error(err))
+		} else {
+			n2Addresses = ips
+		}
+	case cfg.Interfaces.N2.Address != "":
+		n2Addresses = []string{cfg.Interfaces.N2.Address}
+	}
+
 	networkInterfaces := client.StatusNetworkInterfaces{
 		N2: client.N2Interface{
-			Address: cfg.Interfaces.N2.Address,
-			Port:    cfg.Interfaces.N2.Port,
+			Addresses: n2Addresses,
+			Port:      cfg.Interfaces.N2.Port,
 		},
 		N3: client.N3Interface{
 			Name:    cfg.Interfaces.N3.Name,

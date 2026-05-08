@@ -148,8 +148,13 @@ type RetentionPolicy struct {
 }
 
 type N2Interface struct {
-	Address string `json:"address"`
-	Port    int    `json:"port"`
+	// Addresses is the resolved list of N2 IPs for the node. When the
+	// node binds N2 by interface name (cfg.Interfaces.N2.Name), every
+	// IP currently assigned to that interface is reported; when it
+	// binds by literal address (cfg.Interfaces.N2.Address), a
+	// single-element list is reported. Empty when neither is set.
+	Addresses []string `json:"addresses"`
+	Port      int      `json:"port"`
 }
 
 type Vlan struct {

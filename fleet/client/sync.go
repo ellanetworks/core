@@ -31,6 +31,10 @@ type FlowEntry struct {
 	StartTime       string `json:"start_time"`
 	EndTime         string `json:"end_time"`
 	Direction       string `json:"direction"`
+	// Action mirrors dbwriter.FlowReport.Action: "allow" when the flow
+	// matched an allow rule, "drop" when it was dropped by an SDF
+	// filter. Empty when the producer didn't classify (older Cores).
+	Action string `json:"action,omitempty"`
 }
 
 type SyncParams struct {
