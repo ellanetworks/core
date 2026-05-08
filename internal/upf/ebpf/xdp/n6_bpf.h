@@ -223,7 +223,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 			ctx->statistics->xdp_actions[XDP_DROP &
 						     EUPF_MAX_XDP_ACTION_MASK] +=
 				1;
-			account_flow(ctx, n3_ifindex, pdr->imsi, DROP);
+			account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, DROP);
 			return XDP_DROP;
 		}
 	}
@@ -239,7 +239,7 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	}
 
 	update_urr_bytes(ctx, urr_id);
-	account_flow(ctx, n3_ifindex, pdr->imsi, ALLOW);
+	account_flow(ctx, n3_ifindex, pdr->imsi, IPV4, ALLOW);
 
 	return send_to_gtp_tunnel(ctx, far, tos, qer->qfi);
 }
@@ -333,7 +333,7 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 
 	__u32 urr_id = pdr->urr_id;
 	update_urr_bytes(ctx, urr_id);
-	/* Flow accounting is IPv4-only; not called for IPv6 downlink. */
+	account_flow(ctx, n3_ifindex, pdr->imsi, IPV6, ALLOW);
 
 	return send_to_gtp_tunnel(ctx, far, tos, qer->qfi);
 }

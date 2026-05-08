@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "xdp/utils/ip_addr.h"
 #include "xdp/utils/packet_context.h"
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
@@ -22,8 +23,8 @@ volatile const bool flowact = false;
 
 struct flow {
 	__u64 imsi;
-	__u32 saddr;
-	__u32 daddr;
+	struct in6_addr saddr;
+	struct in6_addr daddr;
 	__u32 ingress_ifindex;
 	__u32 egress_ifindex;
 	union {
@@ -38,7 +39,7 @@ struct flow {
 		};
 	};
 	__u8 proto;
-	__u8 tos;
+	__u8 dscp;
 	__u8 action;
 };
 
@@ -58,20 +59,28 @@ struct {
 
 static __always_inline void account_flow(struct packet_context *ctx,
 					 __u32 egress_ifindex, __u64 imsi,
-					 __u8 action)
+					 __u8 ip_ver, __u8 action)
 {
 	if (!flowact)
 		return;
 
 	struct flow f = {};
-	f.saddr = ctx->ip4->saddr;
-	f.daddr = ctx->ip4->daddr;
-	f.proto = ctx->ip4->protocol;
-	f.tos = ctx->ip4->tos;
 	f.ingress_ifindex = ctx->xdp_ctx->ingress_ifindex;
 	f.egress_ifindex = egress_ifindex;
 	f.imsi = imsi;
 	f.action = action;
+
+	if (ip_ver == 4) {
+		ipv4_to_mapped(&f.saddr, ctx->ip4->saddr);
+		ipv4_to_mapped(&f.daddr, ctx->ip4->daddr);
+		f.proto = ctx->ip4->protocol;
+		f.dscp = ctx->ip4->tos >> 2;
+	} else {
+		f.saddr = ctx->ip6->saddr;
+		f.daddr = ctx->ip6->daddr;
+		f.proto = ctx->ip6->nexthdr;
+		f.dscp = ctx->ip6->priority >> 4;
+	}
 
 	switch (f.proto) {
 	case IPPROTO_TCP:

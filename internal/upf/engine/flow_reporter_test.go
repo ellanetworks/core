@@ -4,7 +4,6 @@
 package engine_test
 
 import (
-	"encoding/binary"
 	"net/netip"
 	"testing"
 	"time"
@@ -13,30 +12,39 @@ import (
 	"github.com/ellanetworks/core/internal/upf/engine"
 )
 
-// Helper function to convert IP address to uint32 format used by eBPF
-// The actual implementation uses binary.NativeEndian.PutUint32(), so we reverse it
-func makeIPUint32(b0, b1, b2, b3 byte) uint32 {
-	addr := netip.AddrFrom4([4]byte{b0, b1, b2, b3})
-	// Convert to uint32 using NativeEndian (matching the actual int2ip function behavior)
-	b := addr.As4()
+// helper function to create an in6_addr from an IPv4 address (IPv4-mapped format)
+func makeIPV4Mapped(b0, b1, b2, b3 byte) ebpf.N3N6EntrypointIn6Addr {
+	var addr ebpf.N3N6EntrypointIn6Addr
 
-	return binary.NativeEndian.Uint32(b[:])
+	b := netip.AddrFrom4([4]byte{b0, b1, b2, b3}).As16()
+	b[10] = 0xff
+	b[11] = 0xff
+	copy(addr.In6U.U6Addr8[:], b[:])
+
+	return addr
 }
 
-// Helper function to convert port from host byte order to network byte order
+// helper function to create an in6_addr from a 128-bit IPv6 address
+func makeIPV6(b ...byte) ebpf.N3N6EntrypointIn6Addr {
+	var addr ebpf.N3N6EntrypointIn6Addr
+	for i := 0; i < len(b) && i < 16; i++ {
+		addr.In6U.U6Addr8[i] = b[i]
+	}
+
+	return addr
+}
+
+// helper function to convert port from host byte order to network byte order
 // The actual code uses u16NtoHS which converts network -> host, so we reverse it
 func makePortUint16(port uint16) uint16 {
-	b := make([]byte, 2)
-	binary.NativeEndian.PutUint16(b, port)
-
-	return binary.BigEndian.Uint16(b)
+	return (port >> 8) | (port << 8)
 }
 
 func TestBuildFlowReportRequestBasic(t *testing.T) {
 	flow := ebpf.N3N6EntrypointFlow{
 		Imsi:  1019756139935,
-		Saddr: makeIPUint32(192, 168, 1, 100),
-		Daddr: makeIPUint32(8, 8, 8, 8),
+		Saddr: makeIPV4Mapped(192, 168, 1, 100),
+		Daddr: makeIPV4Mapped(8, 8, 8, 8),
 		Sport: makePortUint16(12345),
 		Dport: makePortUint16(53),
 		Proto: 17, // UDP
@@ -95,8 +103,8 @@ func TestBuildFlowReportRequestDifferentProtocols(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			flow := ebpf.N3N6EntrypointFlow{
 				Imsi:  1019756139935,
-				Saddr: makeIPUint32(192, 168, 1, 100),
-				Daddr: makeIPUint32(8, 8, 8, 8),
+				Saddr: makeIPV4Mapped(192, 168, 1, 100),
+				Daddr: makeIPV4Mapped(8, 8, 8, 8),
 				Sport: makePortUint16(12345),
 				Dport: makePortUint16(tc.port),
 				Proto: tc.protocol,
@@ -125,8 +133,8 @@ func TestBuildFlowReportRequestDifferentProtocols(t *testing.T) {
 func TestBuildFlowReportRequestTimestampFormatting(t *testing.T) {
 	flow := ebpf.N3N6EntrypointFlow{
 		Imsi:  1019756139935,
-		Saddr: makeIPUint32(192, 168, 1, 100),
-		Daddr: makeIPUint32(8, 8, 8, 8),
+		Saddr: makeIPV4Mapped(192, 168, 1, 100),
+		Daddr: makeIPV4Mapped(8, 8, 8, 8),
 		Sport: makePortUint16(12345),
 		Dport: makePortUint16(53),
 		Proto: 17,
@@ -155,31 +163,59 @@ func TestBuildFlowReportRequestTimestampFormatting(t *testing.T) {
 func TestBuildFlowReportRequestIPAddressConversion(t *testing.T) {
 	testCases := []struct {
 		name        string
-		saddr       uint32
-		daddr       uint32
+		saddr       ebpf.N3N6EntrypointIn6Addr
+		daddr       ebpf.N3N6EntrypointIn6Addr
 		expectedSrc string
 		expectedDst string
 	}{
 		{
 			"RFC1918 private network",
-			makeIPUint32(192, 168, 1, 100),
-			makeIPUint32(192, 168, 1, 1),
+			makeIPV4Mapped(192, 168, 1, 100),
+			makeIPV4Mapped(192, 168, 1, 1),
 			"192.168.1.100",
 			"192.168.1.1",
 		},
 		{
 			"Public DNS servers",
-			makeIPUint32(8, 8, 8, 8),
-			makeIPUint32(1, 1, 1, 1),
+			makeIPV4Mapped(8, 8, 8, 8),
+			makeIPV4Mapped(1, 1, 1, 1),
 			"8.8.8.8",
 			"1.1.1.1",
 		},
 		{
 			"Loopback",
-			makeIPUint32(127, 0, 0, 1),
-			makeIPUint32(127, 0, 0, 1),
+			makeIPV4Mapped(127, 0, 0, 1),
+			makeIPV4Mapped(127, 0, 0, 1),
 			"127.0.0.1",
 			"127.0.0.1",
+		},
+		{
+			"Native IPv6",
+			makeIPV6(0x20, 0x01, 0x0d, 0xb8, 0xab, 0xcd, 0xef, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01),
+			makeIPV6(0x20, 0x01, 0x0d, 0xb8, 0xab, 0xcd, 0xef, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01),
+			"2001:db8:abcd:ef01::1",
+			"2001:db8:abcd:ef02::1",
+		},
+		{
+			"IPv6 link-local",
+			makeIPV6(0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01),
+			makeIPV6(0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02),
+			"fe80::200:0:0:1",
+			"fe80::200:0:0:2",
+		},
+		{
+			"IPv6 all-zeros",
+			makeIPV6(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00),
+			makeIPV6(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01),
+			"::",
+			"::1",
+		},
+		{
+			"IPv6 with 0xFFFF at bytes 10-11 but non-zero prefix",
+			makeIPV6(0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x01, 0x02, 0x03),
+			makeIPV6(0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89, 0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x01, 0x02, 0x04),
+			"abcd:ef01:2345:6789:ffff:ffff:1:203",
+			"abcd:ef01:2345:6789:ffff:ffff:1:204",
 		},
 	}
 
@@ -217,8 +253,8 @@ func TestBuildFlowReportRequestIPAddressConversion(t *testing.T) {
 func TestBuildFlowReportRequestImsiFormatting(t *testing.T) {
 	flow := ebpf.N3N6EntrypointFlow{
 		Imsi:  1019756139935,
-		Saddr: makeIPUint32(192, 168, 1, 100),
-		Daddr: makeIPUint32(8, 8, 8, 8),
+		Saddr: makeIPV4Mapped(192, 168, 1, 100),
+		Daddr: makeIPV4Mapped(8, 8, 8, 8),
 		Sport: makePortUint16(12345),
 		Dport: makePortUint16(53),
 		Proto: 17,
@@ -235,5 +271,84 @@ func TestBuildFlowReportRequestImsiFormatting(t *testing.T) {
 
 	if req.IMSI != "001019756139935" {
 		t.Fatalf("Expected IMSI 001019756139935, got %s", req.IMSI)
+	}
+}
+
+func TestBuildFlowReportRequestIPv6Addresses(t *testing.T) {
+	// Test that IPv6 addresses are correctly converted without the IPv4-mapped prefix
+	flow := ebpf.N3N6EntrypointFlow{
+		Imsi:  1019756139935,
+		Saddr: makeIPV6(0x20, 0x01, 0x0d, 0xb8, 0xab, 0xcd, 0xef, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01),
+		Daddr: makeIPV6(0x20, 0x01, 0x0d, 0xb8, 0xab, 0xcd, 0xef, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01),
+		Sport: makePortUint16(54321),
+		Dport: makePortUint16(443),
+		Proto: 6, // TCP
+	}
+
+	stats := ebpf.N3N6EntrypointFlowStats{
+		FirstTs: 1000000000,
+		LastTs:  1000500000,
+		Packets: 500,
+		Bytes:   250000,
+	}
+
+	req := engine.BuildFlowReportRequest(flow, stats)
+
+	if req.SourceIP != "2001:db8:abcd:ef01::1" {
+		t.Fatalf("Expected source IP 2001:db8:abcd:ef01::1, got %s", req.SourceIP)
+	}
+
+	if req.DestinationIP != "2001:db8:abcd:ef02::1" {
+		t.Fatalf("Expected destination IP 2001:db8:abcd:ef02::1, got %s", req.DestinationIP)
+	}
+
+	if req.SourcePort != 54321 {
+		t.Fatalf("Expected source port 54321, got %d", req.SourcePort)
+	}
+
+	if req.DestinationPort != 443 {
+		t.Fatalf("Expected destination port 443, got %d", req.DestinationPort)
+	}
+
+	if req.Protocol != 6 {
+		t.Fatalf("Expected protocol 6 (TCP), got %d", req.Protocol)
+	}
+}
+
+func TestBuildFlowReportRequestMixedIPv4IPv6(t *testing.T) {
+	// Test that IPv4 addresses are correctly identified as IPv4-mapped
+	flow := ebpf.N3N6EntrypointFlow{
+		Imsi:  1019756139935,
+		Saddr: makeIPV4Mapped(10, 0, 0, 1),
+		Daddr: makeIPV4Mapped(172, 16, 0, 1),
+		Sport: makePortUint16(8080),
+		Dport: makePortUint16(80),
+		Proto: 6, // TCP
+	}
+
+	stats := ebpf.N3N6EntrypointFlowStats{
+		FirstTs: 2000000000,
+		LastTs:  2000100000,
+		Packets: 200,
+		Bytes:   100000,
+	}
+
+	req := engine.BuildFlowReportRequest(flow, stats)
+
+	if req.SourceIP != "10.0.0.1" {
+		t.Fatalf("Expected source IP 10.0.0.1, got %s", req.SourceIP)
+	}
+
+	if req.DestinationIP != "172.16.0.1" {
+		t.Fatalf("Expected destination IP 172.16.0.1, got %s", req.DestinationIP)
+	}
+
+	// Verify the address is treated as IPv4 (no brackets in string representation)
+	if netip.MustParseAddr(req.SourceIP).Is6() {
+		t.Fatal("Expected IPv4 address, got IPv6")
+	}
+
+	if !netip.MustParseAddr(req.DestinationIP).Is4() {
+		t.Fatal("Expected IPv4 address, got IPv6")
 	}
 }
