@@ -25,8 +25,6 @@ import (
 	"github.com/ellanetworks/core/internal/smf"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 )
 
 // interfaceDBKernelMap maps the interface string to the kernel.NetworkInterface enum.
@@ -115,15 +113,12 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 		httpAddr = net.JoinHostPort(cfg.Interfaces.API.Address, strconv.Itoa(cfg.Interfaces.API.Port))
 	}
 
-	h2Server := &http2.Server{
-		IdleTimeout: 120 * time.Second,
-	}
-
 	srv := &http.Server{
 		Addr:              httpAddr,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       1 * time.Minute,
 		WriteTimeout:      5 * time.Minute,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	s.httpServer = srv
@@ -191,7 +186,11 @@ func StartDiscovery(ctx context.Context, dbInstance *db.Database, cfg config.Con
 				serveErr = srv.ListenAndServeTLS(cfg.Interfaces.API.TLS.Cert, cfg.Interfaces.API.TLS.Key)
 			}
 		} else {
-			srv.Handler = h2c.NewHandler(&s.handler, h2Server)
+			protocols := new(http.Protocols)
+			protocols.SetHTTP1(true)
+			protocols.SetUnencryptedHTTP2(true)
+			srv.Protocols = protocols
+			srv.Handler = &s.handler
 
 			if ln != nil {
 				serveErr = srv.Serve(ln)
