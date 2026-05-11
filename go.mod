@@ -5,10 +5,10 @@ go 1.26.2
 require (
 	github.com/canonical/sqlair v0.0.0-20250120155751-a83645b9a121
 	github.com/cilium/ebpf v0.20.0
-	github.com/free5gc/aper v1.1.0
-	github.com/free5gc/nas v1.2.2
-	github.com/free5gc/ngap v1.1.2
-	github.com/free5gc/util v1.3.1
+	github.com/free5gc/aper v1.1.1
+	github.com/free5gc/nas v1.2.3
+	github.com/free5gc/ngap v1.1.3
+	github.com/free5gc/util v1.3.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/nftables v0.3.0
 	github.com/hashicorp/go-hclog v1.6.3
@@ -53,7 +53,7 @@ require (
 	github.com/eapache/queue v1.1.0 // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/free5gc/openapi v1.2.3
+	github.com/free5gc/openapi v1.2.4
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gaissmai/bart v0.26.1 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
