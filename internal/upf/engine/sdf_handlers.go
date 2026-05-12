@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"net/netip"
 
@@ -27,16 +26,8 @@ func updateFiltersRule(rule models.FilterRule) ebpf.SdfRule {
 	if rule.RemotePrefix != "" {
 		prefix, err := netip.ParsePrefix(rule.RemotePrefix)
 		if err == nil {
-			addr4 := prefix.Masked().Addr().As4()
-			sdfRule.RemoteIP = binary.BigEndian.Uint32(addr4[:])
-			bits := prefix.Bits()
-
-			mask := uint32(0)
-			if bits > 0 {
-				mask = ^uint32(0) << (32 - bits)
-			}
-
-			sdfRule.RemoteMask = mask
+			sdfRule.RemoteIP = prefix.Masked().Addr().As16()
+			sdfRule.PrefixLen = uint8(prefix.Bits())
 		}
 	}
 

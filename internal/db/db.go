@@ -1706,12 +1706,42 @@ func (db *Database) BeginTransaction(ctx context.Context) (*Transaction, error) 
 
 // Transaction wraps a SQLair transaction.
 type Transaction struct {
-	tx *sqlair.TX
-	db *Database
+	tx         *sqlair.TX
+	db         *Database
+	trackedOps map[string]struct{}
+}
+
+func (t *Transaction) trackOp(name string) {
+	if t.trackedOps == nil {
+		t.trackedOps = make(map[string]struct{})
+	}
+
+	t.trackedOps[name] = struct{}{}
 }
 
 func (t *Transaction) Commit() error {
-	return t.tx.Commit()
+	if err := t.tx.Commit(); err != nil {
+		return err
+	}
+
+	if len(t.trackedOps) > 0 && t.db.changefeed != nil {
+		var topics []Topic
+
+		seen := make(map[Topic]struct{})
+
+		for opName := range t.trackedOps {
+			for _, topic := range topicsForChangesetOp(opName) {
+				if _, ok := seen[topic]; !ok {
+					seen[topic] = struct{}{}
+					topics = append(topics, topic)
+				}
+			}
+		}
+
+		t.db.publishOpTopics(topics, 0)
+	}
+
+	return nil
 }
 
 func (t *Transaction) Rollback() error {

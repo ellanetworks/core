@@ -38,6 +38,7 @@ import {
   PROTOCOL_CHIP_COLORS,
   PROTOCOL_NAMES,
 } from "@/utils/formatters";
+import { cidrRegex, ipv6CidrRegex } from "@/utils/ip";
 
 const parseProtocol = (value: string): number | undefined => {
   if (!value || value.trim() === "") return undefined;
@@ -102,10 +103,10 @@ const schema = yup.object().shape({
     .string()
     .test(
       "cidr-or-empty",
-      "Must be valid CIDR format (e.g., 192.168.0.0/24)",
+      "Must be valid CIDR format (e.g., 192.168.0.0/24 or 2001:db8::/32)",
       (val) => {
         if (!val || val.trim() === "") return true; // allow empty (optional field)
-        return /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/.test(val);
+        return cidrRegex.test(val) || ipv6CidrRegex.test(val);
       },
     ),
   protocol: yup
@@ -285,11 +286,12 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
       description: rule.description,
       action: rule.action,
       remotePrefix: rule.remote_prefix || "",
-      protocol: rule.protocol
-        ? (PROTOCOL_NAMES[rule.protocol] ?? String(rule.protocol))
-        : "",
-      portLow: rule.port_low ? String(rule.port_low) : "",
-      portHigh: rule.port_high ? String(rule.port_high) : "",
+      protocol:
+        rule.protocol !== 0
+          ? (PROTOCOL_NAMES[rule.protocol] ?? String(rule.protocol))
+          : "",
+      portLow: rule.port_low !== 0 ? String(rule.port_low) : "",
+      portHigh: rule.port_high !== 0 ? String(rule.port_high) : "",
     });
     setErrors({});
     setTouched({});
@@ -532,8 +534,11 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
                     variant="body2"
                     sx={{
                       fontFamily: "monospace",
-                      width: 140,
-                      flexShrink: 0,
+                      minWidth: 220,
+                      flex: "0 1 220px",
+                      whiteSpace: "normal",
+                      wordBreak: "break-word",
+                      pr: 1,
                     }}
                   >
                     {rule.remote_prefix || "any"}
@@ -541,7 +546,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
                   <Typography
                     variant="body2"
                     color="textSecondary"
-                    sx={{ width: 90, flexShrink: 0 }}
+                    sx={{ width: 90, flexShrink: 0, whiteSpace: "nowrap" }}
                   >
                     {formatPorts(rule)}
                   </Typography>
@@ -674,7 +679,7 @@ const PolicyRulesModal: React.FC<PolicyRulesModalProps> = ({
             helperText={
               touched.remotePrefix && errors.remotePrefix
                 ? errors.remotePrefix
-                : "Optional — IP network range (e.g., 10.0.0.0/8 for all 10.x.x.x addresses)"
+                : "Optional — IPv4 or IPv6 CIDR (e.g., 10.0.0.0/8 or 2001:db8::/32)"
             }
             margin="normal"
           />

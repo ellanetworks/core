@@ -78,13 +78,13 @@ The `rules` object contains:
 
 Each rule contains:
 - `description` (string): Description of the rule
-- `remote_prefix` (string, optional): CIDR notation for remote prefix (e.g., "10.0.0.0/24") or null
+- `remote_prefix` (string, optional): IPv4 or IPv6 CIDR notation for remote prefix (e.g., "10.0.0.0/24" or "2001:db8::/32") or null. When omitted, matches any IP.
 - `protocol` (integer): Protocol number (0-255)
 - `port_low` (integer): Low port number (0-65535)
 - `port_high` (integer): High port number (0-65535)
 - `action` (string): "allow" or "deny"
 
-### Sample Request with Rules
+### Sample Request with IPv4 Rules
 
 ```json
 {
@@ -131,6 +131,42 @@ Each rule contains:
                 "action": "deny"
             }
         ]
+    }
+}
+```
+
+### Sample Request with IPv6 Rules
+
+```json
+{
+    "name": "ipv6-policy",
+    "profile_name": "enterprise",
+    "slice_name": "default",
+    "session_ambr_uplink": "100 Mbps",
+    "session_ambr_downlink": "200 Mbps",
+    "var5qi": 9,
+    "arp": 1,
+    "data_network_name": "internet",
+    "rules": {
+        "uplink": [
+            {
+                "description": "Allow HTTPS to IPv6",
+                "protocol": 6,
+                "port_low": 443,
+                "port_high": 443,
+                "remote_prefix": "2001:db8::/32",
+                "action": "allow"
+            },
+            {
+                "description": "Deny all IPv6",
+                "protocol": 0,
+                "port_low": 0,
+                "port_high": 0,
+                "remote_prefix": "::/0",
+                "action": "deny"
+            }
+        ],
+        "downlink": []
     }
 }
 ```

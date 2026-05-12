@@ -387,6 +387,8 @@ func (t *Transaction) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (s
 
 	span.SetStatus(codes.Ok, "")
 
+	t.trackOp("CreateNetworkRule")
+
 	return nr.ID, nil
 }
 
@@ -420,6 +422,8 @@ func (t *Transaction) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID
 	}
 
 	span.SetStatus(codes.Ok, "")
+
+	t.trackOp("DeleteNetworkRulesByPolicy")
 
 	return nil
 }

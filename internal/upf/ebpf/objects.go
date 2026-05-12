@@ -2,6 +2,7 @@ package ebpf
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"reflect"
 	"runtime"
@@ -89,12 +90,6 @@ func (bpfObjects *BpfObjects) Load() error {
 
 	if err := bpfObjects.loadAndAssignFromSpec(n3n6Spec, &bpfObjects.N3N6EntrypointObjects, nil); err != nil {
 		logger.UpfLog.Error("failed to load N3/N6 program", zap.Error(err))
-
-		var ve *ebpf.VerifierError
-		if errors.As(err, &ve) {
-			logger.UpfLog.Error("verifier logs", zap.String("verifier", ve.Error()))
-		}
-
 		return err
 	}
 
@@ -143,6 +138,12 @@ func (bpfObjects *BpfObjects) loadAndAssignFromSpec(spec *ebpf.CollectionSpec, t
 
 	if err := spec.LoadAndAssign(to, opts); err != nil {
 		logger.UpfLog.Error("failed to load eBPF program", zap.Error(err))
+
+		var ve *ebpf.VerifierError
+		if errors.As(err, &ve) {
+			logger.UpfLog.Debug("verifier log", zap.String("verifier", fmt.Sprintf("%+v", ve)))
+		}
+
 		return err
 	}
 
@@ -201,12 +202,6 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 	var newObjects N3N6EntrypointObjects
 	if err := bpfObjects.loadAndAssignFromSpec(spec, &newObjects, opts); err != nil {
 		logger.UpfLog.Error("failed to load N3/N6 program with map replacements", zap.Error(err))
-
-		var ve *ebpf.VerifierError
-		if errors.As(err, &ve) {
-			logger.UpfLog.Error("verifier logs", zap.String("verifier", ve.Error()))
-		}
-
 		return err
 	}
 

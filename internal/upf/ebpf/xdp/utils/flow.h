@@ -71,11 +71,15 @@ static __always_inline void account_flow(struct packet_context *ctx,
 	f.action = action;
 
 	if (ip_ver == 4) {
+		if (!ctx->ip4)
+			return;
 		ipv4_to_mapped(&f.saddr, ctx->ip4->saddr);
 		ipv4_to_mapped(&f.daddr, ctx->ip4->daddr);
 		f.proto = ctx->ip4->protocol;
 		f.dscp = ctx->ip4->tos >> 2;
 	} else {
+		if (!ctx->ip6)
+			return;
 		f.saddr = ctx->ip6->saddr;
 		f.daddr = ctx->ip6->daddr;
 		f.proto = ctx->ip6->nexthdr;
@@ -89,6 +93,8 @@ static __always_inline void account_flow(struct packet_context *ctx,
 				return;
 			}
 		}
+		if (!ctx->tcp)
+			return;
 		f.sport = ctx->tcp->source;
 		f.dport = ctx->tcp->dest;
 		break;
@@ -98,6 +104,8 @@ static __always_inline void account_flow(struct packet_context *ctx,
 				return;
 			}
 		}
+		if (!ctx->udp)
+			return;
 		f.sport = ctx->udp->source;
 		f.dport = ctx->udp->dest;
 		break;
@@ -107,6 +115,8 @@ static __always_inline void account_flow(struct packet_context *ctx,
 				return;
 			}
 		}
+		if (!ctx->icmp)
+			return;
 		if (ctx->icmp->type == ICMP_ECHO ||
 		    ctx->icmp->type == ICMP_ECHOREPLY ||
 		    ctx->icmp->type == ICMP_TIMESTAMP ||

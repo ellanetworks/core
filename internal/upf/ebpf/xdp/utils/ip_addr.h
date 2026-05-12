@@ -4,6 +4,7 @@
 
 #include <linux/in6.h>
 #include <linux/types.h>
+#include <bpf/bpf_endian.h>
 
 #define IPV4 4
 #define IPV6 6
@@ -17,23 +18,23 @@
 
 static __always_inline int is_ipv4_mapped_ipv6(const struct in6_addr *addr)
 {
-	/* Check bytes 0-9 are zero and bytes 10-11 are 0xff */
-	const __u8 *b = addr->in6_u.u6_addr8;
-	return (b[0] == 0 && b[1] == 0 && b[2] == 0 && b[3] == 0 && b[4] == 0 &&
-		b[5] == 0 && b[6] == 0 && b[7] == 0 && b[8] == 0 && b[9] == 0 &&
-		b[10] == 0xff && b[11] == 0xff);
+	const __u32 *w = addr->in6_u.u6_addr32;
+	__u32 diff;
+
+	/* ::ffff:x.x.x.x -> [0]=0, [1]=0, [2]=0000ffff in network order */
+	diff = w[0] | w[1] | (w[2] ^ bpf_htonl(0x0000ffff));
+	return diff == 0;
 }
 
 static __always_inline __u32 ipv4_from_mapped(const struct in6_addr *addr)
 {
-	/* bytes 12-15 hold the IPv4 address in network byte order */
-	return *(__u32 *)(&addr->in6_u.u6_addr8[12]);
+	return addr->in6_u.u6_addr32[3];
 }
 
 static __always_inline void ipv4_to_mapped(struct in6_addr *addr, __u32 ip4_be)
 {
-	__builtin_memset(addr, 0, sizeof(*addr));
-	addr->in6_u.u6_addr8[10] = 0xff;
-	addr->in6_u.u6_addr8[11] = 0xff;
-	*(__u32 *)(&addr->in6_u.u6_addr8[12]) = ip4_be;
+	addr->in6_u.u6_addr32[0] = 0;
+	addr->in6_u.u6_addr32[1] = 0;
+	addr->in6_u.u6_addr32[2] = bpf_htonl(0x0000ffff);
+	addr->in6_u.u6_addr32[3] = ip4_be;
 }
