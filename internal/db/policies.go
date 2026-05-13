@@ -542,7 +542,7 @@ func (t *Transaction) CreatePolicy(ctx context.Context, policy *Policy) (string,
 
 	span.SetStatus(codes.Ok, "")
 
-	t.trackOp("CreatePolicy")
+	t.db.publishOpTopics([]Topic{TopicPolicies}, 0)
 
 	return policy.ID, nil
 }
@@ -592,7 +592,7 @@ func (t *Transaction) UpdatePolicy(ctx context.Context, policy *Policy) error {
 
 	span.SetStatus(codes.Ok, "")
 
-	t.trackOp("UpdatePolicy")
+	t.db.publishOpTopics([]Topic{TopicPolicies}, 0)
 
 	return nil
 }

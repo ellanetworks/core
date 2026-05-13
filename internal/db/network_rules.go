@@ -387,7 +387,7 @@ func (t *Transaction) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (s
 
 	span.SetStatus(codes.Ok, "")
 
-	t.trackOp("CreateNetworkRule")
+	t.db.publishOpTopics([]Topic{TopicNetworkRules}, 0)
 
 	return nr.ID, nil
 }
@@ -423,7 +423,7 @@ func (t *Transaction) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID
 
 	span.SetStatus(codes.Ok, "")
 
-	t.trackOp("DeleteNetworkRulesByPolicy")
+	t.db.publishOpTopics([]Topic{TopicNetworkRules}, 0)
 
 	return nil
 }
