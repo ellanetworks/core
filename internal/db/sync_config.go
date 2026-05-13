@@ -1168,8 +1168,39 @@ func bgpPeerEqual(cur BGPPeer, want client.BGPPeer) bool {
 		cur.Description == want.Description
 }
 
+// fleetManagedRetentionCategories lists the retention categories
+// Fleet has authority over. Any of these missing from the sync
+// payload is interpreted as "Fleet deleted the override" and reset
+// to Core's built-in default. Categories outside this set (audit,
+// radio) are Core-local and never touched by sync.
+var fleetManagedRetentionCategories = []RetentionCategory{
+	CategorySubscriberUsage,
+	CategoryFlowReports,
+}
+
+// defaultRetentionDaysFor returns the boot-seeded default for a
+// category. Mirrors the constants applied in db.Initialize so a
+// Fleet "delete" round-trips to the same value a fresh Core would
+// have used at startup.
+func defaultRetentionDaysFor(cat RetentionCategory) int {
+	switch cat {
+	case CategorySubscriberUsage:
+		return DefaultSubscriberUsageRetentionDays
+	case CategoryFlowReports:
+		return DefaultFlowReportsRetentionDays
+	case CategoryAuditLogs, CategoryRadioLogs:
+		return DefaultLogRetentionDays
+	}
+
+	return 0
+}
+
 func (db *Database) syncRetentionPolicies(ctx context.Context, desired []client.RetentionPolicy) error {
+	want := make(map[RetentionCategory]bool, len(desired))
+
 	for _, rp := range desired {
+		want[RetentionCategory(rp.Category)] = true
+
 		policy := &RetentionPolicy{
 			Category: RetentionCategory(rp.Category),
 			Days:     rp.Days,
@@ -1178,6 +1209,27 @@ func (db *Database) syncRetentionPolicies(ctx context.Context, desired []client.
 		if _, err := db.applySetRetentionPolicy(ctx, policy); err != nil {
 			return fmt.Errorf("set retention policy %s: %w", rp.Category, err)
 		}
+	}
+
+	// Reset Fleet-managed categories Fleet didn't send back to Core's
+	// boot-seeded default. Matches the symmetric CRUD contract Fleet
+	// expects: a DELETE on the retention endpoint clears the
+	// operator's override and reverts to the platform default.
+	for _, cat := range fleetManagedRetentionCategories {
+		if want[cat] {
+			continue
+		}
+
+		policy := &RetentionPolicy{
+			Category: cat,
+			Days:     defaultRetentionDaysFor(cat),
+		}
+
+		if _, err := db.applySetRetentionPolicy(ctx, policy); err != nil {
+			return fmt.Errorf("reset retention policy %s: %w", cat, err)
+		}
+
+		logger.DBLog.Info("Reset retention policy to default from fleet config", zap.String("category", string(cat)), zap.Int("days", policy.Days))
 	}
 
 	return nil
