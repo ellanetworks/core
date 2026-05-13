@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -615,6 +616,16 @@ func (db *Database) AddNonvoter(nodeID int, raftAddress string) error {
 	return db.raftManager.AddNonvoter(nodeID, raftAddress)
 }
 
+// ForceSnapshot triggers a Raft snapshot and blocks until it completes.
+// Used in tests to exercise the snapshot-restore path.
+func (db *Database) ForceSnapshot() error {
+	if db.raftManager == nil {
+		return fmt.Errorf("clustering not enabled")
+	}
+
+	return db.raftManager.Snapshot()
+}
+
 // CurrentSchemaVersion reads the schema_version singleton.
 // Returns 0 on error.
 func (db *Database) CurrentSchemaVersion(ctx context.Context) (int, error) {
@@ -1092,6 +1103,16 @@ func NewDatabase(ctx context.Context, dbPath string, raftCfg ellaraft.ClusterCon
 	db.raftManager = raftMgr
 	db.proposeTimeout = raftMgr.ProposeTimeout()
 	db.probeVoterSchema = raftMgr.ProbePeerSchemaVersion
+
+	// Ensure the FSM migration marker exists so future FSM.Restore
+	// calls know the new code is active and use the snapshot's
+	// lastApplied instead of preserving a potentially stale value.
+	migrationMarker := filepath.Join(dataDir, ".fsm_migrated")
+	if _, statErr := os.Stat(migrationMarker); os.IsNotExist(statErr) {
+		if wErr := os.WriteFile(migrationMarker, []byte("1"), 0o600); wErr != nil {
+			logger.DBLog.Warn("failed to create fsm migration marker", zap.Error(wErr))
+		}
+	}
 
 	db.migrationCheckCh = make(chan struct{}, 1)
 	workerCtx, workerCancel := context.WithCancel(context.Background())
