@@ -291,6 +291,26 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 
 	ctx->interface = INTERFACE_N6;
 
+	/* Parse inner L4 so match_sdf_filters can inspect protocol/ports */
+	parse_l4(ip6->nexthdr, ctx);
+
+	/* SDF filter enforcement (downlink) */
+	{
+		PROFILE_START(PROF_N6_SDF_FILTER);
+		enum xdp_action sdf_verdict =
+			match_sdf_filters(ctx, pdr->filter_map_index);
+		PROFILE_END(PROF_N6_SDF_FILTER);
+		if (sdf_verdict == XDP_DROP) {
+			upf_printk("upf: downlink SDF drop ip:%pI6c",
+				   &ip6->daddr);
+			ctx->statistics->xdp_actions[XDP_DROP &
+						     EUPF_MAX_XDP_ACTION_MASK] +=
+				1;
+			account_flow(ctx, n3_ifindex, pdr->imsi, IPV6, DROP);
+			return XDP_DROP;
+		}
+	}
+
 	upf_printk("upf: downlink session for ip:%pI6c action:%d", &ip6->daddr,
 		   far->action);
 

@@ -126,14 +126,16 @@ type VethEntrypointSdfFilterList struct {
 	NumRules uint8
 	Pad      [3]uint8
 	Rules    [12]struct {
-		_          structs.HostLayout
-		RemoteIp   uint32
-		RemoteMask uint32
-		PortLow    uint16
-		PortHigh   uint16
-		Protocol   uint8
-		Action     uint8
-		Pad        [2]uint8
+		_         structs.HostLayout
+		RemoteIp  VethEntrypointIn6Addr
+		PrefixLen uint8
+		_         [1]byte
+		PortLow   uint16
+		PortHigh  uint16
+		Protocol  uint8
+		Action    uint8
+		Pad       [7]uint8
+		_         [1]byte
 	}
 }
 

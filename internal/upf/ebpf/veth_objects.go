@@ -5,6 +5,7 @@ package ebpf
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cflags "$BPF_CFLAGS" -target bpf VethEntrypoint xdp/veth_bpf.c -- -I. -O2 -Wall -Werror -g
 
 import (
+	"errors"
 	"fmt"
 	"net/netip"
 	"runtime"
@@ -33,6 +34,12 @@ func LoadVethBpfObjects() (*VethBpfObjects, error) {
 	var objs VethEntrypointObjects
 	if err := spec.LoadAndAssign(&objs, &ebpf.CollectionOptions{}); err != nil {
 		logger.UpfLog.Error("failed to load veth XDP program", zap.Error(err))
+
+		var ve *ebpf.VerifierError
+		if errors.As(err, &ve) {
+			logger.UpfLog.Debug("verifier log", zap.String("verifier", fmt.Sprintf("%+v", ve)))
+		}
+
 		return nil, fmt.Errorf("load veth XDP program: %w", err)
 	}
 

@@ -311,6 +311,74 @@ func TestUpdateFilters_NoSessionsForPolicy(t *testing.T) {
 	}
 }
 
+func TestUpdateFiltersRule_IPv6Prefix(t *testing.T) {
+	rule := models.FilterRule{
+		RemotePrefix: "2001:db8::/32",
+		Protocol:     6,
+		PortLow:      80,
+		PortHigh:     80,
+		Action:       models.Deny,
+	}
+
+	sdfRule := updateFiltersRule(rule)
+
+	wantIP := [16]byte{0x20, 0x01, 0x0d, 0xb8}
+	if sdfRule.RemoteIP != wantIP {
+		t.Errorf("RemoteIP = %v, want %v", sdfRule.RemoteIP, wantIP)
+	}
+
+	if sdfRule.PrefixLen != 32 {
+		t.Errorf("PrefixLen = %d, want 32", sdfRule.PrefixLen)
+	}
+
+	if sdfRule.Protocol != 6 {
+		t.Errorf("Protocol = %d, want 6", sdfRule.Protocol)
+	}
+
+	if sdfRule.Action != ebpf.SdfActionDeny {
+		t.Errorf("Action = %d, want deny", sdfRule.Action)
+	}
+}
+
+func TestUpdateFiltersRule_IPv4Prefix(t *testing.T) {
+	rule := models.FilterRule{
+		RemotePrefix: "10.0.0.0/8",
+		Protocol:     17,
+		PortLow:      53,
+		PortHigh:     53,
+		Action:       models.Allow,
+	}
+
+	sdfRule := updateFiltersRule(rule)
+
+	wantIP := [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 10, 0, 0, 0}
+	if sdfRule.RemoteIP != wantIP {
+		t.Errorf("RemoteIP = %v, want %v", sdfRule.RemoteIP, wantIP)
+	}
+
+	if sdfRule.PrefixLen != 8 {
+		t.Errorf("PrefixLen = %d, want 8", sdfRule.PrefixLen)
+	}
+}
+
+func TestUpdateFiltersRule_NoPrefix(t *testing.T) {
+	rule := models.FilterRule{
+		Protocol: 1,
+		Action:   models.Allow,
+	}
+
+	sdfRule := updateFiltersRule(rule)
+
+	var zeroIP [16]byte
+	if sdfRule.RemoteIP != zeroIP {
+		t.Errorf("RemoteIP = %v, want all zeros", sdfRule.RemoteIP)
+	}
+
+	if sdfRule.PrefixLen != 0 {
+		t.Errorf("PrefixLen = %d, want 0", sdfRule.PrefixLen)
+	}
+}
+
 func TestDeleteSession_DeregistersFromPolicyIndex(t *testing.T) {
 	eng := newTestEngine()
 

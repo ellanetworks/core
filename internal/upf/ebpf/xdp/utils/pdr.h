@@ -64,13 +64,14 @@ enum outer_header_creation_values {
 };
 
 struct sdf_rule {
-	__u32 remote_ip; /* network-order IPv4 prefix base; 0 = wildcard */
-	__u32 remote_mask; /* prefix mask; 0 = wildcard */
+	struct in6_addr
+		remote_ip; /* ::ffff:x.x.x.x for IPv4, native for IPv6; all zeros = wildcard */
+	__u8 prefix_len; /* 0 = wildcard (matches all); 0-32 for IPv4, 0-128 for IPv6 */
 	__u16 port_low; /* dest port range low bound; 0 = wildcard */
 	__u16 port_high; /* dest port range high bound; 0 = wildcard */
 	__u8 protocol; /* IP protocol; SDF_PROTO_ANY (255) = wildcard */
 	__u8 action; /* 0 = allow, 1 = deny */
-	__u8 pad[2]; /* explicit padding for 4-byte alignment */
+	__u8 pad[7]; /* padding to 32 bytes for verifier-friendly array indexing */
 };
 
 struct sdf_filter_list {

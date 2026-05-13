@@ -3,6 +3,7 @@
 #include "xdp/utils/pdr.h"
 #include "xdp/utils/packet_context.h"
 #include "xdp/utils/trace.h"
+#include "xdp/utils/ip_addr.h"
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
@@ -34,8 +35,53 @@ struct {
  * N3 interface: daddr is the remote; N6 interface: saddr is the remote.
  */
 static __always_inline enum xdp_action
+match_sdf_rules(struct sdf_filter_list *flist, __u8 num, __u8 pkt_proto,
+		__u16 pkt_dport, __u8 pkt_is_ipv4,
+		const struct in6_addr pkt_remote);
+
+static __always_inline int match_ipv6_prefix(const struct in6_addr *rule_ip,
+					     __u8 prefix_len,
+					     const struct in6_addr *pkt_ip)
+{
+	const __u32 *rule = rule_ip->in6_u.u6_addr32;
+	const __u32 *pkt = pkt_ip->in6_u.u6_addr32;
+	__u8 words = prefix_len >> 5;
+	__u8 bits = prefix_len & 31;
+
+	if (words > 0) {
+		if (rule[0] != pkt[0])
+			return -1;
+	}
+	if (words > 1) {
+		if (rule[1] != pkt[1])
+			return -1;
+	}
+	if (words > 2) {
+		if (rule[2] != pkt[2])
+			return -1;
+	}
+	if (words > 3) {
+		if (rule[3] != pkt[3])
+			return -1;
+	}
+
+	if (words < 4 && bits > 0) {
+		__u32 mask = bpf_htonl(~((__u32)0) << (32 - bits));
+		if ((rule[words] & mask) != (pkt[words] & mask))
+			return -1;
+	}
+
+	return 1;
+}
+
+static __always_inline enum xdp_action
 match_sdf_filters(struct packet_context *ctx, __u32 filter_map_index)
 {
+	__u8 pkt_proto;
+	__u16 pkt_dport = 0;
+	__u8 pkt_is_ipv4;
+	struct in6_addr pkt_remote = {};
+
 	if (filter_map_index == 0)
 		return XDP_PASS;
 
@@ -48,14 +94,21 @@ match_sdf_filters(struct packet_context *ctx, __u32 filter_map_index)
 	if (num > MAX_RULES_PER_FILTER)
 		num = MAX_RULES_PER_FILTER; /* bound for the verifier */
 
-	if (!ctx->ip4)
-		return XDP_PASS; /* IPv6 not filtered yet */
-
-	__u8 pkt_proto = ctx->ip4->protocol;
-	__u32 pkt_remote = (ctx->interface == INTERFACE_N3) ?
-				   bpf_ntohl(ctx->ip4->daddr) :
-				   bpf_ntohl(ctx->ip4->saddr);
-	__u16 pkt_dport = 0;
+	if (ctx->ip4) {
+		pkt_is_ipv4 = 1;
+		pkt_proto = ctx->ip4->protocol;
+		ipv4_to_mapped(&pkt_remote, (ctx->interface == INTERFACE_N3) ?
+						    ctx->ip4->daddr :
+						    ctx->ip4->saddr);
+	} else if (ctx->ip6) {
+		pkt_is_ipv4 = 0;
+		pkt_proto = ctx->ip6->nexthdr;
+		pkt_remote = (ctx->interface == INTERFACE_N3) ?
+				     ctx->ip6->daddr :
+				     ctx->ip6->saddr;
+	} else {
+		return XDP_PASS;
+	}
 
 	if (ctx->tcp)
 		pkt_dport = (ctx->interface == INTERFACE_N3) ?
@@ -66,48 +119,69 @@ match_sdf_filters(struct packet_context *ctx, __u32 filter_map_index)
 				    bpf_ntohs(ctx->udp->dest) :
 				    bpf_ntohs(ctx->udp->source);
 
-	upf_printk("upf: filter packet for %08X:%d, proto %d", pkt_remote,
-		   pkt_dport, pkt_proto);
-	for (__u8 i = 0; i < MAX_RULES_PER_FILTER; i++) {
-		if (i >= num)
-			break;
+	upf_printk("upf: filter packet for %08X:%d, proto %d",
+		   bpf_ntohl(ipv4_from_mapped(&pkt_remote)), pkt_dport,
+		   pkt_proto);
 
+	return match_sdf_rules(flist, num, pkt_proto, pkt_dport, pkt_is_ipv4,
+			       pkt_remote);
+}
+
+static __always_inline enum xdp_action
+match_sdf_rules(struct sdf_filter_list *flist, __u8 num, __u8 pkt_proto,
+		__u16 pkt_dport, __u8 pkt_is_ipv4,
+		const struct in6_addr pkt_remote)
+{
+#pragma clang loop unroll(disable)
+	for (__u8 i = 0; i < num; i++) {
 		const struct sdf_rule *r = &flist->rules[i];
 
-		upf_printk("upf: checking protocol: %d", r->protocol);
-		/* Protocol check */
 		if (r->protocol != SDF_PROTO_ANY && r->protocol != pkt_proto)
 			continue;
 
-		upf_printk("upf: checking prefix: %08X/%08X", r->remote_ip,
-			   r->remote_mask);
-		/* Remote IP/prefix check */
-		if (r->remote_mask != 0) {
-			__u32 rule_net = r->remote_ip & r->remote_mask;
-			__u32 pkt_masked = pkt_remote & r->remote_mask;
-			if (pkt_masked != rule_net)
+		if (r->prefix_len != 0) {
+			__u8 rule_is_ipv4 = is_ipv4_mapped_ipv6(&r->remote_ip);
+
+			if (pkt_is_ipv4 != rule_is_ipv4)
 				continue;
+
+			if (rule_is_ipv4) {
+				__u32 rule_ip = bpf_ntohl(
+					ipv4_from_mapped(&r->remote_ip));
+				__u32 pkt_ip = bpf_ntohl(
+					ipv4_from_mapped(&pkt_remote));
+				__u8 prefix = r->prefix_len;
+
+				if (prefix > 32)
+					prefix = 32;
+
+				if (prefix > 0) {
+					__u32 mask = ~((__u32)0)
+						     << (32 - prefix);
+					if ((rule_ip & mask) != (pkt_ip & mask))
+						continue;
+				}
+			} else {
+				if (r->prefix_len > 128)
+					continue;
+
+				if (!match_ipv6_prefix(&r->remote_ip,
+						       r->prefix_len,
+						       &pkt_remote))
+					continue;
+			}
 		}
 
-		upf_printk("upf: checking ports: %d-%d", r->port_low,
-			   r->port_high);
-		/* Port range check */
 		if (r->port_low != 0) {
 			if (pkt_dport < r->port_low || pkt_dport > r->port_high)
 				continue;
 		}
 
-		upf_printk("upf: rule matched: action: %d", r->action);
-
-		/* First match wins */
 		if (r->action == 1)
 			return XDP_DROP;
 
 		return XDP_PASS;
 	}
 
-	upf_printk("upf: default allow");
-
-	/* default-allow */
 	return XDP_PASS;
 }

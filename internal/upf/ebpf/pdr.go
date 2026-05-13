@@ -127,13 +127,13 @@ type QerInfo struct {
 
 // SdfRule mirrors struct sdf_rule in pdr.h.
 type SdfRule struct {
-	RemoteIP   uint32
-	RemoteMask uint32
-	PortLow    uint16
-	PortHigh   uint16
-	Protocol   uint8
-	Action     uint8
-	_          [2]byte
+	RemoteIP  [16]byte // in6_addr: ::ffff:x.x.x.x for IPv4, native for IPv6
+	PrefixLen uint8
+	PortLow   uint16
+	PortHigh  uint16
+	Protocol  uint8
+	Action    uint8
+	_         [7]byte // padding to 32 bytes for verifier-friendly array indexing
 }
 
 // SdfFilterList mirrors struct sdf_filter_list in pdr.h.

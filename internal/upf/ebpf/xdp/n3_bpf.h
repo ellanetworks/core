@@ -162,6 +162,8 @@ handle_gtp_packet(struct packet_context *ctx)
 		/* Parse inner L4 so match_sdf_filters can inspect protocol/ports */
 		if (ctx->ip4)
 			parse_l4(ctx->ip4->protocol, ctx);
+		else if (ctx->ip6)
+			parse_l4(ctx->ip6->nexthdr, ctx);
 
 		/*
 		 * Intercept IPv6 Router Solicitations from UEs.
@@ -221,7 +223,8 @@ handle_gtp_packet(struct packet_context *ctx)
 			ctx->statistics->xdp_actions[XDP_DROP &
 						     EUPF_MAX_XDP_ACTION_MASK] +=
 				1;
-			account_flow(ctx, n6_ifindex, pdr->imsi, IPV4, DROP);
+			account_flow(ctx, n6_ifindex, pdr->imsi,
+				     ctx->ip4 ? IPV4 : IPV6, DROP);
 			return XDP_DROP;
 		}
 	}
