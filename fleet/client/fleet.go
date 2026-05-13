@@ -3,60 +3,47 @@
 package client
 
 import (
-	"crypto/ecdsa"
-	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 )
 
+// Fleet is the Core-side client for the Fleet management API. After a
+// successful Register call the caller stores the returned token via
+// SetToken; every subsequent request carries it in the Authorization header.
 type Fleet struct {
 	url    string
 	client *http.Client
+	token  string
 }
 
-// New creates a fleet client that skips TLS verification. Used for the
-// initial registration call before a CA certificate is available.
+// New constructs a Fleet client using the default HTTP transport. TLS server
+// certificates are validated against the system trust store. Self-hosted
+// Fleet deployments using self-signed certs must install the cert into the
+// Core host's trust store (or front Fleet with a real cert).
 func New(url string) *Fleet {
 	return &Fleet{
 		url: url,
 		client: &http.Client{
 			Timeout: 15 * time.Second,
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					// #nosec G402 -- registration bootstrap happens before we have a CA bundle
-					InsecureSkipVerify: true,
-				},
-			},
 		},
 	}
 }
 
-// ConfigureMTLS replaces the HTTP transport with one that presents the given
-// client certificate and verifies the server against the provided CA.
-func (fc *Fleet) ConfigureMTLS(certPEM string, key *ecdsa.PrivateKey, caCertPEM string) error {
-	tlsCert, err := tls.X509KeyPair([]byte(certPEM), pemEncodeECKey(key))
-	if err != nil {
-		return fmt.Errorf("loading client key pair: %w", err)
-	}
+// SetToken sets the bearer token used to authenticate sync and unregister
+// requests. Empty token disables the Authorization header (only valid before
+// registration completes).
+func (fc *Fleet) SetToken(token string) {
+	fc.token = token
+}
 
-	caCertPool := x509.NewCertPool()
-	if ok := caCertPool.AppendCertsFromPEM([]byte(caCertPEM)); !ok {
-		return fmt.Errorf("failed to parse CA certificate")
+// addAuth attaches the bearer token to the request when set. Callers use
+// this for every request that requires authentication (sync, unregister).
+func (fc *Fleet) addAuth(req *http.Request) {
+	if fc.token != "" {
+		req.Header.Set("Authorization", "Bearer "+fc.token)
 	}
-
-	fc.client.Transport = &http.Transport{
-		TLSClientConfig: &tls.Config{
-			MinVersion:   tls.VersionTLS12,
-			Certificates: []tls.Certificate{tlsCert},
-			RootCAs:      caCertPool,
-		},
-	}
-
-	return nil
 }
 
 // checkResponseContentType returns a user-friendly error when the fleet
@@ -79,14 +66,4 @@ func isJSONContentType(ct string) bool {
 	}
 
 	return false
-}
-
-// pemEncodeECKey returns the PEM-encoded EC private key bytes.
-func pemEncodeECKey(key *ecdsa.PrivateKey) []byte {
-	der, err := x509.MarshalECPrivateKey(key)
-	if err != nil {
-		return nil
-	}
-
-	return pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: der})
 }

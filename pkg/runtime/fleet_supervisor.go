@@ -77,11 +77,6 @@ func startFleetSync(ctx context.Context, dbInstance *db.Database, cfg config.Con
 		return err
 	}
 
-	key, err := dbInstance.LoadOrGenerateFleetKey(ctx)
-	if err != nil {
-		return err
-	}
-
 	clusterID := ""
 
 	if op, err := dbInstance.GetOperator(ctx); err == nil {
@@ -98,9 +93,7 @@ func startFleetSync(ctx context.Context, dbInstance *db.Database, cfg config.Con
 
 	handle, err := fleet.ResumeSync(ctx, fleet.ResumeSyncInput{
 		FleetURL:        fleetData.URL,
-		Key:             key,
-		CertPEM:         fleetData.Certificate,
-		CAPEM:           fleetData.CACertificate,
+		Token:           string(fleetData.Token),
 		DB:              dbInstance,
 		StatusProvider:  statusProvider,
 		MetricsProvider: metricsProvider,

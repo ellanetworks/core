@@ -92,7 +92,7 @@ func GetStatus(dbInstance *db.Database, ready *atomic.Bool) http.Handler {
 		var fleetStatus FleetStatusResponse
 
 		if fleetData, err := dbInstance.GetFleet(ctx); err == nil && fleetData != nil {
-			fleetStatus.Managed = len(fleetData.Certificate) > 0 && len(fleetData.CACertificate) > 0
+			fleetStatus.Managed = len(fleetData.Token) > 0
 			fleetStatus.LastSyncAt = fleetData.LastSyncAt
 		} else if err != nil {
 			logger.APILog.Warn("couldn't read fleet row for status", zap.Error(err))

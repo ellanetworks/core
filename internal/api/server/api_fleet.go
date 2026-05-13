@@ -100,11 +100,6 @@ func register(ctx context.Context, dbInstance *db.Database, activationToken stri
 		return fmt.Errorf("fleet URL is not configured")
 	}
 
-	key, err := dbInstance.LoadOrGenerateFleetKey(ctx)
-	if err != nil {
-		return fmt.Errorf("couldn't load or generate key: %w", err)
-	}
-
 	fc := client.New(fleetURL)
 
 	initialConfig, err := buildInitialConfig(ctx, dbInstance)
@@ -120,7 +115,6 @@ func register(ctx context.Context, dbInstance *db.Database, activationToken stri
 
 	data, err := fc.Register(ctx, client.RegisterInput{
 		ActivationToken: activationToken,
-		PublicKey:       key.PublicKey,
 		ClusterEnabled:  cfg.Cluster.Enabled,
 		ClusterID:       clusterID,
 		NodeID:          dbInstance.NodeID(),
@@ -135,11 +129,11 @@ func register(ctx context.Context, dbInstance *db.Database, activationToken stri
 
 	logger.EllaLog.Info("Registered to fleet successfully")
 
-	if err := dbInstance.UpdateFleetCredentials(ctx, []byte(data.Certificate), []byte(data.CACertificate)); err != nil {
-		return fmt.Errorf("couldn't store fleet credentials in database: %w", err)
+	if err := dbInstance.UpdateFleetToken(ctx, []byte(data.Token)); err != nil {
+		return fmt.Errorf("couldn't store fleet token in database: %w", err)
 	}
 
-	logger.EllaLog.Info("Fleet credentials stored successfully; fleet supervisor will start the sync loop")
+	logger.EllaLog.Info("Fleet token stored successfully; fleet supervisor will start the sync loop")
 
 	return nil
 }
@@ -528,13 +522,13 @@ func projectPDUSessions(sessions []amf.PDUSessionExport) []client.PDUSession {
 		}
 
 		if s.Snssai != nil {
-			ps.Sst = int32(s.Snssai.Sst)
+			ps.Sst = s.Snssai.Sst
 			ps.Sd = s.Snssai.Sd
 		}
 
 		if s.PolicyData != nil && s.PolicyData.QosData != nil {
-			ps.QoS5QI = int32(s.PolicyData.QosData.Var5qi)
-			ps.QoSARP = int32(s.PolicyData.QosData.Arp.PriorityLevel)
+			ps.QoS5QI = s.PolicyData.QosData.Var5qi
+			ps.QoSARP = s.PolicyData.QosData.Arp.PriorityLevel
 		}
 
 		out = append(out, ps)
@@ -857,18 +851,8 @@ func UnregisterFleet(dbInstance *db.Database) http.HandlerFunc {
 			return
 		}
 
-		key, err := dbInstance.LoadOrGenerateFleetKey(r.Context())
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to load fleet key", err, logger.APILog)
-			return
-		}
-
 		fc := client.New(fleetData.URL)
-
-		if err := fc.ConfigureMTLS(string(fleetData.Certificate), key, string(fleetData.CACertificate)); err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to configure mTLS for fleet", err, logger.APILog)
-			return
-		}
+		fc.SetToken(string(fleetData.Token))
 
 		if err := fc.Unregister(r.Context()); err != nil {
 			logger.APILog.Warn("couldn't notify fleet server about unregistration", zap.Error(err))

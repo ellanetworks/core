@@ -67,6 +67,7 @@ func (fc *Fleet) Sync(ctx context.Context, params *SyncParams) (*SyncResponse, e
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	fc.addAuth(req)
 
 	res, err := fc.client.Do(req)
 	if err != nil {

@@ -4,7 +4,6 @@ package fleet
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -271,9 +270,7 @@ func (r *syncRunner) collectUsage(ctx context.Context) []client.SubscriberUsageE
 // ResumeSyncInput groups the dependencies for starting the sync loop.
 type ResumeSyncInput struct {
 	FleetURL        string
-	Key             *ecdsa.PrivateKey
-	CertPEM         []byte
-	CAPEM           []byte
+	Token           string
 	DB              *db.Database
 	StatusProvider  StatusProvider
 	MetricsProvider MetricsProvider
@@ -288,10 +285,7 @@ type ResumeSyncInput struct {
 // sends subscriber usage and applies config pushed back from Fleet.
 func ResumeSync(ctx context.Context, in ResumeSyncInput) (*SyncHandle, error) {
 	fc := client.New(in.FleetURL)
-
-	if err := fc.ConfigureMTLS(string(in.CertPEM), in.Key, string(in.CAPEM)); err != nil {
-		return nil, fmt.Errorf("couldn't configure mTLS: %w", err)
-	}
+	fc.SetToken(in.Token)
 
 	fleetData, err := in.DB.GetFleet(ctx)
 	if err != nil {

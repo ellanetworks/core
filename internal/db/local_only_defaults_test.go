@@ -120,16 +120,8 @@ func TestLocalOnlySingletons_SeededOnFreshDB(t *testing.T) {
 			t.Fatalf("URL = %q, want default \"\"", got.URL)
 		}
 
-		if len(got.PrivateKey) != 0 {
-			t.Fatalf("PrivateKey len = %d, want 0", len(got.PrivateKey))
-		}
-
-		if len(got.Certificate) != 0 {
-			t.Fatalf("Certificate len = %d, want 0", len(got.Certificate))
-		}
-
-		if len(got.CACertificate) != 0 {
-			t.Fatalf("CACertificate len = %d, want 0", len(got.CACertificate))
+		if len(got.Token) != 0 {
+			t.Fatalf("Token len = %d, want 0", len(got.Token))
 		}
 
 		if got.LastSyncAt != "" {

@@ -8,18 +8,16 @@ import (
 	"fmt"
 )
 
-// V13 introduces the fleet singleton table that tracks registration
-// state with a Fleet control plane (URL, mTLS material, and last sync
-// progress). The table is local-only: each node holds its own
-// registration and mTLS material and connects to Fleet independently.
+// V13 introduces the fleet singleton table that tracks registration state
+// with a Fleet control plane (URL, bearer sync token, and last sync
+// progress). The table is local-only: each node holds its own registration
+// and token and connects to Fleet independently.
 
 const v13CreateFleetTable = `
 	CREATE TABLE IF NOT EXISTS %s (
 		singleton       BOOLEAN PRIMARY KEY DEFAULT TRUE,
 		url             TEXT NOT NULL DEFAULT '',
-		private_key     BLOB NOT NULL DEFAULT X'',
-		certificate     BLOB NOT NULL DEFAULT X'',
-		ca_certificate  BLOB NOT NULL DEFAULT X'',
+		token           BLOB NOT NULL DEFAULT X'',
 		last_sync_at    TEXT NOT NULL DEFAULT '',
 		config_revision INTEGER NOT NULL DEFAULT 0,
 		CHECK (singleton)

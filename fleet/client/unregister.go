@@ -15,6 +15,7 @@ func (fc *Fleet) Unregister(ctx context.Context) error {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	fc.addAuth(req)
 
 	res, err := fc.client.Do(req)
 	if err != nil {

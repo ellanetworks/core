@@ -5,10 +5,7 @@ package client
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/http"
@@ -355,7 +352,6 @@ type EllaCoreMetrics struct {
 
 type RegisterParams struct {
 	ActivationToken string                 `json:"activation_token"`
-	PublicKey       string                 `json:"public_key"`
 	ClusterEnabled  bool                   `json:"cluster_enabled"`
 	ClusterID       string                 `json:"cluster_id,omitempty"`
 	NodeID          int                    `json:"node_id,omitempty"`
@@ -365,9 +361,10 @@ type RegisterParams struct {
 	InitialUsage    []SubscriberUsageEntry `json:"initial_usage,omitempty"`
 }
 
+// RegisterResponse carries the bearer token issued by Fleet. The Core
+// stores it locally and presents it on every subsequent sync request.
 type RegisterResponse struct {
-	Certificate   string `json:"certificate"`
-	CACertificate string `json:"ca_certificate"`
+	Token string `json:"token"`
 }
 
 type ErrorResponse struct {
@@ -380,7 +377,6 @@ type Response struct {
 
 type RegisterInput struct {
 	ActivationToken string
-	PublicKey       ecdsa.PublicKey
 	ClusterEnabled  bool
 	ClusterID       string
 	NodeID          int
@@ -391,14 +387,8 @@ type RegisterInput struct {
 }
 
 func (fc *Fleet) Register(ctx context.Context, in RegisterInput) (*RegisterResponse, error) {
-	pubKeyPEM, err := marshalPublicKey(&in.PublicKey)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't marshal public key: %w", err)
-	}
-
 	params := &RegisterParams{
 		ActivationToken: in.ActivationToken,
-		PublicKey:       pubKeyPEM,
 		ClusterEnabled:  in.ClusterEnabled,
 		ClusterID:       in.ClusterID,
 		NodeID:          in.NodeID,
@@ -457,15 +447,4 @@ func (fc *Fleet) Register(ctx context.Context, in RegisterInput) (*RegisterRespo
 	}
 
 	return &registerResponse, nil
-}
-
-func marshalPublicKey(pub *ecdsa.PublicKey) (string, error) {
-	der, err := x509.MarshalPKIXPublicKey(pub)
-	if err != nil {
-		return "", fmt.Errorf("marshalling public key: %w", err)
-	}
-
-	block := &pem.Block{Type: "PUBLIC KEY", Bytes: der}
-
-	return string(pem.EncodeToMemory(block)), nil
 }
