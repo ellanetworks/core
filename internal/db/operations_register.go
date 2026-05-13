@@ -88,9 +88,11 @@ var (
 
 // Policies
 var (
-	opCreatePolicy = registerChangesetOp("CreatePolicy", (*Database).applyCreatePolicy, AffectsTopic(TopicPolicies))
-	opUpdatePolicy = registerChangesetOp("UpdatePolicy", (*Database).applyUpdatePolicy, AffectsTopic(TopicPolicies))
-	opDeletePolicy = registerChangesetOp("DeletePolicy", (*Database).applyDeletePolicy, AffectsTopic(TopicPolicies))
+	opCreatePolicy          = registerChangesetOp("CreatePolicy", (*Database).applyCreatePolicy, AffectsTopic(TopicPolicies))
+	opUpdatePolicy          = registerChangesetOp("UpdatePolicy", (*Database).applyUpdatePolicy, AffectsTopic(TopicPolicies))
+	opDeletePolicy          = registerChangesetOp("DeletePolicy", (*Database).applyDeletePolicy, AffectsTopic(TopicPolicies))
+	opCreatePolicyWithRules = registerChangesetOp("CreatePolicyWithRules", (*Database).applyCreatePolicyWithRules, AffectsTopic(TopicPolicies), AffectsTopic(TopicNetworkRules))
+	opUpdatePolicyWithRules = registerChangesetOp("UpdatePolicyWithRules", (*Database).applyUpdatePolicyWithRules, AffectsTopic(TopicPolicies), AffectsTopic(TopicNetworkRules))
 )
 
 // Network rules

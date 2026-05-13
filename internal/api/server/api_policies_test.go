@@ -1288,3 +1288,255 @@ func TestUpdatePolicyPersistsRules(t *testing.T) {
 		t.Fatalf("expected downlink rule action 'deny', got %q", getResp.Result.Rules.Downlink[0].Action)
 	}
 }
+
+func TestUpdatePolicyRulesSurviveRestart(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServerWithRaft(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't initialize and login: %s", err)
+	}
+
+	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+		Name: DataNetworkName, MTU: MTU, IPv4Pool: IPv4Pool, DNS: DNS,
+	})
+	if err != nil {
+		t.Fatalf("couldn't create data network: %s", err)
+	}
+
+	_, _, err = createProfile(env.Server.URL, client, token, &CreateProfileParams{
+		Name: "restart-rules-profile", UeAmbrUplink: "100 Mbps", UeAmbrDownlink: "100 Mbps",
+	})
+	if err != nil {
+		t.Fatalf("couldn't create profile: %s", err)
+	}
+
+	_, _, err = createPolicy(env.Server.URL, client, token, &CreatePolicyParams{
+		Name:                "restart-rules-policy",
+		ProfileName:         "restart-rules-profile",
+		SliceName:           DefaultSliceName,
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "100 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkName:     DataNetworkName,
+	})
+	if err != nil {
+		t.Fatalf("couldn't create policy: %s", err)
+	}
+
+	cidr := "2001:db8::/64"
+
+	statusCode, updateResp, err := editPolicy(env.Server.URL, client, "restart-rules-policy", token, &UpdatePolicyParams{
+		ProfileName:         "restart-rules-profile",
+		SliceName:           DefaultSliceName,
+		SessionAmbrUplink:   "200 Mbps",
+		SessionAmbrDownlink: "200 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkName:     DataNetworkName,
+		Rules: &PolicyRules{
+			Uplink: []PolicyRule{{
+				Description:  "Allow IPv6",
+				RemotePrefix: &cidr,
+				Protocol:     6,
+				PortLow:      443,
+				PortHigh:     443,
+				Action:       "allow",
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("couldn't update policy: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d, got %d (error: %s)", http.StatusOK, statusCode, updateResp.Error)
+	}
+
+	env.Server.Close()
+
+	if err := env.DB.Close(); err != nil {
+		t.Fatalf("couldn't close database: %s", err)
+	}
+
+	env2, err := setupServerWithRaft(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't restart server: %s", err)
+	}
+	defer env2.Server.Close()
+	defer func() { _ = env2.DB.Close() }()
+
+	client2 := newTestClient(env2.Server)
+
+	loginResp2Code, loginResp2, err := login(env2.Server.URL, client2, &LoginParams{
+		Email:    FirstUserEmail,
+		Password: "password123",
+	})
+	if err != nil {
+		t.Fatalf("couldn't login after restart: %s", err)
+	}
+
+	if loginResp2Code != http.StatusOK {
+		t.Fatalf("expected login status %d, got %d", http.StatusOK, loginResp2Code)
+	}
+
+	token2 := loginResp2.Result.Token
+
+	_, getResp, err := getPolicy(env2.Server.URL, client2, token2, "restart-rules-policy")
+	if err != nil {
+		t.Fatalf("couldn't get policy after restart: %s", err)
+	}
+
+	if getResp.Result.Rules == nil || len(getResp.Result.Rules.Uplink) != 1 {
+		t.Fatalf("expected rules to persist after restart, got %+v", getResp.Result.Rules)
+	}
+}
+
+// TestUpdatePolicyAllZeroRulePersists verifies that an "allow all" rule with
+// all-zero numeric fields (protocol=0, port_low=0, port_high=0, no
+// remote_prefix) is correctly persisted by UpdatePolicy and returned by
+// GetPolicy. This is the specific rule shape that was reported as being
+// silently dropped when added as the 5th rule after 4 non-zero rules.
+func TestUpdatePolicyAllZeroRulePersists(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServerWithRaft(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+	defer env.Server.Close()
+	defer func() { _ = env.DB.Close() }()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't initialize and login: %s", err)
+	}
+
+	_, _, err = createDataNetwork(env.Server.URL, client, token, &CreateDataNetworkParams{
+		Name: DataNetworkName, MTU: MTU, IPv4Pool: IPv4Pool, DNS: DNS,
+	})
+	if err != nil {
+		t.Fatalf("couldn't create data network: %s", err)
+	}
+
+	_, _, err = createProfile(env.Server.URL, client, token, &CreateProfileParams{
+		Name: "allzero-profile", UeAmbrUplink: "100 Mbps", UeAmbrDownlink: "100 Mbps",
+	})
+	if err != nil {
+		t.Fatalf("couldn't create profile: %s", err)
+	}
+
+	_, _, err = createPolicy(env.Server.URL, client, token, &CreatePolicyParams{
+		Name:                "allzero-policy",
+		ProfileName:         "allzero-profile",
+		SliceName:           DefaultSliceName,
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "100 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkName:     DataNetworkName,
+	})
+	if err != nil {
+		t.Fatalf("couldn't create policy: %s", err)
+	}
+
+	// First update: set 4 non-zero rules.
+	statusCode, updateResp, err := editPolicy(env.Server.URL, client, "allzero-policy", token, &UpdatePolicyParams{
+		ProfileName:         "allzero-profile",
+		SliceName:           DefaultSliceName,
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "100 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkName:     DataNetworkName,
+		Rules: &PolicyRules{
+			Uplink: []PolicyRule{
+				{Description: "rule-1", Protocol: 6, PortLow: 80, PortHigh: 80, Action: "allow"},
+				{Description: "rule-2", Protocol: 6, PortLow: 443, PortHigh: 443, Action: "allow"},
+				{Description: "rule-3", Protocol: 17, PortLow: 53, PortHigh: 53, Action: "allow"},
+				{Description: "rule-4", Protocol: 1, PortLow: 0, PortHigh: 0, Action: "deny"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("couldn't update policy with initial 4 rules: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d for initial update, got %d (error: %s)", http.StatusOK, statusCode, updateResp.Error)
+	}
+
+	_, getResp, err := getPolicy(env.Server.URL, client, token, "allzero-policy")
+	if err != nil {
+		t.Fatalf("couldn't get policy after initial update: %s", err)
+	}
+
+	if getResp.Result.Rules == nil || len(getResp.Result.Rules.Uplink) != 4 {
+		t.Fatalf("expected 4 uplink rules after initial update, got %+v", getResp.Result.Rules)
+	}
+
+	// Second update: add the "allow all" rule (all-zero fields) as the 5th rule.
+	statusCode, updateResp, err = editPolicy(env.Server.URL, client, "allzero-policy", token, &UpdatePolicyParams{
+		ProfileName:         "allzero-profile",
+		SliceName:           DefaultSliceName,
+		SessionAmbrUplink:   "100 Mbps",
+		SessionAmbrDownlink: "100 Mbps",
+		Var5qi:              9,
+		Arp:                 1,
+		DataNetworkName:     DataNetworkName,
+		Rules: &PolicyRules{
+			Uplink: []PolicyRule{
+				{Description: "rule-1", Protocol: 6, PortLow: 80, PortHigh: 80, Action: "allow"},
+				{Description: "rule-2", Protocol: 6, PortLow: 443, PortHigh: 443, Action: "allow"},
+				{Description: "rule-3", Protocol: 17, PortLow: 53, PortHigh: 53, Action: "allow"},
+				{Description: "rule-4", Protocol: 1, PortLow: 0, PortHigh: 0, Action: "deny"},
+				{Description: "allow all", Protocol: 0, PortLow: 0, PortHigh: 0, Action: "allow"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("couldn't update policy with allow-all rule: %s", err)
+	}
+
+	if statusCode != http.StatusOK {
+		t.Fatalf("expected status %d for allow-all update, got %d (error: %s)", http.StatusOK, statusCode, updateResp.Error)
+	}
+
+	_, getResp, err = getPolicy(env.Server.URL, client, token, "allzero-policy")
+	if err != nil {
+		t.Fatalf("couldn't get policy after allow-all update: %s", err)
+	}
+
+	if getResp.Result.Rules == nil {
+		t.Fatal("expected rules to exist after allow-all update, got nil")
+	}
+
+	if len(getResp.Result.Rules.Uplink) != 5 {
+		t.Fatalf("expected 5 uplink rules after allow-all update, got %d (allow-all rule may have been dropped)", len(getResp.Result.Rules.Uplink))
+	}
+
+	found := false
+
+	for _, r := range getResp.Result.Rules.Uplink {
+		if r.Description == "allow all" && r.Protocol == 0 && r.PortLow == 0 && r.PortHigh == 0 {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Fatalf("allow-all rule (protocol=0, port_low=0, port_high=0) not found in GET response after PUT: %+v", getResp.Result.Rules.Uplink)
+	}
+}

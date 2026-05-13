@@ -10,7 +10,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/canonical/sqlair"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
@@ -336,96 +335,6 @@ func (db *Database) ListRulesForPolicy(ctx context.Context, policyID string) ([]
 	span.SetStatus(codes.Ok, "")
 
 	return rules, nil
-}
-
-// CreateNetworkRule creates a new network rule in the transaction and returns its ID.
-func (t *Transaction) CreateNetworkRule(ctx context.Context, nr *NetworkRule) (string, error) {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s", "INSERT", NetworkRulesTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("INSERT"),
-			attribute.String("db.collection", NetworkRulesTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NetworkRulesTableName, "insert"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "insert").Inc()
-
-	now := time.Now().UTC()
-	nr.CreatedAt = now
-	nr.UpdatedAt = now
-
-	if nr.ID == "" {
-		id, err := uuid.NewV7()
-		if err != nil {
-			return "", fmt.Errorf("generate network rule id: %w", err)
-		}
-
-		nr.ID = id.String()
-	}
-
-	err := t.tx.Query(ctx, t.db.createNetworkRuleStmt, nr).Run()
-	if err != nil {
-		if isUniqueNameError(err) {
-			span.RecordError(ErrAlreadyExists)
-			span.SetStatus(codes.Error, "unique constraint failed")
-
-			return "", ErrAlreadyExists
-		}
-
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return "", fmt.Errorf("query failed: %w", err)
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	t.db.publishOpTopics([]Topic{TopicNetworkRules}, 0)
-
-	return nr.ID, nil
-}
-
-// DeleteNetworkRulesByPolicyID deletes all network rules for a given policy ID within a transaction.
-func (t *Transaction) DeleteNetworkRulesByPolicyID(ctx context.Context, policyID string) error {
-	ctx, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s %s", "DELETE", NetworkRulesTableName),
-		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			semconv.DBSystemNameSQLite,
-			semconv.DBOperationName("DELETE"),
-			attribute.String("db.collection", NetworkRulesTableName),
-		),
-	)
-	defer span.End()
-
-	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(NetworkRulesTableName, "delete"))
-	defer timer.ObserveDuration()
-
-	DBQueriesTotal.WithLabelValues(NetworkRulesTableName, "delete").Inc()
-
-	var outcome sqlair.Outcome
-
-	err := t.tx.Query(ctx, t.db.deleteNetworkRulesByPolicyStmt, NetworkRule{PolicyID: policyID}).Get(&outcome)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "query failed")
-
-		return fmt.Errorf("query failed: %w", err)
-	}
-
-	span.SetStatus(codes.Ok, "")
-
-	t.db.publishOpTopics([]Topic{TopicNetworkRules}, 0)
-
-	return nil
 }
 
 // DeleteNetworkRulesByPolicyID deletes all network rules for a given policy ID.
