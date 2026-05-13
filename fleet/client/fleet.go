@@ -3,6 +3,7 @@
 package client
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"strings"
@@ -18,15 +19,31 @@ type Fleet struct {
 	token  string
 }
 
-// New constructs a Fleet client using the default HTTP transport. TLS server
-// certificates are validated against the system trust store. Self-hosted
-// Fleet deployments using self-signed certs must install the cert into the
-// Core host's trust store (or front Fleet with a real cert).
-func New(url string) *Fleet {
+// New constructs a Fleet client.
+//
+// When insecureSkipVerify is false (the default in production
+// deployments), TLS server certificates are validated against the system
+// trust store. Self-hosted Fleet deployments using self-signed certs
+// either install the cert into the Core host's trust store, front Fleet
+// with a real cert (Let's Encrypt or internal PKI), or set
+// `fleet.insecure-skip-verify: true` in core.yaml to disable validation
+// — appropriate for integration tests and local-development setups, but
+// not for production.
+func New(url string, insecureSkipVerify bool) *Fleet {
+	transport := http.DefaultTransport
+
+	if insecureSkipVerify {
+		transport = &http.Transport{
+			// #nosec G402 -- explicitly gated behind fleet.insecure-skip-verify in core.yaml
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+	}
+
 	return &Fleet{
 		url: url,
 		client: &http.Client{
-			Timeout: 15 * time.Second,
+			Timeout:   15 * time.Second,
+			Transport: transport,
 		},
 	}
 }

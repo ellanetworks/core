@@ -269,22 +269,23 @@ func (r *syncRunner) collectUsage(ctx context.Context) []client.SubscriberUsageE
 
 // ResumeSyncInput groups the dependencies for starting the sync loop.
 type ResumeSyncInput struct {
-	FleetURL        string
-	Token           string
-	DB              *db.Database
-	StatusProvider  StatusProvider
-	MetricsProvider MetricsProvider
-	OnSync          SyncCallback
-	Buffer          *FleetBuffer
-	ClusterEnabled  bool
-	ClusterID       string
+	FleetURL           string
+	Token              string
+	InsecureSkipVerify bool
+	DB                 *db.Database
+	StatusProvider     StatusProvider
+	MetricsProvider    MetricsProvider
+	OnSync             SyncCallback
+	Buffer             *FleetBuffer
+	ClusterEnabled     bool
+	ClusterID          string
 }
 
 // ResumeSync spins up the per-node sync loop. Every node — leader or
 // follower — reports metrics, flows, and status; only the current leader
 // sends subscriber usage and applies config pushed back from Fleet.
 func ResumeSync(ctx context.Context, in ResumeSyncInput) (*SyncHandle, error) {
-	fc := client.New(in.FleetURL)
+	fc := client.New(in.FleetURL, in.InsecureSkipVerify)
 	fc.SetToken(in.Token)
 
 	fleetData, err := in.DB.GetFleet(ctx)

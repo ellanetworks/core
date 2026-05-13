@@ -129,6 +129,19 @@ type ClusterYaml struct {
 	InitialSuffrage   string   `yaml:"initial-suffrage"`
 }
 
+// FleetYaml holds Core-side knobs for talking to a Fleet control plane.
+// The Fleet URL and the registration credential live in the DB and are set
+// through the Core API; this YAML section is for client-behavior options
+// that need to be available before the operator can call any Core API.
+type FleetYaml struct {
+	// InsecureSkipVerify, when true, disables TLS server-certificate
+	// verification on outbound calls to Fleet. Use only for integration
+	// tests and local-development setups where Fleet serves a self-signed
+	// cert that the Core host's trust store does not know about; never
+	// set in production.
+	InsecureSkipVerify bool `yaml:"insecure-skip-verify"`
+}
+
 type ConfigYAML struct {
 	Logging    LoggingYaml    `yaml:"logging"`
 	DB         DBYaml         `yaml:"db"`
@@ -136,6 +149,7 @@ type ConfigYAML struct {
 	XDP        XDPYaml        `yaml:"xdp"`
 	Telemetry  TelemetryYaml  `yaml:"telemetry"`
 	Cluster    ClusterYaml    `yaml:"cluster"`
+	Fleet      FleetYaml      `yaml:"fleet"`
 }
 
 type N2Interface struct {
@@ -210,6 +224,11 @@ type Cluster struct {
 	InitialSuffrage   string
 }
 
+// Fleet holds resolved Core-side knobs for the Fleet client.
+type Fleet struct {
+	InsecureSkipVerify bool
+}
+
 type Config struct {
 	Logging    Logging
 	DB         DB
@@ -217,6 +236,7 @@ type Config struct {
 	XDP        XDP
 	Telemetry  Telemetry
 	Cluster    Cluster
+	Fleet      Fleet
 }
 
 type VlanConfig struct {
@@ -411,6 +431,10 @@ func Validate(filePath string) (Config, error) {
 	}
 
 	config.Cluster = cluster
+
+	config.Fleet = Fleet{
+		InsecureSkipVerify: c.Fleet.InsecureSkipVerify,
+	}
 
 	return config, nil
 }

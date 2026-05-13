@@ -92,11 +92,12 @@ func startFleetSync(ctx context.Context, dbInstance *db.Database, cfg config.Con
 	}
 
 	handle, err := fleet.ResumeSync(ctx, fleet.ResumeSyncInput{
-		FleetURL:        fleetData.URL,
-		Token:           string(fleetData.Token),
-		DB:              dbInstance,
-		StatusProvider:  statusProvider,
-		MetricsProvider: metricsProvider,
+		FleetURL:           fleetData.URL,
+		Token:              string(fleetData.Token),
+		InsecureSkipVerify: cfg.Fleet.InsecureSkipVerify,
+		DB:                 dbInstance,
+		StatusProvider:     statusProvider,
+		MetricsProvider:    metricsProvider,
 		OnSync: func(syncCtx context.Context, success bool) {
 			if success {
 				if err := dbInstance.UpdateFleetSyncStatus(syncCtx); err != nil {

@@ -100,7 +100,7 @@ func register(ctx context.Context, dbInstance *db.Database, activationToken stri
 		return fmt.Errorf("fleet URL is not configured")
 	}
 
-	fc := client.New(fleetURL)
+	fc := client.New(fleetURL, cfg.Fleet.InsecureSkipVerify)
 
 	initialConfig, err := buildInitialConfig(ctx, dbInstance)
 	if err != nil {
@@ -824,7 +824,7 @@ func collectRetentionPolicies(ctx context.Context, dbInstance *db.Database) ([]c
 	return out, nil
 }
 
-func UnregisterFleet(dbInstance *db.Database) http.HandlerFunc {
+func UnregisterFleet(dbInstance *db.Database, cfg config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		email := r.Context().Value(contextKeyEmail)
 
@@ -851,7 +851,7 @@ func UnregisterFleet(dbInstance *db.Database) http.HandlerFunc {
 			return
 		}
 
-		fc := client.New(fleetData.URL)
+		fc := client.New(fleetData.URL, cfg.Fleet.InsecureSkipVerify)
 		fc.SetToken(string(fleetData.Token))
 
 		if err := fc.Unregister(r.Context()); err != nil {
