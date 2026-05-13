@@ -158,6 +158,7 @@ type Database struct {
 	getHomeNetworkKeyStmt                      *sqlair.Statement
 	getHomeNetworkKeyBySchemeAndIdentifierStmt *sqlair.Statement
 	createHomeNetworkKeyStmt                   *sqlair.Statement
+	updateHomeNetworkKeyStmt                   *sqlair.Statement
 	deleteHomeNetworkKeyStmt                   *sqlair.Statement
 	countHomeNetworkKeysStmt                   *sqlair.Statement
 
@@ -1320,6 +1321,7 @@ func (db *Database) PrepareStatements() error {
 		{&db.getHomeNetworkKeyStmt, fmt.Sprintf(getHomeNetworkKeyStmtStr, HomeNetworkKeysTableName), []any{HomeNetworkKey{}}},
 		{&db.getHomeNetworkKeyBySchemeAndIdentifierStmt, fmt.Sprintf(getHomeNetworkKeyBySchemeAndIdentifierStmtStr, HomeNetworkKeysTableName), []any{HomeNetworkKey{}}},
 		{&db.createHomeNetworkKeyStmt, fmt.Sprintf(createHomeNetworkKeyStmtStr, HomeNetworkKeysTableName), []any{HomeNetworkKey{}}},
+		{&db.updateHomeNetworkKeyStmt, fmt.Sprintf(updateHomeNetworkKeyStmtStr, HomeNetworkKeysTableName), []any{HomeNetworkKey{}}},
 		{&db.deleteHomeNetworkKeyStmt, fmt.Sprintf(deleteHomeNetworkKeyStmtStr, HomeNetworkKeysTableName), []any{HomeNetworkKey{}}},
 		{&db.countHomeNetworkKeysStmt, fmt.Sprintf(countHomeNetworkKeysStmtStr, HomeNetworkKeysTableName), []any{NumItems{}}},
 

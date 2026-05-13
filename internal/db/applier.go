@@ -1050,6 +1050,26 @@ func (db *Database) applyCreateHomeNetworkKey(ctx context.Context, k *HomeNetwor
 	return nil, nil
 }
 
+func (db *Database) applyUpdateHomeNetworkKey(ctx context.Context, k *HomeNetworkKey) (any, error) {
+	var outcome sqlair.Outcome
+
+	err := db.runner(ctx).Query(ctx, db.updateHomeNetworkKeyStmt, k).Get(&outcome)
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	rowsAffected, err := outcome.Result().RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return nil, ErrNotFound
+	}
+
+	return nil, nil
+}
+
 func (db *Database) applyDeleteHomeNetworkKey(ctx context.Context, p *stringPayload) (any, error) {
 	var outcome sqlair.Outcome
 

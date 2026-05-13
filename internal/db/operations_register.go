@@ -102,6 +102,7 @@ var (
 // Home network key
 var (
 	opCreateHomeNetworkKey = registerChangesetOp("CreateHomeNetworkKey", (*Database).applyCreateHomeNetworkKey)
+	opUpdateHomeNetworkKey = registerChangesetOp("UpdateHomeNetworkKey", (*Database).applyUpdateHomeNetworkKey)
 	opDeleteHomeNetworkKey = registerChangesetOp("DeleteHomeNetworkKey", (*Database).applyDeleteHomeNetworkKey)
 )
 

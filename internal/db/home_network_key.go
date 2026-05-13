@@ -29,6 +29,7 @@ const (
 	getHomeNetworkKeyStmtStr                      = "SELECT &HomeNetworkKey.* FROM %s WHERE id==$HomeNetworkKey.id"
 	getHomeNetworkKeyBySchemeAndIdentifierStmtStr = "SELECT &HomeNetworkKey.* FROM %s WHERE scheme==$HomeNetworkKey.scheme AND key_identifier==$HomeNetworkKey.key_identifier"
 	createHomeNetworkKeyStmtStr                   = "INSERT INTO %s (id, key_identifier, scheme, private_key) VALUES ($HomeNetworkKey.id, $HomeNetworkKey.key_identifier, $HomeNetworkKey.scheme, $HomeNetworkKey.private_key)"
+	updateHomeNetworkKeyStmtStr                   = "UPDATE %s SET scheme=$HomeNetworkKey.scheme, private_key=$HomeNetworkKey.private_key WHERE id==$HomeNetworkKey.id"
 	deleteHomeNetworkKeyStmtStr                   = "DELETE FROM %s WHERE id==$HomeNetworkKey.id"
 	countHomeNetworkKeysStmtStr                   = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 )
@@ -222,6 +223,45 @@ func (db *Database) CreateHomeNetworkKey(ctx context.Context, key *HomeNetworkKe
 	}
 
 	_, err := opCreateHomeNetworkKey.Invoke(db, key)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
+// UpdateHomeNetworkKey rewrites the scheme and private_key of an
+// existing identifier. Matches by UUID; the key_identifier is
+// immutable (changing it is "rotate to a new key", a create+delete
+// pair, not an update).
+func (db *Database) UpdateHomeNetworkKey(ctx context.Context, key *HomeNetworkKey) error {
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s", "UPDATE", HomeNetworkKeysTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPDATE"),
+			attribute.String("db.collection", HomeNetworkKeysTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(HomeNetworkKeysTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(HomeNetworkKeysTableName, "update").Inc()
+
+	if key.ID == "" {
+		return fmt.Errorf("UpdateHomeNetworkKey: ID must be set by the caller")
+	}
+
+	_, err := opUpdateHomeNetworkKey.Invoke(db, key)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

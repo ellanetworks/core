@@ -224,28 +224,25 @@ func (db *Database) syncOperator(ctx context.Context, desired client.Operator) e
 
 // syncHomeNetworkKeys reconciles home network keys by keyIdentifier.
 //
-// Reconcile contract (relied on by Fleet):
+// Reconcile contract:
 //   - missing identifiers are created from the desired payload,
 //   - identifiers present locally but absent from the desired payload
 //     are deleted,
-//   - identifiers present in both are LEFT UNTOUCHED — neither the
-//     scheme nor the private_key of an existing identifier is
-//     overwritten by sync.
+//   - identifiers present in both are updated in place when scheme or
+//     private_key drifts from the desired value.
 //
-// The "untouched" rule is deliberate. Silent re-keying via a Fleet
-// round-trip would be a serious footgun: a typo in Fleet's UI could
-// rewrite a live home-network private key and break SUPI deconcealment
-// across every subscriber. Operators rotate by allocating a new
-// key_identifier instead.
+// Mirrors syncDataNetworks and the other resource reconcilers so Fleet
+// can treat HNKs as ordinary CRUD; the UUID stays stable across an
+// update (key_identifier itself is the operator-facing handle).
 func (db *Database) syncHomeNetworkKeys(ctx context.Context, desired []client.HomeNetworkKey) error {
 	existing, err := db.listHomeNetworkKeysPinned(ctx)
 	if err != nil {
 		return err
 	}
 
-	have := make(map[int]bool, len(existing))
+	have := make(map[int]HomeNetworkKey, len(existing))
 	for _, k := range existing {
-		have[k.KeyIdentifier] = true
+		have[k.KeyIdentifier] = k
 	}
 
 	want := make(map[int]bool, len(desired))
@@ -253,27 +250,45 @@ func (db *Database) syncHomeNetworkKeys(ctx context.Context, desired []client.Ho
 	for _, k := range desired {
 		want[k.KeyIdentifier] = true
 
-		if have[k.KeyIdentifier] {
+		cur, ok := have[k.KeyIdentifier]
+		if !ok {
+			id, err := newUUIDv7()
+			if err != nil {
+				return err
+			}
+
+			newKey := &HomeNetworkKey{
+				ID:            id,
+				KeyIdentifier: k.KeyIdentifier,
+				Scheme:        k.Scheme,
+				PrivateKey:    k.PrivateKey,
+			}
+
+			if _, err := db.applyCreateHomeNetworkKey(ctx, newKey); err != nil {
+				return fmt.Errorf("create home network key %d: %w", k.KeyIdentifier, err)
+			}
+
+			logger.DBLog.Info("Created home network key from fleet config", zap.Int("key_identifier", k.KeyIdentifier))
+
 			continue
 		}
 
-		id, err := newUUIDv7()
-		if err != nil {
-			return err
+		if cur.Scheme == k.Scheme && cur.PrivateKey == k.PrivateKey {
+			continue
 		}
 
-		newKey := &HomeNetworkKey{
-			ID:            id,
+		updated := &HomeNetworkKey{
+			ID:            cur.ID,
 			KeyIdentifier: k.KeyIdentifier,
 			Scheme:        k.Scheme,
 			PrivateKey:    k.PrivateKey,
 		}
 
-		if _, err := db.applyCreateHomeNetworkKey(ctx, newKey); err != nil {
-			return fmt.Errorf("create home network key %d: %w", k.KeyIdentifier, err)
+		if _, err := db.applyUpdateHomeNetworkKey(ctx, updated); err != nil {
+			return fmt.Errorf("update home network key %d: %w", k.KeyIdentifier, err)
 		}
 
-		logger.DBLog.Info("Created home network key from fleet config", zap.Int("key_identifier", k.KeyIdentifier))
+		logger.DBLog.Info("Updated home network key from fleet config", zap.Int("key_identifier", k.KeyIdentifier))
 	}
 
 	for _, k := range existing {
