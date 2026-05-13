@@ -13,7 +13,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
-	"go.uber.org/zap"
 )
 
 const (
@@ -34,6 +33,33 @@ type PolicyRule struct {
 type PolicyRules struct {
 	Uplink   []PolicyRule `json:"uplink,omitempty"`
 	Downlink []PolicyRule `json:"downlink,omitempty"`
+}
+
+func toDBPolicyRules(rules *PolicyRules) *db.PolicyRulesInput {
+	if rules == nil {
+		return nil
+	}
+
+	convert := func(in []PolicyRule) []db.PolicyRuleInput {
+		out := make([]db.PolicyRuleInput, 0, len(in))
+		for _, rule := range in {
+			out = append(out, db.PolicyRuleInput{
+				Description:  rule.Description,
+				RemotePrefix: rule.RemotePrefix,
+				Protocol:     rule.Protocol,
+				PortLow:      rule.PortLow,
+				PortHigh:     rule.PortHigh,
+				Action:       rule.Action,
+			})
+		}
+
+		return out
+	}
+
+	return &db.PolicyRulesInput{
+		Uplink:   convert(rules.Uplink),
+		Downlink: convert(rules.Downlink),
+	}
 }
 
 type CreatePolicyParams struct {
@@ -218,54 +244,6 @@ func validatePolicyRules(rules *PolicyRules) error {
 	for i, rule := range rules.Downlink {
 		if err := validatePolicyRule(rule); err != nil {
 			return fmt.Errorf("downlink rule %d: %w", i, err)
-		}
-	}
-
-	return nil
-}
-
-func createNetworkRulesForPolicyTx(ctx context.Context, tx *db.Transaction, policyID string, rules *PolicyRules) error {
-	if rules == nil {
-		return nil
-	}
-
-	// Create uplink rules with precedence
-	for i, rule := range rules.Uplink {
-		dbRule := &db.NetworkRule{
-			PolicyID:     policyID,
-			Description:  rule.Description,
-			Direction:    DirectionUplink,
-			RemotePrefix: rule.RemotePrefix,
-			Protocol:     rule.Protocol,
-			PortLow:      rule.PortLow,
-			PortHigh:     rule.PortHigh,
-			Action:       rule.Action,
-			Precedence:   int32(i + 1), // 1-indexed
-		}
-
-		_, err := tx.CreateNetworkRule(ctx, dbRule)
-		if err != nil {
-			return fmt.Errorf("failed to create uplink rule %d: %w", i, err)
-		}
-	}
-
-	// Create downlink rules with precedence
-	for i, rule := range rules.Downlink {
-		dbRule := &db.NetworkRule{
-			PolicyID:     policyID,
-			Description:  rule.Description,
-			Direction:    DirectionDownlink,
-			RemotePrefix: rule.RemotePrefix,
-			Protocol:     rule.Protocol,
-			PortLow:      rule.PortLow,
-			PortHigh:     rule.PortHigh,
-			Action:       rule.Action,
-			Precedence:   int32(i + 1), // 1-indexed
-		}
-
-		_, err := tx.CreateNetworkRule(ctx, dbRule)
-		if err != nil {
-			return fmt.Errorf("failed to create downlink rule %d: %w", i, err)
 		}
 	}
 
@@ -548,48 +526,29 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			SliceID:             slice.ID,
 		}
 
-		tx, err := dbInstance.BeginTransaction(r.Context())
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Internal error starting transaction", err, logger.APILog)
-			return
-		}
-
-		committed := false
-
-		defer func() {
-			if !committed {
-				if rbErr := tx.Rollback(); rbErr != nil {
-					logger.APILog.Error("Failed to rollback transaction", zap.Error(rbErr))
-				}
-			}
-		}()
-
-		policyID, err := tx.CreatePolicy(r.Context(), dbPolicy)
-		if err != nil {
-			if errors.Is(err, db.ErrAlreadyExists) {
-				writeError(r.Context(), w, http.StatusConflict, "Policy already exists", nil, logger.APILog)
-				return
-			}
-
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create policy", err, logger.APILog)
-
-			return
-		}
-
-		// Create network rules inside the same transaction if provided
 		if createPolicyParams.Rules != nil {
-			if err := createNetworkRulesForPolicyTx(r.Context(), tx, policyID, createPolicyParams.Rules); err != nil {
-				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create policy rules", err, logger.APILog)
+			if err := dbInstance.CreatePolicyWithRules(r.Context(), dbPolicy, toDBPolicyRules(createPolicyParams.Rules)); err != nil {
+				if errors.Is(err, db.ErrAlreadyExists) {
+					writeError(r.Context(), w, http.StatusConflict, "Policy already exists", nil, logger.APILog)
+					return
+				}
+
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create policy", err, logger.APILog)
+
+				return
+			}
+		} else {
+			if err := dbInstance.CreatePolicy(r.Context(), dbPolicy); err != nil {
+				if errors.Is(err, db.ErrAlreadyExists) {
+					writeError(r.Context(), w, http.StatusConflict, "Policy already exists", nil, logger.APILog)
+					return
+				}
+
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create policy", err, logger.APILog)
+
 				return
 			}
 		}
-
-		if err := tx.Commit(); err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to commit transaction", err, logger.APILog)
-			return
-		}
-
-		committed = true
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Policy created successfully"}, http.StatusCreated, logger.APILog)
 
@@ -656,45 +615,10 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 		policy.SliceID = slice.ID
 		policy.DataNetworkID = dataNetwork.ID
 
-		tx, err := dbInstance.BeginTransaction(r.Context())
-		if err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Internal error starting transaction", err, logger.APILog)
-			return
-		}
-
-		committed := false
-
-		defer func() {
-			if !committed {
-				if rbErr := tx.Rollback(); rbErr != nil {
-					logger.APILog.Error("Failed to rollback transaction", zap.Error(rbErr))
-				}
-			}
-		}()
-
-		if err := tx.UpdatePolicy(r.Context(), policy); err != nil {
+		if err := dbInstance.UpdatePolicyWithRules(r.Context(), policy, toDBPolicyRules(updatePolicyParams.Rules)); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update policy", err, logger.APILog)
 			return
 		}
-
-		// Omitting the rules field in the request body is treated as an
-		// explicit deletion of all rules. Re-creating happens below.
-		if err := tx.DeleteNetworkRulesByPolicyID(r.Context(), policy.ID); err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to delete existing policy rules", err, logger.APILog)
-			return
-		}
-
-		if err := createNetworkRulesForPolicyTx(r.Context(), tx, policy.ID, updatePolicyParams.Rules); err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to create policy rules", err, logger.APILog)
-			return
-		}
-
-		if err := tx.Commit(); err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to commit transaction", err, logger.APILog)
-			return
-		}
-
-		committed = true
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Policy updated successfully"}, http.StatusOK, logger.APILog)
 		logger.LogAuditEvent(r.Context(), UpdatePolicyAction, email, getClientIP(r), "User updated policy: "+policyName)

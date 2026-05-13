@@ -79,7 +79,6 @@ var replicatedChangesetTables = []string{
 var localOnlyTables = []string{
 	RadioEventsTableName,
 	FlowReportsTableName,
-	FsmStateTableName,
 	RoutesTableName,
 	BGPSettingsTableName,
 	BGPPeersTableName,
@@ -87,6 +86,24 @@ var localOnlyTables = []string{
 	N3SettingsTableName,
 	NATSettingsTableName,
 	FlowAccountingSettingsTableName,
+}
+
+// fsmInternalTables are managed directly by the FSM layer, not through
+// changeset replication or local-only backup/restore. The fsm_state table
+// tracks the Raft index of the last applied log entry. Its value must
+// always match the database content:
+//
+//   - In a snapshot, fsm_state.lastApplied reflects the last log entry
+//     applied before the snapshot was taken.
+//   - During FSM.Restore, fsm_state must NOT be overwritten from the
+//     pre-restore database (as localOnlyTables are). Preserving a stale
+//     lastApplied causes the FSM to skip replaying log entries that
+//     follow the snapshot, silently losing committed mutations.
+//
+// The table is created/seeded by ensureFsmStateTable on every startup and
+// after every Reopen.
+var fsmInternalTables = []string{
+	FsmStateTableName,
 }
 
 func (db *Database) assertTableReplicationClassification(ctx context.Context) error {
@@ -98,12 +115,16 @@ func (db *Database) assertTableReplicationClassification(ctx context.Context) er
 
 	defer func() { _ = rows.Close() }()
 
-	class := make(map[string]struct{}, len(replicatedChangesetTables)+len(localOnlyTables))
+	class := make(map[string]struct{}, len(replicatedChangesetTables)+len(localOnlyTables)+len(fsmInternalTables))
 	for _, t := range replicatedChangesetTables {
 		class[t] = struct{}{}
 	}
 
 	for _, t := range localOnlyTables {
+		class[t] = struct{}{}
+	}
+
+	for _, t := range fsmInternalTables {
 		class[t] = struct{}{}
 	}
 
@@ -117,7 +138,7 @@ func (db *Database) assertTableReplicationClassification(ctx context.Context) er
 			continue
 		}
 
-		return fmt.Errorf("table %q is not classified as replicated or local-only", table)
+		return fmt.Errorf("table %q is not classified as replicated, local-only, or fsm-internal", table)
 	}
 
 	if err := rows.Err(); err != nil {
