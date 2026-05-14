@@ -16,6 +16,10 @@ type CreateSubscriberOptions struct {
 	OPc            string `json:"opc,omitempty"`
 }
 
+type UpdateSubscriberOptions struct {
+	ProfileName string `json:"profile_name"`
+}
+
 type GetSubscriberOptions struct {
 	ID string `json:"id"`
 }
@@ -151,6 +155,35 @@ func (c *Client) GetSubscriber(ctx context.Context, opts *GetSubscriberOptions) 
 	}
 
 	return &subscriberResponse, nil
+}
+
+// UpdateSubscriber updates an existing subscriber by IMSI. Only profile_name
+// is settable.
+func (c *Client) UpdateSubscriber(ctx context.Context, imsi string, opts *UpdateSubscriberOptions) error {
+	payload := struct {
+		ProfileName string `json:"profile_name"`
+	}{
+		ProfileName: opts.ProfileName,
+	}
+
+	var body bytes.Buffer
+
+	err := json.NewEncoder(&body).Encode(payload)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "PUT",
+		Path:   "api/v1/subscribers/" + imsi,
+		Body:   &body,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // DeleteSubscriber deletes a subscriber by ID.
