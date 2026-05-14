@@ -13,7 +13,20 @@ type apiMatrixHARunner func(ctx context.Context, t *testing.T, h *haMatrixEnv)
 // across nodes plus asserting the cross-node invariant (replication for
 // shared resources, locality for per-node resources).
 var apiMatrixHAResources = map[string]apiMatrixHARunner{
-	"subscribers": runSubscribersHAMatrix,
+	"profiles":              runProfilesHAMatrix,
+	"slices":                runSlicesHAMatrix,
+	"data_networks":         runDataNetworksHAMatrix,
+	"policies":              runPoliciesHAMatrix,
+	"policy_rules":          runPolicyRulesHAMatrix,
+	"subscribers":           runSubscribersHAMatrix,
+	"users":                 runUsersHAMatrix,
+	"api_tokens":            runAPITokensHAMatrix,
+	"home_network_keys":     runHomeNetworkKeysHAMatrix,
+	"operator_id":           runOperatorIDHAMatrix,
+	"operator_code":         runOperatorCodeHAMatrix,
+	"operator_tracking":     runOperatorTrackingHAMatrix,
+	"operator_nas_security": runOperatorNASSecurityHAMatrix,
+	"operator_spn":          runOperatorSPNHAMatrix,
 }
 
 func TestAPIMatrixHA(t *testing.T) {
