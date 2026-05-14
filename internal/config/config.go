@@ -126,6 +126,7 @@ type ClusterYaml struct {
 	ProposeTimeout    string   `yaml:"propose-timeout"`
 	SnapshotInterval  string   `yaml:"snapshot-interval"`
 	SnapshotThreshold uint64   `yaml:"snapshot-threshold"`
+	TrailingLogs      uint64   `yaml:"trailing-logs"`
 	InitialSuffrage   string   `yaml:"initial-suffrage"`
 }
 
@@ -207,6 +208,7 @@ type Cluster struct {
 	ProposeTimeout    time.Duration
 	SnapshotInterval  time.Duration
 	SnapshotThreshold uint64
+	TrailingLogs      uint64
 	InitialSuffrage   string
 }
 
@@ -723,6 +725,7 @@ func validateCluster(c ClusterYaml) (Cluster, error) {
 		ProposeTimeout:    proposeTimeout,
 		SnapshotInterval:  snapshotInterval,
 		SnapshotThreshold: c.SnapshotThreshold,
+		TrailingLogs:      c.TrailingLogs,
 		InitialSuffrage:   initialSuffrage,
 	}, nil
 }

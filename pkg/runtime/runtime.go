@@ -110,6 +110,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		ProposeTimeout:    cfg.Cluster.ProposeTimeout,
 		SnapshotInterval:  cfg.Cluster.SnapshotInterval,
 		SnapshotThreshold: cfg.Cluster.SnapshotThreshold,
+		TrailingLogs:      cfg.Cluster.TrailingLogs,
 		SchemaVersion:     db.SchemaVersion(),
 		InitialSuffrage:   cfg.Cluster.InitialSuffrage,
 		BinaryVersion:     ver.Version,

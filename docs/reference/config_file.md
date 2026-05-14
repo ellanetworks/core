@@ -54,6 +54,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `propose-timeout` (duration string, optional): Maximum wait for a Raft commit before the API returns 503.
     - `snapshot-interval` (duration string, optional): Minimum interval between automatic Raft snapshots.
     - `snapshot-threshold` (int, optional): Minimum number of applied log entries between automatic snapshots.
+    - `trailing-logs` (int, optional): Number of Raft log entries retained after a snapshot so a briefly-disconnected follower can catch up by log replay instead of receiving a full snapshot. Defaults to `10240`, which is correct for the vast majority of deployments. Lower it only if the Raft log is growing unboundedly under sustained write load; raise it only if followers repeatedly fall behind and trigger snapshot installs. Setting it too low on a cluster with a large database can put followers in a loop where they keep downloading snapshots and never converge.
 
 !!! note
     When you use the Ella Core snap, the configuration file is located at `/var/snap/ella-core/common/config.yaml`. After modifying the configuration file, restart Ella Core with `sudo snap restart ella-core.cored` for the changes to take effect.

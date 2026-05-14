@@ -97,6 +97,49 @@ func TestCluster_BindAddressRequired(t *testing.T) {
 	}
 }
 
+func TestCluster_SnapshotTunablesOptional(t *testing.T) {
+	cfg, err := config.Validate(writeConfig(t, baseConfigYAML))
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+
+	if cfg.Cluster.SnapshotInterval != 0 {
+		t.Fatalf("snapshot-interval default = %s, want 0", cfg.Cluster.SnapshotInterval)
+	}
+
+	if cfg.Cluster.SnapshotThreshold != 0 {
+		t.Fatalf("snapshot-threshold default = %d, want 0", cfg.Cluster.SnapshotThreshold)
+	}
+
+	if cfg.Cluster.TrailingLogs != 0 {
+		t.Fatalf("trailing-logs default = %d, want 0", cfg.Cluster.TrailingLogs)
+	}
+}
+
+func TestCluster_SnapshotTunablesParse(t *testing.T) {
+	body := baseConfigYAML + `  snapshot-interval: "2s"
+  snapshot-threshold: 50
+  trailing-logs: 5
+`
+
+	cfg, err := config.Validate(writeConfig(t, body))
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+
+	if cfg.Cluster.SnapshotInterval.String() != "2s" {
+		t.Fatalf("snapshot-interval = %s, want 2s", cfg.Cluster.SnapshotInterval)
+	}
+
+	if cfg.Cluster.SnapshotThreshold != 50 {
+		t.Fatalf("snapshot-threshold = %d, want 50", cfg.Cluster.SnapshotThreshold)
+	}
+
+	if cfg.Cluster.TrailingLogs != 5 {
+		t.Fatalf("trailing-logs = %d, want 5", cfg.Cluster.TrailingLogs)
+	}
+}
+
 func itoa(n int) string {
 	if n == 0 {
 		return "0"
