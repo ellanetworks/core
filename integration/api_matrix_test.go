@@ -18,7 +18,16 @@ type apiMatrixRunner func(ctx context.Context, t *testing.T, c *client.Client)
 // Adding a new resource means: implement its runner in
 // api_matrix_<resource>_test.go and register it here.
 var apiMatrixResources = map[string]apiMatrixRunner{
-	"profiles": runProfilesMatrix,
+	"profiles":          runProfilesMatrix,
+	"slices":            runSlicesMatrix,
+	"data_networks":     runDataNetworksMatrix,
+	"policies":          runPoliciesMatrix,
+	"subscribers":       runSubscribersMatrix,
+	"routes":            runRoutesMatrix,
+	"bgp_peers":         runBGPPeersMatrix,
+	"users":             runUsersMatrix,
+	"api_tokens":        runAPITokensMatrix,
+	"home_network_keys": runHomeNetworkKeysMatrix,
 }
 
 // TestAPIMatrix exercises Create/Read/Update/Delete (and List, and the

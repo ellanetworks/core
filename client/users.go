@@ -31,6 +31,14 @@ type CreateUserOptions struct {
 	Password string `json:"password"`
 }
 
+type UpdateUserOptions struct {
+	RoleID RoleID `json:"role_id"`
+}
+
+type GetUserOptions struct {
+	Email string `json:"email"`
+}
+
 type DeleteUserOptions struct {
 	Email string `json:"email"`
 }
@@ -117,6 +125,56 @@ func (c *Client) CreateUser(ctx context.Context, opts *CreateUserOptions) error 
 		Type:   SyncRequest,
 		Method: "POST",
 		Path:   "api/v1/users",
+		Body:   &body,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// GetUser retrieves a user by email.
+func (c *Client) GetUser(ctx context.Context, opts *GetUserOptions) (*User, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   "api/v1/users/" + opts.Email,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var user User
+
+	err = resp.DecodeResult(&user)
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+// UpdateUser updates an existing user's role by email. Only role_id is
+// settable; password changes go through UpdateUserPassword.
+func (c *Client) UpdateUser(ctx context.Context, email string, opts *UpdateUserOptions) error {
+	payload := struct {
+		RoleID RoleID `json:"role_id"`
+	}{
+		RoleID: opts.RoleID,
+	}
+
+	var body bytes.Buffer
+
+	err := json.NewEncoder(&body).Encode(payload)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "PUT",
+		Path:   "api/v1/users/" + email,
 		Body:   &body,
 	})
 	if err != nil {

@@ -167,6 +167,114 @@ func TestDeleteUser_Failure(t *testing.T) {
 	}
 }
 
+func TestGetUser_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"email": "alice@example.com", "role_id": 3}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	user, err := clientObj.GetUser(ctx, &client.GetUserOptions{Email: "alice@example.com"})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if user.Email != "alice@example.com" {
+		t.Fatalf("expected email alice@example.com, got %s", user.Email)
+	}
+
+	if user.RoleID != client.RoleNetworkManager {
+		t.Fatalf("expected role %d, got %d", client.RoleNetworkManager, user.RoleID)
+	}
+
+	if fake.lastOpts.Method != "GET" {
+		t.Fatalf("expected GET method, got: %s", fake.lastOpts.Method)
+	}
+
+	if fake.lastOpts.Path != "api/v1/users/alice@example.com" {
+		t.Fatalf("expected path api/v1/users/alice@example.com, got %s", fake.lastOpts.Path)
+	}
+}
+
+func TestGetUser_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 404,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "User not found"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	_, err := clientObj.GetUser(ctx, &client.GetUserOptions{Email: "missing@example.com"})
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}
+
+func TestUpdateUser_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "User updated successfully"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.UpdateUser(ctx, "alice@example.com", &client.UpdateUserOptions{RoleID: client.RoleAdmin})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts.Method != "PUT" {
+		t.Fatalf("expected PUT method, got: %s", fake.lastOpts.Method)
+	}
+
+	if fake.lastOpts.Path != "api/v1/users/alice@example.com" {
+		t.Fatalf("expected path api/v1/users/alice@example.com, got %s", fake.lastOpts.Path)
+	}
+}
+
+func TestUpdateUser_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 404,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "User not found"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.UpdateUser(ctx, "missing@example.com", &client.UpdateUserOptions{RoleID: client.RoleAdmin})
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}
+
 func TestCreateMyAPIToken_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 )
 
 type GetOperatorIDResponse struct {
@@ -181,12 +180,14 @@ func (c *Client) CreateHomeNetworkKey(ctx context.Context, opts *CreateHomeNetwo
 	return nil
 }
 
-// DeleteHomeNetworkKey deletes a home network key by ID.
-func (c *Client) DeleteHomeNetworkKey(ctx context.Context, id int) error {
+// DeleteHomeNetworkKey deletes a home network key by ID. The ID is a
+// UUIDv7 string assigned by the server at create time and is returned
+// in the operator's HomeNetworkKeys list.
+func (c *Client) DeleteHomeNetworkKey(ctx context.Context, id string) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   fmt.Sprintf("api/v1/operator/home-network-keys/%d", id),
+		Path:   "api/v1/operator/home-network-keys/" + id,
 	})
 	if err != nil {
 		return err
@@ -195,12 +196,14 @@ func (c *Client) DeleteHomeNetworkKey(ctx context.Context, id int) error {
 	return nil
 }
 
-// GetHomeNetworkKeyPrivateKey retrieves the private key for a home network key by ID.
-func (c *Client) GetHomeNetworkKeyPrivateKey(ctx context.Context, id int) (*HomeNetworkKeyPrivateKeyResponse, error) {
+// GetHomeNetworkKeyPrivateKey retrieves the private key for a home network
+// key by ID. The ID is a UUIDv7 string assigned by the server at create
+// time and is returned in the operator's HomeNetworkKeys list.
+func (c *Client) GetHomeNetworkKeyPrivateKey(ctx context.Context, id string) (*HomeNetworkKeyPrivateKeyResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   fmt.Sprintf("api/v1/operator/home-network-keys/%d/private-key", id),
+		Path:   "api/v1/operator/home-network-keys/" + id + "/private-key",
 	})
 	if err != nil {
 		return nil, err

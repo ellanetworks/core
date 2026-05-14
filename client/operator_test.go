@@ -303,7 +303,7 @@ func TestDeleteHomeNetworkKey_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	err := clientObj.DeleteHomeNetworkKey(ctx, 42)
+	err := clientObj.DeleteHomeNetworkKey(ctx, "0190b3d2-7c12-7c00-8000-000000000001")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -312,8 +312,8 @@ func TestDeleteHomeNetworkKey_Success(t *testing.T) {
 		t.Fatalf("expected method DELETE, got %s", fake.lastOpts.Method)
 	}
 
-	if fake.lastOpts.Path != "api/v1/operator/home-network-keys/42" {
-		t.Fatalf("expected path api/v1/operator/home-network-keys/42, got %s", fake.lastOpts.Path)
+	if fake.lastOpts.Path != "api/v1/operator/home-network-keys/0190b3d2-7c12-7c00-8000-000000000001" {
+		t.Fatalf("expected path api/v1/operator/home-network-keys/0190b3d2-7c12-7c00-8000-000000000001, got %s", fake.lastOpts.Path)
 	}
 }
 
@@ -332,7 +332,7 @@ func TestDeleteHomeNetworkKey_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	err := clientObj.DeleteHomeNetworkKey(ctx, 999)
+	err := clientObj.DeleteHomeNetworkKey(ctx, "0190b3d2-7c12-7c00-8000-000000000999")
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -353,7 +353,7 @@ func TestGetHomeNetworkKeyPrivateKey_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	resp, err := clientObj.GetHomeNetworkKeyPrivateKey(ctx, 7)
+	resp, err := clientObj.GetHomeNetworkKeyPrivateKey(ctx, "0190b3d2-7c12-7c00-8000-000000000007")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -366,8 +366,8 @@ func TestGetHomeNetworkKeyPrivateKey_Success(t *testing.T) {
 		t.Fatalf("expected method GET, got %s", fake.lastOpts.Method)
 	}
 
-	if fake.lastOpts.Path != "api/v1/operator/home-network-keys/7/private-key" {
-		t.Fatalf("expected path api/v1/operator/home-network-keys/7/private-key, got %s", fake.lastOpts.Path)
+	if fake.lastOpts.Path != "api/v1/operator/home-network-keys/0190b3d2-7c12-7c00-8000-000000000007/private-key" {
+		t.Fatalf("expected path api/v1/operator/home-network-keys/0190b3d2-7c12-7c00-8000-000000000007/private-key, got %s", fake.lastOpts.Path)
 	}
 }
 
@@ -386,7 +386,7 @@ func TestGetHomeNetworkKeyPrivateKey_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err := clientObj.GetHomeNetworkKeyPrivateKey(ctx, 999)
+	_, err := clientObj.GetHomeNetworkKeyPrivateKey(ctx, "0190b3d2-7c12-7c00-8000-000000000999")
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
