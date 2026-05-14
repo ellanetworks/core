@@ -22,23 +22,21 @@ type PolicyRules struct {
 	Downlink []PolicyRule `json:"downlink,omitempty"`
 }
 
-// CreatePolicyOptions contains the parameters for creating a new policy.
 type CreatePolicyOptions struct {
 	Name            string `json:"name"`
 	ProfileName     string `json:"profile_name"`
 	SliceName       string `json:"slice_name"`
 	DataNetworkName string `json:"data_network_name"`
-	// SessionAmbrUplink is the maximum uplink bitrate for a single PDU session.
-	// Enforced by Ella Core. Example: "100 Mbps".
+	// SessionAmbrUplink caps the uplink bitrate of a single PDU session,
+	// e.g. "100 Mbps".
 	SessionAmbrUplink string `json:"session_ambr_uplink"`
-	// SessionAmbrDownlink is the maximum downlink bitrate for a single PDU session.
-	// Enforced by Ella Core. Example: "200 Mbps".
+	// SessionAmbrDownlink caps the downlink bitrate of a single PDU session,
+	// e.g. "200 Mbps".
 	SessionAmbrDownlink string `json:"session_ambr_downlink"`
-	// Var5qi is the 5G QoS Identifier, signaled to the radio for scheduling.
-	// Non-GBR values only: 5, 6, 7, 8, 9, 69, 70, 79, 80.
+	// Var5qi is the 5G QoS Identifier. Non-GBR values only: 5, 6, 7, 8, 9,
+	// 69, 70, 79, 80.
 	Var5qi int32 `json:"var5qi"`
-	// Arp is the Allocation and Retention Priority (1–15). Used at session setup
-	// for admission control and pre-emption; 1 = highest priority.
+	// Arp is the Allocation and Retention Priority (1–15, 1 = highest).
 	Arp   int32        `json:"arp"`
 	Rules *PolicyRules `json:"rules,omitempty"`
 }
@@ -49,11 +47,10 @@ type UpdatePolicyOptions struct {
 	DataNetworkName     string `json:"data_network_name,omitempty"`
 	SessionAmbrUplink   string `json:"session_ambr_uplink,omitempty"`
 	SessionAmbrDownlink string `json:"session_ambr_downlink,omitempty"`
-	// Var5qi is the 5G QoS Identifier, signaled to the radio for scheduling.
-	// Non-GBR values only: 5, 6, 7, 8, 9, 69, 70, 79, 80.
+	// Var5qi is the 5G QoS Identifier. Non-GBR values only: 5, 6, 7, 8, 9,
+	// 69, 70, 79, 80.
 	Var5qi int32 `json:"var5qi,omitempty"`
-	// Arp is the Allocation and Retention Priority (1–15). Used at session setup
-	// for admission control and pre-emption; 1 = highest priority.
+	// Arp is the Allocation and Retention Priority (1–15, 1 = highest).
 	Arp   int32        `json:"arp,omitempty"`
 	Rules *PolicyRules `json:"rules,omitempty"`
 }
@@ -66,8 +63,8 @@ type DeletePolicyOptions struct {
 	Name string `json:"name"`
 }
 
-// Policy represents a QoS policy for a specific (profile, slice, data network) combination.
-// Session AMBR caps the bitrate of a single PDU session and is enforced by Ella Core.
+// Policy is a QoS policy bound to a specific (profile, slice, data network)
+// combination. Session AMBR caps the bitrate of a single PDU session.
 type Policy struct {
 	Name                string `json:"name"`
 	ProfileName         string `json:"profile_name"`
@@ -75,11 +72,10 @@ type Policy struct {
 	DataNetworkName     string `json:"data_network_name"`
 	SessionAmbrUplink   string `json:"session_ambr_uplink"`
 	SessionAmbrDownlink string `json:"session_ambr_downlink"`
-	// Var5qi is the 5G QoS Identifier, signaled to the radio for scheduling.
-	// Non-GBR values only: 5, 6, 7, 8, 9, 69, 70, 79, 80.
+	// Var5qi is the 5G QoS Identifier. Non-GBR values only: 5, 6, 7, 8, 9,
+	// 69, 70, 79, 80.
 	Var5qi int32 `json:"var5qi"`
-	// Arp is the Allocation and Retention Priority (1–15). Used at session setup
-	// for admission control and pre-emption; 1 = highest priority.
+	// Arp is the Allocation and Retention Priority (1–15, 1 = highest).
 	Arp   int32        `json:"arp"`
 	Rules *PolicyRules `json:"rules,omitempty"`
 }
@@ -91,9 +87,8 @@ type ListPoliciesResponse struct {
 	TotalCount int      `json:"total_count"`
 }
 
-// CreatePolicy creates a new policy with the provided options.
-// Optionally includes network rules organized by direction (uplink/downlink).
-// Rules are created in the order they are provided.
+// CreatePolicy creates a policy, optionally with network rules. Rules are
+// applied in the order they appear in opts.Rules.
 func (c *Client) CreatePolicy(ctx context.Context, opts *CreatePolicyOptions) error {
 	payload := struct {
 		Name                string       `json:"name"`
@@ -137,7 +132,8 @@ func (c *Client) CreatePolicy(ctx context.Context, opts *CreatePolicyOptions) er
 	return nil
 }
 
-// GetPolicy retrieves a policy by name, including any associated network rules.
+// GetPolicy retrieves a policy by name. The response includes the
+// associated network rules; ListPolicies omits them.
 func (c *Client) GetPolicy(ctx context.Context, opts *GetPolicyOptions) (*Policy, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -158,11 +154,9 @@ func (c *Client) GetPolicy(ctx context.Context, opts *GetPolicyOptions) (*Policy
 	return &policyResponse, nil
 }
 
-// UpdatePolicy updates an existing policy by name.
-// Existing network rules are always replaced on every update.
-// If Rules is nil (omitted), all existing rules are deleted.
-// To keep existing rules, re-supply them in opts.Rules.
-// To set specific rules, provide them in opts.Rules; existing rules are deleted and replaced.
+// UpdatePolicy replaces an existing policy by name. Network rules are
+// destructively replaced on every update: if opts.Rules is nil, all
+// existing rules are deleted. To keep them, re-supply the current list.
 func (c *Client) UpdatePolicy(ctx context.Context, name string, opts *UpdatePolicyOptions) error {
 	payload := struct {
 		ProfileName         string       `json:"profile_name,omitempty"`
@@ -204,7 +198,6 @@ func (c *Client) UpdatePolicy(ctx context.Context, name string, opts *UpdatePoli
 	return nil
 }
 
-// DeletePolicy deletes a policy by name.
 func (c *Client) DeletePolicy(ctx context.Context, opts *DeletePolicyOptions) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -218,7 +211,6 @@ func (c *Client) DeletePolicy(ctx context.Context, opts *DeletePolicyOptions) er
 	return nil
 }
 
-// ListPolicies lists policies with pagination.
 func (c *Client) ListPolicies(ctx context.Context, p *ListParams) (*ListPoliciesResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,

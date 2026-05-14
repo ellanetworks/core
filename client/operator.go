@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 )
 
 type GetOperatorIDResponse struct {
@@ -39,8 +38,8 @@ type CreateHomeNetworkKeyOptions struct {
 }
 
 type GetOperatorSPNResponse struct {
-	SpnFull  string `json:"spnFull"`
-	SpnShort string `json:"spnShort"`
+	FullName  string `json:"fullName"`
+	ShortName string `json:"shortName"`
 }
 
 type Operator struct {
@@ -54,6 +53,13 @@ type Operator struct {
 type UpdateOperatorIDOptions struct {
 	Mcc string
 	Mnc string
+}
+
+// UpdateOperatorCodeOptions sets the operator code (OPC root used by
+// MILENAGE). Must be a 32-character hex string. The server rejects the
+// update when any subscribers exist.
+type UpdateOperatorCodeOptions struct {
+	OperatorCode string
 }
 
 type UpdateOperatorTrackingOptions struct {
@@ -70,7 +76,6 @@ type UpdateOperatorSPNOptions struct {
 	ShortName string
 }
 
-// GetOperator retrieves the current operator configuration.
 func (c *Client) GetOperator(ctx context.Context) (*Operator, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -91,7 +96,6 @@ func (c *Client) GetOperator(ctx context.Context) (*Operator, error) {
 	return &operatorResponse, nil
 }
 
-// UpdateOperatorID updates the operator's Mobile Country Code (MCC) and Mobile Network Code (MNC).
 func (c *Client) UpdateOperatorID(ctx context.Context, opts *UpdateOperatorIDOptions) error {
 	payload := struct {
 		Mcc string `json:"mcc"`
@@ -121,7 +125,33 @@ func (c *Client) UpdateOperatorID(ctx context.Context, opts *UpdateOperatorIDOpt
 	return nil
 }
 
-// UpdateOperatorTracking updates the operator's tracking information (supported TACs).
+func (c *Client) UpdateOperatorCode(ctx context.Context, opts *UpdateOperatorCodeOptions) error {
+	payload := struct {
+		OperatorCode string `json:"operatorCode,omitempty"`
+	}{
+		OperatorCode: opts.OperatorCode,
+	}
+
+	var body bytes.Buffer
+
+	err := json.NewEncoder(&body).Encode(payload)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "PUT",
+		Path:   "api/v1/operator/code",
+		Body:   &body,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *Client) UpdateOperatorTracking(ctx context.Context, opts *UpdateOperatorTrackingOptions) error {
 	payload := struct {
 		SupportedTacs []string `json:"supportedTacs"`
@@ -149,7 +179,6 @@ func (c *Client) UpdateOperatorTracking(ctx context.Context, opts *UpdateOperato
 	return nil
 }
 
-// CreateHomeNetworkKey creates a new home network key.
 func (c *Client) CreateHomeNetworkKey(ctx context.Context, opts *CreateHomeNetworkKeyOptions) error {
 	payload := struct {
 		KeyIdentifier int    `json:"keyIdentifier"`
@@ -181,12 +210,13 @@ func (c *Client) CreateHomeNetworkKey(ctx context.Context, opts *CreateHomeNetwo
 	return nil
 }
 
-// DeleteHomeNetworkKey deletes a home network key by ID.
-func (c *Client) DeleteHomeNetworkKey(ctx context.Context, id int) error {
+// DeleteHomeNetworkKey deletes a home network key by ID. The ID is the
+// UUIDv7 string returned in Operator.HomeNetworkKeys.
+func (c *Client) DeleteHomeNetworkKey(ctx context.Context, id string) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   fmt.Sprintf("api/v1/operator/home-network-keys/%d", id),
+		Path:   "api/v1/operator/home-network-keys/" + id,
 	})
 	if err != nil {
 		return err
@@ -195,12 +225,13 @@ func (c *Client) DeleteHomeNetworkKey(ctx context.Context, id int) error {
 	return nil
 }
 
-// GetHomeNetworkKeyPrivateKey retrieves the private key for a home network key by ID.
-func (c *Client) GetHomeNetworkKeyPrivateKey(ctx context.Context, id int) (*HomeNetworkKeyPrivateKeyResponse, error) {
+// GetHomeNetworkKeyPrivateKey returns the private key for a home network
+// key. The ID is the UUIDv7 string returned in Operator.HomeNetworkKeys.
+func (c *Client) GetHomeNetworkKeyPrivateKey(ctx context.Context, id string) (*HomeNetworkKeyPrivateKeyResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   fmt.Sprintf("api/v1/operator/home-network-keys/%d/private-key", id),
+		Path:   "api/v1/operator/home-network-keys/" + id + "/private-key",
 	})
 	if err != nil {
 		return nil, err
@@ -216,7 +247,6 @@ func (c *Client) GetHomeNetworkKeyPrivateKey(ctx context.Context, id int) (*Home
 	return &keyResponse, nil
 }
 
-// UpdateOperatorNASSecurity updates the operator's NAS security algorithm preference order.
 func (c *Client) UpdateOperatorNASSecurity(ctx context.Context, opts *UpdateOperatorNASSecurityOptions) error {
 	payload := struct {
 		Ciphering []string `json:"ciphering"`
@@ -246,7 +276,6 @@ func (c *Client) UpdateOperatorNASSecurity(ctx context.Context, opts *UpdateOper
 	return nil
 }
 
-// UpdateOperatorSPN updates the operator's Service Provider Name (full and short).
 func (c *Client) UpdateOperatorSPN(ctx context.Context, opts *UpdateOperatorSPNOptions) error {
 	payload := struct {
 		FullName  string `json:"fullName"`

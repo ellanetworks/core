@@ -165,8 +165,8 @@ func initializeAndGetAdminToken(ctx context.Context, leader *client.Client) (str
 	}
 
 	resp, err := leader.CreateMyAPIToken(ctx, &client.CreateAPITokenOptions{
-		Name:   "ha-integration-test",
-		Expiry: "",
+		Name:      "ha-integration-test",
+		ExpiresAt: "",
 	})
 	if err != nil {
 		return "", fmt.Errorf("create API token: %w", err)

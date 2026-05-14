@@ -303,7 +303,7 @@ func TestDeleteHomeNetworkKey_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	err := clientObj.DeleteHomeNetworkKey(ctx, 42)
+	err := clientObj.DeleteHomeNetworkKey(ctx, "0190b3d2-7c12-7c00-8000-000000000001")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -312,8 +312,8 @@ func TestDeleteHomeNetworkKey_Success(t *testing.T) {
 		t.Fatalf("expected method DELETE, got %s", fake.lastOpts.Method)
 	}
 
-	if fake.lastOpts.Path != "api/v1/operator/home-network-keys/42" {
-		t.Fatalf("expected path api/v1/operator/home-network-keys/42, got %s", fake.lastOpts.Path)
+	if fake.lastOpts.Path != "api/v1/operator/home-network-keys/0190b3d2-7c12-7c00-8000-000000000001" {
+		t.Fatalf("expected path api/v1/operator/home-network-keys/0190b3d2-7c12-7c00-8000-000000000001, got %s", fake.lastOpts.Path)
 	}
 }
 
@@ -332,7 +332,7 @@ func TestDeleteHomeNetworkKey_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	err := clientObj.DeleteHomeNetworkKey(ctx, 999)
+	err := clientObj.DeleteHomeNetworkKey(ctx, "0190b3d2-7c12-7c00-8000-000000000999")
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -353,7 +353,7 @@ func TestGetHomeNetworkKeyPrivateKey_Success(t *testing.T) {
 
 	ctx := context.Background()
 
-	resp, err := clientObj.GetHomeNetworkKeyPrivateKey(ctx, 7)
+	resp, err := clientObj.GetHomeNetworkKeyPrivateKey(ctx, "0190b3d2-7c12-7c00-8000-000000000007")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -366,8 +366,8 @@ func TestGetHomeNetworkKeyPrivateKey_Success(t *testing.T) {
 		t.Fatalf("expected method GET, got %s", fake.lastOpts.Method)
 	}
 
-	if fake.lastOpts.Path != "api/v1/operator/home-network-keys/7/private-key" {
-		t.Fatalf("expected path api/v1/operator/home-network-keys/7/private-key, got %s", fake.lastOpts.Path)
+	if fake.lastOpts.Path != "api/v1/operator/home-network-keys/0190b3d2-7c12-7c00-8000-000000000007/private-key" {
+		t.Fatalf("expected path api/v1/operator/home-network-keys/0190b3d2-7c12-7c00-8000-000000000007/private-key, got %s", fake.lastOpts.Path)
 	}
 }
 
@@ -386,7 +386,7 @@ func TestGetHomeNetworkKeyPrivateKey_Failure(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err := clientObj.GetHomeNetworkKeyPrivateKey(ctx, 999)
+	_, err := clientObj.GetHomeNetworkKeyPrivateKey(ctx, "0190b3d2-7c12-7c00-8000-000000000999")
 	if err == nil {
 		t.Fatalf("expected error, got none")
 	}
@@ -495,6 +495,60 @@ func TestUpdateOperatorSPN_Failure(t *testing.T) {
 	}
 }
 
+func TestUpdateOperatorCode_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 201,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "Operator Code updated successfully"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.UpdateOperatorCode(ctx, &client.UpdateOperatorCodeOptions{
+		OperatorCode: "0123456789abcdef0123456789abcdef",
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts.Method != "PUT" {
+		t.Fatalf("expected PUT method, got: %s", fake.lastOpts.Method)
+	}
+
+	if fake.lastOpts.Path != "api/v1/operator/code" {
+		t.Fatalf("expected path api/v1/operator/code, got: %s", fake.lastOpts.Path)
+	}
+}
+
+func TestUpdateOperatorCode_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 400,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "Invalid operator code format"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.UpdateOperatorCode(ctx, &client.UpdateOperatorCodeOptions{
+		OperatorCode: "not-hex",
+	})
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}
+
 func TestGetOperator_IncludesSPN(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
@@ -502,7 +556,7 @@ func TestGetOperator_IncludesSPN(t *testing.T) {
 			Headers:    http.Header{},
 			Result: []byte(`{
 				"id": {"mcc": "001", "mnc": "01"},
-				"spn": {"spnFull": "My Network", "spnShort": "MyNet"}
+				"spn": {"fullName": "My Network", "shortName": "MyNet"}
 			}`),
 		},
 		err: nil,
@@ -518,11 +572,11 @@ func TestGetOperator_IncludesSPN(t *testing.T) {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if operator.SPN.SpnFull != "My Network" {
-		t.Fatalf("expected spnFull 'My Network', got '%s'", operator.SPN.SpnFull)
+	if operator.SPN.FullName != "My Network" {
+		t.Fatalf("expected fullName 'My Network', got '%s'", operator.SPN.FullName)
 	}
 
-	if operator.SPN.SpnShort != "MyNet" {
-		t.Fatalf("expected spnShort 'MyNet', got '%s'", operator.SPN.SpnShort)
+	if operator.SPN.ShortName != "MyNet" {
+		t.Fatalf("expected shortName 'MyNet', got '%s'", operator.SPN.ShortName)
 	}
 }

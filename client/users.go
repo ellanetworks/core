@@ -31,13 +31,22 @@ type CreateUserOptions struct {
 	Password string `json:"password"`
 }
 
+type UpdateUserOptions struct {
+	RoleID RoleID `json:"role_id"`
+}
+
+type GetUserOptions struct {
+	Email string `json:"email"`
+}
+
 type DeleteUserOptions struct {
 	Email string `json:"email"`
 }
 
 type CreateAPITokenOptions struct {
-	Name   string `json:"name"`
-	Expiry string `json:"expiry,omitempty"` // ISO 8601 format, optional
+	Name string `json:"name"`
+	// ExpiresAt is an optional RFC 3339 timestamp. Empty means "no expiry".
+	ExpiresAt string `json:"expires_at,omitempty"`
 }
 
 type CreateAPITokenResponse struct {
@@ -45,9 +54,10 @@ type CreateAPITokenResponse struct {
 }
 
 type APIToken struct {
-	ID     string `json:"id"` // public token identifier (token_id), not the DB primary key
-	Name   string `json:"name"`
-	Expiry string `json:"expiry,omitempty"` // ISO 8601 format, optional
+	ID   string `json:"id"` // public token identifier (token_id), not the DB primary key
+	Name string `json:"name"`
+	// ExpiresAt is an RFC 3339 timestamp; empty when the token has no expiry.
+	ExpiresAt string `json:"expires_at,omitempty"`
 }
 
 type User struct {
@@ -69,7 +79,6 @@ type ListAPITokensResponse struct {
 	TotalCount int        `json:"total_count"`
 }
 
-// ListUsers lists users with pagination.
 func (c *Client) ListUsers(ctx context.Context, p *ListParams) (*ListUsersResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -94,7 +103,6 @@ func (c *Client) ListUsers(ctx context.Context, p *ListParams) (*ListUsersRespon
 	return &users, nil
 }
 
-// CreateUser creates a new user with the provided options.
 func (c *Client) CreateUser(ctx context.Context, opts *CreateUserOptions) error {
 	payload := struct {
 		Email    string `json:"email"`
@@ -126,7 +134,55 @@ func (c *Client) CreateUser(ctx context.Context, opts *CreateUserOptions) error 
 	return nil
 }
 
-// DeleteUser deletes a user by email.
+func (c *Client) GetUser(ctx context.Context, opts *GetUserOptions) (*User, error) {
+	resp, err := c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "GET",
+		Path:   "api/v1/users/" + opts.Email,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var user User
+
+	err = resp.DecodeResult(&user)
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+// UpdateUser changes a user's role. Password changes go through
+// UpdateUserPassword.
+func (c *Client) UpdateUser(ctx context.Context, email string, opts *UpdateUserOptions) error {
+	payload := struct {
+		RoleID RoleID `json:"role_id"`
+	}{
+		RoleID: opts.RoleID,
+	}
+
+	var body bytes.Buffer
+
+	err := json.NewEncoder(&body).Encode(payload)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "PUT",
+		Path:   "api/v1/users/" + email,
+		Body:   &body,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c *Client) DeleteUser(ctx context.Context, opts *DeleteUserOptions) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -140,14 +196,14 @@ func (c *Client) DeleteUser(ctx context.Context, opts *DeleteUserOptions) error 
 	return nil
 }
 
-// CreateMyAPIToken creates a new API token for the authenticated user.
+// CreateMyAPIToken creates an API token for the authenticated user.
 func (c *Client) CreateMyAPIToken(ctx context.Context, opts *CreateAPITokenOptions) (*CreateAPITokenResponse, error) {
 	payload := struct {
-		Name   string `json:"name"`
-		Expiry string `json:"expiry,omitempty"` // ISO 8601 format, optional
+		Name      string `json:"name"`
+		ExpiresAt string `json:"expires_at,omitempty"`
 	}{
-		Name:   opts.Name,
-		Expiry: opts.Expiry,
+		Name:      opts.Name,
+		ExpiresAt: opts.ExpiresAt,
 	}
 
 	var body bytes.Buffer
@@ -177,7 +233,7 @@ func (c *Client) CreateMyAPIToken(ctx context.Context, opts *CreateAPITokenOptio
 	return &tokenResponse, nil
 }
 
-// ListMyAPITokens lists API tokens for the authenticated user with pagination.
+// ListMyAPITokens lists API tokens for the authenticated user.
 func (c *Client) ListMyAPITokens(ctx context.Context, p *ListParams) (*ListAPITokensResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -202,7 +258,7 @@ func (c *Client) ListMyAPITokens(ctx context.Context, p *ListParams) (*ListAPITo
 	return &tokens, nil
 }
 
-// DeleteMyAPIToken deletes an API token for the authenticated user by token ID.
+// DeleteMyAPIToken deletes an API token owned by the authenticated user.
 func (c *Client) DeleteMyAPIToken(ctx context.Context, tokenID string) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -216,7 +272,7 @@ func (c *Client) DeleteMyAPIToken(ctx context.Context, tokenID string) error {
 	return nil
 }
 
-// ListUserAPITokens lists API tokens for a specific user with pagination. Requires admin privileges.
+// ListUserAPITokens lists API tokens for the given user. Admin-only.
 func (c *Client) ListUserAPITokens(ctx context.Context, email string, p *ListParams) (*ListAPITokensResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -241,14 +297,14 @@ func (c *Client) ListUserAPITokens(ctx context.Context, email string, p *ListPar
 	return &tokens, nil
 }
 
-// CreateUserAPIToken creates a new API token for the specified user. Requires admin privileges.
+// CreateUserAPIToken creates an API token for the given user. Admin-only.
 func (c *Client) CreateUserAPIToken(ctx context.Context, email string, opts *CreateAPITokenOptions) (*CreateAPITokenResponse, error) {
 	payload := struct {
-		Name   string `json:"name"`
-		Expiry string `json:"expiry,omitempty"`
+		Name      string `json:"name"`
+		ExpiresAt string `json:"expires_at,omitempty"`
 	}{
-		Name:   opts.Name,
-		Expiry: opts.Expiry,
+		Name:      opts.Name,
+		ExpiresAt: opts.ExpiresAt,
 	}
 
 	var body bytes.Buffer
@@ -278,7 +334,7 @@ func (c *Client) CreateUserAPIToken(ctx context.Context, email string, opts *Cre
 	return &tokenResponse, nil
 }
 
-// DeleteUserAPIToken deletes an API token for the specified user by token ID. Requires admin privileges.
+// DeleteUserAPIToken deletes an API token from the given user. Admin-only.
 func (c *Client) DeleteUserAPIToken(ctx context.Context, email string, tokenID string) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,

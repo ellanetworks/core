@@ -167,6 +167,64 @@ func TestGetSubscriber_Failure(t *testing.T) {
 	}
 }
 
+func TestUpdateSubscriber_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "Subscriber updated successfully"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	opts := &client.UpdateSubscriberOptions{
+		ProfileName: "enterprise",
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.UpdateSubscriber(ctx, "001010100000022", opts)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts.Method != "PUT" {
+		t.Fatalf("expected PUT method, got: %s", fake.lastOpts.Method)
+	}
+
+	if fake.lastOpts.Path != "api/v1/subscribers/001010100000022" {
+		t.Fatalf("expected path api/v1/subscribers/001010100000022, got: %s", fake.lastOpts.Path)
+	}
+}
+
+func TestUpdateSubscriber_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 404,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "Subscriber not found"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	opts := &client.UpdateSubscriberOptions{
+		ProfileName: "enterprise",
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.UpdateSubscriber(ctx, "non_existent_imsi", opts)
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}
+
 func TestDeleteSubscriber_Success(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{
