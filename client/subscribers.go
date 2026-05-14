@@ -28,14 +28,14 @@ type DeleteSubscriberOptions struct {
 	ID string `json:"id"`
 }
 
-// SubscriberStatus is the lightweight status returned by the list endpoint.
+// SubscriberStatus is the lightweight status carried in list responses.
 type SubscriberStatus struct {
 	Registered     bool   `json:"registered"`
 	NumPDUSessions int    `json:"num_pdu_sessions"`
 	LastSeenAt     string `json:"lastSeenAt,omitempty"`
 }
 
-// Subscriber is the summary representation returned by the list endpoint.
+// Subscriber is the summary form returned by ListSubscribers.
 type Subscriber struct {
 	Imsi        string           `json:"imsi"`
 	ProfileName string           `json:"profile_name"`
@@ -43,7 +43,6 @@ type Subscriber struct {
 	Status      SubscriberStatus `json:"status"`
 }
 
-// ListSubscribersParams holds the parameters for ListSubscribers.
 type ListSubscribersParams struct {
 	Page    int    `json:"page"`
 	PerPage int    `json:"per_page"`
@@ -57,7 +56,7 @@ type ListSubscribersResponse struct {
 	TotalCount int          `json:"total_count"`
 }
 
-// SubscriberDetailStatus is the rich status returned by the get-single endpoint.
+// SubscriberDetailStatus is the rich status carried in GetSubscriber responses.
 type SubscriberDetailStatus struct {
 	Registered         bool   `json:"registered"`
 	Imei               string `json:"imei"`
@@ -67,7 +66,7 @@ type SubscriberDetailStatus struct {
 	LastSeenRadio      string `json:"lastSeenRadio,omitempty"`
 }
 
-// SubscriberDetail is the full representation returned by the get-single endpoint.
+// SubscriberDetail is the full form returned by GetSubscriber.
 type SubscriberDetail struct {
 	Imsi        string                 `json:"imsi"`
 	ProfileName string                 `json:"profile_name"`
@@ -75,7 +74,6 @@ type SubscriberDetail struct {
 	PDUSessions []SessionInfo          `json:"pdu_sessions"`
 }
 
-// SessionInfo is a representation of a PDU session.
 type SessionInfo struct {
 	PDUSessionID    uint8  `json:"pdu_session_id"`
 	Status          string `json:"status"`
@@ -88,19 +86,16 @@ type SessionInfo struct {
 	SessionAmbrDown string `json:"session_ambr_downlink,omitempty"`
 }
 
-// SubscriberCredentials contains the authentication credentials for a subscriber.
 type SubscriberCredentials struct {
 	Key            string `json:"key"`
 	Opc            string `json:"opc"`
 	SequenceNumber string `json:"sequenceNumber"`
 }
 
-// GetSubscriberCredentialsOptions holds the parameters for GetSubscriberCredentials.
 type GetSubscriberCredentialsOptions struct {
 	ID string `json:"id"`
 }
 
-// CreateSubscriber creates a new subscriber with the provided options.
 func (c *Client) CreateSubscriber(ctx context.Context, opts *CreateSubscriberOptions) error {
 	payload := struct {
 		Imsi           string `json:"imsi"`
@@ -136,7 +131,6 @@ func (c *Client) CreateSubscriber(ctx context.Context, opts *CreateSubscriberOpt
 	return nil
 }
 
-// GetSubscriber retrieves a subscriber by ID.
 func (c *Client) GetSubscriber(ctx context.Context, opts *GetSubscriberOptions) (*SubscriberDetail, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -157,8 +151,8 @@ func (c *Client) GetSubscriber(ctx context.Context, opts *GetSubscriberOptions) 
 	return &subscriberResponse, nil
 }
 
-// UpdateSubscriber updates an existing subscriber by IMSI. Only profile_name
-// is settable.
+// UpdateSubscriber moves a subscriber to a different profile.
+// profile_name is the only settable field.
 func (c *Client) UpdateSubscriber(ctx context.Context, imsi string, opts *UpdateSubscriberOptions) error {
 	payload := struct {
 		ProfileName string `json:"profile_name"`
@@ -186,7 +180,6 @@ func (c *Client) UpdateSubscriber(ctx context.Context, imsi string, opts *Update
 	return nil
 }
 
-// DeleteSubscriber deletes a subscriber by ID.
 func (c *Client) DeleteSubscriber(ctx context.Context, opts *DeleteSubscriberOptions) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -200,7 +193,6 @@ func (c *Client) DeleteSubscriber(ctx context.Context, opts *DeleteSubscriberOpt
 	return nil
 }
 
-// ListSubscribers lists subscribers with pagination and optional filters.
 func (c *Client) ListSubscribers(ctx context.Context, p *ListSubscribersParams) (*ListSubscribersResponse, error) {
 	query := url.Values{
 		"page":     {fmt.Sprintf("%d", p.Page)},
@@ -231,8 +223,8 @@ func (c *Client) ListSubscribers(ctx context.Context, p *ListSubscribersParams) 
 	return &subscribers, nil
 }
 
-// GetSubscriberCredentials retrieves the authentication credentials for a subscriber.
-// requires Admin or Network Manager role.
+// GetSubscriberCredentials returns the authentication credentials.
+// Admin or Network Manager role required.
 func (c *Client) GetSubscriberCredentials(ctx context.Context, opts *GetSubscriberCredentialsOptions) (*SubscriberCredentials, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,

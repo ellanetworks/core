@@ -56,8 +56,8 @@ type UpdateOperatorIDOptions struct {
 }
 
 // UpdateOperatorCodeOptions sets the operator code (OPC root used by
-// MILENAGE). The server requires a 32-character hex string and rejects
-// the update when any subscribers exist.
+// MILENAGE). Must be a 32-character hex string. The server rejects the
+// update when any subscribers exist.
 type UpdateOperatorCodeOptions struct {
 	OperatorCode string
 }
@@ -76,7 +76,6 @@ type UpdateOperatorSPNOptions struct {
 	ShortName string
 }
 
-// GetOperator retrieves the current operator configuration.
 func (c *Client) GetOperator(ctx context.Context) (*Operator, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -97,7 +96,6 @@ func (c *Client) GetOperator(ctx context.Context) (*Operator, error) {
 	return &operatorResponse, nil
 }
 
-// UpdateOperatorID updates the operator's Mobile Country Code (MCC) and Mobile Network Code (MNC).
 func (c *Client) UpdateOperatorID(ctx context.Context, opts *UpdateOperatorIDOptions) error {
 	payload := struct {
 		Mcc string `json:"mcc"`
@@ -127,9 +125,6 @@ func (c *Client) UpdateOperatorID(ctx context.Context, opts *UpdateOperatorIDOpt
 	return nil
 }
 
-// UpdateOperatorCode updates the operator's secret code (OPC root).
-// Must be a 32-character hex string. The server rejects the update with
-// 400 when any subscribers exist (api_operator.go:396-399).
 func (c *Client) UpdateOperatorCode(ctx context.Context, opts *UpdateOperatorCodeOptions) error {
 	payload := struct {
 		OperatorCode string `json:"operatorCode,omitempty"`
@@ -157,7 +152,6 @@ func (c *Client) UpdateOperatorCode(ctx context.Context, opts *UpdateOperatorCod
 	return nil
 }
 
-// UpdateOperatorTracking updates the operator's tracking information (supported TACs).
 func (c *Client) UpdateOperatorTracking(ctx context.Context, opts *UpdateOperatorTrackingOptions) error {
 	payload := struct {
 		SupportedTacs []string `json:"supportedTacs"`
@@ -185,7 +179,6 @@ func (c *Client) UpdateOperatorTracking(ctx context.Context, opts *UpdateOperato
 	return nil
 }
 
-// CreateHomeNetworkKey creates a new home network key.
 func (c *Client) CreateHomeNetworkKey(ctx context.Context, opts *CreateHomeNetworkKeyOptions) error {
 	payload := struct {
 		KeyIdentifier int    `json:"keyIdentifier"`
@@ -217,9 +210,8 @@ func (c *Client) CreateHomeNetworkKey(ctx context.Context, opts *CreateHomeNetwo
 	return nil
 }
 
-// DeleteHomeNetworkKey deletes a home network key by ID. The ID is a
-// UUIDv7 string assigned by the server at create time and is returned
-// in the operator's HomeNetworkKeys list.
+// DeleteHomeNetworkKey deletes a home network key by ID. The ID is the
+// UUIDv7 string returned in Operator.HomeNetworkKeys.
 func (c *Client) DeleteHomeNetworkKey(ctx context.Context, id string) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -233,9 +225,8 @@ func (c *Client) DeleteHomeNetworkKey(ctx context.Context, id string) error {
 	return nil
 }
 
-// GetHomeNetworkKeyPrivateKey retrieves the private key for a home network
-// key by ID. The ID is a UUIDv7 string assigned by the server at create
-// time and is returned in the operator's HomeNetworkKeys list.
+// GetHomeNetworkKeyPrivateKey returns the private key for a home network
+// key. The ID is the UUIDv7 string returned in Operator.HomeNetworkKeys.
 func (c *Client) GetHomeNetworkKeyPrivateKey(ctx context.Context, id string) (*HomeNetworkKeyPrivateKeyResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -256,7 +247,6 @@ func (c *Client) GetHomeNetworkKeyPrivateKey(ctx context.Context, id string) (*H
 	return &keyResponse, nil
 }
 
-// UpdateOperatorNASSecurity updates the operator's NAS security algorithm preference order.
 func (c *Client) UpdateOperatorNASSecurity(ctx context.Context, opts *UpdateOperatorNASSecurityOptions) error {
 	payload := struct {
 		Ciphering []string `json:"ciphering"`
@@ -286,7 +276,6 @@ func (c *Client) UpdateOperatorNASSecurity(ctx context.Context, opts *UpdateOper
 	return nil
 }
 
-// UpdateOperatorSPN updates the operator's Service Provider Name (full and short).
 func (c *Client) UpdateOperatorSPN(ctx context.Context, opts *UpdateOperatorSPNOptions) error {
 	payload := struct {
 		FullName  string `json:"fullName"`

@@ -101,7 +101,6 @@ type RadioEventContent struct {
 	Raw     string `json:"raw"`
 }
 
-// GetRadio retrieves a radio by name.
 func (c *Client) GetRadio(ctx context.Context, opts *GetRadioOptions) (*RadioDetail, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -122,7 +121,6 @@ func (c *Client) GetRadio(ctx context.Context, opts *GetRadioOptions) (*RadioDet
 	return &radioResponse, nil
 }
 
-// ListRadios lists radios with pagination.
 func (c *Client) ListRadios(ctx context.Context, p *ListParams) (*ListRadiosResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -147,7 +145,6 @@ func (c *Client) ListRadios(ctx context.Context, p *ListParams) (*ListRadiosResp
 	return &radios, nil
 }
 
-// ListRadioEvents lists radio events with filtering and pagination.
 func (c *Client) ListRadioEvents(ctx context.Context, p *ListRadioEventsParams) (*ListRadioEventsResponse, error) {
 	query := url.Values{}
 	if p.Page != 0 {
@@ -202,7 +199,7 @@ func (c *Client) ListRadioEvents(ctx context.Context, p *ListRadioEventsParams) 
 	return &radioEvents, nil
 }
 
-// ClearRadioEvents clears all radio events. Events will be permanently deleted.
+// ClearRadioEvents permanently deletes every stored radio event.
 func (c *Client) ClearRadioEvents(ctx context.Context) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -216,7 +213,6 @@ func (c *Client) ClearRadioEvents(ctx context.Context) error {
 	return nil
 }
 
-// GetRadioEventRetentionPolicy retrieves the current radio event retention policy.
 func (c *Client) GetRadioEventRetentionPolicy(ctx context.Context) (*GetRadioEventsRetentionPolicy, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
@@ -237,7 +233,6 @@ func (c *Client) GetRadioEventRetentionPolicy(ctx context.Context) (*GetRadioEve
 	return &policy, nil
 }
 
-// UpdateRadioEventRetentionPolicy updates the radio event retention policy.
 func (c *Client) UpdateRadioEventRetentionPolicy(ctx context.Context, opts *UpdateRadioEventsRetentionPolicyOptions) error {
 	payload := struct {
 		Days int `json:"days"`
@@ -265,7 +260,6 @@ func (c *Client) UpdateRadioEventRetentionPolicy(ctx context.Context, opts *Upda
 	return nil
 }
 
-// GetRadioEvent retrieves a radio event by ID.
 func (c *Client) GetRadioEvent(ctx context.Context, id int) (*RadioEventContent, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
