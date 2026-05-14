@@ -1,0 +1,48 @@
+name: Integration tests - API matrix
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  api-matrix-test:
+    # The API matrix exercises the REST surface only — no NGAP/NAS/UPF data
+    # plane — so a single architecture and the IPv4 compose are sufficient.
+    # Running cross-arch / cross-family would duplicate identical REST
+    # coverage for no added signal.
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Docker registry
+        run: |
+          docker run -d -p 5000:5000 --name registry registry:2
+
+      - name: Download Ella Core image from GitHub Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-image-amd64
+
+      - name: Download Ella Core Tester image from GitHub Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-tester-image-amd64
+
+      - name: Load images into Docker
+        run: |
+          docker load -i ellacore_latest-amd64.tar
+          docker tag ella-core:latest localhost:5000/ella-core:latest
+          docker push localhost:5000/ella-core:latest
+          docker load -i ellacore_tester_latest-amd64.tar
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Run API matrix integration test
+        run: |
+          INTEGRATION=1 IP_VERSION=ipv4 go test ./integration -run TestAPIMatrix -timeout 10m -v

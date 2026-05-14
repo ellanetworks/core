@@ -48,7 +48,7 @@ jobs:
         env:
           HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
         run: |
-          INTEGRATION=1 IP_VERSION=${{ matrix.ip_version }} go test ./integration/... -skip 'TestIntegrationHA|TestIntegration3GPPHAFailover' -v
+          INTEGRATION=1 IP_VERSION=${{ matrix.ip_version }} go test ./integration/... -skip 'TestIntegrationHA|TestIntegration3GPPHAFailover|TestAPIMatrix' -v
 
       - name: Upload cluster logs
         if: always()
