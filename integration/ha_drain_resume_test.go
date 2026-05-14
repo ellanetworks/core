@@ -5,38 +5,20 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/ellanetworks/core/client"
 )
 
-// TestIntegrationHADrainResumeCycle exercises the drain → resume round-trip
-// that operators run for routine maintenance (kernel patch, hardware swap,
-// config push). The drain happy path is covered by
-// TestIntegrationHADrainLeadership; the resume side has no integration
-// coverage today, even though the SDK and server handler both exist.
-//
-// What this test pins:
-//
-//  1. Drain transitions a follower's drainState through draining → drained.
-//  2. Resume clears drainState back to "active".
-//  3. After resume, the node serves a fresh write that lands on the leader
-//     (proves replication still flows to the resumed node).
-//  4. Repeating the drain/resume cycle on the same node works — catches
-//     state leaks (timers, watchdogs, BGP service holding a stale flag).
-//  5. Resume on a non-drained node is idempotent (no error, no state churn).
-//
-// The test deliberately drains a follower, not the leader. Draining the
-// leader is already covered by TestIntegrationHADrainLeadership; here the
-// goal is the resume contract, which is the same regardless of whether
-// the target is a follower or a former leader.
+// TestIntegrationHADrainResumeCycle drains a follower, resumes it,
+// confirms it accepts replicated writes again, and repeats the cycle
+// to catch state leaks across successive drains. Also asserts that
+// resuming an already-active node is a no-op.
 func TestIntegrationHADrainResumeCycle(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
+	ctx := context.Background()
 
 	dockerClient, err := NewDockerClient()
 	if err != nil {
@@ -72,9 +54,6 @@ func TestIntegrationHADrainResumeCycle(t *testing.T) {
 		t.Fatalf("find follower: %v", err)
 	}
 
-	t.Logf("draining follower node %d", followerID)
-
-	// First cycle.
 	if err := drainAndAssert(ctx, leader, followerID); err != nil {
 		t.Fatalf("first drain: %v", err)
 	}
@@ -83,11 +62,6 @@ func TestIntegrationHADrainResumeCycle(t *testing.T) {
 		t.Fatalf("first resume: %v", err)
 	}
 
-	// After resume, a fresh write on the leader must still replicate to
-	// the resumed node. This is the contract operators rely on: "I
-	// drained, did maintenance, resumed, and the node is back in
-	// service." If drain accidentally left the node fenced or paused
-	// replication, this read fails.
 	const postResumeIMSI = "001019756139950"
 
 	if err := leader.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
@@ -118,11 +92,6 @@ func TestIntegrationHADrainResumeCycle(t *testing.T) {
 		t.Fatalf("follower returned %q, expected %q", sub.Imsi, postResumeIMSI)
 	}
 
-	// Second cycle on the same node — catches state-leak bugs where the
-	// first drain leaves residue (timer not stopped, BGP flag stuck)
-	// that breaks a subsequent drain.
-	t.Log("running second drain/resume cycle on the same node")
-
 	if err := drainAndAssert(ctx, leader, followerID); err != nil {
 		t.Fatalf("second drain: %v", err)
 	}
@@ -131,28 +100,22 @@ func TestIntegrationHADrainResumeCycle(t *testing.T) {
 		t.Fatalf("second resume: %v", err)
 	}
 
-	// Resume on an already-active node — handler short-circuits at
-	// api_drain.go:213 with 200 OK. Pin that contract: it must not error
-	// and must not flip drainState.
-	t.Log("resuming an already-active node (idempotency check)")
-
 	if err := leader.ResumeClusterMember(ctx, followerID); err != nil {
-		t.Fatalf("idempotent resume: %v", err)
+		t.Fatalf("resume on active node: %v", err)
 	}
 
 	state, err := drainStateOf(ctx, leader, followerID)
 	if err != nil {
-		t.Fatalf("read drainState after idempotent resume: %v", err)
+		t.Fatalf("read drainState after resume: %v", err)
 	}
 
 	if state != "active" {
-		t.Fatalf("drainState after idempotent resume = %q, want active", state)
+		t.Fatalf("drainState = %q, want active", state)
 	}
 
 	assertMembershipConsistent(t, ctx, clients)
 }
 
-// findFollower returns the nodeID and client of any follower in the cluster.
 func findFollower(ctx context.Context, clients []*client.Client) (int, *client.Client, error) {
 	for _, c := range clients {
 		status, err := c.GetStatus(ctx)
@@ -172,59 +135,36 @@ func findFollower(ctx context.Context, clients []*client.Client) (int, *client.C
 	return 0, nil, fmt.Errorf("no follower found")
 }
 
-// drainAndAssert drains nodeID via the leader and waits for the member
-// list (as seen from the leader) to report drainState == "drained".
 func drainAndAssert(ctx context.Context, leader *client.Client, nodeID int) error {
-	resp, err := leader.DrainClusterMember(ctx, nodeID, &client.DrainOptions{DeadlineSeconds: 30})
+	resp, err := leader.DrainClusterMember(ctx, nodeID)
 	if err != nil {
 		return fmt.Errorf("DrainClusterMember(%d): %w", nodeID, err)
 	}
 
-	if resp.DrainState != "draining" && resp.DrainState != "drained" {
-		return fmt.Errorf("immediate drainState = %q, want draining or drained", resp.DrainState)
+	if resp.DrainState != "drained" {
+		return fmt.Errorf("drainState = %q, want drained", resp.DrainState)
 	}
 
-	return waitForDrainState(ctx, leader, nodeID, "drained", 60*time.Second)
+	return nil
 }
 
-// resumeAndAssert resumes nodeID via the leader and waits for drainState
-// to return to "active".
 func resumeAndAssert(ctx context.Context, leader *client.Client, nodeID int) error {
 	if err := leader.ResumeClusterMember(ctx, nodeID); err != nil {
 		return fmt.Errorf("ResumeClusterMember(%d): %w", nodeID, err)
 	}
 
-	return waitForDrainState(ctx, leader, nodeID, "active", 30*time.Second)
-}
-
-// waitForDrainState polls ListClusterMembers on leader until the given
-// nodeID reports the desired drainState, or timeout elapses.
-func waitForDrainState(ctx context.Context, leader *client.Client, nodeID int, want string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-
-	var last string
-
-	for time.Now().Before(deadline) {
-		state, err := drainStateOf(ctx, leader, nodeID)
-		if err == nil {
-			last = state
-			if state == want {
-				return nil
-			}
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(500 * time.Millisecond):
-		}
+	state, err := drainStateOf(ctx, leader, nodeID)
+	if err != nil {
+		return err
 	}
 
-	return fmt.Errorf("node %d drainState = %q after %s, want %q", nodeID, last, timeout, want)
+	if state != "active" {
+		return fmt.Errorf("drainState after resume = %q, want active", state)
+	}
+
+	return nil
 }
 
-// drainStateOf returns the current drainState for nodeID, sourced from
-// the leader's ListClusterMembers view (the authoritative one).
 func drainStateOf(ctx context.Context, leader *client.Client, nodeID int) (string, error) {
 	members, err := leader.ListClusterMembers(ctx)
 	if err != nil {

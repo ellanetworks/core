@@ -18,10 +18,6 @@ type ClusterMember struct {
 	DrainUpdatedAt string `json:"drainUpdatedAt,omitempty"`
 }
 
-type DrainOptions struct {
-	DeadlineSeconds int `json:"deadlineSeconds,omitempty"`
-}
-
 type DrainResponse struct {
 	DrainState string `json:"drainState"`
 }
@@ -89,26 +85,15 @@ func (c *Client) GetAutopilotState(ctx context.Context) (*AutopilotState, error)
 	return &state, nil
 }
 
-// DrainClusterMember drains the given node. When opts.DeadlineSeconds > 0 the
-// server returns as soon as the drain starts (drainState "draining") and
-// finalises asynchronously when the node's last active lease clears or the
-// deadline elapses. When opts.DeadlineSeconds == 0 (default), the drain is
-// synchronous and the response drainState is "drained".
-func (c *Client) DrainClusterMember(ctx context.Context, nodeID int, opts *DrainOptions) (*DrainResponse, error) {
-	var body bytes.Buffer
-
-	if opts != nil {
-		err := json.NewEncoder(&body).Encode(opts)
-		if err != nil {
-			return nil, err
-		}
-	}
-
+// DrainClusterMember drains the given node. The server runs the
+// node-local side-effects (AMF Status Indication, BGP stop), commits
+// drainState=drained through Raft, and transfers leadership when the
+// target is the current leader.
+func (c *Client) DrainClusterMember(ctx context.Context, nodeID int) (*DrainResponse, error) {
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "POST",
 		Path:   fmt.Sprintf("api/v1/cluster/members/%d/drain", nodeID),
-		Body:   &body,
 	})
 	if err != nil {
 		return nil, err
@@ -124,9 +109,9 @@ func (c *Client) DrainClusterMember(ctx context.Context, nodeID int, opts *Drain
 	return &drainResp, nil
 }
 
-// ResumeClusterMember reverses a prior drain: restarts the BGP speaker
-// (if BGP is enabled) and clears drain state. AMF Status Indication and
-// transferred Raft leadership are not reversed.
+// ResumeClusterMember restarts the BGP speaker on the target (if BGP
+// is enabled) and clears drainState back to active. AMF Status
+// Indication and Raft leadership transfers are not reversed.
 func (c *Client) ResumeClusterMember(ctx context.Context, nodeID int) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,

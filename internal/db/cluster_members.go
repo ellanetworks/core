@@ -17,9 +17,8 @@ import (
 const ClusterMembersTableName = "cluster_members"
 
 const (
-	DrainStateActive   = "active"
-	DrainStateDraining = "draining"
-	DrainStateDrained  = "drained"
+	DrainStateActive  = "active"
+	DrainStateDrained = "drained"
 )
 
 const (
@@ -43,7 +42,7 @@ type ClusterMember struct {
 
 func IsValidDrainState(s string) bool {
 	switch s {
-	case DrainStateActive, DrainStateDraining, DrainStateDrained:
+	case DrainStateActive, DrainStateDrained:
 		return true
 	}
 
@@ -191,10 +190,8 @@ func (db *Database) DeleteClusterMember(ctx context.Context, nodeID int) error {
 	return nil
 }
 
-// SetDrainState persists the drain state for a cluster member. The
-// `drainUpdatedAt` column is set to the current unix timestamp. Returns
-// ErrNotFound if no row exists for nodeID. The update is replicated
-// through the Raft log like any other cluster_members mutation.
+// SetDrainState persists the drain state for a cluster member and
+// stamps drainUpdatedAt. Returns ErrNotFound if no row exists for nodeID.
 func (db *Database) SetDrainState(ctx context.Context, nodeID int, state string) error {
 	if !IsValidDrainState(state) {
 		return fmt.Errorf("invalid drain state %q", state)

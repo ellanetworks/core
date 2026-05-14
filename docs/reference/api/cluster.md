@@ -136,9 +136,7 @@ None
 
 ## Drain Cluster Member
 
-This path marks a node as draining and runs the local drain side-effects: transfers Raft leadership if the target is the leader, signals connected RANs that this AMF's GUAMI is unavailable, and stops the local BGP speaker. A node must be drained before it can be removed. Requires admin privileges.
-
-When `deadlineSeconds` is 0 (default), drain is synchronous and returns once `state` is `drained`. When `deadlineSeconds > 0`, the call returns `state: draining` immediately; a background watcher flips the state to `drained` once the target's active-lease count reaches zero or the deadline elapses.
+This path drains a node and persists `drainState=drained`. The server runs the local drain side-effects on the target: signals connected RANs that this AMF's GUAMI is unavailable, stops the local BGP speaker, and transfers Raft leadership when the target is the current leader. A node must be drained before it can be removed. Requires admin privileges.
 
 | Method | Path                                            |
 | ------ | ----------------------------------------------- |
@@ -146,7 +144,7 @@ When `deadlineSeconds` is 0 (default), drain is synchronous and returns once `st
 
 ### Parameters
 
-- `deadlineSeconds` (integer, optional): Seconds to wait for the node's active-lease count to reach zero. 0 = synchronous (default).
+None.
 
 ### Sample Response
 
