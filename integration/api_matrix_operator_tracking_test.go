@@ -7,13 +7,9 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// runOperatorTrackingMatrix exercises GET /api/v1/operator (for the
-// Tracking section) and PUT /api/v1/operator/tracking, round-tripping
-// SupportedTacs. The handler (api_operator.go:246-296) requires a
-// non-empty list of 6-character hex TACs.
-//
-// The matrix sets a known baseline before mutating; see
-// api_matrix_operator_id_test.go for the rationale.
+// runOperatorTrackingMatrix sets a known baseline before mutating since
+// the operator may be freshly initialised with no TACs. Cleanup restores
+// the same baseline. TAC values are 6-character hex strings.
 func runOperatorTrackingMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	baseline := []string{"000001"}
 

@@ -8,29 +8,23 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// apiMatrixRunner runs one resource's Create→Read→Update→Read→Delete→Read(404)
-// matrix against an already-bootstrapped Ella Core. Each runner owns its own
-// resource lifecycle (including t.Cleanup deletes) and asserts on round-trip
-// field fidelity.
 type apiMatrixRunner func(ctx context.Context, t *testing.T, c *client.Client)
 
 // apiMatrixResources is the registry of resources covered by TestAPIMatrix.
-// Adding a new resource means: implement its runner in
-// api_matrix_<resource>_test.go and register it here.
+// Adding a new resource means implementing its runner in
+// api_matrix_<resource>_test.go and registering it here.
 var apiMatrixResources = map[string]apiMatrixRunner{
-	// Full CRUD resources (step 3).
-	"profiles":          runProfilesMatrix,
-	"slices":            runSlicesMatrix,
-	"data_networks":     runDataNetworksMatrix,
-	"policies":          runPoliciesMatrix,
-	"subscribers":       runSubscribersMatrix,
-	"routes":            runRoutesMatrix,
-	"bgp_peers":         runBGPPeersMatrix,
-	"users":             runUsersMatrix,
-	"api_tokens":        runAPITokensMatrix,
-	"home_network_keys": runHomeNetworkKeysMatrix,
-	"policy_rules":      runPolicyRulesMatrix,
-	// Singletons + retention policies (step 4).
+	"profiles":                   runProfilesMatrix,
+	"slices":                     runSlicesMatrix,
+	"data_networks":              runDataNetworksMatrix,
+	"policies":                   runPoliciesMatrix,
+	"subscribers":                runSubscribersMatrix,
+	"routes":                     runRoutesMatrix,
+	"bgp_peers":                  runBGPPeersMatrix,
+	"users":                      runUsersMatrix,
+	"api_tokens":                 runAPITokensMatrix,
+	"home_network_keys":          runHomeNetworkKeysMatrix,
+	"policy_rules":               runPolicyRulesMatrix,
 	"operator_code":              runOperatorCodeMatrix,
 	"operator_id":                runOperatorIDMatrix,
 	"operator_tracking":          runOperatorTrackingMatrix,
@@ -46,15 +40,6 @@ var apiMatrixResources = map[string]apiMatrixRunner{
 	"audit_log_retention":        runAuditLogRetentionMatrix,
 }
 
-// TestAPIMatrix exercises Create/Read/Update/Delete (and List, and the
-// missing-after-delete 404) for every CRUD-capable REST resource, using the
-// Go client SDK against a live Ella Core brought up via the core-tester
-// compose. The bootstrap (admin user + API token + NAT + default routes) is
-// reused from setupTesterEnv; no gNB/UE traffic is involved.
-//
-// Each resource runs as an independent t.Run subtest so failures in one
-// resource don't mask others. Subtests run sequentially against a single
-// compose to keep total runtime bounded.
 func TestAPIMatrix(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")

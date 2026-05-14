@@ -7,8 +7,6 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// runSlicesMatrix is the slice-resource counterpart of runProfilesMatrix.
-// See api_matrix_profiles_test.go for the matrix shape.
 func runSlicesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	name := apiMatrixName("slice")
 

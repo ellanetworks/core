@@ -7,14 +7,9 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// runBGPPeersMatrix exercises CRUD for BGP peers. The handler at
-// internal/api/server/api_bgp.go:435 does not require BGP to be enabled
-// for create — peers are stored in the DB regardless — so we can run
-// this matrix without first toggling BGP settings.
-//
-// Peers are identified by integer ID assigned at create time; since the
-// Create response does not echo the ID back, we List immediately after
-// Create and look up our peer by Address.
+// runBGPPeersMatrix runs without enabling the BGP speaker; peers are
+// stored regardless of the speaker state. The Create response does not
+// echo the assigned ID, so we recover it by listing and matching Address.
 func runBGPPeersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	listAll := func() *client.ListBGPPeersResponse {
 		resp, err := c.ListBGPPeers(ctx, &client.ListParams{Page: 1, PerPage: 100})
@@ -37,8 +32,7 @@ func runBGPPeersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 
 	baseline := listAll()
 
-	// 192.0.2.0/24 is TEST-NET-1 (RFC 5737); not routable, so the BGP
-	// session never establishes — but the DB record exists.
+	// TEST-NET-1 (RFC 5737); not routable, so no BGP session ever forms.
 	createOpts := &client.CreateBGPPeerOptions{
 		Address:     "192.0.2.10",
 		RemoteAS:    65000,
@@ -152,10 +146,9 @@ func runBGPPeersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 			},
 		},
 		{
-			// Password is *string on Update with two semantics: nil = leave
-			// unchanged, &"<value>" = set, &"" = clear. The server doesn't
-			// echo the password back, so we observe the change via the
-			// HasPassword boolean on the Get response.
+			// Password is *string with three semantics: nil leaves it
+			// unchanged, &"value" sets it, &"" clears it. The server never
+			// echoes the password back, so HasPassword is the witness.
 			field: "Password_set",
 			mutate: func(o *client.UpdateBGPPeerOptions) {
 				secret := "topsecret"
@@ -224,10 +217,8 @@ func runBGPPeersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	}
 }
 
-// updateOptsFromBGPPeer mirrors current Get state into an
-// UpdateBGPPeerOptions so per-field sub-cases mutate exactly one field
-// without overwriting others. Password is intentionally left nil (the
-// "leave unchanged" pointer-nil semantics) since the server doesn't
+// updateOptsFromBGPPeer mirrors current Get state into Update options.
+// Password is left nil ("leave unchanged") since the server doesn't
 // expose the current password.
 func updateOptsFromBGPPeer(p *client.BGPPeer) client.UpdateBGPPeerOptions {
 	return client.UpdateBGPPeerOptions{

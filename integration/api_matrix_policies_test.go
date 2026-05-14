@@ -7,18 +7,13 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// runPoliciesMatrix exercises CRUD for policies. Policies reference a
-// Profile, a Slice, and a Data Network; the runner sets up a primary
-// and a secondary of each so it can also round-trip the three reference
-// fields (profile_name / slice_name / data_network_name) on Update.
-// See api_matrix_profiles_test.go for the matrix shape.
+// runPoliciesMatrix stands up a primary and a secondary of each
+// referenced resource (Profile, Slice, Data Network) so it can round-trip
+// the three reference fields on Update.
 //
-// Each Update sub-case starts from the current Get state (opts := *got)
-// instead of the create-time base. This guarantees fields the sub-case
-// doesn't mutate round-trip whatever the server currently holds —
-// without this, a nil field on an UpdateOptions struct would silently
-// overwrite live state (the destructive default that hid the
-// network-rules wipe bug).
+// Each Update sub-case starts from the current Get state because a
+// zero-valued field in the Update body silently overwrites live state on
+// the server.
 func runPoliciesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	profileA := apiMatrixName("policy-profile-a")
 	profileB := apiMatrixName("policy-profile-b")
@@ -292,10 +287,8 @@ func runPoliciesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	}
 }
 
-// updateOptsFromPolicy builds an UpdatePolicyOptions that exactly
-// reflects the current Get response. Used by per-field update sub-cases
-// so each mutation starts from live server state rather than from a
-// stale create-time snapshot.
+// updateOptsFromPolicy mirrors a Get response into Update options so
+// per-field sub-cases can mutate exactly one field.
 func updateOptsFromPolicy(p *client.Policy) client.UpdatePolicyOptions {
 	return client.UpdatePolicyOptions{
 		ProfileName:         p.ProfileName,

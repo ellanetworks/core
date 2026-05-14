@@ -7,10 +7,6 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// runDataNetworksMatrix exercises CRUD for data networks. See
-// api_matrix_profiles_test.go for the matrix shape.
-//
-// IPv4Pool, IPv6Pool, DNS, and Mtu are all round-tripped via Update.
 func runDataNetworksMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	name := apiMatrixName("dn")
 
@@ -81,8 +77,6 @@ func runDataNetworksMatrix(ctx context.Context, t *testing.T, c *client.Client) 
 		t.Fatalf("list after create missing %q", name)
 	}
 
-	// Updates round-trip every settable field independently. The base spec
-	// is the post-create state; each case mutates exactly one field.
 	base := *createOpts
 
 	updateCases := []struct {

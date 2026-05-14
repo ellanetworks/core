@@ -7,13 +7,9 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// runUsersMatrix exercises full CRUD for users. Only the role_id is
-// settable via Update (internal/api/server/api_users.go:26-28); password
-// changes go through a dedicated endpoint and are out of scope here.
-//
-// The bootstrap admin (admin@ellanetworks.com from
-// tester_env_test.go:125) must not be touched, so we use a distinct
-// scoped email.
+// runUsersMatrix uses a scoped email to keep the bootstrap admin user
+// (in use by the test client itself) untouched. Update only covers
+// role_id; password changes go through a separate endpoint.
 func runUsersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	email := "apimat-user@example.com"
 

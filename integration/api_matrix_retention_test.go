@@ -7,9 +7,8 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// retentionRunner abstracts a Days-based retention-policy singleton.
-// All four (subscriber usage, radio events, flow reports, audit logs)
-// share the same {Days: int} shape, so they share one runner.
+// retentionRunner abstracts a Days-based retention-policy singleton so
+// the four resources that share the {Days: int} shape can share a runner.
 type retentionRunner struct {
 	name   string
 	get    func(ctx context.Context) (int, error)
@@ -30,7 +29,6 @@ func (r retentionRunner) run(ctx context.Context, t *testing.T) {
 
 	target := orig + 7
 	if target == orig {
-		// orig must not have been 0 here, but guard anyway.
 		target = 14
 	}
 

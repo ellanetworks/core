@@ -7,9 +7,8 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// runOperatorSPNMatrix exercises GET /api/v1/operator (for the SPN
-// section) and PUT /api/v1/operator/spn. The handler
-// (api_operator.go:518) caps each name at maxSPNLength=50.
+// runOperatorSPNMatrix round-trips the operator's full and short Service
+// Provider Names. Each name is capped at 50 characters by the server.
 func runOperatorSPNMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	baseline := &client.UpdateOperatorSPNOptions{
 		FullName:  "Ella Networks",

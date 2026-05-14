@@ -7,15 +7,9 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// runOperatorIDMatrix exercises GET /api/v1/operator (for the ID
-// section) and PUT /api/v1/operator/id, round-tripping MCC and MNC.
-// Handler-side validators (api_operator.go:78-106) require MCC = 3
-// digits and MNC = 2 or 3 digits.
-//
-// The matrix test sets a known baseline (001/01) before mutating so
-// it works against both a fresh post-init operator (empty MCC/MNC) and
-// a previously-configured one. The post-Cleanup state is the same known
-// baseline regardless of pre-test state.
+// runOperatorIDMatrix sets a known baseline before mutating so the
+// matrix works whether the operator was previously configured or freshly
+// initialised with empty MCC/MNC. Cleanup restores the same baseline.
 func runOperatorIDMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	const (
 		baselineMCC = "001"

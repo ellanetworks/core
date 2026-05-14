@@ -9,29 +9,13 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// runPolicyRulesMatrix exercises the network rules sub-resource on a
-// Policy. Rules are embedded in the Policy payload (uplink/downlink lists
-// of {description, remote_prefix, protocol, port_low, port_high, action})
-// and are only returned in full by GetPolicy — ListPolicies omits them
-// (see api_policies.go:316-325).
+// runPolicyRulesMatrix covers the network rules sub-resource of a Policy.
+// Rules are embedded in the Policy payload and returned in full only by
+// GetPolicy (ListPolicies omits them).
 //
-// The runner stands up its own Slice/DN/Profile/Policy stack so it can
-// freely mutate Rules without interfering with the policies matrix or
-// the subscribers matrix.
-//
-// Coverage:
-//   - Create with rules → Get round-trips every field, in both directions,
-//     for IPv4 and IPv6 remote_prefix.
-//   - Update with a different rule set → old rules gone, new ones present.
-//   - Update with Rules: nil → all rules cleared (replace-on-update is the
-//     documented behaviour: client/policies.go:162-165).
-//   - Update with explicit empty PolicyRules{} → also clears.
-//   - Update a non-rules field while re-supplying Rules → rules survive.
-//     This locks in the "callers must re-supply rules to preserve them"
-//     contract and prevents a future accidental wipe.
-//   - Per-rule validation negatives: bad action, bad CIDR, out-of-range
-//     protocol, port_low > port_high, oversized description, too many
-//     rules per direction (>12).
+// Update is destructive on rules: omitting the Rules field clears them,
+// so callers must re-supply the current rule list to preserve it. This
+// matrix locks both the destructive and the preserve paths in.
 func runPolicyRulesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	sliceName := apiMatrixName("rules-slice")
 	dnName := apiMatrixName("rules-dn")
@@ -102,7 +86,6 @@ func runPolicyRulesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		_ = c.DeletePolicy(ctx, &client.DeletePolicyOptions{Name: policyName})
 	})
 
-	// Step 1: round-trip on initial Get.
 	got, err := c.GetPolicy(ctx, &client.GetPolicyOptions{Name: policyName})
 	if err != nil {
 		t.Fatalf("get policy after create: %v", err)
@@ -112,7 +95,6 @@ func runPolicyRulesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		t.Fatalf("post-create rules round-trip mismatch:\ngot  %s\nwant %s", formatRules(got.Rules), formatRules(initialRules))
 	}
 
-	// Step 2: replace semantics.
 	t.Run("update_replace", func(t *testing.T) {
 		replaced := &client.PolicyRules{
 			Uplink: []client.PolicyRule{
@@ -134,7 +116,6 @@ func runPolicyRulesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		}
 	})
 
-	// Step 3: clear via Rules: nil.
 	t.Run("update_clear_nil", func(t *testing.T) {
 		if err := updatePolicyRules(ctx, c, policyName, nil); err != nil {
 			t.Fatalf("update rules (clear nil): %v", err)
@@ -146,7 +127,6 @@ func runPolicyRulesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		}
 	})
 
-	// Step 4: re-seed, then clear via explicit empty struct.
 	t.Run("update_clear_empty_struct", func(t *testing.T) {
 		if err := updatePolicyRules(ctx, c, policyName, initialRules); err != nil {
 			t.Fatalf("update rules (re-seed): %v", err)
@@ -162,7 +142,6 @@ func runPolicyRulesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		}
 	})
 
-	// Step 5: preserve rules when mutating a non-rules field.
 	t.Run("preserve_when_updating_other_field", func(t *testing.T) {
 		if err := updatePolicyRules(ctx, c, policyName, initialRules); err != nil {
 			t.Fatalf("update rules (re-seed): %v", err)
@@ -181,7 +160,7 @@ func runPolicyRulesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 			SessionAmbrDownlink: current.SessionAmbrDownlink,
 			Var5qi:              5,
 			Arp:                 current.Arp,
-			Rules:               current.Rules, // re-supply to preserve
+			Rules:               current.Rules,
 		}
 
 		if err := c.UpdatePolicy(ctx, policyName, opts); err != nil {
@@ -199,7 +178,6 @@ func runPolicyRulesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		}
 	})
 
-	// Step 6: validation negatives — each must fail with a 4xx server error.
 	negatives := []struct {
 		name  string
 		rules *client.PolicyRules
@@ -251,10 +229,8 @@ func runPolicyRulesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		},
 	}
 
-	// Make sure a clean state precedes the negative pass so a leftover
-	// rule list from step 5 doesn't get destroyed by a failing Update —
-	// failed updates may still wipe rules if validation runs after the
-	// replace path (it doesn't today, but lock in the test isolation).
+	// Clear rules first so the negative cases assert "rules unchanged"
+	// against a known-empty starting state.
 	if err := updatePolicyRules(ctx, c, policyName, nil); err != nil {
 		t.Fatalf("setup negatives: clear rules: %v", err)
 	}
@@ -284,9 +260,8 @@ func runPolicyRulesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	}
 }
 
-// updatePolicyRules sends an Update that touches only the Rules field
-// (other fields are pulled from the current policy state) so each test
-// case is independent of QoS-field mutations.
+// updatePolicyRules issues an Update that changes only Rules, pulling
+// the other fields from the current policy state.
 func updatePolicyRules(ctx context.Context, c *client.Client, name string, rules *client.PolicyRules) error {
 	current, err := c.GetPolicy(ctx, &client.GetPolicyOptions{Name: name})
 	if err != nil {

@@ -7,18 +7,10 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// runRoutesMatrix exercises CRD for routes. The Routes API has no Update
-// verb (server.go:153-156), so this is a 4-step matrix:
-//
-//	List → Create → Get/List → Delete → Get(404)/List
-//
-// The route handler installs the route into the kernel before persisting,
-// so the destination + gateway must be reachable on the n6 interface in
-// the active IP-family topology. The runner picks an IPv4 or IPv6 pair
-// to match the compose, mirroring bootstrapTesterCore at
-// tester_env_test.go:144-166. The bootstrap installs a default route to
-// 8.8.8.8 / 2001:4860:4860::8888, so we use distinct destinations here
-// to avoid collisions.
+// runRoutesMatrix picks a destination and gateway matching the active IP
+// family because the handler installs the route into the kernel before
+// persisting, and n6 only has addresses in the family its compose
+// configures.
 func runRoutesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	listAll := func() *client.ListRoutesResponse {
 		resp, err := c.ListRoutes(ctx, &client.ListParams{Page: 1, PerPage: 100})
@@ -51,7 +43,7 @@ func runRoutesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 			Interface:   "n6",
 			Metric:      100,
 		}
-	default: // IPv4Only or DualStack — n6 has an IPv4 address in both.
+	default: // IPv4Only or DualStack
 		createOpts = &client.CreateRouteOptions{
 			Destination: "192.0.2.0/24",
 			Gateway:     N6RouterIPv4Address(),

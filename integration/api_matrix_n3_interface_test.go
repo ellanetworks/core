@@ -7,10 +7,8 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// runN3InterfaceMatrix exercises GET /api/v1/networking/interfaces and
-// PUT /api/v1/networking/interfaces/n3. The only settable field is
-// external_address; an empty string means "use the local interface IP"
-// (client/interfaces.go:71-93).
+// runN3InterfaceMatrix round-trips the only mutable N3 field,
+// external_address.
 func runN3InterfaceMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	orig, err := c.ListNetworkInterfaces(ctx)
 	if err != nil {

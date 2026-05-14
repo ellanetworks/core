@@ -7,8 +7,6 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// runFlowAccountingMatrix exercises Get + Update for the flow accounting
-// singleton. See api_matrix_nat_test.go for the shape.
 func runFlowAccountingMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	orig, err := c.GetFlowAccountingInfo(ctx)
 	if err != nil {

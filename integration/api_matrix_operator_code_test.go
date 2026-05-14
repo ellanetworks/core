@@ -8,24 +8,11 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// runOperatorCodeMatrix exercises PUT /api/v1/operator/code. The
-// endpoint is PUT-only — there is no GET counterpart — so this is a
-// set-only matrix that verifies successful updates and the documented
-// validation errors (api_operator.go:364-415):
-//
-//   - 32-character hex string required
-//   - rejected when any subscribers exist
-//
-// The runner restores a known-good code on cleanup so the operator is
-// in a consistent state for any subsequent test or run. Since the
-// operator code can't be updated while subscribers exist, this runner
-// is sensitive to leaked subscriber state from prior runs; the matrix
-// driver runs subtests sequentially so as long as no other subtest
-// leaks, the constraint is satisfied here.
+// runOperatorCodeMatrix sets the operator code via the set-only PUT
+// endpoint. The server rejects the update when any subscribers exist,
+// so this runner must not run concurrently with the subscribers matrix.
 func runOperatorCodeMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	const (
-		// Two valid 32-char hex codes — well-known test vectors, no
-		// security significance.
 		codeA = "0123456789abcdef0123456789abcdef"
 		codeB = "fedcba9876543210fedcba9876543210"
 	)
@@ -46,7 +33,6 @@ func runOperatorCodeMatrix(ctx context.Context, t *testing.T, c *client.Client) 
 		}
 	})
 
-	// Validation negatives — each must fail with a 4xx server error.
 	negatives := []struct {
 		name string
 		code string

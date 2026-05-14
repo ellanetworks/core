@@ -7,17 +7,6 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// runProfilesMatrix exercises every CRUD verb for the Profiles resource and
-// every settable field on Update. The matrix shape is:
-//
-//  1. List → snapshot baseline count
-//  2. Create
-//  3. Get → assert all create fields round-trip
-//  4. List → assert count == baseline+1 and entity present
-//  5. Update each settable field via a sub-table; Get after each mutation
-//  6. Delete
-//  7. Get → assert 404
-//  8. List → assert count == baseline
 func runProfilesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	name := apiMatrixName("profile")
 

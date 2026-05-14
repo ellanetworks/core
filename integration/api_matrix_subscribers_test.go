@@ -7,18 +7,10 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// runSubscribersMatrix exercises CRUD for subscribers. Subscribers
-// reference a Profile, and the server enforces that any Profile carrying
-// subscribers must be referenced by at least one Policy (see the 409
-// "Profile has no policy" path in CreateSubscriber). The runner sets up
-// the full dependency chain — one Slice, one Data Network, two Profiles,
-// and one Policy per Profile — so it can also round-trip the
-// profile_name field on Update.
-//
-// See api_matrix_profiles_test.go for the matrix shape. The only
-// updatable field on a subscriber is profile_name (see
-// internal/api/server/api_subscribers.go:28-30), so the update step has
-// a single case.
+// runSubscribersMatrix provisions the full dependency chain a Subscriber
+// requires: the server rejects subscriber creation against any Profile
+// not already referenced by at least one Policy. Two Profiles + Policies
+// are stood up so the profile_name update can switch targets.
 func runSubscribersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	sliceName := apiMatrixName("sub-slice")
 	dnName := apiMatrixName("sub-dn")
@@ -155,10 +147,8 @@ func runSubscribersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		t.Fatalf("post-create round-trip mismatch: got %+v, want imsi=%s profile=%s", got, imsi, profileA)
 	}
 
-	// A subscriber that has never attached has well-defined defaults on
-	// the Get response. Locking these in catches regressions where the
-	// handler accidentally populates them with non-zero values (or where
-	// the JSON contract drifts on either side).
+	// Defaults for a never-attached subscriber. Locks the contract
+	// against handler regressions and JSON-key drift.
 	if got.Status.Registered {
 		t.Fatalf("Status.Registered: got true, want false (subscriber never attached)")
 	}
@@ -173,8 +163,6 @@ func runSubscribersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		t.Fatalf("PDUSessions: got %d, want 0", len(got.PDUSessions))
 	}
 
-	// Credentials are stored at create and exposed via a separate endpoint;
-	// round-trip key and opc as part of the Read step.
 	creds, err := c.GetSubscriberCredentials(ctx, &client.GetSubscriberCredentialsOptions{ID: imsi})
 	if err != nil {
 		t.Fatalf("get subscriber credentials: %v", err)
@@ -197,8 +185,8 @@ func runSubscribersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		t.Fatalf("list after create missing %q", imsi)
 	}
 
-	// Default Status on the list-shape response (different struct from
-	// the Get-one detail response, so we assert independently).
+	// List response carries a different Status struct than Get-one, so
+	// the defaults are asserted independently.
 	for _, item := range afterCreate.Items {
 		if item.Imsi != imsi {
 			continue

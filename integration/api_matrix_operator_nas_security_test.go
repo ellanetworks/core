@@ -7,11 +7,9 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// runOperatorNASSecurityMatrix exercises GET /api/v1/operator (for the
-// NASSecurity section) and PUT /api/v1/operator/nas-security,
-// round-tripping ciphering and integrity algorithm preference orders.
-// Valid algorithms per api_operator.go:474-491: NEA0/1/2 for ciphering,
-// NIA0/1/2 for integrity. Maximum 3 each, no duplicates.
+// runOperatorNASSecurityMatrix round-trips the ciphering and integrity
+// algorithm preference orders. Valid values: NEA0/1/2 for ciphering,
+// NIA0/1/2 for integrity. Max 3 each, no duplicates.
 func runOperatorNASSecurityMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	baseline := &client.UpdateOperatorNASSecurityOptions{
 		Ciphering: []string{"NEA0", "NEA1", "NEA2"},

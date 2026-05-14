@@ -8,19 +8,8 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// runAPITokensMatrix exercises Create/List/Delete for user API tokens.
-// API tokens have no Get or Update verb (server.go:93-95), so this is a
-// 3-step matrix:
-//
-//	List → Create → List(contains) → Delete → List(absent)
-//
-// Two sub-cases are run on the same backing user — one with no expiry,
-// one with an explicit RFC 3339 ExpiresAt — to round-trip the optional
-// field. The bootstrap creates an admin API token used by the test
-// client itself (tester_env_test.go:131); we must not delete it. To
-// isolate completely we create a side user and operate on tokens
-// belonging to that user via the admin-scoped /users/{email}/api-tokens
-// endpoints.
+// runAPITokensMatrix operates on a side user so the bootstrap admin
+// token (in use by the test client itself) is never at risk.
 func runAPITokensMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	email := "apimat-token-user@example.com"
 
@@ -57,7 +46,7 @@ func runAPITokensMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		return nil
 	}
 
-	// Server expects RFC 3339 (api_users.go:663 calls time.Parse(time.RFC3339, ...)).
+	// Server expects RFC 3339.
 	expiry := time.Now().UTC().Add(24 * time.Hour).Truncate(time.Second).Format(time.RFC3339)
 
 	cases := []struct {
@@ -112,9 +101,8 @@ func runAPITokensMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 				t.Fatalf("list count after create: got %d, want %d", afterCreate.TotalCount, baseline.TotalCount+1)
 			}
 
-			// Round-trip the ExpiresAt field. Compare as time.Time to be
-			// tolerant of timezone formatting normalization on the server
-			// side (e.g. "Z" vs "+00:00") while still pinning the moment.
+			// Compare as time.Time to tolerate timezone formatting
+			// differences ("Z" vs "+00:00") while pinning the moment.
 			if tc.wantExpiry == "" {
 				if created.ExpiresAt != "" {
 					t.Fatalf("ExpiresAt: got %q, want empty", created.ExpiresAt)

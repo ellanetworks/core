@@ -7,10 +7,10 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// runBGPSettingsMatrix exercises GET/PUT /api/v1/networking/bgp.
-// Handler validators (api_bgp.go:138-196): LocalAS in [1, 4294967295];
-// RouterID is a valid IPv4 or empty (defaults to effective); ListenAddress
-// is "host:port" or ":port", default ":179".
+// runBGPSettingsMatrix round-trips the BGP speaker configuration.
+// Validation constraints enforced by the server: LocalAS in [1, 4294967295];
+// RouterID is a valid IPv4 address or empty (server picks the effective
+// one); ListenAddress is "host:port" or ":port", defaulting to ":179".
 func runBGPSettingsMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	orig, err := c.GetBGPSettings(ctx)
 	if err != nil {
