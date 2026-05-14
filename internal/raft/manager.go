@@ -334,6 +334,19 @@ func NewManager(ctx context.Context, cfg ClusterConfig, applier Applier, dataDir
 
 			return nil, err
 		}
+
+		// Post-snapshot committed entries are applied asynchronously,
+		// so the FSM can lag the durable log on startup. Barrier
+		// requires leadership, just confirmed by waitForLeader.
+		if err := m.raft.Barrier(m.ProposeTimeout()).Error(); err != nil {
+			_ = r.Shutdown().Error()
+
+			closeTransport(transport)
+
+			_ = boltStore.Close()
+
+			return nil, fmt.Errorf("post-startup barrier: %w", err)
+		}
 	}
 
 	go observer.Run(r)
