@@ -45,4 +45,4 @@ jobs:
 
       - name: Run API matrix integration test
         run: |
-          INTEGRATION=1 IP_VERSION=ipv4 go test ./integration -run TestAPIMatrix -timeout 10m -v
+          INTEGRATION=1 IP_VERSION=ipv4 go test ./integration -run '^TestAPIMatrix$' -timeout 10m -v

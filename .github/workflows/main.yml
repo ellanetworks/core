@@ -46,6 +46,9 @@ jobs:
   integration-tests-ha:
     needs: [image-build]
     uses: ./.github/workflows/integration-tests-ha.yaml
+  integration-tests-api-matrix-ha:
+    needs: [image-build]
+    uses: ./.github/workflows/integration-tests-api-matrix-ha.yaml
   integration-tests-ha3gpp:
     needs: [image-build, image-build-tester]
     uses: ./.github/workflows/integration-tests-ha3gpp.yaml

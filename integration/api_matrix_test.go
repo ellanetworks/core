@@ -38,6 +38,7 @@ var apiMatrixResources = map[string]apiMatrixRunner{
 	"radio_events_retention":     runRadioEventsRetentionMatrix,
 	"flow_reports_retention":     runFlowReportsRetentionMatrix,
 	"audit_log_retention":        runAuditLogRetentionMatrix,
+	"audit_logs":                 runAuditLogsMatrix,
 }
 
 func TestAPIMatrix(t *testing.T) {
