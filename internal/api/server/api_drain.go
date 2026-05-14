@@ -26,14 +26,8 @@ const (
 )
 
 const (
-	defaultDrainStepTimeout  = 5 * time.Second
-	drainSessionPollInterval = 1 * time.Second
-	drainMaxDeadlineSeconds  = 3600
+	defaultDrainStepTimeout = 5 * time.Second
 )
-
-type DrainRequest struct {
-	DeadlineSeconds int `json:"deadlineSeconds,omitempty"`
-}
 
 type DrainResponse struct {
 	DrainState string `json:"drainState"`
@@ -41,19 +35,10 @@ type DrainResponse struct {
 
 // DrainClusterMember handles POST /api/v1/cluster/members/{id}/drain.
 //
-// Runs on the Raft leader (follower requests arrive via the standard leader
-// proxy). The leader persists drain-state transitions through Raft and
-// invokes node-local side-effects (AMF Status Indication, BGP stop) either
-// inline when the target is the leader itself or over the cluster mTLS port
-// when the target is a different node. Leadership transfer runs only when
-// the target is the leader and is the last local step, so subsequent
-// state writes all land on the new leader cleanly.
-//
-// When deadlineSeconds is 0 (default) drain is synchronous and the response
-// state is "drained". When deadlineSeconds > 0 the response returns
-// immediately with state "draining"; a background watcher on the leader
-// flips the state to "drained" once the target's active-lease count
-// reaches zero or the deadline expires.
+// Runs on the Raft leader (followers forward). The leader runs node-local
+// side-effects on the target (AMF Status Indication to RANs, BGP stop),
+// commits drainState=drained through Raft, and transfers leadership when
+// the target is the current leader.
 func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, bgpService *bgp.BGPService, ln *listener.Listener) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if dbInstance.ClusterEnabled() && !dbInstance.IsLeader() {
@@ -81,70 +66,27 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, bgpServic
 			return
 		}
 
-		var req DrainRequest
-		if r.Body != nil && r.ContentLength > 0 {
-			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				writeError(r.Context(), w, http.StatusBadRequest, "Invalid request body", err, logger.APILog)
-				return
-			}
-		}
-
-		if req.DeadlineSeconds < 0 || req.DeadlineSeconds > drainMaxDeadlineSeconds {
-			writeError(r.Context(), w, http.StatusBadRequest,
-				fmt.Sprintf("deadlineSeconds must be between 0 and %d", drainMaxDeadlineSeconds),
-				nil, logger.APILog)
-
-			return
-		}
-
-		// Idempotent: re-draining a draining/drained node just returns the
-		// current state and skips side-effects.
-		if member.DrainState == db.DrainStateDraining || member.DrainState == db.DrainStateDrained {
+		if member.DrainState == db.DrainStateDrained {
 			writeResponse(r.Context(), w, DrainResponse{
-				DrainState: member.DrainState,
+				DrainState: db.DrainStateDrained,
 			}, http.StatusOK, logger.APILog)
 
 			return
 		}
 
-		if err := dbInstance.SetDrainState(r.Context(), nodeID, db.DrainStateDraining); err != nil {
-			writeError(r.Context(), w, http.StatusInternalServerError,
-				"Failed to persist drain state", err, logger.APILog)
-
-			return
-		}
-
-		// Run node-local side-effects on the target: either inline (target
-		// is the leader) or over the cluster mTLS port (target is a
-		// follower).
 		sideEffects, sideErr := runDrainSideEffects(r.Context(), dbInstance, amfInstance, bgpService, ln, member)
 		if sideErr != nil {
-			if rbErr := dbInstance.SetDrainState(r.Context(), nodeID, db.DrainStateActive); rbErr != nil {
-				logger.APILog.Warn("failed to roll back drain state after side-effects failure",
-					zap.Error(rbErr))
-			}
-
 			writeError(r.Context(), w, http.StatusInternalServerError,
 				"drain side-effects failed", sideErr, logger.APILog)
 
 			return
 		}
 
-		state := db.DrainStateDraining
+		if err := dbInstance.SetDrainState(r.Context(), nodeID, db.DrainStateDrained); err != nil {
+			writeError(r.Context(), w, http.StatusInternalServerError,
+				"Failed to persist drain state", err, logger.APILog)
 
-		if req.DeadlineSeconds == 0 {
-			if err := dbInstance.SetDrainState(r.Context(), nodeID, db.DrainStateDrained); err != nil {
-				writeError(r.Context(), w, http.StatusInternalServerError,
-					"Failed to finalise drain state", err, logger.APILog)
-
-				return
-			}
-
-			state = db.DrainStateDrained
-		} else {
-			// #nosec G118 -- the deadline watcher must outlive r.Context(),
-			// which is cancelled as soon as this handler returns.
-			go watchDrainDeadline(context.Background(), dbInstance, nodeID, time.Duration(req.DeadlineSeconds)*time.Second)
+			return
 		}
 
 		// Leadership transfer is the last local step: transferring earlier
@@ -167,22 +109,21 @@ func DrainClusterMember(dbInstance *db.Database, amfInstance *amf.AMF, bgpServic
 			DrainAction,
 			actor,
 			getClientIP(r),
-			fmt.Sprintf("Node %d drain, state=%s, leadership_transferred=%v, rans_notified=%d, bgp_stopped=%v, deadline_s=%d",
-				nodeID, state, transferred, sideEffects.RANsNotified, sideEffects.BGPStopped, req.DeadlineSeconds),
+			fmt.Sprintf("Node %d drain, leadership_transferred=%v, rans_notified=%d, bgp_stopped=%v",
+				nodeID, transferred, sideEffects.RANsNotified, sideEffects.BGPStopped),
 		)
 
 		writeResponse(r.Context(), w, DrainResponse{
-			DrainState: state,
+			DrainState: db.DrainStateDrained,
 		}, http.StatusOK, logger.APILog)
 	})
 }
 
 // ResumeClusterMember handles POST /api/v1/cluster/members/{id}/resume.
 //
-// Runs on the leader. Restarts the target's local BGP speaker (either inline
-// when target is the leader or over the cluster mTLS port) and then clears
-// the drain state. Does not reverse AMF Status Indication (no NGAP message
-// does that) or reclaim Raft leadership transferred during drain.
+// Runs on the leader. Restarts the target's local BGP speaker and clears
+// drainState back to active. Does not re-issue AMF Status Indication or
+// reclaim Raft leadership.
 func ResumeClusterMember(dbInstance *db.Database, bgpService *bgp.BGPService, ln *listener.Listener) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if dbInstance.ClusterEnabled() && !dbInstance.IsLeader() {
@@ -383,64 +324,14 @@ func parseMemberIDPath(r *http.Request) (int, bool) {
 	return id, true
 }
 
-func countLocalActiveLeases(ctx context.Context, dbInstance *db.Database, nodeID int) int {
-	leases, err := dbInstance.ListActiveLeasesByNode(ctx, nodeID)
-	if err != nil {
-		logger.APILog.Warn("failed to count local active leases", zap.Error(err))
-		return -1
-	}
-
-	return len(leases)
-}
-
-// watchDrainDeadline polls the target's active-lease count every second and
-// flips drain_state to "drained" once the count reaches zero or the deadline
-// elapses. Runs on the leader that handled the drain request. If leadership
-// changes during the wait, the final SetDrainState proposal fails with
-// ErrNotLeader and the state stays "draining"; the operator must re-drain.
-// This matches the spec's non-goal of deadline persistence across failures.
-func watchDrainDeadline(ctx context.Context, dbInstance *db.Database, nodeID int, deadline time.Duration) {
-	ctx, cancel := context.WithTimeout(ctx, deadline)
-	defer cancel()
-
-	ticker := time.NewTicker(drainSessionPollInterval)
-	defer ticker.Stop()
-
-	for countLocalActiveLeases(ctx, dbInstance, nodeID) != 0 {
-		select {
-		case <-ctx.Done():
-			logger.APILog.Info("drain deadline elapsed with active sessions still present",
-				zap.Int("nodeId", nodeID))
-
-			if err := dbInstance.SetDrainState(context.Background(), nodeID, db.DrainStateDrained); err != nil {
-				logger.APILog.Warn("failed to finalise drain state after deadline",
-					zap.Int("nodeId", nodeID), zap.Error(err))
-			}
-
-			return
-		case <-ticker.C:
-		}
-	}
-
-	if err := dbInstance.SetDrainState(context.Background(), nodeID, db.DrainStateDrained); err != nil {
-		logger.APILog.Warn("failed to finalise drain state after sessions reached zero",
-			zap.Int("nodeId", nodeID), zap.Error(err))
-	}
-}
-
-// SignalShutdownDrain marks this node as drained in the replicated
-// cluster_members table so surviving nodes see a clean "active → drained"
-// transition on operator-initiated shutdown, instead of waiting for
-// autopilot to remove a dead voter after LastContactThreshold. On the
-// leader the write is proposed locally; on a follower it is sent to the
-// current leader's cluster mTLS port. Best-effort: errors are logged and
-// do not block the rest of the shutdown sequence.
-//
-// No-op when the node's current state is "active" — an unsolicited
-// restart (systemctl restart, kernel update, ad-hoc reboot) must not
-// strand the node out of service. Operator-initiated drain (state
-// "draining" or "drained") still finalises to "drained" on shutdown
-// so the rolling-upgrade signal is preserved.
+// SignalShutdownDrain marks this node as drained on graceful shutdown
+// so surviving nodes see a clean "active → drained" transition instead
+// of waiting for autopilot to flag a dead voter after
+// LastContactThreshold. No-op when the node's current state is "active"
+// — an unsolicited restart must not strand the node out of service.
+// On the leader the write is proposed locally; on a follower it is sent
+// to the current leader's cluster mTLS port. Errors are logged and do
+// not block the shutdown sequence.
 func SignalShutdownDrain(ctx context.Context, dbInstance *db.Database, ln *listener.Listener) error {
 	if dbInstance == nil || !dbInstance.ClusterEnabled() {
 		return nil

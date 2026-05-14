@@ -502,13 +502,13 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 		t.Fatalf("failed to read leader status pre-drain: %v", err)
 	}
 
-	drainResp, err := leader.DrainClusterMember(ctx, leaderStatus.Cluster.NodeID, &client.DrainOptions{DeadlineSeconds: 30})
+	drainResp, err := leader.DrainClusterMember(ctx, leaderStatus.Cluster.NodeID)
 	if err != nil {
 		t.Fatalf("DrainClusterMember failed: %v", err)
 	}
 
-	if drainResp.DrainState != "draining" && drainResp.DrainState != "drained" {
-		t.Fatalf("expected drainState draining or drained, got %q", drainResp.DrainState)
+	if drainResp.DrainState != "drained" {
+		t.Fatalf("expected drainState drained, got %q", drainResp.DrainState)
 	}
 
 	t.Log("drain accepted, waiting for new leader")
@@ -701,7 +701,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 
 	// --- Scale down: drain and remove node 4 from the cluster (4 → 3) ---
 
-	if _, err := leader.DrainClusterMember(ctx, 4, &client.DrainOptions{DeadlineSeconds: 0}); err != nil {
+	if _, err := leader.DrainClusterMember(ctx, 4); err != nil {
 		t.Fatalf("failed to drain node 4: %v", err)
 	}
 

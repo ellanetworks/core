@@ -468,6 +468,11 @@ func leaderAppliedIndex(ctx context.Context, leader *client.Client) (uint64, err
 
 // waitForMemberSuffrage polls ListClusterMembers until the given nodeID
 // appears with the expected suffrage value (e.g. "nonvoter" or "voter").
+//
+// scale-up join target); the helper is intentionally general so future
+// tests targeting other node IDs don't need a parallel helper.
+//
+//nolint:unparam // nodeID happens to be 4 for every existing caller (the
 func waitForMemberSuffrage(ctx context.Context, c *client.Client, nodeID int, wantSuffrage string) error {
 	timeout := 2 * time.Minute
 	deadline := time.Now().Add(timeout)

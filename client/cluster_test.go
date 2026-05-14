@@ -67,7 +67,7 @@ func TestDrainClusterMember_Success(t *testing.T) {
 	}
 	c := &client.Client{Requester: fake}
 
-	resp, err := c.DrainClusterMember(context.Background(), 3, &client.DrainOptions{DeadlineSeconds: 10})
+	resp, err := c.DrainClusterMember(context.Background(), 3)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -85,33 +85,13 @@ func TestDrainClusterMember_Success(t *testing.T) {
 	}
 }
 
-func TestDrainClusterMember_NilOpts(t *testing.T) {
-	fake := &fakeRequester{
-		response: &client.RequestResponse{
-			StatusCode: 200,
-			Headers:    http.Header{},
-			Result:     []byte(`{"drainState":"draining"}`),
-		},
-	}
-	c := &client.Client{Requester: fake}
-
-	resp, err := c.DrainClusterMember(context.Background(), 1, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if resp.DrainState != "draining" {
-		t.Errorf("expected drainState 'draining', got %s", resp.DrainState)
-	}
-}
-
 func TestDrainClusterMember_Failure(t *testing.T) {
 	fake := &fakeRequester{
 		err: errors.New("leader unavailable"),
 	}
 	c := &client.Client{Requester: fake}
 
-	_, err := c.DrainClusterMember(context.Background(), 1, nil)
+	_, err := c.DrainClusterMember(context.Background(), 1)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}

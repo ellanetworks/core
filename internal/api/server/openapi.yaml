@@ -2808,26 +2808,19 @@ paths:
       tags: [Cluster]
       summary: Drain a specific cluster member
       description: >-
-        Persists `drainState=draining` on the target node and runs the drain
-        side-effects on that node: transfers Raft leadership (if the target is
-        the leader), signals RANs that the node's GUAMI is unavailable (AMF
-        Status Indication, TS 38.413), and stops the local BGP speaker. The
-        target continues serving existing flows until removed or shut down.
+        Drains the target node and persists `drainState=drained`. Runs the
+        node-local drain side-effects: signals RANs that the node's GUAMI
+        is unavailable (AMF Status Indication, TS 38.413), stops the local
+        BGP speaker, and transfers Raft leadership when the target is the
+        current leader.
 
-        When `deadlineSeconds` is 0 (the default), the response returns only
-        after the drain completes and `state` is `"drained"`. When
-        `deadlineSeconds > 0` the call returns immediately with
-        `state: "draining"`; a background watcher on the leader flips the
-        state to `"drained"` once the target's active-lease count reaches
-        zero or the deadline elapses. Idempotent: re-draining a draining or
-        drained node returns the current state without re-running
-        side-effects.
+        Idempotent: re-draining a node already in `drained` returns the
+        current state without re-running side-effects.
 
         In HA mode, drain runs on the leader (followers forward the request
-        automatically). The leader persists drain state through Raft and
-        dispatches the node-local side-effects to the target node over the
-        cluster mTLS port; when the target is the leader itself, the
-        side-effects run inline. Requires admin privileges.
+        automatically); the leader dispatches the node-local side-effects
+        to the target over the cluster mTLS port, or runs them inline when
+        the target is the leader itself. Requires admin privileges.
       parameters:
         - name: id
           in: path
@@ -2835,12 +2828,6 @@ paths:
           schema:
             type: integer
           description: Node ID of the cluster member to drain.
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/DrainParams"
       responses:
         "200":
           description: Drain result.
@@ -5071,12 +5058,8 @@ components:
           description: True when this member is the current Raft leader.
         drainState:
           type: string
-          enum: [active, draining, drained]
-          description: >-
-            Current drain state of the member. `active` is the default
-            (serving traffic). `draining` means drain has started and the
-            deadline has not elapsed. `drained` means the node is safe to
-            remove.
+          enum: [active, drained]
+          description: Drain state of the member.
         drainUpdatedAt:
           type: string
           format: date-time
@@ -5168,26 +5151,13 @@ components:
         result:
           $ref: "#/components/schemas/AutopilotState"
 
-    DrainParams:
-      type: object
-      properties:
-        deadlineSeconds:
-          type: integer
-          minimum: 0
-          maximum: 3600
-          description: >-
-            Seconds to wait for the target's local active-lease count to
-            reach zero before forcibly setting drainState to "drained".
-            When 0 (default) the drain is synchronous and returns with
-            drainState=drained.
-
     DrainResponse:
       type: object
       properties:
         drainState:
           type: string
-          enum: [active, draining, drained]
-          description: Drain state of the target node after the call.
+          enum: [drained]
+          description: Drain state of the target after the call.
       required: [drainState]
 
     DrainResponseEnvelope:
