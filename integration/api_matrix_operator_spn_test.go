@@ -58,12 +58,12 @@ func runOperatorSPNMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 				t.Fatalf("get operator after update: %v", err)
 			}
 
-			if op.SPN.SpnFull != tc.opts.FullName {
-				t.Fatalf("SpnFull: got %q, want %q", op.SPN.SpnFull, tc.opts.FullName)
+			if op.SPN.FullName != tc.opts.FullName {
+				t.Fatalf("FullName: got %q, want %q", op.SPN.FullName, tc.opts.FullName)
 			}
 
-			if op.SPN.SpnShort != tc.opts.ShortName {
-				t.Fatalf("SpnShort: got %q, want %q", op.SPN.SpnShort, tc.opts.ShortName)
+			if op.SPN.ShortName != tc.opts.ShortName {
+				t.Fatalf("ShortName: got %q, want %q", op.SPN.ShortName, tc.opts.ShortName)
 			}
 		})
 	}

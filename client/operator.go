@@ -38,8 +38,8 @@ type CreateHomeNetworkKeyOptions struct {
 }
 
 type GetOperatorSPNResponse struct {
-	SpnFull  string `json:"spnFull"`
-	SpnShort string `json:"spnShort"`
+	FullName  string `json:"fullName"`
+	ShortName string `json:"shortName"`
 }
 
 type Operator struct {

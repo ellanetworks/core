@@ -502,7 +502,7 @@ func TestGetOperator_IncludesSPN(t *testing.T) {
 			Headers:    http.Header{},
 			Result: []byte(`{
 				"id": {"mcc": "001", "mnc": "01"},
-				"spn": {"spnFull": "My Network", "spnShort": "MyNet"}
+				"spn": {"fullName": "My Network", "shortName": "MyNet"}
 			}`),
 		},
 		err: nil,
@@ -518,11 +518,11 @@ func TestGetOperator_IncludesSPN(t *testing.T) {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if operator.SPN.SpnFull != "My Network" {
-		t.Fatalf("expected spnFull 'My Network', got '%s'", operator.SPN.SpnFull)
+	if operator.SPN.FullName != "My Network" {
+		t.Fatalf("expected fullName 'My Network', got '%s'", operator.SPN.FullName)
 	}
 
-	if operator.SPN.SpnShort != "MyNet" {
-		t.Fatalf("expected spnShort 'MyNet', got '%s'", operator.SPN.SpnShort)
+	if operator.SPN.ShortName != "MyNet" {
+		t.Fatalf("expected shortName 'MyNet', got '%s'", operator.SPN.ShortName)
 	}
 }

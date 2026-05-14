@@ -8,17 +8,54 @@ import (
 )
 
 // runSubscribersMatrix exercises CRUD for subscribers. Subscribers
-// reference a Profile, so the runner creates two profiles: the initial
-// one (set at create time) and a second one used as the Update target.
-// See api_matrix_profiles_test.go for the matrix shape.
+// reference a Profile, and the server enforces that any Profile carrying
+// subscribers must be referenced by at least one Policy (see the 409
+// "Profile has no policy" path in CreateSubscriber). The runner sets up
+// the full dependency chain — one Slice, one Data Network, two Profiles,
+// and one Policy per Profile — so it can also round-trip the
+// profile_name field on Update.
 //
-// The only updatable field on a subscriber is profile_name (see
+// See api_matrix_profiles_test.go for the matrix shape. The only
+// updatable field on a subscriber is profile_name (see
 // internal/api/server/api_subscribers.go:28-30), so the update step has
 // a single case.
 func runSubscribersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
+	sliceName := apiMatrixName("sub-slice")
+	dnName := apiMatrixName("sub-dn")
 	profileA := apiMatrixName("sub-profile-a")
 	profileB := apiMatrixName("sub-profile-b")
+	policyA := apiMatrixName("sub-policy-a")
+	policyB := apiMatrixName("sub-policy-b")
 	imsi := "001019999999991"
+
+	if err := c.CreateSlice(ctx, &client.CreateSliceOptions{
+		Name: sliceName,
+		Sst:  1,
+		Sd:   "abcdef",
+	}); err != nil {
+		t.Fatalf("create dep slice: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if err := c.DeleteSlice(ctx, &client.DeleteSliceOptions{Name: sliceName}); err != nil {
+			t.Logf("cleanup: delete dep slice: %v", err)
+		}
+	})
+
+	if err := c.CreateDataNetwork(ctx, &client.CreateDataNetworkOptions{
+		Name:     dnName,
+		IPv4Pool: "10.253.0.0/16",
+		DNS:      "8.8.8.8",
+		Mtu:      1500,
+	}); err != nil {
+		t.Fatalf("create dep data network: %v", err)
+	}
+
+	t.Cleanup(func() {
+		if err := c.DeleteDataNetwork(ctx, &client.DeleteDataNetworkOptions{Name: dnName}); err != nil {
+			t.Logf("cleanup: delete dep data network: %v", err)
+		}
+	})
 
 	for _, p := range []string{profileA, profileB} {
 		p := p
@@ -34,6 +71,32 @@ func runSubscribersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		t.Cleanup(func() {
 			if err := c.DeleteProfile(ctx, &client.DeleteProfileOptions{Name: p}); err != nil {
 				t.Logf("cleanup: delete dep profile %q: %v", p, err)
+			}
+		})
+	}
+
+	for _, link := range []struct{ policy, profile string }{
+		{policyA, profileA},
+		{policyB, profileB},
+	} {
+		link := link
+
+		if err := c.CreatePolicy(ctx, &client.CreatePolicyOptions{
+			Name:                link.policy,
+			ProfileName:         link.profile,
+			SliceName:           sliceName,
+			DataNetworkName:     dnName,
+			SessionAmbrUplink:   "50 Mbps",
+			SessionAmbrDownlink: "100 Mbps",
+			Var5qi:              9,
+			Arp:                 8,
+		}); err != nil {
+			t.Fatalf("create dep policy %q: %v", link.policy, err)
+		}
+
+		t.Cleanup(func() {
+			if err := c.DeletePolicy(ctx, &client.DeletePolicyOptions{Name: link.policy}); err != nil {
+				t.Logf("cleanup: delete dep policy %q: %v", link.policy, err)
 			}
 		})
 	}
