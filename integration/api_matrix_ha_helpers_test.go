@@ -3,9 +3,18 @@ package integration_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/client"
 )
+
+// stabilizeLocal pauses to give any accidental cross-node propagation a
+// chance to surface before a locality assertion runs. Local-only writes
+// never traverse Raft, so under correct behavior this sleep is a no-op;
+// it exists so regressions become test failures rather than fade silently.
+func stabilizeLocal() {
+	time.Sleep(200 * time.Millisecond)
+}
 
 // haMatrixEnv holds the three clients of a healthy 3-node cluster plus
 // a resolved leader reference. The cluster is brought up once per
