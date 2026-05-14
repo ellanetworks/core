@@ -105,6 +105,17 @@ func runSubscribersHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 	// dep replication and fail with a 404 on the policy lookup.
 	awaitConvergence(ctx, t, h)
 
+	listAllOn := func(c *client.Client) *client.ListSubscribersResponse {
+		resp, err := c.ListSubscribers(ctx, &client.ListSubscribersParams{Page: 1, PerPage: 100})
+		if err != nil {
+			t.Fatalf("list subscribers: %v", err)
+		}
+
+		return resp
+	}
+
+	baseline := listAllOn(leader).TotalCount
+
 	createOpts := &client.CreateSubscriberOptions{
 		Imsi:           imsi,
 		Key:            "640f441067cd56f1474cbcacd7a0588f",
@@ -142,13 +153,65 @@ func runSubscribersHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 				i+1, got.Imsi, got.ProfileName, imsi, profileA)
 		}
 
-		list, err := c.ListSubscribers(ctx, &client.ListSubscribersParams{Page: 1, PerPage: 100})
+		// Never-attached defaults. Locks the contract against handler
+		// regressions and JSON-key drift across the cluster.
+		if got.Status.Registered {
+			t.Fatalf("node %d Status.Registered: got true, want false (subscriber never attached)", i+1)
+		}
+
+		if got.Status.Imei != "" || got.Status.CipheringAlgorithm != "" ||
+			got.Status.IntegrityAlgorithm != "" || got.Status.LastSeenAt != "" ||
+			got.Status.LastSeenRadio != "" {
+			t.Fatalf("node %d Status: expected zero-valued strings on a never-attached subscriber, got %+v",
+				i+1, got.Status)
+		}
+
+		if len(got.PDUSessions) != 0 {
+			t.Fatalf("node %d PDUSessions: got %d, want 0", i+1, len(got.PDUSessions))
+		}
+
+		creds, err := c.GetSubscriberCredentials(ctx, &client.GetSubscriberCredentialsOptions{ID: imsi})
 		if err != nil {
-			t.Fatalf("list subscribers on node %d after create: %v", i+1, err)
+			t.Fatalf("node %d get subscriber credentials: %v", i+1, err)
+		}
+
+		if creds.Key != createOpts.Key {
+			t.Fatalf("node %d credentials Key: got %q, want %q", i+1, creds.Key, createOpts.Key)
+		}
+
+		if creds.Opc != createOpts.OPc {
+			t.Fatalf("node %d credentials Opc: got %q, want %q", i+1, creds.Opc, createOpts.OPc)
+		}
+
+		list := listAllOn(c)
+		if list.TotalCount != baseline+1 {
+			t.Fatalf("node %d count after create: got %d, want %d", i+1, list.TotalCount, baseline+1)
 		}
 
 		if !subscribersContains(list.Items, imsi) {
 			t.Fatalf("node %d list missing %q after create", i+1, imsi)
+		}
+
+		// List response carries a different Status struct than Get-one,
+		// so the defaults are asserted independently.
+		for _, item := range list.Items {
+			if item.Imsi != imsi {
+				continue
+			}
+
+			if item.Status.Registered {
+				t.Fatalf("node %d list Status.Registered: got true, want false", i+1)
+			}
+
+			if item.Status.NumPDUSessions != 0 {
+				t.Fatalf("node %d list Status.NumPDUSessions: got %d, want 0", i+1, item.Status.NumPDUSessions)
+			}
+
+			if item.Status.LastSeenAt != "" {
+				t.Fatalf("node %d list Status.LastSeenAt: got %q, want empty", i+1, item.Status.LastSeenAt)
+			}
+
+			break
 		}
 	}
 
@@ -181,9 +244,9 @@ func runSubscribersHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 		_, err := c.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: imsi})
 		assertNotFound(t, err, fmt.Sprintf("subscriber on node %d after delete", i+1))
 
-		list, err := c.ListSubscribers(ctx, &client.ListSubscribersParams{Page: 1, PerPage: 100})
-		if err != nil {
-			t.Fatalf("list subscribers on node %d after delete: %v", i+1, err)
+		list := listAllOn(c)
+		if list.TotalCount != baseline {
+			t.Fatalf("node %d count after delete: got %d, want %d", i+1, list.TotalCount, baseline)
 		}
 
 		if subscribersContains(list.Items, imsi) {
