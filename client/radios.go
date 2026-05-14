@@ -207,7 +207,7 @@ func (c *Client) ClearRadioEvents(ctx context.Context) error {
 	_, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "DELETE",
-		Path:   "api/v1/logs/network",
+		Path:   "api/v1/ran/events",
 	})
 	if err != nil {
 		return err
@@ -221,7 +221,7 @@ func (c *Client) GetRadioEventRetentionPolicy(ctx context.Context) (*GetRadioEve
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   "api/v1/logs/network/retention",
+		Path:   "api/v1/ran/events/retention",
 	})
 	if err != nil {
 		return nil, err
@@ -255,7 +255,7 @@ func (c *Client) UpdateRadioEventRetentionPolicy(ctx context.Context, opts *Upda
 	_, err = c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "PUT",
-		Path:   "api/v1/logs/network/retention",
+		Path:   "api/v1/ran/events/retention",
 		Body:   &body,
 	})
 	if err != nil {
@@ -270,7 +270,7 @@ func (c *Client) GetRadioEvent(ctx context.Context, id int) (*RadioEventContent,
 	resp, err := c.Requester.Do(ctx, &RequestOptions{
 		Type:   SyncRequest,
 		Method: "GET",
-		Path:   fmt.Sprintf("api/v1/logs/network/%d", id),
+		Path:   fmt.Sprintf("api/v1/ran/events/%d", id),
 	})
 	if err != nil {
 		return nil, err

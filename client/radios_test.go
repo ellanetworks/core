@@ -203,6 +203,38 @@ func TestListRadioEvents_Success(t *testing.T) {
 	if resp.Items[0].Raw != expectedRaw {
 		t.Fatalf("expected raw '%s', got '%s'", expectedRaw, resp.Items[0].Raw)
 	}
+
+	if fake.lastOpts.Path != "api/v1/ran/events" {
+		t.Fatalf("expected path api/v1/ran/events, got %s", fake.lastOpts.Path)
+	}
+}
+
+func TestClearRadioEvents_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 200,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "Radio events cleared"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	if err := clientObj.ClearRadioEvents(ctx); err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts.Method != "DELETE" {
+		t.Fatalf("expected DELETE method, got: %s", fake.lastOpts.Method)
+	}
+
+	if fake.lastOpts.Path != "api/v1/ran/events" {
+		t.Fatalf("expected path api/v1/ran/events, got %s", fake.lastOpts.Path)
+	}
 }
 
 func TestListRadioEvents_Failure(t *testing.T) {
@@ -254,6 +286,10 @@ func TestGetRadioEventsRetentionPolicy_Success(t *testing.T) {
 	if policy.Days != 15 {
 		t.Fatalf("expected retention days 15, got %d", policy.Days)
 	}
+
+	if fake.lastOpts.Path != "api/v1/ran/events/retention" {
+		t.Fatalf("expected path api/v1/ran/events/retention, got %s", fake.lastOpts.Path)
+	}
 }
 
 func TestGetRadioEventsRetentionPolicy_Failure(t *testing.T) {
@@ -299,6 +335,14 @@ func TestUpdateRadioEventsRetentionPolicy_Success(t *testing.T) {
 	err := clientObj.UpdateRadioEventRetentionPolicy(ctx, updateOpts)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts.Method != "PUT" {
+		t.Fatalf("expected PUT method, got: %s", fake.lastOpts.Method)
+	}
+
+	if fake.lastOpts.Path != "api/v1/ran/events/retention" {
+		t.Fatalf("expected path api/v1/ran/events/retention, got %s", fake.lastOpts.Path)
 	}
 }
 
@@ -361,6 +405,10 @@ func TestGetRadioEvent_Success(t *testing.T) {
 
 	if decodedMap["pduSessionID"] != json.Number("1") { // JSON numbers are float64
 		t.Fatalf("expected decoded pduSessionID to be 1, got %v", decodedMap["pduSessionID"])
+	}
+
+	if fake.lastOpts.Path != "api/v1/ran/events/1" {
+		t.Fatalf("expected path api/v1/ran/events/1, got %s", fake.lastOpts.Path)
 	}
 }
 

@@ -18,6 +18,7 @@ type apiMatrixRunner func(ctx context.Context, t *testing.T, c *client.Client)
 // Adding a new resource means: implement its runner in
 // api_matrix_<resource>_test.go and register it here.
 var apiMatrixResources = map[string]apiMatrixRunner{
+	// Full CRUD resources (step 3).
 	"profiles":          runProfilesMatrix,
 	"slices":            runSlicesMatrix,
 	"data_networks":     runDataNetworksMatrix,
@@ -28,6 +29,19 @@ var apiMatrixResources = map[string]apiMatrixRunner{
 	"users":             runUsersMatrix,
 	"api_tokens":        runAPITokensMatrix,
 	"home_network_keys": runHomeNetworkKeysMatrix,
+	// Singletons + retention policies (step 4).
+	"operator_id":                runOperatorIDMatrix,
+	"operator_tracking":          runOperatorTrackingMatrix,
+	"operator_nas_security":      runOperatorNASSecurityMatrix,
+	"operator_spn":               runOperatorSPNMatrix,
+	"nat":                        runNATMatrix,
+	"bgp_settings":               runBGPSettingsMatrix,
+	"flow_accounting":            runFlowAccountingMatrix,
+	"n3_interface":               runN3InterfaceMatrix,
+	"subscriber_usage_retention": runSubscriberUsageRetentionMatrix,
+	"radio_events_retention":     runRadioEventsRetentionMatrix,
+	"flow_reports_retention":     runFlowReportsRetentionMatrix,
+	"audit_log_retention":        runAuditLogRetentionMatrix,
 }
 
 // TestAPIMatrix exercises Create/Read/Update/Delete (and List, and the
