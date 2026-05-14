@@ -31,6 +31,7 @@ var apiMatrixResources = map[string]apiMatrixRunner{
 	"home_network_keys": runHomeNetworkKeysMatrix,
 	"policy_rules":      runPolicyRulesMatrix,
 	// Singletons + retention policies (step 4).
+	"operator_code":              runOperatorCodeMatrix,
 	"operator_id":                runOperatorIDMatrix,
 	"operator_tracking":          runOperatorTrackingMatrix,
 	"operator_nas_security":      runOperatorNASSecurityMatrix,

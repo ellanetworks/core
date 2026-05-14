@@ -155,6 +155,24 @@ func runSubscribersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		t.Fatalf("post-create round-trip mismatch: got %+v, want imsi=%s profile=%s", got, imsi, profileA)
 	}
 
+	// A subscriber that has never attached has well-defined defaults on
+	// the Get response. Locking these in catches regressions where the
+	// handler accidentally populates them with non-zero values (or where
+	// the JSON contract drifts on either side).
+	if got.Status.Registered {
+		t.Fatalf("Status.Registered: got true, want false (subscriber never attached)")
+	}
+
+	if got.Status.Imei != "" || got.Status.CipheringAlgorithm != "" ||
+		got.Status.IntegrityAlgorithm != "" || got.Status.LastSeenAt != "" ||
+		got.Status.LastSeenRadio != "" {
+		t.Fatalf("Status: expected zero-valued strings on a never-attached subscriber, got %+v", got.Status)
+	}
+
+	if len(got.PDUSessions) != 0 {
+		t.Fatalf("PDUSessions: got %d, want 0", len(got.PDUSessions))
+	}
+
 	// Credentials are stored at create and exposed via a separate endpoint;
 	// round-trip key and opc as part of the Read step.
 	creds, err := c.GetSubscriberCredentials(ctx, &client.GetSubscriberCredentialsOptions{ID: imsi})
@@ -177,6 +195,28 @@ func runSubscribersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 
 	if !contains(afterCreate.Items, imsi) {
 		t.Fatalf("list after create missing %q", imsi)
+	}
+
+	// Default Status on the list-shape response (different struct from
+	// the Get-one detail response, so we assert independently).
+	for _, item := range afterCreate.Items {
+		if item.Imsi != imsi {
+			continue
+		}
+
+		if item.Status.Registered {
+			t.Fatalf("list Status.Registered: got true, want false")
+		}
+
+		if item.Status.NumPDUSessions != 0 {
+			t.Fatalf("list Status.NumPDUSessions: got %d, want 0", item.Status.NumPDUSessions)
+		}
+
+		if item.Status.LastSeenAt != "" {
+			t.Fatalf("list Status.LastSeenAt: got %q, want empty", item.Status.LastSeenAt)
+		}
+
+		break
 	}
 
 	t.Run("update_ProfileName", func(t *testing.T) {

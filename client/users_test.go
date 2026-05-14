@@ -289,8 +289,8 @@ func TestCreateMyAPIToken_Success(t *testing.T) {
 	}
 
 	createAPITokenOpts := &client.CreateAPITokenOptions{
-		Name:   "whatevername",
-		Expiry: "",
+		Name:      "whatevername",
+		ExpiresAt: "",
 	}
 
 	ctx := context.Background()
@@ -319,8 +319,8 @@ func TestCreateMyAPIToken_Failure(t *testing.T) {
 	}
 
 	createAPITokenOpts := &client.CreateAPITokenOptions{
-		Name:   "",
-		Expiry: "",
+		Name:      "",
+		ExpiresAt: "",
 	}
 
 	ctx := context.Background()

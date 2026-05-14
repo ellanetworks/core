@@ -44,8 +44,9 @@ type DeleteUserOptions struct {
 }
 
 type CreateAPITokenOptions struct {
-	Name   string `json:"name"`
-	Expiry string `json:"expiry,omitempty"` // ISO 8601 format, optional
+	Name string `json:"name"`
+	// ExpiresAt is an optional RFC 3339 timestamp. Empty means "no expiry".
+	ExpiresAt string `json:"expires_at,omitempty"`
 }
 
 type CreateAPITokenResponse struct {
@@ -53,9 +54,10 @@ type CreateAPITokenResponse struct {
 }
 
 type APIToken struct {
-	ID     string `json:"id"` // public token identifier (token_id), not the DB primary key
-	Name   string `json:"name"`
-	Expiry string `json:"expiry,omitempty"` // ISO 8601 format, optional
+	ID   string `json:"id"` // public token identifier (token_id), not the DB primary key
+	Name string `json:"name"`
+	// ExpiresAt is an RFC 3339 timestamp; empty when the token has no expiry.
+	ExpiresAt string `json:"expires_at,omitempty"`
 }
 
 type User struct {
@@ -201,11 +203,11 @@ func (c *Client) DeleteUser(ctx context.Context, opts *DeleteUserOptions) error 
 // CreateMyAPIToken creates a new API token for the authenticated user.
 func (c *Client) CreateMyAPIToken(ctx context.Context, opts *CreateAPITokenOptions) (*CreateAPITokenResponse, error) {
 	payload := struct {
-		Name   string `json:"name"`
-		Expiry string `json:"expiry,omitempty"` // ISO 8601 format, optional
+		Name      string `json:"name"`
+		ExpiresAt string `json:"expires_at,omitempty"`
 	}{
-		Name:   opts.Name,
-		Expiry: opts.Expiry,
+		Name:      opts.Name,
+		ExpiresAt: opts.ExpiresAt,
 	}
 
 	var body bytes.Buffer
@@ -302,11 +304,11 @@ func (c *Client) ListUserAPITokens(ctx context.Context, email string, p *ListPar
 // CreateUserAPIToken creates a new API token for the specified user. Requires admin privileges.
 func (c *Client) CreateUserAPIToken(ctx context.Context, email string, opts *CreateAPITokenOptions) (*CreateAPITokenResponse, error) {
 	payload := struct {
-		Name   string `json:"name"`
-		Expiry string `json:"expiry,omitempty"`
+		Name      string `json:"name"`
+		ExpiresAt string `json:"expires_at,omitempty"`
 	}{
-		Name:   opts.Name,
-		Expiry: opts.Expiry,
+		Name:      opts.Name,
+		ExpiresAt: opts.ExpiresAt,
 	}
 
 	var body bytes.Buffer

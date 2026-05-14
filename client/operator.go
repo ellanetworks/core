@@ -55,6 +55,13 @@ type UpdateOperatorIDOptions struct {
 	Mnc string
 }
 
+// UpdateOperatorCodeOptions sets the operator code (OPC root used by
+// MILENAGE). The server requires a 32-character hex string and rejects
+// the update when any subscribers exist.
+type UpdateOperatorCodeOptions struct {
+	OperatorCode string
+}
+
 type UpdateOperatorTrackingOptions struct {
 	SupportedTacs []string
 }
@@ -111,6 +118,36 @@ func (c *Client) UpdateOperatorID(ctx context.Context, opts *UpdateOperatorIDOpt
 		Type:   SyncRequest,
 		Method: "PUT",
 		Path:   "api/v1/operator/id",
+		Body:   &body,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UpdateOperatorCode updates the operator's secret code (OPC root).
+// Must be a 32-character hex string. The server rejects the update with
+// 400 when any subscribers exist (api_operator.go:396-399).
+func (c *Client) UpdateOperatorCode(ctx context.Context, opts *UpdateOperatorCodeOptions) error {
+	payload := struct {
+		OperatorCode string `json:"operatorCode,omitempty"`
+	}{
+		OperatorCode: opts.OperatorCode,
+	}
+
+	var body bytes.Buffer
+
+	err := json.NewEncoder(&body).Encode(payload)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Requester.Do(ctx, &RequestOptions{
+		Type:   SyncRequest,
+		Method: "PUT",
+		Path:   "api/v1/operator/code",
 		Body:   &body,
 	})
 	if err != nil {

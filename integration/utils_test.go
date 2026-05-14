@@ -63,8 +63,8 @@ func configureEllaCore(ctx context.Context, cl *client.Client, c EllaCoreConfig)
 	}
 
 	createAPITokenOpts := &client.CreateAPITokenOptions{
-		Name:   "integration-test-token",
-		Expiry: "",
+		Name:      "integration-test-token",
+		ExpiresAt: "",
 	}
 
 	resp, err := cl.CreateMyAPIToken(ctx, createAPITokenOpts)

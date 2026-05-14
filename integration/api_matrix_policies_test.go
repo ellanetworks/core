@@ -8,57 +8,89 @@ import (
 )
 
 // runPoliciesMatrix exercises CRUD for policies. Policies reference a
-// Profile, a Slice, and a Data Network, so the runner sets all three up
-// (with t.Cleanup teardown) before running the matrix. See
-// api_matrix_profiles_test.go for the matrix shape.
+// Profile, a Slice, and a Data Network; the runner sets up a primary
+// and a secondary of each so it can also round-trip the three reference
+// fields (profile_name / slice_name / data_network_name) on Update.
+// See api_matrix_profiles_test.go for the matrix shape.
+//
+// Each Update sub-case starts from the current Get state (opts := *got)
+// instead of the create-time base. This guarantees fields the sub-case
+// doesn't mutate round-trip whatever the server currently holds —
+// without this, a nil field on an UpdateOptions struct would silently
+// overwrite live state (the destructive default that hid the
+// network-rules wipe bug).
 func runPoliciesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
-	profileName := apiMatrixName("policy-profile")
-	sliceName := apiMatrixName("policy-slice")
-	dnName := apiMatrixName("policy-dn")
+	profileA := apiMatrixName("policy-profile-a")
+	profileB := apiMatrixName("policy-profile-b")
+	sliceA := apiMatrixName("policy-slice-a")
+	sliceB := apiMatrixName("policy-slice-b")
+	dnA := apiMatrixName("policy-dn-a")
+	dnB := apiMatrixName("policy-dn-b")
 	name := apiMatrixName("policy")
 
-	if err := c.CreateProfile(ctx, &client.CreateProfileOptions{
-		Name:           profileName,
-		UeAmbrUplink:   "100 Mbps",
-		UeAmbrDownlink: "100 Mbps",
-	}); err != nil {
-		t.Fatalf("create dep profile: %v", err)
+	for _, p := range []string{profileA, profileB} {
+		p := p
+
+		if err := c.CreateProfile(ctx, &client.CreateProfileOptions{
+			Name:           p,
+			UeAmbrUplink:   "100 Mbps",
+			UeAmbrDownlink: "100 Mbps",
+		}); err != nil {
+			t.Fatalf("create dep profile %q: %v", p, err)
+		}
+
+		t.Cleanup(func() {
+			if err := c.DeleteProfile(ctx, &client.DeleteProfileOptions{Name: p}); err != nil {
+				t.Logf("cleanup: delete dep profile %q: %v", p, err)
+			}
+		})
 	}
 
-	t.Cleanup(func() {
-		if err := c.DeleteProfile(ctx, &client.DeleteProfileOptions{Name: profileName}); err != nil {
-			t.Logf("cleanup: delete dep profile: %v", err)
-		}
-	})
+	for _, s := range []struct {
+		name string
+		sst  int
+		sd   string
+	}{
+		{sliceA, 1, "010203"},
+		{sliceB, 2, "040506"},
+	} {
+		s := s
 
-	if err := c.CreateSlice(ctx, &client.CreateSliceOptions{
-		Name: sliceName,
-		Sst:  1,
-		Sd:   "010203",
-	}); err != nil {
-		t.Fatalf("create dep slice: %v", err)
+		if err := c.CreateSlice(ctx, &client.CreateSliceOptions{Name: s.name, Sst: s.sst, Sd: s.sd}); err != nil {
+			t.Fatalf("create dep slice %q: %v", s.name, err)
+		}
+
+		t.Cleanup(func() {
+			if err := c.DeleteSlice(ctx, &client.DeleteSliceOptions{Name: s.name}); err != nil {
+				t.Logf("cleanup: delete dep slice %q: %v", s.name, err)
+			}
+		})
 	}
 
-	t.Cleanup(func() {
-		if err := c.DeleteSlice(ctx, &client.DeleteSliceOptions{Name: sliceName}); err != nil {
-			t.Logf("cleanup: delete dep slice: %v", err)
-		}
-	})
+	for _, d := range []struct {
+		name string
+		pool string
+	}{
+		{dnA, "10.252.0.0/16"},
+		{dnB, "10.249.0.0/16"},
+	} {
+		d := d
 
-	if err := c.CreateDataNetwork(ctx, &client.CreateDataNetworkOptions{
-		Name:     dnName,
-		IPv4Pool: "10.252.0.0/16",
-		DNS:      "8.8.8.8",
-		Mtu:      1500,
-	}); err != nil {
-		t.Fatalf("create dep data network: %v", err)
+		if err := c.CreateDataNetwork(ctx, &client.CreateDataNetworkOptions{
+			Name:     d.name,
+			IPv4Pool: d.pool,
+			DNS:      "8.8.8.8",
+			Mtu:      1500,
+		}); err != nil {
+			t.Fatalf("create dep data network %q: %v", d.name, err)
+		}
+
+		t.Cleanup(func() {
+			if err := c.DeleteDataNetwork(ctx, &client.DeleteDataNetworkOptions{Name: d.name}); err != nil {
+				t.Logf("cleanup: delete dep data network %q: %v", d.name, err)
+			}
+		})
 	}
-
-	t.Cleanup(func() {
-		if err := c.DeleteDataNetwork(ctx, &client.DeleteDataNetworkOptions{Name: dnName}); err != nil {
-			t.Logf("cleanup: delete dep data network: %v", err)
-		}
-	})
 
 	listAll := func() *client.ListPoliciesResponse {
 		resp, err := c.ListPolicies(ctx, &client.ListParams{Page: 1, PerPage: 100})
@@ -83,9 +115,9 @@ func runPoliciesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 
 	createOpts := &client.CreatePolicyOptions{
 		Name:                name,
-		ProfileName:         profileName,
-		SliceName:           sliceName,
-		DataNetworkName:     dnName,
+		ProfileName:         profileA,
+		SliceName:           sliceA,
+		DataNetworkName:     dnA,
 		SessionAmbrUplink:   "50 Mbps",
 		SessionAmbrDownlink: "100 Mbps",
 		Var5qi:              9,
@@ -133,21 +165,44 @@ func runPoliciesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		t.Fatalf("list after create missing %q", name)
 	}
 
-	base := client.UpdatePolicyOptions{
-		ProfileName:         createOpts.ProfileName,
-		SliceName:           createOpts.SliceName,
-		DataNetworkName:     createOpts.DataNetworkName,
-		SessionAmbrUplink:   createOpts.SessionAmbrUplink,
-		SessionAmbrDownlink: createOpts.SessionAmbrDownlink,
-		Var5qi:              createOpts.Var5qi,
-		Arp:                 createOpts.Arp,
-	}
-
 	updateCases := []struct {
 		field  string
 		mutate func(o *client.UpdatePolicyOptions)
 		assert func(t *testing.T, p *client.Policy)
 	}{
+		{
+			field: "ProfileName",
+			mutate: func(o *client.UpdatePolicyOptions) {
+				o.ProfileName = profileB
+			},
+			assert: func(t *testing.T, p *client.Policy) {
+				if p.ProfileName != profileB {
+					t.Fatalf("ProfileName: got %q, want %q", p.ProfileName, profileB)
+				}
+			},
+		},
+		{
+			field: "SliceName",
+			mutate: func(o *client.UpdatePolicyOptions) {
+				o.SliceName = sliceB
+			},
+			assert: func(t *testing.T, p *client.Policy) {
+				if p.SliceName != sliceB {
+					t.Fatalf("SliceName: got %q, want %q", p.SliceName, sliceB)
+				}
+			},
+		},
+		{
+			field: "DataNetworkName",
+			mutate: func(o *client.UpdatePolicyOptions) {
+				o.DataNetworkName = dnB
+			},
+			assert: func(t *testing.T, p *client.Policy) {
+				if p.DataNetworkName != dnB {
+					t.Fatalf("DataNetworkName: got %q, want %q", p.DataNetworkName, dnB)
+				}
+			},
+		},
 		{
 			field: "SessionAmbrUplink",
 			mutate: func(o *client.UpdatePolicyOptions) {
@@ -197,7 +252,12 @@ func runPoliciesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	for _, tc := range updateCases {
 		tc := tc
 		t.Run("update_"+tc.field, func(t *testing.T) {
-			opts := base
+			current, err := c.GetPolicy(ctx, &client.GetPolicyOptions{Name: name})
+			if err != nil {
+				t.Fatalf("get policy %q before update: %v", name, err)
+			}
+
+			opts := updateOptsFromPolicy(current)
 			tc.mutate(&opts)
 
 			if err := c.UpdatePolicy(ctx, name, &opts); err != nil {
@@ -229,5 +289,22 @@ func runPoliciesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 
 	if contains(afterDelete.Items, name) {
 		t.Fatalf("list after delete still contains %q", name)
+	}
+}
+
+// updateOptsFromPolicy builds an UpdatePolicyOptions that exactly
+// reflects the current Get response. Used by per-field update sub-cases
+// so each mutation starts from live server state rather than from a
+// stale create-time snapshot.
+func updateOptsFromPolicy(p *client.Policy) client.UpdatePolicyOptions {
+	return client.UpdatePolicyOptions{
+		ProfileName:         p.ProfileName,
+		SliceName:           p.SliceName,
+		DataNetworkName:     p.DataNetworkName,
+		SessionAmbrUplink:   p.SessionAmbrUplink,
+		SessionAmbrDownlink: p.SessionAmbrDownlink,
+		Var5qi:              p.Var5qi,
+		Arp:                 p.Arp,
+		Rules:               p.Rules,
 	}
 }

@@ -85,6 +85,10 @@ func runBGPPeersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		t.Fatalf("post-create round-trip mismatch: got %+v, want %+v", created, createOpts)
 	}
 
+	if created.HasPassword {
+		t.Fatalf("HasPassword: got true, want false (peer was created without a password)")
+	}
+
 	got, err := c.GetBGPPeer(ctx, &client.GetBGPPeerOptions{ID: created.ID})
 	if err != nil {
 		t.Fatalf("get bgp peer %d: %v", created.ID, err)
@@ -147,20 +151,45 @@ func runBGPPeersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 				}
 			},
 		},
+		{
+			// Password is *string on Update with two semantics: nil = leave
+			// unchanged, &"<value>" = set, &"" = clear. The server doesn't
+			// echo the password back, so we observe the change via the
+			// HasPassword boolean on the Get response.
+			field: "Password_set",
+			mutate: func(o *client.UpdateBGPPeerOptions) {
+				secret := "topsecret"
+				o.Password = &secret
+			},
+			assert: func(t *testing.T, p *client.BGPPeer) {
+				if !p.HasPassword {
+					t.Fatalf("HasPassword after set: got false, want true")
+				}
+			},
+		},
+		{
+			field: "Password_clear",
+			mutate: func(o *client.UpdateBGPPeerOptions) {
+				empty := ""
+				o.Password = &empty
+			},
+			assert: func(t *testing.T, p *client.BGPPeer) {
+				if p.HasPassword {
+					t.Fatalf("HasPassword after clear: got true, want false")
+				}
+			},
+		},
 	}
 
 	for _, tc := range updateCases {
 		tc := tc
 		t.Run("update_"+tc.field, func(t *testing.T) {
-			opts := client.UpdateBGPPeerOptions{
-				ID:             created.ID,
-				Address:        createOpts.Address,
-				RemoteAS:       createOpts.RemoteAS,
-				HoldTime:       createOpts.HoldTime,
-				Description:    createOpts.Description,
-				ImportPrefixes: createOpts.ImportPrefixes,
+			current, err := c.GetBGPPeer(ctx, &client.GetBGPPeerOptions{ID: created.ID})
+			if err != nil {
+				t.Fatalf("get bgp peer %d before update: %v", created.ID, err)
 			}
 
+			opts := updateOptsFromBGPPeer(current)
 			tc.mutate(&opts)
 
 			if err := c.UpdateBGPPeer(ctx, &opts); err != nil {
@@ -192,5 +221,21 @@ func runBGPPeersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 
 	if findByAddress(afterDelete.Items, createOpts.Address) != nil {
 		t.Fatalf("list after delete still contains address %q", createOpts.Address)
+	}
+}
+
+// updateOptsFromBGPPeer mirrors current Get state into an
+// UpdateBGPPeerOptions so per-field sub-cases mutate exactly one field
+// without overwriting others. Password is intentionally left nil (the
+// "leave unchanged" pointer-nil semantics) since the server doesn't
+// expose the current password.
+func updateOptsFromBGPPeer(p *client.BGPPeer) client.UpdateBGPPeerOptions {
+	return client.UpdateBGPPeerOptions{
+		ID:             p.ID,
+		Address:        p.Address,
+		RemoteAS:       p.RemoteAS,
+		HoldTime:       p.HoldTime,
+		Description:    p.Description,
+		ImportPrefixes: p.ImportPrefixes,
 	}
 }

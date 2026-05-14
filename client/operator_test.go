@@ -495,6 +495,60 @@ func TestUpdateOperatorSPN_Failure(t *testing.T) {
 	}
 }
 
+func TestUpdateOperatorCode_Success(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 201,
+			Headers:    http.Header{},
+			Result:     []byte(`{"message": "Operator Code updated successfully"}`),
+		},
+		err: nil,
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.UpdateOperatorCode(ctx, &client.UpdateOperatorCodeOptions{
+		OperatorCode: "0123456789abcdef0123456789abcdef",
+	})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if fake.lastOpts.Method != "PUT" {
+		t.Fatalf("expected PUT method, got: %s", fake.lastOpts.Method)
+	}
+
+	if fake.lastOpts.Path != "api/v1/operator/code" {
+		t.Fatalf("expected path api/v1/operator/code, got: %s", fake.lastOpts.Path)
+	}
+}
+
+func TestUpdateOperatorCode_Failure(t *testing.T) {
+	fake := &fakeRequester{
+		response: &client.RequestResponse{
+			StatusCode: 400,
+			Headers:    http.Header{},
+			Result:     []byte(`{"error": "Invalid operator code format"}`),
+		},
+		err: errors.New("requester error"),
+	}
+	clientObj := &client.Client{
+		Requester: fake,
+	}
+
+	ctx := context.Background()
+
+	err := clientObj.UpdateOperatorCode(ctx, &client.UpdateOperatorCodeOptions{
+		OperatorCode: "not-hex",
+	})
+	if err == nil {
+		t.Fatalf("expected error, got none")
+	}
+}
+
 func TestGetOperator_IncludesSPN(t *testing.T) {
 	fake := &fakeRequester{
 		response: &client.RequestResponse{

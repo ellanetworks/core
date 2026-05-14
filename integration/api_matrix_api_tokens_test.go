@@ -3,6 +3,7 @@ package integration_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/ellanetworks/core/client"
 )
@@ -13,13 +14,15 @@ import (
 //
 //	List → Create → List(contains) → Delete → List(absent)
 //
-// The bootstrap creates an admin API token used by the test client
-// itself (tester_env_test.go:131); we must not delete it. To isolate
-// completely we create a side user and operate on tokens belonging to
-// that user via the admin-scoped /users/{email}/api-tokens endpoints.
+// Two sub-cases are run on the same backing user — one with no expiry,
+// one with an explicit RFC 3339 ExpiresAt — to round-trip the optional
+// field. The bootstrap creates an admin API token used by the test
+// client itself (tester_env_test.go:131); we must not delete it. To
+// isolate completely we create a side user and operate on tokens
+// belonging to that user via the admin-scoped /users/{email}/api-tokens
+// endpoints.
 func runAPITokensMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	email := "apimat-token-user@example.com"
-	tokenName := "apimat-token"
 
 	if err := c.CreateUser(ctx, &client.CreateUserOptions{
 		Email:    email,
@@ -54,49 +57,94 @@ func runAPITokensMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		return nil
 	}
 
-	baseline := listAll()
+	// Server expects RFC 3339 (api_users.go:663 calls time.Parse(time.RFC3339, ...)).
+	expiry := time.Now().UTC().Add(24 * time.Hour).Truncate(time.Second).Format(time.RFC3339)
 
-	if _, err := c.CreateUserAPIToken(ctx, email, &client.CreateAPITokenOptions{
-		Name: tokenName,
-	}); err != nil {
-		t.Fatalf("create api token: %v", err)
+	cases := []struct {
+		name       string
+		tokenName  string
+		opts       *client.CreateAPITokenOptions
+		wantExpiry string // empty means "must be empty on the list response"
+	}{
+		{
+			name:       "no_expiry",
+			tokenName:  "apimat-token-noexp",
+			opts:       &client.CreateAPITokenOptions{Name: "apimat-token-noexp"},
+			wantExpiry: "",
+		},
+		{
+			name:       "with_expiry",
+			tokenName:  "apimat-token-exp",
+			opts:       &client.CreateAPITokenOptions{Name: "apimat-token-exp", ExpiresAt: expiry},
+			wantExpiry: expiry,
+		},
 	}
 
-	afterCreate := listAll()
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			baseline := listAll()
 
-	created := findByName(afterCreate.Items, tokenName)
-	if created == nil {
-		t.Fatalf("list after create missing token name %q", tokenName)
-	}
+			if _, err := c.CreateUserAPIToken(ctx, email, tc.opts); err != nil {
+				t.Fatalf("create api token: %v", err)
+			}
 
-	deleted := false
+			afterCreate := listAll()
 
-	t.Cleanup(func() {
-		if deleted {
-			return
-		}
+			created := findByName(afterCreate.Items, tc.tokenName)
+			if created == nil {
+				t.Fatalf("list after create missing token name %q", tc.tokenName)
+			}
 
-		if err := c.DeleteUserAPIToken(ctx, email, created.ID); err != nil {
-			t.Logf("cleanup: delete api token %q: %v", created.ID, err)
-		}
-	})
+			deleted := false
 
-	if afterCreate.TotalCount != baseline.TotalCount+1 {
-		t.Fatalf("list count after create: got %d, want %d", afterCreate.TotalCount, baseline.TotalCount+1)
-	}
+			t.Cleanup(func() {
+				if deleted {
+					return
+				}
 
-	if err := c.DeleteUserAPIToken(ctx, email, created.ID); err != nil {
-		t.Fatalf("delete api token %q: %v", created.ID, err)
-	}
+				if err := c.DeleteUserAPIToken(ctx, email, created.ID); err != nil {
+					t.Logf("cleanup: delete api token %q: %v", created.ID, err)
+				}
+			})
 
-	deleted = true
+			if afterCreate.TotalCount != baseline.TotalCount+1 {
+				t.Fatalf("list count after create: got %d, want %d", afterCreate.TotalCount, baseline.TotalCount+1)
+			}
 
-	afterDelete := listAll()
-	if afterDelete.TotalCount != baseline.TotalCount {
-		t.Fatalf("list count after delete: got %d, want %d", afterDelete.TotalCount, baseline.TotalCount)
-	}
+			// Round-trip the ExpiresAt field. Compare as time.Time to be
+			// tolerant of timezone formatting normalization on the server
+			// side (e.g. "Z" vs "+00:00") while still pinning the moment.
+			if tc.wantExpiry == "" {
+				if created.ExpiresAt != "" {
+					t.Fatalf("ExpiresAt: got %q, want empty", created.ExpiresAt)
+				}
+			} else {
+				got, err := time.Parse(time.RFC3339, created.ExpiresAt)
+				if err != nil {
+					t.Fatalf("ExpiresAt: not RFC 3339: %q (%v)", created.ExpiresAt, err)
+				}
 
-	if findByName(afterDelete.Items, tokenName) != nil {
-		t.Fatalf("list after delete still contains token name %q", tokenName)
+				want, _ := time.Parse(time.RFC3339, tc.wantExpiry)
+				if !got.Equal(want) {
+					t.Fatalf("ExpiresAt: got %q, want %q", created.ExpiresAt, tc.wantExpiry)
+				}
+			}
+
+			if err := c.DeleteUserAPIToken(ctx, email, created.ID); err != nil {
+				t.Fatalf("delete api token %q: %v", created.ID, err)
+			}
+
+			deleted = true
+
+			afterDelete := listAll()
+			if afterDelete.TotalCount != baseline.TotalCount {
+				t.Fatalf("list count after delete: got %d, want %d", afterDelete.TotalCount, baseline.TotalCount)
+			}
+
+			if findByName(afterDelete.Items, tc.tokenName) != nil {
+				t.Fatalf("list after delete still contains token name %q", tc.tokenName)
+			}
+		})
 	}
 }
