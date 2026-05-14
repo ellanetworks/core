@@ -29,6 +29,7 @@ var apiMatrixResources = map[string]apiMatrixRunner{
 	"users":             runUsersMatrix,
 	"api_tokens":        runAPITokensMatrix,
 	"home_network_keys": runHomeNetworkKeysMatrix,
+	"policy_rules":      runPolicyRulesMatrix,
 	// Singletons + retention policies (step 4).
 	"operator_id":                runOperatorIDMatrix,
 	"operator_tracking":          runOperatorTrackingMatrix,
