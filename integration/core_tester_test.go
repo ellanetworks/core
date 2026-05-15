@@ -15,11 +15,15 @@ import (
 // scenariosSkipped lists scenarios the integration suite does not
 // exercise (multi-gNB and paging are out of scope).
 var scenariosSkipped = map[string]string{
-	"gnb/ngap/xn_handover":        "multi-gNB, out of scope",
-	"ue/xn_handover_connectivity": "multi-gNB, out of scope",
-	"ue/paging/downlink_data":     "paging, out of scope",
-	"ha/failover_connectivity":    "multi-core HA topology, covered by TestIntegration3GPPHAFailover",
-	"multi/cluster_traffic":       "multi-core HA topology, covered by TestIntegration3GPPMultiGNB",
+	"gnb/ngap/xn_handover":                "multi-gNB, out of scope",
+	"ue/xn_handover_connectivity":         "multi-gNB, out of scope",
+	"ue/paging/downlink_data":             "paging, out of scope",
+	"ha/failover_connectivity":            "multi-core HA topology, covered by TestIntegration3GPPHAFailover",
+	"multi/cluster_traffic":               "multi-core HA topology, covered by TestIntegration3GPPMultiGNB",
+	"ue/connectivity_expect_blocked":      "test-only harness; requires a pre-installed deny rule",
+	"ue/connectivity_expect_allowed":      "test-only harness; minimal allow-path",
+	"ue/connectivity_expect_blocked_ipv6": "test-only harness; requires a pre-installed deny rule",
+	"ue/connectivity_expect_allowed_ipv6": "test-only harness; minimal allow-path",
 }
 
 // scenarioIPFamilyRestrictions returns a map of scenario name → required IP
@@ -27,8 +31,10 @@ var scenariosSkipped = map[string]string{
 // configuration are listed here so the integration runner can skip them
 // when the compose topology does not match.
 var scenarioIPFamilyRestrictions = map[string]IPFamily{
-	"ue/connectivity_ipv6":      IPv6Only,
-	"ue/connectivity_dualstack": DualStack,
+	"ue/connectivity_ipv6":                IPv6Only,
+	"ue/connectivity_dualstack":           DualStack,
+	"ue/connectivity_expect_allowed_ipv6": IPv6Only,
+	"ue/connectivity_expect_blocked_ipv6": IPv6Only,
 }
 
 // scenarioIPFamilyExclusions returns a map of scenario name → set of IP
