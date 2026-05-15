@@ -196,7 +196,10 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		return fmt.Errorf("registration Reject [Tracking area not allowed]")
 	}
 
-	if ue.RegistrationType5GS == nasMessage.RegistrationType5GSInitialRegistration && registrationRequest.UESecurityCapability == nil {
+	// TS 24.501 §8.2.6.4: the UE shall include the UE security capability IE,
+	// unless it performs a periodic registration updating procedure.
+	if registrationRequest.UESecurityCapability == nil &&
+		ue.RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
 		UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationReject).Inc()
 
 		err := message.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
@@ -204,7 +207,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 			return fmt.Errorf("error sending registration reject: %v", err)
 		}
 
-		return fmt.Errorf("registration request does not contain UE security capability for initial registration")
+		return fmt.Errorf("registration request does not contain UE security capability")
 	}
 
 	if registrationRequest.UESecurityCapability != nil {

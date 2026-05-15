@@ -223,7 +223,7 @@ func TestHandleRegistrationRequest_RejectMissingSecurityCapability(t *testing.T)
 
 	m.UESecurityCapability = nil
 
-	expected := "registration request does not contain UE security capability for initial registration"
+	expected := "registration request does not contain UE security capability"
 
 	err = handleRegistrationRequest(ctx, amfInstance, ue, m)
 	if err == nil {
@@ -253,6 +253,113 @@ func TestHandleRegistrationRequest_RejectMissingSecurityCapability(t *testing.T)
 
 	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationReject {
 		t.Fatalf("expected a registration reject message, got '%v'", nm.GmmHeader.GetMessageType())
+	}
+}
+
+// TestHandleRegistrationRequest_RejectMissingSecurityCapability_Mobility
+// validates that a Mobility Registration Updating without UE Security
+// Capability is rejected. Per TS 24.501 §8.2.6.4 the UE shall include the
+// IE for every registration type except periodic registration updating.
+func TestHandleRegistrationRequest_RejectMissingSecurityCapability_Mobility(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, nil, nil)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	m.SetRegistrationType5GS(nasMessage.RegistrationType5GSMobilityRegistrationUpdating)
+	m.UESecurityCapability = nil
+
+	expected := "registration request does not contain UE security capability"
+
+	err = handleRegistrationRequest(ctx, amfInstance, ue, m)
+	if err == nil {
+		t.Fatalf("registration request should be rejected")
+	}
+
+	if !strings.Contains(err.Error(), expected) {
+		t.Fatalf("expected '%s', got '%v'", expected, err)
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("should have sent a Downlink NAS Transport message")
+	}
+
+	resp := ngapSender.SentDownlinkNASTransport[0]
+	nm := new(nas.Message)
+	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+
+	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
+		t.Fatalf("expected a plain NAS message")
+	}
+
+	if err := nm.PlainNasDecode(&resp.NasPdu); err != nil {
+		t.Fatalf("could not decode plain NAS message")
+	}
+
+	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationReject {
+		t.Fatalf("expected a registration reject message, got '%v'", nm.GmmHeader.GetMessageType())
+	}
+}
+
+// TestHandleRegistrationRequest_PeriodicAllowsMissingSecurityCapability
+// validates that a periodic registration updating may omit the UE Security
+// Capability IE per TS 24.501 §8.2.6.4.
+func TestHandleRegistrationRequest_PeriodicAllowsMissingSecurityCapability(t *testing.T) {
+	ctx := context.TODO()
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}, nil, nil)
+
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not create UE and radio: %v", err)
+	}
+
+	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
+	if err != nil {
+		t.Fatalf("could not build registration request message: %v", err)
+	}
+
+	m.SetRegistrationType5GS(nasMessage.RegistrationType5GSPeriodicRegistrationUpdating)
+	m.UESecurityCapability = nil
+
+	if err := handleRegistrationRequestMessage(ctx, amfInstance, ue, m.RegistrationRequest); err != nil {
+		t.Fatalf("periodic registration without UE security capability should not be rejected here, got: %v", err)
+	}
+
+	for _, sent := range ngapSender.SentDownlinkNASTransport {
+		nm := new(nas.Message)
+
+		nm.SecurityHeaderType = nas.GetSecurityHeaderType(sent.NasPdu) & 0x0f
+		if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
+			continue
+		}
+
+		if err := nm.PlainNasDecode(&sent.NasPdu); err != nil {
+			continue
+		}
+
+		if nm.GmmHeader.GetMessageType() == nas.MsgTypeRegistrationReject {
+			t.Fatalf("periodic registration should not produce a RegistrationReject for missing UE security capability")
+		}
 	}
 }
 
