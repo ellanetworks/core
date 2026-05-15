@@ -165,9 +165,9 @@ match_sdf_rules(struct sdf_filter_list *flist, __u8 num, __u8 pkt_proto,
 				if (r->prefix_len > 128)
 					continue;
 
-				if (!match_ipv6_prefix(&r->remote_ip,
-						       r->prefix_len,
-						       &pkt_remote))
+				if (match_ipv6_prefix(&r->remote_ip,
+						      r->prefix_len,
+						      &pkt_remote) < 0)
 					continue;
 			}
 		}
