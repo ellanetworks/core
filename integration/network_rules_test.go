@@ -14,7 +14,7 @@ import (
 
 // TestNetworkRulesAndFlowReports drives a matrix of rule shapes
 // against a real PDU session and asserts per-flow content for the
-// resulting flow reports, once per (icmp, tcp, udp). Cases are
+// resulting flow reports, once per (icmp, udp, tcp). Cases are
 // ordered so consecutive subtests never share the same
 // (protocol, direction, action) filter shape — without that, late
 // flow exports from one case could leak into the next case's
