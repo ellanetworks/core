@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	expectedPacketsPerF = 3
+	expectedPacketsPerFlow = 3
 
 	// 14 (Ethernet) + 20 (IPv4) + 8 (ICMP) + 56 (payload). Symmetric
 	// between directions: the uplink path strips GTP/UDP/IP and
@@ -71,10 +71,11 @@ func familyParams(family IPFamily) ipFamilyParams {
 	}
 }
 
-// sourceFilter returns the value to pass as the flow-report Source filter
-// for the given direction. On IPv6, this excludes RA/RS background
-// traffic (which has different source addresses) from the snapshot.
-func sourceFilter(direction string, fp ipFamilyParams) string {
+// apiSourceIPFilter returns the value to pass as the flow-report Source
+// query parameter for the given direction. On IPv6 this excludes RA/RS
+// background traffic, which has different source addresses than the
+// ping target.
+func apiSourceIPFilter(direction string, fp ipFamilyParams) string {
 	if direction == "downlink" {
 		return fp.pingDestination
 	}
@@ -82,7 +83,9 @@ func sourceFilter(direction string, fp ipFamilyParams) string {
 	return ""
 }
 
-func destinationFilter(direction string, fp ipFamilyParams) string {
+// apiDestinationIPFilter is the Destination-side counterpart to
+// apiSourceIPFilter.
+func apiDestinationIPFilter(direction string, fp ipFamilyParams) string {
 	if direction == "uplink" {
 		return fp.pingDestination
 	}
@@ -91,7 +94,7 @@ func destinationFilter(direction string, fp ipFamilyParams) string {
 }
 
 func expectedBytesPerFlow(fp ipFamilyParams) uint64 {
-	return uint64(expectedPacketsPerF) * fp.bytesPerPacket
+	return uint64(expectedPacketsPerFlow) * fp.bytesPerPacket
 }
 
 func expectedFlowsContentPredicate(direction, action string, expectedIMSIs []string, fp ipFamilyParams) fixture.FlowReportPredicate {
@@ -100,7 +103,7 @@ func expectedFlowsContentPredicate(direction, action string, expectedIMSIs []str
 		fixture.EachAction(action),
 		fixture.EachDirection(direction),
 		fixture.EachProtocol(uint8(fp.ruleProtocol)),
-		fixture.EachPackets(expectedPacketsPerF),
+		fixture.EachPackets(expectedPacketsPerFlow),
 		fixture.ImsisAre(expectedIMSIs),
 	}
 

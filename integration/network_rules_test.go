@@ -216,8 +216,8 @@ func runNetworkRuleCase(ctx context.Context, t *testing.T, env *testerEnv, tc ru
 		Protocol:    fp.protocolFilter,
 		Direction:   tc.assertDirection,
 		Action:      tc.assertAction,
-		Source:      sourceFilter(tc.assertDirection, fp),
-		Destination: destinationFilter(tc.assertDirection, fp),
+		Source:      apiSourceIPFilter(tc.assertDirection, fp),
+		Destination: apiDestinationIPFilter(tc.assertDirection, fp),
 		PerPage:     100,
 	}
 
