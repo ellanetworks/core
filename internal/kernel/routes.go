@@ -98,14 +98,15 @@ func addrToVia(a netip.Addr) *netlink.Via {
 		return nil
 	}
 
-    family := netlink.FAMILY_V4
-    if a.Is6() {
-        family = netlink.FAMILY_V6
-    }
-    return &netlink.Via{
-        AddrFamily: family,
-        Addr:       net.IP(a.AsSlice()),
-    }
+	family := netlink.FAMILY_V4
+	if a.Is6() {
+		family = netlink.FAMILY_V6
+	}
+
+	return &netlink.Via{
+		AddrFamily: family,
+		Addr:       net.IP(a.AsSlice()),
+	}
 }
 
 // CreateRoute adds a route to the kernel for the interface defined by ifKey.
@@ -341,7 +342,6 @@ func (rk *RealKernel) RouteExists(destination netip.Prefix, gateway netip.Addr, 
 
 	nlRoute := netlink.Route{
 		Dst:       prefixToIPNet(destination),
-		Gw:        addrToNetIP(gateway),
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
 		Table:     unix.RT_TABLE_MAIN,
@@ -353,13 +353,17 @@ func (rk *RealKernel) RouteExists(destination netip.Prefix, gateway netip.Addr, 
 		af = unix.AF_INET6
 	}
 
-	routes, err := netlink.RouteListFiltered(af, &nlRoute, netlink.RT_FILTER_DST|netlink.RT_FILTER_GW|netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
+	expectedVia := addrToVia(gateway)
+
+	routes, err := netlink.RouteListFiltered(af, &nlRoute, netlink.RT_FILTER_DST|netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
 	if err != nil {
 		return false, fmt.Errorf("failed to list routes: %v", err)
 	}
 
-	if len(routes) > 0 {
-		return true, nil
+	for _, r := range routes {
+		if r.Via != nil && r.Via.Equal(expectedVia) {
+			return true, nil
+		}
 	}
 
 	return false, nil
