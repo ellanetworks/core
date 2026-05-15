@@ -57,7 +57,7 @@ func TestFlowReportsSmoke(t *testing.T) {
 
 	scenarioStart := time.Now()
 
-	env.RunScenario(ctx, t, fp.scenarioAllowed, spec.ExtraArgs...)
+	env.RunScenario(ctx, t, fp.scenarioAllowed, scenarioRunArgs(fp.scenarioAllowed, spec)...)
 
 	scenarioEnd := time.Now()
 

@@ -208,7 +208,7 @@ func runNetworkRuleCase(ctx context.Context, t *testing.T, env *testerEnv, tc ru
 
 	scenarioStart := time.Now()
 
-	env.RunScenario(ctx, t, tc.scenario, spec.ExtraArgs...)
+	env.RunScenario(ctx, t, tc.scenario, scenarioRunArgs(tc.scenario, spec)...)
 
 	scenarioEnd := time.Now()
 

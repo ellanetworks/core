@@ -31,8 +31,10 @@ var scenariosSkipped = map[string]string{
 // configuration are listed here so the integration runner can skip them
 // when the compose topology does not match.
 var scenarioIPFamilyRestrictions = map[string]IPFamily{
-	"ue/connectivity_ipv6":      IPv6Only,
-	"ue/connectivity_dualstack": DualStack,
+	"ue/connectivity_ipv6":                IPv6Only,
+	"ue/connectivity_dualstack":           DualStack,
+	"ue/connectivity_expect_allowed_ipv6": IPv6Only,
+	"ue/connectivity_expect_blocked_ipv6": IPv6Only,
 }
 
 // scenarioIPFamilyExclusions returns a map of scenario name → set of IP

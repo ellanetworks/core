@@ -71,6 +71,22 @@ func familyParams(family IPFamily) ipFamilyParams {
 	}
 }
 
+// scenarioRunArgs mirrors the pattern TestIntegrationTester uses to build
+// extra CLI args for core-tester: --ip-version is only injected for
+// scenarios that are explicitly family-restricted, followed by any
+// fixture-supplied extras.
+func scenarioRunArgs(name string, spec scenarios.FixtureSpec) []string {
+	var args []string
+
+	if requiredFamily, ok := scenarioIPFamilyRestrictions[name]; ok {
+		args = append(args, "--ip-version", string(requiredFamily))
+	}
+
+	args = append(args, spec.ExtraArgs...)
+
+	return args
+}
+
 // apiSourceIPFilter returns the value to pass as the flow-report Source
 // query parameter for the given direction. On IPv6 this excludes RA/RS
 // background traffic, which has different source addresses than the
