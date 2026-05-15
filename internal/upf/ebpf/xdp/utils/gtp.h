@@ -375,8 +375,9 @@ add_gtp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr,
 
 	ip->check = ipv4_csum(ip, sizeof(*ip));
 
-	/* GTP-U tunnel: UDP checksum is optional for IPv4 (RFC 768) and
-	 * 3GPP TS 29.281 recommends setting it to zero for GTP-U. */
+	/* GTP-U tunnel outer UDP, IPv4: RFC 768 allows check=0. TS 29.281
+	 * §4.4 only constrains the IPv6 case (forbids zero except when the
+	 * peer is known to accept it), which is handled in the IPv6 branch. */
 	udp->check = 0;
 
 	/* Update packet pointers */
