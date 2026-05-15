@@ -195,13 +195,14 @@ func newTestServiceWithLearning(t *testing.T, k kernel.Kernel, store bgp.ImportP
 	t.Helper()
 
 	n6Addr := netip.MustParseAddr("10.0.0.1")
+	n6Addr6 := netip.MustParseAddr("fc02:80:0e::1")
 	logger := zap.NewNop()
 
 	filter := &bgp.RouteFilter{
 		RejectPrefixes: bgp.BuildRejectPrefixes(nil),
 	}
 
-	svc := bgp.New(n6Addr, logger,
+	svc := bgp.New(n6Addr, n6Addr6, logger,
 		bgp.WithKernel(k),
 		bgp.WithImportPrefixStore(store),
 		bgp.WithRouteFilter(filter),

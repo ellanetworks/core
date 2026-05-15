@@ -32,8 +32,8 @@ const MaxLearnedRoutesPerPeer = 1000
 
 // ownedPath tracks an advertised prefix and its owner.
 type ownedPath struct {
-	ip    netip.Addr
-	owner string
+	prefix netip.Prefix
+	owner  string
 }
 
 // learnedRoute tracks a BGP-learned route installed in the kernel.
@@ -61,7 +61,8 @@ type BGPService struct {
 	settings    BGPSettings
 	peers       []BGPPeer
 	paths       map[string]ownedPath // keyed by IP string e.g. "10.45.0.3"
-	n6Addr      netip.Addr
+	n6Addr      netip.Addr           // IPv4 address of N6 interface
+	n6Addr6     netip.Addr           // IPv6 address of N6 interface
 	logger      *zap.Logger
 	listenPort  int32
 
@@ -136,9 +137,10 @@ func (b *BGPService) UpdateFilter(f *RouteFilter) {
 }
 
 // New creates a BGPService. Does not start the speaker.
-func New(n6Addr netip.Addr, logger *zap.Logger, opts ...Option) *BGPService {
+func New(n6Addr netip.Addr, n6Addr6 netip.Addr, logger *zap.Logger, opts ...Option) *BGPService {
 	b := &BGPService{
 		n6Addr:        n6Addr,
+		n6Addr6:       n6Addr6,
 		logger:        logger,
 		listenPort:    defaultListenPort,
 		paths:         make(map[string]ownedPath),
@@ -237,9 +239,10 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 	go s.Serve()
 
 	// Families restricts which address families GoBGP allocates routing
-	// tables for. Add oc.AFI_SAFI_TYPE_IPV6_UNICAST when IPv6 support is added.
+	// tables for.
 	families := []uint32{
 		uint32(oc.AfiSafiTypeToIntMap[oc.AFI_SAFI_TYPE_IPV4_UNICAST]),
+		uint32(oc.AfiSafiTypeToIntMap[oc.AFI_SAFI_TYPE_IPV6_UNICAST]),
 	}
 
 	err := s.StartBgp(ctx, &api.StartBgpRequest{
@@ -273,9 +276,9 @@ func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peer
 	} else if b.advertising {
 		// Replay from in-memory paths map (after reconfiguration restart).
 		for _, op := range b.paths {
-			if err := b.announcePath(s, op.ip); err != nil {
+			if err := b.announcePathPrefix(s, op.prefix); err != nil {
 				b.logger.Warn("failed to re-announce route after restart",
-					zap.String("ip", op.ip.String()), zap.Error(err))
+					zap.String("prefix", op.prefix.String()), zap.Error(err))
 			}
 		}
 	}
@@ -395,7 +398,13 @@ func (b *BGPService) Announce(ip netip.Addr, owner string) error {
 		return err
 	}
 
-	b.paths[ip.String()] = ownedPath{ip: ip, owner: owner}
+	prefixLen := 32
+	if ip.Is6() {
+		prefixLen = 64
+	}
+
+	prefix := netip.PrefixFrom(ip, prefixLen).Masked()
+	b.paths[prefix.String()] = ownedPath{prefix: prefix, owner: owner}
 
 	return nil
 }
@@ -609,9 +618,9 @@ func (b *BGPService) SetAdvertising(advertising bool) {
 	}
 
 	for _, op := range b.paths {
-		if err := b.withdrawPath(b.server, op.ip); err != nil {
+		if err := b.withdrawPathPrefix(b.server, op.prefix); err != nil {
 			b.logger.Warn("failed to withdraw route after disabling advertising",
-				zap.String("ip", op.ip.String()), zap.Error(err))
+				zap.String("prefix", op.prefix.String()), zap.Error(err))
 		}
 	}
 
@@ -620,16 +629,16 @@ func (b *BGPService) SetAdvertising(advertising bool) {
 	b.logger.Info("BGP route advertising suppressed (NAT enabled)")
 }
 
-// Paths returns a snapshot of the current BGP RIB keyed by IP string.
-// Each value is the subscriber IMSI that owns that /32. Used by the
+// Paths returns a snapshot of the current BGP RIB keyed by prefix string.
+// Each value is the subscriber IMSI that owns that prefix. Used by the
 // Reconciler to diff against the desired lease set.
 func (b *BGPService) Paths() map[string]string {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
 	out := make(map[string]string, len(b.paths))
-	for ip, op := range b.paths {
-		out[ip] = op.owner
+	for prefix, op := range b.paths {
+		out[prefix] = op.owner
 	}
 
 	return out
@@ -671,18 +680,30 @@ func (b *BGPService) addPeer(ctx context.Context, s *gobgp.BgpServer, peer BGPPe
 					Config: &api.MpGracefulRestartConfig{Enabled: true},
 				},
 			},
+			{
+				Config: &api.AfiSafiConfig{
+					Family: &api.Family{
+						Afi:  api.Family_AFI_IP6,
+						Safi: api.Family_SAFI_UNICAST,
+					},
+					Enabled: true,
+				},
+				MpGracefulRestart: &api.MpGracefulRestart{
+					Config: &api.MpGracefulRestartConfig{Enabled: true},
+				},
+			},
 		},
 	}
 
 	return s.AddPeer(ctx, &api.AddPeerRequest{Peer: p})
 }
 
-func buildPath(ip netip.Addr, nextHopAddr netip.Addr) (*apiutil.Path, error) {
-	if !ip.Is4() {
-		return nil, fmt.Errorf("only IPv4 addresses are supported, got: %s", ip.String())
-	}
+func (b *BGPService) buildPath(prefix netip.Prefix) (*apiutil.Path, error) {
+	family := bgppacket.RF_IPv4_UC
 
-	prefix := netip.PrefixFrom(ip, 32)
+	if prefix.Addr().Is6() {
+		family = bgppacket.RF_IPv6_UC
+	}
 
 	nlri, err := bgppacket.NewIPAddrPrefix(prefix)
 	if err != nil {
@@ -691,13 +712,30 @@ func buildPath(ip netip.Addr, nextHopAddr netip.Addr) (*apiutil.Path, error) {
 
 	origin := bgppacket.NewPathAttributeOrigin(0) // IGP
 
-	nextHop, err := bgppacket.NewPathAttributeNextHop(nextHopAddr)
+	if prefix.Addr().Is6() {
+		mpReach, err := bgppacket.NewPathAttributeMpReachNLRI(
+			family,
+			[]bgppacket.PathNLRI{{NLRI: nlri}},
+			b.n6Addr6,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create MP_REACH_NLRI attribute: %w", err)
+		}
+
+		return &apiutil.Path{
+			Family: family,
+			Nlri:   nlri,
+			Attrs:  []bgppacket.PathAttributeInterface{origin, mpReach},
+		}, nil
+	}
+
+	nextHop, err := bgppacket.NewPathAttributeNextHop(b.n6Addr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create next-hop attribute: %w", err)
 	}
 
 	return &apiutil.Path{
-		Family: bgppacket.RF_IPv4_UC,
+		Family: family,
 		Nlri:   nlri,
 		Attrs:  []bgppacket.PathAttributeInterface{origin, nextHop},
 	}, nil
@@ -705,7 +743,26 @@ func buildPath(ip netip.Addr, nextHopAddr netip.Addr) (*apiutil.Path, error) {
 
 // announcePath adds a /32 route to the GoBGP RIB.
 func (b *BGPService) announcePath(s *gobgp.BgpServer, ip netip.Addr) error {
-	path, err := buildPath(ip, b.n6Addr)
+	prefixLen := 32
+	if ip.Is6() {
+		prefixLen = 64
+	}
+
+	path, err := b.buildPath(netip.PrefixFrom(ip, prefixLen))
+	if err != nil {
+		return err
+	}
+
+	_, err = s.AddPath(apiutil.AddPathRequest{
+		Paths: []*apiutil.Path{path},
+	})
+
+	return err
+}
+
+// announcePathPrefix adds a route with the given prefix to the GoBGP RIB.
+func (b *BGPService) announcePathPrefix(s *gobgp.BgpServer, prefix netip.Prefix) error {
+	path, err := b.buildPath(prefix)
 	if err != nil {
 		return err
 	}
@@ -719,7 +776,26 @@ func (b *BGPService) announcePath(s *gobgp.BgpServer, ip netip.Addr) error {
 
 // withdrawPath removes a /32 route from the GoBGP RIB.
 func (b *BGPService) withdrawPath(s *gobgp.BgpServer, ip netip.Addr) error {
-	path, err := buildPath(ip, b.n6Addr)
+	prefixLen := 32
+	if ip.Is6() {
+		prefixLen = 64
+	}
+
+	path, err := b.buildPath(netip.PrefixFrom(ip, prefixLen))
+	if err != nil {
+		return err
+	}
+
+	path.Withdrawal = true
+
+	return s.DeletePath(apiutil.DeletePathRequest{
+		Paths: []*apiutil.Path{path},
+	})
+}
+
+// withdrawPathPrefix removes a route with the given prefix from the GoBGP RIB.
+func (b *BGPService) withdrawPathPrefix(s *gobgp.BgpServer, prefix netip.Prefix) error {
+	path, err := b.buildPath(prefix)
 	if err != nil {
 		return err
 	}
@@ -777,47 +853,55 @@ func (b *BGPService) listPeerStatusesLocked(ctx context.Context) ([]BGPPeerStatu
 func (b *BGPService) listRoutesLocked() ([]BGPRoute, error) {
 	var routes []BGPRoute
 
-	err := b.server.ListPath(apiutil.ListPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Family:    bgppacket.RF_IPv4_UC,
-	}, func(nlri bgppacket.NLRI, paths []*apiutil.Path) {
-		for _, path := range paths {
-			if path.Withdrawal {
-				continue
-			}
-
-			route := BGPRoute{
-				Prefix: nlri.String(),
-			}
-
-			// Extract next-hop from path attributes
-			for _, attr := range path.Attrs {
-				if nh, ok := attr.(*bgppacket.PathAttributeNextHop); ok {
-					route.NextHop = nh.Value.String()
-
-					break
+	for _, family := range []bgppacket.Family{bgppacket.RF_IPv4_UC, bgppacket.RF_IPv6_UC} {
+		err := b.server.ListPath(apiutil.ListPathRequest{
+			TableType: api.TableType_TABLE_TYPE_GLOBAL,
+			Family:    family,
+		}, func(nlri bgppacket.NLRI, paths []*apiutil.Path) {
+			for _, path := range paths {
+				if path.Withdrawal {
+					continue
 				}
-			}
 
-			// Only include locally-originated routes (those we announced).
-			// The global RIB may also contain routes learned from peers,
-			// which are not relevant to the advertised-routes view.
-			prefix, err := netip.ParsePrefix(route.Prefix)
-			if err != nil {
-				continue
-			}
+				route := BGPRoute{
+					Prefix: nlri.String(),
+				}
 
-			owned, ok := b.paths[prefix.Addr().String()]
-			if !ok {
-				continue
-			}
+				// Extract next-hop from path attributes (IPv4 uses NextHop, IPv6 uses MpReachNLRI).
+				for _, attr := range path.Attrs {
+					if nh, ok := attr.(*bgppacket.PathAttributeNextHop); ok {
+						route.NextHop = nh.Value.String()
 
-			route.Subscriber = owned.owner
-			routes = append(routes, route)
+						break
+					}
+
+					if mp, ok := attr.(*bgppacket.PathAttributeMpReachNLRI); ok {
+						route.NextHop = mp.Nexthop.String()
+
+						break
+					}
+				}
+
+				// Only include locally-originated routes (those we announced).
+				// The global RIB may also contain routes learned from peers,
+				// which are not relevant to the advertised-routes view.
+				prefix, err := netip.ParsePrefix(route.Prefix)
+				if err != nil {
+					continue
+				}
+
+				owned, ok := b.paths[prefix.Masked().String()]
+				if !ok {
+					continue
+				}
+
+				route.Subscriber = owned.owner
+				routes = append(routes, route)
+			}
+		})
+		if err != nil {
+			return nil, err
 		}
-	})
-	if err != nil {
-		return nil, err
 	}
 
 	return routes, nil

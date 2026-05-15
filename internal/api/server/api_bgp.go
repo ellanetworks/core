@@ -14,6 +14,7 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"go.uber.org/zap"
 )
 
 // BGP Settings types
@@ -184,6 +185,16 @@ func UpdateBGPSettings(dbInstance *db.Database, bgpService *bgp.BGPService) http
 			return
 		}
 
+		if bgpService != nil {
+			dbPeers, err := dbInstance.ListAllBGPPeers(r.Context())
+			if err == nil {
+				peers := DBPeersToBGPPeers(dbPeers)
+				if err := bgpService.Reconfigure(r.Context(), DBSettingsToBGPSettings(settings), peers); err != nil {
+					logger.APILog.Error("Failed to reconfigure BGP service", zap.Error(err))
+				}
+			}
+		}
+
 		writeResponse(r.Context(), w, SuccessResponse{Message: "BGP settings updated successfully"}, http.StatusOK, logger.APILog)
 
 		logger.LogAuditEvent(
@@ -337,8 +348,13 @@ func validateImportPrefixes(prefixes []BGPImportPrefix) error {
 
 		prefixLen := prefix.Bits()
 
-		if p.MaxLength < prefixLen || p.MaxLength > 32 {
-			return fmt.Errorf("invalid maxLength %d for prefix %q: must be between %d and 32", p.MaxLength, p.Prefix, prefixLen)
+		maxPrefixLen := 32
+		if prefix.Addr().Is6() {
+			maxPrefixLen = 128
+		}
+
+		if p.MaxLength < prefixLen || p.MaxLength > maxPrefixLen {
+			return fmt.Errorf("invalid maxLength %d for prefix %q: must be between %d and %d", p.MaxLength, p.Prefix, prefixLen, maxPrefixLen)
 		}
 	}
 
@@ -685,9 +701,12 @@ func buildRejectedPrefixes(ctx context.Context, dbInstance *db.Database, cfg con
 		cidr string
 		desc string
 	}{
-		{"169.254.0.0/16", "Link-local"},
-		{"224.0.0.0/4", "Multicast"},
-		{"127.0.0.0/8", "Loopback"},
+		{"169.254.0.0/16", "IPv4 Link-local"},
+		{"224.0.0.0/4", "IPv4 Multicast"},
+		{"127.0.0.0/8", "IPv4 Loopback"},
+		{"fe80::/10", "IPv6 Link-local"},
+		{"ff00::/8", "IPv6 Multicast"},
+		{"::1/128", "IPv6 Loopback"},
 	}
 	for _, b := range builtins {
 		filters = append(filters, RejectedPrefix{
@@ -707,12 +726,25 @@ func buildRejectedPrefixes(ctx context.Context, dbInstance *db.Database, cfg con
 					Description: "UE IP pool (" + dn.Name + ")",
 				})
 			}
+
+			if _, parseErr := netip.ParsePrefix(dn.IPv6Pool); parseErr == nil {
+				filters = append(filters, RejectedPrefix{
+					Prefix:      dn.IPv6Pool,
+					Source:      "data_network",
+					Description: "UE IP pool (" + dn.Name + ")",
+				})
+			}
 		}
 	}
 
 	if n3Addr, err := netip.ParseAddr(cfg.Interfaces.N3.Address); err == nil {
+		prefixLen := 32
+		if n3Addr.Is6() {
+			prefixLen = 128
+		}
+
 		filters = append(filters, RejectedPrefix{
-			Prefix:      n3Addr.String() + "/32",
+			Prefix:      n3Addr.String() + "/" + strconv.Itoa(prefixLen),
 			Source:      "interface",
 			Description: "N3 interface address",
 		})
@@ -720,6 +752,15 @@ func buildRejectedPrefixes(ctx context.Context, dbInstance *db.Database, cfg con
 
 	n6Subnets := bgp.InterfaceIPv4Subnets(cfg.Interfaces.N6.Name)
 	for _, s := range n6Subnets {
+		filters = append(filters, RejectedPrefix{
+			Prefix:      s.String(),
+			Source:      "interface",
+			Description: "N6 interface subnet",
+		})
+	}
+
+	n6Subnets6 := bgp.InterfaceIPv6Subnets(cfg.Interfaces.N6.Name)
+	for _, s := range n6Subnets6 {
 		filters = append(filters, RejectedPrefix{
 			Prefix:      s.String(),
 			Source:      "interface",

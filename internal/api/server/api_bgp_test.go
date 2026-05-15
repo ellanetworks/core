@@ -1163,3 +1163,287 @@ func TestApiBGPLearnedRoutesEndpoint(t *testing.T) {
 		}
 	})
 }
+
+func TestApiBGPPeersIPv6(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "db.sqlite3")
+
+	env, err := setupServer(dbPath)
+	if err != nil {
+		t.Fatalf("couldn't create test server: %s", err)
+	}
+
+	defer env.Server.Close()
+
+	client := newTestClient(env.Server)
+
+	token, err := initializeAndRefresh(env.Server.URL, client)
+	if err != nil {
+		t.Fatalf("couldn't create first user and login: %s", err)
+	}
+
+	t.Run("Create a peer with IPv6 address", func(t *testing.T) {
+		params := &CreateBGPPeerParams{
+			Address:  "2001:db8::1",
+			RemoteAS: 65001,
+			HoldTime: 90,
+		}
+
+		statusCode, resp, err := createBGPPeer(env.Server.URL, client, token, params)
+		if err != nil {
+			t.Fatalf("couldn't create IPv6 BGP peer: %s", err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+
+		if resp.Error != "" {
+			t.Fatalf("expected no error, got %s", resp.Error)
+		}
+	})
+
+	t.Run("List peers includes IPv6 peer", func(t *testing.T) {
+		statusCode, resp, err := listBGPPeers(env.Server.URL, client, token)
+		if err != nil {
+			t.Fatalf("couldn't list BGP peers: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if resp.Result.TotalCount != 1 {
+			t.Fatalf("expected 1 peer, got %d", resp.Result.TotalCount)
+		}
+
+		peer := resp.Result.Items[0]
+		if peer.Address != "2001:db8::1" {
+			t.Fatalf("expected address 2001:db8::1, got %s", peer.Address)
+		}
+
+		if peer.RemoteAS != 65001 {
+			t.Fatalf("expected remoteAS 65001, got %d", peer.RemoteAS)
+		}
+	})
+
+	t.Run("Create a peer with IPv6 address and import prefixes", func(t *testing.T) {
+		params := &CreateBGPPeerParams{
+			Address:  "2001:db8:1::1",
+			RemoteAS: 65002,
+			HoldTime: 120,
+			ImportPrefixes: []BGPImportPrefixResult{
+				{Prefix: "::/0", MaxLength: 64},
+				{Prefix: "2001:db8:1000::/48", MaxLength: 64},
+			},
+		}
+
+		statusCode, resp, err := createBGPPeer(env.Server.URL, client, token, params)
+		if err != nil {
+			t.Fatalf("couldn't create IPv6 BGP peer with import prefixes: %s", err)
+		}
+
+		if statusCode != http.StatusCreated {
+			t.Fatalf("expected status %d, got %d", http.StatusCreated, statusCode)
+		}
+
+		if resp.Error != "" {
+			t.Fatalf("expected no error, got %s", resp.Error)
+		}
+	})
+
+	t.Run("List peers includes both IPv4 and IPv6 peers", func(t *testing.T) {
+		statusCode, resp, err := listBGPPeers(env.Server.URL, client, token)
+		if err != nil {
+			t.Fatalf("couldn't list BGP peers: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if resp.Result.TotalCount != 2 {
+			t.Fatalf("expected 2 peers, got %d", resp.Result.TotalCount)
+		}
+
+		var hasIPv4, hasIPv6 bool
+
+		for _, peer := range resp.Result.Items {
+			if peer.Address == "2001:db8::1" {
+				hasIPv4 = true
+			}
+
+			if peer.Address == "2001:db8:1::1" {
+				hasIPv6 = true
+			}
+		}
+
+		if !hasIPv4 {
+			t.Fatalf("expected to find IPv6 peer 2001:db8::1")
+		}
+
+		if !hasIPv6 {
+			t.Fatalf("expected to find IPv6 peer 2001:db8:1::1")
+		}
+	})
+
+	t.Run("Get single IPv6 peer by ID", func(t *testing.T) {
+		_, listResp, _ := listBGPPeers(env.Server.URL, client, token)
+
+		var ipv6PeerID int
+
+		for _, p := range listResp.Result.Items {
+			if p.Address == "2001:db8:1::1" {
+				ipv6PeerID = p.ID
+				break
+			}
+		}
+
+		if ipv6PeerID == 0 {
+			t.Fatalf("could not find IPv6 peer ID")
+		}
+
+		statusCode, resp, err := getBGPPeerByID(env.Server.URL, client, token, ipv6PeerID)
+		if err != nil {
+			t.Fatalf("couldn't get IPv6 BGP peer: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if resp.Result.Address != "2001:db8:1::1" {
+			t.Fatalf("expected address 2001:db8:1::1, got %s", resp.Result.Address)
+		}
+
+		if resp.Result.RemoteAS != 65002 {
+			t.Fatalf("expected remoteAS 65002, got %d", resp.Result.RemoteAS)
+		}
+
+		if resp.Result.HoldTime != 120 {
+			t.Fatalf("expected holdTime 120, got %d", resp.Result.HoldTime)
+		}
+
+		if len(resp.Result.ImportPrefixes) != 2 {
+			t.Fatalf("expected 2 import prefixes, got %d", len(resp.Result.ImportPrefixes))
+		}
+
+		if resp.Result.ImportPrefixes[0].Prefix != "::/0" {
+			t.Fatalf("expected first prefix ::/0, got %s", resp.Result.ImportPrefixes[0].Prefix)
+		}
+
+		if resp.Result.ImportPrefixes[0].MaxLength != 64 {
+			t.Fatalf("expected first maxLength 64, got %d", resp.Result.ImportPrefixes[0].MaxLength)
+		}
+	})
+
+	t.Run("Update IPv6 peer", func(t *testing.T) {
+		_, listResp, _ := listBGPPeers(env.Server.URL, client, token)
+
+		var ipv6PeerID int
+
+		for _, p := range listResp.Result.Items {
+			if p.Address == "2001:db8::1" {
+				ipv6PeerID = p.ID
+				break
+			}
+		}
+
+		if ipv6PeerID == 0 {
+			t.Fatalf("could not find IPv6 peer ID")
+		}
+
+		params := &UpdateBGPPeerTestParams{
+			Address:     "2001:db8::1",
+			RemoteAS:    65003,
+			HoldTime:    180,
+			Description: "updated-ipv6-peer",
+			ImportPrefixes: []BGPImportPrefixResult{
+				{Prefix: "::/0", MaxLength: 128},
+			},
+		}
+
+		statusCode, resp, err := updateBGPPeerByID(env.Server.URL, client, token, ipv6PeerID, params)
+		if err != nil {
+			t.Fatalf("couldn't update IPv6 BGP peer: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if resp.Result.Message != "BGP peer updated successfully" {
+			t.Fatalf("unexpected message: %s", resp.Result.Message)
+		}
+
+		_, getResp, _ := getBGPPeerByID(env.Server.URL, client, token, ipv6PeerID)
+		if getResp.Result.RemoteAS != 65003 {
+			t.Fatalf("expected remoteAS 65003, got %d", getResp.Result.RemoteAS)
+		}
+
+		if getResp.Result.HoldTime != 180 {
+			t.Fatalf("expected holdTime 180, got %d", getResp.Result.HoldTime)
+		}
+
+		if getResp.Result.Description != "updated-ipv6-peer" {
+			t.Fatalf("expected description updated-ipv6-peer, got %s", getResp.Result.Description)
+		}
+
+		if len(getResp.Result.ImportPrefixes) != 1 {
+			t.Fatalf("expected 1 import prefix, got %d", len(getResp.Result.ImportPrefixes))
+		}
+
+		if getResp.Result.ImportPrefixes[0].Prefix != "::/0" {
+			t.Fatalf("expected prefix ::/0, got %s", getResp.Result.ImportPrefixes[0].Prefix)
+		}
+
+		if getResp.Result.ImportPrefixes[0].MaxLength != 128 {
+			t.Fatalf("expected maxLength 128, got %d", getResp.Result.ImportPrefixes[0].MaxLength)
+		}
+	})
+
+	t.Run("Delete IPv6 peer", func(t *testing.T) {
+		_, listResp, _ := listBGPPeers(env.Server.URL, client, token)
+
+		var ipv6PeerID int
+
+		for _, p := range listResp.Result.Items {
+			if p.Address == "2001:db8:1::1" {
+				ipv6PeerID = p.ID
+				break
+			}
+		}
+
+		if ipv6PeerID == 0 {
+			t.Fatalf("could not find IPv6 peer ID")
+		}
+
+		statusCode, resp, err := deleteBGPPeerByID(env.Server.URL, client, token, ipv6PeerID)
+		if err != nil {
+			t.Fatalf("couldn't delete IPv6 BGP peer: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if resp.Error != "" {
+			t.Fatalf("expected no error, got %s", resp.Error)
+		}
+	})
+
+	t.Run("List peers after delete IPv6 peer", func(t *testing.T) {
+		statusCode, resp, err := listBGPPeers(env.Server.URL, client, token)
+		if err != nil {
+			t.Fatalf("couldn't list BGP peers: %s", err)
+		}
+
+		if statusCode != http.StatusOK {
+			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
+		}
+
+		if resp.Result.TotalCount != 1 {
+			t.Fatalf("expected 1 peer remaining, got %d", resp.Result.TotalCount)
+		}
+	})
+}

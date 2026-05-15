@@ -13,8 +13,9 @@ func newTestService(t *testing.T) *bgp.BGPService {
 	t.Helper()
 
 	n6Addr := netip.MustParseAddr("10.0.0.1")
+	n6Addr6 := netip.MustParseAddr("fc02:80:0e::1")
 	logger := zap.NewNop()
-	svc := bgp.New(n6Addr, logger)
+	svc := bgp.New(n6Addr, n6Addr6, logger)
 	// Use ListenPort -1 to avoid binding to port 179 in tests
 	svc.SetListenPort(-1)
 
@@ -415,7 +416,7 @@ func TestReconfigureWhenNotRunning(t *testing.T) {
 	}
 }
 
-func TestAnnounceIPv6Rejected(t *testing.T) {
+func TestAnnounce_IPv6(t *testing.T) {
 	svc := newTestService(t)
 	ctx := context.Background()
 
@@ -431,9 +432,183 @@ func TestAnnounceIPv6Rejected(t *testing.T) {
 
 	defer func() { _ = svc.Stop() }()
 
-	err = svc.Announce(netip.MustParseAddr("::1"), "test")
-	if err == nil {
-		t.Fatal("expected error for IPv6 address")
+	ip := netip.MustParseAddr("2001:db8::1")
+
+	err = svc.Announce(ip, "imsi-ipv6")
+	if err != nil {
+		t.Fatalf("Announce IPv6 failed: %v", err)
+	}
+
+	routes, err := svc.GetRoutes()
+	if err != nil {
+		t.Fatalf("GetRoutes failed: %v", err)
+	}
+
+	if len(routes) != 1 {
+		t.Fatalf("expected 1 route, got %d", len(routes))
+	}
+
+	if routes[0].Prefix != "2001:db8::/64" {
+		t.Fatalf("expected prefix 2001:db8::/64, got %s", routes[0].Prefix)
+	}
+
+	if routes[0].NextHop != "fc02:80:e::1" {
+		t.Fatalf("expected next-hop fc02:80:e::1, got %s", routes[0].NextHop)
+	}
+
+	if routes[0].Subscriber != "imsi-ipv6" {
+		t.Fatalf("expected subscriber imsi-ipv6, got %s", routes[0].Subscriber)
+	}
+
+	err = svc.Withdraw(ip)
+	if err != nil {
+		t.Fatalf("Withdraw failed: %v", err)
+	}
+
+	routes, err = svc.GetRoutes()
+	if err != nil {
+		t.Fatalf("GetRoutes failed: %v", err)
+	}
+
+	if len(routes) != 0 {
+		t.Fatalf("expected 0 routes after withdraw, got %d", len(routes))
+	}
+}
+
+func TestAnnounceBothIPv4AndIPv6(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{
+		Enabled: true,
+		LocalAS: 65000,
+	}
+
+	err := svc.Start(ctx, settings, nil, true)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	ips := []struct {
+		addr   string
+		expect string
+	}{
+		{"10.1.1.1", "10.1.1.1/32"},
+		{"2001:db8::1", "2001:db8::/64"},
+		{"::1", "::/64"},
+	}
+
+	for _, ipStr := range ips {
+		ip, _ := netip.ParseAddr(ipStr.addr)
+		if err := svc.Announce(ip, "test"); err != nil {
+			t.Fatalf("Announce %s failed: %v", ipStr.addr, err)
+		}
+	}
+
+	routes, err := svc.GetRoutes()
+	if err != nil {
+		t.Fatalf("GetRoutes failed: %v", err)
+	}
+
+	if len(routes) != 3 {
+		t.Fatalf("expected 3 routes, got %d", len(routes))
+	}
+
+	prefixes := make(map[string]bool)
+	for _, r := range routes {
+		prefixes[r.Prefix] = true
+	}
+
+	for _, expected := range ips {
+		if !prefixes[expected.expect] {
+			t.Errorf("expected prefix %s not found in routes", expected.expect)
+		}
+	}
+}
+
+func TestWithdraw_IPv6(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{
+		Enabled: true,
+		LocalAS: 65000,
+	}
+
+	err := svc.Start(ctx, settings, nil, true)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	ipv6 := netip.MustParseAddr("2001:db8::1")
+	ipv4 := netip.MustParseAddr("10.1.1.1")
+
+	if err := svc.Announce(ipv6, "imsi-v6"); err != nil {
+		t.Fatalf("Announce IPv6 failed: %v", err)
+	}
+
+	if err := svc.Announce(ipv4, "imsi-v4"); err != nil {
+		t.Fatalf("Announce IPv4 failed: %v", err)
+	}
+
+	routes, _ := svc.GetRoutes()
+	if len(routes) != 2 {
+		t.Fatalf("expected 2 routes, got %d", len(routes))
+	}
+
+	if err := svc.Withdraw(ipv6); err != nil {
+		t.Fatalf("Withdraw IPv6 failed: %v", err)
+	}
+
+	routes, _ = svc.GetRoutes()
+	if len(routes) != 1 {
+		t.Fatalf("expected 1 route after IPv6 withdraw, got %d", len(routes))
+	}
+
+	if routes[0].Prefix != "10.1.1.1/32" {
+		t.Fatalf("expected remaining route 10.1.1.1/32, got %s", routes[0].Prefix)
+	}
+}
+
+func TestStartWithIPv6Peer(t *testing.T) {
+	svc := newTestService(t)
+	ctx := context.Background()
+
+	settings := bgp.BGPSettings{
+		Enabled: true,
+		LocalAS: 65000,
+	}
+
+	peers := []bgp.BGPPeer{
+		{Address: "2001:db8::100", RemoteAS: 65001, HoldTime: 90},
+	}
+
+	err := svc.Start(ctx, settings, peers, true)
+	if err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	defer func() { _ = svc.Stop() }()
+
+	status, err := svc.GetStatus(ctx)
+	if err != nil {
+		t.Fatalf("GetStatus failed: %v", err)
+	}
+
+	if len(status.Peers) != 1 {
+		t.Fatalf("expected 1 peer, got %d", len(status.Peers))
+	}
+
+	if status.Peers[0].Address != "2001:db8::100" {
+		t.Fatalf("expected peer address 2001:db8::100, got %s", status.Peers[0].Address)
+	}
+
+	if status.Peers[0].RemoteAS != 65001 {
+		t.Fatalf("expected peer remote AS 65001, got %d", status.Peers[0].RemoteAS)
 	}
 }
 

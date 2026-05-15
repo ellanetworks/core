@@ -2,7 +2,7 @@
 description: Advertise subscriber routes with BGP
 ---
 
-Ella Core includes an embedded BGP speaker that advertises `/32` host routes for each active subscriber IP. This guide walks through enabling BGP, adding a peer, and verifying the configuration.
+Ella Core includes an embedded BGP speaker that advertises `/32` (IPv4) or `/64` (IPv6) routes for each active subscriber. This guide walks through enabling BGP, adding a peer, and verifying the configuration.
 
 For background on how Ella Core uses BGP, see the [BGP Route Advertisement](../explanation/bgp.md) explanation.
 
@@ -24,8 +24,8 @@ For background on how Ella Core uses BGP, see the [BGP Route Advertisement](../e
 1. In the **Networking > BGP** tab, scroll to the **Peers** section.
 2. Click **Create**.
 3. Fill in the peer details:
-     - **Address**: The IP address of the upstream router (e.g. `192.168.5.1`).
-     - **Remote AS**: The AS number of the peer (e.g. `64513`).
+      - **Address**: The IP address of the upstream router (e.g. `192.168.5.1` or `2001:db8::1`).
+      - **Remote AS**: The AS number of the peer (e.g. `64513`).
      - **Hold Time**: BGP hold timer in seconds (default `90`). The keepalive interval is derived as hold time / 3 per RFC 4271.
      - **Password** (optional): MD5 authentication password. Must match the peer's configuration.
      - **Description** (optional): A label for the peer.
@@ -40,7 +40,7 @@ View the advertised subscriber routes in the **Advertised Routes** table. The ne
 Ella Core advertises routes but does not receive them. You still need to configure the upstream router to:
 
 1. Peer with Ella Core (matching the AS number and address configured above).
-2. Accept all routes for subscriber data networks (e.g. `192.168.0.0/24`)
+2. Accept all routes for subscriber data networks (e.g. `192.168.0.0/24` or `2001:db8::/32`)
 
 Consult your router's documentation for BGP peering configuration.
 

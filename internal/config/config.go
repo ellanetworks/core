@@ -25,6 +25,8 @@ type AddressFamily int
 const (
 	// IPv4 filters for IPv4-only addresses.
 	IPv4 AddressFamily = iota
+	// IPv6 filters for IPv6-only addresses.
+	IPv6
 	// AnyFamily accepts any address family, preferring non-link-local IPv6 over IPv4.
 	AnyFamily
 )
@@ -487,6 +489,10 @@ var GetInterfaceIPFunc = func(name string, family AddressFamily) (string, error)
 			switch family {
 			case IPv4:
 				if ip.To4() != nil {
+					return ip.String(), nil
+				}
+			case IPv6:
+				if ip.To4() == nil {
 					return ip.String(), nil
 				}
 			case AnyFamily:

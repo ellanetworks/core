@@ -37,7 +37,12 @@ import {
 } from "@/queries/bgp";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { ipv4Regex, cidrRegex } from "@/utils/ip";
+import {
+  ipRegex,
+  cidrRegex,
+  isValidCidr,
+  getMaxPrefixLength,
+} from "@/utils/ip";
 import { detectPreset, type ImportPreset } from "@/utils/bgp";
 
 const schema = yup.object().shape({
@@ -239,9 +244,12 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
     });
   };
 
-  const hasInvalidPrefixes = importPrefixes.some(
-    (p) => !cidrRegex.test(p.prefix) || p.maxLength < 0 || p.maxLength > 32,
-  );
+  const hasInvalidPrefixes = importPrefixes.some((p) => {
+    if (!p.prefix) return false;
+    const valid = isValidCidr(p.prefix);
+    const maxLen = getMaxPrefixLength(p.prefix);
+    return !valid || p.maxLength < 0 || p.maxLength > maxLen;
+  });
 
   const handleSubmit = async () => {
     if (!accessToken) return;
@@ -436,10 +444,10 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
                     handlePrefixChange(index, "prefix", e.target.value)
                   }
                   size="small"
-                  error={!!entry.prefix && !cidrRegex.test(entry.prefix)}
+                  error={!!entry.prefix && !isValidCidr(entry.prefix)}
                   helperText={
-                    entry.prefix && !cidrRegex.test(entry.prefix)
-                      ? "Must be valid CIDR"
+                    entry.prefix && !isValidCidr(entry.prefix)
+                      ? "Must be valid CIDR (e.g., 10.0.0.0/8 or 2001:db8::/32)"
                       : ""
                   }
                   sx={{ flex: 2 }}
@@ -456,9 +464,17 @@ const EditBGPPeerModal: React.FC<EditBGPPeerModalProps> = ({
                     )
                   }
                   size="small"
-                  error={entry.maxLength < 0 || entry.maxLength > 32}
+                  error={
+                    !!entry.prefix &&
+                    (entry.maxLength < 0 ||
+                      entry.maxLength > getMaxPrefixLength(entry.prefix))
+                  }
                   helperText={
-                    entry.maxLength < 0 || entry.maxLength > 32 ? "0–32" : ""
+                    !!entry.prefix &&
+                    (entry.maxLength < 0 ||
+                      entry.maxLength > getMaxPrefixLength(entry.prefix))
+                      ? `0–${getMaxPrefixLength(entry.prefix)}`
+                      : ""
                   }
                   sx={{ flex: 1 }}
                 />
