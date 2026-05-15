@@ -4,6 +4,10 @@ export const ipv4Regex =
 export const ipv6Regex =
   /^((([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4})|(([0-9a-fA-F]{1,4}:){1,7}:)|(([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4})|(([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2})|(([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3})|(([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4})|(([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5})|([0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6}))|(:((:[0-9a-fA-F]{1,4}){1,7}|:))|fe80:(:[0-9a-fA-F]{0,4}){0,4}%?[0-9a-fA-F]{0,4}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/;
 
+export const ipRegex = new RegExp(
+  `(${ipv4Regex.source})|(${ipv6Regex.source})`,
+);
+
 export const cidrRegex =
   /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}\/\d{1,2}$/;
 
@@ -16,4 +20,14 @@ export function isValidIpv6Cidr(value: string) {
   if (!match) return false;
   const prefixLen = parseInt(match[1].slice(1), 10);
   return prefixLen >= 48 && prefixLen <= 60;
+}
+
+export function isValidCidr(value: string): boolean {
+  if (!value) return true;
+  return cidrRegex.test(value) || ipv6CidrRegex.test(value);
+}
+
+export function getMaxPrefixLength(value: string): number {
+  if (cidrRegex.test(value)) return 32;
+  return 128;
 }

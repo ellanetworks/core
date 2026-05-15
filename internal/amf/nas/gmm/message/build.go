@@ -238,6 +238,10 @@ func BuildSecurityModeCommand(ue *amf.AmfUe) ([]byte, error) {
 
 	securityModeCommand.SpareHalfOctetAndNgksi = util.SpareHalfOctetAndNgksiToNas(ue.NgKsi)
 
+	if ue.UESecurityCapability == nil {
+		return nil, fmt.Errorf("UE security capability not available, cannot build SecurityModeCommand")
+	}
+
 	securityModeCommand.ReplayedUESecurityCapabilities.SetLen(ue.UESecurityCapability.GetLen())
 	securityModeCommand.ReplayedUESecurityCapabilities.Buffer = ue.UESecurityCapability.Buffer
 

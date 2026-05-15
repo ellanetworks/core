@@ -54,7 +54,7 @@ func (b *BGPService) syncRoutes(ctx context.Context) {
 	peers := b.peers
 	filter := b.filter
 	ownedPaths := b.paths
-	n6Addr := b.n6Addr
+	n6AddrV4 := b.n6AddrV4
 	b.mu.RUnlock()
 
 	prefixCache := b.preloadImportPrefixes(ctx, peers)
@@ -71,56 +71,87 @@ func (b *BGPService) syncRoutes(ctx context.Context) {
 
 	var ribRoutes []ribEntry
 
-	err := server.ListPath(apiutil.ListPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Family:    bgppacket.RF_IPv4_UC,
-	}, func(_ bgppacket.NLRI, paths []*apiutil.Path) {
-		for _, path := range paths {
-			if path.Withdrawal {
-				continue
+	for _, family := range []bgppacket.Family{bgppacket.RF_IPv4_UC, bgppacket.RF_IPv6_UC} {
+		err := server.ListPath(apiutil.ListPathRequest{
+			TableType: api.TableType_TABLE_TYPE_GLOBAL,
+			Family:    family,
+		}, func(_ bgppacket.NLRI, paths []*apiutil.Path) {
+			for _, path := range paths {
+				if path.Withdrawal {
+					continue
+				}
+
+				prefix, ok := extractPrefix(path)
+				if !ok {
+					b.logger.Debug("skipping route: no prefix in NLRI",
+						zap.String("peer", path.PeerAddress.String()))
+
+					continue
+				}
+
+				if _, owned := ownedPaths[prefix.Masked().String()]; owned {
+					b.logger.Debug("skipping route: locally originated",
+						zap.String("prefix", prefix.String()),
+						zap.String("peer", path.PeerAddress.String()))
+
+					continue
+				}
+
+				nextHop := extractNextHop(path)
+				if !nextHop.IsValid() || nextHop == n6AddrV4 {
+					b.logger.Debug("skipping route: invalid or own next-hop",
+						zap.String("prefix", prefix.String()),
+						zap.String("nextHop", nextHop.String()),
+						zap.String("peer", path.PeerAddress.String()))
+
+					continue
+				}
+
+				if filter.overlapsAny(prefix) {
+					b.logger.Debug("skipping route: rejected by safety filter",
+						zap.String("prefix", prefix.String()),
+						zap.String("peer", path.PeerAddress.String()))
+
+					continue
+				}
+
+				peerAddr := path.PeerAddress.String()
+				peerID := findPeerID(peers, peerAddr)
+
+				if peerID == 0 {
+					b.logger.Debug("skipping route: peer not found",
+						zap.String("prefix", prefix.String()),
+						zap.String("peer", peerAddr))
+
+					continue
+				}
+
+				entries := prefixCache[peerID]
+				if len(entries) == 0 || !matchesPrefixList(prefix, entries) {
+					b.logger.Debug("skipping route: not permitted by import policy",
+						zap.String("prefix", prefix.String()),
+						zap.String("peer", peerAddr))
+
+					continue
+				}
+
+				b.logger.Debug("accepting route from peer",
+					zap.String("prefix", prefix.String()),
+					zap.String("nextHop", nextHop.String()),
+					zap.String("peer", peerAddr))
+
+				ribRoutes = append(ribRoutes, ribEntry{
+					prefix:  prefix,
+					nextHop: nextHop,
+					peer:    peerAddr,
+				})
 			}
+		})
+		if err != nil {
+			b.logger.Warn("failed to list global RIB for route sync", zap.Error(err))
 
-			prefix, ok := extractPrefix(path)
-			if !ok {
-				continue
-			}
-
-			if _, owned := ownedPaths[prefix.Addr().String()]; owned {
-				continue
-			}
-
-			nextHop := extractNextHop(path)
-			if !nextHop.IsValid() || nextHop == n6Addr {
-				continue
-			}
-
-			if filter.overlapsAny(prefix) {
-				continue
-			}
-
-			peerAddr := path.PeerAddress.String()
-			peerID := findPeerID(peers, peerAddr)
-
-			if peerID == 0 {
-				continue
-			}
-
-			entries := prefixCache[peerID]
-			if len(entries) == 0 || !matchesPrefixList(prefix, entries) {
-				continue
-			}
-
-			ribRoutes = append(ribRoutes, ribEntry{
-				prefix:  prefix,
-				nextHop: nextHop,
-				peer:    peerAddr,
-			})
+			return
 		}
-	})
-	if err != nil {
-		b.logger.Warn("failed to list global RIB for route sync", zap.Error(err))
-
-		return
 	}
 
 	if ctx.Err() != nil {
@@ -138,6 +169,9 @@ func (b *BGPService) syncRoutes(ctx context.Context) {
 	// Remove routes no longer in the RIB.
 	for prefixStr, lr := range b.learnedRoutes {
 		if _, inRIB := ribSet[prefixStr]; !inRIB {
+			b.logger.Debug("route withdrawn from RIB, removing from kernel",
+				zap.String("prefix", prefixStr), zap.String("peer", lr.peer))
+
 			err := b.kernel.DeleteRoute(lr.prefix, lr.gateway, bgpRouteMetric, kernel.N6)
 			if err != nil {
 				b.logger.Warn("failed to remove withdrawn BGP route",
@@ -161,6 +195,12 @@ func (b *BGPService) syncRoutes(ctx context.Context) {
 		if lr.gateway == r.nextHop && lr.peer == r.peer {
 			continue
 		}
+
+		b.logger.Debug("route changed, updating in kernel",
+			zap.String("prefix", prefixStr),
+			zap.String("oldNextHop", lr.gateway.String()),
+			zap.String("newNextHop", r.nextHop.String()),
+			zap.String("peer", r.peer))
 
 		err := b.kernel.ReplaceRoute(r.prefix, r.nextHop, bgpRouteMetric, kernel.N6)
 		if err != nil {
@@ -197,8 +237,18 @@ func (b *BGPService) syncRoutes(ctx context.Context) {
 		}
 
 		if peerCounts[r.peer] >= MaxLearnedRoutesPerPeer {
+			b.logger.Debug("skipping route: peer limit reached",
+				zap.String("prefix", prefixStr),
+				zap.String("peer", r.peer),
+				zap.Int("count", peerCounts[r.peer]))
+
 			continue
 		}
+
+		b.logger.Debug("installing new route to kernel",
+			zap.String("prefix", prefixStr),
+			zap.String("nextHop", r.nextHop.String()),
+			zap.String("peer", r.peer))
 
 		err := b.kernel.ReplaceRoute(r.prefix, r.nextHop, bgpRouteMetric, kernel.N6)
 		if err != nil {
@@ -385,86 +435,127 @@ func (b *BGPService) replayGlobalRIB(ctx context.Context, peers []BGPPeer) {
 
 	installed := 0
 
-	err := b.server.ListPath(apiutil.ListPathRequest{
-		TableType: api.TableType_TABLE_TYPE_GLOBAL,
-		Family:    bgppacket.RF_IPv4_UC,
-	}, func(nlri bgppacket.NLRI, paths []*apiutil.Path) {
-		for _, path := range paths {
-			if path.Withdrawal {
-				continue
+	for _, family := range []bgppacket.Family{bgppacket.RF_IPv4_UC, bgppacket.RF_IPv6_UC} {
+		err := b.server.ListPath(apiutil.ListPathRequest{
+			TableType: api.TableType_TABLE_TYPE_GLOBAL,
+			Family:    family,
+		}, func(nlri bgppacket.NLRI, paths []*apiutil.Path) {
+			for _, path := range paths {
+				if path.Withdrawal {
+					continue
+				}
+
+				prefix, ok := extractPrefix(path)
+				if !ok {
+					b.logger.Debug("skipping route during replay: no prefix in NLRI",
+						zap.String("peer", path.PeerAddress.String()))
+
+					continue
+				}
+
+				prefixStr := prefix.String()
+
+				// Skip if already learned.
+				if _, exists := b.learnedRoutes[prefixStr]; exists {
+					continue
+				}
+
+				// Skip locally-originated routes.
+				if _, owned := b.paths[prefix.Masked().String()]; owned {
+					b.logger.Debug("skipping route during replay: locally originated",
+						zap.String("prefix", prefixStr),
+						zap.String("peer", path.PeerAddress.String()))
+
+					continue
+				}
+
+				nextHop := extractNextHop(path)
+				if !nextHop.IsValid() {
+					b.logger.Debug("skipping route during replay: invalid next-hop",
+						zap.String("prefix", prefixStr),
+						zap.String("nextHop", nextHop.String()),
+						zap.String("peer", path.PeerAddress.String()))
+
+					continue
+				}
+
+				// Skip routes with our own next-hop.
+				if nextHop == b.n6AddrV4 {
+					b.logger.Debug("skipping route during replay: own next-hop",
+						zap.String("prefix", prefixStr),
+						zap.String("nextHop", nextHop.String()),
+						zap.String("peer", path.PeerAddress.String()))
+
+					continue
+				}
+
+				// Safety filter.
+				if b.filter.overlapsAny(prefix) {
+					b.logger.Debug("skipping route during replay: rejected by safety filter",
+						zap.String("prefix", prefixStr),
+						zap.String("peer", path.PeerAddress.String()))
+
+					continue
+				}
+
+				peerAddr := path.PeerAddress.String()
+				peerID := findPeerID(peers, peerAddr)
+
+				if peerID == 0 {
+					b.logger.Debug("skipping route during replay: peer not found",
+						zap.String("prefix", prefixStr),
+						zap.String("peer", peerAddr))
+
+					continue
+				}
+
+				entries := prefixCache[peerID]
+
+				if len(entries) == 0 || !matchesPrefixList(prefix, entries) {
+					b.logger.Debug("skipping route during replay: not permitted by import policy",
+						zap.String("prefix", prefixStr),
+						zap.String("peer", peerAddr))
+
+					continue
+				}
+
+				if peerCounts[peerAddr] >= MaxLearnedRoutesPerPeer {
+					b.logger.Debug("skipping route during replay: peer limit reached",
+						zap.String("prefix", prefixStr),
+						zap.String("peer", peerAddr),
+						zap.Int("count", peerCounts[peerAddr]))
+
+					continue
+				}
+
+				b.logger.Debug("installing route during RIB replay",
+					zap.String("prefix", prefixStr),
+					zap.String("nextHop", nextHop.String()),
+					zap.String("peer", peerAddr))
+
+				err := b.kernel.ReplaceRoute(prefix, nextHop, bgpRouteMetric, kernel.N6)
+				if err != nil {
+					b.logger.Warn("failed to install route during RIB replay",
+						zap.String("prefix", prefixStr), zap.Error(err))
+
+					continue
+				}
+
+				b.learnedRoutes[prefixStr] = learnedRoute{
+					prefix:  prefix,
+					gateway: nextHop,
+					peer:    peerAddr,
+				}
+
+				peerCounts[peerAddr]++
+				installed++
 			}
+		})
+		if err != nil {
+			b.logger.Warn("failed to list global RIB for replay", zap.Error(err))
 
-			prefix, ok := extractPrefix(path)
-			if !ok {
-				continue
-			}
-
-			prefixStr := prefix.String()
-
-			// Skip if already learned.
-			if _, exists := b.learnedRoutes[prefixStr]; exists {
-				continue
-			}
-
-			// Skip locally-originated routes.
-			if _, owned := b.paths[prefix.Addr().String()]; owned {
-				continue
-			}
-
-			nextHop := extractNextHop(path)
-			if !nextHop.IsValid() {
-				continue
-			}
-
-			// Skip routes with our own next-hop.
-			if nextHop == b.n6Addr {
-				continue
-			}
-
-			// Safety filter.
-			if b.filter.overlapsAny(prefix) {
-				continue
-			}
-
-			peerAddr := path.PeerAddress.String()
-			peerID := findPeerID(peers, peerAddr)
-
-			if peerID == 0 {
-				continue
-			}
-
-			entries := prefixCache[peerID]
-
-			if len(entries) == 0 || !matchesPrefixList(prefix, entries) {
-				continue
-			}
-
-			if peerCounts[peerAddr] >= MaxLearnedRoutesPerPeer {
-				continue
-			}
-
-			err := b.kernel.ReplaceRoute(prefix, nextHop, bgpRouteMetric, kernel.N6)
-			if err != nil {
-				b.logger.Warn("failed to install route during RIB replay",
-					zap.String("prefix", prefixStr), zap.Error(err))
-
-				continue
-			}
-
-			b.learnedRoutes[prefixStr] = learnedRoute{
-				prefix:  prefix,
-				gateway: nextHop,
-				peer:    peerAddr,
-			}
-
-			peerCounts[peerAddr]++
-			installed++
+			return
 		}
-	})
-	if err != nil {
-		b.logger.Warn("failed to list global RIB for replay", zap.Error(err))
-
-		return
 	}
 
 	if installed > 0 {
