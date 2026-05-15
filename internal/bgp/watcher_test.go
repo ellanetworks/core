@@ -194,15 +194,15 @@ func TestRouteLearningDisabledWithoutDeps(t *testing.T) {
 func newTestServiceWithLearning(t *testing.T, k kernel.Kernel, store bgp.ImportPrefixStore) *bgp.BGPService {
 	t.Helper()
 
-	n6Addr := netip.MustParseAddr("10.0.0.1")
-	n6Addr6 := netip.MustParseAddr("fc02:80:0e::1")
+	n6AddrV4 := netip.MustParseAddr("10.0.0.1")
+	n6AddrV6 := netip.MustParseAddr("fc02:80:0e::1")
 	logger := zap.NewNop()
 
 	filter := &bgp.RouteFilter{
 		RejectPrefixes: bgp.BuildRejectPrefixes(nil),
 	}
 
-	svc := bgp.New(n6Addr, n6Addr6, logger,
+	svc := bgp.New(n6AddrV4, n6AddrV6, logger,
 		bgp.WithKernel(k),
 		bgp.WithImportPrefixStore(store),
 		bgp.WithRouteFilter(filter),

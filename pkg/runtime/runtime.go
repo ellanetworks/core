@@ -305,16 +305,16 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		return fmt.Errorf("couldn't get N6 interface IP: %w", err)
 	}
 
-	n6Addr, err := netip.ParseAddr(n6IP)
+	n6AddrV4, err := netip.ParseAddr(n6IP)
 	if err != nil {
 		return fmt.Errorf("couldn't parse N6 IP %q: %w", n6IP, err)
 	}
 
-	var n6Addr6 netip.Addr
+	var n6AddrV6 netip.Addr
 
 	if n6IP6, err := config.GetInterfaceIPFunc(cfg.Interfaces.N6.Name, config.IPv6); err == nil {
 		if parsed, err := netip.ParseAddr(n6IP6); err == nil {
-			n6Addr6 = parsed
+			n6AddrV6 = parsed
 		}
 	}
 
@@ -325,7 +325,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	routeFilter := bgp.BuildRouteFilter(uePools, n3Addr, cfg.Interfaces.N6.Name)
 	importStore := &bgpImportPrefixAdapter{db: dbInstance}
 
-	bgpService := bgp.New(n6Addr, n6Addr6, logger.EllaLog,
+	bgpService := bgp.New(n6AddrV4, n6AddrV6, logger.EllaLog,
 		bgp.WithKernel(realKernel),
 		bgp.WithImportPrefixStore(importStore),
 		bgp.WithRouteFilter(routeFilter),

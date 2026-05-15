@@ -61,8 +61,8 @@ type BGPService struct {
 	settings    BGPSettings
 	peers       []BGPPeer
 	paths       map[string]ownedPath // keyed by IP string e.g. "10.45.0.3"
-	n6Addr      netip.Addr           // IPv4 address of N6 interface
-	n6Addr6     netip.Addr           // IPv6 address of N6 interface
+	n6AddrV4    netip.Addr           // IPv4 address of N6 interface
+	n6AddrV6    netip.Addr           // IPv6 address of N6 interface
 	logger      *zap.Logger
 	listenPort  int32
 
@@ -137,10 +137,10 @@ func (b *BGPService) UpdateFilter(f *RouteFilter) {
 }
 
 // New creates a BGPService. Does not start the speaker.
-func New(n6Addr netip.Addr, n6Addr6 netip.Addr, logger *zap.Logger, opts ...Option) *BGPService {
+func New(n6AddrV4 netip.Addr, n6AddrV6 netip.Addr, logger *zap.Logger, opts ...Option) *BGPService {
 	b := &BGPService{
-		n6Addr:        n6Addr,
-		n6Addr6:       n6Addr6,
+		n6AddrV4:      n6AddrV4,
+		n6AddrV6:      n6AddrV6,
 		logger:        logger,
 		listenPort:    defaultListenPort,
 		paths:         make(map[string]ownedPath),
@@ -225,7 +225,7 @@ func (b *BGPService) routeLearningEnabled() bool {
 func (b *BGPService) startLocked(ctx context.Context, settings BGPSettings, peers []BGPPeer) error {
 	routerID := settings.RouterID
 	if routerID == "" {
-		routerID = b.n6Addr.String()
+		routerID = b.n6AddrV4.String()
 	}
 
 	listenPort := b.resolveListenPort(settings)
@@ -577,7 +577,7 @@ func (b *BGPService) GetEffectiveRouterID(configuredRouterID string) string {
 		return configuredRouterID
 	}
 
-	return b.n6Addr.String()
+	return b.n6AddrV4.String()
 }
 
 // IsRunning returns true if the BGP speaker is currently active.
@@ -716,7 +716,7 @@ func (b *BGPService) buildPath(prefix netip.Prefix) (*apiutil.Path, error) {
 		mpReach, err := bgppacket.NewPathAttributeMpReachNLRI(
 			family,
 			[]bgppacket.PathNLRI{{NLRI: nlri}},
-			b.n6Addr6,
+			b.n6AddrV6,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create MP_REACH_NLRI attribute: %w", err)
@@ -729,7 +729,7 @@ func (b *BGPService) buildPath(prefix netip.Prefix) (*apiutil.Path, error) {
 		}, nil
 	}
 
-	nextHop, err := bgppacket.NewPathAttributeNextHop(b.n6Addr)
+	nextHop, err := bgppacket.NewPathAttributeNextHop(b.n6AddrV4)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create next-hop attribute: %w", err)
 	}

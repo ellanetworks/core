@@ -12,10 +12,10 @@ import (
 func newTestService(t *testing.T) *bgp.BGPService {
 	t.Helper()
 
-	n6Addr := netip.MustParseAddr("10.0.0.1")
-	n6Addr6 := netip.MustParseAddr("fc02:80:0e::1")
+	n6AddrV4 := netip.MustParseAddr("10.0.0.1")
+	n6AddrV6 := netip.MustParseAddr("fc02:80:0e::1")
 	logger := zap.NewNop()
-	svc := bgp.New(n6Addr, n6Addr6, logger)
+	svc := bgp.New(n6AddrV4, n6AddrV6, logger)
 	// Use ListenPort -1 to avoid binding to port 179 in tests
 	svc.SetListenPort(-1)
 

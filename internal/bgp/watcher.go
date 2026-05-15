@@ -54,7 +54,7 @@ func (b *BGPService) syncRoutes(ctx context.Context) {
 	peers := b.peers
 	filter := b.filter
 	ownedPaths := b.paths
-	n6Addr := b.n6Addr
+	n6AddrV4 := b.n6AddrV4
 	b.mu.RUnlock()
 
 	prefixCache := b.preloadImportPrefixes(ctx, peers)
@@ -98,7 +98,7 @@ func (b *BGPService) syncRoutes(ctx context.Context) {
 				}
 
 				nextHop := extractNextHop(path)
-				if !nextHop.IsValid() || nextHop == n6Addr {
+				if !nextHop.IsValid() || nextHop == n6AddrV4 {
 					b.logger.Debug("skipping route: invalid or own next-hop",
 						zap.String("prefix", prefix.String()),
 						zap.String("nextHop", nextHop.String()),
@@ -480,7 +480,7 @@ func (b *BGPService) replayGlobalRIB(ctx context.Context, peers []BGPPeer) {
 				}
 
 				// Skip routes with our own next-hop.
-				if nextHop == b.n6Addr {
+				if nextHop == b.n6AddrV4 {
 					b.logger.Debug("skipping route during replay: own next-hop",
 						zap.String("prefix", prefixStr),
 						zap.String("nextHop", nextHop.String()),
