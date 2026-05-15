@@ -12,12 +12,12 @@ Subscriber devices receive IPs from the data network pool. When NAT is not used,
 
 ### Advertise subscriber routes
 
-Ella Core embeds a BGP speaker that automatically advertises a `/32` host route for each active subscriber IP:
+Ella Core embeds a BGP speaker that automatically advertises a `/32` (IPv4) or `/64` (IPv6) route for each active subscriber:
 
-1. A subscriber establishes a PDU session and receives an IP (e.g. `10.45.0.3`).
-2. Ella Core announces the route `10.45.0.3/32` to all configured BGP peers, with the N6 interface address as the next-hop.
+1. A subscriber establishes a PDU session and receives an IP address (IPv4, e.g. `10.45.0.3`) or an IPv6 prefix (e.g. `2001:db8:ad50:8500::/64`).
+2. Ella Core announces the route `10.45.0.3/32` (or `2001:db8:ad50:8500::/64` for IPv6) to all configured BGP peers, with the N6 interface address as the next-hop.
 3. Upstream routers install the route, and return traffic flows through the N6 interface to Ella Core, which delivers it to the subscriber over GTP-U.
-4. When the PDU session is released, Ella Core withdraws the `/32` route.
+4. When the PDU session is released, Ella Core withdraws the route.
 
 This means routing state always reflects the set of currently connected subscribers with no manual intervention.
 
@@ -27,4 +27,4 @@ Ella Core receives routes from BGP peers and installs them into the kernel routi
 
 ### In an HA cluster
 
-Each node runs its own BGP speaker and advertises `/32` subnets for the sessions it currently hosts. See [High Availability](high_availability.md) for the broader cluster model.
+Each node runs its own BGP speaker and advertises `/32` (IPv4) or `/64` (IPv6) prefixes for the sessions it currently hosts. See [High Availability](high_availability.md) for the broader cluster model.

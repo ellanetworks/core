@@ -14,6 +14,16 @@ func mustParsePrefix(s string) netip.Prefix {
 	return p
 }
 
+func TestPrefixLenFor(t *testing.T) {
+	if got := prefixLenFor(netip.MustParseAddr("10.0.0.1")); got != 32 {
+		t.Errorf("prefixLenFor(10.0.0.1) = %d, want 32", got)
+	}
+
+	if got := prefixLenFor(netip.MustParseAddr("2001:db8::1")); got != 128 {
+		t.Errorf("prefixLenFor(2001:db8::1) = %d, want 128", got)
+	}
+}
+
 func TestMatchesPrefixList_DefaultRouteOnly(t *testing.T) {
 	entries := []ImportPrefix{
 		{Prefix: mustParsePrefix("0.0.0.0/0"), MaxLength: 0},
@@ -115,6 +125,31 @@ func TestMatchesPrefixList_MultipleEntries(t *testing.T) {
 	}
 }
 
+func TestMatchesPrefixList_IPv6(t *testing.T) {
+	entries := []ImportPrefix{
+		{Prefix: mustParsePrefix("::/0"), MaxLength: 0},
+		{Prefix: mustParsePrefix("2001:db8::/32"), MaxLength: 48},
+	}
+
+	testCases := []struct {
+		prefix string
+		match  bool
+	}{
+		{"::/0", true},               // matches first entry
+		{"2001:db8:1::/48", true},    // matches second entry
+		{"2001:db8:1:2::/64", false}, // too specific (64 > maxLength 48)
+		{"fe80::/10", false},         // different prefix
+		{"::1/128", false},           // loopback, not in import list
+	}
+
+	for _, tc := range testCases {
+		got := matchesPrefixList(mustParsePrefix(tc.prefix), entries)
+		if got != tc.match {
+			t.Errorf("prefix %s: expected match=%v, got %v", tc.prefix, tc.match, got)
+		}
+	}
+}
+
 func TestOverlapsAny_UEPool(t *testing.T) {
 	filter := &RouteFilter{
 		RejectPrefixes: []netip.Prefix{
@@ -178,9 +213,9 @@ func TestBuildRejectPrefixes_IncludesAllSources(t *testing.T) {
 
 	prefixes := BuildRejectPrefixes(subnets)
 
-	// Should contain: link-local, multicast, loopback, UE pool, extra
-	if len(prefixes) != 5 {
-		t.Fatalf("expected 5 reject prefixes, got %d", len(prefixes))
+	// Should contain: 3 IPv4 builtins + 3 IPv6 builtins + 2 UE pools
+	if len(prefixes) != 8 {
+		t.Fatalf("expected 8 reject prefixes, got %d", len(prefixes))
 	}
 
 	// Verify the UE pool is included
@@ -198,8 +233,34 @@ func TestBuildRejectPrefixes_IncludesAllSources(t *testing.T) {
 func TestBuildRejectPrefixes_Empty(t *testing.T) {
 	prefixes := BuildRejectPrefixes(nil)
 
-	// Should still have the 3 hard-coded rejections
-	if len(prefixes) != 3 {
-		t.Fatalf("expected 3 reject prefixes, got %d", len(prefixes))
+	// Should still have the 3 IPv4 + 3 IPv6 hard-coded rejections
+	if len(prefixes) != 6 {
+		t.Fatalf("expected 6 reject prefixes, got %d", len(prefixes))
+	}
+}
+
+func TestOverlapsAny_IPv6BuiltinRejections(t *testing.T) {
+	filter := &RouteFilter{
+		RejectPrefixes: BuildRejectPrefixes(nil),
+	}
+
+	testCases := []struct {
+		prefix  string
+		overlap bool
+	}{
+		{"fe80::/10", true},      // link-local
+		{"fe80::1/128", true},    // within link-local
+		{"ff00::/8", true},       // multicast
+		{"ff02::1/128", true},    // within multicast
+		{"::1/128", true},        // loopback
+		{"2001:db8::/32", false}, // normal prefix
+		{"::/0", false},          // default route — not rejected (kernel LPM handles it)
+	}
+
+	for _, tc := range testCases {
+		got := filter.overlapsAny(mustParsePrefix(tc.prefix))
+		if got != tc.overlap {
+			t.Errorf("prefix %s: expected overlap=%v, got %v", tc.prefix, tc.overlap, got)
+		}
 	}
 }
