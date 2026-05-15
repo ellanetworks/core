@@ -185,7 +185,8 @@ func DistinctImsis(n int) FlowReportPredicate {
 }
 
 // ImsisAre requires the items' SubscriberID multiset to exactly equal
-// expected: every expected IMSI appears once, no extras.
+// expected: each IMSI must appear with the same multiplicity in items
+// as it does in expected, with no extras.
 func ImsisAre(expected []string) FlowReportPredicate {
 	return func(items []client.FlowReport) bool {
 		if len(items) != len(expected) {
@@ -227,6 +228,22 @@ func AssertEachBytesIs(t *testing.T, flows []client.FlowReport, expected uint64)
 			t.Errorf(
 				"flow %d (imsi=%s dir=%s action=%s): expected exactly %d bytes, got %d",
 				i, f.SubscriberID, f.Direction, f.Action, expected, f.Bytes,
+			)
+		}
+	}
+}
+
+// AssertEachPacketsIs records (t.Errorf, non-fatal) every flow whose
+// Packets differs from expected. Used for protocols whose per-flow
+// packet count is kernel-dependent (TCP) and needs calibration.
+func AssertEachPacketsIs(t *testing.T, flows []client.FlowReport, expected uint64) {
+	t.Helper()
+
+	for i, f := range flows {
+		if f.Packets != expected {
+			t.Errorf(
+				"flow %d (imsi=%s dir=%s action=%s): expected exactly %d packets, got %d",
+				i, f.SubscriberID, f.Direction, f.Action, expected, f.Packets,
 			)
 		}
 	}

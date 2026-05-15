@@ -12,15 +12,17 @@ import (
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
 
-// TestNetworkRulesAndFlowReports drives a matrix of rule shapes against
-// a real PDU session and asserts per-flow content for the resulting
-// flow reports. Cases are ordered so consecutive subtests never share
-// the same (protocol, direction, action) filter — without that, late
-// flow exports from one case could leak into the next case's snapshot.
+// TestNetworkRulesAndFlowReports drives a matrix of rule shapes
+// against a real PDU session and asserts per-flow content for the
+// resulting flow reports, once per (icmp, tcp, udp). Cases are
+// ordered so consecutive subtests never share the same
+// (protocol, direction, action) filter shape — without that, late
+// flow exports from one case could leak into the next case's
+// snapshot.
 //
 // In IPv6 mode the "deny all ICMP" cases would also drop Router
-// Solicitation / Router Advertisement traffic and break SLAAC, so those
-// cases use a remote prefix scoped to the ping target instead.
+// Solicitation / Router Advertisement traffic and break SLAAC, so
+// those cases use a remote prefix scoped to the ping target instead.
 func TestNetworkRulesAndFlowReports(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
@@ -38,13 +40,17 @@ func TestNetworkRulesAndFlowReports(t *testing.T) {
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
 
-	cases := buildRuleCases(fp)
+	for _, protoName := range []string{"icmp", "udp", "tcp"} {
+		pp := protocolParams(fp.family, protoName)
 
-	for _, tc := range cases {
-		tc := tc
+		t.Run(protoName, func(t *testing.T) {
+			for _, tc := range buildRuleCases(fp, pp) {
+				tc := tc
 
-		t.Run(tc.name, func(t *testing.T) {
-			runNetworkRuleCase(ctx, t, env, tc, fp)
+				t.Run(tc.name, func(t *testing.T) {
+					runNetworkRuleCase(ctx, t, env, tc, fp, pp)
+				})
+			}
 		})
 	}
 }
@@ -57,18 +63,18 @@ type ruleCase struct {
 	assertAction    string // "allow" or "drop"
 }
 
-func buildRuleCases(fp ipFamilyParams) []ruleCase {
+func buildRuleCases(fp ipFamilyParams, pp probeProtocolParams) []ruleCase {
 	pingTargetPrefix := fp.pingDestination + fp.hostPrefix
-	denyAllDescription := "deny all icmp"
-	denyTargetDescription := "deny icmp from ping target"
-	denyNonMatchDescription := "deny icmp from non-matching prefix"
+	denyAllDescription := "deny all " + pp.name
+	denyTargetDescription := "deny " + pp.name + " from ping target"
+	denyNonMatchDescription := "deny " + pp.name + " from non-matching prefix"
 
 	// In IPv6 the unscoped all-ICMP deny would also block RS/RA and
 	// break SLAAC, so we scope it to the ping target instead.
 	downlinkDenyAll := &client.PolicyRules{
 		Downlink: []client.PolicyRule{{
 			Description: denyAllDescription,
-			Protocol:    fp.ruleProtocol,
+			Protocol:    int32(pp.ipProto),
 			Action:      "deny",
 		}},
 	}
@@ -76,7 +82,7 @@ func buildRuleCases(fp ipFamilyParams) []ruleCase {
 	uplinkDenyAll := &client.PolicyRules{
 		Uplink: []client.PolicyRule{{
 			Description: denyAllDescription,
-			Protocol:    fp.ruleProtocol,
+			Protocol:    int32(pp.ipProto),
 			Action:      "deny",
 		}},
 	}
@@ -84,7 +90,7 @@ func buildRuleCases(fp ipFamilyParams) []ruleCase {
 	downlinkDenyTarget := &client.PolicyRules{
 		Downlink: []client.PolicyRule{{
 			Description:  denyTargetDescription,
-			Protocol:     fp.ruleProtocol,
+			Protocol:     int32(pp.ipProto),
 			RemotePrefix: ptr(pingTargetPrefix),
 			Action:       "deny",
 		}},
@@ -93,7 +99,7 @@ func buildRuleCases(fp ipFamilyParams) []ruleCase {
 	uplinkDenyTarget := &client.PolicyRules{
 		Uplink: []client.PolicyRule{{
 			Description:  denyTargetDescription,
-			Protocol:     fp.ruleProtocol,
+			Protocol:     int32(pp.ipProto),
 			RemotePrefix: ptr(pingTargetPrefix),
 			Action:       "deny",
 		}},
@@ -102,14 +108,14 @@ func buildRuleCases(fp ipFamilyParams) []ruleCase {
 	downlinkRule := downlinkDenyAll
 	uplinkRule := uplinkDenyAll
 
-	if fp.family == IPv6Only {
+	if fp.family == IPv6Only && pp.name == "icmp" {
 		downlinkRule = downlinkDenyTarget
 		uplinkRule = uplinkDenyTarget
 	}
 
-	return []ruleCase{
+	cases := []ruleCase{
 		{
-			name:            "downlink_deny_icmp",
+			name:            "downlink_deny",
 			rule:            downlinkRule,
 			scenario:        fp.scenarioBlocked,
 			assertDirection: "downlink",
@@ -120,7 +126,7 @@ func buildRuleCases(fp ipFamilyParams) []ruleCase {
 			rule: &client.PolicyRules{
 				Downlink: []client.PolicyRule{{
 					Description:  denyNonMatchDescription,
-					Protocol:     fp.ruleProtocol,
+					Protocol:     int32(pp.ipProto),
 					RemotePrefix: ptr(fp.nonMatchingPrefix),
 					Action:       "deny",
 				}},
@@ -130,7 +136,7 @@ func buildRuleCases(fp ipFamilyParams) []ruleCase {
 			assertAction:    "allow",
 		},
 		{
-			name:            "uplink_deny_icmp",
+			name:            "uplink_deny",
 			rule:            uplinkRule,
 			scenario:        fp.scenarioBlocked,
 			assertDirection: "uplink",
@@ -141,13 +147,13 @@ func buildRuleCases(fp ipFamilyParams) []ruleCase {
 			rule: &client.PolicyRules{
 				Downlink: []client.PolicyRule{
 					{
-						Description: "allow icmp (precedence 0)",
-						Protocol:    fp.ruleProtocol,
+						Description: "allow " + pp.name + " (precedence 0)",
+						Protocol:    int32(pp.ipProto),
 						Action:      "allow",
 					},
 					{
-						Description: "deny icmp (precedence 1, shadowed)",
-						Protocol:    fp.ruleProtocol,
+						Description: "deny " + pp.name + " (precedence 1, shadowed)",
+						Protocol:    int32(pp.ipProto),
 						Action:      "deny",
 					},
 				},
@@ -160,8 +166,8 @@ func buildRuleCases(fp ipFamilyParams) []ruleCase {
 			name: "deny_prefix_match",
 			rule: &client.PolicyRules{
 				Downlink: []client.PolicyRule{{
-					Description:  "deny icmp from ping destination",
-					Protocol:     fp.ruleProtocol,
+					Description:  "deny " + pp.name + " from ping destination",
+					Protocol:     int32(pp.ipProto),
 					RemotePrefix: ptr(pingTargetPrefix),
 					Action:       "deny",
 				}},
@@ -171,9 +177,71 @@ func buildRuleCases(fp ipFamilyParams) []ruleCase {
 			assertAction:    "drop",
 		},
 	}
+
+	if pp.supportsPortRules {
+		cases = append(cases, buildPortRuleCases(fp, pp)...)
+	}
+
+	return cases
 }
 
-func runNetworkRuleCase(ctx context.Context, t *testing.T, env *testerEnv, tc ruleCase, fp ipFamilyParams) {
+// buildPortRuleCases adds three port-gate cases. Only meaningful for
+// TCP/UDP. Each case puts the rule on the downlink side and asserts
+// the corresponding downlink flow; uplink coverage is already
+// exercised by the prefix and protocol-only cases above.
+func buildPortRuleCases(fp ipFamilyParams, pp probeProtocolParams) []ruleCase {
+	port := int32(responderPort)
+
+	return []ruleCase{
+		{
+			name: "deny_port_match",
+			rule: &client.PolicyRules{
+				Downlink: []client.PolicyRule{{
+					Description: "deny " + pp.name + " on responder port",
+					Protocol:    int32(pp.ipProto),
+					PortLow:     port,
+					PortHigh:    port,
+					Action:      "deny",
+				}},
+			},
+			scenario:        fp.scenarioBlocked,
+			assertDirection: "downlink",
+			assertAction:    "drop",
+		},
+		{
+			name: "deny_port_nonmatch",
+			rule: &client.PolicyRules{
+				Downlink: []client.PolicyRule{{
+					Description: "deny " + pp.name + " on unused port",
+					Protocol:    int32(pp.ipProto),
+					PortLow:     9999,
+					PortHigh:    9999,
+					Action:      "deny",
+				}},
+			},
+			scenario:        fp.scenarioAllowed,
+			assertDirection: "downlink",
+			assertAction:    "allow",
+		},
+		{
+			name: "deny_port_range_match",
+			rule: &client.PolicyRules{
+				Downlink: []client.PolicyRule{{
+					Description: "deny " + pp.name + " on responder port range",
+					Protocol:    int32(pp.ipProto),
+					PortLow:     34000,
+					PortHigh:    34999,
+					Action:      "deny",
+				}},
+			},
+			scenario:        fp.scenarioBlocked,
+			assertDirection: "downlink",
+			assertAction:    "drop",
+		},
+	}
+}
+
+func runNetworkRuleCase(ctx context.Context, t *testing.T, env *testerEnv, tc ruleCase, fp ipFamilyParams, pp probeProtocolParams) {
 	t.Helper()
 
 	sc, ok := scenarios.Get(tc.scenario)
@@ -208,12 +276,12 @@ func runNetworkRuleCase(ctx context.Context, t *testing.T, env *testerEnv, tc ru
 
 	scenarioStart := time.Now()
 
-	env.RunScenario(ctx, t, tc.scenario, scenarioRunArgs(tc.scenario, spec)...)
+	env.RunScenario(ctx, t, tc.scenario, scenarioRunArgs(tc.scenario, spec, pp)...)
 
 	scenarioEnd := time.Now()
 
 	filter := client.ListFlowReportsParams{
-		Protocol:    fp.protocolFilter,
+		Protocol:    apiProtocolFilter(pp),
 		Direction:   tc.assertDirection,
 		Action:      tc.assertAction,
 		Source:      apiSourceIPFilter(tc.assertDirection, fp),
@@ -226,14 +294,24 @@ func runNetworkRuleCase(ctx context.Context, t *testing.T, env *testerEnv, tc ru
 	flows := fixture.AssertFlowReports(
 		ctx, t, env.Client,
 		&filter,
-		expectedFlowsContentPredicate(tc.assertDirection, tc.assertAction, expectedIMSIs, fp),
+		expectedFlowsContentPredicate(tc.assertDirection, tc.assertAction, expectedIMSIs, fp, pp),
 		90*time.Second,
 	)
 
-	fixture.AssertEachBytesIs(t, flows, expectedBytesPerFlow(fp))
+	if pp.bytesPerFlow != nil {
+		fixture.AssertEachBytesIs(t, flows, *pp.bytesPerFlow)
+	}
+
+	if pp.packetsPerFlow == nil {
+		// Log actuals for calibration of kernel-dependent TCP counts.
+		for i, f := range flows {
+			t.Logf("flow %d (imsi=%s dir=%s action=%s): packets=%d bytes=%d", i, f.SubscriberID, f.Direction, f.Action, f.Packets, f.Bytes)
+		}
+	}
+
 	fixture.AssertEachTimestampsWithin(t, flows, scenarioStart, scenarioEnd.Add(timestampUpperBuffer))
 
-	t.Logf("%s: %d %s/%s flows", tc.name, len(flows), tc.assertDirection, tc.assertAction)
+	t.Logf("%s/%s: %d %s/%s flows", pp.name, tc.name, len(flows), tc.assertDirection, tc.assertAction)
 }
 
 // setDefaultPolicyRules replaces rules on the baseline policy, preserving

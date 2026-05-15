@@ -3,7 +3,6 @@ package ue
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
@@ -18,10 +17,12 @@ import (
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
-		Name:      "ue/connectivity_expect_blocked_ipv6",
-		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
+		Name: "ue/connectivity_expect_blocked_ipv6",
+		BindFlags: func(fs *pflag.FlagSet) any {
+			return bindConnectivityProbeFlags(fs)
+		},
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
-			return runConnectivityExpectBlockedIPv6(ctx, env, params)
+			return runConnectivityExpectBlockedIPv6(ctx, env, params.(*connectivityProbeParams))
 		},
 		Fixture: fixtureConnectivityExpectBlockedIPv6,
 	})
@@ -40,7 +41,12 @@ func fixtureConnectivityExpectBlockedIPv6(env scenarios.Env) scenarios.FixtureSp
 	}
 }
 
-func runConnectivityExpectBlockedIPv6(ctx context.Context, env scenarios.Env, _ any) error {
+func runConnectivityExpectBlockedIPv6(ctx context.Context, env scenarios.Env, params *connectivityProbeParams) error {
+	protocol, err := parseConnectivityProbeProtocol(params.Protocol)
+	if err != nil {
+		return err
+	}
+
 	subs, err := buildSubscribers(numConnectivityParallel, ipv6StartIMSI)
 	if err != nil {
 		return fmt.Errorf("could not build subscriber config: %v", err)
@@ -87,6 +93,7 @@ func runConnectivityExpectBlockedIPv6(ctx context.Context, env scenarios.Env, _ 
 					subs[i],
 					tunInterfaceName,
 					env.PDUSessionType(),
+					protocol,
 				)
 			})
 		}()
@@ -106,6 +113,7 @@ func runConnectivityExpectBlockedIPv6Test(
 	sub subscriber,
 	tunInterfaceName string,
 	pduSessionType uint8,
+	protocol connectivityProbeProtocol,
 ) error {
 	newUE, err := newDefaultUE(gNodeB, sub.IMSI[5:], sub.Key, sub.OPc, sub.SequenceNumber, pduSessionType)
 	if err != nil {
@@ -158,15 +166,13 @@ func runConnectivityExpectBlockedIPv6Test(
 		return fmt.Errorf("timeout waiting for ULA address on %s: %v", tunInterfaceName, err)
 	}
 
-	cmd := exec.CommandContext(ctx, "ping6", "-I", tunInterfaceName, scenarios.DefaultPingDestinationV6, "-c", "3", "-W", "1") // #nosec G204
-
-	out, pingErr := cmd.CombinedOutput()
-	if pingErr == nil {
-		return fmt.Errorf("ping6 %s via %s succeeded, but was expected to fail (deny rule should be in force)\noutput:\n%s", scenarios.DefaultPingDestinationV6, tunInterfaceName, string(out))
+	if err := runConnectivityProbe(ctx, protocol, tunInterfaceName, scenarios.DefaultPingDestinationV6, true); err == nil {
+		return fmt.Errorf("%s probe to %s via %s succeeded, but was expected to fail (deny rule should be in force)", protocol, scenarios.DefaultPingDestinationV6, tunInterfaceName)
 	}
 
 	logger.Logger.Debug(
-		"Ping6 failed as expected (traffic blocked by network rule)",
+		"Probe failed as expected (IPv6, traffic blocked by network rule)",
+		zap.String("protocol", string(protocol)),
 		zap.String("interface", tunInterfaceName),
 		zap.String("destination", scenarios.DefaultPingDestinationV6),
 	)

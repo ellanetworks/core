@@ -43,4 +43,8 @@ const (
 
 	DefaultPingDestination   = "10.6.0.3"
 	DefaultPingDestinationV6 = "fd00:6::3"
+
+	// DefaultProbePort is the TCP/UDP echo port exposed by the on-N6
+	// responder service used by core-tester scenarios.
+	DefaultProbePort = 34242
 )

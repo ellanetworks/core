@@ -13,7 +13,7 @@ import (
 )
 
 // TestFlowReportsSmoke asserts per-flow content for the empty-rules
-// baseline, in both directions.
+// baseline, in both directions, once per (icmp, tcp, udp).
 func TestFlowReportsSmoke(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
@@ -30,6 +30,18 @@ func TestFlowReportsSmoke(t *testing.T) {
 	baseline.Slice(fixture.DefaultSliceSpec())
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
+
+	for _, protoName := range []string{"icmp", "udp", "tcp"} {
+		pp := protocolParams(fp.family, protoName)
+
+		t.Run(protoName, func(t *testing.T) {
+			runSmoke(ctx, t, env, fp, pp)
+		})
+	}
+}
+
+func runSmoke(ctx context.Context, t *testing.T, env *testerEnv, fp ipFamilyParams, pp probeProtocolParams) {
+	t.Helper()
 
 	sc, ok := scenarios.Get(fp.scenarioAllowed)
 	if !ok {
@@ -57,7 +69,7 @@ func TestFlowReportsSmoke(t *testing.T) {
 
 	scenarioStart := time.Now()
 
-	env.RunScenario(ctx, t, fp.scenarioAllowed, scenarioRunArgs(fp.scenarioAllowed, spec)...)
+	env.RunScenario(ctx, t, fp.scenarioAllowed, scenarioRunArgs(fp.scenarioAllowed, spec, pp)...)
 
 	scenarioEnd := time.Now()
 
@@ -69,16 +81,25 @@ func TestFlowReportsSmoke(t *testing.T) {
 			&client.ListFlowReportsParams{
 				Direction:   direction,
 				Action:      "allow",
-				Protocol:    fp.protocolFilter,
+				Protocol:    apiProtocolFilter(pp),
 				Source:      apiSourceIPFilter(direction, fp),
 				Destination: apiDestinationIPFilter(direction, fp),
 				PerPage:     100,
 			},
-			expectedFlowsContentPredicate(direction, "allow", expectedIMSIs, fp),
+			expectedFlowsContentPredicate(direction, "allow", expectedIMSIs, fp, pp),
 			90*time.Second,
 		)
 
-		fixture.AssertEachBytesIs(t, flows, expectedBytesPerFlow(fp))
+		if pp.bytesPerFlow != nil {
+			fixture.AssertEachBytesIs(t, flows, *pp.bytesPerFlow)
+		}
+
+		if pp.packetsPerFlow == nil {
+			for i, f := range flows {
+				t.Logf("flow %d (imsi=%s dir=%s): packets=%d bytes=%d", i, f.SubscriberID, f.Direction, f.Packets, f.Bytes)
+			}
+		}
+
 		fixture.AssertEachTimestampsWithin(t, flows, scenarioStart, scenarioEnd.Add(timestampUpperBuffer))
 
 		t.Logf("%s allow flows: %d", direction, len(flows))

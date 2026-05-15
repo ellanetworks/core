@@ -3,7 +3,6 @@ package ue
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
@@ -18,10 +17,12 @@ import (
 
 func init() {
 	scenarios.Register(scenarios.Scenario{
-		Name:      "ue/connectivity_expect_allowed",
-		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
+		Name: "ue/connectivity_expect_allowed",
+		BindFlags: func(fs *pflag.FlagSet) any {
+			return bindConnectivityProbeFlags(fs)
+		},
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
-			return runConnectivityExpectAllowed(ctx, env, params)
+			return runConnectivityExpectAllowed(ctx, env, params.(*connectivityProbeParams))
 		},
 		Fixture: fixtureConnectivityExpectAllowed,
 	})
@@ -40,7 +41,12 @@ func fixtureConnectivityExpectAllowed(env scenarios.Env) scenarios.FixtureSpec {
 	}
 }
 
-func runConnectivityExpectAllowed(ctx context.Context, env scenarios.Env, _ any) error {
+func runConnectivityExpectAllowed(ctx context.Context, env scenarios.Env, params *connectivityProbeParams) error {
+	protocol, err := parseConnectivityProbeProtocol(params.Protocol)
+	if err != nil {
+		return err
+	}
+
 	subs, err := buildSubscribers(numConnectivityParallel, connectivityStartIMSI)
 	if err != nil {
 		return fmt.Errorf("could not build subscriber config: %v", err)
@@ -88,6 +94,7 @@ func runConnectivityExpectAllowed(ctx context.Context, env scenarios.Env, _ any)
 					tunInterfaceName,
 					env.PingDestination(),
 					env.PDUSessionType(),
+					protocol,
 				)
 			})
 		}()
@@ -108,6 +115,7 @@ func runConnectivityExpectAllowedTest(
 	tunInterfaceName string,
 	pingDestination string,
 	pduSessionType uint8,
+	protocol connectivityProbeProtocol,
 ) error {
 	newUE, err := newDefaultUE(gNodeB, sub.IMSI[5:], sub.Key, sub.OPc, sub.SequenceNumber, pduSessionType)
 	if err != nil {
@@ -156,15 +164,13 @@ func runConnectivityExpectAllowedTest(
 		zap.String("UE IP", ueIP),
 	)
 
-	cmd := exec.CommandContext(ctx, "ping", "-I", tunInterfaceName, pingDestination, "-c", "3", "-W", "1") // #nosec G204
-
-	out, pingErr := cmd.CombinedOutput()
-	if pingErr != nil {
-		return fmt.Errorf("ping %s via %s failed, but was expected to succeed: %v\noutput:\n%s", pingDestination, tunInterfaceName, pingErr, string(out))
+	if err := runConnectivityProbe(ctx, protocol, tunInterfaceName, pingDestination, false); err != nil {
+		return fmt.Errorf("%s probe to %s via %s failed, but was expected to succeed: %v", protocol, pingDestination, tunInterfaceName, err)
 	}
 
 	logger.Logger.Debug(
-		"Ping succeeded as expected",
+		"Probe succeeded as expected",
+		zap.String("protocol", string(protocol)),
 		zap.String("interface", tunInterfaceName),
 		zap.String("destination", pingDestination),
 	)
