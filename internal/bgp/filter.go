@@ -67,9 +67,12 @@ func matchesPrefixList(route netip.Prefix, entries []ImportPrefix) bool {
 // regardless of per-peer prefix list configuration.
 func BuildRejectPrefixes(subnets []netip.Prefix) []netip.Prefix {
 	hardCoded := []string{
-		"169.254.0.0/16", // link-local
-		"224.0.0.0/4",    // multicast
-		"127.0.0.0/8",    // loopback
+		"169.254.0.0/16", // IPv4 link-local
+		"224.0.0.0/4",    // IPv4 multicast
+		"127.0.0.0/8",    // IPv4 loopback
+		"fe80::/10",      // IPv6 link-local
+		"ff00::/8",       // IPv6 multicast
+		"::1/128",        // IPv6 loopback
 	}
 
 	var prefixes []netip.Prefix
@@ -94,20 +97,60 @@ func BuildRejectPrefixes(subnets []netip.Prefix) []netip.Prefix {
 //
 // Parameters:
 //   - uePools: UE IP pool CIDRs from all data networks
-//   - n3Addr: N3 interface IP address (added as /32), may be invalid
-//   - n6IfName: N6 interface name (its IPv4 subnets are added)
+//   - n3Addr: N3 interface IP address (added as /32 for IPv4, /128 for IPv6), may be invalid
+//   - n6IfName: N6 interface name (its IPv4 and IPv6 subnets are added)
 func BuildRouteFilter(uePools []netip.Prefix, n3Addr netip.Addr, n6IfName string) *RouteFilter {
 	var subnets []netip.Prefix
 
 	subnets = append(subnets, uePools...)
 
 	if n3Addr.IsValid() {
-		subnets = append(subnets, netip.PrefixFrom(n3Addr, 32))
+		subnets = append(subnets, netip.PrefixFrom(n3Addr, prefixLenFor(n3Addr)))
 	}
 
 	subnets = append(subnets, InterfaceIPv4Subnets(n6IfName)...)
+	subnets = append(subnets, InterfaceIPv6Subnets(n6IfName)...)
 
 	return &RouteFilter{RejectPrefixes: BuildRejectPrefixes(subnets)}
+}
+
+// prefixLenFor returns the appropriate prefix length for an address:
+// 32 for IPv4, 128 for IPv6.
+func prefixLenFor(addr netip.Addr) int {
+	if addr.Is4() {
+		return 32
+	}
+
+	return 128
+}
+
+// InterfaceIPv6Subnets returns the IPv6 subnets configured on the named
+// network interface.
+func InterfaceIPv6Subnets(ifName string) []netip.Prefix {
+	iface, err := net.InterfaceByName(ifName)
+	if err != nil {
+		return nil
+	}
+
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return nil
+	}
+
+	var subnets []netip.Prefix
+
+	for _, addr := range addrs {
+		p, err := netip.ParsePrefix(addr.String())
+		if err != nil {
+			continue
+		}
+
+		if p.Addr().Is6() {
+			subnets = append(subnets, p.Masked())
+		}
+	}
+
+	return subnets
 }
 
 // InterfaceIPv4Subnets returns the IPv4 subnets configured on the named
