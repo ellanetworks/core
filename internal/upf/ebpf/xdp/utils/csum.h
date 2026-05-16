@@ -182,9 +182,9 @@ struct {
  * run before the l4_len bounds check, otherwise the verifier can lose
  * tracked scalar bounds across helpers.
  */
-__attribute__((noinline)) static int udpv4_csum(__be32 saddr, __be32 daddr,
-						__u32 udp_off, __u32 udp_len,
-						struct xdp_md *xdp_ctx)
+__attribute__((noinline, used)) static int
+udpv4_csum(__be32 saddr, __be32 daddr, __u32 udp_off, __u32 udp_len,
+	   struct xdp_md *xdp_ctx)
 {
 	struct {
 		__be32 src;
@@ -242,9 +242,9 @@ __attribute__((noinline)) static int udpv4_csum(__be32 saddr, __be32 daddr,
 	return csum_fold_helper(csum);
 }
 
-__attribute__((noinline)) static int tcpv4_csum(__be32 saddr, __be32 daddr,
-						__u32 tcp_off, __u32 tcp_len,
-						struct xdp_md *xdp_ctx)
+__attribute__((noinline, used)) static int
+tcpv4_csum(__be32 saddr, __be32 daddr, __u32 tcp_off, __u32 tcp_len,
+	   struct xdp_md *xdp_ctx)
 {
 	struct {
 		__be32 src;
@@ -291,10 +291,9 @@ __attribute__((noinline)) static int tcpv4_csum(__be32 saddr, __be32 daddr,
 	return csum_fold_helper(csum);
 }
 
-__attribute__((noinline)) static int udpv6_csum(const struct in6_addr *saddr,
-						const struct in6_addr *daddr,
-						__u32 udp_off, __u32 udp_len,
-						struct xdp_md *xdp_ctx)
+__attribute__((noinline, used)) static int
+udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
+	   __u32 udp_off, __u32 udp_len, struct xdp_md *xdp_ctx)
 {
 	struct {
 		struct in6_addr src;

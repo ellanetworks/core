@@ -166,6 +166,20 @@ func protocolParams(family IPFamily, protocol string) probeProtocolParams {
 	}
 }
 
+// smokeProtocolsForFamily returns the protocols to exercise in
+// connectivity-style integration tests for the given family.
+// The N6 responder image binds UDP/TCP on 0.0.0.0 (IPv4 only), so
+// IPv6 UDP/TCP probes would always fail with port unreachable /
+// timeout. Until the responder supports IPv6, restrict IPv6Only mode
+// to ICMP coverage.
+func smokeProtocolsForFamily(family IPFamily) []string {
+	if family == IPv6Only {
+		return []string{"icmp"}
+	}
+
+	return []string{"icmp", "udp", "tcp"}
+}
+
 // expectedBytesPerFlow returns the per-flow byte count to assert for
 // the given direction, or nil when the protocol's per-flow bytes
 // aren't deterministic (TCP).
