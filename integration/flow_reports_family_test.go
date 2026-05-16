@@ -35,12 +35,12 @@ const (
 	// UDP request payload is fixed; UDP response payload is the
 	// responder's "10.6.0.2:PPPPP" or "[fd00:6::2]:PPPPP" echo string,
 	// which differs in length from the request.
-	bytesPerICMPPacketIPv4 = 98  // 14 (Eth) + 20 (IP) + 8 (ICMP) + 56 payload
-	bytesPerICMPPacketIPv6 = 118 // 14 + 40 + 8 + 56
-	bytesPerUDPPacketIPv4UL = 59 // 14 + 20 + 8 + 17 ("ella-tester-probe")
-	bytesPerUDPPacketIPv4DL = 56 // 14 + 20 + 8 + 14 ("10.6.0.2:PPPPP")
-	bytesPerUDPPacketIPv6UL = 79 // 14 + 40 + 8 + 17
-	bytesPerUDPPacketIPv6DL = 78 // 14 + 40 + 8 + 16 ("[fd00:6::2]:PPPPP" before trim — adjust if needed)
+	bytesPerICMPPacketIPv4  = 98  // 14 (Eth) + 20 (IP) + 8 (ICMP) + 56 payload
+	bytesPerICMPPacketIPv6  = 118 // 14 + 40 + 8 + 56
+	bytesPerUDPPacketIPv4UL = 59  // 14 + 20 + 8 + 17 ("ella-tester-probe")
+	bytesPerUDPPacketIPv4DL = 56  // 14 + 20 + 8 + 14 ("10.6.0.2:PPPPP")
+	bytesPerUDPPacketIPv6UL = 79  // 14 + 40 + 8 + 17
+	bytesPerUDPPacketIPv6DL = 78  // 14 + 40 + 8 + 16 ("[fd00:6::2]:PPPPP" before trim — adjust if needed)
 )
 
 // ipFamilyParams holds the values needed to drive a flow-report test
@@ -123,6 +123,7 @@ func protocolParams(family IPFamily, protocol string) probeProtocolParams {
 	case "udp":
 		ulBytes := uint64(bytesPerUDPPacketIPv4UL)
 		dlBytes := uint64(bytesPerUDPPacketIPv4DL)
+
 		if family == IPv6Only {
 			ulBytes = uint64(bytesPerUDPPacketIPv6UL)
 			dlBytes = uint64(bytesPerUDPPacketIPv6DL)
@@ -144,6 +145,7 @@ func protocolParams(family IPFamily, protocol string) probeProtocolParams {
 	default: // icmp
 		ipProto := ipProtoICMP
 		bytes := uint64(bytesPerICMPPacketIPv4)
+
 		if family == IPv6Only {
 			ipProto = ipProtoICMPv6
 			bytes = uint64(bytesPerICMPPacketIPv6)
@@ -171,6 +173,7 @@ func expectedBytesPerFlow(pp probeProtocolParams, direction string) *uint64 {
 	if direction == "uplink" {
 		return pp.bytesPerFlowUplink
 	}
+
 	return pp.bytesPerFlowDownlink
 }
 

@@ -104,8 +104,10 @@ func bindToDeviceControl(tun string) func(network, address string, c syscall.Raw
 }
 
 // sendUDPProbe sends count datagrams to dst:port via tun on a single
-// socket and waits for the echo response on each. Returns nil only
-// when every round-trip completes within perAttemptTimeout.
+// socket. All datagrams are sent regardless of per-attempt errors
+// (mirroring `ping -c N` semantics) so flow-report packet counts are
+// deterministic in both allow and drop scenarios. Returns nil if at
+// least one reply was received within perAttemptTimeout.
 func sendUDPProbe(ctx context.Context, tun, dst string, port, count int, perAttemptTimeout time.Duration) error {
 	dialer := net.Dialer{
 		Timeout: perAttemptTimeout,
@@ -120,6 +122,9 @@ func sendUDPProbe(ctx context.Context, tun, dst string, port, count int, perAtte
 	defer conn.Close() //nolint:errcheck
 
 	buf := make([]byte, 256)
+	received := 0
+
+	var lastErr error
 
 	for i := 0; i < count; i++ {
 		if err := conn.SetDeadline(time.Now().Add(perAttemptTimeout)); err != nil {
@@ -127,37 +132,56 @@ func sendUDPProbe(ctx context.Context, tun, dst string, port, count int, perAtte
 		}
 
 		if _, err := conn.Write(probePayload); err != nil {
-			return fmt.Errorf("udp probe attempt %d/%d to %s: write: %w", i+1, count, dst, err)
+			lastErr = fmt.Errorf("write: %w", err)
+			continue
 		}
 
 		n, err := conn.Read(buf)
 		if err != nil {
-			return fmt.Errorf("udp probe attempt %d/%d to %s: read: %w", i+1, count, dst, err)
+			lastErr = fmt.Errorf("read: %w", err)
+			continue
 		}
 
-		if n == 0 {
-			return fmt.Errorf("udp probe attempt %d/%d to %s: empty response", i+1, count, dst)
+		if n > 0 {
+			received++
 		}
+	}
+
+	if received == 0 {
+		return fmt.Errorf("udp probe to %s: %d/%d attempts received no reply: %w", dst, count, count, lastErr)
 	}
 
 	return nil
 }
 
 // sendTCPProbe opens count short-lived TCP connections to dst:port via
-// tun. Each connection writes probePayload, reads the echo, and closes.
-// Returns nil only when every cycle completes within perAttemptTimeout.
+// tun. All connections are attempted regardless of per-attempt errors
+// so flow counts are deterministic in both allow and drop scenarios.
 // Each connection yields a distinct 5-tuple (fresh ephemeral source
 // port), which callers must account for when asserting flow counts.
+// Returns nil if at least one connection completed within
+// perAttemptTimeout.
 func sendTCPProbe(ctx context.Context, tun, dst string, port, count int, perAttemptTimeout time.Duration) error {
 	dialer := net.Dialer{
 		Timeout: perAttemptTimeout,
 		Control: bindToDeviceControl(tun),
 	}
 
+	ok := 0
+
+	var lastErr error
+
 	for i := 0; i < count; i++ {
 		if err := tcpProbeAttempt(ctx, &dialer, dst, port, perAttemptTimeout); err != nil {
-			return fmt.Errorf("tcp probe attempt %d/%d to %s: %w", i+1, count, dst, err)
+			lastErr = err
+			continue
 		}
+
+		ok++
+	}
+
+	if ok == 0 {
+		return fmt.Errorf("tcp probe to %s: %d/%d attempts failed: %w", dst, count, count, lastErr)
 	}
 
 	return nil
