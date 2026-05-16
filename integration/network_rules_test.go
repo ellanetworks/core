@@ -298,8 +298,8 @@ func runNetworkRuleCase(ctx context.Context, t *testing.T, env *testerEnv, tc ru
 		90*time.Second,
 	)
 
-	if pp.bytesPerFlow != nil {
-		fixture.AssertEachBytesIs(t, flows, *pp.bytesPerFlow)
+	if b := expectedBytesPerFlow(pp, tc.assertDirection); b != nil {
+		fixture.AssertEachBytesIs(t, flows, *b)
 	}
 
 	if pp.packetsPerFlow == nil {

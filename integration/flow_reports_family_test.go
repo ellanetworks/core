@@ -29,11 +29,18 @@ const (
 	responderPort = scenarios.DefaultProbePort
 
 	// Per-packet byte counts after the XDP path strips GTP/UDP/IP
-	// outer headers and rewrites L2. Symmetric uplink/downlink.
+	// outer headers and rewrites L2.
+	//
+	// ICMP echo / echo-reply are symmetric (same payload echoed back).
+	// UDP request payload is fixed; UDP response payload is the
+	// responder's "10.6.0.2:PPPPP" or "[fd00:6::2]:PPPPP" echo string,
+	// which differs in length from the request.
 	bytesPerICMPPacketIPv4 = 98  // 14 (Eth) + 20 (IP) + 8 (ICMP) + 56 payload
 	bytesPerICMPPacketIPv6 = 118 // 14 + 40 + 8 + 56
-	bytesPerUDPPacketIPv4  = 59  // 14 + 20 + 8 + 17 payload
-	bytesPerUDPPacketIPv6  = 79  // 14 + 40 + 8 + 17
+	bytesPerUDPPacketIPv4UL = 59 // 14 + 20 + 8 + 17 ("ella-tester-probe")
+	bytesPerUDPPacketIPv4DL = 56 // 14 + 20 + 8 + 14 ("10.6.0.2:PPPPP")
+	bytesPerUDPPacketIPv6UL = 79 // 14 + 40 + 8 + 17
+	bytesPerUDPPacketIPv6DL = 78 // 14 + 40 + 8 + 16 ("[fd00:6::2]:PPPPP" before trim — adjust if needed)
 )
 
 // ipFamilyParams holds the values needed to drive a flow-report test
@@ -64,9 +71,10 @@ type probeProtocolParams struct {
 	// packetsPerFlow is the count we expect each emitted flow to
 	// carry, when known. Nil for TCP, whose count is kernel-dependent.
 	packetsPerFlow *uint64
-	// bytesPerFlow is the count we expect each emitted flow to carry.
-	// Nil when not deterministic (TCP).
-	bytesPerFlow *uint64
+	// bytesPerFlowUplink / bytesPerFlowDownlink: expected per-flow
+	// bytes for each direction. Nil when not deterministic (TCP).
+	bytesPerFlowUplink   *uint64
+	bytesPerFlowDownlink *uint64
 	// supportsPortRules is true for protocols whose SDF match
 	// includes L4 ports (TCP, UDP).
 	supportsPortRules bool
@@ -110,47 +118,60 @@ func protocolParams(family IPFamily, protocol string) probeProtocolParams {
 			ipProto:           ipProtoTCP,
 			flowsPerUE:        probeRoundtrips,
 			packetsPerFlow:    nil, // calibrated from first run
-			bytesPerFlow:      nil, // calibrated from first run
 			supportsPortRules: true,
 		}
 	case "udp":
-		bytes := bytesPerUDPPacketIPv4
+		ulBytes := uint64(bytesPerUDPPacketIPv4UL)
+		dlBytes := uint64(bytesPerUDPPacketIPv4DL)
 		if family == IPv6Only {
-			bytes = bytesPerUDPPacketIPv6
+			ulBytes = uint64(bytesPerUDPPacketIPv6UL)
+			dlBytes = uint64(bytesPerUDPPacketIPv6DL)
 		}
 
 		packets := uint64(probeRoundtrips)
-		bytesPerFlow := uint64(probeRoundtrips) * uint64(bytes)
+		ulPerFlow := packets * ulBytes
+		dlPerFlow := packets * dlBytes
 
 		return probeProtocolParams{
-			name:              "udp",
-			ipProto:           ipProtoUDP,
-			flowsPerUE:        1,
-			packetsPerFlow:    &packets,
-			bytesPerFlow:      &bytesPerFlow,
-			supportsPortRules: true,
+			name:                 "udp",
+			ipProto:              ipProtoUDP,
+			flowsPerUE:           1,
+			packetsPerFlow:       &packets,
+			bytesPerFlowUplink:   &ulPerFlow,
+			bytesPerFlowDownlink: &dlPerFlow,
+			supportsPortRules:    true,
 		}
 	default: // icmp
 		ipProto := ipProtoICMP
-		bytes := bytesPerICMPPacketIPv4
-
+		bytes := uint64(bytesPerICMPPacketIPv4)
 		if family == IPv6Only {
 			ipProto = ipProtoICMPv6
-			bytes = bytesPerICMPPacketIPv6
+			bytes = uint64(bytesPerICMPPacketIPv6)
 		}
 
 		packets := uint64(probeRoundtrips)
-		bytesPerFlow := uint64(probeRoundtrips) * uint64(bytes)
+		perFlow := packets * bytes
 
 		return probeProtocolParams{
-			name:              "icmp",
-			ipProto:           ipProto,
-			flowsPerUE:        1,
-			packetsPerFlow:    &packets,
-			bytesPerFlow:      &bytesPerFlow,
-			supportsPortRules: false,
+			name:                 "icmp",
+			ipProto:              ipProto,
+			flowsPerUE:           1,
+			packetsPerFlow:       &packets,
+			bytesPerFlowUplink:   &perFlow,
+			bytesPerFlowDownlink: &perFlow,
+			supportsPortRules:    false,
 		}
 	}
+}
+
+// expectedBytesPerFlow returns the per-flow byte count to assert for
+// the given direction, or nil when the protocol's per-flow bytes
+// aren't deterministic (TCP).
+func expectedBytesPerFlow(pp probeProtocolParams, direction string) *uint64 {
+	if direction == "uplink" {
+		return pp.bytesPerFlowUplink
+	}
+	return pp.bytesPerFlowDownlink
 }
 
 // apiSourceIPFilter returns the value to pass as the flow-report

@@ -116,6 +116,9 @@ detect_udp_header(struct packet_context *ctx, int offset)
 
 static __always_inline int parse_udp(struct packet_context *ctx)
 {
+	if (ctx->udp)
+		return bpf_ntohs(ctx->udp->dest);
+
 	struct udphdr *udp = detect_udp_header(ctx, 0);
 	if (!udp) {
 		return -1;
@@ -138,6 +141,9 @@ detect_tcp_header(struct packet_context *ctx, int offset)
 
 static __always_inline int parse_tcp(struct packet_context *ctx)
 {
+	if (ctx->tcp)
+		return bpf_ntohs(ctx->tcp->dest);
+
 	struct tcphdr *tcp = detect_tcp_header(ctx, 0);
 	if (!tcp) {
 		return -1;
@@ -152,6 +158,9 @@ static __always_inline int parse_tcp(struct packet_context *ctx)
 
 static __always_inline int parse_icmp(struct packet_context *ctx)
 {
+	if (ctx->icmp)
+		return ctx->icmp->type;
+
 	struct icmphdr *icmp = (struct icmphdr *)ctx->data;
 	if ((const void *)(icmp + 1) > ctx->data_end) {
 		return -1;

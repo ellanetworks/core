@@ -90,8 +90,8 @@ func runSmoke(ctx context.Context, t *testing.T, env *testerEnv, fp ipFamilyPara
 			90*time.Second,
 		)
 
-		if pp.bytesPerFlow != nil {
-			fixture.AssertEachBytesIs(t, flows, *pp.bytesPerFlow)
+		if b := expectedBytesPerFlow(pp, direction); b != nil {
+			fixture.AssertEachBytesIs(t, flows, *b)
 		}
 
 		if pp.packetsPerFlow == nil {

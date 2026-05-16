@@ -140,6 +140,18 @@ static __always_inline void recompute_icmp_csum(struct icmphdr *icmp, int len)
  */
 #define CSUM_SCRATCH_SIZE 65540
 
+/*
+ * Upper bound on UDP/TCP datagram length for the L4-checksum recompute
+ * helpers. Sized for jumbo frames (9000-byte MTU) with margin.
+ *
+ * The bound must not be (CSUM_SCRATCH_SIZE - 4) because the compiler
+ * proves `__u16-sourced udp_len > 65536` is always false and optimizes
+ * the upper-bound check away. The verifier then sees no umax on the
+ * offset register, which makes the pointer arithmetic against the
+ * scratch map invalid.
+ */
+#define MAX_L4_DATAGRAM 9000
+
 struct {
 	__uint(type, BPF_MAP_TYPE_ARRAY);
 	__uint(key_size, sizeof(__u32));
@@ -170,9 +182,9 @@ struct {
  * run before the l4_len bounds check, otherwise the verifier can lose
  * tracked scalar bounds across helpers.
  */
-static __always_inline int udpv4_csum(__be32 saddr, __be32 daddr,
-				      __u32 udp_off, __u32 udp_len,
-				      struct xdp_md *xdp_ctx)
+__attribute__((noinline)) static int udpv4_csum(__be32 saddr, __be32 daddr,
+						__u32 udp_off, __u32 udp_len,
+						struct xdp_md *xdp_ctx)
 {
 	struct {
 		__be32 src;
@@ -197,11 +209,21 @@ static __always_inline int udpv4_csum(__be32 saddr, __be32 daddr,
 		return -1;
 	}
 
-	if (udp_len < sizeof(struct udphdr) ||
-	    udp_len > (CSUM_SCRATCH_SIZE - 4)) {
-		upf_printk("upf: bad udp_len: %d", udp_len);
-		return -1;
-	}
+	/*
+	 * Clamp via explicit conditional assignment in BOTH directions.
+	 * Plain `if (... < ...) return` doesn't always propagate the
+	 * resulting bound back to the value the compiler later uses for
+	 * pointer arithmetic and bpf_xdp_load_bytes (size must be > 0).
+	 * Conditional-assignment clamps materialize a new value, so the
+	 * verifier tracks the range end-to-end. A udp_len smaller than
+	 * the header is a malformed packet; clamping rather than
+	 * rejecting yields a wrong checksum that the receiver will drop,
+	 * which is no worse than the malformed packet itself.
+	 */
+	if (udp_len > MAX_L4_DATAGRAM)
+		udp_len = MAX_L4_DATAGRAM;
+	if (udp_len < sizeof(struct udphdr))
+		udp_len = sizeof(struct udphdr);
 
 	*(__u32 *)(scratch + udp_len) = 0;
 
@@ -220,9 +242,9 @@ static __always_inline int udpv4_csum(__be32 saddr, __be32 daddr,
 	return csum_fold_helper(csum);
 }
 
-static __always_inline int tcpv4_csum(__be32 saddr, __be32 daddr,
-				      __u32 tcp_off, __u32 tcp_len,
-				      struct xdp_md *xdp_ctx)
+__attribute__((noinline)) static int tcpv4_csum(__be32 saddr, __be32 daddr,
+						__u32 tcp_off, __u32 tcp_len,
+						struct xdp_md *xdp_ctx)
 {
 	struct {
 		__be32 src;
@@ -247,11 +269,10 @@ static __always_inline int tcpv4_csum(__be32 saddr, __be32 daddr,
 		return -1;
 	}
 
-	if (tcp_len < sizeof(struct tcphdr) ||
-	    tcp_len > (CSUM_SCRATCH_SIZE - 4)) {
-		upf_printk("upf: bad tcp_len: %d", tcp_len);
-		return -1;
-	}
+	if (tcp_len > MAX_L4_DATAGRAM)
+		tcp_len = MAX_L4_DATAGRAM;
+	if (tcp_len < sizeof(struct tcphdr))
+		tcp_len = sizeof(struct tcphdr);
 
 	*(__u32 *)(scratch + tcp_len) = 0;
 
@@ -270,10 +291,10 @@ static __always_inline int tcpv4_csum(__be32 saddr, __be32 daddr,
 	return csum_fold_helper(csum);
 }
 
-static __always_inline int udpv6_csum(const struct in6_addr *saddr,
-				      const struct in6_addr *daddr,
-				      __u32 udp_off, __u32 udp_len,
-				      struct xdp_md *xdp_ctx)
+__attribute__((noinline)) static int udpv6_csum(const struct in6_addr *saddr,
+						const struct in6_addr *daddr,
+						__u32 udp_off, __u32 udp_len,
+						struct xdp_md *xdp_ctx)
 {
 	struct {
 		struct in6_addr src;
@@ -300,11 +321,21 @@ static __always_inline int udpv6_csum(const struct in6_addr *saddr,
 		return -1;
 	}
 
-	if (udp_len < sizeof(struct udphdr) ||
-	    udp_len > (CSUM_SCRATCH_SIZE - 4)) {
-		upf_printk("upf: bad udp_len: %d", udp_len);
-		return -1;
-	}
+	/*
+	 * Clamp via explicit conditional assignment in BOTH directions.
+	 * Plain `if (... < ...) return` doesn't always propagate the
+	 * resulting bound back to the value the compiler later uses for
+	 * pointer arithmetic and bpf_xdp_load_bytes (size must be > 0).
+	 * Conditional-assignment clamps materialize a new value, so the
+	 * verifier tracks the range end-to-end. A udp_len smaller than
+	 * the header is a malformed packet; clamping rather than
+	 * rejecting yields a wrong checksum that the receiver will drop,
+	 * which is no worse than the malformed packet itself.
+	 */
+	if (udp_len > MAX_L4_DATAGRAM)
+		udp_len = MAX_L4_DATAGRAM;
+	if (udp_len < sizeof(struct udphdr))
+		udp_len = sizeof(struct udphdr);
 
 	*(__u32 *)(scratch + udp_len) = 0;
 
@@ -314,59 +345,6 @@ static __always_inline int udpv6_csum(const struct in6_addr *saddr,
 	}
 
 	__u32 aligned_len = (udp_len + 3) & ~3U;
-	if (aligned_len > CSUM_SCRATCH_SIZE) {
-		upf_printk("upf: bad aligned_len: %d", aligned_len);
-		return -1;
-	}
-
-	csum = bpf_csum_diff(0, 0, (__be32 *)scratch, aligned_len, csum);
-	return csum_fold_helper(csum);
-}
-
-static __always_inline int tcpv6_csum(const struct in6_addr *saddr,
-				      const struct in6_addr *daddr,
-				      __u32 tcp_off, __u32 tcp_len,
-				      struct xdp_md *xdp_ctx)
-{
-	struct {
-		struct in6_addr src;
-		struct in6_addr dst;
-		__be32 upper_len;
-		__u8 zero[3];
-		__u8 next_hdr;
-	} pseudo;
-
-	__builtin_memcpy(&pseudo.src, saddr, sizeof(struct in6_addr));
-	__builtin_memcpy(&pseudo.dst, daddr, sizeof(struct in6_addr));
-	pseudo.upper_len = bpf_htonl(tcp_len);
-	pseudo.zero[0] = 0;
-	pseudo.zero[1] = 0;
-	pseudo.zero[2] = 0;
-	pseudo.next_hdr = IPPROTO_TCP;
-
-	__u64 csum = bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0);
-
-	__u32 key = bpf_get_smp_processor_id();
-	void *scratch = bpf_map_lookup_elem(&csum_scratch, &key);
-	if (!scratch) {
-		upf_printk("upf: could not read scratch buffer");
-		return -1;
-	}
-
-	if (tcp_len < sizeof(struct tcphdr) ||
-	    tcp_len > (CSUM_SCRATCH_SIZE - 4)) {
-		upf_printk("upf: bad tcp_len: %d", tcp_len);
-		return -1;
-	}
-
-	*(__u32 *)(scratch + tcp_len) = 0;
-
-	if (bpf_xdp_load_bytes(xdp_ctx, tcp_off, scratch, tcp_len) < 0) {
-		upf_printk("upf: couldn't load packet into scratch buffer");
-		return -1;
-	}
-
-	__u32 aligned_len = (tcp_len + 3) & ~3U;
 	if (aligned_len > CSUM_SCRATCH_SIZE) {
 		upf_printk("upf: bad aligned_len: %d", aligned_len);
 		return -1;
