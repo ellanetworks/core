@@ -353,6 +353,57 @@ udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
 	return csum_fold_helper(csum);
 }
 
+__attribute__((noinline, used)) static int
+tcpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
+	   __u32 tcp_off, __u32 tcp_len, struct xdp_md *xdp_ctx)
+{
+	struct {
+		struct in6_addr src;
+		struct in6_addr dst;
+		__be32 upper_len;
+		__u8 zero[3];
+		__u8 next_hdr;
+	} pseudo;
+
+	__builtin_memcpy(&pseudo.src, saddr, sizeof(struct in6_addr));
+	__builtin_memcpy(&pseudo.dst, daddr, sizeof(struct in6_addr));
+	pseudo.upper_len = bpf_htonl(tcp_len);
+	pseudo.zero[0] = 0;
+	pseudo.zero[1] = 0;
+	pseudo.zero[2] = 0;
+	pseudo.next_hdr = IPPROTO_TCP;
+
+	__u64 csum = bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0);
+
+	__u32 key = bpf_get_smp_processor_id();
+	void *scratch = bpf_map_lookup_elem(&csum_scratch, &key);
+	if (!scratch) {
+		upf_printk("upf: could not read scratch buffer");
+		return -1;
+	}
+
+	if (tcp_len > MAX_L4_DATAGRAM)
+		tcp_len = MAX_L4_DATAGRAM;
+	if (tcp_len < sizeof(struct tcphdr))
+		tcp_len = sizeof(struct tcphdr);
+
+	*(__u32 *)(scratch + tcp_len) = 0;
+
+	if (bpf_xdp_load_bytes(xdp_ctx, tcp_off, scratch, tcp_len) < 0) {
+		upf_printk("upf: couldn't load packet into scratch buffer");
+		return -1;
+	}
+
+	__u32 aligned_len = (tcp_len + 3) & ~3U;
+	if (aligned_len > CSUM_SCRATCH_SIZE) {
+		upf_printk("upf: bad aligned_len: %d", aligned_len);
+		return -1;
+	}
+
+	csum = bpf_csum_diff(0, 0, (__be32 *)scratch, aligned_len, csum);
+	return csum_fold_helper(csum);
+}
+
 /*
  * icmpv6_ptb_csum - compute the ICMPv6 checksum for a Packet Too Big message.
  *

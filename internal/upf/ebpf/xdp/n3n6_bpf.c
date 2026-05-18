@@ -27,8 +27,8 @@
 #include <linux/udp.h>
 #include <sys/socket.h>
 
-#include "xdp/n3_bpf.h"
 #include "xdp/n6_bpf.h"
+#include "xdp/n3_bpf.h"
 
 #include "xdp/utils/statistics.h"
 #include "xdp/utils/common.h"

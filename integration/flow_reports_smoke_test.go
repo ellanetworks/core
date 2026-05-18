@@ -31,7 +31,7 @@ func TestFlowReportsSmoke(t *testing.T) {
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
 
-	for _, protoName := range smokeProtocolsForFamily(fp.family) {
+	for _, protoName := range []string{"icmp", "udp", "tcp"} {
 		pp := protocolParams(fp.family, protoName)
 
 		t.Run(protoName, func(t *testing.T) {

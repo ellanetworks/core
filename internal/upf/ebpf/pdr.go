@@ -1,6 +1,7 @@
 package ebpf
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net/netip"
 	"runtime"
@@ -77,12 +78,90 @@ func (bpfObjects *BpfObjects) DeletePdrDownlink(addr netip.Addr) error {
 
 	if addr.Is4() {
 		key := addr.As4()
-		return bpfObjects.PdrsDownlinkIp4.Delete(key)
+		if err := bpfObjects.PdrsDownlinkIp4.Delete(key); err != nil {
+			return err
+		}
+
+		return bpfObjects.purgeNatEntriesForIp4(key)
 	}
 
-	key := addr.As16()
+	prefix := addr.As16()
+	if err := bpfObjects.PdrsDownlinkIp6.Delete(prefix); err != nil {
+		return err
+	}
 
-	return bpfObjects.PdrsDownlinkIp6.Delete(key)
+	return bpfObjects.purgeLearnedIp6Addrs(prefix)
+}
+
+// purgeNatEntriesForIp4 removes both forward and reverse nat_ct
+// entries for the released UE so a recycled /32 lease cannot
+// reverse-NAT lingering upstream packets to the new owner.
+func (bpfObjects *BpfObjects) purgeNatEntriesForIp4(ue [4]byte) error {
+	ueBE := binary.BigEndian.Uint32(ue[:])
+
+	var (
+		key   N3N6EntrypointFiveTuple
+		val   N3N6EntrypointNatEntry
+		stale []N3N6EntrypointFiveTuple
+	)
+
+	iter := bpfObjects.NatCt.Iterate()
+	for iter.Next(&key, &val) {
+		if key.Saddr == ueBE || val.Src.Saddr == ueBE {
+			stale = append(stale, key)
+		}
+	}
+
+	if err := iter.Err(); err != nil {
+		return fmt.Errorf("iterate nat_ct: %w", err)
+	}
+
+	for _, k := range stale {
+		if err := bpfObjects.NatCt.Delete(k); err != nil {
+			logger.UpfLog.Warn("delete nat_ct entry", zap.Error(err))
+		}
+	}
+
+	return nil
+}
+
+func (bpfObjects *BpfObjects) purgeLearnedIp6Addrs(prefix [16]byte) error {
+	var (
+		key   [16]byte
+		val   N3N6EntrypointPdrInfo
+		stale [][16]byte
+	)
+
+	iter := bpfObjects.PdrsDownlinkIp6Addr.Iterate()
+	for iter.Next(&key, &val) {
+		match := true
+
+		for i := 0; i < 8; i++ {
+			if key[i] != prefix[i] {
+				match = false
+				break
+			}
+		}
+
+		if match {
+			stale = append(stale, key)
+		}
+	}
+
+	if err := iter.Err(); err != nil {
+		return fmt.Errorf("iterate learned ip6 addrs: %w", err)
+	}
+
+	for _, k := range stale {
+		if err := bpfObjects.PdrsDownlinkIp6Addr.Delete(k); err != nil {
+			logger.UpfLog.Warn("delete learned ip6 addr",
+				logger.IPAddress(netip.AddrFrom16(k).String()),
+				zap.Error(err),
+			)
+		}
+	}
+
+	return nil
 }
 
 // FarInfo holds Forwarding Action Rule parameters embedded directly in each PDR.

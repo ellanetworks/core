@@ -34,6 +34,16 @@ struct {
 	__uint(max_entries, PDR_MAP_DOWNLINK_IPV4_SIZE);
 } pdrs_downlink_ip6 SEC(".maps");
 
+// Lazily populated from the uplink path with the UE's SLAAC-chosen
+// /128. Downlink lookups go here so a recycled /64 can't deliver to
+// the wrong UE.
+struct {
+	__uint(type, BPF_MAP_TYPE_LRU_HASH);
+	__type(key, struct in6_addr);
+	__type(value, struct pdr_info);
+	__uint(max_entries, PDR_MAP_DOWNLINK_IPV4_SIZE * 4);
+} pdrs_downlink_ip6_addr SEC(".maps");
+
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
 	__type(key, __u32);
@@ -266,18 +276,11 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	const struct ipv6hdr *ip6 = ctx->ip6;
 
 	PROFILE_START(PROF_N6_PDR_LOOKUP);
-	/*
-	 * The UE receives a full /64 prefix for each
-	 * IPv6 PDU session, and that prefix is the key
-	 * for the PDR. Mask the lower 64 bits to get the prefix.
-	 */
-	struct in6_addr prefix = ip6->daddr;
-	__builtin_memset(((void *)&prefix) + 8, 0, 8);
-
-	struct pdr_info *pdr = bpf_map_lookup_elem(&pdrs_downlink_ip6, &prefix);
+	struct pdr_info *pdr =
+		bpf_map_lookup_elem(&pdrs_downlink_ip6_addr, &ip6->daddr);
 	PROFILE_END(PROF_N6_PDR_LOOKUP);
 	if (!pdr) {
-		upf_printk("upf: no downlink session for ip:%pI6c", &prefix);
+		upf_printk("upf: no downlink session for ip:%pI6c", &ip6->daddr);
 		return DEFAULT_XDP_ACTION;
 	}
 
@@ -306,6 +309,34 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 
 	/* Parse inner L4 so match_sdf_filters can inspect protocol/ports */
 	parse_l4(ip6->nexthdr, ctx);
+
+	// CHECKSUM_PARTIAL from veth/virtio leaves a pseudo-header sum
+	// on the wire that IPv6 receivers reject. Recompute UDP/TCP;
+	// ICMPv6 from kernel context is already full-checksummed.
+	if (ctx->udp) {
+		__u32 udp_off =
+			(__u32)((const void *)ctx->udp -
+				(const void *)(long)ctx->xdp_ctx->data);
+		__u16 udp_len = bpf_ntohs(ctx->udp->len);
+		ctx->udp->check = 0;
+		int new_csum = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off,
+					  udp_len, ctx->xdp_ctx);
+		if (new_csum >= 0) {
+			ctx->udp->check = (__u16)new_csum;
+		}
+	} else if (ctx->tcp) {
+		__u32 tcp_off =
+			(__u32)((const void *)ctx->tcp -
+				(const void *)(long)ctx->xdp_ctx->data);
+		__u16 tcp_len =
+			bpf_ntohs(ip6->payload_len);
+		ctx->tcp->check = 0;
+		int new_csum = tcpv6_csum(&ip6->saddr, &ip6->daddr, tcp_off,
+					  tcp_len, ctx->xdp_ctx);
+		if (new_csum >= 0) {
+			ctx->tcp->check = (__u16)new_csum;
+		}
+	}
 
 	/* SDF filter enforcement (downlink) */
 	{

@@ -40,7 +40,9 @@ const (
 	bytesPerUDPPacketIPv4UL = 59  // 14 + 20 + 8 + 17 ("ella-tester-probe")
 	bytesPerUDPPacketIPv4DL = 56  // 14 + 20 + 8 + 14 ("10.6.0.2:PPPPP")
 	bytesPerUDPPacketIPv6UL = 79  // 14 + 40 + 8 + 17
-	bytesPerUDPPacketIPv6DL = 78  // 14 + 40 + 8 + 16 ("[fd00:6::2]:PPPPP" before trim — adjust if needed)
+	// IPv6 downlink per-flow bytes are not deterministic: the
+	// responder echoes the UE's IPv6 "addr:port" string whose
+	// zero-compressed length varies with the allocated address.
 )
 
 // ipFamilyParams holds the values needed to drive a flow-report test
@@ -121,27 +123,36 @@ func protocolParams(family IPFamily, protocol string) probeProtocolParams {
 			supportsPortRules: true,
 		}
 	case "udp":
+		packets := uint64(probeRoundtrips)
+
 		ulBytes := uint64(bytesPerUDPPacketIPv4UL)
-		dlBytes := uint64(bytesPerUDPPacketIPv4DL)
+		ulPerFlow := packets * ulBytes
+
+		params := probeProtocolParams{
+			name:               "udp",
+			ipProto:            ipProtoUDP,
+			flowsPerUE:         1,
+			packetsPerFlow:     &packets,
+			bytesPerFlowUplink: &ulPerFlow,
+			supportsPortRules:  true,
+		}
 
 		if family == IPv6Only {
+			// Downlink payload echoes the UE's "addr:port" string,
+			// whose length varies with the UE's IPv6 address
+			// representation (27–33 chars after zero-compression),
+			// so per-flow downlink bytes aren't deterministic.
 			ulBytes = uint64(bytesPerUDPPacketIPv6UL)
-			dlBytes = uint64(bytesPerUDPPacketIPv6DL)
+			ulPerFlow = packets * ulBytes
+			params.bytesPerFlowUplink = &ulPerFlow
+			params.bytesPerFlowDownlink = nil
+		} else {
+			dlBytes := uint64(bytesPerUDPPacketIPv4DL)
+			dlPerFlow := packets * dlBytes
+			params.bytesPerFlowDownlink = &dlPerFlow
 		}
 
-		packets := uint64(probeRoundtrips)
-		ulPerFlow := packets * ulBytes
-		dlPerFlow := packets * dlBytes
-
-		return probeProtocolParams{
-			name:                 "udp",
-			ipProto:              ipProtoUDP,
-			flowsPerUE:           1,
-			packetsPerFlow:       &packets,
-			bytesPerFlowUplink:   &ulPerFlow,
-			bytesPerFlowDownlink: &dlPerFlow,
-			supportsPortRules:    true,
-		}
+		return params
 	default: // icmp
 		ipProto := ipProtoICMP
 		bytes := uint64(bytesPerICMPPacketIPv4)
@@ -164,20 +175,6 @@ func protocolParams(family IPFamily, protocol string) probeProtocolParams {
 			supportsPortRules:    false,
 		}
 	}
-}
-
-// smokeProtocolsForFamily returns the protocols to exercise in
-// connectivity-style integration tests for the given family.
-// The N6 responder image binds UDP/TCP on 0.0.0.0 (IPv4 only), so
-// IPv6 UDP/TCP probes would always fail with port unreachable /
-// timeout. Until the responder supports IPv6, restrict IPv6Only mode
-// to ICMP coverage.
-func smokeProtocolsForFamily(family IPFamily) []string {
-	if family == IPv6Only {
-		return []string{"icmp"}
-	}
-
-	return []string{"icmp", "udp", "tcp"}
 }
 
 // expectedBytesPerFlow returns the per-flow byte count to assert for

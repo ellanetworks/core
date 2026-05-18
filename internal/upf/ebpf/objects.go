@@ -172,21 +172,22 @@ func (bpfObjects *BpfObjects) LoadWithMapReplacements() error {
 	}
 
 	replacements := map[string]*ebpf.Map{
-		"csum_scratch":         bpfObjects.CsumScratch,
-		"downlink_route_stats": bpfObjects.DownlinkRouteStats,
-		"downlink_statistics":  bpfObjects.DownlinkStatistics,
-		"flow_stats":           bpfObjects.FlowStats,
-		"nat_ct":               bpfObjects.NatCt,
-		"no_neigh_map":         bpfObjects.NoNeighMap,
-		"nocp_map":             bpfObjects.NocpMap,
-		"pdrs_downlink_ip4":    bpfObjects.PdrsDownlinkIp4,
-		"pdrs_downlink_ip6":    bpfObjects.PdrsDownlinkIp6,
-		"pdrs_uplink":          bpfObjects.PdrsUplink,
-		"rs_event_map":         bpfObjects.RsEventMap,
-		"sdf_filters":          bpfObjects.SdfFilters,
-		"uplink_route_stats":   bpfObjects.UplinkRouteStats,
-		"uplink_statistics":    bpfObjects.UplinkStatistics,
-		"urr_map":              bpfObjects.UrrMap,
+		"csum_scratch":           bpfObjects.CsumScratch,
+		"downlink_route_stats":   bpfObjects.DownlinkRouteStats,
+		"downlink_statistics":    bpfObjects.DownlinkStatistics,
+		"flow_stats":             bpfObjects.FlowStats,
+		"nat_ct":                 bpfObjects.NatCt,
+		"no_neigh_map":           bpfObjects.NoNeighMap,
+		"nocp_map":               bpfObjects.NocpMap,
+		"pdrs_downlink_ip4":      bpfObjects.PdrsDownlinkIp4,
+		"pdrs_downlink_ip6":      bpfObjects.PdrsDownlinkIp6,
+		"pdrs_downlink_ip6_addr": bpfObjects.PdrsDownlinkIp6Addr,
+		"pdrs_uplink":            bpfObjects.PdrsUplink,
+		"rs_event_map":           bpfObjects.RsEventMap,
+		"sdf_filters":            bpfObjects.SdfFilters,
+		"uplink_route_stats":     bpfObjects.UplinkRouteStats,
+		"uplink_statistics":      bpfObjects.UplinkStatistics,
+		"urr_map":                bpfObjects.UrrMap,
 	}
 
 	// Only preserve the profiling map when it was compiled in; it may be
