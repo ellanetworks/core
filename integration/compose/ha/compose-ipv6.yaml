@@ -65,6 +65,7 @@ volumes:
 networks:
   cluster:
     driver: bridge
+    enable_ipv4: false
     enable_ipv6: true
     ipam:
       config:
