@@ -12,8 +12,10 @@ import (
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
 
-// TestFlowReportsSmoke asserts per-flow content for the empty-rules
-// baseline, in both directions, once per (icmp, tcp, udp).
+// TestFlowReportsSmoke runs an icmp, udp, and tcp probe back-to-back
+// against the empty-rules baseline, then asserts per-protocol flow
+// content. Batching the probes amortises the UPF's per-flow flush
+// latency across all three protocols.
 func TestFlowReportsSmoke(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
@@ -30,18 +32,6 @@ func TestFlowReportsSmoke(t *testing.T) {
 	baseline.Slice(fixture.DefaultSliceSpec())
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
-
-	for _, protoName := range []string{"icmp", "udp", "tcp"} {
-		pp := protocolParams(fp.family, protoName)
-
-		t.Run(protoName, func(t *testing.T) {
-			runSmoke(ctx, t, env, fp, pp)
-		})
-	}
-}
-
-func runSmoke(ctx context.Context, t *testing.T, env *testerEnv, fp ipFamilyParams, pp probeProtocolParams) {
-	t.Helper()
 
 	sc, ok := scenarios.Get(fp.scenarioAllowed)
 	if !ok {
@@ -67,41 +57,52 @@ func runSmoke(ctx context.Context, t *testing.T, env *testerEnv, fp ipFamilyPara
 		t.Fatalf("clear flow reports: %v", err)
 	}
 
+	protocols := []string{"icmp", "udp", "tcp"}
+	pps := make(map[string]probeProtocolParams, len(protocols))
+	for _, p := range protocols {
+		pps[p] = protocolParams(fp.family, p)
+	}
+
 	scenarioStart := time.Now()
 
-	env.RunScenario(ctx, t, fp.scenarioAllowed, scenarioRunArgs(fp.scenarioAllowed, spec, pp)...)
+	for _, p := range protocols {
+		env.RunScenario(ctx, t, fp.scenarioAllowed, scenarioRunArgs(fp.scenarioAllowed, spec, pps[p])...)
+	}
 
 	scenarioEnd := time.Now()
 
-	// UPF only exports a flow once it has been idle for ~30 s, so
-	// visibility lags the last packet by up to ~45 s.
-	for _, direction := range []string{"uplink", "downlink"} {
-		flows := fixture.AssertFlowReports(
-			ctx, t, env.Client,
-			&client.ListFlowReportsParams{
-				Direction:   direction,
-				Action:      "allow",
-				Protocol:    apiProtocolFilter(pp),
-				Source:      apiSourceIPFilter(direction, fp),
-				Destination: apiDestinationIPFilter(direction, fp),
-				PerPage:     100,
-			},
-			expectedFlowsContentPredicate(direction, "allow", expectedIMSIs, fp, pp),
-			90*time.Second,
-		)
+	for _, p := range protocols {
+		pp := pps[p]
+		t.Run(p, func(t *testing.T) {
+			for _, direction := range []string{"uplink", "downlink"} {
+				flows := fixture.AssertFlowReports(
+					ctx, t, env.Client,
+					&client.ListFlowReportsParams{
+						Direction:   direction,
+						Action:      "allow",
+						Protocol:    apiProtocolFilter(pp),
+						Source:      apiSourceIPFilter(direction, fp),
+						Destination: apiDestinationIPFilter(direction, fp),
+						PerPage:     100,
+					},
+					expectedFlowsContentPredicate(direction, "allow", expectedIMSIs, fp, pp),
+					90*time.Second,
+				)
 
-		if b := expectedBytesPerFlow(pp, direction); b != nil {
-			fixture.AssertEachBytesIs(t, flows, *b)
-		}
+				if b := expectedBytesPerFlow(pp, direction); b != nil {
+					fixture.AssertEachBytesIs(t, flows, *b)
+				}
 
-		if pp.packetsPerFlow == nil {
-			for i, f := range flows {
-				t.Logf("flow %d (imsi=%s dir=%s): packets=%d bytes=%d", i, f.SubscriberID, f.Direction, f.Packets, f.Bytes)
+				if pp.packetsPerFlow == nil {
+					for i, f := range flows {
+						t.Logf("flow %d (imsi=%s dir=%s): packets=%d bytes=%d", i, f.SubscriberID, f.Direction, f.Packets, f.Bytes)
+					}
+				}
+
+				fixture.AssertEachTimestampsWithin(t, flows, scenarioStart, scenarioEnd.Add(timestampUpperBuffer))
+
+				t.Logf("%s allow flows: %d", direction, len(flows))
 			}
-		}
-
-		fixture.AssertEachTimestampsWithin(t, flows, scenarioStart, scenarioEnd.Add(timestampUpperBuffer))
-
-		t.Logf("%s allow flows: %d", direction, len(flows))
+		})
 	}
 }
