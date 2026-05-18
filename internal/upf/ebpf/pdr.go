@@ -63,9 +63,16 @@ func (bpfObjects *BpfObjects) PutPdrDownlink(addr netip.Addr, pdrInfo PdrInfo) e
 		return bpfObjects.PdrsDownlinkIp4.Put(key, unsafe.Pointer(&pdrToStore))
 	}
 
-	key := addr.As16()
+	prefix := addr.As16()
+	if err := bpfObjects.PdrsDownlinkIp6.Put(prefix, unsafe.Pointer(&pdrToStore)); err != nil {
+		return err
+	}
 
-	return bpfObjects.PdrsDownlinkIp6.Put(key, unsafe.Pointer(&pdrToStore))
+	// Drop the learned /128 cache so the next uplink re-snapshots the
+	// updated pdr_info. Otherwise a FAR update (e.g. UE Context Release
+	// flipping ApplyAction to Buffer) wouldn't reach the downlink path
+	// until the LRU evicts the stale entry.
+	return bpfObjects.purgeLearnedIp6Addrs(prefix)
 }
 
 func (bpfObjects *BpfObjects) DeletePdrUplink(teid uint32) error {
