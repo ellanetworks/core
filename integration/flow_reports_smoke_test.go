@@ -58,6 +58,7 @@ func TestFlowReportsSmoke(t *testing.T) {
 	}
 
 	protocols := []string{"icmp", "udp", "tcp"}
+
 	pps := make(map[string]probeProtocolParams, len(protocols))
 	for _, p := range protocols {
 		pps[p] = protocolParams(fp.family, p)
