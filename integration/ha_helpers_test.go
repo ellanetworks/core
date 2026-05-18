@@ -198,6 +198,14 @@ func stageAndStartJoiner(ctx context.Context, dc *DockerClient, leader *client.C
 // bind-mount path (./cfg/node<n>/core.yaml). Pass an empty
 // initialSuffrage to omit the cluster.initial-suffrage field.
 func writeNodeConfig(composeDir string, nodeID int, peers []string, joinToken, initialSuffrage string) error {
+	return writeNodeConfigOpts(composeDir, nodeID, peers, joinToken, initialSuffrage, false)
+}
+
+// writeNodeConfigOpts is writeNodeConfig with a useFQDN switch that makes
+// cluster.bind-address resolve via Docker's embedded DNS (the compose
+// service name) instead of the per-node IP. The FQDN path is what real
+// orchestrator-managed deployments use.
+func writeNodeConfigOpts(composeDir string, nodeID int, peers []string, joinToken, initialSuffrage string, useFQDN bool) error {
 	cfgDir, err := filepath.Abs(filepath.Join(composeDir, "cfg", fmt.Sprintf("node%d", nodeID)))
 	if err != nil {
 		return fmt.Errorf("abs path %s: %w", composeDir, err)
@@ -212,6 +220,11 @@ func writeNodeConfig(composeDir string, nodeID int, peers []string, joinToken, i
 	}
 
 	addr := ClusterAddress(nodeID)
+
+	bindHost := addr
+	if useFQDN {
+		bindHost = fmt.Sprintf("ella-core-%d", nodeID)
+	}
 
 	var peersYAML strings.Builder
 
@@ -253,9 +266,9 @@ xdp:
 cluster:
   enabled: true
   node-id: %d
-  bind-address: "%s"
+  bind-address: "%s:7000"
   peers:
-%s%s%s`, addr, addr, nodeID, ClusterAddressWithPort(nodeID, 7000), peersYAML.String(), joinTokenLine, suffrageLine)
+%s%s%s`, addr, addr, nodeID, bindHost, peersYAML.String(), joinTokenLine, suffrageLine)
 
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }
@@ -285,7 +298,13 @@ func newHANodeClients() ([]*client.Client, error) {
 // waitForClusterReady polls GetStatus (unauthenticated) on every client
 // until all nodes are reachable and exactly one is the leader.
 func waitForClusterReady(ctx context.Context, clients []*client.Client) error {
-	timeout := 3 * time.Minute
+	return waitForClusterReadyWithin(ctx, clients, 3*time.Minute)
+}
+
+// waitForClusterReadyWithin is waitForClusterReady with a caller-supplied
+// timeout. Useful for tests that need a tight deadline to distinguish
+// "converges quickly" from "converges after crashloop / many retries".
+func waitForClusterReadyWithin(ctx context.Context, clients []*client.Client, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	expected := len(clients)
 
