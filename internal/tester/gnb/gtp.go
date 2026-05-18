@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
@@ -415,14 +416,23 @@ func WaitForULAAddr(ifName string, prefix string, timeout time.Duration) error {
 		}
 
 		for _, addr := range addrs {
-			if addr.IP.IsGlobalUnicast() && addr.IP.String()[:3] == prefix[:3] {
-				logger.GnbLogger.Debug("ULA address appeared on TUN interface",
-					zap.String("interface", ifName),
-					zap.String("address", addr.IP.String()),
-				)
-
-				return nil
+			if !addr.IP.IsGlobalUnicast() || addr.IP.String()[:3] != prefix[:3] {
+				continue
 			}
+			// Skip addresses still in DAD (tentative): the kernel
+			// will not use them as a source, and a probe binding
+			// to this interface would fall back to a different
+			// interface's address.
+			if addr.Flags&syscall.IFA_F_TENTATIVE != 0 {
+				continue
+			}
+
+			logger.GnbLogger.Debug("ULA address ready on TUN interface",
+				zap.String("interface", ifName),
+				zap.String("address", addr.IP.String()),
+			)
+
+			return nil
 		}
 
 		time.Sleep(50 * time.Millisecond)

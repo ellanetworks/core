@@ -41,6 +41,11 @@ func AssertFlowReports(
 		}
 
 		if time.Now().After(deadline) {
+			for i, f := range resp.Items {
+				t.Logf("TIMEOUT item %d imsi=%s dir=%s action=%s proto=%d sp=%d dp=%d packets=%d bytes=%d",
+					i, f.SubscriberID, f.Direction, f.Action, f.Protocol, f.SourcePort, f.DestinationPort, f.Packets, f.Bytes)
+			}
+
 			t.Fatalf("timeout waiting for flow reports matching predicate (filter=%+v, got %d items)", params, len(resp.Items))
 		}
 
