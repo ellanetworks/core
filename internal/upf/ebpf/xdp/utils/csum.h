@@ -159,29 +159,12 @@ struct {
 	__uint(max_entries, 1);
 } csum_scratch SEC(".maps");
 
-/*
- * udpv4_csum / tcpv4_csum / udpv6_csum / tcpv6_csum - recompute the
- * L4 checksum from scratch over the modified packet.
- *
- * Used after NAT to avoid the CHECKSUM_PARTIAL pitfall: when the
- * sending side is a local socket over an offload-capable interface
- * (veth, virtio, real NIC), the wire bytes at the UDP/TCP checksum
- * offset hold a pseudo-header partial sum rather than a full
- * one's-complement checksum. Incremental update math is correct only
- * for full checksums and produces garbage for partial sums. Recompute
- * is correct regardless of input state.
- *
- * Pattern (mirrors udpv6_csum, the original): build the pseudo-header
- * on the BPF stack and sum it with bpf_csum_diff; copy the L4 datagram
- * into the per-CPU csum_scratch map with bpf_xdp_load_bytes; sum the
- * scratch copy with bpf_csum_diff. The verifier sees a fixed number
- * of helper calls; runtime cost scales with packet size inside the
- * helpers, not in verified instructions.
- *
- * Ordering: all helper calls (pseudo csum_diff, map lookup, load_bytes)
- * run before the l4_len bounds check, otherwise the verifier can lose
- * tracked scalar bounds across helpers.
- */
+// Recompute the full L4 checksum from packet bytes. Safe regardless of
+// CHECKSUM_PARTIAL input state, which a hardware-offload sender (veth,
+// virtio, real NIC) may leave on the wire as a pseudo-header sum.
+//
+// Helpers must run before the l4_len bounds check — otherwise the
+// verifier loses tracked scalar bounds across helper calls.
 __attribute__((noinline, used)) static int
 udpv4_csum(__be32 saddr, __be32 daddr, __u32 udp_off, __u32 udp_len,
 	   struct xdp_md *xdp_ctx)
@@ -209,17 +192,11 @@ udpv4_csum(__be32 saddr, __be32 daddr, __u32 udp_off, __u32 udp_len,
 		return -1;
 	}
 
-	/*
-	 * Clamp via explicit conditional assignment in BOTH directions.
-	 * Plain `if (... < ...) return` doesn't always propagate the
-	 * resulting bound back to the value the compiler later uses for
-	 * pointer arithmetic and bpf_xdp_load_bytes (size must be > 0).
-	 * Conditional-assignment clamps materialize a new value, so the
-	 * verifier tracks the range end-to-end. A udp_len smaller than
-	 * the header is a malformed packet; clamping rather than
-	 * rejecting yields a wrong checksum that the receiver will drop,
-	 * which is no worse than the malformed packet itself.
-	 */
+	// Two-sided conditional-assignment clamp: an early return leaves
+	// the verifier without a tracked bound on the value used later by
+	// bpf_xdp_load_bytes. A malformed-short length is clamped to the
+	// header size rather than rejected — produces a wrong checksum
+	// that the receiver drops, no worse than the malformed packet.
 	if (udp_len > MAX_L4_DATAGRAM)
 		udp_len = MAX_L4_DATAGRAM;
 	if (udp_len < sizeof(struct udphdr))
@@ -320,17 +297,11 @@ udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
 		return -1;
 	}
 
-	/*
-	 * Clamp via explicit conditional assignment in BOTH directions.
-	 * Plain `if (... < ...) return` doesn't always propagate the
-	 * resulting bound back to the value the compiler later uses for
-	 * pointer arithmetic and bpf_xdp_load_bytes (size must be > 0).
-	 * Conditional-assignment clamps materialize a new value, so the
-	 * verifier tracks the range end-to-end. A udp_len smaller than
-	 * the header is a malformed packet; clamping rather than
-	 * rejecting yields a wrong checksum that the receiver will drop,
-	 * which is no worse than the malformed packet itself.
-	 */
+	// Two-sided conditional-assignment clamp: an early return leaves
+	// the verifier without a tracked bound on the value used later by
+	// bpf_xdp_load_bytes. A malformed-short length is clamped to the
+	// header size rather than rejected — produces a wrong checksum
+	// that the receiver drops, no worse than the malformed packet.
 	if (udp_len > MAX_L4_DATAGRAM)
 		udp_len = MAX_L4_DATAGRAM;
 	if (udp_len < sizeof(struct udphdr))

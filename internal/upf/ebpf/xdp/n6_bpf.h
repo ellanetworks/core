@@ -106,10 +106,6 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 	}
 }
 
-/*
- * Downlink processing for IPv4 packets.
- * Looks up the downlink session using the destination IP address.
- */
 static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 {
 	if (masquerade) {
@@ -245,9 +241,6 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	return send_to_gtp_tunnel(ctx, far, tos, qer->qfi);
 }
 
-/*
- * Downlink processing for IPv6 packets.
- */
 static __always_inline enum xdp_action
 handle_n6_packet_ipv6(struct packet_context *ctx)
 {

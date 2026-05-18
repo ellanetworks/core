@@ -28,21 +28,35 @@ const (
 	// Listening port of the responder on N6.
 	responderPort = scenarios.DefaultProbePort
 
-	// Per-packet byte counts after the XDP path strips GTP/UDP/IP
-	// outer headers and rewrites L2.
-	//
-	// ICMP echo / echo-reply are symmetric (same payload echoed back).
-	// UDP request payload is fixed; UDP response payload is the
-	// responder's "10.6.0.2:PPPPP" or "[fd00:6::2]:PPPPP" echo string,
-	// which differs in length from the request.
-	bytesPerICMPPacketIPv4  = 98  // 14 (Eth) + 20 (IP) + 8 (ICMP) + 56 payload
-	bytesPerICMPPacketIPv6  = 118 // 14 + 40 + 8 + 56
-	bytesPerUDPPacketIPv4UL = 59  // 14 + 20 + 8 + 17 ("ella-tester-probe")
-	bytesPerUDPPacketIPv4DL = 56  // 14 + 20 + 8 + 14 ("10.6.0.2:PPPPP")
-	bytesPerUDPPacketIPv6UL = 79  // 14 + 40 + 8 + 17
-	// IPv6 downlink per-flow bytes are not deterministic: the
-	// responder echoes the UE's IPv6 "addr:port" string whose
-	// zero-compressed length varies with the allocated address.
+	// Per-packet byte counts (post-XDP strip of GTP/UDP/IP outer
+	// headers). The probe and responder both use a fixed 17-byte
+	// payload, so each direction's data-carrying datagram is the
+	// same size.
+	bytesPerICMPPacketIPv4 = 98  // 14 (Eth) + 20 (IP) + 8 (ICMP) + 56 payload
+	bytesPerICMPPacketIPv6 = 118 // 14 + 40 + 8 + 56
+	bytesPerUDPPacketIPv4  = 59  // 14 + 20 + 8 + 17
+	bytesPerUDPPacketIPv6  = 79  // 14 + 40 + 8 + 17
+
+	// TCP per-IMSI bounds. Bounded because TCP delayed-ACK
+	// piggybacking is a kernel timing decision: same probe, same
+	// kernel, same run can produce 4–6 packets per connection
+	// depending on whether the kernel emits a bare ACK before a
+	// response packet or piggybacks the ACK onto the response.
+	// Allow scenarios complete the handshake and exchange data;
+	// drop scenarios record SYN-ACK and any retransmits.
+	tcpAllowPacketsPerIMSILo = 12
+	tcpAllowPacketsPerIMSIHi = 40
+	tcpAllowBytesPerIMSILoV4 = 600
+	tcpAllowBytesPerIMSIHiV4 = 3500
+	tcpAllowBytesPerIMSILoV6 = 900
+	tcpAllowBytesPerIMSIHiV6 = 4500
+
+	tcpDropPacketsPerIMSILo = 3
+	tcpDropPacketsPerIMSIHi = 20
+	tcpDropBytesPerIMSILoV4 = 200
+	tcpDropBytesPerIMSIHiV4 = 1500
+	tcpDropBytesPerIMSILoV6 = 240
+	tcpDropBytesPerIMSIHiV6 = 1800
 )
 
 // ipFamilyParams holds the values needed to drive a flow-report test
@@ -58,28 +72,20 @@ type ipFamilyParams struct {
 }
 
 // probeProtocolParams holds the per-protocol numbers needed to compose
-// flow-report predicates and rules for a given (family, protocol)
-// combination.
+// flow-report predicates for a given (family, protocol) combination.
+//
+// ICMP and UDP exchange fixed-length payloads, so per-flow packet and
+// byte counts are exact. TCP per-flow shape varies with kernel
+// delayed-ACK timing — see the tcp* constants and the tcp branch in
+// expectedFlowsContentPredicate.
 type probeProtocolParams struct {
-	// name is the value passed to --protocol on the tester scenarios.
-	name string
-	// ipProto is the IP protocol number reported by flow records and
-	// matched by SDF rules.
-	ipProto uint8
-	// flowsPerUE is the number of distinct (5-tuple) flows the probe
-	// produces per UE per direction. ICMP echo and UDP echo collapse
-	// to one flow each; TCP opens probeRoundtrips connections.
-	flowsPerUE int
-	// packetsPerFlow is the count we expect each emitted flow to
-	// carry, when known. Nil for TCP, whose count is kernel-dependent.
-	packetsPerFlow *uint64
-	// bytesPerFlowUplink / bytesPerFlowDownlink: expected per-flow
-	// bytes for each direction. Nil when not deterministic (TCP).
+	name                 string
+	ipProto              uint8
+	flowsPerUE           int
+	packetsPerFlow       *uint64
 	bytesPerFlowUplink   *uint64
 	bytesPerFlowDownlink *uint64
-	// supportsPortRules is true for protocols whose SDF match
-	// includes L4 ports (TCP, UDP).
-	supportsPortRules bool
+	supportsPortRules    bool
 }
 
 // familyParams picks the parameter set matching the active IP family.
@@ -119,40 +125,27 @@ func protocolParams(family IPFamily, protocol string) probeProtocolParams {
 			name:              "tcp",
 			ipProto:           ipProtoTCP,
 			flowsPerUE:        probeRoundtrips,
-			packetsPerFlow:    nil, // calibrated from first run
 			supportsPortRules: true,
 		}
 	case "udp":
 		packets := uint64(probeRoundtrips)
 
-		ulBytes := uint64(bytesPerUDPPacketIPv4UL)
-		ulPerFlow := packets * ulBytes
-
-		params := probeProtocolParams{
-			name:               "udp",
-			ipProto:            ipProtoUDP,
-			flowsPerUE:         1,
-			packetsPerFlow:     &packets,
-			bytesPerFlowUplink: &ulPerFlow,
-			supportsPortRules:  true,
-		}
-
+		perPacket := uint64(bytesPerUDPPacketIPv4)
 		if family == IPv6Only {
-			// Downlink payload echoes the UE's "addr:port" string,
-			// whose length varies with the UE's IPv6 address
-			// representation (27–33 chars after zero-compression),
-			// so per-flow downlink bytes aren't deterministic.
-			ulBytes = uint64(bytesPerUDPPacketIPv6UL)
-			ulPerFlow = packets * ulBytes
-			params.bytesPerFlowUplink = &ulPerFlow
-			params.bytesPerFlowDownlink = nil
-		} else {
-			dlBytes := uint64(bytesPerUDPPacketIPv4DL)
-			dlPerFlow := packets * dlBytes
-			params.bytesPerFlowDownlink = &dlPerFlow
+			perPacket = uint64(bytesPerUDPPacketIPv6)
 		}
 
-		return params
+		perFlow := packets * perPacket
+
+		return probeProtocolParams{
+			name:                 "udp",
+			ipProto:              ipProtoUDP,
+			flowsPerUE:           1,
+			packetsPerFlow:       &packets,
+			bytesPerFlowUplink:   &perFlow,
+			bytesPerFlowDownlink: &perFlow,
+			supportsPortRules:    true,
+		}
 	default: // icmp
 		ipProto := ipProtoICMP
 		bytes := uint64(bytesPerICMPPacketIPv4)
@@ -177,9 +170,9 @@ func protocolParams(family IPFamily, protocol string) probeProtocolParams {
 	}
 }
 
-// expectedBytesPerFlow returns the per-flow byte count to assert for
-// the given direction, or nil when the protocol's per-flow bytes
-// aren't deterministic (TCP).
+// expectedBytesPerFlow returns the exact per-flow byte count to assert
+// for the given direction, or nil when the protocol's per-flow bytes
+// aren't a fixed scalar (variable-length payloads, TCP).
 func expectedBytesPerFlow(pp probeProtocolParams, direction string) *uint64 {
 	if direction == "uplink" {
 		return pp.bytesPerFlowUplink
@@ -210,21 +203,23 @@ func apiDestinationIPFilter(direction string, fp ipFamilyParams) string {
 }
 
 // expectedFlowsContentPredicate composes the per-direction predicate
-// for the polling loop. Each-prefixed predicates short-circuit on an
-// empty snapshot to avoid vacuous-truth matches.
+// for the polling loop.
+//
+// TCP uses per-IMSI aggregate bounds because the kernel can split one
+// connection's records across observation windows and packet counts
+// are kernel-dependent. The strict shape is still asserted: every
+// IMSI must appear with exactly probeRoundtrips distinct ephemeral
+// (sport, dport) tuples and no single tuple can be backed by more
+// than two records (one normal record plus at most one split).
+//
+// ICMP and UDP keep exact per-flow assertions: their per-flow shape
+// is deterministic (or bounded with a tight range for IPv6 UDP
+// downlink, see bytesPerFlowDownlinkLo/Hi).
 func expectedFlowsContentPredicate(direction, action string, expectedIMSIs []string, fp ipFamilyParams, pp probeProtocolParams) fixture.FlowReportPredicate {
-	expandedIMSIs := repeatIMSIs(expectedIMSIs, pp.flowsPerUE)
-
 	preds := []fixture.FlowReportPredicate{
-		fixture.Count(len(expandedIMSIs)),
 		fixture.EachAction(action),
 		fixture.EachDirection(direction),
 		fixture.EachProtocol(pp.ipProto),
-		fixture.ImsisAre(expandedIMSIs),
-	}
-
-	if pp.packetsPerFlow != nil {
-		preds = append(preds, fixture.EachPackets(*pp.packetsPerFlow))
 	}
 
 	switch direction {
@@ -240,7 +235,51 @@ func expectedFlowsContentPredicate(direction, action string, expectedIMSIs []str
 		)
 	}
 
+	if pp.name == "tcp" {
+		pktLo, pktHi, bytesLo, bytesHi := tcpPerIMSIBounds(fp, action)
+		preds = append(preds,
+			fixture.DistinctImsis(len(expectedIMSIs)),
+			fixture.EachIMSIDistinctTuplesIs(probeRoundtrips),
+			fixture.EachTupleHasAtMost(2),
+			fixture.EachIMSITotalPacketsInRange(pktLo, pktHi),
+			fixture.EachIMSITotalBytesInRange(bytesLo, bytesHi),
+		)
+	} else {
+		expandedIMSIs := repeatIMSIs(expectedIMSIs, pp.flowsPerUE)
+
+		preds = append(preds,
+			fixture.Count(len(expandedIMSIs)),
+			fixture.ImsisAre(expandedIMSIs),
+		)
+		if pp.packetsPerFlow != nil {
+			preds = append(preds, fixture.EachPackets(*pp.packetsPerFlow))
+		}
+	}
+
 	return fixture.And(preds...)
+}
+
+func tcpPerIMSIBounds(fp ipFamilyParams, action string) (pktLo, pktHi, byteLo, byteHi uint64) {
+	switch action {
+	case "drop":
+		pktLo, pktHi = tcpDropPacketsPerIMSILo, tcpDropPacketsPerIMSIHi
+
+		if fp.family == IPv6Only {
+			byteLo, byteHi = tcpDropBytesPerIMSILoV6, tcpDropBytesPerIMSIHiV6
+		} else {
+			byteLo, byteHi = tcpDropBytesPerIMSILoV4, tcpDropBytesPerIMSIHiV4
+		}
+	default:
+		pktLo, pktHi = tcpAllowPacketsPerIMSILo, tcpAllowPacketsPerIMSIHi
+
+		if fp.family == IPv6Only {
+			byteLo, byteHi = tcpAllowBytesPerIMSILoV6, tcpAllowBytesPerIMSIHiV6
+		} else {
+			byteLo, byteHi = tcpAllowBytesPerIMSILoV4, tcpAllowBytesPerIMSIHiV4
+		}
+	}
+
+	return
 }
 
 // apiProtocolFilter returns the string protocol value to pass on the

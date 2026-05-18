@@ -96,7 +96,7 @@ func TestFlowReportsSmoke(t *testing.T) {
 
 				if pp.packetsPerFlow == nil {
 					for i, f := range flows {
-						t.Logf("flow %d (imsi=%s dir=%s): packets=%d bytes=%d", i, f.SubscriberID, f.Direction, f.Packets, f.Bytes)
+						t.Logf("flow %d (imsi=%s dir=%s sp=%d dp=%d): packets=%d bytes=%d", i, f.SubscriberID, f.Direction, f.SourcePort, f.DestinationPort, f.Packets, f.Bytes)
 					}
 				}
 

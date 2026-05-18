@@ -217,6 +217,119 @@ func ImsisAre(expected []string) FlowReportPredicate {
 	}
 }
 
+// EachIMSITotalPacketsInRange requires the sum of Packets across each
+// distinct IMSI to fall within [lo, hi].
+func EachIMSITotalPacketsInRange(lo, hi uint64) FlowReportPredicate {
+	return func(items []client.FlowReport) bool {
+		totals := make(map[string]uint64)
+		for _, f := range items {
+			totals[f.SubscriberID] += f.Packets
+		}
+
+		if len(totals) == 0 {
+			return false
+		}
+
+		for _, total := range totals {
+			if total < lo || total > hi {
+				return false
+			}
+		}
+
+		return true
+	}
+}
+
+// EachIMSITotalBytesInRange requires the sum of Bytes across each
+// distinct IMSI to fall within [lo, hi].
+func EachIMSITotalBytesInRange(lo, hi uint64) FlowReportPredicate {
+	return func(items []client.FlowReport) bool {
+		totals := make(map[string]uint64)
+		for _, f := range items {
+			totals[f.SubscriberID] += f.Bytes
+		}
+
+		if len(totals) == 0 {
+			return false
+		}
+
+		for _, total := range totals {
+			if total < lo || total > hi {
+				return false
+			}
+		}
+
+		return true
+	}
+}
+
+// EachIMSIDistinctTuplesIs requires every distinct IMSI to be associated
+// with exactly n distinct (SourcePort, DestinationPort) tuples — one per
+// connection attempt. Records that share a tuple (e.g. a NetFlow-style
+// split of one connection across multiple observation periods) collapse
+// into the same count.
+func EachIMSIDistinctTuplesIs(n int) FlowReportPredicate {
+	return func(items []client.FlowReport) bool {
+		type tuple struct {
+			sp uint16
+			dp uint16
+		}
+
+		perIMSI := make(map[string]map[tuple]struct{})
+
+		for _, f := range items {
+			t := tuple{sp: f.SourcePort, dp: f.DestinationPort}
+			if perIMSI[f.SubscriberID] == nil {
+				perIMSI[f.SubscriberID] = make(map[tuple]struct{})
+			}
+
+			perIMSI[f.SubscriberID][t] = struct{}{}
+		}
+
+		if len(perIMSI) == 0 {
+			return false
+		}
+
+		for _, tuples := range perIMSI {
+			if len(tuples) != n {
+				return false
+			}
+		}
+
+		return true
+	}
+}
+
+// EachTupleHasAtMost requires every distinct (IMSI, SourcePort,
+// DestinationPort) tuple to be backed by at most n flow records.
+// Used to bound NetFlow-style flow-record splitting.
+func EachTupleHasAtMost(n int) FlowReportPredicate {
+	return func(items []client.FlowReport) bool {
+		type key struct {
+			imsi string
+			sp   uint16
+			dp   uint16
+		}
+
+		counts := make(map[key]int)
+		for _, f := range items {
+			counts[key{imsi: f.SubscriberID, sp: f.SourcePort, dp: f.DestinationPort}]++
+		}
+
+		if len(counts) == 0 {
+			return false
+		}
+
+		for _, c := range counts {
+			if c > n {
+				return false
+			}
+		}
+
+		return true
+	}
+}
+
 // AssertEachBytesIs records (t.Errorf, non-fatal) every flow whose Bytes
 // differs from expected, printing the actual value so the constant can
 // be recalibrated from a single run.
@@ -228,22 +341,6 @@ func AssertEachBytesIs(t *testing.T, flows []client.FlowReport, expected uint64)
 			t.Errorf(
 				"flow %d (imsi=%s dir=%s action=%s): expected exactly %d bytes, got %d",
 				i, f.SubscriberID, f.Direction, f.Action, expected, f.Bytes,
-			)
-		}
-	}
-}
-
-// AssertEachPacketsIs records (t.Errorf, non-fatal) every flow whose
-// Packets differs from expected. Used for protocols whose per-flow
-// packet count is kernel-dependent (TCP) and needs calibration.
-func AssertEachPacketsIs(t *testing.T, flows []client.FlowReport, expected uint64) {
-	t.Helper()
-
-	for i, f := range flows {
-		if f.Packets != expected {
-			t.Errorf(
-				"flow %d (imsi=%s dir=%s action=%s): expected exactly %d packets, got %d",
-				i, f.SubscriberID, f.Direction, f.Action, expected, f.Packets,
 			)
 		}
 	}
