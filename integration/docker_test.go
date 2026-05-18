@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moby/moby/api/types/container"
 	"github.com/moby/moby/client"
 )
 
@@ -106,6 +107,27 @@ func (dc *DockerClient) ComposeCleanup(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// DisableRestart overrides a compose-managed container's restart
+// policy to "no" so a process exit leaves the container exited
+// instead of being auto-restarted. Used by tests that need a crash
+// to surface as a stuck cluster rather than be papered over by
+// compose's default unless-stopped policy.
+func (dc *DockerClient) DisableRestart(ctx context.Context, project, service string) error {
+	name, err := dc.ResolveComposeContainer(ctx, project, service)
+	if err != nil {
+		return fmt.Errorf("resolve %s/%s: %w", project, service, err)
+	}
+
+	_, err = dc.ContainerUpdate(ctx, name, client.ContainerUpdateOptions{
+		RestartPolicy: &container.RestartPolicy{Name: container.RestartPolicyDisabled},
+	})
+	if err != nil {
+		return fmt.Errorf("update restart policy for %s: %w", name, err)
+	}
+
+	return nil
 }
 
 func (dc *DockerClient) ResolveComposeContainer(ctx context.Context, project, service string) (string, error) {

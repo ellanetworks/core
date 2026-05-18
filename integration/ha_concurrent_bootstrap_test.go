@@ -9,6 +9,11 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
+// haComposeProject is the docker-compose project name for haComposeDir.
+// Compose derives this from the directory basename ("ha"), so it is the
+// same for compose.yaml / compose-ipv6.yaml / compose-dualstack.yaml.
+const haComposeProject = "ha"
+
 // TestIntegrationHAFreshClusterConcurrentBootstrap brings up a fresh
 // 3-node cluster with all nodes started concurrently and FQDN peers
 // (resolved via Docker's embedded DNS, mirroring an orchestrator's
@@ -18,24 +23,16 @@ import (
 // Phase A starts node 1 alone to mint join tokens for nodes 2 and 3.
 // Phase B stops node 1 and re-creates all three with a single
 // compose-up so they race to bind their listeners while dialing each
-// other.
-//
-// compose-no-restart.yaml disables container auto-restart so a
-// regression that crashes the joiner surfaces as a stuck cluster
+// other. DisableRestart neutralises compose's unless-stopped policy
+// so a regression that crashes the joiner surfaces as a stuck cluster
 // rather than being papered over by compose retrying the container.
 func TestIntegrationHAFreshClusterConcurrentBootstrap(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
-	if DetectIPFamily() != IPv4Only {
-		t.Skip("test currently only supports IPv4; no compose-no-restart variant exists for ipv6/dualstack")
-	}
-
-	const (
-		composeDir  = haComposeDir
-		composeFile = "compose-no-restart.yaml"
-	)
+	composeDir := haComposeDir
+	composeFile := ComposeFile()
 
 	ctx := context.Background()
 
@@ -73,6 +70,10 @@ func TestIntegrationHAFreshClusterConcurrentBootstrap(t *testing.T) {
 
 	if err := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, "ella-core-1"); err != nil {
 		t.Fatalf("start node 1: %v", err)
+	}
+
+	if err := dc.DisableRestart(ctx, haComposeProject, "ella-core-1"); err != nil {
+		t.Fatalf("disable restart on node 1: %v", err)
 	}
 
 	node1, err := newInsecureClient(getHANodeURLs()[0])
@@ -126,6 +127,14 @@ func TestIntegrationHAFreshClusterConcurrentBootstrap(t *testing.T) {
 	if err := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile,
 		"ella-core-1", "ella-core-2", "ella-core-3"); err != nil {
 		t.Fatalf("start all nodes: %v", err)
+	}
+
+	// Override restart policy on the newly-created joiners. Node 1's
+	// policy from phase A persists across the stop/start cycle.
+	for _, svc := range []string{"ella-core-2", "ella-core-3"} {
+		if err := dc.DisableRestart(ctx, haComposeProject, svc); err != nil {
+			t.Fatalf("disable restart on %s: %v", svc, err)
+		}
 	}
 
 	// --- Phase C: assert convergence within a tight deadline. ---
