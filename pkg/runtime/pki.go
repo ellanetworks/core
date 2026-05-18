@@ -261,8 +261,17 @@ func maybeRestoreFromBundle(dataDir string) (bool, error) {
 	return true, nil
 }
 
-// runJoinFlow dials each peer presenting token until one accepts and
-// registers this node's cert. No-op if token is empty.
+// joinRetryInterval paces the retry loop in runJoinFlow. 2s is tight
+// enough for fresh-cluster bootstrap to converge in seconds, loose
+// enough that a peer rebooting doesn't see a stampede.
+const joinRetryInterval = 2 * time.Second
+
+// runJoinFlow walks cluster.peers, presenting token, until one peer
+// accepts the cert registration. Retries the full list until ctx is
+// cancelled — every failure mode here (peer not yet listening, leader
+// not yet past leader-init, self-resolving peer entry, transient
+// network) clears on a later pass, so we let the orchestrator decide
+// when to give up.
 func runJoinFlow(ctx context.Context, agent *pkiagent.Agent, peers []string, token string) error {
 	if token == "" {
 		return nil
@@ -272,26 +281,34 @@ func runJoinFlow(ctx context.Context, agent *pkiagent.Agent, peers []string, tok
 		return errors.New("cluster.join-token is set but cluster.peers is empty")
 	}
 
-	var lastErr error
+	for {
+		errs := make([]error, 0, len(peers))
 
-	for _, addr := range peers {
-		joinCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		for _, addr := range peers {
+			joinCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 
-		if err := agent.JoinFlow(joinCtx, addr, token); err != nil {
-			lastErr = fmt.Errorf("peer %s: %w", addr, err)
+			err := agent.JoinFlow(joinCtx, addr, token)
 
 			cancel()
 
-			continue
+			if err == nil {
+				logger.EllaLog.Info("join flow completed; cert registered",
+					zap.String("peer", addr))
+
+				return nil
+			}
+
+			errs = append(errs, fmt.Errorf("peer %s: %w", addr, err))
 		}
 
-		cancel()
+		logger.EllaLog.Warn("join flow: no peer accepted, retrying",
+			zap.Duration("interval", joinRetryInterval),
+			zap.Error(errors.Join(errs...)))
 
-		logger.EllaLog.Info("join flow completed; cert registered",
-			zap.String("peer", addr))
-
-		return nil
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("join flow aborted: %w", errors.Join(append(errs, ctx.Err())...))
+		case <-time.After(joinRetryInterval):
+		}
 	}
-
-	return fmt.Errorf("all peers rejected the join: %w", lastErr)
 }

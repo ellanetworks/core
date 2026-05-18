@@ -9,25 +9,20 @@ import (
 	"github.com/ellanetworks/core/client"
 )
 
-// TestIntegrationHAFreshClusterConcurrentBootstrap covers the case where
-// a fresh 3-node cluster is brought up all at once, with peers addressed
-// by FQDN (compose service name, resolved by Docker's embedded DNS — the
-// same way an orchestrator with stable network identity per node would
-// resolve them). Each node's peers list includes itself, mirroring the
-// templated-config pattern operators use when every replica gets the
-// same file.
+// TestIntegrationHAFreshClusterConcurrentBootstrap brings up a fresh
+// 3-node cluster with all nodes started concurrently and FQDN peers
+// (resolved via Docker's embedded DNS, mirroring an orchestrator's
+// stable per-pod DNS). Each node's peers list includes itself, the
+// natural shape when one config template ships to every replica.
 //
-// Phase A mints long-lived join tokens once on a single-node founder.
-// The tokens embed the leader's persistent cert pin, which survives
-// across the node-1 restart in phase B; the tokens themselves are not
-// consumed by phase A. Phase B stops node 1 and re-creates all three
-// nodes with a single compose-up call so they race to bind their
-// listeners while their peers are still starting.
+// Phase A starts node 1 alone to mint join tokens for nodes 2 and 3.
+// Phase B stops node 1 and re-creates all three with a single
+// compose-up so they race to bind their listeners while dialing each
+// other.
 //
-// The dedicated compose-no-restart.yaml disables container auto-restart
-// so a joiner that exits with "all peers rejected the join" stays
-// exited; otherwise compose silently retries until node 1's listener is
-// up and masks the bug.
+// compose-no-restart.yaml disables container auto-restart so a
+// regression that crashes the joiner surfaces as a stuck cluster
+// rather than being papered over by compose retrying the container.
 func TestIntegrationHAFreshClusterConcurrentBootstrap(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
