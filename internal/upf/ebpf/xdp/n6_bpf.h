@@ -20,29 +20,7 @@
 #include "xdp/utils/statistics.h"
 #include "xdp/utils/nocp.h"
 
-struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__type(key, __u32);
-	__type(value, struct pdr_info);
-	__uint(max_entries, PDR_MAP_DOWNLINK_IPV4_SIZE);
-} pdrs_downlink_ip4 SEC(".maps");
-
-struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__type(key, struct in6_addr);
-	__type(value, struct pdr_info);
-	__uint(max_entries, PDR_MAP_DOWNLINK_IPV4_SIZE);
-} pdrs_downlink_ip6 SEC(".maps");
-
-// Lazily populated from the uplink path with the UE's SLAAC-chosen
-// /128. Downlink lookups go here so a recycled /64 can't deliver to
-// the wrong UE.
-struct {
-	__uint(type, BPF_MAP_TYPE_LRU_HASH);
-	__type(key, struct in6_addr);
-	__type(value, struct pdr_info);
-	__uint(max_entries, PDR_MAP_DOWNLINK_IPV4_SIZE * 4);
-} pdrs_downlink_ip6_addr SEC(".maps");
+#include "xdp/utils/pdr_maps.h"
 
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);

@@ -13,6 +13,7 @@
 #include "xdp/utils/frag_needed.h"
 #include "xdp/utils/gtp.h"
 #include "xdp/utils/pdr.h"
+#include "xdp/utils/pdr_maps.h"
 #include "xdp/utils/qer.h"
 #include "xdp/utils/sdf.h"
 #include "xdp/utils/urr.h"
