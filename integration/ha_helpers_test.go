@@ -221,7 +221,7 @@ func writeNodeConfigOpts(composeDir string, nodeID int, peers []string, joinToke
 
 	addr := ClusterAddress(nodeID)
 
-	bindHost := addr
+	bindHost := ClusterAddressWithBrackets(nodeID)
 	if useFQDN {
 		bindHost = fmt.Sprintf("ella-core-%d", nodeID)
 	}
