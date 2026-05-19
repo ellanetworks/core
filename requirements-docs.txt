@@ -36,7 +36,7 @@ ghp-import==2.1.0
     # via
     #   mkdocs
     #   properdocs
-idna==3.13
+idna==3.15
     # via requests
 jinja2==3.1.6
     # via
