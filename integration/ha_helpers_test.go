@@ -716,3 +716,96 @@ func membershipDiff(snapshots []string) string {
 
 	return ""
 }
+
+// fqdnPeers returns the cluster.peers list as compose-service-name FQDNs
+// resolved by Docker's embedded DNS — mirrors the orchestrator-managed
+// deployment pattern where peers reference stable DNS names rather than
+// IPs.
+func fqdnPeers(services []string) []string {
+	peers := make([]string, 0, len(services))
+	for _, s := range services {
+		peers = append(peers, fmt.Sprintf("%s:7000", s))
+	}
+
+	return peers
+}
+
+// bringUpHAFQDNClusterAt is bringUpHAClusterAt with FQDN-only cluster
+// addressing. Peers and bind-address reference the compose service name
+// instead of a pinned IP, and the compose file is the caller's choice
+// (typically one without ipv4_address pins on the cluster network).
+func bringUpHAFQDNClusterAt(t *testing.T, ctx context.Context, dc *DockerClient, composeDir, composeFile string, services []string) ([]*client.Client, error) {
+	t.Helper()
+
+	dc.ComposeCleanup(ctx)
+
+	fail := func(err error) ([]*client.Client, error) {
+		captureClusterLogs(t, dc, composeDir, services)
+		return nil, err
+	}
+
+	peers := fqdnPeers(services)
+
+	if err := writeNodeConfigOpts(composeDir, 1, peers, "", "", true); err != nil {
+		return fail(err)
+	}
+
+	if err := dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, services[0]); err != nil {
+		return fail(fmt.Errorf("start node 1: %w", err))
+	}
+
+	node1, err := newInsecureClient(getHANodeURLs()[0])
+	if err != nil {
+		return fail(err)
+	}
+
+	if err := waitForNodeReady(ctx, node1); err != nil {
+		return fail(fmt.Errorf("node 1 never became ready: %w", err))
+	}
+
+	adminToken, err := initializeAndGetAdminToken(ctx, node1)
+	if err != nil {
+		return fail(err)
+	}
+
+	node1.SetToken(adminToken)
+
+	for i := 1; i < len(services); i++ {
+		nodeID := i + 1
+
+		if err := stageAndStartFQDNJoiner(ctx, dc, node1, composeDir, composeFile, services[i], nodeID, peers); err != nil {
+			return fail(err)
+		}
+	}
+
+	clients, err := newHANodeClients()
+	if err != nil {
+		return fail(err)
+	}
+
+	for _, c := range clients {
+		c.SetToken(adminToken)
+	}
+
+	if err := waitForClusterReady(ctx, clients); err != nil {
+		return fail(fmt.Errorf("cluster not ready: %w", err))
+	}
+
+	return clients, nil
+}
+
+func stageAndStartFQDNJoiner(ctx context.Context, dc *DockerClient, leader *client.Client, composeDir, composeFile, service string, nodeID int, peers []string) error {
+	tok, err := leader.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{
+		NodeID:     nodeID,
+		TTLSeconds: 600,
+	})
+	if err != nil {
+		return fmt.Errorf("mint join token for node %d: %w", nodeID, err)
+	}
+
+	if err := writeNodeConfigOpts(composeDir, nodeID, peers, tok.Token, "", true); err != nil {
+		return err
+	}
+
+	return dc.ComposeUpServicesWithFile(ctx, composeDir, composeFile, service)
+}
