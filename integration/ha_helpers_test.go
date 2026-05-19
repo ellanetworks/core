@@ -730,6 +730,77 @@ func fqdnPeers(services []string) []string {
 	return peers
 }
 
+// fqdnHANodeURLs returns API URLs via the host port map. Cluster-network
+// container IPs are dynamic in the FQDN compose, so the test reaches each
+// node through compose's published ports on the loopback interface.
+func fqdnHANodeURLs() []string {
+	return []string{
+		"http://127.0.0.1:5002",
+		"http://127.0.0.1:5003",
+		"http://127.0.0.1:5004",
+	}
+}
+
+// writeFQDNNodeConfig renders a core.yaml that addresses peers and the
+// local bind-address by FQDN, and binds the API/N2 listeners on
+// 0.0.0.0 since the cluster-network IP is assigned dynamically and is
+// not known at config-write time.
+func writeFQDNNodeConfig(composeDir string, nodeID int, peers []string, joinToken string) error {
+	cfgDir, err := filepath.Abs(filepath.Join(composeDir, "cfg", fmt.Sprintf("node%d", nodeID)))
+	if err != nil {
+		return fmt.Errorf("abs path %s: %w", composeDir, err)
+	}
+
+	if err := os.MkdirAll(cfgDir, 0o777); err != nil {
+		return fmt.Errorf("mkdir %s: %w", cfgDir, err)
+	}
+
+	if err := os.Chmod(cfgDir, 0o777); err != nil {
+		return fmt.Errorf("chmod %s: %w", cfgDir, err)
+	}
+
+	var peersYAML strings.Builder
+
+	for _, p := range peers {
+		fmt.Fprintf(&peersYAML, "      - %q\n", p)
+	}
+
+	joinTokenLine := ""
+	if joinToken != "" {
+		joinTokenLine = fmt.Sprintf("  join-token: %q\n", joinToken)
+	}
+
+	body := fmt.Sprintf(`logging:
+  system:
+    level: "debug"
+    output: "stdout"
+  audit:
+    output: "stdout"
+db:
+  path: "/data/ella.db"
+interfaces:
+  n2:
+    address: "0.0.0.0"
+    port: 38412
+  n3:
+    name: "eth0"
+  n6:
+    name: "n6"
+  api:
+    address: "0.0.0.0"
+    port: 5002
+xdp:
+  attach-mode: "generic"
+cluster:
+  enabled: true
+  node-id: %d
+  bind-address: "ella-core-%d:7000"
+  peers:
+%s%s`, nodeID, nodeID, peersYAML.String(), joinTokenLine)
+
+	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
+}
+
 // bringUpHAFQDNClusterAt is bringUpHAClusterAt with FQDN-only cluster
 // addressing. Peers and bind-address reference the compose service name
 // instead of a pinned IP, and the compose file is the caller's choice
@@ -745,8 +816,9 @@ func bringUpHAFQDNClusterAt(t *testing.T, ctx context.Context, dc *DockerClient,
 	}
 
 	peers := fqdnPeers(services)
+	urls := fqdnHANodeURLs()
 
-	if err := writeNodeConfigOpts(composeDir, 1, peers, "", "", true); err != nil {
+	if err := writeFQDNNodeConfig(composeDir, 1, peers, ""); err != nil {
 		return fail(err)
 	}
 
@@ -754,7 +826,7 @@ func bringUpHAFQDNClusterAt(t *testing.T, ctx context.Context, dc *DockerClient,
 		return fail(fmt.Errorf("start node 1: %w", err))
 	}
 
-	node1, err := newInsecureClient(getHANodeURLs()[0])
+	node1, err := newInsecureClient(urls[0])
 	if err != nil {
 		return fail(err)
 	}
@@ -778,13 +850,16 @@ func bringUpHAFQDNClusterAt(t *testing.T, ctx context.Context, dc *DockerClient,
 		}
 	}
 
-	clients, err := newHANodeClients()
-	if err != nil {
-		return fail(err)
-	}
+	clients := make([]*client.Client, 0, len(urls))
 
-	for _, c := range clients {
+	for _, u := range urls {
+		c, err := newInsecureClient(u)
+		if err != nil {
+			return fail(fmt.Errorf("client for %s: %w", u, err))
+		}
+
 		c.SetToken(adminToken)
+		clients = append(clients, c)
 	}
 
 	if err := waitForClusterReady(ctx, clients); err != nil {
@@ -803,7 +878,7 @@ func stageAndStartFQDNJoiner(ctx context.Context, dc *DockerClient, leader *clie
 		return fmt.Errorf("mint join token for node %d: %w", nodeID, err)
 	}
 
-	if err := writeNodeConfigOpts(composeDir, nodeID, peers, tok.Token, "", true); err != nil {
+	if err := writeFQDNNodeConfig(composeDir, nodeID, peers, tok.Token); err != nil {
 		return err
 	}
 
