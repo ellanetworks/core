@@ -27,17 +27,31 @@ type raftStreamLayer struct {
 
 var _ hraft.StreamLayer = (*raftStreamLayer)(nil)
 
+// fqdnAddr carries the advertise address as the operator configured it
+// (FQDN or IP literal, with port) and lets every dial re-resolve through
+// the OS resolver. Eager resolution would freeze a one-time IP into
+// every peer's persisted Raft configuration, stranding the node after a
+// pod IP change.
+type fqdnAddr string
+
+func (a fqdnAddr) Network() string { return "tcp" }
+func (a fqdnAddr) String() string  { return string(a) }
+
 func newRaftStreamLayer(ln *listener.Listener, advertiseAddr string) (*raftStreamLayer, error) {
-	addr, err := net.ResolveTCPAddr("tcp", advertiseAddr)
+	_, port, err := net.SplitHostPort(advertiseAddr)
 	if err != nil {
-		return nil, fmt.Errorf("resolve advertise address %s: %w", advertiseAddr, err)
+		return nil, fmt.Errorf("invalid advertise address %q: %w", advertiseAddr, err)
+	}
+
+	if port == "" {
+		return nil, fmt.Errorf("invalid advertise address %q: port required", advertiseAddr)
 	}
 
 	sl := &raftStreamLayer{
 		ln:      ln,
 		accepts: make(chan net.Conn, 16),
 		closeCh: make(chan struct{}),
-		addr:    addr,
+		addr:    fqdnAddr(advertiseAddr),
 	}
 
 	ln.Register(listener.ALPNRaft, sl.handleConn)

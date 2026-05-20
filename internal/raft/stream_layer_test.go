@@ -46,6 +46,69 @@ func TestRaftStreamLayer_Addr(t *testing.T) {
 	}
 }
 
+// TestRaftStreamLayer_AddrPreservesFQDN locks in that the advertise
+// address is stored verbatim and not eagerly resolved. The persisted
+// Raft configuration must hold the symbolic name so peers re-resolve
+// it on every dial.
+func TestRaftStreamLayer_AddrPreservesFQDN(t *testing.T) {
+	pki := testutil.GenTestPKI(t, []int{1})
+
+	port := freePort(t)
+
+	ln := listener.New(listener.Config{
+		BindAddress:      fmt.Sprintf("127.0.0.1:%d", port),
+		AdvertiseAddress: fmt.Sprintf("127.0.0.1:%d", port),
+		NodeID:           1,
+		Pin:              pki.PinFunc(),
+		Leaf:             pki.LeafFunc(1),
+	})
+
+	advertise := fmt.Sprintf("ella-core-1:%d", port)
+
+	sl, err := newRaftStreamLayer(ln, advertise)
+	if err != nil {
+		t.Fatalf("newRaftStreamLayer: %v", err)
+	}
+
+	defer func() { _ = sl.Close() }()
+
+	if got := sl.Addr().String(); got != advertise {
+		t.Fatalf("Addr() = %q, want %q (FQDN must not be resolved at construction)", got, advertise)
+	}
+
+	if got := sl.Addr().Network(); got != "tcp" {
+		t.Fatalf("Network() = %q, want %q", got, "tcp")
+	}
+}
+
+func TestRaftStreamLayer_RejectsMalformedAdvertise(t *testing.T) {
+	pki := testutil.GenTestPKI(t, []int{1})
+
+	cases := []string{
+		"",
+		"missing-port",
+		"host:",
+	}
+
+	for _, in := range cases {
+		t.Run(in, func(t *testing.T) {
+			port := freePort(t)
+
+			ln := listener.New(listener.Config{
+				BindAddress:      fmt.Sprintf("127.0.0.1:%d", port),
+				AdvertiseAddress: fmt.Sprintf("127.0.0.1:%d", port),
+				NodeID:           1,
+				Pin:              pki.PinFunc(),
+				Leaf:             pki.LeafFunc(1),
+			})
+
+			if _, err := newRaftStreamLayer(ln, in); err == nil {
+				t.Fatalf("newRaftStreamLayer(%q) returned no error", in)
+			}
+		})
+	}
+}
+
 func TestRaftStreamLayer_CloseUnblocksAccept(t *testing.T) {
 	pki := testutil.GenTestPKI(t, []int{1})
 
