@@ -46,10 +46,6 @@ func TestRaftStreamLayer_Addr(t *testing.T) {
 	}
 }
 
-// TestRaftStreamLayer_AddrPreservesFQDN locks in that the advertise
-// address is stored verbatim and not eagerly resolved. The persisted
-// Raft configuration must hold the symbolic name so peers re-resolve
-// it on every dial.
 func TestRaftStreamLayer_AddrPreservesFQDN(t *testing.T) {
 	pki := testutil.GenTestPKI(t, []int{1})
 

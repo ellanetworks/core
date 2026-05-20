@@ -10,17 +10,10 @@ import (
 
 const haFQDNComposeFile = "compose-fqdn.yaml"
 
-// rebindIPv4 is a fixed address in the cluster subnet, chosen well
-// above the default IPAM allocation range so it does not collide with
-// the leases held by the running peers.
+// rebindIPv4 sits well above the default IPAM allocation range to avoid
+// colliding with leases held by the running peers.
 const rebindIPv4 = "10.100.0.123"
 
-// TestIntegrationHAFollowerReturnsOnNewAddress brings up a 3-node
-// cluster whose peers are addressed by FQDN, then takes a follower
-// down and brings it back on a different IP — the address change a
-// pod replacement under any orchestrator would produce. The cluster
-// must reconverge, and the follower's persisted RaftAddress must
-// remain the FQDN.
 func TestIntegrationHAFollowerReturnsOnNewAddress(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")

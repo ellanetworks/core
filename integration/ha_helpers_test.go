@@ -717,10 +717,6 @@ func membershipDiff(snapshots []string) string {
 	return ""
 }
 
-// fqdnPeers returns the cluster.peers list as compose-service-name FQDNs
-// resolved by Docker's embedded DNS — mirrors the orchestrator-managed
-// deployment pattern where peers reference stable DNS names rather than
-// IPs.
 func fqdnPeers(services []string) []string {
 	peers := make([]string, 0, len(services))
 	for _, s := range services {
@@ -730,9 +726,8 @@ func fqdnPeers(services []string) []string {
 	return peers
 }
 
-// fqdnHANodeURLs returns API URLs via the host port map. Cluster-network
-// container IPs are dynamic in the FQDN compose, so the test reaches each
-// node through compose's published ports on the loopback interface.
+// fqdnHANodeURLs returns API URLs via the host port map, since the
+// FQDN compose leaves cluster-network IPs dynamic.
 func fqdnHANodeURLs() []string {
 	return []string{
 		"http://127.0.0.1:5002",
@@ -741,10 +736,10 @@ func fqdnHANodeURLs() []string {
 	}
 }
 
-// writeFQDNNodeConfig renders a core.yaml that addresses peers and the
-// local bind-address by FQDN, and binds the API/N2 listeners on
-// 0.0.0.0 since the cluster-network IP is assigned dynamically and is
-// not known at config-write time.
+// writeFQDNNodeConfig renders a core.yaml whose cluster bind-address
+// and peers are FQDNs and whose API/N2 listeners bind on 0.0.0.0,
+// since the dynamic cluster-network IP is not known at config-write
+// time.
 func writeFQDNNodeConfig(composeDir string, nodeID int, peers []string, joinToken string) error {
 	cfgDir, err := filepath.Abs(filepath.Join(composeDir, "cfg", fmt.Sprintf("node%d", nodeID)))
 	if err != nil {
@@ -801,10 +796,6 @@ cluster:
 	return os.WriteFile(filepath.Join(cfgDir, "core.yaml"), []byte(body), 0o644)
 }
 
-// bringUpHAFQDNClusterAt is bringUpHAClusterAt with FQDN-only cluster
-// addressing. Peers and bind-address reference the compose service name
-// instead of a pinned IP, and the compose file is the caller's choice
-// (typically one without ipv4_address pins on the cluster network).
 func bringUpHAFQDNClusterAt(t *testing.T, ctx context.Context, dc *DockerClient, composeDir, composeFile string, services []string) ([]*client.Client, error) {
 	t.Helper()
 

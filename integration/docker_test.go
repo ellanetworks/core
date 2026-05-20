@@ -409,10 +409,9 @@ func (dc *DockerClient) CopyBytesToContainer(ctx context.Context, containerName 
 	return nil
 }
 
-// ContainerNetworkEndpoint returns the docker-network-scoped name and the
-// container's IP on that network. networkShort is the compose-file short
-// name (e.g. "cluster"); the match accepts the raw name or any
-// "<project>[_-]<short>" prefix so it works across compose v1/v2 naming.
+// ContainerNetworkEndpoint resolves networkShort against the container's
+// attached networks, accepting the raw name or any "<project>[_-]<short>"
+// prefix, and returns the matched network name and the container's IP.
 func (dc *DockerClient) ContainerNetworkEndpoint(ctx context.Context, containerName, networkShort string) (string, string, error) {
 	info, err := dc.ContainerInspect(ctx, containerName, client.ContainerInspectOptions{})
 	if err != nil {
@@ -438,8 +437,6 @@ func (dc *DockerClient) ContainerNetworkEndpoint(ctx context.Context, containerN
 	return "", "", fmt.Errorf("container %s not attached to network %q", containerName, networkShort)
 }
 
-// NetworkDisconnectContainer detaches containerName from networkName,
-// releasing its IPAM lease.
 func (dc *DockerClient) NetworkDisconnectContainer(ctx context.Context, networkName, containerName string) error {
 	_, err := dc.NetworkDisconnect(ctx, networkName, client.NetworkDisconnectOptions{
 		Container: containerName,
@@ -451,9 +448,6 @@ func (dc *DockerClient) NetworkDisconnectContainer(ctx context.Context, networkN
 	return nil
 }
 
-// NetworkConnectContainerWithIPv4 attaches containerName to networkName
-// with a caller-chosen IPv4 address. The address must lie in the
-// network's configured subnet and must not already be leased.
 func (dc *DockerClient) NetworkConnectContainerWithIPv4(ctx context.Context, networkName, containerName, ipv4 string) error {
 	addr, err := netip.ParseAddr(ipv4)
 	if err != nil {

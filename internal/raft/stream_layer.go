@@ -27,11 +27,6 @@ type raftStreamLayer struct {
 
 var _ hraft.StreamLayer = (*raftStreamLayer)(nil)
 
-// fqdnAddr carries the advertise address as the operator configured it
-// (FQDN or IP literal, with port) and lets every dial re-resolve through
-// the OS resolver. Eager resolution would freeze a one-time IP into
-// every peer's persisted Raft configuration, stranding the node after a
-// pod IP change.
 type fqdnAddr string
 
 func (a fqdnAddr) Network() string { return "tcp" }
