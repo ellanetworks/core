@@ -92,6 +92,33 @@ func addrToNetIP(a netip.Addr) net.IP {
 	return a.AsSlice()
 }
 
+// gwOrVia builds the gateway/via fields for a route.
+// When the destination and gateway families match, it uses Gw (RTA_GATEWAY).
+// When they differ (e.g. IPv4 dst + IPv6 gw), it uses Via (RTA_VIA) since
+// RTA_GATEWAY requires family matching in the kernel.
+func gwOrVia(destination netip.Prefix, gateway netip.Addr) (net.IP, *netlink.Via) {
+	if !gateway.IsValid() {
+		return nil, nil
+	}
+
+	dstIs4 := destination.Addr().Is4()
+	gwIs4 := gateway.Is4()
+
+	if dstIs4 == gwIs4 {
+		return addrToNetIP(gateway), nil
+	}
+
+	family := netlink.FAMILY_V4
+	if gateway.Is6() {
+		family = netlink.FAMILY_V6
+	}
+
+	return nil, &netlink.Via{
+		AddrFamily: family,
+		Addr:       net.IP(gateway.AsSlice()),
+	}
+}
+
 // CreateRoute adds a route to the kernel for the interface defined by ifKey.
 func (rk *RealKernel) CreateRoute(destination netip.Prefix, gateway netip.Addr, priority int, ifKey NetworkInterface) error {
 	interfaceName, ok := rk.ifMapping[ifKey]
@@ -104,23 +131,37 @@ func (rk *RealKernel) CreateRoute(destination netip.Prefix, gateway netip.Addr, 
 		return fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
 	}
 
+	gw, via := gwOrVia(destination, gateway)
+
 	nlRoute := netlink.Route{
 		Dst:       prefixToIPNet(destination),
-		Gw:        addrToNetIP(gateway),
+		Gw:        gw,
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
 		Table:     unix.RT_TABLE_MAIN,
 		Protocol:  rtProtoElla,
 	}
+	if via != nil {
+		nlRoute.Via = via
+	}
 
 	if err := netlink.RouteAdd(&nlRoute); err != nil {
+		logger.EllaLog.Debug("failed to add route", zap.Any("nlRoute", nlRoute))
 		return fmt.Errorf("failed to add route: %v", err)
 	}
 
 	logger.EllaLog.Debug("Added route", zap.String("destination", destination.String()), zap.String("gateway", gateway.String()), zap.Int("priority", priority), zap.String("interface", interfaceName))
 
 	// Tells the kernel that the gateway is in use, and ARP requests should be sent out
-	return addNeighbourForLink(addrToNetIP(gateway), link)
+	if gw != nil {
+		return addNeighbourForLink(gw, link)
+	}
+
+	if via != nil {
+		return addNeighbourForLink(via.Addr, link)
+	}
+
+	return nil
 }
 
 // DeleteRoute removes a route from the kernel for the interface defined by ifKey.
@@ -137,13 +178,18 @@ func (rk *RealKernel) DeleteRoute(destination netip.Prefix, gateway netip.Addr, 
 		return fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
 	}
 
+	gw, via := gwOrVia(destination, gateway)
+
 	nlRoute := netlink.Route{
 		Dst:       prefixToIPNet(destination),
-		Gw:        addrToNetIP(gateway),
+		Gw:        gw,
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
 		Table:     unix.RT_TABLE_MAIN,
 		Protocol:  rtProtoElla,
+	}
+	if via != nil {
+		nlRoute.Via = via
 	}
 
 	if err := netlink.RouteDel(&nlRoute); err != nil {
@@ -167,13 +213,18 @@ func (rk *RealKernel) ReplaceRoute(destination netip.Prefix, gateway netip.Addr,
 		return fmt.Errorf("failed to find network interface %q: %v", interfaceName, err)
 	}
 
+	gw, via := gwOrVia(destination, gateway)
+
 	nlRoute := netlink.Route{
 		Dst:       prefixToIPNet(destination),
-		Gw:        addrToNetIP(gateway),
+		Gw:        gw,
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
 		Table:     unix.RT_TABLE_MAIN,
 		Protocol:  rtProtoElla,
+	}
+	if via != nil {
+		nlRoute.Via = via
 	}
 
 	if err := netlink.RouteReplace(&nlRoute); err != nil {
@@ -182,7 +233,15 @@ func (rk *RealKernel) ReplaceRoute(destination netip.Prefix, gateway netip.Addr,
 
 	logger.EllaLog.Debug("Replaced route", zap.String("destination", destination.String()), zap.String("gateway", gateway.String()), zap.Int("priority", priority), zap.String("interface", interfaceName))
 
-	return addNeighbourForLink(addrToNetIP(gateway), link)
+	if gw != nil {
+		return addNeighbourForLink(gw, link)
+	}
+
+	if via != nil {
+		return addNeighbourForLink(via.Addr, link)
+	}
+
+	return nil
 }
 
 // ListRoutesByPriority returns Ella-owned route destinations with the given
@@ -278,7 +337,17 @@ func (rk *RealKernel) ListManagedRoutes(ifKey NetworkInterface) ([]ManagedRoute,
 		}
 
 		ones, _ := r.Dst.Mask.Size()
-		gw, _ := netip.AddrFromSlice(r.Gw)
+
+		var gw netip.Addr
+		if r.Gw != nil {
+			gw, _ = netip.AddrFromSlice(r.Gw)
+		} else if r.Via != nil {
+			if via, ok := r.Via.(*netlink.Via); ok {
+				if viaAddr, ok := netip.AddrFromSlice(via.Addr); ok {
+					gw = viaAddr
+				}
+			}
+		}
 
 		result = append(result, ManagedRoute{
 			Destination: netip.PrefixFrom(dstAddr, ones),
@@ -325,7 +394,6 @@ func (rk *RealKernel) RouteExists(destination netip.Prefix, gateway netip.Addr, 
 
 	nlRoute := netlink.Route{
 		Dst:       prefixToIPNet(destination),
-		Gw:        addrToNetIP(gateway),
 		LinkIndex: link.Attrs().Index,
 		Priority:  priority,
 		Table:     unix.RT_TABLE_MAIN,
@@ -337,13 +405,23 @@ func (rk *RealKernel) RouteExists(destination netip.Prefix, gateway netip.Addr, 
 		af = unix.AF_INET6
 	}
 
-	routes, err := netlink.RouteListFiltered(af, &nlRoute, netlink.RT_FILTER_DST|netlink.RT_FILTER_GW|netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
+	_, expectedVia := gwOrVia(destination, gateway)
+
+	routes, err := netlink.RouteListFiltered(af, &nlRoute, netlink.RT_FILTER_DST|netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL)
 	if err != nil {
 		return false, fmt.Errorf("failed to list routes: %v", err)
 	}
 
-	if len(routes) > 0 {
-		return true, nil
+	for _, r := range routes {
+		if r.Gw != nil {
+			if gw, ok := netip.AddrFromSlice(r.Gw); ok && gw == gateway {
+				return true, nil
+			}
+		}
+
+		if expectedVia != nil && r.Via != nil && r.Via.Equal(expectedVia) {
+			return true, nil
+		}
 	}
 
 	return false, nil
@@ -468,6 +546,15 @@ func (rk *RealKernel) EnsureGatewaysOnInterfaceInNeighTable(ifKey NetworkInterfa
 			err := addNeighbourForLink(route.Gw, link)
 			if err != nil {
 				logger.EllaLog.Warn("failed to add gateway to neighbour list, arp may need to be triggered manually", zap.String("gateway", route.Gw.String()), zap.Error(err))
+			}
+		}
+
+		if route.Via != nil {
+			if via, ok := route.Via.(*netlink.Via); ok {
+				err := addNeighbourForLink(via.Addr, link)
+				if err != nil {
+					logger.EllaLog.Warn("failed to add gateway to neighbour list, arp may need to be triggered manually", zap.String("gateway", via.Addr.String()), zap.Error(err))
+				}
 			}
 		}
 	}
