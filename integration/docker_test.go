@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/netip"
 	"os"
 	"os/exec"
 	"path"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/network"
 	"github.com/moby/moby/client"
 )
 
@@ -402,6 +404,68 @@ func (dc *DockerClient) CopyBytesToContainer(ctx context.Context, containerName 
 	})
 	if err != nil {
 		return fmt.Errorf("copy to container: %w", err)
+	}
+
+	return nil
+}
+
+// ContainerNetworkEndpoint resolves networkShort against the container's
+// attached networks, accepting the raw name or any "<project>[_-]<short>"
+// prefix, and returns the matched network name and the container's IP.
+func (dc *DockerClient) ContainerNetworkEndpoint(ctx context.Context, containerName, networkShort string) (string, string, error) {
+	info, err := dc.ContainerInspect(ctx, containerName, client.ContainerInspectOptions{})
+	if err != nil {
+		return "", "", fmt.Errorf("inspect %s: %w", containerName, err)
+	}
+
+	if info.Container.NetworkSettings == nil {
+		return "", "", fmt.Errorf("container %s has no network settings", containerName)
+	}
+
+	for name, ep := range info.Container.NetworkSettings.Networks {
+		if name == networkShort ||
+			strings.HasSuffix(name, "_"+networkShort) ||
+			strings.HasSuffix(name, "-"+networkShort) {
+			if !ep.IPAddress.IsValid() {
+				return name, "", fmt.Errorf("container %s has no IP on network %s", containerName, name)
+			}
+
+			return name, ep.IPAddress.String(), nil
+		}
+	}
+
+	return "", "", fmt.Errorf("container %s not attached to network %q", containerName, networkShort)
+}
+
+func (dc *DockerClient) NetworkDisconnectContainer(ctx context.Context, networkName, containerName string) error {
+	_, err := dc.NetworkDisconnect(ctx, networkName, client.NetworkDisconnectOptions{
+		Container: containerName,
+	})
+	if err != nil {
+		return fmt.Errorf("disconnect %s from %s: %w", containerName, networkName, err)
+	}
+
+	return nil
+}
+
+func (dc *DockerClient) NetworkConnectContainerWithIPv4(ctx context.Context, networkName, containerName, ipv4 string) error {
+	addr, err := netip.ParseAddr(ipv4)
+	if err != nil {
+		return fmt.Errorf("parse %q: %w", ipv4, err)
+	}
+
+	if !addr.Is4() {
+		return fmt.Errorf("address %s is not IPv4", ipv4)
+	}
+
+	_, err = dc.NetworkConnect(ctx, networkName, client.NetworkConnectOptions{
+		Container: containerName,
+		EndpointConfig: &network.EndpointSettings{
+			IPAMConfig: &network.EndpointIPAMConfig{IPv4Address: addr},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("connect %s to %s at %s: %w", containerName, networkName, ipv4, err)
 	}
 
 	return nil
