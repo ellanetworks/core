@@ -81,7 +81,6 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 		__u32 encap_result = add_gtp_over_ip4_headers(
 			ctx, ipv4_from_mapped(&far->localip),
 			ipv4_from_mapped(&far->remoteip), tos, qfi, far->teid);
-		bpf_printk("DBG n6 gtp encap result=%u", encap_result);
 		if (encap_result != 0) {
 			PROFILE_END(PROF_N6_GTP_MANIP);
 			return XDP_ABORTED;
@@ -100,7 +99,6 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 		upf_printk("upf: send gtp pdu %pI4 -> %pI4", &ctx->ip4->saddr,
 			   &ctx->ip4->daddr);
 		enum xdp_action fib_ret4 = route_ipv4(ctx, route_stat4);
-		bpf_printk("DBG n6 route_ipv4 ret=%d", fib_ret4);
 		PROFILE_END(PROF_N6_FIB_ROUTING);
 		return fib_ret4;
 	}
