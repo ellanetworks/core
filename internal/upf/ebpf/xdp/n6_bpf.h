@@ -117,14 +117,10 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	struct pdr_info *pdr =
 		bpf_map_lookup_elem(&pdrs_downlink_ip4, &ip4->daddr);
 	PROFILE_END(PROF_N6_PDR_LOOKUP);
-	bpf_printk("DBG n6 PDR lookup daddr=%pI4 found=%d", &ip4->daddr, pdr != 0);
 	if (!pdr) {
 		upf_printk("upf: no downlink session for ip:%pI4", &ip4->daddr);
 		return DEFAULT_XDP_ACTION;
 	}
-	bpf_printk("DBG n6 PDR far_action=%d outer_header_creation=%d filter_map_index=%d",
-		   pdr->far.action, pdr->far.outer_header_creation,
-		   pdr->filter_map_index);
 
 	struct far_info *far = &pdr->far;
 	struct qer_info *qer = &pdr->qer;
@@ -199,16 +195,12 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	/* Parse inner L4 so match_sdf_filters can inspect protocol/ports */
 	parse_l4(ip4->protocol, ctx);
 
-	bpf_printk("DBG n6 reached SDF check daddr=%pI4", &ip4->daddr);
-
 	/* SDF filter enforcement (downlink) */
 	{
 		PROFILE_START(PROF_N6_SDF_FILTER);
 		enum xdp_action sdf_verdict =
 			match_sdf_filters(ctx, pdr->filter_map_index);
 		PROFILE_END(PROF_N6_SDF_FILTER);
-		bpf_printk("DBG n6 SDF verdict=%d filter_map_index=%d",
-			   sdf_verdict, pdr->filter_map_index);
 		if (sdf_verdict == XDP_DROP) {
 			upf_printk("upf: downlink SDF drop ip:%pI4",
 				   &ip4->daddr);
@@ -219,9 +211,6 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 			return XDP_DROP;
 		}
 	}
-
-	bpf_printk("DBG n6 reached send_to_gtp_tunnel daddr=%pI4 teid=%d",
-		   &ip4->daddr, pdr->far.teid);
 
 	__u8 tos = far->transport_level_marking >> 8;
 	upf_printk("upf: use mapping %pI4 -> TEID:%d", &ip4->daddr, far->teid);
