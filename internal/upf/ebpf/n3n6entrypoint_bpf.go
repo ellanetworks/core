@@ -202,22 +202,21 @@ type N3N6EntrypointProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type N3N6EntrypointMapSpecs struct {
-	CsumScratch         *ebpf.MapSpec `ebpf:"csum_scratch"`
-	DownlinkRouteStats  *ebpf.MapSpec `ebpf:"downlink_route_stats"`
-	DownlinkStatistics  *ebpf.MapSpec `ebpf:"downlink_statistics"`
-	FlowStats           *ebpf.MapSpec `ebpf:"flow_stats"`
-	NatCt               *ebpf.MapSpec `ebpf:"nat_ct"`
-	NoNeighMap          *ebpf.MapSpec `ebpf:"no_neigh_map"`
-	NocpMap             *ebpf.MapSpec `ebpf:"nocp_map"`
-	PdrsDownlinkIp4     *ebpf.MapSpec `ebpf:"pdrs_downlink_ip4"`
-	PdrsDownlinkIp6     *ebpf.MapSpec `ebpf:"pdrs_downlink_ip6"`
-	PdrsDownlinkIp6Addr *ebpf.MapSpec `ebpf:"pdrs_downlink_ip6_addr"`
-	PdrsUplink          *ebpf.MapSpec `ebpf:"pdrs_uplink"`
-	RsEventMap          *ebpf.MapSpec `ebpf:"rs_event_map"`
-	SdfFilters          *ebpf.MapSpec `ebpf:"sdf_filters"`
-	UplinkRouteStats    *ebpf.MapSpec `ebpf:"uplink_route_stats"`
-	UplinkStatistics    *ebpf.MapSpec `ebpf:"uplink_statistics"`
-	UrrMap              *ebpf.MapSpec `ebpf:"urr_map"`
+	CsumScratch        *ebpf.MapSpec `ebpf:"csum_scratch"`
+	DownlinkRouteStats *ebpf.MapSpec `ebpf:"downlink_route_stats"`
+	DownlinkStatistics *ebpf.MapSpec `ebpf:"downlink_statistics"`
+	FlowStats          *ebpf.MapSpec `ebpf:"flow_stats"`
+	NatCt              *ebpf.MapSpec `ebpf:"nat_ct"`
+	NoNeighMap         *ebpf.MapSpec `ebpf:"no_neigh_map"`
+	NocpMap            *ebpf.MapSpec `ebpf:"nocp_map"`
+	PdrsDownlinkIp4    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip4"`
+	PdrsDownlinkIp6    *ebpf.MapSpec `ebpf:"pdrs_downlink_ip6"`
+	PdrsUplink         *ebpf.MapSpec `ebpf:"pdrs_uplink"`
+	RsEventMap         *ebpf.MapSpec `ebpf:"rs_event_map"`
+	SdfFilters         *ebpf.MapSpec `ebpf:"sdf_filters"`
+	UplinkRouteStats   *ebpf.MapSpec `ebpf:"uplink_route_stats"`
+	UplinkStatistics   *ebpf.MapSpec `ebpf:"uplink_statistics"`
+	UrrMap             *ebpf.MapSpec `ebpf:"urr_map"`
 }
 
 // N3N6EntrypointVariableSpecs contains global variables before they are loaded into the kernel.
@@ -252,22 +251,21 @@ func (o *N3N6EntrypointObjects) Close() error {
 //
 // It can be passed to LoadN3N6EntrypointObjects or ebpf.CollectionSpec.LoadAndAssign.
 type N3N6EntrypointMaps struct {
-	CsumScratch         *ebpf.Map `ebpf:"csum_scratch"`
-	DownlinkRouteStats  *ebpf.Map `ebpf:"downlink_route_stats"`
-	DownlinkStatistics  *ebpf.Map `ebpf:"downlink_statistics"`
-	FlowStats           *ebpf.Map `ebpf:"flow_stats"`
-	NatCt               *ebpf.Map `ebpf:"nat_ct"`
-	NoNeighMap          *ebpf.Map `ebpf:"no_neigh_map"`
-	NocpMap             *ebpf.Map `ebpf:"nocp_map"`
-	PdrsDownlinkIp4     *ebpf.Map `ebpf:"pdrs_downlink_ip4"`
-	PdrsDownlinkIp6     *ebpf.Map `ebpf:"pdrs_downlink_ip6"`
-	PdrsDownlinkIp6Addr *ebpf.Map `ebpf:"pdrs_downlink_ip6_addr"`
-	PdrsUplink          *ebpf.Map `ebpf:"pdrs_uplink"`
-	RsEventMap          *ebpf.Map `ebpf:"rs_event_map"`
-	SdfFilters          *ebpf.Map `ebpf:"sdf_filters"`
-	UplinkRouteStats    *ebpf.Map `ebpf:"uplink_route_stats"`
-	UplinkStatistics    *ebpf.Map `ebpf:"uplink_statistics"`
-	UrrMap              *ebpf.Map `ebpf:"urr_map"`
+	CsumScratch        *ebpf.Map `ebpf:"csum_scratch"`
+	DownlinkRouteStats *ebpf.Map `ebpf:"downlink_route_stats"`
+	DownlinkStatistics *ebpf.Map `ebpf:"downlink_statistics"`
+	FlowStats          *ebpf.Map `ebpf:"flow_stats"`
+	NatCt              *ebpf.Map `ebpf:"nat_ct"`
+	NoNeighMap         *ebpf.Map `ebpf:"no_neigh_map"`
+	NocpMap            *ebpf.Map `ebpf:"nocp_map"`
+	PdrsDownlinkIp4    *ebpf.Map `ebpf:"pdrs_downlink_ip4"`
+	PdrsDownlinkIp6    *ebpf.Map `ebpf:"pdrs_downlink_ip6"`
+	PdrsUplink         *ebpf.Map `ebpf:"pdrs_uplink"`
+	RsEventMap         *ebpf.Map `ebpf:"rs_event_map"`
+	SdfFilters         *ebpf.Map `ebpf:"sdf_filters"`
+	UplinkRouteStats   *ebpf.Map `ebpf:"uplink_route_stats"`
+	UplinkStatistics   *ebpf.Map `ebpf:"uplink_statistics"`
+	UrrMap             *ebpf.Map `ebpf:"urr_map"`
 }
 
 func (m *N3N6EntrypointMaps) Close() error {
@@ -281,7 +279,6 @@ func (m *N3N6EntrypointMaps) Close() error {
 		m.NocpMap,
 		m.PdrsDownlinkIp4,
 		m.PdrsDownlinkIp6,
-		m.PdrsDownlinkIp6Addr,
 		m.PdrsUplink,
 		m.RsEventMap,
 		m.SdfFilters,

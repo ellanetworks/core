@@ -251,23 +251,6 @@ handle_gtp_packet(struct packet_context *ctx)
 		PROFILE_END(PROF_N3_FIB_ROUTING);
 		return fib_ret;
 	} else if (ctx->ip6) {
-		struct in6_addr saddr = ctx->ip6->saddr;
-		// Skip fe80::/10 (link-local); learn the UE's /128 from
-		// its first global-source uplink packet.
-		bool is_link_local =
-			saddr.in6_u.u6_addr8[0] == 0xfe &&
-			(saddr.in6_u.u6_addr8[1] & 0xc0) == 0x80;
-		if (!is_link_local &&
-		    !bpf_map_lookup_elem(&pdrs_downlink_ip6_addr, &saddr)) {
-			struct in6_addr prefix = saddr;
-			__builtin_memset(((void *)&prefix) + 8, 0, 8);
-			struct pdr_info *dl_pdr =
-				bpf_map_lookup_elem(&pdrs_downlink_ip6, &prefix);
-			if (dl_pdr) {
-				bpf_map_update_elem(&pdrs_downlink_ip6_addr,
-						    &saddr, dl_pdr, BPF_NOEXIST);
-			}
-		}
 		account_flow(ctx, n6_ifindex, pdr->imsi, IPV6, ALLOW);
 		PROFILE_START(PROF_N3_FIB_ROUTING);
 		enum xdp_action fib_ret = route_ipv6(ctx, route_statistic);
