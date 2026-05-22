@@ -77,7 +77,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 		m.PDUSessionEstablishmentAccept.SetCauseValue(cause)
 	}
 
-	sessAmbr, err := modelsToSessionAMBR(ambr)
+	sessAmbr, err := ModelsToSessionAMBR(ambr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert models to SessionAMBR: %v", err)
 	}
@@ -180,7 +180,8 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	return m.PlainNasEncode()
 }
 
-func modelsToSessionAMBR(ambr *models.Ambr) (nasType.SessionAMBR, error) {
+// ModelsToSessionAMBR converts an Ambr model to a NAS SessionAMBR type.
+func ModelsToSessionAMBR(ambr *models.Ambr) (nasType.SessionAMBR, error) {
 	var sessAmbr nasType.SessionAMBR
 
 	uplink := strings.Split(ambr.Uplink, " ")

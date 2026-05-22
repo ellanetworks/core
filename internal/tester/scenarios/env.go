@@ -41,6 +41,12 @@ type Env struct {
 	// need explicit pairing. When empty, scenarios default to pairing gNB
 	// i with CoreN2Addresses[i], or all cores for multihomed scenarios.
 	GNBCoreTargets map[string]string
+
+	// APIAddress is the Ella Core API base URL from --ella-api-address.
+	APIAddress string
+
+	// APIToken is the Ella Core API authentication token from --ella-api-token.
+	APIToken string
 }
 
 // GNB is one simulated gNB's address set.

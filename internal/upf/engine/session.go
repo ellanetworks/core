@@ -141,6 +141,22 @@ func (s *Session) GetQer(id uint32) ebpf.QerInfo {
 	return s.qers[id]
 }
 
+// PutQer updates a QER in the session.
+func (s *Session) PutQer(id uint32, qerInfo ebpf.QerInfo) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.qers[id] = qerInfo
+}
+
+// RemoveQer removes a QER from the session.
+func (s *Session) RemoveQer(id uint32) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.qers, id)
+}
+
 // ListQERs returns a snapshot copy of the QER map.
 func (s *Session) ListQERs() map[uint32]ebpf.QerInfo {
 	s.mu.RLock()

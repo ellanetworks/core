@@ -18,13 +18,15 @@ const (
 	NGAPProcedureNGReset        NGAPProcedure = "NGReset"
 
 	// UE-associated NGAP procedures
-	NGAPProcedureInitialUEMessage                NGAPProcedure = "InitialUEMessage"
-	NGAPProcedureUplinkNASTransport              NGAPProcedure = "UplinkNASTransport"
-	NGAPProcedureInitialContextSetupResponse     NGAPProcedure = "InitialContextSetupResponse"
-	NGAPProcedurePDUSessionResourceSetupResponse NGAPProcedure = "PDUSessionResourceSetupResponse"
-	NGAPProcedureUEContextReleaseComplete        NGAPProcedure = "UEContextReleaseComplete"
-	NGAPProcedureUEContextReleaseRequest         NGAPProcedure = "UEContextReleaseRequest"
-	NGAPProcedurePathSwitchRequest               NGAPProcedure = "PathSwitchRequest"
+	NGAPProcedureInitialUEMessage                  NGAPProcedure = "InitialUEMessage"
+	NGAPProcedureUplinkNASTransport                NGAPProcedure = "UplinkNASTransport"
+	NGAPProcedureInitialContextSetupResponse       NGAPProcedure = "InitialContextSetupResponse"
+	NGAPProcedurePDUSessionResourceSetupResponse   NGAPProcedure = "PDUSessionResourceSetupResponse"
+	NGAPProcedurePDUSessionResourceModifyResponse  NGAPProcedure = "PDUSessionResourceModifyResponse"
+	NGAPProcedurePDUSessionResourceReleaseResponse NGAPProcedure = "PDUSessionResourceReleaseResponse"
+	NGAPProcedureUEContextReleaseComplete          NGAPProcedure = "UEContextReleaseComplete"
+	NGAPProcedureUEContextReleaseRequest           NGAPProcedure = "UEContextReleaseRequest"
+	NGAPProcedurePathSwitchRequest                 NGAPProcedure = "PathSwitchRequest"
 )
 
 func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
@@ -36,6 +38,7 @@ func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 	// UE-associated procedures
 	case NGAPProcedureInitialUEMessage, NGAPProcedureUplinkNASTransport,
 		NGAPProcedureInitialContextSetupResponse, NGAPProcedurePDUSessionResourceSetupResponse,
+		NGAPProcedurePDUSessionResourceModifyResponse, NGAPProcedurePDUSessionResourceReleaseResponse,
 		NGAPProcedureUEContextReleaseComplete, NGAPProcedureUEContextReleaseRequest,
 		NGAPProcedurePathSwitchRequest:
 		return 1, nil
@@ -106,6 +109,24 @@ func (g *GnodeB) SendPDUSessionResourceSetupResponse(opts *PDUSessionResourceSet
 	}
 
 	return g.SendMessage(pdu, NGAPProcedurePDUSessionResourceSetupResponse)
+}
+
+func (g *GnodeB) SendPDUSessionResourceModifyResponse(opts *PDUSessionResourceModifyResponseOpts) error {
+	pdu, err := BuildPDUSessionResourceModifyResponse(opts)
+	if err != nil {
+		return fmt.Errorf("couldn't build PDUSessionResourceModifyResponse: %s", err.Error())
+	}
+
+	return g.SendMessage(pdu, NGAPProcedurePDUSessionResourceModifyResponse)
+}
+
+func (g *GnodeB) SendPDUSessionResourceReleaseResponse(opts *PDUSessionResourceReleaseResponseOpts) error {
+	pdu, err := BuildPDUSessionResourceReleaseResponse(opts)
+	if err != nil {
+		return fmt.Errorf("couldn't build PDUSessionResourceReleaseResponse: %s", err.Error())
+	}
+
+	return g.SendMessage(pdu, NGAPProcedurePDUSessionResourceReleaseResponse)
 }
 
 func (g *GnodeB) SendPathSwitchRequest(opts *PathSwitchRequestOpts) error {

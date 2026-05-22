@@ -424,7 +424,7 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 
 	span.SetStatus(codes.Error, "no matching policy")
 
-	return nil, nil, nil, fmt.Errorf("no policy matching sst=%d sd=%q dnn=%q for profile %s", sst, sd, dnn, sub.ProfileID)
+	return nil, nil, nil, fmt.Errorf("no policy matching sst=%d sd=%q dnn=%q for profile %s: %w", sst, sd, dnn, sub.ProfileID, ErrNoMatchingPolicy)
 }
 
 func (db *Database) CreatePolicy(ctx context.Context, policy *Policy) error {

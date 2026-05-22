@@ -243,6 +243,10 @@ func (fng *FakeNGAPSender) SendPDUSessionResourceModifyConfirm(ctx context.Conte
 	return nil
 }
 
+func (fng *FakeNGAPSender) SendPDUSessionResourceModifyRequest(ctx context.Context, amfUENGAPID int64, ranUENGAPID int64, pduSessionResourceModifyList ngapType.PDUSessionResourceModifyListModReq) error {
+	return nil
+}
+
 func (fng *FakeNGAPSender) SendPDUSessionResourceSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, nasPdu []byte, pduSessionResourceSetupRequestList ngapType.PDUSessionResourceSetupListSUReq) error {
 	fng.SentPDUSessionResourceSetupRequest = append(
 		fng.SentPDUSessionResourceSetupRequest,
@@ -501,6 +505,14 @@ func (s *FakeSmf) GetSession(_ string) *smf.SMContext { return nil }
 func (s *FakeSmf) SessionsByDNN(_ string) []*smf.SMContext { return nil }
 
 func (s *FakeSmf) SessionCount() int { return 0 }
+
+func (s *FakeSmf) ReconcileSmContext(_ context.Context, _ *models.SessionReconcileRequest) error {
+	return s.Error
+}
+
+func (s *FakeSmf) GetSessionPolicy(_ context.Context, _ etsi.SUPI, _ *models.Snssai, _ string) (*smf.Policy, error) {
+	return nil, nil
+}
 
 func mustTestGuti(mcc string, mnc string, amfid string, tmsi uint32) etsi.GUTI {
 	t, err := etsi.NewTMSI(tmsi)

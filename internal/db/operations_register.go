@@ -12,7 +12,7 @@ import (
 // Subscribers
 var (
 	opCreateSubscriber        = registerChangesetOp("CreateSubscriber", (*Database).applyCreateSubscriber)
-	opUpdateSubscriberProfile = registerChangesetOp("UpdateSubscriberProfile", (*Database).applyUpdateSubscriberProfile)
+	opUpdateSubscriberProfile = registerChangesetOp("UpdateSubscriberProfile", (*Database).applyUpdateSubscriberProfile, AffectsTopic(TopicSessionReconcile))
 	opEditSubscriberSeqNum    = registerChangesetOp("EditSubscriberSeqNum", (*Database).applyEditSubscriberSeqNum)
 	opDeleteSubscriber        = registerChangesetOp("DeleteSubscriber", (*Database).applyDeleteSubscriber)
 )
@@ -53,7 +53,7 @@ var (
 // Profiles
 var (
 	opCreateProfile = registerChangesetOp("CreateProfile", (*Database).applyCreateProfile)
-	opUpdateProfile = registerChangesetOp("UpdateProfile", (*Database).applyUpdateProfile)
+	opUpdateProfile = registerChangesetOp("UpdateProfile", (*Database).applyUpdateProfile, AffectsTopic(TopicSessionReconcile))
 	opDeleteProfile = registerChangesetOp("DeleteProfile", (*Database).applyDeleteProfile)
 )
 
@@ -75,8 +75,8 @@ var (
 // Network slices
 var (
 	opCreateNetworkSlice = registerChangesetOp("CreateNetworkSlice", (*Database).applyCreateNetworkSlice)
-	opUpdateNetworkSlice = registerChangesetOp("UpdateNetworkSlice", (*Database).applyUpdateNetworkSlice)
-	opDeleteNetworkSlice = registerChangesetOp("DeleteNetworkSlice", (*Database).applyDeleteNetworkSlice)
+	opUpdateNetworkSlice = registerChangesetOp("UpdateNetworkSlice", (*Database).applyUpdateNetworkSlice, AffectsTopic(TopicSessionReconcile))
+	opDeleteNetworkSlice = registerChangesetOp("DeleteNetworkSlice", (*Database).applyDeleteNetworkSlice, AffectsTopic(TopicSessionReconcile))
 )
 
 // Data networks
@@ -88,11 +88,11 @@ var (
 
 // Policies
 var (
-	opCreatePolicy          = registerChangesetOp("CreatePolicy", (*Database).applyCreatePolicy, AffectsTopic(TopicPolicies))
-	opUpdatePolicy          = registerChangesetOp("UpdatePolicy", (*Database).applyUpdatePolicy, AffectsTopic(TopicPolicies))
-	opDeletePolicy          = registerChangesetOp("DeletePolicy", (*Database).applyDeletePolicy, AffectsTopic(TopicPolicies))
-	opCreatePolicyWithRules = registerChangesetOp("CreatePolicyWithRules", (*Database).applyCreatePolicyWithRules, AffectsTopic(TopicPolicies), AffectsTopic(TopicNetworkRules))
-	opUpdatePolicyWithRules = registerChangesetOp("UpdatePolicyWithRules", (*Database).applyUpdatePolicyWithRules, AffectsTopic(TopicPolicies), AffectsTopic(TopicNetworkRules))
+	opCreatePolicy          = registerChangesetOp("CreatePolicy", (*Database).applyCreatePolicy, AffectsTopic(TopicPolicies), AffectsTopic(TopicSessionReconcile))
+	opUpdatePolicy          = registerChangesetOp("UpdatePolicy", (*Database).applyUpdatePolicy, AffectsTopic(TopicPolicies), AffectsTopic(TopicSessionReconcile))
+	opDeletePolicy          = registerChangesetOp("DeletePolicy", (*Database).applyDeletePolicy, AffectsTopic(TopicPolicies), AffectsTopic(TopicSessionReconcile))
+	opCreatePolicyWithRules = registerChangesetOp("CreatePolicyWithRules", (*Database).applyCreatePolicyWithRules, AffectsTopic(TopicPolicies), AffectsTopic(TopicNetworkRules), AffectsTopic(TopicSessionReconcile))
+	opUpdatePolicyWithRules = registerChangesetOp("UpdatePolicyWithRules", (*Database).applyUpdatePolicyWithRules, AffectsTopic(TopicPolicies), AffectsTopic(TopicNetworkRules), AffectsTopic(TopicSessionReconcile))
 )
 
 // Network rules

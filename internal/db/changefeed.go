@@ -25,6 +25,7 @@ const (
 	TopicDataNetworks           Topic = "data_networks"
 	TopicIPLeases               Topic = "ip_leases"
 	TopicClusterNodeCerts       Topic = "cluster_node_certs"
+	TopicSessionReconcile       Topic = "session_reconcile"
 )
 
 // Event is published once per (topic, applied-index) and carries no

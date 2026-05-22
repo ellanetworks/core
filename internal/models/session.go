@@ -140,7 +140,9 @@ type ModifyRequest struct {
 	UpdateFARs   []FAR
 	RemoveFARIDs []uint32
 
-	CreateQERs []QER
+	CreateQERs   []QER
+	UpdateQERs   []QER
+	RemoveQERIDs []uint32
 }
 
 // DeleteRequest asks the UPF to delete a session by its SEID.

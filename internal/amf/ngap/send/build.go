@@ -786,6 +786,54 @@ func buildPDUSessionResourceModifyConfirm(
 	return ngap.Encoder(pdu)
 }
 
+// buildPDUSessionResourceModifyRequest encodes a PDUSessionResourceModifyRequest
+// NGAP message (3GPP TS 38.413 §9.2.1.3). This is the AMF→gNB message for
+// network-initiated PDU Session Modification (TS 23.502 §4.3.3.2).
+func buildPDUSessionResourceModifyRequest(amfUENGAPID int64, ranUENGAPID int64, pduSessionResourceModifyList ngapType.PDUSessionResourceModifyListModReq) ([]byte, error) {
+	var pdu ngapType.NGAPPDU
+
+	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
+	pdu.InitiatingMessage = new(ngapType.InitiatingMessage)
+
+	initiatingMessage := pdu.InitiatingMessage
+	initiatingMessage.ProcedureCode.Value = ngapType.ProcedureCodePDUSessionResourceModify
+	initiatingMessage.Criticality.Value = ngapType.CriticalityPresentReject
+
+	initiatingMessage.Value.Present = ngapType.InitiatingMessagePresentPDUSessionResourceModifyRequest
+	initiatingMessage.Value.PDUSessionResourceModifyRequest = new(ngapType.PDUSessionResourceModifyRequest)
+
+	modifyRequest := initiatingMessage.Value.PDUSessionResourceModifyRequest
+	modifyRequestIEs := &modifyRequest.ProtocolIEs
+
+	// AMF UE NGAP ID
+	ie := ngapType.PDUSessionResourceModifyRequestIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
+	ie.Criticality.Value = ngapType.CriticalityPresentReject
+	ie.Value.Present = ngapType.PDUSessionResourceModifyRequestIEsPresentAMFUENGAPID
+	ie.Value.AMFUENGAPID = new(ngapType.AMFUENGAPID)
+	ie.Value.AMFUENGAPID.Value = amfUENGAPID
+	modifyRequestIEs.List = append(modifyRequestIEs.List, ie)
+
+	// RAN UE NGAP ID
+	ie = ngapType.PDUSessionResourceModifyRequestIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
+	ie.Criticality.Value = ngapType.CriticalityPresentReject
+	ie.Value.Present = ngapType.PDUSessionResourceModifyRequestIEsPresentRANUENGAPID
+	ie.Value.RANUENGAPID = new(ngapType.RANUENGAPID)
+	ie.Value.RANUENGAPID.Value = ranUENGAPID
+	modifyRequestIEs.List = append(modifyRequestIEs.List, ie)
+
+	// PDU Session Resource Modify List
+	ie = ngapType.PDUSessionResourceModifyRequestIEs{}
+	ie.Id.Value = ngapType.ProtocolIEIDPDUSessionResourceModifyListModReq
+	ie.Criticality.Value = ngapType.CriticalityPresentReject
+	ie.Value.Present = ngapType.PDUSessionResourceModifyRequestIEsPresentPDUSessionResourceModifyListModReq
+	ie.Value.PDUSessionResourceModifyListModReq = &pduSessionResourceModifyList
+	modifyRequestIEs.List = append(modifyRequestIEs.List, ie)
+
+	return ngap.Encoder(pdu)
+}
+
 // nasPDU: from nas layer
 // pduSessionResourceSetupRequestList: provided by AMF, and transfer data is from SMF
 func buildPDUSessionResourceSetupRequest(amfUENGAPID int64, ranUENGAPID int64, bitrateUplink string, bitrateDownlink string, nasPdu []byte, pduSessionResourceSetupRequestList ngapType.PDUSessionResourceSetupListSUReq) ([]byte, error) {

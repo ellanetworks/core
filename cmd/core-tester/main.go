@@ -24,6 +24,8 @@ var (
 	gnbCoreTargets  []string
 	verbose         bool
 	ipVersion       string
+	apiAddress      string
+	apiToken        string
 )
 
 func main() {
@@ -79,6 +81,8 @@ func runCmd() *cobra.Command {
 		"gNB spec: <name>,n2=<addr>,n3=<addr>[,n3-secondary=<addr>] (repeatable)")
 	run.PersistentFlags().StringArrayVar(&gnbCoreTargets, "gnb-core-target", nil,
 		"pair <gnb-name>=<core-n2-addr> (repeatable)")
+	run.PersistentFlags().StringVar(&apiAddress, "ella-api-address", "", "Ella Core API address")
+	run.PersistentFlags().StringVar(&apiToken, "ella-api-token", "", "Ella Core API token")
 	run.PersistentFlags().BoolVar(&verbose, "verbose", false, "verbose logging")
 	run.PersistentFlags().StringVar(&ipVersion, "ip-version", "", "IP address family: ipv4, ipv6, or dualstack")
 
@@ -127,6 +131,8 @@ func scenarioSubcommand(sc scenarios.Scenario) *cobra.Command {
 				CoreN2Addresses: coreN2Addresses,
 				GNBs:            gnbs,
 				GNBCoreTargets:  targets,
+				APIAddress:      apiAddress,
+				APIToken:        apiToken,
 			}
 
 			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

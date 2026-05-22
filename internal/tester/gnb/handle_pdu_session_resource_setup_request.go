@@ -160,6 +160,8 @@ type PDUSessionInformation struct {
 	PriArp       int64
 	PduSType     uint64
 	PDUSessionID int64
+	AmbrUplink   int64
+	AmbrDownlink int64
 }
 
 func getPDUSessionInfoFromSetupRequestTransfer(gnb *GnodeB, transfer aper.OctetString) (*PDUSessionInformation, error) {

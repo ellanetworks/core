@@ -199,6 +199,23 @@ func (ranUe *RanUe) SendPDUSessionResourceModifyConfirm(
 	)
 }
 
+func (ranUe *RanUe) SendPDUSessionResourceModifyRequest(
+	ctx context.Context,
+	pduSessionResourceModifyList ngapType.PDUSessionResourceModifyListModReq,
+) error {
+	sender, err := ranUe.ngapSender()
+	if err != nil {
+		return err
+	}
+
+	return sender.SendPDUSessionResourceModifyRequest(
+		ctx,
+		ranUe.AmfUeNgapID,
+		ranUe.RanUeNgapID,
+		pduSessionResourceModifyList,
+	)
+}
+
 func (ranUe *RanUe) SendHandoverPreparationFailure(ctx context.Context, cause ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
 	sender, err := ranUe.ngapSender()
 	if err != nil {

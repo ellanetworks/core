@@ -289,6 +289,20 @@ func (s *RealNGAPSender) SendPDUSessionResourceModifyConfirm(ctx context.Context
 	return nil
 }
 
+func (s *RealNGAPSender) SendPDUSessionResourceModifyRequest(ctx context.Context, amfUENgapID int64, ranUENgapID int64, pduSessionResourceModifyList ngapType.PDUSessionResourceModifyListModReq) error {
+	pkt, err := buildPDUSessionResourceModifyRequest(amfUENgapID, ranUENgapID, pduSessionResourceModifyList)
+	if err != nil {
+		return fmt.Errorf("error building pdu session resource modify request: %s", err.Error())
+	}
+
+	err = s.SendToRan(ctx, pkt, NGAPProcedurePDUSessionResourceModifyRequest)
+	if err != nil {
+		return fmt.Errorf("send error: %s", err.Error())
+	}
+
+	return nil
+}
+
 func (s *RealNGAPSender) SendPDUSessionResourceSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, nasPdu []byte, pduSessionResourceSetupRequestList ngapType.PDUSessionResourceSetupListSUReq) error {
 	pkt, err := buildPDUSessionResourceSetupRequest(amfUeNgapID, ranUeNgapID, ambrUplink, ambrDownlink, nasPdu, pduSessionResourceSetupRequestList)
 	if err != nil {
