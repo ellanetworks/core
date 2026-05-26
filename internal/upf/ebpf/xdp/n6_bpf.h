@@ -20,19 +20,7 @@
 #include "xdp/utils/statistics.h"
 #include "xdp/utils/nocp.h"
 
-struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__type(key, __u32);
-	__type(value, struct pdr_info);
-	__uint(max_entries, PDR_MAP_DOWNLINK_IPV4_SIZE);
-} pdrs_downlink_ip4 SEC(".maps");
-
-struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__type(key, struct in6_addr);
-	__type(value, struct pdr_info);
-	__uint(max_entries, PDR_MAP_DOWNLINK_IPV4_SIZE);
-} pdrs_downlink_ip6 SEC(".maps");
+#include "xdp/utils/pdr_maps.h"
 
 struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
@@ -116,10 +104,6 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 	}
 }
 
-/*
- * Downlink processing for IPv4 packets.
- * Looks up the downlink session using the destination IP address.
- */
 static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 {
 	if (masquerade) {
@@ -244,9 +228,6 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	return send_to_gtp_tunnel(ctx, far, tos, qer->qfi);
 }
 
-/*
- * Downlink processing for IPv6 packets.
- */
 static __always_inline enum xdp_action
 handle_n6_packet_ipv6(struct packet_context *ctx)
 {
@@ -293,6 +274,34 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 
 	/* Parse inner L4 so match_sdf_filters can inspect protocol/ports */
 	parse_l4(ip6->nexthdr, ctx);
+
+	// CHECKSUM_PARTIAL from veth/virtio leaves a pseudo-header sum
+	// on the wire that IPv6 receivers reject. Recompute UDP/TCP;
+	// ICMPv6 from kernel context is already full-checksummed.
+	if (ctx->udp) {
+		__u32 udp_off =
+			(__u32)((const void *)ctx->udp -
+				(const void *)(long)ctx->xdp_ctx->data);
+		__u16 udp_len = bpf_ntohs(ctx->udp->len);
+		ctx->udp->check = 0;
+		int new_csum = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off,
+					  udp_len, ctx->xdp_ctx);
+		if (new_csum >= 0) {
+			ctx->udp->check = (__u16)new_csum;
+		}
+	} else if (ctx->tcp) {
+		__u32 tcp_off =
+			(__u32)((const void *)ctx->tcp -
+				(const void *)(long)ctx->xdp_ctx->data);
+		__u16 tcp_len =
+			bpf_ntohs(ip6->payload_len);
+		ctx->tcp->check = 0;
+		int new_csum = tcpv6_csum(&ip6->saddr, &ip6->daddr, tcp_off,
+					  tcp_len, ctx->xdp_ctx);
+		if (new_csum >= 0) {
+			ctx->tcp->check = (__u16)new_csum;
+		}
+	}
 
 	/* SDF filter enforcement (downlink) */
 	{

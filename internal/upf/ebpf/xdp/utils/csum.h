@@ -25,6 +25,7 @@
 #include <linux/in6.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
+#include <linux/tcp.h>
 #include <linux/types.h>
 #include <linux/udp.h>
 #include <bpf/bpf_endian.h>
@@ -138,6 +139,18 @@ static __always_inline void recompute_icmp_csum(struct icmphdr *icmp, int len)
  */
 #define CSUM_SCRATCH_SIZE 65540
 
+/*
+ * Upper bound on UDP/TCP datagram length for the L4-checksum recompute
+ * helpers. Sized for jumbo frames (9000-byte MTU) with margin.
+ *
+ * The bound must not be (CSUM_SCRATCH_SIZE - 4) because the compiler
+ * proves `__u16-sourced udp_len > 65536` is always false and optimizes
+ * the upper-bound check away. The verifier then sees no umax on the
+ * offset register, which makes the pointer arithmetic against the
+ * scratch map invalid.
+ */
+#define MAX_L4_DATAGRAM 9000
+
 struct {
 	__uint(type, BPF_MAP_TYPE_ARRAY);
 	__uint(key_size, sizeof(__u32));
@@ -145,39 +158,119 @@ struct {
 	__uint(max_entries, 1);
 } csum_scratch SEC(".maps");
 
-/*
- * udpv6_csum - compute the UDP checksum for IPv6.
- *
- * The UDP checksum covers an IPv6 pseudo-header (40 bytes) plus the UDP
- * header and payload.  This is required for IPv6 (RFC 2460 / 8200) and
- * mandatory when using GTP-U over IPv6 (3GPP TS 29.281).
- *
- * Implementation strategy (verifier-friendly, no loops):
- *   1. Build the 40-byte pseudo-header on the BPF stack and checksum it
- *      with bpf_csum_diff (stack memory, fixed size — always accepted).
- *   2. Copy the UDP datagram from packet memory into the per-CPU
- *      csum_scratch map using bpf_xdp_load_bytes.
- *   3. Checksum the scratch copy with bpf_csum_diff (map memory with a
- *      bounded variable length — accepted by the verifier).
- *
- * Every step is a single BPF helper call; the total verified-instruction
- * cost is O(1) regardless of packet size.
- *
- * @saddr / @daddr: source and destination IPv6 addresses
- * @udp_off: byte offset of the UDP header from the start of the XDP packet
- * @udp_len: length of the UDP datagram (header + payload)
- * @xdp_ctx: the XDP metadata context (needed by bpf_xdp_load_bytes)
- * @returns: the computed UDP checksum (network byte order) as a non-negative
- *           value, or a negative error code on failure.  Note that 0 is a
- *           valid UDP checksum (one's complement of all-ones) and must not
- *           be treated as an error.
- */
-static __always_inline int udpv6_csum(const struct in6_addr *saddr,
-				      const struct in6_addr *daddr,
-				      __u32 udp_off, __u32 udp_len,
-				      struct xdp_md *xdp_ctx)
+// Recompute the full L4 checksum from packet bytes. Safe regardless of
+// CHECKSUM_PARTIAL input state, which a hardware-offload sender (veth,
+// virtio, real NIC) may leave on the wire as a pseudo-header sum.
+//
+// Helpers must run before the l4_len bounds check — otherwise the
+// verifier loses tracked scalar bounds across helper calls.
+__attribute__((noinline, used)) static int
+udpv4_csum(__be32 saddr, __be32 daddr, __u32 udp_off, __u32 udp_len,
+	   struct xdp_md *xdp_ctx)
 {
-	/* Build the IPv6 pseudo-header on the stack (40 bytes) */
+	struct {
+		__be32 src;
+		__be32 dst;
+		__u8 zero;
+		__u8 proto;
+		__be16 len;
+	} __attribute__((packed)) pseudo;
+
+	pseudo.src = saddr;
+	pseudo.dst = daddr;
+	pseudo.zero = 0;
+	pseudo.proto = IPPROTO_UDP;
+	pseudo.len = bpf_htons(udp_len);
+
+	__u64 csum = bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0);
+
+	__u32 key = bpf_get_smp_processor_id();
+	void *scratch = bpf_map_lookup_elem(&csum_scratch, &key);
+	if (!scratch) {
+		upf_printk("upf: could not read scratch buffer");
+		return -1;
+	}
+
+	// Two-sided conditional-assignment clamp: an early return leaves
+	// the verifier without a tracked bound on the value used later by
+	// bpf_xdp_load_bytes. A malformed-short length is clamped to the
+	// header size rather than rejected — produces a wrong checksum
+	// that the receiver drops, no worse than the malformed packet.
+	if (udp_len > MAX_L4_DATAGRAM)
+		udp_len = MAX_L4_DATAGRAM;
+	if (udp_len < sizeof(struct udphdr))
+		udp_len = sizeof(struct udphdr);
+
+	*(__u32 *)(scratch + udp_len) = 0;
+
+	if (bpf_xdp_load_bytes(xdp_ctx, udp_off, scratch, udp_len) < 0) {
+		upf_printk("upf: couldn't load packet into scratch buffer");
+		return -1;
+	}
+
+	__u32 aligned_len = (udp_len + 3) & ~3U;
+	if (aligned_len > CSUM_SCRATCH_SIZE) {
+		upf_printk("upf: bad aligned_len: %d", aligned_len);
+		return -1;
+	}
+
+	csum = bpf_csum_diff(0, 0, (__be32 *)scratch, aligned_len, csum);
+	return csum_fold_helper(csum);
+}
+
+__attribute__((noinline, used)) static int
+tcpv4_csum(__be32 saddr, __be32 daddr, __u32 tcp_off, __u32 tcp_len,
+	   struct xdp_md *xdp_ctx)
+{
+	struct {
+		__be32 src;
+		__be32 dst;
+		__u8 zero;
+		__u8 proto;
+		__be16 len;
+	} __attribute__((packed)) pseudo;
+
+	pseudo.src = saddr;
+	pseudo.dst = daddr;
+	pseudo.zero = 0;
+	pseudo.proto = IPPROTO_TCP;
+	pseudo.len = bpf_htons(tcp_len);
+
+	__u64 csum = bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0);
+
+	__u32 key = bpf_get_smp_processor_id();
+	void *scratch = bpf_map_lookup_elem(&csum_scratch, &key);
+	if (!scratch) {
+		upf_printk("upf: could not read scratch buffer");
+		return -1;
+	}
+
+	if (tcp_len > MAX_L4_DATAGRAM)
+		tcp_len = MAX_L4_DATAGRAM;
+	if (tcp_len < sizeof(struct tcphdr))
+		tcp_len = sizeof(struct tcphdr);
+
+	*(__u32 *)(scratch + tcp_len) = 0;
+
+	if (bpf_xdp_load_bytes(xdp_ctx, tcp_off, scratch, tcp_len) < 0) {
+		upf_printk("upf: couldn't load packet into scratch buffer");
+		return -1;
+	}
+
+	__u32 aligned_len = (tcp_len + 3) & ~3U;
+	if (aligned_len > CSUM_SCRATCH_SIZE) {
+		upf_printk("upf: bad aligned_len: %d", aligned_len);
+		return -1;
+	}
+
+	csum = bpf_csum_diff(0, 0, (__be32 *)scratch, aligned_len, csum);
+	return csum_fold_helper(csum);
+}
+
+__attribute__((noinline, used)) static int
+udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
+	   __u32 udp_off, __u32 udp_len, struct xdp_md *xdp_ctx)
+{
 	struct {
 		struct in6_addr src;
 		struct in6_addr dst;
@@ -194,16 +287,8 @@ static __always_inline int udpv6_csum(const struct in6_addr *saddr,
 	pseudo.zero[2] = 0;
 	pseudo.next_hdr = IPPROTO_UDP;
 
-	/* Checksum the pseudo-header (stack memory, fixed 40 bytes) */
 	__u64 csum = bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0);
 
-	/*
-	 * Look up the per-CPU scratch buffer BEFORE the bounds checks on
-	 * udp_len.  Helper calls (bpf_map_lookup_elem, bpf_csum_diff above)
-	 * can cause the verifier to lose tracked bounds on scalar registers.
-	 * By doing all helpers first and then checking udp_len, the bounds
-	 * are fresh and provable at every subsequent use.
-	 */
 	__u32 key = bpf_get_smp_processor_id();
 	void *scratch = bpf_map_lookup_elem(&csum_scratch, &key);
 	if (!scratch) {
@@ -211,45 +296,23 @@ static __always_inline int udpv6_csum(const struct in6_addr *saddr,
 		return -1;
 	}
 
-	/*
-	 * Clamp udp_len so the verifier can prove it fits in the scratch
-	 * map.  This check MUST come after the last helper call (above)
-	 * so the verifier's bounds knowledge is not clobbered.
-	 */
-	if (udp_len < sizeof(struct udphdr) ||
-	    udp_len > (CSUM_SCRATCH_SIZE - 4)) {
-		upf_printk("upf: bad udp_len: %d", udp_len);
-		return -1;
-	}
+	// Two-sided conditional-assignment clamp: an early return leaves
+	// the verifier without a tracked bound on the value used later by
+	// bpf_xdp_load_bytes. A malformed-short length is clamped to the
+	// header size rather than rejected — produces a wrong checksum
+	// that the receiver drops, no worse than the malformed packet.
+	if (udp_len > MAX_L4_DATAGRAM)
+		udp_len = MAX_L4_DATAGRAM;
+	if (udp_len < sizeof(struct udphdr))
+		udp_len = sizeof(struct udphdr);
 
-	/*
-	 * Zero a 4-byte word at offset udp_len in the scratch buffer.
-	 * When udp_len is not a multiple of 4, this clears the 1-3
-	 * padding bytes that bpf_csum_diff would otherwise read as stale
-	 * data.  When udp_len IS a multiple of 4, this harmlessly zeros
-	 * bytes outside the checksum range.
-	 *
-	 * The verifier knows 8 <= udp_len <= (CSUM_SCRATCH_SIZE - 4) (65536),
-	 * so the write accesses [udp_len, udp_len + 4) which is within
-	 * [8, 65540) ⊆ [0, CSUM_SCRATCH_SIZE).  No subtraction or AND
-	 * arithmetic is involved, so there are no tnum precision issues.
-	 */
 	*(__u32 *)(scratch + udp_len) = 0;
 
-	/* Copy the UDP datagram from packet memory into the scratch buffer */
 	if (bpf_xdp_load_bytes(xdp_ctx, udp_off, scratch, udp_len) < 0) {
 		upf_printk("upf: couldn't load packet into scratch buffer");
 		return -1;
 	}
 
-	/*
-	 * Checksum the scratch copy.  bpf_csum_diff reads in 4-byte words,
-	 * so round up to the next multiple of 4.  The AND operation can
-	 * cause the verifier's tnum tracking to overestimate the max value,
-	 * and the preceding bpf_xdp_load_bytes helper may have clobbered
-	 * the verifier's bounds on udp_len.  The explicit check gives the
-	 * verifier a fresh, provable upper bound on aligned_len.
-	 */
 	__u32 aligned_len = (udp_len + 3) & ~3U;
 	if (aligned_len > CSUM_SCRATCH_SIZE) {
 		upf_printk("upf: bad aligned_len: %d", aligned_len);
@@ -257,7 +320,57 @@ static __always_inline int udpv6_csum(const struct in6_addr *saddr,
 	}
 
 	csum = bpf_csum_diff(0, 0, (__be32 *)scratch, aligned_len, csum);
+	return csum_fold_helper(csum);
+}
 
+__attribute__((noinline, used)) static int
+tcpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
+	   __u32 tcp_off, __u32 tcp_len, struct xdp_md *xdp_ctx)
+{
+	struct {
+		struct in6_addr src;
+		struct in6_addr dst;
+		__be32 upper_len;
+		__u8 zero[3];
+		__u8 next_hdr;
+	} pseudo;
+
+	__builtin_memcpy(&pseudo.src, saddr, sizeof(struct in6_addr));
+	__builtin_memcpy(&pseudo.dst, daddr, sizeof(struct in6_addr));
+	pseudo.upper_len = bpf_htonl(tcp_len);
+	pseudo.zero[0] = 0;
+	pseudo.zero[1] = 0;
+	pseudo.zero[2] = 0;
+	pseudo.next_hdr = IPPROTO_TCP;
+
+	__u64 csum = bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0);
+
+	__u32 key = bpf_get_smp_processor_id();
+	void *scratch = bpf_map_lookup_elem(&csum_scratch, &key);
+	if (!scratch) {
+		upf_printk("upf: could not read scratch buffer");
+		return -1;
+	}
+
+	if (tcp_len > MAX_L4_DATAGRAM)
+		tcp_len = MAX_L4_DATAGRAM;
+	if (tcp_len < sizeof(struct tcphdr))
+		tcp_len = sizeof(struct tcphdr);
+
+	*(__u32 *)(scratch + tcp_len) = 0;
+
+	if (bpf_xdp_load_bytes(xdp_ctx, tcp_off, scratch, tcp_len) < 0) {
+		upf_printk("upf: couldn't load packet into scratch buffer");
+		return -1;
+	}
+
+	__u32 aligned_len = (tcp_len + 3) & ~3U;
+	if (aligned_len > CSUM_SCRATCH_SIZE) {
+		upf_printk("upf: bad aligned_len: %d", aligned_len);
+		return -1;
+	}
+
+	csum = bpf_csum_diff(0, 0, (__be32 *)scratch, aligned_len, csum);
 	return csum_fold_helper(csum);
 }
 

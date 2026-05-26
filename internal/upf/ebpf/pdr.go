@@ -62,9 +62,9 @@ func (bpfObjects *BpfObjects) PutPdrDownlink(addr netip.Addr, pdrInfo PdrInfo) e
 		return bpfObjects.PdrsDownlinkIp4.Put(key, unsafe.Pointer(&pdrToStore))
 	}
 
-	key := addr.As16()
+	prefix := addr.As16()
 
-	return bpfObjects.PdrsDownlinkIp6.Put(key, unsafe.Pointer(&pdrToStore))
+	return bpfObjects.PdrsDownlinkIp6.Put(prefix, unsafe.Pointer(&pdrToStore))
 }
 
 func (bpfObjects *BpfObjects) DeletePdrUplink(teid uint32) error {
