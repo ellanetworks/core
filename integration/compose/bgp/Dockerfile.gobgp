@@ -1,0 +1,16 @@
+FROM golang:1.24-bookworm AS builder
+
+RUN go install github.com/osrg/gobgp/v4/cmd/gobgpd@latest && \
+    go install github.com/osrg/gobgp/v4/cmd/gobgp@latest
+
+FROM debian:bookworm-slim
+
+RUN apt-get update -qq && \
+    apt-get install -y -qq --no-install-recommends iproute2 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /go/bin/gobgpd /usr/local/bin/gobgpd
+COPY --from=builder /go/bin/gobgp /usr/local/bin/gobgp
+
+ENTRYPOINT ["gobgpd"]
+CMD ["-f", "/etc/gobgp/gobgpd.conf", "--log-level=info"]
