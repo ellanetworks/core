@@ -14,7 +14,7 @@ import (
 
 func InTaiList(servedTai models.Tai, taiList []models.Tai) bool {
 	for _, tai := range taiList {
-		if tai.Tac == servedTai.Tac && plmnIDEqual(tai.PlmnID, servedTai.PlmnID) {
+		if tai.Tac == servedTai.Tac && PlmnIDEqual(tai.PlmnID, servedTai.PlmnID) {
 			return true
 		}
 	}
@@ -22,7 +22,7 @@ func InTaiList(servedTai models.Tai, taiList []models.Tai) bool {
 	return false
 }
 
-func plmnIDEqual(a, b *models.PlmnID) bool {
+func PlmnIDEqual(a, b *models.PlmnID) bool {
 	if a == b {
 		return true
 	}
@@ -32,6 +32,16 @@ func plmnIDEqual(a, b *models.PlmnID) bool {
 	}
 
 	return a.Mcc == b.Mcc && a.Mnc == b.Mnc
+}
+
+func AnyPLMNMatch(supportedTAIs []SupportedTAI, operatorPLMN *models.PlmnID) bool {
+	for _, tai := range supportedTAIs {
+		if PlmnIDEqual(tai.Tai.PlmnID, operatorPLMN) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func AttachSourceUeTargetUe(sourceUe, targetUe *RanUe) error {

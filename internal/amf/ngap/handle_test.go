@@ -67,8 +67,10 @@ func getSliceInBytes(sst int32, sd string) ([]byte, []byte, error) {
 }
 
 type FakeDBInstance struct {
-	Operator *db.Operator
-	Slices   []db.NetworkSlice
+	Operator    *db.Operator
+	OperatorErr error
+	Slices      []db.NetworkSlice
+	SlicesErr   error
 }
 
 type SmfPathSwitchCall struct {
@@ -166,6 +168,10 @@ func (f *FakeSmfSbi) UpdateSmContextN2HandoverPrepared(_ context.Context, _ stri
 }
 
 func (fdb *FakeDBInstance) GetOperator(ctx context.Context) (*db.Operator, error) {
+	if fdb.OperatorErr != nil {
+		return nil, fdb.OperatorErr
+	}
+
 	return fdb.Operator, nil
 }
 
@@ -200,6 +206,10 @@ func (fdb *FakeDBInstance) GetProfileByID(ctx context.Context, id string) (*db.P
 }
 
 func (fdb *FakeDBInstance) ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error) {
+	if fdb.SlicesErr != nil {
+		return nil, fdb.SlicesErr
+	}
+
 	if fdb.Slices != nil {
 		return fdb.Slices, nil
 	}
