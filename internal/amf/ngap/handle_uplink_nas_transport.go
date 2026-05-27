@@ -53,7 +53,7 @@ func sendStatus5GMM(ctx context.Context, ranUe *amf.RanUe, cause uint8) {
 	pdu := []byte{
 		0x7e,  // EPD: 5GS Mobility Management
 		0x00,  // Security header: plain NAS
-		0x6d,  // Message type: 5GMM STATUS
+		0x64,  // Message type: 5GMM STATUS (MsgTypeStatus5GMM = 100)
 		cause, // 5GMM cause
 	}
 

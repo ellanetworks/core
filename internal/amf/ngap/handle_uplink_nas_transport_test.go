@@ -147,8 +147,8 @@ func TestHandleUplinkNasTransport_NASError_SendsStatus5GMM(t *testing.T) {
 		t.Fatalf("NAS PDU too short: %d bytes", len(nasPdu))
 	}
 
-	if nasPdu[2] != 0x6d {
-		t.Errorf("NAS message type = 0x%02x, want 0x6d (5GMM STATUS)", nasPdu[2])
+	if nasPdu[2] != 0x64 {
+		t.Errorf("NAS message type = 0x%02x, want 0x64 (5GMM STATUS)", nasPdu[2])
 	}
 
 	if nasPdu[3] != 0x6f {
