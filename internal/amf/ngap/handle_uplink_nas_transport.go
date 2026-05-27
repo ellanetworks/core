@@ -4,15 +4,19 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
 )
 
 func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.UplinkNASTransport) {
 	ranUe := ran.FindUEByRanUeNgapID(msg.RANUENGAPID)
 	if ranUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("ran ue is nil", zap.Int64("ranUeNgapID", msg.RANUENGAPID))
+		logger.WithTrace(ctx, ran.Log).Error("unknown RAN UE NGAP ID in UplinkNASTransport", zap.Int64("ranUeNgapID", msg.RANUENGAPID))
+		sendUnknownLocalUEError(ctx, ran)
+
 		return
 	}
 
@@ -42,5 +46,18 @@ func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 	err := amfInstance.NAS.HandleNAS(ctx, ranUe, msg.NASPDU)
 	if err != nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("error handling NAS message", zap.Error(err))
+		sendStatus5GMM(ctx, ranUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
+	}
+}
+
+func sendStatus5GMM(ctx context.Context, ranUe *amf.RanUe, cause uint8) {
+	pdu, err := message.BuildStatus5GMM(cause)
+	if err != nil {
+		logger.WithTrace(ctx, ranUe.Log).Error("failed to build 5GMM STATUS", zap.Error(err))
+		return
+	}
+
+	if err := ranUe.SendDownlinkNasTransport(ctx, pdu, nil); err != nil {
+		logger.WithTrace(ctx, ranUe.Log).Error("failed to send 5GMM STATUS", zap.Error(err))
 	}
 }

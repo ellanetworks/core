@@ -527,3 +527,20 @@ func encodeNetworkName(name string) []byte {
 
 	return buf
 }
+
+func BuildStatus5GMM(cause uint8) ([]byte, error) {
+	m := nas.NewMessage()
+	m.GmmMessage = nas.NewGmmMessage()
+	m.GmmHeader.SetMessageType(nas.MsgTypeStatus5GMM)
+
+	status := nasMessage.NewStatus5GMM(0)
+	status.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSMobilityManagementMessage)
+	status.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
+	status.SetSpareHalfOctet(0)
+	status.SetMessageType(nas.MsgTypeStatus5GMM)
+	status.SetCauseValue(cause)
+
+	m.Status5GMM = status
+
+	return m.PlainNasEncode()
+}
