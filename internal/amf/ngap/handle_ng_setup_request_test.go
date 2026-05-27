@@ -281,8 +281,8 @@ func TestHandleNGSetupRequest_NGSetupFailure_gNodeBSupportsDifferentTAC(t *testi
 		t.Fatalf("expected Cause Present to be Miscellaneous, but got %v", cause.Present)
 	}
 
-	if cause.Misc.Value != ngapType.CauseMiscPresentUnknownPLMN {
-		t.Errorf("expected Cause Miscellaneous Value to be CauseMiscPresentUnknownPLMN, but got %v", cause.Misc.Value)
+	if cause.Misc.Value != ngapType.CauseMiscPresentUnspecified {
+		t.Errorf("expected CauseMiscPresentUnspecified for TAC mismatch, got %v", cause.Misc.Value)
 	}
 
 	if ran.RanID != nil {
@@ -543,5 +543,173 @@ func TestHandleNGSetupRequest_ResponseContainsAllConfiguredSlices(t *testing.T) 
 		if response.SnssaiList[i].Sd != expected.sd {
 			t.Errorf("SnssaiList[%d]: expected SD %q, got %q", i, expected.sd, response.SnssaiList[i].Sd)
 		}
+	}
+}
+
+func TestHandleNGSetupRequest_NGSetupFailure_PLMNMismatch(t *testing.T) {
+	fakeNGAPSender := &FakeNGAPSender{}
+
+	ran := &amf.Radio{
+		Log:           logger.AmfLog,
+		NGAPSender:    fakeNGAPSender,
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
+	}
+
+	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
+		Name:  "TestRAN",
+		GnbID: "ABCDE1",
+		ID:    12345,
+		Mcc:   "310",
+		Mnc:   "410",
+		Tac:   "000064",
+		Sst:   1,
+	})
+	if err != nil {
+		t.Fatalf("failed to build NGSetupRequest: %v", err)
+	}
+
+	op := &db.Operator{Mcc: "001", Mnc: "01"}
+
+	err = op.SetSupportedTacs([]string{"000064"})
+	if err != nil {
+		t.Fatalf("failed to set supported TACs: %v", err)
+	}
+
+	amfInstance := amf.New(&FakeDBInstance{Operator: op}, nil, nil)
+
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
+
+	if len(fakeNGAPSender.SentNGSetupFailures) != 1 {
+		t.Fatalf("expected 1 NGSetupFailure, got %d", len(fakeNGAPSender.SentNGSetupFailures))
+	}
+
+	cause := fakeNGAPSender.SentNGSetupFailures[0].Cause
+	if cause.Present != ngapType.CausePresentMisc || cause.Misc.Value != ngapType.CauseMiscPresentUnknownPLMN {
+		t.Errorf("expected UnknownPLMN cause for PLMN mismatch, got present=%d misc=%d", cause.Present, cause.Misc.Value)
+	}
+}
+
+func TestHandleNGSetupRequest_DBFailure_SendsNGSetupFailure(t *testing.T) {
+	fakeNGAPSender := &FakeNGAPSender{}
+
+	ran := &amf.Radio{
+		Log:           logger.AmfLog,
+		NGAPSender:    fakeNGAPSender,
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
+	}
+
+	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
+		Name:  "TestRAN",
+		GnbID: "ABCDE1",
+		ID:    12345,
+		Mcc:   "001",
+		Mnc:   "01",
+		Tac:   "000064",
+		Sst:   1,
+	})
+	if err != nil {
+		t.Fatalf("failed to build NGSetupRequest: %v", err)
+	}
+
+	amfInstance := amf.New(&FakeDBInstance{
+		OperatorErr: fmt.Errorf("database unavailable"),
+	}, nil, nil)
+
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
+
+	if len(fakeNGAPSender.SentNGSetupFailures) != 1 {
+		t.Fatalf("expected NGSetupFailure on DB error, got %d", len(fakeNGAPSender.SentNGSetupFailures))
+	}
+
+	cause := fakeNGAPSender.SentNGSetupFailures[0].Cause
+	if cause.Present != ngapType.CausePresentMisc || cause.Misc.Value != ngapType.CauseMiscPresentUnspecified {
+		t.Errorf("expected Unspecified cause on DB failure, got present=%d misc=%d", cause.Present, cause.Misc.Value)
+	}
+}
+
+func TestHandleNGSetupRequest_SliceDBFailure_SendsNGSetupFailure(t *testing.T) {
+	fakeNGAPSender := &FakeNGAPSender{}
+
+	ran := &amf.Radio{
+		Log:           logger.AmfLog,
+		NGAPSender:    fakeNGAPSender,
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
+	}
+
+	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
+		Name:  "TestRAN",
+		GnbID: "ABCDE1",
+		ID:    12345,
+		Mcc:   "001",
+		Mnc:   "01",
+		Tac:   "000064",
+		Sst:   1,
+	})
+	if err != nil {
+		t.Fatalf("failed to build NGSetupRequest: %v", err)
+	}
+
+	op := &db.Operator{Mcc: "001", Mnc: "01"}
+
+	err = op.SetSupportedTacs([]string{"000064"})
+	if err != nil {
+		t.Fatalf("failed to set supported TACs: %v", err)
+	}
+
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator:  op,
+		SlicesErr: fmt.Errorf("slice query failed"),
+	}, nil, nil)
+
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
+
+	if len(fakeNGAPSender.SentNGSetupFailures) != 1 {
+		t.Fatalf("expected NGSetupFailure on slice DB error, got %d", len(fakeNGAPSender.SentNGSetupFailures))
+	}
+}
+
+func TestHandleNGSetupRequest_NoSliceOverlap_SucceedsWithWarning(t *testing.T) {
+	fakeNGAPSender := &FakeNGAPSender{}
+
+	ran := &amf.Radio{
+		Log:           logger.AmfLog,
+		NGAPSender:    fakeNGAPSender,
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
+	}
+
+	msg, err := buildNGSetupRequest(&NGSetupRequestOpts{
+		Name:  "TestRAN",
+		GnbID: "ABCDE1",
+		ID:    12345,
+		Mcc:   "001",
+		Mnc:   "01",
+		Tac:   "000064",
+		Sst:   2,
+	})
+	if err != nil {
+		t.Fatalf("failed to build NGSetupRequest: %v", err)
+	}
+
+	op := &db.Operator{Mcc: "001", Mnc: "01"}
+
+	err = op.SetSupportedTacs([]string{"000064"})
+	if err != nil {
+		t.Fatalf("failed to set supported TACs: %v", err)
+	}
+
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: op,
+		Slices:   []db.NetworkSlice{{ID: "s1", Name: "eMBB", Sst: 1}},
+	}, nil, nil)
+	amfInstance.Name = "ella-core"
+
+	ngap.HandleNGSetupRequest(context.Background(), amfInstance, ran, decodeNGSetupRequestOrFatal(t, msg))
+
+	if len(fakeNGAPSender.SentNGSetupResponses) != 1 {
+		t.Fatalf("expected NGSetupResponse even with no slice overlap, got %d responses", len(fakeNGAPSender.SentNGSetupResponses))
+	}
+
+	if len(fakeNGAPSender.SentNGSetupFailures) != 0 {
+		t.Errorf("expected no NGSetupFailure for slice mismatch, got %d", len(fakeNGAPSender.SentNGSetupFailures))
 	}
 }

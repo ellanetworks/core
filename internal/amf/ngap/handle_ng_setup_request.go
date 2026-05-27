@@ -66,34 +66,53 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	operatorInfo, err := amfInstance.GetOperatorInfo(ctx)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("Could not get operator info", zap.Error(err))
+
+		_ = ran.NGAPSender.SendNGSetupFailure(ctx, &ngapType.Cause{
+			Present: ngapType.CausePresentMisc,
+			Misc:    &ngapType.CauseMisc{Value: ngapType.CauseMiscPresentUnspecified},
+		})
+
 		return
 	}
 
-	var found bool
-
-	for i, tai := range ran.SupportedTAIs {
-		if amf.InTaiList(tai.Tai, operatorInfo.Tais) {
-			logger.WithTrace(ctx, ran.Log).Debug("Found served TAI in Core", zap.Any("served_tai", tai.Tai), zap.Int("index", i))
-
-			found = true
-
-			break
-		}
-	}
-
-	if !found {
+	if !amf.AnyPLMNMatch(ran.SupportedTAIs, operatorInfo.Guami.PlmnID) {
 		err := ran.NGAPSender.SendNGSetupFailure(ctx, &ngapType.Cause{
 			Present: ngapType.CausePresentMisc,
-			Misc: &ngapType.CauseMisc{
-				Value: ngapType.CauseMiscPresentUnknownPLMN,
-			},
+			Misc:    &ngapType.CauseMisc{Value: ngapType.CauseMiscPresentUnknownPLMN},
 		})
 		if err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("error sending NG Setup Failure", zap.Error(err))
 			return
 		}
 
-		logger.WithTrace(ctx, ran.Log).Warn("Could not find Served TAI in Core", zap.Any("gnb_tai_list", ran.SupportedTAIs), zap.Any("core_tai_list", operatorInfo.Tais))
+		logger.WithTrace(ctx, ran.Log).Warn("No broadcast PLMN matches operator", zap.Any("gnb_tai_list", ran.SupportedTAIs), zap.Any("operator_plmn", operatorInfo.Guami.PlmnID))
+
+		return
+	}
+
+	var taiFound bool
+
+	for i, tai := range ran.SupportedTAIs {
+		if amf.InTaiList(tai.Tai, operatorInfo.Tais) {
+			logger.WithTrace(ctx, ran.Log).Debug("Found served TAI in Core", zap.Any("served_tai", tai.Tai), zap.Int("index", i))
+
+			taiFound = true
+
+			break
+		}
+	}
+
+	if !taiFound {
+		err := ran.NGAPSender.SendNGSetupFailure(ctx, &ngapType.Cause{
+			Present: ngapType.CausePresentMisc,
+			Misc:    &ngapType.CauseMisc{Value: ngapType.CauseMiscPresentUnspecified},
+		})
+		if err != nil {
+			logger.WithTrace(ctx, ran.Log).Error("error sending NG Setup Failure", zap.Error(err))
+			return
+		}
+
+		logger.WithTrace(ctx, ran.Log).Warn("PLMN matches but no served TAC found", zap.Any("gnb_tai_list", ran.SupportedTAIs), zap.Any("core_tai_list", operatorInfo.Tais))
 
 		return
 	}
@@ -101,7 +120,41 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	snssaiList, err := amfInstance.ListOperatorSnssai(ctx)
 	if err != nil {
 		logger.WithTrace(ctx, ran.Log).Error("Could not list operator SNSSAI", zap.Error(err))
+
+		_ = ran.NGAPSender.SendNGSetupFailure(ctx, &ngapType.Cause{
+			Present: ngapType.CausePresentMisc,
+			Misc:    &ngapType.CauseMisc{Value: ngapType.CauseMiscPresentUnspecified},
+		})
+
 		return
+	}
+
+	hasSliceOverlap := false
+
+	for _, tai := range ran.SupportedTAIs {
+		for _, gnbSlice := range tai.SNssaiList {
+			for _, coreSlice := range snssaiList {
+				if gnbSlice.Equal(coreSlice) {
+					hasSliceOverlap = true
+
+					break
+				}
+			}
+
+			if hasSliceOverlap {
+				break
+			}
+		}
+
+		if hasSliceOverlap {
+			break
+		}
+	}
+
+	if !hasSliceOverlap {
+		logger.WithTrace(ctx, ran.Log).Warn("gNB advertises no S-NSSAIs overlapping with operator",
+			zap.Any("gnb_tai_list", ran.SupportedTAIs),
+			zap.Any("core_slices", snssaiList))
 	}
 
 	// Claim RanID only after validation passes; the dispatcher's

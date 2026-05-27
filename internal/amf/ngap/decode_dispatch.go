@@ -12,21 +12,21 @@ import (
 	"go.uber.org/zap"
 )
 
-// handleDecodeReport sends an ErrorIndication for any items in report
-// and returns false iff report.Fatal(), in which case the dispatcher
-// must skip the handler.
+// handleDecodeReport sends ErrorIndication for fatal decode errors and
+// returns false so the dispatcher skips the handler. Non-fatal errors
+// (ignore-criticality) are logged without sending ErrorIndication.
 func handleDecodeReport(ctx context.Context, ran *amf.Radio, report *decode.Report) bool {
 	if !report.HasItems() {
 		return true
 	}
 
-	cd := report.ToCriticalityDiagnostics()
-
-	if err := ran.NGAPSender.SendErrorIndication(ctx, nil, &cd); err != nil {
-		logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
-	}
-
 	if report.Fatal() {
+		cd := report.ToCriticalityDiagnostics()
+
+		if err := ran.NGAPSender.SendErrorIndication(ctx, nil, &cd); err != nil {
+			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
+		}
+
 		logger.WithTrace(ctx, ran.Log).Error("fatal NGAP decode error",
 			zap.Int64("procedureCode", report.ProcedureCode),
 			zap.Int("ieErrors", len(report.Items)))
@@ -34,7 +34,7 @@ func handleDecodeReport(ctx context.Context, ran *amf.Radio, report *decode.Repo
 		return false
 	}
 
-	logger.WithTrace(ctx, ran.Log).Warn("non-fatal NGAP decode error",
+	logger.WithTrace(ctx, ran.Log).Warn("non-fatal NGAP decode error, ignoring",
 		zap.Int64("procedureCode", report.ProcedureCode),
 		zap.Int("ieErrors", len(report.Items)))
 
