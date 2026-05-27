@@ -6,8 +6,10 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapConvert"
 	"go.uber.org/zap"
 )
@@ -100,6 +102,21 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	err := amfInstance.NAS.HandleNAS(ctx, ranUe, msg.NASPDU)
 	if err != nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("error handling NAS Message", zap.Error(err))
+		sendRegistrationRejectOnError(ctx, ranUe)
+
 		return
+	}
+}
+
+// TS 24.501 §5.5.1.2.8 case (b): protocol error in REGISTRATION REQUEST.
+func sendRegistrationRejectOnError(ctx context.Context, ranUe *amf.RanUe) {
+	rejectPdu, err := message.BuildRegistrationReject(0, nasMessage.Cause5GMMProtocolErrorUnspecified)
+	if err != nil {
+		logger.WithTrace(ctx, ranUe.Log).Error("failed to build registration reject", zap.Error(err))
+		return
+	}
+
+	if err := ranUe.SendDownlinkNasTransport(ctx, rejectPdu, nil); err != nil {
+		logger.WithTrace(ctx, ranUe.Log).Error("failed to send registration reject", zap.Error(err))
 	}
 }

@@ -302,6 +302,12 @@ type HandoverCancelAcknowledge struct {
 	RanUeNgapID int64
 }
 
+type DownlinkNASTransportMsg struct {
+	AmfUeNgapID int64
+	RanUeNgapID int64
+	NasPdu      []byte
+}
+
 type FakeNGAPSender struct {
 	SentNGSetupFailures                []*NGSetupFailure
 	SentNGSetupResponses               []*NGSetupResponse
@@ -318,6 +324,7 @@ type FakeNGAPSender struct {
 	SentRanConfigurationUpdateFailures []*RanConfigurationUpdateFailure
 	SentDownlinkRanConfigTransfers     []*ngapType.SONConfigurationTransfer
 	SentPDUSessionModifyConfirms       []PDUSessionModifyConfirm
+	SentDownlinkNASTransport           []*DownlinkNASTransportMsg
 }
 
 type PDUSessionModifyConfirm struct {
@@ -419,6 +426,12 @@ func (fng *FakeNGAPSender) SendUEContextReleaseCommand(
 }
 
 func (fng *FakeNGAPSender) SendDownlinkNasTransport(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, nasPdu []byte, mobilityRestrictionList *ngapType.MobilityRestrictionList) error {
+	fng.SentDownlinkNASTransport = append(fng.SentDownlinkNASTransport, &DownlinkNASTransportMsg{
+		AmfUeNgapID: amfUeNgapID,
+		RanUeNgapID: ranUeNgapID,
+		NasPdu:      nasPdu,
+	})
+
 	return nil
 }
 

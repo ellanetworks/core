@@ -281,7 +281,7 @@ func TestHandleInitialUEMessage_RegisteredUE_DoesNotPanic(t *testing.T) {
 	}
 }
 
-func TestHandleInitialUEMessage_NASReturnsError(t *testing.T) {
+func TestHandleInitialUEMessage_NASReturnsError_SendsRegistrationReject(t *testing.T) {
 	fakeNAS := &FakeNASHandler{Err: errors.New("nas decode failed")}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 
@@ -297,8 +297,21 @@ func TestHandleInitialUEMessage_NASReturnsError(t *testing.T) {
 		t.Fatalf("NAS calls = %d, want 1", len(fakeNAS.Calls))
 	}
 
-	// Verify no downstream side effects: ran still has the UE
-	if ran.RanUEs[1] == nil {
-		t.Error("RanUe should still exist after NAS error")
+	sender := ran.NGAPSender.(*FakeNGAPSender)
+	if len(sender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("DownlinkNASTransport sent = %d, want 1", len(sender.SentDownlinkNASTransport))
+	}
+
+	nasPdu := sender.SentDownlinkNASTransport[0].NasPdu
+	if len(nasPdu) < 4 {
+		t.Fatalf("NAS PDU too short: %d bytes", len(nasPdu))
+	}
+
+	if nasPdu[2] != 0x44 {
+		t.Errorf("NAS message type = 0x%02x, want 0x44 (RegistrationReject)", nasPdu[2])
+	}
+
+	if nasPdu[3] != 0x6f {
+		t.Errorf("5GMM cause = 0x%02x, want 0x6f (protocol error unspecified)", nasPdu[3])
 	}
 }
