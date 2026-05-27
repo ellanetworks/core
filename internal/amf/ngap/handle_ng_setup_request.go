@@ -130,6 +130,7 @@ func HandleNGSetupRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 	}
 
 	hasSliceOverlap := false
+
 	for _, tai := range ran.SupportedTAIs {
 		for _, gnbSlice := range tai.SNssaiList {
 			for _, coreSlice := range snssaiList {
