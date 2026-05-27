@@ -8,6 +8,10 @@ on:
 
 jobs:
   integration-test-bgp:
+    strategy:
+      fail-fast: false
+      matrix:
+        ip_version: [ipv4, ipv6]
     runs-on: ubuntu-24.04
 
     steps:
@@ -45,13 +49,13 @@ jobs:
 
       - name: Run BGP integration tests
         run: |
-          INTEGRATION=1 go test ./integration/... -run TestIntegrationBGP -timeout 15m -v
+          INTEGRATION=1 IP_VERSION=${{ matrix.ip_version }} go test ./integration/... -run TestIntegrationBGP -timeout 15m -v
 
       - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: integration-bgp-logs
+          name: integration-bgp-logs-${{ matrix.ip_version }}
           path: ${{ runner.temp }}/bgp-logs
           if-no-files-found: ignore
           retention-days: 7
