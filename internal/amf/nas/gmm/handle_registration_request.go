@@ -259,7 +259,7 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 	state := ue.GetState()
 
 	switch state {
-	case amf.Deregistered, amf.Registered:
+	case amf.Deregistered, amf.Registered, amf.Authentication:
 		if err := handleRegistrationRequestMessage(ctx, amfInstance, ue, msg.RegistrationRequest); err != nil {
 			return fmt.Errorf("failed handling registration request: %v", err)
 		}

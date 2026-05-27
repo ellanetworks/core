@@ -620,7 +620,7 @@ func TestHandleRegistrationRequest_UEStateContextSetup_ResetToDeregistered(t *te
 // TestHandleRegistrationRequest_UEStateAuthentication_Error validates that
 // a registration request for a UE in the middle of an Authentication procedure
 // triggers an error.
-func TestHandleRegistrationRequest_UEStateAuthentication_Error(t *testing.T) {
+func TestHandleRegistrationRequest_UEStateAuthentication_RestartsRegistration(t *testing.T) {
 	ctx := context.TODO()
 	amfInstance := amf.New(&FakeDBInstance{
 		Operator: &db.Operator{
@@ -628,13 +628,22 @@ func TestHandleRegistrationRequest_UEStateAuthentication_Error(t *testing.T) {
 			Mnc:           "01",
 			SupportedTACs: "[\"000001\"]",
 		},
-	}, nil, nil)
+	}, &FakeAusf{
+		AvKgAka: &ausf.AuthResult{
+			Rand: hex.EncodeToString(make([]byte, 16)),
+			Autn: hex.EncodeToString(make([]byte, 16)),
+		},
+		Supi:  mustSUPIFromPrefixed("imsi-001019756139935"),
+		Kseaf: "testkey",
+	}, nil)
 
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not create UE and radio: %v", err)
 	}
 
+	ue.Suci = "testsuci"
+	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	ue.ForceState(amf.Authentication)
 
 	m, err := buildTestRegistrationRequestMessage(0, nil, 0)
@@ -643,12 +652,25 @@ func TestHandleRegistrationRequest_UEStateAuthentication_Error(t *testing.T) {
 	}
 
 	err = handleRegistrationRequest(ctx, amfInstance, ue, m)
-	if err == nil {
-		t.Fatalf("registration request in state Authentication should return an error")
+	if err != nil {
+		t.Fatalf("registration request in state Authentication should restart, got: %v", err)
 	}
 
-	if len(ngapSender.SentDownlinkNASTransport) != 0 {
-		t.Fatalf("should not have sent a Downlink NAS Transport message")
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("should have sent a Downlink NAS Transport message (AuthenticationRequest), got %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	resp := ngapSender.SentDownlinkNASTransport[0]
+	nm := new(nas.Message)
+	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+
+	err = nm.PlainNasDecode(&resp.NasPdu)
+	if err != nil {
+		t.Fatalf("could not decode NAS message: %v", err)
+	}
+
+	if nm.GmmHeader.GetMessageType() != nas.MsgTypeAuthenticationRequest {
+		t.Fatalf("expected AuthenticationRequest, got message type %d", nm.GmmHeader.GetMessageType())
 	}
 }
 
