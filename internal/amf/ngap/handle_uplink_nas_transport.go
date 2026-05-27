@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/free5gc/nas/nasMessage"
@@ -50,11 +51,10 @@ func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 }
 
 func sendStatus5GMM(ctx context.Context, ranUe *amf.RanUe, cause uint8) {
-	pdu := []byte{
-		0x7e,  // EPD: 5GS Mobility Management
-		0x00,  // Security header: plain NAS
-		0x64,  // Message type: 5GMM STATUS (MsgTypeStatus5GMM = 100)
-		cause, // 5GMM cause
+	pdu, err := message.BuildStatus5GMM(cause)
+	if err != nil {
+		logger.WithTrace(ctx, ranUe.Log).Error("failed to build 5GMM STATUS", zap.Error(err))
+		return
 	}
 
 	if err := ranUe.SendDownlinkNasTransport(ctx, pdu, nil); err != nil {
