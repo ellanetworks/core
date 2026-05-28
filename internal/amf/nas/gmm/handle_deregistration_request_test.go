@@ -26,7 +26,7 @@ func TestHandleRegeristrationRequest(t *testing.T) {
 
 			expected := fmt.Sprintf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", tc)
 
-			err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, nil)
+			err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, nil, false)
 			if err == nil || err.Error() != expected {
 				t.Fatalf("expected error: %s, got: %v", expected, err)
 			}
@@ -68,7 +68,7 @@ func TestHandleRegistrationRequest_AllSmContextAreReleased(t *testing.T) {
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
-	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration)
+	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, false)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -91,11 +91,11 @@ func TestHandleDeregistrationRequest_NilRanUE(t *testing.T) {
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.DetachRanUe(nil)
+	ue.ReleaseNasConnection(nil)
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
-	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration)
+	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, false)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestHandleDeregistrationRequest_NotSwitchOff_DeregistrationAccept(t *testin
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
-	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration)
+	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, false)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -161,7 +161,7 @@ func TestHandleDeregistrationRequest_SwitchOff_NoDeregistrationAccept(t *testing
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 	m.DeregistrationRequestUEOriginatingDeregistration.SetSwitchOff(1)
 
-	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration)
+	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, false)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -185,12 +185,11 @@ func TestHandleDeregistrationRequest_MacFailed_RejectsForgery(t *testing.T) {
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.SecurityContextAvailable = true
-	ue.MacFailed = true
+	ue.Current().SecurityContextAvailable = true
 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 
-	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration)
+	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, true)
 	if err == nil {
 		t.Fatal("expected handler to reject unauthenticated deregistration, got nil error")
 	}
@@ -211,7 +210,7 @@ func TestHandleDeregistrationRequest_MacFailed_RejectsForgery(t *testing.T) {
 		t.Fatalf("UE must remain Registered after rejecting forgery, got %s", ue.GetState())
 	}
 
-	if !ue.SecurityContextAvailable {
+	if !ue.Current().SecurityContextAvailable {
 		t.Error("handler must not tear down SecurityContextAvailable on a forged request")
 	}
 }
@@ -227,7 +226,7 @@ func TestHandleDeregistrationRequest_Non3GPP_DeregistrationAccept(t *testing.T) 
 	m := buildTestDeregistrationRequestUEOriginatingDeregistrationMessage()
 	m.DeregistrationRequestUEOriginatingDeregistration.SetAccessType(nasMessage.AccessTypeNon3GPP)
 
-	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration)
+	err = handleDeregistrationRequestUEOriginatingDeregistration(t.Context(), ue, m.DeregistrationRequestUEOriginatingDeregistration, false)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}

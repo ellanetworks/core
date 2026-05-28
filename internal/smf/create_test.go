@@ -227,3 +227,43 @@ func TestNegotiatePDUSessionType_CauseForDowngrade(t *testing.T) {
 		}
 	}
 }
+
+// TestPDUSessionTypeRejectCause covers TS 24.501 §6.4.1.4.1 — the 5GSM cause
+// the SMF puts into a PDU SESSION ESTABLISHMENT REJECT when the requested
+// PDU session type cannot be served.
+func TestPDUSessionTypeRejectCause(t *testing.T) {
+	const (
+		typeIPv4         = nasMessage.PDUSessionTypeIPv4
+		typeIPv6         = nasMessage.PDUSessionTypeIPv6
+		typeIPv4v6       = nasMessage.PDUSessionTypeIPv4IPv6
+		typeUnstructured = uint8(4)
+		typeEthernet     = uint8(3)
+	)
+
+	tests := []struct {
+		name      string
+		requested uint8
+		ipv4Pool  string
+		ipv6Pool  string
+		want      uint8
+	}{
+		{"IPv6 requested + IPv4-only pool", typeIPv6, "10.0.0.0/24", "", nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed},
+		{"IPv4 requested + IPv6-only pool", typeIPv4, "", "2001:db8::/32", nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed},
+		{"IPv6 requested + no pools", typeIPv6, "", "", nasMessage.Cause5GSMUnknownPDUSessionType},
+		{"IPv4 requested + no pools", typeIPv4, "", "", nasMessage.Cause5GSMUnknownPDUSessionType},
+		{"IPv4v6 requested + no pools", typeIPv4v6, "", "", nasMessage.Cause5GSMUnknownPDUSessionType},
+		{"Unstructured requested + IPv4-only pool", typeUnstructured, "10.0.0.0/24", "", nasMessage.Cause5GSMUnknownPDUSessionType},
+		{"Unstructured requested + IPv6-only pool", typeUnstructured, "", "2001:db8::/32", nasMessage.Cause5GSMUnknownPDUSessionType},
+		{"Ethernet requested + IPv4-only pool", typeEthernet, "10.0.0.0/24", "", nasMessage.Cause5GSMUnknownPDUSessionType},
+		{"Ethernet requested + no pools", typeEthernet, "", "", nasMessage.Cause5GSMUnknownPDUSessionType},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			policy := &Policy{IPv4Pool: tc.ipv4Pool, IPv6Pool: tc.ipv6Pool}
+			if got := pduSessionTypeRejectCause(tc.requested, policy); got != tc.want {
+				t.Errorf("got cause #%d, want #%d", got, tc.want)
+			}
+		})
+	}
+}

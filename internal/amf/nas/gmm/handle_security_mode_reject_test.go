@@ -34,10 +34,11 @@ func TestHandleSecurityModeReject_T3560Stopped_UEContextReleased(t *testing.T) {
 		t.Fatalf("could not build test UE and radio: %v", err)
 	}
 
-	ue.SecurityContextAvailable = true
+	ue.Current().SecurityContextAvailable = true
 	ue.RanUe().ReleaseAction = amf.UeContextN2NormalRelease
 	ue.ForceState(amf.SecurityMode)
-	ue.T3560 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	conn := ue.NasConn()
+	conn.T3560 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 
 	m := buildTestSecurityModeReject()
 
@@ -46,7 +47,7 @@ func TestHandleSecurityModeReject_T3560Stopped_UEContextReleased(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if ue.T3560 != nil {
+	if conn.T3560 != nil {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
 	}
 
@@ -54,7 +55,7 @@ func TestHandleSecurityModeReject_T3560Stopped_UEContextReleased(t *testing.T) {
 		t.Fatalf("expected UE to be deregistered but was: %v", ue.GetState())
 	}
 
-	if ue.SecurityContextAvailable {
+	if ue.Current().SecurityContextAvailable {
 		t.Fatal("expected UE security context available to be reset to false")
 	}
 

@@ -13,9 +13,15 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg 
 	defer span.End()
 
 	ue.TransitionTo(amf.ContextSetup)
-	ue.RegistrationRequest = msg
 
-	switch ue.RegistrationType5GS {
+	conn := ue.NasConn()
+	if conn == nil {
+		return fmt.Errorf("no active NAS connection")
+	}
+
+	conn.RegistrationRequest = msg
+
+	switch conn.RegistrationType5GS {
 	case nasMessage.RegistrationType5GSInitialRegistration:
 		if err := HandleInitialRegistration(ctx, amfInstance, ue); err != nil {
 			return fmt.Errorf("error handling initial registration: %v", err)

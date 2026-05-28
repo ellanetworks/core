@@ -36,34 +36,33 @@ func setupRegistrationCompleteUE(t *testing.T) (*amf.AmfUe, *FakeNGAPSender) {
 
 	ue.Suci = "testsuci"
 	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
-	ue.MacFailed = false
+	ue.Current().SecurityContextAvailable = true
+	ue.Current().NgKsi.Ksi = 1
 	ue.PlmnID = models.PlmnID{Mcc: "001", Mnc: "01"}
 
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.Current().KnasEnc = key
+	ue.Current().KnasInt = key
+	ue.Current().CipheringAlg = algo
+	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
 
-	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount.Get())
+	m, err := buildTestRegistrationRequestMessage(algo, &key, ue.Current().ULCount.Get())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
 	ue.ForceState(amf.ContextSetup)
-	ue.T3550 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	ue.RegistrationRequest = m.RegistrationRequest
-	ue.RegistrationType5GS = 42
-	ue.IdentityTypeUsedForRegistration = 42
-	ue.AuthFailureCauseSynchFailureTimes = 42
+	ue.NasConn().T3550 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.NasConn().RegistrationRequest = m.RegistrationRequest
+	ue.NasConn().RegistrationType5GS = 42
+	ue.NasConn().IdentityTypeUsedForRegistration = 42
+	ue.NasConn().AuthFailureCauseSynchFailureTimes = 42
 	ue.RanUe().UeContextRequest = true
-	ue.RanUe().RecvdInitialContextSetupResponse = true
-	ue.RetransmissionOfInitialNASMsg = true
+	ue.RanUe().ICS = amf.ICSCompleted
+	ue.NasConn().RetransmissionOfInitialNASMsg = true
 
-	if _, err := ue.Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -102,7 +101,7 @@ func TestHandleRegistrationComplete_T3550StoppedAndCleared_RegistrationDataClear
 		t.Fatalf("should not have sent a UE Context Release Command message")
 	}
 
-	if ue.T3550 != nil {
+	if ue.NasConn().T3550 != nil {
 		t.Fatalf("expected timer T3550 to be stopped and cleared")
 	}
 
@@ -136,7 +135,7 @@ func TestHandleRegistrationComplete_SendsConfigurationUpdateCommand(t *testing.T
 	payload := make([]byte, len(nasPdu)-7)
 	copy(payload, nasPdu[7:])
 
-	err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, 0, security.Bearer3GPP, security.DirectionDownlink, payload)
+	err = security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, 0, security.Bearer3GPP, security.DirectionDownlink, payload)
 	if err != nil {
 		t.Fatalf("NAS decrypt failed: %v", err)
 	}
@@ -169,9 +168,9 @@ func TestHandleRegistrationComplete_SendsConfigurationUpdateCommand(t *testing.T
 
 func TestHandleRegistrationComplete_ReleasedWhenNoFORPending_NoUDSPending_and_NoActiveSessions(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
-	ue.RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
-	ue.RegistrationRequest.UplinkDataStatus = nil
-	ue.SmContextList = make(map[uint8]*amf.SmContext)
+	ue.NasConn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
+	ue.NasConn().RegistrationRequest.UplinkDataStatus = nil
+	ue.Current().SmContextList = make(map[uint8]*amf.SmContext)
 
 	amfInstance := newTestAMF()
 
@@ -184,7 +183,7 @@ func TestHandleRegistrationComplete_ReleasedWhenNoFORPending_NoUDSPending_and_No
 		t.Fatalf("should have sent a UE Context Release Command message")
 	}
 
-	if ue.T3550 != nil {
+	if ue.NasConn().T3550 != nil {
 		t.Fatalf("expected timer T3550 to be stopped and cleared")
 	}
 
@@ -196,9 +195,9 @@ func TestHandleRegistrationComplete_ReleasedWhenNoFORPending_NoUDSPending_and_No
 
 func TestHandleRegistrationComplete_NotReleasedWhenFORPending(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
-	ue.RegistrationRequest.SetFOR(nasMessage.FollowOnRequestPending)
-	ue.RegistrationRequest.UplinkDataStatus = nil
-	ue.SmContextList = make(map[uint8]*amf.SmContext)
+	ue.NasConn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestPending)
+	ue.NasConn().RegistrationRequest.UplinkDataStatus = nil
+	ue.Current().SmContextList = make(map[uint8]*amf.SmContext)
 
 	amfInstance := newTestAMF()
 
@@ -211,7 +210,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenFORPending(t *testing.T) {
 		t.Fatalf("should not have sent a UE Context Release Command message")
 	}
 
-	if ue.T3550 != nil {
+	if ue.NasConn().T3550 != nil {
 		t.Fatalf("expected timer T3550 to be stopped and cleared")
 	}
 
@@ -223,9 +222,9 @@ func TestHandleRegistrationComplete_NotReleasedWhenFORPending(t *testing.T) {
 
 func TestHandleRegistrationComplete_NotReleasedWhenUDSPending(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
-	ue.RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
-	ue.RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{}
-	ue.SmContextList = make(map[uint8]*amf.SmContext)
+	ue.NasConn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
+	ue.NasConn().RegistrationRequest.UplinkDataStatus = &nasType.UplinkDataStatus{}
+	ue.Current().SmContextList = make(map[uint8]*amf.SmContext)
 
 	amfInstance := newTestAMF()
 
@@ -238,7 +237,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenUDSPending(t *testing.T) {
 		t.Fatalf("should not have sent a UE Context Release Command message")
 	}
 
-	if ue.T3550 != nil {
+	if ue.NasConn().T3550 != nil {
 		t.Fatalf("expected timer T3550 to be stopped and cleared")
 	}
 
@@ -250,8 +249,8 @@ func TestHandleRegistrationComplete_NotReleasedWhenUDSPending(t *testing.T) {
 
 func TestHandleRegistrationComplete_NotReleasedWhenActiveSession(t *testing.T) {
 	ue, ngapSender := setupRegistrationCompleteUE(t)
-	ue.RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
-	ue.RegistrationRequest.UplinkDataStatus = nil
+	ue.NasConn().RegistrationRequest.SetFOR(nasMessage.FollowOnRequestNoPending)
+	ue.NasConn().RegistrationRequest.UplinkDataStatus = nil
 	_ = ue.CreateSmContext(1, "testref1", &models.Snssai{})
 
 	amfInstance := newTestAMF()
@@ -265,7 +264,7 @@ func TestHandleRegistrationComplete_NotReleasedWhenActiveSession(t *testing.T) {
 		t.Fatalf("should not have sent a UE Context Release Command message")
 	}
 
-	if ue.T3550 != nil {
+	if ue.NasConn().T3550 != nil {
 		t.Fatalf("expected timer T3550 to be stopped and cleared")
 	}
 
@@ -276,35 +275,31 @@ func TestHandleRegistrationComplete_NotReleasedWhenActiveSession(t *testing.T) {
 }
 
 func checkUERegistrationDataIsCleared(ue *amf.AmfUe) error {
-	if ue.RegistrationRequest != nil {
+	if ue.NasConn().RegistrationRequest != nil {
 		return fmt.Errorf("registration request is not nil")
 	}
 
-	if ue.RegistrationType5GS != 0 {
-		return fmt.Errorf("registration type 5gs was not 0: %d", ue.RegistrationType5GS)
+	if ue.NasConn().RegistrationType5GS != 0 {
+		return fmt.Errorf("registration type 5gs was not 0: %d", ue.NasConn().RegistrationType5GS)
 	}
 
-	if ue.IdentityTypeUsedForRegistration != 0 {
-		return fmt.Errorf("identity type used for registration was not 0: %d", ue.IdentityTypeUsedForRegistration)
+	if ue.NasConn().IdentityTypeUsedForRegistration != 0 {
+		return fmt.Errorf("identity type used for registration was not 0: %d", ue.NasConn().IdentityTypeUsedForRegistration)
 	}
 
-	if ue.AuthFailureCauseSynchFailureTimes != 0 {
-		return fmt.Errorf("auth failure caush synch failure times was not 0: %d", ue.AuthFailureCauseSynchFailureTimes)
+	if ue.NasConn().AuthFailureCauseSynchFailureTimes != 0 {
+		return fmt.Errorf("auth failure caush synch failure times was not 0: %d", ue.NasConn().AuthFailureCauseSynchFailureTimes)
 	}
 
 	if ue.RanUe().UeContextRequest {
 		return fmt.Errorf("ranue context request should be false")
 	}
 
-	if ue.RanUe().RecvdInitialContextSetupResponse {
-		return fmt.Errorf("ranue recvd initial context setup response should be false")
-	}
-
-	if ue.RetransmissionOfInitialNASMsg {
+	if ue.NasConn().RetransmissionOfInitialNASMsg {
 		return fmt.Errorf("retransmission of initial NAS msg should be false")
 	}
 
-	if ue.Procedures.Active(procedure.Paging) {
+	if ue.NasConn().Procedures.Active(procedure.Paging) {
 		return fmt.Errorf("ongoing should be nothing")
 	}
 

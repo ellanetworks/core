@@ -22,7 +22,7 @@ func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *test
 	}
 
 	ue.ForceState(amf.Authentication)
-	ue.AuthenticationCtx = &ausf.AuthResult{Rand: "DEADBEEF"}
+	ue.NasConn().AuthenticationCtx = &ausf.AuthResult{Rand: "DEADBEEF"}
 
 	msg := &nasMessage.AuthenticationResponse{
 		AuthenticationResponseParameter: nil,
@@ -74,7 +74,7 @@ func TestHandleAuthenticationResponse_PreconditionErrors(t *testing.T) {
 				}
 
 				ue.ForceState(amf.Authentication)
-				ue.AuthenticationCtx = &ausf.AuthResult{Rand: "Not hex"}
+				ue.NasConn().AuthenticationCtx = &ausf.AuthResult{Rand: "Not hex"}
 
 				return ue
 			}(),
@@ -99,16 +99,17 @@ func TestHandleAuthenticationResponse_TimerT3560Stopped(t *testing.T) {
 	}
 
 	ue.ForceState(amf.Authentication)
-	ue.AuthenticationCtx = &ausf.AuthResult{
+	conn := ue.NasConn()
+	conn.AuthenticationCtx = &ausf.AuthResult{
 		Rand:      "DEADBEEF",
 		HxresStar: "not a match",
 	}
-	ue.IdentityTypeUsedForRegistration = nasMessage.MobileIdentity5GSTypeSuci
-	ue.T3560 = amf.NewTimer(10*time.Minute, 5, func(e int32) {}, func() {})
+	conn.IdentityTypeUsedForRegistration = nasMessage.MobileIdentity5GSTypeSuci
+	conn.T3560 = amf.NewTimer(10*time.Minute, 5, func(e int32) {}, func() {})
 
 	_ = handleAuthenticationResponse(t.Context(), amf.New(nil, nil, nil), ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 
-	if ue.T3560 != nil {
+	if conn.T3560 != nil {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
 	}
 }
@@ -141,11 +142,11 @@ func TestHandleAuthenticationResponse_hResStartMismatch(t *testing.T) {
 			}
 
 			ue.ForceState(amf.Authentication)
-			ue.AuthenticationCtx = &ausf.AuthResult{
+			ue.NasConn().AuthenticationCtx = &ausf.AuthResult{
 				Rand:      "DEADBEEF",
 				HxresStar: "not a match",
 			}
-			ue.IdentityTypeUsedForRegistration = tc.id_type
+			ue.NasConn().IdentityTypeUsedForRegistration = tc.id_type
 
 			err = handleAuthenticationResponse(t.Context(), amf.New(nil, nil, nil), ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 			if err != nil {
@@ -223,11 +224,11 @@ func TestHandleAuthenticationResponse_Auth5gAKA_Failure(t *testing.T) {
 			}
 
 			ue.ForceState(amf.Authentication)
-			ue.AuthenticationCtx = &ausf.AuthResult{
+			ue.NasConn().AuthenticationCtx = &ausf.AuthResult{
 				Rand:      "DEADBEEF",
 				HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
 			}
-			ue.IdentityTypeUsedForRegistration = tc.id_type
+			ue.NasConn().IdentityTypeUsedForRegistration = tc.id_type
 
 			err = handleAuthenticationResponse(t.Context(), amfInstance, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 			if err != nil {
@@ -280,7 +281,7 @@ func TestHandleAuthenticationResponse_DeriveKamf_Failure(t *testing.T) {
 	}
 
 	ue.ForceState(amf.Authentication)
-	ue.AuthenticationCtx = &ausf.AuthResult{
+	ue.NasConn().AuthenticationCtx = &ausf.AuthResult{
 		Rand:      "DEADBEEF",
 		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
 	}
@@ -321,19 +322,19 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 	}
 
 	ue.ForceState(amf.Authentication)
-	ue.AuthenticationCtx = &ausf.AuthResult{
+	ue.NasConn().AuthenticationCtx = &ausf.AuthResult{
 		Rand:      "DEADBEEF",
 		HxresStar: "192a898722d89d0c3e4c6f2de48c796a",
 	}
-	ue.UESecurityCapability = &nasType.UESecurityCapability{
+	ue.Current().UESecurityCapability = &nasType.UESecurityCapability{
 		Iei:    nasMessage.RegistrationRequestUESecurityCapabilityType,
 		Len:    2,
 		Buffer: []uint8{0x00, 0x00},
 	}
-	ue.UESecurityCapability.SetEA0_5G(1)
-	ue.UESecurityCapability.SetEA1_128_5G(1)
-	ue.UESecurityCapability.SetIA0_5G(1)
-	ue.UESecurityCapability.SetIA1_128_5G(1)
+	ue.Current().UESecurityCapability.SetEA0_5G(1)
+	ue.Current().UESecurityCapability.SetEA1_128_5G(1)
+	ue.Current().UESecurityCapability.SetIA0_5G(1)
+	ue.Current().UESecurityCapability.SetIA1_128_5G(1)
 
 	err = handleAuthenticationResponse(t.Context(), amfInstance, ue, &nasMessage.AuthenticationResponse{AuthenticationResponseParameter: &nasType.AuthenticationResponseParameter{}})
 	if err != nil {

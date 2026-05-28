@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
@@ -27,6 +28,25 @@ type UpdateInputs struct {
 
 func emptyValidation(ue *amf.AmfUe) error {
 	return nil
+}
+
+func newTestUe(macFailed bool, guti, oldGuti etsi.GUTI, tmsi etsi.TMSI) *amf.AmfUe {
+	_ = macFailed
+	ue := amf.NewAmfUe()
+	ue.Guti = guti
+	ue.OldGuti = oldGuti
+	ue.Tmsi = tmsi
+
+	return ue
+}
+
+func tmsiUe(macFailed bool, tmsi, oldTmsi etsi.TMSI) *amf.AmfUe {
+	_ = macFailed
+	ue := amf.NewAmfUe()
+	ue.Tmsi = tmsi
+	ue.OldTmsi = oldTmsi
+
+	return ue
 }
 
 func mustValidTestTmsi(t uint32) etsi.TMSI {
@@ -89,98 +109,98 @@ func TestUpdateUeIdentity(t *testing.T) {
 		},
 		{
 			"Invalid GUTI sets empty GUTI",
-			&amf.AmfUe{Guti: mustTestGuti("999", "99", "cafe42", 0x00000001), MacFailed: false},
+			newTestUe(false, mustTestGuti("999", "99", "cafe42", 0x00000001), etsi.GUTI{}, etsi.TMSI{}),
 			[]uint8{nasMessage.MobileIdentity5GSType5gGuti, 0},
 			fmt.Errorf("UE sent invalid GUTI: invalid GUTI length"),
 			emptyValidation,
 		},
 		{
 			"GUTI with MacFailed returns error",
-			&amf.AmfUe{MacFailed: true},
+			newTestUe(true, etsi.GUTI{}, etsi.GUTI{}, etsi.TMSI{}),
 			[]uint8{nasMessage.MobileIdentity5GSType5gGuti, 0, 0x10, 0x1f, 0, 0, 1, 0, 0, 0, 1},
 			fmt.Errorf("NAS message integrity check failed"),
 			emptyValidation,
 		},
 		{
 			"Valid GUTI matches UE GUTI",
-			&amf.AmfUe{MacFailed: false, Guti: mustTestGuti("001", "01", "cafe01", 0xdeadbeef)},
+			newTestUe(false, mustTestGuti("001", "01", "cafe01", 0xdeadbeef), etsi.GUTI{}, etsi.TMSI{}),
 			[]uint8{nasMessage.MobileIdentity5GSType5gGuti, 0, 0xf1, 0x10, 0xCA, 0xFE, 1, 0xDE, 0xAD, 0xBE, 0xEF},
 			nil,
 			emptyValidation,
 		},
 		{
 			"Valid GUTI matches UE old GUTI",
-			&amf.AmfUe{MacFailed: false, Guti: mustTestGuti("001", "01", "cafe02", 0xf00df00d), OldGuti: mustTestGuti("001", "01", "cafe01", 0xdeadbeef)},
+			newTestUe(false, mustTestGuti("001", "01", "cafe02", 0xf00df00d), mustTestGuti("001", "01", "cafe01", 0xdeadbeef), etsi.TMSI{}),
 			[]uint8{nasMessage.MobileIdentity5GSType5gGuti, 0, 0xf1, 0x10, 0xCA, 0xFE, 1, 0xDE, 0xAD, 0xBE, 0xEF},
 			nil,
 			emptyValidation,
 		},
 		{
 			"Valid GUTI does not match AMF state",
-			&amf.AmfUe{MacFailed: false, Guti: mustTestGuti("001", "01", "cafe02", 0xf00df00d), OldGuti: mustTestGuti("001", "01", "cafe01", 0x12345678)},
+			newTestUe(false, mustTestGuti("001", "01", "cafe02", 0xf00df00d), mustTestGuti("001", "01", "cafe01", 0x12345678), etsi.TMSI{}),
 			[]uint8{nasMessage.MobileIdentity5GSType5gGuti, 0, 0xf1, 0x10, 0xCA, 0xFE, 1, 0xDE, 0xAD, 0xBE, 0xEF},
 			fmt.Errorf("UE sent unknown GUTI"),
 			emptyValidation,
 		},
 		{
 			"5G-S-TMSI with MacFailed returns error",
-			&amf.AmfUe{MacFailed: true},
+			newTestUe(true, etsi.GUTI{}, etsi.GUTI{}, etsi.TMSI{}),
 			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0x00, 0x12, 0x34, 0x56, 0x78, 0x90},
 			fmt.Errorf("NAS message integrity check failed"),
 			emptyValidation,
 		},
 		{
 			"5G-S-TMSI maximum value matches",
-			&amf.AmfUe{MacFailed: false, Tmsi: mustValidTestTmsi(0xFFFFFFFE)},
+			newTestUe(false, etsi.GUTI{}, etsi.GUTI{}, mustValidTestTmsi(0xFFFFFFFE)),
 			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFE},
 			nil,
 			emptyValidation,
 		},
 		{
 			"5G-S-TMSI too long returns error",
-			&amf.AmfUe{MacFailed: false},
+			newTestUe(false, etsi.GUTI{}, etsi.GUTI{}, etsi.TMSI{}),
 			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
 			fmt.Errorf("wrong length for TMSI"),
 			emptyValidation,
 		},
 		{
 			"5G-S-TMSI too short returns error",
-			&amf.AmfUe{MacFailed: false},
+			newTestUe(false, etsi.GUTI{}, etsi.GUTI{}, etsi.TMSI{}),
 			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFF, 0xFF, 0x01},
 			fmt.Errorf("wrong length for TMSI"),
 			emptyValidation,
 		},
 		{
 			"Valid 5G-S-TMSI matches UE TMSI",
-			&amf.AmfUe{MacFailed: false, Tmsi: mustValidTestTmsi(0x1A345678)},
+			newTestUe(false, etsi.GUTI{}, etsi.GUTI{}, mustValidTestTmsi(0x1A345678)),
 			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFE, 0x01, 0x1A, 0x34, 0x56, 0x78},
 			nil,
 			emptyValidation,
 		},
 		{
 			"Valid 5G-S-TMSI matches UE old TMSI",
-			&amf.AmfUe{MacFailed: false, Tmsi: mustValidTestTmsi(0x22234567), OldTmsi: mustValidTestTmsi(0x1A345678)},
+			tmsiUe(false, mustValidTestTmsi(0x22234567), mustValidTestTmsi(0x1A345678)),
 			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFE, 0x01, 0x1A, 0x34, 0x56, 0x78},
 			nil,
 			emptyValidation,
 		},
 		{
 			"Valid 5G-S-TMSI does not match AMF state",
-			&amf.AmfUe{MacFailed: false, Tmsi: mustValidTestTmsi(0x22234567), OldTmsi: mustValidTestTmsi(0x5FFF5555)},
+			tmsiUe(false, mustValidTestTmsi(0x22234567), mustValidTestTmsi(0x5FFF5555)),
 			[]uint8{nasMessage.MobileIdentity5GSType5gSTmsi, 0xFE, 0x01, 0x1A, 0x34, 0x56, 0x78},
 			fmt.Errorf("UE sent unknown TMSI"),
 			emptyValidation,
 		},
 		{
 			"IMEI with MacFailed returns error",
-			&amf.AmfUe{MacFailed: true},
+			newTestUe(true, etsi.GUTI{}, etsi.GUTI{}, etsi.TMSI{}),
 			[]uint8{nasMessage.MobileIdentity5GSTypeImei + 0x08 + 0x40, 0x09, 0x51, 0x24, 0x30, 0x32, 0x57, 0x81},
 			fmt.Errorf("NAS message integrity check failed"),
 			emptyValidation,
 		},
 		{
 			"Valid IMEI sets PEI",
-			&amf.AmfUe{MacFailed: false},
+			newTestUe(false, etsi.GUTI{}, etsi.GUTI{}, etsi.TMSI{}),
 			[]uint8{nasMessage.MobileIdentity5GSTypeImei + 0x08 + 0x40, 0x09, 0x51, 0x24, 0x30, 0x32, 0x57, 0x81},
 			nil,
 			func(ue *amf.AmfUe) error {
@@ -194,14 +214,14 @@ func TestUpdateUeIdentity(t *testing.T) {
 		},
 		{
 			"IMEISV with MacFailed returns error",
-			&amf.AmfUe{MacFailed: true},
+			newTestUe(true, etsi.GUTI{}, etsi.GUTI{}, etsi.TMSI{}),
 			[]uint8{nasMessage.MobileIdentity5GSTypeImeisv + 0x30, 0x25, 0x90, 0x09, 0x10, 0x67, 0x41, 0x28, 0xF3},
 			fmt.Errorf("NAS message integrity check failed"),
 			emptyValidation,
 		},
 		{
 			"Valid IMEISV sets PEI",
-			&amf.AmfUe{MacFailed: false},
+			newTestUe(false, etsi.GUTI{}, etsi.GUTI{}, etsi.TMSI{}),
 			[]uint8{nasMessage.MobileIdentity5GSTypeImeisv + 0x30, 0x25, 0x90, 0x09, 0x10, 0x67, 0x41, 0x28, 0xF3},
 			nil,
 			func(ue *amf.AmfUe) error {
@@ -216,7 +236,8 @@ func TestUpdateUeIdentity(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := updateUEIdentity(tc.ue, tc.mi)
+			macFailed := strings.Contains(tc.name, "MacFailed")
+			err := updateUEIdentity(tc.ue, tc.mi, macFailed)
 
 			if tc.expected_err == nil && err != nil {
 				t.Fatalf("expected error to be nil, got %v", err)
@@ -241,7 +262,7 @@ func TestHandleIdentityResponse_InvalidStateError(t *testing.T) {
 			ue := amf.NewAmfUe()
 			ue.ForceState(tc)
 
-			err := handleIdentityResponse(context.TODO(), amf.New(nil, nil, nil), ue, &nasMessage.IdentityResponse{})
+			err := handleIdentityResponse(context.TODO(), amf.New(nil, nil, nil), ue, &nasMessage.IdentityResponse{}, false)
 			if err == nil {
 				t.Fatalf("expected an state mismatch error, got no error")
 			}
@@ -272,12 +293,11 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationRequest(t *t
 
 	ue.Suci = ""
 	ue.ForceState(amf.Authentication)
-	ue.MacFailed = false
 	ue.Tai = ue.RanUe().Tai
 
 	m := buildTestIdentityResponseMessage()
 
-	err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse)
+	err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, false)
 	if err != nil {
 		t.Fatalf("expected no errors but got: %v", err)
 	}
@@ -327,14 +347,13 @@ func TestHandleIdentityResponse_AuthenticationProcess_AuthenticationError(t *tes
 
 	ue.Suci = ""
 	ue.ForceState(amf.Authentication)
-	ue.MacFailed = false
 	ue.Tai = models.Tai{}
 
 	m := buildTestIdentityResponseMessage()
 
 	expected := "error in authentication procedure: failed to send ue authentication request: tai is not available in UE context"
 
-	err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse)
+	err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, false)
 	if err == nil {
 		t.Fatalf("expected error but got none")
 	}
@@ -373,28 +392,27 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 	ue.Suci = "testsuci"
 	ue.Supi = supi
 	ue.ForceState(amf.Authentication)
-	ue.MacFailed = false
 	ue.Tai = ue.RanUe().Tai
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.Current().SecurityContextAvailable = true
+	ue.Current().NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.Current().KnasEnc = key
+	ue.Current().KnasInt = key
+	ue.Current().CipheringAlg = algo
+	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
 
-	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount.Get())
+	registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.Current().ULCount.Get())
 	if err != nil {
 		t.Fatalf("could not build registration request message: %v", err)
 	}
 
-	ue.RegistrationRequest = registrationRequest.RegistrationRequest
-	ue.RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
+	ue.NasConn().RegistrationRequest = registrationRequest.RegistrationRequest
+	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
 
 	m := buildTestIdentityResponseMessage()
 
-	err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse)
+	err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, false)
 	if err != nil {
 		t.Fatalf("expected no errors but got: %v", err)
 	}
@@ -415,7 +433,7 @@ func TestHandleIdentityResponse_AuthenticationProcess_RegistrationAccept(t *test
 		t.Fatalf("expected a protected and ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -463,32 +481,31 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 			ue.Supi = supi
 			ue.Pei = "testpei"
 			ue.ForceState(amf.ContextSetup)
-			ue.MacFailed = false
 			ue.Tai = ue.RanUe().Tai
-			ue.SecurityContextAvailable = true
-			ue.NgKsi.Ksi = 1
+			ue.Current().SecurityContextAvailable = true
+			ue.Current().NgKsi.Ksi = 1
 			key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 			algo := security.AlgCiphering128NEA2
-			ue.KnasEnc = key
-			ue.KnasInt = key
-			ue.CipheringAlg = algo
-			ue.IntegrityAlg = security.AlgIntegrity128NIA0
+			ue.Current().KnasEnc = key
+			ue.Current().KnasInt = key
+			ue.Current().CipheringAlg = algo
+			ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
 
-			registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount.Get())
+			registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.Current().ULCount.Get())
 			if err != nil {
 				t.Fatalf("could not build registration request message: %v", err)
 			}
 
-			ue.RegistrationRequest = registrationRequest.RegistrationRequest
+			ue.NasConn().RegistrationRequest = registrationRequest.RegistrationRequest
 
-			ue.RegistrationType5GS = tc
+			ue.NasConn().RegistrationType5GS = tc
 			if tc == nasMessage.RegistrationType5GSMobilityRegistrationUpdating {
-				ue.RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
+				ue.NasConn().RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
 			}
 
 			m := buildTestIdentityResponseMessage()
 
-			err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse)
+			err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, false)
 			if err != nil {
 				t.Fatalf("expected no errors but got: %v", err)
 			}
@@ -509,7 +526,7 @@ func TestHandleIdentityResponse_ContextSetup_RegistrationAccept(t *testing.T) {
 				t.Fatalf("expected a protected and ciphered NAS message")
 			}
 
-			if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+			if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 				t.Fatalf("could not decrypt NAS message: %v", err)
 			}
 
@@ -553,32 +570,31 @@ func TestHandleIdentityResponse_ContextSetup_Error(t *testing.T) {
 			ue.Supi = supi
 			ue.Pei = "testpei"
 			ue.ForceState(amf.ContextSetup)
-			ue.MacFailed = false
 			ue.Tai = ue.RanUe().Tai
-			ue.SecurityContextAvailable = true
-			ue.NgKsi.Ksi = 1
+			ue.Current().SecurityContextAvailable = true
+			ue.Current().NgKsi.Ksi = 1
 			key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 			algo := security.AlgCiphering128NEA2
-			ue.KnasEnc = key
-			ue.KnasInt = key
-			ue.CipheringAlg = algo
-			ue.IntegrityAlg = security.AlgIntegrity128NIA0
+			ue.Current().KnasEnc = key
+			ue.Current().KnasInt = key
+			ue.Current().CipheringAlg = algo
+			ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
 
-			registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.ULCount.Get())
+			registrationRequest, err := buildTestRegistrationRequestMessage(algo, &key, ue.Current().ULCount.Get())
 			if err != nil {
 				t.Fatalf("could not build registration request message: %v", err)
 			}
 
-			ue.RegistrationRequest = registrationRequest.RegistrationRequest
+			ue.NasConn().RegistrationRequest = registrationRequest.RegistrationRequest
 
-			ue.RegistrationType5GS = tc
+			ue.NasConn().RegistrationType5GS = tc
 			if tc == nasMessage.RegistrationType5GSMobilityRegistrationUpdating {
-				ue.RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
+				ue.NasConn().RegistrationRequest.Capability5GMM = &nasType.Capability5GMM{}
 			}
 
 			m := buildTestIdentityResponseMessage()
 
-			err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse)
+			err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, false)
 			if err == nil {
 				t.Fatalf("expected error but got none")
 			}
@@ -622,7 +638,7 @@ func TestHandleIdentityResponse_IdentityError(t *testing.T) {
 
 			expected := "error handling identity response: mobile identity is empty"
 
-			err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse)
+			err = handleIdentityResponse(context.TODO(), amfInstance, ue, m.IdentityResponse, false)
 			if err == nil {
 				t.Fatalf("expected error but got none")
 			}

@@ -32,7 +32,8 @@ type ID uint64
 
 var nextID atomic.Uint64
 
-// Procedure is the unit tracked by the registry.
+// Procedure is the unit tracked by the registry. State is procedure-specific
+// transient state owned by handlers; the registry treats it opaquely.
 type Procedure struct {
 	Type      Type
 	StartedAt time.Time
@@ -53,6 +54,7 @@ type entry struct {
 	proc      Procedure
 	timer     *time.Timer
 	startedAt time.Time
+	done      chan struct{}
 }
 
 // Registry tracks which procedures are active for a single UE and
@@ -114,10 +116,12 @@ func (r *Registry) Begin(ctx context.Context, p Procedure) (ID, error) {
 	}
 
 	id := ID(nextID.Add(1))
+	done := make(chan struct{})
 	e := entry{
 		id:        id,
 		proc:      p,
 		startedAt: now,
+		done:      done,
 	}
 
 	// Arm deadline timer.
@@ -141,7 +145,22 @@ func (r *Registry) Begin(ctx context.Context, p Procedure) (ID, error) {
 		zap.Time("deadline", p.Deadline),
 	)
 
+	// ctx is intentionally captured: the watcher's role is to abort the
+	// procedure when ctx is cancelled.
+	// #nosec G118 -- captured ctx is the cancellation signal we observe
+	go r.watchCtx(ctx, id, done)
+
 	return id, nil
+}
+
+// watchCtx aborts the procedure when ctx is cancelled. Exits cleanly when
+// the procedure ends (or is cancelled) by other means.
+func (r *Registry) watchCtx(ctx context.Context, id ID, done <-chan struct{}) {
+	select {
+	case <-ctx.Done():
+		_ = r.CancelByID(context.Background(), id)
+	case <-done:
+	}
 }
 
 // End marks t as finished (success path). Does not invoke Cancel.
@@ -167,6 +186,8 @@ func (r *Registry) End(t Type) {
 	r.active = append(r.active[:idx], r.active[idx+1:]...)
 	r.mu.Unlock()
 
+	close(e.done)
+
 	if e.timer != nil {
 		e.timer.Stop()
 	}
@@ -191,6 +212,8 @@ func (r *Registry) EndByID(id ID) {
 	e := r.active[idx]
 	r.active = append(r.active[:idx], r.active[idx+1:]...)
 	r.mu.Unlock()
+
+	close(e.done)
 
 	if e.timer != nil {
 		e.timer.Stop()
@@ -224,6 +247,8 @@ func (r *Registry) Cancel(ctx context.Context, t Type) error {
 	r.active = append(r.active[:idx], r.active[idx+1:]...)
 	r.mu.Unlock()
 
+	close(e.done)
+
 	if e.timer != nil {
 		e.timer.Stop()
 	}
@@ -253,6 +278,8 @@ func (r *Registry) CancelByID(ctx context.Context, id ID) error {
 	r.active = append(r.active[:idx], r.active[idx+1:]...)
 	r.mu.Unlock()
 
+	close(e.done)
+
 	if e.timer != nil {
 		e.timer.Stop()
 	}
@@ -268,35 +295,6 @@ func (r *Registry) CancelByID(ctx context.Context, id ID) error {
 	return nil
 }
 
-// CancelAll invokes Cancel for every active procedure in reverse-Begin
-// order (most recently started first), then clears the registry.
-func (r *Registry) CancelAll(ctx context.Context) {
-	r.mu.Lock()
-	entries := make([]entry, len(r.active))
-	copy(entries, r.active)
-	r.active = r.active[:0]
-	r.stopped = true
-	r.mu.Unlock()
-
-	// Stop timers first.
-	for _, e := range entries {
-		if e.timer != nil {
-			e.timer.Stop()
-		}
-	}
-
-	// Cancel in reverse-Begin order.
-	for i := len(entries) - 1; i >= 0; i-- {
-		e := entries[i]
-		r.log.Info("procedure cancelled",
-			zap.String("type", string(e.proc.Type)),
-			zap.Uint64("id", uint64(e.id)),
-			zap.String("reason", "teardown"),
-		)
-		r.invokeCancel(ctx, e)
-	}
-}
-
 // Active returns true if t has at least one active instance.
 func (r *Registry) Active(t Type) bool {
 	r.mu.Lock()
@@ -309,21 +307,6 @@ func (r *Registry) Active(t Type) bool {
 	}
 
 	return false
-}
-
-// Snapshot returns a copy of the active set for diagnostics.
-func (r *Registry) Snapshot() []Procedure {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	out := make([]Procedure, len(r.active))
-	for i, e := range r.active {
-		p := e.proc
-		p.Cancel = nil // don't leak callbacks
-		out[i] = p
-	}
-
-	return out
 }
 
 // ActiveTypes returns the set of active procedure type strings,
@@ -363,7 +346,8 @@ func (r *Registry) expireByID(ctx context.Context, id ID) {
 	r.active = append(r.active[:idx], r.active[idx+1:]...)
 	r.mu.Unlock()
 
-	// Timer already fired; no need to stop it.
+	close(e.done)
+
 	r.log.Warn("procedure expired",
 		zap.String("type", string(e.proc.Type)),
 		zap.Uint64("id", uint64(e.id)),

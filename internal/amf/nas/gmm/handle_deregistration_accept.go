@@ -11,9 +11,9 @@ import (
 
 // TS 23.502 4.2.2.3
 func handleDeregistrationAccept(ctx context.Context, ue *amf.AmfUe) error {
-	if ue.T3522 != nil {
-		ue.T3522.Stop()
-		ue.T3522 = nil // clear the timer
+	if conn := ue.NasConn(); conn != nil && conn.T3522 != nil {
+		conn.T3522.Stop()
+		conn.T3522 = nil
 	}
 
 	defer ue.Deregister(ctx)

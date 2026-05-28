@@ -101,6 +101,65 @@ func TestConflictMatrix(t *testing.T) {
 	}
 }
 
+func TestContextCancellationAborts(t *testing.T) {
+	r := newTestRegistry()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	var cancelled atomic.Bool
+
+	_, err := r.Begin(ctx, procedure.Procedure{
+		Type: procedure.N2Handover,
+		Cancel: func(context.Context) error {
+			cancelled.Store(true)
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+
+	cancel()
+
+	deadline := time.Now().Add(time.Second)
+	for !cancelled.Load() && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+
+	if !cancelled.Load() {
+		t.Fatal("expected cancel callback to fire on ctx cancellation")
+	}
+
+	if r.Active(procedure.N2Handover) {
+		t.Fatal("expected N2Handover to be removed after ctx cancellation")
+	}
+}
+
+func TestContextNotCancelledDoesNotFire(t *testing.T) {
+	r := newTestRegistry()
+	ctx := context.Background()
+
+	var cancelled atomic.Bool
+
+	_, err := r.Begin(ctx, procedure.Procedure{
+		Type: procedure.N2Handover,
+		Cancel: func(context.Context) error {
+			cancelled.Store(true)
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+
+	r.End(procedure.N2Handover)
+
+	time.Sleep(20 * time.Millisecond)
+
+	if cancelled.Load() {
+		t.Fatal("Cancel callback fired after End")
+	}
+}
+
 func TestDeadlineExpiry(t *testing.T) {
 	r := newTestRegistry()
 	ctx := context.Background()
@@ -209,44 +268,6 @@ func TestConcurrentBeginConflict(t *testing.T) {
 	}
 }
 
-func TestCancelAllReverseOrder(t *testing.T) {
-	r := newTestRegistry()
-	ctx := context.Background()
-
-	var (
-		order []procedure.Type
-		mu    sync.Mutex
-	)
-
-	makeCancel := func(typ procedure.Type) func(context.Context) error {
-		return func(context.Context) error {
-			mu.Lock()
-			defer mu.Unlock()
-
-			order = append(order, typ)
-
-			return nil
-		}
-	}
-
-	_, _ = r.Begin(ctx, procedure.Procedure{Type: procedure.Registration, Cancel: makeCancel(procedure.Registration)})
-	_, _ = r.Begin(ctx, procedure.Procedure{Type: procedure.Authentication, Cancel: makeCancel(procedure.Authentication)})
-	_, _ = r.Begin(ctx, procedure.Procedure{Type: procedure.Paging, Cancel: makeCancel(procedure.Paging)})
-
-	r.CancelAll(ctx)
-
-	expected := []procedure.Type{procedure.Paging, procedure.Authentication, procedure.Registration}
-	if len(order) != len(expected) {
-		t.Fatalf("expected %d cancellations, got %d", len(expected), len(order))
-	}
-
-	for i, typ := range expected {
-		if order[i] != typ {
-			t.Fatalf("position %d: expected %s, got %s", i, typ, order[i])
-		}
-	}
-}
-
 func TestPagingReentrant(t *testing.T) {
 	r := newTestRegistry()
 	ctx := context.Background()
@@ -314,25 +335,6 @@ func TestEndDoesNotInvokeCancel(t *testing.T) {
 
 	if called.Load() {
 		t.Fatal("End should not invoke Cancel callback")
-	}
-}
-
-func TestSnapshot(t *testing.T) {
-	r := newTestRegistry()
-	ctx := context.Background()
-
-	_, _ = r.Begin(ctx, procedure.Procedure{Type: procedure.Registration})
-	_, _ = r.Begin(ctx, procedure.Procedure{Type: procedure.Paging})
-
-	snap := r.Snapshot()
-	if len(snap) != 2 {
-		t.Fatalf("expected 2 entries in snapshot, got %d", len(snap))
-	}
-
-	for _, p := range snap {
-		if p.Cancel != nil {
-			t.Fatal("snapshot leaked Cancel callback")
-		}
 	}
 }
 

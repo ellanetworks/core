@@ -16,12 +16,12 @@ func buildTestUE(t *testing.T) *amf.AmfUe {
 	t.Helper()
 
 	ue := amf.NewAmfUe()
-	ue.SecurityContextAvailable = true
+	ue.Current().SecurityContextAvailable = true
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = security.AlgCiphering128NEA2
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.Current().KnasEnc = key
+	ue.Current().KnasInt = key
+	ue.Current().CipheringAlg = security.AlgCiphering128NEA2
+	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
 
 	return ue
 }
@@ -39,7 +39,7 @@ func decryptNAS(t *testing.T, ue *amf.AmfUe, raw []byte) *nas.Message {
 
 	// DLCount was incremented after encode, so the count used for encoding is DLCount-1.
 	// Since we start at 0 and encode once, the count used is 0.
-	err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, 0, security.Bearer3GPP, security.DirectionDownlink, payload)
+	err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, 0, security.Bearer3GPP, security.DirectionDownlink, payload)
 	if err != nil {
 		t.Fatalf("NAS decrypt failed: %v", err)
 	}
@@ -134,8 +134,8 @@ func TestBuildConfigurationUpdateCommand_WithGUTI_InvalidGUTI_Error(t *testing.T
 
 func TestBuildRegistrationAccept_MultipleAllowedNSSAI(t *testing.T) {
 	ue := buildTestUE(t)
-	ue.T3512Value = 3600 * time.Second
-	ue.AllowedNssai = []models.Snssai{
+	ue.Current().T3512Value = 3600 * time.Second
+	ue.Current().AllowedNssai = []models.Snssai{
 		{Sst: 1, Sd: "010203"},
 		{Sst: 2, Sd: "aabbcc"},
 	}
@@ -168,8 +168,8 @@ func TestBuildRegistrationAccept_MultipleAllowedNSSAI(t *testing.T) {
 
 func TestBuildRegistrationAccept_SingleAllowedNSSAI(t *testing.T) {
 	ue := buildTestUE(t)
-	ue.T3512Value = 3600 * time.Second
-	ue.AllowedNssai = []models.Snssai{
+	ue.Current().T3512Value = 3600 * time.Second
+	ue.Current().AllowedNssai = []models.Snssai{
 		{Sst: 1, Sd: "010203"},
 	}
 
@@ -200,8 +200,8 @@ func TestBuildRegistrationAccept_SingleAllowedNSSAI(t *testing.T) {
 
 func TestBuildRegistrationAccept_EmptyAllowedNSSAI(t *testing.T) {
 	ue := buildTestUE(t)
-	ue.T3512Value = 3600 * time.Second
-	ue.AllowedNssai = []models.Snssai{}
+	ue.Current().T3512Value = 3600 * time.Second
+	ue.Current().AllowedNssai = []models.Snssai{}
 
 	amfInstance := amf.New(nil, nil, nil)
 

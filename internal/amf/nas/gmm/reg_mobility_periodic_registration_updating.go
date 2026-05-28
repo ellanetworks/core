@@ -21,15 +21,20 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
+	conn := ue.NasConn()
+	if conn == nil {
+		return fmt.Errorf("no active NAS connection")
+	}
+
 	err := ue.DerivateAnKey()
 	if err != nil {
 		return fmt.Errorf("error deriving AnKey: %v", err)
 	}
 
-	if ue.RegistrationRequest.UpdateType5GS != nil {
-		if ue.RegistrationRequest.GetNGRanRcu() == nasMessage.NGRanRadioCapabilityUpdateNeeded {
-			ue.UeRadioCapability = ""
-			ue.UeRadioCapabilityForPaging = nil
+	if conn.RegistrationRequest.UpdateType5GS != nil {
+		if conn.RegistrationRequest.GetNGRanRcu() == nasMessage.NGRanRadioCapabilityUpdateNeeded {
+			ue.Current().UeRadioCapability = ""
+			ue.Current().UeRadioCapabilityForPaging = nil
 		}
 	}
 
@@ -43,11 +48,11 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return fmt.Errorf("error getting subscriber profile: %v", err)
 	}
 
-	ue.AllowedNssai = subscriberProfile.AllowedNssai
+	ue.Current().AllowedNssai = subscriberProfile.AllowedNssai
 
-	if ue.RegistrationRequest.Capability5GMM == nil {
-		if ue.RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
-			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationReject).Inc()
+	if conn.RegistrationRequest.Capability5GMM == nil {
+		if conn.RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
+			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(conn.RegistrationType5GS), RegistrationReject).Inc()
 
 			err := message.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
 			if err != nil {
@@ -58,18 +63,18 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		}
 	}
 
-	if ue.RegistrationRequest.MICOIndication != nil {
-		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.RegistrationRequest.GetRAAI()))
+	if conn.RegistrationRequest.MICOIndication != nil {
+		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", conn.RegistrationRequest.GetRAAI()))
 	}
 
-	if ue.RegistrationRequest.RequestedDRXParameters != nil {
-		drx := ue.RegistrationRequest.GetDRXValue()
+	if conn.RegistrationRequest.RequestedDRXParameters != nil {
+		drx := conn.RegistrationRequest.GetDRXValue()
 		if drx > nasMessage.DRXcycleParameterT256 {
 			ue.Log.Warn("UE requested reserved DRX value, treating as not specified", zap.Uint8("drxValue", drx))
 			drx = nasMessage.DRXValueNotSpecified
 		}
 
-		ue.UESpecificDRX = drx
+		ue.Current().UESpecificDRX = drx
 	}
 
 	if len(ue.Pei) == 0 {
@@ -85,7 +90,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return nil
 	}
 
-	ue.Ambr = subscriberProfile.Ambr
+	ue.Current().Ambr = subscriberProfile.Ambr
 
 	var (
 		reactivationResult        *[16]bool
@@ -95,8 +100,8 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	ctxList := ngapType.PDUSessionResourceSetupListCxtReq{}
 	suList := ngapType.PDUSessionResourceSetupListSUReq{}
 
-	if ue.RegistrationRequest.UplinkDataStatus != nil {
-		uplinkDataPsi := nasConvert.PSIToBooleanArray(ue.RegistrationRequest.UplinkDataStatus.Buffer)
+	if conn.RegistrationRequest.UplinkDataStatus != nil {
+		uplinkDataPsi := nasConvert.PSIToBooleanArray(conn.RegistrationRequest.UplinkDataStatus.Buffer)
 		reactivationResult = new([16]bool)
 
 		for idx, hasUplinkData := range uplinkDataPsi {
@@ -126,9 +131,9 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	}
 
 	var pduSessionStatus *[16]bool
-	if ue.RegistrationRequest.PDUSessionStatus != nil {
+	if conn.RegistrationRequest.PDUSessionStatus != nil {
 		pduSessionStatus = new([16]bool)
-		psiArray := nasConvert.PSIToBooleanArray(ue.RegistrationRequest.PDUSessionStatus.Buffer)
+		psiArray := nasConvert.PSIToBooleanArray(conn.RegistrationRequest.PDUSessionStatus.Buffer)
 
 		for psi := 1; psi <= 15; psi++ {
 			pduSessionID := uint8(psi)
@@ -152,11 +157,11 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return fmt.Errorf("error reallocating GUTI to UE: %v", err)
 	}
 
-	if ue.RegistrationRequest.AllowedPDUSessionStatus != nil {
-		if ue.N1N2Message != nil {
-			requestData := ue.N1N2Message
-			n1Msg := ue.N1N2Message.BinaryDataN1Message
-			n2Info := ue.N1N2Message.BinaryDataN2Information
+	if conn.RegistrationRequest.AllowedPDUSessionStatus != nil {
+		if conn.N1N2Message != nil {
+			requestData := conn.N1N2Message
+			n1Msg := conn.N1N2Message.BinaryDataN1Message
+			n2Info := conn.N1N2Message.BinaryDataN2Information
 
 			// downlink signalling
 			if n2Info == nil {
@@ -166,12 +171,12 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 						return err
 					}
 
-					UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
+					UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(conn.RegistrationType5GS), RegistrationAccept).Inc()
 
 					err = ranUe.SendPDUSessionResourceSetupRequest(
 						ctx,
-						ue.Ambr.Uplink,
-						ue.Ambr.Downlink,
+						ue.Current().Ambr.Uplink,
+						ue.Current().Ambr.Downlink,
 						nasPdu,
 						suList,
 					)
@@ -181,7 +186,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 					ue.Log.Info("Sent NGAP pdu session resource setup request")
 				} else {
-					UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
+					UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(conn.RegistrationType5GS), RegistrationAccept).Inc()
 
 					err := message.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
 					if err != nil {
@@ -196,14 +201,14 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 					return fmt.Errorf("error sending downlink nas transport message: %v", err)
 				}
 
-				ue.N1N2Message = nil
+				conn.N1N2Message = nil
 
 				return nil
 			}
 
 			_, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
 			if !exist {
-				ue.N1N2Message = nil
+				conn.N1N2Message = nil
 				return fmt.Errorf("pdu Session Id does not Exists")
 			}
 
@@ -226,7 +231,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 	ue.AllocateRegistrationArea(operatorInfo.Tais)
 
 	if ranUe.UeContextRequest {
-		UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
+		UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(conn.RegistrationType5GS), RegistrationAccept).Inc()
 
 		err := message.SendRegistrationAccept(ctx, amfInstance, ue, pduSessionStatus, reactivationResult, errPduSessionID, errCause, &ctxList, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
 		if err != nil {
@@ -243,12 +248,12 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		}
 
 		if len(suList.List) != 0 {
-			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
+			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(conn.RegistrationType5GS), RegistrationAccept).Inc()
 
 			err := ranUe.SendPDUSessionResourceSetupRequest(
 				ctx,
-				ue.Ambr.Uplink,
-				ue.Ambr.Downlink,
+				ue.Current().Ambr.Uplink,
+				ue.Current().Ambr.Downlink,
 				nasPdu,
 				suList,
 			)
@@ -258,7 +263,7 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 			ue.Log.Info("Sent NGAP pdu session resource setup request")
 		} else {
-			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
+			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(conn.RegistrationType5GS), RegistrationAccept).Inc()
 
 			err := ranUe.SendDownlinkNasTransport(ctx, nasPdu, nil)
 			if err != nil {

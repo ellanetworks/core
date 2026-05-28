@@ -21,7 +21,7 @@ func TestHandleStatus5GMM_UEDeregistered_Error(t *testing.T) {
 
 	expected := "UE is in Deregistered state, ignore Status 5GMM message"
 
-	err = handleStatus5GMM(ue, m.Status5GMM)
+	err = handleStatus5GMM(ue, m.Status5GMM, false)
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected error: %s, got: %v", expected, err)
 	}
@@ -34,13 +34,12 @@ func TestHandleStatus5GMM_MacFailed_Error(t *testing.T) {
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.MacFailed = true
 
 	m := buildTestStatus5gmm()
 
 	expected := "NAS message integrity check failed"
 
-	err = handleStatus5GMM(ue, m.Status5GMM)
+	err = handleStatus5GMM(ue, m.Status5GMM, true)
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected error: %s, got: %v", expected, err)
 	}
@@ -56,7 +55,7 @@ func TestHandleStatus5GMM_NoErrror(t *testing.T) {
 
 	m := buildTestStatus5gmm()
 
-	err = handleStatus5GMM(ue, m.Status5GMM)
+	err = handleStatus5GMM(ue, m.Status5GMM, false)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}

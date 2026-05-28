@@ -35,7 +35,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 	if amfUe == nil {
 		logger.WithTrace(ctx, ranUe.Log).Info("Release UE Context", zap.Int64("AmfUeNgapID", ranUe.AmfUeNgapID), zap.Int64("RanUeNgapID", *msg.RANUENGAPID))
 
-		err := ranUe.Remove()
+		err := ranUe.Remove(ctx)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
 		}
@@ -75,8 +75,8 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 				id  uint8
 			}
 
-			smContextRefs := make([]smCtxRef, 0, len(amfUe.SmContextList))
-			for pduSessionID, smContext := range amfUe.SmContextList {
+			smContextRefs := make([]smCtxRef, 0, len(amfUe.Current().SmContextList))
+			for pduSessionID, smContext := range amfUe.Current().SmContextList {
 				smContextRefs = append(smContextRefs, smCtxRef{ref: smContext.Ref, id: pduSessionID})
 			}
 
@@ -99,27 +99,27 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 	case amf.UeContextN2NormalRelease:
 		logger.WithTrace(ctx, ranUe.Log).Info("Release UE Context: N2 Connection Release", logger.SUPI(amfUe.Supi.String()))
 
-		err := ranUe.Remove()
+		err := ranUe.Remove(ctx)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
 		}
 	case amf.UeContextReleaseUeContext:
 		logger.WithTrace(ctx, ranUe.Log).Info("Release UE Context: Release Ue Context", logger.SUPI(amfUe.Supi.String()))
 
-		err := ranUe.Remove()
+		err := ranUe.Remove(ctx)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
 		}
 
 		// No valid security context exists for this UE, so delete the AMF UE context
-		if !amfUe.SecurityContextAvailable {
+		if !amfUe.Current().SecurityContextAvailable {
 			logger.WithTrace(ctx, ranUe.Log).Info("No valid security context for UE, deleting AMF UE context", logger.SUPI(amfUe.Supi.String()))
 			amfInstance.DeregisterAndRemoveAMFUE(ctx, amfUe)
 		}
 	case amf.UeContextReleaseDueToNwInitiatedDeregistraion:
 		logger.WithTrace(ctx, ranUe.Log).Info("Release UE Context Due to Nw Initiated: Release Ue Context", logger.SUPI(amfUe.Supi.String()))
 
-		err := ranUe.Remove()
+		err := ranUe.Remove(ctx)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
 		}
@@ -143,7 +143,7 @@ func HandleUEContextReleaseComplete(ctx context.Context, amfInstance *amf.AMF, r
 
 		amf.DetachSourceUeTargetUe(ranUe)
 
-		err := ranUe.Remove()
+		err := ranUe.Remove(ctx)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error(err.Error())
 		}

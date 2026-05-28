@@ -14,7 +14,8 @@ func TestHandleDeregistrationAccept_T3522Stopped_UEContextReleaseCommand(t *test
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.T3522 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	conn := ue.NasConn()
+	conn.T3522 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 
 	err = handleDeregistrationAccept(t.Context(), ue)
 	if err != nil {
@@ -25,7 +26,7 @@ func TestHandleDeregistrationAccept_T3522Stopped_UEContextReleaseCommand(t *test
 		t.Fatalf("expected UE to be deregistered, but was: %s", ue.GetState())
 	}
 
-	if ue.T3522 != nil {
+	if conn.T3522 != nil {
 		t.Fatal("expected timer T3522 to be stopped and cleared")
 	}
 
@@ -40,7 +41,7 @@ func TestHandleDeregistrationAccept_NilRanUE_NoMessage(t *testing.T) {
 		t.Fatalf("could not build test UE and radio: %v", err)
 	}
 
-	ue.DetachRanUe(nil)
+	ue.ReleaseNasConnection(nil)
 
 	err = handleDeregistrationAccept(t.Context(), ue)
 	if err != nil {

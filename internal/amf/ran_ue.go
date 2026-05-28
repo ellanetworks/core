@@ -41,22 +41,34 @@ const (
 // snapshot. Callers must capture the returned pointer in a local variable
 // and reuse it — never call RanUe() twice in the same code path.
 type RanUe struct {
-	RanUeNgapID                      int64
-	AmfUeNgapID                      int64
-	HandOverType                     ngapType.HandoverType
-	SourceUe                         *RanUe
-	TargetUe                         *RanUe
-	Tai                              models.Tai
-	Location                         models.UserLocation
-	amfUe                            *AmfUe
-	radio                            *Radio
-	ReleaseAction                    RelAction
-	UeContextRequest                 bool
-	SentInitialContextSetupRequest   bool
-	RecvdInitialContextSetupResponse bool /*Received Initial context setup response or not */
-	Log                              *zap.Logger
-	freeNgapID                       func(int64) // set by AMF.NewRanUe to release the NGAP ID
+	RanUeNgapID      int64
+	AmfUeNgapID      int64
+	HandOverType     ngapType.HandoverType
+	SourceUe         *RanUe
+	TargetUe         *RanUe
+	Tai              models.Tai
+	Location         models.UserLocation
+	amfUe            *AmfUe
+	radio            *Radio
+	ReleaseAction    RelAction
+	UeContextRequest bool
+	ICS              ICSState
+	Log              *zap.Logger
+	freeNgapID       func(int64)
 }
+
+// ICSState tracks the AMF-side progress of the NGAP Initial Context Setup
+// procedure for one RanUe.
+type ICSState int
+
+const (
+	// ICSNotStarted: AMF has not sent InitialContextSetupRequest yet.
+	ICSNotStarted ICSState = iota
+	// ICSPending: InitialContextSetupRequest sent, awaiting response.
+	ICSPending
+	// ICSCompleted: InitialContextSetupResponse received.
+	ICSCompleted
+)
 
 // Radio returns the Radio this RanUe is associated with, or nil.
 func (ranUe *RanUe) Radio() *Radio {
@@ -270,13 +282,16 @@ func (ranUe *RanUe) SendHandoverRequest(
 	)
 }
 
-func (ranUe *RanUe) Remove() error {
+// Remove tears down the RAN UE: it releases the NAS signalling connection
+// to the bound AMF UE (with the given cause), removes the RAN UE from the
+// radio's UE table, and frees its NGAP ID.
+func (ranUe *RanUe) Remove(ctx context.Context) error {
 	if ranUe == nil {
 		return fmt.Errorf("ran ue is nil")
 	}
 
 	if ranUe.amfUe != nil {
-		ranUe.amfUe.DetachRanUe(ranUe)
+		ranUe.amfUe.ReleaseNasConnection(ranUe)
 	}
 
 	ran := ranUe.radio

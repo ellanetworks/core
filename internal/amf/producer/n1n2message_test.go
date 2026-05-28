@@ -301,12 +301,12 @@ func TestTransferN1N2Message_InitialContextAlreadySent(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000003", func(u *amf.AmfUe) {
-		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
+		u.Current().Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
 	})
 
 	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
 	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
-	ranUe.SentInitialContextSetupRequest = true
+	ranUe.ICS = amf.ICSPending
 	ue.AttachRanUe(ranUe)
 
 	err := producer.TransferN1N2Message(context.Background(), amfInstance, ue.Supi, newReq())
@@ -330,12 +330,12 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 	amfInstance := amf.New(fakeDB, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000004", func(u *amf.AmfUe) {
-		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
+		u.Current().Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
 	})
 
 	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
 	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
-	ranUe.SentInitialContextSetupRequest = false
+	ranUe.ICS = amf.ICSNotStarted
 	ue.AttachRanUe(ranUe)
 
 	err := producer.TransferN1N2Message(context.Background(), amfInstance, ue.Supi, newReq())
@@ -347,8 +347,8 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 		t.Fatalf("expected 1 InitialContextSetupRequest, got %d", sender.initialContextSetupCalls)
 	}
 
-	if !ranUe.SentInitialContextSetupRequest {
-		t.Fatal("expected SentInitialContextSetupRequest to be set to true")
+	if ranUe.ICS != amf.ICSPending {
+		t.Fatalf("expected ranUe.ICS == ICSPending, got %v", ranUe.ICS)
 	}
 }
 
@@ -360,7 +360,7 @@ func TestModifyN1N2Message_IdleRegisteredUE_ReturnsNotReachable(t *testing.T) {
 	ue := addUE(t, amfInstance, "001010000000014", func(u *amf.AmfUe) {
 		u.ForceState(amf.Registered)
 		u.Guti = testGUTI(t)
-		u.RegistrationArea = []models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}}
+		u.Current().RegistrationArea = []models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}}
 	})
 
 	radio := &amf.Radio{
@@ -388,7 +388,7 @@ func TestModifyN1N2Message_IdleRegisteredUE_ReturnsNotReachable(t *testing.T) {
 	}
 
 	// No N1N2 message stored on UE.
-	if ue.N1N2Message != nil {
+	if ue.NasConn() != nil && ue.NasConn().N1N2Message != nil {
 		t.Fatal("expected no stored N1N2 message")
 	}
 }
@@ -430,7 +430,7 @@ func TestN2MessageTransferOrPage_OnGoingPaging(t *testing.T) {
 
 	ue := addUE(t, amfInstance, "001010000000006", nil)
 
-	if _, err := ue.Procedures.Begin(context.Background(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+	if _, err := ue.NasConn().Procedures.Begin(context.Background(), procedure.Procedure{Type: procedure.Paging}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -445,7 +445,7 @@ func TestN2MessageTransferOrPage_OnGoingRegistration(t *testing.T) {
 
 	ue := addUE(t, amfInstance, "001010000000007", nil)
 
-	if _, err := ue.Procedures.Begin(context.Background(), procedure.Procedure{Type: procedure.Registration}); err != nil {
+	if _, err := ue.NasConn().Procedures.Begin(context.Background(), procedure.Procedure{Type: procedure.Registration}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -460,7 +460,7 @@ func TestN2MessageTransferOrPage_OnGoingN2Handover(t *testing.T) {
 
 	ue := addUE(t, amfInstance, "001010000000008", nil)
 
-	if _, err := ue.Procedures.Begin(context.Background(), procedure.Procedure{Type: procedure.N2Handover}); err != nil {
+	if _, err := ue.NasConn().Procedures.Begin(context.Background(), procedure.Procedure{Type: procedure.N2Handover}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -475,12 +475,12 @@ func TestN2MessageTransferOrPage_ConnectedUE_InitialCtxSent(t *testing.T) {
 	amfInstance := amf.New(nil, nil, &fakeSmf{})
 
 	ue := addUE(t, amfInstance, "001010000000009", func(u *amf.AmfUe) {
-		u.Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
+		u.Current().Ambr = &models.Ambr{Uplink: "1000000", Downlink: "1000000"}
 	})
 
 	radio := &amf.Radio{NGAPSender: sender, RanUEs: make(map[int64]*amf.RanUe)}
 	ranUe := amf.NewRanUeForTest(radio, 1, 1, zap.NewNop())
-	ranUe.SentInitialContextSetupRequest = true
+	ranUe.ICS = amf.ICSPending
 	ue.AttachRanUe(ranUe)
 
 	err := producer.N2MessageTransferOrPage(context.Background(), amfInstance, ue.Supi, newReq())

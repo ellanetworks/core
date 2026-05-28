@@ -74,11 +74,21 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to decode NAS message")
 
-		return "", nil, fmt.Errorf("error decoding NAS message: %v", err)
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, 0, nasMessage.Cause5GSMProtocolErrorUnspecified)
+		if buildErr != nil {
+			return "", nil, fmt.Errorf("error decoding NAS message: %v (build reject failed: %v)", err, buildErr)
+		}
+
+		return "", rsp, fmt.Errorf("error decoding NAS message: %v", err)
 	}
 
 	if m.GsmHeader.GetMessageType() != nas.MsgTypePDUSessionEstablishmentRequest {
-		return "", nil, fmt.Errorf("unexpected NAS message type: %d", m.GsmHeader.GetMessageType())
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(pduSessionID, 0, nasMessage.Cause5GSMMessageTypeNotCompatibleWithTheProtocolState)
+		if buildErr != nil {
+			return "", nil, fmt.Errorf("unexpected NAS message type %d (build reject failed: %v)", m.GsmHeader.GetMessageType(), buildErr)
+		}
+
+		return "", rsp, fmt.Errorf("unexpected NAS message type: %d", m.GsmHeader.GetMessageType())
 	}
 
 	smContext := s.GetSession(CanonicalName(supi, pduSessionID))
@@ -214,13 +224,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 	if err != nil {
 		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
 
-		// Determine the appropriate reject cause based on which pools are available.
-		cause := nasMessage.Cause5GSMInsufficientResources
-		if policy.IPv4Pool != "" && policy.IPv6Pool == "" {
-			cause = nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed
-		} else if policy.IPv4Pool == "" && policy.IPv6Pool != "" {
-			cause = nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed
-		}
+		cause := pduSessionTypeRejectCause(requestedType, policy)
 
 		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, cause)
 		if buildErr != nil {
@@ -370,6 +374,31 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 	logger.WithTrace(ctx, logger.SmfLog).Info("Successfully created PDU session context", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
 	return pco, addrs, pti, policy, cause, nil, nil
+}
+
+// pduSessionTypeRejectCause maps a failed PDU session type negotiation
+// to the 5GSM cause prescribed by TS 24.501 §6.4.1.4.1.
+//
+//   - IPv6 requested, only IPv4 supported           → #50 IPv4 only allowed
+//   - IPv4 requested, only IPv6 supported           → #51 IPv6 only allowed
+//   - IPv4/IPv6/IPv4v6 requested, neither supported → #28 unknown PDU session type
+//   - Unstructured, Ethernet, reserved values       → #28 unknown PDU session type
+func pduSessionTypeRejectCause(requested uint8, policy *Policy) uint8 {
+	hasIPv4 := policy.IPv4Pool != ""
+	hasIPv6 := policy.IPv6Pool != ""
+
+	switch requested {
+	case nasMessage.PDUSessionTypeIPv6:
+		if hasIPv4 && !hasIPv6 {
+			return nasMessage.Cause5GSMPDUSessionTypeIPv4OnlyAllowed
+		}
+	case nasMessage.PDUSessionTypeIPv4:
+		if !hasIPv4 && hasIPv6 {
+			return nasMessage.Cause5GSMPDUSessionTypeIPv6OnlyAllowed
+		}
+	}
+
+	return nasMessage.Cause5GSMUnknownPDUSessionType
 }
 
 // negotiatePDUSessionType resolves the final PDU session type based on

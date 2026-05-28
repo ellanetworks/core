@@ -611,9 +611,48 @@ func TestCreateSmContext_InvalidNAS(t *testing.T) {
 	ctx := context.Background()
 	supi := testSUPI()
 
-	_, _, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, []byte{0x00})
+	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, []byte{0x00})
 	if err == nil {
 		t.Fatal("expected error for invalid NAS message")
+	}
+
+	if rejectN1 == nil {
+		t.Fatal("expected SMF to build a PDU Session Establishment Reject for malformed NAS")
+	}
+
+	if cause := rejectCauseCode(t, rejectN1); cause != nasMessage.Cause5GSMProtocolErrorUnspecified {
+		t.Fatalf("expected cause %d (protocol error unspecified), got %d", nasMessage.Cause5GSMProtocolErrorUnspecified, cause)
+	}
+
+	if s.SessionCount() != 0 {
+		t.Fatalf("expected no sessions to be created, got %d", s.SessionCount())
+	}
+}
+
+func TestCreateSmContext_WrongNASMessageType(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+	supi := testSUPI()
+
+	// A well-formed but inappropriate GSM message (release request rather than establishment).
+	n1Msg := buildPDUSessionReleaseRequest(1, 10)
+
+	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, n1Msg)
+	if err == nil {
+		t.Fatal("expected error for unexpected NAS message type")
+	}
+
+	if rejectN1 == nil {
+		t.Fatal("expected SMF to build a PDU Session Establishment Reject for wrong NAS type")
+	}
+
+	if cause := rejectCauseCode(t, rejectN1); cause != nasMessage.Cause5GSMMessageTypeNotCompatibleWithTheProtocolState {
+		t.Fatalf("expected cause %d (message type not compatible with protocol state), got %d", nasMessage.Cause5GSMMessageTypeNotCompatibleWithTheProtocolState, cause)
+	}
+
+	if s.SessionCount() != 0 {
+		t.Fatalf("expected no sessions to be created, got %d", s.SessionCount())
 	}
 }
 

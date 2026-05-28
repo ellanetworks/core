@@ -12,7 +12,7 @@ import (
 )
 
 // TS 23.502 4.2.2.3
-func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, ue *amf.AmfUe, msg *nasMessage.DeregistrationRequestUEOriginatingDeregistration) error {
+func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context, ue *amf.AmfUe, msg *nasMessage.DeregistrationRequestUEOriginatingDeregistration, macFailed bool) error {
 	if state := ue.GetState(); state != amf.Registered {
 		return fmt.Errorf("state mismatch: receive Deregistration Request (UE Originating Deregistration) message in state %s", state)
 	}
@@ -20,7 +20,7 @@ func handleDeregistrationRequestUEOriginatingDeregistration(ctx context.Context,
 	// Reject unauthenticated Deregistration Requests while the AMF still
 	// holds a valid security context (TS 24.501 §4.4.4.3 defense in depth).
 	// A UE that lost its keys can recover via Initial Registration.
-	if ue.MacFailed && ue.SecurityContextAvailable {
+	if macFailed && ue.Current().SecurityContextAvailable {
 		return fmt.Errorf("rejecting unauthenticated Deregistration Request from UE with valid security context")
 	}
 

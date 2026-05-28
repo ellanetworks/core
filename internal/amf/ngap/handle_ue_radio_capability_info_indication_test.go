@@ -43,8 +43,8 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapability(t *testing.T) {
 		UERadioCapability: []byte{0xDE, 0xAD, 0xBE, 0xEF},
 	})
 
-	if amfUe.UeRadioCapability != "deadbeef" {
-		t.Errorf("UeRadioCapability = %q, want %q", amfUe.UeRadioCapability, "deadbeef")
+	if amfUe.Current().UeRadioCapability != "deadbeef" {
+		t.Errorf("UeRadioCapability = %q, want %q", amfUe.Current().UeRadioCapability, "deadbeef")
 	}
 }
 
@@ -68,16 +68,16 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapabilityForPaging(t *testing
 		},
 	})
 
-	if amfUe.UeRadioCapabilityForPaging == nil {
+	if amfUe.Current().UeRadioCapabilityForPaging == nil {
 		t.Fatal("UeRadioCapabilityForPaging is nil")
 	}
 
-	if amfUe.UeRadioCapabilityForPaging.NR != "cafe" {
-		t.Errorf("NR = %q, want %q", amfUe.UeRadioCapabilityForPaging.NR, "cafe")
+	if amfUe.Current().UeRadioCapabilityForPaging.NR != "cafe" {
+		t.Errorf("NR = %q, want %q", amfUe.Current().UeRadioCapabilityForPaging.NR, "cafe")
 	}
 
-	if amfUe.UeRadioCapabilityForPaging.EUTRA != "babe" {
-		t.Errorf("EUTRA = %q, want %q", amfUe.UeRadioCapabilityForPaging.EUTRA, "babe")
+	if amfUe.Current().UeRadioCapabilityForPaging.EUTRA != "babe" {
+		t.Errorf("EUTRA = %q, want %q", amfUe.Current().UeRadioCapabilityForPaging.EUTRA, "babe")
 	}
 }
 
@@ -93,11 +93,11 @@ func TestUERadioCapabilityInfoIndication_NilCapabilityFieldsNoOp(t *testing.T) {
 		RANUENGAPID: 1,
 	})
 
-	if amfUe.UeRadioCapability != "" {
-		t.Errorf("UeRadioCapability = %q, want empty", amfUe.UeRadioCapability)
+	if amfUe.Current().UeRadioCapability != "" {
+		t.Errorf("UeRadioCapability = %q, want empty", amfUe.Current().UeRadioCapability)
 	}
 
-	if amfUe.UeRadioCapabilityForPaging != nil {
-		t.Errorf("UeRadioCapabilityForPaging = %+v, want nil", amfUe.UeRadioCapabilityForPaging)
+	if amfUe.Current().UeRadioCapabilityForPaging != nil {
+		t.Errorf("UeRadioCapabilityForPaging = %+v, want nil", amfUe.Current().UeRadioCapabilityForPaging)
 	}
 }

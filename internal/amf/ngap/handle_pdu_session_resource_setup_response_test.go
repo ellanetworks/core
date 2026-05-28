@@ -73,7 +73,7 @@ func TestHandlePDUSessionResourceSetupResponse_HappyPath(t *testing.T) {
 
 	amfUe := amf.NewAmfUe()
 	amfUe.Log = logger.AmfLog
-	amfUe.SmContextList[1] = &amf.SmContext{
+	amfUe.Current().SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
@@ -115,7 +115,7 @@ func TestHandlePDUSessionResourceSetupResponse_FailedItemForwardedToSmf(t *testi
 
 	amfUe := amf.NewAmfUe()
 	amfUe.Log = logger.AmfLog
-	amfUe.SmContextList[1] = &amf.SmContext{
+	amfUe.Current().SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}

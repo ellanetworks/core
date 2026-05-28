@@ -67,7 +67,13 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 		return
 	}
 
-	_, beginErr := amfUe.Procedures.Begin(ctx, procedure.Procedure{Type: procedure.N2Handover})
+	conn := amfUe.NasConn()
+	if conn == nil {
+		logger.WithTrace(ctx, sourceUe.Log).Error("no active NAS connection")
+		return
+	}
+
+	_, beginErr := conn.Procedures.Begin(conn.Ctx(), procedure.Procedure{Type: procedure.N2Handover})
 	if beginErr != nil {
 		logger.WithTrace(ctx, sourceUe.Log).Info("N2Handover rejected by procedure registry", zap.Error(beginErr))
 		return
@@ -83,7 +89,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		sourceUe.AmfUe().Procedures.End(procedure.N2Handover)
+		conn.Procedures.End(procedure.N2Handover)
 
 		err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
 		if err != nil {
@@ -137,7 +143,7 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 			},
 		}
 
-		sourceUe.AmfUe().Procedures.End(procedure.N2Handover)
+		conn.Procedures.End(procedure.N2Handover)
 
 		err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil)
 		if err != nil {
@@ -181,11 +187,11 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 	err = targetUe.SendHandoverRequest(
 		ctx,
 		sourceUe.HandOverType,
-		amfUe.Ambr.Uplink,
-		amfUe.Ambr.Downlink,
-		amfUe.UESecurityCapability,
-		amfUe.NCC,
-		amfUe.NH,
+		amfUe.Current().Ambr.Uplink,
+		amfUe.Current().Ambr.Downlink,
+		amfUe.Current().UESecurityCapability,
+		amfUe.Current().NCC,
+		amfUe.Current().NH,
 		msg.Cause,
 		pduSessionReqList,
 		msg.SourceToTargetTransparentContainer,

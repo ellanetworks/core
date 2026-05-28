@@ -42,7 +42,7 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 		logger.WithTrace(ctx, targetUe.Log).Error("N2 Handover between AMF has not been implemented yet")
 	} else {
 		if sourceAmfUe := sourceUe.AmfUe(); sourceAmfUe != nil {
-			sourceAmfUe.Procedures.End(procedure.N2Handover)
+			sourceAmfUe.NasConn().Procedures.End(procedure.N2Handover)
 		}
 
 		failureCause := ngapType.Cause{

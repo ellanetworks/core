@@ -61,18 +61,18 @@ func sendServiceAccept(
 			return fmt.Errorf("error building service accept message: %v", err)
 		}
 
-		ranUe.SentInitialContextSetupRequest = true
+		ranUe.ICS = amf.ICSPending
 
 		err = ranUe.SendInitialContextSetupRequest(
 			ctx,
-			ue.Ambr.Uplink,
-			ue.Ambr.Downlink,
-			ue.AllowedNssai,
-			ue.Kgnb,
+			ue.Current().Ambr.Uplink,
+			ue.Current().Ambr.Downlink,
+			ue.Current().AllowedNssai,
+			ue.Current().Kgnb,
 			ue.PlmnID,
-			ue.UeRadioCapability,
-			ue.UeRadioCapabilityForPaging,
-			ue.UESecurityCapability,
+			ue.Current().UeRadioCapability,
+			ue.Current().UeRadioCapabilityForPaging,
+			ue.Current().UESecurityCapability,
 			nasPdu,
 			&ctxList,
 			supportedGUAMI,
@@ -90,8 +90,8 @@ func sendServiceAccept(
 
 		err = ranUe.SendPDUSessionResourceSetupRequest(
 			ctx,
-			ue.Ambr.Uplink,
-			ue.Ambr.Downlink,
+			ue.Current().Ambr.Uplink,
+			ue.Current().Ambr.Downlink,
 			nasPdu,
 			suList,
 		)
@@ -113,7 +113,7 @@ func sendServiceAccept(
 }
 
 // TS 24501 5.6.1
-func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.ServiceRequest) error {
+func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.ServiceRequest, macFailed bool) error {
 	// Validate state before accessing RanUe — state checks are cheap and
 	// independent of the RAN connection.
 	state := ue.GetState()
@@ -143,35 +143,39 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 		return nil
 	}
 
-	if ue.T3513 != nil {
-		ue.T3513.Stop()
-		ue.T3513 = nil // clear the timer
+	conn := ue.NasConn()
+	if conn == nil {
+		return fmt.Errorf("no active NAS connection")
 	}
 
-	if ue.T3565 != nil {
-		ue.T3565.Stop()
-		ue.T3565 = nil // clear the timer
+	if conn.T3513 != nil {
+		conn.T3513.Stop()
+		conn.T3513 = nil
 	}
 
-	// Set No ongoing
-	if ue.Procedures.Active(procedure.Paging) {
-		ue.Procedures.End(procedure.Paging)
+	if conn.T3565 != nil {
+		conn.T3565.Stop()
+		conn.T3565 = nil
+	}
+
+	if conn.Procedures.Active(procedure.Paging) {
+		conn.Procedures.End(procedure.Paging)
 	}
 
 	// TS 24.501 8.2.6.21: if the UE is sending a REGISTRATION REQUEST message as an initial NAS message,
 	// the UE has a valid 5G NAS security context and the UE needs to send non-cleartext IEs
 	// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS message
 	// container IE, the UE shall set the security header type of the initial NAS message to "integrity protected"
-	if msg.NASMessageContainer != nil && ue.SecurityContextIsValid() {
+	if msg.NASMessageContainer != nil && (ue.SecurityContextIsValid() && !macFailed) {
 		contents := msg.GetNASMessageContainerContents()
 
 		// TS 24.501 4.4.6: When the UE sends a REGISTRATION REQUEST or SERVICE REQUEST message that includes a NAS
 		// message container IE, the UE shall set the security header type of the initial NAS message to
 		// "integrity protected"; then the AMF shall decipher the value part of the NAS message container IE
-		err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP,
+		err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP,
 			security.DirectionUplink, contents)
 		if err != nil {
-			ue.SecurityContextAvailable = false
+			ue.Current().SecurityContextAvailable = false
 		} else {
 			m := nas.NewMessage()
 			if err := m.GmmMessageDecode(&contents); err != nil {
@@ -187,13 +191,13 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 			msg = m.ServiceRequest
 		}
 		// TS 33.501 6.4.6 step 3: if the initial NAS message was protected but did not pass the integrity check
-		ue.RetransmissionOfInitialNASMsg = ue.MacFailed
+		conn.RetransmissionOfInitialNASMsg = macFailed
 	}
 
 	// Service Reject if the SecurityContext is invalid
-	if !ue.SecurityContextIsValid() {
+	if !ue.SecurityContextIsValid() || macFailed {
 		ue.Log.Warn("No security context", logger.SUPI(ue.Supi.String()))
-		ue.SecurityContextAvailable = false
+		ue.Current().SecurityContextAvailable = false
 
 		err := message.SendServiceReject(ctx, ranUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 		if err != nil {
@@ -240,9 +244,9 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 		return err
 	}
 
-	if ue.N1N2Message != nil {
-		requestData := ue.N1N2Message
-		if ue.N1N2Message.BinaryDataN2Information != nil {
+	if conn.N1N2Message != nil {
+		requestData := conn.N1N2Message
+		if conn.N1N2Message.BinaryDataN2Information != nil {
 			targetPduSessionID = requestData.PduSessionID
 		}
 	}
@@ -250,8 +254,8 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 	// Copy SmContextList under lock for safe concurrent iteration.
 	ue.Mutex.Lock()
 
-	smContextSnapshot := make(map[uint8]*amf.SmContext, len(ue.SmContextList))
-	for id, sc := range ue.SmContextList {
+	smContextSnapshot := make(map[uint8]*amf.SmContext, len(ue.Current().SmContextList))
+	for id, sc := range ue.Current().SmContextList {
 		smContextSnapshot[id] = sc
 	}
 	ue.Mutex.Unlock()
@@ -311,10 +315,10 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 	case nasMessage.ServiceTypeMobileTerminatedServices: // Triggered by Network
 		// TS 24.501 5.4.4.1 - We need to assign a new GUTI after a successful Service Request
 		// triggered by a paging request.
-		if ue.N1N2Message != nil {
-			requestData := ue.N1N2Message
-			n1Msg := ue.N1N2Message.BinaryDataN1Message
-			n2Info := ue.N1N2Message.BinaryDataN2Information
+		if conn.N1N2Message != nil {
+			requestData := conn.N1N2Message
+			n1Msg := conn.N1N2Message.BinaryDataN1Message
+			n2Info := conn.N1N2Message.BinaryDataN2Information
 
 			// Paging was triggered for downlink signaling only
 			if n2Info == nil && n1Msg != nil {
@@ -330,11 +334,11 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 
 				ue.Log.Info("sent downlink nas transport message")
 
-				ue.N1N2Message = nil
+				conn.N1N2Message = nil
 			} else {
 				_, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
 				if !exist {
-					ue.N1N2Message = nil
+					conn.N1N2Message = nil
 					return fmt.Errorf("service Request triggered by Network for pduSessionID that does not exist")
 				}
 
@@ -389,7 +393,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 		ue.Log.Info("", zap.Any("errPduSessionID", errPduSessionID), zap.Any("errCause", errCause))
 	}
 
-	ue.N1N2Message = nil
+	conn.N1N2Message = nil
 
 	return nil
 }

@@ -77,7 +77,8 @@ type SupportedTAI struct {
 	SNssaiList []models.Snssai
 }
 
-func (r *Radio) RemoveAllUeInRan() {
+// RemoveAllUeInRan removes every RAN UE bound to this radio.
+func (r *Radio) RemoveAllUeInRan(ctx context.Context) {
 	r.mu.RLock()
 
 	ues := make([]*RanUe, 0, len(r.RanUEs))
@@ -88,10 +89,29 @@ func (r *Radio) RemoveAllUeInRan() {
 	r.mu.RUnlock()
 
 	for _, ranUe := range ues {
-		err := ranUe.Remove()
+		applyStatefulNasCleanup(ctx, ranUe)
+
+		err := ranUe.Remove(ctx)
 		if err != nil {
 			logger.AmfLog.Error("error removing ran ue", zap.Error(err))
 		}
+	}
+}
+
+// applyStatefulNasCleanup runs the GMM state-machine cleanup that follows
+// NAS connection loss: mid-registration UEs are aborted (TS 24.501
+// §5.5.1.2.8); registered UEs start the mobile reachable timer (§5.3.7).
+func applyStatefulNasCleanup(ctx context.Context, ranUe *RanUe) {
+	ue := ranUe.AmfUe()
+	if ue == nil {
+		return
+	}
+
+	switch ue.GetState() {
+	case Registered:
+		ue.ResetMobileReachableTimer()
+	case Authentication, SecurityMode, ContextSetup:
+		ue.Deregister(ctx)
 	}
 }
 

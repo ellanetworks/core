@@ -73,6 +73,11 @@ func BuildIdentityRequest(typeOfIdentity uint8) ([]byte, error) {
 }
 
 func BuildAuthenticationRequest(ue *amf.AmfUe) ([]byte, error) {
+	conn := ue.NasConn()
+	if conn == nil || conn.AuthenticationCtx == nil {
+		return nil, fmt.Errorf("no authentication context available")
+	}
+
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeAuthenticationRequest)
@@ -82,13 +87,13 @@ func BuildAuthenticationRequest(ue *amf.AmfUe) ([]byte, error) {
 	authenticationRequest.SetSecurityHeaderType(nas.SecurityHeaderTypePlainNas)
 	authenticationRequest.SpareHalfOctetAndSecurityHeaderType.SetSpareHalfOctet(0)
 	authenticationRequest.SetMessageType(nas.MsgTypeAuthenticationRequest)
-	authenticationRequest.SpareHalfOctetAndNgksi = util.SpareHalfOctetAndNgksiToNas(ue.NgKsi)
-	authenticationRequest.ABBA.SetLen(uint8(len(ue.ABBA)))
-	authenticationRequest.SetABBAContents(ue.ABBA)
+	authenticationRequest.SpareHalfOctetAndNgksi = util.SpareHalfOctetAndNgksiToNas(ue.Current().NgKsi)
+	authenticationRequest.ABBA.SetLen(uint8(len(ue.Current().ABBA)))
+	authenticationRequest.SetABBAContents(ue.Current().ABBA)
 
 	var tmpArray [16]byte
 
-	rand, err := hex.DecodeString(ue.AuthenticationCtx.Rand)
+	rand, err := hex.DecodeString(conn.AuthenticationCtx.Rand)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +103,7 @@ func BuildAuthenticationRequest(ue *amf.AmfUe) ([]byte, error) {
 	copy(tmpArray[:], rand[0:16])
 	authenticationRequest.SetRANDValue(tmpArray)
 
-	autn, err := hex.DecodeString(ue.AuthenticationCtx.Autn)
+	autn, err := hex.DecodeString(conn.AuthenticationCtx.Autn)
 	if err != nil {
 		return nil, err
 	}
@@ -218,6 +223,11 @@ func BuildRegistrationReject(t3502Value int, cause5GMM uint8) ([]byte, error) {
 
 // TS 24.501 8.2.25
 func BuildSecurityModeCommand(ue *amf.AmfUe) ([]byte, error) {
+	conn := ue.NasConn()
+	if conn == nil {
+		return nil, fmt.Errorf("no active NAS connection")
+	}
+
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeSecurityModeCommand)
@@ -233,17 +243,17 @@ func BuildSecurityModeCommand(ue *amf.AmfUe) ([]byte, error) {
 	securityModeCommand.SpareHalfOctetAndSecurityHeaderType.SetSpareHalfOctet(0)
 	securityModeCommand.SetMessageType(nas.MsgTypeSecurityModeCommand)
 
-	securityModeCommand.SelectedNASSecurityAlgorithms.SetTypeOfCipheringAlgorithm(ue.CipheringAlg)
-	securityModeCommand.SelectedNASSecurityAlgorithms.SetTypeOfIntegrityProtectionAlgorithm(ue.IntegrityAlg)
+	securityModeCommand.SelectedNASSecurityAlgorithms.SetTypeOfCipheringAlgorithm(ue.Current().CipheringAlg)
+	securityModeCommand.SelectedNASSecurityAlgorithms.SetTypeOfIntegrityProtectionAlgorithm(ue.Current().IntegrityAlg)
 
-	securityModeCommand.SpareHalfOctetAndNgksi = util.SpareHalfOctetAndNgksiToNas(ue.NgKsi)
+	securityModeCommand.SpareHalfOctetAndNgksi = util.SpareHalfOctetAndNgksiToNas(ue.Current().NgKsi)
 
-	if ue.UESecurityCapability == nil {
+	if ue.Current().UESecurityCapability == nil {
 		return nil, fmt.Errorf("UE security capability not available, cannot build SecurityModeCommand")
 	}
 
-	securityModeCommand.ReplayedUESecurityCapabilities.SetLen(ue.UESecurityCapability.GetLen())
-	securityModeCommand.ReplayedUESecurityCapabilities.Buffer = ue.UESecurityCapability.Buffer
+	securityModeCommand.ReplayedUESecurityCapabilities.SetLen(ue.Current().UESecurityCapability.GetLen())
+	securityModeCommand.ReplayedUESecurityCapabilities.Buffer = ue.Current().UESecurityCapability.Buffer
 
 	if ue.Pei != "" {
 		securityModeCommand.IMEISVRequest = nasType.NewIMEISVRequest(nasMessage.SecurityModeCommandIMEISVRequestType)
@@ -256,24 +266,24 @@ func BuildSecurityModeCommand(ue *amf.AmfUe) ([]byte, error) {
 	securityModeCommand.Additional5GSecurityInformation = nasType.NewAdditional5GSecurityInformation(nasMessage.SecurityModeCommandAdditional5GSecurityInformationType)
 	securityModeCommand.Additional5GSecurityInformation.SetLen(1)
 
-	if ue.RetransmissionOfInitialNASMsg {
+	if conn.RetransmissionOfInitialNASMsg {
 		securityModeCommand.SetRINMR(1)
 	} else {
 		securityModeCommand.SetRINMR(0)
 	}
 
-	if ue.RegistrationType5GS == nasMessage.RegistrationType5GSPeriodicRegistrationUpdating || ue.RegistrationType5GS == nasMessage.RegistrationType5GSMobilityRegistrationUpdating {
+	if conn.RegistrationType5GS == nasMessage.RegistrationType5GSPeriodicRegistrationUpdating || conn.RegistrationType5GS == nasMessage.RegistrationType5GSMobilityRegistrationUpdating {
 		securityModeCommand.SetHDP(1)
 	} else {
 		securityModeCommand.SetHDP(0)
 	}
 
-	ue.SecurityContextAvailable = true
+	ue.Current().SecurityContextAvailable = true
 	m.SecurityModeCommand = securityModeCommand
 
 	payload, err := ue.EncodeNASMessage(m)
 	if err != nil {
-		ue.SecurityContextAvailable = false
+		ue.Current().SecurityContextAvailable = false
 		return nil, err
 	}
 
@@ -344,10 +354,10 @@ func BuildRegistrationAccept(
 	registrationAccept.EquivalentPlmns.SetLen(uint8(len(buf)))
 	copy(registrationAccept.EquivalentPlmns.Octet[:], buf)
 
-	if len(ue.RegistrationArea) > 0 {
+	if len(ue.Current().RegistrationArea) > 0 {
 		registrationAccept.TAIList = nasType.NewTAIList(nasMessage.RegistrationAcceptTAIListType)
 
-		taiListNas, err := util.TaiListToNas(ue.RegistrationArea)
+		taiListNas, err := util.TaiListToNas(ue.Current().RegistrationArea)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert TAI list to NAS: %s", err)
 		}
@@ -356,12 +366,12 @@ func BuildRegistrationAccept(
 		registrationAccept.SetPartialTrackingAreaIdentityList(taiListNas)
 	}
 
-	if len(ue.AllowedNssai) > 0 {
+	if len(ue.Current().AllowedNssai) > 0 {
 		registrationAccept.AllowedNSSAI = nasType.NewAllowedNSSAI(nasMessage.RegistrationAcceptAllowedNSSAIType)
 
 		var buf []uint8
 
-		for _, s := range ue.AllowedNssai {
+		for _, s := range ue.Current().AllowedNssai {
 			snssai, err := util.SnssaiToNas(s)
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert SNSSAI to NAS: %s", err)
@@ -410,21 +420,21 @@ func BuildRegistrationAccept(
 
 	registrationAccept.T3512Value = nasType.NewT3512Value(nasMessage.RegistrationAcceptT3512ValueType)
 	registrationAccept.T3512Value.SetLen(1)
-	t3512 := nasConvert.GPRSTimer3ToNas(int(ue.T3512Value.Seconds()))
+	t3512 := nasConvert.GPRSTimer3ToNas(int(ue.Current().T3512Value.Seconds()))
 	registrationAccept.T3512Value.Octet = t3512
 
 	// Temporary: commented this timer because UESIM is not supporting
-	/*if ue.T3502Value != 0 {
+	/*if ue.Current().T3502Value != 0 {
 		registrationAccept.T3502Value = nasType.NewT3502Value(nasMessage.RegistrationAcceptT3502ValueType)
 		registrationAccept.T3502Value.SetLen(1)
-		t3502 := nasConvert.GPRSTimer2ToNas(ue.T3502Value)
+		t3502 := nasConvert.GPRSTimer2ToNas(ue.Current().T3502Value)
 		registrationAccept.T3502Value.SetGPRSTimer2Value(t3502)
 	}*/
 
-	if ue.UESpecificDRX != nasMessage.DRXValueNotSpecified {
+	if ue.Current().UESpecificDRX != nasMessage.DRXValueNotSpecified {
 		registrationAccept.NegotiatedDRXParameters = nasType.NewNegotiatedDRXParameters(nasMessage.RegistrationAcceptNegotiatedDRXParametersType)
 		registrationAccept.NegotiatedDRXParameters.SetLen(1)
-		registrationAccept.SetDRXValue(ue.UESpecificDRX)
+		registrationAccept.SetDRXValue(ue.Current().UESpecificDRX)
 	}
 
 	m.RegistrationAccept = registrationAccept

@@ -45,6 +45,8 @@ func handleInitialContextSetupRequest(gnb *GnodeB, initialContextSetupRequest *n
 		zap.Int64("RANUENGAPID", ranueNGAPID.Value),
 	)
 
+	gnb.UpdateNGAPIDs(ranueNGAPID.Value, amfueNGAPID.Value)
+
 	if ueAggregateMaximumBitRate != nil {
 		gnb.StoreUEAmbr(ranueNGAPID.Value, &UEAmbrInformation{
 			UplinkBps:   ueAggregateMaximumBitRate.UEAggregateMaximumBitRateUL.Value,

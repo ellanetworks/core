@@ -64,7 +64,7 @@ func TestHandleULNASTransport_WrongState_Error(t *testing.T) {
 
 			msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, []byte{0x01}, pduSessionIDPtr(1))
 
-			err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
+			err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, false)
 			if err == nil {
 				t.Fatal("expected an error, got nil")
 			}
@@ -79,13 +79,12 @@ func TestHandleULNASTransport_MacFailed_Error(t *testing.T) {
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.MacFailed = true
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, []byte{0x01}, pduSessionIDPtr(1))
 
 	expected := "NAS message integrity check failed"
 
-	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, true)
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected error: %s, got: %v", expected, err)
 	}
@@ -101,7 +100,7 @@ func TestHandleULNASTransport_PayloadContainerTypeSMS_Error(t *testing.T) {
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeSMS, []byte{0x01}, nil)
 
-	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, false)
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}
@@ -117,7 +116,7 @@ func TestHandleULNASTransport_PayloadContainerTypeLPP_Error(t *testing.T) {
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeLPP, []byte{0x01}, nil)
 
-	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, false)
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}
@@ -133,7 +132,7 @@ func TestHandleULNASTransport_PayloadContainerTypeSOR_Error(t *testing.T) {
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeSOR, []byte{0x01}, nil)
 
-	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, false)
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}
@@ -149,7 +148,7 @@ func TestHandleULNASTransport_PayloadContainerTypeMultiplePayload_Error(t *testi
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeMultiplePayload, []byte{0x01}, nil)
 
-	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, false)
 	if err == nil {
 		t.Fatal("expected an error, got nil")
 	}
@@ -165,7 +164,7 @@ func TestHandleULNASTransport_PayloadContainerTypeUEPolicy_NoError(t *testing.T)
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeUEPolicy, []byte{0x01}, nil)
 
-	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, false)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -185,7 +184,7 @@ func TestHandleULNASTransport_PayloadContainerTypeUEParameterUpdate_NoError(t *t
 
 	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeUEParameterUpdate, upuAck, nil)
 
-	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	err = handleULNASTransport(t.Context(), amf.New(nil, nil, nil), ue, msg, false)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -326,7 +325,7 @@ func TestTransport5GSMMessage_ExistingPduSession_NotAllowedNssai_SendsDLNASTrans
 	}
 
 	// Set the UE's allowed NSSAI to SST=1, SD="010203"
-	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	ue.Current().AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
 
 	// Create an SM context with a DIFFERENT NSSAI (SST=2)
 	var pduSessionID uint8 = 5
@@ -467,7 +466,7 @@ func TestTransport5GSMMessage_SmContextExists_InitialRequest_DeletesContextAndCr
 
 	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
 
-	ue.AllowedNssai = []models.Snssai{*snssai}
+	ue.Current().AllowedNssai = []models.Snssai{*snssai}
 
 	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {
@@ -486,6 +485,107 @@ func TestTransport5GSMMessage_SmContextExists_InitialRequest_DeletesContextAndCr
 
 	if len(fakeSmf.CreateSmContextCalls) != 1 {
 		t.Fatalf("expected 1 CreateSmContext call, got: %d", len(fakeSmf.CreateSmContextCalls))
+	}
+}
+
+// When SMF returns (err, errResponse) we must forward the SMF-provided NAS
+// reject to the UE inside DLNASTransport and NOT create a stale SmContext.
+func TestTransport5GSMMessage_InitialRequest_SmfReturnsErrorAndReject_ForwardsRejectAndNoSmContext(t *testing.T) {
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
+
+	var pduSessionID uint8 = 4
+
+	snssai := &models.Snssai{Sst: 1, Sd: "010203"}
+	ue.Current().AllowedNssai = []models.Snssai{*snssai}
+
+	smPayload := []byte{0x2E, 0x03, 0x00, 0xC1, 0x00}
+	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
+	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialRequest)
+
+	smfReject := []byte{0xDE, 0xAD, 0xBE, 0xEF}
+	fakeSmf := &FakeSmf{
+		CreateSmContextErrResp: smfReject,
+		CreateSmContextError:   fmt.Errorf("malformed NAS in establishment request"),
+	}
+
+	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
+
+	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
+	if err == nil {
+		t.Fatal("expected an error from transport5GSMMessage when SMF rejects")
+	}
+
+	if _, exists := ue.SmContextFindByPDUSessionID(pduSessionID); exists {
+		t.Fatal("expected no SM context to be created on SMF error")
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected 1 downlink NAS transport carrying the SMF reject, got: %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+}
+
+// When SMF returns (err, nil) the AMF must synthesize a DLNASTransport with
+// 5GMM cause "payload was not forwarded" so the UE doesn't time out, and must
+// not create a stale SmContext.
+func TestTransport5GSMMessage_InitialRequest_SmfReturnsErrorOnly_SendsFallbackAndNoSmContext(t *testing.T) {
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
+
+	var pduSessionID uint8 = 5
+
+	snssai := &models.Snssai{Sst: 1, Sd: "010203"}
+	ue.Current().AllowedNssai = []models.Snssai{*snssai}
+
+	smPayload := []byte{0x2E, 0x03, 0x00, 0xC1, 0x00}
+	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
+	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialRequest)
+
+	fakeSmf := &FakeSmf{
+		CreateSmContextError: fmt.Errorf("smf is unavailable"),
+	}
+
+	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
+
+	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
+	if err == nil {
+		t.Fatal("expected an error from transport5GSMMessage when SMF fails")
+	}
+
+	if _, exists := ue.SmContextFindByPDUSessionID(pduSessionID); exists {
+		t.Fatal("expected no SM context to be created on SMF error")
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected 1 fallback downlink NAS transport, got: %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	resp := ngapSender.SentDownlinkNASTransport[0]
+	nm := new(nas.Message)
+	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+
+	if err := nm.PlainNasDecode(&resp.NasPdu); err != nil {
+		t.Fatalf("could not decode plain NAS message: %v", err)
+	}
+
+	if nm.GmmHeader.GetMessageType() != nas.MsgTypeDLNASTransport {
+		t.Fatalf("expected DLNASTransport message, got: %v", nm.GmmHeader.GetMessageType())
+	}
+
+	if nm.DLNASTransport == nil || nm.DLNASTransport.Cause5GMM == nil {
+		t.Fatal("expected DLNASTransport with 5GMM cause")
+	}
+
+	if got := nm.DLNASTransport.Cause5GMM.GetCauseValue(); got != nasMessage.Cause5GMMPayloadWasNotForwarded { //nolint:staticcheck // explicit selector to avoid ambiguity with embedded message fields
+		t.Fatalf("expected 5GMM cause %d (payload was not forwarded), got %d", nasMessage.Cause5GMMPayloadWasNotForwarded, got)
 	}
 }
 
@@ -732,7 +832,7 @@ func TestTransport5GSMMessage_SmContextExists_DuplicatePDU_Success(t *testing.T)
 	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
 
 	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
-	ue.AllowedNssai = []models.Snssai{*snssai}
+	ue.Current().AllowedNssai = []models.Snssai{*snssai}
 
 	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
 	if err != nil {
@@ -778,7 +878,7 @@ func TestTransport5GSMMessage_SmContextExists_ExistingPduSession_AllowedNssai_Fo
 	}
 
 	snssai := &models.Snssai{Sst: 1, Sd: "010203"}
-	ue.AllowedNssai = []models.Snssai{*snssai}
+	ue.Current().AllowedNssai = []models.Snssai{*snssai}
 
 	var pduSessionID uint8 = 5
 
@@ -910,7 +1010,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_DefaultSNSSAIAndDNN(t *
 	}
 
 	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
-	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "aabbcc"}}
+	ue.Current().AllowedNssai = []models.Snssai{{Sst: 1, Sd: "aabbcc"}}
 
 	var pduSessionID uint8 = 2
 
@@ -965,7 +1065,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_NilAllowedNssai_Error(t
 	}
 
 	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
-	ue.AllowedNssai = nil
+	ue.Current().AllowedNssai = nil
 
 	var pduSessionID uint8 = 1
 
@@ -998,7 +1098,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorRe
 	}
 
 	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
-	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
+	ue.Current().AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
 
 	var pduSessionID uint8 = 1
 
@@ -1048,46 +1148,6 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorRe
 	}
 }
 
-func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorOnly_NoSMContext(t *testing.T) {
-	ue, _, err := buildUeAndRadio()
-	if err != nil {
-		t.Fatalf("could not build UE and radio: %v", err)
-	}
-
-	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
-	ue.AllowedNssai = []models.Snssai{{Sst: 1, Sd: "010203"}}
-
-	var pduSessionID uint8 = 1
-
-	smPayload := []byte{0x2E, 0x01, 0x00, 0xC1, 0x00}
-
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(pduSessionID))
-	setRequestType(msg, nasMessage.ULNASTransportRequestTypeInitialRequest)
-
-	// CreateSmContext returns error but no error response bytes
-	fakeSmf := &FakeSmf{
-		CreateSmContextError: fmt.Errorf("internal error"),
-	}
-
-	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
-
-	// The code logs the error but does not return it (creates context with empty ref)
-	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
-
-	// SM context still gets created (with empty ref) because errResponse is nil
-	smCtx, exists := ue.SmContextFindByPDUSessionID(pduSessionID)
-	if !exists {
-		t.Fatal("expected SM context to exist (even with error, errResponse was nil)")
-	}
-
-	if smCtx.Ref != "" {
-		t.Fatalf("expected empty SM context ref, got: %s", smCtx.Ref)
-	}
-}
-
 func TestTransport5GSMMessage_ExistingPduSession_MultiSliceAllowedNssai_MatchesSecondSlice(t *testing.T) {
 	ue, _, err := buildUeAndRadio()
 	if err != nil {
@@ -1095,7 +1155,7 @@ func TestTransport5GSMMessage_ExistingPduSession_MultiSliceAllowedNssai_MatchesS
 	}
 
 	// UE is allowed 3 slices
-	ue.AllowedNssai = []models.Snssai{
+	ue.Current().AllowedNssai = []models.Snssai{
 		{Sst: 1, Sd: "010203"},
 		{Sst: 2, Sd: "aabbcc"},
 		{Sst: 3, Sd: "ddeeff"},
@@ -1139,7 +1199,7 @@ func TestTransport5GSMMessage_ExistingPduSession_MultiSliceAllowedNssai_NotInLis
 	}
 
 	// UE is allowed 3 slices, but the SM context uses a different one
-	ue.AllowedNssai = []models.Snssai{
+	ue.Current().AllowedNssai = []models.Snssai{
 		{Sst: 1, Sd: "010203"},
 		{Sst: 2, Sd: "aabbcc"},
 		{Sst: 3, Sd: "ddeeff"},
@@ -1174,7 +1234,7 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_MultiSliceDefaultSNSSAI
 	ue.Supi = mustSUPIFromPrefixed("imsi-001010000000001")
 
 	// UE has 3 allowed slices — default should be the first
-	ue.AllowedNssai = []models.Snssai{
+	ue.Current().AllowedNssai = []models.Snssai{
 		{Sst: 1, Sd: "aabbcc"},
 		{Sst: 2, Sd: "010203"},
 		{Sst: 3, Sd: "ddeeff"},

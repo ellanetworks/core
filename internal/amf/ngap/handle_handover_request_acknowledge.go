@@ -103,7 +103,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		}
 
 		if sourceAmfUe := sourceUe.AmfUe(); sourceAmfUe != nil {
-			sourceAmfUe.Procedures.End(procedure.N2Handover)
+			sourceAmfUe.NasConn().Procedures.End(procedure.N2Handover)
 		}
 
 		if sourceUe.Radio() == nil {

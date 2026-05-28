@@ -17,9 +17,14 @@ func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 
 	ue.TransitionTo(amf.Registered)
 
-	if ue.T3550 != nil {
-		ue.T3550.Stop()
-		ue.T3550 = nil // clear the timer
+	conn := ue.NasConn()
+	if conn == nil {
+		return fmt.Errorf("no active NAS connection")
+	}
+
+	if conn.T3550 != nil {
+		conn.T3550.Stop()
+		conn.T3550 = nil
 	}
 
 	// UE confirmed receipt of the new GUTI — free the old one (TS 24.501 5.5.1.2.4 step 20)
@@ -28,9 +33,9 @@ func handleRegistrationComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 	// Send NITZ (network name + timezone) to UE per TS 24.501
 	message.SendConfigurationUpdateCommand(ctx, amfInstance, ue, false)
 
-	forPending := ue.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestPending
+	forPending := conn.RegistrationRequest.GetFOR() == nasMessage.FollowOnRequestPending
 
-	udsHasPending := ue.RegistrationRequest.UplinkDataStatus != nil
+	udsHasPending := conn.RegistrationRequest.UplinkDataStatus != nil
 
 	hasActiveSessions := ue.HasActivePduSessions()
 
