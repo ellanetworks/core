@@ -22,7 +22,7 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe) erro
 
 	if ue.SecurityContextIsValid() {
 		ue.Log.Debug("UE has a valid security context - skip security mode control procedure")
-		return contextSetup(ctx, amfInstance, ue, ue.RegistrationRequest)
+		return contextSetup(ctx, amfInstance, ue, ue.NasConn().RegistrationRequest)
 	}
 
 	integrityOrder, cipheringOrder, err := amfInstance.GetSecurityAlgorithms(ctx)
@@ -45,13 +45,13 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe) erro
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
-	if _, beginErr := ue.Procedures.Begin(ctx, procedure.Procedure{Type: procedure.SecurityMode}); beginErr != nil {
+	if _, beginErr := ue.NasConn().Procedures.Begin(ue.NasConn().Ctx(), procedure.Procedure{Type: procedure.SecurityMode}); beginErr != nil {
 		return fmt.Errorf("security mode blocked by conflict: %w", beginErr)
 	}
 
 	err = message.SendSecurityModeCommand(ctx, amfInstance, ranUe)
 	if err != nil {
-		ue.Procedures.End(procedure.SecurityMode)
+		ue.NasConn().Procedures.End(procedure.SecurityMode)
 
 		return fmt.Errorf("error sending security mode command: %v", err)
 	}

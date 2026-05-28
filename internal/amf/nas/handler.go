@@ -65,15 +65,14 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu 
 		return errors.New("gsm message is not nil")
 	}
 
-	// Handlers are the only site that may mutate security-state flags.
-	// Set MacFailed according to the decoder's verdict.
+	var macFailed bool
+
 	switch result.Verdict {
 	case amf.VerdictIntegrityVerified:
-		ue.AmfUe().MacFailed = false
+		macFailed = false
 	case amf.VerdictPlainAllowed, amf.VerdictMacFailedAllowed:
-		ue.AmfUe().MacFailed = true
+		macFailed = true
 	case amf.VerdictReject:
-		// Unreachable: DecodeNASMessage returns an error for VerdictReject.
 		return fmt.Errorf("nas pdu rejected by classifier")
 	}
 
@@ -94,7 +93,7 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu 
 		logger.SUPI(ue.AmfUe().Supi.String()),
 	)
 
-	err = gmm.HandleGmmMessage(ctx, amfInstance, ue.AmfUe(), msg.GmmMessage)
+	err = gmm.HandleGmmMessage(ctx, amfInstance, ue.AmfUe(), msg.GmmMessage, macFailed)
 	if err != nil {
 		return fmt.Errorf("error handling NAS message for supi %s: %v", ue.AmfUe().Supi.String(), err)
 	}
@@ -150,13 +149,11 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 			logger.WithTrace(ctx, logger.AmfLog).Debug("Guti received in Registration Request Message", logger.GUTI(guti.String()))
 		} else if nasMessage.MobileIdentity5GSTypeSuci == nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0]) {
 			suci, _ := nasConvert.SuciToString(mobileIdentity5GSContents)
-			/* UeContext found based on SUCI which means context is exist in Network(AMF) but not
-			   present in UE. Hence, AMF clear the existing context
-			*/
+
 			ue, _ := amfInstance.FindAMFUEBySuci(suci)
 			if ue != nil {
 				ue.Log.Info("UE Context derived from Suci", zap.String("suci", suci))
-				ue.SecurityContextAvailable = false
+				ue.RotateContext()
 			}
 
 			return ue, nil
@@ -203,9 +200,7 @@ func fetchUeContextWithMobileIdentity(ctx context.Context, amfInstance *amf.AMF,
 
 	if msg.SecurityHeaderType == nas.SecurityHeaderTypePlainNas {
 		ue.Log.Info("UE identified by GUTI but NAS is plain; treating as no security context", logger.GUTI(guti.String()))
-
-		// UE likely lost keys; force fresh security setup
-		ue.SecurityContextAvailable = false
+		ue.RotateContext()
 
 		return ue, nil
 	}

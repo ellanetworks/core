@@ -13,9 +13,9 @@ func contextSetup(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg 
 	defer span.End()
 
 	ue.TransitionTo(amf.ContextSetup)
-	ue.RegistrationRequest = msg
+	ue.NasConn().RegistrationRequest = msg
 
-	switch ue.RegistrationType5GS {
+	switch ue.NasConn().RegistrationType5GS {
 	case nasMessage.RegistrationType5GSInitialRegistration:
 		if err := HandleInitialRegistration(ctx, amfInstance, ue); err != nil {
 			return fmt.Errorf("error handling initial registration: %v", err)

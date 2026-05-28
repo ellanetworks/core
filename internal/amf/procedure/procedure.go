@@ -32,9 +32,11 @@ type ID uint64
 
 var nextID atomic.Uint64
 
-// Procedure is the unit tracked by the registry.
+// Procedure is the unit tracked by the registry. State is procedure-specific
+// transient state owned by handlers; the registry treats it opaquely.
 type Procedure struct {
 	Type      Type
+	State     any
 	StartedAt time.Time
 	Deadline  time.Time
 	Cancel    func(context.Context) error
@@ -53,6 +55,7 @@ type entry struct {
 	proc      Procedure
 	timer     *time.Timer
 	startedAt time.Time
+	done      chan struct{}
 }
 
 // Registry tracks which procedures are active for a single UE and
@@ -114,10 +117,12 @@ func (r *Registry) Begin(ctx context.Context, p Procedure) (ID, error) {
 	}
 
 	id := ID(nextID.Add(1))
+	done := make(chan struct{})
 	e := entry{
 		id:        id,
 		proc:      p,
 		startedAt: now,
+		done:      done,
 	}
 
 	// Arm deadline timer.
@@ -141,7 +146,22 @@ func (r *Registry) Begin(ctx context.Context, p Procedure) (ID, error) {
 		zap.Time("deadline", p.Deadline),
 	)
 
+	// ctx is intentionally captured: the watcher's role is to abort the
+	// procedure when ctx is cancelled.
+	// #nosec G118 -- captured ctx is the cancellation signal we observe
+	go r.watchCtx(ctx, id, done)
+
 	return id, nil
+}
+
+// watchCtx aborts the procedure when ctx is cancelled. Exits cleanly when
+// the procedure ends (or is cancelled) by other means.
+func (r *Registry) watchCtx(ctx context.Context, id ID, done <-chan struct{}) {
+	select {
+	case <-ctx.Done():
+		_ = r.CancelByID(context.Background(), id)
+	case <-done:
+	}
 }
 
 // End marks t as finished (success path). Does not invoke Cancel.
@@ -167,6 +187,8 @@ func (r *Registry) End(t Type) {
 	r.active = append(r.active[:idx], r.active[idx+1:]...)
 	r.mu.Unlock()
 
+	close(e.done)
+
 	if e.timer != nil {
 		e.timer.Stop()
 	}
@@ -191,6 +213,8 @@ func (r *Registry) EndByID(id ID) {
 	e := r.active[idx]
 	r.active = append(r.active[:idx], r.active[idx+1:]...)
 	r.mu.Unlock()
+
+	close(e.done)
 
 	if e.timer != nil {
 		e.timer.Stop()
@@ -224,6 +248,8 @@ func (r *Registry) Cancel(ctx context.Context, t Type) error {
 	r.active = append(r.active[:idx], r.active[idx+1:]...)
 	r.mu.Unlock()
 
+	close(e.done)
+
 	if e.timer != nil {
 		e.timer.Stop()
 	}
@@ -253,6 +279,8 @@ func (r *Registry) CancelByID(ctx context.Context, id ID) error {
 	r.active = append(r.active[:idx], r.active[idx+1:]...)
 	r.mu.Unlock()
 
+	close(e.done)
+
 	if e.timer != nil {
 		e.timer.Stop()
 	}
@@ -278,11 +306,12 @@ func (r *Registry) CancelAll(ctx context.Context) {
 	r.stopped = true
 	r.mu.Unlock()
 
-	// Stop timers first.
 	for _, e := range entries {
 		if e.timer != nil {
 			e.timer.Stop()
 		}
+
+		close(e.done)
 	}
 
 	// Cancel in reverse-Begin order.
@@ -309,6 +338,36 @@ func (r *Registry) Active(t Type) bool {
 	}
 
 	return false
+}
+
+// Get returns the first active instance of t (oldest, FIFO).
+func (r *Registry) Get(t Type) (Procedure, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, e := range r.active {
+		if e.proc.Type == t {
+			return e.proc, true
+		}
+	}
+
+	return Procedure{}, false
+}
+
+// UpdateState replaces the State of the first active instance of t.
+// Returns ErrNotActive if no instance is active.
+func (r *Registry) UpdateState(t Type, state any) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for i := range r.active {
+		if r.active[i].proc.Type == t {
+			r.active[i].proc.State = state
+			return nil
+		}
+	}
+
+	return ErrNotActive
 }
 
 // Snapshot returns a copy of the active set for diagnostics.
@@ -363,7 +422,8 @@ func (r *Registry) expireByID(ctx context.Context, id ID) {
 	r.active = append(r.active[:idx], r.active[idx+1:]...)
 	r.mu.Unlock()
 
-	// Timer already fired; no need to stop it.
+	close(e.done)
+
 	r.log.Warn("procedure expired",
 		zap.String("type", string(e.proc.Type)),
 		zap.Uint64("id", uint64(e.id)),

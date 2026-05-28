@@ -55,7 +55,7 @@ func setupHandoverAckTestContext(t *testing.T) (*amf.Radio, *FakeNGAPSender, *am
 	amfUe := amf.NewAmfUe()
 	amfUe.Supi = supi
 	amfUe.Log = logger.AmfLog
-	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
+	amfUe.Current().SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    smf.CanonicalName(supi, pduSessionID),
 		Snssai: &models.Snssai{Sst: 1},
 	}
@@ -217,7 +217,7 @@ func TestHandoverRequestAcknowledge_NoPDUSessionsAdmitted_SourceAmfUeDetached(t 
 		t.Fatal("source AMF UE not found")
 	}
 
-	sourceAmfUe.DetachRanUe(nil)
+	sourceAmfUe.ReleaseNasConnection(nil)
 
 	amfID := int64(1)
 	ranID := int64(2)

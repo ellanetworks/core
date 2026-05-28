@@ -8,12 +8,12 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 )
 
-func handleStatus5GMM(ue *amf.AmfUe, msg *nasMessage.Status5GMM) error {
+func handleStatus5GMM(ue *amf.AmfUe, msg *nasMessage.Status5GMM, macFailed bool) error {
 	if ue.GetState() == amf.Deregistered {
 		return fmt.Errorf("UE is in Deregistered state, ignore Status 5GMM message")
 	}
 
-	if ue.MacFailed {
+	if macFailed {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
 

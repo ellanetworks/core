@@ -233,14 +233,13 @@ func TestHandoverRequired(t *testing.T) {
 	// Set up the AmfUe with valid security context
 	amfUe := amf.NewAmfUe()
 	amfUe.Supi = supi
-	amfUe.SecurityContextAvailable = true
-	amfUe.NgKsi.Ksi = 1
-	amfUe.MacFailed = false
-	amfUe.Kamf = kamfHex
-	amfUe.NH = make([]byte, 32)
-	amfUe.Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
+	amfUe.Current().SecurityContextAvailable = true
+	amfUe.Current().NgKsi.Ksi = 1
+	amfUe.Current().Kamf = kamfHex
+	amfUe.Current().NH = make([]byte, 32)
+	amfUe.Current().Ambr = &models.Ambr{Uplink: "1 Gbps", Downlink: "1 Gbps"}
 	amfUe.Log = logger.AmfLog
-	amfUe.SmContextList[pduSessionID] = &amf.SmContext{
+	amfUe.Current().SmContextList[pduSessionID] = &amf.SmContext{
 		Ref:    smf.CanonicalName(supi, pduSessionID),
 		Snssai: &models.Snssai{Sst: 1},
 	}
@@ -422,7 +421,7 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 
 	// Create AmfUe with invalid security context
 	amfUe := amf.NewAmfUe()
-	amfUe.SecurityContextAvailable = false
+	amfUe.Current().SecurityContextAvailable = false
 	amfUe.Log = logger.AmfLog
 
 	sourceNGAPSender := &FakeNGAPSender{}

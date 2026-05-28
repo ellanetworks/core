@@ -97,7 +97,7 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 	defer span.End()
 
 	amfUe := ue.AmfUe()
-	if amfUe.AuthenticationCtx == nil {
+	if amfUe.NasConn().AuthenticationCtx == nil {
 		return fmt.Errorf("authentication context of UE is nil")
 	}
 
@@ -108,7 +108,8 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 	if amfInstance.T3560Cfg.Enable {
 		cfg := amfInstance.T3560Cfg
-		amfUe.T3560 = amf.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+		conn := amfUe.NasConn()
+		conn.T3560 = amf.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.Log.Warn("T3560 expires, retransmit Authentication Request", zap.Any("expireTimes", expireTimes))
 
 			err := ue.SendDownlinkNasTransport(context.Background(), nasMsg, nil)
@@ -226,7 +227,7 @@ func SendRegistrationReject(ctx context.Context, ue *amf.RanUe, cause5GMM uint8)
 	)
 	defer span.End()
 
-	nasMsg, err := BuildRegistrationReject(int(ue.AmfUe().T3502Value.Seconds()), cause5GMM)
+	nasMsg, err := BuildRegistrationReject(int(ue.AmfUe().Current().T3502Value.Seconds()), cause5GMM)
 	if err != nil {
 		return fmt.Errorf("error building registration reject: %s", err.Error())
 	}
@@ -266,7 +267,8 @@ func SendSecurityModeCommand(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 
 	if amfInstance.T3560Cfg.Enable {
 		cfg := amfInstance.T3560Cfg
-		amfUe.T3560 = amf.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+		conn := amfUe.NasConn()
+		conn.T3560 = amf.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.Log.Warn("T3560 expires, retransmit Security Mode Command", zap.Any("expireTimes", expireTimes))
 
 			err = ue.SendDownlinkNasTransport(context.Background(), nasMsg, nil)
@@ -278,7 +280,7 @@ func SendSecurityModeCommand(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 			amfUe.Log.Info("sent security mode command")
 		}, func() {
 			amfUe.Log.Warn("T3560 Expires, abort security mode control procedure", zap.Any("expireTimes", cfg.MaxRetryTimes))
-			amfUe.Procedures.End(procedure.SecurityMode)
+			conn.Procedures.End(procedure.SecurityMode)
 			amfInstance.DeregisterAndRemoveAMFUE(context.Background(), amfUe)
 		})
 	}
@@ -347,18 +349,18 @@ func SendRegistrationAccept(
 	}
 
 	if ranUe.UeContextRequest {
-		ranUe.SentInitialContextSetupRequest = true
+		ranUe.ICS = amf.ICSPending
 
 		err = ranUe.SendInitialContextSetupRequest(
 			ctx,
-			ue.Ambr.Uplink,
-			ue.Ambr.Downlink,
-			ue.AllowedNssai,
-			ue.Kgnb,
+			ue.Current().Ambr.Uplink,
+			ue.Current().Ambr.Downlink,
+			ue.Current().AllowedNssai,
+			ue.Current().Kgnb,
 			ue.PlmnID,
-			ue.UeRadioCapability,
-			ue.UeRadioCapabilityForPaging,
-			ue.UESecurityCapability,
+			ue.Current().UeRadioCapability,
+			ue.Current().UeRadioCapabilityForPaging,
+			ue.Current().UESecurityCapability,
 			nasMsg,
 			pduSessionResourceSetupList,
 			supportedGUAMI,
@@ -379,23 +381,25 @@ func SendRegistrationAccept(
 
 	if amfInstance.T3550Cfg.Enable {
 		cfg := amfInstance.T3550Cfg
-		ue.T3550 = amf.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+		conn := ue.NasConn()
+		conn.T3550 = amf.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			retryRanUe := ue.RanUe()
 			if retryRanUe == nil {
 				ue.Log.Warn("[NAS] UE Context released, abort retransmission of Registration Accept")
-				ue.T3550 = nil
+
+				conn.T3550 = nil
 			} else {
-				if retryRanUe.UeContextRequest && !retryRanUe.RecvdInitialContextSetupResponse {
+				if retryRanUe.UeContextRequest && retryRanUe.ICS != amf.ICSCompleted {
 					err = retryRanUe.SendInitialContextSetupRequest(
 						context.Background(),
-						ue.Ambr.Uplink,
-						ue.Ambr.Downlink,
-						ue.AllowedNssai,
-						ue.Kgnb,
+						ue.Current().Ambr.Uplink,
+						ue.Current().Ambr.Downlink,
+						ue.Current().AllowedNssai,
+						ue.Current().Kgnb,
 						ue.PlmnID,
-						ue.UeRadioCapability,
-						ue.UeRadioCapabilityForPaging,
-						ue.UESecurityCapability,
+						ue.Current().UeRadioCapability,
+						ue.Current().UeRadioCapabilityForPaging,
+						ue.Current().UESecurityCapability,
 						nasMsg,
 						pduSessionResourceSetupList,
 						supportedGUAMI,
@@ -404,7 +408,7 @@ func SendRegistrationAccept(
 						ue.Log.Error("could not send initial context setup request", zap.Error(err))
 					}
 
-					retryRanUe.SentInitialContextSetupRequest = true
+					retryRanUe.ICS = amf.ICSPending
 
 					ue.Log.Info("Sent NGAP initial context setup request")
 				} else {
@@ -420,7 +424,8 @@ func SendRegistrationAccept(
 			}
 		}, func() {
 			ue.Log.Warn("T3550 Expires, abort retransmission of Registration Accept", zap.Any("expireTimes", cfg.MaxRetryTimes))
-			ue.T3550 = nil // clear the timer
+
+			conn.T3550 = nil
 			// TS 24.501 5.5.1.2.8 case c, 5.5.1.3.8 case c
 			ue.TransitionTo(amf.Registered)
 			ue.ClearRegistrationRequestData()
@@ -479,13 +484,15 @@ func SendConfigurationUpdateCommand(ctx context.Context, amfInstance *amf.AMF, a
 		cfg := amfInstance.T3555Cfg
 
 		amfUe.Log.Info("start T3555 timer")
-		amfUe.T3555 = amf.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+		conn := amfUe.NasConn()
+		conn.T3555 = amf.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.Log.Warn("timer T3555 expired, retransmit Configuration Update Command", zap.Int32("retry", expireTimes))
 
 			retryRanUe := amfUe.RanUe()
 			if retryRanUe == nil {
 				amfUe.Log.Warn("UE Context released, abort retransmission of Configuration Update Command")
-				amfUe.T3555 = nil
+
+				conn.T3555 = nil
 
 				return
 			}

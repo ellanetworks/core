@@ -21,7 +21,7 @@ func TestHandleConfigurationUpdateComplete_NotRegisteredError(t *testing.T) {
 
 			amfInstance := amf.New(nil, nil, nil)
 
-			err := handleConfigurationUpdateComplete(amfInstance, ue)
+			err := handleConfigurationUpdateComplete(amfInstance, ue, true)
 			if err == nil || err.Error() != expected {
 				t.Fatalf("expected error: %s, got %v", expected, err)
 			}
@@ -32,13 +32,12 @@ func TestHandleConfigurationUpdateComplete_NotRegisteredError(t *testing.T) {
 func TestHandleConfigurationUpdateComplete_MacFailed(t *testing.T) {
 	ue := amf.NewAmfUe()
 	ue.ForceState(amf.Registered)
-	ue.MacFailed = true
 
 	expected := "NAS message integrity check failed"
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	err := handleConfigurationUpdateComplete(amfInstance, ue)
+	err := handleConfigurationUpdateComplete(amfInstance, ue, true)
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected error: %s, got %v", expected, err)
 	}
@@ -47,18 +46,18 @@ func TestHandleConfigurationUpdateComplete_MacFailed(t *testing.T) {
 func TestHandleConfigurationUpdateComplete_T3555Stopped_OldGutiFreed(t *testing.T) {
 	ue := amf.NewAmfUe()
 	ue.ForceState(amf.Registered)
-	ue.T3555 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.NasConn().T3555 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.OldGuti = mustTestGuti("001", "01", "cafe42", 0x12345678)
 	ue.OldTmsi = mustValidTestTmsi(0x12345678)
 
 	amfInstance := amf.New(nil, nil, nil)
 
-	err := handleConfigurationUpdateComplete(amfInstance, ue)
+	err := handleConfigurationUpdateComplete(amfInstance, ue, false)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if ue.T3555 != nil {
+	if ue.NasConn().T3555 != nil {
 		t.Fatal("expected timer T3555 to be stopped and cleared")
 	}
 

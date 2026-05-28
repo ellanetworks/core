@@ -11,23 +11,8 @@ import (
 )
 
 func HandlePDUSessionResourceModifyIndication(ctx context.Context, ran *amf.Radio, msg decode.PDUSessionResourceModifyIndication) {
-	ranUe := ran.FindUEByRanUeNgapID(msg.RANUENGAPID)
-	if ranUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("RanUeNgapID", msg.RANUENGAPID))
-
-		cause := ngapType.Cause{
-			Present: ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{
-				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
-			},
-		}
-
-		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
-		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
-			return
-		}
-
+	ranUe, ok := resolveUE(ctx, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+	if !ok {
 		return
 	}
 

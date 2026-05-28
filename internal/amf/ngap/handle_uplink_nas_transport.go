@@ -12,11 +12,8 @@ import (
 )
 
 func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.UplinkNASTransport) {
-	ranUe := ran.FindUEByRanUeNgapID(msg.RANUENGAPID)
-	if ranUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("unknown RAN UE NGAP ID in UplinkNASTransport", zap.Int64("ranUeNgapID", msg.RANUENGAPID))
-		sendUnknownLocalUEError(ctx, ran)
-
+	ranUe, ok := resolveUE(ctx, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+	if !ok {
 		return
 	}
 
@@ -24,7 +21,9 @@ func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 
 	amfUe := ranUe.AmfUe()
 	if amfUe == nil {
-		err := ranUe.Remove()
+		// No AMF UE bound, so no NAS state to clean up. Pass ReleaseNormal
+		// — the cause is moot when there is no NAS connection to release.
+		err := ranUe.Remove(ctx)
 		if err != nil {
 			logger.WithTrace(ctx, ranUe.Log).Error("error removing ran ue context", zap.Error(err))
 		}

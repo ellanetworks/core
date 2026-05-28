@@ -65,9 +65,9 @@ func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 		return false, fmt.Errorf("failed to send ue authentication request: %s", err)
 	}
 
-	ue.AuthenticationCtx = response
+	ue.NasConn().AuthenticationCtx = response
 
-	ue.ABBA = []uint8{0x00, 0x00} // set ABBA value as described at TS 33.501 Annex A.7.1
+	ue.Current().ABBA = []uint8{0x00, 0x00} // set ABBA value as described at TS 33.501 Annex A.7.1
 
 	err = message.SendAuthenticationRequest(ctx, amfInstance, ranUe)
 	if err != nil {

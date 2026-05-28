@@ -53,7 +53,7 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 
 	if len(msg) == 0 {
 		ran.Log.Info("RAN close the connection.")
-		amfInstance.RemoveRadio(ran)
+		amfInstance.RemoveRadio(ctx, ran)
 
 		return
 	}
@@ -367,6 +367,8 @@ func HandleSCTPNotification(amfInstance *amf.AMF, conn *sctp.SCTPConn, notificat
 		return
 	}
 
+	ctx := context.Background()
+
 	switch notification.Type() {
 	case sctp.SCTPAssocChange:
 		ran.Log.Info("SCTPAssocChange notification")
@@ -380,16 +382,16 @@ func HandleSCTPNotification(amfInstance *amf.AMF, conn *sctp.SCTPConn, notificat
 
 		switch event.State() {
 		case sctp.SCTPCommLost:
-			amfInstance.RemoveRadio(ran)
+			amfInstance.RemoveRadio(ctx, ran)
 			ran.Log.Info("Closed connection with radio after SCTP Communication Lost")
 		case sctp.SCTPShutdownComp:
-			amfInstance.RemoveRadio(ran)
+			amfInstance.RemoveRadio(ctx, ran)
 			ran.Log.Info("Closed connection with radio after SCTP Shutdown Complete")
 		default:
 			ran.Log.Info("SCTP state is not handled", zap.Int("state", int(event.State())))
 		}
 	case sctp.SCTPShutdownEvent:
-		amfInstance.RemoveRadio(ran)
+		amfInstance.RemoveRadio(ctx, ran)
 		ran.Log.Info("Closed connection with radio after SCTP Shutdown Event")
 	default:
 		ran.Log.Warn("Unhandled SCTP notification type", zap.Any("type", notification.Type()))

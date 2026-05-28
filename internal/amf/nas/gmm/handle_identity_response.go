@@ -12,7 +12,7 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 )
 
-func updateUEIdentity(ue *amf.AmfUe, mobileIdentityContents []uint8) error {
+func updateUEIdentity(ue *amf.AmfUe, mobileIdentityContents []uint8, macFailed bool) error {
 	if ue == nil {
 		return fmt.Errorf("AmfUe is nil")
 	}
@@ -28,7 +28,7 @@ func updateUEIdentity(ue *amf.AmfUe, mobileIdentityContents []uint8) error {
 		ue.Suci, plmnID = nasConvert.SuciToString(mobileIdentityContents)
 		ue.PlmnID = plmnIDStringToModels(plmnID)
 	case nasMessage.MobileIdentity5GSType5gGuti:
-		if ue.MacFailed {
+		if macFailed {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 
@@ -41,7 +41,7 @@ func updateUEIdentity(ue *amf.AmfUe, mobileIdentityContents []uint8) error {
 			return fmt.Errorf("UE sent unknown GUTI")
 		}
 	case nasMessage.MobileIdentity5GSType5gSTmsi:
-		if ue.MacFailed {
+		if macFailed {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 
@@ -65,14 +65,14 @@ func updateUEIdentity(ue *amf.AmfUe, mobileIdentityContents []uint8) error {
 			return fmt.Errorf("UE sent unknown TMSI")
 		}
 	case nasMessage.MobileIdentity5GSTypeImei:
-		if ue.MacFailed {
+		if macFailed {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 
 		imei := nasConvert.PeiToString(mobileIdentityContents)
 		ue.Pei = imei
 	case nasMessage.MobileIdentity5GSTypeImeisv:
-		if ue.MacFailed {
+		if macFailed {
 			return fmt.Errorf("NAS message integrity check failed")
 		}
 
@@ -83,12 +83,12 @@ func updateUEIdentity(ue *amf.AmfUe, mobileIdentityContents []uint8) error {
 	return nil
 }
 
-func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.IdentityResponse) error {
+func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.IdentityResponse, macFailed bool) error {
 	switch ue.GetState() {
 	case amf.Authentication:
 		mobileIdentityContents := msg.GetMobileIdentityContents()
 
-		if err := updateUEIdentity(ue, mobileIdentityContents); err != nil {
+		if err := updateUEIdentity(ue, mobileIdentityContents, macFailed); err != nil {
 			return fmt.Errorf("error handling identity response: %v", err)
 		}
 
@@ -107,11 +107,11 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.A
 	case amf.ContextSetup:
 		mobileIdentityContents := msg.GetMobileIdentityContents()
 
-		if err := updateUEIdentity(ue, mobileIdentityContents); err != nil {
+		if err := updateUEIdentity(ue, mobileIdentityContents, macFailed); err != nil {
 			return fmt.Errorf("error handling identity response: %v", err)
 		}
 
-		switch ue.RegistrationType5GS {
+		switch ue.NasConn().RegistrationType5GS {
 		case nasMessage.RegistrationType5GSInitialRegistration:
 			if err := HandleInitialRegistration(ctx, amfInstance, ue); err != nil {
 				ue.Deregister(ctx)

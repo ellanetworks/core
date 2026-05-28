@@ -28,18 +28,18 @@ func HandleUERadioCapabilityInfoIndication(ctx gocontext.Context, ran *amf.Radio
 	}
 
 	if msg.UERadioCapability != nil {
-		amfUe.UeRadioCapability = hex.EncodeToString(msg.UERadioCapability)
+		amfUe.Current().UeRadioCapability = hex.EncodeToString(msg.UERadioCapability)
 	}
 
 	if msg.UERadioCapabilityForPaging != nil {
-		amfUe.UeRadioCapabilityForPaging = &models.UERadioCapabilityForPaging{}
+		amfUe.Current().UeRadioCapabilityForPaging = &models.UERadioCapabilityForPaging{}
 		if msg.UERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR != nil {
-			amfUe.UeRadioCapabilityForPaging.NR = hex.EncodeToString(
+			amfUe.Current().UeRadioCapabilityForPaging.NR = hex.EncodeToString(
 				msg.UERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR.Value)
 		}
 
 		if msg.UERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA != nil {
-			amfUe.UeRadioCapabilityForPaging.EUTRA = hex.EncodeToString(
+			amfUe.Current().UeRadioCapabilityForPaging.EUTRA = hex.EncodeToString(
 				msg.UERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA.Value)
 		}
 	}

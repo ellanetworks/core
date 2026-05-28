@@ -11,18 +11,18 @@ import (
 )
 
 // TS 24501 5.6.3.2
-func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.NotificationResponse) error {
+func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.NotificationResponse, macFailed bool) error {
 	if state := ue.GetState(); state != amf.Registered {
 		return fmt.Errorf("state mismatch: receive Notification Response message in state %s", state)
 	}
 
-	if ue.MacFailed {
+	if macFailed {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
 
-	if ue.T3565 != nil {
-		ue.T3565.Stop()
-		ue.T3565 = nil // clear the timer
+	if ue.NasConn().T3565 != nil {
+		ue.NasConn().T3565.Stop()
+		ue.NasConn().T3565 = nil // clear the timer
 	}
 
 	if msg.PDUSessionStatus == nil {

@@ -72,8 +72,8 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 					id  uint8
 				}
 
-				smContextRefs := make([]smCtxRef, 0, len(amfUe.SmContextList))
-				for pduSessionID, smContext := range amfUe.SmContextList {
+				smContextRefs := make([]smCtxRef, 0, len(amfUe.Current().SmContextList))
+				for pduSessionID, smContext := range amfUe.Current().SmContextList {
 					if smContext.PduSessionInactive {
 						logger.WithTrace(ctx, ranUe.Log).Info("Pdu Session is inactive so not sending deactivate to SMF", logger.PDUSessionID(pduSessionID))
 						continue
@@ -108,8 +108,8 @@ func HandleUEContextReleaseRequest(ctx context.Context, amfInstance *amf.AMF, ra
 				id  uint8
 			}
 
-			smContextRefs := make([]smCtxRef, 0, len(amfUe.SmContextList))
-			for pduSessionID, smContext := range amfUe.SmContextList {
+			smContextRefs := make([]smCtxRef, 0, len(amfUe.Current().SmContextList))
+			for pduSessionID, smContext := range amfUe.Current().SmContextList {
 				smContextRefs = append(smContextRefs, smCtxRef{ref: smContext.Ref, id: pduSessionID})
 			}
 

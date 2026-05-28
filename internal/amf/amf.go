@@ -171,7 +171,7 @@ func (amf *AMF) DeregisterAndRemoveAMFUE(ctx context.Context, ue *AmfUe) {
 	ue.Mutex.Unlock()
 
 	if ranUe != nil {
-		err := ranUe.Remove()
+		err := ranUe.Remove(ctx)
 		if err != nil {
 			logger.AmfLog.Error("failed to remove RAN UE", zap.Error(err))
 		}
@@ -336,7 +336,7 @@ func (amf *AMF) ClaimRanID(radio *Radio, ranNodeID *ngapType.GlobalRANNodeID) *R
 	amf.mu.Unlock()
 
 	if evicted != nil {
-		evicted.RemoveAllUeInRan()
+		evicted.RemoveAllUeInRan(context.Background())
 
 		if evicted.Conn != nil {
 			_ = evicted.Conn.Close()
@@ -402,8 +402,9 @@ func (amf *AMF) CountRegisteredSubscribers() int {
 	return count
 }
 
-func (amf *AMF) RemoveRadio(ran *Radio) {
-	ran.RemoveAllUeInRan()
+// RemoveRadio removes a radio and all UEs bound to it.
+func (amf *AMF) RemoveRadio(ctx context.Context, ran *Radio) {
+	ran.RemoveAllUeInRan(ctx)
 
 	amf.mu.Lock()
 	defer amf.mu.Unlock()
@@ -575,7 +576,7 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *AmfUe, ngapBuf []byte) error
 	amf.mu.RLock()
 	defer amf.mu.RUnlock()
 
-	taiList := ue.RegistrationArea
+	taiList := ue.Current().RegistrationArea
 
 	for _, ran := range amf.Radios {
 		for _, item := range ran.SupportedTAIs {
@@ -595,7 +596,8 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *AmfUe, ngapBuf []byte) error
 
 	if amf.T3513Cfg.Enable {
 		cfg := amf.T3513Cfg
-		ue.T3513 = NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
+		conn := ue.NasConn()
+		conn.T3513 = NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			ue.Log.Info("t3513 expires, retransmit paging", zap.Int32("retry", expireTimes))
 
 			for _, ran := range amf.ListRadios() {
@@ -615,7 +617,8 @@ func (amf *AMF) SendPaging(ctx context.Context, ue *AmfUe, ngapBuf []byte) error
 			}
 		}, func() {
 			ue.Log.Warn("T3513 expires, abort paging procedure", zap.Int32("retry", cfg.MaxRetryTimes))
-			ue.T3513 = nil // clear the timer
+
+			conn.T3513 = nil
 		})
 	}
 

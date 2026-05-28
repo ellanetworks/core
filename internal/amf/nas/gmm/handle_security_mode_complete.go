@@ -12,23 +12,23 @@ import (
 )
 
 // TS 33.501 6.7.2
-func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.SecurityModeComplete) error {
+func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.SecurityModeComplete, macFailed bool) error {
 	if state := ue.GetState(); state != amf.SecurityMode {
 		return fmt.Errorf("state mismatch: receive Security Mode Complete message in state %s", state)
 	}
 
-	if ue.MacFailed {
+	if macFailed {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
 
-	if ue.T3560 != nil {
-		ue.T3560.Stop()
-		ue.T3560 = nil // clear the timer
+	if ue.NasConn().T3560 != nil {
+		ue.NasConn().T3560.Stop()
+		ue.NasConn().T3560 = nil // clear the timer
 	}
 
-	ue.Procedures.End(procedure.SecurityMode)
+	ue.NasConn().Procedures.End(procedure.SecurityMode)
 
-	if ue.SecurityContextIsValid() {
+	if ue.SecurityContextIsValid() && !macFailed {
 		err := ue.UpdateSecurityContext()
 		if err != nil {
 			return fmt.Errorf("error updating security context: %v", err)
@@ -55,5 +55,5 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 		return contextSetup(ctx, amfInstance, ue, m.RegistrationRequest)
 	}
 
-	return contextSetup(ctx, amfInstance, ue, ue.RegistrationRequest)
+	return contextSetup(ctx, amfInstance, ue, ue.NasConn().RegistrationRequest)
 }

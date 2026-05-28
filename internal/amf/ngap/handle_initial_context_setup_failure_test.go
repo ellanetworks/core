@@ -73,7 +73,8 @@ func TestHandleInitialContextSetupFailure_T3550Running(t *testing.T) {
 	amfUe := amf.NewAmfUe()
 	amfUe.Log = logger.AmfLog
 	amfUe.ForceState(amf.ContextSetup)
-	amfUe.T3550 = amf.NewTimer(time.Hour, 4, func(int32) {}, func() {})
+	conn := amfUe.NasConn()
+	conn.T3550 = amf.NewTimer(time.Hour, 4, func(int32) {}, func() {})
 
 	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
 	amfUe.AttachRanUe(ranUe)
@@ -89,7 +90,7 @@ func TestHandleInitialContextSetupFailure_T3550Running(t *testing.T) {
 
 	ngap.HandleInitialContextSetupFailure(context.Background(), amfInstance, ran, msg)
 
-	if amfUe.T3550 != nil {
+	if conn.T3550 != nil {
 		t.Error("expected T3550 to be nil after failure")
 	}
 
@@ -105,7 +106,7 @@ func TestHandleInitialContextSetupFailure_PDUSessionFailureForwardedToSmf(t *tes
 
 	amfUe := amf.NewAmfUe()
 	amfUe.Log = logger.AmfLog
-	amfUe.SmContextList[1] = &amf.SmContext{
+	amfUe.Current().SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}

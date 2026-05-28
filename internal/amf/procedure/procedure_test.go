@@ -101,6 +101,103 @@ func TestConflictMatrix(t *testing.T) {
 	}
 }
 
+func TestContextCancellationAborts(t *testing.T) {
+	r := newTestRegistry()
+	ctx, cancel := context.WithCancel(context.Background())
+
+	var cancelled atomic.Bool
+
+	_, err := r.Begin(ctx, procedure.Procedure{
+		Type: procedure.N2Handover,
+		Cancel: func(context.Context) error {
+			cancelled.Store(true)
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+
+	cancel()
+
+	deadline := time.Now().Add(time.Second)
+	for !cancelled.Load() && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+
+	if !cancelled.Load() {
+		t.Fatal("expected cancel callback to fire on ctx cancellation")
+	}
+
+	if r.Active(procedure.N2Handover) {
+		t.Fatal("expected N2Handover to be removed after ctx cancellation")
+	}
+}
+
+func TestContextNotCancelledDoesNotFire(t *testing.T) {
+	r := newTestRegistry()
+	ctx := context.Background()
+
+	var cancelled atomic.Bool
+
+	_, err := r.Begin(ctx, procedure.Procedure{
+		Type: procedure.N2Handover,
+		Cancel: func(context.Context) error {
+			cancelled.Store(true)
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+
+	r.End(procedure.N2Handover)
+
+	time.Sleep(20 * time.Millisecond)
+
+	if cancelled.Load() {
+		t.Fatal("Cancel callback fired after End")
+	}
+}
+
+func TestGetAndUpdateState(t *testing.T) {
+	r := newTestRegistry()
+	ctx := context.Background()
+
+	type myState struct{ phase int }
+
+	if _, ok := r.Get(procedure.Authentication); ok {
+		t.Fatal("Get returned ok on empty registry")
+	}
+
+	_, err := r.Begin(ctx, procedure.Procedure{Type: procedure.Authentication, State: myState{phase: 1}})
+	if err != nil {
+		t.Fatalf("Begin failed: %v", err)
+	}
+
+	got, ok := r.Get(procedure.Authentication)
+	if !ok {
+		t.Fatal("Get returned not ok for active procedure")
+	}
+
+	if s, _ := got.State.(myState); s.phase != 1 {
+		t.Errorf("State.phase = %d, want 1", s.phase)
+	}
+
+	if err := r.UpdateState(procedure.Authentication, myState{phase: 2}); err != nil {
+		t.Errorf("UpdateState failed: %v", err)
+	}
+
+	got, _ = r.Get(procedure.Authentication)
+	if s, _ := got.State.(myState); s.phase != 2 {
+		t.Errorf("after update, State.phase = %d, want 2", s.phase)
+	}
+
+	if err := r.UpdateState(procedure.N2Handover, myState{phase: 9}); err != procedure.ErrNotActive {
+		t.Errorf("UpdateState on inactive type: err = %v, want ErrNotActive", err)
+	}
+}
+
 func TestDeadlineExpiry(t *testing.T) {
 	r := newTestRegistry()
 	ctx := context.Background()

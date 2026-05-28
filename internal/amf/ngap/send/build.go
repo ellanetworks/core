@@ -1455,14 +1455,14 @@ func buildInitialContextSetupRequest(
 		if ueRadioCapabilityForPaging.NR != "" {
 			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR.Value, err = hex.DecodeString(ueRadioCapabilityForPaging.NR)
 			if err != nil {
-				return nil, fmt.Errorf("DecodeString amfUe.UeRadioCapabilityForPaging.NR error: %+v", err)
+				return nil, fmt.Errorf("DecodeString amfUe.Current().UeRadioCapabilityForPaging.NR error: %+v", err)
 			}
 		}
 
 		if ueRadioCapabilityForPaging.EUTRA != "" {
 			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA.Value, err = hex.DecodeString(ueRadioCapabilityForPaging.EUTRA)
 			if err != nil {
-				return nil, fmt.Errorf("DecodeString amfUe.UeRadioCapabilityForPaging.EUTRA error: %+v", err)
+				return nil, fmt.Errorf("DecodeString amfUe.Current().UeRadioCapabilityForPaging.EUTRA error: %+v", err)
 			}
 		}
 
@@ -1929,14 +1929,14 @@ func BuildPaging(
 		if ueRadioCapabilityForPaging.NR != "" {
 			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfNR.Value, err = hex.DecodeString(ueRadioCapabilityForPaging.NR)
 			if err != nil {
-				return nil, fmt.Errorf("DecodeString ue.UeRadioCapabilityForPaging.NR error: %s", err)
+				return nil, fmt.Errorf("DecodeString ue.Current().UeRadioCapabilityForPaging.NR error: %s", err)
 			}
 		}
 
 		if ueRadioCapabilityForPaging.EUTRA != "" {
 			uERadioCapabilityForPaging.UERadioCapabilityForPagingOfEUTRA.Value, err = hex.DecodeString(ueRadioCapabilityForPaging.EUTRA)
 			if err != nil {
-				return nil, fmt.Errorf("DecodeString ue.UeRadioCapabilityForPaging.EUTRA error: %s", err)
+				return nil, fmt.Errorf("DecodeString ue.Current().UeRadioCapabilityForPaging.EUTRA error: %s", err)
 			}
 		}
 

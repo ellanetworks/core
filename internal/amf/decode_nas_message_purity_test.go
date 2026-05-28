@@ -59,7 +59,6 @@ func TestDecodeNASMessage_PurityOnPlainReject(t *testing.T) {
 // so it is not a security-policy field and is not snapshotted.
 type securityStateSnapshot struct {
 	SecurityContextAvailable bool
-	MacFailed                bool
 	CipheringAlg             uint8
 	IntegrityAlg             uint8
 	UESecurityCapability     *nasType.UESecurityCapability
@@ -69,12 +68,11 @@ type securityStateSnapshot struct {
 
 func snapshotSecurityState(ue *AmfUe) securityStateSnapshot {
 	return securityStateSnapshot{
-		SecurityContextAvailable: ue.SecurityContextAvailable,
-		MacFailed:                ue.MacFailed,
-		CipheringAlg:             ue.CipheringAlg,
-		IntegrityAlg:             ue.IntegrityAlg,
-		UESecurityCapability:     ue.UESecurityCapability,
-		KnasInt:                  ue.KnasInt,
-		KnasEnc:                  ue.KnasEnc,
+		SecurityContextAvailable: ue.Current().SecurityContextAvailable,
+		CipheringAlg:             ue.Current().CipheringAlg,
+		IntegrityAlg:             ue.Current().IntegrityAlg,
+		UESecurityCapability:     ue.Current().UESecurityCapability,
+		KnasInt:                  ue.Current().KnasInt,
+		KnasEnc:                  ue.Current().KnasEnc,
 	}
 }

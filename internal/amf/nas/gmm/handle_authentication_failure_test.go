@@ -63,13 +63,14 @@ func TestHandleAuthenticationFailure_T3560Stopped(t *testing.T) {
 	}
 
 	ue.ForceState(amf.Authentication)
-	ue.T3560 = amf.NewTimer(10*time.Minute, 5, func(e int32) {}, func() {})
+	conn := ue.NasConn()
+	conn.T3560 = amf.NewTimer(10*time.Minute, 5, func(e int32) {}, func() {})
 
 	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMMACFailure, nil)
 
 	_ = handleAuthenticationFailure(t.Context(), amf.New(nil, nil, nil), ue, msg)
 
-	if ue.T3560 != nil {
+	if conn.T3560 != nil {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
 	}
 }
@@ -163,13 +164,13 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiIncremented_SendsAuthR
 	}
 
 	ue.ForceState(amf.Authentication)
-	ue.NgKsi = models.NgKsi{Ksi: 3}
-	ue.AuthFailureCauseSynchFailureTimes = 2
-	ue.AuthenticationCtx = &ausf.AuthResult{
+	ue.Current().NgKsi = models.NgKsi{Ksi: 3}
+	ue.NasConn().AuthFailureCauseSynchFailureTimes = 2
+	ue.NasConn().AuthenticationCtx = &ausf.AuthResult{
 		Rand: hex.EncodeToString(make([]byte, 16)),
 		Autn: hex.EncodeToString(make([]byte, 16)),
 	}
-	ue.ABBA = []uint8{0x00, 0x00}
+	ue.Current().ABBA = []uint8{0x00, 0x00}
 
 	amfInstance := amf.New(nil, nil, nil)
 
@@ -180,12 +181,12 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiIncremented_SendsAuthR
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if ue.NgKsi.Ksi != 4 {
-		t.Fatalf("expected NgKsi.Ksi to be 4, got: %d", ue.NgKsi.Ksi)
+	if ue.Current().NgKsi.Ksi != 4 {
+		t.Fatalf("expected NgKsi.Ksi to be 4, got: %d", ue.Current().NgKsi.Ksi)
 	}
 
-	if ue.AuthFailureCauseSynchFailureTimes != 0 {
-		t.Fatalf("expected AuthFailureCauseSynchFailureTimes to be 0, got: %d", ue.AuthFailureCauseSynchFailureTimes)
+	if ue.NasConn().AuthFailureCauseSynchFailureTimes != 0 {
+		t.Fatalf("expected AuthFailureCauseSynchFailureTimes to be 0, got: %d", ue.NasConn().AuthFailureCauseSynchFailureTimes)
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
@@ -217,12 +218,12 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiWrapsToZero(t *testing
 	}
 
 	ue.ForceState(amf.Authentication)
-	ue.NgKsi = models.NgKsi{Ksi: 6}
-	ue.AuthenticationCtx = &ausf.AuthResult{
+	ue.Current().NgKsi = models.NgKsi{Ksi: 6}
+	ue.NasConn().AuthenticationCtx = &ausf.AuthResult{
 		Rand: hex.EncodeToString(make([]byte, 16)),
 		Autn: hex.EncodeToString(make([]byte, 16)),
 	}
-	ue.ABBA = []uint8{0x00, 0x00}
+	ue.Current().ABBA = []uint8{0x00, 0x00}
 
 	amfInstance := amf.New(nil, nil, nil)
 
@@ -233,8 +234,8 @@ func TestHandleAuthenticationFailure_NgKSIAlreadyInUse_KsiWrapsToZero(t *testing
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if ue.NgKsi.Ksi != 0 {
-		t.Fatalf("expected NgKsi.Ksi to wrap to 0, got: %d", ue.NgKsi.Ksi)
+	if ue.Current().NgKsi.Ksi != 0 {
+		t.Fatalf("expected NgKsi.Ksi to wrap to 0, got: %d", ue.Current().NgKsi.Ksi)
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
@@ -249,7 +250,7 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_Success(t *testing.T
 	}
 
 	ue.ForceState(amf.Authentication)
-	ue.AuthFailureCauseSynchFailureTimes = 0
+	ue.NasConn().AuthFailureCauseSynchFailureTimes = 0
 	ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
 	ue.Tai = ue.RanUe().Tai
 
@@ -270,16 +271,16 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_Success(t *testing.T
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if ue.AuthFailureCauseSynchFailureTimes != 1 {
-		t.Fatalf("expected AuthFailureCauseSynchFailureTimes to be 1, got: %d", ue.AuthFailureCauseSynchFailureTimes)
+	if ue.NasConn().AuthFailureCauseSynchFailureTimes != 1 {
+		t.Fatalf("expected AuthFailureCauseSynchFailureTimes to be 1, got: %d", ue.NasConn().AuthFailureCauseSynchFailureTimes)
 	}
 
-	if ue.AuthenticationCtx != expectedAv {
+	if ue.NasConn().AuthenticationCtx != expectedAv {
 		t.Fatal("expected AuthenticationCtx to be updated from AUSF response")
 	}
 
-	if len(ue.ABBA) != 2 || ue.ABBA[0] != 0x00 || ue.ABBA[1] != 0x00 {
-		t.Fatalf("expected ABBA to be {0x00, 0x00}, got: %v", ue.ABBA)
+	if len(ue.Current().ABBA) != 2 || ue.Current().ABBA[0] != 0x00 || ue.Current().ABBA[1] != 0x00 {
+		t.Fatalf("expected ABBA to be {0x00, 0x00}, got: %v", ue.Current().ABBA)
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
@@ -311,7 +312,7 @@ func TestHandleAuthenticationFailure_SynchFailure_FirstTime_AusfError(t *testing
 	}
 
 	ue.ForceState(amf.Authentication)
-	ue.AuthFailureCauseSynchFailureTimes = 0
+	ue.NasConn().AuthFailureCauseSynchFailureTimes = 0
 	ue.Suci = "suci-0-001-01-0000-0-0-0000000001"
 	ue.Tai = ue.RanUe().Tai
 
@@ -339,7 +340,7 @@ func TestHandleAuthenticationFailure_SynchFailure_SecondTime_DeregistersAndSends
 	}
 
 	ue.ForceState(amf.Authentication)
-	ue.AuthFailureCauseSynchFailureTimes = 1
+	ue.NasConn().AuthFailureCauseSynchFailureTimes = 1
 
 	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMSynchFailure, nil)
 
@@ -381,7 +382,7 @@ func TestHandleAuthenticationFailure_SynchFailure_NilAuthenticationFailureParame
 	}
 
 	ue.ForceState(amf.Authentication)
-	ue.AuthFailureCauseSynchFailureTimes = 0
+	ue.NasConn().AuthFailureCauseSynchFailureTimes = 0
 
 	// Build message with SynchFailure cause but nil AuthenticationFailureParameter
 	msg := buildTestAuthenticationFailureMessage(nasMessage.Cause5GMMSynchFailure, nil)

@@ -217,13 +217,13 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 			if ulNasTransport.SNSSAI != nil {
 				snssai = util.SnssaiToModels(ulNasTransport.SNSSAI)
 			} else {
-				if len(ue.AllowedNssai) == 0 {
+				if len(ue.Current().AllowedNssai) == 0 {
 					return fmt.Errorf("allowed nssai is empty in UE context")
 				}
 
 				// Default to the first allowed slice when the UE omits S-NSSAI.
 				// The ordering follows the policy iteration order for the subscriber's profile.
-				snssai = &ue.AllowedNssai[0]
+				snssai = &ue.Current().AllowedNssai[0]
 			}
 
 			if ulNasTransport.DNN != nil && ulNasTransport.DNN.GetLen() > 0 {
@@ -241,7 +241,24 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 
 			smContextRef, errResponse, err := amfInstance.Smf.CreateSmContext(ctx, ue.Supi, pduSessionID, dnn, snssai, smMessage)
 			if err != nil {
-				ue.Log.Error("couldn't send create sm context request", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
+				ue.Log.Error("couldn't create sm context", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
+
+				if errResponse != nil {
+					if sendErr := message.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, errResponse, pduSessionID, 0); sendErr != nil {
+						return fmt.Errorf("error sending downlink nas transport: %s", sendErr)
+					}
+
+					return fmt.Errorf("pdu session establishment request was rejected by SMF for pdu session id %d: %w", pduSessionID, err)
+				}
+
+				// TS 24.501 §5.4.5.3: SMF could not produce an SM reject;
+				// AMF informs the UE the payload was not forwarded by echoing
+				// it back with the 5GMM cause set.
+				if sendErr := message.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded); sendErr != nil {
+					return fmt.Errorf("error sending downlink nas transport fallback: %s", sendErr)
+				}
+
+				return fmt.Errorf("create sm context failed for pdu session id %d: %w", pduSessionID, err)
 			}
 
 			if errResponse != nil {
@@ -275,12 +292,12 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 	return nil
 }
 
-func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.ULNASTransport) error {
+func handleULNASTransport(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, msg *nasMessage.ULNASTransport, macFailed bool) error {
 	if ue.GetState() != amf.Registered {
 		return fmt.Errorf("expected UE to be in state %s during UL NAS Transport, instead it was %s", amf.Registered, ue.GetState())
 	}
 
-	if ue.MacFailed {
+	if macFailed {
 		return fmt.Errorf("NAS message integrity check failed")
 	}
 

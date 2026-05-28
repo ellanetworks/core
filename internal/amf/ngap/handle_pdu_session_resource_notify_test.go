@@ -41,7 +41,7 @@ func TestPDUSessionResourceNotify_ReleasedSessionDeactivated(t *testing.T) {
 
 	amfUe := amf.NewAmfUe()
 	amfUe.Log = logger.AmfLog
-	amfUe.SmContextList[1] = &amf.SmContext{
+	amfUe.Current().SmContextList[1] = &amf.SmContext{
 		Ref:    "ref-session-1",
 		Snssai: &models.Snssai{Sst: 1},
 	}
@@ -67,7 +67,7 @@ func TestPDUSessionResourceNotify_ReleasedSessionDeactivated(t *testing.T) {
 		t.Errorf("DeactivateSmContext ref = %q, want %q", fakeSmf.DeactivateSmContextCalls[0], "ref-session-1")
 	}
 
-	sc := amfUe.SmContextList[1]
+	sc := amfUe.Current().SmContextList[1]
 	if sc == nil {
 		t.Fatal("SmContext was removed instead of marked inactive")
 	}

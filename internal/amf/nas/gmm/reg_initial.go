@@ -30,21 +30,21 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return fmt.Errorf("error getting subscriber profile: %v", err)
 	}
 
-	ue.AllowedNssai = subscriberProfile.AllowedNssai
-	ue.Ambr = subscriberProfile.Ambr
+	ue.Current().AllowedNssai = subscriberProfile.AllowedNssai
+	ue.Current().Ambr = subscriberProfile.Ambr
 
-	if ue.RegistrationRequest.MICOIndication != nil {
-		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.RegistrationRequest.GetRAAI()))
+	if ue.NasConn().RegistrationRequest.MICOIndication != nil {
+		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.NasConn().RegistrationRequest.GetRAAI()))
 	}
 
-	if ue.RegistrationRequest.RequestedDRXParameters != nil {
-		drx := ue.RegistrationRequest.GetDRXValue()
+	if ue.NasConn().RegistrationRequest.RequestedDRXParameters != nil {
+		drx := ue.NasConn().RegistrationRequest.GetDRXValue()
 		if drx > nasMessage.DRXcycleParameterT256 {
 			ue.Log.Warn("UE requested reserved DRX value, treating as not specified", zap.Uint8("drxValue", drx))
 			drx = nasMessage.DRXValueNotSpecified
 		}
 
-		ue.UESpecificDRX = drx
+		ue.Current().UESpecificDRX = drx
 	}
 
 	ue.AllocateRegistrationArea(operatorInfo.Tais)
@@ -56,15 +56,15 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return fmt.Errorf("error adding AMF UE to UE pool: %v", err)
 	}
 
-	ue.T3502Value = amfInstance.T3502Value
-	ue.T3512Value = amfInstance.T3512Value
+	ue.Current().T3502Value = amfInstance.T3502Value
+	ue.Current().T3512Value = amfInstance.T3512Value
 
 	err = amfInstance.ReAllocateGuti(ctx, ue, operatorInfo.Guami)
 	if err != nil {
 		return fmt.Errorf("error reallocating GUTI to UE: %v", err)
 	}
 
-	UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.RegistrationType5GS), RegistrationAccept).Inc()
+	UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.NasConn().RegistrationType5GS), RegistrationAccept).Inc()
 
 	err = message.SendRegistrationAccept(ctx, amfInstance, ue, nil, nil, nil, nil, nil, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
 	if err != nil {

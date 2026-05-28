@@ -74,5 +74,5 @@ func HandleInitialContextSetupResponse(ctx context.Context, amfInstance *amf.AMF
 		}
 	}
 
-	ranUe.RecvdInitialContextSetupResponse = true
+	ranUe.ICS = amf.ICSCompleted
 }

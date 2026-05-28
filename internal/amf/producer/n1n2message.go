@@ -61,12 +61,12 @@ func TransferN1N2Message(ctx context.Context, amfInstance *amf.AMF, supi etsi.SU
 
 	ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
 
-	if ranUe.SentInitialContextSetupRequest {
+	if ranUe.ICS != amf.ICSNotStarted {
 		list := ngapType.PDUSessionResourceSetupListSUReq{}
 
 		send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nasPdu, req.BinaryDataN2Information)
 
-		err := ranUe.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
+		err := ranUe.SendPDUSessionResourceSetupRequest(ctx, ue.Current().Ambr.Uplink, ue.Current().Ambr.Downlink, nil, list)
 		if err != nil {
 			return fmt.Errorf("send pdu session resource setup request error: %v", err)
 		}
@@ -87,14 +87,14 @@ func TransferN1N2Message(ctx context.Context, amfInstance *amf.AMF, supi etsi.SU
 
 	err = ranUe.SendInitialContextSetupRequest(
 		ctx,
-		ue.Ambr.Uplink,
-		ue.Ambr.Downlink,
-		ue.AllowedNssai,
-		ue.Kgnb,
+		ue.Current().Ambr.Uplink,
+		ue.Current().Ambr.Downlink,
+		ue.Current().AllowedNssai,
+		ue.Current().Kgnb,
 		ue.PlmnID,
-		ue.UeRadioCapability,
-		ue.UeRadioCapabilityForPaging,
-		ue.UESecurityCapability,
+		ue.Current().UeRadioCapability,
+		ue.Current().UeRadioCapabilityForPaging,
+		ue.Current().UESecurityCapability,
 		nil,
 		&list,
 		operatorInfo.Guami,
@@ -105,21 +105,26 @@ func TransferN1N2Message(ctx context.Context, amfInstance *amf.AMF, supi etsi.SU
 
 	ue.Log.Info("Sent NGAP initial context setup request to UE")
 
-	ranUe.SentInitialContextSetupRequest = true
+	ranUe.ICS = amf.ICSPending
 
 	return nil
 }
 
 func storeN1N2AndPage(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, req models.N1N2MessageTransferRequest) error {
-	if ue.Procedures.Active(procedure.Paging) {
+	nasConn := ue.NasConn()
+	if nasConn == nil {
+		return fmt.Errorf("ue has no active NAS connection")
+	}
+
+	if nasConn.Procedures.Active(procedure.Paging) {
 		return fmt.Errorf("higher priority request ongoing")
 	}
 
-	if ue.Procedures.Active(procedure.Registration) {
+	if nasConn.Procedures.Active(procedure.Registration) {
 		return fmt.Errorf("temporary reject registration ongoing")
 	}
 
-	if ue.Procedures.Active(procedure.N2Handover) {
+	if nasConn.Procedures.Active(procedure.N2Handover) {
 		return fmt.Errorf("temporary reject handover ongoing")
 	}
 
@@ -127,17 +132,17 @@ func storeN1N2AndPage(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, 
 		return fmt.Errorf("ue is not in registered state")
 	}
 
-	ue.N1N2Message = &req
+	nasConn.N1N2Message = &req
 
-	_, beginErr := ue.Procedures.Begin(ctx, procedure.Procedure{Type: procedure.Paging})
+	_, beginErr := nasConn.Procedures.Begin(nasConn.Ctx(), procedure.Procedure{Type: procedure.Paging})
 	if beginErr != nil {
 		return fmt.Errorf("begin paging procedure: %w", beginErr)
 	}
 
 	pkg, err := send.BuildPaging(
 		ue.Guti,
-		ue.RegistrationArea,
-		ue.UeRadioCapabilityForPaging,
+		ue.Current().RegistrationArea,
+		ue.Current().UeRadioCapabilityForPaging,
 		nil,
 	)
 	if err != nil {
@@ -278,15 +283,15 @@ func N2MessageTransferOrPage(ctx context.Context, amfInstance *amf.AMF, supi ets
 		return fmt.Errorf("ue context not found")
 	}
 
-	if ue.Procedures.Active(procedure.Paging) {
+	if ue.NasConn().Procedures.Active(procedure.Paging) {
 		return fmt.Errorf("higher priority request ongoing")
 	}
 
-	if ue.Procedures.Active(procedure.Registration) {
+	if ue.NasConn().Procedures.Active(procedure.Registration) {
 		return fmt.Errorf("temporary reject registration ongoing")
 	}
 
-	if ue.Procedures.Active(procedure.N2Handover) {
+	if ue.NasConn().Procedures.Active(procedure.N2Handover) {
 		return fmt.Errorf("temporary reject handover ongoing")
 	}
 
@@ -294,11 +299,11 @@ func N2MessageTransferOrPage(ctx context.Context, amfInstance *amf.AMF, supi ets
 	if ranUe != nil {
 		ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Setup Request from SMF")
 
-		if ranUe.SentInitialContextSetupRequest {
+		if ranUe.ICS != amf.ICSNotStarted {
 			list := ngapType.PDUSessionResourceSetupListSUReq{}
 			send.AppendPDUSessionResourceSetupListSUReq(&list, req.PduSessionID, req.SNssai, nil, req.BinaryDataN2Information)
 
-			err := ranUe.SendPDUSessionResourceSetupRequest(ctx, ue.Ambr.Uplink, ue.Ambr.Downlink, nil, list)
+			err := ranUe.SendPDUSessionResourceSetupRequest(ctx, ue.Current().Ambr.Uplink, ue.Current().Ambr.Downlink, nil, list)
 			if err != nil {
 				return fmt.Errorf("send pdu session resource setup request error: %v", err)
 			}
@@ -318,14 +323,14 @@ func N2MessageTransferOrPage(ctx context.Context, amfInstance *amf.AMF, supi ets
 
 		err = ranUe.SendInitialContextSetupRequest(
 			ctx,
-			ue.Ambr.Uplink,
-			ue.Ambr.Downlink,
-			ue.AllowedNssai,
-			ue.Kgnb,
+			ue.Current().Ambr.Uplink,
+			ue.Current().Ambr.Downlink,
+			ue.Current().AllowedNssai,
+			ue.Current().Kgnb,
 			ue.PlmnID,
-			ue.UeRadioCapability,
-			ue.UeRadioCapabilityForPaging,
-			ue.UESecurityCapability,
+			ue.Current().UeRadioCapability,
+			ue.Current().UeRadioCapabilityForPaging,
+			ue.Current().UESecurityCapability,
 			nil,
 			&list,
 			operatorInfo.Guami,
@@ -336,7 +341,7 @@ func N2MessageTransferOrPage(ctx context.Context, amfInstance *amf.AMF, supi ets
 
 		ue.Log.Info("Sent NGAP initial context setup request to UE")
 
-		ranUe.SentInitialContextSetupRequest = true
+		ranUe.ICS = amf.ICSPending
 
 		return nil
 	}

@@ -54,7 +54,7 @@ func TestHandleServiceRequest_WrongStateError(t *testing.T) {
 			ue := amf.NewAmfUe()
 			ue.ForceState(tc)
 
-			err := handleServiceRequest(t.Context(), amf.New(nil, nil, nil), ue, nil)
+			err := handleServiceRequest(t.Context(), amf.New(nil, nil, nil), ue, nil, false)
 			if err == nil || err.Error() != expected {
 				t.Fatalf("expected error: %s, got: %v", expected, err)
 			}
@@ -88,11 +88,11 @@ func TestHandleServiceRequest_InvalidSecurityContext_ServiceReject(t *testing.T)
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.SecurityContextAvailable = false
+	ue.Current().SecurityContextAvailable = false
 
 	m := buildTestServiceRequest()
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -145,12 +145,11 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.SecurityContextAvailable = true
-	ue.MacFailed = true
+	ue.Current().SecurityContextAvailable = true
 
 	m := buildTestServiceRequest()
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, true)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -176,7 +175,7 @@ func TestHandleServiceRequest_MacFailed_ServiceReject(t *testing.T) {
 		t.Fatalf("expected a service reject essage, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.SecurityContextAvailable {
+	if ue.Current().SecurityContextAvailable {
 		t.Fatalf("expected security context to change to not available")
 	}
 }
@@ -208,23 +207,23 @@ func TestHandleServiceRequest_NASContainer_DecryptFailure_ServiceReject(t *testi
 
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.Current().SecurityContextAvailable = true
+	ue.Current().NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.Current().KnasEnc = key
+	ue.Current().KnasInt = key
+	ue.Current().CipheringAlg = algo
+	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeSignalling)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeSignalling)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	ue.CipheringAlg = 200
+	ue.Current().CipheringAlg = 200
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -283,12 +282,12 @@ func TestHandleServiceRequest_UnknownUE_NASMessage_ServiceReject(t *testing.T) {
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeData)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeData)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -341,17 +340,16 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.SecurityContextAvailable = true
-	ue.MacFailed = false
+	ue.Current().SecurityContextAvailable = true
 
-	ue.T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	if _, err := ue.Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+	ue.NasConn().T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
 		t.Fatal(err)
 	}
 
 	m := buildTestServiceRequest()
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -377,11 +375,11 @@ func TestHandleServiceRequest_ServiceTypeSignaling_ServiceAccept(t *testing.T) {
 		t.Fatalf("expected a service accept message, got '%v'", decoded.Message.GmmHeader.GetMessageType())
 	}
 
-	if ue.T3513 != nil {
+	if ue.NasConn().T3513 != nil {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if ue.Procedures.Active(procedure.Paging) {
+	if ue.NasConn().Procedures.Active(procedure.Paging) {
 		t.Fatalf("expected paging procedure to be completed")
 	}
 }
@@ -411,24 +409,24 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.T3565 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.NasConn().T3565 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.Current().SecurityContextAvailable = true
+	ue.Current().NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.Current().KnasEnc = key
+	ue.Current().KnasInt = key
+	ue.Current().CipheringAlg = algo
+	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeSignalling)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeSignalling)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -449,7 +447,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -462,7 +460,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeSignaling_ServiceAccept(t *
 		t.Fatalf("expected a service accept message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.T3565 != nil {
+	if ue.NasConn().T3565 != nil {
 		t.Fatalf("expected timer T3565 to be stopped and cleared")
 	}
 }
@@ -492,24 +490,24 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.T3565 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.NasConn().T3565 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.Current().SecurityContextAvailable = true
+	ue.Current().NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.Current().KnasEnc = key
+	ue.Current().KnasInt = key
+	ue.Current().CipheringAlg = algo
+	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeData)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeData)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -530,7 +528,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -543,7 +541,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeData_ServiceAccept(t *testi
 		t.Fatalf("expected a service accept message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.T3565 != nil {
+	if ue.NasConn().T3565 != nil {
 		t.Fatalf("expected timer T3565 to be stopped and cleared")
 	}
 }
@@ -575,8 +573,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 
-	ue.T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	if _, err := ue.Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+	ue.NasConn().T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -584,21 +582,21 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe().Tai
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.Current().SecurityContextAvailable = true
+	ue.Current().NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.Current().KnasEnc = key
+	ue.Current().KnasInt = key
+	ue.Current().CipheringAlg = algo
+	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -619,7 +617,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -632,7 +630,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_ServiceAccept(t *testing
 		t.Fatalf("expected a service accept message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.T3513 != nil {
+	if ue.NasConn().T3513 != nil {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
@@ -670,8 +668,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 		t.Fatalf("could not build UE and radio: %v", err)
 	}
 
-	ue.T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	if _, err := ue.Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+	ue.NasConn().T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -679,24 +677,24 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_NoPDUSession
 	ue.ForceState(amf.Registered)
 	ue.Guti = mustTestGuti("001", "01", "cafe42", 0x00000001)
 	ue.Tai = ue.RanUe().Tai
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.Current().SecurityContextAvailable = true
+	ue.Current().NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
-	ue.N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1}
+	ue.Current().KnasEnc = key
+	ue.Current().KnasInt = key
+	ue.Current().CipheringAlg = algo
+	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1}
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
 	expected := "service Request triggered by Network for pduSessionID that does not exist"
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected error: %s, got: %v", expected, err)
 	}
@@ -736,8 +734,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	ue.T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	if _, err := ue.Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+	ue.NasConn().T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -745,24 +743,24 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe().Tai
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.Current().SecurityContextAvailable = true
+	ue.Current().NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
-	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.Current().KnasEnc = key
+	ue.Current().KnasInt = key
+	ue.Current().CipheringAlg = algo
+	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.Current().Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
-	ue.N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai}
+	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai}
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -783,7 +781,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -812,7 +810,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -825,11 +823,11 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2Message_ExistingPDUS
 		t.Fatalf("expected a configuration update command message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.T3513 != nil {
+	if ue.NasConn().T3513 != nil {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if ue.T3555 == nil {
+	if ue.NasConn().T3555 == nil {
 		t.Fatalf("expected timer T3555 to be started")
 	}
 
@@ -871,8 +869,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	ue.T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	if _, err := ue.Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+	ue.NasConn().T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -880,25 +878,25 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe().Tai
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.Current().SecurityContextAvailable = true
+	ue.Current().NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA1
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
-	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.Current().KnasEnc = key
+	ue.Current().KnasInt = key
+	ue.Current().CipheringAlg = algo
+	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.Current().Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
-	ue.N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}}
+	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}}
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -919,7 +917,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -952,7 +950,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -965,11 +963,11 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected a configuration update command message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.T3513 != nil {
+	if ue.NasConn().T3513 != nil {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if ue.T3555 == nil {
+	if ue.NasConn().T3555 == nil {
 		t.Fatalf("expected timer T3555 to be started")
 	}
 
@@ -1011,8 +1009,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	ue.T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	if _, err := ue.Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+	ue.NasConn().T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1020,25 +1018,25 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe().Tai
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.Current().SecurityContextAvailable = true
+	ue.Current().NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
-	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.Current().KnasEnc = key
+	ue.Current().KnasInt = key
+	ue.Current().CipheringAlg = algo
+	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.Current().Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
-	ue.N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}}
+	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}}
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -1059,7 +1057,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1100,7 +1098,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1113,11 +1111,11 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_ExistingPD
 		t.Fatalf("expected a configuration update command message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.T3513 != nil {
+	if ue.NasConn().T3513 != nil {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if ue.T3555 == nil {
+	if ue.NasConn().T3555 == nil {
 		t.Fatalf("expected timer T3555 to be started")
 	}
 
@@ -1159,8 +1157,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	ue.T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	if _, err := ue.Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+	ue.NasConn().T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1168,26 +1166,26 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe().Tai
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.Current().SecurityContextAvailable = true
+	ue.Current().NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
-	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.Current().KnasEnc = key
+	ue.Current().KnasInt = key
+	ue.Current().CipheringAlg = algo
+	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.Current().Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
-	ue.N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}}
+	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{PduSessionID: 1, SNssai: &snssai, BinaryDataN2Information: []byte{}}
 	ue.RanUe().UeContextRequest = true
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -1208,7 +1206,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1237,7 +1235,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1250,11 +1248,11 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_N1N2MessageN2_UeCtxReq_E
 		t.Fatalf("expected a configuration update command message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.T3513 != nil {
+	if ue.NasConn().T3513 != nil {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if ue.T3555 == nil {
+	if ue.NasConn().T3555 == nil {
 		t.Fatalf("expected timer T3555 to be started")
 	}
 
@@ -1296,8 +1294,8 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 	oldguti := mustTestGuti("001", "01", "cafe42", 0x00000001)
 	snssai := models.Snssai{Sst: 1, Sd: "102030"}
 
-	ue.T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
-	if _, err := ue.Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
+	ue.NasConn().T3513 = amf.NewTimer(6*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	if _, err := ue.NasConn().Procedures.Begin(t.Context(), procedure.Procedure{Type: procedure.Paging}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1305,15 +1303,15 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 	ue.ForceState(amf.Registered)
 	ue.Guti = oldguti
 	ue.Tai = ue.RanUe().Tai
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.Current().SecurityContextAvailable = true
+	ue.Current().NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
-	ue.Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
+	ue.Current().KnasEnc = key
+	ue.Current().KnasInt = key
+	ue.Current().CipheringAlg = algo
+	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.Current().Ambr = &models.Ambr{Uplink: "100mbps", Downlink: "100mbps"}
 	_ = ue.CreateSmContext(1, "testref", &snssai)
 	_ = ue.CreateSmContext(12, "testrefuplink", &snssai)
 
@@ -1322,19 +1320,19 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		t.Fatalf("could not build N1 message: %v", err)
 	}
 
-	ue.N1N2Message = &models.N1N2MessageTransferRequest{
+	ue.NasConn().N1N2Message = &models.N1N2MessageTransferRequest{
 		PduSessionID: 1,
 		SNssai:       &snssai,
 		// BinaryDataN2Information: []byte{},
 		BinaryDataN1Message: n1msg,
 	}
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeMobileTerminatedServices)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
 	if err != nil {
 		t.Fatalf("expected no errors, got: %v", err)
 	}
@@ -1355,7 +1353,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1384,7 +1382,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get()+1, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1417,7 +1415,7 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		t.Fatalf("expected a ciphered NAS message")
 	}
 
-	if err := security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get()+2, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
+	if err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get()+2, security.Bearer3GPP, security.DirectionDownlink, payload); err != nil {
 		t.Fatalf("could not decrypt NAS message: %v", err)
 	}
 
@@ -1430,11 +1428,11 @@ func TestHandleServiceRequest_NASContainerServiceTypeMT_DownlinkSignalingOnly_Se
 		t.Fatalf("expected a configuration update command message, got '%v'", nm.GmmHeader.GetMessageType())
 	}
 
-	if ue.T3513 != nil {
+	if ue.NasConn().T3513 != nil {
 		t.Fatalf("expected timer T3513 to be stopped and cleared")
 	}
 
-	if ue.T3555 == nil {
+	if ue.NasConn().T3555 == nil {
 		t.Fatalf("expected timer T3555 to be started")
 	}
 
@@ -1480,27 +1478,27 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_UplinkDataStatus(t *testing
 
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.Current().SecurityContextAvailable = true
+	ue.Current().NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.Current().KnasEnc = key
+	ue.Current().KnasInt = key
+	ue.Current().CipheringAlg = algo
+	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
 
 	// Inject an out-of-range PDU session ID (255) directly into SmContextList,
 	// bypassing CreateSmContext validation. This simulates a malicious UE that
 	// somehow stored an invalid session ID (e.g., via a hypothetical future bug).
 	// The read-side bounds checks in handleServiceRequest must still prevent a panic.
-	ue.SmContextList[255] = &amf.SmContext{Ref: "malicious-ref", Snssai: &snssai}
+	ue.Current().SmContextList[255] = &amf.SmContext{Ref: "malicious-ref", Snssai: &snssai}
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeData)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeData)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
 	if err != nil {
 		t.Logf("handleServiceRequest returned error (acceptable): %v", err)
 	}
@@ -1538,20 +1536,20 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 
 	ue.ForceState(amf.Registered)
 	ue.Tai = ue.RanUe().Tai
-	ue.SecurityContextAvailable = true
-	ue.NgKsi.Ksi = 1
+	ue.Current().SecurityContextAvailable = true
+	ue.Current().NgKsi.Ksi = 1
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.Current().KnasEnc = key
+	ue.Current().KnasInt = key
+	ue.Current().CipheringAlg = algo
+	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
 
 	// Inject an out-of-range PDU session ID (200) directly into SmContextList,
 	// bypassing CreateSmContext validation to test the read-side safety net.
-	ue.SmContextList[200] = &amf.SmContext{Ref: "malicious-ref", Snssai: &snssai}
+	ue.Current().SmContextList[200] = &amf.SmContext{Ref: "malicious-ref", Snssai: &snssai}
 
-	m, err := buildTestServiceRequestCiphered(algo, key, ue.ULCount.Get(), nasMessage.ServiceTypeData)
+	m, err := buildTestServiceRequestCiphered(algo, key, ue.Current().ULCount.Get(), nasMessage.ServiceTypeData)
 	if err != nil {
 		t.Fatalf("could not build service request: %v", err)
 	}
@@ -1560,7 +1558,7 @@ func TestHandleServiceRequest_OutOfRangePduSessionID_PDUSessionStatus(t *testing
 	// buildTestServiceRequestCiphered). The panic occurs when iterating SmContextList
 	// and indexing into the [16]bool psiArray with pduSessionID >= 16.
 
-	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest)
+	err = handleServiceRequest(t.Context(), amfInstance, ue, m.ServiceRequest, false)
 	if err != nil {
 		t.Logf("handleServiceRequest returned error (acceptable): %v", err)
 	}

@@ -26,9 +26,9 @@ func HandleInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF,
 		return
 	}
 
-	if amfUe.T3550 != nil {
-		amfUe.T3550.Stop()
-		amfUe.T3550 = nil
+	if amfUe.NasConn().T3550 != nil {
+		amfUe.NasConn().T3550.Stop()
+		amfUe.NasConn().T3550 = nil
 		amfUe.Deregister(ctx)
 		amfUe.ClearRegistrationRequestData()
 	}

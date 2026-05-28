@@ -41,6 +41,44 @@ func TestHandleUplinkNasTransport_UnknownRanUe_SendsErrorIndication(t *testing.T
 	}
 }
 
+// TestHandleUplinkNasTransport_AMFUENGAPIDMismatch_SendsErrorIndication
+// covers TS 38.413 §8.7.5.2: when the RAN UE NGAP ID identifies a known UE
+// but the AMF UE NGAP ID in the message does not match the one the AMF
+// allocated to that UE, the AMF shall respond with ErrorIndication and
+// cause "Inconsistent remote UE NGAP ID".
+func TestHandleUplinkNasTransport_AMFUENGAPIDMismatch_SendsErrorIndication(t *testing.T) {
+	ran := newTestRadio()
+	sender := ran.NGAPSender.(*FakeNGAPSender)
+	fakeNAS := &FakeNASHandler{}
+	amfInstance := newTestAMFWithNAS(fakeNAS)
+
+	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
+
+	ngap.HandleUplinkNasTransport(context.Background(), amfInstance, ran, decode.UplinkNASTransport{
+		AMFUENGAPID: 99999,
+		RANUENGAPID: 1,
+		NASPDU:      []byte{0x7E, 0x00, 0x55},
+	})
+
+	if len(sender.SentErrorIndications) != 1 {
+		t.Fatalf("ErrorIndications sent = %d, want 1", len(sender.SentErrorIndications))
+	}
+
+	cause := sender.SentErrorIndications[0].Cause
+	if cause == nil || cause.Present != ngapType.CausePresentRadioNetwork {
+		t.Fatal("expected RadioNetwork cause")
+	}
+
+	if cause.RadioNetwork.Value != ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID {
+		t.Errorf("cause = %d, want InconsistentRemoteUENGAPID (%d)",
+			cause.RadioNetwork.Value, ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID)
+	}
+
+	if len(fakeNAS.Calls) != 0 {
+		t.Errorf("NAS handler must not be invoked on ID mismatch, got %d calls", len(fakeNAS.Calls))
+	}
+}
+
 func TestHandleUplinkNasTransport_NilAmfUe_RemovesRanUe(t *testing.T) {
 	ran := newTestRadio()
 	amfInstance := newTestAMF()

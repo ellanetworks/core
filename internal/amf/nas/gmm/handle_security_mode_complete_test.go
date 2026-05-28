@@ -38,6 +38,7 @@ func TestHandleSecurityMode_WrongUEMode(t *testing.T) {
 				amf.New(nil, nil, nil),
 				ue,
 				nil,
+				false,
 			)
 			if err == nil || err.Error() != expected.Error() {
 				t.Fatalf("expected error: %v, got: %v", expected, err)
@@ -51,13 +52,13 @@ func TestHandleSecurityMode_MacFailed(t *testing.T) {
 
 	ue := amf.NewAmfUe()
 	ue.ForceState(amf.SecurityMode)
-	ue.MacFailed = true
 
 	err := handleSecurityModeComplete(
 		t.Context(),
 		amf.New(nil, nil, nil),
 		ue,
 		nil,
+		true,
 	)
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected error: %v, got: %v", expected, err)
@@ -90,16 +91,16 @@ func TestHandleSecurityMode_TimerT3560Stopped(t *testing.T) {
 	}
 
 	ue.ForceState(amf.SecurityMode)
-	ue.T3560 = amf.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
+	ue.NasConn().T3560 = amf.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
 
 	msg := buildTestSecurityModeCompleteMessage()
 
-	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete)
+	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, false)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if ue.T3560 != nil {
+	if ue.NasConn().T3560 != nil {
 		t.Fatal("expected timer T3560 to be stopped and cleared")
 	}
 
@@ -134,7 +135,7 @@ func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
 	}
 
 	ue.ForceState(amf.SecurityMode)
-	ue.T3560 = amf.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
+	ue.NasConn().T3560 = amf.NewTimer(10*time.Minute, 10, func(e int32) {}, func() {})
 
 	msg := buildTestSecurityModeCompleteMessage()
 	msg.IMEISV = &nasType.IMEISV{
@@ -142,7 +143,7 @@ func TestHandleSecurityMode_MsgIncludingIMEISV_UpdatesPEI(t *testing.T) {
 		Len:   9,
 	}
 
-	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete)
+	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, false)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -183,23 +184,22 @@ func TestHandleSecurityMode_ValidSecurityContext_UpdatesSecurityContext(t *testi
 	}
 
 	ue.ForceState(amf.SecurityMode)
-	ue.SecurityContextAvailable = true
-	ue.NgKsi = models.NgKsi{Ksi: 0}
-	ue.MacFailed = false
+	ue.Current().SecurityContextAvailable = true
+	ue.Current().NgKsi = models.NgKsi{Ksi: 0}
 
-	ue.Kgnb = []uint8{}
-	ue.NH = []uint8{}
-	ue.NCC = 0
+	ue.Current().Kgnb = []uint8{}
+	ue.Current().NH = []uint8{}
+	ue.Current().NCC = 0
 
 	msg := buildTestSecurityModeCompleteMessage()
 
-	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete)
+	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, false)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if len(ue.Kgnb) == 0 || len(ue.NH) == 0 || ue.NCC == 0 {
-		t.Fatalf("expected security context to be updated, got: Kgnb: %v, NH: %v, NCC: %v", ue.Kgnb, ue.NH, ue.NCC)
+	if len(ue.Current().Kgnb) == 0 || len(ue.Current().NH) == 0 || ue.Current().NCC == 0 {
+		t.Fatalf("expected security context to be updated, got: Kgnb: %v, NH: %v, NCC: %v", ue.Current().Kgnb, ue.Current().NH, ue.Current().NCC)
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
@@ -233,26 +233,25 @@ func TestHandleSecurityMode_ValidSecurityContextWithBadAMFKey_UpdatesSecurityCon
 	}
 
 	ue.ForceState(amf.SecurityMode)
-	ue.SecurityContextAvailable = true
-	ue.NgKsi = models.NgKsi{Ksi: 0}
-	ue.MacFailed = false
+	ue.Current().SecurityContextAvailable = true
+	ue.Current().NgKsi = models.NgKsi{Ksi: 0}
 
-	ue.Kgnb = []uint8{}
-	ue.NH = []uint8{}
-	ue.NCC = 0
-	ue.Kamf = "this is not hex"
+	ue.Current().Kgnb = []uint8{}
+	ue.Current().NH = []uint8{}
+	ue.Current().NCC = 0
+	ue.Current().Kamf = "this is not hex"
 
 	expected := "error updating security context"
 
 	msg := buildTestSecurityModeCompleteMessage()
 
-	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete)
+	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, false)
 	if err == nil || !strings.HasPrefix(err.Error(), expected) {
 		t.Fatalf("expected error starting with: %v, got: %v", expected, err)
 	}
 
-	if len(ue.Kgnb) != 0 || len(ue.NH) != 0 || ue.NCC != 0 {
-		t.Fatalf("expected security context to be not be updated, got: Kgnb: %v, NH: %v, NCC: %v", ue.Kgnb, ue.NH, ue.NCC)
+	if len(ue.Current().Kgnb) != 0 || len(ue.Current().NH) != 0 || ue.Current().NCC != 0 {
+		t.Fatalf("expected security context to be not be updated, got: Kgnb: %v, NH: %v, NCC: %v", ue.Current().Kgnb, ue.Current().NH, ue.Current().NCC)
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 0 {
@@ -289,18 +288,18 @@ func TestHandleSecurityMode_NASMessageContainer_RegistrationAccepted(t *testing.
 	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
-	ue.RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
+	ue.Current().KnasEnc = key
+	ue.Current().KnasInt = key
+	ue.Current().CipheringAlg = algo
+	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
 
 	msg, err := buildTestSecurityModeCompleteMessageWithRegistrationRequest()
 	if err != nil {
 		t.Fatalf("could not build security mode complete message with registration request: %v", err)
 	}
 
-	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete)
+	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, false)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -356,11 +355,11 @@ func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 	ue.Supi = mustSUPIFromPrefixed("imsi-001019756139935")
 	key := [16]uint8{0x0D, 0x0E, 0x0A, 0x0D, 0x0B, 0x0E, 0x0E, 0x0F, 0x0F, 0x0E, 0x0E, 0x0D, 0x0C, 0x0A, 0x0F, 0x0E}
 	algo := security.AlgCiphering128NEA2
-	ue.KnasEnc = key
-	ue.KnasInt = key
-	ue.CipheringAlg = algo
-	ue.IntegrityAlg = security.AlgIntegrity128NIA0
-	ue.RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
+	ue.Current().KnasEnc = key
+	ue.Current().KnasInt = key
+	ue.Current().CipheringAlg = algo
+	ue.Current().IntegrityAlg = security.AlgIntegrity128NIA0
+	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
 
 	msg, err := buildTestSecurityModeCompleteMessageWithRegistrationRequest()
 	if err != nil {
@@ -371,7 +370,7 @@ func TestHandleSecurityMode_InvalidNASMessageContainer_Error(t *testing.T) {
 
 	expected := "failed to decode nas message container"
 
-	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete)
+	err = handleSecurityModeComplete(t.Context(), amfInstance, ue, msg.SecurityModeComplete, false)
 	if err == nil || !strings.HasPrefix(err.Error(), expected) {
 		t.Fatalf("expected an error starting with: %v, got: %v", expected, err)
 	}

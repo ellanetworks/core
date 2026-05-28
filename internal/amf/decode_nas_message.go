@@ -18,12 +18,12 @@ import (
 // DecodeNASMessage parses a 5GS NAS PDU (plain or security-protected)
 // and returns the decoded message together with a policy Verdict. It is
 // pure with respect to UE security state: it never writes to
-// ue.SecurityContextAvailable or ue.MacFailed. The only ue mutations it
-// performs are to ue.ULCount, which is protocol state required to
+// ue.Current().SecurityContextAvailable or ue.Current().MacFailed. The only ue mutations it
+// performs are to ue.Current().ULCount, which is protocol state required to
 // advance the NAS uplink counter.
 //
 // The caller is the only site allowed to act on the verdict and mutate
-// security state (typically by setting ue.MacFailed before dispatching
+// security state (typically by setting ue.Current().MacFailed before dispatching
 // to a GMM handler).
 //
 // See TS 24.501 §4.4.4.3 and TS 33.501 §6.4.6 step 3 for the policy.
@@ -91,19 +91,19 @@ func decodeProtectedNAS(ue *AmfUe, msg *nas.Message, payload []byte) (*DecodeRes
 	case nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext:
 		ciphered = true
 
-		ue.ULCount.Set(0, 0)
+		ue.Current().ULCount.Set(0, 0)
 	default:
 		return nil, fmt.Errorf("wrong security header type: 0x%0x", msg.SecurityHeaderType)
 	}
 
-	if ue.ULCount.SQN() > sequenceNumber {
+	if ue.Current().ULCount.SQN() > sequenceNumber {
 		ue.Log.Debug("set ULCount overflow")
-		ue.ULCount.SetOverflow(ue.ULCount.Overflow() + 1)
+		ue.Current().ULCount.SetOverflow(ue.Current().ULCount.Overflow() + 1)
 	}
 
-	ue.ULCount.SetSQN(sequenceNumber)
+	ue.Current().ULCount.SetSQN(sequenceNumber)
 
-	mac32, err := security.NASMacCalculate(ue.IntegrityAlg, ue.KnasInt, ue.ULCount.Get(), security.Bearer3GPP,
+	mac32, err := security.NASMacCalculate(ue.Current().IntegrityAlg, ue.Current().KnasInt, ue.Current().ULCount.Get(), security.Bearer3GPP,
 		security.DirectionUplink, payload)
 	if err != nil {
 		return nil, fmt.Errorf("error calculating mac: %+v", err)
@@ -115,9 +115,9 @@ func decodeProtectedNAS(ue *AmfUe, msg *nas.Message, payload []byte) (*DecodeRes
 	}
 
 	if ciphered {
-		ue.Log.Debug("Decrypt NAS message", zap.Uint8("algorithm", ue.CipheringAlg), zap.Uint32("ULCount", ue.ULCount.Get()))
+		ue.Log.Debug("Decrypt NAS message", zap.Uint8("algorithm", ue.Current().CipheringAlg), zap.Uint32("ULCount", ue.Current().ULCount.Get()))
 
-		if err = security.NASEncrypt(ue.CipheringAlg, ue.KnasEnc, ue.ULCount.Get(), security.Bearer3GPP,
+		if err = security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP,
 			security.DirectionUplink, payload[1:]); err != nil {
 			return nil, fmt.Errorf("error encrypting: %+v", err)
 		}

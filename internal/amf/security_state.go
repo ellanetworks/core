@@ -80,7 +80,7 @@ const (
 // never mutates ue.
 func (ue *AmfUe) VerifyUESecurityCapability(received *nasType.UESecurityCapability) VerifyResult {
 	ue.Mutex.RLock()
-	stored := ue.UESecurityCapability
+	stored := ue.Current().UESecurityCapability
 	ue.Mutex.RUnlock()
 
 	if stored == nil {
@@ -106,5 +106,5 @@ func (ue *AmfUe) SetUESecurityCapability(caps *nasType.UESecurityCapability, _ A
 	ue.Mutex.Lock()
 	defer ue.Mutex.Unlock()
 
-	ue.UESecurityCapability = caps
+	ue.Current().UESecurityCapability = caps
 }

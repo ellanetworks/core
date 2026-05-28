@@ -24,7 +24,7 @@ func TestHandleNotificationResponse_NotRegisteredError(t *testing.T) {
 
 			expected := fmt.Sprintf("state mismatch: receive Notification Response message in state %s", tc)
 
-			err := handleNotificationResponse(t.Context(), nil, ue, nil)
+			err := handleNotificationResponse(t.Context(), nil, ue, nil, false)
 			if err == nil || err.Error() != expected {
 				t.Fatalf("expected error: %s, got %v", expected, err)
 			}
@@ -35,11 +35,10 @@ func TestHandleNotificationResponse_NotRegisteredError(t *testing.T) {
 func TestHandleNotificationResponse_MacFailed(t *testing.T) {
 	ue := amf.NewAmfUe()
 	ue.ForceState(amf.Registered)
-	ue.MacFailed = true
 
 	expected := "NAS message integrity check failed"
 
-	err := handleNotificationResponse(t.Context(), nil, ue, nil)
+	err := handleNotificationResponse(t.Context(), nil, ue, nil, true)
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected error: %s, got %v", expected, err)
 	}
@@ -61,16 +60,16 @@ func TestHandleNotificationResponse_T3565Stopped_NoPDUSessionStatus_NoSmContextR
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.T3565 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.NasConn().T3565 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 
 	m := buildTestNotifationResponse()
 
-	err = handleNotificationResponse(t.Context(), amfInstance, ue, m.NotificationResponse)
+	err = handleNotificationResponse(t.Context(), amfInstance, ue, m.NotificationResponse, false)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if ue.T3565 != nil {
+	if ue.NasConn().T3565 != nil {
 		t.Fatal("expected timer T3565 to be stopped and cleared")
 	}
 
@@ -95,7 +94,7 @@ func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextRelea
 	}
 
 	ue.ForceState(amf.Registered)
-	ue.T3565 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
+	ue.NasConn().T3565 = amf.NewTimer(5*time.Minute, 5, func(expireTimes int32) {}, func() {})
 	_ = ue.CreateSmContext(1, "1", &models.Snssai{})
 	_ = ue.CreateSmContext(5, "5", &models.Snssai{})
 	_ = ue.CreateSmContext(8, "8", &models.Snssai{})
@@ -113,12 +112,12 @@ func TestHandleNotificationResponse_T3565Stopped_PDUSessionStatus_SmContextRelea
 	m.NotificationResponse.SetPSI11(1)
 	m.NotificationResponse.SetPSI15(0)
 
-	err = handleNotificationResponse(t.Context(), amfInstance, ue, m.NotificationResponse)
+	err = handleNotificationResponse(t.Context(), amfInstance, ue, m.NotificationResponse, false)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if ue.T3565 != nil {
+	if ue.NasConn().T3565 != nil {
 		t.Fatal("expected timer T3565 to be stopped and cleared")
 	}
 
