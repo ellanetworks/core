@@ -470,6 +470,21 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	gmm.RegisterMetrics()
 	ngap.RegisterMetrics()
 
+	// Session reconciler: watches the session_reconcile changefeed topic
+	// and reconciles every local PDU session against the current DB policy.
+	// Triggered by profile, subscriber, and policy writes.
+	sessionReconciler := amf.NewSessionReconciler(amfInstance, func() <-chan struct{} {
+		wakeup, stop := dbInstance.Changefeed().Wakeup(db.TopicSessionReconcile)
+
+		go func() {
+			<-ctx.Done()
+			stop()
+		}()
+
+		return wakeup
+	}())
+	sessionReconciler.Start()
+
 	// --- Phase B: upgrade the API server to serve all routes now that
 	// the cluster is formed, settings are seeded, and NFs are running. ---
 	if err := apiServer.Upgrade(ctx, api.UpgradeConfig{
@@ -574,6 +589,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		// shutting-down service.
 		logger.EllaLog.Info("Shutting down BGP reconciler")
 		bgpReconciler.Stop()
+
+		// 4b. Stop the session reconciler so no more reconcile calls land
+		// on a shutting-down SMF.
+		logger.EllaLog.Info("Shutting down session reconciler")
+		sessionReconciler.Stop()
 
 		logger.EllaLog.Info("Shutting down BGP")
 

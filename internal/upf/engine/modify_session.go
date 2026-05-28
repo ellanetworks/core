@@ -111,6 +111,37 @@ func (conn *SessionEngine) ModifySession(ctx context.Context, req *models.Modify
 			logger.QERID(qer.QERID), zap.Any("qerInfo", qerInfo))
 	}
 
+	for _, qer := range req.UpdateQERs {
+		sQerInfo := session.GetQer(qer.QERID)
+
+		qerInfo := qerInfoFromMerge(qer, sQerInfo)
+
+		session.PutQer(qer.QERID, qerInfo)
+
+		// Re-apply all PDRs that reference this QER with the updated embedded QER.
+		for _, spdrInfo := range session.ListPDRs() {
+			if spdrInfo.PdrInfo.QerID == qer.QERID {
+				spdrInfo.PdrInfo.Qer = qerInfo
+				session.PutPDR(spdrInfo.PdrID, spdrInfo)
+
+				if err := applyPDR(spdrInfo, bpfObjects); err != nil {
+					span.RecordError(err)
+					return fmt.Errorf("can't update PDR after QER update: %w", err)
+				}
+			}
+		}
+
+		logger.WithTrace(ctx, logger.UpfLog).Info("Updated QoS Enforcement Rule",
+			logger.QERID(qer.QERID), zap.Any("qerInfo", qerInfo))
+	}
+
+	for _, qerID := range req.RemoveQERIDs {
+		session.RemoveQer(qerID)
+
+		logger.WithTrace(ctx, logger.UpfLog).Debug("Removed QoS Enforcement Rule",
+			logger.QERID(qerID))
+	}
+
 	// --- PDRs ---
 
 	// Build FAR and QER maps from session for PDR injection.
@@ -243,6 +274,23 @@ func farInfoFromMerge(far models.FAR, localIPv4 netip.Addr, localIPv6 netip.Addr
 				existing.LocalIP = ebpf.IPToIn6Addr(localIPv4)
 			}
 		}
+	}
+
+	return existing
+}
+
+// qerInfoFromMerge merges a models.QER into an existing ebpf.QerInfo.
+func qerInfoFromMerge(qer models.QER, existing ebpf.QerInfo) ebpf.QerInfo {
+	existing.Qfi = qer.QFI
+
+	if qer.GateStatus != nil {
+		existing.GateStatusDL = qer.GateStatus.DLGate
+		existing.GateStatusUL = qer.GateStatus.ULGate
+	}
+
+	if qer.MBR != nil {
+		existing.MaxBitrateDL = qer.MBR.DLMBR * 1000
+		existing.MaxBitrateUL = qer.MBR.ULMBR * 1000
 	}
 
 	return existing

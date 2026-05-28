@@ -81,6 +81,14 @@ func (s *deregisterTestSmf) UpdateSmContextHandoverFailed(context.Context, strin
 	return nil
 }
 
+func (s *deregisterTestSmf) ReconcileSmContext(context.Context, *models.SessionReconcileRequest) error {
+	return nil
+}
+
+func (s *deregisterTestSmf) GetSessionPolicy(context.Context, etsi.SUPI, *models.Snssai, string) (*smf.Policy, error) {
+	return nil, nil
+}
+
 func TestDeregister_DoesNotHoldLockDuringSmfRelease(t *testing.T) {
 	ue := NewAmfUe()
 	ue.Log = zap.NewNop()

@@ -15,6 +15,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
+	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
@@ -123,6 +124,19 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 		},
 	}
 
+	policy := &smf.Policy{
+		Ambr:    models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
+		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
+	}
+
+	qer, err := s.NewQER(policy)
+	if err != nil {
+		t.Fatalf("NewQER: %v", err)
+	}
+
+	ulPdr.QER = qer
+	dlPdr.QER = qer
+
 	smCtx.Tunnel = &smf.UPTunnel{
 		DataPath: &smf.DataPath{
 			UpLinkTunnel: &smf.GTPTunnel{
@@ -140,12 +154,33 @@ func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
 	smCtx.Tunnel.ANInformation.TEID = 6000
 	smCtx.PDUIPV4Address = net.ParseIP("10.0.0.1").To4()
 
-	smCtx.PolicyData = &smf.Policy{
-		Ambr:    models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"},
-		QosData: models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1},
-	}
+	smCtx.PolicyData = policy
 
 	return smCtx, smf.CanonicalName(supi, 1)
+}
+
+func modificationSMPayload(t *testing.T, n1Msg []byte) []byte {
+	t.Helper()
+
+	msg := nas.NewMessage()
+	if err := msg.GsmMessageDecode(&n1Msg); err == nil && msg.PDUSessionModificationCommand != nil {
+		return n1Msg
+	}
+
+	msg = nas.NewMessage()
+	if err := msg.PlainNasDecode(&n1Msg); err != nil {
+		t.Fatalf("decode DL NAS Transport: %v", err)
+	}
+
+	if msg.GmmHeader.GetMessageType() != nas.MsgTypeDLNASTransport || msg.DLNASTransport == nil {
+		t.Fatal("expected DL NAS Transport carrying N1 SM information")
+	}
+
+	if msg.DLNASTransport.GetPayloadContainerType() != nasMessage.PayloadContainerTypeN1SMInfo {
+		t.Fatal("expected DL NAS Transport carrying N1 SM information")
+	}
+
+	return msg.DLNASTransport.GetPayloadContainerContents()
 }
 
 // ===========================
@@ -793,9 +828,10 @@ func TestUpdateSmContextN2InfoPduResRelRsp_NotFound(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
 
+	// Idempotent: returns nil when session already removed (e.g. slice-mismatch release).
 	err := s.UpdateSmContextN2InfoPduResRelRsp(context.Background(), "nonexistent")
-	if err == nil {
-		t.Fatal("expected error for non-existent session")
+	if err != nil {
+		t.Fatalf("expected nil for already-removed session, got error: %v", err)
 	}
 }
 
@@ -1039,6 +1075,294 @@ func TestHandleDownlinkDataReport(t *testing.T) {
 		t.Fatalf("expected 1 page call, got %d", len(amfCb.pageCalls))
 	}
 	amfCb.mu.Unlock()
+}
+
+func TestReconcileSmContext_UsesNewPolicyForPFCPAndN1N2(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
+		SmContextRef: ref,
+		Reason:       models.ReconcilePolicyChange,
+		NewPolicy: &models.SessionPolicyDelta{
+			SessionAmbrUplink:   "200 Mbps",
+			SessionAmbrDownlink: "300 Mbps",
+			Var5qi:              8,
+			Arp:                 14,
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReconcileSmContext failed: %v", err)
+	}
+
+	upf.mu.Lock()
+	if len(upf.modifyCalls) != 1 {
+		upf.mu.Unlock()
+		t.Fatalf("expected 1 PFCP modify call, got %d", len(upf.modifyCalls))
+	}
+
+	modifyReq := upf.modifyCalls[0]
+	upf.mu.Unlock()
+
+	if len(modifyReq.UpdateQERs) != 1 {
+		t.Fatalf("expected 1 QER update, got %d", len(modifyReq.UpdateQERs))
+	}
+
+	qer := modifyReq.UpdateQERs[0]
+	if qer.MBR == nil {
+		t.Fatal("expected QER MBR")
+	}
+
+	if qer.MBR.ULMBR != 200000 || qer.MBR.DLMBR != 300000 {
+		t.Fatalf("QER MBR = %d/%d, want 200000/300000", qer.MBR.ULMBR, qer.MBR.DLMBR)
+	}
+
+	amfCb.mu.Lock()
+	if len(amfCb.modifyCalls) != 1 {
+		amfCb.mu.Unlock()
+		t.Fatalf("expected 1 N1N2 modify call, got %d", len(amfCb.modifyCalls))
+	}
+
+	call := amfCb.modifyCalls[0]
+	amfCb.mu.Unlock()
+
+	oldPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"}, &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1})
+	if err != nil {
+		t.Fatalf("build old policy modification command: %v", err)
+	}
+
+	newPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: "200 Mbps", Downlink: "300 Mbps"}, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1})
+	if err != nil {
+		t.Fatalf("build new policy modification command: %v", err)
+	}
+
+	gotPayload := modificationSMPayload(t, call.n1Msg)
+	if string(gotPayload) == string(oldPayload) {
+		t.Fatal("N1 modification command used old policy")
+	}
+
+	if string(gotPayload) != string(newPayload) {
+		t.Fatalf("N1 modification command did not use expected new policy")
+	}
+
+	if smCtx.PolicyData.Ambr.Uplink != "200 Mbps" || smCtx.PolicyData.Ambr.Downlink != "300 Mbps" {
+		t.Fatalf("stored AMBR = %s/%s", smCtx.PolicyData.Ambr.Uplink, smCtx.PolicyData.Ambr.Downlink)
+	}
+
+	if smCtx.PolicyData.QosData.Var5qi != 8 {
+		t.Fatalf("stored 5QI = %d, want 8", smCtx.PolicyData.QosData.Var5qi)
+	}
+}
+
+func TestReconcileSmContext_AmbrOnly(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
+		SmContextRef: ref,
+		Reason:       models.ReconcilePolicyChange,
+		NewPolicy: &models.SessionPolicyDelta{
+			SessionAmbrUplink:   "300 Mbps",
+			SessionAmbrDownlink: "400 Mbps",
+			Var5qi:              9,
+			Arp:                 1,
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReconcileSmContext failed: %v", err)
+	}
+
+	qer := upf.modifyCalls[0].UpdateQERs[0]
+	if qer.MBR.ULMBR != 300000 || qer.MBR.DLMBR != 400000 {
+		t.Fatalf("QER MBR = %d/%d, want 300000/400000", qer.MBR.ULMBR, qer.MBR.DLMBR)
+	}
+
+	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: "300 Mbps", Downlink: "400 Mbps"}, nil)
+	if err != nil {
+		t.Fatalf("build expected N1: %v", err)
+	}
+
+	gotPayload := modificationSMPayload(t, amfCb.modifyCalls[0].n1Msg)
+	if string(gotPayload) != string(expectedPayload) {
+		t.Fatal("N1 modification command mismatch")
+	}
+}
+
+func TestReconcileSmContext_QoSOnly(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
+		SmContextRef: ref,
+		Reason:       models.ReconcilePolicyChange,
+		NewPolicy: &models.SessionPolicyDelta{
+			SessionAmbrUplink:   "100 Mbps",
+			SessionAmbrDownlink: "200 Mbps",
+			Var5qi:              8,
+			Arp:                 14,
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReconcileSmContext failed: %v", err)
+	}
+
+	qer := upf.modifyCalls[0].UpdateQERs[0]
+	if qer.MBR.ULMBR != 100000 || qer.MBR.DLMBR != 200000 {
+		t.Fatalf("QER MBR = %d/%d, want 100000/200000", qer.MBR.ULMBR, qer.MBR.DLMBR)
+	}
+
+	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, nil, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1})
+	if err != nil {
+		t.Fatalf("build expected N1: %v", err)
+	}
+
+	gotPayload := modificationSMPayload(t, amfCb.modifyCalls[0].n1Msg)
+	if string(gotPayload) != string(expectedPayload) {
+		t.Fatal("N1 modification command mismatch")
+	}
+}
+
+// TestReconcileSmContext_SliceMismatchFullCleanup verifies that a slice-mismatch
+// release performs full data-plane cleanup (IP release, PFCP deletion, session
+// removal) per TS 23.502 §4.3.4.2 Step 2 (before signaling the UE).
+func TestReconcileSmContext_SliceMismatchFullCleanup(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
+		SmContextRef: ref,
+		Reason:       models.ReconcileSliceMismatch,
+	})
+	if err != nil {
+		t.Fatalf("ReconcileSmContext failed: %v", err)
+	}
+
+	// Session should be removed from the pool after full cleanup.
+	if s.GetSession(ref) != nil {
+		t.Fatal("expected session to be removed after slice-mismatch release")
+	}
+
+	// IP addresses should have been released.
+	store.mu.Lock()
+	releasedIPs := len(store.releasedIPs)
+	store.mu.Unlock()
+
+	if releasedIPs == 0 {
+		t.Fatal("expected IP release during slice-mismatch release, got 0")
+	}
+
+	// PFCP session should have been deleted.
+	upf.mu.Lock()
+	deleteCalls := len(upf.deleteCalls)
+	upf.mu.Unlock()
+
+	if deleteCalls == 0 {
+		t.Fatal("expected PFCP session deletion during slice-mismatch release, got 0")
+	}
+
+	// AMF release signaling should have been sent.
+	amfCb.mu.Lock()
+	releaseCalls := len(amfCb.releaseCalls)
+	amfCb.mu.Unlock()
+
+	if releaseCalls != 1 {
+		t.Fatalf("expected 1 release signaling call, got %d", releaseCalls)
+	}
+}
+
+func TestReconcileSmContext_ModifyIdleUE_CommitsPolicy(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	// Simulate idle UE: ModifyN1N2 returns ErrUENotReachable.
+	amfCb.err = smf.ErrUENotReachable
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
+		SmContextRef: ref,
+		Reason:       models.ReconcilePolicyChange,
+		NewPolicy: &models.SessionPolicyDelta{
+			SessionAmbrUplink:   "500 Mbps",
+			SessionAmbrDownlink: "600 Mbps",
+			Var5qi:              7,
+			Arp:                 10,
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReconcileSmContext should succeed for idle UE, got: %v", err)
+	}
+
+	// PFCP should still have been updated.
+	upf.mu.Lock()
+	pfcpModifyCalls := len(upf.modifyCalls)
+	upf.mu.Unlock()
+
+	if pfcpModifyCalls != 1 {
+		t.Fatalf("expected 1 PFCP modify call, got %d", pfcpModifyCalls)
+	}
+
+	// Policy should have been committed despite N1N2 skip.
+	if smCtx.PolicyData.Ambr.Uplink != "500 Mbps" || smCtx.PolicyData.Ambr.Downlink != "600 Mbps" {
+		t.Fatalf("policy not committed: AMBR = %s/%s", smCtx.PolicyData.Ambr.Uplink, smCtx.PolicyData.Ambr.Downlink)
+	}
+
+	if smCtx.PolicyData.QosData.Var5qi != 7 {
+		t.Fatalf("policy not committed: 5QI = %d, want 7", smCtx.PolicyData.QosData.Var5qi)
+	}
+}
+
+func TestReconcileSmContext_ReleaseIdleUE_RemovesSession(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	// Simulate idle UE: ReleaseSession returns ErrUENotReachable.
+	amfCb.err = smf.ErrUENotReachable
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
+		SmContextRef: ref,
+		Reason:       models.ReconcileSliceMismatch,
+	})
+	if err != nil {
+		t.Fatalf("ReconcileSmContext should succeed for idle UE release, got: %v", err)
+	}
+
+	// Session should be removed even though UE is idle.
+	if s.GetSession(ref) != nil {
+		t.Fatal("expected session to be removed after idle-UE slice-mismatch release")
+	}
+
+	// IP should still have been released.
+	store.mu.Lock()
+	releasedIPs := len(store.releasedIPs)
+	store.mu.Unlock()
+
+	if releasedIPs == 0 {
+		t.Fatal("expected IP release during idle-UE release")
+	}
+
+	// PFCP session should still have been deleted.
+	upf.mu.Lock()
+	deleteCalls := len(upf.deleteCalls)
+	upf.mu.Unlock()
+
+	if deleteCalls == 0 {
+		t.Fatal("expected PFCP deletion during idle-UE release")
+	}
 }
 
 // ===========================

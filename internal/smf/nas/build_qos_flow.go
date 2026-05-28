@@ -93,6 +93,34 @@ func BuildAuthorizedQosFlowDescription(qosData *models.QosData) (*QosFlowDescrip
 	return &QFDescriptions, nil
 }
 
+// BuildModifyQosFlowDescription builds a QoS Flow Description with the "modify
+// existing QoS flow description" operation code (TS 24.501 Table 9.11.4.12).
+// Used in PDU Session Modification Command to update 5QI on an existing flow.
+func BuildModifyQosFlowDescription(qosData *models.QosData) (*QosFlowDescriptionsAuthorized, error) {
+	if qosData == nil {
+		return nil, fmt.Errorf("qos data is nil")
+	}
+
+	qfDescriptions := QosFlowDescriptionsAuthorized{
+		IeType:  nasMessage.PDUSessionModificationCommandAuthorizedQosFlowDescriptionsType,
+		Content: make([]byte, 0),
+	}
+
+	qfd := QoSFlowDescription{QFDLen: QFDFixLen}
+	qfd.SetQoSFlowDescQfi(qosData.QFI)
+	qfd.SetQoSFlowDescOpCode(QFDOpModify)
+	qfd.AddQosFlowParam5Qi(uint8(qosData.Var5qi))
+
+	// For "modify existing QoS flow description", set E-bit to indicate
+	// that parameters list is included and replaces all previously sent
+	// parameters (TS 24.501 Table 9.11.4.12).
+	qfd.NumOfParam |= QFDEbit
+
+	qfDescriptions.AddQFD(&qfd)
+
+	return &qfDescriptions, nil
+}
+
 func (d *QosFlowDescriptionsAuthorized) BuildAddQosFlowDescFromQoSDesc(qosData *models.QosData) error {
 	qfd := QoSFlowDescription{QFDLen: QFDFixLen}
 

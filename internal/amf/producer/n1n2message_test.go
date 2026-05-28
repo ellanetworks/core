@@ -13,6 +13,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/amf/producer"
+	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/smf"
@@ -28,10 +29,17 @@ type fakeNGAPSender struct {
 	pduSessionSetupCalls      int
 	initialContextSetupCalls  int
 	downlinkNasTransportCalls int
+	pagingCalls               int
 }
 
-func (f *fakeNGAPSender) SendToRan(context.Context, []byte, send.NGAPProcedure) error { return nil }
-func (f *fakeNGAPSender) SendNGSetupFailure(context.Context, *ngapType.Cause) error   { return nil }
+func (f *fakeNGAPSender) SendToRan(_ context.Context, _ []byte, proc send.NGAPProcedure) error {
+	if proc == send.NGAPProcedurePaging {
+		f.pagingCalls++
+	}
+
+	return nil
+}
+func (f *fakeNGAPSender) SendNGSetupFailure(context.Context, *ngapType.Cause) error { return nil }
 func (f *fakeNGAPSender) SendNGSetupResponse(context.Context, *models.Guami, []models.Snssai, string, int64) error {
 	return nil
 }
@@ -82,6 +90,10 @@ func (f *fakeNGAPSender) SendHandoverCancelAcknowledge(context.Context, int64, i
 }
 
 func (f *fakeNGAPSender) SendPDUSessionResourceModifyConfirm(context.Context, int64, int64, ngapType.PDUSessionResourceModifyListModCfm, ngapType.PDUSessionResourceFailedToModifyListModCfm) error {
+	return nil
+}
+
+func (f *fakeNGAPSender) SendPDUSessionResourceModifyRequest(_ context.Context, _, _ int64, _ ngapType.PDUSessionResourceModifyListModReq) error {
 	return nil
 }
 
@@ -197,6 +209,14 @@ func (f *fakeSmf) UpdateSmContextXnHandoverPathSwitchReq(context.Context, string
 }
 func (f *fakeSmf) UpdateSmContextHandoverFailed(context.Context, string, []byte) error { return nil }
 
+func (f *fakeSmf) ReconcileSmContext(context.Context, *models.SessionReconcileRequest) error {
+	return nil
+}
+
+func (f *fakeSmf) GetSessionPolicy(context.Context, etsi.SUPI, *models.Snssai, string) (*smf.Policy, error) {
+	return nil, nil
+}
+
 // --- Helpers ---
 
 func mustSUPI(t *testing.T, imsi string) etsi.SUPI {
@@ -226,6 +246,22 @@ func addUE(t *testing.T, amfInstance *amf.AMF, imsi string, setup func(*amf.AmfU
 	}
 
 	return ue
+}
+
+func testGUTI(t *testing.T) etsi.GUTI {
+	t.Helper()
+
+	tmsi, err := etsi.NewTMSI(0x01020304)
+	if err != nil {
+		t.Fatalf("build TMSI: %v", err)
+	}
+
+	guti, err := etsi.NewGUTI("001", "01", "cafe00", tmsi)
+	if err != nil {
+		t.Fatalf("build GUTI: %v", err)
+	}
+
+	return guti
 }
 
 func newReq() models.N1N2MessageTransferRequest {
@@ -313,6 +349,67 @@ func TestTransferN1N2Message_InitialContextNotYetSent(t *testing.T) {
 
 	if !ranUe.SentInitialContextSetupRequest {
 		t.Fatal("expected SentInitialContextSetupRequest to be set to true")
+	}
+}
+
+func TestModifyN1N2Message_IdleRegisteredUE_ReturnsNotReachable(t *testing.T) {
+	sender := &fakeNGAPSender{}
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+	amfInstance.Radios = make(map[*sctp.SCTPConn]*amf.Radio)
+
+	ue := addUE(t, amfInstance, "001010000000014", func(u *amf.AmfUe) {
+		u.ForceState(amf.Registered)
+		u.Guti = testGUTI(t)
+		u.RegistrationArea = []models.Tai{{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"}}
+	})
+
+	radio := &amf.Radio{
+		NGAPSender: sender,
+		RanUEs:     make(map[int64]*amf.RanUe),
+		SupportedTAIs: []amf.SupportedTAI{{
+			Tai: models.Tai{PlmnID: &models.PlmnID{Mcc: "001", Mnc: "01"}, Tac: "000001"},
+		}},
+	}
+	amfInstance.Radios[nil] = radio
+
+	// UE has no RanUe attached → CM-IDLE
+	err := producer.ModifyN1N2Message(context.Background(), amfInstance, ue.Supi, 1, []byte{0x01, 0x02}, []byte{0x03, 0x04})
+	if err == nil {
+		t.Fatal("expected ErrUENotReachable for idle UE")
+	}
+
+	if err != producer.ErrUENotReachable {
+		t.Fatalf("expected ErrUENotReachable, got: %v", err)
+	}
+
+	// No paging should have been triggered.
+	if sender.pagingCalls != 0 {
+		t.Fatalf("expected 0 paging calls, got %d", sender.pagingCalls)
+	}
+
+	// No N1N2 message stored on UE.
+	if ue.N1N2Message != nil {
+		t.Fatal("expected no stored N1N2 message")
+	}
+}
+
+func TestReleaseSessionMessage_IdleUE_ReturnsNotReachable(t *testing.T) {
+	amfInstance := amf.New(nil, nil, &fakeSmf{})
+
+	addUE(t, amfInstance, "001010000000015", func(u *amf.AmfUe) {
+		u.ForceState(amf.Registered)
+	})
+
+	supi := mustSUPI(t, "001010000000015")
+
+	// UE has no RanUe attached → CM-IDLE
+	err := producer.ReleaseSessionMessage(context.Background(), amfInstance, supi, 1, []byte{0x01}, []byte{0x02})
+	if err == nil {
+		t.Fatal("expected ErrUENotReachable for idle UE")
+	}
+
+	if err != producer.ErrUENotReachable {
+		t.Fatalf("expected ErrUENotReachable, got: %v", err)
 	}
 }
 

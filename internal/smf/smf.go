@@ -29,6 +29,18 @@ var tracer = otel.Tracer("ella-core/smf/session")
 // ErrDNNNotFound indicates that the requested data network (DNN) does not exist.
 var ErrDNNNotFound = errors.New("data network not found")
 
+// ErrNoPolicyMatch indicates that no policy matches the session's slice (SST/SD)
+// and DNN. This typically means the admin changed the slice configuration and
+// the session's stored S-NSSAI no longer maps to any configured slice.
+var ErrNoPolicyMatch = errors.New("no matching policy for slice and DNN")
+
+// ErrUENotReachable indicates that the UE is in CM-IDLE state and the requested
+// signaling cannot be delivered over the radio. AMFCallback implementations
+// must return this error (wrapping is fine) when the UE has no active RAN
+// connection. Callers should handle gracefully — e.g. commit policy locally
+// and defer radio delivery until the UE reconnects.
+var ErrUENotReachable = errors.New("UE is in CM-IDLE state")
+
 // SessionQuerier provides read-only access to active sessions.
 // External packages (API, AMF export, metrics) use this interface
 // instead of a package-level SMF singleton.
@@ -101,8 +113,19 @@ type AMFCallback interface {
 	// TransferN1 delivers a NAS message to the UE.
 	TransferN1(ctx context.Context, supi etsi.SUPI, n1Msg []byte, pduSessionID uint8) error
 
-	// TransferN1N2 delivers a combined N1+N2 message.
+	// TransferN1N2 delivers a combined N1+N2 message for PDU Session Setup.
 	TransferN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n1Msg, n2Msg []byte) error
+
+	// ModifyN1N2 delivers N1 (NAS PDU Session Modification Command) + N2
+	// (PDU Session Resource Modify Request Transfer) to the UE/gNB via the
+	// NGAP PDUSessionResourceModifyRequest procedure (TS 38.413 §9.2.1.5).
+	ModifyN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Msg []byte) error
+
+	// ReleaseSession sends a network-initiated PDU Session Release to the UE/gNB.
+	// N1 (NAS PDU Session Release Command) is delivered piggy-backed on the
+	// NGAP PDUSessionResourceReleaseCommand (TS 38.413 §9.2.1.3).
+	// n2Transfer is the PDUSessionResourceReleaseCommandTransfer IE.
+	ReleaseSession(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Transfer []byte) error
 
 	// N2TransferOrPage sends an N2 message to the radio, paging the UE if needed.
 	N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte) error

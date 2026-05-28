@@ -339,10 +339,12 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 
 	smContext := s.GetSession(smContextRef)
 	if smContext == nil {
-		span.RecordError(fmt.Errorf("sm context not found"))
-		span.SetStatus(codes.Error, "sm context not found")
+		// Session already removed (e.g. by slice-mismatch release).
+		// Idempotent: returning nil lets the AMF complete its cleanup.
+		logger.SmfLog.Info("SM context already removed, skipping",
+			zap.String("smContextRef", smContextRef))
 
-		return fmt.Errorf("sm context not found: %s", smContextRef)
+		return nil
 	}
 
 	smContext.Mutex.Lock()
@@ -352,7 +354,11 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 		smContext.PDUSessionReleaseDueToDupPduID = false
 		s.RemoveSession(ctx, smContext.CanonicalName())
 	} else {
-		// N1 release path already called ReleaseIP; just remove from pool.
+		// UE-initiated release: the N1 path (UpdateSmContextN1Msg) already
+		// released IPs and tunnel; just remove from pool.
+		// Network-initiated slice-mismatch release: the session is already
+		// fully cleaned up and removed by sendSessionRelease, so this path
+		// is only reached for UE-initiated releases.
 		s.removeSessionUnlocked(ctx, smContext.CanonicalName())
 	}
 

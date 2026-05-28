@@ -222,6 +222,10 @@ func (a *pcfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai
 			return nil, fmt.Errorf("%w: %v", smf.ErrDNNNotFound, err)
 		}
 
+		if errors.Is(err, db.ErrNoMatchingPolicy) {
+			return nil, fmt.Errorf("%w: %v", smf.ErrNoPolicyMatch, err)
+		}
+
 		return nil, fmt.Errorf("get session policy: %w", err)
 	}
 
@@ -381,6 +385,24 @@ func (a *smfAMFAdapter) TransferN1N2(ctx context.Context, supi etsi.SUPI, pduSes
 		BinaryDataN1Message:     n1Msg,
 		BinaryDataN2Information: n2Msg,
 	})
+}
+
+func (a *smfAMFAdapter) ModifyN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Msg []byte) error {
+	err := producer.ModifyN1N2Message(ctx, a.amf, supi, pduSessionID, n1Msg, n2Msg)
+	if errors.Is(err, producer.ErrUENotReachable) {
+		return smf.ErrUENotReachable
+	}
+
+	return err
+}
+
+func (a *smfAMFAdapter) ReleaseSession(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Transfer []byte) error {
+	err := producer.ReleaseSessionMessage(ctx, a.amf, supi, pduSessionID, n1Msg, n2Transfer)
+	if errors.Is(err, producer.ErrUENotReachable) {
+		return smf.ErrUENotReachable
+	}
+
+	return err
 }
 
 func (a *smfAMFAdapter) N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte) error {

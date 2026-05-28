@@ -153,8 +153,13 @@ func BuildModifyRequest(
 	}
 
 	for _, qer := range qers {
-		if qer.State == RuleInitial {
+		switch qer.State {
+		case RuleInitial:
 			req.CreateQERs = append(req.CreateQERs, qer.ToQER())
+		case RuleUpdate:
+			req.UpdateQERs = append(req.UpdateQERs, qer.ToQER())
+		case RuleRemove:
+			req.RemoveQERIDs = append(req.RemoveQERIDs, qer.QERID)
 		}
 
 		qer.State = RuleCreate

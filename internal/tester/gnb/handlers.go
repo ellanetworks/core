@@ -71,6 +71,10 @@ func handleNGAPInitiatingMessage(gnb *GnodeB, pdu *ngapType.NGAPPDU) error {
 		return handleInitialContextSetupRequest(gnb, pdu.InitiatingMessage.Value.InitialContextSetupRequest)
 	case ngapType.InitiatingMessagePresentPDUSessionResourceSetupRequest:
 		return handlePDUSessionResourceSetupRequest(gnb, pdu.InitiatingMessage.Value.PDUSessionResourceSetupRequest)
+	case ngapType.InitiatingMessagePresentPDUSessionResourceModifyRequest:
+		return handlePDUSessionResourceModifyRequest(gnb, pdu.InitiatingMessage.Value.PDUSessionResourceModifyRequest)
+	case ngapType.InitiatingMessagePresentPDUSessionResourceReleaseCommand:
+		return handlePDUSessionResourceReleaseCommand(gnb, pdu.InitiatingMessage.Value.PDUSessionResourceReleaseCommand)
 	case ngapType.InitiatingMessagePresentUEContextReleaseCommand:
 		return handleUEContextReleaseCommand(gnb, pdu.InitiatingMessage.Value.UEContextReleaseCommand)
 	case ngapType.InitiatingMessagePresentPaging:

@@ -147,6 +147,67 @@ func (g *GnodeB) GetPDUSessions(ranUeId int64) map[int64]*PDUSessionInformation 
 	return g.PDUSessions[ranUeId]
 }
 
+// RemovePDUSession removes a PDU session from the gNB state for a given UE.
+func (g *GnodeB) RemovePDUSession(ranUeId int64, pduSessionID int64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.PDUSessions == nil {
+		return
+	}
+
+	sessions := g.PDUSessions[ranUeId]
+	if sessions == nil {
+		return
+	}
+
+	delete(sessions, pduSessionID)
+}
+
+// UpdatePDUSessionQoS updates the QoS parameters of an existing PDU session
+// in response to a PDU Session Resource Modify Request from the core.
+func (g *GnodeB) UpdatePDUSessionQoS(ranUeId int64, pduSessionID int64, info *PDUSessionModifyInfo) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.PDUSessions == nil {
+		return
+	}
+
+	sessions := g.PDUSessions[ranUeId]
+	if sessions == nil {
+		return
+	}
+
+	session := sessions[pduSessionID]
+	if session == nil {
+		return
+	}
+
+	if info.FiveQi != 0 {
+		session.FiveQi = info.FiveQi
+	}
+
+	if info.PriArp != 0 {
+		session.PriArp = info.PriArp
+	}
+
+	if info.QFI != 0 {
+		session.QosId = info.QFI
+		session.QFI = info.QFI
+	}
+
+	if info.AmbrUplink != 0 {
+		session.AmbrUplink = info.AmbrUplink
+	}
+
+	if info.AmbrDownlink != 0 {
+		session.AmbrDownlink = info.AmbrDownlink
+	}
+
+	g.cond.Broadcast()
+}
+
 func (g *GnodeB) WaitForPDUSession(ranUeId int64, pduSessionID int64, timeout time.Duration) (*PDUSessionInformation, error) {
 	deadline := time.Now().Add(timeout)
 

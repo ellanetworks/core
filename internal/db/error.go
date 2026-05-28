@@ -10,6 +10,7 @@ var (
 	ErrAlreadyExists       = errors.New("already exists")
 	ErrNotFound            = errors.New("not found")
 	ErrDataNetworkNotFound = errors.New("data network not found")
+	ErrNoMatchingPolicy    = errors.New("no matching policy for slice and DNN")
 	ErrRestoreInProgress   = errors.New("a restore is already in progress")
 	ErrInvalidBackupFile   = errors.New("uploaded file is not a valid SQLite database")
 	// ErrProposeTimeout is returned when a Raft proposal cannot be committed

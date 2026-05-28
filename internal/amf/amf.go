@@ -57,6 +57,8 @@ type SmfSbi interface {
 	UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextXnHandoverPathSwitchReq(ctx context.Context, smContextRef string, n2Data []byte) ([]byte, error)
 	UpdateSmContextHandoverFailed(ctx context.Context, smContextRef string, n2Data []byte) error
+	ReconcileSmContext(ctx context.Context, req *models.SessionReconcileRequest) error
+	GetSessionPolicy(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (*smf.Policy, error)
 }
 
 type NetworkFeatureSupport5GS struct {

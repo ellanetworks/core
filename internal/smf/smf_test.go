@@ -181,11 +181,13 @@ func (f *fakeUPF) UnregisterIPv6Session(_ context.Context, _ uint32) error {
 }
 
 type fakeAMF struct {
-	mu        sync.Mutex
-	n1Calls   []n1Call
-	n1n2Calls []n1n2Call
-	pageCalls []pageCall
-	err       error
+	mu           sync.Mutex
+	n1Calls      []n1Call
+	n1n2Calls    []n1n2Call
+	modifyCalls  []n1n2Call
+	releaseCalls []releaseCall
+	pageCalls    []pageCall
+	err          error
 }
 
 type n1Call struct {
@@ -200,6 +202,13 @@ type n1n2Call struct {
 	snssai       *models.Snssai
 	n1Msg        []byte
 	n2Msg        []byte
+}
+
+type releaseCall struct {
+	supi         etsi.SUPI
+	pduSessionID uint8
+	n1Msg        []byte
+	n2Transfer   []byte
 }
 
 type pageCall struct {
@@ -223,6 +232,24 @@ func (f *fakeAMF) TransferN1N2(_ context.Context, supi etsi.SUPI, pduSessionID u
 	defer f.mu.Unlock()
 
 	f.n1n2Calls = append(f.n1n2Calls, n1n2Call{supi, pduSessionID, snssai, n1Msg, n2Msg})
+
+	return f.err
+}
+
+func (f *fakeAMF) ModifyN1N2(_ context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Msg []byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.modifyCalls = append(f.modifyCalls, n1n2Call{supi, pduSessionID, nil, n1Msg, n2Msg})
+
+	return f.err
+}
+
+func (f *fakeAMF) ReleaseSession(_ context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Transfer []byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.releaseCalls = append(f.releaseCalls, releaseCall{supi, pduSessionID, n1Msg, n2Transfer})
 
 	return f.err
 }

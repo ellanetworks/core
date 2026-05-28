@@ -459,6 +459,10 @@ func (fng *FakeNGAPSender) SendPDUSessionResourceModifyConfirm(ctx context.Conte
 	return nil
 }
 
+func (fng *FakeNGAPSender) SendPDUSessionResourceModifyRequest(ctx context.Context, amfUENGAPID int64, ranUENGAPID int64, pduSessionResourceModifyList ngapType.PDUSessionResourceModifyListModReq) error {
+	return nil
+}
+
 func (fng *FakeNGAPSender) SendPDUSessionResourceSetupRequest(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, ambrUplink string, ambrDownlink string, nasPdu []byte, pduSessionResourceSetupRequestList ngapType.PDUSessionResourceSetupListSUReq) error {
 	return nil
 }
