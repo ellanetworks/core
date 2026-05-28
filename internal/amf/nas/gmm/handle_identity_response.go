@@ -111,7 +111,12 @@ func handleIdentityResponse(ctx context.Context, amfInstance *amf.AMF, ue *amf.A
 			return fmt.Errorf("error handling identity response: %v", err)
 		}
 
-		switch ue.NasConn().RegistrationType5GS {
+		conn := ue.NasConn()
+		if conn == nil {
+			return fmt.Errorf("no active NAS connection")
+		}
+
+		switch conn.RegistrationType5GS {
 		case nasMessage.RegistrationType5GSInitialRegistration:
 			if err := HandleInitialRegistration(ctx, amfInstance, ue); err != nil {
 				ue.Deregister(ctx)

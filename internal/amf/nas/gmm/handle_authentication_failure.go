@@ -21,9 +21,14 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
-	if ue.NasConn().T3560 != nil {
-		ue.NasConn().T3560.Stop()
-		ue.NasConn().T3560 = nil // clear the timer
+	conn := ue.NasConn()
+	if conn == nil {
+		return fmt.Errorf("no active NAS connection")
+	}
+
+	if conn.T3560 != nil {
+		conn.T3560.Stop()
+		conn.T3560 = nil
 	}
 
 	switch msg.GetCauseValue() {
@@ -49,7 +54,9 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 		return nil
 	case nasMessage.Cause5GMMngKSIAlreadyInUse:
 		ue.Log.Warn("Authentication Failure Cause: NgKSI Already In Use")
-		ue.NasConn().AuthFailureCauseSynchFailureTimes = 0
+
+		conn.AuthFailureCauseSynchFailureTimes = 0
+
 		ue.Log.Warn("Select new NgKsi")
 		ue.Current().NgKsi.Ksi = nextNgKsi(ue.Current().NgKsi.Ksi)
 
@@ -62,8 +69,8 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 	case nasMessage.Cause5GMMSynchFailure: // TS 24.501 5.4.1.3.7 case f
 		ue.Log.Warn("Authentication Failure 5GMM Cause: Synch Failure")
 
-		ue.NasConn().AuthFailureCauseSynchFailureTimes++
-		if ue.NasConn().AuthFailureCauseSynchFailureTimes >= 2 {
+		conn.AuthFailureCauseSynchFailureTimes++
+		if conn.AuthFailureCauseSynchFailureTimes >= 2 {
 			ue.Log.Warn("2 consecutive Synch Failure, terminate authentication procedure")
 			ue.Deregister(ctx)
 
@@ -89,7 +96,7 @@ func handleAuthenticationFailure(ctx context.Context, amfInstance *amf.AMF, ue *
 			return fmt.Errorf("send UE Authentication Authenticate Request Error: %s", err.Error())
 		}
 
-		ue.NasConn().AuthenticationCtx = response
+		conn.AuthenticationCtx = response
 		ue.Current().ABBA = []uint8{0x00, 0x00}
 
 		err = message.SendAuthenticationRequest(ctx, amfInstance, ranUe)

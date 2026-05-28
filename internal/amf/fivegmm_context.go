@@ -5,7 +5,6 @@ package amf
 
 import (
 	"context"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -18,8 +17,6 @@ import (
 // outlives NAS connection drops within a registration; it is replaced
 // when an initial registration succeeds for an already-registered UE.
 type FivegmmContext struct {
-	Mutex sync.RWMutex
-
 	parent *AmfUe
 
 	ctx    context.Context

@@ -21,12 +21,17 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 		return fmt.Errorf("NAS message integrity check failed")
 	}
 
-	if ue.NasConn().T3560 != nil {
-		ue.NasConn().T3560.Stop()
-		ue.NasConn().T3560 = nil // clear the timer
+	conn := ue.NasConn()
+	if conn == nil {
+		return fmt.Errorf("no active NAS connection")
 	}
 
-	ue.NasConn().Procedures.End(procedure.SecurityMode)
+	if conn.T3560 != nil {
+		conn.T3560.Stop()
+		conn.T3560 = nil
+	}
+
+	conn.Procedures.End(procedure.SecurityMode)
 
 	if ue.SecurityContextIsValid() && !macFailed {
 		err := ue.UpdateSecurityContext()
@@ -55,5 +60,5 @@ func handleSecurityModeComplete(ctx context.Context, amfInstance *amf.AMF, ue *a
 		return contextSetup(ctx, amfInstance, ue, m.RegistrationRequest)
 	}
 
-	return contextSetup(ctx, amfInstance, ue, ue.NasConn().RegistrationRequest)
+	return contextSetup(ctx, amfInstance, ue, conn.RegistrationRequest)
 }

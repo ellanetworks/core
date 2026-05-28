@@ -14,6 +14,11 @@ import (
 func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe) error {
 	ue.ClearRegistrationData(ctx)
 
+	conn := ue.NasConn()
+	if conn == nil {
+		return fmt.Errorf("no active NAS connection")
+	}
+
 	// update Kgnb/Kn3iwf
 	err := ue.UpdateSecurityContext()
 	if err != nil {
@@ -33,12 +38,12 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 	ue.Current().AllowedNssai = subscriberProfile.AllowedNssai
 	ue.Current().Ambr = subscriberProfile.Ambr
 
-	if ue.NasConn().RegistrationRequest.MICOIndication != nil {
-		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", ue.NasConn().RegistrationRequest.GetRAAI()))
+	if conn.RegistrationRequest.MICOIndication != nil {
+		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", conn.RegistrationRequest.GetRAAI()))
 	}
 
-	if ue.NasConn().RegistrationRequest.RequestedDRXParameters != nil {
-		drx := ue.NasConn().RegistrationRequest.GetDRXValue()
+	if conn.RegistrationRequest.RequestedDRXParameters != nil {
+		drx := conn.RegistrationRequest.GetDRXValue()
 		if drx > nasMessage.DRXcycleParameterT256 {
 			ue.Log.Warn("UE requested reserved DRX value, treating as not specified", zap.Uint8("drxValue", drx))
 			drx = nasMessage.DRXValueNotSpecified
@@ -64,7 +69,7 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return fmt.Errorf("error reallocating GUTI to UE: %v", err)
 	}
 
-	UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.NasConn().RegistrationType5GS), RegistrationAccept).Inc()
+	UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(conn.RegistrationType5GS), RegistrationAccept).Inc()
 
 	err = message.SendRegistrationAccept(ctx, amfInstance, ue, nil, nil, nil, nil, nil, *operatorInfo.Guami.PlmnID, operatorInfo.Guami)
 	if err != nil {

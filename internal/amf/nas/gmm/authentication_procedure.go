@@ -65,7 +65,12 @@ func authenticationProcedure(ctx context.Context, amfInstance *amf.AMF, ue *amf.
 		return false, fmt.Errorf("failed to send ue authentication request: %s", err)
 	}
 
-	ue.NasConn().AuthenticationCtx = response
+	conn := ue.NasConn()
+	if conn == nil {
+		return false, fmt.Errorf("no active NAS connection")
+	}
+
+	conn.AuthenticationCtx = response
 
 	ue.Current().ABBA = []uint8{0x00, 0x00} // set ABBA value as described at TS 33.501 Annex A.7.1
 

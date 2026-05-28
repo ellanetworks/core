@@ -20,9 +20,14 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe) erro
 
 	ue.Log = ue.Log.With(logger.SUPI(ue.Supi.String()))
 
+	conn := ue.NasConn()
+	if conn == nil {
+		return fmt.Errorf("no active NAS connection")
+	}
+
 	if ue.SecurityContextIsValid() {
 		ue.Log.Debug("UE has a valid security context - skip security mode control procedure")
-		return contextSetup(ctx, amfInstance, ue, ue.NasConn().RegistrationRequest)
+		return contextSetup(ctx, amfInstance, ue, conn.RegistrationRequest)
 	}
 
 	integrityOrder, cipheringOrder, err := amfInstance.GetSecurityAlgorithms(ctx)
@@ -45,13 +50,13 @@ func securityMode(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe) erro
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
-	if _, beginErr := ue.NasConn().Procedures.Begin(ue.NasConn().Ctx(), procedure.Procedure{Type: procedure.SecurityMode}); beginErr != nil {
+	if _, beginErr := conn.Procedures.Begin(conn.Ctx(), procedure.Procedure{Type: procedure.SecurityMode}); beginErr != nil {
 		return fmt.Errorf("security mode blocked by conflict: %w", beginErr)
 	}
 
 	err = message.SendSecurityModeCommand(ctx, amfInstance, ranUe)
 	if err != nil {
-		ue.NasConn().Procedures.End(procedure.SecurityMode)
+		conn.Procedures.End(procedure.SecurityMode)
 
 		return fmt.Errorf("error sending security mode command: %v", err)
 	}

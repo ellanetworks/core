@@ -283,15 +283,20 @@ func N2MessageTransferOrPage(ctx context.Context, amfInstance *amf.AMF, supi ets
 		return fmt.Errorf("ue context not found")
 	}
 
-	if ue.NasConn().Procedures.Active(procedure.Paging) {
+	conn := ue.NasConn()
+	if conn == nil {
+		return fmt.Errorf("ue has no active NAS connection")
+	}
+
+	if conn.Procedures.Active(procedure.Paging) {
 		return fmt.Errorf("higher priority request ongoing")
 	}
 
-	if ue.NasConn().Procedures.Active(procedure.Registration) {
+	if conn.Procedures.Active(procedure.Registration) {
 		return fmt.Errorf("temporary reject registration ongoing")
 	}
 
-	if ue.NasConn().Procedures.Active(procedure.N2Handover) {
+	if conn.Procedures.Active(procedure.N2Handover) {
 		return fmt.Errorf("temporary reject handover ongoing")
 	}
 

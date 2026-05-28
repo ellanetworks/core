@@ -305,7 +305,36 @@ type smContextCopy struct {
 func (amf *AMF) exportAmfUe(ue *AmfUe) AmfUeExport {
 	ue.Mutex.Lock()
 
-	// Copy all scalar fields while holding the lock.
+	conn := ue.NasConn()
+
+	var (
+		ongoing       []string
+		regType       uint8
+		identityType  uint8
+		retransmit    bool
+		authSyncTimes int
+		t3513         *Timer
+		t3565         *Timer
+		t3560         *Timer
+		t3550         *Timer
+		t3555         *Timer
+		t3522         *Timer
+	)
+
+	if conn != nil {
+		ongoing = conn.Procedures.ActiveTypes()
+		regType = conn.RegistrationType5GS
+		identityType = conn.IdentityTypeUsedForRegistration
+		retransmit = conn.RetransmissionOfInitialNASMsg
+		authSyncTimes = conn.AuthFailureCauseSynchFailureTimes
+		t3513 = conn.T3513
+		t3565 = conn.T3565
+		t3560 = conn.T3560
+		t3550 = conn.T3550
+		t3555 = conn.T3555
+		t3522 = conn.T3522
+	}
+
 	export := AmfUeExport{
 		Identity: UEIdentityExport{
 			Supi:    ue.Supi.String(),
@@ -319,7 +348,7 @@ func (amf *AMF) exportAmfUe(ue *AmfUe) AmfUeExport {
 		},
 		State: UEStateExport{
 			GMMState:                 string(ue.state),
-			OngoingProcedures:        ue.NasConn().Procedures.ActiveTypes(),
+			OngoingProcedures:        ongoing,
 			SecurityContextAvailable: ue.Current().SecurityContextAvailable,
 		},
 		Security: UESecurityExport{
@@ -337,20 +366,20 @@ func (amf *AMF) exportAmfUe(ue *AmfUe) AmfUeExport {
 			Ambr:         copyPtr(ue.Current().Ambr),
 		},
 		Registration: UERegistrationExport{
-			Type:                 ue.NasConn().RegistrationType5GS,
-			IdentityTypeUsed:     ue.NasConn().IdentityTypeUsedForRegistration,
-			Retransmission:       ue.NasConn().RetransmissionOfInitialNASMsg,
-			AuthFailureSyncTimes: ue.NasConn().AuthFailureCauseSynchFailureTimes,
+			Type:                 regType,
+			IdentityTypeUsed:     identityType,
+			Retransmission:       retransmit,
+			AuthFailureSyncTimes: authSyncTimes,
 		},
 		Timers: UETimersExport{
 			T3512ValueSeconds:   int64(ue.Current().T3512Value / time.Second),
 			T3502ValueSeconds:   int64(ue.Current().T3502Value / time.Second),
-			T3513Paging:         timerStatus(ue.NasConn().T3513),
-			T3565Notification:   timerStatus(ue.NasConn().T3565),
-			T3560Auth:           timerStatus(ue.NasConn().T3560),
-			T3550Registration:   timerStatus(ue.NasConn().T3550),
-			T3555ConfigUpdate:   timerStatus(ue.NasConn().T3555),
-			T3522Deregistration: timerStatus(ue.NasConn().T3522),
+			T3513Paging:         timerStatus(t3513),
+			T3565Notification:   timerStatus(t3565),
+			T3560Auth:           timerStatus(t3560),
+			T3550Registration:   timerStatus(t3550),
+			T3555ConfigUpdate:   timerStatus(t3555),
+			T3522Deregistration: timerStatus(t3522),
 			MobileReachable:     timerStatus(ue.Current().MobileReachableTimer),
 			ImplicitDereg:       timerStatus(ue.Current().ImplicitDeregistrationTimer),
 		},

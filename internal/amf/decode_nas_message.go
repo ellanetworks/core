@@ -15,16 +15,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// DecodeNASMessage parses a 5GS NAS PDU (plain or security-protected)
-// and returns the decoded message together with a policy Verdict. It is
-// pure with respect to UE security state: it never writes to
-// ue.Current().SecurityContextAvailable or ue.Current().MacFailed. The only ue mutations it
-// performs are to ue.Current().ULCount, which is protocol state required to
-// advance the NAS uplink counter.
-//
-// The caller is the only site allowed to act on the verdict and mutate
-// security state (typically by setting ue.Current().MacFailed before dispatching
-// to a GMM handler).
+// DecodeNASMessage parses a 5GS NAS PDU (plain or security-protected) and
+// returns the decoded message together with a policy Verdict. The caller
+// dispatches to a GMM handler based on the verdict. The only ue mutation
+// performed here is advancing ue.Current().ULCount.
 //
 // See TS 24.501 §4.4.4.3 and TS 33.501 §6.4.6 step 3 for the policy.
 func DecodeNASMessage(ue *AmfUe, payload []byte) (*DecodeResult, error) {

@@ -49,6 +49,11 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		return fmt.Errorf("RanUe is nil")
 	}
 
+	conn := ue.NasConn()
+	if conn == nil {
+		return fmt.Errorf("no active NAS connection")
+	}
+
 	if macFailed {
 		ue.Current().SecurityContextAvailable = false
 	}
@@ -57,24 +62,24 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	// §5.4.2.7(c): abort SecurityMode when a UE-initiated registration
 	// arrives. §5.5.1.3.3, §5.5.1.2.7: abort N2 Handover similarly.
 	for _, t := range []procedure.Type{procedure.SecurityMode, procedure.N2Handover} {
-		if ue.NasConn().Procedures.Active(t) {
-			_ = ue.NasConn().Procedures.Cancel(ctx, t)
+		if conn.Procedures.Active(t) {
+			_ = conn.Procedures.Cancel(ctx, t)
 		}
 	}
 
-	_, err := ue.NasConn().Procedures.Begin(ue.NasConn().Ctx(), procedure.Procedure{Type: procedure.Registration})
+	_, err := conn.Procedures.Begin(conn.Ctx(), procedure.Procedure{Type: procedure.Registration})
 	if err != nil {
 		ue.Log.Warn("failed to begin registration procedure", zap.Error(err))
 	}
 
-	if ue.NasConn().T3513 != nil {
-		ue.NasConn().T3513.Stop()
-		ue.NasConn().T3513 = nil // clear the timer
+	if conn.T3513 != nil {
+		conn.T3513.Stop()
+		conn.T3513 = nil
 	}
 
-	if ue.NasConn().T3565 != nil {
-		ue.NasConn().T3565.Stop()
-		ue.NasConn().T3565 = nil // clear the timer
+	if conn.T3565 != nil {
+		conn.T3565.Stop()
+		conn.T3565 = nil
 	}
 
 	// TS 24.501 4.4.6: If NASMessageContainer is present, it contains a ciphered inner Registration Request
@@ -87,7 +92,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 
 		err := security.NASEncrypt(ue.Current().CipheringAlg, ue.Current().KnasEnc, ue.Current().ULCount.Get(), security.Bearer3GPP, security.DirectionUplink, contents)
 		if err != nil {
-			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.NasConn().RegistrationType5GS), RegistrationReject).Inc()
+			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(conn.RegistrationType5GS), RegistrationReject).Inc()
 
 			err1 := message.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 			if err1 != nil {
@@ -100,7 +105,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		m := nas.NewMessage()
 
 		if err := m.GmmMessageDecode(&contents); err != nil {
-			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.NasConn().RegistrationType5GS), RegistrationReject).Inc()
+			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(conn.RegistrationType5GS), RegistrationReject).Inc()
 
 			err1 := message.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
 			if err1 != nil {
@@ -117,21 +122,22 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 
 		registrationRequest = m.RegistrationRequest
 
-		ue.NasConn().RetransmissionOfInitialNASMsg = macFailed
+		conn.RetransmissionOfInitialNASMsg = macFailed
 	} else if registrationRequest.NASMessageContainer != nil && macFailed {
 		ue.Log.Info("Skipping NASMessageContainer decryption due to MAC verification failure, proceeding with cleartext IEs only")
-		ue.NasConn().RetransmissionOfInitialNASMsg = true
+
+		conn.RetransmissionOfInitialNASMsg = true
 	}
 
-	ue.NasConn().RegistrationRequest = registrationRequest
-	ue.NasConn().RegistrationType5GS = registrationRequest.GetRegistrationType5GS()
+	conn.RegistrationRequest = registrationRequest
+	conn.RegistrationType5GS = registrationRequest.GetRegistrationType5GS()
 
-	regName := getRegistrationType5GSName(ue.NasConn().RegistrationType5GS)
+	regName := getRegistrationType5GSName(conn.RegistrationType5GS)
 
 	ue.Log.Debug("Received Registration Request", zap.String("registrationType", regName))
 
-	if ue.NasConn().RegistrationType5GS == nasMessage.RegistrationType5GSReserved {
-		ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
+	if conn.RegistrationType5GS == nasMessage.RegistrationType5GSReserved {
+		conn.RegistrationType5GS = nasMessage.RegistrationType5GSInitialRegistration
 	}
 
 	mobileIdentity5GSContents := registrationRequest.GetMobileIdentity5GSContents()
@@ -144,8 +150,8 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 		return fmt.Errorf("error getting operator info: %v", err)
 	}
 
-	ue.NasConn().IdentityTypeUsedForRegistration = nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0])
-	switch ue.NasConn().IdentityTypeUsedForRegistration { // get type of identity
+	conn.IdentityTypeUsedForRegistration = nasConvert.GetTypeOfIdentity(mobileIdentity5GSContents[0])
+	switch conn.IdentityTypeUsedForRegistration { // get type of identity
 	case nasMessage.MobileIdentity5GSTypeNoIdentity:
 		ue.Log.Debug("No Identity used for registration")
 	case nasMessage.MobileIdentity5GSTypeSuci:
@@ -188,7 +194,7 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 
 	// Check TAI
 	if !amf.InTaiList(ue.Tai, operatorInfo.Tais) {
-		UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.NasConn().RegistrationType5GS), RegistrationReject).Inc()
+		UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(conn.RegistrationType5GS), RegistrationReject).Inc()
 
 		err := message.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMMTrackingAreaNotAllowed)
 		if err != nil {
@@ -201,8 +207,8 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 	// TS 24.501 §8.2.6.4: the UE shall include the UE security capability IE,
 	// unless it performs a periodic registration updating procedure.
 	if registrationRequest.UESecurityCapability == nil &&
-		ue.NasConn().RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
-		UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.NasConn().RegistrationType5GS), RegistrationReject).Inc()
+		conn.RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
+		UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(conn.RegistrationType5GS), RegistrationReject).Inc()
 
 		err := message.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
 		if err != nil {
@@ -229,7 +235,12 @@ func handleRegistrationRequestMessage(ctx context.Context, amfInstance *amf.AMF,
 // the same audited write path, with downgrade protection deferred to
 // the SMC replay check.
 func acceptRegistrationUESecurityCapability(ue *amf.AmfUe, received *nasType.UESecurityCapability) {
-	switch ue.NasConn().RegistrationType5GS {
+	conn := ue.NasConn()
+	if conn == nil {
+		return
+	}
+
+	switch conn.RegistrationType5GS {
 	case nasMessage.RegistrationType5GSInitialRegistration,
 		nasMessage.RegistrationType5GSEmergencyRegistration:
 		ue.SetUESecurityCapability(received, amf.MintAuthProofForRegistrationRequest())
@@ -250,7 +261,7 @@ func acceptRegistrationUESecurityCapability(ue *amf.AmfUe, received *nasType.UES
 	case amf.VerifyMismatch:
 		ue.Log.Warn(
 			"UE security capabilities in Mobility/Periodic Registration differ from stored values; ignoring received values (TS 33.501 §6.7.3.1)",
-			zap.String("registrationType", getRegistrationType5GSName(ue.NasConn().RegistrationType5GS)),
+			zap.String("registrationType", getRegistrationType5GSName(conn.RegistrationType5GS)),
 			zap.Binary("stored", ue.Current().UESecurityCapability.Buffer),
 			zap.Binary("received", received.Buffer),
 		)
@@ -274,7 +285,12 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 			defer ue.Deregister(ctx)
 
-			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(ue.NasConn().RegistrationType5GS), RegistrationReject).Inc()
+			regType := uint8(0)
+			if conn := ue.NasConn(); conn != nil {
+				regType = conn.RegistrationType5GS
+			}
+
+			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(regType), RegistrationReject).Inc()
 
 			ranUe := ue.RanUe()
 			if ranUe == nil {
@@ -296,6 +312,10 @@ func handleRegistrationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 	case amf.SecurityMode:
 		ue.Deregister(ctx)
 		ue.RotateContext()
+
+		if ranUe := ue.RanUe(); ranUe != nil {
+			ue.AttachNasConnection(ranUe)
+		}
 
 		return HandleGmmMessage(ctx, amfInstance, ue, msg, macFailed)
 	case amf.ContextSetup:

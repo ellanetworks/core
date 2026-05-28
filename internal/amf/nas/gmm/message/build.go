@@ -73,6 +73,11 @@ func BuildIdentityRequest(typeOfIdentity uint8) ([]byte, error) {
 }
 
 func BuildAuthenticationRequest(ue *amf.AmfUe) ([]byte, error) {
+	conn := ue.NasConn()
+	if conn == nil || conn.AuthenticationCtx == nil {
+		return nil, fmt.Errorf("no authentication context available")
+	}
+
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeAuthenticationRequest)
@@ -88,7 +93,7 @@ func BuildAuthenticationRequest(ue *amf.AmfUe) ([]byte, error) {
 
 	var tmpArray [16]byte
 
-	rand, err := hex.DecodeString(ue.NasConn().AuthenticationCtx.Rand)
+	rand, err := hex.DecodeString(conn.AuthenticationCtx.Rand)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +103,7 @@ func BuildAuthenticationRequest(ue *amf.AmfUe) ([]byte, error) {
 	copy(tmpArray[:], rand[0:16])
 	authenticationRequest.SetRANDValue(tmpArray)
 
-	autn, err := hex.DecodeString(ue.NasConn().AuthenticationCtx.Autn)
+	autn, err := hex.DecodeString(conn.AuthenticationCtx.Autn)
 	if err != nil {
 		return nil, err
 	}
@@ -218,6 +223,11 @@ func BuildRegistrationReject(t3502Value int, cause5GMM uint8) ([]byte, error) {
 
 // TS 24.501 8.2.25
 func BuildSecurityModeCommand(ue *amf.AmfUe) ([]byte, error) {
+	conn := ue.NasConn()
+	if conn == nil {
+		return nil, fmt.Errorf("no active NAS connection")
+	}
+
 	m := nas.NewMessage()
 	m.GmmMessage = nas.NewGmmMessage()
 	m.GmmHeader.SetMessageType(nas.MsgTypeSecurityModeCommand)
@@ -256,13 +266,13 @@ func BuildSecurityModeCommand(ue *amf.AmfUe) ([]byte, error) {
 	securityModeCommand.Additional5GSecurityInformation = nasType.NewAdditional5GSecurityInformation(nasMessage.SecurityModeCommandAdditional5GSecurityInformationType)
 	securityModeCommand.Additional5GSecurityInformation.SetLen(1)
 
-	if ue.NasConn().RetransmissionOfInitialNASMsg {
+	if conn.RetransmissionOfInitialNASMsg {
 		securityModeCommand.SetRINMR(1)
 	} else {
 		securityModeCommand.SetRINMR(0)
 	}
 
-	if ue.NasConn().RegistrationType5GS == nasMessage.RegistrationType5GSPeriodicRegistrationUpdating || ue.NasConn().RegistrationType5GS == nasMessage.RegistrationType5GSMobilityRegistrationUpdating {
+	if conn.RegistrationType5GS == nasMessage.RegistrationType5GSPeriodicRegistrationUpdating || conn.RegistrationType5GS == nasMessage.RegistrationType5GSMobilityRegistrationUpdating {
 		securityModeCommand.SetHDP(1)
 	} else {
 		securityModeCommand.SetHDP(0)

@@ -97,7 +97,9 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 	defer span.End()
 
 	amfUe := ue.AmfUe()
-	if amfUe.NasConn().AuthenticationCtx == nil {
+
+	conn := amfUe.NasConn()
+	if conn == nil || conn.AuthenticationCtx == nil {
 		return fmt.Errorf("authentication context of UE is nil")
 	}
 
@@ -108,7 +110,6 @@ func SendAuthenticationRequest(ctx context.Context, amfInstance *amf.AMF, ue *am
 
 	if amfInstance.T3560Cfg.Enable {
 		cfg := amfInstance.T3560Cfg
-		conn := amfUe.NasConn()
 		conn.T3560 = amf.NewTimer(cfg.ExpireTime, cfg.MaxRetryTimes, func(expireTimes int32) {
 			amfUe.Log.Warn("T3560 expires, retransmit Authentication Request", zap.Any("expireTimes", expireTimes))
 

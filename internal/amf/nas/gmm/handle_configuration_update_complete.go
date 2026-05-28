@@ -15,9 +15,9 @@ func handleConfigurationUpdateComplete(amfInstance *amf.AMF, ue *amf.AmfUe, macF
 		return fmt.Errorf("NAS message integrity check failed")
 	}
 
-	if ue.NasConn().T3555 != nil {
-		ue.NasConn().T3555.Stop()
-		ue.NasConn().T3555 = nil // clear the timer
+	if conn := ue.NasConn(); conn != nil && conn.T3555 != nil {
+		conn.T3555.Stop()
+		conn.T3555 = nil
 	}
 
 	amfInstance.FreeOldGuti(ue)

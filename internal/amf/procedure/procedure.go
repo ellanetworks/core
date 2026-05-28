@@ -36,7 +36,6 @@ var nextID atomic.Uint64
 // transient state owned by handlers; the registry treats it opaquely.
 type Procedure struct {
 	Type      Type
-	State     any
 	StartedAt time.Time
 	Deadline  time.Time
 	Cancel    func(context.Context) error
@@ -296,36 +295,6 @@ func (r *Registry) CancelByID(ctx context.Context, id ID) error {
 	return nil
 }
 
-// CancelAll invokes Cancel for every active procedure in reverse-Begin
-// order (most recently started first), then clears the registry.
-func (r *Registry) CancelAll(ctx context.Context) {
-	r.mu.Lock()
-	entries := make([]entry, len(r.active))
-	copy(entries, r.active)
-	r.active = r.active[:0]
-	r.stopped = true
-	r.mu.Unlock()
-
-	for _, e := range entries {
-		if e.timer != nil {
-			e.timer.Stop()
-		}
-
-		close(e.done)
-	}
-
-	// Cancel in reverse-Begin order.
-	for i := len(entries) - 1; i >= 0; i-- {
-		e := entries[i]
-		r.log.Info("procedure cancelled",
-			zap.String("type", string(e.proc.Type)),
-			zap.Uint64("id", uint64(e.id)),
-			zap.String("reason", "teardown"),
-		)
-		r.invokeCancel(ctx, e)
-	}
-}
-
 // Active returns true if t has at least one active instance.
 func (r *Registry) Active(t Type) bool {
 	r.mu.Lock()
@@ -338,51 +307,6 @@ func (r *Registry) Active(t Type) bool {
 	}
 
 	return false
-}
-
-// Get returns the first active instance of t (oldest, FIFO).
-func (r *Registry) Get(t Type) (Procedure, bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	for _, e := range r.active {
-		if e.proc.Type == t {
-			return e.proc, true
-		}
-	}
-
-	return Procedure{}, false
-}
-
-// UpdateState replaces the State of the first active instance of t.
-// Returns ErrNotActive if no instance is active.
-func (r *Registry) UpdateState(t Type, state any) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	for i := range r.active {
-		if r.active[i].proc.Type == t {
-			r.active[i].proc.State = state
-			return nil
-		}
-	}
-
-	return ErrNotActive
-}
-
-// Snapshot returns a copy of the active set for diagnostics.
-func (r *Registry) Snapshot() []Procedure {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	out := make([]Procedure, len(r.active))
-	for i, e := range r.active {
-		p := e.proc
-		p.Cancel = nil // don't leak callbacks
-		out[i] = p
-	}
-
-	return out
 }
 
 // ActiveTypes returns the set of active procedure type strings,

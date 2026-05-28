@@ -143,19 +143,23 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 		return nil
 	}
 
-	if ue.NasConn().T3513 != nil {
-		ue.NasConn().T3513.Stop()
-		ue.NasConn().T3513 = nil // clear the timer
+	conn := ue.NasConn()
+	if conn == nil {
+		return fmt.Errorf("no active NAS connection")
 	}
 
-	if ue.NasConn().T3565 != nil {
-		ue.NasConn().T3565.Stop()
-		ue.NasConn().T3565 = nil // clear the timer
+	if conn.T3513 != nil {
+		conn.T3513.Stop()
+		conn.T3513 = nil
 	}
 
-	// Set No ongoing
-	if ue.NasConn().Procedures.Active(procedure.Paging) {
-		ue.NasConn().Procedures.End(procedure.Paging)
+	if conn.T3565 != nil {
+		conn.T3565.Stop()
+		conn.T3565 = nil
+	}
+
+	if conn.Procedures.Active(procedure.Paging) {
+		conn.Procedures.End(procedure.Paging)
 	}
 
 	// TS 24.501 8.2.6.21: if the UE is sending a REGISTRATION REQUEST message as an initial NAS message,
@@ -187,7 +191,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 			msg = m.ServiceRequest
 		}
 		// TS 33.501 6.4.6 step 3: if the initial NAS message was protected but did not pass the integrity check
-		ue.NasConn().RetransmissionOfInitialNASMsg = macFailed
+		conn.RetransmissionOfInitialNASMsg = macFailed
 	}
 
 	// Service Reject if the SecurityContext is invalid
@@ -240,9 +244,9 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 		return err
 	}
 
-	if ue.NasConn().N1N2Message != nil {
-		requestData := ue.NasConn().N1N2Message
-		if ue.NasConn().N1N2Message.BinaryDataN2Information != nil {
+	if conn.N1N2Message != nil {
+		requestData := conn.N1N2Message
+		if conn.N1N2Message.BinaryDataN2Information != nil {
 			targetPduSessionID = requestData.PduSessionID
 		}
 	}
@@ -311,10 +315,10 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 	case nasMessage.ServiceTypeMobileTerminatedServices: // Triggered by Network
 		// TS 24.501 5.4.4.1 - We need to assign a new GUTI after a successful Service Request
 		// triggered by a paging request.
-		if ue.NasConn().N1N2Message != nil {
-			requestData := ue.NasConn().N1N2Message
-			n1Msg := ue.NasConn().N1N2Message.BinaryDataN1Message
-			n2Info := ue.NasConn().N1N2Message.BinaryDataN2Information
+		if conn.N1N2Message != nil {
+			requestData := conn.N1N2Message
+			n1Msg := conn.N1N2Message.BinaryDataN1Message
+			n2Info := conn.N1N2Message.BinaryDataN2Information
 
 			// Paging was triggered for downlink signaling only
 			if n2Info == nil && n1Msg != nil {
@@ -330,11 +334,11 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 
 				ue.Log.Info("sent downlink nas transport message")
 
-				ue.NasConn().N1N2Message = nil
+				conn.N1N2Message = nil
 			} else {
 				_, exist := ue.SmContextFindByPDUSessionID(requestData.PduSessionID)
 				if !exist {
-					ue.NasConn().N1N2Message = nil
+					conn.N1N2Message = nil
 					return fmt.Errorf("service Request triggered by Network for pduSessionID that does not exist")
 				}
 
@@ -389,7 +393,7 @@ func handleServiceRequest(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 		ue.Log.Info("", zap.Any("errPduSessionID", errPduSessionID), zap.Any("errCause", errCause))
 	}
 
-	ue.NasConn().N1N2Message = nil
+	conn.N1N2Message = nil
 
 	return nil
 }

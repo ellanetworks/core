@@ -127,9 +127,11 @@ func (ue *AmfUe) SwapContext(fresh *FivegmmContext) *FivegmmContext {
 // RotateContext installs a fresh 5GMM context and returns it. Used when
 // a UE re-initiates registration: the prior context is discarded per
 // TS 24.501 handling of an initial registration arriving in 5GMM-REGISTERED.
+// RotateContext installs a fresh 5GMM context, replacing the previous one.
+// The NAS connection is intentionally left unset: AttachRanUe creates it once
+// the RanUe is known.
 func (ue *AmfUe) RotateContext() *FivegmmContext {
 	fresh := newFivegmmContext(ue)
-	fresh.active.Store(newActiveNasConnection(fresh, nil))
 	ue.SwapContext(fresh)
 
 	return fresh
@@ -148,6 +150,7 @@ func (ue *AmfUe) AttachNasConnection(ranUe *RanUe) *ActiveNasConnection {
 
 	conn := newActiveNasConnection(fc, ranUe)
 	if old := fc.active.Swap(conn); old != nil {
+		old.stopTimers()
 		old.cancel()
 	}
 
@@ -836,11 +839,11 @@ func (ue *AmfUe) stopAllTimersLocked() {
 }
 
 func (ue *AmfUe) Deregister(ctx context.Context) {
+	ue.Mutex.Lock()
+
 	if conn := ue.NasConn(); conn != nil {
 		conn.Release()
 	}
-
-	ue.Mutex.Lock()
 
 	ue.stopAllTimersLocked()
 

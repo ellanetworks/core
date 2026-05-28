@@ -18,12 +18,14 @@ func handleSecurityModeReject(ctx context.Context, ue *amf.AmfUe, msg *nasMessag
 
 	defer ue.Deregister(ctx)
 
-	if ue.NasConn().T3560 != nil {
-		ue.NasConn().T3560.Stop()
-		ue.NasConn().T3560 = nil // clear the timer
-	}
+	if conn := ue.NasConn(); conn != nil {
+		if conn.T3560 != nil {
+			conn.T3560.Stop()
+			conn.T3560 = nil
+		}
 
-	ue.NasConn().Procedures.End(procedure.SecurityMode)
+		conn.Procedures.End(procedure.SecurityMode)
+	}
 
 	ue.Log.Error("UE rejected the security mode command, abort the ongoing procedure", logger.Cause(nasMessage.Cause5GMMToString(msg.GetCauseValue())), logger.SUPI(ue.Supi.String()))
 

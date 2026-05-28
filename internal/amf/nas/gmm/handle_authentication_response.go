@@ -25,12 +25,17 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 		return fmt.Errorf("ue is not connected to RAN")
 	}
 
-	if ue.NasConn().T3560 != nil {
-		ue.NasConn().T3560.Stop()
-		ue.NasConn().T3560 = nil // clear the timer
+	conn := ue.NasConn()
+	if conn == nil {
+		return fmt.Errorf("no active NAS connection")
 	}
 
-	if ue.NasConn().AuthenticationCtx == nil {
+	if conn.T3560 != nil {
+		conn.T3560.Stop()
+		conn.T3560 = nil
+	}
+
+	if conn.AuthenticationCtx == nil {
 		return fmt.Errorf("ue Authentication Context is nil")
 	}
 
@@ -41,7 +46,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 	resStar := msg.GetRES()
 
 	// Calculate HRES* (TS 33.501 Annex A.5)
-	p0, err := hex.DecodeString(ue.NasConn().AuthenticationCtx.Rand)
+	p0, err := hex.DecodeString(conn.AuthenticationCtx.Rand)
 	if err != nil {
 		return fmt.Errorf("failed to decode RAND: %s", err)
 	}
@@ -51,10 +56,10 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 	hResStarBytes := sha256.Sum256(concat)
 	hResStar := hex.EncodeToString(hResStarBytes[16:])
 
-	if subtle.ConstantTimeCompare([]byte(hResStar), []byte(ue.NasConn().AuthenticationCtx.HxresStar)) != 1 {
+	if subtle.ConstantTimeCompare([]byte(hResStar), []byte(conn.AuthenticationCtx.HxresStar)) != 1 {
 		ue.Log.Error("HRES* Validation Failure")
 
-		if ue.NasConn().IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
+		if conn.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
 			err := message.SendIdentityRequest(ctx, ranUe, nasMessage.MobileIdentity5GSTypeSuci)
 			if err != nil {
 				return fmt.Errorf("send identity request error: %s", err)
@@ -79,7 +84,7 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 	if err != nil {
 		logger.WithTrace(ctx, logger.AmfLog).Error("5G AKA Confirmation Request Procedure failed", zap.Error(err))
 
-		if ue.NasConn().IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
+		if conn.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
 			err := message.SendIdentityRequest(ctx, ranUe, nasMessage.MobileIdentity5GSTypeSuci)
 			if err != nil {
 				return fmt.Errorf("send identity request error: %s", err)

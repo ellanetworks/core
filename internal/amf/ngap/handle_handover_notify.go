@@ -35,7 +35,10 @@ func HandleHandoverNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Ra
 
 	logger.WithTrace(ctx, targetUe.Log).Info("Handle Handover notification Finshed ")
 
-	amfUe.NasConn().Procedures.End(procedure.N2Handover)
+	if conn := amfUe.NasConn(); conn != nil {
+		conn.Procedures.End(procedure.N2Handover)
+	}
+
 	amfUe.AttachRanUe(targetUe)
 
 	sourceUe.ReleaseAction = amf.UeContextReleaseHandover

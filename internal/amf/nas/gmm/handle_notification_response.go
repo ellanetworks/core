@@ -20,9 +20,9 @@ func handleNotificationResponse(ctx context.Context, amfInstance *amf.AMF, ue *a
 		return fmt.Errorf("NAS message integrity check failed")
 	}
 
-	if ue.NasConn().T3565 != nil {
-		ue.NasConn().T3565.Stop()
-		ue.NasConn().T3565 = nil // clear the timer
+	if conn := ue.NasConn(); conn != nil && conn.T3565 != nil {
+		conn.T3565.Stop()
+		conn.T3565 = nil
 	}
 
 	if msg.PDUSessionStatus == nil {

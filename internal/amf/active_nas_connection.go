@@ -5,7 +5,6 @@ package amf
 
 import (
 	"context"
-	"sync"
 
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/ausf"
@@ -14,14 +13,12 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 )
 
-// ActiveNasConnection is the state tied to one N1 NAS signalling
-// connection. Procedures and procedure retransmission timers live
-// here; they cannot make progress without an active NAS connection,
-// and per TS 24.501 they are aborted on lower-layer failure via
-// ctx cancellation.
+// ActiveNasConnection is the state tied to one N1 NAS signalling connection:
+// the procedure registry, NAS retransmission timers, and the connection-scoped
+// context. Release cancels the context and stops the timers; in-flight handler
+// goroutines are not pre-empted, so they must check for nil where they
+// dereference the connection.
 type ActiveNasConnection struct {
-	Mutex sync.RWMutex
-
 	parent *FivegmmContext
 
 	ctx    context.Context
