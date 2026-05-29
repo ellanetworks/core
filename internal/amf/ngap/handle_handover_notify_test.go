@@ -4,6 +4,7 @@ package ngap_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
@@ -148,12 +149,12 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 		t.Errorf("expected RanUeNgapID=10 (source), got %d", cmd.RanUeNgapID)
 	}
 
-	if cmd.CausePresent != ngapType.CausePresentNas {
-		t.Errorf("expected CausePresent=Nas, got %d", cmd.CausePresent)
+	if cmd.CausePresent != ngapType.CausePresentRadioNetwork {
+		t.Errorf("expected CausePresent=RadioNetwork, got %d", cmd.CausePresent)
 	}
 
-	if cmd.Cause != ngapType.CauseNasPresentNormalRelease {
-		t.Errorf("expected Cause=NormalRelease, got %d", cmd.Cause)
+	if cmd.Cause != ngapType.CauseRadioNetworkPresentSuccessfulHandover {
+		t.Errorf("expected Cause=SuccessfulHandover, got %d", cmd.Cause)
 	}
 
 	if sourceUe.ReleaseAction != amf.UeContextReleaseHandover {
@@ -166,5 +167,58 @@ func TestHandoverNotify_HappyPath(t *testing.T) {
 
 	if len(targetNGAPSender.SentErrorIndications) != 0 {
 		t.Fatalf("expected no ErrorIndication, got %d", len(targetNGAPSender.SentErrorIndications))
+	}
+}
+
+func TestHandoverNotify_SmfUpdateFails_StillReleasesSource(t *testing.T) {
+	sourceNGAPSender := &FakeNGAPSender{}
+	sourceRan := &amf.Radio{
+		Log:           logger.AmfLog,
+		NGAPSender:    sourceNGAPSender,
+		RanUEs:        make(map[int64]*amf.RanUe),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
+	}
+
+	amfUe := amf.NewAmfUe()
+	amfUe.Log = logger.AmfLog
+
+	sourceUe := amf.NewRanUeForTest(sourceRan, 10, 100, logger.AmfLog)
+	amfUe.AttachRanUe(sourceUe)
+
+	targetNGAPSender := &FakeNGAPSender{}
+	targetRan := &amf.Radio{
+		Log:           logger.AmfLog,
+		NGAPSender:    targetNGAPSender,
+		RanUEs:        make(map[int64]*amf.RanUe),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
+	}
+
+	targetUe := amf.NewRanUeForTest(targetRan, 2, 1, logger.AmfLog)
+
+	err := amf.AttachSourceUeTargetUe(sourceUe, targetUe)
+	if err != nil {
+		t.Fatalf("failed to attach source/target: %v", err)
+	}
+
+	fakeSmf := &FakeSmfSbi{
+		N2HandoverCompleteErr: fmt.Errorf("smf unreachable"),
+	}
+	amfInstance := amf.New(nil, nil, nil)
+	amfInstance.Smf = fakeSmf
+
+	msg := decode.HandoverNotify{AMFUENGAPID: 1, RANUENGAPID: 2}
+
+	ngap.HandleHandoverNotify(context.Background(), amfInstance, targetRan, msg)
+
+	if len(sourceNGAPSender.SentUEContextReleaseCommands) != 1 {
+		t.Fatalf("expected 1 UEContextReleaseCommand to source RAN even when SMF fails, got %d", len(sourceNGAPSender.SentUEContextReleaseCommands))
+	}
+
+	if sourceUe.ReleaseAction != amf.UeContextReleaseHandover {
+		t.Errorf("expected source UE ReleaseAction=UeContextReleaseHandover even when SMF fails, got %d", sourceUe.ReleaseAction)
+	}
+
+	if amfUe.RanUe() != targetUe {
+		t.Error("expected AmfUe.RanUe to be attached to targetUe even when SMF fails")
 	}
 }

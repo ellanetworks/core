@@ -27,6 +27,9 @@ const (
 	NGAPProcedureUEContextReleaseComplete          NGAPProcedure = "UEContextReleaseComplete"
 	NGAPProcedureUEContextReleaseRequest           NGAPProcedure = "UEContextReleaseRequest"
 	NGAPProcedurePathSwitchRequest                 NGAPProcedure = "PathSwitchRequest"
+	NGAPProcedureHandoverRequired                  NGAPProcedure = "HandoverRequired"
+	NGAPProcedureHandoverRequestAcknowledge        NGAPProcedure = "HandoverRequestAcknowledge"
+	NGAPProcedureHandoverNotify                    NGAPProcedure = "HandoverNotify"
 )
 
 func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
@@ -40,7 +43,9 @@ func getSCTPStreamID(msgType NGAPProcedure) (uint16, error) {
 		NGAPProcedureInitialContextSetupResponse, NGAPProcedurePDUSessionResourceSetupResponse,
 		NGAPProcedurePDUSessionResourceModifyResponse, NGAPProcedurePDUSessionResourceReleaseResponse,
 		NGAPProcedureUEContextReleaseComplete, NGAPProcedureUEContextReleaseRequest,
-		NGAPProcedurePathSwitchRequest:
+		NGAPProcedurePathSwitchRequest,
+		NGAPProcedureHandoverRequired, NGAPProcedureHandoverRequestAcknowledge,
+		NGAPProcedureHandoverNotify:
 		return 1, nil
 	default:
 		return 0, fmt.Errorf("NGAP message type (%s) not supported", msgType)
@@ -231,4 +236,83 @@ func writeToConn(conn *sctp.SCTPConn, packet []byte, msgType NGAPProcedure) erro
 	}
 
 	return nil
+}
+
+// SendHandoverRequired sends a HandoverRequired message from the source gNB.
+func (g *GnodeB) SendHandoverRequired(opts *HandoverRequiredOpts) error {
+	opts.TargetMcc = firstNonEmpty(opts.TargetMcc, g.MCC)
+	opts.TargetMnc = firstNonEmpty(opts.TargetMnc, g.MNC)
+	opts.TargetTac = firstNonEmpty(opts.TargetTac, g.TAC)
+
+	pdu, err := BuildHandoverRequired(opts)
+	if err != nil {
+		return fmt.Errorf("couldn't build HandoverRequired: %s", err.Error())
+	}
+
+	err = g.SendMessage(pdu, NGAPProcedureHandoverRequired)
+	if err != nil {
+		return fmt.Errorf("couldn't send HandoverRequired: %s", err.Error())
+	}
+
+	logger.GnbLogger.Debug("Sent Handover Required",
+		zap.Int64("RAN UE NGAP ID", opts.RANUENGAPID),
+		zap.Int64("AMF UE NGAP ID", opts.AMFUENGAPID),
+	)
+
+	return nil
+}
+
+// SendHandoverRequestAcknowledge sends a HandoverRequestAcknowledge from the
+// target gNB in response to a HandoverRequest.
+func (g *GnodeB) SendHandoverRequestAcknowledge(opts *HandoverRequestAcknowledgeOpts) error {
+	pdu, err := BuildHandoverRequestAcknowledge(opts)
+	if err != nil {
+		return fmt.Errorf("couldn't build HandoverRequestAcknowledge: %s", err.Error())
+	}
+
+	err = g.SendMessage(pdu, NGAPProcedureHandoverRequestAcknowledge)
+	if err != nil {
+		return fmt.Errorf("couldn't send HandoverRequestAcknowledge: %s", err.Error())
+	}
+
+	logger.GnbLogger.Debug("Sent Handover Request Acknowledge",
+		zap.Int64("RAN UE NGAP ID", opts.RANUENGAPID),
+		zap.Int64("AMF UE NGAP ID", opts.AMFUENGAPID),
+	)
+
+	return nil
+}
+
+// SendHandoverNotify sends a HandoverNotify message from the target gNB
+// to indicate handover completion.
+func (g *GnodeB) SendHandoverNotify(opts *HandoverNotifyOpts) error {
+	opts.Mcc = firstNonEmpty(opts.Mcc, g.MCC)
+	opts.Mnc = firstNonEmpty(opts.Mnc, g.MNC)
+	opts.Tac = firstNonEmpty(opts.Tac, g.TAC)
+	opts.GnbID = firstNonEmpty(opts.GnbID, g.GnbID)
+
+	pdu, err := BuildHandoverNotify(opts)
+	if err != nil {
+		return fmt.Errorf("couldn't build HandoverNotify: %s", err.Error())
+	}
+
+	err = g.SendMessage(pdu, NGAPProcedureHandoverNotify)
+	if err != nil {
+		return fmt.Errorf("couldn't send HandoverNotify: %s", err.Error())
+	}
+
+	logger.GnbLogger.Debug("Sent Handover Notify",
+		zap.Int64("RAN UE NGAP ID", opts.RANUENGAPID),
+		zap.Int64("AMF UE NGAP ID", opts.AMFUENGAPID),
+	)
+
+	return nil
+}
+
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+
+	return b
 }

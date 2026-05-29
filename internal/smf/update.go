@@ -509,6 +509,74 @@ func (s *SMF) UpdateSmContextN2HandoverPrepared(ctx context.Context, smContextRe
 	return n2Rsp, nil
 }
 
+// UpdateSmContextN2HandoverComplete handles the handover completion phase.
+// Called by the AMF after the UE has successfully moved to the target gNB.
+// Per 3GPP TS 23.502 §4.9.1.3.3 step 7, the SMF sends an N4 Session
+// Modification Request to the UPF with the new AN tunnel info at this point.
+func (s *SMF) UpdateSmContextN2HandoverComplete(ctx context.Context, smContextRef string) error {
+	ctx, span := tracer.Start(ctx, "smf/update_sm_context_n2_handover_complete",
+		trace.WithAttributes(attribute.String("smf.smContextRef", smContextRef)),
+	)
+	defer span.End()
+
+	if smContextRef == "" {
+		span.RecordError(fmt.Errorf("SM context reference is missing"))
+		span.SetStatus(codes.Error, "SM context reference is missing")
+
+		return fmt.Errorf("SM context reference is missing")
+	}
+
+	smContext := s.GetSession(smContextRef)
+	if smContext == nil {
+		span.RecordError(fmt.Errorf("sm context not found"))
+		span.SetStatus(codes.Error, "sm context not found")
+
+		return fmt.Errorf("sm context not found: %s", smContextRef)
+	}
+
+	smContext.Mutex.Lock()
+	defer smContext.Mutex.Unlock()
+
+	if smContext.Tunnel.DataPath.Activated {
+		if smContext.PFCPContext == nil {
+			span.RecordError(fmt.Errorf("pfcp session context not found"))
+			span.SetStatus(codes.Error, "pfcp session context not found")
+
+			return fmt.Errorf("pfcp session context not found")
+		}
+
+		var (
+			pdrList []*PDR
+			farList []*FAR
+		)
+
+		pdrList = append(pdrList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR)
+		farList = append(farList, smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR)
+
+		smContext.Tunnel.DataPath.UpLinkTunnel.PDR.State = RuleUpdate
+		pdrList = append(pdrList, smContext.Tunnel.DataPath.UpLinkTunnel.PDR)
+
+		if err := s.upf.ModifySession(ctx, BuildModifyRequest(
+			smContext.PFCPContext.RemoteSEID,
+			"",
+			pdrList, farList, nil,
+		)); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "failed to modify PFCP session")
+
+			return fmt.Errorf("failed to send PFCP session modification request: %v", err)
+		}
+
+		s.registerIPv6SessionIfNeeded(ctx, smContext)
+
+		logger.SmfLog.Info("Sent PFCP session modification for N2 handover completion",
+			logger.SUPI(smContext.Supi.String()),
+			logger.PDUSessionID(smContext.PDUSessionID))
+	}
+
+	return nil
+}
+
 func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) error {
 	handoverRequestAcknowledgeTransfer := ngapType.HandoverRequestAcknowledgeTransfer{}
 

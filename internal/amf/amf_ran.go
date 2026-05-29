@@ -127,6 +127,26 @@ func (r *Radio) FindUEByRanUeNgapID(ranUeNgapID int64) *RanUe {
 	return nil
 }
 
+// UpdateUERanNgapID re-keys a RanUe in the radio's map from its current
+// RanUeNgapID to the new value. This is needed during N2 handover when
+// the target gNB reports its assigned RAN UE NGAP ID in
+// HandoverRequestAcknowledge.
+func (r *Radio) UpdateUERanNgapID(ranUe *RanUe, newRanUeNgapID int64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if existing, ok := r.RanUEs[newRanUeNgapID]; ok && existing != ranUe {
+		logger.AmfLog.Warn("UpdateUERanNgapID: newRanUeNgapID already in use, overwriting",
+			zap.Int64("newRanUeNgapID", newRanUeNgapID),
+			zap.Int64("existingAmfUeNgapID", existing.AmfUeNgapID),
+		)
+	}
+
+	delete(r.RanUEs, ranUe.RanUeNgapID)
+	ranUe.RanUeNgapID = newRanUeNgapID
+	r.RanUEs[newRanUeNgapID] = ranUe
+}
+
 // FindUEByAmfUeNgapID returns the RAN UE with the given AMF UE NGAP ID, or nil.
 func (r *Radio) FindUEByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 	r.mu.RLock()

@@ -500,6 +500,10 @@ func (s *FakeSmf) UpdateSmContextN2HandoverPrepared(_ context.Context, _ string,
 	return nil, s.Error
 }
 
+func (s *FakeSmf) UpdateSmContextN2HandoverComplete(_ context.Context, _ string) error {
+	return s.Error
+}
+
 func (s *FakeSmf) GetSession(_ string) *smf.SMContext { return nil }
 
 func (s *FakeSmf) SessionsByDNN(_ string) []*smf.SMContext { return nil }
