@@ -17,6 +17,18 @@ import (
 // flow-report byte counts are deterministic across runs.
 var probePayload = []byte("ella-tester-probe")
 
+// makeProbePayload returns a deterministic payload of exactly n bytes,
+// used by size-sweep scenarios that need L4 datagrams above the 512-byte
+// bpf_csum_diff window to exercise the UPF NAT checksum recompute.
+func makeProbePayload(n int) []byte {
+	p := make([]byte, n)
+	for i := range p {
+		p[i] = byte('a' + (i % 26))
+	}
+
+	return p
+}
+
 const (
 	probeAttemptCount   = 3
 	probeAttemptTimeout = 1 * time.Second
@@ -77,9 +89,9 @@ func runConnectivityProbe(ctx context.Context, protocol connectivityProbeProtoco
 
 		return nil
 	case connectivityProbeTCP:
-		return sendTCPProbe(ctx, tun, dst, scenarios.DefaultProbePort, probeAttemptCount, probeAttemptTimeout)
+		return sendTCPProbe(ctx, tun, dst, scenarios.DefaultProbePort, probeAttemptCount, probeAttemptTimeout, probePayload)
 	case connectivityProbeUDP:
-		return sendUDPProbe(ctx, tun, dst, scenarios.DefaultProbePort, probeAttemptCount, probeAttemptTimeout)
+		return sendUDPProbe(ctx, tun, dst, scenarios.DefaultProbePort, probeAttemptCount, probeAttemptTimeout, probePayload)
 	default:
 		return fmt.Errorf("unknown protocol %q", protocol)
 	}
@@ -108,7 +120,7 @@ func bindToDeviceControl(tun string) func(network, address string, c syscall.Raw
 // (mirroring `ping -c N` semantics) so flow-report packet counts are
 // deterministic in both allow and drop scenarios. Returns nil if at
 // least one reply was received within perAttemptTimeout.
-func sendUDPProbe(ctx context.Context, tun, dst string, port, count int, perAttemptTimeout time.Duration) error {
+func sendUDPProbe(ctx context.Context, tun, dst string, port, count int, perAttemptTimeout time.Duration, payload []byte) error {
 	dialer := net.Dialer{
 		Timeout: perAttemptTimeout,
 		Control: bindToDeviceControl(tun),
@@ -131,7 +143,7 @@ func sendUDPProbe(ctx context.Context, tun, dst string, port, count int, perAtte
 			return fmt.Errorf("udp set deadline: %w", err)
 		}
 
-		if _, err := conn.Write(probePayload); err != nil {
+		if _, err := conn.Write(payload); err != nil {
 			lastErr = fmt.Errorf("write: %w", err)
 			continue
 		}
@@ -161,7 +173,7 @@ func sendUDPProbe(ctx context.Context, tun, dst string, port, count int, perAtte
 // port), which callers must account for when asserting flow counts.
 // Returns nil if at least one connection completed within
 // perAttemptTimeout.
-func sendTCPProbe(ctx context.Context, tun, dst string, port, count int, perAttemptTimeout time.Duration) error {
+func sendTCPProbe(ctx context.Context, tun, dst string, port, count int, perAttemptTimeout time.Duration, payload []byte) error {
 	dialer := net.Dialer{
 		Timeout: perAttemptTimeout,
 		Control: bindToDeviceControl(tun),
@@ -172,7 +184,7 @@ func sendTCPProbe(ctx context.Context, tun, dst string, port, count int, perAtte
 	var lastErr error
 
 	for i := 0; i < count; i++ {
-		if err := tcpProbeAttempt(ctx, &dialer, dst, port, perAttemptTimeout); err != nil {
+		if err := tcpProbeAttempt(ctx, &dialer, dst, port, perAttemptTimeout, payload); err != nil {
 			lastErr = err
 			continue
 		}
@@ -187,7 +199,7 @@ func sendTCPProbe(ctx context.Context, tun, dst string, port, count int, perAtte
 	return nil
 }
 
-func tcpProbeAttempt(ctx context.Context, dialer *net.Dialer, dst string, port int, perAttemptTimeout time.Duration) error {
+func tcpProbeAttempt(ctx context.Context, dialer *net.Dialer, dst string, port int, perAttemptTimeout time.Duration, payload []byte) error {
 	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(dst, strconv.Itoa(port)))
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
@@ -199,7 +211,7 @@ func tcpProbeAttempt(ctx context.Context, dialer *net.Dialer, dst string, port i
 		return fmt.Errorf("set deadline: %w", err)
 	}
 
-	if _, err := conn.Write(probePayload); err != nil {
+	if _, err := conn.Write(payload); err != nil {
 		return fmt.Errorf("write: %w", err)
 	}
 

@@ -25,6 +25,7 @@ var scenariosSkipped = map[string]string{
 	"ue/connectivity_expect_blocked_ipv6": "test-only harness; requires a pre-installed deny rule",
 	"ue/connectivity_expect_allowed_ipv6": "test-only harness; minimal allow-path",
 	"ue/session_hold":                     "long-lived session for BGP tests; covered by TestIntegrationBGP",
+	"ue/nat_checksum":                     "capture-driven harness; covered by TestUPFNATChecksum",
 }
 
 // scenarioIPFamilyRestrictions returns a map of scenario name → required IP

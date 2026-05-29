@@ -107,9 +107,10 @@ parse_icmp_packet_ref(struct five_tuple *key, struct packet_context *ctx)
 		udp->check = 0;
 		int new_csum = udpv4_csum(ip4->saddr, ip4->daddr, udp_off,
 					  udp_len, ctx->xdp_ctx);
-		if (new_csum >= 0) {
-			udp->check = (__u16)new_csum;
+		if (new_csum < 0) {
+			return NULL;
 		}
+		udp->check = (__u16)new_csum;
 		ctx->icmp->checksum = ipv4_csum_update_u32(
 			ctx->icmp->checksum, key->saddr, ip4->saddr);
 		ctx->icmp->checksum = ipv4_csum_update_u16(
@@ -140,9 +141,10 @@ parse_icmp_packet_ref(struct five_tuple *key, struct packet_context *ctx)
 		tcp->check = 0;
 		int new_csum = tcpv4_csum(ip4->saddr, ip4->daddr, tcp_off,
 					  tcp_len, ctx->xdp_ctx);
-		if (new_csum >= 0) {
-			tcp->check = (__u16)new_csum;
+		if (new_csum < 0) {
+			return NULL;
 		}
+		tcp->check = (__u16)new_csum;
 		ctx->icmp->checksum = ipv4_csum_update_u32(
 			ctx->icmp->checksum, key->saddr, ip4->saddr);
 		ctx->icmp->checksum = ipv4_csum_update_u16(
@@ -181,13 +183,13 @@ find_origin_for_icmp(struct five_tuple *key, struct packet_context *ctx)
 // full checksum to handle CHECKSUM_PARTIAL inputs (incremental update
 // produces garbage on those); ICMP uses incremental update since ICMP
 // has no pseudo-header.
-static __always_inline void update_port(struct packet_context *ctx,
+static __always_inline bool update_port(struct packet_context *ctx,
 					__u16 new_port)
 {
 	switch (ctx->ip4->protocol) {
 	case IPPROTO_TCP: {
 		if (!ctx->tcp) {
-			return;
+			return true;
 		}
 		ctx->tcp->source = new_port;
 		__u32 tcp_off =
@@ -198,14 +200,15 @@ static __always_inline void update_port(struct packet_context *ctx,
 		ctx->tcp->check = 0;
 		int new_csum = tcpv4_csum(ctx->ip4->saddr, ctx->ip4->daddr,
 					  tcp_off, tcp_len, ctx->xdp_ctx);
-		if (new_csum >= 0) {
-			ctx->tcp->check = (__u16)new_csum;
+		if (new_csum < 0) {
+			return false;
 		}
+		ctx->tcp->check = (__u16)new_csum;
 		break;
 	}
 	case IPPROTO_UDP: {
 		if (!ctx->udp) {
-			return;
+			return true;
 		}
 		ctx->udp->source = new_port;
 		__u32 udp_off =
@@ -215,14 +218,15 @@ static __always_inline void update_port(struct packet_context *ctx,
 		ctx->udp->check = 0;
 		int new_csum = udpv4_csum(ctx->ip4->saddr, ctx->ip4->daddr,
 					  udp_off, udp_len, ctx->xdp_ctx);
-		if (new_csum >= 0) {
-			ctx->udp->check = (__u16)new_csum;
+		if (new_csum < 0) {
+			return false;
 		}
+		ctx->udp->check = (__u16)new_csum;
 		break;
 	}
 	case IPPROTO_ICMP: {
 		if (!ctx->icmp) {
-			return;
+			return true;
 		}
 		__u16 old_port = ctx->icmp->un.echo.id;
 		ctx->icmp->un.echo.id = new_port;
@@ -231,6 +235,7 @@ static __always_inline void update_port(struct packet_context *ctx,
 		break;
 	}
 	}
+	return true;
 }
 static __always_inline bool source_nat(struct packet_context *ctx,
 				       struct bpf_fib_lookup *fib_params)
@@ -262,9 +267,10 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		ctx->tcp->check = 0;
 		int new_csum = tcpv4_csum(ctx->ip4->saddr, ctx->ip4->daddr,
 					  tcp_off, tcp_len, ctx->xdp_ctx);
-		if (new_csum >= 0) {
-			ctx->tcp->check = (__u16)new_csum;
+		if (new_csum < 0) {
+			return false;
 		}
+		ctx->tcp->check = (__u16)new_csum;
 		break;
 	}
 	case IPPROTO_UDP: {
@@ -282,9 +288,10 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 		ctx->udp->check = 0;
 		int new_csum = udpv4_csum(ctx->ip4->saddr, ctx->ip4->daddr,
 					  udp_off, udp_len, ctx->xdp_ctx);
-		if (new_csum >= 0) {
-			ctx->udp->check = (__u16)new_csum;
+		if (new_csum < 0) {
+			return false;
 		}
+		ctx->udp->check = (__u16)new_csum;
 		break;
 	}
 	case IPPROTO_ICMP:
@@ -326,7 +333,8 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 	if (tracked && !are_five_tuple_equal(natted, tracked->src)) {
 		// This flow is known and uses port NAT, we change it here
 		natted.sport = tracked->src.sport;
-		update_port(ctx, tracked->src.sport);
+		if (!update_port(ctx, tracked->src.sport))
+			return false;
 	} else {
 		struct nat_entry *existing =
 			bpf_map_lookup_elem(&nat_ct, &natted);
@@ -338,7 +346,8 @@ static __always_inline bool source_nat(struct packet_context *ctx,
 				existing =
 					bpf_map_lookup_elem(&nat_ct, &natted);
 				if (!existing) {
-					update_port(ctx, natted.sport);
+					if (!update_port(ctx, natted.sport))
+						return false;
 					break;
 				}
 			}
@@ -373,7 +382,7 @@ static __always_inline bool source_nat(struct packet_context *ctx,
  * incremental math to a partial sum produces garbage. Recompute is
  * correct regardless of input state.
  */
-static __always_inline void destination_nat(struct packet_context *ctx)
+static __always_inline bool destination_nat(struct packet_context *ctx)
 {
 	__u16 proto = ctx->ip4->protocol;
 	struct nat_entry *origin;
@@ -385,7 +394,7 @@ static __always_inline void destination_nat(struct packet_context *ctx)
 	case IPPROTO_ICMP:
 		if (!ctx->icmp) {
 			if (-1 == parse_icmp(ctx)) {
-				return;
+				return true;
 			}
 		}
 		key.identifier = ctx->icmp->un.echo.id;
@@ -393,7 +402,7 @@ static __always_inline void destination_nat(struct packet_context *ctx)
 		key.code = ctx->icmp->code;
 		origin = find_origin_for_icmp(&key, ctx);
 		if (!origin) {
-			return;
+			return true;
 		}
 
 		if (origin->src.proto == IPPROTO_ICMP) {
@@ -404,14 +413,14 @@ static __always_inline void destination_nat(struct packet_context *ctx)
 	case IPPROTO_TCP: {
 		if (!ctx->tcp) {
 			if (-1 == parse_tcp(ctx)) {
-				return;
+				return true;
 			}
 		}
 		key.sport = ctx->tcp->dest;
 		key.dport = ctx->tcp->source;
 		origin = bpf_map_lookup_elem(&nat_ct, &key);
 		if (!origin) {
-			return;
+			return true;
 		}
 
 		ctx->ip4->daddr = origin->src.saddr;
@@ -425,22 +434,23 @@ static __always_inline void destination_nat(struct packet_context *ctx)
 		ctx->tcp->check = 0;
 		int new_csum = tcpv4_csum(ctx->ip4->saddr, ctx->ip4->daddr,
 					  tcp_off, tcp_len, ctx->xdp_ctx);
-		if (new_csum >= 0) {
-			ctx->tcp->check = (__u16)new_csum;
+		if (new_csum < 0) {
+			return false;
 		}
+		ctx->tcp->check = (__u16)new_csum;
 		break;
 	}
 	case IPPROTO_UDP: {
 		if (!ctx->udp) {
 			if (-1 == parse_udp(ctx)) {
-				return;
+				return true;
 			}
 		}
 		key.sport = ctx->udp->dest;
 		key.dport = ctx->udp->source;
 		origin = bpf_map_lookup_elem(&nat_ct, &key);
 		if (!origin) {
-			return;
+			return true;
 		}
 
 		ctx->ip4->daddr = origin->src.saddr;
@@ -453,16 +463,18 @@ static __always_inline void destination_nat(struct packet_context *ctx)
 		ctx->udp->check = 0;
 		int new_csum = udpv4_csum(ctx->ip4->saddr, ctx->ip4->daddr,
 					  udp_off, udp_len, ctx->xdp_ctx);
-		if (new_csum >= 0) {
-			ctx->udp->check = (__u16)new_csum;
+		if (new_csum < 0) {
+			return false;
 		}
+		ctx->udp->check = (__u16)new_csum;
 		break;
 	}
 	default:
-		return;
+		return true;
 	}
 	ctx->ip4->check = 0;
 	ctx->ip4->check = ipv4_csum(ctx->ip4, sizeof(*ctx->ip4));
+	return true;
 }
 
 #endif

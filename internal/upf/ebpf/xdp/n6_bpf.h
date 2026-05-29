@@ -108,8 +108,11 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 {
 	if (masquerade) {
 		PROFILE_START(PROF_N6_NAT);
-		destination_nat(ctx);
+		bool nat_ok = destination_nat(ctx);
 		PROFILE_END(PROF_N6_NAT);
+		if (!nat_ok) {
+			return XDP_DROP;
+		}
 	}
 	const struct iphdr *ip4 = ctx->ip4;
 
@@ -286,9 +289,10 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		ctx->udp->check = 0;
 		int new_csum = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off,
 					  udp_len, ctx->xdp_ctx);
-		if (new_csum >= 0) {
-			ctx->udp->check = (__u16)new_csum;
+		if (new_csum < 0) {
+			return XDP_DROP;
 		}
+		ctx->udp->check = (__u16)new_csum;
 	} else if (ctx->tcp) {
 		__u32 tcp_off =
 			(__u32)((const void *)ctx->tcp -
@@ -298,9 +302,10 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 		ctx->tcp->check = 0;
 		int new_csum = tcpv6_csum(&ip6->saddr, &ip6->daddr, tcp_off,
 					  tcp_len, ctx->xdp_ctx);
-		if (new_csum >= 0) {
-			ctx->tcp->check = (__u16)new_csum;
+		if (new_csum < 0) {
+			return XDP_DROP;
 		}
+		ctx->tcp->check = (__u16)new_csum;
 	}
 
 	/* SDF filter enforcement (downlink) */

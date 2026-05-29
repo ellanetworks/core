@@ -158,6 +158,52 @@ struct {
 	__uint(max_entries, 1);
 } csum_scratch SEC(".maps");
 
+#define L4_CSUM_CHUNK 512U
+#define L4_CSUM_MAX_CHUNKS \
+	((MAX_L4_DATAGRAM + L4_CSUM_CHUNK - 1) / L4_CSUM_CHUNK)
+
+/*
+ * Sum aligned_len bytes of the per-CPU scratch buffer into seed and fold
+ * the result into a 16-bit L4 checksum.
+ *
+ * bpf_csum_diff() bounds its buffer by MAX_BPF_STACK (512 bytes) and
+ * returns -EINVAL for anything larger, so the datagram must be summed in
+ * <=512-byte windows, threading the running sum through the seed. A single
+ * call over a full-size datagram returns -EINVAL; folded into a __u64 it
+ * yields an in-range but wrong checksum that is silently written to the
+ * wire (the regression this guards against). The negative return is
+ * captured signed here and surfaced as -1 so callers can drop.
+ *
+ * The loop is force-unrolled so each window starts at a compile-time
+ * constant offset into the scratch map value -- the verifier bounds those
+ * accesses trivially. aligned_len is a multiple of 4 (and so is every
+ * chunk), which keeps each window 16-bit aligned so the partial sums chain
+ * correctly through the seed.
+ *
+ * Returns the folded checksum (0..0xffff), or -1 on helper error.
+ */
+static __always_inline int l4_csum_finalize(void *scratch, __u32 aligned_len,
+					    __wsum seed)
+{
+	__s64 sum = seed;
+
+#pragma unroll
+	for (int i = 0; i < L4_CSUM_MAX_CHUNKS; i++) {
+		__u32 off = (__u32)i * L4_CSUM_CHUNK;
+		if (off >= aligned_len)
+			break;
+		__u32 chunk = aligned_len - off;
+		if (chunk > L4_CSUM_CHUNK)
+			chunk = L4_CSUM_CHUNK;
+		sum = bpf_csum_diff(0, 0, (__be32 *)(scratch + off), chunk,
+				    (__wsum)sum);
+		if (sum < 0)
+			return -1;
+	}
+
+	return csum_fold_helper((__u64)sum);
+}
+
 // Recompute the full L4 checksum from packet bytes. Safe regardless of
 // CHECKSUM_PARTIAL input state, which a hardware-offload sender (veth,
 // virtio, real NIC) may leave on the wire as a pseudo-header sum.
@@ -209,13 +255,7 @@ udpv4_csum(__be32 saddr, __be32 daddr, __u32 udp_off, __u32 udp_len,
 	}
 
 	__u32 aligned_len = (udp_len + 3) & ~3U;
-	if (aligned_len > CSUM_SCRATCH_SIZE) {
-		upf_printk("upf: bad aligned_len: %d", aligned_len);
-		return -1;
-	}
-
-	csum = bpf_csum_diff(0, 0, (__be32 *)scratch, aligned_len, csum);
-	return csum_fold_helper(csum);
+	return l4_csum_finalize(scratch, aligned_len, (__wsum)csum);
 }
 
 __attribute__((noinline, used)) static int
@@ -258,13 +298,7 @@ tcpv4_csum(__be32 saddr, __be32 daddr, __u32 tcp_off, __u32 tcp_len,
 	}
 
 	__u32 aligned_len = (tcp_len + 3) & ~3U;
-	if (aligned_len > CSUM_SCRATCH_SIZE) {
-		upf_printk("upf: bad aligned_len: %d", aligned_len);
-		return -1;
-	}
-
-	csum = bpf_csum_diff(0, 0, (__be32 *)scratch, aligned_len, csum);
-	return csum_fold_helper(csum);
+	return l4_csum_finalize(scratch, aligned_len, (__wsum)csum);
 }
 
 __attribute__((noinline, used)) static int
@@ -314,13 +348,7 @@ udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
 	}
 
 	__u32 aligned_len = (udp_len + 3) & ~3U;
-	if (aligned_len > CSUM_SCRATCH_SIZE) {
-		upf_printk("upf: bad aligned_len: %d", aligned_len);
-		return -1;
-	}
-
-	csum = bpf_csum_diff(0, 0, (__be32 *)scratch, aligned_len, csum);
-	return csum_fold_helper(csum);
+	return l4_csum_finalize(scratch, aligned_len, (__wsum)csum);
 }
 
 __attribute__((noinline, used)) static int
@@ -365,13 +393,7 @@ tcpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
 	}
 
 	__u32 aligned_len = (tcp_len + 3) & ~3U;
-	if (aligned_len > CSUM_SCRATCH_SIZE) {
-		upf_printk("upf: bad aligned_len: %d", aligned_len);
-		return -1;
-	}
-
-	csum = bpf_csum_diff(0, 0, (__be32 *)scratch, aligned_len, csum);
-	return csum_fold_helper(csum);
+	return l4_csum_finalize(scratch, aligned_len, (__wsum)csum);
 }
 
 /*
