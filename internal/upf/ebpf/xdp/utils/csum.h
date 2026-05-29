@@ -159,8 +159,6 @@ struct {
 } csum_scratch SEC(".maps");
 
 #define L4_CSUM_CHUNK 512U
-#define L4_CSUM_MAX_CHUNKS \
-	((MAX_L4_DATAGRAM + L4_CSUM_CHUNK - 1) / L4_CSUM_CHUNK)
 
 /*
  * Sum aligned_len bytes of the per-CPU scratch buffer into seed and fold
@@ -174,11 +172,13 @@ struct {
  * wire (the regression this guards against). The negative return is
  * captured signed here and surfaced as -1 so callers can drop.
  *
- * The loop is force-unrolled so each window starts at a compile-time
- * constant offset into the scratch map value -- the verifier bounds those
- * accesses trivially. aligned_len is a multiple of 4 (and so is every
- * chunk), which keeps each window 16-bit aligned so the partial sums chain
- * correctly through the seed.
+ * The loop is intentionally NOT unrolled: unrolling emits ~MAX_L4_DATAGRAM/512
+ * bpf_csum_diff call sites in each of the four csum subprograms and blows the
+ * verifier's 1M-instruction complexity budget. As a real loop the verifier
+ * walks one body, bounding off by MAX_L4_DATAGRAM (<< CSUM_SCRATCH_SIZE) so
+ * each scratch access stays in range. aligned_len is a multiple of 4 (and so
+ * is every chunk), keeping each window 16-bit aligned so the partial sums
+ * chain correctly through the seed.
  *
  * Returns the folded checksum (0..0xffff), or -1 on helper error.
  */
@@ -187,9 +187,8 @@ static __always_inline int l4_csum_finalize(void *scratch, __u32 aligned_len,
 {
 	__s64 sum = seed;
 
-#pragma unroll
-	for (int i = 0; i < L4_CSUM_MAX_CHUNKS; i++) {
-		__u32 off = (__u32)i * L4_CSUM_CHUNK;
+#pragma clang loop unroll(disable)
+	for (__u32 off = 0; off < MAX_L4_DATAGRAM; off += L4_CSUM_CHUNK) {
 		if (off >= aligned_len)
 			break;
 		__u32 chunk = aligned_len - off;
