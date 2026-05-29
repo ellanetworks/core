@@ -159,48 +159,80 @@ struct {
 } csum_scratch SEC(".maps");
 
 #define L4_CSUM_CHUNK 512U
+#define L4_CSUM_MAX_CHUNKS \
+	((MAX_L4_DATAGRAM + L4_CSUM_CHUNK - 1) / L4_CSUM_CHUNK)
+
+struct l4_csum_ctx {
+	void *scratch;
+	__u32 aligned_len;
+	__s64 sum;
+	int err;
+};
 
 /*
- * Sum aligned_len bytes of the per-CPU scratch buffer into seed and fold
- * the result into a 16-bit L4 checksum.
+ * bpf_loop() callback: fold one <=512-byte window of the scratch buffer into
+ * the running sum. Returns 1 to stop the loop (window past the datagram, or a
+ * helper error), 0 to continue.
  *
- * bpf_csum_diff() bounds its buffer by MAX_BPF_STACK (512 bytes) and
- * returns -EINVAL for anything larger, so the datagram must be summed in
- * <=512-byte windows, threading the running sum through the seed. A single
- * call over a full-size datagram returns -EINVAL; folded into a __u64 it
- * yields an in-range but wrong checksum that is silently written to the
- * wire (the regression this guards against). The negative return is
- * captured signed here and surfaced as -1 so callers can drop.
+ * bpf_csum_diff() bounds its buffer by MAX_BPF_STACK (512 bytes) and returns
+ * -EINVAL for anything larger, hence the windowing. index is bounded by the
+ * verifier to [0, L4_CSUM_MAX_CHUNKS), so off is bounded well below
+ * CSUM_SCRATCH_SIZE and the scratch access stays in range. aligned_len is a
+ * multiple of 4 (and so is every chunk), keeping each window 16-bit aligned
+ * so the partial sums chain correctly through the seed.
+ */
+static long l4_csum_chunk(__u32 index, void *vctx)
+{
+	struct l4_csum_ctx *c = vctx;
+	__u32 off = index * L4_CSUM_CHUNK;
+
+	if (off >= c->aligned_len)
+		return 1;
+
+	__u32 chunk = c->aligned_len - off;
+	if (chunk > L4_CSUM_CHUNK)
+		chunk = L4_CSUM_CHUNK;
+
+	__s64 s = bpf_csum_diff(0, 0, (__be32 *)(c->scratch + off), chunk,
+				(__wsum)c->sum);
+	if (s < 0) {
+		c->err = 1;
+		return 1;
+	}
+
+	c->sum = s;
+
+	return 0;
+}
+
+/*
+ * Sum aligned_len bytes of the per-CPU scratch buffer into seed and fold the
+ * result into a 16-bit L4 checksum.
  *
- * The loop is intentionally NOT unrolled: unrolling emits ~MAX_L4_DATAGRAM/512
- * bpf_csum_diff call sites in each of the four csum subprograms and blows the
- * verifier's 1M-instruction complexity budget. As a real loop the verifier
- * walks one body, bounding off by MAX_L4_DATAGRAM (<< CSUM_SCRATCH_SIZE) so
- * each scratch access stays in range. aligned_len is a multiple of 4 (and so
- * is every chunk), keeping each window 16-bit aligned so the partial sums
- * chain correctly through the seed.
+ * The windows are walked with bpf_loop() rather than an open-coded loop: the
+ * verifier checks the callback body once instead of simulating every
+ * iteration, so this stays cheap regardless of MAX_L4_DATAGRAM. An open-coded
+ * loop here (unrolled or not) blows the verifier's 1M-instruction complexity
+ * budget, because the four csum subprograms are reached from many call sites.
  *
  * Returns the folded checksum (0..0xffff), or -1 on helper error.
  */
 static __always_inline int l4_csum_finalize(void *scratch, __u32 aligned_len,
 					    __wsum seed)
 {
-	__s64 sum = seed;
+	struct l4_csum_ctx c = {
+		.scratch = scratch,
+		.aligned_len = aligned_len,
+		.sum = seed,
+		.err = 0,
+	};
 
-#pragma clang loop unroll(disable)
-	for (__u32 off = 0; off < MAX_L4_DATAGRAM; off += L4_CSUM_CHUNK) {
-		if (off >= aligned_len)
-			break;
-		__u32 chunk = aligned_len - off;
-		if (chunk > L4_CSUM_CHUNK)
-			chunk = L4_CSUM_CHUNK;
-		sum = bpf_csum_diff(0, 0, (__be32 *)(scratch + off), chunk,
-				    (__wsum)sum);
-		if (sum < 0)
-			return -1;
-	}
+	bpf_loop(L4_CSUM_MAX_CHUNKS, l4_csum_chunk, &c, 0);
 
-	return csum_fold_helper((__u64)sum);
+	if (c.err)
+		return -1;
+
+	return csum_fold_helper((__u64)c.sum);
 }
 
 // Recompute the full L4 checksum from packet bytes. Safe regardless of
