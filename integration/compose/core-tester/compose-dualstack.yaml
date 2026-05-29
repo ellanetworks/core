@@ -76,6 +76,7 @@ services:
       - >
         ip route add 10.45.0.0/22 dev n6 via 10.6.0.2;
         ip -6 route add fd45::/48 dev n6 via fd00:6::2;
+        ethtool -K n6 tx off;
         trap : TERM INT;
         python3 /responder.py 34242 & wait
     restart: unless-stopped

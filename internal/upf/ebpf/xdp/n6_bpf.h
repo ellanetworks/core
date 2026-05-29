@@ -275,33 +275,9 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	/* Parse inner L4 so match_sdf_filters can inspect protocol/ports */
 	parse_l4(ip6->nexthdr, ctx);
 
-	// CHECKSUM_PARTIAL from veth/virtio leaves a pseudo-header sum
-	// on the wire that IPv6 receivers reject. Recompute UDP/TCP;
-	// ICMPv6 from kernel context is already full-checksummed.
-	if (ctx->udp) {
-		__u32 udp_off =
-			(__u32)((const void *)ctx->udp -
-				(const void *)(long)ctx->xdp_ctx->data);
-		__u16 udp_len = bpf_ntohs(ctx->udp->len);
-		ctx->udp->check = 0;
-		int new_csum = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off,
-					  udp_len, ctx->xdp_ctx);
-		if (new_csum >= 0) {
-			ctx->udp->check = (__u16)new_csum;
-		}
-	} else if (ctx->tcp) {
-		__u32 tcp_off =
-			(__u32)((const void *)ctx->tcp -
-				(const void *)(long)ctx->xdp_ctx->data);
-		__u16 tcp_len =
-			bpf_ntohs(ip6->payload_len);
-		ctx->tcp->check = 0;
-		int new_csum = tcpv6_csum(&ip6->saddr, &ip6->daddr, tcp_off,
-					  tcp_len, ctx->xdp_ctx);
-		if (new_csum >= 0) {
-			ctx->tcp->check = (__u16)new_csum;
-		}
-	}
+	// IPv6 is not NATed (each UE owns its /64), so the inner L4 checksum is
+	// unchanged; the outer GTP-over-IPv6 UDP checksum is built during
+	// encapsulation in gtp.h.
 
 	/* SDF filter enforcement (downlink) */
 	{
