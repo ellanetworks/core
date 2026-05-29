@@ -17,9 +17,7 @@ import (
 // flow-report byte counts are deterministic across runs.
 var probePayload = []byte("ella-tester-probe")
 
-// makeProbePayload returns a deterministic payload of exactly n bytes,
-// used by size-sweep scenarios that need L4 datagrams above the 512-byte
-// bpf_csum_diff window to exercise the UPF NAT checksum recompute.
+// makeProbePayload returns a deterministic payload of exactly n bytes.
 func makeProbePayload(n int) []byte {
 	p := make([]byte, n)
 	for i := range p {

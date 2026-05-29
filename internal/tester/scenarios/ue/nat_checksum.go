@@ -18,9 +18,8 @@ import (
 
 const natChecksumIMSI = "001010000000042"
 
-// natChecksumDefaultSizes brackets the 512-byte bpf_csum_diff window so a
-// capturing integration test sees both sub-512 and super-512 L4 datagrams
-// pass through source_nat.
+// natChecksumDefaultSizes spans small and large (>512 B) L4 datagrams so the
+// capture-verify test checks egress checksums across a range of sizes.
 const natChecksumDefaultSizes = "16,500,800,1300"
 
 type natChecksumParams struct {

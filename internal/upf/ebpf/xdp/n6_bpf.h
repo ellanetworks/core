@@ -276,8 +276,8 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	parse_l4(ip6->nexthdr, ctx);
 
 	// IPv6 is not NATed (each UE owns its /64), so the inner L4 checksum is
-	// not modified here and needs no recompute. The outer GTP-over-IPv6 UDP
-	// checksum is computed during encapsulation in gtp.h.
+	// unchanged; the outer GTP-over-IPv6 UDP checksum is built during
+	// encapsulation in gtp.h.
 
 	/* SDF filter enforcement (downlink) */
 	{

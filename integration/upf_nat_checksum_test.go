@@ -28,24 +28,22 @@ const (
 	natChecksumPcapPath    = "/tmp/natcap.pcap"
 )
 
-// TestUPFNATChecksum drives TCP and UDP probes of increasing payload size
-// through the UPF source_nat path with NAT enabled, captures the post-NAT
-// frames on the router's N6 receive side, and verifies each frame's L4
-// checksum with an independent computation.
+// TestUPFNATChecksum drives TCP and UDP probes of varying payload size through
+// source_nat with NAT enabled, captures the post-NAT frames on the router's N6
+// receive side, and verifies each frame's L4 checksum with an independent
+// computation.
 //
-// This reproduces the #1355 regression: bpf_csum_diff() rejects buffers
-// larger than 512 bytes, so before the chunked-recompute fix every L4
-// datagram above ~512 bytes egressed source_nat with a corrupt checksum.
-// The check is independent of the receiver, which on a veth/bridge fabric
-// may accept corrupt checksums (CHECKSUM_UNNECESSARY) and so cannot be
-// trusted to surface the bug.
+// The checksum is verified on the wire rather than by the echo succeeding: on
+// a veth/bridge fabric the receiver may accept a corrupt checksum
+// (CHECKSUM_UNNECESSARY), so connectivity alone would not surface a bad one.
+// Sizes span >512 B so a size-dependent checksum error would be caught.
 func TestUPFNATChecksum(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
-	// source_nat (and its IPv4 checksum recompute) is the path under test;
-	// IPv6 has no NAT, so this case only applies when N6 carries IPv4.
+	// source_nat is the path under test; IPv6 is not NATed, so this applies
+	// only when N6 carries IPv4.
 	if DetectIPFamily() == IPv6Only {
 		t.Skip("nat checksum test exercises IPv4 source_nat; skipping in IPv6-only mode")
 	}
@@ -60,8 +58,8 @@ func TestUPFNATChecksum(t *testing.T) {
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
 
-	// source_nat only runs when NAT (masquerade) is enabled; the regression
-	// lives in its checksum recompute. Enable it and restore the prior value.
+	// source_nat, which rewrites the source address/port and the L4 checksum,
+	// only runs when NAT (masquerade) is enabled. Enable it and restore after.
 	natOrig, err := env.Client.GetNATInfo(ctx)
 	if err != nil {
 		t.Fatalf("get nat info: %v", err)
@@ -188,7 +186,7 @@ func verifyNATChecksumPcap(t *testing.T, path string) {
 	}
 
 	if largest <= natChecksumL4Threshold {
-		t.Fatalf("captured %d frames but largest L4 datagram was %d bytes (<= %d); the >512B recompute path was never exercised",
+		t.Fatalf("captured %d frames but largest L4 datagram was %d bytes (<= %d); no >512 B datagram was exercised",
 			total, largest, natChecksumL4Threshold)
 	}
 
@@ -200,12 +198,10 @@ func verifyNATChecksumPcap(t *testing.T, path string) {
 	t.Logf("verified %d post-NAT TCP/UDP frames (largest L4 = %d bytes); all checksums correct", total, largest)
 }
 
-// l4ChecksumValid recomputes the internet checksum over the IPv4
-// pseudo-header plus the full L4 segment (which still carries its stored
-// checksum). A correct checksum makes the one's-complement sum fold to
-// 0xffff. UDP checksum 0 ("disabled") never arises here because the UPF
-// recompute always writes a real checksum, so a 0 folds to a mismatch and
-// is correctly flagged.
+// l4ChecksumValid sums the IPv4 pseudo-header plus the full L4 segment
+// (including its stored checksum); a correct checksum folds to 0xffff. A
+// "disabled" UDP checksum of 0 would fold to a mismatch, but the probe always
+// sends a real checksum, so that case does not occur here.
 func l4ChecksumValid(src, dst net.IP, proto uint8, l4 []byte) bool {
 	sum := pseudoHeaderSum(src, dst, proto, len(l4))
 	sum += sumWords(l4)

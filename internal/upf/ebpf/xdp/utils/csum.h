@@ -140,14 +140,13 @@ static __always_inline void recompute_icmp_csum(struct icmphdr *icmp, int len)
 #define CSUM_SCRATCH_SIZE 65540
 
 /*
- * Upper bound on UDP/TCP datagram length for the L4-checksum recompute
- * helpers. Sized for jumbo frames (9000-byte MTU) with margin.
+ * Upper bound on the UDP datagram length summed by udpv6_csum. Sized for jumbo
+ * frames (9000-byte MTU) with margin.
  *
- * The bound must not be (CSUM_SCRATCH_SIZE - 4) because the compiler
- * proves `__u16-sourced udp_len > 65536` is always false and optimizes
- * the upper-bound check away. The verifier then sees no umax on the
- * offset register, which makes the pointer arithmetic against the
- * scratch map invalid.
+ * It must not be (CSUM_SCRATCH_SIZE - 4): the compiler proves a __u16-sourced
+ * length cannot exceed 65536 and drops the upper-bound check, leaving the
+ * offset register without a umax and the scratch pointer arithmetic
+ * unverifiable.
  */
 #define MAX_L4_DATAGRAM 9000
 
@@ -162,11 +161,10 @@ struct {
 #define L4_CSUM_MAX_CHUNKS \
 	((MAX_L4_DATAGRAM + L4_CSUM_CHUNK - 1) / L4_CSUM_CHUNK)
 
-// Smallest 2^n-1 mask larger than MAX_L4_DATAGRAM. Masking the per-chunk
-// offset with it never changes a real offset (at runtime the chunk index is
-// < L4_CSUM_MAX_CHUNKS, so off <= 8704), but it gives the verifier a provable
-// upper bound on off -- which it cannot derive from the bpf_loop index -- so
-// off + chunk is proven to stay within CSUM_SCRATCH_SIZE (16383 + 512 < 65540).
+// Bounds the per-chunk offset for the verifier, which cannot infer a bound
+// from the bpf_loop callback index. The mask exceeds MAX_L4_DATAGRAM, so at
+// runtime (off <= 8704) it never alters a real offset, while keeping
+// off + chunk within CSUM_SCRATCH_SIZE.
 #define L4_CSUM_OFF_MASK 0x3FFFU
 
 struct l4_csum_ctx {
@@ -178,26 +176,20 @@ struct l4_csum_ctx {
 
 /*
  * bpf_loop() callback: fold one <=512-byte window of the scratch buffer into
- * the running sum. Returns 1 to stop the loop (window past the datagram, or a
- * helper error), 0 to continue.
+ * the running sum. Returns 1 to stop (window past the datagram, or a helper
+ * error), 0 to continue.
  *
- * bpf_csum_diff() bounds its buffer by MAX_BPF_STACK (512 bytes) and returns
- * -EINVAL for anything larger, hence the windowing. index is bounded by the
- * verifier to [0, L4_CSUM_MAX_CHUNKS), so off is bounded well below
- * CSUM_SCRATCH_SIZE and the scratch access stays in range. aligned_len is a
- * multiple of 4 (and so is every chunk), keeping each window 16-bit aligned
- * so the partial sums chain correctly through the seed.
+ * bpf_csum_diff() rejects buffers larger than MAX_BPF_STACK (512 bytes), hence
+ * the windowing. Each chunk is a multiple of 4 bytes, keeping every window
+ * 16-bit aligned so the partial sums chain through the seed.
  */
 static long l4_csum_chunk(__u32 index, void *vctx)
 {
 	struct l4_csum_ctx *c = vctx;
 
-	// The verifier does not propagate index < nr_loops into the bpf_loop
-	// callback, so it cannot bound off on its own. Mask off with a constant
-	// instead of comparing: an AND constrains this exact register's value
-	// range (var_off), which the verifier tracks precisely, whereas a compare
-	// binds only a truncated copy the compiler then leaves out of the pointer
-	// arithmetic. The mask exceeds MAX_L4_DATAGRAM, so it is a runtime no-op.
+	// Mask rather than bounds-check: the AND constrains the exact register
+	// used for the access (which the verifier tracks); a compare binds a copy
+	// the compiler then leaves out of the pointer arithmetic.
 	__u32 off = (index * L4_CSUM_CHUNK) & L4_CSUM_OFF_MASK;
 
 	if (off >= c->aligned_len)
@@ -221,13 +213,8 @@ static long l4_csum_chunk(__u32 index, void *vctx)
 
 /*
  * Sum aligned_len bytes of the per-CPU scratch buffer into seed and fold the
- * result into a 16-bit L4 checksum.
- *
- * The windows are walked with bpf_loop() rather than an open-coded loop: the
- * verifier checks the callback body once instead of simulating every
- * iteration, so this stays cheap regardless of MAX_L4_DATAGRAM. An open-coded
- * loop here (unrolled or not) blows the verifier's 1M-instruction complexity
- * budget, because the four csum subprograms are reached from many call sites.
+ * result into a 16-bit L4 checksum. bpf_loop() walks the windows, so the
+ * verifier checks the callback body once regardless of MAX_L4_DATAGRAM.
  *
  * Returns the folded checksum (0..0xffff), or -1 on helper error.
  */
@@ -249,13 +236,9 @@ static __always_inline int l4_csum_finalize(void *scratch, __u32 aligned_len,
 	return csum_fold_helper((__u64)c.sum);
 }
 
-// udpv6_csum computes a full UDP-over-IPv6 checksum from packet bytes via the
-// chunked bpf_loop helper above. It is used to build the outer UDP checksum
-// during GTP-over-IPv6 encapsulation (gtp.h): the IPv6 UDP checksum is
-// mandatory and must be computed fresh over the encapsulated payload.
-//
-// IPv4 NAT (nat.h) does not use this path -- it updates checksums incrementally
-// for the changed address/port, which is O(1) and size-independent.
+// udpv6_csum computes the full UDP-over-IPv6 checksum from packet bytes via the
+// chunked bpf_loop helper above. The IPv6 UDP checksum is mandatory, so it is
+// computed fresh over the payload during GTP-over-IPv6 encapsulation (gtp.h).
 __attribute__((noinline, used)) static int
 udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
 	   __u32 udp_off, __u32 udp_len, struct xdp_md *xdp_ctx)
