@@ -162,6 +162,13 @@ struct {
 #define L4_CSUM_MAX_CHUNKS \
 	((MAX_L4_DATAGRAM + L4_CSUM_CHUNK - 1) / L4_CSUM_CHUNK)
 
+// Smallest 2^n-1 mask larger than MAX_L4_DATAGRAM. Masking the per-chunk
+// offset with it never changes a real offset (at runtime the chunk index is
+// < L4_CSUM_MAX_CHUNKS, so off <= 8704), but it gives the verifier a provable
+// upper bound on off -- which it cannot derive from the bpf_loop index -- so
+// off + chunk is proven to stay within CSUM_SCRATCH_SIZE (16383 + 512 < 65540).
+#define L4_CSUM_OFF_MASK 0x3FFFU
+
 struct l4_csum_ctx {
 	void *scratch;
 	__u32 aligned_len;
@@ -184,7 +191,14 @@ struct l4_csum_ctx {
 static long l4_csum_chunk(__u32 index, void *vctx)
 {
 	struct l4_csum_ctx *c = vctx;
-	__u32 off = index * L4_CSUM_CHUNK;
+
+	// The verifier does not propagate index < nr_loops into the bpf_loop
+	// callback, so it cannot bound off on its own. Mask off with a constant
+	// instead of comparing: an AND constrains this exact register's value
+	// range (var_off), which the verifier tracks precisely, whereas a compare
+	// binds only a truncated copy the compiler then leaves out of the pointer
+	// arithmetic. The mask exceeds MAX_L4_DATAGRAM, so it is a runtime no-op.
+	__u32 off = (index * L4_CSUM_CHUNK) & L4_CSUM_OFF_MASK;
 
 	if (off >= c->aligned_len)
 		return 1;
