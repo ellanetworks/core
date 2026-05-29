@@ -249,103 +249,13 @@ static __always_inline int l4_csum_finalize(void *scratch, __u32 aligned_len,
 	return csum_fold_helper((__u64)c.sum);
 }
 
-// Recompute the full L4 checksum from packet bytes. Safe regardless of
-// CHECKSUM_PARTIAL input state, which a hardware-offload sender (veth,
-// virtio, real NIC) may leave on the wire as a pseudo-header sum.
+// udpv6_csum computes a full UDP-over-IPv6 checksum from packet bytes via the
+// chunked bpf_loop helper above. It is used to build the outer UDP checksum
+// during GTP-over-IPv6 encapsulation (gtp.h): the IPv6 UDP checksum is
+// mandatory and must be computed fresh over the encapsulated payload.
 //
-// Helpers must run before the l4_len bounds check — otherwise the
-// verifier loses tracked scalar bounds across helper calls.
-__attribute__((noinline, used)) static int
-udpv4_csum(__be32 saddr, __be32 daddr, __u32 udp_off, __u32 udp_len,
-	   struct xdp_md *xdp_ctx)
-{
-	struct {
-		__be32 src;
-		__be32 dst;
-		__u8 zero;
-		__u8 proto;
-		__be16 len;
-	} __attribute__((packed)) pseudo;
-
-	pseudo.src = saddr;
-	pseudo.dst = daddr;
-	pseudo.zero = 0;
-	pseudo.proto = IPPROTO_UDP;
-	pseudo.len = bpf_htons(udp_len);
-
-	__u64 csum = bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0);
-
-	__u32 key = bpf_get_smp_processor_id();
-	void *scratch = bpf_map_lookup_elem(&csum_scratch, &key);
-	if (!scratch) {
-		upf_printk("upf: could not read scratch buffer");
-		return -1;
-	}
-
-	// Two-sided conditional-assignment clamp: an early return leaves
-	// the verifier without a tracked bound on the value used later by
-	// bpf_xdp_load_bytes. A malformed-short length is clamped to the
-	// header size rather than rejected — produces a wrong checksum
-	// that the receiver drops, no worse than the malformed packet.
-	if (udp_len > MAX_L4_DATAGRAM)
-		udp_len = MAX_L4_DATAGRAM;
-	if (udp_len < sizeof(struct udphdr))
-		udp_len = sizeof(struct udphdr);
-
-	*(__u32 *)(scratch + udp_len) = 0;
-
-	if (bpf_xdp_load_bytes(xdp_ctx, udp_off, scratch, udp_len) < 0) {
-		upf_printk("upf: couldn't load packet into scratch buffer");
-		return -1;
-	}
-
-	__u32 aligned_len = (udp_len + 3) & ~3U;
-	return l4_csum_finalize(scratch, aligned_len, (__wsum)csum);
-}
-
-__attribute__((noinline, used)) static int
-tcpv4_csum(__be32 saddr, __be32 daddr, __u32 tcp_off, __u32 tcp_len,
-	   struct xdp_md *xdp_ctx)
-{
-	struct {
-		__be32 src;
-		__be32 dst;
-		__u8 zero;
-		__u8 proto;
-		__be16 len;
-	} __attribute__((packed)) pseudo;
-
-	pseudo.src = saddr;
-	pseudo.dst = daddr;
-	pseudo.zero = 0;
-	pseudo.proto = IPPROTO_TCP;
-	pseudo.len = bpf_htons(tcp_len);
-
-	__u64 csum = bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0);
-
-	__u32 key = bpf_get_smp_processor_id();
-	void *scratch = bpf_map_lookup_elem(&csum_scratch, &key);
-	if (!scratch) {
-		upf_printk("upf: could not read scratch buffer");
-		return -1;
-	}
-
-	if (tcp_len > MAX_L4_DATAGRAM)
-		tcp_len = MAX_L4_DATAGRAM;
-	if (tcp_len < sizeof(struct tcphdr))
-		tcp_len = sizeof(struct tcphdr);
-
-	*(__u32 *)(scratch + tcp_len) = 0;
-
-	if (bpf_xdp_load_bytes(xdp_ctx, tcp_off, scratch, tcp_len) < 0) {
-		upf_printk("upf: couldn't load packet into scratch buffer");
-		return -1;
-	}
-
-	__u32 aligned_len = (tcp_len + 3) & ~3U;
-	return l4_csum_finalize(scratch, aligned_len, (__wsum)csum);
-}
-
+// IPv4 NAT (nat.h) does not use this path -- it updates checksums incrementally
+// for the changed address/port, which is O(1) and size-independent.
 __attribute__((noinline, used)) static int
 udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
 	   __u32 udp_off, __u32 udp_len, struct xdp_md *xdp_ctx)
@@ -393,51 +303,6 @@ udpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
 	}
 
 	__u32 aligned_len = (udp_len + 3) & ~3U;
-	return l4_csum_finalize(scratch, aligned_len, (__wsum)csum);
-}
-
-__attribute__((noinline, used)) static int
-tcpv6_csum(const struct in6_addr *saddr, const struct in6_addr *daddr,
-	   __u32 tcp_off, __u32 tcp_len, struct xdp_md *xdp_ctx)
-{
-	struct {
-		struct in6_addr src;
-		struct in6_addr dst;
-		__be32 upper_len;
-		__u8 zero[3];
-		__u8 next_hdr;
-	} pseudo;
-
-	__builtin_memcpy(&pseudo.src, saddr, sizeof(struct in6_addr));
-	__builtin_memcpy(&pseudo.dst, daddr, sizeof(struct in6_addr));
-	pseudo.upper_len = bpf_htonl(tcp_len);
-	pseudo.zero[0] = 0;
-	pseudo.zero[1] = 0;
-	pseudo.zero[2] = 0;
-	pseudo.next_hdr = IPPROTO_TCP;
-
-	__u64 csum = bpf_csum_diff(0, 0, (__be32 *)&pseudo, sizeof(pseudo), 0);
-
-	__u32 key = bpf_get_smp_processor_id();
-	void *scratch = bpf_map_lookup_elem(&csum_scratch, &key);
-	if (!scratch) {
-		upf_printk("upf: could not read scratch buffer");
-		return -1;
-	}
-
-	if (tcp_len > MAX_L4_DATAGRAM)
-		tcp_len = MAX_L4_DATAGRAM;
-	if (tcp_len < sizeof(struct tcphdr))
-		tcp_len = sizeof(struct tcphdr);
-
-	*(__u32 *)(scratch + tcp_len) = 0;
-
-	if (bpf_xdp_load_bytes(xdp_ctx, tcp_off, scratch, tcp_len) < 0) {
-		upf_printk("upf: couldn't load packet into scratch buffer");
-		return -1;
-	}
-
-	__u32 aligned_len = (tcp_len + 3) & ~3U;
 	return l4_csum_finalize(scratch, aligned_len, (__wsum)csum);
 }
 
