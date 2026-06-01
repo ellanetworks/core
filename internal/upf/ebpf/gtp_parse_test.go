@@ -72,14 +72,27 @@ func requireProgTestRun(t *testing.T) {
 func loadProgram(t *testing.T, n3Ifindex, n6Ifindex int) *BpfObjects {
 	t.Helper()
 
-	return loadProgramVLAN(t, n3Ifindex, n6Ifindex, 0, 0)
+	return loadProgramConfig(t, false, false, n3Ifindex, n6Ifindex, 0, 0)
 }
 
 // loadProgramVLAN is loadProgram with configurable N3/N6 VLAN IDs.
 func loadProgramVLAN(t *testing.T, n3Ifindex, n6Ifindex int, n3Vlan, n6Vlan uint32) *BpfObjects {
 	t.Helper()
 
-	obj := NewBpfObjects(false, false, n3Ifindex, n6Ifindex, n3Vlan, n6Vlan)
+	return loadProgramConfig(t, false, false, n3Ifindex, n6Ifindex, n3Vlan, n6Vlan)
+}
+
+// loadProgramFlow is loadProgram with flow accounting enabled.
+func loadProgramFlow(t *testing.T, n3Ifindex, n6Ifindex int) *BpfObjects {
+	t.Helper()
+
+	return loadProgramConfig(t, true, false, n3Ifindex, n6Ifindex, 0, 0)
+}
+
+func loadProgramConfig(t *testing.T, flowAccounting, masquerade bool, n3Ifindex, n6Ifindex int, n3Vlan, n6Vlan uint32) *BpfObjects {
+	t.Helper()
+
+	obj := NewBpfObjects(flowAccounting, masquerade, n3Ifindex, n6Ifindex, n3Vlan, n6Vlan)
 	if err := obj.Load(); err != nil {
 		var ve *ebpf.VerifierError
 		if errors.As(err, &ve) {
