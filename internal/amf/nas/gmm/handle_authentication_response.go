@@ -40,8 +40,8 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 	}
 
 	if msg.AuthenticationResponseParameter == nil {
-		// No RES* to verify. Per TS 24.501 §5.4.1.3.5 this is handled as an
-		// unsuccessful authentication, not a generic protocol error.
+		// No RES* to verify: treat as an unsuccessful authentication
+		// (TS 24.501 §5.4.1.3.5).
 		ue.Log.Error("Authentication Response missing RES* (Authentication response parameter IE)")
 
 		return failAuthentication(ctx, ue, ranUe, conn)

@@ -17,8 +17,7 @@ import (
 
 // A missing RES* (nil Authentication response parameter IE) is treated as an
 // unsuccessful authentication per TS 24.501 §5.4.1.3.5: a GUTI-identified UE is
-// asked to identify via SUCI, a SUCI-identified UE is rejected — never a bare
-// protocol error.
+// asked to identify via SUCI, a SUCI-identified UE is rejected.
 func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *testing.T) {
 	testcases := []struct {
 		name    string
