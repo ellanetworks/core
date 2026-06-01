@@ -6,6 +6,7 @@
 package ebpf
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"os"
@@ -15,8 +16,14 @@ import (
 	"github.com/cilium/ebpf/rlimit"
 )
 
-// TestParseGTPTruncatedExtension checks that a malformed GTP-U packet never
-// aborts the XDP data path, whether or not its TEID matches an installed PDR.
+// ethHdrLen is the size of an Ethernet header, the offset of the inner packet in
+// a decapsulated frame.
+const ethHdrLen = 14
+
+// TestParseGTPTruncatedExtension checks that a malformed GTP-U packet fails
+// closed: the parser rejects it and the packet is passed to the kernel
+// (XDP_PASS) rather than aborting the data path, whether or not its TEID matches
+// an installed PDR.
 func TestParseGTPTruncatedExtension(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -34,16 +41,10 @@ func TestParseGTPTruncatedExtension(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			abortedBefore := GetN3Aborted(obj)
-
 			action := runXDP(t, obj.UpfN3N6EntrypointFunc, malformedUplinkGTPv4(tc.teid))
 
-			if action == XDP_ABORTED {
-				t.Fatalf("teid=%#x: malformed GTP-U packet returned XDP_ABORTED; the parser must fail closed", tc.teid)
-			}
-
-			if delta := GetN3Aborted(obj) - abortedBefore; delta != 0 {
-				t.Fatalf("teid=%#x: XDP_ABORTED counter advanced by %d, want 0", tc.teid, delta)
+			if action != XDP_PASS {
+				t.Fatalf("teid=%#x: malformed GTP-U packet got XDP action %d, want XDP_PASS (%d)", tc.teid, action, XDP_PASS)
 			}
 		})
 	}
@@ -68,14 +69,14 @@ func requireProgTestRun(t *testing.T) {
 	}
 }
 
-// loadUplinkTestObjects loads the N3/N6 program with one forwarding uplink PDR
-// for teid. n3_ifindex 0 makes the test-run packet (ingress_ifindex 0) take the
-// N3 path; n6_ifindex 1 (loopback) gives the in-path MTU check a real device so
-// the parser is the only remaining source of an abort.
-func loadUplinkTestObjects(t *testing.T, teid uint32) *BpfObjects {
+// loadN3N6Program loads the N3/N6 program. n3_ifindex 0 makes the test-run
+// packet (ingress_ifindex 0) take the N3 path; n6_ifindex 1 (loopback) gives the
+// in-path MTU check a real device so a parse failure is the only source of an
+// abort.
+func loadN3N6Program(t *testing.T) *BpfObjects {
 	t.Helper()
 
-	obj := NewBpfObjects(false, false, 0 /* n3 */, 1 /* n6=lo */, 0, 0)
+	obj := NewBpfObjects(false, false, 0, 1, 0, 0)
 	if err := obj.Load(); err != nil {
 		var ve *ebpf.VerifierError
 		if errors.As(err, &ve) {
@@ -87,15 +88,32 @@ func loadUplinkTestObjects(t *testing.T, teid uint32) *BpfObjects {
 
 	t.Cleanup(func() { _ = obj.Close() })
 
+	return obj
+}
+
+// putForwardingUplinkPDR installs an uplink PDR for teid that forwards (FAR FORW,
+// QER gate open, unlimited rate) and applies SDF filter filterIndex; 0 disables
+// filtering.
+func putForwardingUplinkPDR(t *testing.T, obj *BpfObjects, teid, filterIndex uint32) {
+	t.Helper()
+
 	pdr := PdrInfo{
 		OuterHeaderRemoval: 0,                 // OHR_GTP_U_UDP_IPv4
 		IMSI:               "001010000000001", // non-numeric IMSI zeroes the FAR
 		Far:                FarInfo{Action: 0x02 /* FAR_FORW */},
 		Qer:                QerInfo{GateStatusUL: 0 /* GATE_STATUS_OPEN */, MaxBitrateUL: 0 /* unlimited */},
+		FilterMapIndex:     filterIndex,
 	}
 	if err := obj.PutPdrUplink(teid, pdr); err != nil {
 		t.Fatalf("install uplink PDR: %v", err)
 	}
+}
+
+func loadUplinkTestObjects(t *testing.T, teid uint32) *BpfObjects {
+	t.Helper()
+
+	obj := loadN3N6Program(t)
+	putForwardingUplinkPDR(t, obj, teid, 0)
 
 	return obj
 }
@@ -103,7 +121,23 @@ func loadUplinkTestObjects(t *testing.T, teid uint32) *BpfObjects {
 func runXDP(t *testing.T, prog *ebpf.Program, packet []byte) uint32 {
 	t.Helper()
 
-	action, err := prog.Run(&ebpf.RunOptions{Data: packet})
+	action, _ := runXDPOut(t, prog, packet)
+
+	return action
+}
+
+// runXDPOut runs the program and returns its action together with the resulting
+// packet. BPF_PROG_TEST_RUN re-slices the output buffer to the packet's final
+// length, so a head adjustment (GTP decapsulation/encapsulation) is reflected.
+func runXDPOut(t *testing.T, prog *ebpf.Program, packet []byte) (uint32, []byte) {
+	t.Helper()
+
+	opts := &ebpf.RunOptions{
+		Data:    packet,
+		DataOut: make([]byte, len(packet)+256), // headroom for encapsulation growth
+	}
+
+	action, err := prog.Run(opts)
 	if err != nil {
 		if errors.Is(err, ebpf.ErrNotSupported) {
 			t.Skipf("BPF_PROG_TEST_RUN for XDP not supported on this kernel: %v", err)
@@ -112,7 +146,42 @@ func runXDP(t *testing.T, prog *ebpf.Program, packet []byte) uint32 {
 		t.Fatalf("run XDP program: %v", err)
 	}
 
-	return action
+	return action, opts.DataOut
+}
+
+// TestGTPDecapsulation checks that a well-formed uplink G-PDU is decapsulated to
+// its inner IP packet: the outer GTP-U/UDP/IP headers are stripped and the inner
+// packet is preserved byte for byte. The final action depends on the host's
+// routing table, so the assertion is on the output packet, not the verdict.
+func TestGTPDecapsulation(t *testing.T) {
+	requireProgTestRun(t)
+
+	const teid = 0x21222324
+
+	obj := loadN3N6Program(t)
+	putForwardingUplinkPDR(t, obj, teid, 0)
+
+	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
+
+	action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, uplinkGPDU(teid, inner))
+
+	// The exact forwarding code (XDP_TX vs XDP_REDIRECT) depends on the host
+	// FIB, but the decapsulated packet must not be dropped or aborted.
+	if action == XDP_DROP || action == XDP_ABORTED {
+		t.Fatalf("decapsulated packet got XDP action %d, want a forwarding action", action)
+	}
+
+	if len(out) != ethHdrLen+len(inner) {
+		t.Fatalf("decapsulated frame length = %d, want %d", len(out), ethHdrLen+len(inner))
+	}
+
+	if proto := binary.BigEndian.Uint16(out[12:14]); proto != 0x0800 {
+		t.Fatalf("ethertype = %#04x, want 0x0800 (IPv4)", proto)
+	}
+
+	if !bytes.Equal(out[ethHdrLen:], inner) {
+		t.Fatalf("inner packet altered by decapsulation:\n got %x\nwant %x", out[ethHdrLen:], inner)
+	}
 }
 
 // malformedUplinkGTPv4 builds a GTP-U frame that sets the E flag but omits the
