@@ -15,22 +15,52 @@ import (
 	"github.com/free5gc/nas/nasType"
 )
 
+// A missing RES* (nil Authentication response parameter IE) is treated as an
+// unsuccessful authentication per TS 24.501 §5.4.1.3.5: a GUTI-identified UE is
+// asked to identify via SUCI, a SUCI-identified UE is rejected.
 func TestHandleAuthenticationResponse_NilAuthenticationResponseParameter(t *testing.T) {
-	ue, _, err := buildUeAndRadio()
-	if err != nil {
-		t.Fatalf("could not create UE and radio: %v", err)
+	testcases := []struct {
+		name    string
+		idType  uint8
+		msgType uint8
+	}{
+		{"used GUTI", nasMessage.MobileIdentity5GSType5gGuti, nas.MsgTypeIdentityRequest},
+		{"used SUCI", nasMessage.MobileIdentity5GSTypeSuci, nas.MsgTypeAuthenticationReject},
 	}
 
-	ue.ForceState(amf.Authentication)
-	ue.NasConn().AuthenticationCtx = &ausf.AuthResult{Rand: "DEADBEEF"}
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			ue, ngapSender, err := buildUeAndRadio()
+			if err != nil {
+				t.Fatalf("could not create UE and radio: %v", err)
+			}
 
-	msg := &nasMessage.AuthenticationResponse{
-		AuthenticationResponseParameter: nil,
-	}
+			ue.ForceState(amf.Authentication)
+			ue.NasConn().AuthenticationCtx = &ausf.AuthResult{Rand: "DEADBEEF"}
+			ue.NasConn().IdentityTypeUsedForRegistration = tc.idType
 
-	err = handleAuthenticationResponse(context.TODO(), amf.New(nil, nil, nil), ue, msg)
-	if err == nil {
-		t.Fatal("expected error when AuthenticationResponseParameter is nil, got nil")
+			err = handleAuthenticationResponse(context.TODO(), amf.New(nil, nil, nil), ue,
+				&nasMessage.AuthenticationResponse{AuthenticationResponseParameter: nil})
+			if err != nil {
+				t.Fatalf("expected no error, got: %v", err)
+			}
+
+			if len(ngapSender.SentDownlinkNASTransport) != 1 {
+				t.Fatalf("should have sent a Downlink NAS Transport message")
+			}
+
+			resp := ngapSender.SentDownlinkNASTransport[0]
+			nm := new(nas.Message)
+			nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+
+			if err := nm.PlainNasDecode(&resp.NasPdu); err != nil {
+				t.Fatalf("could not decode plain NAS message: %v", err)
+			}
+
+			if nm.GmmHeader.GetMessageType() != tc.msgType {
+				t.Fatalf("expected message of type %v, got %v", tc.msgType, nm.GmmHeader.GetMessageType())
+			}
+		})
 	}
 }
 
