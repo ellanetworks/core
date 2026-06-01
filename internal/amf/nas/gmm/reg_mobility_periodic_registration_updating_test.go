@@ -182,40 +182,27 @@ func TestMobilityReg_GetOperatorInfoError(t *testing.T) {
 	}
 }
 
-func TestMobilityReg_NilCapability5GMM_Mobility_SendsReject(t *testing.T) {
+// A mobility registration update with no 5GMM capability IE is valid: the IE
+// is optional and re-sent only on change (TS 24.501 §5.5.1.3.2, §7.7.1), so the
+// AMF accepts rather than rejecting.
+func TestMobilityReg_NilCapability5GMM_Mobility_Continues(t *testing.T) {
 	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
 
 	ue.NasConn().RegistrationRequest.Capability5GMM = nil
 	ue.NasConn().RegistrationType5GS = nasMessage.RegistrationType5GSMobilityRegistrationUpdating
 
 	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
-	if err == nil {
-		t.Fatal("expected error for nil Capability5GMM, got nil")
-	}
-
-	if err.Error() != "Capability5GMM is nil" {
-		t.Fatalf("unexpected error: %v", err)
+	if err != nil {
+		t.Fatalf("expected no error for mobility reg with nil Capability5GMM, got: %v", err)
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
-		t.Fatalf("expected 1 DownlinkNASTransport (RegistrationReject), got %d", len(ngapSender.SentDownlinkNASTransport))
+		t.Fatalf("expected 1 DownlinkNASTransport, got %d", len(ngapSender.SentDownlinkNASTransport))
 	}
 
-	resp := ngapSender.SentDownlinkNASTransport[0]
-	nm := new(nas.Message)
-	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
-
-	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
-		t.Fatalf("expected plain NAS, got security header type %d", nm.SecurityHeaderType)
-	}
-
-	err = nm.PlainNasDecode(&resp.NasPdu)
-	if err != nil {
-		t.Fatalf("could not decode NAS message: %v", err)
-	}
-
-	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationReject {
-		t.Fatalf("expected RegistrationReject, got %v", nm.GmmHeader.GetMessageType())
+	nm := decryptAndDecodeNasPdu(t, ue, ngapSender.SentDownlinkNASTransport[0].NasPdu, 0)
+	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationAccept {
+		t.Fatalf("expected RegistrationAccept, got %v", nm.GmmHeader.GetMessageType())
 	}
 }
 
