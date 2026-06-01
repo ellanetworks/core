@@ -54,14 +54,14 @@ func (s *SMF) ReleaseSmContext(ctx context.Context, smContextRef string) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to release tunnel")
-		s.removeSessionUnlocked(ctx, smContextRef)
-
-		return fmt.Errorf("release tunnel failed: %v", err)
 	}
 
-	s.removeSessionUnlocked(ctx, smContextRef)
+	// Remove from pool under lock after all network I/O is complete.
+	s.mu.Lock()
+	delete(s.pool, smContextRef)
+	s.mu.Unlock()
 
-	return nil
+	return err
 }
 
 // releaseTunnel deactivates the GTP data path and sends a PFCP deletion request.

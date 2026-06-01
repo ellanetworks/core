@@ -112,7 +112,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 				}
 			}
 			smContext.Mutex.Unlock()
-			s.RemoveSession(ctx, smContext.CanonicalName())
+			s.removeSessionUnlocked(ctx, smContext.CanonicalName())
 		}
 	}()
 
