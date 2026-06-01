@@ -59,8 +59,12 @@ static __always_inline __u32 parse_gtp(struct packet_context *ctx)
 		return -1;
 
 	ctx->data += sizeof(*gtp);
-	if (gtp->e || gtp->s || gtp->pn)
+	if (gtp->e || gtp->s || gtp->pn) {
+		if ((const void *)ctx->data + sizeof(struct gtp_hdr_ext) + 4 >
+		    ctx->data_end)
+			return -1;
 		ctx->data += sizeof(struct gtp_hdr_ext) + 4;
+	}
 	ctx->gtp = gtp;
 	return gtp->message_type;
 }

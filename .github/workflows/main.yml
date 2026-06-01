@@ -19,6 +19,8 @@ jobs:
     uses: ./.github/workflows/ui-typecheck.yaml
   go-unit-test:
     uses: ./.github/workflows/go-unittest.yaml
+  upf-ebpf-test:
+    uses: ./.github/workflows/upf-ebpf-tests.yaml
   go-race-detection-test:
     uses: ./.github/workflows/go-racedetect.yaml
   go-vet:
