@@ -365,6 +365,55 @@ func TestMobilityReg_GetSubscriberProfileError(t *testing.T) {
 	}
 }
 
+func TestMobilityReg_EmptyAllowedNssai_RejectsRegistration(t *testing.T) {
+	ue, ngapSender, _, amfInstance := buildMobilityRegUeAndAMF(t)
+
+	amfInstance.DBInstance = &emptyPolicyDB{FakeDBInstance: &FakeDBInstance{
+		Operator: &db.Operator{
+			Mcc:           "001",
+			Mnc:           "01",
+			SupportedTACs: "[\"000001\"]",
+		},
+	}}
+
+	err := HandleMobilityAndPeriodicRegistrationUpdating(context.TODO(), amfInstance, ue)
+	if err == nil {
+		t.Fatal("expected registration reject for empty AllowedNssai, got nil")
+	}
+
+	if got, want := err.Error(), "registration Reject [No allowed S-NSSAI in subscription]"; got != want {
+		t.Fatalf("expected error %q, got %q", want, got)
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected 1 DownlinkNAS transport, got %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	resp := ngapSender.SentDownlinkNASTransport[0]
+	nm := new(nas.Message)
+	nm.SecurityHeaderType = nas.GetSecurityHeaderType(resp.NasPdu) & 0x0f
+
+	if nm.SecurityHeaderType != nas.SecurityHeaderTypePlainNas {
+		t.Fatalf("expected plain NAS, got security header type %d", nm.SecurityHeaderType)
+	}
+
+	if err := nm.PlainNasDecode(&resp.NasPdu); err != nil {
+		t.Fatalf("could not decode plain NAS message: %v", err)
+	}
+
+	if nm.GmmHeader.GetMessageType() != nas.MsgTypeRegistrationReject {
+		t.Fatalf("expected RegistrationReject, got %v", nm.GmmHeader.GetMessageType())
+	}
+
+	if nm.RegistrationReject == nil {
+		t.Fatal("expected RegistrationReject payload")
+	}
+
+	if got, want := nm.RegistrationReject.GetCauseValue(), nasMessage.Cause5GMM5GSServicesNotAllowed; got != want {
+		t.Fatalf("expected cause %d, got %d", want, got)
+	}
+}
+
 func TestMobilityReg_UplinkDataStatus_ActivateSuccess_UeContextRequest(t *testing.T) {
 	ue, ngapSender, fakeSmf, amfInstance := buildMobilityRegUeAndAMF(t)
 
