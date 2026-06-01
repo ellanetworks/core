@@ -220,6 +220,11 @@ const BackupRestore = () => {
                   your system if needed.
                 </Typography>
 
+                <Alert severity="warning">
+                  This archive contains sensitive secrets. Store and transfer it
+                  encrypted, and treat it as you would an admin credential.
+                </Alert>
+
                 <Box sx={{ flexGrow: 1 }} />
                 <Box sx={{ display: "flex", justifyContent: "center" }}>
                   <Button
