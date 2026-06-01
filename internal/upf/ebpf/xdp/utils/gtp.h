@@ -60,10 +60,6 @@ static __always_inline __u32 parse_gtp(struct packet_context *ctx)
 
 	ctx->data += sizeof(*gtp);
 	if (gtp->e || gtp->s || gtp->pn) {
-		/* The optional header word is only present when E/S/PN is set;
-		 * confirm it is within bounds before advancing, so a truncated
-		 * packet fails closed instead of moving the cursor past the
-		 * packet end (GHSA-jq33-34hf-27q6). */
 		if ((const void *)ctx->data + sizeof(struct gtp_hdr_ext) + 4 >
 		    ctx->data_end)
 			return -1;

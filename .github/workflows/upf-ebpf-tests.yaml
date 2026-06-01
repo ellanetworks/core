@@ -8,9 +8,6 @@ on:
 
 jobs:
   upf-ebpf-tests:
-    # ubuntu-24.04 is a full VM with a 6.x kernel, so eBPF program loading and
-    # BPF_PROG_TEST_RUN work. The kernel is >= 5.12, which the in-datapath
-    # bpf_check_mtu() helper requires.
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -21,10 +18,6 @@ jobs:
       - name: Install libpcap headers
         run: sudo apt-get update && sudo apt-get install -y libpcap-dev
 
-      # The tests use BPF_PROG_TEST_RUN, which needs root/CAP_BPF. Compile as the
-      # normal user (correct Go cache/env), then run the test binary under sudo;
-      # -exec sudo keeps the go test driver unprivileged. EBPF_REQUIRE_PRIVILEGED
-      # makes the tests fail rather than skip if the privileged run is missing.
       - name: Run UPF eBPF datapath tests
         run: go test -v -exec "sudo --preserve-env=EBPF_REQUIRE_PRIVILEGED" ./internal/upf/ebpf/...
         env:
