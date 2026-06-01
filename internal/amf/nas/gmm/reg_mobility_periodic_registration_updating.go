@@ -50,18 +50,10 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 
 	ue.Current().AllowedNssai = subscriberProfile.AllowedNssai
 
-	if conn.RegistrationRequest.Capability5GMM == nil {
-		if conn.RegistrationType5GS != nasMessage.RegistrationType5GSPeriodicRegistrationUpdating {
-			UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(conn.RegistrationType5GS), RegistrationReject).Inc()
-
-			err := message.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
-			if err != nil {
-				return fmt.Errorf("error sending registration reject: %v", err)
-			}
-
-			return fmt.Errorf("Capability5GMM is nil")
-		}
-	}
+	// The 5GMM capability IE is optional (TS 24.501 Table 8.2.6.1.1) and is
+	// re-sent only when it changes (§5.5.1.3.2). Its absence is not an error:
+	// per §7.7.1 the receiver treats a missing optional IE as not present and
+	// proceeds.
 
 	if conn.RegistrationRequest.MICOIndication != nil {
 		ue.Log.Warn("Receive MICO Indication Not Supported", zap.Uint8("RAAI", conn.RegistrationRequest.GetRAAI()))
