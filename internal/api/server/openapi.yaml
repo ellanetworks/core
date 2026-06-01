@@ -2617,6 +2617,9 @@ paths:
         Downloads a complete backup of the Ella Core database as a gzipped tar
         archive (`.tar.gz`) containing `ella.db` and a `manifest.json`
         describing the backup format version.
+
+        The archive contains sensitive secrets. Store and transfer it
+        encrypted, and treat it as an admin credential.
       responses:
         "200":
           description: Database backup archive.

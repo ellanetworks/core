@@ -16,5 +16,5 @@ This reference document provides guidelines for operating Ella Core in a product
 - **Set logging level to info**: Configure system logging level to `info` and use file output.
 - **Disable telemetry**: Disable telemetry in the configuration file.
 - **Rotate logs**: Implement log rotation for system and audit logs.
-- **Back up the database**: Back up the database file on a **daily** basis. Retain backups for at least **7 days**.
+- **Back up the database**: Back up the database file on a **daily** basis. Retain backups for at least **7 days**. Backup archives contain sensitive secrets; store and transfer them encrypted and treat them as admin credentials.
 - **Monitor metrics**: Operate an external Observability stack to collect and visualize metrics exposed by Ella Core.
