@@ -242,6 +242,19 @@ func putDownlinkPDR(t *testing.T, obj *BpfObjects, ueIP [4]byte, teid uint32, lo
 	}
 }
 
+// putDownlinkPDRFiltered installs a downlink PDR (IPv4 UE) that applies the SDF
+// filter at filterIndex.
+func putDownlinkPDRFiltered(t *testing.T, obj *BpfObjects, ueIP [4]byte, teid uint32, local, remote [4]byte, qfi uint8, filterIndex uint32) {
+	t.Helper()
+
+	pdr := ipv4OuterDownlinkPDR(teid, local, remote, qfi)
+	pdr.FilterMapIndex = filterIndex
+
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueIP), pdr); err != nil {
+		t.Fatalf("install filtered downlink PDR: %v", err)
+	}
+}
+
 // putDownlinkPDRv6UE installs a downlink PDR keyed by a UE IPv6 /64 prefix.
 func putDownlinkPDRv6UE(t *testing.T, obj *BpfObjects, uePrefix netip.Addr, teid uint32, local, remote [4]byte, qfi uint8) {
 	t.Helper()

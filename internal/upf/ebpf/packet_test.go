@@ -79,7 +79,7 @@ func ethFrame(etherType uint16, l3 []byte) []byte {
 
 // ipv4Packet builds an IPv4 packet (with a valid header checksum) carrying
 // payload.
-func ipv4Packet(src, dst [4]byte, proto uint8, payload []byte) []byte { //nolint:unparam // general-purpose builder; proto varies in later phases
+func ipv4Packet(src, dst [4]byte, proto uint8, payload []byte) []byte {
 	const hdrLen = 20
 
 	pkt := make([]byte, hdrLen+len(payload))
@@ -116,6 +116,22 @@ func innerIPv4UDP(dst [4]byte, dport uint16) []byte { //nolint:unparam // genera
 	return ipv4Packet([4]byte{10, 0, 0, 9}, dst, 17, udpDatagram(0, dport, nil))
 }
 
+// tcpSegment builds a minimal 20-byte TCP header (data offset 5, no flags).
+func tcpSegment(srcPort, dstPort uint16) []byte {
+	seg := make([]byte, 20)
+
+	binary.BigEndian.PutUint16(seg[0:2], srcPort)
+	binary.BigEndian.PutUint16(seg[2:4], dstPort)
+	seg[12] = 0x50 // data offset = 5 (20-byte header)
+
+	return seg
+}
+
+// innerIPv4TCP builds a UE inner packet: an IPv4/TCP segment to dst:dport.
+func innerIPv4TCP(dst [4]byte, dport uint16) []byte {
+	return ipv4Packet([4]byte{10, 0, 0, 9}, dst, 6, tcpSegment(0, dport))
+}
+
 // testUEv6 is a sample inner UE IPv6 address (2001:db8::1).
 var testUEv6 = [16]byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01}
 
@@ -142,6 +158,26 @@ func innerIPv6UDP(dst [16]byte, dport uint16) []byte {
 	src := [16]byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x09}
 
 	return ipv6Packet(src, dst, 17, udpDatagram(0, dport, nil))
+}
+
+// innerIPv6ICMPv6RS builds a UE inner packet: an ICMPv6 Router Solicitation
+// (type 133) to dst.
+func innerIPv6ICMPv6RS(dst [16]byte) []byte {
+	src := [16]byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x09}
+	rs := []byte{133, 0, 0, 0, 0, 0, 0, 0} // type=133 (Router Solicitation)
+
+	return ipv6Packet(src, dst, 58 /* IPPROTO_ICMPV6 */, rs)
+}
+
+// gtpControlFrame builds an N3 frame carrying an 8-byte GTP-U control message of
+// the given type (no extension headers, no payload). The source UDP port differs
+// from the GTP-U dest port so a port swap is observable.
+func gtpControlFrame(msgType uint8) []byte {
+	gtp := make([]byte, 8)
+	gtp[0] = 0x30 // version=1, PT=1, no E/S/PN
+	gtp[1] = msgType
+
+	return ethFrame(0x0800, ipv4Packet(testGNBIP, testUPFN3IP, 17, udpDatagram(3000, GTPUDPPort, gtp)))
 }
 
 // gtpV4Outer wraps a GTP-U payload (the GTP header onward) in the
