@@ -1767,3 +1767,130 @@ func TestUpdateSmContextXnHandoverPathSwitchReq_HappyPath(t *testing.T) {
 		t.Fatalf("expected 1 PFCP modify call, got %d", len(upf.modifyCalls))
 	}
 }
+
+// ===========================
+// TestUpdateSmContextN2HandoverPrepared_Complete verifies that UpdateSmContextN2HandoverPrepared
+// only updates in-memory state (no PFCP calls), and that UpdateSmContextN2HandoverComplete
+// performs the PFCP N4 Session Modification as required by 3GPP TS 23.502 §4.9.1.3.3 step 7.
+
+func TestUpdateSmContextN2HandoverPrepared_Complete(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	// Phase 1: "Preparing" — SMF receives HandoverRequiredTransfer.
+	hoRequiredTransfer := ngapType.HandoverRequiredTransfer{}
+
+	hoRequiredData, err := aper.MarshalWithParams(hoRequiredTransfer, "valueExt")
+	if err != nil {
+		t.Fatalf("marshal HandoverRequiredTransfer: %v", err)
+	}
+
+	n2Rsp, err := s.UpdateSmContextN2HandoverPreparing(ctx, ref, hoRequiredData)
+	if err != nil {
+		t.Fatalf("UpdateSmContextN2HandoverPreparing: %v", err)
+	}
+
+	if n2Rsp == nil {
+		t.Fatal("expected non-nil N2 response from Preparing phase")
+	}
+
+	// Phase 2: "Prepared" — SMF receives HandoverRequestAcknowledgeTransfer
+	// from the target gNB with new DL tunnel info.
+	targetGnbIP := net.ParseIP("10.0.0.201").To4()
+	targetTEID := uint32(8000)
+
+	hoAckData, err := buildHandoverRequestAcknowledgeTransfer(targetTEID, targetGnbIP)
+	if err != nil {
+		t.Fatalf("build HandoverRequestAcknowledgeTransfer: %v", err)
+	}
+
+	n2Rsp2, err := s.UpdateSmContextN2HandoverPrepared(ctx, ref, hoAckData)
+	if err != nil {
+		t.Fatalf("UpdateSmContextN2HandoverPrepared: %v", err)
+	}
+
+	if n2Rsp2 == nil {
+		t.Fatal("expected non-nil N2 response (HandoverCommandTransfer) from Prepared phase")
+	}
+
+	// Verify the session's ANInformation was updated to the target gNB.
+	if !smCtx.Tunnel.ANInformation.IPv4Address.Equal(targetGnbIP) {
+		t.Fatalf("expected AN IP %s, got %s", targetGnbIP, smCtx.Tunnel.ANInformation.IPv4Address)
+	}
+
+	if smCtx.Tunnel.ANInformation.TEID != targetTEID {
+		t.Fatalf("expected AN TEID %d, got %d", targetTEID, smCtx.Tunnel.ANInformation.TEID)
+	}
+
+	// Verify DL FAR was updated in memory.
+	dlFAR := smCtx.Tunnel.DataPath.DownLinkTunnel.PDR.FAR
+	if dlFAR.ForwardingParameters == nil || dlFAR.ForwardingParameters.OuterHeaderCreation == nil {
+		t.Fatal("expected DL FAR outer header creation to be set")
+	}
+
+	if dlFAR.ForwardingParameters.OuterHeaderCreation.TEID != targetTEID {
+		t.Fatalf("expected DL FAR TEID %d, got %d", targetTEID, dlFAR.ForwardingParameters.OuterHeaderCreation.TEID)
+	}
+
+	if !dlFAR.ForwardingParameters.OuterHeaderCreation.IPv4Address.Equal(targetGnbIP) {
+		t.Fatalf("expected DL FAR IP %s, got %s", targetGnbIP, dlFAR.ForwardingParameters.OuterHeaderCreation.IPv4Address)
+	}
+
+	// Verify UpdateSmContextN2HandoverPrepared did NOT call ModifySession.
+	// Per 3GPP TS 23.502 §4.9.1.3.3, the N4 modification happens after HandoverNotify.
+	upf.mu.Lock()
+	if len(upf.modifyCalls) != 0 {
+		t.Fatalf("expected 0 PFCP modify calls after N2 handover prepared, got %d", len(upf.modifyCalls))
+	}
+	upf.mu.Unlock()
+
+	// Phase 3: "Complete" — AMF calls UpdateSmContextN2HandoverComplete after
+	// the UE has successfully moved to the target gNB.
+	if err := s.UpdateSmContextN2HandoverComplete(ctx, ref); err != nil {
+		t.Fatalf("UpdateSmContextN2HandoverComplete: %v", err)
+	}
+
+	// Verify the SMF sent exactly one PFCP modification to the UPF during completion.
+	upf.mu.Lock()
+	defer upf.mu.Unlock()
+
+	if len(upf.modifyCalls) != 1 {
+		t.Fatalf("expected 1 PFCP modify call after N2 handover complete, got %d", len(upf.modifyCalls))
+	}
+}
+
+// buildHandoverRequestAcknowledgeTransfer builds an APER-encoded
+// HandoverRequestAcknowledgeTransfer with the given target gNB DL GTP tunnel info.
+func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip net.IP) ([]byte, error) {
+	teidBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(teidBytes, teid)
+
+	transfer := ngapType.HandoverRequestAcknowledgeTransfer{
+		DLNGUUPTNLInformation: ngapType.UPTransportLayerInformation{
+			Present: ngapType.UPTransportLayerInformationPresentGTPTunnel,
+			GTPTunnel: &ngapType.GTPTunnel{
+				TransportLayerAddress: ngapType.TransportLayerAddress{
+					Value: aper.BitString{
+						Bytes:     ip.To4(),
+						BitLength: 32,
+					},
+				},
+				GTPTEID: ngapType.GTPTEID{
+					Value: teidBytes,
+				},
+			},
+		},
+		QosFlowSetupResponseList: ngapType.QosFlowListWithDataForwarding{
+			List: []ngapType.QosFlowItemWithDataForwarding{
+				{
+					QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: 1},
+				},
+			},
+		},
+	}
+
+	return aper.MarshalWithParams(transfer, "valueExt")
+}

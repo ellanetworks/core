@@ -81,6 +81,8 @@ func handleNGAPInitiatingMessage(gnb *GnodeB, pdu *ngapType.NGAPPDU) error {
 		return handlePaging(gnb, pdu.InitiatingMessage.Value.Paging)
 	case ngapType.InitiatingMessagePresentErrorIndication:
 		return handleErrorIndication(pdu.InitiatingMessage.Value.ErrorIndication)
+	case ngapType.InitiatingMessagePresentHandoverRequest:
+		return handleHandoverRequest(gnb, pdu.InitiatingMessage.Value.HandoverRequest)
 	default:
 		return fmt.Errorf("NGAP InitiatingMessage Present is invalid: %d", pdu.InitiatingMessage.Value.Present)
 	}
@@ -94,6 +96,8 @@ func handleNGAPSuccessfulOutcome(pdu *ngapType.NGAPPDU) error {
 		return handleNGResetAcknowledge(pdu.SuccessfulOutcome.Value.NGResetAcknowledge)
 	case ngapType.SuccessfulOutcomePresentPathSwitchRequestAcknowledge:
 		return nil // Handled via WaitForMessage
+	case ngapType.SuccessfulOutcomePresentHandoverCommand:
+		return nil // Handled via WaitForMessage by source gNB
 	default:
 		return fmt.Errorf("NGAP SuccessfulOutcome Present is invalid: %d", pdu.SuccessfulOutcome.Value.Present)
 	}

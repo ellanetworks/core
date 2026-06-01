@@ -26,7 +26,7 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 	}
 
 	if msg.RANUENGAPID != nil {
-		targetUe.RanUeNgapID = *msg.RANUENGAPID
+		ran.UpdateUERanNgapID(targetUe, *msg.RANUENGAPID)
 	}
 
 	targetUe.TouchLastSeen()

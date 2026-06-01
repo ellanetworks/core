@@ -204,6 +204,8 @@ func (f *fakeSmf) UpdateSmContextN2HandoverPrepared(context.Context, string, []b
 	return nil, nil
 }
 
+func (f *fakeSmf) UpdateSmContextN2HandoverComplete(context.Context, string) error { return nil }
+
 func (f *fakeSmf) UpdateSmContextXnHandoverPathSwitchReq(context.Context, string, []byte) ([]byte, error) {
 	return nil, nil
 }
