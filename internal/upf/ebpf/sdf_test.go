@@ -7,7 +7,6 @@ package ebpf
 
 import (
 	"bytes"
-	"encoding/binary"
 	"net/netip"
 	"testing"
 )
@@ -108,41 +107,4 @@ func putSDFFilter(t *testing.T, obj *BpfObjects, index uint32, rules []SdfRule) 
 	if err := obj.PutSdfFilterList(index, list); err != nil {
 		t.Fatalf("install SDF filter: %v", err)
 	}
-}
-
-// innerIPv4UDP builds the decapsulated inner packet: an IPv4/UDP datagram to
-// dst:dport. On uplink, dst is the SDF remote address.
-func innerIPv4UDP(dst [4]byte, dport uint16) []byte {
-	const ipLen, udpLen = 20, 8
-
-	pkt := make([]byte, ipLen+udpLen)
-
-	ip := pkt[:ipLen]
-	ip[0] = 0x45 // version 4, IHL 5
-	binary.BigEndian.PutUint16(ip[2:4], uint16(ipLen+udpLen))
-	ip[8] = 64 // TTL
-	ip[9] = 17 // IPPROTO_UDP
-	copy(ip[12:16], []byte{10, 0, 0, 9})
-	copy(ip[16:20], dst[:])
-
-	udp := pkt[ipLen:]
-	binary.BigEndian.PutUint16(udp[2:4], dport)
-	binary.BigEndian.PutUint16(udp[4:6], udpLen)
-
-	return pkt
-}
-
-// uplinkGPDU wraps inner in a well-formed GTP-U G-PDU (8-byte base header with
-// the E flag set plus the 8-byte optional header word) inside an
-// Ethernet/IPv4/UDP frame addressed to the GTP-U port.
-func uplinkGPDU(teid uint32, inner []byte) []byte {
-	const gtpLen = 16 // base header + optional header word
-
-	gtp := make([]byte, gtpLen)
-	gtp[0] = 0x34 // version=1, PT=1, E=1
-	gtp[1] = 0xFF // GTPU_G_PDU
-	binary.BigEndian.PutUint16(gtp[2:4], uint16(gtpLen-8+len(inner)))
-	binary.BigEndian.PutUint32(gtp[4:8], teid)
-
-	return wrapIPv4UDP(append(gtp, inner...), GTPUDPPort)
 }
