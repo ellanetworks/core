@@ -48,6 +48,17 @@ func HandleMobilityAndPeriodicRegistrationUpdating(ctx context.Context, amfInsta
 		return fmt.Errorf("error getting subscriber profile: %v", err)
 	}
 
+	if len(subscriberProfile.AllowedNssai) == 0 {
+		UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(conn.RegistrationType5GS), RegistrationReject).Inc()
+
+		err = message.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
+		if err != nil {
+			return fmt.Errorf("error sending registration reject: %v", err)
+		}
+
+		return fmt.Errorf("registration Reject [No allowed S-NSSAI in subscription]")
+	}
+
 	ue.Current().AllowedNssai = subscriberProfile.AllowedNssai
 
 	// The 5GMM capability IE is optional (TS 24.501 Table 8.2.6.1.1) and is
