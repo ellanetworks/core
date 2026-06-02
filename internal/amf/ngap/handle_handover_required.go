@@ -104,10 +104,9 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	targetRan, ok := amfInstance.FindRadioByRanID(targetRanNodeID)
 	if !ok {
-		// The target gNB is not served by this AMF. Inter-AMF handover (TS 23.502
-		// §4.9.1.3.2) is not implemented, so preparation cannot proceed; the
-		// source must be told it failed rather than left waiting for its
-		// TNGRELOCprep timer to expire (TS 38.413 §8.4.1.3).
+		// The target gNB is not served by this AMF, so preparation cannot
+		// proceed; fail it explicitly rather than leave the source waiting
+		// (TS 38.413 §8.4.1.3).
 		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Unknown Target ID]", zap.Any("targetRanNodeID", targetRanNodeID))
 
 		failureCause := ngapType.Cause{

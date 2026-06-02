@@ -13,10 +13,8 @@ import (
 )
 
 // buildPDUSessionResourceToReleaseItemHOCmd builds the Handover Command
-// to-release item for a PDU session the target did not admit. The failure cause
-// the target reported (in the Handover Resource Allocation Unsuccessful
-// Transfer) is relayed to the source when it can be decoded, otherwise a
-// generic target-failure cause is used.
+// to-release item for a non-admitted PDU session, relaying the target's
+// reported failure cause when decodable, otherwise a generic one.
 func buildPDUSessionResourceToReleaseItemHOCmd(pduSessionID ngapType.PDUSessionID, unsuccessful aper.OctetString) (ngapType.PDUSessionResourceToReleaseItemHOCmd, error) {
 	cause := ngapType.Cause{
 		Present: ngapType.CausePresentRadioNetwork,
@@ -97,9 +95,8 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		}
 	}
 
-	// PDU sessions the target could not admit are listed for release so the
-	// source NG-RAN frees their resources (TS 38.413 §8.4.1.2). They are not
-	// switched to the target, so their SMF context is left on the source path.
+	// Sessions the target did not admit go in the to-release list so the source
+	// frees them (TS 38.413 §8.4.1.2); they stay on the source, so no SMF update.
 	for _, item := range msg.FailedToSetupItems {
 		if _, ok := validPDUSessionID(item.PDUSessionID.Value); !ok {
 			logger.WithTrace(ctx, targetUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
