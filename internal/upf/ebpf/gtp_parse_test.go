@@ -110,7 +110,7 @@ func loadProgramFlow(t *testing.T, n3Ifindex, n6Ifindex int) *BpfObjects {
 	return loadProgramConfig(t, true, false, n3Ifindex, n6Ifindex, 0, 0)
 }
 
-func loadProgramConfig(t *testing.T, flowAccounting, masquerade bool, n3Ifindex, n6Ifindex int, n3Vlan, n6Vlan uint32) *BpfObjects { //nolint:unparam // general loader; masquerade is used once NAT (T2) lands
+func loadProgramConfig(t *testing.T, flowAccounting, masquerade bool, n3Ifindex, n6Ifindex int, n3Vlan, n6Vlan uint32) *BpfObjects {
 	t.Helper()
 
 	obj := NewBpfObjects(flowAccounting, masquerade, n3Ifindex, n6Ifindex, n3Vlan, n6Vlan)

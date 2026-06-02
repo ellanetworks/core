@@ -217,6 +217,42 @@ func TestGTPEncapsulationDownlinkIPv6Transport(t *testing.T) {
 	}
 }
 
+// TestTransportLevelMarking checks that a FAR's transport-level marking is
+// written to the outer IPv4 TOS byte of the encapsulated downlink packet.
+func TestTransportLevelMarking(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid    = 0x544F5301
+		qfi     = 5
+		wantTOS = 0xB8 // DSCP EF
+	)
+
+	obj := loadProgram(t, 1, 0)
+
+	pdr := ipv4OuterDownlinkPDR(teid, testUPFN3IP, testGNBIP, qfi)
+	pdr.Far.TransportLevelMarking = uint16(wantTOS) << 8
+
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueIP), pdr); err != nil {
+		t.Fatalf("install downlink PDR: %v", err)
+	}
+
+	inner := ipv4Packet(serverIP, ueIP, 17, udpDatagram(4000, 53, nil))
+
+	action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, ethFrame(0x0800, inner))
+	if action == XDP_ABORTED {
+		t.Fatal("downlink packet got XDP_ABORTED")
+	}
+
+	if tos := out[ethHdrLen+1]; tos != wantTOS {
+		t.Errorf("outer IPv4 TOS = %#02x, want %#02x (FAR transport-level marking)", tos, wantTOS)
+	}
+
+	if f := parseGTPv4Frame(t, out); !f.outerChecksumOK {
+		t.Error("outer IPv4 header checksum invalid after marking")
+	}
+}
+
 // ipv4OuterDownlinkPDR builds a downlink PDR that forwards and encapsulates into
 // a GTP-U/IPv4 tunnel toward remote with the given TEID and QFI.
 func ipv4OuterDownlinkPDR(teid uint32, local, remote [4]byte, qfi uint8) PdrInfo {

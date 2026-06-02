@@ -117,6 +117,108 @@ func TestURRByteAccounting(t *testing.T) {
 	}
 }
 
+// TestFlowReportDownlink is the downlink counterpart to TestFlowReportUplink: a
+// forwarded downlink packet records a flow with the server as source, the UE as
+// destination, and the N3 egress interface.
+func TestFlowReportDownlink(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid = 0x464C4F58
+		qfi  = 5
+	)
+
+	obj := loadProgramFlow(t, 1, 0)
+	putDownlinkPDR(t, obj, ueIP, teid, testUPFN3IP, testGNBIP, qfi)
+
+	inner := ipv4Packet(serverIP, ueIP, 17, udpDatagram(4000, 53, nil))
+	runXDP(t, obj.UpfN3N6EntrypointFunc, ethFrame(0x0800, inner))
+
+	var (
+		key N3N6EntrypointFlow
+		val N3N6EntrypointFlowStats
+	)
+
+	it := obj.FlowStats.Iterate()
+	if !it.Next(&key, &val) {
+		t.Fatalf("no flow_stats entry recorded (iterate err=%v)", it.Err())
+	}
+
+	const wantIMSI = 1010000000001 // "001010000000001"
+
+	if key.Imsi != wantIMSI {
+		t.Errorf("flow IMSI = %d, want %d", key.Imsi, uint64(wantIMSI))
+	}
+
+	if key.Proto != 17 {
+		t.Errorf("flow protocol = %d, want 17 (UDP)", key.Proto)
+	}
+
+	if key.Action != 0 {
+		t.Errorf("flow action = %d, want 0 (ALLOW)", key.Action)
+	}
+
+	if key.EgressIfindex != 1 {
+		t.Errorf("flow egress ifindex = %d, want 1 (N3)", key.EgressIfindex)
+	}
+
+	if want := IPToIn6Addr(netip.AddrFrom4(serverIP)); key.Saddr.In6U.U6Addr8 != want {
+		t.Errorf("flow saddr = %v, want %v (server)", key.Saddr.In6U.U6Addr8, want)
+	}
+
+	if want := IPToIn6Addr(netip.AddrFrom4(ueIP)); key.Daddr.In6U.U6Addr8 != want {
+		t.Errorf("flow daddr = %v, want %v (UE)", key.Daddr.In6U.U6Addr8, want)
+	}
+
+	if val.Packets != 1 {
+		t.Errorf("flow packets = %d, want 1", val.Packets)
+	}
+
+	if val.Bytes == 0 {
+		t.Error("flow bytes = 0, want > 0")
+	}
+}
+
+// TestURRByteAccountingDownlink checks that a downlink URR accumulates the
+// forwarded byte count.
+func TestURRByteAccountingDownlink(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid  = 0x55525203
+		urrID = 11
+		qfi   = 5
+	)
+
+	obj := loadProgram(t, 1, 0)
+	if err := obj.NewUrr(urrID); err != nil {
+		t.Fatalf("NewUrr: %v", err)
+	}
+
+	pdr := ipv4OuterDownlinkPDR(teid, testUPFN3IP, testGNBIP, qfi)
+	pdr.UrrID = urrID
+
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueIP), pdr); err != nil {
+		t.Fatalf("install downlink PDR: %v", err)
+	}
+
+	inner := ipv4Packet(serverIP, ueIP, 17, udpDatagram(4000, 53, nil))
+	frame := ethFrame(0x0800, inner)
+	perPacket := uint64(len(frame)) // URR counts the pre-encapsulation frame
+
+	runXDP(t, obj.UpfN3N6EntrypointFunc, frame)
+
+	if got := sumURR(t, obj, urrID); got != perPacket {
+		t.Fatalf("URR after 1 packet = %d, want %d", got, perPacket)
+	}
+
+	runXDP(t, obj.UpfN3N6EntrypointFunc, frame)
+
+	if got := sumURR(t, obj, urrID); got != 2*perPacket {
+		t.Fatalf("URR after 2 packets = %d, want %d", got, 2*perPacket)
+	}
+}
+
 func sumURR(t *testing.T, obj *BpfObjects, urrID uint32) uint64 {
 	t.Helper()
 
