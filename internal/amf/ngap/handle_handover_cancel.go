@@ -33,7 +33,21 @@ func HandleHandoverCancel(ctx context.Context, ran *amf.Radio, msg decode.Handov
 	}
 
 	if sourceUe.AmfUeNgapID != msg.AMFUENGAPID {
-		logger.WithTrace(ctx, sourceUe.Log).Warn("Conflict AMF_UE_NGAP_ID", zap.Int64("sourceUe.AmfUeNgapID", sourceUe.AmfUeNgapID), zap.Int64("aMFUENGAPID.Value", msg.AMFUENGAPID))
+		logger.WithTrace(ctx, sourceUe.Log).Error("AMF UE NGAP ID mismatch", zap.Int64("expected", sourceUe.AmfUeNgapID), zap.Int64("received", msg.AMFUENGAPID))
+
+		cause := ngapType.Cause{
+			Present: ngapType.CausePresentRadioNetwork,
+			RadioNetwork: &ngapType.CauseRadioNetwork{
+				Value: ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID,
+			},
+		}
+
+		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
+		if err != nil {
+			logger.WithTrace(ctx, sourceUe.Log).Error("error sending error indication", zap.Error(err))
+		}
+
+		return
 	}
 
 	logger.WithTrace(ctx, sourceUe.Log).Debug("Handle Handover Cancel", zap.Int64("sourceRanUeNgapID", sourceUe.RanUeNgapID), zap.Int64("sourceAmfUeNgapID", sourceUe.AmfUeNgapID))
