@@ -16,10 +16,6 @@ import (
 	"github.com/cilium/ebpf/rlimit"
 )
 
-// ethHdrLen is the size of an Ethernet header, the offset of the inner packet in
-// a decapsulated frame.
-const ethHdrLen = 14
-
 // TestParseGTPTruncatedExtension checks that a malformed GTP-U packet fails
 // closed: the parser rejects it and the packet is passed to the kernel
 // (XDP_PASS) rather than aborting the data path, whether or not its TEID matches
@@ -50,6 +46,22 @@ func TestParseGTPTruncatedExtension(t *testing.T) {
 	}
 }
 
+// TestEntrypointUnknownInterfaceAborts checks the entrypoint's interface
+// dispatch: a packet whose ingress_ifindex matches neither n3_ifindex nor
+// n6_ifindex is aborted. The test-run ingress is 1, so loading n3/n6 as 2/3
+// makes it match neither.
+func TestEntrypointUnknownInterfaceAborts(t *testing.T) {
+	requireProgTestRun(t)
+
+	obj := loadProgram(t, 2, 3)
+
+	action := runXDP(t, obj.UpfN3N6EntrypointFunc, ethFrame(0x0800, innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)))
+
+	if action != XDP_ABORTED {
+		t.Fatalf("packet on unconfigured interface got XDP action %d, want XDP_ABORTED (%d)", action, XDP_ABORTED)
+	}
+}
+
 // requireProgTestRun skips when the test cannot run privileged, unless
 // EBPF_REQUIRE_PRIVILEGED is set, which makes the missing privilege fatal.
 func requireProgTestRun(t *testing.T) {
@@ -69,14 +81,39 @@ func requireProgTestRun(t *testing.T) {
 	}
 }
 
-// loadN3N6Program loads the N3/N6 program. n3_ifindex 0 makes the test-run
-// packet (ingress_ifindex 0) take the N3 path; n6_ifindex 1 (loopback) gives the
-// in-path MTU check a real device so a parse failure is the only source of an
-// abort.
-func loadN3N6Program(t *testing.T) *BpfObjects {
+// loadProgram loads the N3/N6 program with the given interface indices.
+//
+// XDP BPF_PROG_TEST_RUN runs with ingress_ifindex == 1 (loopback). The
+// entrypoint tags a packet N3 or N6 by matching that against n3Ifindex/n6Ifindex,
+// and the in-path bpf_check_mtu needs a real device (loopback, index 1). GTP
+// decap runs from handle_ip4 regardless of the N3/N6 tag, and
+// handle_gtp_packet/handle_n6_packet set ctx->interface themselves — so
+// verdict/DataOut tests don't depend on the tag; only stats-map selection does
+// (see stats_test.go).
+func loadProgram(t *testing.T, n3Ifindex, n6Ifindex int) *BpfObjects {
 	t.Helper()
 
-	obj := NewBpfObjects(false, false, 0, 1, 0, 0)
+	return loadProgramConfig(t, false, false, n3Ifindex, n6Ifindex, 0, 0)
+}
+
+// loadProgramVLAN is loadProgram with configurable N3/N6 VLAN IDs.
+func loadProgramVLAN(t *testing.T, n3Ifindex, n6Ifindex int, n3Vlan, n6Vlan uint32) *BpfObjects {
+	t.Helper()
+
+	return loadProgramConfig(t, false, false, n3Ifindex, n6Ifindex, n3Vlan, n6Vlan)
+}
+
+// loadProgramFlow is loadProgram with flow accounting enabled.
+func loadProgramFlow(t *testing.T, n3Ifindex, n6Ifindex int) *BpfObjects {
+	t.Helper()
+
+	return loadProgramConfig(t, true, false, n3Ifindex, n6Ifindex, 0, 0)
+}
+
+func loadProgramConfig(t *testing.T, flowAccounting, masquerade bool, n3Ifindex, n6Ifindex int, n3Vlan, n6Vlan uint32) *BpfObjects { //nolint:unparam // general loader; masquerade is used once NAT (T2) lands
+	t.Helper()
+
+	obj := NewBpfObjects(flowAccounting, masquerade, n3Ifindex, n6Ifindex, n3Vlan, n6Vlan)
 	if err := obj.Load(); err != nil {
 		var ve *ebpf.VerifierError
 		if errors.As(err, &ve) {
@@ -89,6 +126,17 @@ func loadN3N6Program(t *testing.T) *BpfObjects {
 	t.Cleanup(func() { _ = obj.Close() })
 
 	return obj
+}
+
+// loadN3N6Program is the loader for the GTP/uplink tests. n3_ifindex 0 keeps the
+// routing ifindex-mismatch check disabled (stable forwarding verdicts) and
+// n6_ifindex 1 (loopback) is the valid MTU/egress device. The GTP decap path in
+// handle_ip4 runs regardless of the entrypoint's N3/N6 tag; these tests assert on
+// the packet/verdict, not the stats-map selection.
+func loadN3N6Program(t *testing.T) *BpfObjects {
+	t.Helper()
+
+	return loadProgram(t, 0, 1)
 }
 
 // putForwardingUplinkPDR installs an uplink PDR for teid that forwards (FAR FORW,
@@ -184,49 +232,134 @@ func TestGTPDecapsulation(t *testing.T) {
 	}
 }
 
-// malformedUplinkGTPv4 builds a GTP-U frame that sets the E flag but omits the
-// optional header word the flag implies.
-func malformedUplinkGTPv4(teid uint32) []byte {
-	gtp := make([]byte, 8)
-	gtp[0] = 0x34 // version=1, PT=1, E=1
-	gtp[1] = 0xFF // GTPU_G_PDU
-	binary.BigEndian.PutUint32(gtp[4:8], teid)
+// TestGTPDecapsulationInnerIPv6 checks that an uplink G-PDU carrying an inner
+// IPv6 packet is decapsulated to that IPv6 packet, with the Ethernet protocol
+// set to IPv6.
+func TestGTPDecapsulationInnerIPv6(t *testing.T) {
+	requireProgTestRun(t)
 
-	return wrapIPv4UDP(gtp, GTPUDPPort)
+	const teid = 0x21222325
+
+	obj := loadN3N6Program(t)
+	putForwardingUplinkPDR(t, obj, teid, 0)
+
+	inner := innerIPv6UDP(testUEv6, 53)
+
+	action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, uplinkGPDU(teid, inner))
+
+	if action == XDP_DROP || action == XDP_ABORTED {
+		t.Fatalf("decapsulated packet got XDP action %d, want a forwarding action", action)
+	}
+
+	if len(out) != ethHdrLen+len(inner) {
+		t.Fatalf("decapsulated frame length = %d, want %d", len(out), ethHdrLen+len(inner))
+	}
+
+	if proto := binary.BigEndian.Uint16(out[12:14]); proto != 0x86DD {
+		t.Fatalf("ethertype = %#04x, want 0x86dd (IPv6)", proto)
+	}
+
+	if !bytes.Equal(out[ethHdrLen:], inner) {
+		t.Fatalf("inner packet altered by decapsulation:\n got %x\nwant %x", out[ethHdrLen:], inner)
+	}
 }
 
-const GTPUDPPort = 2152
+// TestGTPForwardIPv4 checks GTP-to-GTP forwarding: when the uplink FAR requests
+// outer-header creation, the packet is not decapsulated but its outer IPv4
+// source/destination and TEID are rewritten to the FAR's values, with a valid
+// outer checksum and the inner packet preserved.
+func TestGTPForwardIPv4(t *testing.T) {
+	requireProgTestRun(t)
 
-// wrapIPv4UDP wraps payload in Ethernet/IPv4/UDP headers. Checksums are left
-// zero; the XDP parse path validates lengths and bounds, not checksums.
-func wrapIPv4UDP(payload []byte, dstPort uint16) []byte {
 	const (
-		ethLen = 14
-		ipLen  = 20
-		udpLen = 8
+		lookupTEID = 0x11112222
+		outerTEID  = 0x33334444
 	)
 
-	frame := make([]byte, ethLen+ipLen+udpLen+len(payload))
+	local := [4]byte{192, 168, 50, 1}
+	remote := [4]byte{203, 0, 113, 9}
 
-	eth := frame[:ethLen]
-	copy(eth[0:6], []byte{0x02, 0x00, 0x00, 0x00, 0x00, 0x02})
-	copy(eth[6:12], []byte{0x02, 0x00, 0x00, 0x00, 0x00, 0x01})
-	binary.BigEndian.PutUint16(eth[12:14], 0x0800) // ETH_P_IP
+	obj := loadN3N6Program(t)
+	putForwardingUplinkPDRGTP(t, obj, lookupTEID, local, remote, outerTEID)
 
-	ip := frame[ethLen : ethLen+ipLen]
-	ip[0] = 0x45 // version 4, IHL 5
-	binary.BigEndian.PutUint16(ip[2:4], uint16(ipLen+udpLen+len(payload)))
-	ip[8] = 64 // TTL
-	ip[9] = 17 // IPPROTO_UDP
-	copy(ip[12:16], []byte{10, 0, 0, 1})
-	copy(ip[16:20], []byte{10, 0, 0, 2})
+	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
 
-	udp := frame[ethLen+ipLen : ethLen+ipLen+udpLen]
-	binary.BigEndian.PutUint16(udp[0:2], 2152)
-	binary.BigEndian.PutUint16(udp[2:4], dstPort)
-	binary.BigEndian.PutUint16(udp[4:6], uint16(udpLen+len(payload)))
+	action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, uplinkGPDU(lookupTEID, inner))
 
-	copy(frame[ethLen+ipLen+udpLen:], payload)
+	if action == XDP_ABORTED {
+		t.Fatal("forwarded packet got XDP_ABORTED")
+	}
 
-	return frame
+	if len(out) != ethHdrLen+gtpV4EncapLen+len(inner) {
+		t.Fatalf("forwarded frame length = %d, want %d (no decap)", len(out), ethHdrLen+gtpV4EncapLen+len(inner))
+	}
+
+	f := parseGTPv4Frame(t, out)
+
+	if !f.outerChecksumOK {
+		t.Error("outer IPv4 header checksum is invalid after tunnel rewrite")
+	}
+
+	if f.outerSrc != local {
+		t.Errorf("outer src IP = %v, want %v (FAR localip)", f.outerSrc, local)
+	}
+
+	if f.outerDst != remote {
+		t.Errorf("outer dst IP = %v, want %v (FAR remoteip)", f.outerDst, remote)
+	}
+
+	if f.teid != outerTEID {
+		t.Errorf("rewritten TEID = %#x, want %#x", f.teid, uint32(outerTEID))
+	}
+
+	if !bytes.Equal(f.inner, inner) {
+		t.Errorf("inner packet altered by tunnel rewrite:\n got %x\nwant %x", f.inner, inner)
+	}
+}
+
+// TestGTPDecapsulationIPv6Transport checks that a G-PDU received over an IPv6
+// transport (outer IPv6/UDP) is decapsulated to its inner IPv4 packet.
+func TestGTPDecapsulationIPv6Transport(t *testing.T) {
+	requireProgTestRun(t)
+
+	const teid = 0x41424344
+
+	obj := loadN3N6Program(t)
+	putForwardingUplinkPDRv6Outer(t, obj, teid)
+
+	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
+
+	action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, uplinkGPDUv6(teid, inner))
+
+	if action == XDP_DROP || action == XDP_ABORTED {
+		t.Fatalf("decapsulated packet got XDP action %d, want a forwarding action", action)
+	}
+
+	if len(out) != ethHdrLen+len(inner) {
+		t.Fatalf("decapsulated frame length = %d, want %d", len(out), ethHdrLen+len(inner))
+	}
+
+	if proto := binary.BigEndian.Uint16(out[12:14]); proto != 0x0800 {
+		t.Fatalf("ethertype = %#04x, want 0x0800 (IPv4)", proto)
+	}
+
+	if !bytes.Equal(out[ethHdrLen:], inner) {
+		t.Fatalf("inner packet altered by decapsulation:\n got %x\nwant %x", out[ethHdrLen:], inner)
+	}
+}
+
+// putForwardingUplinkPDRv6Outer installs an uplink PDR for teid whose outer
+// header is removed as GTP-U over IPv6.
+func putForwardingUplinkPDRv6Outer(t *testing.T, obj *BpfObjects, teid uint32) {
+	t.Helper()
+
+	pdr := PdrInfo{
+		OuterHeaderRemoval: 1, // OHR_GTP_U_UDP_IPv6
+		IMSI:               "001010000000001",
+		Far:                FarInfo{Action: 0x02 /* FAR_FORW */},
+		Qer:                QerInfo{GateStatusUL: 0 /* GATE_STATUS_OPEN */, MaxBitrateUL: 0 /* unlimited */},
+	}
+	if err := obj.PutPdrUplink(teid, pdr); err != nil {
+		t.Fatalf("install uplink PDR: %v", err)
+	}
 }

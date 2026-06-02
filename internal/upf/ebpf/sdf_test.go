@@ -7,7 +7,6 @@ package ebpf
 
 import (
 	"bytes"
-	"encoding/binary"
 	"net/netip"
 	"testing"
 )
@@ -84,6 +83,167 @@ func TestSDFFilterEnforcement(t *testing.T) {
 	}
 }
 
+// TestSDFRuleMatching exercises the uplink SDF rule-matching dimensions:
+// protocol (wildcard/match/mismatch), port range, address prefix (CIDR and
+// wildcard), and first-match ordering. Deny => XDP_DROP; allow => forwarded with
+// the inner packet intact.
+func TestSDFRuleMatching(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid        = 0x53444601
+		filterIndex = 1
+		protoTCP    = 6
+		protoUDP    = 17
+	)
+
+	obj := loadN3N6Program(t)
+	putForwardingUplinkPDR(t, obj, teid, filterIndex)
+
+	dst := [4]byte{8, 8, 8, 8}
+	udp53 := innerIPv4UDP(dst, 53)
+	tcp80 := innerIPv4TCP(dst, 80)
+
+	tests := []struct {
+		name     string
+		rules    []SdfRule
+		inner    []byte
+		wantDrop bool
+	}{
+		{"protocol wildcard denies", []SdfRule{sdfRuleIPv4(dst, 32, 0, 0, SdfProtoAny, SdfActionDeny)}, udp53, true},
+		{"protocol mismatch passes", []SdfRule{sdfRuleIPv4(dst, 32, 0, 0, protoTCP, SdfActionDeny)}, udp53, false},
+		{"protocol match denies (tcp)", []SdfRule{sdfRuleIPv4(dst, 32, 0, 0, protoTCP, SdfActionDeny)}, tcp80, true},
+		{"port in range denies", []SdfRule{sdfRuleIPv4(dst, 32, 50, 60, protoUDP, SdfActionDeny)}, udp53, true},
+		{"port out of range passes", []SdfRule{sdfRuleIPv4(dst, 32, 100, 200, protoUDP, SdfActionDeny)}, udp53, false},
+		{"port wildcard denies", []SdfRule{sdfRuleIPv4(dst, 32, 0, 0, protoUDP, SdfActionDeny)}, udp53, true},
+		{"cidr match denies", []SdfRule{sdfRuleIPv4([4]byte{8, 8, 0, 0}, 16, 0, 0, protoUDP, SdfActionDeny)}, udp53, true},
+		{"cidr miss passes", []SdfRule{sdfRuleIPv4([4]byte{9, 9, 0, 0}, 16, 0, 0, protoUDP, SdfActionDeny)}, udp53, false},
+		{"prefix wildcard denies", []SdfRule{sdfRuleIPv4([4]byte{}, 0, 0, 0, protoUDP, SdfActionDeny)}, udp53, true},
+		{"first match allow wins", []SdfRule{sdfRuleIPv4(dst, 32, 0, 0, protoUDP, SdfActionAllow), sdfRuleIPv4(dst, 32, 0, 0, protoUDP, SdfActionDeny)}, udp53, false},
+		{"first match deny wins", []SdfRule{sdfRuleIPv4(dst, 32, 0, 0, protoUDP, SdfActionDeny), sdfRuleIPv4(dst, 32, 0, 0, protoUDP, SdfActionAllow)}, udp53, true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			putSDFFilter(t, obj, filterIndex, tc.rules)
+
+			action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, uplinkGPDU(teid, tc.inner))
+
+			if tc.wantDrop {
+				if action != XDP_DROP {
+					t.Fatalf("got XDP action %d, want XDP_DROP", action)
+				}
+
+				return
+			}
+
+			if action == XDP_DROP {
+				t.Fatal("allowed packet was dropped")
+			}
+
+			if !bytes.Equal(out[ethHdrLen:], tc.inner) {
+				t.Fatalf("allowed inner packet altered:\n got %x\nwant %x", out[ethHdrLen:], tc.inner)
+			}
+		})
+	}
+}
+
+// TestSDFDownlinkDirection checks that downlink SDF matches the remote (the
+// packet source), the opposite of the uplink direction.
+func TestSDFDownlinkDirection(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid        = 0x53444602
+		filterIndex = 1
+		qfi         = 3
+	)
+
+	obj := loadProgram(t, 1, 0)
+
+	ueIP := [4]byte{10, 45, 0, 2}
+	server := [4]byte{8, 8, 8, 8}
+	local := [4]byte{192, 168, 100, 1}
+	remote := [4]byte{192, 168, 100, 9}
+
+	putDownlinkPDRFiltered(t, obj, ueIP, teid, local, remote, qfi, filterIndex)
+
+	inner := ipv4Packet(server, ueIP, 17, udpDatagram(4000, 4001, nil))
+
+	t.Run("deny by source drops", func(t *testing.T) {
+		putSDFFilter(t, obj, filterIndex, []SdfRule{sdfRuleIPv4(server, 32, 0, 0, 17, SdfActionDeny)})
+
+		action, _ := runXDPOut(t, obj.UpfN3N6EntrypointFunc, ethFrame(0x0800, inner))
+		if action != XDP_DROP {
+			t.Fatalf("got XDP action %d, want XDP_DROP", action)
+		}
+	})
+
+	t.Run("non-matching source passes and encapsulates", func(t *testing.T) {
+		putSDFFilter(t, obj, filterIndex, []SdfRule{sdfRuleIPv4([4]byte{1, 1, 1, 1}, 32, 0, 0, 17, SdfActionDeny)})
+
+		action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, ethFrame(0x0800, inner))
+		if action == XDP_DROP {
+			t.Fatal("allowed downlink packet was dropped")
+		}
+
+		if f := parseGTPv4Frame(t, out); !bytes.Equal(f.inner, inner) {
+			t.Fatalf("inner packet altered by encapsulation:\n got %x\nwant %x", f.inner, inner)
+		}
+	})
+}
+
+// TestSDFIPv6 checks IPv6 prefix matching (uplink, inner IPv6).
+func TestSDFIPv6(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid        = 0x53444603
+		filterIndex = 1
+	)
+
+	obj := loadN3N6Program(t)
+	putForwardingUplinkPDR(t, obj, teid, filterIndex)
+
+	dst := testUEv6 // inner daddr is the SDF remote on uplink
+	other := [16]byte{0x20, 0x01, 0x0d, 0xb8, 0xff, 0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01}
+	inner := innerIPv6UDP(dst, 53)
+
+	tests := []struct {
+		name     string
+		rules    []SdfRule
+		wantDrop bool
+	}{
+		{"/128 match denies", []SdfRule{sdfRuleIPv6(dst, 128, 0, 0, 17, SdfActionDeny)}, true},
+		{"/64 match denies", []SdfRule{sdfRuleIPv6(dst, 64, 0, 0, 17, SdfActionDeny)}, true},
+		{"/128 mismatch passes", []SdfRule{sdfRuleIPv6(other, 128, 0, 0, 17, SdfActionDeny)}, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			putSDFFilter(t, obj, filterIndex, tc.rules)
+
+			action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, uplinkGPDU(teid, inner))
+
+			if tc.wantDrop {
+				if action != XDP_DROP {
+					t.Fatalf("got XDP action %d, want XDP_DROP", action)
+				}
+
+				return
+			}
+
+			if action == XDP_DROP {
+				t.Fatal("allowed packet was dropped")
+			}
+
+			if !bytes.Equal(out[ethHdrLen:], inner) {
+				t.Fatalf("allowed inner packet altered:\n got %x\nwant %x", out[ethHdrLen:], inner)
+			}
+		})
+	}
+}
+
 // sdfRuleIPv4 builds an SDF rule for an IPv4 remote prefix, port range, and
 // protocol. A prefixLen or port bound of 0 is a wildcard in the data plane.
 func sdfRuleIPv4(remote [4]byte, prefixLen uint8, portLow, portHigh uint16, proto, action uint8) SdfRule {
@@ -97,7 +257,19 @@ func sdfRuleIPv4(remote [4]byte, prefixLen uint8, portLow, portHigh uint16, prot
 	}
 }
 
-func putSDFFilter(t *testing.T, obj *BpfObjects, index uint32, rules []SdfRule) {
+// sdfRuleIPv6 builds an SDF rule for a native IPv6 remote prefix.
+func sdfRuleIPv6(remote [16]byte, prefixLen uint8, portLow, portHigh uint16, proto, action uint8) SdfRule {
+	return SdfRule{
+		RemoteIP:  remote,
+		PrefixLen: prefixLen,
+		PortLow:   portLow,
+		PortHigh:  portHigh,
+		Protocol:  proto,
+		Action:    action,
+	}
+}
+
+func putSDFFilter(t *testing.T, obj *BpfObjects, index uint32, rules []SdfRule) { //nolint:unparam // general helper; the filter index is configurable
 	t.Helper()
 
 	var list SdfFilterList
@@ -108,41 +280,4 @@ func putSDFFilter(t *testing.T, obj *BpfObjects, index uint32, rules []SdfRule) 
 	if err := obj.PutSdfFilterList(index, list); err != nil {
 		t.Fatalf("install SDF filter: %v", err)
 	}
-}
-
-// innerIPv4UDP builds the decapsulated inner packet: an IPv4/UDP datagram to
-// dst:dport. On uplink, dst is the SDF remote address.
-func innerIPv4UDP(dst [4]byte, dport uint16) []byte {
-	const ipLen, udpLen = 20, 8
-
-	pkt := make([]byte, ipLen+udpLen)
-
-	ip := pkt[:ipLen]
-	ip[0] = 0x45 // version 4, IHL 5
-	binary.BigEndian.PutUint16(ip[2:4], uint16(ipLen+udpLen))
-	ip[8] = 64 // TTL
-	ip[9] = 17 // IPPROTO_UDP
-	copy(ip[12:16], []byte{10, 0, 0, 9})
-	copy(ip[16:20], dst[:])
-
-	udp := pkt[ipLen:]
-	binary.BigEndian.PutUint16(udp[2:4], dport)
-	binary.BigEndian.PutUint16(udp[4:6], udpLen)
-
-	return pkt
-}
-
-// uplinkGPDU wraps inner in a well-formed GTP-U G-PDU (8-byte base header with
-// the E flag set plus the 8-byte optional header word) inside an
-// Ethernet/IPv4/UDP frame addressed to the GTP-U port.
-func uplinkGPDU(teid uint32, inner []byte) []byte {
-	const gtpLen = 16 // base header + optional header word
-
-	gtp := make([]byte, gtpLen)
-	gtp[0] = 0x34 // version=1, PT=1, E=1
-	gtp[1] = 0xFF // GTPU_G_PDU
-	binary.BigEndian.PutUint16(gtp[2:4], uint16(gtpLen-8+len(inner)))
-	binary.BigEndian.PutUint32(gtp[4:8], teid)
-
-	return wrapIPv4UDP(append(gtp, inner...), GTPUDPPort)
 }
