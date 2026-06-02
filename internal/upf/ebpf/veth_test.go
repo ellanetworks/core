@@ -23,12 +23,10 @@ const (
 	vethN3Peer  = "ellvethn3p"
 )
 
-// TestVethRAEncapsulation checks the veth XDP program (veth_xdp_func), the IPv6
-// Router Advertisement / SLAAC injection path over an IPv4 N3 transport: an IPv6
-// packet injected on the veth, matching a veth_tunnels entry, is GTP-U
-// encapsulated toward the gNB and forwarded to the interface the routing table
-// resolves for it. The program trusts the FIB result, so the test does not
-// assume any particular configured ifindex — it relies only on the gNB route.
+// TestVethRAEncapsulation checks the veth XDP program (veth_xdp_func) over an
+// IPv4 N3 transport: an IPv6 packet injected on the veth, matching a
+// veth_tunnels entry, is GTP-U encapsulated toward the gNB and forwarded out the
+// interface the routing table resolves for the gNB address.
 func TestVethRAEncapsulation(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -163,8 +161,7 @@ func TestVethRAEncapsulationIPv6Transport(t *testing.T) {
 }
 
 // setupVethRA builds the injection and N3 veth pairs, enables forwarding, and
-// loads + attaches the veth program exactly as production does (no configured
-// ifindex — the program forwards to whatever interface the FIB resolves).
+// loads and attaches the veth program.
 func setupVethRA(t *testing.T) (injPeer, n3Peer *net.Interface, vobj *VethBpfObjects) {
 	t.Helper()
 
