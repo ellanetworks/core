@@ -68,7 +68,7 @@ type Radio struct {
 	lastSeenAt    atomic.Int64 // Unix nanoseconds; use GetLastSeenAt()/TouchLastSeen()
 	SupportedTAIs []SupportedTAI
 	mu            sync.RWMutex     // protects RanUEs
-	RanUEs        map[int64]*RanUe // Key: RanUeNgapID
+	RanUEs        map[int64]*RanUe // Key: AMF UE NGAP ID (unique and set for the UE's whole lifetime; the RAN UE NGAP ID is unassigned until a handover target is acknowledged)
 	Log           *zap.Logger
 }
 
@@ -119,32 +119,23 @@ func (r *Radio) FindUEByRanUeNgapID(ranUeNgapID int64) *RanUe {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	ranUe, ok := r.RanUEs[ranUeNgapID]
-	if ok {
-		return ranUe
+	for _, ranUe := range r.RanUEs {
+		if ranUe.RanUeNgapID == ranUeNgapID {
+			return ranUe
+		}
 	}
 
 	return nil
 }
 
-// UpdateUERanNgapID re-keys a RanUe in the radio's map from its current
-// RanUeNgapID to the new value. This is needed during N2 handover when
-// the target gNB reports its assigned RAN UE NGAP ID in
-// HandoverRequestAcknowledge.
+// UpdateUERanNgapID records the RAN UE NGAP ID the target gNB assigned to a UE
+// in HandoverRequestAcknowledge. The UE is keyed by its AMF UE NGAP ID, so only
+// the field is updated.
 func (r *Radio) UpdateUERanNgapID(ranUe *RanUe, newRanUeNgapID int64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if existing, ok := r.RanUEs[newRanUeNgapID]; ok && existing != ranUe {
-		logger.AmfLog.Warn("UpdateUERanNgapID: newRanUeNgapID already in use, overwriting",
-			zap.Int64("newRanUeNgapID", newRanUeNgapID),
-			zap.Int64("existingAmfUeNgapID", existing.AmfUeNgapID),
-		)
-	}
-
-	delete(r.RanUEs, ranUe.RanUeNgapID)
 	ranUe.RanUeNgapID = newRanUeNgapID
-	r.RanUEs[newRanUeNgapID] = ranUe
 }
 
 // FindUEByAmfUeNgapID returns the RAN UE with the given AMF UE NGAP ID, or nil.
@@ -152,13 +143,7 @@ func (r *Radio) FindUEByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	for _, ranUe := range r.RanUEs {
-		if ranUe.AmfUeNgapID == amfUeNgapID {
-			return ranUe
-		}
-	}
-
-	return nil
+	return r.RanUEs[amfUeNgapID]
 }
 
 func (r *Radio) TouchLastSeen() {

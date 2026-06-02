@@ -48,7 +48,7 @@ func TestHandleUEContextReleaseComplete_HandoverTargetNilTargetUe(t *testing.T) 
 
 	ngap.HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, msg)
 
-	if _, exists := ran.RanUEs[targetRanUe.RanUeNgapID]; exists {
+	if ran.FindUEByRanUeNgapID(targetRanUe.RanUeNgapID) != nil {
 		t.Fatal("expected target RanUe to be removed after release complete")
 	}
 }
@@ -85,7 +85,7 @@ func TestHandleUEContextReleaseComplete_SmContextNotFound(t *testing.T) {
 
 	ngap.HandleUEContextReleaseComplete(context.Background(), amfInstance, ran, msg)
 
-	if _, exists := ran.RanUEs[ranUe.RanUeNgapID]; exists {
+	if ran.FindUEByRanUeNgapID(ranUe.RanUeNgapID) != nil {
 		t.Fatal("expected RanUe to be removed after release complete")
 	}
 }

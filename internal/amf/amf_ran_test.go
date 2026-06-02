@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/amf"
+	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 )
 
@@ -125,5 +126,40 @@ func TestRadioNodeID(t *testing.T) {
 				t.Errorf("expected %q, got %q", tt.expectedID, got)
 			}
 		})
+	}
+}
+
+// TestRadioConcurrentHandoverTargetsCoexist guards against the regression where
+// concurrent N2 handover targets to one gNB evicted each other: a target has no
+// RAN UE NGAP ID until its Handover Request Acknowledge, so targets are keyed by
+// their distinct AMF UE NGAP IDs and must coexist, then each becomes reachable
+// by its assigned RAN UE NGAP ID.
+func TestRadioConcurrentHandoverTargetsCoexist(t *testing.T) {
+	radio := &amf.Radio{Log: logger.AmfLog, RanUEs: make(map[int64]*amf.RanUe)}
+
+	target1 := amf.NewRanUeForTest(radio, models.RanUeNgapIDUnspecified, 500, logger.AmfLog)
+	target2 := amf.NewRanUeForTest(radio, models.RanUeNgapIDUnspecified, 501, logger.AmfLog)
+
+	if got := radio.FindUEByAmfUeNgapID(500); got != target1 {
+		t.Errorf("FindUEByAmfUeNgapID(500) = %v, want first target", got)
+	}
+
+	if got := radio.FindUEByAmfUeNgapID(501); got != target2 {
+		t.Errorf("FindUEByAmfUeNgapID(501) = %v, want second target", got)
+	}
+
+	radio.UpdateUERanNgapID(target1, 100)
+	radio.UpdateUERanNgapID(target2, 101)
+
+	if got := radio.FindUEByRanUeNgapID(100); got != target1 {
+		t.Errorf("FindUEByRanUeNgapID(100) = %v, want first target", got)
+	}
+
+	if got := radio.FindUEByRanUeNgapID(101); got != target2 {
+		t.Errorf("FindUEByRanUeNgapID(101) = %v, want second target", got)
+	}
+
+	if got := radio.FindUEByAmfUeNgapID(500); got != target1 {
+		t.Errorf("after RAN ID assignment, FindUEByAmfUeNgapID(500) = %v, want first target", got)
 	}
 }

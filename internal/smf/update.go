@@ -584,8 +584,10 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 		return fmt.Errorf("failed to unmarshall handover request acknowledge transfer: %s", err.Error())
 	}
 
-	DLNGUUPTNLInformation := handoverRequestAcknowledgeTransfer.DLNGUUPTNLInformation
-	GTPTunnel := DLNGUUPTNLInformation.GTPTunnel
+	GTPTunnel := handoverRequestAcknowledgeTransfer.DLNGUUPTNLInformation.GTPTunnel
+	if GTPTunnel == nil || len(GTPTunnel.GTPTEID.Value) < 4 {
+		return fmt.Errorf("handover request acknowledge transfer is missing the DL GTP tunnel")
+	}
 
 	teid := binary.BigEndian.Uint32(GTPTunnel.GTPTEID.Value)
 
@@ -595,8 +597,16 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 	smContext.Tunnel.ANInformation.TEID = teid
 
 	if smContext.Tunnel.DataPath.Activated {
+		dlFAR := smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR
+
+		// A data path activated before its downlink endpoint was known has no
+		// forwarding parameters; the handover target supplies them now.
+		if dlFAR.ForwardingParameters == nil {
+			dlFAR.ForwardingParameters = &models.ForwardingParameters{}
+		}
+
 		if anIPv6 != nil {
-			smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
+			dlFAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
 				Description: models.OuterHeaderCreationGtpUUdpIpv6,
 				TEID:        teid,
 				IPv6Address: anIPv6,
@@ -604,7 +614,7 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 			ohr := models.OuterHeaderRemovalGtpUUdpIpv6
 			smContext.Tunnel.DataPath.UpLinkTunnel.PDR.OuterHeaderRemoval = &ohr
 		} else {
-			smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
+			dlFAR.ForwardingParameters.OuterHeaderCreation = &models.OuterHeaderCreation{
 				Description: models.OuterHeaderCreationGtpUUdpIpv4,
 				TEID:        teid,
 				IPv4Address: anIPv4,
@@ -613,7 +623,7 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 			smContext.Tunnel.DataPath.UpLinkTunnel.PDR.OuterHeaderRemoval = &ohr
 		}
 
-		smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR.State = RuleUpdate
+		dlFAR.State = RuleUpdate
 	}
 
 	return nil

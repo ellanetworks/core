@@ -104,10 +104,25 @@ func HandleHandoverRequired(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	targetRan, ok := amfInstance.FindRadioByRanID(targetRanNodeID)
 	if !ok {
-		// handover between different AMF
-		logger.WithTrace(ctx, sourceUe.Log).Warn("Handover required : cannot find target Ran Node Id in this AMF. Handover between different AMF has not been implemented yet", zap.Any("targetRanNodeID", targetRanNodeID))
+		// The target gNB is not served by this AMF, so preparation cannot
+		// proceed; fail it explicitly rather than leave the source waiting
+		// (TS 38.413 §8.4.1.3).
+		logger.WithTrace(ctx, sourceUe.Log).Info("handle Handover Preparation Failure [Unknown Target ID]", zap.Any("targetRanNodeID", targetRanNodeID))
+
+		failureCause := ngapType.Cause{
+			Present: ngapType.CausePresentRadioNetwork,
+			RadioNetwork: &ngapType.CauseRadioNetwork{
+				Value: ngapType.CauseRadioNetworkPresentUnknownTargetID,
+			},
+		}
+
+		conn.Procedures.End(procedure.N2Handover)
+
+		if err := sourceUe.SendHandoverPreparationFailure(ctx, failureCause, nil); err != nil {
+			logger.WithTrace(ctx, sourceUe.Log).Error("error sending handover preparation failure", zap.Error(err))
+		}
+
 		return
-		// Described in (23.502 4.9.1.3.2) step 3.Namf_Communication_CreateUEContext Request
 	}
 
 	// Handover in same AMF

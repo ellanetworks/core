@@ -313,3 +313,86 @@ func TestHandoverRequestAcknowledge_HappyPath(t *testing.T) {
 		t.Fatalf("expected no HandoverPreparationFailure, got %d", len(sourceNGAPSender.SentHandoverPreparationFailures))
 	}
 }
+
+// TestHandoverRequestAcknowledge_PartialAdmission verifies that when the target
+// admits some PDU sessions and fails others, the Handover Command confirms the
+// admitted ones in the Handover List and lists the failed ones in the PDU
+// Session Resource To Release List (TS 38.413 §8.4.1.2 / §8.4.2.2).
+func TestHandoverRequestAcknowledge_PartialAdmission(t *testing.T) {
+	targetRan, sourceNGAPSender, amfInstance := setupHandoverAckTestContext(t)
+
+	admittedTransfer := ngapType.HandoverRequestAcknowledgeTransfer{
+		DLNGUUPTNLInformation: ngapType.UPTransportLayerInformation{
+			Present: ngapType.UPTransportLayerInformationPresentGTPTunnel,
+			GTPTunnel: &ngapType.GTPTunnel{
+				TransportLayerAddress: ngapType.TransportLayerAddress{
+					Value: aper.BitString{Bytes: []byte{10, 0, 0, 2}, BitLength: 32},
+				},
+				GTPTEID: ngapType.GTPTEID{Value: []byte{0x00, 0x00, 0x04, 0xD2}},
+			},
+		},
+		QosFlowSetupResponseList: ngapType.QosFlowListWithDataForwarding{
+			List: []ngapType.QosFlowItemWithDataForwarding{
+				{QosFlowIdentifier: ngapType.QosFlowIdentifier{Value: 1}},
+			},
+		},
+	}
+
+	admittedBytes, err := aper.MarshalWithParams(admittedTransfer, "valueExt")
+	if err != nil {
+		t.Fatalf("failed to marshal admitted transfer: %v", err)
+	}
+
+	unsuccessfulTransfer := ngapType.HandoverResourceAllocationUnsuccessfulTransfer{
+		Cause: ngapType.Cause{
+			Present:      ngapType.CausePresentRadioNetwork,
+			RadioNetwork: &ngapType.CauseRadioNetwork{Value: ngapType.CauseRadioNetworkPresentRadioResourcesNotAvailable},
+		},
+	}
+
+	unsuccessfulBytes, err := aper.MarshalWithParams(unsuccessfulTransfer, "valueExt")
+	if err != nil {
+		t.Fatalf("failed to marshal unsuccessful transfer: %v", err)
+	}
+
+	amfID := int64(1)
+	ranID := int64(2)
+	msg := decode.HandoverRequestAcknowledge{
+		AMFUENGAPID: &amfID,
+		RANUENGAPID: &ranID,
+		AdmittedItems: []ngapType.PDUSessionResourceAdmittedItem{
+			{PDUSessionID: ngapType.PDUSessionID{Value: 1}, HandoverRequestAcknowledgeTransfer: admittedBytes},
+		},
+		FailedToSetupItems: []ngapType.PDUSessionResourceFailedToSetupItemHOAck{
+			{PDUSessionID: ngapType.PDUSessionID{Value: 2}, HandoverResourceAllocationUnsuccessfulTransfer: unsuccessfulBytes},
+		},
+		TargetToSourceTransparentContainer: ngapType.TargetToSourceTransparentContainer{Value: []byte{0xAA, 0xBB, 0xCC}},
+	}
+
+	ngap.HandleHandoverRequestAcknowledge(context.Background(), amfInstance, targetRan, msg)
+
+	if len(sourceNGAPSender.SentHandoverCommands) != 1 {
+		t.Fatalf("expected 1 HandoverCommand, got %d", len(sourceNGAPSender.SentHandoverCommands))
+	}
+
+	cmd := sourceNGAPSender.SentHandoverCommands[0]
+
+	if len(cmd.HandoverList.List) != 1 || cmd.HandoverList.List[0].PDUSessionID.Value != 1 {
+		t.Errorf("expected handover list to confirm session 1, got %+v", cmd.HandoverList.List)
+	}
+
+	if len(cmd.ToReleaseList.List) != 1 || cmd.ToReleaseList.List[0].PDUSessionID.Value != 2 {
+		t.Fatalf("expected to-release list to contain session 2 (TS 38.413 §8.4.1.2), got %+v", cmd.ToReleaseList.List)
+	}
+
+	// The to-release item must carry a decodable HandoverPreparationUnsuccessfulTransfer.
+	var relayed ngapType.HandoverPreparationUnsuccessfulTransfer
+	if err := aper.UnmarshalWithParams(cmd.ToReleaseList.List[0].HandoverPreparationUnsuccessfulTransfer, &relayed, "valueExt"); err != nil {
+		t.Fatalf("to-release transfer does not decode: %v", err)
+	}
+
+	if relayed.Cause.Present != ngapType.CausePresentRadioNetwork ||
+		relayed.Cause.RadioNetwork.Value != ngapType.CauseRadioNetworkPresentRadioResourcesNotAvailable {
+		t.Errorf("expected relayed cause RadioResourcesNotAvailable, got %+v", relayed.Cause)
+	}
+}

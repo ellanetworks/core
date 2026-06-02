@@ -7,9 +7,37 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/procedure"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 	"go.uber.org/zap"
 )
+
+// buildPDUSessionResourceToReleaseItemHOCmd builds the Handover Command
+// to-release item for a non-admitted PDU session, relaying the target's
+// reported failure cause when decodable, otherwise a generic one.
+func buildPDUSessionResourceToReleaseItemHOCmd(pduSessionID ngapType.PDUSessionID, unsuccessful aper.OctetString) (ngapType.PDUSessionResourceToReleaseItemHOCmd, error) {
+	cause := ngapType.Cause{
+		Present: ngapType.CausePresentRadioNetwork,
+		RadioNetwork: &ngapType.CauseRadioNetwork{
+			Value: ngapType.CauseRadioNetworkPresentHoFailureInTarget5GCNgranNodeOrTargetSystem,
+		},
+	}
+
+	var received ngapType.HandoverResourceAllocationUnsuccessfulTransfer
+	if err := aper.UnmarshalWithParams(unsuccessful, &received, "valueExt"); err == nil {
+		cause = received.Cause
+	}
+
+	transfer, err := aper.MarshalWithParams(ngapType.HandoverPreparationUnsuccessfulTransfer{Cause: cause}, "valueExt")
+	if err != nil {
+		return ngapType.PDUSessionResourceToReleaseItemHOCmd{}, err
+	}
+
+	return ngapType.PDUSessionResourceToReleaseItemHOCmd{
+		PDUSessionID:                            pduSessionID,
+		HandoverPreparationUnsuccessfulTransfer: transfer,
+	}, nil
+}
 
 func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.HandoverRequestAcknowledge) {
 	if msg.AMFUENGAPID == nil {
@@ -67,20 +95,21 @@ func HandleHandoverRequestAcknowledge(ctx context.Context, amfInstance *amf.AMF,
 		}
 	}
 
+	// Sessions the target did not admit go in the to-release list so the source
+	// frees them (TS 38.413 §8.4.1.2); they stay on the source, so no SMF update.
 	for _, item := range msg.FailedToSetupItems {
-		pduSessionIDUint8, ok := validPDUSessionID(item.PDUSessionID.Value)
-		if !ok {
+		if _, ok := validPDUSessionID(item.PDUSessionID.Value); !ok {
 			logger.WithTrace(ctx, targetUe.Log).Error("invalid PDU session ID from gNB, skipping", zap.Int64("pduSessionID", item.PDUSessionID.Value))
 			continue
 		}
 
-		transfer := item.HandoverResourceAllocationUnsuccessfulTransfer
-		if smContext, exist := amfUe.SmContextFindByPDUSessionID(pduSessionIDUint8); exist {
-			_, err := amfInstance.Smf.UpdateSmContextN2HandoverPrepared(ctx, smContext.Ref, transfer)
-			if err != nil {
-				logger.WithTrace(ctx, targetUe.Log).Error("Send HandoverResourceAllocationUnsuccessfulTransfer error", zap.Error(err), zap.Uint8("PduSessionID", pduSessionIDUint8))
-			}
+		releaseItem, err := buildPDUSessionResourceToReleaseItemHOCmd(item.PDUSessionID, item.HandoverResourceAllocationUnsuccessfulTransfer)
+		if err != nil {
+			logger.WithTrace(ctx, targetUe.Log).Error("failed to build PDU session to-release item", zap.Error(err), zap.Int64("pduSessionID", item.PDUSessionID.Value))
+			continue
 		}
+
+		pduSessionResourceToReleaseList.List = append(pduSessionResourceToReleaseList.List, releaseItem)
 	}
 
 	sourceUe := targetUe.SourceUe

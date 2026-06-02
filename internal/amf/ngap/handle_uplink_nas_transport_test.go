@@ -91,7 +91,7 @@ func TestHandleUplinkNasTransport_NilAmfUe_RemovesRanUe(t *testing.T) {
 		NASPDU:      []byte{0x7E, 0x00, 0x55},
 	})
 
-	if _, exists := ran.RanUEs[1]; exists {
+	if ran.FindUEByRanUeNgapID(1) != nil {
 		t.Error("expected RanUe to be removed from radio's map")
 	}
 }
