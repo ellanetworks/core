@@ -35,6 +35,22 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return fmt.Errorf("error getting subscriber profile: %v", err)
 	}
 
+	if len(subscriberProfile.AllowedNssai) == 0 {
+		ranUe := ue.RanUe()
+		if ranUe == nil {
+			return fmt.Errorf("ue is not connected to RAN")
+		}
+
+		UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(conn.RegistrationType5GS), RegistrationReject).Inc()
+
+		err = message.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMM5GSServicesNotAllowed)
+		if err != nil {
+			return fmt.Errorf("error sending registration reject: %v", err)
+		}
+
+		return fmt.Errorf("registration Reject [No allowed S-NSSAI in subscription]")
+	}
+
 	ue.Current().AllowedNssai = subscriberProfile.AllowedNssai
 	ue.Current().Ambr = subscriberProfile.Ambr
 
