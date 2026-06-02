@@ -8,7 +8,10 @@ package ebpf
 import (
 	"context"
 	"net"
+	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,118 +19,266 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func ipLink(args ...string) ([]byte, error) {
-	return exec.CommandContext(context.Background(), "ip", append([]string{"link"}, args...)...).CombinedOutput()
-}
-
-// Real-attach (T2) harness: create a veth pair, attach the program to one end in
-// generic XDP mode, and inject frames on the peer so they are received (and run
-// through XDP) on the attached end. Unlike BPF_PROG_TEST_RUN this exercises the
-// real RX path, with the attached interface's real ifindex as ingress_ifindex.
+// Real-attach (T2) test fixture.
+//
+// Unlike BPF_PROG_TEST_RUN (T1), these tests attach the program to real
+// interfaces and drive it with packets injected over AF_PACKET, so the program
+// runs on the kernel RX path with a real ingress_ifindex and its egress
+// (XDP_REDIRECT) actually leaves the interface. This is what lets us observe
+// FIB routing and the NAT rewrites on the wire.
+//
+// The fixture models the UPF's two sides with two veth pairs:
+//
+//	uplink:   inject on n3Peer ─▶ n3Dev (N3, ingress) ─▶ [XDP] ─▶ redirect ─▶ n6Dev ─▶ n6Peer (capture)
+//	downlink: inject on n6Peer ─▶ n6Dev (N6, ingress) ─▶ [XDP] ─▶ redirect ─▶ n3Dev ─▶ n3Peer (capture)
+//
+// n3_ifindex and n6_ifindex are the real device indices, so the entrypoint
+// classifies a packet by the interface it arrives on. The N6 device carries the
+// source-NAT egress address and a route to the test server; the N3 device
+// carries the UPF's N3 address and a neighbor for the gNB, so bpf_fib_lookup
+// resolves deterministically in both directions.
 
 const (
-	t2VethRx = "ellt2rx" // program attaches here; ingress_ifindex of injected frames
-	t2VethTx = "ellt2tx" // peer; frames sent here arrive on t2VethRx
+	t2N3Dev  = "ellt2n3"
+	t2N3Peer = "ellt2n3p"
+	t2N6Dev  = "ellt2n6"
+	t2N6Peer = "ellt2n6p"
+
+	t2VethMTU = "3000" // headroom for the payload sweep plus GTP encapsulation
 )
 
-// attachProgram brings up a veth pair, loads+configures the program via loader
-// (passed the attached interface's ifindex), attaches it to that interface, and
-// returns the objects plus an inject function. All resources are torn down via
-// t.Cleanup.
-func attachProgram(t *testing.T, loader func(rxIfindex int) *BpfObjects) (*BpfObjects, func(frame []byte)) {
+var (
+	ueIP        = [4]byte{10, 45, 0, 1}     // inner UE address
+	natPublicIP = [4]byte{192, 0, 2, 1}     // N6 egress address; source-NAT target
+	serverIP    = [4]byte{198, 51, 100, 50} // remote server (RFC 5737 TEST-NET-2)
+)
+
+func htons(v uint16) uint16 { return v<<8 | v>>8 }
+
+func ipCmd(args ...string) ([]byte, error) {
+	return exec.CommandContext(context.Background(), "ip", args...).CombinedOutput()
+}
+
+// t2 is a running real-attach fixture: two veth pairs with the program attached
+// to the N3 and N6 devices.
+type t2 struct {
+	obj    *BpfObjects
+	n3Dev  *net.Interface
+	n3Peer *net.Interface
+	n6Dev  *net.Interface
+	n6Peer *net.Interface
+}
+
+// setupT2 builds the topology, configures routing, loads the program with the
+// given NAT setting, and attaches it to both the N3 and N6 devices.
+func setupT2(t *testing.T, masquerade bool) *t2 {
 	t.Helper()
 
-	_, _ = ipLink("del", t2VethRx)
+	_, _ = ipCmd("link", "del", t2N3Dev)
+	_, _ = ipCmd("link", "del", t2N6Dev)
 
-	if out, err := ipLink("add", t2VethRx, "type", "veth", "peer", "name", t2VethTx); err != nil {
-		t.Fatalf("create veth pair: %v: %s", err, out)
+	addVethPair(t, t2N3Dev, t2N3Peer)
+	addVethPair(t, t2N6Dev, t2N6Peer)
+
+	if err := writeSysctl("net.ipv4.ip_forward", "1"); err != nil {
+		t.Fatalf("enable ip_forward: %v", err)
 	}
 
-	t.Cleanup(func() { _, _ = ipLink("del", t2VethRx) })
+	// N3 side: the UPF's N3 address and a neighbor for the gNB, so a
+	// re-encapsulated downlink packet routes out toward the gNB.
+	addAddr(t, t2N3Dev, addrCIDR(testUPFN3IP, 24))
+	addNeigh(t, t2N3Dev, testGNBIP, "02:00:00:00:00:aa")
 
-	for _, dev := range []string{t2VethRx, t2VethTx} {
-		if out, err := ipLink("set", dev, "up"); err != nil {
-			t.Fatalf("set %s up: %v: %s", dev, err, out)
+	// N6 side: the source-NAT egress address, a route to the server, and a
+	// neighbor, so an uplink packet routes out with src = natPublicIP.
+	addAddr(t, t2N6Dev, addrCIDR(natPublicIP, 24))
+	addRoute(t, "198.51.100.0/24", t2N6Dev, natPublicIP)
+	addNeigh(t, t2N6Dev, serverIP, "02:00:00:00:00:bb")
+
+	f := &t2{
+		obj:    loadProgramConfig(t, false, masquerade, ifByName(t, t2N3Dev).Index, ifByName(t, t2N6Dev).Index, 0, 0),
+		n3Dev:  ifByName(t, t2N3Dev),
+		n3Peer: ifByName(t, t2N3Peer),
+		n6Dev:  ifByName(t, t2N6Dev),
+		n6Peer: ifByName(t, t2N6Peer),
+	}
+
+	attachXDP(t, f.obj, f.n3Dev.Index)
+	attachXDP(t, f.obj, f.n6Dev.Index)
+
+	return f
+}
+
+func (f *t2) injectUplink(t *testing.T, frame []byte)   { inject(t, f.n3Peer.Index, frame) }
+func (f *t2) injectDownlink(t *testing.T, frame []byte) { inject(t, f.n6Peer.Index, frame) }
+
+// captureN6 and captureN3 capture frames leaving the program on each side
+// (redirected, or reflected via XDP_TX). They are named by physical side, not
+// direction: an uplink packet egresses on N6, a downlink packet on N3, but a
+// downlink that triggers an ICMP error reflects back out N6.
+func (f *t2) captureN6(t *testing.T) int { return openCapture(t, f.n6Peer.Index) }
+func (f *t2) captureN3(t *testing.T) int { return openCapture(t, f.n3Peer.Index) }
+
+func addVethPair(t *testing.T, dev, peer string) {
+	t.Helper()
+
+	if out, err := ipCmd("link", "add", dev, "type", "veth", "peer", "name", peer); err != nil {
+		t.Fatalf("create veth %s/%s: %v: %s", dev, peer, err, out)
+	}
+
+	t.Cleanup(func() { _, _ = ipCmd("link", "del", dev) })
+
+	for _, d := range []string{dev, peer} {
+		if out, err := ipCmd("link", "set", d, "mtu", t2VethMTU, "up"); err != nil {
+			t.Fatalf("set %s up: %v: %s", d, err, out)
 		}
-	}
 
-	rx, err := net.InterfaceByName(t2VethRx)
-	if err != nil {
-		t.Fatalf("lookup %s: %v", t2VethRx, err)
+		_ = writeSysctl("net.ipv4.conf."+d+".forwarding", "1")
 	}
+}
 
-	tx, err := net.InterfaceByName(t2VethTx)
-	if err != nil {
-		t.Fatalf("lookup %s: %v", t2VethTx, err)
+func addAddr(t *testing.T, dev, cidr string) {
+	t.Helper()
+
+	if out, err := ipCmd("addr", "add", cidr, "dev", dev); err != nil {
+		t.Fatalf("add addr %s on %s: %v: %s", cidr, dev, err, out)
 	}
+}
 
-	obj := loader(rx.Index)
+func addRoute(t *testing.T, prefix, dev string, src [4]byte) {
+	t.Helper()
+
+	if out, err := ipCmd("route", "add", prefix, "dev", dev, "src", ip4String(src)); err != nil {
+		t.Fatalf("add route %s: %v: %s", prefix, err, out)
+	}
+}
+
+func addNeigh(t *testing.T, dev string, addr [4]byte, lladdr string) {
+	t.Helper()
+
+	if out, err := ipCmd("neigh", "add", ip4String(addr), "dev", dev, "lladdr", lladdr, "nud", "permanent"); err != nil {
+		t.Fatalf("add neigh %s: %v: %s", ip4String(addr), err, out)
+	}
+}
+
+func attachXDP(t *testing.T, obj *BpfObjects, ifindex int) {
+	t.Helper()
 
 	l, err := link.AttachXDP(link.XDPOptions{
 		Program:   obj.UpfN3N6EntrypointFunc,
-		Interface: rx.Index,
+		Interface: ifindex,
 		Flags:     link.XDPGenericMode,
 	})
 	if err != nil {
-		t.Fatalf("attach XDP to %s: %v", t2VethRx, err)
+		t.Fatalf("attach XDP to ifindex %d: %v", ifindex, err)
 	}
 
 	t.Cleanup(func() { _ = l.Close() })
+}
+
+func inject(t *testing.T, ifindex int, frame []byte) {
+	t.Helper()
 
 	fd, err := unix.Socket(unix.AF_PACKET, unix.SOCK_RAW, 0)
 	if err != nil {
-		t.Fatalf("AF_PACKET socket: %v", err)
+		t.Fatalf("AF_PACKET inject socket: %v", err)
+	}
+
+	defer func() { _ = unix.Close(fd) }()
+
+	addr := &unix.SockaddrLinklayer{Ifindex: ifindex, Halen: 6}
+	copy(addr.Addr[:6], []byte{0x02, 0, 0, 0, 0, 0x02})
+
+	if err := unix.Sendto(fd, frame, 0, addr); err != nil {
+		t.Fatalf("inject frame on ifindex %d: %v", ifindex, err)
+	}
+}
+
+func openCapture(t *testing.T, ifindex int) int {
+	t.Helper()
+
+	fd, err := unix.Socket(unix.AF_PACKET, unix.SOCK_RAW, int(htons(unix.ETH_P_ALL)))
+	if err != nil {
+		t.Fatalf("AF_PACKET capture socket: %v", err)
 	}
 
 	t.Cleanup(func() { _ = unix.Close(fd) })
 
-	addr := &unix.SockaddrLinklayer{Ifindex: tx.Index, Halen: 6}
-	copy(addr.Addr[:6], []byte{0x02, 0, 0, 0, 0, 0x02})
+	if err := unix.Bind(fd, &unix.SockaddrLinklayer{Protocol: htons(unix.ETH_P_ALL), Ifindex: ifindex}); err != nil {
+		t.Fatalf("bind capture: %v", err)
+	}
 
-	inject := func(frame []byte) {
-		if err := unix.Sendto(fd, frame, 0, addr); err != nil {
-			t.Fatalf("inject frame: %v", err)
+	_ = unix.SetsockoptTimeval(fd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &unix.Timeval{Usec: 200_000})
+
+	return fd
+}
+
+// captureMatching reads frames until match returns true or the timeout elapses.
+func captureMatching(fd int, timeout time.Duration, match func([]byte) bool) []byte { //nolint:unparam // general helper; timeout is configurable
+	buf := make([]byte, 9000)
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		n, _, err := unix.Recvfrom(fd, buf, 0)
+		if err != nil {
+			continue // RCVTIMEO slice elapsed; retry until the overall deadline
+		}
+
+		frame := make([]byte, n)
+		copy(frame, buf[:n])
+
+		if match(frame) {
+			return frame
 		}
 	}
 
-	return obj, inject
+	return nil
 }
 
+func writeSysctl(key, value string) error {
+	return os.WriteFile("/proc/sys/"+strings.ReplaceAll(key, ".", "/"), []byte(value), 0o644)
+}
+
+func ifByName(t *testing.T, name string) *net.Interface {
+	t.Helper()
+
+	iface, err := net.InterfaceByName(name)
+	if err != nil {
+		t.Fatalf("lookup %s: %v", name, err)
+	}
+
+	return iface
+}
+
+func ip4String(a [4]byte) string { return net.IP(a[:]).String() }
+
+func addrCIDR(a [4]byte, prefix int) string { return ip4String(a) + "/" + strconv.Itoa(prefix) }
+
 // TestDownlinkStatisticsAttached checks that downlink byte accounting lands in
-// downlink_statistics when the program is really attached. This is the
-// counterpart to TestUplinkStatistics for the N6 side, which the test-run
-// harness cannot reach (it needs a distinct ingress interface != the n3 MTU
-// device).
+// downlink_statistics on a real attach. It is the N6-side counterpart to
+// TestUplinkStatistics, which the test-run harness cannot reach because it needs
+// a distinct ingress interface.
 func TestDownlinkStatisticsAttached(t *testing.T) {
 	requireProgTestRun(t)
 
-	ueIP := [4]byte{10, 45, 0, 2}
-
 	const packets = 5
 
-	obj, inject := attachProgram(t, func(rxIfindex int) *BpfObjects {
-		// n6_ifindex == the attached interface, so injected frames (ingress ==
-		// that ifindex) are classified N6; n3_ifindex == 1 (loopback) is the
-		// encap MTU/egress device.
-		o := loadProgramConfig(t, false, false, 1, rxIfindex, 0, 0)
-		putDownlinkPDR(t, o, ueIP, 0x42, [4]byte{192, 168, 100, 1}, [4]byte{192, 168, 100, 9}, 5)
+	f := setupT2(t, false)
+	putDownlinkPDR(t, f.obj, ueIP, 0x42, testUPFN3IP, testGNBIP, 5)
 
-		return o
-	})
-
-	frame := ethFrame(0x0800, ipv4Packet([4]byte{8, 8, 8, 8}, ueIP, 17, udpDatagram(4000, 4001, nil)))
+	frame := ethFrame(0x0800, ipv4Packet(serverIP, ueIP, 17, udpDatagram(4000, 4001, nil)))
 	for i := 0; i < packets; i++ {
-		inject(frame)
+		f.injectDownlink(t, frame)
 	}
 
 	time.Sleep(300 * time.Millisecond)
 
-	dlBytes, _ := sumStats(t, obj.DownlinkStatistics)
+	dlBytes, _ := sumStats(t, f.obj.DownlinkStatistics)
 	if want := uint64(packets * len(frame)); dlBytes != want {
 		t.Errorf("downlink byte_counter = %d, want %d", dlBytes, want)
 	}
 
-	if ulBytes, _ := sumStats(t, obj.UplinkStatistics); ulBytes != 0 {
+	if ulBytes, _ := sumStats(t, f.obj.UplinkStatistics); ulBytes != 0 {
 		t.Errorf("uplink byte_counter = %d, want 0", ulBytes)
 	}
 }
