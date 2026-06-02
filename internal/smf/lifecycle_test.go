@@ -93,6 +93,25 @@ func buildPDUSessionReleaseRequest(pduSessionID, pti uint8) []byte {
 	return buf
 }
 
+func buildPDUSessionModificationRequest(pduSessionID, pti uint8) []byte {
+	m := nas.NewMessage()
+	m.GsmMessage = nas.NewGsmMessage()
+	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionModificationRequest)
+	m.GsmHeader.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
+	m.PDUSessionModificationRequest = nasMessage.NewPDUSessionModificationRequest(0)
+	m.PDUSessionModificationRequest.SetMessageType(nas.MsgTypePDUSessionModificationRequest)
+	m.PDUSessionModificationRequest.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
+	m.PDUSessionModificationRequest.SetPDUSessionID(pduSessionID)
+	m.PDUSessionModificationRequest.SetPTI(pti)
+
+	buf, err := m.PlainNasEncode()
+	if err != nil {
+		panic(fmt.Sprintf("build PDU Session Modification Request: %v", err))
+	}
+
+	return buf
+}
+
 // setupSessionWithTunnel creates a session with a fully populated tunnel / data path,
 // simulating a session that has already been established.
 func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
@@ -1893,4 +1912,50 @@ func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip net.IP) ([]byte, er
 	}
 
 	return aper.MarshalWithParams(transfer, "valueExt")
+}
+
+// TestUpdateSmContextN1Msg_ModificationRejected verifies that a UE-requested PDU
+// Session Modification Request is answered with a PDU Session Modification Reject
+// echoing the request's PTI (TS 24.501 §6.4.2.4, §7.3.1) rather than silently
+// dropped, and that it does not tear down the session.
+func TestUpdateSmContextN1Msg_ModificationRejected(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	const pti = 7
+
+	n1Msg := buildPDUSessionModificationRequest(smCtx.PDUSessionID, pti)
+
+	rsp, err := s.UpdateSmContextN1Msg(ctx, ref, n1Msg)
+	if err != nil {
+		t.Fatalf("UpdateSmContextN1Msg (modification) failed: %v", err)
+	}
+
+	if rsp == nil || rsp.N1Msg == nil {
+		t.Fatal("expected a Modification Reject N1 message (TS 24.501 §6.4.2.4), got none")
+	}
+
+	if rsp.ReleaseN2 {
+		t.Error("modification reject must not signal N2 release")
+	}
+
+	m := new(nas.Message)
+	if err := m.PlainNasDecode(&rsp.N1Msg); err != nil {
+		t.Fatalf("decode N1 response: %v", err)
+	}
+
+	if m.PDUSessionModificationReject == nil {
+		t.Fatalf("expected PDUSessionModificationReject, got message type %d", m.GsmHeader.GetMessageType())
+	}
+
+	if got := m.PDUSessionModificationReject.GetPTI(); got != pti {
+		t.Errorf("reject PTI = %d, want %d (echoed from request)", got, pti)
+	}
+
+	if got := m.PDUSessionModificationReject.GetCauseValue(); got != nasMessage.Cause5GSMRequestRejectedUnspecified {
+		t.Errorf("reject cause = %d, want %d (request rejected, unspecified)", got, nasMessage.Cause5GSMRequestRejectedUnspecified)
+	}
 }

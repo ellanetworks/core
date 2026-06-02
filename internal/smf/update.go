@@ -16,6 +16,7 @@ import (
 	"github.com/ellanetworks/core/internal/smf/ngap"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/nas"
+	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapType"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -123,6 +124,21 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		}
 
 		return response, sendPfcpDelete, nil
+
+	case nas.MsgTypePDUSessionModificationRequest:
+		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Modification Request received; rejecting", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+
+		// The UE cannot set its own QoS; the authorized QoS is network-determined
+		// and not modifiable on UE request, so the request is rejected
+		// (TS 24.501 clause 6.4.2.4).
+		pti := m.PDUSessionModificationRequest.GetPTI()
+
+		n1SmMsg, err := smfNas.BuildGSMPDUSessionModificationReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
+		if err != nil {
+			return nil, false, fmt.Errorf("build GSM PDUSessionModificationReject failed: %v", err)
+		}
+
+		return &UpdateResult{N1Msg: n1SmMsg}, false, nil
 
 	default:
 		logger.WithTrace(ctx, logger.SmfLog).Warn("N1 Msg type not supported in SM Context Update", zap.Uint8("MessageType", m.GsmHeader.GetMessageType()), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
