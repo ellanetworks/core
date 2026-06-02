@@ -599,9 +599,8 @@ func handleHandoverRequestAcknowledgeTransfer(b []byte, smContext *SMContext) er
 	if smContext.Tunnel.DataPath.Activated {
 		dlFAR := smContext.Tunnel.DataPath.DownLinkTunnel.PDR.FAR
 
-		// The forwarding parameters are only populated once the downlink tunnel
-		// is known (TS 23.502 §4.9.1.3); on handover the target supplies it, so
-		// create the structure if the prior data path had none.
+		// A data path activated before its downlink endpoint was known has no
+		// forwarding parameters; the handover target supplies them now.
 		if dlFAR.ForwardingParameters == nil {
 			dlFAR.ForwardingParameters = &models.ForwardingParameters{}
 		}
