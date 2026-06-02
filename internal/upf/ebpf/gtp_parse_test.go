@@ -46,6 +46,22 @@ func TestParseGTPTruncatedExtension(t *testing.T) {
 	}
 }
 
+// TestEntrypointUnknownInterfaceAborts checks the entrypoint's interface
+// dispatch: a packet whose ingress_ifindex matches neither n3_ifindex nor
+// n6_ifindex is aborted. The test-run ingress is 1, so loading n3/n6 as 2/3
+// makes it match neither.
+func TestEntrypointUnknownInterfaceAborts(t *testing.T) {
+	requireProgTestRun(t)
+
+	obj := loadProgram(t, 2, 3)
+
+	action := runXDP(t, obj.UpfN3N6EntrypointFunc, ethFrame(0x0800, innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)))
+
+	if action != XDP_ABORTED {
+		t.Fatalf("packet on unconfigured interface got XDP action %d, want XDP_ABORTED (%d)", action, XDP_ABORTED)
+	}
+}
+
 // requireProgTestRun skips when the test cannot run privileged, unless
 // EBPF_REQUIRE_PRIVILEGED is set, which makes the missing privilege fatal.
 func requireProgTestRun(t *testing.T) {
