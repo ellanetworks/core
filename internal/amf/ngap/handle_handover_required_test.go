@@ -456,3 +456,112 @@ func TestHandoverRequired_InvalidSecurityContext(t *testing.T) {
 		t.Fatalf("expected no HandoverRequest to be sent, got %d", len(sourceNGAPSender.SentHandoverRequests))
 	}
 }
+
+// TestHandoverRequired_UnknownTarget verifies that when the target gNB is not
+// served by this AMF, handover preparation fails gracefully: the source UE
+// receives a HandoverPreparationFailure with cause UnknownTargetID rather than
+// being left without a response (TS 38.413 §8.4.1.3).
+func TestHandoverRequired_UnknownTarget(t *testing.T) {
+	const (
+		targetGnbID  = "000102"
+		pduSessionID = uint8(1)
+		supiStr      = "imsi-001010000000001"
+		dnn          = "internet"
+		kamfHex      = "0000000000000000000000000000000000000000000000000000000000000000"
+	)
+
+	supi, _ := etsi.NewSUPIFromPrefixed(supiStr)
+
+	hoRequiredTransferBytes, err := aper.MarshalWithParams(ngapType.HandoverRequiredTransfer{}, "valueExt")
+	if err != nil {
+		t.Fatalf("failed to marshal HandoverRequiredTransfer: %v", err)
+	}
+
+	plmnID, err := getMccAndMncInOctets("001", "01")
+	if err != nil {
+		t.Fatalf("failed to get PLMN ID octets: %v", err)
+	}
+
+	targetGnbBitString := ngapConvert.HexToBitString(targetGnbID, 24)
+	targetID := &ngapType.TargetID{
+		Present: ngapType.TargetIDPresentTargetRANNodeID,
+		TargetRANNodeID: &ngapType.TargetRANNodeID{
+			GlobalRANNodeID: ngapType.GlobalRANNodeID{
+				Present: ngapType.GlobalRANNodeIDPresentGlobalGNBID,
+				GlobalGNBID: &ngapType.GlobalGNBID{
+					PLMNIdentity: ngapType.PLMNIdentity{Value: plmnID},
+					GNBID: ngapType.GNBID{
+						Present: ngapType.GNBIDPresentGNBID,
+						GNBID:   &targetGnbBitString,
+					},
+				},
+			},
+			SelectedTAI: ngapType.TAI{
+				PLMNIdentity: ngapType.PLMNIdentity{Value: plmnID},
+				TAC:          ngapType.TAC{Value: aper.OctetString{0x00, 0x00, 0x01}},
+			},
+		},
+	}
+
+	msg, err := buildHandoverRequired(&HandoverRequiredOpts{
+		AMFUENGAPID: ngapType.AMFUENGAPID{Value: 1},
+		RANUENGAPID: ngapType.RANUENGAPID{Value: 1},
+		TargetID:    targetID,
+		PDUSessionResourceListHORqd: &ngapType.PDUSessionResourceListHORqd{
+			List: []ngapType.PDUSessionResourceItemHORqd{
+				{PDUSessionID: ngapType.PDUSessionID{Value: int64(pduSessionID)}, HandoverRequiredTransfer: hoRequiredTransferBytes},
+			},
+		},
+		SourceToTargetTransparentContainer: &ngapType.SourceToTargetTransparentContainer{Value: []byte{0x01, 0x02, 0x03}},
+	})
+	if err != nil {
+		t.Fatalf("failed to build HandoverRequired: %v", err)
+	}
+
+	smfInstance := smf.New(nil, nil, nil, nil)
+	smfInstance.NewSession(supi, pduSessionID, dnn, &models.Snssai{Sst: 1})
+
+	amfUe := amf.NewAmfUe()
+	amfUe.Supi = supi
+	amfUe.Current().SecurityContextAvailable = true
+	amfUe.Current().NgKsi.Ksi = 1
+	amfUe.Current().Kamf = kamfHex
+	amfUe.Current().NH = make([]byte, 32)
+	amfUe.Log = logger.AmfLog
+	amfUe.Current().SmContextList[pduSessionID] = &amf.SmContext{
+		Ref:    smf.CanonicalName(supi, pduSessionID),
+		Snssai: &models.Snssai{Sst: 1},
+	}
+
+	sourceNGAPSender := &FakeNGAPSender{}
+	sourceRan := &amf.Radio{
+		Log:           logger.AmfLog,
+		NGAPSender:    sourceNGAPSender,
+		RanUEs:        make(map[int64]*amf.RanUe),
+		SupportedTAIs: make([]amf.SupportedTAI, 0),
+	}
+
+	sourceUe := amf.NewRanUeForTest(sourceRan, 1, 1, logger.AmfLog)
+	amfUe.AttachRanUe(sourceUe)
+
+	amfInstance := amf.New(&FakeDBInstance{
+		Operator: &db.Operator{Mcc: "001", Mnc: "01"},
+	}, nil, &FakeSmfSbi{SMF: smfInstance})
+	// No target gNB registered with this AMF.
+	amfInstance.Radios = map[*sctp.SCTPConn]*amf.Radio{}
+
+	ngap.HandleHandoverRequired(context.Background(), amfInstance, sourceRan, decodeHandoverRequiredOrFatal(t, msg.InitiatingMessage.Value.HandoverRequired))
+
+	if len(sourceNGAPSender.SentHandoverPreparationFailures) != 1 {
+		t.Fatalf("expected 1 HandoverPreparationFailure, got %d", len(sourceNGAPSender.SentHandoverPreparationFailures))
+	}
+
+	failure := sourceNGAPSender.SentHandoverPreparationFailures[0]
+	if failure.Cause.Present != ngapType.CausePresentRadioNetwork {
+		t.Fatalf("expected RadioNetwork cause, got present=%d", failure.Cause.Present)
+	}
+
+	if failure.Cause.RadioNetwork.Value != ngapType.CauseRadioNetworkPresentUnknownTargetID {
+		t.Fatalf("expected UnknownTargetID cause, got %d", failure.Cause.RadioNetwork.Value)
+	}
+}

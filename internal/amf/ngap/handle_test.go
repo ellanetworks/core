@@ -274,9 +274,11 @@ type HandoverRequest struct {
 }
 
 type HandoverCommand struct {
-	AmfUeNgapID int64
-	RanUeNgapID int64
-	Container   ngapType.TargetToSourceTransparentContainer
+	AmfUeNgapID   int64
+	RanUeNgapID   int64
+	HandoverList  ngapType.PDUSessionResourceHandoverList
+	ToReleaseList ngapType.PDUSessionResourceToReleaseListHOCmd
+	Container     ngapType.TargetToSourceTransparentContainer
 }
 
 type UEContextReleaseCommand struct {
@@ -490,9 +492,11 @@ func (fng *FakeNGAPSender) SendLocationReportingControl(ctx context.Context, amf
 
 func (fng *FakeNGAPSender) SendHandoverCommand(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, handOverType ngapType.HandoverType, pduSessionResourceHandoverList ngapType.PDUSessionResourceHandoverList, pduSessionResourceToReleaseList ngapType.PDUSessionResourceToReleaseListHOCmd, container ngapType.TargetToSourceTransparentContainer) error {
 	fng.SentHandoverCommands = append(fng.SentHandoverCommands, &HandoverCommand{
-		AmfUeNgapID: amfUeNgapID,
-		RanUeNgapID: ranUeNgapID,
-		Container:   container,
+		AmfUeNgapID:   amfUeNgapID,
+		RanUeNgapID:   ranUeNgapID,
+		HandoverList:  pduSessionResourceHandoverList,
+		ToReleaseList: pduSessionResourceToReleaseList,
+		Container:     container,
 	})
 
 	return nil
