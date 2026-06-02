@@ -1916,8 +1916,8 @@ func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip net.IP) ([]byte, er
 
 // TestUpdateSmContextN1Msg_ModificationRejected verifies that a UE-requested PDU
 // Session Modification Request is answered with a PDU Session Modification Reject
-// echoing the request's PTI (TS 24.501 §6.4.2.4, §7.3.1) rather than silently
-// dropped, and that it does not tear down the session.
+// echoing the request's PTI (TS 24.501 §6.4.2.4, §7.3.1), and that the session is
+// not torn down.
 func TestUpdateSmContextN1Msg_ModificationRejected(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
