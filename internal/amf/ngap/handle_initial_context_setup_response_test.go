@@ -15,14 +15,18 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func TestInitialContextSetupResponse_UnknownRanUeNgapID(t *testing.T) {
+func TestInitialContextSetupResponse_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio()
+	sender := ran.NGAPSender.(*FakeNGAPSender)
 	amfInstance := newTestAMFWithSmf(&FakeSmfSbi{})
 
 	ngap.HandleInitialContextSetupResponse(context.Background(), amfInstance, ran, decode.InitialContextSetupResponse{
 		RANUENGAPID: 99,
-		AMFUENGAPID: 1,
+		AMFUENGAPID: 999,
 	})
+
+	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
+	assertErrorIndicationEchoesIDs(t, errInd, 999, 99)
 }
 
 func TestInitialContextSetupResponse_NilAmfUe(t *testing.T) {

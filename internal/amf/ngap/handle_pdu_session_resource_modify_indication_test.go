@@ -35,7 +35,7 @@ func TestPDUSessionResourceModifyIndication_UnknownRanUeNgapID(t *testing.T) {
 	}
 }
 
-func TestPDUSessionResourceModifyIndication_AMFUENGAPIDMismatch(t *testing.T) {
+func TestPDUSessionResourceModifyIndication_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio()
 	sender := ran.NGAPSender.(*FakeNGAPSender)
 
@@ -46,14 +46,8 @@ func TestPDUSessionResourceModifyIndication_AMFUENGAPIDMismatch(t *testing.T) {
 		AMFUENGAPID: 99999,
 	})
 
-	if len(sender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
-	}
-
-	ei := sender.SentErrorIndications[0]
-	if ei.Cause.RadioNetwork.Value != ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID {
-		t.Errorf("cause = %d, want InconsistentRemoteUENGAPID", ei.Cause.RadioNetwork.Value)
-	}
+	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
+	assertErrorIndicationEchoesIDs(t, errInd, 99999, 1)
 
 	if len(sender.SentPDUSessionModifyConfirms) != 0 {
 		t.Errorf("expected no Modify Confirm on ID mismatch, got %d", len(sender.SentPDUSessionModifyConfirms))

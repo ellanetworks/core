@@ -13,12 +13,17 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func TestUERadioCapabilityInfoIndication_UnknownRanUeNgapID(t *testing.T) {
+func TestUERadioCapabilityInfoIndication_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio()
+	sender := ran.NGAPSender.(*FakeNGAPSender)
 
 	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), ran, decode.UERadioCapabilityInfoIndication{
 		RANUENGAPID: 99,
+		AMFUENGAPID: 999,
 	})
+
+	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
+	assertErrorIndicationEchoesIDs(t, errInd, 999, 99)
 }
 
 func TestUERadioCapabilityInfoIndication_NilAmfUe(t *testing.T) {
@@ -27,6 +32,7 @@ func TestUERadioCapabilityInfoIndication_NilAmfUe(t *testing.T) {
 
 	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), ran, decode.UERadioCapabilityInfoIndication{
 		RANUENGAPID: 1,
+		AMFUENGAPID: 10,
 	})
 }
 
@@ -40,6 +46,7 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapability(t *testing.T) {
 
 	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), ran, decode.UERadioCapabilityInfoIndication{
 		RANUENGAPID:       1,
+		AMFUENGAPID:       10,
 		UERadioCapability: []byte{0xDE, 0xAD, 0xBE, 0xEF},
 	})
 
@@ -58,6 +65,7 @@ func TestUERadioCapabilityInfoIndication_SetsRadioCapabilityForPaging(t *testing
 
 	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), ran, decode.UERadioCapabilityInfoIndication{
 		RANUENGAPID: 1,
+		AMFUENGAPID: 10,
 		UERadioCapabilityForPaging: &ngapType.UERadioCapabilityForPaging{
 			UERadioCapabilityForPagingOfNR: &ngapType.UERadioCapabilityForPagingOfNR{
 				Value: []byte{0xCA, 0xFE},
@@ -91,6 +99,7 @@ func TestUERadioCapabilityInfoIndication_NilCapabilityFieldsNoOp(t *testing.T) {
 
 	ngap.HandleUERadioCapabilityInfoIndication(context.Background(), ran, decode.UERadioCapabilityInfoIndication{
 		RANUENGAPID: 1,
+		AMFUENGAPID: 10,
 	})
 
 	if amfUe.Current().UeRadioCapability != "" {

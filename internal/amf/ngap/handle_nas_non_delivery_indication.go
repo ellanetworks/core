@@ -10,9 +10,8 @@ import (
 )
 
 func HandleNasNonDeliveryIndication(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.NASNonDeliveryIndication) {
-	ranUe := ran.FindUEByRanUeNgapID(msg.RANUENGAPID)
-	if ranUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("RanUeNgapID", msg.RANUENGAPID))
+	ranUe, ok := resolveUE(ctx, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+	if !ok {
 		return
 	}
 

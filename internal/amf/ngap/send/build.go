@@ -193,7 +193,7 @@ func buildNGResetAcknowledge(partOfNGInterface *ngapType.UEAssociatedLogicalNGCo
 	return ngap.Encoder(pdu)
 }
 
-func buildErrorIndication(cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) ([]byte, error) {
+func buildErrorIndication(amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) ([]byte, error) {
 	var pdu ngapType.NGAPPDU
 
 	pdu.Present = ngapType.NGAPPDUPresentInitiatingMessage
@@ -212,6 +212,26 @@ func buildErrorIndication(cause *ngapType.Cause, criticalityDiagnostics *ngapTyp
 	if cause == nil && criticalityDiagnostics == nil {
 		logger.AmfLog.Error(
 			"[Build Error Indication] shall contain at least either the Cause or the Criticality Diagnostics")
+	}
+
+	if amfUeNgapID != nil {
+		ie := ngapType.ErrorIndicationIEs{}
+		ie.Id.Value = ngapType.ProtocolIEIDAMFUENGAPID
+		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+		ie.Value.Present = ngapType.ErrorIndicationIEsPresentAMFUENGAPID
+		ie.Value.AMFUENGAPID = &ngapType.AMFUENGAPID{Value: *amfUeNgapID}
+
+		errorIndicationIEs.List = append(errorIndicationIEs.List, ie)
+	}
+
+	if ranUeNgapID != nil {
+		ie := ngapType.ErrorIndicationIEs{}
+		ie.Id.Value = ngapType.ProtocolIEIDRANUENGAPID
+		ie.Criticality.Value = ngapType.CriticalityPresentIgnore
+		ie.Value.Present = ngapType.ErrorIndicationIEsPresentRANUENGAPID
+		ie.Value.RANUENGAPID = &ngapType.RANUENGAPID{Value: *ranUeNgapID}
+
+		errorIndicationIEs.List = append(errorIndicationIEs.List, ie)
 	}
 
 	if cause != nil {

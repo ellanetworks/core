@@ -14,13 +14,18 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func TestNasNonDeliveryIndication_UnknownRanUeNgapID(t *testing.T) {
+func TestNasNonDeliveryIndication_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio()
+	sender := ran.NGAPSender.(*FakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	ngap.HandleNasNonDeliveryIndication(context.Background(), amfInstance, ran, decode.NASNonDeliveryIndication{
 		RANUENGAPID: 99,
+		AMFUENGAPID: 999,
 	})
+
+	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
+	assertErrorIndicationEchoesIDs(t, errInd, 999, 99)
 }
 
 func TestNasNonDeliveryIndication_UEFoundDispatchesNAS(t *testing.T) {
@@ -38,6 +43,7 @@ func TestNasNonDeliveryIndication_UEFoundDispatchesNAS(t *testing.T) {
 	// just logs the error. We verify no panic and the UE lookup succeeds.
 	ngap.HandleNasNonDeliveryIndication(context.Background(), amfInstance, ran, decode.NASNonDeliveryIndication{
 		RANUENGAPID: 1,
+		AMFUENGAPID: 10,
 		NASPDU:      []byte{0x7E, 0x00, 0x00},
 		Cause: ngapType.Cause{
 			Present:      ngapType.CausePresentRadioNetwork,
@@ -62,6 +68,7 @@ func TestNasNonDeliveryIndication_VerifyNASCalledWithPDU(t *testing.T) {
 
 	ngap.HandleNasNonDeliveryIndication(context.Background(), amfInstance, ran, decode.NASNonDeliveryIndication{
 		RANUENGAPID: 1,
+		AMFUENGAPID: 10,
 		NASPDU:      nasPDU,
 		Cause: ngapType.Cause{
 			Present:      ngapType.CausePresentRadioNetwork,
@@ -96,6 +103,7 @@ func TestNasNonDeliveryIndication_NilPDU_PropagatesCorrectly(t *testing.T) {
 
 	ngap.HandleNasNonDeliveryIndication(context.Background(), amfInstance, ran, decode.NASNonDeliveryIndication{
 		RANUENGAPID: 1,
+		AMFUENGAPID: 10,
 		NASPDU:      nil,
 		Cause: ngapType.Cause{
 			Present:      ngapType.CausePresentRadioNetwork,
