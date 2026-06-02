@@ -244,6 +244,55 @@ func TestSDFIPv6(t *testing.T) {
 	}
 }
 
+// TestSDFDownlinkIPv6 checks IPv6 downlink SDF matching on the remote (the
+// packet source), the IPv6 counterpart to TestSDFDownlinkDirection.
+func TestSDFDownlinkIPv6(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid        = 0x53444604
+		filterIndex = 1
+		qfi         = 3
+	)
+
+	obj := loadProgram(t, 1, 0)
+
+	uePrefix := netip.MustParseAddr("2001:db8::")
+	serverV6 := [16]byte{0x20, 0x01, 0x48, 0x60, 0x48, 0x60, 0, 0, 0, 0, 0, 0, 0, 0, 0x88, 0x88}
+
+	pdr := ipv4OuterDownlinkPDR(teid, testUPFN3IP, testGNBIP, qfi)
+	pdr.FilterMapIndex = filterIndex
+
+	if err := obj.PutPdrDownlink(uePrefix, pdr); err != nil {
+		t.Fatalf("install downlink IPv6 PDR: %v", err)
+	}
+
+	inner := ipv6Packet(serverV6, testUEv6, 17, udpDatagram(4000, 53, nil))
+
+	t.Run("deny by source drops", func(t *testing.T) {
+		putSDFFilter(t, obj, filterIndex, []SdfRule{sdfRuleIPv6(serverV6, 128, 0, 0, 17, SdfActionDeny)})
+
+		action, _ := runXDPOut(t, obj.UpfN3N6EntrypointFunc, ethFrame(0x86DD, inner))
+		if action != XDP_DROP {
+			t.Fatalf("got XDP action %d, want XDP_DROP", action)
+		}
+	})
+
+	t.Run("non-matching source passes and encapsulates", func(t *testing.T) {
+		other := [16]byte{0x20, 0x01, 0x0d, 0xb8, 0xff, 0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01}
+		putSDFFilter(t, obj, filterIndex, []SdfRule{sdfRuleIPv6(other, 128, 0, 0, 17, SdfActionDeny)})
+
+		action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, ethFrame(0x86DD, inner))
+		if action == XDP_DROP {
+			t.Fatal("allowed downlink packet was dropped")
+		}
+
+		if f := parseGTPv4Frame(t, out); !bytes.Equal(f.inner, inner) {
+			t.Fatalf("inner packet altered by encapsulation:\n got %x\nwant %x", f.inner, inner)
+		}
+	})
+}
+
 // sdfRuleIPv4 builds an SDF rule for an IPv4 remote prefix, port range, and
 // protocol. A prefixLen or port bound of 0 is a wildcard in the data plane.
 func sdfRuleIPv4(remote [4]byte, prefixLen uint8, portLow, portHigh uint16, proto, action uint8) SdfRule {
@@ -258,7 +307,7 @@ func sdfRuleIPv4(remote [4]byte, prefixLen uint8, portLow, portHigh uint16, prot
 }
 
 // sdfRuleIPv6 builds an SDF rule for a native IPv6 remote prefix.
-func sdfRuleIPv6(remote [16]byte, prefixLen uint8, portLow, portHigh uint16, proto, action uint8) SdfRule {
+func sdfRuleIPv6(remote [16]byte, prefixLen uint8, portLow, portHigh uint16, proto, action uint8) SdfRule { //nolint:unparam // general-purpose builder; port bounds vary across callers
 	return SdfRule{
 		RemoteIP:  remote,
 		PrefixLen: prefixLen,

@@ -52,6 +52,35 @@ func TestUplinkStatistics(t *testing.T) {
 	}
 }
 
+// TestUplinkStatisticsIPv6 checks that uplink accounting also works for an inner
+// IPv6 packet (the byte counter and per-action counter are version-independent).
+func TestUplinkStatisticsIPv6(t *testing.T) {
+	requireProgTestRun(t)
+
+	const (
+		teid    = 0x57415436
+		packets = 5
+	)
+
+	obj := loadProgramConfig(t, false, false, 1, 1, 0, 0)
+	putForwardingUplinkPDR(t, obj, teid, 0)
+
+	inner := innerIPv6UDP(testUEv6, 53)
+	for i := 0; i < packets; i++ {
+		runXDP(t, obj.UpfN3N6EntrypointFunc, uplinkGPDU(teid, inner))
+	}
+
+	bytesSum, actionsSum := sumStats(t, obj.UplinkStatistics)
+
+	if want := uint64(packets * (ethHdrLen + len(inner))); bytesSum != want {
+		t.Errorf("uplink byte_counter = %d, want %d", bytesSum, want)
+	}
+
+	if actionsSum != packets {
+		t.Errorf("uplink xdp_actions total = %d, want %d", actionsSum, packets)
+	}
+}
+
 func sumStats(t *testing.T, m *ebpf.Map) (bytes, actions uint64) {
 	t.Helper()
 

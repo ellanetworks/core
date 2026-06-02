@@ -9,6 +9,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"testing"
+	"time"
+
+	"github.com/cilium/ebpf/ringbuf"
 )
 
 // GTP-U control-message handling and ICMPv6 Router Solicitation interception.
@@ -79,8 +82,10 @@ func TestGTPControlMessages(t *testing.T) {
 }
 
 // TestRouterSolicitationIntercept checks that an inner ICMPv6 Router
-// Solicitation, after decapsulation, is intercepted and dropped (the RA is
-// generated in userspace).
+// Solicitation, after decapsulation, is intercepted: the packet is dropped AND
+// its TEID and UE source address are emitted to userspace on rs_event_map. The
+// event is the contract that drives the RA responder, so asserting it (not just
+// the drop) is what proves SLAAC would actually fire.
 func TestRouterSolicitationIntercept(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -89,9 +94,35 @@ func TestRouterSolicitationIntercept(t *testing.T) {
 	obj := loadN3N6Program(t)
 	putForwardingUplinkPDR(t, obj, teid, 0)
 
-	action := runXDP(t, obj.UpfN3N6EntrypointFunc, uplinkGPDU(teid, innerIPv6ICMPv6RS(testUEv6)))
+	rd, err := ringbuf.NewReader(obj.RsEventMap)
+	if err != nil {
+		t.Fatalf("open rs_event ring buffer: %v", err)
+	}
 
+	defer func() { _ = rd.Close() }()
+
+	action := runXDP(t, obj.UpfN3N6EntrypointFunc, uplinkGPDU(teid, innerIPv6ICMPv6RS(testUEv6)))
 	if action != XDP_DROP {
 		t.Fatalf("Router Solicitation not intercepted: got XDP action %d, want XDP_DROP (%d)", action, XDP_DROP)
+	}
+
+	rd.SetDeadline(time.Now().Add(time.Second))
+
+	rec, err := rd.Read()
+	if err != nil {
+		t.Fatalf("no RS event emitted to userspace (RA responder would never fire): %v", err)
+	}
+
+	var ev RSEvent
+	if err := binary.Read(bytes.NewReader(rec.RawSample), binary.NativeEndian, &ev); err != nil {
+		t.Fatalf("decode RS event: %v", err)
+	}
+
+	if ev.TEID != teid {
+		t.Errorf("RS event TEID = %#x, want %#x", ev.TEID, uint32(teid))
+	}
+
+	if ev.UEIPv6 != testUEv6 {
+		t.Errorf("RS event UE IPv6 = %x, want %x", ev.UEIPv6, testUEv6)
 	}
 }

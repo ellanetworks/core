@@ -64,6 +64,82 @@ func ipv4HeaderChecksum(header []byte) uint16 { return onesComplement16(header) 
 
 func validIPv4Checksum(header []byte) bool { return onesComplement16(header) == 0 }
 
+// ipv4L4Checksum computes a TCP/UDP checksum over the IPv4 pseudo-header + l4.
+func ipv4L4Checksum(src, dst [4]byte, proto uint8, l4 []byte) uint16 {
+	pseudo := make([]byte, 12, 12+len(l4))
+	copy(pseudo[0:4], src[:])
+	copy(pseudo[4:8], dst[:])
+	pseudo[9] = proto
+	binary.BigEndian.PutUint16(pseudo[10:12], uint16(len(l4)))
+
+	return onesComplement16(append(pseudo, l4...))
+}
+
+func validIPv4L4Checksum(src, dst [4]byte, proto uint8, l4 []byte) bool {
+	return ipv4L4Checksum(src, dst, proto, l4) == 0
+}
+
+// tcpSegmentChecksummed builds a 20-byte-header TCP segment with a valid
+// checksum for the given IPv4 endpoints (so incremental NAT updates stay valid).
+func tcpSegmentChecksummed(src, dst [4]byte, srcPort, dstPort uint16, payload []byte) []byte {
+	seg := make([]byte, 20+len(payload))
+
+	binary.BigEndian.PutUint16(seg[0:2], srcPort)
+	binary.BigEndian.PutUint16(seg[2:4], dstPort)
+	seg[12] = 0x50 // data offset = 5
+	copy(seg[20:], payload)
+	binary.BigEndian.PutUint16(seg[16:18], ipv4L4Checksum(src, dst, 6, seg))
+
+	return seg
+}
+
+// udpDatagramChecksummed builds a UDP datagram with a valid (non-zero) checksum
+// for the given IPv4 endpoints, exercising the incremental UDP checksum fix-up
+// (the zero-checksum case skips it).
+func udpDatagramChecksummed(src, dst [4]byte, srcPort, dstPort uint16, payload []byte) []byte {
+	d := make([]byte, 8+len(payload))
+
+	binary.BigEndian.PutUint16(d[0:2], srcPort)
+	binary.BigEndian.PutUint16(d[2:4], dstPort)
+	binary.BigEndian.PutUint16(d[4:6], uint16(8+len(payload)))
+	copy(d[8:], payload)
+
+	csum := ipv4L4Checksum(src, dst, 17, d)
+	if csum == 0 {
+		csum = 0xffff // a zero UDP checksum means "no checksum"; avoid it
+	}
+
+	binary.BigEndian.PutUint16(d[6:8], csum)
+
+	return d
+}
+
+// icmpEchoRequest builds an ICMP echo request (type 8) with a valid checksum.
+func icmpEchoRequest(id, seq uint16, payload []byte) []byte {
+	m := make([]byte, 8+len(payload))
+
+	m[0] = 8 // echo request
+	binary.BigEndian.PutUint16(m[4:6], id)
+	binary.BigEndian.PutUint16(m[6:8], seq)
+	copy(m[8:], payload)
+	binary.BigEndian.PutUint16(m[2:4], onesComplement16(m))
+
+	return m
+}
+
+// icmpEchoReply builds an ICMP echo reply (type 0) with a valid checksum. It is
+// the conntrack-matching downlink counterpart to icmpEchoRequest.
+func icmpEchoReply(id, seq uint16, payload []byte) []byte {
+	m := icmpEchoRequest(id, seq, payload)
+	m[0] = 0 // echo reply
+	binary.BigEndian.PutUint16(m[2:4], 0)
+	binary.BigEndian.PutUint16(m[2:4], onesComplement16(m))
+
+	return m
+}
+
+func validICMPChecksum(msg []byte) bool { return onesComplement16(msg) == 0 }
+
 // ethFrame prepends an Ethernet header (fixed locally-administered MACs) with
 // the given ethertype to l3.
 func ethFrame(etherType uint16, l3 []byte) []byte {
@@ -75,6 +151,35 @@ func ethFrame(etherType uint16, l3 []byte) []byte {
 	copy(frame[14:], l3)
 
 	return frame
+}
+
+// vlanFrame prepends an Ethernet header with an 802.1Q tag (the given VLAN ID
+// and inner ethertype) to l3.
+func vlanFrame(vlanID, innerEtherType uint16, l3 []byte) []byte {
+	frame := make([]byte, ethHdrLen+4+len(l3))
+
+	copy(frame[0:6], []byte{0x02, 0x00, 0x00, 0x00, 0x00, 0x02})
+	copy(frame[6:12], []byte{0x02, 0x00, 0x00, 0x00, 0x00, 0x01})
+	binary.BigEndian.PutUint16(frame[12:14], 0x8100) // 802.1Q
+	binary.BigEndian.PutUint16(frame[14:16], vlanID&0x0fff)
+	binary.BigEndian.PutUint16(frame[16:18], innerEtherType)
+	copy(frame[18:], l3)
+
+	return frame
+}
+
+// validICMPv6Checksum verifies an ICMPv6 checksum (RFC 4443 pseudo-header:
+// src + dst + upper-layer length + next-header 58).
+func validICMPv6Checksum(src, dst [16]byte, icmp6 []byte) bool {
+	pseudo := make([]byte, 40+len(icmp6))
+
+	copy(pseudo[0:16], src[:])
+	copy(pseudo[16:32], dst[:])
+	binary.BigEndian.PutUint32(pseudo[32:36], uint32(len(icmp6)))
+	pseudo[39] = 58 // next header = ICMPv6
+	copy(pseudo[40:], icmp6)
+
+	return onesComplement16(pseudo) == 0
 }
 
 // ipv4Packet builds an IPv4 packet (with a valid header checksum) carrying
@@ -92,6 +197,16 @@ func ipv4Packet(src, dst [4]byte, proto uint8, payload []byte) []byte {
 	copy(pkt[16:20], dst[:])
 	binary.BigEndian.PutUint16(pkt[10:12], ipv4HeaderChecksum(pkt[:hdrLen]))
 	copy(pkt[hdrLen:], payload)
+
+	return pkt
+}
+
+// withDF sets the IPv4 Don't-Fragment flag on an IPv4 packet and recomputes the
+// header checksum.
+func withDF(pkt []byte) []byte {
+	pkt[6] |= 0x40
+	binary.BigEndian.PutUint16(pkt[10:12], 0)
+	binary.BigEndian.PutUint16(pkt[10:12], ipv4HeaderChecksum(pkt[:20]))
 
 	return pkt
 }
@@ -154,19 +269,19 @@ func ipv6Packet(src, dst [16]byte, nextHdr uint8, payload []byte) []byte {
 }
 
 // innerIPv6UDP builds a UE inner packet: an IPv6/UDP datagram to dst:dport.
-func innerIPv6UDP(dst [16]byte, dport uint16) []byte {
+func innerIPv6UDP(dst [16]byte, dport uint16) []byte { //nolint:unparam // general-purpose builder; dport varies across callers
 	src := [16]byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x09}
 
 	return ipv6Packet(src, dst, 17, udpDatagram(0, dport, nil))
 }
 
 // innerIPv6ICMPv6RS builds a UE inner packet: an ICMPv6 Router Solicitation
-// (type 133) to dst.
-func innerIPv6ICMPv6RS(dst [16]byte) []byte {
-	src := [16]byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x09}
+// (type 133) sent from the UE's address ueSrc to the all-routers multicast.
+func innerIPv6ICMPv6RS(ueSrc [16]byte) []byte {
+	allRouters := [16]byte{0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x02}
 	rs := []byte{133, 0, 0, 0, 0, 0, 0, 0} // type=133 (Router Solicitation)
 
-	return ipv6Packet(src, dst, 58 /* IPPROTO_ICMPV6 */, rs)
+	return ipv6Packet(ueSrc, allRouters, 58 /* IPPROTO_ICMPV6 */, rs)
 }
 
 // gtpControlFrame builds an N3 frame carrying an 8-byte GTP-U control message of
