@@ -40,7 +40,11 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 	}
 
 	if msg.AuthenticationResponseParameter == nil {
-		return fmt.Errorf("missing AuthenticationResponseParameter IE")
+		// No RES* to verify: treat as an unsuccessful authentication
+		// (TS 24.501 §5.4.1.3.5).
+		ue.Log.Error("Authentication Response missing RES* (Authentication response parameter IE)")
+
+		return failAuthentication(ctx, ue, ranUe, conn)
 	}
 
 	resStar := msg.GetRES()
@@ -59,50 +63,14 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 	if subtle.ConstantTimeCompare([]byte(hResStar), []byte(conn.AuthenticationCtx.HxresStar)) != 1 {
 		ue.Log.Error("HRES* Validation Failure")
 
-		if conn.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
-			err := message.SendIdentityRequest(ctx, ranUe, nasMessage.MobileIdentity5GSTypeSuci)
-			if err != nil {
-				return fmt.Errorf("send identity request error: %s", err)
-			}
-
-			ue.Log.Info("sent identity request")
-
-			return nil
-		}
-
-		defer ue.Deregister(ctx)
-
-		err := message.SendAuthenticationReject(ctx, ranUe)
-		if err != nil {
-			return fmt.Errorf("error sending GMM authentication reject: %v", err)
-		}
-
-		return nil
+		return failAuthentication(ctx, ue, ranUe, conn)
 	}
 
 	supi, kseaf, err := amfInstance.Ausf.Confirm(ctx, hex.EncodeToString(resStar[:]), ue.Suci)
 	if err != nil {
 		logger.WithTrace(ctx, logger.AmfLog).Error("5G AKA Confirmation Request Procedure failed", zap.Error(err))
 
-		if conn.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
-			err := message.SendIdentityRequest(ctx, ranUe, nasMessage.MobileIdentity5GSTypeSuci)
-			if err != nil {
-				return fmt.Errorf("send identity request error: %s", err)
-			}
-
-			ue.Log.Info("sent identity request")
-
-			return nil
-		}
-
-		defer ue.Deregister(ctx)
-
-		err := message.SendAuthenticationReject(ctx, ranUe)
-		if err != nil {
-			return fmt.Errorf("error sending GMM authentication reject: %v", err)
-		}
-
-		return nil
+		return failAuthentication(ctx, ue, ranUe, conn)
 	}
 
 	ue.Supi = supi
@@ -113,4 +81,29 @@ func handleAuthenticationResponse(ctx context.Context, amfInstance *amf.AMF, ue 
 	}
 
 	return securityMode(ctx, amfInstance, ue)
+}
+
+// failAuthentication applies TS 24.501 §5.4.1.3.5 when an authentication
+// response cannot be accepted (RES* absent, HRES* mismatch, or AUSF rejection):
+// if the UE was identified by 5G-GUTI, the network retrieves the SUCI via an
+// identification procedure and restarts authentication; otherwise it rejects
+// authentication and deregisters the UE.
+func failAuthentication(ctx context.Context, ue *amf.AmfUe, ranUe *amf.RanUe, conn *amf.ActiveNasConnection) error {
+	if conn.IdentityTypeUsedForRegistration == nasMessage.MobileIdentity5GSType5gGuti {
+		if err := message.SendIdentityRequest(ctx, ranUe, nasMessage.MobileIdentity5GSTypeSuci); err != nil {
+			return fmt.Errorf("send identity request error: %s", err)
+		}
+
+		ue.Log.Info("sent identity request")
+
+		return nil
+	}
+
+	defer ue.Deregister(ctx)
+
+	if err := message.SendAuthenticationReject(ctx, ranUe); err != nil {
+		return fmt.Errorf("error sending GMM authentication reject: %v", err)
+	}
+
+	return nil
 }
