@@ -105,7 +105,7 @@ int veth_xdp_func(struct xdp_md *ctx)
 		if (!route_stat4)
 			return XDP_ABORTED;
 
-		enum xdp_action fib_ret4 = route_ipv4(&pkt_ctx, route_stat4);
+		enum xdp_action fib_ret4 = route_ipv4(&pkt_ctx, route_stat4, true);
 		return fib_ret4;
 	} else {
 		upf_printk("upf: encapsulating over IPv6");
@@ -122,7 +122,7 @@ int veth_xdp_func(struct xdp_md *ctx)
 		if (!route_stat6)
 			return XDP_ABORTED;
 
-		enum xdp_action fib_ret6 = route_ipv6(&pkt_ctx, route_stat6);
+		enum xdp_action fib_ret6 = route_ipv6(&pkt_ctx, route_stat6, true);
 		return fib_ret6;
 	}
 

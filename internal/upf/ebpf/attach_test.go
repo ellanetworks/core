@@ -235,7 +235,7 @@ func captureMatching(fd int, timeout time.Duration, match func([]byte) bool) []b
 	return nil
 }
 
-func writeSysctl(key, value string) error {
+func writeSysctl(key, value string) error { //nolint:unparam // general helper; value is configurable
 	return os.WriteFile("/proc/sys/"+strings.ReplaceAll(key, ".", "/"), []byte(value), 0o644)
 }
 
