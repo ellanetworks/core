@@ -48,7 +48,7 @@ func (f *fakeNGAPSender) SendNGResetAcknowledge(context.Context, *ngapType.UEAss
 	return nil
 }
 
-func (f *fakeNGAPSender) SendErrorIndication(context.Context, *ngapType.Cause, *ngapType.CriticalityDiagnostics) error {
+func (f *fakeNGAPSender) SendErrorIndication(context.Context, *int64, *int64, *ngapType.Cause, *ngapType.CriticalityDiagnostics) error {
 	return nil
 }
 

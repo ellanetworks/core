@@ -12,9 +12,8 @@ import (
 )
 
 func HandleUERadioCapabilityInfoIndication(ctx gocontext.Context, ran *amf.Radio, msg decode.UERadioCapabilityInfoIndication) {
-	ranUe := ran.FindUEByRanUeNgapID(msg.RANUENGAPID)
-	if ranUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("RanUeNgapID", msg.RANUENGAPID))
+	ranUe, ok := resolveUE(ctx, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+	if !ok {
 		return
 	}
 

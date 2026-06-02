@@ -13,8 +13,44 @@ import (
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/free5gc/aper"
 	"github.com/free5gc/ngap/ngapType"
 )
+
+// assertSingleErrorIndication checks that exactly one Error Indication was sent
+// with the given radio-network cause, and returns it.
+func assertSingleErrorIndication(t *testing.T, sender *FakeNGAPSender, wantCause aper.Enumerated) *ErrorIndication {
+	t.Helper()
+
+	if len(sender.SentErrorIndications) != 1 {
+		t.Fatalf("ErrorIndications sent = %d, want 1", len(sender.SentErrorIndications))
+	}
+
+	errInd := sender.SentErrorIndications[0]
+	if errInd.Cause == nil || errInd.Cause.Present != ngapType.CausePresentRadioNetwork {
+		t.Fatalf("expected RadioNetwork cause, got %+v", errInd.Cause)
+	}
+
+	if errInd.Cause.RadioNetwork.Value != wantCause {
+		t.Errorf("cause = %d, want %d", errInd.Cause.RadioNetwork.Value, wantCause)
+	}
+
+	return errInd
+}
+
+// assertErrorIndicationEchoesIDs checks the Error Indication carries the received
+// AP IDs (TS 38.413 §8.7.5.2, §10.6).
+func assertErrorIndicationEchoesIDs(t *testing.T, errInd *ErrorIndication, wantAmf, wantRan int64) {
+	t.Helper()
+
+	if errInd.AmfUeNgapID == nil || *errInd.AmfUeNgapID != wantAmf {
+		t.Errorf("Error Indication AMF UE NGAP ID = %v, want %d", errInd.AmfUeNgapID, wantAmf)
+	}
+
+	if errInd.RanUeNgapID == nil || *errInd.RanUeNgapID != wantRan {
+		t.Errorf("Error Indication RAN UE NGAP ID = %v, want %d", errInd.RanUeNgapID, wantRan)
+	}
+}
 
 // setupCrossRadioScenario creates:
 //   - legitimateRan: the radio the UE is actually registered on
@@ -193,15 +229,13 @@ func TestCrossRadio_HandoverFailure(t *testing.T) {
 	}
 }
 
-// TestCrossRadio_InconsistentAmfUeNgapID verifies that when the RAN-UE-NGAP-ID
-// matches but the AMF-UE-NGAP-ID does not, an InconsistentRemoteUENGAPID error
-// is sent back.
-func TestCrossRadio_InconsistentAmfUeNgapID(t *testing.T) {
+// TestResolveUE_UnknownAmfUeNgapID verifies that an AMF UE NGAP ID the AMF never
+// allocated is reported as an unknown local AP ID (TS 38.413 §10.6), with the
+// received AP IDs echoed back.
+func TestResolveUE_UnknownAmfUeNgapID(t *testing.T) {
 	legitimateRan, _, _, amfInstance := setupCrossRadioScenario(t)
 	sender := legitimateRan.NGAPSender.(*FakeNGAPSender)
 
-	// RAN-UE-NGAP-ID=1 exists on legitimateRan with AMF-UE-NGAP-ID=10,
-	// but we claim AMF-UE-NGAP-ID=999.
 	ranID := int64(1)
 	wrongAmfID := int64(999)
 	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, legitimateRan, decode.PDUSessionResourceSetupResponse{
@@ -209,11 +243,24 @@ func TestCrossRadio_InconsistentAmfUeNgapID(t *testing.T) {
 		AMFUENGAPID: &wrongAmfID,
 	})
 
-	if len(sender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication, got %d", len(sender.SentErrorIndications))
-	}
+	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
+	assertErrorIndicationEchoesIDs(t, errInd, 999, 1)
+}
 
-	if sender.SentErrorIndications[0].Cause.RadioNetwork.Value != ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID {
-		t.Errorf("expected InconsistentRemoteUENGAPID, got %d", sender.SentErrorIndications[0].Cause.RadioNetwork.Value)
-	}
+// TestResolveUE_InconsistentRanUeNgapID verifies that a known AMF UE NGAP ID with
+// a RAN UE NGAP ID different from the stored one is reported as an inconsistent
+// remote AP ID (TS 38.413 §10.6), with the received AP IDs echoed back.
+func TestResolveUE_InconsistentRanUeNgapID(t *testing.T) {
+	legitimateRan, _, _, amfInstance := setupCrossRadioScenario(t)
+	sender := legitimateRan.NGAPSender.(*FakeNGAPSender)
+
+	amfID := int64(10)
+	wrongRanID := int64(2)
+	ngap.HandlePDUSessionResourceSetupResponse(context.Background(), amfInstance, legitimateRan, decode.PDUSessionResourceSetupResponse{
+		RANUENGAPID: &wrongRanID,
+		AMFUENGAPID: &amfID,
+	})
+
+	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID)
+	assertErrorIndicationEchoesIDs(t, errInd, 10, 2)
 }

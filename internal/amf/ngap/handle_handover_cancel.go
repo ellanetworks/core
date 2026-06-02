@@ -12,41 +12,8 @@ import (
 )
 
 func HandleHandoverCancel(ctx context.Context, ran *amf.Radio, msg decode.HandoverCancel) {
-	sourceUe := ran.FindUEByRanUeNgapID(msg.RANUENGAPID)
-	if sourceUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("RanUeNgapID", msg.RANUENGAPID))
-
-		cause := ngapType.Cause{
-			Present: ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{
-				Value: ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID,
-			},
-		}
-
-		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
-		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err), zap.Int64("RAN_UE_NGAP_ID", msg.RANUENGAPID))
-			return
-		}
-
-		return
-	}
-
-	if sourceUe.AmfUeNgapID != msg.AMFUENGAPID {
-		logger.WithTrace(ctx, sourceUe.Log).Error("AMF UE NGAP ID mismatch", zap.Int64("expected", sourceUe.AmfUeNgapID), zap.Int64("received", msg.AMFUENGAPID))
-
-		cause := ngapType.Cause{
-			Present: ngapType.CausePresentRadioNetwork,
-			RadioNetwork: &ngapType.CauseRadioNetwork{
-				Value: ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID,
-			},
-		}
-
-		err := ran.NGAPSender.SendErrorIndication(ctx, &cause, nil)
-		if err != nil {
-			logger.WithTrace(ctx, sourceUe.Log).Error("error sending error indication", zap.Error(err))
-		}
-
+	sourceUe, ok := resolveUE(ctx, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+	if !ok {
 		return
 	}
 
