@@ -20,9 +20,9 @@ import (
 func TestGTPEncapsulationDownlinkIPv4(t *testing.T) {
 	requireProgTestRun(t)
 
-	// n3_ifindex 1 (loopback) is the encapsulation egress and MTU-check device;
-	// n6_ifindex 0 makes the test-run packet (ingress 0) take the N6 downlink
-	// path.
+	// n3_ifindex 1 (loopback) is the encapsulation egress and MTU-check device. A
+	// non-GTP IPv4 packet is routed to handle_n6_packet (downlink encap) by
+	// handle_ip4 regardless of the entrypoint's N3/N6 tag.
 	obj := loadProgram(t, 1, 0)
 
 	var (

@@ -65,10 +65,15 @@ func requireProgTestRun(t *testing.T) {
 	}
 }
 
-// loadProgram loads the N3/N6 program with the given interface indices. A test
-// sends on the interface whose index is 0, because BPF_PROG_TEST_RUN defaults
-// ingress_ifindex to 0; the other index must be a real device (loopback) to
-// serve the in-path MTU check and routing egress.
+// loadProgram loads the N3/N6 program with the given interface indices.
+//
+// XDP BPF_PROG_TEST_RUN runs with ingress_ifindex == 1 (loopback). The
+// entrypoint tags a packet N3 or N6 by matching that against n3Ifindex/n6Ifindex,
+// and the in-path bpf_check_mtu needs a real device (loopback, index 1). GTP
+// decap runs from handle_ip4 regardless of the N3/N6 tag, and
+// handle_gtp_packet/handle_n6_packet set ctx->interface themselves — so
+// verdict/DataOut tests don't depend on the tag; only stats-map selection does
+// (see stats_test.go).
 func loadProgram(t *testing.T, n3Ifindex, n6Ifindex int) *BpfObjects {
 	t.Helper()
 
@@ -107,8 +112,11 @@ func loadProgramConfig(t *testing.T, flowAccounting, masquerade bool, n3Ifindex,
 	return obj
 }
 
-// loadN3N6Program loads the program for uplink (N3) tests: ingress on N3
-// (index 0), loopback (index 1) as the N6 egress/MTU device.
+// loadN3N6Program is the loader for the GTP/uplink tests. n3_ifindex 0 keeps the
+// routing ifindex-mismatch check disabled (stable forwarding verdicts) and
+// n6_ifindex 1 (loopback) is the valid MTU/egress device. The GTP decap path in
+// handle_ip4 runs regardless of the entrypoint's N3/N6 tag; these tests assert on
+// the packet/verdict, not the stats-map selection.
 func loadN3N6Program(t *testing.T) *BpfObjects {
 	t.Helper()
 
