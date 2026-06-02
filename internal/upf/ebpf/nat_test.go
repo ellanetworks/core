@@ -13,35 +13,81 @@ import (
 	"time"
 )
 
-// natProto describes one transport protocol for the NAT tests: how to build an
-// inner L4 segment between two IPv4 endpoints and how to validate its checksum
-// after rewrite.
+// natProto describes one transport protocol for the NAT tests: the UE-side L4
+// ports, how to build an inner L4 segment, and how to validate its checksum.
 type natProto struct {
 	name  string
 	num   uint8
-	build func(src, dst [4]byte, payload []byte) []byte
+	sport uint16 // UE source port (uplink); 0 for ICMP
+	dport uint16 // server port (uplink destination); 0 for ICMP
+	build func(src, dst [4]byte, sport, dport uint16, payload []byte) []byte
 	valid func(src, dst [4]byte, l4 []byte) bool
 }
+
+const natICMPID = 0xbeef
 
 var natProtos = []natProto{
 	{
 		name:  "tcp",
 		num:   6,
-		build: func(src, dst [4]byte, p []byte) []byte { return tcpSegmentChecksummed(src, dst, 1234, 80, p) },
+		sport: 1234,
+		dport: 80,
+		build: func(src, dst [4]byte, sp, dp uint16, p []byte) []byte {
+			return tcpSegmentChecksummed(src, dst, sp, dp, p)
+		},
 		valid: func(src, dst [4]byte, l4 []byte) bool { return validIPv4L4Checksum(src, dst, 6, l4) },
 	},
 	{
 		name:  "udp",
 		num:   17,
-		build: func(src, dst [4]byte, p []byte) []byte { return udpDatagramChecksummed(src, dst, 1234, 53, p) },
+		sport: 1234,
+		dport: 53,
+		build: func(src, dst [4]byte, sp, dp uint16, p []byte) []byte {
+			return udpDatagramChecksummed(src, dst, sp, dp, p)
+		},
 		valid: func(src, dst [4]byte, l4 []byte) bool { return validIPv4L4Checksum(src, dst, 17, l4) },
 	},
 	{
 		name:  "icmp",
 		num:   1,
-		build: func(_, _ [4]byte, p []byte) []byte { return icmpEchoRequest(0xbeef, 1, p) },
+		build: func(_, _ [4]byte, _, _ uint16, p []byte) []byte { return icmpEchoRequest(natICMPID, 1, p) },
 		valid: func(_, _ [4]byte, l4 []byte) bool { return validICMPChecksum(l4) },
 	},
+}
+
+// l4ChecksumOffset returns the byte offset of the L4 checksum field for proto,
+// or -1 if not applicable.
+func l4ChecksumOffset(num uint8) int {
+	switch num {
+	case 6:
+		return 16 // TCP
+	case 17:
+		return 6 // UDP
+	case 1:
+		return 2 // ICMP
+	default:
+		return -1
+	}
+}
+
+// l4PreservedExceptChecksum reports whether got equals orig once the L4
+// checksum field (the only L4 byte source-NAT legitimately rewrites) is masked.
+// It catches corruption of ports, sequence numbers, flags, or payload that a
+// checksum-only assertion would miss.
+func l4PreservedExceptChecksum(num uint8, got, orig []byte) bool {
+	if len(got) != len(orig) {
+		return false
+	}
+
+	g := bytes.Clone(got)
+	o := bytes.Clone(orig)
+
+	if off := l4ChecksumOffset(num); off >= 0 && off+2 <= len(g) {
+		g[off], g[off+1] = 0, 0
+		o[off], o[off+1] = 0, 0
+	}
+
+	return bytes.Equal(g, o)
 }
 
 // payloadSizes brackets the historical bpf_csum_diff 512-byte limit and pushes
@@ -64,7 +110,8 @@ func TestSourceNATUplink(t *testing.T) {
 			t.Run(proto.name+"/"+sizeLabel(size), func(t *testing.T) {
 				capFD := f.captureN6(t)
 
-				inner := ipv4Packet(ueIP, serverIP, proto.num, proto.build(ueIP, serverIP, bytesOf(size)))
+				origL4 := proto.build(ueIP, serverIP, proto.sport, proto.dport, bytesOf(size))
+				inner := ipv4Packet(ueIP, serverIP, proto.num, origL4)
 				f.injectUplink(t, uplinkGPDU(teid, inner))
 
 				got := captureMatching(capFD, time.Second, func(fr []byte) bool {
@@ -74,7 +121,7 @@ func TestSourceNATUplink(t *testing.T) {
 					t.Fatal("did not capture a NAT'd packet on the N6 side")
 				}
 
-				assertSourceNATd(t, got, proto)
+				assertSourceNATd(t, got, proto, origL4)
 			})
 		}
 	}
@@ -101,7 +148,7 @@ func TestNATRoundTrip(t *testing.T) {
 		for _, size := range []int{40, 1000} {
 			t.Run(proto.name+"/"+sizeLabel(size), func(t *testing.T) {
 				// Uplink first: establish the conntrack mapping.
-				uplinkInner := ipv4Packet(ueIP, serverIP, proto.num, proto.build(ueIP, serverIP, bytesOf(40)))
+				uplinkInner := ipv4Packet(ueIP, serverIP, proto.num, proto.build(ueIP, serverIP, proto.sport, proto.dport, bytesOf(40)))
 				f.injectUplink(t, uplinkGPDU(ulTEID, uplinkInner))
 
 				time.Sleep(100 * time.Millisecond)
@@ -185,10 +232,19 @@ func TestNATPortCollision(t *testing.T) {
 			t.Fatal("did not capture a NAT'd packet on the N6 side")
 		}
 
+		ip := got[ethHdrLen : ethHdrLen+20]
 		tcp := got[ethHdrLen+20:]
 
-		if !bytes.Equal(got[ethHdrLen+12:ethHdrLen+16], natPublicIP[:]) {
-			t.Errorf("inner src = %v, want %v (source-NAT'd)", got[ethHdrLen+12:ethHdrLen+16], natPublicIP)
+		if !bytes.Equal(ip[12:16], natPublicIP[:]) {
+			t.Errorf("inner src = %v, want %v (source-NAT'd)", ip[12:16], natPublicIP)
+		}
+
+		if !bytes.Equal(ip[16:20], serverIP[:]) {
+			t.Errorf("inner dst = %v, want %v (preserved)", ip[16:20], serverIP)
+		}
+
+		if dp := binary.BigEndian.Uint16(tcp[2:4]); dp != 80 {
+			t.Errorf("inner dest port = %d, want 80 (only the source port may be remapped)", dp)
 		}
 
 		if !validIPv4L4Checksum(natPublicIP, serverIP, 6, tcp) {
@@ -274,10 +330,15 @@ func TestNATICMPError(t *testing.T) {
 		t.Error("ICMP checksum invalid after NAT")
 	}
 
-	// The embedded original packet's source must be rewritten to the UE.
+	// The embedded original packet's source must be rewritten to the UE, and
+	// its destination (the server) left untouched.
 	embedded := icmp[8:]
 	if len(embedded) < 28 || !bytes.Equal(embedded[12:16], ueIP[:]) {
 		t.Fatalf("embedded packet source not rewritten to the UE: %x", embedded)
+	}
+
+	if !bytes.Equal(embedded[16:20], serverIP[:]) {
+		t.Errorf("embedded packet dst = %v, want %v (must be preserved)", embedded[16:20], serverIP)
 	}
 
 	if !validIPv4Checksum(embedded[:20]) {
@@ -294,15 +355,18 @@ func TestNATICMPError(t *testing.T) {
 func downlinkReply(proto natProto, payload []byte) []byte {
 	switch proto.num {
 	case 6:
-		return tcpSegmentChecksummed(serverIP, natPublicIP, 80, 1234, payload)
+		return tcpSegmentChecksummed(serverIP, natPublicIP, proto.dport, proto.sport, payload)
 	case 17:
-		return udpDatagramChecksummed(serverIP, natPublicIP, 53, 1234, payload)
+		return udpDatagramChecksummed(serverIP, natPublicIP, proto.dport, proto.sport, payload)
 	default:
-		return icmpEchoReply(0xbeef, 1, payload)
+		return icmpEchoReply(natICMPID, 1, payload)
 	}
 }
 
-func assertSourceNATd(t *testing.T, frame []byte, proto natProto) {
+// assertSourceNATd checks an uplink source-NAT egress packet: the source is
+// rewritten to the egress address, the destination and the whole L4 segment
+// (beyond the checksum) are preserved, and both checksums are valid.
+func assertSourceNATd(t *testing.T, frame []byte, proto natProto, origL4 []byte) {
 	t.Helper()
 
 	ip := frame[ethHdrLen : ethHdrLen+20]
@@ -312,6 +376,10 @@ func assertSourceNATd(t *testing.T, frame []byte, proto natProto) {
 		t.Errorf("inner src = %v, want %v (source-NAT'd)", ip[12:16], natPublicIP)
 	}
 
+	if !bytes.Equal(ip[16:20], serverIP[:]) {
+		t.Errorf("inner dst = %v, want %v (source-NAT must not touch the destination)", ip[16:20], serverIP)
+	}
+
 	if !validIPv4Checksum(ip) {
 		t.Error("inner IPv4 header checksum invalid after NAT")
 	}
@@ -319,8 +387,17 @@ func assertSourceNATd(t *testing.T, frame []byte, proto natProto) {
 	if !proto.valid(natPublicIP, serverIP, l4) {
 		t.Errorf("inner %s checksum invalid after NAT", proto.name)
 	}
+
+	if !l4PreservedExceptChecksum(proto.num, l4, origL4) {
+		t.Errorf("source-NAT altered the L4 segment beyond its checksum:\n got %x\nwant %x (except checksum)", l4, origL4)
+	}
 }
 
+// assertDestinationNATd checks a downlink destination-NAT egress packet (inside
+// the re-encapsulated GTP frame): the destination is rewritten to the UE, the
+// source (server) is preserved, the L4 port semantics hold (server source port
+// preserved; destination port restored to the UE's original source port), and
+// the checksums are valid.
 func assertDestinationNATd(t *testing.T, frame []byte, proto natProto) {
 	t.Helper()
 
@@ -336,12 +413,31 @@ func assertDestinationNATd(t *testing.T, frame []byte, proto natProto) {
 		t.Errorf("inner dst = %v, want %v (destination-NAT'd)", ip[16:20], ueIP)
 	}
 
+	if !bytes.Equal(ip[12:16], serverIP[:]) {
+		t.Errorf("inner src = %v, want %v (destination-NAT must not touch the source)", ip[12:16], serverIP)
+	}
+
 	if !validIPv4Checksum(ip) {
 		t.Error("inner IPv4 header checksum invalid after NAT")
 	}
 
 	if !proto.valid(serverIP, ueIP, l4) {
 		t.Errorf("inner %s checksum invalid after NAT", proto.name)
+	}
+
+	switch proto.num {
+	case 6, 17:
+		if sp := binary.BigEndian.Uint16(l4[0:2]); sp != proto.dport {
+			t.Errorf("inner L4 source port = %d, want %d (server port, preserved)", sp, proto.dport)
+		}
+
+		if dp := binary.BigEndian.Uint16(l4[2:4]); dp != proto.sport {
+			t.Errorf("inner L4 dest port = %d, want %d (restored to UE's original source port)", dp, proto.sport)
+		}
+	case 1:
+		if id := binary.BigEndian.Uint16(l4[4:6]); id != natICMPID {
+			t.Errorf("inner ICMP echo id = %#x, want %#x (preserved)", id, natICMPID)
+		}
 	}
 }
 

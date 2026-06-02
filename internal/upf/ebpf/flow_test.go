@@ -144,6 +144,12 @@ func TestFlowReportDownlink(t *testing.T) {
 		t.Fatalf("no flow_stats entry recorded (iterate err=%v)", it.Err())
 	}
 
+	const wantIMSI = 1010000000001 // "001010000000001"
+
+	if key.Imsi != wantIMSI {
+		t.Errorf("flow IMSI = %d, want %d", key.Imsi, uint64(wantIMSI))
+	}
+
 	if key.Proto != 17 {
 		t.Errorf("flow protocol = %d, want 17 (UDP)", key.Proto)
 	}
@@ -166,6 +172,10 @@ func TestFlowReportDownlink(t *testing.T) {
 
 	if val.Packets != 1 {
 		t.Errorf("flow packets = %d, want 1", val.Packets)
+	}
+
+	if val.Bytes == 0 {
+		t.Error("flow bytes = 0, want > 0")
 	}
 }
 
