@@ -41,12 +41,11 @@ func TestHandleUplinkNasTransport_UnknownRanUe_SendsErrorIndication(t *testing.T
 	}
 }
 
-// TestHandleUplinkNasTransport_AMFUENGAPIDMismatch_SendsErrorIndication
-// covers TS 38.413 §8.7.5.2: when the RAN UE NGAP ID identifies a known UE
-// but the AMF UE NGAP ID in the message does not match the one the AMF
-// allocated to that UE, the AMF shall respond with ErrorIndication and
-// cause "Inconsistent remote UE NGAP ID".
-func TestHandleUplinkNasTransport_AMFUENGAPIDMismatch_SendsErrorIndication(t *testing.T) {
+// TestHandleUplinkNasTransport_UnknownAmfUeNgapID_SendsErrorIndication covers
+// TS 38.413 §10.6: an AMF UE NGAP ID the AMF never allocated is an unknown local
+// AP ID, so the AMF answers with an Error Indication carrying the received AP IDs
+// (§8.7.5.2) and cause "Unknown local UE NGAP ID".
+func TestHandleUplinkNasTransport_UnknownAmfUeNgapID_SendsErrorIndication(t *testing.T) {
 	ran := newTestRadio()
 	sender := ran.NGAPSender.(*FakeNGAPSender)
 	fakeNAS := &FakeNASHandler{}
@@ -60,19 +59,35 @@ func TestHandleUplinkNasTransport_AMFUENGAPIDMismatch_SendsErrorIndication(t *te
 		NASPDU:      []byte{0x7E, 0x00, 0x55},
 	})
 
-	if len(sender.SentErrorIndications) != 1 {
-		t.Fatalf("ErrorIndications sent = %d, want 1", len(sender.SentErrorIndications))
-	}
+	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
+	assertErrorIndicationEchoesIDs(t, errInd, 99999, 1)
 
-	cause := sender.SentErrorIndications[0].Cause
-	if cause == nil || cause.Present != ngapType.CausePresentRadioNetwork {
-		t.Fatal("expected RadioNetwork cause")
+	if len(fakeNAS.Calls) != 0 {
+		t.Errorf("NAS handler must not be invoked on ID mismatch, got %d calls", len(fakeNAS.Calls))
 	}
+}
 
-	if cause.RadioNetwork.Value != ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID {
-		t.Errorf("cause = %d, want InconsistentRemoteUENGAPID (%d)",
-			cause.RadioNetwork.Value, ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID)
-	}
+// TestHandleUplinkNasTransport_InconsistentRanUeNgapID_SendsErrorIndication
+// covers TS 38.413 §10.6: a RAN UE NGAP ID different from the one stored for the
+// connection is an inconsistent remote AP ID, so the AMF answers with an Error
+// Indication carrying the received AP IDs and cause "Inconsistent remote UE NGAP
+// ID".
+func TestHandleUplinkNasTransport_InconsistentRanUeNgapID_SendsErrorIndication(t *testing.T) {
+	ran := newTestRadio()
+	sender := ran.NGAPSender.(*FakeNGAPSender)
+	fakeNAS := &FakeNASHandler{}
+	amfInstance := newTestAMFWithNAS(fakeNAS)
+
+	amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
+
+	ngap.HandleUplinkNasTransport(context.Background(), amfInstance, ran, decode.UplinkNASTransport{
+		AMFUENGAPID: 10,
+		RANUENGAPID: 2,
+		NASPDU:      []byte{0x7E, 0x00, 0x55},
+	})
+
+	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID)
+	assertErrorIndicationEchoesIDs(t, errInd, 10, 2)
 
 	if len(fakeNAS.Calls) != 0 {
 		t.Errorf("NAS handler must not be invoked on ID mismatch, got %d calls", len(fakeNAS.Calls))

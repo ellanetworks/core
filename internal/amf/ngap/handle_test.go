@@ -250,6 +250,8 @@ type NGResetAcknowledge struct {
 }
 
 type ErrorIndication struct {
+	AmfUeNgapID            *int64
+	RanUeNgapID            *int64
 	Cause                  *ngapType.Cause
 	CriticalityDiagnostics *ngapType.CriticalityDiagnostics
 }
@@ -371,8 +373,10 @@ func (fng *FakeNGAPSender) SendNGResetAcknowledge(ctx context.Context, partOfNGI
 	return nil
 }
 
-func (fng *FakeNGAPSender) SendErrorIndication(ctx context.Context, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
+func (fng *FakeNGAPSender) SendErrorIndication(ctx context.Context, amfUeNgapID, ranUeNgapID *int64, cause *ngapType.Cause, criticalityDiagnostics *ngapType.CriticalityDiagnostics) error {
 	fng.SentErrorIndications = append(fng.SentErrorIndications, &ErrorIndication{
+		AmfUeNgapID:            amfUeNgapID,
+		RanUeNgapID:            ranUeNgapID,
 		Cause:                  cause,
 		CriticalityDiagnostics: criticalityDiagnostics,
 	})

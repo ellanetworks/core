@@ -30,7 +30,7 @@ func HandleHandoverFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.R
 	targetUe := ran.FindUEByAmfUeNgapID(msg.AMFUENGAPID)
 	if targetUe == nil {
 		logger.WithTrace(ctx, ran.Log).Error("No UE Context on this radio", zap.Int64("AmfUeNgapID", msg.AMFUENGAPID))
-		sendUnknownLocalUEError(ctx, ran)
+		sendUnknownLocalUEError(ctx, ran, &msg.AMFUENGAPID, nil)
 
 		return
 	}

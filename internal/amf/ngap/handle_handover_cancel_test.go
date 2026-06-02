@@ -46,11 +46,11 @@ func TestHandleHandoverCancel_UnknownRanUeNgapID(t *testing.T) {
 	}
 }
 
-// TestHandleHandoverCancel_InconsistentAmfUeNgapID verifies that a
-// HandoverCancel whose AMF UE NGAP ID does not match the value stored for the UE
-// draws an Error Indication and is not acted upon (TS 38.413 §10.6): no
-// acknowledge to the source and no release toward the target.
-func TestHandleHandoverCancel_InconsistentAmfUeNgapID(t *testing.T) {
+// TestHandleHandoverCancel_UnknownAmfUeNgapID verifies that a HandoverCancel
+// whose AMF UE NGAP ID the AMF never allocated is treated as an unknown local AP
+// ID (TS 38.413 §10.6): an Error Indication carrying the received AP IDs is sent,
+// with no acknowledge to the source and no release toward the target.
+func TestHandleHandoverCancel_UnknownAmfUeNgapID(t *testing.T) {
 	sourceRan := newTestRadio()
 	sourceSender := sourceRan.NGAPSender.(*FakeNGAPSender)
 
@@ -74,15 +74,8 @@ func TestHandleHandoverCancel_InconsistentAmfUeNgapID(t *testing.T) {
 
 	ngap.HandleHandoverCancel(context.Background(), sourceRan, msg)
 
-	if len(sourceSender.SentErrorIndications) != 1 {
-		t.Fatalf("expected 1 ErrorIndication, got %d", len(sourceSender.SentErrorIndications))
-	}
-
-	errInd := sourceSender.SentErrorIndications[0]
-	if errInd.Cause == nil || errInd.Cause.Present != ngapType.CausePresentRadioNetwork ||
-		errInd.Cause.RadioNetwork.Value != ngapType.CauseRadioNetworkPresentInconsistentRemoteUENGAPID {
-		t.Fatalf("expected InconsistentRemoteUENGAPID cause, got %+v", errInd.Cause)
-	}
+	errInd := assertSingleErrorIndication(t, sourceSender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
+	assertErrorIndicationEchoesIDs(t, errInd, 999, 1)
 
 	if len(sourceSender.SentHandoverCancelAcknowledges) != 0 {
 		t.Errorf("expected no HandoverCancelAcknowledge, got %d", len(sourceSender.SentHandoverCancelAcknowledges))

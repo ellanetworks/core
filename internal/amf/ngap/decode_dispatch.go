@@ -23,7 +23,7 @@ func handleDecodeReport(ctx context.Context, ran *amf.Radio, report *decode.Repo
 	if report.Fatal() {
 		cd := report.ToCriticalityDiagnostics()
 
-		if err := ran.NGAPSender.SendErrorIndication(ctx, nil, &cd); err != nil {
+		if err := ran.NGAPSender.SendErrorIndication(ctx, nil, nil, nil, &cd); err != nil {
 			logger.WithTrace(ctx, ran.Log).Error("error sending error indication", zap.Error(err))
 		}
 
