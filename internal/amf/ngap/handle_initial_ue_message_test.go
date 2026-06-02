@@ -37,9 +37,9 @@ func TestHandleInitialUEMessage_CreatesNewRanUe(t *testing.T) {
 		t.Fatalf("len(ran.RanUEs) = %d, want 1", len(ran.RanUEs))
 	}
 
-	ranUe := ran.RanUEs[1]
+	ranUe := ran.FindUEByRanUeNgapID(1)
 	if ranUe == nil {
-		t.Fatal("ran.RanUEs[1] is nil")
+		t.Fatal("ran.FindUEByRanUeNgapID(1) is nil")
 	}
 
 	if ranUe.RanUeNgapID != 1 {
@@ -73,9 +73,9 @@ func TestHandleInitialUEMessage_ReusedRanUeNgapID_EvictsStale(t *testing.T) {
 		t.Fatalf("len(ran.RanUEs) = %d, want 1", len(ran.RanUEs))
 	}
 
-	newRanUe := ran.RanUEs[1]
+	newRanUe := ran.FindUEByRanUeNgapID(1)
 	if newRanUe == nil {
-		t.Fatal("ran.RanUEs[1] is nil")
+		t.Fatal("ran.FindUEByRanUeNgapID(1) is nil")
 	}
 
 	if newRanUe.AmfUeNgapID == 99 {
@@ -141,9 +141,9 @@ func TestHandleInitialUEMessage_5GSTMSI_KnownUE_AttachesAmfUe(t *testing.T) {
 		},
 	})
 
-	ranUe := ran.RanUEs[1]
+	ranUe := ran.FindUEByRanUeNgapID(1)
 	if ranUe == nil {
-		t.Fatal("ran.RanUEs[1] is nil")
+		t.Fatal("ran.FindUEByRanUeNgapID(1) is nil")
 	}
 
 	if ranUe.AmfUe() != amfUe {
@@ -187,9 +187,9 @@ func TestHandleInitialUEMessage_5GSTMSI_UnknownUE_NASStillCalled(t *testing.T) {
 		t.Fatalf("NAS calls = %d, want 1", len(fakeNAS.Calls))
 	}
 
-	ranUe := ran.RanUEs[1]
+	ranUe := ran.FindUEByRanUeNgapID(1)
 	if ranUe == nil {
-		t.Fatal("ran.RanUEs[1] is nil")
+		t.Fatal("ran.FindUEByRanUeNgapID(1) is nil")
 	}
 
 	if ranUe.AmfUe() != nil {
@@ -210,9 +210,9 @@ func TestHandleInitialUEMessage_SetsUeContextRequest(t *testing.T) {
 		UEContextRequest: true,
 	})
 
-	ranUe := ran.RanUEs[1]
+	ranUe := ran.FindUEByRanUeNgapID(1)
 	if ranUe == nil {
-		t.Fatal("ran.RanUEs[1] is nil")
+		t.Fatal("ran.FindUEByRanUeNgapID(1) is nil")
 	}
 
 	if !ranUe.UeContextRequest {

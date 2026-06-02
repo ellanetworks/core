@@ -435,16 +435,9 @@ func (amf *AMF) FindRanUeByAmfUeNgapID(amfUeNgapID int64) *RanUe {
 	defer amf.mu.RUnlock()
 
 	for _, ran := range amf.Radios {
-		ran.mu.RLock()
-
-		for _, ranUe := range ran.RanUEs {
-			if ranUe.AmfUeNgapID == amfUeNgapID {
-				ran.mu.RUnlock()
-				return ranUe
-			}
+		if ranUe := ran.FindUEByAmfUeNgapID(amfUeNgapID); ranUe != nil {
+			return ranUe
 		}
-
-		ran.mu.RUnlock()
 	}
 
 	return nil
@@ -511,7 +504,7 @@ func (a *AMF) NewRanUe(radio *Radio, ranUeNgapID int64) (*RanUe, error) {
 	}
 
 	radio.mu.Lock()
-	radio.RanUEs[ranUeNgapID] = ranUe
+	radio.RanUEs[amfUeNgapID] = ranUe
 	radio.mu.Unlock()
 
 	return ranUe, nil

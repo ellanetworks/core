@@ -300,7 +300,7 @@ func (ranUe *RanUe) Remove(ctx context.Context) error {
 	}
 
 	ran.mu.Lock()
-	delete(ran.RanUEs, ranUe.RanUeNgapID)
+	delete(ran.RanUEs, ranUe.AmfUeNgapID)
 	ran.mu.Unlock()
 
 	if ranUe.freeNgapID != nil {
@@ -326,14 +326,13 @@ func (ranUe *RanUe) SwitchToRan(newRan *Radio, ranUeNgapID int64) error {
 
 	oldRan := ranUe.radio
 
-	// remove ranUe from oldRan
+	// move ranUe from oldRan to newRan (keyed by the unchanged AMF UE NGAP ID)
 	oldRan.mu.Lock()
-	delete(oldRan.RanUEs, ranUe.RanUeNgapID)
+	delete(oldRan.RanUEs, ranUe.AmfUeNgapID)
 	oldRan.mu.Unlock()
 
-	// add ranUe to newRan
 	newRan.mu.Lock()
-	newRan.RanUEs[ranUeNgapID] = ranUe
+	newRan.RanUEs[ranUe.AmfUeNgapID] = ranUe
 	newRan.mu.Unlock()
 
 	// switch to newRan
@@ -486,7 +485,7 @@ func NewRanUeForTest(radio *Radio, ranUeNgapID, amfUeNgapID int64, log *zap.Logg
 	}
 
 	radio.mu.Lock()
-	radio.RanUEs[ranUeNgapID] = ranUe
+	radio.RanUEs[amfUeNgapID] = ranUe
 	radio.mu.Unlock()
 
 	return ranUe

@@ -50,8 +50,6 @@ func TestHandleHandoverFailure_SourceAmfUeDetached(t *testing.T) {
 		t.Fatalf("AttachSourceUeTargetUe: %v", err)
 	}
 
-	targetRan.RanUEs[2] = targetUe
-
 	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
 	amfInstance.Radios[new(sctp.SCTPConn)] = targetRan
 
