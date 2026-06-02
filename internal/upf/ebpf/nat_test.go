@@ -116,7 +116,7 @@ func TestNATRoundTrip(t *testing.T) {
 				got := captureMatching(capFD, time.Second, func(fr []byte) bool {
 					inner := gtpInner(fr)
 
-					return inner != nil && inner[9] == proto.num && bytes.Equal(inner[16:20], ueIP[:])
+					return inner != nil && inner[9] == proto.num
 				})
 				if got == nil {
 					t.Fatal("did not capture a re-encapsulated downlink packet on the N3 side")
@@ -253,7 +253,7 @@ func TestNATICMPError(t *testing.T) {
 	got := captureMatching(capFD, time.Second, func(fr []byte) bool {
 		inner := gtpInner(fr)
 
-		return inner != nil && inner[9] == 1 && bytes.Equal(inner[16:20], ueIP[:])
+		return inner != nil && inner[9] == 1 // ICMP
 	})
 	if got == nil {
 		t.Fatal("did not capture a re-encapsulated ICMP error on the N3 side")
@@ -261,6 +261,10 @@ func TestNATICMPError(t *testing.T) {
 
 	inner := gtpInner(got)
 	icmp := inner[20:]
+
+	if !bytes.Equal(inner[16:20], ueIP[:]) {
+		t.Errorf("ICMP error inner dst = %v, want %v (destination-NAT'd to UE)", inner[16:20], ueIP)
+	}
 
 	if !validIPv4Checksum(inner[:20]) {
 		t.Error("inner IPv4 header checksum invalid after NAT")

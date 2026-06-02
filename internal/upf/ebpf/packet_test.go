@@ -276,12 +276,12 @@ func innerIPv6UDP(dst [16]byte, dport uint16) []byte { //nolint:unparam // gener
 }
 
 // innerIPv6ICMPv6RS builds a UE inner packet: an ICMPv6 Router Solicitation
-// (type 133) to dst.
-func innerIPv6ICMPv6RS(dst [16]byte) []byte {
-	src := [16]byte{0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x09}
+// (type 133) sent from the UE's address ueSrc to the all-routers multicast.
+func innerIPv6ICMPv6RS(ueSrc [16]byte) []byte {
+	allRouters := [16]byte{0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x02}
 	rs := []byte{133, 0, 0, 0, 0, 0, 0, 0} // type=133 (Router Solicitation)
 
-	return ipv6Packet(src, dst, 58 /* IPPROTO_ICMPV6 */, rs)
+	return ipv6Packet(ueSrc, allRouters, 58 /* IPPROTO_ICMPV6 */, rs)
 }
 
 // gtpControlFrame builds an N3 frame carrying an 8-byte GTP-U control message of
