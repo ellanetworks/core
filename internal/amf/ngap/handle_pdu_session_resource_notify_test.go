@@ -14,13 +14,18 @@ import (
 	"github.com/free5gc/ngap/ngapType"
 )
 
-func TestPDUSessionResourceNotify_UnknownRanUeNgapID(t *testing.T) {
+func TestPDUSessionResourceNotify_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio()
+	sender := ran.NGAPSender.(*FakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, decode.PDUSessionResourceNotify{
 		RANUENGAPID: 99,
+		AMFUENGAPID: 999,
 	})
+
+	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
+	assertErrorIndicationEchoesIDs(t, errInd, 999, 99)
 }
 
 func TestPDUSessionResourceNotify_NilAmfUe(t *testing.T) {
@@ -31,6 +36,7 @@ func TestPDUSessionResourceNotify_NilAmfUe(t *testing.T) {
 
 	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, decode.PDUSessionResourceNotify{
 		RANUENGAPID: 1,
+		AMFUENGAPID: 10,
 	})
 }
 
@@ -51,6 +57,7 @@ func TestPDUSessionResourceNotify_ReleasedSessionDeactivated(t *testing.T) {
 
 	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, decode.PDUSessionResourceNotify{
 		RANUENGAPID: 1,
+		AMFUENGAPID: 10,
 		PDUSessionResourceReleasedItems: []ngapType.PDUSessionResourceReleasedItemNot{
 			{
 				PDUSessionID:                             ngapType.PDUSessionID{Value: 1},
@@ -90,6 +97,7 @@ func TestPDUSessionResourceNotify_ReleasedSessionSmContextNotFound(t *testing.T)
 
 	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, decode.PDUSessionResourceNotify{
 		RANUENGAPID: 1,
+		AMFUENGAPID: 10,
 		PDUSessionResourceReleasedItems: []ngapType.PDUSessionResourceReleasedItemNot{
 			{
 				PDUSessionID:                             ngapType.PDUSessionID{Value: 5},
@@ -116,6 +124,7 @@ func TestPDUSessionResourceNotify_InvalidPDUSessionID(t *testing.T) {
 
 	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, decode.PDUSessionResourceNotify{
 		RANUENGAPID: 1,
+		AMFUENGAPID: 10,
 		PDUSessionResourceReleasedItems: []ngapType.PDUSessionResourceReleasedItemNot{
 			{
 				PDUSessionID:                             ngapType.PDUSessionID{Value: 0},
@@ -142,6 +151,7 @@ func TestPDUSessionResourceNotify_NotifyListLogsWarning(t *testing.T) {
 
 	ngap.HandlePDUSessionResourceNotify(context.Background(), amfInstance, ran, decode.PDUSessionResourceNotify{
 		RANUENGAPID:   1,
+		AMFUENGAPID:   10,
 		HasNotifyList: true,
 	})
 

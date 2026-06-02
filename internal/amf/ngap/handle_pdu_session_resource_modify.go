@@ -10,9 +10,8 @@ import (
 )
 
 func HandlePDUSessionResourceNotify(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.PDUSessionResourceNotify) {
-	ranUe := ran.FindUEByRanUeNgapID(msg.RANUENGAPID)
-	if ranUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("RanUeNgapID", msg.RANUENGAPID), zap.Int64("AmfUeNgapID", msg.AMFUENGAPID))
+	ranUe, ok := resolveUE(ctx, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+	if !ok {
 		return
 	}
 

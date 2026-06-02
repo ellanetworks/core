@@ -31,12 +31,13 @@ func TestHandleInitialContextSetupFailure_MissingCause(t *testing.T) {
 	}
 }
 
-func TestHandleInitialContextSetupFailure_UnknownRanUeNgapID(t *testing.T) {
+func TestHandleInitialContextSetupFailure_UnknownAmfUeNgapID(t *testing.T) {
 	ran := newTestRadio()
+	sender := ran.NGAPSender.(*FakeNGAPSender)
 	amfInstance := newTestAMF()
 
 	msg := decode.InitialContextSetupFailure{
-		AMFUENGAPID: 1,
+		AMFUENGAPID: 999,
 		RANUENGAPID: 99,
 		Cause: ngapType.Cause{
 			Present:      ngapType.CausePresentRadioNetwork,
@@ -45,6 +46,9 @@ func TestHandleInitialContextSetupFailure_UnknownRanUeNgapID(t *testing.T) {
 	}
 
 	ngap.HandleInitialContextSetupFailure(context.Background(), amfInstance, ran, msg)
+
+	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
+	assertErrorIndicationEchoesIDs(t, errInd, 999, 99)
 }
 
 func TestHandleInitialContextSetupFailure_NilAmfUe(t *testing.T) {

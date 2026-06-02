@@ -32,6 +32,29 @@ func TestHandleLocationReport_MissingLocationReportingRequestType(t *testing.T) 
 	}
 }
 
+// TestHandleLocationReport_UnknownAmfUeNgapID verifies that a Location Report
+// whose AMF UE NGAP ID the AMF never allocated draws an Error Indication with the
+// received AP IDs (TS 38.413 §10.6).
+func TestHandleLocationReport_UnknownAmfUeNgapID(t *testing.T) {
+	ran := newTestRadio()
+	sender := ran.NGAPSender.(*FakeNGAPSender)
+	amfInstance := newTestAMF()
+
+	msg := decode.LocationReport{
+		AMFUENGAPID: 999,
+		RANUENGAPID: 99,
+		LocationReportingRequestType: &ngapType.LocationReportingRequestType{
+			EventType:  ngapType.EventType{Value: ngapType.EventTypePresentDirect},
+			ReportArea: ngapType.ReportArea{Value: ngapType.ReportAreaPresentCell},
+		},
+	}
+
+	ngap.HandleLocationReport(context.Background(), amfInstance, ran, msg)
+
+	errInd := assertSingleErrorIndication(t, sender, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
+	assertErrorIndicationEchoesIDs(t, errInd, 999, 99)
+}
+
 // TestHandleLocationReport_UePresenceInAreaOfInterest_NilList verifies that
 // a LocationReport with EventType=UePresenceInAreaOfInterest but without the
 // optional UEPresenceInAreaOfInterestList IE does NOT panic.

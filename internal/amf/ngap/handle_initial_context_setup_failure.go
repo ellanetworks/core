@@ -12,9 +12,8 @@ import (
 func HandleInitialContextSetupFailure(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.InitialContextSetupFailure) {
 	logger.WithTrace(ctx, ran.Log).Warn("Initial Context Setup Failure received", logger.Cause(causeToString(msg.Cause)))
 
-	ranUe := ran.FindUEByRanUeNgapID(msg.RANUENGAPID)
-	if ranUe == nil {
-		logger.WithTrace(ctx, ran.Log).Error("No UE Context", zap.Int64("RanUeNgapID", msg.RANUENGAPID))
+	ranUe, ok := resolveUE(ctx, ran, &msg.RANUENGAPID, &msg.AMFUENGAPID)
+	if !ok {
 		return
 	}
 
