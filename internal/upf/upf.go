@@ -175,7 +175,7 @@ func Start(ctx context.Context, smfHandler engine.SMFReportHandler, n3Interface 
 	}
 
 	if n3IPv4Addr.IsValid() || n3IPv6Addr.IsValid() {
-		raResp, err := NewRAResponder(bpfObjects.RsEventMap, n3IPv4Addr, n3IPv6Addr, n3Iface.Index, n6Iface.Index, masquerade, n3Vlan, n6Vlan)
+		raResp, err := NewRAResponder(bpfObjects.RsEventMap, n3IPv4Addr, n3IPv6Addr, n3Iface.Index)
 		if err != nil {
 			logger.UpfLog.Warn("failed to create RA responder, IPv6 RS/RA will be unavailable", zap.Error(err))
 		} else {

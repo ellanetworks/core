@@ -57,12 +57,6 @@ type RAResponder struct {
 	n3IPv6    netip.Addr
 	n3Ifindex int
 
-	// Datapath config for the veth XDP program (route_ipv4/route_ipv6).
-	n6Ifindex  int
-	masquerade bool
-	n3Vlan     uint32
-	n6Vlan     uint32
-
 	// Veth XDP objects.
 	vethBpf  *ebpf.VethBpfObjects
 	vethLink link.Link
@@ -80,23 +74,19 @@ type RAResponder struct {
 
 // NewRAResponder creates an RA responder. It does not start the consumer
 // goroutine; call Start() to begin processing.
-func NewRAResponder(rsEventMap *bpf.Map, n3IPv4 netip.Addr, n3IPv6 netip.Addr, n3Ifindex, n6Ifindex int, masquerade bool, n3Vlan, n6Vlan uint32) (*RAResponder, error) {
+func NewRAResponder(rsEventMap *bpf.Map, n3IPv4 netip.Addr, n3IPv6 netip.Addr, n3Ifindex int) (*RAResponder, error) {
 	rsReader, err := ringbuf.NewReader(rsEventMap)
 	if err != nil {
 		return nil, fmt.Errorf("open RS event ring buffer: %w", err)
 	}
 
 	return &RAResponder{
-		sessions:   make(map[uint32]*IPv6SessionContext),
-		n3IPv4:     n3IPv4,
-		n3IPv6:     n3IPv6,
-		n3Ifindex:  n3Ifindex,
-		n6Ifindex:  n6Ifindex,
-		masquerade: masquerade,
-		n3Vlan:     n3Vlan,
-		n6Vlan:     n6Vlan,
-		rsReader:   rsReader,
-		injectFD:   -1,
+		sessions:  make(map[uint32]*IPv6SessionContext),
+		n3IPv4:    n3IPv4,
+		n3IPv6:    n3IPv6,
+		n3Ifindex: n3Ifindex,
+		rsReader:  rsReader,
+		injectFD:  -1,
 	}, nil
 }
 
@@ -110,7 +100,7 @@ func (r *RAResponder) Start() error {
 	}
 
 	// Load veth XDP objects.
-	vethBpf, err := ebpf.LoadVethBpfObjects(r.masquerade, r.n3Ifindex, r.n6Ifindex, r.n3Vlan, r.n6Vlan)
+	vethBpf, err := ebpf.LoadVethBpfObjects()
 	if err != nil {
 		return fmt.Errorf("load veth XDP program: %w", err)
 	}

@@ -19,18 +19,16 @@ import (
 const (
 	vethInjDev  = "ellvethx"  // veth_xdp_func attaches here (production: veth-xdp)
 	vethInjPeer = "ellveths"  // RA injected here (production: veth-smf)
-	vethN3Dev   = "ellvethn3" // FIB egress for the encapsulated RA
+	vethN3Dev   = "ellvethn3" // the gNB route resolves here; encapsulated RA egresses here
 	vethN3Peer  = "ellvethn3p"
 )
 
 // TestVethRAEncapsulation checks the veth XDP program (veth_xdp_func), the IPv6
 // Router Advertisement / SLAAC injection path over an IPv4 N3 transport: an IPv6
 // packet injected on the veth, matching a veth_tunnels entry, is GTP-U
-// encapsulated toward the gNB and redirected out N3.
-//
-// This is the path that breaks when LoadVethBpfObjects does not configure
-// n3_ifindex: route_ipv4 redirects to the configured n3_ifindex, so without it
-// the encapsulated RA goes to interface 0 and is dropped.
+// encapsulated toward the gNB and forwarded to the interface the routing table
+// resolves for it. The program trusts the FIB result, so the test does not
+// assume any particular configured ifindex — it relies only on the gNB route.
 func TestVethRAEncapsulation(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -92,9 +90,7 @@ func TestVethRAEncapsulation(t *testing.T) {
 }
 
 // TestVethRAEncapsulationIPv6Transport checks the same path over an IPv6 N3
-// transport. This path routes via route_ipv6, which redirects to the
-// FIB-resolved interface rather than the configured n3_ifindex, so it works
-// independently of the constant — asserting it locks in that asymmetry.
+// transport.
 func TestVethRAEncapsulationIPv6Transport(t *testing.T) {
 	requireProgTestRun(t)
 
@@ -167,10 +163,8 @@ func TestVethRAEncapsulationIPv6Transport(t *testing.T) {
 }
 
 // setupVethRA builds the injection and N3 veth pairs, enables forwarding, and
-// loads the veth program configured as production should: n3_ifindex set to the
-// N3 device, and n6_ifindex set non-zero (the RA path has no real N6 side, but
-// the value must be non-zero so the encapsulation is not classified as
-// INTERFACE_N3).
+// loads + attaches the veth program exactly as production does (no configured
+// ifindex — the program forwards to whatever interface the FIB resolves).
 func setupVethRA(t *testing.T) (injPeer, n3Peer *net.Interface, vobj *VethBpfObjects) {
 	t.Helper()
 
@@ -187,9 +181,8 @@ func setupVethRA(t *testing.T) (injPeer, n3Peer *net.Interface, vobj *VethBpfObj
 	_ = writeSysctl("net.ipv6.conf.all.forwarding", "1")
 
 	injDev := ifByName(t, vethInjDev)
-	n3Dev := ifByName(t, vethN3Dev)
 
-	obj, err := LoadVethBpfObjects(false, n3Dev.Index, n3Dev.Index, 0, 0)
+	obj, err := LoadVethBpfObjects()
 	if err != nil {
 		t.Fatalf("load veth objects: %v", err)
 	}

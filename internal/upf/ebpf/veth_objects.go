@@ -20,11 +20,8 @@ type VethBpfObjects struct {
 	VethEntrypointObjects
 }
 
-// LoadVethBpfObjects loads the veth XDP program and maps into the kernel. The
-// routing constants must be configured: veth_xdp_func reuses route_ipv4/
-// route_ipv6, and the IPv4 transport path redirects to n3_ifindex — left unset
-// it routes the encapsulated Router Advertisement to interface 0 and drops it.
-func LoadVethBpfObjects(masquerade bool, n3Ifindex, n6Ifindex int, n3Vlan, n6Vlan uint32) (*VethBpfObjects, error) {
+// LoadVethBpfObjects loads the veth XDP program and maps into the kernel.
+func LoadVethBpfObjects() (*VethBpfObjects, error) {
 	spec, err := LoadVethEntrypoint()
 	if err != nil {
 		return nil, fmt.Errorf("load veth entrypoint spec: %w", err)
@@ -32,26 +29,6 @@ func LoadVethBpfObjects(masquerade bool, n3Ifindex, n6Ifindex int, n3Vlan, n6Vla
 
 	if m, ok := spec.Maps["csum_scratch"]; ok {
 		m.MaxEntries = uint32(runtime.NumCPU())
-	}
-
-	if err := spec.Variables["masquerade"].Set(masquerade); err != nil {
-		return nil, fmt.Errorf("set masquerade: %w", err)
-	}
-
-	if err := spec.Variables["n3_ifindex"].Set(uint32(n3Ifindex)); err != nil {
-		return nil, fmt.Errorf("set n3_ifindex: %w", err)
-	}
-
-	if err := spec.Variables["n6_ifindex"].Set(uint32(n6Ifindex)); err != nil {
-		return nil, fmt.Errorf("set n6_ifindex: %w", err)
-	}
-
-	if err := spec.Variables["n3_vlan"].Set(n3Vlan); err != nil {
-		return nil, fmt.Errorf("set n3_vlan: %w", err)
-	}
-
-	if err := spec.Variables["n6_vlan"].Set(n6Vlan); err != nil {
-		return nil, fmt.Errorf("set n6_vlan: %w", err)
 	}
 
 	var objs VethEntrypointObjects

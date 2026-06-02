@@ -74,8 +74,20 @@ struct route_stat {
 
 static __always_inline enum xdp_action
 do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
-	      struct route_stat *statistic)
+	      struct route_stat *statistic, bool trust_fib)
 {
+	/*
+	 * trust_fib: forward to the egress interface the kernel routing table
+	 * chose (used by the veth RA-injection path). The N3<->N6 ifindex
+	 * enforcement below assumes ingress on N3 or N6 and does not apply when
+	 * the packet originates from the injection veth.
+	 */
+	if (trust_fib) {
+		__builtin_memcpy(ctx->eth->h_source, fib_params->smac, ETH_ALEN);
+		__builtin_memcpy(ctx->eth->h_dest, fib_params->dmac, ETH_ALEN);
+		return bpf_redirect(fib_params->ifindex, 0);
+	}
+
 	__u32 expected_ifindex;
 
 	if (ctx->interface == INTERFACE_N3) {
@@ -113,8 +125,14 @@ do_route_ipv4(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 
 static __always_inline enum xdp_action
 do_route_ipv6(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
-	      struct route_stat *statistic)
+	      struct route_stat *statistic, bool trust_fib)
 {
+	if (trust_fib) {
+		__builtin_memcpy(ctx->eth->h_source, fib_params->smac, ETH_ALEN);
+		__builtin_memcpy(ctx->eth->h_dest, fib_params->dmac, ETH_ALEN);
+		return bpf_redirect(fib_params->ifindex, 0);
+	}
+
 	__u32 expected_ifindex;
 
 	if (ctx->interface == INTERFACE_N3) {
@@ -146,7 +164,8 @@ do_route_ipv6(struct packet_context *ctx, struct bpf_fib_lookup *fib_params,
 }
 
 static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
-						  struct route_stat *statistic)
+						  struct route_stat *statistic,
+						  bool trust_fib)
 {
 	struct bpf_fib_lookup fib_params = {};
 	fib_params.family = AF_INET;
@@ -179,7 +198,7 @@ static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 		if (rc == BPF_FIB_LKUP_RET_SUCCESS)
 			statistic->fib_lookup_ip4_success += 1;
 
-		return do_route_ipv4(ctx, &fib_params, statistic);
+		return do_route_ipv4(ctx, &fib_params, statistic, trust_fib);
 
 	case BPF_FIB_LKUP_RET_BLACKHOLE:
 		upf_printk("upf: bpf_fib_lookup %pI4 -> %pI4: %d",
@@ -229,7 +248,8 @@ static __always_inline enum xdp_action route_ipv4(struct packet_context *ctx,
 }
 
 static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
-						  struct route_stat *statistic)
+						  struct route_stat *statistic,
+						  bool trust_fib)
 {
 	struct bpf_fib_lookup fib_params = {};
 	fib_params.family = AF_INET6;
@@ -262,7 +282,7 @@ static __always_inline enum xdp_action route_ipv6(struct packet_context *ctx,
 			statistic->fib_lookup_ip6_success += 1;
 		//_decr_ttl(ether_proto, l3hdr);
 
-		return do_route_ipv6(ctx, &fib_params, statistic);
+		return do_route_ipv6(ctx, &fib_params, statistic, trust_fib);
 	case BPF_FIB_LKUP_RET_BLACKHOLE:
 		upf_printk("upf: bpf_fib_lookup %pI6c -> %pI6c: %d",
 			   &ctx->ip6->saddr, &ctx->ip6->daddr, rc);

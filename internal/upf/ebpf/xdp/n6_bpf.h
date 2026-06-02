@@ -73,7 +73,7 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 		PROFILE_START(PROF_N6_FIB_ROUTING);
 		upf_printk("upf: send gtp pdu %pI6c -> %pI6c", &ctx->ip6->saddr,
 			   &ctx->ip6->daddr);
-		enum xdp_action fib_ret6 = route_ipv6(ctx, route_stat6);
+		enum xdp_action fib_ret6 = route_ipv6(ctx, route_stat6, false);
 		PROFILE_END(PROF_N6_FIB_ROUTING);
 		return fib_ret6;
 	} else {
@@ -98,7 +98,7 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 		PROFILE_START(PROF_N6_FIB_ROUTING);
 		upf_printk("upf: send gtp pdu %pI4 -> %pI4", &ctx->ip4->saddr,
 			   &ctx->ip4->daddr);
-		enum xdp_action fib_ret4 = route_ipv4(ctx, route_stat4);
+		enum xdp_action fib_ret4 = route_ipv4(ctx, route_stat4, false);
 		PROFILE_END(PROF_N6_FIB_ROUTING);
 		return fib_ret4;
 	}
