@@ -71,7 +71,7 @@ func setupTesterEnv(ctx context.Context, t *testing.T) *testerEnv {
 
 	t.Cleanup(func() {
 		logs, err := dc.ComposeLogs(ctx, composeDir, "ella-core")
-		if err == nil {
+		if err == nil && t.Failed() {
 			t.Logf("=== ella-core container logs ===\n%s", logs)
 		}
 

@@ -232,7 +232,7 @@ func bringUpHASnapshotCluster(t *testing.T, ctx context.Context, dc *DockerClien
 	services := haNodeServices
 
 	fail := func(err error) ([]*client.Client, error) {
-		captureClusterLogs(t, dc, composeDir, services)
+		captureClusterLogs(t, dc, composeDir, services, true)
 		return nil, err
 	}
 

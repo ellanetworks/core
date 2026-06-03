@@ -181,7 +181,7 @@ func TestIntegrationBGP(t *testing.T) {
 	t.Cleanup(func() {
 		for _, svc := range []string{"ella-core", "gobgp"} {
 			logs, err := dc.ComposeLogs(ctx, bgpComposeDir, svc)
-			if err == nil {
+			if err == nil && t.Failed() {
 				t.Logf("=== %s container logs ===\n%s", svc, logs)
 			}
 		}

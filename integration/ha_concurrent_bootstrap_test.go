@@ -57,7 +57,7 @@ func TestIntegrationHAFreshClusterConcurrentBootstrap(t *testing.T) {
 
 	defer func() {
 		// Best-effort log capture before the next test tears containers down.
-		captureClusterLogs(t, dc, composeDir, haNodeServices)
+		captureClusterLogs(t, dc, composeDir, haNodeServices, t.Failed())
 	}()
 
 	// --- Phase A: founder up, mint tokens for nodes 2 and 3. ---
