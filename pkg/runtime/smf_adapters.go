@@ -222,6 +222,10 @@ func (a *pcfDBAdapter) GetSessionPolicy(ctx context.Context, imsi string, snssai
 			return nil, fmt.Errorf("%w: %v", smf.ErrDNNNotFound, err)
 		}
 
+		if errors.Is(err, db.ErrDNNNotInSlice) {
+			return nil, fmt.Errorf("%w: %v", smf.ErrDNNNotInSlice, err)
+		}
+
 		if errors.Is(err, db.ErrNoMatchingPolicy) {
 			return nil, fmt.Errorf("%w: %v", smf.ErrNoPolicyMatch, err)
 		}

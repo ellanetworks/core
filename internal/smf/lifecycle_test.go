@@ -573,8 +573,33 @@ func TestCreateSmContext_DNNNotFound(t *testing.T) {
 		t.Fatal("expected reject N1 message")
 	}
 
-	if got := rejectCauseCode(t, rejectN1); got != nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice {
-		t.Fatalf("expected cause %d (DNNNotSupportedOrNotSubscribedInTheSlice), got %d", nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice, got)
+	if got := rejectCauseCode(t, rejectN1); got != nasMessage.Cause5GSMMissingOrUnknownDNN {
+		t.Fatalf("expected 5GSM cause %d (#27 missing or unknown DNN), got %d", nasMessage.Cause5GSMMissingOrUnknownDNN, got)
+	}
+}
+
+// TestCreateSmContext_DNNNotInSlice verifies that when the slice is served but
+// no policy provides the requested DNN, the SMF rejects with 5GSM cause #70
+// "missing or unknown DNN in a slice" (TS 24.501 §9.11.4.2).
+func TestCreateSmContext_DNNNotInSlice(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	pcf.policy = nil
+	pcf.err = fmt.Errorf("get session policy: %w", smf.ErrDNNNotInSlice)
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+	supi := testSUPI()
+
+	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, buildPDUSessionEstRequest())
+	if err == nil {
+		t.Fatal("expected error when DNN not in slice")
+	}
+
+	if rejectN1 == nil {
+		t.Fatal("expected reject N1 message")
+	}
+
+	if got := rejectCauseCode(t, rejectN1); got != nasMessage.Cause5GSMMissingOrUnknownDNNInASlice {
+		t.Fatalf("expected 5GSM cause %d (#70 missing or unknown DNN in a slice), got %d", nasMessage.Cause5GSMMissingOrUnknownDNNInASlice, got)
 	}
 }
 

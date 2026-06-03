@@ -218,12 +218,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 	if err != nil {
 		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
 
-		cause := nasMessage.Cause5GSMRequestRejectedUnspecified
-		if errors.Is(err, ErrDNNNotFound) {
-			cause = nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice
-		}
-
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, cause)
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, establishmentRejectCause(err))
 		if buildErr != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject message", zap.Error(buildErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		}
@@ -402,6 +397,22 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 //   - IPv4 requested, only IPv6 supported           → #51 IPv6 only allowed
 //   - IPv4/IPv6/IPv4v6 requested, neither supported → #28 unknown PDU session type
 //   - Unstructured, Ethernet, reserved values       → #28 unknown PDU session type
+//
+// establishmentRejectCause maps a session-policy lookup failure to the 5GSM
+// cause of the PDU Session Establishment Reject (TS 24.501 §9.11.4.2): #70 when
+// the slice is served but not the DNN, #27 when the DNN is unknown, and the
+// generic #31 otherwise.
+func establishmentRejectCause(err error) uint8 {
+	switch {
+	case errors.Is(err, ErrDNNNotInSlice):
+		return nasMessage.Cause5GSMMissingOrUnknownDNNInASlice
+	case errors.Is(err, ErrDNNNotFound):
+		return nasMessage.Cause5GSMMissingOrUnknownDNN
+	default:
+		return nasMessage.Cause5GSMRequestRejectedUnspecified
+	}
+}
+
 func pduSessionTypeRejectCause(requested uint8, policy *Policy) uint8 {
 	hasIPv4 := policy.IPv4Pool != ""
 	hasIPv6 := policy.IPv6Pool != ""

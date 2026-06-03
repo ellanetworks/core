@@ -4,6 +4,7 @@ package db_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -417,15 +418,16 @@ func TestGetSessionPolicy(t *testing.T) {
 		t.Fatal("Expected error for non-existent subscriber")
 	}
 
-	// Non-matching slice
+	// Non-matching slice: the slice itself is not served, so it is reported as a
+	// generic no-matching-policy error, not a DNN error.
 	_, _, _, err = database.GetSessionPolicy(context.Background(), "001010100007487", 99, "ffffff", "internet") //nolint:dogsled // error-path test
-	if err == nil {
-		t.Fatal("Expected error for non-matching slice")
+	if !errors.Is(err, db.ErrNoMatchingPolicy) {
+		t.Fatalf("non-matching slice: got %v, want ErrNoMatchingPolicy", err)
 	}
 
-	// Non-matching DNN
+	// Non-matching DNN within a served slice is reported as ErrDNNNotInSlice.
 	_, _, _, err = database.GetSessionPolicy(context.Background(), "001010100007487", 1, "", "nonexistent-dnn") //nolint:dogsled // error-path test
-	if err == nil {
-		t.Fatal("Expected error for non-matching DNN")
+	if !errors.Is(err, db.ErrDNNNotInSlice) {
+		t.Fatalf("non-matching DNN in slice: got %v, want ErrDNNNotInSlice", err)
 	}
 }
