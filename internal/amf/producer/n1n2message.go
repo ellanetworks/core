@@ -156,15 +156,23 @@ func storeN1N2AndPage(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, 
 	return nil
 }
 
-// ModifyN1N2Message sends a PDUSessionResourceModifyRequest to the gNB,
-// carrying the N1 NAS PDU (PDU Session Modification Command) piggybacked
-// in the per-session modify item, and the N2 transfer (PDU Session Resource
-// Modify Request Transfer) as the opaque transfer blob.
-// This implements TS 23.502 §4.3.3.2 step 3 (AMF→gNB).
+// ModifyN1N2Message delivers a PDU Session Modification Command (N1) to the
+// UE, optionally accompanied by a PDU Session Resource Modify Request (N2) to
+// the gNB when radio-resource changes are needed.
+//
+// When n2Msg is nil (e.g. DNS-only change carried in Extended PCO), the NAS
+// message is delivered transparently via Downlink NAS Transport (TS 38.413
+// §8.6.2) — no gNB resource modification is required.
+//
+// When n2Msg is present (AMBR/QoS changes), the AMF sends a
+// PDUSessionResourceModifyRequest (TS 38.413 §9.2.1.5) which carries both the
+// N1 NAS PDU and the mandatory N2 transfer IE for the gNB.
+//
+// This implements TS 23.502 §4.3.3.2 steps 3–5.
 func ModifyN1N2Message(ctx context.Context, amfInstance *amf.AMF, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Msg []byte) error {
 	ctx, span := tracer.Start(
 		ctx,
-		"AMF PDUSessionResourceModifyRequest",
+		"AMF PDUSessionModification",
 		trace.WithAttributes(
 			attribute.String("supi", supi.String()),
 			attribute.Int("pdu_session_id", int(pduSessionID)),
@@ -194,7 +202,24 @@ func ModifyN1N2Message(ctx context.Context, amfInstance *amf.AMF, supi etsi.SUPI
 		return fmt.Errorf("build DL NAS Transport error: %v", err)
 	}
 
-	// Construct the modify list with a single session item.
+	if n2Msg == nil {
+		// N1-only delivery (e.g. DNS update via Extended PCO).
+		// Per TS 23.502 §4.3.3.2: "When the SMF sends the PDU Session
+		// Modification Command transparently through NG-RAN, the N2 SM
+		// information is not included." The RAN forwards the NAS PDU to
+		// the UE without modifying any radio resources.
+		if err := ranUe.SendDownlinkNasTransport(ctx, nasPdu, nil); err != nil {
+			return fmt.Errorf("send downlink NAS transport: %w", err)
+		}
+
+		ue.Log.Info("Sent DL NAS Transport (N1-only session modification) to gNB")
+
+		return nil
+	}
+
+	// N1+N2 delivery: gNB resource modification required (AMBR/QoS change).
+	// The PDUSessionResourceModifyRequestTransfer IE is mandatory per
+	// TS 38.413 §9.2.1.5, so this path must only be taken when n2Msg is set.
 	list := ngapType.PDUSessionResourceModifyListModReq{
 		List: []ngapType.PDUSessionResourceModifyItemModReq{
 			{

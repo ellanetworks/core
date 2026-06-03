@@ -1,0 +1,502 @@
+package ue
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/ellanetworks/core/client"
+	"github.com/ellanetworks/core/internal/tester/gnb"
+	"github.com/ellanetworks/core/internal/tester/logger"
+	"github.com/ellanetworks/core/internal/tester/scenarios"
+	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
+	"github.com/ellanetworks/core/internal/tester/testutil/validate"
+	"github.com/free5gc/nas"
+	"github.com/free5gc/ngap/ngapType"
+	"github.com/spf13/pflag"
+	"go.uber.org/zap"
+)
+
+func init() {
+	scenarios.Register(scenarios.Scenario{
+		Name: "ue/data-network-dns-change",
+		BindFlags: func(fs *pflag.FlagSet) any {
+			p := &dataNetworkChangeParams{}
+			fs.StringVar(&p.EllaAPIAddress, "ella-api-address", "", "Ella Core API address (e.g. http://10.3.0.2:5002)")
+			fs.StringVar(&p.EllaAPIToken, "ella-api-token", "", "Ella Core API token")
+
+			return p
+		},
+		Run: func(ctx context.Context, env scenarios.Env, params any) error {
+			return runDataNetworkDNSChange(ctx, env, params.(*dataNetworkChangeParams))
+		},
+		Fixture: fixtureDataNetworkDNSChange,
+	})
+
+	scenarios.Register(scenarios.Scenario{
+		Name: "ue/data-network-mtu-change",
+		BindFlags: func(fs *pflag.FlagSet) any {
+			p := &dataNetworkChangeParams{}
+			fs.StringVar(&p.EllaAPIAddress, "ella-api-address", "", "Ella Core API address")
+			fs.StringVar(&p.EllaAPIToken, "ella-api-token", "", "Ella Core API token")
+
+			return p
+		},
+		Run: func(ctx context.Context, env scenarios.Env, params any) error {
+			return runDataNetworkMTUChange(ctx, env, params.(*dataNetworkChangeParams))
+		},
+		Fixture: fixtureDataNetworkMTUChange,
+	})
+
+	scenarios.Register(scenarios.Scenario{
+		Name: "ue/data-network-pool-change",
+		BindFlags: func(fs *pflag.FlagSet) any {
+			p := &dataNetworkChangeParams{}
+			fs.StringVar(&p.EllaAPIAddress, "ella-api-address", "", "Ella Core API address")
+			fs.StringVar(&p.EllaAPIToken, "ella-api-token", "", "Ella Core API token")
+
+			return p
+		},
+		Run: func(ctx context.Context, env scenarios.Env, params any) error {
+			return runDataNetworkPoolChange(ctx, env, params.(*dataNetworkChangeParams))
+		},
+		Fixture: fixtureDataNetworkPoolChange,
+	})
+}
+
+type dataNetworkChangeParams struct {
+	EllaAPIAddress string
+	EllaAPIToken   string
+}
+
+func fixtureDataNetworkDNSChange(env scenarios.Env) scenarios.FixtureSpec {
+	return scenarios.FixtureSpec{
+		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
+	}
+}
+
+func fixtureDataNetworkMTUChange(env scenarios.Env) scenarios.FixtureSpec {
+	return scenarios.FixtureSpec{
+		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
+	}
+}
+
+func fixtureDataNetworkPoolChange(env scenarios.Env) scenarios.FixtureSpec {
+	return scenarios.FixtureSpec{
+		Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriber()},
+	}
+}
+
+// runDataNetworkDNSChange verifies that changing the DNS server in a data
+// network triggers a PDU Session Modification Command carrying the new DNS
+// in Extended PCO (TS 24.501 §6.3.2), without releasing the session.
+func runDataNetworkDNSChange(ctx context.Context, env scenarios.Env, p *dataNetworkChangeParams) error {
+	if p.EllaAPIAddress == "" {
+		return fmt.Errorf("--ella-api-address is required")
+	}
+
+	if p.EllaAPIToken == "" {
+		return fmt.Errorf("--ella-api-token is required")
+	}
+
+	cl, err := client.New(&client.Config{BaseURL: p.EllaAPIAddress})
+	if err != nil {
+		return fmt.Errorf("failed to create Ella client: %v", err)
+	}
+
+	cl.SetToken(p.EllaAPIToken)
+
+	g := env.FirstGNB()
+
+	gNodeB, err := gnb.Start(&gnb.StartOpts{
+		GnbID:           scenarios.DefaultGNBID,
+		MCC:             scenarios.DefaultMCC,
+		MNC:             scenarios.DefaultMNC,
+		SST:             scenarios.DefaultSST,
+		SD:              scenarios.DefaultSD,
+		DNN:             scenarios.DefaultDNN,
+		TAC:             scenarios.DefaultTAC,
+		Name:            "Ella-Core-Tester",
+		CoreN2Addresses: env.CoreN2Addresses,
+		GnbN2Address:    g.N2Address,
+		GnbN3Address:    g.N3Address,
+	})
+	if err != nil {
+		return fmt.Errorf("error starting gNB: %v", err)
+	}
+
+	defer gNodeB.Close()
+
+	_, err = gNodeB.WaitForMessage(ngapType.NGAPPDUPresentSuccessfulOutcome, ngapType.SuccessfulOutcomePresentNGSetupResponse, 200*time.Millisecond)
+	if err != nil {
+		return fmt.Errorf("did not receive NG Setup Response: %v", err)
+	}
+
+	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
+
+	sub := subscriber{
+		IMSI:           scenarios.DefaultIMSI,
+		Key:            scenarios.DefaultKey,
+		OPc:            scenarios.DefaultOPC,
+		SequenceNumber: scenarios.DefaultSequenceNumber,
+	}
+
+	newUE, err := newDefaultUE(gNodeB, sub.IMSI[5:], sub.Key, sub.OPc, sub.SequenceNumber, env.PDUSessionType())
+	if err != nil {
+		return fmt.Errorf("could not create UE: %v", err)
+	}
+
+	gNodeB.AddUE(ranUENGAPID, newUE)
+
+	_, err = procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
+		RANUENGAPID:  ranUENGAPID,
+		PDUSessionID: scenarios.DefaultPDUSessionID,
+		UE:           newUE,
+	})
+	if err != nil {
+		return fmt.Errorf("initial registration failed: %v", err)
+	}
+
+	logger.Logger.Info("PDU session established, proceeding to change DNS in data network",
+		zap.String("IMSI", sub.IMSI),
+		zap.Int64("RAN UE NGAP ID", ranUENGAPID),
+	)
+
+	// --- Phase 2: Change DNS in the data network via API ---
+	newDNS := "1.1.1.1"
+
+	err = cl.UpdateDataNetwork(ctx, &client.UpdateDataNetworkOptions{
+		Name:     scenarios.DefaultDNN,
+		DNS:      newDNS,
+		IPv4Pool: scenarios.DefaultUEIPv4Pool,
+		IPv6Pool: scenarios.DefaultUEIPv6Pool,
+		Mtu:      scenarios.DefaultMTU,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update data network DNS: %v", err)
+	}
+
+	defer func() {
+		_ = cl.UpdateDataNetwork(ctx, &client.UpdateDataNetworkOptions{
+			Name:     scenarios.DefaultDNN,
+			DNS:      scenarios.DefaultDNS,
+			IPv4Pool: scenarios.DefaultUEIPv4Pool,
+			IPv6Pool: scenarios.DefaultUEIPv6Pool,
+			Mtu:      scenarios.DefaultMTU,
+		})
+	}()
+
+	logger.Logger.Info("Data network DNS updated, waiting for session modification signalling")
+
+	// --- Phase 3: Wait for N1 (NAS) PDU Session Modification Command ---
+	modCmd, err := newUE.WaitForNASGSMMessage(nas.MsgTypePDUSessionModificationCommand, 15*time.Second)
+	if err != nil {
+		return fmt.Errorf("UE did not receive PDU Session Modification Command: %v", err)
+	}
+
+	logger.Logger.Info("UE received PDU Session Modification Command")
+
+	// --- Phase 4: Validate the NAS message contains new DNS in PCO ---
+	err = validate.PCODNS(modCmd, &validate.ExpectedPCODNS{
+		IPv4: newDNS,
+	})
+	if err != nil {
+		return fmt.Errorf("PCO DNS validation failed: %v", err)
+	}
+
+	logger.Logger.Info("DNS change validated successfully", zap.String("New DNS", newDNS))
+
+	// Cleanup
+	pduSessionIDs := [16]bool{}
+	pduSessionIDs[scenarios.DefaultPDUSessionID] = true
+
+	err = procedure.UEContextRelease(&procedure.UEContextReleaseOpts{
+		AMFUENGAPID:   gNodeB.GetAMFUENGAPID(ranUENGAPID),
+		RANUENGAPID:   ranUENGAPID,
+		GnodeB:        gNodeB,
+		UE:            newUE,
+		PDUSessionIDs: pduSessionIDs,
+	})
+	if err != nil {
+		return fmt.Errorf("UE context release failed: %v", err)
+	}
+
+	logger.Logger.Info("DNS change scenario completed successfully")
+
+	return nil
+}
+
+// runDataNetworkMTUChange verifies that changing the MTU in a data network
+// triggers a PDU Session Release with cause #39 "reactivation requested"
+// (TS 23.501 §5.6.10.4 NOTE 3).
+func runDataNetworkMTUChange(ctx context.Context, env scenarios.Env, p *dataNetworkChangeParams) error {
+	if p.EllaAPIAddress == "" {
+		return fmt.Errorf("--ella-api-address is required")
+	}
+
+	if p.EllaAPIToken == "" {
+		return fmt.Errorf("--ella-api-token is required")
+	}
+
+	cl, err := client.New(&client.Config{BaseURL: p.EllaAPIAddress})
+	if err != nil {
+		return fmt.Errorf("failed to create Ella client: %v", err)
+	}
+
+	cl.SetToken(p.EllaAPIToken)
+
+	g := env.FirstGNB()
+
+	gNodeB, err := gnb.Start(&gnb.StartOpts{
+		GnbID:           scenarios.DefaultGNBID,
+		MCC:             scenarios.DefaultMCC,
+		MNC:             scenarios.DefaultMNC,
+		SST:             scenarios.DefaultSST,
+		SD:              scenarios.DefaultSD,
+		DNN:             scenarios.DefaultDNN,
+		TAC:             scenarios.DefaultTAC,
+		Name:            "Ella-Core-Tester",
+		CoreN2Addresses: env.CoreN2Addresses,
+		GnbN2Address:    g.N2Address,
+		GnbN3Address:    g.N3Address,
+	})
+	if err != nil {
+		return fmt.Errorf("error starting gNB: %v", err)
+	}
+
+	defer gNodeB.Close()
+
+	_, err = gNodeB.WaitForMessage(ngapType.NGAPPDUPresentSuccessfulOutcome, ngapType.SuccessfulOutcomePresentNGSetupResponse, 200*time.Millisecond)
+	if err != nil {
+		return fmt.Errorf("did not receive NG Setup Response: %v", err)
+	}
+
+	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
+
+	sub := subscriber{
+		IMSI:           scenarios.DefaultIMSI,
+		Key:            scenarios.DefaultKey,
+		OPc:            scenarios.DefaultOPC,
+		SequenceNumber: scenarios.DefaultSequenceNumber,
+	}
+
+	newUE, err := newDefaultUE(gNodeB, sub.IMSI[5:], sub.Key, sub.OPc, sub.SequenceNumber, env.PDUSessionType())
+	if err != nil {
+		return fmt.Errorf("could not create UE: %v", err)
+	}
+
+	gNodeB.AddUE(ranUENGAPID, newUE)
+
+	_, err = procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
+		RANUENGAPID:  ranUENGAPID,
+		PDUSessionID: scenarios.DefaultPDUSessionID,
+		UE:           newUE,
+	})
+	if err != nil {
+		return fmt.Errorf("initial registration failed: %v", err)
+	}
+
+	logger.Logger.Info("PDU session established, proceeding to change MTU in data network",
+		zap.String("IMSI", sub.IMSI),
+		zap.Int64("RAN UE NGAP ID", ranUENGAPID),
+	)
+
+	// --- Phase 2: Change MTU in the data network via API ---
+	newMTU := int32(1400)
+
+	err = cl.UpdateDataNetwork(ctx, &client.UpdateDataNetworkOptions{
+		Name:     scenarios.DefaultDNN,
+		DNS:      scenarios.DefaultDNS,
+		IPv4Pool: scenarios.DefaultUEIPv4Pool,
+		IPv6Pool: scenarios.DefaultUEIPv6Pool,
+		Mtu:      newMTU,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update data network MTU: %v", err)
+	}
+
+	defer func() {
+		_ = cl.UpdateDataNetwork(ctx, &client.UpdateDataNetworkOptions{
+			Name:     scenarios.DefaultDNN,
+			DNS:      scenarios.DefaultDNS,
+			IPv4Pool: scenarios.DefaultUEIPv4Pool,
+			IPv6Pool: scenarios.DefaultUEIPv6Pool,
+			Mtu:      scenarios.DefaultMTU,
+		})
+	}()
+
+	logger.Logger.Info("Data network MTU updated, waiting for session release")
+
+	// --- Phase 3: Wait for PDU Session Release Command from SMF ---
+	releaseCmd, err := newUE.WaitForNASGSMMessage(nas.MsgTypePDUSessionReleaseCommand, 15*time.Second)
+	if err != nil {
+		return fmt.Errorf("UE did not receive PDU Session Release Command: %v", err)
+	}
+
+	logger.Logger.Info("UE received PDU Session Release Command")
+
+	// --- Phase 4: Validate cause #39 "reactivation requested" ---
+	if releaseCmd.PDUSessionReleaseCommand == nil {
+		return fmt.Errorf("PDUSessionReleaseCommand is nil")
+	}
+
+	cause := releaseCmd.PDUSessionReleaseCommand.GetCauseValue()
+	if cause != 39 {
+		return fmt.Errorf("expected cause #39 (reactivation requested), got %d", cause)
+	}
+
+	logger.Logger.Info("MTU change triggered session release with cause #39 as expected")
+
+	// Cleanup
+	err = procedure.UEContextRelease(&procedure.UEContextReleaseOpts{
+		AMFUENGAPID:   gNodeB.GetAMFUENGAPID(ranUENGAPID),
+		RANUENGAPID:   ranUENGAPID,
+		GnodeB:        gNodeB,
+		UE:            newUE,
+		PDUSessionIDs: [16]bool{},
+	})
+	if err != nil {
+		return fmt.Errorf("UE context release failed: %v", err)
+	}
+
+	logger.Logger.Info("MTU change scenario completed successfully")
+
+	return nil
+}
+
+// runDataNetworkPoolChange verifies that changing the IP pool in a data network
+// triggers a PDU Session Release with cause #39 "reactivation requested".
+func runDataNetworkPoolChange(ctx context.Context, env scenarios.Env, p *dataNetworkChangeParams) error {
+	if p.EllaAPIAddress == "" {
+		return fmt.Errorf("--ella-api-address is required")
+	}
+
+	if p.EllaAPIToken == "" {
+		return fmt.Errorf("--ella-api-token is required")
+	}
+
+	cl, err := client.New(&client.Config{BaseURL: p.EllaAPIAddress})
+	if err != nil {
+		return fmt.Errorf("failed to create Ella client: %v", err)
+	}
+
+	cl.SetToken(p.EllaAPIToken)
+
+	g := env.FirstGNB()
+
+	gNodeB, err := gnb.Start(&gnb.StartOpts{
+		GnbID:           scenarios.DefaultGNBID,
+		MCC:             scenarios.DefaultMCC,
+		MNC:             scenarios.DefaultMNC,
+		SST:             scenarios.DefaultSST,
+		SD:              scenarios.DefaultSD,
+		DNN:             scenarios.DefaultDNN,
+		TAC:             scenarios.DefaultTAC,
+		Name:            "Ella-Core-Tester",
+		CoreN2Addresses: env.CoreN2Addresses,
+		GnbN2Address:    g.N2Address,
+		GnbN3Address:    g.N3Address,
+	})
+	if err != nil {
+		return fmt.Errorf("error starting gNB: %v", err)
+	}
+
+	defer gNodeB.Close()
+
+	_, err = gNodeB.WaitForMessage(ngapType.NGAPPDUPresentSuccessfulOutcome, ngapType.SuccessfulOutcomePresentNGSetupResponse, 200*time.Millisecond)
+	if err != nil {
+		return fmt.Errorf("did not receive NG Setup Response: %v", err)
+	}
+
+	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
+
+	sub := subscriber{
+		IMSI:           scenarios.DefaultIMSI,
+		Key:            scenarios.DefaultKey,
+		OPc:            scenarios.DefaultOPC,
+		SequenceNumber: scenarios.DefaultSequenceNumber,
+	}
+
+	newUE, err := newDefaultUE(gNodeB, sub.IMSI[5:], sub.Key, sub.OPc, sub.SequenceNumber, env.PDUSessionType())
+	if err != nil {
+		return fmt.Errorf("could not create UE: %v", err)
+	}
+
+	gNodeB.AddUE(ranUENGAPID, newUE)
+
+	_, err = procedure.InitialRegistration(&procedure.InitialRegistrationOpts{
+		RANUENGAPID:  ranUENGAPID,
+		PDUSessionID: scenarios.DefaultPDUSessionID,
+		UE:           newUE,
+	})
+	if err != nil {
+		return fmt.Errorf("initial registration failed: %v", err)
+	}
+
+	logger.Logger.Info("PDU session established, proceeding to change IP pool in data network",
+		zap.String("IMSI", sub.IMSI),
+		zap.Int64("RAN UE NGAP ID", ranUENGAPID),
+	)
+
+	// --- Phase 2: Change IPv4 pool in the data network via API ---
+	newIPv4Pool := "10.46.0.0/16"
+
+	err = cl.UpdateDataNetwork(ctx, &client.UpdateDataNetworkOptions{
+		Name:     scenarios.DefaultDNN,
+		DNS:      scenarios.DefaultDNS,
+		IPv4Pool: newIPv4Pool,
+		IPv6Pool: scenarios.DefaultUEIPv6Pool,
+		Mtu:      scenarios.DefaultMTU,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update data network IP pool: %v", err)
+	}
+
+	defer func() {
+		_ = cl.UpdateDataNetwork(ctx, &client.UpdateDataNetworkOptions{
+			Name:     scenarios.DefaultDNN,
+			DNS:      scenarios.DefaultDNS,
+			IPv4Pool: scenarios.DefaultUEIPv4Pool,
+			IPv6Pool: scenarios.DefaultUEIPv6Pool,
+			Mtu:      scenarios.DefaultMTU,
+		})
+	}()
+
+	logger.Logger.Info("Data network IP pool updated, waiting for session release")
+
+	// --- Phase 3: Wait for PDU Session Release Command from SMF ---
+	releaseCmd, err := newUE.WaitForNASGSMMessage(nas.MsgTypePDUSessionReleaseCommand, 15*time.Second)
+	if err != nil {
+		return fmt.Errorf("UE did not receive PDU Session Release Command: %v", err)
+	}
+
+	logger.Logger.Info("UE received PDU Session Release Command")
+
+	// --- Phase 4: Validate cause #39 "reactivation requested" ---
+	if releaseCmd.PDUSessionReleaseCommand == nil {
+		return fmt.Errorf("PDUSessionReleaseCommand is nil")
+	}
+
+	cause := releaseCmd.PDUSessionReleaseCommand.GetCauseValue()
+	if cause != 39 {
+		return fmt.Errorf("expected cause #39 (reactivation requested), got %d", cause)
+	}
+
+	logger.Logger.Info("IP pool change triggered session release with cause #39 as expected")
+
+	// Cleanup
+	err = procedure.UEContextRelease(&procedure.UEContextReleaseOpts{
+		AMFUENGAPID:   gNodeB.GetAMFUENGAPID(ranUENGAPID),
+		RANUENGAPID:   ranUENGAPID,
+		GnodeB:        gNodeB,
+		UE:            newUE,
+		PDUSessionIDs: [16]bool{},
+	})
+	if err != nil {
+		return fmt.Errorf("UE context release failed: %v", err)
+	}
+
+	logger.Logger.Info("IP pool change scenario completed successfully")
+
+	return nil
+}

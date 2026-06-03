@@ -83,3 +83,37 @@ func MTUFromExtendProtocolConfigurationOptionsContents(pco_buf []byte) (uint16, 
 func SDFromNAS(sd [3]uint8) string {
 	return fmt.Sprintf("%x%x%x", sd[0], sd[1], sd[2])
 }
+
+// DNSFromExtendProtocolConfigurationOptionsContents extracts DNS server
+// addresses from Extended Protocol Configuration Options contents.
+// Returns (nil, nil) when no DNS servers are present.
+func DNSFromExtendProtocolConfigurationOptionsContents(pco_buf []byte) ([]string, error) {
+	pco := nasConvert.NewProtocolConfigurationOptions()
+
+	err := pco.UnMarshal(pco_buf)
+	if err != nil {
+		return nil, fmt.Errorf("could not decode Extended Protocol Configuration Options: %v", err)
+	}
+
+	var dnsServers []string
+
+	for _, o := range pco.ProtocolOrContainerList {
+		switch o.ProtocolOrContainerID {
+		case nasMessage.DNSServerIPv4AddressRequestUL:
+			if len(o.Contents) >= 4 {
+				dnsServers = append(dnsServers, fmt.Sprintf("%d.%d.%d.%d",
+					o.Contents[0], o.Contents[1], o.Contents[2], o.Contents[3]))
+			}
+		case nasMessage.DNSServerIPv6AddressRequestUL:
+			if len(o.Contents) >= 16 {
+				var addr [16]byte
+				copy(addr[:], o.Contents[:16])
+				dnsServers = append(dnsServers, netip.AddrFrom16(addr).String())
+			}
+		default:
+			continue
+		}
+	}
+
+	return dnsServers, nil
+}
