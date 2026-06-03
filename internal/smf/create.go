@@ -91,6 +91,23 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return "", rsp, fmt.Errorf("unexpected NAS message type: %d", m.GsmHeader.GetMessageType())
 	}
 
+	// Police the PTI before allocating any state (TS 24.501 §7.3.1): an
+	// unassigned PTI yields a 5GSM STATUS (#81); a reserved PTI is ignored —
+	// no context and no response.
+	reqPTI := m.PDUSessionEstablishmentRequest.GetPTI()
+
+	switch verdict, cause := smfNas.PolicePTI(nas.MsgTypePDUSessionEstablishmentRequest, reqPTI, func(uint8) bool { return false }); verdict {
+	case smfNas.PTIIgnore:
+		return "", nil, nil
+	case smfNas.PTIRespondStatus:
+		rsp, buildErr := smfNas.BuildGSM5GSMStatus(pduSessionID, reqPTI, cause)
+		if buildErr != nil {
+			return "", nil, fmt.Errorf("build 5GSM STATUS failed: %v", buildErr)
+		}
+
+		return "", rsp, nil
+	}
+
 	smContext := s.GetSession(CanonicalName(supi, pduSessionID))
 	if smContext != nil {
 		s.handlePduSessionContextReplacement(ctx, smContext)
@@ -148,7 +165,9 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	span.AddEvent("pfcp_rules_sent")
 
-	err = s.sendPduSessionEstablishmentAccept(ctx, smContext, policy, pco, addrs, pti, cause)
+	alwaysOnRequested := m.PDUSessionEstablishmentRequest.AlwaysonPDUSessionRequested != nil
+
+	err = s.sendPduSessionEstablishmentAccept(ctx, smContext, policy, pco, addrs, pti, cause, alwaysOnIndication(alwaysOnRequested))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send PDU session establishment accept")
@@ -199,12 +218,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 	if err != nil {
 		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
 
-		cause := nasMessage.Cause5GSMRequestRejectedUnspecified
-		if errors.Is(err, ErrDNNNotFound) {
-			cause = nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice
-		}
-
-		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, cause)
+		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, establishmentRejectCause(err))
 		if buildErr != nil {
 			logger.WithTrace(ctx, logger.SmfLog).Error("failed to build PDU Session Establishment Reject message", zap.Error(buildErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		}
@@ -383,6 +397,22 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 //   - IPv4 requested, only IPv6 supported           → #51 IPv6 only allowed
 //   - IPv4/IPv6/IPv4v6 requested, neither supported → #28 unknown PDU session type
 //   - Unstructured, Ethernet, reserved values       → #28 unknown PDU session type
+//
+// establishmentRejectCause maps a session-policy lookup failure to the 5GSM
+// cause of the PDU Session Establishment Reject (TS 24.501 §9.11.4.2): #70 when
+// the slice is served but not the DNN, #27 when the DNN is unknown, and the
+// generic #31 otherwise.
+func establishmentRejectCause(err error) uint8 {
+	switch {
+	case errors.Is(err, ErrDNNNotInSlice):
+		return nasMessage.Cause5GSMMissingOrUnknownDNNInASlice
+	case errors.Is(err, ErrDNNNotFound):
+		return nasMessage.Cause5GSMMissingOrUnknownDNN
+	default:
+		return nasMessage.Cause5GSMRequestRejectedUnspecified
+	}
+}
+
 func pduSessionTypeRejectCause(requested uint8, policy *Policy) uint8 {
 	hasIPv4 := policy.IPv4Pool != ""
 	hasIPv6 := policy.IPv6Pool != ""
@@ -658,6 +688,20 @@ func (s *SMF) sendPduSessionEstablishmentReject(ctx context.Context, smContext *
 	return nil
 }
 
+// alwaysOnIndication resolves the Always-on PDU session indication for an
+// Establishment Accept (TS 24.501 §6.4.1): "not allowed" (APSI 0) when the UE
+// requested an always-on session, or omitted (nil) otherwise. The "required"
+// value (§6.4.1 a) is not produced because no PDU session is established as
+// always-on.
+func alwaysOnIndication(requested bool) *uint8 {
+	if requested {
+		v := uint8(0) // "Always-on PDU session not allowed"
+		return &v
+	}
+
+	return nil
+}
+
 func (s *SMF) sendPduSessionEstablishmentAccept(
 	ctx context.Context,
 	smContext *SMContext,
@@ -666,6 +710,7 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 	addrs *smfNas.PDUSessionAddresses,
 	pti uint8,
 	cause uint8,
+	alwaysOn *uint8,
 ) error {
 	ctx, span := tracer.Start(ctx, "smf/send_pdu_session_establishment_accept",
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -674,7 +719,7 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 
 	PDUSessionEstablishmentAttempts.WithLabelValues("accept").Inc()
 
-	n1Msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(&policy.Ambr, &policy.QosData, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, policy.DNS, policy.MTU, cause, addrs)
+	n1Msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(&policy.Ambr, &policy.QosData, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, policy.DNS, policy.MTU, cause, addrs, alwaysOn)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build PDU session establishment accept")

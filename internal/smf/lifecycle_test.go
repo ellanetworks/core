@@ -93,6 +93,25 @@ func buildPDUSessionReleaseRequest(pduSessionID, pti uint8) []byte {
 	return buf
 }
 
+func buildPDUSessionModificationRequest(pduSessionID, pti uint8) []byte {
+	m := nas.NewMessage()
+	m.GsmMessage = nas.NewGsmMessage()
+	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionModificationRequest)
+	m.GsmHeader.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
+	m.PDUSessionModificationRequest = nasMessage.NewPDUSessionModificationRequest(0)
+	m.PDUSessionModificationRequest.SetMessageType(nas.MsgTypePDUSessionModificationRequest)
+	m.PDUSessionModificationRequest.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
+	m.PDUSessionModificationRequest.SetPDUSessionID(pduSessionID)
+	m.PDUSessionModificationRequest.SetPTI(pti)
+
+	buf, err := m.PlainNasEncode()
+	if err != nil {
+		panic(fmt.Sprintf("build PDU Session Modification Request: %v", err))
+	}
+
+	return buf
+}
+
 // setupSessionWithTunnel creates a session with a fully populated tunnel / data path,
 // simulating a session that has already been established.
 func setupSessionWithTunnel(t *testing.T, s *smf.SMF) (*smf.SMContext, string) {
@@ -554,8 +573,33 @@ func TestCreateSmContext_DNNNotFound(t *testing.T) {
 		t.Fatal("expected reject N1 message")
 	}
 
-	if got := rejectCauseCode(t, rejectN1); got != nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice {
-		t.Fatalf("expected cause %d (DNNNotSupportedOrNotSubscribedInTheSlice), got %d", nasMessage.Cause5GMMDNNNotSupportedOrNotSubscribedInTheSlice, got)
+	if got := rejectCauseCode(t, rejectN1); got != nasMessage.Cause5GSMMissingOrUnknownDNN {
+		t.Fatalf("expected 5GSM cause %d (#27 missing or unknown DNN), got %d", nasMessage.Cause5GSMMissingOrUnknownDNN, got)
+	}
+}
+
+// TestCreateSmContext_DNNNotInSlice verifies that when the slice is served but
+// no policy provides the requested DNN, the SMF rejects with 5GSM cause #70
+// "missing or unknown DNN in a slice" (TS 24.501 §9.11.4.2).
+func TestCreateSmContext_DNNNotInSlice(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	pcf.policy = nil
+	pcf.err = fmt.Errorf("get session policy: %w", smf.ErrDNNNotInSlice)
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+	supi := testSUPI()
+
+	_, rejectN1, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, buildPDUSessionEstRequest())
+	if err == nil {
+		t.Fatal("expected error when DNN not in slice")
+	}
+
+	if rejectN1 == nil {
+		t.Fatal("expected reject N1 message")
+	}
+
+	if got := rejectCauseCode(t, rejectN1); got != nasMessage.Cause5GSMMissingOrUnknownDNNInASlice {
+		t.Fatalf("expected 5GSM cause %d (#70 missing or unknown DNN in a slice), got %d", nasMessage.Cause5GSMMissingOrUnknownDNNInASlice, got)
 	}
 }
 
@@ -2196,4 +2240,50 @@ func buildHandoverRequestAcknowledgeTransfer(teid uint32, ip net.IP) ([]byte, er
 	}
 
 	return aper.MarshalWithParams(transfer, "valueExt")
+}
+
+// TestUpdateSmContextN1Msg_ModificationRejected verifies that a UE-requested PDU
+// Session Modification Request is answered with a PDU Session Modification Reject
+// echoing the request's PTI (TS 24.501 §6.4.2.4, §7.3.1), and that the session is
+// not torn down.
+func TestUpdateSmContextN1Msg_ModificationRejected(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	const pti = 7
+
+	n1Msg := buildPDUSessionModificationRequest(smCtx.PDUSessionID, pti)
+
+	rsp, err := s.UpdateSmContextN1Msg(ctx, ref, n1Msg)
+	if err != nil {
+		t.Fatalf("UpdateSmContextN1Msg (modification) failed: %v", err)
+	}
+
+	if rsp == nil || rsp.N1Msg == nil {
+		t.Fatal("expected a Modification Reject N1 message (TS 24.501 §6.4.2.4), got none")
+	}
+
+	if rsp.ReleaseN2 {
+		t.Error("modification reject must not signal N2 release")
+	}
+
+	m := new(nas.Message)
+	if err := m.PlainNasDecode(&rsp.N1Msg); err != nil {
+		t.Fatalf("decode N1 response: %v", err)
+	}
+
+	if m.PDUSessionModificationReject == nil {
+		t.Fatalf("expected PDUSessionModificationReject, got message type %d", m.GsmHeader.GetMessageType())
+	}
+
+	if got := m.PDUSessionModificationReject.GetPTI(); got != pti {
+		t.Errorf("reject PTI = %d, want %d (echoed from request)", got, pti)
+	}
+
+	if got := m.PDUSessionModificationReject.GetCauseValue(); got != nasMessage.Cause5GSMRequestRejectedUnspecified {
+		t.Errorf("reject cause = %d, want %d (request rejected, unspecified)", got, nasMessage.Cause5GSMRequestRejectedUnspecified)
+	}
 }

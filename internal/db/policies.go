@@ -384,6 +384,8 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 		sliceMap[s.ID] = s
 	}
 
+	sliceMatched := false
+
 	for _, p := range policies {
 		slice, ok := sliceMap[p.SliceID]
 		if !ok {
@@ -398,6 +400,8 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 		if slice.Sst != sst || sliceSd != sd {
 			continue
 		}
+
+		sliceMatched = true
 
 		dataNetwork, err := db.GetDataNetworkByID(ctx, p.DataNetworkID)
 		if err != nil {
@@ -423,6 +427,12 @@ func (db *Database) GetSessionPolicy(ctx context.Context, imsi string, sst int32
 	}
 
 	span.SetStatus(codes.Error, "no matching policy")
+
+	// A matched slice with no policy for the DNN is a DNN problem; an unmatched
+	// slice is a slice problem (TS 24.501 §9.11.4.2 #70 vs the generic reject).
+	if sliceMatched {
+		return nil, nil, nil, fmt.Errorf("no data network %q in slice sst=%d sd=%q for profile %s: %w", dnn, sst, sd, sub.ProfileID, ErrDNNNotInSlice)
+	}
 
 	return nil, nil, nil, fmt.Errorf("no policy matching sst=%d sd=%q dnn=%q for profile %s: %w", sst, sd, dnn, sub.ProfileID, ErrNoMatchingPolicy)
 }

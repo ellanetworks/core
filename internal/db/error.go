@@ -11,8 +11,11 @@ var (
 	ErrNotFound            = errors.New("not found")
 	ErrDataNetworkNotFound = errors.New("data network not found")
 	ErrNoMatchingPolicy    = errors.New("no matching policy for slice and DNN")
-	ErrRestoreInProgress   = errors.New("a restore is already in progress")
-	ErrInvalidBackupFile   = errors.New("uploaded file is not a valid SQLite database")
+	// ErrDNNNotInSlice is returned by GetSessionPolicy when a policy matches the
+	// requested slice but none serves the requested DNN.
+	ErrDNNNotInSlice     = errors.New("data network not found in slice")
+	ErrRestoreInProgress = errors.New("a restore is already in progress")
+	ErrInvalidBackupFile = errors.New("uploaded file is not a valid SQLite database")
 	// ErrProposeTimeout is returned when a Raft proposal cannot be committed
 	// (queue full, leader lost mid-commit, or Raft shutting down). Callers
 	// should treat it as a transient 503 condition.

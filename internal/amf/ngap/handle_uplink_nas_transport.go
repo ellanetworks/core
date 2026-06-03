@@ -42,8 +42,10 @@ func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 		return
 	}
 
-	err := amfInstance.NAS.HandleNAS(ctx, ranUe, msg.NASPDU)
-	if err != nil {
+	// A handler returns an error only when no NAS response was produced (a
+	// delivered reject and similar normal outcomes return nil). Answer with a
+	// 5GMM STATUS so the UE is not left waiting (TS 24.501 §7.x).
+	if err := amfInstance.NAS.HandleNAS(ctx, ranUe, msg.NASPDU); err != nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("error handling NAS message", zap.Error(err))
 		sendStatus5GMM(ctx, ranUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
 	}

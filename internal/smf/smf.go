@@ -29,6 +29,10 @@ var tracer = otel.Tracer("ella-core/smf/session")
 // ErrDNNNotFound indicates that the requested data network (DNN) does not exist.
 var ErrDNNNotFound = errors.New("data network not found")
 
+// ErrDNNNotInSlice indicates that the requested slice is served, but no policy
+// provides the requested DNN within it.
+var ErrDNNNotInSlice = errors.New("data network not found in slice")
+
 // ErrNoPolicyMatch indicates that no policy matches the session's slice (SST/SD)
 // and DNN. This typically means the admin changed the slice configuration and
 // the session's stored S-NSSAI no longer maps to any configured slice.
