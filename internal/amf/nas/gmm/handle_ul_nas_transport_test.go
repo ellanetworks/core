@@ -403,6 +403,79 @@ func TestTransport5GSMMessage_NoSmContext_ModificationRequest_SendsDLNASTranspor
 	}
 }
 
+func TestTransport5GSMMessage_NoSmContext_NoRequestType_SendsDLNASTransport(t *testing.T) {
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	// No SM context for this PDU session ID and no Request Type IE (TS 24.501 §7.3.2 c)).
+	smPayload := []byte{0x2E, 0x01, 0x00, 0xC9}
+
+	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(1))
+
+	err = transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected 1 downlink NAS transport, got: %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	resp := ngapSender.SentDownlinkNASTransport[0]
+	nm := new(nas.Message)
+
+	if err := nm.PlainNasDecode(&resp.NasPdu); err != nil {
+		t.Fatalf("could not decode plain NAS message: %v", err)
+	}
+
+	if nm.GmmHeader.GetMessageType() != nas.MsgTypeDLNASTransport {
+		t.Fatalf("expected DLNASTransport message, got: %v", nm.GmmHeader.GetMessageType())
+	}
+
+	if nm.DLNASTransport == nil || nm.DLNASTransport.Cause5GMM == nil {
+		t.Fatal("expected a DLNASTransport carrying a 5GMM cause")
+	}
+
+	if got := nm.DLNASTransport.GetCauseValue(); got != nasMessage.Cause5GMMPayloadWasNotForwarded {
+		t.Fatalf("5GMM cause = %d, want %d (payload was not forwarded)", got, nasMessage.Cause5GMMPayloadWasNotForwarded)
+	}
+}
+
+func TestTransport5GSMMessage_ReservedPduSessionID_SendsDLNASTransport(t *testing.T) {
+	ue, ngapSender, err := buildUeAndRadio()
+	if err != nil {
+		t.Fatalf("could not build UE and radio: %v", err)
+	}
+
+	// Reserved PDU session identity value (16 is outside the 1-15 range),
+	// TS 24.501 §7.3.2 c).
+	smPayload := []byte{0x2E, 0x10, 0x00, 0xC9}
+
+	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, pduSessionIDPtr(16))
+
+	err = transport5GSMMessage(t.Context(), amf.New(nil, nil, nil), ue, msg)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if len(ngapSender.SentDownlinkNASTransport) != 1 {
+		t.Fatalf("expected 1 downlink NAS transport, got: %d", len(ngapSender.SentDownlinkNASTransport))
+	}
+
+	resp := ngapSender.SentDownlinkNASTransport[0]
+	nm := new(nas.Message)
+
+	if err := nm.PlainNasDecode(&resp.NasPdu); err != nil {
+		t.Fatalf("could not decode plain NAS message: %v", err)
+	}
+
+	if nm.DLNASTransport == nil || nm.DLNASTransport.GetCauseValue() != nasMessage.Cause5GMMPayloadWasNotForwarded {
+		t.Fatalf("expected DLNASTransport with 5GMM cause #%d", nasMessage.Cause5GMMPayloadWasNotForwarded)
+	}
+}
+
 func TestTransport5GSMMessage_NoSmContext_ExistingPduSession_SendsDLNASTransport(t *testing.T) {
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
@@ -801,12 +874,9 @@ func TestTransport5GSMMessage_SmContextExists_NoRequestType_ForwardsToSMF(t *tes
 }
 
 func TestTransport5GSMMessage_SmContextExists_DuplicatePDU_Success(t *testing.T) {
-	// When smContextExist=true and requestType=InitialRequest, the code first
-	// deletes the local SM context, sets smContextExist=false,
-	// then falls into the !smContextExist branch, which calls CreateSmContext.
-	// The UpdateSmContextCauseDuplicatePDUSessionID path is unreachable
-	// because the context is always deleted first. This test verifies the actual
-	// behavior: delete + CreateSmContext.
+	// An initial request for an active PDU session ID locally releases it and
+	// re-establishes: the local SM context is deleted and CreateSmContext is
+	// called, with no duplicate-release toward the SMF or the RAN.
 	ue, ngapSender, err := buildUeAndRadio()
 	if err != nil {
 		t.Fatalf("could not build UE and radio: %v", err)
@@ -1276,27 +1346,3 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_MultiSliceDefaultSNSSAI
 // dereference when a UE sends a ULNASTransport with N1SM payload for a PDU session
 // that has no AMF-side SM context and omits the RequestType IE.
 // The code reaches `switch requestType.GetRequestTypeValue()` with requestType == nil.
-func TestTransport5GSMMessage_NoSmContext_NilRequestType_Panic(t *testing.T) {
-	ue, _, err := buildUeAndRadio()
-	if err != nil {
-		t.Fatalf("could not build UE and radio: %v", err)
-	}
-
-	ue.ForceState(amf.Registered)
-
-	// Ensure no SM context exists for PDU session 5
-	_, exists := ue.SmContextFindByPDUSessionID(5)
-	if exists {
-		t.Fatal("precondition failed: SM context should not exist for PDU session 5")
-	}
-
-	// Build ULNASTransport with N1SM payload, valid PDU session ID, but NO RequestType
-	pduSessionID := uint8(5)
-	smPayload := []byte{0x2e, 0x05, 0xc1, 0x00, 0x00} // minimal 5GSM header
-	msg := buildTestULNASTransport(nasMessage.PayloadContainerTypeN1SMInfo, smPayload, &pduSessionID)
-	// msg.RequestType is intentionally left nil
-
-	amfInstance := amf.New(&FakeDBInstance{}, nil, &FakeSmf{})
-
-	_ = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
-}

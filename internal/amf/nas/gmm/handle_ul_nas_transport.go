@@ -93,10 +93,6 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 
 	pduSessionID := id.GetPduSessionID2Value()
 
-	if pduSessionID < 1 || pduSessionID > 15 {
-		return fmt.Errorf("invalid PDU session ID %d: must be in range 1-15 per TS 24.501", pduSessionID)
-	}
-
 	ranUe := ue.RanUe()
 	if ranUe == nil {
 		return fmt.Errorf("RAN UE context is nil, cannot transport 5GSM message")
@@ -105,189 +101,147 @@ func transport5GSMMessage(ctx context.Context, amfInstance *amf.AMF, ue *amf.Amf
 	if ulNasTransport.OldPDUSessionID != nil {
 		return fmt.Errorf("old pdu session id is not supported")
 	}
-	// case 1): looks up a PDU session routing context for the UE and the PDU session ID IE in case the Old PDU
-	// session ID IE is not included
-	smContext, smContextExist := ue.SmContextFindByPDUSessionID(pduSessionID)
+
+	// Reserved or unassigned PDU session identity value (TS 24.501 §7.3.2 c)).
+	if pduSessionID < 1 || pduSessionID > 15 {
+		return sendPayloadNotForwarded(ctx, ranUe, pduSessionID, smMessage)
+	}
+
 	requestType := ulNasTransport.RequestType
 
 	if requestType != nil {
 		switch requestType.GetRequestTypeValue() {
-		case nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest:
-			fallthrough
-		case nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession:
+		case nasMessage.ULNASTransportRequestTypeInitialEmergencyRequest,
+			nasMessage.ULNASTransportRequestTypeExistingEmergencyPduSession:
 			ue.Log.Warn("Emergency PDU Session is not supported")
-
-			err := message.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
-			if err != nil {
-				return fmt.Errorf("error sending downlink nas transport: %s", err)
-			}
-
-			ue.Log.Info("sent downlink nas transport to UE")
-
-			return nil
+			return sendPayloadNotForwarded(ctx, ranUe, pduSessionID, smMessage)
 		}
 	}
 
-	if smContextExist && requestType != nil {
-		/* AMF releases context locally as this is duplicate pdu session */
-		if requestType.GetRequestTypeValue() == nasMessage.ULNASTransportRequestTypeInitialRequest {
-			ue.DeleteSmContext(pduSessionID)
+	smContext, smContextExist := ue.SmContextFindByPDUSessionID(pduSessionID)
 
-			smContextExist = false
-		}
+	isInitialRequest := requestType != nil &&
+		requestType.GetRequestTypeValue() == nasMessage.ULNASTransportRequestTypeInitialRequest
+
+	// Duplicate PDU session ID: an initial request for an active session locally
+	// releases it and re-establishes (TS 24.501 §5.4.5.2.5 item 12).
+	if smContextExist && isInitialRequest {
+		ue.DeleteSmContext(pduSessionID)
+
+		smContext, smContextExist = nil, false
 	}
 
-	if !smContextExist {
-		msg := new(nas.Message)
-		if err := msg.PlainNasDecode(&smMessage); err != nil {
-			ue.Log.Error("Could not decode Nas message", zap.Error(err))
-		}
-
-		if msg.GsmMessage != nil && msg.Status5GSM != nil {
-			ue.Log.Warn("SmContext doesn't exist, 5GSM Status message received from UE", zap.Any("cause", msg.Status5GSM.Cause5GSM))
-			return nil
-		}
-	}
-	// AMF has a PDU session routing context for the PDU session ID and the UE
 	if smContextExist {
-		// case i) Request type IE is either not included
-		if requestType == nil {
-			return forward5GSMMessageToSMF(ctx, amfInstance, ue, pduSessionID, smContext.Ref, smMessage)
-		}
-
-		switch requestType.GetRequestTypeValue() {
-		case nasMessage.ULNASTransportRequestTypeInitialRequest:
-			//  perform a local release of the PDU session identified by the PDU session ID and shall request
-			// the SMF to perform a local release of the PDU session
-			ue.Log.Warn("Duplicated PDU session ID", zap.Uint8("pduSessionID", pduSessionID))
-
-			n2Rsp, err := amfInstance.Smf.UpdateSmContextCauseDuplicatePDUSessionID(ctx, smContext.Ref)
-			if err != nil {
-				return fmt.Errorf("couldn't send update sm context request for duplicate pdu session id: %s", err)
-			}
-
-			ue.Log.Debug("AMF Transfer NGAP PDU Session Resource Release Command from SMF")
-
-			list := ngapType.PDUSessionResourceToReleaseListRelCmd{}
-			send.AppendPDUSessionResourceToReleaseListRelCmd(&list, pduSessionID, n2Rsp)
-
-			err = ranUe.SendPDUSessionResourceReleaseCommand(ctx, nil, list)
-			if err != nil {
-				return fmt.Errorf("error sending pdu session resource release command: %s", err)
-			}
-
-			ue.Log.Info("sent pdu session resource release command to UE")
-
-		// case ii) AMF has a PDU session routing context, and Request type is "existing PDU session"
-		case nasMessage.ULNASTransportRequestTypeExistingPduSession:
-			if ue.IsAllowedNssai(smContext.Snssai) {
-				return forward5GSMMessageToSMF(ctx, amfInstance, ue, pduSessionID, smContext.Ref, smMessage)
-			}
-
+		// Existing PDU session whose S-NSSAI is not allowed for the access type
+		// (TS 24.501 §5.4.5.2.5 item 14).
+		if requestType != nil &&
+			requestType.GetRequestTypeValue() == nasMessage.ULNASTransportRequestTypeExistingPduSession &&
+			!ue.IsAllowedNssai(smContext.Snssai) {
 			ue.Log.Error("S-NSSAI is not allowed for access type", zap.Any("snssai", smContext.Snssai), zap.Uint8("pduSessionID", pduSessionID))
-
-			err := message.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
-			if err != nil {
-				return fmt.Errorf("error sending downlink nas transport: %s", err)
-			}
-
-			ue.Log.Info("sent downlink nas transport to UE")
-		// other requestType: AMF forward the 5GSM message, and the PDU session ID IE towards the SMF identified
-		// by the SMF ID of the PDU session routing context
-		default:
-			return forward5GSMMessageToSMF(ctx, amfInstance, ue, pduSessionID, smContext.Ref, smMessage)
-		}
-	} else { // AMF does not have a PDU session routing context for the PDU session ID and the UE
-		if requestType == nil {
-			return fmt.Errorf("no SM context for PDU session ID %d and no RequestType IE provided", pduSessionID)
+			return sendPayloadNotForwarded(ctx, ranUe, pduSessionID, smMessage)
 		}
 
-		switch requestType.GetRequestTypeValue() {
-		// case iii) if the AMF does not have a PDU session routing context for the PDU session ID and the UE
-		// and the Request type IE is included and is set to "initial request"
-		case nasMessage.ULNASTransportRequestTypeInitialRequest:
-			var (
-				snssai *models.Snssai
-				dnn    string
-			)
-			// A) AMF shall select an SMF
-
-			// If the S-NSSAI IE is not included and the user's subscription context obtained from UDM. AMF shall
-			// select a default snssai
-			if ulNasTransport.SNSSAI != nil {
-				snssai = util.SnssaiToModels(ulNasTransport.SNSSAI)
-			} else {
-				if len(ue.Current().AllowedNssai) == 0 {
-					return fmt.Errorf("allowed nssai is empty in UE context")
-				}
-
-				// Default to the first allowed slice when the UE omits S-NSSAI.
-				// The ordering follows the policy iteration order for the subscriber's profile.
-				snssai = &ue.Current().AllowedNssai[0]
-			}
-
-			if ulNasTransport.DNN != nil && ulNasTransport.DNN.GetLen() > 0 {
-				dnn = ulNasTransport.GetDNN()
-			} else {
-				// if user's subscription context obtained from UDM does not contain the default DNN for the,
-				// S-NSSAI, the AMF shall use a locally configured DNN as the DNN
-				dnnResp, err := amfInstance.GetSubscriberDnn(ctx, ue.Supi, snssai)
-				if err != nil {
-					return fmt.Errorf("failed to get subscriber data: %v", err)
-				}
-
-				dnn = dnnResp
-			}
-
-			smContextRef, errResponse, err := amfInstance.Smf.CreateSmContext(ctx, ue.Supi, pduSessionID, dnn, snssai, smMessage)
-			if err != nil {
-				ue.Log.Error("couldn't create sm context", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
-
-				if errResponse != nil {
-					if sendErr := message.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, errResponse, pduSessionID, 0); sendErr != nil {
-						return fmt.Errorf("error sending downlink nas transport: %s", sendErr)
-					}
-
-					return fmt.Errorf("pdu session establishment request was rejected by SMF for pdu session id %d: %w", pduSessionID, err)
-				}
-
-				// TS 24.501 §5.4.5.3: SMF could not produce an SM reject;
-				// AMF informs the UE the payload was not forwarded by echoing
-				// it back with the 5GMM cause set.
-				if sendErr := message.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded); sendErr != nil {
-					return fmt.Errorf("error sending downlink nas transport fallback: %s", sendErr)
-				}
-
-				return fmt.Errorf("create sm context failed for pdu session id %d: %w", pduSessionID, err)
-			}
-
-			if errResponse != nil {
-				err := message.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, errResponse, pduSessionID, 0)
-				if err != nil {
-					return fmt.Errorf("error sending downlink nas transport: %s", err)
-				}
-
-				return fmt.Errorf("pdu session establishment request was rejected by SMF for pdu session id %d", pduSessionID)
-			}
-
-			if err := ue.CreateSmContext(pduSessionID, smContextRef, snssai); err != nil {
-				return fmt.Errorf("error creating SM context: %w", err)
-			}
-
-			ue.Log.Debug("Created sm context for pdu session", zap.Uint8("pduSessionID", pduSessionID))
-
-		case nasMessage.ULNASTransportRequestTypeModificationRequest:
-			fallthrough
-		case nasMessage.ULNASTransportRequestTypeExistingPduSession:
-			err := message.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded)
-			if err != nil {
-				return fmt.Errorf("error sending downlink nas transport: %s", err)
-			}
-
-			ue.Log.Info("sent downlink nas transport to UE")
-		default:
-		}
+		// Forward to the SMF of the routing context (TS 24.501 §5.4.5.2.3 i/ii).
+		return forward5GSMMessageToSMF(ctx, amfInstance, ue, pduSessionID, smContext.Ref, smMessage)
 	}
+
+	if isInitialRequest {
+		return establishPDUSession(ctx, amfInstance, ue, ranUe, ulNasTransport, pduSessionID, smMessage)
+	}
+
+	// A 5GSM STATUS for a PDU session with no context is ignored (TS 24.501 §7.3.2 d)).
+	if isStatus5GSM(smMessage) {
+		ue.Log.Warn("5GSM STATUS for unknown PDU session, ignoring", zap.Uint8("pduSessionID", pduSessionID))
+		return nil
+	}
+
+	// No routing context and not an initial request (TS 24.501 §5.4.5.2.5 item 7).
+	return sendPayloadNotForwarded(ctx, ranUe, pduSessionID, smMessage)
+}
+
+// sendPayloadNotForwarded returns the 5GSM message to the UE in a DL NAS
+// TRANSPORT with 5GMM cause #90 "payload was not forwarded" (TS 24.501
+// §5.4.5.3.1 case e)/f)).
+func sendPayloadNotForwarded(ctx context.Context, ranUe *amf.RanUe, pduSessionID uint8, smMessage []byte) error {
+	if err := message.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, smMessage, pduSessionID, nasMessage.Cause5GMMPayloadWasNotForwarded); err != nil {
+		return fmt.Errorf("error sending downlink nas transport: %s", err)
+	}
+
+	return nil
+}
+
+func isStatus5GSM(smMessage []byte) bool {
+	m := new(nas.Message)
+	if err := m.PlainNasDecode(&smMessage); err != nil {
+		return false
+	}
+
+	return m.GsmMessage != nil && m.Status5GSM != nil
+}
+
+// establishPDUSession selects an SMF and creates the SM context for an initial
+// request (TS 24.501 §5.4.5.2.3 iii). When the SMF rejects, its reject message
+// is returned to the UE; when it produces none, the payload is reported as not
+// forwarded.
+func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfUe, ranUe *amf.RanUe, ulNasTransport *nasMessage.ULNASTransport, pduSessionID uint8, smMessage []byte) error {
+	var (
+		snssai *models.Snssai
+		dnn    string
+	)
+
+	if ulNasTransport.SNSSAI != nil {
+		snssai = util.SnssaiToModels(ulNasTransport.SNSSAI)
+	} else {
+		if len(ue.Current().AllowedNssai) == 0 {
+			return fmt.Errorf("allowed nssai is empty in UE context")
+		}
+
+		snssai = &ue.Current().AllowedNssai[0]
+	}
+
+	if ulNasTransport.DNN != nil && ulNasTransport.DNN.GetLen() > 0 {
+		dnn = ulNasTransport.GetDNN()
+	} else {
+		dnnResp, err := amfInstance.GetSubscriberDnn(ctx, ue.Supi, snssai)
+		if err != nil {
+			return fmt.Errorf("failed to get subscriber data: %v", err)
+		}
+
+		dnn = dnnResp
+	}
+
+	smContextRef, errResponse, err := amfInstance.Smf.CreateSmContext(ctx, ue.Supi, pduSessionID, dnn, snssai, smMessage)
+	if err != nil {
+		ue.Log.Error("couldn't create sm context", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
+
+		if errResponse != nil {
+			if sendErr := message.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, errResponse, pduSessionID, 0); sendErr != nil {
+				return fmt.Errorf("error sending downlink nas transport: %s", sendErr)
+			}
+
+			return fmt.Errorf("pdu session establishment request was rejected by SMF for pdu session id %d: %w", pduSessionID, err)
+		}
+
+		if sendErr := sendPayloadNotForwarded(ctx, ranUe, pduSessionID, smMessage); sendErr != nil {
+			return sendErr
+		}
+
+		return fmt.Errorf("create sm context failed for pdu session id %d: %w", pduSessionID, err)
+	}
+
+	if errResponse != nil {
+		if err := message.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, errResponse, pduSessionID, 0); err != nil {
+			return fmt.Errorf("error sending downlink nas transport: %s", err)
+		}
+
+		return fmt.Errorf("pdu session establishment request was rejected by SMF for pdu session id %d", pduSessionID)
+	}
+
+	if err := ue.CreateSmContext(pduSessionID, smContextRef, snssai); err != nil {
+		return fmt.Errorf("error creating SM context: %w", err)
+	}
+
+	ue.Log.Debug("Created sm context for pdu session", zap.Uint8("pduSessionID", pduSessionID))
 
 	return nil
 }
