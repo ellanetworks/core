@@ -165,7 +165,9 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	span.AddEvent("pfcp_rules_sent")
 
-	err = s.sendPduSessionEstablishmentAccept(ctx, smContext, policy, pco, addrs, pti, cause)
+	alwaysOnRequested := m.PDUSessionEstablishmentRequest.AlwaysonPDUSessionRequested != nil
+
+	err = s.sendPduSessionEstablishmentAccept(ctx, smContext, policy, pco, addrs, pti, cause, alwaysOnIndication(alwaysOnRequested, false))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send PDU session establishment accept")
@@ -675,6 +677,23 @@ func (s *SMF) sendPduSessionEstablishmentReject(ctx context.Context, smContext *
 	return nil
 }
 
+// alwaysOnIndication resolves the Always-on PDU session indication for an
+// Establishment Accept (TS 24.501 §6.4.1). grant reports whether the network
+// establishes the session as an always-on PDU session; Ella has no always-on
+// use case, so callers pass false. A nil result omits the IE.
+func alwaysOnIndication(requested, grant bool) *uint8 {
+	switch {
+	case grant:
+		v := uint8(1) // "Always-on PDU session required"
+		return &v
+	case requested:
+		v := uint8(0) // "Always-on PDU session not allowed"
+		return &v
+	default:
+		return nil
+	}
+}
+
 func (s *SMF) sendPduSessionEstablishmentAccept(
 	ctx context.Context,
 	smContext *SMContext,
@@ -683,6 +702,7 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 	addrs *smfNas.PDUSessionAddresses,
 	pti uint8,
 	cause uint8,
+	alwaysOn *uint8,
 ) error {
 	ctx, span := tracer.Start(ctx, "smf/send_pdu_session_establishment_accept",
 		trace.WithSpanKind(trace.SpanKindInternal),
@@ -691,7 +711,7 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 
 	PDUSessionEstablishmentAttempts.WithLabelValues("accept").Inc()
 
-	n1Msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(&policy.Ambr, &policy.QosData, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, policy.DNS, policy.MTU, cause, addrs)
+	n1Msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(&policy.Ambr, &policy.QosData, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, policy.DNS, policy.MTU, cause, addrs, alwaysOn)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to build PDU session establishment accept")

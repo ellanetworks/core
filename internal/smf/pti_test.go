@@ -39,6 +39,35 @@ func buildPDUSessionEstRequestWithPTI(pti uint8) []byte {
 	return buf
 }
 
+func buildPDUSessionEstRequestAlwaysOn() []byte {
+	m := nas.NewMessage()
+	m.GsmMessage = nas.NewGsmMessage()
+	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionEstablishmentRequest)
+	m.GsmHeader.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
+	m.PDUSessionEstablishmentRequest = nasMessage.NewPDUSessionEstablishmentRequest(0)
+	m.PDUSessionEstablishmentRequest.SetMessageType(nas.MsgTypePDUSessionEstablishmentRequest)
+	m.PDUSessionEstablishmentRequest.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
+	m.PDUSessionEstablishmentRequest.SetPDUSessionID(1)
+	m.PDUSessionEstablishmentRequest.SetPTI(10)
+	m.PDUSessionEstablishmentRequest.IntegrityProtectionMaximumDataRate. //nolint:staticcheck // full path needed to avoid ambiguous selector
+										SetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForUpLink(0xff)
+	m.PDUSessionEstablishmentRequest.IntegrityProtectionMaximumDataRate. //nolint:staticcheck // full path needed to avoid ambiguous selector
+										SetMaximumDataRatePerUEForUserPlaneIntegrityProtectionForDownLink(0xff)
+	m.PDUSessionEstablishmentRequest.PDUSessionType = nasType.NewPDUSessionType( //nolint:staticcheck // full path needed to avoid ambiguous selector
+		nasMessage.PDUSessionEstablishmentRequestPDUSessionTypeType)
+	m.PDUSessionEstablishmentRequest.PDUSessionType.SetPDUSessionTypeValue(nasMessage.PDUSessionTypeIPv4) //nolint:staticcheck // full path needed to avoid ambiguous selector
+	m.PDUSessionEstablishmentRequest.AlwaysonPDUSessionRequested = nasType.NewAlwaysonPDUSessionRequested(
+		nasMessage.PDUSessionEstablishmentRequestAlwaysonPDUSessionRequestedType)
+	m.PDUSessionEstablishmentRequest.SetAPSR(1)
+
+	buf, err := m.PlainNasEncode()
+	if err != nil {
+		panic(fmt.Sprintf("build PDU Session Establishment Request (always-on): %v", err))
+	}
+
+	return buf
+}
+
 func buildPDUSessionReleaseComplete(pduSessionID, pti uint8) []byte {
 	m := nas.NewMessage()
 	m.GsmMessage = nas.NewGsmMessage()
@@ -170,6 +199,53 @@ func TestUpdateSmContextN1Msg_ReservedPTI_Ignored(t *testing.T) {
 
 	if rsp != nil {
 		t.Errorf("a reserved-PTI message must be ignored (no response); got a response")
+	}
+}
+
+// A PDU SESSION ESTABLISHMENT REQUEST carrying the Always-on PDU session
+// requested IE must be answered with an Establishment Accept that includes the
+// Always-on PDU session indication; Ella does not grant always-on, so the value
+// is "not allowed" (APSI 0) per TS 24.501 §6.4.1 (case b-i).
+func TestCreateSmContext_AlwaysOnRequested_IndicationNotAllowed(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+	supi := testSUPI()
+
+	ref, rsp, err := s.CreateSmContext(ctx, supi, 1, testDNN, testSnssai, buildPDUSessionEstRequestAlwaysOn())
+	if err != nil {
+		t.Fatalf("CreateSmContext failed: %v", err)
+	}
+
+	if rsp != nil || ref == "" {
+		t.Fatalf("expected a successful establishment, got ref %q with %d-byte reject", ref, len(rsp))
+	}
+
+	amfCb.mu.Lock()
+	calls := amfCb.n1n2Calls
+	amfCb.mu.Unlock()
+
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 N1N2 transfer (the Accept), got %d", len(calls))
+	}
+
+	m := new(nas.Message)
+
+	n1 := calls[0].n1Msg
+	if err := m.PlainNasDecode(&n1); err != nil {
+		t.Fatalf("decode Accept: %v", err)
+	}
+
+	if m.PDUSessionEstablishmentAccept == nil {
+		t.Fatalf("expected an Establishment Accept, got message type %d", m.GsmHeader.GetMessageType())
+	}
+
+	if m.PDUSessionEstablishmentAccept.AlwaysonPDUSessionIndication == nil {
+		t.Fatal("UE requested always-on; TS 24.501 §6.4.1 (case b-i) requires an Always-on PDU session indication in the Accept, got none")
+	}
+
+	if got := m.PDUSessionEstablishmentAccept.GetAPSI(); got != 0 {
+		t.Errorf("APSI = %d, want 0 (always-on not allowed)", got)
 	}
 }
 

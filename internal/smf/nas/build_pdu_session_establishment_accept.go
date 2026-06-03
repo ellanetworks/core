@@ -54,6 +54,7 @@ func BuildGSMPDUSessionEstablishmentAccept(
 	mtu uint16,
 	cause uint8,
 	addrs *PDUSessionAddresses,
+	alwaysOn *uint8,
 ) ([]byte, error) {
 	pduSessionType := nasMessage.PDUSessionTypeIPv4
 	if addrs != nil {
@@ -140,6 +141,12 @@ func BuildGSMPDUSessionEstablishmentAccept(
 
 	m.PDUSessionEstablishmentAccept.DNN = nasType.NewDNN(nasMessage.ULNASTransportDNNType)
 	m.PDUSessionEstablishmentAccept.SetDNN(dnn)
+
+	// Always-on PDU session indication (TS 24.501 §6.4.1, §9.11.4.3).
+	if alwaysOn != nil {
+		m.PDUSessionEstablishmentAccept.AlwaysonPDUSessionIndication = nasType.NewAlwaysonPDUSessionIndication(nasMessage.PDUSessionEstablishmentAcceptAlwaysonPDUSessionIndicationType)
+		m.PDUSessionEstablishmentAccept.SetAPSI(*alwaysOn)
+	}
 
 	if pco.DNSIPv4Request || pco.DNSIPv6Request || pco.IPv4LinkMTURequest {
 		m.PDUSessionEstablishmentAccept.ExtendedProtocolConfigurationOptions = nasType.NewExtendedProtocolConfigurationOptions(
