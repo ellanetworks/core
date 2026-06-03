@@ -181,13 +181,28 @@ type SMF struct {
 	farIDs *idgenerator.IDGenerator
 	qerIDs *idgenerator.IDGenerator
 	urrIDs *idgenerator.IDGenerator
+
+	t3591 time.Duration // network-requested modification command retransmission
+	t3592 time.Duration // network-requested release command retransmission
 }
+
+// maxSMProcedureRetransmissions is the number of command retransmissions before
+// the SMF aborts a network-requested procedure: the command is resent on each of
+// the first four T3591/T3592 expiries and the procedure is aborted on the fifth
+// (TS 24.501 §6.3.2.5, §6.3.3).
+const maxSMProcedureRetransmissions = 4
 
 // Option configures an SMF instance.
 type Option func(*SMF)
 
 // WithClock overrides the time source (useful for testing).
 func WithClock(fn func() time.Time) Option { return func(s *SMF) { s.clock = fn } }
+
+// WithT3591 overrides the network-requested modification retransmission interval.
+func WithT3591(d time.Duration) Option { return func(s *SMF) { s.t3591 = d } }
+
+// WithT3592 overrides the network-requested release retransmission interval.
+func WithT3592(d time.Duration) Option { return func(s *SMF) { s.t3592 = d } }
 
 // New creates a new SMF.
 func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Option) *SMF {
@@ -198,6 +213,8 @@ func New(pcf PCF, store SessionStore, upf UPFClient, amf AMFCallback, opts ...Op
 		upf:    upf,
 		amf:    amf,
 		clock:  time.Now,
+		t3591:  16 * time.Second, // TS 24.501 table 10.3.2
+		t3592:  16 * time.Second, // TS 24.501 table 10.3.2
 		pdrIDs: idgenerator.NewGenerator(1, math.MaxUint16),
 		farIDs: idgenerator.NewGenerator(1, math.MaxUint32),
 		qerIDs: idgenerator.NewGenerator(1, math.MaxUint32),

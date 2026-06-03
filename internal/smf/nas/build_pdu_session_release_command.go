@@ -5,7 +5,11 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 )
 
-func BuildGSMPDUSessionReleaseCommand(pduSessionID uint8, pti uint8) ([]byte, error) {
+// BuildGSMPDUSessionReleaseCommand builds a PDU Session Release Command
+// (TS 24.501 clause 8.3.14). pti is the UE-allocated value for a UE-requested
+// release or 0 ("no procedure transaction identity assigned") for a
+// network-requested release; cause is the 5GSM release cause.
+func BuildGSMPDUSessionReleaseCommand(pduSessionID, pti, cause uint8) ([]byte, error) {
 	m := nas.NewMessage()
 	m.GsmMessage = nas.NewGsmMessage()
 	m.GsmHeader.SetMessageType(nas.MsgTypePDUSessionReleaseCommand)
@@ -15,7 +19,7 @@ func BuildGSMPDUSessionReleaseCommand(pduSessionID uint8, pti uint8) ([]byte, er
 	m.PDUSessionReleaseCommand.SetExtendedProtocolDiscriminator(nasMessage.Epd5GSSessionManagementMessage)
 	m.PDUSessionReleaseCommand.SetPDUSessionID(pduSessionID)
 	m.PDUSessionReleaseCommand.SetPTI(pti)
-	m.PDUSessionReleaseCommand.SetCauseValue(0x0)
+	m.PDUSessionReleaseCommand.SetCauseValue(cause)
 
 	return m.PlainNasEncode()
 }

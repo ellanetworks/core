@@ -323,6 +323,19 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 	// Command Reject (TS 24.501 §6.3.2, §7.3.1 a).
 	smContext.MarkPTIInUse(0)
 
+	// T3591 retransmits the command until the UE replies; on the final expiry
+	// the procedure is aborted and the session stays PDU SESSION ACTIVE
+	// (TS 24.501 §6.3.2.5). The committed PFCP/policy change is not rolled back.
+	supi := smContext.Supi
+	pduSessionID := smContext.PDUSessionID
+	s.armRetransmit(smContext, s.t3591,
+		func() error { return s.amf.ModifyN1N2(context.Background(), supi, pduSessionID, n1Msg, n2Msg) },
+		func(sc *SMContext) {
+			sc.ClearPTIInUse(0)
+			logger.SmfLog.Warn("T3591 expired; PDU session modification aborted, session remains active",
+				logger.SUPI(supi.String()), logger.PDUSessionID(pduSessionID))
+		})
+
 	logger.SmfLog.Info("session modification N1+N2 sent",
 		logger.SUPI(smContext.Supi.String()),
 		logger.PDUSessionID(smContext.PDUSessionID),
@@ -409,88 +422,10 @@ func (s *SMF) updatePFCPRules(ctx context.Context, smContext *SMContext, policy 
 	return nil
 }
 
-// sendSessionRelease performs a network-initiated PDU Session Release:
-// This implements TS 23.502 §4.3.4.2 (network-requested PDU session release)
-// for the case where the subscriber's slice assignment (SST/SD) has changed.
-//
-// Per TS 23.502 §4.3.4.2:
-//  1. Releases IP addresses and tears down the data plane (PFCP session
-//     deletion + GTP tunnel release) — Step 2 in the spec.
-//  2. Builds N1 PDU Session Release Command with cause #39 "reactivation
-//     requested" and N2 PDU Session Resource Release Command Transfer.
-//  3. Sends the combined N1+N2 to UE/gNB via the AMF — Step 3 in the spec.
-//  4. Removes the session from the SMF pool.
-//
-// Upon receiving cause #39 "reactivation requested" (TS 24.501 table 5.5.10),
-// the UE is expected to initiate a new PDU session establishment
-// (TS 24.501 §6.3.3). The UE's PDU Session Release Complete and gNB's N2
-// Resource Release Ack will find the session already removed and return
-// idempotently (see UpdateSmContextN2InfoPduResRelRsp).
-//
-// Caller must hold smContext.Mutex.Lock().
+// sendSessionRelease performs the network-requested PDU session release
+// (TS 23.502 §4.3.4.2, TS 24.501 §6.3.3) triggered by a slice (SST/SD) change,
+// using cause #39 "reactivation requested" so the UE re-establishes on the
+// correct slice (TS 24.501 table 11.4.2.1). Caller must hold smContext.Mutex.
 func (s *SMF) sendSessionRelease(ctx context.Context, smContext *SMContext) error {
-	// Step 2 (TS 23.502 §4.3.4.2): Release IP addresses and user plane
-	// resources before signaling the UE.
-	if smContext.PDUIPV4Address != nil {
-		if _, err := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID); err != nil {
-			logger.SmfLog.Warn("release UE IPv4 address failed during slice-mismatch release, continuing teardown",
-				zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-		}
-	}
-
-	if smContext.PDUIPV6Prefix != nil {
-		if _, err := s.store.ReleaseIPv6(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID); err != nil {
-			logger.SmfLog.Warn("release UE IPv6 address failed during slice-mismatch release, continuing teardown",
-				zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-		}
-	}
-
-	if err := s.releaseTunnel(ctx, smContext); err != nil {
-		logger.SmfLog.Warn("release tunnel failed during slice-mismatch release, continuing teardown",
-			zap.Error(err), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-	}
-
-	// Step 3: Build N1+N2 and signal the UE/gNB.
-	// Per TS 23.502 §4.3.4.2 step 3: if UE is in CM-IDLE, the AMF uses the
-	// "skip indicator" — NAS delivery is not possible without radio resources.
-	// The session is released locally (data plane already torn down above).
-	// When the UE reconnects, the PDUSessionStatus IE in the Service Request
-	// or Registration Request will not include this session, confirming the
-	// release implicitly (TS 24.501 §5.4.4).
-	n1Msg, err := nas.BuildNetworkInitiatedPDUSessionReleaseCommand(
-		smContext.PDUSessionID,
-		nasMessage.Cause5GSMReactivationRequested,
-	)
-	if err != nil {
-		return fmt.Errorf("build PDU Session Release Command (N1): %w", err)
-	}
-
-	n2Transfer, err := ngap.BuildPDUSessionResourceReleaseCommandTransfer()
-	if err != nil {
-		return fmt.Errorf("build PDU Session Resource Release Command Transfer (N2): %w", err)
-	}
-
-	if err := s.amf.ReleaseSession(ctx, smContext.Supi, smContext.PDUSessionID, n1Msg, n2Transfer); err != nil {
-		if errors.Is(err, ErrUENotReachable) {
-			logger.SmfLog.Debug("UE is idle, skipping release signaling; session removed locally",
-				logger.SUPI(smContext.Supi.String()),
-				logger.PDUSessionID(smContext.PDUSessionID),
-			)
-		} else {
-			return fmt.Errorf("release session signaling: %w", err)
-		}
-	}
-
-	// Remove session from the SMF pool. When the gNB/UE response arrives at
-	// UpdateSmContextN2InfoPduResRelRsp, the session will already be gone and
-	// the handler returns nil (idempotent).
-	s.removeSessionUnlocked(ctx, smContext.CanonicalName())
-
-	logger.SmfLog.Info("network-initiated session release complete (slice mismatch)",
-		logger.SUPI(smContext.Supi.String()),
-		logger.PDUSessionID(smContext.PDUSessionID),
-		zap.String("cause", "reactivation_requested"),
-	)
-
-	return nil
+	return s.startRelease(ctx, smContext, 0, nasMessage.Cause5GSMReactivationRequested)
 }
