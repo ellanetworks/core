@@ -13,6 +13,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/util/timer"
 )
 
 type PFCPSessionContext struct {
@@ -50,6 +51,27 @@ type SMContext struct {
 	// or command-reject whose PTI is absent is a PTI mismatch (§7.3.1 a).
 	// Guarded by Mutex.
 	outstandingPTIs map[uint8]struct{}
+
+	// procedureTimer is the T3591/T3592 retransmission timer for the outstanding
+	// network-requested modification or release command (TS 24.501 §6.3.2.5,
+	// §6.3.3). Guarded by Mutex.
+	procedureTimer *timer.Timer
+}
+
+// startProcedureTimer arms the network-requested-procedure retransmission timer,
+// replacing any previous one. Caller must hold Mutex.
+func (smContext *SMContext) startProcedureTimer(t *timer.Timer) {
+	smContext.stopProcedureTimer()
+	smContext.procedureTimer = t
+}
+
+// stopProcedureTimer stops the retransmission timer if one is armed. Caller must
+// hold Mutex.
+func (smContext *SMContext) stopProcedureTimer() {
+	if smContext.procedureTimer != nil {
+		smContext.procedureTimer.Stop()
+		smContext.procedureTimer = nil
+	}
 }
 
 // MarkPTIInUse records that a 5GSM procedure with the given PTI is outstanding

@@ -787,17 +787,19 @@ func TestUpdateSmContextN1Msg_ReleaseRequest(t *testing.T) {
 		t.Fatalf("UpdateSmContextN1Msg failed: %v", err)
 	}
 
-	if rsp == nil {
-		t.Fatal("expected non-nil response")
+	// A UE-requested release runs the network-requested release procedure: the
+	// Release Command goes to the UE/gNB via the AMF, not back as an
+	// UpdateResult (TS 24.501 §6.4.3.3 → §6.3.3).
+	if rsp != nil {
+		t.Fatalf("expected no UpdateResult, got %+v", rsp)
 	}
 
-	if rsp.N1Msg == nil {
-		t.Fatal("expected N1 release command in response")
+	amfCb.mu.Lock()
+	if len(amfCb.releaseCalls) != 1 {
+		amfCb.mu.Unlock()
+		t.Fatalf("expected 1 ReleaseSession call, got %d", len(amfCb.releaseCalls))
 	}
-
-	if !rsp.ReleaseN2 {
-		t.Fatal("expected ReleaseN2 to be true")
-	}
+	amfCb.mu.Unlock()
 
 	upf.mu.Lock()
 	if len(upf.deleteCalls) != 1 {
@@ -812,6 +814,12 @@ func TestUpdateSmContextN1Msg_ReleaseRequest(t *testing.T) {
 		t.Fatal("expected IP to be released")
 	}
 	store.mu.Unlock()
+
+	// The session is retained until the UE confirms with Release Complete or
+	// T3592 expires (TS 24.501 §6.3.3.3).
+	if s.GetSession(ref) == nil {
+		t.Fatal("expected session to be retained while T3592 is running")
+	}
 }
 
 func TestUpdateSmContextN1Msg_EmptyRef(t *testing.T) {
@@ -1315,8 +1323,10 @@ func TestReconcileSmContext_QoSOnly(t *testing.T) {
 }
 
 // TestReconcileSmContext_SliceMismatchFullCleanup verifies that a slice-mismatch
-// release performs full data-plane cleanup (IP release, PFCP deletion, session
-// removal) per TS 23.502 §4.3.4.2 Step 2 (before signaling the UE).
+// release performs full data-plane cleanup (IP release, PFCP deletion) before
+// signaling the UE (TS 23.502 §4.3.4.2 Step 2), and retains the session while
+// T3592 awaits the UE's Release Complete (TS 24.501 §6.3.3); the N2 release
+// response then removes it.
 func TestReconcileSmContext_SliceMismatchFullCleanup(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)
@@ -1330,11 +1340,6 @@ func TestReconcileSmContext_SliceMismatchFullCleanup(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("ReconcileSmContext failed: %v", err)
-	}
-
-	// Session should be removed from the pool after full cleanup.
-	if s.GetSession(ref) != nil {
-		t.Fatal("expected session to be removed after slice-mismatch release")
 	}
 
 	// IP addresses should have been released.
@@ -1362,6 +1367,19 @@ func TestReconcileSmContext_SliceMismatchFullCleanup(t *testing.T) {
 
 	if releaseCalls != 1 {
 		t.Fatalf("expected 1 release signaling call, got %d", releaseCalls)
+	}
+
+	// The session is retained until the release is confirmed.
+	if s.GetSession(ref) == nil {
+		t.Fatal("expected session to be retained while T3592 is running")
+	}
+
+	if err := s.UpdateSmContextN2InfoPduResRelRsp(ctx, ref); err != nil {
+		t.Fatalf("UpdateSmContextN2InfoPduResRelRsp failed: %v", err)
+	}
+
+	if s.GetSession(ref) != nil {
+		t.Fatal("expected session to be removed after N2 release response")
 	}
 }
 
@@ -1593,9 +1611,9 @@ func TestReconcileSmContext_MTUChange(t *testing.T) {
 		t.Fatalf("ReconcileSmContext failed: %v", err)
 	}
 
-	// Session should be removed from the pool after release.
-	if s.GetSession(ref) != nil {
-		t.Fatal("expected session to be removed after MTU-change release")
+	// Session is retained until the release is confirmed (TS 24.501 §6.3.3).
+	if s.GetSession(ref) == nil {
+		t.Fatal("expected session to be retained while T3592 is running")
 	}
 
 	// IP addresses should have been released.
@@ -1650,9 +1668,9 @@ func TestReconcileSmContext_PoolChange(t *testing.T) {
 		t.Fatalf("ReconcileSmContext failed: %v", err)
 	}
 
-	// Session should be removed from the pool after release.
-	if s.GetSession(ref) != nil {
-		t.Fatal("expected session to be removed after pool-change release")
+	// Session is retained until the release is confirmed (TS 24.501 §6.3.3).
+	if s.GetSession(ref) == nil {
+		t.Fatal("expected session to be retained while T3592 is running")
 	}
 
 	// IP addresses should have been released.

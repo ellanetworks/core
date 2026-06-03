@@ -718,13 +718,17 @@ func TestUpdateSmContextN1Msg_IPv6Release(t *testing.T) {
 		t.Fatalf("UpdateSmContextN1Msg (IPv6 release) failed: %v", err)
 	}
 
-	if rsp == nil || rsp.N1Msg == nil {
-		t.Fatal("expected N1 release command in response")
+	// The release is signaled to the UE/gNB via the AMF (TS 24.501 §6.3.3).
+	if rsp != nil {
+		t.Fatalf("expected no UpdateResult, got %+v", rsp)
 	}
 
-	if !rsp.ReleaseN2 {
-		t.Fatal("expected ReleaseN2 to be true")
+	amfCb.mu.Lock()
+	if len(amfCb.releaseCalls) != 1 {
+		amfCb.mu.Unlock()
+		t.Fatalf("expected 1 ReleaseSession call, got %d", len(amfCb.releaseCalls))
 	}
+	amfCb.mu.Unlock()
 
 	// Verify IPv6 was released.
 	store.mu.Lock()
@@ -756,9 +760,17 @@ func TestUpdateSmContextN1Msg_DualStackRelease(t *testing.T) {
 		t.Fatalf("UpdateSmContextN1Msg (dual-stack release) failed: %v", err)
 	}
 
-	if rsp == nil || rsp.N1Msg == nil {
-		t.Fatal("expected N1 release command in response")
+	// The release is signaled to the UE/gNB via the AMF (TS 24.501 §6.3.3).
+	if rsp != nil {
+		t.Fatalf("expected no UpdateResult, got %+v", rsp)
 	}
+
+	amfCb.mu.Lock()
+	if len(amfCb.releaseCalls) != 1 {
+		amfCb.mu.Unlock()
+		t.Fatalf("expected 1 ReleaseSession call, got %d", len(amfCb.releaseCalls))
+	}
+	amfCb.mu.Unlock()
 
 	// Verify both IPv4 and IPv6 were released.
 	store.mu.Lock()

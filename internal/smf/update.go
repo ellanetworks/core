@@ -50,7 +50,7 @@ func (s *SMF) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1M
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
-	rsp, sendPfcpDelete, err := s.handleUpdateN1Msg(ctx, n1Msg, smContext)
+	rsp, err := s.handleUpdateN1Msg(ctx, n1Msg, smContext)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to handle N1 message")
@@ -58,21 +58,12 @@ func (s *SMF) UpdateSmContextN1Msg(ctx context.Context, smContextRef string, n1M
 		return nil, fmt.Errorf("error handling N1 message: %v", err)
 	}
 
-	if sendPfcpDelete {
-		if err := s.releaseTunnel(ctx, smContext); err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "failed to release tunnel")
-
-			return nil, fmt.Errorf("failed to release tunnel: %v", err)
-		}
-	}
-
 	return rsp, nil
 }
 
-func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SMContext) (*UpdateResult, bool, error) {
+func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SMContext) (*UpdateResult, error) {
 	if n1Msg == nil {
-		return nil, false, nil
+		return nil, nil
 	}
 
 	m := nas.NewMessage()
@@ -82,7 +73,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 	raw := n1Msg
 
 	if err := m.GsmMessageDecode(&n1Msg); err != nil {
-		return nil, false, fmt.Errorf("error decoding N1SmMessage: %v", err)
+		return nil, fmt.Errorf("error decoding N1SmMessage: %v", err)
 	}
 
 	logger.WithTrace(ctx, logger.SmfLog).Debug("Update SM Context Request N1SmMessage", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
@@ -90,7 +81,7 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 	msgType := m.GsmHeader.GetMessageType()
 
 	if len(raw) < 3 {
-		return nil, false, fmt.Errorf("5GSM message too short to contain a PTI")
+		return nil, fmt.Errorf("5GSM message too short to contain a PTI")
 	}
 
 	pti := raw[2]
@@ -98,59 +89,29 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 	switch verdict, cause := smfNas.PolicePTI(msgType, pti, smContext.IsPTIInUse); verdict {
 	case smfNas.PTIIgnore:
 		logger.WithTrace(ctx, logger.SmfLog).Info("ignoring 5GSM message with reserved PTI", zap.Uint8("MessageType", msgType), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-		return nil, false, nil
+		return nil, nil
 	case smfNas.PTIRespondStatus:
 		n1SmMsg, err := smfNas.BuildGSM5GSMStatus(smContext.PDUSessionID, pti, cause)
 		if err != nil {
-			return nil, false, fmt.Errorf("build GSM 5GSM STATUS failed: %v", err)
+			return nil, fmt.Errorf("build GSM 5GSM STATUS failed: %v", err)
 		}
 
-		return &UpdateResult{N1Msg: n1SmMsg}, false, nil
+		return &UpdateResult{N1Msg: n1SmMsg}, nil
 	}
 
 	switch msgType {
 	case nas.MsgTypePDUSessionReleaseRequest:
+		// A UE-requested release runs as a network-requested release
+		// (TS 24.501 §6.4.3.3 → §6.3.3): the UE-allocated PTI is carried on the
+		// Release Command and held until the matching Release Complete; T3592
+		// retransmits the command meanwhile.
 		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Request received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
-		if smContext.PDUIPV4Address != nil {
-			_, releaseErr := s.store.ReleaseIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
-			if releaseErr != nil {
-				logger.WithTrace(ctx, logger.SmfLog).Warn("release UE IP address failed during PDU session release, continuing teardown",
-					zap.Error(releaseErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID), logger.DNN(smContext.Dnn))
-			}
+		if err := s.startRelease(ctx, smContext, pti, nasMessage.Cause5GSMRegularDeactivation); err != nil {
+			return nil, fmt.Errorf("start PDU session release: %w", err)
 		}
 
-		if smContext.PDUIPV6Prefix != nil {
-			_, releaseErr := s.store.ReleaseIPv6(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
-			if releaseErr != nil {
-				logger.WithTrace(ctx, logger.SmfLog).Warn("release UE IPv6 address failed during PDU session release, continuing teardown",
-					zap.Error(releaseErr), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID), logger.DNN(smContext.Dnn))
-			}
-		}
-
-		// The UE allocated this PTI for the release procedure; hold it until the
-		// matching PDU SESSION RELEASE COMPLETE arrives (TS 24.501 §6.3.3, §7.3.1).
-		smContext.MarkPTIInUse(pti)
-
-		n1SmMsg, err := smfNas.BuildGSMPDUSessionReleaseCommand(smContext.PDUSessionID, pti)
-		if err != nil {
-			return nil, false, fmt.Errorf("build GSM PDUSessionReleaseCommand failed: %v", err)
-		}
-
-		n2SmMsg, err := ngap.BuildPDUSessionResourceReleaseCommandTransfer()
-		if err != nil {
-			return nil, false, fmt.Errorf("build PDUSession Resource Release Command Transfer Error: %v", err)
-		}
-
-		sendPfcpDelete := smContext.Tunnel != nil
-
-		response := &UpdateResult{
-			N1Msg:     n1SmMsg,
-			ReleaseN2: true,
-			N2Msg:     n2SmMsg,
-		}
-
-		return response, sendPfcpDelete, nil
+		return nil, nil
 
 	case nas.MsgTypePDUSessionModificationRequest:
 		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Modification Request received; rejecting", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
@@ -160,36 +121,40 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		// (TS 24.501 clause 6.4.2.4).
 		n1SmMsg, err := smfNas.BuildGSMPDUSessionModificationReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		if err != nil {
-			return nil, false, fmt.Errorf("build GSM PDUSessionModificationReject failed: %v", err)
+			return nil, fmt.Errorf("build GSM PDUSessionModificationReject failed: %v", err)
 		}
 
-		return &UpdateResult{N1Msg: n1SmMsg}, false, nil
+		return &UpdateResult{N1Msg: n1SmMsg}, nil
 
 	case nas.MsgTypePDUSessionReleaseComplete:
-		// The UE acknowledged a release procedure whose PTI is in use (policed
-		// above); close it out (TS 24.501 §6.3.3, §6.4.3).
+		// The UE acknowledged the release; stop T3592 and remove the session
+		// (TS 24.501 §6.3.3.3).
 		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Complete received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
+		s.removeSessionUnlocked(ctx, smContext.CanonicalName())
 
-		return nil, false, nil
+		return nil, nil
 
 	case nas.MsgTypePDUSessionModificationComplete:
-		// The UE accepted a network-requested modification (TS 24.501 §6.3.2.3).
+		// The UE accepted the modification; stop T3591 (TS 24.501 §6.3.2.3).
 		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Modification Complete received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
 
-		return nil, false, nil
+		return nil, nil
 
 	case nas.MsgTypePDUSessionModificationCommandReject:
-		// The UE rejected a network-requested modification (TS 24.501 §6.3.2.4).
+		// The UE rejected the modification; stop T3591 (TS 24.501 §6.3.2.4).
 		logger.WithTrace(ctx, logger.SmfLog).Warn("N1 Msg PDU Session Modification Command Reject received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		smContext.stopProcedureTimer()
 		smContext.ClearPTIInUse(pti)
 
-		return nil, false, nil
+		return nil, nil
 
 	default:
 		logger.WithTrace(ctx, logger.SmfLog).Warn("N1 Msg type not supported in SM Context Update", zap.Uint8("MessageType", msgType), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
-		return nil, false, nil
+		return nil, nil
 	}
 }
 
@@ -413,15 +378,14 @@ func (s *SMF) UpdateSmContextN2InfoPduResRelRsp(ctx context.Context, smContextRe
 	smContext.Mutex.Lock()
 	defer smContext.Mutex.Unlock()
 
+	// The gNB released the radio resources; the release procedure is complete
+	// on the N2 side, so stop T3592 (TS 24.501 §6.3.3).
+	smContext.stopProcedureTimer()
+
 	if smContext.PDUSessionReleaseDueToDupPduID {
 		smContext.PDUSessionReleaseDueToDupPduID = false
 		s.RemoveSession(ctx, smContext.CanonicalName())
 	} else {
-		// UE-initiated release: the N1 path (UpdateSmContextN1Msg) already
-		// released IPs and tunnel; just remove from pool.
-		// Network-initiated slice-mismatch release: the session is already
-		// fully cleaned up and removed by sendSessionRelease, so this path
-		// is only reached for UE-initiated releases.
 		s.removeSessionUnlocked(ctx, smContext.CanonicalName())
 	}
 
