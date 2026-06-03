@@ -4,6 +4,7 @@
 package nas_test
 
 import (
+	"net"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
@@ -23,7 +24,7 @@ func TestBuildPDUSessionModificationCommand_AmbrAndQoS(t *testing.T) {
 		Arp:    &models.Arp{PriorityLevel: 14},
 	}
 
-	encoded, err := smfNas.BuildPDUSessionModificationCommand(1, ambr, qosData)
+	encoded, err := smfNas.BuildPDUSessionModificationCommand(1, ambr, qosData, nil)
 	if err != nil {
 		t.Fatalf("BuildPDUSessionModificationCommand failed: %v", err)
 	}
@@ -76,7 +77,7 @@ func TestBuildPDUSessionModificationCommand_AmbrOnly(t *testing.T) {
 		Downlink: "400 Mbps",
 	}
 
-	encoded, err := smfNas.BuildPDUSessionModificationCommand(5, ambr, nil)
+	encoded, err := smfNas.BuildPDUSessionModificationCommand(5, ambr, nil, nil)
 	if err != nil {
 		t.Fatalf("BuildPDUSessionModificationCommand failed: %v", err)
 	}
@@ -107,7 +108,7 @@ func TestBuildPDUSessionModificationCommand_QoSOnly(t *testing.T) {
 		Arp:    &models.Arp{PriorityLevel: 10},
 	}
 
-	encoded, err := smfNas.BuildPDUSessionModificationCommand(3, nil, qosData)
+	encoded, err := smfNas.BuildPDUSessionModificationCommand(3, nil, qosData, nil)
 	if err != nil {
 		t.Fatalf("BuildPDUSessionModificationCommand failed: %v", err)
 	}
@@ -128,5 +129,70 @@ func TestBuildPDUSessionModificationCommand_QoSOnly(t *testing.T) {
 
 	if modCmd.AuthorizedQosFlowDescriptions == nil {
 		t.Fatal("AuthorizedQosFlowDescriptions is nil; expected QoS-only modification to include it")
+	}
+}
+
+func TestBuildPDUSessionModificationCommand_WithDNS(t *testing.T) {
+	dns := net.ParseIP("8.8.8.8")
+
+	encoded, err := smfNas.BuildPDUSessionModificationCommand(2, nil, nil, dns)
+	if err != nil {
+		t.Fatalf("BuildPDUSessionModificationCommand failed: %v", err)
+	}
+
+	m := new(nas.Message)
+	if err := m.PlainNasDecode(&encoded); err != nil {
+		t.Fatalf("PlainNasDecode failed: %v", err)
+	}
+
+	modCmd := m.PDUSessionModificationCommand
+	if modCmd == nil {
+		t.Fatal("PDUSessionModificationCommand is nil")
+	}
+
+	pco := modCmd.ExtendedProtocolConfigurationOptions
+	if pco == nil {
+		t.Fatal("ExtendedProtocolConfigurationOptions is nil; DNS should be in PCO")
+	}
+
+	contents := pco.GetExtendedProtocolConfigurationOptionsContents()
+	if len(contents) == 0 {
+		t.Fatal("PCO contents is empty")
+	}
+}
+
+func TestBuildPDUSessionModificationCommand_WithIPv6DNS(t *testing.T) {
+	dns := net.ParseIP("2001:4860:4860::8888")
+
+	encoded, err := smfNas.BuildPDUSessionModificationCommand(4, nil, nil, dns)
+	if err != nil {
+		t.Fatalf("BuildPDUSessionModificationCommand failed: %v", err)
+	}
+
+	m := new(nas.Message)
+	if err := m.PlainNasDecode(&encoded); err != nil {
+		t.Fatalf("PlainNasDecode failed: %v", err)
+	}
+
+	modCmd := m.PDUSessionModificationCommand
+	if modCmd == nil {
+		t.Fatal("PDUSessionModificationCommand is nil")
+	}
+
+	pco := modCmd.ExtendedProtocolConfigurationOptions
+	if pco == nil {
+		t.Fatal("ExtendedProtocolConfigurationOptions is nil; DNS should be in PCO")
+	}
+
+	contents := pco.GetExtendedProtocolConfigurationOptionsContents()
+	if len(contents) == 0 {
+		t.Fatal("PCO contents is empty")
+	}
+}
+
+func TestBuildPDUSessionModificationCommand_AllNil(t *testing.T) {
+	_, err := smfNas.BuildPDUSessionModificationCommand(1, nil, nil, nil)
+	if err == nil {
+		t.Fatal("expected error when all inputs are nil")
 	}
 }

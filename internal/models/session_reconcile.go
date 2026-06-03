@@ -34,4 +34,8 @@ type SessionPolicyDelta struct {
 	Arp                 int32
 	PreemptCap          PreemptionCapability
 	PreemptVuln         PreemptionVulnerability
+	DNS                 string // DNS server IP address (from data network)
+	MTU                 uint16 // MTU for the PDU session (from data network)
+	IPv4Pool            string // IPv4 pool CIDR (from data network)
+	IPv6Pool            string // IPv6 prefix delegation pool CIDR (from data network)
 }

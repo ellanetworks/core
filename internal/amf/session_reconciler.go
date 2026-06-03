@@ -200,10 +200,19 @@ func (r *SessionReconciler) fetchSessionPolicy(smContextRef string) (*models.Ses
 		return nil, models.ReconcileSkip
 	}
 
+	dnsStr := ""
+	if policy.DNS != nil {
+		dnsStr = policy.DNS.String()
+	}
+
 	delta := &models.SessionPolicyDelta{
 		SessionAmbrUplink:   policy.Ambr.Uplink,
 		SessionAmbrDownlink: policy.Ambr.Downlink,
 		Var5qi:              policy.QosData.Var5qi,
+		DNS:                 dnsStr,
+		MTU:                 policy.MTU,
+		IPv4Pool:            policy.IPv4Pool,
+		IPv6Pool:            policy.IPv6Pool,
 	}
 	if policy.QosData.Arp != nil {
 		delta.Arp = policy.QosData.Arp.PriorityLevel
