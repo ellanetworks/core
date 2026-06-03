@@ -211,30 +211,30 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfU
 	}
 
 	smContextRef, errResponse, err := amfInstance.Smf.CreateSmContext(ctx, ue.Supi, pduSessionID, dnn, snssai, smMessage)
+
+	// The SMF produced a 5GSM reject. Delivering it completes the procedure with
+	// a normal negative outcome — not a 5GMM protocol error — so this returns nil
+	// (no 5GMM STATUS follows). TS 24.501 §6.4.1.x.
+	if errResponse != nil {
+		if sendErr := message.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, errResponse, pduSessionID, 0); sendErr != nil {
+			return fmt.Errorf("send PDU session establishment reject: %w", sendErr)
+		}
+
+		ue.Log.Info("PDU session establishment rejected by SMF", zap.Uint8("pduSessionID", pduSessionID), zap.Error(err))
+
+		return nil
+	}
+
+	// The SMF failed without producing a reject. Tell the UE the payload was not
+	// forwarded (5GMM cause #90) so it does not time out (TS 24.501 §5.4.5.3.1).
 	if err != nil {
 		ue.Log.Error("couldn't create sm context", zap.Error(err), zap.Uint8("pduSessionID", pduSessionID))
-
-		if errResponse != nil {
-			if sendErr := message.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, errResponse, pduSessionID, 0); sendErr != nil {
-				return fmt.Errorf("error sending downlink nas transport: %s", sendErr)
-			}
-
-			return fmt.Errorf("pdu session establishment request was rejected by SMF for pdu session id %d: %w", pduSessionID, err)
-		}
 
 		if sendErr := sendPayloadNotForwarded(ctx, ranUe, pduSessionID, smMessage); sendErr != nil {
 			return sendErr
 		}
 
-		return fmt.Errorf("create sm context failed for pdu session id %d: %w", pduSessionID, err)
-	}
-
-	if errResponse != nil {
-		if err := message.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, errResponse, pduSessionID, 0); err != nil {
-			return fmt.Errorf("error sending downlink nas transport: %s", err)
-		}
-
-		return fmt.Errorf("pdu session establishment request was rejected by SMF for pdu session id %d", pduSessionID)
+		return nil
 	}
 
 	// The SMF processed the message but produced no context and no response,

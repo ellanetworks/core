@@ -2,12 +2,12 @@ package ngap
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
-	"github.com/free5gc/nas/nasMessage"
 	"go.uber.org/zap"
 )
 
@@ -42,10 +42,16 @@ func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 		return
 	}
 
-	err := amfInstance.NAS.HandleNAS(ctx, ranUe, msg.NASPDU)
-	if err != nil {
+	if err := amfInstance.NAS.HandleNAS(ctx, ranUe, msg.NASPDU); err != nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("error handling NAS message", zap.Error(err))
-		sendStatus5GMM(ctx, ranUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
+
+		// A 5GMM STATUS is sent only for a genuine 5GMM protocol error
+		// (TS 24.501 §7.x); a normal negative outcome (e.g. a delivered PDU
+		// session reject) returns nil and is not seen here.
+		var pe *amf.ProtocolError
+		if errors.As(err, &pe) {
+			sendStatus5GMM(ctx, ranUe, pe.Cause)
+		}
 	}
 }
 

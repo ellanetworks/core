@@ -589,12 +589,12 @@ func TestTransport5GSMMessage_InitialRequest_SmfReturnsErrorAndReject_ForwardsRe
 	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
 
 	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
-	if err == nil {
-		t.Fatal("expected an error from transport5GSMMessage when SMF rejects")
+	if err != nil {
+		t.Fatalf("delivering an SMF reject is a normal outcome and must return nil so no 5GMM STATUS follows, got: %v", err)
 	}
 
 	if _, exists := ue.SmContextFindByPDUSessionID(pduSessionID); exists {
-		t.Fatal("expected no SM context to be created on SMF error")
+		t.Fatal("expected no SM context to be created on SMF reject")
 	}
 
 	if len(ngapSender.SentDownlinkNASTransport) != 1 {
@@ -629,8 +629,8 @@ func TestTransport5GSMMessage_InitialRequest_SmfReturnsErrorOnly_SendsFallbackAn
 	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
 
 	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
-	if err == nil {
-		t.Fatal("expected an error from transport5GSMMessage when SMF fails")
+	if err != nil {
+		t.Fatalf("after delivering the payload-not-forwarded fallback the AMF must return nil so no 5GMM STATUS follows, got: %v", err)
 	}
 
 	if _, exists := ue.SmContextFindByPDUSessionID(pduSessionID); exists {

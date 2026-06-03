@@ -52,17 +52,18 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu 
 
 	result, err := amf.DecodeNASMessage(ue.AmfUe(), nasPdu)
 	if err != nil {
-		return fmt.Errorf("error decoding NAS message: %v", err)
+		// An undecodable 5GMM message is a protocol error (TS 24.501 §7.x).
+		return &amf.ProtocolError{Cause: nasMessage.Cause5GMMProtocolErrorUnspecified, Err: fmt.Errorf("decode NAS message: %v", err)}
 	}
 
 	msg := result.Message
 
 	if msg.GmmMessage == nil {
-		return errors.New("gmm message is nil")
+		return &amf.ProtocolError{Cause: nasMessage.Cause5GMMProtocolErrorUnspecified, Err: errors.New("gmm message is nil")}
 	}
 
 	if msg.GsmMessage != nil {
-		return errors.New("gsm message is not nil")
+		return &amf.ProtocolError{Cause: nasMessage.Cause5GMMProtocolErrorUnspecified, Err: errors.New("gsm message is not nil")}
 	}
 
 	var macFailed bool
@@ -95,7 +96,9 @@ func HandleNAS(ctx context.Context, amfInstance *amf.AMF, ue *amf.RanUe, nasPdu 
 
 	err = gmm.HandleGmmMessage(ctx, amfInstance, ue.AmfUe(), msg.GmmMessage, macFailed)
 	if err != nil {
-		return fmt.Errorf("error handling NAS message for supi %s: %v", ue.AmfUe().Supi.String(), err)
+		// Preserve a *amf.ProtocolError (via %w) so the NGAP layer can answer
+		// with the correct 5GMM STATUS cause.
+		return fmt.Errorf("error handling NAS message for supi %s: %w", ue.AmfUe().Supi.String(), err)
 	}
 
 	return nil
