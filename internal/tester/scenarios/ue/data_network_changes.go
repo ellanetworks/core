@@ -348,12 +348,15 @@ func runDataNetworkMTUChange(ctx context.Context, env scenarios.Env, p *dataNetw
 	logger.Logger.Info("MTU change triggered session release with cause #39 as expected")
 
 	// Cleanup
+	pduSessionIDs := [16]bool{}
+	pduSessionIDs[scenarios.DefaultPDUSessionID] = true
+
 	err = procedure.UEContextRelease(&procedure.UEContextReleaseOpts{
 		AMFUENGAPID:   gNodeB.GetAMFUENGAPID(ranUENGAPID),
 		RANUENGAPID:   ranUENGAPID,
 		GnodeB:        gNodeB,
 		UE:            newUE,
-		PDUSessionIDs: [16]bool{},
+		PDUSessionIDs: pduSessionIDs,
 	})
 	if err != nil {
 		return fmt.Errorf("UE context release failed: %v", err)
@@ -485,12 +488,15 @@ func runDataNetworkPoolChange(ctx context.Context, env scenarios.Env, p *dataNet
 	logger.Logger.Info("IP pool change triggered session release with cause #39 as expected")
 
 	// Cleanup
+	pduSessionIDs := [16]bool{}
+	pduSessionIDs[scenarios.DefaultPDUSessionID] = true
+
 	err = procedure.UEContextRelease(&procedure.UEContextReleaseOpts{
 		AMFUENGAPID:   gNodeB.GetAMFUENGAPID(ranUENGAPID),
 		RANUENGAPID:   ranUENGAPID,
 		GnodeB:        gNodeB,
 		UE:            newUE,
-		PDUSessionIDs: [16]bool{},
+		PDUSessionIDs: pduSessionIDs,
 	})
 	if err != nil {
 		return fmt.Errorf("UE context release failed: %v", err)
