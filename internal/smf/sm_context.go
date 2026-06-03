@@ -48,16 +48,13 @@ type SMContext struct {
 	// outstandingPTIs holds the PTI of each 5GSM procedure awaiting a UE
 	// completion or reject on this PDU session (TS 24.501 §7.3.1). A completion
 	// or command-reject whose PTI is absent is a PTI mismatch (§7.3.1 a).
-	ptiMu           sync.Mutex
+	// Guarded by Mutex.
 	outstandingPTIs map[uint8]struct{}
 }
 
 // MarkPTIInUse records that a 5GSM procedure with the given PTI is outstanding
-// on this PDU session (TS 24.501 §7.3.1).
+// on this PDU session (TS 24.501 §7.3.1). Caller must hold Mutex.
 func (smContext *SMContext) MarkPTIInUse(pti uint8) {
-	smContext.ptiMu.Lock()
-	defer smContext.ptiMu.Unlock()
-
 	if smContext.outstandingPTIs == nil {
 		smContext.outstandingPTIs = make(map[uint8]struct{})
 	}
@@ -66,18 +63,14 @@ func (smContext *SMContext) MarkPTIInUse(pti uint8) {
 }
 
 // ClearPTIInUse records that the procedure with the given PTI has completed.
+// Caller must hold Mutex.
 func (smContext *SMContext) ClearPTIInUse(pti uint8) {
-	smContext.ptiMu.Lock()
-	defer smContext.ptiMu.Unlock()
-
 	delete(smContext.outstandingPTIs, pti)
 }
 
 // IsPTIInUse reports whether a procedure with the given PTI is outstanding.
+// Caller must hold Mutex.
 func (smContext *SMContext) IsPTIInUse(pti uint8) bool {
-	smContext.ptiMu.Lock()
-	defer smContext.ptiMu.Unlock()
-
 	_, ok := smContext.outstandingPTIs[pti]
 
 	return ok
