@@ -170,42 +170,36 @@ func TestHandleUplinkNasTransport_LocationUpdatedBeforeNAS(t *testing.T) {
 	}
 }
 
+// A plain (non-ProtocolError) error means no NAS response was produced, so the
+// AMF answers with a fallback 5GMM STATUS #111 (the UE must not be left without
+// a response to a message the network could not handle).
+func TestHandleUplinkNasTransport_PlainError_SendsFallbackStatus5GMM(t *testing.T) {
+	fakeNAS := &FakeNASHandler{Err: errors.New("unhandled NAS message")}
+	cause := uplinkNASStatusCause(t, fakeNAS)
 
-// A plain (non-ProtocolError) error from the NAS handler is an internal failure,
-// not a 5GMM protocol error, so the AMF must not answer with a 5GMM STATUS.
-func TestHandleUplinkNasTransport_PlainError_NoStatus(t *testing.T) {
-	fakeNAS := &FakeNASHandler{Err: errors.New("internal failure, response already sent")}
-	amfInstance := newTestAMFWithNAS(fakeNAS)
-
-	ran := newTestRadio()
-	sender := ran.NGAPSender.(*FakeNGAPSender)
-
-	amfUe := amf.NewAmfUe()
-	amfUe.Log = logger.AmfLog
-	ranUe := amf.NewRanUeForTest(ran, 1, 10, logger.AmfLog)
-	amfUe.AttachRanUe(ranUe)
-
-	ngap.HandleUplinkNasTransport(context.Background(), amfInstance, ran, decode.UplinkNASTransport{
-		AMFUENGAPID: 10,
-		RANUENGAPID: 1,
-		NASPDU:      []byte{0xAA, 0xBB},
-	})
-
-	if len(fakeNAS.Calls) != 1 {
-		t.Fatalf("NAS calls = %d, want 1", len(fakeNAS.Calls))
-	}
-
-	if len(sender.SentDownlinkNASTransport) != 0 {
-		t.Errorf("a plain handler error must not produce a 5GMM STATUS, got %d downlink NAS transports", len(sender.SentDownlinkNASTransport))
+	if cause != nasMessage.Cause5GMMProtocolErrorUnspecified {
+		t.Errorf("STATUS cause = %d, want %d (#111 fallback)", cause, nasMessage.Cause5GMMProtocolErrorUnspecified)
 	}
 }
 
-// A *amf.ProtocolError from the NAS handler is a genuine 5GMM protocol error, so
-// the AMF answers with a 5GMM STATUS carrying the error's cause (TS 24.501 §7.x).
-func TestHandleUplinkNasTransport_ProtocolError_SendsStatus5GMM(t *testing.T) {
-	fakeNAS := &FakeNASHandler{Err: &amf.ProtocolError{Cause: nasMessage.Cause5GMMProtocolErrorUnspecified}}
-	amfInstance := newTestAMFWithNAS(fakeNAS)
+// A *amf.ProtocolError carries a precise 5GMM STATUS cause (TS 24.501 §7.x),
+// which the AMF must use instead of the #111 fallback.
+func TestHandleUplinkNasTransport_ProtocolError_UsesItsCause(t *testing.T) {
+	fakeNAS := &FakeNASHandler{Err: &amf.ProtocolError{Cause: nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork}}
+	cause := uplinkNASStatusCause(t, fakeNAS)
 
+	if cause != nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork {
+		t.Errorf("STATUS cause = %d, want %d (from ProtocolError)", cause, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+	}
+}
+
+// uplinkNASStatusCause drives an uplink NAS transport whose handler returns
+// fakeNAS.Err, and returns the 5GMM cause of the single 5GMM STATUS the AMF
+// sends in response.
+func uplinkNASStatusCause(t *testing.T, fakeNAS *FakeNASHandler) uint8 {
+	t.Helper()
+
+	amfInstance := newTestAMFWithNAS(fakeNAS)
 	ran := newTestRadio()
 	sender := ran.NGAPSender.(*FakeNGAPSender)
 
@@ -221,7 +215,7 @@ func TestHandleUplinkNasTransport_ProtocolError_SendsStatus5GMM(t *testing.T) {
 	})
 
 	if len(sender.SentDownlinkNASTransport) != 1 {
-		t.Fatalf("a protocol error must produce exactly one 5GMM STATUS, got %d", len(sender.SentDownlinkNASTransport))
+		t.Fatalf("expected exactly one 5GMM STATUS, got %d", len(sender.SentDownlinkNASTransport))
 	}
 
 	pdu := sender.SentDownlinkNASTransport[0].NasPdu
@@ -236,7 +230,5 @@ func TestHandleUplinkNasTransport_ProtocolError_SendsStatus5GMM(t *testing.T) {
 		t.Fatalf("message type = %d, want 5GMM STATUS", m.GmmHeader.GetMessageType())
 	}
 
-	if got := m.Status5GMM.GetCauseValue(); got != nasMessage.Cause5GMMProtocolErrorUnspecified {
-		t.Errorf("STATUS cause = %d, want %d (#111)", got, nasMessage.Cause5GMMProtocolErrorUnspecified)
-	}
+	return m.Status5GMM.GetCauseValue()
 }

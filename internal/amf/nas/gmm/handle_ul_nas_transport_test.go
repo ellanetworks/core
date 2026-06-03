@@ -1186,8 +1186,8 @@ func TestTransport5GSMMessage_NoSmContext_InitialRequest_CreateSmContext_ErrorRe
 	amfInstance := amf.New(&FakeDBInstance{}, nil, fakeSmf)
 
 	err = transport5GSMMessage(t.Context(), amfInstance, ue, msg)
-	if err == nil {
-		t.Fatal("expected an error, got nil")
+	if err != nil {
+		t.Fatalf("delivering an SMF reject is a normal outcome and must return nil so no 5GMM STATUS follows, got: %v", err)
 	}
 
 	// Should have sent a DL NAS Transport with the error response
