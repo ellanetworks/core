@@ -8,7 +8,7 @@ import (
 	"github.com/free5gc/nas/nasMessage"
 )
 
-// BuildGSM5GSMStatus builds a 5GSM STATUS message (TS 24.501 clause 8.3.13)
+// BuildGSM5GSMStatus builds a 5GSM STATUS message (TS 24.501 clause 8.3.16)
 // reporting an erroneous condition on a PDU session, echoing the PTI of the
 // triggering message.
 func BuildGSM5GSMStatus(pduSessionID uint8, pti uint8, cause uint8) ([]byte, error) {

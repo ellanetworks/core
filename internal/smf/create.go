@@ -91,9 +91,9 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return "", rsp, fmt.Errorf("unexpected NAS message type: %d", m.GsmHeader.GetMessageType())
 	}
 
-	// Police the PTI before allocating any state (TS 24.501 §7.3.1). A request
-	// with an unassigned PTI is answered with a 5GSM STATUS (#81); a reserved
-	// PTI is silently ignored, signalled to the AMF by an empty response.
+	// Police the PTI before allocating any state (TS 24.501 §7.3.1): an
+	// unassigned PTI yields a 5GSM STATUS (#81); a reserved PTI is ignored —
+	// no context and no response.
 	reqPTI := m.PDUSessionEstablishmentRequest.GetPTI()
 
 	switch verdict, cause := smfNas.PolicePTI(nas.MsgTypePDUSessionEstablishmentRequest, reqPTI, func(uint8) bool { return false }); verdict {
@@ -167,7 +167,7 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 
 	alwaysOnRequested := m.PDUSessionEstablishmentRequest.AlwaysonPDUSessionRequested != nil
 
-	err = s.sendPduSessionEstablishmentAccept(ctx, smContext, policy, pco, addrs, pti, cause, alwaysOnIndication(alwaysOnRequested, false))
+	err = s.sendPduSessionEstablishmentAccept(ctx, smContext, policy, pco, addrs, pti, cause, alwaysOnIndication(alwaysOnRequested))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send PDU session establishment accept")
@@ -689,20 +689,17 @@ func (s *SMF) sendPduSessionEstablishmentReject(ctx context.Context, smContext *
 }
 
 // alwaysOnIndication resolves the Always-on PDU session indication for an
-// Establishment Accept (TS 24.501 §6.4.1). grant reports whether the network
-// establishes the session as an always-on PDU session; Ella has no always-on
-// use case, so callers pass false. A nil result omits the IE.
-func alwaysOnIndication(requested, grant bool) *uint8 {
-	switch {
-	case grant:
-		v := uint8(1) // "Always-on PDU session required"
-		return &v
-	case requested:
+// Establishment Accept (TS 24.501 §6.4.1): "not allowed" (APSI 0) when the UE
+// requested an always-on session, or omitted (nil) otherwise. The "required"
+// value (§6.4.1 a) is not produced because no PDU session is established as
+// always-on.
+func alwaysOnIndication(requested bool) *uint8 {
+	if requested {
 		v := uint8(0) // "Always-on PDU session not allowed"
 		return &v
-	default:
-		return nil
 	}
+
+	return nil
 }
 
 func (s *SMF) sendPduSessionEstablishmentAccept(

@@ -8,6 +8,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/free5gc/nas/nasMessage"
 	"github.com/free5gc/ngap/ngapConvert"
 	"go.uber.org/zap"
 )
@@ -99,6 +100,6 @@ func HandleInitialUEMessage(ctx context.Context, amfInstance *amf.AMF, ran *amf.
 
 	if err := amfInstance.NAS.HandleNAS(ctx, ranUe, msg.NASPDU); err != nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("error handling NAS Message", zap.Error(err))
-		sendStatus5GMM(ctx, ranUe, statusCause(err))
+		sendStatus5GMM(ctx, ranUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
 	}
 }

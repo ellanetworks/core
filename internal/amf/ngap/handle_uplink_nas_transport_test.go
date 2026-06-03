@@ -170,26 +170,15 @@ func TestHandleUplinkNasTransport_LocationUpdatedBeforeNAS(t *testing.T) {
 	}
 }
 
-// A plain (non-ProtocolError) error means no NAS response was produced, so the
-// AMF answers with a fallback 5GMM STATUS #111 (the UE must not be left without
-// a response to a message the network could not handle).
-func TestHandleUplinkNasTransport_PlainError_SendsFallbackStatus5GMM(t *testing.T) {
+// An error from the NAS handler means no NAS response was produced (a delivered
+// reject returns nil), so the AMF answers with a 5GMM STATUS #111 (TS 24.501
+// §7.x) rather than leaving the UE without a response.
+func TestHandleUplinkNasTransport_NASError_SendsStatus5GMM(t *testing.T) {
 	fakeNAS := &FakeNASHandler{Err: errors.New("unhandled NAS message")}
 	cause := uplinkNASStatusCause(t, fakeNAS)
 
 	if cause != nasMessage.Cause5GMMProtocolErrorUnspecified {
-		t.Errorf("STATUS cause = %d, want %d (#111 fallback)", cause, nasMessage.Cause5GMMProtocolErrorUnspecified)
-	}
-}
-
-// A *amf.ProtocolError carries a precise 5GMM STATUS cause (TS 24.501 §7.x),
-// which the AMF must use instead of the #111 fallback.
-func TestHandleUplinkNasTransport_ProtocolError_UsesItsCause(t *testing.T) {
-	fakeNAS := &FakeNASHandler{Err: &amf.ProtocolError{Cause: nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork}}
-	cause := uplinkNASStatusCause(t, fakeNAS)
-
-	if cause != nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork {
-		t.Errorf("STATUS cause = %d, want %d (from ProtocolError)", cause, nasMessage.Cause5GMMUEIdentityCannotBeDerivedByTheNetwork)
+		t.Errorf("STATUS cause = %d, want %d (#111)", cause, nasMessage.Cause5GMMProtocolErrorUnspecified)
 	}
 }
 

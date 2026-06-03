@@ -212,9 +212,8 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfU
 
 	smContextRef, errResponse, err := amfInstance.Smf.CreateSmContext(ctx, ue.Supi, pduSessionID, dnn, snssai, smMessage)
 
-	// The SMF produced a 5GSM reject. Delivering it completes the procedure with
-	// a normal negative outcome — not a 5GMM protocol error — so this returns nil
-	// (no 5GMM STATUS follows). TS 24.501 §6.4.1.x.
+	// The SMF produced a 5GSM reject. Delivering it is a normal negative outcome,
+	// not a 5GMM protocol error, so return nil (TS 24.501 §6.4.1.x).
 	if errResponse != nil {
 		if sendErr := message.SendDLNASTransport(ctx, ranUe, nasMessage.PayloadContainerTypeN1SMInfo, errResponse, pduSessionID, 0); sendErr != nil {
 			return fmt.Errorf("send PDU session establishment reject: %w", sendErr)

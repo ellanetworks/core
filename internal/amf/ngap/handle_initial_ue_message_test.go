@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"testing"
 
 	"github.com/ellanetworks/core/etsi"
@@ -16,7 +17,6 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/free5gc/aper"
-	"github.com/free5gc/nas/nasMessage"
 )
 
 func TestHandleInitialUEMessage_CreatesNewRanUe(t *testing.T) {
@@ -281,8 +281,8 @@ func TestHandleInitialUEMessage_RegisteredUE_DoesNotPanic(t *testing.T) {
 	}
 }
 
-func TestHandleInitialUEMessage_NASProtocolError_SendsStatus5GMM(t *testing.T) {
-	fakeNAS := &FakeNASHandler{Err: &amf.ProtocolError{Cause: nasMessage.Cause5GMMProtocolErrorUnspecified}}
+func TestHandleInitialUEMessage_NASReturnsError_SendsStatus5GMM(t *testing.T) {
+	fakeNAS := &FakeNASHandler{Err: errors.New("nas decode failed")}
 	amfInstance := newTestAMFWithNAS(fakeNAS)
 
 	ran := newTestRadio()

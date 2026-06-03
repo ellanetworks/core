@@ -2,7 +2,6 @@ package ngap
 
 import (
 	"context"
-	"errors"
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm/message"
@@ -43,24 +42,13 @@ func HandleUplinkNasTransport(ctx context.Context, amfInstance *amf.AMF, ran *am
 		return
 	}
 
+	// A handler returns an error only when no NAS response was produced (a
+	// delivered reject and similar normal outcomes return nil). Answer with a
+	// 5GMM STATUS so the UE is not left waiting (TS 24.501 §7.x).
 	if err := amfInstance.NAS.HandleNAS(ctx, ranUe, msg.NASPDU); err != nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("error handling NAS message", zap.Error(err))
-		sendStatus5GMM(ctx, ranUe, statusCause(err))
+		sendStatus5GMM(ctx, ranUe, nasMessage.Cause5GMMProtocolErrorUnspecified)
 	}
-}
-
-// statusCause is the 5GMM STATUS cause for a NAS-handling error: the precise
-// cause when the handler returned a *amf.ProtocolError (TS 24.501 §7.x),
-// otherwise #111 "protocol error, unspecified". A handler that already produced
-// the correct response (including a PDU session reject) returns nil, so this is
-// never reached for a normal negative outcome.
-func statusCause(err error) uint8 {
-	var pe *amf.ProtocolError
-	if errors.As(err, &pe) {
-		return pe.Cause
-	}
-
-	return nasMessage.Cause5GMMProtocolErrorUnspecified
 }
 
 func sendStatus5GMM(ctx context.Context, ranUe *amf.RanUe, cause uint8) {
