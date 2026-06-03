@@ -237,6 +237,14 @@ func establishPDUSession(ctx context.Context, amfInstance *amf.AMF, ue *amf.AmfU
 		return fmt.Errorf("pdu session establishment request was rejected by SMF for pdu session id %d", pduSessionID)
 	}
 
+	// The SMF processed the message but produced no context and no response,
+	// e.g. an establishment request with a reserved PTI it had to ignore
+	// (TS 24.501 §7.3.1 d). Send nothing.
+	if smContextRef == "" {
+		ue.Log.Info("SMF ignored the PDU session establishment request, sending no response", zap.Uint8("pduSessionID", pduSessionID))
+		return nil
+	}
+
 	if err := ue.CreateSmContext(pduSessionID, smContextRef, snssai); err != nil {
 		return fmt.Errorf("error creating SM context: %w", err)
 	}

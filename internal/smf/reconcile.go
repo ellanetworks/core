@@ -251,6 +251,11 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 		return fmt.Errorf("transfer N1N2 message: %w", err)
 	}
 
+	// A network-requested modification uses PTI "no procedure transaction
+	// identity assigned" (0) and awaits the UE's Modification Complete or
+	// Command Reject (TS 24.501 §6.3.2, §7.3.1 a).
+	smContext.MarkPTIInUse(0)
+
 	logger.SmfLog.Info("session modification N1+N2 sent",
 		logger.SUPI(smContext.Supi.String()),
 		logger.PDUSessionID(smContext.PDUSessionID),

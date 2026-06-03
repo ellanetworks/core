@@ -91,6 +91,23 @@ func (s *SMF) CreateSmContext(ctx context.Context, supi etsi.SUPI, pduSessionID 
 		return "", rsp, fmt.Errorf("unexpected NAS message type: %d", m.GsmHeader.GetMessageType())
 	}
 
+	// Police the PTI before allocating any state (TS 24.501 §7.3.1). A request
+	// with an unassigned PTI is answered with a 5GSM STATUS (#81); a reserved
+	// PTI is silently ignored, signalled to the AMF by an empty response.
+	reqPTI := m.PDUSessionEstablishmentRequest.GetPTI()
+
+	switch verdict, cause := smfNas.PolicePTI(nas.MsgTypePDUSessionEstablishmentRequest, reqPTI, func(uint8) bool { return false }); verdict {
+	case smfNas.PTIIgnore:
+		return "", nil, nil
+	case smfNas.PTIRespondStatus:
+		rsp, buildErr := smfNas.BuildGSM5GSMStatus(pduSessionID, reqPTI, cause)
+		if buildErr != nil {
+			return "", nil, fmt.Errorf("build 5GSM STATUS failed: %v", buildErr)
+		}
+
+		return "", rsp, nil
+	}
+
 	smContext := s.GetSession(CanonicalName(supi, pduSessionID))
 	if smContext != nil {
 		s.handlePduSessionContextReplacement(ctx, smContext)

@@ -44,6 +44,43 @@ type SMContext struct {
 	IPv6IID                        [8]byte // random Interface Identifier sent to UE
 	PDUSessionType                 uint8   // negotiated type: nasMessage.PDUSessionTypeIPv4/IPv6/IPv4IPv6
 	PDUSessionReleaseDueToDupPduID bool
+
+	// outstandingPTIs holds the PTI of each 5GSM procedure awaiting a UE
+	// completion or reject on this PDU session (TS 24.501 §7.3.1). A completion
+	// or command-reject whose PTI is absent is a PTI mismatch (§7.3.1 a).
+	ptiMu           sync.Mutex
+	outstandingPTIs map[uint8]struct{}
+}
+
+// MarkPTIInUse records that a 5GSM procedure with the given PTI is outstanding
+// on this PDU session (TS 24.501 §7.3.1).
+func (smContext *SMContext) MarkPTIInUse(pti uint8) {
+	smContext.ptiMu.Lock()
+	defer smContext.ptiMu.Unlock()
+
+	if smContext.outstandingPTIs == nil {
+		smContext.outstandingPTIs = make(map[uint8]struct{})
+	}
+
+	smContext.outstandingPTIs[pti] = struct{}{}
+}
+
+// ClearPTIInUse records that the procedure with the given PTI has completed.
+func (smContext *SMContext) ClearPTIInUse(pti uint8) {
+	smContext.ptiMu.Lock()
+	defer smContext.ptiMu.Unlock()
+
+	delete(smContext.outstandingPTIs, pti)
+}
+
+// IsPTIInUse reports whether a procedure with the given PTI is outstanding.
+func (smContext *SMContext) IsPTIInUse(pti uint8) bool {
+	smContext.ptiMu.Lock()
+	defer smContext.ptiMu.Unlock()
+
+	_, ok := smContext.outstandingPTIs[pti]
+
+	return ok
 }
 
 func CanonicalName(identifier etsi.SUPI, pduSessID uint8) string {

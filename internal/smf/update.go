@@ -77,13 +77,38 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 
 	m := nas.NewMessage()
 
+	// The PTI is octet 3 of every 5GSM message (TS 24.501 §9.6); capture it
+	// before GsmMessageDecode advances the slice.
+	raw := n1Msg
+
 	if err := m.GsmMessageDecode(&n1Msg); err != nil {
 		return nil, false, fmt.Errorf("error decoding N1SmMessage: %v", err)
 	}
 
 	logger.WithTrace(ctx, logger.SmfLog).Debug("Update SM Context Request N1SmMessage", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
-	switch m.GsmHeader.GetMessageType() {
+	msgType := m.GsmHeader.GetMessageType()
+
+	if len(raw) < 3 {
+		return nil, false, fmt.Errorf("5GSM message too short to contain a PTI")
+	}
+
+	pti := raw[2]
+
+	switch verdict, cause := smfNas.PolicePTI(msgType, pti, smContext.IsPTIInUse); verdict {
+	case smfNas.PTIIgnore:
+		logger.WithTrace(ctx, logger.SmfLog).Info("ignoring 5GSM message with reserved PTI", zap.Uint8("MessageType", msgType), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		return nil, false, nil
+	case smfNas.PTIRespondStatus:
+		n1SmMsg, err := smfNas.BuildGSM5GSMStatus(smContext.PDUSessionID, pti, cause)
+		if err != nil {
+			return nil, false, fmt.Errorf("build GSM 5GSM STATUS failed: %v", err)
+		}
+
+		return &UpdateResult{N1Msg: n1SmMsg}, false, nil
+	}
+
+	switch msgType {
 	case nas.MsgTypePDUSessionReleaseRequest:
 		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Request received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 
@@ -103,7 +128,9 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 			}
 		}
 
-		pti := m.PDUSessionReleaseRequest.GetPTI()
+		// The UE allocated this PTI for the release procedure; hold it until the
+		// matching PDU SESSION RELEASE COMPLETE arrives (TS 24.501 §6.3.3, §7.3.1).
+		smContext.MarkPTIInUse(pti)
 
 		n1SmMsg, err := smfNas.BuildGSMPDUSessionReleaseCommand(smContext.PDUSessionID, pti)
 		if err != nil {
@@ -131,8 +158,6 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 		// The UE cannot set its own QoS; the authorized QoS is network-determined
 		// and not modifiable on UE request, so the request is rejected
 		// (TS 24.501 clause 6.4.2.4).
-		pti := m.PDUSessionModificationRequest.GetPTI()
-
 		n1SmMsg, err := smfNas.BuildGSMPDUSessionModificationReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		if err != nil {
 			return nil, false, fmt.Errorf("build GSM PDUSessionModificationReject failed: %v", err)
@@ -140,8 +165,30 @@ func (s *SMF) handleUpdateN1Msg(ctx context.Context, n1Msg []byte, smContext *SM
 
 		return &UpdateResult{N1Msg: n1SmMsg}, false, nil
 
+	case nas.MsgTypePDUSessionReleaseComplete:
+		// The UE acknowledged a release procedure whose PTI is in use (policed
+		// above); close it out (TS 24.501 §6.3.3, §6.4.3).
+		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Release Complete received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		smContext.ClearPTIInUse(pti)
+
+		return nil, false, nil
+
+	case nas.MsgTypePDUSessionModificationComplete:
+		// The UE accepted a network-requested modification (TS 24.501 §6.3.2.3).
+		logger.WithTrace(ctx, logger.SmfLog).Info("N1 Msg PDU Session Modification Complete received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		smContext.ClearPTIInUse(pti)
+
+		return nil, false, nil
+
+	case nas.MsgTypePDUSessionModificationCommandReject:
+		// The UE rejected a network-requested modification (TS 24.501 §6.3.2.4).
+		logger.WithTrace(ctx, logger.SmfLog).Warn("N1 Msg PDU Session Modification Command Reject received", logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		smContext.ClearPTIInUse(pti)
+
+		return nil, false, nil
+
 	default:
-		logger.WithTrace(ctx, logger.SmfLog).Warn("N1 Msg type not supported in SM Context Update", zap.Uint8("MessageType", m.GsmHeader.GetMessageType()), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
+		logger.WithTrace(ctx, logger.SmfLog).Warn("N1 Msg type not supported in SM Context Update", zap.Uint8("MessageType", msgType), logger.SUPI(smContext.Supi.String()), logger.PDUSessionID(smContext.PDUSessionID))
 		return nil, false, nil
 	}
 }
