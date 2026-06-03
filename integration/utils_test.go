@@ -51,6 +51,20 @@ func (w logWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+type quietLogWriter struct{ tr *TestResult }
+
+func (w quietLogWriter) Write(p []byte) (int, error) {
+	// Capture output line-by-line for failure reporting.
+	s := string(p)
+
+	sc := bufio.NewScanner(strings.NewReader(s))
+	for sc.Scan() {
+		globalReporter.Log(w.tr, sc.Text())
+	}
+
+	return len(p), nil
+}
+
 func configureEllaCore(ctx context.Context, cl *client.Client, c EllaCoreConfig) error {
 	initializeOpts := &client.InitializeOptions{
 		Email:    "admin@ellanetworks.com",

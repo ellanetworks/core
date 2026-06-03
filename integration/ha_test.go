@@ -17,6 +17,8 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	beginHATest(t)
+
 	ctx := context.Background()
 
 	dockerClient, err := NewDockerClient()
@@ -26,11 +28,11 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 
 	defer func() {
 		if err := dockerClient.Close(); err != nil {
-			t.Logf("failed to close docker client: %v", err)
+			HALogf(t, "failed to close docker client: %v", err)
 		}
 	}()
 
-	t.Log("bringing up staged HA cluster")
+	HALog(t, "bringing up staged HA cluster")
 
 	clients, err := bringUpHACluster(t, ctx, dockerClient)
 	if err != nil {
@@ -41,7 +43,7 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 		dumpClusterDiagnostics(t, ctx, dockerClient, haComposeDir, haNodeServices, clients)
 	})
 
-	t.Log("cluster is ready, verifying roles")
+	HALog(t, "cluster is ready, verifying roles")
 
 	leaderCount := 0
 	followerCount := 0
@@ -87,21 +89,21 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 		t.Fatalf("expected 2 followers, got %d", followerCount)
 	}
 
-	t.Log("roles verified: 1 leader, 2 followers")
+	HALog(t, "roles verified: 1 leader, 2 followers")
 
 	_, leader, err := findLeader(ctx, clients)
 	if err != nil {
 		t.Fatalf("failed to find leader: %v", err)
 	}
 
-	t.Log("cluster initialized, waiting for all nodes to become ready")
+	HALog(t, "cluster initialized, waiting for all nodes to become ready")
 
 	err = waitForAllNodesReady(ctx, clients)
 	if err != nil {
 		t.Fatalf("not all nodes became ready: %v", err)
 	}
 
-	t.Log("all nodes ready, verifying autopilot reports cluster healthy")
+	HALog(t, "all nodes ready, verifying autopilot reports cluster healthy")
 
 	apState, err := waitForAutopilotHealthy(ctx, leader, 1, 3)
 	if err != nil {
@@ -112,10 +114,10 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 		t.Fatalf("autopilot reports unknown leader: %+v", apState)
 	}
 
-	t.Logf("autopilot healthy: leaderNodeId=%d failureTolerance=%d voters=%v",
+	HALogf(t, "autopilot healthy: leaderNodeId=%d failureTolerance=%d voters=%v",
 		apState.LeaderNodeID, apState.FailureTolerance, apState.Voters)
 
-	t.Log("creating subscriber on leader")
+	HALog(t, "creating subscriber on leader")
 
 	err = leader.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
 		Imsi:           "001019756139935",
@@ -128,7 +130,7 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 		t.Fatalf("failed to create subscriber on leader: %v", err)
 	}
 
-	t.Log("subscriber created, waiting for follower convergence")
+	HALog(t, "subscriber created, waiting for follower convergence")
 
 	idx, err := leaderAppliedIndex(ctx, leader)
 	if err != nil {
@@ -140,7 +142,7 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 		t.Fatalf("followers did not converge: %v", err)
 	}
 
-	t.Log("followers converged, reading subscriber from each follower")
+	HALog(t, "followers converged, reading subscriber from each follower")
 
 	for i, c := range clients {
 		status, err := c.GetStatus(ctx)
@@ -164,7 +166,7 @@ func TestIntegrationHAClusterFormation(t *testing.T) {
 				i+1, sub.Imsi, "001019756139935")
 		}
 
-		t.Logf("follower node %d returned subscriber correctly", i+1)
+		HALogf(t, "follower node %d returned subscriber correctly", i+1)
 	}
 
 	assertMembershipConsistent(t, ctx, clients)
@@ -175,6 +177,8 @@ func TestIntegrationHAFollowerProxy(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	beginHATest(t)
+
 	ctx := context.Background()
 
 	dockerClient, err := NewDockerClient()
@@ -184,11 +188,11 @@ func TestIntegrationHAFollowerProxy(t *testing.T) {
 
 	defer func() {
 		if err := dockerClient.Close(); err != nil {
-			t.Logf("failed to close docker client: %v", err)
+			HALogf(t, "failed to close docker client: %v", err)
 		}
 	}()
 
-	t.Log("bringing up staged HA cluster")
+	HALog(t, "bringing up staged HA cluster")
 
 	clients, err := bringUpHACluster(t, ctx, dockerClient)
 	if err != nil {
@@ -235,7 +239,7 @@ func TestIntegrationHAFollowerProxy(t *testing.T) {
 		t.Fatal("no follower found")
 	}
 
-	t.Logf("sending create-subscriber to follower node %d (will be proxied to leader)", followerIdx)
+	HALogf(t, "sending create-subscriber to follower node %d (will be proxied to leader)", followerIdx)
 
 	// Write via the follower — the proxy middleware forwards to the leader
 	// and waits for the local applied index to catch up before responding.
@@ -250,7 +254,7 @@ func TestIntegrationHAFollowerProxy(t *testing.T) {
 		t.Fatalf("failed to create subscriber via follower proxy: %v", err)
 	}
 
-	t.Log("subscriber created via follower proxy, reading back from the same follower")
+	HALog(t, "subscriber created via follower proxy, reading back from the same follower")
 
 	// Read-your-writes: the proxy waited for the local index to catch up,
 	// so we should be able to read the subscriber back immediately.
@@ -265,7 +269,7 @@ func TestIntegrationHAFollowerProxy(t *testing.T) {
 		t.Fatalf("follower returned subscriber with IMSI %q, expected %q", sub.Imsi, "001019756139936")
 	}
 
-	t.Log("read-your-writes on follower confirmed, verifying on leader")
+	HALog(t, "read-your-writes on follower confirmed, verifying on leader")
 
 	// Confirm the write landed on the leader as well.
 	sub, err = leader.GetSubscriber(ctx, &client.GetSubscriberOptions{
@@ -281,13 +285,15 @@ func TestIntegrationHAFollowerProxy(t *testing.T) {
 
 	assertMembershipConsistent(t, ctx, clients)
 
-	t.Log("leader confirmed subscriber, follower proxy write test passed")
+	HALog(t, "leader confirmed subscriber, follower proxy write test passed")
 }
 
 func TestIntegrationHALeaderFailure(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
+
+	beginHATest(t)
 
 	ctx := context.Background()
 	composeFile := ComposeFile()
@@ -299,11 +305,11 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 
 	defer func() {
 		if err := dockerClient.Close(); err != nil {
-			t.Logf("failed to close docker client: %v", err)
+			HALogf(t, "failed to close docker client: %v", err)
 		}
 	}()
 
-	t.Log("bringing up staged HA cluster")
+	HALog(t, "bringing up staged HA cluster")
 
 	clients, err := bringUpHACluster(t, ctx, dockerClient)
 	if err != nil {
@@ -343,21 +349,21 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 	}
 
 	leaderService := haNodeServices[leaderIdx]
-	t.Logf("stopping leader %s (node %d)", leaderService, stoppedNodeID)
+	HALogf(t, "stopping leader %s (node %d)", leaderService, stoppedNodeID)
 
 	err = dockerClient.ComposeStopWithFile(ctx, haComposeDir, composeFile, leaderService)
 	if err != nil {
 		t.Fatalf("failed to stop leader: %v", err)
 	}
 
-	t.Log("leader stopped, waiting for re-election among survivors")
+	HALog(t, "leader stopped, waiting for re-election among survivors")
 
 	newLeader, err := waitForNewLeader(ctx, survivors)
 	if err != nil {
 		t.Fatalf("re-election failed: %v", err)
 	}
 
-	t.Log("new leader elected, verifying autopilot reports stopped node unhealthy")
+	HALog(t, "new leader elected, verifying autopilot reports stopped node unhealthy")
 
 	apAfterKill, err := waitForAutopilotReportsUnhealthy(ctx, newLeader, stoppedNodeID)
 	if err != nil {
@@ -369,7 +375,7 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 			apAfterKill.FailureTolerance, apAfterKill)
 	}
 
-	t.Log("autopilot reflects the outage; writing subscriber via new leader")
+	HALog(t, "autopilot reflects the outage; writing subscriber via new leader")
 
 	err = newLeader.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
 		Imsi:           "001019756139937",
@@ -382,7 +388,7 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 		t.Fatalf("failed to create subscriber on new leader: %v", err)
 	}
 
-	t.Log("subscriber created, reading from both surviving nodes")
+	HALog(t, "subscriber created, reading from both surviving nodes")
 
 	idx, err := leaderAppliedIndex(ctx, newLeader)
 	if err != nil {
@@ -406,10 +412,10 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 			t.Fatalf("survivor %d returned IMSI %q, expected %q", i+1, sub.Imsi, "001019756139937")
 		}
 
-		t.Logf("survivor %d returned subscriber correctly", i+1)
+		HALogf(t, "survivor %d returned subscriber correctly", i+1)
 	}
 
-	t.Logf("restarting stopped node %s", leaderService)
+	HALogf(t, "restarting stopped node %s", leaderService)
 
 	err = dockerClient.ComposeStartWithFile(ctx, haComposeDir, composeFile, leaderService)
 	if err != nil {
@@ -418,14 +424,14 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 
 	restartedClient := clients[leaderIdx]
 
-	t.Log("waiting for restarted node to become ready")
+	HALog(t, "waiting for restarted node to become ready")
 
 	err = waitForNodeReady(ctx, restartedClient)
 	if err != nil {
 		t.Fatalf("restarted node did not become ready: %v", err)
 	}
 
-	t.Log("restarted node ready, waiting for it to converge")
+	HALog(t, "restarted node ready, waiting for it to converge")
 
 	err = waitForFollowerConvergence(ctx, []*client.Client{restartedClient}, idx)
 	if err != nil {
@@ -443,14 +449,14 @@ func TestIntegrationHALeaderFailure(t *testing.T) {
 		t.Fatalf("restarted node returned IMSI %q, expected %q", sub.Imsi, "001019756139937")
 	}
 
-	t.Log("restarted node returned subscriber correctly; verifying autopilot recovered")
+	HALog(t, "restarted node returned subscriber correctly; verifying autopilot recovered")
 
 	apRecovered, err := waitForAutopilotHealthy(ctx, newLeader, 1, 3)
 	if err != nil {
 		t.Fatalf("autopilot did not recover after node restart: %v", err)
 	}
 
-	t.Logf("autopilot recovered: failureTolerance=%d voters=%v",
+	HALogf(t, "autopilot recovered: failureTolerance=%d voters=%v",
 		apRecovered.FailureTolerance, apRecovered.Voters)
 
 	assertMembershipConsistent(t, ctx, clients)
@@ -461,6 +467,8 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	beginHATest(t)
+
 	ctx := context.Background()
 
 	dockerClient, err := NewDockerClient()
@@ -470,11 +478,11 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 
 	defer func() {
 		if err := dockerClient.Close(); err != nil {
-			t.Logf("failed to close docker client: %v", err)
+			HALogf(t, "failed to close docker client: %v", err)
 		}
 	}()
 
-	t.Log("bringing up staged HA cluster")
+	HALog(t, "bringing up staged HA cluster")
 
 	clients, err := bringUpHACluster(t, ctx, dockerClient)
 	if err != nil {
@@ -495,7 +503,7 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 		t.Fatalf("not all nodes became ready: %v", err)
 	}
 
-	t.Log("draining the current leader")
+	HALog(t, "draining the current leader")
 
 	leaderStatus, err := leader.GetStatus(ctx)
 	if err != nil || leaderStatus.Cluster == nil {
@@ -511,7 +519,7 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 		t.Fatalf("expected drainState drained, got %q", drainResp.DrainState)
 	}
 
-	t.Log("drain accepted, waiting for new leader")
+	HALog(t, "drain accepted, waiting for new leader")
 
 	// The other two nodes should elect a new leader.
 	newLeader, err := waitForNewLeader(ctx, clients)
@@ -524,7 +532,7 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 		t.Fatal("new leader is the same client as the drained node")
 	}
 
-	t.Log("new leader confirmed, writing subscriber via new leader")
+	HALog(t, "new leader confirmed, writing subscriber via new leader")
 
 	err = newLeader.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
 		Imsi:           "001019756139938",
@@ -560,7 +568,7 @@ func TestIntegrationHADrainLeadership(t *testing.T) {
 
 	assertMembershipConsistent(t, ctx, clients)
 
-	t.Log("writes continue on new leader, drain leadership test passed")
+	HALog(t, "writes continue on new leader, drain leadership test passed")
 }
 
 func TestIntegrationHAScaleUpDown(t *testing.T) {
@@ -571,7 +579,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 	const scaleUpComposeDir = "compose/ha-scaleup/"
 
 	ipFamily := DetectIPFamily()
-	t.Logf("Running HA scale-up test in %s mode", ipFamily)
+	HALogf(t, "Running HA scale-up test in %s mode", ipFamily)
 
 	ctx := context.Background()
 
@@ -582,7 +590,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 
 	defer func() {
 		if err := dockerClient.Close(); err != nil {
-			t.Logf("failed to close docker client: %v", err)
+			HALogf(t, "failed to close docker client: %v", err)
 		}
 	}()
 
@@ -593,7 +601,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 		dockerClient.ComposeDownWithFile(ctx, scaleUpComposeDir, composeFile)
 	})
 
-	t.Log("bringing up 3-node cluster via scaleup compose")
+	HALog(t, "bringing up 3-node cluster via scaleup compose")
 
 	// Reuse bringUpHACluster's staged startup logic against the
 	// scaleup compose directory. We pass the scaleup-specific service
@@ -620,7 +628,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 		t.Fatalf("not all nodes became ready: %v", err)
 	}
 
-	t.Log("3-node cluster ready, staging + starting 4th node as nonvoter")
+	HALog(t, "3-node cluster ready, staging + starting 4th node as nonvoter")
 
 	fullPeers := []string{
 		ClusterAddressWithPort(1, 7000),
@@ -642,14 +650,14 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 
 	node4Client.SetToken(clients[0].GetToken())
 
-	t.Log("waiting for node 4 to appear as nonvoter")
+	HALog(t, "waiting for node 4 to appear as nonvoter")
 
 	err = waitForMemberSuffrage(ctx, leader, 4, "nonvoter")
 	if err != nil {
 		t.Fatalf("node 4 did not join as nonvoter: %v", err)
 	}
 
-	t.Log("node 4 joined as nonvoter, promoting to voter")
+	HALog(t, "node 4 joined as nonvoter, promoting to voter")
 
 	err = leader.PromoteClusterMember(ctx, 4)
 	if err != nil {
@@ -661,7 +669,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 		t.Fatalf("node 4 did not become voter: %v", err)
 	}
 
-	t.Log("node 4 promoted to voter, writing subscriber on leader")
+	HALog(t, "node 4 promoted to voter, writing subscriber on leader")
 
 	err = leader.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
 		Imsi:           "001019756139939",
@@ -674,7 +682,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 		t.Fatalf("failed to create subscriber on leader: %v", err)
 	}
 
-	t.Log("subscriber created, waiting for node 4 to converge")
+	HALog(t, "subscriber created, waiting for node 4 to converge")
 
 	idx, err := leaderAppliedIndex(ctx, leader)
 	if err != nil {
@@ -697,7 +705,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 		t.Fatalf("node 4 returned IMSI %q, expected %q", sub.Imsi, "001019756139939")
 	}
 
-	t.Log("node 4 returned subscriber correctly, scaling back down to 3 nodes")
+	HALog(t, "node 4 returned subscriber correctly, scaling back down to 3 nodes")
 
 	// --- Scale down: drain and remove node 4 from the cluster (4 → 3) ---
 
@@ -710,7 +718,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 		t.Fatalf("failed to remove node 4 from cluster: %v", err)
 	}
 
-	t.Log("node 4 removed from Raft, verifying cluster members")
+	HALog(t, "node 4 removed from Raft, verifying cluster members")
 
 	members, err := leader.ListClusterMembers(ctx)
 	if err != nil {
@@ -727,7 +735,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 		t.Fatalf("expected 3 cluster members after removal, got %d", len(members))
 	}
 
-	t.Log("cluster members verified (3 members), exercising removed-node fence")
+	HALog(t, "cluster members verified (3 members), exercising removed-node fence")
 
 	// removedNodeFence (cluster_http_mux.go) returns 410 → 502 to the
 	// caller. Cert revocation is a secondary defence; either failure
@@ -750,7 +758,7 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 		t.Fatal("CreateSubscriber via removed node 4 succeeded; fence regression")
 	}
 
-	t.Logf("write via removed node correctly rejected: %v", err)
+	HALogf(t, "write via removed node correctly rejected: %v", err)
 
 	if _, err := node4Client.MintClusterJoinToken(ctx, &client.MintJoinTokenOptions{
 		NodeID:     5,
@@ -765,16 +773,16 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 		t.Fatal("subscriber written via removed node was applied on the leader; fence is broken")
 	}
 
-	t.Log("removed-node fence rejected both write paths and nothing leaked to the leader")
+	HALog(t, "removed-node fence rejected both write paths and nothing leaked to the leader")
 
-	t.Log("stopping removed node container")
+	HALog(t, "stopping removed node container")
 
 	err = dockerClient.ComposeStopWithFile(ctx, scaleUpComposeDir, composeFile, "ella-core-4")
 	if err != nil {
 		t.Fatalf("failed to stop ella-core-4: %v", err)
 	}
 
-	t.Log("writing subscriber on 3-node cluster after scale-down")
+	HALog(t, "writing subscriber on 3-node cluster after scale-down")
 
 	err = leader.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
 		Imsi:           "001019756139942",
@@ -810,13 +818,15 @@ func TestIntegrationHAScaleUpDown(t *testing.T) {
 
 	assertMembershipConsistent(t, ctx, clients)
 
-	t.Log("3-node cluster operational after scale-down, scale up/down test passed")
+	HALog(t, "3-node cluster operational after scale-down, scale up/down test passed")
 }
 
 func TestIntegrationHAQuorumRecovery(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
+
+	beginHATest(t)
 
 	ctx := context.Background()
 	composeFile := ComposeFile()
@@ -828,11 +838,11 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 
 	defer func() {
 		if err := dockerClient.Close(); err != nil {
-			t.Logf("failed to close docker client: %v", err)
+			HALogf(t, "failed to close docker client: %v", err)
 		}
 	}()
 
-	t.Log("bringing up staged HA cluster")
+	HALog(t, "bringing up staged HA cluster")
 
 	clients, err := bringUpHACluster(t, ctx, dockerClient)
 	if err != nil {
@@ -853,7 +863,7 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 		t.Fatalf("not all nodes became ready: %v", err)
 	}
 
-	t.Log("cluster ready, writing subscriber before total shutdown")
+	HALog(t, "cluster ready, writing subscriber before total shutdown")
 
 	err = leader.CreateSubscriber(ctx, &client.CreateSubscriberOptions{
 		Imsi:           "001019756139940",
@@ -890,7 +900,7 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 	// db.path is "/data/ella.db", so dataDir = "/data" and raftDir = "/data/raft/".
 	const containerRaftDir = "/data/raft"
 
-	t.Log("stopping all 3 nodes (total quorum loss)")
+	HALog(t, "stopping all 3 nodes (total quorum loss)")
 
 	for _, svc := range haNodeServices {
 		if err := dockerClient.ComposeStopWithFile(ctx, haComposeDir, composeFile, svc); err != nil {
@@ -925,7 +935,7 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 	}
 
 	destPath := filepath.Join(containerRaftDir, "peers.json")
-	t.Logf("copying peers.json to %s in containers for nodes 1 and 2", destPath)
+	HALogf(t, "copying peers.json to %s in containers for nodes 1 and 2", destPath)
 
 	err = dockerClient.CopyFileToContainer(ctx, container1, peersPath, destPath)
 	if err != nil {
@@ -937,7 +947,7 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 		t.Fatalf("failed to copy peers.json to node 2: %v", err)
 	}
 
-	t.Log("starting nodes 1 and 2 (node 3 stays down)")
+	HALog(t, "starting nodes 1 and 2 (node 3 stays down)")
 
 	err = dockerClient.ComposeStartWithFile(ctx, haComposeDir, composeFile, "ella-core-1")
 	if err != nil {
@@ -962,7 +972,7 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 		t.Fatalf("no leader in recovered cluster: %v", err)
 	}
 
-	t.Log("recovered cluster has a leader, verifying data survived")
+	HALog(t, "recovered cluster has a leader, verifying data survived")
 
 	sub, err := recoveredLeader.GetSubscriber(ctx, &client.GetSubscriberOptions{
 		ID: "001019756139940",
@@ -977,7 +987,7 @@ func TestIntegrationHAQuorumRecovery(t *testing.T) {
 
 	assertMembershipConsistent(t, ctx, recoveredClients)
 
-	t.Log("data survived quorum-loss recovery, test passed")
+	HALog(t, "data survived quorum-loss recovery, test passed")
 }
 
 // TestIntegrationHADisasterRecovery simulates the worst-case DR
@@ -1000,6 +1010,8 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	beginHATest(t)
+
 	ctx := context.Background()
 
 	dockerClient, err := NewDockerClient()
@@ -1009,7 +1021,7 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 
 	defer func() {
 		if err := dockerClient.Close(); err != nil {
-			t.Logf("failed to close docker client: %v", err)
+			HALogf(t, "failed to close docker client: %v", err)
 		}
 	}()
 
@@ -1019,7 +1031,7 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 		dockerClient.ComposeDownWithFile(ctx, haComposeDir, ComposeFile())
 	})
 
-	t.Log("bringing up staged HA cluster")
+	HALog(t, "bringing up staged HA cluster")
 
 	clients, err := bringUpHACluster(t, ctx, dockerClient)
 	if err != nil {
@@ -1062,7 +1074,7 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 		})
 	}
 
-	t.Log("creating pre-DR subscriber")
+	HALog(t, "creating pre-DR subscriber")
 
 	if err := createSub(leader, imsiPreDR); err != nil {
 		t.Fatalf("create pre-DR subscriber: %v", err)
@@ -1079,7 +1091,7 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 
 	backupPath := filepath.Join(t.TempDir(), "backup.tar.gz")
 
-	t.Logf("creating backup on leader at %s", backupPath)
+	HALogf(t, "creating backup on leader at %s", backupPath)
 
 	if err := leader.CreateBackup(ctx, &client.CreateBackupParams{Path: backupPath}); err != nil {
 		t.Fatalf("create backup: %v", err)
@@ -1091,7 +1103,7 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 		t.Fatal("backup file is empty")
 	}
 
-	t.Log("tearing down entire cluster (all volumes dropped)")
+	HALog(t, "tearing down entire cluster (all volumes dropped)")
 
 	dockerClient.ComposeDownWithFile(ctx, haComposeDir, ComposeFile())
 
@@ -1107,7 +1119,7 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 		t.Fatalf("write node 1 config: %v", err)
 	}
 
-	t.Log("creating node 1 container (not started) so we can stage restore.bundle")
+	HALog(t, "creating node 1 container (not started) so we can stage restore.bundle")
 
 	if err := dockerClient.ComposeCreateWithFile(ctx, haComposeDir, ComposeFile(), haNodeServices[0]); err != nil {
 		t.Fatalf("compose create node 1: %v", err)
@@ -1118,13 +1130,13 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 		t.Fatalf("resolve node 1 container: %v", err)
 	}
 
-	t.Logf("copying backup into %s:/data/restore.bundle", container1)
+	HALogf(t, "copying backup into %s:/data/restore.bundle", container1)
 
 	if err := dockerClient.CopyFileToContainer(ctx, container1, backupPath, "/data/restore.bundle"); err != nil {
 		t.Fatalf("copy restore.bundle to node 1: %v", err)
 	}
 
-	t.Log("starting node 1 — runtime should extract restore.bundle and self-sign a fresh cluster cert")
+	HALog(t, "starting node 1 — runtime should extract restore.bundle and self-sign a fresh cluster cert")
 
 	if err := dockerClient.ComposeStartWithFile(ctx, haComposeDir, ComposeFile(), haNodeServices[0]); err != nil {
 		t.Fatalf("start node 1: %v", err)
@@ -1143,7 +1155,7 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 	// come back with the rest of the replicated state.
 	restoredNode1.SetToken(adminToken)
 
-	t.Log("verifying pre-DR subscriber survived on the restored node")
+	HALog(t, "verifying pre-DR subscriber survived on the restored node")
 
 	sub, err := restoredNode1.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: imsiPreDR})
 	if err != nil {
@@ -1154,7 +1166,7 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 		t.Fatalf("restored node returned IMSI %q, want %q", sub.Imsi, imsiPreDR)
 	}
 
-	t.Log("verifying restored node is a functional leader (can mint join tokens)")
+	HALog(t, "verifying restored node is a functional leader (can mint join tokens)")
 
 	status, err := restoredNode1.GetStatus(ctx)
 	if err != nil {
@@ -1165,7 +1177,7 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 		t.Fatalf("restored node role = %v, want Leader", status.Cluster)
 	}
 
-	t.Log("staging fresh joiners for nodes 2 and 3")
+	HALog(t, "staging fresh joiners for nodes 2 and 3")
 
 	for _, i := range []int{2, 3} {
 		if err := stageAndStartJoiner(ctx, dockerClient, restoredNode1, haComposeDir, haNodeServices[i-1], i, peers, ""); err != nil {
@@ -1199,7 +1211,7 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 		t.Fatalf("followers did not converge after DR: %v", err)
 	}
 
-	t.Log("verifying pre-DR subscriber is visible on every node")
+	HALog(t, "verifying pre-DR subscriber is visible on every node")
 
 	for i, c := range clientsAfterDR {
 		got, err := c.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: imsiPreDR})
@@ -1212,7 +1224,7 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 		}
 	}
 
-	t.Log("verifying writes resume after DR")
+	HALog(t, "verifying writes resume after DR")
 
 	if err := createSub(restoredNode1, imsiPostDR); err != nil {
 		t.Fatalf("post-DR write: %v", err)
@@ -1240,7 +1252,7 @@ func TestIntegrationHADisasterRecovery(t *testing.T) {
 
 	assertMembershipConsistent(t, ctx, clientsAfterDR)
 
-	t.Log("disaster-recovery test passed")
+	HALog(t, "disaster-recovery test passed")
 }
 
 // TestIntegrationHANetworkPartition partitions the current leader from
@@ -1257,6 +1269,8 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	beginHATest(t)
+
 	ctx := context.Background()
 
 	dockerClient, err := NewDockerClient()
@@ -1266,11 +1280,11 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 
 	defer func() {
 		if err := dockerClient.Close(); err != nil {
-			t.Logf("failed to close docker client: %v", err)
+			HALogf(t, "failed to close docker client: %v", err)
 		}
 	}()
 
-	t.Log("bringing up staged HA cluster")
+	HALog(t, "bringing up staged HA cluster")
 
 	clients, err := bringUpHACluster(t, ctx, dockerClient)
 	if err != nil {
@@ -1311,7 +1325,7 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 		}
 	}
 
-	t.Logf("partitioning %s (node %d) on cluster port 7000", leaderService, isolatedNodeID)
+	HALogf(t, "partitioning %s (node %d) on cluster port 7000", leaderService, isolatedNodeID)
 
 	if err := partitionClusterPort(ctx, dockerClient, leaderContainer); err != nil {
 		t.Fatalf("apply partition: %v", err)
@@ -1325,11 +1339,11 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 		}
 
 		if err := healClusterPort(ctx, dockerClient, leaderContainer); err != nil {
-			t.Logf("cleanup heal failed: %v", err)
+			HALogf(t, "cleanup heal failed: %v", err)
 		}
 	})
 
-	t.Log("partition applied, waiting for survivors to elect a new leader")
+	HALog(t, "partition applied, waiting for survivors to elect a new leader")
 
 	newLeader, err := waitForNewLeader(ctx, survivors)
 	if err != nil {
@@ -1346,7 +1360,7 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 			isolatedNodeID)
 	}
 
-	t.Logf("new leader is node %d", newLeaderStatus.Cluster.NodeID)
+	HALogf(t, "new leader is node %d", newLeaderStatus.Cluster.NodeID)
 
 	const survivorIMSI = "001019756140001"
 
@@ -1369,7 +1383,7 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 		t.Fatalf("survivor follower did not converge: %v", err)
 	}
 
-	t.Log("write to majority side succeeded, attempting write on isolated former leader")
+	HALog(t, "write to majority side succeeded, attempting write on isolated former leader")
 
 	// 503 (propose times out before lease expiry) or 502 (proxy
 	// can't reach a leader after step-down) are both acceptable;
@@ -1391,9 +1405,9 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 		t.Fatal("isolated former leader accepted a write while partitioned; split-brain regression")
 	}
 
-	t.Logf("write on isolated former leader correctly rejected: %v", err)
+	HALogf(t, "write on isolated former leader correctly rejected: %v", err)
 
-	t.Log("healing partition")
+	HALog(t, "healing partition")
 
 	if err := healClusterPort(ctx, dockerClient, leaderContainer); err != nil {
 		t.Fatalf("heal partition: %v", err)
@@ -1401,7 +1415,7 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 
 	healed = true
 
-	t.Log("waiting for formerly isolated node to converge with new leader's state")
+	HALog(t, "waiting for formerly isolated node to converge with new leader's state")
 
 	postHealIdx, err := leaderAppliedIndex(ctx, newLeader)
 	if err != nil {
@@ -1423,7 +1437,7 @@ func TestIntegrationHANetworkPartition(t *testing.T) {
 
 	assertMembershipConsistent(t, ctx, clients)
 
-	t.Log("formerly isolated node converged after heal; partition test passed")
+	HALog(t, "formerly isolated node converged after heal; partition test passed")
 }
 
 // Both --dport and --sport on INPUT and OUTPUT: peer connections are

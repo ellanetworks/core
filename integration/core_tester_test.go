@@ -76,7 +76,7 @@ func TestIntegrationTester(t *testing.T) {
 	ctx := context.Background()
 	env := setupTesterEnv(ctx, t)
 
-	t.Logf("core-tester compose up in %s mode", DetectIPFamily())
+	VerboseLog(t, "core-tester compose up in "+string(DetectIPFamily())+" mode")
 
 	// Baseline resources shared across all subtests.
 	baseline := fixture.New(t, ctx, env.Client)
@@ -86,19 +86,30 @@ func TestIntegrationTester(t *testing.T) {
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
 
-	for _, name := range scenarios.List() {
+	// Track which scenarios to run (filtering skipped/restricted ones).
+	var scenarioNames []string
+
+	scenarioNames = append(scenarioNames, scenarios.List()...)
+
+	// Run each scenario with reporter tracking.
+	for _, name := range scenarioNames {
 		name := name
 
 		if reason, skip := scenariosSkipped[name]; skip {
+			tr := registerScenarioTest(name)
 			t.Run(name, func(t *testing.T) { t.Skipf("%s: %s", name, reason) })
+			finishScenarioTest(t, tr)
+
 			continue
 		}
 
 		if requiredFamily, ok := scenarioIPFamilyRestrictions[name]; ok {
 			if DetectIPFamily() != requiredFamily {
+				tr := registerScenarioTest(name)
 				t.Run(name, func(t *testing.T) {
 					t.Skipf("skipping %s: requires %s mode, running %s", name, requiredFamily, DetectIPFamily())
 				})
+				finishScenarioTest(t, tr)
 
 				continue
 			}
@@ -106,9 +117,11 @@ func TestIntegrationTester(t *testing.T) {
 
 		if exclusions, ok := scenarioIPFamilyExclusions[name]; ok {
 			if exclusions[DetectIPFamily()] {
+				tr := registerScenarioTest(name)
 				t.Run(name, func(t *testing.T) {
 					t.Skipf("skipping %s: N6 does not support this address family in %s mode", name, DetectIPFamily())
 				})
+				finishScenarioTest(t, tr)
 
 				continue
 			}
@@ -128,6 +141,8 @@ func TestIntegrationTester(t *testing.T) {
 			spec = sc.Fixture(scenariosEnv)
 		}
 
+		tr := registerScenarioTest(name)
+
 		t.Run(name, func(t *testing.T) {
 			fx := fixture.New(t, ctx, env.Client)
 			fx.Apply(spec)
@@ -142,13 +157,18 @@ func TestIntegrationTester(t *testing.T) {
 
 			extraArgs = append(extraArgs, spec.ExtraArgs...)
 
-			env.RunScenario(ctx, t, name, extraArgs...)
+			env.RunScenario(ctx, t, name, tr, extraArgs...)
 
 			if len(spec.AssertUsageForIMSIs) > 0 {
 				fixture.AssertUsagePositive(ctx, t, env.Client, spec.AssertUsageForIMSIs, 30*time.Second)
 			}
 		})
+
+		finishScenarioTest(t, tr)
 	}
+
+	// Print summary at the end.
+	printTesterSummary(t)
 }
 
 // buildScenariosEnv converts a *testerEnv into a scenarios.Env so that

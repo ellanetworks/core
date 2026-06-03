@@ -79,7 +79,7 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 	// Discovered after the first swap.
 	var targetSchema int
 
-	t.Logf("baseline schema = %d", baselineSchema)
+	HALogf(t, "baseline schema = %d", baselineSchema)
 
 	for i, c := range clients {
 		assertSchemaState(t, ctx, c, fmt.Sprintf("node %d (initial)", i+1), schemaState{
@@ -113,7 +113,7 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 		nodeNum := nodeIdx + 1
 		isLast := step == len(upgradeOrder)-1
 
-		t.Logf("=== rolling step %d/%d: upgrade node %d (was %s) ===",
+		HALogf(t, "=== rolling step %d/%d: upgrade node %d (was %s) ===",
 			step+1, len(upgradeOrder), nodeNum,
 			roleAt(ctx, clients[nodeIdx]))
 
@@ -131,7 +131,7 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 					targetSchema, baselineSchema)
 			}
 
-			t.Logf("target schema = %d (delta from baseline = %d)",
+			HALogf(t, "target schema = %d (delta from baseline = %d)",
 				targetSchema, targetSchema-baselineSchema)
 		}
 
@@ -149,7 +149,7 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 		if !isLast && targetSchema > baselineSchema {
 			expectedLaggards := remainingBaselineNodes(upgradeOrder, step+1)
 
-			t.Logf("intermediate: expecting applied=%d, laggard ∈ %v",
+			HALogf(t, "intermediate: expecting applied=%d, laggard ∈ %v",
 				baselineSchema, expectedLaggards)
 
 			waitForPending := func(c *client.Client, label string) {
@@ -207,7 +207,7 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 		}
 	}
 
-	t.Log("=== final: all nodes on target; waiting for migrations to apply ===")
+	HALog(t, "=== final: all nodes on target; waiting for migrations to apply ===")
 
 	for i, c := range clients {
 		if err := waitForSchemaCondition(ctx, c, func(s *client.Status) error {
@@ -241,7 +241,7 @@ func TestIntegrationHARollingUpgrade(t *testing.T) {
 		t.Fatalf("background writer reported a permanent failure: %v", err)
 	}
 
-	t.Logf("background writer: %d successes, %d transient failures, %d total attempts",
+	HALogf(t, "background writer: %d successes, %d transient failures, %d total attempts",
 		writeReport.success, writeReport.transient, writeReport.attempts)
 
 	if writeReport.success == 0 {
@@ -390,13 +390,13 @@ func capturePreSwapLogs(t *testing.T, ctx context.Context, dc *DockerClient, ser
 
 	subdir := filepath.Join(dir, sanitizeTestName(t.Name()))
 	if err := os.MkdirAll(subdir, 0o755); err != nil {
-		t.Logf("capturePreSwapLogs: mkdir %s: %v", subdir, err)
+		HALogf(t, "capturePreSwapLogs: mkdir %s: %v", subdir, err)
 		return
 	}
 
 	logs, err := dc.ComposeLogs(ctx, haRollingComposeDir, service)
 	if err != nil {
-		t.Logf("capturePreSwapLogs: %s: %v", service, err)
+		HALogf(t, "capturePreSwapLogs: %s: %v", service, err)
 		return
 	}
 
@@ -404,7 +404,7 @@ func capturePreSwapLogs(t *testing.T, ctx context.Context, dc *DockerClient, ser
 	// (or repeated test runs) don't clobber prior captures.
 	path := filepath.Join(subdir, fmt.Sprintf("%s.pre-swap-%s.log", service, time.Now().UTC().Format("150405.000")))
 	if err := os.WriteFile(path, []byte(logs), 0o644); err != nil {
-		t.Logf("capturePreSwapLogs: write %s: %v", path, err)
+		HALogf(t, "capturePreSwapLogs: write %s: %v", path, err)
 	}
 }
 

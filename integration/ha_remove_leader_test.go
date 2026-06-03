@@ -30,7 +30,7 @@ func TestIntegrationHARemoveLeader(t *testing.T) {
 
 	defer func() {
 		if err := dockerClient.Close(); err != nil {
-			t.Logf("failed to close docker client: %v", err)
+			HALogf(t, "failed to close docker client: %v", err)
 		}
 	}()
 
@@ -111,7 +111,7 @@ func TestIntegrationHARemoveLeader(t *testing.T) {
 		t.Fatalf("background writer reported a permanent failure: %v", werr)
 	}
 
-	t.Logf("background writer: success=%d transient=%d attempts=%d",
+	HALogf(t, "background writer: success=%d transient=%d attempts=%d",
 		report.success, report.transient, report.attempts)
 
 	const minAttempts = 20
@@ -147,7 +147,7 @@ func TestIntegrationHARemoveLeader(t *testing.T) {
 	if _, err := newLeader.GetSubscriber(ctx, &client.GetSubscriberOptions{ID: fencedIMSI}); err == nil {
 		t.Fatal("subscriber written via removed leader landed on the cluster; fence is broken")
 	} else if !isExpectedNotFound(err) {
-		t.Logf("unexpected error reading fenced IMSI: %v", err)
+		HALogf(t, "unexpected error reading fenced IMSI: %v", err)
 	}
 
 	assertMembershipConsistent(t, ctx, survivors)

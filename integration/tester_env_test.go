@@ -171,8 +171,8 @@ func bootstrapTesterCore(ctx context.Context, cl *client.Client) error {
 // RunScenario invokes `core-tester run <scenario>` in the sidecar,
 // injecting --ella-core-n2-address, --gnb, --ella-api-address, and
 // --ella-api-token from the compose topology. Fails the subtest on
-// non-zero exit. stdout/stderr mirror to the test log.
-func (e *testerEnv) RunScenario(ctx context.Context, t *testing.T, scenario string, extraArgs ...string) {
+// non-zero exit. stdout/stderr are captured for failure reporting.
+func (e *testerEnv) RunScenario(ctx context.Context, t *testing.T, scenario string, tr *TestResult, extraArgs ...string) {
 	t.Helper()
 
 	argv := []string{"core-tester", "run", scenario}
@@ -195,9 +195,9 @@ func (e *testerEnv) RunScenario(ctx context.Context, t *testing.T, scenario stri
 	argv = append(argv, "--verbose")
 	argv = append(argv, extraArgs...)
 
-	t.Logf("running: %s", strings.Join(argv, " "))
+	QuietLog(t, tr, "running: "+strings.Join(argv, " "))
 
-	if _, err := e.dc.Exec(ctx, e.TesterContainer, argv, false, 5*time.Minute, logWriter{t}); err != nil {
+	if _, err := e.dc.Exec(ctx, e.TesterContainer, argv, false, 5*time.Minute, quietLogWriter{tr}); err != nil {
 		t.Fatalf("scenario %q failed: %v", scenario, err)
 	}
 }

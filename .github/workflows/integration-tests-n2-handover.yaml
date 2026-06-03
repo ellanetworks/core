@@ -37,8 +37,11 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libpcap-dev
 
       - name: Run N2 Handover integration tests
+        env:
+          INTEGRATION: "1"
+          HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
         run: |
-          INTEGRATION=1 go test ./integration/... -run TestIntegrationN2Handover -v -timeout 10m
+          go test ./integration/... -run TestIntegrationN2Handover -v -timeout 10m
 
       - name: Upload logs
         if: always()

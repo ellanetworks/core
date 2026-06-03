@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -274,7 +275,12 @@ func runRuleShape(ctx context.Context, t *testing.T, env *testerEnv, fp ipFamily
 	scenarioStart := time.Now()
 
 	for _, p := range shape.protocols {
-		env.RunScenario(ctx, t, shape.scenario, scenarioRunArgs(shape.scenario, spec, pps[p])...)
+		pp := pps[p]
+		scenarioName := fmt.Sprintf("%s/%s", shape.scenario, p)
+		tr := globalReporter.Start(scenarioName)
+		QuietLog(t, tr, "running "+scenarioName)
+		env.RunScenario(ctx, t, shape.scenario, tr, scenarioRunArgs(shape.scenario, spec, pp)...)
+		globalReporter.Pass(tr)
 	}
 
 	scenarioEnd := time.Now()

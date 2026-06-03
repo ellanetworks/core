@@ -48,8 +48,12 @@ jobs:
           go-version-file: "go.mod"
 
       - name: Run BGP integration tests
+        env:
+          INTEGRATION: "1"
+          IP_VERSION: ${{ matrix.ip_version }}
+          HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
         run: |
-          INTEGRATION=1 IP_VERSION=${{ matrix.ip_version }} go test ./integration/... -run TestIntegrationBGP -timeout 15m -v
+          go test ./integration/... -run TestIntegrationBGP -timeout 15m -v
 
       - name: Upload logs
         if: always()

@@ -25,7 +25,7 @@ func TestIntegrationHASnapshotInstallOnNewJoiner(t *testing.T) {
 
 	const composeDir = "compose/ha-scaleup/"
 
-	t.Logf("Running HA snapshot install test in %s mode", DetectIPFamily())
+	HALogf(t, "Running HA snapshot install test in %s mode", DetectIPFamily())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
@@ -37,7 +37,7 @@ func TestIntegrationHASnapshotInstallOnNewJoiner(t *testing.T) {
 
 	defer func() {
 		if err := dockerClient.Close(); err != nil {
-			t.Logf("failed to close docker client: %v", err)
+			HALogf(t, "failed to close docker client: %v", err)
 		}
 	}()
 
@@ -106,7 +106,7 @@ func TestIntegrationHASnapshotInstallOnNewJoiner(t *testing.T) {
 		t.Fatalf("leader applied index: %v", err)
 	}
 
-	t.Logf("leader applied index after pre-join writes: %d", preJoinIdx)
+	HALogf(t, "leader applied index after pre-join writes: %d", preJoinIdx)
 
 	if err := waitForFollowerConvergence(ctx, clients, preJoinIdx); err != nil {
 		t.Fatalf("followers did not converge: %v", err)

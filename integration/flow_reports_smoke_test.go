@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -67,7 +68,12 @@ func TestFlowReportsSmoke(t *testing.T) {
 	scenarioStart := time.Now()
 
 	for _, p := range protocols {
-		env.RunScenario(ctx, t, fp.scenarioAllowed, scenarioRunArgs(fp.scenarioAllowed, spec, pps[p])...)
+		pp := pps[p]
+		scenarioName := fmt.Sprintf("%s/%s", fp.scenarioAllowed, p)
+		tr := globalReporter.Start(scenarioName)
+		QuietLog(t, tr, "running "+scenarioName)
+		env.RunScenario(ctx, t, fp.scenarioAllowed, tr, scenarioRunArgs(fp.scenarioAllowed, spec, pp)...)
+		globalReporter.Pass(tr)
 	}
 
 	scenarioEnd := time.Now()
