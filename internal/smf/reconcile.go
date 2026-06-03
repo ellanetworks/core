@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
@@ -28,9 +29,14 @@ import (
 // cause #39 "reactivation requested" (TS 24.501 table 11.4.2.1) so the UE
 // re-establishes on the correct slice.
 //
-// For QoS/AMBR changes this implements the 3GPP network-requested PDU Session
+// For QoS/AMBR/DNS changes this implements the 3GPP network-requested PDU Session
 // Modification procedure (TS 23.502 clause 4.3.3.2) triggered by an
 // OAM-initiated policy update.
+//
+// For MTU or IP pool changes the session is released with cause #39 so the UE
+// re-establishes with the updated configuration (TS 23.501 §5.6.10.4 does not
+// address dynamic MTU adjustment; IP pools have no in-place modification
+// mechanism).
 func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconcileRequest) error {
 	if req == nil {
 		return fmt.Errorf("reconcile request is nil")
@@ -86,12 +92,41 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 		return s.sendSessionRelease(ctx, smContext)
 	}
 
-	// --- QoS/AMBR modification path ---
+	// --- MTU or IP pool change: network-initiated release ---
+	// Per TS 23.501 §5.6.10.4 NOTE 3, dynamic MTU adjustment during an active
+	// session is not addressed. IP pool changes would invalidate already-
+	// assigned addresses. Release with cause #39 so the UE re-establishes.
+	//
+	// Zero/empty values in the delta are treated as "not specified" (unchanged)
+	// to avoid spurious releases when the caller provides a partial delta.
+	if req.NewPolicy != nil {
+		mtuChanged := req.NewPolicy.MTU != 0 && smContext.PolicyData.MTU != req.NewPolicy.MTU
+		ipv4PoolChanged := req.NewPolicy.IPv4Pool != "" && smContext.PolicyData.IPv4Pool != req.NewPolicy.IPv4Pool
+		ipv6PoolChanged := req.NewPolicy.IPv6Pool != "" && smContext.PolicyData.IPv6Pool != req.NewPolicy.IPv6Pool
+
+		if mtuChanged || ipv4PoolChanged || ipv6PoolChanged {
+			logger.SmfLog.Info("MTU or IP pool changed, releasing session for re-establishment",
+				logger.SUPI(smContext.Supi.String()),
+				logger.PDUSessionID(smContext.PDUSessionID),
+				zap.Uint16("oldMTU", smContext.PolicyData.MTU),
+				zap.Uint16("newMTU", req.NewPolicy.MTU),
+				zap.String("oldIPv4Pool", smContext.PolicyData.IPv4Pool),
+				zap.String("newIPv4Pool", req.NewPolicy.IPv4Pool),
+				zap.String("oldIPv6Pool", smContext.PolicyData.IPv6Pool),
+				zap.String("newIPv6Pool", req.NewPolicy.IPv6Pool),
+			)
+
+			return s.sendSessionRelease(ctx, smContext)
+		}
+	}
+
+	// --- QoS/AMBR/DNS modification path ---
 	oldQoS := smContext.PolicyData.QosData
 	oldAmbr := smContext.PolicyData.Ambr
 
 	hasQoSChange := false
 	hasAmbrChange := false
+	hasDNSChange := false
 
 	if req.NewPolicy != nil {
 		oldArp := int32(0)
@@ -106,10 +141,27 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 		if oldAmbr.Uplink != req.NewPolicy.SessionAmbrUplink || oldAmbr.Downlink != req.NewPolicy.SessionAmbrDownlink {
 			hasAmbrChange = true
 		}
+
+		oldDNS := ""
+		if smContext.PolicyData.DNS != nil {
+			oldDNS = smContext.PolicyData.DNS.String()
+		}
+
+		if req.NewPolicy.DNS != "" && oldDNS != req.NewPolicy.DNS {
+			hasDNSChange = true
+		}
 	}
 
 	newPolicy := smContext.PolicyData
-	if (hasQoSChange || hasAmbrChange) && req.NewPolicy != nil {
+	if (hasQoSChange || hasAmbrChange || hasDNSChange) && req.NewPolicy != nil {
+		dns := smContext.PolicyData.DNS
+		if hasDNSChange {
+			dns = net.ParseIP(req.NewPolicy.DNS)
+			if dns == nil {
+				return fmt.Errorf("invalid DNS address %q in new policy", req.NewPolicy.DNS)
+			}
+		}
+
 		newPolicy = &Policy{
 			PolicyID: smContext.PolicyData.PolicyID,
 			Ambr: models.Ambr{
@@ -126,7 +178,7 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 				},
 			},
 			NetworkRules: smContext.PolicyData.NetworkRules,
-			DNS:          smContext.PolicyData.DNS,
+			DNS:          dns,
 			MTU:          smContext.PolicyData.MTU,
 			IPv4Pool:     smContext.PolicyData.IPv4Pool,
 			IPv6Pool:     smContext.PolicyData.IPv6Pool,
@@ -160,16 +212,17 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 
 	// Send N1 (NAS) + N2 (NGAP) messages to notify the UE and gNB of changes.
 	// Per TS 23.502 clause 4.3.3.2, the SMF sends:
-	//   - N1: PDU Session Modification Command (Session-AMBR, QoS flow descriptions)
-	//   - N2: PDU Session Resource Modify Request Transfer (PDU Session Aggregate
-	//     Maximum Bit Rate, QoS Flow Add or Modify Request List with QoS profile)
+	//   - N1: PDU Session Modification Command (Session-AMBR, QoS flow
+	//     descriptions, DNS server addresses via Extended PCO)
+	//   - N2: PDU Session Resource Modify Request Transfer (PDU Session
+	//     Aggregate Maximum Bit Rate, QoS Flow Add or Modify Request List)
 	//
 	// If the UE is in CM-IDLE, N1N2 delivery is skipped (per TS 23.502 §4.2.3.3
 	// step 3b: the AMF may ignore the N2 SM information when the UE is not
 	// reachable). The policy is still committed so that ActivateSmContext
 	// returns updated QoS when the UE transitions back to CM-CONNECTED.
-	if (hasAmbrChange || hasQoSChange) && req.NewPolicy != nil {
-		if err := s.sendSessionModification(ctx, smContext, newPolicy, hasAmbrChange, hasQoSChange); err != nil {
+	if (hasAmbrChange || hasQoSChange || hasDNSChange) && req.NewPolicy != nil {
+		if err := s.sendSessionModification(ctx, smContext, newPolicy, hasAmbrChange, hasQoSChange, hasDNSChange); err != nil {
 			if errors.Is(err, ErrUENotReachable) {
 				logger.SmfLog.Debug("UE is idle, skipping N1N2 delivery; policy committed for next activation",
 					logger.SUPI(smContext.Supi.String()),
@@ -194,7 +247,7 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 	// (UE idle) — this is intentional: ActivateSmContext rebuilds the Setup
 	// Transfer from PolicyData, so the UE gets updated QoS on reconnect.
 	// If PFCP or a real N1/N2 failure returned above, we never reach here.
-	if (hasQoSChange || hasAmbrChange) && req.NewPolicy != nil {
+	if (hasQoSChange || hasAmbrChange || hasDNSChange) && req.NewPolicy != nil {
 		smContext.PolicyData = newPolicy
 	}
 
@@ -205,13 +258,17 @@ func (s *SMF) ReconcileSmContext(ctx context.Context, req *models.SessionReconci
 // requested PDU Session Modification (TS 23.502 §4.3.3.2).
 //
 // N1 (to UE): PDU Session Modification Command containing:
-//   - Session-AMBR (when AMBR changed, TS 24.501 §8.3.9.3)
-//   - Authorized QoS flow descriptions (when 5QI/ARP changed, TS 24.501 §8.3.9.8)
+//   - Session-AMBR IE (when ambr changed, TS 24.501 §8.3.9.3)
+//   - Authorized QoS flow descriptions IE (when 5QI/ARP changed, TS 24.501 §8.3.9.8)
+//   - Extended PCO with DNS server address(es) (when DNS changed, TS 24.501 §6.3.2)
 //
 // N2 (to gNB): PDU Session Resource Modify Request Transfer containing:
 //   - PDU Session Aggregate Maximum Bit Rate (when AMBR changed)
 //   - QoS Flow Add or Modify Request List (when 5QI/ARP changed)
-func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext, policy *Policy, hasAmbrChange, hasQoSChange bool) error {
+//
+// When only DNS changes (no AMBR/QoS), only N1 is sent since DNS is a NAS-level
+// parameter that does not affect the gNB.
+func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext, policy *Policy, hasAmbrChange, hasQoSChange, hasDNSChange bool) error {
 	// Build N1 NAS message.
 	var n1Ambr *models.Ambr
 	if hasAmbrChange {
@@ -223,30 +280,40 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 		n1QoS = &policy.QosData
 	}
 
-	n1Msg, err := nas.BuildPDUSessionModificationCommand(smContext.PDUSessionID, n1Ambr, n1QoS)
+	var n1DNS net.IP
+	if hasDNSChange && policy.DNS != nil {
+		n1DNS = policy.DNS
+	}
+
+	n1Msg, err := nas.BuildPDUSessionModificationCommand(smContext.PDUSessionID, n1Ambr, n1QoS, n1DNS)
 	if err != nil {
 		return fmt.Errorf("build PDU Session Modification Command (N1): %w", err)
 	}
 
-	// Build N2 NGAP message.
-	var n2Ambr *models.Ambr
-	if hasAmbrChange {
-		n2Ambr = &policy.Ambr
+	// Build N2 NGAP message only when AMBR or QoS changed.
+	// DNS is carried in the NAS Extended PCO and does not require N2 signaling.
+	var n2Msg []byte
+
+	if hasAmbrChange || hasQoSChange {
+		var n2Ambr *models.Ambr
+		if hasAmbrChange {
+			n2Ambr = &policy.Ambr
+		}
+
+		var n2QoS *models.QosData
+		if hasQoSChange {
+			n2QoS = &policy.QosData
+		}
+
+		n2Msg, err = ngap.BuildPDUSessionResourceModifyRequestTransfer(n2Ambr, n2QoS)
+		if err != nil {
+			return fmt.Errorf("build PDU Session Resource Modify Request Transfer (N2): %w", err)
+		}
 	}
 
-	var n2QoS *models.QosData
-	if hasQoSChange {
-		n2QoS = &policy.QosData
-	}
-
-	n2Msg, err := ngap.BuildPDUSessionResourceModifyRequestTransfer(n2Ambr, n2QoS)
-	if err != nil {
-		return fmt.Errorf("build PDU Session Resource Modify Request Transfer (N2): %w", err)
-	}
-
-	// Deliver combined N1+N2 via the AMF. The AMF will send a
-	// PDUSessionResourceModifyRequest (TS 38.413 §9.2.1.5) to the gNB,
-	// carrying the NAS PDU piggy-backed in the per-session modify item.
+	// Deliver combined N1+N2 (or N1-only for DNS changes) via the AMF.
+	// The AMF will send a PDUSessionResourceModifyRequest (TS 38.413 §9.2.1.5)
+	// to the gNB, carrying the NAS PDU piggy-backed in the per-session modify item.
 	if err := s.amf.ModifyN1N2(ctx, smContext.Supi, smContext.PDUSessionID, n1Msg, n2Msg); err != nil {
 		return fmt.Errorf("transfer N1N2 message: %w", err)
 	}
@@ -261,6 +328,7 @@ func (s *SMF) sendSessionModification(ctx context.Context, smContext *SMContext,
 		logger.PDUSessionID(smContext.PDUSessionID),
 		zap.Bool("ambrChange", hasAmbrChange),
 		zap.Bool("qosChange", hasQoSChange),
+		zap.Bool("dnsChange", hasDNSChange),
 	)
 
 	return nil

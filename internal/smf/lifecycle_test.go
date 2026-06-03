@@ -1212,12 +1212,12 @@ func TestReconcileSmContext_UsesNewPolicyForPFCPAndN1N2(t *testing.T) {
 	call := amfCb.modifyCalls[0]
 	amfCb.mu.Unlock()
 
-	oldPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"}, &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1})
+	oldPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: "100 Mbps", Downlink: "200 Mbps"}, &models.QosData{Var5qi: 9, Arp: &models.Arp{PriorityLevel: 1}, QFI: 1}, nil)
 	if err != nil {
 		t.Fatalf("build old policy modification command: %v", err)
 	}
 
-	newPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: "200 Mbps", Downlink: "300 Mbps"}, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1})
+	newPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: "200 Mbps", Downlink: "300 Mbps"}, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1}, nil)
 	if err != nil {
 		t.Fatalf("build new policy modification command: %v", err)
 	}
@@ -1266,7 +1266,7 @@ func TestReconcileSmContext_AmbrOnly(t *testing.T) {
 		t.Fatalf("QER MBR = %d/%d, want 300000/400000", qer.MBR.ULMBR, qer.MBR.DLMBR)
 	}
 
-	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: "300 Mbps", Downlink: "400 Mbps"}, nil)
+	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, &models.Ambr{Uplink: "300 Mbps", Downlink: "400 Mbps"}, nil, nil)
 	if err != nil {
 		t.Fatalf("build expected N1: %v", err)
 	}
@@ -1303,7 +1303,7 @@ func TestReconcileSmContext_QoSOnly(t *testing.T) {
 		t.Fatalf("QER MBR = %d/%d, want 100000/200000", qer.MBR.ULMBR, qer.MBR.DLMBR)
 	}
 
-	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, nil, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1})
+	expectedPayload, err := smfNas.BuildPDUSessionModificationCommand(smCtx.PDUSessionID, nil, &models.QosData{Var5qi: 8, Arp: &models.Arp{PriorityLevel: 14}, QFI: 1}, nil)
 	if err != nil {
 		t.Fatalf("build expected N1: %v", err)
 	}
@@ -1446,6 +1446,309 @@ func TestReconcileSmContext_ReleaseIdleUE_RemovesSession(t *testing.T) {
 	if deleteCalls == 0 {
 		t.Fatal("expected PFCP deletion during idle-UE release")
 	}
+}
+
+// TestReconcileSmContext_DNSChange verifies that a DNS change triggers a PDU
+// Session Modification Command carrying the new DNS in Extended PCO (TS 24.501
+// §6.3.2), without releasing the session.
+func TestReconcileSmContext_DNSChange(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
+		SmContextRef: ref,
+		Reason:       models.ReconcilePolicyChange,
+		NewPolicy: &models.SessionPolicyDelta{
+			SessionAmbrUplink:   "100 Mbps",
+			SessionAmbrDownlink: "200 Mbps",
+			Var5qi:              9,
+			Arp:                 1,
+			DNS:                 "8.8.4.4",
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReconcileSmContext failed: %v", err)
+	}
+
+	// No PFCP modify should be called for DNS-only change.
+	upf.mu.Lock()
+	if len(upf.modifyCalls) != 0 {
+		upf.mu.Unlock()
+		t.Fatalf("expected 0 PFCP modify calls for DNS-only change, got %d", len(upf.modifyCalls))
+	}
+	upf.mu.Unlock()
+
+	// AMF ModifyN1N2 should have been called with DNS in PCO.
+	amfCb.mu.Lock()
+	if len(amfCb.modifyCalls) != 1 {
+		amfCb.mu.Unlock()
+		t.Fatalf("expected 1 N1N2 modify call, got %d", len(amfCb.modifyCalls))
+	}
+
+	call := amfCb.modifyCalls[0]
+	amfCb.mu.Unlock()
+
+	// N2 must be nil for DNS-only changes: no gNB resource modification is
+	// needed; the NAS message is delivered via DL NAS Transport per
+	// TS 23.502 §4.3.3.2.
+	if call.n2Msg != nil {
+		t.Fatalf("expected nil N2 message for DNS-only change, got %d bytes", len(call.n2Msg))
+	}
+
+	n1Payload := modificationSMPayload(t, call.n1Msg)
+
+	// Decode and verify Extended PCO contains DNS server IE.
+	msg := nas.NewMessage()
+	if err := msg.PlainNasDecode(&n1Payload); err != nil {
+		t.Fatalf("decode N1 modification command: %v", err)
+	}
+
+	if msg.PDUSessionModificationCommand == nil {
+		t.Fatal("PDUSessionModificationCommand is nil")
+	}
+
+	pco := msg.PDUSessionModificationCommand.ExtendedProtocolConfigurationOptions
+	if pco == nil {
+		t.Fatal("ExtendedProtocolConfigurationOptions is nil; DNS should be in PCO")
+	}
+
+	contents := pco.GetExtendedProtocolConfigurationOptionsContents()
+	if len(contents) == 0 {
+		t.Fatal("PCO contents is empty")
+	}
+
+	// Verify the session policy was updated with new DNS.
+	smCtx.Mutex.Lock()
+	if smCtx.PolicyData.DNS == nil || !smCtx.PolicyData.DNS.Equal(net.ParseIP("8.8.4.4")) {
+		smCtx.Mutex.Unlock()
+		t.Fatalf("expected DNS 8.8.4.4, got %v", smCtx.PolicyData.DNS)
+	}
+	smCtx.Mutex.Unlock()
+}
+
+// TestReconcileSmContext_InvalidDNS verifies that an invalid DNS address in the
+// new policy is rejected with an error rather than silently producing a nil IP.
+func TestReconcileSmContext_InvalidDNS(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
+		SmContextRef: ref,
+		Reason:       models.ReconcilePolicyChange,
+		NewPolicy: &models.SessionPolicyDelta{
+			SessionAmbrUplink:   "100 Mbps",
+			SessionAmbrDownlink: "200 Mbps",
+			Var5qi:              9,
+			Arp:                 1,
+			DNS:                 "not-a-valid-ip",
+		},
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid DNS address, got nil")
+	}
+
+	// No PFCP or AMF calls should have been made.
+	upf.mu.Lock()
+	if len(upf.modifyCalls) != 0 {
+		upf.mu.Unlock()
+		t.Fatalf("expected 0 PFCP modify calls, got %d", len(upf.modifyCalls))
+	}
+	upf.mu.Unlock()
+
+	amfCb.mu.Lock()
+	if len(amfCb.modifyCalls) != 0 {
+		amfCb.mu.Unlock()
+		t.Fatalf("expected 0 AMF modify calls, got %d", len(amfCb.modifyCalls))
+	}
+	amfCb.mu.Unlock()
+}
+
+// TestReconcileSmContext_MTUChange verifies that an MTU change triggers a
+// session release with cause #39 (TS 23.501 §5.6.10.4 NOTE 3).
+func TestReconcileSmContext_MTUChange(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
+		SmContextRef: ref,
+		Reason:       models.ReconcilePolicyChange,
+		NewPolicy: &models.SessionPolicyDelta{
+			SessionAmbrUplink:   "100 Mbps",
+			SessionAmbrDownlink: "200 Mbps",
+			Var5qi:              9,
+			Arp:                 1,
+			MTU:                 1400,
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReconcileSmContext failed: %v", err)
+	}
+
+	// Session should be removed from the pool after release.
+	if s.GetSession(ref) != nil {
+		t.Fatal("expected session to be removed after MTU-change release")
+	}
+
+	// IP addresses should have been released.
+	store.mu.Lock()
+	releasedIPs := len(store.releasedIPs)
+	store.mu.Unlock()
+
+	if releasedIPs == 0 {
+		t.Fatal("expected IP release during MTU-change release, got 0")
+	}
+
+	// PFCP session should have been deleted.
+	upf.mu.Lock()
+	deleteCalls := len(upf.deleteCalls)
+	upf.mu.Unlock()
+
+	if deleteCalls == 0 {
+		t.Fatal("expected PFCP session deletion during MTU-change release, got 0")
+	}
+
+	// AMF release signaling should have been sent.
+	amfCb.mu.Lock()
+	releaseCalls := len(amfCb.releaseCalls)
+	amfCb.mu.Unlock()
+
+	if releaseCalls != 1 {
+		t.Fatalf("expected 1 release signaling call, got %d", releaseCalls)
+	}
+}
+
+// TestReconcileSmContext_PoolChange verifies that an IP pool change triggers a
+// session release with cause #39.
+func TestReconcileSmContext_PoolChange(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
+		SmContextRef: ref,
+		Reason:       models.ReconcilePolicyChange,
+		NewPolicy: &models.SessionPolicyDelta{
+			SessionAmbrUplink:   "100 Mbps",
+			SessionAmbrDownlink: "200 Mbps",
+			Var5qi:              9,
+			Arp:                 1,
+			IPv4Pool:            "10.0.1.0/24",
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReconcileSmContext failed: %v", err)
+	}
+
+	// Session should be removed from the pool after release.
+	if s.GetSession(ref) != nil {
+		t.Fatal("expected session to be removed after pool-change release")
+	}
+
+	// IP addresses should have been released.
+	store.mu.Lock()
+	releasedIPs := len(store.releasedIPs)
+	store.mu.Unlock()
+
+	if releasedIPs == 0 {
+		t.Fatal("expected IP release during pool-change release, got 0")
+	}
+
+	// PFCP session should have been deleted.
+	upf.mu.Lock()
+	deleteCalls := len(upf.deleteCalls)
+	upf.mu.Unlock()
+
+	if deleteCalls == 0 {
+		t.Fatal("expected PFCP session deletion during pool-change release, got 0")
+	}
+
+	// AMF release signaling should have been sent.
+	amfCb.mu.Lock()
+	releaseCalls := len(amfCb.releaseCalls)
+	amfCb.mu.Unlock()
+
+	if releaseCalls != 1 {
+		t.Fatalf("expected 1 release signaling call, got %d", releaseCalls)
+	}
+}
+
+// TestReconcileSmContext_DNSUnchanged verifies that no N1N2 call is made when
+// nothing in the delta actually changed.
+func TestReconcileSmContext_DNSUnchanged(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	_, ref := setupSessionWithTunnel(t, s)
+
+	// Send the same values that are already in the session (no actual change).
+	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
+		SmContextRef: ref,
+		Reason:       models.ReconcilePolicyChange,
+		NewPolicy: &models.SessionPolicyDelta{
+			SessionAmbrUplink:   "100 Mbps",
+			SessionAmbrDownlink: "200 Mbps",
+			Var5qi:              9,
+			Arp:                 1,
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReconcileSmContext failed: %v", err)
+	}
+
+	// No session modification should be called when nothing changed.
+	amfCb.mu.Lock()
+	modifyCalls := len(amfCb.modifyCalls)
+	amfCb.mu.Unlock()
+
+	if modifyCalls != 0 {
+		t.Fatalf("expected 0 modify calls when nothing changed, got %d", modifyCalls)
+	}
+}
+
+// TestReconcileSmContext_DNSIdleUE verifies that DNS policy is committed even
+// when the UE is idle (N1N2 delivery skipped).
+func TestReconcileSmContext_DNSIdleUE(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	amfCb.err = smf.ErrUENotReachable
+	s := newTestSMF(pcf, store, upf, amfCb)
+	ctx := context.Background()
+
+	smCtx, ref := setupSessionWithTunnel(t, s)
+
+	err := s.ReconcileSmContext(ctx, &models.SessionReconcileRequest{
+		SmContextRef: ref,
+		Reason:       models.ReconcilePolicyChange,
+		NewPolicy: &models.SessionPolicyDelta{
+			SessionAmbrUplink:   "100 Mbps",
+			SessionAmbrDownlink: "200 Mbps",
+			Var5qi:              9,
+			Arp:                 1,
+			DNS:                 "1.1.1.1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReconcileSmContext should succeed for idle UE, got: %v", err)
+	}
+
+	// Policy should have been committed despite N1N2 skip.
+	smCtx.Mutex.Lock()
+	if smCtx.PolicyData.DNS == nil || !smCtx.PolicyData.DNS.Equal(net.ParseIP("1.1.1.1")) {
+		smCtx.Mutex.Unlock()
+		t.Fatalf("policy not committed: DNS = %v", smCtx.PolicyData.DNS)
+	}
+	smCtx.Mutex.Unlock()
 }
 
 // ===========================

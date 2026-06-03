@@ -120,9 +120,12 @@ type AMFCallback interface {
 	// TransferN1N2 delivers a combined N1+N2 message for PDU Session Setup.
 	TransferN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n1Msg, n2Msg []byte) error
 
-	// ModifyN1N2 delivers N1 (NAS PDU Session Modification Command) + N2
-	// (PDU Session Resource Modify Request Transfer) to the UE/gNB via the
-	// NGAP PDUSessionResourceModifyRequest procedure (TS 38.413 §9.2.1.5).
+	// ModifyN1N2 delivers a PDU Session Modification Command (N1) to the UE.
+	// When n2Msg is non-nil (AMBR/QoS change), the AMF uses the NGAP
+	// PDUSessionResourceModifyRequest procedure (TS 38.413 §9.2.1.5).
+	// When n2Msg is nil (e.g. DNS-only change via Extended PCO), the AMF
+	// delivers the NAS message via Downlink NAS Transport (TS 38.413 §8.6.2)
+	// since no gNB resource modification is needed.
 	ModifyN1N2(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, n1Msg, n2Msg []byte) error
 
 	// ReleaseSession sends a network-initiated PDU Session Release to the UE/gNB.

@@ -81,9 +81,9 @@ var (
 
 // Data networks
 var (
-	opCreateDataNetwork = registerChangesetOp("CreateDataNetwork", (*Database).applyCreateDataNetwork, AffectsTopic(TopicDataNetworks))
-	opUpdateDataNetwork = registerChangesetOp("UpdateDataNetwork", (*Database).applyUpdateDataNetwork, AffectsTopic(TopicDataNetworks))
-	opDeleteDataNetwork = registerChangesetOp("DeleteDataNetwork", (*Database).applyDeleteDataNetwork, AffectsTopic(TopicDataNetworks))
+	opCreateDataNetwork = registerChangesetOp("CreateDataNetwork", (*Database).applyCreateDataNetwork, AffectsTopic(TopicDataNetworks), AffectsTopic(TopicSessionReconcile))
+	opUpdateDataNetwork = registerChangesetOp("UpdateDataNetwork", (*Database).applyUpdateDataNetwork, AffectsTopic(TopicDataNetworks), AffectsTopic(TopicSessionReconcile))
+	opDeleteDataNetwork = registerChangesetOp("DeleteDataNetwork", (*Database).applyDeleteDataNetwork, AffectsTopic(TopicDataNetworks), AffectsTopic(TopicSessionReconcile))
 )
 
 // Policies
