@@ -144,6 +144,8 @@ func TestIntegrationTester(t *testing.T) {
 		tr := registerScenarioTest(name)
 
 		t.Run(name, func(t *testing.T) {
+			defer finishScenarioTest(t, tr)
+
 			fx := fixture.New(t, ctx, env.Client)
 			fx.Apply(spec)
 
@@ -163,8 +165,6 @@ func TestIntegrationTester(t *testing.T) {
 				fixture.AssertUsagePositive(ctx, t, env.Client, spec.AssertUsageForIMSIs, 30*time.Second)
 			}
 		})
-
-		finishScenarioTest(t, tr)
 	}
 
 	// Print summary at the end.

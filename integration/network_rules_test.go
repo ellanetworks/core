@@ -280,7 +280,7 @@ func runRuleShape(ctx context.Context, t *testing.T, env *testerEnv, fp ipFamily
 		tr := globalReporter.Start(scenarioName)
 		QuietLog(t, tr, "running "+scenarioName)
 		env.RunScenario(ctx, t, shape.scenario, tr, scenarioRunArgs(shape.scenario, spec, pp)...)
-		globalReporter.Pass(tr)
+		finishScenarioTest(t, tr)
 	}
 
 	scenarioEnd := time.Now()

@@ -103,7 +103,7 @@ func TestUPFNATChecksum(t *testing.T) {
 	tr := globalReporter.Start(natChecksumScenario)
 	QuietLog(t, tr, "running nat checksum scenario")
 	env.RunScenario(ctx, t, natChecksumScenario, tr, "--probe-payload-bytes", "16,500,800,1300")
-	globalReporter.Pass(tr)
+	finishScenarioTest(t, tr)
 
 	// Let tcpdump flush the final packets before snapshotting the file.
 	time.Sleep(1 * time.Second)
