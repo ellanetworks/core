@@ -51,6 +51,12 @@ func (w logWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+func Assert(t *testing.T, condition bool, msg string) {
+	if !condition {
+		t.Fatalf("FAIL - %s", msg)
+	}
+}
+
 type quietLogWriter struct{ tr *TestResult }
 
 func (w quietLogWriter) Write(p []byte) (int, error) {

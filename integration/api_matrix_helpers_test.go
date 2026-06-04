@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -19,7 +20,5 @@ func assertNotFound(t *testing.T, err error, what string) {
 	}
 
 	msg := err.Error()
-	if !strings.Contains(msg, "404") && !strings.Contains(strings.ToLower(msg), "not found") {
-		t.Fatalf("expected %s lookup to fail with not-found, got: %v", what, err)
-	}
+	Assert(t, strings.Contains(msg, "404") || strings.Contains(strings.ToLower(msg), "not found"), fmt.Sprintf("expected %s lookup to fail with not-found, got: %v", what, err))
 }

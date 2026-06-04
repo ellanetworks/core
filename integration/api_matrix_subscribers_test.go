@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
@@ -181,9 +182,7 @@ func runSubscribersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		t.Fatalf("list count after create: got %d, want %d", afterCreate.TotalCount, baseline.TotalCount+1)
 	}
 
-	if !contains(afterCreate.Items, imsi) {
-		t.Fatalf("list after create missing %q", imsi)
-	}
+	Assert(t, contains(afterCreate.Items, imsi), fmt.Sprintf("list after create missing %q", imsi))
 
 	// List response carries a different Status struct than Get-one, so
 	// the defaults are asserted independently.

@@ -224,9 +224,7 @@ func runRuleShape(ctx context.Context, t *testing.T, env *testerEnv, fp ipFamily
 	t.Helper()
 
 	sc, ok := scenarios.Get(shape.scenario)
-	if !ok {
-		t.Fatalf("scenario %q not registered", shape.scenario)
-	}
+	Assert(t, ok, fmt.Sprintf("scenario %q not registered", shape.scenario))
 
 	scenariosEnv := buildScenariosEnv(env)
 

@@ -156,9 +156,7 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 	// subscriber). Apply it via the spec so this test stays aligned with
 	// the scenario's declared needs.
 	sc, ok := scenarios.Get("ha/failover_connectivity")
-	if !ok {
-		t.Fatalf("scenario ha/failover_connectivity not registered")
-	}
+	Assert(t, ok, "scenario ha/failover_connectivity not registered")
 
 	scenariosEnv := scenarios.Env{
 		CoreN2Addresses: nodeN2Addrs[:],

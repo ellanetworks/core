@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -91,9 +92,7 @@ func runPolicyRulesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		t.Fatalf("get policy after create: %v", err)
 	}
 
-	if !rulesEqual(got.Rules, initialRules) {
-		t.Fatalf("post-create rules round-trip mismatch:\ngot  %s\nwant %s", formatRules(got.Rules), formatRules(initialRules))
-	}
+	Assert(t, rulesEqual(got.Rules, initialRules), fmt.Sprintf("post-create rules round-trip mismatch:\ngot  %s\nwant %s", formatRules(got.Rules), formatRules(initialRules)))
 
 	t.Run("update_replace", func(t *testing.T) {
 		replaced := &client.PolicyRules{
@@ -111,9 +110,7 @@ func runPolicyRulesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		}
 
 		after := mustGetPolicy(ctx, t, c, policyName)
-		if !rulesEqual(after.Rules, replaced) {
-			t.Fatalf("rules after replace:\ngot  %s\nwant %s", formatRules(after.Rules), formatRules(replaced))
-		}
+		Assert(t, rulesEqual(after.Rules, replaced), fmt.Sprintf("rules after replace:\ngot  %s\nwant %s", formatRules(after.Rules), formatRules(replaced)))
 	})
 
 	t.Run("update_clear_nil", func(t *testing.T) {
@@ -173,9 +170,7 @@ func runPolicyRulesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 			t.Fatalf("Var5qi: got %d, want 5", after.Var5qi)
 		}
 
-		if !rulesEqual(after.Rules, initialRules) {
-			t.Fatalf("rules dropped when updating Var5qi:\ngot  %s\nwant %s", formatRules(after.Rules), formatRules(initialRules))
-		}
+		Assert(t, rulesEqual(after.Rules, initialRules), fmt.Sprintf("rules dropped when updating Var5qi:\ngot  %s\nwant %s", formatRules(after.Rules), formatRules(initialRules)))
 	})
 
 	negatives := []struct {
@@ -244,13 +239,9 @@ func runPolicyRulesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 			}
 
 			msg := err.Error()
-			if !strings.Contains(msg, n.want) {
-				t.Fatalf("error message: got %q, want substring %q", msg, n.want)
-			}
+			Assert(t, strings.Contains(msg, n.want), fmt.Sprintf("error message: got %q, want substring %q", msg, n.want))
 
-			if !strings.Contains(msg, "400") {
-				t.Fatalf("expected 400 status, got %q", msg)
-			}
+			Assert(t, strings.Contains(msg, "400"), fmt.Sprintf("expected 400 status, got %q", msg))
 
 			after := mustGetPolicy(ctx, t, c, policyName)
 			if after.Rules != nil {

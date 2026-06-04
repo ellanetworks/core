@@ -174,9 +174,7 @@ func runBGPPeersHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 				o.Password = &secret
 			},
 			assert: func(t *testing.T, p *client.BGPPeer) {
-				if !p.HasPassword {
-					t.Fatalf("HasPassword after set: got false, want true")
-				}
+				Assert(t, p.HasPassword, "HasPassword after set: got false, want true")
 			},
 		},
 		{

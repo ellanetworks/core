@@ -35,9 +35,7 @@ func TestFlowReportsSmoke(t *testing.T) {
 	baseline.Policy(fixture.DefaultPolicySpec())
 
 	sc, ok := scenarios.Get(fp.scenarioAllowed)
-	if !ok {
-		t.Fatalf("scenario %q not registered", fp.scenarioAllowed)
-	}
+	Assert(t, ok, fmt.Sprintf("scenario %q not registered", fp.scenarioAllowed))
 
 	scenariosEnv := buildScenariosEnv(env)
 

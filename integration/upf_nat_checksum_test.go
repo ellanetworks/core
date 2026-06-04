@@ -74,9 +74,7 @@ func TestUPFNATChecksum(t *testing.T) {
 	})
 
 	sc, ok := scenarios.Get(natChecksumScenario)
-	if !ok {
-		t.Fatalf("scenario %q not registered", natChecksumScenario)
-	}
+	Assert(t, ok, fmt.Sprintf("scenario %q not registered", natChecksumScenario))
 
 	fx := fixture.New(t, ctx, env.Client)
 	fx.Apply(sc.Fixture(buildScenariosEnv(env)))
@@ -183,10 +181,8 @@ func verifyNATChecksumPcap(t *testing.T, path string) {
 			N6RouterIPv4Address(), scenarios.DefaultProbePort)
 	}
 
-	if !natSeen {
-		t.Fatalf("captured %d frames but none sourced from %s; source_nat did not run (NAT disabled?)",
-			total, natChecksumPostNATSrc)
-	}
+	Assert(t, natSeen, fmt.Sprintf("captured %d frames but none sourced from %s; source_nat did not run (NAT disabled?)",
+		total, natChecksumPostNATSrc))
 
 	if largest <= natChecksumL4Threshold {
 		t.Fatalf("captured %d frames but largest L4 datagram was %d bytes (<= %d); no >512 B datagram was exercised",
