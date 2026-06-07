@@ -13,6 +13,20 @@ import (
 
 // TS 23.502 4.9.1
 func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, msg decode.PathSwitchRequest) {
+	// TS 38.413 §8.4.4.4: a to-be-switched downlink list that repeats a PDU
+	// Session ID is an abnormal condition the AMF rejects with a Path Switch
+	// Request Failure.
+	if id, dup := duplicatePDUSessionID(msg.PDUSessionResourceItems); dup {
+		logger.WithTrace(ctx, ran.Log).Error("duplicate PDU Session ID in PathSwitchRequest to-be-switched list", zap.Int64("pduSessionID", id))
+
+		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, msg.SourceAMFUENGAPID, msg.RANUENGAPID, nil, nil)
+		if err != nil {
+			logger.WithTrace(ctx, ran.Log).Error("error sending path switch request failure", zap.Error(err))
+		}
+
+		return
+	}
+
 	ranUe := amfInstance.FindRanUeByAmfUeNgapID(msg.SourceAMFUENGAPID)
 	if ranUe == nil {
 		logger.WithTrace(ctx, ran.Log).Error("Cannot find UE from sourceAMfUeNgapID", zap.Int64("sourceAMFUENGAPID", msg.SourceAMFUENGAPID))

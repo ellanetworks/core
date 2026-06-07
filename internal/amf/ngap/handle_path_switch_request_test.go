@@ -540,6 +540,88 @@ func TestPathSwitchRequest_HappyPath(t *testing.T) {
 	}
 }
 
+// TestPathSwitchRequest_DuplicatePDUSessionIDs verifies TS 38.413 §8.4.4.4: a
+// to-be-switched downlink list that repeats a PDU Session ID is rejected with a
+// Path Switch Request Failure, even for an otherwise-switchable UE context, and
+// neither the SMF nor an acknowledge is invoked.
+func TestPathSwitchRequest_DuplicatePDUSessionIDs(t *testing.T) {
+	const (
+		pduSessionID      = uint8(1)
+		sourceAmfUeNgapID = int64(10)
+		targetRanUeNgapID = int64(2)
+		kamfHex           = "0000000000000000000000000000000000000000000000000000000000000000"
+	)
+
+	sourceNGAPSender := &FakeNGAPSender{}
+	sourceRan := &amf.Radio{
+		Log:        logger.AmfLog,
+		NGAPSender: sourceNGAPSender,
+		RanUEs:     make(map[int64]*amf.RanUe),
+	}
+
+	amfUe := newValidAmfUe()
+	amfUe.Current().Kamf = kamfHex
+	amfUe.Current().SmContextList[pduSessionID] = &amf.SmContext{
+		Ref:    "imsi-001010000000001-1",
+		Snssai: &models.Snssai{Sst: 1},
+	}
+
+	sourceUe := amf.NewRanUeForTest(sourceRan, 1, sourceAmfUeNgapID, logger.AmfLog)
+	amfUe.AttachRanUe(sourceUe)
+
+	targetNGAPSender := &FakeNGAPSender{}
+	targetRan := &amf.Radio{
+		Log:        logger.AmfLog,
+		NGAPSender: targetNGAPSender,
+		RanUEs:     make(map[int64]*amf.RanUe),
+	}
+
+	fakeSmf := &FakeSmfSbi{PathSwitchResponse: []byte{0xAA, 0xBB, 0xCC}}
+	amfInstance := newTestAMFWithSmf(fakeSmf)
+	amfInstance.Radios[new(sctp.SCTPConn)] = sourceRan
+
+	transfer, err := buildPathSwitchRequestTransfer(5000, []byte{10, 0, 0, 2})
+	if err != nil {
+		t.Fatalf("failed to build transfer: %v", err)
+	}
+
+	// PDU Session ID 1 listed twice.
+	msg := buildPathSwitchRequest(
+		&ngapType.AMFUENGAPID{Value: sourceAmfUeNgapID},
+		&ngapType.RANUENGAPID{Value: targetRanUeNgapID},
+		&ngapType.PDUSessionResourceToBeSwitchedDLList{
+			List: []ngapType.PDUSessionResourceToBeSwitchedDLItem{
+				{PDUSessionID: ngapType.PDUSessionID{Value: int64(pduSessionID)}, PathSwitchRequestTransfer: transfer},
+				{PDUSessionID: ngapType.PDUSessionID{Value: int64(pduSessionID)}, PathSwitchRequestTransfer: transfer},
+			},
+		},
+		nil, nil,
+	)
+
+	ngap.HandlePathSwitchRequest(context.Background(), amfInstance, targetRan, decodePathSwitchRequestOrFatal(t, msg))
+
+	if len(targetNGAPSender.SentPathSwitchRequestFailures) != 1 {
+		t.Fatalf("expected 1 PathSwitchRequestFailure, got %d", len(targetNGAPSender.SentPathSwitchRequestFailures))
+	}
+
+	failure := targetNGAPSender.SentPathSwitchRequestFailures[0]
+	if failure.AmfUeNgapID != sourceAmfUeNgapID {
+		t.Errorf("expected AmfUeNgapID=%d, got %d", sourceAmfUeNgapID, failure.AmfUeNgapID)
+	}
+
+	if failure.RanUeNgapID != targetRanUeNgapID {
+		t.Errorf("expected RanUeNgapID=%d, got %d", targetRanUeNgapID, failure.RanUeNgapID)
+	}
+
+	if len(targetNGAPSender.SentPathSwitchRequestAcknowledges) != 0 {
+		t.Errorf("expected no PathSwitchRequestAcknowledge, got %d", len(targetNGAPSender.SentPathSwitchRequestAcknowledges))
+	}
+
+	if len(fakeSmf.PathSwitchCalls) != 0 {
+		t.Errorf("expected no SMF PathSwitch call, got %d", len(fakeSmf.PathSwitchCalls))
+	}
+}
+
 func TestPathSwitchRequest_MultiplePDUSessions_PartialSuccess(t *testing.T) {
 	sourceNGAPSender := &FakeNGAPSender{}
 	sourceRan := &amf.Radio{
