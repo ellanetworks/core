@@ -18,11 +18,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	// Request Failure.
 	if id, dup := duplicatePDUSessionID(msg.PDUSessionResourceItems); dup {
 		logger.WithTrace(ctx, ran.Log).Error("duplicate PDU Session ID in PathSwitchRequest to-be-switched list", zap.Int64("pduSessionID", id))
-
-		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, msg.SourceAMFUENGAPID, msg.RANUENGAPID, nil, nil)
-		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending path switch request failure", zap.Error(err))
-		}
+		sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentMultiplePDUSessionIDInstances)
 
 		return
 	}
@@ -30,12 +26,7 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	ranUe := amfInstance.FindRanUeByAmfUeNgapID(msg.SourceAMFUENGAPID)
 	if ranUe == nil {
 		logger.WithTrace(ctx, ran.Log).Error("Cannot find UE from sourceAMfUeNgapID", zap.Int64("sourceAMFUENGAPID", msg.SourceAMFUENGAPID))
-
-		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, msg.SourceAMFUENGAPID, msg.RANUENGAPID, nil, nil)
-		if err != nil {
-			logger.WithTrace(ctx, ran.Log).Error("error sending path switch request failure", zap.Error(err))
-			return
-		}
+		sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnknownLocalUENGAPID)
 
 		return
 	}
@@ -46,24 +37,14 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	amfUe := ranUe.AmfUe()
 	if amfUe == nil {
 		logger.WithTrace(ctx, ranUe.Log).Error("AmfUe is nil")
-
-		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, msg.SourceAMFUENGAPID, msg.RANUENGAPID, nil, nil)
-		if err != nil {
-			logger.WithTrace(ctx, ranUe.Log).Error("error sending path switch request failure", zap.Error(err))
-			return
-		}
+		sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnspecified)
 
 		return
 	}
 
 	if !amfUe.SecurityContextIsValid() {
 		logger.WithTrace(ctx, ranUe.Log).Error("No Security Context", logger.SUPI(amfUe.Supi.String()))
-
-		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, msg.SourceAMFUENGAPID, msg.RANUENGAPID, nil, nil)
-		if err != nil {
-			logger.WithTrace(ctx, ranUe.Log).Error("error sending path switch request failure", zap.Error(err))
-			return
-		}
+		sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnspecified)
 
 		return
 	}
@@ -75,9 +56,8 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 	ranUe.UpdateLocation(ctx, amfInstance, msg.UserLocationInformation.Raw())
 
 	var (
-		pduSessionResourceSwitchedList       ngapType.PDUSessionResourceSwitchedList
-		pduSessionResourceReleasedListPSAck  ngapType.PDUSessionResourceReleasedListPSAck
-		pduSessionResourceReleasedListPSFail ngapType.PDUSessionResourceReleasedListPSFail
+		pduSessionResourceSwitchedList      ngapType.PDUSessionResourceSwitchedList
+		pduSessionResourceReleasedListPSAck ngapType.PDUSessionResourceReleasedListPSAck
 	)
 
 	for _, item := range msg.PDUSessionResourceItems {
@@ -165,18 +145,10 @@ func HandlePathSwitchRequest(ctx context.Context, amfInstance *amf.AMF, ran *amf
 			logger.WithTrace(ctx, ranUe.Log).Error("error sending path switch request acknowledge", zap.Error(err))
 			return
 		}
-	} else if len(pduSessionResourceReleasedListPSFail.List) > 0 {
-		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, msg.SourceAMFUENGAPID, msg.RANUENGAPID, &pduSessionResourceReleasedListPSFail, nil)
-		if err != nil {
-			logger.WithTrace(ctx, ranUe.Log).Error("error sending path switch request failure", zap.Error(err))
-			return
-		}
 	} else {
-		err := ran.NGAPSender.SendPathSwitchRequestFailure(ctx, msg.SourceAMFUENGAPID, msg.RANUENGAPID, nil, nil)
-		if err != nil {
-			logger.WithTrace(ctx, ranUe.Log).Error("error sending path switch request failure", zap.Error(err))
-			return
-		}
+		// TS 38.413 §8.4.4.3: no PDU session switched, so the whole path switch
+		// fails and every requested session is released.
+		sendPathSwitchRequestFailure(ctx, ran, msg, ngapType.CauseRadioNetworkPresentUnspecified)
 	}
 }
 

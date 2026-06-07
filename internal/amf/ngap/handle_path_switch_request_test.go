@@ -351,6 +351,17 @@ func TestPathSwitchRequest_SmContextNotFound(t *testing.T) {
 		t.Fatalf("expected 1 PathSwitchRequestFailure, got %d",
 			len(targetNGAPSender.SentPathSwitchRequestFailures))
 	}
+
+	// TS 38.413 §9.2.3.10: the failure must name the unswitched session in its
+	// mandatory PDU Session Resource Released List.
+	released := targetNGAPSender.SentPathSwitchRequestFailures[0].PduSessionResourceReleasedList
+	if released == nil || len(released.List) != 1 {
+		t.Fatalf("failure must carry a released list naming the unswitched session (TS 38.413 §9.2.3.10); got %v", released)
+	}
+
+	if released.List[0].PDUSessionID.Value != 1 {
+		t.Errorf("released PDU session ID = %d, want 1", released.List[0].PDUSessionID.Value)
+	}
 }
 
 func TestPathSwitchRequest_SmfReturnsError(t *testing.T) {
@@ -611,6 +622,16 @@ func TestPathSwitchRequest_DuplicatePDUSessionIDs(t *testing.T) {
 
 	if failure.RanUeNgapID != targetRanUeNgapID {
 		t.Errorf("expected RanUeNgapID=%d, got %d", targetRanUeNgapID, failure.RanUeNgapID)
+	}
+
+	// The duplicated PDU Session ID appears once in the mandatory released list
+	// (TS 38.413 §9.2.3.10).
+	if failure.PduSessionResourceReleasedList == nil || len(failure.PduSessionResourceReleasedList.List) != 1 {
+		t.Fatalf("failure must carry a deduplicated released list (TS 38.413 §9.2.3.10); got %v", failure.PduSessionResourceReleasedList)
+	}
+
+	if got := failure.PduSessionResourceReleasedList.List[0].PDUSessionID.Value; got != int64(pduSessionID) {
+		t.Errorf("released PDU session ID = %d, want %d", got, pduSessionID)
 	}
 
 	if len(targetNGAPSender.SentPathSwitchRequestAcknowledges) != 0 {
