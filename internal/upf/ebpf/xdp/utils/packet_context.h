@@ -49,5 +49,8 @@ struct packet_context {
 	struct gtpuhdr *gtp;
 	struct icmphdr *icmp;
 	struct vlan_hdr *vlan;
+	/* Length of the GTP-U header parse_gtp consumed: mandatory header plus the
+	 * optional word and any extension headers. Drives uplink decapsulation. */
+	__u32 gtp_hdr_len;
 	__u8 interface : 1;
 };

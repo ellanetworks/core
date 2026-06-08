@@ -232,6 +232,37 @@ func TestGTPDecapsulation(t *testing.T) {
 	}
 }
 
+// TestGTPDecapsulationStackedExtHeaders checks that an uplink G-PDU whose GTP
+// header carries more than the single PDU Session Container extension header is
+// decapsulated by stripping the actual parsed header length: the recovered inner
+// packet must be byte-identical. It guards the variable-length header handling
+// against a regression to a fixed-size strip.
+func TestGTPDecapsulationStackedExtHeaders(t *testing.T) {
+	requireProgTestRun(t)
+
+	const teid = 0x21222326
+
+	obj := loadN3N6Program(t)
+	putForwardingUplinkPDR(t, obj, teid, 0)
+
+	inner := innerIPv4UDP([4]byte{8, 8, 8, 8}, 53)
+
+	action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc,
+		gtpHeaderTwoExtHeaders(teid, inner))
+
+	if action == XDP_DROP || action == XDP_ABORTED {
+		t.Fatalf("decapsulated packet got XDP action %d, want a forwarding action", action)
+	}
+
+	if len(out) != ethHdrLen+len(inner) {
+		t.Fatalf("decapsulated frame length = %d, want %d", len(out), ethHdrLen+len(inner))
+	}
+
+	if !bytes.Equal(out[ethHdrLen:], inner) {
+		t.Fatalf("inner packet altered by decapsulation:\n got %x\nwant %x", out[ethHdrLen:], inner)
+	}
+}
+
 // TestGTPDecapsulationInnerIPv6 checks that an uplink G-PDU carrying an inner
 // IPv6 packet is decapsulated to that IPv6 packet, with the Ethernet protocol
 // set to IPv6.

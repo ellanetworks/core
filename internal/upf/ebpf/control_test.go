@@ -81,6 +81,37 @@ func TestGTPControlMessages(t *testing.T) {
 	}
 }
 
+// TestGTPEchoRequestWithSequenceNumber checks that a GTP-U Echo Request carrying
+// a sequence number (S flag set) but no extension header is answered. This is a
+// conformant message (TS 29.281 §5.1, §7.2.1) and the form a real NG-RAN node
+// uses for N3 path supervision.
+//
+// It fails today: parse_gtp assumes a fixed 4-byte extension header is present
+// whenever any of E/S/PN is set (it skips sizeof(gtp_hdr_ext) + 4 = 8 bytes), so
+// it cannot parse the 12-byte header and drops the message instead of answering.
+func TestGTPEchoRequestWithSequenceNumber(t *testing.T) {
+	requireProgTestRun(t)
+
+	obj := loadN3N6Program(t)
+
+	const (
+		gtpEchoRequest  = 1
+		gtpEchoResponse = 2
+	)
+
+	in := gtpControlFrameSeq(gtpEchoRequest, 0x1234)
+
+	action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, in)
+
+	if action != XDP_TX {
+		t.Fatalf("Echo Request with a sequence number (S=1, no extension header) got XDP action %d, want XDP_TX (%d) — the UPF must answer it (TS 29.281 §7.2.1)", action, XDP_TX)
+	}
+
+	if got := out[ethHdrLen+20+8+1]; got != gtpEchoResponse {
+		t.Errorf("GTP message type = %d, want %d (echo response)", got, gtpEchoResponse)
+	}
+}
+
 // TestRouterSolicitationIntercept checks that an inner ICMPv6 Router
 // Solicitation, after decapsulation, is intercepted: the packet is dropped AND
 // its TEID and UE source address are emitted to userspace on rs_event_map. The

@@ -52,6 +52,16 @@ volatile const int n3_vlan = 0;
 volatile const int n6_vlan;
 volatile const int n6_vlan = 0;
 
+/* Upper bound on the GTP-U extension-header chain the parser walks, so the
+ * verifier sees a bounded loop. N3 traffic carries at most the PDU Session
+ * Container; the margin tolerates a short chain. */
+#define GTP_MAX_EXT_HEADERS 4
+
+/* Upper bound on the total parsed GTP-U header length (mandatory header +
+ * optional word + extension headers). Bounds the value for the verifier and
+ * caps pathological chains; far above any N3 header (typically 16 octets). */
+#define GTP_MAX_HDR_LEN 64
+
 static __always_inline __u32 parse_gtp(struct packet_context *ctx)
 {
 	struct gtpuhdr *gtp = (struct gtpuhdr *)ctx->data;
@@ -59,14 +69,69 @@ static __always_inline __u32 parse_gtp(struct packet_context *ctx)
 		return -1;
 
 	ctx->data += sizeof(*gtp);
+	__u32 hdr_len = sizeof(*gtp);
+
+	/* The optional word (sequence number, N-PDU number, next-extension-header
+	 * type) is present if any of E/S/PN is set. Extension headers follow it
+	 * only when E is set (TS 29.281 §5.1, §5.2). */
 	if (gtp->e || gtp->s || gtp->pn) {
-		if ((const void *)ctx->data + sizeof(struct gtp_hdr_ext) + 4 >
-		    ctx->data_end)
+		struct gtp_hdr_ext *opt = (struct gtp_hdr_ext *)ctx->data;
+		if ((const void *)(opt + 1) > ctx->data_end)
 			return -1;
-		ctx->data += sizeof(struct gtp_hdr_ext) + 4;
+
+		__u8 next_ext = opt->next_ext;
+		ctx->data += sizeof(struct gtp_hdr_ext);
+		hdr_len += sizeof(struct gtp_hdr_ext);
+
+		if (gtp->e) {
+#pragma unroll
+			for (int i = 0; i < GTP_MAX_EXT_HEADERS; i++) {
+				if (next_ext == 0)
+					break;
+
+				__u8 *ext = (__u8 *)ctx->data;
+				if ((const void *)(ext + 1) > ctx->data_end)
+					return -1;
+
+				/* Length is in 4-octet units; the extension header's
+				 * last octet is the next-extension-header type. */
+				__u32 ext_len = (__u32)ext[0] * 4;
+				if (ext_len == 0 ||
+				    hdr_len + ext_len > GTP_MAX_HDR_LEN ||
+				    (const void *)(ext + ext_len) > ctx->data_end)
+					return -1;
+
+				next_ext = ext[ext_len - 1];
+				ctx->data += ext_len;
+				hdr_len += ext_len;
+			}
+
+			if (next_ext != 0)
+				return -1;
+		}
 	}
+
 	ctx->gtp = gtp;
+	ctx->gtp_hdr_len = hdr_len;
 	return gtp->message_type;
+}
+
+/* Bytes to strip when decapsulating an uplink GTP-U packet, excluding any VLAN
+ * tag: outer IP + UDP + the GTP-U header parse_gtp actually consumed. The
+ * Ethernet header is preserved (rewritten in place), so it is not counted.
+ * Returns 0 when the parsed header length is out of range. */
+static __always_inline __u32
+gtp_decap_size_no_vlan(const struct packet_context *ctx, __u8 outer_header_removal)
+{
+	__u32 gtp_hdr_len = ctx->gtp_hdr_len;
+	if (gtp_hdr_len < sizeof(struct gtpuhdr) || gtp_hdr_len > GTP_MAX_HDR_LEN)
+		return 0;
+
+	__u32 outer_ip_size = (outer_header_removal == OHR_GTP_U_UDP_IPv6) ?
+				      sizeof(struct ipv6hdr) :
+				      sizeof(struct iphdr);
+
+	return outer_ip_size + sizeof(struct udphdr) + gtp_hdr_len;
 }
 
 static __always_inline void swap_ip6(struct ipv6hdr *ip6)
@@ -122,18 +187,12 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx,
 		return -1;
 	}
 
-	size_t ext_gtp_header_size = 0;
-	struct gtpuhdr *gtp = ctx->gtp;
-	if (gtp->e || gtp->s || gtp->pn)
-		ext_gtp_header_size += sizeof(struct gtp_hdr_ext) + 4;
-
-	size_t outer_ip_size = (outer_header_removal == OHR_GTP_U_UDP_IPv6) ?
-				       sizeof(struct ipv6hdr) :
-				       sizeof(struct iphdr);
-
-	const size_t gtp_encap_size_no_vlan =
-		outer_ip_size + sizeof(struct udphdr) + sizeof(struct gtpuhdr) +
-		ext_gtp_header_size;
+	const __u32 gtp_encap_size_no_vlan =
+		gtp_decap_size_no_vlan(ctx, outer_header_removal);
+	if (gtp_encap_size_no_vlan == 0) {
+		upf_printk("upf: remove_gtp_header: bad gtp header length");
+		return -1;
+	}
 
 	void *data = (void *)(long)ctx->xdp_ctx->data;
 	const void *data_end = (const void *)(long)ctx->xdp_ctx->data_end;
@@ -143,62 +202,62 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx,
 		return -1;
 	}
 
-	size_t vlan_hdr_size = 0;
+	/* Preserve the L2 addresses; the rewritten header below carries them. */
+	struct ethhdr saved_eth;
+	__builtin_memcpy(&saved_eth, eth, sizeof(saved_eth));
+
+	__u32 in_vlan_size = 0;
 	if (eth->h_proto == bpf_htons(ETH_P_8021Q) ||
 	    eth->h_proto == bpf_htons(ETH_P_8021AD)) {
 		upf_printk("upf: remove_gtp_header: detected vlan header");
-		vlan_hdr_size += sizeof(struct vlan_hdr);
+		in_vlan_size = sizeof(struct vlan_hdr);
 	}
-	size_t gtp_encap_size = vlan_hdr_size + gtp_encap_size_no_vlan;
+	__u32 out_vlan_size = n6_vlan ? sizeof(struct vlan_hdr) : 0;
 
-	data += gtp_encap_size;
+	/* Strip the input VLAN tag (if any) and the outer IP/UDP/GTP headers,
+	 * keeping headroom for the Ethernet header and an optional output VLAN
+	 * tag. Resizing first lets every rewrite below use a fixed offset from
+	 * the new packet start, which the verifier can bound even though the
+	 * stripped GTP header length varies. */
+	long result = bpf_xdp_adjust_head(
+		ctx->xdp_ctx,
+		(__s32)(in_vlan_size + gtp_encap_size_no_vlan - out_vlan_size));
+	if (result)
+		return result;
 
-	data += sizeof(struct ethhdr);
-	if (data + 1 > data_end)
-		return -1;
+	data = (void *)(long)ctx->xdp_ctx->data;
+	data_end = (const void *)(long)ctx->xdp_ctx->data_end;
 
-	int eth_proto = guess_eth_protocol(data);
-
-	if (eth_proto == -1)
-		return -1;
-
-	struct ethhdr *new_eth =
-		(struct ethhdr *)(data - sizeof(struct ethhdr));
+	struct ethhdr *new_eth = (struct ethhdr *)data;
 	if ((const void *)(new_eth + 1) > data_end) {
 		upf_printk("upf: remove_gtp_header: can't set new eth");
 		return -1;
 	}
+	__builtin_memcpy(new_eth, &saved_eth, sizeof(*new_eth));
+
 	if (n6_vlan) {
-		struct vlan_hdr *vlan =
-			(struct vlan_hdr *)(data - sizeof(struct vlan_hdr));
-		new_eth = (struct ethhdr *)(data - sizeof(struct vlan_hdr) -
-					    sizeof(struct ethhdr));
-		if ((const void *)(new_eth + 1) > data_end) {
-			upf_printk("upf: remove_gtp_header: can't set new eth");
+		struct vlan_hdr *vlan = (struct vlan_hdr *)(new_eth + 1);
+		const __u8 *inner = (const __u8 *)(vlan + 1);
+		if ((const void *)(inner + 1) > data_end) {
+			upf_printk("upf: remove_gtp_header: can't set new vlan");
 			return -1;
 		}
-		if ((const void *)(vlan + 1) > data_end) {
-			upf_printk(
-				"upf: remove_gtp_header: can't set new vlan");
+		int eth_proto = guess_eth_protocol(inner);
+		if (eth_proto == -1)
 			return -1;
-		}
 		vlan->h_vlan_TCI = bpf_htons(n6_vlan & 0x0FFF);
 		vlan->h_vlan_encapsulated_proto = eth_proto;
-		eth_proto = bpf_htons(ETH_P_8021Q);
-		gtp_encap_size -= sizeof(struct vlan_hdr);
+		new_eth->h_proto = bpf_htons(ETH_P_8021Q);
+	} else {
+		const __u8 *inner = (const __u8 *)(new_eth + 1);
+		if ((const void *)(inner + 1) > data_end)
+			return -1;
+		int eth_proto = guess_eth_protocol(inner);
+		if (eth_proto == -1)
+			return -1;
+		new_eth->h_proto = eth_proto;
 	}
 
-	__builtin_memcpy(new_eth, eth, sizeof(*new_eth));
-
-	new_eth->h_proto = eth_proto;
-
-	long result = bpf_xdp_adjust_head(ctx->xdp_ctx, gtp_encap_size);
-	if (result)
-		return result;
-
-	/* Update packet pointers */
-	data = (void *)(long)ctx->xdp_ctx->data;
-	data_end = (const void *)(long)ctx->xdp_ctx->data_end;
 	return context_reinit(ctx, data, data_end);
 }
 
