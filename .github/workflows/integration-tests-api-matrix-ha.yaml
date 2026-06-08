@@ -33,9 +33,11 @@ jobs:
 
       - name: Run API matrix HA integration test
         env:
+          INTEGRATION: "1"
+          IP_VERSION: ipv4
           HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
         run: |
-          INTEGRATION=1 IP_VERSION=ipv4 go test ./integration -run TestAPIMatrixHA -v -timeout 15m
+          go test ./integration -run TestAPIMatrixHA -v -timeout 15m
 
       - name: Upload cluster logs
         if: always()

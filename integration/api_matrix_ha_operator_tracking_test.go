@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
@@ -47,9 +48,7 @@ func runOperatorTrackingHAMatrix(ctx context.Context, t *testing.T, h *haMatrixE
 					t.Fatalf("node %d get operator after update: %v", i+1, err)
 				}
 
-				if !equalStringSlices(op.Tracking.SupportedTacs, tc.tacs) {
-					t.Fatalf("node %d SupportedTacs: got %v, want %v", i+1, op.Tracking.SupportedTacs, tc.tacs)
-				}
+				Assert(t, equalStringSlices(op.Tracking.SupportedTacs, tc.tacs), fmt.Sprintf("node %d SupportedTacs: got %v, want %v", i+1, op.Tracking.SupportedTacs, tc.tacs))
 			}
 		})
 	}

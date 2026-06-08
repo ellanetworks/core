@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -62,13 +63,9 @@ func runOperatorCodeHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) 
 			}
 
 			msg := err.Error()
-			if !strings.Contains(msg, n.want) {
-				t.Fatalf("error message: got %q, want substring %q", msg, n.want)
-			}
+			Assert(t, strings.Contains(msg, n.want), fmt.Sprintf("error message: got %q, want substring %q", msg, n.want))
 
-			if !strings.Contains(msg, "400") {
-				t.Fatalf("expected 400 status, got %q", msg)
-			}
+			Assert(t, strings.Contains(msg, "400"), fmt.Sprintf("expected 400 status, got %q", msg))
 		})
 	}
 }

@@ -73,9 +73,7 @@ func runUsersHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 			t.Fatalf("node %d count after create: got %d, want %d", i+1, list.TotalCount, baseline+1)
 		}
 
-		if !contains(list.Items, email) {
-			t.Fatalf("node %d list after create missing %q", i+1, email)
-		}
+		Assert(t, contains(list.Items, email), fmt.Sprintf("node %d list after create missing %q", i+1, email))
 	}
 
 	t.Run("update_RoleID", func(t *testing.T) {

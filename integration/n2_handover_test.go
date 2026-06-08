@@ -62,8 +62,10 @@ func TestIntegrationN2Handover(t *testing.T) {
 		for _, svc := range []string{"ella-core", "ella-core-tester"} {
 			logs, logErr := dc.ComposeLogs(cleanupCtx, composeDir, svc)
 			if logErr != nil {
-				t.Logf("=== %s logs: collection failed: %v ===", svc, logErr)
-			} else {
+				if t.Failed() {
+					t.Logf("=== %s logs: collection failed: %v ===", svc, logErr)
+				}
+			} else if t.Failed() {
 				t.Logf("=== %s logs ===\n%s", svc, logs)
 			}
 		}

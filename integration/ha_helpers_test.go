@@ -18,11 +18,11 @@ const haComposeDir = "compose/ha/"
 
 var haNodeServices = []string{"ella-core-1", "ella-core-2", "ella-core-3"}
 
-// captureClusterLogs emits each service's container logs via t.Logf
-// and, if HA_CLUSTER_LOG_DIR is set, also writes them to
-// <dir>/<test-name>/<service>.log for CI artifact upload. Safe to call
-// with no clients (e.g. on bring-up failure).
-func captureClusterLogs(t *testing.T, dc *DockerClient, composeDir string, services []string) {
+// captureClusterLogs collects each service's container logs and writes
+// them to <HA_CLUSTER_LOG_DIR>/<test-name>/<service>.log for CI artifact
+// upload. If printLogs is true, logs are also emitted via t.Logf.
+// Safe to call with no clients (e.g. on bring-up failure).
+func captureClusterLogs(t *testing.T, dc *DockerClient, composeDir string, services []string, printLogs bool) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -42,11 +42,16 @@ func captureClusterLogs(t *testing.T, dc *DockerClient, composeDir string, servi
 	for _, svc := range services {
 		logs, err := dc.ComposeLogs(ctx, composeDir, svc)
 		if err != nil {
-			t.Logf("=== %s logs: collection failed: %v ===", svc, err)
+			if printLogs {
+				t.Logf("=== %s logs: collection failed: %v ===", svc, err)
+			}
+
 			continue
 		}
 
-		t.Logf("=== %s logs ===\n%s", svc, logs)
+		if printLogs {
+			t.Logf("=== %s logs ===\n%s", svc, logs)
+		}
 
 		if diskDir != "" {
 			path := filepath.Join(diskDir, svc+".log")
@@ -92,7 +97,7 @@ func bringUpHAClusterAt(t *testing.T, ctx context.Context, dc *DockerClient, com
 	dc.ComposeCleanup(ctx)
 
 	fail := func(err error) ([]*client.Client, error) {
-		captureClusterLogs(t, dc, composeDir, services)
+		captureClusterLogs(t, dc, composeDir, services, true)
 		return nil, err
 	}
 
@@ -588,7 +593,7 @@ func waitForAutopilotReportsUnhealthy(ctx context.Context, leader *client.Client
 func dumpClusterDiagnostics(t *testing.T, ctx context.Context, dc *DockerClient, composeDir string, services []string, clients []*client.Client) {
 	t.Helper()
 
-	captureClusterLogs(t, dc, composeDir, services)
+	captureClusterLogs(t, dc, composeDir, services, t.Failed())
 
 	for i, svc := range services {
 		if i >= len(clients) {
@@ -802,7 +807,7 @@ func bringUpHAFQDNClusterAt(t *testing.T, ctx context.Context, dc *DockerClient,
 	dc.ComposeCleanup(ctx)
 
 	fail := func(err error) ([]*client.Client, error) {
-		captureClusterLogs(t, dc, composeDir, services)
+		captureClusterLogs(t, dc, composeDir, services, true)
 		return nil, err
 	}
 

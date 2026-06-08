@@ -111,9 +111,9 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 		for _, svc := range []string{"ella-core-1", "ella-core-2", "ella-core-3"} {
 			logs, logErr := dc.ComposeLogs(cleanupCtx, composeDir, svc)
 			if logErr != nil {
-				t.Logf("=== %s logs: collection failed: %v ===", svc, logErr)
+				HALogf(t, "=== %s logs: collection failed: %v ===", svc, logErr)
 			} else {
-				t.Logf("=== %s logs ===\n%s", svc, logs)
+				HALogf(t, "=== %s logs ===\n%s", svc, logs)
 			}
 		}
 
@@ -210,7 +210,7 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			t.Logf("starting scenario on %s (target core %s)", gn.service, gn.coreN2)
+			HALogf(t, "starting scenario on %s (target core %s)", gn.service, gn.coreN2)
 
 			out, execErr := dc.Exec(ctx, testerContainers[i], argv, false, 5*time.Minute, nil)
 			if execErr != nil {
@@ -222,7 +222,7 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 				return
 			}
 
-			t.Logf("%s scenario completed", gn.service)
+			HALogf(t, "%s scenario completed", gn.service)
 		}()
 	}
 
@@ -233,7 +233,7 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 			len(errs), len(gnbs), strings.Join(errs, "\n\n"))
 	}
 
-	t.Log("all 3 scenarios passed; verifying cluster state")
+	HALog(t, "all 3 scenarios passed; verifying cluster state")
 
 	// AMF state is per-node (UE context is not replicated; see
 	// spec_security_ha.md). Query each gNB's home core for its own

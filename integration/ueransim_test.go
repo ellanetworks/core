@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -186,11 +187,7 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			t.Logf("UERANSIM result: %s", result)
 
-			if !strings.Contains(result, "uesimtun0") {
-				t.Fatalf("expected 'uesimtun0' to be in the result, but it was not found")
-			}
-
-			t.Logf("Verified that 'uesimtun0' is in the result")
+			Assert(t, strings.Contains(result, "uesimtun0"), "'uesimtun0' interface not found in 'ip a' output")
 
 			pingDest := N6RouterIPv4Address()
 			pingCmd := "ping"
@@ -207,15 +204,8 @@ func TestIntegrationUERANSIM(t *testing.T) {
 
 			t.Logf("UERANSIM ping result: %s", result)
 
-			if !strings.Contains(result, "3 packets transmitted, 3 received") {
-				t.Fatalf("expected '3 packets transmitted, 3 received' to be in the result, but it was not found")
-			}
-
-			if !strings.Contains(result, "0% packet loss") {
-				t.Fatalf("expected '0 packet loss' to be in the result, but it was not found")
-			}
-
-			t.Logf("Verified that '3 packets transmitted, 3 received' and '0 packet loss' are in the result")
+			Assert(t, strings.Contains(result, "3 packets transmitted, 3 received"), fmt.Sprintf("expected 3/3 ping packets received, but got: %s", result))
+			Assert(t, strings.Contains(result, "0% packet loss"), fmt.Sprintf("expected 0%% packet loss, but got: %s", result))
 
 			err = dockerClient.CopyFileToContainer(ctx, ueransimContainerName, "network_test.py", "/network_test.py")
 			if err != nil {

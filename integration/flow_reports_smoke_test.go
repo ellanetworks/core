@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -34,9 +35,7 @@ func TestFlowReportsSmoke(t *testing.T) {
 	baseline.Policy(fixture.DefaultPolicySpec())
 
 	sc, ok := scenarios.Get(fp.scenarioAllowed)
-	if !ok {
-		t.Fatalf("scenario %q not registered", fp.scenarioAllowed)
-	}
+	Assert(t, ok, fmt.Sprintf("scenario %q not registered", fp.scenarioAllowed))
 
 	scenariosEnv := buildScenariosEnv(env)
 
@@ -67,7 +66,12 @@ func TestFlowReportsSmoke(t *testing.T) {
 	scenarioStart := time.Now()
 
 	for _, p := range protocols {
-		env.RunScenario(ctx, t, fp.scenarioAllowed, scenarioRunArgs(fp.scenarioAllowed, spec, pps[p])...)
+		pp := pps[p]
+		scenarioName := fmt.Sprintf("%s/%s", fp.scenarioAllowed, p)
+		tr := globalReporter.Start(scenarioName)
+		QuietLogf(t, tr, "running %s", scenarioName)
+		env.RunScenario(ctx, t, fp.scenarioAllowed, tr, scenarioRunArgs(fp.scenarioAllowed, spec, pp)...)
+		finishScenarioTest(t, tr)
 	}
 
 	scenarioEnd := time.Now()

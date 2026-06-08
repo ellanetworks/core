@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
@@ -156,9 +157,7 @@ func runPoliciesMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		t.Fatalf("list count after create: got %d, want %d", afterCreate.TotalCount, baseline.TotalCount+1)
 	}
 
-	if !contains(afterCreate.Items, name) {
-		t.Fatalf("list after create missing %q", name)
-	}
+	Assert(t, contains(afterCreate.Items, name), fmt.Sprintf("list after create missing %q", name))
 
 	updateCases := []struct {
 		field  string
