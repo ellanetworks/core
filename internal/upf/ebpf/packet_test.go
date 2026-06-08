@@ -295,14 +295,32 @@ func gtpControlFrame(msgType uint8) []byte {
 	return ethFrame(0x0800, ipv4Packet(testGNBIP, testUPFN3IP, 17, udpDatagram(3000, GTPUDPPort, gtp)))
 }
 
+// gtpControlFrameSeq builds a GTP-U control frame carrying a sequence number
+// (S flag set): the 8-byte mandatory header plus the 4-octet optional block
+// (sequence number, N-PDU number, next-extension-header-type = 0). It has no
+// extension header — a conformant form (TS 29.281 §5.1) that a real NG-RAN node
+// uses for echo path management.
+func gtpControlFrameSeq(msgType uint8, seq uint16) []byte {
+	gtp := make([]byte, 12)
+	gtp[0] = 0x32 // version=1, PT=1, S=1 (E and PN clear)
+	gtp[1] = msgType
+	binary.BigEndian.PutUint16(gtp[2:4], 4) // length: the 4 optional octets
+	binary.BigEndian.PutUint16(gtp[8:10], seq)
+	// gtp[10] N-PDU number = 0; gtp[11] next-extension-header-type = 0 (none).
+
+	return ethFrame(0x0800, ipv4Packet(testGNBIP, testUPFN3IP, 17, udpDatagram(3000, GTPUDPPort, gtp)))
+}
+
 // gtpV4Outer wraps a GTP-U payload (the GTP header onward) in the
 // Ethernet/IPv4/UDP(2152) outer headers of an N3 uplink frame.
 func gtpV4Outer(gtpPayload []byte) []byte {
 	return ethFrame(0x0800, ipv4Packet(testGNBIP, testUPFN3IP, 17, udpDatagram(GTPUDPPort, GTPUDPPort, gtpPayload)))
 }
 
-// gtpHeader builds a GTP-U G-PDU header: an 8-byte base header with the E flag
-// set plus the 8-byte optional header word, followed by inner.
+// gtpHeader builds a GTP-U G-PDU header as a conformant NG-RAN node sends it on
+// N3: the 8-byte base header (E flag set), the 4-octet optional word, and a PDU
+// Session Container extension header carrying the uplink QFI (TS 29.281 §5.2,
+// TS 38.415), followed by inner.
 func gtpHeader(teid uint32, inner []byte) []byte {
 	const gtpHdrLen = 16
 
@@ -311,6 +329,14 @@ func gtpHeader(teid uint32, inner []byte) []byte {
 	gtp[1] = 0xFF // GTPU_G_PDU
 	binary.BigEndian.PutUint16(gtp[2:4], uint16(gtpHdrLen-8+len(inner)))
 	binary.BigEndian.PutUint32(gtp[4:8], teid)
+	// Optional word: sequence number and N-PDU number zero; the next-extension
+	// header type points to the PDU Session Container.
+	gtp[11] = 0x85 // next extension header type: PDU Session Container
+	// PDU Session Container (one 4-octet unit): UL PDU Session Information.
+	gtp[12] = 0x01 // extension header length in 4-octet units
+	gtp[13] = 0x10 // PDU type 1 (UL) in the high nibble
+	gtp[14] = 0x00 // QFI 0
+	gtp[15] = 0x00 // next extension header type: none
 
 	return append(gtp, inner...)
 }
@@ -319,6 +345,30 @@ func gtpHeader(teid uint32, inner []byte) []byte {
 // Ethernet/IPv4/UDP frame addressed to the GTP-U port.
 func uplinkGPDU(teid uint32, inner []byte) []byte {
 	return gtpV4Outer(gtpHeader(teid, inner))
+}
+
+// gtpHeaderTwoExtHeaders builds an uplink G-PDU whose GTP header chains a generic
+// extension header to the PDU Session Container, making the header 20 octets —
+// longer than the usual 16. It exercises decapsulation that strips the actual
+// parsed header length rather than a fixed size (TS 29.281 §5.2).
+func gtpHeaderTwoExtHeaders(teid uint32, inner []byte) []byte {
+	const gtpHdrLen = 20
+
+	gtp := make([]byte, gtpHdrLen)
+	gtp[0] = 0x34 // version=1, PT=1, E=1
+	gtp[1] = 0xFF // GTPU_G_PDU
+	binary.BigEndian.PutUint16(gtp[2:4], uint16(gtpHdrLen-8+len(inner)))
+	binary.BigEndian.PutUint32(gtp[4:8], teid)
+	gtp[11] = 0xC0 // next extension header type: a first, generic extension
+	// First extension header (one 4-octet unit), chaining to the container.
+	gtp[12] = 0x01 // extension header length in 4-octet units
+	gtp[15] = 0x85 // next extension header type: PDU Session Container
+	// PDU Session Container (one 4-octet unit): UL PDU Session Information.
+	gtp[16] = 0x01 // extension header length in 4-octet units
+	gtp[17] = 0x10 // PDU type 1 (UL) in the high nibble
+	gtp[19] = 0x00 // next extension header type: none
+
+	return gtpV4Outer(append(gtp, inner...))
 }
 
 // gtpV6Outer wraps a GTP-U payload in Ethernet/IPv6/UDP(2152) outer headers (an

@@ -69,9 +69,12 @@ handle_gtp_packet(struct packet_context *ctx)
 
 	PROFILE_START(PROF_N3_MTU_CHECK);
 	__u32 mtu_len = 0;
-	int decap_size = (outer_header_removal == OHR_GTP_U_UDP_IPv6) ?
-				 GTP_ENCAP_SIZE_IPV6 :
-				 GTP_ENCAP_SIZE_IPV4;
+	__u32 decap_no_vlan = gtp_decap_size_no_vlan(ctx, outer_header_removal);
+	if (decap_no_vlan == 0) {
+		PROFILE_END(PROF_N3_MTU_CHECK);
+		return XDP_ABORTED;
+	}
+	int decap_size = decap_no_vlan;
 	long ret = bpf_check_mtu(ctx->xdp_ctx, n6_ifindex, &mtu_len,
 				 -decap_size, 0);
 	PROFILE_END(PROF_N3_MTU_CHECK);
