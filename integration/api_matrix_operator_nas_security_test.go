@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
@@ -65,13 +66,9 @@ func runOperatorNASSecurityMatrix(ctx context.Context, t *testing.T, c *client.C
 				t.Fatalf("get operator after update: %v", err)
 			}
 
-			if !equalStringSlices(op.NASSecurity.Ciphering, tc.opts.Ciphering) {
-				t.Fatalf("Ciphering: got %v, want %v", op.NASSecurity.Ciphering, tc.opts.Ciphering)
-			}
+			Assert(t, equalStringSlices(op.NASSecurity.Ciphering, tc.opts.Ciphering), fmt.Sprintf("Ciphering: got %v, want %v", op.NASSecurity.Ciphering, tc.opts.Ciphering))
 
-			if !equalStringSlices(op.NASSecurity.Integrity, tc.opts.Integrity) {
-				t.Fatalf("Integrity: got %v, want %v", op.NASSecurity.Integrity, tc.opts.Integrity)
-			}
+			Assert(t, equalStringSlices(op.NASSecurity.Integrity, tc.opts.Integrity), fmt.Sprintf("Integrity: got %v, want %v", op.NASSecurity.Integrity, tc.opts.Integrity))
 		})
 	}
 }

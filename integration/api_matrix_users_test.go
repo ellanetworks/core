@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
@@ -70,9 +71,7 @@ func runUsersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		t.Fatalf("list count after create: got %d, want %d", afterCreate.TotalCount, baseline.TotalCount+1)
 	}
 
-	if !contains(afterCreate.Items, email) {
-		t.Fatalf("list after create missing %q", email)
-	}
+	Assert(t, contains(afterCreate.Items, email), fmt.Sprintf("list after create missing %q", email))
 
 	t.Run("update_RoleID", func(t *testing.T) {
 		if err := c.UpdateUser(ctx, email, &client.UpdateUserOptions{RoleID: client.RoleNetworkManager}); err != nil {

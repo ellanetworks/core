@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
@@ -43,9 +44,7 @@ func runOperatorTrackingMatrix(ctx context.Context, t *testing.T, c *client.Clie
 				t.Fatalf("get operator after update: %v", err)
 			}
 
-			if !equalStringSlices(op.Tracking.SupportedTacs, tc.tacs) {
-				t.Fatalf("SupportedTacs: got %v, want %v", op.Tracking.SupportedTacs, tc.tacs)
-			}
+			Assert(t, equalStringSlices(op.Tracking.SupportedTacs, tc.tacs), fmt.Sprintf("SupportedTacs: got %v, want %v", op.Tracking.SupportedTacs, tc.tacs))
 		})
 	}
 }

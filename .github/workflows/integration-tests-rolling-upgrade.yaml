@@ -34,9 +34,10 @@ jobs:
 
       - name: Run rolling-upgrade integration test
         env:
+          INTEGRATION: "1"
           HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
         run: |
-          INTEGRATION=1 go test ./integration/... -run TestIntegrationHARollingUpgrade -v -timeout 15m
+          go test ./integration/... -run TestIntegrationHARollingUpgrade -v -timeout 15m
 
       - name: Upload cluster logs
         if: always()

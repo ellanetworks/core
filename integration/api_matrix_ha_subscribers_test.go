@@ -188,9 +188,7 @@ func runSubscribersHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 			t.Fatalf("node %d count after create: got %d, want %d", i+1, list.TotalCount, baseline+1)
 		}
 
-		if !subscribersContains(list.Items, imsi) {
-			t.Fatalf("node %d list missing %q after create", i+1, imsi)
-		}
+		Assert(t, subscribersContains(list.Items, imsi), fmt.Sprintf("node %d list missing %q after create", i+1, imsi))
 
 		// List response carries a different Status struct than Get-one,
 		// so the defaults are asserted independently.

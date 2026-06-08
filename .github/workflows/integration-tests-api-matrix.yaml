@@ -44,5 +44,9 @@ jobs:
           go-version-file: "go.mod"
 
       - name: Run API matrix integration test
+        env:
+          INTEGRATION: "1"
+          IP_VERSION: ipv4
+          HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
         run: |
-          INTEGRATION=1 IP_VERSION=ipv4 go test ./integration -run '^TestAPIMatrix$' -timeout 10m -v
+          go test ./integration -run '^TestAPIMatrix$' -timeout 10m -v

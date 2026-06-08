@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -114,9 +115,7 @@ func runAPITokensMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 				}
 
 				want, _ := time.Parse(time.RFC3339, tc.wantExpiry)
-				if !got.Equal(want) {
-					t.Fatalf("ExpiresAt: got %q, want %q", created.ExpiresAt, tc.wantExpiry)
-				}
+				Assert(t, got.Equal(want), fmt.Sprintf("ExpiresAt: got %q, want %q", created.ExpiresAt, tc.wantExpiry))
 			}
 
 			if err := c.DeleteUserAPIToken(ctx, email, created.ID); err != nil {

@@ -92,22 +92,22 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 		for i, svc := range nodeServices {
 			logs, logErr := dc.ComposeLogs(cleanupCtx, composeDir, svc)
 			if logErr != nil {
-				t.Logf("=== %s logs: collection failed: %v ===", svc, logErr)
+				HALogf(t, "=== %s logs: collection failed: %v ===", svc, logErr)
 			} else {
-				t.Logf("=== %s logs ===\n%s", svc, logs)
+				HALogf(t, "=== %s logs ===\n%s", svc, logs)
 			}
 
 			if i < len(nodeClients) {
 				status, statusErr := nodeClients[i].GetStatus(cleanupCtx)
 				if statusErr != nil {
-					t.Logf("%s status: unreachable (%v)", svc, statusErr)
+					HALogf(t, "%s status: unreachable (%v)", svc, statusErr)
 				} else {
 					role := "standalone"
 					if status.Cluster != nil {
 						role = status.Cluster.Role
 					}
 
-					t.Logf("%s status: role=%s initialized=%v ready=%v",
+					HALogf(t, "%s status: role=%s initialized=%v ready=%v",
 						svc, role, status.Initialized, status.Ready)
 				}
 			}
@@ -119,10 +119,10 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 				continue
 			}
 
-			t.Logf("cluster members (from node %d):", i+1)
+			HALogf(t, "cluster members (from node %d):", i+1)
 
 			for _, m := range members {
-				t.Logf("  node=%d raft=%s api=%s suffrage=%s isLeader=%v",
+				HALogf(t, "  node=%d raft=%s api=%s suffrage=%s isLeader=%v",
 					m.NodeID, m.RaftAddress, m.APIAddress, m.Suffrage, m.IsLeader)
 			}
 
@@ -156,9 +156,7 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 	// subscriber). Apply it via the spec so this test stays aligned with
 	// the scenario's declared needs.
 	sc, ok := scenarios.Get("ha/failover_connectivity")
-	if !ok {
-		t.Fatalf("scenario ha/failover_connectivity not registered")
-	}
+	Assert(t, ok, "scenario ha/failover_connectivity not registered")
 
 	scenariosEnv := scenarios.Env{
 		CoreN2Addresses: nodeN2Addrs[:],
@@ -185,7 +183,7 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 	leaderService := nodeServices[leaderIdx]
 	orderedN2 := orderLeaderFirst(nodeN2Addrs[:], leaderIdx)
 
-	t.Logf("leader is %s; gNB primary N2 = %s", leaderService, orderedN2[0])
+	HALogf(t, "leader is %s; gNB primary N2 = %s", leaderService, orderedN2[0])
 
 	// Kick off the scenario. Stdout is mirrored to the test log AND
 	// scanned for the PHASE1_DONE marker so we can synchronise the kill.
@@ -212,7 +210,7 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 
 	select {
 	case <-markerCh:
-		t.Logf("phase 1 complete; killing leader %s", leaderService)
+		HALogf(t, "phase 1 complete; killing leader %s", leaderService)
 	case <-ctx.Done():
 		t.Fatalf("timed out waiting for phase-1 marker: %v", ctx.Err())
 	case runErr := <-scenarioErr:
@@ -243,7 +241,7 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 		t.Fatalf("scenario did not exit: %v", ctx.Err())
 	}
 
-	t.Log("failover scenario passed both phases")
+	HALog(t, "failover scenario passed both phases")
 }
 
 // bringUpHA3GPPCluster stages a 3-node HA cluster specifically for this
@@ -311,7 +309,7 @@ func bringUpHA3GPPCluster(t *testing.T, ctx context.Context, dc *DockerClient, c
 	dc.ComposeCleanup(ctx)
 
 	fail := func(err error) (string, []*client.Client, error) {
-		captureClusterLogs(t, dc, composeDir, nodeServices)
+		captureClusterLogs(t, dc, composeDir, nodeServices, true)
 		return "", nil, err
 	}
 

@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -89,10 +90,8 @@ func runPolicyRulesHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 			t.Fatalf("node %d get after create: %v", i+1, err)
 		}
 
-		if !rulesEqual(got.Rules, initialRules) {
-			t.Fatalf("node %d post-create rules mismatch:\ngot  %s\nwant %s",
-				i+1, formatRules(got.Rules), formatRules(initialRules))
-		}
+		Assert(t, rulesEqual(got.Rules, initialRules), fmt.Sprintf("node %d post-create rules mismatch:\ngot  %s\nwant %s",
+			i+1, formatRules(got.Rules), formatRules(initialRules)))
 	}
 
 	t.Run("update_replace", func(t *testing.T) {
@@ -114,10 +113,8 @@ func runPolicyRulesHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 
 		for i, c := range nodes {
 			got := mustGetPolicy(ctx, t, c, policyName)
-			if !rulesEqual(got.Rules, replaced) {
-				t.Fatalf("node %d rules after replace:\ngot  %s\nwant %s",
-					i+1, formatRules(got.Rules), formatRules(replaced))
-			}
+			Assert(t, rulesEqual(got.Rules, replaced), fmt.Sprintf("node %d rules after replace:\ngot  %s\nwant %s",
+				i+1, formatRules(got.Rules), formatRules(replaced)))
 		}
 	})
 
@@ -195,10 +192,8 @@ func runPolicyRulesHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 				t.Fatalf("node %d Var5qi: got %d, want 5", i+1, got.Var5qi)
 			}
 
-			if !rulesEqual(got.Rules, initialRules) {
-				t.Fatalf("node %d rules dropped when updating Var5qi:\ngot  %s\nwant %s",
-					i+1, formatRules(got.Rules), formatRules(initialRules))
-			}
+			Assert(t, rulesEqual(got.Rules, initialRules), fmt.Sprintf("node %d rules dropped when updating Var5qi:\ngot  %s\nwant %s",
+				i+1, formatRules(got.Rules), formatRules(initialRules)))
 		}
 	})
 
@@ -275,13 +270,9 @@ func runPolicyRulesHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 			}
 
 			msg := err.Error()
-			if !strings.Contains(msg, n.want) {
-				t.Fatalf("error message: got %q, want substring %q", msg, n.want)
-			}
+			Assert(t, strings.Contains(msg, n.want), fmt.Sprintf("error message: got %q, want substring %q", msg, n.want))
 
-			if !strings.Contains(msg, "400") {
-				t.Fatalf("expected 400 status, got %q", msg)
-			}
+			Assert(t, strings.Contains(msg, "400"), fmt.Sprintf("expected 400 status, got %q", msg))
 
 			for i, c := range nodes {
 				got := mustGetPolicy(ctx, t, c, policyName)

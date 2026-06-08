@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/ellanetworks/core/client"
@@ -73,13 +74,9 @@ func runOperatorNASSecurityHAMatrix(ctx context.Context, t *testing.T, h *haMatr
 					t.Fatalf("node %d get operator after update: %v", i+1, err)
 				}
 
-				if !equalStringSlices(op.NASSecurity.Ciphering, tc.opts.Ciphering) {
-					t.Fatalf("node %d Ciphering: got %v, want %v", i+1, op.NASSecurity.Ciphering, tc.opts.Ciphering)
-				}
+				Assert(t, equalStringSlices(op.NASSecurity.Ciphering, tc.opts.Ciphering), fmt.Sprintf("node %d Ciphering: got %v, want %v", i+1, op.NASSecurity.Ciphering, tc.opts.Ciphering))
 
-				if !equalStringSlices(op.NASSecurity.Integrity, tc.opts.Integrity) {
-					t.Fatalf("node %d Integrity: got %v, want %v", i+1, op.NASSecurity.Integrity, tc.opts.Integrity)
-				}
+				Assert(t, equalStringSlices(op.NASSecurity.Integrity, tc.opts.Integrity), fmt.Sprintf("node %d Integrity: got %v, want %v", i+1, op.NASSecurity.Integrity, tc.opts.Integrity))
 			}
 		})
 	}

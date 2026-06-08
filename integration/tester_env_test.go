@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -72,7 +74,15 @@ func setupTesterEnv(ctx context.Context, t *testing.T) *testerEnv {
 	t.Cleanup(func() {
 		logs, err := dc.ComposeLogs(ctx, composeDir, "ella-core")
 		if err == nil {
-			t.Logf("=== ella-core container logs ===\n%s", logs)
+			logDir := os.Getenv("HA_CLUSTER_LOG_DIR")
+			if logDir != "" && t.Failed() {
+				safeName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+
+				dir := filepath.Join(logDir, safeName)
+				if err := os.MkdirAll(dir, 0o755); err == nil {
+					_ = os.WriteFile(filepath.Join(dir, "ella-core.log"), []byte(logs), 0o644)
+				}
+			}
 		}
 
 		dc.ComposeDownWithFile(ctx, composeDir, composeFile)
@@ -171,8 +181,8 @@ func bootstrapTesterCore(ctx context.Context, cl *client.Client) error {
 // RunScenario invokes `core-tester run <scenario>` in the sidecar,
 // injecting --ella-core-n2-address, --gnb, --ella-api-address, and
 // --ella-api-token from the compose topology. Fails the subtest on
-// non-zero exit. stdout/stderr mirror to the test log.
-func (e *testerEnv) RunScenario(ctx context.Context, t *testing.T, scenario string, extraArgs ...string) {
+// non-zero exit. stdout/stderr are captured for failure reporting.
+func (e *testerEnv) RunScenario(ctx context.Context, t *testing.T, scenario string, tr *TestResult, extraArgs ...string) {
 	t.Helper()
 
 	argv := []string{"core-tester", "run", scenario}
@@ -195,9 +205,10 @@ func (e *testerEnv) RunScenario(ctx context.Context, t *testing.T, scenario stri
 	argv = append(argv, "--verbose")
 	argv = append(argv, extraArgs...)
 
-	t.Logf("running: %s", strings.Join(argv, " "))
+	QuietLogf(t, tr, "running: %s", strings.Join(argv, " "))
 
-	if _, err := e.dc.Exec(ctx, e.TesterContainer, argv, false, 5*time.Minute, logWriter{t}); err != nil {
+	if _, err := e.dc.Exec(ctx, e.TesterContainer, argv, false, 5*time.Minute, quietLogWriter{tr}); err != nil {
+		setFailureReason(tr, fmt.Sprintf("scenario %q failed: %v", scenario, err))
 		t.Fatalf("scenario %q failed: %v", scenario, err)
 	}
 }

@@ -34,7 +34,7 @@ func TestIntegrationHAFollowerReturnsOnNewAddress(t *testing.T) {
 
 	defer func() {
 		if err := dc.Close(); err != nil {
-			t.Logf("failed to close docker client: %v", err)
+			HALogf(t, "failed to close docker client: %v", err)
 		}
 	}()
 
@@ -71,7 +71,7 @@ func TestIntegrationHAFollowerReturnsOnNewAddress(t *testing.T) {
 		t.Fatalf("follower already at rebind target %s; pick a different IP", rebindIPv4)
 	}
 
-	t.Logf("rebinding %s (node %d) from %s to %s on %s",
+	HALogf(t, "rebinding %s (node %d) from %s to %s on %s",
 		followerService, followerNodeID, oldIP, rebindIPv4, networkName)
 
 	if err := dc.ComposeStopWithFile(ctx, composeDir, composeFile, followerService); err != nil {

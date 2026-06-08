@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -119,9 +120,7 @@ func runAPITokensHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 					}
 
 					wantExp, _ := time.Parse(time.RFC3339, tc.wantExpiry)
-					if !gotExp.Equal(wantExp) {
-						t.Fatalf("node %d ExpiresAt: got %q, want %q", i+1, found.ExpiresAt, tc.wantExpiry)
-					}
+					Assert(t, gotExp.Equal(wantExp), fmt.Sprintf("node %d ExpiresAt: got %q, want %q", i+1, found.ExpiresAt, tc.wantExpiry))
 				}
 			}
 

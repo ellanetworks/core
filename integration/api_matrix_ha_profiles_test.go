@@ -74,9 +74,7 @@ func runProfilesHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 			t.Fatalf("node %d count after create: got %d, want %d", i+1, list.TotalCount, baseline+1)
 		}
 
-		if !contains(list.Items, name) {
-			t.Fatalf("node %d list after create missing %q", i+1, name)
-		}
+		Assert(t, contains(list.Items, name), fmt.Sprintf("node %d list after create missing %q", i+1, name))
 	}
 
 	updateCases := []struct {

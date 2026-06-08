@@ -43,7 +43,7 @@ func TestIntegrationHAFreshClusterConcurrentBootstrap(t *testing.T) {
 
 	defer func() {
 		if err := dc.Close(); err != nil {
-			t.Logf("failed to close docker client: %v", err)
+			HALogf(t, "failed to close docker client: %v", err)
 		}
 	}()
 
@@ -57,12 +57,12 @@ func TestIntegrationHAFreshClusterConcurrentBootstrap(t *testing.T) {
 
 	defer func() {
 		// Best-effort log capture before the next test tears containers down.
-		captureClusterLogs(t, dc, composeDir, haNodeServices)
+		captureClusterLogs(t, dc, composeDir, haNodeServices, t.Failed())
 	}()
 
 	// --- Phase A: founder up, mint tokens for nodes 2 and 3. ---
 
-	t.Log("phase A: starting node 1 as founder")
+	HALog(t, "phase A: starting node 1 as founder")
 
 	if err := writeNodeConfigOpts(composeDir, 1, fqdnPeers, "", "", true); err != nil {
 		t.Fatalf("write node 1 config: %v", err)
@@ -118,7 +118,7 @@ func TestIntegrationHAFreshClusterConcurrentBootstrap(t *testing.T) {
 
 	// --- Phase B: cold-restart node 1 alongside nodes 2 and 3. ---
 
-	t.Log("phase B: stopping node 1 and starting all three concurrently")
+	HALog(t, "phase B: stopping node 1 and starting all three concurrently")
 
 	if err := dc.ComposeStopWithFile(ctx, composeDir, composeFile, "ella-core-1"); err != nil {
 		t.Fatalf("stop node 1: %v", err)

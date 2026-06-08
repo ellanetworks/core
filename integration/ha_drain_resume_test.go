@@ -18,6 +18,8 @@ func TestIntegrationHADrainResumeCycle(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	beginHATest(t)
+
 	ctx := context.Background()
 
 	dockerClient, err := NewDockerClient()
@@ -27,7 +29,7 @@ func TestIntegrationHADrainResumeCycle(t *testing.T) {
 
 	defer func() {
 		if err := dockerClient.Close(); err != nil {
-			t.Logf("failed to close docker client: %v", err)
+			HALogf(t, "failed to close docker client: %v", err)
 		}
 	}()
 

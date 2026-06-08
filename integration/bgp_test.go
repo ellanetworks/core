@@ -181,7 +181,7 @@ func TestIntegrationBGP(t *testing.T) {
 	t.Cleanup(func() {
 		for _, svc := range []string{"ella-core", "gobgp"} {
 			logs, err := dc.ComposeLogs(ctx, bgpComposeDir, svc)
-			if err == nil {
+			if err == nil && t.Failed() {
 				t.Logf("=== %s container logs ===\n%s", svc, logs)
 			}
 		}
@@ -300,9 +300,7 @@ func TestIntegrationBGP(t *testing.T) {
 			t.Fatalf("gobgp neighbor: %v", err)
 		}
 
-		if !strings.Contains(out, n6IP) {
-			t.Fatalf("gobgp neighbor does not contain %s:\n%s", n6IP, out)
-		}
+		Assert(t, strings.Contains(out, n6IP), fmt.Sprintf("gobgp neighbor does not contain %s:\n%s", n6IP, out))
 	})
 
 	t.Run("RouteAdvertisement", func(t *testing.T) {
@@ -348,9 +346,7 @@ func TestIntegrationBGP(t *testing.T) {
 			uePrefix = strings.Split(uePrefix, "/")[0]
 		}
 
-		if !strings.Contains(out, uePrefix) {
-			t.Fatalf("gobgp did not receive UE route %s:\n%s", advertised.Prefix, out)
-		}
+		Assert(t, strings.Contains(out, uePrefix), fmt.Sprintf("gobgp did not receive UE route %s:\n%s", advertised.Prefix, out))
 
 		peers, err := cl.ListBGPPeers(ctx, &client.ListParams{Page: 1, PerPage: 100})
 		if err != nil {
