@@ -205,7 +205,7 @@ func (e *testerEnv) RunScenario(ctx context.Context, t *testing.T, scenario stri
 	argv = append(argv, "--verbose")
 	argv = append(argv, extraArgs...)
 
-	QuietLog(t, tr, "running: "+strings.Join(argv, " "))
+	QuietLogf(t, tr, "running: %s", strings.Join(argv, " "))
 
 	if _, err := e.dc.Exec(ctx, e.TesterContainer, argv, false, 5*time.Minute, quietLogWriter{tr}); err != nil {
 		setFailureReason(t.Name(), fmt.Sprintf("scenario %q failed: %v", scenario, err))

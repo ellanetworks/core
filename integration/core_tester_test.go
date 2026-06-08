@@ -76,7 +76,7 @@ func TestIntegrationTester(t *testing.T) {
 	ctx := context.Background()
 	env := setupTesterEnv(ctx, t)
 
-	VerboseLog(t, "core-tester compose up in "+string(DetectIPFamily())+" mode")
+	VerboseLogf(t, "core-tester compose up in %s mode", string(DetectIPFamily()))
 
 	// Baseline resources shared across all subtests.
 	baseline := fixture.New(t, ctx, env.Client)

@@ -69,7 +69,7 @@ func TestFlowReportsSmoke(t *testing.T) {
 		pp := pps[p]
 		scenarioName := fmt.Sprintf("%s/%s", fp.scenarioAllowed, p)
 		tr := globalReporter.Start(scenarioName)
-		QuietLog(t, tr, "running "+scenarioName)
+		QuietLogf(t, tr, "running %s", scenarioName)
 		env.RunScenario(ctx, t, fp.scenarioAllowed, tr, scenarioRunArgs(fp.scenarioAllowed, spec, pp)...)
 		finishScenarioTest(t, tr)
 	}

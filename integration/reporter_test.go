@@ -283,6 +283,12 @@ func VerboseLog(t *testing.T, msg string) {
 	t.Log(msg)
 }
 
+// VerboseLogf prints a formatted log message immediately regardless of quiet mode.
+// Use for critical messages that should always be visible.
+func VerboseLogf(t *testing.T, format string, args ...interface{}) {
+	VerboseLog(t, fmt.Sprintf(format, args...))
+}
+
 // halogBuffer stores captured log lines for HA tests by test name.
 var (
 	halogBuffer = make(map[string][]string)
@@ -328,7 +334,7 @@ func printHALogs(t *testing.T) {
 		return
 	}
 
-	VerboseLog(t, fmt.Sprintf("=== %s: captured logs (%d lines) ===", name, len(logs)))
+	VerboseLogf(t, "=== %s: captured logs (%d lines) ===", name, len(logs))
 	// Print last 30 lines to keep output manageable.
 	start := 0
 	if len(logs) > 30 {
