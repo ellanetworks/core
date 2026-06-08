@@ -208,7 +208,7 @@ func (e *testerEnv) RunScenario(ctx context.Context, t *testing.T, scenario stri
 	QuietLogf(t, tr, "running: %s", strings.Join(argv, " "))
 
 	if _, err := e.dc.Exec(ctx, e.TesterContainer, argv, false, 5*time.Minute, quietLogWriter{tr}); err != nil {
-		setFailureReason(t.Name(), fmt.Sprintf("scenario %q failed: %v", scenario, err))
+		setFailureReason(tr, fmt.Sprintf("scenario %q failed: %v", scenario, err))
 		t.Fatalf("scenario %q failed: %v", scenario, err)
 	}
 }

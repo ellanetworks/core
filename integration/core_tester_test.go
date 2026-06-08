@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -127,7 +128,8 @@ func TestIntegrationTester(t *testing.T) {
 			}
 		}
 
-		sc, _ := scenarios.Get(name)
+		sc, ok := scenarios.Get(name)
+		Assert(t, ok, fmt.Sprintf("scenario %q not registered", name))
 
 		// Build a scenarios.Env from the tester environment so that
 		// IP-family-aware fixtures can inspect address family details.
@@ -144,7 +146,6 @@ func TestIntegrationTester(t *testing.T) {
 		tr := registerScenarioTest(name)
 
 		t.Run(name, func(t *testing.T) {
-			captureFailureReason(t)
 			defer finishScenarioTest(t, tr)
 
 			fx := fixture.New(t, ctx, env.Client)
