@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -71,8 +73,16 @@ func setupTesterEnv(ctx context.Context, t *testing.T) *testerEnv {
 
 	t.Cleanup(func() {
 		logs, err := dc.ComposeLogs(ctx, composeDir, "ella-core")
-		if err == nil && t.Failed() {
-			t.Logf("=== ella-core container logs ===\n%s", logs)
+		if err == nil {
+			logDir := os.Getenv("HA_CLUSTER_LOG_DIR")
+			if logDir != "" && t.Failed() {
+				safeName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
+
+				dir := filepath.Join(logDir, safeName)
+				if err := os.MkdirAll(dir, 0o755); err == nil {
+					_ = os.WriteFile(filepath.Join(dir, "ella-core.log"), []byte(logs), 0o644)
+				}
+			}
 		}
 
 		dc.ComposeDownWithFile(ctx, composeDir, composeFile)
@@ -198,6 +208,7 @@ func (e *testerEnv) RunScenario(ctx context.Context, t *testing.T, scenario stri
 	QuietLog(t, tr, "running: "+strings.Join(argv, " "))
 
 	if _, err := e.dc.Exec(ctx, e.TesterContainer, argv, false, 5*time.Minute, quietLogWriter{tr}); err != nil {
+		setFailureReason(t.Name(), fmt.Sprintf("scenario %q failed: %v", scenario, err))
 		t.Fatalf("scenario %q failed: %v", scenario, err)
 	}
 }

@@ -144,6 +144,7 @@ func TestIntegrationTester(t *testing.T) {
 		tr := registerScenarioTest(name)
 
 		t.Run(name, func(t *testing.T) {
+			captureFailureReason(t)
 			defer finishScenarioTest(t, tr)
 
 			fx := fixture.New(t, ctx, env.Client)

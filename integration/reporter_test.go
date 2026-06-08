@@ -191,6 +191,38 @@ func (b *summaryBuilder) String() string {
 // globalReporter is the shared test reporter for all integration tests.
 var globalReporter = NewReporter()
 
+// failureReasons stores the t.Fatalf message per test name so that
+// finishScenarioTest can report the exact reason instead of the
+// generic "test failed" placeholder.
+var (
+	failureReasons  = make(map[string]string)
+	failureReasonMu sync.Mutex
+)
+
+// captureFailureReason is a no-op placeholder that signals the test
+// should track failure reasons. The actual reporter update is done by
+// finishScenarioTest which reads the reason set via setFailureReason.
+func captureFailureReason(t *testing.T) {
+	// No-op: finishScenarioTest handles the reporter update.
+}
+
+// setFailureReason records the failure reason for a test name.
+// Call this from within the test before calling t.Fatalf.
+func setFailureReason(name, reason string) {
+	failureReasonMu.Lock()
+	defer failureReasonMu.Unlock()
+
+	failureReasons[name] = reason
+}
+
+// getFailureReason returns the stored failure reason for a test name.
+func getFailureReason(name string) string {
+	failureReasonMu.Lock()
+	defer failureReasonMu.Unlock()
+
+	return failureReasons[name]
+}
+
 // registerScenarioTest creates a reporter entry for a scenario subtest.
 // Call this before t.Run to track the scenario's execution.
 func registerScenarioTest(scenarioName string) *TestResult {
@@ -201,9 +233,12 @@ func registerScenarioTest(scenarioName string) *TestResult {
 // Call this after t.Run returns, using t.Failed() to determine pass/fail.
 func finishScenarioTest(t *testing.T, tr *TestResult) {
 	if t.Failed() {
-		// Go doesn't expose the failure message directly, so we use a
-		// generic message. The detailed logs are captured via QuietLog.
-		globalReporter.Fail(tr, "test failed")
+		reason := getFailureReason(t.Name())
+		if reason == "" {
+			reason = "test failed"
+		}
+
+		globalReporter.Fail(tr, reason)
 	} else {
 		globalReporter.Pass(tr)
 	}
