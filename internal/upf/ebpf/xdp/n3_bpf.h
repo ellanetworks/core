@@ -57,10 +57,14 @@ handle_gtp_packet(struct packet_context *ctx)
 	PROFILE_END(PROF_N3_PDR_LOOKUP);
 	if (!pdr) {
 		/* No PDU session for this TEID: discard the G-PDU and, for a non-zero
-		 * TEID over IPv4 transport, return a GTP-U Error Indication to the
-		 * sender (TS 29.281 §7.3.1). */
-		if (ctx->gtp->teid != 0 && ctx->ip4)
-			return send_error_indication_ipv4(ctx);
+		 * TEID, return a GTP-U Error Indication to the sender over the same
+		 * IP transport (TS 29.281 §7.3.1). */
+		if (ctx->gtp->teid != 0) {
+			if (ctx->ip4)
+				return send_error_indication_ipv4(ctx);
+			if (ctx->ip6)
+				return send_error_indication_ipv6(ctx);
+		}
 
 		upf_printk("upf: no uplink PDR for teid:%d, discarding", teid);
 		return XDP_DROP;

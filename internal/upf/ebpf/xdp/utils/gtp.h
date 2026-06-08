@@ -233,6 +233,81 @@ send_error_indication_ipv4(struct packet_context *ctx)
 	return XDP_TX;
 }
 
+/* IPv6-transport counterpart of send_error_indication_ipv4 (TS 29.281 §7.3.1).
+ * The GTP-U Peer Address IE carries the 16-octet IPv6 address (§8.4), and the
+ * UDP checksum is mandatory over IPv6. */
+static __always_inline enum xdp_action
+send_error_indication_ipv6(struct packet_context *ctx)
+{
+	struct ethhdr *eth = ctx->eth;
+	struct ipv6hdr *ip6 = ctx->ip6;
+	struct udphdr *udp = ctx->udp;
+	struct gtpuhdr *gtp = ctx->gtp;
+
+	if (!eth || !ip6 || !udp || !gtp)
+		return XDP_DROP;
+
+	/* 12-octet GTP-U header (mandatory + optional word) followed by the two
+	 * mandatory IEs: TEID Data I (5) and GTP-U Peer Address (1+2+16 = 19) = 36
+	 * octets. */
+	__u8 *p = (__u8 *)gtp;
+	if ((const void *)(p + 36) > ctx->data_end)
+		return XDP_DROP;
+
+	__be32 trigger_teid = gtp->teid;
+	struct in6_addr peer_addr = ip6->daddr; /* destination of the triggering packet */
+
+	swap_mac(eth);
+	swap_ip6(ip6);
+
+	const __u16 udp_len = sizeof(*udp) + 36;
+	ip6->payload_len = bpf_htons(udp_len);
+
+	udp->source = bpf_htons(GTP_UDP_PORT);
+	udp->dest = bpf_htons(GTP_UDP_PORT);
+	udp->len = bpf_htons(udp_len);
+	udp->check = 0;
+
+	*p = GTP_FLAGS; /* version 1, PT 1 */
+	gtp->s = 1;
+	gtp->e = 0;
+	gtp->pn = 0;
+	gtp->message_type = GTPU_ERROR_INDICATION;
+	gtp->message_length = bpf_htons(28); /* optional word (4) + IEs (24) */
+	gtp->teid = 0;
+
+	/* Optional word: sequence number, N-PDU number, next-extension type. */
+	p[8] = 0;
+	p[9] = 0;
+	p[10] = 0;
+	p[11] = 0;
+
+	/* Tunnel Endpoint Identifier Data I (TS 29.281 §8.3, TV format). */
+	p[12] = GTPU_IE_TEID_DATA_I;
+	__builtin_memcpy(p + 13, &trigger_teid, sizeof(trigger_teid));
+
+	/* GTP-U Peer Address (TS 29.281 §8.4, TLV; IPv6 length 16). */
+	p[17] = GTPU_IE_PEER_ADDRESS;
+	p[18] = 0;
+	p[19] = 16;
+	__builtin_memcpy(p + 20, &peer_addr, sizeof(peer_addr));
+
+	/* UDP checksum is mandatory over IPv6. */
+	__u32 udp_off = (__u32)((__u8 *)udp - (__u8 *)(long)ctx->xdp_ctx->data);
+	int csum = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off, udp_len,
+			      ctx->xdp_ctx);
+	if (csum < 0)
+		return XDP_DROP;
+	udp->check = (__u16)csum;
+
+	/* Drop the trailing T-PDU so the frame ends after the IEs. */
+	long trim = (long)ctx->data_end - (long)(p + 36);
+	if (trim > 0)
+		bpf_xdp_adjust_tail(ctx->xdp_ctx, (int)-trim);
+
+	return XDP_TX;
+}
+
 static __always_inline int guess_eth_protocol(const void *data)
 {
 	const __u8 ip_version = (*(const __u8 *)data) >> 4;
