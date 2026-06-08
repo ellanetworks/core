@@ -1,6 +1,6 @@
 module github.com/ellanetworks/core
 
-go 1.26.2
+go 1.26.4
 
 require (
 	github.com/canonical/sqlair v0.0.0-20250120155751-a83645b9a121
