@@ -56,9 +56,14 @@ handle_gtp_packet(struct packet_context *ctx)
 	struct pdr_info *pdr = bpf_map_lookup_elem(&pdrs_uplink, &teid);
 	PROFILE_END(PROF_N3_PDR_LOOKUP);
 	if (!pdr) {
-		upf_printk("upf: no uplink PDR for teid:%d, passing to kernel",
-			   teid);
-		return DEFAULT_XDP_ACTION; /* XDP_PASS */
+		/* No PDU session for this TEID: discard the G-PDU and, for a non-zero
+		 * TEID over IPv4 transport, return a GTP-U Error Indication to the
+		 * sender (TS 29.281 §7.3.1). */
+		if (ctx->gtp->teid != 0 && ctx->ip4)
+			return send_error_indication_ipv4(ctx);
+
+		upf_printk("upf: no uplink PDR for teid:%d, discarding", teid);
+		return XDP_DROP;
 	}
 
 	__u32 urr_id = pdr->urr_id;

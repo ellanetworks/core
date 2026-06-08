@@ -263,6 +263,66 @@ func TestGTPDecapsulationStackedExtHeaders(t *testing.T) {
 	}
 }
 
+// TestGTPErrorIndicationOnUnknownTEID checks that a G-PDU received for a TEID
+// with no PDU session is answered with a GTP-U Error Indication reflected to the
+// sender (TS 29.281 §7.3.1), carrying the triggering TEID (Tunnel Endpoint
+// Identifier Data I, §8.3) and the UPF address (GTP-U Peer Address, §8.4).
+func TestGTPErrorIndicationOnUnknownTEID(t *testing.T) {
+	requireProgTestRun(t)
+
+	obj := loadN3N6Program(t)
+	// The fresh program has no uplink PDRs, so this TEID is unknown.
+
+	const teid = 0x21222399
+
+	in := uplinkGPDU(teid, innerIPv4UDP([4]byte{8, 8, 8, 8}, 53))
+
+	action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, in)
+
+	if action != XDP_TX {
+		t.Fatalf("unknown-TEID G-PDU got XDP action %d, want XDP_TX (%d) — the UPF must return a GTP-U Error Indication (TS 29.281 §7.3.1)", action, XDP_TX)
+	}
+
+	const gtpErrorIndication = 26
+	gtpOff := ethHdrLen + 20 + 8 // eth + IPv4 + UDP
+
+	if got := out[gtpOff+1]; got != gtpErrorIndication {
+		t.Errorf("GTP message type = %d, want %d (Error Indication)", got, gtpErrorIndication)
+	}
+	if hdrTeid := binary.BigEndian.Uint32(out[gtpOff+4 : gtpOff+8]); hdrTeid != 0 {
+		t.Errorf("Error Indication header TEID = %#x, want 0 (TS 29.281 §5.1)", hdrTeid)
+	}
+
+	// Mandatory IEs after the 12-octet header: TEID Data I (type 16) carrying the
+	// triggering TEID, then GTP-U Peer Address (type 133) = the UPF.
+	ieOff := gtpOff + 12
+	if out[ieOff] != 16 {
+		t.Errorf("first IE type = %d, want 16 (TEID Data I)", out[ieOff])
+	}
+	if ieTeid := binary.BigEndian.Uint32(out[ieOff+1 : ieOff+5]); ieTeid != teid {
+		t.Errorf("TEID Data I = %#x, want %#x (the triggering TEID)", ieTeid, teid)
+	}
+	if out[ieOff+5] != 133 {
+		t.Errorf("second IE type = %d, want 133 (GTP-U Peer Address)", out[ieOff+5])
+	}
+	if !bytes.Equal(out[ieOff+8:ieOff+12], testUPFN3IP[:]) {
+		t.Errorf("GTP-U Peer Address = %v, want %v (the UPF)", out[ieOff+8:ieOff+12], testUPFN3IP)
+	}
+
+	// Reflected to the sender: outer src = UPF, dst = the originating gNB.
+	if !bytes.Equal(out[ethHdrLen+12:ethHdrLen+16], testUPFN3IP[:]) {
+		t.Errorf("outer src = %v, want %v (UPF)", out[ethHdrLen+12:ethHdrLen+16], testUPFN3IP)
+	}
+	if !bytes.Equal(out[ethHdrLen+16:ethHdrLen+20], testGNBIP[:]) {
+		t.Errorf("outer dst = %v, want %v (reflected to the sender)", out[ethHdrLen+16:ethHdrLen+20], testGNBIP)
+	}
+
+	// The trailing T-PDU is trimmed: the frame ends after the two IEs.
+	if wantLen := ethHdrLen + 20 + 8 + 24; len(out) != wantLen {
+		t.Errorf("Error Indication frame length = %d, want %d (header + two IEs, T-PDU trimmed)", len(out), wantLen)
+	}
+}
+
 // TestGTPDecapsulationInnerIPv6 checks that an uplink G-PDU carrying an inner
 // IPv6 packet is decapsulated to that IPv6 packet, with the Ethernet protocol
 // set to IPv6.
