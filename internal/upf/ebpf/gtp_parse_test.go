@@ -350,11 +350,13 @@ func TestGTPErrorIndicationOnUnknownTEIDIPv6Transport(t *testing.T) {
 	}
 
 	const gtpErrorIndication = 26
+
 	gtpOff := ethHdrLen + 40 + 8 // eth + IPv6 + UDP
 
 	if got := out[gtpOff+1]; got != gtpErrorIndication {
 		t.Errorf("GTP message type = %d, want %d (Error Indication)", got, gtpErrorIndication)
 	}
+
 	if hdrTeid := binary.BigEndian.Uint32(out[gtpOff+4 : gtpOff+8]); hdrTeid != 0 {
 		t.Errorf("Error Indication header TEID = %#x, want 0 (TS 29.281 §5.1)", hdrTeid)
 	}
@@ -365,15 +367,19 @@ func TestGTPErrorIndicationOnUnknownTEIDIPv6Transport(t *testing.T) {
 	if out[ieOff] != 16 {
 		t.Errorf("first IE type = %d, want 16 (TEID Data I)", out[ieOff])
 	}
+
 	if ieTeid := binary.BigEndian.Uint32(out[ieOff+1 : ieOff+5]); ieTeid != teid {
 		t.Errorf("TEID Data I = %#x, want %#x (the triggering TEID)", ieTeid, teid)
 	}
+
 	if out[ieOff+5] != 133 {
 		t.Errorf("second IE type = %d, want 133 (GTP-U Peer Address)", out[ieOff+5])
 	}
+
 	if ieLen := binary.BigEndian.Uint16(out[ieOff+6 : ieOff+8]); ieLen != 16 {
 		t.Errorf("GTP-U Peer Address length = %d, want 16 (IPv6)", ieLen)
 	}
+
 	if !bytes.Equal(out[ieOff+8:ieOff+24], testUPFN3v6[:]) {
 		t.Errorf("GTP-U Peer Address = %v, want %v (the UPF)", out[ieOff+8:ieOff+24], testUPFN3v6)
 	}
@@ -382,6 +388,7 @@ func TestGTPErrorIndicationOnUnknownTEIDIPv6Transport(t *testing.T) {
 	if !bytes.Equal(out[ethHdrLen+8:ethHdrLen+24], testUPFN3v6[:]) {
 		t.Errorf("outer src = %v, want %v (UPF)", out[ethHdrLen+8:ethHdrLen+24], testUPFN3v6)
 	}
+
 	if !bytes.Equal(out[ethHdrLen+24:ethHdrLen+40], testGNBv6[:]) {
 		t.Errorf("outer dst = %v, want %v (reflected to the sender)", out[ethHdrLen+24:ethHdrLen+40], testGNBv6)
 	}
