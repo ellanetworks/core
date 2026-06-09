@@ -56,9 +56,18 @@ handle_gtp_packet(struct packet_context *ctx)
 	struct pdr_info *pdr = bpf_map_lookup_elem(&pdrs_uplink, &teid);
 	PROFILE_END(PROF_N3_PDR_LOOKUP);
 	if (!pdr) {
-		upf_printk("upf: no uplink PDR for teid:%d, passing to kernel",
-			   teid);
-		return DEFAULT_XDP_ACTION; /* XDP_PASS */
+		/* No PDU session for this TEID: discard the G-PDU and, for a non-zero
+		 * TEID, return a GTP-U Error Indication to the sender over the same
+		 * IP transport (TS 29.281 §7.3.1). */
+		if (ctx->gtp->teid != 0) {
+			if (ctx->ip4)
+				return send_error_indication_ipv4(ctx);
+			if (ctx->ip6)
+				return send_error_indication_ipv6(ctx);
+		}
+
+		upf_printk("upf: no uplink PDR for teid:%d, discarding", teid);
+		return XDP_DROP;
 	}
 
 	__u32 urr_id = pdr->urr_id;
@@ -250,13 +259,15 @@ handle_gtp_packet(struct packet_context *ctx)
 	if (ctx->ip4) {
 		account_flow(ctx, n6_ifindex, pdr->imsi, IPV4, ALLOW);
 		PROFILE_START(PROF_N3_FIB_ROUTING);
-		enum xdp_action fib_ret = route_ipv4(ctx, route_statistic, false);
+		enum xdp_action fib_ret =
+			route_ipv4(ctx, route_statistic, false);
 		PROFILE_END(PROF_N3_FIB_ROUTING);
 		return fib_ret;
 	} else if (ctx->ip6) {
 		account_flow(ctx, n6_ifindex, pdr->imsi, IPV6, ALLOW);
 		PROFILE_START(PROF_N3_FIB_ROUTING);
-		enum xdp_action fib_ret = route_ipv6(ctx, route_statistic, false);
+		enum xdp_action fib_ret =
+			route_ipv6(ctx, route_statistic, false);
 		PROFILE_END(PROF_N3_FIB_ROUTING);
 		return fib_ret;
 	} else {

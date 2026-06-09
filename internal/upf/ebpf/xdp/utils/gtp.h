@@ -98,7 +98,8 @@ static __always_inline __u32 parse_gtp(struct packet_context *ctx)
 				__u32 ext_len = (__u32)ext[0] * 4;
 				if (ext_len == 0 ||
 				    hdr_len + ext_len > GTP_MAX_HDR_LEN ||
-				    (const void *)(ext + ext_len) > ctx->data_end)
+				    (const void *)(ext + ext_len) >
+					    ctx->data_end)
 					return -1;
 
 				next_ext = ext[ext_len - 1];
@@ -120,11 +121,12 @@ static __always_inline __u32 parse_gtp(struct packet_context *ctx)
  * tag: outer IP + UDP + the GTP-U header parse_gtp actually consumed. The
  * Ethernet header is preserved (rewritten in place), so it is not counted.
  * Returns 0 when the parsed header length is out of range. */
-static __always_inline __u32
-gtp_decap_size_no_vlan(const struct packet_context *ctx, __u8 outer_header_removal)
+static __always_inline __u32 gtp_decap_size_no_vlan(
+	const struct packet_context *ctx, __u8 outer_header_removal)
 {
 	__u32 gtp_hdr_len = ctx->gtp_hdr_len;
-	if (gtp_hdr_len < sizeof(struct gtpuhdr) || gtp_hdr_len > GTP_MAX_HDR_LEN)
+	if (gtp_hdr_len < sizeof(struct gtpuhdr) ||
+	    gtp_hdr_len > GTP_MAX_HDR_LEN)
 		return 0;
 
 	__u32 outer_ip_size = (outer_header_removal == OHR_GTP_U_UDP_IPv6) ?
@@ -148,6 +150,9 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	struct udphdr *udp = ctx->udp;
 	struct gtpuhdr *gtp = ctx->gtp;
 
+	if (!eth || !udp || !gtp)
+		return XDP_DROP;
+
 	gtp->message_type = GTPU_ECHO_RESPONSE;
 
 	if (ctx->ip4) {
@@ -159,6 +164,167 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	}
 	swap_port(udp);
 	swap_mac(eth);
+
+	/* The message-type change invalidated the UDP checksum, which is
+	 * mandatory over IPv6 (a wrong one is dropped by the receiver). */
+	if (ctx->ip6) {
+		udp->check = 0;
+		__u32 udp_off =
+			(__u32)((__u8 *)udp - (__u8 *)(long)ctx->xdp_ctx->data);
+		int cs = udpv6_csum(&ctx->ip6->saddr, &ctx->ip6->daddr, udp_off,
+				    bpf_ntohs(udp->len), ctx->xdp_ctx);
+		if (cs < 0)
+			return XDP_DROP;
+		udp->check = (__u16)cs;
+	}
+
+	return XDP_TX;
+}
+
+/* GTP-U Error Indication information element types (TS 29.281 §8.1). */
+#define GTPU_IE_TEID_DATA_I (16)
+#define GTPU_IE_PEER_ADDRESS (133)
+
+/* Reflect a GTP-U Error Indication to the sender of a G-PDU received for a TEID
+ * with no PDU session, over IPv4 N3 transport (TS 29.281 §7.3.1). The message
+ * carries the triggering TEID (Tunnel Endpoint Identifier Data I, §8.3) and this
+ * UPF's address (GTP-U Peer Address, §8.4); the S flag is set as required for
+ * Error Indication messages (§5.1). */
+static __always_inline enum xdp_action
+send_error_indication_ipv4(struct packet_context *ctx)
+{
+	struct ethhdr *eth = ctx->eth;
+	struct iphdr *ip = ctx->ip4;
+	struct udphdr *udp = ctx->udp;
+	struct gtpuhdr *gtp = ctx->gtp;
+
+	if (!eth || !ip || !udp || !gtp)
+		return XDP_DROP;
+
+	/* 12-octet GTP-U header (mandatory + optional word) followed by the two
+	 * mandatory IEs: TEID Data I (5) and GTP-U Peer Address (7) = 24 octets. */
+	__u8 *p = (__u8 *)gtp;
+	if ((const void *)(p + 24) > ctx->data_end)
+		return XDP_DROP;
+
+	__be32 trigger_teid = gtp->teid;
+	__be32 peer_addr = ip->daddr; /* destination of the triggering packet */
+
+	swap_mac(eth);
+	swap_ip(ip);
+	ip->tot_len = bpf_htons(sizeof(*ip) + sizeof(*udp) + 24);
+	recompute_ipv4_csum(ip);
+
+	udp->source = bpf_htons(GTP_UDP_PORT);
+	udp->dest = bpf_htons(GTP_UDP_PORT);
+	udp->len = bpf_htons(sizeof(*udp) + 24);
+	udp->check = 0;
+
+	*p = GTP_FLAGS; /* version 1, PT 1 */
+	gtp->s = 1;
+	gtp->e = 0;
+	gtp->pn = 0;
+	gtp->message_type = GTPU_ERROR_INDICATION;
+	gtp->message_length = bpf_htons(16); /* optional word (4) + IEs (12) */
+	gtp->teid = 0;
+
+	/* Optional word: sequence number, N-PDU number, next-extension type. */
+	p[8] = 0;
+	p[9] = 0;
+	p[10] = 0;
+	p[11] = 0;
+
+	/* Tunnel Endpoint Identifier Data I (TS 29.281 §8.3, TV format). */
+	p[12] = GTPU_IE_TEID_DATA_I;
+	__builtin_memcpy(p + 13, &trigger_teid, sizeof(trigger_teid));
+
+	/* GTP-U Peer Address (TS 29.281 §8.4, TLV; IPv4 length 4). */
+	p[17] = GTPU_IE_PEER_ADDRESS;
+	p[18] = 0;
+	p[19] = 4;
+	__builtin_memcpy(p + 20, &peer_addr, sizeof(peer_addr));
+
+	/* Drop the trailing T-PDU so the frame ends after the IEs. */
+	long trim = (long)ctx->data_end - (long)(p + 24);
+	if (trim > 0)
+		bpf_xdp_adjust_tail(ctx->xdp_ctx, (int)-trim);
+
+	return XDP_TX;
+}
+
+/* IPv6-transport counterpart of send_error_indication_ipv4 (TS 29.281 §7.3.1).
+ * The GTP-U Peer Address IE carries the 16-octet IPv6 address (§8.4), and the
+ * UDP checksum is mandatory over IPv6. */
+static __always_inline enum xdp_action
+send_error_indication_ipv6(struct packet_context *ctx)
+{
+	struct ethhdr *eth = ctx->eth;
+	struct ipv6hdr *ip6 = ctx->ip6;
+	struct udphdr *udp = ctx->udp;
+	struct gtpuhdr *gtp = ctx->gtp;
+
+	if (!eth || !ip6 || !udp || !gtp)
+		return XDP_DROP;
+
+	/* 12-octet GTP-U header (mandatory + optional word) followed by the two
+	 * mandatory IEs: TEID Data I (5) and GTP-U Peer Address (1+2+16 = 19) = 36
+	 * octets. */
+	__u8 *p = (__u8 *)gtp;
+	if ((const void *)(p + 36) > ctx->data_end)
+		return XDP_DROP;
+
+	__be32 trigger_teid = gtp->teid;
+	struct in6_addr peer_addr =
+		ip6->daddr; /* destination of the triggering packet */
+
+	swap_mac(eth);
+	swap_ip6(ip6);
+
+	const __u16 udp_len = sizeof(*udp) + 36;
+	ip6->payload_len = bpf_htons(udp_len);
+
+	udp->source = bpf_htons(GTP_UDP_PORT);
+	udp->dest = bpf_htons(GTP_UDP_PORT);
+	udp->len = bpf_htons(udp_len);
+	udp->check = 0;
+
+	*p = GTP_FLAGS; /* version 1, PT 1 */
+	gtp->s = 1;
+	gtp->e = 0;
+	gtp->pn = 0;
+	gtp->message_type = GTPU_ERROR_INDICATION;
+	gtp->message_length = bpf_htons(28); /* optional word (4) + IEs (24) */
+	gtp->teid = 0;
+
+	/* Optional word: sequence number, N-PDU number, next-extension type. */
+	p[8] = 0;
+	p[9] = 0;
+	p[10] = 0;
+	p[11] = 0;
+
+	/* Tunnel Endpoint Identifier Data I (TS 29.281 §8.3, TV format). */
+	p[12] = GTPU_IE_TEID_DATA_I;
+	__builtin_memcpy(p + 13, &trigger_teid, sizeof(trigger_teid));
+
+	/* GTP-U Peer Address (TS 29.281 §8.4, TLV; IPv6 length 16). */
+	p[17] = GTPU_IE_PEER_ADDRESS;
+	p[18] = 0;
+	p[19] = 16;
+	__builtin_memcpy(p + 20, &peer_addr, sizeof(peer_addr));
+
+	/* UDP checksum is mandatory over IPv6. */
+	__u32 udp_off = (__u32)((__u8 *)udp - (__u8 *)(long)ctx->xdp_ctx->data);
+	int csum = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off, udp_len,
+			      ctx->xdp_ctx);
+	if (csum < 0)
+		return XDP_DROP;
+	udp->check = (__u16)csum;
+
+	/* Drop the trailing T-PDU so the frame ends after the IEs. */
+	long trim = (long)ctx->data_end - (long)(p + 36);
+	if (trim > 0)
+		bpf_xdp_adjust_tail(ctx->xdp_ctx, (int)-trim);
+
 	return XDP_TX;
 }
 
@@ -239,7 +405,8 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx,
 		struct vlan_hdr *vlan = (struct vlan_hdr *)(new_eth + 1);
 		const __u8 *inner = (const __u8 *)(vlan + 1);
 		if ((const void *)(inner + 1) > data_end) {
-			upf_printk("upf: remove_gtp_header: can't set new vlan");
+			upf_printk(
+				"upf: remove_gtp_header: can't set new vlan");
 			return -1;
 		}
 		int eth_proto = guess_eth_protocol(inner);
