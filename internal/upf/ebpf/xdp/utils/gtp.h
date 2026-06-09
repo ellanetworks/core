@@ -150,6 +150,9 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	struct udphdr *udp = ctx->udp;
 	struct gtpuhdr *gtp = ctx->gtp;
 
+	if (!eth || !udp || !gtp)
+		return XDP_DROP;
+
 	gtp->message_type = GTPU_ECHO_RESPONSE;
 
 	if (ctx->ip4) {
