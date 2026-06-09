@@ -98,7 +98,8 @@ static __always_inline __u32 parse_gtp(struct packet_context *ctx)
 				__u32 ext_len = (__u32)ext[0] * 4;
 				if (ext_len == 0 ||
 				    hdr_len + ext_len > GTP_MAX_HDR_LEN ||
-				    (const void *)(ext + ext_len) > ctx->data_end)
+				    (const void *)(ext + ext_len) >
+					    ctx->data_end)
 					return -1;
 
 				next_ext = ext[ext_len - 1];
@@ -120,11 +121,12 @@ static __always_inline __u32 parse_gtp(struct packet_context *ctx)
  * tag: outer IP + UDP + the GTP-U header parse_gtp actually consumed. The
  * Ethernet header is preserved (rewritten in place), so it is not counted.
  * Returns 0 when the parsed header length is out of range. */
-static __always_inline __u32
-gtp_decap_size_no_vlan(const struct packet_context *ctx, __u8 outer_header_removal)
+static __always_inline __u32 gtp_decap_size_no_vlan(
+	const struct packet_context *ctx, __u8 outer_header_removal)
 {
 	__u32 gtp_hdr_len = ctx->gtp_hdr_len;
-	if (gtp_hdr_len < sizeof(struct gtpuhdr) || gtp_hdr_len > GTP_MAX_HDR_LEN)
+	if (gtp_hdr_len < sizeof(struct gtpuhdr) ||
+	    gtp_hdr_len > GTP_MAX_HDR_LEN)
 		return 0;
 
 	__u32 outer_ip_size = (outer_header_removal == OHR_GTP_U_UDP_IPv6) ?
@@ -164,8 +166,8 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	 * mandatory over IPv6 (a wrong one is dropped by the receiver). */
 	if (ctx->ip6) {
 		udp->check = 0;
-		__u32 udp_off = (__u32)((__u8 *)udp -
-					(__u8 *)(long)ctx->xdp_ctx->data);
+		__u32 udp_off =
+			(__u32)((__u8 *)udp - (__u8 *)(long)ctx->xdp_ctx->data);
 		int cs = udpv6_csum(&ctx->ip6->saddr, &ctx->ip6->daddr, udp_off,
 				    bpf_ntohs(udp->len), ctx->xdp_ctx);
 		if (cs < 0)
@@ -269,7 +271,8 @@ send_error_indication_ipv6(struct packet_context *ctx)
 		return XDP_DROP;
 
 	__be32 trigger_teid = gtp->teid;
-	struct in6_addr peer_addr = ip6->daddr; /* destination of the triggering packet */
+	struct in6_addr peer_addr =
+		ip6->daddr; /* destination of the triggering packet */
 
 	swap_mac(eth);
 	swap_ip6(ip6);
@@ -399,7 +402,8 @@ static __always_inline long remove_gtp_header(struct packet_context *ctx,
 		struct vlan_hdr *vlan = (struct vlan_hdr *)(new_eth + 1);
 		const __u8 *inner = (const __u8 *)(vlan + 1);
 		if ((const void *)(inner + 1) > data_end) {
-			upf_printk("upf: remove_gtp_header: can't set new vlan");
+			upf_printk(
+				"upf: remove_gtp_header: can't set new vlan");
 			return -1;
 		}
 		int eth_proto = guess_eth_protocol(inner);

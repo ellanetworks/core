@@ -259,13 +259,15 @@ handle_gtp_packet(struct packet_context *ctx)
 	if (ctx->ip4) {
 		account_flow(ctx, n6_ifindex, pdr->imsi, IPV4, ALLOW);
 		PROFILE_START(PROF_N3_FIB_ROUTING);
-		enum xdp_action fib_ret = route_ipv4(ctx, route_statistic, false);
+		enum xdp_action fib_ret =
+			route_ipv4(ctx, route_statistic, false);
 		PROFILE_END(PROF_N3_FIB_ROUTING);
 		return fib_ret;
 	} else if (ctx->ip6) {
 		account_flow(ctx, n6_ifindex, pdr->imsi, IPV6, ALLOW);
 		PROFILE_START(PROF_N3_FIB_ROUTING);
-		enum xdp_action fib_ret = route_ipv6(ctx, route_statistic, false);
+		enum xdp_action fib_ret =
+			route_ipv6(ctx, route_statistic, false);
 		PROFILE_END(PROF_N3_FIB_ROUTING);
 		return fib_ret;
 	} else {
