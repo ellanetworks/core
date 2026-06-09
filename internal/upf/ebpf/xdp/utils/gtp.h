@@ -159,6 +159,20 @@ static __always_inline __u32 handle_echo_request(struct packet_context *ctx)
 	}
 	swap_port(udp);
 	swap_mac(eth);
+
+	/* The message-type change invalidated the UDP checksum, which is
+	 * mandatory over IPv6 (a wrong one is dropped by the receiver). */
+	if (ctx->ip6) {
+		udp->check = 0;
+		__u32 udp_off = (__u32)((__u8 *)udp -
+					(__u8 *)(long)ctx->xdp_ctx->data);
+		int cs = udpv6_csum(&ctx->ip6->saddr, &ctx->ip6->daddr, udp_off,
+				    bpf_ntohs(udp->len), ctx->xdp_ctx);
+		if (cs < 0)
+			return XDP_DROP;
+		udp->check = (__u16)cs;
+	}
+
 	return XDP_TX;
 }
 
