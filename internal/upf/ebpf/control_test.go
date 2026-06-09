@@ -112,6 +112,36 @@ func TestGTPEchoRequestWithSequenceNumber(t *testing.T) {
 	}
 }
 
+// TestGTPEchoResponseIPv6Checksum checks that the Echo Response to an IPv6 echo
+// request carries a valid UDP checksum. The checksum is mandatory over IPv6
+// (RFC 8200); changing the GTP message type must not leave it stale, or the
+// receiver drops the reply.
+func TestGTPEchoResponseIPv6Checksum(t *testing.T) {
+	requireProgTestRun(t)
+
+	obj := loadN3N6Program(t)
+
+	const (
+		gtpEchoRequest  = 1
+		gtpEchoResponse = 2
+	)
+
+	action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, gtpControlFrameV6(gtpEchoRequest))
+
+	if action != XDP_TX {
+		t.Fatalf("IPv6 echo request got XDP action %d, want XDP_TX (%d)", action, XDP_TX)
+	}
+
+	if got := out[ethHdrLen+40+8+1]; got != gtpEchoResponse {
+		t.Errorf("GTP message type = %d, want %d (echo response)", got, gtpEchoResponse)
+	}
+
+	// The reflected response is UPF -> gNB; its UDP checksum must validate.
+	if !validUDPv6Checksum(testUPFN3v6, testGNBv6, out[ethHdrLen+40:]) {
+		t.Error("Echo Response UDP-over-IPv6 checksum does not validate (mandatory over IPv6)")
+	}
+}
+
 // TestRouterSolicitationIntercept checks that an inner ICMPv6 Router
 // Solicitation, after decapsulation, is intercepted: the packet is dropped AND
 // its TEID and UE source address are emitted to userspace on rs_event_map. The

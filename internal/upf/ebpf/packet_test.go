@@ -295,6 +295,16 @@ func gtpControlFrame(msgType uint8) []byte {
 	return ethFrame(0x0800, ipv4Packet(testGNBIP, testUPFN3IP, 17, udpDatagram(3000, GTPUDPPort, gtp)))
 }
 
+// gtpControlFrameV6 builds a GTP-U control frame of the given message type over
+// IPv6 transport (the 8-byte base header, no flags or payload).
+func gtpControlFrameV6(msgType uint8) []byte {
+	gtp := make([]byte, 8)
+	gtp[0] = 0x30 // version=1, PT=1, no E/S/PN
+	gtp[1] = msgType
+
+	return gtpV6Outer(gtp)
+}
+
 // gtpControlFrameSeq builds a GTP-U control frame carrying a sequence number
 // (S flag set): the 8-byte mandatory header plus the 4-octet optional block
 // (sequence number, N-PDU number, next-extension-header-type = 0). It has no
