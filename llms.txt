@@ -1,0 +1,76 @@
+# Ella Core Documentation
+
+> A 5G mobile core network for private deployments - easy to operate, reliable, and secure.
+
+A 5G mobile core network for private deployments - easy to operate, reliable, and secure.
+
+## Home
+
+- [Home](https://docs.ellanetworks.com/index.md)
+
+## Tutorials
+
+- [Tutorials](https://docs.ellanetworks.com/tutorials/index.md)
+- [Getting Started: 5G Network with Radio Hardware](https://docs.ellanetworks.com/tutorials/getting_started_hardware/index.md)
+- [Getting Started: Simulated 5G Network](https://docs.ellanetworks.com/tutorials/getting_started_simulation/index.md)
+
+## How-to Guides
+
+- [How-to Guides](https://docs.ellanetworks.com/how_to/index.md)
+- [Manage Your Network with AI Agents](https://docs.ellanetworks.com/how_to/ai_agents/index.md)
+- [Backup and Restore](https://docs.ellanetworks.com/how_to/backup_and_restore/index.md)
+- [Advertise subscriber routes with BGP](https://docs.ellanetworks.com/how_to/bgp/index.md)
+- [Co-host with OCUDU](https://docs.ellanetworks.com/how_to/co_host_with_ocudu/index.md)
+- [Deploy a High Availability Cluster](https://docs.ellanetworks.com/how_to/deploy_ha_cluster/index.md)
+- [Install](https://docs.ellanetworks.com/how_to/install/index.md)
+- [Integrate with a Radio](https://docs.ellanetworks.com/how_to/integrate_with_radio/index.md)
+- [Use native XDP with veth](https://docs.ellanetworks.com/how_to/native_xdp_veth/index.md)
+- [Tune Network Performance](https://docs.ellanetworks.com/how_to/performance_tuning/index.md)
+- [Perform a Rolling Upgrade](https://docs.ellanetworks.com/how_to/rolling_upgrade/index.md)
+- [Scale Up a High Availability Cluster](https://docs.ellanetworks.com/how_to/scale_up_ha_cluster/index.md)
+- [Use VLANs](https://docs.ellanetworks.com/how_to/vlan/index.md)
+
+## Reference
+
+- [Reference](https://docs.ellanetworks.com/reference/index.md)
+- [Configuration File](https://docs.ellanetworks.com/reference/config_file/index.md)
+- [Connectivity](https://docs.ellanetworks.com/reference/connectivity/index.md)
+- [Observability](https://docs.ellanetworks.com/reference/observability/index.md)
+- [Performance](https://docs.ellanetworks.com/reference/performance/index.md)
+- [Production Hardening](https://docs.ellanetworks.com/reference/production_hardening/index.md)
+- [Supported 5G Equipment](https://docs.ellanetworks.com/reference/supported_5g_equipment/index.md)
+- [System Requirements](https://docs.ellanetworks.com/reference/system_reqs/index.md)
+- [API](https://docs.ellanetworks.com/reference/api/index.md)
+- [Audit Logs](https://docs.ellanetworks.com/reference/api/audit_logs/index.md)
+- [Authentication](https://docs.ellanetworks.com/reference/api/auth/index.md)
+- [Backup](https://docs.ellanetworks.com/reference/api/backup/index.md)
+- [Cluster](https://docs.ellanetworks.com/reference/api/cluster/index.md)
+- [Flow Reports](https://docs.ellanetworks.com/reference/api/flow_reports/index.md)
+- [Initialization](https://docs.ellanetworks.com/reference/api/initialize/index.md)
+- [Metrics](https://docs.ellanetworks.com/reference/api/metrics/index.md)
+- [Networking](https://docs.ellanetworks.com/reference/api/networking/index.md)
+- [Operator](https://docs.ellanetworks.com/reference/api/operator/index.md)
+- [Policies](https://docs.ellanetworks.com/reference/api/policies/index.md)
+- [Pprof](https://docs.ellanetworks.com/reference/api/pprof/index.md)
+- [Profiles](https://docs.ellanetworks.com/reference/api/profiles/index.md)
+- [Radios](https://docs.ellanetworks.com/reference/api/radios/index.md)
+- [Restore](https://docs.ellanetworks.com/reference/api/restore/index.md)
+- [Slices](https://docs.ellanetworks.com/reference/api/slices/index.md)
+- [Status](https://docs.ellanetworks.com/reference/api/status/index.md)
+- [Subscribers](https://docs.ellanetworks.com/reference/api/subscribers/index.md)
+- [Support Bundle](https://docs.ellanetworks.com/reference/api/support_bundle/index.md)
+- [Usage](https://docs.ellanetworks.com/reference/api/usage/index.md)
+- [Users](https://docs.ellanetworks.com/reference/api/users/index.md)
+
+## Explanation
+
+- [Explanation](https://docs.ellanetworks.com/explanation/index.md)
+- [Architecture](https://docs.ellanetworks.com/explanation/architecture/index.md)
+- [Advertising and receiving routes via BGP](https://docs.ellanetworks.com/explanation/bgp/index.md)
+- [High Availability](https://docs.ellanetworks.com/explanation/high_availability/index.md)
+- [Managing SIM Cards](https://docs.ellanetworks.com/explanation/managing_sim_cards/index.md)
+- [Obtaining a PLMN ID for a Private Network](https://docs.ellanetworks.com/explanation/obtaining_plmn_id/index.md)
+- [Platform Security](https://docs.ellanetworks.com/explanation/platform_security/index.md)
+- [Subscriber Security](https://docs.ellanetworks.com/explanation/subscriber_security/index.md)
+- [User Plane Packet processing with eBPF](https://docs.ellanetworks.com/explanation/user_plane_packet_processing_with_ebpf/index.md)
+
