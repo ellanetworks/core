@@ -39,6 +39,8 @@ var PermissionsByRole = map[RoleID][]string{
 		PermListRadioEvents, PermGetRadioEventRetentionPolicy, PermGetRadioEvent,
 		PermGetFlowReportsRetentionPolicy, PermListFlowReports,
 		PermListNetworkRules, PermReadNetworkRule,
+		PermReadLocation,
+		PermReadPositioningSessions,
 	},
 
 	RoleNetworkManager: {
@@ -59,6 +61,8 @@ var PermissionsByRole = map[RoleID][]string{
 		PermGetFlowReportsRetentionPolicy, PermSetFlowReportsRetentionPolicy, PermListFlowReports, PermClearFlowReports,
 		PermSupportBundle,
 		PermCreateNetworkRule, PermListNetworkRules, PermReadNetworkRule, PermUpdateNetworkRule, PermDeleteNetworkRule,
+		PermReadLocation,
+		PermReadPositioningSessions, PermCreatePositioningSession, PermDeletePositioningSession,
 	},
 }
 
@@ -195,6 +199,14 @@ const (
 
 	// Cluster permissions
 	PermManageCluster = "cluster:manage"
+
+	// Location permissions
+	PermReadLocation = "location:read"
+
+	// Positioning permissions
+	PermReadPositioningSessions  = "positioning:sessions:read"
+	PermCreatePositioningSession = "positioning:sessions:create"
+	PermDeletePositioningSession = "positioning:sessions:delete"
 )
 
 func Authorize(permission string, next http.Handler) http.Handler {

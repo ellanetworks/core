@@ -124,6 +124,14 @@ type UeContext struct {
 	mobileReachableTimer        guard.Guard
 	implicitDeregistrationTimer guard.Guard
 	idleGen                     uint64
+
+	/* Radio measurements (E-CID) */
+	radioMu           sync.RWMutex
+	radioMeasurements *RadioMeasurements
+
+	/* NRPPa messages (RAN → LMF) */
+	nrppaMu       sync.RWMutex
+	nrppaMessages []NRPPaMessage
 }
 
 func NewUeContext() *UeContext {
@@ -954,4 +962,24 @@ func (ue *UeContext) releaseSmContexts(ctx context.Context) {
 			ue.Log.Error("Release SmContext Error", zap.Error(err))
 		}
 	}
+}
+
+// GetUserLocation returns a copy of the UE's user location.
+func (ue *UeContext) GetUserLocation() models.UserLocation {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	return ue.Location
+}
+
+// IsUserLocationEmpty returns true if the UE has no location information.
+func (ue *UeContext) IsUserLocationEmpty() bool {
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	loc := ue.Location
+
+	return loc.EutraLocation == nil &&
+		loc.NrLocation == nil &&
+		loc.N3gaLocation == nil
 }
