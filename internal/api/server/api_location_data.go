@@ -97,8 +97,10 @@ const (
 	posMethodCellID = "CELLID"
 	posMethodECID   = "ECID"
 	posMethodNRECID = "NR_ECID"
+	posMethodGNSS   = "GNSS"
 
 	posModeUEAssisted = "UE_ASSISTED"
+	posModeUEBased    = "UE_BASED"
 	posModeConvention = "CONVENTIONAL"
 	usageSuccessUsed  = "SUCCESS_RESULTS_USED"
 	gadShapePoint     = "POINT"
@@ -196,6 +198,8 @@ func methodAndMode(r *models.LocationResult) (method, mode string) {
 		}
 
 		return posMethodECID, posModeUEAssisted
+	case models.GADEllipsoidalPoint:
+		return posMethodGNSS, posModeUEBased
 	default:
 		return posMethodCellID, posModeConvention
 	}
