@@ -4,6 +4,7 @@
 package nas
 
 import (
+	"github.com/ellanetworks/core/internal/decoder/lpp"
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/free5gc/nas/nasMessage"
 )
@@ -62,20 +63,25 @@ func buildDLNASPayloadContainer(msg *nasMessage.DLNASTransport) PayloadContainer
 		Raw: msg.GetPayloadContainerContents(),
 	}
 
-	if containerType != nasMessage.PayloadContainerTypeN1SMInfo {
+	switch containerType {
+	case nasMessage.PayloadContainerTypeN1SMInfo:
+		rawBytes := msg.GetPayloadContainerContents()
+
+		gsmMessage, err := decodeGSMMessage(rawBytes)
+		if err != nil {
+			payloadContainer.Error = "Failed to decode N1 SM message: " + err.Error()
+			return payloadContainer
+		}
+
+		payloadContainer.GsmMessage = gsmMessage
+
+	case nasMessage.PayloadContainerTypeLPP:
+		rawBytes := msg.GetPayloadContainerContents()
+		payloadContainer.LppMessage = lpp.Decode(rawBytes)
+
+	default:
 		payloadContainer.Error = "Payload container type not yet implemented"
-		return payloadContainer
 	}
-
-	rawBytes := msg.GetPayloadContainerContents()
-
-	gsmMessage, err := decodeGSMMessage(rawBytes)
-	if err != nil {
-		payloadContainer.Error = "Failed to decode N1 SM message: " + err.Error()
-		return payloadContainer
-	}
-
-	payloadContainer.GsmMessage = gsmMessage
 
 	return payloadContainer
 }

@@ -171,6 +171,18 @@ const getNrppaHeader = (nrppaPdu: any): string => {
   return decoded.kind?.label || "Unknown";
 };
 
+const isLppPdu = (v: unknown): boolean =>
+  !!v && typeof v === "object" && (v as any).protocol === "LPP";
+
+const getLppHeader = (lppPdu: any): string => {
+  const decoded = lppPdu?.decoded;
+  if (!decoded) return "undecoded";
+  if (decoded.error) return "decode error";
+  const bodyKind = decoded.body_kind?.label || "Unknown";
+  const initiator = decoded.initiator?.label || "";
+  return initiator ? `${bodyKind} (${initiator})` : bodyKind;
+};
+
 const ProtocolPduBlock: React.FC<{
   pdu: any;
   depth: number;
@@ -243,6 +255,20 @@ const NrppaPduBlock: React.FC<{
   />
 );
 
+const LppPduBlock: React.FC<{
+  lppPdu: any;
+  depth: number;
+  title: string;
+}> = ({ lppPdu, depth, title }) => (
+  <ProtocolPduBlock
+    pdu={lppPdu}
+    depth={depth}
+    title={title}
+    header={getLppHeader(lppPdu)}
+    accentColor="success.main"
+  />
+);
+
 const NgapIEBlock: React.FC<{ ie: any; depth: number; label?: string }> = ({
   ie,
   depth,
@@ -292,6 +318,15 @@ const NgapIEBlock: React.FC<{ ie: any; depth: number; label?: string }> = ({
     return (
       <>
         <NrppaPduBlock nrppaPdu={value} depth={depth} title={title} />
+        {error && <KVLine depth={depth + 1} k="Error" v={String(error)} />}
+      </>
+    );
+  }
+
+  if (isLppPdu(value)) {
+    return (
+      <>
+        <LppPduBlock lppPdu={value} depth={depth} title={title} />
         {error && <KVLine depth={depth + 1} k="Error" v={String(error)} />}
       </>
     );
@@ -482,6 +517,16 @@ const CollapsibleObject: React.FC<{
                   <NrppaPduBlock
                     key={k}
                     nrppaPdu={v}
+                    depth={childDepth}
+                    title={k}
+                  />
+                );
+              }
+              if (isLppPdu(v)) {
+                return (
+                  <LppPduBlock
+                    key={k}
+                    lppPdu={v}
                     depth={childDepth}
                     title={k}
                   />

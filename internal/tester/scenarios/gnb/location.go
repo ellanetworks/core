@@ -192,6 +192,33 @@ func runLocationTest(ctx context.Context, env scenarios.Env, p *locationParams) 
 		zap.Float64("lat", cellIDResult.LocationEstimate.Point.Lat),
 	)
 
+	// --- Phase 4: A-GNSS location ---
+	logger.Logger.Info("=== Testing A-GNSS location ===")
+
+	agnssResult, err := common.GetLocation(ctx, cl, supi, "agnss_ue_assisted")
+	if err != nil {
+		return fmt.Errorf("A-GNSS location failed: %v", err)
+	}
+
+	if agnssResult.LocationEstimate == nil || agnssResult.LocationEstimate.Point == nil {
+		return fmt.Errorf("A-GNSS result missing locationEstimate point")
+	}
+
+	if m := common.PositioningMethod(agnssResult); m != "GNSS" {
+		return fmt.Errorf("expected GNSS positioning method, got %q", m)
+	}
+
+	// A-GNSS coordinates come from the UE tester: 45.0°N, 21.45°E.
+	if lat := agnssResult.LocationEstimate.Point.Lat; lat < 44.99 || lat > 45.01 {
+		return fmt.Errorf("A-GNSS latitude mismatch: expected ~45.0, got %f", lat)
+	}
+
+	if lon := agnssResult.LocationEstimate.Point.Lon; lon < 21.44 || lon > 21.46 {
+		return fmt.Errorf("A-GNSS longitude mismatch: expected ~21.45, got %f", lon)
+	}
+
+	logger.Logger.Info("A-GNSS location validated successfully")
+
 	// --- Cleanup: Deregister UE ---
 	pduSessionIDs := [16]bool{}
 	pduSessionIDs[scenarios.DefaultPDUSessionID] = true

@@ -97,6 +97,12 @@ type NASHandler interface {
 	HandleServiceRequest(ctx context.Context, ue *UeConn, nasPdu []byte)
 }
 
+// LPPHandler is called by the AMF when an UL NAS Transport carries an LPP payload.
+// The AMF looks up the UE by SUPI and forwards the LPP data to the handler (LMF).
+type LPPHandler interface {
+	ForwardLPP(ctx context.Context, supi etsi.SUPI, lppData []byte) error
+}
+
 // Concurrency model — a registry lock, a per-UE lock, and atomics:
 //
 //   - AMF.mu guards the registry and connection lifecycle: the UEs/uesByTmsi maps,
@@ -147,6 +153,7 @@ type AMF struct {
 	handoverGuardTimeout time.Duration
 	Session              SmfSbi
 	NAS                  NASHandler
+	LPPHandler           LPPHandler
 }
 
 func (a *AMF) HandoverGuardTimeout() time.Duration {

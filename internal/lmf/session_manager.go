@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/lmf/lpp"
 	"github.com/ellanetworks/core/internal/lmf/models"
 	"github.com/ellanetworks/core/internal/logger"
 	"go.uber.org/zap"
@@ -62,6 +63,27 @@ func (m *SessionManager) CreateSession(ctx context.Context, params CreateSession
 	)
 
 	return s.ID, nil
+}
+
+// CreateLPPSession creates a positioning session and initializes the LPP state
+// machine for AGNSS positioning. It returns the LPP session handle and the
+// positioning session ID. The caller must wire the LPP transport functions
+// via session.SetTransport() before calling session.StartSession().
+func (m *SessionManager) CreateLPPSession(ctx context.Context, params CreateSessionParams) (*lpp.Session, error) {
+	sessionID, err := m.CreateSession(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	session := lpp.NewSession(params.SUPI, sessionID, string(params.Method))
+
+	logger.LmfLog.Info("LPP session created",
+		zap.String("session_id", sessionID),
+		zap.String("supi", params.SUPI),
+		zap.String("method", string(params.Method)),
+	)
+
+	return session, nil
 }
 
 // CompleteSession marks a session as completed with a location result.
