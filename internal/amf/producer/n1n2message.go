@@ -415,3 +415,42 @@ func TransferN1Msg(ctx context.Context, amfInstance *amf.AMF, supi etsi.SUPI, n1
 
 	return nil
 }
+
+// TransferN1LPPMsg wraps an LPP payload in a DL NAS Transport message and
+// sends it to the UE via the RAN. Per TS 24.501 §5.4.5.3.1 case c), LPP
+// payloads are carried in DL NAS Transport with PayloadContainerTypeLPP.
+//
+// pduSessionID must be 0 for LPP messages — LPP is not PDU-session-scoped.
+func TransferN1LPPMsg(ctx context.Context, amfInstance *amf.AMF, supi etsi.SUPI, lppMsg []byte) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"AMF N1 LPP Transfer",
+		trace.WithAttributes(
+			attribute.String("supi", supi.String()),
+		),
+	)
+	defer span.End()
+
+	ue, ok := amfInstance.FindAMFUEBySupi(supi)
+	if !ok {
+		return fmt.Errorf("ue context not found")
+	}
+
+	ranUe := ue.RanUe()
+	if ranUe == nil {
+		return fmt.Errorf("ue is not connected to RAN")
+	}
+
+	nasPdu, err := message.BuildDLNASTransport(ue, nasMessage.PayloadContainerTypeLPP, lppMsg, 0, nil)
+	if err != nil {
+		return fmt.Errorf("build DL NAS Transport (LPP) error: %v", err)
+	}
+
+	if err := ranUe.SendDownlinkNasTransport(ctx, nasPdu, nil); err != nil {
+		return fmt.Errorf("send downlink nas transport (LPP): %w", err)
+	}
+
+	ue.Log.Info("sent DL NAS Transport (LPP) to UE", logger.SUPI(supi.String()))
+
+	return nil
+}

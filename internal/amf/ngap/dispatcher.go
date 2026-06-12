@@ -263,6 +263,65 @@ func dispatchNgapMsg(ctx context.Context, amfInstance *amf.AMF, ran *amf.Radio, 
 			}
 
 			HandlePDUSessionResourceModifyIndication(ctx, ran, decoded)
+		case ngapType.ProcedureCodeUplinkUEAssociatedNRPPaTransport:
+			nrppaTransport := pdu.InitiatingMessage.Value.UplinkUEAssociatedNRPPaTransport
+			if nrppaTransport != nil {
+				// Extract AMF UE NGAP ID, RAN UE NGAP ID, and NRPPa PDU
+				var (
+					amfUeNgapID, ranUeNgapID *int64
+					nrppaPdu                 []byte
+				)
+
+				for _, ie := range nrppaTransport.ProtocolIEs.List {
+					switch ie.Id.Value {
+					case ngapType.ProtocolIEIDAMFUENGAPID:
+						if ie.Value.AMFUENGAPID != nil {
+							amfUeNgapID = &ie.Value.AMFUENGAPID.Value
+						}
+					case ngapType.ProtocolIEIDRANUENGAPID:
+						if ie.Value.RANUENGAPID != nil {
+							ranUeNgapID = &ie.Value.RANUENGAPID.Value
+						}
+					case ngapType.ProtocolIEIDNRPPaPDU:
+						if ie.Value.NRPPaPDU != nil {
+							nrppaPdu = ie.Value.NRPPaPDU.Value
+						}
+					}
+				}
+
+				if nrppaPdu == nil {
+					ran.Log.Warn("Uplink NRPPa transport received but NRPPaPDU IE is missing")
+					break
+				}
+
+				ran.Log.Debug("Uplink NRPPa transport received",
+					zap.Int("payload_len", len(nrppaPdu)),
+				)
+
+				// Resolve UE context via AMF-UE-NGAP-ID
+				if amfUeNgapID != nil {
+					ranUe := ran.FindUEByAmfUeNgapID(*amfUeNgapID)
+					if ranUe == nil {
+						ran.Log.Warn("Unknown AMF UE NGAP ID in NRPPa transport",
+							zap.Int64("amfUeNgapID", *amfUeNgapID))
+
+						break
+					}
+
+					if ranUeNgapID != nil && ranUe.RanUeNgapID != *ranUeNgapID {
+						ran.Log.Warn("Inconsistent RAN UE NGAP ID in NRPPa transport",
+							zap.Int64("stored", ranUe.RanUeNgapID),
+							zap.Int64("received", *ranUeNgapID))
+
+						break
+					}
+
+					// Store raw NRPPa PDU in UE context for LMF to consume
+					if amfUe := ranUe.AmfUe(); amfUe != nil {
+						amfUe.SetNRPPaMessage(nrppaPdu)
+					}
+				}
+			}
 		default:
 			ran.Log.Warn("Not implemented", zap.Int("choice", pdu.Present), zap.Int64("procedureCode", initiatingMessage.ProcedureCode.Value))
 		}

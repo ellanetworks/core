@@ -548,6 +548,10 @@ func (fng *FakeNGAPSender) SendHandoverRequest(
 	return nil
 }
 
+func (fng *FakeNGAPSender) SendDownlinkNRPPaTransport(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, routingID int64, nrppaPdu []byte) error {
+	return nil
+}
+
 // newTestRadio creates a minimal Radio with a FakeNGAPSender for testing.
 func newTestRadio() *amf.Radio {
 	sender := &FakeNGAPSender{}

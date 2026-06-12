@@ -97,6 +97,12 @@ type NASHandler interface {
 	HandleNAS(ctx context.Context, ue *RanUe, nasPdu []byte) error
 }
 
+// LPPHandler is called by the AMF when an UL NAS Transport carries an LPP payload.
+// The AMF looks up the UE by SUPI and forwards the LPP data to the handler (LMF).
+type LPPHandler interface {
+	ForwardLPP(ctx context.Context, supi etsi.SUPI, lppData []byte) error
+}
+
 // Lock ordering (acquire in this order, never reverse):
 //
 //	AMF.mu  →  AmfUe.Mutex
@@ -128,6 +134,7 @@ type AMF struct {
 	T3565Cfg                 TimerValue
 	Smf                      SmfSbi
 	NAS                      NASHandler
+	LPPHandler               LPPHandler
 }
 
 func (a *AMF) allocateTMSI(ctx context.Context) (etsi.TMSI, error) {
@@ -646,4 +653,26 @@ func (amf *AMF) RemoveUEBySupi(supi etsi.SUPI) {
 	defer amf.mu.Unlock()
 
 	delete(amf.UEs, supi)
+}
+
+// GetUELocation returns the UserLocation for a registered UE, or false if the UE
+// is not found in the AMF's UE pool.
+func (amf *AMF) GetUELocation(supi etsi.SUPI) (models.UserLocation, bool) {
+	ue, ok := amf.FindAMFUEBySupi(supi)
+	if !ok {
+		return models.UserLocation{}, false
+	}
+
+	return ue.GetUserLocation(), true
+}
+
+// IsUERegistered returns true if the UE exists in the AMF's UE pool and is in
+// the Registered state.
+func (amf *AMF) IsUERegistered(supi etsi.SUPI) bool {
+	ue, ok := amf.FindAMFUEBySupi(supi)
+	if !ok {
+		return false
+	}
+
+	return ue.State() == Registered
 }
