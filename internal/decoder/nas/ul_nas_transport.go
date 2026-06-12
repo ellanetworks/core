@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ellanetworks/core/internal/decoder/lpp"
 	"github.com/ellanetworks/core/internal/decoder/utils"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
@@ -17,6 +18,7 @@ import (
 type PayloadContainer struct {
 	Raw        []byte      `json:"raw"`
 	GsmMessage *GsmMessage `json:"gsm_message,omitempty"`
+	LppMessage *lpp.PDU    `json:"lpp_message,omitempty"`
 
 	Error string `json:"error,omitempty"` // Reserved field for decoding errors
 }
@@ -106,20 +108,25 @@ func buildULNASPayloadContainer(msg *nasMessage.ULNASTransport) PayloadContainer
 		Raw: msg.GetPayloadContainerContents(),
 	}
 
-	if containerType != nasMessage.PayloadContainerTypeN1SMInfo {
+	switch containerType {
+	case nasMessage.PayloadContainerTypeN1SMInfo:
+		rawBytes := msg.GetPayloadContainerContents()
+
+		gsmMessage, err := decodeGSMMessage(rawBytes)
+		if err != nil {
+			payloadContainer.Error = fmt.Sprintf("failed to decode N1 SM message in UL NAS Transport Payload Container: %v", err)
+			return payloadContainer
+		}
+
+		payloadContainer.GsmMessage = gsmMessage
+
+	case nasMessage.PayloadContainerTypeLPP:
+		rawBytes := msg.GetPayloadContainerContents()
+		payloadContainer.LppMessage = lpp.Decode(rawBytes)
+
+	default:
 		payloadContainer.Error = fmt.Sprintf("payload container type %d not yet implemented", containerType)
-		return payloadContainer
 	}
-
-	rawBytes := msg.GetPayloadContainerContents()
-
-	gsmMessage, err := decodeGSMMessage(rawBytes)
-	if err != nil {
-		payloadContainer.Error = fmt.Sprintf("failed to decode N1 SM message in UL NAS Transport Payload Container: %v", err)
-		return payloadContainer
-	}
-
-	payloadContainer.GsmMessage = gsmMessage
 
 	return payloadContainer
 }

@@ -103,8 +103,21 @@ func DecodeNASMessage(raw []byte) *NASMessage {
 		// Integrity-protected but NOT ciphered — inner NAS is plaintext
 		innerNAS := raw[securityHeaderSize:]
 		return decodePlainNAS(nasMsg, innerNAS)
+	case nas.SecurityHeaderTypeIntegrityProtectedAndCiphered,
+		nas.SecurityHeaderTypeIntegrityProtectedAndCipheredWithNew5gNasSecurityContext:
+		// Ciphered — with NEA0 (null ciphering) the payload is still plaintext.
+		// Attempt to decode; if it fails, the message uses a real ciphering algorithm.
+		innerNAS := raw[securityHeaderSize:]
+
+		decoded := decodePlainNAS(nasMsg, innerNAS)
+		if decoded.Error != "" {
+			nasMsg.Error = ""
+			nasMsg.Encrypted = true
+		}
+
+		return nasMsg
 	default:
-		// Ciphered (types 2 and 4) — cannot decode without keys
+		// Unknown security header type — cannot decode
 		nasMsg.Encrypted = true
 		return nasMsg
 	}
