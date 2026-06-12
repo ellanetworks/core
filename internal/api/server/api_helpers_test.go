@@ -21,6 +21,7 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
+	"github.com/ellanetworks/core/internal/lmf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
@@ -88,6 +89,7 @@ type testEnv struct {
 	DB        *db.Database
 	SMF       *smf.SMF
 	AMF       *amf.AMF
+	LMF       *lmf.LMF
 }
 
 func setupServer(filepath string) (testEnv, error) {
@@ -138,6 +140,7 @@ func buildTestEnv(testdb *db.Database) (testEnv, error) {
 	}
 
 	amfInstance := amf.New(testdb, nil, smfInstance)
+	lmfInstance := lmf.New(amfInstance, nil)
 	ts := httptest.NewTLSServer(server.NewHandler(server.HandlerConfig{
 		DB:           testdb,
 		Config:       cfg,
@@ -146,6 +149,7 @@ func buildTestEnv(testdb *db.Database) (testEnv, error) {
 		FrontendFS:   dummyfs,
 		Sessions:     smfInstance,
 		AMF:          amfInstance,
+		LMF:          lmfInstance,
 		BcryptCost:   bcrypt.MinCost,
 	}))
 
@@ -159,6 +163,7 @@ func buildTestEnv(testdb *db.Database) (testEnv, error) {
 		DB:        testdb,
 		SMF:       smfInstance,
 		AMF:       amfInstance,
+		LMF:       lmfInstance,
 	}, nil
 }
 

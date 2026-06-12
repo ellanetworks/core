@@ -487,3 +487,17 @@ func (s *RealNGAPSender) SendHandoverRequest(
 
 	return nil
 }
+
+func (s *RealNGAPSender) SendDownlinkNRPPaTransport(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, routingID int64, nrppaPdu []byte) error {
+	pkt, err := buildDownlinkUEAssociatedNRPPaTransport(amfUeNgapID, ranUeNgapID, routingID, nrppaPdu)
+	if err != nil {
+		return fmt.Errorf("error building downlink NRPPa transport: %s", err.Error())
+	}
+
+	err = s.SendToRan(ctx, pkt, NGAPProcedureDownlinkNRPPaTransport)
+	if err != nil {
+		return fmt.Errorf("send error: %s", err.Error())
+	}
+
+	return nil
+}

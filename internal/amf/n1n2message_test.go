@@ -126,6 +126,10 @@ func (f *fakeNGAPSender) SendHandoverRequest(context.Context, int64, ngapType.Ha
 	return nil
 }
 
+func (f *fakeNGAPSender) SendDownlinkNRPPaTransport(context.Context, int64, int64, int64, []byte) error {
+	return nil
+}
+
 type fakeDBInstance struct {
 	operator *db.Operator
 }

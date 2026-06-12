@@ -76,6 +76,10 @@ type PDUSessionInfo struct {
 	QFI          uint8
 }
 
+type LPPRequest struct {
+	TransactionID byte
+}
+
 type UE struct {
 	UeSecurity             *UESecurity
 	StateMM                int
@@ -92,6 +96,8 @@ type UE struct {
 	receivedNASGMMMessages map[uint8][]*nas.Message // msgType -> gmm messages
 	receivedNASGSMMessages map[uint8][]*nas.Message // msgType -> gsm messages
 	receivedRRCRelease     bool
+	lppRequests            []*LPPRequest // queue of received LPP requests
+	lppCapsSent            bool          // true after first ProvideLocationCapabilities
 }
 
 func (ue *UE) SetPDUSession(pduSession PDUSessionInfo) {
@@ -193,6 +199,7 @@ func NewUE(opts *UEOpts) (*UE, error) {
 	ue.PDUSessions = make(map[uint8]PDUSessionInfo)
 	ue.receivedNASGMMMessages = make(map[uint8][]*nas.Message)
 	ue.receivedNASGSMMessages = make(map[uint8][]*nas.Message)
+	ue.lppRequests = make([]*LPPRequest, 0)
 
 	suci, err := ue.EncodeSuci()
 	if err != nil {
@@ -534,7 +541,7 @@ func (ue *UE) SendDownlinkNAS(msg []byte, amfUENGAPID int64, ranUENGAPID int64) 
 			return fmt.Errorf("could not handle Service Accept: %v", err)
 		}
 	case nas.MsgTypeDLNASTransport:
-		err := handleDLNASTransport(ue, decodedMsg)
+		err := handleDLNASTransport(ue, decodedMsg, amfUENGAPID, ranUENGAPID)
 		if err != nil {
 			return fmt.Errorf("could not handle DL NAS Transport: %v", err)
 		}
@@ -809,4 +816,34 @@ func (ue *UE) SendPDUSessionEstablishmentRequest(amfUENGAPID int64, ranUENGAPID 
 	)
 
 	return nil
+}
+
+// WaitForLPPRequest blocks until an LPP RequestLocationInformation is received,
+// or returns a timeout error. The request is removed from the queue after
+// being returned so it is not returned again.
+func (ue *UE) WaitForLPPRequest(timeout time.Duration) (*LPPRequest, error) {
+	deadline := time.Now().Add(timeout)
+
+	timer := time.AfterFunc(timeout, func() {
+		ue.cond.Broadcast()
+	})
+	defer timer.Stop()
+
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
+
+	for {
+		if len(ue.lppRequests) > 0 {
+			req := ue.lppRequests[0]
+			ue.lppRequests = ue.lppRequests[1:]
+
+			return req, nil
+		}
+
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("timeout waiting for LPP request")
+		}
+
+		ue.cond.Wait()
+	}
 }
