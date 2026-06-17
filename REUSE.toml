@@ -57,3 +57,12 @@ path = "ui/**/*.woff2"
 precedence = "override"
 SPDX-FileCopyrightText = "2010-2019 Adobe Systems Incorporated"
 SPDX-License-Identifier = "OFL-1.1"
+
+# Documentation site (docs.ellanetworks.com) — Ella-authored content and assets
+# (diagrams, screenshots, demo casts, glue scripts). Markdown/CSS/HTML are
+# covered by the top-level globs; this covers the remaining asset types.
+[[annotations]]
+path = "docs/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Ella Networks Inc."
+SPDX-License-Identifier = "Apache-2.0"
