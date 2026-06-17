@@ -1,4 +1,5 @@
 // Copyright 2026 Ella Networks
+// SPDX-License-Identifier: Apache-2.0
 
 // Package listener provides a multiplexed TLS listener for
 // intra-cluster communication. A single TCP socket carries all

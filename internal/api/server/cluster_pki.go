@@ -1,4 +1,5 @@
 // Copyright 2026 Ella Networks
+// SPDX-License-Identifier: Apache-2.0
 
 // Handlers for /cluster/pki/register on the cluster HTTP port.
 //

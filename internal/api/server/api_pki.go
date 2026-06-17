@@ -1,4 +1,5 @@
 // Copyright 2026 Ella Networks
+// SPDX-License-Identifier: Apache-2.0
 
 // Admin-facing PKI endpoints mounted at /api/v1/cluster/pki/*. All
 // require PermManageCluster and every mutation is audit-logged.

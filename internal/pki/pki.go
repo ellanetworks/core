@@ -1,4 +1,5 @@
 // Copyright 2026 Ella Networks
+// SPDX-License-Identifier: Apache-2.0
 
 // Package pki implements the cluster-TLS primitives used by every
 // node: per-node self-signed certificate generation, SHA-256
