@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 import type { BGPImportPrefix } from "@/queries/bgp";
 
 export type ImportPreset = "none" | "default-route" | "all" | "custom";

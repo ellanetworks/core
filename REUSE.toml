@@ -42,3 +42,18 @@ SPDX-License-Identifier = "Apache-2.0"
 path = "internal/upf/ebpf/.clang-format"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "The Linux Kernel Authors"
+
+# UI non-source files that can't carry a comment header: JSON configs, binary
+# assets, and placeholders. (TypeScript/React/SCSS source carry per-file headers.)
+[[annotations]]
+path = ["ui/*.json", "ui/**/*.json", "ui/**/*.ico", "ui/**/*.svg", "ui/.gitkeep", "ui/**/.gitkeep"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Ella Networks Inc."
+SPDX-License-Identifier = "Apache-2.0"
+
+# Bundled Source Code Pro fonts (Adobe) under the SIL Open Font License.
+[[annotations]]
+path = "ui/**/*.woff2"
+precedence = "override"
+SPDX-FileCopyrightText = "2010-2019 Adobe Systems Incorporated"
+SPDX-License-Identifier = "OFL-1.1"

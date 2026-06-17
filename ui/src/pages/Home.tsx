@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getStatus } from "@/queries/status";

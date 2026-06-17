@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 import React, { useMemo, useState } from "react";
 import { Box, Typography, Chip, CircularProgress } from "@mui/material";
 import { ThemeProvider, useTheme } from "@mui/material/styles";
