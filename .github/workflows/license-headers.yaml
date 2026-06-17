@@ -7,10 +7,10 @@ on:
   workflow_call:
 
 jobs:
-  license-headers:
+  reuse:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
 
-      - name: Check SPDX + Ella Networks copyright headers
-        run: bash scripts/check-license-headers.sh
+      - name: REUSE / SPDX compliance
+        uses: fsfe/reuse-action@v5

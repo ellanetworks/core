@@ -1,4 +1,4 @@
-// Copyright 2024 Ella Networks
+// SPDX-FileCopyrightText: Ella Networks Inc.
 package engine
 
 import (

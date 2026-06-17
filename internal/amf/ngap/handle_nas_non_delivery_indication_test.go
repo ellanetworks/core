@@ -1,4 +1,4 @@
-// Copyright 2026 Ella Networks
+// SPDX-FileCopyrightText: Ella Networks Inc.
 
 package ngap_test
 

@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026-present Ella Networks
+// SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 package fixture

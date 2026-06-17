@@ -1,4 +1,4 @@
-// Copyright 2026 Ella Networks
+// SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package pkiagent runs on every cluster node. It owns the local

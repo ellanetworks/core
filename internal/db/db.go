@@ -1,7 +1,7 @@
-// SPDX-FileCopyrightText: 2026-present Ella Networks
+// SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-// Copyright 2024 Ella Networks
+// SPDX-FileCopyrightText: Ella Networks Inc.
 
 // Package db provides a simplistic ORM to communicate with an SQL database for storage
 package db

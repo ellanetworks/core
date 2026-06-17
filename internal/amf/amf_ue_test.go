@@ -1,4 +1,4 @@
-// Copyright 2025 Ella Networks
+// SPDX-FileCopyrightText: Ella Networks Inc.
 
 package amf_test
 

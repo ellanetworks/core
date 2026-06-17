@@ -1,4 +1,4 @@
-// Copyright 2026 Ella Networks
+// SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 // Package decode converts free5gc NGAP message types into validated Go
