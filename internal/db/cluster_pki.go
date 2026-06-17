@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026-present Ella Networks
+// SPDX-License-Identifier: Apache-2.0
+
 // Copyright 2026 Ella Networks
 
 // Cluster PKI storage. Cluster TLS trusts a peer when the peer's

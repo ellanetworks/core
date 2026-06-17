@@ -1,0 +1,16 @@
+name: License Headers
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  license-headers:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check SPDX + Ella Networks copyright headers
+        run: bash scripts/check-license-headers.sh
