@@ -66,3 +66,19 @@ path = "docs/**"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "Ella Networks Inc."
 SPDX-License-Identifier = "Apache-2.0"
+
+# Build/CI/packaging/test-infrastructure files (Ella-authored): version,
+# CODEOWNERS, packaging hooks/scripts, the docs requirements pin, the Alloy
+# observability config, and the integration-test PKI fixtures + compose glue.
+[[annotations]]
+path = [
+  "CODEOWNERS", "version/VERSION", "requirements-docs.in",
+  "service/bin/core-start", "snap/hooks/install",
+  "observability/alloy/config.alloy",
+  "integration/compose/bgp/Dockerfile.gobgp",
+  "integration/compose/pki/README", "integration/compose/pki/*.pem",
+  "integration/network_test.py",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Ella Networks Inc."
+SPDX-License-Identifier = "Apache-2.0"

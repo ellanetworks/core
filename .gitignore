@@ -28,3 +28,10 @@ main
 # Documentation
 .cache
 site
+
+# local build / tooling artifacts
+/coverage.out
+/core-tester
+/*.backup
+.VSCodeCounter/
+/ts_*.pdf
