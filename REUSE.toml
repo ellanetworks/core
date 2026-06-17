@@ -1,0 +1,44 @@
+version = 1
+
+# Non-source files (build config, CI, docs, fixtures) authored by Ella Networks.
+# Source files (*.go, *.c, *.h) carry their own SPDX headers and are not covered
+# here so that per-file upstream attribution stays explicit.
+[[annotations]]
+path = [
+  "**/*.yaml", "**/*.yml", "**/*.json", "**/*.toml", "**/*.md", "**/*.txt",
+  "**/*.sh", "**/*.sql", "**/*.proto", "**/*.tmpl", "**/*.html", "**/*.css",
+  "go.mod", "go.sum", "**/go.mod", "**/go.sum", "**/Dockerfile", "Dockerfile",
+  ".gitignore", ".dockerignore", "**/.gitignore",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Ella Networks Inc."
+SPDX-License-Identifier = "Apache-2.0"
+
+# Verbatim third-party file kept pristine (eUPF) — carries only the upstream
+# notice, no Ella header. See the attribution review.
+[[annotations]]
+path = "internal/upf/ebpf/xdp/utils/types.h"
+precedence = "override"
+SPDX-FileCopyrightText = "2023 Edgecom LLC"
+SPDX-License-Identifier = "Apache-2.0"
+
+# bpf2go-generated Go bindings + compiled eBPF objects (build output of the XDP
+# C; reproducible via bpf2go, not hand-edited).
+[[annotations]]
+path = ["internal/upf/ebpf/*_bpf.go", "internal/upf/ebpf/*.o"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Ella Networks Inc."
+SPDX-License-Identifier = "Apache-2.0"
+
+# clang-tidy config (Ella's own; selects kernel check sets).
+[[annotations]]
+path = "internal/upf/ebpf/.clang-tidy"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Ella Networks Inc."
+SPDX-License-Identifier = "Apache-2.0"
+
+# clang-format config copied from the Linux kernel (declares GPL-2.0 inline).
+[[annotations]]
+path = "internal/upf/ebpf/.clang-format"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "The Linux Kernel Authors"

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package scenarios is the registry and runtime for core-tester scenarios.
 //
 // Each scenario lives in its own file and registers itself with Register at

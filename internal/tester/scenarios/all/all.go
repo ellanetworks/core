@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package all blank-imports every scenario subpackage so their init()
 // registrations execute when the top-level binary imports this package.
 //

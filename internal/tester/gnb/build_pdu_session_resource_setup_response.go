@@ -1,7 +1,10 @@
 /**
  * SPDX-License-Identifier: Apache-2.0
+ * SPDX-FileCopyrightText: Ella Networks Inc.
  * © Copyright 2023 Hewlett Packard Enterprise Development LP
  * © Copyright 2024 Valentin D'Emmanuele
+ *
+ * Modified by Ella Networks.
  */
 package gnb
 
