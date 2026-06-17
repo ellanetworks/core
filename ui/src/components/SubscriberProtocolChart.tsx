@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 import React, { useMemo } from "react";
 import { Box, CircularProgress, Typography } from "@mui/material";
 import { PieChart } from "@mui/x-charts/PieChart";

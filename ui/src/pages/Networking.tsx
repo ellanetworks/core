@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 import { useMemo } from "react";
 import type { SyntheticEvent } from "react";
 import { Box, Typography, Tabs, Tab } from "@mui/material";

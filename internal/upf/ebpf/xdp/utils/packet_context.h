@@ -1,5 +1,10 @@
 /**
  * Copyright 2023 Edgecom LLC
+ * SPDX-FileCopyrightText: Ella Networks Inc.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Modified by Ella Networks.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.

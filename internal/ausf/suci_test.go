@@ -1,5 +1,6 @@
-// Copyright 2026 Ella Networks
+// SPDX-FileCopyrightText: Ella Networks Inc.
 // Copyright 2019 free5gc.org
+// SPDX-License-Identifier: Apache-2.0
 
 package ausf
 

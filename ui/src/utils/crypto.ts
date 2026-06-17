@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 function hexToBytes(hex: string): Uint8Array {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {

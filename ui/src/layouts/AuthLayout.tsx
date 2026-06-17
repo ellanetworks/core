@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 import React, { useState } from "react";
 import { Box, CssBaseline, Toolbar, AppBar, Typography } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";

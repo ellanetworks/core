@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 import React, { useEffect, useState } from "react";
 import { Box, Typography, Skeleton } from "@mui/material";
 import { useQuery, useQueryClient } from "@tanstack/react-query";

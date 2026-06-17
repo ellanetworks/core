@@ -1,4 +1,5 @@
-// Copyright 2026 Ella Networks
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
 //
 
 // XDP program for the veth-xdp side of the veth pair used for

@@ -33,6 +33,8 @@ jobs:
     uses: ./.github/workflows/clang-format.yaml
   clang-tidy:
     uses: ./.github/workflows/clang-tidy.yaml
+  license-headers:
+    uses: ./.github/workflows/license-headers.yaml
   image-build:
     needs: [go-unit-test, go-vet, go-lint]
     uses: ./.github/workflows/image-build.yaml

@@ -1,4 +1,5 @@
-// Copyright 2025 Ella Networks
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
 
 #include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>

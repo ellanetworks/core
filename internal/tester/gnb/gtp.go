@@ -1,6 +1,6 @@
-// Copyright 2025 Ghislain Bourgeois
-// Copyright 2025 Ella Networks Inc.
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2025 Ghislain Bourgeois
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
 
 package gnb
 

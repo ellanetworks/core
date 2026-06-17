@@ -1,4 +1,7 @@
-// Copyright 2026 Ella Networks
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+// SPDX-FileCopyrightText: Ella Networks Inc.
 
 // Cluster PKI storage. Cluster TLS trusts a peer when the peer's
 // leaf SHA-256 matches a row in cluster_node_certs; removing a node

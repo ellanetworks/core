@@ -1,5 +1,6 @@
-// Copyright 2026 Ella Networks
+// SPDX-FileCopyrightText: Ella Networks Inc.
 // Copyright 2019 Wataru Ishida. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.

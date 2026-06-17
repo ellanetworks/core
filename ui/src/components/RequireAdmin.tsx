@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 

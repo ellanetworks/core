@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 /**
  * Downloads a support bundle as a binary blob.
  * Mirrors the backup API behavior but calls the support-bundle endpoint.

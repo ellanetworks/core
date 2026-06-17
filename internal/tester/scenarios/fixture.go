@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 package scenarios
 
 // FixtureSpec describes everything a scenario needs provisioned on Ella

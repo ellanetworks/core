@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 //go:build ignore
 
 // gen.go regenerates the per-node self-signed cluster certs used by

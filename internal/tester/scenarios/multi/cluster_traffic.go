@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 // Package multi holds tester scenarios for multi-node clusters.
 package multi
 

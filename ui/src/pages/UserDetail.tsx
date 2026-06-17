@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 import React, { useEffect, useState } from "react";
 import { Box, Button, Skeleton, Typography } from "@mui/material";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";

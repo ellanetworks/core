@@ -1,0 +1,16 @@
+name: License Headers
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  reuse:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: REUSE / SPDX compliance
+        uses: fsfe/reuse-action@v5

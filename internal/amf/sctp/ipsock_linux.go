@@ -1,5 +1,6 @@
-// Copyright 2024 Ella Networks
+// SPDX-FileCopyrightText: Ella Networks Inc.
 // Copyright 2009 The Go Authors. All rights reserved.
+// SPDX-License-Identifier: BSD-3-Clause
 // Use of this source code is governed by a BSD-style
 // license that can be found in the GO_LICENSE file.
 
