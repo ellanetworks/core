@@ -148,7 +148,7 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 	fx.DataNetwork(fixture.DefaultDataNetworkSpec())
 	fx.Policy(fixture.DefaultPolicySpec())
 
-	// 15 subscribers, 5 per gNB. AMF state (Registered, PDUSessions)
+	// 15 subscribers, 5 per gNB. AMF state (Registered, Sessions)
 	// is per-node, so each gNB's IMSIs are stored on the spec so the
 	// post-scenario assertions hit the right core.
 	subSpec := scenarios.FixtureSpec{}
@@ -254,13 +254,13 @@ func TestIntegration3GPPMultiGNB(t *testing.T) {
 				t.Errorf("%s: subscriber %s: expected Registered=true, got false", gn.service, imsi)
 			}
 
-			if len(sub.PDUSessions) == 0 {
+			if len(sub.Sessions) == 0 {
 				t.Errorf("%s: subscriber %s: expected >=1 PDU session, got 0", gn.service, imsi)
 
 				continue
 			}
 
-			ip := sub.PDUSessions[0].IPv4Address
+			ip := sub.Sessions[0].IPv4Address
 			if !strings.HasPrefix(ip, "10.45.") {
 				t.Errorf("%s: subscriber %s: PDU session IP %q not in expected pool 10.45.0.0/16",
 					gn.service, imsi, ip)

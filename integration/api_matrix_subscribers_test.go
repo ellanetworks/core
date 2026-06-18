@@ -163,8 +163,8 @@ func runSubscribersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 		t.Fatalf("Status: expected zero-valued strings on a never-attached subscriber, got %+v", got.Status)
 	}
 
-	if len(got.PDUSessions) != 0 {
-		t.Fatalf("PDUSessions: got %d, want 0", len(got.PDUSessions))
+	if len(got.Sessions) != 0 {
+		t.Fatalf("Sessions: got %d, want 0", len(got.Sessions))
 	}
 
 	creds, err := c.GetSubscriberCredentials(ctx, &client.GetSubscriberCredentialsOptions{ID: imsi})
@@ -198,8 +198,8 @@ func runSubscribersMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 			t.Fatalf("list Status.Registered: got true, want false")
 		}
 
-		if item.Status.NumPDUSessions != 0 {
-			t.Fatalf("list Status.NumPDUSessions: got %d, want 0", item.Status.NumPDUSessions)
+		if item.Status.NumSessions != 0 {
+			t.Fatalf("list Status.NumSessions: got %d, want 0", item.Status.NumSessions)
 		}
 
 		if item.Status.LastSeenAt != "" {

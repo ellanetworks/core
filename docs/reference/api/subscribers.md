@@ -33,7 +33,8 @@ This path returns the list of network subscribers.
                 "profile_name": "default",
                 "status": {
                     "registered": true,
-                    "num_pdu_sessions": 1
+                    "radio_access_type": "5G",
+                    "num_sessions": 1
                 }
             }
         ],
@@ -113,23 +114,28 @@ None
     "profile_name": "default",
     "status": {
       "registered": true,
+      "radio_access_type": "5G",
       "imei": "359881234567890",
-      "cipheringAlgorithm": "NEA1",
-      "integrityAlgorithm": "NIA1",
-      "lastSeenAt": "2026-03-16T12:34:56Z",
-      "lastSeenRadio": "gNB-1"
+      "ciphering_algorithm": "SNOW3G",
+      "integrity_algorithm": "SNOW3G",
+      "last_seen_at": "2026-03-16T12:34:56Z",
+      "last_seen_radio": "gNB-1"
     },
-  "pdu_sessions": [
+  "sessions": [
       {
-        "pdu_session_id": 1,
+        "radio_access_type": "5G",
+        "id": 1,
         "status": "active",
-        "ipv4Address": "10.45.0.2",
-        "ipv6Prefix": "2001:db8::/64",
-        "dnn": "internet",
-        "sst": 1,
-        "sd": "000001",
-        "session_ambr_uplink": "100 Mbps",
-        "session_ambr_downlink": "200 Mbps"
+        "ip_type": "IPv4v6",
+        "ipv4_address": "10.45.0.2",
+        "ipv6_prefix": "2001:db8::/64",
+        "data_network": "internet",
+        "slice": {
+          "sst": 1,
+          "sd": "000001"
+        },
+        "ambr_uplink": "100 Mbps",
+        "ambr_downlink": "200 Mbps"
       }
     ]
   }
