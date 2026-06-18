@@ -21,8 +21,7 @@ import (
 // cause #39 "reactivation requested" (TS 24.301 §6.4.4.2) so the UE
 // re-establishes. This is the EPS counterpart of the 5G AMF SessionReconciler
 // and mirrors its modify-versus-release split (5G modifies DNS in place and
-// releases for MTU/pool); previously no 4G analogue existed — a data-network
-// change did not reach active EPS bearers.
+// releases for MTU/pool).
 func (m *MME) ReconcileDataNetwork(ctx context.Context) {
 	m.mu.Lock()
 

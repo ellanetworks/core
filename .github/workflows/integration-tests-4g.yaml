@@ -44,16 +44,18 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      # 4G workload only: the dedicated TestIntegration4G* tests (srsRAN soft-radio,
-      # IPv4-only — they self-skip the IPv6/dualstack legs) plus the s1enb core-tester
-      # scenarios, which carry the IPv6 and dualstack coverage across the matrix.
-      - name: Run 4G integration tests
+      # 4G core-tester scenarios: the in-house s1enb S1AP eNB simulator drives the
+      # MME over the ella-core-tester image, which is multi-arch and provides the
+      # IPv4, IPv6, and dualstack coverage across the full matrix. The real-radio
+      # (srsRAN) 4G tests run in integration-tests-4g-srsran instead, because their
+      # soft-radio image is amd64/IPv4 only.
+      - name: Run 4G core-tester integration tests
         env:
           INTEGRATION: "1"
           IP_VERSION: ${{ matrix.ip_version }}
           HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
         run: |
-          go test ./integration/... -run 'TestIntegration4G|TestIntegrationTester/s1enb' -timeout 30m -v
+          go test ./integration/... -run 'TestIntegrationTester/s1enb' -timeout 30m -v
 
       - name: Upload cluster logs
         if: always()

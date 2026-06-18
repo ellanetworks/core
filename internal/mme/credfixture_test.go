@@ -89,8 +89,7 @@ func (barredBearerStore) GetProfileByID(_ context.Context, id string) (*db.Profi
 }
 
 // fakeBearerStore resolves a fixed default-bearer QoS (QCI 9, APN "internet",
-// 1 Gbps UE-AMBR) for any subscriber — the DB-backed equivalent of the values
-// the MME used to hard-code.
+// 1 Gbps UE-AMBR) for any subscriber.
 type fakeBearerStore struct{}
 
 func (fakeBearerStore) GetSubscriber(_ context.Context, imsi string) (*db.Subscriber, error) {

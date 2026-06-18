@@ -12,12 +12,12 @@ import (
 )
 
 // runOperatorNASSecurityMatrix round-trips the ciphering and integrity
-// algorithm preference orders. Valid values: NEA0/1/2 for ciphering,
-// NIA0/1/2 for integrity. Max 3 each, no duplicates.
+// algorithm preference orders. Valid values: NULL, SNOW3G, AES for both
+// ciphering and integrity. Max 3 each, no duplicates.
 func runOperatorNASSecurityMatrix(ctx context.Context, t *testing.T, c *client.Client) {
 	baseline := &client.UpdateOperatorNASSecurityOptions{
-		Ciphering: []string{"NEA0", "NEA1", "NEA2"},
-		Integrity: []string{"NIA1", "NIA2"},
+		Ciphering: []string{"NULL", "SNOW3G", "AES"},
+		Integrity: []string{"SNOW3G", "AES"},
 	}
 
 	if err := c.UpdateOperatorNASSecurity(ctx, baseline); err != nil {
@@ -37,7 +37,7 @@ func runOperatorNASSecurityMatrix(ctx context.Context, t *testing.T, c *client.C
 		{
 			field: "ciphering_order",
 			opts: &client.UpdateOperatorNASSecurityOptions{
-				Ciphering: []string{"NEA2", "NEA1", "NEA0"},
+				Ciphering: []string{"AES", "SNOW3G", "NULL"},
 				Integrity: baseline.Integrity,
 			},
 		},
@@ -45,14 +45,14 @@ func runOperatorNASSecurityMatrix(ctx context.Context, t *testing.T, c *client.C
 			field: "integrity_order",
 			opts: &client.UpdateOperatorNASSecurityOptions{
 				Ciphering: baseline.Ciphering,
-				Integrity: []string{"NIA2", "NIA1", "NIA0"},
+				Integrity: []string{"AES", "SNOW3G", "NULL"},
 			},
 		},
 		{
 			field: "single_algorithm",
 			opts: &client.UpdateOperatorNASSecurityOptions{
-				Ciphering: []string{"NEA0"},
-				Integrity: []string{"NIA0"},
+				Ciphering: []string{"NULL"},
+				Integrity: []string{"NULL"},
 			},
 		},
 	}

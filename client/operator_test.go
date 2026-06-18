@@ -176,8 +176,8 @@ func TestUpdateOperatorNASSecurity_Success(t *testing.T) {
 	}
 
 	updateOperatorNASSecurityOpts := &client.UpdateOperatorNASSecurityOptions{
-		Ciphering: []string{"NEA2", "NEA1"},
-		Integrity: []string{"NIA2", "NIA1"},
+		Ciphering: []string{"AES", "SNOW3G"},
+		Integrity: []string{"AES", "SNOW3G"},
 	}
 
 	ctx := context.Background()
@@ -213,8 +213,8 @@ func TestUpdateOperatorNASSecurity_Failure(t *testing.T) {
 		Requester: fake,
 	}
 	updateOperatorNASSecurityOpts := &client.UpdateOperatorNASSecurityOptions{
-		Ciphering: []string{"NEA9"},
-		Integrity: []string{"NIA2"},
+		Ciphering: []string{"INVALID"},
+		Integrity: []string{"AES"},
 	}
 
 	ctx := context.Background()

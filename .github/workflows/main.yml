@@ -44,6 +44,9 @@ jobs:
   integration-tests-4g:
     needs: [image-build, image-build-tester]
     uses: ./.github/workflows/integration-tests-4g.yaml
+  integration-tests-4g-srsran:
+    needs: [image-build, image-build-tester]
+    uses: ./.github/workflows/integration-tests-4g-srsran.yaml
   integration-tests-5g:
     needs: [image-build, image-build-tester]
     uses: ./.github/workflows/integration-tests-5g.yaml

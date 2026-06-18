@@ -50,7 +50,10 @@ var migrations = []migration{
 // reasons (UUID-typed columns must be in place before request handlers
 // fire). This is the same reason 1.10.1 → 1.11 cannot be a rolling
 // upgrade; operators take that hop via backup/restore.
-const baselineVersion = 13
+//
+// The leader's Initialize() seed runs before post-baseline migrations apply, so
+// every column or table it writes must exist at the baseline.
+const baselineVersion = 14
 
 // SchemaVersion returns the highest migration version this binary understands.
 // Used during cluster join to reject version-skewed nodes.
