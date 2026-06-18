@@ -3,7 +3,8 @@
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
 //
-// SPDX-License-Identifier: Apache-2.0
+// Modified by Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
 
 package producer
 

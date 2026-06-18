@@ -1,0 +1,40 @@
+Ella Core
+Copyright (c) 2026 Ella Networks Inc.
+
+This product contains software derived from third-party works licensed
+under the Apache License, Version 2.0 and other permissive licenses.
+Ella Networks Inc. has modified these works. The applicable license and
+copyright for each file are stated in that file's header; the eBPF
+datapath and certain unmodified third-party files remain under the Apache
+License, Version 2.0. The following attribution notices are reproduced as
+required by those licenses:
+
+-----------------------------------------------------------------------------
+free5GC (https://www.free5gc.org/)
+-----------------------------------------------------------------------------
+Copyright 2019 free5GC.org
+
+-----------------------------------------------------------------------------
+Aether / Open Networking Foundation (https://opennetworking.org/)
+-----------------------------------------------------------------------------
+Copyright 2021 Open Networking Foundation
+
+The Initial Developer of the work is free5GC (https://www.free5gc.org/).
+At the time of forking, no copyright statements were found in the free5GC
+files or directories.
+Copyright 2019 free5GC.org.
+
+-----------------------------------------------------------------------------
+Intel Corporation
+-----------------------------------------------------------------------------
+Copyright 2022-present Intel Corporation
+
+-----------------------------------------------------------------------------
+eUPF (https://github.com/edgecomllc/eupf)
+-----------------------------------------------------------------------------
+Copyright 2023-2025 Edgecom LLC
+
+-----------------------------------------------------------------------------
+Other
+-----------------------------------------------------------------------------
+Copyright 2019 Wataru Ishida. All rights reserved.

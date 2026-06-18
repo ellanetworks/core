@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // Copyright 2019 Communication Service/Software Laboratory, National Chiao Tung University (free5gc.org)
-// SPDX-License-Identifier: Apache-2.0
+// Modified by Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
 
 package idgenerator_test
 

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BUSL-1.1
 
 // Package testutil mints self-signed cluster certs and a
 // fingerprint pin map for wiring into listener.Config in unit and

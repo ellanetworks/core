@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BUSL-1.1
 
 import * as React from "react";
 import { Box, IconButton, Tooltip, Divider, Collapse } from "@mui/material";

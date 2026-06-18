@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BUSL-1.1
 
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -17,7 +17,6 @@ import {
   Typography,
   Menu,
   MenuItem,
-  Chip,
 } from "@mui/material";
 import {
   Info as InfoIcon,
@@ -184,16 +183,6 @@ export default function DrawerLayout({
           <Typography variant="h6" noWrap component="div" sx={{ ml: 2 }}>
             Ella Core
           </Typography>
-
-          <Chip
-            label="free"
-            variant="filled"
-            sx={{
-              ml: 2,
-              color: "text.primary",
-              backgroundColor: "backgroundSubtle",
-            }}
-          />
 
           <Box sx={{ flexGrow: 1 }} />
 

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BUSL-1.1
 
 // Package ipam describes IPv4 address pools used by the SMF lease path.
 // Pool helpers convert between netip.Addr and offsets within a CIDR; the

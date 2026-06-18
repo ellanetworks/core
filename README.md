@@ -8,7 +8,7 @@
 
 Ella Core is a 5G core designed for private networks. It consolidates the complexity of traditional 5G networks into a single application, offering simplicity, reliability, and security.
 
-Typical mobile networks are expensive, complex, and inadequate for private deployments. They require a team of experts to deploy, maintain, and operate. Open source alternatives are often incomplete, difficult to use, and geared towards research and development. Ella Core is an open-source, production-geared solution that simplifies the deployment and operation of private mobile networks.
+Typical mobile networks are expensive, complex, and inadequate for private deployments. They require a team of experts to deploy, maintain, and operate. Open source alternatives are often incomplete, difficult to use, and geared towards research and development. Ella Core is a production-geared solution that simplifies the deployment and operation of private mobile networks.
 
 Use Ella Core where you need 5G connectivity: in a factory, a warehouse, a farm, a stadium, a ship, a military base, or a remote location.
 
@@ -27,7 +27,7 @@ Use Ella Core where you need 5G connectivity: in a factory, a warehouse, a farm,
 - **Backup and Restore**: Backup and restore your data in 1 click.
 - **5G Compliant**: Ella Core implements 3GPP-standard interfaces and has been validated with multiple 5G radios, including integrated and software-defined RANs, commercial phones and devices. It is 5G RedCap compliant for IoT deployments.
 - **Audit Logs**: At any moment, keep track of who did what and when on your network.
-- **Open Source**: Ella Core is open source and available under the Apache 2.0 license.
+- **Source Available**: Ella Core is available under the Business Source License 1.1 (BUSL-1.1); each release converts to the Apache 2.0 license four years after publication.
 
 ## Quick Links
 

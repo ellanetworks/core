@@ -14,6 +14,13 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "Ella Networks Inc."
 SPDX-License-Identifier = "Apache-2.0"
 
+# Apache NOTICE file (attribution for third-party-derived code).
+[[annotations]]
+path = "NOTICE"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Ella Networks Inc."
+SPDX-License-Identifier = "Apache-2.0"
+
 # Verbatim third-party file kept pristine (eUPF) — carries only the upstream
 # notice, no Ella header. See the attribution review.
 [[annotations]]

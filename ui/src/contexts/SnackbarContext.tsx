@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BUSL-1.1
 
 import React, { createContext, useCallback, useContext, useState } from "react";
 import { Alert, type AlertColor, Snackbar } from "@mui/material";
