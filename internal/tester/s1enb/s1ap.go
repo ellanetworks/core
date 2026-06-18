@@ -34,7 +34,7 @@ func plmnOctets(mcc, mnc string) (s1ap.PLMNIdentity, error) {
 			return s1ap.PLMNIdentity{}, fmt.Errorf("s1enb: non-digit MNC %q", mnc)
 		}
 
-		d[3+i] = mnc[i] - '0'
+		d[3+i] = mnc[i] - '0' // #nosec: G602 -- len(mnc) is 2 or 3 (checked above), so 3+i ≤ 5
 	}
 
 	var p s1ap.PLMNIdentity

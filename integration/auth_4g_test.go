@@ -74,7 +74,7 @@ func TestIntegration4GUnknownIMSI(t *testing.T) {
 		t.Fatalf("failed to start srsue: %v", err)
 	}
 
-	if !waitForLog(ctx, t, dockerClient, "ella-core", "attach rejected: cannot authenticate subscriber") {
+	if !waitForLog(ctx, t, dockerClient, "attach rejected: cannot authenticate subscriber") {
 		dumpLogs(ctx, t, dockerClient, "ella-core", "srsue", "srsenb")
 		t.Fatal("MME did not reject the unknown IMSI")
 	}
@@ -112,7 +112,7 @@ func TestIntegration4GAuthMACFailure(t *testing.T) {
 		t.Fatalf("failed to start srsue: %v", err)
 	}
 
-	if !waitForLog(ctx, t, dockerClient, "ella-core", "authentication rejected") {
+	if !waitForLog(ctx, t, dockerClient, "authentication rejected") {
 		dumpLogs(ctx, t, dockerClient, "ella-core", "srsue", "srsenb")
 		t.Fatal("MME did not reject authentication for the wrong key")
 	}
@@ -202,14 +202,14 @@ func bring4GCoreUpWithFile(ctx context.Context, t *testing.T, composeFile string
 	return dockerClient, ellaClient
 }
 
-// waitForLog polls a compose service's logs until marker appears or it times out.
-func waitForLog(ctx context.Context, t *testing.T, dc *DockerClient, service, marker string) bool {
+// waitForLog polls the ella-core service's logs until marker appears or it times out.
+func waitForLog(ctx context.Context, t *testing.T, dc *DockerClient, marker string) bool {
 	t.Helper()
 
 	deadline := time.Now().Add(90 * time.Second)
 
 	for time.Now().Before(deadline) {
-		logs, err := dc.ComposeLogs(ctx, "compose/srsenb/", service)
+		logs, err := dc.ComposeLogs(ctx, "compose/srsenb/", "ella-core")
 		if err == nil && strings.Contains(logs, marker) {
 			return true
 		}

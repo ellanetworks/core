@@ -39,7 +39,7 @@ func TestIntegration4GIdle(t *testing.T) {
 	}
 
 	// With no traffic, srsenb's inactivity timer fires and releases the UE.
-	if !waitForLog(ctx, t, dockerClient, "ella-core", "UE moved to ECM-IDLE") {
+	if !waitForLog(ctx, t, dockerClient, "UE moved to ECM-IDLE") {
 		dumpLogs(ctx, t, dockerClient, "ella-core", "srsenb")
 		t.Fatal("MME did not move the UE to ECM-IDLE on the inactivity release")
 	}

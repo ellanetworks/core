@@ -43,7 +43,7 @@ func TestIntegration4GServiceRequest(t *testing.T) {
 		t.Fatal("UE did not reach EMM-REGISTERED")
 	}
 
-	if !waitForLog(ctx, t, dockerClient, "ella-core", "UE moved to ECM-IDLE") {
+	if !waitForLog(ctx, t, dockerClient, "UE moved to ECM-IDLE") {
 		dumpLogs(ctx, t, dockerClient, "ella-core", "srsenb")
 		t.Fatal("UE did not move to ECM-IDLE")
 	}
@@ -63,7 +63,7 @@ func TestIntegration4GServiceRequest(t *testing.T) {
 		[]string{"sh", "-c", `DEV=$(ip -o -4 addr show | awk '/inet 10\.45\./{print $2; exit}'); ping -I "$DEV" -c 5 -W 1 8.8.8.8`},
 		false, 15*time.Second, logWriter{t})
 
-	if !waitForLog(ctx, t, dockerClient, "ella-core", "Service Request accepted") {
+	if !waitForLog(ctx, t, dockerClient, "Service Request accepted") {
 		dumpLogs(ctx, t, dockerClient, "ella-core", "srsue", "srsenb")
 		t.Fatal("MME did not accept a Service Request after uplink traffic")
 	}
