@@ -45,18 +45,18 @@ type ruleShape4G struct {
 	buildRule func(proto string) client.PolicyRule
 }
 
-// TestNetworkRules4G installs network (firewall) rules on the policy and drives a
+// TestIntegration4GNetworkRules installs network (firewall) rules on the policy and drives a
 // 4G UE through s1enb/connectivity_expect_{allowed,blocked} to assert the UPF
 // enforces each rule over an EPS bearer: protocol, remote-prefix, port, and
 // allow-over-deny precedence matching. The UPF rule engine is RAT-agnostic; this
 // proves it applies to the 4G data path the same as 5G.
-func TestNetworkRules4G(t *testing.T) {
+func TestIntegration4GNetworkRules(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
 	if DetectIPFamily() != IPv4Only {
-		t.Skipf("TestNetworkRules4G runs in IPv4 mode, current %s", DetectIPFamily())
+		t.Skipf("TestIntegration4GNetworkRules runs in IPv4 mode, current %s", DetectIPFamily())
 	}
 
 	ctx := context.Background()

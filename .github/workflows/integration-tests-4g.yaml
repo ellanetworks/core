@@ -1,4 +1,4 @@
-name: Integration tests
+name: Integration tests (4G)
 
 permissions:
   contents: read
@@ -7,7 +7,7 @@ on:
   workflow_call:
 
 jobs:
-  integration-test:
+  integration-test-4g:
     strategy:
       fail-fast: false
       matrix:
@@ -44,19 +44,22 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Run integration tests
+      # 4G workload only: the dedicated TestIntegration4G* tests (srsRAN soft-radio,
+      # IPv4-only — they self-skip the IPv6/dualstack legs) plus the s1enb core-tester
+      # scenarios, which carry the IPv6 and dualstack coverage across the matrix.
+      - name: Run 4G integration tests
         env:
           INTEGRATION: "1"
           IP_VERSION: ${{ matrix.ip_version }}
           HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
         run: |
-          go test ./integration/... -skip 'TestIntegrationHA|TestIntegration3GPPHAFailover|TestAPIMatrix|TestIntegrationBGP' -timeout 30m -v
+          go test ./integration/... -run 'TestIntegration4G|TestIntegrationTester/s1enb' -timeout 30m -v
 
       - name: Upload cluster logs
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: integration-cluster-logs-${{ matrix.arch }}-${{ matrix.ip_version }}
+          name: integration-4g-cluster-logs-${{ matrix.arch }}-${{ matrix.ip_version }}
           path: ${{ runner.temp }}/ha-cluster-logs
           if-no-files-found: ignore
           retention-days: 7

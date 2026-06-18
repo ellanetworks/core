@@ -13,17 +13,17 @@ import (
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
 
-// TestS1Reset4G drives a 4G eNB through s1enb/s1_reset: after a UE attaches, the
+// TestIntegration4GS1Reset drives a 4G eNB through s1enb/s1_reset: after a UE attaches, the
 // eNB resets the whole S1 interface (TS 36.413 §8.7.1) and the MME must answer
 // with a RESET ACKNOWLEDGE carrying no connection list, drop the UE's S1
 // context, and keep the association up so a subsequent attach succeeds.
-func TestS1Reset4G(t *testing.T) {
+func TestIntegration4GS1Reset(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
 	if DetectIPFamily() == IPv6Only {
-		t.Skipf("TestS1Reset4G requires an IPv4 PDN, current %s", DetectIPFamily())
+		t.Skipf("TestIntegration4GS1Reset requires an IPv4 PDN, current %s", DetectIPFamily())
 	}
 
 	ctx := context.Background()

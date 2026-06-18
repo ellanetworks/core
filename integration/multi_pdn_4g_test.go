@@ -13,17 +13,17 @@ import (
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
 
-// TestMultiPDN4G drives a 4G UE through s1enb/connectivity_multi_pdn: it attaches
+// TestIntegration4GMultiPDN drives a 4G UE through s1enb/connectivity_multi_pdn: it attaches
 // on the default APN, opens a second PDN connection to another APN, verifies
 // user-plane connectivity on both with distinct UE IPs, then disconnects the
 // second PDN. This is the 4G counterpart of ue/connectivity_multi_pdu_session.
-func TestMultiPDN4G(t *testing.T) {
+func TestIntegration4GMultiPDN(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
 	if DetectIPFamily() == IPv6Only {
-		t.Skipf("TestMultiPDN4G requires IPv4 PDNs, current %s", DetectIPFamily())
+		t.Skipf("TestIntegration4GMultiPDN requires IPv4 PDNs, current %s", DetectIPFamily())
 	}
 
 	ctx := context.Background()
