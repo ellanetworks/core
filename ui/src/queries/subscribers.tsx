@@ -6,8 +6,9 @@ import { apiFetch, apiFetchVoid } from "@/queries/utils";
 /** Lightweight status returned by the list endpoint. */
 export type SubscriberListStatus = {
   registered?: boolean;
-  num_pdu_sessions?: number;
-  lastSeenAt?: string;
+  radio_access_type?: string; // "4G" | "5G", per the live connection
+  num_sessions?: number;
+  last_seen_at?: string;
 };
 
 /** Summary representation returned by the list endpoint. */
@@ -28,11 +29,12 @@ export type ListSubscribersResponse = {
 /** Rich status returned by the get-single endpoint. */
 export type SubscriberDetailStatus = {
   registered?: boolean;
+  radio_access_type?: string; // "4G" | "5G", per the live connection
   imei?: string;
-  cipheringAlgorithm?: string;
-  integrityAlgorithm?: string;
-  lastSeenAt?: string;
-  lastSeenRadio?: string;
+  ciphering_algorithm?: string;
+  integrity_algorithm?: string;
+  last_seen_at?: string;
+  last_seen_radio?: string;
 };
 
 /** Full representation returned by the get-single endpoint. */
@@ -40,7 +42,7 @@ export type APISubscriber = {
   imsi: string;
   profile_name: string;
   status: SubscriberDetailStatus;
-  pdu_sessions: SessionInfo[];
+  sessions: SessionInfo[];
 };
 
 /** Credentials returned by the dedicated credentials endpoint. */
@@ -132,14 +134,20 @@ export interface SnssaiInfo {
   sd?: string;
 }
 
-export interface SessionInfo {
-  pdu_session_id: number;
-  status: string;
-  ipv4Address?: string;
-  ipv6Prefix?: string;
-  dnn?: string;
-  sst?: number;
+export interface SliceInfo {
+  sst: number;
   sd?: string;
-  session_ambr_uplink?: string;
-  session_ambr_downlink?: string;
+}
+
+export interface SessionInfo {
+  radio_access_type: string; // "4G" | "5G"
+  id: number;
+  status: string;
+  ip_type?: string; // IPv4 | IPv6 | IPv4v6
+  ipv4_address?: string;
+  ipv6_prefix?: string;
+  data_network?: string;
+  slice?: SliceInfo;
+  ambr_uplink?: string;
+  ambr_downlink?: string;
 }

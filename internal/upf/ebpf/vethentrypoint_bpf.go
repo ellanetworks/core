@@ -159,7 +159,8 @@ type VethEntrypointVethTunnelInfo struct {
 	LocalAddr  VethEntrypointIn6Addr
 	RemoteAddr VethEntrypointIn6Addr
 	Qfi        uint8
-	Pad        [3]uint8
+	NoPsc      uint8
+	Pad        [2]uint8
 }
 
 // LoadVethEntrypoint returns the embedded CollectionSpec for VethEntrypoint.

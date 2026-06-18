@@ -13,6 +13,9 @@ import {
   Alert,
   Collapse,
   MenuItem,
+  Checkbox,
+  FormControlLabel,
+  FormGroup,
 } from "@mui/material";
 import * as yup from "yup";
 import { ValidationError } from "yup";
@@ -62,6 +65,8 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
     ambrUpUnit: "Mbps",
     ambrDownValue: 100,
     ambrDownUnit: "Mbps",
+    allow4g: true,
+    allow5g: true,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -130,6 +135,8 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
         formValues.name,
         ueAmbrUplink,
         ueAmbrDownlink,
+        formValues.allow4g,
+        formValues.allow5g,
       );
       onClose();
       onSuccess();
@@ -225,6 +232,37 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
             <MenuItem value="Gbps">Gbps</MenuItem>
           </TextField>
         </Box>
+
+        <FormGroup sx={{ mt: 1 }}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={formValues.allow4g}
+                onChange={(e) =>
+                  setFormValues((prev) => ({
+                    ...prev,
+                    allow4g: e.target.checked,
+                  }))
+                }
+              />
+            }
+            label="Allow 4G access"
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={formValues.allow5g}
+                onChange={(e) =>
+                  setFormValues((prev) => ({
+                    ...prev,
+                    allow5g: e.target.checked,
+                  }))
+                }
+              />
+            }
+            label="Allow 5G access"
+          />
+        </FormGroup>
       </DialogContent>
 
       <DialogActions>

@@ -69,7 +69,7 @@ export default function DataNetworksTab() {
     return [
       {
         field: "name",
-        headerName: "Name (DNN)",
+        headerName: "Name",
         flex: 1,
         minWidth: 200,
         renderCell: (params: GridRenderCellParams<APIDataNetwork>) => (

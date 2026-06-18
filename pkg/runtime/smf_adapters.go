@@ -355,6 +355,7 @@ func (a *smfUPFAdapter) RegisterIPv6Session(_ context.Context, reg *models.IPv6S
 		Prefix:       reg.Prefix,
 		MTU:          reg.MTU,
 		QFI:          reg.QFI,
+		S1U:          reg.S1U,
 	})
 
 	return nil

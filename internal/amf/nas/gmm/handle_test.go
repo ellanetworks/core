@@ -79,7 +79,7 @@ func (fdb *FakeDBInstance) GetSubscriber(ctx context.Context, imsi string) (*db.
 }
 
 func (fdb *FakeDBInstance) GetProfileByID(ctx context.Context, id string) (*db.Profile, error) {
-	return &db.Profile{ID: id, Name: "TestProfile"}, nil
+	return &db.Profile{ID: id, Name: "TestProfile", Allow4G: true, Allow5G: true}, nil
 }
 
 func (fdb *FakeDBInstance) ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error) {

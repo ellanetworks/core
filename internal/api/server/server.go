@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/config"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/smf"
 	"go.uber.org/zap"
 )
@@ -29,6 +30,7 @@ type HandlerConfig struct {
 	FrontendFS          fs.FS
 	Sessions            smf.SessionQuerier
 	AMF                 *amf.AMF
+	MME                 *mme.MME
 	BGP                 *bgp.BGPService
 	BcryptCost          int
 	Ready               *atomic.Bool
@@ -45,6 +47,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	embedFS := cfg.FrontendFS
 	sessions := cfg.Sessions
 	amfInstance := cfg.AMF
+	mmeInstance := cfg.MME
 	bgpService := cfg.BGP
 	bcryptCost := cfg.BcryptCost
 	reconcileRoutes := cfg.ReconcileRoutes
@@ -98,12 +101,12 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("DELETE /api/v1/users/{email}/api-tokens/{id}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteUserAPIToken, DeleteUserAPIToken(dbInstance))).ServeHTTP)
 
 	// Subscribers (Authenticated)
-	mux.HandleFunc("GET /api/v1/subscribers", Authenticate(jwtSecret, dbInstance, Authorize(PermListSubscribers, ListSubscribers(dbInstance, amfInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/subscribers", Authenticate(jwtSecret, dbInstance, Authorize(PermListSubscribers, ListSubscribers(dbInstance, amfInstance, mmeInstance))).ServeHTTP)
 	mux.HandleFunc("POST /api/v1/subscribers", Authenticate(jwtSecret, dbInstance, Authorize(PermCreateSubscriber, CreateSubscriber(dbInstance))).ServeHTTP)
 	mux.HandleFunc("PUT /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateSubscriber, UpdateSubscriber(dbInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSubscriber, GetSubscriber(dbInstance, amfInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSubscriber, GetSubscriber(dbInstance, amfInstance, mmeInstance))).ServeHTTP)
 	mux.HandleFunc("GET /api/v1/subscribers/{imsi}/credentials", Authenticate(jwtSecret, dbInstance, Authorize(PermReadSubscriberCredentials, GetSubscriberCredentials(dbInstance))).ServeHTTP)
-	mux.HandleFunc("DELETE /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteSubscriber, DeleteSubscriber(dbInstance, amfInstance))).ServeHTTP)
+	mux.HandleFunc("DELETE /api/v1/subscribers/{imsi}", Authenticate(jwtSecret, dbInstance, Authorize(PermDeleteSubscriber, DeleteSubscriber(dbInstance, amfInstance, mmeInstance))).ServeHTTP)
 
 	// Subscriber Usage (Authenticated)
 	mux.HandleFunc("GET /api/v1/subscriber-usage/retention", Authenticate(jwtSecret, dbInstance, Authorize(PermGetSubscriberUsageRetentionPolicy, GetSubscriberUsageRetentionPolicy(dbInstance))).ServeHTTP)
@@ -182,8 +185,8 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	mux.HandleFunc("PUT /api/v1/networking/interfaces/n3", Authenticate(jwtSecret, dbInstance, Authorize(PermUpdateN3Interface, UpdateN3Interface(dbInstance))).ServeHTTP)
 
 	// Radios (Authenticated)
-	mux.HandleFunc("GET /api/v1/ran/radios", Authenticate(jwtSecret, dbInstance, Authorize(PermListRadios, ListRadios(amfInstance))).ServeHTTP)
-	mux.HandleFunc("GET /api/v1/ran/radios/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadRadio, GetRadio(amfInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/ran/radios", Authenticate(jwtSecret, dbInstance, Authorize(PermListRadios, ListRadios(amfInstance, mmeInstance))).ServeHTTP)
+	mux.HandleFunc("GET /api/v1/ran/radios/{name}", Authenticate(jwtSecret, dbInstance, Authorize(PermReadRadio, GetRadio(amfInstance, mmeInstance))).ServeHTTP)
 
 	// Radio Events (Authenticated)
 	mux.HandleFunc("GET /api/v1/ran/events/retention", Authenticate(jwtSecret, dbInstance, Authorize(PermGetRadioEventRetentionPolicy, GetRadioEventRetentionPolicy(dbInstance))).ServeHTTP)

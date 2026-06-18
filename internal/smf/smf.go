@@ -138,6 +138,16 @@ type AMFCallback interface {
 	N2TransferOrPage(ctx context.Context, supi etsi.SUPI, pduSessionID uint8, snssai *models.Snssai, n2Msg []byte) error
 }
 
+// MMECallback abstracts the SMF → MME communication for 4G paging, mirroring
+// AMFCallback. It breaks the circular dependency between the SMF and MME
+// packages: the MME (a 4G EPS session anchor) registers itself so the SMF can
+// page an idle UE when downlink data arrives.
+type MMECallback interface {
+	// Page triggers an S1AP Paging for the idle UE identified by IMSI so it
+	// re-establishes the bearer (TS 23.401 §5.3.4.3).
+	Page(ctx context.Context, imsi string) error
+}
+
 // ResolvedNetworkRule represents a network rule attached to a policy for PDI/SDF filtering.
 type ResolvedNetworkRule struct {
 	Description  string
@@ -173,6 +183,7 @@ type SMF struct {
 	store SessionStore
 	upf   UPFClient
 	amf   AMFCallback
+	mme   MMECallback // set after construction (the MME is built after the SMF)
 	clock func() time.Time
 
 	seidCounter uint64 // atomic; local SEID allocation
@@ -234,6 +245,16 @@ func (s *SMF) SetUPF(upf UPFClient) {
 	defer s.mu.Unlock()
 
 	s.upf = upf
+}
+
+// SetMME registers the 4G MME so the SMF can page idle EPS UEs. The MME is
+// constructed after the SMF (it uses the SMF as its session anchor), so it binds
+// itself here once both exist.
+func (s *SMF) SetMME(mme MMECallback) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.mme = mme
 }
 
 // AllocateLocalSEID returns the next available local SEID.

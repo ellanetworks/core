@@ -30,6 +30,8 @@ var scenariosSkipped = map[string]string{
 	"ue/connectivity_expect_allowed_ipv6": "test-only harness; minimal allow-path",
 	"ue/session_hold":                     "long-lived session for BGP tests; covered by TestIntegrationBGP",
 	"ue/nat_checksum":                     "capture-driven harness; covered by TestUPFNATChecksum",
+	"s1enb/connectivity_expect_allowed":   "test-only harness; driven by TestNetworkRules4G",
+	"s1enb/connectivity_expect_blocked":   "test-only harness; driven by TestNetworkRules4G",
 }
 
 // scenarioIPFamilyRestrictions returns a map of scenario name → required IP
@@ -41,6 +43,9 @@ var scenarioIPFamilyRestrictions = map[string]IPFamily{
 	"ue/connectivity_dualstack":           DualStack,
 	"ue/connectivity_expect_allowed_ipv6": IPv6Only,
 	"ue/connectivity_expect_blocked_ipv6": IPv6Only,
+	"s1enb/registration/v4v6":             DualStack,
+	"s1enb/connectivity_dualstack":        DualStack,
+	"s1enb/connectivity_ipv6":             IPv6Only,
 }
 
 // scenarioIPFamilyExclusions returns a map of scenario name → set of IP
@@ -61,6 +66,37 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 		IPv6Only: true,
 	},
 	"enb/connectivity": {
+		IPv6Only:  true,
+		DualStack: true,
+	},
+	"s1enb/registration_success": {
+		IPv6Only: true,
+	},
+	"s1enb/x2_path_switch": {
+		IPv6Only: true,
+	},
+	"s1enb/deregistration": {
+		IPv6Only: true,
+	},
+	"s1enb/context_release": {
+		IPv6Only: true,
+	},
+	"s1enb/s1_reset": {
+		IPv6Only: true,
+	},
+	"s1enb/connectivity_multi_pdn": {
+		IPv6Only: true,
+	},
+	"s1enb/service_request/data": {
+		IPv6Only: true,
+	},
+	"s1enb/registration/periodic/signalling": {
+		IPv6Only: true,
+	},
+	"s1enb/registration_success_50_sequential": {
+		IPv6Only: true,
+	},
+	"s1enb/connectivity": {
 		IPv6Only:  true,
 		DualStack: true,
 	},

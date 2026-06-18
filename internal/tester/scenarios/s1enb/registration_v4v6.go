@@ -1,0 +1,64 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+package s1enb
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/ellanetworks/core/internal/tester/scenarios"
+	"github.com/ellanetworks/core/nas/eps"
+	"github.com/spf13/pflag"
+)
+
+const v4v6IMSI = "001017271246605"
+
+func init() {
+	scenarios.Register(scenarios.Scenario{
+		Name:      "s1enb/registration/v4v6",
+		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
+		Run:       runS1ENBRegistrationV4V6,
+		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {
+			return scenarios.FixtureSpec{
+				Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(v4v6IMSI, "")},
+			}
+		},
+	})
+}
+
+// runS1ENBRegistrationV4V6 attaches requesting PDN type IPv4v6 and verifies the
+// MME negotiates a dual-stack default bearer with an IPv4 address (TS 24.301
+// §6.5.1.2) — the 4G counterpart of ue/registration_success_v4v6.
+func runS1ENBRegistrationV4V6(_ context.Context, env scenarios.Env, _ any) error {
+	k, opc, err := defaultKeyAndOPc()
+	if err != nil {
+		return err
+	}
+
+	e, err := startENB(env)
+	if err != nil {
+		return fmt.Errorf("start S1 eNB: %w", err)
+	}
+
+	defer func() { _ = e.Close() }()
+
+	ue := e.NewUE(v4v6IMSI, k, opc)
+	ue.RequestPDNType(eps.PDNTypeIPv4v6)
+
+	res, err := e.Attach(ue, 15*time.Second)
+	if err != nil {
+		return fmt.Errorf("attach: %w", err)
+	}
+
+	if res.PDNType != eps.PDNTypeIPv4v6 {
+		return fmt.Errorf("expected negotiated PDN type IPv4v6 (%d), got %d", eps.PDNTypeIPv4v6, res.PDNType)
+	}
+
+	if res.UEIPv4 == "" {
+		return fmt.Errorf("IPv4v6 attach assigned no IPv4 address")
+	}
+
+	return nil
+}

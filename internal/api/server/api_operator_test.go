@@ -688,7 +688,7 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
 
-		expectedCiphering := []string{"NEA2", "NEA1"}
+		expectedCiphering := []string{"AES", "SNOW3G"}
 		if len(response.Result.NASSecurity.Ciphering) != len(expectedCiphering) {
 			t.Fatalf("expected %d ciphering algorithms, got %d", len(expectedCiphering), len(response.Result.NASSecurity.Ciphering))
 		}
@@ -699,7 +699,7 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 			}
 		}
 
-		expectedIntegrity := []string{"NIA2", "NIA1"}
+		expectedIntegrity := []string{"AES", "SNOW3G"}
 		if len(response.Result.NASSecurity.Integrity) != len(expectedIntegrity) {
 			t.Fatalf("expected %d integrity algorithms, got %d", len(expectedIntegrity), len(response.Result.NASSecurity.Integrity))
 		}
@@ -713,8 +713,8 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 
 	t.Run("Success - update NAS security algorithms", func(t *testing.T) {
 		params := &UpdateOperatorNASSecurityParams{
-			Ciphering: []string{"NEA1", "NEA0"},
-			Integrity: []string{"NIA2", "NIA1"},
+			Ciphering: []string{"SNOW3G", "NULL"},
+			Integrity: []string{"AES", "SNOW3G"},
 		}
 
 		statusCode, response, err := updateOperatorNASSecurity(env.Server.URL, client, token, params)
@@ -741,7 +741,7 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
 
-		expectedCiphering := []string{"NEA1", "NEA0"}
+		expectedCiphering := []string{"SNOW3G", "NULL"}
 		if len(response.Result.NASSecurity.Ciphering) != len(expectedCiphering) {
 			t.Fatalf("expected %d ciphering algorithms, got %d", len(expectedCiphering), len(response.Result.NASSecurity.Ciphering))
 		}
@@ -752,7 +752,7 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 			}
 		}
 
-		expectedIntegrity := []string{"NIA2", "NIA1"}
+		expectedIntegrity := []string{"AES", "SNOW3G"}
 		if len(response.Result.NASSecurity.Integrity) != len(expectedIntegrity) {
 			t.Fatalf("expected %d integrity algorithms, got %d", len(expectedIntegrity), len(response.Result.NASSecurity.Integrity))
 		}
@@ -767,7 +767,7 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 	t.Run("Empty ciphering order", func(t *testing.T) {
 		params := &UpdateOperatorNASSecurityParams{
 			Ciphering: []string{},
-			Integrity: []string{"NIA2"},
+			Integrity: []string{"AES"},
 		}
 
 		statusCode, _, err := updateOperatorNASSecurity(env.Server.URL, client, token, params)
@@ -782,7 +782,7 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 
 	t.Run("Empty integrity order", func(t *testing.T) {
 		params := &UpdateOperatorNASSecurityParams{
-			Ciphering: []string{"NEA2"},
+			Ciphering: []string{"AES"},
 			Integrity: []string{},
 		}
 
@@ -798,8 +798,8 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 
 	t.Run("Invalid ciphering algorithm", func(t *testing.T) {
 		params := &UpdateOperatorNASSecurityParams{
-			Ciphering: []string{"NEA2", "NEA9"},
-			Integrity: []string{"NIA2"},
+			Ciphering: []string{"AES", "BOGUS"},
+			Integrity: []string{"AES"},
 		}
 
 		statusCode, response, err := updateOperatorNASSecurity(env.Server.URL, client, token, params)
@@ -811,15 +811,15 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 		}
 
-		if !strings.Contains(response.Error, "NEA9") {
-			t.Fatalf("expected error to mention invalid algorithm NEA9, got: %q", response.Error)
+		if !strings.Contains(response.Error, "BOGUS") {
+			t.Fatalf("expected error to mention invalid algorithm BOGUS, got: %q", response.Error)
 		}
 	})
 
 	t.Run("Invalid integrity algorithm", func(t *testing.T) {
 		params := &UpdateOperatorNASSecurityParams{
-			Ciphering: []string{"NEA2"},
-			Integrity: []string{"NIA3"},
+			Ciphering: []string{"AES"},
+			Integrity: []string{"BOGUS"},
 		}
 
 		statusCode, response, err := updateOperatorNASSecurity(env.Server.URL, client, token, params)
@@ -831,15 +831,15 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 		}
 
-		if !strings.Contains(response.Error, "NIA3") {
-			t.Fatalf("expected error to mention invalid algorithm NIA3, got: %q", response.Error)
+		if !strings.Contains(response.Error, "BOGUS") {
+			t.Fatalf("expected error to mention invalid algorithm BOGUS, got: %q", response.Error)
 		}
 	})
 
 	t.Run("Duplicate ciphering algorithm", func(t *testing.T) {
 		params := &UpdateOperatorNASSecurityParams{
-			Ciphering: []string{"NEA2", "NEA2"},
-			Integrity: []string{"NIA2"},
+			Ciphering: []string{"AES", "AES"},
+			Integrity: []string{"AES"},
 		}
 
 		statusCode, response, err := updateOperatorNASSecurity(env.Server.URL, client, token, params)
@@ -851,8 +851,8 @@ func TestUpdateOperatorNASSecurity(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusBadRequest, statusCode)
 		}
 
-		if !strings.Contains(response.Error, "NEA2") {
-			t.Fatalf("expected error to mention duplicate algorithm NEA2, got: %q", response.Error)
+		if !strings.Contains(response.Error, "AES") {
+			t.Fatalf("expected error to mention duplicate algorithm AES, got: %q", response.Error)
 		}
 	})
 

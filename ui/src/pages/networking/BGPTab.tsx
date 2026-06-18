@@ -508,7 +508,7 @@ export default function BGPTab() {
             </Typography>
             <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
               Routes currently announced to BGP peers. These are derived from
-              active PDU sessions and cannot be edited directly.
+              active sessions and cannot be edited directly.
             </Typography>
 
             {isNATEnabled && (

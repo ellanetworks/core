@@ -11,14 +11,17 @@ import {
   type GridRenderCellParams,
 } from "@mui/x-data-grid";
 import type { SessionInfo } from "@/queries/subscribers";
+import AccessChip from "@/components/AccessChip";
 
 interface SubscriberSessionsCardProps {
   sessions: SessionInfo[];
+  accessType?: string;
   loading?: boolean;
 }
 
 const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
   sessions,
+  accessType,
   loading = false,
 }) => {
   const theme = useTheme();
@@ -31,21 +34,37 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
     [theme],
   );
 
+  // Network slices (S-NSSAI) are 5G-only; mark them not applicable on 4G.
+  const is4G = accessType === "4G";
+
   const columns: GridColDef<SessionInfo>[] = useMemo(
     () => [
       {
-        field: "pdu_session_id",
+        field: "id",
         headerName: "ID",
         width: 60,
       },
       {
-        field: "ipv4Address",
+        field: "radio_access_type",
+        headerName: "Access",
+        width: 90,
+        renderCell: (params: GridRenderCellParams<SessionInfo>) =>
+          params.value ? (
+            <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+              <AccessChip label={params.value} />
+            </Box>
+          ) : (
+            "—"
+          ),
+      },
+      {
+        field: "ipv4_address",
         headerName: "IP Address",
         flex: 0.8,
         minWidth: 120,
         renderCell: (params: GridRenderCellParams<SessionInfo>) => {
           const ipv4Address = params.value;
-          const ipv6 = params.row.ipv6Prefix;
+          const ipv6 = params.row.ipv6_prefix;
           if (!ipv4Address && !ipv6) return "—";
           return (
             <Box
@@ -79,7 +98,7 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
         },
       },
       {
-        field: "dnn",
+        field: "data_network",
         headerName: "Data Network",
         flex: 0.8,
         minWidth: 120,
@@ -114,29 +133,35 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
             "—"
           ),
       },
+      ...(is4G
+        ? []
+        : [
+            {
+              field: "slice",
+              headerName: "Slice",
+              flex: 0.6,
+              minWidth: 100,
+              renderCell: (params: GridRenderCellParams<SessionInfo>) => {
+                const slice = params.row.slice;
+                if (!slice) return "—";
+                return slice.sd
+                  ? `SST ${slice.sst} / SD ${slice.sd}`
+                  : `SST ${slice.sst}`;
+              },
+            } as GridColDef<SessionInfo>,
+          ]),
       {
-        field: "sst",
-        headerName: "Slice",
-        flex: 0.6,
-        minWidth: 100,
-        renderCell: (params: GridRenderCellParams<SessionInfo>) => {
-          const sst = params.row.sst;
-          const sd = params.row.sd;
-          if (sst === undefined && !sd) return "—";
-          return sd ? `SST ${sst} / SD ${sd}` : `SST ${sst}`;
-        },
-      },
-      {
-        field: "session_ambr_uplink",
+        field: "ambr_uplink",
         headerName: "Session Bitrate Uplink",
-        description: "Per-session uplink bitrate cap (Session AMBR)",
+        description: "Per-session uplink bitrate cap (Session-AMBR / APN-AMBR)",
         flex: 1,
         minWidth: 170,
       },
       {
-        field: "session_ambr_downlink",
+        field: "ambr_downlink",
         headerName: "Session Bitrate Downlink",
-        description: "Per-session downlink bitrate cap (Session AMBR)",
+        description:
+          "Per-session downlink bitrate cap (Session-AMBR / APN-AMBR)",
         flex: 1,
         minWidth: 180,
       },
@@ -165,13 +190,13 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
         },
       },
     ],
-    [theme],
+    [theme, is4G],
   );
 
   return (
     <Box sx={{ mt: 4 }}>
       <Typography variant="h6" sx={{ mb: 2 }}>
-        PDU Sessions
+        Sessions
       </Typography>
       {loading ? (
         <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
@@ -182,7 +207,7 @@ const SubscriberSessionsCard: React.FC<SubscriberSessionsCardProps> = ({
           <DataGrid<SessionInfo>
             rows={sessions}
             columns={columns}
-            getRowId={(row) => row.pdu_session_id}
+            getRowId={(row) => row.id}
             disableRowSelectionOnClick
             disableColumnMenu
             hideFooter={sessions.length <= 25}

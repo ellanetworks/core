@@ -850,6 +850,15 @@ func (s *SMF) registerIPv6SessionIfNeeded(ctx context.Context, smContext *SMCont
 		mtu = uint32(smContext.PolicyData.MTU)
 	}
 
+	// The downlink FAR's S1-U marking (set only for 4G EPS bearers) decides
+	// whether the RA is encapsulated PSC-less, matching the data path.
+	var s1u bool
+	if dl := smContext.Tunnel.DataPath.DownLinkTunnel; dl != nil && dl.PDR != nil &&
+		dl.PDR.FAR != nil && dl.PDR.FAR.ForwardingParameters != nil &&
+		dl.PDR.FAR.ForwardingParameters.OuterHeaderCreation != nil {
+		s1u = dl.PDR.FAR.ForwardingParameters.OuterHeaderCreation.S1U
+	}
+
 	reg := &models.IPv6SessionRegistration{
 		UplinkTEID:   smContext.Tunnel.DataPath.UpLinkTunnel.TEID,
 		DownlinkTEID: anInfo.TEID,
@@ -857,6 +866,7 @@ func (s *SMF) registerIPv6SessionIfNeeded(ctx context.Context, smContext *SMCont
 		Prefix:       netip.PrefixFrom(prefixAddr, 64),
 		MTU:          mtu,
 		QFI:          qfi,
+		S1U:          s1u,
 	}
 
 	if err := s.upf.RegisterIPv6Session(ctx, reg); err != nil {

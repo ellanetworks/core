@@ -418,9 +418,12 @@ func UpdateOperatorCode(dbInstance *db.Database) http.Handler {
 	})
 }
 
-var validCipheringAlgorithms = map[string]bool{"NEA0": true, "NEA1": true, "NEA2": true}
+// NAS security algorithms are RAT-neutral identities shared by EPS and 5G
+// (TS 24.301 §9.9.3.23 ≡ TS 24.501 §9.11.3.34): NULL, SNOW3G, and AES, all
+// implemented on both the EPS and 5G NAS.
+var validCipheringAlgorithms = map[string]bool{"NULL": true, "SNOW3G": true, "AES": true}
 
-var validIntegrityAlgorithms = map[string]bool{"NIA0": true, "NIA1": true, "NIA2": true}
+var validIntegrityAlgorithms = map[string]bool{"NULL": true, "SNOW3G": true, "AES": true}
 
 func isValidAlgorithmOrder(order []string, valid map[string]bool) (string, bool) {
 	if len(order) == 0 {
@@ -476,7 +479,7 @@ func UpdateOperatorNASSecurity(dbInstance *db.Database) http.Handler {
 
 		if badAlg, valid := isValidAlgorithmOrder(params.Ciphering, validCipheringAlgorithms); !valid {
 			if badAlg != "" {
-				writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("Invalid or duplicate ciphering algorithm: %s. Allowed: NEA0, NEA1, NEA2", badAlg), nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("Invalid or duplicate ciphering algorithm: %s. Allowed: NULL, SNOW3G, AES", badAlg), nil, logger.APILog)
 			} else {
 				writeError(r.Context(), w, http.StatusBadRequest, "Maximum 3 ciphering algorithms allowed", nil, logger.APILog)
 			}
@@ -486,7 +489,7 @@ func UpdateOperatorNASSecurity(dbInstance *db.Database) http.Handler {
 
 		if badAlg, valid := isValidAlgorithmOrder(params.Integrity, validIntegrityAlgorithms); !valid {
 			if badAlg != "" {
-				writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("Invalid or duplicate integrity algorithm: %s. Allowed: NIA0, NIA1, NIA2", badAlg), nil, logger.APILog)
+				writeError(r.Context(), w, http.StatusBadRequest, fmt.Sprintf("Invalid or duplicate integrity algorithm: %s. Allowed: NULL, SNOW3G, AES", badAlg), nil, logger.APILog)
 			} else {
 				writeError(r.Context(), w, http.StatusBadRequest, "Maximum 3 integrity algorithms allowed", nil, logger.APILog)
 			}

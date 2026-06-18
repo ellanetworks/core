@@ -58,8 +58,9 @@ func (v *VethBpfObjects) Close() error {
 type VethTunnelInfo struct {
 	TEID       uint32
 	LocalAddr  netip.Addr // UPF N3 transport address (IPv4 or IPv6)
-	RemoteAddr netip.Addr // gNB N3 transport address (IPv4 or IPv6)
+	RemoteAddr netip.Addr // eNB/gNB N3 transport address (IPv4 or IPv6)
 	QFI        uint8
+	S1U        bool // 4G S1-U: encapsulate PSC-less (no PDU Session Container)
 }
 
 // PutTunnel programs a tunnel entry in the veth_tunnels BPF map.
@@ -79,6 +80,10 @@ func (v *VethBpfObjects) PutTunnel(dstIPv6 netip.Addr, info VethTunnelInfo) erro
 		LocalAddr:  localAddr,
 		RemoteAddr: remoteAddr,
 		Qfi:        info.QFI,
+	}
+
+	if info.S1U {
+		val.NoPsc = 1
 	}
 
 	return v.VethTunnels.Put(&key, &val)

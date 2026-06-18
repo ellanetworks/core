@@ -66,6 +66,9 @@ enum outer_header_creation_values {
 	OHC_GTP_U_UDP_IPv6 = 0x02,
 	OHC_UDP_IPv4 = 0x04,
 	OHC_UDP_IPv6 = 0x08,
+	/* Modifier bit ORed onto a GTP-U creation value: emit a plain G-PDU with
+	 * no PDU Session Container (4G S1-U), since that container is N3/N9-only. */
+	OHC_NO_PSC = 0x10,
 };
 
 struct sdf_rule {

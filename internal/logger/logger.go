@@ -23,6 +23,7 @@ var (
 	MetricsLog  *zap.Logger
 	DBLog       *zap.Logger
 	AmfLog      *zap.Logger
+	MmeLog      *zap.Logger
 	APILog      *zap.Logger
 	SmfLog      *zap.Logger
 	UpfLog      *zap.Logger
@@ -89,6 +90,7 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 	MetricsLog = log.With(zap.String("component", "Metrics"))
 	DBLog = log.With(zap.String("component", "DB"))
 	AmfLog = log.With(zap.String("component", "AMF"))
+	MmeLog = log.With(zap.String("component", "MME"))
 	APILog = log.With(zap.String("component", "API"))
 	SmfLog = log.With(zap.String("component", "SMF"))
 	UpfLog = log.With(zap.String("component", "UPF"))
@@ -214,6 +216,7 @@ type NetworkProtocol string
 
 const (
 	NGAPNetworkProtocol NetworkProtocol = "NGAP"
+	S1APNetworkProtocol NetworkProtocol = "S1AP"
 )
 
 func LogNetworkEvent(

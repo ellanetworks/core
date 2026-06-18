@@ -136,6 +136,9 @@ func getSupportedTAIs(operator *db.Operator) ([]models.Tai, error) {
 type SubscriberProfile struct {
 	AllowedNssai []models.Snssai
 	Ambr         *models.Ambr
+	// Allow5G is the subscriber's 5G/5GC access permission (Core Network type
+	// restriction, TS 23.501 §5.3.4).
+	Allow5G bool
 }
 
 func (amf *AMF) GetSubscriberProfile(ctx context.Context, supi etsi.SUPI) (*SubscriberProfile, error) {
@@ -203,6 +206,7 @@ func (amf *AMF) GetSubscriberProfile(ctx context.Context, supi etsi.SUPI) (*Subs
 			Downlink: profile.UeAmbrDownlink,
 			Uplink:   profile.UeAmbrUplink,
 		},
+		Allow5G: profile.Allow5G,
 	}, nil
 }
 
@@ -279,16 +283,18 @@ func (amf *AMF) GetSubscriberDnn(ctx context.Context, supi etsi.SUPI, snssai *mo
 	return "", fmt.Errorf("no policy matching sst=%d sd=%q for profile %s", snssai.Sst, snssai.Sd, subscriber.ProfileID)
 }
 
+// NAS security algorithms are stored as RAT-neutral identities shared by EPS and
+// 5G (TS 24.301 §9.9.3.23 ≡ TS 24.501 §9.11.3.34): NULL(0), SNOW3G(1), AES(2).
 var cipheringNameToAlg = map[string]uint8{
-	"NEA0": security.AlgCiphering128NEA0,
-	"NEA1": security.AlgCiphering128NEA1,
-	"NEA2": security.AlgCiphering128NEA2,
+	"NULL":   security.AlgCiphering128NEA0,
+	"SNOW3G": security.AlgCiphering128NEA1,
+	"AES":    security.AlgCiphering128NEA2,
 }
 
 var integrityNameToAlg = map[string]uint8{
-	"NIA0": security.AlgIntegrity128NIA0,
-	"NIA1": security.AlgIntegrity128NIA1,
-	"NIA2": security.AlgIntegrity128NIA2,
+	"NULL":   security.AlgIntegrity128NIA0,
+	"SNOW3G": security.AlgIntegrity128NIA1,
+	"AES":    security.AlgIntegrity128NIA2,
 }
 
 // GetSecurityAlgorithms loads the configured NAS security algorithm preference

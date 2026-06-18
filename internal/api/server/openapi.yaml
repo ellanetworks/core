@@ -1612,8 +1612,8 @@ paths:
       description: |
         Sets the preferred NAS security algorithm order for ciphering and integrity
         protection. Each list must contain between 1 and 3 unique algorithm names.
-        Allowed ciphering algorithms: NEA0, NEA1, NEA2.
-        Allowed integrity algorithms: NIA0, NIA1, NIA2.
+        Allowed ciphering algorithms: NULL, SNOW3G, AES.
+        Allowed integrity algorithms: NULL, SNOW3G, AES.
         The order determines preference during UE security capability negotiation.
       requestBody:
         required: true
@@ -2330,7 +2330,7 @@ paths:
       operationId: getRadioEvent
       tags: [Radio Events]
       summary: Get a radio event
-      description: Returns the raw bytes and decoded NGAP message of a specific radio event.
+      description: Returns the raw bytes and decoded NGAP (5G) or S1AP (4G) message of a specific radio event.
       parameters:
         - name: id
           in: path
@@ -2340,7 +2340,7 @@ paths:
           description: Radio event ID.
       responses:
         "200":
-          description: Radio event with decoded NGAP payload.
+          description: Radio event with decoded NGAP (5G) or S1AP (4G) payload.
           content:
             application/json:
               schema:
@@ -3357,14 +3357,18 @@ components:
         registered:
           type: boolean
           description: Whether the device is currently registered on the network.
-        num_pdu_sessions:
+        radio_access_type:
+          type: string
+          enum: ["4G", "5G"]
+          description: Radio access technology of the live connection. Omitted if not connected.
+        num_sessions:
           type: integer
-          description: Number of active PDU sessions for this subscriber.
-        lastSeenAt:
+          description: Number of active sessions (5G PDU sessions / 4G PDN connections) for this subscriber.
+        last_seen_at:
           type: string
           format: date-time
           description: Timestamp when the subscriber was last seen (RFC 3339). Omitted if never seen.
-      required: [registered, num_pdu_sessions]
+      required: [registered, num_sessions]
 
     Subscriber:
       type: object
@@ -3408,22 +3412,26 @@ components:
       properties:
         registered:
           type: boolean
+        radio_access_type:
+          type: string
+          enum: ["4G", "5G"]
+          description: Radio access technology of the live connection. Omitted if not connected.
         imei:
           type: string
           description: IMEI of the connected device.
-        cipheringAlgorithm:
+        ciphering_algorithm:
           type: string
           description: Negotiated ciphering algorithm.
-        integrityAlgorithm:
+        integrity_algorithm:
           type: string
           description: Negotiated integrity algorithm.
-        lastSeenAt:
+        last_seen_at:
           type: string
           description: Timestamp of last activity (RFC 3339).
-        lastSeenRadio:
+        last_seen_radio:
           type: string
           description: Name of the radio the device was last seen on.
-      required: [registered, imei, cipheringAlgorithm, integrityAlgorithm]
+      required: [registered, imei, ciphering_algorithm, integrity_algorithm]
 
     SubscriberDetail:
       type: object
@@ -3434,11 +3442,11 @@ components:
           type: string
         status:
           $ref: "#/components/schemas/SubscriberDetailStatus"
-        pdu_sessions:
+        sessions:
           type: array
-          description: "List of active PDU sessions for this subscriber."
+          description: "Active sessions for this subscriber (5G PDU sessions / 4G PDN connections)."
           items:
-            $ref: "#/components/schemas/SessionInfo"
+            $ref: "#/components/schemas/Session"
       required: [imsi, profile_name, status]
 
     SubscriberCredentials:
@@ -3467,38 +3475,54 @@ components:
         result:
           $ref: "#/components/schemas/SubscriberDetail"
 
-    SessionInfo:
+    Slice:
       type: object
-      description: "PDU session information returned with a subscriber detail."
+      description: "5G network slice identifier (S-NSSAI). Absent for 4G sessions."
       properties:
-        pdu_session_id:
-          type: integer
-          description: "PDU session identifier."
-        status:
-          type: string
-          description: "PDU session status (e.g. active, inactive)."
-        ipv4Address:
-          type: string
-          description: "Assigned IPv4 address for this PDU session. May be omitted if unknown."
-        ipv6Prefix:
-          type: string
-          description: "Assigned IPv6 prefix (/64) for this PDU session. May be omitted if unknown."
-        dnn:
-          type: string
-          description: "Data network name for this PDU session."
         sst:
           type: integer
-          description: "Slice/Service Type (SST) for this PDU session."
+          description: "Slice/Service Type (SST)."
         sd:
           type: string
           description: "Slice Differentiator (SD). Omitted when not set."
-        session_ambr_uplink:
+      required: [sst]
+
+    Session:
+      type: object
+      description: "A UE data session — a 5G PDU session or a 4G PDN connection."
+      properties:
+        radio_access_type:
+          type: string
+          enum: ["4G", "5G"]
+          description: "The radio access technology serving this session."
+        id:
+          type: integer
+          description: "Session identifier: the PDU Session ID (5G) or the linked EPS Bearer ID (4G)."
+        status:
+          type: string
+          description: "Session status (e.g. active, inactive)."
+        ip_type:
+          type: string
+          enum: ["IPv4", "IPv6", "IPv4v6"]
+          description: "Negotiated IP type (5G PDU Session Type / 4G PDN Type)."
+        ipv4_address:
+          type: string
+          description: "Assigned IPv4 address. Omitted if unknown."
+        ipv6_prefix:
+          type: string
+          description: "Assigned IPv6 prefix (/64). Omitted if unknown."
+        data_network:
+          type: string
+          description: "Data network name (DNN in 5G / APN in 4G)."
+        slice:
+          $ref: "#/components/schemas/Slice"
+        ambr_uplink:
           type: string
           description: "Effective uplink session AMBR (e.g. \"100 Mbps\")."
-        session_ambr_downlink:
+        ambr_downlink:
           type: string
           description: "Effective downlink session AMBR (e.g. \"200 Mbps\")."
-      required: [pdu_session_id, status]
+      required: [radio_access_type, id, status]
 
     CreateSubscriberParams:
       type: object
@@ -3628,6 +3652,9 @@ components:
           $ref: "#/components/schemas/PolicyRules"
           nullable: true
           description: "Optional network rules organized by direction (uplink/downlink)."
+        default:
+          type: boolean
+          description: "Whether this binding is the profile's default APN/DNN (used for the 4G default bearer and as the 5G fallback)."
       required: [name, profile_name, slice_name, session_ambr_uplink, session_ambr_downlink, var5qi, arp, data_network_name]
 
     PolicyResponseEnvelope:
@@ -3691,6 +3718,9 @@ components:
         rules:
           $ref: "#/components/schemas/PolicyRules"
           description: "Optional network rules to be created with the policy."
+        default:
+          type: boolean
+          description: "Make this the profile's default APN/DNN binding. The first policy in a profile becomes default regardless."
 
     UpdatePolicyParams:
       type: object
@@ -3726,6 +3756,9 @@ components:
             Network rules to set on the policy. Existing rules are always deleted first.
             If this field is omitted, all existing rules are deleted.
             To keep existing rules, you must re-supply them in every update request.
+        default:
+          type: boolean
+          description: "Make this the profile's default APN/DNN binding (clears the previous default). Omitted/false leaves it unchanged."
 
     # -- Profiles --------------------------------------------------------
     Profile:
@@ -3739,6 +3772,12 @@ components:
         ue_ambr_downlink:
           type: string
           description: "Aggregate downlink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Example: \"1 Gbps\"."
+        allow_4g:
+          type: boolean
+          description: "Whether subscribers on this profile may use 4G/EPC (Core Network type restriction, TS 23.501 §5.3.4). Default true."
+        allow_5g:
+          type: boolean
+          description: "Whether subscribers on this profile may use 5G/5GC. Default true."
       required: [name, ue_ambr_uplink, ue_ambr_downlink]
 
     ProfileResponseEnvelope:
@@ -3781,6 +3820,12 @@ components:
         ue_ambr_downlink:
           type: string
           description: "e.g. \"1 Gbps\""
+        allow_4g:
+          type: boolean
+          description: "Permit 4G/EPC access. Omitted defaults to true."
+        allow_5g:
+          type: boolean
+          description: "Permit 5G/5GC access. Omitted defaults to true."
 
     UpdateProfileParams:
       type: object
@@ -3792,6 +3837,12 @@ components:
         ue_ambr_downlink:
           type: string
           description: "e.g. \"1 Gbps\""
+        allow_4g:
+          type: boolean
+          description: "Permit 4G/EPC access. Omitted leaves the current value unchanged."
+        allow_5g:
+          type: boolean
+          description: "Permit 5G/5GC access. Omitted leaves the current value unchanged."
 
     # -- Slices ----------------------------------------------------------
     Slice:
@@ -4008,7 +4059,7 @@ components:
           uniqueItems: true
           items:
             type: string
-            enum: [NEA0, NEA1, NEA2]
+            enum: [NULL, SNOW3G, AES]
           description: "Preferred ciphering algorithm order."
         integrity:
           type: array
@@ -4017,7 +4068,7 @@ components:
           uniqueItems: true
           items:
             type: string
-            enum: [NIA0, NIA1, NIA2]
+            enum: [NULL, SNOW3G, AES]
           description: "Preferred integrity algorithm order."
 
     OperatorNASSecurity:
@@ -4027,13 +4078,13 @@ components:
           type: array
           items:
             type: string
-            enum: [NEA0, NEA1, NEA2]
+            enum: [NULL, SNOW3G, AES]
           description: "Current ciphering algorithm preference order."
         integrity:
           type: array
           items:
             type: string
-            enum: [NIA0, NIA1, NIA2]
+            enum: [NULL, SNOW3G, AES]
           description: "Current integrity algorithm preference order."
 
     OperatorSPN:
@@ -4819,17 +4870,17 @@ components:
         raw:
           type: string
           format: byte
-          description: Base64-encoded raw NGAP message bytes.
+          description: Base64-encoded raw NGAP (5G) or S1AP (4G) message bytes.
         decoded:
           type: object
-          description: Decoded NGAP message structure. The shape depends on the NGAP PDU type.
+          description: Decoded NGAP (5G) or S1AP (4G) message structure. The shape depends on the PDU type.
           properties:
             pdu_type:
               type: string
-              description: "NGAP PDU type (e.g. InitiatingMessage, SuccessfulOutcome, UnsuccessfulOutcome)."
+              description: "PDU type (e.g. InitiatingMessage, SuccessfulOutcome, UnsuccessfulOutcome)."
             procedure_code:
               type: object
-              description: "NGAP procedure code."
+              description: "NGAP/S1AP procedure code."
               properties:
                 type:
                   type: string

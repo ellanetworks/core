@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/mme"
 )
 
 type PlmnID struct {
@@ -87,7 +88,7 @@ func convertRadioTaiToReturnTai(tais []amf.SupportedTAI) []SupportedTAI {
 	return returnedTais
 }
 
-func ListRadios(amfInstance *amf.AMF) http.HandlerFunc {
+func ListRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		page := atoiDefault(q.Get("page"), 1)
@@ -131,6 +132,21 @@ func ListRadios(amfInstance *amf.AMF) http.HandlerFunc {
 			items = append(items, newRadio)
 		}
 
+		// 4G eNBs connected to the MME appear in the same radio list,
+		// distinguished by ran_node_type.
+		if mmeInstance != nil {
+			for _, enb := range mmeInstance.ListENBs() {
+				items = append(items, Radio{
+					Name:          enb.Name,
+					ID:            enb.ID,
+					Address:       enb.Address,
+					RanNodeType:   "eNB",
+					SupportedTAIs: []SupportedTAI{},
+				})
+				total++
+			}
+		}
+
 		resp := ListRadiosResponse{
 			Items:      items,
 			Page:       page,
@@ -142,7 +158,7 @@ func ListRadios(amfInstance *amf.AMF) http.HandlerFunc {
 	}
 }
 
-func GetRadio(amfInstance *amf.AMF) http.HandlerFunc {
+func GetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		radioName := r.PathValue("name")
 		if radioName == "" {
@@ -182,6 +198,30 @@ func GetRadio(amfInstance *amf.AMF) http.HandlerFunc {
 			writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)
 
 			return
+		}
+
+		// 4G eNBs connected to the MME share the radio namespace, distinguished
+		// by ran_node_type.
+		if mmeInstance != nil {
+			for _, enb := range mmeInstance.ListENBs() {
+				if enb.Name != radioName {
+					continue
+				}
+
+				result := RadioDetail{
+					Name:          enb.Name,
+					ID:            enb.ID,
+					Address:       enb.Address,
+					ConnectedAt:   enb.ConnectedAt.UTC().Format(time.RFC3339),
+					LastSeenAt:    enb.LastSeenAt.UTC().Format(time.RFC3339),
+					RanNodeType:   "eNB",
+					SupportedTAIs: []SupportedTAI{},
+				}
+
+				writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)
+
+				return
+			}
 		}
 
 		writeError(r.Context(), w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio not found"), logger.APILog)

@@ -42,9 +42,10 @@ type CreateSubscriberSuccessResponse struct {
 
 // ListSubscriberStatus matches the lightweight status in list responses.
 type ListSubscriberStatus struct {
-	Registered     bool   `json:"registered"`
-	NumPDUSessions int    `json:"num_pdu_sessions"`
-	LastSeenAt     string `json:"lastSeenAt,omitempty"`
+	Registered      bool   `json:"registered"`
+	RadioAccessType string `json:"radio_access_type,omitempty"`
+	NumSessions     int    `json:"num_sessions"`
+	LastSeenAt      string `json:"last_seen_at,omitempty"`
 }
 
 // ListSubscriber matches the summary representation in list responses.
@@ -58,22 +59,30 @@ type ListSubscriber struct {
 // SubscriberDetailStatus matches the rich status in get-single responses.
 type SubscriberDetailStatus struct {
 	Registered         bool   `json:"registered"`
+	RadioAccessType    string `json:"radio_access_type,omitempty"`
 	Imei               string `json:"imei"`
-	CipheringAlgorithm string `json:"cipheringAlgorithm"`
-	IntegrityAlgorithm string `json:"integrityAlgorithm"`
-	LastSeenAt         string `json:"lastSeenAt,omitempty"`
-	LastSeenRadio      string `json:"lastSeenRadio,omitempty"`
+	CipheringAlgorithm string `json:"ciphering_algorithm"`
+	IntegrityAlgorithm string `json:"integrity_algorithm"`
+	LastSeenAt         string `json:"last_seen_at,omitempty"`
+	LastSeenRadio      string `json:"last_seen_radio,omitempty"`
 }
 
-type SessionInfo struct {
-	PDUSessionID    uint8  `json:"pdu_session_id"`
+type Slice struct {
+	SST int32  `json:"sst"`
+	SD  string `json:"sd,omitempty"`
+}
+
+type Session struct {
+	RadioAccessType string `json:"radio_access_type"`
+	ID              uint8  `json:"id"`
 	Status          string `json:"status"`
-	IPv4Address     string `json:"ipv4Address,omitempty"`
-	DNN             string `json:"dnn,omitempty"`
-	SST             int32  `json:"sst,omitempty"`
-	SD              string `json:"sd,omitempty"`
-	SessionAmbrUp   string `json:"session_ambr_uplink,omitempty"`
-	SessionAmbrDown string `json:"session_ambr_downlink,omitempty"`
+	IPType          string `json:"ip_type,omitempty"`
+	IPv4Address     string `json:"ipv4_address,omitempty"`
+	IPv6Prefix      string `json:"ipv6_prefix,omitempty"`
+	DataNetwork     string `json:"data_network,omitempty"`
+	Slice           *Slice `json:"slice,omitempty"`
+	AMBRUplink      string `json:"ambr_uplink,omitempty"`
+	AMBRDownlink    string `json:"ambr_downlink,omitempty"`
 }
 
 // SubscriberDetail matches the full representation in get-single responses.
@@ -81,7 +90,7 @@ type SubscriberDetail struct {
 	Imsi        string                 `json:"imsi"`
 	ProfileName string                 `json:"profile_name"`
 	Status      SubscriberDetailStatus `json:"status"`
-	PDUSessions []SessionInfo          `json:"pdu_sessions"`
+	Sessions    []Session              `json:"sessions"`
 }
 
 type GetSubscriberResponse struct {
@@ -492,12 +501,12 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected empty integrityAlgorithm, got %s", response.Result.Status.IntegrityAlgorithm)
 		}
 
-		if response.Result.PDUSessions == nil {
+		if response.Result.Sessions == nil {
 			t.Fatalf("expected sessions field to be present, got nil")
 		}
 
-		if len(response.Result.PDUSessions) != 0 {
-			t.Fatalf("expected 0 sessions, got %d", len(response.Result.PDUSessions))
+		if len(response.Result.Sessions) != 0 {
+			t.Fatalf("expected 0 sessions, got %d", len(response.Result.Sessions))
 		}
 
 		if response.Error != "" {
@@ -889,12 +898,12 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected empty integrityAlgorithm, got %s", response.Result.Status.IntegrityAlgorithm)
 		}
 
-		if response.Result.PDUSessions == nil {
+		if response.Result.Sessions == nil {
 			t.Fatalf("expected sessions field to be present, got nil")
 		}
 
-		if len(response.Result.PDUSessions) != 0 {
-			t.Fatalf("expected 0 sessions, got %d", len(response.Result.PDUSessions))
+		if len(response.Result.Sessions) != 0 {
+			t.Fatalf("expected 0 sessions, got %d", len(response.Result.Sessions))
 		}
 
 		if response.Error != "" {
@@ -916,18 +925,22 @@ func TestSubscribersApiEndToEnd(t *testing.T) {
 			t.Fatalf("expected status %d, got %d", http.StatusOK, statusCode)
 		}
 
-		if response.Result.PDUSessions == nil {
+		if response.Result.Sessions == nil {
 			t.Fatalf("expected sessions field to be present, got nil")
 		}
 
-		if len(response.Result.PDUSessions) != 1 {
-			t.Fatalf("expected 1 session, got %d", len(response.Result.PDUSessions))
+		if len(response.Result.Sessions) != 1 {
+			t.Fatalf("expected 1 session, got %d", len(response.Result.Sessions))
 		}
 
-		session := response.Result.PDUSessions[0]
+		session := response.Result.Sessions[0]
 
-		if session.PDUSessionID != 1 {
-			t.Fatalf("expected PDU session ID 1, got %d", session.PDUSessionID)
+		if session.ID != 1 {
+			t.Fatalf("expected session ID 1, got %d", session.ID)
+		}
+
+		if session.RadioAccessType != "5G" {
+			t.Fatalf("expected radio_access_type '5G', got %q", session.RadioAccessType)
 		}
 
 		if session.Status != "active" {

@@ -429,7 +429,7 @@ const Dashboard = () => {
       >
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Tooltip
-            title="Number of radio base stations (gNBs) connected to this core"
+            title="Number of radio base stations (gNBs / eNBs) connected to this core"
             arrow
           >
             <Box>
@@ -461,7 +461,7 @@ const Dashboard = () => {
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Tooltip
-            title="Number of active PDU sessions (devices currently connected with data sessions)"
+            title="Number of active sessions (devices currently connected with data sessions)"
             arrow
           >
             <Box>

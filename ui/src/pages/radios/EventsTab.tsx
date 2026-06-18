@@ -16,6 +16,7 @@ import {
   IconButton,
   TextField,
   MenuItem,
+  ListSubheader,
 } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";
 import { useSnackbar } from "@/contexts/SnackbarContext";
@@ -58,6 +59,7 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import EditRadioEventRetentionPolicyModal from "@/components/EditRadioEventRetentionPolicyModal";
 import EventDetails from "@/components/EventDetails";
 import type { LogRow } from "@/components/EventDetails";
+import ProtocolChip from "@/components/ProtocolChip";
 import { formatDateTime } from "@/utils/formatters";
 import { useRadiosContext } from "./types";
 
@@ -145,6 +147,32 @@ const NGAP_MESSAGE_TYPES = [
   "WriteReplaceWarningResponse",
 ];
 
+// S1AP (4G) message names recorded by the MME (see internal/mme/s1ap_procedures.go).
+const S1AP_MESSAGE_TYPES = [
+  "DownlinkNASTransport",
+  "ErrorIndication",
+  "InitialContextSetupFailure",
+  "InitialContextSetupRequest",
+  "InitialContextSetupResponse",
+  "InitialUEMessage",
+  "Paging",
+  "S1SetupFailure",
+  "S1SetupRequest",
+  "S1SetupResponse",
+  "UECapabilityInfoIndication",
+  "UEContextReleaseCommand",
+  "UEContextReleaseComplete",
+  "UEContextReleaseRequest",
+  "UplinkNASTransport",
+];
+
+// Message-type options offered for a given protocol filter; when no protocol is
+// selected, both sets are offered (grouped in the dropdown).
+const MESSAGE_TYPES_BY_PROTOCOL: Record<string, string[]> = {
+  NGAP: NGAP_MESSAGE_TYPES,
+  S1AP: S1AP_MESSAGE_TYPES,
+};
+
 const DirectionCell: React.FC<{ value?: string }> = ({ value }) => {
   const theme = useTheme();
   if (!value) return null;
@@ -223,10 +251,30 @@ export default function EventsTab() {
 
   // Explicit filter state (replaces DataGrid built-in filter model)
   const [radioFilter, setRadioFilter] = useState(radioParam);
+  const [protocolFilter, setProtocolFilter] = useState("");
   const [directionFilter, setDirectionFilter] = useState("");
   const [messageTypeFilter, setMessageTypeFilter] = useState("");
   const [timestampFrom, setTimestampFrom] = useState("");
   const [timestampTo, setTimestampTo] = useState("");
+
+  // Message types depend on the selected protocol; offer both sets when no
+  // protocol is chosen.
+  const messageTypeOptions = useMemo(
+    () =>
+      MESSAGE_TYPES_BY_PROTOCOL[protocolFilter] ?? [
+        ...NGAP_MESSAGE_TYPES,
+        ...S1AP_MESSAGE_TYPES,
+      ],
+    [protocolFilter],
+  );
+
+  // Drop a message-type filter that does not belong to the newly selected
+  // protocol, so a stale type can't hide every row.
+  useEffect(() => {
+    if (messageTypeFilter && !messageTypeOptions.includes(messageTypeFilter)) {
+      setMessageTypeFilter("");
+    }
+  }, [messageTypeOptions, messageTypeFilter]);
 
   // Re-sync radio filter when URL param changes
   useEffect(() => {
@@ -255,6 +303,7 @@ export default function EventsTab() {
   const filterParams = useMemo(() => {
     const params: Record<string, string> = {};
     if (radioFilter) params.radio = radioFilter;
+    if (protocolFilter) params.protocol = protocolFilter;
     if (directionFilter) params.direction = directionFilter;
     if (messageTypeFilter) params.message_type = messageTypeFilter;
     if (timestampFrom)
@@ -263,6 +312,7 @@ export default function EventsTab() {
     return params;
   }, [
     radioFilter,
+    protocolFilter,
     directionFilter,
     messageTypeFilter,
     timestampFrom,
@@ -386,6 +436,14 @@ export default function EventsTab() {
         },
       },
       {
+        field: "protocol",
+        headerName: "Protocol",
+        width: 110,
+        sortable: false,
+        filterable: false,
+        renderCell: (p) => <ProtocolChip protocol={p.row.protocol} />,
+      },
+      {
         field: "message_type",
         headerName: "Message Type",
         flex: 1,
@@ -433,7 +491,7 @@ export default function EventsTab() {
   );
 
   const subDescription =
-    "Review NGAP messages between Ella Core and 5G radios. These logs are useful for auditing and troubleshooting purposes.";
+    "Review NGAP (5G) and S1AP (4G) control-plane messages exchanged between Ella Core and connected radios. These logs are useful for auditing and troubleshooting purposes.";
 
   const closePanel = useCallback(() => {
     setViewEventDrawerOpen(false);
@@ -520,6 +578,18 @@ export default function EventsTab() {
           </TextField>
           <TextField
             select
+            label="Protocol"
+            value={protocolFilter}
+            onChange={(e) => setProtocolFilter(e.target.value)}
+            size="small"
+            sx={{ minWidth: 150 }}
+          >
+            <MenuItem value="">All</MenuItem>
+            <MenuItem value="NGAP">NGAP (5G)</MenuItem>
+            <MenuItem value="S1AP">S1AP (4G)</MenuItem>
+          </TextField>
+          <TextField
+            select
             label="Direction"
             value={directionFilter}
             onChange={(e) => setDirectionFilter(e.target.value)}
@@ -555,11 +625,26 @@ export default function EventsTab() {
             sx={{ minWidth: 180 }}
           >
             <MenuItem value="">All</MenuItem>
-            {NGAP_MESSAGE_TYPES.map((mt) => (
-              <MenuItem key={mt} value={mt}>
-                {mt}
-              </MenuItem>
-            ))}
+            {protocolFilter
+              ? messageTypeOptions.map((mt) => (
+                  <MenuItem key={mt} value={mt}>
+                    {mt}
+                  </MenuItem>
+                ))
+              : [
+                  <ListSubheader key="ngap-header">NGAP (5G)</ListSubheader>,
+                  ...NGAP_MESSAGE_TYPES.map((mt) => (
+                    <MenuItem key={`ngap-${mt}`} value={mt}>
+                      {mt}
+                    </MenuItem>
+                  )),
+                  <ListSubheader key="s1ap-header">S1AP (4G)</ListSubheader>,
+                  ...S1AP_MESSAGE_TYPES.map((mt) => (
+                    <MenuItem key={`s1ap-${mt}`} value={mt}>
+                      {mt}
+                    </MenuItem>
+                  )),
+                ]}
           </TextField>
           <TextField
             label="From"
@@ -751,10 +836,21 @@ export default function EventsTab() {
               gap: 1,
             }}
           >
-            <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Box
+              sx={{
+                flex: 1,
+                minWidth: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+              }}
+            >
               <Typography variant="h6" noWrap>
                 {selectedRow?.messageType ?? "Event details"}
               </Typography>
+              {selectedRow?.protocol && (
+                <ProtocolChip protocol={selectedRow.protocol} />
+              )}
             </Box>
             <IconButton aria-label="Close" onClick={closePanel} size="small">
               <CloseIcon />

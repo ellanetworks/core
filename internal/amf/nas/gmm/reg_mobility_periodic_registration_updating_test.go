@@ -52,7 +52,7 @@ func (fdb *failingSubscriberDB) GetSubscriber(ctx context.Context, imsi string) 
 }
 
 func (fdb *failingSubscriberDB) GetProfileByID(ctx context.Context, id string) (*db.Profile, error) {
-	return &db.Profile{ID: id, Name: "TestProfile"}, nil
+	return &db.Profile{ID: id, Name: "TestProfile", Allow4G: true, Allow5G: true}, nil
 }
 
 func (fdb *failingSubscriberDB) ListAllNetworkSlices(ctx context.Context) ([]db.NetworkSlice, error) {

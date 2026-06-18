@@ -50,15 +50,12 @@ const profileDescriptions: Record<string, string> = {
   B: "ECIES with compact P-256 (secp256r1)",
 };
 
+// RAT-neutral NAS security algorithm identities shared by 4G (EEA/EIA) and 5G
+// (NEA/NIA).
 const algTooltips: Record<string, string> = {
-  NEA0: "5G null ciphering (no encryption)",
-  NEA1: "5G NAS encryption with SNOW 3G",
-  NEA2: "5G NAS encryption with AES-CTR",
-  NEA3: "5G NAS encryption with ZUC",
-  NIA0: "5G null integrity (no protection)",
-  NIA1: "5G NAS integrity with SNOW 3G",
-  NIA2: "5G NAS integrity with AES-CMAC",
-  NIA3: "5G NAS integrity with ZUC",
+  NULL: "Null algorithm (no security)",
+  SNOW3G: "NAS security with SNOW 3G",
+  AES: "NAS security with AES (AES-CTR ciphering / AES-CMAC integrity)",
 };
 
 const tableContainerSx = {
@@ -475,7 +472,7 @@ const Operator = () => {
                                           label={`${idx + 1}. ${alg}`}
                                           variant="outlined"
                                           color={
-                                            alg === "NEA0"
+                                            alg === "NULL"
                                               ? "warning"
                                               : "primary"
                                           }
@@ -516,7 +513,7 @@ const Operator = () => {
                                           label={`${idx + 1}. ${alg}`}
                                           variant="outlined"
                                           color={
-                                            alg === "NIA0"
+                                            alg === "NULL"
                                               ? "warning"
                                               : "primary"
                                           }
@@ -555,7 +552,7 @@ const Operator = () => {
       {/* ═══════════════ Home Network Keys ═══════════════ */}
       <Box sx={{ mt: 4 }}>
         <Typography variant="h6" sx={{ mb: 2 }}>
-          Home Network Keys
+          Home Network Keys (5G only)
         </Typography>
         <Stack
           direction="row"
@@ -882,14 +879,14 @@ const Operator = () => {
           onSuccess={handleEditOperatorNASSecuritySuccess}
           initialData={{
             ciphering: operator?.nasSecurity?.ciphering ?? [
-              "NEA2",
-              "NEA1",
-              "NEA0",
+              "AES",
+              "SNOW3G",
+              "NULL",
             ],
             integrity: operator?.nasSecurity?.integrity ?? [
-              "NIA2",
-              "NIA1",
-              "NIA0",
+              "AES",
+              "SNOW3G",
+              "NULL",
             ],
           }}
         />

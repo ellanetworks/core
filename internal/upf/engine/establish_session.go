@@ -20,6 +20,11 @@ import (
 
 var tracer = otel.Tracer("ella-core/upf")
 
+// ohcNoPSC mirrors the C OHC_NO_PSC modifier bit (utils/pdr.h): ORed onto a
+// GTP-U outer-header-creation value to emit a plain G-PDU with no PDU Session
+// Container, as required on 4G S1-U.
+const ohcNoPSC uint8 = 0x10
+
 // EstablishSession creates a new UPF session from typed Go structs,
 // bypassing PFCP message encoding/decoding.
 func (conn *SessionEngine) EstablishSession(ctx context.Context, req *models.EstablishRequest) (*models.EstablishResponse, error) {
@@ -153,6 +158,14 @@ func farInfoFromModel(far models.FAR, localIPv4 netip.Addr, localIPv6 netip.Addr
 	if fp := far.ForwardingParameters; fp != nil {
 		if ohc := fp.OuterHeaderCreation; ohc != nil {
 			info.OuterHeaderCreation = uint8(ohc.Description >> 8)
+
+			// S1-U bearers emit plain GTP-U with no PDU Session Container
+			// (TS 38.415: the container is N3/N9-only); ohcNoPSC tells the
+			// datapath to omit it.
+			if ohc.S1U {
+				info.OuterHeaderCreation |= ohcNoPSC
+			}
+
 			info.TeID = ohc.TEID
 
 			if ohc.Description == models.OuterHeaderCreationGtpUUdpIpv6 && ohc.IPv6Address != nil {

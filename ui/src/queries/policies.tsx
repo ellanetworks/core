@@ -27,6 +27,7 @@ export type APIPolicy = {
   var5qi: number;
   arp: number;
   rules?: PolicyRules;
+  default: boolean;
 };
 
 export type ListPoliciesResponse = {
@@ -69,6 +70,7 @@ export async function createPolicy(
     session_ambr_downlink: string;
     var5qi: number;
     arp: number;
+    default?: boolean;
   },
 ): Promise<void> {
   await apiFetchVoid(`/api/v1/policies`, {
@@ -90,6 +92,7 @@ export async function updatePolicy(
     var5qi: number;
     arp: number;
     rules?: PolicyRules;
+    default?: boolean;
   },
 ): Promise<void> {
   await apiFetchVoid(`/api/v1/policies/${encodeURIComponent(name)}`, {

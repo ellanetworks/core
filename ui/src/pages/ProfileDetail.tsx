@@ -16,6 +16,7 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
+import AccessChip from "@/components/AccessChip";
 import {
   Edit as EditIcon,
   North as NorthIcon,
@@ -43,8 +44,16 @@ import DeleteConfirmationModal from "@/components/DeleteConfirmationModal";
 import { UPLINK_COLOR, DOWNLINK_COLOR } from "@/utils/formatters";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
 
-const labelCellSx = { fontWeight: 600, width: "35%" } as const;
-const valueCellSx = { width: "65%", textAlign: "right" } as const;
+const labelCellSx = {
+  fontWeight: 600,
+  width: "35%",
+  verticalAlign: "middle",
+} as const;
+const valueCellSx = {
+  width: "65%",
+  textAlign: "right",
+  verticalAlign: "middle",
+} as const;
 
 const ProfileDetail: React.FC = () => {
   const { name } = useParams<{ name: string }>();
@@ -369,6 +378,30 @@ const ProfileDetail: React.FC = () => {
                     <Typography variant="body2">
                       {profile.ue_ambr_downlink}
                     </Typography>
+                  </Box>
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell sx={labelCellSx}>
+                  <Tooltip
+                    title="Radio access technologies subscribers on this profile may use (TS 23.501 §5.3.4)."
+                    arrow
+                    placement="top"
+                  >
+                    <span>Access</span>
+                  </Tooltip>
+                </TableCell>
+                <TableCell sx={valueCellSx}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "flex-end",
+                      gap: 0.5,
+                    }}
+                  >
+                    <AccessChip label="4G" active={profile.allow_4g} />
+                    <AccessChip label="5G" active={profile.allow_5g} />
                   </Box>
                 </TableCell>
               </TableRow>

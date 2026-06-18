@@ -3,6 +3,7 @@
 
 import React, { useMemo, useState } from "react";
 import { Box, Typography, Button, CircularProgress } from "@mui/material";
+import AccessChip from "@/components/AccessChip";
 import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useTheme, createTheme, ThemeProvider } from "@mui/material/styles";
 import {
@@ -112,6 +113,27 @@ const ProfilesPage: React.FC = () => {
           "Aggregate downlink cap across all of a subscriber's sessions (enforced by the radio)",
         flex: 1,
         minWidth: 160,
+      },
+      {
+        field: "access",
+        headerName: "Access",
+        description: "Radio access technologies this profile permits (4G / 5G)",
+        flex: 0.6,
+        minWidth: 110,
+        sortable: false,
+        renderCell: (params: GridRenderCellParams<APIProfile>) => (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              height: "100%",
+              gap: 0.5,
+            }}
+          >
+            <AccessChip label="4G" active={params.row.allow_4g} />
+            <AccessChip label="5G" active={params.row.allow_5g} />
+          </Box>
+        ),
       },
     ];
   }, [theme]);

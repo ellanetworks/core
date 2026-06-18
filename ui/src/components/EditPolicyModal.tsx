@@ -17,6 +17,8 @@ import {
   Alert,
   Collapse,
   Typography,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import {
   updatePolicy,
@@ -51,6 +53,7 @@ type FormState = {
   var5qi: number;
   arp: number;
   data_network_name: string;
+  isDefault: boolean;
 };
 
 const PER_PAGE = 12;
@@ -119,6 +122,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
     var5qi: 0,
     arp: 0,
     data_network_name: "",
+    isDefault: false,
   });
 
   const [dataNetworks, setDataNetworks] = useState<string[]>([]);
@@ -157,6 +161,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
           var5qi: fullPolicy.var5qi,
           arp: fullPolicy.arp,
           data_network_name: fullPolicy.data_network_name,
+          isDefault: fullPolicy.default,
         });
         setErrors({});
         setTouched({});
@@ -261,6 +266,7 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
         var5qi: formValues.var5qi,
         arp: formValues.arp,
         rules: currentRules,
+        default: formValues.isDefault,
       });
 
       onClose();
@@ -433,6 +439,22 @@ const EditPolicyModal: React.FC<EditPolicyModalProps> = ({
               : "Admission control priority at session setup. 1 (highest) to 15 (lowest)."
           }
           margin="normal"
+        />
+
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={formValues.isDefault}
+              onChange={(e) =>
+                setFormValues((prev) => ({
+                  ...prev,
+                  isDefault: e.target.checked,
+                }))
+              }
+            />
+          }
+          label="Default data network for this profile (default APN/DNN)"
+          sx={{ mt: 1 }}
         />
       </DialogContent>
 

@@ -17,6 +17,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/mme"
 	"go.uber.org/zap"
 )
 
@@ -34,9 +35,10 @@ type UpdateSubscriberParams struct {
 
 // SubscriberStatus is the lightweight status returned by the list endpoint.
 type SubscriberStatus struct {
-	Registered     bool   `json:"registered"`
-	NumPDUSessions int    `json:"num_pdu_sessions"`
-	LastSeenAt     string `json:"lastSeenAt,omitempty"`
+	Registered      bool   `json:"registered"`
+	RadioAccessType string `json:"radio_access_type,omitempty"` // "4G" | "5G", per the live connection
+	NumSessions     int    `json:"num_sessions"`
+	LastSeenAt      string `json:"last_seen_at,omitempty"`
 }
 
 // Subscriber is the summary representation returned by the list endpoint.
@@ -57,11 +59,12 @@ type ListSubscribersResponse struct {
 // SubscriberDetailStatus is the rich status returned by the get-single endpoint.
 type SubscriberDetailStatus struct {
 	Registered         bool   `json:"registered"`
+	RadioAccessType    string `json:"radio_access_type,omitempty"` // "4G" | "5G", per the live connection
 	Imei               string `json:"imei"`
-	CipheringAlgorithm string `json:"cipheringAlgorithm"`
-	IntegrityAlgorithm string `json:"integrityAlgorithm"`
-	LastSeenAt         string `json:"lastSeenAt,omitempty"`
-	LastSeenRadio      string `json:"lastSeenRadio,omitempty"`
+	CipheringAlgorithm string `json:"ciphering_algorithm"`
+	IntegrityAlgorithm string `json:"integrity_algorithm"`
+	LastSeenAt         string `json:"last_seen_at,omitempty"`
+	LastSeenRadio      string `json:"last_seen_radio,omitempty"`
 }
 
 // SubscriberDetail is the full representation returned by the get-single endpoint.
@@ -69,7 +72,7 @@ type SubscriberDetail struct {
 	Imsi        string                 `json:"imsi"`
 	ProfileName string                 `json:"profile_name"`
 	Status      SubscriberDetailStatus `json:"status"`
-	PDUSessions []SessionInfo          `json:"pdu_sessions"`
+	Sessions    []Session              `json:"sessions"`
 }
 
 // SubscriberCredentials is the response for the dedicated credentials endpoint.
@@ -79,17 +82,25 @@ type SubscriberCredentials struct {
 	SequenceNumber string `json:"sequenceNumber"`
 }
 
-// SessionInfo is a representation of a PDU session returned by the API.
-type SessionInfo struct {
-	PDUSessionID    uint8  `json:"pdu_session_id"`
+// Slice is a 5G network slice identifier (S-NSSAI); absent for 4G.
+type Slice struct {
+	SST int32  `json:"sst"`
+	SD  string `json:"sd,omitempty"`
+}
+
+// Session is a UE data session — a 5G PDU session or a 4G PDN connection —
+// self-describing via radio_access_type.
+type Session struct {
+	RadioAccessType string `json:"radio_access_type"` // "4G" | "5G"
+	ID              uint8  `json:"id"`                // PDU Session ID (5G) / linked EPS Bearer ID (4G)
 	Status          string `json:"status"`
-	IPv4Address     string `json:"ipv4Address,omitempty"`
-	IPv6Prefix      string `json:"ipv6Prefix,omitempty"`
-	DNN             string `json:"dnn,omitempty"`
-	SST             int32  `json:"sst,omitempty"`
-	SD              string `json:"sd,omitempty"`
-	SessionAmbrUp   string `json:"session_ambr_uplink,omitempty"`
-	SessionAmbrDown string `json:"session_ambr_downlink,omitempty"`
+	IPType          string `json:"ip_type,omitempty"` // IPv4 | IPv6 | IPv4v6
+	IPv4Address     string `json:"ipv4_address,omitempty"`
+	IPv6Prefix      string `json:"ipv6_prefix,omitempty"`
+	DataNetwork     string `json:"data_network,omitempty"` // DNN (5G) / APN (4G)
+	Slice           *Slice `json:"slice,omitempty"`        // 5G only
+	AMBRUplink      string `json:"ambr_uplink,omitempty"`
+	AMBRDownlink    string `json:"ambr_downlink,omitempty"`
 }
 
 const (
@@ -100,7 +111,7 @@ const (
 
 const (
 	MaxNumSubscribers = 1000
-	MaxPDUSessions    = 16
+	MaxSessions       = 16
 )
 
 func isImsiValid(ctx context.Context, imsi string, dbInstance *db.Database) bool {
@@ -144,7 +155,19 @@ func isSequenceNumberValid(sequenceNumber string) bool {
 	return len(bytes) == 6
 }
 
-func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler {
+// radioIsKnown reports whether a radio name matches a connected 5G gNB or 4G eNB.
+func radioIsKnown(amfInstance *amf.AMF, mmeInstance *mme.MME, name string) bool {
+	_, ranList := amfInstance.ListAmfRan(1, 1000)
+	for _, radio := range ranList {
+		if radio.Name == name {
+			return true
+		}
+	}
+
+	return mmeInstance != nil && mmeInstance.HasENB(name)
+}
+
+func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		page := atoiDefault(q.Get("page"), 1)
@@ -163,24 +186,20 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler
 
 		ctx := r.Context()
 
+		// 4G UEs attached through an eNB are tracked by the MME, keyed by IMSI.
+		var mmeStatus map[string]mme.ConnectedSubscriber
+
+		if mmeInstance != nil {
+			mmeStatus = mmeInstance.ConnectedSubscribers()
+		}
+
 		// When a radio filter is set, we need to fetch all subscribers and
-		// filter by the runtime AMF state, then paginate in memory.
+		// filter by the runtime AMF/MME state, then paginate in memory.
 		var radioIMSIs map[string]struct{}
 
 		if radioFilter != "" {
-			// Verify the radio exists.
-			_, ranList := amfInstance.ListAmfRan(1, 1000)
-
-			found := false
-
-			for _, radio := range ranList {
-				if radio.Name == radioFilter {
-					found = true
-
-					break
-				}
-			}
-
+			// Verify the radio exists as a 5G gNB or a 4G eNB.
+			found := radioIsKnown(amfInstance, mmeInstance, radioFilter)
 			if !found {
 				writeError(r.Context(), w, http.StatusNotFound, "Radio not found", fmt.Errorf("radio %q not found", radioFilter), logger.APILog)
 				return
@@ -188,11 +207,16 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler
 
 			// Use the authoritative registration state to find subscribers
 			// connected through this radio.
-			imsis := amfInstance.RegisteredSubscribersForRadio(radioFilter)
-			radioIMSIs = make(map[string]struct{}, len(imsis))
+			radioIMSIs = make(map[string]struct{})
 
-			for _, imsi := range imsis {
+			for _, imsi := range amfInstance.RegisteredSubscribersForRadio(radioFilter) {
 				radioIMSIs[imsi] = struct{}{}
+			}
+
+			for imsi, st := range mmeStatus {
+				if st.RadioName == radioFilter {
+					radioIMSIs[imsi] = struct{}{}
+				}
 			}
 		}
 
@@ -247,19 +271,38 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler
 				return
 			}
 
+			registered := amfInstance.IsSubscriberRegistered(supi)
+			radioName := amfInstance.RadioNameForSubscriber(supi)
+
 			subscriberStatus := SubscriberStatus{
-				Registered:     amfInstance.IsSubscriberRegistered(supi),
-				NumPDUSessions: amfInstance.CountUEPDUSessions(supi),
+				Registered:  registered,
+				NumSessions: amfInstance.CountUEPDUSessions(supi),
+			}
+			if registered {
+				subscriberStatus.RadioAccessType = "5G"
 			}
 
 			if lastSeen := amfInstance.LastSeenAtForSubscriber(supi); !lastSeen.IsZero() {
 				subscriberStatus.LastSeenAt = lastSeen.UTC().Format(time.RFC3339)
 			}
 
+			// A subscriber attached over 4G is not in AMF state; fall back to
+			// the MME's EMM registration.
+			if st, ok := mmeStatus[dbSubscriber.Imsi]; ok && !registered {
+				subscriberStatus.Registered = true
+				subscriberStatus.RadioAccessType = "4G"
+				subscriberStatus.NumSessions = st.NumSessions
+				radioName = st.RadioName
+
+				if !st.LastSeenAt.IsZero() {
+					subscriberStatus.LastSeenAt = st.LastSeenAt.UTC().Format(time.RFC3339)
+				}
+			}
+
 			items = append(items, Subscriber{
 				Imsi:        dbSubscriber.Imsi,
 				ProfileName: profile.Name,
-				Radio:       amfInstance.RadioNameForSubscriber(supi),
+				Radio:       radioName,
 				Status:      subscriberStatus,
 			})
 		}
@@ -292,7 +335,7 @@ func ListSubscribers(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler
 	})
 }
 
-func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler {
+func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		imsi := r.PathValue("imsi")
 		if imsi == "" {
@@ -333,6 +376,11 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler {
 
 		if found {
 			subscriberStatus.Registered = snap.State == amf.Registered
+
+			if subscriberStatus.Registered {
+				subscriberStatus.RadioAccessType = "5G"
+			}
+
 			subscriberStatus.CipheringAlgorithm = snap.CipheringAlgorithm
 			subscriberStatus.IntegrityAlgorithm = snap.IntegrityAlgorithm
 			subscriberStatus.LastSeenRadio = snap.LastSeenRadio
@@ -352,21 +400,41 @@ func GetSubscriber(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler {
 
 		pduSessions, _ := amfInstance.GetUEPDUSessions(supi)
 
-		sessions := make([]SessionInfo, 0, len(pduSessions))
+		sessions := make([]Session, 0, len(pduSessions))
 		for _, pdu := range pduSessions {
-			session := toSessionInfo(pdu)
-			sessions = append(sessions, session)
+			sessions = append(sessions, sessionFrom5G(pdu))
 		}
 
-		if len(sessions) > MaxPDUSessions {
-			sessions = sessions[:MaxPDUSessions]
+		// A subscriber attached over 4G is not in AMF state; fall back to the
+		// MME's EMM registration and default EPS bearer.
+		if !subscriberStatus.Registered && mmeInstance != nil {
+			if cs, ok := mmeInstance.LookupSubscriber(imsi); ok {
+				subscriberStatus.Registered = true
+				subscriberStatus.RadioAccessType = "4G"
+				subscriberStatus.Imei = cs.Imei
+				subscriberStatus.CipheringAlgorithm = cs.CipheringAlgorithm
+				subscriberStatus.IntegrityAlgorithm = cs.IntegrityAlgorithm
+				subscriberStatus.LastSeenRadio = cs.RadioName
+
+				if !cs.LastSeenAt.IsZero() {
+					subscriberStatus.LastSeenAt = cs.LastSeenAt.UTC().Format(time.RFC3339)
+				}
+
+				for i := range cs.Sessions {
+					sessions = append(sessions, sessionFrom4G(&cs.Sessions[i]))
+				}
+			}
+		}
+
+		if len(sessions) > MaxSessions {
+			sessions = sessions[:MaxSessions]
 		}
 
 		subscriber := SubscriberDetail{
 			Imsi:        dbSubscriber.Imsi,
 			ProfileName: profile.Name,
 			Status:      subscriberStatus,
-			PDUSessions: sessions,
+			Sessions:    sessions,
 		}
 
 		writeResponse(r.Context(), w, subscriber, http.StatusOK, logger.APILog)
@@ -584,7 +652,7 @@ func UpdateSubscriber(dbInstance *db.Database) http.Handler {
 	})
 }
 
-func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF) http.Handler {
+func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF, mmeInstance *mme.MME) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		email := getEmailFromContext(r)
 
@@ -613,6 +681,10 @@ func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF) http.Handle
 
 		amfInstance.DeregisterSubscriber(r.Context(), supi)
 
+		if mmeInstance != nil {
+			mmeInstance.DetachSubscriber(r.Context(), imsi)
+		}
+
 		if err := dbInstance.DeleteSubscriber(r.Context(), imsi); err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Subscriber not found", nil, logger.APILog)
@@ -630,28 +702,60 @@ func DeleteSubscriber(dbInstance *db.Database, amfInstance *amf.AMF) http.Handle
 	})
 }
 
-func toSessionInfo(pdu amf.PDUSessionExport) SessionInfo {
+// sessionFrom4G renders the MME's default EPS bearer (the UE's PDN connection)
+// as a session entry. 4G has no network slice, so Slice is left nil; the AMBR is
+// the subscriber's profile UE-AMBR.
+func sessionFrom4G(s *mme.SubscriberSession) Session {
+	return Session{
+		RadioAccessType: "4G",
+		ID:              s.BearerID,
+		Status:          "active",
+		IPType:          ipTypeName(s.PDNType),
+		IPv4Address:     s.IPv4Address,
+		IPv6Prefix:      s.IPv6Prefix,
+		DataNetwork:     s.APN,
+		AMBRUplink:      s.AMBRUplink,
+		AMBRDownlink:    s.AMBRDownlink,
+	}
+}
+
+func sessionFrom5G(pdu amf.PDUSessionExport) Session {
 	status := "active"
 	if pdu.Inactive {
 		status = "inactive"
 	}
 
-	s := SessionInfo{
-		PDUSessionID: pdu.PDUSessionID,
-		Status:       status,
-		IPv4Address:  pdu.PDUIPV4Address,
-		IPv6Prefix:   pdu.PDUIPV6Prefix,
-		DNN:          pdu.DNN,
+	s := Session{
+		RadioAccessType: "5G",
+		ID:              pdu.PDUSessionID,
+		Status:          status,
+		IPType:          ipTypeName(pdu.PDUSessionType),
+		IPv4Address:     pdu.PDUIPV4Address,
+		IPv6Prefix:      pdu.PDUIPV6Prefix,
+		DataNetwork:     pdu.DNN,
 	}
 	if pdu.Snssai != nil {
-		s.SST = pdu.Snssai.Sst
-		s.SD = pdu.Snssai.Sd
+		s.Slice = &Slice{SST: pdu.Snssai.Sst, SD: pdu.Snssai.Sd}
 	}
 
 	if pdu.PolicyData != nil && pdu.PolicyData.Ambr != nil {
-		s.SessionAmbrUp = pdu.PolicyData.Ambr.Uplink
-		s.SessionAmbrDown = pdu.PolicyData.Ambr.Downlink
+		s.AMBRUplink = pdu.PolicyData.Ambr.Uplink
+		s.AMBRDownlink = pdu.PolicyData.Ambr.Downlink
 	}
 
 	return s
+}
+
+// ipTypeName maps a NAS PDU session type / EPS PDN type (1/2/3) to its label.
+func ipTypeName(t uint8) string {
+	switch t {
+	case 1:
+		return "IPv4"
+	case 2:
+		return "IPv6"
+	case 3:
+		return "IPv4v6"
+	default:
+		return ""
+	}
 }

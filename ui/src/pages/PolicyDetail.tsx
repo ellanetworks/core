@@ -514,7 +514,7 @@ const PolicyDetail: React.FC = () => {
               <TableRow>
                 <TableCell sx={labelCellSx}>
                   <Tooltip
-                    title="Maximum uplink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core."
+                    title="Maximum uplink bitrate for a single session (Session-AMBR / APN-AMBR). Enforced by Ella Core."
                     arrow
                     placement="top"
                   >
@@ -540,7 +540,7 @@ const PolicyDetail: React.FC = () => {
               <TableRow>
                 <TableCell sx={labelCellSx}>
                   <Tooltip
-                    title="Maximum downlink bitrate for a single PDU session (Session AMBR). Enforced by Ella Core."
+                    title="Maximum downlink bitrate for a single session (Session-AMBR / APN-AMBR). Enforced by Ella Core."
                     arrow
                     placement="top"
                   >
@@ -566,11 +566,11 @@ const PolicyDetail: React.FC = () => {
               <TableRow>
                 <TableCell sx={labelCellSx}>
                   <Tooltip
-                    title="5G QoS Identifier. The radio uses this to set scheduling behavior (latency budget, error rate, priority). Only non-GBR classes are supported."
+                    title="QoS Identifier (5QI in 5G, QCI in 4G). The radio uses this to set scheduling behavior (latency budget, error rate, priority). Only non-GBR classes are supported."
                     arrow
                     placement="top"
                   >
-                    <span>5QI</span>
+                    <span>5QI / QCI</span>
                   </Tooltip>
                 </TableCell>
                 <TableCell sx={valueCellSx}>{policy.var5qi}</TableCell>

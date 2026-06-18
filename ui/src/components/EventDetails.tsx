@@ -27,6 +27,7 @@ import { useSnackbar } from "@/contexts/SnackbarContext";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { NGAPMessageView } from "@/components/NGAPMessageRender";
+import ProtocolChip from "@/components/ProtocolChip";
 
 function formatHexDump(base64: string): string {
   let bin: string;
@@ -261,8 +262,8 @@ export default function EventDetails({
             aria-hidden
           />
           <Typography variant="caption" sx={{ color: "text.secondary" }}>
-            NGAP decoding is partial — some Information Elements may appear as
-            raw values
+            {log?.protocol ?? "Protocol"} decoding is partial — some Information
+            Elements may appear as raw values
           </Typography>
         </Box>
       </>
@@ -283,6 +284,21 @@ export default function EventDetails({
       {/* Metadata — fixed height */}
       <Stack spacing={1.25} sx={{ my: 1.25, flexShrink: 0 }}>
         <MetaRow label="Timestamp" value={log?.timestamp} />
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "180px 1fr",
+            alignItems: "center",
+            gap: 1,
+          }}
+        >
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            Protocol
+          </Typography>
+          <Box>
+            {log?.protocol ? <ProtocolChip protocol={log.protocol} /> : "—"}
+          </Box>
+        </Box>
         <Box
           sx={{
             display: "grid",

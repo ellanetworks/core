@@ -25,15 +25,15 @@ interface CreateDataNetworkModalProps {
   onSuccess: () => void;
 }
 
-const dnnRegex =
+const dataNetworkNameRegex =
   /^(?=.{1,100}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/;
 
 const schema = yup.object().shape({
   name: yup
     .string()
     .matches(
-      dnnRegex,
-      "Must be a valid DNN (e.g., internet, ims, core.mycompany)",
+      dataNetworkNameRegex,
+      "Must be a valid name (e.g., internet, ims, core.mycompany)",
     )
     .required("Data Network Name is required"),
   ipv4_pool: yup
@@ -203,7 +203,7 @@ const CreateDataNetworkModal: React.FC<CreateDataNetworkModalProps> = ({
         </Collapse>
         <TextField
           fullWidth
-          label="Name (DNN)"
+          label="Name"
           value={formValues.name}
           onChange={(e) => handleChange("name", e.target.value)}
           onBlur={() => handleBlur("name")}

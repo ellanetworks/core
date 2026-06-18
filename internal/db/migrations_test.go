@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// SPDX-FileCopyrightText: Ella Networks Inc.
-
 package db
 
 import (
@@ -1030,5 +1028,41 @@ func TestMigrateV8_DataMigration(t *testing.T) {
 
 	if flowAction != 0 {
 		t.Errorf("flow_reports action = %d, want 0", flowAction)
+	}
+}
+
+func TestMigrateV14_RewritesAlgorithmNames(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+
+	if err := runMigrations(ctx, db, 13); err != nil {
+		t.Fatalf("runMigrations to v13: %v", err)
+	}
+
+	// An operator row with the old 5G-flavoured algorithm names.
+	_, err := db.ExecContext(ctx, fmt.Sprintf(
+		`INSERT INTO %s (id, mcc, mnc, operatorCode, ciphering, integrity) VALUES (1,'001','01','abc','["NEA2","NEA1"]','["NIA2","NIA0"]')`,
+		OperatorTableName))
+	if err != nil {
+		t.Fatalf("insert operator: %v", err)
+	}
+
+	if err := runMigrations(ctx, db, 14); err != nil {
+		t.Fatalf("runMigrations to v14: %v", err)
+	}
+
+	var ciphering, integrity string
+	if err := db.QueryRowContext(ctx,
+		fmt.Sprintf("SELECT ciphering, integrity FROM %s WHERE id=1", OperatorTableName)).
+		Scan(&ciphering, &integrity); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+
+	if ciphering != `["AES","SNOW3G"]` {
+		t.Fatalf("ciphering = %q, want [\"AES\",\"SNOW3G\"]", ciphering)
+	}
+
+	if integrity != `["AES","NULL"]` {
+		t.Fatalf("integrity = %q, want [\"AES\",\"NULL\"]", integrity)
 	}
 }

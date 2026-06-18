@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// SPDX-FileCopyrightText: Ella Networks Inc.
-
 package db
 
 import (
@@ -37,6 +35,7 @@ var migrations = []migration{
 	{11, "replicated AUTOINCREMENT PKs → TEXT (UUID); spec_uuid.md", migrateV11},
 	{12, "replace chain-PKI cluster TLS with fingerprint pinning (cluster_node_certs)", migrateV12},
 	{13, "add ipv6Pool column to data_networks and poolType column to ip_leases", migrateV13},
+	{14, "add 4G config: profile allowed access (4G/5G), policy default binding; RAT-neutral NAS algorithm names", migrateV14},
 }
 
 // baselineVersion is the highest migration that runs locally during

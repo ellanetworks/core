@@ -4,7 +4,7 @@ go 1.26.4
 
 require (
 	github.com/canonical/sqlair v0.0.0-20250120155751-a83645b9a121
-	github.com/cilium/ebpf v0.20.0
+	github.com/cilium/ebpf v0.21.0
 	github.com/free5gc/aper v1.1.1
 	github.com/free5gc/nas v1.2.3
 	github.com/free5gc/ngap v1.1.3
@@ -53,6 +53,8 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/eapache/channels v1.1.0 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
+	github.com/ellanetworks/core/nas v0.0.0-00010101000000-000000000000
+	github.com/ellanetworks/core/s1ap v0.0.0-00010101000000-000000000000
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/free5gc/openapi v1.2.4
@@ -75,7 +77,7 @@ require (
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mdlayher/netlink v1.7.3-0.20250113171957-fbb4dce95f42 // indirect
-	github.com/mdlayher/socket v0.5.0 // indirect
+	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/moby/api v1.54.2
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
@@ -123,3 +125,7 @@ require (
 // build tag. Used by internal/raft to replicate write-set changesets
 // rather than typed commands.
 replace github.com/mattn/go-sqlite3 => github.com/ellanetworks/go-sqlite3 v0.0.0-20260414212710-333ead4fa037
+
+replace github.com/ellanetworks/core/s1ap => ./s1ap
+
+replace github.com/ellanetworks/core/nas => ./nas

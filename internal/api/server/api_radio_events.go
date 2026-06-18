@@ -14,6 +14,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/decoder/ngap"
+	"github.com/ellanetworks/core/internal/decoder/s1ap"
 	"github.com/ellanetworks/core/internal/logger"
 )
 
@@ -49,8 +50,8 @@ type ListRadioEventsResponse struct {
 }
 
 type GetRadioEventResponse struct {
-	Raw     []byte           `json:"raw"`
-	Decoded ngap.NGAPMessage `json:"decoded"`
+	Raw     []byte `json:"raw"`
+	Decoded any    `json:"decoded"`
 }
 
 func isRFC3339(s string) bool {
@@ -248,8 +249,14 @@ func GetRadioEvent(dbInstance *db.Database) http.Handler {
 		}
 
 		response := GetRadioEventResponse{
-			Raw:     networkLog.Raw,
-			Decoded: ngap.DecodeNGAPMessage(networkLog.Raw),
+			Raw: networkLog.Raw,
+		}
+
+		switch networkLog.Protocol {
+		case string(logger.NGAPNetworkProtocol):
+			response.Decoded = ngap.DecodeNGAPMessage(networkLog.Raw)
+		case string(logger.S1APNetworkProtocol):
+			response.Decoded = s1ap.DecodeS1APMessage(networkLog.Raw)
 		}
 
 		writeResponse(r.Context(), w, response, http.StatusOK, logger.APILog)

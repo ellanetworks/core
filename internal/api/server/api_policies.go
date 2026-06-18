@@ -75,6 +75,10 @@ type CreatePolicyParams struct {
 	Var5qi              int32        `json:"var5qi,omitempty"`
 	Arp                 int32        `json:"arp,omitempty"`
 	Rules               *PolicyRules `json:"rules,omitempty"`
+	// Default marks this the profile's default data-network binding (default
+	// APN/DNN). The first policy created in a profile becomes the default
+	// regardless, so a profile always has exactly one.
+	Default *bool `json:"default,omitempty"`
 }
 
 type UpdatePolicyParams struct {
@@ -86,6 +90,9 @@ type UpdatePolicyParams struct {
 	Var5qi              int32        `json:"var5qi,omitempty"`
 	Arp                 int32        `json:"arp,omitempty"`
 	Rules               *PolicyRules `json:"rules,omitempty"`
+	// Default, when true, makes this the profile's default binding (clearing the
+	// previous default). Omitted/false leaves the current default unchanged.
+	Default *bool `json:"default,omitempty"`
 }
 
 type Policy struct {
@@ -98,6 +105,18 @@ type Policy struct {
 	Var5qi              int32        `json:"var5qi,omitempty"`
 	Arp                 int32        `json:"arp,omitempty"`
 	Rules               *PolicyRules `json:"rules,omitempty"`
+	Default             bool         `json:"default"`
+}
+
+// qciCompatible5Qi is the set of standardized 5QI values that have a QCI
+// counterpart (the QCI∩5QI standardized intersection, TS 23.203 Table 6.1.7 /
+// TS 23.501 Table 5.7.4-1). A policy on a profile that permits 4G must use one
+// of these so the value is meaningful as a QCI on S1AP; 5G-only / operator
+// specific 5QIs are rejected for 4G-capable profiles.
+var qciCompatible5Qi = []int32{1, 2, 3, 4, 5, 6, 7, 8, 9, 65, 66, 67, 69, 70, 75, 79, 80, 82, 83}
+
+func is4GCompatible5Qi(var5qi int32) bool {
+	return slices.Contains(qciCompatible5Qi, var5qi)
 }
 
 type ListPoliciesResponse struct {
@@ -325,6 +344,7 @@ func ListPolicies(dbInstance *db.Database) http.Handler {
 				SessionAmbrUplink:   dbPolicy.SessionAmbrUplink,
 				Var5qi:              dbPolicy.Var5qi,
 				Arp:                 dbPolicy.Arp,
+				Default:             dbPolicy.IsDefault,
 			})
 		}
 
@@ -434,6 +454,7 @@ func GetPolicy(dbInstance *db.Database) http.Handler {
 			Var5qi:              dbPolicy.Var5qi,
 			Arp:                 dbPolicy.Arp,
 			Rules:               rules,
+			Default:             dbPolicy.IsDefault,
 		}
 		writeResponse(r.Context(), w, policy, http.StatusOK, logger.APILog)
 	})
@@ -495,6 +516,16 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		// A 4G-capable profile's bindings must use a QCI-compatible 5QI so the
+		// value is valid on S1AP (TS 23.203 Table 6.1.7).
+		if profile.Allow4G && !is4GCompatible5Qi(createPolicyParams.Var5qi) {
+			writeError(r.Context(), w, http.StatusBadRequest,
+				fmt.Sprintf("5QI %d is not valid for a 4G-capable profile (no QCI counterpart)", createPolicyParams.Var5qi),
+				nil, logger.APILog)
+
+			return
+		}
+
 		numPolicies, err := dbInstance.CountPoliciesInProfile(r.Context(), profile.ID)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to count policies", err, logger.APILog)
@@ -553,6 +584,15 @@ func CreatePolicy(dbInstance *db.Database) http.Handler {
 			}
 		}
 
+		// The first policy in a profile becomes its default binding; a later one
+		// becomes default only when explicitly requested (TS 23.401 §3.1 default APN).
+		if numPolicies == 0 || boolOr(createPolicyParams.Default, false) {
+			if err := dbInstance.SetDefaultPolicy(r.Context(), profile.ID, createPolicyParams.Name); err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to set default policy", err, logger.APILog)
+				return
+			}
+		}
+
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Policy created successfully"}, http.StatusCreated, logger.APILog)
 
 		logger.LogAuditEvent(r.Context(), CreatePolicyAction, email, getClientIP(r), "User created policy: "+createPolicyParams.Name)
@@ -597,6 +637,14 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 			return
 		}
 
+		if profile.Allow4G && !is4GCompatible5Qi(updatePolicyParams.Var5qi) {
+			writeError(r.Context(), w, http.StatusBadRequest,
+				fmt.Sprintf("5QI %d is not valid for a 4G-capable profile (no QCI counterpart)", updatePolicyParams.Var5qi),
+				nil, logger.APILog)
+
+			return
+		}
+
 		slice, err := dbInstance.GetNetworkSlice(r.Context(), updatePolicyParams.SliceName)
 		if err != nil {
 			writeError(r.Context(), w, http.StatusNotFound, "Slice not found", nil, logger.APILog)
@@ -621,6 +669,13 @@ func UpdatePolicy(dbInstance *db.Database) http.Handler {
 		if err := dbInstance.UpdatePolicyWithRules(r.Context(), policy, toDBPolicyRules(updatePolicyParams.Rules)); err != nil {
 			writeError(r.Context(), w, http.StatusInternalServerError, "Failed to update policy", err, logger.APILog)
 			return
+		}
+
+		if boolOr(updatePolicyParams.Default, false) {
+			if err := dbInstance.SetDefaultPolicy(r.Context(), profile.ID, policyName); err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to set default policy", err, logger.APILog)
+				return
+			}
 		}
 
 		writeResponse(r.Context(), w, SuccessResponse{Message: "Policy updated successfully"}, http.StatusOK, logger.APILog)

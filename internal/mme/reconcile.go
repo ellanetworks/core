@@ -1,0 +1,274 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+package mme
+
+import (
+	"context"
+	"net/netip"
+	"strings"
+
+	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/nas/eps"
+	"go.uber.org/zap"
+)
+
+// ReconcileDataNetwork re-evaluates every connected EPS bearer against the
+// current subscription and data-network configuration. For a DNS-only change it
+// updates the bearer in place with a MODIFY EPS BEARER CONTEXT REQUEST
+// (TS 24.301 §6.4.2); for an IP-pool or MTU change — which the UE cannot adopt
+// without a new address or link config — it deactivates the bearer with ESM
+// cause #39 "reactivation requested" (TS 24.301 §6.4.4.2) so the UE
+// re-establishes. This is the EPS counterpart of the 5G AMF SessionReconciler
+// and mirrors its modify-versus-release split (5G modifies DNS in place and
+// releases for MTU/pool); previously no 4G analogue existed — a data-network
+// change did not reach active EPS bearers.
+func (m *MME) ReconcileDataNetwork(ctx context.Context) {
+	m.mu.Lock()
+
+	ues := make([]*UeContext, 0, len(m.ues))
+	for _, ue := range m.ues {
+		ues = append(ues, ue)
+	}
+
+	m.mu.Unlock()
+
+	for _, ue := range ues {
+		m.reconcileUE(ctx, ue)
+	}
+}
+
+// reconcileUE reconciles every PDN connection of a UE against the current
+// data-network configuration. Only a registered UE with an active S1 connection
+// is signalled; an idle UE is signalled when it returns to ECM-CONNECTED
+// (reconcileBearer on the ICS Response) or by the next backstop sweep.
+func (m *MME) reconcileUE(ctx context.Context, ue *UeContext) {
+	if ue.emmState != EMMRegistered || ue.ecmState != ECMConnected {
+		return
+	}
+
+	for _, p := range m.snapshotPDNs(ue) {
+		m.reconcileBearer(ctx, ue, p)
+	}
+}
+
+// snapshotPDNs returns the UE's PDN connections as a slice taken under the lock,
+// so the reconciler does not iterate the map while a NAS handler mutates it.
+func (m *MME) snapshotPDNs(ue *UeContext) []*pdnConnection {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	out := make([]*pdnConnection, 0, len(ue.pdns))
+	for _, p := range ue.pdns {
+		out = append(out, p)
+	}
+
+	return out
+}
+
+// reconcileBearer reconciles a single PDN connection against its data network's
+// current configuration: a DNS-only change is applied in place, any other change
+// reactivates the bearer.
+func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *pdnConnection) {
+	if p.deactivating || p.modifying {
+		return
+	}
+
+	qos, err := m.resolveQoSByAPN(ctx, ue.imsi, p.apn)
+	if err != nil {
+		logger.MmeLog.Warn("reconcile: failed to resolve QoS for APN",
+			zap.String("imsi", ue.imsi), zap.String("apn", p.apn), zap.Error(err))
+
+		return
+	}
+
+	newFingerprint := qos.dnFingerprint()
+	if newFingerprint == p.dnConfig {
+		return
+	}
+
+	if dnsOnlyChange(p.dnConfig, newFingerprint) {
+		logger.MmeLog.Info("data-network DNS changed; modifying EPS bearer in place",
+			zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.String("apn", p.apn))
+		m.modifyBearerDNS(ue, p, qos)
+
+		return
+	}
+
+	logger.MmeLog.Info("data-network configuration changed; reactivating EPS bearer",
+		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.String("apn", p.apn))
+	m.reactivateBearer(ue, p)
+}
+
+// dnsOnlyChange reports whether the data-network fingerprint changed in the DNS
+// field alone (IP pools and MTU unchanged), so the bearer can be modified in
+// place rather than reactivated. A malformed stored fingerprint returns false,
+// so the caller falls back to the safe reactivation path. The fingerprint is
+// "ipv4pool|ipv6pool|dns|mtu" (epsQoS.dnFingerprint).
+func dnsOnlyChange(oldFingerprint, newFingerprint string) bool {
+	o := strings.Split(oldFingerprint, "|")
+	n := strings.Split(newFingerprint, "|")
+
+	if len(o) != 4 || len(n) != 4 {
+		return false
+	}
+
+	return o[2] != n[2] && o[0] == n[0] && o[1] == n[1] && o[3] == n[3]
+}
+
+// modifyBearerDNS updates the default bearer's DNS server in place with a MODIFY
+// EPS BEARER CONTEXT REQUEST carrying the new server in the Protocol
+// Configuration Options (TS 24.301 §6.4.2, TS 24.008 §10.5.6.3). The new
+// fingerprint is committed to dnConfig only when the UE accepts, so an aborted
+// modification leaves it stale for the backstop to retry. The IPv4 link MTU is
+// replayed unchanged for IPv4-capable bearers, matching the attach PCO.
+func (m *MME) modifyBearerDNS(ue *UeContext, p *pdnConnection, qos *epsQoS) {
+	var dnsServers [][]byte
+
+	dns, parseErr := netip.ParseAddr(qos.DNS)
+	if parseErr == nil {
+		if dns.Is4() {
+			b := dns.As4()
+			dnsServers = [][]byte{b[:]}
+		} else {
+			b := dns.As16()
+			dnsServers = [][]byte{b[:]}
+		}
+	}
+
+	var ipv4LinkMTU uint16
+	if p.pdnType == eps.PDNTypeIPv4 || p.pdnType == eps.PDNTypeIPv4v6 {
+		ipv4LinkMTU = qos.MTU
+	}
+
+	naspdu, err := m.protectDownlink(ue, &eps.ModifyEPSBearerContextRequest{
+		EPSBearerIdentity:            p.ebi,
+		ProcedureTransactionIdentity: 0,
+		ProtocolConfigurationOptions: eps.BuildProtocolConfigurationOptions(dnsServers, ipv4LinkMTU),
+	})
+	if err != nil {
+		logger.MmeLog.Error("failed to protect Modify EPS Bearer Context Request", zap.Error(err))
+		return
+	}
+
+	p.modifying = true
+	p.pendingDNConfig = qos.dnFingerprint()
+
+	if parseErr == nil {
+		p.dns = dns
+	}
+
+	m.sendDownlink(ue, naspdu)
+	m.armNASGuardAbortOnly(ue, "Modify EPS Bearer Context Request", naspdu)
+}
+
+// reactivateBearer asks the UE to re-establish its PDN connection by deactivating
+// the default bearer with ESM cause #39 "reactivation requested" (TS 24.301
+// §6.4.4.2). The request is guarded and retransmitted until the UE answers with
+// DEACTIVATE EPS BEARER CONTEXT ACCEPT.
+func (m *MME) reactivateBearer(ue *UeContext, p *pdnConnection) {
+	m.deactivateBearer(ue, p, eps.ESMCauseReactivationRequested, 0, false)
+}
+
+// handleESM dispatches an uplink ESM (session management) NAS message.
+func (m *MME) handleESM(ue *UeContext, plain []byte) {
+	mt, err := eps.PeekESMMessageType(plain)
+	if err != nil {
+		logger.MmeLog.Warn("failed to read ESM message type", zap.Error(err))
+		return
+	}
+
+	switch mt {
+	case eps.MsgPDNConnectivityRequest:
+		m.onPDNConnectivityRequest(ue, plain)
+	case eps.MsgPDNDisconnectRequest:
+		m.onPDNDisconnectRequest(ue, plain)
+	case eps.MsgActivateDefaultEPSBearerContextAccept:
+		m.onActivateDefaultBearerAccept(ue, plain)
+	case eps.MsgActivateDefaultEPSBearerContextReject:
+		m.onActivateDefaultBearerReject(ue, plain)
+	case eps.MsgDeactivateEPSBearerContextAccept:
+		m.onDeactivateBearerAccept(ue, plain)
+	case eps.MsgModifyEPSBearerContextAccept:
+		m.onModifyBearerAccept(ue)
+	case eps.MsgModifyEPSBearerContextReject:
+		m.onModifyBearerReject(ue)
+	default:
+		logger.MmeLog.Warn("unhandled ESM message", zap.Int("message-type-value", int(mt)))
+	}
+}
+
+// onModifyBearerAccept commits the new data-network fingerprint once the UE
+// accepts the in-place modification (TS 24.301 §6.4.2.3).
+func (m *MME) onModifyBearerAccept(ue *UeContext) {
+	m.stopNASGuard(ue)
+
+	p := ue.defaultPDN()
+	if p == nil {
+		return
+	}
+
+	if p.pendingDNConfig != "" {
+		p.dnConfig = p.pendingDNConfig
+		p.pendingDNConfig = ""
+	}
+
+	p.modifying = false
+
+	logger.MmeLog.Info("EPS bearer modified with new data-network configuration",
+		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
+}
+
+// onModifyBearerReject abandons the modification when the UE rejects it
+// (TS 24.301 §6.4.2.4), leaving dnConfig stale so the backstop retries later.
+func (m *MME) onModifyBearerReject(ue *UeContext) {
+	m.stopNASGuard(ue)
+
+	if p := ue.defaultPDN(); p != nil {
+		p.modifying = false
+		p.pendingDNConfig = ""
+	}
+
+	logger.MmeLog.Warn("UE rejected EPS bearer modification",
+		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
+}
+
+// onDeactivateBearerAccept finalises an EPS bearer deactivation. A deactivation
+// triggered by a UE PDN disconnect releases only that PDN connection and leaves
+// the UE connected (TS 24.301 §6.5.2). A deactivation with reactivation requested
+// for the default bearer instead releases the S1 context so the UE re-attaches
+// and picks up the new data-network configuration (TS 24.301 §6.4.4.2).
+func (m *MME) onDeactivateBearerAccept(ue *UeContext, plain []byte) {
+	m.stopNASGuard(ue)
+
+	p := ue.defaultPDN()
+	if accept, err := eps.ParseDeactivateEPSBearerContextAccept(plain); err == nil {
+		if named := m.lookupPDN(ue, accept.EPSBearerIdentity); named != nil {
+			p = named
+		}
+	}
+
+	if p == nil {
+		return
+	}
+
+	// Only reactivating the attach (first) PDN's default bearer detaches the UE so
+	// it re-attaches with the new configuration (TS 24.301 §6.4.4.2). A PDN
+	// disconnect, or a reactivation of an additional PDN, releases just that PDN
+	// connection and leaves the UE connected.
+	if p.ebi != ue.defaultEBI || p.disconnecting {
+		logger.MmeLog.Info("PDN connection released",
+			zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.String("apn", p.apn))
+		m.releasePDN(ue, p)
+
+		return
+	}
+
+	p.deactivating = false
+	ue.emmState = EMMDeregistered
+	m.releaseAllSessions(ue)
+
+	logger.MmeLog.Info("EPS bearer deactivated for reactivation; UE will re-attach",
+		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
+	m.releaseUEContext(ue, causeNASNormalRelease)
+}

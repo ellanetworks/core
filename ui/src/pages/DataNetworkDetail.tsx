@@ -213,7 +213,7 @@ const DataNetworkDetail: React.FC = () => {
       },
       {
         field: "session_id",
-        headerName: "PDU Session ID",
+        headerName: "Session ID",
         flex: 0.5,
         minWidth: 100,
         renderCell: (params: GridRenderCellParams<APIIPAllocation>) => (
@@ -322,7 +322,7 @@ const DataNetworkDetail: React.FC = () => {
       },
       {
         field: "session_id",
-        headerName: "PDU Session ID",
+        headerName: "Session ID",
         flex: 0.5,
         minWidth: 100,
         renderCell: (params: GridRenderCellParams<APIIPAllocation>) => (
