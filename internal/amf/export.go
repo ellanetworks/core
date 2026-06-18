@@ -70,6 +70,7 @@ type UESubscriptionExport struct {
 type PDUSessionExport struct {
 	Ref                            string            `json:"ref"`
 	PDUSessionID                   uint8             `json:"pdu_session_id"`
+	PDUSessionType                 uint8             `json:"pdu_session_type,omitempty"` // NAS PDU session type: 1 IPv4 / 2 IPv6 / 3 IPv4v6
 	Snssai                         *models.Snssai    `json:"snssai,omitempty"`
 	Inactive                       bool              `json:"inactive"`
 	DNN                            string            `json:"dnn,omitempty"`
@@ -442,6 +443,7 @@ func (amf *AMF) buildPDUSessions(copies []smContextCopy) map[string]PDUSessionEx
 		if smCtx != nil {
 			smCtx.Mutex.Lock()
 			pdu.PDUSessionID = smCtx.PDUSessionID
+			pdu.PDUSessionType = smCtx.PDUSessionType
 			pdu.DNN = smCtx.Dnn
 			pdu.PDUSessionReleaseDueToDupPduID = smCtx.PDUSessionReleaseDueToDupPduID
 

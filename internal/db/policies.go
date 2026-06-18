@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// SPDX-FileCopyrightText: Ella Networks Inc.
-
 package db
 
 import (
@@ -36,6 +34,13 @@ const (
 	getPolicyByProfileAndSliceStmt = "SELECT &Policy.* FROM %s WHERE profileID==$Policy.profileID AND sliceID==$Policy.sliceID LIMIT 1"
 	listPoliciesByProfilePagedStmt = "SELECT &Policy.*, COUNT(*) OVER() AS &NumItems.count FROM %s WHERE profileID==$Policy.profileID LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	listPoliciesByProfileAllStmt   = "SELECT &Policy.* FROM %s WHERE profileID==$Policy.profileID ORDER BY id ASC"
+
+	// The default data-network binding for a profile (the default APN/DNN,
+	// TS 23.401 §3.1 / TS 23.501 §5.15). At most one per profile, kept by the
+	// atomic SetDefaultPolicy op (clear the profile's defaults, then set one).
+	getDefaultPolicyByProfileStmt = "SELECT &Policy.* FROM %s WHERE profileID==$Policy.profileID AND isDefault==true LIMIT 1"
+	clearDefaultPoliciesStmt      = "UPDATE %s SET isDefault=false WHERE profileID==$Policy.profileID"
+	setDefaultPolicyStmt          = "UPDATE %s SET isDefault=true WHERE name==$Policy.name"
 )
 
 type Policy struct {
@@ -48,6 +53,9 @@ type Policy struct {
 	Arp                 int32  `db:"arp"`
 	SessionAmbrUplink   string `db:"sessionAmbrUplink"`
 	SessionAmbrDownlink string `db:"sessionAmbrDownlink"`
+	// IsDefault marks this binding as the profile's default APN/DNN — used for the
+	// 4G default bearer and as the 5G fallback when no DNN is requested.
+	IsDefault bool `db:"isDefault"`
 }
 
 func (db *Database) ListPoliciesPage(ctx context.Context, page int, perPage int) ([]Policy, int, error) {
@@ -289,6 +297,81 @@ func (db *Database) GetPolicyByLookup(ctx context.Context, profileID, sliceID, d
 
 // GetPolicyByProfileAndSlice finds the first policy for a given profile and slice.
 // Used by the AMF to resolve a default DNN when the UE does not specify one.
+// GetDefaultPolicyByProfile returns the profile's default data-network binding
+// (the default APN/DNN). Returns ErrNotFound when the profile has no default.
+func (db *Database) GetDefaultPolicyByProfile(ctx context.Context, profileID string) (*Policy, error) {
+	ctx, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (default by profile)", "SELECT", PoliciesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("SELECT"),
+			attribute.String("db.collection", PoliciesTableName),
+			attribute.String("profile_id", profileID),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "select"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(PoliciesTableName, "select").Inc()
+
+	row := Policy{ProfileID: profileID}
+
+	err := db.conn().Query(ctx, db.getDefaultPolicyByProfileStmt, row).Get(&row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			span.SetStatus(codes.Ok, "no rows")
+
+			return nil, ErrNotFound
+		}
+
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "query failed")
+
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return &row, nil
+}
+
+// SetDefaultPolicy makes the named policy the sole default binding of the given
+// profile (the default APN/DNN), clearing any previous default in one atomic op.
+func (db *Database) SetDefaultPolicy(ctx context.Context, profileID, name string) error {
+	_, span := tracer.Start(
+		ctx,
+		fmt.Sprintf("%s %s (set default)", "UPDATE", PoliciesTableName),
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			semconv.DBSystemNameSQLite,
+			semconv.DBOperationName("UPDATE"),
+			attribute.String("db.collection", PoliciesTableName),
+		),
+	)
+	defer span.End()
+
+	timer := prometheus.NewTimer(DBQueryDuration.WithLabelValues(PoliciesTableName, "update"))
+	defer timer.ObserveDuration()
+
+	DBQueriesTotal.WithLabelValues(PoliciesTableName, "update").Inc()
+
+	_, err := opSetDefaultPolicy.Invoke(db, &Policy{ProfileID: profileID, Name: name})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "")
+
+	return nil
+}
+
 func (db *Database) GetPolicyByProfileAndSlice(ctx context.Context, profileID, sliceID string) (*Policy, error) {
 	ctx, span := tracer.Start(
 		ctx,

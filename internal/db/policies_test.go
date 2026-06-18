@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// SPDX-FileCopyrightText: Ella Networks Inc.
-
 package db_test
 
 import (
@@ -432,5 +430,81 @@ func TestGetSessionPolicy(t *testing.T) {
 	_, _, _, err = database.GetSessionPolicy(context.Background(), "001010100007487", 1, "", "nonexistent-dnn") //nolint:dogsled // error-path test
 	if !errors.Is(err, db.ErrDNNNotInSlice) {
 		t.Fatalf("non-matching DNN in slice: got %v, want ErrDNNNotInSlice", err)
+	}
+}
+
+func TestDefaultPolicyBinding(t *testing.T) {
+	ctx := context.Background()
+
+	database, err := db.NewDatabaseWithoutRaft(ctx, filepath.Join(t.TempDir(), "db.sqlite3"))
+	if err != nil {
+		t.Fatalf("NewDatabase: %s", err)
+	}
+
+	defer func() { _ = database.Close() }()
+
+	profile, err := database.GetProfile(ctx, db.InitialProfileName)
+	if err != nil {
+		t.Fatalf("get default profile: %s", err)
+	}
+
+	// A fresh database seeds the default policy as the profile's default binding.
+	def, err := database.GetDefaultPolicyByProfile(ctx, profile.ID)
+	if err != nil {
+		t.Fatalf("no default policy on a fresh db: %s", err)
+	}
+
+	if def.Name != db.InitialPolicyName {
+		t.Fatalf("default policy = %q, want %q", def.Name, db.InitialPolicyName)
+	}
+
+	slice, err := database.GetNetworkSlice(ctx, db.InitialSliceName)
+	if err != nil {
+		t.Fatalf("get default slice: %s", err)
+	}
+
+	dn := &db.DataNetwork{Name: "second-dn", IPv4Pool: "10.9.0.0/24"}
+	if err := database.CreateDataNetwork(ctx, dn); err != nil {
+		t.Fatalf("create data network: %s", err)
+	}
+
+	dn, err = database.GetDataNetwork(ctx, "second-dn")
+	if err != nil {
+		t.Fatalf("get data network: %s", err)
+	}
+
+	second := &db.Policy{
+		Name: "second", ProfileID: profile.ID, SliceID: slice.ID, DataNetworkID: dn.ID,
+		Var5qi: 9, Arp: 1, SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "100 Mbps",
+	}
+	if err := database.CreatePolicy(ctx, second); err != nil {
+		t.Fatalf("create second policy: %s", err)
+	}
+
+	if err := database.SetDefaultPolicy(ctx, profile.ID, "second"); err != nil {
+		t.Fatalf("set default: %s", err)
+	}
+
+	def, err = database.GetDefaultPolicyByProfile(ctx, profile.ID)
+	if err != nil || def.Name != "second" {
+		t.Fatalf("default not switched to second: %+v err=%v", def, err)
+	}
+
+	// Exactly one default remains in the profile.
+	policies, err := database.ListPoliciesByProfile(ctx, profile.ID)
+	if err != nil {
+		t.Fatalf("list policies: %s", err)
+	}
+
+	defaults := 0
+
+	for _, p := range policies {
+		if p.IsDefault {
+			defaults++
+		}
+	}
+
+	if defaults != 1 {
+		t.Fatalf("expected exactly one default policy, got %d", defaults)
 	}
 }

@@ -5,6 +5,7 @@ import React from "react";
 import { Box, Card, CardContent, Chip, Typography } from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { Link as RouterLink } from "react-router-dom";
+import AccessChip from "@/components/AccessChip";
 import type { SubscriberDetailStatus } from "@/queries/subscribers";
 import { formatRelativeTime } from "@/utils/formatters";
 
@@ -61,11 +62,16 @@ const InfoRow: React.FC<{
   );
 };
 
+// 5G uses NEA/NIA names; 4G uses EEA/EIA (TS 33.401 §5).
 const CIPHERING_LABELS: Record<string, string> = {
   NEA0: "NEA0",
   NEA1: "NEA1",
   NEA2: "NEA2",
   NEA3: "NEA3",
+  EEA0: "EEA0",
+  EEA1: "EEA1",
+  EEA2: "EEA2",
+  EEA3: "EEA3",
 };
 
 const INTEGRITY_LABELS: Record<string, string> = {
@@ -73,10 +79,14 @@ const INTEGRITY_LABELS: Record<string, string> = {
   NIA1: "NIA1",
   NIA2: "NIA2",
   NIA3: "NIA3",
+  EIA0: "EIA0",
+  EIA1: "EIA1",
+  EIA2: "EIA2",
+  EIA3: "EIA3",
 };
 
-/** NEA0 / NIA0 are null ciphering/integrity — highlight as warning. */
-const INSECURE_ALGS = new Set(["NEA0", "NIA0"]);
+/** NEA0/NIA0 (5G) and EEA0/EIA0 (4G) are null ciphering/integrity — highlight as warning. */
+const INSECURE_ALGS = new Set(["NEA0", "NIA0", "EEA0", "EIA0"]);
 
 const AlgorithmChip: React.FC<{
   kind: string;
@@ -126,6 +136,10 @@ const StateChip: React.FC<{ registered?: boolean }> = ({ registered }) => {
   );
 };
 
+/** The generation of the live connection: 4G or 5G. */
+const AccessTypeChip: React.FC<{ accessType?: string }> = ({ accessType }) =>
+  accessType ? <AccessChip label={accessType} /> : null;
+
 const SecurityAlgorithmsValue: React.FC<{
   ciphering?: string;
   integrity?: string;
@@ -170,16 +184,22 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
           label="State"
           value={<StateChip registered={status.registered} />}
         />
+        {status.radio_access_type && (
+          <InfoRow
+            label="Access Type"
+            value={<AccessTypeChip accessType={status.radio_access_type} />}
+          />
+        )}
         <InfoRow label="IMEI" value={status.imei} />
         <InfoRow
           label="Last Seen"
           value={
-            status.lastSeenAt ? (
+            status.last_seen_at ? (
               <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                 <Typography variant="body2">
-                  {formatRelativeTime(status.lastSeenAt)}
+                  {formatRelativeTime(status.last_seen_at)}
                 </Typography>
-                {status.lastSeenRadio && (
+                {status.last_seen_radio && (
                   <>
                     <Typography
                       variant="body2"
@@ -190,14 +210,14 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
                     <Typography
                       variant="body2"
                       component={RouterLink}
-                      to={`/radios/${encodeURIComponent(status.lastSeenRadio)}`}
+                      to={`/radios/${encodeURIComponent(status.last_seen_radio)}`}
                       sx={{
                         color: (theme) => theme.palette.link,
                         textDecoration: "underline",
                         "&:hover": { textDecoration: "underline" },
                       }}
                     >
-                      {status.lastSeenRadio}
+                      {status.last_seen_radio}
                     </Typography>
                   </>
                 )}
@@ -209,8 +229,8 @@ const SubscriberConnectionCard: React.FC<SubscriberConnectionCardProps> = ({
           label="Security Algorithms"
           value={
             <SecurityAlgorithmsValue
-              ciphering={status.cipheringAlgorithm}
-              integrity={status.integrityAlgorithm}
+              ciphering={status.ciphering_algorithm}
+              integrity={status.integrity_algorithm}
             />
           }
         />

@@ -38,6 +38,26 @@ func HandleInitialRegistration(ctx context.Context, amfInstance *amf.AMF, ue *am
 		return fmt.Errorf("error getting subscriber profile: %v", err)
 	}
 
+	// Subscriber access control (Core Network type restriction, TS 23.501 §5.3.4):
+	// if the profile does not permit 5G, reject with 5GMM cause #7 "5GS services
+	// not allowed" (TS 24.501 §9.11.3.2).
+	if !subscriberProfile.Allow5G {
+		ranUe := ue.RanUe()
+		if ranUe == nil {
+			return fmt.Errorf("ue is not connected to RAN")
+		}
+
+		UERegistrationAttempts.WithLabelValues(getRegistrationType5GSName(conn.RegistrationType5GS), RegistrationReject).Inc()
+
+		ue.Log.Info("registration rejected: 5G not allowed for subscriber")
+
+		if err = message.SendRegistrationReject(ctx, ranUe, nasMessage.Cause5GMM5GSServicesNotAllowed); err != nil {
+			return fmt.Errorf("error sending registration reject: %v", err)
+		}
+
+		return fmt.Errorf("registration Reject [5G not allowed for subscriber]")
+	}
+
 	if len(subscriberProfile.AllowedNssai) == 0 {
 		ranUe := ue.RanUe()
 		if ranUe == nil {

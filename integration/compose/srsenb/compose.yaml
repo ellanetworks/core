@@ -1,0 +1,154 @@
+configs:
+  ella_config:
+    content: |
+      logging:
+        system:
+          level: "debug"
+          output: "stdout"
+        audit:
+          output: "stdout"
+      db:
+        path: "core.db"
+      interfaces:
+        n2:
+          address: "10.3.0.2"
+          port: 38412
+        n3:
+          name: "n3"
+        n6:
+          name: "n6"
+        api:
+          address: "0.0.0.0"
+          port: 5002
+      xdp:
+        attach-mode: "generic"
+
+services:
+  ella-core:
+    image: ella-core:latest
+    configs:
+      - source: ella_config
+        target: /core.yaml
+    restart: unless-stopped
+    entrypoint: /bin/core --config /core.yaml
+    privileged: true
+    ports:
+      - "5002:5002"
+    networks:
+      default:
+        driver_opts:
+          com.docker.network.endpoint.ifname: eth0
+      n3:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.2
+      n6:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.2
+
+  srsenb:
+    # The gradiant image's entrypoint templates /etc/srsran/enb.conf from these
+    # env vars and runs srsenb. ZMQ=true selects the soft radio so no hardware
+    # or UE is needed; S1 Setup completes over SCTP independently of RF.
+    # Pin by digest for determinism once validated.
+    image: gradiant/srsran-4g:23_11
+    # The gradiant entrypoint fails to substitute ${UE_ADDRESS} into the ZMQ
+    # device_args, so set them explicitly on the command line (overrides the conf).
+    # ENB_INACTIVITY_TIMER (ms) defaults to 30s; the idle test shortens it so
+    # srsenb releases an inactive UE quickly.
+    command: ["enb", "--rf.device_args=tx_port=tcp://*:2000,rx_port=tcp://10.4.0.3:2001,id=enb,base_srate=23.04e6", "--log.all_level=info", "--log.filename=stdout", "--expert.rrc_inactivity_timer=${ENB_INACTIVITY_TIMER:-30000}"]
+    restart: unless-stopped
+    privileged: true
+    environment:
+      ENB_ID: "0x19B"
+      MCC: "001"
+      MNC: "01"
+      MME_ADDR: "10.3.0.2"
+      GTP_BIND_ADDR: "10.3.0.3"
+      S1C_BIND_ADDR: "10.3.0.3"
+      N_PRB: "50"
+      TX_GAIN: "50"
+      RX_GAIN: "40"
+      ZMQ: "true"
+      # UE_ADDRESS is where the eNB's ZMQ rx connects (the UE's tx port).
+      UE_ADDRESS: "10.4.0.3"
+    networks:
+      default:
+        driver_opts:
+          com.docker.network.endpoint.ifname: eth0
+      n3:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n3
+        ipv4_address: 10.3.0.3
+      radio:
+        driver_opts:
+          com.docker.network.endpoint.ifname: radio
+        ipv4_address: 10.4.0.2
+
+  srsue:
+    # The gradiant image's "ue" mode templates /etc/srsran/ue.conf and runs
+    # srsue over the ZMQ soft radio, connecting to the eNB on the radio network.
+    # The USIM (ALGO/KEY/OPC + IMSI from MCC/MNC/MSISDN) matches the MME's
+    # hard-coded subscriber (internal/mme/subscriber.go).
+    image: gradiant/srsran-4g:23_11
+    command: ["ue", "--rf.device_args=tx_port=tcp://10.4.0.3:2001,rx_port=tcp://10.4.0.2:2000,id=ue,base_srate=23.04e6"]
+    # on-failure (not unless-stopped) so the UE is not relaunched after it exits
+    # cleanly following a switch-off detach (the detach test signals it directly).
+    restart: on-failure
+    privileged: true
+    environment:
+      ZMQ: "true"
+      ENB_ADDRESS: "10.4.0.2"
+      UE_ADDRESS: "10.4.0.3"
+      ALGO: "milenage"
+      # KEY and MSISDN default to the MME's hard-coded subscriber; abnormal-auth
+      # tests override UE_KEY (MAC failure) or UE_MSISDN (unknown IMSI).
+      KEY: "${UE_KEY:-465b5ce8b199b49faa5f0a2ee238a6bc}"
+      OPC: "cd63cb71954a9f4e48a5994e37a02baf"
+      MCC: "001"
+      MNC: "01"
+      MSISDN: "${UE_MSISDN:-0000000001}"
+      APN: "internet"
+    networks:
+      radio:
+        ipv4_address: 10.4.0.3
+
+  # N6 data-network host. It routes the UE IP pool back through the UPF
+  # (ella-core's n6 address) so downlink replies traverse the S1-U GTP-U
+  # datapath, and answers pings — letting the user-plane test verify
+  # bidirectional forwarding. Mirrors the UERANSIM (5G) router.
+  router:
+    image: ghcr.io/ellanetworks/ubuntu-router:0.1
+    command:
+      - exec
+      - /bin/bash
+      - -lc
+      - >
+        ip route add 10.45.0.0/22 dev n6 via 10.6.0.2;
+        trap : TERM INT;
+        python3 /responder.py 34242 & wait
+    restart: unless-stopped
+    privileged: true
+    networks:
+      default: {}
+      n6:
+        driver_opts:
+          com.docker.network.endpoint.ifname: n6
+        ipv4_address: 10.6.0.3
+
+networks:
+  n3:
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.3.0.0/24
+  radio:
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.4.0.0/24
+  n6:
+    ipam:
+      config:
+        - subnet: 10.6.0.0/24

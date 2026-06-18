@@ -220,9 +220,10 @@ const SubscriberDetail: React.FC = () => {
         </Box>
       </Box>
 
-      {/* PDU Sessions */}
+      {/* Sessions */}
       <SubscriberSessionsCard
-        sessions={subscriber.pdu_sessions}
+        sessions={subscriber.sessions}
+        accessType={subscriber.status.radio_access_type}
         loading={isLoading}
       />
 

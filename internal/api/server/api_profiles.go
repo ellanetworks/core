@@ -6,6 +6,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -17,17 +18,36 @@ type CreateProfileParams struct {
 	Name           string `json:"name"`
 	UeAmbrUplink   string `json:"ue_ambr_uplink"`
 	UeAmbrDownlink string `json:"ue_ambr_downlink"`
+	// Allow4G / Allow5G are the subscriber access control (TS 23.501 §5.3.4):
+	// whether subscribers on this profile may use 4G / 5G. Omitted
+	// defaults to true (unrestricted).
+	Allow4G *bool `json:"allow_4g,omitempty"`
+	Allow5G *bool `json:"allow_5g,omitempty"`
 }
 
 type UpdateProfileParams struct {
 	UeAmbrUplink   string `json:"ue_ambr_uplink"`
 	UeAmbrDownlink string `json:"ue_ambr_downlink"`
+	// Omitted leaves the current value unchanged.
+	Allow4G *bool `json:"allow_4g,omitempty"`
+	Allow5G *bool `json:"allow_5g,omitempty"`
 }
 
 type ProfileResponse struct {
 	Name           string `json:"name"`
 	UeAmbrUplink   string `json:"ue_ambr_uplink"`
 	UeAmbrDownlink string `json:"ue_ambr_downlink"`
+	Allow4G        bool   `json:"allow_4g"`
+	Allow5G        bool   `json:"allow_5g"`
+}
+
+// boolOr returns *p when set, else def.
+func boolOr(p *bool, def bool) bool {
+	if p != nil {
+		return *p
+	}
+
+	return def
 }
 
 type ListProfilesResponse struct {
@@ -73,6 +93,8 @@ func ListProfiles(dbInstance *db.Database) http.Handler {
 				Name:           p.Name,
 				UeAmbrUplink:   p.UeAmbrUplink,
 				UeAmbrDownlink: p.UeAmbrDownlink,
+				Allow4G:        p.Allow4G,
+				Allow5G:        p.Allow5G,
 			})
 		}
 
@@ -109,6 +131,8 @@ func GetProfile(dbInstance *db.Database) http.Handler {
 			Name:           dbProfile.Name,
 			UeAmbrUplink:   dbProfile.UeAmbrUplink,
 			UeAmbrDownlink: dbProfile.UeAmbrDownlink,
+			Allow4G:        dbProfile.Allow4G,
+			Allow5G:        dbProfile.Allow5G,
 		}, http.StatusOK, logger.APILog)
 	})
 }
@@ -163,6 +187,8 @@ func CreateProfile(dbInstance *db.Database) http.Handler {
 			Name:           params.Name,
 			UeAmbrUplink:   params.UeAmbrUplink,
 			UeAmbrDownlink: params.UeAmbrDownlink,
+			Allow4G:        boolOr(params.Allow4G, true),
+			Allow5G:        boolOr(params.Allow5G, true),
 		}
 
 		if err := dbInstance.CreateProfile(r.Context(), profile); err != nil {
@@ -213,7 +239,8 @@ func UpdateProfile(dbInstance *db.Database) http.Handler {
 			return
 		}
 
-		if _, err := dbInstance.GetProfile(r.Context(), name); err != nil {
+		existing, err := dbInstance.GetProfile(r.Context(), name)
+		if err != nil {
 			if errors.Is(err, db.ErrNotFound) {
 				writeError(r.Context(), w, http.StatusNotFound, "Profile not found", nil, logger.APILog)
 				return
@@ -228,6 +255,29 @@ func UpdateProfile(dbInstance *db.Database) http.Handler {
 			Name:           name,
 			UeAmbrUplink:   params.UeAmbrUplink,
 			UeAmbrDownlink: params.UeAmbrDownlink,
+			Allow4G:        boolOr(params.Allow4G, existing.Allow4G),
+			Allow5G:        boolOr(params.Allow5G, existing.Allow5G),
+		}
+
+		// Enabling 4G requires every binding to use a QCI-compatible 5QI
+		// (TS 23.203 Table 6.1.7), so an existing 5G-only QoS class cannot become
+		// an invalid QCI on S1AP.
+		if profile.Allow4G {
+			policies, err := dbInstance.ListPoliciesByProfile(r.Context(), existing.ID)
+			if err != nil {
+				writeError(r.Context(), w, http.StatusInternalServerError, "Failed to list policies", err, logger.APILog)
+				return
+			}
+
+			for _, p := range policies {
+				if !is4GCompatible5Qi(p.Var5qi) {
+					writeError(r.Context(), w, http.StatusBadRequest,
+						fmt.Sprintf("cannot enable 4G: policy %q uses 5QI %d with no QCI counterpart", p.Name, p.Var5qi),
+						nil, logger.APILog)
+
+					return
+				}
+			}
 		}
 
 		if err := dbInstance.UpdateProfile(r.Context(), profile); err != nil {

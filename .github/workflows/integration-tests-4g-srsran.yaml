@@ -1,0 +1,51 @@
+name: Integration tests (4G srsRAN)
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  # The dedicated TestIntegration4G* tests drive a real srsRAN eNB/UE soft-radio
+  # (gradiant/srsran-4g), which publishes an amd64-only image and runs over an
+  # IPv4 ZMQ transport. This job is therefore amd64 + IPv4 only; the multi-arch,
+  # multi-family 4G coverage lives in integration-tests-4g (core-tester s1enb).
+  integration-test-4g-srsran:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Docker registry
+        run: |
+          docker run -d -p 5000:5000 --name registry registry:2
+
+      - name: Download Ella Core image from GitHub Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-image-amd64
+
+      - name: Download Ella Core Tester image from GitHub Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-tester-image-amd64
+
+      - name: Load images into Docker
+        run: |
+          docker load -i ellacore_latest-amd64.tar
+          docker tag ella-core:latest localhost:5000/ella-core:latest
+          docker push localhost:5000/ella-core:latest
+          docker load -i ellacore_tester_latest-amd64.tar
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Run 4G srsRAN integration tests
+        env:
+          INTEGRATION: "1"
+          IP_VERSION: ipv4
+        run: |
+          go test ./integration/... -run 'TestIntegration4G' -timeout 30m -v

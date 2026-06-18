@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// SPDX-FileCopyrightText: Ella Networks Inc.
-
 package db
 
 import (
@@ -949,6 +947,20 @@ func (db *Database) applyCreatePolicy(ctx context.Context, p *Policy) (any, erro
 		}
 
 		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	return nil, nil
+}
+
+// applySetDefaultPolicy makes p the sole default binding of its profile: it
+// clears every default in the profile, then sets p, in one transaction.
+func (db *Database) applySetDefaultPolicy(ctx context.Context, p *Policy) (any, error) {
+	if err := db.runner(ctx).Query(ctx, db.clearDefaultPoliciesStmt, p).Run(); err != nil {
+		return nil, fmt.Errorf("clear defaults: %w", err)
+	}
+
+	if err := db.runner(ctx).Query(ctx, db.setDefaultPolicyStmt, p).Run(); err != nil {
+		return nil, fmt.Errorf("set default: %w", err)
 	}
 
 	return nil, nil

@@ -1811,6 +1811,42 @@ func TestHandleUsageReport(t *testing.T) {
 	}
 }
 
+// TestHandleDownlinkDataReportEPS checks that downlink data for a 4G EPS session
+// pages via the MME, not the AMF (TS 23.401 §5.3.4.3).
+func TestHandleDownlinkDataReportEPS(t *testing.T) {
+	pcf, store, upf, amfCb := defaultFakes()
+	s := newTestSMF(pcf, store, upf, amfCb)
+
+	mmeCb := &fakeMME{}
+	s.SetMME(mmeCb)
+
+	supi := testSUPI()
+	smCtx := s.NewSession(supi, 5, testDNN, testSnssai) // EPS session keyed by the default bearer EBI
+	smCtx.IsEPS = true
+	seid := s.AllocateLocalSEID()
+	smCtx.SetPFCPSession(seid)
+
+	if err := s.HandleDownlinkDataReport(context.Background(), &models.DownlinkDataReport{SEID: seid}); err != nil {
+		t.Fatalf("HandleDownlinkDataReport: %v", err)
+	}
+
+	mmeCb.mu.Lock()
+	paged := append([]string(nil), mmeCb.pagedIMSI...)
+	mmeCb.mu.Unlock()
+
+	if len(paged) != 1 || paged[0] != supi.IMSI() {
+		t.Fatalf("expected MME page for %s, got %v", supi.IMSI(), paged)
+	}
+
+	amfCb.mu.Lock()
+	amfPages := len(amfCb.pageCalls)
+	amfCb.mu.Unlock()
+
+	if amfPages != 0 {
+		t.Fatalf("EPS session must not page via the AMF; got %d AMF page calls", amfPages)
+	}
+}
+
 func TestHandleDownlinkDataReport_UnknownSEID(t *testing.T) {
 	pcf, store, upf, amfCb := defaultFakes()
 	s := newTestSMF(pcf, store, upf, amfCb)

@@ -5,7 +5,6 @@ package ausf
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/udm"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -22,18 +22,14 @@ import (
 
 var tracer = otel.Tracer("ella-core/ausf")
 
-// SubscriberStore is the minimal DB surface the AUSF needs.
-type SubscriberStore interface {
-	GetSubscriber(ctx context.Context, imsi string) (*Subscriber, error)
-	UpdateSequenceNumber(ctx context.Context, imsi string, sqn string) error
-}
-
-// Subscriber contains the authentication material the AUSF needs.
-type Subscriber struct {
-	PermanentKey   string
-	Opc            string
-	SequenceNumber string
-}
+// SubscriberStore, Subscriber, and KeyResolver are the credential-authority
+// types, defined in package udm; aliased here so existing callers (and the AMF
+// wiring) are unaffected by the extraction.
+type (
+	SubscriberStore = udm.SubscriberStore
+	Subscriber      = udm.Subscriber
+	KeyResolver     = udm.KeyResolver
+)
 
 // AuthResult is returned by Authenticate to the AMF.
 type AuthResult struct {
@@ -55,12 +51,13 @@ type authContext struct {
 	createdAt time.Time
 }
 
-// AUSF implements the 5G-AKA authentication server function.
+// AUSF implements the 5G-AKA authentication server function. It is a consumer of
+// the udm credential authority (which generates the HE AV and owns SQN); the
+// AUSF does the 5G-specific transform (K_SEAF, HXRES*) and RES* verification.
 type AUSF struct {
 	mu    sync.RWMutex
 	pool  map[string]*authContext // key: SUCI
-	store SubscriberStore
-	keys  KeyResolver
+	udm   *udm.Service
 	clock func() time.Time
 	ttl   time.Duration
 }
@@ -78,8 +75,7 @@ func WithTTL(d time.Duration) Option { return func(a *AUSF) { a.ttl = d } }
 func New(store SubscriberStore, keys KeyResolver, opts ...Option) *AUSF {
 	a := &AUSF{
 		pool:  make(map[string]*authContext),
-		store: store,
-		keys:  keys,
+		udm:   udm.New(store, keys),
 		clock: time.Now,
 		ttl:   60 * time.Second,
 	}
@@ -155,179 +151,44 @@ func (a *AUSF) Authenticate(ctx context.Context, suci string, plmn models.PlmnID
 		resyncRand = cached.rand
 	}
 
-	// Convert SUCI → SUPI
-	supi, err := ToSupi(suci, a.keys)
+	// The credential authority (UDM/ARPF) deconceals the SUCI, advances the SQN,
+	// and produces the 5G HE AV (TS 33.501 §6.1.3.2.0).
+	heav, err := a.udm.Generate5GHEAV(ctx, suci, servingNetwork, resyncAuts, resyncRand)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to convert suci to supi")
-
-		return nil, fmt.Errorf("couldn't convert suci to supi: %w", err)
-	}
-
-	// Fetch subscriber auth material
-	sub, err := a.store.GetSubscriber(ctx, supi.IMSI())
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to get subscriber")
-
-		return nil, fmt.Errorf("couldn't get subscriber %s: %w", supi, err)
-	}
-
-	span.AddEvent("subscriber_retrieved")
-
-	if sub.PermanentKey == "" {
-		err := fmt.Errorf("permanent key is empty")
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "permanent key is empty")
+		span.SetStatus(codes.Error, "failed to generate 5G HE AV")
 
 		return nil, err
-	}
-
-	if sub.Opc == "" {
-		err := fmt.Errorf("opc is empty")
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "opc is empty")
-
-		return nil, err
-	}
-
-	k, err := hex.DecodeString(sub.PermanentKey)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to decode permanent key")
-
-		return nil, fmt.Errorf("failed to decode k: %w", err)
-	}
-
-	opc, err := hex.DecodeString(sub.Opc)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode opc: %w", err)
-	}
-
-	sqnStr := strictHex(sub.SequenceNumber, 12)
-
-	// Handle SQN re-synchronization
-	var nextSQN string
-
-	if resync != nil {
-		auts, err := hex.DecodeString(resyncAuts)
-		if err != nil {
-			return nil, fmt.Errorf("could not decode auts: %w", err)
-		}
-
-		randBytes, err := hex.DecodeString(resyncRand)
-		if err != nil {
-			return nil, fmt.Errorf("could not decode rand: %w", err)
-		}
-
-		sqnMsHex, err := resyncSQN(opc, k, auts, randBytes)
-		if err != nil {
-			return nil, fmt.Errorf("SQN resync failed for %s: %w", supi, err)
-		}
-
-		// TS 33.102 §C.3.4: after resync, advance by IND+1 (=33) to
-		// move to the next IND slot.
-		nextSQN, err = advanceSQN(sqnMsHex, indStep+1)
-		if err != nil {
-			return nil, fmt.Errorf("SQN advance failed: %w", err)
-		}
-	} else {
-		var err error
-
-		nextSQN, err = advanceSQN(sqnStr, indStep)
-		if err != nil {
-			return nil, fmt.Errorf("SQN increment failed: %w", err)
-		}
-	}
-
-	// Use the incremented SQN for the authentication vector.
-	sqn, err := hex.DecodeString(nextSQN)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding sqn: %w", err)
-	}
-
-	err = a.store.UpdateSequenceNumber(ctx, supi.IMSI(), nextSQN)
-	if err != nil {
-		return nil, fmt.Errorf("couldn't update subscriber %s: %w", supi, err)
-	}
-
-	// Generate RAND
-	RAND := make([]byte, 16)
-	if _, err = rand.Read(RAND); err != nil {
-		return nil, fmt.Errorf("rand read error: %w", err)
-	}
-
-	// Run Milenage
-	macA, macS := make([]byte, 8), make([]byte, 8)
-	CK, IK := make([]byte, 16), make([]byte, 16)
-	RES := make([]byte, 8)
-	AK := make([]byte, 6)
-
-	amf, err := hex.DecodeString("8000")
-	if err != nil {
-		return nil, fmt.Errorf("amf decode error: %w", err)
-	}
-
-	if err = F1(opc, k, RAND, sqn, amf, macA, macS); err != nil {
-		return nil, fmt.Errorf("milenage F1 err: %w", err)
-	}
-
-	if err = F2345(opc, k, RAND, RES, CK, IK, AK, nil); err != nil {
-		return nil, fmt.Errorf("milenage F2345 err: %w", err)
-	}
-
-	// Build AUTN = (SQN ⊕ AK) || AMF || MAC-A
-	sqnXorAK := make([]byte, 6)
-	for i := range sqn {
-		sqnXorAK[i] = sqn[i] ^ AK[i]
-	}
-
-	AUTN := append(append(sqnXorAK, amf...), macA...)
-
-	// Derive XRES*
-	xresStar, err := deriveXresStar(CK, IK, servingNetwork, RAND, RES)
-	if err != nil {
-		return nil, fmt.Errorf("XRES* derivation failed: %w", err)
-	}
-
-	// Derive Kausf
-	kausf, err := deriveKausf(CK, IK, servingNetwork, sqnXorAK)
-	if err != nil {
-		return nil, fmt.Errorf("kausf derivation failed: %w", err)
-	}
-
-	randHex := hex.EncodeToString(RAND)
-	xresStarHex := hex.EncodeToString(xresStar)
-
-	// Derive HXRES*
-	hxresStar, err := deriveHxresStar(randHex, xresStarHex)
-	if err != nil {
-		return nil, fmt.Errorf("HXRES* derivation failed: %w", err)
-	}
-
-	// Derive Kseaf
-	kseaf, err := deriveKseaf(kausf, servingNetwork)
-	if err != nil {
-		return nil, fmt.Errorf("kseaf derivation failed: %w", err)
 	}
 
 	span.AddEvent("auth_vector_generated")
 
-	// Cache context for Confirm
+	// AUSF transform: HXRES* and the anchor key K_SEAF (TS 33.501 §6.2.2.1).
+	hxresStar, err := deriveHxresStar(heav.RAND, heav.XresStar)
+	if err != nil {
+		return nil, fmt.Errorf("HXRES* derivation failed: %w", err)
+	}
+
+	kseaf, err := deriveKseaf(heav.Kausf, servingNetwork)
+	if err != nil {
+		return nil, fmt.Errorf("kseaf derivation failed: %w", err)
+	}
+
+	// Cache context for Confirm.
 	a.mu.Lock()
 	a.pool[suci] = &authContext{
-		supi:      supi,
+		supi:      heav.SUPI,
 		kseaf:     hex.EncodeToString(kseaf),
-		xresStar:  xresStarHex,
-		rand:      randHex,
+		xresStar:  heav.XresStar,
+		rand:      heav.RAND,
 		createdAt: a.clock(),
 	}
 	a.mu.Unlock()
 	span.AddEvent("context_pooled")
 
 	return &AuthResult{
-		Rand:      randHex,
-		Autn:      hex.EncodeToString(AUTN),
+		Rand:      heav.RAND,
+		Autn:      heav.AUTN,
 		HxresStar: hxresStar,
 	}, nil
 }

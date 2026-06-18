@@ -169,8 +169,8 @@ func runSubscribersHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 				i+1, got.Status)
 		}
 
-		if len(got.PDUSessions) != 0 {
-			t.Fatalf("node %d PDUSessions: got %d, want 0", i+1, len(got.PDUSessions))
+		if len(got.Sessions) != 0 {
+			t.Fatalf("node %d Sessions: got %d, want 0", i+1, len(got.Sessions))
 		}
 
 		creds, err := c.GetSubscriberCredentials(ctx, &client.GetSubscriberCredentialsOptions{ID: imsi})
@@ -204,8 +204,8 @@ func runSubscribersHAMatrix(ctx context.Context, t *testing.T, h *haMatrixEnv) {
 				t.Fatalf("node %d list Status.Registered: got true, want false", i+1)
 			}
 
-			if item.Status.NumPDUSessions != 0 {
-				t.Fatalf("node %d list Status.NumPDUSessions: got %d, want 0", i+1, item.Status.NumPDUSessions)
+			if item.Status.NumSessions != 0 {
+				t.Fatalf("node %d list Status.NumSessions: got %d, want 0", i+1, item.Status.NumSessions)
 			}
 
 			if item.Status.LastSeenAt != "" {

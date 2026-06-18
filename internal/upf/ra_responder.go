@@ -31,6 +31,7 @@ type IPv6SessionContext struct {
 	Prefix       netip.Prefix
 	MTU          uint32
 	QFI          uint8
+	S1U          bool // 4G S1-U: encapsulate the RA PSC-less (no PDU Session Container)
 
 	// ueLinkLocal is learned from the first RS event. Once set, the
 	// corresponding veth tunnel map entry exists and is cleaned up on
@@ -335,6 +336,7 @@ func (r *RAResponder) programVethTunnel(sess *IPv6SessionContext, ueIPv6 netip.A
 		LocalAddr:  localAddr,
 		RemoteAddr: sess.GnbN3Addr,
 		QFI:        sess.QFI,
+		S1U:        sess.S1U,
 	}
 
 	return r.vethBpf.PutTunnel(ueIPv6, info)

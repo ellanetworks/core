@@ -17,6 +17,8 @@ import {
   Select,
   Collapse,
   MenuItem,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import * as yup from "yup";
 import { ValidationError } from "yup";
@@ -103,6 +105,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
     fiveQi: 9,
     arp: 1,
     dataNetworkName: "",
+    isDefault: false,
   });
 
   const [dataNetworks, setDataNetworks] = useState<string[]>([]);
@@ -223,6 +226,7 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
         session_ambr_downlink: sessionAmbrDownlink,
         var5qi: formValues.fiveQi,
         arp: formValues.arp,
+        default: formValues.isDefault,
       });
       onClose();
       onSuccess();
@@ -374,10 +378,10 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
         </Box>
 
         <FormControl fullWidth margin="normal">
-          <InputLabel id="fiveqi-select-label">5QI</InputLabel>
+          <InputLabel id="fiveqi-select-label">5QI / QCI</InputLabel>
           <Select
             labelId="fiveqi-select-label"
-            label="5QI"
+            label="5QI / QCI"
             value={formValues.fiveQi}
             onChange={(e) => handleChange("fiveQi", Number(e.target.value))}
             onBlur={() => handleBlur("fiveQi")}
@@ -414,6 +418,22 @@ const CreatePolicyModal: React.FC<CreatePolicyModalProps> = ({
               : "Admission control priority at session setup. 1 (highest) to 15 (lowest)."
           }
           margin="normal"
+        />
+
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={formValues.isDefault}
+              onChange={(e) =>
+                setFormValues((prev) => ({
+                  ...prev,
+                  isDefault: e.target.checked,
+                }))
+              }
+            />
+          }
+          label="Default data network for this profile (default APN/DNN)"
+          sx={{ mt: 1 }}
         />
       </DialogContent>
 

@@ -13,6 +13,9 @@ import {
   Alert,
   Collapse,
   MenuItem,
+  Checkbox,
+  FormControlLabel,
+  FormGroup,
 } from "@mui/material";
 import * as yup from "yup";
 import { ValidationError } from "yup";
@@ -77,6 +80,8 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
     ambrUpUnit: upParsed.unit,
     ambrDownValue: downParsed.num,
     ambrDownUnit: downParsed.unit,
+    allow4g: initialData.allow_4g,
+    allow5g: initialData.allow_5g,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -93,6 +98,8 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
       ambrUpUnit: up.unit,
       ambrDownValue: down.num,
       ambrDownUnit: down.unit,
+      allow4g: initialData.allow_4g,
+      allow5g: initialData.allow_5g,
     });
   }, [initialData]);
 
@@ -156,6 +163,8 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
         initialData.name,
         ueAmbrUplink,
         ueAmbrDownlink,
+        formValues.allow4g,
+        formValues.allow5g,
       );
       onClose();
       onSuccess();
@@ -247,6 +256,37 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
             <MenuItem value="Gbps">Gbps</MenuItem>
           </TextField>
         </Box>
+
+        <FormGroup sx={{ mt: 1 }}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={formValues.allow4g}
+                onChange={(e) =>
+                  setFormValues((prev) => ({
+                    ...prev,
+                    allow4g: e.target.checked,
+                  }))
+                }
+              />
+            }
+            label="Allow 4G access"
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={formValues.allow5g}
+                onChange={(e) =>
+                  setFormValues((prev) => ({
+                    ...prev,
+                    allow5g: e.target.checked,
+                  }))
+                }
+              />
+            }
+            label="Allow 5G access"
+          />
+        </FormGroup>
       </DialogContent>
 
       <DialogActions>

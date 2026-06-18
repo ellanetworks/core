@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// SPDX-FileCopyrightText: Ella Networks Inc.
-
 package db
 
 import (
@@ -37,6 +35,7 @@ var migrations = []migration{
 	{11, "replicated AUTOINCREMENT PKs → TEXT (UUID); spec_uuid.md", migrateV11},
 	{12, "replace chain-PKI cluster TLS with fingerprint pinning (cluster_node_certs)", migrateV12},
 	{13, "add ipv6Pool column to data_networks and poolType column to ip_leases", migrateV13},
+	{14, "add 4G config: profile allowed access (4G/5G), policy default binding; RAT-neutral NAS algorithm names", migrateV14},
 }
 
 // baselineVersion is the highest migration that runs locally during
@@ -51,7 +50,10 @@ var migrations = []migration{
 // reasons (UUID-typed columns must be in place before request handlers
 // fire). This is the same reason 1.10.1 → 1.11 cannot be a rolling
 // upgrade; operators take that hop via backup/restore.
-const baselineVersion = 13
+//
+// The leader's Initialize() seed runs before post-baseline migrations apply, so
+// every column or table it writes must exist at the baseline.
+const baselineVersion = 14
 
 // SchemaVersion returns the highest migration version this binary understands.
 // Used during cluster join to reject version-skewed nodes.

@@ -51,6 +51,9 @@
 #define GTP_ENCAP_SIZE_IPV6                               \
 	(sizeof(struct ipv6hdr) + sizeof(struct udphdr) + \
 	 sizeof(struct gtpuhdr) + 8)
+/* GTP_PSC_EXT_SIZE is the GTP extension chain (gtp_hdr_ext + PDU session
+ * container) included in the encap sizes above; a 4G S1-U bearer omits it. */
+#define GTP_PSC_EXT_SIZE 8
 
 volatile const int n3_vlan;
 volatile const int n3_vlan = 0;
@@ -485,6 +488,19 @@ static __always_inline void fill_gtp_header(struct gtpuhdr *gtp, int teid,
 	gtp->teid = bpf_htonl(teid);
 }
 
+/* fill_gtp_header_plain writes a bare G-PDU header with no extension headers
+ * (E=0), as used on 4G S1-U where the PDU Session Container is absent
+ * (TS 29.281; the container is N3/N9-only per TS 38.415). GTP_FLAGS already
+ * clears the E/S/PN bits. */
+static __always_inline void fill_gtp_header_plain(struct gtpuhdr *gtp, int teid,
+						  int len)
+{
+	*(__u8 *)gtp = GTP_FLAGS;
+	gtp->message_type = GTPU_G_PDU;
+	gtp->message_length = bpf_htons(len);
+	gtp->teid = bpf_htonl(teid);
+}
+
 static __always_inline void fill_gtp_ext_header(struct gtp_hdr_ext *gtp_ext)
 {
 	gtp_ext->sqn = 0;
@@ -616,6 +632,97 @@ add_gtp_over_ip4_headers(struct packet_context *ctx, int saddr, int daddr,
 	udp->check = 0;
 
 	/* Update packet pointers */
+	context_set_ip4(ctx, (void *)(long)ctx->xdp_ctx->data,
+			(const void *)(long)ctx->xdp_ctx->data_end, eth, vlan,
+			ip, udp, gtp);
+	return 0;
+}
+
+/* add_gtp_over_ip4_headers_s1u encapsulates into a plain GTP-U/UDP/IPv4 G-PDU
+ * with no PDU Session Container (4G S1-U). It mirrors add_gtp_over_ip4_headers
+ * exactly but for the 8-byte-smaller header (no GTP extension chain). */
+static __always_inline __u32
+add_gtp_over_ip4_headers_s1u(struct packet_context *ctx, int saddr, int daddr,
+			     __u8 tos, int teid)
+{
+	static const size_t gtp_full_hdr_size = sizeof(struct gtpuhdr);
+	static const size_t gtp_encap_size_no_vlan = sizeof(struct iphdr) +
+						     sizeof(struct udphdr) +
+						     gtp_full_hdr_size;
+	size_t n3_vlan_hdr_size = 0;
+	if (n3_vlan) {
+		n3_vlan_hdr_size += sizeof(struct vlan_hdr);
+	}
+	size_t n6_vlan_hdr_size = 0;
+	if (ctx->vlan) {
+		n6_vlan_hdr_size += sizeof(struct vlan_hdr);
+	}
+	const size_t gtp_encap_size =
+		n3_vlan_hdr_size - n6_vlan_hdr_size + gtp_encap_size_no_vlan;
+
+	int ip_packet_len = 0;
+	if (ctx->ip4) {
+		ip_packet_len = bpf_ntohs(ctx->ip4->tot_len);
+	} else if (ctx->ip6) {
+		ip_packet_len = bpf_ntohs(ctx->ip6->payload_len) +
+				sizeof(struct ipv6hdr);
+	} else {
+		return -1;
+	}
+
+	int result = bpf_xdp_adjust_head(ctx->xdp_ctx, (__s32)-gtp_encap_size);
+	if (result) {
+		return -1;
+	}
+
+	void *data = (void *)(long)ctx->xdp_ctx->data;
+	const void *data_end = (const void *)(long)ctx->xdp_ctx->data_end;
+
+	struct ethhdr *orig_eth = (struct ethhdr *)(data + gtp_encap_size);
+	if ((const void *)(orig_eth + 1) > data_end) {
+		return -1;
+	}
+
+	struct ethhdr *eth = (struct ethhdr *)data;
+	__builtin_memcpy(eth, orig_eth, sizeof(*eth));
+	eth->h_proto = bpf_htons(ETH_P_IP);
+
+	struct iphdr *ip = (struct iphdr *)(eth + 1);
+	if ((const void *)(ip + 1) > data_end) {
+		return -1;
+	}
+
+	struct vlan_hdr *vlan = NULL;
+	if (n3_vlan) {
+		eth->h_proto = bpf_htons(ETH_P_8021Q);
+		vlan = (struct vlan_hdr *)ip;
+		vlan->h_vlan_TCI = bpf_htons(n3_vlan & 0x0FFF);
+		vlan->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IP);
+		ip = (struct iphdr *)((void *)ip + sizeof(struct vlan_hdr));
+		if ((const void *)(ip + 1) > data_end) {
+			return -1;
+		}
+	}
+
+	fill_ip_header(ip, saddr, daddr, tos,
+		       ip_packet_len + gtp_encap_size_no_vlan);
+
+	struct udphdr *udp = (struct udphdr *)(ip + 1);
+	if ((const void *)(udp + 1) > data_end)
+		return -1;
+
+	fill_udp_header(udp, GTP_UDP_PORT,
+			ip_packet_len + sizeof(*udp) + gtp_full_hdr_size);
+
+	struct gtpuhdr *gtp = (struct gtpuhdr *)(udp + 1);
+	if ((const void *)(gtp + 1) > data_end)
+		return -1;
+
+	fill_gtp_header_plain(gtp, teid, ip_packet_len);
+
+	ip->check = ipv4_csum(ip, sizeof(*ip));
+	udp->check = 0;
+
 	context_set_ip4(ctx, (void *)(long)ctx->xdp_ctx->data,
 			(const void *)(long)ctx->xdp_ctx->data_end, eth, vlan,
 			ip, udp, gtp);
@@ -776,6 +883,109 @@ static __always_inline __u32 add_gtp_over_ip6_headers(
 	}
 
 	/* Update packet pointers */
+	context_set_ip6(ctx, (void *)(long)ctx->xdp_ctx->data,
+			(const void *)(long)ctx->xdp_ctx->data_end, eth, vlan,
+			ip6, udp, gtp);
+	return 0;
+}
+
+/* add_gtp_over_ip6_headers_s1u encapsulates into a plain GTP-U/UDP/IPv6 G-PDU
+ * with no PDU Session Container (4G S1-U). It mirrors add_gtp_over_ip6_headers
+ * but for the 8-byte-smaller header (no GTP extension chain). */
+static __always_inline __u32 add_gtp_over_ip6_headers_s1u(
+	struct packet_context *ctx, const struct in6_addr *saddr,
+	const struct in6_addr *daddr, __u8 traffic_class, int teid)
+{
+	static const size_t gtp_full_hdr_size = sizeof(struct gtpuhdr);
+	static const size_t gtp_encap_size_no_vlan = sizeof(struct ipv6hdr) +
+						     sizeof(struct udphdr) +
+						     gtp_full_hdr_size;
+	size_t n3_vlan_hdr_size = 0;
+	if (n3_vlan) {
+		n3_vlan_hdr_size += sizeof(struct vlan_hdr);
+	}
+	size_t n6_vlan_hdr_size = 0;
+	if (ctx->vlan) {
+		n6_vlan_hdr_size += sizeof(struct vlan_hdr);
+	}
+	const size_t gtp_encap_size =
+		n3_vlan_hdr_size - n6_vlan_hdr_size + gtp_encap_size_no_vlan;
+
+	int ip_packet_len = 0;
+	if (ctx->ip4) {
+		ip_packet_len = bpf_ntohs(ctx->ip4->tot_len);
+	} else if (ctx->ip6) {
+		ip_packet_len = bpf_ntohs(ctx->ip6->payload_len) +
+				sizeof(struct ipv6hdr);
+	} else {
+		return -1;
+	}
+
+	int result = bpf_xdp_adjust_head(ctx->xdp_ctx, (__s32)-gtp_encap_size);
+	if (result) {
+		return -1;
+	}
+
+	void *data = (void *)(long)ctx->xdp_ctx->data;
+	const void *data_end = (const void *)(long)ctx->xdp_ctx->data_end;
+
+	struct ethhdr *orig_eth = (struct ethhdr *)(data + gtp_encap_size);
+	if ((const void *)(orig_eth + 1) > data_end) {
+		return -1;
+	}
+
+	struct ethhdr *eth = (struct ethhdr *)data;
+	__builtin_memcpy(eth, orig_eth, sizeof(*eth));
+	eth->h_proto = bpf_htons(ETH_P_IPV6);
+
+	struct ipv6hdr *ip6 = (struct ipv6hdr *)(eth + 1);
+	if ((const void *)(ip6 + 1) > data_end) {
+		return -1;
+	}
+
+	struct vlan_hdr *vlan = NULL;
+	if (n3_vlan) {
+		eth->h_proto = bpf_htons(ETH_P_8021Q);
+		vlan = (struct vlan_hdr *)ip6;
+		vlan->h_vlan_TCI = bpf_htons(n3_vlan & 0x0FFF);
+		vlan->h_vlan_encapsulated_proto = bpf_htons(ETH_P_IPV6);
+		ip6 = (struct ipv6hdr *)((void *)ip6 + sizeof(struct vlan_hdr));
+		if ((const void *)(ip6 + 1) > data_end) {
+			return -1;
+		}
+	}
+
+	int ipv6_payload_len =
+		ip_packet_len + sizeof(struct udphdr) + gtp_full_hdr_size;
+	fill_ip6_header(ip6, saddr, daddr, traffic_class, ipv6_payload_len);
+
+	struct udphdr *udp = (struct udphdr *)(ip6 + 1);
+	if ((const void *)(udp + 1) > data_end) {
+		return -1;
+	}
+
+	fill_udp_header(udp, GTP_UDP_PORT,
+			ip_packet_len + sizeof(*udp) + gtp_full_hdr_size);
+
+	struct gtpuhdr *gtp = (struct gtpuhdr *)(udp + 1);
+	if ((const void *)(gtp + 1) > data_end) {
+		return -1;
+	}
+
+	fill_gtp_header_plain(gtp, teid, ip_packet_len);
+
+	/* GTP-U over IPv6 requires UDP checksum (RFC 6936) */
+	if (ip6) {
+		__u32 udp_off =
+			(__u32)((__u8 *)udp - (__u8 *)(long)ctx->xdp_ctx->data);
+		int csum_ret = udpv6_csum(&ip6->saddr, &ip6->daddr, udp_off,
+					  bpf_ntohs(udp->len), ctx->xdp_ctx);
+		if (csum_ret < 0) {
+			return -1;
+		}
+		udp->check = (__u16)csum_ret;
+	}
+
 	context_set_ip6(ctx, (void *)(long)ctx->xdp_ctx->data,
 			(const void *)(long)ctx->xdp_ctx->data_end, eth, vlan,
 			ip6, udp, gtp);

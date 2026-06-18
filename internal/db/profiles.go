@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// SPDX-FileCopyrightText: Ella Networks Inc.
-
 package db
 
 import (
@@ -25,8 +23,8 @@ const (
 	listProfilesPagedStmt         = "SELECT &Profile.*, COUNT(*) OVER() AS &NumItems.count FROM %s LIMIT $ListArgs.limit OFFSET $ListArgs.offset"
 	getProfileStmt                = "SELECT &Profile.* FROM %s WHERE name==$Profile.name"
 	getProfileByIDStmt            = "SELECT &Profile.* FROM %s WHERE id==$Profile.id"
-	createProfileStmt             = "INSERT INTO %s (id, name, ueAmbrUplink, ueAmbrDownlink) VALUES ($Profile.id, $Profile.name, $Profile.ueAmbrUplink, $Profile.ueAmbrDownlink)"
-	editProfileStmt               = "UPDATE %s SET ueAmbrUplink=$Profile.ueAmbrUplink, ueAmbrDownlink=$Profile.ueAmbrDownlink WHERE name==$Profile.name"
+	createProfileStmt             = "INSERT INTO %s (id, name, ueAmbrUplink, ueAmbrDownlink, allow4G, allow5G) VALUES ($Profile.id, $Profile.name, $Profile.ueAmbrUplink, $Profile.ueAmbrDownlink, $Profile.allow4G, $Profile.allow5G)"
+	editProfileStmt               = "UPDATE %s SET ueAmbrUplink=$Profile.ueAmbrUplink, ueAmbrDownlink=$Profile.ueAmbrDownlink, allow4G=$Profile.allow4G, allow5G=$Profile.allow5G WHERE name==$Profile.name"
 	deleteProfileStmt             = "DELETE FROM %s WHERE name==$Profile.name"
 	countProfilesStmt             = "SELECT COUNT(*) AS &NumItems.count FROM %s"
 	countSubscribersInProfileStmt = "SELECT COUNT(*) AS &NumItems.count FROM %s WHERE profileID=$Subscriber.profileID"
@@ -37,6 +35,11 @@ type Profile struct {
 	Name           string `db:"name"`
 	UeAmbrUplink   string `db:"ueAmbrUplink"`
 	UeAmbrDownlink string `db:"ueAmbrDownlink"`
+	// Allow4G / Allow5G are the subscriber access control (Core Network type
+	// restriction, TS 23.501 §5.3.4): whether subscribers on this profile may use
+	// EPC (4G) and/or 5GC (5G). Default true (unrestricted).
+	Allow4G bool `db:"allow4G"`
+	Allow5G bool `db:"allow5G"`
 }
 
 func (db *Database) ListProfilesPage(ctx context.Context, page, perPage int) ([]Profile, int, error) {

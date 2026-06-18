@@ -167,9 +167,14 @@ const getNasHeader = (nasPdu: any): string => {
   if (decoded.error) return "decode error";
   if (decoded.encrypted) return "encrypted";
 
-  const gmmType = decoded.gmm_message?.gmm_header?.message_type?.label;
-  const gsmType = decoded.gsm_message?.gsm_header?.message_type?.label;
-  const messageType = gmmType || gsmType || "Unknown";
+  const messageType =
+    // 5GS NAS (NGAP): GMM / GSM
+    decoded.gmm_message?.gmm_header?.message_type?.label ||
+    decoded.gsm_message?.gsm_header?.message_type?.label ||
+    // EPS NAS (S1AP): EMM / ESM
+    decoded.emm_message?.emm_header?.message_type?.label ||
+    decoded.esm_message?.esm_header?.message_type?.label ||
+    "Unknown";
 
   const secHeader =
     decoded.security_header?.security_header_type?.label || "Plain NAS";

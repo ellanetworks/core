@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// SPDX-FileCopyrightText: Ella Networks Inc.
-
 // Package-level registration of every typed replicated operation.
 // Renaming, deleting, or relaxing RequireSchema breaks rolling upgrades.
 
@@ -94,6 +92,7 @@ var (
 	opCreatePolicy          = registerChangesetOp("CreatePolicy", (*Database).applyCreatePolicy, AffectsTopic(TopicPolicies), AffectsTopic(TopicSessionReconcile))
 	opUpdatePolicy          = registerChangesetOp("UpdatePolicy", (*Database).applyUpdatePolicy, AffectsTopic(TopicPolicies), AffectsTopic(TopicSessionReconcile))
 	opDeletePolicy          = registerChangesetOp("DeletePolicy", (*Database).applyDeletePolicy, AffectsTopic(TopicPolicies), AffectsTopic(TopicSessionReconcile))
+	opSetDefaultPolicy      = registerChangesetOp("SetDefaultPolicy", (*Database).applySetDefaultPolicy, RequireSchema(14), AffectsTopic(TopicPolicies), AffectsTopic(TopicSessionReconcile))
 	opCreatePolicyWithRules = registerChangesetOp("CreatePolicyWithRules", (*Database).applyCreatePolicyWithRules, AffectsTopic(TopicPolicies), AffectsTopic(TopicNetworkRules), AffectsTopic(TopicSessionReconcile))
 	opUpdatePolicyWithRules = registerChangesetOp("UpdatePolicyWithRules", (*Database).applyUpdatePolicyWithRules, AffectsTopic(TopicPolicies), AffectsTopic(TopicNetworkRules), AffectsTopic(TopicSessionReconcile))
 )

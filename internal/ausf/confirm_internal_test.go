@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/udm"
 )
 
 // internalStore is a minimal in-memory SubscriberStore for same-package tests.
@@ -102,13 +103,13 @@ func TestConfirmSuccess(t *testing.T) {
 	CK := make([]byte, 16)
 	IK := make([]byte, 16)
 
-	if err := F2345(opc, k, randBytes, RES, CK, IK, nil, nil); err != nil {
+	if err := udm.F2345(opc, k, randBytes, RES, CK, IK, nil, nil); err != nil {
 		t.Fatalf("F2345 failed: %v", err)
 	}
 
-	xresStar, err := deriveXresStar(CK, IK, intTestSN, randBytes, RES)
+	xresStar, err := udm.DeriveXresStar(CK, IK, intTestSN, randBytes, RES)
 	if err != nil {
-		t.Fatalf("deriveXresStar failed: %v", err)
+		t.Fatalf("udm.DeriveXresStar failed: %v", err)
 	}
 
 	xresStarHex := hex.EncodeToString(xresStar)
@@ -158,18 +159,18 @@ func TestConfirmSuccess_ReturnsCorrectKseaf(t *testing.T) {
 	CK := make([]byte, 16)
 	IK := make([]byte, 16)
 
-	if err := F2345(opc, k, randBytes, RES, CK, IK, nil, nil); err != nil {
+	if err := udm.F2345(opc, k, randBytes, RES, CK, IK, nil, nil); err != nil {
 		t.Fatalf("F2345 failed: %v", err)
 	}
 
-	xresStar, err := deriveXresStar(CK, IK, intTestSN, randBytes, RES)
+	xresStar, err := udm.DeriveXresStar(CK, IK, intTestSN, randBytes, RES)
 	if err != nil {
-		t.Fatalf("deriveXresStar failed: %v", err)
+		t.Fatalf("udm.DeriveXresStar failed: %v", err)
 	}
 
-	kausf, err := deriveKausf(CK, IK, intTestSN, sqnXorAK)
+	kausf, err := udm.DeriveKausf(CK, IK, intTestSN, sqnXorAK)
 	if err != nil {
-		t.Fatalf("deriveKausf failed: %v", err)
+		t.Fatalf("udm.DeriveKausf failed: %v", err)
 	}
 
 	expectedKseaf, err := deriveKseaf(kausf, intTestSN)
@@ -192,7 +193,7 @@ func TestConfirmSuccess_ReturnsCorrectKseaf(t *testing.T) {
 //  2. Build a valid AUTS from that RAND and a known SQN_MS (simulating
 //     what the UE sends when it detects a SQN mismatch).
 //  3. Call Authenticate again with the ResyncInfo.
-//  4. Assert the stored SQN equals advanceSQN(sqnMs, 33).
+//  4. Assert the stored SQN equals udm.AdvanceSQN(sqnMs, 33).
 func TestResyncSuccess_SQNAdvancesBy33(t *testing.T) {
 	// UE's true SQN — the value the USIM holds.
 	const sqnMsHex = "000000000100"
@@ -220,7 +221,7 @@ func TestResyncSuccess_SQNAdvancesBy33(t *testing.T) {
 
 	// Step 2: Build a valid AUTS = (SQN_MS ⊕ AK) || MAC-S.
 	AK := make([]byte, 6)
-	if err := F2345(opc, k, randBytes, nil, nil, nil, nil, AK); err != nil {
+	if err := udm.F2345(opc, k, randBytes, nil, nil, nil, nil, AK); err != nil {
 		t.Fatalf("F2345 for AK failed: %v", err)
 	}
 
@@ -232,7 +233,7 @@ func TestResyncSuccess_SQNAdvancesBy33(t *testing.T) {
 	amfZero, _ := hex.DecodeString("0000")
 	macS := make([]byte, 8)
 
-	if err := F1(opc, k, randBytes, sqnMs, amfZero, nil, macS); err != nil {
+	if err := udm.F1(opc, k, randBytes, sqnMs, amfZero, nil, macS); err != nil {
 		t.Fatalf("F1 for MAC-S failed: %v", err)
 	}
 
@@ -246,12 +247,12 @@ func TestResyncSuccess_SQNAdvancesBy33(t *testing.T) {
 		t.Fatalf("resync Authenticate failed: %v", err)
 	}
 
-	// Step 4: Verify stored SQN = sqnMs + 33 (indStep + 1).
+	// Step 4: Verify stored SQN = sqnMs + 33 (udm.IndStep + 1).
 	store.mu.Lock()
 	gotSQN := store.subs[intTestIMSI].SequenceNumber
 	store.mu.Unlock()
 
-	wantSQN, _ := advanceSQN(sqnMsHex, indStep+1) // 0x100 + 33 = 0x121
+	wantSQN, _ := udm.AdvanceSQN(sqnMsHex, udm.IndStep+1) // 0x100 + 33 = 0x121
 	if gotSQN != wantSQN {
 		t.Fatalf("after resync: want SQN %s, got %s", wantSQN, gotSQN)
 	}

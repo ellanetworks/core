@@ -54,9 +54,14 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 {
 	if (far->outer_header_creation & OHC_GTP_U_UDP_IPv6) {
 		PROFILE_START(PROF_N6_GTP_MANIP);
-		__u32 encap_result = add_gtp_over_ip6_headers(
-			ctx, &far->localip, &far->remoteip, tos, qfi,
-			far->teid);
+		__u32 encap_result =
+			(far->outer_header_creation & OHC_NO_PSC) ?
+				add_gtp_over_ip6_headers_s1u(
+					ctx, &far->localip, &far->remoteip,
+					tos, far->teid) :
+				add_gtp_over_ip6_headers(ctx, &far->localip,
+							 &far->remoteip, tos,
+							 qfi, far->teid);
 		if (encap_result != 0) {
 			PROFILE_END(PROF_N6_GTP_MANIP);
 			return XDP_ABORTED;
@@ -79,9 +84,16 @@ send_to_gtp_tunnel(struct packet_context *ctx, const struct far_info *far,
 		return fib_ret6;
 	} else {
 		PROFILE_START(PROF_N6_GTP_MANIP);
-		__u32 encap_result = add_gtp_over_ip4_headers(
-			ctx, ipv4_from_mapped(&far->localip),
-			ipv4_from_mapped(&far->remoteip), tos, qfi, far->teid);
+		__u32 encap_result =
+			(far->outer_header_creation & OHC_NO_PSC) ?
+				add_gtp_over_ip4_headers_s1u(
+					ctx, ipv4_from_mapped(&far->localip),
+					ipv4_from_mapped(&far->remoteip), tos,
+					far->teid) :
+				add_gtp_over_ip4_headers(
+					ctx, ipv4_from_mapped(&far->localip),
+					ipv4_from_mapped(&far->remoteip), tos,
+					qfi, far->teid);
 		if (encap_result != 0) {
 			PROFILE_END(PROF_N6_GTP_MANIP);
 			return XDP_ABORTED;
@@ -132,6 +144,9 @@ static __always_inline __u16 handle_n6_packet_ipv4(struct packet_context *ctx)
 	int encap_size = (far->outer_header_creation & OHC_GTP_U_UDP_IPv6) ?
 				 GTP_ENCAP_SIZE_IPV6 :
 				 GTP_ENCAP_SIZE_IPV4;
+	if (far->outer_header_creation & OHC_NO_PSC) {
+		encap_size -= GTP_PSC_EXT_SIZE; /* S1-U: no PDU session container */
+	}
 	ret = bpf_check_mtu(ctx->xdp_ctx, n3_ifindex, &mtu_len, encap_size, 0);
 	PROFILE_END(PROF_N6_MTU_CHECK);
 	if (ret < 0) {
@@ -256,6 +271,9 @@ handle_n6_packet_ipv6(struct packet_context *ctx)
 	int encap_size = (far->outer_header_creation & OHC_GTP_U_UDP_IPv6) ?
 				 GTP_ENCAP_SIZE_IPV6 :
 				 GTP_ENCAP_SIZE_IPV4;
+	if (far->outer_header_creation & OHC_NO_PSC) {
+		encap_size -= GTP_PSC_EXT_SIZE; /* S1-U: no PDU session container */
+	}
 	__u32 mtu_len = 0;
 	long ret = bpf_check_mtu(ctx->xdp_ctx, n3_ifindex, &mtu_len, encap_size,
 				 0);

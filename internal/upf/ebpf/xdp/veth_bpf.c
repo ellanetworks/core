@@ -35,7 +35,10 @@ struct veth_tunnel_info {
 	struct in6_addr local_addr;
 	struct in6_addr remote_addr;
 	__u8 qfi;
-	__u8 pad[3];
+	// 4G S1-U carries plain GTP-U with no PDU Session Container (PSC is N3/N9
+	// only, TS 38.415); encapsulate PSC-less when set.
+	__u8 no_psc;
+	__u8 pad[2];
 };
 
 struct {
@@ -94,8 +97,13 @@ int veth_xdp_func(struct xdp_md *ctx)
 		upf_printk("upf: encapsulating over IPv4");
 		__u32 saddr = ipv4_from_mapped(&tun->local_addr);
 		__u32 daddr = ipv4_from_mapped(&tun->remote_addr);
-		ret = add_gtp_over_ip4_headers(&pkt_ctx, saddr, daddr, 0,
-					       tun->qfi, tun->teid);
+		if (tun->no_psc) {
+			ret = add_gtp_over_ip4_headers_s1u(&pkt_ctx, saddr,
+							   daddr, 0, tun->teid);
+		} else {
+			ret = add_gtp_over_ip4_headers(&pkt_ctx, saddr, daddr, 0,
+						       tun->qfi, tun->teid);
+		}
 		if (ret != 0) {
 			return XDP_ABORTED;
 		}
@@ -110,9 +118,16 @@ int veth_xdp_func(struct xdp_md *ctx)
 		return fib_ret4;
 	} else {
 		upf_printk("upf: encapsulating over IPv6");
-		ret = add_gtp_over_ip6_headers(&pkt_ctx, &tun->local_addr,
-					       &tun->remote_addr, 0, tun->qfi,
-					       tun->teid);
+		if (tun->no_psc) {
+			ret = add_gtp_over_ip6_headers_s1u(&pkt_ctx,
+							   &tun->local_addr,
+							   &tun->remote_addr, 0,
+							   tun->teid);
+		} else {
+			ret = add_gtp_over_ip6_headers(&pkt_ctx, &tun->local_addr,
+						       &tun->remote_addr, 0, tun->qfi,
+						       tun->teid);
+		}
 		if (ret != 0) {
 			return XDP_ABORTED;
 		}

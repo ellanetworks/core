@@ -7,9 +7,84 @@ package ebpf
 
 import (
 	"bytes"
+	"encoding/binary"
 	"net/netip"
 	"testing"
 )
+
+// gtpV4EncapLenS1U is the GTP-U/UDP/IPv4 overhead for a 4G S1-U bearer: IPv4 (20)
+// + UDP (8) + GTP-U (8), with no PDU session container.
+const gtpV4EncapLenS1U = 36
+
+// putDownlinkPDRS1U installs a downlink PDR that encapsulates into a plain,
+// PSC-less GTP-U/IPv4 tunnel — a 4G S1-U bearer (OHC_NO_PSC set).
+func putDownlinkPDRS1U(t *testing.T, obj *BpfObjects, ueIP [4]byte, teid uint32, local, remote [4]byte) {
+	t.Helper()
+
+	pdr := ipv4OuterDownlinkPDR(teid, local, remote, 0)
+	pdr.Far.OuterHeaderCreation |= 0x10 // OHC_NO_PSC
+
+	if err := obj.PutPdrDownlink(netip.AddrFrom4(ueIP), pdr); err != nil {
+		t.Fatalf("install S1-U downlink PDR: %v", err)
+	}
+}
+
+// TestGTPEncapsulationDownlinkS1U checks a 4G S1-U downlink packet is
+// encapsulated into a plain G-PDU: the GTP-U header has the E flag clear and no
+// PDU session container (8 bytes shorter than the 5G N3 case), and the inner
+// packet is preserved byte for byte.
+func TestGTPEncapsulationDownlinkS1U(t *testing.T) {
+	requireProgTestRun(t)
+
+	obj := loadProgram(t, 1, 0)
+
+	var (
+		ueIP   = [4]byte{10, 45, 0, 2}
+		local  = [4]byte{192, 168, 100, 1}
+		remote = [4]byte{192, 168, 100, 9}
+	)
+
+	const teid = 0x55667788
+
+	putDownlinkPDRS1U(t, obj, ueIP, teid, local, remote)
+
+	inner := ipv4Packet([4]byte{8, 8, 8, 8}, ueIP, 17, udpDatagram(4000, 4001, []byte{0xde, 0xad, 0xbe, 0xef}))
+
+	action, out := runXDPOut(t, obj.UpfN3N6EntrypointFunc, ethFrame(0x0800, inner))
+
+	if action == XDP_ABORTED {
+		t.Fatal("S1-U downlink packet got XDP_ABORTED; encapsulation failed")
+	}
+
+	if len(out) != ethHdrLen+gtpV4EncapLenS1U+len(inner) {
+		t.Fatalf("S1-U frame length = %d, want %d (no PDU session container)",
+			len(out), ethHdrLen+gtpV4EncapLenS1U+len(inner))
+	}
+
+	// The GTP-U header follows eth + IPv4 (20) + UDP (8).
+	gtp := out[ethHdrLen+28:]
+
+	if gtp[0]&0x04 != 0 {
+		t.Errorf("GTP E flag set on an S1-U G-PDU (flags = %#02x); want no extension header", gtp[0])
+	}
+
+	if gtp[1] != 0xFF {
+		t.Errorf("GTP message type = %#02x, want 0xFF (G-PDU)", gtp[1])
+	}
+
+	if msgLen := binary.BigEndian.Uint16(gtp[2:4]); int(msgLen) != len(inner) {
+		t.Errorf("GTP message length = %d, want %d (inner only, no extension)", msgLen, len(inner))
+	}
+
+	if got := binary.BigEndian.Uint32(gtp[4:8]); got != teid {
+		t.Errorf("GTP TEID = %#x, want %#x", got, uint32(teid))
+	}
+
+	if !bytes.Equal(out[ethHdrLen+gtpV4EncapLenS1U:], inner) {
+		t.Errorf("inner packet altered by S1-U encapsulation:\n got %x\nwant %x",
+			out[ethHdrLen+gtpV4EncapLenS1U:], inner)
+	}
+}
 
 // TestGTPEncapsulationDownlinkIPv4 checks that a downlink IPv4 packet for a UE
 // is encapsulated into a GTP-U/UDP/IPv4 G-PDU: the outer header carries the

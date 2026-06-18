@@ -92,7 +92,7 @@ export default function InterfacesTab() {
                   mb: 1,
                 }}
               >
-                <Typography variant="subtitle1">N2 (NGAP)</Typography>
+                <Typography variant="subtitle1">N2 (NGAP / S1AP)</Typography>
                 <Chip label="Control Plane" size="small" />
               </Stack>
               <Typography variant="body2" color="textSecondary">

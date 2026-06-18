@@ -26,6 +26,17 @@ func (s *SMF) HandleDownlinkDataReport(ctx context.Context, report *models.Downl
 		return fmt.Errorf("failed to find SMContext for seid %d", report.SEID)
 	}
 
+	// A 4G EPS session is paged via the MME; the bearer is re-established by the
+	// UE's Service Request (TS 23.401 §5.3.4.3). The 5G N2 resource-setup transfer
+	// below does not apply.
+	if smContext.IsEPS {
+		if s.mme == nil {
+			return fmt.Errorf("no MME registered to page EPS UE %s", smContext.Supi.IMSI())
+		}
+
+		return s.mme.Page(ctx, smContext.Supi.IMSI())
+	}
+
 	n2Pdu, err := ngap.BuildPDUSessionResourceSetupRequestTransfer(&smContext.PolicyData.Ambr, &smContext.PolicyData.QosData, smContext.Tunnel.DataPath.UpLinkTunnel.TEID, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv4, smContext.Tunnel.DataPath.UpLinkTunnel.N3IPv6, nasToNgapPDUSessionType(smContext.PDUSessionType))
 	if err != nil {
 		return fmt.Errorf("failed to build PDUSessionResourceSetupRequestTransfer: %v", err)

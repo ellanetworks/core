@@ -337,8 +337,8 @@ func TestHandleAuthenticationResponse_DeriveKamf_Success(t *testing.T) {
 			Mcc:           "001",
 			Mnc:           "01",
 			SupportedTACs: "[\"1\"]",
-			Integrity:     `["NIA1","NIA0"]`,
-			Ciphering:     `["NEA1","NEA0"]`,
+			Integrity:     `["SNOW3G","NULL"]`,
+			Ciphering:     `["SNOW3G","NULL"]`,
 		},
 	}, &FakeAusf{
 		AvKgAka: &ausf.AuthResult{

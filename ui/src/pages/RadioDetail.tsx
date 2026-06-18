@@ -151,14 +151,14 @@ const RadioDetail: React.FC = () => {
         ),
       },
       {
-        field: "pduSessions",
-        headerName: "PDU Sessions",
+        field: "sessions",
+        headerName: "Sessions",
         flex: 0.5,
         minWidth: 100,
         valueGetter: (_v, row: APISubscriberSummary) =>
-          row?.status?.num_pdu_sessions ?? 0,
+          row?.status?.num_sessions ?? 0,
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
-          const count = params.row?.status?.num_pdu_sessions ?? 0;
+          const count = params.row?.status?.num_sessions ?? 0;
           return (
             <Chip
               size="small"
@@ -176,9 +176,9 @@ const RadioDetail: React.FC = () => {
         flex: 0.8,
         minWidth: 120,
         valueGetter: (_v, row: APISubscriberSummary) =>
-          row?.status?.lastSeenAt ?? "",
+          row?.status?.last_seen_at ?? "",
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
-          const ts = params.row?.status?.lastSeenAt;
+          const ts = params.row?.status?.last_seen_at;
           return (
             <Box
               sx={{

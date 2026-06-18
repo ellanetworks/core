@@ -7,6 +7,8 @@ export type APIProfile = {
   name: string;
   ue_ambr_uplink: string;
   ue_ambr_downlink: string;
+  allow_4g: boolean;
+  allow_5g: boolean;
 };
 
 export type ListProfilesResponse = {
@@ -41,6 +43,8 @@ export async function createProfile(
   name: string,
   ueAmbrUplink: string,
   ueAmbrDownlink: string,
+  allow4g: boolean,
+  allow5g: boolean,
 ): Promise<void> {
   await apiFetchVoid(`/api/v1/profiles`, {
     method: "POST",
@@ -49,6 +53,8 @@ export async function createProfile(
       name,
       ue_ambr_uplink: ueAmbrUplink,
       ue_ambr_downlink: ueAmbrDownlink,
+      allow_4g: allow4g,
+      allow_5g: allow5g,
     },
   });
 }
@@ -58,6 +64,8 @@ export async function updateProfile(
   name: string,
   ueAmbrUplink: string,
   ueAmbrDownlink: string,
+  allow4g: boolean,
+  allow5g: boolean,
 ): Promise<void> {
   await apiFetchVoid(`/api/v1/profiles/${encodeURIComponent(name)}`, {
     method: "PUT",
@@ -65,6 +73,8 @@ export async function updateProfile(
     body: {
       ue_ambr_uplink: ueAmbrUplink,
       ue_ambr_downlink: ueAmbrDownlink,
+      allow_4g: allow4g,
+      allow_5g: allow5g,
     },
   });
 }

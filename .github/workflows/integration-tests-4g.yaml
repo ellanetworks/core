@@ -1,0 +1,67 @@
+name: Integration tests (4G)
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  integration-test-4g:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+        ip_version: [ipv4, ipv6, dualstack]
+    runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-24.04-arm') || 'ubuntu-24.04' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Docker registry
+        run: |
+          docker run -d -p 5000:5000 --name registry registry:2
+
+      - name: Download Ella Core image from GitHub Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-image-${{ matrix.arch }}
+
+      - name: Download Ella Core Tester image from GitHub Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-tester-image-${{ matrix.arch }}
+
+      - name: Load images into Docker
+        run: |
+          docker load -i ellacore_latest-${{ matrix.arch }}.tar
+          docker tag ella-core:latest localhost:5000/ella-core:latest
+          docker push localhost:5000/ella-core:latest
+          docker load -i ellacore_tester_latest-${{ matrix.arch }}.tar
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      # 4G core-tester scenarios: the in-house s1enb S1AP eNB simulator drives the
+      # MME over the ella-core-tester image, which is multi-arch and provides the
+      # IPv4, IPv6, and dualstack coverage across the full matrix. The real-radio
+      # (srsRAN) 4G tests run in integration-tests-4g-srsran instead, because their
+      # soft-radio image is amd64/IPv4 only.
+      - name: Run 4G core-tester integration tests
+        env:
+          INTEGRATION: "1"
+          IP_VERSION: ${{ matrix.ip_version }}
+          HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
+        run: |
+          go test ./integration/... -run 'TestIntegrationTester/s1enb' -timeout 30m -v
+
+      - name: Upload cluster logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-4g-cluster-logs-${{ matrix.arch }}-${{ matrix.ip_version }}
+          path: ${{ runner.temp }}/ha-cluster-logs
+          if-no-files-found: ignore
+          retention-days: 7

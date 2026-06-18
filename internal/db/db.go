@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// SPDX-FileCopyrightText: Ella Networks Inc.
-
 // Package db provides a simplistic ORM to communicate with an SQL database for storage
 package db
 
@@ -172,6 +170,9 @@ type Database struct {
 	getPolicyByLookupStmt *sqlair.Statement
 
 	getPolicyByProfileAndSliceStmt *sqlair.Statement
+	getDefaultPolicyByProfileStmt  *sqlair.Statement
+	clearDefaultPoliciesStmt       *sqlair.Statement
+	setDefaultPolicyStmt           *sqlair.Statement
 	listPoliciesByProfileStmt      *sqlair.Statement
 	listPoliciesByProfileAllStmt   *sqlair.Statement
 	createPolicyStmt               *sqlair.Statement
@@ -1345,6 +1346,9 @@ func (db *Database) PrepareStatements() error {
 		{&db.getPolicyStmt, fmt.Sprintf(getPolicyStmt, PoliciesTableName), []any{Policy{}}},
 		{&db.getPolicyByLookupStmt, fmt.Sprintf(getPolicyByLookupStmt, PoliciesTableName), []any{Policy{}}},
 		{&db.getPolicyByProfileAndSliceStmt, fmt.Sprintf(getPolicyByProfileAndSliceStmt, PoliciesTableName), []any{Policy{}}},
+		{&db.getDefaultPolicyByProfileStmt, fmt.Sprintf(getDefaultPolicyByProfileStmt, PoliciesTableName), []any{Policy{}}},
+		{&db.clearDefaultPoliciesStmt, fmt.Sprintf(clearDefaultPoliciesStmt, PoliciesTableName), []any{Policy{}}},
+		{&db.setDefaultPolicyStmt, fmt.Sprintf(setDefaultPolicyStmt, PoliciesTableName), []any{Policy{}}},
 		{&db.listPoliciesByProfileStmt, fmt.Sprintf(listPoliciesByProfilePagedStmt, PoliciesTableName), []any{ListArgs{}, Policy{}, NumItems{}}},
 		{&db.listPoliciesByProfileAllStmt, fmt.Sprintf(listPoliciesByProfileAllStmt, PoliciesTableName), []any{Policy{}}},
 		{&db.createPolicyStmt, fmt.Sprintf(createPolicyStmt, PoliciesTableName), []any{Policy{}}},
@@ -1561,6 +1565,17 @@ func (db *Database) Initialize(ctx context.Context) error {
 			return fmt.Errorf("failed to set supported TACs: %w", err)
 		}
 
+		// RAT-neutral NAS algorithm identities (AES preferred, SNOW3G fallback),
+		// shared by EPS (EEA/EIA) and 5G (NEA/NIA) — TS 24.301 §9.9.3.23 ≡
+		// TS 24.501 §9.11.3.34.
+		if err = initialOperator.SetCiphering([]string{"AES", "SNOW3G"}); err != nil {
+			return fmt.Errorf("failed to set default ciphering: %w", err)
+		}
+
+		if err = initialOperator.SetIntegrity([]string{"AES", "SNOW3G"}); err != nil {
+			return fmt.Errorf("failed to set default integrity: %w", err)
+		}
+
 		err = db.InitializeOperator(ctx, initialOperator)
 		if err != nil {
 			return fmt.Errorf("failed to initialize network configuration: %v", err)
@@ -1689,6 +1704,8 @@ func (db *Database) Initialize(ctx context.Context) error {
 			Name:           InitialProfileName,
 			UeAmbrUplink:   InitialProfileUeAmbrUplink,
 			UeAmbrDownlink: InitialProfileUeAmbrDownlink,
+			Allow4G:        true,
+			Allow5G:        true,
 		}
 		if err := db.CreateProfile(ctx, initialProfile); err != nil {
 			return fmt.Errorf("failed to create default profile: %v", err)
@@ -1712,6 +1729,11 @@ func (db *Database) Initialize(ctx context.Context) error {
 
 		if err := db.CreatePolicy(ctx, initialPolicy); err != nil {
 			return fmt.Errorf("failed to create default policy: %v", err)
+		}
+
+		// The default policy is the profile's default data-network binding.
+		if err := db.SetDefaultPolicy(ctx, profile.ID, initialPolicy.Name); err != nil {
+			return fmt.Errorf("failed to set default policy: %v", err)
 		}
 	}
 

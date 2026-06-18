@@ -263,6 +263,22 @@ func (f *fakeAMF) N2TransferOrPage(_ context.Context, supi etsi.SUPI, pduSession
 	return f.err
 }
 
+// fakeMME records 4G paging calls, standing in for the MME's smf.MMECallback.
+type fakeMME struct {
+	mu        sync.Mutex
+	pagedIMSI []string
+	err       error
+}
+
+func (f *fakeMME) Page(_ context.Context, imsi string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.pagedIMSI = append(f.pagedIMSI, imsi)
+
+	return f.err
+}
+
 // --- Test helpers ---
 
 const (

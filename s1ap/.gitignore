@@ -1,0 +1,6 @@
+# Compiled binary (from `go build ./...` on cmd/s1ap)
+/s1ap
+
+# Test artifacts
+*.test
+*.out

@@ -25,6 +25,7 @@ import (
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/mme"
 	"github.com/ellanetworks/core/internal/smf"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -89,6 +90,7 @@ type UpgradeConfig struct {
 	DB                  *db.Database
 	Sessions            smf.SessionQuerier
 	AMF                 *amf.AMF
+	MME                 *mme.MME
 	BGP                 *bgp.BGPService
 	EmbedFS             fs.FS
 	RegisterExtraRoutes func(*http.ServeMux)
@@ -231,6 +233,7 @@ func (s *Server) Upgrade(ctx context.Context, opts UpgradeConfig) error {
 		FrontendFS:   opts.EmbedFS,
 		Sessions:     opts.Sessions,
 		AMF:          opts.AMF,
+		MME:          opts.MME,
 		BGP:          opts.BGP,
 		BcryptCost:   bcrypt.DefaultCost,
 		Ready:        &s.ready,

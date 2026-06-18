@@ -112,6 +112,12 @@ func (t *TMSI) String() string {
 	return fmt.Sprintf("%08x", t.tmsi)
 }
 
+// Uint32 returns the 32-bit TMSI value, for building identities (e.g. the 4G
+// GUTI's M-TMSI) that carry it as a plain integer.
+func (t *TMSI) Uint32() uint32 {
+	return t.tmsi
+}
+
 // TmsiAllocator allocates and frees TMSI. It keeps
 // track internally of allocated TMSI. Generated TMSIs
 // are round-robined over the 10 least significant bits to spread

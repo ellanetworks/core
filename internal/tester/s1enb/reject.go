@@ -1,0 +1,86 @@
+// SPDX-FileCopyrightText: Ella Networks Inc.
+// SPDX-License-Identifier: BUSL-1.1
+
+package s1enb
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/ellanetworks/core/nas/eps"
+)
+
+// AttachExpectReject sends an Attach Request and expects the MME to answer with
+// an ATTACH REJECT rather than authenticating (e.g. an unknown IMSI, TS 24.301
+// §5.5.1.2.5). It returns the EMM cause carried in the reject.
+func (e *ENB) AttachExpectReject(ue *UE, timeout time.Duration) (uint8, error) {
+	enbUEID := e.AllocateENBUEID()
+
+	attachReq, err := ue.buildAttachRequest()
+	if err != nil {
+		return 0, err
+	}
+
+	if err := e.SendInitialUEMessage(enbUEID, attachReq); err != nil {
+		return 0, err
+	}
+
+	downlink, _, err := e.WaitForDownlinkNAS(timeout)
+	if err != nil {
+		return 0, fmt.Errorf("await Attach Reject: %w", err)
+	}
+
+	reject, err := eps.ParseAttachReject(downlink)
+	if err != nil {
+		mt, _ := eps.PeekMessageType(downlink)
+		return 0, fmt.Errorf("expected Attach Reject, got message type %#x: %w", mt, err)
+	}
+
+	return reject.Cause, nil
+}
+
+// AttachExpectAuthReject sends an Attach Request, answers the Authentication
+// Request, and expects an AUTHENTICATION REJECT — the MME's response when the
+// RES does not match (e.g. a wrong key, TS 24.301 §5.4.2.5). ue must hold
+// credentials that do not match the provisioned subscriber.
+func (e *ENB) AttachExpectAuthReject(ue *UE, timeout time.Duration) error {
+	enbUEID := e.AllocateENBUEID()
+
+	attachReq, err := ue.buildAttachRequest()
+	if err != nil {
+		return err
+	}
+
+	if err := e.SendInitialUEMessage(enbUEID, attachReq); err != nil {
+		return err
+	}
+
+	authNAS, mmeUEID, err := e.WaitForDownlinkNAS(timeout)
+	if err != nil {
+		return fmt.Errorf("await Authentication Request: %w", err)
+	}
+
+	if mt, err := eps.PeekMessageType(authNAS); err != nil || mt != eps.MsgAuthenticationRequest {
+		return fmt.Errorf("expected Authentication Request, got message type %#x (err %v)", mt, err)
+	}
+
+	authResp, err := ue.handleAuthenticationRequest(authNAS)
+	if err != nil {
+		return err
+	}
+
+	if err := e.SendUplinkNASTransport(mmeUEID, enbUEID, authResp); err != nil {
+		return err
+	}
+
+	downlink, _, err := e.WaitForDownlinkNAS(timeout)
+	if err != nil {
+		return fmt.Errorf("await Authentication Reject: %w", err)
+	}
+
+	if mt, err := eps.PeekMessageType(downlink); err != nil || mt != eps.MsgAuthenticationReject {
+		return fmt.Errorf("expected Authentication Reject, got message type %#x (err %v)", mt, err)
+	}
+
+	return nil
+}

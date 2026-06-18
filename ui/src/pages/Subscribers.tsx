@@ -19,6 +19,7 @@ import {
 } from "@/queries/subscribers";
 import CreateSubscriberModal from "@/components/CreateSubscriberModal";
 import EmptyState from "@/components/EmptyState";
+import AccessChip from "@/components/AccessChip";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { MAX_WIDTH, PAGE_PADDING_X } from "@/utils/layout";
@@ -176,14 +177,31 @@ const SubscriberPage: React.FC = () => {
         },
       },
       {
-        field: "pduSessions",
-        headerName: "PDU Sessions",
+        field: "access",
+        headerName: "Access",
+        flex: 0.4,
+        minWidth: 90,
+        valueGetter: (_v, row: APISubscriberSummary) =>
+          row?.status?.radio_access_type ?? "",
+        renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
+          const rat = params.row?.status?.radio_access_type;
+          if (!rat) return "—";
+          return (
+            <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+              <AccessChip label={rat} />
+            </Box>
+          );
+        },
+      },
+      {
+        field: "sessions",
+        headerName: "Sessions",
         flex: 0.5,
         minWidth: 100,
         valueGetter: (_v, row: APISubscriberSummary) =>
-          row?.status?.num_pdu_sessions ?? 0,
+          row?.status?.num_sessions ?? 0,
         renderCell: (params: GridRenderCellParams<APISubscriberSummary>) => {
-          const count = params.row?.status?.num_pdu_sessions ?? 0;
+          const count = params.row?.status?.num_sessions ?? 0;
           return (
             <Chip
               size="small"

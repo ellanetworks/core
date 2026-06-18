@@ -7,6 +7,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"testing"
+
+	"github.com/ellanetworks/core/internal/udm"
 )
 
 func TestDeriveXresStar(t *testing.T) {
@@ -16,7 +18,7 @@ func TestDeriveXresStar(t *testing.T) {
 	res, _ := hex.DecodeString("0102030405060708")
 	snName := "5G:mnc001.mcc001.3gppnetwork.org"
 
-	xresStar, err := deriveXresStar(ck, ik, snName, rand, res)
+	xresStar, err := udm.DeriveXresStar(ck, ik, snName, rand, res)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -26,7 +28,7 @@ func TestDeriveXresStar(t *testing.T) {
 	}
 
 	// Calling again with same inputs must produce the same output (deterministic).
-	xresStar2, err := deriveXresStar(ck, ik, snName, rand, res)
+	xresStar2, err := udm.DeriveXresStar(ck, ik, snName, rand, res)
 	if err != nil {
 		t.Fatalf("unexpected error on second call: %v", err)
 	}
@@ -44,12 +46,12 @@ func TestDeriveXresStar_DifferentInputsProduceDifferentOutputs(t *testing.T) {
 	res2, _ := hex.DecodeString("0807060504030201")
 	snName := "5G:mnc001.mcc001.3gppnetwork.org"
 
-	out1, err := deriveXresStar(ck, ik, snName, rand, res1)
+	out1, err := udm.DeriveXresStar(ck, ik, snName, rand, res1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	out2, err := deriveXresStar(ck, ik, snName, rand, res2)
+	out2, err := udm.DeriveXresStar(ck, ik, snName, rand, res2)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -65,7 +67,7 @@ func TestDeriveKausf(t *testing.T) {
 	sqnXorAK, _ := hex.DecodeString("aabbccddeeff")
 	snName := "5G:mnc001.mcc001.3gppnetwork.org"
 
-	kausf, err := deriveKausf(ck, ik, snName, sqnXorAK)
+	kausf, err := udm.DeriveKausf(ck, ik, snName, sqnXorAK)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -75,7 +77,7 @@ func TestDeriveKausf(t *testing.T) {
 	}
 
 	// Deterministic
-	kausf2, err := deriveKausf(ck, ik, snName, sqnXorAK)
+	kausf2, err := udm.DeriveKausf(ck, ik, snName, sqnXorAK)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

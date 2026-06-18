@@ -1,8 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
 
-// SPDX-FileCopyrightText: Ella Networks Inc.
-
 package db
 
 import (
@@ -33,7 +31,7 @@ const (
 	updateOperatorSPNStmtConst                = "UPDATE %s SET spnFullName=$Operator.spnFullName, spnShortName=$Operator.spnShortName WHERE id=1"
 	updateOperatorAMFIdentityStmtConst        = "UPDATE %s SET amfRegionID=$Operator.amfRegionID, amfSetID=$Operator.amfSetID WHERE id=1"
 	updateOperatorClusterIDStmtConst          = "UPDATE %s SET clusterID=$Operator.clusterID WHERE id=1"
-	initializeOperatorStmt                    = "INSERT INTO %s (mcc, mnc, operatorCode, supportedTACs) VALUES ($Operator.mcc, $Operator.mnc, $Operator.operatorCode, $Operator.supportedTACs)"
+	initializeOperatorStmt                    = "INSERT INTO %s (mcc, mnc, operatorCode, supportedTACs, ciphering, integrity) VALUES ($Operator.mcc, $Operator.mnc, $Operator.operatorCode, $Operator.supportedTACs, $Operator.ciphering, $Operator.integrity)"
 )
 
 type Operator struct {
@@ -42,8 +40,8 @@ type Operator struct {
 	Mnc           string `db:"mnc"`
 	OperatorCode  string `db:"operatorCode"`
 	SupportedTACs string `db:"supportedTACs"` // JSON-encoded list of TAC strings
-	Ciphering     string `db:"ciphering"`     // JSON-encoded list of algorithm names, e.g. '["NEA2","NEA1"]'
-	Integrity     string `db:"integrity"`     // JSON-encoded list of algorithm names, e.g. '["NIA2","NIA1"]'
+	Ciphering     string `db:"ciphering"`     // JSON list of RAT-neutral algorithm names, e.g. '["AES","SNOW3G"]'
+	Integrity     string `db:"integrity"`     // JSON list of RAT-neutral algorithm names, e.g. '["AES","SNOW3G"]'
 	SpnFullName   string `db:"spnFullName"`
 	SpnShortName  string `db:"spnShortName"`
 	AmfRegionID   int    `db:"amfRegionID"`

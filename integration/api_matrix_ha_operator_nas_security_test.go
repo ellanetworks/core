@@ -15,8 +15,8 @@ func runOperatorNASSecurityHAMatrix(ctx context.Context, t *testing.T, h *haMatr
 	nodes := h.Clients
 
 	baseline := &client.UpdateOperatorNASSecurityOptions{
-		Ciphering: []string{"NEA0", "NEA1", "NEA2"},
-		Integrity: []string{"NIA1", "NIA2"},
+		Ciphering: []string{"NULL", "SNOW3G", "AES"},
+		Integrity: []string{"SNOW3G", "AES"},
 	}
 
 	if err := h.Leader.UpdateOperatorNASSecurity(ctx, baseline); err != nil {
@@ -40,7 +40,7 @@ func runOperatorNASSecurityHAMatrix(ctx context.Context, t *testing.T, h *haMatr
 			field:  "ciphering_order",
 			writer: 0,
 			opts: &client.UpdateOperatorNASSecurityOptions{
-				Ciphering: []string{"NEA2", "NEA1", "NEA0"},
+				Ciphering: []string{"AES", "SNOW3G", "NULL"},
 				Integrity: baseline.Integrity,
 			},
 		},
@@ -49,15 +49,15 @@ func runOperatorNASSecurityHAMatrix(ctx context.Context, t *testing.T, h *haMatr
 			writer: 1,
 			opts: &client.UpdateOperatorNASSecurityOptions{
 				Ciphering: baseline.Ciphering,
-				Integrity: []string{"NIA2", "NIA1", "NIA0"},
+				Integrity: []string{"AES", "SNOW3G", "NULL"},
 			},
 		},
 		{
 			field:  "single_algorithm",
 			writer: 2,
 			opts: &client.UpdateOperatorNASSecurityOptions{
-				Ciphering: []string{"NEA0"},
-				Integrity: []string{"NIA0"},
+				Ciphering: []string{"NULL"},
+				Integrity: []string{"NULL"},
 			},
 		},
 	}

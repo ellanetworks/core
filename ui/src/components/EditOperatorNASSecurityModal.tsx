@@ -40,41 +40,45 @@ interface AlgorithmEntry {
   enabled: boolean;
 }
 
-const ALL_CIPHERING = ["NEA0", "NEA1", "NEA2"];
-const ALL_INTEGRITY = ["NIA0", "NIA1", "NIA2"];
+// NAS security algorithms use the RAT-neutral identities shared by 4G (EEA/EIA)
+// and 5G (NEA/NIA): NULL, SNOW3G, AES.
+const ALL_CIPHERING = ["NULL", "SNOW3G", "AES"];
+const ALL_INTEGRITY = ["NULL", "SNOW3G", "AES"];
 
-const ALGORITHM_DESCRIPTIONS: Record<string, React.ReactNode> = {
-  NEA0: (
-    <>
-      NEA0 — Null{" "}
-      <Box component="span" sx={{ color: "warning.main", fontWeight: 500 }}>
-        (no encryption)
-      </Box>
-    </>
-  ),
-  NEA1: "NEA1 — SNOW 3G",
-  NEA2: "NEA2 — AES",
-  NIA0: (
-    <>
-      NIA0 — Null{" "}
-      <Box component="span" sx={{ color: "warning.main", fontWeight: 500 }}>
-        (no protection)
-      </Box>
-    </>
-  ),
-  NIA1: "NIA1 — SNOW 3G",
-  NIA2: "NIA2 — AES",
+// describeAlgorithm renders an algorithm with its 3GPP identifiers for the given
+// function (ciphering or integrity) across both RATs: 4G EEA/EIA (TS 24.301
+// §9.9.3.23) and 5G NEA/NIA (TS 24.501 §9.11.3.34).
+const describeAlgorithm = (name: string, kind: string): React.ReactNode => {
+  const cipher = kind === "ciphering";
+  const fourG = { NULL: "EEA0", SNOW3G: "128-EEA1", AES: "128-EEA2" }[name];
+  const fiveG = { NULL: "NEA0", SNOW3G: "128-NEA1", AES: "128-NEA2" }[name];
+  const ids =
+    fourG && fiveG
+      ? ` — ${cipher ? fourG : fourG.replace("EEA", "EIA")} (4G) / ${
+          cipher ? fiveG : fiveG.replace("NEA", "NIA")
+        } (5G)`
+      : "";
+
+  if (name === "NULL") {
+    return (
+      <>
+        NULL{ids}{" "}
+        <Box component="span" sx={{ color: "warning.main", fontWeight: 500 }}>
+          (no {cipher ? "encryption" : "integrity"})
+        </Box>
+      </>
+    );
+  }
+
+  return `${name === "SNOW3G" ? "SNOW 3G" : name}${ids}`;
 };
 
-const isNullAlgorithm = (name: string) => name === "NEA0" || name === "NIA0";
+const isNullAlgorithm = (name: string) => name === "NULL";
 
 const CANONICAL_ORDER: Record<string, number> = {
-  NEA2: 0,
-  NEA1: 1,
-  NEA0: 2,
-  NIA2: 0,
-  NIA1: 1,
-  NIA0: 2,
+  AES: 0,
+  SNOW3G: 1,
+  NULL: 2,
 };
 
 const buildEntries = (enabled: string[], all: string[]): AlgorithmEntry[] => {
@@ -270,7 +274,7 @@ const EditOperatorNASSecurityModal: React.FC<
                   />
                 </ListItemIcon>
                 <ListItemText
-                  primary={ALGORITHM_DESCRIPTIONS[entry.name] || entry.name}
+                  primary={describeAlgorithm(entry.name, listId)}
                   slotProps={{
                     primary: {
                       variant: "body2",

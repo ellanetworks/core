@@ -34,11 +34,13 @@ import (
 	"github.com/ellanetworks/core/internal/jobs"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/mme"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/ellanetworks/core/internal/sessions"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/supportbundle"
 	"github.com/ellanetworks/core/internal/tracing"
+	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/internal/upf"
 	"github.com/ellanetworks/core/internal/upf/bpfdump"
 	"github.com/ellanetworks/core/version"
@@ -48,6 +50,12 @@ import (
 )
 
 var getInterfaceIPs = config.GetInterfaceIPs
+
+// mmeReconcileBackstop is the period of the MME data-network reconciler's
+// safety sweep, matching the AMF session reconciler's backstop. It recovers
+// from a dropped/coalesced changefeed wakeup or a UE that was transitioning
+// when a data-network change applied.
+const mmeReconcileBackstop = 5 * time.Minute
 
 type RuntimeConfig struct {
 	ConfigPath          string
@@ -469,7 +477,16 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	amfInstance.NAS = &nasAdapter{amf: amfInstance}
 	smfAMF.amf = amfInstance
 
-	amf.RegisterMetrics(amfInstance)
+	// 4G MME control-plane NF; constructed here so the API can expose connected
+	// eNBs. Its S1-MME listener is started after the AMF's NGAP server below. It
+	// consumes the shared credential authority (over the same subscriber store as
+	// the AUSF) for EPS-AKA vectors and the shared SQN.
+	mmeInstance := mme.New(udm.New(ausfStore, keyResolver), dbInstance, smfInstance)
+
+	// Let the SMF page idle 4G UEs through the MME when downlink data arrives.
+	smfInstance.SetMME(mmeInstance)
+
+	amf.RegisterMetrics(amfInstance, mmeInstance.CountENBs, mmeInstance.CountRegisteredSubscribers)
 	gmm.RegisterMetrics()
 	ngap.RegisterMetrics()
 
@@ -488,12 +505,40 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	}())
 	sessionReconciler.Start()
 
+	// 4G counterpart of the session reconciler: propagate data-network
+	// reconfiguration to active EPS bearers. On a session_reconcile change the
+	// MME modifies or reactivates any bearer whose data-network parameters changed
+	// (TS 24.301 §6.4.2 / §6.4.4.2); the AMF reconciler above handles 5G PDU
+	// sessions. A periodic backstop sweep mirrors the AMF reconciler's, recovering
+	// from a dropped or coalesced changefeed wakeup and from UEs that were
+	// transitioning (mid-attach, idle) when the change applied.
+	mmeReconcileWakeup, stopMmeReconcileWakeup := dbInstance.Changefeed().Wakeup(db.TopicSessionReconcile)
+
+	go func() {
+		defer stopMmeReconcileWakeup()
+
+		ticker := time.NewTicker(mmeReconcileBackstop)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-mmeReconcileWakeup:
+				mmeInstance.ReconcileDataNetwork(ctx)
+			case <-ticker.C:
+				mmeInstance.ReconcileDataNetwork(ctx)
+			}
+		}
+	}()
+
 	// --- Phase B: upgrade the API server to serve all routes now that
 	// the cluster is formed, settings are seeded, and NFs are running. ---
 	if err := apiServer.Upgrade(ctx, api.UpgradeConfig{
 		DB:                  dbInstance,
 		Sessions:            smfInstance,
 		AMF:                 amfInstance,
+		MME:                 mmeInstance,
 		BGP:                 bgpService,
 		EmbedFS:             rc.EmbedFS,
 		RegisterExtraRoutes: rc.RegisterExtraRoutes,
@@ -527,6 +572,12 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	err = sctpServer.ListenAndServe(ctx, cfg.Interfaces.N2.Address, cfg.Interfaces.N2.Port, interfaceName)
 	if err != nil {
 		return fmt.Errorf("couldn't start AMF: %w", err)
+	}
+
+	// 4G S1-MME control plane. Bind the RAN-facing interface (same address as
+	// N2) on the standard S1AP port.
+	if err := mmeInstance.Start(ctx, cfg.Interfaces.N2.Address, mme.DefaultS1MMEPort); err != nil {
+		return fmt.Errorf("couldn't start MME: %w", err)
 	}
 
 	supportbundle.AMFDumper = func(ctx context.Context) (any, error) {
@@ -586,6 +637,13 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		amfCtx, amfCancel := context.WithTimeout(context.Background(), stepTimeout)
 		closeAMF(amfCtx, amfInstance, sctpServer)
 		amfCancel()
+
+		// 3b. Shut down the 4G S1-MME server.
+		logger.EllaLog.Info("Shutting down MME")
+
+		mmeCtx, mmeCancel := context.WithTimeout(context.Background(), stepTimeout)
+		mmeInstance.Shutdown(mmeCtx)
+		mmeCancel()
 
 		// 4. Stop the BGP reconciler, then the BGP speaker. The reconciler
 		// stops first so no more Announce/Withdraw calls land on a

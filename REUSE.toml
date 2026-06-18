@@ -89,3 +89,11 @@ path = [
 precedence = "aggregate"
 SPDX-FileCopyrightText = "Ella Networks Inc."
 SPDX-License-Identifier = "Apache-2.0"
+
+# Test fixtures and Go fuzz corpora (Ella-authored): captured byte vectors and
+# seed inputs that can't carry a comment header.
+[[annotations]]
+path = ["**/testdata/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Ella Networks Inc."
+SPDX-License-Identifier = "Apache-2.0"

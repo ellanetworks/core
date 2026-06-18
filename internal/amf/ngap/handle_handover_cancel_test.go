@@ -17,7 +17,7 @@ import (
 // TestHandleHandoverCancel_UnknownRanUeNgapID verifies that a HandoverCancel
 // with a RAN_UE_NGAP_ID that doesn't match any existing UE context is handled
 // gracefully — no panic, and an ErrorIndication is sent.
-// Regression test inspired by open5gs/open5gs#4378.
+// Regression test.
 func TestHandleHandoverCancel_UnknownRanUeNgapID(t *testing.T) {
 	ran := newTestRadio()
 	sender := ran.NGAPSender.(*FakeNGAPSender)
