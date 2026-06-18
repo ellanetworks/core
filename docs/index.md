@@ -25,7 +25,7 @@ Use Ella Core where you need 5G connectivity: in a factory, a warehouse, a farm,
 - **Backup and Restore**: Backup and restore your data in 1 click.
 - **5G Compliant**: Ella Core implements 3GPP-standard interfaces and has been validated with multiple 5G radios, including integrated and software-defined RANs, commercial phones and devices. It is 5G RedCap compliant for IoT deployments.
 - **Audit Logs**: At any moment, keep track of who did what and when on your network.
-- **Open Source**: Ella Core is open source and available under the Apache 2.0 license.
+- **Source Available**: Ella Core is available under the Business Source License 1.1 (BUSL-1.1); each release converts to the Apache 2.0 license four years after publication.
 
 ## In this documentation
 

@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BUSL-1.1
 
 // Package pkiagent runs on every cluster node. It owns the local
 // self-signed cluster certificate: generates it at first boot,

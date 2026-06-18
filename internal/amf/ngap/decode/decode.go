@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BUSL-1.1
 
 // Package decode converts free5gc NGAP message types into validated Go
 // value types so handlers cannot deref nil mandatory IEs. Handlers in

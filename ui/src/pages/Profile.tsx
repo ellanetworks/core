@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BUSL-1.1
 
 import React, { useEffect, useState } from "react";
 import { Box, Typography, Skeleton } from "@mui/material";

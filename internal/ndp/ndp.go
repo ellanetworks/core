@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BUSL-1.1
 //
 // Package ndp provides pure-Go helpers for IPv6 Neighbor Discovery Protocol
 // (NDP) message parsing and construction, specifically Router Solicitations

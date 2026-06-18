@@ -1,11 +1,13 @@
-/**
- * SPDX-License-Identifier: Apache-2.0
- * SPDX-FileCopyrightText: Ella Networks Inc.
- * © Copyright 2019 The Free5GC Authors
- * © Copyright 2025 Free Mobile SAS
- *
- * Modified by Ella Networks.
- */
+/*
+*
+// Modified by Ella Networks Inc.
+  - SPDX-License-Identifier: BUSL-1.1
+  - SPDX-FileCopyrightText: Ella Networks Inc.
+  - © Copyright 2019 The Free5GC Authors
+  - © Copyright 2025 Free Mobile SAS
+    *
+  - Modified by Ella Networks.
+*/
 package sidf
 
 import (

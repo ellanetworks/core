@@ -1,10 +1,12 @@
-/**
- * SPDX-License-Identifier: Apache-2.0
- * SPDX-FileCopyrightText: Ella Networks Inc.
- * © Copyright 2023 Hewlett Packard Enterprise Development LP
- *
- * Modified by Ella Networks.
- */
+/*
+*
+// Modified by Ella Networks Inc.
+  - SPDX-License-Identifier: BUSL-1.1
+  - SPDX-FileCopyrightText: Ella Networks Inc.
+  - © Copyright 2023 Hewlett Packard Enterprise Development LP
+    *
+  - Modified by Ella Networks.
+*/
 package ue
 
 import (

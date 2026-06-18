@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: BUSL-1.1
 
 import { Box, Container, Typography, Link } from "@mui/material";
 import { MAX_WIDTH } from "@/utils/layout";

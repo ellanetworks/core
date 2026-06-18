@@ -1,6 +1,6 @@
 # Contributing
 
-Ella Core is an open-source project and we welcome contributions from the community. This document provides guidelines for contributing to the project. Contributions to Ella Core can be made in the form of code, documentation, bug reports, feature requests, and feedback. We will judge contributions based on their quality, relevance, and alignment with the project's tenets.
+We welcome contributions from the community. This document provides guidelines for contributing to the project. Contributions to Ella Core can be made in the form of code, documentation, bug reports, feature requests, and feedback. We will judge contributions based on their quality, relevance, and alignment with the project's tenets.
 
 ## Getting Started
 
@@ -27,7 +27,7 @@ Build the image and push it to the local registry
 
 ```shell
 rockcraft pack
-sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v1.11.1_amd64.rock docker-daemon:ella-core:latest
+sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v1.12.0_amd64.rock docker-daemon:ella-core:latest
 docker tag ella-core:latest localhost:5000/ella-core:latest
 docker push localhost:5000/ella-core:latest
 ```
@@ -92,7 +92,7 @@ uvx --with-requirements requirements-docs.txt mkdocs build
 ```shell
 sudo snap install rockcraft --classic --edge
 rockcraft pack -v
-sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v1.11.1_amd64.rock docker-daemon:ella-core:latest
+sudo rockcraft.skopeo --insecure-policy copy oci-archive:ella-core_v1.12.0_amd64.rock docker-daemon:ella-core:latest
 docker run ella-core:latest
 ```
 
