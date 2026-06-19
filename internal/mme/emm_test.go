@@ -98,7 +98,7 @@ func TestAttachRecoveryAfterMMERestart(t *testing.T) {
 	// context: SHT|PD, 4-octet MAC, sequence, then the inner Attach Request.
 	nas := append([]byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x04}, attachBytes...)
 
-	m.handleNAS(ue, nas)
+	m.handleNAS(context.Background(), ue, nas)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one downlink (Identity Request), got %d", len(cc.sent))
@@ -136,7 +136,7 @@ func TestIdentityResponseRecoveryAfterMMERestart(t *testing.T) {
 	// Integrity-protected envelope (SHT=1) with a MAC the MME cannot reproduce.
 	nas := append([]byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x21}, idResp...)
 
-	m.handleNAS(ue, nas)
+	m.handleNAS(context.Background(), ue, nas)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one downlink (Authentication Request), got %d", len(cc.sent))
@@ -205,7 +205,7 @@ func TestAttachReusesContextForNativeGUTI(t *testing.T) {
 
 	cc := &captureConn{}
 	fresh := m.newUe(cc, 9)
-	m.handleNAS(fresh, wire)
+	m.handleNAS(context.Background(), fresh, wire)
 
 	if fresh.authVector != nil {
 		t.Fatal("authentication was not skipped on a valid native GUTI")
@@ -237,7 +237,7 @@ func TestAttachNativeGUTIBadMACFallsBackToAuth(t *testing.T) {
 
 	cc := &captureConn{}
 	fresh := m.newUe(cc, 9)
-	m.handleNAS(fresh, wire)
+	m.handleNAS(context.Background(), fresh, wire)
 
 	if _, ok := m.lookupUe(oldID); !ok {
 		t.Fatal("context was removed despite a MAC mismatch")
@@ -273,7 +273,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleNAS(ue, attachBytes)
+	m.handleNAS(context.Background(), ue, attachBytes)
 
 	// MME → Authentication Request.
 	if len(cc.sent) != 1 {
@@ -301,7 +301,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleNAS(ue, authResp)
+	m.handleNAS(context.Background(), ue, authResp)
 
 	// MME → Security Mode Command (integrity protected with the new context).
 	if len(cc.sent) != 2 {
@@ -350,7 +350,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleNAS(ue, smCompleteWire)
+	m.handleNAS(context.Background(), ue, smCompleteWire)
 
 	if !ue.secured {
 		t.Fatal("NAS security context not established after Security Mode Complete")
@@ -451,7 +451,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleNAS(ue, completeWire)
+	m.handleNAS(context.Background(), ue, completeWire)
 
 	if ue.emmState != EMMRegistered {
 		t.Fatal("UE not EMM-REGISTERED after Attach Complete")
@@ -473,7 +473,7 @@ func TestSecurityModeRejectReleasesUE(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleNAS(ue, plain)
+	m.handleNAS(context.Background(), ue, plain)
 
 	if !ue.releasing {
 		t.Fatal("UE not released after Security Mode Reject")

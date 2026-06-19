@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"net/netip"
 	"testing"
 
@@ -123,7 +124,7 @@ func TestPathSwitchSwitchesDownlinkAndAcks(t *testing.T) {
 	}
 
 	target := &captureConn{}
-	m.handlePathSwitchRequest(target, pathSwitchValue(t, samplePathSwitchRequest(ue)))
+	m.handlePathSwitchRequest(context.Background(), target, pathSwitchValue(t, samplePathSwitchRequest(ue)))
 
 	// Downlink switched to the new eNB S1-U endpoint.
 	wantFTEID := models.FTEID{TEID: 0x99, Addr: netip.AddrFrom4([4]byte{10, 4, 0, 2})}
@@ -175,7 +176,7 @@ func TestPathSwitchUnknownUEFails(t *testing.T) {
 	}
 
 	target := &captureConn{}
-	m.handlePathSwitchRequest(target, pathSwitchValue(t, req))
+	m.handlePathSwitchRequest(context.Background(), target, pathSwitchValue(t, req))
 
 	if target.count() != 1 {
 		t.Fatalf("expected one downlink (Failure), got %d", target.count())
@@ -193,7 +194,7 @@ func TestPathSwitchNoSecurityContextFails(t *testing.T) {
 	ue := m.newUe(&captureConn{}, 7) // not secured
 
 	target := &captureConn{}
-	m.handlePathSwitchRequest(target, pathSwitchValue(t, samplePathSwitchRequest(ue)))
+	m.handlePathSwitchRequest(context.Background(), target, pathSwitchValue(t, samplePathSwitchRequest(ue)))
 
 	if target.count() != 1 {
 		t.Fatalf("expected one downlink (Failure), got %d", target.count())
@@ -220,7 +221,7 @@ func TestPathSwitchDuplicateERABFails(t *testing.T) {
 	req.ERABToBeSwitchedDL = append(req.ERABToBeSwitchedDL, switchedDLItem())
 
 	target := &captureConn{}
-	m.handlePathSwitchRequest(target, pathSwitchValue(t, req))
+	m.handlePathSwitchRequest(context.Background(), target, pathSwitchValue(t, req))
 
 	if fail := parsePathSwitchFailure(t, target.sent[0]); fail.Cause != causeMultipleERABInstances {
 		t.Fatalf("cause = %+v, want multiple-E-RAB-ID-instances", fail.Cause)
@@ -242,7 +243,7 @@ func TestPathSwitchUnknownERABFails(t *testing.T) {
 	req.ERABToBeSwitchedDL[0].ERABID = s1ap.ERABID(defaultERABID + 1) // not the default bearer
 
 	target := &captureConn{}
-	m.handlePathSwitchRequest(target, pathSwitchValue(t, req))
+	m.handlePathSwitchRequest(context.Background(), target, pathSwitchValue(t, req))
 
 	if fail := parsePathSwitchFailure(t, target.sent[0]); fail.Cause != causePathSwitchUPFailure {
 		t.Fatalf("cause = %+v, want transport-resource-unavailable", fail.Cause)
@@ -268,7 +269,7 @@ func TestPathSwitchCapabilityMismatchReplaysStored(t *testing.T) {
 	req.UESecurityCapabilities = s1ap.UESecurityCapabilities{EncryptionAlgorithms: 0x8000, IntegrityProtectionAlgorithms: 0x8000}
 
 	target := &captureConn{}
-	m.handlePathSwitchRequest(target, pathSwitchValue(t, req))
+	m.handlePathSwitchRequest(context.Background(), target, pathSwitchValue(t, req))
 
 	ack := parsePathSwitchAck(t, target.sent[0])
 

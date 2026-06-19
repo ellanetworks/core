@@ -77,7 +77,7 @@ Ella Core supports distributed tracing using [OpenTelemetry](https://opentelemet
 
 Traces are collected for the following components:
 
- - **NGAP**: Traces for NGAP message handling between gNodeBs and Ella Core.
+ - **NGAP/S1AP**: Traces for NGAP (5G) and S1AP (4G) message handling between radios and Ella Core.
  - **API**: Traces for HTTP requests to the REST API.
 
 For more information on configuring tracing in Ella Core, refer to the [Configuration File](config_file.md) documentation.

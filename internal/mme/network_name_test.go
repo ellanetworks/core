@@ -31,7 +31,7 @@ func TestSendNetworkName(t *testing.T) {
 	m := New(udm.New(newFakeCredStore(), noopKeyResolver), spnBearerStore{}, &fakeSessionManager{})
 	ue, cc := securedUE(t, m)
 
-	m.sendNetworkName(ue)
+	m.sendNetworkName(context.Background(), ue)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one EMM INFORMATION downlink, got %d", len(cc.sent))
@@ -56,7 +56,7 @@ func TestSendNetworkNameNoSPN(t *testing.T) {
 	m := newTestMME(t) // fakeBearerStore has no SPN configured
 	ue, cc := securedUE(t, m)
 
-	m.sendNetworkName(ue)
+	m.sendNetworkName(context.Background(), ue)
 
 	if len(cc.sent) != 0 {
 		t.Fatalf("expected no downlink without an SPN, got %d", len(cc.sent))

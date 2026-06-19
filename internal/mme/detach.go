@@ -35,7 +35,7 @@ func (m *MME) lookupUeByIMSI(imsi string) *UeContext {
 // to the attached UE for imsi, if any. It is the 4G counterpart of the AMF's
 // network-initiated deregistration, invoked when a subscriber is deleted. The UE
 // replies with Detach Accept, on which the S1 context is released and removed.
-func (m *MME) DetachSubscriber(_ context.Context, imsi string) {
+func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 	ue := m.lookupUeByIMSI(imsi)
 	if ue == nil {
 		return
@@ -45,14 +45,14 @@ func (m *MME) DetachSubscriber(_ context.Context, imsi string) {
 		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", imsi))
 
 	ue.emmState = EMMDeregistered
-	m.sendDownlinkProtected(ue, &eps.DetachRequestNetwork{TypeOfDetach: detachTypeReattachNotRequired})
+	m.sendDownlinkProtected(ctx, ue, &eps.DetachRequestNetwork{TypeOfDetach: detachTypeReattachNotRequired})
 }
 
 // onDetachAccept completes a network-initiated detach: the UE has acknowledged,
 // so release and delete its context (the UE is already EMM-DEREGISTERED).
-func (m *MME) onDetachAccept(ue *UeContext) {
+func (m *MME) onDetachAccept(ctx context.Context, ue *UeContext) {
 	logger.MmeLog.Info("Detach Accept", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
-	m.releaseUEContext(ue, causeNASDetach)
+	m.releaseUEContext(ctx, ue, causeNASDetach)
 }
 
 // S1AP causes (TS 36.413) the MME uses when releasing a UE context:
@@ -79,7 +79,7 @@ func isSwitchOffDetach(body []byte) bool {
 // onDetachRequest handles a UE-originating DETACH REQUEST (TS 24.301):
 // for a non-switch-off detach it replies with Detach Accept, then releases the
 // UE's S1 context.
-func (m *MME) onDetachRequest(ue *UeContext, plain []byte) {
+func (m *MME) onDetachRequest(ctx context.Context, ue *UeContext, plain []byte) {
 	req, err := eps.ParseDetachRequestUE(plain)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Detach Request", zap.Error(err))
@@ -95,10 +95,10 @@ func (m *MME) onDetachRequest(ue *UeContext, plain []byte) {
 	ue.emmState = EMMDeregistered
 
 	if !req.SwitchOff {
-		m.sendDownlinkProtected(ue, &eps.DetachAccept{})
+		m.sendDownlinkProtected(ctx, ue, &eps.DetachAccept{})
 	}
 
-	m.releaseUEContext(ue, causeNASDetach)
+	m.releaseUEContext(ctx, ue, causeNASDetach)
 }
 
 // releaseUEContext starts the S1 UE Context Release procedure for a UE
@@ -106,7 +106,7 @@ func (m *MME) onDetachRequest(ue *UeContext, plain []byte) {
 // eNB-initiated release request cannot both emit a command. Whether the context
 // is deleted or retained in ECM-IDLE is decided at release-complete from the EMM
 // state, since the two state machines are independent.
-func (m *MME) releaseUEContext(ue *UeContext, cause s1ap.Cause) {
+func (m *MME) releaseUEContext(ctx context.Context, ue *UeContext, cause s1ap.Cause) {
 	// The idempotency check is atomic: a NAS guard timeout and an eNB-initiated
 	// release request can race to release the same UE from different goroutines.
 	m.mu.Lock()
@@ -130,12 +130,12 @@ func (m *MME) releaseUEContext(ue *UeContext, cause s1ap.Cause) {
 	}
 
 	logger.MmeLog.Info("UE Context Release Command", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
-	m.sendS1AP(ue, S1APProcedureUEContextReleaseCommand, b)
+	m.sendS1AP(ctx, ue, S1APProcedureUEContextReleaseCommand, b)
 }
 
 // handleUEContextReleaseRequest handles an eNB-initiated release (TS 36.413,
 // e.g. radio-link failure or inactivity) by issuing a release command.
-func (m *MME) handleUEContextReleaseRequest(conn nasWriter, value []byte) {
+func (m *MME) handleUEContextReleaseRequest(ctx context.Context, conn nasWriter, value []byte) {
 	msg, err := s1ap.ParseUEContextReleaseRequest(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode UE Context Release Request", zap.Error(err))
@@ -174,7 +174,7 @@ func (m *MME) handleUEContextReleaseRequest(conn nasWriter, value []byte) {
 		logger.MmeLog.Info("UE Context Release Request", fields...)
 	}
 
-	m.releaseUEContext(ue, msg.Cause)
+	m.releaseUEContext(ctx, ue, msg.Cause)
 }
 
 // handleUEContextReleaseComplete completes the release (TS 36.413):

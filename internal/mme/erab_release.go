@@ -4,6 +4,8 @@
 package mme
 
 import (
+	"context"
+
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
@@ -21,7 +23,7 @@ import (
 // (first) bearer with reactivation requested, the UE re-attaches and the full UE
 // Context Release that follows tears down the radio bearers, so the NAS is sent
 // on a Downlink NAS Transport and guarded like other common procedures.
-func (m *MME) deactivateBearer(ue *UeContext, p *pdnConnection, esmCause, pti uint8, disconnecting bool) {
+func (m *MME) deactivateBearer(ctx context.Context, ue *UeContext, p *pdnConnection, esmCause, pti uint8, disconnecting bool) {
 	naspdu, err := m.protectDownlink(ue, &eps.DeactivateEPSBearerContextRequest{
 		EPSBearerIdentity:            p.ebi,
 		ProcedureTransactionIdentity: pti,
@@ -36,18 +38,18 @@ func (m *MME) deactivateBearer(ue *UeContext, p *pdnConnection, esmCause, pti ui
 	p.disconnecting = disconnecting
 
 	if disconnecting || p.ebi != ue.defaultEBI {
-		m.sendERABRelease(ue, p, naspdu)
+		m.sendERABRelease(ctx, ue, p, naspdu)
 		return
 	}
 
-	m.sendDownlink(ue, naspdu)
+	m.sendDownlink(ctx, ue, naspdu)
 	m.armNASGuard(ue, "Deactivate EPS Bearer Context Request", naspdu)
 }
 
 // sendERABRelease releases a UE's E-RAB at the eNB while the UE stays connected,
 // carrying the DEACTIVATE EPS BEARER CONTEXT REQUEST in the NAS-PDU so the eNB
 // both releases the radio bearer and delivers the NAS (TS 36.413 §8.2.3).
-func (m *MME) sendERABRelease(ue *UeContext, p *pdnConnection, naspdu []byte) {
+func (m *MME) sendERABRelease(ctx context.Context, ue *UeContext, p *pdnConnection, naspdu []byte) {
 	cmd := &s1ap.ERABReleaseCommand{
 		MMEUES1APID: ue.MMEUES1APID,
 		ENBUES1APID: ue.ENBUES1APID,
@@ -64,7 +66,7 @@ func (m *MME) sendERABRelease(ue *UeContext, p *pdnConnection, naspdu []byte) {
 		return
 	}
 
-	m.sendS1AP(ue, S1APProcedureERABReleaseCommand, b)
+	m.sendS1AP(ctx, ue, S1APProcedureERABReleaseCommand, b)
 }
 
 // handleERABReleaseResponse logs the eNB's confirmation that the radio bearer was
