@@ -29,6 +29,11 @@ type AttachResult struct {
 	// Accept (eps.PDNTypeIPv4 / IPv6 / IPv4v6).
 	PDNType uint8
 
+	// QCI is the default bearer's QoS Class Identifier from the Activate Default
+	// EPS Bearer Context Request (TS 24.301 §9.9.4.3, octet 1 of the EPS QoS IE).
+	// Ella Core aligns it with the policy's 5QI for the standardized values.
+	QCI byte
+
 	// User-plane endpoints for a GTP-U tunnel.
 	UEIPv4     string // UE IPv4 assigned in the Attach Accept
 	UEIPv6     string // UE IPv6 link-local derived from the Attach Accept PDN IID
@@ -176,6 +181,10 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 	}
 
 	if act, err := eps.ParseActivateDefaultEPSBearerContextRequest(accept.ESMMessageContainer); err == nil {
+		if len(act.EPSQoS) >= 1 {
+			res.QCI = act.EPSQoS[0]
+		}
+
 		if pdn, err := eps.ParsePDNAddress(act.PDNAddress); err == nil {
 			res.PDNType = pdn.PDNType
 

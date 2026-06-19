@@ -97,6 +97,9 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 	"s1enb/registration_success_50_sequential": {
 		IPv6Only: true,
 	},
+	"s1enb/registration_success_multiple_policies": {
+		IPv6Only: true,
+	},
 	"s1enb/connectivity": {
 		IPv6Only:  true,
 		DualStack: true,
