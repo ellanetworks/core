@@ -3,34 +3,64 @@
 
 package smf
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/ellanetworks/core/internal/metrics"
+	"github.com/prometheus/client_golang/prometheus"
+)
 
-// PDUSessionEstablishmentAttempts tracks accept/reject counts.
-var PDUSessionEstablishmentAttempts *prometheus.CounterVec
+// SessionEstablishmentAttempts counts session establishment outcomes by RAT
+// ("4g"|"5g") and result ("accept"|"reject").
+var SessionEstablishmentAttempts *prometheus.CounterVec
 
-// RegisterMetrics registers Prometheus metrics for the SMF.
-// The provided SessionQuerier is captured by the gauge callback to report
-// the current session count on each scrape. Pass nil if no SMF is available
-// (the gauge will report 0).
-func RegisterMetrics(sessions SessionQuerier) {
-	PDUSessionEstablishmentAttempts = prometheus.NewCounterVec(
+// sessionCounter reports active session counts split by RAT. *SMF satisfies it.
+type sessionCounter interface {
+	SessionCountByRAT() (fourG, fiveG int)
+}
+
+// RegisterMetrics registers the SMF metrics. The provided sessionCounter is
+// captured by the sessions gauge collector to report the current per-RAT session
+// count on each scrape. Pass nil if no SMF is available (the gauge reports 0).
+func RegisterMetrics(sessions sessionCounter) {
+	SessionEstablishmentAttempts = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "app_pdu_session_establishment_attempts_total",
-			Help: "Total PDU session establishment attempts by result",
+			Name: "app_session_establishment_attempts_total",
+			Help: "Total session establishment attempts by RAT and result (5G PDU sessions, 4G EPS sessions).",
 		},
-		[]string{"result"}, // accept|reject
+		[]string{"rat", "result"},
 	)
 
-	pduSessions := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-		Name: "app_pdu_sessions_total",
-		Help: "Number of PDU sessions currently in Ella Core",
-	}, func() float64 {
-		if sessions == nil {
-			return 0
+	sessionsDesc := prometheus.NewDesc(
+		"app_sessions_total",
+		"Number of active sessions by RAT (5G PDU sessions, 4G EPS sessions).",
+		[]string{"rat"},
+		nil,
+	)
+
+	prometheus.MustRegister(SessionEstablishmentAttempts)
+
+	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+		var fourG, fiveG int
+		if sessions != nil {
+			fourG, fiveG = sessions.SessionCountByRAT()
 		}
 
-		return float64(sessions.SessionCount())
-	})
+		ch <- prometheus.MustNewConstMetric(sessionsDesc, prometheus.GaugeValue, float64(fiveG), "5g")
 
-	prometheus.MustRegister(PDUSessionEstablishmentAttempts, pduSessions)
+		ch <- prometheus.MustNewConstMetric(sessionsDesc, prometheus.GaugeValue, float64(fourG), "4g")
+	}))
+}
+
+// recordSessionEstablishment counts one session establishment outcome, deriving
+// the result from err. Safe to call before RegisterMetrics (no-op).
+func recordSessionEstablishment(rat string, err error) {
+	if SessionEstablishmentAttempts == nil {
+		return
+	}
+
+	result := metrics.ResultAccept
+	if err != nil {
+		result = metrics.ResultReject
+	}
+
+	SessionEstablishmentAttempts.WithLabelValues(rat, result).Inc()
 }

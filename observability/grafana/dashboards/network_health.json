@@ -269,7 +269,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "(\n  100 * (\n    sum(rate(app_pdu_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\",result=\"accept\"}[$__rate_interval]))\n    /\n    sum(rate(app_pdu_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]))\n  )\n  and\n  sum(rate(app_pdu_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])) > 0\n)\nor vector(100)",
+          "expr": "(\n  100 * (\n    sum(rate(app_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\",result=\"accept\"}[$__rate_interval]))\n    /\n    sum(rate(app_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]))\n  )\n  and\n  sum(rate(app_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])) > 0\n)\nor vector(100)",
           "interval": "1m",
           "legendFormat": "__auto",
           "range": true,
@@ -336,7 +336,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "builder",
-          "expr": "app_pdu_sessions_total{job=~\"$job\",instance=~\"$instance\"}",
+          "expr": "app_sessions_total{job=~\"$job\",instance=~\"$instance\"}",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -970,7 +970,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_ngap_messages_total{job=~\"$job\",instance=~\"$instance\",}[$__rate_interval])",
+          "expr": "rate(app_signaling_messages_total{job=~\"$job\",instance=~\"$instance\",}[$__rate_interval])",
           "interval": "1m",
           "legendFormat": "{{type}}",
           "range": true,
@@ -1315,7 +1315,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "builder",
-          "expr": "app_pdu_sessions_total{job=~\"$job\",instance=~\"$instance\"}",
+          "expr": "app_sessions_total{job=~\"$job\",instance=~\"$instance\"}",
           "legendFormat": "Active PDU Sessions",
           "range": true,
           "refId": "A"
@@ -1445,7 +1445,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_pdu_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\",result=\"accept\"}[$__rate_interval])",
+          "expr": "rate(app_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\",result=\"accept\"}[$__rate_interval])",
           "interval": "1m",
           "legendFormat": "accept",
           "range": true,
@@ -1457,7 +1457,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_pdu_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\",result=\"reject\"}[$__rate_interval])",
+          "expr": "rate(app_session_establishment_attempts_total{job=~\"$job\",instance=~\"$instance\",result=\"reject\"}[$__rate_interval])",
           "hide": false,
           "instant": false,
           "interval": "1m",

@@ -22,12 +22,12 @@ These metrics are used to monitor the health of the system and the performance o
 
 | Metric | Description    | Type  |
 | ------------------- | --------- | --------- |
-| app_connected_radios            | Number of radios currently connected to Ella Core (5G gNBs and 4G eNBs)                  | Gauge   |
-| app_ngap_messages_total | Total number of received NGAP message per type (5G only; S1AP messages are not counted) | Counter |
-| app_registered_subscribers      | Number of subscribers currently registered in Ella Core (5GS and EPS)            | Gauge   |
-| app_registration_attempts_total | Total number of subscriber registration attempts by type and result (5G only) | Counter |
-| app_pdu_sessions_total | Number of sessions currently in Ella Core (5G PDU sessions and 4G EPS sessions). | Gauge |
-| app_pdu_session_establishment_attempts_total | Total PDU session establishment attempts by result (5G only) | Counter |
+| app_connected_radios            | Number of radios currently connected to Ella Core, labeled by `rat`.                  | Gauge   |
+| app_signaling_messages_total | Total radio signaling messages, labeled by `rat` (NGAP for 5G, S1AP for 4G), `direction` (inbound, outbound), and `type`. | Counter |
+| app_registered_subscribers      | Number of subscribers currently registered in Ella Core, labeled by `rat` (5GS, EPS).            | Gauge   |
+| app_registration_attempts_total | Total UE registration (5G) and attach/tracking-area-update (4G) attempts, labeled by `rat`, `type`, and `result`. | Counter |
+| app_sessions_total | Number of active sessions currently in Ella Core, labeled by `rat`. | Gauge |
+| app_session_establishment_attempts_total | Total session establishment attempts, labeled by `rat` (5G PDU sessions, 4G EPS sessions) and `result`. | Counter |
 | app_ip_addresses_allocated_total | The total number of IP addresses currently allocated to subscribers. | Gauge |
 | app_ip_addresses_total | The total number of IP addresses available for subscribers. | Gauge |
 | app_xdp_action_total | The total number of packets, with labels for the interface (n3, n6), and action taken. | Counter |
@@ -97,8 +97,8 @@ Ella Core ships with pre-configured [Grafana alert rules](https://github.com/ell
 | Alert | Severity | Condition |
 |-------|----------|-----------|
 | No Radios Connected | Critical | No radios connected for 2 minutes |
-| High Registration Failure Rate | Critical | More than 10% of subscriber registrations rejected over 5 minutes (5G only) |
-| High PDU Session Failure Rate | Critical | More than 10% of PDU session establishments rejected over 5 minutes (5G only) |
+| High Registration Failure Rate | Critical | More than 10% of registration/attach attempts rejected over 5 minutes |
+| High PDU Session Failure Rate | Critical | More than 10% of session establishments rejected over 5 minutes |
 | IP Address Pool Near Exhaustion | Warning | More than 90% of the data network IP pool is allocated |
 
 ### Data Plane Health

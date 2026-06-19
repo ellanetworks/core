@@ -408,7 +408,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "sum(rate(app_ngap_messages_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]))",
+          "expr": "sum(rate(app_signaling_messages_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval]))",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -652,7 +652,7 @@
             "uid": "${DS_MIMIR}"
           },
           "editorMode": "code",
-          "expr": "rate(app_ngap_messages_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])",
+          "expr": "rate(app_signaling_messages_total{job=~\"$job\",instance=~\"$instance\"}[$__rate_interval])",
           "legendFormat": "{{type}}",
           "range": true,
           "refId": "A"

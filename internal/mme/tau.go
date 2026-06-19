@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
@@ -52,6 +53,8 @@ func (m *MME) onTrackingAreaUpdate(ctx context.Context, ue *UeContext, plain []b
 		logger.MmeLog.Error("failed to protect Tracking Area Update Accept", zap.Error(err))
 		return
 	}
+
+	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultAccept)
 
 	if ue.ecmState == ECMConnected {
 		logger.MmeLog.Info("Tracking Area Update accepted",
@@ -241,6 +244,8 @@ func (m *MME) protectDownlinkBytes(ue *UeContext, plain []byte) ([]byte, error) 
 // reject without integrity protection and re-attaches. The reject is sent on the
 // transient context, which is then discarded.
 func (m *MME) rejectTrackingAreaUpdate(ctx context.Context, ue *UeContext) {
+	metrics.RegistrationAttempt(metrics.RAT4G, "Tracking Area Update", metrics.ResultReject)
+
 	logger.MmeLog.Info("Tracking Area Update rejected; UE will re-attach",
 		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
 
