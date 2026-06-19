@@ -6,9 +6,7 @@ package s1enb
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strconv"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
@@ -67,34 +65,5 @@ func runS1ENBConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
 
 	ue := e.NewUE(connIMSI, k, opc)
 
-	res, err := e.Attach(ue, 15*time.Second)
-	if err != nil {
-		return fmt.Errorf("attach: %w", err)
-	}
-
-	if res.UEIPv4 == "" {
-		return fmt.Errorf("attach assigned no IPv4 address")
-	}
-
-	if err := e.AddTunnel(&s1enb.TunnelOpts{
-		UEIPv4:           res.UEIPv4 + "/16",
-		UpfAddress:       res.UpfAddress,
-		ULTEID:           res.ULTEID,
-		DLTEID:           res.DLTEID,
-		TunInterfaceName: connTunIface,
-	}); err != nil {
-		return fmt.Errorf("add GTP tunnel: %w", err)
-	}
-
-	defer e.CloseTunnel(res.DLTEID)
-
-	// Let the UPF program the downlink endpoint, then ping through the tunnel.
-	time.Sleep(500 * time.Millisecond)
-
-	cmd := exec.CommandContext(ctx, "ping", "-I", connTunIface, scenarios.DefaultPingDestination, "-c", "3", "-W", "2") // #nosec G204 -- fixed ping; interface and destination are test config
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("ping %s via %s failed: %v\n%s", scenarios.DefaultPingDestination, connTunIface, err, string(out))
-	}
-
-	return nil
+	return attachAndPing(ctx, e, ue, connTunIface)
 }

@@ -40,6 +40,18 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
+	runHA3GPPFailover(t, "ha/failover_connectivity")
+}
+
+// runHA3GPPFailover drives the HA failover orchestration for the named
+// core-tester scenario (5G ha/failover_connectivity or 4G
+// s1enb/failover_connectivity). The cluster topology, kill sequencing, and
+// phase-marker handshake are identical across RATs; only the scenario the
+// tester runs differs. The scenario itself owns the RAN-side specifics (gNB vs
+// eNB, NGAP vs S1AP, and its own fixture/subscriber).
+func runHA3GPPFailover(t *testing.T, scenario string) {
+	t.Helper()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
 	defer cancel()
 
@@ -158,8 +170,8 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 	// The failover scenario declares its own Fixture() (the default
 	// subscriber). Apply it via the spec so this test stays aligned with
 	// the scenario's declared needs.
-	sc, ok := scenarios.Get("ha/failover_connectivity")
-	Assert(t, ok, "scenario ha/failover_connectivity not registered")
+	sc, ok := scenarios.Get(scenario)
+	Assert(t, ok, fmt.Sprintf("scenario %q not registered", scenario))
 
 	scenariosEnv := scenarios.Env{
 		CoreN2Addresses: nodeN2Addrs[:],
@@ -194,7 +206,7 @@ func TestIntegration3GPPHAFailover(t *testing.T) {
 
 	writer := newMarkerWriter(t, "PHASE1_DONE", markerCh)
 
-	argv := []string{"core-tester", "run", "ha/failover_connectivity"}
+	argv := []string{"core-tester", "run", scenario}
 	for _, addr := range orderedN2 {
 		argv = append(argv, "--ella-core-n2-address", addr)
 	}

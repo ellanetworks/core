@@ -86,7 +86,7 @@ func (e *ENB) eutranCGI() s1ap.EUTRANCGI {
 	return s1ap.EUTRANCGI{PLMNIdentity: e.plmn, CellID: e.eutranCellID()}
 }
 
-func (e *ENB) sendS1SetupRequest() error {
+func (e *ENB) buildS1SetupRequest() ([]byte, error) {
 	req := &s1ap.S1SetupRequest{
 		GlobalENBID: s1ap.GlobalENBID{
 			PLMNIdentity: e.plmn,
@@ -101,10 +101,10 @@ func (e *ENB) sendS1SetupRequest() error {
 
 	b, err := req.Marshal()
 	if err != nil {
-		return fmt.Errorf("s1enb: build S1 Setup Request: %w", err)
+		return nil, fmt.Errorf("s1enb: build S1 Setup Request: %w", err)
 	}
 
-	return e.SendMessage(b, false)
+	return b, nil
 }
 
 // WaitForS1SetupFailure blocks until the MME answers the S1 Setup Request with

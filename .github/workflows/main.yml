@@ -62,6 +62,9 @@ jobs:
   integration-tests-ha3gpp:
     needs: [image-build, image-build-tester]
     uses: ./.github/workflows/integration-tests-ha3gpp.yaml
+  integration-tests-ha3gpp-4g:
+    needs: [image-build, image-build-tester]
+    uses: ./.github/workflows/integration-tests-ha3gpp-4g.yaml
   integration-tests-bgp:
     needs: [image-build, image-build-tester]
     uses: ./.github/workflows/integration-tests-bgp.yaml
