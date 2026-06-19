@@ -11,6 +11,7 @@
 package s1enb
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -29,6 +30,10 @@ import (
 // ishidawataru/sctp release writes SndRcvInfo.PPID verbatim, so the value must
 // already be byte-swapped; the MME converts it back with networkToNativeEndianness32.
 const s1apPPID uint32 = 0x12000000
+
+// ErrNoActiveMME indicates no S1-MME peer is currently usable. Returned by
+// SendMessage when every configured peer has failed.
+var ErrNoActiveMME = errors.New("s1enb: no active S1-MME peer")
 
 // Category is the S1AP PDU category a received frame belongs to.
 type Category int
@@ -55,8 +60,14 @@ type StartOpts struct {
 	TAC              string // hex or decimal string; parsed as the 16-bit TAC
 	Name             string
 	CoreS1MMEAddress string // "<ip>:<port>"; the MME's S1-MME endpoint (default port 36412)
-	ENBAddress       string // local S1-MME bind address
-	ENBN3Address     string // eNB S1-U (N3) address reported in bearer setup; defaults to ENBAddress
+	// CoreS1MMEAddresses is the ordered list of MME S1-MME endpoints for
+	// multi-core (HA) scenarios. The eNB keeps exactly one active SCTP
+	// association at a time, starting at index 0 and falling through to the
+	// next peer on read/dial/S1-Setup failure. When empty, CoreS1MMEAddress
+	// is used as a single-element list.
+	CoreS1MMEAddresses []string
+	ENBAddress         string // local S1-MME bind address
+	ENBN3Address       string // eNB S1-U (N3) address reported in bearer setup; defaults to ENBAddress
 	// EnableDatapath binds the S1-U (GTP-U) socket so connectivity scenarios can
 	// run a user-plane datapath. Off by default: signalling-only scenarios skip
 	// it, and several eNBs can then share one N3 address without a port clash.
@@ -68,8 +79,6 @@ type StartOpts struct {
 
 // ENB is a connected S1AP eNB. Its methods are safe for concurrent use.
 type ENB struct {
-	conn *sctp.SCTPConn
-
 	enbID  uint32
 	name   string
 	plmn   s1ap.PLMNIdentity
@@ -86,10 +95,37 @@ type ENB struct {
 
 	nextENBUEID int64
 	nextTEID    uint32
+
+	// S1-MME peer management. Ordered list of MME endpoints; the eNB keeps
+	// exactly one active SCTP association at a time, starting with index 0
+	// and falling through on read/dial/S1-Setup failure. Guarded by mmeMu.
+	mmeLocal    *sctp.SCTPAddr
+	mmeMu       sync.RWMutex
+	peers       []*mmePeer
+	active      int           // index into peers; -1 when no active peer
+	mmeShutdown bool          // set by Close; suppresses failover promotion
+	mmeChange   chan struct{} // closed on every active-peer transition
 }
 
+// mmePeer is one ordered S1-MME endpoint.
+type mmePeer struct {
+	address string
+	conn    *sctp.SCTPConn
+	state   mmePeerState
+}
+
+type mmePeerState uint8
+
+const (
+	mmeStatePending mmePeerState = iota
+	mmeStateActive
+	mmeStateFailed
+)
+
 // Start dials the MME's S1-MME endpoint, begins receiving, sends an S1 Setup
-// Request, and returns once the S1 Setup Response arrives.
+// Request, and returns once the S1 Setup Response arrives. With multiple
+// addresses (CoreS1MMEAddresses) the eNB tries them in order and keeps the
+// first reachable one active, falling over to the next on failure.
 func Start(opts *StartOpts) (*ENB, error) {
 	plmn, err := plmnOctets(opts.MCC, opts.MNC)
 	if err != nil {
@@ -101,24 +137,18 @@ func Start(opts *StartOpts) (*ENB, error) {
 		return nil, err
 	}
 
-	rem, err := sctp.ResolveSCTPAddr("sctp", opts.CoreS1MMEAddress)
-	if err != nil {
-		return nil, fmt.Errorf("resolve S1-MME address %q: %w", opts.CoreS1MMEAddress, err)
+	addresses := opts.CoreS1MMEAddresses
+	if len(addresses) == 0 {
+		addresses = []string{opts.CoreS1MMEAddress}
+	}
+
+	if len(addresses) == 0 || addresses[0] == "" {
+		return nil, fmt.Errorf("s1enb: no S1-MME address configured")
 	}
 
 	var local *sctp.SCTPAddr
 	if opts.ENBAddress != "" {
 		local = &sctp.SCTPAddr{IPAddrs: []net.IPAddr{{IP: net.ParseIP(opts.ENBAddress)}}}
-	}
-
-	conn, err := sctp.DialSCTPExt("sctp", local, rem, sctp.InitMsg{NumOstreams: 2, MaxInstreams: 2})
-	if err != nil {
-		return nil, fmt.Errorf("dial S1-MME SCTP: %w", err)
-	}
-
-	if err := conn.SubscribeEvents(sctp.SCTP_EVENT_DATA_IO); err != nil {
-		_ = conn.Close()
-		return nil, fmt.Errorf("subscribe SCTP events: %w", err)
 	}
 
 	n3 := opts.ENBN3Address
@@ -131,8 +161,12 @@ func Start(opts *StartOpts) (*ENB, error) {
 		n3IP = net.IPv4(127, 0, 0, 1)
 	}
 
+	peers := make([]*mmePeer, len(addresses))
+	for i, a := range addresses {
+		peers[i] = &mmePeer{address: a, state: mmeStatePending}
+	}
+
 	e := &ENB{
-		conn:           conn,
 		enbID:          opts.ENBID,
 		name:           opts.Name,
 		plmn:           plmn,
@@ -142,19 +176,21 @@ func Start(opts *StartOpts) (*ENB, error) {
 		receivedFrames: make(map[Category]map[s1ap.ProcedureCode][]Frame),
 		nextENBUEID:    1,
 		nextTEID:       1,
+		mmeLocal:       local,
+		peers:          peers,
+		active:         -1,
+		mmeChange:      make(chan struct{}),
 	}
 	e.cond = sync.NewCond(&e.mu)
 
 	// Open the S1-U (GTP-U) socket so connectivity scenarios can run a datapath.
 	if opts.EnableDatapath {
 		if opts.ENBN3Address == "" {
-			_ = conn.Close()
 			return nil, fmt.Errorf("s1enb: EnableDatapath requires ENBN3Address")
 		}
 
 		n3Conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: n3IP, Port: gtpUDPPort})
 		if err != nil {
-			_ = conn.Close()
 			return nil, fmt.Errorf("listen S1-U UDP on %s: %w", opts.ENBN3Address, err)
 		}
 
@@ -163,11 +199,31 @@ func Start(opts *StartOpts) (*ENB, error) {
 		go e.gtpReader()
 	}
 
-	go e.receive()
+	e.mmeMu.Lock()
 
-	if err := e.sendS1SetupRequest(); err != nil {
-		_ = e.Close()
-		return nil, err
+	var lastErr error
+
+	activated := false
+
+	for idx := range e.peers {
+		if err := e.dialAndActivateLocked(idx); err != nil {
+			lastErr = err
+			continue
+		}
+
+		activated = true
+
+		break
+	}
+
+	e.mmeMu.Unlock()
+
+	if !activated {
+		if e.n3Conn != nil {
+			_ = e.n3Conn.Close()
+		}
+
+		return nil, fmt.Errorf("no S1-MME peer reachable: %w", lastErr)
 	}
 
 	if opts.SkipS1SetupWait {
@@ -182,6 +238,150 @@ func Start(opts *StartOpts) (*ENB, error) {
 	logger.GnbLogger.Debug("S1 Setup complete", zap.String("enb", opts.Name), zap.Uint32("enb-id", opts.ENBID))
 
 	return e, nil
+}
+
+// dialAndActivateLocked dials the peer at peers[idx], marks it active, starts
+// its receiver goroutine, and sends an S1 Setup Request. Must be called with
+// mmeMu write-held. On failure it marks the peer failed and returns the error
+// so the caller can continue iterating.
+func (e *ENB) dialAndActivateLocked(idx int) error {
+	peer := e.peers[idx]
+
+	rem, err := sctp.ResolveSCTPAddr("sctp", peer.address)
+	if err != nil {
+		peer.state = mmeStateFailed
+		return fmt.Errorf("resolve %s: %w", peer.address, err)
+	}
+
+	conn, err := sctp.DialSCTPExt("sctp", e.mmeLocal, rem, sctp.InitMsg{NumOstreams: 2, MaxInstreams: 2})
+	if err != nil {
+		peer.state = mmeStateFailed
+		return fmt.Errorf("dial %s: %w", peer.address, err)
+	}
+
+	if err := conn.SubscribeEvents(sctp.SCTP_EVENT_DATA_IO); err != nil {
+		_ = conn.Close()
+		peer.state = mmeStateFailed
+
+		return fmt.Errorf("subscribe SCTP events on %s: %w", peer.address, err)
+	}
+
+	peer.conn = conn
+	peer.state = mmeStateActive
+	e.active = idx
+
+	go e.runReceiver(idx, conn)
+
+	if err := e.sendS1SetupOnConn(conn); err != nil {
+		_ = conn.Close()
+		peer.conn = nil
+		peer.state = mmeStateFailed
+		e.active = -1
+
+		return fmt.Errorf("S1SetupRequest on %s: %w", peer.address, err)
+	}
+
+	e.signalChangeLocked()
+
+	logger.GnbLogger.Info(
+		"s1enb: active S1-MME peer set",
+		zap.String("address", peer.address),
+		zap.Int("index", idx),
+	)
+
+	return nil
+}
+
+// signalChangeLocked closes and replaces the change channel, waking any
+// WaitForActivePeerChange waiter. Must be called with mmeMu write-held.
+func (e *ENB) signalChangeLocked() {
+	close(e.mmeChange)
+	e.mmeChange = make(chan struct{})
+}
+
+// promoteNextFromReceiver is called by a receiver goroutine when its SCTP read
+// errors. It advances the active peer to the next reachable candidate in wrap
+// order. When no candidate remains, it marks the eNB closed so waiters in
+// WaitForMessage unblock.
+func (e *ENB) promoteNextFromReceiver(failedIdx int, failedConn *sctp.SCTPConn) {
+	e.mmeMu.Lock()
+	defer e.mmeMu.Unlock()
+
+	if e.mmeShutdown {
+		return
+	}
+
+	if e.active != failedIdx {
+		return
+	}
+
+	peer := e.peers[failedIdx]
+	peer.state = mmeStateFailed
+
+	if peer.conn != nil && peer.conn == failedConn {
+		_ = peer.conn.Close()
+	}
+
+	peer.conn = nil
+	e.active = -1
+
+	n := len(e.peers)
+	for step := 1; step < n; step++ {
+		cand := (failedIdx + step) % n
+		if e.peers[cand].state == mmeStateFailed {
+			continue
+		}
+
+		if err := e.dialAndActivateLocked(cand); err != nil {
+			logger.GnbLogger.Warn(
+				"s1enb failover: peer unreachable",
+				zap.String("address", e.peers[cand].address),
+				zap.Error(err),
+			)
+
+			continue
+		}
+
+		return
+	}
+
+	e.signalChangeLocked()
+
+	e.mu.Lock()
+	e.closed = true
+	e.mu.Unlock()
+	e.cond.Broadcast()
+
+	logger.GnbLogger.Error("s1enb failover: no remaining S1-MME peers")
+}
+
+// ActiveMMEAddress returns the current active peer's address, or the empty
+// string when no peer is active.
+func (e *ENB) ActiveMMEAddress() string {
+	e.mmeMu.RLock()
+	defer e.mmeMu.RUnlock()
+
+	if e.active < 0 || e.active >= len(e.peers) {
+		return ""
+	}
+
+	return e.peers[e.active].address
+}
+
+// WaitForActivePeerChange blocks until the active peer transitions (to a new
+// peer or to no-active), or ctx is cancelled. Returns the new active peer's
+// address (empty when no active peer).
+func (e *ENB) WaitForActivePeerChange(ctx context.Context) (string, error) {
+	e.mmeMu.RLock()
+	ch := e.mmeChange
+	e.mmeMu.RUnlock()
+
+	select {
+	case <-ch:
+		return e.ActiveMMEAddress(), nil
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
 }
 
 // AllocateENBUEID returns a fresh eNB UE S1AP ID for a new UE.
@@ -233,26 +433,75 @@ func (e *ENB) WaitForMessage(cat Category, code s1ap.ProcedureCode, timeout time
 	}
 }
 
-// SendMessage writes a marshalled S1AP PDU to the MME. ueAssociated selects the
-// SCTP stream (0 for non-UE procedures, 1 for UE-associated), matching the
-// NGAP tester's convention.
+// SendMessage writes a marshalled S1AP PDU to the active MME peer. ueAssociated
+// selects the SCTP stream (0 for non-UE procedures, 1 for UE-associated),
+// matching the NGAP tester's convention.
 func (e *ENB) SendMessage(pdu []byte, ueAssociated bool) error {
+	e.mmeMu.RLock()
+
+	var conn *sctp.SCTPConn
+	if e.active >= 0 && e.active < len(e.peers) {
+		conn = e.peers[e.active].conn
+	}
+
+	e.mmeMu.RUnlock()
+
+	if conn == nil {
+		return ErrNoActiveMME
+	}
+
+	return writeMessage(conn, pdu, ueAssociated)
+}
+
+// writeMessage writes a marshalled S1AP PDU to a specific SCTP connection.
+func writeMessage(conn *sctp.SCTPConn, pdu []byte, ueAssociated bool) error {
 	var stream uint16
 	if ueAssociated {
 		stream = 1
 	}
 
-	if _, err := e.conn.SCTPWrite(pdu, &sctp.SndRcvInfo{Stream: stream, PPID: s1apPPID}); err != nil {
+	if _, err := conn.SCTPWrite(pdu, &sctp.SndRcvInfo{Stream: stream, PPID: s1apPPID}); err != nil {
 		return fmt.Errorf("s1enb: SCTP write: %w", err)
 	}
 
 	return nil
 }
 
-// Close tears down the SCTP association and wakes any waiter.
+// sendS1SetupOnConn builds and writes an S1 Setup Request directly to conn.
+// Called from the locked dial/promotion path, so it must not take mmeMu.
+func (e *ENB) sendS1SetupOnConn(conn *sctp.SCTPConn) error {
+	b, err := e.buildS1SetupRequest()
+	if err != nil {
+		return err
+	}
+
+	return writeMessage(conn, b, false)
+}
+
+// Close tears down every SCTP association and wakes any waiter. Setting the
+// shutdown flag first suppresses failover promotion from the receiver
+// goroutines as their reads unblock.
 func (e *ENB) Close() error {
+	e.mmeMu.Lock()
+	alreadyShutdown := e.mmeShutdown
+	e.mmeShutdown = true
+
+	var conns []*sctp.SCTPConn
+
+	for _, p := range e.peers {
+		if p.conn != nil {
+			conns = append(conns, p.conn)
+			p.conn = nil
+		}
+
+		p.state = mmeStateFailed
+	}
+
+	e.active = -1
+	e.mmeMu.Unlock()
+
 	e.mu.Lock()
-	if e.closed {
+	if e.closed && alreadyShutdown {
 		e.mu.Unlock()
 		return nil
 	}
@@ -276,22 +525,27 @@ func (e *ENB) Close() error {
 		_ = e.n3Conn.Close()
 	}
 
-	return e.conn.Close()
+	var firstErr error
+
+	for _, c := range conns {
+		if err := c.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+
+	return firstErr
 }
 
-// receive reads S1AP PDUs off the SCTP association and files them by category
-// and procedure code for WaitForMessage.
-func (e *ENB) receive() {
+// runReceiver reads S1AP PDUs off peers[idx]'s SCTP association and files them
+// by category and procedure code for WaitForMessage. On read error it triggers
+// promotion of the next peer and exits.
+func (e *ENB) runReceiver(idx int, conn *sctp.SCTPConn) {
 	buf := make([]byte, 65535)
 
 	for {
-		n, _, err := e.conn.SCTPRead(buf)
+		n, _, err := conn.SCTPRead(buf)
 		if err != nil {
-			e.mu.Lock()
-			e.closed = true
-			e.mu.Unlock()
-			e.cond.Broadcast()
-
+			e.promoteNextFromReceiver(idx, conn)
 			return
 		}
 

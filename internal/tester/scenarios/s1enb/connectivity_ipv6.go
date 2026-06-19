@@ -37,7 +37,7 @@ func init() {
 // runS1ENBConnectivityIPv6 attaches a UE with PDN type IPv6, builds an IPv6-only
 // GTP-U tunnel (the link-local from the PDN IID, promoted to a global address by
 // the UPF Router Advertisement), and verifies user-plane connectivity by pinging
-// the N6 destination over IPv6 — the 4G counterpart of ue/connectivity_ipv6.
+// the N6 destination over IPv6 — the 4G counterpart of gnb/connectivity_ipv6.
 func runS1ENBConnectivityIPv6(ctx context.Context, env scenarios.Env, _ any) error {
 	s1mme, err := s1mmeAddress(env.FirstCore())
 	if err != nil {

@@ -71,7 +71,7 @@ services:
   # Three independent tester containers, one per gNB. Each tester
   # advertises a single Core N2 endpoint, so its gNB is homed on exactly
   # one core node — exercising true multi-gNB-on-multi-core topology
-  # rather than the single-gNB-with-failover-list of ha-5g.
+  # rather than the single-gNB-with-failover-list of ha-3gpp.
   ella-core-tester-1:
     image: ella-core-tester:latest
     entrypoint:

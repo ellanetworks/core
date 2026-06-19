@@ -36,7 +36,7 @@ func init() {
 
 // runS1ENBScaleSequential attaches a batch of UEs back-to-back on one eNB,
 // verifying the MME completes every EPS attach and hands out a distinct GUTI —
-// the 4G counterpart of ue/registration_success_50_sequential.
+// the 4G counterpart of gnb/registration_success_50_sequential.
 func runS1ENBScaleSequential(_ context.Context, env scenarios.Env, _ any) error {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {

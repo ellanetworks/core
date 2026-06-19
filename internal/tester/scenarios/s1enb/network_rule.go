@@ -63,7 +63,7 @@ func init() {
 // runS1ENBNetworkRule attaches a 4G UE, builds a GTP-U tunnel, and probes the N6
 // destination, asserting the probe is allowed or blocked according to the network
 // rule the driving test installed on the policy — the 4G counterpart of
-// ue/connectivity_expect_{allowed,blocked}.
+// gnb/connectivity_expect_{allowed,blocked}.
 func runS1ENBNetworkRule(ctx context.Context, env scenarios.Env, params *probeParams, imsi, tunIface string, expectAllowed bool) error {
 	proto, err := probe.ParseProtocol(params.Protocol)
 	if err != nil {

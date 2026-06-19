@@ -43,9 +43,12 @@ jobs:
         with:
           go-version-file: "go.mod"
 
+      # TestIntegration4GHAFailover also matches -run 'TestIntegration4G' but
+      # brings up its own 3-node cluster (not the srsRAN soft-radio) and runs in
+      # the dedicated integration-tests-ha-4g workflow, so exclude it here.
       - name: Run 4G srsRAN integration tests
         env:
           INTEGRATION: "1"
           IP_VERSION: ipv4
         run: |
-          go test ./integration/... -run 'TestIntegration4G' -timeout 30m -v
+          go test ./integration/... -run 'TestIntegration4G' -skip 'TestIntegration4GHAFailover' -timeout 30m -v

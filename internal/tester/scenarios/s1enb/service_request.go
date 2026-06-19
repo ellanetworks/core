@@ -31,7 +31,7 @@ func init() {
 // runS1ENBServiceRequest attaches a UE, drops it to ECM-IDLE with an S1 release,
 // then has the UE return with a mobile-originated SERVICE REQUEST and verifies the
 // MME re-establishes the bearer (TS 24.301 §5.6.1) — the 4G counterpart of
-// ue/service_request/data.
+// gnb/service_request/data.
 func runS1ENBServiceRequest(_ context.Context, env scenarios.Env, _ any) error {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {

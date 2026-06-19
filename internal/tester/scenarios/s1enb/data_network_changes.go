@@ -152,7 +152,7 @@ func attachAndReconfigure(ctx context.Context, env scenarios.Env, p *dataNetwork
 // EPS bearer in place — a MODIFY EPS BEARER CONTEXT REQUEST carrying the new DNS
 // in the Protocol Configuration Options, without re-establishing the bearer
 // (TS 24.301 §6.4.2). This mirrors the 5G PDU Session Modification path for a
-// DNS change (ue/data-network-dns-change).
+// DNS change (gnb/data-network-dns-change).
 func runDataNetworkDNSChange(ctx context.Context, env scenarios.Env, p *dataNetworkChangeParams) error {
 	e, ue, attach, cleanup, err := attachAndReconfigure(ctx, env, p, "DNS", &client.UpdateDataNetworkOptions{
 		Name:     scenarios.DefaultDNN,
@@ -202,7 +202,7 @@ func runDataNetworkDNSChange(ctx context.Context, env scenarios.Env, p *dataNetw
 // cannot adopt in place — deactivates the active EPS bearer with ESM cause #39
 // "reactivation requested" (TS 24.301 §6.4.4.2), after which the UE re-attaches
 // with the new configuration. This mirrors the 5G release-with-#39 path for
-// MTU/pool (ue/data-network-{mtu,pool}-change).
+// MTU/pool (gnb/data-network-{mtu,pool}-change).
 func runDataNetworkReactivate(ctx context.Context, env scenarios.Env, p *dataNetworkChangeParams, label string, mutation *client.UpdateDataNetworkOptions) error {
 	e, ue, attach, cleanup, err := attachAndReconfigure(ctx, env, p, label, mutation)
 	if err != nil {

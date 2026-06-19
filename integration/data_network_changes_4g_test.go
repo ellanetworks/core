@@ -18,7 +18,7 @@ import (
 // bearer: a DNS, MTU, or IP-pool change deactivates the bearer with ESM cause
 // #39 "reactivation requested" (TS 24.301 §6.4.4.2) and the UE re-attaches with
 // the new configuration. This is the 4G counterpart of the AMF session
-// reconciler exercised by ue/data-network-*-change.
+// reconciler exercised by gnb/data-network-*-change.
 func TestIntegration4GDataNetworkChanges(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")

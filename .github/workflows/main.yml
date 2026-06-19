@@ -59,12 +59,15 @@ jobs:
   integration-tests-api-matrix-ha:
     needs: [image-build]
     uses: ./.github/workflows/integration-tests-api-matrix-ha.yaml
-  integration-tests-ha3gpp:
+  integration-tests-ha-5g:
     needs: [image-build, image-build-tester]
-    uses: ./.github/workflows/integration-tests-ha3gpp.yaml
-  integration-tests-bgp:
+    uses: ./.github/workflows/integration-tests-ha-5g.yaml
+  integration-tests-ha-4g:
     needs: [image-build, image-build-tester]
-    uses: ./.github/workflows/integration-tests-bgp.yaml
+    uses: ./.github/workflows/integration-tests-ha-4g.yaml
+  integration-tests-bgp-5g:
+    needs: [image-build, image-build-tester]
+    uses: ./.github/workflows/integration-tests-bgp-5g.yaml
   integration-tests-rolling-upgrade:
     needs: [image-build]
     uses: ./.github/workflows/integration-tests-rolling-upgrade.yaml
