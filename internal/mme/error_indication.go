@@ -4,6 +4,8 @@
 package mme
 
 import (
+	"context"
+
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/s1ap"
@@ -90,14 +92,16 @@ func (m *MME) sendErrorIndication(conn nasWriter, mmeID *s1ap.MMEUES1APID, enbID
 		return
 	}
 
-	m.logOutboundS1AP(conn, S1APProcedureErrorIndication, b)
+	// Error Indications are sent from resolution failures across many handlers,
+	// some outside a request span; use a fresh root.
+	m.logOutboundS1AP(context.Background(), conn, S1APProcedureErrorIndication, b)
 }
 
 // handleErrorIndication processes an ERROR INDICATION from the eNB (TS 36.413).
 // A protocol error on a UE-associated S1 connection leaves it in an
 // inconsistent state, so if the indication names a known UE the MME releases it
 // to ECM-IDLE; the UE re-establishes on its next Service Request.
-func (m *MME) handleErrorIndication(_ *sctp.SCTPConn, value []byte) {
+func (m *MME) handleErrorIndication(ctx context.Context, _ *sctp.SCTPConn, value []byte) {
 	msg, err := s1ap.ParseErrorIndication(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Error Indication", zap.Error(err))
@@ -124,6 +128,6 @@ func (m *MME) handleErrorIndication(_ *sctp.SCTPConn, value []byte) {
 	}
 
 	if ue, ok := m.lookupUe(*msg.MMEUES1APID); ok {
-		m.releaseUEContext(ue, causeNASUnspecified)
+		m.releaseUEContext(ctx, ue, causeNASUnspecified)
 	}
 }

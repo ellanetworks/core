@@ -5,6 +5,7 @@ package mme
 
 import (
 	"bytes"
+	"context"
 	"net/netip"
 	"testing"
 
@@ -59,7 +60,7 @@ func TestServiceRequestReestablishes(t *testing.T) {
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
 	}
 
-	m.onServiceRequest(cc, msg)
+	m.onServiceRequest(context.Background(), cc, msg)
 
 	if ue.ecmState != ECMConnected {
 		t.Fatal("UE not ECM-CONNECTED after Service Request")
@@ -108,7 +109,7 @@ func TestServiceRequestS1UTransportFamily(t *testing.T) {
 			testPDN(ue).sgwN3IPv6 = tc.sgwV6
 
 			cc := &captureConn{}
-			m.onServiceRequest(cc, &s1ap.InitialUEMessage{
+			m.onServiceRequest(context.Background(), cc, &s1ap.InitialUEMessage{
 				ENBUES1APID: 9,
 				NASPDU:      s1ap.NASPDU(serviceRequestNAS(t, ue)),
 				STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
@@ -146,7 +147,7 @@ func TestServiceRequestAllocatesFreshMMEUES1APID(t *testing.T) {
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
 	}
 
-	m.onServiceRequest(cc, msg)
+	m.onServiceRequest(context.Background(), cc, msg)
 
 	if ue.MMEUES1APID == oldID {
 		t.Fatalf("MME-UE-S1AP-ID was reused (%d); a returning UE must get a fresh one", oldID)
@@ -171,7 +172,7 @@ func TestServiceRequestUnknownSTMSIRejected(t *testing.T) {
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: 0xDEADBEEF},
 	}
 
-	m.onServiceRequest(cc, msg)
+	m.onServiceRequest(context.Background(), cc, msg)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected Service Reject, got %d S1AP messages", len(cc.sent))
@@ -201,7 +202,7 @@ func TestServiceRequestBadMACRejected(t *testing.T) {
 		STMSI:       &s1ap.STMSI{MMEC: 1, MTMSI: guti.MTMSI},
 	}
 
-	m.onServiceRequest(cc, msg)
+	m.onServiceRequest(context.Background(), cc, msg)
 
 	if ue.ecmState == ECMConnected {
 		t.Fatal("UE reconnected despite a bad short MAC")

@@ -54,8 +54,8 @@ func initialUEMessagePDU(t *testing.T, enbID s1ap.ENBUES1APID) []byte {
 func TestDuplicateInitialUEMessage(t *testing.T) {
 	m := newTestMME(t)
 
-	m.handleInitialUEMessage(nil, initiatingValue(t, initialUEMessagePDU(t, 7)))
-	m.handleInitialUEMessage(nil, initiatingValue(t, initialUEMessagePDU(t, 7)))
+	m.handleInitialUEMessage(context.Background(), nil, initiatingValue(t, initialUEMessagePDU(t, 7)))
+	m.handleInitialUEMessage(context.Background(), nil, initiatingValue(t, initialUEMessagePDU(t, 7)))
 
 	if got := len(m.ues); got != 1 {
 		t.Fatalf("duplicate Initial UE Message left %d contexts, want 1", got)

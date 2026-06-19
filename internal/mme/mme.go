@@ -183,30 +183,30 @@ func (m *MME) dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 	case *s1ap.InitiatingMessage:
 		switch p.ProcedureCode {
 		case s1ap.ProcS1Setup:
-			m.handleS1Setup(conn, p.Value)
+			m.handleS1Setup(ctx, conn, p.Value)
 		case s1ap.ProcInitialUEMessage:
-			m.handleInitialUEMessage(conn, p.Value)
+			m.handleInitialUEMessage(ctx, conn, p.Value)
 		case s1ap.ProcUplinkNASTransport:
-			m.handleUplinkNASTransport(conn, p.Value)
+			m.handleUplinkNASTransport(ctx, conn, p.Value)
 		case s1ap.ProcUEContextReleaseRequest:
-			m.handleUEContextReleaseRequest(conn, p.Value)
+			m.handleUEContextReleaseRequest(ctx, conn, p.Value)
 		case s1ap.ProcUECapabilityInfoIndication:
 			m.handleUECapabilityInfoIndication(conn, p.Value)
 		case s1ap.ProcPathSwitchRequest:
-			m.handlePathSwitchRequest(conn, p.Value)
+			m.handlePathSwitchRequest(ctx, conn, p.Value)
 		case s1ap.ProcErrorIndication:
-			m.handleErrorIndication(conn, p.Value)
+			m.handleErrorIndication(ctx, conn, p.Value)
 		case s1ap.ProcReset:
 			m.handleReset(conn, p.Value)
 		case s1ap.ProcENBConfigurationUpdate:
-			m.handleENBConfigurationUpdate(conn, p.Value)
+			m.handleENBConfigurationUpdate(ctx, conn, p.Value)
 		default:
 			logger.MmeLog.Debug("ignoring S1AP initiating message", zap.Int("procedure-code", int(p.ProcedureCode)))
 		}
 	case *s1ap.SuccessfulOutcome:
 		switch p.ProcedureCode {
 		case s1ap.ProcInitialContextSetup:
-			m.handleInitialContextSetupResponse(conn, p.Value)
+			m.handleInitialContextSetupResponse(ctx, conn, p.Value)
 		case s1ap.ProcUEContextRelease:
 			m.handleUEContextReleaseComplete(conn, p.Value)
 		case s1ap.ProcERABSetup:
@@ -229,8 +229,8 @@ var causeUnknownPLMN = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 5}
 // handleS1Setup answers an eNB's S1 Setup Request: an S1 Setup Response when the
 // eNB broadcasts a PLMN this MME serves, otherwise an S1 Setup Failure with
 // cause "Unknown PLMN" (TS 36.413).
-func (m *MME) handleS1Setup(conn *sctp.SCTPConn, value []byte) {
-	plmn, err := m.operatorPLMN(context.Background())
+func (m *MME) handleS1Setup(ctx context.Context, conn *sctp.SCTPConn, value []byte) {
+	plmn, err := m.operatorPLMN(ctx)
 	if err != nil {
 		logger.MmeLog.Error("failed to get operator PLMN for S1 Setup", zap.Error(err))
 		return
@@ -255,7 +255,7 @@ func (m *MME) handleS1Setup(conn *sctp.SCTPConn, value []byte) {
 			return
 		}
 
-		m.logNetworkEvent(context.Background(), conn, S1APProcedureS1SetupFailure, logger.DirectionOutbound, outBytes)
+		m.logNetworkEvent(ctx, conn, S1APProcedureS1SetupFailure, logger.DirectionOutbound, outBytes)
 
 		logger.MmeLog.Warn("S1 Setup rejected: eNB broadcasts no PLMN served by this MME (Unknown PLMN)",
 			zap.String("enb-name", req.ENBName),
@@ -267,7 +267,7 @@ func (m *MME) handleS1Setup(conn *sctp.SCTPConn, value []byte) {
 	// A UE re-registers (tracking area updating) whenever the cell's broadcast TAC
 	// is absent from its registered TAI list (TS 24.301). Surfacing an
 	// eNB/operator TAC mismatch here explains otherwise-unexpected TAU churn.
-	if opTAC, err := m.operatorTAC(context.Background()); err == nil {
+	if opTAC, err := m.operatorTAC(ctx); err == nil {
 		for _, ta := range req.SupportedTAs {
 			if uint16(ta.TAC) != opTAC {
 				logger.MmeLog.Warn("eNB TAC differs from operator TAC",
@@ -282,7 +282,7 @@ func (m *MME) handleS1Setup(conn *sctp.SCTPConn, value []byte) {
 		return
 	}
 
-	m.logNetworkEvent(context.Background(), conn, S1APProcedureS1SetupResponse, logger.DirectionOutbound, outBytes)
+	m.logNetworkEvent(ctx, conn, S1APProcedureS1SetupResponse, logger.DirectionOutbound, outBytes)
 
 	// S1 Setup has completed: allow the eNB's UE-associated signalling through the
 	// dispatcher's setup-first gate (TS 36.413).
@@ -296,14 +296,14 @@ func (m *MME) handleS1Setup(conn *sctp.SCTPConn, value []byte) {
 // (otherwise an ENB CONFIGURATION UPDATE FAILURE with cause "Unknown PLMN"),
 // stores an updated eNB name, and acknowledges (TS 36.413 §8.7.4). The eNB blocks
 // on this response, so an unhandled update would stall its reconfiguration.
-func (m *MME) handleENBConfigurationUpdate(conn *sctp.SCTPConn, value []byte) {
+func (m *MME) handleENBConfigurationUpdate(ctx context.Context, conn *sctp.SCTPConn, value []byte) {
 	req, err := s1ap.ParseENBConfigurationUpdate(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode ENB Configuration Update", zap.Error(err))
 		return
 	}
 
-	plmn, err := m.operatorPLMN(context.Background())
+	plmn, err := m.operatorPLMN(ctx)
 	if err != nil {
 		logger.MmeLog.Error("failed to get operator PLMN for ENB Configuration Update", zap.Error(err))
 		return
@@ -325,7 +325,7 @@ func (m *MME) handleENBConfigurationUpdate(conn *sctp.SCTPConn, value []byte) {
 		return
 	}
 
-	m.logNetworkEvent(context.Background(), conn, msgType, logger.DirectionOutbound, out)
+	m.logNetworkEvent(ctx, conn, msgType, logger.DirectionOutbound, out)
 
 	if !accepted {
 		logger.MmeLog.Warn("ENB Configuration Update rejected: eNB broadcasts no served PLMN (Unknown PLMN)")

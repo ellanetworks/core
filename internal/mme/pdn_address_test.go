@@ -5,6 +5,7 @@ package mme
 
 import (
 	"bytes"
+	"context"
 	"net/netip"
 	"testing"
 
@@ -18,7 +19,7 @@ import (
 func activateFromAccept(t *testing.T, m *MME, ue *UeContext) *eps.ActivateDefaultEPSBearerContextRequest {
 	t.Helper()
 
-	wire, err := m.buildProtectedAttachAccept(ue, &epsQoS{APN: "internet", QCI: 9, MTU: 1400})
+	wire, err := m.buildProtectedAttachAccept(context.Background(), ue, &epsQoS{APN: "internet", QCI: 9, MTU: 1400})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +52,7 @@ func TestAttachAcceptIMSVoPS(t *testing.T) {
 	testPDN(ue).pdnType = eps.PDNTypeIPv4
 	testPDN(ue).ueIP = testUEIP
 
-	wire, err := m.buildProtectedAttachAccept(ue, &epsQoS{APN: "internet", QCI: 9, MTU: 1400})
+	wire, err := m.buildProtectedAttachAccept(context.Background(), ue, &epsQoS{APN: "internet", QCI: 9, MTU: 1400})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +133,7 @@ func TestActivateDefaultBearerRejectsWhen4GNotAllowed(t *testing.T) {
 	m := New(udm.New(newFakeCredStore(), noopKeyResolver), barredBearerStore{}, &fakeSessionManager{})
 	ue, cc := securedUE(t, m)
 
-	m.activateDefaultBearer(ue)
+	m.activateDefaultBearer(context.Background(), ue)
 
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected Attach Reject + UE Context Release Command, got %d", len(cc.sent))
@@ -157,7 +158,7 @@ func TestActivateDefaultBearerRejectsOnSessionFailure(t *testing.T) {
 	m := New(udm.New(newFakeCredStore(), noopKeyResolver), fakeBearerStore{}, &erroringSessionManager{})
 	ue, cc := securedUE(t, m)
 
-	m.activateDefaultBearer(ue)
+	m.activateDefaultBearer(context.Background(), ue)
 
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected Attach Reject + UE Context Release Command, got %d", len(cc.sent))
@@ -198,7 +199,7 @@ func TestAttachAcceptPDNAddress(t *testing.T) {
 			testPDN(ue).ueIP = testUEIP
 			testPDN(ue).ueIPv6IID = testUEIPv6IID
 
-			wire, err := m.buildProtectedAttachAccept(ue, &epsQoS{APN: "internet", QCI: 9})
+			wire, err := m.buildProtectedAttachAccept(context.Background(), ue, &epsQoS{APN: "internet", QCI: 9})
 			if err != nil {
 				t.Fatal(err)
 			}

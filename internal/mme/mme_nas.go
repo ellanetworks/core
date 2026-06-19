@@ -19,7 +19,7 @@ import (
 // (TS 36.413). A SERVICE REQUEST re-establishes an existing EMM-IDLE
 // context (resolved by S-TMSI); anything else (an Attach Request) starts a new
 // one.
-func (m *MME) handleInitialUEMessage(conn *sctp.SCTPConn, value []byte) {
+func (m *MME) handleInitialUEMessage(ctx context.Context, conn *sctp.SCTPConn, value []byte) {
 	msg, err := s1ap.ParseInitialUEMessage(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Initial UE Message", zap.Error(err))
@@ -28,7 +28,7 @@ func (m *MME) handleInitialUEMessage(conn *sctp.SCTPConn, value []byte) {
 
 	nas := []byte(msg.NASPDU)
 	if len(nas) > 0 && nas[0]>>4 == uint8(eps.SHTServiceRequest) {
-		m.onServiceRequest(conn, msg)
+		m.onServiceRequest(ctx, conn, msg)
 		return
 	}
 
@@ -46,7 +46,7 @@ func (m *MME) handleInitialUEMessage(conn *sctp.SCTPConn, value []byte) {
 				zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
 			)
 
-			m.handleNAS(ue, nas)
+			m.handleNAS(ctx, ue, nas)
 
 			return
 		}
@@ -60,12 +60,12 @@ func (m *MME) handleInitialUEMessage(conn *sctp.SCTPConn, value []byte) {
 		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),
 	)
 
-	m.handleNAS(ue, nas)
+	m.handleNAS(ctx, ue, nas)
 }
 
 // handleUplinkNASTransport routes an uplink NAS message to its UE context
 // (TS 36.413).
-func (m *MME) handleUplinkNASTransport(conn nasWriter, value []byte) {
+func (m *MME) handleUplinkNASTransport(ctx context.Context, conn nasWriter, value []byte) {
 	msg, err := s1ap.ParseUplinkNASTransport(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Uplink NAS Transport", zap.Error(err))
@@ -77,7 +77,7 @@ func (m *MME) handleUplinkNASTransport(conn nasWriter, value []byte) {
 		return
 	}
 
-	m.handleNAS(ue, []byte(msg.NASPDU))
+	m.handleNAS(ctx, ue, []byte(msg.NASPDU))
 }
 
 // enbTransportAddress resolves the eNB S1-U endpoint from an E-RAB Transport
@@ -103,7 +103,7 @@ func enbTransportAddress(tla s1ap.TransportLayerAddress) (netip.Addr, bool) {
 // handleInitialContextSetupResponse records the eNB's bearer-setup result
 // (TS 36.413): the eNB S1-U F-TEID it returns is handed to the anchor
 // as the session's downlink endpoint.
-func (m *MME) handleInitialContextSetupResponse(conn nasWriter, value []byte) {
+func (m *MME) handleInitialContextSetupResponse(ctx context.Context, conn nasWriter, value []byte) {
 	msg, err := s1ap.ParseInitialContextSetupResponse(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Initial Context Setup Response", zap.Error(err))
@@ -144,7 +144,7 @@ func (m *MME) handleInitialContextSetupResponse(conn nasWriter, value []byte) {
 
 	p.enbFTEID = models.FTEID{TEID: uint32(erab.GTPTEID), Addr: enbAddr}
 
-	if err := m.session.ModifyEPSSession(context.Background(), ue.imsi, p.ebi, p.enbFTEID); err != nil {
+	if err := m.session.ModifyEPSSession(ctx, ue.imsi, p.ebi, p.enbFTEID); err != nil {
 		logger.MmeLog.Error("failed to set the eNB F-TEID on the EPS session",
 			zap.String("imsi", ue.imsi), zap.Error(err))
 
@@ -160,7 +160,7 @@ func (m *MME) handleInitialContextSetupResponse(conn nasWriter, value []byte) {
 	// its bearer from ECM-IDLE (Service Request): the radio bearer is now up, so
 	// a modify/reactivate is deliverable. During attach this is a no-op — the UE
 	// is not yet EMM-REGISTERED — so reconcileUE returns early.
-	m.reconcileUE(context.Background(), ue)
+	m.reconcileUE(ctx, ue)
 }
 
 // downlinkNASTransportBytes builds a Downlink NAS Transport PDU carrying nas for
@@ -181,19 +181,19 @@ type nasMessage interface {
 }
 
 // sendDownlinkMessage serializes a plain NAS message and sends it to the UE.
-func (m *MME) sendDownlinkMessage(ue *UeContext, msg nasMessage) {
+func (m *MME) sendDownlinkMessage(ctx context.Context, ue *UeContext, msg nasMessage) {
 	b, err := msg.Marshal()
 	if err != nil {
 		logger.MmeLog.Error("failed to marshal NAS message", zap.Error(err))
 		return
 	}
 
-	m.sendDownlink(ue, b)
+	m.sendDownlink(ctx, ue, b)
 }
 
 // sendDownlink wraps NAS bytes (plain or security-protected) in a Downlink NAS
 // Transport and sends them to the UE's eNB.
-func (m *MME) sendDownlink(ue *UeContext, nas []byte) {
+func (m *MME) sendDownlink(ctx context.Context, ue *UeContext, nas []byte) {
 	b, err := downlinkNASTransportBytes(ue, nas)
 	if err != nil {
 		logger.MmeLog.Error("failed to build Downlink NAS Transport", zap.Error(err))
@@ -209,5 +209,5 @@ func (m *MME) sendDownlink(ue *UeContext, nas []byte) {
 		return
 	}
 
-	m.logOutboundS1AP(ue.conn, S1APProcedureDownlinkNASTransport, b)
+	m.logOutboundS1AP(ctx, ue.conn, S1APProcedureDownlinkNASTransport, b)
 }

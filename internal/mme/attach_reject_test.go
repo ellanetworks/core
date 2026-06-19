@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/nas/eps"
@@ -35,7 +36,7 @@ func TestAttachUnknownIMSI(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleNAS(ue, b)
+	m.handleNAS(context.Background(), ue, b)
 
 	// Expect Attach Reject (downlink NAS) followed by the UE Context Release Command.
 	if len(cc.sent) != 2 {

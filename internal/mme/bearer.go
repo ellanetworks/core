@@ -234,8 +234,8 @@ func bitRateToBps(s string) uint64 {
 // activateDefaultBearer builds the Attach Accept (carrying the default-bearer
 // activation and the UE IP) and sends it to the eNB inside an Initial Context
 // Setup Request, with K_eNB and the UE security capabilities for AS security.
-func (m *MME) activateDefaultBearer(ue *UeContext) {
-	qos, err := m.resolveQoS(context.Background(), ue.imsi)
+func (m *MME) activateDefaultBearer(ctx context.Context, ue *UeContext) {
+	qos, err := m.resolveQoS(ctx, ue.imsi)
 	if err != nil {
 		logger.MmeLog.Error("failed to resolve subscriber QoS", zap.String("imsi", ue.imsi), zap.Error(err))
 		return
@@ -247,7 +247,7 @@ func (m *MME) activateDefaultBearer(ue *UeContext) {
 	if !qos.Allow4G {
 		logger.MmeLog.Info("attach rejected: 4G not allowed for subscriber",
 			zap.String("imsi", ue.imsi))
-		m.rejectAttach(ue, emmCauseEPSServicesNotAllowed)
+		m.rejectAttach(ctx, ue, emmCauseEPSServicesNotAllowed)
 
 		return
 	}
@@ -255,7 +255,7 @@ func (m *MME) activateDefaultBearer(ue *UeContext) {
 	// Delegate the default-bearer session to the SMF+PGW-C anchor: it negotiates
 	// the PDN type, allocates the UE address(es), programs the user plane, and
 	// returns the S-GW S1-U F-TEID.
-	bearer, err := m.session.CreateEPSSession(context.Background(), models.EPSBearerRequest{
+	bearer, err := m.session.CreateEPSSession(ctx, models.EPSBearerRequest{
 		IMSI:              ue.imsi,
 		EPSBearerIdentity: defaultERABID,
 		PolicyID:          qos.PolicyID,
@@ -274,7 +274,7 @@ func (m *MME) activateDefaultBearer(ue *UeContext) {
 		// the attach with EMM cause #19 "ESM failure" (TS 24.301).
 		logger.MmeLog.Info("attach rejected: default bearer setup failed",
 			zap.String("imsi", ue.imsi), zap.Error(err))
-		m.rejectAttach(ue, emmCauseESMFailure)
+		m.rejectAttach(ctx, ue, emmCauseESMFailure)
 
 		return
 	}
@@ -301,7 +301,7 @@ func (m *MME) activateDefaultBearer(ue *UeContext) {
 		zap.Uint8("esm-cause", p.esmCause),
 	)
 
-	naspdu, err := m.buildProtectedAttachAccept(ue, qos)
+	naspdu, err := m.buildProtectedAttachAccept(ctx, ue, qos)
 	if err != nil {
 		logger.MmeLog.Error("failed to build Attach Accept", zap.Error(err))
 		return
@@ -311,7 +311,7 @@ func (m *MME) activateDefaultBearer(ue *UeContext) {
 	// the Initial Context Setup, so the eNB re-fetches it from the UE (TS 23.401).
 	ue.radioCapability = nil
 
-	m.sendInitialContextSetup(ue, qos, naspdu)
+	m.sendInitialContextSetup(ctx, ue, qos, naspdu)
 
 	// Guard the Attach Accept: if the UE does not send Attach Complete, the MME
 	// retransmits it and ultimately releases the UE (T3450, TS 24.301).
@@ -323,7 +323,7 @@ func (m *MME) activateDefaultBearer(ue *UeContext) {
 // security. naspdu carries the Attach Accept on attach; it is nil on a Service
 // Request, where the EPS bearer context already exists and only the radio and S1
 // bearers are re-established.
-func (m *MME) sendInitialContextSetup(ue *UeContext, qos *epsQoS, naspdu []byte) {
+func (m *MME) sendInitialContextSetup(ctx context.Context, ue *UeContext, qos *epsQoS, naspdu []byte) {
 	// K_eNB is derived from the uplink NAS COUNT of the most recently received
 	// uplink NAS message (the Security Mode Complete on attach, the Service
 	// Request on reconnect), i.e. one less than the next-expected count
@@ -417,12 +417,12 @@ func (m *MME) sendInitialContextSetup(ue *UeContext, qos *epsQoS, naspdu []byte)
 		zap.Uint8("eea", ue.eea),
 		zap.Uint8("eia", ue.eia),
 	)
-	m.sendS1AP(ue, S1APProcedureInitialContextSetupRequest, b)
+	m.sendS1AP(ctx, ue, S1APProcedureInitialContextSetupRequest, b)
 }
 
 // buildProtectedAttachAccept assembles the Attach Accept (with the embedded
 // Activate Default EPS Bearer Context Request) and protects it for the UE.
-func (m *MME) buildProtectedAttachAccept(ue *UeContext, qos *epsQoS) ([]byte, error) {
+func (m *MME) buildProtectedAttachAccept(ctx context.Context, ue *UeContext, qos *epsQoS) ([]byte, error) {
 	p := ue.defaultPDN()
 	if p == nil {
 		return nil, fmt.Errorf("attach accept with no active PDN")
@@ -438,12 +438,12 @@ func (m *MME) buildProtectedAttachAccept(ue *UeContext, qos *epsQoS) ([]byte, er
 		return nil, err
 	}
 
-	plmn, err := m.operatorPLMN(context.Background())
+	plmn, err := m.operatorPLMN(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	tac, err := m.operatorTAC(context.Background())
+	tac, err := m.operatorTAC(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -495,7 +495,7 @@ func (m *MME) buildProtectedAttachAccept(ue *UeContext, qos *epsQoS) ([]byte, er
 
 // onAttachComplete finalises the attach: the UE is EMM-REGISTERED with an active
 // default bearer.
-func (m *MME) onAttachComplete(ue *UeContext, plain []byte) {
+func (m *MME) onAttachComplete(ctx context.Context, ue *UeContext, plain []byte) {
 	m.stopNASGuard(ue)
 
 	if _, err := eps.ParseAttachComplete(plain); err != nil {
@@ -510,15 +510,15 @@ func (m *MME) onAttachComplete(ue *UeContext, plain []byte) {
 		zap.String("imsi", ue.imsi),
 	)
 
-	m.sendNetworkName(ue)
+	m.sendNetworkName(ctx, ue)
 }
 
 // sendNetworkName provides the operator's network name to the UE in an EMM
 // INFORMATION message (TS 24.301), the 4G counterpart of the AMF's
 // Configuration Update Command. The procedure is optional, so it is skipped when
 // no service provider name is configured.
-func (m *MME) sendNetworkName(ue *UeContext) {
-	op, err := m.bearer.GetOperator(context.Background())
+func (m *MME) sendNetworkName(ctx context.Context, ue *UeContext) {
+	op, err := m.bearer.GetOperator(ctx)
 	if err != nil {
 		logger.MmeLog.Warn("failed to get operator for network name", zap.String("imsi", ue.imsi), zap.Error(err))
 		return
@@ -528,7 +528,7 @@ func (m *MME) sendNetworkName(ue *UeContext) {
 		return
 	}
 
-	m.sendDownlinkProtected(ue, &eps.EMMInformation{
+	m.sendDownlinkProtected(ctx, ue, &eps.EMMInformation{
 		FullNetworkName:  op.SpnFullName,
 		ShortNetworkName: op.SpnShortName,
 	})
@@ -601,7 +601,7 @@ func buildActivateDefaultESM(p *pdnConnection, qos *epsQoS, pti uint8) ([]byte, 
 }
 
 // sendS1AP writes a complete S1AP PDU to the UE's eNB association.
-func (m *MME) sendS1AP(ue *UeContext, messageType S1APProcedure, b []byte) {
+func (m *MME) sendS1AP(ctx context.Context, ue *UeContext, messageType S1APProcedure, b []byte) {
 	if ue.conn == nil {
 		return
 	}
@@ -611,5 +611,5 @@ func (m *MME) sendS1AP(ue *UeContext, messageType S1APProcedure, b []byte) {
 		return
 	}
 
-	m.logOutboundS1AP(ue.conn, messageType, b)
+	m.logOutboundS1AP(ctx, ue.conn, messageType, b)
 }

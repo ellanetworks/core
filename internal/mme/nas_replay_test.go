@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"testing"
 
 	nascommon "github.com/ellanetworks/core/nas/common"
@@ -37,7 +38,7 @@ func TestNASUplinkReplayRejected(t *testing.T) {
 
 	msg := protectedUplink(t, ue, nascommon.NASCount(0, 0))
 
-	m.handleNAS(ue, msg)
+	m.handleNAS(context.Background(), ue, msg)
 
 	if ue.ulCount != 1 {
 		t.Fatalf("valid message not accepted: ulCount = %d, want 1", ue.ulCount)
@@ -45,7 +46,7 @@ func TestNASUplinkReplayRejected(t *testing.T) {
 
 	// Replaying the identical bytes must not advance the expected count: the
 	// message now estimates to a stale NAS COUNT and fails the integrity check.
-	m.handleNAS(ue, msg)
+	m.handleNAS(context.Background(), ue, msg)
 
 	if ue.ulCount != 1 {
 		t.Fatalf("replay accepted: ulCount advanced to %d", ue.ulCount)
@@ -60,14 +61,14 @@ func TestNASUplinkCountWrap(t *testing.T) {
 	ue, _ := securedUE(t, m)
 	ue.ulCount = 255
 
-	m.handleNAS(ue, protectedUplink(t, ue, nascommon.NASCount(0, 255)))
+	m.handleNAS(context.Background(), ue, protectedUplink(t, ue, nascommon.NASCount(0, 255)))
 
 	if ue.ulCount != 256 {
 		t.Fatalf("sequence 255 not accepted: ulCount = %d, want 256", ue.ulCount)
 	}
 
 	// The UE's sequence wraps 255->0 and its overflow becomes 1.
-	m.handleNAS(ue, protectedUplink(t, ue, nascommon.NASCount(1, 0)))
+	m.handleNAS(context.Background(), ue, protectedUplink(t, ue, nascommon.NASCount(1, 0)))
 
 	if ue.ulCount != 257 {
 		t.Fatalf("wrapped message not accepted: ulCount = %d, want 257", ue.ulCount)

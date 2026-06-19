@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ellanetworks/core/internal/udm"
@@ -78,7 +79,7 @@ func TestAuthenticationResponseWrongRESRejects(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleNAS(ue, resp)
+	m.handleNAS(context.Background(), ue, resp)
 
 	// Authentication Reject (downlink NAS) followed by UE Context Release Command.
 	if cc.count() != 2 {
@@ -100,7 +101,7 @@ func TestAuthFailureMACFailureRejects(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := authChallengedUE(t, m)
 
-	m.handleNAS(ue, authFailure(t, emmCauseMACFailure, nil))
+	m.handleNAS(context.Background(), ue, authFailure(t, emmCauseMACFailure, nil))
 
 	// Authentication Reject (downlink NAS) followed by UE Context Release Command.
 	if len(cc.sent) != 2 {
@@ -120,7 +121,7 @@ func TestAuthFailureSynchResyncsAndReauthenticates(t *testing.T) {
 
 	auts := autsFor(t, ue, []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x21})
 
-	m.handleNAS(ue, authFailure(t, emmCauseSynchFailure, auts))
+	m.handleNAS(context.Background(), ue, authFailure(t, emmCauseSynchFailure, auts))
 
 	// A fresh Authentication Request, not a reject.
 	if len(cc.sent) != 1 {
@@ -136,7 +137,7 @@ func TestAuthFailureSynchResyncsAndReauthenticates(t *testing.T) {
 	}
 
 	// A second synch failure must not resync again — it rejects.
-	m.handleNAS(ue, authFailure(t, emmCauseSynchFailure, auts))
+	m.handleNAS(context.Background(), ue, authFailure(t, emmCauseSynchFailure, auts))
 
 	if _, err := eps.ParseAuthenticationReject(decodeDownlinkNAS(t, cc.sent[1])); err != nil {
 		t.Fatalf("second synch failure not rejected: %v", err)
@@ -150,7 +151,7 @@ func TestAuthFailureBadAUTSRejects(t *testing.T) {
 	auts := autsFor(t, ue, []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x21})
 	auts[len(auts)-1] ^= 0xff // corrupt MAC-S
 
-	m.handleNAS(ue, authFailure(t, emmCauseSynchFailure, auts))
+	m.handleNAS(context.Background(), ue, authFailure(t, emmCauseSynchFailure, auts))
 
 	if _, err := eps.ParseAuthenticationReject(decodeDownlinkNAS(t, cc.sent[0])); err != nil {
 		t.Fatalf("bad AUTS not rejected: %v", err)

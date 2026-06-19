@@ -18,7 +18,7 @@ import (
 // A UE returning from ECM-IDLE is accepted over the Initial Context Setup when it
 // requests bearers (active flag), otherwise over Downlink NAS Transport followed
 // by an S1 release back to ECM-IDLE.
-func (m *MME) onTrackingAreaUpdate(ue *UeContext, plain []byte) {
+func (m *MME) onTrackingAreaUpdate(ctx context.Context, ue *UeContext, plain []byte) {
 	req, err := eps.ParseTrackingAreaUpdateRequest(plain)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Tracking Area Update Request", zap.Error(err))
@@ -38,7 +38,7 @@ func (m *MME) onTrackingAreaUpdate(ue *UeContext, plain []byte) {
 		m.reconcileBearerContextStatus(ue, *req.EPSBearerContextStatus)
 	}
 
-	accept, err := m.trackingAreaUpdateAccept(context.Background(), ue, isCombinedUpdate(req.EPSUpdateType), req.EPSBearerContextStatus != nil)
+	accept, err := m.trackingAreaUpdateAccept(ctx, ue, isCombinedUpdate(req.EPSUpdateType), req.EPSBearerContextStatus != nil)
 	if err != nil {
 		logger.MmeLog.Error("failed to build Tracking Area Update Accept", zap.String("imsi", ue.imsi), zap.Error(err))
 		return
@@ -56,14 +56,14 @@ func (m *MME) onTrackingAreaUpdate(ue *UeContext, plain []byte) {
 	if ue.ecmState == ECMConnected {
 		logger.MmeLog.Info("Tracking Area Update accepted",
 			zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
-		m.sendDownlink(ue, naspdu)
+		m.sendDownlink(ctx, ue, naspdu)
 		m.armNASGuard(ue, "Tracking Area Update Accept", naspdu)
 
 		return
 	}
 
 	if req.ActiveFlag {
-		qos, err := m.resolveQoS(context.Background(), ue.imsi)
+		qos, err := m.resolveQoS(ctx, ue.imsi)
 		if err != nil {
 			logger.MmeLog.Error("failed to resolve subscriber QoS", zap.String("imsi", ue.imsi), zap.Error(err))
 			return
@@ -73,7 +73,7 @@ func (m *MME) onTrackingAreaUpdate(ue *UeContext, plain []byte) {
 
 		logger.MmeLog.Info("Tracking Area Update accepted (bearer re-established)",
 			zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
-		m.sendInitialContextSetup(ue, qos, naspdu)
+		m.sendInitialContextSetup(ctx, ue, qos, naspdu)
 		m.armNASGuard(ue, "Tracking Area Update Accept", naspdu)
 
 		return
@@ -90,14 +90,14 @@ func (m *MME) onTrackingAreaUpdate(ue *UeContext, plain []byte) {
 
 	logger.MmeLog.Info("Tracking Area Update accepted (returning to idle)",
 		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
-	m.sendDownlink(ue, naspdu)
+	m.sendDownlink(ctx, ue, naspdu)
 	m.armNASGuard(ue, "Tracking Area Update Accept", naspdu)
 }
 
 // onTrackingAreaUpdateComplete finalises a GUTI reallocation: it stops the T3450
 // guard, commits the new GUTI (freeing the old M-TMSI), and — for a no-active
 // TAU — releases the UE back to ECM-IDLE (TS 24.301).
-func (m *MME) onTrackingAreaUpdateComplete(ue *UeContext) {
+func (m *MME) onTrackingAreaUpdateComplete(ctx context.Context, ue *UeContext) {
 	m.stopNASGuard(ue)
 	m.commitGUTIRealloc(ue)
 
@@ -106,7 +106,7 @@ func (m *MME) onTrackingAreaUpdateComplete(ue *UeContext) {
 
 	if ue.tauReleaseOnComplete {
 		ue.tauReleaseOnComplete = false
-		m.releaseUEContext(ue, causeNASNormalRelease)
+		m.releaseUEContext(ctx, ue, causeNASNormalRelease)
 	}
 }
 
@@ -240,10 +240,10 @@ func (m *MME) protectDownlinkBytes(ue *UeContext, plain []byte) ([]byte, error) 
 // cause #9 "UE identity cannot be derived by the network". The UE accepts the
 // reject without integrity protection and re-attaches. The reject is sent on the
 // transient context, which is then discarded.
-func (m *MME) rejectTrackingAreaUpdate(ue *UeContext) {
+func (m *MME) rejectTrackingAreaUpdate(ctx context.Context, ue *UeContext) {
 	logger.MmeLog.Info("Tracking Area Update rejected; UE will re-attach",
 		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
 
-	m.sendDownlinkMessage(ue, &eps.TrackingAreaUpdateReject{Cause: emmCauseUEIdentityUnderivable})
+	m.sendDownlinkMessage(ctx, ue, &eps.TrackingAreaUpdateReject{Cause: emmCauseUEIdentityUnderivable})
 	m.removeUe(ue.MMEUES1APID)
 }
