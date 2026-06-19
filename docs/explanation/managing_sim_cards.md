@@ -1,10 +1,10 @@
 ---
-description: Explanation of SIM card management in 5G Core networks.
+description: Explanation of SIM card management in Mobile Core networks.
 ---
 
 # Managing SIM Cards
 
-As a network operator, you will need to provision a SIM card for each subscriber you create in Ella Core. There are two main approaches to managing SIM cards in a Private 5G network.
+As a network operator, you will need to provision a SIM card for each subscriber you create in Ella Core. There are two main approaches to managing SIM cards in a private mobile network.
 
 ## Using Physical SIM Cards
 
@@ -30,8 +30,8 @@ export ADMIN_CODE=76543210
 ./pySim-prog.py -p0 -n Ella -t sysmoISIM-SJA5 -i $IMSI -c $MCC -x $MCC -y $MNC -o $OPC -k $KEY -a $ADMIN_CODE -j 1
 ```
 
-!!! note
-    Some devices like iPhones also require the Home Network Public Key to be programmed on the SIM card. When provisioning SUCI support, the SIM must be configured with the **protection scheme** (Profile A or Profile B), the **Key Identifier**, and the corresponding **public key** — all of which must match a home network key configured in Ella Core. You can find the public key on the Operator page in the UI or via the Operator API. If you are using PySim, please refer to the [SUCI Concealement documentation](https://downloads.osmocom.org/docs/pysim/master/html/suci-tutorial.html).
+!!! note "SUCI (5G only)"
+    SUCI concealment is a 5G feature; 4G does not use it. Some devices like iPhones also require the Home Network Public Key to be programmed on the SIM card. When provisioning SUCI support, the SIM must be configured with the **protection scheme** (Profile A or Profile B), the **Key Identifier**, and the corresponding **public key** — all of which must match a home network key configured in Ella Core. You can find the public key on the Operator page in the UI or via the Operator API. If you are using PySim, please refer to the [SUCI Concealement documentation](https://downloads.osmocom.org/docs/pysim/master/html/suci-tutorial.html).
 
 ## Using eSIM
 

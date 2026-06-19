@@ -7,7 +7,7 @@ description: Explanation of subscriber security - authentication, privacy, and N
 !!! info
     To report a security vulnerability, please file a [Private Security Report](https://github.com/ellanetworks/core/security).
 
-Ella Core implements **5G-AKA** (Authentication and Key Agreement) for secure, mutual authentication between the subscriber's device and the network.
+Ella Core implements **5G-AKA** (5G) and **EPS-AKA** (4G) (Authentication and Key Agreement) for secure, mutual authentication between the subscriber's device and the network.
 
 The subscriber's Universal Subscriber Identity Module (USIM) stores the identity and credentials required for authentication:
 
@@ -16,7 +16,7 @@ The subscriber's Universal Subscriber Identity Module (USIM) stores the identity
 - **OPc (Operator Code)**: A value derived from the operator key (OP) and the subscriber's secret key (K) using the Milenage algorithm.
 - **SQN (Sequence Number)**: A counter maintained by both the USIM and the network to prevent replay attacks.
 
-## Subscriber Privacy (SUCI)
+## Subscriber Privacy (SUCI) - 5G Only
 
 Ella Core supports **SUCI** (Subscription Concealed Identifier) to protect subscriber identity over the air. The IMSI is encrypted by the subscriber's device before transmission using ECIES (Elliptic Curve Integrated Encryption Scheme). The network decrypts the SUCI to recover the SUPI. This prevents IMSI-catching attacks.
 
@@ -33,10 +33,16 @@ Home network keys can be managed through the [Operator API](../reference/api/ope
 
 After authentication, the network and the subscriber's device negotiate ciphering and integrity algorithms. Once established, these algorithms protect **all NAS signaling** for the lifetime of the connection.
 
-Ella Core supports three ciphering algorithms (NEA0, NEA1/SNOW 3G, NEA2/AES) and three integrity algorithms (NIA0, NIA1/SNOW 3G, NIA2/AES). Administrators can configure which algorithms are enabled and their priority order through the [Operator API](../reference/api/operator.md) or the Operator page in the UI.
+Administrators configure a single, RAT-neutral set of ciphering and integrity algorithms — **NULL**, **SNOW 3G**, and **AES** — and their priority order through the [Operator API](../reference/api/operator.md) or the Operator page in the UI. Ella Core applies them under the appropriate 3GPP names per radio technology:
+
+| Algorithm | 5G | 4G |
+|-----------|-----|-----|
+| NULL | NEA0 / NIA0 | EEA0 / EIA0 |
+| SNOW 3G | NEA1 / NIA1 | EEA1 / EIA1 |
+| AES | NEA2 / NIA2 | EEA2 / EIA2 |
 
 !!! warning
-    Null algorithms (NEA0/NIA0) provide no security protection. Only enable them for testing or device compatibility.
+    Null algorithms (NEA0/NIA0 on 5G, EEA0/EIA0 on 4G) provide no security protection. Only enable them for testing or device compatibility.
 
 ## Managing Subscriber Credentials
 

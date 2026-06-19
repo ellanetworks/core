@@ -24,8 +24,8 @@ To complete this tutorial, you will need the following:
 
 **5G Equipment**
 
-- A [compatible 5G radio](../reference/supported_5g_equipment.md#radios)
-- A [compatible 5G phone](../reference/supported_5g_equipment.md#user-equipment)
+- A [compatible 5G radio](../reference/supported_mobile_equipment.md#radios)
+- A [compatible 5G phone](../reference/supported_mobile_equipment.md#user-equipment)
 
 **SIM Card Provisioning**
 
@@ -162,7 +162,7 @@ Set the APN to `internet` (matching Ella Core's default Data Network).
 
 The device should automatically search for and connect to your network.
 
-In the Ella Core UI, navigate to the `Subscribers` page. You should see that your subscriber has been assigned an IP address, confirming a successful PDU session establishment.
+In the Ella Core UI, navigate to the `Subscribers` page. You should see that your subscriber has been assigned an IP address, confirming a successful data session establishment.
 
 From the user equipment, try to access the internet (e.g. open a web browser and navigate to any website, or ping an external address).
 

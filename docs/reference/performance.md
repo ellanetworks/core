@@ -1,10 +1,10 @@
 ---
-description: Reference for performance results - data plane throughput and latency, and PDU session support.
+description: Reference for performance results - data plane throughput and latency, and session support.
 ---
 
 # Performance
 
-This reference document contains performance test results of Ella Core, covering data plane throughput and latency as well as PDU session support.
+This reference document contains performance test results of Ella Core, covering data plane throughput and latency as well as session support.
 
 ## Results
 
@@ -55,10 +55,9 @@ The following table outlines the performance test results of Ella Core's data pl
 
 The value represents the round-trip-response times from the subscriber's device to the server and back.
 
-### PDU Session Support
+### Session Support
 
-Ella Core can support up to **1000 subscribers** using a PDU session simultaneously. This was tested with **ueransim**,
-using 10 simulated gNodeBs each handling 100 subscribers.
+Ella Core can support up to **1000 subscribers** using a data session simultaneously. This was tested with **ueransim**, using 10 simulated gNodeBs each handling 100 subscribers.
 
 ## Methodology
 

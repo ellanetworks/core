@@ -4,7 +4,7 @@ description: Explanation of how high availability works in Ella Core.
 
 # High Availability
 
-High availability (HA) lets you run an Ella Core cluster so that the network keeps working when nodes fail. Each node is active and can accept 5G radios and subscriber traffic.
+High availability (HA) lets you run an Ella Core cluster so that the network keeps working when nodes fail. Each node is active and can accept radios and subscriber traffic.
 
 HA is designed around the [Raft Consensus Algorithm](https://raft.github.io/): at any time one node is the leader, it is the only node that accepts writes, and every write replicates to a majority of nodes before it is considered committed. Nodes communicate together via mTLS to share changes.
 
@@ -15,7 +15,7 @@ HA is designed around the [Raft Consensus Algorithm](https://raft.github.io/): a
 
 ## What HA covers
 
-Deploy three or five nodes. A quorum is a majority of voters: 2 of 3, or 3 of 5. Three nodes tolerate one failure; five nodes tolerate two. Within those bounds, surviving voters keep accepting writes, gNB traffic, and operator changes with no manual intervention.
+Deploy three or five nodes. A quorum is a majority of voters: 2 of 3, or 3 of 5. Three nodes tolerate one failure; five nodes tolerate two. Within those bounds, surviving voters keep accepting writes, radio traffic, and operator changes with no manual intervention.
 
 Two things HA does not handle automatically. If more than half the voters fail at the same time, the cluster loses quorum and writes stall until enough nodes return — or the cluster is restored from backup via [Disaster recovery](#disaster-recovery). And UE sessions on a dead node drop; those UEs re-register on a surviving node.
 
@@ -25,7 +25,7 @@ Network-wide resources — subscribers, profiles, policies, slices, data network
 
 Per-node configuration does not replicate. This covers the local data-plane and routing settings each node owns: static routes, BGP settings, BGP peers and import prefixes, NAT, the N3 external address, and flow accounting. To configure these on an HA cluster, hit each node's API directly — a change made on one node does not propagate to its peers. This lets nodes in different racks or AZs run with different upstream gateways and BGP topologies.
 
-Runtime state tied to a specific connection or session also does not replicate: SCTP associations with gNBs, UE contexts, active PDU sessions and their User Plane state, GTP-U tunnels, and active BGP adjacencies.
+Runtime state tied to a specific connection or session also does not replicate: SCTP associations with radios, UE contexts, active sessions and their User Plane state, GTP-U tunnels, and active BGP adjacencies.
 
 Observability is per-node: each instance exposes its own Prometheus endpoint, radio events, and flow reports, so operators scrape every node for a cluster-wide view.
 
@@ -43,26 +43,26 @@ The alternative — server-side `INTEGER PRIMARY KEY AUTOINCREMENT` — is unsaf
 
 ## Failover and timing
 
-Leader re-election completes within a few seconds; surviving nodes continue accepting NGAP and API calls the whole time.
+Leader re-election completes within a few seconds; surviving nodes continue accepting NGAP, S1AP, and API calls the whole time.
 
-Each Ella Core node presents as a distinct AMF in the same AMF Set. A UE's 5G-GUTI pins it to the AMF that handled its registration, and new UEs distribute across the Set. When a node dies, gNBs detect the loss via SCTP heartbeat timeout and reselect a surviving AMF. UEs that were attached to the dead node then re-register from scratch, including a fresh authentication and a new PDU session.
+Each Ella Core node presents as a distinct AMF in the same AMF Set (5G) and a distinct MME — a distinct GUMMEI — in a single MME Pool (4G). A UE's GUTI pins it to the node that handled its registration, and new UEs distribute across the nodes by advertised capacity. When a node dies, radios detect the loss via SCTP heartbeat timeout and reselect a surviving AMF/MME. UEs that were attached to the dead node then re-register from scratch, including a fresh authentication and a new session.
 
 ## Deployment scenarios
 
-The HA cluster is the same regardless of how gNBs connect to it; the gNB side determines how much HA reaches individual UEs.
+The HA cluster is the same regardless of how radios connect to it; the radio side determines how much HA reaches individual UEs.
 
-### Radios Connected to Every Node (AMF Set)
+### Radios Connected to Every Node (AMF Set / MME Pool)
 
-When a Core dies, gNBs reselect within the Set automatically; affected UEs re-register on a surviving node without operator action.
+When a Core dies, radios reselect within the Set/Pool automatically; affected UEs re-register on a surviving node without operator action.
 
 <figure markdown="span">
-  ![Radios Connected to Every Node (AMF Set)](../images/ha_scenario_1.svg){ width="700" }
-  <figcaption>Radios Connected to Every Node (AMF Set)</figcaption>
+  ![Radios Connected to Every Node (AMF Set / MME Pool)](../images/ha_scenario_1.svg){ width="700" }
+  <figcaption>Radios Connected to Every Node (AMF Set / MME Pool)</figcaption>
 </figure>
 
 ### Radios Pinned to Specific Nodes
 
-Useful for site- or tenant-partitioned deployments. Network-wide state still replicates, so subscribers and policies stay consistent across nodes — but if a Core dies, its paired gNBs lose N2 and must be reconfigured to reach a surviving node. UE failover is manual, not automatic.
+Useful for site- or tenant-partitioned deployments. Network-wide state still replicates, so subscribers and policies stay consistent across nodes — but if a Core dies, its paired radios lose connectivity to the core and must be reconfigured to reach a surviving node. UE failover is manual, not automatic.
 
 <figure markdown="span">
   ![Radios Pinned to Specific Nodes](../images/ha_scenario_2.svg){ width="700" }

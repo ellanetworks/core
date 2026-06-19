@@ -1,10 +1,10 @@
 ---
-description: Reference for supported 5G radios and user equipment (UE).
+description: Reference for supported mobile radios and user equipment (UE).
 ---
 
-# Supported 5G Equipment
+# Supported Mobile Equipment
 
-Ella Core's N2 and N3 interfaces follow 3GPP standards. This means that any radio and user equipment (UE) that follows the same standards should be compatible with Ella Core.
+Ella Core's control plane and user plane interfaces follow 3GPP standards. This means that any radio and user equipment (UE) that follows the same standards should be compatible with Ella Core.
 
 > Some integrations were validated by third-party vendors, partners, or the open-source community.
 
@@ -21,6 +21,7 @@ Ella Core's N2 and N3 interfaces follow 3GPP standards. This means that any radi
 - **[Ettus Research USRP](https://www.ettus.com/all-products/)**
 - **[OpenAirInterface 5G RAN](https://openairinterface.org/)**
 - **[OCUDU](https://ocudu.org/)** (previously srsRAN 5G)
+- **[srsENB](https://www.srslte.com/)**
 
 ### Simulators
 
