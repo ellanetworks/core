@@ -15,12 +15,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas"
 	"github.com/ellanetworks/core/internal/amf/nas/gmm"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/ngap/service"
+	"github.com/ellanetworks/core/internal/amf/producer"
 	amfsctp "github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/api"
 	"github.com/ellanetworks/core/internal/api/server"
@@ -33,6 +35,7 @@ import (
 	"github.com/ellanetworks/core/internal/dbwriter"
 	"github.com/ellanetworks/core/internal/jobs"
 	"github.com/ellanetworks/core/internal/kernel"
+	"github.com/ellanetworks/core/internal/lmf"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/mme"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
@@ -486,6 +489,13 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	// Let the SMF page idle 4G UEs through the MME when downlink data arrives.
 	smfInstance.SetMME(mmeInstance)
 
+	lmfInstance := lmf.New(amfInstance, dbInstance)
+
+	// Wire AMF→LMF LPP transport: AMF forwards UL NAS LPP payloads to LMF.
+	lmfAMF := &lmfBridge{amf: amfInstance, lmf: lmfInstance}
+	lmfInstance.SetLPPHandler(lmfAMF)
+	amfInstance.LPPHandler = lmfAMF
+
 	amf.RegisterMetrics(amfInstance, mmeInstance.CountENBs, mmeInstance.CountRegisteredSubscribers)
 	gmm.RegisterMetrics()
 	ngap.RegisterMetrics()
@@ -540,6 +550,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		AMF:                 amfInstance,
 		MME:                 mmeInstance,
 		BGP:                 bgpService,
+		LMF:                 lmfInstance,
 		EmbedFS:             rc.EmbedFS,
 		RegisterExtraRoutes: rc.RegisterExtraRoutes,
 		ClusterListener:     clusterLn,
@@ -739,6 +750,39 @@ type nasAdapter struct {
 
 func (n *nasAdapter) HandleNAS(ctx context.Context, ue *amf.RanUe, nasPdu []byte) error {
 	return nas.HandleNAS(ctx, n.amf, ue, nasPdu)
+}
+
+// lmfBridge implements both amf.LPPHandler and lmf.LPPHandler, enabling bidirectional
+// LPP transport between AMF and LMF. The AMF uses it to forward UL NAS payloads
+// containing LPP to the LMF; the LMF uses it to send LPP responses down to the UE
+// via the AMF's NAS stack.
+//
+// The bridge holds direct pointers to both AMF and LMF, while both components hold
+// interface references to the bridge (amf.LPPHandler and lmf.LPPHandler). This creates
+// a cyclic reference graph, but it is safe: all structs live for process lifetime,
+// Go's GC handles reference cycles, and the interface direction prevents true
+// circular dependencies (neither AMF nor LMF calls back into the bridge from their
+// constructors).
+type lmfBridge struct {
+	amf *amf.AMF
+	lmf *lmf.LMF
+}
+
+func (b *lmfBridge) ForwardLPP(ctx context.Context, supi etsi.SUPI, lppData []byte) error {
+	return lmf.ForwardLPPToLMF(b.lmf, ctx, supi, lppData)
+}
+
+func (b *lmfBridge) ForwardLPPToUE(ctx context.Context, supi string, lppData []byte) error {
+	supiEtsi, err := etsi.NewSUPIFromPrefixed(supi)
+	if err != nil {
+		return fmt.Errorf("invalid SUPI %q: %w", supi, err)
+	}
+
+	if err := producer.TransferN1LPPMsg(ctx, b.amf, supiEtsi, lppData); err != nil {
+		return fmt.Errorf("transfer LPP to UE: %w", err)
+	}
+
+	return nil
 }
 
 // ausfDBAdapter adapts *db.Database to the ausf.SubscriberStore interface.

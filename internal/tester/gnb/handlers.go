@@ -86,6 +86,8 @@ func handleNGAPInitiatingMessage(gnb *GnodeB, pdu *ngapType.NGAPPDU) error {
 		return handleErrorIndication(pdu.InitiatingMessage.Value.ErrorIndication)
 	case ngapType.InitiatingMessagePresentHandoverRequest:
 		return handleHandoverRequest(gnb, pdu.InitiatingMessage.Value.HandoverRequest)
+	case ngapType.InitiatingMessagePresentDownlinkUEAssociatedNRPPaTransport:
+		return handleDownlinkUEAssociatedNRPPaTransport(gnb, pdu.InitiatingMessage.Value.DownlinkUEAssociatedNRPPaTransport)
 	default:
 		return fmt.Errorf("NGAP InitiatingMessage Present is invalid: %d", pdu.InitiatingMessage.Value.Present)
 	}

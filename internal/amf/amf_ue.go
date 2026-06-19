@@ -80,6 +80,14 @@ type AmfUe struct {
 	Log *zap.Logger
 
 	current atomic.Pointer[FivegmmContext]
+
+	/* Radio measurements (E-CID) */
+	radioMu           sync.RWMutex
+	radioMeasurements *RadioMeasurements
+
+	/* NRPPa messages (RAN → LMF) */
+	nrppaMu       sync.RWMutex
+	nrppaMessages []NRPPaMessage
 }
 
 func NewAmfUe() *AmfUe {
@@ -894,4 +902,32 @@ func (ue *AmfUe) releaseSmContexts(ctx context.Context) {
 			ue.Log.Error("Release SmContext Error", zap.Error(err))
 		}
 	}
+}
+
+// State returns the UE's 5GMM state type.
+func (ue *AmfUe) State() StateType {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	return ue.state
+}
+
+// GetUserLocation returns a copy of the UE's user location.
+func (ue *AmfUe) GetUserLocation() models.UserLocation {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	return ue.Location
+}
+
+// IsUserLocationEmpty returns true if the UE has no location information.
+func (ue *AmfUe) IsUserLocationEmpty() bool {
+	ue.Mutex.Lock()
+	defer ue.Mutex.Unlock()
+
+	loc := ue.Location
+
+	return loc.EutraLocation == nil &&
+		loc.NrLocation == nil &&
+		loc.N3gaLocation == nil
 }

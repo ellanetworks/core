@@ -30,6 +30,7 @@ var (
 	SessionsLog *zap.Logger
 	NetworkLog  *zap.Logger
 	RaftLog     *zap.Logger
+	LmfLog      *zap.Logger
 
 	atomicLevel zap.AtomicLevel
 
@@ -96,6 +97,7 @@ func ConfigureLogging(systemLevel, systemOutput, systemFilePath, auditOutput, au
 	UpfLog = log.With(zap.String("component", "UPF"))
 	SessionsLog = log.With(zap.String("component", "Sessions"))
 	RaftLog = log.With(zap.String("component", "Raft"))
+	LmfLog = log.With(zap.String("component", "LMF"))
 
 	return nil
 }

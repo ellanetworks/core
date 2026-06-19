@@ -314,6 +314,10 @@ func (fng *FakeNGAPSender) SendHandoverRequest(
 	return nil
 }
 
+func (fng *FakeNGAPSender) SendDownlinkNRPPaTransport(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, routingID int64, nrppaPdu []byte) error {
+	return nil
+}
+
 type FakeAusf struct {
 	Supi    etsi.SUPI
 	Kseaf   string

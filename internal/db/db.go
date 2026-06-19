@@ -127,6 +127,14 @@ type Database struct {
 	getBGPSettingsStmt    *sqlair.Statement
 	upsertBGPSettingsStmt *sqlair.Statement
 
+	// Positioning Sessions statements
+	createPositioningSessionStmt      *sqlair.Statement
+	getPositioningSessionStmt         *sqlair.Statement
+	listPositioningSessionsBySupiStmt *sqlair.Statement
+	listPositioningSessionsAllStmt    *sqlair.Statement
+	updatePositioningSessionStmt      *sqlair.Statement
+	deletePositioningSessionStmt      *sqlair.Statement
+
 	// BGP Peers statements
 	listBGPPeersStmt    *sqlair.Statement
 	listAllBGPPeersStmt *sqlair.Statement
@@ -1303,6 +1311,14 @@ func (db *Database) PrepareStatements() error {
 		// BGP Settings
 		{&db.getBGPSettingsStmt, fmt.Sprintf(getBGPSettingsStmt, BGPSettingsTableName), []any{BGPSettings{}}},
 		{&db.upsertBGPSettingsStmt, fmt.Sprintf(upsertBGPSettingsStmt, BGPSettingsTableName), []any{BGPSettings{}}},
+
+		// Positioning Sessions
+		{&db.createPositioningSessionStmt, fmt.Sprintf(createPositioningSessionStmt, PositioningSessionsTableName), []any{PositioningSession{}}},
+		{&db.getPositioningSessionStmt, fmt.Sprintf(getPositioningSessionStmt, PositioningSessionsTableName), []any{PositioningSession{}}},
+		{&db.listPositioningSessionsBySupiStmt, fmt.Sprintf(listPositioningSessionsBySupiStmt, PositioningSessionsTableName), []any{PositioningSession{}}},
+		{&db.listPositioningSessionsAllStmt, fmt.Sprintf(listPositioningSessionsAllStmt, PositioningSessionsTableName), []any{PositioningSession{}}},
+		{&db.updatePositioningSessionStmt, fmt.Sprintf(updatePositioningSessionStmt, PositioningSessionsTableName), []any{PositioningSession{}}},
+		{&db.deletePositioningSessionStmt, fmt.Sprintf(deletePositioningSessionStmt, PositioningSessionsTableName), []any{PositioningSession{}}},
 
 		// BGP Peers
 		{&db.listBGPPeersStmt, fmt.Sprintf(listBGPPeersPagedStmt, BGPPeersTableName), []any{ListArgs{}, BGPPeer{}, NumItems{}}},

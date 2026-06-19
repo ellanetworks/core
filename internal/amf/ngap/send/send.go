@@ -529,6 +529,20 @@ func (s *RealNGAPSender) SendHandoverRequest(
 	return nil
 }
 
+func (s *RealNGAPSender) SendDownlinkNRPPaTransport(ctx context.Context, amfUeNgapID int64, ranUeNgapID int64, routingID int64, nrppaPdu []byte) error {
+	pkt, err := buildDownlinkUEAssociatedNRPPaTransport(amfUeNgapID, ranUeNgapID, routingID, nrppaPdu)
+	if err != nil {
+		return fmt.Errorf("error building downlink NRPPa transport: %s", err.Error())
+	}
+
+	err = s.SendToRan(ctx, pkt, NGAPProcedureDownlinkNRPPaTransport)
+	if err != nil {
+		return fmt.Errorf("send error: %s", err.Error())
+	}
+
+	return nil
+}
+
 func nativeToNetworkEndianness32(value uint32) uint32 {
 	var b [4]byte
 	binary.NativeEndian.PutUint32(b[:], value)
