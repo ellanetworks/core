@@ -52,13 +52,8 @@ func runS1ENBRegistrationV4V6(_ context.Context, env scenarios.Env, _ any) error
 		return fmt.Errorf("attach: %w", err)
 	}
 
-	if res.PDNType != eps.PDNTypeIPv4v6 {
-		return fmt.Errorf("expected negotiated PDN type IPv4v6 (%d), got %d", eps.PDNTypeIPv4v6, res.PDNType)
-	}
+	exp := defaultExpectedAttach()
+	exp.PDNType = eps.PDNTypeIPv4v6
 
-	if res.UEIPv4 == "" {
-		return fmt.Errorf("IPv4v6 attach assigned no IPv4 address")
-	}
-
-	return nil
+	return assertAttach(res, exp)
 }

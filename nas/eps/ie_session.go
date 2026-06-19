@@ -206,6 +206,105 @@ func ParseAPNAMBR(b []byte) (APNAMBR, error) {
 	return APNAMBR{DownlinkOctet: dl, UplinkOctet: ul, Extended: ext}, nil
 }
 
+// EncodeAPNAMBR encodes downlink/uplink rates (bits per second) into an APN-AMBR
+// IE value per TS 24.301 §9.9.4.2, using the base octet (≤8640 kbps) and the
+// extended octet (≤256 Mbps). Rates above 256 Mbps are clamped to 256 Mbps in
+// the encoded value (the extended-2 octets, octets 7-8, are not emitted); the
+// data-plane enforcement of the exact configured rate happens elsewhere (the UPF
+// QER) and is unaffected.
+func EncodeAPNAMBR(downlinkBps, uplinkBps uint64) APNAMBR {
+	dlBase, dlExt := encodeAPNAMBROctet(downlinkBps)
+	ulBase, ulExt := encodeAPNAMBROctet(uplinkBps)
+
+	a := APNAMBR{DownlinkOctet: dlBase, UplinkOctet: ulBase}
+
+	// Octets 5 (DL ext) and 6 (UL ext) are present together or not at all
+	// (§9.9.4.2). A side that needs no extension carries 0x00 there, meaning
+	// "use the base octet".
+	if dlExt != 0 || ulExt != 0 {
+		a.Extended = []byte{dlExt, ulExt}
+	}
+
+	return a
+}
+
+// BitsPerSecond decodes an APN-AMBR into downlink/uplink rates (bits per second).
+func (a APNAMBR) BitsPerSecond() (downlink, uplink uint64) {
+	var dlExt, ulExt uint8
+	if len(a.Extended) >= 2 {
+		dlExt, ulExt = a.Extended[0], a.Extended[1]
+	}
+
+	return decodeAPNAMBROctet(a.DownlinkOctet, dlExt), decodeAPNAMBROctet(a.UplinkOctet, ulExt)
+}
+
+// encodeAPNAMBROctet returns the base octet (octet 3/4) and extended octet
+// (octet 5/6) for one direction. When the rate exceeds 8640 kbps the base octet
+// is set to 0xFE ("8640 kbps") and the value is carried in the extended octet.
+func encodeAPNAMBROctet(bps uint64) (base, ext uint8) {
+	kbps := bps / 1000
+
+	switch {
+	case kbps == 0:
+		return 0xFF, 0 // 0 kbps
+	case kbps <= 63:
+		return uint8(kbps), 0 // 1-63 kbps, 1 kbps granularity
+	case kbps <= 568:
+		return uint8(64 + (kbps-64)/8), 0 // 64-568 kbps, 8 kbps granularity
+	case kbps <= 8640:
+		return uint8(128 + (kbps-576)/64), 0 // 576-8640 kbps, 64 kbps granularity
+	default:
+		return 0xFE, encodeAPNAMBRExtended(kbps)
+	}
+}
+
+// encodeAPNAMBRExtended returns the extended octet (octet 5/6) for rates above
+// 8640 kbps, clamped at 256 Mbps (0xFA).
+func encodeAPNAMBRExtended(kbps uint64) uint8 {
+	mbps := kbps / 1000
+
+	switch {
+	case kbps <= 16000:
+		return uint8((kbps - 8600) / 100) // 8700-16000 kbps, 100 kbps granularity
+	case mbps <= 128:
+		return uint8(74 + (mbps - 16)) // 17-128 Mbps, 1 Mbps granularity
+	case mbps <= 256:
+		return uint8(186 + (mbps-128)/2) // 130-256 Mbps, 2 Mbps granularity
+	default:
+		return 0xFA // clamp at 256 Mbps
+	}
+}
+
+// decodeAPNAMBROctet decodes one direction's base + extended octets to bits/s.
+func decodeAPNAMBROctet(base, ext uint8) uint64 {
+	if ext != 0 {
+		return decodeAPNAMBRExtended(ext)
+	}
+
+	switch {
+	case base == 0x00 || base == 0xFF:
+		return 0
+	case base <= 0x3F:
+		return uint64(base) * 1000
+	case base <= 0x7F:
+		return (64 + uint64(base-64)*8) * 1000
+	default: // 0x80-0xFE
+		return (576 + uint64(base-128)*64) * 1000
+	}
+}
+
+// decodeAPNAMBRExtended decodes a non-zero extended octet (octet 5/6) to bits/s.
+func decodeAPNAMBRExtended(ext uint8) uint64 {
+	switch {
+	case ext <= 74:
+		return (8600 + uint64(ext)*100) * 1000 // 8700-16000 kbps
+	case ext <= 186:
+		return (16 + uint64(ext-74)) * 1_000_000 // 17-128 Mbps
+	default: // 187-250 (and the clamp value 0xFA)
+		return (128 + uint64(ext-186)*2) * 1_000_000 // 130-256 Mbps
+	}
+}
+
 // TAIList is a tracking area identity list (§9.9.3.33) of list type "00" — one
 // PLMN with one or more TACs, the form an MME emits in ATTACH ACCEPT. Other list
 // types are rejected on decode (deferred).

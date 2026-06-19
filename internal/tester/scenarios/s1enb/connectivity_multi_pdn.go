@@ -6,6 +6,7 @@ package s1enb
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"os/exec"
 	"strconv"
 	"time"
@@ -19,11 +20,12 @@ import (
 )
 
 const (
-	multiPDNIMSI          = "001017271246616"
-	multiPDNProfile       = "multi-pdn-profile"
-	multiPDNEnterpriseDNN = "enterprise"
-	multiPDNTun1          = "s1enbmp0"
-	multiPDNTun2          = "s1enbmp1"
+	multiPDNIMSI           = "001017271246616"
+	multiPDNProfile        = "multi-pdn-profile"
+	multiPDNEnterpriseDNN  = "enterprise"
+	multiPDNEnterprisePool = "10.46.0.0/16"
+	multiPDNTun1           = "s1enbmp0"
+	multiPDNTun2           = "s1enbmp1"
 )
 
 func init() {
@@ -45,7 +47,7 @@ func multiPDNFixture(_ scenarios.Env) scenarios.FixtureSpec {
 			{Name: multiPDNProfile, UeAmbrUplink: "500 Mbps", UeAmbrDownlink: "500 Mbps"},
 		},
 		DataNetworks: []scenarios.DataNetworkSpec{
-			{Name: multiPDNEnterpriseDNN, IPv4Pool: "10.46.0.0/16", DNS: "8.8.4.4", MTU: scenarios.DefaultMTU},
+			{Name: multiPDNEnterpriseDNN, IPv4Pool: multiPDNEnterprisePool, DNS: "8.8.4.4", MTU: scenarios.DefaultMTU},
 		},
 		Policies: []scenarios.PolicySpec{
 			{
@@ -113,8 +115,8 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("attach: %w", err)
 	}
 
-	if res.UEIPv4 == "" {
-		return fmt.Errorf("attach assigned no IPv4 address")
+	if err := assertAttach(res, defaultExpectedAttach()); err != nil {
+		return fmt.Errorf("default APN: %w", err)
 	}
 
 	if err := e.AddTunnel(&s1enb.TunnelOpts{
@@ -140,8 +142,15 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("open second PDN connection: %w", err)
 	}
 
-	if pdn.UEIPv4 == "" {
-		return fmt.Errorf("second PDN connection assigned no IPv4 address")
+	if err := assertPDN(pdn, expectedAttach{
+		UEIPv4Subnet:        netip.MustParsePrefix(multiPDNEnterprisePool),
+		APN:                 multiPDNEnterpriseDNN,
+		PDNType:             eps.PDNTypeIPv4,
+		QCI:                 7,
+		SessAmbrUplinkBps:   30 * mbpsToBps,
+		SessAmbrDownlinkBps: 60 * mbpsToBps,
+	}); err != nil {
+		return fmt.Errorf("enterprise APN: %w", err)
 	}
 
 	if pdn.UEIPv4 == res.UEIPv4 {

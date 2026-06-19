@@ -56,9 +56,5 @@ func runS1ENBRegistrationIncorrectGUTI(_ context.Context, env scenarios.Env, _ a
 		return fmt.Errorf("MME did not request the IMSI for an unresolvable GUTI")
 	}
 
-	if res.GUTI == nil {
-		return fmt.Errorf("attach completed without a GUTI")
-	}
-
-	return nil
+	return assertAttach(res, defaultExpectedAttach())
 }

@@ -84,11 +84,7 @@ func runS1ENBRegistrationSuccess(_ context.Context, env scenarios.Env, _ any) er
 		return fmt.Errorf("attach: %w", err)
 	}
 
-	if res.GUTI == nil {
-		return fmt.Errorf("attach completed without a GUTI")
-	}
-
-	return nil
+	return assertAttach(res, defaultExpectedAttach())
 }
 
 // s1mmeAddress derives the S1-MME endpoint from the core's N2 address: the same

@@ -60,10 +60,11 @@ func fixtureS1ENBMultiplePolicies(_ scenarios.Env) scenarios.FixtureSpec {
 }
 
 // runS1ENBMultiplePolicies attaches each subscriber on one eNB and asserts the
-// default bearer carries its policy's QCI (5+i) — the 4G counterpart of
-// gnb/registration_success_multiple_policies. Sequential because the eNB sim
-// does not yet demux attach responses per UE (parallel scale is a separate
-// item); session-AMBR assertion awaits APN-AMBR parsing in the sim.
+// default bearer carries its policy's QCI (5+i) and per-policy Session-AMBR
+// (10·(i+1)/50·(i+1) Mbps) plus the baseline signaled fields (IP∈pool, APN, PDN
+// type) — the 4G counterpart of gnb/registration_success_multiple_policies, now
+// at the same depth. Sequential because the eNB sim does not yet demux attach
+// responses per UE (parallel scale is a separate item).
 func runS1ENBMultiplePolicies(_ context.Context, env scenarios.Env, _ any) error {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {
@@ -85,8 +86,13 @@ func runS1ENBMultiplePolicies(_ context.Context, env scenarios.Env, _ any) error
 			return fmt.Errorf("attach %d/%d (imsi %s): %w", i+1, multiPolicyCount, imsi, err)
 		}
 
-		if want := byte(5 + i); res.QCI != want {
-			return fmt.Errorf("imsi %s: policy QCI not applied: got %d, want %d", imsi, res.QCI, want)
+		exp := defaultExpectedAttach()
+		exp.QCI = byte(5 + i)
+		exp.SessAmbrUplinkBps = uint64(10*(i+1)) * mbpsToBps
+		exp.SessAmbrDownlinkBps = uint64(50*(i+1)) * mbpsToBps
+
+		if err := assertAttach(res, exp); err != nil {
+			return fmt.Errorf("imsi %s: %w", imsi, err)
 		}
 	}
 

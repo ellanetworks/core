@@ -15,13 +15,17 @@ import (
 // PDNResult reports the bearer established for an additional PDN connection,
 // including the user-plane endpoints for a GTP-U tunnel.
 type PDNResult struct {
-	ERABID     s1ap.ERABID
-	PDNType    uint8
-	UEIPv4     string
-	UEIPv6     string
-	UpfAddress string
-	ULTEID     uint32
-	DLTEID     uint32
+	ERABID              s1ap.ERABID
+	PDNType             uint8
+	QCI                 byte   // default bearer QCI for this PDN (== policy 5QI)
+	APN                 string // Access Point Name of this PDN connection
+	SessAmbrDownlinkBps uint64 // per-APN Session-AMBR from the APN-AMBR IE (bits/s)
+	SessAmbrUplinkBps   uint64
+	UEIPv4              string
+	UEIPv6              string
+	UpfAddress          string
+	ULTEID              uint32
+	DLTEID              uint32
 }
 
 // OpenPDN opens an additional PDN connection to apn for an attached UE (TS 24.301
@@ -104,6 +108,20 @@ func (e *ENB) OpenPDN(ue *UE, mmeUEID, enbUEID int64, apn string, pdnType uint8,
 		UpfAddress: upf.Unmap().String(),
 		ULTEID:     uint32(erab.GTPTEID),
 		DLTEID:     dlTEID,
+	}
+
+	if len(act.EPSQoS) >= 1 {
+		res.QCI = act.EPSQoS[0]
+	}
+
+	if apn, err := eps.DecodeAPN(act.AccessPointName); err == nil {
+		res.APN = apn
+	}
+
+	if len(act.APNAMBR) > 0 {
+		if ambr, err := eps.ParseAPNAMBR(act.APNAMBR); err == nil {
+			res.SessAmbrDownlinkBps, res.SessAmbrUplinkBps = ambr.BitsPerSecond()
+		}
 	}
 
 	if pdn, err := eps.ParsePDNAddress(act.PDNAddress); err == nil {

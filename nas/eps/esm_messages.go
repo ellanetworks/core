@@ -158,6 +158,10 @@ type ActivateDefaultEPSBearerContextRequest struct {
 	EPSQoS                       []byte
 	AccessPointName              []byte
 	PDNAddress                   []byte
+	// APNAMBR, when set, is the APN aggregate maximum bit rate IE value (TS
+	// 24.301 §9.9.4.2) — the EPS per-APN session-AMBR signaled to the UE for
+	// uplink enforcement. Encoded as the APN-AMBR TLV optional IE (IEI 0x5E).
+	APNAMBR []byte
 	// ESMCause, when set, carries the reason the network assigned a narrower PDN
 	// type than the UE requested, e.g. #50/#51 on an IPv4v6 downgrade (TS 24.301
 	// §6.5.1.3). Encoded as the ESM cause TV optional IE (IEI 0x58).
@@ -171,15 +175,17 @@ type ActivateDefaultEPSBearerContextRequest struct {
 // Options is the IEI of the protocol configuration options IE (TS 24.301
 // §8.3.6.1).
 const (
+	ieiAPNAMBR                      uint8 = 0x5E
 	ieiESMCause                     uint8 = 0x58
 	ieiProtocolConfigurationOptions uint8 = 0x27
 )
 
 // activateDefaultEPSBearerContextRequestIEs are the optional IEs Ella Core emits
-// in an ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST (TS 24.301 §8.3.1): the ESM
-// cause (a type-3 IE with a one-octet value) and the Protocol Configuration
-// Options (a type-4 TLV).
+// in an ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST (TS 24.301 §8.3.1): the
+// APN-AMBR (a type-4 TLV), the ESM cause (a type-3 IE with a one-octet value),
+// and the Protocol Configuration Options (a type-4 TLV).
 var activateDefaultEPSBearerContextRequestIEs = []common.OptionalIE{
+	{IEI: ieiAPNAMBR, Format: common.IETLV},
 	{IEI: ieiESMCause, Format: common.IETV3, Len: 1},
 	{IEI: ieiProtocolConfigurationOptions, Format: common.IETLV},
 }
@@ -192,6 +198,14 @@ func (m *ActivateDefaultEPSBearerContextRequest) Marshal() ([]byte, error) {
 
 	for _, lv := range [][]byte{m.EPSQoS, m.AccessPointName, m.PDNAddress} {
 		if err := w.LV(lv); err != nil {
+			return nil, err
+		}
+	}
+
+	if len(m.APNAMBR) > 0 {
+		w.U8(ieiAPNAMBR)
+
+		if err := w.LV(m.APNAMBR); err != nil {
 			return nil, err
 		}
 	}
@@ -239,6 +253,8 @@ func ParseActivateDefaultEPSBearerContextRequest(b []byte) (*ActivateDefaultEPSB
 
 	if _, err := common.WalkOptionalIEs(r, activateDefaultEPSBearerContextRequestIEs, func(iei uint8, value []byte) error {
 		switch iei {
+		case ieiAPNAMBR:
+			m.APNAMBR = value
 		case ieiESMCause:
 			if len(value) == 1 {
 				cause := value[0]

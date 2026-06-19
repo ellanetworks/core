@@ -88,19 +88,24 @@ func (m *MME) operatorTAC(ctx context.Context) (uint16, error) {
 
 // epsQoS is the default-bearer QoS resolved from a subscriber's profile/policy.
 type epsQoS struct {
-	PolicyID  string // policy DB ID, so the UPF binds the session to its network rules
-	QCI       byte
-	ARP       byte // priority level (1-15)
-	APN       string
-	AMBRDL    uint64 // bits/s, for the S1AP UE-AMBR
-	AMBRUL    uint64 // bits/s
-	AMBRULStr string // raw "<n> <unit>" form, for the anchor's QER
-	AMBRDLStr string
-	IPv4Pool  string // data-network pools; non-empty enables that IP family
-	IPv6Pool  string
-	DNS       string // data-network DNS server, advertised to the UE via PCO
-	MTU       uint16
-	Allow4G   bool // whether the subscriber's profile permits EPS/4G access
+	PolicyID string // policy DB ID, so the UPF binds the session to its network rules
+	QCI      byte
+	ARP      byte // priority level (1-15)
+	APN      string
+	// AMBRDL/UL is the profile UE-AMBR (bits/s), signaled as the S1AP UE
+	// Aggregate Maximum Bit Rate — the per-UE aggregate across all non-GBR bearers.
+	AMBRDL uint64
+	AMBRUL uint64
+	// SessAmbr*Str is the policy per-APN Session-AMBR ("<n> <unit>"), enforced by
+	// the UPF QER and signaled to the UE as the APN-AMBR (TS 24.301 §9.9.4.2,
+	// §8.3.6.7). Distinct from the UE-AMBR above.
+	SessAmbrULStr string
+	SessAmbrDLStr string
+	IPv4Pool      string // data-network pools; non-empty enables that IP family
+	IPv6Pool      string
+	DNS           string // data-network DNS server, advertised to the UE via PCO
+	MTU           uint16
+	Allow4G       bool // whether the subscriber's profile permits EPS/4G access
 }
 
 // resolveQoS maps the subscriber's profile → policy → data network to the EPS
@@ -180,19 +185,19 @@ func (m *MME) qosForPolicy(ctx context.Context, profile *db.Profile, pol *db.Pol
 // its data network.
 func (m *MME) qosForPolicyDN(profile *db.Profile, pol *db.Policy, dn *db.DataNetwork) *epsQoS {
 	return &epsQoS{
-		PolicyID:  pol.ID,
-		QCI:       byte(pol.Var5qi), // 5QI↔QCI align for the standardized values
-		ARP:       byte(pol.Arp),
-		APN:       dn.Name,
-		AMBRDL:    bitRateToBps(profile.UeAmbrDownlink),
-		AMBRUL:    bitRateToBps(profile.UeAmbrUplink),
-		AMBRULStr: profile.UeAmbrUplink,
-		AMBRDLStr: profile.UeAmbrDownlink,
-		IPv4Pool:  dn.IPv4Pool,
-		IPv6Pool:  dn.IPv6Pool,
-		DNS:       dn.DNS,
-		MTU:       uint16(dn.MTU),
-		Allow4G:   profile.Allow4G,
+		PolicyID:      pol.ID,
+		QCI:           byte(pol.Var5qi), // 5QI↔QCI align for the standardized values
+		ARP:           byte(pol.Arp),
+		APN:           dn.Name,
+		AMBRDL:        bitRateToBps(profile.UeAmbrDownlink),
+		AMBRUL:        bitRateToBps(profile.UeAmbrUplink),
+		SessAmbrULStr: pol.SessionAmbrUplink,
+		SessAmbrDLStr: pol.SessionAmbrDownlink,
+		IPv4Pool:      dn.IPv4Pool,
+		IPv6Pool:      dn.IPv6Pool,
+		DNS:           dn.DNS,
+		MTU:           uint16(dn.MTU),
+		Allow4G:       profile.Allow4G,
 	}
 }
 
@@ -260,8 +265,8 @@ func (m *MME) activateDefaultBearer(ue *UeContext) {
 		EPSBearerIdentity: defaultERABID,
 		PolicyID:          qos.PolicyID,
 		APN:               qos.APN,
-		AMBRUplink:        qos.AMBRULStr,
-		AMBRDownlink:      qos.AMBRDLStr,
+		AMBRUplink:        qos.SessAmbrULStr,
+		AMBRDownlink:      qos.SessAmbrDLStr,
 		IPv4Pool:          qos.IPv4Pool,
 		IPv6Pool:          qos.IPv6Pool,
 		DNS:               qos.DNS,
@@ -279,8 +284,8 @@ func (m *MME) activateDefaultBearer(ue *UeContext) {
 		return
 	}
 
-	ue.ambrUplink = qos.AMBRULStr
-	ue.ambrDownlink = qos.AMBRDLStr
+	ue.ambrUplink = qos.SessAmbrULStr
+	ue.ambrDownlink = qos.SessAmbrDLStr
 
 	p := m.addDefaultPDN(ue)
 	p.apn = qos.APN
@@ -565,6 +570,9 @@ func buildActivateDefaultESM(p *pdnConnection, qos *epsQoS, pti uint8) ([]byte, 
 		EPSQoS:                       eps.EPSQoS{QCI: qos.QCI}.Marshal(),
 		AccessPointName:              apn,
 		PDNAddress:                   pdnAddr.Marshal(),
+		// Signal the per-APN Session-AMBR so the UE can enforce its uplink share
+		// (TS 24.301 §8.3.6.7; the P-GW/UPF also enforces both directions).
+		APNAMBR: eps.EncodeAPNAMBR(bitRateToBps(qos.SessAmbrDLStr), bitRateToBps(qos.SessAmbrULStr)).Marshal(),
 	}
 
 	// Advertise the DNS server and, for IPv4-capable bearers, the IPv4 Link MTU

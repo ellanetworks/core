@@ -34,6 +34,16 @@ type AttachResult struct {
 	// Ella Core aligns it with the policy's 5QI for the standardized values.
 	QCI byte
 
+	// APN is the Access Point Name carried in the Activate Default EPS Bearer
+	// Context Request — the EPS analogue of the 5G DNN.
+	APN string
+
+	// SessAmbrDownlinkBps / SessAmbrUplinkBps are the per-APN Session-AMBR (bits
+	// per second) decoded from the APN-AMBR IE (TS 24.301 §9.9.4.2), the EPS
+	// analogue of the 5G Session-AMBR. Zero when the network omits the IE.
+	SessAmbrDownlinkBps uint64
+	SessAmbrUplinkBps   uint64
+
 	// User-plane endpoints for a GTP-U tunnel.
 	UEIPv4     string // UE IPv4 assigned in the Attach Accept
 	UEIPv6     string // UE IPv6 link-local derived from the Attach Accept PDN IID
@@ -183,6 +193,16 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 	if act, err := eps.ParseActivateDefaultEPSBearerContextRequest(accept.ESMMessageContainer); err == nil {
 		if len(act.EPSQoS) >= 1 {
 			res.QCI = act.EPSQoS[0]
+		}
+
+		if apn, err := eps.DecodeAPN(act.AccessPointName); err == nil {
+			res.APN = apn
+		}
+
+		if len(act.APNAMBR) > 0 {
+			if ambr, err := eps.ParseAPNAMBR(act.APNAMBR); err == nil {
+				res.SessAmbrDownlinkBps, res.SessAmbrUplinkBps = ambr.BitsPerSecond()
+			}
 		}
 
 		if pdn, err := eps.ParsePDNAddress(act.PDNAddress); err == nil {
