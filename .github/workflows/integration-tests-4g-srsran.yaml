@@ -45,7 +45,7 @@ jobs:
 
       # TestIntegration4GHAFailover also matches -run 'TestIntegration4G' but
       # brings up its own 3-node cluster (not the srsRAN soft-radio) and runs in
-      # the dedicated integration-tests-ha3gpp-4g workflow, so exclude it here.
+      # the dedicated integration-tests-ha-4g workflow, so exclude it here.
       - name: Run 4G srsRAN integration tests
         env:
           INTEGRATION: "1"

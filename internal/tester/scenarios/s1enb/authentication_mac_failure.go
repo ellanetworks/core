@@ -30,7 +30,7 @@ func init() {
 // runS1ENBAuthenticationMACFailure attaches a provisioned subscriber but with the
 // wrong key, so the UE's RES does not match XRES and the MME answers the
 // Authentication Response with AUTHENTICATION REJECT (TS 24.301 §5.4.2.5) — the
-// 4G counterpart of ue/authentication/wrong_key.
+// 4G counterpart of gnb/authentication/wrong_key.
 func runS1ENBAuthenticationMACFailure(_ context.Context, env scenarios.Env, _ any) error {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {

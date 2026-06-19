@@ -38,7 +38,7 @@ func init() {
 // dual-stack GTP-U tunnel (IPv4 plus an IPv6 link-local that SLAAC promotes to a
 // global address via the UPF Router Advertisement), and verifies user-plane
 // connectivity by pinging the N6 destination over both families — the 4G
-// counterpart of ue/connectivity_dualstack.
+// counterpart of gnb/connectivity_dualstack.
 func runS1ENBConnectivityDualStack(ctx context.Context, env scenarios.Env, _ any) error {
 	s1mme, err := s1mmeAddress(env.FirstCore())
 	if err != nil {

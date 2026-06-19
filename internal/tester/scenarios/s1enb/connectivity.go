@@ -33,7 +33,7 @@ func init() {
 
 // runS1ENBConnectivity attaches a UE, builds a GTP-U tunnel for its default
 // bearer, and verifies user-plane connectivity by pinging the N6 destination
-// through the tunnel — the 4G counterpart of ue/connectivity.
+// through the tunnel — the 4G counterpart of gnb/connectivity.
 func runS1ENBConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
 	s1mme, err := s1mmeAddress(env.FirstCore())
 	if err != nil {

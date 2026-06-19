@@ -37,7 +37,7 @@ func init() {
 
 // multiPDNFixture provisions a profile with two policies — the default APN
 // (internet) and a second APN (enterprise, its own IP pool) — the 4G counterpart
-// of the 5G ue/connectivity_multi_pdu_session fixture. 4G has no S-NSSAI, so both
+// of the 5G gnb/connectivity_multi_pdu_session fixture. 4G has no S-NSSAI, so both
 // policies sit on the default slice; the MME resolves them by APN.
 func multiPDNFixture(_ scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{
@@ -75,7 +75,7 @@ func multiPDNFixture(_ scenarios.Env) scenarios.FixtureSpec {
 
 // runS1ENBMultiPDN attaches a UE (default APN), opens a second PDN connection to
 // another APN, and verifies user-plane connectivity on both with distinct UE IPs
-// — the 4G counterpart of ue/connectivity_multi_pdu_session. It then disconnects
+// — the 4G counterpart of gnb/connectivity_multi_pdu_session. It then disconnects
 // the second PDN and detaches, leaving the UE on its first PDN until detach.
 func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 	s1mme, err := s1mmeAddress(env.FirstCore())

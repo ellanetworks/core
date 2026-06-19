@@ -31,7 +31,7 @@ func init() {
 // runS1ENBPeriodicTAU attaches a UE, drops it to ECM-IDLE, then has the UE send a
 // periodic TRACKING AREA UPDATE and verifies the MME accepts it (reallocating the
 // GUTI) and returns the UE to idle (TS 24.301 §5.5.3.3) — the 4G counterpart of
-// ue/registration/periodic/signalling.
+// gnb/registration/periodic/signalling.
 func runS1ENBPeriodicTAU(_ context.Context, env scenarios.Env, _ any) error {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {

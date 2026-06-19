@@ -41,7 +41,7 @@ jobs:
           INTEGRATION: "1"
           HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
         run: |
-          go test ./integration/... -run TestIntegrationN2Handover -v -timeout 10m
+          go test ./integration/... -run TestIntegration5GN2Handover -v -timeout 10m
 
       - name: Upload logs
         if: always()

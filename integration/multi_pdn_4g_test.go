@@ -16,7 +16,7 @@ import (
 // TestIntegration4GMultiPDN drives a 4G UE through s1enb/connectivity_multi_pdn: it attaches
 // on the default APN, opens a second PDN connection to another APN, verifies
 // user-plane connectivity on both with distinct UE IPs, then disconnects the
-// second PDN. This is the 4G counterpart of ue/connectivity_multi_pdu_session.
+// second PDN. This is the 4G counterpart of gnb/connectivity_multi_pdu_session.
 func TestIntegration4GMultiPDN(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
