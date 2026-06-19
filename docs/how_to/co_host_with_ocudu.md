@@ -1,10 +1,10 @@
 ---
-description: Step-by-step instructions to deploy Ella Core alongside OCUDU for an all-in-one 5G network.
+description: Step-by-step instructions to deploy Ella Core alongside OCUDU for an all-in-one mobile network.
 ---
 
 # Co-host with OCUDU
 
-Ella Core can be hosted with 5G radio software like [OCUDU](https://ocudu.org/) (previously known as srsRAN 5G) to operate an all-in-one private 5G network. This guide provides step-by-step instructions to deploy Ella Core alongside OCUDU using a Linux network namespace.
+Ella Core can be hosted with radio software like [OCUDU](https://ocudu.org/) (previously known as srsRAN) to operate an all-in-one private mobile network. This guide provides step-by-step instructions to deploy Ella Core alongside OCUDU using a Linux network namespace.
 
 <figure markdown="span">
   ![Ella Core and OCUDU](../images/ocudu.svg){ width="800" }

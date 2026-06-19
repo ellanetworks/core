@@ -6,7 +6,7 @@ description: Step-by-step instructions to integrate Ella Core with a radio.
 
 Radios are automatically added to Ella Core as they connect to the network as long as they are configured to use the same Operator information as Ella Core.
 
-Follow this guide to integrate Ella Core with a 5G radio. This guide assumes you have already deployed Ella Core.
+Follow this guide to integrate Ella Core with a radio. This guide assumes you have already deployed Ella Core.
 
 ## 1. Configure the Operator information
 
@@ -21,13 +21,13 @@ Follow this guide to integrate Ella Core with a 5G radio. This guide assumes you
 
 ## 2. Configure the radio
 
-In your radio's configuration, you will likely need to specify the following information to connect it with a 5G core network:
+In your radio's configuration, you will likely need to specify the following information to connect it with a mobile core network:
 
-- **AMF Address**: The address of the N2 interface on Ella Core.
+- **AMF / MME Address**: The address of the N2 / S1-MME interface on Ella Core.
 - **PLMN ID**: The Public Land Mobile Network Identifier. This is a combination of the Mobile Country Code (MCC) and the Mobile Network Code (MNC). You can find this information in Ella Core under **Operator** and **Operator ID**.
 - **TAC**: The Tracking Area Code. You can find this information in Ella Core under **Operator** and **Supported TACs**.
-- **SST**: The Slice/Service Type. Identifies a network slice. You can find this information in Ella Core under **Networking** and **Slices**.
-- **SD**: The Slice Differentiator. Optionally differentiates slices sharing the same SST. You can find this information in Ella Core under **Networking** and **Slices**.
+- **SST (5G only)**: The Slice/Service Type. Identifies a network slice. You can find this information in Ella Core under **Networking** and **Slices**.
+- **SD (5G only)**: The Slice Differentiator. Optionally differentiates slices sharing the same SST. You can find this information in Ella Core under **Networking** and **Slices**.
 
 !!! note
     
