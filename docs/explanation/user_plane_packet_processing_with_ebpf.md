@@ -23,7 +23,7 @@ Ella Core's data plane uses XDP to achieve high throughput and low latency. Key 
 - **Usage reporting**: Aggregating per-subscriber byte and packet counts for data usage tracking.
 - **Statistics collection**: Monitoring metrics such as packet counts, drops, and processing times.
 
-Data plane processing in Ella Core occurs between the **n3** and **n6** interfaces.
+Data plane processing in Ella Core occurs between the **N3 / S1-U** and **N6 / SGi** interfaces.
 
 <figure markdown="span">
   ![eBPF Ella Core](../images/ebpf.svg){ width="800" }
@@ -61,6 +61,6 @@ The solution is to attach a minimal XDP program that returns `XDP_PASS` to the p
 
 ### IPv6 GTP-U transport
 
-Ella Core supports GTP-U encapsulation with either an IPv4 or IPv6 outer header on the N3 interface. The UE payload remains IPv4 regardless of the transport address family. The chosen address family depends on how the N3 interface is configured, and what the gNodeB advertises. If both sides are dual-stack, Ella Core prefers IPv6.
+Ella Core supports GTP-U encapsulation with either an IPv4 or IPv6 outer header on the N3 / S1-U interface. The UE payload remains IPv4 regardless of the transport address family. The chosen address family depends on how the N3 / S1-U interface is configured, and what the radio advertises. If both sides are dual-stack, Ella Core prefers IPv6.
 
 **GTP echo:** Echo Request/Response messages are handled for both IPv4 and IPv6 transport, as required for GTP-U path management.

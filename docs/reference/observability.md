@@ -22,12 +22,12 @@ These metrics are used to monitor the health of the system and the performance o
 
 | Metric | Description    | Type  |
 | ------------------- | --------- | --------- |
-| app_connected_radios            | Number of radios currently connected to Ella Core                  | Gauge   |
-| app_ngap_messages_total | Total number of received NGAP message per type | Counter |
-| app_registered_subscribers      | Number of subscribers currently registered in Ella Core            | Gauge   |
-| app_registration_attempts_total | Total number of subscriber registration attempts by type and result | Counter |
-| app_pdu_sessions_total | Number of PDU sessions currently in Ella Core. | Gauge |
-| app_pdu_session_establishment_attempts_total | Total PDU session establishment attempts by result | Counter |
+| app_connected_radios            | Number of radios currently connected to Ella Core (5G gNBs and 4G eNBs)                  | Gauge   |
+| app_ngap_messages_total | Total number of received NGAP message per type (5G only; S1AP messages are not counted) | Counter |
+| app_registered_subscribers      | Number of subscribers currently registered in Ella Core (5GS and EPS)            | Gauge   |
+| app_registration_attempts_total | Total number of subscriber registration attempts by type and result (5G only) | Counter |
+| app_pdu_sessions_total | Number of sessions currently in Ella Core (5G PDU sessions and 4G EPS sessions). | Gauge |
+| app_pdu_session_establishment_attempts_total | Total PDU session establishment attempts by result (5G only) | Counter |
 | app_ip_addresses_allocated_total | The total number of IP addresses currently allocated to subscribers. | Gauge |
 | app_ip_addresses_total | The total number of IP addresses available for subscribers. | Gauge |
 | app_xdp_action_total | The total number of packets, with labels for the interface (n3, n6), and action taken. | Counter |
@@ -61,7 +61,7 @@ Ella Core produces three types of logs:
 
  - **System Logs**: General operational information about the system.
  - **Audit Logs**: Logs of user actions for security and compliance. You can view audit logs and manage their retention via the [API](api/audit_logs.md) and the Web UI. 
- - **Radio Logs**: Logs related to NGAP messages. You can view radio logs and manage their retention via the [API](api/radios.md) and the Web UI. 
+ - **Radio Logs**: Logs related to NGAP (5G) and S1AP (4G) messages. You can view radio logs and manage their retention via the [API](api/radios.md) and the Web UI. 
 
 All logs are output in **JSON format** with structured fields for easy parsing and ingestion into log aggregation systems like Loki, Elasticsearch, or Splunk.
 
@@ -97,8 +97,8 @@ Ella Core ships with pre-configured [Grafana alert rules](https://github.com/ell
 | Alert | Severity | Condition |
 |-------|----------|-----------|
 | No Radios Connected | Critical | No radios connected for 2 minutes |
-| High Registration Failure Rate | Critical | More than 10% of subscriber registrations rejected over 5 minutes |
-| High PDU Session Failure Rate | Critical | More than 10% of PDU session establishments rejected over 5 minutes |
+| High Registration Failure Rate | Critical | More than 10% of subscriber registrations rejected over 5 minutes (5G only) |
+| High PDU Session Failure Rate | Critical | More than 10% of PDU session establishments rejected over 5 minutes (5G only) |
 | IP Address Pool Near Exhaustion | Warning | More than 90% of the data network IP pool is allocated |
 
 ### Data Plane Health
@@ -133,7 +133,7 @@ Ella Core ships with [Grafana](https://grafana.com/) dashboards that you can imp
 
 ### Network Health 
 
-This dashboard uses Prometheus metrics to provide real-time visibility into all aspects of your 5G private network deployment, from radio connectivity and subscriber sessions to system performance and data plane throughput.
+This dashboard uses Prometheus metrics to provide real-time visibility into all aspects of your mobile private network deployment, from radio connectivity and subscriber sessions to system performance and data plane throughput.
 
 <figure markdown="span">
   ![Network Health Dashboard](../images/dashboard_network_health.png){ width="800" }

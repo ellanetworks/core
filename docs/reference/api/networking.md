@@ -278,7 +278,7 @@ This path updates the N3 interface settings.
 
 ### Parameters
 
-- `external_address` (string): The external address to be used for the N3 interface. This address will be advertised to the gNodeB in the GTPTunnel Transport Layer Address field part of the PDU Session Setup Request message. The address will be used by the gNodeB to set the GTP tunnel. This setting is useful when Ella Core is behind a proxy or NAT and the N3 interface address is not reachable by the gNodeB. If not set, Ella Core will use the address of the N3 interface as defined in the config file.
+- `external_address` (string): The external address to be used for the N3 / S1-U interface. This address is advertised to the radio in the GTP tunnel Transport Layer Address — to a gNB in the NGAP PDU Session Resource Setup Request (5G), or to an eNB in the S1AP E-RAB Setup (4G) — and the radio uses it to set up the GTP-U tunnel. This setting is useful when Ella Core is behind a proxy or NAT and the N3 / S1-U interface address is not reachable by the radio. If not set, Ella Core will use the address of the N3 interface as defined in the config file.
 
 ### Sample Response
 

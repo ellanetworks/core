@@ -1,5 +1,5 @@
 ---
-description: A 5G mobile core network for private deployments - easy to operate, reliable, and secure.
+description: A mobile core network for private deployments - easy to operate, reliable, and secure.
 ---
 
 # Ella Core
@@ -8,14 +8,14 @@ description: A 5G mobile core network for private deployments - easy to operate,
   <img src="images/summary.svg" alt="Ella Core Logo" />
 </p>
 
-**Ella Core** is a cellular core designed for private networks. It simplifies the complexity of traditional cellular networks into a single, easy-to-operate solution that is reliable and secure.
+**Ella Core** is a mobile core designed for private networks. It simplifies the complexity of traditional mobile networks into a single, easy-to-operate solution that is reliable and secure.
 
-Use Ella Core where you need cellular connectivity: in a factory, a warehouse, a farm, a stadium, a ship, a military base, or a remote location.
+Use Ella Core where you need mobile connectivity: in a factory, a warehouse, a farm, a stadium, a ship, a military base, or a remote location.
 
 ## Key features
 
 - **Performant Data Plane**: Achieve high throughput and low latency with an eBPF-based data plane. Ella Core delivers over 10 Gbps of throughput and less than 1 ms of latency.
-- **Lightweight**: Ella Core is a single binary with an embedded database, making it easy and quick to stand up. It requires as little as 1 CPU core, 1GB of RAM, and 10GB of disk space. Forget specialized hardware; all you need to operate your cellular core network is a Linux system with a network interface.
+- **Lightweight**: Ella Core is a single binary with an embedded database, making it easy and quick to stand up. It requires as little as 1 CPU core, 1GB of RAM, and 10GB of disk space. Forget specialized hardware; all you need to operate your mobile core network is a Linux system with a network interface.
 - **Highly Available**: Deploy Ella Core as a high-availability cluster to ensure continuous operation with failover capabilities.
 - **Subscriber Traffic Control**: Define permitted network flows per subscriber, enforce them in the user plane. Track subscriber traffic and usage in real time.
 - **AI-Native API**: Complete RESTful API and Go client for automation and integration. Manage every aspect of your network programmatically — or let AI agents do it securely using the OpenAPI specification and ready-to-use AI agent skill.

@@ -14,10 +14,10 @@ Subscriber devices receive IPs from the data network pool. When NAT is not used,
 
 Ella Core embeds a BGP speaker that automatically advertises a `/32` (IPv4) or `/64` (IPv6) route for each active subscriber:
 
-1. A subscriber establishes a PDU session and receives an IP address (IPv4, e.g. `10.45.0.3`) or an IPv6 prefix (e.g. `2001:db8:ad50:8500::/64`).
+1. A subscriber establishes a session and receives an IP address (IPv4, e.g. `10.45.0.3`) or an IPv6 prefix (e.g. `2001:db8:ad50:8500::/64`).
 2. Ella Core announces the route `10.45.0.3/32` (or `2001:db8:ad50:8500::/64` for IPv6) to all configured BGP peers, with the N6 interface address as the next-hop.
 3. Upstream routers install the route, and return traffic flows through the N6 interface to Ella Core, which delivers it to the subscriber over GTP-U.
-4. When the PDU session is released, Ella Core withdraws the route.
+4. When the session is released, Ella Core withdraws the route.
 
 This means routing state always reflects the set of currently connected subscribers with no manual intervention.
 

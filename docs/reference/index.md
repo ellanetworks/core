@@ -9,4 +9,4 @@ This section provides detailed reference material for Ella Core, from configurat
 - [Connectivity](connectivity.md)
 - [Performance](performance.md)
 - [System Requirements](system_reqs.md)
-- [Supported 5G Equipment](supported_5g_equipment.md)
+- [Supported Mobile Equipment](supported_mobile_equipment.md)

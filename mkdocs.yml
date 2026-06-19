@@ -1,5 +1,5 @@
 site_name: Ella Core Documentation
-site_description: A 5G mobile core network for private deployments - easy to operate, reliable, and secure.
+site_description: A mobile core network for private deployments - easy to operate, reliable, and secure.
 site_url: https://docs.ellanetworks.com/
 docs_dir: docs
 theme:
@@ -106,7 +106,7 @@ nav:
     - Connectivity: reference/connectivity.md
     - Performance: reference/performance.md
     - System Requirements: reference/system_reqs.md
-    - Supported 5G Equipment: reference/supported_5g_equipment.md
+    - Supported Mobile Equipment: reference/supported_mobile_equipment.md
   - Explanation:
     - explanation/index.md
     - Architecture: explanation/architecture.md
@@ -128,7 +128,7 @@ plugins:
       cards_layout_options:
         background_color: "#26374a"
   - llmstxt:
-      markdown_description: A 5G mobile core network for private deployments - easy to operate, reliable, and secure.
+      markdown_description: A mobile core network for private deployments - easy to operate, reliable, and secure.
       full_output: llms-full.txt
       sections:
         Home:
