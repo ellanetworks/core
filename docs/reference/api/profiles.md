@@ -4,10 +4,7 @@ description: RESTful API reference for managing profiles.
 
 # Profiles
 
-Profiles define the subscriber's Aggregate Maximum Bit Rate (UE-AMBR), which caps the total
-non-GBR throughput across **all** of a subscriber's PDU sessions.
-Ella Core signals this value to the radio, which enforces it.
-A profile can be shared across multiple policies.
+Profiles define the subscriber's Aggregate Maximum Bit Rate (UE-AMBR), which caps the total non-GBR throughput across **all** of a subscriber's sessions. Ella Core signals this value to the radio, which enforces it. A profile can be shared across multiple policies.
 
 ## List Profiles
 
@@ -33,7 +30,9 @@ This path returns the list of profiles.
             {
                 "name": "enterprise",
                 "ue_ambr_uplink": "1 Gbps",
-                "ue_ambr_downlink": "1 Gbps"
+                "ue_ambr_downlink": "1 Gbps",
+                "allow_4g": true,
+                "allow_5g": true
             }
         ],
         "page": 1,
@@ -56,6 +55,8 @@ This path creates a new profile.
 - `name` (string): The name of the profile.
 - `ue_ambr_uplink` (string): Aggregate uplink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Format: `<number> <unit>` (e.g. `"500 Mbps"`). Allowed units: Mbps, Gbps.
 - `ue_ambr_downlink` (string): Aggregate downlink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Format: `<number> <unit>` (e.g. `"1 Gbps"`). Allowed units: Mbps, Gbps.
+- `allow_4g` (boolean, optional): Whether subscribers using this profile may attach over 4G (EPC). Defaults to `true`.
+- `allow_5g` (boolean, optional): Whether subscribers using this profile may register over 5G (5GC). Defaults to `true`.
 
 ### Sample Response
 
@@ -86,7 +87,9 @@ None
     "result": {
         "name": "enterprise",
         "ue_ambr_uplink": "1 Gbps",
-        "ue_ambr_downlink": "1 Gbps"
+        "ue_ambr_downlink": "1 Gbps",
+        "allow_4g": true,
+        "allow_5g": true
     }
 }
 ```
@@ -101,8 +104,10 @@ This path updates an existing profile.
 
 ### Parameters
 
-- `ue_ambr_uplink` (string): Aggregate uplink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the gNB radio scheduler. Format: `<number> <unit>` (e.g. `"500 Mbps"`). Allowed units: Mbps, Gbps.
-- `ue_ambr_downlink` (string): Aggregate downlink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the gNB radio scheduler. Format: `<number> <unit>` (e.g. `"1 Gbps"`). Allowed units: Mbps, Gbps.
+- `ue_ambr_uplink` (string): Aggregate uplink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Format: `<number> <unit>` (e.g. `"500 Mbps"`). Allowed units: Mbps, Gbps.
+- `ue_ambr_downlink` (string): Aggregate downlink bitrate cap across all of the subscriber's sessions (UE-AMBR). Enforced by the radio. Format: `<number> <unit>` (e.g. `"1 Gbps"`). Allowed units: Mbps, Gbps.
+- `allow_4g` (boolean, optional): Whether subscribers using this profile may attach over 4G (EPC). Defaults to `true`.
+- `allow_5g` (boolean, optional): Whether subscribers using this profile may register over 5G (5GC). Defaults to `true`.
 
 ### Sample Response
 

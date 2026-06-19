@@ -44,7 +44,7 @@ Start Ella core with the `--config` flag to specify the path to the configuratio
     - `otlp-endpoint` (string): The endpoint for the OpenTelemetry Protocol (OTLP) collector.
 - `cluster` (object): Clustering configuration for high-availability deployments. See [Clustering](#clustering) for the walkthrough.
     - `enabled` (boolean): Enables HA mode. When `false`, Ella Core runs as a standalone single-server instance.
-    - `node-id` (int, 1–63): Unique per node. Baked into this node's self-signed cluster certificate (SPIFFE URI) and 5G-GUTIs.
+    - `node-id` (int, 1–63): Unique per node. Baked into this node's self-signed cluster certificate (SPIFFE URI) and the GUTIs it issues.
     - `bind-address` (string): `host:port` the cluster listener binds to. Carries Raft consensus and cluster HTTP over mTLS.
     - `advertise-address` (string, optional): `host:port` peers use to reach this node. Host may be an IP or DNS name. Defaults to `bind-address`. Must appear in `peers` and must not use an unspecified IP.
     - `peers` (list of strings): `host:port` of every node in the cluster. Host may be an IP or DNS name. Must include this node's own `advertise-address` (or `bind-address` if `advertise-address` is unset) as the same string.
@@ -148,6 +148,6 @@ interfaces:
 
 ## GTP-U Transport over IPv6
 
-Ella Core supports GTP-U tunnels over IPv6 for the N3 interface (between the core and the gNB). When a gNB advertises a dual-stack transport address (both IPv4 and IPv6) in the N2 signaling and Ella Core is configured for dual-stack, Ella Core always prefers IPv6 for the GTP-U data path.
+Ella Core supports GTP-U tunnels over IPv6 for the N3 / S1-U interface (between the core and the radio). When a radio advertises a dual-stack transport address (both IPv4 and IPv6) in the N2 / S1-MME signaling and Ella Core is configured for dual-stack, Ella Core always prefers IPv6 for the GTP-U data path.
 
 To ensure Ella Core always uses IPv4 or IPv6 for GTP-U, specify an address of that family in the configuration file, or ensure only IPs of that family are configured on the interface.

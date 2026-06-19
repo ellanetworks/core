@@ -1,6 +1,6 @@
 # Explanation
 
-The following explanations provide context and clarification on key-topics related to the use and configuration of Ella Core. Refer to these explanations to refine your understanding of Ella Core and the operation of Private 5G networks.
+The following explanations provide context and clarification on key-topics related to the use and configuration of Ella Core. Refer to these explanations to refine your understanding of Ella Core and the operation of Private mobile networks.
 
 - [Architecture](architecture.md)
 - [High Availability](high_availability.md)

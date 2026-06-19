@@ -43,8 +43,8 @@ None
                 }
             ],
         "nasSecurity": {
-            "ciphering": ["NEA2", "NEA1", "NEA0"],
-            "integrity": ["NIA2", "NIA1", "NIA0"]
+            "ciphering": ["AES", "SNOW3G", "NULL"],
+            "integrity": ["AES", "SNOW3G", "NULL"]
         },
         "spn": {
             "fullName": "Ella Networks",
@@ -79,7 +79,7 @@ This path updates the operator ID. The Mobile Country Code (MCC) and Mobile Netw
 
 ## Update the Operator Tracking Information
 
-This path updates the operator tracking information. The Tracking Area Codes (TACs) are used to identify the tracking areas supported by the operator. 5G radios will need to be configured with one or more of these TACs to connect to the network.
+This path updates the operator tracking information. The Tracking Area Codes (TACs) are used to identify the tracking areas supported by the operator. Radios will need to be configured with one or more of these TACs to connect to the network.
 
 | Method | Path                        |
 | ------ | --------------------------- |
@@ -199,15 +199,17 @@ This path updates the NAS security algorithm preference order for ciphering and 
 
 ### Parameters
 
-- `ciphering` (array of strings): The preferred ciphering algorithm order. Each entry must be one of `NEA0`, `NEA1`, or `NEA2`. At least one algorithm is required. No duplicates allowed.
-- `integrity` (array of strings): The preferred integrity algorithm order. Each entry must be one of `NIA0`, `NIA1`, or `NIA2`. At least one algorithm is required. No duplicates allowed.
+- `ciphering` (array of strings): The preferred ciphering algorithm order. Each entry must be one of `NULL`, `SNOW3G`, or `AES`. At least one algorithm is required, maximum 3. No duplicates allowed.
+- `integrity` (array of strings): The preferred integrity algorithm order. Each entry must be one of `NULL`, `SNOW3G`, or `AES`. At least one algorithm is required, maximum 3. No duplicates allowed.
+
+These algorithm names are RAT-neutral: Ella Core signals them as NEA/NIA to 5G subscribers and as EEA/EIA to 4G subscribers (`NULL` → NEA0/EEA0, `SNOW3G` → NEA1/EEA1, `AES` → NEA2/EEA2).
 
 ### Sample Request
 
 ```json
 {
-    "ciphering": ["NEA2", "NEA1"],
-    "integrity": ["NIA2", "NIA1"]
+    "ciphering": ["AES", "SNOW3G"],
+    "integrity": ["AES", "SNOW3G"]
 }
 ```
 

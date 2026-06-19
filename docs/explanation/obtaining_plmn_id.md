@@ -6,7 +6,7 @@ description: Explanation of obtaining a PLMN ID for private networks.
 
 ## Introduction to PLMN IDs
 
-A Public Land Mobile Network (PLMN) ID is a globally unique identifier that allows mobile devices to recognize and connect to mobile networks. In 5G private networks, having a correct PLMN ID is critical for ensuring proper network identification and operation.
+A Public Land Mobile Network (PLMN) ID is a globally unique identifier that allows mobile devices to recognize and connect to mobile networks. In private mobile networks, having a correct PLMN ID is critical for ensuring proper network identification and operation.
 
 A PLMN ID consists of two parts:
 

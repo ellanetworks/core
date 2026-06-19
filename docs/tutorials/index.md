@@ -1,6 +1,6 @@
 # Tutorials
 
-In these tutorials, we will learn how to deploy and operate an end-to-end 5G network with Ella Core.
+In these tutorials, we will learn how to deploy and operate an end-to-end mobile network with Ella Core.
 
 Choose the tutorial that best fits your setup:
 

@@ -128,7 +128,7 @@ This path returns the list of radio events.
 | ----------       | ----- | ---- | ------- | ----------------- | ----------------------------------------------------------------------------------------------- |
 | `page`           | query | int  | `1`     | `>= 1`            | 1-based page index.                                                                             |
 | `per_page`       | query | int  | `25`    | `1…100`           | Number of items per page.                                                                       |
-| `protocol`       | query | str  |         |                   | Filter by protocol.                                                                              |
+| `protocol`       | query | str  |         | NGAP, S1AP        | Filter by protocol (`NGAP` for 5G radios, `S1AP` for 4G radios).                                 |
 | `direction`      | query | str  |         | inbound, outbound | Filter by log direction.                                                                        |
 | `message_type`   | query | str  |         |                   | Filter by message type.                                                                          |
 | `timestamp_from` | query | str  |         |                   | Filter logs from this timestamp (inclusive). RFC3339 format (e.g., 2006-01-02T15:04:05Z07:00).  |
