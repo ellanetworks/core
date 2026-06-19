@@ -40,7 +40,7 @@ func TestDetachSubscriberNetworkInitiated(t *testing.T) {
 	}
 
 	// UE acknowledges → release + delete.
-	m.onDetachAccept(ue)
+	m.onDetachAccept(context.Background(), ue)
 	parseUEContextReleaseCommand(t, cc.sent[1])
 
 	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.MMEUES1APID, ENBUES1APID: 7}
@@ -82,7 +82,7 @@ func TestForgedMessageIgnoredForSecuredUE(t *testing.T) {
 	// Integrity-protected envelope (SHT=1) with a MAC the MME cannot reproduce.
 	forged := append([]byte{0x17, 0xde, 0xad, 0xbe, 0xef, byte(ue.ulCount)}, plain...)
 
-	m.handleNAS(ue, forged)
+	m.handleNAS(context.Background(), ue, forged)
 
 	if cc.count() != 0 {
 		t.Fatalf("forged DETACH against a secured UE was acted on: %d downlink(s) sent", cc.count())
@@ -170,7 +170,7 @@ func TestDetachSwitchOff(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
-	m.handleNAS(ue, detachRequest(t, ue, true))
+	m.handleNAS(context.Background(), ue, detachRequest(t, ue, true))
 
 	// Switch-off: no Detach Accept, just the UE Context Release Command.
 	if len(cc.sent) != 1 {
@@ -218,7 +218,7 @@ func TestDetachSwitchOffNullSecurity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleNAS(ue, wire)
+	m.handleNAS(context.Background(), ue, wire)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected UE Context Release Command, got %d S1AP messages", len(cc.sent))
@@ -231,7 +231,7 @@ func TestDetachNotSwitchOff(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m)
 
-	m.handleNAS(ue, detachRequest(t, ue, false))
+	m.handleNAS(context.Background(), ue, detachRequest(t, ue, false))
 
 	// Not switch-off: Detach Accept (downlink NAS), then UE Context Release Command.
 	if len(cc.sent) != 2 {
@@ -288,7 +288,7 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 	b, _ := req.Marshal()
 	pdu, _ := s1ap.Unmarshal(b)
 
-	m.handleUEContextReleaseRequest(cc, pdu.(*s1ap.InitiatingMessage).Value)
+	m.handleUEContextReleaseRequest(context.Background(), cc, pdu.(*s1ap.InitiatingMessage).Value)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected 1 UE Context Release Command, got %d", len(cc.sent))
@@ -297,7 +297,7 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 	parseUEContextReleaseCommand(t, cc.sent[0])
 
 	// A second release attempt must not emit another command (idempotent).
-	m.releaseUEContext(ue, causeNASDetach)
+	m.releaseUEContext(context.Background(), ue, causeNASDetach)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("release not idempotent: %d commands sent", len(cc.sent))
@@ -325,7 +325,7 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 	// A repeat UE Context Release Request on the same association is answered
 	// with an Error Indication, not re-actioned with another release command
 	// (TS 36.413).
-	m.handleUEContextReleaseRequest(cc, pdu.(*s1ap.InitiatingMessage).Value)
+	m.handleUEContextReleaseRequest(context.Background(), cc, pdu.(*s1ap.InitiatingMessage).Value)
 
 	if len(cc.sent) != 2 {
 		t.Fatalf("expected an Error Indication for the released AP ID, got %d S1AP messages", len(cc.sent))
@@ -355,7 +355,7 @@ func TestUEContextReleaseRequestFromForeignENB(t *testing.T) {
 	pdu, _ := s1ap.Unmarshal(b)
 
 	foreign := &captureConn{}
-	m.handleUEContextReleaseRequest(foreign, pdu.(*s1ap.InitiatingMessage).Value)
+	m.handleUEContextReleaseRequest(context.Background(), foreign, pdu.(*s1ap.InitiatingMessage).Value)
 
 	if len(cc.sent) != 0 {
 		t.Fatalf("foreign eNB released a UE on another association: %d S1AP messages on the owning association", len(cc.sent))

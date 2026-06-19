@@ -44,7 +44,7 @@ func TestTrackingAreaUpdateConnectedAccepted(t *testing.T) {
 	m := newTestMME(t)
 	ue, cc := securedUE(t, m) // ECM-CONNECTED, secured, EMM-REGISTERED
 
-	m.handleNAS(ue, trackingAreaUpdateNAS(t, ue, false, nil))
+	m.handleNAS(context.Background(), ue, trackingAreaUpdateNAS(t, ue, false, nil))
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one downlink (TAU Accept), got %d", len(cc.sent))
@@ -93,7 +93,7 @@ func TestTrackingAreaUpdateReconcilesBearerContextStatus(t *testing.T) {
 	ue.ensurePDN(6)     // an additional PDN connection
 
 	status := uint16(1 << 5) // the UE reports only EBI 5 active
-	m.handleNAS(ue, trackingAreaUpdateNAS(t, ue, false, &status))
+	m.handleNAS(context.Background(), ue, trackingAreaUpdateNAS(t, ue, false, &status))
 
 	if _, ok := ue.pdns[6]; ok {
 		t.Fatal("EBI 6 should be released locally after the UE reports it inactive")
@@ -134,7 +134,7 @@ func TestTrackingAreaUpdateCombinedSignalsCSDomainUnavailable(t *testing.T) {
 	ue, cc := securedUE(t, m) // ECM-CONNECTED, secured, EMM-REGISTERED
 
 	// EPS update type 2 = combined TA/LA updating with IMSI attach.
-	m.onTrackingAreaUpdate(ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x02})
+	m.onTrackingAreaUpdate(context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x02})
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one downlink (TAU Accept), got %d", len(cc.sent))
@@ -175,7 +175,7 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 	m.assignGUTI(ue, plmn, group, code)
 	oldMTMSI := ue.mtmsi
 
-	m.onTrackingAreaUpdate(ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x03}) // periodic
+	m.onTrackingAreaUpdate(context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x03}) // periodic
 
 	if ue.oldMTMSI != oldMTMSI || ue.mtmsi == oldMTMSI {
 		t.Fatalf("GUTI not reallocated: mtmsi=%d oldMTMSI=%d (was %d)", ue.mtmsi, ue.oldMTMSI, oldMTMSI)
@@ -208,7 +208,7 @@ func TestTrackingAreaUpdateReallocatesGUTI(t *testing.T) {
 	}
 
 	// TAU Complete commits the new GUTI and frees the old M-TMSI.
-	m.onTrackingAreaUpdateComplete(ue)
+	m.onTrackingAreaUpdateComplete(context.Background(), ue)
 
 	if ue.oldMTMSI != 0 {
 		t.Fatal("reallocation not committed after TAU Complete")
@@ -233,7 +233,7 @@ func TestTrackingAreaUpdateIdleNoActiveFlagReleases(t *testing.T) {
 	ue.mtmsi = 1 // a GUTI to reallocate
 	ue.ecmState = ECMIdle
 
-	m.onTrackingAreaUpdate(ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x00})
+	m.onTrackingAreaUpdate(context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x00})
 
 	// Only the TAU Accept goes out; the release waits for TAU Complete.
 	if len(cc.sent) != 1 {
@@ -252,7 +252,7 @@ func TestTrackingAreaUpdateIdleNoActiveFlagReleases(t *testing.T) {
 	}
 
 	// UE Completes: the new GUTI commits and the UE is released to ECM-IDLE.
-	m.onTrackingAreaUpdateComplete(ue)
+	m.onTrackingAreaUpdateComplete(context.Background(), ue)
 
 	if ue.oldMTMSI != 0 {
 		t.Fatal("old M-TMSI not freed after TAU Complete")
@@ -277,7 +277,7 @@ func TestTrackingAreaUpdateIdleActiveFlagReestablishes(t *testing.T) {
 	ue, _ := idleRegisteredUE(t, m)
 	cc := ue.conn.(*captureConn)
 
-	m.onTrackingAreaUpdate(ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x08})
+	m.onTrackingAreaUpdate(context.Background(), ue, []byte{0x07, byte(eps.MsgTrackingAreaUpdateRequest), 0x08})
 
 	if ue.ecmState != ECMConnected {
 		t.Fatal("UE not ECM-CONNECTED after an active-flag TAU")
@@ -303,7 +303,7 @@ func TestTrackingAreaUpdateRecovery(t *testing.T) {
 	// cannot reproduce (no context), sequence 1, and an inner plain TAU REQUEST.
 	nas := []byte{0x17, 0xde, 0xad, 0xbe, 0xef, 0x01, 0x07, byte(eps.MsgTrackingAreaUpdateRequest)}
 
-	m.handleNAS(ue, nas)
+	m.handleNAS(context.Background(), ue, nas)
 
 	if len(cc.sent) != 1 {
 		t.Fatalf("expected one downlink (TAU Reject), got %d", len(cc.sent))

@@ -4,6 +4,8 @@
 package mme
 
 import (
+	"context"
+
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/s1ap"
@@ -114,5 +116,6 @@ func (m *MME) sendResetAcknowledge(conn nasWriter, connectionList []s1ap.UEAssoc
 		return
 	}
 
-	m.logOutboundS1AP(conn, S1APProcedureResetAcknowledge, b)
+	// Reset handling is not tied to a single UE request span; use a fresh root.
+	m.logOutboundS1AP(context.Background(), conn, S1APProcedureResetAcknowledge, b)
 }

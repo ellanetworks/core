@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"net/netip"
 	"testing"
 
@@ -114,7 +115,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.onPDNConnectivityRequest(ue, connReq)
+	m.onPDNConnectivityRequest(context.Background(), ue, connReq)
 
 	p := ue.pdnForAPN("ims")
 	if p == nil {
@@ -177,7 +178,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.onPDNDisconnectRequest(ue, dis)
+	m.onPDNDisconnectRequest(context.Background(), ue, dis)
 
 	if !ue.pdns[6].deactivating || !ue.pdns[6].disconnecting {
 		t.Fatalf("deactivation not in flight for the disconnected PDN: %+v", ue.pdns[6])
@@ -214,7 +215,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.onDeactivateBearerAccept(ue, da)
+	m.onDeactivateBearerAccept(context.Background(), ue, da)
 
 	if _, ok := ue.pdns[6]; ok {
 		t.Fatal("second PDN not released after disconnect accept")
@@ -285,7 +286,7 @@ func TestAdditionalPDNRejectedUnknownAPN(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.onPDNConnectivityRequest(ue, connReq)
+	m.onPDNConnectivityRequest(context.Background(), ue, connReq)
 
 	if ue.pdnForAPN("enterprise") != nil {
 		t.Fatal("PDN created for an APN not in the profile")
@@ -331,7 +332,7 @@ func TestPDNConnectivityRejectedInvalidHeader(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			m.onPDNConnectivityRequest(ue, plain)
+			m.onPDNConnectivityRequest(context.Background(), ue, plain)
 
 			if ue.pdnForAPN("ims") != nil {
 				t.Fatal("PDN created despite an invalid ESM header")
@@ -372,7 +373,7 @@ func TestPDNDisconnectRejectedInvalidHeader(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			m.onPDNDisconnectRequest(ue, plain)
+			m.onPDNDisconnectRequest(context.Background(), ue, plain)
 
 			reject, err := eps.ParsePDNDisconnectReject(lastDownlinkESM(t, ue, cc))
 			if err != nil {
@@ -400,7 +401,7 @@ func TestLastPDNDisconnectRejected(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.onPDNDisconnectRequest(ue, dis)
+	m.onPDNDisconnectRequest(context.Background(), ue, dis)
 
 	if ue.defaultPDN() == nil {
 		t.Fatal("the only PDN was disconnected; expected it to be retained")

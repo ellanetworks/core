@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -15,7 +16,7 @@ import (
 // A first synch failure (#21) with a valid AUTS triggers SQN
 // re-synchronisation and a new AUTHENTICATION REQUEST; every other case — MAC
 // failure (#20), a repeated synch failure, or an invalid AUTS — is rejected.
-func (m *MME) onAuthenticationFailure(ue *UeContext, plain []byte) {
+func (m *MME) onAuthenticationFailure(ctx context.Context, ue *UeContext, plain []byte) {
 	m.stopNASGuard(ue)
 
 	resp, err := eps.ParseAuthenticationFailure(plain)
@@ -33,9 +34,9 @@ func (m *MME) onAuthenticationFailure(ue *UeContext, plain []byte) {
 		logger.MmeLog.Info("re-synchronising SQN, re-authenticating", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
 
 		// The credential authority resyncs from AUTS and issues a fresh vector.
-		if err := m.sendAuthRequest(ue, hex.EncodeToString(resp.AUTS), hex.EncodeToString(ue.authVector.RAND[:])); err != nil {
+		if err := m.sendAuthRequest(ctx, ue, hex.EncodeToString(resp.AUTS), hex.EncodeToString(ue.authVector.RAND[:])); err != nil {
 			logger.MmeLog.Warn("SQN re-synchronisation failed", zap.Error(err))
-			m.rejectAuthentication(ue)
+			m.rejectAuthentication(ctx, ue)
 		}
 
 		return
@@ -43,14 +44,14 @@ func (m *MME) onAuthenticationFailure(ue *UeContext, plain []byte) {
 
 	// MAC failure, a repeated synch failure, or a bad AUTS: the UE attaches with
 	// its IMSI, so per TS 24.301 the network aborts with a reject.
-	m.rejectAuthentication(ue)
+	m.rejectAuthentication(ctx, ue)
 }
 
 // rejectAuthentication sends AUTHENTICATION REJECT (TS 24.301) and
 // releases the UE's S1 context.
-func (m *MME) rejectAuthentication(ue *UeContext) {
+func (m *MME) rejectAuthentication(ctx context.Context, ue *UeContext) {
 	logger.MmeLog.Info("authentication rejected",
 		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
-	m.sendDownlinkMessage(ue, &eps.AuthenticationReject{})
-	m.releaseUEContext(ue, causeNASUnspecified)
+	m.sendDownlinkMessage(ctx, ue, &eps.AuthenticationReject{})
+	m.releaseUEContext(ctx, ue, causeNASUnspecified)
 }

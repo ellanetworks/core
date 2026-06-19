@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"time"
 
 	"github.com/ellanetworks/core/internal/logger"
@@ -13,20 +14,20 @@ import (
 // sendGuardedMessage serializes a NAS message, sends it to the UE, and arms the
 // NAS common-procedure guard timer so the message is retransmitted if the UE
 // does not respond (TS 24.301: T3450/T3460/T3470).
-func (m *MME) sendGuardedMessage(ue *UeContext, name string, msg nasMessage) {
+func (m *MME) sendGuardedMessage(ctx context.Context, ue *UeContext, name string, msg nasMessage) {
 	b, err := msg.Marshal()
 	if err != nil {
 		logger.MmeLog.Error("failed to marshal NAS message", zap.Error(err))
 		return
 	}
 
-	m.sendGuardedDownlink(ue, name, b)
+	m.sendGuardedDownlink(ctx, ue, name, b)
 }
 
 // sendGuardedDownlink sends already-serialized NAS bytes and arms the guard.
-func (m *MME) sendGuardedDownlink(ue *UeContext, name string, nas []byte) {
+func (m *MME) sendGuardedDownlink(ctx context.Context, ue *UeContext, name string, nas []byte) {
 	m.armNASGuard(ue, name, nas)
-	m.sendDownlink(ue, nas)
+	m.sendDownlink(ctx, ue, nas)
 }
 
 // armNASGuard records the outstanding downlink message and starts its guard
@@ -124,7 +125,8 @@ func (m *MME) onNASGuardExpiry(ue *UeContext, gen uint64) {
 
 		logger.MmeLog.Info("NAS procedure timed out, releasing UE",
 			zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.String("procedure", name))
-		m.releaseUEContext(ue, causeNASUnspecified)
+		// The guard fires from a timer outside any request; start a fresh root.
+		m.releaseUEContext(context.Background(), ue, causeNASUnspecified)
 
 		return
 	}
@@ -140,5 +142,6 @@ func (m *MME) onNASGuardExpiry(ue *UeContext, gen uint64) {
 
 	logger.MmeLog.Info("retransmitting NAS message",
 		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("procedure", name), zap.Int("attempt", tries))
-	m.sendDownlink(ue, pdu)
+	// Retransmission is timer-driven, outside the original request; start a fresh root.
+	m.sendDownlink(context.Background(), ue, pdu)
 }

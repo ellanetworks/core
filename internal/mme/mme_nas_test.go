@@ -4,6 +4,7 @@
 package mme
 
 import (
+	"context"
 	"net/netip"
 	"testing"
 
@@ -41,7 +42,7 @@ func TestInitialContextSetupResponseRelaysENBFTEID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m.handleInitialContextSetupResponse(cc, pdu.(*s1ap.SuccessfulOutcome).Value)
+	m.handleInitialContextSetupResponse(context.Background(), cc, pdu.(*s1ap.SuccessfulOutcome).Value)
 
 	want := models.FTEID{TEID: 0x55, Addr: netip.AddrFrom4([4]byte{10, 3, 0, 3})}
 
@@ -104,7 +105,7 @@ func TestInitialContextSetupResponseENBTransportFamily(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			m.handleInitialContextSetupResponse(cc, pdu.(*s1ap.SuccessfulOutcome).Value)
+			m.handleInitialContextSetupResponse(context.Background(), cc, pdu.(*s1ap.SuccessfulOutcome).Value)
 
 			if testPDN(ue).enbFTEID.Addr != tc.want {
 				t.Fatalf("eNB F-TEID address = %v, want %v", testPDN(ue).enbFTEID.Addr, tc.want)

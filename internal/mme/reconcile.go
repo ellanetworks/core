@@ -10,6 +10,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/nas/eps"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -89,14 +91,14 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *pdnConnecti
 	if dnsOnlyChange(p.dnConfig, newFingerprint) {
 		logger.MmeLog.Info("data-network DNS changed; modifying EPS bearer in place",
 			zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.String("apn", p.apn))
-		m.modifyBearerDNS(ue, p, qos)
+		m.modifyBearerDNS(ctx, ue, p, qos)
 
 		return
 	}
 
 	logger.MmeLog.Info("data-network configuration changed; reactivating EPS bearer",
 		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.String("apn", p.apn))
-	m.reactivateBearer(ue, p)
+	m.reactivateBearer(ctx, ue, p)
 }
 
 // dnsOnlyChange reports whether the data-network fingerprint changed in the DNS
@@ -121,7 +123,7 @@ func dnsOnlyChange(oldFingerprint, newFingerprint string) bool {
 // fingerprint is committed to dnConfig only when the UE accepts, so an aborted
 // modification leaves it stale for the backstop to retry. The IPv4 link MTU is
 // replayed unchanged for IPv4-capable bearers, matching the attach PCO.
-func (m *MME) modifyBearerDNS(ue *UeContext, p *pdnConnection, qos *epsQoS) {
+func (m *MME) modifyBearerDNS(ctx context.Context, ue *UeContext, p *pdnConnection, qos *epsQoS) {
 	var dnsServers [][]byte
 
 	dns, parseErr := netip.ParseAddr(qos.DNS)
@@ -157,7 +159,7 @@ func (m *MME) modifyBearerDNS(ue *UeContext, p *pdnConnection, qos *epsQoS) {
 		p.dns = dns
 	}
 
-	m.sendDownlink(ue, naspdu)
+	m.sendDownlink(ctx, ue, naspdu)
 	m.armNASGuardAbortOnly(ue, "Modify EPS Bearer Context Request", naspdu)
 }
 
@@ -165,29 +167,33 @@ func (m *MME) modifyBearerDNS(ue *UeContext, p *pdnConnection, qos *epsQoS) {
 // the default bearer with ESM cause #39 "reactivation requested" (TS 24.301
 // §6.4.4.2). The request is guarded and retransmitted until the UE answers with
 // DEACTIVATE EPS BEARER CONTEXT ACCEPT.
-func (m *MME) reactivateBearer(ue *UeContext, p *pdnConnection) {
-	m.deactivateBearer(ue, p, eps.ESMCauseReactivationRequested, 0, false)
+func (m *MME) reactivateBearer(ctx context.Context, ue *UeContext, p *pdnConnection) {
+	m.deactivateBearer(ctx, ue, p, eps.ESMCauseReactivationRequested, 0, false)
 }
 
 // handleESM dispatches an uplink ESM (session management) NAS message.
-func (m *MME) handleESM(ue *UeContext, plain []byte) {
+func (m *MME) handleESM(ctx context.Context, ue *UeContext, plain []byte) {
 	mt, err := eps.PeekESMMessageType(plain)
 	if err != nil {
 		logger.MmeLog.Warn("failed to read ESM message type", zap.Error(err))
 		return
 	}
 
+	ctx, span := tracer.Start(ctx, "mme/esm",
+		trace.WithAttributes(attribute.Int("esm.message_type", int(mt))))
+	defer span.End()
+
 	switch mt {
 	case eps.MsgPDNConnectivityRequest:
-		m.onPDNConnectivityRequest(ue, plain)
+		m.onPDNConnectivityRequest(ctx, ue, plain)
 	case eps.MsgPDNDisconnectRequest:
-		m.onPDNDisconnectRequest(ue, plain)
+		m.onPDNDisconnectRequest(ctx, ue, plain)
 	case eps.MsgActivateDefaultEPSBearerContextAccept:
 		m.onActivateDefaultBearerAccept(ue, plain)
 	case eps.MsgActivateDefaultEPSBearerContextReject:
 		m.onActivateDefaultBearerReject(ue, plain)
 	case eps.MsgDeactivateEPSBearerContextAccept:
-		m.onDeactivateBearerAccept(ue, plain)
+		m.onDeactivateBearerAccept(ctx, ue, plain)
 	case eps.MsgModifyEPSBearerContextAccept:
 		m.onModifyBearerAccept(ue)
 	case eps.MsgModifyEPSBearerContextReject:
@@ -237,7 +243,7 @@ func (m *MME) onModifyBearerReject(ue *UeContext) {
 // the UE connected (TS 24.301 §6.5.2). A deactivation with reactivation requested
 // for the default bearer instead releases the S1 context so the UE re-attaches
 // and picks up the new data-network configuration (TS 24.301 §6.4.4.2).
-func (m *MME) onDeactivateBearerAccept(ue *UeContext, plain []byte) {
+func (m *MME) onDeactivateBearerAccept(ctx context.Context, ue *UeContext, plain []byte) {
 	m.stopNASGuard(ue)
 
 	p := ue.defaultPDN()
@@ -269,5 +275,5 @@ func (m *MME) onDeactivateBearerAccept(ue *UeContext, plain []byte) {
 
 	logger.MmeLog.Info("EPS bearer deactivated for reactivation; UE will re-attach",
 		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
-	m.releaseUEContext(ue, causeNASNormalRelease)
+	m.releaseUEContext(ctx, ue, causeNASNormalRelease)
 }

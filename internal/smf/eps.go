@@ -14,6 +14,8 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/free5gc/nas/nasMessage"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -31,6 +33,15 @@ import (
 // type, the allocated addresses, and the S-GW S1-U F-TEID the eNB sends uplink
 // traffic to; the eNB downlink endpoint is supplied later via ModifyEPSSession.
 func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest) (models.EPSBearer, error) {
+	ctx, span := tracer.Start(ctx, "smf/create_eps_session",
+		trace.WithAttributes(
+			attribute.String("ue.imsi", req.IMSI),
+			attribute.Int("eps.bearer_id", int(req.EPSBearerIdentity)),
+			attribute.String("eps.apn", req.APN),
+		),
+	)
+	defer span.End()
+
 	supi, err := etsi.NewSUPIFromIMSI(req.IMSI)
 	if err != nil {
 		return models.EPSBearer{}, fmt.Errorf("invalid imsi %q: %w", req.IMSI, err)
@@ -142,6 +153,14 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 // UPF encapsulates downlink traffic toward the eNB (plain, PSC-less GTP-U on
 // S1-U). It mirrors the 5G handling of the gNB F-TEID from the N2 setup response.
 func (s *SMF) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb models.FTEID) error {
+	ctx, span := tracer.Start(ctx, "smf/modify_eps_session",
+		trace.WithAttributes(
+			attribute.String("ue.imsi", imsi),
+			attribute.Int("eps.bearer_id", int(ebi)),
+		),
+	)
+	defer span.End()
+
 	supi, err := etsi.NewSUPIFromIMSI(imsi)
 	if err != nil {
 		return fmt.Errorf("invalid imsi %q: %w", imsi, err)

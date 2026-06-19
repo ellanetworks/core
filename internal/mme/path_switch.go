@@ -28,7 +28,7 @@ var (
 // with PATH SWITCH REQUEST ACKNOWLEDGE — or a FAILURE when the path cannot be
 // switched. value is the initiatingMessage open-type payload; conn is the target
 // eNB's association the request arrived on.
-func (m *MME) handlePathSwitchRequest(conn nasWriter, value []byte) {
+func (m *MME) handlePathSwitchRequest(ctx context.Context, conn nasWriter, value []byte) {
 	req, err := s1ap.ParsePathSwitchRequest(value)
 	if err != nil {
 		logger.MmeLog.Warn("failed to decode Path Switch Request", zap.Error(err))
@@ -74,7 +74,7 @@ func (m *MME) handlePathSwitchRequest(conn nasWriter, value []byte) {
 	}
 
 	// Switch the downlink of every E-RAB in the list to the endpoint it carries.
-	switched := m.switchPathBearers(ue, req.ERABToBeSwitchedDL)
+	switched := m.switchPathBearers(ctx, ue, req.ERABToBeSwitchedDL)
 	if switched == 0 {
 		// TS 36.413: the UP path was switched for no E-RAB.
 		logger.MmeLog.Warn("Path Switch Request switched no E-RAB",
@@ -114,7 +114,7 @@ func (m *MME) handlePathSwitchRequest(conn nasWriter, value []byte) {
 		zap.Uint32("enb-ue-id", uint32(req.ENBUES1APID)),
 		zap.Int("e-rabs-switched", switched),
 		zap.Uint8("ncc", ncc))
-	m.sendS1AP(ue, S1APProcedurePathSwitchRequestAck, b)
+	m.sendS1AP(ctx, ue, S1APProcedurePathSwitchRequestAck, b)
 }
 
 // switchPathBearers points the downlink of each E-RAB in the to-be-switched list
@@ -124,7 +124,7 @@ func (m *MME) handlePathSwitchRequest(conn nasWriter, value []byte) {
 // to a PDN connection, or whose endpoint is malformed or fails to switch, is
 // logged and skipped — not silently dropped — and counts as not switched
 // (TS 36.413).
-func (m *MME) switchPathBearers(ue *UeContext, items []s1ap.ERABToBeSwitchedDLItem) int {
+func (m *MME) switchPathBearers(ctx context.Context, ue *UeContext, items []s1ap.ERABToBeSwitchedDLItem) int {
 	switched := 0
 
 	for _, erab := range items {
@@ -146,7 +146,7 @@ func (m *MME) switchPathBearers(ue *UeContext, items []s1ap.ERABToBeSwitchedDLIt
 
 		fteid := models.FTEID{TEID: uint32(erab.GTPTEID), Addr: addr}
 
-		if err := m.session.ModifyEPSSession(context.Background(), ue.imsi, p.ebi, fteid); err != nil {
+		if err := m.session.ModifyEPSSession(ctx, ue.imsi, p.ebi, fteid); err != nil {
 			logger.MmeLog.Error("failed to switch an EPS session downlink to the target eNB",
 				zap.String("imsi", ue.imsi), zap.Uint8("e-rab-id", uint8(erab.ERABID)), zap.Error(err))
 
@@ -185,7 +185,8 @@ func (m *MME) sendPathSwitchFailure(conn nasWriter, req *s1ap.PathSwitchRequest,
 		return
 	}
 
-	m.logOutboundS1AP(conn, S1APProcedurePathSwitchRequestFailure, b)
+	// A Path Switch Failure can be sent before the UE is resolved; use a fresh root.
+	m.logOutboundS1AP(context.Background(), conn, S1APProcedurePathSwitchRequestFailure, b)
 }
 
 // pathSwitchSecurityCapabilities compares the UE security capabilities the target
