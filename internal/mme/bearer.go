@@ -16,6 +16,9 @@ import (
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -602,12 +605,26 @@ func buildActivateDefaultESM(p *pdnConnection, qos *epsQoS, pti uint8) ([]byte, 
 
 // sendS1AP writes a complete S1AP PDU to the UE's eNB association.
 func (m *MME) sendS1AP(ctx context.Context, ue *UeContext, messageType S1APProcedure, b []byte) {
+	ctx, span := tracer.Start(ctx, "s1ap/send",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("s1ap.message_type", string(messageType)),
+			attribute.Int("s1ap.message_size", len(b)),
+			attribute.String("network.protocol.name", "s1ap"),
+			attribute.String("network.transport", "sctp"),
+		),
+	)
+	defer span.End()
+
 	if ue.conn == nil {
 		return
 	}
 
 	if _, err := ue.conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apPPID, Stream: 0}); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to send S1AP message")
 		logger.MmeLog.Error("failed to send S1AP message", zap.Error(err))
+
 		return
 	}
 

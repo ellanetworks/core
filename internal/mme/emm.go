@@ -12,6 +12,8 @@ import (
 	"github.com/ellanetworks/core/internal/logger"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -137,6 +139,10 @@ func (m *MME) handleNAS(ctx context.Context, ue *UeContext, nas []byte) {
 		logger.MmeLog.Warn("failed to read EMM message type", zap.Error(err))
 		return
 	}
+
+	ctx, span := tracer.Start(ctx, "mme/emm",
+		trace.WithAttributes(attribute.String("nas.message_type", emmMessageTypeName(mt))))
+	defer span.End()
 
 	switch mt {
 	case eps.MsgAttachRequest:

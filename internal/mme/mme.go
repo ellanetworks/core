@@ -22,6 +22,10 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/s1ap"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -147,13 +151,42 @@ func (m *MME) Shutdown(ctx context.Context) {
 	}
 }
 
+// tracer instruments the MME's S1AP/EMM control plane, the 4G counterpart of the
+// AMF's ngap tracer.
+var tracer = otel.Tracer("ella-core/mme")
+
 // dispatch decodes an S1AP PDU and routes it to the matching procedure handler.
 func (m *MME) dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
+	// Inbound S1AP carries no propagated trace context, so this is a fresh root
+	// span, mirroring the AMF's ngap/receive.
+	ctx, span := tracer.Start(ctx, "s1ap/receive",
+		trace.WithSpanKind(trace.SpanKindServer),
+		trace.WithAttributes(
+			attribute.Int("s1ap.message_size", len(msg)),
+			attribute.String("network.protocol.name", "s1ap"),
+			attribute.String("network.transport", "sctp"),
+		),
+	)
+	defer span.End()
+
+	if conn != nil {
+		span.SetAttributes(
+			attribute.String("network.peer.address", addrString(conn.RemoteAddr())),
+			attribute.String("network.local.address", addrString(conn.LocalAddr())),
+		)
+	}
+
 	pdu, err := s1ap.Unmarshal(msg)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to decode S1AP PDU")
 		logger.MmeLog.Warn("failed to decode S1AP PDU", zap.Error(err))
+
 		return
 	}
+
+	messageType := s1apMessageType(pdu)
+	span.SetAttributes(attribute.String("s1ap.message_type", string(messageType)))
 
 	// Track the eNB from an S1 Setup Request before logging, so the inbound
 	// event is attributed to the radio ahead of the outbound S1 Setup Response,
@@ -166,7 +199,7 @@ func (m *MME) dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 	}
 
 	m.touchENB(conn)
-	m.logNetworkEvent(ctx, conn, s1apMessageType(pdu), logger.DirectionInbound, msg)
+	m.logNetworkEvent(ctx, conn, messageType, logger.DirectionInbound, msg)
 
 	// TS 36.413: S1 Setup is the first S1AP procedure on a TNL
 	// association. Until it completes, drop every other message — including UE
@@ -174,7 +207,7 @@ func (m *MME) dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 	// NG Setup gate (TS 38.413).
 	if !isSetup && !m.enbSetupComplete(conn) {
 		logger.MmeLog.Warn("S1AP message before S1 Setup, dropping",
-			zap.String("message-type", string(s1apMessageType(pdu))))
+			zap.String("message-type", string(messageType)))
 
 		return
 	}

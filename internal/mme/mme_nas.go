@@ -12,6 +12,9 @@ import (
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -194,9 +197,23 @@ func (m *MME) sendDownlinkMessage(ctx context.Context, ue *UeContext, msg nasMes
 // sendDownlink wraps NAS bytes (plain or security-protected) in a Downlink NAS
 // Transport and sends them to the UE's eNB.
 func (m *MME) sendDownlink(ctx context.Context, ue *UeContext, nas []byte) {
+	ctx, span := tracer.Start(ctx, "s1ap/send",
+		trace.WithSpanKind(trace.SpanKindClient),
+		trace.WithAttributes(
+			attribute.String("s1ap.message_type", string(S1APProcedureDownlinkNASTransport)),
+			attribute.Int("s1ap.message_size", len(nas)),
+			attribute.String("network.protocol.name", "s1ap"),
+			attribute.String("network.transport", "sctp"),
+		),
+	)
+	defer span.End()
+
 	b, err := downlinkNASTransportBytes(ue, nas)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to build Downlink NAS Transport")
 		logger.MmeLog.Error("failed to build Downlink NAS Transport", zap.Error(err))
+
 		return
 	}
 
@@ -205,7 +222,10 @@ func (m *MME) sendDownlink(ctx context.Context, ue *UeContext, nas []byte) {
 	}
 
 	if _, err := ue.conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apPPID, Stream: 0}); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to send Downlink NAS Transport")
 		logger.MmeLog.Error("failed to send Downlink NAS Transport", zap.Error(err))
+
 		return
 	}
 

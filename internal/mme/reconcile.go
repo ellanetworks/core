@@ -10,6 +10,8 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/nas/eps"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -176,6 +178,10 @@ func (m *MME) handleESM(ctx context.Context, ue *UeContext, plain []byte) {
 		logger.MmeLog.Warn("failed to read ESM message type", zap.Error(err))
 		return
 	}
+
+	ctx, span := tracer.Start(ctx, "mme/esm",
+		trace.WithAttributes(attribute.Int("esm.message_type", int(mt))))
+	defer span.End()
 
 	switch mt {
 	case eps.MsgPDNConnectivityRequest:
