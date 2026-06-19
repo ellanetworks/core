@@ -91,15 +91,17 @@ type probeProtocolParams struct {
 	supportsPortRules    bool
 }
 
-// familyParams picks the parameter set matching the active IP family.
-// DualStack reuses the IPv4 leg, matching the convention used
-// elsewhere in the integration suite.
-func familyParams(family IPFamily) ipFamilyParams {
+// familyParams picks the parameter set matching the active IP family for the
+// given RAN (ranPrefix is the scenario namespace: "gnb" for 5G, "s1enb" for 4G).
+// The probe machinery, byte/packet constants, and rule shapes are RAT-agnostic;
+// only the connectivity_expect scenario names differ. DualStack reuses the IPv4
+// leg, matching the convention used elsewhere in the integration suite.
+func familyParams(family IPFamily, ranPrefix string) ipFamilyParams {
 	if family == IPv6Only {
 		return ipFamilyParams{
 			family:            IPv6Only,
-			scenarioAllowed:   "gnb/connectivity_expect_allowed_ipv6",
-			scenarioBlocked:   "gnb/connectivity_expect_blocked_ipv6",
+			scenarioAllowed:   ranPrefix + "/connectivity_expect_allowed_ipv6",
+			scenarioBlocked:   ranPrefix + "/connectivity_expect_blocked_ipv6",
 			pingDestination:   scenarios.DefaultPingDestinationV6,
 			uePool:            scenarios.DefaultUEIPv6Pool,
 			nonMatchingPrefix: "2001:db8:dead::/48",
@@ -109,8 +111,8 @@ func familyParams(family IPFamily) ipFamilyParams {
 
 	return ipFamilyParams{
 		family:            family,
-		scenarioAllowed:   "gnb/connectivity_expect_allowed",
-		scenarioBlocked:   "gnb/connectivity_expect_blocked",
+		scenarioAllowed:   ranPrefix + "/connectivity_expect_allowed",
+		scenarioBlocked:   ranPrefix + "/connectivity_expect_blocked",
 		pingDestination:   scenarios.DefaultPingDestination,
 		uePool:            scenarios.DefaultUEIPv4Pool,
 		nonMatchingPrefix: "203.0.113.0/24",

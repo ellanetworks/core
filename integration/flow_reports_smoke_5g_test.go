@@ -25,7 +25,7 @@ func TestIntegration5GFlowReportsSmoke(t *testing.T) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
-	fp := familyParams(DetectIPFamily())
+	fp := familyParams(DetectIPFamily(), "gnb")
 
 	ctx := context.Background()
 	env := setupTesterEnv(ctx, t)
