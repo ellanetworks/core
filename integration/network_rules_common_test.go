@@ -15,6 +15,10 @@ import (
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
 
+// rulePropagationDelay lets the UPF's changefeed reconciler register a policy's
+// SDF filters before a session establishes and binds its filter index.
+const rulePropagationDelay = 3 * time.Second
+
 // runNetworkRulesAndFlowReports drives a matrix of rule shapes for the given RAN
 // (ranPrefix "gnb"/"s1enb"). For each shape, every applicable protocol's probe
 // is run back-to-back under a single combined policy, then per-protocol flow
@@ -268,6 +272,14 @@ func runRuleShape(ctx context.Context, t *testing.T, env *testerEnv, fp ipFamily
 	t.Cleanup(func() {
 		setDefaultPolicyRules(context.Background(), t, env.Client, &client.PolicyRules{})
 	})
+
+	// The UPF registers a policy's SDF filters asynchronously via the changefeed
+	// reconciler. A session binds its filter index at establish time, so the rule
+	// must reach the data path before the scenario attaches — otherwise a fast
+	// attach (notably the 4G single-UE path) races ahead and the deny rule is not
+	// yet in force. 5G's slower parallel-UE attach masks this; the wait makes the
+	// shared runner robust for both.
+	time.Sleep(rulePropagationDelay)
 
 	if err := env.Client.ClearFlowReports(ctx); err != nil {
 		t.Fatalf("clear flow reports: %v", err)
