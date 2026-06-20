@@ -34,11 +34,9 @@ func init() {
 	})
 }
 
-// runS1ENBConnectivityDualStack attaches a UE with PDN type IPv4v6, builds a
-// dual-stack GTP-U tunnel (IPv4 plus an IPv6 link-local that SLAAC promotes to a
-// global address via the UPF Router Advertisement), and verifies user-plane
-// connectivity by pinging the N6 destination over both families — the 4G
-// counterpart of gnb/connectivity_dualstack.
+// runS1ENBConnectivityDualStack attaches an IPv4v6 UE and pings the N6
+// destination over both families. The IPv6 link-local is promoted to a global
+// address by the UPF Router Advertisement before the ping.
 func runS1ENBConnectivityDualStack(ctx context.Context, env scenarios.Env, _ any) error {
 	s1mme, err := s1mmeAddress(env.FirstCore())
 	if err != nil {
@@ -97,7 +95,6 @@ func runS1ENBConnectivityDualStack(ctx context.Context, env scenarios.Env, _ any
 
 	defer e.CloseTunnel(res.DLTEID)
 
-	// Wait for the UPF Router Advertisement to give the TUN a global IPv6 address.
 	if err := s1enb.WaitForULAAddr(connDualStackTunIface, scenarios.DefaultUEIPv6Pool, 5*time.Second); err != nil {
 		return fmt.Errorf("await SLAAC address: %w", err)
 	}

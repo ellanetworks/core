@@ -30,7 +30,7 @@ func init() {
 
 // runS1ENBRegistrationV4V6 attaches requesting PDN type IPv4v6 and verifies the
 // MME negotiates a dual-stack default bearer with an IPv4 address (TS 24.301
-// §6.5.1.2) — the 4G counterpart of gnb/registration_success_v4v6.
+// §6.5.1.2).
 func runS1ENBRegistrationV4V6(_ context.Context, env scenarios.Env, _ any) error {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {

@@ -35,8 +35,7 @@ func init() {
 }
 
 // runS1ENBScaleSequential attaches a batch of UEs back-to-back on one eNB,
-// verifying the MME completes every EPS attach and hands out a distinct GUTI —
-// the 4G counterpart of gnb/registration_success_50_sequential.
+// verifying the MME completes every EPS attach and hands out a distinct GUTI.
 func runS1ENBScaleSequential(_ context.Context, env scenarios.Env, _ any) error {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {
@@ -76,7 +75,6 @@ func runS1ENBScaleSequential(_ context.Context, env scenarios.Env, _ any) error 
 	return nil
 }
 
-// nthIMSI returns the IMSI n positions after base (both 15-digit decimal).
 func nthIMSI(base string, n int) string {
 	v, err := strconv.ParseUint(base, 10, 64)
 	if err != nil {

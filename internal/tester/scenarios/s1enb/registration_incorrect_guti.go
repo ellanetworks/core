@@ -29,8 +29,7 @@ func init() {
 
 // runS1ENBRegistrationIncorrectGUTI attaches presenting a GUTI the MME cannot
 // resolve and verifies the MME requests the IMSI with an Identity Request, then
-// completes the attach (TS 24.301 §5.4.4) — the 4G counterpart of
-// gnb/registration/incorrect_guti.
+// completes the attach (TS 24.301 §5.4.4).
 func runS1ENBRegistrationIncorrectGUTI(_ context.Context, env scenarios.Env, _ any) error {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {

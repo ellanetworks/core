@@ -13,9 +13,8 @@ import (
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 )
 
-// attachAndPing attaches ue on the already-started eNB, builds a GTP-U tunnel
-// for its default bearer on tunIface, pings the N6 destination through it, then
-// tears the tunnel down. Shared by the connectivity and HA-failover scenarios.
+// attachAndPing attaches ue, builds a GTP-U tunnel for its default bearer, pings
+// the N6 destination through it, then tears the tunnel down.
 func attachAndPing(ctx context.Context, e *s1enb.ENB, ue *s1enb.UE, tunIface string) error {
 	res, err := e.Attach(ue, 15*time.Second)
 	if err != nil {
@@ -38,7 +37,7 @@ func attachAndPing(ctx context.Context, e *s1enb.ENB, ue *s1enb.UE, tunIface str
 
 	defer e.CloseTunnel(res.DLTEID)
 
-	// Let the UPF program the downlink endpoint, then ping through the tunnel.
+	// Let the UPF program the downlink endpoint before pinging.
 	time.Sleep(500 * time.Millisecond)
 
 	cmd := exec.CommandContext(ctx, "ping", "-I", tunIface, scenarios.DefaultPingDestination, "-c", "3", "-W", "2") // #nosec G204 -- fixed ping; interface and destination are test config

@@ -30,11 +30,9 @@ func init() {
 	})
 }
 
-// runS1ENBSessionHold attaches a single UE over S1AP, establishing the default
-// EPS bearer (and its IP lease), and blocks until ctx is cancelled so external
-// tests can observe the BGP route advertisement before tear-down. The 4G
-// counterpart of gnb/session_hold. It honours the env IP family so the BGP suite
-// can hold an IPv6 lease (and advertise its route) in IPv6 mode.
+// runS1ENBSessionHold attaches a single UE, establishing the default EPS bearer
+// and its IP lease, then blocks until ctx is cancelled. The IP family follows the
+// env so the lease can be IPv4 or IPv6.
 func runS1ENBSessionHold(ctx context.Context, env scenarios.Env, _ any) error {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {

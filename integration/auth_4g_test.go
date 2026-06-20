@@ -17,8 +17,6 @@ import (
 // MME's provisioned subscriber (a different MSISDN in the same PLMN) and checks
 // the MME rejects the attach with ATTACH REJECT #2 ("IMSI unknown in HSS")
 // rather than letting it register.
-//
-// Isolation: named TestIntegration4G* and gated on INTEGRATION.
 func TestIntegration4GUnknownIMSI(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
@@ -144,8 +142,7 @@ func provision4GCore(ctx context.Context, t *testing.T, cl *client.Client) {
 	}
 }
 
-// bring4GCoreUp starts ella-core and srsenb (through S1 Setup) and returns the
-// docker client; the caller starts srsue with the env it needs. enbEnv, when
+// bring4GCoreUp starts ella-core and srsenb through S1 Setup. enbEnv, when
 // non-nil, overrides srsenb environment (e.g. a short inactivity timer).
 func bring4GCoreUp(ctx context.Context, t *testing.T, enbEnv map[string]string) (*DockerClient, *client.Client) {
 	t.Helper()

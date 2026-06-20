@@ -23,7 +23,6 @@ const (
 	netRuleBlockedIPv6IMSI = "001017271246613"
 )
 
-// probeParams carries the --protocol flag for the network-rule scenarios.
 type probeParams struct {
 	Protocol string
 }
@@ -89,10 +88,9 @@ func init() {
 	})
 }
 
-// runS1ENBNetworkRule attaches a 4G UE, builds a GTP-U tunnel, and probes the N6
-// destination, asserting the probe is allowed or blocked according to the network
-// rule the driving test installed on the policy — the 4G counterpart of
-// gnb/connectivity_expect_{allowed,blocked}. ipv6 selects an IPv6 PDN + probe.
+// runS1ENBNetworkRule attaches a UE, builds a GTP-U tunnel, and probes the N6
+// destination, requiring the probe to succeed when expectAllowed and fail
+// otherwise. ipv6 selects an IPv6 PDN and probe.
 func runS1ENBNetworkRule(ctx context.Context, env scenarios.Env, params *probeParams, imsi, tunIface string, expectAllowed, ipv6 bool) error {
 	proto, err := probe.ParseProtocol(params.Protocol)
 	if err != nil {
@@ -168,7 +166,6 @@ func runS1ENBNetworkRule(ctx context.Context, env scenarios.Env, params *probePa
 	defer e.CloseTunnel(res.DLTEID)
 
 	if ipv6 {
-		// Wait for the UPF Router Advertisement to give the TUN a global IPv6 address.
 		if err := s1enb.WaitForULAAddr(tunIface, scenarios.DefaultUEIPv6Pool, 5*time.Second); err != nil {
 			return fmt.Errorf("await SLAAC address: %w", err)
 		}

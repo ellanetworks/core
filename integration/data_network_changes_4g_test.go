@@ -13,12 +13,11 @@ import (
 	_ "github.com/ellanetworks/core/internal/tester/scenarios/all"
 )
 
-// TestIntegration4GDataNetworkChanges drives a 4G UE through s1enb/data-network-*-change to
-// assert the MME propagates a data-network reconfiguration to an active EPS
-// bearer: a DNS, MTU, or IP-pool change deactivates the bearer with ESM cause
-// #39 "reactivation requested" (TS 24.301 §6.4.4.2) and the UE re-attaches with
-// the new configuration. This is the 4G counterpart of the AMF session
-// reconciler exercised by gnb/data-network-*-change.
+// TestIntegration4GDataNetworkChanges drives a 4G UE through
+// s1enb/data-network-*-change to assert the MME propagates a data-network
+// reconfiguration to an active EPS bearer: a DNS, MTU, or IP-pool change
+// deactivates the bearer with ESM cause #39 "reactivation requested"
+// (TS 24.301 §6.4.4.2) and the UE re-attaches with the new configuration.
 func TestIntegration4GDataNetworkChanges(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")

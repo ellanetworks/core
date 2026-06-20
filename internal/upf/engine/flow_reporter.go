@@ -27,11 +27,10 @@ func SetN3InterfaceIndex(idx int) {
 	n3IfIndex.Store(uint32(idx))
 }
 
-// mustGetBootTime anchors the wall-clock instant of boot so eBPF flow timestamps
-// (bpf_ktime_get_ns, CLOCK_MONOTONIC nanoseconds since boot) can be converted to
-// wall time via bootTime+ts. It reads CLOCK_MONOTONIC rather than Sysinfo.Uptime
-// (whole-second granularity, ±1s error) so the anchor keeps the datapath's
-// nanosecond precision. Called once at init; a clock read failing there is fatal.
+// mustGetBootTime returns the wall-clock instant of boot, used to convert eBPF
+// flow timestamps (bpf_ktime_get_ns, monotonic ns since boot) to wall time.
+// The monotonic clock must match bpf_ktime_get_ns and preserves sub-second
+// precision Sysinfo.Uptime would lose.
 func mustGetBootTime() time.Time {
 	var ts unix.Timespec
 	if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {

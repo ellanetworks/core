@@ -161,10 +161,8 @@ func TestBuildFlowReportRequestTimestampFormatting(t *testing.T) {
 	}
 }
 
-// TestBuildFlowReportRequestTimestampAccuracy verifies the wall-clock anchor
-// keeps the datapath's sub-second precision: a flow whose FirstTs is the current
-// CLOCK_MONOTONIC reading must map back to roughly now. The previous anchor,
-// derived from Sysinfo.Uptime (whole seconds), could be off by up to ~1s.
+// TestBuildFlowReportRequestTimestampAccuracy checks that a flow whose FirstTs
+// is the current monotonic reading maps back to within 250ms of now.
 func TestBuildFlowReportRequestTimestampAccuracy(t *testing.T) {
 	var ts unix.Timespec
 	if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {

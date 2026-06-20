@@ -20,9 +20,6 @@ import (
 //
 // The UE's USIM (compose/srsenb/compose.yaml) matches the MME's hard-coded
 // subscriber (internal/mme/subscriber.go).
-//
-// Isolation: named TestIntegration4G* (see TestIntegration4GS1Setup) and gated
-// on the INTEGRATION environment variable.
 func TestIntegration4GAttach(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
@@ -85,8 +82,7 @@ func TestIntegration4GAttach(t *testing.T) {
 	t.Log("UE completed EPS attach (EMM-REGISTERED)")
 }
 
-// waitForAttach polls Ella Core's logs for the MME's EMM-REGISTERED marker,
-// which is logged only after the UE's Attach Complete.
+// waitForAttach polls Ella Core's logs for the MME's EMM-REGISTERED marker.
 func waitForAttach(ctx context.Context, t *testing.T, dc *DockerClient) bool {
 	t.Helper()
 

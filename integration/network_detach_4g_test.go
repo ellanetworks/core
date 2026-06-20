@@ -12,11 +12,8 @@ import (
 )
 
 // TestIntegration4GNetworkDetach attaches a real srsUE, then deletes its
-// subscriber via the API. DeleteSubscriber drives a network-initiated detach
-// (the 4G mirror of the AMF's deregistration on subscriber removal): the MME
-// sends a Detach Request to the UE and releases its S1 context.
-//
-// Isolation: named TestIntegration4G* and gated on INTEGRATION.
+// subscriber via the API. DeleteSubscriber drives a network-initiated detach: the
+// MME sends a Detach Request to the UE and releases its S1 context.
 func TestIntegration4GNetworkDetach(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")

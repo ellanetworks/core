@@ -37,10 +37,9 @@ func init() {
 	})
 }
 
-// multiPDNFixture provisions a profile with two policies — the default APN
-// (internet) and a second APN (enterprise, its own IP pool) — the 4G counterpart
-// of the 5G gnb/connectivity_multi_pdu_session fixture. 4G has no S-NSSAI, so both
-// policies sit on the default slice; the MME resolves them by APN.
+// multiPDNFixture provisions a profile with two policies: the default APN
+// (internet) and an enterprise APN with its own IP pool. 4G has no S-NSSAI, so
+// both sit on the default slice and the MME resolves them by APN.
 func multiPDNFixture(_ scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{
 		Profiles: []scenarios.ProfileSpec{
@@ -75,10 +74,9 @@ func multiPDNFixture(_ scenarios.Env) scenarios.FixtureSpec {
 	}
 }
 
-// runS1ENBMultiPDN attaches a UE (default APN), opens a second PDN connection to
-// another APN, and verifies user-plane connectivity on both with distinct UE IPs
-// — the 4G counterpart of gnb/connectivity_multi_pdu_session. It then disconnects
-// the second PDN and detaches, leaving the UE on its first PDN until detach.
+// runS1ENBMultiPDN attaches a UE on the default APN, opens a second PDN to the
+// enterprise APN, and verifies connectivity on both with distinct UE IPs, then
+// disconnects the second PDN and detaches.
 func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 	s1mme, err := s1mmeAddress(env.FirstCore())
 	if err != nil {
@@ -193,7 +191,6 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 	return nil
 }
 
-// pingVia pings the default N6 destination through the given tunnel interface.
 func pingVia(ctx context.Context, iface string) error {
 	cmd := exec.CommandContext(ctx, "ping", "-I", iface, scenarios.DefaultPingDestination, "-c", "3", "-W", "2") // #nosec G204 -- fixed ping; interface and destination are test config
 	if out, err := cmd.CombinedOutput(); err != nil {

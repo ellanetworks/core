@@ -60,11 +60,9 @@ func fixtureS1ENBMultiplePolicies(_ scenarios.Env) scenarios.FixtureSpec {
 }
 
 // runS1ENBMultiplePolicies attaches each subscriber on one eNB and asserts the
-// default bearer carries its policy's QCI (5+i) and per-policy Session-AMBR
-// (10·(i+1)/50·(i+1) Mbps) plus the baseline signaled fields (IP∈pool, APN, PDN
-// type) — the 4G counterpart of gnb/registration_success_multiple_policies, now
-// at the same depth. Sequential because the eNB sim does not yet demux attach
-// responses per UE (parallel scale is a separate item).
+// default bearer carries its policy's QCI (5+i), per-policy Session-AMBR
+// (10·(i+1)/50·(i+1) Mbps), and the baseline signaled fields (IP∈pool, APN, PDN
+// type). Sequential because the eNB sim does not demux attach responses per UE.
 func runS1ENBMultiplePolicies(_ context.Context, env scenarios.Env, _ any) error {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {

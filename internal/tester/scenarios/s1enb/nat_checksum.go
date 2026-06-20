@@ -20,8 +20,7 @@ import (
 
 const natChecksumIMSI = "001017271246614"
 
-// natChecksumDefaultSizes spans small and large (>512 B) L4 datagrams so the
-// capture-verify test checks egress checksums across a range of sizes.
+// natChecksumDefaultSizes spans small and large (>512 B) L4 datagrams.
 const natChecksumDefaultSizes = "16,500,800,1300"
 
 const natChecksumTunIface = "s1enbnatck0"
@@ -82,11 +81,10 @@ func parsePayloadSizes(csv string) ([]int, error) {
 	return sizes, nil
 }
 
-// runS1ENBNATChecksum attaches a single 4G UE + default bearer, then sweeps TCP
-// and UDP probes of varying payload size through source_nat. It asserts only that
-// the probes complete; the egress L4 checksum is verified out-of-band by the
-// integration test, which captures the post-NAT frames on N6. The 4G counterpart
-// of gnb/nat_checksum. source_nat is IPv4-only, so this scenario is IPv4-only.
+// runS1ENBNATChecksum attaches a UE and sweeps TCP and UDP probes of varying
+// payload size through source_nat. The egress checksums are verified from a
+// packet capture, so the scenario only drives traffic. IPv4 only: source_nat
+// does not NAT IPv6.
 func runS1ENBNATChecksum(ctx context.Context, env scenarios.Env, params *natChecksumParams) error {
 	sizes, err := parsePayloadSizes(params.PayloadBytes)
 	if err != nil {

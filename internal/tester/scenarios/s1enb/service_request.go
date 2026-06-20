@@ -30,8 +30,7 @@ func init() {
 
 // runS1ENBServiceRequest attaches a UE, drops it to ECM-IDLE with an S1 release,
 // then has the UE return with a mobile-originated SERVICE REQUEST and verifies the
-// MME re-establishes the bearer (TS 24.301 §5.6.1) — the 4G counterpart of
-// gnb/service_request/data.
+// MME re-establishes the bearer (TS 24.301 §5.6.1).
 func runS1ENBServiceRequest(_ context.Context, env scenarios.Env, _ any) error {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {
@@ -56,13 +55,10 @@ func runS1ENBServiceRequest(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("attach completed without a GUTI, cannot service-request")
 	}
 
-	// Drop to ECM-IDLE (eNB-initiated release on inactivity).
 	if err := e.ReleaseContext(res.MMEUES1APID, res.ENBUES1APID, s1enb.CauseUserInactivity, 10*time.Second); err != nil {
 		return fmt.Errorf("release to ECM-IDLE: %w", err)
 	}
 
-	// Return from idle: SERVICE REQUEST → the MME re-establishes the bearer with a
-	// fresh MME-UE-S1AP-ID.
 	mmeUEID, _, err := e.ServiceRequest(ue, res.GUTI, 10*time.Second)
 	if err != nil {
 		return fmt.Errorf("service request: %w", err)

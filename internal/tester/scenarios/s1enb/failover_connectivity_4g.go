@@ -18,9 +18,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// failoverMarker is printed to stdout after the phase-1 flow completes,
-// signalling the orchestrator (integration test) that the primary core can now
-// be killed. Must match the value the test scans for.
+// failoverMarker is printed to stdout after phase 1 to signal the orchestrator it
+// can kill the primary core. Must match the token the test scans for.
 const failoverMarker = "PHASE1_DONE"
 
 // failoverTimeout caps the wait for the primary's SCTP association to drop and
@@ -45,16 +44,13 @@ func init() {
 	})
 }
 
-// runS1ENBFailoverConnectivity is the 4G counterpart of
-// ha/failover_connectivity_5g, a two-phase scenario:
+// runS1ENBFailoverConnectivity is a two-phase HA scenario:
 //
-//  1. Attach a UE on the eNB's primary MME (CoreS1MMEAddresses[0]), establish a
-//     bearer, verify connectivity by pinging through the tunnel. Emit the
-//     phase-1 marker on stdout so the orchestrator can kill the primary.
-//  2. Wait for the eNB to fail over to a new MME. Attach a fresh UE on the new
-//     MME, establish a bearer, verify connectivity again.
-//
-// Exits 0 only if both phases succeed.
+//  1. Attach a UE on the eNB's primary MME, establish a bearer, verify
+//     connectivity, then emit the phase-1 marker on stdout so the orchestrator
+//     can kill the primary.
+//  2. Wait for the eNB to fail over to a new MME, attach a fresh UE there, and
+//     verify connectivity again.
 func runS1ENBFailoverConnectivity(ctx context.Context, env scenarios.Env) error {
 	if len(env.CoreN2Addresses) < 2 {
 		return fmt.Errorf("ha/failover_connectivity_4g requires at least 2 core addresses; got %d", len(env.CoreN2Addresses))
@@ -103,15 +99,13 @@ func runS1ENBFailoverConnectivity(ctx context.Context, env scenarios.Env) error 
 
 	logger.Logger.Info("phase1: connectivity verified", zap.String("peer", primaryPeer))
 
-	// Signal the orchestrator. Stdout is mirrored back to the Go test; a simple
-	// substring match on this token triggers the kill.
+	// Stdout is mirrored to the Go test; this token triggers the primary kill.
 	fmt.Println(failoverMarker)
 
 	_ = os.Stdout.Sync()
 
-	// Wait for the eNB to switch to a different active MME. Triggered when the
-	// orchestrator kills the primary core: SCTP read errors in the eNB's
-	// receiver, which promotes the next peer in the list.
+	// When the primary is killed, SCTP read errors in the eNB receiver promote
+	// the next peer.
 	waitCtx, cancel := context.WithTimeout(ctx, failoverTimeout)
 	newPeer, err := e.WaitForActivePeerChange(waitCtx)
 
@@ -138,15 +132,11 @@ func runS1ENBFailoverConnectivity(ctx context.Context, env scenarios.Env) error 
 		return fmt.Errorf("phase2: wait for S1 Setup Response on new MME: %w", err)
 	}
 
-	// Phase 2 re-attaches a fresh UE. The attach bumps the subscriber's
-	// sequenceNumber, a Raft-replicated write forwarded follower→leader
-	// in-process, so any surviving peer can service it — once a new leader is
-	// elected. Killing the previous leader starts a heartbeat-timeout →
-	// election cycle (a few seconds); until it settles, writes return a
-	// leadership error and the NAS layer rejects the attach. Retry against the
-	// same peer with a small backoff until the leader settles. Each attempt
-	// uses a fresh UE (fresh eNB-UE-S1AP-ID) and tunnel name so stale eNB-local
-	// context from a failed attempt doesn't collide with the retry.
+	// The re-attach bumps the subscriber's sequenceNumber, a Raft write that
+	// needs a leader. Killing the primary triggers an election (a few seconds);
+	// until it settles, writes fail with a leadership error and the attach is
+	// rejected, so retry with backoff. Each attempt uses a fresh UE and tunnel
+	// name so stale eNB-local context does not collide with the retry.
 	const (
 		phase2Deadline = 30 * time.Second
 		phase2Backoff  = 2 * time.Second

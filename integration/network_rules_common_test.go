@@ -273,12 +273,8 @@ func runRuleShape(ctx context.Context, t *testing.T, env *testerEnv, fp ipFamily
 		setDefaultPolicyRules(context.Background(), t, env.Client, &client.PolicyRules{})
 	})
 
-	// The UPF registers a policy's SDF filters asynchronously via the changefeed
-	// reconciler. A session binds its filter index at establish time, so the rule
-	// must reach the data path before the scenario attaches — otherwise a fast
-	// attach (notably the 4G single-UE path) races ahead and the deny rule is not
-	// yet in force. 5G's slower parallel-UE attach masks this; the wait makes the
-	// shared runner robust for both.
+	// The rule must reach the data path before the scenario attaches, else a fast
+	// attach binds its filter index before the deny rule is in force.
 	time.Sleep(rulePropagationDelay)
 
 	if err := env.Client.ClearFlowReports(ctx); err != nil {

@@ -13,13 +13,9 @@ import (
 )
 
 // expectedAttach describes the signaled default-bearer fields a successful EPS
-// attach must carry. It is the 4G counterpart of the 5G
-// validate.ExpectedPDUSessionEstablishmentAccept, limited to the fields Ella
-// Core actually signals over S1AP/EPS NAS.
-//
-// It mirrors the 5G validator's coverage: IP-in-subnet, APN/DNN, PDN type, QCI,
-// and the per-APN Session-AMBR (signaled via the APN-AMBR IE, TS 24.301
-// §9.9.4.2 — the 4G analogue of the 5G Session-AMBR).
+// attach must carry, limited to what Ella Core signals over S1AP/EPS NAS:
+// IP-in-subnet, APN/DNN, PDN type, QCI, and the per-APN Session-AMBR (APN-AMBR
+// IE, TS 24.301 §9.9.4.2).
 type expectedAttach struct {
 	UEIPv4Subnet        netip.Prefix // UE IPv4 must fall inside this subnet (zero value => skip)
 	APN                 string       // Access Point Name in the Activate Default EPS Bearer Context Request (empty => skip)
@@ -30,13 +26,11 @@ type expectedAttach struct {
 	RequireGUTI         bool         // the MME must have assigned a GUTI
 }
 
-// mbpsToBps converts whole megabits/s to bits/s.
 const mbpsToBps = 1_000_000
 
-// defaultExpectedAttach is the baseline expectation for a UE attaching on the
-// default profile/policy/data-network: an IPv4 lease from the default pool, the
-// default APN, IPv4 PDN type, the default policy's QCI (9), and the default
-// policy's Session-AMBR (100/100 Mbps).
+// defaultExpectedAttach is the baseline expectation for a UE on the default
+// profile/policy/data-network: an IPv4 lease from the default pool, the default
+// APN, IPv4 PDN type, QCI 9, and 100/100 Mbps Session-AMBR.
 func defaultExpectedAttach() expectedAttach {
 	return expectedAttach{
 		UEIPv4Subnet:        netip.MustParsePrefix(scenarios.DefaultUEIPv4Pool),
@@ -72,8 +66,6 @@ func assertPDN(pdn *s1enb.PDNResult, exp expectedAttach) error {
 	}, exp)
 }
 
-// bearerFields are the signaled default-bearer fields common to an attach and an
-// additional PDN connection.
 type bearerFields struct {
 	pdnType                      uint8
 	qci                          byte

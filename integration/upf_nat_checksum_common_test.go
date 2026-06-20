@@ -30,16 +30,11 @@ const (
 	natChecksumPcapPath    = "/tmp/natcap.pcap"
 )
 
-// runNATChecksumSuite drives TCP and UDP probes of varying payload size through
-// source_nat with NAT enabled, captures the post-NAT frames on the router's N6
-// receive side, and verifies each frame's L4 checksum with an independent
-// computation. Shared by the 5G (gnb/nat_checksum) and 4G (s1enb/nat_checksum)
-// wrappers.
-//
-// The checksum is verified on the wire rather than by the echo succeeding: on
-// a veth/bridge fabric the receiver may accept a corrupt checksum
-// (CHECKSUM_UNNECESSARY), so connectivity alone would not surface a bad one.
-// Sizes span >512 B so a size-dependent checksum error would be caught.
+// runNATChecksumSuite drives TCP/UDP probes through source_nat and verifies each
+// post-NAT frame's L4 checksum from an N6 capture. The checksum is checked on the
+// wire rather than via the echo: on a veth/bridge fabric the receiver may accept a
+// corrupt checksum (CHECKSUM_UNNECESSARY), so connectivity alone would not catch
+// a bad one. Probe sizes span >512 B to catch size-dependent errors.
 func runNATChecksumSuite(t *testing.T, scenarioName string) {
 	t.Helper()
 
@@ -47,8 +42,7 @@ func runNATChecksumSuite(t *testing.T, scenarioName string) {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
-	// source_nat is the path under test; IPv6 is not NATed, so this applies
-	// only when N6 carries IPv4.
+	// source_nat only NATs IPv4.
 	if DetectIPFamily() == IPv6Only {
 		t.Skip("nat checksum test exercises IPv4 source_nat; skipping in IPv6-only mode")
 	}
@@ -63,8 +57,7 @@ func runNATChecksumSuite(t *testing.T, scenarioName string) {
 	baseline.DataNetwork(fixture.DefaultDataNetworkSpec())
 	baseline.Policy(fixture.DefaultPolicySpec())
 
-	// source_nat, which rewrites the source address/port and the L4 checksum,
-	// only runs when NAT (masquerade) is enabled. Enable it and restore after.
+	// source_nat only runs when NAT (masquerade) is enabled.
 	natOrig, err := env.Client.GetNATInfo(ctx)
 	if err != nil {
 		t.Fatalf("get nat info: %v", err)
@@ -84,10 +77,7 @@ func runNATChecksumSuite(t *testing.T, scenarioName string) {
 	fx := fixture.New(t, ctx, env.Client)
 	fx.Apply(sc.Fixture(buildScenariosEnv(env)))
 
-	// Capture post-NAT uplink frames on the router's N6 rx before driving
-	// the probes. tcpdump -U flushes per packet, so copying the file after
-	// the scenario yields every frame seen; the privileged router container
-	// is torn down at test end, which stops tcpdump.
+	// Capture must start before traffic flows. tcpdump -U flushes per packet.
 	router, err := env.dc.ResolveComposeContainer(ctx, "core-tester", "router")
 	if err != nil {
 		t.Fatalf("resolve router container: %v", err)
@@ -203,9 +193,7 @@ func verifyNATChecksumPcap(t *testing.T, path string) {
 }
 
 // l4ChecksumValid sums the IPv4 pseudo-header plus the full L4 segment
-// (including its stored checksum); a correct checksum folds to 0xffff. A
-// "disabled" UDP checksum of 0 would fold to a mismatch, but the probe always
-// sends a real checksum, so that case does not occur here.
+// (including its stored checksum); a correct checksum folds to 0xffff.
 func l4ChecksumValid(src, dst net.IP, proto uint8, l4 []byte) bool {
 	sum := pseudoHeaderSum(src, dst, proto, len(l4))
 	sum += sumWords(l4)

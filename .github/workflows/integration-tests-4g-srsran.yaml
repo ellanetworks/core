@@ -7,10 +7,8 @@ on:
   workflow_call:
 
 jobs:
-  # The dedicated TestIntegration4G* tests drive a real srsRAN eNB/UE soft-radio
-  # (gradiant/srsran-4g), which publishes an amd64-only image and runs over an
-  # IPv4 ZMQ transport. This job is therefore amd64 + IPv4 only; the multi-arch,
-  # multi-family 4G coverage lives in integration-tests-4g (core-tester s1enb).
+  # The srsRAN soft-radio (gradiant/srsran-4g) is amd64-only over IPv4 ZMQ, so this
+  # job is amd64 + IPv4 only. Multi-arch/family 4G runs in integration-tests-4g.
   integration-test-4g-srsran:
     runs-on: ubuntu-24.04
 
@@ -43,9 +41,8 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      # TestIntegration4GHAFailover also matches -run 'TestIntegration4G' but
-      # brings up its own 3-node cluster (not the srsRAN soft-radio) and runs in
-      # the dedicated integration-tests-ha-4g workflow, so exclude it here.
+      # Exclude TestIntegration4GHAFailover: it also matches -run 'TestIntegration4G'
+      # but runs in integration-tests-ha-4g with its own 3-node cluster.
       - name: Run 4G srsRAN integration tests
         env:
           INTEGRATION: "1"

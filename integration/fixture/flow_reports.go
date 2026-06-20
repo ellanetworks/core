@@ -309,9 +309,8 @@ func EachIMSIDistinctTuplesIs(n int) FlowReportPredicate {
 }
 
 // EachIMSIDistinctTuplesAtLeast requires every IMSI to have at least n distinct
-// (SourcePort, DestinationPort) tuples. Used for TCP drop scenarios, where the
-// client may re-connect on a fresh ephemeral port after its SYN-ACK is dropped,
-// producing more than the nominal probeRoundtrips tuples (timing-dependent).
+// (SourcePort, DestinationPort) tuples. Unlike the exact variant, it tolerates
+// extra tuples from TCP re-connects on fresh ephemeral ports after a dropped SYN-ACK.
 func EachIMSIDistinctTuplesAtLeast(n int) FlowReportPredicate {
 	return func(items []client.FlowReport) bool {
 		type tuple struct {
