@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/upf/ebpf"
 	"github.com/ellanetworks/core/internal/upf/engine"
+	"golang.org/x/sys/unix"
 )
 
 // helper function to create an in6_addr from an IPv4 address (IPv4-mapped format)
@@ -157,6 +158,42 @@ func TestBuildFlowReportRequestTimestampFormatting(t *testing.T) {
 	_, err = time.Parse(time.RFC3339, req.EndTime)
 	if err != nil {
 		t.Fatalf("Invalid end time format: %s (error: %v)", req.EndTime, err)
+	}
+}
+
+// TestBuildFlowReportRequestTimestampAccuracy verifies the wall-clock anchor
+// keeps the datapath's sub-second precision: a flow whose FirstTs is the current
+// CLOCK_MONOTONIC reading must map back to roughly now. The previous anchor,
+// derived from Sysinfo.Uptime (whole seconds), could be off by up to ~1s.
+func TestBuildFlowReportRequestTimestampAccuracy(t *testing.T) {
+	var ts unix.Timespec
+	if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
+		t.Fatalf("clock_gettime: %v", err)
+	}
+
+	monoNs := uint64(ts.Sec)*uint64(time.Second) + uint64(ts.Nsec)
+	now := time.Now()
+
+	flow := ebpf.N3N6EntrypointFlow{
+		Imsi:  1019756139935,
+		Saddr: makeIPV4Mapped(192, 168, 1, 100),
+		Daddr: makeIPV4Mapped(8, 8, 8, 8),
+		Sport: makePortUint16(12345),
+		Dport: makePortUint16(53),
+		Proto: 17,
+	}
+	stats := ebpf.N3N6EntrypointFlowStats{FirstTs: monoNs, LastTs: monoNs}
+
+	req := engine.BuildFlowReportRequest(flow, stats)
+
+	start, err := time.Parse(time.RFC3339Nano, req.StartTime)
+	if err != nil {
+		t.Fatalf("parse StartTime %q: %v", req.StartTime, err)
+	}
+
+	if delta := start.Sub(now); delta < -250*time.Millisecond || delta > 250*time.Millisecond {
+		t.Fatalf("StartTime %s is %v from now %s; anchor lost sub-second precision",
+			start.Format(time.RFC3339Nano), delta, now.Format(time.RFC3339Nano))
 	}
 }
 

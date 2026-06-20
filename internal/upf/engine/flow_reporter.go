@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"net/netip"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/upf/ebpf"
+	"golang.org/x/sys/unix"
 )
 
 var bootTime = mustGetBootTime()
@@ -27,15 +27,20 @@ func SetN3InterfaceIndex(idx int) {
 	n3IfIndex.Store(uint32(idx))
 }
 
+// mustGetBootTime anchors the wall-clock instant of boot so eBPF flow timestamps
+// (bpf_ktime_get_ns, CLOCK_MONOTONIC nanoseconds since boot) can be converted to
+// wall time via bootTime+ts. It reads CLOCK_MONOTONIC rather than Sysinfo.Uptime
+// (whole-second granularity, ±1s error) so the anchor keeps the datapath's
+// nanosecond precision. Called once at init; a clock read failing there is fatal.
 func mustGetBootTime() time.Time {
-	var info syscall.Sysinfo_t
-	if err := syscall.Sysinfo(&info); err != nil {
+	var ts unix.Timespec
+	if err := unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
 		panic(err)
 	}
 
-	bootTime := time.Now().Add(-time.Duration(info.Uptime) * time.Second)
+	monotonic := time.Duration(ts.Sec)*time.Second + time.Duration(ts.Nsec)*time.Nanosecond
 
-	return bootTime
+	return time.Now().Add(-monotonic)
 }
 
 func addrFromIn6(addr ebpf.N3N6EntrypointIn6Addr) netip.Addr {
