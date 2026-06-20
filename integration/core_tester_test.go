@@ -19,21 +19,23 @@ import (
 // scenariosSkipped lists scenarios the integration suite does not
 // exercise (multi-gNB and paging are out of scope).
 var scenariosSkipped = map[string]string{
-	"gnb/ngap/n2_handover":                 "multi-gNB, covered by TestIntegration5GN2Handover",
-	"gnb/n2_handover_connectivity":         "multi-gNB, covered by TestIntegration5GN2Handover",
-	"gnb/paging/downlink_data":             "paging, out of scope",
-	"ha/failover_connectivity_5g":          "multi-core HA topology, covered by TestIntegration5GHAFailover",
-	"ha/failover_connectivity_4g":          "multi-core HA topology, covered by TestIntegration4GHAFailover",
-	"multi/cluster_traffic_5g":             "multi-core HA topology, covered by TestIntegration5GMultiGNB",
-	"gnb/connectivity_expect_blocked":      "test-only harness; requires a pre-installed deny rule",
-	"gnb/connectivity_expect_allowed":      "test-only harness; minimal allow-path",
-	"gnb/connectivity_expect_blocked_ipv6": "test-only harness; requires a pre-installed deny rule",
-	"gnb/connectivity_expect_allowed_ipv6": "test-only harness; minimal allow-path",
-	"gnb/session_hold":                     "long-lived session for BGP tests; covered by TestIntegration5GBGP",
-	"s1enb/session_hold":                   "long-lived session for BGP tests; covered by TestIntegration4GBGP",
-	"gnb/nat_checksum":                     "capture-driven harness; covered by TestIntegration5GUPFNATChecksum",
-	"s1enb/connectivity_expect_allowed":    "test-only harness; driven by TestIntegration4GNetworkRules",
-	"s1enb/connectivity_expect_blocked":    "test-only harness; driven by TestIntegration4GNetworkRules",
+	"gnb/ngap/n2_handover":                   "multi-gNB, covered by TestIntegration5GN2Handover",
+	"gnb/n2_handover_connectivity":           "multi-gNB, covered by TestIntegration5GN2Handover",
+	"gnb/paging/downlink_data":               "paging, out of scope",
+	"ha/failover_connectivity_5g":            "multi-core HA topology, covered by TestIntegration5GHAFailover",
+	"ha/failover_connectivity_4g":            "multi-core HA topology, covered by TestIntegration4GHAFailover",
+	"multi/cluster_traffic_5g":               "multi-core HA topology, covered by TestIntegration5GMultiGNB",
+	"gnb/connectivity_expect_blocked":        "test-only harness; requires a pre-installed deny rule",
+	"gnb/connectivity_expect_allowed":        "test-only harness; minimal allow-path",
+	"gnb/connectivity_expect_blocked_ipv6":   "test-only harness; requires a pre-installed deny rule",
+	"gnb/connectivity_expect_allowed_ipv6":   "test-only harness; minimal allow-path",
+	"gnb/session_hold":                       "long-lived session for BGP tests; covered by TestIntegration5GBGP",
+	"s1enb/session_hold":                     "long-lived session for BGP tests; covered by TestIntegration4GBGP",
+	"gnb/nat_checksum":                       "capture-driven harness; covered by TestIntegration5GUPFNATChecksum",
+	"s1enb/connectivity_expect_allowed":      "test-only harness; driven by TestIntegration4GNetworkRules",
+	"s1enb/connectivity_expect_blocked":      "test-only harness; driven by TestIntegration4GNetworkRules",
+	"s1enb/connectivity_expect_allowed_ipv6": "test-only harness; driven by TestIntegration4GNetworkRules",
+	"s1enb/connectivity_expect_blocked_ipv6": "test-only harness; driven by TestIntegration4GNetworkRules",
 }
 
 // scenarioIPFamilyRestrictions returns a map of scenario name → required IP
@@ -41,13 +43,15 @@ var scenariosSkipped = map[string]string{
 // configuration are listed here so the integration runner can skip them
 // when the compose topology does not match.
 var scenarioIPFamilyRestrictions = map[string]IPFamily{
-	"gnb/connectivity_ipv6":                IPv6Only,
-	"gnb/connectivity_dualstack":           DualStack,
-	"gnb/connectivity_expect_allowed_ipv6": IPv6Only,
-	"gnb/connectivity_expect_blocked_ipv6": IPv6Only,
-	"s1enb/registration/v4v6":              DualStack,
-	"s1enb/connectivity_dualstack":         DualStack,
-	"s1enb/connectivity_ipv6":              IPv6Only,
+	"gnb/connectivity_ipv6":                  IPv6Only,
+	"gnb/connectivity_dualstack":             DualStack,
+	"gnb/connectivity_expect_allowed_ipv6":   IPv6Only,
+	"gnb/connectivity_expect_blocked_ipv6":   IPv6Only,
+	"s1enb/connectivity_expect_allowed_ipv6": IPv6Only,
+	"s1enb/connectivity_expect_blocked_ipv6": IPv6Only,
+	"s1enb/registration/v4v6":                DualStack,
+	"s1enb/connectivity_dualstack":           DualStack,
+	"s1enb/connectivity_ipv6":                IPv6Only,
 }
 
 // scenarioIPFamilyExclusions returns a map of scenario name → set of IP

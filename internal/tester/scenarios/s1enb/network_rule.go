@@ -12,12 +12,15 @@ import (
 	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
+	"github.com/ellanetworks/core/nas/eps"
 	"github.com/spf13/pflag"
 )
 
 const (
-	netRuleAllowedIMSI = "001017271246610"
-	netRuleBlockedIMSI = "001017271246611"
+	netRuleAllowedIMSI     = "001017271246610"
+	netRuleBlockedIMSI     = "001017271246611"
+	netRuleAllowedIPv6IMSI = "001017271246612"
+	netRuleBlockedIPv6IMSI = "001017271246613"
 )
 
 // probeParams carries the --protocol flag for the network-rule scenarios.
@@ -37,7 +40,7 @@ func init() {
 		Name:      "s1enb/connectivity_expect_allowed",
 		BindFlags: bindProbeFlags,
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
-			return runS1ENBNetworkRule(ctx, env, params.(*probeParams), netRuleAllowedIMSI, "s1enbnra0", true)
+			return runS1ENBNetworkRule(ctx, env, params.(*probeParams), netRuleAllowedIMSI, "s1enbnra0", true, false)
 		},
 		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {
 			return scenarios.FixtureSpec{
@@ -50,11 +53,37 @@ func init() {
 		Name:      "s1enb/connectivity_expect_blocked",
 		BindFlags: bindProbeFlags,
 		Run: func(ctx context.Context, env scenarios.Env, params any) error {
-			return runS1ENBNetworkRule(ctx, env, params.(*probeParams), netRuleBlockedIMSI, "s1enbnrb0", false)
+			return runS1ENBNetworkRule(ctx, env, params.(*probeParams), netRuleBlockedIMSI, "s1enbnrb0", false, false)
 		},
 		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {
 			return scenarios.FixtureSpec{
 				Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(netRuleBlockedIMSI, "")},
+			}
+		},
+	})
+
+	scenarios.Register(scenarios.Scenario{
+		Name:      "s1enb/connectivity_expect_allowed_ipv6",
+		BindFlags: bindProbeFlags,
+		Run: func(ctx context.Context, env scenarios.Env, params any) error {
+			return runS1ENBNetworkRule(ctx, env, params.(*probeParams), netRuleAllowedIPv6IMSI, "s1enbnra6", true, true)
+		},
+		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {
+			return scenarios.FixtureSpec{
+				Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(netRuleAllowedIPv6IMSI, "")},
+			}
+		},
+	})
+
+	scenarios.Register(scenarios.Scenario{
+		Name:      "s1enb/connectivity_expect_blocked_ipv6",
+		BindFlags: bindProbeFlags,
+		Run: func(ctx context.Context, env scenarios.Env, params any) error {
+			return runS1ENBNetworkRule(ctx, env, params.(*probeParams), netRuleBlockedIPv6IMSI, "s1enbnrb6", false, true)
+		},
+		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {
+			return scenarios.FixtureSpec{
+				Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(netRuleBlockedIPv6IMSI, "")},
 			}
 		},
 	})
@@ -63,8 +92,8 @@ func init() {
 // runS1ENBNetworkRule attaches a 4G UE, builds a GTP-U tunnel, and probes the N6
 // destination, asserting the probe is allowed or blocked according to the network
 // rule the driving test installed on the policy — the 4G counterpart of
-// gnb/connectivity_expect_{allowed,blocked}.
-func runS1ENBNetworkRule(ctx context.Context, env scenarios.Env, params *probeParams, imsi, tunIface string, expectAllowed bool) error {
+// gnb/connectivity_expect_{allowed,blocked}. ipv6 selects an IPv6 PDN + probe.
+func runS1ENBNetworkRule(ctx context.Context, env scenarios.Env, params *probeParams, imsi, tunIface string, expectAllowed, ipv6 bool) error {
 	proto, err := probe.ParseProtocol(params.Protocol)
 	if err != nil {
 		return err
@@ -99,39 +128,63 @@ func runS1ENBNetworkRule(ctx context.Context, env scenarios.Env, params *probePa
 	defer func() { _ = e.Close() }()
 
 	ue := e.NewUE(imsi, k, opc)
+	if ipv6 {
+		ue.RequestPDNType(eps.PDNTypeIPv6)
+	}
 
 	res, err := e.Attach(ue, 15*time.Second)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}
 
-	if res.UEIPv4 == "" {
-		return fmt.Errorf("attach assigned no IPv4 address")
-	}
-
-	if err := e.AddTunnel(&s1enb.TunnelOpts{
-		UEIPv4:           res.UEIPv4 + "/16",
+	tun := &s1enb.TunnelOpts{
 		UpfAddress:       res.UpfAddress,
 		ULTEID:           res.ULTEID,
 		DLTEID:           res.DLTEID,
 		TunInterfaceName: tunIface,
-	}); err != nil {
+	}
+
+	dst := scenarios.DefaultPingDestination
+
+	if ipv6 {
+		if res.UEIPv6 == "" {
+			return fmt.Errorf("IPv6 attach assigned no IPv6 interface identifier")
+		}
+
+		tun.UEIPv6 = res.UEIPv6 + "/64"
+		dst = scenarios.DefaultPingDestinationV6
+	} else {
+		if res.UEIPv4 == "" {
+			return fmt.Errorf("attach assigned no IPv4 address")
+		}
+
+		tun.UEIPv4 = res.UEIPv4 + "/16"
+	}
+
+	if err := e.AddTunnel(tun); err != nil {
 		return fmt.Errorf("add GTP tunnel: %w", err)
 	}
 
 	defer e.CloseTunnel(res.DLTEID)
 
-	// Let the UPF program the downlink endpoint before probing.
-	time.Sleep(500 * time.Millisecond)
+	if ipv6 {
+		// Wait for the UPF Router Advertisement to give the TUN a global IPv6 address.
+		if err := s1enb.WaitForULAAddr(tunIface, scenarios.DefaultUEIPv6Pool, 5*time.Second); err != nil {
+			return fmt.Errorf("await SLAAC address: %w", err)
+		}
+	} else {
+		// Let the UPF program the downlink endpoint before probing.
+		time.Sleep(500 * time.Millisecond)
+	}
 
-	probeErr := probe.Run(ctx, proto, tunIface, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false)
+	probeErr := probe.Run(ctx, proto, tunIface, dst, scenarios.DefaultProbePort, ipv6)
 
 	if expectAllowed && probeErr != nil {
-		return fmt.Errorf("%s probe to %s was blocked but expected to be allowed: %w", proto, scenarios.DefaultPingDestination, probeErr)
+		return fmt.Errorf("%s probe to %s was blocked but expected to be allowed: %w", proto, dst, probeErr)
 	}
 
 	if !expectAllowed && probeErr == nil {
-		return fmt.Errorf("%s probe to %s succeeded but expected to be blocked (deny rule should be in force)", proto, scenarios.DefaultPingDestination)
+		return fmt.Errorf("%s probe to %s succeeded but expected to be blocked (deny rule should be in force)", proto, dst)
 	}
 
 	return nil

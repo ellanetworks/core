@@ -12,9 +12,14 @@ import (
 )
 
 const (
-	// Tolerance covering clock skew between the kernel-derived flow
-	// timestamps and the test's wall clock.
-	timestampUpperBuffer = 5 * time.Second
+	// Upper-bound tolerance on a flow's EndTime past the scenario's end. It
+	// covers two effects: clock skew between the kernel-derived flow timestamps
+	// and the test's wall clock, AND the UPF's flow-flush delay — a flow's
+	// EndTime is when the UPF expires/flushes the record, which can lag the last
+	// packet by tens of seconds (notably for IPv6 over the EPS bearer). The
+	// lower bound (>= scenario start) still guards against stale flows, so this
+	// can be generous without weakening the staleness check.
+	timestampUpperBuffer = 90 * time.Second
 
 	// Probe round-trip count, matching probeAttemptCount in the
 	// scenarios package. ICMP echoes and UDP datagrams stay in a
@@ -242,9 +247,19 @@ func expectedFlowsContentPredicate(direction, action string, expectedIMSIs []str
 
 	if pp.name == "tcp" {
 		pktLo, pktHi, bytesLo, bytesHi := tcpPerIMSIBounds(fp, action)
+
+		// Drop scenarios may re-connect on a fresh ephemeral port after the
+		// SYN-ACK is dropped, so the nominal probeRoundtrips tuples is a lower
+		// bound, not an exact count. Allow scenarios complete every handshake
+		// once, so the count is exact.
+		tuplePred := fixture.EachIMSIDistinctTuplesIs(probeRoundtrips)
+		if action == "drop" {
+			tuplePred = fixture.EachIMSIDistinctTuplesAtLeast(probeRoundtrips)
+		}
+
 		preds = append(preds,
 			fixture.DistinctImsis(len(expectedIMSIs)),
-			fixture.EachIMSIDistinctTuplesIs(probeRoundtrips),
+			tuplePred,
 			fixture.EachTupleHasAtMost(2),
 			fixture.EachIMSITotalPacketsInRange(pktLo, pktHi),
 			fixture.EachIMSITotalBytesInRange(bytesLo, bytesHi),

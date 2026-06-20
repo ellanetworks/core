@@ -308,6 +308,42 @@ func EachIMSIDistinctTuplesIs(n int) FlowReportPredicate {
 	}
 }
 
+// EachIMSIDistinctTuplesAtLeast requires every IMSI to have at least n distinct
+// (SourcePort, DestinationPort) tuples. Used for TCP drop scenarios, where the
+// client may re-connect on a fresh ephemeral port after its SYN-ACK is dropped,
+// producing more than the nominal probeRoundtrips tuples (timing-dependent).
+func EachIMSIDistinctTuplesAtLeast(n int) FlowReportPredicate {
+	return func(items []client.FlowReport) bool {
+		type tuple struct {
+			sp uint16
+			dp uint16
+		}
+
+		perIMSI := make(map[string]map[tuple]struct{})
+
+		for _, f := range items {
+			t := tuple{sp: f.SourcePort, dp: f.DestinationPort}
+			if perIMSI[f.SubscriberID] == nil {
+				perIMSI[f.SubscriberID] = make(map[tuple]struct{})
+			}
+
+			perIMSI[f.SubscriberID][t] = struct{}{}
+		}
+
+		if len(perIMSI) == 0 {
+			return false
+		}
+
+		for _, tuples := range perIMSI {
+			if len(tuples) < n {
+				return false
+			}
+		}
+
+		return true
+	}
+}
+
 // EachTupleHasAtMost requires every distinct (IMSI, SourcePort,
 // DestinationPort) tuple to be backed by at most n flow records.
 // Used to bound NetFlow-style flow-record splitting.

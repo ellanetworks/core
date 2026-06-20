@@ -51,4 +51,4 @@ jobs:
           INTEGRATION: "1"
           IP_VERSION: ipv4
         run: |
-          go test ./integration/... -run 'TestIntegration4G' -skip 'TestIntegration4GHAFailover' -timeout 30m -v
+          go test ./integration/... -run 'TestIntegration4G' -skip 'TestIntegration4GHAFailover|TestIntegration4GNetworkRules' -timeout 30m -v
