@@ -16,7 +16,7 @@ groups:
               to: 0
             datasourceUid: mimir
             model:
-              expr: app_connected_radios
+              expr: sum(app_connected_radios)
               instant: true
               refId: A
           - refId: C
@@ -107,9 +107,9 @@ groups:
             model:
               expr: |
                 (
-                  (sum(rate(app_pdu_session_establishment_attempts_total{result="reject"}[5m])) or vector(0))
+                  (sum(rate(app_session_establishment_attempts_total{result="reject"}[5m])) or vector(0))
                   /
-                  clamp_min(sum(rate(app_pdu_session_establishment_attempts_total[5m])), 1e-10)
+                  clamp_min(sum(rate(app_session_establishment_attempts_total[5m])), 1e-10)
                 ) * 100
               instant: true
               refId: A
@@ -611,7 +611,7 @@ groups:
               to: 0
             datasourceUid: mimir
             model:
-              expr: app_connected_radios > 0
+              expr: sum(app_connected_radios) > 0
               instant: true
               refId: B
           - refId: C

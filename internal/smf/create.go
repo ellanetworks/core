@@ -14,6 +14,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	smfNas "github.com/ellanetworks/core/internal/smf/nas"
 	"github.com/ellanetworks/core/internal/smf/ngap"
@@ -217,7 +218,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 
 	policy, err := s.GetSessionPolicy(ctx, smContext.Supi, smContext.Snssai, smContext.Dnn)
 	if err != nil {
-		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
+		SessionEstablishmentAttempts.WithLabelValues(metrics.RAT5G, "reject").Inc()
 
 		rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, establishmentRejectCause(err))
 		if buildErr != nil {
@@ -237,7 +238,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 	// what pools are available on the data network.
 	negotiatedType, err := s.negotiatePDUSessionType(ctx, requestedType, policy)
 	if err != nil {
-		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
+		SessionEstablishmentAttempts.WithLabelValues(metrics.RAT5G, "reject").Inc()
 
 		cause := pduSessionTypeRejectCause(requestedType, policy)
 
@@ -276,7 +277,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 	if negotiatedType == nasMessage.PDUSessionTypeIPv4 || negotiatedType == nasMessage.PDUSessionTypeIPv4IPv6 {
 		ipv4Addr, allocErr := s.store.AllocateIP(ctx, smContext.Supi.IMSI(), smContext.Dnn, smContext.PDUSessionID)
 		if allocErr != nil {
-			PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
+			SessionEstablishmentAttempts.WithLabelValues(metrics.RAT5G, "reject").Inc()
 
 			rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMInsufficientResources)
 			if buildErr != nil {
@@ -306,7 +307,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 				smContext.PDUIPV4Address = nil
 			}
 
-			PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
+			SessionEstablishmentAttempts.WithLabelValues(metrics.RAT5G, "reject").Inc()
 
 			rsp, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMInsufficientResources)
 			if buildErr != nil {
@@ -353,7 +354,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 
 		s.releaseAllocatedAddresses(ctx, smContext)
 
-		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
+		SessionEstablishmentAttempts.WithLabelValues(metrics.RAT5G, "reject").Inc()
 
 		response, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		if buildErr != nil {
@@ -376,7 +377,7 @@ func (s *SMF) handlePDUSessionSMContextCreate(
 	if err != nil {
 		s.releaseAllocatedAddresses(ctx, smContext)
 
-		PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
+		SessionEstablishmentAttempts.WithLabelValues(metrics.RAT5G, "reject").Inc()
 
 		response, buildErr := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 		if buildErr != nil {
@@ -666,7 +667,7 @@ func (s *SMF) sendPduSessionEstablishmentReject(ctx context.Context, smContext *
 	)
 	defer span.End()
 
-	PDUSessionEstablishmentAttempts.WithLabelValues("reject").Inc()
+	SessionEstablishmentAttempts.WithLabelValues(metrics.RAT5G, "reject").Inc()
 
 	smNasBuf, err := smfNas.BuildGSMPDUSessionEstablishmentReject(smContext.PDUSessionID, pti, nasMessage.Cause5GSMRequestRejectedUnspecified)
 	if err != nil {
@@ -718,7 +719,7 @@ func (s *SMF) sendPduSessionEstablishmentAccept(
 	)
 	defer span.End()
 
-	PDUSessionEstablishmentAttempts.WithLabelValues("accept").Inc()
+	SessionEstablishmentAttempts.WithLabelValues(metrics.RAT5G, "accept").Inc()
 
 	n1Msg, err := smfNas.BuildGSMPDUSessionEstablishmentAccept(&policy.Ambr, &policy.QosData, smContext.PDUSessionID, pti, smContext.Snssai, smContext.Dnn, pco, policy.DNS, policy.MTU, cause, addrs, alwaysOn)
 	if err != nil {

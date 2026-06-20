@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/internal/dbwriter"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -229,10 +230,6 @@ func LogNetworkEvent(
 	radioName string,
 	rawBytes []byte,
 ) {
-	if NetworkLog == nil {
-		return
-	}
-
 	if messageType == "" {
 		EllaLog.Warn("attempted to log empty network message type",
 			zap.String("protocol", string(protocol)),
@@ -241,6 +238,19 @@ func LogNetworkEvent(
 			zap.String("remote_address", remoteAddress),
 		)
 
+		return
+	}
+
+	// Count every signaling message independently of whether network event logging
+	// is configured. NGAP is 5G, S1AP is 4G.
+	rat := metrics.RAT5G
+	if protocol == S1APNetworkProtocol {
+		rat = metrics.RAT4G
+	}
+
+	metrics.SignalingMessage(rat, string(dir), messageType)
+
+	if NetworkLog == nil {
 		return
 	}
 

@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.opentelemetry.io/otel/attribute"
@@ -351,9 +352,20 @@ func (m *MME) authenticateOrReject(ctx context.Context, ue *UeContext) {
 // rejectAttach sends ATTACH REJECT (TS 24.301) with the given EMM
 // cause, then releases the UE's S1 context.
 func (m *MME) rejectAttach(ctx context.Context, ue *UeContext, cause uint8) {
+	metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultReject)
 	m.stopNASGuard(ue)
 	m.sendDownlinkMessage(ctx, ue, &eps.AttachReject{Cause: cause})
 	m.releaseUEContext(ctx, ue, causeNASUnspecified)
+}
+
+// attachTypeName is the registration-metric type label for a UE's attach, the 4G
+// counterpart of the 5G registration type (TS 24.301).
+func attachTypeName(ue *UeContext) string {
+	if ue.combinedAttach {
+		return "Combined Attach"
+	}
+
+	return "Attach"
 }
 
 // startAuthentication requests an EPS-AKA vector from the credential authority
