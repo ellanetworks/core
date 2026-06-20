@@ -5,8 +5,8 @@ package integration_test
 
 import "testing"
 
-// TestIntegration5GUPFNATChecksum verifies post-NAT L4 checksums for 5G UE
+// TestIntegration4GUPFNATChecksum verifies post-NAT L4 checksums for 4G UE
 // traffic. See runNATChecksumSuite for the harness.
-func TestIntegration5GUPFNATChecksum(t *testing.T) {
-	runNATChecksumSuite(t, "gnb/nat_checksum")
+func TestIntegration4GUPFNATChecksum(t *testing.T) {
+	runNATChecksumSuite(t, "s1enb/nat_checksum")
 }

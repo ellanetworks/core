@@ -32,6 +32,7 @@ var scenariosSkipped = map[string]string{
 	"gnb/session_hold":                       "long-lived session for BGP tests; covered by TestIntegration5GBGP",
 	"s1enb/session_hold":                     "long-lived session for BGP tests; covered by TestIntegration4GBGP",
 	"gnb/nat_checksum":                       "capture-driven harness; covered by TestIntegration5GUPFNATChecksum",
+	"s1enb/nat_checksum":                     "capture-driven harness; covered by TestIntegration4GUPFNATChecksum",
 	"s1enb/connectivity_expect_allowed":      "test-only harness; driven by TestIntegration4GNetworkRules",
 	"s1enb/connectivity_expect_blocked":      "test-only harness; driven by TestIntegration4GNetworkRules",
 	"s1enb/connectivity_expect_allowed_ipv6": "test-only harness; driven by TestIntegration4GNetworkRules",
