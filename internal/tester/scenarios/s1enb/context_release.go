@@ -28,9 +28,9 @@ func init() {
 	})
 }
 
-// runS1ENBContextRelease attaches a UE, then has the eNB request an S1 context
-// release (as on inactivity) and completes it, dropping the UE to ECM-IDLE
-// (TS 36.413 §8.3.2).
+// runS1ENBContextRelease attaches a UE, has the eNB request an S1 release on
+// inactivity, and validates the MME's UE CONTEXT RELEASE COMMAND: a radioNetwork
+// user-inactivity Cause and the paired UE-S1AP-IDs (TS 36.413 §8.3.3).
 func runS1ENBContextRelease(_ context.Context, env scenarios.Env, _ any) error {
 	e, err := startENB(env)
 	if err != nil {
@@ -51,9 +51,31 @@ func runS1ENBContextRelease(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("attach: %w", err)
 	}
 
-	if err := e.ReleaseContext(res.MMEUES1APID, res.ENBUES1APID, s1enb.CauseUserInactivity, 10*time.Second); err != nil {
-		return fmt.Errorf("context release: %w", err)
+	if err := e.SendUEContextReleaseRequest(res.MMEUES1APID, res.ENBUES1APID, s1enb.CauseUserInactivity); err != nil {
+		return fmt.Errorf("send UE Context Release Request: %w", err)
 	}
 
-	return nil
+	// A returned command already proves the procedure code (S1AP UEContextRelease).
+	cmd, err := e.WaitForUEContextReleaseCommand(10 * time.Second)
+	if err != nil {
+		return fmt.Errorf("await UE Context Release Command: %w", err)
+	}
+
+	if cmd.Cause != s1enb.CauseUserInactivity {
+		return fmt.Errorf("UE Context Release Command cause = %+v, want radioNetwork user-inactivity %+v", cmd.Cause, s1enb.CauseUserInactivity)
+	}
+
+	if !cmd.UES1APIDs.Pair {
+		return fmt.Errorf("UE Context Release Command carried a single UE-S1AP-ID, want the MME+eNB pair")
+	}
+
+	if got := int64(cmd.UES1APIDs.MMEUES1APID); got != res.MMEUES1APID {
+		return fmt.Errorf("UE Context Release Command MME-UE-S1AP-ID = %d, want %d", got, res.MMEUES1APID)
+	}
+
+	if got := int64(cmd.UES1APIDs.ENBUES1APID); got != res.ENBUES1APID {
+		return fmt.Errorf("UE Context Release Command eNB-UE-S1AP-ID = %d, want %d", got, res.ENBUES1APID)
+	}
+
+	return e.SendUEContextReleaseComplete(int64(cmd.UES1APIDs.MMEUES1APID), int64(cmd.UES1APIDs.ENBUES1APID))
 }

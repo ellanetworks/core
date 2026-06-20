@@ -59,13 +59,13 @@ func runS1ENBServiceRequest(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("release to ECM-IDLE: %w", err)
 	}
 
-	mmeUEID, _, err := e.ServiceRequest(ue, res.GUTI, 10*time.Second)
+	sr, err := e.ServiceRequest(ue, res.GUTI, 10*time.Second)
 	if err != nil {
 		return fmt.Errorf("service request: %w", err)
 	}
 
-	if mmeUEID == res.MMEUES1APID {
-		return fmt.Errorf("MME reused the released MME-UE-S1AP-ID %d; expected a fresh one", mmeUEID)
+	if sr.MMEUES1APID == res.MMEUES1APID {
+		return fmt.Errorf("MME reused the released MME-UE-S1AP-ID %d; expected a fresh one", sr.MMEUES1APID)
 	}
 
 	return nil

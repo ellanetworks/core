@@ -78,8 +78,27 @@ func (e *ENB) AttachExpectAuthReject(ue *UE, timeout time.Duration) error {
 		return fmt.Errorf("await Authentication Reject: %w", err)
 	}
 
-	if mt, err := eps.PeekMessageType(downlink); err != nil || mt != eps.MsgAuthenticationReject {
-		return fmt.Errorf("expected Authentication Reject, got message type %#x (err %v)", mt, err)
+	return validateAuthenticationReject(downlink)
+}
+
+// validateAuthenticationReject checks the AUTHENTICATION REJECT header: a plain
+// (unprotected) EMM message of type Authentication Reject (TS 24.301 §8.2.5),
+// which carries no IEs beyond the two-octet header.
+func validateAuthenticationReject(nas []byte) error {
+	if len(nas) < 2 {
+		return fmt.Errorf("authentication reject too short: %d bytes", len(nas))
+	}
+
+	if pd := nas[0] & 0x0F; pd != eps.PDEMM {
+		return fmt.Errorf("authentication reject protocol discriminator = %#x, want EMM %#x", pd, eps.PDEMM)
+	}
+
+	if sht := eps.SecurityHeaderType(nas[0] >> 4); sht != eps.SHTPlain {
+		return fmt.Errorf("authentication reject security header type = %d, want plain", sht)
+	}
+
+	if mt := eps.MessageType(nas[1]); mt != eps.MsgAuthenticationReject {
+		return fmt.Errorf("expected Authentication Reject, got message type %#x", mt)
 	}
 
 	return nil

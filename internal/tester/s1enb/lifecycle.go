@@ -69,42 +69,70 @@ func (e *ENB) ReleaseContext(mmeUEID, enbUEID int64, cause s1ap.Cause, timeout t
 	return e.completeContextRelease(timeout)
 }
 
+// ServiceRequestResult reports the S1 identifiers and re-established S1-U endpoint
+// from a completed service request.
+type ServiceRequestResult struct {
+	MMEUES1APID int64
+	ENBUES1APID int64
+	UpfAddress  string // S-GW/UPF S1-U address (uplink target)
+	ULTEID      uint32 // S-GW/UPF uplink TEID
+	DLTEID      uint32 // eNB downlink TEID reported to the MME
+}
+
 // ServiceRequest performs a mobile-originated EPS service request for a UE in
 // ECM-IDLE (TS 24.301 §5.6.1): it sends a SERVICE REQUEST identified by the UE's
 // S-TMSI and completes the Initial Context Setup the MME uses to re-establish the
-// bearer. It returns the fresh MME-UE-S1AP-ID the MME assigned for the new S1
-// connection.
-func (e *ENB) ServiceRequest(ue *UE, guti *eps.EPSMobileIdentity, timeout time.Duration) (mmeUEID, enbUEID int64, err error) {
+// bearer.
+func (e *ENB) ServiceRequest(ue *UE, guti *eps.EPSMobileIdentity, timeout time.Duration) (*ServiceRequestResult, error) {
 	if guti == nil {
-		return 0, 0, fmt.Errorf("s1enb: service request requires the UE's GUTI")
+		return nil, fmt.Errorf("s1enb: service request requires the UE's GUTI")
 	}
 
-	enbUEID = e.AllocateENBUEID()
+	enbUEID := e.AllocateENBUEID()
 
 	sr, err := ue.buildServiceRequest()
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 
 	if err := e.SendInitialUEMessageWithSTMSI(enbUEID, guti.MMECode, guti.MTMSI, sr); err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 
 	icsFrame, err := e.WaitForMessage(Initiating, s1ap.ProcInitialContextSetup, timeout)
 	if err != nil {
-		return 0, 0, fmt.Errorf("await Initial Context Setup Request (service-request re-establishment): %w", err)
+		return nil, fmt.Errorf("await Initial Context Setup Request (service-request re-establishment): %w", err)
 	}
 
 	ics, err := s1ap.ParseInitialContextSetupRequest(icsFrame.Value)
 	if err != nil {
-		return 0, 0, fmt.Errorf("parse Initial Context Setup Request: %w", err)
+		return nil, fmt.Errorf("parse Initial Context Setup Request: %w", err)
 	}
 
-	if err := e.sendInitialContextSetupResponse(ics, enbUEID, e.allocTEID()); err != nil {
-		return 0, 0, err
+	if len(ics.ERABToBeSetup) == 0 {
+		return nil, fmt.Errorf("service-request Initial Context Setup without an E-RAB")
 	}
 
-	return int64(ics.MMEUES1APID), enbUEID, nil
+	erab := ics.ERABToBeSetup[0]
+
+	upf, err := e.selectUpfAddr(erab.TransportLayerAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	dlTEID := e.allocTEID()
+
+	if err := e.sendInitialContextSetupResponse(ics, enbUEID, dlTEID); err != nil {
+		return nil, err
+	}
+
+	return &ServiceRequestResult{
+		MMEUES1APID: int64(ics.MMEUES1APID),
+		ENBUES1APID: enbUEID,
+		UpfAddress:  upf.Unmap().String(),
+		ULTEID:      uint32(erab.GTPTEID),
+		DLTEID:      dlTEID,
+	}, nil
 }
 
 // PeriodicTrackingAreaUpdate performs a mobile-originated periodic TAU for a UE
