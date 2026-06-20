@@ -12,7 +12,6 @@ import (
 	"github.com/ellanetworks/core/internal/tester/logger"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
-	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -55,31 +54,12 @@ func runConnectivityExpectAllowed(ctx context.Context, env scenarios.Env, params
 		return fmt.Errorf("could not build subscriber config: %v", err)
 	}
 
-	g := env.FirstGNB()
-
-	gNodeB, err := gnb.Start(&gnb.StartOpts{
-		GnbID:           scenarios.DefaultGNBID,
-		MCC:             scenarios.DefaultMCC,
-		MNC:             scenarios.DefaultMNC,
-		SST:             scenarios.DefaultSST,
-		SD:              scenarios.DefaultSD,
-		DNN:             scenarios.DefaultDNN,
-		TAC:             scenarios.DefaultTAC,
-		Name:            "Ella-Core-Tester",
-		CoreN2Addresses: env.CoreN2Addresses,
-		GnbN2Address:    g.N2Address,
-		GnbN3Address:    g.N3Address,
-	})
+	gNodeB, err := startGNB(env)
 	if err != nil {
-		return fmt.Errorf("error starting gNB: %v", err)
+		return err
 	}
 
 	defer gNodeB.Close()
-
-	_, err = gNodeB.WaitForMessage(ngapType.NGAPPDUPresentSuccessfulOutcome, ngapType.SuccessfulOutcomePresentNGSetupResponse, 200*time.Millisecond)
-	if err != nil {
-		return fmt.Errorf("did not receive SCTP frame: %v", err)
-	}
 
 	eg := errgroup.Group{}
 

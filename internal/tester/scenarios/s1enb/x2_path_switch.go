@@ -74,6 +74,7 @@ func runS1ENBX2PathSwitch(_ context.Context, env scenarios.Env, _ any) error {
 	defer func() { _ = target.Close() }()
 
 	ue := source.NewUE(x2IMSI, k, opc)
+	ue.RequestPDNType(env.PDUSessionType())
 
 	res, err := source.Attach(ue, 15*time.Second)
 	if err != nil {

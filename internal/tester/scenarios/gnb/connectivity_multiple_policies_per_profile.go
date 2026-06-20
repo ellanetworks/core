@@ -6,15 +6,14 @@ package gnb
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
+	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
 	"github.com/ellanetworks/core/internal/tester/testutil/validate"
-	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -74,31 +73,12 @@ func runConnectivityMultiplePoliciesPerProfile(ctx context.Context, env scenario
 
 	pingCmd := env.PingCommand()
 
-	g := env.FirstGNB()
-
-	gNodeB, err := gnb.Start(&gnb.StartOpts{
-		GnbID:           scenarios.DefaultGNBID,
-		MCC:             scenarios.DefaultMCC,
-		MNC:             scenarios.DefaultMNC,
-		SST:             scenarios.DefaultSST,
-		SD:              scenarios.DefaultSD,
-		DNN:             scenarios.DefaultDNN,
-		TAC:             scenarios.DefaultTAC,
-		Name:            "Ella-Core-Tester",
-		CoreN2Addresses: env.CoreN2Addresses,
-		GnbN2Address:    g.N2Address,
-		GnbN3Address:    g.N3Address,
-	})
+	gNodeB, err := startGNB(env)
 	if err != nil {
-		return fmt.Errorf("error starting gNB: %v", err)
+		return err
 	}
 
 	defer gNodeB.Close()
-
-	_, err = gNodeB.WaitForMessage(ngapType.NGAPPDUPresentSuccessfulOutcome, ngapType.SuccessfulOutcomePresentNGSetupResponse, 200*time.Millisecond)
-	if err != nil {
-		return fmt.Errorf("did not receive SCTP frame: %v", err)
-	}
 
 	dnns := []string{scenarios.DefaultDNN, dnn2}
 	expectedQoS := []*validate.ExpectedPDUSessionInformation{
@@ -220,11 +200,8 @@ func runConnectivityTestWithDNN(
 		zap.Uint32("DL TEID", gnbPDUSession.DLTeid),
 	)
 
-	cmd := exec.CommandContext(ctx, pingCmd, "-I", tunInterfaceName, scenarios.DefaultPingDestination, "-c", "3", "-W", "1") // #nosec G204
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("ping %s via %s (DNN %s) failed after initial registration: %v\noutput:\n%s", scenarios.DefaultPingDestination, tunInterfaceName, dnn, err, string(out))
+	if err := probe.Run(ctx, probe.ICMP, tunInterfaceName, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, pingCmd == "ping6"); err != nil {
+		return fmt.Errorf("ping via %s (DNN %s) failed after initial registration: %w", tunInterfaceName, dnn, err)
 	}
 
 	logger.Logger.Debug(
@@ -254,11 +231,8 @@ func runConnectivityTestWithDNN(
 		zap.Int64("RAN UE NGAP ID", ranUENGAPID),
 	)
 
-	cmd = exec.CommandContext(ctx, pingCmd, "-I", tunInterfaceName, scenarios.DefaultPingDestination, "-c", "3", "-W", "1") // #nosec G204
-
-	out, err = cmd.CombinedOutput()
-	if err == nil {
-		return fmt.Errorf("ping %s via %s succeeded, but was expected to fail after UE Context Release\noutput:\n%s", scenarios.DefaultPingDestination, tunInterfaceName, string(out))
+	if err := probe.Run(ctx, probe.ICMP, tunInterfaceName, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, pingCmd == "ping6"); err == nil {
+		return fmt.Errorf("ping via %s succeeded, but was expected to fail after UE Context Release", tunInterfaceName)
 	}
 
 	logger.Logger.Debug(
@@ -316,11 +290,8 @@ func runConnectivityTestWithDNN(
 		zap.Uint32("DL TEID", pduSession.DLTeid),
 	)
 
-	cmd = exec.CommandContext(ctx, pingCmd, "-I", tunInterfaceName, scenarios.DefaultPingDestination, "-c", "3", "-W", "1") // #nosec G204
-
-	out, err = cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("ping %s via %s (DNN %s) failed after service request: %v\noutput:\n%s", scenarios.DefaultPingDestination, tunInterfaceName, dnn, err, string(out))
+	if err := probe.Run(ctx, probe.ICMP, tunInterfaceName, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, pingCmd == "ping6"); err != nil {
+		return fmt.Errorf("ping via %s (DNN %s) failed after service request: %w", tunInterfaceName, dnn, err)
 	}
 
 	logger.Logger.Debug(

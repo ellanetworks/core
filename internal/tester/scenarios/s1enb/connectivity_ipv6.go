@@ -6,10 +6,10 @@ package s1enb
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"time"
 
+	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/nas/eps"
@@ -98,9 +98,8 @@ func runS1ENBConnectivityIPv6(ctx context.Context, env scenarios.Env, _ any) err
 		return fmt.Errorf("await SLAAC address: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, "ping6", "-I", connIPv6TunIface, scenarios.DefaultPingDestinationV6, "-c", "3", "-W", "2") // #nosec G204 -- fixed test constants
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("ping6 %s via %s failed: %v\n%s", scenarios.DefaultPingDestinationV6, connIPv6TunIface, err, string(out))
+	if err := probe.Run(ctx, probe.ICMP, connIPv6TunIface, scenarios.DefaultPingDestinationV6, scenarios.DefaultProbePort, true); err != nil {
+		return fmt.Errorf("ping6 via %s failed: %w", connIPv6TunIface, err)
 	}
 
 	return nil

@@ -7,11 +7,11 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
-	"os/exec"
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
+	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
@@ -367,11 +367,8 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 		zap.String("UE IP", ueIP2),
 	)
 
-	cmd := exec.CommandContext(ctx, pingCmd, "-I", tun1, pingDest, "-c", "3", "-W", "1") // #nosec G204
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("ping via %s (DNN %s, session 1) failed: %v\noutput:\n%s", tun1, dnn1, err, string(out))
+	if err := probe.Run(ctx, probe.ICMP, tun1, pingDest, scenarios.DefaultProbePort, pingCmd == "ping6"); err != nil {
+		return fmt.Errorf("ping via %s (DNN %s, session 1) failed: %w", tun1, dnn1, err)
 	}
 
 	logger.Logger.Debug("Ping successful on PDU session 1",
@@ -380,11 +377,8 @@ func runConnectivityMultiPDUSession(ctx context.Context, env scenarios.Env, _ an
 		zap.String("destination", pingDest),
 	)
 
-	cmd = exec.CommandContext(ctx, pingCmd, "-I", tun2, pingDest, "-c", "3", "-W", "1") // #nosec G204
-
-	out, err = cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("ping via %s (DNN %s, session 2) failed: %v\noutput:\n%s", tun2, dnn2, err, string(out))
+	if err := probe.Run(ctx, probe.ICMP, tun2, pingDest, scenarios.DefaultProbePort, pingCmd == "ping6"); err != nil {
+		return fmt.Errorf("ping via %s (DNN %s, session 2) failed: %w", tun2, dnn2, err)
 	}
 
 	logger.Logger.Debug("Ping successful on PDU session 2",

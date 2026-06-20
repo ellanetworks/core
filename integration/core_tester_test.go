@@ -76,9 +76,6 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 		IPv6Only:  true,
 		DualStack: true,
 	},
-	"s1enb/x2_path_switch": {
-		IPv6Only: true,
-	},
 	"s1enb/connectivity_multi_pdn": {
 		IPv6Only: true,
 	},

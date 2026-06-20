@@ -8,14 +8,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil"
 	"github.com/ellanetworks/core/internal/tester/ue"
 	"github.com/ellanetworks/core/internal/tester/ue/sidf"
 	"github.com/free5gc/nas"
 	"github.com/free5gc/nas/nasMessage"
-	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 )
 
@@ -35,31 +33,12 @@ func fixtureRegistrationRejectUnknownUE(env scenarios.Env) scenarios.FixtureSpec
 }
 
 func runRegistrationRejectUnknownUE(_ context.Context, env scenarios.Env, _ any) error {
-	g := env.FirstGNB()
-
-	gNodeB, err := gnb.Start(&gnb.StartOpts{
-		GnbID:           scenarios.DefaultGNBID,
-		MCC:             scenarios.DefaultMCC,
-		MNC:             scenarios.DefaultMNC,
-		SST:             scenarios.DefaultSST,
-		SD:              scenarios.DefaultSD,
-		DNN:             scenarios.DefaultDNN,
-		TAC:             scenarios.DefaultTAC,
-		Name:            "Ella-Core-Tester",
-		CoreN2Addresses: env.CoreN2Addresses,
-		GnbN2Address:    g.N2Address,
-		GnbN3Address:    g.N3Address,
-	})
+	gNodeB, err := startGNB(env)
 	if err != nil {
-		return fmt.Errorf("error starting gNB: %v", err)
+		return err
 	}
 
 	defer gNodeB.Close()
-
-	_, err = gNodeB.WaitForMessage(ngapType.NGAPPDUPresentSuccessfulOutcome, ngapType.SuccessfulOutcomePresentNGSetupResponse, 200*time.Millisecond)
-	if err != nil {
-		return fmt.Errorf("timeout waiting for NGSetupComplete: %v", err)
-	}
 
 	secCap := testutil.UeSecurityCapability{
 		Integrity: testutil.IntegrityAlgorithms{

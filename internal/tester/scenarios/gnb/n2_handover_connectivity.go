@@ -7,11 +7,11 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
-	"os/exec"
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
+	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/scenarios/common"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
@@ -158,11 +158,8 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 
 	// Verify connectivity before handover.
 	pingDest := env.PingDestination()
-	cmd := exec.CommandContext(context.Background(), "ping", "-I", n2HandoverTunInterface, pingDest, "-c", "3", "-W", "1") // #nosec G204
-
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("ping before handover failed: %v\noutput:\n%s", err, string(out))
+	if err := probe.Run(context.Background(), probe.ICMP, n2HandoverTunInterface, pingDest, scenarios.DefaultProbePort, false); err != nil {
+		return fmt.Errorf("ping before handover failed: %w", err)
 	}
 
 	logger.Logger.Info("Ping successful before handover", zap.String("dest", pingDest))
@@ -279,11 +276,8 @@ func runN2HandoverConnectivity(_ context.Context, env scenarios.Env, _ any) erro
 	// Per 3GPP TS 23.502 §4.9.1.3.3, the UPF is updated with the new AN
 	// tunnel info during handover completion, so downlink traffic should
 	// flow through the target gNB's GTP tunnel.
-	cmd = exec.CommandContext(context.Background(), "ping", "-I", n2HandoverTargetTunPrefix, pingDest, "-c", "3", "-W", "2") // #nosec G204
-
-	out, err = cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("ping after N2 handover FAILED (UPF not updated with new AN tunnel info): %v\noutput:\n%s", err, string(out))
+	if err := probe.Run(context.Background(), probe.ICMP, n2HandoverTargetTunPrefix, pingDest, scenarios.DefaultProbePort, false); err != nil {
+		return fmt.Errorf("ping after N2 handover FAILED (UPF not updated with new AN tunnel info): %w", err)
 	}
 
 	logger.Logger.Info("Ping successful after N2 handover", zap.String("dest", pingDest))

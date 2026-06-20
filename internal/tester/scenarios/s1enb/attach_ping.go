@@ -6,9 +6,9 @@ package s1enb
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"time"
 
+	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 )
@@ -40,9 +40,8 @@ func attachAndPing(ctx context.Context, e *s1enb.ENB, ue *s1enb.UE, tunIface str
 	// Let the UPF program the downlink endpoint before pinging.
 	time.Sleep(500 * time.Millisecond)
 
-	cmd := exec.CommandContext(ctx, "ping", "-I", tunIface, scenarios.DefaultPingDestination, "-c", "3", "-W", "2") // #nosec G204 -- fixed ping; interface and destination are test config
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("ping %s via %s failed: %v\n%s", scenarios.DefaultPingDestination, tunIface, err, string(out))
+	if err := probe.Run(ctx, probe.ICMP, tunIface, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
+		return fmt.Errorf("ping via %s failed: %w", tunIface, err)
 	}
 
 	return nil

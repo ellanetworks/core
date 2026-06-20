@@ -5,24 +5,11 @@ package gnb
 
 import (
 	"context"
-	"time"
 
 	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/spf13/pflag"
 )
-
-// This file adapts the shared internal/tester/probe package to the names the ue
-// scenarios use, so the probe implementation has a single source shared with the
-// 4G (s1enb) scenarios.
-
-const (
-	probeAttemptCount   = probe.AttemptCount
-	probeAttemptTimeout = probe.AttemptTimeout
-)
-
-// makeProbePayload returns a deterministic payload of exactly n bytes.
-func makeProbePayload(n int) []byte { return probe.MakePayload(n) }
 
 // connectivityProbeProtocol selects the wire protocol used by runConnectivityProbe.
 type connectivityProbeProtocol = probe.Protocol
@@ -50,12 +37,4 @@ func parseConnectivityProbeProtocol(s string) (connectivityProbeProtocol, error)
 // the default probe port. Returns nil on success.
 func runConnectivityProbe(ctx context.Context, protocol connectivityProbeProtocol, tun, dst string, ipv6 bool) error {
 	return probe.Run(ctx, protocol, tun, dst, scenarios.DefaultProbePort, ipv6)
-}
-
-func sendTCPProbe(ctx context.Context, tun, dst string, port, count int, perAttemptTimeout time.Duration, payload []byte) error {
-	return probe.SendTCP(ctx, tun, dst, port, count, perAttemptTimeout, payload)
-}
-
-func sendUDPProbe(ctx context.Context, tun, dst string, port, count int, perAttemptTimeout time.Duration, payload []byte) error {
-	return probe.SendUDP(ctx, tun, dst, port, count, perAttemptTimeout, payload)
 }

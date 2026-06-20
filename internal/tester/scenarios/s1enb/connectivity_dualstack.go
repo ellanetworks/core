@@ -6,10 +6,10 @@ package s1enb
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"time"
 
+	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/nas/eps"
@@ -99,14 +99,12 @@ func runS1ENBConnectivityDualStack(ctx context.Context, env scenarios.Env, _ any
 		return fmt.Errorf("await SLAAC address: %w", err)
 	}
 
-	v4 := exec.CommandContext(ctx, "ping", "-I", connDualStackTunIface, scenarios.DefaultPingDestination, "-c", "3", "-W", "2") // #nosec G204 -- fixed test constants
-	if out, err := v4.CombinedOutput(); err != nil {
-		return fmt.Errorf("ping %s (IPv4) via %s failed: %v\n%s", scenarios.DefaultPingDestination, connDualStackTunIface, err, string(out))
+	if err := probe.Run(ctx, probe.ICMP, connDualStackTunIface, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
+		return fmt.Errorf("ping (IPv4) via %s failed: %w", connDualStackTunIface, err)
 	}
 
-	v6 := exec.CommandContext(ctx, "ping6", "-I", connDualStackTunIface, scenarios.DefaultPingDestinationV6, "-c", "3", "-W", "2") // #nosec G204 -- fixed test constants
-	if out, err := v6.CombinedOutput(); err != nil {
-		return fmt.Errorf("ping6 %s (IPv6) via %s failed: %v\n%s", scenarios.DefaultPingDestinationV6, connDualStackTunIface, err, string(out))
+	if err := probe.Run(ctx, probe.ICMP, connDualStackTunIface, scenarios.DefaultPingDestinationV6, scenarios.DefaultProbePort, true); err != nil {
+		return fmt.Errorf("ping6 (IPv6) via %s failed: %w", connDualStackTunIface, err)
 	}
 
 	return nil

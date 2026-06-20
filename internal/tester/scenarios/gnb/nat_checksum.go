@@ -12,9 +12,9 @@ import (
 
 	"github.com/ellanetworks/core/internal/tester/gnb"
 	"github.com/ellanetworks/core/internal/tester/logger"
+	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/internal/tester/testutil/procedure"
-	"github.com/free5gc/ngap/ngapType"
 	"github.com/spf13/pflag"
 	"go.uber.org/zap"
 )
@@ -96,31 +96,12 @@ func runNATChecksum(ctx context.Context, env scenarios.Env, params *natChecksumP
 		return fmt.Errorf("could not build subscriber config: %v", err)
 	}
 
-	g := env.FirstGNB()
-
-	gNodeB, err := gnb.Start(&gnb.StartOpts{
-		GnbID:           scenarios.DefaultGNBID,
-		MCC:             scenarios.DefaultMCC,
-		MNC:             scenarios.DefaultMNC,
-		SST:             scenarios.DefaultSST,
-		SD:              scenarios.DefaultSD,
-		DNN:             scenarios.DefaultDNN,
-		TAC:             scenarios.DefaultTAC,
-		Name:            "Ella-Core-Tester",
-		CoreN2Addresses: env.CoreN2Addresses,
-		GnbN2Address:    g.N2Address,
-		GnbN3Address:    g.N3Address,
-	})
+	gNodeB, err := startGNB(env)
 	if err != nil {
-		return fmt.Errorf("error starting gNB: %v", err)
+		return err
 	}
 
 	defer gNodeB.Close()
-
-	_, err = gNodeB.WaitForMessage(ngapType.NGAPPDUPresentSuccessfulOutcome, ngapType.SuccessfulOutcomePresentNGSetupResponse, 200*time.Millisecond)
-	if err != nil {
-		return fmt.Errorf("did not receive NG Setup Response: %v", err)
-	}
 
 	ranUENGAPID := int64(scenarios.DefaultRANUENGAPID)
 	tunInterfaceName := gtpInterfaceNamePrefix + "0"
@@ -172,13 +153,13 @@ func runNATChecksum(ctx context.Context, env scenarios.Env, params *natChecksumP
 	dst := env.PingDestination()
 
 	for _, size := range sizes {
-		payload := makeProbePayload(size)
+		payload := probe.MakePayload(size)
 
-		if err := sendTCPProbe(ctx, tunInterfaceName, dst, scenarios.DefaultProbePort, probeAttemptCount, probeAttemptTimeout, payload); err != nil {
+		if err := probe.SendTCP(ctx, tunInterfaceName, dst, scenarios.DefaultProbePort, probe.AttemptCount, probe.AttemptTimeout, payload); err != nil {
 			return fmt.Errorf("tcp probe (payload=%d) failed: %v", size, err)
 		}
 
-		if err := sendUDPProbe(ctx, tunInterfaceName, dst, scenarios.DefaultProbePort, probeAttemptCount, probeAttemptTimeout, payload); err != nil {
+		if err := probe.SendUDP(ctx, tunInterfaceName, dst, scenarios.DefaultProbePort, probe.AttemptCount, probe.AttemptTimeout, payload); err != nil {
 			return fmt.Errorf("udp probe (payload=%d) failed: %v", size, err)
 		}
 

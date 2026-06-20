@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/spf13/pflag"
@@ -92,7 +93,7 @@ func runS1ENBConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
 	// Let the UPF program the downlink endpoint before pinging.
 	time.Sleep(500 * time.Millisecond)
 
-	if err := pingVia(ctx, connTunIface); err != nil {
+	if err := probe.Run(ctx, probe.ICMP, connTunIface, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
 		return err
 	}
 
@@ -103,7 +104,7 @@ func runS1ENBConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
 	// Let the UPF tear down the downlink path before the negative ping.
 	time.Sleep(500 * time.Millisecond)
 
-	if err := pingVia(ctx, connTunIface); err == nil {
+	if err := probe.Run(ctx, probe.ICMP, connTunIface, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err == nil {
 		return fmt.Errorf("ping via %s succeeded after S1 release but the bearer should be suspended", connTunIface)
 	}
 
@@ -129,7 +130,7 @@ func runS1ENBConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
 	// Let the UPF program the downlink endpoint before pinging.
 	time.Sleep(500 * time.Millisecond)
 
-	if err := pingVia(ctx, connTunIface); err != nil {
+	if err := probe.Run(ctx, probe.ICMP, connTunIface, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
 		return fmt.Errorf("ping after service request: %w", err)
 	}
 

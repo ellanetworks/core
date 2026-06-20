@@ -7,11 +7,11 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
-	"os/exec"
 	"strconv"
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
+	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/nas/eps"
@@ -128,7 +128,7 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 
 	time.Sleep(500 * time.Millisecond)
 
-	if err := pingVia(ctx, multiPDNTun1); err != nil {
+	if err := probe.Run(ctx, probe.ICMP, multiPDNTun1, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
 		return fmt.Errorf("ping on default APN: %w", err)
 	}
 
@@ -166,7 +166,7 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 
 	time.Sleep(500 * time.Millisecond)
 
-	if err := pingVia(ctx, multiPDNTun2); err != nil {
+	if err := probe.Run(ctx, probe.ICMP, multiPDNTun2, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
 		return fmt.Errorf("ping on second APN: %w", err)
 	}
 
@@ -178,7 +178,7 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 	}
 
 	// The default APN must still work after the second PDN is disconnected.
-	if err := pingVia(ctx, multiPDNTun1); err != nil {
+	if err := probe.Run(ctx, probe.ICMP, multiPDNTun1, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
 		return fmt.Errorf("ping on default APN after second-PDN disconnect: %w", err)
 	}
 
@@ -187,15 +187,6 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 	}
 
 	logger.GnbLogger.Info("multi-PDN connectivity scenario completed")
-
-	return nil
-}
-
-func pingVia(ctx context.Context, iface string) error {
-	cmd := exec.CommandContext(ctx, "ping", "-I", iface, scenarios.DefaultPingDestination, "-c", "3", "-W", "2") // #nosec G204 -- fixed ping; interface and destination are test config
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("ping %s via %s failed: %v\n%s", scenarios.DefaultPingDestination, iface, err, string(out))
-	}
 
 	return nil
 }
