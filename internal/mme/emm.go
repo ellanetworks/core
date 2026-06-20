@@ -261,11 +261,22 @@ func (m *MME) ingestAttachRequest(ue *UeContext, req *eps.AttachRequest) {
 	ue.esmContainer = req.ESMMessageContainer
 	ue.combinedAttach = req.EPSAttachType == epsAttachTypeCombined
 
-	// The UE's requested PDN type (IPv4/IPv6/IPv4v6) rides in the PDN Connectivity
-	// Request inside the ESM container; default to IPv4 if absent/unparsable.
+	// The UE's requested PDN type (IPv4/IPv6/IPv4v6) and optional requested APN ride
+	// in the PDN Connectivity Request inside the ESM container; default the PDN type
+	// to IPv4 if absent/unparsable and leave the APN empty (= use the default policy).
 	ue.requestedPDNType = eps.PDNTypeIPv4
-	if pc, err := eps.ParsePDNConnectivityRequest(req.ESMMessageContainer); err == nil && pc.PDNType != 0 {
-		ue.requestedPDNType = pc.PDNType
+	ue.requestedAPN = ""
+
+	if pc, err := eps.ParsePDNConnectivityRequest(req.ESMMessageContainer); err == nil {
+		if pc.PDNType != 0 {
+			ue.requestedPDNType = pc.PDNType
+		}
+
+		if len(pc.AccessPointName) > 0 {
+			if apn, err := eps.DecodeAPN(pc.AccessPointName); err == nil {
+				ue.requestedAPN = apn
+			}
+		}
 	}
 }
 

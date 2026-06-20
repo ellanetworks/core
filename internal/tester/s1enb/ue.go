@@ -43,6 +43,7 @@ type UE struct {
 	netCapEIA byte // advertised EPS integrity bitmap (octet 4)
 
 	pdnType    uint8                  // requested PDN type (eps.PDNTypeIPv4 / IPv6 / IPv4v6)
+	apn        string                 // requested APN in the Attach Request ("" = subscriber default)
 	attachGUTI *eps.EPSMobileIdentity // when set, the Attach Request presents this GUTI rather than the IMSI
 
 	kasme   []byte
@@ -94,6 +95,10 @@ func (ue *UE) protectUplink(plain []byte) ([]byte, error) {
 // (eps.PDNTypeIPv4 / IPv6 / IPv4v6).
 func (ue *UE) RequestPDNType(t uint8) { ue.pdnType = t }
 
+// RequestAPN sets the APN the UE requests in its Attach Request's PDN Connectivity
+// Request (TS 24.301 §6.5.1.2); empty selects the subscriber's default APN.
+func (ue *UE) RequestAPN(apn string) { ue.apn = apn }
+
 // UseUnknownGUTI makes the Attach Request present a GUTI the MME cannot resolve,
 // so the MME must obtain the IMSI with an IDENTITY REQUEST (TS 24.301 §5.4.4).
 func (ue *UE) UseUnknownGUTI() {
@@ -114,7 +119,18 @@ func (ue *UE) S1APSecurityCapabilities() s1ap.UESecurityCapabilities {
 }
 
 func (ue *UE) buildAttachRequest() ([]byte, error) {
-	esm, err := (&eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: ue.pdnType}).Marshal()
+	pc := &eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: ue.pdnType}
+
+	if ue.apn != "" {
+		apnIE, err := eps.EncodeAPN(ue.apn)
+		if err != nil {
+			return nil, fmt.Errorf("encode APN: %w", err)
+		}
+
+		pc.AccessPointName = apnIE
+	}
+
+	esm, err := pc.Marshal()
 	if err != nil {
 		return nil, fmt.Errorf("build PDN Connectivity Request: %w", err)
 	}

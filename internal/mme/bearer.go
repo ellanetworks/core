@@ -5,6 +5,7 @@ package mme
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -243,8 +244,29 @@ func bitRateToBps(s string) uint64 {
 // activateDefaultBearer builds the Attach Accept (carrying the default-bearer
 // activation and the UE IP) and sends it to the eNB inside an Initial Context
 // Setup Request, with K_eNB and the UE security capabilities for AS security.
+// resolveAttachQoS resolves the default-bearer QoS for an attaching UE. It honours
+// a UE-requested APN (TS 24.301 §6.5.1.3) by selecting the policy bound to that data
+// network, and falls back to the profile's default policy when no APN is requested.
+func (m *MME) resolveAttachQoS(ctx context.Context, ue *UeContext) (*epsQoS, error) {
+	if ue.requestedAPN != "" {
+		return m.resolveQoSByAPN(ctx, ue.imsi, ue.requestedAPN)
+	}
+
+	return m.resolveQoS(ctx, ue.imsi)
+}
+
 func (m *MME) activateDefaultBearer(ctx context.Context, ue *UeContext) {
-	qos, err := m.resolveQoS(ctx, ue.imsi)
+	qos, err := m.resolveAttachQoS(ctx, ue)
+	if errors.Is(err, ErrUnknownAPN) {
+		// The requested APN is not bound to any policy in the subscriber's profile
+		// (TS 24.301 §6.5.1.4, ESM cause #27); the default bearer cannot be set up.
+		logger.MmeLog.Info("attach rejected: requested APN not in subscriber profile",
+			zap.String("imsi", ue.imsi), zap.String("apn", ue.requestedAPN))
+		m.rejectAttach(ctx, ue, emmCauseESMFailure)
+
+		return
+	}
+
 	if err != nil {
 		logger.MmeLog.Error("failed to resolve subscriber QoS", zap.String("imsi", ue.imsi), zap.Error(err))
 		return

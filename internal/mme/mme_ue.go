@@ -82,7 +82,8 @@ type UeContext struct {
 
 	ambrUplink       string // UE-AMBR (profile UE-AMBR), raw "<n> <unit>" form
 	ambrDownlink     string
-	requestedPDNType uint8 // UE-requested PDN type (1 IPv4 / 2 IPv6 / 3 IPv4v6)
+	requestedPDNType uint8  // UE-requested PDN type (1 IPv4 / 2 IPv6 / 3 IPv4v6)
+	requestedAPN     string // UE-requested APN at attach ("" = use the default policy, TS 24.301 §6.5.1.3)
 
 	// mtmsi is the M-TMSI of the GUTI assigned at attach (0 = none); it indexes
 	// the UE for S-TMSI-addressed procedures (Service Request, paging).
