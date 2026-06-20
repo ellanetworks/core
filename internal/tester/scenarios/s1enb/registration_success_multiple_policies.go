@@ -79,12 +79,15 @@ func runS1ENBMultiplePolicies(_ context.Context, env scenarios.Env, _ any) error
 	for i := range multiPolicyCount {
 		imsi := nthIMSI(multiPolicyBaseIMSI, i)
 
-		res, err := e.Attach(e.NewUE(imsi, k, opc), 15*time.Second)
+		ue := e.NewUE(imsi, k, opc)
+		ue.RequestPDNType(env.PDUSessionType())
+
+		res, err := e.Attach(ue, 15*time.Second)
 		if err != nil {
 			return fmt.Errorf("attach %d/%d (imsi %s): %w", i+1, multiPolicyCount, imsi, err)
 		}
 
-		exp := defaultExpectedAttach()
+		exp := familyExpect(env, scenarios.DefaultDNN, scenarios.DefaultUEIPv4Pool)
 		exp.QCI = byte(5 + i)
 		exp.SessAmbrUplinkBps = uint64(10*(i+1)) * mbpsToBps
 		exp.SessAmbrDownlinkBps = uint64(50*(i+1)) * mbpsToBps

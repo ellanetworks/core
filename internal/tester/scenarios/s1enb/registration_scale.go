@@ -55,6 +55,7 @@ func runS1ENBScaleSequential(_ context.Context, env scenarios.Env, _ any) error 
 		imsi := nthIMSI(scaleSequentialBaseIMSI, i)
 
 		ue := e.NewUE(imsi, k, opc)
+		ue.RequestPDNType(env.PDUSessionType())
 
 		res, err := e.Attach(ue, 15*time.Second)
 		if err != nil {

@@ -76,34 +76,10 @@ var scenarioIPFamilyExclusions = map[string]map[IPFamily]bool{
 		IPv6Only:  true,
 		DualStack: true,
 	},
-	"s1enb/registration_success": {
-		IPv6Only: true,
-	},
 	"s1enb/x2_path_switch": {
 		IPv6Only: true,
 	},
-	"s1enb/deregistration": {
-		IPv6Only: true,
-	},
-	"s1enb/context_release": {
-		IPv6Only: true,
-	},
-	"s1enb/s1_reset": {
-		IPv6Only: true,
-	},
 	"s1enb/connectivity_multi_pdn": {
-		IPv6Only: true,
-	},
-	"s1enb/service_request/data": {
-		IPv6Only: true,
-	},
-	"s1enb/registration/periodic/signalling": {
-		IPv6Only: true,
-	},
-	"s1enb/registration_success_50_sequential": {
-		IPv6Only: true,
-	},
-	"s1enb/registration_success_multiple_policies": {
 		IPv6Only: true,
 	},
 	"s1enb/connectivity": {

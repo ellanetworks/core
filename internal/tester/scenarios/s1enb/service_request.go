@@ -45,6 +45,7 @@ func runS1ENBServiceRequest(_ context.Context, env scenarios.Env, _ any) error {
 	defer func() { _ = e.Close() }()
 
 	ue := e.NewUE(serviceRequestIMSI, k, opc)
+	ue.RequestPDNType(env.PDUSessionType())
 
 	res, err := e.Attach(ue, 15*time.Second)
 	if err != nil {

@@ -24,6 +24,34 @@ type expectedAttach struct {
 	SessAmbrDownlinkBps uint64       // per-APN Session-AMBR downlink, bits/s (0 => skip)
 	SessAmbrUplinkBps   uint64       // per-APN Session-AMBR uplink, bits/s (0 => skip)
 	RequireGUTI         bool         // the MME must have assigned a GUTI
+	RequireUEIPv6       bool         // the attach must carry an IPv6 interface identifier
+}
+
+// familyExpect is the baseline attach expectation for env's IP family: the
+// negotiated PDN type and APN, an IPv4-in-pool check when IPv4 is present, and an
+// IPv6 interface-identifier check when IPv6 is present. The global IPv6 prefix is
+// not asserted — EPS signals only the IID, the prefix arrives via SLAAC. The EPS
+// PDN type and the 5G PDU-session type share values (IPv4=1/IPv6=2/IPv4v6=3), so
+// env.PDUSessionType() selects the family identically to the 5G scenarios.
+func familyExpect(env scenarios.Env, apn, ipv4Pool string) expectedAttach {
+	exp := expectedAttach{
+		APN:                 apn,
+		PDNType:             env.PDUSessionType(),
+		QCI:                 9,
+		SessAmbrDownlinkBps: 100 * mbpsToBps,
+		SessAmbrUplinkBps:   100 * mbpsToBps,
+		RequireGUTI:         true,
+	}
+
+	if env.IPFamily() != scenarios.IPv6Only {
+		exp.UEIPv4Subnet = netip.MustParsePrefix(ipv4Pool)
+	}
+
+	if env.HasIPv6() {
+		exp.RequireUEIPv6 = true
+	}
+
+	return exp
 }
 
 const mbpsToBps = 1_000_000
@@ -52,7 +80,7 @@ func assertAttach(res *s1enb.AttachResult, exp expectedAttach) error {
 	}
 
 	return assertBearer(bearerFields{
-		pdnType: res.PDNType, qci: res.QCI, apn: res.APN, ueIPv4: res.UEIPv4,
+		pdnType: res.PDNType, qci: res.QCI, apn: res.APN, ueIPv4: res.UEIPv4, ueIPv6: res.UEIPv6,
 		sessAmbrDLBps: res.SessAmbrDownlinkBps, sessAmbrULBps: res.SessAmbrUplinkBps,
 	}, exp)
 }
@@ -71,6 +99,7 @@ type bearerFields struct {
 	qci                          byte
 	apn                          string
 	ueIPv4                       string
+	ueIPv6                       string
 	sessAmbrDLBps, sessAmbrULBps uint64
 }
 
@@ -94,6 +123,10 @@ func assertBearer(b bearerFields, exp expectedAttach) error {
 
 	if exp.SessAmbrUplinkBps != 0 && b.sessAmbrULBps != exp.SessAmbrUplinkBps {
 		return fmt.Errorf("bearer: session-AMBR uplink = %d bps, want %d", b.sessAmbrULBps, exp.SessAmbrUplinkBps)
+	}
+
+	if exp.RequireUEIPv6 && b.ueIPv6 == "" {
+		return fmt.Errorf("bearer: no IPv6 interface identifier assigned")
 	}
 
 	if exp.UEIPv4Subnet.IsValid() {

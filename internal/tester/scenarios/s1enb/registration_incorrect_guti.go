@@ -45,6 +45,7 @@ func runS1ENBRegistrationIncorrectGUTI(_ context.Context, env scenarios.Env, _ a
 
 	ue := e.NewUE(incorrectGUTIIMSI, k, opc)
 	ue.UseUnknownGUTI()
+	ue.RequestPDNType(env.PDUSessionType())
 
 	res, err := e.Attach(ue, 15*time.Second)
 	if err != nil {
@@ -55,5 +56,5 @@ func runS1ENBRegistrationIncorrectGUTI(_ context.Context, env scenarios.Env, _ a
 		return fmt.Errorf("MME did not request the IMSI for an unresolvable GUTI")
 	}
 
-	return assertAttach(res, defaultExpectedAttach())
+	return assertAttach(res, familyExpect(env, scenarios.DefaultDNN, scenarios.DefaultUEIPv4Pool))
 }

@@ -77,13 +77,14 @@ func runS1ENBRegistrationSuccess(_ context.Context, env scenarios.Env, _ any) er
 	defer func() { _ = e.Close() }()
 
 	ue := e.NewUE(s1enbIMSI, k, opc)
+	ue.RequestPDNType(env.PDUSessionType())
 
 	res, err := e.Attach(ue, 15*time.Second)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}
 
-	return assertAttach(res, defaultExpectedAttach())
+	return assertAttach(res, familyExpect(env, scenarios.DefaultDNN, scenarios.DefaultUEIPv4Pool))
 }
 
 // s1mmeAddress derives the S1-MME endpoint from the core's N2 address: the same
