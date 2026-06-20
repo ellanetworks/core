@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/nas/eps"
 	"go.uber.org/zap"
 )
@@ -50,6 +51,8 @@ func (m *MME) onAuthenticationFailure(ctx context.Context, ue *UeContext, plain 
 // rejectAuthentication sends AUTHENTICATION REJECT (TS 24.301) and
 // releases the UE's S1 context.
 func (m *MME) rejectAuthentication(ctx context.Context, ue *UeContext) {
+	metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultReject)
+
 	logger.MmeLog.Info("authentication rejected",
 		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi))
 	m.sendDownlinkMessage(ctx, ue, &eps.AuthenticationReject{})

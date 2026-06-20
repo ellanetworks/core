@@ -11,6 +11,7 @@ import (
 
 	"github.com/ellanetworks/core/etsi"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/free5gc/nas/nasMessage"
@@ -32,7 +33,7 @@ import (
 // once ModifyEPSSession registers the IPv6 session). It returns the negotiated
 // type, the allocated addresses, and the S-GW S1-U F-TEID the eNB sends uplink
 // traffic to; the eNB downlink endpoint is supplied later via ModifyEPSSession.
-func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest) (models.EPSBearer, error) {
+func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest) (bearer models.EPSBearer, err error) {
 	ctx, span := tracer.Start(ctx, "smf/create_eps_session",
 		trace.WithAttributes(
 			attribute.String("ue.imsi", req.IMSI),
@@ -41,6 +42,8 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		),
 	)
 	defer span.End()
+
+	defer func() { recordSessionEstablishment(metrics.RAT4G, err) }()
 
 	supi, err := etsi.NewSUPIFromIMSI(req.IMSI)
 	if err != nil {
@@ -71,7 +74,7 @@ func (s *SMF) CreateEPSSession(ctx context.Context, req models.EPSBearerRequest)
 		dns, _ = netip.AddrFromSlice(policy.DNS)
 	}
 
-	bearer := models.EPSBearer{PDNType: pdnType, DNS: dns.Unmap()}
+	bearer = models.EPSBearer{PDNType: pdnType, DNS: dns.Unmap()}
 
 	// When the UE asked for IPv4v6 but the data network offers a single family,
 	// the network signals the limitation with ESM cause #50/#51 in the Activate

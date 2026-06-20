@@ -17,7 +17,6 @@ import (
 
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/nas"
-	"github.com/ellanetworks/core/internal/amf/nas/gmm"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
 	"github.com/ellanetworks/core/internal/amf/ngap/service"
@@ -34,6 +33,7 @@ import (
 	"github.com/ellanetworks/core/internal/jobs"
 	"github.com/ellanetworks/core/internal/kernel"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
 	"github.com/ellanetworks/core/internal/sessions"
@@ -487,8 +487,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	smfInstance.SetMME(mmeInstance)
 
 	amf.RegisterMetrics(amfInstance, mmeInstance.CountENBs, mmeInstance.CountRegisteredSubscribers)
-	gmm.RegisterMetrics()
-	ngap.RegisterMetrics()
+	metrics.RegisterMetrics()
 
 	// Session reconciler: watches the session_reconcile changefeed topic
 	// and reconciles every local PDU session against the current DB policy.

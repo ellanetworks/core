@@ -118,8 +118,6 @@ func Dispatch(ctx context.Context, amfInstance *amf.AMF, conn *sctp.SCTPConn, ms
 		msg,
 	)
 
-	NGAPMessages.WithLabelValues(messageType).Inc()
-
 	if haveNGSetup {
 		if !handleDecodeReport(ctx, ran, ngSetupReport) {
 			return

@@ -5,10 +5,12 @@ package gmm
 
 import (
 	"testing"
+
+	"github.com/ellanetworks/core/internal/metrics"
 )
 
 func TestMain(m *testing.M) {
-	RegisterMetrics()
+	metrics.RegisterMetrics()
 
 	m.Run()
 }

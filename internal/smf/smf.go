@@ -356,6 +356,23 @@ func (s *SMF) SessionCount() int {
 	return len(s.pool)
 }
 
+// SessionCountByRAT returns the active session counts split by access technology:
+// 4G EPS sessions and 5G PDU sessions.
+func (s *SMF) SessionCountByRAT() (fourG, fiveG int) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, ctx := range s.pool {
+		if ctx.IsEPS {
+			fourG++
+		} else {
+			fiveG++
+		}
+	}
+
+	return fourG, fiveG
+}
+
 // GetSessionPolicy retrieves the PCC rules from the PCF for a subscriber.
 func (s *SMF) GetSessionPolicy(ctx context.Context, supi etsi.SUPI, snssai *models.Snssai, dnn string) (*Policy, error) {
 	ctx, span := tracer.Start(ctx, "smf/get_session_policy",

@@ -12,6 +12,7 @@ import (
 	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
@@ -512,6 +513,8 @@ func (m *MME) onAttachComplete(ctx context.Context, ue *UeContext, plain []byte)
 	}
 
 	ue.emmState = EMMRegistered
+
+	metrics.RegistrationAttempt(metrics.RAT4G, attachTypeName(ue), metrics.ResultAccept)
 
 	logger.MmeLog.Info("UE attached (EMM-REGISTERED)",
 		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)),

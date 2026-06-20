@@ -7,26 +7,33 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// RegisterMetrics registers the converged radio/subscriber gauges. enbCount and
-// epsSubscribers contribute the 4G (MME) tallies so the gauges reflect both
-// access technologies; pass nil when no MME is present.
+// RegisterMetrics registers the radio/subscriber gauges, broken down by RAT.
+// enbCount and epsSubscribers supply the 4G (MME) tallies; pass nil when no MME
+// is present.
 func RegisterMetrics(amf *AMF, enbCount, epsSubscribers func() int) {
-	connectedRadios := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-		Name: "app_connected_radios",
-		Help: "Number of radios (5G gNBs and 4G eNBs) currently connected to Ella Core",
-	}, func() float64 {
-		return float64(amf.CountRadios() + countOrZero(enbCount))
-	})
+	radiosDesc := prometheus.NewDesc(
+		"app_connected_radios",
+		"Number of radios currently connected to Ella Core, by RAT (5G gNBs, 4G eNBs).",
+		[]string{"rat"},
+		nil,
+	)
 
-	registeredSubscribers := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-		Name: "app_registered_subscribers",
-		Help: "Number of subscribers (5GS and EPS) currently registered in Ella Core",
-	}, func() float64 {
-		return float64(amf.CountRegisteredSubscribers() + countOrZero(epsSubscribers))
-	})
+	subscribersDesc := prometheus.NewDesc(
+		"app_registered_subscribers",
+		"Number of subscribers currently registered in Ella Core, by RAT (5GS, EPS).",
+		[]string{"rat"},
+		nil,
+	)
 
-	prometheus.MustRegister(connectedRadios)
-	prometheus.MustRegister(registeredSubscribers)
+	prometheus.MustRegister(prometheus.CollectorFunc(func(ch chan<- prometheus.Metric) {
+		ch <- prometheus.MustNewConstMetric(radiosDesc, prometheus.GaugeValue, float64(amf.CountRadios()), "5g")
+
+		ch <- prometheus.MustNewConstMetric(radiosDesc, prometheus.GaugeValue, float64(countOrZero(enbCount)), "4g")
+
+		ch <- prometheus.MustNewConstMetric(subscribersDesc, prometheus.GaugeValue, float64(amf.CountRegisteredSubscribers()), "5g")
+
+		ch <- prometheus.MustNewConstMetric(subscribersDesc, prometheus.GaugeValue, float64(countOrZero(epsSubscribers)), "4g")
+	}))
 }
 
 func countOrZero(f func() int) int {
