@@ -34,6 +34,17 @@ type AttachResult struct {
 	// Ella Core aligns it with the policy's 5QI for the standardized values.
 	QCI byte
 
+	// ARP is the default bearer's Allocation and Retention Priority level (1-15)
+	// from the S1AP E-RAB Level QoS Parameters in the Initial Context Setup
+	// Request (TS 36.413 §9.2.1.60).
+	ARP byte
+
+	// UEAmbrDownlinkBps / UEAmbrUplinkBps are the UE Aggregate Maximum Bit Rate
+	// (bits/s) from the Initial Context Setup Request (TS 36.413 §9.2.1.20), the
+	// per-UE aggregate across all non-GBR bearers.
+	UEAmbrDownlinkBps uint64
+	UEAmbrUplinkBps   uint64
+
 	// APN is the Access Point Name carried in the Activate Default EPS Bearer
 	// Context Request — the EPS analogue of the 5G DNN.
 	APN string
@@ -185,6 +196,9 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 		ERABID:            erab.ERABID,
 		GUTI:              accept.GUTI,
 		IdentityRequested: identityRequested,
+		ARP:               erab.QoS.ARP.PriorityLevel,
+		UEAmbrDownlinkBps: uint64(ics.UEAggregateMaximumBitRate.DL),
+		UEAmbrUplinkBps:   uint64(ics.UEAggregateMaximumBitRate.UL),
 		UpfAddress:        upf.Unmap().String(),
 		ULTEID:            uint32(erab.GTPTEID),
 		DLTEID:            dlTEID,

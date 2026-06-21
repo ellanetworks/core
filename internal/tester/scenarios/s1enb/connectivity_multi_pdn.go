@@ -113,7 +113,12 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("attach: %w", err)
 	}
 
-	if err := assertAttach(res, defaultExpectedAttach()); err != nil {
+	defaultExp := defaultExpectedAttach()
+	defaultExp.ARP = 15
+	defaultExp.UEAmbrDownlinkBps = 500 * mbpsToBps
+	defaultExp.UEAmbrUplinkBps = 500 * mbpsToBps
+
+	if err := assertAttach(res, defaultExp); err != nil {
 		return fmt.Errorf("default APN: %w", err)
 	}
 
@@ -145,6 +150,7 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 		APN:                 multiPDNEnterpriseDNN,
 		PDNType:             eps.PDNTypeIPv4,
 		QCI:                 7,
+		ARP:                 15,
 		SessAmbrUplinkBps:   30 * mbpsToBps,
 		SessAmbrDownlinkBps: 60 * mbpsToBps,
 	}); err != nil {

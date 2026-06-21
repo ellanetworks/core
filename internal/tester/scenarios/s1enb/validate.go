@@ -21,8 +21,11 @@ type expectedAttach struct {
 	APN                 string       // Access Point Name in the Activate Default EPS Bearer Context Request (empty => skip)
 	PDNType             uint8        // eps.PDNTypeIPv4 / IPv6 / IPv4v6 (0 => skip)
 	QCI                 byte         // default bearer QCI, equals the policy 5QI (0 => skip)
+	ARP                 byte         // default bearer ARP priority level, 1-15 (0 => skip)
 	SessAmbrDownlinkBps uint64       // per-APN Session-AMBR downlink, bits/s (0 => skip)
 	SessAmbrUplinkBps   uint64       // per-APN Session-AMBR uplink, bits/s (0 => skip)
+	UEAmbrDownlinkBps   uint64       // UE-AMBR downlink, bits/s (0 => skip); attach only
+	UEAmbrUplinkBps     uint64       // UE-AMBR uplink, bits/s (0 => skip); attach only
 	RequireGUTI         bool         // the MME must have assigned a GUTI
 	RequireUEIPv6       bool         // the attach must carry an IPv6 interface identifier
 }
@@ -79,8 +82,16 @@ func assertAttach(res *s1enb.AttachResult, exp expectedAttach) error {
 		return fmt.Errorf("attach: MME assigned no GUTI")
 	}
 
+	if exp.UEAmbrDownlinkBps != 0 && res.UEAmbrDownlinkBps != exp.UEAmbrDownlinkBps {
+		return fmt.Errorf("attach: UE-AMBR downlink = %d bps, want %d", res.UEAmbrDownlinkBps, exp.UEAmbrDownlinkBps)
+	}
+
+	if exp.UEAmbrUplinkBps != 0 && res.UEAmbrUplinkBps != exp.UEAmbrUplinkBps {
+		return fmt.Errorf("attach: UE-AMBR uplink = %d bps, want %d", res.UEAmbrUplinkBps, exp.UEAmbrUplinkBps)
+	}
+
 	return assertBearer(bearerFields{
-		pdnType: res.PDNType, qci: res.QCI, apn: res.APN, ueIPv4: res.UEIPv4, ueIPv6: res.UEIPv6,
+		pdnType: res.PDNType, qci: res.QCI, arp: res.ARP, apn: res.APN, ueIPv4: res.UEIPv4, ueIPv6: res.UEIPv6,
 		sessAmbrDLBps: res.SessAmbrDownlinkBps, sessAmbrULBps: res.SessAmbrUplinkBps,
 	}, exp)
 }
@@ -89,7 +100,7 @@ func assertAttach(res *s1enb.AttachResult, exp expectedAttach) error {
 // secondary PDN carries no GUTI, so exp.RequireGUTI is ignored here.
 func assertPDN(pdn *s1enb.PDNResult, exp expectedAttach) error {
 	return assertBearer(bearerFields{
-		pdnType: pdn.PDNType, qci: pdn.QCI, apn: pdn.APN, ueIPv4: pdn.UEIPv4,
+		pdnType: pdn.PDNType, qci: pdn.QCI, arp: pdn.ARP, apn: pdn.APN, ueIPv4: pdn.UEIPv4,
 		sessAmbrDLBps: pdn.SessAmbrDownlinkBps, sessAmbrULBps: pdn.SessAmbrUplinkBps,
 	}, exp)
 }
@@ -97,6 +108,7 @@ func assertPDN(pdn *s1enb.PDNResult, exp expectedAttach) error {
 type bearerFields struct {
 	pdnType                      uint8
 	qci                          byte
+	arp                          byte
 	apn                          string
 	ueIPv4                       string
 	ueIPv6                       string
@@ -111,6 +123,10 @@ func assertBearer(b bearerFields, exp expectedAttach) error {
 
 	if exp.QCI != 0 && b.qci != exp.QCI {
 		return fmt.Errorf("bearer: QCI = %d, want %d", b.qci, exp.QCI)
+	}
+
+	if exp.ARP != 0 && b.arp != exp.ARP {
+		return fmt.Errorf("bearer: ARP = %d, want %d", b.arp, exp.ARP)
 	}
 
 	if exp.APN != "" && b.apn != exp.APN {

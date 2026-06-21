@@ -10,8 +10,8 @@ import (
 	"github.com/ellanetworks/core/internal/amf"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/ngap/decode"
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/sctp"
 )
 
 func TestPDUSessionResourceModifyResponse_BothIDsNil(t *testing.T) {

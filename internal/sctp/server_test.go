@@ -48,6 +48,7 @@ func TestServer_DispatchesMatchingPPID(t *testing.T) {
 	}
 
 	client := NewSCTPConn(fd)
+
 	defer func() { _ = client.Close() }()
 
 	// The PPID travels big-endian on the wire (TS 36.412 §7), which the server

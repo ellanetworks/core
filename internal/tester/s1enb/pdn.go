@@ -18,6 +18,7 @@ type PDNResult struct {
 	ERABID              s1ap.ERABID
 	PDNType             uint8
 	QCI                 byte   // default bearer QCI for this PDN (== policy 5QI)
+	ARP                 byte   // E-RAB ARP priority level (1-15, TS 36.413 §9.2.1.60)
 	APN                 string // Access Point Name of this PDN connection
 	SessAmbrDownlinkBps uint64 // per-APN Session-AMBR from the APN-AMBR IE (bits/s)
 	SessAmbrUplinkBps   uint64
@@ -105,6 +106,7 @@ func (e *ENB) OpenPDN(ue *UE, mmeUEID, enbUEID int64, apn string, pdnType uint8,
 
 	res := &PDNResult{
 		ERABID:     erab.ERABID,
+		ARP:        erab.QoS.ARP.PriorityLevel,
 		UpfAddress: upf.Unmap().String(),
 		ULTEID:     uint32(erab.GTPTEID),
 		DLTEID:     dlTEID,

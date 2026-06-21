@@ -49,7 +49,8 @@ type Frame struct {
 	Category      Category
 	ProcedureCode s1ap.ProcedureCode
 	Value         []byte
-	ENBUES1APID   int64 // target eNB-UE-S1AP-ID; NoUEID for non-UE-associated frames
+	ENBUES1APID   int64            // target eNB-UE-S1AP-ID; NoUEID for non-UE-associated frames
+	Info          *sctp.SndRcvInfo // SCTP receive metadata (PPID, stream), nil if absent
 }
 
 // NoUEID tags a frame (and a wait) that is not associated with a specific UE
@@ -96,6 +97,10 @@ type ENB struct {
 	cond           *sync.Cond
 	receivedFrames map[Category]map[s1ap.ProcedureCode][]Frame
 	closed         bool
+
+	// s1SetupInfo is the SCTP receive metadata of the S1 Setup Response, captured
+	// at startup so a scenario can assert its PPID and stream after Start.
+	s1SetupInfo *sctp.SndRcvInfo
 
 	sendMu sync.Mutex // serializes SCTP writes so concurrent per-UE flows are safe
 
@@ -236,14 +241,23 @@ func Start(opts *StartOpts) (*ENB, error) {
 		return e, nil
 	}
 
-	if _, err := e.WaitForMessage(NoUEID, Successful, s1ap.ProcS1Setup, 5*time.Second); err != nil {
+	setupResp, err := e.WaitForMessage(NoUEID, Successful, s1ap.ProcS1Setup, 5*time.Second)
+	if err != nil {
 		_ = e.Close()
 		return nil, fmt.Errorf("S1 Setup did not complete: %w", err)
 	}
 
+	e.s1SetupInfo = setupResp.Info
+
 	logger.GnbLogger.Debug("S1 Setup complete", zap.String("enb", opts.Name), zap.Uint32("enb-id", opts.ENBID))
 
 	return e, nil
+}
+
+// S1SetupResponseInfo returns the SCTP receive metadata (PPID, stream) of the
+// S1 Setup Response received during Start.
+func (e *ENB) S1SetupResponseInfo() *sctp.SndRcvInfo {
+	return e.s1SetupInfo
 }
 
 // dialAndActivateLocked dials the peer at peers[idx], marks it active, starts
@@ -561,7 +575,7 @@ func (e *ENB) runReceiver(idx int, conn *sctp.SCTPConn) {
 	buf := make([]byte, 65535)
 
 	for {
-		n, _, err := conn.SCTPRead(buf)
+		n, info, err := conn.SCTPRead(buf)
 		if err != nil {
 			e.promoteNextFromReceiver(idx, conn)
 			return
@@ -574,7 +588,7 @@ func (e *ENB) runReceiver(idx int, conn *sctp.SCTPConn) {
 		raw := make([]byte, n)
 		copy(raw, buf[:n])
 
-		f, ok := decodeFrame(raw)
+		f, ok := decodeFrame(raw, info)
 		if !ok {
 			logger.GnbLogger.Warn("s1enb: undecodable S1AP PDU", zap.Int("len", n))
 			continue
@@ -591,7 +605,7 @@ func (e *ENB) runReceiver(idx int, conn *sctp.SCTPConn) {
 	}
 }
 
-func decodeFrame(raw []byte) (Frame, bool) {
+func decodeFrame(raw []byte, info *sctp.SndRcvInfo) (Frame, bool) {
 	pdu, err := s1ap.Unmarshal(raw)
 	if err != nil {
 		return Frame{}, false
@@ -610,6 +624,7 @@ func decodeFrame(raw []byte) (Frame, bool) {
 		return Frame{}, false
 	}
 
+	f.Info = info
 	f.ENBUES1APID = frameENBUEID(f)
 
 	return f, true

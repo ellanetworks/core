@@ -13,11 +13,13 @@ import (
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/spf13/pflag"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
-	connIMSI     = "001017271246604"
-	connTunIface = "s1enbtun0"
+	connStartIMSI           = "001017271246604"
+	connTunIfacePrefix      = "s1enbtun"
+	numConnectivityParallel = 5
 )
 
 func init() {
@@ -25,17 +27,26 @@ func init() {
 		Name:      "s1enb/connectivity",
 		BindFlags: func(fs *pflag.FlagSet) any { return struct{}{} },
 		Run:       runS1ENBConnectivity,
-		Fixture: func(_ scenarios.Env) scenarios.FixtureSpec {
-			return scenarios.FixtureSpec{
-				Subscribers: []scenarios.SubscriberSpec{scenarios.DefaultSubscriberWith(connIMSI, "")},
-			}
-		},
+		Fixture:   fixtureS1ENBConnectivity,
 	})
 }
 
-// runS1ENBConnectivity attaches a UE and pings the N6 destination, drops the UE
-// to ECM-IDLE with an S1 release (the ping must then fail), re-establishes the
-// bearer with a service request, and pings again (TS 24.301 §5.6.1).
+func fixtureS1ENBConnectivity(_ scenarios.Env) scenarios.FixtureSpec {
+	subs := make([]scenarios.SubscriberSpec, numConnectivityParallel)
+	imsis := make([]string, numConnectivityParallel)
+
+	for i := range numConnectivityParallel {
+		imsi := nthIMSI(connStartIMSI, i)
+		subs[i] = scenarios.DefaultSubscriberWith(imsi, "")
+		imsis[i] = imsi
+	}
+
+	return scenarios.FixtureSpec{
+		Subscribers:         subs,
+		AssertUsageForIMSIs: imsis,
+	}
+}
+
 func runS1ENBConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
 	s1mme, err := s1mmeAddress(env.FirstCore())
 	if err != nil {
@@ -65,7 +76,29 @@ func runS1ENBConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
 
 	defer func() { _ = e.Close() }()
 
-	ue := e.NewUE(connIMSI, k, opc)
+	eg := errgroup.Group{}
+
+	for i := range numConnectivityParallel {
+		imsi := nthIMSI(connStartIMSI, i)
+		tunIface := fmt.Sprintf("%s%d", connTunIfacePrefix, i)
+
+		eg.Go(func() error {
+			if err := runS1ENBConnectivityUE(ctx, e, imsi, k, opc, tunIface); err != nil {
+				return fmt.Errorf("connectivity for %s: %w", imsi, err)
+			}
+
+			return nil
+		})
+	}
+
+	return eg.Wait()
+}
+
+// runS1ENBConnectivityUE attaches a UE and pings the N6 destination, drops the UE
+// to ECM-IDLE with an S1 release (the ping must then fail), re-establishes the
+// bearer with a service request, and pings again (TS 24.301 §5.6.1).
+func runS1ENBConnectivityUE(ctx context.Context, e *s1enb.ENB, imsi string, k, opc [16]byte, tunIface string) error {
+	ue := e.NewUE(imsi, k, opc)
 
 	res, err := e.Attach(ue, 15*time.Second)
 	if err != nil {
@@ -85,7 +118,7 @@ func runS1ENBConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
 		UpfAddress:       res.UpfAddress,
 		ULTEID:           res.ULTEID,
 		DLTEID:           res.DLTEID,
-		TunInterfaceName: connTunIface,
+		TunInterfaceName: tunIface,
 	}); err != nil {
 		return fmt.Errorf("add GTP tunnel: %w", err)
 	}
@@ -93,7 +126,7 @@ func runS1ENBConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
 	// Let the UPF program the downlink endpoint before pinging.
 	time.Sleep(500 * time.Millisecond)
 
-	if err := probe.Run(ctx, probe.ICMP, connTunIface, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
+	if err := probe.Run(ctx, probe.ICMP, tunIface, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
 		return err
 	}
 
@@ -104,8 +137,8 @@ func runS1ENBConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
 	// Let the UPF tear down the downlink path before the negative ping.
 	time.Sleep(500 * time.Millisecond)
 
-	if err := probe.Run(ctx, probe.ICMP, connTunIface, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err == nil {
-		return fmt.Errorf("ping via %s succeeded after S1 release but the bearer should be suspended", connTunIface)
+	if err := probe.Run(ctx, probe.ICMP, tunIface, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err == nil {
+		return fmt.Errorf("ping via %s succeeded after S1 release but the bearer should be suspended", tunIface)
 	}
 
 	e.CloseTunnel(res.DLTEID)
@@ -120,7 +153,7 @@ func runS1ENBConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
 		UpfAddress:       sr.UpfAddress,
 		ULTEID:           sr.ULTEID,
 		DLTEID:           sr.DLTEID,
-		TunInterfaceName: connTunIface,
+		TunInterfaceName: tunIface,
 	}); err != nil {
 		return fmt.Errorf("add GTP tunnel after service request: %w", err)
 	}
@@ -130,7 +163,7 @@ func runS1ENBConnectivity(ctx context.Context, env scenarios.Env, _ any) error {
 	// Let the UPF program the downlink endpoint before pinging.
 	time.Sleep(500 * time.Millisecond)
 
-	if err := probe.Run(ctx, probe.ICMP, connTunIface, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
+	if err := probe.Run(ctx, probe.ICMP, tunIface, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
 		return fmt.Errorf("ping after service request: %w", err)
 	}
 

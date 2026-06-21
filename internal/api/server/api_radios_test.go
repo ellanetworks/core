@@ -12,8 +12,8 @@ import (
 	"testing"
 
 	"github.com/ellanetworks/core/internal/amf"
-	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/sctp"
 )
 
 const (
