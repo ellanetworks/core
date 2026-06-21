@@ -110,7 +110,7 @@ func (e *ENB) buildS1SetupRequest() ([]byte, error) {
 // WaitForS1SetupFailure blocks until the MME answers the S1 Setup Request with
 // an S1 SETUP FAILURE (TS 36.413) and returns the decoded message.
 func (e *ENB) WaitForS1SetupFailure(timeout time.Duration) (*s1ap.S1SetupFailure, error) {
-	frame, err := e.WaitForMessage(Unsuccessful, s1ap.ProcS1Setup, timeout)
+	frame, err := e.WaitForMessage(NoUEID, Unsuccessful, s1ap.ProcS1Setup, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -234,9 +234,10 @@ func (e *ENB) SendUEContextReleaseRequest(mmeUEID, enbUEID int64, cause s1ap.Cau
 	return e.SendMessage(b, true)
 }
 
-// WaitForUEContextReleaseCommand waits for the MME's UE CONTEXT RELEASE COMMAND.
-func (e *ENB) WaitForUEContextReleaseCommand(timeout time.Duration) (*s1ap.UEContextReleaseCommand, error) {
-	f, err := e.WaitForMessage(Initiating, s1ap.ProcUEContextRelease, timeout)
+// WaitForUEContextReleaseCommand waits for the MME's UE CONTEXT RELEASE COMMAND
+// targeting enbUEID.
+func (e *ENB) WaitForUEContextReleaseCommand(enbUEID int64, timeout time.Duration) (*s1ap.UEContextReleaseCommand, error) {
+	f, err := e.WaitForMessage(enbUEID, Initiating, s1ap.ProcUEContextRelease, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +284,7 @@ func (e *ENB) SendReset(cause s1ap.Cause, resetAll bool, items []s1ap.UEAssociat
 // WaitForResetAcknowledge waits for the MME's RESET ACKNOWLEDGE (TS 36.413
 // §8.7.1).
 func (e *ENB) WaitForResetAcknowledge(timeout time.Duration) (*s1ap.ResetAcknowledge, error) {
-	f, err := e.WaitForMessage(Successful, s1ap.ProcReset, timeout)
+	f, err := e.WaitForMessage(NoUEID, Successful, s1ap.ProcReset, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -298,8 +299,8 @@ func (e *ENB) WaitForResetAcknowledge(timeout time.Duration) (*s1ap.ResetAcknowl
 
 // WaitForDownlinkNAS waits for a DOWNLINK NAS TRANSPORT and returns its NAS PDU
 // and the MME UE S1AP ID the MME assigned.
-func (e *ENB) WaitForDownlinkNAS(timeout time.Duration) (nas []byte, mmeUEID int64, err error) {
-	f, err := e.WaitForMessage(Initiating, s1ap.ProcDownlinkNASTransport, timeout)
+func (e *ENB) WaitForDownlinkNAS(enbUEID int64, timeout time.Duration) (nas []byte, mmeUEID int64, err error) {
+	f, err := e.WaitForMessage(enbUEID, Initiating, s1ap.ProcDownlinkNASTransport, timeout)
 	if err != nil {
 		return nil, 0, err
 	}

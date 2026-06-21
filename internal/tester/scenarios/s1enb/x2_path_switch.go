@@ -86,7 +86,7 @@ func runS1ENBX2PathSwitch(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("send Path Switch Request: %w", err)
 	}
 
-	frame, err := target.WaitForMessage(s1enb.Successful, s1ap.ProcPathSwitchRequest, 10*time.Second)
+	frame, err := target.WaitForMessage(targetENBUEID, s1enb.Successful, s1ap.ProcPathSwitchRequest, 10*time.Second)
 	if err != nil {
 		return fmt.Errorf("await Path Switch Request Acknowledge: %w", err)
 	}

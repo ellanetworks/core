@@ -57,7 +57,7 @@ func runS1ENBContextRelease(_ context.Context, env scenarios.Env, _ any) error {
 	}
 
 	// A returned command already proves the procedure code (S1AP UEContextRelease).
-	cmd, err := e.WaitForUEContextReleaseCommand(10 * time.Second)
+	cmd, err := e.WaitForUEContextReleaseCommand(res.ENBUES1APID, 10*time.Second)
 	if err != nil {
 		return fmt.Errorf("await UE Context Release Command: %w", err)
 	}

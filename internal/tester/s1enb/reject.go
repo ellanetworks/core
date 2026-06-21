@@ -25,7 +25,7 @@ func (e *ENB) AttachExpectReject(ue *UE, timeout time.Duration) (uint8, error) {
 		return 0, err
 	}
 
-	downlink, _, err := e.WaitForDownlinkNAS(timeout)
+	downlink, _, err := e.WaitForDownlinkNAS(enbUEID, timeout)
 	if err != nil {
 		return 0, fmt.Errorf("await Attach Reject: %w", err)
 	}
@@ -55,7 +55,7 @@ func (e *ENB) AttachExpectAuthReject(ue *UE, timeout time.Duration) error {
 		return err
 	}
 
-	authNAS, mmeUEID, err := e.WaitForDownlinkNAS(timeout)
+	authNAS, mmeUEID, err := e.WaitForDownlinkNAS(enbUEID, timeout)
 	if err != nil {
 		return fmt.Errorf("await Authentication Request: %w", err)
 	}
@@ -73,7 +73,7 @@ func (e *ENB) AttachExpectAuthReject(ue *UE, timeout time.Duration) error {
 		return err
 	}
 
-	downlink, _, err := e.WaitForDownlinkNAS(timeout)
+	downlink, _, err := e.WaitForDownlinkNAS(enbUEID, timeout)
 	if err != nil {
 		return fmt.Errorf("await Authentication Reject: %w", err)
 	}

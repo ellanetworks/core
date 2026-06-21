@@ -28,7 +28,7 @@ func (e *ENB) ReactivateBearer(ue *UE, enbUEID int64, timeout time.Duration) (*e
 			return nil, fmt.Errorf("timed out awaiting Deactivate EPS Bearer Context Request")
 		}
 
-		wire, mmeUEID, err := e.WaitForDownlinkNAS(remaining)
+		wire, mmeUEID, err := e.WaitForDownlinkNAS(enbUEID, remaining)
 		if err != nil {
 			return nil, err
 		}
@@ -57,7 +57,7 @@ func (e *ENB) ReactivateBearer(ue *UE, enbUEID int64, timeout time.Duration) (*e
 			return nil, fmt.Errorf("send Deactivate EPS Bearer Context Accept: %w", err)
 		}
 
-		if err := e.completeContextRelease(time.Until(deadline)); err != nil {
+		if err := e.completeContextRelease(enbUEID, time.Until(deadline)); err != nil {
 			return nil, err
 		}
 
@@ -80,7 +80,7 @@ func (e *ENB) ModifyBearer(ue *UE, enbUEID int64, timeout time.Duration) (*eps.M
 			return nil, fmt.Errorf("timed out awaiting Modify EPS Bearer Context Request")
 		}
 
-		wire, mmeUEID, err := e.WaitForDownlinkNAS(remaining)
+		wire, mmeUEID, err := e.WaitForDownlinkNAS(enbUEID, remaining)
 		if err != nil {
 			return nil, err
 		}

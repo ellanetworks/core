@@ -128,7 +128,7 @@ func runS1ENBFailoverConnectivity(ctx context.Context, env scenarios.Env) error 
 	// The eNB promotes by dialing + sending an S1 Setup Request; the response
 	// lands via the new receiver goroutine. Consuming it here ensures the new
 	// MME is handshaken and ready to accept UE signalling.
-	if _, err := e.WaitForMessage(s1enb.Successful, s1ap.ProcS1Setup, 10*time.Second); err != nil {
+	if _, err := e.WaitForMessage(s1enb.NoUEID, s1enb.Successful, s1ap.ProcS1Setup, 10*time.Second); err != nil {
 		return fmt.Errorf("phase2: wait for S1 Setup Response on new MME: %w", err)
 	}
 

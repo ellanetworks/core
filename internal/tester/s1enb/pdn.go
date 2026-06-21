@@ -57,7 +57,7 @@ func (e *ENB) OpenPDN(ue *UE, mmeUEID, enbUEID int64, apn string, pdnType uint8,
 		return nil, fmt.Errorf("send PDN Connectivity Request: %w", err)
 	}
 
-	frame, err := e.WaitForMessage(Initiating, s1ap.ProcERABSetup, timeout)
+	frame, err := e.WaitForMessage(enbUEID, Initiating, s1ap.ProcERABSetup, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("await E-RAB Setup Request: %w", err)
 	}
@@ -164,7 +164,7 @@ func (e *ENB) DisconnectPDN(ue *UE, mmeUEID, enbUEID int64, linkedEBI uint8, tim
 		return fmt.Errorf("send PDN Disconnect Request: %w", err)
 	}
 
-	frame, err := e.WaitForMessage(Initiating, s1ap.ProcERABRelease, timeout)
+	frame, err := e.WaitForMessage(enbUEID, Initiating, s1ap.ProcERABRelease, timeout)
 	if err != nil {
 		return fmt.Errorf("await E-RAB Release Command: %w", err)
 	}

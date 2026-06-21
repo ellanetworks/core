@@ -72,7 +72,7 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 	//    NAS is plain, so skip any protected frame left by a prior UE on the same
 	//    association (e.g. its post-attach EMM INFORMATION) that this UE cannot
 	//    decrypt — this keeps sequential multi-UE attach on one eNB clean.
-	downlink, mmeUEID, err := e.waitForPlainDownlink(timeout)
+	downlink, mmeUEID, err := e.waitForPlainDownlink(enbUEID, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("await Authentication/Identity Request: %w", err)
 	}
@@ -91,7 +91,7 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 			return nil, err
 		}
 
-		if downlink, _, err = e.WaitForDownlinkNAS(timeout); err != nil {
+		if downlink, _, err = e.WaitForDownlinkNAS(enbUEID, timeout); err != nil {
 			return nil, fmt.Errorf("await Authentication Request: %w", err)
 		}
 	}
@@ -111,7 +111,7 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 	}
 
 	// 3. Security Mode Command (protected downlink) → Security Mode Complete.
-	smcWire, _, err := e.WaitForDownlinkNAS(timeout)
+	smcWire, _, err := e.WaitForDownlinkNAS(enbUEID, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("await Security Mode Command: %w", err)
 	}
@@ -127,7 +127,7 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 
 	// 4. Initial Context Setup Request carries the Attach Accept; reply with the
 	//    Initial Context Setup Response and process the Attach Accept.
-	icsFrame, err := e.WaitForMessage(Initiating, s1ap.ProcInitialContextSetup, timeout)
+	icsFrame, err := e.WaitForMessage(enbUEID, Initiating, s1ap.ProcInitialContextSetup, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("await Initial Context Setup Request: %w", err)
 	}
@@ -230,7 +230,7 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 // skipping protected frames left from a prior UE on the same association (e.g.
 // the proactive EMM INFORMATION), which a fresh UE cannot decrypt. The first NAS
 // of an attach (Identity or Authentication Request) is always plain.
-func (e *ENB) waitForPlainDownlink(timeout time.Duration) (nas []byte, mmeUEID int64, err error) {
+func (e *ENB) waitForPlainDownlink(enbUEID int64, timeout time.Duration) (nas []byte, mmeUEID int64, err error) {
 	deadline := time.Now().Add(timeout)
 
 	for {
@@ -239,7 +239,7 @@ func (e *ENB) waitForPlainDownlink(timeout time.Duration) (nas []byte, mmeUEID i
 			return nil, 0, fmt.Errorf("s1enb: timeout waiting for a plain downlink NAS")
 		}
 
-		nas, mmeUEID, err = e.WaitForDownlinkNAS(remaining)
+		nas, mmeUEID, err = e.WaitForDownlinkNAS(enbUEID, remaining)
 		if err != nil {
 			return nil, 0, err
 		}

@@ -50,7 +50,12 @@ type Frame struct {
 	Category      Category
 	ProcedureCode s1ap.ProcedureCode
 	Value         []byte
+	ENBUES1APID   int64 // target eNB-UE-S1AP-ID; NoUEID for non-UE-associated frames
 }
+
+// NoUEID tags a frame (and a wait) that is not associated with a specific UE
+// (S1 Setup, Reset). Real eNB-UE-S1AP-IDs start at 1 (see AllocateENBUEID).
+const NoUEID int64 = 0
 
 // StartOpts configures an eNB simulator.
 type StartOpts struct {
@@ -92,6 +97,8 @@ type ENB struct {
 	cond           *sync.Cond
 	receivedFrames map[Category]map[s1ap.ProcedureCode][]Frame
 	closed         bool
+
+	sendMu sync.Mutex // serializes SCTP writes so concurrent per-UE flows are safe
 
 	nextENBUEID int64
 	nextTEID    uint32
@@ -230,7 +237,7 @@ func Start(opts *StartOpts) (*ENB, error) {
 		return e, nil
 	}
 
-	if _, err := e.WaitForMessage(Successful, s1ap.ProcS1Setup, 5*time.Second); err != nil {
+	if _, err := e.WaitForMessage(NoUEID, Successful, s1ap.ProcS1Setup, 5*time.Second); err != nil {
 		_ = e.Close()
 		return nil, fmt.Errorf("S1 Setup did not complete: %w", err)
 	}
@@ -397,7 +404,11 @@ func (e *ENB) AllocateENBUEID() int64 {
 
 // WaitForMessage blocks until an inbound S1AP PDU of the given category and
 // procedure code is available (consuming it), or the timeout elapses.
-func (e *ENB) WaitForMessage(cat Category, code s1ap.ProcedureCode, timeout time.Duration) (Frame, error) {
+// WaitForMessage blocks until a frame of (cat, code) targeting enbUEID arrives, or
+// timeout elapses. enbUEID is NoUEID for non-UE-associated messages (S1 Setup,
+// Reset). Filtering by enbUEID lets concurrent per-UE flows share one association
+// without consuming each other's frames.
+func (e *ENB) WaitForMessage(enbUEID int64, cat Category, code s1ap.ProcedureCode, timeout time.Duration) (Frame, error) {
 	deadline := time.Now().Add(timeout)
 
 	timer := time.AfterFunc(timeout, func() { e.cond.Broadcast() })
@@ -408,13 +419,18 @@ func (e *ENB) WaitForMessage(cat Category, code s1ap.ProcedureCode, timeout time
 
 	for {
 		if byCode, ok := e.receivedFrames[cat]; ok {
-			if frames := byCode[code]; len(frames) > 0 {
-				f := frames[0]
+			frames := byCode[code]
 
-				if len(frames) == 1 {
+			for i, f := range frames {
+				if f.ENBUES1APID != enbUEID {
+					continue
+				}
+
+				rest := append(frames[:i:i], frames[i+1:]...)
+				if len(rest) == 0 {
 					delete(byCode, code)
 				} else {
-					byCode[code] = frames[1:]
+					byCode[code] = rest
 				}
 
 				return f, nil
@@ -449,6 +465,9 @@ func (e *ENB) SendMessage(pdu []byte, ueAssociated bool) error {
 	if conn == nil {
 		return ErrNoActiveMME
 	}
+
+	e.sendMu.Lock()
+	defer e.sendMu.Unlock()
 
 	return writeMessage(conn, pdu, ueAssociated)
 }
@@ -579,14 +598,53 @@ func decodeFrame(raw []byte) (Frame, bool) {
 		return Frame{}, false
 	}
 
+	var f Frame
+
 	switch p := pdu.(type) {
 	case *s1ap.InitiatingMessage:
-		return Frame{Category: Initiating, ProcedureCode: p.ProcedureCode, Value: p.Value}, true
+		f = Frame{Category: Initiating, ProcedureCode: p.ProcedureCode, Value: p.Value}
 	case *s1ap.SuccessfulOutcome:
-		return Frame{Category: Successful, ProcedureCode: p.ProcedureCode, Value: p.Value}, true
+		f = Frame{Category: Successful, ProcedureCode: p.ProcedureCode, Value: p.Value}
 	case *s1ap.UnsuccessfulOutcome:
-		return Frame{Category: Unsuccessful, ProcedureCode: p.ProcedureCode, Value: p.Value}, true
+		f = Frame{Category: Unsuccessful, ProcedureCode: p.ProcedureCode, Value: p.Value}
 	default:
 		return Frame{}, false
 	}
+
+	f.ENBUES1APID = frameENBUEID(f)
+
+	return f, true
+}
+
+// frameENBUEID returns the eNB-UE-S1AP-ID a downlink frame targets, or NoUEID for
+// non-UE-associated messages, so concurrent per-UE waits can demultiplex frames.
+func frameENBUEID(f Frame) int64 {
+	switch {
+	case f.Category == Initiating && f.ProcedureCode == s1ap.ProcDownlinkNASTransport:
+		if m, err := s1ap.ParseDownlinkNASTransport(f.Value); err == nil {
+			return int64(m.ENBUES1APID)
+		}
+	case f.Category == Initiating && f.ProcedureCode == s1ap.ProcInitialContextSetup:
+		if m, err := s1ap.ParseInitialContextSetupRequest(f.Value); err == nil {
+			return int64(m.ENBUES1APID)
+		}
+	case f.Category == Initiating && f.ProcedureCode == s1ap.ProcUEContextRelease:
+		if m, err := s1ap.ParseUEContextReleaseCommand(f.Value); err == nil {
+			return int64(m.UES1APIDs.ENBUES1APID)
+		}
+	case f.Category == Initiating && f.ProcedureCode == s1ap.ProcERABSetup:
+		if m, err := s1ap.ParseERABSetupRequest(f.Value); err == nil {
+			return int64(m.ENBUES1APID)
+		}
+	case f.Category == Initiating && f.ProcedureCode == s1ap.ProcERABRelease:
+		if m, err := s1ap.ParseERABReleaseCommand(f.Value); err == nil {
+			return int64(m.ENBUES1APID)
+		}
+	case f.Category == Successful && f.ProcedureCode == s1ap.ProcPathSwitchRequest:
+		if m, err := s1ap.ParsePathSwitchRequestAcknowledge(f.Value); err == nil {
+			return int64(m.ENBUES1APID)
+		}
+	}
+
+	return NoUEID
 }
