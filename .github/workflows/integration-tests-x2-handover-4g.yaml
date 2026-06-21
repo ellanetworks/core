@@ -1,0 +1,52 @@
+name: X2 Handover 4G integration tests
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  x2-handover-4g-integration-test:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download Ella Core image from GitHub Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-image-amd64
+
+      - name: Download Ella Core Tester image from GitHub Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-tester-image-amd64
+
+      - name: Load images into Docker
+        run: |
+          docker load -i ellacore_latest-amd64.tar
+          docker load -i ellacore_tester_latest-amd64.tar
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Install libpcap headers
+        run: sudo apt-get update && sudo apt-get install -y libpcap-dev
+
+      - name: Run X2 Handover 4G integration tests
+        env:
+          INTEGRATION: "1"
+        run: |
+          go test ./integration/... -run TestIntegration4GX2Handover -v -timeout 10m
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: x2-handover-4g-logs
+          path: /tmp/x2-handover-4g-logs
+          if-no-files-found: ignore
+          retention-days: 7

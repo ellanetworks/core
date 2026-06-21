@@ -82,7 +82,7 @@ func runS1ENBX2PathSwitch(_ context.Context, env scenarios.Env, _ any) error {
 	}
 
 	targetENBUEID := target.AllocateENBUEID()
-	if err := target.SendPathSwitchRequest(targetENBUEID, res.MMEUES1APID, res.ERABID, ue.S1APSecurityCapabilities()); err != nil {
+	if _, err := target.SendPathSwitchRequest(targetENBUEID, res.MMEUES1APID, res.ERABID, ue.S1APSecurityCapabilities()); err != nil {
 		return fmt.Errorf("send Path Switch Request: %w", err)
 	}
 

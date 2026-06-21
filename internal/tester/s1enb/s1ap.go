@@ -185,19 +185,22 @@ func (e *ENB) SendUplinkNASTransport(mmeUEID, enbUEID int64, nas []byte) error {
 // SendPathSwitchRequest sends a PATH SWITCH REQUEST as the target eNB after an
 // X2 handover (TS 36.413 §8.4.4): it asks the MME to switch the downlink of the
 // given E-RAB to this eNB's S1-U endpoint. sourceMMEUEID is the MME UE S1AP ID
-// the UE held on the source eNB.
-func (e *ENB) SendPathSwitchRequest(enbUEID, sourceMMEUEID int64, erabID s1ap.ERABID, caps s1ap.UESecurityCapabilities) error {
+// the UE held on the source eNB. It returns the eNB downlink TEID it reported, so
+// the caller can build the target GTP tunnel the UPF now forwards downlink to.
+func (e *ENB) SendPathSwitchRequest(enbUEID, sourceMMEUEID int64, erabID s1ap.ERABID, caps s1ap.UESecurityCapabilities) (dlTEID uint32, err error) {
 	addr := e.n3Addr.To4()
 	if addr == nil {
 		addr = e.n3Addr.To16()
 	}
+
+	dlTEID = e.allocTEID()
 
 	req := &s1ap.PathSwitchRequest{
 		ENBUES1APID: s1ap.ENBUES1APID(enbUEID),
 		ERABToBeSwitchedDL: []s1ap.ERABToBeSwitchedDLItem{{
 			ERABID:                erabID,
 			TransportLayerAddress: s1ap.TransportLayerAddress(addr),
-			GTPTEID:               s1ap.GTPTEID(e.allocTEID()),
+			GTPTEID:               s1ap.GTPTEID(dlTEID),
 		}},
 		SourceMMEUES1APID:      s1ap.MMEUES1APID(sourceMMEUEID),
 		EUTRANCGI:              e.eutranCGI(),
@@ -207,10 +210,14 @@ func (e *ENB) SendPathSwitchRequest(enbUEID, sourceMMEUEID int64, erabID s1ap.ER
 
 	b, err := req.Marshal()
 	if err != nil {
-		return fmt.Errorf("s1enb: build Path Switch Request: %w", err)
+		return 0, fmt.Errorf("s1enb: build Path Switch Request: %w", err)
 	}
 
-	return e.SendMessage(b, true)
+	if err := e.SendMessage(b, true); err != nil {
+		return 0, err
+	}
+
+	return dlTEID, nil
 }
 
 // CauseUserInactivity is the S1AP radioNetwork cause an eNB uses to request a UE
