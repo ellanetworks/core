@@ -147,6 +147,8 @@ func (m *MME) onPDNConnectivityRequest(ctx context.Context, ue *UeContext, plain
 
 	p.apn = qos.APN
 	p.dnConfig = qos.dnFingerprint()
+	p.sessAmbrDLBps = bitRateToBps(qos.SessAmbrDLStr)
+	p.sessAmbrULBps = bitRateToBps(qos.SessAmbrULStr)
 	p.pdnType = bearer.PDNType
 	p.ueIP = bearer.IPv4
 	p.ueIPv6Prefix = bearer.IPv6Prefix

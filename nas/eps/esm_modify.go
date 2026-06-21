@@ -7,27 +7,38 @@ import "github.com/ellanetworks/core/nas/common"
 
 // ModifyEPSBearerContextRequest is the MODIFY EPS BEARER CONTEXT REQUEST
 // (TS 24.301 §8.3.18): the ESM header followed by entirely optional IEs. The
-// network uses it to update an active bearer's parameters in place — here, the
-// Protocol Configuration Options carrying a changed DNS server (TS 24.008
-// §10.5.6.3) — without deactivating the bearer.
+// network uses it to update an active bearer's parameters in place — the per-APN
+// Session-AMBR (APN-AMBR, §9.9.4.2) and/or the Protocol Configuration Options
+// carrying a changed DNS server (TS 24.008 §10.5.6.3) — without deactivating the
+// bearer.
 type ModifyEPSBearerContextRequest struct {
 	EPSBearerIdentity            uint8
 	ProcedureTransactionIdentity uint8
+	APNAMBR                      []byte // APN-AMBR value part (§9.9.4.2), empty = omit
 	ProtocolConfigurationOptions []byte
 }
 
 // modifyEPSBearerContextRequestIEs are the optional IEs Ella Core sends in a
-// MODIFY EPS BEARER CONTEXT REQUEST (TS 24.301 §8.3.18). The MME only updates the
-// Protocol Configuration Options, so only it is declared.
+// MODIFY EPS BEARER CONTEXT REQUEST (TS 24.301 §8.3.18), in message order.
 var modifyEPSBearerContextRequestIEs = []common.OptionalIE{
+	{IEI: ieiAPNAMBR, Format: common.IETLV},
 	{IEI: ieiProtocolConfigurationOptions, Format: common.IETLV},
 }
 
-// Marshal encodes the MODIFY EPS BEARER CONTEXT REQUEST.
+// Marshal encodes the MODIFY EPS BEARER CONTEXT REQUEST. The optional IEs are
+// written in the order defined by TS 24.301 §8.3.18.1 (APN-AMBR before PCO).
 func (m *ModifyEPSBearerContextRequest) Marshal() ([]byte, error) {
 	var w common.Writer
 
 	writeESMHeader(&w, m.EPSBearerIdentity, m.ProcedureTransactionIdentity, MsgModifyEPSBearerContextRequest)
+
+	if len(m.APNAMBR) > 0 {
+		w.U8(ieiAPNAMBR)
+
+		if err := w.LV(m.APNAMBR); err != nil {
+			return nil, err
+		}
+	}
 
 	if len(m.ProtocolConfigurationOptions) > 0 {
 		w.U8(ieiProtocolConfigurationOptions)
@@ -53,7 +64,10 @@ func ParseModifyEPSBearerContextRequest(b []byte) (*ModifyEPSBearerContextReques
 	m := &ModifyEPSBearerContextRequest{EPSBearerIdentity: ebi, ProcedureTransactionIdentity: pti}
 
 	if _, err := common.WalkOptionalIEs(r, modifyEPSBearerContextRequestIEs, func(iei uint8, value []byte) error {
-		if iei == ieiProtocolConfigurationOptions {
+		switch iei {
+		case ieiAPNAMBR:
+			m.APNAMBR = value
+		case ieiProtocolConfigurationOptions:
 			m.ProtocolConfigurationOptions = value
 		}
 

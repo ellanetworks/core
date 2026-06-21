@@ -33,7 +33,11 @@ type pdnConnection struct {
 	ueIPv6IID    [8]byte      // SLAAC interface identifier sent to the UE
 	dns          netip.Addr   // data-network DNS server, advertised to the UE via PCO
 	dnConfig     string       // fingerprint of the data-network config the bearer was set up with; a change triggers reactivation
-	esmCause     uint8        // PDN-type downgrade cause (#50/#51), 0 when none
+	// sessAmbrDLBps/ULBps are the per-APN Session-AMBR (bits/s) the bearer was set
+	// up with; a policy change triggers an in-place Modify EPS Bearer Context.
+	sessAmbrDLBps uint64
+	sessAmbrULBps uint64
+	esmCause      uint8        // PDN-type downgrade cause (#50/#51), 0 when none
 	sgwFTEID     models.FTEID // S-GW S1-U endpoint (anchor-assigned), sent to the eNB; Addr is the IPv4 N3
 	sgwN3IPv6    netip.Addr   // S-GW S1-U IPv6 N3 endpoint, when the N3 has one
 	enbFTEID     models.FTEID // eNB S1-U endpoint, learned from the ICS Response
@@ -45,12 +49,14 @@ type pdnConnection struct {
 	// DEACTIVATE ACCEPT only this PDN connection is released, leaving the UE
 	// connected, rather than the whole UE being re-attached (TS 24.301 §6.5.2).
 	disconnecting bool
-	// modifying is set while a bearer modification (in-place DNS update) is in
-	// flight, so a duplicate reconcile does not re-send it. pendingDNConfig is the
-	// data-network fingerprint committed to dnConfig once the UE accepts, so an
-	// aborted modification leaves dnConfig stale for the backstop to retry.
-	modifying       bool
-	pendingDNConfig string
+	// modifying is set while a bearer modification (in-place DNS and/or Session-AMBR
+	// update) is in flight, so a duplicate reconcile does not re-send it. The
+	// pending* values are committed once the UE accepts, so an aborted modification
+	// leaves the stored config stale for the backstop to retry.
+	modifying            bool
+	pendingDNConfig      string
+	pendingSessAmbrDLBps uint64
+	pendingSessAmbrULBps uint64
 }
 
 // UeContext is the MME's per-UE state for an S1AP UE-associated connection: the

@@ -245,6 +245,97 @@ func (s *SMF) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb 
 	return nil
 }
 
+// UpdateEPSSessionAMBR updates an established EPS session's Session-AMBR in the
+// UPF QER so the data plane enforces the new per-session rate limit. The MME
+// signals the same value to the UE in a MODIFY EPS BEARER CONTEXT REQUEST. The
+// AMBR is given in the "<n> <unit>" form used at session creation.
+func (s *SMF) UpdateEPSSessionAMBR(ctx context.Context, imsi string, ebi uint8, ambrUplink, ambrDownlink string) error {
+	ctx, span := tracer.Start(ctx, "smf/update_eps_session_ambr",
+		trace.WithAttributes(
+			attribute.String("ue.imsi", imsi),
+			attribute.Int("eps.bearer_id", int(ebi)),
+		),
+	)
+	defer span.End()
+
+	supi, err := etsi.NewSUPIFromIMSI(imsi)
+	if err != nil {
+		return fmt.Errorf("invalid imsi %q: %w", imsi, err)
+	}
+
+	smContext := s.GetSession(CanonicalName(supi, ebi))
+	if smContext == nil {
+		return fmt.Errorf("no EPS session for %s", imsi)
+	}
+
+	smContext.Mutex.Lock()
+	defer smContext.Mutex.Unlock()
+
+	if smContext.PFCPContext == nil || smContext.PFCPContext.RemoteSEID == 0 {
+		return fmt.Errorf("PFCP session not established for %s", imsi)
+	}
+
+	if smContext.Tunnel == nil || smContext.Tunnel.DataPath == nil {
+		return fmt.Errorf("EPS session for %s has no data path", imsi)
+	}
+
+	if smContext.PolicyData != nil {
+		smContext.PolicyData.Ambr.Uplink = ambrUplink
+		smContext.PolicyData.Ambr.Downlink = ambrDownlink
+	}
+
+	dataPath := smContext.Tunnel.DataPath
+	qerList := make([]*QER, 0, 2)
+
+	for _, t := range []*GTPTunnel{dataPath.UpLinkTunnel, dataPath.DownLinkTunnel} {
+		if t == nil || t.PDR == nil || t.PDR.QER == nil {
+			continue
+		}
+
+		qer := t.PDR.QER
+
+		alreadyListed := false
+
+		for _, q := range qerList {
+			if q.QERID == qer.QERID {
+				alreadyListed = true
+
+				break
+			}
+		}
+
+		if alreadyListed {
+			continue
+		}
+
+		qer.MBR = &models.MBR{
+			ULMBR: bitRateTokbps(ambrUplink),
+			DLMBR: bitRateTokbps(ambrDownlink),
+		}
+		qer.State = RuleUpdate
+		qerList = append(qerList, qer)
+	}
+
+	if len(qerList) == 0 {
+		return fmt.Errorf("no QER to update for EPS session %s", imsi)
+	}
+
+	var policyID string
+	if smContext.PolicyData != nil {
+		policyID = smContext.PolicyData.PolicyID
+	}
+
+	if err := s.upf.ModifySession(ctx, BuildModifyRequest(
+		smContext.PFCPContext.RemoteSEID,
+		policyID,
+		nil, nil, qerList,
+	)); err != nil {
+		return fmt.Errorf("failed to modify PFCP session for %s: %w", imsi, err)
+	}
+
+	return nil
+}
+
 // ReleaseEPSSession tears down the 4G default bearer: it frees the UPF session
 // (PDRs/FARs/QER + TEID) and the UE IP lease.
 func (s *SMF) ReleaseEPSSession(ctx context.Context, imsi string, ebi uint8) error {
