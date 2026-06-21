@@ -207,21 +207,22 @@ func ParseAPNAMBR(b []byte) (APNAMBR, error) {
 }
 
 // EncodeAPNAMBR encodes downlink/uplink rates (bits per second) into an APN-AMBR
-// IE value per TS 24.301 §9.9.4.2, using the base octet (≤8640 kbps) and the
-// extended octet (≤256 Mbps). Rates above 256 Mbps are clamped to 256 Mbps in
-// the encoded value (the extended-2 octets, octets 7-8, are not emitted); the
-// data-plane enforcement of the exact configured rate happens elsewhere (the UPF
-// QER) and is unaffected.
+// IE value per TS 24.301 §9.9.4.2 (TS 24.008 §10.5.6.5): the base octet
+// (≤8640 kbps), the extended octet (octets 5/6, ≤256 Mbps), and the extended-2
+// octet (octets 7/8, up to 10 Gbps) for higher rates.
 func EncodeAPNAMBR(downlinkBps, uplinkBps uint64) APNAMBR {
-	dlBase, dlExt := encodeAPNAMBROctet(downlinkBps)
-	ulBase, ulExt := encodeAPNAMBROctet(uplinkBps)
+	dlBase, dlExt, dlExt2 := encodeAPNAMBROctet(downlinkBps)
+	ulBase, ulExt, ulExt2 := encodeAPNAMBROctet(uplinkBps)
 
 	a := APNAMBR{DownlinkOctet: dlBase, UplinkOctet: ulBase}
 
-	// Octets 5 (DL ext) and 6 (UL ext) are present together or not at all
-	// (§9.9.4.2). A side that needs no extension carries 0x00 there, meaning
-	// "use the base octet".
-	if dlExt != 0 || ulExt != 0 {
+	// Octets are present together per pair (§9.9.4.2); a higher octet pair implies
+	// the lower one. A direction that does not need an extension carries 0x00,
+	// meaning "use the lower octet".
+	switch {
+	case dlExt2 != 0 || ulExt2 != 0:
+		a.Extended = []byte{dlExt, ulExt, dlExt2, ulExt2}
+	case dlExt != 0 || ulExt != 0:
 		a.Extended = []byte{dlExt, ulExt}
 	}
 
@@ -230,53 +231,82 @@ func EncodeAPNAMBR(downlinkBps, uplinkBps uint64) APNAMBR {
 
 // BitsPerSecond decodes an APN-AMBR into downlink/uplink rates (bits per second).
 func (a APNAMBR) BitsPerSecond() (downlink, uplink uint64) {
-	var dlExt, ulExt uint8
+	var dlExt, ulExt, dlExt2, ulExt2 uint8
+
 	if len(a.Extended) >= 2 {
 		dlExt, ulExt = a.Extended[0], a.Extended[1]
 	}
 
-	return decodeAPNAMBROctet(a.DownlinkOctet, dlExt), decodeAPNAMBROctet(a.UplinkOctet, ulExt)
+	if len(a.Extended) >= 4 {
+		dlExt2, ulExt2 = a.Extended[2], a.Extended[3]
+	}
+
+	return decodeAPNAMBROctet(a.DownlinkOctet, dlExt, dlExt2), decodeAPNAMBROctet(a.UplinkOctet, ulExt, ulExt2)
 }
 
-// encodeAPNAMBROctet returns the base octet (octet 3/4) and extended octet
-// (octet 5/6) for one direction. When the rate exceeds 8640 kbps the base octet
-// is set to 0xFE ("8640 kbps") and the value is carried in the extended octet.
-func encodeAPNAMBROctet(bps uint64) (base, ext uint8) {
+// encodeAPNAMBROctet returns the base octet (octet 3/4), extended octet (octet
+// 5/6), and extended-2 octet (octet 7/8) for one direction. Above 8640 kbps the
+// base octet is 0xFE; above 256 Mbps the extended octet is 0xFA and the value is
+// carried in the extended-2 octet.
+func encodeAPNAMBROctet(bps uint64) (base, ext, ext2 uint8) {
 	kbps := bps / 1000
 
 	switch {
 	case kbps == 0:
-		return 0xFF, 0 // 0 kbps
+		return 0xFF, 0, 0 // 0 kbps
 	case kbps <= 63:
-		return uint8(kbps), 0 // 1-63 kbps, 1 kbps granularity
+		return uint8(kbps), 0, 0 // 1-63 kbps, 1 kbps granularity
 	case kbps <= 568:
-		return uint8(64 + (kbps-64)/8), 0 // 64-568 kbps, 8 kbps granularity
+		return uint8(64 + (kbps-64)/8), 0, 0 // 64-568 kbps, 8 kbps granularity
 	case kbps <= 8640:
-		return uint8(128 + (kbps-576)/64), 0 // 576-8640 kbps, 64 kbps granularity
+		return uint8(128 + (kbps-576)/64), 0, 0 // 576-8640 kbps, 64 kbps granularity
 	default:
-		return 0xFE, encodeAPNAMBRExtended(kbps)
+		ext, ext2 = encodeAPNAMBRExtended(kbps)
+
+		return 0xFE, ext, ext2
 	}
 }
 
-// encodeAPNAMBRExtended returns the extended octet (octet 5/6) for rates above
-// 8640 kbps, clamped at 256 Mbps (0xFA).
-func encodeAPNAMBRExtended(kbps uint64) uint8 {
+// encodeAPNAMBRExtended returns the extended octet (octet 5/6) and extended-2
+// octet (octet 7/8) for rates above 8640 kbps (TS 24.008 §10.5.6.5).
+func encodeAPNAMBRExtended(kbps uint64) (ext, ext2 uint8) {
 	mbps := kbps / 1000
 
 	switch {
 	case kbps <= 16000:
-		return uint8((kbps - 8600) / 100) // 8700-16000 kbps, 100 kbps granularity
+		return uint8((kbps - 8600) / 100), 0 // 8700-16000 kbps, 100 kbps granularity
 	case mbps <= 128:
-		return uint8(74 + (mbps - 16)) // 17-128 Mbps, 1 Mbps granularity
+		return uint8(74 + (mbps - 16)), 0 // 17-128 Mbps, 1 Mbps granularity
 	case mbps <= 256:
-		return uint8(186 + (mbps-128)/2) // 130-256 Mbps, 2 Mbps granularity
+		return uint8(186 + (mbps-128)/2), 0 // 130-256 Mbps, 2 Mbps granularity
 	default:
-		return 0xFA // clamp at 256 Mbps
+		// Above 256 Mbps the extended octet is 0xFA and the value is in octet 7/8.
+		return 0xFA, encodeAPNAMBRExtended2(mbps)
 	}
 }
 
-// decodeAPNAMBROctet decodes one direction's base + extended octets to bits/s.
-func decodeAPNAMBROctet(base, ext uint8) uint64 {
+// encodeAPNAMBRExtended2 returns the extended-2 octet (octet 7/8) for rates above
+// 256 Mbps (TS 24.008 §10.5.6.5).
+func encodeAPNAMBRExtended2(mbps uint64) uint8 {
+	switch {
+	case mbps <= 500:
+		return uint8((mbps - 256) / 4) // 260-500 Mbps, 4 Mbps granularity
+	case mbps <= 1500:
+		return uint8(0x3D + (mbps-500)/10) // 510-1500 Mbps, 10 Mbps granularity
+	case mbps <= 10000:
+		return uint8(0xA1 + (mbps-1500)/100) // 1600-10000 Mbps, 100 Mbps granularity
+	default:
+		return 0xF6 // clamp at 10 Gbps
+	}
+}
+
+// decodeAPNAMBROctet decodes one direction's base + extended + extended-2 octets
+// to bits/s. A non-zero higher octet takes precedence.
+func decodeAPNAMBROctet(base, ext, ext2 uint8) uint64 {
+	if ext2 != 0 {
+		return decodeAPNAMBRExtended2(ext2)
+	}
+
 	if ext != 0 {
 		return decodeAPNAMBRExtended(ext)
 	}
@@ -300,8 +330,21 @@ func decodeAPNAMBRExtended(ext uint8) uint64 {
 		return (8600 + uint64(ext)*100) * 1000 // 8700-16000 kbps
 	case ext <= 186:
 		return (16 + uint64(ext-74)) * 1_000_000 // 17-128 Mbps
-	default: // 187-250 (and the clamp value 0xFA)
+	default: // 187-250 (and the marker value 0xFA)
 		return (128 + uint64(ext-186)*2) * 1_000_000 // 130-256 Mbps
+	}
+}
+
+// decodeAPNAMBRExtended2 decodes a non-zero extended-2 octet (octet 7/8) to
+// bits/s (TS 24.008 §10.5.6.5).
+func decodeAPNAMBRExtended2(ext2 uint8) uint64 {
+	switch {
+	case ext2 <= 0x3D:
+		return (256 + uint64(ext2)*4) * 1_000_000 // 260-500 Mbps
+	case ext2 <= 0xA1:
+		return (500 + uint64(ext2-0x3D)*10) * 1_000_000 // 510-1500 Mbps
+	default:
+		return (1500 + uint64(ext2-0xA1)*100) * 1_000_000 // 1600-10000 Mbps
 	}
 }
 

@@ -4,6 +4,7 @@
 package eps_test
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/ellanetworks/core/nas/eps"
@@ -19,25 +20,24 @@ const (
 // policy session-AMBR values fall in.
 func TestEncodeAPNAMBRSpecVectors(t *testing.T) {
 	tests := []struct {
-		name           string
-		dlBps, ulBps   uint64
-		wantDLBase     uint8
-		wantULBase     uint8
-		wantExtPresent bool
-		wantDLExt      uint8
-		wantULExt      uint8
+		name         string
+		dlBps, ulBps uint64
+		wantDLBase   uint8
+		wantULBase   uint8
+		wantExtended []byte // octets 5,6[,7,8]; nil = none
 	}{
 		// Base octet (≤8640 kbps): 576 + (v-128)*64.
-		{"1 Mbps both", 1000 * kbps, 1000 * kbps, 128 + (1000-576)/64, 128 + (1000-576)/64, false, 0, 0},
+		{"1 Mbps both", 1000 * kbps, 1000 * kbps, 128 + (1000-576)/64, 128 + (1000-576)/64, nil},
 		// Extended octet, 17-128 Mbps range: ext = 74 + (mbps-16).
-		{"30/60 Mbps", 30 * mbps, 60 * mbps, 0xFE, 0xFE, true, 74 + (30 - 16), 74 + (60 - 16)},
-		{"100 Mbps both", 100 * mbps, 100 * mbps, 0xFE, 0xFE, true, 74 + (100 - 16), 74 + (100 - 16)},
+		{"30/60 Mbps", 30 * mbps, 60 * mbps, 0xFE, 0xFE, []byte{74 + (30 - 16), 74 + (60 - 16)}},
+		{"100 Mbps both", 100 * mbps, 100 * mbps, 0xFE, 0xFE, []byte{74 + (100 - 16), 74 + (100 - 16)}},
 		// Extended octet, 130-256 Mbps range: ext = 186 + (mbps-128)/2.
-		{"200 Mbps both", 200 * mbps, 200 * mbps, 0xFE, 0xFE, true, 186 + (200-128)/2, 186 + (200-128)/2},
+		{"200 Mbps both", 200 * mbps, 200 * mbps, 0xFE, 0xFE, []byte{186 + (200-128)/2, 186 + (200-128)/2}},
 		// Mixed: DL needs extension, UL fits in the base octet (8 Mbps).
-		{"50 Mbps DL / 8 Mbps UL", 50 * mbps, 8000 * kbps, 0xFE, 128 + (8000-576)/64, true, 74 + (50 - 16), 0},
-		// Clamp above 256 Mbps.
-		{"1 Gbps both clamps to 256", 1000 * mbps, 1000 * mbps, 0xFE, 0xFE, true, 0xFA, 0xFA},
+		{"50 Mbps DL / 8 Mbps UL", 50 * mbps, 8000 * kbps, 0xFE, 128 + (8000-576)/64, []byte{74 + (50 - 16), 0}},
+		// Extended-2 octet (>256 Mbps): ext=0xFA, ext2 = (mbps-256)/4 in the
+		// 260-500 Mbps range. UL 100 Mbps stays in the extended octet (ext2 = 0).
+		{"400 Mbps DL / 100 Mbps UL", 400 * mbps, 100 * mbps, 0xFE, 0xFE, []byte{0xFA, 74 + (100 - 16), (400 - 256) / 4, 0}},
 	}
 
 	for _, tc := range tests {
@@ -52,16 +52,8 @@ func TestEncodeAPNAMBRSpecVectors(t *testing.T) {
 				t.Errorf("UL base octet = %#x, want %#x", a.UplinkOctet, tc.wantULBase)
 			}
 
-			if tc.wantExtPresent {
-				if len(a.Extended) != 2 {
-					t.Fatalf("expected 2 extended octets, got %d", len(a.Extended))
-				}
-
-				if a.Extended[0] != tc.wantDLExt || a.Extended[1] != tc.wantULExt {
-					t.Errorf("extended = [%#x %#x], want [%#x %#x]", a.Extended[0], a.Extended[1], tc.wantDLExt, tc.wantULExt)
-				}
-			} else if len(a.Extended) != 0 {
-				t.Errorf("expected no extended octets, got %d", len(a.Extended))
+			if !bytes.Equal(a.Extended, tc.wantExtended) {
+				t.Errorf("extended = % x, want % x", a.Extended, tc.wantExtended)
 			}
 		})
 	}
@@ -88,11 +80,22 @@ func TestAPNAMBRRoundTrip(t *testing.T) {
 	}
 }
 
-// TestAPNAMBRClampDecodes verifies a >256 Mbps rate decodes to the clamp value.
-func TestAPNAMBRClampDecodes(t *testing.T) {
-	dl, _ := eps.EncodeAPNAMBR(1000*mbps, 1000*mbps).BitsPerSecond()
-	if dl != 256*mbps {
-		t.Fatalf("clamped DL = %d bps, want %d (256 Mbps)", dl, 256*mbps)
+// TestAPNAMBRExtended2RoundTrip checks rates above 256 Mbps round-trip through the
+// extended-2 octets (TS 24.008 §10.5.6.5): 4 Mbps granularity to 500 Mbps, 10 Mbps
+// to 1500 Mbps, 100 Mbps to 10 Gbps.
+func TestAPNAMBRExtended2RoundTrip(t *testing.T) {
+	exact := []uint64{260, 300, 400, 500, 510, 600, 1000, 1500, 1600, 2000, 5000, 10000}
+
+	for _, dlMbps := range exact {
+		for _, ulMbps := range exact {
+			dl, ul := dlMbps*mbps, ulMbps*mbps
+
+			gotDL, gotUL := eps.EncodeAPNAMBR(dl, ul).BitsPerSecond()
+
+			if gotDL != dl || gotUL != ul {
+				t.Errorf("round-trip %d/%d Mbps: got %d/%d bps, want %d/%d", dlMbps, ulMbps, gotDL, gotUL, dl, ul)
+			}
+		}
 	}
 }
 
