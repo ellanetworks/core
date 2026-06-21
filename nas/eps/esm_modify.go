@@ -14,6 +14,7 @@ import "github.com/ellanetworks/core/nas/common"
 type ModifyEPSBearerContextRequest struct {
 	EPSBearerIdentity            uint8
 	ProcedureTransactionIdentity uint8
+	NewEPSQoS                    []byte // EPS QoS value part (§9.9.4.3, QCI), empty = omit
 	APNAMBR                      []byte // APN-AMBR value part (§9.9.4.2), empty = omit
 	ProtocolConfigurationOptions []byte
 }
@@ -21,16 +22,25 @@ type ModifyEPSBearerContextRequest struct {
 // modifyEPSBearerContextRequestIEs are the optional IEs Ella Core sends in a
 // MODIFY EPS BEARER CONTEXT REQUEST (TS 24.301 §8.3.18), in message order.
 var modifyEPSBearerContextRequestIEs = []common.OptionalIE{
+	{IEI: ieiNewEPSQoS, Format: common.IETLV},
 	{IEI: ieiAPNAMBR, Format: common.IETLV},
 	{IEI: ieiProtocolConfigurationOptions, Format: common.IETLV},
 }
 
 // Marshal encodes the MODIFY EPS BEARER CONTEXT REQUEST. The optional IEs are
-// written in the order defined by TS 24.301 §8.3.18.1 (APN-AMBR before PCO).
+// written in the order defined by TS 24.301 §8.3.18.1 (New EPS QoS, APN-AMBR, PCO).
 func (m *ModifyEPSBearerContextRequest) Marshal() ([]byte, error) {
 	var w common.Writer
 
 	writeESMHeader(&w, m.EPSBearerIdentity, m.ProcedureTransactionIdentity, MsgModifyEPSBearerContextRequest)
+
+	if len(m.NewEPSQoS) > 0 {
+		w.U8(ieiNewEPSQoS)
+
+		if err := w.LV(m.NewEPSQoS); err != nil {
+			return nil, err
+		}
+	}
 
 	if len(m.APNAMBR) > 0 {
 		w.U8(ieiAPNAMBR)
@@ -65,6 +75,8 @@ func ParseModifyEPSBearerContextRequest(b []byte) (*ModifyEPSBearerContextReques
 
 	if _, err := common.WalkOptionalIEs(r, modifyEPSBearerContextRequestIEs, func(iei uint8, value []byte) error {
 		switch iei {
+		case ieiNewEPSQoS:
+			m.NewEPSQoS = value
 		case ieiAPNAMBR:
 			m.APNAMBR = value
 		case ieiProtocolConfigurationOptions:

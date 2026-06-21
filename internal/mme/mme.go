@@ -250,6 +250,8 @@ func (m *MME) dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 			m.handleUEContextReleaseComplete(conn, p.Value)
 		case s1ap.ProcERABSetup:
 			m.handleERABSetupResponse(conn, p.Value)
+		case s1ap.ProcERABModify:
+			m.handleERABModifyResponse(p.Value)
 		case s1ap.ProcERABRelease:
 			m.handleERABReleaseResponse(conn, p.Value)
 		default:

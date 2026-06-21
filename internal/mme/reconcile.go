@@ -10,6 +10,7 @@ import (
 
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/s1ap"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -88,12 +89,14 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *pdnConnecti
 	ambrChanged := bitRateToBps(qos.SessAmbrDLStr) != p.sessAmbrDLBps ||
 		bitRateToBps(qos.SessAmbrULStr) != p.sessAmbrULBps
 
-	if !dnChanged && !ambrChanged {
+	qosChanged := qos.QCI != p.qci || qos.ARP != p.arp
+
+	if !dnChanged && !ambrChanged && !qosChanged {
 		return
 	}
 
 	// An IP-pool or MTU change cannot be adopted in place; reactivate so the UE
-	// re-establishes (the new bearer also picks up the new Session-AMBR).
+	// re-establishes (the new bearer also picks up the new QoS/Session-AMBR).
 	if dnChanged && !dnsOnlyChange(p.dnConfig, newFingerprint) {
 		logger.MmeLog.Info("data-network configuration changed; reactivating EPS bearer",
 			zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.String("apn", p.apn))
@@ -104,8 +107,8 @@ func (m *MME) reconcileBearer(ctx context.Context, ue *UeContext, p *pdnConnecti
 
 	logger.MmeLog.Info("policy/data-network changed; modifying EPS bearer in place",
 		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", ue.imsi), zap.String("apn", p.apn),
-		zap.Bool("dns", dnChanged), zap.Bool("session-ambr", ambrChanged))
-	m.modifyBearer(ctx, ue, p, qos, dnChanged, ambrChanged)
+		zap.Bool("dns", dnChanged), zap.Bool("session-ambr", ambrChanged), zap.Bool("qos", qosChanged))
+	m.modifyBearer(ctx, ue, p, qos, dnChanged, ambrChanged, qosChanged)
 }
 
 // dnsOnlyChange reports whether the data-network fingerprint changed in the DNS
@@ -130,10 +133,14 @@ func dnsOnlyChange(oldFingerprint, newFingerprint string) bool {
 // (§9.9.4.2). The new values are committed only when the UE accepts, so an aborted
 // modification leaves the stored config stale for the backstop to retry. The
 // Session-AMBR is also pushed to the UPF QER so the data plane enforces it.
-func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *pdnConnection, qos *epsQoS, includeDNS, includeAMBR bool) {
+func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *pdnConnection, qos *epsQoS, includeDNS, includeAMBR, includeQoS bool) {
 	req := &eps.ModifyEPSBearerContextRequest{
 		EPSBearerIdentity:            p.ebi,
 		ProcedureTransactionIdentity: 0,
+	}
+
+	if includeQoS {
+		req.NewEPSQoS = eps.EPSQoS{QCI: qos.QCI}.Marshal()
 	}
 
 	var (
@@ -186,13 +193,72 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *pdnConnection,
 	p.pendingDNConfig = qos.dnFingerprint()
 	p.pendingSessAmbrDLBps = bitRateToBps(qos.SessAmbrDLStr)
 	p.pendingSessAmbrULBps = bitRateToBps(qos.SessAmbrULStr)
+	p.pendingQCI = qos.QCI
+	p.pendingARP = qos.ARP
 
 	if dnsValid {
 		p.dns = dns
 	}
 
-	m.sendDownlink(ctx, ue, naspdu)
+	if includeQoS {
+		// A QCI/ARP change reconfigures the radio bearer, so the NAS message is
+		// piggybacked in an S1AP E-RAB Modify Request (TS 36.413 §8.2.2).
+		m.sendERABModify(ctx, ue, p, qos, naspdu)
+	} else {
+		// DNS and/or Session-AMBR only: no radio change, so the NAS message is sent
+		// standalone in a Downlink NAS Transport (TS 23.401 §5.4.3).
+		m.sendDownlink(ctx, ue, naspdu)
+	}
+
 	m.armNASGuardAbortOnly(ue, "Modify EPS Bearer Context Request", naspdu)
+}
+
+// sendERABModify reconfigures the UE's default-bearer radio QoS with an S1AP
+// E-RAB MODIFY REQUEST (TS 36.413 §8.2.2): the new E-RAB-level QoS (QCI, ARP) for
+// the eNB, carrying the MODIFY EPS BEARER CONTEXT REQUEST piggybacked in the
+// NAS-PDU for the UE. Completion is the NAS Modify Accept, not the E-RAB Modify
+// Response, so this does not block on it.
+func (m *MME) sendERABModify(ctx context.Context, ue *UeContext, p *pdnConnection, qos *epsQoS, naspdu []byte) {
+	req := &s1ap.ERABModifyRequest{
+		MMEUES1APID: ue.MMEUES1APID,
+		ENBUES1APID: ue.ENBUES1APID,
+		ERABToBeModified: []s1ap.ERABToBeModifiedItemBearerModReq{{
+			ERABID: s1ap.ERABID(p.ebi),
+			QoS: s1ap.ERABLevelQoSParameters{
+				QCI: s1ap.QCI(qos.QCI),
+				ARP: s1ap.AllocationAndRetentionPriority{
+					PriorityLevel:           qos.ARP,
+					PreemptionCapability:    s1ap.PreemptionShallNotTrigger,
+					PreemptionVulnerability: s1ap.PreemptionNotPreemptable,
+				},
+			},
+			NASPDU: s1ap.NASPDU(naspdu),
+		}},
+	}
+
+	b, err := req.Marshal()
+	if err != nil {
+		logger.MmeLog.Error("failed to marshal E-RAB Modify Request", zap.Error(err))
+		return
+	}
+
+	m.sendS1AP(ctx, ue, S1APProcedureERABModifyRequest, b)
+}
+
+// handleERABModifyResponse records the eNB's E-RAB Modify outcome. The procedure
+// completes on the NAS Modify Accept, so a failed-to-modify list is logged but
+// does not itself abort the modification (TS 36.413 §8.2.2).
+func (m *MME) handleERABModifyResponse(value []byte) {
+	resp, err := s1ap.ParseERABModifyResponse(value)
+	if err != nil {
+		logger.MmeLog.Warn("failed to decode E-RAB Modify Response", zap.Error(err))
+		return
+	}
+
+	if len(resp.ERABFailedToModify) > 0 {
+		logger.MmeLog.Warn("eNB failed to modify E-RAB(s)",
+			zap.Uint32("mme-ue-id", uint32(resp.MMEUES1APID)), zap.Int("failed", len(resp.ERABFailedToModify)))
+	}
 }
 
 // reactivateBearer asks the UE to re-establish its PDN connection by deactivating
@@ -256,9 +322,13 @@ func (m *MME) onModifyBearerAccept(ue *UeContext, plain []byte) {
 	p.dnConfig = p.pendingDNConfig
 	p.sessAmbrDLBps = p.pendingSessAmbrDLBps
 	p.sessAmbrULBps = p.pendingSessAmbrULBps
+	p.qci = p.pendingQCI
+	p.arp = p.pendingARP
 	p.pendingDNConfig = ""
 	p.pendingSessAmbrDLBps = 0
 	p.pendingSessAmbrULBps = 0
+	p.pendingQCI = 0
+	p.pendingARP = 0
 	p.modifying = false
 
 	logger.MmeLog.Info("EPS bearer modified in place",
@@ -282,6 +352,8 @@ func (m *MME) onModifyBearerReject(ue *UeContext, plain []byte) {
 		p.pendingDNConfig = ""
 		p.pendingSessAmbrDLBps = 0
 		p.pendingSessAmbrULBps = 0
+		p.pendingQCI = 0
+		p.pendingARP = 0
 	}
 
 	logger.MmeLog.Warn("UE rejected EPS bearer modification",

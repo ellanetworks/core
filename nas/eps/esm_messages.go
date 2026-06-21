@@ -175,6 +175,7 @@ type ActivateDefaultEPSBearerContextRequest struct {
 // Options is the IEI of the protocol configuration options IE (TS 24.301
 // §8.3.6.1).
 const (
+	ieiNewEPSQoS                    uint8 = 0x5B
 	ieiAPNAMBR                      uint8 = 0x5E
 	ieiESMCause                     uint8 = 0x58
 	ieiProtocolConfigurationOptions uint8 = 0x27

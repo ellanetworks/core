@@ -318,6 +318,8 @@ func (m *MME) activateDefaultBearer(ctx context.Context, ue *UeContext) {
 	p.dnConfig = qos.dnFingerprint()
 	p.sessAmbrDLBps = bitRateToBps(qos.SessAmbrDLStr)
 	p.sessAmbrULBps = bitRateToBps(qos.SessAmbrULStr)
+	p.qci = qos.QCI
+	p.arp = qos.ARP
 	p.pdnType = bearer.PDNType
 	p.ueIP = bearer.IPv4
 	p.ueIPv6Prefix = bearer.IPv6Prefix
