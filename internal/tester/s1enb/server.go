@@ -650,6 +650,10 @@ func frameENBUEID(f Frame) int64 {
 		if m, err := s1ap.ParseERABSetupRequest(f.Value); err == nil {
 			return int64(m.ENBUES1APID)
 		}
+	case f.Category == Initiating && f.ProcedureCode == s1ap.ProcERABModify:
+		if m, err := s1ap.ParseERABModifyRequest(f.Value); err == nil {
+			return int64(m.ENBUES1APID)
+		}
 	case f.Category == Initiating && f.ProcedureCode == s1ap.ProcERABRelease:
 		if m, err := s1ap.ParseERABReleaseCommand(f.Value); err == nil {
 			return int64(m.ENBUES1APID)
