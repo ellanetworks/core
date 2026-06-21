@@ -191,7 +191,7 @@ func (s *SMF) ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb 
 	// The S1-U transport family follows the eNB endpoint (TS 29.281): the downlink
 	// outer header creation and the uplink outer header removal must both match it.
 	// The uplink removal was set to IPv4 at session creation (before the eNB
-	// endpoint was known), so correct it here, mirroring the 5G N3 handling.
+	// endpoint was known), so correct it here.
 	if enbIP.To4() == nil {
 		smContext.Tunnel.ANInformation.IPv6Address = enbIP
 		dl.FAR.ForwardingParameters = &models.ForwardingParameters{

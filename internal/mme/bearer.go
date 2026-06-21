@@ -10,11 +10,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/sctp"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
@@ -64,9 +64,9 @@ const defaultMMEGroupID uint16 = 1
 
 // mmeIdentity returns the GUMMEI components (TS 23.003): a fixed MME Group
 // ID, and an MME Code derived from the cluster node ID so each HA node advertises
-// a distinct GUMMEI and a UE's GUTI routes back to its owning node — mirroring
-// the AMF Pointer (TS 23.003). The MME Code is 8 bits, so distinct codes
-// hold for clusters up to 256 nodes; beyond that the low 8 bits could collide.
+// a distinct GUMMEI and a UE's GUTI routes back to its owning node.
+// The MME Code is 8 bits, so distinct codes hold for clusters up to 256 nodes;
+// beyond that the low 8 bits could collide.
 func (m *MME) mmeIdentity() (uint16, uint8) {
 	return defaultMMEGroupID, uint8(m.bearer.NodeID() & 0xFF)
 }
@@ -395,7 +395,7 @@ func (m *MME) sendInitialContextSetup(ctx context.Context, ue *UeContext, qos *e
 	}
 
 	// The S1-U endpoint is advertised as the IPv4, IPv6, or dual-stack transport
-	// layer address the N3 has (TS 36.413), mirroring the 5G N3 signalling.
+	// layer address the N3 has (TS 36.413).
 	sgwTLA, err := models.EncodeTransportLayerAddress(p.sgwFTEID.Addr, p.sgwN3IPv6)
 	if err != nil {
 		logger.MmeLog.Error("failed to encode S-GW transport layer address", zap.Error(err))
@@ -496,7 +496,7 @@ func (m *MME) buildProtectedAttachAccept(ctx context.Context, ue *UeContext, qos
 		GUTI:                &guti,
 		// Advertise IMS voice over PS session (TS 24.301). Without it a
 		// voice-centric UE concludes E-UTRAN cannot serve voice and leaves for
-		// another RAT (TS 23.221); the AMF advertises the same in 5GS.
+		// another RAT (TS 23.221).
 		EPSNetworkFeatureSupport: &eps.EPSNetworkFeatureSupport{IMSVoPS: true},
 	}
 
@@ -547,9 +547,8 @@ func (m *MME) onAttachComplete(ctx context.Context, ue *UeContext, plain []byte)
 }
 
 // sendNetworkName provides the operator's network name to the UE in an EMM
-// INFORMATION message (TS 24.301), the 4G counterpart of the AMF's
-// Configuration Update Command. The procedure is optional, so it is skipped when
-// no service provider name is configured.
+// INFORMATION message (TS 24.301). The procedure is optional, so it is skipped
+// when no service provider name is configured.
 func (m *MME) sendNetworkName(ctx context.Context, ue *UeContext) {
 	op, err := m.bearer.GetOperator(ctx)
 	if err != nil {
@@ -653,7 +652,7 @@ func (m *MME) sendS1AP(ctx context.Context, ue *UeContext, messageType S1APProce
 		return
 	}
 
-	if _, err := ue.conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apPPID, Stream: 0}); err != nil {
+	if _, err := ue.conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamUE}); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send S1AP message")
 		logger.MmeLog.Error("failed to send S1AP message", zap.Error(err))

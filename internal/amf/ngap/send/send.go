@@ -7,12 +7,11 @@ package send
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 
-	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/free5gc/aper"
 	"github.com/free5gc/nas/nasType"
 	"github.com/free5gc/ngap/ngapType"
@@ -65,7 +64,7 @@ func (s *RealNGAPSender) SendToRan(ctx context.Context, packet []byte, msgType N
 
 	info := sctp.SndRcvInfo{
 		Stream: sid,
-		PPID:   nativeToNetworkEndianness32(sctp.NGAPPPID),
+		PPID:   sctp.PPIDWireOrder(sctp.NGAPPPID),
 	}
 	if _, err := s.Conn.WriteMsg(packet, &info); err != nil {
 		return fmt.Errorf("send write to sctp connection: %s", err.Error())
@@ -527,11 +526,4 @@ func (s *RealNGAPSender) SendHandoverRequest(
 	}
 
 	return nil
-}
-
-func nativeToNetworkEndianness32(value uint32) uint32 {
-	var b [4]byte
-	binary.NativeEndian.PutUint32(b[:], value)
-
-	return binary.BigEndian.Uint32(b[:])
 }

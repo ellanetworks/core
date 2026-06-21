@@ -369,8 +369,7 @@ func (m *MME) rejectAttach(ctx context.Context, ue *UeContext, cause uint8) {
 	m.releaseUEContext(ctx, ue, causeNASUnspecified)
 }
 
-// attachTypeName is the registration-metric type label for a UE's attach, the 4G
-// counterpart of the 5G registration type (TS 24.301).
+// attachTypeName is the registration-metric type label for a UE's attach (TS 24.301).
 func attachTypeName(ue *UeContext) string {
 	if ue.combinedAttach {
 		return "Combined Attach"

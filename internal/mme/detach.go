@@ -32,8 +32,7 @@ func (m *MME) lookupUeByIMSI(imsi string) *UeContext {
 }
 
 // DetachSubscriber sends a network-initiated DETACH REQUEST (TS 24.301)
-// to the attached UE for imsi, if any. It is the 4G counterpart of the AMF's
-// network-initiated deregistration, invoked when a subscriber is deleted. The UE
+// to the attached UE for imsi, if any, when a subscriber is deleted. The UE
 // replies with Detach Accept, on which the S1 context is released and removed.
 func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 	ue := m.lookupUeByIMSI(imsi)

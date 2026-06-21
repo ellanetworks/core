@@ -21,9 +21,7 @@ import (
 // (TS 24.301 §6.4.2); for an IP-pool or MTU change — which the UE cannot adopt
 // without a new address or link config — it deactivates the bearer with ESM
 // cause #39 "reactivation requested" (TS 24.301 §6.4.4.2) so the UE
-// re-establishes. This is the EPS counterpart of the 5G AMF SessionReconciler
-// and mirrors its modify-versus-release split (5G modifies DNS in place and
-// releases for MTU/pool).
+// re-establishes.
 func (m *MME) ReconcileDataNetwork(ctx context.Context) {
 	m.mu.Lock()
 

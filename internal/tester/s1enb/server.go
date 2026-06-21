@@ -25,13 +25,12 @@ import (
 )
 
 // s1apPPID is the SCTP payload protocol identifier for S1AP (18, TS 36.412),
-// pre-encoded in network byte order the way the SCTP socket layer expects —
-// mirroring free5gc's ngap.PPID = 0x3c000000 (NGAP = 60). The pinned
+// pre-encoded in network byte order the way the SCTP socket layer expects. The pinned
 // ishidawataru/sctp release writes SndRcvInfo.PPID verbatim, so the value must
-// already be byte-swapped; the MME converts it back with networkToNativeEndianness32.
+// already be byte-swapped; the MME converts it back with sctp.PPIDWireOrder.
 const s1apPPID uint32 = 0x12000000
 
-// ErrNoActiveMME indicates no S1-MME peer is currently usable. Returned by
+// ErrNoActiveMME indicates no S1-MME peer is usable. Returned by
 // SendMessage when every configured peer has failed.
 var ErrNoActiveMME = errors.New("s1enb: no active S1-MME peer")
 

@@ -10,9 +10,7 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
-// s1apCauseGroupName is the display name of each S1AP cause group (TS 36.413),
-// mirroring the AMF's NGAP cause logging so 4G and 5G control-plane
-// causes read alike.
+// s1apCauseGroupName is the display name of each S1AP cause group (TS 36.413)
 var s1apCauseGroupName = map[s1ap.CauseGroup]string{
 	s1ap.CauseGroupRadioNetwork: "Radio Network",
 	s1ap.CauseGroupTransport:    "Transport",

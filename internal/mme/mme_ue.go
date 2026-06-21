@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -298,9 +298,9 @@ func (m *MME) newUe(conn nasWriter, enbUEID s1ap.ENBUES1APID) *UeContext {
 // establishS1Connection binds an existing UE context to a new UE-associated
 // logical S1-connection: it allocates a fresh MME-UE-S1AP-ID (the one from the
 // released connection must not be reused, TS 36.413), re-keys the
-// active-connection index, and records the new eNB association. It is the
-// counterpart of newUe for a UE returning from ECM-IDLE (Service Request, paging
-// response, tracking area update with the active flag). ECM-CONNECTED is set by
+// active-connection index, and records the new eNB association, for a UE
+// returning from ECM-IDLE (Service Request, paging response, tracking area
+// update with the active flag). ECM-CONNECTED is set by
 // the caller once the procedure succeeds, so a rejected request leaves the UE in
 // ECM-IDLE.
 func (m *MME) establishS1Connection(ue *UeContext, conn nasWriter, enbUEID s1ap.ENBUES1APID) {

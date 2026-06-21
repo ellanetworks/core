@@ -21,7 +21,7 @@ import (
 // Topology: 1 Ella Core + 1 tester container holding both eNB identities + 1
 // router. Compose: integration/compose/x2-handover/compose.yaml. The after-ping
 // proves the MME's path-switch handler reprogrammed the UPF downlink to the
-// target eNB (TS 36.413 §8.4.4). The 4G counterpart of TestIntegration5GN2Handover.
+// target eNB (TS 36.413 §8.4.4).
 func TestIntegration4GX2Handover(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")

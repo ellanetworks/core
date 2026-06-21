@@ -6,7 +6,7 @@ package mme
 import "github.com/ellanetworks/core/s1ap"
 
 // S1APProcedure is the human-readable S1AP message name recorded in the network
-// event log, mirroring the AMF's NGAPProcedure (TS 36.413).
+// event log.
 type S1APProcedure string
 
 const (
