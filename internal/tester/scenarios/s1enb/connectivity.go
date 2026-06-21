@@ -113,6 +113,16 @@ func runS1ENBConnectivityUE(ctx context.Context, e *s1enb.ENB, imsi string, k, o
 		return fmt.Errorf("attach completed without a GUTI")
 	}
 
+	if err := assertAttach(res, expectedAttach{
+		QCI:               9,
+		ARP:               15,
+		UEAmbrDownlinkBps: 100 * mbpsToBps,
+		UEAmbrUplinkBps:   100 * mbpsToBps,
+		RequireGUTI:       true,
+	}); err != nil {
+		return fmt.Errorf("attach QoS: %w", err)
+	}
+
 	if err := e.AddTunnel(&s1enb.TunnelOpts{
 		UEIPv4:           res.UEIPv4 + "/16",
 		UpfAddress:       res.UpfAddress,
