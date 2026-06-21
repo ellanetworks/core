@@ -35,7 +35,7 @@ func (e *ENB) Detach(ue *UE, mmeUEID, enbUEID int64, timeout time.Duration) erro
 			return fmt.Errorf("await Detach Accept: timed out")
 		}
 
-		wire, _, err := e.WaitForDownlinkNAS(remaining)
+		wire, _, err := e.WaitForDownlinkNAS(enbUEID, remaining)
 		if err != nil {
 			return fmt.Errorf("await Detach Accept: %w", err)
 		}
@@ -55,7 +55,7 @@ func (e *ENB) Detach(ue *UE, mmeUEID, enbUEID int64, timeout time.Duration) erro
 		}
 	}
 
-	return e.completeContextRelease(timeout)
+	return e.completeContextRelease(enbUEID, timeout)
 }
 
 // ReleaseContext performs an eNB-initiated S1 UE context release (TS 36.413
@@ -66,45 +66,73 @@ func (e *ENB) ReleaseContext(mmeUEID, enbUEID int64, cause s1ap.Cause, timeout t
 		return err
 	}
 
-	return e.completeContextRelease(timeout)
+	return e.completeContextRelease(enbUEID, timeout)
+}
+
+// ServiceRequestResult reports the S1 identifiers and re-established S1-U endpoint
+// from a completed service request.
+type ServiceRequestResult struct {
+	MMEUES1APID int64
+	ENBUES1APID int64
+	UpfAddress  string // S-GW/UPF S1-U address (uplink target)
+	ULTEID      uint32 // S-GW/UPF uplink TEID
+	DLTEID      uint32 // eNB downlink TEID reported to the MME
 }
 
 // ServiceRequest performs a mobile-originated EPS service request for a UE in
 // ECM-IDLE (TS 24.301 §5.6.1): it sends a SERVICE REQUEST identified by the UE's
 // S-TMSI and completes the Initial Context Setup the MME uses to re-establish the
-// bearer. It returns the fresh MME-UE-S1AP-ID the MME assigned for the new S1
-// connection.
-func (e *ENB) ServiceRequest(ue *UE, guti *eps.EPSMobileIdentity, timeout time.Duration) (mmeUEID, enbUEID int64, err error) {
+// bearer.
+func (e *ENB) ServiceRequest(ue *UE, guti *eps.EPSMobileIdentity, timeout time.Duration) (*ServiceRequestResult, error) {
 	if guti == nil {
-		return 0, 0, fmt.Errorf("s1enb: service request requires the UE's GUTI")
+		return nil, fmt.Errorf("s1enb: service request requires the UE's GUTI")
 	}
 
-	enbUEID = e.AllocateENBUEID()
+	enbUEID := e.AllocateENBUEID()
 
 	sr, err := ue.buildServiceRequest()
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 
 	if err := e.SendInitialUEMessageWithSTMSI(enbUEID, guti.MMECode, guti.MTMSI, sr); err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 
-	icsFrame, err := e.WaitForMessage(Initiating, s1ap.ProcInitialContextSetup, timeout)
+	icsFrame, err := e.WaitForMessage(enbUEID, Initiating, s1ap.ProcInitialContextSetup, timeout)
 	if err != nil {
-		return 0, 0, fmt.Errorf("await Initial Context Setup Request (service-request re-establishment): %w", err)
+		return nil, fmt.Errorf("await Initial Context Setup Request (service-request re-establishment): %w", err)
 	}
 
 	ics, err := s1ap.ParseInitialContextSetupRequest(icsFrame.Value)
 	if err != nil {
-		return 0, 0, fmt.Errorf("parse Initial Context Setup Request: %w", err)
+		return nil, fmt.Errorf("parse Initial Context Setup Request: %w", err)
 	}
 
-	if err := e.sendInitialContextSetupResponse(ics, enbUEID, e.allocTEID()); err != nil {
-		return 0, 0, err
+	if len(ics.ERABToBeSetup) == 0 {
+		return nil, fmt.Errorf("service-request Initial Context Setup without an E-RAB")
 	}
 
-	return int64(ics.MMEUES1APID), enbUEID, nil
+	erab := ics.ERABToBeSetup[0]
+
+	upf, err := e.selectUpfAddr(erab.TransportLayerAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	dlTEID := e.allocTEID()
+
+	if err := e.sendInitialContextSetupResponse(ics, enbUEID, dlTEID); err != nil {
+		return nil, err
+	}
+
+	return &ServiceRequestResult{
+		MMEUES1APID: int64(ics.MMEUES1APID),
+		ENBUES1APID: enbUEID,
+		UpfAddress:  upf.Unmap().String(),
+		ULTEID:      uint32(erab.GTPTEID),
+		DLTEID:      dlTEID,
+	}, nil
 }
 
 // PeriodicTrackingAreaUpdate performs a mobile-originated periodic TAU for a UE
@@ -131,7 +159,7 @@ func (e *ENB) PeriodicTrackingAreaUpdate(ue *UE, guti *eps.EPSMobileIdentity, ti
 	// the re-established connection (e.g. EMM INFORMATION 0x61), which a real UE
 	// ignores. mmeUEID is taken from the Accept so the Complete is delivered on
 	// the connection the MME re-keyed for this update.
-	mmeUEID, err := e.awaitDownlinkNAS(ue, eps.MsgTrackingAreaUpdateAccept, timeout)
+	mmeUEID, err := e.awaitDownlinkNAS(ue, enbUEID, eps.MsgTrackingAreaUpdateAccept, timeout)
 	if err != nil {
 		return fmt.Errorf("await Tracking Area Update Accept: %w", err)
 	}
@@ -147,14 +175,14 @@ func (e *ENB) PeriodicTrackingAreaUpdate(ue *UE, guti *eps.EPSMobileIdentity, ti
 
 	// With no active flag the MME releases the UE back to ECM-IDLE once the GUTI
 	// reallocation is acknowledged (TS 24.301 §5.5.3.2.4).
-	return e.completeContextRelease(timeout)
+	return e.completeContextRelease(enbUEID, timeout)
 }
 
 // awaitDownlinkNAS waits for a protected downlink NAS message of the wanted EMM
 // message type, skipping any proactive messages the MME interleaves (e.g. EMM
 // INFORMATION 0x61), which a real UE ignores. It returns the MME-UE-S1AP-ID the
 // matching message arrived on.
-func (e *ENB) awaitDownlinkNAS(ue *UE, want eps.MessageType, timeout time.Duration) (int64, error) {
+func (e *ENB) awaitDownlinkNAS(ue *UE, enbUEID int64, want eps.MessageType, timeout time.Duration) (int64, error) {
 	deadline := time.Now().Add(timeout)
 
 	for {
@@ -163,7 +191,7 @@ func (e *ENB) awaitDownlinkNAS(ue *UE, want eps.MessageType, timeout time.Durati
 			return 0, fmt.Errorf("timed out awaiting message type %#x", want)
 		}
 
-		wire, mmeUEID, err := e.WaitForDownlinkNAS(remaining)
+		wire, mmeUEID, err := e.WaitForDownlinkNAS(enbUEID, remaining)
 		if err != nil {
 			return 0, err
 		}
@@ -186,8 +214,8 @@ func (e *ENB) awaitDownlinkNAS(ue *UE, want eps.MessageType, timeout time.Durati
 
 // completeContextRelease awaits the UE CONTEXT RELEASE COMMAND and acknowledges
 // it with a UE CONTEXT RELEASE COMPLETE, ending the release procedure.
-func (e *ENB) completeContextRelease(timeout time.Duration) error {
-	cmd, err := e.WaitForUEContextReleaseCommand(timeout)
+func (e *ENB) completeContextRelease(enbUEID int64, timeout time.Duration) error {
+	cmd, err := e.WaitForUEContextReleaseCommand(enbUEID, timeout)
 	if err != nil {
 		return fmt.Errorf("await UE Context Release Command: %w", err)
 	}

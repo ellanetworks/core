@@ -1,0 +1,65 @@
+name: Integration tests (BGP 4G)
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+jobs:
+  integration-test-bgp-4g:
+    strategy:
+      fail-fast: false
+      matrix:
+        ip_version: [ipv4, ipv6]
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Docker registry
+        run: |
+          docker run -d -p 5000:5000 --name registry registry:2
+
+      - name: Download Ella Core image from GitHub Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-image-amd64
+
+      - name: Download Ella Core Tester image from GitHub Artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ellacore-tester-image-amd64
+
+      - name: Load images into Docker
+        run: |
+          docker load -i ellacore_latest-amd64.tar
+          docker tag ella-core:latest localhost:5000/ella-core:latest
+          docker push localhost:5000/ella-core:latest
+          docker load -i ellacore_tester_latest-amd64.tar
+
+      - name: Build GoBGP peer image
+        run: |
+          docker build -t gobgp-peer:latest -f integration/compose/bgp/Dockerfile.gobgp integration/compose/bgp/
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Run BGP integration tests
+        env:
+          INTEGRATION: "1"
+          IP_VERSION: ${{ matrix.ip_version }}
+          HA_CLUSTER_LOG_DIR: ${{ runner.temp }}/ha-cluster-logs
+        run: |
+          go test ./integration/... -run TestIntegration4GBGP -timeout 15m -v
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-bgp-4g-logs-${{ matrix.ip_version }}
+          path: ${{ runner.temp }}/bgp-logs
+          if-no-files-found: ignore
+          retention-days: 7

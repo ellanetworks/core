@@ -17,20 +17,13 @@ import (
 //
 // The eNB appears in the radios API with ran_node_type "eNB" only after the MME
 // has accepted its S1 Setup Request and sent an S1 Setup Response, so its
-// presence is a positive proof of the request/response exchange.
-//
-// Isolation: named TestIntegration4G* so it runs on its own via
-//
-//	INTEGRATION=1 go test ./integration/... -run TestIntegration4G
-//
-// and is excluded from a full local run with `-skip TestIntegration4G`. Like the
-// rest of the suite, it also gates on the INTEGRATION environment variable.
+// presence is positive proof of the request/response exchange.
 func TestIntegration4GS1Setup(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
 	}
 
-	// The srsenb compose stack is IPv4-only for now.
+	// The srsenb compose stack is IPv4-only.
 	if DetectIPFamily() != IPv4Only {
 		t.Skip("4G S1 Setup integration runs in IPv4 mode only")
 	}
@@ -104,8 +97,6 @@ func TestIntegration4GS1Setup(t *testing.T) {
 	t.Log("eNB completed S1 Setup")
 }
 
-// waitForENB polls the radios API until a radio with ran_node_type "eNB"
-// appears, or the timeout elapses.
 func waitForENB(ctx context.Context, t *testing.T, cl *client.Client) bool {
 	t.Helper()
 

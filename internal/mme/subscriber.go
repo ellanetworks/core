@@ -76,9 +76,9 @@ func geaOctet(msNetCap []byte) byte {
 // replayedUESecCap builds the Replayed UE security capabilities IE that the
 // SECURITY MODE COMMAND echoes back so the UE can detect bidding-down (TS 24.301).
 // The UE rejects the command with cause #23 if the replay differs from the
-// capabilities it sent, so this mirrors the UE's own coding:
-// EPS algorithms from the UE network capability, UMTS algorithms from its octets
-// 5-6, and GERAN algorithms from the MS network capability.
+// capabilities it sent: EPS algorithms from the UE network capability, UMTS
+// algorithms from its octets 5-6, and GERAN algorithms from the MS network
+// capability.
 func replayedUESecCap(ueNetCap, msNetCap []byte) []byte {
 	uecap, err := eps.ParseUENetworkCapability(ueNetCap)
 	if err != nil {

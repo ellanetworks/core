@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/amf/sctp"
+	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/udm"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"

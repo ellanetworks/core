@@ -11,12 +11,10 @@ import (
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 )
 
-// s1enbName is the eNB name reported in S1 Setup for the simulator scenarios.
 const s1enbName = "Ella-Core-Tester-S1eNB"
 
 // startENB starts a single S1AP eNB against the core in env, using the default
-// PLMN/TAC and the configured RAN bind addresses. Multi-eNB scenarios construct
-// s1enb.Start directly so each eNB gets a distinct eNB ID.
+// PLMN/TAC and the configured RAN bind addresses.
 func startENB(env scenarios.Env) (*s1enb.ENB, error) {
 	s1mme, err := s1mmeAddress(env.FirstCore())
 	if err != nil {

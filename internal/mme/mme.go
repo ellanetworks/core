@@ -3,8 +3,7 @@
 
 // Package mme implements Ella Core's 4G Mobility Management Entity control
 // plane (the S1-MME interface), built on the github.com/ellanetworks/core/s1ap
-// codec. It runs as a network function alongside the AMF and shares the data
-// layer. It handles eNB S1 Setup, the EPS NAS procedures (attach,
+// codec. It handles eNB S1 Setup, the EPS NAS procedures (attach,
 // authentication, security mode, identity, tracking area update, service
 // request, detach), UE contexts, and default-bearer activation via the
 // SMF/PGW-C anchor.
@@ -17,9 +16,9 @@ import (
 	"time"
 
 	"github.com/ellanetworks/core/etsi"
-	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/s1ap"
 	"go.opentelemetry.io/otel"
@@ -46,6 +45,10 @@ type epsSessionManager interface {
 	// is known from the Initial Context Setup Response. ebi identifies the PDN
 	// connection's default bearer.
 	ModifyEPSSession(ctx context.Context, imsi string, ebi uint8, enb models.FTEID) error
+	// UpdateEPSSessionAMBR updates the Session-AMBR enforced by the UPF QER for a
+	// PDN connection's default bearer, in the "<n> <unit>" form. Used when a policy
+	// edit changes the per-APN Session-AMBR mid-session.
+	UpdateEPSSessionAMBR(ctx context.Context, imsi string, ebi uint8, ambrUplink, ambrDownlink string) error
 	// DeactivateEPSSession buffers the downlink bearer when the UE goes ECM-IDLE
 	// so downlink data triggers paging.
 	DeactivateEPSSession(ctx context.Context, imsi string, ebi uint8) error
@@ -53,7 +56,7 @@ type epsSessionManager interface {
 }
 
 type MME struct {
-	srv     *server
+	srv     *sctp.Server
 	cred    *udm.Service
 	bearer  bearerStore
 	session epsSessionManager
@@ -104,8 +107,7 @@ const (
 
 // The paging supervision timer T3413 bounds how long the MME waits for a paged
 // UE to respond before retransmitting and, after a bounded number of attempts,
-// giving up (TS 24.301 §5.6.2; the value is network-dependent). It mirrors the
-// AMF's T3513 (6 s, 4 retransmissions).
+// giving up (TS 24.301 §5.6.2; the value is network-dependent).
 const (
 	defaultPagingTimeout       = 6 * time.Second
 	defaultPagingMaxRetransmit = 4
@@ -139,26 +141,32 @@ func New(cred *udm.Service, bearer bearerStore, session epsSessionManager) *MME 
 
 // Start binds the S1-MME SCTP listener and begins accepting eNB associations.
 func (m *MME) Start(ctx context.Context, address string, port int) error {
-	m.srv = newServer(callbacks{dispatch: m.dispatch, onDisconnect: m.removeENB})
+	m.srv = sctp.NewServer(sctp.Config{
+		PPID:   s1apPPID,
+		Name:   "S1-MME",
+		Logger: logger.MmeLog,
+	}, sctp.Callbacks{
+		Dispatch:     m.dispatch,
+		OnDisconnect: m.removeENB,
+	})
 
-	return m.srv.listenAndServe(ctx, address, port)
+	return m.srv.ListenAndServe(ctx, address, port, "")
 }
 
 // Shutdown stops the S1-MME server, closing the listener and all associations.
 func (m *MME) Shutdown(ctx context.Context) {
 	if m.srv != nil {
-		m.srv.shutdown(ctx)
+		m.srv.Shutdown(ctx)
 	}
 }
 
-// tracer instruments the MME's S1AP/EMM control plane, the 4G counterpart of the
-// AMF's ngap tracer.
+// tracer instruments the MME's S1AP/EMM control plane.
 var tracer = otel.Tracer("ella-core/mme")
 
 // dispatch decodes an S1AP PDU and routes it to the matching procedure handler.
 func (m *MME) dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 	// Inbound S1AP carries no propagated trace context, so this is a fresh root
-	// span, mirroring the AMF's ngap/receive.
+	// span.
 	ctx, span := tracer.Start(ctx, "s1ap/receive",
 		trace.WithSpanKind(trace.SpanKindServer),
 		trace.WithAttributes(
@@ -189,8 +197,7 @@ func (m *MME) dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 	span.SetAttributes(attribute.String("s1ap.message_type", string(messageType)))
 
 	// Track the eNB from an S1 Setup Request before logging, so the inbound
-	// event is attributed to the radio ahead of the outbound S1 Setup Response,
-	// matching the AMF's NG Setup handling.
+	// event is attributed to the radio ahead of the outbound S1 Setup Response.
 	isSetup := false
 	if im, ok := pdu.(*s1ap.InitiatingMessage); ok && im.ProcedureCode == s1ap.ProcS1Setup {
 		isSetup = true
@@ -203,8 +210,7 @@ func (m *MME) dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 
 	// TS 36.413: S1 Setup is the first S1AP procedure on a TNL
 	// association. Until it completes, drop every other message — including UE
-	// signalling from an eNB whose S1 Setup was rejected — mirroring the AMF's
-	// NG Setup gate (TS 38.413).
+	// signalling from an eNB whose S1 Setup was rejected.
 	if !isSetup && !m.enbSetupComplete(conn) {
 		logger.MmeLog.Warn("S1AP message before S1 Setup, dropping",
 			zap.String("message-type", string(messageType)))
@@ -244,6 +250,8 @@ func (m *MME) dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 			m.handleUEContextReleaseComplete(conn, p.Value)
 		case s1ap.ProcERABSetup:
 			m.handleERABSetupResponse(conn, p.Value)
+		case s1ap.ProcERABModify:
+			m.handleERABModifyResponse(p.Value)
 		case s1ap.ProcERABRelease:
 			m.handleERABReleaseResponse(conn, p.Value)
 		default:
@@ -283,7 +291,7 @@ func (m *MME) handleS1Setup(ctx context.Context, conn *sctp.SCTPConn, value []by
 	)
 
 	if !accepted {
-		if _, err := conn.WriteMsg(outBytes, &sctp.SndRcvInfo{PPID: s1apPPID, Stream: 0}); err != nil {
+		if _, err := conn.WriteMsg(outBytes, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamNonUE}); err != nil {
 			logger.MmeLog.Error("failed to send S1 Setup Failure", zap.Error(err))
 			return
 		}
@@ -310,7 +318,7 @@ func (m *MME) handleS1Setup(ctx context.Context, conn *sctp.SCTPConn, value []by
 		}
 	}
 
-	if _, err := conn.WriteMsg(outBytes, &sctp.SndRcvInfo{PPID: s1apPPID, Stream: 0}); err != nil {
+	if _, err := conn.WriteMsg(outBytes, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamNonUE}); err != nil {
 		logger.MmeLog.Error("failed to send S1 Setup Response", zap.Error(err))
 		return
 	}
@@ -353,7 +361,7 @@ func (m *MME) handleENBConfigurationUpdate(ctx context.Context, conn *sctp.SCTPC
 		msgType = S1APProcedureENBConfigUpdateFailure
 	}
 
-	if _, err := conn.WriteMsg(out, &sctp.SndRcvInfo{PPID: s1apPPID, Stream: 0}); err != nil {
+	if _, err := conn.WriteMsg(out, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamNonUE}); err != nil {
 		logger.MmeLog.Error("failed to send ENB Configuration Update response", zap.Error(err))
 		return
 	}

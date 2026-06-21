@@ -16,8 +16,6 @@ import (
 // verifies the short MAC, and re-establishes the S1 context (ECM-IDLE →
 // ECM-CONNECTED) — no Paging and no user plane required (the GW buffers the
 // packet while the bearer re-establishes).
-//
-// Isolation: named TestIntegration4G* and gated on INTEGRATION.
 func TestIntegration4GServiceRequest(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")

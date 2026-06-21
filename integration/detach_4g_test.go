@@ -16,8 +16,6 @@ import (
 // TestIntegration4GDetach brings a real srsUE to EMM-REGISTERED, then stops it
 // (SIGTERM → srsUE switch-off → Detach Request) and verifies the MME runs the
 // detach: Detach Request → S1 UE Context Release with srsenb → context deletion.
-//
-// Isolation: named TestIntegration4G* and gated on INTEGRATION.
 func TestIntegration4GDetach(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
@@ -92,8 +90,7 @@ func TestIntegration4GDetach(t *testing.T) {
 	t.Log("UE detached and S1 context released")
 }
 
-// waitForRelease polls Ella Core's logs for the MME's context-release marker,
-// logged after UE Context Release Complete.
+// waitForRelease polls Ella Core's logs for the MME's context-release marker.
 func waitForRelease(ctx context.Context, t *testing.T, dc *DockerClient) bool {
 	t.Helper()
 

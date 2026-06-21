@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 // Package s1enb holds core-tester scenarios that drive the 4G MME over S1-MME
-// (S1AP), via the internal/tester/s1enb simulator. It is the EPS/MME counterpart
-// to the gnb (5GC/NGAP) scenarios; it is distinct from the enb package, which is
-// an ng-eNB (LTE radio attached to the 5G core) and tests the AMF.
+// (S1AP) via the internal/tester/s1enb simulator. Distinct from the enb package,
+// which drives an ng-eNB (LTE radio on the 5G core) against the AMF.
 package s1enb
 
 import (
@@ -78,17 +77,14 @@ func runS1ENBRegistrationSuccess(_ context.Context, env scenarios.Env, _ any) er
 	defer func() { _ = e.Close() }()
 
 	ue := e.NewUE(s1enbIMSI, k, opc)
+	ue.RequestPDNType(env.PDUSessionType())
 
 	res, err := e.Attach(ue, 15*time.Second)
 	if err != nil {
 		return fmt.Errorf("attach: %w", err)
 	}
 
-	if res.GUTI == nil {
-		return fmt.Errorf("attach completed without a GUTI")
-	}
-
-	return nil
+	return assertAttach(res, familyExpect(env, scenarios.DefaultDNN, scenarios.DefaultUEIPv4Pool))
 }
 
 // s1mmeAddress derives the S1-MME endpoint from the core's N2 address: the same

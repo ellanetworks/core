@@ -7,11 +7,11 @@ import (
 	"sort"
 	"time"
 
-	"github.com/ellanetworks/core/internal/amf/sctp"
+	"github.com/ellanetworks/core/internal/sctp"
 )
 
 // ConnectedSubscriber is a runtime view of an EMM-registered UE for the API
-// layer, the 4G counterpart of the AMF's per-subscriber status.
+// layer.
 type ConnectedSubscriber struct {
 	RadioName          string
 	NumSessions        int
@@ -114,8 +114,7 @@ func (m *MME) LookupSubscriber(imsi string) (ConnectedSubscriber, bool) {
 	return ConnectedSubscriber{}, false
 }
 
-// CountRegisteredSubscribers returns the number of EMM-registered UEs, the 4G
-// counterpart of the AMF's registered-subscriber count.
+// CountRegisteredSubscribers returns the number of EMM-registered UEs.
 func (m *MME) CountRegisteredSubscribers() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

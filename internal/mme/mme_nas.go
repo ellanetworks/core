@@ -7,9 +7,9 @@ import (
 	"context"
 	"net/netip"
 
-	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
 	"go.opentelemetry.io/otel/attribute"
@@ -221,7 +221,7 @@ func (m *MME) sendDownlink(ctx context.Context, ue *UeContext, nas []byte) {
 		return
 	}
 
-	if _, err := ue.conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apPPID, Stream: 0}); err != nil {
+	if _, err := ue.conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamUE}); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send Downlink NAS Transport")
 		logger.MmeLog.Error("failed to send Downlink NAS Transport", zap.Error(err))

@@ -118,7 +118,7 @@ func (e *ENB) AddTunnel(opts *TunnelOpts) error {
 
 // assignUEIPv6 replaces the kernel's auto-generated link-local with the one
 // derived from the PDN IID, so the UE can solicit a Router Advertisement and
-// form a global address via SLAAC (TS 23.401; the EPS IPv6 datapath mirrors 5G).
+// form a global address via SLAAC (TS 23.401).
 func (e *ENB) assignUEIPv6(link netlink.Link, cidr string) error {
 	// The kernel needs a link-local source to send Router Solicitations; remove
 	// its auto-generated one so only the IID-derived link-local remains.

@@ -128,8 +128,8 @@ func (m *MME) onPDNConnectivityRequest(ctx context.Context, ue *UeContext, plain
 		EPSBearerIdentity: p.ebi,
 		PolicyID:          qos.PolicyID,
 		APN:               qos.APN,
-		AMBRUplink:        qos.AMBRULStr,
-		AMBRDownlink:      qos.AMBRDLStr,
+		AMBRUplink:        qos.SessAmbrULStr,
+		AMBRDownlink:      qos.SessAmbrDLStr,
 		IPv4Pool:          qos.IPv4Pool,
 		IPv6Pool:          qos.IPv6Pool,
 		DNS:               qos.DNS,
@@ -147,6 +147,10 @@ func (m *MME) onPDNConnectivityRequest(ctx context.Context, ue *UeContext, plain
 
 	p.apn = qos.APN
 	p.dnConfig = qos.dnFingerprint()
+	p.sessAmbrDLBps = bitRateToBps(qos.SessAmbrDLStr)
+	p.sessAmbrULBps = bitRateToBps(qos.SessAmbrULStr)
+	p.qci = qos.QCI
+	p.arp = qos.ARP
 	p.pdnType = bearer.PDNType
 	p.ueIP = bearer.IPv4
 	p.ueIPv6Prefix = bearer.IPv6Prefix

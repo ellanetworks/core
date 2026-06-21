@@ -12,9 +12,14 @@ import (
 )
 
 const (
-	// Tolerance covering clock skew between the kernel-derived flow
-	// timestamps and the test's wall clock.
-	timestampUpperBuffer = 5 * time.Second
+	// Upper-bound tolerance on a flow's EndTime past the scenario's end. It
+	// covers two effects: clock skew between the kernel-derived flow timestamps
+	// and the test's wall clock, AND the UPF's flow-flush delay — a flow's
+	// EndTime is when the UPF expires/flushes the record, which can lag the last
+	// packet by tens of seconds (notably for IPv6 over the EPS bearer). The
+	// lower bound (>= scenario start) still guards against stale flows, so this
+	// can be generous without weakening the staleness check.
+	timestampUpperBuffer = 90 * time.Second
 
 	// Probe round-trip count, matching probeAttemptCount in the
 	// scenarios package. ICMP echoes and UDP datagrams stay in a
@@ -91,15 +96,17 @@ type probeProtocolParams struct {
 	supportsPortRules    bool
 }
 
-// familyParams picks the parameter set matching the active IP family.
-// DualStack reuses the IPv4 leg, matching the convention used
-// elsewhere in the integration suite.
-func familyParams(family IPFamily) ipFamilyParams {
+// familyParams picks the parameter set matching the active IP family for the
+// given RAN (ranPrefix is the scenario namespace: "gnb" for 5G, "s1enb" for 4G).
+// The probe machinery, byte/packet constants, and rule shapes are RAT-agnostic;
+// only the connectivity_expect scenario names differ. DualStack reuses the IPv4
+// leg, matching the convention used elsewhere in the integration suite.
+func familyParams(family IPFamily, ranPrefix string) ipFamilyParams {
 	if family == IPv6Only {
 		return ipFamilyParams{
 			family:            IPv6Only,
-			scenarioAllowed:   "gnb/connectivity_expect_allowed_ipv6",
-			scenarioBlocked:   "gnb/connectivity_expect_blocked_ipv6",
+			scenarioAllowed:   ranPrefix + "/connectivity_expect_allowed_ipv6",
+			scenarioBlocked:   ranPrefix + "/connectivity_expect_blocked_ipv6",
 			pingDestination:   scenarios.DefaultPingDestinationV6,
 			uePool:            scenarios.DefaultUEIPv6Pool,
 			nonMatchingPrefix: "2001:db8:dead::/48",
@@ -109,8 +116,8 @@ func familyParams(family IPFamily) ipFamilyParams {
 
 	return ipFamilyParams{
 		family:            family,
-		scenarioAllowed:   "gnb/connectivity_expect_allowed",
-		scenarioBlocked:   "gnb/connectivity_expect_blocked",
+		scenarioAllowed:   ranPrefix + "/connectivity_expect_allowed",
+		scenarioBlocked:   ranPrefix + "/connectivity_expect_blocked",
 		pingDestination:   scenarios.DefaultPingDestination,
 		uePool:            scenarios.DefaultUEIPv4Pool,
 		nonMatchingPrefix: "203.0.113.0/24",
@@ -240,9 +247,19 @@ func expectedFlowsContentPredicate(direction, action string, expectedIMSIs []str
 
 	if pp.name == "tcp" {
 		pktLo, pktHi, bytesLo, bytesHi := tcpPerIMSIBounds(fp, action)
+
+		// Drop scenarios may re-connect on a fresh ephemeral port after the
+		// SYN-ACK is dropped, so the nominal probeRoundtrips tuples is a lower
+		// bound, not an exact count. Allow scenarios complete every handshake
+		// once, so the count is exact.
+		tuplePred := fixture.EachIMSIDistinctTuplesIs(probeRoundtrips)
+		if action == "drop" {
+			tuplePred = fixture.EachIMSIDistinctTuplesAtLeast(probeRoundtrips)
+		}
+
 		preds = append(preds,
 			fixture.DistinctImsis(len(expectedIMSIs)),
-			fixture.EachIMSIDistinctTuplesIs(probeRoundtrips),
+			tuplePred,
 			fixture.EachTupleHasAtMost(2),
 			fixture.EachIMSITotalPacketsInRange(pktLo, pktHi),
 			fixture.EachIMSITotalBytesInRange(bytesLo, bytesHi),

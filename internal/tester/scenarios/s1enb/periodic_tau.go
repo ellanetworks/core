@@ -30,8 +30,7 @@ func init() {
 
 // runS1ENBPeriodicTAU attaches a UE, drops it to ECM-IDLE, then has the UE send a
 // periodic TRACKING AREA UPDATE and verifies the MME accepts it (reallocating the
-// GUTI) and returns the UE to idle (TS 24.301 §5.5.3.3) — the 4G counterpart of
-// gnb/registration/periodic/signalling.
+// GUTI) and returns the UE to idle (TS 24.301 §5.5.3.3).
 func runS1ENBPeriodicTAU(_ context.Context, env scenarios.Env, _ any) error {
 	k, opc, err := defaultKeyAndOPc()
 	if err != nil {
@@ -46,6 +45,7 @@ func runS1ENBPeriodicTAU(_ context.Context, env scenarios.Env, _ any) error {
 	defer func() { _ = e.Close() }()
 
 	ue := e.NewUE(periodicTAUIMSI, k, opc)
+	ue.RequestPDNType(env.PDUSessionType())
 
 	res, err := e.Attach(ue, 15*time.Second)
 	if err != nil {
@@ -56,13 +56,10 @@ func runS1ENBPeriodicTAU(_ context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("attach completed without a GUTI, cannot tracking-area-update")
 	}
 
-	// Drop to ECM-IDLE (eNB-initiated release on inactivity).
 	if err := e.ReleaseContext(res.MMEUES1APID, res.ENBUES1APID, s1enb.CauseUserInactivity, 10*time.Second); err != nil {
 		return fmt.Errorf("release to ECM-IDLE: %w", err)
 	}
 
-	// Periodic TAU from idle → TAU Accept (GUTI reallocation) → TAU Complete →
-	// release back to ECM-IDLE.
 	if err := e.PeriodicTrackingAreaUpdate(ue, res.GUTI, 10*time.Second); err != nil {
 		return fmt.Errorf("periodic tracking area update: %w", err)
 	}

@@ -82,7 +82,7 @@ func TestTrackingAreaUpdateConnectedAccepted(t *testing.T) {
 
 // TestTrackingAreaUpdateReconcilesBearerContextStatus checks that when the UE
 // reports its EPS bearer context status, the MME deactivates locally the bearers
-// the UE marks inactive and mirrors its resulting active set in the TAU Accept
+// the UE marks inactive and reflects the resulting active set in the TAU Accept
 // (TS 24.301 §5.5.3.2.4). Default bearer EBI 5 stays; additional bearer EBI 6 is
 // released.
 func TestTrackingAreaUpdateReconcilesBearerContextStatus(t *testing.T) {

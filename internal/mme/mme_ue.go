@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/udm"
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -27,16 +27,23 @@ type nasWriter interface {
 type pdnConnection struct {
 	ebi          uint8
 	apn          string
-	pdnType      uint8        // negotiated PDN type
-	ueIP         netip.Addr   // IPv4 address (for IPv4 / IPv4v6)
-	ueIPv6Prefix netip.Addr   // /64 prefix base (for IPv6 / IPv4v6)
-	ueIPv6IID    [8]byte      // SLAAC interface identifier sent to the UE
-	dns          netip.Addr   // data-network DNS server, advertised to the UE via PCO
-	dnConfig     string       // fingerprint of the data-network config the bearer was set up with; a change triggers reactivation
-	esmCause     uint8        // PDN-type downgrade cause (#50/#51), 0 when none
-	sgwFTEID     models.FTEID // S-GW S1-U endpoint (anchor-assigned), sent to the eNB; Addr is the IPv4 N3
-	sgwN3IPv6    netip.Addr   // S-GW S1-U IPv6 N3 endpoint, when the N3 has one
-	enbFTEID     models.FTEID // eNB S1-U endpoint, learned from the ICS Response
+	pdnType      uint8      // negotiated PDN type
+	ueIP         netip.Addr // IPv4 address (for IPv4 / IPv4v6)
+	ueIPv6Prefix netip.Addr // /64 prefix base (for IPv6 / IPv4v6)
+	ueIPv6IID    [8]byte    // SLAAC interface identifier sent to the UE
+	dns          netip.Addr // data-network DNS server, advertised to the UE via PCO
+	dnConfig     string     // fingerprint of the data-network config the bearer was set up with; a change triggers reactivation
+	// sessAmbrDLBps/ULBps are the per-APN Session-AMBR (bits/s), and qci/arp the
+	// E-RAB QoS (QCI, ARP priority), the bearer was set up with; a policy change
+	// triggers an in-place Modify EPS Bearer Context (QoS also an E-RAB Modify).
+	sessAmbrDLBps uint64
+	sessAmbrULBps uint64
+	qci           uint8
+	arp           uint8
+	esmCause      uint8        // PDN-type downgrade cause (#50/#51), 0 when none
+	sgwFTEID      models.FTEID // S-GW S1-U endpoint (anchor-assigned), sent to the eNB; Addr is the IPv4 N3
+	sgwN3IPv6     netip.Addr   // S-GW S1-U IPv6 N3 endpoint, when the N3 has one
+	enbFTEID      models.FTEID // eNB S1-U endpoint, learned from the ICS Response
 
 	// deactivating is set while an EPS bearer deactivation (reactivation
 	// requested) is in flight, so a duplicate reconcile does not re-send it.
@@ -45,12 +52,16 @@ type pdnConnection struct {
 	// DEACTIVATE ACCEPT only this PDN connection is released, leaving the UE
 	// connected, rather than the whole UE being re-attached (TS 24.301 §6.5.2).
 	disconnecting bool
-	// modifying is set while a bearer modification (in-place DNS update) is in
-	// flight, so a duplicate reconcile does not re-send it. pendingDNConfig is the
-	// data-network fingerprint committed to dnConfig once the UE accepts, so an
-	// aborted modification leaves dnConfig stale for the backstop to retry.
-	modifying       bool
-	pendingDNConfig string
+	// modifying is set while a bearer modification (in-place DNS and/or Session-AMBR
+	// update) is in flight, so a duplicate reconcile does not re-send it. The
+	// pending* values are committed once the UE accepts, so an aborted modification
+	// leaves the stored config stale for the backstop to retry.
+	modifying            bool
+	pendingDNConfig      string
+	pendingSessAmbrDLBps uint64
+	pendingSessAmbrULBps uint64
+	pendingQCI           uint8
+	pendingARP           uint8
 }
 
 // UeContext is the MME's per-UE state for an S1AP UE-associated connection: the
@@ -82,7 +93,8 @@ type UeContext struct {
 
 	ambrUplink       string // UE-AMBR (profile UE-AMBR), raw "<n> <unit>" form
 	ambrDownlink     string
-	requestedPDNType uint8 // UE-requested PDN type (1 IPv4 / 2 IPv6 / 3 IPv4v6)
+	requestedPDNType uint8  // UE-requested PDN type (1 IPv4 / 2 IPv6 / 3 IPv4v6)
+	requestedAPN     string // UE-requested APN at attach ("" = use the default policy, TS 24.301 §6.5.1.3)
 
 	// mtmsi is the M-TMSI of the GUTI assigned at attach (0 = none); it indexes
 	// the UE for S-TMSI-addressed procedures (Service Request, paging).
@@ -297,9 +309,9 @@ func (m *MME) newUe(conn nasWriter, enbUEID s1ap.ENBUES1APID) *UeContext {
 // establishS1Connection binds an existing UE context to a new UE-associated
 // logical S1-connection: it allocates a fresh MME-UE-S1AP-ID (the one from the
 // released connection must not be reused, TS 36.413), re-keys the
-// active-connection index, and records the new eNB association. It is the
-// counterpart of newUe for a UE returning from ECM-IDLE (Service Request, paging
-// response, tracking area update with the active flag). ECM-CONNECTED is set by
+// active-connection index, and records the new eNB association, for a UE
+// returning from ECM-IDLE (Service Request, paging response, tracking area
+// update with the active flag). ECM-CONNECTED is set by
 // the caller once the procedure succeeds, so a rejected request leaves the UE in
 // ECM-IDLE.
 func (m *MME) establishS1Connection(ue *UeContext, conn nasWriter, enbUEID s1ap.ENBUES1APID) {

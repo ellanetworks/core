@@ -110,7 +110,7 @@ func (e *ENB) buildS1SetupRequest() ([]byte, error) {
 // WaitForS1SetupFailure blocks until the MME answers the S1 Setup Request with
 // an S1 SETUP FAILURE (TS 36.413) and returns the decoded message.
 func (e *ENB) WaitForS1SetupFailure(timeout time.Duration) (*s1ap.S1SetupFailure, error) {
-	frame, err := e.WaitForMessage(Unsuccessful, s1ap.ProcS1Setup, timeout)
+	frame, err := e.WaitForMessage(NoUEID, Unsuccessful, s1ap.ProcS1Setup, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -185,19 +185,22 @@ func (e *ENB) SendUplinkNASTransport(mmeUEID, enbUEID int64, nas []byte) error {
 // SendPathSwitchRequest sends a PATH SWITCH REQUEST as the target eNB after an
 // X2 handover (TS 36.413 §8.4.4): it asks the MME to switch the downlink of the
 // given E-RAB to this eNB's S1-U endpoint. sourceMMEUEID is the MME UE S1AP ID
-// the UE held on the source eNB.
-func (e *ENB) SendPathSwitchRequest(enbUEID, sourceMMEUEID int64, erabID s1ap.ERABID, caps s1ap.UESecurityCapabilities) error {
+// the UE held on the source eNB. It returns the eNB downlink TEID it reported, so
+// the caller can build the target GTP tunnel the UPF now forwards downlink to.
+func (e *ENB) SendPathSwitchRequest(enbUEID, sourceMMEUEID int64, erabID s1ap.ERABID, caps s1ap.UESecurityCapabilities) (dlTEID uint32, err error) {
 	addr := e.n3Addr.To4()
 	if addr == nil {
 		addr = e.n3Addr.To16()
 	}
+
+	dlTEID = e.allocTEID()
 
 	req := &s1ap.PathSwitchRequest{
 		ENBUES1APID: s1ap.ENBUES1APID(enbUEID),
 		ERABToBeSwitchedDL: []s1ap.ERABToBeSwitchedDLItem{{
 			ERABID:                erabID,
 			TransportLayerAddress: s1ap.TransportLayerAddress(addr),
-			GTPTEID:               s1ap.GTPTEID(e.allocTEID()),
+			GTPTEID:               s1ap.GTPTEID(dlTEID),
 		}},
 		SourceMMEUES1APID:      s1ap.MMEUES1APID(sourceMMEUEID),
 		EUTRANCGI:              e.eutranCGI(),
@@ -207,10 +210,14 @@ func (e *ENB) SendPathSwitchRequest(enbUEID, sourceMMEUEID int64, erabID s1ap.ER
 
 	b, err := req.Marshal()
 	if err != nil {
-		return fmt.Errorf("s1enb: build Path Switch Request: %w", err)
+		return 0, fmt.Errorf("s1enb: build Path Switch Request: %w", err)
 	}
 
-	return e.SendMessage(b, true)
+	if err := e.SendMessage(b, true); err != nil {
+		return 0, err
+	}
+
+	return dlTEID, nil
 }
 
 // CauseUserInactivity is the S1AP radioNetwork cause an eNB uses to request a UE
@@ -234,9 +241,10 @@ func (e *ENB) SendUEContextReleaseRequest(mmeUEID, enbUEID int64, cause s1ap.Cau
 	return e.SendMessage(b, true)
 }
 
-// WaitForUEContextReleaseCommand waits for the MME's UE CONTEXT RELEASE COMMAND.
-func (e *ENB) WaitForUEContextReleaseCommand(timeout time.Duration) (*s1ap.UEContextReleaseCommand, error) {
-	f, err := e.WaitForMessage(Initiating, s1ap.ProcUEContextRelease, timeout)
+// WaitForUEContextReleaseCommand waits for the MME's UE CONTEXT RELEASE COMMAND
+// targeting enbUEID.
+func (e *ENB) WaitForUEContextReleaseCommand(enbUEID int64, timeout time.Duration) (*s1ap.UEContextReleaseCommand, error) {
+	f, err := e.WaitForMessage(enbUEID, Initiating, s1ap.ProcUEContextRelease, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +291,7 @@ func (e *ENB) SendReset(cause s1ap.Cause, resetAll bool, items []s1ap.UEAssociat
 // WaitForResetAcknowledge waits for the MME's RESET ACKNOWLEDGE (TS 36.413
 // §8.7.1).
 func (e *ENB) WaitForResetAcknowledge(timeout time.Duration) (*s1ap.ResetAcknowledge, error) {
-	f, err := e.WaitForMessage(Successful, s1ap.ProcReset, timeout)
+	f, err := e.WaitForMessage(NoUEID, Successful, s1ap.ProcReset, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -298,8 +306,8 @@ func (e *ENB) WaitForResetAcknowledge(timeout time.Duration) (*s1ap.ResetAcknowl
 
 // WaitForDownlinkNAS waits for a DOWNLINK NAS TRANSPORT and returns its NAS PDU
 // and the MME UE S1AP ID the MME assigned.
-func (e *ENB) WaitForDownlinkNAS(timeout time.Duration) (nas []byte, mmeUEID int64, err error) {
-	f, err := e.WaitForMessage(Initiating, s1ap.ProcDownlinkNASTransport, timeout)
+func (e *ENB) WaitForDownlinkNAS(enbUEID int64, timeout time.Duration) (nas []byte, mmeUEID int64, err error) {
+	f, err := e.WaitForMessage(enbUEID, Initiating, s1ap.ProcDownlinkNASTransport, timeout)
 	if err != nil {
 		return nil, 0, err
 	}

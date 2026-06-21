@@ -74,19 +74,19 @@ func runS1ENBX2PathSwitch(_ context.Context, env scenarios.Env, _ any) error {
 	defer func() { _ = target.Close() }()
 
 	ue := source.NewUE(x2IMSI, k, opc)
+	ue.RequestPDNType(env.PDUSessionType())
 
 	res, err := source.Attach(ue, 15*time.Second)
 	if err != nil {
 		return fmt.Errorf("attach on source eNB: %w", err)
 	}
 
-	// Target eNB completes the X2 handover by switching the path to itself.
 	targetENBUEID := target.AllocateENBUEID()
-	if err := target.SendPathSwitchRequest(targetENBUEID, res.MMEUES1APID, res.ERABID, ue.S1APSecurityCapabilities()); err != nil {
+	if _, err := target.SendPathSwitchRequest(targetENBUEID, res.MMEUES1APID, res.ERABID, ue.S1APSecurityCapabilities()); err != nil {
 		return fmt.Errorf("send Path Switch Request: %w", err)
 	}
 
-	frame, err := target.WaitForMessage(s1enb.Successful, s1ap.ProcPathSwitchRequest, 10*time.Second)
+	frame, err := target.WaitForMessage(targetENBUEID, s1enb.Successful, s1ap.ProcPathSwitchRequest, 10*time.Second)
 	if err != nil {
 		return fmt.Errorf("await Path Switch Request Acknowledge: %w", err)
 	}

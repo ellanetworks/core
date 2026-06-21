@@ -43,6 +43,7 @@ func runS1ENBDeregistration(_ context.Context, env scenarios.Env, _ any) error {
 	}
 
 	ue := e.NewUE(deregIMSI, k, opc)
+	ue.RequestPDNType(env.PDUSessionType())
 
 	res, err := e.Attach(ue, 15*time.Second)
 	if err != nil {

@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ellanetworks/core/internal/amf/sctp"
+	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/s1ap"
 )
 

@@ -6,10 +6,10 @@ package s1enb
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"time"
 
+	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/nas/eps"
@@ -34,11 +34,9 @@ func init() {
 	})
 }
 
-// runS1ENBConnectivityDualStack attaches a UE with PDN type IPv4v6, builds a
-// dual-stack GTP-U tunnel (IPv4 plus an IPv6 link-local that SLAAC promotes to a
-// global address via the UPF Router Advertisement), and verifies user-plane
-// connectivity by pinging the N6 destination over both families — the 4G
-// counterpart of gnb/connectivity_dualstack.
+// runS1ENBConnectivityDualStack attaches an IPv4v6 UE and pings the N6
+// destination over both families. The IPv6 link-local is promoted to a global
+// address by the UPF Router Advertisement before the ping.
 func runS1ENBConnectivityDualStack(ctx context.Context, env scenarios.Env, _ any) error {
 	s1mme, err := s1mmeAddress(env.FirstCore())
 	if err != nil {
@@ -97,19 +95,16 @@ func runS1ENBConnectivityDualStack(ctx context.Context, env scenarios.Env, _ any
 
 	defer e.CloseTunnel(res.DLTEID)
 
-	// Wait for the UPF Router Advertisement to give the TUN a global IPv6 address.
 	if err := s1enb.WaitForULAAddr(connDualStackTunIface, scenarios.DefaultUEIPv6Pool, 5*time.Second); err != nil {
 		return fmt.Errorf("await SLAAC address: %w", err)
 	}
 
-	v4 := exec.CommandContext(ctx, "ping", "-I", connDualStackTunIface, scenarios.DefaultPingDestination, "-c", "3", "-W", "2") // #nosec G204 -- fixed test constants
-	if out, err := v4.CombinedOutput(); err != nil {
-		return fmt.Errorf("ping %s (IPv4) via %s failed: %v\n%s", scenarios.DefaultPingDestination, connDualStackTunIface, err, string(out))
+	if err := probe.Run(ctx, probe.ICMP, connDualStackTunIface, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
+		return fmt.Errorf("ping (IPv4) via %s failed: %w", connDualStackTunIface, err)
 	}
 
-	v6 := exec.CommandContext(ctx, "ping6", "-I", connDualStackTunIface, scenarios.DefaultPingDestinationV6, "-c", "3", "-W", "2") // #nosec G204 -- fixed test constants
-	if out, err := v6.CombinedOutput(); err != nil {
-		return fmt.Errorf("ping6 %s (IPv6) via %s failed: %v\n%s", scenarios.DefaultPingDestinationV6, connDualStackTunIface, err, string(out))
+	if err := probe.Run(ctx, probe.ICMP, connDualStackTunIface, scenarios.DefaultPingDestinationV6, scenarios.DefaultProbePort, true); err != nil {
+		return fmt.Errorf("ping6 (IPv6) via %s failed: %w", connDualStackTunIface, err)
 	}
 
 	return nil

@@ -6,7 +6,7 @@ package mme
 import "github.com/ellanetworks/core/s1ap"
 
 // S1APProcedure is the human-readable S1AP message name recorded in the network
-// event log, mirroring the AMF's NGAPProcedure (TS 36.413).
+// event log.
 type S1APProcedure string
 
 const (
@@ -31,6 +31,8 @@ const (
 	S1APProcedureENBConfigUpdateFailure      S1APProcedure = "ENBConfigurationUpdateFailure"
 	S1APProcedureERABSetupRequest            S1APProcedure = "E-RABSetupRequest"
 	S1APProcedureERABSetupResponse           S1APProcedure = "E-RABSetupResponse"
+	S1APProcedureERABModifyRequest           S1APProcedure = "E-RABModifyRequest"
+	S1APProcedureERABModifyResponse          S1APProcedure = "E-RABModifyResponse"
 	S1APProcedureERABReleaseCommand          S1APProcedure = "E-RABReleaseCommand"
 	S1APProcedureERABReleaseResponse         S1APProcedure = "E-RABReleaseResponse"
 	S1APProcedurePaging                      S1APProcedure = "Paging"
@@ -82,6 +84,8 @@ func s1apInitiatingMessageType(code s1ap.ProcedureCode) S1APProcedure {
 		return S1APProcedureENBConfigUpdate
 	case s1ap.ProcERABSetup:
 		return S1APProcedureERABSetupRequest
+	case s1ap.ProcERABModify:
+		return S1APProcedureERABModifyRequest
 	case s1ap.ProcERABRelease:
 		return S1APProcedureERABReleaseCommand
 	case s1ap.ProcPathSwitchRequest:
@@ -105,6 +109,8 @@ func s1apSuccessfulOutcomeType(code s1ap.ProcedureCode) S1APProcedure {
 		return S1APProcedureENBConfigUpdateAck
 	case s1ap.ProcERABSetup:
 		return S1APProcedureERABSetupResponse
+	case s1ap.ProcERABModify:
+		return S1APProcedureERABModifyResponse
 	case s1ap.ProcERABRelease:
 		return S1APProcedureERABReleaseResponse
 	case s1ap.ProcPathSwitchRequest:

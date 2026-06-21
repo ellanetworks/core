@@ -18,8 +18,6 @@ import (
 // the UPF, to the N6 data-network host and back. This exercises uplink GTP-U
 // decap and the PSC-less downlink GTP-U encapsulation end to end — the user
 // plane is broken if no replies come back.
-//
-// Isolation: named TestIntegration4G* and gated on INTEGRATION.
 func TestIntegration4GUserPlane(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")
@@ -91,8 +89,6 @@ func TestIntegration4GUserPlane(t *testing.T) {
 // then ping6 reaches the N6 host and back. SLAAC is broken if the UE never
 // configures a global fd45:: address; forwarding is broken if no replies come.
 // The S1-U transport stays IPv4 (compose-dualstack.yaml adds IPv6 on N6 only).
-//
-// Isolation: named TestIntegration4G* and gated on INTEGRATION.
 func TestIntegration4GUserPlaneIPv6(t *testing.T) {
 	if os.Getenv("INTEGRATION") == "" {
 		t.Skip("skipping integration tests, set environment variable INTEGRATION")

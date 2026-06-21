@@ -33,8 +33,8 @@ func (m *MME) onTrackingAreaUpdate(ctx context.Context, ue *UeContext, plain []b
 		zap.Bool("active-flag", req.ActiveFlag))
 
 	// When the UE reports its EPS bearer context status, the MME deactivates the
-	// bearers it holds but the UE considers inactive, then mirrors its resulting
-	// active set back in the accept (TS 24.301 §5.5.3.2.4).
+	// bearers it holds but the UE considers inactive, then reflects the resulting
+	// active set in the accept (TS 24.301 §5.5.3.2.4).
 	if req.EPSBearerContextStatus != nil {
 		m.reconcileBearerContextStatus(ue, *req.EPSBearerContextStatus)
 	}
@@ -201,7 +201,7 @@ func (m *MME) reconcileBearerContextStatus(ue *UeContext, ueStatus uint16) {
 	}
 }
 
-// bearerContextStatus is the EBI activity bitmap of the UE's currently active EPS
+// bearerContextStatus is the EBI activity bitmap of the UE's active EPS
 // bearer contexts (bit n = EBI n active, TS 24.301 §9.9.2.1).
 func (m *MME) bearerContextStatus(ue *UeContext) uint16 {
 	var status uint16

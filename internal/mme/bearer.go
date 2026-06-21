@@ -5,15 +5,16 @@ package mme
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
-	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/db"
 	"github.com/ellanetworks/core/internal/logger"
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/models"
+	"github.com/ellanetworks/core/internal/sctp"
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
 	"github.com/ellanetworks/core/s1ap"
@@ -63,9 +64,9 @@ const defaultMMEGroupID uint16 = 1
 
 // mmeIdentity returns the GUMMEI components (TS 23.003): a fixed MME Group
 // ID, and an MME Code derived from the cluster node ID so each HA node advertises
-// a distinct GUMMEI and a UE's GUTI routes back to its owning node — mirroring
-// the AMF Pointer (TS 23.003). The MME Code is 8 bits, so distinct codes
-// hold for clusters up to 256 nodes; beyond that the low 8 bits could collide.
+// a distinct GUMMEI and a UE's GUTI routes back to its owning node.
+// The MME Code is 8 bits, so distinct codes hold for clusters up to 256 nodes;
+// beyond that the low 8 bits could collide.
 func (m *MME) mmeIdentity() (uint16, uint8) {
 	return defaultMMEGroupID, uint8(m.bearer.NodeID() & 0xFF)
 }
@@ -92,19 +93,24 @@ func (m *MME) operatorTAC(ctx context.Context) (uint16, error) {
 
 // epsQoS is the default-bearer QoS resolved from a subscriber's profile/policy.
 type epsQoS struct {
-	PolicyID  string // policy DB ID, so the UPF binds the session to its network rules
-	QCI       byte
-	ARP       byte // priority level (1-15)
-	APN       string
-	AMBRDL    uint64 // bits/s, for the S1AP UE-AMBR
-	AMBRUL    uint64 // bits/s
-	AMBRULStr string // raw "<n> <unit>" form, for the anchor's QER
-	AMBRDLStr string
-	IPv4Pool  string // data-network pools; non-empty enables that IP family
-	IPv6Pool  string
-	DNS       string // data-network DNS server, advertised to the UE via PCO
-	MTU       uint16
-	Allow4G   bool // whether the subscriber's profile permits EPS/4G access
+	PolicyID string // policy DB ID, so the UPF binds the session to its network rules
+	QCI      byte
+	ARP      byte // priority level (1-15)
+	APN      string
+	// AMBRDL/UL is the profile UE-AMBR (bits/s), signaled as the S1AP UE
+	// Aggregate Maximum Bit Rate — the per-UE aggregate across all non-GBR bearers.
+	AMBRDL uint64
+	AMBRUL uint64
+	// SessAmbr*Str is the policy per-APN Session-AMBR ("<n> <unit>"), enforced by
+	// the UPF QER and signaled to the UE as the APN-AMBR (TS 24.301 §9.9.4.2,
+	// §8.3.6.7). Distinct from the UE-AMBR above.
+	SessAmbrULStr string
+	SessAmbrDLStr string
+	IPv4Pool      string // data-network pools; non-empty enables that IP family
+	IPv6Pool      string
+	DNS           string // data-network DNS server, advertised to the UE via PCO
+	MTU           uint16
+	Allow4G       bool // whether the subscriber's profile permits EPS/4G access
 }
 
 // resolveQoS maps the subscriber's profile → policy → data network to the EPS
@@ -184,19 +190,19 @@ func (m *MME) qosForPolicy(ctx context.Context, profile *db.Profile, pol *db.Pol
 // its data network.
 func (m *MME) qosForPolicyDN(profile *db.Profile, pol *db.Policy, dn *db.DataNetwork) *epsQoS {
 	return &epsQoS{
-		PolicyID:  pol.ID,
-		QCI:       byte(pol.Var5qi), // 5QI↔QCI align for the standardized values
-		ARP:       byte(pol.Arp),
-		APN:       dn.Name,
-		AMBRDL:    bitRateToBps(profile.UeAmbrDownlink),
-		AMBRUL:    bitRateToBps(profile.UeAmbrUplink),
-		AMBRULStr: profile.UeAmbrUplink,
-		AMBRDLStr: profile.UeAmbrDownlink,
-		IPv4Pool:  dn.IPv4Pool,
-		IPv6Pool:  dn.IPv6Pool,
-		DNS:       dn.DNS,
-		MTU:       uint16(dn.MTU),
-		Allow4G:   profile.Allow4G,
+		PolicyID:      pol.ID,
+		QCI:           byte(pol.Var5qi), // 5QI↔QCI align for the standardized values
+		ARP:           byte(pol.Arp),
+		APN:           dn.Name,
+		AMBRDL:        bitRateToBps(profile.UeAmbrDownlink),
+		AMBRUL:        bitRateToBps(profile.UeAmbrUplink),
+		SessAmbrULStr: pol.SessionAmbrUplink,
+		SessAmbrDLStr: pol.SessionAmbrDownlink,
+		IPv4Pool:      dn.IPv4Pool,
+		IPv6Pool:      dn.IPv6Pool,
+		DNS:           dn.DNS,
+		MTU:           uint16(dn.MTU),
+		Allow4G:       profile.Allow4G,
 	}
 }
 
@@ -238,8 +244,29 @@ func bitRateToBps(s string) uint64 {
 // activateDefaultBearer builds the Attach Accept (carrying the default-bearer
 // activation and the UE IP) and sends it to the eNB inside an Initial Context
 // Setup Request, with K_eNB and the UE security capabilities for AS security.
+// resolveAttachQoS resolves the default-bearer QoS for an attaching UE. It honours
+// a UE-requested APN (TS 24.301 §6.5.1.3) by selecting the policy bound to that data
+// network, and falls back to the profile's default policy when no APN is requested.
+func (m *MME) resolveAttachQoS(ctx context.Context, ue *UeContext) (*epsQoS, error) {
+	if ue.requestedAPN != "" {
+		return m.resolveQoSByAPN(ctx, ue.imsi, ue.requestedAPN)
+	}
+
+	return m.resolveQoS(ctx, ue.imsi)
+}
+
 func (m *MME) activateDefaultBearer(ctx context.Context, ue *UeContext) {
-	qos, err := m.resolveQoS(ctx, ue.imsi)
+	qos, err := m.resolveAttachQoS(ctx, ue)
+	if errors.Is(err, ErrUnknownAPN) {
+		// The requested APN is not bound to any policy in the subscriber's profile
+		// (TS 24.301 §6.5.1.4, ESM cause #27); the default bearer cannot be set up.
+		logger.MmeLog.Info("attach rejected: requested APN not in subscriber profile",
+			zap.String("imsi", ue.imsi), zap.String("apn", ue.requestedAPN))
+		m.rejectAttach(ctx, ue, emmCauseESMFailure)
+
+		return
+	}
+
 	if err != nil {
 		logger.MmeLog.Error("failed to resolve subscriber QoS", zap.String("imsi", ue.imsi), zap.Error(err))
 		return
@@ -264,8 +291,8 @@ func (m *MME) activateDefaultBearer(ctx context.Context, ue *UeContext) {
 		EPSBearerIdentity: defaultERABID,
 		PolicyID:          qos.PolicyID,
 		APN:               qos.APN,
-		AMBRUplink:        qos.AMBRULStr,
-		AMBRDownlink:      qos.AMBRDLStr,
+		AMBRUplink:        qos.SessAmbrULStr,
+		AMBRDownlink:      qos.SessAmbrDLStr,
 		IPv4Pool:          qos.IPv4Pool,
 		IPv6Pool:          qos.IPv6Pool,
 		DNS:               qos.DNS,
@@ -283,12 +310,16 @@ func (m *MME) activateDefaultBearer(ctx context.Context, ue *UeContext) {
 		return
 	}
 
-	ue.ambrUplink = qos.AMBRULStr
-	ue.ambrDownlink = qos.AMBRDLStr
+	ue.ambrUplink = qos.SessAmbrULStr
+	ue.ambrDownlink = qos.SessAmbrDLStr
 
 	p := m.addDefaultPDN(ue)
 	p.apn = qos.APN
 	p.dnConfig = qos.dnFingerprint()
+	p.sessAmbrDLBps = bitRateToBps(qos.SessAmbrDLStr)
+	p.sessAmbrULBps = bitRateToBps(qos.SessAmbrULStr)
+	p.qci = qos.QCI
+	p.arp = qos.ARP
 	p.pdnType = bearer.PDNType
 	p.ueIP = bearer.IPv4
 	p.ueIPv6Prefix = bearer.IPv6Prefix
@@ -368,7 +399,7 @@ func (m *MME) sendInitialContextSetup(ctx context.Context, ue *UeContext, qos *e
 	}
 
 	// The S1-U endpoint is advertised as the IPv4, IPv6, or dual-stack transport
-	// layer address the N3 has (TS 36.413), mirroring the 5G N3 signalling.
+	// layer address the N3 has (TS 36.413).
 	sgwTLA, err := models.EncodeTransportLayerAddress(p.sgwFTEID.Addr, p.sgwN3IPv6)
 	if err != nil {
 		logger.MmeLog.Error("failed to encode S-GW transport layer address", zap.Error(err))
@@ -469,7 +500,7 @@ func (m *MME) buildProtectedAttachAccept(ctx context.Context, ue *UeContext, qos
 		GUTI:                &guti,
 		// Advertise IMS voice over PS session (TS 24.301). Without it a
 		// voice-centric UE concludes E-UTRAN cannot serve voice and leaves for
-		// another RAT (TS 23.221); the AMF advertises the same in 5GS.
+		// another RAT (TS 23.221).
 		EPSNetworkFeatureSupport: &eps.EPSNetworkFeatureSupport{IMSVoPS: true},
 	}
 
@@ -520,9 +551,8 @@ func (m *MME) onAttachComplete(ctx context.Context, ue *UeContext, plain []byte)
 }
 
 // sendNetworkName provides the operator's network name to the UE in an EMM
-// INFORMATION message (TS 24.301), the 4G counterpart of the AMF's
-// Configuration Update Command. The procedure is optional, so it is skipped when
-// no service provider name is configured.
+// INFORMATION message (TS 24.301). The procedure is optional, so it is skipped
+// when no service provider name is configured.
 func (m *MME) sendNetworkName(ctx context.Context, ue *UeContext) {
 	op, err := m.bearer.GetOperator(ctx)
 	if err != nil {
@@ -571,6 +601,9 @@ func buildActivateDefaultESM(p *pdnConnection, qos *epsQoS, pti uint8) ([]byte, 
 		EPSQoS:                       eps.EPSQoS{QCI: qos.QCI}.Marshal(),
 		AccessPointName:              apn,
 		PDNAddress:                   pdnAddr.Marshal(),
+		// Signal the per-APN Session-AMBR so the UE can enforce its uplink share
+		// (TS 24.301 §8.3.6.7; the P-GW/UPF also enforces both directions).
+		APNAMBR: eps.EncodeAPNAMBR(bitRateToBps(qos.SessAmbrDLStr), bitRateToBps(qos.SessAmbrULStr)).Marshal(),
 	}
 
 	// Advertise the DNS server and, for IPv4-capable bearers, the IPv4 Link MTU
@@ -623,7 +656,7 @@ func (m *MME) sendS1AP(ctx context.Context, ue *UeContext, messageType S1APProce
 		return
 	}
 
-	if _, err := ue.conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apPPID, Stream: 0}); err != nil {
+	if _, err := ue.conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamUE}); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to send S1AP message")
 		logger.MmeLog.Error("failed to send S1AP message", zap.Error(err))

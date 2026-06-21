@@ -10,6 +10,7 @@ import (
 
 	nascommon "github.com/ellanetworks/core/nas/common"
 	"github.com/ellanetworks/core/nas/eps"
+	"github.com/ellanetworks/core/s1ap"
 )
 
 // connectedBearerUE returns a secured, registered, ECM-CONNECTED UE with a
@@ -18,8 +19,18 @@ func connectedBearerUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 	t.Helper()
 
 	ue, cc := securedUE(t, m)
-	testPDN(ue).apn = "internet"
+	p := testPDN(ue)
+	p.apn = "internet"
 	ue.ecmState = ECMConnected
+
+	// Record the QoS a real activation would, so a reconcile against an unchanged
+	// policy is a no-op.
+	if qos, err := m.resolveQoSByAPN(context.Background(), ue.imsi, p.apn); err == nil {
+		p.sessAmbrDLBps = bitRateToBps(qos.SessAmbrDLStr)
+		p.sessAmbrULBps = bitRateToBps(qos.SessAmbrULStr)
+		p.qci = qos.QCI
+		p.arp = qos.ARP
+	}
 
 	return ue, cc
 }
@@ -185,6 +196,240 @@ func TestReconcileDataNetworkModifiesDNSOnly(t *testing.T) {
 
 	if testPDN(ue).dnConfig == qos.dnFingerprint() {
 		t.Fatal("dnConfig committed before the UE accepted the modification")
+	}
+}
+
+// TestReconcileDataNetworkModifiesSessionAMBR verifies a Session-AMBR change is
+// applied in place with a MODIFY EPS BEARER CONTEXT REQUEST carrying the new
+// APN-AMBR, that the UPF QER is updated, and that the stored Session-AMBR is
+// committed only when the UE accepts.
+func TestReconcileDataNetworkModifiesSessionAMBR(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := connectedBearerUE(t, m)
+	p := testPDN(ue)
+	p.pdnType = eps.PDNTypeIPv4
+
+	qos, err := m.resolveQoS(context.Background(), ue.imsi)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantDL := bitRateToBps(qos.SessAmbrDLStr)
+	wantUL := bitRateToBps(qos.SessAmbrULStr)
+
+	// DN config unchanged; only the stored Session-AMBR differs from the policy.
+	p.dnConfig = qos.dnFingerprint()
+	p.sessAmbrDLBps = wantDL / 2
+	p.sessAmbrULBps = wantUL / 2
+
+	m.ReconcileDataNetwork(context.Background())
+
+	defer m.stopNASGuard(ue)
+
+	if !p.modifying {
+		t.Fatal("UE not marked modifying after a Session-AMBR change")
+	}
+
+	if p.deactivating {
+		t.Fatal("Session-AMBR change must not deactivate the bearer")
+	}
+
+	fsm := m.session.(*fakeSessionManager)
+	if !fsm.ambrUpdated || fsm.ambrUplink != qos.SessAmbrULStr || fsm.ambrDownlink != qos.SessAmbrDLStr {
+		t.Fatalf("UPF Session-AMBR not updated to %s/%s, got %+v", qos.SessAmbrULStr, qos.SessAmbrDLStr, fsm)
+	}
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("expected one Modify EPS Bearer Context Request, got %d", len(cc.sent))
+	}
+
+	wire := decodeDownlinkNAS(t, cc.sent[0])
+
+	plain, err := eps.Unprotect(wire, nascommon.NASCount(0, wire[5]), nascommon.DirectionDownlink,
+		ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	if err != nil {
+		t.Fatalf("unprotect downlink: %v", err)
+	}
+
+	req, err := eps.ParseModifyEPSBearerContextRequest(plain)
+	if err != nil {
+		t.Fatalf("parse Modify request: %v", err)
+	}
+
+	ambr, err := eps.ParseAPNAMBR(req.APNAMBR)
+	if err != nil {
+		t.Fatalf("Modify request missing APN-AMBR: %v", err)
+	}
+
+	if dl, ul := ambr.BitsPerSecond(); dl != wantDL || ul != wantUL {
+		t.Fatalf("APN-AMBR = %d/%d bps, want %d/%d", dl, ul, wantDL, wantUL)
+	}
+
+	if p.sessAmbrDLBps == wantDL {
+		t.Fatal("Session-AMBR committed before the UE accepted the modification")
+	}
+}
+
+// TestReconcileDataNetworkModifiesQoSViaERABModify verifies a QCI/ARP change is
+// carried in an S1AP E-RAB Modify Request (not a Downlink NAS Transport) with the
+// new E-RAB QoS, that the piggybacked NAS-PDU is a Modify EPS Bearer Context
+// Request with the new EPS QoS, and that the stored QoS commits only on accept.
+func TestReconcileDataNetworkModifiesQoSViaERABModify(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := connectedBearerUE(t, m)
+	p := testPDN(ue)
+	p.pdnType = eps.PDNTypeIPv4
+
+	qos, err := m.resolveQoS(context.Background(), ue.imsi)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// DN and Session-AMBR unchanged; only the QCI/ARP differ from the stored values.
+	p.dnConfig = qos.dnFingerprint()
+	p.sessAmbrDLBps = bitRateToBps(qos.SessAmbrDLStr)
+	p.sessAmbrULBps = bitRateToBps(qos.SessAmbrULStr)
+	p.qci = qos.QCI + 1
+	p.arp = qos.ARP + 1
+
+	m.ReconcileDataNetwork(context.Background())
+
+	defer m.stopNASGuard(ue)
+
+	if !p.modifying {
+		t.Fatal("UE not marked modifying after a QoS change")
+	}
+
+	if p.deactivating {
+		t.Fatal("QoS change must not deactivate the bearer")
+	}
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("expected one E-RAB Modify Request, got %d", len(cc.sent))
+	}
+
+	pdu, err := s1ap.Unmarshal(cc.sent[0])
+	if err != nil {
+		t.Fatalf("unmarshal S1AP: %v", err)
+	}
+
+	im, ok := pdu.(*s1ap.InitiatingMessage)
+	if !ok || im.ProcedureCode != s1ap.ProcERABModify {
+		t.Fatalf("got %T, want E-RAB Modify Request", pdu)
+	}
+
+	req, err := s1ap.ParseERABModifyRequest(im.Value)
+	if err != nil {
+		t.Fatalf("parse E-RAB Modify Request: %v", err)
+	}
+
+	if len(req.ERABToBeModified) != 1 {
+		t.Fatalf("expected one E-RAB, got %d", len(req.ERABToBeModified))
+	}
+
+	item := req.ERABToBeModified[0]
+	if uint8(item.QoS.QCI) != qos.QCI || item.QoS.ARP.PriorityLevel != qos.ARP {
+		t.Fatalf("E-RAB QoS = QCI %d ARP %d, want %d/%d", item.QoS.QCI, item.QoS.ARP.PriorityLevel, qos.QCI, qos.ARP)
+	}
+
+	nasWire := []byte(item.NASPDU)
+
+	plain, err := eps.Unprotect(nasWire, nascommon.NASCount(0, nasWire[5]), nascommon.DirectionDownlink,
+		ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	if err != nil {
+		t.Fatalf("unprotect piggybacked NAS: %v", err)
+	}
+
+	nasReq, err := eps.ParseModifyEPSBearerContextRequest(plain)
+	if err != nil {
+		t.Fatalf("parse piggybacked Modify request: %v", err)
+	}
+
+	if len(nasReq.NewEPSQoS) == 0 || nasReq.NewEPSQoS[0] != qos.QCI {
+		t.Fatalf("NAS New-EPS-QoS = % x, want QCI %d", nasReq.NewEPSQoS, qos.QCI)
+	}
+
+	if p.qci == qos.QCI {
+		t.Fatal("QCI committed before the UE accepted the modification")
+	}
+}
+
+// TestReconcileDataNetworkModifiesQoSAndAMBRTogether verifies a combined QCI/ARP
+// and Session-AMBR change is carried in a single E-RAB Modify Request whose
+// piggybacked NAS-PDU contains both the new EPS QoS and the new APN-AMBR, and that
+// the UPF QER is updated for the new Session-AMBR.
+func TestReconcileDataNetworkModifiesQoSAndAMBRTogether(t *testing.T) {
+	m := newTestMME(t)
+	ue, cc := connectedBearerUE(t, m)
+	p := testPDN(ue)
+	p.pdnType = eps.PDNTypeIPv4
+
+	qos, err := m.resolveQoS(context.Background(), ue.imsi)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantDL := bitRateToBps(qos.SessAmbrDLStr)
+	wantUL := bitRateToBps(qos.SessAmbrULStr)
+
+	p.dnConfig = qos.dnFingerprint()
+	p.sessAmbrDLBps = wantDL / 2 // Session-AMBR changed
+	p.sessAmbrULBps = wantUL / 2
+	p.qci = qos.QCI + 1 // QoS changed
+	p.arp = qos.ARP + 1
+
+	m.ReconcileDataNetwork(context.Background())
+
+	defer m.stopNASGuard(ue)
+
+	fsm := m.session.(*fakeSessionManager)
+	if !fsm.ambrUpdated {
+		t.Fatal("UPF Session-AMBR not updated on a combined QoS+AMBR change")
+	}
+
+	if len(cc.sent) != 1 {
+		t.Fatalf("expected one E-RAB Modify Request, got %d", len(cc.sent))
+	}
+
+	pdu, err := s1ap.Unmarshal(cc.sent[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	im, ok := pdu.(*s1ap.InitiatingMessage)
+	if !ok || im.ProcedureCode != s1ap.ProcERABModify {
+		t.Fatalf("got %T, want E-RAB Modify Request", pdu)
+	}
+
+	req, err := s1ap.ParseERABModifyRequest(im.Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nasWire := []byte(req.ERABToBeModified[0].NASPDU)
+
+	plain, err := eps.Unprotect(nasWire, nascommon.NASCount(0, nasWire[5]), nascommon.DirectionDownlink,
+		ue.knasInt, ue.knasEnc, nascommon.AESCMACIntegrity{}, nascommon.AESCTRCipher{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nasReq, err := eps.ParseModifyEPSBearerContextRequest(plain)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(nasReq.NewEPSQoS) == 0 || nasReq.NewEPSQoS[0] != qos.QCI {
+		t.Fatalf("piggybacked NAS missing New-EPS-QoS: % x", nasReq.NewEPSQoS)
+	}
+
+	ambr, err := eps.ParseAPNAMBR(nasReq.APNAMBR)
+	if err != nil {
+		t.Fatalf("piggybacked NAS missing APN-AMBR: %v", err)
+	}
+
+	if dl, ul := ambr.BitsPerSecond(); dl != wantDL || ul != wantUL {
+		t.Fatalf("piggybacked APN-AMBR = %d/%d, want %d/%d", dl, ul, wantDL, wantUL)
 	}
 }
 

@@ -19,10 +19,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// dnChangeIMSI is the subscriber the data-network-change scenarios attach.
 const dnChangeIMSI = "001017271246650"
 
-// dnChangeNewDNS is the DNS server the dns-change scenario switches to.
 const dnChangeNewDNS = "1.1.1.1"
 
 func init() {
@@ -86,9 +84,8 @@ func dataNetworkChangeFixture(_ scenarios.Env) scenarios.FixtureSpec {
 }
 
 // attachAndReconfigure starts an eNB, attaches the UE, lets it settle into
-// EMM-REGISTERED, applies a data-network change via the API, and registers the
-// restore. It returns the eNB, the UE, and the attach result. The caller drives
-// the resulting MME signalling. e.Close runs via the returned cleanup.
+// EMM-REGISTERED, then applies a data-network change via the API. The returned
+// cleanup restores the data network and closes the eNB.
 func attachAndReconfigure(ctx context.Context, env scenarios.Env, p *dataNetworkChangeParams, label string, mutation *client.UpdateDataNetworkOptions) (*s1enb.ENB, *s1enb.UE, *s1enb.AttachResult, func(), error) {
 	if p.EllaAPIAddress == "" || p.EllaAPIToken == "" {
 		return nil, nil, nil, nil, fmt.Errorf("--ella-api-address and --ella-api-token are required")
@@ -120,10 +117,8 @@ func attachAndReconfigure(ctx context.Context, env scenarios.Env, p *dataNetwork
 		return nil, nil, nil, nil, fmt.Errorf("attach: %w", err)
 	}
 
-	// Attach returns once ATTACH COMPLETE is sent; let the MME finish processing
-	// it and settle the UE into EMM-REGISTERED before the data network changes,
-	// so the change reconciles against an established bearer rather than racing
-	// the attach (a UE still attaching reads the new config at bearer setup).
+	// Settle into EMM-REGISTERED so the change reconciles against an established
+	// bearer rather than racing the attach.
 	time.Sleep(2 * time.Second)
 
 	logger.GnbLogger.Info("UE attached; reconfiguring data network", zap.String("change", label))
@@ -148,11 +143,9 @@ func attachAndReconfigure(ctx context.Context, env scenarios.Env, p *dataNetwork
 	return e, ue, attach, cleanup, nil
 }
 
-// runDataNetworkDNSChange verifies that a DNS change is propagated to an active
-// EPS bearer in place — a MODIFY EPS BEARER CONTEXT REQUEST carrying the new DNS
-// in the Protocol Configuration Options, without re-establishing the bearer
-// (TS 24.301 §6.4.2). This mirrors the 5G PDU Session Modification path for a
-// DNS change (gnb/data-network-dns-change).
+// runDataNetworkDNSChange verifies a DNS change is propagated to an active EPS
+// bearer in place via a MODIFY EPS BEARER CONTEXT REQUEST carrying the new DNS in
+// the Protocol Configuration Options, without re-establishing it (TS 24.301 §6.4.2).
 func runDataNetworkDNSChange(ctx context.Context, env scenarios.Env, p *dataNetworkChangeParams) error {
 	e, ue, attach, cleanup, err := attachAndReconfigure(ctx, env, p, "DNS", &client.UpdateDataNetworkOptions{
 		Name:     scenarios.DefaultDNN,
@@ -198,11 +191,9 @@ func runDataNetworkDNSChange(ctx context.Context, env scenarios.Env, p *dataNetw
 	return nil
 }
 
-// runDataNetworkReactivate verifies that an MTU or IP-pool change — which the UE
-// cannot adopt in place — deactivates the active EPS bearer with ESM cause #39
-// "reactivation requested" (TS 24.301 §6.4.4.2), after which the UE re-attaches
-// with the new configuration. This mirrors the 5G release-with-#39 path for
-// MTU/pool (gnb/data-network-{mtu,pool}-change).
+// runDataNetworkReactivate verifies an MTU or IP-pool change, which the UE cannot
+// adopt in place, deactivates the active EPS bearer with ESM cause #39
+// "reactivation requested" (TS 24.301 §6.4.4.2), after which the UE re-attaches.
 func runDataNetworkReactivate(ctx context.Context, env scenarios.Env, p *dataNetworkChangeParams, label string, mutation *client.UpdateDataNetworkOptions) error {
 	e, ue, attach, cleanup, err := attachAndReconfigure(ctx, env, p, label, mutation)
 	if err != nil {

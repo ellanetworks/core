@@ -111,6 +111,10 @@ func (m *MME) onNASGuardExpiry(ue *UeContext, gen uint64) {
 			if p := ue.defaultPDN(); p != nil {
 				p.modifying = false
 				p.pendingDNConfig = ""
+				p.pendingSessAmbrDLBps = 0
+				p.pendingSessAmbrULBps = 0
+				p.pendingQCI = 0
+				p.pendingARP = 0
 			}
 		}
 

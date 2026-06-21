@@ -14,8 +14,7 @@ import (
 )
 
 // TestDispatchRecordsReceiveSpan verifies the MME emits an s1ap/receive span for
-// every inbound S1AP message — the 4G counterpart of the AMF's ngap/receive — so
-// 4G control-plane traffic is traceable.
+// every inbound S1AP message, so 4G control-plane traffic is traceable.
 func TestDispatchRecordsReceiveSpan(t *testing.T) {
 	sr := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr))

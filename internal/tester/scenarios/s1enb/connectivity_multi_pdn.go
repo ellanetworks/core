@@ -6,11 +6,12 @@ package s1enb
 import (
 	"context"
 	"fmt"
-	"os/exec"
+	"net/netip"
 	"strconv"
 	"time"
 
 	"github.com/ellanetworks/core/internal/tester/logger"
+	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/nas/eps"
@@ -19,11 +20,12 @@ import (
 )
 
 const (
-	multiPDNIMSI          = "001017271246616"
-	multiPDNProfile       = "multi-pdn-profile"
-	multiPDNEnterpriseDNN = "enterprise"
-	multiPDNTun1          = "s1enbmp0"
-	multiPDNTun2          = "s1enbmp1"
+	multiPDNIMSI           = "001017271246616"
+	multiPDNProfile        = "multi-pdn-profile"
+	multiPDNEnterpriseDNN  = "enterprise"
+	multiPDNEnterprisePool = "10.46.0.0/16"
+	multiPDNTun1           = "s1enbmp0"
+	multiPDNTun2           = "s1enbmp1"
 )
 
 func init() {
@@ -35,17 +37,16 @@ func init() {
 	})
 }
 
-// multiPDNFixture provisions a profile with two policies — the default APN
-// (internet) and a second APN (enterprise, its own IP pool) — the 4G counterpart
-// of the 5G gnb/connectivity_multi_pdu_session fixture. 4G has no S-NSSAI, so both
-// policies sit on the default slice; the MME resolves them by APN.
+// multiPDNFixture provisions a profile with two policies: the default APN
+// (internet) and an enterprise APN with its own IP pool. 4G has no S-NSSAI, so
+// both sit on the default slice and the MME resolves them by APN.
 func multiPDNFixture(_ scenarios.Env) scenarios.FixtureSpec {
 	return scenarios.FixtureSpec{
 		Profiles: []scenarios.ProfileSpec{
 			{Name: multiPDNProfile, UeAmbrUplink: "500 Mbps", UeAmbrDownlink: "500 Mbps"},
 		},
 		DataNetworks: []scenarios.DataNetworkSpec{
-			{Name: multiPDNEnterpriseDNN, IPv4Pool: "10.46.0.0/16", DNS: "8.8.4.4", MTU: scenarios.DefaultMTU},
+			{Name: multiPDNEnterpriseDNN, IPv4Pool: multiPDNEnterprisePool, DNS: "8.8.4.4", MTU: scenarios.DefaultMTU},
 		},
 		Policies: []scenarios.PolicySpec{
 			{
@@ -73,10 +74,9 @@ func multiPDNFixture(_ scenarios.Env) scenarios.FixtureSpec {
 	}
 }
 
-// runS1ENBMultiPDN attaches a UE (default APN), opens a second PDN connection to
-// another APN, and verifies user-plane connectivity on both with distinct UE IPs
-// — the 4G counterpart of gnb/connectivity_multi_pdu_session. It then disconnects
-// the second PDN and detaches, leaving the UE on its first PDN until detach.
+// runS1ENBMultiPDN attaches a UE on the default APN, opens a second PDN to the
+// enterprise APN, and verifies connectivity on both with distinct UE IPs, then
+// disconnects the second PDN and detaches.
 func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 	s1mme, err := s1mmeAddress(env.FirstCore())
 	if err != nil {
@@ -113,8 +113,13 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("attach: %w", err)
 	}
 
-	if res.UEIPv4 == "" {
-		return fmt.Errorf("attach assigned no IPv4 address")
+	defaultExp := defaultExpectedAttach()
+	defaultExp.ARP = 15
+	defaultExp.UEAmbrDownlinkBps = 500 * mbpsToBps
+	defaultExp.UEAmbrUplinkBps = 500 * mbpsToBps
+
+	if err := assertAttach(res, defaultExp); err != nil {
+		return fmt.Errorf("default APN: %w", err)
 	}
 
 	if err := e.AddTunnel(&s1enb.TunnelOpts{
@@ -128,7 +133,7 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 
 	time.Sleep(500 * time.Millisecond)
 
-	if err := pingVia(ctx, multiPDNTun1); err != nil {
+	if err := probe.Run(ctx, probe.ICMP, multiPDNTun1, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
 		return fmt.Errorf("ping on default APN: %w", err)
 	}
 
@@ -140,8 +145,16 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 		return fmt.Errorf("open second PDN connection: %w", err)
 	}
 
-	if pdn.UEIPv4 == "" {
-		return fmt.Errorf("second PDN connection assigned no IPv4 address")
+	if err := assertPDN(pdn, expectedAttach{
+		UEIPv4Subnet:        netip.MustParsePrefix(multiPDNEnterprisePool),
+		APN:                 multiPDNEnterpriseDNN,
+		PDNType:             eps.PDNTypeIPv4,
+		QCI:                 7,
+		ARP:                 15,
+		SessAmbrUplinkBps:   30 * mbpsToBps,
+		SessAmbrDownlinkBps: 60 * mbpsToBps,
+	}); err != nil {
+		return fmt.Errorf("enterprise APN: %w", err)
 	}
 
 	if pdn.UEIPv4 == res.UEIPv4 {
@@ -159,7 +172,7 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 
 	time.Sleep(500 * time.Millisecond)
 
-	if err := pingVia(ctx, multiPDNTun2); err != nil {
+	if err := probe.Run(ctx, probe.ICMP, multiPDNTun2, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
 		return fmt.Errorf("ping on second APN: %w", err)
 	}
 
@@ -171,7 +184,7 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 	}
 
 	// The default APN must still work after the second PDN is disconnected.
-	if err := pingVia(ctx, multiPDNTun1); err != nil {
+	if err := probe.Run(ctx, probe.ICMP, multiPDNTun1, scenarios.DefaultPingDestination, scenarios.DefaultProbePort, false); err != nil {
 		return fmt.Errorf("ping on default APN after second-PDN disconnect: %w", err)
 	}
 
@@ -180,16 +193,6 @@ func runS1ENBMultiPDN(ctx context.Context, env scenarios.Env, _ any) error {
 	}
 
 	logger.GnbLogger.Info("multi-PDN connectivity scenario completed")
-
-	return nil
-}
-
-// pingVia pings the default N6 destination through the given tunnel interface.
-func pingVia(ctx context.Context, iface string) error {
-	cmd := exec.CommandContext(ctx, "ping", "-I", iface, scenarios.DefaultPingDestination, "-c", "3", "-W", "2") // #nosec G204 -- fixed ping; interface and destination are test config
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("ping %s via %s failed: %v\n%s", scenarios.DefaultPingDestination, iface, err, string(out))
-	}
 
 	return nil
 }

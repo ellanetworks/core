@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 
 // Package eps decodes EPS NAS (4G EMM/ESM) messages carried in S1AP into a
-// structured, JSON-friendly view for the UI events drawer, mirroring the 5GS
-// decoder in internal/decoder/nas. Like that decoder it reads plaintext only:
+// structured, JSON-friendly view for the UI events drawer. It reads plaintext only:
 // a ciphered message is reported with its security header and an encrypted flag.
 package eps
 

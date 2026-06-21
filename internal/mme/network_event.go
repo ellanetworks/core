@@ -7,8 +7,8 @@ import (
 	"context"
 	"net"
 
-	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/sctp"
 )
 
 func addrString(a net.Addr) string {

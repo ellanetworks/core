@@ -48,6 +48,7 @@ func runS1Reset(_ context.Context, env scenarios.Env, _ any) error {
 	}
 
 	ue := e.NewUE(s1ResetIMSI, k, opc)
+	ue.RequestPDNType(env.PDUSessionType())
 
 	if _, err := e.Attach(ue, 15*time.Second); err != nil {
 		return fmt.Errorf("attach: %w", err)
@@ -74,6 +75,7 @@ func runS1Reset(_ context.Context, env scenarios.Env, _ any) error {
 	logger.GnbLogger.Info("S1 interface reset acknowledged; re-attaching to prove recovery")
 
 	reUE := e.NewUE(s1ResetIMSI, k, opc)
+	reUE.RequestPDNType(env.PDUSessionType())
 
 	res, err := e.Attach(reUE, 15*time.Second)
 	if err != nil {

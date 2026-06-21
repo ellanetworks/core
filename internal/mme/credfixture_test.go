@@ -26,10 +26,13 @@ var (
 // fakeSessionManager stands in for the SMF+PGW-C anchor. CreateEPSSession honors
 // the requested PDN type so tests can drive IPv4/IPv6/IPv4v6.
 type fakeSessionManager struct {
-	lastRequest models.EPSBearerRequest
-	modifiedENB models.FTEID // records the eNB F-TEID from the last ModifyEPSSession
-	released    bool
-	deactivated bool
+	lastRequest  models.EPSBearerRequest
+	modifiedENB  models.FTEID // records the eNB F-TEID from the last ModifyEPSSession
+	released     bool
+	deactivated  bool
+	ambrUpdated  bool
+	ambrUplink   string // records the last UpdateEPSSessionAMBR uplink value
+	ambrDownlink string
 }
 
 func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSBearerRequest) (models.EPSBearer, error) {
@@ -56,6 +59,14 @@ func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSB
 
 func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, _ uint8, enb models.FTEID) error {
 	f.modifiedENB = enb
+
+	return nil
+}
+
+func (f *fakeSessionManager) UpdateEPSSessionAMBR(_ context.Context, _ string, _ uint8, ambrUplink, ambrDownlink string) error {
+	f.ambrUpdated = true
+	f.ambrUplink = ambrUplink
+	f.ambrDownlink = ambrDownlink
 
 	return nil
 }
@@ -101,12 +112,12 @@ func (fakeBearerStore) GetProfileByID(_ context.Context, id string) (*db.Profile
 }
 
 func (fakeBearerStore) GetDefaultPolicyByProfile(_ context.Context, _ string) (*db.Policy, error) {
-	return &db.Policy{Var5qi: 9, Arp: 15, DataNetworkID: "test-dn", IsDefault: true}, nil
+	return &db.Policy{Var5qi: 9, Arp: 15, DataNetworkID: "test-dn", IsDefault: true, SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "200 Mbps"}, nil
 }
 
 func (fakeBearerStore) ListPoliciesByProfile(_ context.Context, _ string) ([]db.Policy, error) {
 	return []db.Policy{
-		{Var5qi: 9, Arp: 15, DataNetworkID: "test-dn", IsDefault: true},
+		{Var5qi: 9, Arp: 15, DataNetworkID: "test-dn", IsDefault: true, SessionAmbrUplink: "100 Mbps", SessionAmbrDownlink: "200 Mbps"},
 		{Var5qi: 9, Arp: 15, DataNetworkID: "test-dn-ims"},
 	}, nil
 }

@@ -17,9 +17,14 @@ const (
 	idNASPDU                                    ProtocolIEID = 26
 	idERABSetupListBearerSURes                  ProtocolIEID = 28
 	idERABFailedToSetupListBearerSURes          ProtocolIEID = 29
+	idERABToBeModifiedListBearerModReq          ProtocolIEID = 30
+	idERABModifyListBearerModRes                ProtocolIEID = 31
+	idERABFailedToModifyList                    ProtocolIEID = 32
 	idERABToBeReleasedList                      ProtocolIEID = 33
 	idERABFailedToReleaseList                   ProtocolIEID = 34
 	idERABItem                                  ProtocolIEID = 35
+	idERABToBeModifiedItemBearerModReq          ProtocolIEID = 36
+	idERABModifyItemBearerModRes                ProtocolIEID = 37
 	idERABReleaseListBearerRelComp              ProtocolIEID = 69
 	idERABSetupItemBearerSURes                  ProtocolIEID = 39
 	idSecurityContext                           ProtocolIEID = 40

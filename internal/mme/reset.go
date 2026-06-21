@@ -6,8 +6,8 @@ package mme
 import (
 	"context"
 
-	"github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/logger"
+	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/s1ap"
 	"go.uber.org/zap"
 )
@@ -111,7 +111,7 @@ func (m *MME) sendResetAcknowledge(conn nasWriter, connectionList []s1ap.UEAssoc
 		return
 	}
 
-	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apPPID, Stream: 0}); err != nil {
+	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamNonUE}); err != nil {
 		logger.MmeLog.Error("failed to send Reset Acknowledge", zap.Error(err))
 		return
 	}

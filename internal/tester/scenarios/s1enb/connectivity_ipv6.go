@@ -6,10 +6,10 @@ package s1enb
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"time"
 
+	"github.com/ellanetworks/core/internal/tester/probe"
 	"github.com/ellanetworks/core/internal/tester/s1enb"
 	"github.com/ellanetworks/core/internal/tester/scenarios"
 	"github.com/ellanetworks/core/nas/eps"
@@ -34,10 +34,9 @@ func init() {
 	})
 }
 
-// runS1ENBConnectivityIPv6 attaches a UE with PDN type IPv6, builds an IPv6-only
-// GTP-U tunnel (the link-local from the PDN IID, promoted to a global address by
-// the UPF Router Advertisement), and verifies user-plane connectivity by pinging
-// the N6 destination over IPv6 — the 4G counterpart of gnb/connectivity_ipv6.
+// runS1ENBConnectivityIPv6 attaches an IPv6 UE and pings the N6 destination. The
+// PDN IID's link-local is promoted to a global address by the UPF Router
+// Advertisement before the ping.
 func runS1ENBConnectivityIPv6(ctx context.Context, env scenarios.Env, _ any) error {
 	s1mme, err := s1mmeAddress(env.FirstCore())
 	if err != nil {
@@ -95,14 +94,12 @@ func runS1ENBConnectivityIPv6(ctx context.Context, env scenarios.Env, _ any) err
 
 	defer e.CloseTunnel(res.DLTEID)
 
-	// Wait for the UPF Router Advertisement to give the TUN a global IPv6 address.
 	if err := s1enb.WaitForULAAddr(connIPv6TunIface, scenarios.DefaultUEIPv6Pool, 5*time.Second); err != nil {
 		return fmt.Errorf("await SLAAC address: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, "ping6", "-I", connIPv6TunIface, scenarios.DefaultPingDestinationV6, "-c", "3", "-W", "2") // #nosec G204 -- fixed test constants
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("ping6 %s via %s failed: %v\n%s", scenarios.DefaultPingDestinationV6, connIPv6TunIface, err, string(out))
+	if err := probe.Run(ctx, probe.ICMP, connIPv6TunIface, scenarios.DefaultPingDestinationV6, scenarios.DefaultProbePort, true); err != nil {
+		return fmt.Errorf("ping6 via %s failed: %w", connIPv6TunIface, err)
 	}
 
 	return nil

@@ -19,8 +19,6 @@ import (
 	"github.com/ellanetworks/core/internal/amf/nas"
 	"github.com/ellanetworks/core/internal/amf/ngap"
 	"github.com/ellanetworks/core/internal/amf/ngap/send"
-	"github.com/ellanetworks/core/internal/amf/ngap/service"
-	amfsctp "github.com/ellanetworks/core/internal/amf/sctp"
 	"github.com/ellanetworks/core/internal/api"
 	"github.com/ellanetworks/core/internal/api/server"
 	"github.com/ellanetworks/core/internal/ausf"
@@ -36,6 +34,7 @@ import (
 	"github.com/ellanetworks/core/internal/metrics"
 	"github.com/ellanetworks/core/internal/mme"
 	ellaraft "github.com/ellanetworks/core/internal/raft"
+	amfsctp "github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/internal/sessions"
 	"github.com/ellanetworks/core/internal/smf"
 	"github.com/ellanetworks/core/internal/supportbundle"
@@ -548,7 +547,11 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 
 	nasLogger.SetLogLevel(0) // Suppress free5gc NAS log output
 
-	sctpServer := service.NewServer(service.Callbacks{
+	sctpServer := amfsctp.NewServer(amfsctp.Config{
+		PPID:   amfsctp.NGAPPPID,
+		Name:   "NGAP",
+		Logger: logger.AmfLog,
+	}, amfsctp.Callbacks{
 		Dispatch: func(ctx context.Context, conn *amfsctp.SCTPConn, msg []byte) {
 			ngap.Dispatch(ctx, amfInstance, conn, msg)
 		},
@@ -707,7 +710,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	return nil
 }
 
-func closeAMF(ctx context.Context, amfInstance *amf.AMF, srv *service.Server) {
+func closeAMF(ctx context.Context, amfInstance *amf.AMF, srv *amfsctp.Server) {
 	// Use a short dedicated timeout for the DB query so it doesn't
 	// consume the caller's full shutdown budget.
 	queryCtx, queryCancel := context.WithTimeout(ctx, 2*time.Second)

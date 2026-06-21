@@ -29,6 +29,32 @@ type AttachResult struct {
 	// Accept (eps.PDNTypeIPv4 / IPv6 / IPv4v6).
 	PDNType uint8
 
+	// QCI is the default bearer's QoS Class Identifier from the Activate Default
+	// EPS Bearer Context Request (TS 24.301 §9.9.4.3, octet 1 of the EPS QoS IE).
+	// Ella Core aligns it with the policy's 5QI for the standardized values.
+	QCI byte
+
+	// ARP is the default bearer's Allocation and Retention Priority level (1-15)
+	// from the S1AP E-RAB Level QoS Parameters in the Initial Context Setup
+	// Request (TS 36.413 §9.2.1.60).
+	ARP byte
+
+	// UEAmbrDownlinkBps / UEAmbrUplinkBps are the UE Aggregate Maximum Bit Rate
+	// (bits/s) from the Initial Context Setup Request (TS 36.413 §9.2.1.20), the
+	// per-UE aggregate across all non-GBR bearers.
+	UEAmbrDownlinkBps uint64
+	UEAmbrUplinkBps   uint64
+
+	// APN is the Access Point Name carried in the Activate Default EPS Bearer
+	// Context Request — the EPS analogue of the 5G DNN.
+	APN string
+
+	// SessAmbrDownlinkBps / SessAmbrUplinkBps are the per-APN Session-AMBR (bits
+	// per second) decoded from the APN-AMBR IE (TS 24.301 §9.9.4.2), the EPS
+	// analogue of the 5G Session-AMBR. Zero when the network omits the IE.
+	SessAmbrDownlinkBps uint64
+	SessAmbrUplinkBps   uint64
+
 	// User-plane endpoints for a GTP-U tunnel.
 	UEIPv4     string // UE IPv4 assigned in the Attach Accept
 	UEIPv6     string // UE IPv6 link-local derived from the Attach Accept PDN IID
@@ -57,7 +83,7 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 	//    NAS is plain, so skip any protected frame left by a prior UE on the same
 	//    association (e.g. its post-attach EMM INFORMATION) that this UE cannot
 	//    decrypt — this keeps sequential multi-UE attach on one eNB clean.
-	downlink, mmeUEID, err := e.waitForPlainDownlink(timeout)
+	downlink, mmeUEID, err := e.waitForPlainDownlink(enbUEID, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("await Authentication/Identity Request: %w", err)
 	}
@@ -76,7 +102,7 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 			return nil, err
 		}
 
-		if downlink, _, err = e.WaitForDownlinkNAS(timeout); err != nil {
+		if downlink, _, err = e.WaitForDownlinkNAS(enbUEID, timeout); err != nil {
 			return nil, fmt.Errorf("await Authentication Request: %w", err)
 		}
 	}
@@ -96,7 +122,7 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 	}
 
 	// 3. Security Mode Command (protected downlink) → Security Mode Complete.
-	smcWire, _, err := e.WaitForDownlinkNAS(timeout)
+	smcWire, _, err := e.WaitForDownlinkNAS(enbUEID, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("await Security Mode Command: %w", err)
 	}
@@ -112,7 +138,7 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 
 	// 4. Initial Context Setup Request carries the Attach Accept; reply with the
 	//    Initial Context Setup Response and process the Attach Accept.
-	icsFrame, err := e.WaitForMessage(Initiating, s1ap.ProcInitialContextSetup, timeout)
+	icsFrame, err := e.WaitForMessage(enbUEID, Initiating, s1ap.ProcInitialContextSetup, timeout)
 	if err != nil {
 		return nil, fmt.Errorf("await Initial Context Setup Request: %w", err)
 	}
@@ -170,12 +196,29 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 		ERABID:            erab.ERABID,
 		GUTI:              accept.GUTI,
 		IdentityRequested: identityRequested,
+		ARP:               erab.QoS.ARP.PriorityLevel,
+		UEAmbrDownlinkBps: uint64(ics.UEAggregateMaximumBitRate.DL),
+		UEAmbrUplinkBps:   uint64(ics.UEAggregateMaximumBitRate.UL),
 		UpfAddress:        upf.Unmap().String(),
 		ULTEID:            uint32(erab.GTPTEID),
 		DLTEID:            dlTEID,
 	}
 
 	if act, err := eps.ParseActivateDefaultEPSBearerContextRequest(accept.ESMMessageContainer); err == nil {
+		if len(act.EPSQoS) >= 1 {
+			res.QCI = act.EPSQoS[0]
+		}
+
+		if apn, err := eps.DecodeAPN(act.AccessPointName); err == nil {
+			res.APN = apn
+		}
+
+		if len(act.APNAMBR) > 0 {
+			if ambr, err := eps.ParseAPNAMBR(act.APNAMBR); err == nil {
+				res.SessAmbrDownlinkBps, res.SessAmbrUplinkBps = ambr.BitsPerSecond()
+			}
+		}
+
 		if pdn, err := eps.ParsePDNAddress(act.PDNAddress); err == nil {
 			res.PDNType = pdn.PDNType
 
@@ -201,7 +244,7 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 // skipping protected frames left from a prior UE on the same association (e.g.
 // the proactive EMM INFORMATION), which a fresh UE cannot decrypt. The first NAS
 // of an attach (Identity or Authentication Request) is always plain.
-func (e *ENB) waitForPlainDownlink(timeout time.Duration) (nas []byte, mmeUEID int64, err error) {
+func (e *ENB) waitForPlainDownlink(enbUEID int64, timeout time.Duration) (nas []byte, mmeUEID int64, err error) {
 	deadline := time.Now().Add(timeout)
 
 	for {
@@ -210,7 +253,7 @@ func (e *ENB) waitForPlainDownlink(timeout time.Duration) (nas []byte, mmeUEID i
 			return nil, 0, fmt.Errorf("s1enb: timeout waiting for a plain downlink NAS")
 		}
 
-		nas, mmeUEID, err = e.WaitForDownlinkNAS(remaining)
+		nas, mmeUEID, err = e.WaitForDownlinkNAS(enbUEID, remaining)
 		if err != nil {
 			return nil, 0, err
 		}
