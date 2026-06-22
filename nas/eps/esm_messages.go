@@ -23,11 +23,11 @@ type PDNConnectivityRequest struct {
 	ESMInformationTransferFlag bool
 }
 
-// ieiAccessPointName is the IEI of the Access Point Name optional IE (TS 24.301
+// accessPointNameIEI is the IEI of the Access Point Name optional IE (TS 24.301
 // §9.9.4.1); esmInformationTransferFlagIEI is the IEI of the ESM information
 // transfer flag, a type-1 IE (TS 24.301 §9.9.4.5).
 const (
-	ieiAccessPointName            uint8 = 0x28
+	accessPointNameIEI            uint8 = 0x28
 	esmInformationTransferFlagIEI uint8 = 0xD
 )
 
@@ -37,8 +37,8 @@ const (
 // may precede them is a type-1 IE the walker delimits inherently, so the APN is
 // reached even when it does not lead the optional part.
 var pdnConnectivityRequestIEs = []common.OptionalIE{
-	{IEI: ieiAccessPointName, Format: common.IETLV},
-	{IEI: ieiProtocolConfigurationOptions, Format: common.IETLV},
+	{IEI: accessPointNameIEI, Format: common.IETLV},
+	{IEI: protocolConfigurationOptionsIEI, Format: common.IETLV},
 }
 
 // Marshal encodes the PDN CONNECTIVITY REQUEST message.
@@ -53,7 +53,7 @@ func (m *PDNConnectivityRequest) Marshal() ([]byte, error) {
 	}
 
 	if len(m.AccessPointName) > 0 {
-		w.U8(ieiAccessPointName)
+		w.U8(accessPointNameIEI)
 
 		if err := w.LV(m.AccessPointName); err != nil {
 			return nil, err
@@ -61,7 +61,7 @@ func (m *PDNConnectivityRequest) Marshal() ([]byte, error) {
 	}
 
 	if len(m.ProtocolConfigurationOptions) > 0 {
-		w.U8(ieiProtocolConfigurationOptions)
+		w.U8(protocolConfigurationOptionsIEI)
 
 		if err := w.LV(m.ProtocolConfigurationOptions); err != nil {
 			return nil, err
@@ -98,9 +98,9 @@ func ParsePDNConnectivityRequest(b []byte) (*PDNConnectivityRequest, error) {
 		switch iei {
 		case esmInformationTransferFlagIEI << 4:
 			m.ESMInformationTransferFlag = len(value) == 1 && value[0]&0x01 != 0
-		case ieiAccessPointName:
+		case accessPointNameIEI:
 			m.AccessPointName = value
-		case ieiProtocolConfigurationOptions:
+		case protocolConfigurationOptionsIEI:
 			m.ProtocolConfigurationOptions = value
 		}
 
@@ -171,14 +171,14 @@ type ActivateDefaultEPSBearerContextRequest struct {
 	ProtocolConfigurationOptions []byte
 }
 
-// ieiESMCause is the IEI of the ESM cause optional IE; ieiProtocolConfiguration
+// esmCauseIEI is the IEI of the ESM cause optional IE; protocolConfigurationIEI
 // Options is the IEI of the protocol configuration options IE (TS 24.301
 // §8.3.6.1).
 const (
-	ieiNewEPSQoS                    uint8 = 0x5B
-	ieiAPNAMBR                      uint8 = 0x5E
-	ieiESMCause                     uint8 = 0x58
-	ieiProtocolConfigurationOptions uint8 = 0x27
+	newEPSQoSIEI                    uint8 = 0x5B
+	apnAMBRIEI                      uint8 = 0x5E
+	esmCauseIEI                     uint8 = 0x58
+	protocolConfigurationOptionsIEI uint8 = 0x27
 )
 
 // activateDefaultEPSBearerContextRequestIEs are the optional IEs Ella Core emits
@@ -186,9 +186,9 @@ const (
 // APN-AMBR (a type-4 TLV), the ESM cause (a type-3 IE with a one-octet value),
 // and the Protocol Configuration Options (a type-4 TLV).
 var activateDefaultEPSBearerContextRequestIEs = []common.OptionalIE{
-	{IEI: ieiAPNAMBR, Format: common.IETLV},
-	{IEI: ieiESMCause, Format: common.IETV3, Len: 1},
-	{IEI: ieiProtocolConfigurationOptions, Format: common.IETLV},
+	{IEI: apnAMBRIEI, Format: common.IETLV},
+	{IEI: esmCauseIEI, Format: common.IETV3, Len: 1},
+	{IEI: protocolConfigurationOptionsIEI, Format: common.IETLV},
 }
 
 // Marshal encodes the ACTIVATE DEFAULT EPS BEARER CONTEXT REQUEST message.
@@ -204,7 +204,7 @@ func (m *ActivateDefaultEPSBearerContextRequest) Marshal() ([]byte, error) {
 	}
 
 	if len(m.APNAMBR) > 0 {
-		w.U8(ieiAPNAMBR)
+		w.U8(apnAMBRIEI)
 
 		if err := w.LV(m.APNAMBR); err != nil {
 			return nil, err
@@ -212,12 +212,12 @@ func (m *ActivateDefaultEPSBearerContextRequest) Marshal() ([]byte, error) {
 	}
 
 	if m.ESMCause != nil {
-		w.U8(ieiESMCause)
+		w.U8(esmCauseIEI)
 		w.U8(*m.ESMCause)
 	}
 
 	if len(m.ProtocolConfigurationOptions) > 0 {
-		w.U8(ieiProtocolConfigurationOptions)
+		w.U8(protocolConfigurationOptionsIEI)
 
 		if err := w.LV(m.ProtocolConfigurationOptions); err != nil {
 			return nil, err
@@ -254,14 +254,14 @@ func ParseActivateDefaultEPSBearerContextRequest(b []byte) (*ActivateDefaultEPSB
 
 	if _, err := common.WalkOptionalIEs(r, activateDefaultEPSBearerContextRequestIEs, func(iei uint8, value []byte) error {
 		switch iei {
-		case ieiAPNAMBR:
+		case apnAMBRIEI:
 			m.APNAMBR = value
-		case ieiESMCause:
+		case esmCauseIEI:
 			if len(value) == 1 {
 				cause := value[0]
 				m.ESMCause = &cause
 			}
-		case ieiProtocolConfigurationOptions:
+		case protocolConfigurationOptionsIEI:
 			m.ProtocolConfigurationOptions = value
 		}
 
@@ -381,8 +381,8 @@ type ESMInformationResponse struct {
 // (TS 24.301 §8.3.14): the Access Point Name and the Protocol Configuration
 // Options, both type-4 TLVs.
 var esmInformationResponseIEs = []common.OptionalIE{
-	{IEI: ieiAccessPointName, Format: common.IETLV},
-	{IEI: ieiProtocolConfigurationOptions, Format: common.IETLV},
+	{IEI: accessPointNameIEI, Format: common.IETLV},
+	{IEI: protocolConfigurationOptionsIEI, Format: common.IETLV},
 }
 
 // Marshal encodes the ESM INFORMATION RESPONSE message.
@@ -392,7 +392,7 @@ func (m *ESMInformationResponse) Marshal() ([]byte, error) {
 	writeESMHeader(&w, m.EPSBearerIdentity, m.ProcedureTransactionIdentity, MsgESMInformationResponse)
 
 	if len(m.AccessPointName) > 0 {
-		w.U8(ieiAccessPointName)
+		w.U8(accessPointNameIEI)
 
 		if err := w.LV(m.AccessPointName); err != nil {
 			return nil, err
@@ -400,7 +400,7 @@ func (m *ESMInformationResponse) Marshal() ([]byte, error) {
 	}
 
 	if len(m.ProtocolConfigurationOptions) > 0 {
-		w.U8(ieiProtocolConfigurationOptions)
+		w.U8(protocolConfigurationOptionsIEI)
 
 		if err := w.LV(m.ProtocolConfigurationOptions); err != nil {
 			return nil, err
@@ -424,9 +424,9 @@ func ParseESMInformationResponse(b []byte) (*ESMInformationResponse, error) {
 
 	if _, err := common.WalkOptionalIEs(r, esmInformationResponseIEs, func(iei uint8, value []byte) error {
 		switch iei {
-		case ieiAccessPointName:
+		case accessPointNameIEI:
 			m.AccessPointName = value
-		case ieiProtocolConfigurationOptions:
+		case protocolConfigurationOptionsIEI:
 			m.ProtocolConfigurationOptions = value
 		}
 

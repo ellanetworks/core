@@ -209,7 +209,7 @@ func (e *ENB) Attach(ue *UE, timeout time.Duration) (*AttachResult, error) {
 			res.QCI = act.EPSQoS[0]
 		}
 
-		if apn, err := eps.DecodeAPN(act.AccessPointName); err == nil {
+		if apn, err := eps.ParseAPN(act.AccessPointName); err == nil {
 			res.APN = apn
 		}
 

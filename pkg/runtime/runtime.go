@@ -548,7 +548,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 	nasLogger.SetLogLevel(0) // Suppress free5gc NAS log output
 
 	sctpServer := amfsctp.NewServer(amfsctp.Config{
-		PPID:   amfsctp.NGAPPPID,
+		PPID:   send.NGAPPPID,
 		Name:   "NGAP",
 		Logger: logger.AmfLog,
 	}, amfsctp.Callbacks{

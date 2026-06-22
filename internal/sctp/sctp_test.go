@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+// testPPID is an arbitrary SCTP payload protocol identifier used to exercise
+// PPID plumbing; the transport is protocol-agnostic, so it carries no meaning.
+const testPPID uint32 = 60
+
 // skipIfNoSCTP skips the test if the SCTP kernel module is not loaded.
 func skipIfNoSCTP(t *testing.T) {
 	t.Helper()
@@ -177,7 +181,7 @@ func TestSendReceive(t *testing.T) {
 
 		defer func() { _ = client.Close() }()
 
-		_, err = client.WriteMsg(want, &SndRcvInfo{PPID: NGAPPPID, Stream: 0})
+		_, err = client.WriteMsg(want, &SndRcvInfo{PPID: testPPID, Stream: 0})
 		errCh <- err
 	}()
 
@@ -416,7 +420,7 @@ func TestWriteMsg_ClosedConn(t *testing.T) {
 		t.Fatalf("Close: %v", err)
 	}
 
-	_, err := conn.WriteMsg([]byte("hello"), &SndRcvInfo{PPID: NGAPPPID})
+	_, err := conn.WriteMsg([]byte("hello"), &SndRcvInfo{PPID: testPPID})
 	if err == nil {
 		t.Fatal("WriteMsg on closed conn returned nil error, want error")
 	}

@@ -34,7 +34,7 @@ type PDNResult struct {
 // SETUP REQUEST the MME initiates (acknowledging the radio leg and accepting the
 // default bearer it carries), and returns the new bearer's user-plane endpoints.
 func (e *ENB) OpenPDN(ue *UE, mmeUEID, enbUEID int64, apn string, pdnType uint8, timeout time.Duration) (*PDNResult, error) {
-	apnIE, err := eps.EncodeAPN(apn)
+	apnIE, err := eps.MarshalAPN(apn)
 	if err != nil {
 		return nil, fmt.Errorf("encode APN: %w", err)
 	}
@@ -116,7 +116,7 @@ func (e *ENB) OpenPDN(ue *UE, mmeUEID, enbUEID int64, apn string, pdnType uint8,
 		res.QCI = act.EPSQoS[0]
 	}
 
-	if apn, err := eps.DecodeAPN(act.AccessPointName); err == nil {
+	if apn, err := eps.ParseAPN(act.AccessPointName); err == nil {
 		res.APN = apn
 	}
 

@@ -10,6 +10,14 @@ import (
 	"github.com/ellanetworks/core/s1ap"
 )
 
+// S1AP causes (TS 36.413) the MME uses when releasing a UE context:
+// "nas: detach" after a detach, and "nas: unspecified" after an attach reject.
+var (
+	causeNASNormalRelease = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: 0}
+	causeNASDetach        = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: 2}
+	causeNASUnspecified   = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: 3}
+)
+
 // s1apCauseGroupName is the display name of each S1AP cause group (TS 36.413)
 var s1apCauseGroupName = map[s1ap.CauseGroup]string{
 	s1ap.CauseGroupRadioNetwork: "Radio Network",

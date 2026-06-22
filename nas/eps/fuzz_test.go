@@ -54,7 +54,7 @@ func FuzzParseSecurityProtectedNoPanic(f *testing.F) {
 		_, _ = ProtocolDiscriminator(data)
 		_, _ = ParsePDNAddress(data)
 		_, _ = ParseEPSQoS(data)
-		_, _ = DecodeAPN(data)
+		_, _ = ParseAPN(data)
 		_, _ = ParseAPNAMBR(data)
 		_, _ = ParseTAIList(data)
 		_, _ = ParseUENetworkCapability(data)

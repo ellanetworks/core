@@ -476,3 +476,22 @@ func (m *MME) lookupUeByMTMSI(mtmsi uint32) (*UeContext, bool) {
 
 	return ue, ok
 }
+
+// lookupUeByIMSI finds the attached UE context for imsi by scanning the
+// registry, used by the detach and paging paths that key on the subscriber.
+func (m *MME) lookupUeByIMSI(imsi string) (*UeContext, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	for _, ue := range m.ues {
+		ue.mu.Lock()
+		match := ue.imsi == imsi
+		ue.mu.Unlock()
+
+		if match {
+			return ue, true
+		}
+	}
+
+	return nil, false
+}

@@ -24,8 +24,8 @@ import (
 // TS 24.301 §5.6.2). A repeated trigger while a paging procedure is already in
 // progress is folded into it rather than restarting the supervision.
 func (m *MME) Page(ctx context.Context, imsi string) error {
-	ue := m.lookupUeByIMSI(imsi)
-	if ue == nil {
+	ue, ok := m.lookupUeByIMSI(imsi)
+	if !ok {
 		return fmt.Errorf("paging: no context for imsi %s", imsi)
 	}
 

@@ -576,7 +576,7 @@ func (m *MME) sendNetworkName(ctx context.Context, ue *UeContext) {
 // the IPv4 Link MTU. It is carried inside the Attach Accept for the default
 // bearer and inside the E-RAB Setup Request for an additional PDN connection.
 func buildActivateDefaultESM(p *pdnConnection, qos *epsQoS, pti uint8) ([]byte, error) {
-	apn, err := eps.EncodeAPN(qos.APN)
+	apn, err := eps.MarshalAPN(qos.APN)
 	if err != nil {
 		return nil, err
 	}
@@ -603,7 +603,7 @@ func buildActivateDefaultESM(p *pdnConnection, qos *epsQoS, pti uint8) ([]byte, 
 		PDNAddress:                   pdnAddr.Marshal(),
 		// Signal the per-APN Session-AMBR so the UE can enforce its uplink share
 		// (TS 24.301 §8.3.6.7; the P-GW/UPF also enforces both directions).
-		APNAMBR: eps.EncodeAPNAMBR(bitRateToBps(qos.SessAmbrDLStr), bitRateToBps(qos.SessAmbrULStr)).Marshal(),
+		APNAMBR: eps.APNAMBRFromBitsPerSecond(bitRateToBps(qos.SessAmbrDLStr), bitRateToBps(qos.SessAmbrULStr)).Marshal(),
 	}
 
 	// Advertise the DNS server and, for IPv4-capable bearers, the IPv4 Link MTU

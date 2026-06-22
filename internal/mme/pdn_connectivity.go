@@ -77,7 +77,7 @@ func (m *MME) onPDNConnectivityRequest(ctx context.Context, ue *UeContext, plain
 
 	apn := ""
 	if len(req.AccessPointName) > 0 {
-		if apn, err = eps.DecodeAPN(req.AccessPointName); err != nil {
+		if apn, err = eps.ParseAPN(req.AccessPointName); err != nil {
 			logger.MmeLog.Warn("failed to decode APN in PDN Connectivity Request", zap.Error(err))
 			m.rejectPDNConnectivity(ctx, ue, pti, esmCauseUnknownAPN)
 

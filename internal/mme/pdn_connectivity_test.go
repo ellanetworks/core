@@ -103,7 +103,7 @@ func TestAdditionalPDNConnectionLifecycle(t *testing.T) {
 	p0 := testPDN(ue)
 	p0.apn = "internet"
 
-	apnIE, err := eps.EncodeAPN("ims")
+	apnIE, err := eps.MarshalAPN("ims")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +274,7 @@ func TestAdditionalPDNRejectedUnknownAPN(t *testing.T) {
 	p0 := testPDN(ue)
 	p0.apn = "internet"
 
-	apnIE, err := eps.EncodeAPN("enterprise")
+	apnIE, err := eps.MarshalAPN("enterprise")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +306,7 @@ func TestAdditionalPDNRejectedUnknownAPN(t *testing.T) {
 // header of a PDN Connectivity Request (TS 24.301 §7.3): an unassigned/reserved
 // PTI is rejected with ESM cause #81, a non-zero header EBI with #43.
 func TestPDNConnectivityRejectedInvalidHeader(t *testing.T) {
-	apnIE, err := eps.EncodeAPN("ims")
+	apnIE, err := eps.MarshalAPN("ims")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -205,7 +205,7 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *pdnConnection,
 			return
 		}
 
-		req.APNAMBR = eps.EncodeAPNAMBR(bitRateToBps(qos.SessAmbrDLStr), bitRateToBps(qos.SessAmbrULStr)).Marshal()
+		req.APNAMBR = eps.APNAMBRFromBitsPerSecond(bitRateToBps(qos.SessAmbrDLStr), bitRateToBps(qos.SessAmbrULStr)).Marshal()
 	}
 
 	naspdu, err := m.protectDownlink(ue, req)

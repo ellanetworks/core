@@ -273,7 +273,7 @@ func (m *MME) ingestAttachRequest(ue *UeContext, req *eps.AttachRequest) {
 		}
 
 		if len(pc.AccessPointName) > 0 {
-			if apn, err := eps.DecodeAPN(pc.AccessPointName); err == nil {
+			if apn, err := eps.ParseAPN(pc.AccessPointName); err == nil {
 				ue.requestedAPN = apn
 			}
 		}

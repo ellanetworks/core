@@ -61,9 +61,9 @@ func TestResolveAttachQoSRejectsUnknownAPN(t *testing.T) {
 // TestIngestAttachRequestExtractsAPN: the requested APN in the attach's PDN
 // Connectivity Request is parsed into the UE context.
 func TestIngestAttachRequestExtractsAPN(t *testing.T) {
-	apnIE, err := eps.EncodeAPN("ims")
+	apnIE, err := eps.MarshalAPN("ims")
 	if err != nil {
-		t.Fatalf("EncodeAPN: %v", err)
+		t.Fatalf("MarshalAPN: %v", err)
 	}
 
 	esm, err := (&eps.PDNConnectivityRequest{

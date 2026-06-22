@@ -122,7 +122,7 @@ func (ue *UE) buildAttachRequest() ([]byte, error) {
 	pc := &eps.PDNConnectivityRequest{ProcedureTransactionIdentity: 1, RequestType: 1, PDNType: ue.pdnType}
 
 	if ue.apn != "" {
-		apnIE, err := eps.EncodeAPN(ue.apn)
+		apnIE, err := eps.MarshalAPN(ue.apn)
 		if err != nil {
 			return nil, fmt.Errorf("encode APN: %w", err)
 		}
