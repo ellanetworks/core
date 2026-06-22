@@ -23,7 +23,7 @@ const readBufSize uint32 = 131072
 
 var serverSocketConfig = SocketConfig{
 	InitMsg:   InitMsg{NumOstreams: 2, MaxInstreams: 5, MaxAttempts: 2, MaxInitTimeout: 2},
-	RtoInfo:   &RtoInfo{SrtoAssocID: 0, SrtoInitial: 500, SrtoMax: 1500, StroMin: 100},
+	RtoInfo:   &RtoInfo{SrtoAssocID: 0, SrtoInitial: 500, SrtoMax: 1500, SrtoMin: 100},
 	AssocInfo: &AssocInfo{AsocMaxRxt: 4},
 }
 

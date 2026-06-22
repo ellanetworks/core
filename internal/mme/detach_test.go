@@ -23,7 +23,7 @@ func TestDetachSubscriberNetworkInitiated(t *testing.T) {
 		t.Fatalf("expected network Detach Request, got %d", len(cc.sent))
 	}
 
-	if ue.emmState != EMMDeregistered {
+	if ue.emmState.load() != EMMDeregistered {
 		t.Fatal("UE not EMM-DEREGISTERED after network-initiated detach")
 	}
 
@@ -88,7 +88,7 @@ func TestForgedMessageIgnoredForSecuredUE(t *testing.T) {
 		t.Fatalf("forged DETACH against a secured UE was acted on: %d downlink(s) sent", cc.count())
 	}
 
-	if _, ok := m.lookupUe(ue.MMEUES1APID); !ok || ue.emmState != EMMRegistered || !ue.secured {
+	if _, ok := m.lookupUe(ue.MMEUES1APID); !ok || ue.emmState.load() != EMMRegistered || !ue.secured {
 		t.Fatal("secured UE was disrupted by a forged, unverifiable DETACH")
 	}
 }
@@ -119,7 +119,7 @@ func securedUE(t *testing.T, m *MME) (*UeContext, *captureConn) {
 	}
 
 	ue.secured = true
-	ue.emmState = EMMRegistered
+	ue.emmState.store(EMMRegistered)
 	ue.imsi = testSubscriber.IMSI
 
 	return ue, cc
@@ -267,7 +267,7 @@ func TestECMIdleBuffersSession(t *testing.T) {
 
 	m.handleUEContextReleaseComplete(cc, cpdu.(*s1ap.SuccessfulOutcome).Value)
 
-	if ue.ecmState != ECMIdle {
+	if ue.ecmState.load() != ECMIdle {
 		t.Fatal("UE not ECM-IDLE after release complete")
 	}
 
@@ -317,7 +317,7 @@ func TestUEContextReleaseRequestFromENB(t *testing.T) {
 		t.Fatal("EMM context deleted on an inactivity release; expected ECM-IDLE retention")
 	}
 
-	if got.ecmState != ECMIdle {
+	if got.ecmState.load() != ECMIdle {
 		t.Fatal("UE not marked ECM-IDLE after eNB release")
 	}
 

@@ -92,16 +92,8 @@ func decodeGUMMEI(r *aper.Reader) (GUMMEI, error) {
 		return g, err
 	}
 
-	if opt[0] {
-		if err := skipExtensionContainer(r); err != nil {
-			return g, err
-		}
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return g, err
-		}
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
+		return g, err
 	}
 
 	return g, nil
@@ -201,16 +193,8 @@ func decodeServedGUMMEIsItem(r *aper.Reader) (ServedGUMMEIsItem, error) {
 		it.ServedMMECs = append(it.ServedMMECs, c)
 	}
 
-	if opt[0] {
-		if err := skipExtensionContainer(r); err != nil {
-			return it, err
-		}
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return it, err
-		}
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
+		return it, err
 	}
 
 	return it, nil

@@ -136,16 +136,8 @@ func decodeGlobalENBID(r *aper.Reader) (GlobalENBID, error) {
 		return GlobalENBID{}, err
 	}
 
-	if opt[0] {
-		if err := skipExtensionContainer(r); err != nil {
-			return GlobalENBID{}, err
-		}
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return GlobalENBID{}, err
-		}
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
+		return GlobalENBID{}, err
 	}
 
 	return GlobalENBID{PLMNIdentity: plmn, ENBID: enb}, nil
@@ -237,16 +229,8 @@ func decodeSupportedTAItem(r *aper.Reader) (SupportedTAItem, error) {
 		return SupportedTAItem{}, err
 	}
 
-	if opt[0] {
-		if err := skipExtensionContainer(r); err != nil {
-			return SupportedTAItem{}, err
-		}
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return SupportedTAItem{}, err
-		}
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
+		return SupportedTAItem{}, err
 	}
 
 	return SupportedTAItem{TAC: tac, BroadcastPLMNs: plmns}, nil
@@ -275,7 +259,7 @@ func decodeSupportedTAs(r *aper.Reader) (SupportedTAs, error) {
 		return nil, err
 	}
 
-	out := make(SupportedTAs, 0, minInt(n, 16))
+	out := make(SupportedTAs, 0, min(n, 16))
 
 	for i := 0; i < n; i++ {
 		it, err := decodeSupportedTAItem(r)

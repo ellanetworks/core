@@ -70,14 +70,14 @@ func (m *MME) onPDNConnectivityRequest(ctx context.Context, ue *UeContext, plain
 		return
 	}
 
-	if ue.emmState != EMMRegistered || ue.ecmState != ECMConnected {
+	if ue.emmState.load() != EMMRegistered || ue.ecmState.load() != ECMConnected {
 		m.rejectPDNConnectivity(ctx, ue, pti, esmCauseRequestRejectedUnspecified)
 		return
 	}
 
 	apn := ""
 	if len(req.AccessPointName) > 0 {
-		if apn, err = eps.DecodeAPN(req.AccessPointName); err != nil {
+		if apn, err = eps.ParseAPN(req.AccessPointName); err != nil {
 			logger.MmeLog.Warn("failed to decode APN in PDN Connectivity Request", zap.Error(err))
 			m.rejectPDNConnectivity(ctx, ue, pti, esmCauseUnknownAPN)
 
@@ -314,7 +314,11 @@ func (m *MME) onPDNDisconnectRequest(ctx context.Context, ue *UeContext, plain [
 		return
 	}
 
-	if len(ue.pdns) <= 1 {
+	ue.mu.Lock()
+	numPDNs := len(ue.pdns)
+	ue.mu.Unlock()
+
+	if numPDNs <= 1 {
 		logger.MmeLog.Info("PDN disconnect rejected: last PDN connection",
 			zap.String("imsi", ue.imsi), zap.Uint8("linked-ebi", req.LinkedEPSBearerIdentity))
 		m.rejectPDNDisconnect(ctx, ue, pti, esmCauseLastPDNDisconnectNotAllowed)
@@ -324,7 +328,7 @@ func (m *MME) onPDNDisconnectRequest(ctx context.Context, ue *UeContext, plain [
 
 	logger.MmeLog.Info("disconnecting PDN connection",
 		zap.String("imsi", ue.imsi), zap.String("apn", p.apn), zap.Uint8("ebi", p.ebi))
-	m.deactivateBearer(ctx, ue, p, esmCauseRegularDeactivation, pti, true)
+	m.disconnectBearer(ctx, ue, p, esmCauseRegularDeactivation, pti)
 }
 
 // rejectPDNDisconnect refuses a PDN DISCONNECT REQUEST with an ESM cause
@@ -391,14 +395,14 @@ func (m *MME) releasePDN(ue *UeContext, p *pdnConnection) {
 			zap.String("imsi", ue.imsi), zap.Uint8("ebi", p.ebi), zap.Error(err))
 	}
 
-	m.mu.Lock()
+	ue.mu.Lock()
 	delete(ue.pdns, p.ebi)
 
 	if ue.defaultEBI == p.ebi {
 		ue.defaultEBI = 0
 	}
 
-	m.mu.Unlock()
+	ue.mu.Unlock()
 }
 
 // releaseAllSessions releases every PDN connection's anchor session and clears
@@ -426,8 +430,8 @@ func (m *MME) deactivateAllSessions(ue *UeContext) {
 // takeAllPDNs detaches and returns every PDN connection from the UE under the
 // lock, so the caller can release the sessions without holding it.
 func (m *MME) takeAllPDNs(ue *UeContext) []*pdnConnection {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	ue.mu.Lock()
+	defer ue.mu.Unlock()
 
 	out := make([]*pdnConnection, 0, len(ue.pdns))
 	for _, p := range ue.pdns {

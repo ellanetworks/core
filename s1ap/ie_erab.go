@@ -56,7 +56,7 @@ func decodeUEAggregateMaximumBitRate(r *aper.Reader) (UEAggregateMaximumBitRate,
 		return UEAggregateMaximumBitRate{}, err
 	}
 
-	if err := skipQoSExtensions(r, opt[0], extPresent); err != nil {
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
 		return UEAggregateMaximumBitRate{}, err
 	}
 
@@ -115,6 +115,10 @@ const (
 	PreemptionPreemptable
 )
 
+// preemptionRootCount is the number of root values of both pre-emption
+// ENUMERATEDs (TS 36.413 §9.2.1.60/§9.2.1.61).
+const preemptionRootCount = 2
+
 // AllocationAndRetentionPriority ::= SEQUENCE { priorityLevel,
 // pre-emptionCapability, pre-emptionVulnerability, iE-Extensions OPTIONAL }
 // (extensible). PriorityLevel ::= INTEGER (0..15).
@@ -131,11 +135,11 @@ func (a AllocationAndRetentionPriority) encode(w *aper.Writer) error {
 		return err
 	}
 
-	if err := w.WriteEnum(int(a.PreemptionCapability), 2, false, false); err != nil {
+	if err := w.WriteEnum(int(a.PreemptionCapability), preemptionRootCount, false, false); err != nil {
 		return err
 	}
 
-	return w.WriteEnum(int(a.PreemptionVulnerability), 2, false, false)
+	return w.WriteEnum(int(a.PreemptionVulnerability), preemptionRootCount, false, false)
 }
 
 func decodeARP(r *aper.Reader) (AllocationAndRetentionPriority, error) {
@@ -149,17 +153,17 @@ func decodeARP(r *aper.Reader) (AllocationAndRetentionPriority, error) {
 		return AllocationAndRetentionPriority{}, err
 	}
 
-	preCap, _, err := r.ReadEnum(2, false)
+	preCap, _, err := r.ReadEnum(preemptionRootCount, false)
 	if err != nil {
 		return AllocationAndRetentionPriority{}, err
 	}
 
-	vuln, _, err := r.ReadEnum(2, false)
+	vuln, _, err := r.ReadEnum(preemptionRootCount, false)
 	if err != nil {
 		return AllocationAndRetentionPriority{}, err
 	}
 
-	if err := skipQoSExtensions(r, opt[0], extPresent); err != nil {
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
 		return AllocationAndRetentionPriority{}, err
 	}
 
@@ -206,7 +210,7 @@ func decodeGBRQosInformation(r *aper.Reader) (GBRQosInformation, error) {
 		}
 	}
 
-	if err := skipQoSExtensions(r, opt[0], extPresent); err != nil {
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
 		return GBRQosInformation{}, err
 	}
 
@@ -271,7 +275,7 @@ func decodeERABLevelQoSParameters(r *aper.Reader) (ERABLevelQoSParameters, error
 		out.GBR = &gbr
 	}
 
-	if err := skipQoSExtensions(r, opt[1], extPresent); err != nil {
+	if err := skipSequenceExtensions(r, opt[1], extPresent); err != nil {
 		return ERABLevelQoSParameters{}, err
 	}
 
@@ -365,7 +369,7 @@ func decodeUESecurityCapabilities(r *aper.Reader) (UESecurityCapabilities, error
 		return UESecurityCapabilities{}, err
 	}
 
-	if err := skipQoSExtensions(r, opt[0], extPresent); err != nil {
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
 		return UESecurityCapabilities{}, err
 	}
 
@@ -412,9 +416,7 @@ func (it ERABToBeSetupItemCtxtSUReq) encode(w *aper.Writer) error {
 	return nil
 }
 
-func decodeERABToBeSetupItemCtxtSUReq(value []byte) (ERABToBeSetupItemCtxtSUReq, error) {
-	r := aper.NewReader(value)
-
+func decodeERABToBeSetupItemCtxtSUReq(r *aper.Reader) (ERABToBeSetupItemCtxtSUReq, error) {
 	extPresent, opt, err := r.ReadSequencePreamble(true, 2)
 	if err != nil {
 		return ERABToBeSetupItemCtxtSUReq{}, err
@@ -444,7 +446,7 @@ func decodeERABToBeSetupItemCtxtSUReq(value []byte) (ERABToBeSetupItemCtxtSUReq,
 		}
 	}
 
-	if err := skipQoSExtensions(r, opt[1], extPresent); err != nil {
+	if err := skipSequenceExtensions(r, opt[1], extPresent); err != nil {
 		return it, err
 	}
 
@@ -473,9 +475,7 @@ func (it ERABSetupItemCtxtSURes) encode(w *aper.Writer) error {
 	return it.GTPTEID.encode(w)
 }
 
-func decodeERABSetupItemCtxtSURes(value []byte) (ERABSetupItemCtxtSURes, error) {
-	r := aper.NewReader(value)
-
+func decodeERABSetupItemCtxtSURes(r *aper.Reader) (ERABSetupItemCtxtSURes, error) {
 	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
 	if err != nil {
 		return ERABSetupItemCtxtSURes{}, err
@@ -495,7 +495,7 @@ func decodeERABSetupItemCtxtSURes(value []byte) (ERABSetupItemCtxtSURes, error) 
 		return it, err
 	}
 
-	if err := skipQoSExtensions(r, opt[0], extPresent); err != nil {
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
 		return it, err
 	}
 
@@ -519,9 +519,7 @@ func (it ERABItem) encode(w *aper.Writer) error {
 	return it.Cause.encode(w)
 }
 
-func decodeERABItem(value []byte) (ERABItem, error) {
-	r := aper.NewReader(value)
-
+func decodeERABItem(r *aper.Reader) (ERABItem, error) {
 	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
 	if err != nil {
 		return ERABItem{}, err
@@ -537,25 +535,9 @@ func decodeERABItem(value []byte) (ERABItem, error) {
 		return it, err
 	}
 
-	if err := skipQoSExtensions(r, opt[0], extPresent); err != nil {
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
 		return it, err
 	}
 
 	return it, nil
-}
-
-// skipQoSExtensions consumes an optional iE-Extensions container and any
-// SEQUENCE extension additions, shared by the QoS/E-RAB sequences.
-func skipQoSExtensions(r *aper.Reader, extContainer, extAdditions bool) error {
-	if extContainer {
-		if err := skipExtensionContainer(r); err != nil {
-			return err
-		}
-	}
-
-	if extAdditions {
-		return r.SkipExtensionAdditions()
-	}
-
-	return nil
 }

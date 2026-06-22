@@ -43,8 +43,8 @@ func TestMobileReachableEscalatesToImplicitDetach(t *testing.T) {
 		return !ok
 	})
 
-	if ue.emmState != EMMDeregistered {
-		t.Fatalf("emmState = %v, want EMMDeregistered after implicit detach", ue.emmState)
+	if ue.emmState.load() != EMMDeregistered {
+		t.Fatalf("emmState = %v, want EMMDeregistered after implicit detach", ue.emmState.load())
 	}
 
 	if !m.session.(*fakeSessionManager).released {
@@ -82,7 +82,7 @@ func TestUEContextReleaseCompleteArmsMobileReachable(t *testing.T) {
 	m := newTestMME(t)
 
 	ue, _ := idleRegisteredUE(t, m)
-	ue.ecmState = ECMConnected
+	ue.ecmState.store(ECMConnected)
 
 	complete := &s1ap.UEContextReleaseComplete{MMEUES1APID: ue.MMEUES1APID, ENBUES1APID: 7}
 

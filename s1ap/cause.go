@@ -32,6 +32,24 @@ var causeGroupRootCount = [causeRootGroups]int{
 	CauseGroupMisc:         6,
 }
 
+// Named root values of each Cause group's ENUMERATED (TS 36.413 §9.2.1.3) that
+// Ella Core emits. Each value is its group's enumeration index, so the same
+// number means different things in different groups — the group prefix names it.
+const (
+	CauseRadioNetworkUnknownMMEUES1APID      = 13 // unknown-mme-ue-s1ap-id
+	CauseRadioNetworkUnknownPairUES1APID     = 15 // unknown-pair-ue-s1ap-id
+	CauseRadioNetworkMultipleERABIDInstances = 31 // multiple-E-RAB-ID-instances
+
+	CauseTransportResourceUnavailable = 0 // transport-resource-unavailable
+
+	CauseNASNormalRelease         = 0 // normal-release
+	CauseNASAuthenticationFailure = 1 // authentication-failure
+	CauseNASDetach                = 2 // detach
+	CauseNASUnspecified           = 3 // unspecified
+
+	CauseMiscUnknownPLMN = 5 // unknown-PLMN
+)
+
 // Cause ::= CHOICE of five extensible ENUMERATED groups. Value is the chosen
 // group's enumeration index; Extended is set when Value names an extension
 // addition of that enumeration rather than a root value.

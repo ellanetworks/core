@@ -453,7 +453,7 @@ func TestAttachAuthenticationAndSecurityMode(t *testing.T) {
 
 	m.handleNAS(context.Background(), ue, completeWire)
 
-	if ue.emmState != EMMRegistered {
+	if ue.emmState.load() != EMMRegistered {
 		t.Fatal("UE not EMM-REGISTERED after Attach Complete")
 	}
 }

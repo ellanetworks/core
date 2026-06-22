@@ -30,17 +30,12 @@ type InitialContextSetupRequest struct {
 func (m *InitialContextSetupRequest) encodeBody(w *aper.Writer) error {
 	w.WriteSequencePreamble(true, false, nil)
 
-	erabEncoders := make([]func(*aper.Writer) error, len(m.ERABToBeSetup))
-	for i := range m.ERABToBeSetup {
-		erabEncoders[i] = m.ERABToBeSetup[i].encode
-	}
-
 	fields := []ieField{
 		{id: idMMEUES1APID, crit: CriticalityReject, enc: m.MMEUES1APID.encode},
 		{id: idENBUES1APID, crit: CriticalityReject, enc: m.ENBUES1APID.encode},
 		{id: idUEAggregateMaximumBitrate, crit: CriticalityReject, enc: m.UEAggregateMaximumBitRate.encode},
 		{id: idERABToBeSetupListCtxtSUReq, crit: CriticalityReject, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABToBeSetupItemCtxtSUReq, CriticalityReject, erabEncoders)
+			return encodeSingleContainerList(w, maxnoofERABs, idERABToBeSetupItemCtxtSUReq, CriticalityReject, encoderList(m.ERABToBeSetup))
 		}},
 		{id: idUESecurityCapabilities, crit: CriticalityReject, enc: m.UESecurityCapabilities.encode},
 		{id: idSecurityKey, crit: CriticalityReject, enc: m.SecurityKey.encode},
@@ -140,23 +135,7 @@ func ParseInitialContextSetupRequest(value []byte) (*InitialContextSetupRequest,
 }
 
 func decodeERABToBeSetupList(r *aper.Reader) ([]ERABToBeSetupItemCtxtSUReq, error) {
-	raw, err := decodeSingleContainerList(r, maxnoofERABs)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([]ERABToBeSetupItemCtxtSUReq, 0, len(raw))
-
-	for _, b := range raw {
-		it, err := decodeERABToBeSetupItemCtxtSUReq(b)
-		if err != nil {
-			return nil, err
-		}
-
-		out = append(out, it)
-	}
-
-	return out, nil
+	return decodeItemList(r, maxnoofERABs, decodeERABToBeSetupItemCtxtSUReq)
 }
 
 // InitialContextSetupResponse is the INITIAL CONTEXT SETUP RESPONSE message
@@ -174,27 +153,17 @@ type InitialContextSetupResponse struct {
 func (m *InitialContextSetupResponse) encodeBody(w *aper.Writer) error {
 	w.WriteSequencePreamble(true, false, nil)
 
-	setupEncoders := make([]func(*aper.Writer) error, len(m.ERABSetup))
-	for i := range m.ERABSetup {
-		setupEncoders[i] = m.ERABSetup[i].encode
-	}
-
 	fields := []ieField{
 		{id: idMMEUES1APID, crit: CriticalityIgnore, enc: m.MMEUES1APID.encode},
 		{id: idENBUES1APID, crit: CriticalityIgnore, enc: m.ENBUES1APID.encode},
 		{id: idERABSetupListCtxtSURes, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABSetupItemCtxtSURes, CriticalityIgnore, setupEncoders)
+			return encodeSingleContainerList(w, maxnoofERABs, idERABSetupItemCtxtSURes, CriticalityIgnore, encoderList(m.ERABSetup))
 		}},
 	}
 
 	if len(m.ERABFailedToSetup) > 0 {
-		failedEncoders := make([]func(*aper.Writer) error, len(m.ERABFailedToSetup))
-		for i := range m.ERABFailedToSetup {
-			failedEncoders[i] = m.ERABFailedToSetup[i].encode
-		}
-
 		fields = append(fields, ieField{id: idERABFailedToSetupListCtxtSU, crit: CriticalityIgnore, enc: func(w *aper.Writer) error {
-			return encodeSingleContainerList(w, maxnoofERABs, idERABItem, CriticalityIgnore, failedEncoders)
+			return encodeSingleContainerList(w, maxnoofERABs, idERABItem, CriticalityIgnore, encoderList(m.ERABFailedToSetup))
 		}})
 	}
 
@@ -287,43 +256,11 @@ func ParseInitialContextSetupResponse(value []byte) (*InitialContextSetupRespons
 }
 
 func decodeERABSetupList(r *aper.Reader) ([]ERABSetupItemCtxtSURes, error) {
-	raw, err := decodeSingleContainerList(r, maxnoofERABs)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([]ERABSetupItemCtxtSURes, 0, len(raw))
-
-	for _, b := range raw {
-		it, err := decodeERABSetupItemCtxtSURes(b)
-		if err != nil {
-			return nil, err
-		}
-
-		out = append(out, it)
-	}
-
-	return out, nil
+	return decodeItemList(r, maxnoofERABs, decodeERABSetupItemCtxtSURes)
 }
 
 func decodeERABItemList(r *aper.Reader) ([]ERABItem, error) {
-	raw, err := decodeSingleContainerList(r, maxnoofERABs)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([]ERABItem, 0, len(raw))
-
-	for _, b := range raw {
-		it, err := decodeERABItem(b)
-		if err != nil {
-			return nil, err
-		}
-
-		out = append(out, it)
-	}
-
-	return out, nil
+	return decodeItemList(r, maxnoofERABs, decodeERABItem)
 }
 
 // InitialContextSetupFailure is the INITIAL CONTEXT SETUP FAILURE message

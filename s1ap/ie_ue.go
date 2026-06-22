@@ -84,16 +84,8 @@ func decodeTAI(r *aper.Reader) (TAI, error) {
 		return TAI{}, err
 	}
 
-	if opt[0] {
-		if err := skipExtensionContainer(r); err != nil {
-			return TAI{}, err
-		}
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return TAI{}, err
-		}
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
+		return TAI{}, err
 	}
 
 	return TAI{PLMNIdentity: plmn, TAC: tac}, nil
@@ -134,16 +126,8 @@ func decodeEUTRANCGI(r *aper.Reader) (EUTRANCGI, error) {
 		return EUTRANCGI{}, err
 	}
 
-	if opt[0] {
-		if err := skipExtensionContainer(r); err != nil {
-			return EUTRANCGI{}, err
-		}
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return EUTRANCGI{}, err
-		}
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
+		return EUTRANCGI{}, err
 	}
 
 	return EUTRANCGI{PLMNIdentity: plmn, CellID: uint32(bitsToUint(b, cellIDBits))}, nil

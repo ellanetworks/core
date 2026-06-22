@@ -98,7 +98,7 @@ func TestModifyEPSBearerContextRejectRoundTrip(t *testing.T) {
 }
 
 func TestPDNConnectivityRequestWithAPNAndPCO(t *testing.T) {
-	apn, err := EncodeAPN("internet")
+	apn, err := MarshalAPN("internet")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,8 +131,8 @@ func TestPDNConnectivityRequestWithAPNAndPCO(t *testing.T) {
 		t.Fatalf("APN = %x, want %x", out.AccessPointName, apn)
 	}
 
-	if name, err := DecodeAPN(out.AccessPointName); err != nil || name != "internet" {
-		t.Fatalf("DecodeAPN = %q, err %v", name, err)
+	if name, err := ParseAPN(out.AccessPointName); err != nil || name != "internet" {
+		t.Fatalf("ParseAPN = %q, err %v", name, err)
 	}
 
 	if !bytes.Equal(out.ProtocolConfigurationOptions, pco) {

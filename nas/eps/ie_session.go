@@ -129,9 +129,9 @@ func ParseEPSQoS(b []byte) (EPSQoS, error) {
 	return EPSQoS{QCI: qci, BitRates: rest}, nil
 }
 
-// EncodeAPN encodes a dot-separated APN into labels (TS 23.003 §9.1): each label
+// MarshalAPN encodes a dot-separated APN into labels (TS 23.003 §9.1): each label
 // is a 1-octet length followed by its characters.
-func EncodeAPN(apn string) ([]byte, error) {
+func MarshalAPN(apn string) ([]byte, error) {
 	var w common.Writer
 
 	for _, label := range strings.Split(apn, ".") {
@@ -146,8 +146,8 @@ func EncodeAPN(apn string) ([]byte, error) {
 	return w.Bytes(), nil
 }
 
-// DecodeAPN decodes a labelled APN value part into its dot-separated form.
-func DecodeAPN(b []byte) (string, error) {
+// ParseAPN decodes a labelled APN value part into its dot-separated form.
+func ParseAPN(b []byte) (string, error) {
 	r := common.NewReader(b)
 
 	var labels []string
@@ -206,11 +206,12 @@ func ParseAPNAMBR(b []byte) (APNAMBR, error) {
 	return APNAMBR{DownlinkOctet: dl, UplinkOctet: ul, Extended: ext}, nil
 }
 
-// EncodeAPNAMBR encodes downlink/uplink rates (bits per second) into an APN-AMBR
-// IE value per TS 24.301 §9.9.4.2 (TS 24.008 §10.5.6.5): the base octet
+// APNAMBRFromBitsPerSecond builds an APN-AMBR from downlink/uplink rates (bits
+// per second); it is the inverse of BitsPerSecond, and Marshal then renders the
+// wire octets per TS 24.301 §9.9.4.2 (TS 24.008 §10.5.6.5): the base octet
 // (≤8640 kbps), the extended octet (octets 5/6, ≤256 Mbps), and the extended-2
 // octet (octets 7/8, up to 10 Gbps) for higher rates.
-func EncodeAPNAMBR(downlinkBps, uplinkBps uint64) APNAMBR {
+func APNAMBRFromBitsPerSecond(downlinkBps, uplinkBps uint64) APNAMBR {
 	dlBase, dlExt, dlExt2 := encodeAPNAMBROctet(downlinkBps)
 	ulBase, ulExt, ulExt2 := encodeAPNAMBROctet(uplinkBps)
 

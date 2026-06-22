@@ -42,7 +42,7 @@ func TestEncodeAPNAMBRSpecVectors(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			a := eps.EncodeAPNAMBR(tc.dlBps, tc.ulBps)
+			a := eps.APNAMBRFromBitsPerSecond(tc.dlBps, tc.ulBps)
 
 			if a.DownlinkOctet != tc.wantDLBase {
 				t.Errorf("DL base octet = %#x, want %#x", a.DownlinkOctet, tc.wantDLBase)
@@ -71,7 +71,7 @@ func TestAPNAMBRRoundTrip(t *testing.T) {
 		for _, ulMbps := range exact {
 			dl, ul := dlMbps*mbps, ulMbps*mbps
 
-			gotDL, gotUL := eps.EncodeAPNAMBR(dl, ul).BitsPerSecond()
+			gotDL, gotUL := eps.APNAMBRFromBitsPerSecond(dl, ul).BitsPerSecond()
 
 			if gotDL != dl || gotUL != ul {
 				t.Errorf("round-trip %d/%d Mbps: got %d/%d bps, want %d/%d", dlMbps, ulMbps, gotDL, gotUL, dl, ul)
@@ -90,7 +90,7 @@ func TestAPNAMBRExtended2RoundTrip(t *testing.T) {
 		for _, ulMbps := range exact {
 			dl, ul := dlMbps*mbps, ulMbps*mbps
 
-			gotDL, gotUL := eps.EncodeAPNAMBR(dl, ul).BitsPerSecond()
+			gotDL, gotUL := eps.APNAMBRFromBitsPerSecond(dl, ul).BitsPerSecond()
 
 			if gotDL != dl || gotUL != ul {
 				t.Errorf("round-trip %d/%d Mbps: got %d/%d bps, want %d/%d", dlMbps, ulMbps, gotDL, gotUL, dl, ul)
@@ -101,7 +101,7 @@ func TestAPNAMBRExtended2RoundTrip(t *testing.T) {
 
 // TestAPNAMBRMarshalParse round-trips the IE value bytes through Marshal/Parse.
 func TestAPNAMBRMarshalParse(t *testing.T) {
-	orig := eps.EncodeAPNAMBR(60*mbps, 30*mbps)
+	orig := eps.APNAMBRFromBitsPerSecond(60*mbps, 30*mbps)
 
 	got, err := eps.ParseAPNAMBR(orig.Marshal())
 	if err != nil {
@@ -125,7 +125,7 @@ func TestActivateDefaultBearerAPNAMBR(t *testing.T) {
 		EPSQoS:                       []byte{9},
 		AccessPointName:              []byte{0x08, 'i', 'n', 't', 'e', 'r', 'n', 'e', 't'},
 		PDNAddress:                   []byte{0x01, 10, 45, 0, 1},
-		APNAMBR:                      eps.EncodeAPNAMBR(100*mbps, 50*mbps).Marshal(),
+		APNAMBR:                      eps.APNAMBRFromBitsPerSecond(100*mbps, 50*mbps).Marshal(),
 		ESMCause:                     &cause,
 		ProtocolConfigurationOptions: []byte{0x80, 0x80, 0x21, 0x02},
 	}

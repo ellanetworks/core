@@ -55,6 +55,32 @@ type epsSessionManager interface {
 	ReleaseEPSSession(ctx context.Context, imsi string, ebi uint8) error
 }
 
+// Concurrency model. A UE's state is touched by several goroutines: the eNB
+// dispatch loop (serial per SCTP association), the data-network reconcile
+// backstop, the status and detach API, and timer callbacks. Two locks, with a
+// fixed ordering, plus two atomics:
+//
+//   - MME.mu guards the registry and lifecycle: the ues/byMTMSI/enbs maps,
+//     nextMMEUEID, the M-TMSI allocator, each UE's S1 identity (conn,
+//     MME/ENB-UE-S1AP-IDs), the idle/paging/NAS-guard timers and their generation
+//     counters, and the releasing flag.
+//   - UeContext.mu guards that UE's data: the EPS NAS security context (keys and
+//     NAS COUNTs), the PDN/bearer state (the pdns map, defaultEBI, and each
+//     connection's in-flight modification flags), and imsi. The security context
+//     is reached only through chokepoint methods (downlinkSecCtx, nextDownlinkCount,
+//     setEPSSecurityContext, markSecured, securitySnapshot) so the COUNT invariant
+//     is auditable in one place.
+//   - UeContext.emmState/ecmState are atomic — independent enums read on the hot
+//     path, kept lock-free.
+//
+// Lock ordering (acquire in this order, never reverse):
+//
+//	MME.mu  →  UeContext.mu
+//
+// Never hold a lock across an external call (SMF, DB, SCTP send): snapshot the
+// state, release, then send. Reads of a UE's data from another goroutine that
+// first observe emmState == EMM-REGISTERED (status, reconcile) are safe without
+// UeContext.mu — the atomic store at registration carries the happens-before.
 type MME struct {
 	srv     *sctp.Server
 	cred    *udm.Service
@@ -66,8 +92,8 @@ type MME struct {
 	ues         map[uint32]*UeContext // keyed by MME-UE-S1AP-ID
 	byMTMSI     map[uint32]*UeContext // keyed by M-TMSI, for S-TMSI lookup
 	nextMMEUEID uint32
-	// mtmsi allocates an unpredictable M-TMSI (TS 23.401 privacy), shared
-	// with the AMF's 5G-TMSI allocator: random MSBs with allocate/free.
+	// mtmsi allocates an unpredictable M-TMSI (TS 23.401 privacy): random MSBs
+	// with allocate/free.
 	mtmsi *etsi.TmsiAllocator
 
 	// Idle-mode reachability supervision (TS 24.301). Fields so tests can
@@ -89,8 +115,7 @@ type MME struct {
 // mobileReachableTime supervises the UE's periodic tracking area updating; its
 // default is T3412 + 4 minutes (TS 24.301). implicitDetachTime is the
 // grace period the MME waits after the mobile reachable timer before it
-// implicitly detaches an unreachable UE (the value is network-dependent;
-// aligned with the AMF's implicit deregistration timer).
+// implicitly detaches an unreachable UE (the value is network-dependent).
 const (
 	defaultMobileReachableTime = 58 * time.Minute
 	defaultImplicitDetachTime  = 2 * time.Minute
@@ -265,7 +290,7 @@ func (m *MME) dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 // causeUnknownPLMN is S1AP Cause Misc "unknown-PLMN" (TS 36.413, the
 // sixth Misc root value), returned in S1 Setup Failure when the eNB broadcasts no
 // PLMN this MME serves.
-var causeUnknownPLMN = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 5}
+var causeUnknownPLMN = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscUnknownPLMN}
 
 // handleS1Setup answers an eNB's S1 Setup Request: an S1 Setup Response when the
 // eNB broadcasts a PLMN this MME serves, otherwise an S1 Setup Failure with

@@ -123,16 +123,8 @@ func decodeCriticalityDiagnostics(r *aper.Reader) (CriticalityDiagnostics, error
 		d.IEsCriticalityDiagnostics = list
 	}
 
-	if opt[4] {
-		if err := skipExtensionContainer(r); err != nil {
-			return d, fmt.Errorf("s1ap: criticality diagnostics iE-Extensions: %w", err)
-		}
-	}
-
-	if extPresent {
-		if err := r.SkipExtensionAdditions(); err != nil {
-			return d, err
-		}
+	if err := skipSequenceExtensions(r, opt[4], extPresent); err != nil {
+		return d, err
 	}
 
 	return d, nil
@@ -175,7 +167,7 @@ func decodeCritDiagIEList(r *aper.Reader) ([]CriticalityDiagnosticsIEItem, error
 		return nil, fmt.Errorf("s1ap: criticality diagnostics list length: %w", err)
 	}
 
-	items := make([]CriticalityDiagnosticsIEItem, 0, minInt(n, 16))
+	items := make([]CriticalityDiagnosticsIEItem, 0, min(n, 16))
 
 	for i := 0; i < n; i++ {
 		extPresent, opt, err := r.ReadSequencePreamble(true, 1)
@@ -198,16 +190,8 @@ func decodeCritDiagIEList(r *aper.Reader) ([]CriticalityDiagnosticsIEItem, error
 			return nil, fmt.Errorf("s1ap: criticality diagnostics item %d typeOfError: %w", i, err)
 		}
 
-		if opt[0] {
-			if err := skipExtensionContainer(r); err != nil {
-				return nil, fmt.Errorf("s1ap: criticality diagnostics item %d iE-Extensions: %w", i, err)
-			}
-		}
-
-		if extPresent {
-			if err := r.SkipExtensionAdditions(); err != nil {
-				return nil, err
-			}
+		if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
+			return nil, err
 		}
 
 		items = append(items, CriticalityDiagnosticsIEItem{
@@ -218,12 +202,4 @@ func decodeCritDiagIEList(r *aper.Reader) ([]CriticalityDiagnosticsIEItem, error
 	}
 
 	return items, nil
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-
-	return b
 }

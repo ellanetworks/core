@@ -13,15 +13,10 @@ const (
 	DetachTypeCombined uint8 = 3
 )
 
-// ieiEMMCause is the IEI of the optional EMM cause in a network-originating
-// DETACH REQUEST (TS 24.301 §8.2.12). EMM cause is a type-3 IE with a one-octet
-// value (TS 24.301 §9.9.3.9).
-const ieiEMMCause uint8 = 0x53
-
 // detachRequestNetworkIEs are the optional IEs of a network-originating DETACH
 // REQUEST (TS 24.301 §8.2.12): the EMM cause.
 var detachRequestNetworkIEs = []common.OptionalIE{
-	{IEI: ieiEMMCause, Format: common.IETV3, Len: 1},
+	{IEI: emmCauseIEI, Format: common.IETV3, Len: 1},
 }
 
 // DetachRequestUE is the UE-originating DETACH REQUEST message (TS 24.301
@@ -105,7 +100,7 @@ func (m *DetachRequestNetwork) Marshal() ([]byte, error) {
 	w.U8(m.TypeOfDetach & 0x07) // detach type | spare half octet
 
 	if m.EMMCause != nil {
-		w.U8(ieiEMMCause)
+		w.U8(emmCauseIEI)
 		w.U8(*m.EMMCause)
 	}
 
@@ -129,7 +124,7 @@ func ParseDetachRequestNetwork(b []byte) (*DetachRequestNetwork, error) {
 	m := &DetachRequestNetwork{TypeOfDetach: octet & 0x07}
 
 	if _, err := common.WalkOptionalIEs(r, detachRequestNetworkIEs, func(iei uint8, value []byte) error {
-		if iei == ieiEMMCause && len(value) == 1 {
+		if iei == emmCauseIEI && len(value) == 1 {
 			cause := value[0]
 			m.EMMCause = &cause
 		}

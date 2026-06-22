@@ -15,7 +15,7 @@ import (
 // causeUnknownPairUES1APID is S1AP Cause Radio Network "unknown-pair-ue-s1ap-id"
 // (TS 36.413): a UE-associated message whose eNB-UE-S1AP-ID does not match the
 // one stored against its MME-UE-S1AP-ID.
-var causeUnknownPairUES1APID = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 15}
+var causeUnknownPairUES1APID = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnknownPairUES1APID}
 
 // resolveUE looks up a UE context for a UE-associated S1AP message and validates
 // the AP ID pair (TS 36.413). At the MME the local AP ID is the MME-UE-S1AP-ID
@@ -27,8 +27,7 @@ var causeUnknownPairUES1APID = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Va
 //     a UE-associated logical S1 connection on the receiving association, so on
 //     that association it is an unknown local AP ID. The global MME-UE-S1AP-ID
 //     map is shared across eNBs; this scopes resolution to the sender so one eNB
-//     cannot act on a UE attached through another (TS 36.413), mirroring the
-//     AMF's per-radio RAN UE map.
+//     cannot act on a UE attached through another (TS 36.413).
 //   - An MME-UE-S1AP-ID held by an ECM-IDLE UE no longer identifies an active
 //     UE-associated logical S1 connection (the connection was released; the UE
 //     re-establishes under a fresh AP ID), so it is also an unknown local AP ID.
@@ -54,7 +53,7 @@ func (m *MME) resolveUE(conn nasWriter, mmeID s1ap.MMEUES1APID, enbID s1ap.ENBUE
 		return nil, false
 	}
 
-	if ue.ecmState != ECMConnected {
+	if ue.ecmState.load() != ECMConnected {
 		logger.MmeLog.Warn("UE-associated S1AP message for an MME-UE-S1AP-ID with no active S1 connection",
 			zap.Uint32("mme-ue-id", uint32(mmeID)), zap.Uint32("enb-ue-id", uint32(enbID)))
 		m.sendErrorIndication(conn, &mmeID, &enbID, causeUnknownMMEUES1APID)

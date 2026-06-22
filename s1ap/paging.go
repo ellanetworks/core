@@ -163,13 +163,7 @@ func ParsePaging(value []byte) (*Paging, error) {
 			m.CNDomain = CNDomain(index)
 			seenCNDomain = true
 		case idTAIList:
-			var items [][]byte
-
-			items, err = decodeSingleContainerList(sub, maxnoofTAIs)
-			if err == nil {
-				m.TAIList, err = decodeTAIItems(items)
-			}
-
+			m.TAIList, err = decodeItemList(sub, maxnoofTAIs, decodeTAIItem)
 			seenTAIList = true
 		default:
 			m.unknownIEs = append(m.unknownIEs, f)
@@ -187,36 +181,20 @@ func ParsePaging(value []byte) (*Paging, error) {
 	return m, nil
 }
 
-func decodeTAIItems(items [][]byte) ([]TAI, error) {
-	tais := make([]TAI, 0, len(items))
-
-	for _, b := range items {
-		r := aper.NewReader(b)
-
-		extPresent, opt, err := r.ReadSequencePreamble(true, 1)
-		if err != nil {
-			return nil, err
-		}
-
-		tai, err := decodeTAI(r)
-		if err != nil {
-			return nil, err
-		}
-
-		if opt[0] {
-			if err := skipExtensionContainer(r); err != nil {
-				return nil, err
-			}
-		}
-
-		if extPresent {
-			if err := r.SkipExtensionAdditions(); err != nil {
-				return nil, err
-			}
-		}
-
-		tais = append(tais, tai)
+func decodeTAIItem(r *aper.Reader) (TAI, error) {
+	extPresent, opt, err := r.ReadSequencePreamble(true, 1)
+	if err != nil {
+		return TAI{}, err
 	}
 
-	return tais, nil
+	tai, err := decodeTAI(r)
+	if err != nil {
+		return TAI{}, err
+	}
+
+	if err := skipSequenceExtensions(r, opt[0], extPresent); err != nil {
+		return TAI{}, err
+	}
+
+	return tai, nil
 }

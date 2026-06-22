@@ -77,7 +77,7 @@ func (m *MME) onImplicitDetachExpiry(ue *UeContext, gen uint64) {
 	}
 
 	ue.implicitDetachTimer = nil
-	ue.emmState = EMMDeregistered
+	ue.emmState.store(EMMDeregistered)
 	imsi, mmeUEID := ue.imsi, ue.MMEUES1APID
 
 	m.mu.Unlock()

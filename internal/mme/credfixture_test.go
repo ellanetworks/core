@@ -33,6 +33,7 @@ type fakeSessionManager struct {
 	ambrUpdated  bool
 	ambrUplink   string // records the last UpdateEPSSessionAMBR uplink value
 	ambrDownlink string
+	ambrErr      error // when set, UpdateEPSSessionAMBR fails with it
 }
 
 func (f *fakeSessionManager) CreateEPSSession(_ context.Context, req models.EPSBearerRequest) (models.EPSBearer, error) {
@@ -64,6 +65,10 @@ func (f *fakeSessionManager) ModifyEPSSession(_ context.Context, _ string, _ uin
 }
 
 func (f *fakeSessionManager) UpdateEPSSessionAMBR(_ context.Context, _ string, _ uint8, ambrUplink, ambrDownlink string) error {
+	if f.ambrErr != nil {
+		return f.ambrErr
+	}
+
 	f.ambrUpdated = true
 	f.ambrUplink = ambrUplink
 	f.ambrDownlink = ambrDownlink

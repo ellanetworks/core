@@ -34,8 +34,10 @@ func (m *MME) deactivateBearer(ctx context.Context, ue *UeContext, p *pdnConnect
 		return
 	}
 
+	ue.mu.Lock()
 	p.deactivating = true
 	p.disconnecting = disconnecting
+	ue.mu.Unlock()
 
 	if disconnecting || p.ebi != ue.defaultEBI {
 		m.sendERABRelease(ctx, ue, p, naspdu)
@@ -44,6 +46,12 @@ func (m *MME) deactivateBearer(ctx context.Context, ue *UeContext, p *pdnConnect
 
 	m.sendDownlink(ctx, ue, naspdu)
 	m.armNASGuard(ue, "Deactivate EPS Bearer Context Request", naspdu)
+}
+
+// disconnectBearer tears down the UE's PDN connection p with a regular
+// deactivation; the UE is not asked to re-establish it.
+func (m *MME) disconnectBearer(ctx context.Context, ue *UeContext, p *pdnConnection, esmCause, pti uint8) {
+	m.deactivateBearer(ctx, ue, p, esmCause, pti, true)
 }
 
 // sendERABRelease releases a UE's E-RAB at the eNB while the UE stays connected,

@@ -170,7 +170,7 @@ func decodeSingleContainerList(r *aper.Reader, ub int) ([][]byte, error) {
 		return nil, err
 	}
 
-	out := make([][]byte, 0, minInt(n, 16))
+	out := make([][]byte, 0, min(n, 16))
 
 	for i := 0; i < n; i++ {
 		if _, err := r.ReadConstrainedInt(0, maxProtocolIEs); err != nil {
@@ -190,6 +190,59 @@ func decodeSingleContainerList(r *aper.Reader, ub int) ([][]byte, error) {
 	}
 
 	return out, nil
+}
+
+// decodeItemList reads a SEQUENCE (SIZE(1..ub)) OF ProtocolIE-SingleContainer
+// (TS 36.413 §9.3). Each item is its own APER open type, so dec is handed a
+// fresh reader over that item's octets — element decoders therefore take an
+// *aper.Reader like every other decoder, and the open-type boundary lives here
+// rather than being re-stated at each call site.
+func decodeItemList[T any](r *aper.Reader, ub int, dec func(*aper.Reader) (T, error)) ([]T, error) {
+	raw, err := decodeSingleContainerList(r, ub)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]T, 0, len(raw))
+
+	for _, b := range raw {
+		it, err := dec(aper.NewReader(b))
+		if err != nil {
+			return nil, err
+		}
+
+		out = append(out, it)
+	}
+
+	return out, nil
+}
+
+// encoderList adapts a slice of encodable items to the []func(*aper.Writer) error
+// that encodeSingleContainerList consumes.
+func encoderList[T interface{ encode(*aper.Writer) error }](items []T) []func(*aper.Writer) error {
+	out := make([]func(*aper.Writer) error, len(items))
+	for i := range items {
+		out[i] = items[i].encode
+	}
+
+	return out
+}
+
+// skipSequenceExtensions steps over a SEQUENCE's optional iE-Extensions
+// (ProtocolExtensionContainer) and extension additions when they are present but
+// not modeled (TS 36.413 §9.3).
+func skipSequenceExtensions(r *aper.Reader, extContainer, extAdditions bool) error {
+	if extContainer {
+		if err := skipExtensionContainer(r); err != nil {
+			return err
+		}
+	}
+
+	if extAdditions {
+		return r.SkipExtensionAdditions()
+	}
+
+	return nil
 }
 
 // decodeIEContainer reads a ProtocolIE-Container into the fields in wire order,

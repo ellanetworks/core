@@ -24,7 +24,7 @@ func idleRegisteredUE(t *testing.T, m *MME) (*UeContext, eps.EPSMobileIdentity) 
 	ue.ueNetCap = eps.UENetworkCapability{EEA: 0xf0, EIA: 0x70}.Marshal()
 	testPDN(ue).sgwFTEID = testSGWFTEID // S-GW S1-U persists across idle, as after a real attach
 	guti := m.assignGUTI(ue, models.PlmnID{Mcc: "001", Mnc: "01"}, 1, 1)
-	ue.ecmState = ECMIdle
+	ue.ecmState.store(ECMIdle)
 
 	return ue, guti
 }
@@ -62,7 +62,7 @@ func TestServiceRequestReestablishes(t *testing.T) {
 
 	m.onServiceRequest(context.Background(), cc, msg)
 
-	if ue.ecmState != ECMConnected {
+	if ue.ecmState.load() != ECMConnected {
 		t.Fatal("UE not ECM-CONNECTED after Service Request")
 	}
 
@@ -204,7 +204,7 @@ func TestServiceRequestBadMACRejected(t *testing.T) {
 
 	m.onServiceRequest(context.Background(), cc, msg)
 
-	if ue.ecmState == ECMConnected {
+	if ue.ecmState.load() == ECMConnected {
 		t.Fatal("UE reconnected despite a bad short MAC")
 	}
 
