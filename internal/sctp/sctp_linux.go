@@ -21,6 +21,7 @@
 package sctp
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
@@ -128,7 +129,10 @@ func parseSndRcvInfo(b []byte) (*SndRcvInfo, error) {
 		if m.Header.Level == syscall.IPPROTO_SCTP {
 			switch m.Header.Type {
 			case SCTPCMsgSndRcv:
-				return (*SndRcvInfo)(unsafe.Pointer(&m.Data[0])), nil
+				// Copy the struct out of the syscall control buffer so the
+				// returned pointer does not alias storage the caller reuses.
+				info := *(*SndRcvInfo)(unsafe.Pointer(&m.Data[0]))
+				return &info, nil
 			}
 		}
 	}
@@ -137,28 +141,28 @@ func parseSndRcvInfo(b []byte) (*SndRcvInfo, error) {
 }
 
 func parseNotification(b []byte) Notification {
-	snType := SCTPNotificationType(nativeEndian.Uint16(b[:2]))
+	snType := SCTPNotificationType(binary.NativeEndian.Uint16(b[:2]))
 
 	switch snType {
 	case SCTPShutdownEvent:
 		notification := SCTPShutdownEventNotification{
-			sseType:    nativeEndian.Uint16(b[:2]),
-			sseFlags:   nativeEndian.Uint16(b[2:4]),
-			sseLength:  nativeEndian.Uint32(b[4:8]),
-			sseAssocID: SCTPAssocID(nativeEndian.Uint32(b[8:])),
+			sseType:    binary.NativeEndian.Uint16(b[:2]),
+			sseFlags:   binary.NativeEndian.Uint16(b[2:4]),
+			sseLength:  binary.NativeEndian.Uint32(b[4:8]),
+			sseAssocID: SCTPAssocID(binary.NativeEndian.Uint32(b[8:])),
 		}
 
 		return &notification
 	case SCTPAssocChange:
 		notification := SCTPAssocChangeEvent{
-			sacType:            nativeEndian.Uint16(b[:2]),
-			sacFlags:           nativeEndian.Uint16(b[2:4]),
-			sacLength:          nativeEndian.Uint32(b[4:8]),
-			sacState:           SCTPState(nativeEndian.Uint16(b[8:10])),
-			sacError:           nativeEndian.Uint16(b[10:12]),
-			sacOutboundStreams: nativeEndian.Uint16(b[12:14]),
-			sacInboundStreams:  nativeEndian.Uint16(b[14:16]),
-			sacAssocID:         SCTPAssocID(nativeEndian.Uint32(b[16:20])),
+			sacType:            binary.NativeEndian.Uint16(b[:2]),
+			sacFlags:           binary.NativeEndian.Uint16(b[2:4]),
+			sacLength:          binary.NativeEndian.Uint32(b[4:8]),
+			sacState:           SCTPState(binary.NativeEndian.Uint16(b[8:10])),
+			sacError:           binary.NativeEndian.Uint16(b[10:12]),
+			sacOutboundStreams: binary.NativeEndian.Uint16(b[12:14]),
+			sacInboundStreams:  binary.NativeEndian.Uint16(b[14:16]),
+			sacAssocID:         SCTPAssocID(binary.NativeEndian.Uint32(b[16:20])),
 			sacInfo:            b[20:],
 		}
 

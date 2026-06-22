@@ -39,7 +39,10 @@ func (m *MME) onTrackingAreaUpdate(ctx context.Context, ue *UeContext, plain []b
 		m.reconcileBearerContextStatus(ue, *req.EPSBearerContextStatus)
 	}
 
-	accept, err := m.trackingAreaUpdateAccept(ctx, ue, isCombinedUpdate(req.EPSUpdateType), req.EPSBearerContextStatus != nil)
+	accept, err := m.trackingAreaUpdateAccept(ctx, ue, tauAcceptOptions{
+		combined:            isCombinedUpdate(req.EPSUpdateType),
+		includeBearerStatus: req.EPSBearerContextStatus != nil,
+	})
 	if err != nil {
 		logger.MmeLog.Error("failed to build Tracking Area Update Accept", zap.String("imsi", ue.imsi), zap.Error(err))
 		return
@@ -144,7 +147,15 @@ func isCombinedUpdate(updateType uint8) bool {
 // acknowledges with TRACKING AREA UPDATE COMPLETE. A combined update succeeds for
 // EPS services only: the MME has no SGs interface, so EMM cause #18 is included
 // to stop the UE attempting CS registration.
-func (m *MME) trackingAreaUpdateAccept(ctx context.Context, ue *UeContext, combined, includeBearerStatus bool) (*eps.TrackingAreaUpdateAccept, error) {
+// tauAcceptOptions selects the optional parts of a TRACKING AREA UPDATE ACCEPT:
+// combined for a combined EPS/IMSI update, includeBearerStatus to echo the UE's
+// EPS bearer context status (TS 24.301).
+type tauAcceptOptions struct {
+	combined            bool
+	includeBearerStatus bool
+}
+
+func (m *MME) trackingAreaUpdateAccept(ctx context.Context, ue *UeContext, opts tauAcceptOptions) (*eps.TrackingAreaUpdateAccept, error) {
 	plmn, err := m.operatorPLMN(ctx)
 	if err != nil {
 		return nil, err
@@ -172,12 +183,12 @@ func (m *MME) trackingAreaUpdateAccept(ctx context.Context, ue *UeContext, combi
 		EPSNetworkFeatureSupport: &eps.EPSNetworkFeatureSupport{IMSVoPS: true},
 	}
 
-	if combined {
+	if opts.combined {
 		cause := emmCauseCSDomainNotAvailable
 		accept.EMMCause = &cause
 	}
 
-	if includeBearerStatus {
+	if opts.includeBearerStatus {
 		status := m.bearerContextStatus(ue)
 		accept.EPSBearerContextStatus = &status
 	}

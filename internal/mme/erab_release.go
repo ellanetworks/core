@@ -48,6 +48,12 @@ func (m *MME) deactivateBearer(ctx context.Context, ue *UeContext, p *pdnConnect
 	m.armNASGuard(ue, "Deactivate EPS Bearer Context Request", naspdu)
 }
 
+// disconnectBearer tears down the UE's PDN connection p with a regular
+// deactivation; the UE is not asked to re-establish it.
+func (m *MME) disconnectBearer(ctx context.Context, ue *UeContext, p *pdnConnection, esmCause, pti uint8) {
+	m.deactivateBearer(ctx, ue, p, esmCause, pti, true)
+}
+
 // sendERABRelease releases a UE's E-RAB at the eNB while the UE stays connected,
 // carrying the DEACTIVATE EPS BEARER CONTEXT REQUEST in the NAS-PDU so the eNB
 // both releases the radio bearer and delivers the NAS (TS 36.413 §8.2.3).

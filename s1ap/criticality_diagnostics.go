@@ -167,7 +167,7 @@ func decodeCritDiagIEList(r *aper.Reader) ([]CriticalityDiagnosticsIEItem, error
 		return nil, fmt.Errorf("s1ap: criticality diagnostics list length: %w", err)
 	}
 
-	items := make([]CriticalityDiagnosticsIEItem, 0, minInt(n, 16))
+	items := make([]CriticalityDiagnosticsIEItem, 0, min(n, 16))
 
 	for i := 0; i < n; i++ {
 		extPresent, opt, err := r.ReadSequencePreamble(true, 1)
@@ -202,12 +202,4 @@ func decodeCritDiagIEList(r *aper.Reader) ([]CriticalityDiagnosticsIEItem, error
 	}
 
 	return items, nil
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-
-	return b
 }

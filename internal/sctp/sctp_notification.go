@@ -1,4 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
+//go:build linux && !386
+
 // SPDX-FileCopyrightText: 2021 Open Networking Foundation <info@opennetworking.org>
 // Copyright 2019 free5GC.org
 //

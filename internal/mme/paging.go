@@ -23,6 +23,11 @@ import (
 // retransmitted up to a bounded number of times, then abandoned (T3413,
 // TS 24.301 §5.6.2). A repeated trigger while a paging procedure is already in
 // progress is folded into it rather than restarting the supervision.
+//
+// A nil error means the paging was sent or deliberately skipped (the UE is
+// already ECM-CONNECTED or a paging procedure is already running); only a
+// missing UE context or a marshal failure is reported. The eNB broadcast itself
+// is best-effort — a per-eNB write failure does not fail the call.
 func (m *MME) Page(ctx context.Context, imsi string) error {
 	ue, ok := m.lookupUeByIMSI(imsi)
 	if !ok {

@@ -1,4 +1,6 @@
 // SPDX-FileCopyrightText: Ella Networks Inc.
+//go:build linux && !386
+
 // Copyright 2019 Wataru Ishida. All rights reserved.
 // Modified by Ella Networks Inc.
 // SPDX-License-Identifier: BUSL-1.1
@@ -147,7 +149,7 @@ type RtoInfo struct {
 	SrtoAssocID int32
 	SrtoInitial uint32
 	SrtoMax     uint32
-	StroMin     uint32
+	SrtoMin     uint32
 }
 
 // Association Parameters defined in RFC 6458 8.1
@@ -196,21 +198,13 @@ const (
 	SCTPCantStrAssoc
 )
 
-var nativeEndian binary.ByteOrder
-
-func init() {
-	i := uint16(1)
-	if *(*byte)(unsafe.Pointer(&i)) == 0 {
-		nativeEndian = binary.BigEndian
-	} else {
-		nativeEndian = binary.LittleEndian
-	}
-}
-
+// toBuf serialises a fixed-size struct or scalar to its native-endian bytes for
+// a syscall buffer. binary.Write only errors on a variable-size type, which the
+// fixed-layout syscall structs passed here never are; the Warn is a backstop.
 func toBuf(v any) []byte {
 	var buf bytes.Buffer
 
-	err := binary.Write(&buf, nativeEndian, v)
+	err := binary.Write(&buf, binary.NativeEndian, v)
 	if err != nil {
 		logger.AmfLog.Warn("failed to write binary", zap.Error(err))
 	}
@@ -218,12 +212,14 @@ func toBuf(v any) []byte {
 	return buf.Bytes()
 }
 
+// htons converts a host-order uint16 to network order (big-endian); ntohs is the
+// inverse, which for a two-byte swap is the same operation.
 func htons(h uint16) uint16 {
-	if nativeEndian == binary.LittleEndian {
-		return (h << 8 & 0xff00) | (h >> 8 & 0xff)
-	}
+	var b [2]byte
 
-	return h
+	binary.BigEndian.PutUint16(b[:], h)
+
+	return binary.NativeEndian.Uint16(b[:])
 }
 
 var ntohs = htons
@@ -348,7 +344,6 @@ func SCTPBind(fd int, addr *SCTPAddr, flags int) error {
 }
 
 type SCTPConn struct {
-	fd     int
 	file   *os.File
 	rc     syscall.RawConn
 	closed atomic.Bool
@@ -373,12 +368,6 @@ func (c *SCTPConn) controlFd(fn func(fd int) error) error {
 	return err
 }
 
-// Fd returns the underlying socket file descriptor. The value is cached at
-// construction time, so it remains valid even after Close.
-func (c *SCTPConn) Fd() int {
-	return c.fd
-}
-
 // NewSCTPConn wraps an existing SCTP socket file descriptor. The fd is set
 // to non-blocking mode and registered with Go's runtime poller, enabling
 // deadline support and safe concurrent Close. NewSCTPConn takes ownership
@@ -398,7 +387,7 @@ func NewSCTPConn(fd int) *SCTPConn {
 		return nil
 	}
 
-	return &SCTPConn{fd: fd, file: f, rc: rc}
+	return &SCTPConn{file: f, rc: rc}
 }
 
 func (c *SCTPConn) SubscribeEvents(flags int) error {

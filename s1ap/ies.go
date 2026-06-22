@@ -170,7 +170,7 @@ func decodeSingleContainerList(r *aper.Reader, ub int) ([][]byte, error) {
 		return nil, err
 	}
 
-	out := make([][]byte, 0, minInt(n, 16))
+	out := make([][]byte, 0, min(n, 16))
 
 	for i := 0; i < n; i++ {
 		if _, err := r.ReadConstrainedInt(0, maxProtocolIEs); err != nil {

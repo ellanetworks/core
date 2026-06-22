@@ -16,10 +16,10 @@ import (
 
 // S1AP causes the MME returns in a PATH SWITCH REQUEST FAILURE (TS 36.413).
 var (
-	causeUnknownMMEUES1APID    = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 13} // unknown-mme-ue-s1ap-id
-	causeMultipleERABInstances = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 31} // multiple-E-RAB-ID-instances
-	causePathSwitchNoSecurity  = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: 1}           // authentication-failure
-	causePathSwitchUPFailure   = s1ap.Cause{Group: s1ap.CauseGroupTransport, Value: 0}     // transport-resource-unavailable
+	causeUnknownMMEUES1APID    = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnknownMMEUES1APID}
+	causeMultipleERABInstances = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkMultipleERABIDInstances}
+	causePathSwitchNoSecurity  = s1ap.Cause{Group: s1ap.CauseGroupNAS, Value: s1ap.CauseNASAuthenticationFailure}
+	causePathSwitchUPFailure   = s1ap.Cause{Group: s1ap.CauseGroupTransport, Value: s1ap.CauseTransportResourceUnavailable}
 )
 
 // handlePathSwitchRequest handles an X2-handover PATH SWITCH REQUEST from the

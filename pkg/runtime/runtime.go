@@ -561,7 +561,7 @@ func Start(ctx context.Context, rc RuntimeConfig) error {
 		OnDisconnect: func(conn *amfsctp.SCTPConn) {
 			if ran, ok := amfInstance.FindRadioByConn(conn); ok {
 				amfInstance.RemoveRadio(context.Background(), ran)
-				logger.AmfLog.Info("removed radio on connection close", zap.Int("fd", conn.Fd()))
+				logger.AmfLog.Info("removed radio on connection close")
 			}
 		},
 	})

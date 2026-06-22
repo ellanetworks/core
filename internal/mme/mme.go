@@ -290,7 +290,7 @@ func (m *MME) dispatch(ctx context.Context, conn *sctp.SCTPConn, msg []byte) {
 // causeUnknownPLMN is S1AP Cause Misc "unknown-PLMN" (TS 36.413, the
 // sixth Misc root value), returned in S1 Setup Failure when the eNB broadcasts no
 // PLMN this MME serves.
-var causeUnknownPLMN = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: 5}
+var causeUnknownPLMN = s1ap.Cause{Group: s1ap.CauseGroupMisc, Value: s1ap.CauseMiscUnknownPLMN}
 
 // handleS1Setup answers an eNB's S1 Setup Request: an S1 Setup Response when the
 // eNB broadcasts a PLMN this MME serves, otherwise an S1 Setup Failure with

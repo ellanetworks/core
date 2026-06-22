@@ -115,6 +115,10 @@ const (
 	PreemptionPreemptable
 )
 
+// preemptionRootCount is the number of root values of both pre-emption
+// ENUMERATEDs (TS 36.413 §9.2.1.60/§9.2.1.61).
+const preemptionRootCount = 2
+
 // AllocationAndRetentionPriority ::= SEQUENCE { priorityLevel,
 // pre-emptionCapability, pre-emptionVulnerability, iE-Extensions OPTIONAL }
 // (extensible). PriorityLevel ::= INTEGER (0..15).
@@ -131,11 +135,11 @@ func (a AllocationAndRetentionPriority) encode(w *aper.Writer) error {
 		return err
 	}
 
-	if err := w.WriteEnum(int(a.PreemptionCapability), 2, false, false); err != nil {
+	if err := w.WriteEnum(int(a.PreemptionCapability), preemptionRootCount, false, false); err != nil {
 		return err
 	}
 
-	return w.WriteEnum(int(a.PreemptionVulnerability), 2, false, false)
+	return w.WriteEnum(int(a.PreemptionVulnerability), preemptionRootCount, false, false)
 }
 
 func decodeARP(r *aper.Reader) (AllocationAndRetentionPriority, error) {
@@ -149,12 +153,12 @@ func decodeARP(r *aper.Reader) (AllocationAndRetentionPriority, error) {
 		return AllocationAndRetentionPriority{}, err
 	}
 
-	preCap, _, err := r.ReadEnum(2, false)
+	preCap, _, err := r.ReadEnum(preemptionRootCount, false)
 	if err != nil {
 		return AllocationAndRetentionPriority{}, err
 	}
 
-	vuln, _, err := r.ReadEnum(2, false)
+	vuln, _, err := r.ReadEnum(preemptionRootCount, false)
 	if err != nil {
 		return AllocationAndRetentionPriority{}, err
 	}

@@ -15,7 +15,7 @@ import (
 // causeUnknownPairUES1APID is S1AP Cause Radio Network "unknown-pair-ue-s1ap-id"
 // (TS 36.413): a UE-associated message whose eNB-UE-S1AP-ID does not match the
 // one stored against its MME-UE-S1AP-ID.
-var causeUnknownPairUES1APID = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: 15}
+var causeUnknownPairUES1APID = s1ap.Cause{Group: s1ap.CauseGroupRadioNetwork, Value: s1ap.CauseRadioNetworkUnknownPairUES1APID}
 
 // resolveUE looks up a UE context for a UE-associated S1AP message and validates
 // the AP ID pair (TS 36.413). At the MME the local AP ID is the MME-UE-S1AP-ID

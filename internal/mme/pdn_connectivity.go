@@ -328,7 +328,7 @@ func (m *MME) onPDNDisconnectRequest(ctx context.Context, ue *UeContext, plain [
 
 	logger.MmeLog.Info("disconnecting PDN connection",
 		zap.String("imsi", ue.imsi), zap.String("apn", p.apn), zap.Uint8("ebi", p.ebi))
-	m.deactivateBearer(ctx, ue, p, esmCauseRegularDeactivation, pti, true)
+	m.disconnectBearer(ctx, ue, p, esmCauseRegularDeactivation, pti)
 }
 
 // rejectPDNDisconnect refuses a PDN DISCONNECT REQUEST with an ESM cause

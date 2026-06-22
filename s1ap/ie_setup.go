@@ -259,7 +259,7 @@ func decodeSupportedTAs(r *aper.Reader) (SupportedTAs, error) {
 		return nil, err
 	}
 
-	out := make(SupportedTAs, 0, minInt(n, 16))
+	out := make(SupportedTAs, 0, min(n, 16))
 
 	for i := 0; i < n; i++ {
 		it, err := decodeSupportedTAItem(r)
