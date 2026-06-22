@@ -197,6 +197,20 @@ func (amf *AMF) DeregisterSubscriber(ctx context.Context, supi etsi.SUPI) {
 		return
 	}
 
+	// A connected UE with a security context is told to deregister over the air,
+	// guarded by T3522; the accept — or T3522 exhaustion — then removes the
+	// context. An idle or unsecured UE cannot be signalled, so it is removed
+	// locally.
+	if ue.RanUe() != nil && ue.Current().SecurityContextAvailable {
+		if err := amf.sendNetworkInitiatedDeregistration(ctx, ue); err != nil {
+			logger.AmfLog.Warn("failed to send network-initiated deregistration; removing UE context locally",
+				zap.Error(err), logger.SUPI(supi.String()))
+			amf.DeregisterAndRemoveAMFUE(ctx, ue)
+		}
+
+		return
+	}
+
 	amf.DeregisterAndRemoveAMFUE(ctx, ue)
 	logger.AmfLog.Info("removed ue context", logger.SUPI(supi.String()))
 }

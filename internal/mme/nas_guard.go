@@ -36,17 +36,18 @@ func (m *MME) sendGuardedDownlink(ctx context.Context, ue *UeContext, name strin
 // Exhausting the retransmissions releases the UE (the UE stopped answering a
 // procedure the network requires).
 func (m *MME) armNASGuard(ue *UeContext, name string, nas []byte) {
-	m.armNASGuardMode(ue, name, nas, false)
+	m.armNASGuardMode(ue, name, nas, nil)
 }
 
 // armNASGuardAbortOnly arms the guard for a non-critical procedure: exhausting
-// the retransmissions aborts the procedure without releasing the UE (TS 24.301
-// §6.4.2.5).
-func (m *MME) armNASGuardAbortOnly(ue *UeContext, name string, nas []byte) {
-	m.armNASGuardMode(ue, name, nas, true)
+// the retransmissions runs onAbort and leaves the UE connected rather than
+// releasing it (TS 24.301 §6.4.2.5, §6.4.4.5). onAbort finalizes the procedure
+// locally (e.g. clearing a pending modification or releasing a single PDN).
+func (m *MME) armNASGuardAbortOnly(ue *UeContext, name string, nas []byte, onAbort func()) {
+	m.armNASGuardMode(ue, name, nas, onAbort)
 }
 
-func (m *MME) armNASGuardMode(ue *UeContext, name string, nas []byte, abortOnly bool) {
+func (m *MME) armNASGuardMode(ue *UeContext, name string, nas []byte, onAbort func()) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -56,7 +57,7 @@ func (m *MME) armNASGuardMode(ue *UeContext, name string, nas []byte, abortOnly 
 	ue.nasGuardName = name
 	ue.nasGuardPDU = nas
 	ue.nasGuardTries = 0
-	ue.nasGuardAbortOnly = abortOnly
+	ue.nasGuardOnAbort = onAbort
 
 	ue.nasGuardTimer = time.AfterFunc(m.nasGuardTimeout, func() {
 		m.onNASGuardExpiry(ue, gen)
@@ -82,6 +83,7 @@ func (m *MME) stopNASGuardLocked(ue *UeContext) {
 	}
 
 	ue.nasGuardPDU = nil
+	ue.nasGuardOnAbort = nil
 }
 
 // onNASGuardExpiry retransmits the outstanding downlink message, or releases the
@@ -103,21 +105,16 @@ func (m *MME) onNASGuardExpiry(ue *UeContext, gen uint64) {
 		ue.nasGuardPDU = nil
 		ue.nasGuardGen++
 		mmeUEID := ue.MMEUES1APID
-		abortOnly := ue.nasGuardAbortOnly
+		onAbort := ue.nasGuardOnAbort
+		ue.nasGuardOnAbort = nil
 
 		m.mu.Unlock()
 
-		if abortOnly {
-			// An aborted modification leaves the UE connected and its data-network
-			// fingerprint stale, so the backstop reconcile retries it later.
-			ue.mu.Lock()
-			if p := ue.defaultPDNLocked(); p != nil {
-				clearPendingModifyLocked(p)
-			}
-			ue.mu.Unlock()
-
+		if onAbort != nil {
 			logger.MmeLog.Info("NAS procedure timed out, aborting (UE stays connected)",
 				zap.Uint32("mme-ue-id", uint32(mmeUEID)), zap.String("procedure", name))
+
+			onAbort()
 
 			return
 		}

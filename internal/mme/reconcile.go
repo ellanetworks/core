@@ -237,7 +237,15 @@ func (m *MME) modifyBearer(ctx context.Context, ue *UeContext, p *pdnConnection,
 		m.sendDownlink(ctx, ue, naspdu)
 	}
 
-	m.armNASGuardAbortOnly(ue, "Modify EPS Bearer Context Request", naspdu)
+	m.armNASGuardAbortOnly(ue, "Modify EPS Bearer Context Request", naspdu, func() {
+		// An aborted modification leaves the UE connected and its data-network
+		// fingerprint stale, so the backstop reconcile retries it later.
+		ue.mu.Lock()
+		if p := ue.defaultPDNLocked(); p != nil {
+			clearPendingModifyLocked(p)
+		}
+		ue.mu.Unlock()
+	})
 }
 
 // sendERABModify reconfigures the UE's default-bearer radio QoS with an S1AP

@@ -41,6 +41,14 @@ func (m *MME) deactivateBearer(ctx context.Context, ue *UeContext, p *pdnConnect
 
 	if disconnecting || p.ebi != ue.defaultEBI {
 		m.sendERABRelease(ctx, ue, p, naspdu)
+		// The eNB releases the radio bearer, but the NAS DEACTIVATE EPS BEARER
+		// CONTEXT REQUEST still needs an answer: guard it with T3495 so it is
+		// retransmitted, and on exhaustion release just this PDN connection
+		// locally rather than dropping the UE (TS 24.301 §6.4.4.5).
+		m.armNASGuardAbortOnly(ue, "Deactivate EPS Bearer Context Request", naspdu, func() {
+			m.releasePDN(ue, p)
+		})
+
 		return
 	}
 

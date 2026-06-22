@@ -17,8 +17,10 @@ import (
 const detachTypeReattachNotRequired uint8 = 2
 
 // DetachSubscriber sends a network-initiated DETACH REQUEST (TS 24.301)
-// to the attached UE for imsi, if any, when a subscriber is deleted. The UE
-// replies with Detach Accept, on which the S1 context is released and removed.
+// to the attached UE for imsi, if any, when a subscriber is deleted. The
+// request is guarded by T3422: if the UE does not reply with Detach Accept it
+// is retransmitted, and on exhaustion the UE context is released regardless, so
+// a silent UE cannot leak the context.
 func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 	ue, ok := m.lookupUeByIMSI(imsi)
 	if !ok {
@@ -29,12 +31,22 @@ func (m *MME) DetachSubscriber(ctx context.Context, imsi string) {
 		zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)), zap.String("imsi", imsi))
 
 	ue.emmState.store(EMMDeregistered)
-	m.sendDownlinkProtected(ctx, ue, &eps.DetachRequestNetwork{TypeOfDetach: detachTypeReattachNotRequired})
+
+	naspdu, err := m.protectDownlink(ue, &eps.DetachRequestNetwork{TypeOfDetach: detachTypeReattachNotRequired})
+	if err != nil {
+		logger.MmeLog.Error("failed to protect Detach Request", zap.Error(err))
+		return
+	}
+
+	m.sendDownlink(ctx, ue, naspdu)
+	m.armNASGuard(ue, "Detach Request", naspdu)
 }
 
 // onDetachAccept completes a network-initiated detach: the UE has acknowledged,
-// so release and delete its context (the UE is already EMM-DEREGISTERED).
+// so stop the guard and release and delete its context (the UE is already
+// EMM-DEREGISTERED).
 func (m *MME) onDetachAccept(ctx context.Context, ue *UeContext) {
+	m.stopNASGuard(ue)
 	logger.MmeLog.Info("Detach Accept", zap.Uint32("mme-ue-id", uint32(ue.MMEUES1APID)))
 	m.releaseUEContext(ctx, ue, causeNASDetach)
 }
