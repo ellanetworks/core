@@ -39,7 +39,7 @@ func TestENBConfigUpdateAcknowledged(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out, accepted, err := enbConfigUpdateOutcomeFor(tc.req, servedPLMN)
+			out, accepted, err := enbConfigUpdateOutcomeFor(tc.req, servedPLMN, []uint16{7})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -70,7 +70,7 @@ func TestENBConfigUpdateRejectedUnknownPLMN(t *testing.T) {
 		SupportedTAs: s1ap.SupportedTAs{{TAC: 7, BroadcastPLMNs: s1ap.BPLMNs{foreign}}},
 	}
 
-	out, accepted, err := enbConfigUpdateOutcomeFor(req, servedPLMN)
+	out, accepted, err := enbConfigUpdateOutcomeFor(req, servedPLMN, []uint16{7})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,5 +96,42 @@ func TestENBConfigUpdateRejectedUnknownPLMN(t *testing.T) {
 
 	if failure.Cause != causeUnknownPLMN {
 		t.Fatalf("cause = %+v, want Unknown PLMN %+v", failure.Cause, causeUnknownPLMN)
+	}
+}
+
+// TestENBConfigUpdateRejectedUnknownTAC confirms an update whose TAs broadcast a
+// served PLMN but no served TAC draws an ENB CONFIGURATION UPDATE FAILURE with
+// cause Misc "unspecified", matching the AMF's RAN Configuration Update handling.
+func TestENBConfigUpdateRejectedUnknownTAC(t *testing.T) {
+	req := &s1ap.ENBConfigurationUpdate{
+		SupportedTAs: s1ap.SupportedTAs{{TAC: 7, BroadcastPLMNs: s1ap.BPLMNs{servedPLMNIdentity(t)}}},
+	}
+
+	out, accepted, err := enbConfigUpdateOutcomeFor(req, servedPLMN, []uint16{1})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if accepted {
+		t.Fatal("update acknowledged, want rejected for unserved TAC")
+	}
+
+	pdu, err := s1ap.Unmarshal(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	uo, ok := pdu.(*s1ap.UnsuccessfulOutcome)
+	if !ok || uo.ProcedureCode != s1ap.ProcENBConfigurationUpdate {
+		t.Fatalf("expected ENB Configuration Update Failure, got %T", pdu)
+	}
+
+	failure, err := s1ap.ParseENBConfigurationUpdateFailure(uo.Value)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if failure.Cause != causeNoServedTAC {
+		t.Fatalf("cause = %+v, want Misc/unspecified %+v", failure.Cause, causeNoServedTAC)
 	}
 }

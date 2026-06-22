@@ -88,6 +88,29 @@ func convertRadioTaiToReturnTai(tais []amf.SupportedTAI) []SupportedTAI {
 	return returnedTais
 }
 
+// convertENBTaiToReturnTai renders a 4G eNB's broadcast TAIs in the radio API
+// shape. The 16-bit S1AP TAC is rendered as the low two octets of a 6-hex-digit
+// TAC, matching how gNB TAIs and the operator's supported TACs are represented
+// (TS 23.003: the LTE TAC is the 5GS TAC's two least-significant octets). eNBs
+// carry no S-NSSAIs.
+func convertENBTaiToReturnTai(tais []mme.ENBTAI) []SupportedTAI {
+	returnedTais := make([]SupportedTAI, 0, len(tais))
+	for _, tai := range tais {
+		returnedTais = append(returnedTais, SupportedTAI{
+			Tai: Tai{
+				PlmnID: PlmnID{
+					Mcc: tai.PlmnID.Mcc,
+					Mnc: tai.PlmnID.Mnc,
+				},
+				Tac: fmt.Sprintf("%06x", tai.TAC),
+			},
+			SNssais: []Snssai{},
+		})
+	}
+
+	return returnedTais
+}
+
 func ListRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
@@ -141,7 +164,7 @@ func ListRadios(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 					ID:            enb.ID,
 					Address:       enb.Address,
 					RanNodeType:   "eNB",
-					SupportedTAIs: []SupportedTAI{},
+					SupportedTAIs: convertENBTaiToReturnTai(enb.SupportedTAIs),
 				})
 				total++
 			}
@@ -215,7 +238,7 @@ func GetRadio(amfInstance *amf.AMF, mmeInstance *mme.MME) http.HandlerFunc {
 					ConnectedAt:   enb.ConnectedAt.UTC().Format(time.RFC3339),
 					LastSeenAt:    enb.LastSeenAt.UTC().Format(time.RFC3339),
 					RanNodeType:   "eNB",
-					SupportedTAIs: []SupportedTAI{},
+					SupportedTAIs: convertENBTaiToReturnTai(enb.SupportedTAIs),
 				}
 
 				writeResponse(r.Context(), w, result, http.StatusOK, logger.APILog)

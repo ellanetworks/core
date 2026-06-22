@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ellanetworks/core/internal/models"
 	"github.com/ellanetworks/core/internal/sctp"
 	"github.com/ellanetworks/core/s1ap"
 )
@@ -25,25 +26,52 @@ type enbState struct {
 	// setupComplete is set once S1 Setup succeeds for this association, arming the
 	// dispatcher's setup-first gate (TS 36.413). Guarded by MME.mu.
 	setupComplete bool
+	// supportedTAIs are the TAIs the eNB broadcasts, from the Supported TAs IE of
+	// its S1 Setup Request; replaced wholesale on an eNB Configuration Update
+	// (TS 36.413 §8.7.3.2, §8.7.4). Guarded by MME.mu.
+	supportedTAIs []ENBTAI
+}
+
+// ENBTAI is a Tracking Area Identity an eNB broadcasts: a served PLMN paired with
+// a cell's TAC. 4G eNBs advertise no network slices, so unlike a 5G gNB's TAI it
+// carries no S-NSSAIs.
+type ENBTAI struct {
+	PlmnID models.PlmnID
+	TAC    uint16
 }
 
 // ENBInfo is a read-only view of a connected eNB, exposed for status/API.
 type ENBInfo struct {
-	Name        string
-	ID          string
-	Address     string
-	ConnectedAt time.Time
-	LastSeenAt  time.Time
+	Name          string
+	ID            string
+	Address       string
+	ConnectedAt   time.Time
+	LastSeenAt    time.Time
+	SupportedTAIs []ENBTAI
 }
 
 func (s *enbState) info() ENBInfo {
 	return ENBInfo{
-		Name:        s.name,
-		ID:          s.id,
-		Address:     s.address,
-		ConnectedAt: s.connectedAt,
-		LastSeenAt:  time.Unix(0, s.lastSeen.Load()),
+		Name:          s.name,
+		ID:            s.id,
+		Address:       s.address,
+		ConnectedAt:   s.connectedAt,
+		LastSeenAt:    time.Unix(0, s.lastSeen.Load()),
+		SupportedTAIs: s.supportedTAIs,
 	}
+}
+
+// enbSupportedTAIs flattens an S1 Setup Request's Supported TAs into the TAIs the
+// eNB broadcasts: one entry per (broadcast PLMN, TAC) pair (TS 36.413 §8.7.3.2).
+func enbSupportedTAIs(tas s1ap.SupportedTAs) []ENBTAI {
+	out := make([]ENBTAI, 0, len(tas))
+	for _, ta := range tas {
+		for _, plmn := range ta.BroadcastPLMNs {
+			out = append(out, ENBTAI{PlmnID: decodePLMN(plmn), TAC: uint16(ta.TAC)})
+		}
+	}
+
+	return out
 }
 
 // enbID renders a Global eNB ID as "<plmn>-<enb-id>" for display.
@@ -55,7 +83,7 @@ func enbID(g s1ap.GlobalENBID) string {
 
 // trackENB records a connected eNB keyed by its SCTP association.
 func (m *MME) trackENB(key *sctp.SCTPConn, info ENBInfo) {
-	s := &enbState{name: info.Name, id: info.ID, address: info.Address, connectedAt: info.ConnectedAt}
+	s := &enbState{name: info.Name, id: info.ID, address: info.Address, connectedAt: info.ConnectedAt, supportedTAIs: info.SupportedTAIs}
 	s.lastSeen.Store(info.LastSeenAt.UnixNano())
 
 	m.mu.Lock()
@@ -74,11 +102,12 @@ func (m *MME) addENB(conn *sctp.SCTPConn, req *s1ap.S1SetupRequest) {
 
 	now := time.Now()
 	m.trackENB(conn, ENBInfo{
-		Name:        req.ENBName,
-		ID:          enbID(req.GlobalENBID),
-		Address:     address,
-		ConnectedAt: now,
-		LastSeenAt:  now,
+		Name:          req.ENBName,
+		ID:            enbID(req.GlobalENBID),
+		Address:       address,
+		ConnectedAt:   now,
+		LastSeenAt:    now,
+		SupportedTAIs: enbSupportedTAIs(req.SupportedTAs),
 	})
 }
 
@@ -113,6 +142,18 @@ func (m *MME) updateENBName(conn *sctp.SCTPConn, name string) {
 
 	if s := m.enbs[conn]; s != nil {
 		s.name = name
+	}
+}
+
+// updateENBSupportedTAs replaces a connected eNB's broadcast TAIs from an eNB
+// Configuration Update's Supported TAs IE, which carries the whole list
+// (TS 36.413 §8.7.4). No-op if the eNB is not tracked.
+func (m *MME) updateENBSupportedTAs(conn *sctp.SCTPConn, tais []ENBTAI) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if s := m.enbs[conn]; s != nil {
+		s.supportedTAIs = tais
 	}
 }
 

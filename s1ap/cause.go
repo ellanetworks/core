@@ -47,6 +47,7 @@ const (
 	CauseNASDetach                = 2 // detach
 	CauseNASUnspecified           = 3 // unspecified
 
+	CauseMiscUnspecified = 4 // unspecified
 	CauseMiscUnknownPLMN = 5 // unknown-PLMN
 )
 
