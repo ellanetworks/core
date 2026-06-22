@@ -44,7 +44,6 @@ struct packet_context {
 	void *data;
 	const void *data_end;
 	struct upf_statistic *statistics;
-	struct counters *counter;
 	struct xdp_md *xdp_ctx;
 	struct ethhdr *eth;
 	struct iphdr *ip4;
