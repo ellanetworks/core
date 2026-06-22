@@ -75,16 +75,6 @@ type srcReleaseKey struct {
 	enbUEID s1ap.ENBUES1APID
 }
 
-// sendS1APConn sends an S1AP message on a specific eNB association.
-func (m *MME) sendS1APConn(ctx context.Context, conn nasWriter, messageType S1APProcedure, b []byte) {
-	if _, err := conn.WriteMsg(b, &sctp.SndRcvInfo{PPID: s1apWirePPID, Stream: s1apStreamUE}); err != nil {
-		logger.MmeLog.Error("failed to send S1AP message", zap.String("message-type", string(messageType)), zap.Error(err))
-		return
-	}
-
-	m.logOutboundS1AP(ctx, conn, messageType, b)
-}
-
 // handleHandoverRequired starts an S1 handover preparation toward the target eNB,
 // or replies HANDOVER PREPARATION FAILURE (TS 36.413 §8.4.1). conn is the source.
 func (m *MME) handleHandoverRequired(ctx context.Context, conn nasWriter, value []byte) {
