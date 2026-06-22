@@ -3,7 +3,47 @@
 
 package mme
 
-import "testing"
+import (
+	"context"
+	"testing"
+
+	"github.com/ellanetworks/core/internal/db"
+	"github.com/ellanetworks/core/internal/udm"
+)
+
+// tacBearerStore overrides the operator's supported TACs for TAC-parsing tests.
+type tacBearerStore struct {
+	fakeBearerStore
+	tacs string
+}
+
+func (s tacBearerStore) GetOperator(_ context.Context) (*db.Operator, error) {
+	return &db.Operator{Mcc: "001", Mnc: "01", SupportedTACs: s.tacs, Ciphering: `["AES"]`, Integrity: `["AES"]`}, nil
+}
+
+// TestOperatorTACsHex confirms supported TACs are parsed as hex (not decimal) and
+// truncated to the 16-bit LTE TAC, which is the 5GS TAC's two least-significant
+// octets (TS 23.003). "000064" is hex 0x64 (decimal would be 64), and "010002"
+// truncates to 0x0002.
+func TestOperatorTACsHex(t *testing.T) {
+	m := New(udm.New(newFakeCredStore(), noopKeyResolver), tacBearerStore{tacs: `["000064","010002"]`}, &fakeSessionManager{})
+
+	got, err := m.operatorTACs(context.Background())
+	if err != nil {
+		t.Fatalf("operatorTACs: %v", err)
+	}
+
+	want := []uint16{0x0064, 0x0002}
+	if len(got) != len(want) {
+		t.Fatalf("operatorTACs = %v, want %v", got, want)
+	}
+
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("operatorTACs[%d] = %#x, want %#x", i, got[i], want[i])
+		}
+	}
+}
 
 func TestBitRateToBps(t *testing.T) {
 	cases := []struct {
